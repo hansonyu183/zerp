@@ -2,6 +2,7 @@ package acc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -59,13 +60,68 @@ func registerAssetAcquisition(ctx context.Context, tx pgx.Tx, event voudomain.Do
 			return databaseError("create global asset", err)
 		}
 		for _, book := range books {
-			if _, err = tx.Exec(ctx, `INSERT INTO acc_asset_book_values (book_id,asset_id,currency,original_minor)
-				VALUES ($1,$2,$3,$4)`, book.ID, assetID, event.Snapshot.Data.Currency, original); err != nil {
+			configuration, configErr := loadAssetAccountingConfiguration(ctx, tx, book.ID)
+			if configErr != nil {
+				return configErr
+			}
+			encoded, _ := json.Marshal(line)
+			var raw any
+			if err = json.Unmarshal(encoded, &raw); err != nil {
+				return domainError(ErrorInternal, "encode asset accounting snapshot", err)
+			}
+			fields := map[string]string{}
+			flattenSnapshotValue(fields, "", raw)
+			assetDimensions, err := renderAssetDimensions(configuration.AssetDimensions, fields)
+			if err != nil || assetDimensions[DimensionAsset] != assetID {
+				return domainError(ErrorValidation, "asset subject dimensions must identify the acquired asset", err)
+			}
+			accumulatedDimensions, err := renderAssetDimensions(configuration.AccumulatedDepreciationDimensions, fields)
+			if err != nil || accumulatedDimensions[DimensionAsset] != assetID {
+				return domainError(ErrorValidation, "accumulated depreciation dimensions must identify the acquired asset", err)
+			}
+			expenseDimensions, err := renderAssetDimensions(configuration.DepreciationExpenseDimensions, fields)
+			if err != nil {
+				return err
+			}
+			assetJSON, _ := json.Marshal(assetDimensions)
+			accumulatedJSON, _ := json.Marshal(accumulatedDimensions)
+			expenseJSON, _ := json.Marshal(expenseDimensions)
+			if _, err = tx.Exec(ctx, `INSERT INTO acc_asset_book_values (
+				book_id,asset_id,currency,original_minor,asset_subject_id,asset_dimensions,
+				accumulated_subject_id,accumulated_dimensions,expense_subject_id,expense_dimensions
+			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, book.ID, assetID, event.Snapshot.Data.Currency, original,
+				configuration.AssetSubjectID, assetJSON, configuration.AccumulatedDepreciationSubjectID,
+				accumulatedJSON, configuration.DepreciationExpenseSubjectID, expenseJSON); err != nil {
 				return databaseError("create asset book value", err)
 			}
 		}
 	}
 	return nil
+}
+
+func loadAssetAccountingConfiguration(ctx context.Context, tx pgx.Tx, bookID string) (AssetAccountingConfiguration, error) {
+	var definitionJSON []byte
+	if err := tx.QueryRow(ctx, `SELECT definition FROM acc_mapping_versions
+		WHERE book_id=$1 AND vou_entity='asset-acquisition' AND state='APPROVED'`, bookID).Scan(&definitionJSON); err != nil {
+		return AssetAccountingConfiguration{}, databaseError("get asset accounting mapping", err)
+	}
+	var definition MappingDefinition
+	if err := json.Unmarshal(definitionJSON, &definition); err != nil || definition.AssetConfiguration == nil {
+		return AssetAccountingConfiguration{}, domainError(ErrorConflict, "asset accounting configuration is missing", err)
+	}
+	return *definition.AssetConfiguration, nil
+}
+
+func renderAssetDimensions(configuration map[string]string, fields map[string]string) (map[string]string, error) {
+	result := make(map[string]string, len(configuration))
+	for dimension, field := range configuration {
+		value := fields[field]
+		if _, err := ulid.ParseStrict(value); err != nil {
+			return nil, domainError(ErrorValidation, "invalid asset accounting dimension", err)
+		}
+		result[dimension] = value
+	}
+	return result, nil
 }
 
 func registerAssetDisposal(ctx context.Context, tx pgx.Tx, event voudomain.DocumentApprovedEvent) error {
@@ -81,7 +137,7 @@ func registerAssetDisposal(ctx context.Context, tx pgx.Tx, event voudomain.Docum
 		}
 	}
 	for _, assetID := range assetIDs {
-		result, err := tx.Exec(ctx, `UPDATE acc_assets SET state=$1,disposed_by_document_id=$2 WHERE id=$3 AND state='ACTIVE'`, state, event.DocumentID, assetID)
+		result, err := tx.Exec(ctx, `UPDATE acc_assets SET state=$1,disposed_by_document_id=$2,disposed_on=$3 WHERE id=$4 AND state='ACTIVE'`, state, event.DocumentID, event.Snapshot.Data.BusinessDate, assetID)
 		if err != nil {
 			return databaseError("dispose global asset", err)
 		}
@@ -156,7 +212,7 @@ func (s *Service) reverseGlobalRegisters(ctx context.Context, tx pgx.Tx, event v
 	case voudomain.EntityAssetAcquisition:
 		_, err = tx.Exec(ctx, `DELETE FROM acc_assets WHERE source_document_id=$1 AND state='ACTIVE'`, event.DocumentID)
 	case voudomain.EntityAssetSale, voudomain.EntityAssetLiquidation:
-		_, err = tx.Exec(ctx, `UPDATE acc_assets SET state='ACTIVE',disposed_by_document_id=NULL WHERE disposed_by_document_id=$1`, event.DocumentID)
+		_, err = tx.Exec(ctx, `UPDATE acc_assets SET state='ACTIVE',disposed_by_document_id=NULL,disposed_on=NULL WHERE disposed_by_document_id=$1`, event.DocumentID)
 	case voudomain.EntityBillReceipt, voudomain.EntityBillIssue:
 		_, err = tx.Exec(ctx, `DELETE FROM acc_bills WHERE source_document_id=$1 AND state='AVAILABLE'`, event.DocumentID)
 	case voudomain.EntityBillPayment, voudomain.EntityBillDiscount, voudomain.EntityBillMaturity:

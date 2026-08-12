@@ -419,11 +419,15 @@ RETURNING id;
 -- name: InsertAccountingInventoryEntry :exec
 INSERT INTO acc_inventory_entries (
   id, book_id, voucher_id, voucher_line_id, subject_id, product_id,
-  warehouse_id, business_date, quantity_delta_micros, source_line_id
+  warehouse_id, business_date, quantity_delta_micros, source_line_id,
+  cost_counterpart_subject_id, cost_counterpart_dimensions,
+  origin_source_document_id, origin_source_line_id
 ) VALUES (
   sqlc.arg(id), sqlc.arg(book_id), sqlc.arg(voucher_id), sqlc.arg(voucher_line_id),
   sqlc.arg(subject_id), sqlc.arg(product_id), sqlc.arg(warehouse_id),
-  sqlc.arg(business_date), sqlc.arg(quantity_delta_micros), sqlc.arg(source_line_id)
+  sqlc.arg(business_date), sqlc.arg(quantity_delta_micros), sqlc.arg(source_line_id),
+  sqlc.narg(cost_counterpart_subject_id), sqlc.arg(cost_counterpart_dimensions),
+  sqlc.narg(origin_source_document_id), sqlc.narg(origin_source_line_id)
 );
 
 -- name: LockAccountingInventory :exec

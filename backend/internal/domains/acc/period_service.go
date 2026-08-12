@@ -80,6 +80,18 @@ func (s *Service) LockPeriod(ctx context.Context, input PeriodActionInput, actor
 	if err = validatePeriodReady(ctx, tx, input.BookID, month); err != nil {
 		return PeriodView{}, err
 	}
+	if err = settleInventoryCosts(ctx, tx, input.BookID, month); err != nil {
+		return PeriodView{}, err
+	}
+	if err = settleDepreciation(ctx, tx, input.BookID, month); err != nil {
+		return PeriodView{}, err
+	}
+	if err = buildPeriodBalances(ctx, tx, input.BookID, month); err != nil {
+		return PeriodView{}, err
+	}
+	if err = validateAccountingTrialBalance(ctx, tx, input.BookID, month.AddDate(0, 1, 0)); err != nil {
+		return PeriodView{}, err
+	}
 	actor := actorID
 	locked, err := q.LockAccountingPeriodRow(ctx, dbsqlc.LockAccountingPeriodRowParams{
 		BookID: input.BookID, PeriodMonth: pgtype.Date{Time: month, Valid: true}, ActorID: &actor, Revision: input.Revision,
@@ -131,11 +143,16 @@ func validatePeriodReady(ctx context.Context, tx pgx.Tx, bookID string, month ti
 	if exists {
 		return domainError(ErrorConflict, "accounting period inventory is negative", nil)
 	}
+	return validateAccountingTrialBalance(ctx, tx, bookID, next)
+}
+
+func validateAccountingTrialBalance(ctx context.Context, tx pgx.Tx, bookID string, before time.Time) error {
+	var exists bool
 	if err := tx.QueryRow(ctx, `SELECT EXISTS(
 		SELECT 1 FROM acc_voucher_lines line JOIN acc_vouchers voucher ON voucher.id=line.voucher_id
 		WHERE voucher.book_id=$1 AND voucher.business_date < $2
 		GROUP BY line.currency HAVING sum(line.debit_minor) <> sum(line.credit_minor)
-	)`, bookID, next).Scan(&exists); err != nil {
+	)`, bookID, before).Scan(&exists); err != nil {
 		return databaseError("check accounting period trial balance", err)
 	}
 	if exists {
@@ -161,6 +178,9 @@ func (s *Service) UnlockPeriod(ctx context.Context, input PeriodActionInput, act
 	latest, err := q.GetLatestLockedAccountingPeriod(ctx, input.BookID)
 	if err != nil || !latest.PeriodMonth.Time.Equal(month) || latest.Revision != input.Revision {
 		return PeriodView{}, domainError(ErrorConflict, "only the latest accounting period can be unlocked", err)
+	}
+	if err = reversePeriodDerivedFacts(ctx, tx, input.BookID, month); err != nil {
+		return PeriodView{}, err
 	}
 	revision, err := q.UnlockAccountingPeriodRow(ctx, dbsqlc.UnlockAccountingPeriodRowParams{
 		ActorID: actorID, BookID: input.BookID, PeriodMonth: pgtype.Date{Time: month, Valid: true}, Revision: input.Revision,

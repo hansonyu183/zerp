@@ -285,12 +285,23 @@ func mappingDefinition(input generated.MappingDefinition) MappingDefinition {
 				SubjectSource: string(line.SubjectSource), SubjectValue: line.SubjectValue,
 				Direction: string(line.Direction), AmountField: line.AmountField,
 				CurrencyField: line.CurrencyField, Dimensions: line.Dimensions,
-				QuantityField: line.QuantityField,
+				QuantityField: line.QuantityField, CostCounterpartSubjectID: line.CostCounterpartSubjectId,
+				CostCounterpartDimensions: line.CostCounterpartDimensions,
 			})
 		}
 		templates = append(templates, PostingTemplate{ID: template.TemplateId, Collection: template.Collection, Lines: lines})
 	}
-	return MappingDefinition{DefaultTemplateID: input.DefaultTemplateId, Rules: rules, Templates: templates}
+	definition := MappingDefinition{DefaultTemplateID: input.DefaultTemplateId, Rules: rules, Templates: templates}
+	if input.AssetConfiguration != nil {
+		definition.AssetConfiguration = &AssetAccountingConfiguration{
+			AssetSubjectID: input.AssetConfiguration.AssetSubjectId, AssetDimensions: input.AssetConfiguration.AssetDimensions,
+			AccumulatedDepreciationSubjectID:  input.AssetConfiguration.AccumulatedDepreciationSubjectId,
+			AccumulatedDepreciationDimensions: input.AssetConfiguration.AccumulatedDepreciationDimensions,
+			DepreciationExpenseSubjectID:      input.AssetConfiguration.DepreciationExpenseSubjectId,
+			DepreciationExpenseDimensions:     input.AssetConfiguration.DepreciationExpenseDimensions,
+		}
+	}
+	return definition
 }
 
 func (h *Handler) queryMappings(c *gin.Context) {

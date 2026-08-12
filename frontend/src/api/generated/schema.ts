@@ -2605,16 +2605,35 @@ export interface components {
                 [key: string]: string;
             };
             quantityField: string | null;
+            costCounterpartSubjectId: string | null;
+            costCounterpartDimensions: {
+                [key: string]: string;
+            };
         };
         PostingTemplate: {
             templateId: string;
             collection: string | null;
             lines: components["schemas"]["PostingLineTemplate"][];
         };
+        AssetAccountingConfiguration: {
+            assetSubjectId: string;
+            assetDimensions: {
+                [key: string]: string;
+            };
+            accumulatedDepreciationSubjectId: string;
+            accumulatedDepreciationDimensions: {
+                [key: string]: string;
+            };
+            depreciationExpenseSubjectId: string;
+            depreciationExpenseDimensions: {
+                [key: string]: string;
+            };
+        };
         MappingDefinition: {
             defaultTemplateId: string | null;
             rules: components["schemas"]["MappingRule"][];
             templates: components["schemas"]["PostingTemplate"][];
+            assetConfiguration?: components["schemas"]["AssetAccountingConfiguration"] | null;
         };
         Mapping: {
             mappingId: string;

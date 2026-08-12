@@ -97,6 +97,18 @@ func validateMapping(defaultResult string, definition MappingDefinition, catalog
 	if defaultResult != MappingResultPost && defaultResult != MappingResultUnpost {
 		return domainError(ErrorValidation, "invalid mapping default result", nil)
 	}
+	if catalog.VouEntity == "asset-acquisition" && definition.AssetConfiguration == nil {
+		return domainError(ErrorValidation, "asset acquisition mapping requires asset accounting configuration", nil)
+	}
+	if definition.AssetConfiguration != nil {
+		for _, dimensions := range []map[string]string{definition.AssetConfiguration.AssetDimensions, definition.AssetConfiguration.AccumulatedDepreciationDimensions, definition.AssetConfiguration.DepreciationExpenseDimensions} {
+			for _, field := range dimensions {
+				if !mappingFieldExists(catalog, field, true) {
+					return domainError(ErrorValidation, "unknown asset accounting dimension field", nil)
+				}
+			}
+		}
+	}
 	templates := make(map[string]PostingTemplate, len(definition.Templates))
 	for _, template := range definition.Templates {
 		template.ID = strings.TrimSpace(template.ID)
@@ -131,6 +143,14 @@ func validateMapping(defaultResult string, definition MappingDefinition, catalog
 			}
 			if line.QuantityField != nil && !mappingFieldExists(catalog, *line.QuantityField, template.Collection != nil) {
 				return domainError(ErrorValidation, "unknown posting quantity field", nil)
+			}
+			if line.CostCounterpartSubjectID == nil && len(line.CostCounterpartDimensions) != 0 {
+				return domainError(ErrorValidation, "cost dimensions require a cost counterpart subject", nil)
+			}
+			for _, field := range line.CostCounterpartDimensions {
+				if !mappingFieldExists(catalog, field, template.Collection != nil) {
+					return domainError(ErrorValidation, "unknown cost counterpart dimension field", nil)
+				}
 			}
 		}
 		templates[template.ID] = template
@@ -221,18 +241,57 @@ func encodeMappingDefinition(definition MappingDefinition) ([]byte, error) {
 func validateMappingSubjects(ctx context.Context, q *dbsqlc.Queries, bookID string, definition MappingDefinition) error {
 	for _, template := range definition.Templates {
 		for _, line := range template.Lines {
-			if line.SubjectSource != "FIXED" {
-				continue
+			subjectIDs := []string{}
+			if line.SubjectSource == "FIXED" {
+				subjectIDs = append(subjectIDs, line.SubjectValue)
 			}
-			subject, err := loadSubject(ctx, q, bookID, line.SubjectValue)
-			if err != nil {
-				if IsKind(err, ErrorConflict) {
-					return domainError(ErrorValidation, "mapping accounting subject not found", err)
+			if line.CostCounterpartSubjectID != nil {
+				subjectIDs = append(subjectIDs, *line.CostCounterpartSubjectID)
+			}
+			for _, subjectID := range subjectIDs {
+				subject, err := loadSubject(ctx, q, bookID, subjectID)
+				if err != nil {
+					if IsKind(err, ErrorConflict) {
+						return domainError(ErrorValidation, "mapping accounting subject not found", err)
+					}
+					return err
 				}
-				return err
+				if !subject.Enabled || !subject.Leaf {
+					return domainError(ErrorValidation, "mapping requires enabled leaf accounting subjects", nil)
+				}
 			}
-			if !subject.Enabled || !subject.Leaf {
-				return domainError(ErrorValidation, "mapping requires enabled leaf accounting subjects", nil)
+			if line.CostCounterpartSubjectID != nil {
+				counterpart, err := loadSubject(ctx, q, bookID, *line.CostCounterpartSubjectID)
+				if err != nil {
+					return err
+				}
+				if len(counterpart.RequiredDimensions) != len(line.CostCounterpartDimensions) {
+					return domainError(ErrorValidation, "cost counterpart dimensions must match the subject", nil)
+				}
+				for _, dimension := range counterpart.RequiredDimensions {
+					if _, ok := line.CostCounterpartDimensions[dimension]; !ok {
+						return domainError(ErrorValidation, "cost counterpart dimensions must match the subject", nil)
+					}
+				}
+			}
+		}
+	}
+	if config := definition.AssetConfiguration; config != nil {
+		for _, configured := range []struct {
+			id         string
+			dimensions map[string]string
+		}{{config.AssetSubjectID, config.AssetDimensions}, {config.AccumulatedDepreciationSubjectID, config.AccumulatedDepreciationDimensions}, {config.DepreciationExpenseSubjectID, config.DepreciationExpenseDimensions}} {
+			subject, err := loadSubject(ctx, q, bookID, configured.id)
+			if err != nil || !subject.Enabled || !subject.Leaf {
+				return domainError(ErrorValidation, "asset accounting subject is unavailable", err)
+			}
+			if len(subject.RequiredDimensions) != len(configured.dimensions) {
+				return domainError(ErrorValidation, "asset accounting dimensions must match the subject", nil)
+			}
+			for _, dimension := range subject.RequiredDimensions {
+				if _, ok := configured.dimensions[dimension]; !ok {
+					return domainError(ErrorValidation, "asset accounting dimensions must match the subject", nil)
+				}
 			}
 		}
 	}
@@ -242,11 +301,24 @@ func validateMappingSubjects(ctx context.Context, q *dbsqlc.Queries, bookID stri
 func registerMappingSubjectUsages(ctx context.Context, q *dbsqlc.Queries, mappingID string, definition MappingDefinition) error {
 	for _, template := range definition.Templates {
 		for _, line := range template.Lines {
-			if line.SubjectSource != "FIXED" {
-				continue
+			subjectIDs := []string{}
+			if line.SubjectSource == "FIXED" {
+				subjectIDs = append(subjectIDs, line.SubjectValue)
 			}
-			if err := q.RegisterAccountingSubjectUsage(ctx, dbsqlc.RegisterAccountingSubjectUsageParams{SubjectID: line.SubjectValue, UsageType: "MAPPING", UsageID: mappingID}); err != nil {
-				return databaseError("register mapping accounting subject", err)
+			if line.CostCounterpartSubjectID != nil {
+				subjectIDs = append(subjectIDs, *line.CostCounterpartSubjectID)
+			}
+			for _, subjectID := range subjectIDs {
+				if err := q.RegisterAccountingSubjectUsage(ctx, dbsqlc.RegisterAccountingSubjectUsageParams{SubjectID: subjectID, UsageType: "MAPPING", UsageID: mappingID}); err != nil {
+					return databaseError("register mapping accounting subject", err)
+				}
+			}
+		}
+	}
+	if config := definition.AssetConfiguration; config != nil {
+		for _, subjectID := range []string{config.AssetSubjectID, config.AccumulatedDepreciationSubjectID, config.DepreciationExpenseSubjectID} {
+			if err := q.RegisterAccountingSubjectUsage(ctx, dbsqlc.RegisterAccountingSubjectUsageParams{SubjectID: subjectID, UsageType: "MAPPING", UsageID: mappingID}); err != nil {
+				return databaseError("register asset accounting subject", err)
 			}
 		}
 	}

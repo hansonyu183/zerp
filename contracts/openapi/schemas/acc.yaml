@@ -538,6 +538,8 @@
           'currencyField',
           'dimensions',
           'quantityField',
+		  'costCounterpartSubjectId',
+		  'costCounterpartDimensions',
         ],
       'additionalProperties': false,
       'properties':
@@ -550,6 +552,10 @@
           'dimensions':
             { 'type': 'object', 'additionalProperties': { 'type': 'string' } },
           'quantityField': { 'type': 'string', 'nullable': true },
+		  'costCounterpartSubjectId':
+			{ 'type': 'string', 'minLength': 26, 'maxLength': 26, 'nullable': true },
+		  'costCounterpartDimensions':
+			{ 'type': 'object', 'additionalProperties': { 'type': 'string' } },
         },
     },
   'PostingTemplate':
@@ -565,6 +571,29 @@
             { 'type': 'array', 'minItems': 2, 'items': { '$ref': '#/PostingLineTemplate' } },
         },
     },
+  'AssetAccountingConfiguration':
+    {
+      'type': 'object',
+      'required':
+        [
+          'assetSubjectId',
+          'assetDimensions',
+          'accumulatedDepreciationSubjectId',
+          'accumulatedDepreciationDimensions',
+          'depreciationExpenseSubjectId',
+          'depreciationExpenseDimensions',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'assetSubjectId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'assetDimensions': { 'type': 'object', 'additionalProperties': { 'type': 'string' } },
+          'accumulatedDepreciationSubjectId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'accumulatedDepreciationDimensions': { 'type': 'object', 'additionalProperties': { 'type': 'string' } },
+          'depreciationExpenseSubjectId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'depreciationExpenseDimensions': { 'type': 'object', 'additionalProperties': { 'type': 'string' } },
+        },
+    },
   'MappingDefinition':
     {
       'type': 'object',
@@ -575,6 +604,12 @@
           'defaultTemplateId': { 'type': 'string', 'nullable': true },
           'rules': { 'type': 'array', 'items': { '$ref': '#/MappingRule' } },
           'templates': { 'type': 'array', 'items': { '$ref': '#/PostingTemplate' } },
+          'assetConfiguration':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/AssetAccountingConfiguration' }],
+            },
         },
     },
   'MappingQueryRequest':

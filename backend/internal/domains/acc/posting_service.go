@@ -33,6 +33,10 @@ type automaticPostingLine struct {
 	quantityDeltaMicros               int64
 	productID, warehouseID            string
 	dimensionsJSON                    []byte
+	costCounterpartSubjectID          *string
+	costCounterpartDimensionsJSON     []byte
+	originSourceDocumentID            *string
+	originSourceLineID                *string
 }
 
 func (s *Service) RegisterSubscriptions(bus *txevent.Bus) error {
@@ -72,7 +76,7 @@ func (s *Service) HandleDocumentApproved(ctx context.Context, tx pgx.Tx, raw txe
 		return postingDeliveryError(err)
 	}
 	for _, book := range books {
-		if err = s.postSnapshotToBook(ctx, q, book.ID, book.ControlBook, event, businessDate, snapshot); err != nil {
+		if err = s.postSnapshotToBook(ctx, tx, q, book.ID, book.ControlBook, event, businessDate, snapshot); err != nil {
 			return postingDeliveryError(err)
 		}
 	}
@@ -87,7 +91,7 @@ func postingDeliveryError(err error) error {
 	return err
 }
 
-func (s *Service) postSnapshotToBook(ctx context.Context, q *dbsqlc.Queries, bookID string, controlBook bool, event voudomain.DocumentApprovedEvent, businessDate time.Time, snapshot postingSnapshot) error {
+func (s *Service) postSnapshotToBook(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, bookID string, controlBook bool, event voudomain.DocumentApprovedEvent, businessDate time.Time, snapshot postingSnapshot) error {
 	existing, err := q.GetAutomaticAccountingVoucher(ctx, dbsqlc.GetAutomaticAccountingVoucherParams{BookID: bookID, SourceEntity: &event.Entity, SourceID: event.DocumentID})
 	if err == nil {
 		if existing.SourceRevision != nil && *existing.SourceRevision == event.Revision {
@@ -164,6 +168,8 @@ func (s *Service) postSnapshotToBook(ctx context.Context, q *dbsqlc.Queries, boo
 				ID: ulid.Make().String(), BookID: bookID, VoucherID: voucherID, VoucherLineID: lineID,
 				SubjectID: line.subjectID, ProductID: line.productID, WarehouseID: line.warehouseID,
 				BusinessDate: pgtype.Date{Time: businessDate, Valid: true}, QuantityDeltaMicros: line.quantityDeltaMicros, SourceLineID: line.sourceLineID,
+				CostCounterpartSubjectID: line.costCounterpartSubjectID, CostCounterpartDimensions: line.costCounterpartDimensionsJSON,
+				OriginSourceDocumentID: line.originSourceDocumentID, OriginSourceLineID: line.originSourceLineID,
 			}); err != nil {
 				return databaseError("create accounting inventory entry", err)
 			}
@@ -185,6 +191,65 @@ func (s *Service) postSnapshotToBook(ctx context.Context, q *dbsqlc.Queries, boo
 		}
 		if balance < 0 {
 			return domainError(ErrorConflict, "insufficient control book inventory", nil)
+		}
+	}
+	if controlBook {
+		if err = validateControlBookFunds(ctx, tx, q, bookID, voucherID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateControlBookFunds(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, bookID, voucherID string) error {
+	rows, err := tx.Query(ctx, `SELECT line.dimensions->>'FUND_ACCOUNT' AS fund_account_id,
+		line.currency, sum(line.debit_minor-line.credit_minor)::bigint
+		FROM acc_voucher_lines line
+		WHERE line.book_id=$1 AND line.voucher_id=$2
+		  AND line.dimensions ? 'FUND_ACCOUNT'
+		GROUP BY line.dimensions->>'FUND_ACCOUNT',line.currency
+		HAVING sum(line.debit_minor-line.credit_minor)<0`, bookID, voucherID)
+	if err != nil {
+		return databaseError("list affected control book funds", err)
+	}
+	defer rows.Close()
+	type affectedFund struct{ id, currency string }
+	var affected []affectedFund
+	for rows.Next() {
+		var fund affectedFund
+		var delta int64
+		if err = rows.Scan(&fund.id, &fund.currency, &delta); err != nil {
+			return databaseError("scan affected control book fund", err)
+		}
+		affected = append(affected, fund)
+	}
+	if err = rows.Err(); err != nil {
+		return databaseError("list affected control book funds", err)
+	}
+	for _, fund := range affected {
+		lockKey := "acc-fund:" + bookID + ":" + fund.id + ":" + fund.currency
+		if err = q.LockAccountingInventory(ctx, lockKey); err != nil {
+			return databaseError("lock control book fund", err)
+		}
+		var minimum int64
+		err = tx.QueryRow(ctx, `WITH daily AS (
+			SELECT voucher.business_date,
+			       sum(line.debit_minor-line.credit_minor)::bigint AS delta
+			FROM acc_voucher_lines line
+			JOIN acc_vouchers voucher ON voucher.book_id=line.book_id AND voucher.id=line.voucher_id
+			WHERE line.book_id=$1 AND line.currency=$2
+			  AND line.dimensions->>'FUND_ACCOUNT'=$3
+			GROUP BY voucher.business_date
+		), running AS (
+			SELECT sum(delta) OVER (ORDER BY business_date ROWS UNBOUNDED PRECEDING)::bigint AS balance
+			FROM daily
+		)
+		SELECT COALESCE(min(balance),0)::bigint FROM running`, bookID, fund.currency, fund.id).Scan(&minimum)
+		if err != nil {
+			return databaseError("read control book fund balance", err)
+		}
+		if minimum < 0 {
+			return domainError(ErrorConflict, "insufficient control book funds", nil)
 		}
 	}
 	return nil
@@ -337,6 +402,35 @@ func (s *Service) renderPostingLine(ctx context.Context, q *dbsqlc.Queries, book
 		line.quantityDeltaMicros = *quantityMicros
 		if template.Direction == BalanceDirectionCredit {
 			line.quantityDeltaMicros = -line.quantityDeltaMicros
+		}
+		line.costCounterpartDimensionsJSON = []byte(`{}`)
+		if template.CostCounterpartSubjectID != nil {
+			counterpart := *template.CostCounterpartSubjectID
+			line.costCounterpartSubjectID = &counterpart
+			costDimensions := make(map[string]string, len(template.CostCounterpartDimensions))
+			for dimension, field := range template.CostCounterpartDimensions {
+				costDimensions[dimension] = mappingValue(header, item, field)
+			}
+			counterpartSubject, counterpartErr := loadSubject(ctx, q, bookID, counterpart)
+			if counterpartErr != nil || !counterpartSubject.Enabled || !counterpartSubject.Leaf {
+				return automaticPostingLine{}, false, domainError(ErrorValidation, "cost counterpart subject is unavailable", counterpartErr)
+			}
+			costDimensions, _, err = normalizeOpeningDimensions(counterpartSubject.RequiredDimensions, costDimensions)
+			if err != nil {
+				return automaticPostingLine{}, false, domainError(ErrorValidation, "cost counterpart dimensions are incomplete", err)
+			}
+			line.costCounterpartDimensionsJSON, err = json.Marshal(costDimensions)
+			if err != nil {
+				return automaticPostingLine{}, false, domainError(ErrorInternal, "encode cost counterpart dimensions", err)
+			}
+		}
+		originDocumentID := strings.TrimSpace(mappingValue(header, item, "sourceDocumentId"))
+		originLineID := strings.TrimSpace(mappingValue(header, item, "sourceLineId"))
+		if originDocumentID != "" {
+			line.originSourceDocumentID = &originDocumentID
+		}
+		if originLineID != "" {
+			line.originSourceLineID = &originLineID
 		}
 	}
 	if template.Direction == BalanceDirectionDebit {

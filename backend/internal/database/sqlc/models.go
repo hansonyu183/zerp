@@ -8,6 +8,56 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AccAsset struct {
+	ID                   string      `db:"id" json:"id"`
+	AssetNo              string      `db:"asset_no" json:"asset_no"`
+	SourceDocumentID     string      `db:"source_document_id" json:"source_document_id"`
+	SourceLineID         string      `db:"source_line_id" json:"source_line_id"`
+	Name                 string      `db:"name" json:"name"`
+	CategoryID           string      `db:"category_id" json:"category_id"`
+	DepartmentID         string      `db:"department_id" json:"department_id"`
+	UsefulLifeMonths     int32       `db:"useful_life_months" json:"useful_life_months"`
+	ResidualRateBps      int32       `db:"residual_rate_bps" json:"residual_rate_bps"`
+	AcquiredOn           pgtype.Date `db:"acquired_on" json:"acquired_on"`
+	State                string      `db:"state" json:"state"`
+	DisposedByDocumentID *string     `db:"disposed_by_document_id" json:"disposed_by_document_id"`
+	DisposedOn           pgtype.Date `db:"disposed_on" json:"disposed_on"`
+}
+
+type AccAssetBookValue struct {
+	BookID                       string  `db:"book_id" json:"book_id"`
+	AssetID                      string  `db:"asset_id" json:"asset_id"`
+	Currency                     string  `db:"currency" json:"currency"`
+	OriginalMinor                int64   `db:"original_minor" json:"original_minor"`
+	AccumulatedDepreciationMinor int64   `db:"accumulated_depreciation_minor" json:"accumulated_depreciation_minor"`
+	AssetSubjectID               *string `db:"asset_subject_id" json:"asset_subject_id"`
+	AssetDimensions              []byte  `db:"asset_dimensions" json:"asset_dimensions"`
+	AccumulatedSubjectID         *string `db:"accumulated_subject_id" json:"accumulated_subject_id"`
+	AccumulatedDimensions        []byte  `db:"accumulated_dimensions" json:"accumulated_dimensions"`
+	ExpenseSubjectID             *string `db:"expense_subject_id" json:"expense_subject_id"`
+	ExpenseDimensions            []byte  `db:"expense_dimensions" json:"expense_dimensions"`
+}
+
+type AccBill struct {
+	ID                  string      `db:"id" json:"id"`
+	BillNo              string      `db:"bill_no" json:"bill_no"`
+	BillType            string      `db:"bill_type" json:"bill_type"`
+	PositionType        string      `db:"position_type" json:"position_type"`
+	Currency            string      `db:"currency" json:"currency"`
+	FaceAmountMinor     int64       `db:"face_amount_minor" json:"face_amount_minor"`
+	IssueDate           pgtype.Date `db:"issue_date" json:"issue_date"`
+	MaturityDate        pgtype.Date `db:"maturity_date" json:"maturity_date"`
+	State               string      `db:"state" json:"state"`
+	SourceDocumentID    string      `db:"source_document_id" json:"source_document_id"`
+	SettledByDocumentID *string     `db:"settled_by_document_id" json:"settled_by_document_id"`
+}
+
+type AccBillBookValue struct {
+	BookID     string `db:"book_id" json:"book_id"`
+	BillID     string `db:"bill_id" json:"bill_id"`
+	ValueMinor int64  `db:"value_minor" json:"value_minor"`
+}
+
 type AccBook struct {
 	ID              string             `db:"id" json:"id"`
 	Code            string             `db:"code" json:"code"`
@@ -33,17 +83,51 @@ type AccBookUserScope struct {
 	CreatedBy     string             `db:"created_by" json:"created_by"`
 }
 
+type AccContainerEntry struct {
+	ID               string `db:"id" json:"id"`
+	CustomerID       string `db:"customer_id" json:"customer_id"`
+	ContainerType    string `db:"container_type" json:"container_type"`
+	QuantityDelta    int64  `db:"quantity_delta" json:"quantity_delta"`
+	SourceDocumentID string `db:"source_document_id" json:"source_document_id"`
+	SourceRevision   int64  `db:"source_revision" json:"source_revision"`
+}
+
+type AccDepreciationEntry struct {
+	ID              string             `db:"id" json:"id"`
+	BookID          string             `db:"book_id" json:"book_id"`
+	AssetID         string             `db:"asset_id" json:"asset_id"`
+	PeriodMonth     pgtype.Date        `db:"period_month" json:"period_month"`
+	AmountMinor     int64              `db:"amount_minor" json:"amount_minor"`
+	SystemVoucherID string             `db:"system_voucher_id" json:"system_voucher_id"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type AccInventoryCostAllocation struct {
+	EntryID           string             `db:"entry_id" json:"entry_id"`
+	BookID            string             `db:"book_id" json:"book_id"`
+	PeriodMonth       pgtype.Date        `db:"period_month" json:"period_month"`
+	QuantityMicros    int64              `db:"quantity_micros" json:"quantity_micros"`
+	CostMinor         int64              `db:"cost_minor" json:"cost_minor"`
+	SourceCostEntryID *string            `db:"source_cost_entry_id" json:"source_cost_entry_id"`
+	SystemVoucherID   *string            `db:"system_voucher_id" json:"system_voucher_id"`
+	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
 type AccInventoryEntry struct {
-	ID                  string      `db:"id" json:"id"`
-	BookID              string      `db:"book_id" json:"book_id"`
-	VoucherID           string      `db:"voucher_id" json:"voucher_id"`
-	VoucherLineID       string      `db:"voucher_line_id" json:"voucher_line_id"`
-	SubjectID           string      `db:"subject_id" json:"subject_id"`
-	ProductID           string      `db:"product_id" json:"product_id"`
-	WarehouseID         string      `db:"warehouse_id" json:"warehouse_id"`
-	BusinessDate        pgtype.Date `db:"business_date" json:"business_date"`
-	QuantityDeltaMicros int64       `db:"quantity_delta_micros" json:"quantity_delta_micros"`
-	SourceLineID        string      `db:"source_line_id" json:"source_line_id"`
+	ID                        string      `db:"id" json:"id"`
+	BookID                    string      `db:"book_id" json:"book_id"`
+	VoucherID                 string      `db:"voucher_id" json:"voucher_id"`
+	VoucherLineID             string      `db:"voucher_line_id" json:"voucher_line_id"`
+	SubjectID                 string      `db:"subject_id" json:"subject_id"`
+	ProductID                 string      `db:"product_id" json:"product_id"`
+	WarehouseID               string      `db:"warehouse_id" json:"warehouse_id"`
+	BusinessDate              pgtype.Date `db:"business_date" json:"business_date"`
+	QuantityDeltaMicros       int64       `db:"quantity_delta_micros" json:"quantity_delta_micros"`
+	SourceLineID              string      `db:"source_line_id" json:"source_line_id"`
+	CostCounterpartSubjectID  *string     `db:"cost_counterpart_subject_id" json:"cost_counterpart_subject_id"`
+	CostCounterpartDimensions []byte      `db:"cost_counterpart_dimensions" json:"cost_counterpart_dimensions"`
+	OriginSourceDocumentID    *string     `db:"origin_source_document_id" json:"origin_source_document_id"`
+	OriginSourceLineID        *string     `db:"origin_source_line_id" json:"origin_source_line_id"`
 }
 
 type AccMappingVersion struct {
@@ -97,6 +181,26 @@ type AccPeriod struct {
 	LockedBy    *string            `db:"locked_by" json:"locked_by"`
 	UpdatedAt   pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	UpdatedBy   string             `db:"updated_by" json:"updated_by"`
+}
+
+type AccPeriodBalance struct {
+	ID                  string      `db:"id" json:"id"`
+	BookID              string      `db:"book_id" json:"book_id"`
+	PeriodMonth         pgtype.Date `db:"period_month" json:"period_month"`
+	SubjectID           string      `db:"subject_id" json:"subject_id"`
+	Currency            string      `db:"currency" json:"currency"`
+	Dimensions          []byte      `db:"dimensions" json:"dimensions"`
+	DimensionKey        string      `db:"dimension_key" json:"dimension_key"`
+	OpeningBalanceMinor int64       `db:"opening_balance_minor" json:"opening_balance_minor"`
+	DebitTurnoverMinor  int64       `db:"debit_turnover_minor" json:"debit_turnover_minor"`
+	CreditTurnoverMinor int64       `db:"credit_turnover_minor" json:"credit_turnover_minor"`
+	ClosingBalanceMinor int64       `db:"closing_balance_minor" json:"closing_balance_minor"`
+}
+
+type AccRegisterEvent struct {
+	SourceEntity     string `db:"source_entity" json:"source_entity"`
+	SourceDocumentID string `db:"source_document_id" json:"source_document_id"`
+	SourceRevision   int64  `db:"source_revision" json:"source_revision"`
 }
 
 type AccSubject struct {

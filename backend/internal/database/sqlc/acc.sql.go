@@ -979,25 +979,33 @@ func (q *Queries) HasAccountingBookQueryAccess(ctx context.Context, arg HasAccou
 const insertAccountingInventoryEntry = `-- name: InsertAccountingInventoryEntry :exec
 INSERT INTO acc_inventory_entries (
   id, book_id, voucher_id, voucher_line_id, subject_id, product_id,
-  warehouse_id, business_date, quantity_delta_micros, source_line_id
+  warehouse_id, business_date, quantity_delta_micros, source_line_id,
+  cost_counterpart_subject_id, cost_counterpart_dimensions,
+  origin_source_document_id, origin_source_line_id
 ) VALUES (
   $1, $2, $3, $4,
   $5, $6, $7,
-  $8, $9, $10
+  $8, $9, $10,
+  $11, $12,
+  $13, $14
 )
 `
 
 type InsertAccountingInventoryEntryParams struct {
-	ID                  string      `db:"id" json:"id"`
-	BookID              string      `db:"book_id" json:"book_id"`
-	VoucherID           string      `db:"voucher_id" json:"voucher_id"`
-	VoucherLineID       string      `db:"voucher_line_id" json:"voucher_line_id"`
-	SubjectID           string      `db:"subject_id" json:"subject_id"`
-	ProductID           string      `db:"product_id" json:"product_id"`
-	WarehouseID         string      `db:"warehouse_id" json:"warehouse_id"`
-	BusinessDate        pgtype.Date `db:"business_date" json:"business_date"`
-	QuantityDeltaMicros int64       `db:"quantity_delta_micros" json:"quantity_delta_micros"`
-	SourceLineID        string      `db:"source_line_id" json:"source_line_id"`
+	ID                        string      `db:"id" json:"id"`
+	BookID                    string      `db:"book_id" json:"book_id"`
+	VoucherID                 string      `db:"voucher_id" json:"voucher_id"`
+	VoucherLineID             string      `db:"voucher_line_id" json:"voucher_line_id"`
+	SubjectID                 string      `db:"subject_id" json:"subject_id"`
+	ProductID                 string      `db:"product_id" json:"product_id"`
+	WarehouseID               string      `db:"warehouse_id" json:"warehouse_id"`
+	BusinessDate              pgtype.Date `db:"business_date" json:"business_date"`
+	QuantityDeltaMicros       int64       `db:"quantity_delta_micros" json:"quantity_delta_micros"`
+	SourceLineID              string      `db:"source_line_id" json:"source_line_id"`
+	CostCounterpartSubjectID  *string     `db:"cost_counterpart_subject_id" json:"cost_counterpart_subject_id"`
+	CostCounterpartDimensions []byte      `db:"cost_counterpart_dimensions" json:"cost_counterpart_dimensions"`
+	OriginSourceDocumentID    *string     `db:"origin_source_document_id" json:"origin_source_document_id"`
+	OriginSourceLineID        *string     `db:"origin_source_line_id" json:"origin_source_line_id"`
 }
 
 func (q *Queries) InsertAccountingInventoryEntry(ctx context.Context, arg InsertAccountingInventoryEntryParams) error {
@@ -1012,6 +1020,10 @@ func (q *Queries) InsertAccountingInventoryEntry(ctx context.Context, arg Insert
 		arg.BusinessDate,
 		arg.QuantityDeltaMicros,
 		arg.SourceLineID,
+		arg.CostCounterpartSubjectID,
+		arg.CostCounterpartDimensions,
+		arg.OriginSourceDocumentID,
+		arg.OriginSourceLineID,
 	)
 	return err
 }

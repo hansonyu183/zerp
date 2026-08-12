@@ -42,9 +42,10 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 	auxService := auxdomain.NewService(db)
 	bobService.SetAuxiliaryResolver(auxiliaryrefs.New(auxService))
 	eventBus := txevent.NewBus()
+	accService := accdomain.NewService(db)
 	vouService, err := voudomain.NewService(db, bobService, auxiliaryrefs.New(auxService), eventBus, voudomain.AttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
-	}, logger)
+	}, logger, voudomain.WithAccountingControl(accService))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -53,7 +54,6 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 		return nil, nil, err
 	}
 	appService := appdomain.NewService(db, cfg, logger)
-	accService := accdomain.NewService(db)
 	if err = accService.RegisterSubscriptions(eventBus); err != nil {
 		return nil, nil, err
 	}

@@ -175,13 +175,15 @@ type MappingRule struct {
 }
 
 type PostingLineTemplate struct {
-	SubjectSource string            `json:"subjectSource"`
-	SubjectValue  string            `json:"subjectValue"`
-	Direction     string            `json:"direction"`
-	AmountField   string            `json:"amountField"`
-	CurrencyField string            `json:"currencyField"`
-	Dimensions    map[string]string `json:"dimensions"`
-	QuantityField *string           `json:"quantityField"`
+	SubjectSource             string            `json:"subjectSource"`
+	SubjectValue              string            `json:"subjectValue"`
+	Direction                 string            `json:"direction"`
+	AmountField               string            `json:"amountField"`
+	CurrencyField             string            `json:"currencyField"`
+	Dimensions                map[string]string `json:"dimensions"`
+	QuantityField             *string           `json:"quantityField"`
+	CostCounterpartSubjectID  *string           `json:"costCounterpartSubjectId,omitempty"`
+	CostCounterpartDimensions map[string]string `json:"costCounterpartDimensions,omitempty"`
 }
 
 type PostingTemplate struct {
@@ -191,9 +193,19 @@ type PostingTemplate struct {
 }
 
 type MappingDefinition struct {
-	DefaultTemplateID *string           `json:"defaultTemplateId"`
-	Rules             []MappingRule     `json:"rules"`
-	Templates         []PostingTemplate `json:"templates"`
+	DefaultTemplateID  *string                       `json:"defaultTemplateId"`
+	Rules              []MappingRule                 `json:"rules"`
+	Templates          []PostingTemplate             `json:"templates"`
+	AssetConfiguration *AssetAccountingConfiguration `json:"assetConfiguration,omitempty"`
+}
+
+type AssetAccountingConfiguration struct {
+	AssetSubjectID                    string            `json:"assetSubjectId"`
+	AssetDimensions                   map[string]string `json:"assetDimensions"`
+	AccumulatedDepreciationSubjectID  string            `json:"accumulatedDepreciationSubjectId"`
+	AccumulatedDepreciationDimensions map[string]string `json:"accumulatedDepreciationDimensions"`
+	DepreciationExpenseSubjectID      string            `json:"depreciationExpenseSubjectId"`
+	DepreciationExpenseDimensions     map[string]string `json:"depreciationExpenseDimensions"`
 }
 
 type QueryMappingsInput struct {

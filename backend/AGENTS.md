@@ -29,5 +29,6 @@
 - [VOU：业务单据](../docs/domains/vou.md)
 - [WFL：业务流程](../docs/domains/wfl.md)
 - [LED：业务账簿](../docs/domains/led.md)
+- [ACC：内部会计](../docs/domains/acc.md)
 
 新增业务域时，先补充根目录 `docs/domains/<domain>.md`，再实现对应路由、权限、迁移和领域代码。

@@ -124,6 +124,7 @@ https://zerp-preview.bytesucceed.com
 - [AUX：辅助对象](docs/domains/aux.md)
 - [VOU：业务单据](docs/domains/vou.md)
 - [WFL：业务流程](docs/domains/wfl.md)
+- [ACC：内部会计](docs/domains/acc.md)
 - [LED：业务账簿](docs/domains/led.md)
 - [前端 API 与双部署配置](docs/operations/frontend-api-configuration.md)
 - [固定外网开发预览](docs/operations/fixed-preview.md)

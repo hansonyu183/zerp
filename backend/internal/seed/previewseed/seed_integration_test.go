@@ -45,6 +45,12 @@ func TestPreviewSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T
 	if _, err = seeder.Seed(t.Context()); err != nil {
 		t.Fatalf("seed preview data: %v", err)
 	}
+	if _, err = pool.Exec(t.Context(), `
+		DELETE FROM vou_audit_events
+		WHERE request_id=$1 AND event_type='CREATED'
+	`, requestID("intermediary-calculation-draft", "create")); err != nil {
+		t.Fatalf("simulate existing preview intermediary period: %v", err)
+	}
 	second, err := seeder.Seed(t.Context())
 	if err != nil {
 		t.Fatalf("repeat preview seed: %v", err)

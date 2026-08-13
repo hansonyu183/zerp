@@ -199,6 +199,20 @@ func (s *Seeder) seedBillDocuments(
 }
 
 func (s *Seeder) seedIntermediaryCalculation(ctx context.Context, counts *Counts) error {
+	var periodOccupied bool
+	if err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1
+			FROM vou_documents
+			WHERE entity=$1 AND business_date=DATE '2026-06-30'
+		)
+	`, voudomain.EntityIntermediaryCalculation).Scan(&periodOccupied); err != nil {
+		return fmt.Errorf("find intermediary calculation period: %w", err)
+	}
+	if periodOccupied {
+		counts.add(outcomeSkipped)
+		return nil
+	}
 	source, err := s.vouchers.IntermediarySource(ctx, voudomain.IntermediarySourceInput{BusinessDate: "2026-06-30"})
 	if err != nil {
 		return fmt.Errorf("intermediary source: %w", err)

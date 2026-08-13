@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	accdomain "github.com/hansonyu183/zerp/backend/internal/domains/acc"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
@@ -45,9 +46,11 @@ func (c *Counts) add(outcome outcome) {
 func (c Counts) Total() int { return c.Created + c.Resumed + c.Skipped }
 
 type Result struct {
-	Auxiliary Counts
-	Business  Counts
-	Vouchers  Counts
+	Auxiliary  Counts
+	Business   Counts
+	Workflows  Counts
+	Vouchers   Counts
+	Accounting Counts
 }
 
 type outcome int
@@ -59,12 +62,14 @@ const (
 )
 
 type Seeder struct {
-	pool      *pgxpool.Pool
-	auxiliary *auxdomain.Service
-	business  *bobdomain.Service
-	vouchers  *voudomain.Service
-	auxRefs   map[string]auxdomain.ObjectView
-	bobRefs   map[string]bobdomain.ObjectView
+	pool       *pgxpool.Pool
+	auxiliary  *auxdomain.Service
+	business   *bobdomain.Service
+	vouchers   *voudomain.Service
+	workflows  *wfldomain.Service
+	accounting *accdomain.Service
+	auxRefs    map[string]auxdomain.ObjectView
+	bobRefs    map[string]bobdomain.ObjectView
 }
 
 func New(
@@ -82,6 +87,7 @@ func New(
 	business := bobdomain.NewService(pool)
 	business.SetAuxiliaryResolver(auxiliaryrefs.New(auxiliary))
 	events := txevent.NewBus()
+	accounting := accdomain.NewService(pool)
 	vouchers, err := voudomain.NewService(
 		pool,
 		business,
@@ -89,16 +95,22 @@ func New(
 		events,
 		voudomain.AttachmentOptions{Root: attachmentRoot},
 		logger,
+		voudomain.WithAccountingControl(accounting),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create voucher service: %w", err)
 	}
-	if _, err = wfldomain.NewService(pool, events, vouchers, logger); err != nil {
+	workflows, err := wfldomain.NewService(pool, events, vouchers, logger)
+	if err != nil {
 		return nil, fmt.Errorf("create workflow service: %w", err)
+	}
+	if err = accounting.RegisterSubscriptions(events); err != nil {
+		return nil, fmt.Errorf("register accounting subscriptions: %w", err)
 	}
 	return &Seeder{
 		pool: pool, auxiliary: auxiliary, business: business,
-		vouchers: vouchers, auxRefs: make(map[string]auxdomain.ObjectView),
+		vouchers: vouchers, workflows: workflows, accounting: accounting,
+		auxRefs: make(map[string]auxdomain.ObjectView),
 		bobRefs: make(map[string]bobdomain.ObjectView),
 	}, nil
 }
@@ -111,8 +123,17 @@ func (s *Seeder) Seed(ctx context.Context) (Result, error) {
 	if err := s.seedBusiness(ctx, &result.Business); err != nil {
 		return result, fmt.Errorf("seed business data: %w", err)
 	}
+	if err := s.seedWorkflows(ctx, &result.Workflows); err != nil {
+		return result, fmt.Errorf("seed workflow data: %w", err)
+	}
 	if err := s.seedVouchers(ctx, &result.Vouchers); err != nil {
 		return result, fmt.Errorf("seed voucher data: %w", err)
+	}
+	if err := s.seedAccounting(ctx, &result.Accounting); err != nil {
+		return result, fmt.Errorf("seed accounting data: %w", err)
+	}
+	if err := s.seedExtendedVouchers(ctx, &result.Vouchers); err != nil {
+		return result, fmt.Errorf("seed extended voucher data: %w", err)
 	}
 	return result, nil
 }

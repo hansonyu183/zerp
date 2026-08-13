@@ -48,6 +48,24 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 				Remark: "预览测试草稿员工",
 			}
 		}},
+		{"other-party-effective", bobdomain.EntityOtherParty, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
+			return bobdomain.CreateDetailInput{
+				Name: "远航居间服务有限公司（预览）", ShortName: "远航居间",
+				TaxNumber: "91310000PREVIEW0103", ContactName: "刘顾问", ContactPhone: "13800000107",
+				Email: "preview.intermediary@example.com", Address: "上海市静安区预览商务路 88 号",
+				SettlementMethodID:    s.bobRefs["settlement-due-days"].ObjectID,
+				SalespersonEmployeeID: s.bobRefs["employee-effective"].ObjectID,
+				Remark:                "预览测试有效居间往来单位",
+			}
+		}},
+		{"other-party-draft", bobdomain.EntityOtherParty, bobdomain.StatusDraft, func(s *Seeder) bobdomain.CreateDetailInput {
+			return bobdomain.CreateDetailInput{
+				Name: "待确认居间单位（预览草稿）", ContactName: "陈顾问", ContactPhone: "13800000108",
+				SettlementMethodID:    s.bobRefs["settlement-due-days"].ObjectID,
+				SalespersonEmployeeID: s.bobRefs["employee-effective"].ObjectID,
+				Remark:                "预览测试草稿其他往来单位",
+			}
+		}},
 		{"customer-effective", bobdomain.EntityCustomer, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			customerType := bobdomain.CustomerTypeDealer
 			return bobdomain.CreateDetailInput{
@@ -55,10 +73,11 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 				ShortName: "星河制造", TaxNumber: "91310000PREVIEW0101",
 				ContactName: "王经理", ContactPhone: "13800000103",
 				Email: "preview.customer@example.com", Address: "上海市浦东新区预览路 101 号",
-				SettlementMethodID:    s.bobRefs["settlement-month-end"].ObjectID,
-				MonthlyClosingDay:     15,
-				SalespersonEmployeeID: s.bobRefs["employee-effective"].ObjectID,
-				Remark:                "预览测试有效客户",
+				SettlementMethodID:       s.bobRefs["settlement-month-end"].ObjectID,
+				MonthlyClosingDay:        15,
+				SalespersonEmployeeID:    s.bobRefs["employee-effective"].ObjectID,
+				IntermediaryOtherPartyID: s.bobRefs["other-party-effective"].ObjectID,
+				Remark:                   "预览测试有效客户",
 			}
 		}},
 		{"customer-draft", bobdomain.EntityCustomer, bobdomain.StatusDraft, func(s *Seeder) bobdomain.CreateDetailInput {

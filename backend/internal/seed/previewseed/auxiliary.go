@@ -64,6 +64,9 @@ func (s *Seeder) seedAuxiliary(ctx context.Context, counts *Counts) error {
 		{"unit-preview-disabled", auxdomain.EntityMeasurementUnit, fixedAux(map[string]any{
 			"name": "箱（停用）", "symbol": "箱", "quantityScale": 0,
 		}), false},
+		{"unit-preview-pallet", auxdomain.EntityMeasurementUnit, fixedAux(map[string]any{
+			"name": "托盘（预览）", "symbol": "托", "quantityScale": 0,
+		}), true},
 		{"subject-revenue", auxdomain.EntityAccountSubject, fixedAux(map[string]any{
 			"name": "营业收入", "direction": "REVENUE", "description": "预览测试收入科目",
 		}), true},

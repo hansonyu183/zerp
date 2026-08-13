@@ -218,6 +218,13 @@ const registeredDomains = new Set(['app'])
 for (const match of registrySource.matchAll(/registerPage\('([^']+)'/g)) {
   registeredDomains.add(match[1])
 }
+const routerIndexSource = fs.readFileSync(
+  path.join(root, 'frontend', 'src', 'router', 'index.ts'),
+  'utf8',
+)
+if (/path:\s*'rpt\/:code\?'/u.test(routerIndexSource)) {
+  registeredDomains.add('rpt')
+}
 
 const vouRegistryEntities = [
   ...registrySource.matchAll(
@@ -278,6 +285,32 @@ for (const schemaName of ['BobQueryRequest', 'BobHistoryRequest']) {
     schemaName,
     100,
     'contracts/openapi/schemas/bob.yaml',
+  )
+}
+
+const rptSchemaSource = fs.readFileSync(
+  path.join(root, 'contracts', 'openapi', 'schemas', 'rpt.yaml'),
+  'utf8',
+)
+const rptExecuteStart = rptSchemaSource.indexOf('RptExecuteRequest:')
+const rptExecuteEnd = rptSchemaSource.indexOf(
+  '\nRptReferenceQueryRequest:',
+  rptExecuteStart,
+)
+const rptExecuteSection = rptSchemaSource.slice(
+  rptExecuteStart,
+  rptExecuteEnd < 0 ? undefined : rptExecuteEnd,
+)
+const rptPageMaximum = rptExecuteSection.match(
+  /^\s+pageSize:\s*\{[^}]*maximum:\s*(\d+)[^}]*\}/mu,
+)
+if (!rptPageMaximum) {
+  failures.push(
+    'contracts/openapi/schemas/rpt.yaml 的 RptExecuteRequest 缺少可解析的 pageSize maximum',
+  )
+} else if (Number(rptPageMaximum[1]) !== 100) {
+  failures.push(
+    `contracts/openapi/schemas/rpt.yaml 的 RptExecuteRequest pageSize maximum 应为 100，实际为 ${rptPageMaximum[1]}`,
   )
 }
 

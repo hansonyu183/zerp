@@ -102,6 +102,7 @@ quality-format: quality-format-fast quality-modules
 
 quality-format-fast:
 	@test -z "$$(gofmt -l $$(git ls-files '*.go'))" || { gofmt -l $$(git ls-files '*.go'); exit 1; }
+	@./scripts/check-rpt-migration-gate.sh
 	git diff --check
 	git diff --cached --check
 

@@ -244,8 +244,12 @@ func (s *Service) menuCatalog(ctx context.Context, q *dbsqlc.Queries) ([]registe
 		{RouteKey: "admin/permission", RoutePath: "/admin/permission", DisplayName: "权限管理", PermissionCode: "/app/permission/query", Order: 30},
 		{RouteKey: "admin/system-parameter", RoutePath: "/admin/system-parameter", DisplayName: "系统参数", PermissionCode: "/app/system-parameter/query", Order: 40},
 		{RouteKey: "admin/menu", RoutePath: "/admin/menu", DisplayName: "菜单管理", PermissionCode: "/app/menu/save-business-template", PermissionRoot: "/app/menu/", Order: 50},
+		{RouteKey: "rpt/report-center", RoutePath: "/rpt/report-center", DisplayName: "报表中心", PermissionCode: "/rpt/definition/query", PermissionRoot: "/rpt/", Order: 10},
 	}
 	for _, row := range rows {
+		if row.Domain == "rpt" {
+			continue
+		}
 		key := row.Domain + "/" + row.Entity
 		routes = append(routes, registeredMenuRoute{
 			RouteKey: key, RoutePath: "/" + key,

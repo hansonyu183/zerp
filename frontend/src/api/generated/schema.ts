@@ -1959,6 +1959,244 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rpt/definition/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询报表定义 */
+        post: operations["rptDefinitionQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rpt/definition/get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取报表定义 */
+        post: operations["rptDefinitionGet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rpt/definition/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 新建报表定义 */
+        post: operations["rptDefinitionCreate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rpt/definition/create-version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 新建报表版本 */
+        post: operations["rptDefinitionCreateVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rpt/definition/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存报表版本 */
+        post: operations["rptDefinitionSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rpt/definition/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 批准报表版本 */
+        post: operations["rptDefinitionApprove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rpt/definition/unapprove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 反批准报表版本 */
+        post: operations["rptDefinitionUnapprove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rpt/definition/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 启用报表 */
+        post: operations["rptDefinitionEnable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rpt/definition/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 停用报表 */
+        post: operations["rptDefinitionDisable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rpt/definition/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 删除未批准报表 */
+        post: operations["rptDefinitionDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rpt/{report}/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 运行报表 */
+        post: operations["rptReportQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rpt/directory/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询当前会话可用报表目录 */
+        post: operations["rptDirectoryQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rpt/{report}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 导出报表 */
+        post: operations["rptReportExport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rpt/{report}/reference-query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询报表参数引用 */
+        post: operations["rptReportReferenceQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/files/feedback/attachments/upload/{token}": {
         parameters: {
             query?: never;
@@ -4108,6 +4346,102 @@ export interface components {
             page: number;
             pageSize: number;
         };
+        RptDefinitionQueryRequest: {
+            page: number;
+            pageSize: number;
+            keyword?: string;
+            includeDisabled?: boolean;
+        };
+        RptDefinitionGetRequest: {
+            code: string;
+            versionId?: string;
+        };
+        /** @enum {string} */
+        RptParameterType: "TEXT" | "INTEGER" | "DECIMAL" | "BOOLEAN" | "DATE" | "DATE_RANGE" | "ENUM" | "REFERENCE";
+        /** @enum {string} */
+        RptReferenceType: "ACCOUNTING_BOOK" | "ACCOUNT_SUBJECT" | "CUSTOMER" | "SUPPLIER" | "OTHER_PARTY" | "EMPLOYEE" | "DEPARTMENT" | "PRODUCT" | "WAREHOUSE" | "FUND_ACCOUNT" | "ASSET" | "BILL";
+        RptParameter: {
+            key: string;
+            name: string;
+            type: components["schemas"]["RptParameterType"];
+            required: boolean;
+            defaultValue?: unknown;
+            enumValues?: string[];
+            referenceType?: components["schemas"]["RptReferenceType"];
+        };
+        /** @enum {string} */
+        RptResultType: "TEXT" | "INTEGER" | "DECIMAL" | "BOOLEAN" | "DATE" | "DATETIME" | "ID";
+        RptResultColumn: {
+            alias: string;
+            name: string;
+            order: number;
+            type: components["schemas"]["RptResultType"];
+            width: number;
+            visible: boolean;
+            format?: string;
+            /** @enum {string} */
+            drilldownEntity?: "VOU";
+        };
+        RptVersionData: {
+            sql: string;
+            parameters: components["schemas"]["RptParameter"][];
+            columns: components["schemas"]["RptResultColumn"][];
+        };
+        RptDefinitionCreateRequest: {
+            code: string;
+            name: string;
+            description?: string;
+            data: components["schemas"]["RptVersionData"];
+        };
+        RptVersionCreateRequest: {
+            code: string;
+            data: components["schemas"]["RptVersionData"];
+        };
+        RptVersionSaveRequest: {
+            code: string;
+            versionId: string;
+            /** Format: int64 */
+            revision: number;
+            name?: string;
+            description?: string;
+            data: components["schemas"]["RptVersionData"];
+        };
+        RptVersionRevisionRequest: {
+            code: string;
+            versionId: string;
+            /** Format: int64 */
+            revision: number;
+            validationParameters?: {
+                [key: string]: unknown;
+            };
+        };
+        RptDefinitionRevisionRequest: {
+            code: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        RptExecuteRequest: {
+            parameters: {
+                [key: string]: unknown;
+            };
+            /** @default 1 */
+            page: number;
+            /** @default 50 */
+            pageSize: number;
+        };
+        RptDirectoryQueryRequest: {
+            page: number;
+            pageSize: number;
+        };
+        RptReferenceQueryRequest: {
+            parameterKey: string;
+            keyword?: string;
+            selectedId?: string;
+            /** @default 1 */
+            page: number;
+            /** @default 20 */
+            pageSize: number;
+        };
         TechnicalError: {
             error: string;
             requestId: string;
@@ -4149,6 +4483,7 @@ export interface components {
         BobEntity: components["schemas"]["BobEntity"];
         AuxEntity: components["schemas"]["AuxEntity"];
         VouEntity: components["schemas"]["VouEntity"];
+        RptReportCode: string;
         VouCreatableEntity: components["schemas"]["VouCreatableEntity"];
         FileToken: string;
     };
@@ -6414,6 +6749,246 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["WflInstanceHistoryRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    rptDefinitionQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RptDefinitionQueryRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    rptDefinitionGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RptDefinitionGetRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    rptDefinitionCreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RptDefinitionCreateRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    rptDefinitionCreateVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RptVersionCreateRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    rptDefinitionSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RptVersionSaveRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    rptDefinitionApprove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RptVersionRevisionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    rptDefinitionUnapprove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RptVersionRevisionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    rptDefinitionEnable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RptDefinitionRevisionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    rptDefinitionDisable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RptDefinitionRevisionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    rptDefinitionDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RptDefinitionRevisionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    rptReportQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                report: components["parameters"]["RptReportCode"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RptExecuteRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    rptDirectoryQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RptDirectoryQueryRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    rptReportExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                report: components["parameters"]["RptReportCode"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RptExecuteRequest"];
+            };
+        };
+        responses: {
+            /** @description 报表 CSV */
+            200: {
+                headers: {
+                    "Content-Disposition"?: string;
+                    "X-Content-Type-Options"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+        };
+    };
+    rptReportReferenceQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                report: components["parameters"]["RptReportCode"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RptReferenceQueryRequest"];
             };
         };
         responses: {

@@ -208,6 +208,7 @@ backend/
 - [VOU：业务单据](../docs/domains/vou.md)
 - [WFL：业务流程](../docs/domains/wfl.md)
 - [ACC：内部会计](../docs/domains/acc.md)
+- [RPT：报表](../docs/domains/rpt.md)
 
 同源 Web 与 Cloudflare Pages 两种部署共享相同 API。Origin、Cookie 和前端基址配置见[前端 API 配置手册](../docs/operations/frontend-api-configuration.md)。
 

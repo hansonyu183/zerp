@@ -1102,6 +1102,54 @@ type RemovedIntermediaryFile struct {
 	StorageKey string `db:"storage_key" json:"storage_key"`
 }
 
+type RptAuditEvent struct {
+	ID           string             `db:"id" json:"id"`
+	DefinitionID *string            `db:"definition_id" json:"definition_id"`
+	ReportCode   string             `db:"report_code" json:"report_code"`
+	VersionID    *string            `db:"version_id" json:"version_id"`
+	EventType    string             `db:"event_type" json:"event_type"`
+	ActorID      string             `db:"actor_id" json:"actor_id"`
+	RequestID    string             `db:"request_id" json:"request_id"`
+	OccurredAt   pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
+	Summary      []byte             `db:"summary" json:"summary"`
+}
+
+type RptDefinition struct {
+	ID               string             `db:"id" json:"id"`
+	Code             string             `db:"code" json:"code"`
+	Name             string             `db:"name" json:"name"`
+	Description      string             `db:"description" json:"description"`
+	Enabled          bool               `db:"enabled" json:"enabled"`
+	EverApproved     bool               `db:"ever_approved" json:"ever_approved"`
+	CurrentVersionID *string            `db:"current_version_id" json:"current_version_id"`
+	NextVersionNo    int32              `db:"next_version_no" json:"next_version_no"`
+	Revision         int64              `db:"revision" json:"revision"`
+	CreatedAt        pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy        string             `db:"created_by" json:"created_by"`
+	UpdatedAt        pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy        string             `db:"updated_by" json:"updated_by"`
+}
+
+type RptVersion struct {
+	ID            string             `db:"id" json:"id"`
+	DefinitionID  string             `db:"definition_id" json:"definition_id"`
+	VersionNo     int32              `db:"version_no" json:"version_no"`
+	Status        string             `db:"status" json:"status"`
+	Validity      string             `db:"validity" json:"validity"`
+	SqlText       string             `db:"sql_text" json:"sql_text"`
+	Parameters    []byte             `db:"parameters" json:"parameters"`
+	Columns       []byte             `db:"columns" json:"columns"`
+	Revision      int64              `db:"revision" json:"revision"`
+	ApprovedAt    pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
+	ApprovedBy    *string            `db:"approved_by" json:"approved_by"`
+	InvalidatedAt pgtype.Timestamptz `db:"invalidated_at" json:"invalidated_at"`
+	InvalidReason *string            `db:"invalid_reason" json:"invalid_reason"`
+	CreatedAt     pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy     string             `db:"created_by" json:"created_by"`
+	UpdatedAt     pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy     string             `db:"updated_by" json:"updated_by"`
+}
+
 type VouAssetAcquisitionDetail struct {
 	DocumentID        string `db:"document_id" json:"document_id"`
 	Entity            string `db:"entity" json:"entity"`

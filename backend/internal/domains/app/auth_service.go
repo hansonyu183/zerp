@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
@@ -147,7 +148,7 @@ func (s *Service) Authorize(ctx context.Context, rawToken, csrfToken, path, requ
 		s.auditAuthorizationDenied(ctx, principal, path, requestID, "csrf")
 		return Principal{}, domainError(ErrorForbidden, "csrf validation failed", nil)
 	}
-	if !slices.Contains(principal.Permissions, path) {
+	if !permissionAllowsPath(principal.Permissions, path) {
 		s.auditAuthorizationDenied(ctx, principal, path, requestID, "permission")
 		return Principal{}, domainError(ErrorForbidden, "permission denied", nil)
 	}
@@ -156,6 +157,22 @@ func (s *Service) Authorize(ctx context.Context, rawToken, csrfToken, path, requ
 		return Principal{}, s.internal("touch session", err)
 	}
 	return principal, nil
+}
+
+func permissionAllowsPath(permissions []string, path string) bool {
+	if slices.Contains(permissions, path) {
+		return true
+	}
+	if path != "/rpt/directory/query" {
+		return false
+	}
+	for _, permission := range permissions {
+		parts := strings.Split(strings.Trim(permission, "/"), "/")
+		if len(parts) == 3 && parts[0] == "rpt" && parts[1] != "definition" && parts[1] != "directory" && (parts[2] == "query" || parts[2] == "export") {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) loadPrincipal(ctx context.Context, rawToken string) (Principal, error) {

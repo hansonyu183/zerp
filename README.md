@@ -125,7 +125,7 @@ https://zerp-preview.bytesucceed.com
 - [VOU：业务单据](docs/domains/vou.md)
 - [WFL：业务流程](docs/domains/wfl.md)
 - [ACC：内部会计](docs/domains/acc.md)
-- [ACC：内部会计](docs/domains/acc.md)
+- [RPT：报表](docs/domains/rpt.md)
 - [前端 API 与双部署配置](docs/operations/frontend-api-configuration.md)
 - [固定外网开发预览](docs/operations/fixed-preview.md)
 - [开发、PR 与自动上线规范](docs/operations/development-release.md)

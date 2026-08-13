@@ -179,6 +179,67 @@ describe('ApiClient', () => {
     expect(requestedPath).toBe('/wfl/customer-onboarding/query')
   })
 
+  it('通过受控 API 客户端下载 RPT CSV，并保留 CSRF 与文件名', async () => {
+    let csrfToken: string | null = null
+    let requestBody: unknown
+    mockServer.use(
+      http.post(
+        'https://api.test/rpt/account-balance/export',
+        async ({ request }) => {
+          csrfToken = request.headers.get('X-CSRF-Token')
+          requestBody = await request.json()
+          return new HttpResponse('科目,余额\n1001,12\n', {
+            status: 200,
+            headers: {
+              'Content-Type': 'text/csv; charset=utf-8',
+              'Content-Disposition':
+                'attachment; filename="account-balance.csv"',
+              'X-Request-ID': 'rpt-export-1',
+            },
+          })
+        },
+      ),
+    )
+    const client = new ApiClient({ baseUrl: 'https://api.test/' })
+    client.setCsrfToken('csrf-rpt')
+    const result = await client.exportReportCsv('account-balance', {
+      parameters: { bookId: 'book-1' },
+      page: 1,
+      pageSize: 50,
+    })
+
+    expect(csrfToken).toBe('csrf-rpt')
+    expect(requestBody).toEqual({
+      parameters: { bookId: 'book-1' },
+      page: 1,
+      pageSize: 50,
+    })
+    expect(result.filename).toBe('account-balance.csv')
+    expect(result.requestId).toBe('rpt-export-1')
+    expect(await result.blob.text()).toContain('1001,12')
+  })
+
+  it('将 CSV 导出中的 HTTP 200 业务包络转换为业务错误', async () => {
+    mockServer.use(
+      http.post('https://api.test/rpt/account-balance/export', () =>
+        HttpResponse.json({
+          code: 40301,
+          message: 'permission denied',
+          data: null,
+          requestId: 'rpt-denied',
+        }),
+      ),
+    )
+    const client = new ApiClient({ baseUrl: 'https://api.test/' })
+    await expect(
+      client.exportReportCsv('account-balance', { parameters: {} }),
+    ).rejects.toMatchObject<ApiError>({
+      kind: 'business',
+      code: 40301,
+      requestId: 'rpt-denied',
+    })
+  })
+
   it('通过受限技术端点上传和下载附件', async () => {
     let uploadedType: string | null = null
     let uploaded = false

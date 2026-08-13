@@ -488,6 +488,138 @@ func (e PostingLineTemplateSubjectSource) Valid() bool {
 	}
 }
 
+// Defines values for RptParameterType.
+const (
+	RptParameterTypeBOOLEAN   RptParameterType = "BOOLEAN"
+	RptParameterTypeDATE      RptParameterType = "DATE"
+	RptParameterTypeDATERANGE RptParameterType = "DATE_RANGE"
+	RptParameterTypeDECIMAL   RptParameterType = "DECIMAL"
+	RptParameterTypeENUM      RptParameterType = "ENUM"
+	RptParameterTypeINTEGER   RptParameterType = "INTEGER"
+	RptParameterTypeREFERENCE RptParameterType = "REFERENCE"
+	RptParameterTypeTEXT      RptParameterType = "TEXT"
+)
+
+// Valid indicates whether the value is a known member of the RptParameterType enum.
+func (e RptParameterType) Valid() bool {
+	switch e {
+	case RptParameterTypeBOOLEAN:
+		return true
+	case RptParameterTypeDATE:
+		return true
+	case RptParameterTypeDATERANGE:
+		return true
+	case RptParameterTypeDECIMAL:
+		return true
+	case RptParameterTypeENUM:
+		return true
+	case RptParameterTypeINTEGER:
+		return true
+	case RptParameterTypeREFERENCE:
+		return true
+	case RptParameterTypeTEXT:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RptReferenceType.
+const (
+	RptReferenceTypeACCOUNTINGBOOK RptReferenceType = "ACCOUNTING_BOOK"
+	RptReferenceTypeACCOUNTSUBJECT RptReferenceType = "ACCOUNT_SUBJECT"
+	RptReferenceTypeASSET          RptReferenceType = "ASSET"
+	RptReferenceTypeBILL           RptReferenceType = "BILL"
+	RptReferenceTypeCUSTOMER       RptReferenceType = "CUSTOMER"
+	RptReferenceTypeDEPARTMENT     RptReferenceType = "DEPARTMENT"
+	RptReferenceTypeEMPLOYEE       RptReferenceType = "EMPLOYEE"
+	RptReferenceTypeFUNDACCOUNT    RptReferenceType = "FUND_ACCOUNT"
+	RptReferenceTypeOTHERPARTY     RptReferenceType = "OTHER_PARTY"
+	RptReferenceTypePRODUCT        RptReferenceType = "PRODUCT"
+	RptReferenceTypeSUPPLIER       RptReferenceType = "SUPPLIER"
+	RptReferenceTypeWAREHOUSE      RptReferenceType = "WAREHOUSE"
+)
+
+// Valid indicates whether the value is a known member of the RptReferenceType enum.
+func (e RptReferenceType) Valid() bool {
+	switch e {
+	case RptReferenceTypeACCOUNTINGBOOK:
+		return true
+	case RptReferenceTypeACCOUNTSUBJECT:
+		return true
+	case RptReferenceTypeASSET:
+		return true
+	case RptReferenceTypeBILL:
+		return true
+	case RptReferenceTypeCUSTOMER:
+		return true
+	case RptReferenceTypeDEPARTMENT:
+		return true
+	case RptReferenceTypeEMPLOYEE:
+		return true
+	case RptReferenceTypeFUNDACCOUNT:
+		return true
+	case RptReferenceTypeOTHERPARTY:
+		return true
+	case RptReferenceTypePRODUCT:
+		return true
+	case RptReferenceTypeSUPPLIER:
+		return true
+	case RptReferenceTypeWAREHOUSE:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RptResultColumnDrilldownEntity.
+const (
+	RptResultColumnDrilldownEntityVOU RptResultColumnDrilldownEntity = "VOU"
+)
+
+// Valid indicates whether the value is a known member of the RptResultColumnDrilldownEntity enum.
+func (e RptResultColumnDrilldownEntity) Valid() bool {
+	switch e {
+	case RptResultColumnDrilldownEntityVOU:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RptResultType.
+const (
+	RptResultTypeBOOLEAN  RptResultType = "BOOLEAN"
+	RptResultTypeDATE     RptResultType = "DATE"
+	RptResultTypeDATETIME RptResultType = "DATETIME"
+	RptResultTypeDECIMAL  RptResultType = "DECIMAL"
+	RptResultTypeID       RptResultType = "ID"
+	RptResultTypeINTEGER  RptResultType = "INTEGER"
+	RptResultTypeTEXT     RptResultType = "TEXT"
+)
+
+// Valid indicates whether the value is a known member of the RptResultType enum.
+func (e RptResultType) Valid() bool {
+	switch e {
+	case RptResultTypeBOOLEAN:
+		return true
+	case RptResultTypeDATE:
+		return true
+	case RptResultTypeDATETIME:
+		return true
+	case RptResultTypeDECIMAL:
+		return true
+	case RptResultTypeID:
+		return true
+	case RptResultTypeINTEGER:
+		return true
+	case RptResultTypeTEXT:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SettlementPurpose.
 const (
 	SettlementPurposeADVANCERECEIPT SettlementPurpose = "ADVANCE_RECEIPT"
@@ -583,22 +715,22 @@ func (e SubjectTemplate) Valid() bool {
 
 // Defines values for SystemParameterValueType.
 const (
-	BOOLEAN SystemParameterValueType = "BOOLEAN"
-	DECIMAL SystemParameterValueType = "DECIMAL"
-	INTEGER SystemParameterValueType = "INTEGER"
-	STRING  SystemParameterValueType = "STRING"
+	SystemParameterValueTypeBOOLEAN SystemParameterValueType = "BOOLEAN"
+	SystemParameterValueTypeDECIMAL SystemParameterValueType = "DECIMAL"
+	SystemParameterValueTypeINTEGER SystemParameterValueType = "INTEGER"
+	SystemParameterValueTypeSTRING  SystemParameterValueType = "STRING"
 )
 
 // Valid indicates whether the value is a known member of the SystemParameterValueType enum.
 func (e SystemParameterValueType) Valid() bool {
 	switch e {
-	case BOOLEAN:
+	case SystemParameterValueTypeBOOLEAN:
 		return true
-	case DECIMAL:
+	case SystemParameterValueTypeDECIMAL:
 		return true
-	case INTEGER:
+	case SystemParameterValueTypeINTEGER:
 		return true
-	case STRING:
+	case SystemParameterValueTypeSTRING:
 		return true
 	default:
 		return false
@@ -2640,6 +2772,122 @@ type RevisionRequest struct {
 	Revision int64  `json:"revision"`
 }
 
+// RptDefinitionCreateRequest defines model for RptDefinitionCreateRequest.
+type RptDefinitionCreateRequest struct {
+	Code        string         `json:"code"`
+	Data        RptVersionData `json:"data"`
+	Description *string        `json:"description,omitempty"`
+	Name        string         `json:"name"`
+}
+
+// RptDefinitionGetRequest defines model for RptDefinitionGetRequest.
+type RptDefinitionGetRequest struct {
+	Code      string  `json:"code"`
+	VersionId *string `json:"versionId,omitempty"`
+}
+
+// RptDefinitionQueryRequest defines model for RptDefinitionQueryRequest.
+type RptDefinitionQueryRequest struct {
+	IncludeDisabled *bool   `json:"includeDisabled,omitempty"`
+	Keyword         *string `json:"keyword,omitempty"`
+	Page            int     `json:"page"`
+	PageSize        int     `json:"pageSize"`
+}
+
+// RptDefinitionRevisionRequest defines model for RptDefinitionRevisionRequest.
+type RptDefinitionRevisionRequest struct {
+	Code     string `json:"code"`
+	Revision int64  `json:"revision"`
+}
+
+// RptDirectoryQueryRequest defines model for RptDirectoryQueryRequest.
+type RptDirectoryQueryRequest struct {
+	Page     int `json:"page"`
+	PageSize int `json:"pageSize"`
+}
+
+// RptExecuteRequest defines model for RptExecuteRequest.
+type RptExecuteRequest struct {
+	Page       *int                   `json:"page,omitempty"`
+	PageSize   *int                   `json:"pageSize,omitempty"`
+	Parameters map[string]interface{} `json:"parameters"`
+}
+
+// RptParameter defines model for RptParameter.
+type RptParameter struct {
+	DefaultValue  interface{}       `json:"defaultValue,omitempty"`
+	EnumValues    *[]string         `json:"enumValues,omitempty"`
+	Key           string            `json:"key"`
+	Name          string            `json:"name"`
+	ReferenceType *RptReferenceType `json:"referenceType,omitempty"`
+	Required      bool              `json:"required"`
+	Type          RptParameterType  `json:"type"`
+}
+
+// RptParameterType defines model for RptParameterType.
+type RptParameterType string
+
+// RptReferenceQueryRequest defines model for RptReferenceQueryRequest.
+type RptReferenceQueryRequest struct {
+	Keyword      *string `json:"keyword,omitempty"`
+	Page         *int    `json:"page,omitempty"`
+	PageSize     *int    `json:"pageSize,omitempty"`
+	ParameterKey string  `json:"parameterKey"`
+	SelectedId   *string `json:"selectedId,omitempty"`
+}
+
+// RptReferenceType defines model for RptReferenceType.
+type RptReferenceType string
+
+// RptResultColumn defines model for RptResultColumn.
+type RptResultColumn struct {
+	Alias           string                          `json:"alias"`
+	DrilldownEntity *RptResultColumnDrilldownEntity `json:"drilldownEntity,omitempty"`
+	Format          *string                         `json:"format,omitempty"`
+	Name            string                          `json:"name"`
+	Order           int                             `json:"order"`
+	Type            RptResultType                   `json:"type"`
+	Visible         bool                            `json:"visible"`
+	Width           int                             `json:"width"`
+}
+
+// RptResultColumnDrilldownEntity defines model for RptResultColumn.DrilldownEntity.
+type RptResultColumnDrilldownEntity string
+
+// RptResultType defines model for RptResultType.
+type RptResultType string
+
+// RptVersionCreateRequest defines model for RptVersionCreateRequest.
+type RptVersionCreateRequest struct {
+	Code string         `json:"code"`
+	Data RptVersionData `json:"data"`
+}
+
+// RptVersionData defines model for RptVersionData.
+type RptVersionData struct {
+	Columns    []RptResultColumn `json:"columns"`
+	Parameters []RptParameter    `json:"parameters"`
+	Sql        string            `json:"sql"`
+}
+
+// RptVersionRevisionRequest defines model for RptVersionRevisionRequest.
+type RptVersionRevisionRequest struct {
+	Code                 string                  `json:"code"`
+	Revision             int64                   `json:"revision"`
+	ValidationParameters *map[string]interface{} `json:"validationParameters,omitempty"`
+	VersionId            string                  `json:"versionId"`
+}
+
+// RptVersionSaveRequest defines model for RptVersionSaveRequest.
+type RptVersionSaveRequest struct {
+	Code        string         `json:"code"`
+	Data        RptVersionData `json:"data"`
+	Description *string        `json:"description,omitempty"`
+	Name        *string        `json:"name,omitempty"`
+	Revision    int64          `json:"revision"`
+	VersionId   string         `json:"versionId"`
+}
+
 // SaveBusinessMenuRequest defines model for SaveBusinessMenuRequest.
 type SaveBusinessMenuRequest struct {
 	CatalogRevision string         `json:"catalogRevision"`
@@ -4145,6 +4393,9 @@ type DataOtherCategory string
 // FileToken defines model for FileToken.
 type FileToken = string
 
+// RptReportCode defines model for RptReportCode.
+type RptReportCode = string
+
 // Business defines model for Business.
 type Business = BusinessEnvelope
 
@@ -4387,6 +4638,48 @@ type BobunsubmitJSONRequestBody = BobReverseRequest
 
 // BobversionsJSONRequestBody defines body for Bobversions for application/json ContentType.
 type BobversionsJSONRequestBody = BobHistoryRequest
+
+// RptDefinitionApproveJSONRequestBody defines body for RptDefinitionApprove for application/json ContentType.
+type RptDefinitionApproveJSONRequestBody = RptVersionRevisionRequest
+
+// RptDefinitionCreateJSONRequestBody defines body for RptDefinitionCreate for application/json ContentType.
+type RptDefinitionCreateJSONRequestBody = RptDefinitionCreateRequest
+
+// RptDefinitionCreateVersionJSONRequestBody defines body for RptDefinitionCreateVersion for application/json ContentType.
+type RptDefinitionCreateVersionJSONRequestBody = RptVersionCreateRequest
+
+// RptDefinitionDeleteJSONRequestBody defines body for RptDefinitionDelete for application/json ContentType.
+type RptDefinitionDeleteJSONRequestBody = RptDefinitionRevisionRequest
+
+// RptDefinitionDisableJSONRequestBody defines body for RptDefinitionDisable for application/json ContentType.
+type RptDefinitionDisableJSONRequestBody = RptDefinitionRevisionRequest
+
+// RptDefinitionEnableJSONRequestBody defines body for RptDefinitionEnable for application/json ContentType.
+type RptDefinitionEnableJSONRequestBody = RptDefinitionRevisionRequest
+
+// RptDefinitionGetJSONRequestBody defines body for RptDefinitionGet for application/json ContentType.
+type RptDefinitionGetJSONRequestBody = RptDefinitionGetRequest
+
+// RptDefinitionQueryJSONRequestBody defines body for RptDefinitionQuery for application/json ContentType.
+type RptDefinitionQueryJSONRequestBody = RptDefinitionQueryRequest
+
+// RptDefinitionSaveJSONRequestBody defines body for RptDefinitionSave for application/json ContentType.
+type RptDefinitionSaveJSONRequestBody = RptVersionSaveRequest
+
+// RptDefinitionUnapproveJSONRequestBody defines body for RptDefinitionUnapprove for application/json ContentType.
+type RptDefinitionUnapproveJSONRequestBody = RptVersionRevisionRequest
+
+// RptDirectoryQueryJSONRequestBody defines body for RptDirectoryQuery for application/json ContentType.
+type RptDirectoryQueryJSONRequestBody = RptDirectoryQueryRequest
+
+// RptReportExportJSONRequestBody defines body for RptReportExport for application/json ContentType.
+type RptReportExportJSONRequestBody = RptExecuteRequest
+
+// RptReportQueryJSONRequestBody defines body for RptReportQuery for application/json ContentType.
+type RptReportQueryJSONRequestBody = RptExecuteRequest
+
+// RptReportReferenceQueryJSONRequestBody defines body for RptReportReferenceQuery for application/json ContentType.
+type RptReportReferenceQueryJSONRequestBody = RptReferenceQueryRequest
 
 // VouapproveJSONRequestBody defines body for Vouapprove for application/json ContentType.
 type VouapproveJSONRequestBody = VouDocumentRevisionRequest
@@ -5168,6 +5461,48 @@ type ServerInterface interface {
 	// Readiness 数据库就绪检查
 	// (GET /readyz)
 	Readiness(c *gin.Context)
+	// RptDefinitionApprove 批准报表版本
+	// (POST /rpt/definition/approve)
+	RptDefinitionApprove(c *gin.Context)
+	// RptDefinitionCreate 新建报表定义
+	// (POST /rpt/definition/create)
+	RptDefinitionCreate(c *gin.Context)
+	// RptDefinitionCreateVersion 新建报表版本
+	// (POST /rpt/definition/create-version)
+	RptDefinitionCreateVersion(c *gin.Context)
+	// RptDefinitionDelete 删除未批准报表
+	// (POST /rpt/definition/delete)
+	RptDefinitionDelete(c *gin.Context)
+	// RptDefinitionDisable 停用报表
+	// (POST /rpt/definition/disable)
+	RptDefinitionDisable(c *gin.Context)
+	// RptDefinitionEnable 启用报表
+	// (POST /rpt/definition/enable)
+	RptDefinitionEnable(c *gin.Context)
+	// RptDefinitionGet 读取报表定义
+	// (POST /rpt/definition/get)
+	RptDefinitionGet(c *gin.Context)
+	// RptDefinitionQuery 查询报表定义
+	// (POST /rpt/definition/query)
+	RptDefinitionQuery(c *gin.Context)
+	// RptDefinitionSave 保存报表版本
+	// (POST /rpt/definition/save)
+	RptDefinitionSave(c *gin.Context)
+	// RptDefinitionUnapprove 反批准报表版本
+	// (POST /rpt/definition/unapprove)
+	RptDefinitionUnapprove(c *gin.Context)
+	// RptDirectoryQuery 查询当前会话可用报表目录
+	// (POST /rpt/directory/query)
+	RptDirectoryQuery(c *gin.Context)
+	// RptReportExport 导出报表
+	// (POST /rpt/{report}/export)
+	RptReportExport(c *gin.Context, report RptReportCode)
+	// RptReportQuery 运行报表
+	// (POST /rpt/{report}/query)
+	RptReportQuery(c *gin.Context, report RptReportCode)
+	// RptReportReferenceQuery 查询报表参数引用
+	// (POST /rpt/{report}/reference-query)
+	RptReportReferenceQuery(c *gin.Context, report RptReportCode)
 	// Vouapprove 批准业务单据
 	// (POST /vou/{entity}/approve)
 	Vouapprove(c *gin.Context, entity VouEntity)
@@ -6691,6 +7026,224 @@ func (siw *ServerInterfaceWrapper) Readiness(c *gin.Context) {
 	siw.Handler.Readiness(c)
 }
 
+// RptDefinitionApprove operation middleware
+func (siw *ServerInterfaceWrapper) RptDefinitionApprove(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RptDefinitionApprove(c)
+}
+
+// RptDefinitionCreate operation middleware
+func (siw *ServerInterfaceWrapper) RptDefinitionCreate(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RptDefinitionCreate(c)
+}
+
+// RptDefinitionCreateVersion operation middleware
+func (siw *ServerInterfaceWrapper) RptDefinitionCreateVersion(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RptDefinitionCreateVersion(c)
+}
+
+// RptDefinitionDelete operation middleware
+func (siw *ServerInterfaceWrapper) RptDefinitionDelete(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RptDefinitionDelete(c)
+}
+
+// RptDefinitionDisable operation middleware
+func (siw *ServerInterfaceWrapper) RptDefinitionDisable(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RptDefinitionDisable(c)
+}
+
+// RptDefinitionEnable operation middleware
+func (siw *ServerInterfaceWrapper) RptDefinitionEnable(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RptDefinitionEnable(c)
+}
+
+// RptDefinitionGet operation middleware
+func (siw *ServerInterfaceWrapper) RptDefinitionGet(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RptDefinitionGet(c)
+}
+
+// RptDefinitionQuery operation middleware
+func (siw *ServerInterfaceWrapper) RptDefinitionQuery(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RptDefinitionQuery(c)
+}
+
+// RptDefinitionSave operation middleware
+func (siw *ServerInterfaceWrapper) RptDefinitionSave(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RptDefinitionSave(c)
+}
+
+// RptDefinitionUnapprove operation middleware
+func (siw *ServerInterfaceWrapper) RptDefinitionUnapprove(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RptDefinitionUnapprove(c)
+}
+
+// RptDirectoryQuery operation middleware
+func (siw *ServerInterfaceWrapper) RptDirectoryQuery(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RptDirectoryQuery(c)
+}
+
+// RptReportExport operation middleware
+func (siw *ServerInterfaceWrapper) RptReportExport(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "report" -------------
+	var report RptReportCode
+
+	err = runtime.BindStyledParameterWithOptions("simple", "report", c.Param("report"), &report, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter report: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RptReportExport(c, report)
+}
+
+// RptReportQuery operation middleware
+func (siw *ServerInterfaceWrapper) RptReportQuery(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "report" -------------
+	var report RptReportCode
+
+	err = runtime.BindStyledParameterWithOptions("simple", "report", c.Param("report"), &report, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter report: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RptReportQuery(c, report)
+}
+
+// RptReportReferenceQuery operation middleware
+func (siw *ServerInterfaceWrapper) RptReportReferenceQuery(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "report" -------------
+	var report RptReportCode
+
+	err = runtime.BindStyledParameterWithOptions("simple", "report", c.Param("report"), &report, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter report: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RptReportReferenceQuery(c, report)
+}
+
 // Vouapprove operation middleware
 func (siw *ServerInterfaceWrapper) Vouapprove(c *gin.Context) {
 
@@ -7589,6 +8142,20 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/wfl/:processName/audit-history", wrapper.WflDynamicProcessAuditHistory)
 	router.POST(options.BaseURL+"/wfl/process-instance/get", wrapper.WflProcessInstanceGet)
 	router.POST(options.BaseURL+"/wfl/process-instance/audit-history", wrapper.WflProcessInstanceAuditHistory)
+	router.POST(options.BaseURL+"/rpt/definition/query", wrapper.RptDefinitionQuery)
+	router.POST(options.BaseURL+"/rpt/definition/get", wrapper.RptDefinitionGet)
+	router.POST(options.BaseURL+"/rpt/definition/create", wrapper.RptDefinitionCreate)
+	router.POST(options.BaseURL+"/rpt/definition/create-version", wrapper.RptDefinitionCreateVersion)
+	router.POST(options.BaseURL+"/rpt/definition/save", wrapper.RptDefinitionSave)
+	router.POST(options.BaseURL+"/rpt/definition/approve", wrapper.RptDefinitionApprove)
+	router.POST(options.BaseURL+"/rpt/definition/unapprove", wrapper.RptDefinitionUnapprove)
+	router.POST(options.BaseURL+"/rpt/definition/enable", wrapper.RptDefinitionEnable)
+	router.POST(options.BaseURL+"/rpt/definition/disable", wrapper.RptDefinitionDisable)
+	router.POST(options.BaseURL+"/rpt/definition/delete", wrapper.RptDefinitionDelete)
+	router.POST(options.BaseURL+"/rpt/:report/query", wrapper.RptReportQuery)
+	router.POST(options.BaseURL+"/rpt/directory/query", wrapper.RptDirectoryQuery)
+	router.POST(options.BaseURL+"/rpt/:report/export", wrapper.RptReportExport)
+	router.POST(options.BaseURL+"/rpt/:report/reference-query", wrapper.RptReportReferenceQuery)
 	router.PUT(options.BaseURL+"/files/feedback/attachments/upload/:token", wrapper.UploadFeedbackAttachment)
 	router.PUT(options.BaseURL+"/files/attachments/upload/:token", wrapper.UploadAttachment)
 	router.GET(options.BaseURL+"/files/attachments/download/:token", wrapper.DownloadAttachment)
@@ -9539,6 +10106,335 @@ func (response Readiness503JSONResponse) VisitReadinessResponse(w http.ResponseW
 	return err
 }
 
+type RptDefinitionApproveRequestObject struct {
+	Body *RptDefinitionApproveJSONRequestBody
+}
+
+type RptDefinitionApproveResponseObject interface {
+	VisitRptDefinitionApproveResponse(w http.ResponseWriter) error
+}
+
+type RptDefinitionApprove200JSONResponse struct{ BusinessJSONResponse }
+
+func (response RptDefinitionApprove200JSONResponse) VisitRptDefinitionApproveResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RptDefinitionCreateRequestObject struct {
+	Body *RptDefinitionCreateJSONRequestBody
+}
+
+type RptDefinitionCreateResponseObject interface {
+	VisitRptDefinitionCreateResponse(w http.ResponseWriter) error
+}
+
+type RptDefinitionCreate200JSONResponse struct{ BusinessJSONResponse }
+
+func (response RptDefinitionCreate200JSONResponse) VisitRptDefinitionCreateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RptDefinitionCreateVersionRequestObject struct {
+	Body *RptDefinitionCreateVersionJSONRequestBody
+}
+
+type RptDefinitionCreateVersionResponseObject interface {
+	VisitRptDefinitionCreateVersionResponse(w http.ResponseWriter) error
+}
+
+type RptDefinitionCreateVersion200JSONResponse struct{ BusinessJSONResponse }
+
+func (response RptDefinitionCreateVersion200JSONResponse) VisitRptDefinitionCreateVersionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RptDefinitionDeleteRequestObject struct {
+	Body *RptDefinitionDeleteJSONRequestBody
+}
+
+type RptDefinitionDeleteResponseObject interface {
+	VisitRptDefinitionDeleteResponse(w http.ResponseWriter) error
+}
+
+type RptDefinitionDelete200JSONResponse struct{ BusinessJSONResponse }
+
+func (response RptDefinitionDelete200JSONResponse) VisitRptDefinitionDeleteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RptDefinitionDisableRequestObject struct {
+	Body *RptDefinitionDisableJSONRequestBody
+}
+
+type RptDefinitionDisableResponseObject interface {
+	VisitRptDefinitionDisableResponse(w http.ResponseWriter) error
+}
+
+type RptDefinitionDisable200JSONResponse struct{ BusinessJSONResponse }
+
+func (response RptDefinitionDisable200JSONResponse) VisitRptDefinitionDisableResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RptDefinitionEnableRequestObject struct {
+	Body *RptDefinitionEnableJSONRequestBody
+}
+
+type RptDefinitionEnableResponseObject interface {
+	VisitRptDefinitionEnableResponse(w http.ResponseWriter) error
+}
+
+type RptDefinitionEnable200JSONResponse struct{ BusinessJSONResponse }
+
+func (response RptDefinitionEnable200JSONResponse) VisitRptDefinitionEnableResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RptDefinitionGetRequestObject struct {
+	Body *RptDefinitionGetJSONRequestBody
+}
+
+type RptDefinitionGetResponseObject interface {
+	VisitRptDefinitionGetResponse(w http.ResponseWriter) error
+}
+
+type RptDefinitionGet200JSONResponse struct{ BusinessJSONResponse }
+
+func (response RptDefinitionGet200JSONResponse) VisitRptDefinitionGetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RptDefinitionQueryRequestObject struct {
+	Body *RptDefinitionQueryJSONRequestBody
+}
+
+type RptDefinitionQueryResponseObject interface {
+	VisitRptDefinitionQueryResponse(w http.ResponseWriter) error
+}
+
+type RptDefinitionQuery200JSONResponse struct{ BusinessJSONResponse }
+
+func (response RptDefinitionQuery200JSONResponse) VisitRptDefinitionQueryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RptDefinitionSaveRequestObject struct {
+	Body *RptDefinitionSaveJSONRequestBody
+}
+
+type RptDefinitionSaveResponseObject interface {
+	VisitRptDefinitionSaveResponse(w http.ResponseWriter) error
+}
+
+type RptDefinitionSave200JSONResponse struct{ BusinessJSONResponse }
+
+func (response RptDefinitionSave200JSONResponse) VisitRptDefinitionSaveResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RptDefinitionUnapproveRequestObject struct {
+	Body *RptDefinitionUnapproveJSONRequestBody
+}
+
+type RptDefinitionUnapproveResponseObject interface {
+	VisitRptDefinitionUnapproveResponse(w http.ResponseWriter) error
+}
+
+type RptDefinitionUnapprove200JSONResponse struct{ BusinessJSONResponse }
+
+func (response RptDefinitionUnapprove200JSONResponse) VisitRptDefinitionUnapproveResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RptDirectoryQueryRequestObject struct {
+	Body *RptDirectoryQueryJSONRequestBody
+}
+
+type RptDirectoryQueryResponseObject interface {
+	VisitRptDirectoryQueryResponse(w http.ResponseWriter) error
+}
+
+type RptDirectoryQuery200JSONResponse struct{ BusinessJSONResponse }
+
+func (response RptDirectoryQuery200JSONResponse) VisitRptDirectoryQueryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RptReportExportRequestObject struct {
+	Report RptReportCode `json:"report"`
+	Body   *RptReportExportJSONRequestBody
+}
+
+type RptReportExportResponseObject interface {
+	VisitRptReportExportResponse(w http.ResponseWriter) error
+}
+
+type RptReportExport200ResponseHeaders struct {
+	ContentDisposition  *string
+	XContentTypeOptions *string
+}
+
+type RptReportExport200TextcsvResponse struct {
+	Body          io.Reader
+	Headers       RptReportExport200ResponseHeaders
+	ContentLength int64
+}
+
+func (response RptReportExport200TextcsvResponse) VisitRptReportExportResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "text/csv")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	if response.Headers.ContentDisposition != nil {
+		w.Header().Set("Content-Disposition", fmt.Sprint(*response.Headers.ContentDisposition))
+	}
+	if response.Headers.XContentTypeOptions != nil {
+		w.Header().Set("X-Content-Type-Options", fmt.Sprint(*response.Headers.XContentTypeOptions))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type RptReportQueryRequestObject struct {
+	Report RptReportCode `json:"report"`
+	Body   *RptReportQueryJSONRequestBody
+}
+
+type RptReportQueryResponseObject interface {
+	VisitRptReportQueryResponse(w http.ResponseWriter) error
+}
+
+type RptReportQuery200JSONResponse struct{ BusinessJSONResponse }
+
+func (response RptReportQuery200JSONResponse) VisitRptReportQueryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RptReportReferenceQueryRequestObject struct {
+	Report RptReportCode `json:"report"`
+	Body   *RptReportReferenceQueryJSONRequestBody
+}
+
+type RptReportReferenceQueryResponseObject interface {
+	VisitRptReportReferenceQueryResponse(w http.ResponseWriter) error
+}
+
+type RptReportReferenceQuery200JSONResponse struct{ BusinessJSONResponse }
+
+func (response RptReportReferenceQuery200JSONResponse) VisitRptReportReferenceQueryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type VouapproveRequestObject struct {
 	Entity VouEntity `json:"entity"`
 	Body   *VouapproveJSONRequestBody
@@ -10609,6 +11505,48 @@ type StrictServerInterface interface {
 	// Readiness 数据库就绪检查
 	// (GET /readyz)
 	Readiness(ctx context.Context, request ReadinessRequestObject) (ReadinessResponseObject, error)
+	// RptDefinitionApprove 批准报表版本
+	// (POST /rpt/definition/approve)
+	RptDefinitionApprove(ctx context.Context, request RptDefinitionApproveRequestObject) (RptDefinitionApproveResponseObject, error)
+	// RptDefinitionCreate 新建报表定义
+	// (POST /rpt/definition/create)
+	RptDefinitionCreate(ctx context.Context, request RptDefinitionCreateRequestObject) (RptDefinitionCreateResponseObject, error)
+	// RptDefinitionCreateVersion 新建报表版本
+	// (POST /rpt/definition/create-version)
+	RptDefinitionCreateVersion(ctx context.Context, request RptDefinitionCreateVersionRequestObject) (RptDefinitionCreateVersionResponseObject, error)
+	// RptDefinitionDelete 删除未批准报表
+	// (POST /rpt/definition/delete)
+	RptDefinitionDelete(ctx context.Context, request RptDefinitionDeleteRequestObject) (RptDefinitionDeleteResponseObject, error)
+	// RptDefinitionDisable 停用报表
+	// (POST /rpt/definition/disable)
+	RptDefinitionDisable(ctx context.Context, request RptDefinitionDisableRequestObject) (RptDefinitionDisableResponseObject, error)
+	// RptDefinitionEnable 启用报表
+	// (POST /rpt/definition/enable)
+	RptDefinitionEnable(ctx context.Context, request RptDefinitionEnableRequestObject) (RptDefinitionEnableResponseObject, error)
+	// RptDefinitionGet 读取报表定义
+	// (POST /rpt/definition/get)
+	RptDefinitionGet(ctx context.Context, request RptDefinitionGetRequestObject) (RptDefinitionGetResponseObject, error)
+	// RptDefinitionQuery 查询报表定义
+	// (POST /rpt/definition/query)
+	RptDefinitionQuery(ctx context.Context, request RptDefinitionQueryRequestObject) (RptDefinitionQueryResponseObject, error)
+	// RptDefinitionSave 保存报表版本
+	// (POST /rpt/definition/save)
+	RptDefinitionSave(ctx context.Context, request RptDefinitionSaveRequestObject) (RptDefinitionSaveResponseObject, error)
+	// RptDefinitionUnapprove 反批准报表版本
+	// (POST /rpt/definition/unapprove)
+	RptDefinitionUnapprove(ctx context.Context, request RptDefinitionUnapproveRequestObject) (RptDefinitionUnapproveResponseObject, error)
+	// RptDirectoryQuery 查询当前会话可用报表目录
+	// (POST /rpt/directory/query)
+	RptDirectoryQuery(ctx context.Context, request RptDirectoryQueryRequestObject) (RptDirectoryQueryResponseObject, error)
+	// RptReportExport 导出报表
+	// (POST /rpt/{report}/export)
+	RptReportExport(ctx context.Context, request RptReportExportRequestObject) (RptReportExportResponseObject, error)
+	// RptReportQuery 运行报表
+	// (POST /rpt/{report}/query)
+	RptReportQuery(ctx context.Context, request RptReportQueryRequestObject) (RptReportQueryResponseObject, error)
+	// RptReportReferenceQuery 查询报表参数引用
+	// (POST /rpt/{report}/reference-query)
+	RptReportReferenceQuery(ctx context.Context, request RptReportReferenceQueryRequestObject) (RptReportReferenceQueryResponseObject, error)
 	// Vouapprove 批准业务单据
 	// (POST /vou/{entity}/approve)
 	Vouapprove(ctx context.Context, request VouapproveRequestObject) (VouapproveResponseObject, error)
@@ -13403,6 +14341,446 @@ func (sh *strictHandler) Readiness(ctx *gin.Context) {
 	}
 }
 
+// RptDefinitionApprove operation middleware
+func (sh *strictHandler) RptDefinitionApprove(ctx *gin.Context) {
+	var request RptDefinitionApproveRequestObject
+
+	var body RptDefinitionApproveJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.RptDefinitionApprove(ctx, request.(RptDefinitionApproveRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RptDefinitionApprove")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(RptDefinitionApproveResponseObject); ok {
+		if err := validResponse.VisitRptDefinitionApproveResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RptDefinitionCreate operation middleware
+func (sh *strictHandler) RptDefinitionCreate(ctx *gin.Context) {
+	var request RptDefinitionCreateRequestObject
+
+	var body RptDefinitionCreateJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.RptDefinitionCreate(ctx, request.(RptDefinitionCreateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RptDefinitionCreate")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(RptDefinitionCreateResponseObject); ok {
+		if err := validResponse.VisitRptDefinitionCreateResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RptDefinitionCreateVersion operation middleware
+func (sh *strictHandler) RptDefinitionCreateVersion(ctx *gin.Context) {
+	var request RptDefinitionCreateVersionRequestObject
+
+	var body RptDefinitionCreateVersionJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.RptDefinitionCreateVersion(ctx, request.(RptDefinitionCreateVersionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RptDefinitionCreateVersion")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(RptDefinitionCreateVersionResponseObject); ok {
+		if err := validResponse.VisitRptDefinitionCreateVersionResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RptDefinitionDelete operation middleware
+func (sh *strictHandler) RptDefinitionDelete(ctx *gin.Context) {
+	var request RptDefinitionDeleteRequestObject
+
+	var body RptDefinitionDeleteJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.RptDefinitionDelete(ctx, request.(RptDefinitionDeleteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RptDefinitionDelete")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(RptDefinitionDeleteResponseObject); ok {
+		if err := validResponse.VisitRptDefinitionDeleteResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RptDefinitionDisable operation middleware
+func (sh *strictHandler) RptDefinitionDisable(ctx *gin.Context) {
+	var request RptDefinitionDisableRequestObject
+
+	var body RptDefinitionDisableJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.RptDefinitionDisable(ctx, request.(RptDefinitionDisableRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RptDefinitionDisable")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(RptDefinitionDisableResponseObject); ok {
+		if err := validResponse.VisitRptDefinitionDisableResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RptDefinitionEnable operation middleware
+func (sh *strictHandler) RptDefinitionEnable(ctx *gin.Context) {
+	var request RptDefinitionEnableRequestObject
+
+	var body RptDefinitionEnableJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.RptDefinitionEnable(ctx, request.(RptDefinitionEnableRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RptDefinitionEnable")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(RptDefinitionEnableResponseObject); ok {
+		if err := validResponse.VisitRptDefinitionEnableResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RptDefinitionGet operation middleware
+func (sh *strictHandler) RptDefinitionGet(ctx *gin.Context) {
+	var request RptDefinitionGetRequestObject
+
+	var body RptDefinitionGetJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.RptDefinitionGet(ctx, request.(RptDefinitionGetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RptDefinitionGet")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(RptDefinitionGetResponseObject); ok {
+		if err := validResponse.VisitRptDefinitionGetResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RptDefinitionQuery operation middleware
+func (sh *strictHandler) RptDefinitionQuery(ctx *gin.Context) {
+	var request RptDefinitionQueryRequestObject
+
+	var body RptDefinitionQueryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.RptDefinitionQuery(ctx, request.(RptDefinitionQueryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RptDefinitionQuery")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(RptDefinitionQueryResponseObject); ok {
+		if err := validResponse.VisitRptDefinitionQueryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RptDefinitionSave operation middleware
+func (sh *strictHandler) RptDefinitionSave(ctx *gin.Context) {
+	var request RptDefinitionSaveRequestObject
+
+	var body RptDefinitionSaveJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.RptDefinitionSave(ctx, request.(RptDefinitionSaveRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RptDefinitionSave")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(RptDefinitionSaveResponseObject); ok {
+		if err := validResponse.VisitRptDefinitionSaveResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RptDefinitionUnapprove operation middleware
+func (sh *strictHandler) RptDefinitionUnapprove(ctx *gin.Context) {
+	var request RptDefinitionUnapproveRequestObject
+
+	var body RptDefinitionUnapproveJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.RptDefinitionUnapprove(ctx, request.(RptDefinitionUnapproveRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RptDefinitionUnapprove")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(RptDefinitionUnapproveResponseObject); ok {
+		if err := validResponse.VisitRptDefinitionUnapproveResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RptDirectoryQuery operation middleware
+func (sh *strictHandler) RptDirectoryQuery(ctx *gin.Context) {
+	var request RptDirectoryQueryRequestObject
+
+	var body RptDirectoryQueryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.RptDirectoryQuery(ctx, request.(RptDirectoryQueryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RptDirectoryQuery")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(RptDirectoryQueryResponseObject); ok {
+		if err := validResponse.VisitRptDirectoryQueryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RptReportExport operation middleware
+func (sh *strictHandler) RptReportExport(ctx *gin.Context, report RptReportCode) {
+	var request RptReportExportRequestObject
+
+	request.Report = report
+
+	var body RptReportExportJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.RptReportExport(ctx, request.(RptReportExportRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RptReportExport")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(RptReportExportResponseObject); ok {
+		if err := validResponse.VisitRptReportExportResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RptReportQuery operation middleware
+func (sh *strictHandler) RptReportQuery(ctx *gin.Context, report RptReportCode) {
+	var request RptReportQueryRequestObject
+
+	request.Report = report
+
+	var body RptReportQueryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.RptReportQuery(ctx, request.(RptReportQueryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RptReportQuery")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(RptReportQueryResponseObject); ok {
+		if err := validResponse.VisitRptReportQueryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RptReportReferenceQuery operation middleware
+func (sh *strictHandler) RptReportReferenceQuery(ctx *gin.Context, report RptReportCode) {
+	var request RptReportReferenceQueryRequestObject
+
+	request.Report = report
+
+	var body RptReportReferenceQueryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.RptReportReferenceQuery(ctx, request.(RptReportReferenceQueryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RptReportReferenceQuery")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(RptReportReferenceQueryResponseObject); ok {
+		if err := validResponse.VisitRptReportReferenceQueryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Vouapprove operation middleware
 func (sh *strictHandler) Vouapprove(ctx *gin.Context, entity VouEntity) {
 	var request VouapproveRequestObject
@@ -14572,254 +15950,272 @@ func (sh *strictHandler) WflDynamicProcessQuery(ctx *gin.Context, processName st
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
+	"/w==",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

@@ -16,6 +16,7 @@
       { 'name': 'vou', 'description': '业务单据' },
       { 'name': 'wfl', 'description': '业务流程' },
       { 'name': 'acc', 'description': '内部会计' },
+      { 'name': 'rpt', 'description': '查询报表' },
       { 'name': 'files', 'description': '二进制附件端点' },
       { 'name': 'operations', 'description': '运行状态端点' },
     ],
@@ -3596,6 +3597,392 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
+      '/rpt/definition/query':
+        {
+          'post':
+            {
+              'tags': ['rpt'],
+              'summary': '查询报表定义',
+              'operationId': 'rptDefinitionQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/rpt.yaml#/RptDefinitionQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/rpt/definition/get':
+        {
+          'post':
+            {
+              'tags': ['rpt'],
+              'summary': '读取报表定义',
+              'operationId': 'rptDefinitionGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/rpt.yaml#/RptDefinitionGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/rpt/definition/create':
+        {
+          'post':
+            {
+              'tags': ['rpt'],
+              'summary': '新建报表定义',
+              'operationId': 'rptDefinitionCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/rpt.yaml#/RptDefinitionCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/rpt/definition/create-version':
+        {
+          'post':
+            {
+              'tags': ['rpt'],
+              'summary': '新建报表版本',
+              'operationId': 'rptDefinitionCreateVersion',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/rpt.yaml#/RptVersionCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/rpt/definition/save':
+        {
+          'post':
+            {
+              'tags': ['rpt'],
+              'summary': '保存报表版本',
+              'operationId': 'rptDefinitionSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/rpt.yaml#/RptVersionSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/rpt/definition/approve':
+        {
+          'post':
+            {
+              'tags': ['rpt'],
+              'summary': '批准报表版本',
+              'operationId': 'rptDefinitionApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/rpt.yaml#/RptVersionRevisionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/rpt/definition/unapprove':
+        {
+          'post':
+            {
+              'tags': ['rpt'],
+              'summary': '反批准报表版本',
+              'operationId': 'rptDefinitionUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/rpt.yaml#/RptVersionRevisionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/rpt/definition/enable':
+        {
+          'post':
+            {
+              'tags': ['rpt'],
+              'summary': '启用报表',
+              'operationId': 'rptDefinitionEnable',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/rpt.yaml#/RptDefinitionRevisionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/rpt/definition/disable':
+        {
+          'post':
+            {
+              'tags': ['rpt'],
+              'summary': '停用报表',
+              'operationId': 'rptDefinitionDisable',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/rpt.yaml#/RptDefinitionRevisionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/rpt/definition/delete':
+        {
+          'post':
+            {
+              'tags': ['rpt'],
+              'summary': '删除未批准报表',
+              'operationId': 'rptDefinitionDelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/rpt.yaml#/RptDefinitionRevisionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/rpt/{report}/query':
+        {
+          'post':
+            {
+              'tags': ['rpt'],
+              'summary': '运行报表',
+              'operationId': 'rptReportQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters':
+                [{ '$ref': '#/components/parameters/RptReportCode' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/rpt.yaml#/RptExecuteRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/rpt/directory/query':
+        {
+          'post':
+            {
+              'tags': ['rpt'],
+              'summary': '查询当前会话可用报表目录',
+              'operationId': 'rptDirectoryQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/rpt.yaml#/RptDirectoryQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/rpt/{report}/export':
+        {
+          'post':
+            {
+              'tags': ['rpt'],
+              'summary': '导出报表',
+              'operationId': 'rptReportExport',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters':
+                [{ '$ref': '#/components/parameters/RptReportCode' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/rpt.yaml#/RptExecuteRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '报表 CSV',
+                      'headers':
+                        {
+                          'Content-Disposition':
+                            { 'schema': { 'type': 'string' } },
+                          'X-Content-Type-Options':
+                            { 'schema': { 'type': 'string' } },
+                        },
+                      'content':
+                        {
+                          'text/csv':
+                            {
+                              'schema':
+                                { 'type': 'string', 'format': 'binary' },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/rpt/{report}/reference-query':
+        {
+          'post':
+            {
+              'tags': ['rpt'],
+              'summary': '查询报表参数引用',
+              'operationId': 'rptReportReferenceQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters':
+                [{ '$ref': '#/components/parameters/RptReportCode' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/rpt.yaml#/RptReferenceQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
       '/files/feedback/attachments/upload/{token}':
         {
           'put':
@@ -3743,6 +4130,17 @@
               'in': 'path',
               'required': true,
               'schema': { '$ref': './schemas/vou.yaml#/VouEntity' },
+            },
+          'RptReportCode':
+            {
+              'name': 'report',
+              'in': 'path',
+              'required': true,
+              'schema':
+                {
+                  'type': 'string',
+                  'pattern': '^[a-z][a-z0-9-]{1,62}[a-z0-9]$',
+                },
             },
           'VouCreatableEntity':
             {

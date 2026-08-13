@@ -427,6 +427,33 @@ type Querier interface {
 	RevokeAppSession(ctx context.Context, arg RevokeAppSessionParams) error
 	RevokeAppUserSessions(ctx context.Context, arg RevokeAppUserSessionsParams) error
 	RotateAppSessionCSRF(ctx context.Context, arg RotateAppSessionCSRFParams) (int64, error)
+	RptActivateVersion(ctx context.Context, arg RptActivateVersionParams) error
+	RptAllocateVersionNumber(ctx context.Context, arg RptAllocateVersionNumberParams) (RptAllocateVersionNumberRow, error)
+	RptApproveVersion(ctx context.Context, arg RptApproveVersionParams) error
+	RptClearCurrentVersion(ctx context.Context, arg RptClearCurrentVersionParams) error
+	RptDeleteDefinition(ctx context.Context, id string) error
+	RptDisableUsePermissions(ctx context.Context, arg RptDisableUsePermissionsParams) error
+	RptGetActiveDefinition(ctx context.Context, code string) (RptGetActiveDefinitionRow, error)
+	RptGetDefinition(ctx context.Context, arg RptGetDefinitionParams) (RptGetDefinitionRow, error)
+	RptInsertAuditEvent(ctx context.Context, arg RptInsertAuditEventParams) error
+	RptInsertDefinition(ctx context.Context, arg RptInsertDefinitionParams) error
+	RptInsertVersion(ctx context.Context, arg RptInsertVersionParams) error
+	RptInvalidateVersion(ctx context.Context, id string) error
+	RptListAssetReferences(ctx context.Context, arg RptListAssetReferencesParams) ([]RptListAssetReferencesRow, error)
+	RptListBOBReferences(ctx context.Context, arg RptListBOBReferencesParams) ([]RptListBOBReferencesRow, error)
+	RptListBillReferences(ctx context.Context, arg RptListBillReferencesParams) ([]RptListBillReferencesRow, error)
+	RptListBookReferences(ctx context.Context, arg RptListBookReferencesParams) ([]RptListBookReferencesRow, error)
+	RptListSubjectReferences(ctx context.Context, arg RptListSubjectReferencesParams) ([]RptListSubjectReferencesRow, error)
+	RptLockCurrentApprovedVersion(ctx context.Context, arg RptLockCurrentApprovedVersionParams) (string, error)
+	RptLockDefinitionCurrentVersion(ctx context.Context, arg RptLockDefinitionCurrentVersionParams) (bool, error)
+	RptLockDeletableDefinition(ctx context.Context, arg RptLockDeletableDefinitionParams) (string, error)
+	RptLockDraftForApproval(ctx context.Context, arg RptLockDraftForApprovalParams) (RptLockDraftForApprovalRow, error)
+	RptQueryDefinitions(ctx context.Context, arg RptQueryDefinitionsParams) ([]RptQueryDefinitionsRow, error)
+	RptQueryDirectory(ctx context.Context, arg RptQueryDirectoryParams) ([]RptQueryDirectoryRow, error)
+	RptSaveDraft(ctx context.Context, arg RptSaveDraftParams) (RptSaveDraftRow, error)
+	RptSetDefinitionEnabled(ctx context.Context, arg RptSetDefinitionEnabledParams) (RptSetDefinitionEnabledRow, error)
+	RptUpdateDefinitionText(ctx context.Context, arg RptUpdateDefinitionTextParams) error
+	RptUpsertUsePermission(ctx context.Context, arg RptUpsertUsePermissionParams) error
 	SaveWorkflowDefinitionDraft(ctx context.Context, arg SaveWorkflowDefinitionDraftParams) error
 	SaveWorkflowDefinitionScriptDiagnostic(ctx context.Context, arg SaveWorkflowDefinitionScriptDiagnosticParams) error
 	SetAppRoleStatus(ctx context.Context, arg SetAppRoleStatusParams) (int64, error)

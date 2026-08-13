@@ -42,6 +42,34 @@ func TestPreviewSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T
 	if err != nil {
 		t.Fatalf("new preview seeder: %v", err)
 	}
+	var setup Counts
+	if err = seeder.seedAuxiliary(t.Context(), &setup); err != nil {
+		t.Fatalf("seed legacy preview auxiliary data: %v", err)
+	}
+	if err = seeder.seedBusiness(t.Context(), &setup); err != nil {
+		t.Fatalf("seed legacy preview business data: %v", err)
+	}
+	fund := seeder.voucherReference("fund-effective")
+	employee := seeder.voucherReference("employee-effective")
+	created, err := seeder.vouchers.Create(t.Context(), voudomain.EntityExpenseReimbursement, voudomain.CreateInput{Data: voudomain.DraftInput{
+		BusinessDate: "2026-07-12", Currency: "CNY", FundAccount: &fund, Employee: &employee,
+		ExpenseLines: []voudomain.ExpenseLineInput{{Category: "交通", Description: "预览基线费用", Amount: "120.00"}},
+		Remark:       "预览费用报销：已批准",
+	}}, actorID, requestID("expense-approved", "create"))
+	if err != nil {
+		t.Fatalf("create legacy preview expense reimbursement: %v", err)
+	}
+	checked, err := seeder.vouchers.Check(t.Context(), voudomain.EntityExpenseReimbursement, voudomain.DocumentRevisionInput{
+		DocumentID: created.DocumentID, Revision: created.Revision,
+	}, actorID, requestID("expense-approved", "check"))
+	if err != nil {
+		t.Fatalf("check legacy preview expense reimbursement: %v", err)
+	}
+	if _, err = seeder.vouchers.Approve(t.Context(), voudomain.EntityExpenseReimbursement, voudomain.DocumentRevisionInput{
+		DocumentID: checked.DocumentID, Revision: checked.Revision,
+	}, actorID, requestID("expense-approved", "approve")); err != nil {
+		t.Fatalf("approve legacy preview expense reimbursement: %v", err)
+	}
 	if _, err = seeder.Seed(t.Context()); err != nil {
 		t.Fatalf("seed preview data: %v", err)
 	}

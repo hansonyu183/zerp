@@ -73,7 +73,7 @@ func (s *Seeder) seedExtendedVouchers(ctx context.Context, counts *Counts) error
 	if err := s.seedIntermediaryCalculation(ctx, counts); err != nil {
 		return err
 	}
-	return s.countGeneratedExpensePayment(ctx, counts)
+	return s.ensureGeneratedExpensePayment(ctx, counts)
 }
 
 func cashDraft(counterparty, fund, handler voudomain.ReferenceInput, amount, remark string) voudomain.DraftInput {
@@ -237,14 +237,38 @@ func (s *Seeder) seedIntermediaryCalculation(ctx context.Context, counts *Counts
 	return nil
 }
 
-func (s *Seeder) countGeneratedExpensePayment(ctx context.Context, counts *Counts) error {
+func (s *Seeder) ensureGeneratedExpensePayment(ctx context.Context, counts *Counts) error {
 	var count int
 	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM vou_documents WHERE entity=$1`, voudomain.EntityExpensePayment).Scan(&count); err != nil {
 		return err
 	}
-	if count == 0 {
-		return fmt.Errorf("expense reimbursement workflow did not generate expense-payment")
+	if count > 0 {
+		counts.add(outcomeSkipped)
+		return nil
 	}
-	counts.add(outcomeSkipped)
+	fund := s.voucherReference("fund-effective")
+	employee := s.voucherReference("employee-effective")
+	reimbursement, _, result, err := s.ensureVoucher(ctx, "expense-workflow-approved", voudomain.EntityExpenseReimbursement, voudomain.StatusApproved, func() (voudomain.MutationResult, error) {
+		return s.vouchers.Create(ctx, voudomain.EntityExpenseReimbursement, voudomain.CreateInput{Data: voudomain.DraftInput{
+			BusinessDate: "2026-07-14", Currency: "CNY", FundAccount: &fund, Employee: &employee,
+			ExpenseLines: []voudomain.ExpenseLineInput{{Category: "交通", Description: "预览费用付款工作流", Amount: "66.00"}},
+			Remark:       "预览费用付款工作流来源",
+		}}, actorID, requestID("expense-workflow-approved", "create"))
+	})
+	if err != nil {
+		return fmt.Errorf("recover expense payment workflow: %w", err)
+	}
+	counts.add(result)
+	if err = s.pool.QueryRow(ctx, `
+		SELECT count(*)
+		FROM vou_documents
+		WHERE parent_document_id=$1 AND entity=$2
+	`, reimbursement.DocumentID, voudomain.EntityExpensePayment).Scan(&count); err != nil {
+		return err
+	}
+	if count != 1 {
+		return fmt.Errorf("expense reimbursement workflow generated %d expense-payment documents, want 1", count)
+	}
+	counts.add(outcomeCreated)
 	return nil
 }

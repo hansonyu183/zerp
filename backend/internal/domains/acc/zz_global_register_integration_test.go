@@ -38,14 +38,14 @@ func TestZZGlobalAssetRegisterIgnoresPerBookUnpostAndReversesIntegration(t *test
 	snapshot := voudomain.DocumentView{
 		DocumentID: documentID, Entity: voudomain.EntityAssetAcquisition, DocumentNo: "FAA-20260720-0001", Status: voudomain.StatusApproved, Revision: 3,
 		Data: voudomain.DocumentDataView{BusinessDate: "2026-07-20", Currency: "CNY", AssetAcquisitionLines: []voudomain.AssetAcquisitionLineView{{
-			LineID: lineID, AssetName: "反应釜", Category: voudomain.ReferenceView{ObjectID: ulid.Make().String()}, Department: voudomain.ReferenceView{ObjectID: ulid.Make().String()}, OriginalValue: "12000.00", UsefulLifeMonths: 60, ResidualRate: "0.05",
+			LineID: lineID, AssetName: "反应釜", Category: voudomain.ReferenceView{ObjectID: ulid.Make().String()}, Department: voudomain.ReferenceView{ObjectID: ulid.Make().String()}, OriginalValue: "12000.00", UsefulLifeMonths: 60, ResidualRate: "5.00",
 		}}},
 	}
 	event := voudomain.DocumentApprovedEvent{Entity: snapshot.Entity, DocumentID: documentID, DocumentNo: snapshot.DocumentNo, Revision: snapshot.Revision, Snapshot: snapshot}
 	deliverApprovalEvent(t, pool, service, event, false)
 	deliverApprovalEvent(t, pool, service, event, false)
-	var assets, values, vouchers int
-	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM acc_assets WHERE id=$1 AND state='ACTIVE'`, lineID).Scan(&assets); err != nil {
+	var assets, values, vouchers, residualRateBPS int
+	if err := pool.QueryRow(t.Context(), `SELECT count(*), COALESCE(max(residual_rate_bps),0) FROM acc_assets WHERE id=$1 AND state='ACTIVE'`, lineID).Scan(&assets, &residualRateBPS); err != nil {
 		t.Fatal(err)
 	}
 	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM acc_asset_book_values WHERE asset_id=$1`, lineID).Scan(&values); err != nil {
@@ -56,6 +56,9 @@ func TestZZGlobalAssetRegisterIgnoresPerBookUnpostAndReversesIntegration(t *test
 	}
 	if assets != 1 || values != len(books) || vouchers != 0 {
 		t.Fatalf("global asset facts = asset:%d values:%d vouchers:%d", assets, values, vouchers)
+	}
+	if residualRateBPS != 500 {
+		t.Fatalf("global asset residual rate = %d bps, want 500", residualRateBPS)
 	}
 	tx, err := pool.Begin(t.Context())
 	if err != nil {

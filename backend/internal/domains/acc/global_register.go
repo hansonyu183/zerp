@@ -45,7 +45,9 @@ func registerAssetAcquisition(ctx context.Context, q *dbsqlc.Queries, event voud
 		if err != nil {
 			return domainError(ErrorValidation, "invalid asset register value", err)
 		}
-		residual, err := fixeddecimal.ParsePositive(line.ResidualRate, 4, true)
+		// VOU exposes residual rate as a percentage with two decimal places
+		// (for example, "5.00" means 5%, stored as 500 basis points).
+		residual, err := fixeddecimal.ParsePositive(line.ResidualRate, 2, true)
 		if err != nil || residual > 10000 {
 			return domainError(ErrorValidation, "invalid asset register residual rate", err)
 		}

@@ -127,8 +127,10 @@ unset APP_BOOTSTRAP_PASSWORD
 ```
 
 该命令在已有用户时拒绝执行。`make seed-bob` 只允许在 `development` 或 `test` 环境运行。
-`make seed-preview` 允许在 `development` 或隔离的 `test` 环境运行，按 AUX、BOB、VOU/WFL、ACC
-顺序补齐预览数据；重复执行只恢复 seed 自身中断的步骤，不覆盖测试人员已经修改或推进的样本。
+`make seed-preview` 允许在 `development` 或隔离的 `test` 环境运行，补齐 AUX、BOB、全部 VOU
+单据、WFL、ACC 和预置 RPT 所需事实。每个业务对象或单据至少提供可操作草稿或关键已批准链路，
+并建立控制账簿、零期初及全单据会计映射；重复执行只恢复 seed 自身中断的步骤，不覆盖测试人员
+已经修改或推进的样本。
 
 ## 隔离 E2E 后端
 

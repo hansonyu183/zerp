@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/hansonyu183/zerp/backend/internal/config"
 	"github.com/hansonyu183/zerp/backend/internal/database"
@@ -19,8 +20,8 @@ func main() {
 		logger.Error("load configuration", "error", err)
 		os.Exit(1)
 	}
-	if cfg.Environment != config.EnvironmentDevelopment && cfg.Environment != config.EnvironmentTest {
-		logger.Error("preview test data is enabled only in development or test")
+	if cfg.Environment != config.EnvironmentDevelopment {
+		logger.Error("preview test data requires the preview development runtime")
 		os.Exit(2)
 	}
 	ctx := context.Background()
@@ -30,6 +31,24 @@ func main() {
 		os.Exit(1)
 	}
 	defer pool.Close()
+	var databaseName, databaseUser, databaseHost string
+	var databasePort int
+	if err = pool.QueryRow(ctx, `
+		SELECT current_database(),current_user,COALESCE(inet_server_addr()::text,''),inet_server_port()
+	`).Scan(&databaseName, &databaseUser, &databaseHost, &databasePort); err != nil {
+		logger.Error("identify preview database", "error", err)
+		os.Exit(1)
+	}
+	if !isManagedPreviewDatabase(databaseName, databaseUser, databaseHost, databasePort) {
+		logger.Error(
+			"refusing to seed a non-preview database",
+			"database", databaseName,
+			"databaseUser", databaseUser,
+			"databaseHost", databaseHost,
+			"databasePort", databasePort,
+		)
+		os.Exit(2)
+	}
 	seeder, err := previewseed.New(pool, cfg.AttachmentStorageRoot, logger)
 	if err != nil {
 		logger.Error("initialize preview data", "error", err)
@@ -52,6 +71,29 @@ func main() {
 		result.Auxiliary.Resumed+result.Business.Resumed+result.Workflows.Resumed+result.Vouchers.Resumed+result.Accounting.Resumed,
 		result.Auxiliary.Skipped+result.Business.Skipped+result.Workflows.Skipped+result.Vouchers.Skipped+result.Accounting.Skipped,
 	)
+}
+
+func isManagedPreviewDatabase(database, user, host string, port int) bool {
+	if user != "zerp_preview" || host != "127.0.0.1" || port != 55436 {
+		return false
+	}
+	if database == "zerp_preview" {
+		return true
+	}
+	const prefix = "zerp_preview_pr_"
+	if !strings.HasPrefix(database, prefix) {
+		return false
+	}
+	suffix := strings.TrimPrefix(database, prefix)
+	if suffix == "" {
+		return false
+	}
+	for _, character := range suffix {
+		if character < '0' || character > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func rootCause(err error) error {

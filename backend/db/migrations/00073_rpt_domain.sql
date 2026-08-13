@@ -9,7 +9,6 @@ DO $$ BEGIN
     END IF;
 END $$;
 -- +goose StatementEnd
-GRANT zerp_report_reader TO CURRENT_USER;
 GRANT USAGE ON SCHEMA public TO zerp_report_reader;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO zerp_report_reader;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO zerp_report_reader;

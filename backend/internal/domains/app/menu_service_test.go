@@ -54,6 +54,26 @@ func TestAccountingBookMenuBelongsToAccounting(t *testing.T) {
 	}
 }
 
+func TestReportRoutesHaveDedicatedMenuGroups(t *testing.T) {
+	if got := classifyBusinessRoute("rpt/account-journal"); got != "menu-group-reporting" {
+		t.Fatalf("report group = %q, want reporting", got)
+	}
+	catalog := []registeredMenuRoute{{
+		RouteKey: "rpt/account-journal", RoutePath: "/rpt/account-journal", DisplayName: "科目流水",
+		PermissionCode: "/rpt/account-journal/query", Order: 10,
+	}}
+	menu := buildDefaultMenu(catalog)
+	for _, item := range menu.Items {
+		if item.RouteKey != nil && *item.RouteKey == "rpt/account-journal" {
+			if item.ParentID == nil || *item.ParentID != "default-rpt" {
+				t.Fatalf("report default parent = %v, want default-rpt", item.ParentID)
+			}
+			return
+		}
+	}
+	t.Fatal("report route is missing from default menu")
+}
+
 func TestAppendUnclassifiedRoutesSkipsTombstonedRoutes(t *testing.T) {
 	otherID := "other"
 	customer := registeredMenuRoute{RouteKey: "bob/customer", RoutePath: "/bob/customer", DisplayName: "客户", PermissionCode: "/bob/customer/query"}
@@ -109,18 +129,30 @@ func TestFilterMenuForPrincipalRequiresEnabledParentAndRoutePermission(t *testin
 	}
 }
 
-func TestReportCenterRouteAcceptsAnyReportUsePermission(t *testing.T) {
-	route := registeredMenuRoute{
-		RouteKey: "rpt/report-center", RoutePath: "/rpt/report-center",
-		PermissionCode: "/rpt/definition/query", PermissionRoot: "/rpt/",
+func TestReportRoutesUseTheirOwnEntityPermissionRoot(t *testing.T) {
+	report := registeredMenuRoute{
+		RouteKey: "rpt/account-journal", RoutePath: "/rpt/account-journal",
+		PermissionCode: "/rpt/account-journal/query", PermissionRoot: "/rpt/account-journal/",
 	}
-	for _, permission := range []string{"/rpt/account-journal/query", "/rpt/account-journal/export", "/rpt/definition/query"} {
-		if !routeAllowed(route, []string{permission}) {
-			t.Fatalf("permission %q did not reveal report center", permission)
+	for _, permission := range []string{"/rpt/account-journal/query", "/rpt/account-journal/export"} {
+		if !routeAllowed(report, []string{permission}) {
+			t.Fatalf("own report permission %q did not reveal its report", permission)
 		}
 	}
-	if routeAllowed(route, []string{"/acc/book/query"}) {
-		t.Fatal("unrelated permission revealed report center")
+	for _, permission := range []string{"/rpt/account-balance/query", "/rpt/definition/query"} {
+		if routeAllowed(report, []string{permission}) {
+			t.Fatalf("permission %q revealed an unrelated report route", permission)
+		}
+	}
+
+	definition := registeredMenuRoute{
+		RouteKey: "rpt/definition", RoutePath: "/rpt/definition",
+		PermissionCode: "/rpt/definition/query", PermissionRoot: "/rpt/definition/",
+	}
+	for _, permission := range []string{"/rpt/definition/query", "/rpt/definition/create"} {
+		if !routeAllowed(definition, []string{permission}) {
+			t.Fatalf("own definition permission %q did not reveal management entry", permission)
+		}
 	}
 }
 

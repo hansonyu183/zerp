@@ -481,10 +481,7 @@ describe('permission menu registry', () => {
 
   it('没有 query 权限的流程专用动作不生成菜单', () => {
     expect(
-      buildMenus([
-        '/wfl/sales-fulfillment/get',
-        '/wfl/custom-flow/get',
-      ]),
+      buildMenus(['/wfl/sales-fulfillment/get', '/wfl/custom-flow/get']),
     ).toEqual([])
   })
 
@@ -503,5 +500,44 @@ describe('permission menu registry', () => {
     expect(hasRegisteredPage('acc', 'book')).toBe(true)
     expect(router.resolve('/acc/book').meta.developing).toBe(false)
   })
+})
 
+describe('RPT dynamic routes', () => {
+  it('registers each authorized report with the shared report page and keeps definition management separate', () => {
+    const router = createTestRouter()
+    const menus = buildMenus([
+      '/rpt/account-journal/query',
+      '/rpt/account-balance/export',
+      '/rpt/definition/create',
+    ])
+
+    expect(menus).toMatchObject([
+      {
+        domain: 'rpt',
+        title: '报表',
+        children: [
+          { entity: 'definition', title: '报表定义管理', actions: ['create'] },
+          { entity: 'account-balance', actions: ['export'] },
+          { entity: 'account-journal', actions: ['query'] },
+        ],
+      },
+    ])
+    expect(registerMenuRoutes(router, menus)).toBe(3)
+    expect(router.resolve('/rpt/account-journal').meta).toMatchObject({
+      developing: false,
+      reportCode: 'account-journal',
+      actions: ['query'],
+    })
+    expect(router.resolve('/rpt/account-balance').meta).toMatchObject({
+      developing: false,
+      reportCode: 'account-balance',
+      actions: ['export'],
+    })
+    expect(router.resolve('/rpt/definition').meta).toMatchObject({
+      developing: false,
+      title: '报表定义管理',
+      actions: ['create'],
+    })
+    expect(router.hasRoute('page:rpt/report-center')).toBe(false)
+  })
 })

@@ -57,7 +57,7 @@ const developingPage: PageLoader = () =>
 const workflowInstancePage: PageLoader = () =>
   import('@/pages/wfl/process-instance/ProcessInstance.vue')
 
-type DomainId = 'bob' | 'aux' | 'vou' | 'wfl' | 'acc'
+type DomainId = 'bob' | 'aux' | 'vou' | 'wfl' | 'acc' | 'rpt'
 type DomainRegistration = Pick<
   PageRegistration,
   'domainTitle' | 'domainIcon' | 'domainOrder'
@@ -93,6 +93,11 @@ const domainRegistrations: Readonly<Record<DomainId, DomainRegistration>> = {
     domainIcon: 'mdi-calculator-variant-outline',
     domainOrder: 40,
   },
+  rpt: {
+    domainTitle: '报表',
+    domainIcon: 'mdi-chart-box-outline',
+    domainOrder: 50,
+  },
 }
 
 function registerPage(
@@ -107,6 +112,13 @@ function registerPage(
 }
 
 export const pageRegistrations: readonly PageRegistration[] = [
+  registerPage('rpt', {
+    entity: 'definition',
+    entityTitle: '报表定义管理',
+    icon: 'mdi-file-cog-outline',
+    order: 10,
+    component: () => import('@/pages/rpt/Definition.vue'),
+  }),
   registerPage('acc', {
     entity: 'book',
     entityTitle: '会计账簿',
@@ -759,17 +771,21 @@ export function registerMenuRoutes(
         routeDomain === 'wfl' &&
         routeEntity !== 'process-definition' &&
         !registration
+      const dynamicReport =
+        routeDomain === 'rpt' && routeEntity !== 'definition'
 
       expectedRouteNames.add(routeName)
       const currentRoute = router
         .getRoutes()
         .find((route) => route.name === routeName)
-      const developing = !registration && !dynamicWorkflow
+      const developing = !registration && !dynamicWorkflow && !dynamicReport
       const routeIsCurrent =
         currentRoute?.meta.title === entity.title &&
         currentRoute.meta.developing === developing &&
         currentRoute.meta.processName ===
           (dynamicWorkflow ? routeEntity : undefined) &&
+        currentRoute.meta.reportCode ===
+          (dynamicReport ? routeEntity : undefined) &&
         hasSameActions(currentRoute.meta.actions, entity.actions)
 
       registeredRouteNames.add(routeName)
@@ -781,13 +797,18 @@ export function registerMenuRoutes(
         name: routeName,
         component:
           registration?.component ??
-          (dynamicWorkflow ? workflowInstancePage : developingPage),
+          (dynamicWorkflow
+            ? workflowInstancePage
+            : dynamicReport
+              ? () => import('@/pages/rpt/Report.vue')
+              : developingPage),
         meta: {
           requiresAuth: true,
           title: entity.title,
           actions: entity.actions,
           developing,
           ...(dynamicWorkflow ? { processName: routeEntity } : {}),
+          ...(dynamicReport ? { reportCode: routeEntity } : {}),
         },
       })
       added += 1

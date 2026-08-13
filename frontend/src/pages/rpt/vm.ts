@@ -157,7 +157,9 @@ export function parseReferenceItems(value: unknown): ReferenceItem[] {
   })
 }
 
-export function useReportCenterViewModel() {
+export type RptPageMode = 'report' | 'definition'
+
+export function useReportViewModel(mode: RptPageMode) {
   const route = useRoute()
   const router = useRouter()
   const session = useSessionStore()
@@ -225,14 +227,14 @@ export function useReportCenterViewModel() {
     page.value = 1
     executedColumns.value = selected.value?.columns ?? []
     referenceOptions.value = {}
-    void router.replace({ params: { ...route.params, code } })
   }
 
   async function loadDefinitions(): Promise<void> {
     loading.value = true
     errorMessage.value = ''
     try {
-      if (session.can('/rpt/definition/query')) {
+      if (mode === 'definition') {
+        if (!session.can('/rpt/definition/query')) return
         const response = await apiClient.postContract('rpt/definition/query', {
           page: 1,
           pageSize: 200,
@@ -250,9 +252,10 @@ export function useReportCenterViewModel() {
       }
       if (disposed) return
       const routeCode =
-        typeof route.params.code === 'string' ? route.params.code : ''
-      const deepLinkedCode = routeCode === 'report-center' ? '' : routeCode
-      setSelected(deepLinkedCode || definitions.value[0]?.code || '')
+        mode === 'report' && typeof route.meta.reportCode === 'string'
+          ? route.meta.reportCode
+          : ''
+      setSelected(routeCode || definitions.value[0]?.code || '')
     } catch (error) {
       if (!disposed) errorMessage.value = getErrorMessage(error)
     } finally {

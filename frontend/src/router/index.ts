@@ -35,14 +35,6 @@ export const router = createRouter({
           meta: { requiresAuth: true, title: '工作台' },
         },
         {
-          path: 'rpt/:code?',
-          name: 'page:rpt/report-center',
-          component: () => import('@/pages/rpt/ReportCenter.vue'),
-          // Access is decided per report; an export-only user must reach this
-          // fixed center without a broad query permission.
-          meta: { requiresAuth: true, title: '报表中心' },
-        },
-        {
           path: 'admin/user',
           name: 'page:admin/user',
           component: () => import('@/pages/admin/user/User.vue'),

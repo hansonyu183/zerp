@@ -46,7 +46,8 @@ var businessMenuGroups = []initialMenuGroup{
 	{ID: "menu-group-auxiliary-data", Name: "辅助资料", Icon: "mdi-shape-plus-outline", Order: 110},
 	{ID: "menu-group-workflow", Name: "业务流程", Icon: "mdi-transit-connection-variant", Order: 120},
 	{ID: "menu-group-system", Name: "系统管理", Icon: "mdi-cog-outline", Order: 130},
-	{ID: "menu-group-other", Name: "其他/待归类", Icon: "mdi-folder-question-outline", Order: 140},
+	{ID: "menu-group-reporting", Name: "报表", Icon: "mdi-chart-box-outline", Order: 140},
+	{ID: "menu-group-other", Name: "其他/待归类", Icon: "mdi-folder-question-outline", Order: 150},
 }
 
 func (s *Service) GetMenu(ctx context.Context, principal Principal) (MenuGetData, error) {
@@ -244,18 +245,22 @@ func (s *Service) menuCatalog(ctx context.Context, q *dbsqlc.Queries) ([]registe
 		{RouteKey: "admin/permission", RoutePath: "/admin/permission", DisplayName: "权限管理", PermissionCode: "/app/permission/query", Order: 30},
 		{RouteKey: "admin/system-parameter", RoutePath: "/admin/system-parameter", DisplayName: "系统参数", PermissionCode: "/app/system-parameter/query", Order: 40},
 		{RouteKey: "admin/menu", RoutePath: "/admin/menu", DisplayName: "菜单管理", PermissionCode: "/app/menu/save-business-template", PermissionRoot: "/app/menu/", Order: 50},
-		{RouteKey: "rpt/report-center", RoutePath: "/rpt/report-center", DisplayName: "报表中心", PermissionCode: "/rpt/definition/query", PermissionRoot: "/rpt/", Order: 10},
 	}
 	for _, row := range rows {
-		if row.Domain == "rpt" {
+		// RPT directory is a session-only metadata endpoint, not a navigable entity.
+		if row.Domain == "rpt" && row.Entity == "directory" {
 			continue
 		}
 		key := row.Domain + "/" + row.Entity
-		routes = append(routes, registeredMenuRoute{
+		route := registeredMenuRoute{
 			RouteKey: key, RoutePath: "/" + key,
 			DisplayName:    menuRouteTitle(row.Entity, row.Description),
 			PermissionCode: row.PermissionCode, PermissionRoot: "/" + row.Domain + "/" + row.Entity + "/", Order: row.MenuOrder,
-		})
+		}
+		// Each RPT report and definition management are normal independent
+		// entities: their own permissions reveal their own route, never a
+		// centralized RPT entry.
+		routes = append(routes, route)
 	}
 	return routes, nil
 }
@@ -421,7 +426,8 @@ func buildDefaultMenu(catalog []registeredMenuRoute) MenuTree {
 		{ID: "default-acc", Name: "内部会计", Icon: "mdi-calculator-variant-outline", Order: 60},
 		{ID: "default-led", Name: "业务账簿", Icon: "mdi-book-open-page-variant-outline", Order: 70},
 		{ID: "default-system", Name: "系统管理", Icon: "mdi-cog-outline", Order: 80},
-		{ID: "default-other", Name: "其他", Icon: "mdi-folder-outline", Order: 90},
+		{ID: "default-rpt", Name: "报表", Icon: "mdi-chart-box-outline", Order: 90},
+		{ID: "default-other", Name: "其他", Icon: "mdi-folder-outline", Order: 100},
 	}
 	items := groupViews(groups)
 	orders := map[string]int32{}
@@ -435,6 +441,8 @@ func buildDefaultMenu(catalog []registeredMenuRoute) MenuTree {
 			parent = "default-" + domain
 		case "admin":
 			parent = "default-system"
+		case "rpt":
+			parent = "default-rpt"
 		}
 		orders[parent] += 10
 		items = append(items, routeView(route, parent, orders[parent], stableRouteID("default", route.RouteKey)))
@@ -464,6 +472,9 @@ func classifyBusinessRoute(key string) string {
 	}
 	if domain == "admin" {
 		return "menu-group-system"
+	}
+	if domain == "rpt" {
+		return "menu-group-reporting"
 	}
 	if domain == "bob" && entity == "customer" || domain == "vou" && strings.HasPrefix(entity, "sale-") {
 		return "menu-group-sales"

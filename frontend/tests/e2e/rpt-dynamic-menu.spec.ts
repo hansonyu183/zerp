@@ -1,11 +1,19 @@
 import { expect, test } from './fixtures'
 
-test('报表中心连接真实 RPT API，查询与独立 CSV 导出共用当前版本', async ({
+test('报表动态菜单进入单份报表，查询与独立 CSV 导出共用当前版本', async ({
   page,
 }) => {
-  await page.goto('/rpt/account-journal')
+  await page.goto('/')
+  const reportMenu = page.getByRole('link', { name: '科目流水' })
+  if (!(await reportMenu.isVisible())) {
+    await page.getByText('报表', { exact: true }).click()
+  }
+  await expect(reportMenu).toBeVisible()
+  await reportMenu.click()
   await expect(page).toHaveURL(/\/rpt\/account-journal$/)
-  await expect(page.getByRole('heading', { name: '报表中心' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '科目流水' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '报表中心' })).toHaveCount(0)
+  await expect(page.getByText('可用报表', { exact: true })).toHaveCount(0)
   await expect(
     page.getByText('科目流水', { exact: true }).first(),
   ).toBeVisible()

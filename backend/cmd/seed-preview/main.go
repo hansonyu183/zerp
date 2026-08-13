@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/netip"
 	"os"
 	"strings"
 
@@ -74,7 +75,7 @@ func main() {
 }
 
 func isManagedPreviewDatabase(database, user, host string, port int) bool {
-	if user != "zerp_preview" || host != "127.0.0.1" || port != 55436 {
+	if user != "zerp_preview" || !isPreviewDatabaseHost(host) || port != 55436 {
 		return false
 	}
 	if database == "zerp_preview" {
@@ -94,6 +95,15 @@ func isManagedPreviewDatabase(database, user, host string, port int) bool {
 		}
 	}
 	return true
+}
+
+func isPreviewDatabaseHost(host string) bool {
+	previewHost := netip.MustParseAddr("127.0.0.1")
+	if address, err := netip.ParseAddr(host); err == nil {
+		return address == previewHost
+	}
+	prefix, err := netip.ParsePrefix(host)
+	return err == nil && prefix.Bits() == previewHost.BitLen() && prefix.Addr() == previewHost
 }
 
 func rootCause(err error) error {

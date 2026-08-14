@@ -382,6 +382,17 @@ func mappingView(id, bookID, entity string, version int32, state, defaultResult 
 	if err := json.Unmarshal(definitionJSON, &definition); err != nil {
 		return MappingView{}, domainError(ErrorInternal, "invalid stored accounting mapping", err)
 	}
+	for templateIndex := range definition.Templates {
+		for lineIndex := range definition.Templates[templateIndex].Lines {
+			line := &definition.Templates[templateIndex].Lines[lineIndex]
+			if line.Dimensions == nil {
+				line.Dimensions = map[string]string{}
+			}
+			if line.CostCounterpartDimensions == nil {
+				line.CostCounterpartDimensions = map[string]string{}
+			}
+		}
+	}
 	view := MappingView{ID: id, BookID: bookID, VouEntity: entity, Version: int(version), State: state, DefaultResult: defaultResult, Definition: definition, Revision: revision, ApprovedBy: approvedBy}
 	if approvedAtValid {
 		value := approvedAt.Format(time.RFC3339Nano)

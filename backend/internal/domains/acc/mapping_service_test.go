@@ -2,9 +2,33 @@ package acc
 
 import (
 	"testing"
+	"time"
 
 	"github.com/oklog/ulid/v2"
 )
+
+func TestMappingViewNormalizesOptionalDimensionMapsForTheWireContract(t *testing.T) {
+	view, err := mappingView(
+		ulid.Make().String(),
+		ulid.Make().String(),
+		"sale-order",
+		1,
+		MappingStateDraft,
+		MappingResultPost,
+		[]byte(`{"defaultTemplateId":"standard","rules":[],"templates":[{"templateId":"standard","collection":null,"lines":[{"subjectSource":"FIXED","subjectValue":"01JACC00000000000000000010","direction":"DEBIT","amountField":"totalAmount","currencyField":"currency","dimensions":null,"quantityField":null,"costCounterpartSubjectId":null,"costCounterpartDimensions":null}]}]}`),
+		1,
+		time.Time{},
+		false,
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	line := view.Definition.Templates[0].Lines[0]
+	if line.Dimensions == nil || line.CostCounterpartDimensions == nil {
+		t.Fatalf("dimension maps were not normalized: %#v", line)
+	}
+}
 
 func TestValidateMappingRejectsUnknownFieldsAndOverlappingRules(t *testing.T) {
 	catalog, err := MappingFieldCatalog("sale-order")

@@ -178,6 +178,8 @@ export function createAccountingMappingViewModel() {
     const current = existingSequence ?? ++listSequence
     loading.value = true
     errorMessage.value = null
+    rows.value = []
+    total.value = 0
     try {
       const result = await queryAccountingMappings({
         bookId: selectedBookId.value,
@@ -189,8 +191,11 @@ export function createAccountingMappingViewModel() {
       rows.value = result.data.items
       total.value = result.data.total
     } catch (error) {
-      if (active && current === listSequence)
+      if (active && current === listSequence) {
+        rows.value = []
+        total.value = 0
         errorMessage.value = getErrorMessage(error)
+      }
     } finally {
       if (active && current === listSequence) loading.value = false
     }

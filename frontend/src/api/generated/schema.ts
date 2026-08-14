@@ -3046,7 +3046,7 @@ export interface components {
             feedbackId: string;
         };
         /** @enum {string} */
-        AuxEntity: "product-category" | "department" | "position" | "dictionary-type" | "dictionary-item" | "measurement-unit" | "income-expense-type" | "account-subject" | "asset-category";
+        AuxEntity: "product-category" | "department" | "position" | "dictionary-type" | "dictionary-item" | "measurement-unit" | "income-expense-type" | "asset-category";
         AuxQueryRequest: {
             page: number;
             pageSize: number;

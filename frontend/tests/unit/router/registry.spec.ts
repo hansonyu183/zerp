@@ -327,6 +327,7 @@ describe('permission menu registry', () => {
 
   it('为 AUX 八类实体生成中文菜单并加载真实页面组件', () => {
     const entities = [
+      'asset-category',
       'product-category',
       'department',
       'position',
@@ -334,9 +335,9 @@ describe('permission menu registry', () => {
       'dictionary-type',
       'dictionary-item',
       'income-expense-type',
-      'account-subject',
     ]
     const titles = [
+      '资产类别',
       '产品分类',
       '部门',
       '岗位',
@@ -344,7 +345,6 @@ describe('permission menu registry', () => {
       '字典类型',
       '字典项',
       '收支类型',
-      '会计科目',
     ]
     const router = createTestRouter()
     const menus = buildMenus(entities.map((entity) => `/aux/${entity}/query`))

@@ -16,7 +16,6 @@ const (
 	EntityDictionaryItem   = "dictionary-item"
 	EntityMeasurementUnit  = "measurement-unit"
 	EntityIncomeExpense    = "income-expense-type"
-	EntityAccountSubject   = "account-subject"
 	EntityAssetCategory    = "asset-category"
 )
 
@@ -28,7 +27,6 @@ var entities = [...]string{
 	EntityDictionaryItem,
 	EntityMeasurementUnit,
 	EntityIncomeExpense,
-	EntityAccountSubject,
 	EntityAssetCategory,
 }
 

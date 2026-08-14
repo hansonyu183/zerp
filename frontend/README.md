@@ -105,21 +105,13 @@ Cookie、CSRF、统一响应和文件令牌均由 API 客户端处理。页面�
 - 页面动作使用完整权限路径精确判断；
 - 前端权限只控制交互，后端鉴权是最终安全边界。
 
-线协议、字段和动作以 `contracts/openapi/` 为准。业务状态机、默认值和交互约束见：
-
-- [APP：访问、会话与权限](../docs/domains/app.md)
-- [BOB：业务对象](../docs/domains/bob.md)
-- [AUX：辅助对象](../docs/domains/aux.md)
-- [VOU：业务单据](../docs/domains/vou.md)
-- [WFL：业务流程](../docs/domains/wfl.md)
-- [ACC：内部会计](../docs/domains/acc.md)
-- [RPT：报表](../docs/domains/rpt.md)
+线协议、字段和动作以 `contracts/openapi/` 为准。业务状态机、默认值和交互约束从根 [README 文档索引](../README.md#文档)进入；模块内不维护第二份领域清单。
 
 ## 测试
 
 Vitest 和组件测试可使用 MSW，handlers 只能存在于测试目录。重点覆盖 API 错误归一化、ViewModel 状态、会话恢复、权限菜单、表单与并发保护。覆盖率门禁采用全局基线加关键模块独立阈值，新增职责不得靠其他高覆盖文件抵消回退。
 
-Playwright 核心流程必须连接根目录 `make e2e` 创建的隔离全栈，不得拦截业务请求。E2E 会使用独立数据库、附件卷、Cookie 和端口，并在结束时清理所属 Compose 项目。
+Playwright 核心流程必须连接根目录 `make e2e` 创建的隔离全栈，不得拦截业务请求。E2E 会使用独立数据库、临时附件目录、Cookie 和端口，并在结束时清理所属 Compose 项目、附件目录和原生进程。
 
 ## 部署
 

@@ -575,8 +575,6 @@ const exactMessages: Readonly<Record<string, string>> = {
     '单据服务配置不完整，请联系管理员。',
   'WFL pool, event bus, and document service are required':
     '流程服务配置不完整，请联系管理员。',
-  'account subject direction does not match income/expense type':
-    '会计科目方向与收支类型不匹配。',
   'auxiliary resolver is not configured':
     '辅助资料服务尚未配置，请联系管理员。',
   'condition group cannot contain siblings': '条件组不能同时包含同级条件。',
@@ -602,7 +600,6 @@ const exactMessages: Readonly<Record<string, string>> = {
   'line condition cannot contain siblings': '明细条件不能同时包含同级条件。',
   'line condition must be an object': '明细条件必须是完整的条件对象。',
   'name must contain 1-200 characters': '名称必须为 1 至 200 个字符。',
-  'parent account subject direction must match': '上级会计科目方向必须一致。',
   'parent cycle is not allowed': '不能形成循环的上级关系。',
   'parent hierarchy is too deep': '上级层级过深，请调整层级关系。',
   'parent income/expense direction must match':

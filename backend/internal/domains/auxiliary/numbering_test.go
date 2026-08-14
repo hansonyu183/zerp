@@ -13,7 +13,7 @@ func TestObjectPrefixes(t *testing.T) {
 		EntityDictionaryItem:   "DIT",
 		EntityMeasurementUnit:  "UNT",
 		EntityIncomeExpense:    "IET",
-		EntityAccountSubject:   "ACS",
+		EntityAssetCategory:    "ACT",
 	}
 	for entity, prefix := range expected {
 		if actual := objectPrefix(entity); actual != prefix {

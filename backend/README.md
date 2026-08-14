@@ -23,10 +23,12 @@ make dev
 
 ```bash
 cd backend
-make compose-up
+docker compose --env-file .env.local up -d --wait db
 make migrate-up
 make run
 ```
+
+`make compose-up` 会同时启动容器化 API 和 PostgreSQL，是另一种完整后端启动方式；不要再与占用同一 API 端口的 `make run` 组合使用。
 
 服务默认监听 `http://localhost:8080`：
 
@@ -203,15 +205,7 @@ backend/
 
 ## 领域与部署
 
-领域规则和前后端职责见：
-
-- [APP：访问、会话与权限](../docs/domains/app.md)
-- [BOB：业务对象](../docs/domains/bob.md)
-- [AUX：辅助对象](../docs/domains/aux.md)
-- [VOU：业务单据](../docs/domains/vou.md)
-- [WFL：业务流程](../docs/domains/wfl.md)
-- [ACC：内部会计](../docs/domains/acc.md)
-- [RPT：报表](../docs/domains/rpt.md)
+领域规则和前后端职责从根 [README 文档索引](../README.md#文档)进入；模块内不维护第二份领域清单。
 
 同源 Web 与 Cloudflare Pages 两种部署共享相同 API。Origin、Cookie 和前端基址配置见[前端 API 配置手册](../docs/operations/frontend-api-configuration.md)。
 

@@ -4,7 +4,7 @@ ZERP 后端是单仓中的 Go API，负责领域服务、权限校验、事务�
 
 ## 技术与环境
 
-- Go 1.26.5
+- Go 1.26.6
 - Gin、pgx、sqlc、Goose
 - PostgreSQL 18
 - Docker Compose v2、GNU Make

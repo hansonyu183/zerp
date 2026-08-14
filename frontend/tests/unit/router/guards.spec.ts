@@ -135,6 +135,63 @@ function createAuthenticatedSession() {
 }
 
 describe('session menu route synchronization', () => {
+  it('已初始化的有效会话访问登录页时忽略 redirect 且不再登录', async () => {
+    const router = createTestRouter()
+    const session = createAuthenticatedSession()
+    const restore = vi.spyOn(session, 'restore')
+    const signIn = vi.spyOn(session, 'signIn')
+    router.beforeEach(createSessionNavigationGuard(router, session))
+
+    await router.push('/signin?redirect=/bob/customer')
+
+    expect(router.currentRoute.value.path).toBe('/home/dashboard')
+    expect(restore).not.toHaveBeenCalled()
+    expect(signIn).not.toHaveBeenCalled()
+  })
+
+  it('应用未初始化时先恢复会话，成功后从登录页进入工作台', async () => {
+    setActivePinia(createPinia())
+    const router = createTestRouter()
+    const session = useSessionStore()
+    const restore = vi
+      .spyOn(session, 'restore')
+      .mockImplementation(async () => {
+        session.initialized = true
+        session.user = {
+          id: 'USER-1',
+          username: 'tester',
+          displayName: '测试用户',
+        }
+        return true
+      })
+    const signIn = vi.spyOn(session, 'signIn')
+    router.beforeEach(createSessionNavigationGuard(router, session))
+
+    await router.push('/signin?redirect=//external.example.com')
+
+    expect(restore).toHaveBeenCalledOnce()
+    expect(signIn).not.toHaveBeenCalled()
+    expect(router.currentRoute.value.path).toBe('/home/dashboard')
+  })
+
+  it('应用未初始化且会话恢复失败时显示登录页', async () => {
+    setActivePinia(createPinia())
+    const router = createTestRouter()
+    const session = useSessionStore()
+    const restore = vi
+      .spyOn(session, 'restore')
+      .mockImplementation(async () => {
+        session.initialized = true
+        return false
+      })
+    router.beforeEach(createSessionNavigationGuard(router, session))
+
+    await router.push('/signin')
+
+    expect(restore).toHaveBeenCalledOnce()
+    expect(router.currentRoute.value.name).toBe('signin')
+  })
+
   it('未登录首次访问受保护深链时先恢复会话并保留完整目标', async () => {
     setActivePinia(createPinia())
     const router = createTestRouter()

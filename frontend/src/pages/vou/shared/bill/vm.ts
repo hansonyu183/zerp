@@ -532,7 +532,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     actionLoading.value = action
     try {
       let result: { data: MutationResponse }
-      if (action === 'uncheck' || action === 'unapprove') {
+      if (action === 'unapprove') {
         const request: VouReverseRequest = {
           documentId: documentId.value,
           revision: revision.value,

@@ -6,6 +6,7 @@ import { ApiError, getErrorMessage } from '@/api/types'
 import {
   buildMenus,
   buildServerMenus,
+  hasRegisteredPage,
   normalizePermissions,
   type MenuDomain,
   type MenuEntity,
@@ -94,6 +95,17 @@ export const useSessionStore = defineStore('session', () => {
 
   function can(permissionPath: string): boolean {
     return permissionSet.value.has(permissionPath)
+  }
+
+  function isKnownRoutePath(path: string): boolean {
+    if (menuData.value) {
+      return menuData.value.availableRoutes.some(
+        (route) => route.routePath === path,
+      )
+    }
+
+    const match = path.match(/^\/([^/]+)\/([^/]+)$/)
+    return match ? hasRegisteredPage(match[1] ?? '', match[2] ?? '') : false
   }
 
   function applySession(session: SessionData): void {
@@ -256,6 +268,7 @@ export const useSessionStore = defineStore('session', () => {
     menuErrorMessage,
     authenticated,
     can,
+    isKnownRoutePath,
     applyMenuData,
     retryMenu,
     restore,

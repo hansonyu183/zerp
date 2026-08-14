@@ -32,6 +32,9 @@ export function createSessionNavigationGuard(
     if (to.name === 'not-found') {
       const rematched = router.resolve(to.fullPath)
       if (rematched.name !== 'not-found') return to.fullPath
+      if (session.authenticated && session.isKnownRoutePath(to.path)) {
+        return { name: 'forbidden' }
+      }
     }
 
     if (to.name === 'signin') {

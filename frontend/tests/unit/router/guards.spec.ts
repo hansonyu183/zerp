@@ -1,5 +1,5 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createMemoryHistory, createRouter, type Router } from 'vue-router'
 import {
   createSessionNavigationGuard,
@@ -51,7 +51,12 @@ function applyNavigation(
     defaultMenu: tree,
     businessTemplate: tree,
     navigation: tree,
-    availableRoutes: [],
+    availableRoutes: routes.map((route) => ({
+      routeKey: route.key,
+      routePath: `/${route.key}`,
+      displayName: route.title,
+      permissionCode: `/${route.key}/query`,
+    })),
   })
 }
 
@@ -130,6 +135,27 @@ function createAuthenticatedSession() {
 }
 
 describe('session menu route synchronization', () => {
+  it('未登录首次访问受保护深链时先恢复会话并保留完整目标', async () => {
+    setActivePinia(createPinia())
+    const router = createTestRouter()
+    const session = useSessionStore()
+    const restore = vi
+      .spyOn(session, 'restore')
+      .mockImplementation(async () => {
+        session.initialized = true
+        return false
+      })
+    router.beforeEach(createSessionNavigationGuard(router, session))
+
+    await router.push('/bob/customer?tab=history#version-2')
+
+    expect(restore).toHaveBeenCalledOnce()
+    expect(router.currentRoute.value).toMatchObject({
+      name: 'signin',
+      query: { redirect: '/bob/customer?tab=history#version-2' },
+    })
+  })
+
   it('系统管理静态路由要求精确 APP 查询权限', async () => {
     const router = createTestRouter()
     const session = createAuthenticatedSession()
@@ -178,6 +204,43 @@ describe('session menu route synchronization', () => {
     expect(router.currentRoute.value.meta.developing).toBe(false)
 
     registerMenuRoutes(router, [])
+  })
+
+  it('已知动态页面无权限时进入无权访问', async () => {
+    const router = createTestRouter()
+    const session = createAuthenticatedSession()
+    applyNavigation(session, [
+      { key: 'aux/product-category', title: '产品分类' },
+    ])
+    router.beforeEach(createSessionNavigationGuard(router, session))
+
+    await router.push('/aux/product-category?status=EFFECTIVE#results')
+
+    expect(router.currentRoute.value.name).toBe('forbidden')
+  })
+
+  it('未在路由目录中的目标进入页面不存在', async () => {
+    const router = createTestRouter()
+    const session = createAuthenticatedSession()
+    applyNavigation(session, [
+      { key: 'aux/product-category', title: '产品分类' },
+    ])
+    router.beforeEach(createSessionNavigationGuard(router, session))
+
+    await router.push('/aux/not-a-real-page')
+
+    expect(router.currentRoute.value.name).toBe('not-found')
+  })
+
+  it('服务端最新路由目录已移除的本地页面视为不存在', async () => {
+    const router = createTestRouter()
+    const session = createAuthenticatedSession()
+    applyNavigation(session, [])
+    router.beforeEach(createSessionNavigationGuard(router, session))
+
+    await router.push('/aux/product-category')
+
+    expect(router.currentRoute.value.name).toBe('not-found')
   })
 
   it('权限运行期变化时立即增加和清理对应业务路由', () => {

@@ -59,6 +59,7 @@ export const useSessionStore = defineStore('session', () => {
   const permissions = ref<string[]>([])
   const csrfToken = ref<string | null>(null)
   const errorMessage = ref<string | null>(null)
+  const menuErrorMessage = ref<string | null>(null)
   const menuData = ref<MenuData | null>(null)
 
   const authenticated = computed(() => user.value !== null)
@@ -101,6 +102,8 @@ export const useSessionStore = defineStore('session', () => {
     csrfToken.value = session.csrfToken
     apiClient.setCsrfToken(session.csrfToken)
     errorMessage.value = null
+    menuErrorMessage.value = null
+    menuData.value = null
     initialized.value = true
   }
 
@@ -108,23 +111,23 @@ export const useSessionStore = defineStore('session', () => {
     menuData.value = data
   }
 
-  async function refreshMenu(): Promise<MenuData> {
+  async function loadMenu(): Promise<MenuData> {
     const { data } = await getMenu()
     applyMenuData(data)
-    errorMessage.value = null
+    menuErrorMessage.value = null
     return data
   }
 
-  async function refreshMenuWithoutLosingSession(): Promise<void> {
+  async function retryMenu(): Promise<void> {
     try {
-      await refreshMenu()
+      await loadMenu()
     } catch (error) {
       if (isUnauthenticatedError(error)) {
         clearSession()
         initialized.value = true
         throw error
       }
-      errorMessage.value = `菜单加载失败：${getErrorMessage(error)}`
+      menuErrorMessage.value = `菜单加载失败：${getErrorMessage(error)}`
     }
   }
 
@@ -133,6 +136,7 @@ export const useSessionStore = defineStore('session', () => {
     permissions.value = []
     csrfToken.value = null
     menuData.value = null
+    menuErrorMessage.value = null
     apiClient.setCsrfToken(null)
   }
 
@@ -144,7 +148,7 @@ export const useSessionStore = defineStore('session', () => {
     try {
       const { data } = await apiClient.post<SessionData>('app/user/session', {})
       applySession(data)
-      await refreshMenuWithoutLosingSession()
+      await retryMenu()
       return true
     } catch (error) {
       clearSession()
@@ -167,7 +171,7 @@ export const useSessionStore = defineStore('session', () => {
         credentials,
       )
       applySession(data)
-      await refreshMenuWithoutLosingSession()
+      await retryMenu()
     } catch (error) {
       clearSession()
       errorMessage.value = getErrorMessage(error)
@@ -249,10 +253,11 @@ export const useSessionStore = defineStore('session', () => {
     menuData,
     csrfToken,
     errorMessage,
+    menuErrorMessage,
     authenticated,
     can,
     applyMenuData,
-    refreshMenu,
+    retryMenu,
     restore,
     signIn,
     signOut,

@@ -323,14 +323,16 @@ describe('useSessionStore.restore errors', () => {
     expect(session.user?.username).toBe('admin')
     expect(session.permissions).toEqual(['/bob/customer/query'])
     expect(session.can('/bob/customer/query')).toBe(true)
-    expect(session.errorMessage).toBe(
+    expect(session.errorMessage).toBeNull()
+    expect(session.menuErrorMessage).toBe(
       '菜单加载失败：网络连接失败，请检查网络后重试。',
     )
     expect(mockedApiClient.setCsrfToken).toHaveBeenLastCalledWith('csrf-1')
 
     mockedApiClient.post.mockResolvedValueOnce(menuResponse())
-    await expect(session.refreshMenu()).resolves.toEqual(menuResponse().data)
+    await expect(session.retryMenu()).resolves.toBeUndefined()
     expect(session.errorMessage).toBeNull()
+    expect(session.menuErrorMessage).toBeNull()
   })
 
   it.each(['restore', 'signIn'] as const)(
@@ -400,9 +402,35 @@ describe('useSessionStore.restore errors', () => {
 
     expect(session.authenticated).toBe(true)
     expect(session.permissions).toEqual(['/bob/customer/query'])
-    expect(session.errorMessage).toBe(
+    expect(session.errorMessage).toBeNull()
+    expect(session.menuErrorMessage).toBe(
       '菜单加载失败：网络连接失败，请检查网络后重试。',
     )
+  })
+
+  it('重试菜单返回未认证时清空会话并向调用者报告失效', async () => {
+    mockedApiClient.post
+      .mockResolvedValueOnce({
+        data: {
+          user: { id: '1', username: 'admin', displayName: '管理员' },
+          csrfToken: 'csrf-1',
+          permissions: ['/bob/customer/query'],
+        },
+      })
+      .mockRejectedValueOnce(new ApiError('network', 'menu unavailable'))
+    const session = useSessionStore()
+    await expect(session.restore()).resolves.toBe(true)
+
+    mockedApiClient.post.mockRejectedValueOnce(
+      new ApiError('business', '登录状态已失效', { code: 1001 }),
+    )
+
+    await expect(session.retryMenu()).rejects.toThrow('登录状态已失效')
+    expect(session.authenticated).toBe(false)
+    expect(session.permissions).toEqual([])
+    expect(session.csrfToken).toBeNull()
+    expect(session.menuErrorMessage).toBeNull()
+    expect(mockedApiClient.setCsrfToken).toHaveBeenLastCalledWith(null)
   })
 })
 

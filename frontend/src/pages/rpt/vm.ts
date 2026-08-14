@@ -192,6 +192,7 @@ export function useReportViewModel(mode: RptPageMode) {
   const managementVersionId = ref('')
   const managementRevision = ref(0)
   let disposed = false
+  let queryGeneration = 0
 
   const reportPermissions = computed(() =>
     reportActions({
@@ -227,6 +228,7 @@ export function useReportViewModel(mode: RptPageMode) {
   )
 
   function setSelected(code: string): void {
+    queryGeneration += 1
     selectedCode.value = code
     selected.value =
       definitions.value.find((definition) => definition.code === code) ?? null
@@ -239,6 +241,8 @@ export function useReportViewModel(mode: RptPageMode) {
     referenceLoading.value = {}
     referenceErrors.value = {}
     referenceItemsById.value = {}
+    errorMessage.value = ''
+    loading.value = false
     for (const parameter of selected.value?.parameters ?? []) {
       if (parameter.type === 'REFERENCE') void loadReference(parameter)
     }
@@ -282,37 +286,56 @@ export function useReportViewModel(mode: RptPageMode) {
 
   async function query(): Promise<void> {
     if (!reportPermissions.value.canQuery || !selectedCode.value) return
+    const code = selectedCode.value
+    const requestGeneration = ++queryGeneration
     const validation = validateReportParameterValues(
-      selectedCode.value,
+      code,
       selected.value?.parameters ?? [],
       parameters.value,
     )
     if (validation) {
       errorMessage.value = validation
+      loading.value = false
       return
     }
     loading.value = true
     errorMessage.value = ''
     try {
-      const response = await apiClient.postContract(
-        `rpt/${selectedCode.value}/query`,
-        {
-          parameters: executeParameters(
-            selected.value?.parameters ?? [],
-            parameters.value,
-          ),
-          page: page.value,
-          pageSize,
-        },
-      )
+      const response = await apiClient.postContract(`rpt/${code}/query`, {
+        parameters: executeParameters(
+          selected.value?.parameters ?? [],
+          parameters.value,
+        ),
+        page: page.value,
+        pageSize,
+      })
       const result = parseQueryResult(response.data)
+      if (
+        disposed ||
+        queryGeneration !== requestGeneration ||
+        selectedCode.value !== code
+      ) {
+        return
+      }
       rows.value = result.items
       total.value = result.total
       executedColumns.value = result.columns
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      if (
+        !disposed &&
+        queryGeneration === requestGeneration &&
+        selectedCode.value === code
+      ) {
+        errorMessage.value = getErrorMessage(error)
+      }
     } finally {
-      loading.value = false
+      if (
+        !disposed &&
+        queryGeneration === requestGeneration &&
+        selectedCode.value === code
+      ) {
+        loading.value = false
+      }
     }
   }
 

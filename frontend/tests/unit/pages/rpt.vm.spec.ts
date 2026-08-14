@@ -60,6 +60,7 @@ const resultColumns = [
 async function mountReportViewModel(): Promise<{
   vm: ReturnType<typeof useReportViewModel>
   wrapper: VueWrapper<ComponentPublicInstance>
+  router: ReturnType<typeof createRouter>
 }> {
   const router = createRouter({
     history: createMemoryHistory(),
@@ -68,6 +69,11 @@ async function mountReportViewModel(): Promise<{
         path: '/rpt/customer-aging',
         component: { template: '<div />' },
         meta: { reportCode: 'customer-aging' },
+      },
+      {
+        path: '/rpt/supplier-aging',
+        component: { template: '<div />' },
+        meta: { reportCode: 'supplier-aging' },
       },
     ],
   })
@@ -85,7 +91,7 @@ async function mountReportViewModel(): Promise<{
   })
   const wrapper = mount(Harness, { global: { plugins: [pinia, router] } })
   await flushPromises()
-  return { vm: vm!, wrapper }
+  return { vm: vm!, wrapper, router }
 }
 
 beforeEach(() => {
@@ -394,6 +400,275 @@ describe('RPT report center view model', () => {
     expect(
       vouDrilldown({ ...row, source_entity: '../admin' }, column, () => true),
     ).toBeNull()
+  })
+
+  it('ignores a stale query success after switching reports', async () => {
+    const oldResult = deferred<{
+      data: {
+        items: Array<Record<string, unknown>>
+        total: number
+        columns: typeof resultColumns
+      }
+    }>()
+    const currentResult = deferred<{
+      data: {
+        items: Array<Record<string, unknown>>
+        total: number
+        columns: typeof resultColumns
+      }
+    }>()
+    mockedPostContract.mockImplementation(async (path) => {
+      if (path === 'rpt/directory/query') {
+        return {
+          data: {
+            items: [
+              {
+                code: 'customer-aging',
+                name: '客户账龄',
+                description: '测试',
+                parameters: [],
+                columns: resultColumns,
+              },
+              {
+                code: 'supplier-aging',
+                name: '供应商账龄',
+                description: '测试',
+                parameters: [],
+                columns: resultColumns,
+              },
+            ],
+          },
+        } as never
+      }
+      if (path === 'rpt/customer-aging/query') return oldResult.promise as never
+      if (path === 'rpt/supplier-aging/query') {
+        return currentResult.promise as never
+      }
+      throw new Error(`unexpected API path: ${path}`)
+    })
+    const { vm, wrapper, router } = await mountReportViewModel()
+    useSessionStore().permissions = [
+      '/rpt/customer-aging/query',
+      '/rpt/supplier-aging/query',
+    ]
+
+    const oldQuery = vm.query()
+    await router.push('/rpt/supplier-aging')
+    await flushPromises()
+    const currentQuery = vm.query()
+    expect(vm.loading.value).toBe(true)
+
+    oldResult.resolve({
+      data: { items: [{ amount: 'old' }], total: 1, columns: resultColumns },
+    })
+    await oldQuery
+
+    expect(vm.rows.value).toEqual([])
+    expect(vm.total.value).toBe(0)
+    expect(vm.errorMessage.value).toBe('')
+    expect(vm.loading.value).toBe(true)
+
+    currentResult.resolve({
+      data: {
+        items: [{ amount: 'current' }],
+        total: 1,
+        columns: resultColumns,
+      },
+    })
+    await currentQuery
+
+    expect(vm.rows.value).toEqual([{ amount: 'current' }])
+    expect(vm.total.value).toBe(1)
+    expect(vm.loading.value).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('ignores a stale query failure and finally after switching reports', async () => {
+    const oldFailure = deferred<never>()
+    const currentResult = deferred<{
+      data: {
+        items: Array<Record<string, unknown>>
+        total: number
+        columns: typeof resultColumns
+      }
+    }>()
+    mockedPostContract.mockImplementation(async (path) => {
+      if (path === 'rpt/directory/query') {
+        return {
+          data: {
+            items: [
+              {
+                code: 'customer-aging',
+                name: '客户账龄',
+                description: '测试',
+                parameters: [],
+                columns: resultColumns,
+              },
+              {
+                code: 'supplier-aging',
+                name: '供应商账龄',
+                description: '测试',
+                parameters: [],
+                columns: resultColumns,
+              },
+            ],
+          },
+        } as never
+      }
+      if (path === 'rpt/customer-aging/query')
+        return oldFailure.promise as never
+      if (path === 'rpt/supplier-aging/query') {
+        return currentResult.promise as never
+      }
+      throw new Error(`unexpected API path: ${path}`)
+    })
+    const { vm, wrapper } = await mountReportViewModel()
+    useSessionStore().permissions = [
+      '/rpt/customer-aging/query',
+      '/rpt/supplier-aging/query',
+    ]
+
+    const oldQuery = vm.query()
+    vm.setSelected('supplier-aging')
+    const currentQuery = vm.query()
+    expect(vm.loading.value).toBe(true)
+
+    oldFailure.reject(new ApiError('network', 'stale request failed'))
+    await oldQuery
+
+    expect(vm.errorMessage.value).toBe('')
+    expect(vm.loading.value).toBe(true)
+
+    currentResult.resolve({
+      data: {
+        items: [{ amount: 'current' }],
+        total: 1,
+        columns: resultColumns,
+      },
+    })
+    await currentQuery
+
+    expect(vm.rows.value).toEqual([{ amount: 'current' }])
+    expect(vm.loading.value).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('keeps loading for the latest same-report query when the older one settles', async () => {
+    const oldResult = deferred<{
+      data: {
+        items: Array<Record<string, unknown>>
+        total: number
+        columns: typeof resultColumns
+      }
+    }>()
+    const currentResult = deferred<{
+      data: {
+        items: Array<Record<string, unknown>>
+        total: number
+        columns: typeof resultColumns
+      }
+    }>()
+    let requestCount = 0
+    mockedPostContract.mockImplementation(async (path) => {
+      if (path === 'rpt/directory/query') {
+        return {
+          data: {
+            items: [
+              {
+                code: 'customer-aging',
+                name: '客户账龄',
+                description: '测试',
+                parameters: [],
+                columns: resultColumns,
+              },
+            ],
+          },
+        } as never
+      }
+      if (path === 'rpt/customer-aging/query') {
+        requestCount += 1
+        return (requestCount === 1 ? oldResult : currentResult).promise as never
+      }
+      throw new Error(`unexpected API path: ${path}`)
+    })
+    const { vm, wrapper } = await mountReportViewModel()
+
+    const oldQuery = vm.query()
+    const currentQuery = vm.query()
+    oldResult.resolve({
+      data: { items: [{ amount: 'old' }], total: 1, columns: resultColumns },
+    })
+    await oldQuery
+
+    expect(vm.rows.value).toEqual([])
+    expect(vm.loading.value).toBe(true)
+
+    currentResult.resolve({
+      data: {
+        items: [{ amount: 'current' }],
+        total: 1,
+        columns: resultColumns,
+      },
+    })
+    await currentQuery
+
+    expect(vm.rows.value).toEqual([{ amount: 'current' }])
+    expect(vm.loading.value).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('invalidates a pending query when a newer validation fails', async () => {
+    const pendingResult = deferred<{
+      data: {
+        items: Array<Record<string, unknown>>
+        total: number
+        columns: typeof resultColumns
+      }
+    }>()
+    mockedPostContract.mockImplementation(async (path) => {
+      if (path === 'rpt/directory/query') {
+        return {
+          data: {
+            items: [
+              {
+                code: 'customer-aging',
+                name: '客户账龄',
+                description: '测试',
+                parameters: [
+                  {
+                    key: 'minAgeDays',
+                    name: '最小账龄天数',
+                    type: 'INTEGER',
+                    required: false,
+                  },
+                ],
+                columns: resultColumns,
+              },
+            ],
+          },
+        } as never
+      }
+      if (path === 'rpt/customer-aging/query')
+        return pendingResult.promise as never
+      throw new Error(`unexpected API path: ${path}`)
+    })
+    const { vm, wrapper } = await mountReportViewModel()
+
+    const oldQuery = vm.query()
+    vm.parameters.value.minAgeDays = -1
+    await vm.query()
+
+    expect(vm.errorMessage.value).toBe('最小账龄天数不能小于 0。')
+    expect(vm.loading.value).toBe(false)
+
+    pendingResult.resolve({
+      data: { items: [{ amount: 'old' }], total: 1, columns: resultColumns },
+    })
+    await oldQuery
+
+    expect(vm.rows.value).toEqual([])
+    expect(vm.errorMessage.value).toBe('最小账龄天数不能小于 0。')
+    wrapper.unmount()
   })
 
   it('accepts the single definition and metadata contract shapes', () => {

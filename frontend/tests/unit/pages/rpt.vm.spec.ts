@@ -1,4 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { defineComponent, h, type ComponentPublicInstance } from 'vue'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
+import { createMemoryHistory, createRouter } from 'vue-router'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { apiClient } from '@/api/client'
+import { ApiError } from '@/api/types'
 import {
   executeParameters,
   formatResultValue,
@@ -16,7 +22,19 @@ import {
   parseQueryResult,
   parseReferenceItems,
   parseReportMetadata,
+  useReportViewModel,
 } from '@/pages/rpt/vm'
+import { useSessionStore } from '@/stores/session'
+
+vi.mock('@/api/client', () => ({
+  apiClient: {
+    exportReportCsv: vi.fn(),
+    postContract: vi.fn(),
+    setCsrfToken: vi.fn(),
+  },
+}))
+
+const mockedPostContract = vi.mocked(apiClient.postContract)
 
 const resultColumns = [
   {
@@ -28,6 +46,41 @@ const resultColumns = [
     visible: true,
   },
 ]
+
+async function mountReportViewModel(): Promise<{
+  vm: ReturnType<typeof useReportViewModel>
+  wrapper: VueWrapper<ComponentPublicInstance>
+}> {
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      {
+        path: '/rpt/customer-aging',
+        component: { template: '<div />' },
+        meta: { reportCode: 'customer-aging' },
+      },
+    ],
+  })
+  await router.push('/rpt/customer-aging')
+  await router.isReady()
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  useSessionStore().permissions = ['/rpt/customer-aging/query']
+  let vm: ReturnType<typeof useReportViewModel> | undefined
+  const Harness = defineComponent({
+    setup() {
+      vm = useReportViewModel('report')
+      return () => h('div')
+    },
+  })
+  const wrapper = mount(Harness, { global: { plugins: [pinia, router] } })
+  await flushPromises()
+  return { vm: vm!, wrapper }
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe('RPT report center view model', () => {
   it('initializes every supported parameter from its contract default', () => {
@@ -85,6 +138,57 @@ describe('RPT report center view model', () => {
         validateReportParameterValues(code, [parameter], { minAgeDays: 0 }),
       ).toBeNull()
     }
+  })
+
+  it('clears stale reference options and exposes a parameter error when reload fails', async () => {
+    const referenceParameter = {
+      key: 'bookId',
+      name: '账簿',
+      type: 'REFERENCE' as const,
+      required: true,
+      referenceType: 'ACCOUNTING_BOOK' as const,
+    }
+    mockedPostContract.mockImplementation(async (path) => {
+      if (path === 'rpt/directory/query') {
+        return {
+          data: {
+            items: [
+              {
+                code: 'customer-aging',
+                name: '客户账龄',
+                description: '测试',
+                parameters: [referenceParameter],
+                columns: resultColumns,
+              },
+            ],
+          },
+        } as never
+      }
+      if (path === 'rpt/customer-aging/reference-query') {
+        return {
+          data: {
+            items: [{ id: 'book-1', code: 'ACC0001', name: '默认账簿' }],
+          },
+        } as never
+      }
+      throw new Error(`unexpected API path: ${path}`)
+    })
+    const { vm, wrapper } = await mountReportViewModel()
+    expect(vm.referenceOptions.value.bookId).toEqual([
+      { value: 'book-1', title: 'ACC0001 · 默认账簿' },
+    ])
+
+    mockedPostContract.mockRejectedValueOnce(
+      new ApiError('network', 'request failed'),
+    )
+    await vm.loadReference(referenceParameter, 'retry')
+
+    expect(vm.referenceOptions.value.bookId).toEqual([])
+    expect(vm.referenceErrors.value.bookId).toBe(
+      '引用数据加载失败：网络连接失败，请检查网络后重试。',
+    )
+    expect(vm.errorMessage.value).toBe('')
+    wrapper.unmount()
   })
 
   it('uses result contract visibility and keeps query/export permissions independent', () => {

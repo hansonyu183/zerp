@@ -18,6 +18,7 @@ const {
   parameters,
   query,
   queryFirstPage,
+  referenceErrors,
   referenceLoading,
   referenceOptions,
   reportPermissions,
@@ -79,10 +80,17 @@ const {
               :label="parameter.name"
               :items="referenceOptions[parameter.key] ?? []"
               :loading="referenceLoading[parameter.key] ?? false"
+              :error-messages="
+                referenceErrors[parameter.key]
+                  ? [referenceErrors[parameter.key]]
+                  : []
+              "
               :no-data-text="
                 referenceLoading[parameter.key]
                   ? '正在加载...'
-                  : '没有可用的引用数据'
+                  : referenceErrors[parameter.key]
+                    ? '引用数据加载失败，请重试'
+                    : '没有可用的引用数据'
               "
               :required="parameter.required"
               @focus="loadReference(parameter)"

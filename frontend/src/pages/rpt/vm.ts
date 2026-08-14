@@ -179,6 +179,7 @@ export function useReportViewModel(mode: RptPageMode) {
   const notice = ref('')
   const referenceOptions = ref<Record<string, ReferenceItem[]>>({})
   const referenceLoading = ref<Record<string, boolean>>({})
+  const referenceErrors = ref<Record<string, string>>({})
   const referenceRequestIds = ref<Record<string, number>>({})
   const managementData = ref('')
   const managementCode = ref('')
@@ -230,6 +231,7 @@ export function useReportViewModel(mode: RptPageMode) {
     executedColumns.value = selected.value?.columns ?? []
     referenceOptions.value = {}
     referenceLoading.value = {}
+    referenceErrors.value = {}
     for (const parameter of selected.value?.parameters ?? []) {
       if (parameter.type === 'REFERENCE') void loadReference(parameter)
     }
@@ -320,6 +322,7 @@ export function useReportViewModel(mode: RptPageMode) {
     const requestId = (referenceRequestIds.value[parameter.key] ?? 0) + 1
     referenceRequestIds.value[parameter.key] = requestId
     referenceLoading.value[parameter.key] = true
+    referenceErrors.value[parameter.key] = ''
     try {
       const selectedId = parameters.value[parameter.key]
       const response = await apiClient.postContract(
@@ -339,7 +342,11 @@ export function useReportViewModel(mode: RptPageMode) {
       }
       referenceOptions.value[parameter.key] = parseReferenceItems(response.data)
     } catch (error) {
-      if (!disposed) errorMessage.value = getErrorMessage(error)
+      if (!disposed && referenceRequestIds.value[parameter.key] === requestId) {
+        referenceOptions.value[parameter.key] = []
+        referenceErrors.value[parameter.key] =
+          `引用数据加载失败：${getErrorMessage(error)}`
+      }
     } finally {
       if (!disposed && referenceRequestIds.value[parameter.key] === requestId) {
         referenceLoading.value[parameter.key] = false
@@ -507,6 +514,7 @@ export function useReportViewModel(mode: RptPageMode) {
     query,
     queryFirstPage,
     referenceLoading,
+    referenceErrors,
     referenceOptions,
     reportPermissions,
     resultColumns,

@@ -11,6 +11,7 @@ import {
   reportActions,
   reportDefinitionActions,
   reportPageCount,
+  validateReportParameterValues,
   visibleColumns,
   vouDrilldown,
   type ReportDefinitionAction,
@@ -177,6 +178,7 @@ export function useReportViewModel(mode: RptPageMode) {
   const errorMessage = ref('')
   const notice = ref('')
   const referenceOptions = ref<Record<string, ReferenceItem[]>>({})
+  const referenceLoading = ref<Record<string, boolean>>({})
   const referenceRequestIds = ref<Record<string, number>>({})
   const managementData = ref('')
   const managementCode = ref('')
@@ -227,6 +229,10 @@ export function useReportViewModel(mode: RptPageMode) {
     page.value = 1
     executedColumns.value = selected.value?.columns ?? []
     referenceOptions.value = {}
+    referenceLoading.value = {}
+    for (const parameter of selected.value?.parameters ?? []) {
+      if (parameter.type === 'REFERENCE') void loadReference(parameter)
+    }
   }
 
   async function loadDefinitions(preferredCode = ''): Promise<void> {
@@ -267,6 +273,15 @@ export function useReportViewModel(mode: RptPageMode) {
 
   async function query(): Promise<void> {
     if (!reportPermissions.value.canQuery || !selectedCode.value) return
+    const validation = validateReportParameterValues(
+      selectedCode.value,
+      selected.value?.parameters ?? [],
+      parameters.value,
+    )
+    if (validation) {
+      errorMessage.value = validation
+      return
+    }
     loading.value = true
     errorMessage.value = ''
     try {
@@ -304,6 +319,7 @@ export function useReportViewModel(mode: RptPageMode) {
     if (!selectedCode.value || parameter.type !== 'REFERENCE') return
     const requestId = (referenceRequestIds.value[parameter.key] ?? 0) + 1
     referenceRequestIds.value[parameter.key] = requestId
+    referenceLoading.value[parameter.key] = true
     try {
       const selectedId = parameters.value[parameter.key]
       const response = await apiClient.postContract(
@@ -324,6 +340,10 @@ export function useReportViewModel(mode: RptPageMode) {
       referenceOptions.value[parameter.key] = parseReferenceItems(response.data)
     } catch (error) {
       if (!disposed) errorMessage.value = getErrorMessage(error)
+    } finally {
+      if (!disposed && referenceRequestIds.value[parameter.key] === requestId) {
+        referenceLoading.value[parameter.key] = false
+      }
     }
   }
 
@@ -338,6 +358,15 @@ export function useReportViewModel(mode: RptPageMode) {
 
   async function exportReport(): Promise<void> {
     if (!reportPermissions.value.canExport || !selectedCode.value) return
+    const validation = validateReportParameterValues(
+      selectedCode.value,
+      selected.value?.parameters ?? [],
+      parameters.value,
+    )
+    if (validation) {
+      errorMessage.value = validation
+      return
+    }
     exporting.value = true
     errorMessage.value = ''
     try {
@@ -433,6 +462,18 @@ export function useReportViewModel(mode: RptPageMode) {
   watch(selected, (definition) => {
     if (definition) editDefinition(definition)
   })
+  watch(
+    () => route.meta.reportCode,
+    (code) => {
+      if (
+        mode === 'report' &&
+        typeof code === 'string' &&
+        definitions.value.some((definition) => definition.code === code)
+      ) {
+        setSelected(code)
+      }
+    },
+  )
   onMounted(loadDefinitions)
   onBeforeUnmount(() => {
     disposed = true
@@ -465,6 +506,7 @@ export function useReportViewModel(mode: RptPageMode) {
     parameters,
     query,
     queryFirstPage,
+    referenceLoading,
     referenceOptions,
     reportPermissions,
     resultColumns,

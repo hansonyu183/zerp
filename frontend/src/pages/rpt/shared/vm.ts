@@ -54,6 +54,33 @@ export function executeParameters(
   )
 }
 
+export function reportParameterMinimum(
+  reportCode: string,
+  parameter: Pick<RptParameter, 'key' | 'type'>,
+): number | undefined {
+  return (reportCode === 'customer-aging' || reportCode === 'supplier-aging') &&
+    parameter.key === 'minAgeDays' &&
+    parameter.type === 'INTEGER'
+    ? 0
+    : undefined
+}
+
+export function validateReportParameterValues(
+  reportCode: string,
+  definitions: readonly RptParameter[],
+  values: Readonly<Record<string, unknown>>,
+): string | null {
+  for (const parameter of definitions) {
+    const minimum = reportParameterMinimum(reportCode, parameter)
+    if (minimum === undefined) continue
+    const value = values[parameter.key]
+    if (value !== '' && value !== undefined && Number(value) < minimum) {
+      return `${parameter.name}不能小于 ${minimum}。`
+    }
+  }
+  return null
+}
+
 export function visibleColumns(
   columns: readonly RptResultColumn[],
 ): RptResultColumn[] {

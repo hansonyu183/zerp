@@ -87,6 +87,21 @@ func validateVersionData(data VersionData) error {
 	return nil
 }
 
+func validateBuiltInParameterValues(code string, values map[string]any) error {
+	if code != "customer-aging" && code != "supplier-aging" {
+		return nil
+	}
+	value, exists := values["minAgeDays"]
+	if !exists || value == nil {
+		return nil
+	}
+	number, ok := value.(float64)
+	if ok && number < 0 {
+		return validation("最小账龄天数不能小于 0。", map[string]any{"key": "minAgeDays"})
+	}
+	return nil
+}
+
 func compactInts(values []int) []int {
 	result := []int{}
 	for _, value := range values {

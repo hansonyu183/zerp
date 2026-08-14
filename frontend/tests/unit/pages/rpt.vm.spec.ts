@@ -7,6 +7,8 @@ import {
   reportActions,
   reportDefinitionActions,
   reportPageCount,
+  reportParameterMinimum,
+  validateReportParameterValues,
   vouDrilldown,
 } from '@/pages/rpt/shared/vm'
 import {
@@ -65,6 +67,24 @@ describe('RPT report center view model', () => {
       limit: 12,
       amount: '10.25',
     })
+  })
+
+  it('enforces non-negative age filters for both aging reports', () => {
+    const parameter = {
+      key: 'minAgeDays',
+      name: '最小账龄天数',
+      type: 'INTEGER' as const,
+      required: false,
+    }
+    for (const code of ['customer-aging', 'supplier-aging']) {
+      expect(reportParameterMinimum(code, parameter)).toBe(0)
+      expect(
+        validateReportParameterValues(code, [parameter], { minAgeDays: -1 }),
+      ).toBe('最小账龄天数不能小于 0。')
+      expect(
+        validateReportParameterValues(code, [parameter], { minAgeDays: 0 }),
+      ).toBeNull()
+    }
   })
 
   it('uses result contract visibility and keeps query/export permissions independent', () => {

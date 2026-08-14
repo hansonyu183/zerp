@@ -75,6 +75,21 @@ func TestBindParametersConvertsClosedTypes(t *testing.T) {
 	}
 }
 
+func TestAgingReportsRejectNegativeMinimumAge(t *testing.T) {
+	for _, code := range []string{"customer-aging", "supplier-aging"} {
+		if err := validateBuiltInParameterValues(code, map[string]any{
+			"minAgeDays": float64(-1),
+		}); err == nil || err.(*DomainError).Kind != ErrorValidation {
+			t.Fatalf("%s negative minimum age error = %v", code, err)
+		}
+		if err := validateBuiltInParameterValues(code, map[string]any{
+			"minAgeDays": float64(0),
+		}); err != nil {
+			t.Fatalf("%s zero minimum age rejected: %v", code, err)
+		}
+	}
+}
+
 func TestCSVCellNeutralizesSpreadsheetFormula(t *testing.T) {
 	for _, value := range []string{"=1+1", "+cmd", "-2+3", "@SUM(A1)"} {
 		if got := csvCell(value, ResultColumn{Type: ResultTypeText}); got != "'"+value {

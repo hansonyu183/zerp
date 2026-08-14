@@ -652,6 +652,34 @@ describe('shared BOB entity configuration and view model', () => {
     )
   })
 
+  it('保存接口成功后立即反馈，不等待列表刷新', async () => {
+    grant('fund-account', 'create', 'query')
+    let resolveQuery!: (value: ReturnType<typeof emptyPage>) => void
+    const pendingQuery = new Promise<ReturnType<typeof emptyPage>>((resolve) => {
+      resolveQuery = resolve
+    })
+    mockedApiClient.post
+      .mockResolvedValueOnce({ data: mutation() })
+      .mockReturnValueOnce(pendingQuery)
+
+    const config = getBobEntityConfig('fund-account')
+    const vm = useBobEntityViewModel(config)
+    vm.openCreate()
+    const saving = vm.save({
+      ...config.emptyForm(),
+      name: '测试资金账户',
+    })
+
+    await vi.waitFor(() => {
+      expect(mockedApiClient.post).toHaveBeenCalledTimes(2)
+    })
+    expect(vm.successMessage.value).toBe('资金账户已保存。')
+    expect(vm.drawerOpen.value).toBe(false)
+
+    resolveQuery(emptyPage())
+    await expect(saving).resolves.toBe(true)
+  })
+
   it('有效对象不能直接进入编辑', async () => {
     grant('product', 'get', 'save', 'unapprove')
 

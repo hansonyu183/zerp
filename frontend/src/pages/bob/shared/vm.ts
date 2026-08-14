@@ -465,8 +465,8 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
       drawerOpen.value = false
       editContext.value = null
       currentView.value = null
-      await query()
       successMessage.value = `${config.title}已保存。`
+      await query()
       return true
     } catch (error) {
       editorErrorMessage.value = getErrorMessage(error)

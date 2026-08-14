@@ -450,6 +450,40 @@ describe('bill receipt payload', () => {
       valid: true,
     })
   })
+
+  it('marks zero and negative bill discount cash proceeds invalid despite the face amount', () => {
+    const value = form()
+    value.billLines[0]!.faceAmount = '10000.00'
+    value.billCashLines = [
+      {
+        key: 'cash-in',
+        fundAccount: null,
+        direction: 'IN',
+        amountType: 'PRINCIPAL',
+        amount: '100.00',
+        remark: '',
+      },
+      {
+        key: 'cash-out',
+        fundAccount: null,
+        direction: 'OUT',
+        amountType: 'FEE',
+        amount: '100.00',
+        remark: '',
+      },
+    ]
+
+    expect(summarizeBillVoucher(value, 'discount')).toMatchObject({
+      net: '0.00',
+      valid: false,
+    })
+
+    value.billCashLines[0]!.amount = '99.99'
+    expect(summarizeBillVoucher(value, 'discount')).toMatchObject({
+      net: '-0.01',
+      valid: false,
+    })
+  })
 })
 
 describe('bill payment payload', () => {
@@ -522,7 +556,7 @@ describe('bill issue payload', () => {
 })
 
 describe('bill discount payload', () => {
-  it('submits selected bill ids, rate, recourse and real cash fees only', () => {
+  it('submits selected bill ids, rate, recourse and real cash flows only', () => {
     const value = form()
     value.customer = null
     value.supplier = null
@@ -543,6 +577,19 @@ describe('bill discount payload', () => {
     value.withRecourse = true
     value.billLines = [{ ...value.billLines[0]!, billId: 'held-1' }]
     value.billCashLines = [
+      {
+        key: 'cash-in',
+        fundAccount: {
+          objectId: 'f',
+          versionId: 'fv',
+          code: 'F',
+          name: '账户',
+        },
+        direction: 'IN',
+        amountType: 'PRINCIPAL',
+        amount: '100.00',
+        remark: '',
+      },
       {
         key: 'cash',
         fundAccount: {
@@ -568,11 +615,56 @@ describe('bill discount payload', () => {
       annualRateBps: 100,
     })
     expect(payload.billLines[0]).not.toHaveProperty('faceAmount')
-    expect(payload.billCashLines[0]).toMatchObject({
+    expect(payload.billCashLines[1]).toMatchObject({
       direction: 'OUT',
       amountType: 'FEE',
     })
     expect(validateBillVoucherForm(value, 20, 20, 'discount')).toBeNull()
+  })
+
+  it('rejects zero and negative cash proceeds without counting selected bill face amounts', () => {
+    const value = form()
+    value.interestMode = 'BANK_DEDUCTED'
+    value.billLines = [
+      { ...value.billLines[0]!, billId: 'held-1', faceAmount: '10000.00' },
+    ]
+    value.billCashLines = [
+      {
+        key: 'cash-in',
+        fundAccount: {
+          objectId: 'f',
+          versionId: 'fv',
+          code: 'F',
+          name: '账户',
+        },
+        direction: 'IN',
+        amountType: 'PRINCIPAL',
+        amount: '100.00',
+        remark: '',
+      },
+      {
+        key: 'cash-out',
+        fundAccount: {
+          objectId: 'f',
+          versionId: 'fv',
+          code: 'F',
+          name: '账户',
+        },
+        direction: 'OUT',
+        amountType: 'FEE',
+        amount: '100.00',
+        remark: '',
+      },
+    ]
+
+    expect(validateBillVoucherForm(value, 20, 20, 'discount')).toBe(
+      '贴现净到账必须大于零。',
+    )
+
+    value.billCashLines[0]!.amount = '99.99'
+    expect(validateBillVoucherForm(value, 20, 20, 'discount')).toBe(
+      '贴现净到账必须大于零。',
+    )
   })
 })
 

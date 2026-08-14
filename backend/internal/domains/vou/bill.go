@@ -435,6 +435,7 @@ func validateBillDiscountDraft(input DraftInput, result validatedDraft) (validat
 		line.PositionType, line.Direction = "ASSET", "OUT"
 		result.BillLines = append(result.BillLines, line)
 	}
+	var cashIn, cashOut int64
 	for _, raw := range input.BillCashLines {
 		remark, err := lineRemark(raw.Remark)
 		if err != nil {
@@ -455,6 +456,21 @@ func validateBillDiscountDraft(input DraftInput, result validatedDraft) (validat
 			return result, domainError(ErrorValidation, "invalid bill discount cash line", nil, nil)
 		}
 		result.BillCashLines = append(result.BillCashLines, fixedBillCashLine{FundAccount: raw.FundAccount, Direction: direction, AmountType: amountType, Amount: amount, Remark: remark})
+		if direction == "IN" {
+			cashIn, err = checkedBillMoneyAdd(cashIn, amount)
+		} else {
+			cashOut, err = checkedBillMoneyAdd(cashOut, amount)
+		}
+		if err != nil {
+			return result, err
+		}
+	}
+	net, err := checkedBillMoneyAdd(cashIn, -cashOut)
+	if err != nil {
+		return result, err
+	}
+	if net <= 0 {
+		return result, domainError(ErrorValidation, "bill discount total is invalid", nil, nil)
 	}
 	return result, nil
 }

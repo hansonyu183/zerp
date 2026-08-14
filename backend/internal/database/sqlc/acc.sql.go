@@ -1033,6 +1033,36 @@ func (q *Queries) DisposeAccountingAsset(ctx context.Context, arg DisposeAccount
 	return result.RowsAffected(), nil
 }
 
+const findAccountingBillIDBySourceDocument = `-- name: FindAccountingBillIDBySourceDocument :one
+SELECT id
+FROM acc_bills
+WHERE source_document_id = $1
+ORDER BY id
+LIMIT 1
+`
+
+func (q *Queries) FindAccountingBillIDBySourceDocument(ctx context.Context, sourceDocumentID string) (string, error) {
+	row := q.db.QueryRow(ctx, findAccountingBillIDBySourceDocument, sourceDocumentID)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
+const findAccountingBookIDByDescription = `-- name: FindAccountingBookIDByDescription :one
+SELECT id
+FROM acc_books
+WHERE description = $1
+ORDER BY created_at, id
+LIMIT 1
+`
+
+func (q *Queries) FindAccountingBookIDByDescription(ctx context.Context, description string) (string, error) {
+	row := q.db.QueryRow(ctx, findAccountingBookIDByDescription, description)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getAccountingAccessUserEnabled = `-- name: GetAccountingAccessUserEnabled :one
 SELECT status = 'ENABLED' AS enabled FROM app_users WHERE id = $1
 `
@@ -2092,6 +2122,33 @@ func (q *Queries) IsAccountingBookReadyForPosting(ctx context.Context, bookID st
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const listAccountingAssetIDsBySourceDocument = `-- name: ListAccountingAssetIDsBySourceDocument :many
+SELECT id
+FROM acc_assets
+WHERE source_document_id = $1
+ORDER BY asset_no
+`
+
+func (q *Queries) ListAccountingAssetIDsBySourceDocument(ctx context.Context, sourceDocumentID string) ([]string, error) {
+	rows, err := q.db.Query(ctx, listAccountingAssetIDsBySourceDocument, sourceDocumentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listAccountingBookScopes = `-- name: ListAccountingBookScopes :many

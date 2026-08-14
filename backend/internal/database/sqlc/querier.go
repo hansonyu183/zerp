@@ -78,6 +78,8 @@ type Querier interface {
 	CountVouAttachments(ctx context.Context, documentID string) (int64, error)
 	CountVouAuditEvents(ctx context.Context, arg CountVouAuditEventsParams) (int64, error)
 	CountVouDocuments(ctx context.Context, arg CountVouDocumentsParams) (int64, error)
+	CountVouDocumentsByEntity(ctx context.Context, entity string) (int64, error)
+	CountVouDocumentsByParentAndEntity(ctx context.Context, arg CountVouDocumentsByParentAndEntityParams) (int64, error)
 	CountVouInventoryCountBookBalances(ctx context.Context, arg CountVouInventoryCountBookBalancesParams) (int64, error)
 	CountVouProductionAttributes(ctx context.Context, targetDocumentID string) (CountVouProductionAttributesRow, error)
 	CountWorkbenchBobItems(ctx context.Context, arg CountWorkbenchBobItemsParams) (int64, error)
@@ -164,8 +166,11 @@ type Querier interface {
 	DeleteVouProductLines(ctx context.Context, documentID string) error
 	DeleteVouPurchaseInboundLines(ctx context.Context, documentID string) error
 	DisposeAccountingAsset(ctx context.Context, arg DisposeAccountingAssetParams) (int64, error)
+	FindAccountingBillIDBySourceDocument(ctx context.Context, sourceDocumentID string) (string, error)
+	FindAccountingBookIDByDescription(ctx context.Context, description string) (string, error)
 	FindBobObjectIDByCode(ctx context.Context, arg FindBobObjectIDByCodeParams) (string, error)
 	FindBobSeedObjectID(ctx context.Context, arg FindBobSeedObjectIDParams) (string, error)
+	FindEnabledAppUserIDExcludingID(ctx context.Context, excludedUserID string) (string, error)
 	FindLatestCustomerSaleOrderFormula(ctx context.Context, arg FindLatestCustomerSaleOrderFormulaParams) (FindLatestCustomerSaleOrderFormulaRow, error)
 	FindVouPurchasePriceReference(ctx context.Context, arg FindVouPurchasePriceReferenceParams) (FindVouPurchasePriceReferenceRow, error)
 	FindVouSalePriceReference(ctx context.Context, arg FindVouSalePriceReferenceParams) (FindVouSalePriceReferenceRow, error)
@@ -311,6 +316,7 @@ type Querier interface {
 	InvalidateBobVersion(ctx context.Context, arg InvalidateBobVersionParams) (int64, error)
 	IsAccountingBookReadyForPosting(ctx context.Context, bookID string) (bool, error)
 	IsVouDocumentInClosedPeriod(ctx context.Context, id string) (bool, error)
+	ListAccountingAssetIDsBySourceDocument(ctx context.Context, sourceDocumentID string) ([]string, error)
 	ListAccountingBookScopes(ctx context.Context, bookID string) ([]ListAccountingBookScopesRow, error)
 	ListAccountingBooks(ctx context.Context, arg ListAccountingBooksParams) ([]ListAccountingBooksRow, error)
 	ListAccountingDepreciationCandidates(ctx context.Context, arg ListAccountingDepreciationCandidatesParams) ([]ListAccountingDepreciationCandidatesRow, error)
@@ -514,6 +520,7 @@ type Querier interface {
 	UpdateVouReceiptDetail(ctx context.Context, arg UpdateVouReceiptDetailParams) (int64, error)
 	UpdateVouSaleOrderDetail(ctx context.Context, arg UpdateVouSaleOrderDetailParams) (int64, error)
 	UpsertAppUserProfileAvatar(ctx context.Context, arg UpsertAppUserProfileAvatarParams) error
+	VouEntityExistsOnBusinessDate(ctx context.Context, arg VouEntityExistsOnBusinessDateParams) (bool, error)
 }
 
 var _ Querier = (*Queries)(nil)

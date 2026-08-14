@@ -3,9 +3,12 @@ package previewseed
 import (
 	"context"
 	"fmt"
+	"time"
 
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func (s *Seeder) seedExtendedVouchers(ctx context.Context, counts *Counts) error {
@@ -107,18 +110,9 @@ func (s *Seeder) seedAssetDocuments(ctx context.Context, counts *Counts, supplie
 		return fmt.Errorf("asset acquisition: %w", err)
 	}
 	counts.add(result)
-	rows, err := s.pool.Query(ctx, `SELECT id FROM acc_assets WHERE source_document_id=$1 ORDER BY asset_no`, acquisition.DocumentID)
+	assetIDs, err := s.queries.ListAccountingAssetIDsBySourceDocument(ctx, acquisition.DocumentID)
 	if err != nil {
 		return err
-	}
-	defer rows.Close()
-	assetIDs := []string{}
-	for rows.Next() {
-		var id string
-		if err = rows.Scan(&id); err != nil {
-			return err
-		}
-		assetIDs = append(assetIDs, id)
 	}
 	if len(assetIDs) != 2 {
 		return fmt.Errorf("asset acquisition registered %d assets, want 2", len(assetIDs))
@@ -171,10 +165,10 @@ func (s *Seeder) seedBillDocuments(
 	}
 	counts.add(result)
 	var assetBillID, liabilityBillID string
-	if err = s.pool.QueryRow(ctx, `SELECT id FROM acc_bills WHERE source_document_id=$1 ORDER BY id LIMIT 1`, assetReceipt.DocumentID).Scan(&assetBillID); err != nil {
+	if assetBillID, err = s.queries.FindAccountingBillIDBySourceDocument(ctx, assetReceipt.DocumentID); err != nil {
 		return fmt.Errorf("load asset bill: %w", err)
 	}
-	if err = s.pool.QueryRow(ctx, `SELECT id FROM acc_bills WHERE source_document_id=$1 ORDER BY id LIMIT 1`, liabilityIssue.DocumentID).Scan(&liabilityBillID); err != nil {
+	if liabilityBillID, err = s.queries.FindAccountingBillIDBySourceDocument(ctx, liabilityIssue.DocumentID); err != nil {
 		return fmt.Errorf("load liability bill: %w", err)
 	}
 	billSamples := []struct {
@@ -199,14 +193,11 @@ func (s *Seeder) seedBillDocuments(
 }
 
 func (s *Seeder) seedIntermediaryCalculation(ctx context.Context, counts *Counts) error {
-	var periodOccupied bool
-	if err := s.pool.QueryRow(ctx, `
-		SELECT EXISTS(
-			SELECT 1
-			FROM vou_documents
-			WHERE entity=$1 AND business_date=DATE '2026-06-30'
-		)
-	`, voudomain.EntityIntermediaryCalculation).Scan(&periodOccupied); err != nil {
+	periodOccupied, err := s.queries.VouEntityExistsOnBusinessDate(ctx, dbsqlc.VouEntityExistsOnBusinessDateParams{
+		Entity:       voudomain.EntityIntermediaryCalculation,
+		BusinessDate: pgtype.Date{Time: time.Date(2026, 6, 30, 0, 0, 0, 0, time.UTC), Valid: true},
+	})
+	if err != nil {
 		return fmt.Errorf("find intermediary calculation period: %w", err)
 	}
 	if periodOccupied {
@@ -238,8 +229,8 @@ func (s *Seeder) seedIntermediaryCalculation(ctx context.Context, counts *Counts
 }
 
 func (s *Seeder) ensureGeneratedExpensePayment(ctx context.Context, counts *Counts) error {
-	var count int
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM vou_documents WHERE entity=$1`, voudomain.EntityExpensePayment).Scan(&count); err != nil {
+	count, err := s.queries.CountVouDocumentsByEntity(ctx, voudomain.EntityExpensePayment)
+	if err != nil {
 		return err
 	}
 	if count > 0 {
@@ -259,11 +250,10 @@ func (s *Seeder) ensureGeneratedExpensePayment(ctx context.Context, counts *Coun
 		return fmt.Errorf("recover expense payment workflow: %w", err)
 	}
 	counts.add(result)
-	if err = s.pool.QueryRow(ctx, `
-		SELECT count(*)
-		FROM vou_documents
-		WHERE parent_document_id=$1 AND entity=$2
-	`, reimbursement.DocumentID, voudomain.EntityExpensePayment).Scan(&count); err != nil {
+	parentDocumentID := reimbursement.DocumentID
+	if count, err = s.queries.CountVouDocumentsByParentAndEntity(ctx, dbsqlc.CountVouDocumentsByParentAndEntityParams{
+		ParentDocumentID: &parentDocumentID, Entity: voudomain.EntityExpensePayment,
+	}); err != nil {
 		return err
 	}
 	if count != 1 {

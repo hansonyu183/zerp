@@ -342,6 +342,25 @@ SELECT EXISTS(
     WHERE document.id = $1
 );
 
+-- name: VouEntityExistsOnBusinessDate :one
+SELECT EXISTS(
+  SELECT 1
+  FROM vou_documents
+  WHERE entity = sqlc.arg(entity)
+    AND business_date = sqlc.arg(business_date)::date
+);
+
+-- name: CountVouDocumentsByEntity :one
+SELECT count(*)
+FROM vou_documents
+WHERE entity = sqlc.arg(entity);
+
+-- name: CountVouDocumentsByParentAndEntity :one
+SELECT count(*)
+FROM vou_documents
+WHERE parent_document_id = sqlc.arg(parent_document_id)
+  AND entity = sqlc.arg(entity);
+
 -- name: CountVouDocuments :one
 SELECT count(*)
 FROM vou_documents d

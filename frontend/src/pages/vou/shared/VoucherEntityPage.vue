@@ -319,6 +319,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
       vm.actionLoading ===
       `${listLifecycleAction}:${listLifecycleTarget?.documentId}`
     "
+    :error-message="vm.errorMessage"
     :reason="listLifecycleReason"
     :title="listLifecycleTitle"
     @confirm="confirmListLifecycleAction"

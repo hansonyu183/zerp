@@ -165,6 +165,19 @@ func TestBillDiscountValidation(t *testing.T) {
 	if err != nil || len(draft.BillLines) != 1 || draft.BillLines[0].Direction != "OUT" || !draft.WithRecourse {
 		t.Fatalf("validate bill discount = %+v, %v", draft, err)
 	}
+	input.BillLines[0].FaceAmount = "10000.00"
+	input.BillCashLines = []BillCashLineInput{
+		{FundAccount: *refInput(), Direction: "IN", AmountType: "PRINCIPAL", Amount: "90.00"},
+		{FundAccount: *refInput(), Direction: "OUT", AmountType: "FEE", Amount: "90.00"},
+	}
+	if _, err = validateDraft(EntityBillDiscount, input); err == nil {
+		t.Fatal("accepted zero bill discount net proceeds despite source bill face amount")
+	}
+	input.BillCashLines[0].Amount = "89.99"
+	if _, err = validateDraft(EntityBillDiscount, input); err == nil {
+		t.Fatal("accepted negative bill discount net proceeds")
+	}
+	input.BillCashLines = []BillCashLineInput{{FundAccount: *refInput(), Direction: "IN", AmountType: "PRINCIPAL", Amount: "90.00"}}
 	input.CounterpartyType = "supplier"
 	if _, err = validateDraft(EntityBillDiscount, input); err == nil {
 		t.Fatal("accepted non-other discount counterparty")

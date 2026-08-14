@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
 import { describe, expect, it } from 'vitest'
 import VoucherLifecycleActions from '@/components/voucher/VoucherLifecycleActions.vue'
+import VoucherReasonDialog from '@/pages/vou/shared/VoucherReasonDialog.vue'
 
 const passthrough = (name: string, tag = 'div') =>
   defineComponent({
@@ -126,5 +127,34 @@ describe('VoucherLifecycleActions', () => {
     await confirm!.trigger('click')
 
     expect(wrapper.emitted('action')).toEqual([['unapprove', '需要撤销批准']])
+  })
+})
+
+describe('VoucherReasonDialog', () => {
+  it('keeps a rejected reverse action reason visible inside the dialog', () => {
+    const wrapper = mount(VoucherReasonDialog, {
+      props: {
+        modelValue: true,
+        reason: '撤销测试',
+        title: '反批准',
+        errorMessage: '已有下游单据，请先反向处理下游单据。',
+      },
+      global: {
+        components: {
+          VAlert: passthrough('VAlert'),
+          VBtn: VBtnStub,
+          VCard: passthrough('VCard'),
+          VCardActions: passthrough('VCardActions'),
+          VCardText: passthrough('VCardText'),
+          VDialog: VDialogStub,
+          VSpacer: passthrough('VSpacer'),
+          VTextarea: VTextareaStub,
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain(
+      '已有下游单据，请先反向处理下游单据。',
+    )
   })
 })

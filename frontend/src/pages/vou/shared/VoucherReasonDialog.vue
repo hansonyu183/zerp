@@ -6,6 +6,7 @@ withDefaults(
     title: string
     confirmLabel?: string
     loading?: boolean
+    errorMessage?: string | null
   }>(),
   {
     confirmLabel: '确认',
@@ -28,6 +29,14 @@ const emit = defineEmits<{
   >
     <v-card rounded="xl" :title="title">
       <v-card-text>
+        <v-alert
+          v-if="errorMessage"
+          class="mb-3"
+          type="error"
+          variant="tonal"
+        >
+          {{ errorMessage }}
+        </v-alert>
         <v-textarea
           autofocus
           counter="1000"

@@ -394,6 +394,21 @@ func (q *Queries) DeleteAppUserRoles(ctx context.Context, userID string) error {
 	return err
 }
 
+const findEnabledAppUserIDExcludingID = `-- name: FindEnabledAppUserIDExcludingID :one
+SELECT id
+FROM app_users
+WHERE status = 'ENABLED' AND id <> $1
+ORDER BY created_at, id
+LIMIT 1
+`
+
+func (q *Queries) FindEnabledAppUserIDExcludingID(ctx context.Context, excludedUserID string) (string, error) {
+	row := q.db.QueryRow(ctx, findEnabledAppUserIDExcludingID, excludedUserID)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getAppBusinessMenuRevision = `-- name: GetAppBusinessMenuRevision :one
 SELECT COALESCE(max(revision), 1)::bigint
 FROM app_business_menu_items

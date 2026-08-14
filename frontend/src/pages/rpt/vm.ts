@@ -11,6 +11,7 @@ import {
   reportActions,
   reportDefinitionActions,
   reportPageCount,
+  validateReportParameterValues,
   visibleColumns,
   vouDrilldown,
   type ReportDefinitionAction,
@@ -177,12 +178,21 @@ export function useReportViewModel(mode: RptPageMode) {
   const errorMessage = ref('')
   const notice = ref('')
   const referenceOptions = ref<Record<string, ReferenceItem[]>>({})
+  const referenceLoading = ref<Record<string, boolean>>({})
+  const referenceErrors = ref<Record<string, string>>({})
   const referenceRequestIds = ref<Record<string, number>>({})
+  // Keep the last label we saw for each selected reference ID so a failed
+  // refresh can drop stale candidates without making the current value
+  // impossible to render.
+  const referenceItemsById = ref<Record<string, Record<string, ReferenceItem>>>(
+    {},
+  )
   const managementData = ref('')
   const managementCode = ref('')
   const managementVersionId = ref('')
   const managementRevision = ref(0)
   let disposed = false
+  let queryGeneration = 0
 
   const reportPermissions = computed(() =>
     reportActions({
@@ -218,6 +228,7 @@ export function useReportViewModel(mode: RptPageMode) {
   )
 
   function setSelected(code: string): void {
+    queryGeneration += 1
     selectedCode.value = code
     selected.value =
       definitions.value.find((definition) => definition.code === code) ?? null
@@ -227,9 +238,17 @@ export function useReportViewModel(mode: RptPageMode) {
     page.value = 1
     executedColumns.value = selected.value?.columns ?? []
     referenceOptions.value = {}
+    referenceLoading.value = {}
+    referenceErrors.value = {}
+    referenceItemsById.value = {}
+    errorMessage.value = ''
+    loading.value = false
+    for (const parameter of selected.value?.parameters ?? []) {
+      if (parameter.type === 'REFERENCE') void loadReference(parameter)
+    }
   }
 
-  async function loadDefinitions(): Promise<void> {
+  async function loadDefinitions(preferredCode = ''): Promise<void> {
     loading.value = true
     errorMessage.value = ''
     try {
@@ -255,7 +274,9 @@ export function useReportViewModel(mode: RptPageMode) {
         mode === 'report' && typeof route.meta.reportCode === 'string'
           ? route.meta.reportCode
           : ''
-      setSelected(routeCode || definitions.value[0]?.code || '')
+      setSelected(
+        preferredCode || routeCode || definitions.value[0]?.code || '',
+      )
     } catch (error) {
       if (!disposed) errorMessage.value = getErrorMessage(error)
     } finally {
@@ -265,28 +286,56 @@ export function useReportViewModel(mode: RptPageMode) {
 
   async function query(): Promise<void> {
     if (!reportPermissions.value.canQuery || !selectedCode.value) return
+    const code = selectedCode.value
+    const requestGeneration = ++queryGeneration
+    const validation = validateReportParameterValues(
+      code,
+      selected.value?.parameters ?? [],
+      parameters.value,
+    )
+    if (validation) {
+      errorMessage.value = validation
+      loading.value = false
+      return
+    }
     loading.value = true
     errorMessage.value = ''
     try {
-      const response = await apiClient.postContract(
-        `rpt/${selectedCode.value}/query`,
-        {
-          parameters: executeParameters(
-            selected.value?.parameters ?? [],
-            parameters.value,
-          ),
-          page: page.value,
-          pageSize,
-        },
-      )
+      const response = await apiClient.postContract(`rpt/${code}/query`, {
+        parameters: executeParameters(
+          selected.value?.parameters ?? [],
+          parameters.value,
+        ),
+        page: page.value,
+        pageSize,
+      })
       const result = parseQueryResult(response.data)
+      if (
+        disposed ||
+        queryGeneration !== requestGeneration ||
+        selectedCode.value !== code
+      ) {
+        return
+      }
       rows.value = result.items
       total.value = result.total
       executedColumns.value = result.columns
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      if (
+        !disposed &&
+        queryGeneration === requestGeneration &&
+        selectedCode.value === code
+      ) {
+        errorMessage.value = getErrorMessage(error)
+      }
     } finally {
-      loading.value = false
+      if (
+        !disposed &&
+        queryGeneration === requestGeneration &&
+        selectedCode.value === code
+      ) {
+        loading.value = false
+      }
     }
   }
 
@@ -302,6 +351,8 @@ export function useReportViewModel(mode: RptPageMode) {
     if (!selectedCode.value || parameter.type !== 'REFERENCE') return
     const requestId = (referenceRequestIds.value[parameter.key] ?? 0) + 1
     referenceRequestIds.value[parameter.key] = requestId
+    referenceLoading.value[parameter.key] = true
+    referenceErrors.value[parameter.key] = ''
     try {
       const selectedId = parameters.value[parameter.key]
       const response = await apiClient.postContract(
@@ -319,9 +370,41 @@ export function useReportViewModel(mode: RptPageMode) {
       if (disposed || referenceRequestIds.value[parameter.key] !== requestId) {
         return
       }
-      referenceOptions.value[parameter.key] = parseReferenceItems(response.data)
+      const items = parseReferenceItems(response.data)
+      const itemCache = referenceItemsById.value[parameter.key] ?? {}
+      for (const item of items) itemCache[item.value] = item
+      referenceItemsById.value[parameter.key] = itemCache
+      const currentSelectedId = parameters.value[parameter.key]
+      const selectedItem =
+        typeof currentSelectedId === 'string' && currentSelectedId
+          ? itemCache[currentSelectedId]
+          : undefined
+      referenceOptions.value[parameter.key] = selectedItem
+        ? [
+            selectedItem,
+            ...items.filter((item) => item.value !== selectedItem.value),
+          ]
+        : items
     } catch (error) {
-      if (!disposed) errorMessage.value = getErrorMessage(error)
+      if (!disposed && referenceRequestIds.value[parameter.key] === requestId) {
+        const selectedId = parameters.value[parameter.key]
+        const selectedItem =
+          typeof selectedId === 'string' && selectedId
+            ? (referenceItemsById.value[parameter.key]?.[selectedId] ??
+              referenceOptions.value[parameter.key]?.find(
+                (item) => item.value === selectedId,
+              ))
+            : undefined
+        referenceOptions.value[parameter.key] = selectedItem
+          ? [selectedItem]
+          : []
+        referenceErrors.value[parameter.key] =
+          `引用数据加载失败：${getErrorMessage(error)}`
+      }
+    } finally {
+      if (!disposed && referenceRequestIds.value[parameter.key] === requestId) {
+        referenceLoading.value[parameter.key] = false
+      }
     }
   }
 
@@ -336,6 +419,15 @@ export function useReportViewModel(mode: RptPageMode) {
 
   async function exportReport(): Promise<void> {
     if (!reportPermissions.value.canExport || !selectedCode.value) return
+    const validation = validateReportParameterValues(
+      selectedCode.value,
+      selected.value?.parameters ?? [],
+      parameters.value,
+    )
+    if (validation) {
+      errorMessage.value = validation
+      return
+    }
     exporting.value = true
     errorMessage.value = ''
     try {
@@ -402,7 +494,7 @@ export function useReportViewModel(mode: RptPageMode) {
     try {
       await apiClient.postContract(`rpt/definition/${action}`, body)
       notice.value = '管理操作已完成。'
-      await loadDefinitions()
+      await loadDefinitions(code)
     } catch (error) {
       errorMessage.value = getErrorMessage(error)
     }
@@ -431,6 +523,18 @@ export function useReportViewModel(mode: RptPageMode) {
   watch(selected, (definition) => {
     if (definition) editDefinition(definition)
   })
+  watch(
+    () => route.meta.reportCode,
+    (code) => {
+      if (
+        mode === 'report' &&
+        typeof code === 'string' &&
+        definitions.value.some((definition) => definition.code === code)
+      ) {
+        setSelected(code)
+      }
+    },
+  )
   onMounted(loadDefinitions)
   onBeforeUnmount(() => {
     disposed = true
@@ -463,6 +567,8 @@ export function useReportViewModel(mode: RptPageMode) {
     parameters,
     query,
     queryFirstPage,
+    referenceLoading,
+    referenceErrors,
     referenceOptions,
     reportPermissions,
     resultColumns,

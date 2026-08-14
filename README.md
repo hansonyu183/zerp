@@ -19,7 +19,7 @@ tools/                独立版本的构建工具
 - Node.js 26
 - pnpm 10.34.5
 - TypeScript 7.0.2
-- Go 1.26.5
+- Go 1.26.6
 - Docker 与 Docker Compose
 - GNU Make
 - ShellCheck

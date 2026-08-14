@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useReportViewModel } from './vm'
+import { reportParameterMinimum } from './shared/vm'
 
 const {
   drilldownTarget,
@@ -17,6 +18,8 @@ const {
   parameters,
   query,
   queryFirstPage,
+  referenceErrors,
+  referenceLoading,
   referenceOptions,
   reportPermissions,
   resultColumns,
@@ -76,6 +79,19 @@ const {
               v-model="parameters[parameter.key] as string"
               :label="parameter.name"
               :items="referenceOptions[parameter.key] ?? []"
+              :loading="referenceLoading[parameter.key] ?? false"
+              :error-messages="
+                referenceErrors[parameter.key]
+                  ? [referenceErrors[parameter.key]]
+                  : []
+              "
+              :no-data-text="
+                referenceLoading[parameter.key]
+                  ? '正在加载...'
+                  : referenceErrors[parameter.key]
+                    ? '引用数据加载失败，请重试'
+                    : '没有可用的引用数据'
+              "
               :required="parameter.required"
               @focus="loadReference(parameter)"
               @update:search="loadReference(parameter, $event ?? '')"
@@ -98,6 +114,7 @@ const {
               v-else
               v-model="parameters[parameter.key]"
               :label="parameter.name"
+              :min="reportParameterMinimum(selected.code, parameter)"
               :required="parameter.required"
               :type="
                 parameter.type === 'DATE'

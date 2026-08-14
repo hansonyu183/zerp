@@ -37,8 +37,11 @@ void vm.initialize()
         <div class="d-flex flex-wrap ga-3 mb-5">
           <v-btn
             color="primary"
-            :disabled="!vm.canLock || !vm.nextLockMonth"
+            :disabled="
+              !vm.canLock || !vm.nextLockMonth || !vm.nextLockMonthEnded
+            "
             :loading="vm.saving"
+            :title="vm.lockDisabledReason || undefined"
             @click="vm.lock"
             >锁定 {{ vm.nextLockMonth }}</v-btn
           >
@@ -50,6 +53,14 @@ void vm.initialize()
             >解锁最新期间</v-btn
           >
         </div>
+        <v-alert
+          v-if="vm.lockDisabledReason && vm.nextLockMonth"
+          class="mb-5"
+          type="info"
+          variant="tonal"
+        >
+          {{ vm.lockDisabledReason }}
+        </v-alert>
         <v-table class="period-table" density="compact">
           <thead>
             <tr>

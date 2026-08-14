@@ -10,8 +10,13 @@ export interface BillVoucherSummary {
   valid: boolean
 }
 
+function formatSignedMoneyCents(value: bigint): string {
+  return value < 0n ? `-${formatMoneyCents(-value)}` : formatMoneyCents(value)
+}
+
 export function summarizeBillVoucher(
   form: BillVoucherForm,
+  mode: 'receipt' | 'payment' | 'issue' | 'discount' | 'maturity' = 'receipt',
 ): BillVoucherSummary {
   let primary = 0n
   let change = 0n
@@ -36,13 +41,14 @@ export function summarizeBillVoucher(
     if (line.direction === 'IN') cashIn += cents
     else cashOut += cents
   }
-  const net = primary + cashIn - change - cashOut
+  const net =
+    mode === 'discount' ? cashIn - cashOut : primary + cashIn - change - cashOut
   return {
     primary: formatMoneyCents(primary),
     change: formatMoneyCents(change),
     cashIn: formatMoneyCents(cashIn),
     cashOut: formatMoneyCents(cashOut),
-    net: formatMoneyCents(net),
+    net: formatSignedMoneyCents(net),
     valid: valid && net > 0n,
   }
 }
@@ -121,9 +127,18 @@ export function validateBillVoucherForm(
       if (billIds.has(line.billId))
         return `第 ${index + 1} 行重复选择了同一张票据。`
       billIds.add(line.billId)
-      if (mode === 'maturity' && ((form.maturityType === 'RECEIPT' && line.positionType !== 'ASSET') || (form.maturityType === 'PAYMENT' && line.positionType !== 'LIABILITY')))
+      if (
+        mode === 'maturity' &&
+        ((form.maturityType === 'RECEIPT' && line.positionType !== 'ASSET') ||
+          (form.maturityType === 'PAYMENT' &&
+            line.positionType !== 'LIABILITY'))
+      )
         return `第 ${index + 1} 行票据方向与到期处理方式不匹配。`
-      if (!Number.isInteger(line.annualRateBps) || line.annualRateBps < 0 || line.annualRateBps > 100_000)
+      if (
+        !Number.isInteger(line.annualRateBps) ||
+        line.annualRateBps < 0 ||
+        line.annualRateBps > 100_000
+      )
         return `第 ${index + 1} 行年利率必须为 0-100000 bps。`
       if (mode === 'discount') {
         const cents = parseFixed(line.faceAmount, 2)
@@ -175,10 +190,13 @@ export function validateBillVoucherForm(
   let cashIn = 0n
   let cashOut = 0n
   for (const [index, line] of form.billCashLines.entries()) {
-    if (line.billLineId)
-      return `现金第 ${index + 1} 行不能关联票据行。`
+    if (line.billLineId) return `现金第 ${index + 1} 行不能关联票据行。`
     if (!line.fundAccount) return `第 ${index + 1} 行请选择资金账户。`
-    if (mode === 'maturity' && ((form.maturityType === 'RECEIPT' && line.direction !== 'IN') || (form.maturityType === 'PAYMENT' && line.direction !== 'OUT')))
+    if (
+      mode === 'maturity' &&
+      ((form.maturityType === 'RECEIPT' && line.direction !== 'IN') ||
+        (form.maturityType === 'PAYMENT' && line.direction !== 'OUT'))
+    )
       return `现金第 ${index + 1} 行方向与到期处理方式不匹配。`
     const cents = parseFixed(line.amount, 2)
     if (cents === null) return `现金第 ${index + 1} 行请输入大于零的金额。`
@@ -187,7 +205,7 @@ export function validateBillVoucherForm(
   }
   if (mode === 'receipt' && primary + cashIn - change - cashOut <= 0n)
     return '客户净结算额必须大于零。'
-  if (mode === 'discount' && primary + cashIn - cashOut <= 0n)
+  if (mode === 'discount' && cashIn - cashOut <= 0n)
     return '贴现净到账必须大于零。'
   return null
 }

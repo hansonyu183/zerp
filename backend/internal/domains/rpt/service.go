@@ -740,6 +740,9 @@ func (s *Service) Execute(ctx context.Context, code string, in ExecuteInput, act
 	if err != nil {
 		return QueryResult{}, err
 	}
+	if err = validateBuiltInParameterValues(code, in.Parameters); err != nil {
+		return QueryResult{}, err
+	}
 	args, err := bindParameters(definition.Data.Parameters, in.Parameters)
 	if err != nil {
 		return QueryResult{}, err
@@ -798,6 +801,9 @@ func (s *Service) StreamExport(
 ) error {
 	definition, err := s.loadActive(ctx, code)
 	if err != nil {
+		return err
+	}
+	if err = validateBuiltInParameterValues(code, in.Parameters); err != nil {
 		return err
 	}
 	args, err := bindParameters(definition.Data.Parameters, in.Parameters)

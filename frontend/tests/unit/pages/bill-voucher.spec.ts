@@ -419,6 +419,71 @@ describe('bill receipt payload', () => {
       valid: true,
     })
   })
+
+  it('uses actual cash flows as the bill discount net proceeds', () => {
+    const value = form()
+    value.billLines[0]!.faceAmount = '10000.00'
+    value.billCashLines = [
+      {
+        key: 'cash-in',
+        fundAccount: null,
+        direction: 'IN',
+        amountType: 'PRINCIPAL',
+        amount: '9800.00',
+        remark: '',
+      },
+      {
+        key: 'cash-out',
+        fundAccount: null,
+        direction: 'OUT',
+        amountType: 'FEE',
+        amount: '20.00',
+        remark: '',
+      },
+    ]
+
+    expect(summarizeBillVoucher(value, 'discount')).toMatchObject({
+      primary: '10000.00',
+      cashIn: '9800.00',
+      cashOut: '20.00',
+      net: '9780.00',
+      valid: true,
+    })
+  })
+
+  it('marks zero and negative bill discount cash proceeds invalid despite the face amount', () => {
+    const value = form()
+    value.billLines[0]!.faceAmount = '10000.00'
+    value.billCashLines = [
+      {
+        key: 'cash-in',
+        fundAccount: null,
+        direction: 'IN',
+        amountType: 'PRINCIPAL',
+        amount: '100.00',
+        remark: '',
+      },
+      {
+        key: 'cash-out',
+        fundAccount: null,
+        direction: 'OUT',
+        amountType: 'FEE',
+        amount: '100.00',
+        remark: '',
+      },
+    ]
+
+    expect(summarizeBillVoucher(value, 'discount')).toMatchObject({
+      net: '0.00',
+      valid: false,
+    })
+
+    value.billCashLines[0]!.amount = '99.99'
+    expect(summarizeBillVoucher(value, 'discount')).toMatchObject({
+      net: '-0.01',
+      valid: false,
+    })
+  })
 })
 
 describe('bill payment payload', () => {
@@ -491,7 +556,7 @@ describe('bill issue payload', () => {
 })
 
 describe('bill discount payload', () => {
-  it('submits selected bill ids, rate, recourse and real cash fees only', () => {
+  it('submits selected bill ids, rate, recourse and real cash flows only', () => {
     const value = form()
     value.customer = null
     value.supplier = null
@@ -512,6 +577,19 @@ describe('bill discount payload', () => {
     value.withRecourse = true
     value.billLines = [{ ...value.billLines[0]!, billId: 'held-1' }]
     value.billCashLines = [
+      {
+        key: 'cash-in',
+        fundAccount: {
+          objectId: 'f',
+          versionId: 'fv',
+          code: 'F',
+          name: '账户',
+        },
+        direction: 'IN',
+        amountType: 'PRINCIPAL',
+        amount: '100.00',
+        remark: '',
+      },
       {
         key: 'cash',
         fundAccount: {
@@ -537,11 +615,56 @@ describe('bill discount payload', () => {
       annualRateBps: 100,
     })
     expect(payload.billLines[0]).not.toHaveProperty('faceAmount')
-    expect(payload.billCashLines[0]).toMatchObject({
+    expect(payload.billCashLines[1]).toMatchObject({
       direction: 'OUT',
       amountType: 'FEE',
     })
     expect(validateBillVoucherForm(value, 20, 20, 'discount')).toBeNull()
+  })
+
+  it('rejects zero and negative cash proceeds without counting selected bill face amounts', () => {
+    const value = form()
+    value.interestMode = 'BANK_DEDUCTED'
+    value.billLines = [
+      { ...value.billLines[0]!, billId: 'held-1', faceAmount: '10000.00' },
+    ]
+    value.billCashLines = [
+      {
+        key: 'cash-in',
+        fundAccount: {
+          objectId: 'f',
+          versionId: 'fv',
+          code: 'F',
+          name: '账户',
+        },
+        direction: 'IN',
+        amountType: 'PRINCIPAL',
+        amount: '100.00',
+        remark: '',
+      },
+      {
+        key: 'cash-out',
+        fundAccount: {
+          objectId: 'f',
+          versionId: 'fv',
+          code: 'F',
+          name: '账户',
+        },
+        direction: 'OUT',
+        amountType: 'FEE',
+        amount: '100.00',
+        remark: '',
+      },
+    ]
+
+    expect(validateBillVoucherForm(value, 20, 20, 'discount')).toBe(
+      '贴现净到账必须大于零。',
+    )
+
+    value.billCashLines[0]!.amount = '99.99'
+    expect(validateBillVoucherForm(value, 20, 20, 'discount')).toBe(
+      '贴现净到账必须大于零。',
+    )
   })
 })
 
@@ -584,6 +707,142 @@ describe('bill maturity payload', () => {
 })
 
 describe('bill voucher view model behavior', () => {
+  it('restores the bill receipt list after the clearable keyword emits null', async () => {
+    const session = useSessionStore()
+    session.$patch({ permissions: ['/vou/bill-receipt/query'] })
+    const scope = effectScope()
+    const vm = scope.run(() =>
+      useBillVoucherViewModel(billVoucherConfigs['bill-receipt']),
+    )!
+    vm.keyword.value = null
+
+    await vm.query()
+
+    expect(mockedPost).toHaveBeenLastCalledWith(
+      'vou/bill-receipt/query',
+      expect.objectContaining({ filters: {} }),
+      expect.anything(),
+    )
+    expect(vm.errorMessage.value).toBeNull()
+    scope.stop()
+  })
+
+  it('restores bill payment queries and sends contract-valid uncheck requests', async () => {
+    const session = useSessionStore()
+    session.$patch({
+      permissions: [
+        '/vou/bill-payment/query',
+        '/vou/bill-payment/get',
+        '/vou/bill-payment/uncheck',
+      ],
+    })
+    const scope = effectScope()
+    const vm = scope.run(() =>
+      useBillVoucherViewModel(billVoucherConfigs['bill-payment']),
+    )!
+    vm.keyword.value = null
+    await vm.query()
+    expect(mockedPost).toHaveBeenLastCalledWith(
+      'vou/bill-payment/query',
+      expect.objectContaining({ filters: {} }),
+      expect.anything(),
+    )
+    await vm.openDocument({ documentId: 'DOC-1' })
+    mockedPost.mockClear()
+
+    await vm.lifecycle('uncheck', '不应进入请求')
+
+    expect(mockedPost).toHaveBeenCalledWith('vou/bill-payment/uncheck', {
+      documentId: 'DOC-1',
+      revision: 1,
+    })
+    scope.stop()
+  })
+
+  it('restores the bill issue list after the clearable keyword emits null', async () => {
+    const session = useSessionStore()
+    session.$patch({ permissions: ['/vou/bill-issue/query'] })
+    const scope = effectScope()
+    const vm = scope.run(() =>
+      useBillVoucherViewModel(billVoucherConfigs['bill-issue']),
+    )!
+    vm.keyword.value = null
+
+    await vm.query()
+
+    expect(mockedPost).toHaveBeenLastCalledWith(
+      'vou/bill-issue/query',
+      expect.objectContaining({ filters: {} }),
+      expect.anything(),
+    )
+    expect(vm.errorMessage.value).toBeNull()
+    scope.stop()
+  })
+
+  it('restores bill discount queries and sends contract-valid uncheck requests', async () => {
+    const session = useSessionStore()
+    session.$patch({
+      permissions: [
+        '/vou/bill-discount/query',
+        '/vou/bill-discount/get',
+        '/vou/bill-discount/uncheck',
+      ],
+    })
+    const scope = effectScope()
+    const vm = scope.run(() =>
+      useBillVoucherViewModel(billVoucherConfigs['bill-discount']),
+    )!
+    vm.keyword.value = null
+    await vm.query()
+    expect(mockedPost).toHaveBeenLastCalledWith(
+      'vou/bill-discount/query',
+      expect.objectContaining({ filters: {} }),
+      expect.anything(),
+    )
+    await vm.openDocument({ documentId: 'DOC-1' })
+    mockedPost.mockClear()
+
+    await vm.lifecycle('uncheck', '不应进入请求')
+
+    expect(mockedPost).toHaveBeenCalledWith('vou/bill-discount/uncheck', {
+      documentId: 'DOC-1',
+      revision: 1,
+    })
+    scope.stop()
+  })
+
+  it('restores bill maturity queries and sends contract-valid uncheck requests', async () => {
+    const session = useSessionStore()
+    session.$patch({
+      permissions: [
+        '/vou/bill-maturity/query',
+        '/vou/bill-maturity/get',
+        '/vou/bill-maturity/uncheck',
+      ],
+    })
+    const scope = effectScope()
+    const vm = scope.run(() =>
+      useBillVoucherViewModel(billVoucherConfigs['bill-maturity']),
+    )!
+    vm.keyword.value = null
+    await vm.query()
+    expect(mockedPost).toHaveBeenLastCalledWith(
+      'vou/bill-maturity/query',
+      expect.objectContaining({ filters: {} }),
+      expect.anything(),
+    )
+    await vm.openDocument({ documentId: 'DOC-1' })
+    mockedPost.mockClear()
+
+    await vm.lifecycle('uncheck', '不应进入请求')
+
+    expect(mockedPost).toHaveBeenCalledWith('vou/bill-maturity/uncheck', {
+      documentId: 'DOC-1',
+      revision: 1,
+    })
+    scope.stop()
+  })
+
   it('keeps obsolete bill loads out of newer, created, and closed workspaces', async () => {
     const session = useSessionStore()
     session.$patch({

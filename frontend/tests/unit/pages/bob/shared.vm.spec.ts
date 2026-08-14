@@ -186,6 +186,18 @@ describe('shared BOB entity configuration and view model', () => {
     expect(vm.currentView.value?.version.revision).toBe(1)
   })
 
+  it('详情请求失败时不展示默认值空抽屉', async () => {
+    grant('product', 'get')
+    mockedApiClient.post.mockRejectedValueOnce(new Error('详情加载失败'))
+    const vm = useBobEntityViewModel(getBobEntityConfig('product'))
+
+    await vm.openView(row())
+
+    expect(vm.drawerOpen.value).toBe(false)
+    expect(vm.currentView.value).toBeNull()
+    expect(vm.editorErrorMessage.value).toBe('详情加载失败')
+  })
+
   it('定义全部九类业务对象和完整状态筛选', () => {
     const expectedColumns: Record<string, string[]> = {
       customer: ['编码', '名称', '类型', '状态'],
@@ -640,6 +652,34 @@ describe('shared BOB entity configuration and view model', () => {
     )
   })
 
+  it('保存接口成功后立即反馈，不等待列表刷新', async () => {
+    grant('fund-account', 'create', 'query')
+    let resolveQuery!: (value: ReturnType<typeof emptyPage>) => void
+    const pendingQuery = new Promise<ReturnType<typeof emptyPage>>((resolve) => {
+      resolveQuery = resolve
+    })
+    mockedApiClient.post
+      .mockResolvedValueOnce({ data: mutation() })
+      .mockReturnValueOnce(pendingQuery)
+
+    const config = getBobEntityConfig('fund-account')
+    const vm = useBobEntityViewModel(config)
+    vm.openCreate()
+    const saving = vm.save({
+      ...config.emptyForm(),
+      name: '测试资金账户',
+    })
+
+    await vi.waitFor(() => {
+      expect(mockedApiClient.post).toHaveBeenCalledTimes(2)
+    })
+    expect(vm.successMessage.value).toBe('资金账户已保存。')
+    expect(vm.drawerOpen.value).toBe(false)
+
+    resolveQuery(emptyPage())
+    await expect(saving).resolves.toBe(true)
+  })
+
   it('有效对象不能直接进入编辑', async () => {
     grant('product', 'get', 'save', 'unapprove')
 
@@ -761,6 +801,29 @@ describe('shared BOB entity configuration and view model', () => {
       'bob/product/enable',
       { objectId: 'OBJ-1', objectRevision: 3 },
     )
+  })
+
+  it('撤回接口成功后立即反馈并在后台刷新列表', async () => {
+    grant('product', 'query', 'unsubmit')
+    let resolveQuery!: (value: ReturnType<typeof emptyPage>) => void
+    const pendingQuery = new Promise<ReturnType<typeof emptyPage>>((resolve) => {
+      resolveQuery = resolve
+    })
+    mockedApiClient.post
+      .mockResolvedValueOnce({ data: mutation('DRAFT') })
+      .mockReturnValueOnce(pendingQuery)
+    const vm = useBobEntityViewModel(getBobEntityConfig('product'))
+
+    await expect(
+      vm.reverse(row('PENDING'), 'unsubmit', '退回修改'),
+    ).resolves.toBe(true)
+
+    expect(mockedApiClient.post).toHaveBeenCalledTimes(2)
+    expect(vm.successMessage.value).toBe('PRD-1 已撤回提交。')
+    expect(vm.actionLoading.value).toBeNull()
+
+    resolveQuery(emptyPage())
+    await vi.waitFor(() => expect(vm.loading.value).toBe(false))
   })
 
   it('关联对象搜索带有效状态和实体约束', async () => {

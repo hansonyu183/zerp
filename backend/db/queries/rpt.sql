@@ -38,7 +38,16 @@ SELECT d.id, d.code, d.name, d.description, d.enabled, d.ever_approved,
   coalesce(v.parameters, '[]'::jsonb) AS parameters, coalesce(v.columns, '[]'::jsonb) AS columns,
   count(*) OVER() AS total
 FROM rpt_definitions d
-LEFT JOIN rpt_versions v ON v.id = d.current_version_id
+LEFT JOIN rpt_versions v ON v.id = coalesce(
+  (
+    SELECT draft.id
+    FROM rpt_versions draft
+    WHERE draft.definition_id = d.id AND draft.status = 'DRAFT'
+    ORDER BY draft.version_no DESC
+    LIMIT 1
+  ),
+  d.current_version_id
+)
 WHERE (sqlc.arg(include_disabled)::boolean OR d.enabled)
   AND (sqlc.arg(keyword)::text = '' OR d.code ILIKE '%' || sqlc.arg(keyword) || '%' OR d.name ILIKE '%' || sqlc.arg(keyword) || '%')
 ORDER BY d.code OFFSET sqlc.arg(row_offset) LIMIT sqlc.arg(row_limit);

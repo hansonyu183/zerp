@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	accdomain "github.com/hansonyu183/zerp/backend/internal/domains/acc"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
@@ -63,6 +64,7 @@ const (
 
 type Seeder struct {
 	pool       *pgxpool.Pool
+	queries    *dbsqlc.Queries
 	auxiliary  *auxdomain.Service
 	business   *bobdomain.Service
 	vouchers   *voudomain.Service
@@ -108,7 +110,7 @@ func New(
 		return nil, fmt.Errorf("register accounting subscriptions: %w", err)
 	}
 	return &Seeder{
-		pool: pool, auxiliary: auxiliary, business: business,
+		pool: pool, queries: dbsqlc.New(pool), auxiliary: auxiliary, business: business,
 		vouchers: vouchers, workflows: workflows, accounting: accounting,
 		auxRefs: make(map[string]auxdomain.ObjectView),
 		bobRefs: make(map[string]bobdomain.ObjectView),

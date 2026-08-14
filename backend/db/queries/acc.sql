@@ -4,6 +4,13 @@ LOCK TABLE acc_books IN SHARE ROW EXCLUSIVE MODE;
 -- name: AccountingBookExists :one
 SELECT EXISTS(SELECT 1 FROM acc_books);
 
+-- name: FindAccountingBookIDByDescription :one
+SELECT id
+FROM acc_books
+WHERE description = sqlc.arg(description)
+ORDER BY created_at, id
+LIMIT 1;
+
 -- name: NextAccountingBookNumber :one
 INSERT INTO object_number_counters (domain, entity, last_value)
 VALUES ('acc', 'book', 1)
@@ -239,6 +246,12 @@ SELECT EXISTS(SELECT 1 FROM acc_assets WHERE id=sqlc.arg(asset_id));
 -- name: AccountingAssetIsActive :one
 SELECT state='ACTIVE' FROM acc_assets WHERE id=sqlc.arg(asset_id);
 
+-- name: ListAccountingAssetIDsBySourceDocument :many
+SELECT id
+FROM acc_assets
+WHERE source_document_id = sqlc.arg(source_document_id)
+ORDER BY asset_no;
+
 -- name: CreateAccountingAssetBookValue :exec
 INSERT INTO acc_asset_book_values (
   book_id,asset_id,currency,original_minor,accumulated_depreciation_minor,
@@ -279,6 +292,13 @@ SELECT EXISTS(SELECT 1 FROM acc_bills WHERE id=sqlc.arg(bill_id));
 
 -- name: AccountingBillIsAvailable :one
 SELECT state='AVAILABLE' FROM acc_bills WHERE id=sqlc.arg(bill_id);
+
+-- name: FindAccountingBillIDBySourceDocument :one
+SELECT id
+FROM acc_bills
+WHERE source_document_id = sqlc.arg(source_document_id)
+ORDER BY id
+LIMIT 1;
 
 -- name: CreateAccountingBillBookValue :exec
 INSERT INTO acc_bill_book_values (book_id,bill_id,value_minor)

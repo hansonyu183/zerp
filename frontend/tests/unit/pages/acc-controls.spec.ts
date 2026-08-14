@@ -6,7 +6,10 @@ import { createAccountingMappingViewModel } from '@/pages/acc/mapping/vm'
 import mappingSource from '@/pages/acc/mapping/Mapping.vue?raw'
 import { createAccountingOpeningViewModel } from '@/pages/acc/opening/vm'
 import openingSource from '@/pages/acc/opening/Opening.vue?raw'
-import { createAccountingPeriodViewModel } from '@/pages/acc/period/vm'
+import {
+  accountingMonthHasEnded,
+  createAccountingPeriodViewModel,
+} from '@/pages/acc/period/vm'
 import periodSource from '@/pages/acc/period/Period.vue?raw'
 import { createAccountingSubjectViewModel } from '@/pages/acc/subject/vm'
 import { useSessionStore } from '@/stores/session'
@@ -64,6 +67,22 @@ describe('ACC mapping and period controls', () => {
     expect(vm.rows).toEqual([])
   })
 
+  it('never shows mappings from the previous book after a query failure', async () => {
+    useSessionStore().permissions = ['/acc/book/query', '/acc/mapping/query']
+    mockedPost.mockRejectedValueOnce(new Error('target book failed'))
+    const vm = createAccountingMappingViewModel()
+    vm.selectedBookId = '01JACC00000000000000000001'
+    vm.rows = [{ mappingId: 'old-book-mapping' }] as typeof vm.rows
+    vm.total = 1
+
+    await vm.changeBook('01JACC00000000000000000002')
+
+    expect(vm.selectedBookId).toBe('01JACC00000000000000000002')
+    expect(vm.rows).toEqual([])
+    expect(vm.total).toBe(0)
+    expect(vm.errorMessage).toBeTruthy()
+  })
+
   it('requires query permission for period mutations', () => {
     const session = useSessionStore()
     session.permissions = ['/acc/period/lock', '/acc/period/unlock']
@@ -73,6 +92,22 @@ describe('ACC mapping and period controls', () => {
     session.permissions.push('/acc/book/query', '/acc/period/query')
     expect(vm.canLock).toBe(true)
     expect(vm.canUnlock).toBe(true)
+  })
+
+  it('only enables locking after the target natural month has ended', () => {
+    const now = new Date('2026-08-14T10:00:00+08:00')
+    expect(accountingMonthHasEnded('2026-07', now)).toBe(true)
+    expect(accountingMonthHasEnded('2026-08', now)).toBe(false)
+    expect(accountingMonthHasEnded('2026-09', now)).toBe(false)
+  })
+
+  it('uses the Shanghai business month at the month-end boundary', () => {
+    expect(
+      accountingMonthHasEnded('2026-08', new Date('2026-08-31T15:59:59.999Z')),
+    ).toBe(false)
+    expect(
+      accountingMonthHasEnded('2026-08', new Date('2026-08-31T16:00:00Z')),
+    ).toBe(true)
   })
 
   it('requires complete query permissions for subject mutations', () => {

@@ -22,7 +22,7 @@ const {
     <div class="d-flex align-center mb-4 ga-3">
       <h1 class="text-h5">报表定义管理</h1>
       <v-spacer />
-      <v-btn variant="text" :loading="loading" @click="loadDefinitions"
+      <v-btn variant="text" :loading="loading" @click="loadDefinitions()"
         >刷新</v-btn
       >
     </div>

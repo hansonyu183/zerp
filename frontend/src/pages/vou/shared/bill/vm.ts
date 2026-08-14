@@ -229,7 +229,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
   const total = ref(0)
   const page = ref(1)
   const pageSize = ref(20)
-  const keyword = ref('')
+  const keyword = ref<string | null>('')
   const status = ref<string[]>([])
   const loading = ref(false)
   const saving = ref(false)
@@ -284,11 +284,13 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     loading.value = true
     errorMessage.value = null
     try {
+      const normalizedKeyword =
+        typeof keyword.value === 'string' ? keyword.value.trim() : ''
       const request: VouQueryRequest = {
         page: page.value,
         pageSize: pageSize.value,
         filters: {
-          ...(keyword.value.trim() ? { keyword: keyword.value.trim() } : {}),
+          ...(normalizedKeyword ? { keyword: normalizedKeyword } : {}),
           ...(status.value.length
             ? { status: status.value as components['schemas']['VouStatus'][] }
             : {}),

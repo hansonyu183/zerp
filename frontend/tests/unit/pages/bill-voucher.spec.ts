@@ -584,6 +584,26 @@ describe('bill maturity payload', () => {
 })
 
 describe('bill voucher view model behavior', () => {
+  it('restores the bill receipt list after the clearable keyword emits null', async () => {
+    const session = useSessionStore()
+    session.$patch({ permissions: ['/vou/bill-receipt/query'] })
+    const scope = effectScope()
+    const vm = scope.run(() =>
+      useBillVoucherViewModel(billVoucherConfigs['bill-receipt']),
+    )!
+    vm.keyword.value = null
+
+    await vm.query()
+
+    expect(mockedPost).toHaveBeenLastCalledWith(
+      'vou/bill-receipt/query',
+      expect.objectContaining({ filters: {} }),
+      expect.anything(),
+    )
+    expect(vm.errorMessage.value).toBeNull()
+    scope.stop()
+  })
+
   it('keeps obsolete bill loads out of newer, created, and closed workspaces', async () => {
     const session = useSessionStore()
     session.$patch({

@@ -90,9 +90,7 @@ func (s *Seeder) ensureAccountingBook(
 	accountingActor string,
 ) (accdomain.BookView, outcome, error) {
 	var bookID string
-	err := s.pool.QueryRow(ctx, `
-		SELECT id FROM acc_books WHERE description=$1 ORDER BY created_at,id LIMIT 1
-	`, previewAccountingBookDescription).Scan(&bookID)
+	bookID, err := s.queries.FindAccountingBookIDByDescription(ctx, previewAccountingBookDescription)
 	if errors.Is(err, pgx.ErrNoRows) {
 		book, createErr := s.accounting.CreateBook(ctx, accdomain.CreateBookInput{
 			Name: "预览业务控制账簿", Description: previewAccountingBookDescription,
@@ -198,10 +196,8 @@ func (s *Seeder) ensureAccountingMapping(
 }
 
 func (s *Seeder) accountingActor(ctx context.Context) (string, error) {
-	var userID string
-	if err := s.pool.QueryRow(ctx, `
-		SELECT id FROM app_users WHERE status='ENABLED' AND id<>$1 ORDER BY created_at,id LIMIT 1
-	`, actorID).Scan(&userID); err != nil {
+	userID, err := s.queries.FindEnabledAppUserIDExcludingID(ctx, actorID)
+	if err != nil {
 		return "", fmt.Errorf("load preview accounting actor: %w", err)
 	}
 	return userID, nil

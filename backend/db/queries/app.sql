@@ -7,6 +7,13 @@ SELECT pg_advisory_xact_lock(74155001);
 -- name: GetAppUserByID :one
 SELECT * FROM app_users WHERE id = sqlc.arg(id) LIMIT 1;
 
+-- name: FindEnabledAppUserIDExcludingID :one
+SELECT id
+FROM app_users
+WHERE status = 'ENABLED' AND id <> sqlc.arg(excluded_user_id)
+ORDER BY created_at, id
+LIMIT 1;
+
 -- name: GetAppUserByIDForUpdate :one
 SELECT * FROM app_users WHERE id = sqlc.arg(id) LIMIT 1 FOR UPDATE;
 

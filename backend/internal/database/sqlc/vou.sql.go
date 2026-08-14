@@ -257,6 +257,38 @@ func (q *Queries) CountVouDocuments(ctx context.Context, arg CountVouDocumentsPa
 	return count, err
 }
 
+const countVouDocumentsByEntity = `-- name: CountVouDocumentsByEntity :one
+SELECT count(*)
+FROM vou_documents
+WHERE entity = $1
+`
+
+func (q *Queries) CountVouDocumentsByEntity(ctx context.Context, entity string) (int64, error) {
+	row := q.db.QueryRow(ctx, countVouDocumentsByEntity, entity)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countVouDocumentsByParentAndEntity = `-- name: CountVouDocumentsByParentAndEntity :one
+SELECT count(*)
+FROM vou_documents
+WHERE parent_document_id = $1
+  AND entity = $2
+`
+
+type CountVouDocumentsByParentAndEntityParams struct {
+	ParentDocumentID *string `db:"parent_document_id" json:"parent_document_id"`
+	Entity           string  `db:"entity" json:"entity"`
+}
+
+func (q *Queries) CountVouDocumentsByParentAndEntity(ctx context.Context, arg CountVouDocumentsByParentAndEntityParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countVouDocumentsByParentAndEntity, arg.ParentDocumentID, arg.Entity)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countVouInventoryCountBookBalances = `-- name: CountVouInventoryCountBookBalances :one
 SELECT count(*) FROM (
     SELECT entry.product_id
@@ -4545,4 +4577,25 @@ func (q *Queries) UpdateVouSaleOrderDetail(ctx context.Context, arg UpdateVouSal
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const vouEntityExistsOnBusinessDate = `-- name: VouEntityExistsOnBusinessDate :one
+SELECT EXISTS(
+  SELECT 1
+  FROM vou_documents
+  WHERE entity = $1
+    AND business_date = $2::date
+)
+`
+
+type VouEntityExistsOnBusinessDateParams struct {
+	Entity       string      `db:"entity" json:"entity"`
+	BusinessDate pgtype.Date `db:"business_date" json:"business_date"`
+}
+
+func (q *Queries) VouEntityExistsOnBusinessDate(ctx context.Context, arg VouEntityExistsOnBusinessDateParams) (bool, error) {
+	row := q.db.QueryRow(ctx, vouEntityExistsOnBusinessDate, arg.Entity, arg.BusinessDate)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }

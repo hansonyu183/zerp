@@ -12,6 +12,7 @@ export interface BillVoucherSummary {
 
 export function summarizeBillVoucher(
   form: BillVoucherForm,
+  mode: 'receipt' | 'payment' | 'issue' | 'discount' | 'maturity' = 'receipt',
 ): BillVoucherSummary {
   let primary = 0n
   let change = 0n
@@ -36,7 +37,10 @@ export function summarizeBillVoucher(
     if (line.direction === 'IN') cashIn += cents
     else cashOut += cents
   }
-  const net = primary + cashIn - change - cashOut
+  const net =
+    mode === 'discount'
+      ? cashIn - cashOut
+      : primary + cashIn - change - cashOut
   return {
     primary: formatMoneyCents(primary),
     change: formatMoneyCents(change),

@@ -23,7 +23,7 @@ const vm = useBillVoucherViewModel(
 )
 const deleteDialog = ref(false)
 const deleteReason = ref('')
-const summary = computed(() => summarizeBillVoucher(vm.form))
+const summary = computed(() => summarizeBillVoucher(vm.form, vm.config.mode))
 function discountDays(maturityDate: string): number {
   const start = Date.parse(`${vm.form.businessDate}T00:00:00Z`)
   const end = Date.parse(`${maturityDate}T00:00:00Z`)
@@ -320,11 +320,11 @@ onMounted(() => void vm.query())
             <strong>{{ vm.form.currency }} {{ summary.change }}</strong>
           </div>
           <div>
-            <span>现金补款</span>
+            <span>{{ vm.config.mode === 'discount' ? '资金流入' : '现金补款' }}</span>
             <strong>{{ vm.form.currency }} {{ summary.cashIn }}</strong>
           </div>
           <div>
-            <span>现金找零</span>
+            <span>{{ vm.config.mode === 'discount' ? '资金流出' : '现金找零' }}</span>
             <strong>{{ vm.form.currency }} {{ summary.cashOut }}</strong>
           </div>
           <div :class="{ 'text-error': !summary.valid }">

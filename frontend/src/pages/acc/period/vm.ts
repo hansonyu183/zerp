@@ -1,6 +1,7 @@
 import { computed, getCurrentScope, onScopeDispose, reactive, ref } from 'vue'
 import { getErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
+import { shanghaiBusinessDate } from '@/utils/date'
 import { queryAccountingBooks, type AccountingBook } from '../book/api'
 import {
   lockAccountingPeriod,
@@ -20,7 +21,7 @@ export function accountingMonthHasEnded(
   now = new Date(),
 ): boolean {
   if (!/^\d{4}-\d{2}$/.test(month)) return false
-  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const currentMonth = shanghaiBusinessDate(now).slice(0, 7)
   return month < currentMonth
 }
 

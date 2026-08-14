@@ -101,6 +101,15 @@ describe('ACC mapping and period controls', () => {
     expect(accountingMonthHasEnded('2026-09', now)).toBe(false)
   })
 
+  it('uses the Shanghai business month at the month-end boundary', () => {
+    expect(
+      accountingMonthHasEnded('2026-08', new Date('2026-08-31T15:59:59.999Z')),
+    ).toBe(false)
+    expect(
+      accountingMonthHasEnded('2026-08', new Date('2026-08-31T16:00:00Z')),
+    ).toBe(true)
+  })
+
   it('requires complete query permissions for subject mutations', () => {
     const session = useSessionStore()
     session.permissions = [

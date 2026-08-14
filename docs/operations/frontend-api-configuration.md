@@ -44,25 +44,14 @@ Build watch include paths：
 *
 ```
 
-Build watch exclude paths 与 `scripts/change-impact.sh` 的文档、验证工具范围保持一致：
+Build watch exclude paths 只维护稳定的文档范围：
 
 ```text
 *.md
 docs/*
-.github/*
-.gitignore
-.prettierignore
-.prettierrc.json
-.vscode/*
-scripts/change-impact.sh
-scripts/check-docs.mjs
-scripts/pre-push.sh
-scripts/validation-check.sh
-scripts/verify-pr-base.sh
-scripts/verify-merged-pr.sh
 ```
 
-Cloudflare 先应用排除规则，再检查包含规则：纯文档或验证工具提交跳过 Pages 构建；只要包含应用影响文件就构建，确保生产发布仍能校验同一提交的 Pages 版本。
+Cloudflare 先应用排除规则，再检查包含规则：纯文档提交跳过 Pages 构建；其他提交构建。不要在这里复制验证工具文件清单，应用影响分类始终以 `scripts/change-impact.sh` 为准，验证工具变更允许产生一次无害的 Pages 构建。
 
 前端通过构建时变量直连目标 HTTPS API：
 

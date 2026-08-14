@@ -67,50 +67,22 @@ func (s *Seeder) seedAuxiliary(ctx context.Context, counts *Counts) error {
 		{"unit-preview-pallet", auxdomain.EntityMeasurementUnit, fixedAux(map[string]any{
 			"name": "托盘（预览）", "symbol": "托", "quantityScale": 0,
 		}), true},
-		{"subject-revenue", auxdomain.EntityAccountSubject, fixedAux(map[string]any{
-			"name": "营业收入", "direction": "REVENUE", "description": "预览测试收入科目",
+		{"income-root", auxdomain.EntityIncomeExpense, fixedAux(map[string]any{
+			"name": "经营收入", "direction": "INCOME", "description": "预览测试收入分类",
 		}), true},
-		{"subject-service-revenue", auxdomain.EntityAccountSubject, func(refs map[string]auxdomain.ObjectView) map[string]any {
-			return map[string]any{
-				"name": "服务收入", "direction": "REVENUE",
-				"parentId": refs["subject-revenue"].ObjectID, "description": "预览测试收入子科目",
-			}
-		}, true},
-		{"subject-expense", auxdomain.EntityAccountSubject, fixedAux(map[string]any{
-			"name": "期间费用", "direction": "EXPENSE", "description": "预览测试费用科目",
-		}), true},
-		{"subject-travel-expense", auxdomain.EntityAccountSubject, func(refs map[string]auxdomain.ObjectView) map[string]any {
-			return map[string]any{
-				"name": "差旅费", "direction": "EXPENSE",
-				"parentId": refs["subject-expense"].ObjectID, "description": "预览测试费用子科目",
-			}
-		}, true},
-		{"income-root", auxdomain.EntityIncomeExpense, func(refs map[string]auxdomain.ObjectView) map[string]any {
-			return map[string]any{
-				"name": "经营收入", "direction": "INCOME",
-				"accountSubjectId": refs["subject-revenue"].ObjectID, "description": "预览测试收入分类",
-			}
-		}, true},
 		{"income-service", auxdomain.EntityIncomeExpense, func(refs map[string]auxdomain.ObjectView) map[string]any {
 			return map[string]any{
 				"name": "服务收入", "direction": "INCOME",
-				"parentId":         refs["income-root"].ObjectID,
-				"accountSubjectId": refs["subject-service-revenue"].ObjectID,
-				"description":      "预览测试可选收入叶子",
+				"parentId": refs["income-root"].ObjectID, "description": "预览测试可选收入叶子",
 			}
 		}, true},
-		{"expense-root", auxdomain.EntityIncomeExpense, func(refs map[string]auxdomain.ObjectView) map[string]any {
-			return map[string]any{
-				"name": "经营费用", "direction": "EXPENSE",
-				"accountSubjectId": refs["subject-expense"].ObjectID, "description": "预览测试费用分类",
-			}
-		}, true},
+		{"expense-root", auxdomain.EntityIncomeExpense, fixedAux(map[string]any{
+			"name": "经营费用", "direction": "EXPENSE", "description": "预览测试费用分类",
+		}), true},
 		{"expense-travel", auxdomain.EntityIncomeExpense, func(refs map[string]auxdomain.ObjectView) map[string]any {
 			return map[string]any{
 				"name": "差旅费", "direction": "EXPENSE",
-				"parentId":         refs["expense-root"].ObjectID,
-				"accountSubjectId": refs["subject-travel-expense"].ObjectID,
-				"description":      "预览测试可选费用叶子",
+				"parentId": refs["expense-root"].ObjectID, "description": "预览测试可选费用叶子",
 			}
 		}, true},
 	}

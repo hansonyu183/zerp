@@ -23,12 +23,6 @@
 
 ## 业务域文档
 
-- [APP：应用访问与权限](../docs/domains/app.md)
-- [BOB：基础业务对象](../docs/domains/bob.md)
-- [AUX：辅助对象](../docs/domains/aux.md)
-- [VOU：业务单据](../docs/domains/vou.md)
-- [WFL：业务流程](../docs/domains/wfl.md)
-- [ACC：内部会计](../docs/domains/acc.md)
-- [RPT：报表](../docs/domains/rpt.md)
+- 领域任务先读取根 `CONTEXT.md` 和对应的 `docs/domains/<domain>.md`；路径、触发规则和索引以根 `AGENTS.md`、[领域文档规则](../docs/agents/domain.md)及根 README 为准。
 
 新增业务域时，先补充根目录 `docs/domains/<domain>.md`，再实现对应路由、权限、迁移和领域代码。

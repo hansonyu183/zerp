@@ -20,6 +20,7 @@ function trackedMarkdownFiles() {
     .split('\0')
     .filter(Boolean)
     .map((file) => path.join(root, file))
+    .filter((file) => fs.existsSync(file))
 }
 
 function markdownFiles(directory) {
@@ -58,11 +59,11 @@ function compareSets(label, actualValues, expectedValues) {
   }
 }
 
-function extractSchemaEnum(source, schemaName) {
+function extractSchemaEnum(source, schemaName, sourceLabel) {
   const schemaMarker = `  '${schemaName}':`
   const schemaStart = source.indexOf(schemaMarker)
   if (schemaStart < 0) {
-    failures.push(`contracts/openapi/schemas/vou.yaml 缺少 ${schemaName}`)
+    failures.push(`${sourceLabel} 缺少 ${schemaName}`)
     return []
   }
 
@@ -79,9 +80,7 @@ function extractSchemaEnum(source, schemaName) {
   const listStart = section.indexOf('[', enumStart + enumMarker.length)
   const listEnd = section.indexOf(']', listStart + 1)
   if (enumStart < 0 || listStart < 0 || listEnd < 0) {
-    failures.push(
-      `contracts/openapi/schemas/vou.yaml 的 ${schemaName} 缺少可解析的 enum`,
-    )
+    failures.push(`${sourceLabel} 的 ${schemaName} 缺少可解析的 enum`)
     return []
   }
 
@@ -106,6 +105,24 @@ function extractTextListAfter(source, marker, label) {
     .split('\n')
     .map((value) => value.trim())
     .filter(Boolean)
+}
+
+function extractPlainSchemaEnum(source, schemaName, label) {
+  const schemaMatch = source.match(
+    new RegExp(
+      `^${schemaName}:\\n([\\s\\S]*?)(?=^[A-Za-z][A-Za-z0-9]*:|$(?![\\s\\S]))`,
+      'm',
+    ),
+  )
+  const values = schemaMatch
+    ? [...schemaMatch[1].matchAll(/^\s{4}- ([a-z][a-z0-9-]*)$/gm)].map(
+        (match) => match[1],
+      )
+    : []
+  if (values.length === 0) {
+    failures.push(`${label} 的 ${schemaName} 缺少可解析的 enum`)
+  }
+  return values
 }
 
 function extractSchemaSection(source, schemaName, label) {
@@ -167,14 +184,6 @@ for (const file of forbiddenDomainCopies) {
 const rootReadme = fs.readFileSync(path.join(root, 'README.md'), 'utf8')
 const domainFiles = markdownFiles(path.join(root, 'docs', 'domains'))
 const operationFiles = markdownFiles(path.join(root, 'docs', 'operations'))
-const moduleDomainIndexes = [
-  'frontend/README.md',
-  'backend/README.md',
-  'backend/AGENTS.md',
-].map((file) => ({
-  file,
-  source: fs.readFileSync(path.join(root, file), 'utf8'),
-}))
 
 for (const file of [...domainFiles, ...operationFiles]) {
   const target = relative(file)
@@ -184,14 +193,6 @@ for (const file of [...domainFiles, ...operationFiles]) {
 }
 
 for (const file of domainFiles) {
-  const domainFile = path.basename(file)
-  const target = `../docs/domains/${domainFile}`
-  for (const index of moduleDomainIndexes) {
-    if (!index.source.includes(`](${target})`)) {
-      failures.push(`${index.file} 领域索引缺少 ${target}`)
-    }
-  }
-
   const source = fs.readFileSync(file, 'utf8')
   const previousMinorByMajor = new Map()
   for (const match of source.matchAll(/^### (\d+)\.(\d+)(?:\s|$)/gm)) {
@@ -231,6 +232,17 @@ const vouRegistryEntities = [
     /registerPage\('vou',\s*\{[\s\S]*?entity:\s*'([^']+)'/g,
   ),
 ].map((match) => match[1])
+
+function registeredEntities(domain) {
+  return [
+    ...registrySource.matchAll(
+      new RegExp(
+        `registerPage\\('${domain}',\\s*\\{[\\s\\S]*?entity:\\s*'([^']+)'`,
+        'g',
+      ),
+    ),
+  ].map((match) => match[1])
+}
 
 const openapiSource = fs.readFileSync(
   path.join(root, 'contracts', 'openapi', 'openapi.yaml'),
@@ -279,6 +291,44 @@ const bobSchemaSource = fs.readFileSync(
   path.join(root, 'contracts', 'openapi', 'schemas', 'bob.yaml'),
   'utf8',
 )
+const bobEntities = extractSchemaEnum(
+  bobSchemaSource,
+  'BobEntity',
+  'contracts/openapi/schemas/bob.yaml',
+)
+const bobDocumentSource = fs.readFileSync(
+  path.join(root, 'docs', 'domains', 'bob.md'),
+  'utf8',
+)
+const bobDocumentEntities = extractTextListAfter(
+  bobDocumentSource,
+  '当前实体标识为：',
+  'docs/domains/bob.md 当前实体',
+)
+compareSets('docs/domains/bob.md 当前实体', bobDocumentEntities, bobEntities)
+compareSets('frontend BOB 页面注册', registeredEntities('bob'), bobEntities)
+
+const auxSchemaSource = fs.readFileSync(
+  path.join(root, 'contracts', 'openapi', 'schemas', 'aux.yaml'),
+  'utf8',
+)
+const auxEntities = extractPlainSchemaEnum(
+  auxSchemaSource,
+  'AuxEntity',
+  'contracts/openapi/schemas/aux.yaml',
+)
+const auxDocumentSource = fs.readFileSync(
+  path.join(root, 'docs', 'domains', 'aux.md'),
+  'utf8',
+)
+const auxDocumentEntities = extractTextListAfter(
+  auxDocumentSource,
+  '当前实体为：',
+  'docs/domains/aux.md 当前实体',
+)
+compareSets('docs/domains/aux.md 当前实体', auxDocumentEntities, auxEntities)
+compareSets('frontend AUX 页面注册', registeredEntities('aux'), auxEntities)
+
 for (const schemaName of ['BobQueryRequest', 'BobHistoryRequest']) {
   requirePageSizeMaximum(
     bobSchemaSource,
@@ -314,10 +364,15 @@ if (!rptPageMaximum) {
   )
 }
 
-const vouEntities = extractSchemaEnum(vouSchemaSource, 'VouEntity')
+const vouEntities = extractSchemaEnum(
+  vouSchemaSource,
+  'VouEntity',
+  'contracts/openapi/schemas/vou.yaml',
+)
 const vouCreatableEntities = extractSchemaEnum(
   vouSchemaSource,
   'VouCreatableEntity',
+  'contracts/openapi/schemas/vou.yaml',
 )
 const vouDocumentSource = fs.readFileSync(
   path.join(root, 'docs', 'domains', 'vou.md'),

@@ -8,7 +8,6 @@ AuxEntity:
     - dictionary-item
     - measurement-unit
     - income-expense-type
-    - account-subject
     - asset-category
 
 AuxData:

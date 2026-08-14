@@ -276,8 +276,7 @@ func objectPrefix(entity string) string {
 	return map[string]string{
 		EntityProductCategory: "PCT", EntityDepartment: "DEP", EntityPosition: "POS",
 		EntitySettlementMethod: "STM", EntityDictionaryType: "DCT", EntityDictionaryItem: "DIT",
-		EntityMeasurementUnit: "UNT", EntityIncomeExpense: "IET", EntityAccountSubject: "ACS",
-		EntityAssetCategory: "ACT",
+		EntityMeasurementUnit: "UNT", EntityIncomeExpense: "IET", EntityAssetCategory: "ACT",
 	}[entity]
 }
 
@@ -572,7 +571,7 @@ func (s *Service) validateData(ctx context.Context, q dbtx, entity, objectID str
 			return nil, errors.New("defaultSalesSurcharge must be a non-negative amount")
 		}
 	case EntityIncomeExpense:
-		allow("direction", "parentId", "accountSubjectId", "description")
+		allow("direction", "parentId", "description")
 		direction := strings.ToUpper(strings.TrimSpace(stringValue(data["direction"])))
 		if direction != "INCOME" && direction != "EXPENSE" {
 			return nil, errors.New("direction must be INCOME or EXPENSE")
@@ -581,38 +580,10 @@ func (s *Service) validateData(ctx context.Context, q dbtx, entity, objectID str
 		if err := s.validateParent(ctx, q, entity, objectID, stringValue(data["parentId"])); err != nil {
 			return nil, err
 		}
-		if err := s.requireEnabledObject(ctx, q, EntityAccountSubject, stringValue(data["accountSubjectId"])); err != nil {
-			return nil, err
-		}
 		if parentID := stringValue(data["parentId"]); parentID != "" {
 			parentData, err := s.enabledObjectData(ctx, q, EntityIncomeExpense, parentID)
 			if err != nil || stringValue(parentData["direction"]) != direction {
 				return nil, errors.New("parent income/expense direction must match")
-			}
-		}
-		subjectData, err := s.enabledObjectData(ctx, q, EntityAccountSubject, stringValue(data["accountSubjectId"]))
-		if err != nil {
-			return nil, err
-		}
-		subjectDirection := stringValue(subjectData["direction"])
-		if (direction == "INCOME" && subjectDirection != "REVENUE") ||
-			(direction == "EXPENSE" && subjectDirection != "EXPENSE" && subjectDirection != "COST") {
-			return nil, errors.New("account subject direction does not match income/expense type")
-		}
-	case EntityAccountSubject:
-		allow("direction", "parentId", "description")
-		direction := strings.ToUpper(strings.TrimSpace(stringValue(data["direction"])))
-		if !slices.Contains([]string{"ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE", "COST"}, direction) {
-			return nil, errors.New("invalid account subject direction")
-		}
-		data["direction"] = direction
-		if err := s.validateParent(ctx, q, entity, objectID, stringValue(data["parentId"])); err != nil {
-			return nil, err
-		}
-		if parentID := stringValue(data["parentId"]); parentID != "" {
-			parentData, err := s.enabledObjectData(ctx, q, EntityAccountSubject, parentID)
-			if err != nil || stringValue(parentData["direction"]) != direction {
-				return nil, errors.New("parent account subject direction must match")
 			}
 		}
 	default:
@@ -623,7 +594,7 @@ func (s *Service) validateData(ctx context.Context, q dbtx, entity, objectID str
 			return nil, fmt.Errorf("field %s is not allowed", key)
 		}
 	}
-	for _, key := range []string{"description", "parentId", "accountSubjectId"} {
+	for _, key := range []string{"description", "parentId"} {
 		if value, ok := data[key]; ok {
 			data[key] = strings.TrimSpace(stringValue(value))
 		}
@@ -675,25 +646,6 @@ func (s *Service) requireEnabledCode(ctx context.Context, q dbtx, entity, code s
 	}
 	if !exists {
 		return fmt.Errorf("%s %s is unavailable", entity, code)
-	}
-	return nil
-}
-
-func (s *Service) requireEnabledObject(ctx context.Context, q dbtx, entity, objectID string) error {
-	if !validID(strings.TrimSpace(objectID)) {
-		return fmt.Errorf("%s reference is required", entity)
-	}
-	if q == nil {
-		q = s.pool
-	}
-	var exists bool
-	if err := q.QueryRow(ctx, `SELECT EXISTS(
-		SELECT 1 FROM aux_objects WHERE entity=$1 AND id=$2 AND enabled
-	)`, entity, objectID).Scan(&exists); err != nil {
-		return err
-	}
-	if !exists {
-		return fmt.Errorf("%s reference is unavailable", entity)
 	}
 	return nil
 }
@@ -756,7 +708,7 @@ func objectReferenced(ctx context.Context, q dbtx, entity, objectID string) (boo
 		)
 		ELSE EXISTS(
 			SELECT 1 FROM aux_versions
-			WHERE data->>'parentId'=$2 OR data->>'accountSubjectId'=$2
+			WHERE data->>'parentId'=$2
 		)
 	END`, entity, objectID).Scan(&referenced)
 	return referenced, err

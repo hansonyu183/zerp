@@ -282,13 +282,6 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () =>
       import('@/pages/aux/income-expense-type/IncomeExpenseType.vue'),
   }),
-  registerPage('aux', {
-    entity: 'account-subject',
-    entityTitle: '会计科目',
-    icon: 'mdi-file-tree-outline',
-    order: 90,
-    component: () => import('@/pages/aux/account-subject/AccountSubject.vue'),
-  }),
   registerPage('vou', {
     entity: 'bill-receipt',
     entityTitle: '票据收入',

@@ -2,6 +2,12 @@
 
 ZERP uses shared business terms across its auxiliary-data, business-object, voucher, workflow, and business-ledger domains. This glossary fixes the meaning of terms that cross those domain boundaries.
 
+## Accounting
+
+**Accounting Subject（会计科目）**:
+归 ACC 领域和单本会计账簿所有的分层会计分类。不同账簿的科目相互独立，AUX 不维护全局会计科目或收支类型到科目的直接映射。
+_Avoid_: AUX 会计科目、全局会计科目
+
 ## Voucher Lifecycle
 
 **Voucher Posting（单据入账）**:

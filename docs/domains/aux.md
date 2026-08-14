@@ -12,7 +12,6 @@ dictionary-type
 dictionary-item
 measurement-unit
 income-expense-type
-account-subject
 asset-category
 ```
 
@@ -46,7 +45,7 @@ product-category PCT         department DEP
 position POS
 dictionary-type DCT          dictionary-item DIT
 measurement-unit UNT         income-expense-type IET
-account-subject ACS             asset-category ACT
+asset-category ACT
 ```
 
 ### 3.1 产品分类
@@ -71,9 +70,9 @@ account-subject ACS             asset-category ACT
 
 ### 3.6 收支类型
 
-`income-expense-type` 是收入或支出的树形业务分类，字段为 `direction`、`parentId`、`accountSubjectId` 和 `description`。父子方向必须一致；只有叶子节点可被单据使用，叶子必须关联当前有效的会计科目。它不自动生成会计凭证，只为未来自动记账保存稳定映射。
+`income-expense-type` 是收入或支出的树形业务分类，字段为 `direction`、`parentId` 和 `description`。父子方向必须一致；只有叶子节点可被单据使用。它表达业务收支分类，不保存会计科目或会计映射。
 
-`account-subject` 管理会计科目树，方向为资产、负债、权益、收入、费用或成本。本阶段只建立科目与收支类型的稳定映射，不生成会计凭证，也不预置生产科目。
+会计科目按账簿归 ACC 领域管理；VOU 到科目的映射也由 ACC 按账簿维护。AUX 不提供全局会计科目树或跨账簿科目映射。
 
 ### 3.7 资产类别
 

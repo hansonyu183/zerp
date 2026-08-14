@@ -719,6 +719,38 @@ describe('bill voucher view model behavior', () => {
     scope.stop()
   })
 
+  it('restores bill maturity queries and sends contract-valid uncheck requests', async () => {
+    const session = useSessionStore()
+    session.$patch({
+      permissions: [
+        '/vou/bill-maturity/query',
+        '/vou/bill-maturity/get',
+        '/vou/bill-maturity/uncheck',
+      ],
+    })
+    const scope = effectScope()
+    const vm = scope.run(() =>
+      useBillVoucherViewModel(billVoucherConfigs['bill-maturity']),
+    )!
+    vm.keyword.value = null
+    await vm.query()
+    expect(mockedPost).toHaveBeenLastCalledWith(
+      'vou/bill-maturity/query',
+      expect.objectContaining({ filters: {} }),
+      expect.anything(),
+    )
+    await vm.openDocument({ documentId: 'DOC-1' })
+    mockedPost.mockClear()
+
+    await vm.lifecycle('uncheck', '不应进入请求')
+
+    expect(mockedPost).toHaveBeenCalledWith('vou/bill-maturity/uncheck', {
+      documentId: 'DOC-1',
+      revision: 1,
+    })
+    scope.stop()
+  })
+
   it('keeps obsolete bill loads out of newer, created, and closed workspaces', async () => {
     const session = useSessionStore()
     session.$patch({

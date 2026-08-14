@@ -122,7 +122,8 @@ func TestHandlerRegistersEveryVOUEntityAction(t *testing.T) {
 			if route.action == "book-balance" && entity != EntityInventoryCount {
 				continue
 			}
-			if route.action == "bill-source" && entity != EntityBillPayment &&
+			if route.action == "bill-source" && entity != EntityBillReceipt &&
+				entity != EntityBillPayment &&
 				entity != EntityBillDiscount && entity != EntityBillMaturity {
 				continue
 			}

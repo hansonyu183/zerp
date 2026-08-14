@@ -313,14 +313,16 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     editorMode.value = 'view'
     editorLoading.value = true
     editorErrorMessage.value = null
-    drawerOpen.value = true
     try {
       const view = await getObject(row, versionId)
       currentView.value = view
       editorModel.value = formFromView(view)
       editorResetKey.value += 1
+      drawerOpen.value = true
       await hydrateReferences(editorModel.value)
     } catch (error) {
+      drawerOpen.value = false
+      currentView.value = null
       editorErrorMessage.value = getErrorMessage(error)
     } finally {
       editorLoading.value = false
@@ -332,7 +334,6 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     editorMode.value = 'edit'
     editorLoading.value = true
     editorErrorMessage.value = null
-    drawerOpen.value = true
     try {
       const versionId = row.currentVersion.versionId
       const view = await getObject(row, versionId)
@@ -345,9 +346,13 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
       }
       editorModel.value = formFromView(view)
       editorResetKey.value += 1
+      drawerOpen.value = true
       preloadEditorReferences(editorModel.value)
       await hydrateReferences(editorModel.value)
     } catch (error) {
+      drawerOpen.value = false
+      editContext.value = null
+      currentView.value = null
       editorErrorMessage.value = getErrorMessage(error)
     } finally {
       editorLoading.value = false
@@ -361,7 +366,6 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     if (!session.can(permission('get')) || editorLoading.value) return
     editorLoading.value = true
     editorErrorMessage.value = null
-    drawerOpen.value = true
     try {
       const view = await getObject({ objectId })
       const editable =
@@ -380,9 +384,13 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
         : null
       editorModel.value = formFromView(view)
       editorResetKey.value += 1
+      drawerOpen.value = true
       if (editable) preloadEditorReferences(editorModel.value)
       await hydrateReferences(editorModel.value)
     } catch (error) {
+      drawerOpen.value = false
+      editContext.value = null
+      currentView.value = null
       editorErrorMessage.value = getErrorMessage(error)
     } finally {
       editorLoading.value = false

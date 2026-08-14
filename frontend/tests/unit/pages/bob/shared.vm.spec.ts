@@ -186,6 +186,18 @@ describe('shared BOB entity configuration and view model', () => {
     expect(vm.currentView.value?.version.revision).toBe(1)
   })
 
+  it('详情请求失败时不展示默认值空抽屉', async () => {
+    grant('product', 'get')
+    mockedApiClient.post.mockRejectedValueOnce(new Error('详情加载失败'))
+    const vm = useBobEntityViewModel(getBobEntityConfig('product'))
+
+    await vm.openView(row())
+
+    expect(vm.drawerOpen.value).toBe(false)
+    expect(vm.currentView.value).toBeNull()
+    expect(vm.editorErrorMessage.value).toBe('详情加载失败')
+  })
+
   it('定义全部九类业务对象和完整状态筛选', () => {
     const expectedColumns: Record<string, string[]> = {
       customer: ['编码', '名称', '类型', '状态'],

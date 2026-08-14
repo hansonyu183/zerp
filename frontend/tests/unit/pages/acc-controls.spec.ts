@@ -6,7 +6,10 @@ import { createAccountingMappingViewModel } from '@/pages/acc/mapping/vm'
 import mappingSource from '@/pages/acc/mapping/Mapping.vue?raw'
 import { createAccountingOpeningViewModel } from '@/pages/acc/opening/vm'
 import openingSource from '@/pages/acc/opening/Opening.vue?raw'
-import { createAccountingPeriodViewModel } from '@/pages/acc/period/vm'
+import {
+  accountingMonthHasEnded,
+  createAccountingPeriodViewModel,
+} from '@/pages/acc/period/vm'
 import periodSource from '@/pages/acc/period/Period.vue?raw'
 import { createAccountingSubjectViewModel } from '@/pages/acc/subject/vm'
 import { useSessionStore } from '@/stores/session'
@@ -89,6 +92,13 @@ describe('ACC mapping and period controls', () => {
     session.permissions.push('/acc/book/query', '/acc/period/query')
     expect(vm.canLock).toBe(true)
     expect(vm.canUnlock).toBe(true)
+  })
+
+  it('only enables locking after the target natural month has ended', () => {
+    const now = new Date('2026-08-14T10:00:00+08:00')
+    expect(accountingMonthHasEnded('2026-07', now)).toBe(true)
+    expect(accountingMonthHasEnded('2026-08', now)).toBe(false)
+    expect(accountingMonthHasEnded('2026-09', now)).toBe(false)
   })
 
   it('requires complete query permissions for subject mutations', () => {

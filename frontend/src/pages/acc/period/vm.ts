@@ -15,6 +15,15 @@ function nextMonth(month: string): string {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`
 }
 
+export function accountingMonthHasEnded(
+  month: string,
+  now = new Date(),
+): boolean {
+  if (!/^\d{4}-\d{2}$/.test(month)) return false
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  return month < currentMonth
+}
+
 export function createAccountingPeriodViewModel() {
   const session = useSessionStore()
   const books = ref<AccountingBook[]>([])
@@ -58,6 +67,15 @@ export function createAccountingPeriodViewModel() {
       periods.value.find((period) => period.month === nextLockMonth.value)
         ?.revision ?? 0,
   )
+  const nextLockMonthEnded = computed(() =>
+    accountingMonthHasEnded(nextLockMonth.value),
+  )
+  const lockDisabledReason = computed(() => {
+    if (!nextLockMonth.value) return '没有可锁定的会计期间。'
+    if (!nextLockMonthEnded.value)
+      return `${nextLockMonth.value} 尚未结束，自然月结束后才能锁定。`
+    return ''
+  })
   const bookOptions = computed(() =>
     books.value.map((book) => ({
       title: `${book.code} · ${book.name}`,
@@ -114,6 +132,10 @@ export function createAccountingPeriodViewModel() {
       errorMessage.value = '没有权限锁定会计期间。'
       return
     }
+    if (!nextLockMonthEnded.value) {
+      errorMessage.value = lockDisabledReason.value
+      return
+    }
     saving.value = true
     errorMessage.value = null
     try {
@@ -168,6 +190,8 @@ export function createAccountingPeriodViewModel() {
     canUnlock,
     latestLocked,
     nextLockMonth,
+    nextLockMonthEnded,
+    lockDisabledReason,
     bookOptions,
     initialize,
     loadPeriods,

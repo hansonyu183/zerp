@@ -177,6 +177,7 @@ func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 	}{
 		{EntityCustomer, CreateDetailInput{Name: "Customer"}},
 		{EntitySupplier, CreateDetailInput{Name: "Supplier"}},
+		{EntityOtherParty, CreateDetailInput{Name: "Other Party"}},
 		{EntityEmployee, CreateDetailInput{Name: "Employee"}},
 		{EntityProduct, CreateDetailInput{Name: "Product", Unit: "piece"}},
 		{EntityService, CreateDetailInput{Name: "Service", Unit: "hour"}},
@@ -193,7 +194,7 @@ func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.entity, func(t *testing.T) {
 			test.data.Code = "LC" + newID()
-			if test.entity == EntityCustomer || test.entity == EntitySupplier {
+			if test.entity == EntityCustomer || test.entity == EntitySupplier || test.entity == EntityOtherParty {
 				test.data.SalespersonEmployeeID = salesperson.ObjectID
 			}
 			created, err := service.Create(t.Context(), test.entity, CreateInput{Data: test.data}, integrationActorOne, "contract-create")

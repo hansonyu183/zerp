@@ -344,12 +344,12 @@ func (q *Queries) CopyBobCategoryDetail(ctx context.Context, arg CopyBobCategory
 
 const copyBobCustomerDetail = `-- name: CopyBobCustomerDetail :exec
 INSERT INTO bob_customer_versions (
-    version_id, name, customer_type, short_name, category_id, tax_number,
+    version_id, entity, name, customer_type, short_name, category_id, tax_number,
     contact_name, contact_phone, email, address, remark, settlement_method_id,
     monthly_closing_day, salesperson_employee_id, rebate_unit_price_cents,
     intermediary_other_party_id
 )
-SELECT $1, d.name, d.customer_type, d.short_name, d.category_id,
+SELECT $1, d.entity, d.name, d.customer_type, d.short_name, d.category_id,
        d.tax_number, d.contact_name, d.contact_phone, d.email, d.address, d.remark,
        d.settlement_method_id, d.monthly_closing_day, d.salesperson_employee_id,
        d.rebate_unit_price_cents, d.intermediary_other_party_id

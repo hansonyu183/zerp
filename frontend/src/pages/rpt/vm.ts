@@ -229,7 +229,7 @@ export function useReportViewModel(mode: RptPageMode) {
     referenceOptions.value = {}
   }
 
-  async function loadDefinitions(): Promise<void> {
+  async function loadDefinitions(preferredCode = ''): Promise<void> {
     loading.value = true
     errorMessage.value = ''
     try {
@@ -255,7 +255,9 @@ export function useReportViewModel(mode: RptPageMode) {
         mode === 'report' && typeof route.meta.reportCode === 'string'
           ? route.meta.reportCode
           : ''
-      setSelected(routeCode || definitions.value[0]?.code || '')
+      setSelected(
+        preferredCode || routeCode || definitions.value[0]?.code || '',
+      )
     } catch (error) {
       if (!disposed) errorMessage.value = getErrorMessage(error)
     } finally {
@@ -402,7 +404,7 @@ export function useReportViewModel(mode: RptPageMode) {
     try {
       await apiClient.postContract(`rpt/definition/${action}`, body)
       notice.value = '管理操作已完成。'
-      await loadDefinitions()
+      await loadDefinitions(code)
     } catch (error) {
       errorMessage.value = getErrorMessage(error)
     }

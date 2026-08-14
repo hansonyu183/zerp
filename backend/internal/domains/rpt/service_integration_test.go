@@ -52,6 +52,18 @@ func TestRPTDefinitionApprovalAndUnapprovalIntegration(t *testing.T) {
 	if created.Status != "DRAFT" || created.Revision != 1 {
 		t.Fatalf("created report = %+v", created)
 	}
+	page, err := service.QueryDefinitions(t.Context(), DefinitionQueryInput{
+		Keyword: code, Page: 1, PageSize: 20,
+	})
+	if err != nil {
+		t.Fatalf("query created report definition: %v", err)
+	}
+	definitions := page.Items.([]DefinitionView)
+	if len(definitions) != 1 || definitions[0].VersionID != created.ID ||
+		definitions[0].VersionRevision != created.Revision ||
+		definitions[0].Status != "DRAFT" || definitions[0].Data.SQL == "" {
+		t.Fatalf("created report query = %+v", definitions)
+	}
 
 	approved, err := service.ApproveVersion(t.Context(), VersionRevisionInput{
 		Code: code, VersionID: created.ID, Revision: created.Revision,

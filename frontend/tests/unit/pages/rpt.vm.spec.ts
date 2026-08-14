@@ -36,6 +36,16 @@ vi.mock('@/api/client', () => ({
 
 const mockedPostContract = vi.mocked(apiClient.postContract)
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve
+    reject = nextReject
+  })
+  return { promise, resolve, reject }
+}
+
 const resultColumns = [
   {
     alias: 'amount',
@@ -178,16 +188,108 @@ describe('RPT report center view model', () => {
       { value: 'book-1', title: 'ACC0001 · 默认账簿' },
     ])
 
+    vm.parameters.value.bookId = 'book-1'
     mockedPostContract.mockRejectedValueOnce(
       new ApiError('network', 'request failed'),
     )
     await vm.loadReference(referenceParameter, 'retry')
 
-    expect(vm.referenceOptions.value.bookId).toEqual([])
+    expect(vm.referenceOptions.value.bookId).toEqual([
+      { value: 'book-1', title: 'ACC0001 · 默认账簿' },
+    ])
     expect(vm.referenceErrors.value.bookId).toBe(
       '引用数据加载失败：网络连接失败，请检查网络后重试。',
     )
     expect(vm.errorMessage.value).toBe('')
+    wrapper.unmount()
+  })
+
+  it('ignores stale reference responses and errors', async () => {
+    const referenceParameter = {
+      key: 'bookId',
+      name: '账簿',
+      type: 'REFERENCE' as const,
+      required: true,
+      referenceType: 'ACCOUNTING_BOOK' as const,
+    }
+    const staleError = deferred<never>()
+    const currentResult = deferred<{
+      data: { items: Array<{ id: string; code: string; name: string }> }
+    }>()
+    const staleResult = deferred<{
+      data: { items: Array<{ id: string; code: string; name: string }> }
+    }>()
+    const currentError = deferred<never>()
+    let referenceRequest = 0
+    mockedPostContract.mockImplementation(async (path) => {
+      if (path === 'rpt/directory/query') {
+        return {
+          data: {
+            items: [
+              {
+                code: 'customer-aging',
+                name: '客户账龄',
+                description: '测试',
+                parameters: [referenceParameter],
+                columns: resultColumns,
+              },
+            ],
+          },
+        } as never
+      }
+      if (path === 'rpt/customer-aging/reference-query') {
+        referenceRequest += 1
+        if (referenceRequest === 1) {
+          return {
+            data: {
+              items: [{ id: 'book-1', code: 'ACC0001', name: '默认账簿' }],
+            },
+          } as never
+        }
+        if (referenceRequest === 2) return staleError.promise as never
+        if (referenceRequest === 3) return currentResult.promise as never
+        if (referenceRequest === 4) return staleResult.promise as never
+        return currentError.promise as never
+      }
+      throw new Error(`unexpected API path: ${path}`)
+    })
+    const { vm, wrapper } = await mountReportViewModel()
+    vm.parameters.value.bookId = 'book-1'
+
+    const staleFailure = vm.loadReference(referenceParameter, 'old')
+    const currentSuccess = vm.loadReference(referenceParameter, 'new')
+    currentResult.resolve({
+      data: {
+        items: [{ id: 'book-2', code: 'ACC0002', name: '新账簿' }],
+      },
+    })
+    await currentSuccess
+    staleError.reject(new ApiError('network', 'stale request failed'))
+    await staleFailure
+
+    expect(vm.referenceOptions.value.bookId).toEqual([
+      { value: 'book-1', title: 'ACC0001 · 默认账簿' },
+      { value: 'book-2', title: 'ACC0002 · 新账簿' },
+    ])
+    expect(vm.referenceErrors.value.bookId).toBe('')
+
+    const staleSuccess = vm.loadReference(referenceParameter, 'older')
+    const currentFailure = vm.loadReference(referenceParameter, 'latest')
+    currentError.reject(new ApiError('network', 'current request failed'))
+    await currentFailure
+    staleResult.resolve({
+      data: {
+        items: [{ id: 'book-3', code: 'ACC0003', name: '旧账簿' }],
+      },
+    })
+    await staleSuccess
+
+    expect(vm.referenceOptions.value.bookId).toEqual([
+      { value: 'book-1', title: 'ACC0001 · 默认账簿' },
+    ])
+    expect(vm.referenceErrors.value.bookId).toBe(
+      '引用数据加载失败：网络连接失败，请检查网络后重试。',
+    )
     wrapper.unmount()
   })
 

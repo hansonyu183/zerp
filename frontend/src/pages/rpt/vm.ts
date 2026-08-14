@@ -181,6 +181,12 @@ export function useReportViewModel(mode: RptPageMode) {
   const referenceLoading = ref<Record<string, boolean>>({})
   const referenceErrors = ref<Record<string, string>>({})
   const referenceRequestIds = ref<Record<string, number>>({})
+  // Keep the last label we saw for each selected reference ID so a failed
+  // refresh can drop stale candidates without making the current value
+  // impossible to render.
+  const referenceItemsById = ref<Record<string, Record<string, ReferenceItem>>>(
+    {},
+  )
   const managementData = ref('')
   const managementCode = ref('')
   const managementVersionId = ref('')
@@ -232,6 +238,7 @@ export function useReportViewModel(mode: RptPageMode) {
     referenceOptions.value = {}
     referenceLoading.value = {}
     referenceErrors.value = {}
+    referenceItemsById.value = {}
     for (const parameter of selected.value?.parameters ?? []) {
       if (parameter.type === 'REFERENCE') void loadReference(parameter)
     }
@@ -340,10 +347,34 @@ export function useReportViewModel(mode: RptPageMode) {
       if (disposed || referenceRequestIds.value[parameter.key] !== requestId) {
         return
       }
-      referenceOptions.value[parameter.key] = parseReferenceItems(response.data)
+      const items = parseReferenceItems(response.data)
+      const itemCache = referenceItemsById.value[parameter.key] ?? {}
+      for (const item of items) itemCache[item.value] = item
+      referenceItemsById.value[parameter.key] = itemCache
+      const currentSelectedId = parameters.value[parameter.key]
+      const selectedItem =
+        typeof currentSelectedId === 'string' && currentSelectedId
+          ? itemCache[currentSelectedId]
+          : undefined
+      referenceOptions.value[parameter.key] = selectedItem
+        ? [
+            selectedItem,
+            ...items.filter((item) => item.value !== selectedItem.value),
+          ]
+        : items
     } catch (error) {
       if (!disposed && referenceRequestIds.value[parameter.key] === requestId) {
-        referenceOptions.value[parameter.key] = []
+        const selectedId = parameters.value[parameter.key]
+        const selectedItem =
+          typeof selectedId === 'string' && selectedId
+            ? (referenceItemsById.value[parameter.key]?.[selectedId] ??
+              referenceOptions.value[parameter.key]?.find(
+                (item) => item.value === selectedId,
+              ))
+            : undefined
+        referenceOptions.value[parameter.key] = selectedItem
+          ? [selectedItem]
+          : []
         referenceErrors.value[parameter.key] =
           `引用数据加载失败：${getErrorMessage(error)}`
       }

@@ -165,8 +165,8 @@ export function useBobLifecycleActions(
           reason: normalizedReason,
         },
       )
-      await query()
       onSuccess(row, action)
+      void query()
       return true
     } catch (error) {
       errorMessage.value = getErrorMessage(error)

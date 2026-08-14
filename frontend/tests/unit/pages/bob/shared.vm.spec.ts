@@ -803,6 +803,29 @@ describe('shared BOB entity configuration and view model', () => {
     )
   })
 
+  it('撤回接口成功后立即反馈并在后台刷新列表', async () => {
+    grant('product', 'query', 'unsubmit')
+    let resolveQuery!: (value: ReturnType<typeof emptyPage>) => void
+    const pendingQuery = new Promise<ReturnType<typeof emptyPage>>((resolve) => {
+      resolveQuery = resolve
+    })
+    mockedApiClient.post
+      .mockResolvedValueOnce({ data: mutation('DRAFT') })
+      .mockReturnValueOnce(pendingQuery)
+    const vm = useBobEntityViewModel(getBobEntityConfig('product'))
+
+    await expect(
+      vm.reverse(row('PENDING'), 'unsubmit', '退回修改'),
+    ).resolves.toBe(true)
+
+    expect(mockedApiClient.post).toHaveBeenCalledTimes(2)
+    expect(vm.successMessage.value).toBe('PRD-1 已撤回提交。')
+    expect(vm.actionLoading.value).toBeNull()
+
+    resolveQuery(emptyPage())
+    await vi.waitFor(() => expect(vm.loading.value).toBe(false))
+  })
+
   it('关联对象搜索带有效状态和实体约束', async () => {
     vi.useFakeTimers()
     useSessionStore().permissions = ['/aux/product-category/query']

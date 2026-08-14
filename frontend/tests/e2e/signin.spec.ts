@@ -61,7 +61,7 @@ test('未登录访问完整深链后登录返回原路径', async ({ page, worke
   await submitCredentials(page, workerState.operator)
 
   await expect(page).toHaveURL(/\/bob\/customer\?tab=history#version-2$/)
-  await expect(page.getByLabel('客户关键字')).toBeVisible()
+  await expect(page.getByRole('textbox', { name: '客户关键字' })).toBeVisible()
 })
 
 test('登录后对已知但无权限的深链显示无权访问', async ({

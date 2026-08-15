@@ -1,72 +1,38 @@
-# Issue 自动交付
+# 本地 Issue 批次自动交付
 
-本文件是 `automation:*` 工作流、授权证据和发布权限的唯一操作说明。业务规则仍以 `docs/domains/` 为准，HTTP 线协议仍以 `contracts/openapi/` 为准。
+本流程面向单人、单台受信任 Mac。它不使用远端 Issue 队列、implementer/reviewer GitHub Apps 或定时轮询；多人协作需要另立工作流，不在这里保留兼容分支。
 
-## 状态机
+## 完整流程
 
-每个自动化 Issue 必须恰好带一个状态标签：
+1. `$to-tickets` 在主工作区生成 `.scratch/<feature>/issues/*.md`。整个目录是一项不可拆分的发布批次。
+2. launchd 通过 `WatchPaths` 发现 `ready-for-agent` 批次，控制器领取整批并创建 `automation/local-<feature>` 独立 worktree。
+3. 控制器为整批而非逐 ticket 启动临时 `codex exec`，明确要求使用 `$implement` 处理整个目录。`$implement` 负责 TDD、聚焦测试、一次最终全量门禁、`/code-review`、修复和提交；只有失败修复轮次才会再次调用。
+4. 最终门禁是 `scripts/change-gate.sh <base-sha>`。它不 fetch、不推送、不部署；成功后写入候选 head、base 和运行时指纹。控制器只核验证据，不重复执行门禁。
+5. 控制器使用受信任主工作区的预览脚本，将候选 worktree 构建到固定公网预览 `https://zerp-preview.bytesucceed.com`，并核对 exact SHA、浏览器 smoke 和运行时指纹。用户查看预览是可选的，不阻塞自动流程。
+6. 到此之前不得调用 GitHub。预览通过后才 fetch 最新 `origin/main`；若 rebase 仅改变 SHA 且运行时指纹不变，复用门禁和预览。指纹改变或发生冲突时，再交给 `$implement` 修复并重新验证，最多三轮。
+7. 控制器按本地编号创建远端 Issues、建立原生依赖、推送一个分支，并创建一个引用全部 Issues 的 Ready PR。PR 正文携带 exact head、预览 URL 和运行时指纹。
+8. GitHub Actions 对 Ready head 运行适用矩阵。匹配 `automation/local-*` 分支和 exact-head 本地预览标记的 PR，在 CI 成功后直接获得 `full-validation`；普通人工 PR 仍使用原有 `preview-required` 路径。
+9. 控制器请求 squash auto-merge，等待真实 merge SHA，再等待生产代理完成部署。`scripts/issue-local-production.sh` 必须同时验证 PR merge SHA、生产 release marker、API、Web 和公网入口。
+10. 生产验证成功后，控制器关闭全部远端 Issues、把本地验收项勾选并标为 `done`，最后释放固定预览。
 
-| 状态                      | 含义                                     | 离开条件                                      |
-| ------------------------- | ---------------------------------------- | --------------------------------------------- |
-| `automation:ready`        | 维护者已经授权不可变快照，等待依赖和容量 | 原生依赖关闭且实现槽可用                      |
-| `automation:implementing` | 实现者正在改代码或修复                   | 本地门禁成功                                  |
-| `automation:reviewing`    | 标准与规格两个独立只读审查顺序运行       | 两者通过，或进入下一轮修复                    |
-| `automation:release`      | 等待唯一发布通道完成 Ready、预览和合并   | 生产验证成功                                  |
-| `automation:needs-input`  | 需求或验收条件不完整                     | 维护者取消、修正并重新添加 `automation:ready` |
-| `automation:blocked`      | 三轮代码修复或 24 小时基础设施预算耗尽   | 维护者重新定界并授权                          |
-| `automation:cancelled`    | 授权快照作废                             | 维护者编辑后重新授权                          |
-| `automation:incident`     | 生产恢复尚未建立，全局开关已关闭         | 维护者完成恢复并显式重开                      |
-| `automation:done`         | 精确生产 SHA 和公网健康已验证            | Issue 同时关闭                                |
+## 失败与恢复
 
-优先级标签是 `priority:p0` 至 `priority:p3`；缺省为 `priority:p2`。本机执行器先等待 GitHub 原生依赖全部关闭，再按优先级和最近授权时间排序。实现与审查共享一个串行本机槽；Ready、固定预览、合并和生产组成另一个串行发布通道。
+- 实现、审查、门禁、预览或 CI 失败最多进行三轮自动实现/修复；耗尽后整批标为 `blocked`，不会继续发布。
+- `needs_input` 立即将整批标为 `needs-input`，不部署预览、不访问 GitHub。
+- 进程崩溃后以批次运行目录中的 base、attempt、预览证据、远端 Issue 映射和 PR 编号恢复。远端对象带稳定 marker；重启必须复用，不得重复创建。
+- 生产失败会把批次标为 `production-blocked`、写入本地停止开关并在 PR 通知。控制器不得自动执行数据库回滚、清库、恢复或继续下一批。
+- 人工处理本地失败后可运行 `scripts/issue-local.sh retry <feature>`；已经发布 PR 的批次不得本地重置。生产故障处理完成后由维护者运行 `scripts/issue-local.sh start`。
 
-## 授权与不可变输入
+## 安装与操作
 
-新工作使用 `.github/ISSUE_TEMPLATE/authorized-change.yml`。维护者检查 Outcome、Scope、Exclusions、Acceptance criteria 和关联规范；高风险工作还必须给出具体 Risks 与 Recovery conditions。添加 `automation:ready` 是唯一人工授权。
+安装前需要现有的 ChatGPT Codex 登录、`gh` 登录，以及本机可读的 `implement`、`tdd`、`code-review` skills。运行：
 
-`issue-authorize.yml` 验证授权者是仓库 owner 或 `ZERP_AUTOMATION_AUTHORIZERS` 明确列出的维护者，并验证唯一状态标签；不为实现者 App 增加 Administration 权限。它冻结 Issue 正文哈希、授权者、默认分支 SHA 以及反引号引用的仓库规范文件哈希。快照作为运行 artifact 保存，并由绑定仓库、运行、Issue 和正文哈希的 `issue-authorization-<number>` Deployment 记录来源。之后的编辑和评论不改变本轮范围；变更范围必须先转为 `automation:cancelled`，再编辑并重新授权。
+```sh
+make issue-local-install
+scripts/issue-local.sh status
+scripts/issue-local.sh stop
+scripts/issue-local.sh start
+scripts/issue-local.sh retry <feature>
+```
 
-仓库变量 `ZERP_AUTOMATION_ENABLED` 是全局 kill switch。值不为 `true` 时，授权、队列和本地发布控制器都停止。生产 Incident 自动把它写为 `false`；只有维护者完成恢复后可以重新设为 `true`。
-
-## 实现、审查与证据
-
-`com.hansonyu.zerp-issue-codex` 每分钟读取拥有成功授权 Deployment 的候选。它先精确验证本机 `codex login status` 是 ChatGPT 登录，再从授权 artifact 构造受限提示，以临时 `codex exec --ephemeral --sandbox workspace-write` 进程在独立 worktree 实现；实现者 App 不能合并、写审查或发布证据、部署。候选先形成干净提交，再运行 `make pre-push-plan` 和 `make pre-push`。代码、测试或审查失败最多修复三轮。
-
-自动 PR 使用 `Refs #<issue>`，不使用自动关闭关键字。本机执行器为 exact head 启动两个全新的临时只读 Codex 进程，顺序运行：
-
-- `automation-standards-review`：逐项应用仓库约束；
-- `automation-spec-review`：逐项核对不可变 Issue 快照和关联规范。
-
-两个审查均为只读。reviewer App 把结构化失败发现写入绑定 exact head 和轮次的 PR 评论，并把各自结果写成 `automation-standards-review`、`automation-spec-review` commit status；状态目标固定为不可变 commit URL。任何发现都会交回实现者；第三轮仍失败则转为 `automation:blocked`。两个成功状态都由 reviewer Bot 签发后，执行器才把 PR 转为 Ready 并进入 `automation:release`。
-
-## 发布与生产
-
-本地 `com.hansonyu.zerp-issue-release` 控制器使用独立 release-controller GitHub App，每分钟从当前 `origin/main` 的受信任 checkout 检查一个候选。它核对 PR、exact head、两个 reviewer Bot commit status 和质量运行的仓库、SHA、事件、提供者及固定链接。
-
-无需固定预览的变更可复用 Actions 签发的 `full-validation`。需要固定预览的变更只接受 `preview-required`，随后由控制器部署 exact head，使用受信任的浏览器 smoke 验证登录、API、Web、公网入口和 release marker，最后由配置的 release-verifier App Bot 写 Preview Deployment 与 `full-validation`。实现者和审查者不能签发该证据。
-
-证据齐全后，控制器只请求 squash auto-merge；它不直接推送 `main`。生产代理继续验证 merge tree、`full-validation`、Cloudflare Deployment、容器、API、Web、公网入口和发布 SHA。全部成功后才写 `automation:done` 并关闭 Issue。生产切流后的失败不猜测数据库兼容性：代理创建 P0 Incident、把原 Issue 转为 `automation:incident` 并关闭 kill switch，等待维护者建立恢复方案。
-
-## 凭证与仓库设置
-
-仓库使用以下配置：
-
-| 名称                              | 类型     | 用途                                       |
-| --------------------------------- | -------- | ------------------------------------------ |
-| `ZERP_IMPLEMENTER_BOT_LOGIN`      | variable | 允许触发 Codex 的精确实现者 Bot login      |
-| `ZERP_REVIEWER_BOT_LOGIN`         | variable | 唯一可签发两个本机审查状态的 Bot login     |
-| `ZERP_RELEASE_VERIFIER_BOT_LOGIN` | variable | 唯一可签发预览证据的 Bot login             |
-| `ZERP_AUTOMATION_ENABLED`         | variable | 全局 kill switch，初次部署保持 `false`     |
-| `ZERP_AUTOMATION_AUTHORIZERS`     | variable | 额外维护者 login，逗号分隔；owner 自动包含 |
-
-实现者 App 只授予 Actions read、Contents write、Issues write、Pull requests write 和 Metadata read；它没有 Statuses、Checks、Deployments 或 Administration write。审查 App 只授予 Actions read、Contents read、Issues write、Pull requests write、Commit statuses write 和 Metadata read；没有代码写入、合并或部署权限。
-
-本机实现者凭证放在 `/Users/hansonyu/.secrets/zerp-issue-implementer/`，审查者凭证放在 `/Users/hansonyu/.secrets/zerp-issue-reviewer/`；两处都包含 `app-id`、`private-key.pem`、`bot-login`，权限为 `0600`。先确认 `codex login status` 显示 ChatGPT 登录，再运行 `make issue-codex-install`。安装器只复制仓库控制脚本，不复制 Codex 的 `auth.json`、登录缓存或 token。
-
-两个 App 都不订阅 webhook，只安装到 `hansonyu183/zerp`。创建后把各自 App ID、下载的私钥和 Bot login 写入上述本机目录，并在仓库 Variables 中设置 `ZERP_IMPLEMENTER_BOT_LOGIN` 与 `ZERP_REVIEWER_BOT_LOGIN`；私钥不进入 Actions Secrets。停用时先把 `ZERP_AUTOMATION_ENABLED` 设为 `false`，再执行 `launchctl bootout "gui/$(id -u)/com.hansonyu.zerp-issue-codex"`；重新运行 `make issue-codex-install` 可恢复常驻代理。
-
-release-controller App 只安装到 `hansonyu183/zerp`，授予 Actions read、Checks read、Contents write、Deployments write、Issues write、Pull requests write、Commit statuses write、Variables write 和 Metadata read。本机凭证放在 `/Users/hansonyu/.secrets/zerp-release-controller/`：`app-id`、`private-key.pem`、`bot-login`，权限为 `0600`。运行 `make issue-release-install` 安装长期 LaunchAgent；重新安装会原子替换控制脚本。
-
-`main` ruleset 必须要求 PR、线性历史、禁止 force push/delete，并要求现有质量矩阵最终聚合到 `full-validation`。仓库只允许 squash merge，启用 auto-merge；release-controller App 不获得规则绕过，只有全部 required checks 成功后 GitHub 才执行合并。公共仓库不注册可执行任意 PR 代码的 self-hosted runner。
-
-上线顺序固定为：先合并代码但保持 kill switch 为 `false`，创建并只安装到本仓库的 implementer、reviewer 和 release-controller 三个 App，配置 Bot login variables、状态与优先级标签、ruleset 和 auto-merge；安装并验证两个本地控制器；最后由维护者把 `ZERP_AUTOMATION_ENABLED` 改为 `true`。仓库不得配置 `OPENAI_API_KEY` 或 Codex `auth.json` Secret，也不得注册公共仓库 self-hosted runner。旧 Codex `auto-issue-processing` 与 `zerp-back-issue` 计划任务保持暂停并删除，不保留转发或兼容路径。
+安装器只复制控制脚本和 JSON schema，不复制 Codex `auth.json`、GitHub token 或私钥。实现阶段的 Codex 进程禁止访问 GitHub、推送、部署或读取预览/生产凭证；发布动作由控制器使用 Mac 已有的 `gh` 登录态完成。现有生产代理继续只处理通过 `full-validation` 合入 `main` 的提交。

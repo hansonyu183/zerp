@@ -11,7 +11,7 @@ PRODUCTION_REF ?=
 COMPOSE = docker compose --env-file backend/$(BACKEND_ENV)
 DEV_COMPOSE = $(COMPOSE) -f compose.yaml -f compose.dev.yaml
 
-.PHONY: bootstrap dev dev-down generate generate-check check check-common check-contracts check-frontend check-backend check-backend-fast check-containers check-release check-runtime check-shell release-check test e2e build compose-up compose-down pre-push pre-push-plan preview-up preview-deploy preview-down preview-reset preview-rollback preview-status preview-password preview-touch preview-close preview-accept preview-promote preview-reap preview-gc preview-uninstall-agent issue-codex-install issue-release-install production-status production-retry production-rollback
+.PHONY: bootstrap dev dev-down generate generate-check check check-common check-contracts check-frontend check-backend check-backend-fast check-containers check-release check-runtime check-shell release-check test e2e build compose-up compose-down pre-push pre-push-plan preview-up preview-deploy preview-down preview-reset preview-rollback preview-status preview-password preview-touch preview-close preview-accept preview-promote preview-reap preview-gc preview-uninstall-agent issue-local-install production-status production-retry production-rollback
 
 bootstrap:
 	command -v corepack >/dev/null 2>&1 || npm install --global corepack@$(COREPACK_VERSION)
@@ -90,9 +90,8 @@ check-shell:
 release-check:
 	$(MAKE) check-shell
 	./scripts/test-release-flow-transition.sh
-	./scripts/issue-automation-test.sh
-	./scripts/issue-codex-agent-test.sh
-	./scripts/install-issue-codex-agent-test.sh
+	./scripts/issue-local-test.sh
+	./scripts/install-issue-local-agent-test.sh
 	./scripts/preview-state-test.sh
 	GITHUB_BASE_REF=main scripts/verify-pr-base.sh
 	! GITHUB_BASE_REF=feature scripts/verify-pr-base.sh >/dev/null 2>&1
@@ -166,11 +165,8 @@ preview-gc:
 preview-uninstall-agent:
 	@./scripts/uninstall-preview-agent.sh
 
-issue-codex-install:
-	@./scripts/install-issue-codex-agent.sh
-
-issue-release-install:
-	@./scripts/install-issue-release-agent.sh
+issue-local-install:
+	@./scripts/install-issue-local-agent.sh
 
 production-status:
 	@./scripts/production-status.sh

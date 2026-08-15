@@ -30,6 +30,7 @@ backend/go.work.sum
 
 # Runtime data
 backend/var/
+.scratch/
 *.log
 *.pid
 

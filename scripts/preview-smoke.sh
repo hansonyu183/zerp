@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-repo_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+repo_root=${ZERP_PREVIEW_SMOKE_REPO_ROOT:-$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)}
 primary_root=${ZERP_PRIMARY_ROOT:-/Users/hansonyu/code/zerp}
 env_file=${ZERP_PREVIEW_ENV_FILE:-${primary_root}/backend/.env.preview.local}
 sha=${1:-${PREVIEW_REF:-}}

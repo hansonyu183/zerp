@@ -51,9 +51,9 @@
 
 ### Issue tracker
 
-Issues and specs are tracked in this repository's GitHub Issues. See `docs/agents/issue-tracker.md`.
+Development tickets are local `$to-tickets` batches under `.scratch/<feature>/issues`; GitHub Issues are published only after the complete batch passes its public preview. See `docs/agents/issue-tracker.md`.
 
-When an Issue carries an `automation:*` state, or work changes authorization, queueing, automated implementation/review, preview verification, auto-merge, kill-switch, Incident, or production closure behavior, follow `docs/agents/issue-delivery-automation.md` completely.
+When work changes local batch claiming, automated implementation/review, preview publication, GitHub mirroring, auto-merge, stop behavior, or production closure, follow `docs/agents/issue-delivery-automation.md` completely.
 
 ### Domain docs
 

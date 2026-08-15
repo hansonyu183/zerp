@@ -115,39 +115,6 @@ clear_failed() {
   rm -f "${runtime_root}/failed-sha" "${runtime_root}/failed-sha.new"
 }
 
-automation_issue_for_release() {
-  gh api -H "Accept: application/vnd.github+json" \
-    "repos/${repo_slug}/commits/${target_sha}/pulls?per_page=20" |
-    jq -r --arg sha "${target_sha}" '
-      [.[] | select(.merged_at != null and .merge_commit_sha == $sha and (.body // "" | contains("<!-- zerp-automation issue=")))] |
-      sort_by(.merged_at) | if length == 0 then "" else last.body end
-    ' | sed -n 's/.*<!-- zerp-automation issue=\([0-9][0-9]*\) .*/\1/p'
-}
-
-complete_automation_issue() {
-  issue=$(automation_issue_for_release)
-  [ -n "${issue}" ] || return 0
-  "${source_root}/scripts/production-status.sh" >/dev/null
-  "${source_root}/scripts/issue-automation.sh" set-state "${issue}" automation:done
-  gh issue close "${issue}" --comment "自动交付完成：生产提交 \`${target_sha}\` 的 API、Web 与公网入口均已通过验证。"
-}
-
-open_production_incident() {
-  issue=$(automation_issue_for_release)
-  [ -n "${issue}" ] || issue=unknown
-  existing=$(gh issue list --state open --label automation:incident --search "production-sha:${target_sha} in:body" --json number --jq 'length')
-  if [ "${existing}" -eq 0 ]; then
-    gh issue create --title "Incident: production release ${target_sha}" \
-      --label automation:incident --label priority:p0 \
-      --body "Production release failed after the traffic-switch boundary.\n\nOriginating Issue: #${issue}\nproduction-sha:${target_sha}\n\nThe global automation kill switch is disabled. A maintainer must establish recovery and explicitly re-enable it." >/dev/null
-  fi
-  if [ "${issue}" != unknown ]; then
-    "${source_root}/scripts/issue-automation.sh" set-state "${issue}" automation:incident
-  fi
-  jq -n '{name:"ZERP_AUTOMATION_ENABLED",value:"false"}' |
-    gh api --method PATCH "repos/${repo_slug}/actions/variables/ZERP_AUTOMATION_ENABLED" --input - >/dev/null
-}
-
 deployment_id=""
 stored_deployment_sha=$(cat "${deployment_sha_file}" 2>/dev/null || true)
 if [ "${stored_deployment_sha}" = "${target_sha}" ]; then
@@ -329,10 +296,8 @@ if ZERP_PRODUCTION_STATE_ROOT="${ZERP_PRODUCTION_STATE_ROOT:-/Users/hansonyu/cod
   mark_processed "${target_sha}"
   clear_failed
   set_deployment_status success "Deployed ${target_sha}"
-  complete_automation_issue
 else
   mark_failed "${target_sha}"
   set_deployment_status failure "Deployment failed for ${target_sha}"
-  open_production_incident
   exit 1
 fi

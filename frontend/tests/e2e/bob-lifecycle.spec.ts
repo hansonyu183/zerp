@@ -94,9 +94,11 @@ test(
     )
     draftWorkbenchRow = await searchWorkbench(page, '待办资料', code!)
     await draftWorkbenchRow.getByLabel(`提交审核 ${code}`).click()
-    await expect(draftWorkbenchRow).toHaveCount(0)
-    const submittedWorkbenchRow = await searchWorkbench(page, '待办资料', code!)
+    const submittedWorkbenchRow = draftWorkbenchRow
     await expect(submittedWorkbenchRow).toContainText('待批准')
+    await expect(
+      submittedWorkbenchRow.getByLabel(`撤回提交 ${code}`),
+    ).toBeVisible()
     await submittedWorkbenchRow.getByLabel(`撤回提交 ${code}`).click()
     const unsubmitDialog = page.getByRole('dialog').filter({
       hasText: '撤回提交',

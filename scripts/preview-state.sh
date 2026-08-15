@@ -121,7 +121,8 @@ deactivate(){ status=$1; pr=$(cat "$active_file" 2>/dev/null || true); if [ -n "
 reap()(
   [ -f "$lock_root/last_activity" ] || return 0
   pr=$(cat "$active_file" 2>/dev/null || true)
-  if [ -n "$pr" ] && command -v "$gh_bin" >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+  if [ "${ZERP_PREVIEW_OFFLINE:-0}" != 1 ] && [ -n "$pr" ] && \
+    command -v "$gh_bin" >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
     pr_json=$($gh_bin api "repos/${repo}/pulls/${pr}" 2>/dev/null || true)
     if [ -n "$pr_json" ] && printf '%s' "$pr_json" | jq -e '.number != null' >/dev/null 2>&1; then
       merged=$(printf '%s' "$pr_json" | jq -r '.merged // false')

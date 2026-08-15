@@ -29,7 +29,7 @@ installations=$(curl --silent --show-error --fail \
   -H "X-GitHub-Api-Version: 2022-11-28" \
   "https://api.github.com/app/installations?per_page=100")
 installation_id=$(printf '%s' "${installations}" | jq -r --arg owner "${owner}" '[.[] | select((.account.login | ascii_downcase) == ($owner | ascii_downcase))] | if length == 1 then .[0].id else empty end')
-[ -n "${installation_id}" ] || { echo "release GitHub App installation is missing or ambiguous" >&2; exit 1; }
+[ -n "${installation_id}" ] || { echo "GitHub App installation is missing or ambiguous" >&2; exit 1; }
 
 request=$(jq -nc --arg repository "${repository}" '{repositories:[$repository]}')
 printf '%s' "${request}" | curl --silent --show-error --fail \

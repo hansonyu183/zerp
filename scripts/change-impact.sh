@@ -93,9 +93,12 @@ if [ -n "${changed_files}" ]; then
         scripts/test-release-flow-transition.sh | scripts/reusable-pr-checks.sh | \
         scripts/preview-state-test.sh | scripts/release-metrics.sh | \
         scripts/release-metrics-check.sh | scripts/review-* | \
-        scripts/issue-automation.sh | scripts/issue-automation-test.sh | \
-        scripts/issue-queue.sh | scripts/issue-infra-retry.sh | scripts/github-app-token.sh | \
-        scripts/install-issue-release-agent.sh | \
+        scripts/change-gate.sh | scripts/runtime-fingerprint.sh | \
+        scripts/issue-local.sh | scripts/issue-local-test.sh | \
+        scripts/issue-local-production.sh | \
+        scripts/install-issue-local-agent.sh | \
+        scripts/install-issue-local-agent-test.sh | \
+        scripts/github-app-token.sh | \
         scripts/verify-pr-base.sh | scripts/verify-merged-pr.sh | scripts/dev.sh)
         if [ "${impact}" = "docs" ]; then
           impact=validation
@@ -235,7 +238,8 @@ if [ -n "${changed_files}" ]; then
         scripts/preview-build-sandbox.sh | scripts/preview-runtime-sandbox.sh | \
         scripts/preview-deploy.sh | scripts/preview-state.sh | \
         scripts/verify-preview-pr.sh | scripts/preview-smoke.sh | \
-        scripts/issue-release-watch.sh | scripts/uninstall-preview-agent.sh | \
+        scripts/issue-local-preview.sh | scripts/issue-local-preview-test.sh | \
+        scripts/uninstall-preview-agent.sh | \
         frontend/scripts/preview-smoke.mjs)
         if [ "${impact}" = "docs" ]; then
           impact=validation

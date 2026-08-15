@@ -34,9 +34,10 @@ assert_check 'scripts/check-run-provenance.sh' 1 preview
 assert_check 'scripts/preview-state-test.sh' validation impact
 assert_check 'scripts/preview-state.sh' validation impact
 assert_check 'scripts/preview-state.sh' 1 preview
-assert_check 'scripts/issue-automation.sh' validation impact
-assert_check 'scripts/issue-release-watch.sh' validation impact
-assert_check 'scripts/issue-release-watch.sh' 1 preview
+assert_check 'scripts/issue-local.sh' validation impact
+assert_check 'scripts/issue-local-preview.sh' validation impact
+assert_check 'scripts/issue-local-preview.sh' 1 preview
+assert_check 'scripts/issue-local-preview-test.sh' validation impact
 assert_check 'frontend/scripts/preview-smoke.mjs' validation impact
 assert_check 'frontend/scripts/preview-smoke.mjs' 1 preview
 assert_check 'scripts/production-watch.sh' application impact
@@ -52,6 +53,9 @@ fi
 grep -Fq 'name: validation' .github/workflows/quality.yml
 grep -Fq "'preview-required' || 'full-validation'" .github/workflows/quality.yml
 grep -Fq 'needs.merge_evidence.outputs.preview == '"'"'1'"'"'' .github/workflows/quality.yml
+grep -Fq 'needs.merge_evidence.outputs.local_preview != '"'"'1'"'"'' .github/workflows/quality.yml
+grep -Fq 'automation/local-*' .github/workflows/quality.yml
+grep -Fq 'zerp-local-batch feature=' .github/workflows/quality.yml
 grep -Fq "github.event_name == 'workflow_dispatch' ||" .github/workflows/quality.yml
 grep -Fq "github.event_name == 'pull_request' &&" .github/workflows/quality.yml
 # A manual run is conservative: the non-PR classifier marks it preview-bound,
@@ -85,15 +89,24 @@ checkout_count=$(grep -c 'uses: actions/checkout@v6' .github/workflows/quality.y
 exact_ref_count=$(grep -c 'ref:.*github.event.pull_request.head.sha.*github.sha' .github/workflows/quality.yml)
 test "${checkout_count}" = "${exact_ref_count}" || fail 'every quality job must checkout the exact PR head SHA'
 grep -Fq "'draft-validation'" .github/workflows/quality.yml
-grep -Fq 'types: [labeled]' .github/workflows/issue-authorize.yml
-grep -Fq 'ZERP_AUTOMATION_ENABLED' .github/workflows/issue-authorize.yml
-grep -Fq 'ZERP_IMPLEMENTATION_CAPACITY: '\''2'\''' .github/workflows/issue-queue.yml
-grep -Fq 'automation-standards-review' .github/workflows/issue-review.yml
-grep -Fq 'automation-spec-review' .github/workflows/issue-review.yml
-grep -Fq 'permission-profile: '\'':workspace'\''' .github/workflows/issue-implement.yml
-grep -Fq 'permission-profile: '\'':read-only'\''' .github/workflows/issue-review.yml
-grep -Fq 'openai/codex-action@c385816875cc2fc8e033ed9d1cba96f8c331210e' .github/workflows/issue-implement.yml
-grep -Fq "gh pr merge \"\${pr}\" --auto --squash --delete-branch" scripts/issue-release-watch.sh
+# shellcheck disable=SC2016 # source assertion intentionally contains a literal skill trigger
+grep -Fq 'Use $implement to implement the complete local ticket batch' scripts/issue-local.sh
+grep -Fq -- '--sandbox workspace-write' scripts/issue-local.sh
+grep -Fq 'Logged in using ChatGPT' scripts/install-issue-local-agent.sh
+grep -Fq 'com.hansonyu.zerp-issue-local' scripts/install-issue-local-agent.sh
+grep -Fq '<key>WatchPaths</key>' scripts/install-issue-local-agent.sh
+if grep -Fq '<key>StartInterval</key>' scripts/install-issue-local-agent.sh; then
+  fail 'local Issue agent uses polling'
+fi
+if grep -ERq 'openai/codex-action|OPENAI_API_KEY|issue-queue|issue-implement|issue-review' .github/workflows; then
+  fail 'retired cloud Codex workflow remains reachable'
+fi
+if grep -ERq 'issue-(automation|codex-watch|release-watch)|automation:(ready|implementing|reviewing|release)' \
+  scripts .github/workflows docs/agents; then
+  fail 'retired remote Issue automation remains reachable'
+fi
+# shellcheck disable=SC2016 # source assertion intentionally contains literal variables
+grep -Fq 'gh_bin}" pr merge "${pr}" --repo "${repo}" --auto --squash --delete-branch' scripts/issue-local.sh
 grep -Fq 'ZERP_RELEASE_VERIFIER_ACTOR is required' scripts/verify-preview-pr.sh
 
 # Direct-main PR evidence must include the latest base and no merge commits.

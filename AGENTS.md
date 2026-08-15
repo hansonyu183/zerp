@@ -28,14 +28,14 @@
 - SQL 修改后运行 `make generate`，不得手改 sqlc 生成代码。
 - 每项工作使用独立分支或工作树，不得把无关修改混入提交、预览、PR 或部署。
 - PR 必须直接以 `main` 为基线和目标；依赖中的后续工作可以保留本地分支，但必须等前置 PR 合并后基于最新 `main` 重放，再创建 PR，禁止堆叠 PR 重复触发完整门禁。
-- 形成可验收提交后先运行 `make pre-push-plan` 核对检查矩阵，再运行 `make pre-push`；门禁按 `scripts/change-impact.sh` 的文档、验证工具和应用影响三级分类，并在应用影响内细分契约、前端、后端、后端全量、容器、E2E 和预览。普通纯前端源码本地只运行前端门禁，Draft CI 延后 Playwright，Ready 后对最终版本运行一次完整 E2E；普通纯后端源码本地运行格式、普通测试、vet 和构建，PR CI 补充静态与安全检查。契约、SQL/迁移、依赖、运行配置、跨端、容器/E2E 工具和未知变更仍必须通过后端全量集成/race 及适用的隔离 E2E。需要保守复核时运行 `PRE_PUSH_FULL=1 make pre-push`。
-- 创建 PR 前必须获取最新 `origin/main`，将功能提交重放到该提交，解决冲突并保持工作区干净；检查相对 `origin/main` 的完整差异，再依次运行 `make pre-push-plan` 和聚焦的 `make pre-push`。普通开发禁止先创建 PR，再因分支落后而 rebase 或强推；授权 Issue 的 Draft 候选进入串行发布通道前，由实现者 App 使用 `--force-with-lease` 重放最新 `main` 并重新生成全部证据。通过后推送并创建目标为 `main` 的 Draft PR；最后一次确认分支基于最新 `main` 后转为 Ready。Draft 不得用人工失败伪装未就绪；只有 Ready 的最新提交才运行并满足完整自动验证。
-- `validation` 是自动化门禁聚合，`full-validation` 是最终可合并证据。GitHub 的 `contracts`、`frontend`、`backend`、`containers`、`e2e` 和 `validation` 必须按影响矩阵成功；无需预览的 PR 由工作流为最新 SHA 发布 `full-validation`。需要预览的 PR 先只发布 `preview-required`，必须从 `HEAD == origin/main` 的受信任控制 checkout 部署准确提交；再由配置的 release-verifier GitHub App 对 exact SHA 执行固定浏览器验收并发布 `full-validation`。实现者、审查者和普通用户都不能签发该证据。新提交使之前的预览和验收证据失效。
-- 运行代码、契约、迁移、依赖、构建和预览工具变更必须完成独立 release-verifier 的固定预览验收；文档、普通验证工具、单元测试-only、E2E-only 和生产工具-only 变更无需部署应用预览。固定预览一次只服务一个活跃 PR；状态从已验收的 `main` 基线克隆，关闭或拒绝恢复基线，合并后晋升验收状态，24 小时无活动释放占用但不删除状态。
+- 形成可验收提交后只运行一次最终门禁。`$to-tickets` 本地批次由 `$implement` 在代码审查和修复后运行 `scripts/change-gate.sh <base-sha>` 并写 exact-head 证据；控制器不得先运行计划命令或重复门禁。普通人工工作在获取最新 `origin/main` 并重放后运行一次 `make pre-push`。门禁按 `scripts/change-impact.sh` 的文档、验证工具和应用影响三级分类，并在应用影响内细分契约、前端、后端、后端全量、容器、E2E 和预览。需要保守复核时使用 `PRE_PUSH_FULL=1` 执行同一次最终门禁。
+- 本地批次必须先在没有 GitHub 读写的情况下完成实现、最终门禁和公网 exact-SHA 预览，再获取最新 `origin/main`。若重放只改变提交 SHA 且运行时指纹不变，复用已有门禁和预览；若运行时指纹改变或发生冲突，必须再次交给 `$implement` 修复并重新生成门禁和预览证据。通过后按依赖创建远端 Issues、推送一个分支并直接创建目标为 `main` 的 Ready PR。普通人工开发仍须在创建 PR 前重放最新 `main`，禁止先创建 PR 再常规强推。
+- `validation` 是自动化门禁聚合，`full-validation` 是最终可合并证据。GitHub 的 `contracts`、`frontend`、`backend`、`containers`、`e2e` 和 `validation` 必须按影响矩阵成功。受信任本地批次的 Ready PR 必须使用同仓 `automation/local-*` 分支，并在 PR 正文携带与事件 head 完全一致的批次 marker 和运行时指纹；GitHub Actions 核对这些条件后，只有完整矩阵成功才发布 `full-validation`。普通需要预览的 PR 仍先发布 `preview-required`，再由配置的 release-verifier 对 exact SHA 验收并发布 `full-validation`。任何新提交都使旧 head 的远端证据失效。
+- 运行代码、契约、迁移、依赖、构建和预览工具变更必须完成固定公网预览。受信任本地批次在创建任何 GitHub 对象前，由主工作区控制脚本对候选 worktree 执行 exact-SHA 浏览器验收；普通 PR 继续使用独立 release-verifier。文档、普通验证工具、单元测试-only、E2E-only 和生产工具-only 变更无需部署应用预览。固定预览一次只服务一个活跃批次或 PR；关闭或拒绝时恢复基线，生产成功后释放。
 - 固定预览失败时必须区分构建、迁移/种子、本机原生进程健康和公网 Tunnel 四层。若本机 Web/API 已健康且运行准确 SHA，公网 `530`、TLS 或资源预热失败不得通过 `preview-reset`、清空数据或重复改代码处理；应核对 Tunnel ingress、edge 连接和准确服务实例，恢复入口后重新运行 `make preview-status`。
-- 合并前必须确认 PR 最新 SHA 的全部必需检查成功；适用固定预览时，自动门禁就绪后再部署并完成独立自动验收。
+- 合并前必须确认 PR 最新 SHA 的全部必需检查成功；本地批次控制器使用 `gh pr checks --required` 等待分支保护要求的检查。
 - 生产可见问题必须核对真实 URL、浏览器实际请求目标、已加载资源和发布 SHA；不得仅凭本地代码或健康检查推断线上版本和行为。
-- 禁止直接推送或强推 `main`。只有授权 Issue 的独立发布控制器可以在全部 exact-SHA 证据成功后请求 squash auto-merge；GitHub ruleset 决定是否执行。合并后的 `main` 由生产发布代理自动部署，不得从开发工作区直接上线。
+- 禁止直接推送或强推 `main`。只有本地批次控制器可以在全部 exact-SHA 证据成功后请求 squash auto-merge；GitHub ruleset 决定是否执行。合并后的 `main` 由生产发布代理自动部署，不得从开发工作区直接上线。
 - 需要完成合并交付时，必须等待生产发布代理处理 squash 后的发布提交，并以 `make production-status` 确认 API、Web、公网入口和发布 SHA 一致后再结束；容器先切换而发布代理或公网标记尚未完成时不得提前宣称上线成功。
 - 保留用户已有修改，只改任务相关文件。
 
@@ -51,9 +51,9 @@
 
 ### Issue tracker
 
-Issues and specs are tracked in this repository's GitHub Issues. See `docs/agents/issue-tracker.md`.
+Development tickets are local `$to-tickets` batches under `.scratch/<feature>/issues`; GitHub Issues are published only after the complete batch passes its public preview. See `docs/agents/issue-tracker.md`.
 
-When an Issue carries an `automation:*` state, or work changes authorization, queueing, automated implementation/review, preview verification, auto-merge, kill-switch, Incident, or production closure behavior, follow `docs/agents/issue-delivery-automation.md` completely.
+When work changes local batch claiming, automated implementation/review, preview publication, GitHub mirroring, auto-merge, stop behavior, or production closure, follow `docs/agents/issue-delivery-automation.md` completely.
 
 ### Domain docs
 

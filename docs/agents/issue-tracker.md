@@ -1,45 +1,23 @@
-# Issue tracker: GitHub
+# Issue tracker: local ticket batches
 
-Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all operations.
+开发期间的唯一事实来源是主工作区的 `.scratch/<feature-slug>/issues/*.md`。`$to-tickets` 为一次工作生成一个目录；同目录中的所有 ticket 必须由一次 `$implement` 调用、一个分支、一个公网预览和一个 PR 共同交付。
 
-## Conventions
+每个 ticket 使用以下结构：
 
-- **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies.
-- **Read an issue**: `gh issue view <number> --comments`, filtering comments by `jq` and also fetching labels.
-- **List issues**: `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
-- **Comment on an issue**: `gh issue comment <number> --body "..."`
-- **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
-- **Close**: `gh issue close <number> --comment "..."`
+```md
+# <NN> — <title>
 
-Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone.
+**What to build:** <outcome>
 
-## Pull requests as a triage surface
+**Blocked by:** None — can start immediately. | <earlier ticket numbers>
 
-**PRs as a request surface: no.** _(Set to `yes` if this repo treats external PRs as feature requests; `/triage` reads this flag.)_
+**Status:** ready-for-agent
 
-When set to `yes`, PRs run through the same labels and states as issues, using the `gh pr` equivalents:
+- [ ] <objective acceptance criterion>
+```
 
-- **Read a PR**: `gh pr view <number> --comments` and `gh pr diff <number>` for the diff.
-- **List external PRs for triage**: `gh pr list --state open --json number,title,body,labels,author,authorAssociation,comments` then keep only `authorAssociation` of `CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR`, or `NONE` (drop `OWNER`/`MEMBER`/`COLLABORATOR`).
-- **Comment / label / close**: `gh pr comment`, `gh pr edit --add-label`/`--remove-label`, `gh pr close`.
+编号按依赖优先排序；`Blocked by` 只能引用本批次中编号更小的 ticket。有效状态是 `ready-for-agent`、`in-progress`、`needs-input`、`blocked` 和 `done`。`.scratch/` 不提交到 Git。
 
-GitHub shares one number space across issues and PRs, so a bare `#42` may be either — resolve with `gh pr view 42` and fall back to `gh issue view 42`.
+GitHub Issues 不是开发队列。整批本地实现、最终门禁和公网预览通过后，控制器才按编号创建一一对应的远端 Issues，将 `Blocked by` 同时写成 `#<number>` 引用和 GitHub 原生依赖。一个 Ready PR 引用这一批的全部远端 Issues；只有 squash 合并后的生产 SHA、公网 API 和 Web 全部验证成功，控制器才关闭远端 Issues并把本地 ticket 标为 `done`。
 
-## When a skill says "publish to the issue tracker"
-
-Create a GitHub issue.
-
-## When a skill says "fetch the relevant ticket"
-
-Run `gh issue view <number> --comments`.
-
-## Wayfinding operations
-
-Used by `/wayfinder`. The **map** is a single issue with **child** issues as tickets.
-
-- **Map**: a single issue labelled `wayfinder:map`, holding the Notes / Decisions-so-far / Fog body. `gh issue create --label wayfinder:map`.
-- **Child ticket**: an issue linked to the map as a GitHub sub-issue (`gh api` on the sub-issues endpoint). Where sub-issues aren't enabled, add the child to a task list in the map body and put `Part of #<map>` at the top of the child body. Labels: `wayfinder:<type>` (`research`/`prototype`/`grilling`/`task`). Once claimed, the ticket is assigned to the driving dev.
-- **Blocking**: GitHub's **native issue dependencies** — the canonical, UI-visible representation. Add an edge with `gh api --method POST repos/<owner>/<repo>/issues/<child>/dependencies/blocked_by -F issue_id=<blocker-db-id>`, where `<blocker-db-id>` is the blocker's numeric **database id** (`gh api repos/<owner>/<repo>/issues/<n> --jq .id`, not the `#number` or `node_id`). GitHub reports `issue_dependencies_summary.blocked_by` (open blockers only — the live gate). Where dependencies aren't available, fall back to a `Blocked by: #<n>, #<n>` line at the top of the child body. A ticket is unblocked when every blocker is closed.
-- **Frontier query**: list the map's open children (`gh issue list --state open`, scoped to the map's sub-issues / task list), drop any with an open blocker (`issue_dependencies_summary.blocked_by > 0`, or an open issue in the `Blocked by` line) or an assignee; first in map order wins.
-- **Claim**: `gh issue edit <n> --add-assignee @me` — the session's first write.
-- **Resolve**: `gh issue comment <n> --body "<answer>"`, then `gh issue close <n>`, then append a context pointer (gist + link) to the map's Decisions-so-far.
+人工读取或修改已经发布的远端对象时使用 `gh issue` / `gh pr`。不得把远端 Issue 的后续编辑静默带回正在执行的本地批次；需要改变范围时应停止该批次并重新生成本地 ticket。

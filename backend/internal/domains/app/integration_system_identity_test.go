@@ -11,21 +11,7 @@ import (
 func TestSystemIdentityIntegration(t *testing.T) {
 	service, pool, _ := appIntegrationService(t)
 	resetAPPIntegrationData(t, pool)
-	if _, err := pool.Exec(t.Context(), `INSERT INTO app_roles(id,code,name,status,created_by,updated_by)
-		VALUES($1,$2,$3,'ENABLED',$4,$4)`, systemidentity.RoleID, systemidentity.RoleCode,
-		systemidentity.RoleName, systemidentity.UserID); err != nil {
-		t.Fatalf("restore system role after APP test reset: %v", err)
-	}
-	if _, err := pool.Exec(t.Context(), `INSERT INTO app_users(
-		id,username,display_name,password_hash,status,password_changed_at,created_by,updated_by
-	) VALUES($1,$2,$3,'!system-login-disabled!','DISABLED',now(),$1,$1)`, systemidentity.UserID,
-		systemidentity.Username, systemidentity.UserDisplayName); err != nil {
-		t.Fatalf("restore system user after APP test reset: %v", err)
-	}
-	if _, err := pool.Exec(t.Context(), `INSERT INTO app_user_roles(user_id,role_id,created_by)
-		VALUES($1,$2,$1)`, systemidentity.UserID, systemidentity.RoleID); err != nil {
-		t.Fatalf("restore system identity after APP test reset: %v", err)
-	}
+	restoreAPPSystemIdentity(t, pool)
 	admin, err := service.BootstrapAdmin(t.Context(), "admin", "系统管理员", integrationAdminPassword)
 	if err != nil {
 		t.Fatalf("bootstrap administrator beside system identity: %v", err)

@@ -216,6 +216,7 @@ func TestQueryAndPermissionCatalogIntegration(t *testing.T) {
 
 func TestUserManagementSecurityIntegration(t *testing.T) {
 	service, pool, admin := appIntegrationService(t)
+	restoreAPPSystemIdentity(t, pool)
 	role, err := service.CreateRole(t.Context(), CreateRoleInput{
 		Code: "managed-reader", Name: "受管用户角色", PermissionIDs: permissionIDsByPath(t, pool, "/app/user/query"),
 	}, admin.ID, "create-managed-reader")

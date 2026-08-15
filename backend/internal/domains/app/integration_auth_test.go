@@ -312,6 +312,11 @@ func TestAuthorizationChangesAreImmediateIntegration(t *testing.T) {
 			t.Fatalf("permissions %v missing %s", signin.Data.Permissions, path)
 		}
 	}
+	signin = completeRequiredPasswordChange(t, service, signin, integrationUserPassword, "Reader-password-2!")
+	user, err = service.GetUser(t.Context(), user.ID)
+	if err != nil {
+		t.Fatalf("refresh reader after password change: %v", err)
+	}
 	if _, err = service.SetRoleStatus(t.Context(), roleA.ID, roleA.Revision, StatusDisabled, admin.ID, "disable-role-a"); err != nil {
 		t.Fatalf("disable role A: %v", err)
 	}

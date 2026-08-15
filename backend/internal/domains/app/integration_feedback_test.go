@@ -35,6 +35,7 @@ func TestFeedbackSubmissionAndPublishingIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("signin feedback user: %v", err)
 	}
+	signin = completeRequiredPasswordChange(t, service, signin, integrationUserPassword, "Feedback-password-2!")
 	principal, err := service.AuthorizeSession(
 		t.Context(), signin.SessionToken, signin.Data.CSRFToken,
 		"/app/feedback/create", "feedback-authorize",

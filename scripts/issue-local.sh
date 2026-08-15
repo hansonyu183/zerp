@@ -229,11 +229,41 @@ prepare_worktree() {
   cp -R "${issues_dir}" "${worktree}/.scratch/${feature}/issues"
 }
 
+verify_worktree_git_metadata() {
+  worktree=$1
+  git_dir=$(git -C "${worktree}" rev-parse --path-format=absolute --git-dir)
+  common_git_dir=$(git -C "${worktree}" rev-parse --path-format=absolute --git-common-dir)
+  [ -d "${git_dir}" ] || { echo "worktree Git directory is unavailable: ${git_dir}" >&2; return 1; }
+  [ -d "${common_git_dir}" ] || { echo "shared Git directory is unavailable: ${common_git_dir}" >&2; return 1; }
+
+  # Linked worktrees keep their index under git_dir and refs/objects under
+  # common_git_dir. Exercise both locations before asking Codex to do work.
+  (
+    probe_index="${git_dir}/issue-local-index-probe-$$"
+    probe_ref="refs/issue-local-probe/$$"
+    cleanup_probe() {
+      rm -f "${probe_index}" "${probe_index}.lock"
+      git -C "${worktree}" update-ref -d "${probe_ref}" >/dev/null 2>&1 || true
+    }
+    trap cleanup_probe EXIT HUP INT TERM
+    GIT_INDEX_FILE="${probe_index}" git -C "${worktree}" read-tree HEAD
+    [ -f "${probe_index}" ] || { echo "cannot write linked-worktree Git index" >&2; exit 1; }
+    git -C "${worktree}" update-ref "${probe_ref}" HEAD
+    cleanup_probe
+    trap - EXIT HUP INT TERM
+  ) || { echo "linked-worktree Git metadata is not writable" >&2; return 1; }
+
+  printf '%s\t%s\n' "${git_dir}" "${common_git_dir}"
+}
+
 run_implement() {
   feature=$1
   batch_root=$2
   worktree=$3
   base_sha=$4
+  git_metadata=$(verify_worktree_git_metadata "${worktree}") || return 1
+  worktree_git_dir=$(printf '%s' "${git_metadata}" | cut -f1)
+  common_git_dir=$(printf '%s' "${git_metadata}" | cut -f2)
   result_file="${batch_root}/implementation.json"
   evidence_file="${batch_root}/gate-evidence.json"
   failure_file="${batch_root}/failure.md"
@@ -262,7 +292,10 @@ run_implement() {
       --sandbox workspace-write \
       -c sandbox_workspace_write.network_access=false \
       -c web_search=disabled -c features.apps=false \
-      -C "${worktree}" --output-schema "${schema}" -o "${result_file}" -
+      -C "${worktree}" \
+      --add-dir "${worktree_git_dir}" \
+      --add-dir "${common_git_dir}" \
+      --output-schema "${schema}" -o "${result_file}" -
   [ -r "${result_file}" ] || { echo 'Codex did not return a structured result' >&2; return 1; }
   status=$(jq -r .status "${result_file}")
   case "${status}" in

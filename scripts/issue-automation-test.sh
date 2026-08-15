@@ -59,15 +59,15 @@ event() {
 }
 
 valid_event="${tmp}/valid.json"
-event maintainer '["automation:ready"]' "${body}" >"${valid_event}"
+event Maintainer '["automation:ready"]' "${body}" >"${valid_event}"
 PATH="${tmp}/bin:${PATH}" ZERP_GH_BIN=gh GITHUB_REPOSITORY=example/zerp \
-  ZERP_AUTOMATION_ENABLED=true ZERP_AUTOMATION_AUTHORIZERS=maintainer \
+  ZERP_AUTOMATION_ENABLED=true ZERP_AUTOMATION_AUTHORIZERS=' other, MAINTAINER ' \
   ZERP_AUTOMATION_MAIN_SHA=1111111111111111111111111111111111111111 \
   ZERP_AUTHORIZED_AT=2026-08-15T00:00:00Z \
   "${repo_root}/scripts/issue-automation.sh" snapshot "${valid_event}" "${tmp}/snapshot.json"
 jq -e '
   .issue == 17 and (.body_sha256 | length == 64) and
-  .authorization.actor == "maintainer" and .authorization.permission == "authorized" and
+  .authorization.actor == "Maintainer" and .authorization.permission == "authorized" and
   .priority == "priority:p2" and
   .main_sha == "1111111111111111111111111111111111111111" and
   .linked_specs[0].path == "docs/agents/issue-tracker.md" and

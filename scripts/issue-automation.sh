@@ -80,7 +80,10 @@ snapshot() {
   actor_key=$(printf '%s' "${actor}" | tr '[:upper:]' '[:lower:]')
   case "${actor_key}" in *'[bot]' | *-bot | bot) needs_input "Bot actors cannot authorize Issues" ;; esac
   owner_key=$(printf '%s' "${repo%%/*}" | tr '[:upper:]' '[:lower:]')
-  authorizers=$(printf '%s,%s' "${owner_key}" "${ZERP_AUTOMATION_AUTHORIZERS:-}" | tr '[:upper:] ' '[:lower:]' | tr ',' '\n')
+  authorizers=$(printf '%s,%s' "${owner_key}" "${ZERP_AUTOMATION_AUTHORIZERS:-}" |
+    tr -d '[:space:]' |
+    tr '[:upper:]' '[:lower:]' |
+    tr ',' '\n')
   printf '%s\n' "${authorizers}" | grep -Fxq "${actor_key}" || needs_input "authorizing actor is not in ZERP_AUTOMATION_AUTHORIZERS"
   permission=authorized
 

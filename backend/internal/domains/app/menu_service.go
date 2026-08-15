@@ -451,7 +451,7 @@ func buildDefaultMenu(catalog []registeredMenuRoute) MenuTree {
 		{ID: "default-led", Name: "业务账簿", Icon: "mdi-book-open-page-variant-outline", Order: 70},
 		{ID: "default-system", Name: "系统管理", Icon: "mdi-cog-outline", Order: 80},
 		{ID: "default-rpt", Name: "报表", Icon: "mdi-chart-box-outline", Order: 90},
-		{ID: "default-other", Name: "其他/待归类", Icon: "mdi-folder-outline", Order: 100},
+		{ID: "default-other", Name: "其他", Icon: "mdi-folder-outline", Order: 100},
 	}
 	items := groupViews(groups)
 	orders := map[string]int32{}

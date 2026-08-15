@@ -667,12 +667,15 @@ publish_pr() {
   head_sha=$(git -C "${worktree}" rev-parse HEAD)
   manifest="${batch_root}/remote-issues.tsv"
   pr_file="${batch_root}/pr-number"
+  existing_pr=0
+  [ ! -f "${pr_file}" ] || existing_pr=1
   if [ ! -f "${pr_file}" ]; then
     git -C "${worktree}" push -u origin "HEAD:refs/heads/${branch}" >/dev/null
     recovered_pr=$("${gh_bin}" pr list --repo "${repo}" --head "${branch}" --state all \
       --json number --jq '.[0].number // empty')
     if [ -n "${recovered_pr}" ]; then
       write_value "${pr_file}" "${recovered_pr}"
+      existing_pr=1
     fi
   fi
   if [ ! -f "${pr_file}" ]; then
@@ -686,6 +689,33 @@ publish_pr() {
     write_value "${pr_file}" "${pr}"
   fi
   pr=$(cat "${pr_file}")
+  if [ "${existing_pr}" = 1 ]; then
+    pr_json=$("${gh_bin}" pr view "${pr}" --repo "${repo}" \
+      --json state,headRefName,headRefOid,baseRefName,body) || return 1
+    state=$(printf '%s' "${pr_json}" | jq -r .state)
+    remote_branch=$(printf '%s' "${pr_json}" | jq -r .headRefName)
+    remote_head=$(printf '%s' "${pr_json}" | jq -r .headRefOid)
+    base_branch=$(printf '%s' "${pr_json}" | jq -r .baseRefName)
+    if [ "${state}" != OPEN ] || [ "${remote_branch}" != "${branch}" ] || \
+      [ "${base_branch}" != main ] || ! printf '%s' "${remote_head}" | grep -Eq '^[0-9a-f]{40}$'; then
+      echo "existing PR #${pr} does not match open ${branch} -> main" >&2
+      return 1
+    fi
+    update_pr_body "${feature}" "${batch_root}" "${worktree}" "${preview_url}" "${fingerprint}"
+    expected_marker="<!-- zerp-local-batch feature=${feature} head=${head_sha} fingerprint=${fingerprint} -->"
+    body_matches=0
+    printf '%s' "${pr_json}" | jq -r .body | grep -Fqx "${expected_marker}" && body_matches=1
+    if [ "${remote_head}" != "${head_sha}" ]; then
+      git -C "${worktree}" push \
+        --force-with-lease="refs/heads/${branch}:${remote_head}" \
+        origin "HEAD:refs/heads/${branch}" >/dev/null
+      body_matches=0
+    fi
+    if [ "${body_matches}" != 1 ]; then
+      "${gh_bin}" pr edit "${pr}" --repo "${repo}" \
+        --body-file "${batch_root}/pr-body.md" >/dev/null
+    fi
+  fi
   printf '%s\n' "${pr}"
 }
 

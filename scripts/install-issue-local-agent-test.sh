@@ -18,9 +18,16 @@ cat >"${tmp}/bin/gh" <<'MOCK'
 #!/bin/sh
 [ "$*" = 'auth status' ]
 MOCK
-chmod +x "${tmp}/bin/codex" "${tmp}/bin/gh"
+cat >"${tmp}/bin/plutil" <<'MOCK'
+#!/bin/sh
+[ "$1" = -lint ] && [ -r "$2" ]
+grep -Fq '<plist version="1.0">' "$2"
+MOCK
+chmod +x "${tmp}/bin/codex" "${tmp}/bin/gh" "${tmp}/bin/plutil"
+PATH="${tmp}/bin:${PATH}"
+export PATH
 
-HOME="${tmp}/home" PATH="${tmp}/bin:${PATH}" \
+HOME="${tmp}/home" \
   ZERP_PRIMARY_ROOT="${tmp}/primary" \
   ZERP_SKILL_ROOT="${tmp}/skills" \
   ZERP_ISSUE_LOCAL_RUNTIME_ROOT="${tmp}/runtime" \
@@ -41,7 +48,7 @@ for installed in issue-local.sh issue-local-preview.sh issue-local-production.sh
 test -r "${tmp}/runtime/local-implementation-output.json"
 test ! -x "${tmp}/runtime/local-implementation-output.json"
 test -d "${tmp}/primary/.scratch"
-HOME="${tmp}/home" PATH="${tmp}/bin:${PATH}" \
+HOME="${tmp}/home" \
   ZERP_PRIMARY_ROOT="${tmp}/primary" ZERP_ISSUE_LOCAL_RUNTIME_ROOT="${tmp}/runtime" \
   ZERP_ISSUE_TRACKER_ROOT="${tmp}/primary/.scratch" \
   "${tmp}/runtime/issue-local.sh" status >/dev/null

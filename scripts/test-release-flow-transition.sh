@@ -98,10 +98,10 @@ grep -Fq '<key>WatchPaths</key>' scripts/install-issue-local-agent.sh
 if grep -Fq '<key>StartInterval</key>' scripts/install-issue-local-agent.sh; then
   fail 'local Issue agent uses polling'
 fi
-if rg -q 'openai/codex-action|OPENAI_API_KEY|issue-queue|issue-implement|issue-review' .github/workflows; then
+if grep -ERq 'openai/codex-action|OPENAI_API_KEY|issue-queue|issue-implement|issue-review' .github/workflows; then
   fail 'retired cloud Codex workflow remains reachable'
 fi
-if rg -q 'issue-(automation|codex-watch|release-watch)|automation:(ready|implementing|reviewing|release)' \
+if grep -ERq 'issue-(automation|codex-watch|release-watch)|automation:(ready|implementing|reviewing|release)' \
   scripts .github/workflows docs/agents; then
   fail 'retired remote Issue automation remains reachable'
 fi

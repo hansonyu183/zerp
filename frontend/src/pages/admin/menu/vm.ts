@@ -75,7 +75,9 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
       )
     },
     get availableRoutes(): MenuRouteOption[] {
-      return this.data?.availableRoutes ?? []
+      return (this.data?.availableRoutes ?? []).filter(
+        (item) => item.routeKey !== 'home/dashboard',
+      )
     },
     children(groupID: string): SaveMenuItem[] {
       return this.editableItems

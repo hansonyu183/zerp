@@ -60,6 +60,12 @@ function sampleMenu(): MenuData {
     navigation: tree,
     availableRoutes: [
       {
+        routeKey: 'home/dashboard',
+        routePath: '/home/dashboard',
+        displayName: '工作台',
+        permissionCode: '/app/workbench/query',
+      },
+      {
         routeKey: 'admin/menu',
         routePath: '/admin/menu',
         displayName: '菜单管理',
@@ -106,6 +112,27 @@ function setup() {
 }
 
 describe('menu management view model', () => {
+  it('不暴露工作台作为可添加路由', async () => {
+    const { vm } = setup()
+    await vm.load()
+
+    expect(
+      vm.availableRoutes.some((item) => item.routeKey === 'home/dashboard'),
+    ).toBe(false)
+  })
+
+  it('禁止通过新增路由直接添加工作台', async () => {
+    const { vm } = setup()
+    await vm.load()
+
+    vm.newRouteByGroup.system = 'home/dashboard'
+    vm.addRoute('system')
+
+    expect(
+      vm.children('system').some((item) => item.routeKey === 'home/dashboard'),
+    ).toBe(false)
+  })
+
   it('加载模板并允许重复路由、跨组移动和整树保存', async () => {
     const { vm, save, apply } = setup()
     await vm.load()

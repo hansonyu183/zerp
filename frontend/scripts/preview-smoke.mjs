@@ -1,3 +1,5 @@
+/* global process */
+
 import { chromium } from '@playwright/test'
 
 const baseURL = process.env.ZERP_PREVIEW_URL

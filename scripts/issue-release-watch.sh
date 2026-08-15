@@ -128,30 +128,35 @@ draft=$(printf '%s' "${pr_json}" | jq -r .draft)
 [ "${draft}" = false ] || { log "PR #${pr} is still Draft"; exit 0; }
 git -C "${repository_root}" fetch origin "refs/pull/${pr}/head:refs/remotes/origin/release/${pr}" --force
 if ! git -C "${repository_root}" merge-base --is-ancestor "${main_sha}" "${head}"; then
-  body=$(printf '%s' "${pr_json}" | jq -r .body)
-  auth_run=$(printf '%s' "${body}" | sed -n 's/.* authorization_run=\([0-9][0-9]*\) .*/\1/p')
-  deployment=$(printf '%s' "${body}" | sed -n 's/.* deployment=\([0-9][0-9]*\) .*/\1/p')
-  body_sha=$(printf '%s' "${body}" | sed -n 's/.* body_sha=\([0-9a-f][0-9a-f]*\) .*/\1/p')
-  branch=$(printf '%s' "${pr_json}" | jq -r .head.ref)
   round=$(git -C "${repository_root}" show -s --format=%s "${head}" | sed -n 's/.* implementation round \([1-3]\)$/\1/p')
   [ -n "${round}" ] || round=1
+  gh pr ready "${pr}" --undo >/dev/null
+  gh pr comment "${pr}" --body "Release controller requires replay of exact head \`${head}\` onto current main \`${main_sha}\`. <!-- zerp-repair head=${head} round=${round} reason=stale-main -->"
   "${source_root}/scripts/issue-automation.sh" set-state "${issue}" automation:implementing
-  jq -n --argjson issue "${issue}" --argjson pr "${pr}" --arg branch "${branch}" --arg body_sha256 "${body_sha}" --arg authorization_run_id "${auth_run}" --argjson deployment_id "${deployment}" --arg review_run_id "" --argjson round "${round}" '{event_type:"issue-rebase",client_payload:{issue:$issue,pr:$pr,branch:$branch,body_sha256:$body_sha256,authorization_run_id:$authorization_run_id,deployment_id:$deployment_id,review_run_id:$review_run_id,round:$round}}' |
-    gh api --method POST "repos/${repo_slug}/dispatches" --input -
-  log "dispatched latest-main replay for stale PR #${pr}"
+  log "requested latest-main replay for stale PR #${pr}"
   exit 0
 fi
 
 checks=$(gh api --paginate --slurp "repos/${repo_slug}/commits/${head}/check-runs?per_page=100" | jq -ce '{check_runs:[.[].check_runs[]]}')
 latest_check() { printf '%s' "${checks}" | jq -c --arg name "$1" '[.check_runs[] | select(.name == $name)] | sort_by(.started_at) | if length == 0 then null else last end'; }
-verify_review() {
-  name=$1
-  check=$(latest_check "${name}")
-  verify_actions_check_run_from "${repo_slug}" "${check}" "${name}" "${head}" pull_request "${pr}" gh \
-    "Automated independent reviews" ".github/workflows/issue-review.yml"
+reviewer_actor=$(gh api "repos/${repo_slug}/actions/variables/ZERP_REVIEWER_BOT_LOGIN" --jq .value 2>/dev/null || true)
+[ -n "${reviewer_actor}" ] || { log 'reviewer Bot login is not configured'; exit 0; }
+statuses=$(gh api --paginate --slurp "repos/${repo_slug}/commits/${head}/statuses?per_page=100" | jq -ce '[.[][]]')
+verify_review_status() {
+  context=$1
+  status=$(printf '%s' "${statuses}" | jq -c --arg context "${context}" \
+    '[.[] | select(.context == $context)] | sort_by(.created_at,.id) | if length == 0 then null else last end')
+  [ "${status}" != null ] || return 1
+  printf '%s' "${status}" | jq -e --arg head "${head}" --arg actor "${reviewer_actor}" \
+    --arg context "${context}" --arg target "https://github.com/${repo_slug}/commit/${head}" \
+    --arg prefix "PR #${pr} round " '
+      .sha == $head and .state == "success" and .context == $context and
+      ((.creator.login | ascii_downcase) == ($actor | ascii_downcase)) and
+      .target_url == $target and (.description | startswith($prefix))
+    ' >/dev/null
 }
-verify_review automation-standards-review || { log "waiting for trusted standards review on PR #${pr}"; exit 0; }
-verify_review automation-spec-review || { log "waiting for trusted specification review on PR #${pr}"; exit 0; }
+verify_review_status automation-standards-review || { log "waiting for trusted standards review on PR #${pr}"; exit 0; }
+verify_review_status automation-spec-review || { log "waiting for trusted specification review on PR #${pr}"; exit 0; }
 
 full_check=$(latest_check full-validation)
 preview_check=$(latest_check preview-required)
@@ -173,15 +178,9 @@ elif verify_actions_check_run "${repo_slug}" "${preview_check}" preview-required
     round=$(git -C "${repository_root}" show -s --format=%s "${head}" | sed -n 's/.* implementation round \([1-3]\)$/\1/p')
     [ -n "${round}" ] || round=3
     if [ "${round}" -lt 3 ]; then
-      body=$(printf '%s' "${pr_json}" | jq -r .body)
-      auth_run=$(printf '%s' "${body}" | sed -n 's/.* authorization_run=\([0-9][0-9]*\) .*/\1/p')
-      deployment=$(printf '%s' "${body}" | sed -n 's/.* deployment=\([0-9][0-9]*\) .*/\1/p')
-      body_sha=$(printf '%s' "${body}" | sed -n 's/.* body_sha=\([0-9a-f][0-9a-f]*\) .*/\1/p')
-      branch=$(printf '%s' "${pr_json}" | jq -r .head.ref)
-      next_round=$((round + 1))
+      gh pr ready "${pr}" --undo >/dev/null
+      gh pr comment "${pr}" --body "Release controller rejected exact head \`${head}\`: preview browser smoke failed. <!-- zerp-repair head=${head} round=${round} reason=preview -->"
       "${source_root}/scripts/issue-automation.sh" set-state "${issue}" automation:implementing
-      jq -n --argjson issue "${issue}" --argjson pr "${pr}" --arg branch "${branch}" --arg body_sha256 "${body_sha}" --arg authorization_run_id "${auth_run}" --argjson deployment_id "${deployment}" --arg review_run_id "" --argjson round "${next_round}" --arg release_failure "exact-SHA preview browser smoke failed" '{event_type:"issue-repair",client_payload:{issue:$issue,pr:$pr,branch:$branch,body_sha256:$body_sha256,authorization_run_id:$authorization_run_id,deployment_id:$deployment_id,review_run_id:$review_run_id,round:$round,release_failure:$release_failure}}' |
-        gh api --method POST "repos/${repo_slug}/dispatches" --input -
       exit 0
     fi
     "${source_root}/scripts/issue-automation.sh" set-state "${issue}" automation:blocked

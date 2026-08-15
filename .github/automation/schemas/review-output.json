@@ -15,7 +15,7 @@
     },
     "findings": {
       "type": "array",
-      "maxItems": 50,
+      "maxItems": 20,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -25,7 +25,7 @@
             "type": "string",
             "enum": ["blocking", "major", "minor"]
           },
-          "message": { "type": "string", "minLength": 1, "maxLength": 2000 },
+          "message": { "type": "string", "minLength": 1, "maxLength": 1000 },
           "file": { "type": "string", "maxLength": 500 },
           "line": { "type": "integer", "minimum": 1 }
         }

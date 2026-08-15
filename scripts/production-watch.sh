@@ -130,8 +130,6 @@ complete_automation_issue() {
   "${source_root}/scripts/production-status.sh" >/dev/null
   "${source_root}/scripts/issue-automation.sh" set-state "${issue}" automation:done
   gh issue close "${issue}" --comment "自动交付完成：生产提交 \`${target_sha}\` 的 API、Web 与公网入口均已通过验证。"
-  jq -n '{event_type:"issue-queue",client_payload:{reason:"production-complete"}}' |
-    gh api --method POST "repos/${repo_slug}/dispatches" --input - >/dev/null
 }
 
 open_production_incident() {

@@ -40,6 +40,7 @@ cat >"${root}/bin/gh" <<'EOF'
 printf '%s\n' "$*" >>"${MOCK_GH_LOG}"
 case "$*" in
   *"api user --jq .login"*) printf 'release-verifier[bot]\n' ;;
+  *"api installation/repositories"*) printf '{"total_count":1,"repositories":[{"full_name":"example/zerp"}]}\n' ;;
   *"repos/example/zerp/pulls/1"*)
     printf '{"state":"open","draft":false,"base":{"ref":"main"},"head":{"sha":"%s"}}\n' "${MOCK_ACCEPT_HEAD}"
     ;;
@@ -62,17 +63,25 @@ case "$*" in
   *"deployments/42/statuses?per_page=100"*)
     printf '[{"state":"success","description":"verified PR #1 head %s generation 1 by release-verifier[bot]","creator":{"login":"release-verifier[bot]"},"created_at":"2026-08-08T00:02:00Z"}]\n' "${MOCK_ACCEPT_HEAD}"
     ;;
+  *"--method POST repos/example/zerp/deployments/42/statuses --input -"*)
+    payload=$(cat)
+    printf '%s' "${payload}" | jq '. + {creator:{login:"release-verifier[bot]"}}'
+    ;;
   *"deployments?sha="*)
     if grep -Fq -- "--method POST repos/example/zerp/deployments/42/statuses" "${MOCK_GH_LOG}"; then
-      printf '[{"id":42,"description":"preview PR #1 generation 1 verifier release-verifier[bot]","payload":{"pr":"1","generation":"1","actor":"release-verifier[bot]"},"creator":{"login":"release-verifier[bot]"},"created_at":"2026-08-08T00:01:00Z"}]\n'
+      case "$*" in
+        *"--jq "*) printf '42\n' ;;
+        *) printf '[{"id":42,"description":"preview PR #1 generation 1 verifier release-verifier[bot]","payload":{"pr":"1","generation":"1","actor":"release-verifier[bot]"},"creator":{"login":"release-verifier[bot]"},"created_at":"2026-08-08T00:01:00Z"}]\n' ;;
+      esac
     fi
     ;;
   *"--method POST repos/example/zerp/deployments --input - --jq .id"*) printf '42\n' ;;
   *"--method POST repos/example/zerp/statuses/${MOCK_ACCEPT_HEAD}"*)
+    payload=$(cat)
     if [ "${MOCK_DRIFT_AFTER_STATUS:-0}" = 1 ]; then
       printf '%s\n' 9999999999999999999999999999999999999999 >"${MOCK_RUNTIME_RELEASE_FILE}"
     fi
-    printf '{}\n'
+    printf '%s' "${payload}" | jq '. + {creator:{login:"release-verifier[bot]"}}'
     ;;
   *"commits/${MOCK_MERGE_SHA}/pulls?per_page=20"*)
     printf '[{"number":%s,"base":{"ref":"main"},"merged_at":"2026-08-08T00:00:00Z","merge_commit_sha":"%s","head":{"sha":"%s"}}]\n' "${MOCK_MERGED_PR:-1}" "${MOCK_MERGE_SHA}" "${MOCK_MERGED_HEAD:-${MOCK_ACCEPT_HEAD}}"

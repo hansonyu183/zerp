@@ -87,12 +87,24 @@ test "${checkout_count}" = "${exact_ref_count}" || fail 'every quality job must 
 grep -Fq "'draft-validation'" .github/workflows/quality.yml
 grep -Fq 'types: [labeled]' .github/workflows/issue-authorize.yml
 grep -Fq 'ZERP_AUTOMATION_ENABLED' .github/workflows/issue-authorize.yml
-grep -Fq 'ZERP_IMPLEMENTATION_CAPACITY: '\''2'\''' .github/workflows/issue-queue.yml
-grep -Fq 'automation-standards-review' .github/workflows/issue-review.yml
-grep -Fq 'automation-spec-review' .github/workflows/issue-review.yml
-grep -Fq 'permission-profile: '\'':workspace'\''' .github/workflows/issue-implement.yml
-grep -Fq 'permission-profile: '\'':read-only'\''' .github/workflows/issue-review.yml
-grep -Fq 'openai/codex-action@c385816875cc2fc8e033ed9d1cba96f8c331210e' .github/workflows/issue-implement.yml
+grep -Fq 'automation-standards-review' scripts/issue-codex-watch.sh
+grep -Fq 'automation-spec-review' scripts/issue-codex-watch.sh
+grep -Fq -- '--sandbox workspace-write' scripts/issue-codex-watch.sh
+grep -Fq -- '--sandbox read-only' scripts/issue-codex-watch.sh
+grep -Fq 'ZERP_REVIEWER_BOT_LOGIN' scripts/issue-release-watch.sh
+# shellcheck disable=SC2016 # the source assertion intentionally contains a literal variable reference
+grep -Fq 'commits/${head}/statuses?per_page=100' scripts/issue-release-watch.sh
+grep -Fq 'Logged in using ChatGPT' scripts/install-issue-codex-agent.sh
+grep -Fq 'com.hansonyu.zerp-issue-codex' scripts/install-issue-codex-agent.sh
+grep -Fq 'github-app-token.sh' scripts/install-issue-codex-agent.sh
+if rg -q 'openai/codex-action|OPENAI_API_KEY|issue-queue|issue-implement|issue-review' .github/workflows; then
+  fail 'retired cloud Codex workflow remains reachable'
+fi
+if rg -q 'repos/\$\{repo_slug\}/dispatches|issue-(repair|rebase)' scripts/issue-release-watch.sh; then
+  fail 'release controller still dispatches retired cloud Codex work'
+fi
+grep -Fq 'reason=stale-main' scripts/issue-release-watch.sh
+grep -Fq 'reason=preview' scripts/issue-release-watch.sh
 grep -Fq "gh pr merge \"\${pr}\" --auto --squash --delete-branch" scripts/issue-release-watch.sh
 grep -Fq 'ZERP_RELEASE_VERIFIER_ACTOR is required' scripts/verify-preview-pr.sh
 

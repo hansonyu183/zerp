@@ -94,7 +94,9 @@ if [ -n "${changed_files}" ]; then
         scripts/preview-state-test.sh | scripts/release-metrics.sh | \
         scripts/release-metrics-check.sh | scripts/review-* | \
         scripts/issue-automation.sh | scripts/issue-automation-test.sh | \
-        scripts/issue-queue.sh | scripts/issue-infra-retry.sh | scripts/github-app-token.sh | \
+        scripts/issue-codex-watch.sh | scripts/issue-codex-agent-test.sh | \
+        scripts/install-issue-codex-agent-test.sh | \
+        scripts/github-app-token.sh | scripts/install-issue-codex-agent.sh | \
         scripts/install-issue-release-agent.sh | \
         scripts/verify-pr-base.sh | scripts/verify-merged-pr.sh | scripts/dev.sh)
         if [ "${impact}" = "docs" ]; then

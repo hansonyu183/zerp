@@ -24,17 +24,10 @@ jobs:
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
-      - uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
-        id: implementer_token
-        with:
-          app-id: ${{ vars.ZERP_IMPLEMENTER_APP_ID }}
-          private-key: ${{ secrets.ZERP_IMPLEMENTER_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
       - name: Validate and freeze authorization
         id: snapshot
         env:
-          GH_TOKEN: ${{ steps.implementer_token.outputs.token }}
+          GH_TOKEN: ${{ github.token }}
           ZERP_AUTOMATION_ENABLED: ${{ vars.ZERP_AUTOMATION_ENABLED }}
           ZERP_AUTOMATION_AUTHORIZERS: ${{ vars.ZERP_AUTOMATION_AUTHORIZERS }}
           ZERP_AUTOMATION_MAIN_SHA: ${{ github.sha }}
@@ -50,7 +43,7 @@ jobs:
       - name: Pause incomplete Issue
         if: steps.snapshot.outputs.code == '3'
         env:
-          GH_TOKEN: ${{ steps.implementer_token.outputs.token }}
+          GH_TOKEN: ${{ github.token }}
           ISSUE: ${{ github.event.issue.number }}
         run: |
           scripts/issue-automation.sh set-state "$ISSUE" automation:needs-input
@@ -85,10 +78,3 @@ jobs:
           jq -n --arg description "Authorized Issue #$ISSUE body $body_hash" '{state:"success",description:$description}' |
             gh api --method POST "repos/$GITHUB_REPOSITORY/deployments/$deployment/statuses" --input - >/dev/null
           echo "deployment=$deployment" >> "$GITHUB_OUTPUT"
-      - name: Wake the queue
-        if: steps.snapshot.outputs.code == '0'
-        env:
-          GH_TOKEN: ${{ steps.implementer_token.outputs.token }}
-        run: |
-          jq -n '{event_type:"issue-queue",client_payload:{reason:"authorization"}}' |
-            gh api --method POST "repos/$GITHUB_REPOSITORY/dispatches" --input -

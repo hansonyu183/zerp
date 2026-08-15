@@ -31,7 +31,7 @@ installations=$(curl --silent --show-error --fail \
 installation_id=$(printf '%s' "${installations}" | jq -r --arg owner "${owner}" '[.[] | select((.account.login | ascii_downcase) == ($owner | ascii_downcase))] | if length == 1 then .[0].id else empty end')
 [ -n "${installation_id}" ] || { echo "release GitHub App installation is missing or ambiguous" >&2; exit 1; }
 
-request=$(jq -nc --arg repository "${repository}" '{repositories:[$repository],permissions:{actions:"read",checks:"read",contents:"write",deployments:"write",issues:"write",pull_requests:"write",statuses:"write",variables:"write"}}')
+request=$(jq -nc --arg repository "${repository}" '{repositories:[$repository]}')
 printf '%s' "${request}" | curl --silent --show-error --fail \
   -H "Authorization: Bearer ${jwt}" \
   -H "Accept: application/vnd.github+json" \

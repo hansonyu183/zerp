@@ -92,18 +92,10 @@ verify_actions_check_run "${repo}" "${validation_check}" \
   exit 1
 }
 
-authenticated_actor=$("${gh_bin}" api user --jq .login 2>/dev/null || true)
-test -n "${authenticated_actor}" || {
-  echo "authenticated GitHub actor is required" >&2
+test -n "${actor}" || {
+  echo "release verifier actor is required" >&2
   exit 1
 }
-if [ -n "${actor}" ] &&
-  [ "$(printf '%s' "${actor}" | tr '[:upper:]' '[:lower:]')" != \
-    "$(printf '%s' "${authenticated_actor}" | tr '[:upper:]' '[:lower:]')" ]; then
-  echo "actor ${actor} does not match authenticated GitHub actor ${authenticated_actor}" >&2
-  exit 1
-fi
-actor=${authenticated_actor}
 actor_key=$(printf '%s' "${actor}" | tr '[:upper:]' '[:lower:]')
 expected_verifier=${ZERP_RELEASE_VERIFIER_ACTOR:-}
 test -n "${expected_verifier}" || {
@@ -119,17 +111,13 @@ case "${actor_key}" in
   *'[bot]') ;;
   *) echo "release verifier must be a dedicated GitHub App Bot" >&2; exit 1 ;;
 esac
-permission=$(
-  "${gh_bin}" api "repos/${repo}/collaborators/${actor}/permission" \
-    --jq .permission 2>/dev/null || printf none
-)
-case "${permission}" in
-  write | maintain | admin) ;;
-  *)
-    echo "actor ${actor} lacks collaborator write permission" >&2
-    exit 1
-    ;;
-esac
+installation_repositories=$("${gh_bin}" api installation/repositories 2>/dev/null || true)
+printf '%s' "${installation_repositories}" |
+  jq -e --arg repo "${repo}" \
+    '.total_count == 1 and ([.repositories[].full_name] == [$repo])' >/dev/null || {
+  echo "release verifier token is not scoped only to ${repo}" >&2
+  exit 1
+}
 
 # Read the PR again after all external and local evidence checks. Callers invoke
 # this verifier both before and after the secret-free build.

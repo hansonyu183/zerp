@@ -90,14 +90,6 @@ for required_check in ${required_checks}; do
     exit 1
   }
   case "${accepted_actor_key}" in *'[bot]') ;; *) echo "Merged PR #${pull_number} verifier is not a GitHub App Bot" >&2; exit 1 ;; esac
-  permission=$(gh api "repos/${repository}/collaborators/${accepted_actor}/permission" --jq '.permission // "none"')
-  case "${permission}" in
-    admin | maintain | write) ;;
-    *)
-      echo "Merged PR #${pull_number} preview acceptance actor ${accepted_actor} lacks write permission" >&2
-      exit 1
-      ;;
-  esac
 
   deployment_description="preview PR #${pull_number} generation ${generation} verifier ${accepted_actor}"
   deployments=$(gh api -H "Accept: application/vnd.github+json" "repos/${repository}/deployments?sha=${head_sha}&environment=preview&per_page=100")

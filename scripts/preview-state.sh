@@ -148,15 +148,7 @@ accept_state(){
   [ "$(cat "$active_file" 2>/dev/null || true)" = "$pr" ] || { echo "PR is not active" >&2; return 1; }
   rec="$pr_root/${pr}.state"; head=$(read_field sha "$rec"); generation=$(read_field generation "$rec")
   command -v "$gh_bin" >/dev/null 2>&1 || { echo 'gh is required' >&2; return 1; }
-  authenticated_actor=$($gh_bin api user --jq .login)
-  [ -n "$authenticated_actor" ] || { echo 'authenticated GitHub actor is required' >&2; return 1; }
-  if [ -n "$actor" ] &&
-    [ "$(printf '%s' "$actor" | tr '[:upper:]' '[:lower:]')" != \
-      "$(printf '%s' "$authenticated_actor" | tr '[:upper:]' '[:lower:]')" ]; then
-    echo "actor $actor does not match authenticated GitHub actor $authenticated_actor" >&2
-    return 1
-  fi
-  actor=$authenticated_actor
+  [ -n "$actor" ] || { echo 'release verifier actor is required' >&2; return 1; }
   PREVIEW_ACTOR="$actor" "${repo_root}/scripts/verify-preview-pr.sh" "$pr" "$head" >/dev/null
   verify_active_release "$head"
   if [ "$(read_field sha "$current_file")" != "$head" ] || \
@@ -173,8 +165,25 @@ $payload
 EOF
 )
   fi
-  jq -n --arg url "https://zerp-preview.bytesucceed.com" --arg desc "verified PR #$pr head $head generation $generation by $actor" '{state:"success",environment_url:$url,description:$desc}' | $gh_bin api --method POST "repos/${repo}/deployments/${deployment}/statuses" --input - >/dev/null
-  jq -n --arg state success --arg context full-validation --arg description "verified preview PR #$pr generation $generation by $actor" --arg target_url "https://zerp-preview.bytesucceed.com" '{state:$state,context:$context,description:$description,target_url:$target_url}' | $gh_bin api --method POST "repos/${repo}/statuses/${head}" --input - >/dev/null
+  deployment_status_description="verified PR #$pr head $head generation $generation by $actor"
+  deployment_status=$(jq -n --arg url "https://zerp-preview.bytesucceed.com" --arg desc "$deployment_status_description" '{state:"success",environment_url:$url,description:$desc}' | $gh_bin api --method POST "repos/${repo}/deployments/${deployment}/statuses" --input -)
+  commit_status_description="verified preview PR #$pr generation $generation by $actor"
+  commit_status=$(jq -n --arg state success --arg context full-validation --arg description "$commit_status_description" --arg target_url "https://zerp-preview.bytesucceed.com" '{state:$state,context:$context,description:$description,target_url:$target_url}' | $gh_bin api --method POST "repos/${repo}/statuses/${head}" --input -)
+  actor_key=$(printf '%s' "$actor" | tr '[:upper:]' '[:lower:]')
+  evidence_error=
+  if ! printf '%s' "$deployment_status" | jq -e --arg actor "$actor_key" --arg desc "$deployment_status_description" '
+    .state == "success" and .description == $desc and ((.creator.login // "") | ascii_downcase) == $actor
+  ' >/dev/null; then evidence_error='GitHub did not attribute preview deployment evidence to the release verifier'
+  elif ! printf '%s' "$commit_status" | jq -e --arg actor "$actor_key" --arg desc "$commit_status_description" '
+    .state == "success" and .description == $desc and ((.creator.login // "") | ascii_downcase) == $actor
+  ' >/dev/null; then evidence_error='GitHub did not attribute full-validation evidence to the release verifier'
+  fi
+  if [ -n "$evidence_error" ]; then
+    jq -n --arg url "https://zerp-preview.bytesucceed.com" --arg desc "$evidence_error" '{state:"failure",environment_url:$url,description:$desc}' | $gh_bin api --method POST "repos/${repo}/deployments/${deployment}/statuses" --input - >/dev/null 2>&1 || true
+    jq -n --arg state error --arg context full-validation --arg description "$evidence_error" --arg target_url "https://zerp-preview.bytesucceed.com" '{state:$state,context:$context,description:$description,target_url:$target_url}' | $gh_bin api --method POST "repos/${repo}/statuses/${head}" --input - >/dev/null 2>&1 || true
+    echo "$evidence_error" >&2
+    return 1
+  fi
   if ! verify_active_release "$head" || \
     [ "$(cat "$active_file" 2>/dev/null || true)" != "$pr" ] || \
     [ "$(read_field sha "$rec")" != "$head" ] || \

@@ -74,9 +74,18 @@ void vm.query()
       </template>
       <template #actions="{ row }">
         <ListRowActions
-          :label="`操作 ${row.code}`"
-          :more="
-            vm.canChangeEnabled(row)
+          :actions="[
+            ...(vm.canEditRole(row)
+              ? [
+                  {
+                    key: 'edit',
+                    label: '编辑',
+                    icon: 'mdi-pencil-outline',
+                    color: 'primary',
+                  },
+                ]
+              : []),
+            ...(vm.canChangeEnabled(row)
               ? [
                   {
                     key: 'toggle',
@@ -87,20 +96,9 @@ void vm.query()
                         : 'mdi-play-circle-outline',
                   },
                 ]
-              : []
-          "
-          :primary="
-            vm.canEditRole(row)
-              ? [
-                  {
-                    key: 'edit',
-                    label: '编辑',
-                    icon: 'mdi-pencil-outline',
-                    color: 'primary',
-                  },
-                ]
-              : []
-          "
+              : []),
+          ]"
+          :label="`操作 ${row.code}`"
           @select="$event === 'edit' ? vm.openEdit(row) : vm.changeEnabled(row)"
         />
       </template>

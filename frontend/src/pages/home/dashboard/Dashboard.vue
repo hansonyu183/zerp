@@ -36,9 +36,7 @@ function fallbackEntityTitle(entity: string): string {
 
 function canProcessEntity(domain: 'bob' | 'vou', entity: string): boolean {
   const actions =
-    domain === 'bob'
-      ? ['submit', 'approve', 'reject']
-      : ['check', 'approve']
+    domain === 'bob' ? ['submit', 'approve', 'reject'] : ['check', 'approve']
   return (
     session.can(`/${domain}/${entity}/query`) &&
     actions.some((action) => session.can(`/${domain}/${entity}/${action}`))
@@ -163,10 +161,7 @@ function visibleActions(row: WorkbenchItem): WorkbenchAction[] {
   )
 }
 
-function rowActions(row: WorkbenchItem): {
-  primary: ListRowAction[]
-  more: ListRowAction[]
-} {
+function rowActions(row: WorkbenchItem): ListRowAction[] {
   const actions = visibleActions(row)
   const forward = actions.find((action) =>
     ['submit', 'approve', 'check', 'reject'].includes(action),
@@ -177,10 +172,10 @@ function rowActions(row: WorkbenchItem): {
     ...actionDefinitions[action],
     label: `${actionDefinitions[action].label} ${rowIdentity(row)}`,
   })
-  return {
-    primary: primaryAction ? [toAction(primaryAction)] : [],
-    more: actions.filter((action) => action !== primaryAction).map(toAction),
-  }
+  return [
+    ...(primaryAction ? [toAction(primaryAction)] : []),
+    ...actions.filter((action) => action !== primaryAction).map(toAction),
+  ]
 }
 
 async function changeCategory(value: unknown): Promise<void> {
@@ -230,11 +225,7 @@ async function selectAction(action: string, row: WorkbenchItem): Promise<void> {
     rejectComment.value = ''
     return
   }
-  if (
-    action === 'submit' ||
-    action === 'approve' ||
-    action === 'check'
-  ) {
+  if (action === 'submit' || action === 'approve' || action === 'check') {
     await vm.runAction(row, action)
   }
 }
@@ -351,11 +342,10 @@ void vm.query('VOU')
 
           <template #actions="{ row }">
             <ListRowActions
+              :actions="rowActions(row)"
               :label="`操作 ${rowIdentity(row)}`"
               :loading="Boolean(vm.actionLoading)"
-              :more="rowActions(row).more"
               :more-label="`更多操作 ${rowIdentity(row)}`"
-              :primary="rowActions(row).primary"
               @select="selectAction($event, row)"
             />
           </template>
@@ -435,11 +425,10 @@ void vm.query('VOU')
 
           <template #actions="{ row }">
             <ListRowActions
+              :actions="rowActions(row)"
               :label="`操作 ${rowIdentity(row)}`"
               :loading="Boolean(vm.actionLoading)"
-              :more="rowActions(row).more"
               :more-label="`更多操作 ${rowIdentity(row)}`"
-              :primary="rowActions(row).primary"
               @select="selectAction($event, row)"
             />
           </template>

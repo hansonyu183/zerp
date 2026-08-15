@@ -16,7 +16,6 @@ function partyText(item: InstanceListItem): string {
   if (!item.partyCode && !item.partyName) return '—'
   return [item.partyCode, item.partyName].filter(Boolean).join(' · ')
 }
-
 </script>
 
 <template>
@@ -68,25 +67,21 @@ function partyText(item: InstanceListItem): string {
             <td>{{ partyText(item) }}</td>
             <td>
               <ListRowActions
-                :loading="vm.loading.value"
-                :primary="[
+                :actions="[
                   {
                     key: 'view',
                     label: '查看流程',
                     icon: 'mdi-sitemap-outline',
                     disabled: !vm.can('get'),
                   },
-                ]"
-                :more="[
                   {
                     key: 'root',
                     label: '打开根单据',
                     icon: 'mdi-file-document-outline',
                   },
                 ]"
-                @select="
-                  $event === 'view' ? vm.open(item) : vm.openRoot(item)
-                "
+                :loading="vm.loading.value"
+                @select="$event === 'view' ? vm.open(item) : vm.openRoot(item)"
               />
             </td>
           </tr>
@@ -108,25 +103,21 @@ function partyText(item: InstanceListItem): string {
           <span>往来单位：{{ partyText(item) }}</span>
           <ListRowActions
             class="instance-card__actions"
-            :loading="vm.loading.value"
-            :primary="[
+            :actions="[
               {
                 key: 'view',
                 label: '查看流程',
                 icon: 'mdi-sitemap-outline',
                 disabled: !vm.can('get'),
               },
-            ]"
-            :more="[
               {
                 key: 'root',
                 label: '打开根单据',
                 icon: 'mdi-file-document-outline',
               },
             ]"
-            @select="
-              $event === 'view' ? vm.open(item) : vm.openRoot(item)
-            "
+            :loading="vm.loading.value"
+            @select="$event === 'view' ? vm.open(item) : vm.openRoot(item)"
           />
         </article>
         <div

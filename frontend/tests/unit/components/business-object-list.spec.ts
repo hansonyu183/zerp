@@ -83,15 +83,14 @@ const VTableStub = defineComponent({
 const ListRowActionsStub = defineComponent({
   name: 'ListRowActions',
   props: {
-    primary: { type: Array, default: () => [] },
-    more: { type: Array, default: () => [] },
+    actions: { type: Array, default: () => [] },
   },
   emits: ['select'],
   setup(props, { emit }) {
     return () =>
       h(
         'div',
-        [...props.primary, ...props.more].map((action) => {
+        props.actions.map((action) => {
           const item = action as { key: string; label: string }
           return h(
             'button',

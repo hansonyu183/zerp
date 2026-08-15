@@ -129,7 +129,6 @@ test('票据收入批准后进入真实票据台账', async ({ page, workerState
   await workspace.getByRole('button', { name: '检查', exact: true }).click()
   await workspace.getByRole('button', { name: '批准', exact: true }).click()
   await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
-
 })
 
 async function verifyEmployeeLoanLifecycle(
@@ -386,7 +385,6 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   await expect(
     page.getByRole('columnheader', { name: '更新时间' }),
   ).toHaveCount(0)
-  await page.getByText('筛选条件', { exact: true }).click()
   await selectReference(page, '往来单位', fixture.customer)
   await page.getByRole('button', { name: '应用筛选', exact: true }).click()
   await expect(processRow).toHaveCount(1)

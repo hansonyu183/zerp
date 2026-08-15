@@ -1,15 +1,15 @@
 import { mount, type VueWrapper } from '@vue/test-utils'
 import {
+  computed,
   defineComponent,
   h,
   inject,
   provide,
-  ref,
   type Component,
+  type ComputedRef,
   type InjectionKey,
-  type Ref,
 } from 'vue'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import VoucherList from '@/components/voucher/VoucherList.vue'
 import type {
   VoucherLifecycleAction,
@@ -18,7 +18,7 @@ import type {
 } from '@/components/voucher'
 
 interface ExpansionState {
-  open: Ref<boolean>
+  open: ComputedRef<boolean>
   toggle: () => void
 }
 
@@ -27,7 +27,15 @@ const expansionStateKey: InjectionKey<ExpansionState> =
 
 const VExpansionPanelsStub = defineComponent({
   name: 'VExpansionPanels',
-  setup(_, { slots }) {
+  props: { modelValue: String },
+  emits: ['update:modelValue'],
+  setup(props, { emit, slots }) {
+    const open = computed(() => props.modelValue === 'filters')
+    provide(expansionStateKey, {
+      open,
+      toggle: () =>
+        emit('update:modelValue', open.value ? undefined : 'filters'),
+    })
     return () => h('section', { class: 'expansion-panels' }, slots.default?.())
   },
 })
@@ -35,16 +43,25 @@ const VExpansionPanelsStub = defineComponent({
 const VExpansionPanelStub = defineComponent({
   name: 'VExpansionPanel',
   setup(_, { slots }) {
-    const open = ref(false)
-    provide(expansionStateKey, {
-      open,
-      toggle: () => {
-        open.value = !open.value
-      },
-    })
     return () => h('div', { class: 'expansion-panel' }, slots.default?.())
   },
 })
+
+function installMatchMedia(matches: boolean): void {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  })
+}
 
 const VExpansionPanelTitleStub = defineComponent({
   name: 'VExpansionPanelTitle',
@@ -200,6 +217,8 @@ function mountList(
 }
 
 describe('VoucherList', () => {
+  beforeEach(() => installMatchMedia(false))
+
   it('使用适合窄屏的短列名', () => {
     const wrapper = mountList()
 
@@ -292,26 +311,24 @@ describe('VoucherList', () => {
     ).toBe('descending')
   })
 
-  it('默认收起筛选条件并允许反复展开和收起', async () => {
+  it('桌面默认展开公共筛选并允许反复收起和展开', async () => {
     const wrapper = mountList()
     const toggle = wrapper.get('[data-test="filter-toggle"]')
 
-    expect(toggle.attributes('aria-expanded')).toBe('false')
-    expect(wrapper.find('[data-test="filter-content"]').exists()).toBe(false)
-
-    await toggle.trigger('click')
     expect(toggle.attributes('aria-expanded')).toBe('true')
     expect(wrapper.find('[data-test="filter-content"]').exists()).toBe(true)
 
     await toggle.trigger('click')
     expect(toggle.attributes('aria-expanded')).toBe('false')
     expect(wrapper.find('[data-test="filter-content"]').exists()).toBe(false)
+
+    await toggle.trigger('click')
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+    expect(wrapper.find('[data-test="filter-content"]').exists()).toBe(true)
   })
 
   it('允许业务页面复用筛选面板并替换默认筛选字段', async () => {
     const wrapper = mountList({}, { filters: '<label>待办状态</label>' })
-
-    await wrapper.get('[data-test="filter-toggle"]').trigger('click')
 
     expect(wrapper.text()).toContain('待办状态')
     expect(wrapper.text()).not.toContain('业务日期起')
@@ -321,7 +338,6 @@ describe('VoucherList', () => {
     const wrapper = mountList({ keyword: '华东客户' })
     const toggle = wrapper.get('[data-test="filter-toggle"]')
 
-    await toggle.trigger('click')
     expect(
       wrapper.get('input[aria-label="单号或往来方关键字"]').attributes('value'),
     ).toBe('华东客户')
@@ -349,7 +365,7 @@ describe('VoucherList', () => {
       .findAll('button')
       .find((button) => button.text() === '新增')
 
-    expect(wrapper.find('[data-test="filter-content"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="filter-content"]').exists()).toBe(true)
     expect(createButton?.exists()).toBe(true)
     await createButton?.trigger('click')
     expect(wrapper.emitted('create')).toHaveLength(1)

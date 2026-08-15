@@ -69,7 +69,8 @@ test('两个用户通过产品界面按独立范围维护账簿且首本控制�
   await expect(row).toContainText('CNY')
   await expect(row).toContainText('跨用户访问范围')
   await expect(row.getByRole('button', { name: '编辑' })).toBeVisible()
-  await expect(row.getByRole('button', { name: '更多操作' })).toBeVisible()
+  await expect(row.getByRole('button', { name: '删除' })).toBeVisible()
+  await expect(row.getByRole('button', { name: '更多操作' })).toHaveCount(0)
 
   await page.getByRole('button', { name: '新增', exact: true }).click()
   await drawer.getByLabel('名称').fill('E2E 独立账簿')

@@ -70,8 +70,7 @@ void vm.query()
       </template>
       <template #actions="{ row }">
         <ListRowActions
-          :label="`查看 ${row.path}`"
-          :primary="
+          :actions="
             vm.canGet
               ? [
                   {
@@ -83,6 +82,7 @@ void vm.query()
                 ]
               : []
           "
+          :label="`查看 ${row.path}`"
           @select="vm.openDetail(row)"
         />
       </template>

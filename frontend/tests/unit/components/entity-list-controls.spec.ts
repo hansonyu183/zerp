@@ -1,6 +1,15 @@
 import { mount } from '@vue/test-utils'
-import { defineComponent, h } from 'vue'
-import { describe, expect, it } from 'vitest'
+import {
+  computed,
+  defineComponent,
+  h,
+  inject,
+  nextTick,
+  provide,
+  type ComputedRef,
+  type InjectionKey,
+} from 'vue'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import EntityListControls from '@/components/common/EntityListControls.vue'
 
 const VBtnStub = defineComponent({
@@ -44,11 +53,78 @@ const VTextFieldStub = defineComponent({
   },
 })
 
-const SlotStub = defineComponent({
+interface ExpansionState {
+  open: ComputedRef<boolean>
+  toggle: () => void
+}
+
+const expansionStateKey: InjectionKey<ExpansionState> = Symbol('expansion')
+
+const VExpansionPanelsStub = defineComponent({
+  name: 'VExpansionPanels',
+  props: { modelValue: String },
+  emits: ['update:modelValue'],
+  setup(props, { emit, slots }) {
+    const open = computed(() => props.modelValue === 'filters')
+    provide(expansionStateKey, {
+      open,
+      toggle: () =>
+        emit('update:modelValue', open.value ? undefined : 'filters'),
+    })
+    return () => h('section', slots.default?.())
+  },
+})
+
+const VExpansionPanelStub = defineComponent({
+  name: 'VExpansionPanel',
   setup(_, { slots }) {
     return () => h('div', slots.default?.())
   },
 })
+
+const VExpansionPanelTitleStub = defineComponent({
+  name: 'VExpansionPanelTitle',
+  setup(_, { slots }) {
+    const state = inject(expansionStateKey)
+    return () =>
+      h(
+        'button',
+        {
+          'aria-expanded': String(state?.open.value ?? false),
+          'data-test': 'filter-toggle',
+          onClick: state?.toggle,
+        },
+        slots.default?.(),
+      )
+  },
+})
+
+const VExpansionPanelTextStub = defineComponent({
+  name: 'VExpansionPanelText',
+  setup(_, { slots }) {
+    const state = inject(expansionStateKey)
+    return () =>
+      state?.open.value
+        ? h('div', { 'data-test': 'filter-content' }, slots.default?.())
+        : null
+  },
+})
+
+function installMatchMedia(matches: boolean): void {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  })
+}
 
 function mountControls(loading = false) {
   return mount(EntityListControls, {
@@ -65,10 +141,10 @@ function mountControls(loading = false) {
     global: {
       components: {
         VBtn: VBtnStub,
-        VExpansionPanel: SlotStub,
-        VExpansionPanels: SlotStub,
-        VExpansionPanelText: SlotStub,
-        VExpansionPanelTitle: SlotStub,
+        VExpansionPanel: VExpansionPanelStub,
+        VExpansionPanels: VExpansionPanelsStub,
+        VExpansionPanelText: VExpansionPanelTextStub,
+        VExpansionPanelTitle: VExpansionPanelTitleStub,
         VTextField: VTextFieldStub,
       },
     },
@@ -76,6 +152,48 @@ function mountControls(loading = false) {
 }
 
 describe('EntityListControls', () => {
+  beforeEach(() => installMatchMedia(false))
+
+  it('桌面初次进入默认展开筛选条件', () => {
+    const wrapper = mountControls()
+
+    expect(window.matchMedia).toHaveBeenCalledWith('(max-width: 700px)')
+    expect(
+      wrapper.get('[data-test="filter-toggle"]').attributes('aria-expanded'),
+    ).toBe('true')
+    expect(wrapper.find('[data-test="filter-content"]').exists()).toBe(true)
+  })
+
+  it('手机初次进入默认收起筛选条件', () => {
+    installMatchMedia(true)
+    const wrapper = mountControls()
+
+    expect(
+      wrapper.get('[data-test="filter-toggle"]').attributes('aria-expanded'),
+    ).toBe('false')
+    expect(wrapper.find('[data-test="filter-content"]').exists()).toBe(false)
+  })
+
+  it('用户切换后不因响应式变化覆盖展开状态', async () => {
+    installMatchMedia(true)
+    const wrapper = mountControls()
+    const toggle = wrapper.get('[data-test="filter-toggle"]')
+
+    await toggle.trigger('click')
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+
+    installMatchMedia(false)
+    window.dispatchEvent(new Event('resize'))
+    await nextTick()
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+
+    await toggle.trigger('click')
+    installMatchMedia(true)
+    window.dispatchEvent(new Event('resize'))
+    await nextTick()
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+  })
+
   it('统一渲染筛选、查询和新增并发出对应事件', async () => {
     const wrapper = mountControls()
 

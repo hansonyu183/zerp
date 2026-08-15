@@ -407,9 +407,9 @@ function summaryNote(row: T): string | undefined {
               >
                 <slot name="actions" :row="row">
                   <ListRowActions
+                    :actions="rowActions(row)"
                     :label="`操作 ${row.documentNo}`"
                     :loading="Boolean(actionLoading)"
-                    :primary="rowActions(row)"
                     @select="selectAction($event, row)"
                   />
                 </slot>

@@ -83,6 +83,27 @@ describe('ACC mapping and period controls', () => {
     expect(vm.errorMessage).toBeTruthy()
   })
 
+  it('resets mapping list filters through the shared filter controls', async () => {
+    useSessionStore().permissions = ['/acc/book/query', '/acc/mapping/query']
+    mockedPost.mockResolvedValue({
+      data: { items: [], total: 0, page: 1, pageSize: 20 },
+    })
+    const vm = createAccountingMappingViewModel()
+    vm.selectedBookId = '01JACC00000000000000000001'
+    vm.entityFilter = 'sale-order'
+    vm.page = 3
+
+    await vm.resetFilters()
+
+    expect(vm.entityFilter).toBe('')
+    expect(vm.page).toBe(1)
+    expect(mockedPost).toHaveBeenLastCalledWith('acc/mapping/query', {
+      bookId: '01JACC00000000000000000001',
+      page: 1,
+      pageSize: 20,
+    })
+  })
+
   it('requires query permission for period mutations', () => {
     const session = useSessionStore()
     session.permissions = ['/acc/period/lock', '/acc/period/unlock']
@@ -171,6 +192,7 @@ describe('ACC mapping and period controls', () => {
     }
     expect(openingSource).not.toContain('overflow-x-auto')
     expect(mappingSource).toContain(':mobile-breakpoint="700"')
+    expect(mappingSource).toContain('<EntityListControls')
     expect(mappingSource).toContain('<ListRowActions')
   })
 })

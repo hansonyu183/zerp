@@ -364,11 +364,11 @@ prepare_offline_dependencies() {
   fi
   prepare_cached_pnpm "${worktree}" || return 1
   if [ -e "${candidate_modules}" ] || [ -L "${candidate_modules}" ]; then
-    [ -L "${candidate_modules}" ] &&
-      [ "$(readlink "${candidate_modules}")" = "${primary_modules}" ] || {
-        echo 'offline dependency preparation blocked: candidate node_modules is not the controller-managed primary symlink' >&2
-        return 1
-      }
+    if [ ! -L "${candidate_modules}" ] ||
+      [ "$(readlink "${candidate_modules}")" != "${primary_modules}" ]; then
+      echo 'offline dependency preparation blocked: candidate node_modules is not the controller-managed primary symlink' >&2
+      return 1
+    fi
   else
     ln -s "${primary_modules}" "${candidate_modules}"
   fi
@@ -394,11 +394,11 @@ prepare_offline_dependencies() {
     "${primary_frontend_modules}/" "${candidate_frontend_modules}/"
   mkdir -p "${candidate_frontend_modules}/.tmp"
   cleanup_candidate_dependency_stores "${worktree}"
-  [ ! -e "${worktree}/.pnpm-store" ] &&
-    [ ! -e "${candidate_frontend_modules}/.pnpm-store" ] || {
-      echo 'offline dependency preparation blocked: candidate pnpm store cleanup failed' >&2
-      return 1
-    }
+  if [ -e "${worktree}/.pnpm-store" ] ||
+    [ -e "${candidate_frontend_modules}/.pnpm-store" ]; then
+    echo 'offline dependency preparation blocked: candidate pnpm store cleanup failed' >&2
+    return 1
+  fi
 }
 
 verify_worktree_git_metadata() {
@@ -707,11 +707,11 @@ detach_candidate_modules_for_preview() {
   worktree=$1
   candidate_modules="${worktree}/node_modules"
   primary_modules="${primary_root}/node_modules"
-  [ -L "${candidate_modules}" ] &&
-    [ "$(readlink "${candidate_modules}")" = "${primary_modules}" ] || {
-      echo 'preview cannot detach an unmanaged candidate node_modules path' >&2
-      return 1
-    }
+  if [ ! -L "${candidate_modules}" ] ||
+    [ "$(readlink "${candidate_modules}")" != "${primary_modules}" ]; then
+    echo 'preview cannot detach an unmanaged candidate node_modules path' >&2
+    return 1
+  fi
   [ -z "$(git -C "${worktree}" status --porcelain)" ] || {
     echo 'preview requires a clean candidate worktree before isolating node_modules' >&2
     return 1
@@ -739,7 +739,7 @@ deploy_preview() {
   preview_result=0
   (
     modules_detached=0
-    # shellcheck disable=SC2329 # invoked by the subshell EXIT trap
+    # shellcheck disable=SC2317,SC2329 # invoked by the subshell EXIT trap
     restore_modules() {
       [ "${modules_detached}" = 1 ] || return 0
       restore_candidate_modules_after_preview "${worktree}"

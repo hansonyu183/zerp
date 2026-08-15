@@ -20,10 +20,10 @@ actor_file="${credential_root}/bot-login"
 
 log() { printf '%s %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*" >&2; }
 
-[ -r "${app_id_file}" ] && [ -r "${private_key_file}" ] && [ -r "${actor_file}" ] || {
+if [ ! -r "${app_id_file}" ] || [ ! -r "${private_key_file}" ] || [ ! -r "${actor_file}" ]; then
   log "release-controller GitHub App credentials are incomplete"
   exit 1
-}
+fi
 app_id=$(sed -n '1p' "${app_id_file}")
 release_actor=$(sed -n '1p' "${actor_file}")
 GH_TOKEN=$("${script_dir}/github-app-token.sh" "${app_id}" "${private_key_file}" "${repo_owner}" "${repo_name}")

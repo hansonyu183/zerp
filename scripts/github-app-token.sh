@@ -5,10 +5,10 @@ app_id=${1:-}
 private_key=${2:-}
 owner=${3:-}
 repository=${4:-}
-[ -n "${app_id}" ] && [ -r "${private_key}" ] && [ -n "${owner}" ] && [ -n "${repository}" ] || {
+if [ -z "${app_id}" ] || [ ! -r "${private_key}" ] || [ -z "${owner}" ] || [ -z "${repository}" ]; then
   echo "usage: $0 <app-id> <private-key-file> <owner> <repository>" >&2
   exit 2
-}
+fi
 
 base64url() {
   openssl base64 -A | tr '+/' '-_' | tr -d '='

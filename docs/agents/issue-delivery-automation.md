@@ -35,4 +35,4 @@ scripts/issue-local.sh start
 scripts/issue-local.sh retry <feature>
 ```
 
-安装器只复制控制脚本和 JSON schema，不复制 Codex `auth.json`、GitHub token 或私钥。实现阶段使用 `workspace-write`、`never` approval，并禁用命令网络、Web 和 App 工具；因此不能访问 GitHub、推送或部署。预览和发布动作由控制器分别使用本机现有环境与 `gh` 登录态完成。现有生产代理继续只处理通过 `full-validation` 合入 `main` 的提交。
+安装器只复制控制脚本和 JSON schema，不复制 Codex `auth.json`、GitHub token 或私钥。实现阶段使用 `workspace-write`、`never` approval、`gpt-5.6-sol` high reasoning 和 `ignore-user-config`，并禁用命令网络、Web 和 App 工具；因此不能访问 GitHub、推送、部署或用户凭证。为使独立 linked worktree 能提交，控制器只额外授予该 worktree 的 Git 目录及共享 Git 元数据目录写权限，不授予主工作区文件写权限；启动 Codex 前会以临时索引和临时 ref 验证这两处可写并立即清理。预览和发布动作由控制器分别使用本机现有环境与 `gh` 登录态完成。现有生产代理继续只处理通过 `full-validation` 合入 `main` 的提交。

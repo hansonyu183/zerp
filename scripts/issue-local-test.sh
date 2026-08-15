@@ -55,11 +55,12 @@ if [ "${1:-}" = login ] && [ "${2:-}" = status ]; then
   echo 'Logged in using ChatGPT' >&2
   exit 0
 fi
+all_args="$*"
 test "${1:-}" = --ask-for-approval
 test "${2:-}" = never
 shift 2
 test "${1:-}" = exec
-printf '%s\n' "$*" >"${MOCK_CODEX_ARGS}"
+printf '%s\n' "${all_args}" >"${MOCK_CODEX_ARGS}"
 worktree=
 output=
 shift
@@ -201,7 +202,17 @@ test "$(grep -c '^codex$' "${events}")" = 1
 test "$(grep -c '^preview$' "${events}")" = 1
 grep -Fq -- '--ignore-user-config' "${MOCK_CODEX_ARGS}"
 grep -Fq -- '--ask-for-approval never' "${MOCK_CODEX_ARGS}"
+grep -Fq -- '--model gpt-5.6-sol' "${MOCK_CODEX_ARGS}"
+grep -Fq -- 'model_reasoning_effort=high' "${MOCK_CODEX_ARGS}"
 grep -Fq -- 'sandbox_workspace_write.network_access=false' "${MOCK_CODEX_ARGS}"
+worktree_git_dir=$(git -C "${runtime}/worktrees/inventory-query" rev-parse --path-format=absolute --git-dir)
+common_git_dir=$(git -C "${runtime}/worktrees/inventory-query" rev-parse --path-format=absolute --git-common-dir)
+grep -Fq -- "--add-dir ${worktree_git_dir}" "${MOCK_CODEX_ARGS}"
+grep -Fq -- "--add-dir ${common_git_dir}" "${MOCK_CODEX_ARGS}"
+if find "${primary}/.git" \( -name 'issue-local-index-probe-*' -o -path '*/refs/issue-local-probe/*' \) -print | grep -q .; then
+  echo 'Git metadata writability preflight did not clean up its probe files' >&2
+  exit 1
+fi
 preview_line=$(grep -n '^preview$' "${events}" | cut -d: -f1)
 first_gh_line=$(grep -n '^gh ' "${events}" | sed -n '1s/:.*//p')
 test "${preview_line}" -lt "${first_gh_line}"

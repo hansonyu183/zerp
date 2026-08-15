@@ -18,6 +18,18 @@ runtime="${primary}/backend/var/issue-delivery"
 events="${tmp}/events"
 mkdir -p "${primary}" "${tmp}/bin"
 git init --bare "${remote}" >/dev/null
+cat >"${remote}/hooks/pre-receive" <<'EOF'
+#!/bin/sh
+set -eu
+while read -r _ new ref; do
+  if [ "${MOCK_REQUIRE_PR_BODY_BEFORE_PUSH:-0}" = 1 ] && \
+    [ "${ref}" = "refs/heads/${MOCK_EXPECTED_PUSH_BRANCH}" ]; then
+    grep -Fq "head=${new} fingerprint=runtime-one" "${MOCK_CAPTURE}/pr-body.md"
+    test "${new}" = "${MOCK_EXPECTED_PUSH_HEAD}"
+  fi
+done
+EOF
+chmod +x "${remote}/hooks/pre-receive"
 git -C "${primary}" init -b main >/dev/null
 git -C "${primary}" config user.name 'Issue Local Test'
 git -C "${primary}" config user.email issue-local-test@example.com
@@ -758,6 +770,9 @@ rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" \
 MOCK_EXISTING_PR_HEAD="${old_published_head}" \
 MOCK_EXISTING_PR_BRANCH="${published_branch}" \
 MOCK_CHECK_MODE=normal \
+MOCK_REQUIRE_PR_BODY_BEFORE_PUSH=1 \
+MOCK_EXPECTED_PUSH_HEAD="${published_head}" \
+MOCK_EXPECTED_PUSH_BRANCH="${published_branch}" \
 GIT_TRACE2_EVENT="${tmp}/published-trace.json" run_agent
 test ! -e "${MOCK_CODEX_COUNT}"
 test ! -e "${MOCK_GATE_COUNT}"
@@ -773,12 +788,14 @@ test "$(grep -n 'gh pr edit 77' "${events}" | sed -n '1s/:.*//p')" -lt \
 grep -Fq "head=${published_head} fingerprint=runtime-one" "${tmp}/capture/pr-body.md"
 test "$(git --git-dir="${remote}" rev-parse "refs/heads/${published_branch}")" = \
   "${published_head}"
+test ! -e "${published_batch}/pr-body.previous.md"
 jq -e --arg lease \
   "--force-with-lease=refs/heads/${published_branch}:${old_published_head}" \
   'select(.event == "start") | select(.argv | index($lease))' \
   "${tmp}/published-trace.json" >/dev/null
 grep -Fq '**Status:** done' "${published_ticket}"
-unset MOCK_EXISTING_PR_HEAD MOCK_EXISTING_PR_BRANCH GIT_TRACE2_EVENT
+unset MOCK_EXISTING_PR_HEAD MOCK_EXISTING_PR_BRANCH MOCK_REQUIRE_PR_BODY_BEFORE_PUSH \
+  MOCK_EXPECTED_PUSH_HEAD MOCK_EXPECTED_PUSH_BRANCH GIT_TRACE2_EVENT
 
 make_ticket queue-first 'Queue first'
 make_ticket queue-second 'Queue second'

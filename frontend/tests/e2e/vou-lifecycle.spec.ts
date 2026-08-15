@@ -216,9 +216,7 @@ test(
     await page.getByRole('tab', { name: '待办单据' }).click()
     await page.getByRole('textbox', { name: '单号或往来方' }).fill(documentNo!)
     await page.getByRole('button', { name: '查询', exact: true }).click()
-    let workbenchRow = page
-      .locator('tbody tr')
-      .filter({ hasText: documentNo! })
+    let workbenchRow = page.locator('tbody tr').filter({ hasText: documentNo! })
     await expect(workbenchRow).toContainText('待核对')
     await workbenchRow.getByLabel(`编辑 ${documentNo}`).click()
     await expect(page).toHaveURL(
@@ -231,6 +229,16 @@ test(
     workbenchRow = page.locator('tbody tr').filter({ hasText: documentNo! })
     await expect(workbenchRow).toContainText('待核对')
     await workbenchRow.getByLabel(`核对 ${documentNo}`).click()
+    await expect(workbenchRow).toContainText('待批准')
+    await workbenchRow.getByLabel(`查看 ${documentNo}`).click()
+    await expect(page).toHaveURL(
+      new RegExp(`/vou/sales-receipt\\?documentId=[^&]+&mode=view`),
+    )
+    await page.goto('/home/dashboard')
+    await page.getByRole('tab', { name: '待办单据' }).click()
+    await page.getByRole('textbox', { name: '单号或往来方' }).fill(documentNo!)
+    await page.getByRole('button', { name: '查询', exact: true }).click()
+    workbenchRow = page.locator('tbody tr').filter({ hasText: documentNo! })
     await expect(workbenchRow).toContainText('待批准')
     await workbenchRow.getByLabel(`反核对 ${documentNo}`).click()
     const uncheckDialog = page.getByRole('dialog').filter({

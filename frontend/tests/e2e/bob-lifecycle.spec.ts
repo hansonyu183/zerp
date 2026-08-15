@@ -101,8 +101,14 @@ test(
     const unsubmitDialog = page.getByRole('dialog').filter({
       hasText: '撤回提交',
     })
+    const confirmUnsubmit = unsubmitDialog.getByRole('button', {
+      name: '确认撤回',
+    })
+    await expect(confirmUnsubmit).toBeDisabled()
+    await unsubmitDialog.getByLabel('撤回原因').fill('   ')
+    await expect(confirmUnsubmit).toBeDisabled()
     await unsubmitDialog.getByLabel('撤回原因').fill('E2E 验证撤回提交')
-    await unsubmitDialog.getByRole('button', { name: '确认撤回' }).click()
+    await confirmUnsubmit.click()
     await expect(submittedWorkbenchRow).toContainText('待核对')
     await openCustomer(page)
     await searchCustomer(page, code!)

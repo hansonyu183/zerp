@@ -15,13 +15,24 @@ git init --bare "${remote}" >/dev/null
 git -C "${primary}" init -b main >/dev/null
 git -C "${primary}" config user.name 'Issue Local Test'
 git -C "${primary}" config user.email issue-local-test@example.com
-mkdir -p "${primary}/backend/var"
-printf '.scratch/\nbackend/var/\n' >"${primary}/.gitignore"
+mkdir -p "${primary}/backend/var" "${primary}/node_modules/.pnpm" \
+  "${primary}/node_modules/.bin" "${primary}/frontend/node_modules/.bin" \
+  "${primary}/frontend/node_modules/.pnpm" "${primary}/frontend/node_modules/.tmp" \
+  "${primary}/frontend/node_modules/.vite" "${primary}/frontend/node_modules/.vite-temp" \
+  "${primary}/frontend/node_modules/.pnpm-store"
+printf '.scratch/\nbackend/var/\nnode_modules\n' >"${primary}/.gitignore"
 printf 'seed\n' >"${primary}/README.md"
-git -C "${primary}" add .gitignore README.md
+printf 'lockfileVersion: "9.0"\n' >"${primary}/pnpm-lock.yaml"
+printf 'layoutVersion: 1\n' >"${primary}/node_modules/.modules.yaml"
+printf '#!/bin/sh\nexit 0\n' >"${primary}/frontend/node_modules/.bin/vite"
+chmod +x "${primary}/frontend/node_modules/.bin/vite"
+: >"${primary}/frontend/node_modules/vite"
+printf 'primary cache\n' >"${primary}/frontend/node_modules/.tmp/primary-cache"
+git -C "${primary}" add .gitignore README.md pnpm-lock.yaml
 git -C "${primary}" commit -m seed >/dev/null
 git -C "${primary}" remote add origin "${remote}"
 git -C "${primary}" push -u origin main >/dev/null
+cp "${primary}/.git/info/exclude" "${tmp}/git-exclude-before"
 
 feature="${primary}/.scratch/inventory-query/issues"
 mkdir -p "${feature}"
@@ -61,6 +72,7 @@ test "${2:-}" = never
 shift 2
 test "${1:-}" = exec
 printf '%s\n' "${all_args}" >"${MOCK_CODEX_ARGS}"
+printf '%s\n' "${COREPACK_ROOT:-}" >"${MOCK_COREPACK_ROOT}"
 worktree=
 output=
 shift
@@ -78,6 +90,7 @@ printf '%s\n' "${prompt}" | grep -Fq '$implement'
 count=$(cat "${MOCK_CODEX_COUNT}" 2>/dev/null || printf 0)
 count=$((count + 1))
 printf '%s\n' "${count}" >"${MOCK_CODEX_COUNT}"
+mkdir -p "${worktree}/.pnpm-store" "${worktree}/frontend/node_modules/.pnpm-store"
 if [ "${MOCK_CODEX_MODE:-completed}" = needs-input ]; then
   jq -n '{status:"needs_input",summary:"decision required",commitSha:"",validation:"not_run",review:"not_run"}' >"${output}"
   exit 0
@@ -184,6 +197,7 @@ export MOCK_CODEX_COUNT="${tmp}/codex-count"
 export MOCK_PREVIEW_COUNT="${tmp}/preview-count"
 export MOCK_CHECK_COUNT="${tmp}/check-count"
 export MOCK_CODEX_ARGS="${tmp}/codex-args"
+export MOCK_COREPACK_ROOT="${tmp}/corepack-root"
 : >"${events}"
 
 PATH="${tmp}/bin:${PATH}" \
@@ -205,10 +219,25 @@ grep -Fq -- '--ask-for-approval never' "${MOCK_CODEX_ARGS}"
 grep -Fq -- '--model gpt-5.6-sol' "${MOCK_CODEX_ARGS}"
 grep -Fq -- 'model_reasoning_effort=high' "${MOCK_CODEX_ARGS}"
 grep -Fq -- 'sandbox_workspace_write.network_access=false' "${MOCK_CODEX_ARGS}"
+test "$(cat "${MOCK_COREPACK_ROOT}")" = 1
 worktree_git_dir=$(git -C "${runtime}/worktrees/inventory-query" rev-parse --path-format=absolute --git-dir)
 common_git_dir=$(git -C "${runtime}/worktrees/inventory-query" rev-parse --path-format=absolute --git-common-dir)
 grep -Fq -- "--add-dir ${worktree_git_dir}" "${MOCK_CODEX_ARGS}"
 grep -Fq -- "--add-dir ${common_git_dir}" "${MOCK_CODEX_ARGS}"
+if grep -Fq -- "--add-dir ${primary}/node_modules" "${MOCK_CODEX_ARGS}"; then
+  echo 'Codex received an unexpected primary node_modules write grant' >&2
+  exit 1
+fi
+test -L "${runtime}/worktrees/inventory-query/node_modules"
+test "$(readlink "${runtime}/worktrees/inventory-query/node_modules")" = "${primary}/node_modules"
+test -d "${runtime}/worktrees/inventory-query/frontend/node_modules/.tmp"
+test ! -e "${runtime}/worktrees/inventory-query/frontend/node_modules/.tmp/primary-cache"
+test ! -e "${runtime}/worktrees/inventory-query/frontend/node_modules/.pnpm"
+test ! -e "${runtime}/worktrees/inventory-query/frontend/node_modules/.vite"
+test ! -e "${runtime}/worktrees/inventory-query/frontend/node_modules/.vite-temp"
+test ! -e "${runtime}/worktrees/inventory-query/.pnpm-store"
+test ! -e "${runtime}/worktrees/inventory-query/frontend/node_modules/.pnpm-store"
+cmp -s "${tmp}/git-exclude-before" "${primary}/.git/info/exclude"
 if find "${primary}/.git" \( -name 'issue-local-index-probe-*' -o -path '*/refs/issue-local-probe/*' \) -print | grep -q .; then
   echo 'Git metadata writability preflight did not clean up its probe files' >&2
   exit 1
@@ -275,6 +304,37 @@ run_agent() {
   ZERP_ISSUE_PRODUCTION_COMMAND="${tmp}/bin/production" \
     "${repo_root}/scripts/issue-local.sh" run
 }
+
+make_ticket dependency-lock-mismatch 'Dependency lock mismatch'
+mismatch_worktree="${runtime}/worktrees/dependency-lock-mismatch"
+mkdir -p "$(dirname "${mismatch_worktree}")"
+git -C "${primary}" worktree add -b automation/local-dependency-lock-mismatch \
+  "${mismatch_worktree}" main >/dev/null
+printf 'lockfileVersion: "different"\n' >"${mismatch_worktree}/pnpm-lock.yaml"
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_COREPACK_ROOT}"
+if run_agent; then
+  echo 'mismatched candidate lockfile was accepted' >&2
+  exit 1
+fi
+test ! -e "${MOCK_CODEX_COUNT}"
+test ! -e "${MOCK_COREPACK_ROOT}"
+test ! -s "${events}"
+grep -Fq '**Status:** blocked' "${primary}/.scratch/dependency-lock-mismatch/issues/01-ticket.md"
+
+make_ticket dependency-missing 'Dependency missing'
+mv "${primary}/frontend/node_modules" "${primary}/frontend/node_modules.saved"
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_COREPACK_ROOT}"
+if run_agent; then
+  echo 'missing primary dependencies were accepted' >&2
+  exit 1
+fi
+mv "${primary}/frontend/node_modules.saved" "${primary}/frontend/node_modules"
+test ! -e "${MOCK_CODEX_COUNT}"
+test ! -e "${MOCK_COREPACK_ROOT}"
+test ! -s "${events}"
+grep -Fq '**Status:** blocked' "${primary}/.scratch/dependency-missing/issues/01-ticket.md"
 
 make_ticket preview-repair 'Preview repair'
 : >"${events}"

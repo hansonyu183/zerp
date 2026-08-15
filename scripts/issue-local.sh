@@ -224,9 +224,93 @@ prepare_worktree() {
       git -C "${primary_root}" worktree add -b "${branch}" "${worktree}" "${base_sha}"
     fi
   fi
+  prepare_offline_dependencies "${worktree}" || return 1
   mkdir -p "${worktree}/.scratch/${feature}"
   rm -rf "${worktree}/.scratch/${feature}/issues"
   cp -R "${issues_dir}" "${worktree}/.scratch/${feature}/issues"
+}
+
+cleanup_candidate_dependency_stores() {
+  worktree=$1
+  rm -rf "${worktree}/.pnpm-store" "${worktree}/frontend/node_modules/.pnpm-store"
+}
+
+verify_candidate_dependencies_ignored() {
+  worktree=$1
+  git -C "${worktree}" check-ignore -q -- node_modules || {
+    echo 'offline dependency preparation blocked: candidate node_modules is not ignored by Git' >&2
+    return 1
+  }
+  git -C "${worktree}" check-ignore -q -- frontend/node_modules/.issue-local-probe || {
+    echo 'offline dependency preparation blocked: candidate frontend/node_modules is not ignored by Git' >&2
+    return 1
+  }
+}
+
+prepare_offline_dependencies() {
+  worktree=$1
+  primary_lockfile="${primary_root}/pnpm-lock.yaml"
+  candidate_lockfile="${worktree}/pnpm-lock.yaml"
+  primary_modules="${primary_root}/node_modules"
+  primary_frontend_modules="${primary_root}/frontend/node_modules"
+  candidate_modules="${worktree}/node_modules"
+  candidate_frontend_modules="${worktree}/frontend/node_modules"
+
+  if ! { [ -f "${primary_lockfile}" ] && [ -f "${candidate_lockfile}" ] &&
+    cmp -s "${primary_lockfile}" "${candidate_lockfile}"; }; then
+      echo 'offline dependency preparation blocked: candidate pnpm-lock.yaml differs from the primary worktree' >&2
+      return 1
+  fi
+  if ! { [ -d "${primary_modules}" ] && [ -d "${primary_modules}/.pnpm" ] &&
+    [ -f "${primary_modules}/.modules.yaml" ] && [ -d "${primary_modules}/.bin" ]; }; then
+      echo 'offline dependency preparation blocked: primary root node_modules is incomplete' >&2
+      return 1
+  fi
+  if ! { [ -d "${primary_frontend_modules}" ] && [ -d "${primary_frontend_modules}/.bin" ] &&
+    [ -x "${primary_frontend_modules}/.bin/vite" ] && [ -e "${primary_frontend_modules}/vite" ]; }; then
+      echo 'offline dependency preparation blocked: primary frontend node_modules is incomplete' >&2
+      return 1
+  fi
+  if ! command -v rsync >/dev/null 2>&1; then
+      echo 'offline dependency preparation blocked: rsync is required' >&2
+      return 1
+  fi
+  if [ -e "${candidate_modules}" ] || [ -L "${candidate_modules}" ]; then
+    [ -L "${candidate_modules}" ] &&
+      [ "$(readlink "${candidate_modules}")" = "${primary_modules}" ] || {
+        echo 'offline dependency preparation blocked: candidate node_modules is not the controller-managed primary symlink' >&2
+        return 1
+      }
+  else
+    ln -s "${primary_modules}" "${candidate_modules}"
+  fi
+  if [ -L "${candidate_frontend_modules}" ] || {
+    [ -e "${candidate_frontend_modules}" ] && [ ! -d "${candidate_frontend_modules}" ]
+  }; then
+    echo 'offline dependency preparation blocked: candidate frontend/node_modules is not a directory' >&2
+    return 1
+  fi
+  mkdir -p "${candidate_frontend_modules}"
+  verify_candidate_dependencies_ignored "${worktree}" || return 1
+  cleanup_candidate_dependency_stores "${worktree}"
+  rm -rf "${candidate_frontend_modules}/.pnpm" \
+    "${candidate_frontend_modules}/.tmp" \
+    "${candidate_frontend_modules}/.vite" \
+    "${candidate_frontend_modules}/.vite-temp"
+  rsync -a --delete \
+    --exclude '.pnpm' \
+    --exclude '.tmp' \
+    --exclude '.vite' \
+    --exclude '.vite-temp' \
+    --exclude '.pnpm-store' \
+    "${primary_frontend_modules}/" "${candidate_frontend_modules}/"
+  mkdir -p "${candidate_frontend_modules}/.tmp"
+  cleanup_candidate_dependency_stores "${worktree}"
+  [ ! -e "${worktree}/.pnpm-store" ] &&
+    [ ! -e "${candidate_frontend_modules}/.pnpm-store" ] || {
+      echo 'offline dependency preparation blocked: candidate pnpm store cleanup failed' >&2
+      return 1
+    }
 }
 
 verify_worktree_git_metadata() {
@@ -271,7 +355,7 @@ run_implement() {
   attempt=$((attempt + 1))
   write_value "${batch_root}/attempt" "${attempt}"
   rm -f "${result_file}" "${evidence_file}"
-  {
+  if ! {
     # shellcheck disable=SC2016 # prompt intentionally contains skill and Markdown literals
     printf 'Use $implement to implement the complete local ticket batch at `.scratch/%s/issues`.\n' "${feature}"
     # shellcheck disable=SC2016 # prompt intentionally contains Markdown literals
@@ -286,7 +370,7 @@ run_implement() {
       printf '\nRepair evidence from the previous attempt:\n'
       sed -n '1,240p' "${failure_file}"
     fi
-  } | ZERP_ISSUE_BASE_SHA="${base_sha}" ZERP_GATE_EVIDENCE_FILE="${evidence_file}" \
+  } | COREPACK_ROOT=1 ZERP_ISSUE_BASE_SHA="${base_sha}" ZERP_GATE_EVIDENCE_FILE="${evidence_file}" \
     "${codex_bin}" --ask-for-approval never exec --ephemeral --ignore-user-config \
       --model gpt-5.6-sol -c model_reasoning_effort=high \
       --sandbox workspace-write \
@@ -295,7 +379,11 @@ run_implement() {
       -C "${worktree}" \
       --add-dir "${worktree_git_dir}" \
       --add-dir "${common_git_dir}" \
-      --output-schema "${schema}" -o "${result_file}" -
+      --output-schema "${schema}" -o "${result_file}" -; then
+    cleanup_candidate_dependency_stores "${worktree}"
+    return 1
+  fi
+  cleanup_candidate_dependency_stores "${worktree}"
   [ -r "${result_file}" ] || { echo 'Codex did not return a structured result' >&2; return 1; }
   status=$(jq -r .status "${result_file}")
   case "${status}" in
@@ -650,7 +738,11 @@ run_batch() {
   mkdir -p "${batch_root}"
   validate_tickets "${issues_dir}"
   claim_batch "${issues_dir}"
-  prepare_worktree "${feature}" "${issues_dir}" "${batch_root}" "${worktree}" "${branch}"
+  if ! prepare_worktree "${feature}" "${issues_dir}" "${batch_root}" "${worktree}" "${branch}"; then
+    mark_batch "${issues_dir}" blocked
+    write_value "${batch_root}/state" blocked
+    return 1
+  fi
   base_sha=$(cat "${batch_root}/base-sha")
 
   if [ ! -f "${batch_root}/preview.env" ]; then

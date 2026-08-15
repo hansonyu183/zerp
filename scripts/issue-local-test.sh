@@ -90,6 +90,7 @@ printf '%s\n' "${prompt}" | grep -Fq '$implement'
 count=$(cat "${MOCK_CODEX_COUNT}" 2>/dev/null || printf 0)
 count=$((count + 1))
 printf '%s\n' "${count}" >"${MOCK_CODEX_COUNT}"
+printf '%s\n' "${prompt}" >"${MOCK_PROMPT}-${count}"
 mkdir -p "${worktree}/.pnpm-store" "${worktree}/frontend/node_modules/.pnpm-store"
 if [ "${MOCK_CODEX_MODE:-completed}" = needs-input ]; then
   jq -n '{status:"needs_input",summary:"decision required",commitSha:"",validation:"not_run",review:"not_run"}' >"${output}"
@@ -99,15 +100,33 @@ printf 'implemented\n' >"${worktree}/deliverable-${count}.txt"
 git -C "${worktree}" add "deliverable-${count}.txt"
 git -C "${worktree}" -c user.name='Local Implement' -c user.email=local@example.com \
   commit -m 'feat: implement inventory query batch' >/dev/null
+printf 'model-commit\n' >>"${MOCK_EVENTS}"
 head=$(git -C "${worktree}" rev-parse HEAD)
-jq -n --arg head "${head}" '{status:"completed",summary:"implemented",commitSha:$head,validation:"passed",review:"passed"}' >"${output}"
-runtime_fingerprint=${MOCK_RUNTIME_FINGERPRINT:-runtime-one}
-jq -n --arg head "${head}" --arg base "${ZERP_ISSUE_BASE_SHA}" \
-  --arg runtime_fingerprint "${runtime_fingerprint}" \
+printf 'model-review\n' >>"${MOCK_EVENTS}"
+jq -n --arg head "${head}" --arg validation "${MOCK_VALIDATION:-not_run}" \
+  '{status:"completed",summary:"implemented",commitSha:$head,validation:$validation,review:"passed"}' >"${output}"
+EOF
+chmod +x "${tmp}/bin/codex"
+
+cat >"${tmp}/bin/gate" <<'EOF'
+#!/bin/sh
+set -eu
+printf 'gate\n' >>"${MOCK_EVENTS}"
+printf '%s\n' "${COREPACK_ROOT:-}" >"${MOCK_GATE_COREPACK_ROOT}"
+count=$(cat "${MOCK_GATE_COUNT}" 2>/dev/null || printf 0)
+count=$((count + 1))
+printf '%s\n' "${count}" >"${MOCK_GATE_COUNT}"
+if [ "${count}" -le "${MOCK_GATE_FAILS:-0}" ]; then
+  echo "simulated host gate failure ${count}" >&2
+  exit 1
+fi
+head=$(git rev-parse HEAD)
+jq -n --arg head "${head}" --arg base "$1" \
+  --arg runtime_fingerprint "${MOCK_RUNTIME_FINGERPRINT:-runtime-one}" \
   '{status:"passed",head:$head,base:$base,runtimeFingerprint:$runtime_fingerprint}' \
   >"${ZERP_GATE_EVIDENCE_FILE}"
 EOF
-chmod +x "${tmp}/bin/codex"
+chmod +x "${tmp}/bin/gate"
 
 cat >"${tmp}/bin/preview" <<'EOF'
 #!/bin/sh
@@ -198,21 +217,26 @@ export MOCK_PREVIEW_COUNT="${tmp}/preview-count"
 export MOCK_CHECK_COUNT="${tmp}/check-count"
 export MOCK_CODEX_ARGS="${tmp}/codex-args"
 export MOCK_COREPACK_ROOT="${tmp}/corepack-root"
+export MOCK_GATE_COUNT="${tmp}/gate-count"
+export MOCK_GATE_COREPACK_ROOT="${tmp}/gate-corepack-root"
 : >"${events}"
 
 PATH="${tmp}/bin:${PATH}" \
 ZERP_PRIMARY_ROOT="${primary}" \
 ZERP_ISSUE_TRACKER_ROOT="${primary}/.scratch" \
-ZERP_ISSUE_LOCAL_RUNTIME_ROOT="${runtime}" \
-ZERP_GITHUB_REPOSITORY=example/zerp \
-ZERP_CODEX_BIN=codex \
-ZERP_GH_BIN=gh \
-ZERP_ISSUE_PREVIEW_COMMAND="${tmp}/bin/preview" \
-ZERP_ISSUE_PRODUCTION_COMMAND="${tmp}/bin/production" \
+  ZERP_ISSUE_LOCAL_RUNTIME_ROOT="${runtime}" \
+  ZERP_GITHUB_REPOSITORY=example/zerp \
+  ZERP_CODEX_BIN=codex \
+  ZERP_GH_BIN=gh \
+  ZERP_ISSUE_PREVIEW_COMMAND="${tmp}/bin/preview" \
+  ZERP_ISSUE_PRODUCTION_COMMAND="${tmp}/bin/production" \
+  ZERP_ISSUE_GATE_COMMAND="${tmp}/bin/gate" \
   "${repo_root}/scripts/issue-local.sh" run
 
 test "$(cat "${tmp}/issue-count")" = 2
 test "$(grep -c '^codex$' "${events}")" = 1
+test "$(grep -c '^gate$' "${events}")" = 1
+test "$(cat "${MOCK_GATE_COREPACK_ROOT}")" = 1
 test "$(grep -c '^preview$' "${events}")" = 1
 grep -Fq -- '--ignore-user-config' "${MOCK_CODEX_ARGS}"
 grep -Fq -- '--ask-for-approval never' "${MOCK_CODEX_ARGS}"
@@ -224,8 +248,17 @@ worktree_git_dir=$(git -C "${runtime}/worktrees/inventory-query" rev-parse --pat
 common_git_dir=$(git -C "${runtime}/worktrees/inventory-query" rev-parse --path-format=absolute --git-common-dir)
 grep -Fq -- "--add-dir ${worktree_git_dir}" "${MOCK_CODEX_ARGS}"
 grep -Fq -- "--add-dir ${common_git_dir}" "${MOCK_CODEX_ARGS}"
+test "$(grep -o -- '--add-dir ' "${MOCK_CODEX_ARGS}" | wc -l | tr -d ' ')" = 2
 if grep -Fq -- "--add-dir ${primary}/node_modules" "${MOCK_CODEX_ARGS}"; then
   echo 'Codex received an unexpected primary node_modules write grant' >&2
+  exit 1
+fi
+if grep -Fq -- '.colima/default/docker.sock' "${MOCK_CODEX_ARGS}"; then
+  echo 'Codex received an unexpected Docker socket grant' >&2
+  exit 1
+fi
+if grep -Fq -- '--dangerously-bypass-approvals-and-sandbox' "${MOCK_CODEX_ARGS}"; then
+  echo 'Codex bypassed its sandbox' >&2
   exit 1
 fi
 test -L "${runtime}/worktrees/inventory-query/node_modules"
@@ -243,7 +276,13 @@ if find "${primary}/.git" \( -name 'issue-local-index-probe-*' -o -path '*/refs/
   exit 1
 fi
 preview_line=$(grep -n '^preview$' "${events}" | cut -d: -f1)
+commit_line=$(grep -n '^model-commit$' "${events}" | cut -d: -f1)
+review_line=$(grep -n '^model-review$' "${events}" | cut -d: -f1)
+gate_line=$(grep -n '^gate$' "${events}" | cut -d: -f1)
 first_gh_line=$(grep -n '^gh ' "${events}" | sed -n '1s/:.*//p')
+test "${commit_line}" -lt "${review_line}"
+test "${review_line}" -lt "${gate_line}"
+test "${gate_line}" -lt "${preview_line}"
 test "${preview_line}" -lt "${first_gh_line}"
 
 jq -e '.title == "First slice" and (.body | contains("First acceptance criterion"))' \
@@ -299,9 +338,10 @@ run_agent() {
   ZERP_ISSUE_LOCAL_RUNTIME_ROOT="${runtime}" \
   ZERP_GITHUB_REPOSITORY=example/zerp \
   ZERP_CODEX_BIN=codex \
-  ZERP_GH_BIN=gh \
-  ZERP_ISSUE_PREVIEW_COMMAND="${tmp}/bin/preview" \
-  ZERP_ISSUE_PRODUCTION_COMMAND="${tmp}/bin/production" \
+ZERP_GH_BIN=gh \
+ZERP_ISSUE_PREVIEW_COMMAND="${tmp}/bin/preview" \
+ZERP_ISSUE_PRODUCTION_COMMAND="${tmp}/bin/production" \
+ZERP_ISSUE_GATE_COMMAND="${tmp}/bin/gate" \
     "${repo_root}/scripts/issue-local.sh" run
 }
 
@@ -335,6 +375,43 @@ test ! -e "${MOCK_CODEX_COUNT}"
 test ! -e "${MOCK_COREPACK_ROOT}"
 test ! -s "${events}"
 grep -Fq '**Status:** blocked' "${primary}/.scratch/dependency-missing/issues/01-ticket.md"
+
+make_ticket gate-repair 'Gate repair'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
+MOCK_GATE_FAILS=1 run_agent
+test "$(cat "${MOCK_CODEX_COUNT}")" = 2
+test "$(cat "${MOCK_GATE_COUNT}")" = 2
+test "$(cat "${MOCK_PREVIEW_COUNT}")" = 1
+grep -Fq 'Host final gate failed' "${MOCK_PROMPT}-2"
+grep -Fq '**Status:** done' "${primary}/.scratch/gate-repair/issues/01-ticket.md"
+
+make_ticket gate-blocked 'Gate blocked'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
+if MOCK_GATE_FAILS=3 run_agent; then
+  echo 'three failed host gates were accepted' >&2
+  exit 1
+fi
+test "$(cat "${MOCK_CODEX_COUNT}")" = 3
+test "$(cat "${MOCK_GATE_COUNT}")" = 3
+test ! -e "${MOCK_PREVIEW_COUNT}"
+if grep -q '^gh ' "${events}"; then
+  echo 'GitHub was accessed after failed host gates' >&2
+  exit 1
+fi
+grep -Fq 'Host final gate failed' "${runtime}/batches/gate-blocked/failure.md"
+grep -Fq '**Status:** blocked' "${primary}/.scratch/gate-blocked/issues/01-ticket.md"
+
+make_ticket legacy-model-validation 'Legacy model validation'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
+MOCK_GATE_FAILS=0 MOCK_VALIDATION=passed run_agent
+test "$(cat "${MOCK_CODEX_COUNT}")" = 1
+test "$(cat "${MOCK_GATE_COUNT}")" = 1
+test "$(cat "${MOCK_PREVIEW_COUNT}")" = 1
+grep -Fq '**Status:** done' "${primary}/.scratch/legacy-model-validation/issues/01-ticket.md"
+unset MOCK_GATE_FAILS MOCK_VALIDATION
 
 make_ticket preview-repair 'Preview repair'
 : >"${events}"

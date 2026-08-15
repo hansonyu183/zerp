@@ -17,6 +17,7 @@ gh_bin=${ZERP_GH_BIN:-gh}
 preview_command=${ZERP_ISSUE_PREVIEW_COMMAND:-${script_dir}/issue-local-preview.sh}
 production_command=${ZERP_ISSUE_PRODUCTION_COMMAND:-${script_dir}/issue-local-production.sh}
 preview_close_command=${ZERP_ISSUE_PREVIEW_CLOSE_COMMAND:-${script_dir}/issue-local-preview.sh}
+gate_command=${ZERP_ISSUE_GATE_COMMAND:-}
 schema=${ZERP_ISSUE_RESULT_SCHEMA:-${repo_root}/.github/automation/schemas/local-implementation-output.json}
 lock_dir="${runtime_root}/agent.lock"
 
@@ -340,6 +341,40 @@ verify_worktree_git_metadata() {
   printf '%s\t%s\n' "${git_dir}" "${common_git_dir}"
 }
 
+run_final_gate() {
+  batch_root=$1
+  worktree=$2
+  base_sha=$3
+  head_sha=$4
+  evidence_file="${batch_root}/gate-evidence.json"
+  gate_log="${batch_root}/gate.log"
+  failure_file="${batch_root}/failure.md"
+  command_path=${gate_command:-${worktree}/scripts/change-gate.sh}
+
+  rm -f "${evidence_file}"
+  if ! (
+    cd "${worktree}"
+    COREPACK_ROOT=1 ZERP_GATE_EVIDENCE_FILE="${evidence_file}" \
+      "${command_path}" "${base_sha}"
+  ) >"${gate_log}" 2>&1; then
+    {
+      printf 'Host final gate failed for candidate %s. A repair must create a new commit before another gate attempt.\n\n' "${head_sha}"
+      sed -n '1,240p' "${gate_log}"
+    } >"${failure_file}"
+    return 4
+  fi
+  jq -e --arg head "${head_sha}" --arg base "${base_sha}" '
+    .status == "passed" and .head == $head and .base == $base and
+    (.runtimeFingerprint | type == "string" and length > 0)
+  ' "${evidence_file}" >/dev/null || {
+    {
+      printf 'Host final gate returned invalid evidence for candidate %s.\n\n' "${head_sha}"
+      sed -n '1,240p' "${gate_log}"
+    } >"${failure_file}"
+    return 4
+  }
+}
+
 run_implement() {
   feature=$1
   batch_root=$2
@@ -348,6 +383,7 @@ run_implement() {
   git_metadata=$(verify_worktree_git_metadata "${worktree}") || return 1
   worktree_git_dir=$(printf '%s' "${git_metadata}" | cut -f1)
   common_git_dir=$(printf '%s' "${git_metadata}" | cut -f2)
+  previous_head=$(git -C "${worktree}" rev-parse HEAD)
   result_file="${batch_root}/implementation.json"
   evidence_file="${batch_root}/gate-evidence.json"
   failure_file="${batch_root}/failure.md"
@@ -363,9 +399,9 @@ run_implement() {
     # shellcheck disable=SC2016 # prompt intentionally contains Markdown literals
     printf 'The batch base commit is `%s`. Do not access GitHub, push, deploy, or read preview or production credentials.\n' "${base_sha}"
     printf 'Use TDD at the agreed repository seams. Run focused tests while working.\n'
-    # shellcheck disable=SC2016 # prompt intentionally contains a literal command
-    printf 'The single final repository gate is `ZERP_GATE_EVIDENCE_FILE=%s scripts/change-gate.sh %s`; run it once after code review and all fixes.\n' "${evidence_file}" "${base_sha}"
-    printf 'Commit the completed batch to the current branch and return the required structured result.\n'
+    # shellcheck disable=SC2016 # prompt intentionally contains Markdown code delimiters
+    printf 'Do not run `scripts/change-gate.sh`: the controller runs the single final gate after your clean commit.\n'
+    printf 'Commit the completed batch to the current branch and return status=completed, validation=not_run, review=passed, and commitSha for that commit.\n'
     if [ -r "${failure_file}" ]; then
       printf '\nRepair evidence from the previous attempt:\n'
       sed -n '1,240p' "${failure_file}"
@@ -392,16 +428,13 @@ run_implement() {
     *) echo "invalid implementation result: ${status}" >&2; return 1 ;;
   esac
   head_sha=$(git -C "${worktree}" rev-parse HEAD)
-  [ "${head_sha}" != "${base_sha}" ] || { echo 'implementation produced no commit' >&2; return 1; }
+  [ "${head_sha}" != "${previous_head}" ] || { echo 'implementation repair produced no new commit' >&2; return 1; }
   [ -z "$(git -C "${worktree}" status --porcelain)" ] || { echo 'implementation left a dirty worktree' >&2; return 1; }
-  jq -e --arg head "${head_sha}" --arg base "${base_sha}" '
-    .status == "passed" and .head == $head and .base == $base and
-    (.runtimeFingerprint | type == "string" and length > 0)
-  ' "${evidence_file}" >/dev/null || { echo 'final gate evidence does not match the candidate commit' >&2; return 1; }
   jq -e --arg head "${head_sha}" '
     .status == "completed" and .commitSha == $head and
-    .validation == "passed" and .review == "passed"
+    (.validation == "not_run" or .validation == "passed") and .review == "passed"
   ' "${result_file}" >/dev/null || { echo 'implementation completion evidence is incomplete' >&2; return 1; }
+  run_final_gate "${batch_root}" "${worktree}" "${base_sha}" "${head_sha}"
 }
 
 remote_for_number() {
@@ -569,8 +602,10 @@ implement_and_preview() {
         mark_batch "${issues_dir}" "${status}"
         return 1
       fi
-      printf 'Implementation, review, or final gate failed on attempt %s.\n' \
-        "$(cat "${batch_root}/attempt")" >"${batch_root}/failure.md"
+      if [ "${result}" != 4 ]; then
+        printf 'Implementation, review, or final gate failed on attempt %s.\n' \
+          "$(cat "${batch_root}/attempt")" >"${batch_root}/failure.md"
+      fi
     fi
   done
   mark_batch "${issues_dir}" blocked

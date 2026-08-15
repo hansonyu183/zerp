@@ -6,8 +6,8 @@
 
 1. `$to-tickets` 在主工作区生成 `.scratch/<feature>/issues/*.md`。整个目录是一项不可拆分的发布批次。
 2. launchd 通过 `WatchPaths` 发现 `ready-for-agent` 批次，控制器领取整批并创建 `automation/local-<feature>` 独立 worktree。
-3. 控制器为整批而非逐 ticket 启动临时 `codex exec`，明确要求使用 `$implement` 处理整个目录。`$implement` 负责 TDD、聚焦测试、一次最终全量门禁、`/code-review`、修复和提交；只有失败修复轮次才会再次调用。
-4. 最终门禁是 `scripts/change-gate.sh <base-sha>`。它不 fetch、不推送、不部署；成功后写入候选 head、base 和运行时指纹。控制器只核验证据，不重复执行门禁。
+3. 控制器为整批而非逐 ticket 启动临时 `codex exec`，明确要求使用 `$implement` 处理整个目录。`$implement` 在无网络 workspace sandbox 内负责 TDD、聚焦测试、双轴 `/code-review`、修复和提交，返回 `validation=not_run`、`review=passed` 和 commit SHA；它不运行最终门禁。只有失败修复轮次才会再次调用。
+4. 控制器确认模型返回的 commit 与 clean candidate head 完全一致后，才在宿主环境精确运行一次 `scripts/change-gate.sh <base-sha>`。该 gate 可访问宿主 Docker 用于 integration/E2E，但该权限绝不授予 Codex sandbox；成功后写入候选 head、base 和运行时指纹。gate 失败会保存日志，并且只有后续模型修复产生新提交才可再次运行。
 5. 控制器使用受信任主工作区的预览脚本，将候选 worktree 构建到固定公网预览 `https://zerp-preview.bytesucceed.com`，并核对 exact SHA、浏览器 smoke 和运行时指纹。用户查看预览是可选的，不阻塞自动流程。
 6. 到此之前不得调用 GitHub。预览通过后才 fetch 最新 `origin/main`；若 rebase 仅改变 SHA 且运行时指纹不变，复用门禁和预览。指纹改变或发生冲突时，再交给 `$implement` 修复并重新验证，最多三轮。
 7. 控制器按本地编号创建远端 Issues、建立原生依赖、推送一个分支，并创建一个引用全部 Issues 的 Ready PR。PR 正文携带 exact head、预览 URL 和运行时指纹。

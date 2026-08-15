@@ -241,7 +241,25 @@ case " $* " in
     exit 0
     ;;
   *' pr merge 77 '*) printf '{}\n' ;;
-  *' pr edit 77 '*) printf '{}\n' ;;
+  *' pr edit 77 '*)
+    body_file=
+    previous=
+    for argument in "$@"; do
+      if [ "${previous}" = --body-file ]; then body_file=${argument}; fi
+      previous=${argument}
+    done
+    cp "${body_file}" "${MOCK_CAPTURE}/pr-body.md"
+    printf '{}\n'
+    ;;
+  *' pr view 77 '*'state,headRefName,headRefOid,baseRefName,body'*)
+    jq -n \
+      --arg state "${MOCK_EXISTING_PR_STATE:-OPEN}" \
+      --arg head_ref "${MOCK_EXISTING_PR_BRANCH:-automation/local-published-resume}" \
+      --arg head "${MOCK_EXISTING_PR_HEAD:-0000000000000000000000000000000000000000}" \
+      --arg base_ref "${MOCK_EXISTING_PR_BASE:-main}" \
+      --arg body "${MOCK_EXISTING_PR_BODY:-stale body}" \
+      '{state:$state,headRefName:$head_ref,headRefOid:$head,baseRefName:$base_ref,body:$body}'
+    ;;
   *' pr view 77 '*) printf '{"state":"MERGED","mergeCommit":{"oid":"9999999999999999999999999999999999999999"}}\n' ;;
   *' issue close '*) printf '{}\n' ;;
   *) echo "unexpected gh call: $*" >&2; exit 2 ;;
@@ -708,6 +726,59 @@ test "$(cat "${MOCK_CODEX_COUNT}")" = 1
 test "$(cat "${MOCK_CHECK_COUNT}")" = 2
 grep -Fq 'gh pr edit 77' "${events}"
 grep -Fq '**Status:** done' "${primary}/.scratch/rebase-refresh/issues/01-ticket.md"
+
+prepare_reviewed_candidate published-resume
+published_batch="${runtime}/batches/published-resume"
+published_candidate="${runtime}/worktrees/published-resume"
+published_branch=automation/local-published-resume
+old_published_head=$(git -C "${published_candidate}" rev-parse HEAD)
+git -C "${published_candidate}" push origin "HEAD:refs/heads/${published_branch}" >/dev/null
+printf 'published upstream\n' >"${primary}/published-upstream.txt"
+git -C "${primary}" add published-upstream.txt
+git -C "${primary}" commit -m 'published upstream' >/dev/null
+git -C "${primary}" push origin main >/dev/null
+git -C "${published_candidate}" rebase main >/dev/null
+published_head=$(git -C "${published_candidate}" rev-parse HEAD)
+published_base=$(git -C "${primary}" rev-parse HEAD)
+printf '%s\n' "${published_base}" >"${published_batch}/base-sha"
+jq -n --arg head "${published_head}" --arg base "${published_base}" \
+  '{status:"passed",head:$head,base:$base,runtimeFingerprint:"runtime-one",previewRequired:true}' \
+  >"${published_batch}/gate-evidence.json"
+printf 'url=https://zerp-preview.bytesucceed.com\nfingerprint=runtime-one\n' \
+  >"${published_batch}/preview.env"
+printf '1\t155\t1550\n' >"${published_batch}/remote-issues.tsv"
+printf '77\n' >"${published_batch}/pr-number"
+published_ticket="${primary}/.scratch/published-resume/issues/01-ticket.md"
+sed 's/^\*\*Status:\*\*.*/**Status:** ready-for-agent/' "${published_ticket}" \
+  >"${published_ticket}.new"
+mv "${published_ticket}.new" "${published_ticket}"
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" \
+  "${MOCK_ISSUE_COUNT}" "${MOCK_CHECK_COUNT}" "${tmp}/published-trace.json"
+MOCK_EXISTING_PR_HEAD="${old_published_head}" \
+MOCK_EXISTING_PR_BRANCH="${published_branch}" \
+MOCK_CHECK_MODE=normal \
+GIT_TRACE2_EVENT="${tmp}/published-trace.json" run_agent
+test ! -e "${MOCK_CODEX_COUNT}"
+test ! -e "${MOCK_GATE_COUNT}"
+test ! -e "${MOCK_PREVIEW_COUNT}"
+test ! -e "${MOCK_ISSUE_COUNT}"
+if grep -Eq 'gh (api --method POST repos/example/zerp/issues|pr create|pr list)' "${events}"; then
+  echo 'published batch recovery duplicated a remote object' >&2
+  exit 1
+fi
+grep -Fq 'gh pr edit 77' "${events}"
+test "$(grep -n 'gh pr edit 77' "${events}" | sed -n '1s/:.*//p')" -lt \
+  "$(grep -n 'gh pr checks 77' "${events}" | sed -n '1s/:.*//p')"
+grep -Fq "head=${published_head} fingerprint=runtime-one" "${tmp}/capture/pr-body.md"
+test "$(git --git-dir="${remote}" rev-parse "refs/heads/${published_branch}")" = \
+  "${published_head}"
+jq -e --arg lease \
+  "--force-with-lease=refs/heads/${published_branch}:${old_published_head}" \
+  'select(.event == "start") | select(.argv | index($lease))' \
+  "${tmp}/published-trace.json" >/dev/null
+grep -Fq '**Status:** done' "${published_ticket}"
+unset MOCK_EXISTING_PR_HEAD MOCK_EXISTING_PR_BRANCH GIT_TRACE2_EVENT
 
 make_ticket queue-first 'Queue first'
 make_ticket queue-second 'Queue second'

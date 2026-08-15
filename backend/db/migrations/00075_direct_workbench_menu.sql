@@ -121,6 +121,10 @@ END
 $$;
 -- +goose StatementEnd
 
+-- The self-referencing parent FK is initially deferred. Flush its queued
+-- checks before PostgreSQL rebuilds indexes on the table.
+SET CONSTRAINTS app_business_menu_items_parent_fk IMMEDIATE;
+
 CREATE UNIQUE INDEX app_business_menu_items_workbench_route_idx
     ON app_business_menu_items(route_key)
     WHERE route_key = 'home/dashboard';

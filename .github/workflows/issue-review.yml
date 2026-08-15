@@ -1,0 +1,207 @@
+name: Automated independent reviews
+run-name: PR #${{ github.event.pull_request.number }} independent reviews
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: issue-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  context:
+    if: startsWith(github.event.pull_request.head.ref, 'codex/issue-')
+    runs-on: ubuntu-latest
+    outputs:
+      issue: ${{ steps.metadata.outputs.issue }}
+      authorization_run_id: ${{ steps.metadata.outputs.authorization_run_id }}
+      deployment_id: ${{ steps.metadata.outputs.deployment_id }}
+      body_sha256: ${{ steps.metadata.outputs.body_sha256 }}
+      round: ${{ steps.metadata.outputs.round }}
+    steps:
+      - name: Validate automation metadata
+        id: metadata
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          marker=$(printf '%s\n' "$PR_BODY" | sed -n 's/^<!-- zerp-automation \(.*\) -->$/\1/p' | sed -n '1p')
+          [ -n "$marker" ] || { echo 'automation metadata is missing' >&2; exit 1; }
+          for pair in $marker; do
+            key=${pair%%=*}
+            value=${pair#*=}
+            case "$key" in
+              issue) echo "issue=$value" >> "$GITHUB_OUTPUT" ;;
+              authorization_run) echo "authorization_run_id=$value" >> "$GITHUB_OUTPUT" ;;
+              deployment) echo "deployment_id=$value" >> "$GITHUB_OUTPUT" ;;
+              body_sha) echo "body_sha256=$value" >> "$GITHUB_OUTPUT" ;;
+            esac
+          done
+          message=$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA" --jq .commit.message)
+          round=$(printf '%s\n' "$message" | sed -n 's/^automation(issue #[0-9][0-9]*): implementation round \([1-3]\)$/\1/p')
+          [ -n "$round" ] || { echo 'implementation round marker is invalid' >&2; exit 1; }
+          echo "round=$round" >> "$GITHUB_OUTPUT"
+
+  standards:
+    name: automation-standards-review
+    needs: context
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Fetch exact base
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: git fetch --no-tags origin "$BASE_SHA"
+      - uses: openai/codex-action@c385816875cc2fc8e033ed9d1cba96f8c331210e
+        id: review
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ':read-only'
+          prompt: |
+            ${{ format('Base SHA: {0}\nHead SHA: {1}\n', github.event.pull_request.base.sha, github.event.pull_request.head.sha) }}
+            Read .github/automation/prompts/review-standards.md and perform that review.
+          output-file: standards-review.json
+          output-schema-file: .github/automation/schemas/review-output.json
+          safety-strategy: drop-sudo
+          allow-bot-users: ${{ vars.ZERP_IMPLEMENTER_BOT_LOGIN }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: review-standards
+          path: standards-review.json
+          if-no-files-found: error
+      - name: Enforce standards verdict
+        run: jq -e '.verdict == "pass" and (.findings | length == 0)' standards-review.json >/dev/null
+
+  spec:
+    name: automation-spec-review
+    needs: context
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: authorization-issue-${{ needs.context.outputs.issue }}
+          path: .automation-input
+          github-token: ${{ github.token }}
+          run-id: ${{ needs.context.outputs.authorization_run_id }}
+      - name: Verify authorization snapshot
+        env:
+          ISSUE: ${{ needs.context.outputs.issue }}
+          BODY_SHA: ${{ needs.context.outputs.body_sha256 }}
+        run: |
+          cp .automation-input/authorization.json authorization.json
+          test "$(jq -r .issue authorization.json)" = "$ISSUE"
+          test "$(jq -r .body_sha256 authorization.json)" = "$BODY_SHA"
+      - uses: openai/codex-action@c385816875cc2fc8e033ed9d1cba96f8c331210e
+        id: review
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ':read-only'
+          prompt: |
+            ${{ format('Base SHA: {0}\nHead SHA: {1}\n', github.event.pull_request.base.sha, github.event.pull_request.head.sha) }}
+            Read .github/automation/prompts/review-spec.md and authorization.json, then perform that review.
+          output-file: spec-review.json
+          output-schema-file: .github/automation/schemas/review-output.json
+          safety-strategy: drop-sudo
+          allow-bot-users: ${{ vars.ZERP_IMPLEMENTER_BOT_LOGIN }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: review-spec
+          path: spec-review.json
+          if-no-files-found: error
+      - name: Enforce specification verdict
+        run: jq -e '.verdict == "pass" and (.findings | length == 0)' spec-review.json >/dev/null
+
+  reconcile:
+    name: automation-review-reconcile
+    if: always() && needs.context.result == 'success'
+    needs: [context, standards, spec]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        id: reviewer_token
+        with:
+          app-id: ${{ vars.ZERP_REVIEWER_APP_ID }}
+          private-key: ${{ secrets.ZERP_REVIEWER_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+      - uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        id: implementer_token
+        with:
+          app-id: ${{ vars.ZERP_IMPLEMENTER_APP_ID }}
+          private-key: ${{ secrets.ZERP_IMPLEMENTER_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        if: needs.standards.result == 'success' || needs.standards.result == 'failure'
+        with:
+          pattern: review-*
+          path: review-evidence
+          merge-multiple: true
+      - name: Advance successful candidate
+        if: needs.standards.result == 'success' && needs.spec.result == 'success'
+        env:
+          GH_TOKEN: ${{ steps.reviewer_token.outputs.token }}
+          ISSUE: ${{ needs.context.outputs.issue }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          scripts/issue-automation.sh set-state "$ISSUE" automation:release
+          gh pr ready "$PR"
+      - name: Dispatch review repair
+        if: >-
+          (needs.standards.result == 'failure' || needs.spec.result == 'failure') &&
+          needs.context.outputs.round != '3'
+        env:
+          GH_TOKEN: ${{ steps.implementer_token.outputs.token }}
+          ISSUE: ${{ needs.context.outputs.issue }}
+          PR: ${{ github.event.pull_request.number }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          BODY_SHA: ${{ needs.context.outputs.body_sha256 }}
+          AUTH_RUN: ${{ needs.context.outputs.authorization_run_id }}
+          DEPLOYMENT: ${{ needs.context.outputs.deployment_id }}
+          ROUND: ${{ needs.context.outputs.round }}
+        run: |
+          scripts/issue-automation.sh set-state "$ISSUE" automation:implementing
+          next_round=$((ROUND + 1))
+          payload=$(jq -n --argjson issue "$ISSUE" --argjson pr "$PR" --arg branch "$BRANCH" --arg body_sha256 "$BODY_SHA" --arg authorization_run_id "$AUTH_RUN" --argjson deployment_id "$DEPLOYMENT" --arg review_run_id "$GITHUB_RUN_ID" --argjson round "$next_round" '{event_type:"issue-repair",client_payload:{issue:$issue,pr:$pr,branch:$branch,body_sha256:$body_sha256,authorization_run_id:$authorization_run_id,deployment_id:$deployment_id,review_run_id:$review_run_id,round:$round}}')
+          printf '%s' "$payload" | gh api --method POST "repos/$GITHUB_REPOSITORY/dispatches" --input -
+      - name: Block exhausted review repairs
+        if: >-
+          (needs.standards.result == 'failure' || needs.spec.result == 'failure') &&
+          needs.context.outputs.round == '3'
+        env:
+          GH_TOKEN: ${{ steps.reviewer_token.outputs.token }}
+          ISSUE: ${{ needs.context.outputs.issue }}
+        run: |
+          scripts/issue-automation.sh set-state "$ISSUE" automation:blocked
+          gh issue comment "$ISSUE" --body "双路独立审查在第 3 轮后仍有阻断项：$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+      - name: Wake queue after leaving implementation/review
+        if: >-
+          (needs.standards.result == 'success' && needs.spec.result == 'success') ||
+          ((needs.standards.result == 'failure' || needs.spec.result == 'failure') && needs.context.outputs.round == '3')
+        env:
+          GH_TOKEN: ${{ steps.implementer_token.outputs.token }}
+        run: |
+          jq -n '{event_type:"issue-queue",client_payload:{reason:"review-complete"}}' |
+            gh api --method POST "repos/$GITHUB_REPOSITORY/dispatches" --input -

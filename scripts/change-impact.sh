@@ -93,6 +93,9 @@ if [ -n "${changed_files}" ]; then
         scripts/test-release-flow-transition.sh | scripts/reusable-pr-checks.sh | \
         scripts/preview-state-test.sh | scripts/release-metrics.sh | \
         scripts/release-metrics-check.sh | scripts/review-* | \
+        scripts/issue-automation.sh | scripts/issue-automation-test.sh | \
+        scripts/issue-queue.sh | scripts/issue-infra-retry.sh | scripts/github-app-token.sh | \
+        scripts/install-issue-release-agent.sh | \
         scripts/verify-pr-base.sh | scripts/verify-merged-pr.sh | scripts/dev.sh)
         if [ "${impact}" = "docs" ]; then
           impact=validation
@@ -231,7 +234,9 @@ if [ -n "${changed_files}" ]; then
         backend/scripts/init-preview-env.sh | scripts/preview.sh | \
         scripts/preview-build-sandbox.sh | scripts/preview-runtime-sandbox.sh | \
         scripts/preview-deploy.sh | scripts/preview-state.sh | \
-        scripts/verify-preview-pr.sh | scripts/uninstall-preview-agent.sh)
+        scripts/verify-preview-pr.sh | scripts/preview-smoke.sh | \
+        scripts/issue-release-watch.sh | scripts/uninstall-preview-agent.sh | \
+        frontend/scripts/preview-smoke.mjs)
         if [ "${impact}" = "docs" ]; then
           impact=validation
         fi

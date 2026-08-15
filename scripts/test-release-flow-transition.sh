@@ -34,6 +34,11 @@ assert_check 'scripts/check-run-provenance.sh' 1 preview
 assert_check 'scripts/preview-state-test.sh' validation impact
 assert_check 'scripts/preview-state.sh' validation impact
 assert_check 'scripts/preview-state.sh' 1 preview
+assert_check 'scripts/issue-automation.sh' validation impact
+assert_check 'scripts/issue-release-watch.sh' validation impact
+assert_check 'scripts/issue-release-watch.sh' 1 preview
+assert_check 'frontend/scripts/preview-smoke.mjs' validation impact
+assert_check 'frontend/scripts/preview-smoke.mjs' 1 preview
 assert_check 'scripts/production-watch.sh' application impact
 assert_check 'scripts/preview-runtime-sandbox.sh' 1 preview
 
@@ -80,6 +85,16 @@ checkout_count=$(grep -c 'uses: actions/checkout@v6' .github/workflows/quality.y
 exact_ref_count=$(grep -c 'ref:.*github.event.pull_request.head.sha.*github.sha' .github/workflows/quality.yml)
 test "${checkout_count}" = "${exact_ref_count}" || fail 'every quality job must checkout the exact PR head SHA'
 grep -Fq "'draft-validation'" .github/workflows/quality.yml
+grep -Fq 'types: [labeled]' .github/workflows/issue-authorize.yml
+grep -Fq 'ZERP_AUTOMATION_ENABLED' .github/workflows/issue-authorize.yml
+grep -Fq 'ZERP_IMPLEMENTATION_CAPACITY: '\''2'\''' .github/workflows/issue-queue.yml
+grep -Fq 'automation-standards-review' .github/workflows/issue-review.yml
+grep -Fq 'automation-spec-review' .github/workflows/issue-review.yml
+grep -Fq 'permission-profile: '\'':workspace'\''' .github/workflows/issue-implement.yml
+grep -Fq 'permission-profile: '\'':read-only'\''' .github/workflows/issue-review.yml
+grep -Fq 'openai/codex-action@c385816875cc2fc8e033ed9d1cba96f8c331210e' .github/workflows/issue-implement.yml
+grep -Fq "gh pr merge \"\${pr}\" --auto --squash --delete-branch" scripts/issue-release-watch.sh
+grep -Fq 'ZERP_RELEASE_VERIFIER_ACTOR is required' scripts/verify-preview-pr.sh
 
 # Direct-main PR evidence must include the latest base and no merge commits.
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/zerp-transition-test.XXXXXX")
@@ -149,7 +164,7 @@ case "${MOCK_SCENARIO}" in
   accepted-status-bot) acceptance_actor=bot ;;
   accepted-status-suffix-bot) acceptance_actor=release-bot ;;
   accepted-status-bracket-bot) acceptance_actor='Release[Bot]' ;;
-  *) acceptance_actor=alice ;;
+  *) acceptance_actor='release-verifier[bot]' ;;
 esac
 case "$*" in
   *'/pulls?per_page=20'*)
@@ -196,17 +211,17 @@ case "$*" in
     if [ "${MOCK_SCENARIO}" = status-success ]; then
       printf '[{"context":"full-validation","state":"success","created_at":"2026-08-08T00:01:00Z"}]\n'
     elif [ "${MOCK_SCENARIO#accepted-status-}" != "${MOCK_SCENARIO}" ]; then
-      printf '[{"context":"full-validation","state":"success","description":"accepted preview PR #7 generation 3 by %s","target_url":"https://zerp-preview.bytesucceed.com","creator":{"login":"%s"},"created_at":"2026-08-08T00:01:00Z"}]\n' "${acceptance_actor}" "${acceptance_actor}"
+      printf '[{"context":"full-validation","state":"success","description":"verified preview PR #7 generation 3 by %s","target_url":"https://zerp-preview.bytesucceed.com","creator":{"login":"%s"},"created_at":"2026-08-08T00:01:00Z"}]\n' "${acceptance_actor}" "${acceptance_actor}"
     else
       printf '[]\n'
     fi
     ;;
   *'/collaborators/'*'/permission'*) printf 'write\n' ;;
   *'/deployments?sha='*)
-    printf '[{"id":42,"description":"preview PR #7 generation 3 actor %s","payload":{"pr":"7","generation":"3","actor":"%s"},"creator":{"login":"%s"},"created_at":"2026-08-08T00:01:00Z"}]\n' "${acceptance_actor}" "${acceptance_actor}" "${acceptance_actor}"
+    printf '[{"id":42,"description":"preview PR #7 generation 3 verifier %s","payload":{"pr":"7","generation":"3","actor":"%s"},"creator":{"login":"%s"},"created_at":"2026-08-08T00:01:00Z"}]\n' "${acceptance_actor}" "${acceptance_actor}" "${acceptance_actor}"
     ;;
   *'/deployments/42/statuses?per_page=100'*)
-    printf '[{"state":"success","description":"accepted PR #7 head %s generation 3 actor %s","creator":{"login":"%s"},"created_at":"2026-08-08T00:02:00Z"}]\n' "${MOCK_HEAD_SHA}" "${acceptance_actor}" "${acceptance_actor}"
+    printf '[{"state":"success","description":"verified PR #7 head %s generation 3 by %s","creator":{"login":"%s"},"created_at":"2026-08-08T00:02:00Z"}]\n' "${MOCK_HEAD_SHA}" "${acceptance_actor}" "${acceptance_actor}"
     ;;
   *) exit 2 ;;
 esac
@@ -222,6 +237,7 @@ assert_merge_evidence() {
     MOCK_HEAD_SHA=2222222222222222222222222222222222222222 \
     MOCK_MERGE_TREE="${merge_tree}" MOCK_HEAD_TREE=3333333333333333333333333333333333333333 \
     GITHUB_REPOSITORY=example/zerp GITHUB_SHA=1111111111111111111111111111111111111111 \
+    ZERP_RELEASE_VERIFIER_ACTOR='release-verifier[bot]' \
     "${tmp}/verify-merged-pr.sh" >/dev/null 2>&1; then
     actual=success
   else

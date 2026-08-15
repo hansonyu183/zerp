@@ -70,7 +70,7 @@ for required_check in ${required_checks}; do
   status_description=$(printf '%s' "${status}" | jq -r '.description // ""')
   status_target=$(printf '%s' "${status}" | jq -r '.target_url // ""')
   status_actor=$(printf '%s' "${status}" | jq -r '.creator.login // ""')
-  acceptance=$(printf '%s' "${status_description}" | sed -n "s/^accepted preview PR #${pull_number} generation \([0-9][0-9]*\) by \([^ ][^ ]*\)$/\1 \2/p")
+  acceptance=$(printf '%s' "${status_description}" | sed -n "s/^verified preview PR #${pull_number} generation \([0-9][0-9]*\) by \([^ ][^ ]*\)$/\1 \2/p")
   generation=${acceptance%% *}
   accepted_actor=${acceptance#* }
   if [ -z "${acceptance}" ] || [ "${status_target}" != "https://zerp-preview.bytesucceed.com" ] || \
@@ -78,13 +78,18 @@ for required_check in ${required_checks}; do
     echo "Merged PR #${pull_number} full-validation status is not trusted preview acceptance evidence" >&2
     exit 1
   fi
+  expected_verifier=${ZERP_RELEASE_VERIFIER_ACTOR:-}
+  test -n "${expected_verifier}" || {
+    echo "ZERP_RELEASE_VERIFIER_ACTOR is required" >&2
+    exit 1
+  }
   accepted_actor_key=$(printf '%s' "${accepted_actor}" | tr '[:upper:]' '[:lower:]')
-  case "${accepted_actor_key}" in
-    *'[bot]' | *-bot | bot)
-      echo "Merged PR #${pull_number} preview acceptance actor must not be a Bot" >&2
-      exit 1
-      ;;
-  esac
+  expected_verifier_key=$(printf '%s' "${expected_verifier}" | tr '[:upper:]' '[:lower:]')
+  [ "${accepted_actor_key}" = "${expected_verifier_key}" ] || {
+    echo "Merged PR #${pull_number} preview verifier ${accepted_actor} is not trusted" >&2
+    exit 1
+  }
+  case "${accepted_actor_key}" in *'[bot]') ;; *) echo "Merged PR #${pull_number} verifier is not a GitHub App Bot" >&2; exit 1 ;; esac
   permission=$(gh api "repos/${repository}/collaborators/${accepted_actor}/permission" --jq '.permission // "none"')
   case "${permission}" in
     admin | maintain | write) ;;
@@ -94,7 +99,7 @@ for required_check in ${required_checks}; do
       ;;
   esac
 
-  deployment_description="preview PR #${pull_number} generation ${generation} actor ${accepted_actor}"
+  deployment_description="preview PR #${pull_number} generation ${generation} verifier ${accepted_actor}"
   deployments=$(gh api -H "Accept: application/vnd.github+json" "repos/${repository}/deployments?sha=${head_sha}&environment=preview&per_page=100")
   deployment_id=$(printf '%s' "${deployments}" | jq -r \
     --arg pr "${pull_number}" --arg generation "${generation}" \
@@ -109,7 +114,7 @@ for required_check in ${required_checks}; do
   deployment_state=$(printf '%s' "${deployment_status}" | jq -r '.state // "missing"')
   deployment_actor=$(printf '%s' "${deployment_status}" | jq -r '.creator.login // ""')
   deployment_status_description=$(printf '%s' "${deployment_status}" | jq -r '.description // ""')
-  expected_deployment_status="accepted PR #${pull_number} head ${head_sha} generation ${generation} actor ${accepted_actor}"
+  expected_deployment_status="verified PR #${pull_number} head ${head_sha} generation ${generation} by ${accepted_actor}"
   if [ "${deployment_state}" != success ] || \
     [ "${deployment_status_description}" != "${expected_deployment_status}" ] || \
     [ "$(printf '%s' "${deployment_actor}" | tr '[:upper:]' '[:lower:]')" != "$(printf '%s' "${accepted_actor}" | tr '[:upper:]' '[:lower:]')" ]; then

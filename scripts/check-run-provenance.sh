@@ -1,6 +1,6 @@
 #!/bin/sh
 
-verify_actions_check_run() (
+verify_actions_check_run_from() (
   repository=$1
   check_json=$2
   expected_name=$3
@@ -8,6 +8,8 @@ verify_actions_check_run() (
   expected_event=$5
   expected_pull_number=${6:-}
   gh_command=${7:-gh}
+  expected_workflow_name=$8
+  expected_workflow_path=$9
 
   check_details=$(printf '%s' "${check_json}" | jq -r '.details_url // ""')
   actions_prefix="https://github.com/${repository}/actions/runs/"
@@ -39,10 +41,12 @@ verify_actions_check_run() (
     --arg event "${expected_event}" --arg pull_number "${expected_pull_number}" \
     --arg check_name "${expected_name}" --arg details_url "${check_details}" \
     --arg run_id "${run_id}" --arg job_id "${job_id}" \
-    --arg run_url "${expected_run_url}" '
+    --arg run_url "${expected_run_url}" \
+    --arg workflow_name "${expected_workflow_name}" \
+    --arg workflow_path "${expected_workflow_path}" '
       ($run.id | tostring) == $run_id and
-      $run.name == "Full-stack quality" and
-      $run.path == ".github/workflows/quality.yml" and
+      $run.name == $workflow_name and
+      $run.path == $workflow_path and
       $run.event == $event and
       $run.status == "completed" and $run.conclusion == "success" and
       $run.head_sha == $head_sha and
@@ -55,8 +59,13 @@ verify_actions_check_run() (
       $job.name == $check_name and
       $job.status == "completed" and $job.conclusion == "success" and
       $job.head_sha == $head_sha and $job.html_url == $details_url and
-      $job.workflow_name == "Full-stack quality" and $job.run_url == $run_url
+      $job.workflow_name == $workflow_name and $job.run_url == $run_url
     ' >/dev/null
+)
+
+verify_actions_check_run() (
+  verify_actions_check_run_from "$1" "$2" "$3" "$4" "$5" "${6:-}" \
+    "${7:-gh}" "Full-stack quality" ".github/workflows/quality.yml"
 )
 
 verify_cloudflare_pages_check_run() (

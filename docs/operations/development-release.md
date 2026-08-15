@@ -21,19 +21,18 @@ E2E 使用一次性 PostgreSQL 容器加本机 Go API/Web，并由 Playwright �
 
 确认分支基于最新 `main` 后转为 Ready。Ready 的最新 SHA 运行完整前端覆盖率、后端集成/race、需要的镜像验证和一次真实 E2E。相同 PR 在不改变 SHA 的 Ready 转换中，只有输入指纹完全相同的组件证据可以复用；第一阶段仅复用等价的 `contracts` 作业，其他风险矩阵继续执行。依赖和构建缓存可跨运行复用，但不当作测试成功证据。
 
-`validation` 是自动化门禁聚合。无需预览的 Ready PR 在自动门禁成功后获得 `full-validation`。需要预览的 PR 只获得 `preview-required`，随后执行：
+`validation` 是自动化门禁聚合。无需预览的 Ready PR 在自动门禁成功后获得 `full-validation`。需要预览的 PR 只获得 `preview-required`，随后由受信任的 Issue 发布控制器执行：
 
 ```bash
 make preview-deploy PREVIEW_PR=<number> PREVIEW_REF=<pr-head-full-sha>
 make preview-status
-make preview-accept PREVIEW_PR=<number>
 ```
 
-`preview-deploy` 在构建前后各读取一次 GitHub PR，要求 PR 为 Ready、仍打开、目标为 `main`、包含最新 `origin/main`、head SHA 未变化且 `validation` 成功。人工验收人从当前 `gh` 登录态读取，调用方不能自报或冒用其他身份，且只能由仓库 write 及以上权限的非 Bot 用户确认；成功后写入绑定 PR、SHA、状态代次和验收人的 GitHub Preview Deployment，并为同一 SHA 发布 `full-validation` 状态。合并证据会再次核对状态创建者、验收人权限、Preview Deployment 的 PR/SHA/代次/验收人及其成功状态，单独伪造同名 commit status 不能触发生产发布。新提交会使旧预览和验收失效。
+`preview-deploy` 在构建前后各读取一次 GitHub PR，要求 PR 为 Ready、仍打开、目标为 `main`、包含最新 `origin/main`、head SHA 未变化且 `validation` 成功。控制器随后使用受信任的固定脚本执行 API、Web、公网 release marker 和真实浏览器登录 smoke；只有配置的 release-verifier GitHub App Bot 可以写入绑定 PR、SHA、状态代次和验证者的 GitHub Preview Deployment，并为同一 SHA 发布 `full-validation`。合并证据会再次核对状态创建者、精确验证者、Preview Deployment 的 PR/SHA/代次/验证者及其成功状态，单独伪造同名 commit status 不能触发生产发布。新提交会使旧预览和验收失效。
 
 预览命令必须从 `HEAD == origin/main` 的受信任控制 checkout 运行，不能在 PR worktree 运行；PR checkout 只作为无密钥编译输入。
 
-合并前必须确认最新 SHA 的全部 required checks 成功。需要固定预览的变更在自动门禁就绪后部署并完成人工验收。禁止直接推送、强推或自动合并 `main`。
+合并前必须确认最新 SHA 的全部 required checks 成功。需要固定预览的变更在自动门禁就绪后部署并完成独立自动验收。禁止直接推送或强推 `main`；授权 Issue 只能由独立发布控制器请求 squash auto-merge。
 
 ## 3. 合并与生产
 

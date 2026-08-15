@@ -39,7 +39,7 @@ cat >"${root}/bin/gh" <<'EOF'
 #!/bin/sh
 printf '%s\n' "$*" >>"${MOCK_GH_LOG}"
 case "$*" in
-  *"api user --jq .login"*) printf 'alice\n' ;;
+  *"api user --jq .login"*) printf 'release-verifier[bot]\n' ;;
   *"repos/example/zerp/pulls/1"*)
     printf '{"state":"open","draft":false,"base":{"ref":"main"},"head":{"sha":"%s"}}\n' "${MOCK_ACCEPT_HEAD}"
     ;;
@@ -58,13 +58,13 @@ case "$*" in
   *"repos/example/zerp/actions/jobs/99"*)
     printf '{"id":99,"name":"preview-required","status":"completed","conclusion":"success","head_sha":"%s","html_url":"https://github.com/example/zerp/actions/runs/88/job/99","workflow_name":"Full-stack quality","run_url":"https://api.github.com/repos/example/zerp/actions/runs/88"}\n' "${MOCK_ACCEPT_HEAD}"
     ;;
-  *"collaborators/alice/permission"*) printf 'write\n' ;;
+  *"collaborators/release-verifier[bot]/permission"*) printf 'write\n' ;;
   *"deployments/42/statuses?per_page=100"*)
-    printf '[{"state":"success","description":"accepted PR #1 head %s generation 1 actor alice","creator":{"login":"alice"},"created_at":"2026-08-08T00:02:00Z"}]\n' "${MOCK_ACCEPT_HEAD}"
+    printf '[{"state":"success","description":"verified PR #1 head %s generation 1 by release-verifier[bot]","creator":{"login":"release-verifier[bot]"},"created_at":"2026-08-08T00:02:00Z"}]\n' "${MOCK_ACCEPT_HEAD}"
     ;;
   *"deployments?sha="*)
     if grep -Fq -- "--method POST repos/example/zerp/deployments/42/statuses" "${MOCK_GH_LOG}"; then
-      printf '[{"id":42,"description":"preview PR #1 generation 1 actor alice","payload":{"pr":"1","generation":"1","actor":"alice"},"creator":{"login":"alice"},"created_at":"2026-08-08T00:01:00Z"}]\n'
+      printf '[{"id":42,"description":"preview PR #1 generation 1 verifier release-verifier[bot]","payload":{"pr":"1","generation":"1","actor":"release-verifier[bot]"},"creator":{"login":"release-verifier[bot]"},"created_at":"2026-08-08T00:01:00Z"}]\n'
     fi
     ;;
   *"--method POST repos/example/zerp/deployments --input - --jq .id"*) printf '42\n' ;;
@@ -81,7 +81,7 @@ case "$*" in
     printf '%s\n' "${MOCK_TREE_SHA}"
     ;;
   *"commits/${MOCK_ACCEPT_HEAD}/statuses?per_page=100"*)
-    printf '[{"context":"full-validation","state":"success","description":"accepted preview PR #1 generation 1 by alice","target_url":"https://zerp-preview.bytesucceed.com","creator":{"login":"alice"},"created_at":"2026-08-08T00:01:00Z"}]\n'
+    printf '[{"context":"full-validation","state":"success","description":"verified preview PR #1 generation 1 by release-verifier[bot]","target_url":"https://zerp-preview.bytesucceed.com","creator":{"login":"release-verifier[bot]"},"created_at":"2026-08-08T00:01:00Z"}]\n'
     ;;
   *"commits/${MOCK_ACCEPT_HEAD}/check-runs?per_page=100"*)
     printf '{"check_runs":[]}\n'
@@ -113,9 +113,10 @@ export ZERP_PREVIEW_NOW=1000
 export ZERP_PREVIEW_MAIN_SHA="${main_sha}"
 export ZERP_GITHUB_REPOSITORY=example/zerp
 export ZERP_GH_BIN=gh
+export ZERP_RELEASE_VERIFIER_ACTOR='release-verifier[bot]'
 state=${repo_root}/scripts/preview-state.sh
 
-if MOCK_DRAFT_ONLY=1 PREVIEW_ACTOR=alice \
+if MOCK_DRAFT_ONLY=1 PREVIEW_ACTOR='release-verifier[bot]' \
   "${repo_root}/scripts/verify-preview-pr.sh" 1 "${accept_head}" >/dev/null 2>&1; then
   echo 'Draft-only evidence was accepted for preview' >&2
   exit 1
@@ -125,7 +126,7 @@ if PREVIEW_ACTOR=bob \
   echo 'Claimed preview actor did not match authenticated GitHub actor' >&2
   exit 1
 fi
-if MOCK_UNTRUSTED_CHECK=1 PREVIEW_ACTOR=alice \
+if MOCK_UNTRUSTED_CHECK=1 PREVIEW_ACTOR='release-verifier[bot]' \
   "${repo_root}/scripts/verify-preview-pr.sh" 1 "${accept_head}" >/dev/null 2>&1; then
   echo 'Untrusted preview-required check was accepted for preview' >&2
   exit 1
@@ -288,19 +289,19 @@ ZERP_PREVIEW_NOW=90001 PREVIEW_PR=1 PREVIEW_REF="${accept_head}" \
   PREVIEW_VERIFIED=1 "${state}" claim
 printf '%s\n' 9999999999999999999999999999999999999999 \
   >"${root}/runtime/releases/${accept_head}/release-sha"
-if PREVIEW_PR=1 PREVIEW_ACTOR=alice "${state}" accept >/dev/null 2>&1; then
+if PREVIEW_PR=1 PREVIEW_ACTOR='release-verifier[bot]' "${state}" accept >/dev/null 2>&1; then
   echo 'Drifted preview runtime was accepted' >&2
   exit 1
 fi
 printf '%s\n' "${accept_head}" >"${root}/runtime/releases/${accept_head}/release-sha"
-if MOCK_DRIFT_AFTER_STATUS=1 PREVIEW_PR=1 PREVIEW_ACTOR=alice \
+if MOCK_DRIFT_AFTER_STATUS=1 PREVIEW_PR=1 PREVIEW_ACTOR='release-verifier[bot]' \
   "${state}" accept >/dev/null 2>&1; then
   echo 'Preview drift after acceptance publication was accepted' >&2
   exit 1
 fi
 test "$(grep '^status=' "${root}/state/prs/1.state")" = status=active
 printf '%s\n' "${accept_head}" >"${root}/runtime/releases/${accept_head}/release-sha"
-PREVIEW_PR=1 PREVIEW_ACTOR=alice "${state}" accept
+PREVIEW_PR=1 PREVIEW_ACTOR='release-verifier[bot]' "${state}" accept
 grep -Fq "repos/example/zerp/deployments" "${MOCK_GH_LOG}"
 grep -Fq "repos/example/zerp/statuses/${accept_head}" "${MOCK_GH_LOG}"
 if MOCK_MERGED_PR=2 PREVIEW_PR=1 PREVIEW_MERGE_SHA="${merge_sha}" \

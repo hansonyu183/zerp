@@ -912,7 +912,7 @@ wait_checks_and_merge() {
       >"${batch_root}/checks.log" 2>&1; then
       break
     fi
-    if grep -Fq 'no required checks reported' "${batch_root}/checks.log"; then
+    if grep -Eq 'no (required )?checks reported' "${batch_root}/checks.log"; then
       if [ "${registration_attempts}" -le 0 ]; then
         mark_batch "${issues_dir}" blocked
         write_value "${batch_root}/state" blocked

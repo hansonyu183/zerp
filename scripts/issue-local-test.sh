@@ -231,7 +231,11 @@ case " $* " in
       exit 1
     fi
     if [ "${count}" -le "${MOCK_CHECKS_MISSING:-0}" ]; then
-      echo "no required checks reported on the test branch" >&2
+      if [ "${MOCK_CHECKS_MISSING_MESSAGE:-required}" = plain ]; then
+        echo "no checks reported on the test branch" >&2
+      else
+        echo "no required checks reported on the test branch" >&2
+      fi
       exit 1
     fi
     exit 0
@@ -686,6 +690,7 @@ make_ticket checks-registering 'Checks registering'
 : >"${events}"
 rm -f "${MOCK_CODEX_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}" "${MOCK_CHECK_COUNT}"
 MOCK_CODEX_MODE=completed MOCK_PREVIEW_FAILS=0 MOCK_CHECKS_MISSING=1 \
+  MOCK_CHECKS_MISSING_MESSAGE=plain \
   ZERP_ISSUE_CHECK_REGISTRATION_WAIT_SECONDS=0 run_agent
 test "$(cat "${MOCK_CODEX_COUNT}")" = 1
 test "$(cat "${MOCK_CHECK_COUNT}")" = 2

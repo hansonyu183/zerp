@@ -8,7 +8,8 @@ ZERP 是一个面向企业内部业务的全栈 ERP 单仓项目。Vue 前端、
 frontend/             Vue 3、TypeScript、Vite、Vuetify
 backend/              Go、Gin、pgx、sqlc、Goose
 contracts/openapi/    唯一 HTTP 线协议与生成后的 bundle
-docs/domains/         唯一业务规则与前后端职责说明
+docs/domains/         唯一业务规则与领域职责说明
+docs/use-cases/       按页面组织的前后端处理流程与验收场景
 scripts/              联调、测试、预览与发布编排
 tools/                独立版本的构建工具
 .github/workflows/    全栈质量门禁
@@ -119,6 +120,7 @@ https://zerp-preview.bytesucceed.com
 - [WFL：业务流程](docs/domains/wfl.md)
 - [ACC：内部会计](docs/domains/acc.md)
 - [RPT：报表](docs/domains/rpt.md)
+- [页面用例索引](docs/use-cases/README.md)
 - [前端 API 与双部署配置](docs/operations/frontend-api-configuration.md)
 - [固定外网开发预览](docs/operations/fixed-preview.md)
 - [开发、PR 与自动上线规范](docs/operations/development-release.md)

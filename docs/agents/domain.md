@@ -6,6 +6,7 @@ How the engineering skills should consume this repo's domain documentation when 
 
 - **`CONTEXT.md`** at the repo root for the shared domain language.
 - **`docs/domains/`** for authoritative business rules relevant to the task.
+- **`docs/use-cases/`** when the task involves a page flow, frontend orchestration, backend collaboration sequence, or acceptance scenario.
 - **`docs/adr/`** for architectural decisions that touch the area being changed.
 - **`contracts/openapi/`** when the task involves the HTTP wire contract.
 
@@ -20,7 +21,8 @@ This repository uses a single shared domain context:
 ├── CONTEXT.md
 ├── docs/
 │   ├── adr/
-│   └── domains/
+│   ├── domains/
+│   └── use-cases/
 ├── contracts/
 │   └── openapi/
 ├── frontend/
@@ -37,7 +39,7 @@ If a needed concept isn't in the glossary, reconsider whether the term belongs t
 
 ## Respect authoritative sources
 
-`docs/domains/` is the source of truth for business rules. `contracts/openapi/` is the source of truth for the HTTP wire contract. `CONTEXT.md` supplies shared vocabulary; it does not replace either source.
+`docs/domains/` is the source of truth for business rules. `contracts/openapi/` is the source of truth for the HTTP wire contract. `docs/use-cases/` owns page-oriented orchestration and acceptance flows, and must link to rather than restate domain rules or wire schemas. `CONTEXT.md` supplies shared vocabulary; it does not replace any of these sources.
 
 ## Flag ADR conflicts
 

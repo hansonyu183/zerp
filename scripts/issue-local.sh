@@ -236,6 +236,16 @@ cleanup_candidate_dependency_stores() {
   rm -rf "${worktree}/.pnpm-store" "${worktree}/frontend/node_modules/.pnpm-store"
 }
 
+remove_managed_root_dependencies() {
+  worktree=$1
+  candidate_modules="${worktree}/node_modules"
+  primary_modules="${primary_root}/node_modules"
+  if [ -L "${candidate_modules}" ] &&
+    [ "$(readlink "${candidate_modules}")" = "${primary_modules}" ]; then
+    rm -f "${candidate_modules}"
+  fi
+}
+
 prepare_cached_pnpm() {
   worktree=$1
   package_json="${worktree}/package.json"
@@ -927,6 +937,7 @@ retry_command() {
   base_sha=$(cat "${batch_root}/base-sha" 2>/dev/null || true)
   mark_batch "${issues_dir}" ready-for-agent
   release_preview "${feature}"
+  remove_managed_root_dependencies "${worktree}"
   rm -f "${batch_root}/failure.md" "${batch_root}/preview.env" \
     "${batch_root}/attempt" "${batch_root}/gate-evidence.json" \
     "${batch_root}/state"

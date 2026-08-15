@@ -445,6 +445,27 @@ test ! -e "${MOCK_COREPACK_ROOT}"
 test ! -s "${events}"
 grep -Fq '**Status:** blocked' "${primary}/.scratch/pnpm-cache-missing/issues/01-ticket.md"
 
+prepare_reviewed_candidate retry-managed-link
+managed_candidate="${runtime}/worktrees/retry-managed-link"
+printf '.scratch/\nbackend/var/\nnode_modules/\n' >"${managed_candidate}/.gitignore"
+git -C "${managed_candidate}" add .gitignore
+git -C "${managed_candidate}" -c user.name='Local Implement' -c user.email=local@example.com \
+  commit --amend --no-edit >/dev/null
+managed_head=$(git -C "${managed_candidate}" rev-parse HEAD)
+jq --arg head "${managed_head}" '.commitSha = $head' \
+  "${runtime}/batches/retry-managed-link/implementation.json" \
+  >"${runtime}/batches/retry-managed-link/implementation.json.new"
+mv "${runtime}/batches/retry-managed-link/implementation.json.new" \
+  "${runtime}/batches/retry-managed-link/implementation.json"
+ln -s "${primary}/node_modules" "${managed_candidate}/node_modules"
+git -C "${managed_candidate}" status --porcelain | grep -Fq '?? node_modules'
+retry_agent retry-managed-link
+test -r "${runtime}/batches/retry-managed-link/implementation.json"
+test ! -e "${managed_candidate}/node_modules"
+managed_ticket="${primary}/.scratch/retry-managed-link/issues/01-ticket.md"
+sed 's/^\*\*Status:\*\*.*/**Status:** blocked/' "${managed_ticket}" >"${managed_ticket}.new"
+mv "${managed_ticket}.new" "${managed_ticket}"
+
 prepare_reviewed_candidate resume-reviewed
 retry_agent resume-reviewed
 test -r "${runtime}/batches/resume-reviewed/implementation.json"

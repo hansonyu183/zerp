@@ -60,7 +60,7 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	}
 
 	baseSequence := int(time.Now().UnixNano()%9000) + 1
-	documentPrefix := "OIN-WKB-" + suffix
+	documentPrefix := "OIN-20991231"
 	documentIDs := []string{ulid.Make().String(), ulid.Make().String(), ulid.Make().String()}
 	slices.Sort(documentIDs[:2])
 	documentIDs[0], documentIDs[1] = documentIDs[1], documentIDs[0]

@@ -490,6 +490,29 @@ reviewed_candidate_head() {
   printf '%s\n' "${head_sha}"
 }
 
+verified_gate_candidate_head() {
+  batch_root=$1
+  worktree=$2
+  base_sha=$3
+  result_file="${batch_root}/implementation.json"
+  evidence_file="${batch_root}/gate-evidence.json"
+  marker_file="${batch_root}/gate-attempted-head"
+  [ -r "${result_file}" ] && [ -r "${evidence_file}" ] || return 1
+  [ -z "$(git -C "${worktree}" status --porcelain)" ] || return 1
+  head_sha=$(git -C "${worktree}" rev-parse HEAD)
+  [ "${head_sha}" != "${base_sha}" ] || return 1
+  [ "$(cat "${marker_file}" 2>/dev/null || true)" = "${head_sha}" ] || return 1
+  jq -e --arg head "${head_sha}" '
+    (.status == "completed" or .status == "blocked") and
+    .commitSha == $head and .review == "passed"
+  ' "${result_file}" >/dev/null || return 1
+  jq -e --arg head "${head_sha}" --arg base "${base_sha}" '
+    .status == "passed" and .head == $head and .base == $base and
+    (.runtimeFingerprint | type == "string" and length > 0)
+  ' "${evidence_file}" >/dev/null || return 1
+  printf '%s\n' "${head_sha}"
+}
+
 run_implement() {
   feature=$1
   batch_root=$2
@@ -680,17 +703,63 @@ release_preview() {
   "${preview_close_command}" close "${feature}" >/dev/null 2>&1 || true
 }
 
+detach_candidate_modules_for_preview() {
+  worktree=$1
+  candidate_modules="${worktree}/node_modules"
+  primary_modules="${primary_root}/node_modules"
+  [ -L "${candidate_modules}" ] &&
+    [ "$(readlink "${candidate_modules}")" = "${primary_modules}" ] || {
+      echo 'preview cannot detach an unmanaged candidate node_modules path' >&2
+      return 1
+    }
+  [ -z "$(git -C "${worktree}" status --porcelain)" ] || {
+    echo 'preview requires a clean candidate worktree before isolating node_modules' >&2
+    return 1
+  }
+  rm -f "${candidate_modules}"
+}
+
+restore_candidate_modules_after_preview() {
+  worktree=$1
+  candidate_modules="${worktree}/node_modules"
+  primary_modules="${primary_root}/node_modules"
+  if [ -e "${candidate_modules}" ] || [ -L "${candidate_modules}" ]; then
+    rm -rf "${candidate_modules}"
+  fi
+  ln -s "${primary_modules}" "${candidate_modules}"
+}
+
 deploy_preview() {
   feature=$1
   batch_root=$2
   worktree=$3
   head_sha=$(git -C "${worktree}" rev-parse HEAD)
   preview_output="${batch_root}/preview.env.new"
-  if ! ZERP_ISSUE_WORKTREE="${worktree}" \
-    "${preview_command}" "${feature}" "${head_sha}" >"${preview_output}"; then
+  preview_log="${batch_root}/preview.log"
+  preview_result=0
+  (
+    modules_detached=0
+    # shellcheck disable=SC2329 # invoked by the subshell EXIT trap
+    restore_modules() {
+      [ "${modules_detached}" = 1 ] || return 0
+      restore_candidate_modules_after_preview "${worktree}"
+    }
+    trap restore_modules EXIT HUP INT TERM
+    detach_candidate_modules_for_preview "${worktree}"
+    modules_detached=1
+    ZERP_ISSUE_WORKTREE="${worktree}" \
+      "${preview_command}" "${feature}" "${head_sha}"
+  ) >"${preview_output}" 2>"${preview_log}" || preview_result=$?
+  if ! prepare_offline_dependencies "${worktree}" >>"${preview_log}" 2>&1; then
+    preview_result=4
+  fi
+  if [ "${preview_result}" -ne 0 ]; then
     rm -f "${preview_output}"
-    printf 'Public preview failed for candidate %s.\n' "${head_sha}" >"${batch_root}/failure.md"
-    return 1
+    {
+      printf 'Public preview failed for candidate %s.\n\nPreview stderr:\n\n' "${head_sha}"
+      cat "${preview_log}"
+    } >"${batch_root}/failure.md"
+    return 4
   fi
   preview_url=$(sed -n 's/^url=//p' "${preview_output}")
   fingerprint=$(sed -n 's/^fingerprint=//p' "${preview_output}")
@@ -699,7 +768,7 @@ deploy_preview() {
     rm -f "${preview_output}"
     printf 'Preview evidence fingerprint %s does not match gate fingerprint %s.\n' \
       "${fingerprint:-missing}" "${expected}" >"${batch_root}/failure.md"
-    return 1
+    return 4
   fi
   mv "${preview_output}" "${batch_root}/preview.env"
 }
@@ -710,11 +779,32 @@ implement_and_preview() {
   worktree=$3
   base_sha=$4
   issues_dir=$5
-  if resumed_head=$(reviewed_candidate_head "${batch_root}" "${worktree}" "${base_sha}"); then
-    if run_final_gate "${batch_root}" "${worktree}" "${base_sha}" "${resumed_head}" &&
-      deploy_preview "${feature}" "${batch_root}" "${worktree}"; then
+  if verified_gate_candidate_head "${batch_root}" "${worktree}" "${base_sha}" >/dev/null; then
+    if deploy_preview "${feature}" "${batch_root}" "${worktree}"; then
       rm -f "${batch_root}/failure.md"
       return 0
+    else
+      preview_result=$?
+      if [ "${preview_result}" = 4 ]; then
+        mark_batch "${issues_dir}" blocked
+        write_value "${batch_root}/state" preview-blocked
+        return 1
+      fi
+    fi
+  fi
+  if resumed_head=$(reviewed_candidate_head "${batch_root}" "${worktree}" "${base_sha}"); then
+    if run_final_gate "${batch_root}" "${worktree}" "${base_sha}" "${resumed_head}"; then
+      if deploy_preview "${feature}" "${batch_root}" "${worktree}"; then
+        rm -f "${batch_root}/failure.md"
+        return 0
+      else
+        preview_result=$?
+        if [ "${preview_result}" = 4 ]; then
+          mark_batch "${issues_dir}" blocked
+          write_value "${batch_root}/state" preview-blocked
+          return 1
+        fi
+      fi
     fi
   fi
   while [ "$(cat "${batch_root}/attempt" 2>/dev/null || printf 0)" -lt 3 ]; do
@@ -722,6 +812,13 @@ implement_and_preview() {
       if deploy_preview "${feature}" "${batch_root}" "${worktree}"; then
         rm -f "${batch_root}/failure.md"
         return 0
+      else
+        preview_result=$?
+        if [ "${preview_result}" = 4 ]; then
+          mark_batch "${issues_dir}" blocked
+          write_value "${batch_root}/state" preview-blocked
+          return 1
+        fi
       fi
     else
       result=$?
@@ -974,12 +1071,21 @@ retry_command() {
   batch_root="${runtime_root}/batches/${feature}"
   worktree="${runtime_root}/worktrees/${feature}"
   base_sha=$(cat "${batch_root}/base-sha" 2>/dev/null || true)
+  preserve_gate_evidence=0
+  if [ -n "${base_sha}" ] &&
+    verified_gate_candidate_head "${batch_root}" "${worktree}" "${base_sha}" >/dev/null; then
+    preserve_gate_evidence=1
+  fi
   mark_batch "${issues_dir}" ready-for-agent
   release_preview "${feature}"
   remove_managed_root_dependencies "${worktree}"
   rm -f "${batch_root}/failure.md" "${batch_root}/preview.env" \
-    "${batch_root}/attempt" "${batch_root}/gate-evidence.json" \
+    "${batch_root}/attempt" \
     "${batch_root}/state"
+  if [ "${preserve_gate_evidence}" = 1 ]; then
+    return 0
+  fi
+  rm -f "${batch_root}/gate-evidence.json"
   if [ -n "${base_sha}" ] && reviewed_candidate_head "${batch_root}" "${worktree}" "${base_sha}" >/dev/null; then
     return 0
   fi

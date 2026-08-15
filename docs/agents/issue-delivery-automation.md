@@ -17,7 +17,7 @@
 
 ## 失败与恢复
 
-- 实现、审查、门禁、预览或 CI 失败最多进行三轮自动实现/修复；耗尽后整批标为 `blocked`，不会继续发布。
+- 实现、审查、门禁或 CI 失败最多进行三轮自动实现/修复；预览失败保留完整 stderr 和 exact-head gate evidence，并直接标为 `preview-blocked`，不会把宿主沙箱、网络或发布环境故障交给 `$implement` 改业务代码。环境恢复后显式 `retry` 会复用通过的 exact-head gate 直接重试预览；耗尽后整批标为 `blocked`，不会继续发布。
 - `needs_input` 立即将整批标为 `needs-input`，不部署预览、不访问 GitHub。
 - 进程崩溃后以批次运行目录中的 base、attempt、预览证据、远端 Issue 映射和 PR 编号恢复。远端对象带稳定 marker；重启必须复用，不得重复创建。
 - 生产失败会把批次标为 `production-blocked`、写入本地停止开关并在 PR 通知。控制器不得自动执行数据库回滚、清库、恢复或继续下一批。
@@ -37,6 +37,6 @@ scripts/issue-local.sh retry <feature>
 
 安装器只复制控制脚本和 JSON schema，不复制 Codex `auth.json`、GitHub token 或私钥。实现阶段使用 `workspace-write`、`never` approval、`gpt-5.6-sol` high reasoning 和 `ignore-user-config`，并禁用命令网络、Web 和 App 工具；因此不能访问 GitHub、推送、部署或用户凭证。为使独立 linked worktree 能提交，控制器只额外授予该 worktree 的 Git 目录及共享 Git 元数据目录写权限，不授予主工作区文件写权限；启动 Codex 前会以临时索引和临时 ref 验证这两处可写并立即清理。
 
-实现前控制器必须离线复用主工作区已安装的 pnpm 依赖：只有候选与主工作区的 `pnpm-lock.yaml` 完全一致，且主工作区根目录和 `frontend/` 的依赖目录完整，才会继续。候选根 `node_modules` 是指向主工作区根依赖的受控符号链接；候选 `frontend/node_modules` 通过 `rsync` 复制，排除 `.pnpm`、`.tmp`、`.vite`、`.vite-temp` 和 `.pnpm-store` 后单独创建本地 `.tmp`，从而让 Vite 和 TypeScript 缓存只写入候选。控制器还会读取 `packageManager` 中锁定的精确 pnpm 版本，只从本机 pnpm store 找到同版本的唯一缓存入口，并在候选 `.scratch` 中生成受控包装器供 Codex 和宿主 gate 共用；提示词要求每次 pnpm 调用都显式前置该包装器目录，因为 Codex 的登录 shell 会重建 `PATH`，仓库脚本也会递归调用 pnpm。缓存缺失或版本不唯一时在启动模型前阻塞。控制器会确认仓库现有 `.gitignore` 忽略这些依赖，不修改共享 Git 元数据。主工作区依赖只通过该符号链接只读复用，Codex 不会获得额外的 `--add-dir` 依赖目录授权；`COREPACK_ROOT=1` 阻止 pnpm 在无网络沙箱中自行切换版本。控制器会删除候选的 `.pnpm-store`。前置条件不满足时，批次会在启动模型前标为 `blocked`。预览和发布动作由控制器分别使用本机现有环境与 `gh` 登录态完成。现有生产代理继续只处理通过 `full-validation` 合入 `main` 的提交。
+实现前控制器必须离线复用主工作区已安装的 pnpm 依赖：只有候选与主工作区的 `pnpm-lock.yaml` 完全一致，且主工作区根目录和 `frontend/` 的依赖目录完整，才会继续。候选根 `node_modules` 是指向主工作区根依赖的受控符号链接；候选 `frontend/node_modules` 通过 `rsync` 复制，排除 `.pnpm`、`.tmp`、`.vite`、`.vite-temp` 和 `.pnpm-store` 后单独创建本地 `.tmp`，从而让 Vite 和 TypeScript 缓存只写入候选。控制器还会读取 `packageManager` 中锁定的精确 pnpm 版本，只从本机 pnpm store 找到同版本的唯一缓存入口，并在候选 `.scratch` 中生成受控包装器供 Codex 和宿主 gate 共用；提示词要求每次 pnpm 调用都显式前置该包装器目录，因为 Codex 的登录 shell 会重建 `PATH`，仓库脚本也会递归调用 pnpm。缓存缺失或版本不唯一时在启动模型前阻塞。控制器会确认仓库现有 `.gitignore` 忽略这些依赖，不修改共享 Git 元数据。主工作区依赖只通过该符号链接只读复用，Codex 不会获得额外的 `--add-dir` 依赖目录授权；`COREPACK_ROOT=1` 阻止 pnpm 在无网络沙箱中自行切换版本。预览前控制器要求候选 clean，暂时移除此符号链接，使预览沙箱只能在候选内安装依赖；预览结束后删除该临时安装并恢复受控链接。控制器会删除候选的 `.pnpm-store`。前置条件不满足时，批次会在启动模型前标为 `blocked`。预览和发布动作由控制器分别使用本机现有环境与 `gh` 登录态完成。现有生产代理继续只处理通过 `full-validation` 合入 `main` 的提交。
 
 `backend/.env.local` 只在宿主最终 gate 的子进程生命周期内，以指向主工作区受控环境文件的符号链接临时挂载到候选；退出时无论成功、失败或中断都删除。启动任何 Codex 实现轮次前，控制器会先删除上次崩溃遗留的受控链接，并拒绝未知候选环境文件，因此模型不会读取该文件。新增或修改静态后端领域错误时，实现提示还要求把全站业务错误映射覆盖测试纳入聚焦测试。

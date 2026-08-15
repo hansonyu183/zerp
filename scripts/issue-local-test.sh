@@ -157,11 +157,24 @@ chmod +x "${tmp}/bin/gate"
 cat >"${tmp}/bin/preview" <<'EOF'
 #!/bin/sh
 set -eu
+if [ "${MOCK_PREVIEW_REQUIRE_DETACHED_MODULES:-0}" = 1 ] && \
+  { [ -e "${ZERP_ISSUE_WORKTREE}/node_modules" ] || [ -L "${ZERP_ISSUE_WORKTREE}/node_modules" ]; }; then
+  echo 'preview received the controller-managed primary node_modules symlink' >&2
+  exit 2
+fi
+if [ "${MOCK_PREVIEW_LEAVES_DEPENDENCY_RESIDUE:-0}" = 1 ]; then
+  mkdir -p "${ZERP_ISSUE_WORKTREE}/node_modules/.pnpm" \
+    "${ZERP_ISSUE_WORKTREE}/frontend/node_modules/.pnpm-store" \
+    "${ZERP_ISSUE_WORKTREE}/frontend/node_modules/.vite"
+fi
 printf 'preview\n' >>"${MOCK_EVENTS}"
 count=$(cat "${MOCK_PREVIEW_COUNT}" 2>/dev/null || printf 0)
 count=$((count + 1))
 printf '%s\n' "${count}" >"${MOCK_PREVIEW_COUNT}"
-if [ "${count}" -le "${MOCK_PREVIEW_FAILS:-0}" ]; then exit 1; fi
+if [ "${count}" -le "${MOCK_PREVIEW_FAILS:-0}" ]; then
+  echo "simulated preview environment failure ${count}" >&2
+  exit 1
+fi
 printf 'url=https://zerp-preview.bytesucceed.com\n'
 printf 'fingerprint=%s\n' "${MOCK_RUNTIME_FINGERPRINT:-runtime-one}"
 EOF
@@ -240,6 +253,12 @@ printf '{"name":"pnpm","version":"10.34.5"}\n' >"${cached_pnpm}/package.json"
 cat >"${cached_pnpm}/bin/pnpm.cjs" <<'EOF'
 process.stdout.write('10.34.5\n')
 EOF
+cat >"${tmp}/bin/pnpm" <<'EOF'
+#!/bin/sh
+printf 'wrong-homebrew-pnpm\n' >>"${MOCK_EVENTS}"
+printf '11.0.0\n'
+EOF
+chmod +x "${tmp}/bin/pnpm"
 export MOCK_EVENTS="${events}"
 export MOCK_PROMPT="${tmp}/prompt"
 export MOCK_CAPTURE="${tmp}/capture"
@@ -258,6 +277,8 @@ export MOCK_GATE_PNPM_PATH="${tmp}/gate-pnpm-path"
 export MOCK_GATE_PNPM_VERSION="${tmp}/gate-pnpm-version"
 export MOCK_GATE_ENV_TARGET="${tmp}/gate-env-target"
 export ZERP_PNPM_STORE_PATH="${pnpm_store}"
+export MOCK_PREVIEW_REQUIRE_DETACHED_MODULES=1
+export MOCK_PREVIEW_LEAVES_DEPENDENCY_RESIDUE=1
 : >"${events}"
 
 PATH="${tmp}/bin:${PATH}" \
@@ -289,6 +310,10 @@ grep -Fq -- 'business-error-coverage.spec.ts' "${MOCK_PROMPT}"
 grep -Fq -- 'do not rerun unaffected stages already shown as passed' "${MOCK_PROMPT}"
 test "$(cat "${MOCK_COREPACK_ROOT}")" = 1
 test "$(cat "${MOCK_CODEX_PNPM_VERSION}")" = 10.34.5
+if grep -Fqx 'wrong-homebrew-pnpm' "${events}"; then
+  echo 'Codex or host gate used the wrong PATH pnpm instead of the exact cached wrapper' >&2
+  exit 1
+fi
 worktree_git_dir=$(git -C "${runtime}/worktrees/inventory-query" rev-parse --path-format=absolute --git-dir)
 common_git_dir=$(git -C "${runtime}/worktrees/inventory-query" rev-parse --path-format=absolute --git-common-dir)
 grep -Fq -- "--add-dir ${worktree_git_dir}" "${MOCK_CODEX_ARGS}"
@@ -309,6 +334,7 @@ fi
 test -L "${runtime}/worktrees/inventory-query/node_modules"
 test "$(cat "${MOCK_CODEX_PNPM_PATH}")" = "${runtime}/worktrees/inventory-query/.scratch/.issue-local-bin/pnpm"
 test "$(cat "${MOCK_GATE_PNPM_PATH}")" = "${runtime}/worktrees/inventory-query/.scratch/.issue-local-bin/pnpm"
+test "$("${runtime}/worktrees/inventory-query/.scratch/.issue-local-bin/pnpm" --version)" = 10.34.5
 test ! -e "${runtime}/worktrees/inventory-query/backend/.env.local"
 test ! -L "${runtime}/worktrees/inventory-query/backend/.env.local"
 test "$(readlink "${runtime}/worktrees/inventory-query/node_modules")" = "${primary}/node_modules"
@@ -594,22 +620,48 @@ unset MOCK_GATE_FAILS MOCK_VALIDATION
 
 make_ticket preview-repair 'Preview repair'
 : >"${events}"
-rm -f "${MOCK_CODEX_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
-MOCK_PREVIEW_FAILS=1 run_agent
-test "$(grep -c '^codex$' "${events}")" = 2
-test "$(grep -c '^preview$' "${events}")" = 2
-test "$(grep -n '^preview$' "${events}" | tail -n 1 | cut -d: -f1)" -lt \
-  "$(grep -n '^gh ' "${events}" | head -n 1 | cut -d: -f1)"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
+export MOCK_PREVIEW_FAILS=1
+if run_agent; then
+  echo 'preview environment failure was accepted' >&2
+  exit 1
+fi
+unset MOCK_PREVIEW_FAILS
+test "$(grep -c '^codex$' "${events}")" = 1
+test "$(grep -c '^gate$' "${events}")" = 1
+test "$(grep -c '^preview$' "${events}")" = 1
+if grep -q '^gh ' "${events}"; then
+  echo 'GitHub was accessed after a preview environment failure' >&2
+  exit 1
+fi
+grep -Fq 'simulated preview environment failure 1' "${runtime}/batches/preview-repair/preview.log"
+grep -Fq 'simulated preview environment failure 1' "${runtime}/batches/preview-repair/failure.md"
+grep -Fq '**Status:** blocked' "${primary}/.scratch/preview-repair/issues/01-ticket.md"
+test "$(cat "${runtime}/batches/preview-repair/state")" = preview-blocked
+retry_agent preview-repair
+test -r "${runtime}/batches/preview-repair/gate-evidence.json"
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
+export MOCK_PREVIEW_FAILS=0
+run_agent
+unset MOCK_PREVIEW_FAILS
+test ! -e "${MOCK_CODEX_COUNT}"
+test ! -e "${MOCK_GATE_COUNT}"
+test "$(grep -c '^preview$' "${events}")" = 1
+grep -Fq '**Status:** done' "${primary}/.scratch/preview-repair/issues/01-ticket.md"
 
 make_ticket preview-blocked 'Preview blocked'
 : >"${events}"
-rm -f "${MOCK_CODEX_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
-if MOCK_PREVIEW_FAILS=3 run_agent; then
-  echo 'three failed preview attempts were accepted' >&2
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
+export MOCK_PREVIEW_FAILS=3
+if run_agent; then
+  echo 'preview environment failure was accepted' >&2
   exit 1
 fi
-test "$(grep -c '^codex$' "${events}")" = 3
-test "$(grep -c '^preview$' "${events}")" = 3
+unset MOCK_PREVIEW_FAILS
+test "$(grep -c '^codex$' "${events}")" = 1
+test "$(grep -c '^gate$' "${events}")" = 1
+test "$(grep -c '^preview$' "${events}")" = 1
 if grep -q '^gh ' "${events}"; then
   echo 'GitHub was accessed before a preview passed' >&2
   exit 1

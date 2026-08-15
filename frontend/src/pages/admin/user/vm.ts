@@ -411,10 +411,11 @@ export function createUserManagementViewModel() {
           id: pending.row.id,
           revision: pending.row.revision,
         })
+        if (disposed.value) return
         pendingAction.value = null
-        await query()
         temporaryPassword.value = result.data.temporaryPassword
         passwordSaved.value = false
+        await query()
         return
       }
       await setAdminUserEnabled(pending.row, pending.kind === 'enable')

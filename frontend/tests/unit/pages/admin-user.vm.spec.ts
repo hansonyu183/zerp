@@ -44,10 +44,12 @@ const user = {
 
 function deferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((resolvePromise) => {
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise
+    reject = rejectPromise
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 describe('user management view model', () => {
@@ -606,7 +608,7 @@ describe('user management protected actions', () => {
     })
   })
 
-  it('仅为启用的非本人普通用户提供一次性密码重置', async () => {
+  it('仅为启用的非本人普通用户提供一次性密码重置，并在刷新失败后保留结果', async () => {
     const vm = createUserManagementViewModel()
     expect(vm.canResetUserPassword(user)).toBe(true)
     expect(vm.canResetUserPassword({ ...user, status: 'DISABLED' })).toBe(false)
@@ -635,10 +637,8 @@ describe('user management protected actions', () => {
       id: user.id,
       revision: user.revision,
     })
-    expect(vm.temporaryPassword.value).toBeNull()
-    refresh.resolve({
-      data: { items: [user], total: 1, page: 1, pageSize: 20 },
-    })
+    expect(vm.temporaryPassword.value).toBe('never-persisted')
+    refresh.reject(new Error('refresh failed'))
     await reset
     expect(vm.temporaryPassword.value).toBe('never-persisted')
     expect(vm.passwordSaved.value).toBe(false)
@@ -646,6 +646,34 @@ describe('user management protected actions', () => {
     expect(vm.temporaryPassword.value).toBe('never-persisted')
     vm.passwordSaved.value = true
     await vm.closeResetResult()
+    expect(vm.temporaryPassword.value).toBeNull()
+  })
+
+  it('页面离开同步清除临时密码，且挂起刷新不会将其写回', async () => {
+    const vm = createUserManagementViewModel()
+    const refresh = deferred<{
+      data: {
+        items: (typeof user)[]
+        total: number
+        page: number
+        pageSize: number
+      }
+    }>()
+    vi.mocked(queryAdminUsers).mockReturnValueOnce(refresh.promise)
+    vm.requestResetPassword(user)
+
+    const reset = vm.confirmPendingAction()
+    await Promise.resolve()
+    expect(vm.temporaryPassword.value).toBe('never-persisted')
+
+    vm.dispose()
+    expect(vm.temporaryPassword.value).toBeNull()
+    expect(vm.passwordSaved.value).toBe(false)
+
+    refresh.resolve({
+      data: { items: [user], total: 1, page: 1, pageSize: 20 },
+    })
+    await reset
     expect(vm.temporaryPassword.value).toBeNull()
   })
 

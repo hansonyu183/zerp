@@ -15,7 +15,7 @@ func TestAuthenticationAndSessionIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("signin: %v", err)
 	}
-	if signin.SessionToken == "" || signin.Data.CSRFToken == "" || !slices.Contains(signin.Data.Permissions, signoutPath) {
+	if signin.SessionToken == "" || signin.Data.CSRFToken == "" {
 		t.Fatalf("signin result = %+v", signin)
 	}
 	restored, err := service.RestoreSession(t.Context(), signin.SessionToken)
@@ -59,6 +59,43 @@ func TestAuthenticationAndSessionIntegration(t *testing.T) {
 	`).Scan(&path, &reason, &requestID)
 	if err != nil || path != "/app/user/profile" || reason != "csrf" || requestID != "old-csrf" {
 		t.Fatalf("authorization audit path=%q reason=%q requestID=%q err=%v", path, reason, requestID, err)
+	}
+}
+
+func TestPasswordChangeRequiredSessionIntegration(t *testing.T) {
+	service, pool, admin := appIntegrationService(t)
+	role, err := service.CreateRole(t.Context(), CreateRoleInput{
+		Code: "restricted-reader", Name: "受限读取", PermissionIDs: permissionIDsByPath(t, pool, "/bob/customer/query"),
+	}, admin.ID, "create-restricted-reader")
+	if err != nil {
+		t.Fatalf("create role: %v", err)
+	}
+	user, err := service.CreateUser(t.Context(), CreateUserInput{
+		Username: "restricted-user", DisplayName: "受限用户", Password: integrationUserPassword, RoleIDs: []string{role.ID},
+	}, admin.ID, "create-restricted-user")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	signin, err := service.Signin(t.Context(), user.Username, integrationUserPassword, "restricted-signin")
+	if err != nil || !signin.Data.PasswordChangeRequired {
+		t.Fatalf("restricted signin=%+v err=%v", signin.Data, err)
+	}
+	if _, err = service.Authorize(t.Context(), signin.SessionToken, signin.Data.CSRFToken, "/bob/customer/query", "restricted-business"); !errorIsKind(err, ErrorForbidden) {
+		t.Fatalf("restricted business authorization error = %v", err)
+	}
+	principal, err := service.Authorize(t.Context(), signin.SessionToken, signin.Data.CSRFToken, changePasswordPath, "restricted-change-password")
+	if err != nil {
+		t.Fatalf("restricted change password authorization: %v", err)
+	}
+	if err = service.ChangePassword(t.Context(), principal, ChangePasswordInput{CurrentPassword: integrationUserPassword, NewPassword: "Changed-password-3!"}, "restricted-change"); err != nil {
+		t.Fatalf("change restricted password: %v", err)
+	}
+	if _, err = service.RestoreSession(t.Context(), signin.SessionToken); !errorIsKind(err, ErrorUnauthenticated) {
+		t.Fatalf("changed restricted session must be revoked: %v", err)
+	}
+	newSignin, err := service.Signin(t.Context(), user.Username, "Changed-password-3!", "restricted-new-signin")
+	if err != nil || newSignin.Data.PasswordChangeRequired {
+		t.Fatalf("new restricted signin=%+v err=%v", newSignin.Data, err)
 	}
 }
 
@@ -126,14 +163,14 @@ func TestSuperadminWildcardIntegration(t *testing.T) {
 
 	ordinaryRole, err := service.CreateRole(t.Context(), CreateRoleInput{
 		Code: "ordinary", Name: "普通角色",
-		PermissionIDs: permissionIDsByPath(t, pool, signoutPath),
+		PermissionIDs: permissionIDsByPath(t, pool, "/bob/customer/query"),
 	}, admin.ID, "create-ordinary-role")
 	if err != nil {
 		t.Fatalf("create ordinary role: %v", err)
 	}
 	if _, err = service.CreateRole(t.Context(), CreateRoleInput{
 		Code: superadminRoleCode, Name: "重复超级管理员",
-		PermissionIDs: permissionIDsByPath(t, pool, signoutPath),
+		PermissionIDs: permissionIDsByPath(t, pool, "/bob/customer/query"),
 	}, admin.ID, "create-reserved-role"); !errorIsKind(err, ErrorValidation) {
 		t.Fatalf("reserved superadmin code error = %v", err)
 	}
@@ -245,8 +282,8 @@ func TestSigninLockAndPasswordRevocationIntegration(t *testing.T) {
 
 func TestAuthorizationChangesAreImmediateIntegration(t *testing.T) {
 	service, pool, admin := appIntegrationService(t)
-	pathsA := []string{signoutPath, "/bob/customer/query"}
-	pathsB := []string{signoutPath, "/bob/supplier/query"}
+	pathsA := []string{"/bob/customer/query"}
+	pathsB := []string{"/bob/supplier/query"}
 	roleA, err := service.CreateRole(t.Context(), CreateRoleInput{
 		Code: "customer-reader", Name: "客户查看", PermissionIDs: permissionIDsByPath(t, pool, pathsA...),
 	}, admin.ID, "role-a")

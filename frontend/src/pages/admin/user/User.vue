@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { onUnmounted, reactive } from 'vue'
+import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import {
   BusinessObjectList,
   type BusinessObjectColumn,
@@ -10,6 +11,8 @@ import { createUserManagementViewModel } from './vm'
 import type { AdminUser } from '../shared/api'
 
 const vm = reactive(createUserManagementViewModel())
+const router = useRouter()
+let pendingRoute: string | null = null
 const columns: readonly BusinessObjectColumn<AdminUser>[] = [
   { key: 'username', label: '用户名', value: (item) => item.username },
   { key: 'displayName', label: '名称', value: (item) => item.displayName },
@@ -20,7 +23,24 @@ const columns: readonly BusinessObjectColumn<AdminUser>[] = [
     value: (item) => new Date(item.updatedAt).toLocaleString('zh-CN'),
   },
 ]
-
+function leaveEditor(): boolean {
+  if (!vm.hasUnsavedChanges) return true
+  vm.closeEditor()
+  return false
+}
+async function confirmDiscard(): Promise<void> {
+  vm.confirmDiscard()
+  const target = pendingRoute
+  pendingRoute = null
+  if (target) await router.push(target)
+}
+onBeforeRouteLeave((to) => {
+  vm.clearTemporaryPassword()
+  if (leaveEditor()) return true
+  pendingRoute = to.fullPath
+  return false
+})
+onUnmounted(() => vm.dispose())
 void vm.query()
 </script>
 
@@ -35,8 +55,13 @@ void vm.query()
     <BusinessObjectList
       :columns="columns"
       :creatable="vm.canCreate"
-      :deletable="vm.canChangeEnabled"
-      :editable="vm.canEditUser"
+      :deletable="vm.rows.some(vm.canChangeEnabled)"
+      :editable="
+        vm.rows.some((row) => vm.canEditUser(row) || vm.canViewUser(row))
+      "
+      :empty-text="
+        vm.total === 0 ? '暂无用户' : '当前页暂无用户，请返回上一页或重新查询。'
+      "
       :keyword="vm.keyword"
       :loading="vm.loading"
       :page="vm.page"
@@ -52,30 +77,26 @@ void vm.query()
       @update:keyword="vm.keyword = $event"
       @update:page="vm.changePage"
     >
-      <template #filters>
-        <v-select
+      <template #filters
+        ><v-select
           v-model="vm.status"
           clearable
           density="comfortable"
-          item-title="title"
-          item-value="value"
           :items="[
             { title: '启用', value: 'ENABLED' },
             { title: '停用', value: 'DISABLED' },
           ]"
           label="状态"
           variant="outlined"
-        />
-      </template>
-      <template #cell-status="{ row }">
-        <v-chip
+      /></template>
+      <template #cell-status="{ row }"
+        ><v-chip
           :color="row.status === 'ENABLED' ? 'success' : 'default'"
           size="small"
           variant="tonal"
-        >
-          {{ row.status === 'ENABLED' ? '启用' : '停用' }}
-        </v-chip>
-      </template>
+          >{{ row.status === 'ENABLED' ? '启用' : '停用' }}</v-chip
+        ></template
+      >
       <template #actions="{ row }">
         <ListRowActions
           :actions="[
@@ -88,7 +109,16 @@ void vm.query()
                     color: 'primary',
                   },
                 ]
-              : []),
+              : vm.canViewUser(row)
+                ? [
+                    {
+                      key: 'view',
+                      label: '查看',
+                      icon: 'mdi-eye-outline',
+                      color: 'primary',
+                    },
+                  ]
+                : []),
             ...(vm.canChangeEnabled(row)
               ? [
                   {
@@ -101,38 +131,69 @@ void vm.query()
                   },
                 ]
               : []),
+            ...(vm.canResetUserPassword(row)
+              ? [{ key: 'reset', label: '重置密码', icon: 'mdi-lock-reset' }]
+              : []),
           ]"
           :label="`操作 ${row.username}`"
-          @select="$event === 'edit' ? vm.openEdit(row) : vm.changeEnabled(row)"
+          :loading="vm.actionLoadingID === row.id"
+          @select="
+            $event === 'edit'
+              ? vm.openEdit(row)
+              : $event === 'view'
+                ? vm.openDetail(row)
+                : $event === 'reset'
+                  ? vm.requestResetPassword(row)
+                  : vm.requestChangeEnabled(row)
+          "
         />
       </template>
     </BusinessObjectList>
   </v-container>
 
   <v-navigation-drawer
-    v-model="vm.editorOpen"
+    :model-value="vm.editorOpen"
     location="end"
     temporary
     width="640"
+    @update:model-value="!$event && vm.closeEditor()"
   >
-    <v-card class="h-100" flat>
-      <v-card-title class="d-flex align-center px-6 py-5">
-        {{ vm.editing ? '编辑用户' : '新增用户' }}
-        <v-spacer />
-        <v-btn icon="mdi-close" variant="text" @click="vm.closeEditor" />
-      </v-card-title>
-      <v-divider />
+    <v-card class="h-100" flat
+      ><v-card-title class="d-flex align-center px-6 py-5"
+        >{{ vm.isDetail ? '查看用户' : vm.editing ? '编辑用户' : '新增用户'
+        }}<v-spacer /><v-btn
+          icon="mdi-close"
+          variant="text"
+          @click="vm.closeEditor" /></v-card-title
+      ><v-divider />
       <v-card-text class="pa-6">
+        <v-alert v-if="vm.editorErrorMessage" type="error" variant="tonal"
+          >{{ vm.editorErrorMessage
+          }}<template #append
+            ><v-btn size="small" variant="text" @click="vm.retryEditor"
+              >重试</v-btn
+            ></template
+          ></v-alert
+        >
+        <v-alert v-if="vm.roleErrorMessage" type="error" variant="tonal"
+          >{{ vm.roleErrorMessage
+          }}<template #append
+            ><v-btn size="small" variant="text" @click="vm.retryRoles"
+              >重试</v-btn
+            ></template
+          ></v-alert
+        >
         <v-text-field
           v-model="vm.form.username"
           autocomplete="off"
-          :disabled="Boolean(vm.editing)"
+          :disabled="Boolean(vm.editing) || vm.isDetail"
           label="用户名"
           required
           variant="outlined"
         />
         <v-text-field
           v-model="vm.form.displayName"
+          :readonly="vm.isDetail"
           label="显示名称"
           required
           variant="outlined"
@@ -141,13 +202,37 @@ void vm.query()
           v-if="!vm.editing"
           v-model="vm.form.password"
           autocomplete="new-password"
-          hint="密码策略由服务端统一校验"
+          :hint="`${vm.passwordMinLength} 至 256 个字符，包含大小写字母、数字和符号`"
           label="初始密码"
           required
           type="password"
           variant="outlined"
         />
+        <template v-if="vm.isDetail"
+          ><div class="text-subtitle-2 mb-2">角色</div>
+          <v-chip
+            v-for="role in vm.editing?.roles ?? []"
+            :key="role.id"
+            class="mr-2 mb-2"
+            :color="role.status === 'DISABLED' ? 'default' : 'primary'"
+            >{{ role.code }} · {{ role.name
+            }}{{ role.status === 'DISABLED' ? '（已停用）' : '' }}</v-chip
+          >
+          <dl class="mt-5">
+            <dt>账号状态</dt>
+            <dd>{{ vm.editing?.status === 'ENABLED' ? '启用' : '停用' }}</dd>
+            <dt>密码更新时间</dt>
+            <dd>{{ vm.editing?.passwordChangedAt }}</dd>
+            <dt>创建时间</dt>
+            <dd>{{ vm.editing?.createdAt }}</dd>
+            <dt>更新时间</dt>
+            <dd>{{ vm.editing?.updatedAt }}</dd>
+            <dt>版本</dt>
+            <dd>{{ vm.editing?.revision }}</dd>
+          </dl></template
+        >
         <v-select
+          v-else
           v-model="vm.form.roleIds"
           chips
           clearable
@@ -155,7 +240,9 @@ void vm.query()
           item-value="value"
           :items="vm.roleOptions"
           label="角色"
+          :loading="vm.rolesLoading"
           multiple
+          :readonly="vm.rolesReadonly"
           variant="outlined"
         />
         <v-alert
@@ -163,22 +250,100 @@ void vm.query()
           density="compact"
           type="warning"
           variant="tonal"
-        >
-          {{ vm.validationError }}
-        </v-alert>
-      </v-card-text>
-      <v-card-actions class="px-6 pb-6">
-        <v-spacer />
-        <v-btn variant="text" @click="vm.closeEditor">取消</v-btn>
-        <v-btn
+          >{{ vm.validationError }}</v-alert
+        > </v-card-text
+      ><v-card-actions class="px-6 pb-6"
+        ><v-spacer /><v-btn variant="text" @click="vm.closeEditor">{{
+          vm.isDetail ? '关闭' : '取消'
+        }}</v-btn
+        ><v-btn
+          v-if="!vm.isDetail"
           color="primary"
           :disabled="!vm.canSubmit"
           :loading="vm.saving"
           @click="vm.save"
-        >
-          保存
-        </v-btn>
-      </v-card-actions>
+          >保存</v-btn
+        ></v-card-actions
+      >
     </v-card>
   </v-navigation-drawer>
+
+  <v-dialog v-model="vm.discardConfirmOpen" max-width="420"
+    ><v-card title="放弃修改？"
+      ><v-card-text>未保存的内容将被清除。</v-card-text
+      ><v-card-actions
+        ><v-spacer /><v-btn @click="vm.cancelDiscard">继续编辑</v-btn
+        ><v-btn color="error" @click="confirmDiscard"
+          >放弃</v-btn
+        ></v-card-actions
+      ></v-card
+    ></v-dialog
+  >
+  <v-dialog :model-value="Boolean(vm.pendingAction)" max-width="480" persistent
+    ><v-card
+      ><v-card-title>{{
+        vm.pendingAction?.kind === 'reset'
+          ? '重置密码'
+          : vm.pendingAction?.kind === 'disable'
+            ? '停用用户'
+            : '启用用户'
+      }}</v-card-title
+      ><v-card-text v-if="vm.pendingAction?.kind === 'disable'"
+        >确定停用
+        {{
+          vm.pendingAction?.row.username
+        }}？该用户的全部现有会话将立即失效。</v-card-text
+      ><v-card-text v-else-if="vm.pendingAction?.kind === 'enable'"
+        >确定启用
+        {{
+          vm.pendingAction?.row.username
+        }}？密码保持不变，旧会话不会恢复。</v-card-text
+      ><v-card-text v-else
+        >确定重置
+        {{ vm.pendingAction?.row.username }}
+        的密码？旧密码立即失效，全部会话将被撤销，用户下次登录必须修改临时密码。</v-card-text
+      ><v-card-actions
+        ><v-spacer /><v-btn
+          :disabled="Boolean(vm.actionLoadingID)"
+          @click="vm.pendingAction = null"
+          >取消</v-btn
+        ><v-btn
+          color="primary"
+          :loading="Boolean(vm.actionLoadingID)"
+          @click="vm.confirmPendingAction"
+          >确认</v-btn
+        ></v-card-actions
+      ></v-card
+    ></v-dialog
+  >
+  <v-dialog
+    :model-value="Boolean(vm.temporaryPassword)"
+    max-width="480"
+    persistent
+    ><v-card title="临时密码"
+      ><v-card-text
+        ><p>请立即安全保存，关闭后无法再次查看。</p>
+        <v-text-field
+          :model-value="vm.temporaryPassword ?? ''"
+          readonly
+          label="临时密码"
+          variant="outlined" /><v-alert
+          v-if="vm.copyErrorMessage"
+          type="error"
+          variant="tonal"
+          >{{ vm.copyErrorMessage }}</v-alert
+        ><v-checkbox
+          v-model="vm.passwordSaved"
+          label="我已安全保存临时密码" /></v-card-text
+      ><v-card-actions
+        ><v-spacer /><v-btn
+          :disabled="!vm.passwordSaved"
+          @click="vm.closeResetResult"
+          >关闭</v-btn
+        ><v-btn color="primary" @click="vm.copyTemporaryPassword"
+          >复制</v-btn
+        ></v-card-actions
+      ></v-card
+    ></v-dialog
+  >
 </template>

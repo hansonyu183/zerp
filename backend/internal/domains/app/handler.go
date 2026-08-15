@@ -28,6 +28,7 @@ type applicationService interface {
 	CreateUser(context.Context, CreateUserInput, string, string) (UserView, error)
 	SaveUser(context.Context, SaveUserInput, string, string) (UserView, error)
 	SetUserStatus(context.Context, string, int64, string, string, string) (UserView, error)
+	ResetUserPassword(context.Context, ResetPasswordInput, string, string) (ResetPasswordResult, error)
 	QueryRoles(context.Context, PageRequest) (Page[RoleView], error)
 	GetRole(context.Context, string) (RoleView, error)
 	CreateRole(context.Context, CreateRoleInput, string, string) (RoleView, error)
@@ -79,6 +80,7 @@ func (h *Handler) Register(router *gin.Engine) {
 	protectedUser.POST("/save", h.saveUser)
 	protectedUser.POST("/enable", h.setUserStatus(StatusEnabled))
 	protectedUser.POST("/disable", h.setUserStatus(StatusDisabled))
+	protectedUser.POST("/reset-password", h.resetUserPassword)
 
 	role := appGroup.Group("/role")
 	role.Use(h.authorize())

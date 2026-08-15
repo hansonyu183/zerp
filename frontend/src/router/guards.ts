@@ -29,6 +29,14 @@ export function createSessionNavigationGuard(
 
     registerMenuRoutes(router, session.routeMenus)
 
+    if (session.authenticated && session.passwordChangeRequired) {
+      return to.name === 'change-password' ? true : { name: 'change-password' }
+    }
+
+    if (to.name === 'change-password') {
+      return session.authenticated ? '/home/dashboard' : { name: 'signin' }
+    }
+
     if (to.name === 'not-found') {
       const rematched = router.resolve(to.fullPath)
       if (rematched.name !== 'not-found') return to.fullPath

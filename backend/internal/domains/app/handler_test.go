@@ -28,6 +28,9 @@ type handlerServiceStub struct {
 	savedProfile          SaveProfileInput
 	savedProfileUserID    string
 	changedPassword       ChangePasswordInput
+	resetPassword         ResetPasswordInput
+	resetPasswordResult   ResetPasswordResult
+	queryUsersResult      Page[UserView]
 	createdFeedback       CreateFeedbackInput
 	workbenchInput        WorkbenchQueryInput
 }
@@ -47,7 +50,15 @@ func (stub *handlerServiceStub) Authorize(_ context.Context, _, _, path, _ strin
 }
 
 func (stub *handlerServiceStub) QueryUsers(context.Context, PageRequest) (Page[UserView], error) {
+	if stub.queryUsersResult.Items != nil {
+		return stub.queryUsersResult, nil
+	}
 	return Page[UserView]{Items: []UserView{}, Page: 1, PageSize: 20}, nil
+}
+
+func (stub *handlerServiceStub) ResetUserPassword(_ context.Context, input ResetPasswordInput, _, _ string) (ResetPasswordResult, error) {
+	stub.resetPassword = input
+	return stub.resetPasswordResult, nil
 }
 
 func (stub *handlerServiceStub) QueryWorkbench(
@@ -107,7 +118,7 @@ func TestHandlerRegistersCompleteAPIRouteSet(t *testing.T) {
 	expected := []string{
 		"/app/user/signin", "/app/user/session", "/app/user/signout",
 		"/app/user/profile", "/app/user/change-password", "/app/user/query",
-		"/app/user/get", "/app/user/create", "/app/user/save", "/app/user/enable", "/app/user/disable",
+		"/app/user/get", "/app/user/create", "/app/user/save", "/app/user/enable", "/app/user/disable", "/app/user/reset-password",
 		"/app/role/query", "/app/role/get", "/app/role/create", "/app/role/save", "/app/role/enable", "/app/role/disable",
 		"/app/permission/query", "/app/permission/get",
 		"/app/system-parameter/query", "/app/system-parameter/get",
@@ -230,7 +241,7 @@ func TestFeedbackUsesSessionAuthorizationWithoutPathPermission(t *testing.T) {
 
 func TestSigninSetsHardenedCookieAndEnvelope(t *testing.T) {
 	stub := &handlerServiceStub{signinResult: SessionResult{
-		Data:         SessionData{User: UserSummary{ID: "user-1", Username: "alice", DisplayName: "Alice"}, CSRFToken: "csrf", Permissions: []string{signoutPath}},
+		Data:         SessionData{User: UserSummary{ID: "user-1", Username: "alice", DisplayName: "Alice"}, CSRFToken: "csrf", Permissions: []string{}},
 		SessionToken: "session-token", ExpiresAt: time.Now().Add(time.Hour),
 	}}
 	request := httptest.NewRequest(http.MethodPost, "/app/user/signin", strings.NewReader(`{"username":"alice","password":"Strong-password-1!"}`))
@@ -272,6 +283,36 @@ func TestProtectedRouteAuthorizesExactPath(t *testing.T) {
 	}
 	if envelope.Code != response.CodeOK {
 		t.Fatalf("code = %d, want 0", envelope.Code)
+	}
+}
+
+func TestUserQueryReturnsOnlyListContractFields(t *testing.T) {
+	stub := &handlerServiceStub{queryUsersResult: Page[UserView]{
+		Items: []UserView{{ID: "user-1", Username: "alice", DisplayName: "Alice", Status: StatusEnabled, System: false,
+			FailedSigninCount: 4, RoleIDs: []string{"role-1"}, PasswordChangedAt: time.Now(), Revision: 3}},
+		Page: 1, PageSize: 20, Total: 1,
+	}}
+	request := httptest.NewRequest(http.MethodPost, "/app/user/query", strings.NewReader(`{"page":1,"pageSize":20,"sort":[{"field":"username","order":"asc"}]}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-CSRF-Token", "csrf")
+	request.AddCookie(&http.Cookie{Name: "zerp_session", Value: "session"})
+	recorder := httptest.NewRecorder()
+	testRouter(stub).ServeHTTP(recorder, request)
+	if strings.Contains(recorder.Body.String(), "failedSigninCount") || strings.Contains(recorder.Body.String(), "roleIds") || strings.Contains(recorder.Body.String(), "passwordChangedAt") {
+		t.Fatalf("sensitive/non-list fields leaked: %s", recorder.Body.String())
+	}
+}
+
+func TestResetPasswordUsesExactPathAndReturnsOnlyTemporaryResult(t *testing.T) {
+	stub := &handlerServiceStub{authorizeResult: Principal{User: UserSummary{ID: "actor-1"}}, resetPasswordResult: ResetPasswordResult{TemporaryPassword: "temporary"}}
+	request := httptest.NewRequest(http.MethodPost, "/app/user/reset-password", strings.NewReader(`{"id":"01J00000000000000000000000","revision":2}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-CSRF-Token", "csrf")
+	request.AddCookie(&http.Cookie{Name: "zerp_session", Value: "session"})
+	recorder := httptest.NewRecorder()
+	testRouter(stub).ServeHTTP(recorder, request)
+	if stub.authorizedPath != "/app/user/reset-password" || stub.resetPassword.Revision != 2 || !strings.Contains(recorder.Body.String(), "temporaryPassword") {
+		t.Fatalf("reset dispatch path=%q input=%+v body=%s", stub.authorizedPath, stub.resetPassword, recorder.Body.String())
 	}
 }
 

@@ -48,13 +48,10 @@ func (s *Service) BootstrapAdmin(ctx context.Context, username, displayName, pas
 	if err = qtx.InsertAppRole(ctx, dbsqlc.InsertAppRoleParams{ID: roleID, Code: "superadmin", Name: "Super Administrator", Description: stringPointer("Initial system administrator"), ActorID: &userID}); err != nil {
 		return UserView{}, s.writeError("create bootstrap role", err)
 	}
-	if err = qtx.InsertAppUser(ctx, dbsqlc.InsertAppUserParams{ID: userID, Username: username, DisplayName: displayName, PasswordHash: passwordHash, ActorID: &userID}); err != nil {
+	if err = qtx.InsertAppBootstrapUser(ctx, dbsqlc.InsertAppBootstrapUserParams{ID: userID, Username: username, DisplayName: displayName, PasswordHash: passwordHash, ActorID: &userID}); err != nil {
 		return UserView{}, s.writeError("create bootstrap user", err)
 	}
 	if err = replaceUserRoles(ctx, qtx, userID, []string{roleID}, userID); err != nil {
-		return UserView{}, err
-	}
-	if err = ensureSafeSignout(ctx, qtx, userID); err != nil {
 		return UserView{}, err
 	}
 	if err = s.audit(ctx, qtx, "SYSTEM_BOOTSTRAP", &userID, "user", &userID, "SUCCESS", "bootstrap-admin", map[string]any{"roleId": roleID}); err != nil {

@@ -89,9 +89,6 @@ func (s *Service) Signin(ctx context.Context, username, password, requestID stri
 	if err != nil {
 		return SessionResult{}, s.internal("load signin permissions", err)
 	}
-	if !slices.Contains(permissions, signoutPath) {
-		return SessionResult{}, domainError(ErrorForbidden, "账号权限配置异常，请联系管理员。", nil)
-	}
 	avatarURL, err := qtx.GetAppUserAvatarURL(ctx, user.ID)
 	if err != nil {
 		return SessionResult{}, s.internal("load signin profile", err)
@@ -112,7 +109,8 @@ func (s *Service) Signin(ctx context.Context, username, password, requestID stri
 		return SessionResult{}, s.internal("commit signin", err)
 	}
 	return SessionResult{
-		Data:         SessionData{User: userSummary(user, avatarURL), CSRFToken: csrfToken, Permissions: permissions},
+		Data: SessionData{User: userSummary(user, avatarURL), CSRFToken: csrfToken, Permissions: permissions,
+			PasswordChangeRequired: user.PasswordChangeRequired, PasswordMinLength: s.cfg.PasswordMinLength},
 		SessionToken: sessionToken, ExpiresAt: absoluteEnds,
 	}, nil
 }
@@ -136,7 +134,8 @@ func (s *Service) RestoreSession(ctx context.Context, rawToken string) (SessionR
 	if rows != 1 {
 		return SessionResult{}, domainError(ErrorUnauthenticated, "session expired", nil)
 	}
-	return SessionResult{Data: SessionData{User: principal.User, CSRFToken: csrfToken, Permissions: principal.Permissions}, ExpiresAt: principal.AbsoluteEnds}, nil
+	return SessionResult{Data: SessionData{User: principal.User, CSRFToken: csrfToken, Permissions: principal.Permissions,
+		PasswordChangeRequired: principal.PasswordChangeRequired, PasswordMinLength: s.cfg.PasswordMinLength}, ExpiresAt: principal.AbsoluteEnds}, nil
 }
 
 func (s *Service) Authorize(ctx context.Context, rawToken, csrfToken, path, requestID string) (Principal, error) {
@@ -148,7 +147,11 @@ func (s *Service) Authorize(ctx context.Context, rawToken, csrfToken, path, requ
 		s.auditAuthorizationDenied(ctx, principal, path, requestID, "csrf")
 		return Principal{}, domainError(ErrorForbidden, "csrf validation failed", nil)
 	}
-	if !permissionAllowsPath(principal.Permissions, path) {
+	if principal.PasswordChangeRequired && !passwordChangeSessionAllows(path) {
+		s.auditAuthorizationDenied(ctx, principal, path, requestID, "password_change_required")
+		return Principal{}, domainError(ErrorForbidden, "password change is required", nil)
+	}
+	if !isSessionSelfServicePath(path) && !permissionAllowsPath(principal.Permissions, path) {
 		s.auditAuthorizationDenied(ctx, principal, path, requestID, "permission")
 		return Principal{}, domainError(ErrorForbidden, "permission denied", nil)
 	}
@@ -157,6 +160,14 @@ func (s *Service) Authorize(ctx context.Context, rawToken, csrfToken, path, requ
 		return Principal{}, s.internal("touch session", err)
 	}
 	return principal, nil
+}
+
+func passwordChangeSessionAllows(path string) bool {
+	return path == "/app/user/session" || isSessionSelfServicePath(path)
+}
+
+func isSessionSelfServicePath(path string) bool {
+	return path == signoutPath || path == changePasswordPath
 }
 
 func permissionAllowsPath(permissions []string, path string) bool {
@@ -195,16 +206,12 @@ func (s *Service) loadPrincipal(ctx context.Context, rawToken string) (Principal
 	if err != nil {
 		return Principal{}, s.internal("load current permissions", err)
 	}
-	if !slices.Contains(permissions, signoutPath) {
-		_ = s.queries.RevokeAppSession(ctx, dbsqlc.RevokeAppSessionParams{ID: session.ID, Reason: stringPointer("unsafe_authorization")})
-		return Principal{}, domainError(ErrorUnauthenticated, "session expired", nil)
-	}
 	return Principal{
 		SessionID: session.ID, User: UserSummary{
 			ID: session.UserID, Username: session.Username,
 			DisplayName: session.DisplayName, AvatarURL: session.AvatarUrl,
 		},
-		CSRFHash: session.CsrfTokenHash, Permissions: permissions,
+		CSRFHash: session.CsrfTokenHash, Permissions: permissions, PasswordChangeRequired: session.PasswordChangeRequired,
 		IdleExpires: session.IdleExpiresAt.Time, AbsoluteEnds: session.AbsoluteExpiresAt.Time,
 	}, nil
 }

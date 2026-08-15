@@ -23,6 +23,10 @@ func (s *Service) AuthorizeSession(
 		s.auditAuthorizationDenied(ctx, principal, path, requestID, "csrf")
 		return Principal{}, domainError(ErrorForbidden, "csrf validation failed", nil)
 	}
+	if principal.PasswordChangeRequired && !passwordChangeSessionAllows(path) {
+		s.auditAuthorizationDenied(ctx, principal, path, requestID, "password_change_required")
+		return Principal{}, domainError(ErrorForbidden, "password change is required", nil)
+	}
 	idleEnds := time.Now().UTC().Add(s.cfg.SessionIdleTimeout)
 	if err = s.queries.TouchAppSession(ctx, dbsqlc.TouchAppSessionParams{
 		ID: principal.SessionID, IdleExpiresAt: timestamptz(idleEnds),

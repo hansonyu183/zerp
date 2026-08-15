@@ -46,6 +46,8 @@ export interface SessionData {
   user: UserProfile
   csrfToken: string
   permissions?: unknown
+  passwordChangeRequired: boolean
+  passwordMinLength: number
 }
 
 export interface SignInRequest {
@@ -57,6 +59,8 @@ export const useSessionStore = defineStore('session', () => {
   const initialized = ref(false)
   const loading = ref(false)
   const user = ref<UserProfile | null>(null)
+  const passwordChangeRequired = ref(false)
+  const passwordMinLength = ref(12)
   const permissions = ref<string[]>([])
   const csrfToken = ref<string | null>(null)
   const errorMessage = ref<string | null>(null)
@@ -110,6 +114,8 @@ export const useSessionStore = defineStore('session', () => {
 
   function applySession(session: SessionData): void {
     user.value = session.user
+    passwordChangeRequired.value = session.passwordChangeRequired
+    passwordMinLength.value = session.passwordMinLength
     permissions.value = normalizePermissions(session.permissions)
     csrfToken.value = session.csrfToken
     apiClient.setCsrfToken(session.csrfToken)
@@ -147,6 +153,8 @@ export const useSessionStore = defineStore('session', () => {
     user.value = null
     permissions.value = []
     csrfToken.value = null
+    passwordChangeRequired.value = false
+    passwordMinLength.value = 12
     menuData.value = null
     menuErrorMessage.value = null
     apiClient.setCsrfToken(null)
@@ -160,7 +168,7 @@ export const useSessionStore = defineStore('session', () => {
     try {
       const { data } = await apiClient.post<SessionData>('app/user/session', {})
       applySession(data)
-      await retryMenu()
+      if (!passwordChangeRequired.value) await retryMenu()
       return true
     } catch (error) {
       clearSession()
@@ -183,7 +191,7 @@ export const useSessionStore = defineStore('session', () => {
         credentials,
       )
       applySession(data)
-      await retryMenu()
+      if (!passwordChangeRequired.value) await retryMenu()
     } catch (error) {
       clearSession()
       errorMessage.value = getErrorMessage(error)
@@ -259,6 +267,8 @@ export const useSessionStore = defineStore('session', () => {
     initialized,
     loading,
     user,
+    passwordChangeRequired,
+    passwordMinLength,
     permissions,
     menus,
     routeMenus,

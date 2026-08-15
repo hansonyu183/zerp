@@ -71,6 +71,12 @@ function createTestRouter(): Router {
         meta: { public: true },
       },
       {
+        path: '/change-password',
+        name: 'change-password',
+        component: { template: '<div />' },
+        meta: { requiresAuth: true, restrictedSession: true },
+      },
+      {
         path: '/',
         name: 'app',
         component: { template: '<router-view />' },
@@ -365,5 +371,19 @@ describe('session menu route synchronization', () => {
     expect(router.hasRoute('page:wfl/custom-flow')).toBe(false)
 
     stop()
+  })
+})
+
+describe('password-change restricted session', () => {
+  it('将受限会话的任何业务地址阻断到独立改密页', async () => {
+    const router = createTestRouter()
+    const session = createAuthenticatedSession()
+    session.passwordChangeRequired = true
+    session.permissions = ['/app/user/query']
+    router.beforeEach(createSessionNavigationGuard(router, session))
+    await router.push('/admin/user')
+    expect(router.currentRoute.value.name).toBe('change-password')
+    await router.push('/signin?redirect=/admin/user')
+    expect(router.currentRoute.value.name).toBe('change-password')
   })
 })

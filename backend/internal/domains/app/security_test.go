@@ -26,6 +26,18 @@ func TestValidatePasswordPolicy(t *testing.T) {
 	}
 }
 
+func TestGenerateTemporaryPasswordMeetsConfiguredPolicy(t *testing.T) {
+	for range 10 {
+		password, err := generateTemporaryPassword(12)
+		if err != nil {
+			t.Fatalf("generate temporary password: %v", err)
+		}
+		if err = validatePassword(password, 12); err != nil {
+			t.Fatalf("temporary password violates policy: %v", err)
+		}
+	}
+}
+
 func TestTokenHashComparison(t *testing.T) {
 	raw, err := newRawToken()
 	if err != nil {

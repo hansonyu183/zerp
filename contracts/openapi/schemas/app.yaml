@@ -32,6 +32,255 @@
           'newPassword': { 'type': 'string' },
         },
     },
+  'SessionUser':
+    {
+      'type': 'object',
+      'required': ['id', 'username', 'displayName', 'avatarUrl'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'id': { 'type': 'string' },
+          'username': { 'type': 'string' },
+          'displayName': { 'type': 'string' },
+          'avatarUrl': { 'type': 'string', 'nullable': true },
+        },
+    },
+  'SessionData':
+    {
+      'type': 'object',
+      'required':
+        [
+          'user',
+          'csrfToken',
+          'permissions',
+          'passwordChangeRequired',
+          'passwordMinLength',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'user': { '$ref': '#/SessionUser' },
+          'csrfToken': { 'type': 'string' },
+          'permissions': { 'type': 'array', 'items': { 'type': 'string' } },
+          'passwordChangeRequired': { 'type': 'boolean' },
+          'passwordMinLength':
+            { 'type': 'integer', 'minimum': 8, 'maximum': 128 },
+        },
+    },
+  'SessionResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/SessionData' }],
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'UserStatus': { 'type': 'string', 'enum': ['ENABLED', 'DISABLED'] },
+  'UserRoleSummary':
+    {
+      'type': 'object',
+      'required': ['id', 'code', 'name', 'status'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'id': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'name': { 'type': 'string' },
+          'status': { '$ref': '#/UserStatus' },
+        },
+    },
+  'UserListItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'id',
+          'username',
+          'displayName',
+          'status',
+          'system',
+          'createdAt',
+          'updatedAt',
+          'revision',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'id': { 'type': 'string' },
+          'username': { 'type': 'string' },
+          'displayName': { 'type': 'string' },
+          'status': { '$ref': '#/UserStatus' },
+          'system': { 'type': 'boolean' },
+          'createdAt': { 'type': 'string', 'format': 'date-time' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+        },
+    },
+  'UserDetail':
+    {
+      'type': 'object',
+      'required':
+        [
+          'id',
+          'username',
+          'displayName',
+          'status',
+          'system',
+          'createdAt',
+          'updatedAt',
+          'revision',
+          'passwordChangedAt',
+          'roles',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'id': { 'type': 'string' },
+          'username': { 'type': 'string' },
+          'displayName': { 'type': 'string' },
+          'status': { '$ref': '#/UserStatus' },
+          'system': { 'type': 'boolean' },
+          'createdAt': { 'type': 'string', 'format': 'date-time' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'passwordChangedAt': { 'type': 'string', 'format': 'date-time' },
+          'roles':
+            { 'type': 'array', 'items': { '$ref': '#/UserRoleSummary' } },
+        },
+    },
+  'UserPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items': { 'type': 'array', 'items': { '$ref': '#/UserListItem' } },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer', 'enum': [20] },
+        },
+    },
+  'UserQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize', 'sort'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'enum': [20] },
+          'filters':
+            {
+              'type': 'object',
+              'additionalProperties': false,
+              'properties':
+                {
+                  'search': { 'type': 'string', 'maxLength': 128 },
+                  'status': { '$ref': '#/UserStatus' },
+                },
+            },
+          'sort':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'maxItems': 1,
+              'items':
+                {
+                  'type': 'object',
+                  'required': ['field', 'order'],
+                  'additionalProperties': false,
+                  'properties':
+                    {
+                      'field': { 'type': 'string', 'enum': ['username'] },
+                      'order': { 'type': 'string', 'enum': ['asc'] },
+                    },
+                },
+            },
+        },
+    },
+  'UserPageResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/UserPage' }],
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'UserDetailResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/UserDetail' }],
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'ResetPasswordRequest':
+    {
+      'type': 'object',
+      'required': ['id', 'revision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'id': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+        },
+    },
+  'ResetPasswordResult':
+    {
+      'type': 'object',
+      'required': ['temporaryPassword'],
+      'additionalProperties': false,
+      'properties': { 'temporaryPassword': { 'type': 'string' } },
+    },
+  'ResetPasswordResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/ResetPasswordResult' }],
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'CreateUserRequest':
     {
       'type': 'object',

@@ -154,39 +154,6 @@ func (q *Queries) CountEnabledAppRolesByIDs(ctx context.Context, ids []string) (
 	return count, err
 }
 
-const countEnabledUsersMissingPermission = `-- name: CountEnabledUsersMissingPermission :one
-SELECT count(*)
-FROM app_users u
-WHERE u.status = 'ENABLED' AND NOT EXISTS (
-  SELECT 1
-  FROM app_user_roles ur
-  JOIN app_roles r ON r.id = ur.role_id AND r.status = 'ENABLED'
-  WHERE ur.user_id = u.id
-    AND (
-      (
-        r.code = 'superadmin'
-        AND EXISTS (
-          SELECT 1 FROM app_permissions p
-          WHERE p.path = $1 AND p.status = 'ENABLED'
-        )
-      )
-      OR EXISTS (
-        SELECT 1
-        FROM app_role_permissions rp
-        JOIN app_permissions p ON p.id = rp.permission_id AND p.status = 'ENABLED'
-        WHERE rp.role_id = r.id AND p.path = $1
-      )
-    )
-)
-`
-
-func (q *Queries) CountEnabledUsersMissingPermission(ctx context.Context, path string) (int64, error) {
-	row := q.db.QueryRow(ctx, countEnabledUsersMissingPermission, path)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const countEnabledUsersWithPermission = `-- name: CountEnabledUsersWithPermission :one
 SELECT count(*)
 FROM app_users u
@@ -497,7 +464,7 @@ func (q *Queries) GetAppRolePermissionIDs(ctx context.Context, roleID string) ([
 }
 
 const getAppSessionByTokenHash = `-- name: GetAppSessionByTokenHash :one
-SELECT s.id, s.user_id, s.token_hash, s.csrf_token_hash, s.created_at, s.last_seen_at, s.idle_expires_at, s.absolute_expires_at, s.revoked_at, s.revoked_reason, u.username, u.display_name, u.status AS user_status, p.avatar_url
+SELECT s.id, s.user_id, s.token_hash, s.csrf_token_hash, s.created_at, s.last_seen_at, s.idle_expires_at, s.absolute_expires_at, s.revoked_at, s.revoked_reason, u.username, u.display_name, u.status AS user_status, u.password_change_required, p.avatar_url
 FROM app_sessions s
 JOIN app_users u ON u.id = s.user_id
 LEFT JOIN app_user_profiles p ON p.user_id = u.id
@@ -505,20 +472,21 @@ WHERE s.token_hash = $1 LIMIT 1
 `
 
 type GetAppSessionByTokenHashRow struct {
-	ID                string             `db:"id" json:"id"`
-	UserID            string             `db:"user_id" json:"user_id"`
-	TokenHash         []byte             `db:"token_hash" json:"token_hash"`
-	CsrfTokenHash     []byte             `db:"csrf_token_hash" json:"csrf_token_hash"`
-	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	LastSeenAt        pgtype.Timestamptz `db:"last_seen_at" json:"last_seen_at"`
-	IdleExpiresAt     pgtype.Timestamptz `db:"idle_expires_at" json:"idle_expires_at"`
-	AbsoluteExpiresAt pgtype.Timestamptz `db:"absolute_expires_at" json:"absolute_expires_at"`
-	RevokedAt         pgtype.Timestamptz `db:"revoked_at" json:"revoked_at"`
-	RevokedReason     *string            `db:"revoked_reason" json:"revoked_reason"`
-	Username          string             `db:"username" json:"username"`
-	DisplayName       string             `db:"display_name" json:"display_name"`
-	UserStatus        string             `db:"user_status" json:"user_status"`
-	AvatarUrl         *string            `db:"avatar_url" json:"avatar_url"`
+	ID                     string             `db:"id" json:"id"`
+	UserID                 string             `db:"user_id" json:"user_id"`
+	TokenHash              []byte             `db:"token_hash" json:"token_hash"`
+	CsrfTokenHash          []byte             `db:"csrf_token_hash" json:"csrf_token_hash"`
+	CreatedAt              pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	LastSeenAt             pgtype.Timestamptz `db:"last_seen_at" json:"last_seen_at"`
+	IdleExpiresAt          pgtype.Timestamptz `db:"idle_expires_at" json:"idle_expires_at"`
+	AbsoluteExpiresAt      pgtype.Timestamptz `db:"absolute_expires_at" json:"absolute_expires_at"`
+	RevokedAt              pgtype.Timestamptz `db:"revoked_at" json:"revoked_at"`
+	RevokedReason          *string            `db:"revoked_reason" json:"revoked_reason"`
+	Username               string             `db:"username" json:"username"`
+	DisplayName            string             `db:"display_name" json:"display_name"`
+	UserStatus             string             `db:"user_status" json:"user_status"`
+	PasswordChangeRequired bool               `db:"password_change_required" json:"password_change_required"`
+	AvatarUrl              *string            `db:"avatar_url" json:"avatar_url"`
 }
 
 func (q *Queries) GetAppSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetAppSessionByTokenHashRow, error) {
@@ -538,6 +506,7 @@ func (q *Queries) GetAppSessionByTokenHash(ctx context.Context, tokenHash []byte
 		&i.Username,
 		&i.DisplayName,
 		&i.UserStatus,
+		&i.PasswordChangeRequired,
 		&i.AvatarUrl,
 	)
 	return i, err
@@ -607,7 +576,7 @@ func (q *Queries) GetAppUserAvatarURL(ctx context.Context, userID string) (*stri
 }
 
 const getAppUserByID = `-- name: GetAppUserByID :one
-SELECT id, username, display_name, password_hash, status, failed_signin_count, locked_until, password_changed_at, created_at, created_by, updated_at, updated_by, revision FROM app_users WHERE id = $1 LIMIT 1
+SELECT id, username, display_name, password_hash, status, failed_signin_count, locked_until, password_changed_at, created_at, created_by, updated_at, updated_by, revision, password_change_required FROM app_users WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetAppUserByID(ctx context.Context, id string) (AppUser, error) {
@@ -627,12 +596,13 @@ func (q *Queries) GetAppUserByID(ctx context.Context, id string) (AppUser, error
 		&i.UpdatedAt,
 		&i.UpdatedBy,
 		&i.Revision,
+		&i.PasswordChangeRequired,
 	)
 	return i, err
 }
 
 const getAppUserByIDForUpdate = `-- name: GetAppUserByIDForUpdate :one
-SELECT id, username, display_name, password_hash, status, failed_signin_count, locked_until, password_changed_at, created_at, created_by, updated_at, updated_by, revision FROM app_users WHERE id = $1 LIMIT 1 FOR UPDATE
+SELECT id, username, display_name, password_hash, status, failed_signin_count, locked_until, password_changed_at, created_at, created_by, updated_at, updated_by, revision, password_change_required FROM app_users WHERE id = $1 LIMIT 1 FOR UPDATE
 `
 
 func (q *Queries) GetAppUserByIDForUpdate(ctx context.Context, id string) (AppUser, error) {
@@ -652,12 +622,13 @@ func (q *Queries) GetAppUserByIDForUpdate(ctx context.Context, id string) (AppUs
 		&i.UpdatedAt,
 		&i.UpdatedBy,
 		&i.Revision,
+		&i.PasswordChangeRequired,
 	)
 	return i, err
 }
 
 const getAppUserByUsername = `-- name: GetAppUserByUsername :one
-SELECT id, username, display_name, password_hash, status, failed_signin_count, locked_until, password_changed_at, created_at, created_by, updated_at, updated_by, revision FROM app_users WHERE lower(username) = lower($1) LIMIT 1
+SELECT id, username, display_name, password_hash, status, failed_signin_count, locked_until, password_changed_at, created_at, created_by, updated_at, updated_by, revision, password_change_required FROM app_users WHERE lower(username) = lower($1) LIMIT 1
 `
 
 func (q *Queries) GetAppUserByUsername(ctx context.Context, username string) (AppUser, error) {
@@ -677,6 +648,7 @@ func (q *Queries) GetAppUserByUsername(ctx context.Context, username string) (Ap
 		&i.UpdatedAt,
 		&i.UpdatedBy,
 		&i.Revision,
+		&i.PasswordChangeRequired,
 	)
 	return i, err
 }
@@ -745,6 +717,30 @@ func (q *Queries) GetAppUserRoleIDs(ctx context.Context, userID string) ([]strin
 		return nil, err
 	}
 	return items, nil
+}
+
+const insertAppBootstrapUser = `-- name: InsertAppBootstrapUser :exec
+INSERT INTO app_users (id, username, display_name, password_hash, status, password_change_required, password_changed_at, created_by, updated_by)
+VALUES ($1, $2, $3, $4, 'ENABLED', false, now(), $5, $5)
+`
+
+type InsertAppBootstrapUserParams struct {
+	ID           string  `db:"id" json:"id"`
+	Username     string  `db:"username" json:"username"`
+	DisplayName  string  `db:"display_name" json:"display_name"`
+	PasswordHash string  `db:"password_hash" json:"password_hash"`
+	ActorID      *string `db:"actor_id" json:"actor_id"`
+}
+
+func (q *Queries) InsertAppBootstrapUser(ctx context.Context, arg InsertAppBootstrapUserParams) error {
+	_, err := q.db.Exec(ctx, insertAppBootstrapUser,
+		arg.ID,
+		arg.Username,
+		arg.DisplayName,
+		arg.PasswordHash,
+		arg.ActorID,
+	)
+	return err
 }
 
 const insertAppBusinessMenuItem = `-- name: InsertAppBusinessMenuItem :exec
@@ -832,8 +828,8 @@ func (q *Queries) InsertAppRolePermission(ctx context.Context, arg InsertAppRole
 }
 
 const insertAppUser = `-- name: InsertAppUser :exec
-INSERT INTO app_users (id, username, display_name, password_hash, status, password_changed_at, created_by, updated_by)
-VALUES ($1, $2, $3, $4, 'ENABLED', now(), $5, $5)
+INSERT INTO app_users (id, username, display_name, password_hash, status, password_change_required, password_changed_at, created_by, updated_by)
+VALUES ($1, $2, $3, $4, 'ENABLED', true, now(), $5, $5)
 `
 
 type InsertAppUserParams struct {
@@ -1206,6 +1202,46 @@ func (q *Queries) ListAppSystemParameters(ctx context.Context, arg ListAppSystem
 	return items, nil
 }
 
+const listAppUserRoleSummaries = `-- name: ListAppUserRoleSummaries :many
+SELECT r.id, r.code, r.name, r.status
+FROM app_user_roles ur
+JOIN app_roles r ON r.id = ur.role_id
+WHERE ur.user_id = $1
+ORDER BY r.code, r.id
+`
+
+type ListAppUserRoleSummariesRow struct {
+	ID     string `db:"id" json:"id"`
+	Code   string `db:"code" json:"code"`
+	Name   string `db:"name" json:"name"`
+	Status string `db:"status" json:"status"`
+}
+
+func (q *Queries) ListAppUserRoleSummaries(ctx context.Context, userID string) ([]ListAppUserRoleSummariesRow, error) {
+	rows, err := q.db.Query(ctx, listAppUserRoleSummaries, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAppUserRoleSummariesRow{}
+	for rows.Next() {
+		var i ListAppUserRoleSummariesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Code,
+			&i.Name,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAppUsers = `-- name: ListAppUsers :many
 SELECT id, username, display_name, status, failed_signin_count, locked_until, password_changed_at,
        created_at, created_by, updated_at, updated_by, revision
@@ -1292,7 +1328,7 @@ UPDATE app_users SET
   locked_until = CASE WHEN failed_signin_count + 1 >= $1 THEN now() + $2::interval ELSE locked_until END,
   updated_at = now(), revision = revision + 1
 WHERE id = $3
-RETURNING id, username, display_name, password_hash, status, failed_signin_count, locked_until, password_changed_at, created_at, created_by, updated_at, updated_by, revision
+RETURNING id, username, display_name, password_hash, status, failed_signin_count, locked_until, password_changed_at, created_at, created_by, updated_at, updated_by, revision, password_change_required
 `
 
 type RecordSigninFailureParams struct {
@@ -1318,6 +1354,7 @@ func (q *Queries) RecordSigninFailure(ctx context.Context, arg RecordSigninFailu
 		&i.UpdatedAt,
 		&i.UpdatedBy,
 		&i.Revision,
+		&i.PasswordChangeRequired,
 	)
 	return i, err
 }
@@ -1358,6 +1395,39 @@ func (q *Queries) ResetAppSystemParameterValue(ctx context.Context, arg ResetApp
 		&i.UpdatedBy,
 	)
 	return i, err
+}
+
+const resetAppUserPassword = `-- name: ResetAppUserPassword :execrows
+UPDATE app_users SET
+  password_hash = $1,
+  password_change_required = true,
+  password_changed_at = now(),
+  failed_signin_count = 0,
+  locked_until = NULL,
+  updated_at = now(),
+  updated_by = $2,
+  revision = revision + 1
+WHERE id = $3 AND revision = $4 AND status = 'ENABLED'
+`
+
+type ResetAppUserPasswordParams struct {
+	PasswordHash string  `db:"password_hash" json:"password_hash"`
+	ActorID      *string `db:"actor_id" json:"actor_id"`
+	ID           string  `db:"id" json:"id"`
+	Revision     int64   `db:"revision" json:"revision"`
+}
+
+func (q *Queries) ResetAppUserPassword(ctx context.Context, arg ResetAppUserPasswordParams) (int64, error) {
+	result, err := q.db.Exec(ctx, resetAppUserPassword,
+		arg.PasswordHash,
+		arg.ActorID,
+		arg.ID,
+		arg.Revision,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const resetSigninFailures = `-- name: ResetSigninFailures :exec
@@ -1622,6 +1692,7 @@ const updateAppUserPassword = `-- name: UpdateAppUserPassword :execrows
 UPDATE app_users SET
   password_hash = $1,
   password_changed_at = now(),
+  password_change_required = false,
   failed_signin_count = 0,
   locked_until = NULL,
   updated_at = now(),
@@ -1657,7 +1728,7 @@ SET display_name = $1,
     updated_by = $2,
     revision = revision + 1
 WHERE id = $3 AND status = 'ENABLED'
-RETURNING id, username, display_name, password_hash, status, failed_signin_count, locked_until, password_changed_at, created_at, created_by, updated_at, updated_by, revision
+RETURNING id, username, display_name, password_hash, status, failed_signin_count, locked_until, password_changed_at, created_at, created_by, updated_at, updated_by, revision, password_change_required
 `
 
 type UpdateCurrentAppUserProfileParams struct {
@@ -1683,6 +1754,7 @@ func (q *Queries) UpdateCurrentAppUserProfile(ctx context.Context, arg UpdateCur
 		&i.UpdatedAt,
 		&i.UpdatedBy,
 		&i.Revision,
+		&i.PasswordChangeRequired,
 	)
 	return i, err
 }

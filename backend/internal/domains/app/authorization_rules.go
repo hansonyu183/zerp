@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"errors"
-	"slices"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/jackc/pgx/v5"
@@ -32,17 +31,6 @@ func replaceUserRoles(ctx context.Context, q *dbsqlc.Queries, userID string, rol
 	return nil
 }
 
-func ensureSafeSignout(ctx context.Context, q *dbsqlc.Queries, userID string) error {
-	paths, err := q.GetAppUserPermissions(ctx, userID)
-	if err != nil {
-		return domainError(ErrorInternal, "internal server error", err)
-	}
-	if !slices.Contains(paths, signoutPath) {
-		return domainError(ErrorValidation, "assigned roles must grant /app/user/signout", nil)
-	}
-	return nil
-}
-
 func ensureGlobalAuthorizationSafety(ctx context.Context, q *dbsqlc.Queries) error {
 	admins, err := q.CountEnabledUsersWithPermission(ctx, "/app/role/save")
 	if err != nil {
@@ -50,13 +38,6 @@ func ensureGlobalAuthorizationSafety(ctx context.Context, q *dbsqlc.Queries) err
 	}
 	if admins == 0 {
 		return domainError(ErrorConflict, "change would remove the last authorization administrator", nil)
-	}
-	missingSignout, err := q.CountEnabledUsersMissingPermission(ctx, signoutPath)
-	if err != nil {
-		return domainError(ErrorInternal, "internal server error", err)
-	}
-	if missingSignout != 0 {
-		return domainError(ErrorConflict, "every enabled user must retain /app/user/signout", nil)
 	}
 	return nil
 }

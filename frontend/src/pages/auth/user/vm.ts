@@ -24,9 +24,10 @@ export function useSignInViewModel() {
 
     submitting.value = true
     errorMessage.value = null
+    username.value = username.value.trim()
     try {
       await session.signIn({
-        username: username.value.trim(),
+        username: username.value,
         password: password.value,
       })
 

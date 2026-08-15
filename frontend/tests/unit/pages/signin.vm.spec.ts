@@ -39,12 +39,12 @@ describe('useSignInViewModel', () => {
     expect(vm.successMessage.value).toBe('密码已更新，请重新登录。')
   })
 
-  it('登录成功后优先返回安全的原始页面', async () => {
-    routerState.query = { redirect: '/bob/customer' }
+  it('登录成功后规范化用户名、清空密码并返回完整安全深链', async () => {
+    routerState.query = { redirect: '/bob/customer?tab=history#version-2' }
     const session = useSessionStore()
     vi.spyOn(session, 'signIn').mockResolvedValue()
     const vm = useSignInViewModel()
-    vm.username.value = 'tester'
+    vm.username.value = '  tester  '
     vm.password.value = 'password'
 
     await vm.submit()
@@ -53,19 +53,59 @@ describe('useSignInViewModel', () => {
       username: 'tester',
       password: 'password',
     })
-    expect(replace).toHaveBeenCalledWith('/bob/customer')
+    expect(vm.username.value).toBe('tester')
+    expect(vm.password.value).toBe('')
+    expect(replace).toHaveBeenCalledWith('/bob/customer?tab=history#version-2')
   })
 
-  it('登录成功后对无效跳转回到工作台', async () => {
-    routerState.query = { redirect: '//external.example.com' }
+  it.each(['//external.example.com', 'https://external.example.com'])(
+    '登录成功后拒绝无效跳转 %s 并回到工作台',
+    async (redirect) => {
+      routerState.query = { redirect }
+      const session = useSessionStore()
+      vi.spyOn(session, 'signIn').mockResolvedValue()
+      const vm = useSignInViewModel()
+      vm.username.value = 'tester'
+      vm.password.value = 'password'
+
+      await vm.submit()
+
+      expect(replace).toHaveBeenCalledWith('/home/dashboard')
+    },
+  )
+
+  it('登录失败后清空密码并保留已规范化的用户名', async () => {
     const session = useSessionStore()
-    vi.spyOn(session, 'signIn').mockResolvedValue()
+    vi.spyOn(session, 'signIn').mockRejectedValue(new Error('密码错误。'))
+    const vm = useSignInViewModel()
+    vm.username.value = '  tester  '
+    vm.password.value = 'wrong-password'
+
+    await vm.submit()
+
+    expect(vm.username.value).toBe('tester')
+    expect(vm.password.value).toBe('')
+    expect(vm.errorMessage.value).toBe('密码错误。')
+  })
+
+  it('提交期间忽略重复提交', async () => {
+    let finishSignIn: (() => void) | undefined
+    const session = useSessionStore()
+    const signIn = vi.spyOn(session, 'signIn').mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishSignIn = resolve
+        }),
+    )
     const vm = useSignInViewModel()
     vm.username.value = 'tester'
     vm.password.value = 'password'
 
-    await vm.submit()
+    const firstSubmit = vm.submit()
+    const secondSubmit = vm.submit()
 
-    expect(replace).toHaveBeenCalledWith('/home/dashboard')
+    expect(signIn).toHaveBeenCalledOnce()
+    finishSignIn?.()
+    await Promise.all([firstSubmit, secondSubmit])
   })
 })

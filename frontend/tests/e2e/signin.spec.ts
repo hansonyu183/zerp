@@ -22,6 +22,15 @@ async function signIn(page: Page, workerState: WflWorkerState): Promise<void> {
   await expect(page.locator('.account-button')).toBeVisible()
 }
 
+async function submitCredentials(
+  page: Page,
+  credentials: { username: string; password: string },
+): Promise<void> {
+  await page.getByLabel('用户名').fill(credentials.username)
+  await page.getByLabel('密码').fill(credentials.password)
+  await page.getByRole('button', { name: '登录' }).click()
+}
+
 async function openProfile(page: Page) {
   await page.locator('.account-button').click()
   await page.getByText('名称与头像', { exact: true }).click()
@@ -44,6 +53,65 @@ async function openCustomer(page: Page, isMobile: boolean): Promise<void> {
   await customerLink.click()
   await expect(page).toHaveURL(/\/bob\/customer/)
 }
+
+test('未登录访问完整深链后登录返回原路径', async ({ page, workerState }) => {
+  await page.goto('/bob/customer?tab=history#version-2')
+  await expect(page).toHaveURL(/\/signin\?redirect=/)
+
+  await submitCredentials(page, workerState.operator)
+
+  await expect(page).toHaveURL(/\/bob\/customer\?tab=history#version-2$/)
+  await expect(page.getByRole('textbox', { name: '客户关键字' })).toBeVisible()
+})
+
+test('登录后对已知但无权限的深链显示无权访问', async ({
+  page,
+  workerState,
+}) => {
+  await page.goto('/admin/permission?source=deep-link#table')
+  await expect(page).toHaveURL(/\/signin\?redirect=/)
+
+  await submitCredentials(page, workerState.reviewer)
+
+  await expect(page).toHaveURL(/\/forbidden$/)
+  await expect(page.getByText('无权访问', { exact: true })).toBeVisible()
+})
+
+test('登录后对不存在的深链显示页面不存在', async ({ page, workerState }) => {
+  await page.goto('/unknown/not-a-real-page?source=deep-link#missing')
+  await expect(page).toHaveURL(/\/signin\?redirect=/)
+
+  await submitCredentials(page, workerState.operator)
+
+  await expect(page).toHaveURL(
+    /\/unknown\/not-a-real-page\?source=deep-link#missing$/,
+  )
+  await expect(page.getByText('页面不存在', { exact: true })).toBeVisible()
+})
+
+test('有效会话访问带 redirect 的登录页时忽略参数且不再登录', async ({
+  page,
+  workerState,
+}) => {
+  let signinRequests = 0
+  page.on('request', (request) => {
+    if (
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname.endsWith('/app/user/signin')
+    ) {
+      signinRequests += 1
+    }
+  })
+
+  await signIn(page, workerState)
+  await expect.poll(() => signinRequests).toBe(1)
+
+  await page.goto('/signin?redirect=/bob/customer')
+
+  await expect(page).toHaveURL(/\/home\/dashboard$/)
+  await expect(page.getByLabel('用户名')).not.toBeVisible()
+  expect(signinRequests).toBe(1)
+})
 
 test(
   '登录后逐项加载八类业务对象中文菜单与真实组件',

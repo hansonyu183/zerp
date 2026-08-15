@@ -17,6 +17,7 @@ const passwordDialog = ref(false)
 const loadingProfile = ref(false)
 const savingProfile = ref(false)
 const savingPassword = ref(false)
+const retryingMenu = ref(false)
 const accountError = ref('')
 const accountSuccess = ref('')
 
@@ -186,6 +187,22 @@ async function signOut(): Promise<void> {
   }
 }
 
+async function retryMenu(): Promise<void> {
+  if (retryingMenu.value) return
+
+  retryingMenu.value = true
+  try {
+    await session.retryMenu()
+  } catch {
+    await router.replace({
+      name: 'signin',
+      query: { redirect: route.fullPath },
+    })
+  } finally {
+    retryingMenu.value = false
+  }
+}
+
 async function handlePageShow(event: PageTransitionEvent): Promise<void> {
   if (!event.persisted || route.meta.public) return
 
@@ -312,6 +329,12 @@ onBeforeUnmount(() => window.removeEventListener('pageshow', handlePageShow))
   </v-snackbar>
 
   <AppSnackbar :message="accountError" @dismiss="accountError = ''" />
+  <AppSnackbar
+    action-label="重新加载"
+    :message="session.menuErrorMessage"
+    :timeout="-1"
+    @action="retryMenu"
+  />
 
   <v-dialog v-model="profileDialog" max-width="520">
     <v-card rounded="xl" title="名称与头像">

@@ -6,6 +6,7 @@ import { ApiError, getErrorMessage } from '@/api/types'
 import {
   buildMenus,
   buildServerMenus,
+  hasRegisteredPage,
   normalizePermissions,
   type MenuDomain,
   type MenuEntity,
@@ -59,6 +60,7 @@ export const useSessionStore = defineStore('session', () => {
   const permissions = ref<string[]>([])
   const csrfToken = ref<string | null>(null)
   const errorMessage = ref<string | null>(null)
+  const menuErrorMessage = ref<string | null>(null)
   const menuData = ref<MenuData | null>(null)
 
   const authenticated = computed(() => user.value !== null)
@@ -95,12 +97,25 @@ export const useSessionStore = defineStore('session', () => {
     return permissionSet.value.has(permissionPath)
   }
 
+  function isKnownRoutePath(path: string): boolean {
+    if (menuData.value) {
+      return menuData.value.availableRoutes.some(
+        (route) => route.routePath === path,
+      )
+    }
+
+    const match = path.match(/^\/([^/]+)\/([^/]+)$/)
+    return match ? hasRegisteredPage(match[1] ?? '', match[2] ?? '') : false
+  }
+
   function applySession(session: SessionData): void {
     user.value = session.user
     permissions.value = normalizePermissions(session.permissions)
     csrfToken.value = session.csrfToken
     apiClient.setCsrfToken(session.csrfToken)
     errorMessage.value = null
+    menuErrorMessage.value = null
+    menuData.value = null
     initialized.value = true
   }
 
@@ -108,23 +123,23 @@ export const useSessionStore = defineStore('session', () => {
     menuData.value = data
   }
 
-  async function refreshMenu(): Promise<MenuData> {
+  async function loadMenu(): Promise<MenuData> {
     const { data } = await getMenu()
     applyMenuData(data)
-    errorMessage.value = null
+    menuErrorMessage.value = null
     return data
   }
 
-  async function refreshMenuWithoutLosingSession(): Promise<void> {
+  async function retryMenu(): Promise<void> {
     try {
-      await refreshMenu()
+      await loadMenu()
     } catch (error) {
       if (isUnauthenticatedError(error)) {
         clearSession()
         initialized.value = true
         throw error
       }
-      errorMessage.value = `菜单加载失败：${getErrorMessage(error)}`
+      menuErrorMessage.value = `菜单加载失败：${getErrorMessage(error)}`
     }
   }
 
@@ -133,6 +148,7 @@ export const useSessionStore = defineStore('session', () => {
     permissions.value = []
     csrfToken.value = null
     menuData.value = null
+    menuErrorMessage.value = null
     apiClient.setCsrfToken(null)
   }
 
@@ -144,7 +160,7 @@ export const useSessionStore = defineStore('session', () => {
     try {
       const { data } = await apiClient.post<SessionData>('app/user/session', {})
       applySession(data)
-      await refreshMenuWithoutLosingSession()
+      await retryMenu()
       return true
     } catch (error) {
       clearSession()
@@ -167,7 +183,7 @@ export const useSessionStore = defineStore('session', () => {
         credentials,
       )
       applySession(data)
-      await refreshMenuWithoutLosingSession()
+      await retryMenu()
     } catch (error) {
       clearSession()
       errorMessage.value = getErrorMessage(error)
@@ -249,10 +265,12 @@ export const useSessionStore = defineStore('session', () => {
     menuData,
     csrfToken,
     errorMessage,
+    menuErrorMessage,
     authenticated,
     can,
+    isKnownRoutePath,
     applyMenuData,
-    refreshMenu,
+    retryMenu,
     restore,
     signIn,
     signOut,

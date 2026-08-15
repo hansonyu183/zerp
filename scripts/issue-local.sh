@@ -522,10 +522,23 @@ wait_checks_and_merge() {
   issues_dir=$4
   branch=$5
   pr=$6
+  registration_attempts=${ZERP_ISSUE_CHECK_REGISTRATION_ATTEMPTS:-60}
+  registration_delay=${ZERP_ISSUE_CHECK_REGISTRATION_WAIT_SECONDS:-5}
   while :; do
     if "${gh_bin}" pr checks "${pr}" --repo "${repo}" --watch --required \
       >"${batch_root}/checks.log" 2>&1; then
       break
+    fi
+    if grep -Fq 'no required checks reported' "${batch_root}/checks.log"; then
+      if [ "${registration_attempts}" -le 0 ]; then
+        mark_batch "${issues_dir}" blocked
+        write_value "${batch_root}/state" blocked
+        release_preview "${feature}"
+        return 1
+      fi
+      registration_attempts=$((registration_attempts - 1))
+      [ "${registration_delay}" -eq 0 ] || sleep "${registration_delay}"
+      continue
     fi
     if [ "$(cat "${batch_root}/attempt" 2>/dev/null || printf 0)" -ge 3 ]; then
       mark_batch "${issues_dir}" blocked
@@ -547,7 +560,9 @@ wait_checks_and_merge() {
       preview_url=$(sed -n 's/^url=//p' "${batch_root}/preview.env")
       fingerprint=$(sed -n 's/^fingerprint=//p' "${batch_root}/preview.env")
       update_pr_body "${feature}" "${batch_root}" "${worktree}" "${preview_url}" "${fingerprint}"
-      git -C "${worktree}" push origin "HEAD:refs/heads/${branch}" >/dev/null
+      git -C "${worktree}" push \
+        --force-with-lease="refs/heads/${branch}:${previous_head}" \
+        origin "HEAD:refs/heads/${branch}" >/dev/null
       "${gh_bin}" pr edit "${pr}" --repo "${repo}" --body-file "${batch_root}/pr-body.md" >/dev/null
       continue
     fi
@@ -645,15 +660,17 @@ run_batch() {
 
 run_command() {
   [ ! -f "${runtime_root}/disabled" ] || { log 'local Issue delivery is stopped'; return 0; }
-  [ "$("${codex_bin}" login status 2>/dev/null || true)" = 'Logged in using ChatGPT' ] || {
+  [ "$("${codex_bin}" login status 2>&1 || true)" = 'Logged in using ChatGPT' ] || {
     log 'Codex must be logged in with ChatGPT'
     return 0
   }
   acquire_lock
   trap release_lock EXIT HUP INT TERM
-  issues_dir=$(select_batch)
-  [ -n "${issues_dir}" ] || return 0
-  run_batch "${issues_dir}"
+  while :; do
+    issues_dir=$(select_batch)
+    [ -n "${issues_dir}" ] || return 0
+    run_batch "${issues_dir}"
+  done
 }
 
 retry_command() {

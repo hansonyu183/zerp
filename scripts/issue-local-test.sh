@@ -52,7 +52,7 @@ cat >"${tmp}/bin/codex" <<'EOF'
 #!/bin/sh
 set -eu
 if [ "${1:-}" = login ] && [ "${2:-}" = status ]; then
-  echo 'Logged in using ChatGPT'
+  echo 'Logged in using ChatGPT' >&2
   exit 0
 fi
 test "${1:-}" = exec
@@ -84,8 +84,10 @@ git -C "${worktree}" -c user.name='Local Implement' -c user.email=local@example.
   commit -m 'feat: implement inventory query batch' >/dev/null
 head=$(git -C "${worktree}" rev-parse HEAD)
 jq -n --arg head "${head}" '{status:"completed",summary:"implemented",commitSha:$head,validation:"passed",review:"passed"}' >"${output}"
+runtime_fingerprint=${MOCK_RUNTIME_FINGERPRINT:-runtime-one}
 jq -n --arg head "${head}" --arg base "${ZERP_ISSUE_BASE_SHA}" \
-  '{status:"passed",head:$head,base:$base,runtimeFingerprint:"runtime-one"}' \
+  --arg runtime_fingerprint "${runtime_fingerprint}" \
+  '{status:"passed",head:$head,base:$base,runtimeFingerprint:$runtime_fingerprint}' \
   >"${ZERP_GATE_EVIDENCE_FILE}"
 EOF
 chmod +x "${tmp}/bin/codex"
@@ -99,7 +101,7 @@ count=$((count + 1))
 printf '%s\n' "${count}" >"${MOCK_PREVIEW_COUNT}"
 if [ "${count}" -le "${MOCK_PREVIEW_FAILS:-0}" ]; then exit 1; fi
 printf 'url=https://zerp-preview.bytesucceed.com\n'
-printf 'fingerprint=runtime-one\n'
+printf 'fingerprint=%s\n' "${MOCK_RUNTIME_FINGERPRINT:-runtime-one}"
 EOF
 chmod +x "${tmp}/bin/preview"
 
@@ -141,8 +143,26 @@ case " $* " in
     printf 'https://github.com/example/zerp/pull/77\n'
     ;;
   *' pr list '*) printf '\n' ;;
-  *' pr checks 77 '*) exit 0 ;;
+  *' pr checks 77 '*)
+    count=$(cat "${MOCK_CHECK_COUNT}" 2>/dev/null || printf 0)
+    count=$((count + 1))
+    printf '%s\n' "${count}" >"${MOCK_CHECK_COUNT}"
+    if [ "${MOCK_CHECK_MODE:-}" = advance-main-once ] && [ "${count}" = 1 ]; then
+      printf 'upstream\n' >"${MOCK_PRIMARY}/upstream.txt"
+      git -C "${MOCK_PRIMARY}" add upstream.txt
+      git -C "${MOCK_PRIMARY}" commit -m 'upstream change' >/dev/null
+      git -C "${MOCK_PRIMARY}" push origin main >/dev/null
+      echo 'required checks failed' >&2
+      exit 1
+    fi
+    if [ "${count}" -le "${MOCK_CHECKS_MISSING:-0}" ]; then
+      echo "no required checks reported on the test branch" >&2
+      exit 1
+    fi
+    exit 0
+    ;;
   *' pr merge 77 '*) printf '{}\n' ;;
+  *' pr edit 77 '*) printf '{}\n' ;;
   *' pr view 77 '*) printf '{"state":"MERGED","mergeCommit":{"oid":"9999999999999999999999999999999999999999"}}\n' ;;
   *' issue close '*) printf '{}\n' ;;
   *) echo "unexpected gh call: $*" >&2; exit 2 ;;
@@ -154,9 +174,11 @@ mkdir -p "${tmp}/capture"
 export MOCK_EVENTS="${events}"
 export MOCK_PROMPT="${tmp}/prompt"
 export MOCK_CAPTURE="${tmp}/capture"
+export MOCK_PRIMARY="${primary}"
 export MOCK_ISSUE_COUNT="${tmp}/issue-count"
 export MOCK_CODEX_COUNT="${tmp}/codex-count"
 export MOCK_PREVIEW_COUNT="${tmp}/preview-count"
+export MOCK_CHECK_COUNT="${tmp}/check-count"
 export MOCK_CODEX_ARGS="${tmp}/codex-args"
 : >"${events}"
 
@@ -277,5 +299,37 @@ if grep -Eq '^(preview|gh )' "${events}"; then
   exit 1
 fi
 grep -Fq '**Status:** needs-input' "${primary}/.scratch/needs-decision/issues/01-ticket.md"
+
+make_ticket checks-registering 'Checks registering'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}" "${MOCK_CHECK_COUNT}"
+MOCK_CODEX_MODE=completed MOCK_PREVIEW_FAILS=0 MOCK_CHECKS_MISSING=1 \
+  ZERP_ISSUE_CHECK_REGISTRATION_WAIT_SECONDS=0 run_agent
+test "$(cat "${MOCK_CODEX_COUNT}")" = 1
+test "$(cat "${MOCK_CHECK_COUNT}")" = 2
+grep -Fq '**Status:** done' "${primary}/.scratch/checks-registering/issues/01-ticket.md"
+
+make_ticket rebase-refresh 'Rebase refresh'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}" "${MOCK_CHECK_COUNT}"
+runtime_fingerprint=$(ZERP_FINGERPRINT_REPO_ROOT="${primary}" \
+  "${repo_root}/scripts/runtime-fingerprint.sh" HEAD)
+MOCK_CODEX_MODE=completed MOCK_PREVIEW_FAILS=0 MOCK_CHECKS_MISSING=0 \
+  MOCK_CHECK_MODE=advance-main-once MOCK_RUNTIME_FINGERPRINT="${runtime_fingerprint}" \
+  ZERP_ISSUE_CHECK_REGISTRATION_WAIT_SECONDS=0 run_agent
+test "$(cat "${MOCK_CODEX_COUNT}")" = 1
+test "$(cat "${MOCK_CHECK_COUNT}")" = 2
+grep -Fq 'gh pr edit 77' "${events}"
+grep -Fq '**Status:** done' "${primary}/.scratch/rebase-refresh/issues/01-ticket.md"
+
+make_ticket queue-first 'Queue first'
+make_ticket queue-second 'Queue second'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}" "${MOCK_CHECK_COUNT}"
+MOCK_CODEX_MODE=completed MOCK_PREVIEW_FAILS=0 MOCK_CHECKS_MISSING=0 \
+  MOCK_CHECK_MODE=normal MOCK_RUNTIME_FINGERPRINT=runtime-one run_agent
+test "$(cat "${MOCK_CODEX_COUNT}")" = 2
+grep -Fq '**Status:** done' "${primary}/.scratch/queue-first/issues/01-ticket.md"
+grep -Fq '**Status:** done' "${primary}/.scratch/queue-second/issues/01-ticket.md"
 
 echo 'local issue retry and stop tests passed'

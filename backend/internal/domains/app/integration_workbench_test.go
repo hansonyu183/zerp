@@ -62,6 +62,8 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	baseSequence := int(time.Now().UnixNano()%9000) + 1
 	documentPrefix := "OIN-WKB-" + suffix
 	documentIDs := []string{ulid.Make().String(), ulid.Make().String(), ulid.Make().String()}
+	slices.Sort(documentIDs[:2])
+	documentIDs[0], documentIDs[1] = documentIDs[1], documentIDs[0]
 	documentNos := []string{
 		fmt.Sprintf("%s-%04d", documentPrefix, baseSequence),
 		fmt.Sprintf("%s-%04d", documentPrefix, baseSequence+1),
@@ -100,7 +102,7 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 			total_amount_cents, created_by, updated_by, reviewed_at, reviewed_by,
 			approved_at, approved_by, posted_at, posted_by, updated_at
 		) VALUES
-			($1, 'other-income', $2, 'DRAFT', 1, '2099-12-31', 'CNY', 12345, $7, $7, NULL, NULL, NULL, NULL, NULL, NULL, now() - interval '2 seconds'),
+			($1, 'other-income', $2, 'DRAFT', 1, '2099-12-31', 'CNY', 12345, $7, $7, NULL, NULL, NULL, NULL, NULL, NULL, now() - interval '1 second'),
 			($3, 'other-income', $4, 'CHECKED', 2, '2099-12-31', 'CNY', 23456, $7, $7, now(), $7, NULL, NULL, NULL, NULL, now() - interval '1 second'),
 			($5, 'other-income', $6, 'APPROVED', 3, '2099-12-31', 'CNY', 34567, $7, $7, now(), $7, now(), $7, now(), $7, now())
 	`, documentIDs[0], documentNos[0], documentIDs[1], documentNos[1], documentIDs[2], documentNos[2], admin.ID); err != nil {
@@ -204,12 +206,17 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		t.Fatalf("query-only workbench page = %+v, err = %v", noActionPage, err)
 	}
 
-	vouPage, err := service.QueryWorkbench(t.Context(), Principal{Permissions: []string{
+	vouPrincipal := Principal{Permissions: []string{
 		"/vou/other-income/query", "/vou/other-income/get", "/vou/other-income/save",
 		"/vou/other-income/check", "/vou/other-income/approve", "/vou/other-income/uncheck",
-	}}, WorkbenchQueryInput{Category: WorkbenchCategoryVou, Keyword: documentPrefix, Page: 1, PageSize: 20})
+	}}
+	vouInput := WorkbenchQueryInput{Category: WorkbenchCategoryVou, Keyword: documentPrefix, Page: 1, PageSize: 20}
+	vouPage, err := service.QueryWorkbench(t.Context(), vouPrincipal, vouInput)
 	if err != nil {
 		t.Fatalf("query VOU workbench: %v", err)
+	}
+	if vouPage.Total != 2 || len(vouPage.Items) != 2 {
+		t.Fatalf("VOU workbench page = %+v, want exactly two pending items", vouPage)
 	}
 	vouByID := make(map[string]WorkbenchItem, len(vouPage.Items))
 	for _, item := range vouPage.Items {
@@ -222,8 +229,24 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	if _, exists := vouByID[documentIDs[2]]; exists {
 		t.Fatalf("approved document unexpectedly appears in workbench: %+v", vouByID[documentIDs[2]])
 	}
-	if got := []string{vouPage.Items[0].DocumentID, vouPage.Items[1].DocumentID}; !slices.Equal(got, []string{documentIDs[1], documentIDs[0]}) {
-		t.Fatalf("VOU order = %v, want [%s %s]", got, documentIDs[1], documentIDs[0])
+	if !vouPage.Items[0].UpdatedAt.Equal(vouPage.Items[1].UpdatedAt) {
+		t.Fatalf("VOU fixture timestamps differ: %s and %s", vouPage.Items[0].UpdatedAt, vouPage.Items[1].UpdatedAt)
+	}
+	wantStableOrder := []string{documentIDs[1], documentIDs[0]}
+	gotStableOrder := []string{vouPage.Items[0].DocumentID, vouPage.Items[1].DocumentID}
+	if !slices.Equal(gotStableOrder, wantStableOrder) {
+		t.Fatalf("VOU stable order = %v, want %v", gotStableOrder, wantStableOrder)
+	}
+	repeatedVouPage, err := service.QueryWorkbench(t.Context(), vouPrincipal, vouInput)
+	if err != nil {
+		t.Fatalf("repeat VOU workbench query: %v", err)
+	}
+	if repeatedVouPage.Total != 2 || len(repeatedVouPage.Items) != 2 {
+		t.Fatalf("repeated VOU workbench page = %+v, want exactly two pending items", repeatedVouPage)
+	}
+	repeatedStableOrder := []string{repeatedVouPage.Items[0].DocumentID, repeatedVouPage.Items[1].DocumentID}
+	if !slices.Equal(repeatedStableOrder, wantStableOrder) {
+		t.Fatalf("repeated VOU stable order = %v, want %v", repeatedStableOrder, wantStableOrder)
 	}
 	if !slices.Contains(vouByID[documentIDs[0]].AvailableActions, "check") ||
 		!slices.Contains(vouByID[documentIDs[0]].AvailableActions, "edit") {

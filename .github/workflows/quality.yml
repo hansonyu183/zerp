@@ -102,6 +102,7 @@ jobs:
         if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
+          ZERP_RELEASE_VERIFIER_ACTOR: ${{ vars.ZERP_RELEASE_VERIFIER_BOT_LOGIN }}
         run: scripts/verify-merged-pr.sh
       - name: Reuse identical component evidence
         id: reuse

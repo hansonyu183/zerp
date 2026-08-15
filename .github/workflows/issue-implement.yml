@@ -1,0 +1,279 @@
+name: Issue implementation
+run-name: Issue #${{ github.event.client_payload.issue }} implementation round ${{ github.event.client_payload.round }}
+
+on:
+  repository_dispatch:
+    types: [issue-implement, issue-repair, issue-rebase]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-implementation-${{ github.event.client_payload.issue }}
+  cancel-in-progress: false
+
+jobs:
+  implement:
+    if: vars.ZERP_AUTOMATION_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        id: implementer_token
+        with:
+          app-id: ${{ vars.ZERP_IMPLEMENTER_APP_ID }}
+          private-key: ${{ secrets.ZERP_IMPLEMENTER_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+      - uses: actions/checkout@v6
+        if: github.event.action == 'issue-implement'
+        with:
+          fetch-depth: 0
+          ref: main
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        if: github.event.action != 'issue-implement'
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.client_payload.branch }}
+          persist-credentials: false
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: authorization-issue-${{ github.event.client_payload.issue }}
+          path: .automation-input
+          github-token: ${{ steps.implementer_token.outputs.token }}
+          run-id: ${{ github.event.client_payload.authorization_run_id }}
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        if: github.event.action == 'issue-repair' && github.event.client_payload.review_run_id != ''
+        with:
+          pattern: review-*
+          path: review-evidence
+          merge-multiple: true
+          github-token: ${{ steps.implementer_token.outputs.token }}
+          run-id: ${{ github.event.client_payload.review_run_id }}
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: |
+            backend/go.sum
+            backend/tools/go.sum
+      - name: Install repository dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          go -C backend mod download
+          go -C backend/tools mod download
+      - name: Verify immutable authorization
+        env:
+          EXPECTED_ISSUE: ${{ github.event.client_payload.issue }}
+          EXPECTED_BODY_SHA: ${{ github.event.client_payload.body_sha256 }}
+        run: |
+          cp .automation-input/authorization.json authorization.json
+          test "$(jq -r .issue authorization.json)" = "$EXPECTED_ISSUE"
+          test "$(jq -r .body_sha256 authorization.json)" = "$EXPECTED_BODY_SHA"
+          jq -e --argjson deployment "${{ github.event.client_payload.deployment_id }}" '.issue > 0 and $deployment > 0' authorization.json >/dev/null
+      - name: Build agent prompt
+        env:
+          MODE: ${{ github.event.action }}
+        run: |
+          if [ "$MODE" = issue-repair ] || [ "$MODE" = issue-rebase ]; then
+            cp .github/automation/prompts/repair.md automation-prompt.md
+          else
+            cp .github/automation/prompts/implement.md automation-prompt.md
+          fi
+          {
+            echo
+            echo 'Immutable authorization snapshot:'
+            echo '```json'
+            jq . authorization.json
+            echo '```'
+          } >> automation-prompt.md
+          if [ "$MODE" = issue-rebase ]; then
+            git fetch origin main --prune
+            printf '\nReplay this Draft candidate onto the fetched exact origin/main with git rebase. Resolve conflicts within the immutable scope, complete the rebase, and leave a clean linear branch.\n' >> automation-prompt.md
+          fi
+          {
+            echo '.automation-input/'
+            echo 'review-evidence/'
+            echo 'authorization.json'
+            echo 'automation-prompt.md'
+            echo 'automation-output.json'
+            echo 'automation-repair-*.json'
+            echo 'automation-failure.log'
+          } >> .git/info/exclude
+      - name: Run Codex implementation
+        id: codex
+        uses: openai/codex-action@c385816875cc2fc8e033ed9d1cba96f8c331210e
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ':workspace'
+          prompt-file: automation-prompt.md
+          output-file: automation-output.json
+          output-schema-file: .github/automation/schemas/implementation-output.json
+          safety-strategy: drop-sudo
+          allow-bot-users: ${{ format('{0},{1}', vars.ZERP_IMPLEMENTER_BOT_LOGIN, vars.ZERP_RELEASE_VERIFIER_BOT_LOGIN) }}
+      - name: Interpret agent result
+        id: result
+        run: |
+          status=$(jq -r .status automation-output.json)
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          jq . automation-output.json >> "$GITHUB_STEP_SUMMARY"
+      - name: Request missing decisions
+        if: steps.result.outputs.status == 'needs_input'
+        env:
+          GH_TOKEN: ${{ steps.implementer_token.outputs.token }}
+          ISSUE: ${{ github.event.client_payload.issue }}
+        run: |
+          scripts/issue-automation.sh set-state "$ISSUE" automation:needs-input
+          summary=$(jq -r .summary automation-output.json)
+          gh issue comment "$ISSUE" --body "自动实现需要输入：${summary}。请修正 Issue 后重新添加 \`automation:ready\`。"
+      - name: Stop for agent blocker
+        if: steps.result.outputs.status == 'blocked'
+        env:
+          GH_TOKEN: ${{ steps.implementer_token.outputs.token }}
+          ISSUE: ${{ github.event.client_payload.issue }}
+        run: |
+          scripts/issue-automation.sh set-state "$ISSUE" automation:blocked
+          summary=$(jq -r .summary automation-output.json)
+          gh issue comment "$ISSUE" --body "自动实现已阻塞：${summary}"
+          exit 1
+      - name: Prepare clean candidate commit
+        if: steps.result.outputs.status == 'implemented'
+        id: candidate
+        env:
+          ISSUE: ${{ github.event.client_payload.issue }}
+          BODY_SHA: ${{ github.event.client_payload.body_sha256 }}
+          MODE: ${{ github.event.action }}
+          REQUESTED_ROUND: ${{ github.event.client_payload.round }}
+        run: |
+          if git diff --quiet && git diff --cached --quiet && [ "$MODE" != issue-rebase ]; then
+            echo 'Codex produced no implementation changes' >&2
+            exit 1
+          fi
+          if [ "$MODE" = issue-implement ]; then
+            branch="codex/issue-${ISSUE}-$(printf '%s' "$BODY_SHA" | cut -c1-8)"
+            git switch -c "$branch"
+            round=1
+          else
+            branch=$(git branch --show-current)
+            round=${REQUESTED_ROUND:-2}
+          fi
+          git config user.name "zerp-implementer[bot]"
+          git config user.email "zerp-implementer[bot]@users.noreply.github.com"
+          if ! git diff --quiet || ! git diff --cached --quiet; then
+            git add -A
+            if [ "$MODE" = issue-rebase ]; then
+              git commit --amend --no-edit
+            else
+              git commit -m "automation(issue #${ISSUE}): implementation round ${round}"
+            fi
+          fi
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "round=$round" >> "$GITHUB_OUTPUT"
+      - name: Run repository gate
+        if: steps.result.outputs.status == 'implemented'
+        id: gate
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          make pre-push-plan 2>&1 | tee automation-failure.log
+          make pre-push 2>&1 | tee -a automation-failure.log
+      - name: Repair failed gate, round 2
+        if: >-
+          steps.result.outputs.status == 'implemented' &&
+          steps.gate.outcome == 'failure' &&
+          steps.candidate.outputs.round != '3'
+        id: repair2
+        uses: openai/codex-action@c385816875cc2fc8e033ed9d1cba96f8c331210e
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ':workspace'
+          prompt-file: .github/automation/prompts/repair.md
+          output-file: automation-repair-2.json
+          output-schema-file: .github/automation/schemas/implementation-output.json
+          safety-strategy: drop-sudo
+          allow-bot-users: ${{ format('{0},{1}', vars.ZERP_IMPLEMENTER_BOT_LOGIN, vars.ZERP_RELEASE_VERIFIER_BOT_LOGIN) }}
+      - name: Run repository gate after round 2
+        if: steps.repair2.outcome == 'success'
+        id: gate2
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          next_round=$(( ${{ steps.candidate.outputs.round }} + 1 ))
+          git add -A
+          git commit --amend -m "automation(issue #${{ github.event.client_payload.issue }}): implementation round ${next_round}"
+          make pre-push-plan 2>&1 | tee automation-failure.log
+          make pre-push 2>&1 | tee -a automation-failure.log
+      - name: Repair failed gate, round 3
+        if: steps.gate2.outcome == 'failure' && steps.candidate.outputs.round == '1'
+        id: repair3
+        uses: openai/codex-action@c385816875cc2fc8e033ed9d1cba96f8c331210e
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ':workspace'
+          prompt-file: .github/automation/prompts/repair.md
+          output-file: automation-repair-3.json
+          output-schema-file: .github/automation/schemas/implementation-output.json
+          safety-strategy: drop-sudo
+          allow-bot-users: ${{ format('{0},{1}', vars.ZERP_IMPLEMENTER_BOT_LOGIN, vars.ZERP_RELEASE_VERIFIER_BOT_LOGIN) }}
+      - name: Run repository gate after round 3
+        if: steps.repair3.outcome == 'success'
+        id: gate3
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          git add -A
+          git commit --amend -m "automation(issue #${{ github.event.client_payload.issue }}): implementation round 3"
+          make pre-push-plan 2>&1 | tee automation-failure.log
+          make pre-push 2>&1 | tee -a automation-failure.log
+      - name: Block exhausted implementation
+        if: >-
+          steps.result.outputs.status == 'implemented' &&
+          steps.gate.outcome == 'failure' &&
+          (steps.candidate.outputs.round == '3' ||
+          (steps.candidate.outputs.round == '2' && steps.gate2.outcome == 'failure') ||
+          (steps.candidate.outputs.round == '1' && steps.gate2.outcome == 'failure' && steps.gate3.outcome != 'success'))
+        env:
+          GH_TOKEN: ${{ steps.implementer_token.outputs.token }}
+          ISSUE: ${{ github.event.client_payload.issue }}
+        run: |
+          scripts/issue-automation.sh set-state "$ISSUE" automation:blocked
+          gh issue comment "$ISSUE" --body "自动实现已用尽 3 轮代码/测试修复预算。失败证据：$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          exit 1
+      - name: Commit and publish implementation
+        if: >-
+          steps.result.outputs.status == 'implemented' &&
+          (steps.gate.outcome == 'success' || steps.gate2.outcome == 'success' || steps.gate3.outcome == 'success')
+        id: publish
+        env:
+          GH_TOKEN: ${{ steps.implementer_token.outputs.token }}
+          ISSUE: ${{ github.event.client_payload.issue }}
+          BODY_SHA: ${{ github.event.client_payload.body_sha256 }}
+          MODE: ${{ github.event.action }}
+          BRANCH: ${{ steps.candidate.outputs.branch }}
+          ROUND: ${{ steps.candidate.outputs.round }}
+          DEPLOYMENT: ${{ github.event.client_payload.deployment_id }}
+          PR_INPUT: ${{ github.event.client_payload.pr }}
+        run: |
+          issue_title=$(jq -r .title authorization.json)
+          auth_run=$(jq -r .workflow.run_id authorization.json)
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if [ "$MODE" = issue-rebase ]; then
+            git push --force-with-lease origin "HEAD:refs/heads/${BRANCH}"
+          else
+            git push origin "HEAD:refs/heads/${BRANCH}"
+          fi
+          if [ "$MODE" = issue-implement ]; then
+            body=$(printf "Refs #%s\n\nAuthorization: run %s, deployment %s, body \`%s\`.\n\n<!-- zerp-automation issue=%s authorization_run=%s deployment=%s body_sha=%s round=%s -->\n" "$ISSUE" "$auth_run" "$DEPLOYMENT" "$BODY_SHA" "$ISSUE" "$auth_run" "$DEPLOYMENT" "$BODY_SHA" "$ROUND")
+            gh pr create --draft --base main --head "$BRANCH" --title "automation: ${issue_title}" --body "$body" >/dev/null
+            pr=$(gh pr view "$BRANCH" --json number --jq .number)
+          else
+            pr=$PR_INPUT
+          fi
+          scripts/issue-automation.sh set-state "$ISSUE" automation:reviewing
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "pr=$pr" >> "$GITHUB_OUTPUT"

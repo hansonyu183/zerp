@@ -17,6 +17,10 @@ cloudflare_account_file="${HOME}/.secrets/cloudflare/account_id_bytesucceed"
 cloudflare_token_file="${HOME}/.secrets/cloudflare/api_token_workers_access"
 repo_owner=${repo_slug%%/*}
 repo_name=${repo_slug#*/}
+credential_root=${ZERP_RELEASE_APP_CREDENTIAL_ROOT:-${HOME}/.secrets/zerp-release-controller}
+app_id_file="${credential_root}/app-id"
+private_key_file="${credential_root}/private-key.pem"
+actor_file="${credential_root}/bot-login"
 deployment_sha_file="${runtime_root}/deployment-sha"
 deployment_id_file="${runtime_root}/deployment-id"
 deployment_status_file="${runtime_root}/deployment-status"
@@ -26,6 +30,16 @@ deployment_status_request_file="${runtime_root}/deployment-status-request.json"
 log() {
   printf '%s %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*" >&2
 }
+
+if [ -r "${app_id_file}" ] && [ -r "${private_key_file}" ] && [ -r "${actor_file}" ]; then
+  app_id=$(sed -n '1p' "${app_id_file}")
+  ZERP_RELEASE_VERIFIER_ACTOR=$(sed -n '1p' "${actor_file}")
+  GH_TOKEN=$("${script_dir}/github-app-token.sh" "${app_id}" "${private_key_file}" "${repo_owner}" "${repo_name}")
+  export GH_TOKEN ZERP_RELEASE_VERIFIER_ACTOR
+else
+  log "release-controller GitHub App credentials are incomplete"
+  exit 1
+fi
 
 retry() {
   max_attempts=$1
@@ -99,6 +113,41 @@ mark_failed() {
 
 clear_failed() {
   rm -f "${runtime_root}/failed-sha" "${runtime_root}/failed-sha.new"
+}
+
+automation_issue_for_release() {
+  gh api -H "Accept: application/vnd.github+json" \
+    "repos/${repo_slug}/commits/${target_sha}/pulls?per_page=20" |
+    jq -r --arg sha "${target_sha}" '
+      [.[] | select(.merged_at != null and .merge_commit_sha == $sha and (.body // "" | contains("<!-- zerp-automation issue=")))] |
+      sort_by(.merged_at) | if length == 0 then "" else last.body end
+    ' | sed -n 's/.*<!-- zerp-automation issue=\([0-9][0-9]*\) .*/\1/p'
+}
+
+complete_automation_issue() {
+  issue=$(automation_issue_for_release)
+  [ -n "${issue}" ] || return 0
+  "${source_root}/scripts/production-status.sh" >/dev/null
+  "${source_root}/scripts/issue-automation.sh" set-state "${issue}" automation:done
+  gh issue close "${issue}" --comment "自动交付完成：生产提交 \`${target_sha}\` 的 API、Web 与公网入口均已通过验证。"
+  jq -n '{event_type:"issue-queue",client_payload:{reason:"production-complete"}}' |
+    gh api --method POST "repos/${repo_slug}/dispatches" --input - >/dev/null
+}
+
+open_production_incident() {
+  issue=$(automation_issue_for_release)
+  [ -n "${issue}" ] || issue=unknown
+  existing=$(gh issue list --state open --label automation:incident --search "production-sha:${target_sha} in:body" --json number --jq 'length')
+  if [ "${existing}" -eq 0 ]; then
+    gh issue create --title "Incident: production release ${target_sha}" \
+      --label automation:incident --label priority:p0 \
+      --body "Production release failed after the traffic-switch boundary.\n\nOriginating Issue: #${issue}\nproduction-sha:${target_sha}\n\nThe global automation kill switch is disabled. A maintainer must establish recovery and explicitly re-enable it." >/dev/null
+  fi
+  if [ "${issue}" != unknown ]; then
+    "${source_root}/scripts/issue-automation.sh" set-state "${issue}" automation:incident
+  fi
+  jq -n '{name:"ZERP_AUTOMATION_ENABLED",value:"false"}' |
+    gh api --method PATCH "repos/${repo_slug}/actions/variables/ZERP_AUTOMATION_ENABLED" --input - >/dev/null
 }
 
 deployment_id=""
@@ -282,8 +331,10 @@ if ZERP_PRODUCTION_STATE_ROOT="${ZERP_PRODUCTION_STATE_ROOT:-/Users/hansonyu/cod
   mark_processed "${target_sha}"
   clear_failed
   set_deployment_status success "Deployed ${target_sha}"
+  complete_automation_issue
 else
   mark_failed "${target_sha}"
   set_deployment_status failure "Deployment failed for ${target_sha}"
+  open_production_incident
   exit 1
 fi

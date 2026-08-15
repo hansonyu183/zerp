@@ -105,11 +105,19 @@ if [ -n "${actor}" ] &&
 fi
 actor=${authenticated_actor}
 actor_key=$(printf '%s' "${actor}" | tr '[:upper:]' '[:lower:]')
+expected_verifier=${ZERP_RELEASE_VERIFIER_ACTOR:-}
+test -n "${expected_verifier}" || {
+  echo "ZERP_RELEASE_VERIFIER_ACTOR is required" >&2
+  exit 1
+}
+expected_verifier_key=$(printf '%s' "${expected_verifier}" | tr '[:upper:]' '[:lower:]')
+test "${actor_key}" = "${expected_verifier_key}" || {
+  echo "actor ${actor} is not the configured release verifier" >&2
+  exit 1
+}
 case "${actor_key}" in
-  *'[bot]' | *-bot | bot)
-    echo "bot actors cannot accept preview" >&2
-    exit 1
-    ;;
+  *'[bot]') ;;
+  *) echo "release verifier must be a dedicated GitHub App Bot" >&2; exit 1 ;;
 esac
 permission=$(
   "${gh_bin}" api "repos/${repo}/collaborators/${actor}/permission" \
@@ -130,5 +138,5 @@ verify_pr_json "$("${gh_bin}" api "repos/${repo}/pulls/${pr}")" || {
   exit 1
 }
 
-printf 'preview PR #%s head=%s actor=%s preview-required=success\n' \
+printf 'preview PR #%s head=%s verifier=%s preview-required=success\n' \
   "${pr}" "${head}" "${actor}"

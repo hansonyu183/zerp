@@ -101,7 +101,7 @@ make generate
 
 ### 固定外网开发预览
 
-人工验收使用本机 PostgreSQL、Go API 和静态 Web 进程，不依赖 Docker/Colima，并持久保留测试数据。桌面、手机和本机统一访问：
+固定验收使用本机 PostgreSQL、Go API 和静态 Web 进程，不依赖 Docker/Colima，并持久保留测试数据。桌面、手机和本机统一访问：
 
 ```text
 https://zerp-preview.bytesucceed.com
@@ -109,7 +109,7 @@ https://zerp-preview.bytesucceed.com
 
 首次运行 `make preview-up` 会生成权限为 `600` 的 `backend/.env.preview.local`、建立独立本机 PostgreSQL cluster、迁移数据库、初始化管理员，并补齐 AUX、BOB、全部 VOU 单据、WFL、ACC 与 RPT 所需的全业务测试数据。若检测到旧 Compose 预览，会先备份并一次性导入数据库与附件，再停止旧容器；该环境不复用 E2E 数据，也不会被 `make e2e` 清理。
 
-临时检查可用 `make preview-up` 构建当前工作区。需要固定预览的 Ready PR，必须从 `HEAD == origin/main` 的受信任控制 checkout 使用准确 head SHA 执行 `make preview-deploy PREVIEW_PR=<number> PREVIEW_REF=<pr-head-full-sha>`，禁止在 PR worktree 运行预览控制命令；随后运行 `make preview-status` 和 `make preview-accept PREVIEW_PR=<number>`，验收人取当前 `gh` 登录身份。合并后的 `main` 由生产代理自动发布。完整生命周期、状态晋升、回退和验收方法见固定预览运维说明。
+临时检查可用 `make preview-up` 构建当前工作区。需要固定预览的 Ready PR，由受信任的 Issue 发布控制器从 `HEAD == origin/main` 的控制 checkout 部署准确 head SHA，执行无密钥的 exact-SHA 浏览器 smoke，并由独立 release-verifier GitHub App 签发 `full-validation`；PR worktree、实现者和审查者均不能操作预览控制面。证据齐全后控制器请求 squash auto-merge，合并后的 `main` 由生产代理自动发布并在生产健康验证后关闭原 Issue。完整自动交付状态机、权限和安装方法见 [Issue 自动交付](docs/agents/issue-delivery-automation.md)。
 
 ## 文档
 

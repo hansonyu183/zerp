@@ -164,7 +164,7 @@ accept_state(){
       echo "Preview changed during acceptance verification" >&2
       return 1
   fi
-  description="preview PR #$pr generation $generation actor $actor"
+  description="preview PR #$pr generation $generation verifier $actor"
   deployment=$($gh_bin api "repos/${repo}/deployments?sha=${head}&environment=preview&per_page=100" --jq ".[] | select(.description == \"$description\") | .id" | sed -n '1p')
   if [ -z "$deployment" ]; then
     payload=$(jq -n --arg ref "$head" --arg desc "$description" --arg pr "$pr" --arg generation "$generation" --arg actor "$actor" '{ref:$ref,environment:"preview",description:$desc,auto_merge:false,required_contexts:[],payload:{pr:$pr,generation:$generation,actor:$actor}}')
@@ -173,8 +173,8 @@ $payload
 EOF
 )
   fi
-  jq -n --arg url "https://zerp-preview.bytesucceed.com" --arg desc "accepted PR #$pr head $head generation $generation actor $actor" '{state:"success",environment_url:$url,description:$desc}' | $gh_bin api --method POST "repos/${repo}/deployments/${deployment}/statuses" --input - >/dev/null
-  jq -n --arg state success --arg context full-validation --arg description "accepted preview PR #$pr generation $generation by $actor" --arg target_url "https://zerp-preview.bytesucceed.com" '{state:$state,context:$context,description:$description,target_url:$target_url}' | $gh_bin api --method POST "repos/${repo}/statuses/${head}" --input - >/dev/null
+  jq -n --arg url "https://zerp-preview.bytesucceed.com" --arg desc "verified PR #$pr head $head generation $generation by $actor" '{state:"success",environment_url:$url,description:$desc}' | $gh_bin api --method POST "repos/${repo}/deployments/${deployment}/statuses" --input - >/dev/null
+  jq -n --arg state success --arg context full-validation --arg description "verified preview PR #$pr generation $generation by $actor" --arg target_url "https://zerp-preview.bytesucceed.com" '{state:$state,context:$context,description:$description,target_url:$target_url}' | $gh_bin api --method POST "repos/${repo}/statuses/${head}" --input - >/dev/null
   if ! verify_active_release "$head" || \
     [ "$(cat "$active_file" 2>/dev/null || true)" != "$pr" ] || \
     [ "$(read_field sha "$rec")" != "$head" ] || \

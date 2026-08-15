@@ -1,0 +1,94 @@
+name: Issue authorization
+run-name: Issue #${{ github.event.issue.number }} authorization
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: read
+  deployments: write
+  issues: write
+
+concurrency:
+  group: issue-authorization-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  authorize:
+    if: github.event.label.name == 'automation:ready'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        id: implementer_token
+        with:
+          app-id: ${{ vars.ZERP_IMPLEMENTER_APP_ID }}
+          private-key: ${{ secrets.ZERP_IMPLEMENTER_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+      - name: Validate and freeze authorization
+        id: snapshot
+        env:
+          GH_TOKEN: ${{ steps.implementer_token.outputs.token }}
+          ZERP_AUTOMATION_ENABLED: ${{ vars.ZERP_AUTOMATION_ENABLED }}
+          ZERP_AUTOMATION_AUTHORIZERS: ${{ vars.ZERP_AUTOMATION_AUTHORIZERS }}
+          ZERP_AUTOMATION_MAIN_SHA: ${{ github.sha }}
+        run: |
+          set +e
+          scripts/issue-automation.sh snapshot "$GITHUB_EVENT_PATH" authorization.json 2>validation-error.txt
+          code=$?
+          set -e
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          if [ "$code" -eq 0 ]; then
+            jq '{issue,body_sha256,authorization,priority,main_sha,linked_specs,open_dependencies}' authorization.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Pause incomplete Issue
+        if: steps.snapshot.outputs.code == '3'
+        env:
+          GH_TOKEN: ${{ steps.implementer_token.outputs.token }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          scripts/issue-automation.sh set-state "$ISSUE" automation:needs-input
+          reason=$(sed -n '1p' validation-error.txt)
+          gh issue comment "$ISSUE" --body "自动交付已暂停：${reason}。维护者修正 Issue 后，请移除当前状态并重新添加 \`automation:ready\` 授权。"
+      - name: Reject invalid authorization infrastructure
+        if: steps.snapshot.outputs.code != '0' && steps.snapshot.outputs.code != '3'
+        run: |
+          cat validation-error.txt >&2
+          exit 1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: steps.snapshot.outputs.code == '0'
+        with:
+          name: authorization-issue-${{ github.event.issue.number }}
+          path: authorization.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Publish authorization evidence
+        if: steps.snapshot.outputs.code == '0'
+        id: evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          AUTHORIZER: ${{ github.actor }}
+        run: |
+          body_hash=$(jq -r .body_sha256 authorization.json)
+          payload=$(jq -n \
+            --arg ref "$GITHUB_SHA" --arg issue "$ISSUE" --arg body_sha256 "$body_hash" \
+            --arg actor "$AUTHORIZER" --arg run_id "$GITHUB_RUN_ID" \
+            '{ref:$ref,task:"authorize",environment:("issue-authorization-"+$issue),auto_merge:false,required_contexts:[],description:("Issue #"+$issue+" authorization "+$body_sha256),payload:{issue:$issue,body_sha256:$body_sha256,actor:$actor,run_id:$run_id}}')
+          deployment=$(printf '%s' "$payload" | gh api --method POST "repos/$GITHUB_REPOSITORY/deployments" --input - --jq .id)
+          jq -n --arg description "Authorized Issue #$ISSUE body $body_hash" '{state:"success",description:$description}' |
+            gh api --method POST "repos/$GITHUB_REPOSITORY/deployments/$deployment/statuses" --input - >/dev/null
+          echo "deployment=$deployment" >> "$GITHUB_OUTPUT"
+      - name: Wake the queue
+        if: steps.snapshot.outputs.code == '0'
+        env:
+          GH_TOKEN: ${{ steps.implementer_token.outputs.token }}
+        run: |
+          jq -n '{event_type:"issue-queue",client_payload:{reason:"authorization"}}' |
+            gh api --method POST "repos/$GITHUB_REPOSITORY/dispatches" --input -

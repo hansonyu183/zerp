@@ -12,7 +12,7 @@ for skill in implement tdd code-review; do mkdir -p "${tmp}/skills/${skill}"; pr
 cat >"${tmp}/bin/codex" <<'MOCK'
 #!/bin/sh
 [ "$*" = 'login status' ] || exit 2
-printf 'Logged in using ChatGPT\n'
+printf 'Logged in using ChatGPT\n' >&2
 MOCK
 cat >"${tmp}/bin/gh" <<'MOCK'
 #!/bin/sh

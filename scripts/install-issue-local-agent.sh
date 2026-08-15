@@ -15,7 +15,7 @@ production="${runtime_root}/issue-local-production.sh"
 fingerprint="${runtime_root}/runtime-fingerprint.sh"
 schema="${runtime_root}/local-implementation-output.json"
 
-[ "$(codex login status 2>/dev/null || true)" = 'Logged in using ChatGPT' ] || {
+[ "$(codex login status 2>&1 || true)" = 'Logged in using ChatGPT' ] || {
   echo 'Codex must be logged in with ChatGPT before installing the local Issue agent' >&2
   exit 1
 }

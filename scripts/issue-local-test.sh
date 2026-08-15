@@ -136,6 +136,13 @@ count=$(cat "${MOCK_GATE_COUNT}" 2>/dev/null || printf 0)
 count=$((count + 1))
 printf '%s\n' "${count}" >"${MOCK_GATE_COUNT}"
 if [ "${count}" -le "${MOCK_GATE_FAILS:-0}" ]; then
+  if [ "${MOCK_GATE_LONG_FAILURE:-0}" = 1 ]; then
+    line=1
+    while [ "${line}" -le 300 ]; do
+      printf 'successful gate output line %s\n' "${line}"
+      line=$((line + 1))
+    done
+  fi
   echo "simulated host gate failure ${count}" >&2
   exit 1
 fi
@@ -279,6 +286,7 @@ grep -Fq -- 'model_reasoning_effort=high' "${MOCK_CODEX_ARGS}"
 grep -Fq -- 'sandbox_workspace_write.network_access=false' "${MOCK_CODEX_ARGS}"
 grep -Fq -- 'login shells reset PATH' "${MOCK_PROMPT}"
 grep -Fq -- 'business-error-coverage.spec.ts' "${MOCK_PROMPT}"
+grep -Fq -- 'do not rerun unaffected stages already shown as passed' "${MOCK_PROMPT}"
 test "$(cat "${MOCK_COREPACK_ROOT}")" = 1
 test "$(cat "${MOCK_CODEX_PNPM_VERSION}")" = 10.34.5
 worktree_git_dir=$(git -C "${runtime}/worktrees/inventory-query" rev-parse --path-format=absolute --git-dir)
@@ -548,12 +556,14 @@ test "$(cat "${runtime}/batches/marker-without-retry/gate-attempted-head")" != "
 make_ticket gate-repair 'Gate repair'
 : >"${events}"
 rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
-MOCK_GATE_FAILS=1 run_agent
+MOCK_GATE_FAILS=1 MOCK_GATE_LONG_FAILURE=1 run_agent
 test "$(cat "${MOCK_CODEX_COUNT}")" = 2
 test "$(cat "${MOCK_GATE_COUNT}")" = 2
 test "$(cat "${MOCK_PREVIEW_COUNT}")" = 1
 grep -Fq 'Host final gate failed' "${MOCK_PROMPT}-2"
+grep -Fq 'simulated host gate failure 1' "${MOCK_PROMPT}-2"
 grep -Fq '**Status:** done' "${primary}/.scratch/gate-repair/issues/01-ticket.md"
+unset MOCK_GATE_LONG_FAILURE
 
 make_ticket gate-blocked 'Gate blocked'
 : >"${events}"

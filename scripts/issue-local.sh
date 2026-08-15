@@ -455,7 +455,7 @@ run_final_gate() {
   ) >"${gate_log}" 2>&1; then
     {
       printf 'Host final gate failed for candidate %s. A repair must create a new commit before another gate attempt.\n\n' "${head_sha}"
-      sed -n '1,240p' "${gate_log}"
+      tail -n 220 "${gate_log}"
     } >"${failure_file}"
     return 4
   fi
@@ -465,7 +465,7 @@ run_final_gate() {
   ' "${evidence_file}" >/dev/null || {
     {
       printf 'Host final gate returned invalid evidence for candidate %s.\n\n' "${head_sha}"
-      sed -n '1,240p' "${gate_log}"
+      tail -n 220 "${gate_log}"
     } >"${failure_file}"
     return 4
   }
@@ -516,6 +516,7 @@ run_implement() {
     # shellcheck disable=SC2016 # prompt intentionally contains Markdown literals
     printf 'The batch base commit is `%s`. Do not access GitHub, push, deploy, or read preview or production credentials.\n' "${base_sha}"
     printf 'Use TDD at the agreed repository seams. Run focused tests while working.\n'
+    printf 'On a repair attempt, trust the recorded root failure: do not rerun unaffected stages already shown as passed; run only tests focused on the failure and your changes.\n'
     # shellcheck disable=SC2016 # prompt intentionally contains shell and Markdown literals
     printf 'For every pnpm command, prepend `PATH="%s:$PATH"` and invoke `%s/pnpm`; login shells reset PATH and package scripts invoke pnpm recursively.\n' "${pnpm_wrapper_dir}" "${pnpm_wrapper_dir}"
     # shellcheck disable=SC2016 # prompt intentionally contains a Markdown code literal

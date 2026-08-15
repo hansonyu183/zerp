@@ -257,8 +257,8 @@ run_implement() {
       sed -n '1,240p' "${failure_file}"
     fi
   } | ZERP_ISSUE_BASE_SHA="${base_sha}" ZERP_GATE_EVIDENCE_FILE="${evidence_file}" \
-    "${codex_bin}" exec --ephemeral --ignore-user-config \
-      --sandbox workspace-write --ask-for-approval never \
+    "${codex_bin}" --ask-for-approval never exec --ephemeral --ignore-user-config \
+      --sandbox workspace-write \
       -c sandbox_workspace_write.network_access=false \
       -c web_search=disabled -c features.apps=false \
       -C "${worktree}" --output-schema "${schema}" -o "${result_file}" -

@@ -28,7 +28,7 @@
 - SQL 修改后运行 `make generate`，不得手改 sqlc 生成代码。
 - 每项工作使用独立分支或工作树，不得把无关修改混入提交、预览、PR 或部署。
 - PR 必须直接以 `main` 为基线和目标；依赖中的后续工作可以保留本地分支，但必须等前置 PR 合并后基于最新 `main` 重放，再创建 PR，禁止堆叠 PR 重复触发完整门禁。
-- 形成可验收提交后只运行一次最终门禁。`$to-tickets` 本地批次由 `$implement` 在代码审查和修复后运行 `scripts/change-gate.sh <base-sha>` 并写 exact-head 证据；控制器不得先运行计划命令或重复门禁。普通人工工作在获取最新 `origin/main` 并重放后运行一次 `make pre-push`。门禁按 `scripts/change-impact.sh` 的文档、验证工具和应用影响三级分类，并在应用影响内细分契约、前端、后端、后端全量、容器、E2E 和预览。需要保守复核时使用 `PRE_PUSH_FULL=1` 执行同一次最终门禁。
+- 形成可验收提交后只运行一次最终门禁。`$to-tickets` 本地批次由 `$implement` 在无网络沙箱完成代码审查、修复和提交，随后控制器在宿主环境对该 clean exact head 运行一次 `scripts/change-gate.sh <base-sha>` 并写证据；不得先运行计划命令或重复门禁。普通人工工作在获取最新 `origin/main` 并重放后运行一次 `make pre-push`。门禁按 `scripts/change-impact.sh` 的文档、验证工具和应用影响三级分类，并在应用影响内细分契约、前端、后端、后端全量、容器、E2E 和预览。需要保守复核时使用 `PRE_PUSH_FULL=1` 执行同一次最终门禁。
 - 本地批次必须先在没有 GitHub 读写的情况下完成实现、最终门禁和公网 exact-SHA 预览，再获取最新 `origin/main`。若重放只改变提交 SHA 且运行时指纹不变，复用已有门禁和预览；若运行时指纹改变或发生冲突，必须再次交给 `$implement` 修复并重新生成门禁和预览证据。通过后按依赖创建远端 Issues、推送一个分支并直接创建目标为 `main` 的 Ready PR。普通人工开发仍须在创建 PR 前重放最新 `main`，禁止先创建 PR 再常规强推。
 - `validation` 是自动化门禁聚合，`full-validation` 是最终可合并证据。GitHub 的 `contracts`、`frontend`、`backend`、`containers`、`e2e` 和 `validation` 必须按影响矩阵成功。受信任本地批次的 Ready PR 必须使用同仓 `automation/local-*` 分支，并在 PR 正文携带与事件 head 完全一致的批次 marker 和运行时指纹；GitHub Actions 核对这些条件后，只有完整矩阵成功才发布 `full-validation`。普通需要预览的 PR 仍先发布 `preview-required`，再由配置的 release-verifier 对 exact SHA 验收并发布 `full-validation`。任何新提交都使旧 head 的远端证据失效。
 - 运行代码、契约、迁移、依赖、构建和预览工具变更必须完成固定公网预览。受信任本地批次在创建任何 GitHub 对象前，由主工作区控制脚本对候选 worktree 执行 exact-SHA 浏览器验收；普通 PR 继续使用独立 release-verifier。文档、普通验证工具、单元测试-only、E2E-only 和生产工具-only 变更无需部署应用预览。固定预览一次只服务一个活跃批次或 PR；关闭或拒绝时恢复基线，生产成功后释放。

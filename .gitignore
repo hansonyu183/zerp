@@ -9,7 +9,7 @@
 !frontend/.env.production
 
 # JavaScript
-node_modules/
+node_modules
 coverage/
 dist/
 test-results/

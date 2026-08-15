@@ -37,6 +37,7 @@ assert_check 'scripts/preview-state.sh' 1 preview
 assert_check 'scripts/issue-local.sh' validation impact
 assert_check 'scripts/issue-local-preview.sh' validation impact
 assert_check 'scripts/issue-local-preview.sh' 1 preview
+assert_check 'scripts/issue-local-preview-test.sh' validation impact
 assert_check 'frontend/scripts/preview-smoke.mjs' validation impact
 assert_check 'frontend/scripts/preview-smoke.mjs' 1 preview
 assert_check 'scripts/production-watch.sh' application impact

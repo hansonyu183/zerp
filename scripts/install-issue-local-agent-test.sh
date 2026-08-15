@@ -6,6 +6,7 @@ tmp=$(mktemp -d "${TMPDIR:-/tmp}/zerp-issue-local-install-test.XXXXXX")
 cleanup() { rm -rf "${tmp}"; }
 trap cleanup EXIT HUP INT TERM
 mkdir -p "${tmp}/bin" "${tmp}/home" "${tmp}/primary/backend/var"
+git -C "${tmp}/primary" init -q
 for skill in implement tdd code-review; do mkdir -p "${tmp}/skills/${skill}"; printf 'test\n' >"${tmp}/skills/${skill}/SKILL.md"; done
 
 cat >"${tmp}/bin/codex" <<'MOCK'
@@ -40,6 +41,10 @@ for installed in issue-local.sh issue-local-preview.sh issue-local-production.sh
 test -r "${tmp}/runtime/local-implementation-output.json"
 test ! -x "${tmp}/runtime/local-implementation-output.json"
 test -d "${tmp}/primary/.scratch"
+HOME="${tmp}/home" PATH="${tmp}/bin:${PATH}" \
+  ZERP_PRIMARY_ROOT="${tmp}/primary" ZERP_ISSUE_LOCAL_RUNTIME_ROOT="${tmp}/runtime" \
+  ZERP_ISSUE_TRACKER_ROOT="${tmp}/primary/.scratch" \
+  "${tmp}/runtime/issue-local.sh" status >/dev/null
 if find "${tmp}" -type f \( -name auth.json -o -name '*.token' -o -name private-key.pem \) | grep -q .; then
   echo 'authentication material was copied by the installer' >&2
   exit 1

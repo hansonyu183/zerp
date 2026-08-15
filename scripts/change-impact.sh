@@ -238,7 +238,8 @@ if [ -n "${changed_files}" ]; then
         scripts/preview-build-sandbox.sh | scripts/preview-runtime-sandbox.sh | \
         scripts/preview-deploy.sh | scripts/preview-state.sh | \
         scripts/verify-preview-pr.sh | scripts/preview-smoke.sh | \
-        scripts/issue-local-preview.sh | scripts/uninstall-preview-agent.sh | \
+        scripts/issue-local-preview.sh | scripts/issue-local-preview-test.sh | \
+        scripts/uninstall-preview-agent.sh | \
         frontend/scripts/preview-smoke.mjs)
         if [ "${impact}" = "docs" ]; then
           impact=validation

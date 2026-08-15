@@ -3,9 +3,12 @@ set -eu
 
 script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 repo_root=$(CDPATH='' cd -- "${script_dir}/.." && pwd)
-common_git_dir=$(git -C "${repo_root}" rev-parse --path-format=absolute --git-common-dir)
-default_primary_root=$(dirname "${common_git_dir}")
-primary_root=${ZERP_PRIMARY_ROOT:-${default_primary_root}}
+if [ -n "${ZERP_PRIMARY_ROOT:-}" ]; then
+  primary_root=${ZERP_PRIMARY_ROOT}
+else
+  common_git_dir=$(git -C "${repo_root}" rev-parse --path-format=absolute --git-common-dir)
+  primary_root=$(dirname "${common_git_dir}")
+fi
 tracker_root=${ZERP_ISSUE_TRACKER_ROOT:-${primary_root}/.scratch}
 runtime_root=${ZERP_ISSUE_LOCAL_RUNTIME_ROOT:-${primary_root}/backend/var/issue-delivery}
 repo=${ZERP_GITHUB_REPOSITORY:-hansonyu183/zerp}
@@ -254,7 +257,10 @@ run_implement() {
       sed -n '1,240p' "${failure_file}"
     fi
   } | ZERP_ISSUE_BASE_SHA="${base_sha}" ZERP_GATE_EVIDENCE_FILE="${evidence_file}" \
-    "${codex_bin}" exec --ephemeral --sandbox workspace-write \
+    "${codex_bin}" exec --ephemeral --ignore-user-config \
+      --sandbox workspace-write --ask-for-approval never \
+      -c sandbox_workspace_write.network_access=false \
+      -c web_search=disabled -c features.apps=false \
       -C "${worktree}" --output-schema "${schema}" -o "${result_file}" -
   [ -r "${result_file}" ] || { echo 'Codex did not return a structured result' >&2; return 1; }
   status=$(jq -r .status "${result_file}")
@@ -298,8 +304,9 @@ publish_issues() {
     acceptance=$(ticket_acceptance "${ticket}")
     ticket_hash=$(shasum -a 256 "${ticket}" | awk '{print $1}')
     ticket_marker="<!-- zerp-local-ticket feature=${feature} ticket=${number} hash=${ticket_hash} -->"
-    recovered=$("${gh_bin}" api --paginate \
-      "repos/${repo}/issues?state=all&per_page=100" 2>/dev/null | jq -sc \
+    issue_pages=$("${gh_bin}" api --paginate \
+      "repos/${repo}/issues?state=all&per_page=100") || return 1
+    recovered=$(printf '%s\n' "${issue_pages}" | jq -sc \
       --arg marker "${ticket_marker}" \
       '[.[][] | select(.pull_request == null and ((.body // "") | contains($marker)))] | last // empty')
     if [ -n "${recovered}" ]; then
@@ -337,9 +344,14 @@ publish_issues() {
       blocker_id=$(printf '%s' "${mapped}" | cut -f2)
       marker="${batch_root}/dependency-${number}-${blocker}"
       [ -f "${marker}" ] && continue
-      "${gh_bin}" api --method POST \
+      if ! "${gh_bin}" api --method POST \
         "repos/${repo}/issues/${target_number}/dependencies/blocked_by" \
-        -F "issue_id=${blocker_id}" >/dev/null
+        -F "issue_id=${blocker_id}" >/dev/null; then
+        dependencies=$("${gh_bin}" api --paginate \
+          "repos/${repo}/issues/${target_number}/dependencies/blocked_by") || return 1
+        printf '%s\n' "${dependencies}" | jq -se --argjson id "${blocker_id}" \
+          'any(.[][]; .id == $id)' >/dev/null || return 1
+      fi
       : >"${marker}"
     done
   done
@@ -384,6 +396,11 @@ close_remote_issues() {
     "${gh_bin}" issue close "${remote_number}" --repo "${repo}" \
       --comment '批次 PR 已合并，生产发布与公网健康验证成功。' >/dev/null
   done <"${manifest}"
+}
+
+release_preview() {
+  feature=$1
+  "${preview_close_command}" close "${feature}" >/dev/null 2>&1 || true
 }
 
 deploy_preview() {
@@ -513,12 +530,27 @@ wait_checks_and_merge() {
     if [ "$(cat "${batch_root}/attempt" 2>/dev/null || printf 0)" -ge 3 ]; then
       mark_batch "${issues_dir}" blocked
       write_value "${batch_root}/state" blocked
+      release_preview "${feature}"
       return 1
     fi
     {
       printf 'GitHub required checks failed for PR #%s.\n\n' "${pr}"
       sed -n '1,240p' "${batch_root}/checks.log"
     } >"${batch_root}/failure.md"
+    previous_head=$(git -C "${worktree}" rev-parse HEAD)
+    if ! refresh_main "${feature}" "${batch_root}" "${worktree}" "${issues_dir}"; then
+      release_preview "${feature}"
+      return 1
+    fi
+    current_head=$(git -C "${worktree}" rev-parse HEAD)
+    if [ "${current_head}" != "${previous_head}" ]; then
+      preview_url=$(sed -n 's/^url=//p' "${batch_root}/preview.env")
+      fingerprint=$(sed -n 's/^fingerprint=//p' "${batch_root}/preview.env")
+      update_pr_body "${feature}" "${batch_root}" "${worktree}" "${preview_url}" "${fingerprint}"
+      git -C "${worktree}" push origin "HEAD:refs/heads/${branch}" >/dev/null
+      "${gh_bin}" pr edit "${pr}" --repo "${repo}" --body-file "${batch_root}/pr-body.md" >/dev/null
+      continue
+    fi
     base_sha=$(cat "${batch_root}/base-sha")
     if run_implement "${feature}" "${batch_root}" "${worktree}" "${base_sha}"; then
       :
@@ -529,6 +561,7 @@ wait_checks_and_merge() {
         case "${status}" in needs_input) status=needs-input ;; esac
         mark_batch "${issues_dir}" "${status}"
         write_value "${batch_root}/state" "${status}"
+        release_preview "${feature}"
         return 1
       fi
       continue
@@ -572,13 +605,19 @@ run_batch() {
   base_sha=$(cat "${batch_root}/base-sha")
 
   if [ ! -f "${batch_root}/preview.env" ]; then
-    implement_and_preview "${feature}" "${batch_root}" "${worktree}" "${base_sha}" "${issues_dir}" || return 1
+    if ! implement_and_preview "${feature}" "${batch_root}" "${worktree}" "${base_sha}" "${issues_dir}"; then
+      release_preview "${feature}"
+      return 1
+    fi
   fi
 
   # Remote operations begin only after the complete local batch and public preview passed.
   preview_url=$(sed -n 's/^url=//p' "${batch_root}/preview.env")
   fingerprint=$(sed -n 's/^fingerprint=//p' "${batch_root}/preview.env")
-  refresh_main "${feature}" "${batch_root}" "${worktree}" "${issues_dir}" || return 1
+  if ! refresh_main "${feature}" "${batch_root}" "${worktree}" "${issues_dir}"; then
+    release_preview "${feature}"
+    return 1
+  fi
   preview_url=$(sed -n 's/^url=//p' "${batch_root}/preview.env")
   fingerprint=$(sed -n 's/^fingerprint=//p' "${batch_root}/preview.env")
   publish_issues "${feature}" "${issues_dir}" "${batch_root}"
@@ -600,7 +639,7 @@ run_batch() {
   close_remote_issues "${batch_root}/remote-issues.tsv"
   for ticket in "${issues_dir}"/*.md; do complete_ticket "${ticket}"; done
   write_value "${batch_root}/state" "done"
-  "${preview_close_command}" close "${feature}" >/dev/null 2>&1 || true
+  release_preview "${feature}"
   log "local ticket batch ${feature} reached verified production through PR #${pr}"
 }
 
@@ -626,6 +665,7 @@ retry_command() {
     exit 1
   }
   mark_batch "${issues_dir}" ready-for-agent
+  release_preview "${feature}"
   rm -f "${runtime_root}/batches/${feature}/failure.md" \
     "${runtime_root}/batches/${feature}/preview.env" \
     "${runtime_root}/batches/${feature}/attempt" \

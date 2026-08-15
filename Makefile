@@ -91,6 +91,7 @@ release-check:
 	$(MAKE) check-shell
 	./scripts/test-release-flow-transition.sh
 	./scripts/issue-local-test.sh
+	./scripts/issue-local-preview-test.sh
 	./scripts/install-issue-local-agent-test.sh
 	./scripts/preview-state-test.sh
 	GITHUB_BASE_REF=main scripts/verify-pr-base.sh

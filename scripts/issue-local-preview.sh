@@ -3,8 +3,12 @@ set -eu
 
 script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 repo_root=$(CDPATH='' cd -- "${script_dir}/.." && pwd)
-common_git_dir=$(git -C "${repo_root}" rev-parse --path-format=absolute --git-common-dir)
-primary_root=${ZERP_PRIMARY_ROOT:-$(dirname "${common_git_dir}")}
+if [ -n "${ZERP_PRIMARY_ROOT:-}" ]; then
+  primary_root=${ZERP_PRIMARY_ROOT}
+else
+  common_git_dir=$(git -C "${repo_root}" rev-parse --path-format=absolute --git-common-dir)
+  primary_root=$(dirname "${common_git_dir}")
+fi
 preview_url=https://zerp-preview.bytesucceed.com
 
 preview_id() {
@@ -13,7 +17,7 @@ preview_id() {
   printf '%s\n' "$((900000000 + (checksum % 99999999)))"
 }
 
-feature=${2:-${1:-}}
+if [ "${1:-}" = close ]; then feature=${2:-}; else feature=${1:-}; fi
 case "${feature}" in
   '' | *[!a-z0-9-]* | -* | *-) echo 'invalid feature slug' >&2; exit 2 ;;
 esac

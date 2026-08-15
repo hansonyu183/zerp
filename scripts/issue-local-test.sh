@@ -56,6 +56,7 @@ if [ "${1:-}" = login ] && [ "${2:-}" = status ]; then
   exit 0
 fi
 test "${1:-}" = exec
+printf '%s\n' "$*" >"${MOCK_CODEX_ARGS}"
 worktree=
 output=
 shift
@@ -156,6 +157,7 @@ export MOCK_CAPTURE="${tmp}/capture"
 export MOCK_ISSUE_COUNT="${tmp}/issue-count"
 export MOCK_CODEX_COUNT="${tmp}/codex-count"
 export MOCK_PREVIEW_COUNT="${tmp}/preview-count"
+export MOCK_CODEX_ARGS="${tmp}/codex-args"
 : >"${events}"
 
 PATH="${tmp}/bin:${PATH}" \
@@ -172,6 +174,9 @@ ZERP_ISSUE_PRODUCTION_COMMAND="${tmp}/bin/production" \
 test "$(cat "${tmp}/issue-count")" = 2
 test "$(grep -c '^codex$' "${events}")" = 1
 test "$(grep -c '^preview$' "${events}")" = 1
+grep -Fq -- '--ignore-user-config' "${MOCK_CODEX_ARGS}"
+grep -Fq -- '--ask-for-approval never' "${MOCK_CODEX_ARGS}"
+grep -Fq -- 'sandbox_workspace_write.network_access=false' "${MOCK_CODEX_ARGS}"
 preview_line=$(grep -n '^preview$' "${events}" | cut -d: -f1)
 first_gh_line=$(grep -n '^gh ' "${events}" | sed -n '1s/:.*//p')
 test "${preview_line}" -lt "${first_gh_line}"

@@ -35,4 +35,4 @@ scripts/issue-local.sh start
 scripts/issue-local.sh retry <feature>
 ```
 
-安装器只复制控制脚本和 JSON schema，不复制 Codex `auth.json`、GitHub token 或私钥。实现阶段的 Codex 进程禁止访问 GitHub、推送、部署或读取预览/生产凭证；发布动作由控制器使用 Mac 已有的 `gh` 登录态完成。现有生产代理继续只处理通过 `full-validation` 合入 `main` 的提交。
+安装器只复制控制脚本和 JSON schema，不复制 Codex `auth.json`、GitHub token 或私钥。实现阶段使用 `workspace-write`、`never` approval，并禁用命令网络、Web 和 App 工具；因此不能访问 GitHub、推送或部署。预览和发布动作由控制器分别使用本机现有环境与 `gh` 登录态完成。现有生产代理继续只处理通过 `full-validation` 合入 `main` 的提交。

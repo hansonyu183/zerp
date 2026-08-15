@@ -542,9 +542,16 @@ const exactMessages: Readonly<Record<string, string>> = {
   'menu mode is not registered': '菜单方式尚未完成系统注册，请联系管理员。',
   'menu mode revision conflict': '菜单方式已被其他管理员修改，请刷新后重试。',
   'menu route is not registered': '所选菜单路由未在系统中注册。',
-  'menu routes require a parent and route key':
-    '菜单路由必须属于一个分组并选择已注册路由。',
+  'menu routes require a parent': '业务菜单页面必须归属一个菜单分组。',
+  'menu routes require a route key': '业务菜单页面缺少路由标识，请刷新后重试。',
   'reserved menu item id': '该菜单项标识由系统保留，请重新添加菜单项。',
+  'workbench entry must appear exactly once':
+    '业务菜单必须且只能保留一个工作台入口。',
+  'workbench must be a direct route': '工作台必须作为一级菜单入口。',
+  'workbench must be the enabled direct entry':
+    '请保留已启用的一级工作台入口。',
+  'workbench name is reserved for the direct entry':
+    '“工作台”名称仅可用于一级入口，请使用其他名称。',
   'system parameter is managed by its owning service':
     '该系统参数只能由对应功能修改。',
   'system parameter must be a decimal': '系统参数必须填写为小数。',

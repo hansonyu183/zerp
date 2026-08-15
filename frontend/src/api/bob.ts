@@ -4,6 +4,7 @@ import { apiClient, type BobApiEntity } from '@/api/client'
 type VersionRevisionRequest =
   components['schemas']['BobVersionRevisionRequest']
 type ReviewRequest = components['schemas']['BobReviewRequest']
+type ReverseRequest = components['schemas']['BobReverseRequest']
 
 export function submitBusinessObject(
   entity: BobApiEntity,
@@ -11,6 +12,16 @@ export function submitBusinessObject(
 ) {
   return apiClient.post<unknown, VersionRevisionRequest>(
     `bob/${entity}/submit`,
+    request,
+  )
+}
+
+export function unsubmitBusinessObject(
+  entity: BobApiEntity,
+  request: ReverseRequest,
+) {
+  return apiClient.post<unknown, ReverseRequest>(
+    `bob/${entity}/unsubmit`,
     request,
   )
 }

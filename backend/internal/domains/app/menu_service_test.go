@@ -34,6 +34,64 @@ func TestInitialBusinessMenuClassifiesEveryCashRoute(t *testing.T) {
 	}
 }
 
+func TestWorkbenchIsTheUniqueDirectMenuEntry(t *testing.T) {
+	catalog := []registeredMenuRoute{
+		{RouteKey: "home/dashboard", RoutePath: "/home/dashboard", DisplayName: "工作台", PermissionCode: "/app/workbench/query", Order: 10, Always: true},
+		{RouteKey: "bob/customer", RoutePath: "/bob/customer", DisplayName: "客户", PermissionCode: "/bob/customer/query", Order: 10},
+	}
+	for name, menu := range map[string]MenuTree{
+		"default":  buildDefaultMenu(catalog),
+		"business": buildInitialBusinessMenu(catalog, 1),
+	} {
+		workbenches := 0
+		for _, item := range menu.Items {
+			if item.Type == MenuItemGroup && item.DisplayName == "工作台" {
+				t.Fatalf("%s menu contains a workbench group: %+v", name, menu.Items)
+			}
+			if item.RouteKey != nil && *item.RouteKey == "home/dashboard" {
+				workbenches++
+				if item.ParentID != nil || item.Level != 1 || item.DisplayName != "工作台" {
+					t.Fatalf("%s workbench entry = %+v, want direct level-one route", name, item)
+				}
+			}
+		}
+		if workbenches != 1 {
+			t.Fatalf("%s workbench entries = %d, want 1", name, workbenches)
+		}
+		filtered := filterMenuForPrincipal(menu, catalog, Principal{})
+		if len(filtered.Items) == 0 || filtered.Items[0].RouteKey == nil || *filtered.Items[0].RouteKey != "home/dashboard" {
+			t.Fatalf("%s navigation does not retain direct workbench: %+v", name, filtered.Items)
+		}
+	}
+}
+
+func TestValidateBusinessMenuRequiresOneEnabledDirectWorkbench(t *testing.T) {
+	catalog := []registeredMenuRoute{
+		{RouteKey: "home/dashboard", RoutePath: "/home/dashboard", DisplayName: "工作台", PermissionCode: "/app/workbench/query", Always: true},
+		{RouteKey: "admin/menu", RoutePath: "/admin/menu", DisplayName: "菜单管理", PermissionCode: "/app/menu/save-business-template"},
+	}
+	systemID := "system"
+	workbenchKey := "home/dashboard"
+	menuKey := "admin/menu"
+	items := []SaveMenuItemInput{
+		{ID: "workbench", Type: MenuItemRoute, Order: 10, DisplayName: "工作台", Enabled: true, RouteKey: &workbenchKey},
+		{ID: systemID, Type: MenuItemGroup, Order: 20, DisplayName: "系统管理", Enabled: true},
+		{ID: "menu", ParentID: &systemID, Type: MenuItemRoute, Order: 10, DisplayName: "菜单管理", Enabled: true, RouteKey: &menuKey},
+	}
+	if _, err := validateBusinessMenu(items, catalog); err != nil {
+		t.Fatalf("valid direct workbench menu rejected: %v", err)
+	}
+	items[0].ParentID = &systemID
+	if _, err := validateBusinessMenu(items, catalog); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("grouped workbench error = %v, want validation error", err)
+	}
+	items[0].ParentID = nil
+	items[2].DisplayName = "工作台"
+	if _, err := validateBusinessMenu(items, catalog); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("secondary workbench name error = %v, want validation error", err)
+	}
+}
+
 func TestAccountingBookMenuBelongsToAccounting(t *testing.T) {
 	if got := classifyBusinessRoute("acc/book"); got != "menu-group-accounting" {
 		t.Fatalf("ACC book group = %q, want accounting", got)

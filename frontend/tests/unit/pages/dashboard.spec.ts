@@ -1,3 +1,4 @@
+import { effectScope } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -69,6 +70,40 @@ beforeEach(() => {
 })
 
 describe('Dashboard workbench', () => {
+  it('初始查询失败时不显示空状态', async () => {
+    mockedPost.mockRejectedValueOnce(new Error('network unavailable'))
+    const router = createTestRouter()
+    const wrapper = mount(Dashboard, {
+      global: {
+        plugins: [router, createPinia()],
+        stubs: {
+          BusinessObjectList: {
+            name: 'BusinessObjectList',
+            props: ['emptyText', 'rows'],
+            template:
+              '<section><span v-if="!rows.length">{{ emptyText }}</span></section>',
+          },
+          VoucherList: {
+            name: 'VoucherList',
+            props: ['emptyText', 'rows'],
+            template:
+              '<section><span v-if="!rows.length">{{ emptyText }}</span></section>',
+          },
+          VAlert: {
+            template:
+              '<section class="error-alert"><slot /><slot name="append" /></section>',
+          },
+        },
+      },
+    })
+
+    await flushPromises()
+
+    expect(wrapper.find('.error-alert').exists()).toBe(true)
+    expect(wrapper.text()).toContain('重试查询')
+    expect(wrapper.text()).not.toContain('暂无待办单据')
+  })
+
   it('业务菜单隐藏时仍按权限和页面注册表提供待办实体筛选', async () => {
     mockedPost.mockResolvedValue(
       page([{ ...documentItem, entity: 'runtime-voucher' }]),
@@ -79,10 +114,12 @@ describe('Dashboard workbench', () => {
     session.permissions = [
       '/bob/customer/query',
       '/bob/customer/submit',
+      '/bob/supplier/query',
+      '/bob/supplier/unsubmit',
       '/vou/sale-order/query',
       '/vou/sale-order/check',
       '/vou/developing-invoice/query',
-      '/vou/developing-invoice/check',
+      '/vou/developing-invoice/uncheck',
     ]
     const navigation = {
       revision: 1,
@@ -157,6 +194,9 @@ describe('Dashboard workbench', () => {
           },
           AppSnackbar: true,
           ListRowActions: true,
+          VAlert: {
+            template: '<section><slot /><slot name="append" /></section>',
+          },
           VBtn: true,
           VCard: { template: '<section><slot /></section>' },
           VCardActions: true,
@@ -248,7 +288,10 @@ describe('Dashboard workbench', () => {
     ).toEqual(['类型', '编码', '名称', '状态'])
     expect(
       wrapper.findAllComponents({ name: 'VSelect' })[0]?.props('items'),
-    ).toEqual([{ title: '客户', value: 'customer' }])
+    ).toEqual([
+      { title: '客户', value: 'customer' },
+      { title: '供应商', value: 'supplier' },
+    ])
   })
 
   it('按类型和待办状态进行服务端筛选并可重置', async () => {
@@ -258,7 +301,7 @@ describe('Dashboard workbench', () => {
     vm.states.BOB.entities = ['customer']
     vm.states.BOB.pendingStages = ['APPROVE']
 
-    await vm.query('BOB', true)
+    await vm.applyFilters('BOB')
 
     expect(mockedPost).toHaveBeenLastCalledWith('app/workbench/query', {
       category: 'BOB',
@@ -279,6 +322,235 @@ describe('Dashboard workbench', () => {
     expect(mockedPost).toHaveBeenLastCalledWith('app/workbench/query', {
       category: 'BOB',
       page: 1,
+      pageSize: 20,
+    })
+  })
+
+  it('每次切换页签都用各自已应用的筛选条件刷新', async () => {
+    const vm = useDashboardViewModel()
+    vm.states.VOU.keyword = '销售'
+    await vm.applyFilters('VOU')
+    vm.states.BOB.keyword = '客户'
+    await vm.applyFilters('BOB')
+
+    await vm.selectCategory('VOU')
+    await vm.selectCategory('BOB')
+
+    expect(mockedPost).toHaveBeenNthCalledWith(3, 'app/workbench/query', {
+      category: 'VOU',
+      keyword: '销售',
+      page: 1,
+      pageSize: 20,
+    })
+    expect(mockedPost).toHaveBeenNthCalledWith(4, 'app/workbench/query', {
+      category: 'BOB',
+      keyword: '客户',
+      page: 1,
+      pageSize: 20,
+    })
+  })
+
+  it('查询失败保留输入并以当前已应用条件重试', async () => {
+    mockedPost.mockRejectedValueOnce(new Error('network unavailable'))
+    const vm = useDashboardViewModel()
+    vm.states.BOB.keyword = ' 客户 '
+    vm.states.BOB.entities = ['customer']
+
+    await expect(vm.applyFilters('BOB')).resolves.toBe(false)
+    expect(vm.states.BOB).toMatchObject({
+      keyword: ' 客户 ',
+      appliedKeyword: '客户',
+      entities: ['customer'],
+      appliedEntities: ['customer'],
+    })
+    expect(vm.states.BOB.errorMessage).toBeTruthy()
+
+    await vm.query('BOB')
+    expect(mockedPost).toHaveBeenLastCalledWith('app/workbench/query', {
+      category: 'BOB',
+      keyword: '客户',
+      entities: ['customer'],
+      page: 1,
+      pageSize: 20,
+    })
+  })
+
+  it('忽略较早的慢响应，并且至多纠正一次失效页码', async () => {
+    let resolveOld: ((value: ReturnType<typeof page>) => void) | undefined
+    let resolveNew: ((value: ReturnType<typeof page>) => void) | undefined
+    mockedPost
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveOld = resolve
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveNew = resolve
+          }),
+      )
+    const vm = useDashboardViewModel()
+    vm.states.VOU.keyword = '旧条件'
+    const oldQuery = vm.applyFilters('VOU')
+    vm.states.VOU.keyword = '新条件'
+    const newQuery = vm.applyFilters('VOU')
+
+    resolveNew?.(page([documentItem]))
+    await newQuery
+    resolveOld?.(page([{ ...documentItem, documentNo: 'OLD-0001' }]))
+    await oldQuery
+
+    expect(vm.states.VOU.rows).toEqual([documentItem])
+
+    vm.states.VOU.page = 3
+    mockedPost
+      .mockResolvedValueOnce({
+        data: { items: [], total: 21, page: 3, pageSize: 20 },
+      })
+      .mockResolvedValueOnce({
+        data: { items: [documentItem], total: 21, page: 2, pageSize: 20 },
+      })
+    await vm.query('VOU')
+
+    expect(vm.states.VOU.page).toBe(2)
+    expect(mockedPost).toHaveBeenLastCalledWith('app/workbench/query', {
+      category: 'VOU',
+      keyword: '新条件',
+      page: 2,
+      pageSize: 20,
+    })
+    expect(mockedPost).toHaveBeenCalledTimes(4)
+  })
+
+  it('组件销毁后忽略迟到的工作台响应', async () => {
+    let resolveQuery: ((value: ReturnType<typeof page>) => void) | undefined
+    mockedPost.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveQuery = resolve
+        }),
+    )
+    const scope = effectScope()
+    const vm = scope.run(() => useDashboardViewModel())
+    if (!vm) throw new Error('view model scope was not created')
+    vm.states.VOU.rows = [documentItem]
+
+    const pending = vm.query('VOU')
+    scope.stop()
+    resolveQuery?.(page())
+    await pending
+
+    expect(vm.states.VOU.rows).toEqual([documentItem])
+  })
+
+  it('撤回提交与反核对只调用服务器返回的动作，并在完成后刷新', async () => {
+    const submitted = {
+      ...objectItem,
+      status: 'PENDING' as const,
+      pendingStage: 'APPROVE' as const,
+      availableActions: ['unsubmit'] as const,
+    }
+    const checked = {
+      ...documentItem,
+      status: 'CHECKED' as const,
+      pendingStage: 'APPROVE' as const,
+      availableActions: ['uncheck'] as const,
+    }
+    mockedPost
+      .mockResolvedValueOnce({ data: {} })
+      .mockResolvedValueOnce(page())
+      .mockResolvedValueOnce({ data: {} })
+      .mockResolvedValueOnce(page())
+    const vm = useDashboardViewModel()
+
+    await expect(
+      vm.runAction(submitted, 'unsubmit', '  资料有误  '),
+    ).resolves.toBe(true)
+    await expect(vm.runAction(checked, 'uncheck')).resolves.toBe(true)
+
+    expect(mockedPost).toHaveBeenNthCalledWith(1, 'bob/customer/unsubmit', {
+      objectId: 'object-1',
+      objectRevision: 3,
+      versionId: 'version-1',
+      revision: 5,
+      reason: '资料有误',
+    })
+    expect(mockedPost).toHaveBeenNthCalledWith(3, 'vou/sale-order/uncheck', {
+      documentId: 'document-1',
+      revision: 2,
+    })
+    expect(await vm.runAction(submitted, 'unsubmit', '   ')).toBe(false)
+    expect(await vm.runAction(objectItem, 'unsubmit', '不可执行')).toBe(false)
+    expect(mockedPost).toHaveBeenCalledTimes(4)
+  })
+
+  it('在 ViewModel 中完成必填原因动作的确认闭环', async () => {
+    const submitted = {
+      ...objectItem,
+      status: 'PENDING' as const,
+      pendingStage: 'APPROVE' as const,
+      availableActions: ['unsubmit'] as const,
+    }
+    mockedPost.mockResolvedValueOnce({ data: {} }).mockResolvedValueOnce(page())
+    const vm = useDashboardViewModel()
+
+    expect(vm.requestConfirmation(submitted, 'unsubmit')).toBe(true)
+    expect(vm.confirmationTarget.value).toEqual(submitted)
+    expect(vm.confirmationAction.value).toBe('unsubmit')
+    vm.confirmationComment.value = '  资料有误  '
+
+    await expect(vm.confirmAction()).resolves.toBe(true)
+
+    expect(mockedPost).toHaveBeenNthCalledWith(1, 'bob/customer/unsubmit', {
+      objectId: 'object-1',
+      objectRevision: 3,
+      versionId: 'version-1',
+      revision: 5,
+      reason: '资料有误',
+    })
+    expect(vm.confirmationTarget.value).toBeNull()
+    expect(vm.confirmationAction.value).toBeNull()
+    expect(vm.confirmationComment.value).toBe('')
+  })
+
+  it('反核对确认不要求或发送原因', async () => {
+    const checked = {
+      ...documentItem,
+      status: 'CHECKED' as const,
+      pendingStage: 'APPROVE' as const,
+      availableActions: ['uncheck'] as const,
+    }
+    mockedPost.mockResolvedValueOnce({ data: {} }).mockResolvedValueOnce(page())
+    const vm = useDashboardViewModel()
+
+    expect(vm.requestConfirmation(checked, 'uncheck')).toBe(true)
+    await expect(vm.confirmAction()).resolves.toBe(true)
+
+    expect(mockedPost).toHaveBeenNthCalledWith(1, 'vou/sale-order/uncheck', {
+      documentId: 'document-1',
+      revision: 2,
+    })
+  })
+
+  it('动作后由刷新结果决定是否纠正当前页', async () => {
+    const pageTwo = {
+      data: { items: [documentItem], total: 21, page: 2, pageSize: 20 },
+    }
+    mockedPost
+      .mockResolvedValueOnce({ data: {} })
+      .mockResolvedValueOnce(pageTwo)
+    const vm = useDashboardViewModel()
+    vm.states.VOU.page = 2
+    vm.states.VOU.rows = [documentItem]
+
+    expect(await vm.runAction(documentItem, 'check')).toBe(true)
+
+    expect(vm.states.VOU.page).toBe(2)
+    expect(mockedPost).toHaveBeenLastCalledWith('app/workbench/query', {
+      category: 'VOU',
+      page: 2,
       pageSize: 20,
     })
   })

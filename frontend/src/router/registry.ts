@@ -19,6 +19,7 @@ export interface MenuDomain {
   title: string
   icon?: string
   order: number
+  direct?: boolean
   children: MenuEntity[]
 }
 
@@ -690,7 +691,45 @@ export function buildServerMenus(
     actionsByRoute.set(key, actions)
   }
 
-  return groups.map((group) => ({
+  const toEntity = (item: ServerMenuItem, isDefaultMenu: boolean) => {
+    const routeKey = item.routeKey as string
+    const registration = pageRegistry[routeKey]
+    return {
+      id: item.id,
+      entity: item.id,
+      routeKey,
+      routePath: item.routePath as string,
+      title: isDefaultMenu
+        ? (registration?.entityTitle ??
+          WORKFLOW_ENTITY_TITLES[routeKey.split('/')[1] ?? ''] ??
+          item.displayName)
+        : item.displayName,
+      ...(isDefaultMenu && registration?.icon
+        ? { icon: registration.icon }
+        : item.icon
+          ? { icon: item.icon }
+          : {}),
+      order: item.order,
+      actions: actionsByRoute.get(routeKey) ?? [],
+    }
+  }
+  const directRoutes = items
+    .filter(
+      (item) =>
+        item.type === 'ROUTE' &&
+        item.parentId === null &&
+        item.routeKey &&
+        item.routePath,
+    )
+    .map((item) => ({
+      domain: item.id,
+      title: item.displayName,
+      ...(item.icon ? { icon: item.icon } : {}),
+      order: item.order,
+      direct: true,
+      children: [toEntity(item, item.id.startsWith('default-'))],
+    }))
+  const groupedMenus = groups.map((group) => ({
     domain: group.id,
     title: group.displayName,
     ...(group.icon ? { icon: group.icon } : {}),
@@ -707,30 +746,13 @@ export function buildServerMenus(
         (left, right) =>
           left.order - right.order || left.id.localeCompare(right.id),
       )
-      .map((item) => {
-        const routeKey = item.routeKey as string
-        const registration = pageRegistry[routeKey]
-        const isDefaultMenu = group.id.startsWith('default-')
-        return {
-          id: item.id,
-          entity: item.id,
-          routeKey,
-          routePath: item.routePath as string,
-          title: isDefaultMenu
-            ? (registration?.entityTitle ??
-              WORKFLOW_ENTITY_TITLES[routeKey.split('/')[1] ?? ''] ??
-              item.displayName)
-            : item.displayName,
-          ...(isDefaultMenu && registration?.icon
-            ? { icon: registration.icon }
-            : item.icon
-              ? { icon: item.icon }
-              : {}),
-          order: item.order,
-          actions: actionsByRoute.get(routeKey) ?? [],
-        }
-      }),
+      .map((item) => toEntity(item, group.id.startsWith('default-'))),
   }))
+
+  return [...directRoutes, ...groupedMenus].sort(
+    (left, right) =>
+      left.order - right.order || left.domain.localeCompare(right.domain),
+  )
 }
 
 function formatIdentifierTitle(identifier: string): string {

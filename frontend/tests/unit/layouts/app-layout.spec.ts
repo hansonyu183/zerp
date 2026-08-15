@@ -65,6 +65,59 @@ describe('AppLayout account interactions', () => {
     installLocalStorage()
   })
 
+  it('将工作台显示为唯一的一级直接入口', async () => {
+    const router = createTestRouter()
+    await router.push('/home/dashboard')
+    const session = useSessionStore()
+    const workbenchRoute = {
+      id: 'workbench-route',
+      parentId: null,
+      type: 'ROUTE' as const,
+      level: 1,
+      order: 10,
+      displayName: '工作台',
+      icon: 'mdi-view-dashboard-outline',
+      enabled: true,
+      routeKey: 'home/dashboard',
+      routePath: '/home/dashboard',
+      permissionCode: '/app/workbench/query',
+    }
+    const navigation = { revision: 1, items: [workbenchRoute] }
+    session.applyMenuData({
+      mode: 'DEFAULT',
+      modeRevision: 1,
+      catalogRevision: 'catalog',
+      defaultMenu: navigation,
+      businessTemplate: navigation,
+      navigation,
+      availableRoutes: [],
+    })
+
+    const wrapper = mount(AppLayout, {
+      global: {
+        plugins: [router],
+        stubs: {
+          RouterView: true,
+          VListGroup: {
+            props: ['value'],
+            template: '<section class="menu-group"><slot name="activator" :props="{}" /><slot /></section>',
+          },
+          VListItem: {
+            props: ['title', 'to'],
+            template: '<a class="menu-item" :data-to="to">{{ title }}</a>',
+          },
+        },
+      },
+    })
+
+    expect(wrapper.findAll('.menu-group')).toHaveLength(0)
+    const workbenchEntries = wrapper.findAll(
+      '.menu-item[data-to="/home/dashboard"]',
+    )
+    expect(workbenchEntries).toHaveLength(1)
+    expect(workbenchEntries[0]?.text()).toBe('工作台')
+  })
+
   it('按后端契约校验资料和密码表单', async () => {
     const router = createTestRouter()
     await router.push('/home/dashboard')

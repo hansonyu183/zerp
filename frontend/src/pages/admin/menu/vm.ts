@@ -66,8 +66,18 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
         .filter((item) => item.type === 'GROUP')
         .sort((left, right) => left.order - right.order)
     },
+    get workbench(): SaveMenuItem | undefined {
+      return this.editableItems.find(
+        (item) =>
+          item.type === 'ROUTE' &&
+          item.parentId === null &&
+          item.routeKey === 'home/dashboard',
+      )
+    },
     get availableRoutes(): MenuRouteOption[] {
-      return this.data?.availableRoutes ?? []
+      return (this.data?.availableRoutes ?? []).filter(
+        (item) => item.routeKey !== 'home/dashboard',
+      )
     },
     children(groupID: string): SaveMenuItem[] {
       return this.editableItems
@@ -186,6 +196,22 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
       if (this.groups.length === 0) return '业务归类模板至少需要一个分组。'
       if (this.editableItems.some((item) => !item.displayName.trim())) {
         return '分组和菜单名称不能为空。'
+      }
+      if (
+        !this.workbench ||
+        !this.workbench.enabled ||
+        this.workbench.displayName.trim() !== '工作台'
+      ) {
+        return '必须保留唯一已启用的工作台一级入口。'
+      }
+      if (
+        this.editableItems.some(
+          (item) =>
+            item.routeKey !== 'home/dashboard' &&
+            item.displayName.trim() === '工作台',
+        )
+      ) {
+        return '工作台名称只能用于唯一的一级入口。'
       }
       const menuEntry = this.editableItems.find(
         (item) => item.routeKey === 'admin/menu' && item.enabled,

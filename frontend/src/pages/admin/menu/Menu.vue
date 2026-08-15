@@ -73,6 +73,23 @@ void vm.load()
           系统默认菜单为只读。切换到“业务归类模板”后可编辑自定义归类。
         </v-alert>
         <v-card
+          v-for="item in vm.data.defaultMenu.items.filter(
+            (candidate) => candidate.type === 'ROUTE' && candidate.parentId === null,
+          )"
+          :key="item.id"
+          class="mb-3"
+          rounded="lg"
+          variant="outlined"
+        >
+          <v-list density="compact">
+            <v-list-item
+              :prepend-icon="item.icon || 'mdi-view-dashboard-outline'"
+              :title="item.displayName"
+              :subtitle="`${item.routePath} · ${item.permissionCode}`"
+            />
+          </v-list>
+        </v-card>
+        <v-card
           v-for="group in vm.data.defaultMenu.items.filter(
             (item) => item.type === 'GROUP',
           )"
@@ -128,6 +145,21 @@ void vm.load()
             恢复初始模板
           </v-btn>
         </div>
+
+        <v-card
+          v-if="vm.workbench"
+          class="mb-4"
+          rounded="lg"
+          variant="outlined"
+        >
+          <v-list density="compact">
+            <v-list-item
+              :prepend-icon="vm.workbench.icon || 'mdi-view-dashboard-outline'"
+              subtitle="固定一级入口，不参与分组或模板编辑"
+              :title="vm.workbench.displayName"
+            />
+          </v-list>
+        </v-card>
 
         <v-card
           v-for="group in vm.groups"

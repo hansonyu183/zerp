@@ -14,6 +14,16 @@ export function checkVoucher(
   )
 }
 
+export function uncheckVoucher(
+  entity: VouApiEntity,
+  request: DocumentRevisionRequest,
+) {
+  return apiClient.post<unknown, DocumentRevisionRequest>(
+    `vou/${entity}/uncheck`,
+    request,
+  )
+}
+
 export function approveVoucher(
   entity: VouApiEntity,
   request: DocumentRevisionRequest,

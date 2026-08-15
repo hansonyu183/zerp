@@ -17,21 +17,30 @@ FROM bob_version_views view
 WHERE view.version_id = view.current_version_id
   AND (
     (view.status = 'DRAFT' AND view.entity = ANY($1::text[]))
-    OR (view.status = 'PENDING' AND view.entity = ANY($2::text[]))
+    OR (
+      view.status = 'PENDING'
+      AND (
+        (
+          view.entity = ANY($2::text[])
+          AND view.submitted_by IS DISTINCT FROM $3::text
+        )
+        OR view.entity = ANY($4::text[])
+      )
+    )
   )
-  AND (view.status <> 'PENDING' OR view.submitted_by IS DISTINCT FROM $3::text)
   AND (
-    $4::text = ''
-    OR view.code ILIKE '%' || $4 || '%'
-    OR view.name ILIKE '%' || $4 || '%'
+    $5::text = ''
+    OR view.code ILIKE '%' || $5 || '%'
+    OR view.name ILIKE '%' || $5 || '%'
   )
 `
 
 type CountWorkbenchBobItemsParams struct {
-	DraftEntities   []string `db:"draft_entities" json:"draft_entities"`
-	PendingEntities []string `db:"pending_entities" json:"pending_entities"`
-	ActorID         string   `db:"actor_id" json:"actor_id"`
-	Keyword         string   `db:"keyword" json:"keyword"`
+	DraftEntities    []string `db:"draft_entities" json:"draft_entities"`
+	PendingEntities  []string `db:"pending_entities" json:"pending_entities"`
+	ActorID          string   `db:"actor_id" json:"actor_id"`
+	UnsubmitEntities []string `db:"unsubmit_entities" json:"unsubmit_entities"`
+	Keyword          string   `db:"keyword" json:"keyword"`
 }
 
 func (q *Queries) CountWorkbenchBobItems(ctx context.Context, arg CountWorkbenchBobItemsParams) (int64, error) {
@@ -39,6 +48,7 @@ func (q *Queries) CountWorkbenchBobItems(ctx context.Context, arg CountWorkbench
 		arg.DraftEntities,
 		arg.PendingEntities,
 		arg.ActorID,
+		arg.UnsubmitEntities,
 		arg.Keyword,
 	)
 	var count int64
@@ -94,49 +104,64 @@ func (q *Queries) CountWorkbenchVouItems(ctx context.Context, arg CountWorkbench
 
 const listWorkbenchBobItems = `-- name: ListWorkbenchBobItems :many
 SELECT view.object_id, view.entity, view.code, view.name, view.object_revision,
-       view.version_id, view.status, view.version_revision, view.object_updated_at
+       view.version_id, view.status, view.version_revision, view.object_updated_at,
+       CASE
+         WHEN view.submitted_by = $1::text THEN true
+         ELSE false
+       END AS is_submitted_by_actor
 FROM bob_version_views view
 WHERE view.version_id = view.current_version_id
   AND (
-    (view.status = 'DRAFT' AND view.entity = ANY($1::text[]))
-    OR (view.status = 'PENDING' AND view.entity = ANY($2::text[]))
+    (view.status = 'DRAFT' AND view.entity = ANY($2::text[]))
+    OR (
+      view.status = 'PENDING'
+      AND (
+        (
+          view.entity = ANY($3::text[])
+          AND view.submitted_by IS DISTINCT FROM $1::text
+        )
+        OR view.entity = ANY($4::text[])
+      )
+    )
   )
-  AND (view.status <> 'PENDING' OR view.submitted_by IS DISTINCT FROM $3::text)
   AND (
-    $4::text = ''
-    OR view.code ILIKE '%' || $4 || '%'
-    OR view.name ILIKE '%' || $4 || '%'
+    $5::text = ''
+    OR view.code ILIKE '%' || $5 || '%'
+    OR view.name ILIKE '%' || $5 || '%'
   )
 ORDER BY view.object_updated_at DESC, view.object_id ASC
-LIMIT $6 OFFSET $5
+LIMIT $7 OFFSET $6
 `
 
 type ListWorkbenchBobItemsParams struct {
-	DraftEntities   []string `db:"draft_entities" json:"draft_entities"`
-	PendingEntities []string `db:"pending_entities" json:"pending_entities"`
-	ActorID         string   `db:"actor_id" json:"actor_id"`
-	Keyword         string   `db:"keyword" json:"keyword"`
-	PageOffset      int32    `db:"page_offset" json:"page_offset"`
-	PageSize        int32    `db:"page_size" json:"page_size"`
+	ActorID          string   `db:"actor_id" json:"actor_id"`
+	DraftEntities    []string `db:"draft_entities" json:"draft_entities"`
+	PendingEntities  []string `db:"pending_entities" json:"pending_entities"`
+	UnsubmitEntities []string `db:"unsubmit_entities" json:"unsubmit_entities"`
+	Keyword          string   `db:"keyword" json:"keyword"`
+	PageOffset       int32    `db:"page_offset" json:"page_offset"`
+	PageSize         int32    `db:"page_size" json:"page_size"`
 }
 
 type ListWorkbenchBobItemsRow struct {
-	ObjectID        string             `db:"object_id" json:"object_id"`
-	Entity          string             `db:"entity" json:"entity"`
-	Code            string             `db:"code" json:"code"`
-	Name            string             `db:"name" json:"name"`
-	ObjectRevision  int64              `db:"object_revision" json:"object_revision"`
-	VersionID       string             `db:"version_id" json:"version_id"`
-	Status          string             `db:"status" json:"status"`
-	VersionRevision int64              `db:"version_revision" json:"version_revision"`
-	ObjectUpdatedAt pgtype.Timestamptz `db:"object_updated_at" json:"object_updated_at"`
+	ObjectID           string             `db:"object_id" json:"object_id"`
+	Entity             string             `db:"entity" json:"entity"`
+	Code               string             `db:"code" json:"code"`
+	Name               string             `db:"name" json:"name"`
+	ObjectRevision     int64              `db:"object_revision" json:"object_revision"`
+	VersionID          string             `db:"version_id" json:"version_id"`
+	Status             string             `db:"status" json:"status"`
+	VersionRevision    int64              `db:"version_revision" json:"version_revision"`
+	ObjectUpdatedAt    pgtype.Timestamptz `db:"object_updated_at" json:"object_updated_at"`
+	IsSubmittedByActor bool               `db:"is_submitted_by_actor" json:"is_submitted_by_actor"`
 }
 
 func (q *Queries) ListWorkbenchBobItems(ctx context.Context, arg ListWorkbenchBobItemsParams) ([]ListWorkbenchBobItemsRow, error) {
 	rows, err := q.db.Query(ctx, listWorkbenchBobItems,
+		arg.ActorID,
 		arg.DraftEntities,
 		arg.PendingEntities,
-		arg.ActorID,
+		arg.UnsubmitEntities,
 		arg.Keyword,
 		arg.PageOffset,
 		arg.PageSize,
@@ -158,6 +183,7 @@ func (q *Queries) ListWorkbenchBobItems(ctx context.Context, arg ListWorkbenchBo
 			&i.Status,
 			&i.VersionRevision,
 			&i.ObjectUpdatedAt,
+			&i.IsSubmittedByActor,
 		); err != nil {
 			return nil, err
 		}

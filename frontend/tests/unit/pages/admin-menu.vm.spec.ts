@@ -11,6 +11,19 @@ import { createMenuViewModel } from '@/pages/admin/menu/vm'
 function sampleMenu(): MenuData {
   const items = [
     {
+      id: 'workbench',
+      parentId: null,
+      type: 'ROUTE' as const,
+      level: 1,
+      order: 10,
+      displayName: '工作台',
+      icon: 'mdi-view-dashboard-outline',
+      enabled: true,
+      routeKey: 'home/dashboard',
+      routePath: '/home/dashboard',
+      permissionCode: '/app/workbench/query',
+    },
+    {
       id: 'system',
       parentId: null,
       type: 'GROUP' as const,
@@ -46,6 +59,12 @@ function sampleMenu(): MenuData {
     businessTemplate: tree,
     navigation: tree,
     availableRoutes: [
+      {
+        routeKey: 'home/dashboard',
+        routePath: '/home/dashboard',
+        displayName: '工作台',
+        permissionCode: '/app/workbench/query',
+      },
       {
         routeKey: 'admin/menu',
         routePath: '/admin/menu',
@@ -93,6 +112,27 @@ function setup() {
 }
 
 describe('menu management view model', () => {
+  it('不暴露工作台作为可添加路由', async () => {
+    const { vm } = setup()
+    await vm.load()
+
+    expect(
+      vm.availableRoutes.some((item) => item.routeKey === 'home/dashboard'),
+    ).toBe(false)
+  })
+
+  it('禁止通过新增路由直接添加工作台', async () => {
+    const { vm } = setup()
+    await vm.load()
+
+    vm.newRouteByGroup.system = 'home/dashboard'
+    vm.addRoute('system')
+
+    expect(
+      vm.children('system').some((item) => item.routeKey === 'home/dashboard'),
+    ).toBe(false)
+  })
+
   it('加载模板并允许重复路由、跨组移动和整树保存', async () => {
     const { vm, save, apply } = setup()
     await vm.load()
@@ -164,5 +204,17 @@ describe('menu management view model', () => {
 
     expect(save).not.toHaveBeenCalled()
     expect(vm.errorMessage).toBe('必须保留已启用的菜单管理入口。')
+  })
+
+  it('阻止其他菜单使用工作台名称', async () => {
+    const { vm, save } = setup()
+    await vm.load()
+    const menu = vm.editableItems.find((item) => item.routeKey === 'admin/menu')
+    menu!.displayName = ' 工作台 '
+
+    await vm.saveTemplate()
+
+    expect(save).not.toHaveBeenCalled()
+    expect(vm.errorMessage).toBe('工作台名称只能用于唯一的一级入口。')
   })
 })

@@ -334,6 +334,9 @@ async function ensureAccountingControlBook(
       operateUserIds,
     })
   } else {
+    book = await api.post<AccountingBookView>('acc/book/get', {
+      bookId: book.bookId,
+    })
     const nextQueryUserIds = [
       ...new Set([...book.queryUserIds, ...queryUserIds]),
     ]

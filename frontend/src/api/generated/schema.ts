@@ -2782,12 +2782,13 @@ export interface components {
             entities?: string[];
             pendingStages?: components["schemas"]["WorkbenchPendingStage"][];
             page: number;
-            pageSize: number;
+            /** @enum {integer} */
+            pageSize: 20;
         };
         /** @enum {string} */
         BobEntity: "customer" | "supplier" | "other-party" | "employee" | "product" | "service" | "warehouse" | "vehicle" | "fund-account" | "settlement-method";
         /** @enum {string} */
-        WorkbenchAction: "view" | "edit" | "submit" | "approve" | "reject" | "check";
+        WorkbenchAction: "view" | "edit" | "submit" | "unsubmit" | "approve" | "reject" | "check" | "uncheck";
         WorkbenchObjectItem: {
             /** @enum {string} */
             category: "BOB";

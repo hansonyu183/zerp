@@ -55,6 +55,9 @@ if [ "${1:-}" = login ] && [ "${2:-}" = status ]; then
   echo 'Logged in using ChatGPT' >&2
   exit 0
 fi
+test "${1:-}" = --ask-for-approval
+test "${2:-}" = never
+shift 2
 test "${1:-}" = exec
 printf '%s\n' "$*" >"${MOCK_CODEX_ARGS}"
 worktree=

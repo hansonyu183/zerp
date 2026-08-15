@@ -7,8 +7,18 @@ trap 'rm -rf "${root}"' EXIT HUP INT TERM
 mkdir -p "${root}/bin" "${root}/attachments"
 printf seed >"${root}/attachments/seed.txt"
 
-accept_head=$(git -C "${repo_root}" rev-parse HEAD)
-main_sha=$(git -C "${repo_root}" rev-parse origin/main)
+test_repo=${root}/repository
+git init -q -b main "${test_repo}"
+git -C "${test_repo}" config user.name preview-state-test
+git -C "${test_repo}" config user.email preview-state-test@example.invalid
+git -C "${test_repo}" commit -q --allow-empty -m main
+main_sha=$(git -C "${test_repo}" rev-parse HEAD)
+git -C "${test_repo}" commit -q --allow-empty -m candidate
+accept_head=$(git -C "${test_repo}" rev-parse HEAD)
+git -C "${test_repo}" switch -q --orphan unrelated
+git -C "${test_repo}" commit -q --allow-empty -m unrelated
+unrelated_main_sha=$(git -C "${test_repo}" rev-parse HEAD)
+git -C "${test_repo}" switch -q main
 merge_sha=1111111111111111111111111111111111111111
 tree_sha=2222222222222222222222222222222222222222
 
@@ -124,6 +134,14 @@ export ZERP_GITHUB_REPOSITORY=example/zerp
 export ZERP_GH_BIN=gh
 export ZERP_RELEASE_VERIFIER_ACTOR='release-verifier[bot]'
 state=${repo_root}/scripts/preview-state.sh
+cd "${test_repo}"
+
+if ZERP_PREVIEW_MAIN_SHA="${unrelated_main_sha}" \
+  PREVIEW_ACTOR='release-verifier[bot]' \
+  "${repo_root}/scripts/verify-preview-pr.sh" 1 "${accept_head}" >/dev/null 2>&1; then
+  echo 'Preview verifier accepted a head that does not include main' >&2
+  exit 1
+fi
 
 if MOCK_DRAFT_ONLY=1 PREVIEW_ACTOR='release-verifier[bot]' \
   "${repo_root}/scripts/verify-preview-pr.sh" 1 "${accept_head}" >/dev/null 2>&1; then

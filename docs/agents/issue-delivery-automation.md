@@ -7,7 +7,7 @@
 1. `$to-tickets` 在主工作区生成 `.scratch/<feature>/issues/*.md`。整个目录是一项不可拆分的发布批次。
 2. launchd 通过 `WatchPaths` 发现 `ready-for-agent` 批次，控制器领取整批并创建 `automation/local-<feature>` 独立 worktree。
 3. 控制器为整批而非逐 ticket 启动临时 `codex exec`，明确要求使用 `$implement` 处理整个目录。`$implement` 在无网络 workspace sandbox 内负责 TDD、聚焦测试、双轴 `/code-review`、修复和提交，返回 `validation=not_run`、`review=passed` 和 commit SHA；它不运行最终门禁。只有失败修复轮次才会再次调用。
-4. 控制器确认模型返回的 commit 与 clean candidate head 完全一致后，才在宿主环境精确运行一次 `scripts/change-gate.sh <base-sha>`。该 gate 可访问宿主 Docker 用于 integration/E2E，但该权限绝不授予 Codex sandbox；成功后写入候选 head、base 和运行时指纹。gate 失败会保存日志，并且只有后续模型修复产生新提交才可再次运行。
+4. 控制器确认模型返回的 commit 与 clean candidate head 完全一致后，才在宿主环境精确运行一次 `scripts/change-gate.sh <base-sha>`。该 gate 可访问宿主 Docker 用于 integration/E2E，但该权限绝不授予 Codex sandbox；成功后写入候选 head、base 和运行时指纹。gate 失败会保存日志和 exact-head attempt marker，并且只有后续模型修复产生新提交才可再次运行。
 5. 控制器使用受信任主工作区的预览脚本，将候选 worktree 构建到固定公网预览 `https://zerp-preview.bytesucceed.com`，并核对 exact SHA、浏览器 smoke 和运行时指纹。用户查看预览是可选的，不阻塞自动流程。
 6. 到此之前不得调用 GitHub。预览通过后才 fetch 最新 `origin/main`；若 rebase 仅改变 SHA 且运行时指纹不变，复用门禁和预览。指纹改变或发生冲突时，再交给 `$implement` 修复并重新验证，最多三轮。
 7. 控制器按本地编号创建远端 Issues、建立原生依赖、推送一个分支，并创建一个引用全部 Issues 的 Ready PR。PR 正文携带 exact head、预览 URL 和运行时指纹。
@@ -21,7 +21,7 @@
 - `needs_input` 立即将整批标为 `needs-input`，不部署预览、不访问 GitHub。
 - 进程崩溃后以批次运行目录中的 base、attempt、预览证据、远端 Issue 映射和 PR 编号恢复。远端对象带稳定 marker；重启必须复用，不得重复创建。
 - 生产失败会把批次标为 `production-blocked`、写入本地停止开关并在 PR 通知。控制器不得自动执行数据库回滚、清库、恢复或继续下一批。
-- 人工处理本地失败后可运行 `scripts/issue-local.sh retry <feature>`；已经发布 PR 的批次不得本地重置。生产故障处理完成后由维护者运行 `scripts/issue-local.sh start`。
+- 人工处理本地失败后可运行 `scripts/issue-local.sh retry <feature>`；若候选 clean、提交与 `implementation.json` 一致且已有 `review=passed`，控制器保留该提交并先恢复其宿主 gate。显式 retry 会清除同一 SHA 的 gate attempt marker，适用于已修复 Docker 等宿主基础设施；dirty、未审查或 SHA 不匹配的候选仍按完整实现轮次重跑。已经发布 PR 的批次不得本地重置。生产故障处理完成后由维护者运行 `scripts/issue-local.sh start`。
 
 ## 安装与操作
 
@@ -37,4 +37,4 @@ scripts/issue-local.sh retry <feature>
 
 安装器只复制控制脚本和 JSON schema，不复制 Codex `auth.json`、GitHub token 或私钥。实现阶段使用 `workspace-write`、`never` approval、`gpt-5.6-sol` high reasoning 和 `ignore-user-config`，并禁用命令网络、Web 和 App 工具；因此不能访问 GitHub、推送、部署或用户凭证。为使独立 linked worktree 能提交，控制器只额外授予该 worktree 的 Git 目录及共享 Git 元数据目录写权限，不授予主工作区文件写权限；启动 Codex 前会以临时索引和临时 ref 验证这两处可写并立即清理。
 
-实现前控制器必须离线复用主工作区已安装的 pnpm 依赖：只有候选与主工作区的 `pnpm-lock.yaml` 完全一致，且主工作区根目录和 `frontend/` 的依赖目录完整，才会继续。候选根 `node_modules` 是指向主工作区根依赖的受控符号链接；候选 `frontend/node_modules` 通过 `rsync` 复制，排除 `.pnpm`、`.tmp`、`.vite`、`.vite-temp` 和 `.pnpm-store` 后单独创建本地 `.tmp`，从而让 Vite 和 TypeScript 缓存只写入候选。控制器会确认仓库现有 `.gitignore` 忽略这些依赖，不修改共享 Git 元数据。主工作区依赖只通过该符号链接只读复用，Codex 不会获得额外的 `--add-dir` 依赖目录授权；`COREPACK_ROOT=1` 阻止 pnpm 在无网络沙箱中自行切换版本。控制器会删除候选的 `.pnpm-store`。前置条件不满足时，批次会在启动模型前标为 `blocked`。预览和发布动作由控制器分别使用本机现有环境与 `gh` 登录态完成。现有生产代理继续只处理通过 `full-validation` 合入 `main` 的提交。
+实现前控制器必须离线复用主工作区已安装的 pnpm 依赖：只有候选与主工作区的 `pnpm-lock.yaml` 完全一致，且主工作区根目录和 `frontend/` 的依赖目录完整，才会继续。候选根 `node_modules` 是指向主工作区根依赖的受控符号链接；候选 `frontend/node_modules` 通过 `rsync` 复制，排除 `.pnpm`、`.tmp`、`.vite`、`.vite-temp` 和 `.pnpm-store` 后单独创建本地 `.tmp`，从而让 Vite 和 TypeScript 缓存只写入候选。控制器还会读取 `packageManager` 中锁定的精确 pnpm 版本，只从本机 pnpm store 找到同版本的唯一缓存入口，并在候选 `.scratch` 中生成受控包装器供 Codex 和宿主 gate 共用；缓存缺失或版本不唯一时在启动模型前阻塞。控制器会确认仓库现有 `.gitignore` 忽略这些依赖，不修改共享 Git 元数据。主工作区依赖只通过该符号链接只读复用，Codex 不会获得额外的 `--add-dir` 依赖目录授权；`COREPACK_ROOT=1` 阻止 pnpm 在无网络沙箱中自行切换版本。控制器会删除候选的 `.pnpm-store`。前置条件不满足时，批次会在启动模型前标为 `blocked`。预览和发布动作由控制器分别使用本机现有环境与 `gh` 登录态完成。现有生产代理继续只处理通过 `full-validation` 合入 `main` 的提交。

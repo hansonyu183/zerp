@@ -236,6 +236,50 @@ cleanup_candidate_dependency_stores() {
   rm -rf "${worktree}/.pnpm-store" "${worktree}/frontend/node_modules/.pnpm-store"
 }
 
+prepare_cached_pnpm() {
+  worktree=$1
+  package_json="${worktree}/package.json"
+  pnpm_store=${ZERP_PNPM_STORE_PATH:-${HOME}/Library/pnpm/store}
+  [ -r "${package_json}" ] || {
+    echo 'offline dependency preparation blocked: candidate package.json is missing' >&2
+    return 1
+  }
+  package_manager=$(jq -r '.packageManager // empty' "${package_json}")
+  case "${package_manager}" in
+    pnpm@[0-9]*.[0-9]*.[0-9]*) pnpm_version=${package_manager#pnpm@} ;;
+    *) echo 'offline dependency preparation blocked: candidate packageManager must pin an exact pnpm version' >&2; return 1 ;;
+  esac
+  printf '%s\n' "${pnpm_version}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || {
+    echo 'offline dependency preparation blocked: candidate packageManager must pin an exact pnpm version' >&2
+    return 1
+  }
+  [ -d "${pnpm_store}" ] || {
+    echo "offline dependency preparation blocked: local pnpm store is unavailable for pnpm@${pnpm_version}" >&2
+    return 1
+  }
+  cached_entries=$(find "${pnpm_store}" -type f \
+    -path "*/@/pnpm/${pnpm_version}/*/node_modules/pnpm/bin/pnpm.cjs" -print 2>/dev/null | LC_ALL=C sort)
+  cached_count=$(printf '%s\n' "${cached_entries}" | sed '/^$/d' | wc -l | tr -d ' ')
+  [ "${cached_count}" = 1 ] || {
+    echo "offline dependency preparation blocked: expected one cached pnpm@${pnpm_version}, found ${cached_count}" >&2
+    return 1
+  }
+  cached_entry=$(printf '%s\n' "${cached_entries}" | sed -n '1p')
+  cached_package="$(dirname "$(dirname "${cached_entry}")")/package.json"
+  [ "$(jq -r '.version // empty' "${cached_package}" 2>/dev/null || true)" = "${pnpm_version}" ] || {
+    echo "offline dependency preparation blocked: cached pnpm entry does not match pnpm@${pnpm_version}" >&2
+    return 1
+  }
+  wrapper_dir="${worktree}/.scratch/.issue-local-bin"
+  mkdir -p "${wrapper_dir}"
+  {
+    echo '#!/bin/sh'
+    printf 'exec node "%s" "$@"\n' "${cached_entry}"
+  } >"${wrapper_dir}/pnpm.new"
+  chmod 700 "${wrapper_dir}/pnpm.new"
+  mv "${wrapper_dir}/pnpm.new" "${wrapper_dir}/pnpm"
+}
+
 verify_candidate_dependencies_ignored() {
   worktree=$1
   git -C "${worktree}" check-ignore -q -- node_modules || {
@@ -276,6 +320,7 @@ prepare_offline_dependencies() {
       echo 'offline dependency preparation blocked: rsync is required' >&2
       return 1
   fi
+  prepare_cached_pnpm "${worktree}" || return 1
   if [ -e "${candidate_modules}" ] || [ -L "${candidate_modules}" ]; then
     [ -L "${candidate_modules}" ] &&
       [ "$(readlink "${candidate_modules}")" = "${primary_modules}" ] || {
@@ -349,12 +394,19 @@ run_final_gate() {
   evidence_file="${batch_root}/gate-evidence.json"
   gate_log="${batch_root}/gate.log"
   failure_file="${batch_root}/failure.md"
+  marker_file="${batch_root}/gate-attempted-head"
   command_path=${gate_command:-${worktree}/scripts/change-gate.sh}
+  pnpm_wrapper_dir="${worktree}/.scratch/.issue-local-bin"
+  [ -x "${pnpm_wrapper_dir}/pnpm" ] || {
+    echo 'host final gate cannot find the prepared exact pnpm wrapper' >&2
+    return 4
+  }
 
   rm -f "${evidence_file}"
+  write_value "${marker_file}" "${head_sha}"
   if ! (
     cd "${worktree}"
-    COREPACK_ROOT=1 ZERP_GATE_EVIDENCE_FILE="${evidence_file}" \
+    PATH="${pnpm_wrapper_dir}:${PATH}" COREPACK_ROOT=1 ZERP_GATE_EVIDENCE_FILE="${evidence_file}" \
       "${command_path}" "${base_sha}"
   ) >"${gate_log}" 2>&1; then
     {
@@ -375,6 +427,25 @@ run_final_gate() {
   }
 }
 
+reviewed_candidate_head() {
+  batch_root=$1
+  worktree=$2
+  base_sha=$3
+  result_file="${batch_root}/implementation.json"
+  marker_file="${batch_root}/gate-attempted-head"
+  [ -r "${result_file}" ] || return 1
+  [ -z "$(git -C "${worktree}" status --porcelain)" ] || return 1
+  head_sha=$(git -C "${worktree}" rev-parse HEAD)
+  [ "${head_sha}" != "${base_sha}" ] || return 1
+  marker_head=$(cat "${marker_file}" 2>/dev/null || true)
+  [ "${marker_head}" != "${head_sha}" ] || return 1
+  jq -e --arg head "${head_sha}" '
+    (.status == "completed" or .status == "blocked") and
+    .commitSha == $head and .review == "passed"
+  ' "${result_file}" >/dev/null || return 1
+  printf '%s\n' "${head_sha}"
+}
+
 run_implement() {
   feature=$1
   batch_root=$2
@@ -383,6 +454,8 @@ run_implement() {
   git_metadata=$(verify_worktree_git_metadata "${worktree}") || return 1
   worktree_git_dir=$(printf '%s' "${git_metadata}" | cut -f1)
   common_git_dir=$(printf '%s' "${git_metadata}" | cut -f2)
+  pnpm_wrapper_dir="${worktree}/.scratch/.issue-local-bin"
+  [ -x "${pnpm_wrapper_dir}/pnpm" ] || { echo 'implementation cannot find the prepared exact pnpm wrapper' >&2; return 1; }
   previous_head=$(git -C "${worktree}" rev-parse HEAD)
   result_file="${batch_root}/implementation.json"
   evidence_file="${batch_root}/gate-evidence.json"
@@ -406,7 +479,7 @@ run_implement() {
       printf '\nRepair evidence from the previous attempt:\n'
       sed -n '1,240p' "${failure_file}"
     fi
-  } | COREPACK_ROOT=1 ZERP_ISSUE_BASE_SHA="${base_sha}" ZERP_GATE_EVIDENCE_FILE="${evidence_file}" \
+  } | PATH="${pnpm_wrapper_dir}:${PATH}" COREPACK_ROOT=1 ZERP_ISSUE_BASE_SHA="${base_sha}" ZERP_GATE_EVIDENCE_FILE="${evidence_file}" \
     "${codex_bin}" --ask-for-approval never exec --ephemeral --ignore-user-config \
       --model gpt-5.6-sol -c model_reasoning_effort=high \
       --sandbox workspace-write \
@@ -588,6 +661,13 @@ implement_and_preview() {
   worktree=$3
   base_sha=$4
   issues_dir=$5
+  if resumed_head=$(reviewed_candidate_head "${batch_root}" "${worktree}" "${base_sha}"); then
+    if run_final_gate "${batch_root}" "${worktree}" "${base_sha}" "${resumed_head}" &&
+      deploy_preview "${feature}" "${batch_root}" "${worktree}"; then
+      rm -f "${batch_root}/failure.md"
+      return 0
+    fi
+  fi
   while [ "$(cat "${batch_root}/attempt" 2>/dev/null || printf 0)" -lt 3 ]; do
     if run_implement "${feature}" "${batch_root}" "${worktree}" "${base_sha}"; then
       if deploy_preview "${feature}" "${batch_root}" "${worktree}"; then
@@ -842,14 +922,29 @@ retry_command() {
     echo "published batch ${feature} cannot be reset locally" >&2
     exit 1
   }
+  batch_root="${runtime_root}/batches/${feature}"
+  worktree="${runtime_root}/worktrees/${feature}"
+  base_sha=$(cat "${batch_root}/base-sha" 2>/dev/null || true)
   mark_batch "${issues_dir}" ready-for-agent
   release_preview "${feature}"
-  rm -f "${runtime_root}/batches/${feature}/failure.md" \
-    "${runtime_root}/batches/${feature}/preview.env" \
-    "${runtime_root}/batches/${feature}/attempt" \
-    "${runtime_root}/batches/${feature}/implementation.json" \
-    "${runtime_root}/batches/${feature}/gate-evidence.json" \
-    "${runtime_root}/batches/${feature}/state"
+  rm -f "${batch_root}/failure.md" "${batch_root}/preview.env" \
+    "${batch_root}/attempt" "${batch_root}/gate-evidence.json" \
+    "${batch_root}/state"
+  if [ -n "${base_sha}" ] && reviewed_candidate_head "${batch_root}" "${worktree}" "${base_sha}" >/dev/null; then
+    return 0
+  fi
+  if [ -r "${batch_root}/implementation.json" ] && [ -d "${worktree}" ] && [ -n "${base_sha}" ]; then
+    head_sha=$(git -C "${worktree}" rev-parse HEAD)
+    if [ -z "$(git -C "${worktree}" status --porcelain)" ] && [ "${head_sha}" != "${base_sha}" ] &&
+      jq -e --arg head "${head_sha}" '
+      (.status == "completed" or .status == "blocked") and
+      .commitSha == $head and .review == "passed"
+    ' "${batch_root}/implementation.json" >/dev/null 2>&1; then
+      rm -f "${batch_root}/gate-attempted-head"
+      return 0
+    fi
+  fi
+  rm -f "${batch_root}/implementation.json" "${batch_root}/gate-attempted-head"
 }
 
 mkdir -p "${runtime_root}"

@@ -23,12 +23,13 @@ mkdir -p "${primary}/backend/var" "${primary}/node_modules/.pnpm" \
 printf '.scratch/\nbackend/var/\nnode_modules\n' >"${primary}/.gitignore"
 printf 'seed\n' >"${primary}/README.md"
 printf 'lockfileVersion: "9.0"\n' >"${primary}/pnpm-lock.yaml"
+printf '{"packageManager":"pnpm@10.34.5"}\n' >"${primary}/package.json"
 printf 'layoutVersion: 1\n' >"${primary}/node_modules/.modules.yaml"
 printf '#!/bin/sh\nexit 0\n' >"${primary}/frontend/node_modules/.bin/vite"
 chmod +x "${primary}/frontend/node_modules/.bin/vite"
 : >"${primary}/frontend/node_modules/vite"
 printf 'primary cache\n' >"${primary}/frontend/node_modules/.tmp/primary-cache"
-git -C "${primary}" add .gitignore README.md pnpm-lock.yaml
+git -C "${primary}" add .gitignore README.md package.json pnpm-lock.yaml
 git -C "${primary}" commit -m seed >/dev/null
 git -C "${primary}" remote add origin "${remote}"
 git -C "${primary}" push -u origin main >/dev/null
@@ -73,6 +74,8 @@ shift 2
 test "${1:-}" = exec
 printf '%s\n' "${all_args}" >"${MOCK_CODEX_ARGS}"
 printf '%s\n' "${COREPACK_ROOT:-}" >"${MOCK_COREPACK_ROOT}"
+command -v pnpm >"${MOCK_CODEX_PNPM_PATH}"
+pnpm --version >"${MOCK_CODEX_PNPM_VERSION}"
 worktree=
 output=
 shift
@@ -113,6 +116,8 @@ cat >"${tmp}/bin/gate" <<'EOF'
 set -eu
 printf 'gate\n' >>"${MOCK_EVENTS}"
 printf '%s\n' "${COREPACK_ROOT:-}" >"${MOCK_GATE_COREPACK_ROOT}"
+command -v pnpm >"${MOCK_GATE_PNPM_PATH}"
+pnpm --version >"${MOCK_GATE_PNPM_VERSION}"
 count=$(cat "${MOCK_GATE_COUNT}" 2>/dev/null || printf 0)
 count=$((count + 1))
 printf '%s\n' "${count}" >"${MOCK_GATE_COUNT}"
@@ -207,6 +212,13 @@ EOF
 chmod +x "${tmp}/bin/gh"
 
 mkdir -p "${tmp}/capture"
+pnpm_store="${tmp}/pnpm-store"
+cached_pnpm="${pnpm_store}/v11/links/@/pnpm/10.34.5/test/node_modules/pnpm"
+mkdir -p "${cached_pnpm}/bin"
+printf '{"name":"pnpm","version":"10.34.5"}\n' >"${cached_pnpm}/package.json"
+cat >"${cached_pnpm}/bin/pnpm.cjs" <<'EOF'
+process.stdout.write('10.34.5\n')
+EOF
 export MOCK_EVENTS="${events}"
 export MOCK_PROMPT="${tmp}/prompt"
 export MOCK_CAPTURE="${tmp}/capture"
@@ -219,6 +231,11 @@ export MOCK_CODEX_ARGS="${tmp}/codex-args"
 export MOCK_COREPACK_ROOT="${tmp}/corepack-root"
 export MOCK_GATE_COUNT="${tmp}/gate-count"
 export MOCK_GATE_COREPACK_ROOT="${tmp}/gate-corepack-root"
+export MOCK_CODEX_PNPM_PATH="${tmp}/codex-pnpm-path"
+export MOCK_CODEX_PNPM_VERSION="${tmp}/codex-pnpm-version"
+export MOCK_GATE_PNPM_PATH="${tmp}/gate-pnpm-path"
+export MOCK_GATE_PNPM_VERSION="${tmp}/gate-pnpm-version"
+export ZERP_PNPM_STORE_PATH="${pnpm_store}"
 : >"${events}"
 
 PATH="${tmp}/bin:${PATH}" \
@@ -237,6 +254,7 @@ test "$(cat "${tmp}/issue-count")" = 2
 test "$(grep -c '^codex$' "${events}")" = 1
 test "$(grep -c '^gate$' "${events}")" = 1
 test "$(cat "${MOCK_GATE_COREPACK_ROOT}")" = 1
+test "$(cat "${MOCK_GATE_PNPM_VERSION}")" = 10.34.5
 test "$(grep -c '^preview$' "${events}")" = 1
 grep -Fq -- '--ignore-user-config' "${MOCK_CODEX_ARGS}"
 grep -Fq -- '--ask-for-approval never' "${MOCK_CODEX_ARGS}"
@@ -244,6 +262,7 @@ grep -Fq -- '--model gpt-5.6-sol' "${MOCK_CODEX_ARGS}"
 grep -Fq -- 'model_reasoning_effort=high' "${MOCK_CODEX_ARGS}"
 grep -Fq -- 'sandbox_workspace_write.network_access=false' "${MOCK_CODEX_ARGS}"
 test "$(cat "${MOCK_COREPACK_ROOT}")" = 1
+test "$(cat "${MOCK_CODEX_PNPM_VERSION}")" = 10.34.5
 worktree_git_dir=$(git -C "${runtime}/worktrees/inventory-query" rev-parse --path-format=absolute --git-dir)
 common_git_dir=$(git -C "${runtime}/worktrees/inventory-query" rev-parse --path-format=absolute --git-common-dir)
 grep -Fq -- "--add-dir ${worktree_git_dir}" "${MOCK_CODEX_ARGS}"
@@ -262,6 +281,8 @@ if grep -Fq -- '--dangerously-bypass-approvals-and-sandbox' "${MOCK_CODEX_ARGS}"
   exit 1
 fi
 test -L "${runtime}/worktrees/inventory-query/node_modules"
+test "$(cat "${MOCK_CODEX_PNPM_PATH}")" = "${runtime}/worktrees/inventory-query/.scratch/.issue-local-bin/pnpm"
+test "$(cat "${MOCK_GATE_PNPM_PATH}")" = "${runtime}/worktrees/inventory-query/.scratch/.issue-local-bin/pnpm"
 test "$(readlink "${runtime}/worktrees/inventory-query/node_modules")" = "${primary}/node_modules"
 test -d "${runtime}/worktrees/inventory-query/frontend/node_modules/.tmp"
 test ! -e "${runtime}/worktrees/inventory-query/frontend/node_modules/.tmp/primary-cache"
@@ -345,6 +366,40 @@ ZERP_ISSUE_GATE_COMMAND="${tmp}/bin/gate" \
     "${repo_root}/scripts/issue-local.sh" run
 }
 
+retry_agent() {
+  PATH="${tmp}/bin:${PATH}" \
+  ZERP_PRIMARY_ROOT="${primary}" \
+  ZERP_ISSUE_TRACKER_ROOT="${primary}/.scratch" \
+  ZERP_ISSUE_LOCAL_RUNTIME_ROOT="${runtime}" \
+  "${repo_root}/scripts/issue-local.sh" retry "$1"
+}
+
+prepare_reviewed_candidate() {
+  slug=$1
+  marker=${2:-}
+  make_ticket "${slug}" "${slug}"
+  batch_root="${runtime}/batches/${slug}"
+  candidate="${runtime}/worktrees/${slug}"
+  branch="automation/local-${slug}"
+  mkdir -p "${batch_root}" "$(dirname "${candidate}")"
+  git -C "${primary}" worktree add -b "${branch}" "${candidate}" main >/dev/null
+  printf 'reviewed\n' >"${candidate}/reviewed.txt"
+  git -C "${candidate}" add reviewed.txt
+  git -C "${candidate}" -c user.name='Local Implement' -c user.email=local@example.com \
+    commit -m 'feat: reviewed candidate' >/dev/null
+  base_sha=$(git -C "${primary}" rev-parse main)
+  head_sha=$(git -C "${candidate}" rev-parse HEAD)
+  write_value_file="${batch_root}/base-sha"
+  printf '%s\n' "${base_sha}" >"${write_value_file}"
+  jq -n --arg head "${head_sha}" \
+    '{status:"blocked",summary:"reviewed before host gate",commitSha:$head,validation:"not_run",review:"passed"}' \
+    >"${batch_root}/implementation.json"
+  if [ -n "${marker}" ]; then printf '%s\n' "${head_sha}" >"${batch_root}/gate-attempted-head"; fi
+  ticket="${primary}/.scratch/${slug}/issues/01-ticket.md"
+  sed 's/^\*\*Status:\*\*.*/**Status:** blocked/' "${ticket}" >"${ticket}.new"
+  mv "${ticket}.new" "${ticket}"
+}
+
 make_ticket dependency-lock-mismatch 'Dependency lock mismatch'
 mismatch_worktree="${runtime}/worktrees/dependency-lock-mismatch"
 mkdir -p "$(dirname "${mismatch_worktree}")"
@@ -375,6 +430,79 @@ test ! -e "${MOCK_CODEX_COUNT}"
 test ! -e "${MOCK_COREPACK_ROOT}"
 test ! -s "${events}"
 grep -Fq '**Status:** blocked' "${primary}/.scratch/dependency-missing/issues/01-ticket.md"
+
+make_ticket pnpm-cache-missing 'Exact pnpm cache missing'
+mkdir -p "${tmp}/empty-pnpm-store"
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_COREPACK_ROOT}"
+if ZERP_PNPM_STORE_PATH="${tmp}/empty-pnpm-store" run_agent; then
+  echo 'missing exact pnpm cache was accepted' >&2
+  exit 1
+fi
+ZERP_PNPM_STORE_PATH="${pnpm_store}"
+test ! -e "${MOCK_CODEX_COUNT}"
+test ! -e "${MOCK_COREPACK_ROOT}"
+test ! -s "${events}"
+grep -Fq '**Status:** blocked' "${primary}/.scratch/pnpm-cache-missing/issues/01-ticket.md"
+
+prepare_reviewed_candidate resume-reviewed
+retry_agent resume-reviewed
+test -r "${runtime}/batches/resume-reviewed/implementation.json"
+test ! -e "${runtime}/batches/resume-reviewed/gate-attempted-head"
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
+run_agent
+test ! -e "${MOCK_CODEX_COUNT}"
+test "$(cat "${MOCK_GATE_COUNT}")" = 1
+test "$(cat "${MOCK_PREVIEW_COUNT}")" = 1
+grep -Fq '**Status:** done' "${primary}/.scratch/resume-reviewed/issues/01-ticket.md"
+
+prepare_reviewed_candidate resume-marker marker
+retry_agent resume-marker
+test -r "${runtime}/batches/resume-marker/implementation.json"
+test ! -e "${runtime}/batches/resume-marker/gate-attempted-head"
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
+run_agent
+test ! -e "${MOCK_CODEX_COUNT}"
+test "$(cat "${MOCK_GATE_COUNT}")" = 1
+test "$(cat "${MOCK_PREVIEW_COUNT}")" = 1
+
+prepare_reviewed_candidate resume-dirty
+printf 'dirty\n' >"${runtime}/worktrees/resume-dirty/dirty.txt"
+retry_agent resume-dirty
+test ! -e "${runtime}/batches/resume-dirty/implementation.json"
+ticket="${primary}/.scratch/resume-dirty/issues/01-ticket.md"
+sed 's/^\*\*Status:\*\*.*/**Status:** blocked/' "${ticket}" >"${ticket}.new"
+mv "${ticket}.new" "${ticket}"
+
+prepare_reviewed_candidate resume-mismatch
+jq '.commitSha = "0000000000000000000000000000000000000000"' \
+  "${runtime}/batches/resume-mismatch/implementation.json" \
+  >"${runtime}/batches/resume-mismatch/implementation.json.new"
+mv "${runtime}/batches/resume-mismatch/implementation.json.new" \
+  "${runtime}/batches/resume-mismatch/implementation.json"
+retry_agent resume-mismatch
+test ! -e "${runtime}/batches/resume-mismatch/implementation.json"
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
+run_agent
+test "$(cat "${MOCK_CODEX_COUNT}")" = 1
+test "$(cat "${MOCK_GATE_COUNT}")" = 1
+
+prepare_reviewed_candidate marker-without-retry marker
+old_marker=$(cat "${runtime}/batches/marker-without-retry/gate-attempted-head")
+ticket="${primary}/.scratch/marker-without-retry/issues/01-ticket.md"
+sed 's/^\*\*Status:\*\*.*/**Status:** ready-for-agent/' "${ticket}" >"${ticket}.new"
+mv "${ticket}.new" "${ticket}"
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
+run_agent
+test "$(cat "${MOCK_CODEX_COUNT}")" = 1
+test "$(cat "${MOCK_GATE_COUNT}")" = 1
+test "$(grep -n '^model-commit$' "${events}" | cut -d: -f1)" -lt \
+  "$(grep -n '^gate$' "${events}" | cut -d: -f1)"
+test "$(cat "${runtime}/batches/marker-without-retry/gate-attempted-head")" != "${old_marker}"
 
 make_ticket gate-repair 'Gate repair'
 : >"${events}"

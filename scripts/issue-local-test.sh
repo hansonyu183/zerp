@@ -3,7 +3,13 @@ set -eu
 
 repo_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/zerp-issue-local-test.XXXXXX")
-cleanup() { rm -rf "${tmp}"; }
+cleanup() {
+  if [ "${KEEP_ISSUE_LOCAL_TEST_TMP:-0}" = 1 ]; then
+    echo "kept test workspace: ${tmp}" >&2
+  else
+    rm -rf "${tmp}"
+  fi
+}
 trap cleanup EXIT HUP INT TERM
 
 primary="${tmp}/repo"
@@ -22,14 +28,16 @@ mkdir -p "${primary}/backend/var" "${primary}/node_modules/.pnpm" \
   "${primary}/frontend/node_modules/.pnpm-store"
 printf '.scratch/\nbackend/var/\nnode_modules\n' >"${primary}/.gitignore"
 printf 'seed\n' >"${primary}/README.md"
+printf 'backend seed\n' >"${primary}/backend/README.md"
 printf 'lockfileVersion: "9.0"\n' >"${primary}/pnpm-lock.yaml"
 printf '{"packageManager":"pnpm@10.34.5"}\n' >"${primary}/package.json"
+printf 'TEST_POSTGRES_DB=issue_local_test\n' >"${primary}/backend/.env.local"
 printf 'layoutVersion: 1\n' >"${primary}/node_modules/.modules.yaml"
 printf '#!/bin/sh\nexit 0\n' >"${primary}/frontend/node_modules/.bin/vite"
 chmod +x "${primary}/frontend/node_modules/.bin/vite"
 : >"${primary}/frontend/node_modules/vite"
 printf 'primary cache\n' >"${primary}/frontend/node_modules/.tmp/primary-cache"
-git -C "${primary}" add .gitignore README.md package.json pnpm-lock.yaml
+git -C "${primary}" add .gitignore README.md backend/README.md package.json pnpm-lock.yaml
 git -C "${primary}" commit -m seed >/dev/null
 git -C "${primary}" remote add origin "${remote}"
 git -C "${primary}" push -u origin main >/dev/null
@@ -87,6 +95,10 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 prompt=$(cat)
+if [ -e "${worktree}/backend/.env.local" ] || [ -L "${worktree}/backend/.env.local" ]; then
+  echo 'Codex received the host backend environment file' >&2
+  exit 3
+fi
 printf 'codex\n' >>"${MOCK_EVENTS}"
 printf '%s\n' "${prompt}" >"${MOCK_PROMPT}"
 printf '%s\n' "${prompt}" | grep -Fq '$implement'
@@ -118,6 +130,8 @@ printf 'gate\n' >>"${MOCK_EVENTS}"
 printf '%s\n' "${COREPACK_ROOT:-}" >"${MOCK_GATE_COREPACK_ROOT}"
 command -v pnpm >"${MOCK_GATE_PNPM_PATH}"
 pnpm --version >"${MOCK_GATE_PNPM_VERSION}"
+test -L backend/.env.local
+readlink backend/.env.local >"${MOCK_GATE_ENV_TARGET}"
 count=$(cat "${MOCK_GATE_COUNT}" 2>/dev/null || printf 0)
 count=$((count + 1))
 printf '%s\n' "${count}" >"${MOCK_GATE_COUNT}"
@@ -235,6 +249,7 @@ export MOCK_CODEX_PNPM_PATH="${tmp}/codex-pnpm-path"
 export MOCK_CODEX_PNPM_VERSION="${tmp}/codex-pnpm-version"
 export MOCK_GATE_PNPM_PATH="${tmp}/gate-pnpm-path"
 export MOCK_GATE_PNPM_VERSION="${tmp}/gate-pnpm-version"
+export MOCK_GATE_ENV_TARGET="${tmp}/gate-env-target"
 export ZERP_PNPM_STORE_PATH="${pnpm_store}"
 : >"${events}"
 
@@ -255,12 +270,15 @@ test "$(grep -c '^codex$' "${events}")" = 1
 test "$(grep -c '^gate$' "${events}")" = 1
 test "$(cat "${MOCK_GATE_COREPACK_ROOT}")" = 1
 test "$(cat "${MOCK_GATE_PNPM_VERSION}")" = 10.34.5
+test "$(cat "${MOCK_GATE_ENV_TARGET}")" = "${primary}/backend/.env.local"
 test "$(grep -c '^preview$' "${events}")" = 1
 grep -Fq -- '--ignore-user-config' "${MOCK_CODEX_ARGS}"
 grep -Fq -- '--ask-for-approval never' "${MOCK_CODEX_ARGS}"
 grep -Fq -- '--model gpt-5.6-sol' "${MOCK_CODEX_ARGS}"
 grep -Fq -- 'model_reasoning_effort=high' "${MOCK_CODEX_ARGS}"
 grep -Fq -- 'sandbox_workspace_write.network_access=false' "${MOCK_CODEX_ARGS}"
+grep -Fq -- 'login shells reset PATH' "${MOCK_PROMPT}"
+grep -Fq -- 'business-error-coverage.spec.ts' "${MOCK_PROMPT}"
 test "$(cat "${MOCK_COREPACK_ROOT}")" = 1
 test "$(cat "${MOCK_CODEX_PNPM_VERSION}")" = 10.34.5
 worktree_git_dir=$(git -C "${runtime}/worktrees/inventory-query" rev-parse --path-format=absolute --git-dir)
@@ -283,6 +301,8 @@ fi
 test -L "${runtime}/worktrees/inventory-query/node_modules"
 test "$(cat "${MOCK_CODEX_PNPM_PATH}")" = "${runtime}/worktrees/inventory-query/.scratch/.issue-local-bin/pnpm"
 test "$(cat "${MOCK_GATE_PNPM_PATH}")" = "${runtime}/worktrees/inventory-query/.scratch/.issue-local-bin/pnpm"
+test ! -e "${runtime}/worktrees/inventory-query/backend/.env.local"
+test ! -L "${runtime}/worktrees/inventory-query/backend/.env.local"
 test "$(readlink "${runtime}/worktrees/inventory-query/node_modules")" = "${primary}/node_modules"
 test -d "${runtime}/worktrees/inventory-query/frontend/node_modules/.tmp"
 test ! -e "${runtime}/worktrees/inventory-query/frontend/node_modules/.tmp/primary-cache"

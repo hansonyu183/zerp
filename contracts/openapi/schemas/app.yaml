@@ -438,7 +438,17 @@
   'WorkbenchAction':
     {
       'type': 'string',
-      'enum': ['view', 'edit', 'submit', 'approve', 'reject', 'check'],
+      'enum':
+        [
+          'view',
+          'edit',
+          'submit',
+          'unsubmit',
+          'approve',
+          'reject',
+          'check',
+          'uncheck',
+        ],
     },
   'WorkbenchQueryRequest':
     {
@@ -469,7 +479,7 @@
               'items': { '$ref': '#/WorkbenchPendingStage' },
             },
           'page': { 'type': 'integer', 'minimum': 1 },
-          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
+          'pageSize': { 'type': 'integer', 'enum': [20] },
         },
     },
   'WorkbenchObjectItem':

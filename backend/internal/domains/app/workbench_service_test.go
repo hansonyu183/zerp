@@ -9,17 +9,19 @@ import (
 func TestWorkbenchPermissionScopeRequiresQueryAndStageAction(t *testing.T) {
 	scope := newWorkbenchPermissionScope([]string{
 		"/bob/customer/query", "/bob/customer/submit",
-		"/bob/supplier/approve",
+		"/bob/supplier/query", "/bob/supplier/unsubmit",
 		"/bob/product/query", "/bob/product/reject",
 		"/vou/sale-order/query", "/vou/sale-order/check",
-		"/vou/purchase-payment/query",
+		"/vou/purchase-payment/query", "/vou/purchase-payment/uncheck",
 	})
 
 	draftBob := scope.entitiesWith("bob", func(entity string) bool {
 		return scope.can("bob", entity, "submit")
 	})
 	pendingBob := scope.entitiesWith("bob", func(entity string) bool {
-		return scope.can("bob", entity, "approve") || scope.can("bob", entity, "reject")
+		return scope.can("bob", entity, "approve") ||
+			scope.can("bob", entity, "reject") ||
+			scope.can("bob", entity, "unsubmit")
 	})
 	draftVou := scope.entitiesWith("vou", func(entity string) bool {
 		return scope.can("vou", entity, "check")
@@ -28,18 +30,27 @@ func TestWorkbenchPermissionScopeRequiresQueryAndStageAction(t *testing.T) {
 	if !reflect.DeepEqual(draftBob, []string{"customer"}) {
 		t.Fatalf("draft BOB entities = %v", draftBob)
 	}
-	if !reflect.DeepEqual(pendingBob, []string{"product"}) {
+	checkedVou := scope.entitiesWith("vou", func(entity string) bool {
+		return scope.can("vou", entity, "approve") ||
+			scope.can("vou", entity, "uncheck")
+	})
+	if !reflect.DeepEqual(pendingBob, []string{"product", "supplier"}) {
 		t.Fatalf("pending BOB entities = %v", pendingBob)
+	}
+	if !reflect.DeepEqual(checkedVou, []string{"purchase-payment"}) {
+		t.Fatalf("checked VOU entities = %v", checkedVou)
 	}
 	if !reflect.DeepEqual(draftVou, []string{"sale-order"}) {
 		t.Fatalf("draft VOU entities = %v", draftVou)
 	}
 }
 
-func TestValidateWorkbenchQueryDefaultsAndRejectsInvalidInput(t *testing.T) {
+func TestValidateWorkbenchQueryNormalizesAndRejectsInvalidInput(t *testing.T) {
 	input, spec, err := validateWorkbenchQuery(WorkbenchQueryInput{
 		Category: " bob ", Keyword: " 客户 ", Entities: []string{" Customer "},
 		PendingStages: []string{" check "},
+		Page:          1,
+		PageSize:      20,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -63,6 +74,13 @@ func TestValidateWorkbenchQueryDefaultsAndRejectsInvalidInput(t *testing.T) {
 		Category: WorkbenchCategoryVou, Entities: []string{"sale-order", "sale-order"},
 	}); !errorIsKind(err, ErrorValidation) {
 		t.Fatalf("duplicate entity error = %v", err)
+	}
+	for _, pageSize := range []int{0, 1, 19, 21, 200} {
+		if _, _, err = validateWorkbenchQuery(WorkbenchQueryInput{
+			Category: WorkbenchCategoryVou, Page: 1, PageSize: pageSize,
+		}); !errorIsKind(err, ErrorValidation) {
+			t.Fatalf("page size %d error = %v, want validation error", pageSize, err)
+		}
 	}
 }
 

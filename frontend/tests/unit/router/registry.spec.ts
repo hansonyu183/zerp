@@ -31,6 +31,41 @@ function createTestRouter() {
 }
 
 describe('permission menu registry', () => {
+  it('将服务端一级工作台路由投影为唯一的直接导航入口', () => {
+    const menus = buildServerMenus(
+      [
+        {
+          id: 'route-workbench',
+          parentId: null,
+          type: 'ROUTE',
+          order: 10,
+          displayName: '工作台',
+          icon: 'mdi-view-dashboard-outline',
+          routeKey: 'home/dashboard',
+          routePath: '/home/dashboard',
+        },
+        {
+          id: 'group-sales',
+          parentId: null,
+          type: 'GROUP',
+          order: 20,
+          displayName: '销售',
+          icon: null,
+          routeKey: null,
+          routePath: null,
+        },
+      ],
+      [],
+    )
+
+    expect(menus).toHaveLength(2)
+    expect(menus[0]).toMatchObject({
+      title: '工作台',
+      children: [{ routeKey: 'home/dashboard', routePath: '/home/dashboard' }],
+    })
+    expect(menus[0]?.children).toHaveLength(1)
+  })
+
   it('系统默认菜单保留本地注册名称，业务模板保留管理员名称', () => {
     const route = {
       id: 'route-other-party',

@@ -4,9 +4,17 @@ FROM bob_version_views view
 WHERE view.version_id = view.current_version_id
   AND (
     (view.status = 'DRAFT' AND view.entity = ANY(sqlc.arg(draft_entities)::text[]))
-    OR (view.status = 'PENDING' AND view.entity = ANY(sqlc.arg(pending_entities)::text[]))
+    OR (
+      view.status = 'PENDING'
+      AND (
+        (
+          view.entity = ANY(sqlc.arg(pending_entities)::text[])
+          AND view.submitted_by IS DISTINCT FROM sqlc.arg(actor_id)::text
+        )
+        OR view.entity = ANY(sqlc.arg(unsubmit_entities)::text[])
+      )
+    )
   )
-  AND (view.status <> 'PENDING' OR view.submitted_by IS DISTINCT FROM sqlc.arg(actor_id)::text)
   AND (
     sqlc.arg(keyword)::text = ''
     OR view.code ILIKE '%' || sqlc.arg(keyword) || '%'
@@ -15,14 +23,26 @@ WHERE view.version_id = view.current_version_id
 
 -- name: ListWorkbenchBobItems :many
 SELECT view.object_id, view.entity, view.code, view.name, view.object_revision,
-       view.version_id, view.status, view.version_revision, view.object_updated_at
+       view.version_id, view.status, view.version_revision, view.object_updated_at,
+       CASE
+         WHEN view.submitted_by = sqlc.arg(actor_id)::text THEN true
+         ELSE false
+       END AS is_submitted_by_actor
 FROM bob_version_views view
 WHERE view.version_id = view.current_version_id
   AND (
     (view.status = 'DRAFT' AND view.entity = ANY(sqlc.arg(draft_entities)::text[]))
-    OR (view.status = 'PENDING' AND view.entity = ANY(sqlc.arg(pending_entities)::text[]))
+    OR (
+      view.status = 'PENDING'
+      AND (
+        (
+          view.entity = ANY(sqlc.arg(pending_entities)::text[])
+          AND view.submitted_by IS DISTINCT FROM sqlc.arg(actor_id)::text
+        )
+        OR view.entity = ANY(sqlc.arg(unsubmit_entities)::text[])
+      )
+    )
   )
-  AND (view.status <> 'PENDING' OR view.submitted_by IS DISTINCT FROM sqlc.arg(actor_id)::text)
   AND (
     sqlc.arg(keyword)::text = ''
     OR view.code ILIKE '%' || sqlc.arg(keyword) || '%'

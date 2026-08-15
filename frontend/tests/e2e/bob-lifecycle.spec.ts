@@ -86,21 +86,26 @@ test(
     await expect(
       customerRow(page, code!).getByText('提交审核', { exact: true }),
     ).toBeHidden()
-    const draftWorkbenchRow = await searchWorkbench(page, '待办资料', code!)
+    let draftWorkbenchRow = await searchWorkbench(page, '待办资料', code!)
     await expect(draftWorkbenchRow).toContainText('待核对')
+    await draftWorkbenchRow.getByLabel(`编辑 ${code}`).click()
+    await expect(page).toHaveURL(
+      new RegExp(`/bob/customer\\?objectId=[^&]+&mode=edit`),
+    )
+    draftWorkbenchRow = await searchWorkbench(page, '待办资料', code!)
     await draftWorkbenchRow.getByLabel(`提交审核 ${code}`).click()
     await expect(draftWorkbenchRow).toHaveCount(0)
-    await openCustomer(page)
-    await searchCustomer(page, code!)
-    await expect(
-      customerRow(page, code!).getByText('待审核', { exact: true }),
-    ).toBeVisible()
-    await customerRow(page, code!).getByLabel('撤回提交').click()
+    const submittedWorkbenchRow = await searchWorkbench(page, '待办资料', code!)
+    await expect(submittedWorkbenchRow).toContainText('待批准')
+    await submittedWorkbenchRow.getByLabel(`撤回提交 ${code}`).click()
     const unsubmitDialog = page.getByRole('dialog').filter({
       hasText: '撤回提交',
     })
-    await unsubmitDialog.getByLabel('原因').fill('E2E 验证撤回提交')
-    await unsubmitDialog.getByRole('button', { name: '确认' }).click()
+    await unsubmitDialog.getByLabel('撤回原因').fill('E2E 验证撤回提交')
+    await unsubmitDialog.getByRole('button', { name: '确认撤回' }).click()
+    await expect(submittedWorkbenchRow).toContainText('待核对')
+    await openCustomer(page)
+    await searchCustomer(page, code!)
     await expect(
       customerRow(page, code!).getByText('草稿', { exact: true }),
     ).toBeVisible()
@@ -108,8 +113,13 @@ test(
     await signOut(page)
 
     await signIn(page, reviewer)
-    const pendingWorkbenchRow = await searchWorkbench(page, '待办资料', code!)
+    let pendingWorkbenchRow = await searchWorkbench(page, '待办资料', code!)
     await expect(pendingWorkbenchRow).toContainText('待批准')
+    await pendingWorkbenchRow.getByLabel(`查看 ${code}`).click()
+    await expect(page).toHaveURL(
+      new RegExp(`/bob/customer\\?objectId=[^&]+&mode=view`),
+    )
+    pendingWorkbenchRow = await searchWorkbench(page, '待办资料', code!)
     await pendingWorkbenchRow.getByLabel(`驳回 ${code}`).click()
     await page.getByLabel('驳回意见').fill('E2E 验证驳回后重提')
     await page.getByRole('button', { name: '确认驳回' }).click()

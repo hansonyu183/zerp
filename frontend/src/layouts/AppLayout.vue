@@ -30,6 +30,15 @@ const passwords = reactive({
 
 const visibleMenus = computed(() => session.menus)
 
+function isDirectWorkbench(
+  domain: (typeof visibleMenus.value)[number],
+): boolean {
+  return (
+    domain.direct === true &&
+    domain.children[0]?.routeKey === 'home/dashboard'
+  )
+}
+
 const displayName = computed(
   () => session.user?.displayName || session.user?.username || '用户',
 )
@@ -278,28 +287,36 @@ onBeforeUnmount(() => window.removeEventListener('pageshow', handlePageShow))
   <v-navigation-drawer v-model="drawer" class="sidebar" width="288">
     <div class="sidebar__label">导航</div>
     <v-list nav density="comfortable" class="px-3">
-      <v-list-group
+      <template
         v-for="domain in visibleMenus"
         :key="domain.domain"
-        :value="domain.domain"
       >
-        <template #activator="{ props }">
-          <v-list-item
-            v-bind="props"
-            :prepend-icon="domain.icon || 'mdi-folder-outline'"
-            :title="domain.title"
-            rounded="lg"
-          />
-        </template>
         <v-list-item
-          v-for="entity in domain.children"
-          :key="entity.id || entity.entity"
-          :prepend-icon="entity.icon || 'mdi-file-document-outline'"
-          :title="entity.title"
-          :to="entity.routePath || `/${domain.domain}/${entity.entity}`"
+          v-if="isDirectWorkbench(domain)"
+          :prepend-icon="domain.children[0]?.icon || domain.icon || 'mdi-view-dashboard-outline'"
+          :title="domain.children[0]?.title || domain.title"
+          :to="domain.children[0]?.routePath || '/home/dashboard'"
           rounded="lg"
         />
-      </v-list-group>
+        <v-list-group v-else :value="domain.domain">
+          <template #activator="{ props }">
+            <v-list-item
+              v-bind="props"
+              :prepend-icon="domain.icon || 'mdi-folder-outline'"
+              :title="domain.title"
+              rounded="lg"
+            />
+          </template>
+          <v-list-item
+            v-for="entity in domain.children"
+            :key="entity.id || entity.entity"
+            :prepend-icon="entity.icon || 'mdi-file-document-outline'"
+            :title="entity.title"
+            :to="entity.routePath || `/${domain.domain}/${entity.entity}`"
+            rounded="lg"
+          />
+        </v-list-group>
+      </template>
     </v-list>
     <template #append>
       <div class="sidebar__footer">ZERP · 企业工作台</div>

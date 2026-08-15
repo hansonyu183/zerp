@@ -11,6 +11,19 @@ import { createMenuViewModel } from '@/pages/admin/menu/vm'
 function sampleMenu(): MenuData {
   const items = [
     {
+      id: 'workbench',
+      parentId: null,
+      type: 'ROUTE' as const,
+      level: 1,
+      order: 10,
+      displayName: '工作台',
+      icon: 'mdi-view-dashboard-outline',
+      enabled: true,
+      routeKey: 'home/dashboard',
+      routePath: '/home/dashboard',
+      permissionCode: '/app/workbench/query',
+    },
+    {
       id: 'system',
       parentId: null,
       type: 'GROUP' as const,

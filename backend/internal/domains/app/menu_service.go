@@ -33,7 +33,6 @@ type initialMenuGroup struct {
 const menuRouteTombstoneGroupID = "menu-group-route-tombstones"
 
 var businessMenuGroups = []initialMenuGroup{
-	{ID: "menu-group-workbench", Name: "工作台", Icon: "mdi-view-dashboard-outline", Order: 10},
 	{ID: "menu-group-sales", Name: "销售", Icon: "mdi-cart-arrow-up", Order: 20},
 	{ID: "menu-group-purchase", Name: "采购", Icon: "mdi-cart-arrow-down", Order: 30},
 	{ID: "menu-group-production", Name: "生产", Icon: "mdi-factory", Order: 40},
@@ -309,6 +308,9 @@ func validateBusinessMenu(input []SaveMenuItemInput, catalog []registeredMenuRou
 			if item.ParentID != nil || item.RouteKey != nil {
 				return nil, domainError(ErrorValidation, "menu groups must be top level", nil)
 			}
+			if item.DisplayName == "工作台" {
+				return nil, domainError(ErrorValidation, "workbench must be a direct route", nil)
+			}
 			groups[item.ID] = item.Enabled
 		} else if item.Type != MenuItemRoute {
 			return nil, domainError(ErrorValidation, "invalid menu item type", nil)
@@ -321,20 +323,38 @@ func validateBusinessMenu(input []SaveMenuItemInput, catalog []registeredMenuRou
 		if item.Type != MenuItemRoute {
 			continue
 		}
-		if item.ParentID == nil || item.RouteKey == nil {
-			return nil, domainError(ErrorValidation, "menu routes require a parent and route key", nil)
-		}
-		if parent, exists := ids[*item.ParentID]; !exists || parent.Type != MenuItemGroup {
-			return nil, domainError(ErrorValidation, "menu depth exceeds two levels or parent is invalid", nil)
+		if item.RouteKey == nil {
+			return nil, domainError(ErrorValidation, "menu routes require a route key", nil)
 		}
 		key := strings.TrimSpace(*item.RouteKey)
 		if _, exists := knownRoutes[key]; !exists {
 			return nil, domainError(ErrorValidation, "menu route is not registered", nil)
 		}
+		if key == "home/dashboard" {
+			if item.ParentID != nil || item.DisplayName != "工作台" || !item.Enabled {
+				return nil, domainError(ErrorValidation, "workbench must be the enabled direct entry", nil)
+			}
+		} else {
+			if item.ParentID == nil {
+				return nil, domainError(ErrorValidation, "menu routes require a parent", nil)
+			}
+			if parent, exists := ids[*item.ParentID]; !exists || parent.Type != MenuItemGroup {
+				return nil, domainError(ErrorValidation, "menu depth exceeds two levels or parent is invalid", nil)
+			}
+		}
 		item.RouteKey = stringPointer(key)
-		if key == "admin/menu" && item.Enabled && groups[*item.ParentID] {
+		if key == "admin/menu" && item.Enabled && item.ParentID != nil && groups[*item.ParentID] {
 			hasMenuManagement = true
 		}
+	}
+	workbenchCount := 0
+	for _, item := range items {
+		if item.Type == MenuItemRoute && item.RouteKey != nil && *item.RouteKey == "home/dashboard" {
+			workbenchCount++
+		}
+	}
+	if workbenchCount != 1 {
+		return nil, domainError(ErrorValidation, "workbench entry must appear exactly once", nil)
 	}
 	if !hasMenuManagement {
 		return nil, domainError(ErrorValidation, "menu management entry must remain enabled", nil)
@@ -360,7 +380,9 @@ func replaceBusinessMenu(ctx context.Context, q *dbsqlc.Queries, items []SaveMen
 		level := int16(1)
 		var permission *string
 		if item.Type == MenuItemRoute {
-			level = 2
+			if item.ParentID != nil {
+				level = 2
+			}
 			permission = stringPointer(permissions[*item.RouteKey])
 		}
 		if err := q.InsertAppBusinessMenuItem(ctx, dbsqlc.InsertAppBusinessMenuItemParams{
@@ -418,7 +440,6 @@ func replaceBusinessMenu(ctx context.Context, q *dbsqlc.Queries, items []SaveMen
 
 func buildDefaultMenu(catalog []registeredMenuRoute) MenuTree {
 	groups := []initialMenuGroup{
-		{ID: "default-workbench", Name: "工作台", Icon: "mdi-view-dashboard-outline", Order: 10},
 		{ID: "default-bob", Name: "业务对象", Icon: "mdi-account-group-outline", Order: 20},
 		{ID: "default-aux", Name: "辅助对象", Icon: "mdi-shape-outline", Order: 30},
 		{ID: "default-vou", Name: "业务单据", Icon: "mdi-file-document-multiple-outline", Order: 40},
@@ -432,11 +453,13 @@ func buildDefaultMenu(catalog []registeredMenuRoute) MenuTree {
 	items := groupViews(groups)
 	orders := map[string]int32{}
 	for _, route := range catalog {
+		if route.RouteKey == "home/dashboard" {
+			items = append(items, directRouteView(route, route.Order, stableRouteID("default", route.RouteKey)))
+			continue
+		}
 		parent := "default-other"
 		domain := strings.SplitN(route.RouteKey, "/", 2)[0]
 		switch domain {
-		case "home":
-			parent = "default-workbench"
 		case "bob", "aux", "vou", "wfl", "acc", "led":
 			parent = "default-" + domain
 		case "admin":
@@ -454,6 +477,10 @@ func buildInitialBusinessMenu(catalog []registeredMenuRoute, revision int64) Men
 	items := groupViews(businessMenuGroups)
 	orders := map[string]int32{}
 	for _, route := range catalog {
+		if route.RouteKey == "home/dashboard" {
+			items = append(items, directRouteView(route, route.Order, stableRouteID("business", route.RouteKey)))
+			continue
+		}
 		parent := classifyBusinessRoute(route.RouteKey)
 		orders[parent] += 10
 		items = append(items, routeView(route, parent, orders[parent], stableRouteID("business", route.RouteKey)))
@@ -467,9 +494,6 @@ func classifyBusinessRoute(key string) string {
 		return "menu-group-other"
 	}
 	domain, entity := parts[0], parts[1]
-	if domain == "home" {
-		return "menu-group-workbench"
-	}
 	if domain == "admin" {
 		return "menu-group-system"
 	}
@@ -581,6 +605,9 @@ func appendUnclassifiedRoutes(tree MenuTree, catalog []registeredMenuRoute, tomb
 		tree.Items = append(tree.Items, MenuItemView{ID: otherID, Type: MenuItemGroup, Level: 1, Order: 1_000_000, DisplayName: "其他/待归类", Icon: stringPointer("mdi-folder-question-outline"), Enabled: true})
 	}
 	for _, route := range catalog {
+		if route.RouteKey == "home/dashboard" {
+			continue
+		}
 		if present[route.RouteKey] || tombstones[route.RouteKey] {
 			continue
 		}
@@ -622,8 +649,10 @@ func filterMenuForPrincipal(tree MenuTree, catalog []registeredMenuRoute, princi
 		if item.Type == MenuItemGroup && item.Enabled && groupHasRoute[item.ID] {
 			result = append(result, item)
 		}
-		if item.Type == MenuItemRoute && allowed[item.ID] && item.ParentID != nil && enabledGroups[*item.ParentID] && groupHasRoute[*item.ParentID] {
-			result = append(result, item)
+		if item.Type == MenuItemRoute && allowed[item.ID] {
+			if item.ParentID == nil || enabledGroups[*item.ParentID] && groupHasRoute[*item.ParentID] {
+				result = append(result, item)
+			}
 		}
 	}
 	return MenuTree{Revision: tree.Revision, Items: result}
@@ -652,6 +681,10 @@ func groupViews(groups []initialMenuGroup) []MenuItemView {
 
 func routeView(route registeredMenuRoute, parent string, order int32, id string) MenuItemView {
 	return MenuItemView{ID: id, ParentID: &parent, Type: MenuItemRoute, Level: 2, Order: order, DisplayName: route.DisplayName, Enabled: true, RouteKey: &route.RouteKey, RoutePath: &route.RoutePath, PermissionCode: &route.PermissionCode}
+}
+
+func directRouteView(route registeredMenuRoute, order int32, id string) MenuItemView {
+	return MenuItemView{ID: id, Type: MenuItemRoute, Level: 1, Order: order, DisplayName: route.DisplayName, Icon: stringPointer("mdi-view-dashboard-outline"), Enabled: true, RouteKey: &route.RouteKey, RoutePath: &route.RoutePath, PermissionCode: &route.PermissionCode}
 }
 
 func stableRouteID(prefix, key string) string {

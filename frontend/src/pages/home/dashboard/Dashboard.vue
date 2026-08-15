@@ -29,6 +29,9 @@ const router = useRouter()
 const session = useSessionStore()
 const rejectTarget = ref<WorkbenchObjectItem | null>(null)
 const rejectComment = ref('')
+const unsubmitTarget = ref<WorkbenchObjectItem | null>(null)
+const unsubmitReason = ref('')
+const uncheckTarget = ref<WorkbenchDocumentItem | null>(null)
 
 function fallbackEntityTitle(entity: string): string {
   return `开发中：${entity.replaceAll('-', ' ')}`
@@ -36,7 +39,9 @@ function fallbackEntityTitle(entity: string): string {
 
 function canProcessEntity(domain: 'bob' | 'vou', entity: string): boolean {
   const actions =
-    domain === 'bob' ? ['submit', 'approve', 'reject'] : ['check', 'approve']
+    domain === 'bob'
+      ? ['submit', 'approve', 'reject', 'unsubmit']
+      : ['check', 'approve', 'uncheck']
   return (
     session.can(`/${domain}/${entity}/query`) &&
     actions.some((action) => session.can(`/${domain}/${entity}/${action}`))
@@ -123,6 +128,11 @@ const actionDefinitions: Record<WorkbenchAction, Omit<ListRowAction, 'key'>> = {
   view: { label: '查看', icon: 'mdi-eye-outline' },
   edit: { label: '编辑', icon: 'mdi-pencil-outline', color: 'primary' },
   submit: { label: '提交审核', icon: 'mdi-send-outline', color: 'primary' },
+  unsubmit: {
+    label: '撤回提交',
+    icon: 'mdi-undo-variant',
+    color: 'warning',
+  },
   approve: {
     label: '批准',
     icon: 'mdi-check-decagram-outline',
@@ -130,6 +140,11 @@ const actionDefinitions: Record<WorkbenchAction, Omit<ListRowAction, 'key'>> = {
   },
   reject: { label: '驳回', icon: 'mdi-close-octagon-outline', color: 'error' },
   check: { label: '核对', icon: 'mdi-account-check-outline', color: 'primary' },
+  uncheck: {
+    label: '反核对',
+    icon: 'mdi-undo-variant',
+    color: 'warning',
+  },
 }
 
 function entityTitle(row: Readonly<WorkbenchItem>): string {
@@ -225,6 +240,15 @@ async function selectAction(action: string, row: WorkbenchItem): Promise<void> {
     rejectComment.value = ''
     return
   }
+  if (action === 'unsubmit' && row.category === 'BOB') {
+    unsubmitTarget.value = row
+    unsubmitReason.value = ''
+    return
+  }
+  if (action === 'uncheck' && row.category === 'VOU') {
+    uncheckTarget.value = row
+    return
+  }
   if (action === 'submit' || action === 'approve' || action === 'check') {
     await vm.runAction(row, action)
   }
@@ -244,6 +268,33 @@ function closeReject(value: boolean): void {
     rejectTarget.value = null
     rejectComment.value = ''
   }
+}
+
+async function confirmUnsubmit(): Promise<void> {
+  const target = unsubmitTarget.value
+  if (!target || !unsubmitReason.value.trim()) return
+  if (await vm.runAction(target, 'unsubmit', unsubmitReason.value)) {
+    unsubmitTarget.value = null
+    unsubmitReason.value = ''
+  }
+}
+
+function closeUnsubmit(value: boolean): void {
+  if (!value) {
+    unsubmitTarget.value = null
+    unsubmitReason.value = ''
+  }
+}
+
+async function confirmUncheck(): Promise<void> {
+  const target = uncheckTarget.value
+  if (target && (await vm.runAction(target, 'uncheck'))) {
+    uncheckTarget.value = null
+  }
+}
+
+function closeUncheck(value: boolean): void {
+  if (!value) uncheckTarget.value = null
 }
 
 void vm.query('VOU')
@@ -271,18 +322,37 @@ void vm.query('VOU')
 
       <div class="workbench__list">
         <AppSnackbar
-          diagnostics
-          :message="vm.activeState.errorMessage"
-          @dismiss="vm.activeState.errorMessage = null"
-        />
-        <AppSnackbar
           :message="vm.successMessage"
           type="success"
           @dismiss="vm.successMessage = null"
         />
 
+        <v-alert
+          v-if="vm.activeState.errorMessage"
+          class="mb-4"
+          closable
+          density="comfortable"
+          title="待办加载失败"
+          type="error"
+          @click:close="vm.activeState.errorMessage = null"
+        >
+          {{ vm.activeState.errorMessage }}
+          <template #append>
+            <v-btn
+              size="small"
+              variant="text"
+              @click="vm.query(vm.activeCategory)"
+            >
+              重试查询
+            </v-btn>
+          </template>
+        </v-alert>
+
         <BusinessObjectList
-          v-if="vm.activeCategory === 'BOB'"
+          v-if="
+            vm.activeCategory === 'BOB' &&
+            (!vm.activeState.errorMessage || objectRows.length > 0)
+          "
           :columns="objectColumns"
           :editable="true"
           empty-text="暂无待办资料"
@@ -294,8 +364,8 @@ void vm.query('VOU')
           :rows="objectRows"
           search-label="编码或名称"
           :total="vm.activeState.total"
-          @query="vm.query(vm.activeCategory, true)"
-          @apply-filters="vm.query(vm.activeCategory, true)"
+          @query="vm.applyFilters(vm.activeCategory)"
+          @apply-filters="vm.applyFilters(vm.activeCategory)"
           @reset-filters="vm.resetFilters"
           @update:keyword="vm.activeState.keyword = $event"
           @update:page="vm.changePage"
@@ -352,7 +422,9 @@ void vm.query('VOU')
         </BusinessObjectList>
 
         <VoucherList
-          v-else
+          v-else-if="
+            !vm.activeState.errorMessage || documentRows.length > 0
+          "
           :date-from="''"
           :date-to="''"
           empty-text="暂无待办单据"
@@ -370,7 +442,7 @@ void vm.query('VOU')
           :sortable="false"
           :statuses="[]"
           :total="vm.activeState.total"
-          @query="vm.query('VOU', true)"
+          @query="vm.applyFilters('VOU')"
           @reset="vm.resetFilters"
           @update:keyword="vm.activeState.keyword = $event"
           @update:page="vm.changePage"
@@ -464,6 +536,62 @@ void vm.query('VOU')
             @click="confirmReject"
           >
             确认驳回
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog
+      :model-value="Boolean(unsubmitTarget)"
+      max-width="520"
+      @update:model-value="closeUnsubmit"
+    >
+      <v-card rounded="xl" title="撤回提交">
+        <v-card-text>
+          <p class="mb-4">请输入撤回 {{ unsubmitTarget?.code }} 提交的原因。</p>
+          <v-textarea
+            v-model="unsubmitReason"
+            autofocus
+            counter="1000"
+            label="撤回原因"
+            maxlength="1000"
+            rows="4"
+            variant="outlined"
+          />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="closeUnsubmit(false)">取消</v-btn>
+          <v-btn
+            color="warning"
+            :disabled="!unsubmitReason.trim()"
+            :loading="Boolean(vm.actionLoading)"
+            @click="confirmUnsubmit"
+          >
+            确认撤回
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog
+      :model-value="Boolean(uncheckTarget)"
+      max-width="440"
+      @update:model-value="closeUncheck"
+    >
+      <v-card rounded="xl" title="反核对">
+        <v-card-text>
+          确认将 {{ uncheckTarget?.documentNo }} 退回草稿吗？
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="closeUncheck(false)">取消</v-btn>
+          <v-btn
+            color="warning"
+            :loading="Boolean(vm.actionLoading)"
+            @click="confirmUncheck"
+          >
+            确认反核对
           </v-btn>
         </v-card-actions>
       </v-card>

@@ -258,6 +258,7 @@ run_implement() {
     fi
   } | ZERP_ISSUE_BASE_SHA="${base_sha}" ZERP_GATE_EVIDENCE_FILE="${evidence_file}" \
     "${codex_bin}" --ask-for-approval never exec --ephemeral --ignore-user-config \
+      --model gpt-5.6-sol -c model_reasoning_effort=high \
       --sandbox workspace-write \
       -c sandbox_workspace_write.network_access=false \
       -c web_search=disabled -c features.apps=false \

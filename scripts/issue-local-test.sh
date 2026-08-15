@@ -201,6 +201,8 @@ test "$(grep -c '^codex$' "${events}")" = 1
 test "$(grep -c '^preview$' "${events}")" = 1
 grep -Fq -- '--ignore-user-config' "${MOCK_CODEX_ARGS}"
 grep -Fq -- '--ask-for-approval never' "${MOCK_CODEX_ARGS}"
+grep -Fq -- '--model gpt-5.6-sol' "${MOCK_CODEX_ARGS}"
+grep -Fq -- 'model_reasoning_effort=high' "${MOCK_CODEX_ARGS}"
 grep -Fq -- 'sandbox_workspace_write.network_access=false' "${MOCK_CODEX_ARGS}"
 preview_line=$(grep -n '^preview$' "${events}" | cut -d: -f1)
 first_gh_line=$(grep -n '^gh ' "${events}" | sed -n '1s/:.*//p')

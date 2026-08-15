@@ -65,6 +65,19 @@ func TestWorkbenchIsTheUniqueDirectMenuEntry(t *testing.T) {
 	}
 }
 
+func TestDefaultMenuUsesTheDomainFallbackGroupName(t *testing.T) {
+	menu := buildDefaultMenu(nil)
+	for _, item := range menu.Items {
+		if item.ID == "default-other" {
+			if item.DisplayName != "其他/待归类" {
+				t.Fatalf("default fallback group name = %q, want 其他/待归类", item.DisplayName)
+			}
+			return
+		}
+	}
+	t.Fatal("default fallback group is missing")
+}
+
 func TestValidateBusinessMenuRequiresOneEnabledDirectWorkbench(t *testing.T) {
 	catalog := []registeredMenuRoute{
 		{RouteKey: "home/dashboard", RoutePath: "/home/dashboard", DisplayName: "工作台", PermissionCode: "/app/workbench/query", Always: true},

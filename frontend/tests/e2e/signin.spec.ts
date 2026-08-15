@@ -54,6 +54,14 @@ async function openCustomer(page: Page, isMobile: boolean): Promise<void> {
   await expect(page).toHaveURL(/\/bob\/customer/)
 }
 
+async function expectSingleDirectWorkbenchEntry(page: Page): Promise<void> {
+  const sidebar = page.locator('.sidebar')
+  await expect(sidebar.getByText('工作台', { exact: true })).toHaveCount(1)
+  await expect(
+    sidebar.getByRole('link', { name: '工作台', exact: true }),
+  ).toHaveAttribute('href', '/home/dashboard')
+}
+
 test('未登录访问完整深链后登录返回原路径', async ({ page, workerState }) => {
   await page.goto('/bob/customer?tab=history#version-2')
   await expect(page).toHaveURL(/\/signin\?redirect=/)
@@ -282,6 +290,12 @@ test('五个业务域只显示面包屑而不显示页面大标题', async ({
   }
 })
 
+test('桌面端只显示一个直接工作台入口', async ({ page, workerState }) => {
+  await signIn(page, workerState)
+
+  await expectSingleDirectWorkbenchEntry(page)
+})
+
 test(
   '移动端首次进入工作台时导航抽屉默认关闭',
   { tag: '@mobile' },
@@ -303,6 +317,7 @@ test(
         return openBox?.x ?? -999
       })
       .toBeGreaterThanOrEqual(0)
+    await expectSingleDirectWorkbenchEntry(page)
     await expect(page.getByText('业务对象', { exact: true })).toBeVisible()
     await page.getByText('业务对象', { exact: true }).click()
     await expect(page.getByRole('link', { name: /客户/ })).toBeVisible()

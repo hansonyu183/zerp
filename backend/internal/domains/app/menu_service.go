@@ -335,6 +335,9 @@ func validateBusinessMenu(input []SaveMenuItemInput, catalog []registeredMenuRou
 				return nil, domainError(ErrorValidation, "workbench must be the enabled direct entry", nil)
 			}
 		} else {
+			if item.DisplayName == "工作台" {
+				return nil, domainError(ErrorValidation, "workbench name is reserved for the direct entry", nil)
+			}
 			if item.ParentID == nil {
 				return nil, domainError(ErrorValidation, "menu routes require a parent", nil)
 			}

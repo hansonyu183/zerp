@@ -18,6 +18,10 @@ export type WorkbenchObjectItem = components['schemas']['WorkbenchObjectItem']
 export type WorkbenchDocumentItem =
   components['schemas']['WorkbenchDocumentItem']
 export type WorkbenchItem = WorkbenchObjectItem | WorkbenchDocumentItem
+export type WorkbenchConfirmationAction = Extract<
+  WorkbenchAction,
+  'reject' | 'unsubmit' | 'uncheck'
+>
 
 interface WorkbenchListState {
   rows: WorkbenchItem[]
@@ -61,6 +65,9 @@ export function useDashboardViewModel() {
   })
   const actionLoading = ref<string | null>(null)
   const successMessage = ref<string | null>(null)
+  const confirmationTarget = ref<WorkbenchItem | null>(null)
+  const confirmationAction = ref<WorkbenchConfirmationAction | null>(null)
+  const confirmationComment = ref('')
   const activeState = computed(() => states[activeCategory.value])
   const requestSequences: Record<WorkbenchCategory, number> = { BOB: 0, VOU: 0 }
   let disposed = false
@@ -233,18 +240,54 @@ export function useDashboardViewModel() {
     }
   }
 
+  function requestConfirmation(
+    item: WorkbenchItem,
+    action: WorkbenchConfirmationAction,
+  ): boolean {
+    const supported =
+      (item.category === 'BOB' &&
+        (action === 'reject' || action === 'unsubmit')) ||
+      (item.category === 'VOU' && action === 'uncheck')
+    if (!supported || !item.availableActions.includes(action)) return false
+    confirmationTarget.value = item
+    confirmationAction.value = action
+    confirmationComment.value = ''
+    return true
+  }
+
+  function cancelConfirmation(): void {
+    confirmationTarget.value = null
+    confirmationAction.value = null
+    confirmationComment.value = ''
+  }
+
+  async function confirmAction(): Promise<boolean> {
+    const target = confirmationTarget.value
+    const action = confirmationAction.value
+    if (!target || !action) return false
+    const succeeded = await runAction(target, action, confirmationComment.value)
+    if (succeeded) cancelConfirmation()
+    return succeeded
+  }
+
   return {
     activeCategory,
     states,
     activeState,
     actionLoading,
     successMessage,
+    confirmationTarget,
+    confirmationAction,
+    confirmationComment,
     query,
     applyFilters,
     selectCategory,
     changePage,
     resetFilters,
     runAction,
+    requestConfirmation,
+    cancelConfirmation,
+    confirmAction,
   }
 }
 

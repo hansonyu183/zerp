@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSessionStore } from '@/stores/session'
 import {
@@ -23,15 +23,11 @@ import {
   type WorkbenchPendingStage,
   useDashboardViewModel,
 } from './vm'
+import WorkbenchActionDialog from './WorkbenchActionDialog.vue'
 
 const vm = reactive(useDashboardViewModel())
 const router = useRouter()
 const session = useSessionStore()
-const rejectTarget = ref<WorkbenchObjectItem | null>(null)
-const rejectComment = ref('')
-const unsubmitTarget = ref<WorkbenchObjectItem | null>(null)
-const unsubmitReason = ref('')
-const uncheckTarget = ref<WorkbenchDocumentItem | null>(null)
 
 function fallbackEntityTitle(entity: string): string {
   return `开发中：${entity.replaceAll('-', ' ')}`
@@ -236,65 +232,20 @@ async function selectAction(action: string, row: WorkbenchItem): Promise<void> {
     return
   }
   if (action === 'reject' && row.category === 'BOB') {
-    rejectTarget.value = row
-    rejectComment.value = ''
+    vm.requestConfirmation(row, action)
     return
   }
   if (action === 'unsubmit' && row.category === 'BOB') {
-    unsubmitTarget.value = row
-    unsubmitReason.value = ''
+    vm.requestConfirmation(row, action)
     return
   }
   if (action === 'uncheck' && row.category === 'VOU') {
-    uncheckTarget.value = row
+    vm.requestConfirmation(row, action)
     return
   }
   if (action === 'submit' || action === 'approve' || action === 'check') {
     await vm.runAction(row, action)
   }
-}
-
-async function confirmReject(): Promise<void> {
-  const target = rejectTarget.value
-  if (!target || !rejectComment.value.trim()) return
-  if (await vm.runAction(target, 'reject', rejectComment.value)) {
-    rejectTarget.value = null
-    rejectComment.value = ''
-  }
-}
-
-function closeReject(value: boolean): void {
-  if (!value) {
-    rejectTarget.value = null
-    rejectComment.value = ''
-  }
-}
-
-async function confirmUnsubmit(): Promise<void> {
-  const target = unsubmitTarget.value
-  if (!target || !unsubmitReason.value.trim()) return
-  if (await vm.runAction(target, 'unsubmit', unsubmitReason.value)) {
-    unsubmitTarget.value = null
-    unsubmitReason.value = ''
-  }
-}
-
-function closeUnsubmit(value: boolean): void {
-  if (!value) {
-    unsubmitTarget.value = null
-    unsubmitReason.value = ''
-  }
-}
-
-async function confirmUncheck(): Promise<void> {
-  const target = uncheckTarget.value
-  if (target && (await vm.runAction(target, 'uncheck'))) {
-    uncheckTarget.value = null
-  }
-}
-
-function closeUncheck(value: boolean): void {
-  if (!value) uncheckTarget.value = null
 }
 
 void vm.query('VOU')
@@ -422,9 +373,7 @@ void vm.query('VOU')
         </BusinessObjectList>
 
         <VoucherList
-          v-else-if="
-            !vm.activeState.errorMessage || documentRows.length > 0
-          "
+          v-else-if="!vm.activeState.errorMessage || documentRows.length > 0"
           :date-from="''"
           :date-to="''"
           empty-text="暂无待办单据"
@@ -508,94 +457,15 @@ void vm.query('VOU')
       </div>
     </v-card>
 
-    <v-dialog
-      :model-value="Boolean(rejectTarget)"
-      max-width="520"
-      @update:model-value="closeReject"
-    >
-      <v-card rounded="xl" title="驳回资料">
-        <v-card-text>
-          <p class="mb-4">请输入驳回 {{ rejectTarget?.code }} 的审核意见。</p>
-          <v-textarea
-            v-model="rejectComment"
-            autofocus
-            counter="1000"
-            label="驳回意见"
-            maxlength="1000"
-            rows="4"
-            variant="outlined"
-          />
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="closeReject(false)">取消</v-btn>
-          <v-btn
-            color="error"
-            :disabled="!rejectComment.trim()"
-            :loading="Boolean(vm.actionLoading)"
-            @click="confirmReject"
-          >
-            确认驳回
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
-    <v-dialog
-      :model-value="Boolean(unsubmitTarget)"
-      max-width="520"
-      @update:model-value="closeUnsubmit"
-    >
-      <v-card rounded="xl" title="撤回提交">
-        <v-card-text>
-          <p class="mb-4">请输入撤回 {{ unsubmitTarget?.code }} 提交的原因。</p>
-          <v-textarea
-            v-model="unsubmitReason"
-            autofocus
-            counter="1000"
-            label="撤回原因"
-            maxlength="1000"
-            rows="4"
-            variant="outlined"
-          />
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="closeUnsubmit(false)">取消</v-btn>
-          <v-btn
-            color="warning"
-            :disabled="!unsubmitReason.trim()"
-            :loading="Boolean(vm.actionLoading)"
-            @click="confirmUnsubmit"
-          >
-            确认撤回
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
-    <v-dialog
-      :model-value="Boolean(uncheckTarget)"
-      max-width="440"
-      @update:model-value="closeUncheck"
-    >
-      <v-card rounded="xl" title="反核对">
-        <v-card-text>
-          确认将 {{ uncheckTarget?.documentNo }} 退回草稿吗？
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="closeUncheck(false)">取消</v-btn>
-          <v-btn
-            color="warning"
-            :loading="Boolean(vm.actionLoading)"
-            @click="confirmUncheck"
-          >
-            确认反核对
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+    <WorkbenchActionDialog
+      :action="vm.confirmationAction"
+      :comment="vm.confirmationComment"
+      :loading="Boolean(vm.actionLoading)"
+      :target="vm.confirmationTarget"
+      @close="vm.cancelConfirmation"
+      @confirm="vm.confirmAction"
+      @update:comment="vm.confirmationComment = $event"
+    />
   </v-container>
 </template>
 

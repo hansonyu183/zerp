@@ -178,4 +178,16 @@ describe('menu management view model', () => {
     expect(save).not.toHaveBeenCalled()
     expect(vm.errorMessage).toBe('必须保留已启用的菜单管理入口。')
   })
+
+  it('阻止其他菜单使用工作台名称', async () => {
+    const { vm, save } = setup()
+    await vm.load()
+    const menu = vm.editableItems.find((item) => item.routeKey === 'admin/menu')
+    menu!.displayName = ' 工作台 '
+
+    await vm.saveTemplate()
+
+    expect(save).not.toHaveBeenCalled()
+    expect(vm.errorMessage).toBe('工作台名称只能用于唯一的一级入口。')
+  })
 })

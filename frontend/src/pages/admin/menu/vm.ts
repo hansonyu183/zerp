@@ -202,6 +202,15 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
       ) {
         return '必须保留唯一已启用的工作台一级入口。'
       }
+      if (
+        this.editableItems.some(
+          (item) =>
+            item.routeKey !== 'home/dashboard' &&
+            item.displayName.trim() === '工作台',
+        )
+      ) {
+        return '工作台名称只能用于唯一的一级入口。'
+      }
       const menuEntry = this.editableItems.find(
         (item) => item.routeKey === 'admin/menu' && item.enabled,
       )

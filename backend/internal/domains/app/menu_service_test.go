@@ -85,6 +85,11 @@ func TestValidateBusinessMenuRequiresOneEnabledDirectWorkbench(t *testing.T) {
 	if _, err := validateBusinessMenu(items, catalog); !errorIsKind(err, ErrorValidation) {
 		t.Fatalf("grouped workbench error = %v, want validation error", err)
 	}
+	items[0].ParentID = nil
+	items[2].DisplayName = "工作台"
+	if _, err := validateBusinessMenu(items, catalog); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("secondary workbench name error = %v, want validation error", err)
+	}
 }
 
 func TestAccountingBookMenuBelongsToAccounting(t *testing.T) {

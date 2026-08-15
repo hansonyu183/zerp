@@ -194,7 +194,9 @@ describe('Dashboard workbench', () => {
           },
           AppSnackbar: true,
           ListRowActions: true,
-          VAlert: { template: '<section><slot /><slot name="append" /></section>' },
+          VAlert: {
+            template: '<section><slot /><slot name="append" /></section>',
+          },
           VBtn: true,
           VCard: { template: '<section><slot /></section>' },
           VCardActions: true,
@@ -404,9 +406,9 @@ describe('Dashboard workbench', () => {
 
     vm.states.VOU.page = 3
     mockedPost
-      .mockResolvedValueOnce(
-        { data: { items: [], total: 21, page: 3, pageSize: 20 } },
-      )
+      .mockResolvedValueOnce({
+        data: { items: [], total: 21, page: 3, pageSize: 20 },
+      })
       .mockResolvedValueOnce({
         data: { items: [documentItem], total: 21, page: 2, pageSize: 20 },
       })
@@ -463,9 +465,9 @@ describe('Dashboard workbench', () => {
       .mockResolvedValueOnce(page())
     const vm = useDashboardViewModel()
 
-    await expect(vm.runAction(submitted, 'unsubmit', '  资料有误  ')).resolves.toBe(
-      true,
-    )
+    await expect(
+      vm.runAction(submitted, 'unsubmit', '  资料有误  '),
+    ).resolves.toBe(true)
     await expect(vm.runAction(checked, 'uncheck')).resolves.toBe(true)
 
     expect(mockedPost).toHaveBeenNthCalledWith(1, 'bob/customer/unsubmit', {
@@ -482,6 +484,54 @@ describe('Dashboard workbench', () => {
     expect(await vm.runAction(submitted, 'unsubmit', '   ')).toBe(false)
     expect(await vm.runAction(objectItem, 'unsubmit', '不可执行')).toBe(false)
     expect(mockedPost).toHaveBeenCalledTimes(4)
+  })
+
+  it('在 ViewModel 中完成必填原因动作的确认闭环', async () => {
+    const submitted = {
+      ...objectItem,
+      status: 'PENDING' as const,
+      pendingStage: 'APPROVE' as const,
+      availableActions: ['unsubmit'] as const,
+    }
+    mockedPost.mockResolvedValueOnce({ data: {} }).mockResolvedValueOnce(page())
+    const vm = useDashboardViewModel()
+
+    expect(vm.requestConfirmation(submitted, 'unsubmit')).toBe(true)
+    expect(vm.confirmationTarget.value).toEqual(submitted)
+    expect(vm.confirmationAction.value).toBe('unsubmit')
+    vm.confirmationComment.value = '  资料有误  '
+
+    await expect(vm.confirmAction()).resolves.toBe(true)
+
+    expect(mockedPost).toHaveBeenNthCalledWith(1, 'bob/customer/unsubmit', {
+      objectId: 'object-1',
+      objectRevision: 3,
+      versionId: 'version-1',
+      revision: 5,
+      reason: '资料有误',
+    })
+    expect(vm.confirmationTarget.value).toBeNull()
+    expect(vm.confirmationAction.value).toBeNull()
+    expect(vm.confirmationComment.value).toBe('')
+  })
+
+  it('反核对确认不要求或发送原因', async () => {
+    const checked = {
+      ...documentItem,
+      status: 'CHECKED' as const,
+      pendingStage: 'APPROVE' as const,
+      availableActions: ['uncheck'] as const,
+    }
+    mockedPost.mockResolvedValueOnce({ data: {} }).mockResolvedValueOnce(page())
+    const vm = useDashboardViewModel()
+
+    expect(vm.requestConfirmation(checked, 'uncheck')).toBe(true)
+    await expect(vm.confirmAction()).resolves.toBe(true)
+
+    expect(mockedPost).toHaveBeenNthCalledWith(1, 'vou/sale-order/uncheck', {
+      documentId: 'document-1',
+      revision: 2,
+    })
   })
 
   it('动作后由刷新结果决定是否纠正当前页', async () => {

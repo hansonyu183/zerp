@@ -246,6 +246,32 @@ remove_managed_root_dependencies() {
   fi
 }
 
+remove_managed_host_env() {
+  worktree=$1
+  candidate_env="${worktree}/backend/.env.local"
+  primary_env="${primary_root}/backend/.env.local"
+  if [ -L "${candidate_env}" ] &&
+    [ "$(readlink "${candidate_env}")" = "${primary_env}" ]; then
+    rm -f "${candidate_env}"
+  fi
+}
+
+stage_host_gate_env() {
+  worktree=$1
+  candidate_env="${worktree}/backend/.env.local"
+  primary_env="${primary_root}/backend/.env.local"
+  [ -f "${primary_env}" ] || {
+    echo 'host final gate cannot find primary backend/.env.local' >&2
+    return 1
+  }
+  remove_managed_host_env "${worktree}"
+  if [ -e "${candidate_env}" ] || [ -L "${candidate_env}" ]; then
+    echo 'host final gate refuses an unmanaged candidate backend/.env.local' >&2
+    return 1
+  fi
+  ln -s "${primary_env}" "${candidate_env}"
+}
+
 prepare_cached_pnpm() {
   worktree=$1
   package_json="${worktree}/package.json"
@@ -310,6 +336,12 @@ prepare_offline_dependencies() {
   primary_frontend_modules="${primary_root}/frontend/node_modules"
   candidate_modules="${worktree}/node_modules"
   candidate_frontend_modules="${worktree}/frontend/node_modules"
+
+  remove_managed_host_env "${worktree}"
+  if [ -e "${worktree}/backend/.env.local" ] || [ -L "${worktree}/backend/.env.local" ]; then
+    echo 'offline dependency preparation blocked: candidate backend/.env.local must be absent before Codex starts' >&2
+    return 1
+  fi
 
   if ! { [ -f "${primary_lockfile}" ] && [ -f "${candidate_lockfile}" ] &&
     cmp -s "${primary_lockfile}" "${candidate_lockfile}"; }; then
@@ -415,6 +447,8 @@ run_final_gate() {
   rm -f "${evidence_file}"
   write_value "${marker_file}" "${head_sha}"
   if ! (
+    stage_host_gate_env "${worktree}"
+    trap 'remove_managed_host_env "${worktree}"' EXIT HUP INT TERM
     cd "${worktree}"
     PATH="${pnpm_wrapper_dir}:${PATH}" COREPACK_ROOT=1 ZERP_GATE_EVIDENCE_FILE="${evidence_file}" \
       "${command_path}" "${base_sha}"
@@ -482,6 +516,10 @@ run_implement() {
     # shellcheck disable=SC2016 # prompt intentionally contains Markdown literals
     printf 'The batch base commit is `%s`. Do not access GitHub, push, deploy, or read preview or production credentials.\n' "${base_sha}"
     printf 'Use TDD at the agreed repository seams. Run focused tests while working.\n'
+    # shellcheck disable=SC2016 # prompt intentionally contains shell and Markdown literals
+    printf 'For every pnpm command, prepend `PATH="%s:$PATH"` and invoke `%s/pnpm`; login shells reset PATH and package scripts invoke pnpm recursively.\n' "${pnpm_wrapper_dir}" "${pnpm_wrapper_dir}"
+    # shellcheck disable=SC2016 # prompt intentionally contains a Markdown code literal
+    printf 'If you add or change a static backend domain error message, include `frontend/tests/unit/api/business-error-coverage.spec.ts` in focused tests.\n'
     # shellcheck disable=SC2016 # prompt intentionally contains Markdown code delimiters
     printf 'Do not run `scripts/change-gate.sh`: the controller runs the single final gate after your clean commit.\n'
     printf 'Commit the completed batch to the current branch and return status=completed, validation=not_run, review=passed, and commitSha for that commit.\n'

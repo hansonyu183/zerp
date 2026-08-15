@@ -111,21 +111,8 @@ void vm.initialize()
       </template>
       <template #actions="{ row }">
         <ListRowActions
-          :label="`操作 ${row.code}`"
-          :more="
-            vm.canDelete(row)
-              ? [
-                  {
-                    key: 'delete',
-                    label: '删除',
-                    icon: 'mdi-delete-outline',
-                    color: 'error',
-                  },
-                ]
-              : []
-          "
-          :primary="
-            vm.canEdit
+          :actions="[
+            ...(vm.canEdit
               ? [
                   {
                     key: 'edit',
@@ -134,8 +121,19 @@ void vm.initialize()
                     color: 'primary',
                   },
                 ]
-              : []
-          "
+              : []),
+            ...(vm.canDelete(row)
+              ? [
+                  {
+                    key: 'delete',
+                    label: '删除',
+                    icon: 'mdi-delete-outline',
+                    color: 'error',
+                  },
+                ]
+              : []),
+          ]"
+          :label="`操作 ${row.code}`"
           @select="$event === 'edit' ? vm.openEdit(row) : remove(row)"
         />
       </template>

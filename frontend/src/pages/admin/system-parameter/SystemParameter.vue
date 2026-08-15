@@ -84,20 +84,8 @@ void vm.query()
       </template>
       <template #actions="{ row }">
         <ListRowActions
-          :label="`操作 ${row.key}`"
-          :more="
-            row.editable && vm.canReset
-              ? [
-                  {
-                    key: 'reset',
-                    label: '恢复默认值',
-                    icon: 'mdi-restore',
-                  },
-                ]
-              : []
-          "
-          :primary="
-            row.editable && vm.canEdit
+          :actions="[
+            ...(row.editable && vm.canEdit
               ? [
                   {
                     key: 'edit',
@@ -106,8 +94,18 @@ void vm.query()
                     color: 'primary',
                   },
                 ]
-              : []
-          "
+              : []),
+            ...(row.editable && vm.canReset
+              ? [
+                  {
+                    key: 'reset',
+                    label: '恢复默认值',
+                    icon: 'mdi-restore',
+                  },
+                ]
+              : []),
+          ]"
+          :label="`操作 ${row.key}`"
           @select="$event === 'edit' ? vm.openEdit(row) : vm.requestReset(row)"
         />
       </template>

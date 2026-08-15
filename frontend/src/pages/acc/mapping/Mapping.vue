@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
+import EntityListControls from '@/components/common/EntityListControls.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
 import { mappingEntities, createAccountingMappingViewModel } from './vm'
@@ -7,13 +8,10 @@ import type { AccountingMapping } from './api'
 
 const vm = createAccountingMappingViewModel()
 
-function actions(mapping: AccountingMapping): {
-  primary: ListRowAction[]
-  more: ListRowAction[]
-} {
+function actions(mapping: AccountingMapping): ListRowAction[] {
   if (mapping.state === 'DRAFT') {
-    return {
-      primary: vm.canEdit
+    return [
+      ...(vm.canEdit
         ? [
             {
               key: 'edit',
@@ -22,8 +20,8 @@ function actions(mapping: AccountingMapping): {
               color: 'primary',
             },
           ]
-        : [],
-      more: vm.canApprove
+        : []),
+      ...(vm.canApprove
         ? [
             {
               key: 'approve',
@@ -31,11 +29,11 @@ function actions(mapping: AccountingMapping): {
               icon: 'mdi-check-circle-outline',
             },
           ]
-        : [],
-    }
+        : []),
+    ]
   }
-  return {
-    primary: vm.canCreate
+  return [
+    ...(vm.canCreate
       ? [
           {
             key: 'create',
@@ -44,8 +42,8 @@ function actions(mapping: AccountingMapping): {
             color: 'primary',
           },
         ]
-      : [],
-    more: vm.canUnapprove
+      : []),
+    ...(vm.canUnapprove
       ? [
           {
             key: 'unapprove',
@@ -53,8 +51,8 @@ function actions(mapping: AccountingMapping): {
             icon: 'mdi-backup-restore',
           },
         ]
-      : [],
-  }
+      : []),
+  ]
 }
 
 function selectAction(mapping: AccountingMapping, action: string): void {
@@ -80,10 +78,28 @@ void vm.initialize()
       type="success"
       @dismiss="vm.successMessage = null"
     />
-    <v-card>
-      <v-card-title class="d-flex align-center ga-3 flex-wrap pa-5">
-        <span>VOU 会计映射</span>
-        <v-spacer />
+    <EntityListControls
+      :keyword="''"
+      :loading="vm.loading"
+      :queryable="vm.canQuery"
+      :searchable="false"
+      filterable
+      @apply-filters="vm.query()"
+      @query="vm.query()"
+      @reset-filters="vm.resetFilters"
+    >
+      <template #filters>
+        <v-select
+          v-model="vm.entityFilter"
+          clearable
+          density="comfortable"
+          :items="mappingEntities"
+          label="VOU 类型"
+          variant="outlined"
+          @update:model-value="vm.query()"
+        />
+      </template>
+      <template #toolbar>
         <v-select
           class="mapping-filter"
           density="compact"
@@ -96,17 +112,6 @@ void vm.initialize()
           variant="outlined"
           @update:model-value="vm.changeBook"
         />
-        <v-select
-          v-model="vm.entityFilter"
-          class="mapping-filter"
-          clearable
-          density="compact"
-          hide-details
-          :items="mappingEntities"
-          label="VOU 类型"
-          variant="outlined"
-          @update:model-value="vm.query()"
-        />
         <v-btn
           color="primary"
           :disabled="!vm.canCreate"
@@ -115,7 +120,9 @@ void vm.initialize()
         >
           新建版本
         </v-btn>
-      </v-card-title>
+      </template>
+    </EntityListControls>
+    <v-card title="VOU 会计映射">
       <v-data-table-server
         class="mapping-table"
         :headers="[
@@ -147,9 +154,8 @@ void vm.initialize()
         </template>
         <template #[`item.actions`]="{ item }">
           <ListRowActions
+            :actions="actions(item)"
             :label="`操作 ${item.vouEntity} 版本 ${item.version}`"
-            :more="actions(item).more"
-            :primary="actions(item).primary"
             @select="selectAction(item, $event)"
           />
         </template>

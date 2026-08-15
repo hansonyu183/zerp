@@ -84,21 +84,8 @@ void vm.query()
       </template>
       <template #actions="{ row }">
         <ListRowActions
-          :label="`操作 ${row.name}`"
-          :more="
-            vm.canDelete(row)
-              ? [
-                  {
-                    key: 'delete',
-                    label: '删除',
-                    icon: 'mdi-delete-outline',
-                    color: 'error',
-                  },
-                ]
-              : []
-          "
-          :primary="
-            vm.canEdit
+          :actions="[
+            ...(vm.canEdit
               ? [
                   {
                     key: 'edit',
@@ -107,8 +94,19 @@ void vm.query()
                     color: 'primary',
                   },
                 ]
-              : []
-          "
+              : []),
+            ...(vm.canDelete(row)
+              ? [
+                  {
+                    key: 'delete',
+                    label: '删除',
+                    icon: 'mdi-delete-outline',
+                    color: 'error',
+                  },
+                ]
+              : []),
+          ]"
+          :label="`操作 ${row.name}`"
           @select="$event === 'edit' ? vm.openEdit(row) : remove(row)"
         />
       </template>

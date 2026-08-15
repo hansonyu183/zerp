@@ -95,7 +95,7 @@ function requestReverse(
   reverseReason.value = ''
 }
 
-function primaryRowActions(row: BobListItem): ListRowAction[] {
+function rowActions(row: BobListItem): ListRowAction[] {
   const availability = vm.actionAvailability(row)
   return [
     ...(availability.edit
@@ -198,12 +198,6 @@ function primaryRowActions(row: BobListItem): ListRowAction[] {
           },
         ]
       : []),
-  ]
-}
-
-function moreRowActions(row: BobListItem): ListRowAction[] {
-  const availability = vm.actionAvailability(row)
-  return [
     ...(availability.versions
       ? [{ key: 'versions', label: '版本历史', icon: 'mdi-history' }]
       : []),
@@ -428,11 +422,10 @@ function savePackagingSpecs(value: PackagingSpecDraft[]): void {
 
       <template #actions="{ row }">
         <ListRowActions
+          :actions="rowActions(row)"
           :label="`操作 ${row.code}`"
           :loading="Boolean(vm.actionLoading)"
-          :more="moreRowActions(row)"
           :more-label="`更多操作 ${row.code}`"
-          :primary="primaryRowActions(row)"
           @select="selectRowAction($event, row)"
         />
       </template>

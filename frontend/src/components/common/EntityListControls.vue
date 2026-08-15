@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ref } from 'vue'
+
 defineOptions({ name: 'EntityListControls' })
 
 interface Props {
@@ -29,6 +31,14 @@ const emit = defineEmits<{
   applyFilters: []
 }>()
 
+const filterPanel = ref<string | undefined>(
+  typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(max-width: 700px)').matches
+    ? undefined
+    : 'filters',
+)
+
 function query(): void {
   if (props.queryable && !props.loading) emit('query')
 }
@@ -38,33 +48,32 @@ function query(): void {
   <section class="entity-list-controls">
     <v-expansion-panels
       v-if="filterable"
+      v-model="filterPanel"
       class="entity-list-controls__filters"
       variant="accordion"
     >
-      <v-expansion-panel>
+      <v-expansion-panel value="filters">
         <v-expansion-panel-title>筛选条件</v-expansion-panel-title>
         <v-expansion-panel-text>
           <div class="entity-list-controls__filter-grid">
             <slot name="filters" />
           </div>
           <div class="entity-list-controls__filter-actions">
-            <slot name="filter-actions">
-              <v-btn
-                :disabled="!queryable || loading"
-                variant="text"
-                @click="emit('resetFilters')"
-              >
-                重置
-              </v-btn>
-              <v-btn
-                color="primary"
-                :disabled="!queryable"
-                :loading="loading"
-                @click="emit('applyFilters')"
-              >
-                应用筛选
-              </v-btn>
-            </slot>
+            <v-btn
+              :disabled="!queryable || loading"
+              variant="text"
+              @click="emit('resetFilters')"
+            >
+              重置
+            </v-btn>
+            <v-btn
+              color="primary"
+              :disabled="!queryable"
+              :loading="loading"
+              @click="emit('applyFilters')"
+            >
+              应用筛选
+            </v-btn>
           </div>
         </v-expansion-panel-text>
       </v-expansion-panel>

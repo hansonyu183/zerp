@@ -53,10 +53,24 @@ const VListItemStub = defineComponent({
 })
 
 describe('ListRowActions', () => {
-  it('renders primary and overflow actions and emits their keys', async () => {
+  it('0 个动作时不渲染按钮', () => {
+    const wrapper = mount(ListRowActions, {
+      props: { actions: [] },
+      global: {
+        components: {
+          VBtn: VBtnStub,
+          VIcon: defineComponent({ render: () => h('span') }),
+        },
+      },
+    })
+
+    expect(wrapper.find('button').exists()).toBe(false)
+  })
+
+  it('1 个动作时直接显示且不渲染更多', () => {
     const wrapper = mount(ListRowActions, {
       props: {
-        primary: [
+        actions: [
           {
             key: 'edit',
             label: '编辑',
@@ -64,7 +78,51 @@ describe('ListRowActions', () => {
             color: 'primary',
           },
         ],
-        more: [
+      },
+      global: {
+        components: {
+          VBtn: VBtnStub,
+          VIcon: defineComponent({ render: () => h('span') }),
+        },
+      },
+    })
+
+    expect(wrapper.find('[aria-label="编辑"]').exists()).toBe(true)
+    expect(wrapper.find('[aria-label="更多操作"]').exists()).toBe(false)
+  })
+
+  it('3 个动作时按业务顺序全部直接显示', () => {
+    const wrapper = mount(ListRowActions, {
+      props: {
+        actions: [
+          { key: 'view', label: '查看', icon: 'mdi-eye-outline' },
+          { key: 'edit', label: '编辑', icon: 'mdi-pencil-outline' },
+          { key: 'delete', label: '删除', icon: 'mdi-delete-outline' },
+        ],
+      },
+      global: {
+        components: {
+          VBtn: VBtnStub,
+          VIcon: defineComponent({ render: () => h('span') }),
+        },
+      },
+    })
+
+    expect(
+      wrapper
+        .findAll('.list-row-actions__primary button')
+        .map((button) => button.attributes('aria-label')),
+    ).toEqual(['查看', '编辑', '删除'])
+    expect(wrapper.find('[aria-label="更多操作"]').exists()).toBe(false)
+  })
+
+  it('4 个动作时前三项直显且其余按顺序进入更多', async () => {
+    const wrapper = mount(ListRowActions, {
+      props: {
+        actions: [
+          { key: 'view', label: '查看', icon: 'mdi-eye-outline' },
+          { key: 'edit', label: '编辑', icon: 'mdi-pencil-outline' },
+          { key: 'approve', label: '批准', icon: 'mdi-check' },
           {
             key: 'delete',
             label: '删除',
@@ -88,6 +146,14 @@ describe('ListRowActions', () => {
       },
     })
 
+    expect(
+      wrapper
+        .findAll('.list-row-actions__primary button')
+        .map((button) => button.attributes('aria-label')),
+    ).toEqual(['查看', '编辑', '批准'])
+    expect(wrapper.get('[aria-label="更多操作"]').exists()).toBe(true)
+    expect(wrapper.get('.menu').text()).toBe('删除')
+
     await wrapper.get('button[aria-label="编辑"]').trigger('click')
     await wrapper
       .findAll('button')
@@ -95,16 +161,53 @@ describe('ListRowActions', () => {
       ?.trigger('click')
 
     expect(wrapper.emitted('select')).toEqual([['edit'], ['delete']])
-    expect(wrapper.text()).toContain('编辑')
-    expect(wrapper.text()).toContain('删除')
+  })
+
+  it('手机卡片复用同一动作列表和分流规则', () => {
+    const wrapper = mount(ListRowActions, {
+      attrs: { class: 'phone-card__actions' },
+      props: {
+        actions: [
+          { key: 'view', label: '查看流程', icon: 'mdi-eye-outline' },
+          { key: 'root', label: '打开根单据', icon: 'mdi-file-outline' },
+          { key: 'audit', label: '审核历史', icon: 'mdi-history' },
+          { key: 'delete', label: '删除', icon: 'mdi-delete-outline' },
+        ],
+      },
+      global: {
+        components: {
+          VBtn: VBtnStub,
+          VIcon: defineComponent({ render: () => h('span') }),
+          VList: defineComponent({
+            setup(_, { slots }) {
+              return () => h('div', slots.default?.())
+            },
+          }),
+          VListItem: VListItemStub,
+          VMenu: VMenuStub,
+        },
+      },
+    })
+
+    expect(wrapper.classes()).toContain('phone-card__actions')
+    expect(
+      wrapper
+        .findAll('.list-row-actions__primary button')
+        .map((button) => button.attributes('aria-label')),
+    ).toEqual(['查看流程', '打开根单据', '审核历史'])
+    expect(wrapper.get('.menu').text()).toBe('删除')
   })
 
   it('disables every action while loading', () => {
     const wrapper = mount(ListRowActions, {
       props: {
         loading: true,
-        primary: [{ key: 'view', label: '查看', icon: 'mdi-eye-outline' }],
-        more: [{ key: 'audit', label: '审核历史', icon: 'mdi-history' }],
+        actions: [
+          { key: 'view', label: '查看', icon: 'mdi-eye-outline' },
+          { key: 'edit', label: '编辑', icon: 'mdi-pencil-outline' },
+          { key: 'approve', label: '批准', icon: 'mdi-check' },
+          { key: 'audit', label: '审核历史', icon: 'mdi-history' },
+        ],
       },
       global: {
         components: {
@@ -131,7 +234,7 @@ describe('ListRowActions', () => {
   it('explains why an available row action is disabled', () => {
     const wrapper = mount(ListRowActions, {
       props: {
-        primary: [
+        actions: [
           {
             key: 'approve',
             label: '审核通过',

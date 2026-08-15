@@ -78,9 +78,18 @@ void vm.query()
       </template>
       <template #actions="{ row }">
         <ListRowActions
-          :label="`操作 ${row.username}`"
-          :more="
-            vm.canChangeEnabled(row)
+          :actions="[
+            ...(vm.canEditUser(row)
+              ? [
+                  {
+                    key: 'edit',
+                    label: '编辑',
+                    icon: 'mdi-pencil-outline',
+                    color: 'primary',
+                  },
+                ]
+              : []),
+            ...(vm.canChangeEnabled(row)
               ? [
                   {
                     key: 'toggle',
@@ -91,20 +100,9 @@ void vm.query()
                         : 'mdi-account-check-outline',
                   },
                 ]
-              : []
-          "
-          :primary="
-            vm.canEditUser(row)
-              ? [
-                  {
-                    key: 'edit',
-                    label: '编辑',
-                    icon: 'mdi-pencil-outline',
-                    color: 'primary',
-                  },
-                ]
-              : []
-          "
+              : []),
+          ]"
+          :label="`操作 ${row.username}`"
           @select="$event === 'edit' ? vm.openEdit(row) : vm.changeEnabled(row)"
         />
       </template>

@@ -135,9 +135,6 @@ function applyMobileSort(value: {
       <template v-if="$slots.filters" #filters>
         <slot name="filters" />
       </template>
-      <template v-if="$slots['filter-actions']" #filter-actions>
-        <slot name="filter-actions" />
-      </template>
       <template v-if="$slots.toolbar" #toolbar>
         <slot name="toolbar" />
       </template>
@@ -220,22 +217,8 @@ function applyMobileSort(value: {
               :row="row"
             >
               <ListRowActions
-                :label="`操作 ${rowKey(row)}`"
-                :loading="loading"
-                :more="
-                  resolveRowState(deletable, row)
-                    ? [
-                        {
-                          key: 'delete',
-                          label: `删除 ${rowKey(row)}`,
-                          icon: 'mdi-delete-outline',
-                          color: 'error',
-                        },
-                      ]
-                    : []
-                "
-                :primary="
-                  resolveRowState(editable, row)
+                :actions="[
+                  ...(resolveRowState(editable, row)
                     ? [
                         {
                           key: 'edit',
@@ -244,8 +227,20 @@ function applyMobileSort(value: {
                           color: 'primary',
                         },
                       ]
-                    : []
-                "
+                    : []),
+                  ...(resolveRowState(deletable, row)
+                    ? [
+                        {
+                          key: 'delete',
+                          label: `删除 ${rowKey(row)}`,
+                          icon: 'mdi-delete-outline',
+                          color: 'error',
+                        },
+                      ]
+                    : []),
+                ]"
+                :label="`操作 ${rowKey(row)}`"
+                :loading="loading"
                 @select="
                   $event === 'edit' ? emit('edit', row) : emit('delete', row)
                 "

@@ -349,6 +349,12 @@ export function createAccountingMappingViewModel() {
     await query()
   }
 
+  async function resetFilters(): Promise<void> {
+    entityFilter.value = ''
+    page.value = 1
+    await query()
+  }
+
   return reactive({
     books,
     rows,
@@ -383,5 +389,6 @@ export function createAccountingMappingViewModel() {
     changeState,
     changeBook,
     changePage,
+    resetFilters,
   })
 }

@@ -82,8 +82,17 @@ void vm.query()
       </template>
       <template #actions="{ row: item }">
         <ListRowActions
-          :label="`操作 ${item.code}`"
-          :more="[
+          :actions="[
+            ...(vm.canSave
+              ? [
+                  {
+                    key: 'edit',
+                    label: '编辑',
+                    icon: 'mdi-pencil-outline',
+                    color: 'primary',
+                  },
+                ]
+              : []),
             ...((item.enabled ? vm.canDisable : vm.canEnable)
               ? [
                   {
@@ -106,18 +115,7 @@ void vm.query()
                 ]
               : []),
           ]"
-          :primary="
-            vm.canSave
-              ? [
-                  {
-                    key: 'edit',
-                    label: '编辑',
-                    icon: 'mdi-pencil-outline',
-                    color: 'primary',
-                  },
-                ]
-              : []
-          "
+          :label="`操作 ${item.code}`"
           @select="selectAction($event, item)"
         />
       </template>

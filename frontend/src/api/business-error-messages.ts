@@ -550,6 +550,8 @@ const exactMessages: Readonly<Record<string, string>> = {
   'workbench must be a direct route': '工作台必须作为一级菜单入口。',
   'workbench must be the enabled direct entry':
     '请保留已启用的一级工作台入口。',
+  'workbench name is reserved for the direct entry':
+    '“工作台”名称仅可用于一级入口，请使用其他名称。',
   'system parameter is managed by its owning service':
     '该系统参数只能由对应功能修改。',
   'system parameter must be a decimal': '系统参数必须填写为小数。',

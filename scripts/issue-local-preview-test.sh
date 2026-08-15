@@ -43,10 +43,10 @@ ZERP_PRIMARY_ROOT="${control}" \
 
 claim_id=$(sed -n 's/^claim://p' "${events}")
 close_id=$(sed -n 's/^close://p' "${events}")
-[ -n "${claim_id}" ] && [ "${claim_id}" = "${close_id}" ] || {
+if [ -z "${claim_id}" ] || [ "${claim_id}" != "${close_id}" ]; then
   echo 'preview deployment and close used different slot IDs' >&2
   exit 1
-}
+fi
 grep -Fq 'url=https://zerp-preview.bytesucceed.com' "${tmp}/preview.env"
 grep -Eq '^fingerprint=[0-9a-f]{64}$' "${tmp}/preview.env"
 

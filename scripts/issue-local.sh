@@ -181,11 +181,11 @@ validate_tickets() {
     build=$(ticket_build "${ticket}")
     blockers=$(ticket_blockers "${ticket}")
     acceptance=$(ticket_acceptance "${ticket}")
-    [ -n "${number}" ] && [ -n "${title}" ] && [ -n "${build}" ] && \
-      [ -n "${blockers}" ] && [ -n "${acceptance}" ] || {
+    if [ -z "${number}" ] || [ -z "${title}" ] || [ -z "${build}" ] || \
+      [ -z "${blockers}" ] || [ -z "${acceptance}" ]; then
       echo "invalid local ticket: ${ticket}" >&2
       return 1
-    }
+    fi
     case "${blockers}" in
       None*) ;;
       *)

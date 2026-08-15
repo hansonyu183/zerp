@@ -705,16 +705,29 @@ publish_pr() {
     expected_marker="<!-- zerp-local-batch feature=${feature} head=${head_sha} fingerprint=${fingerprint} -->"
     body_matches=0
     printf '%s' "${pr_json}" | jq -r .body | grep -Fqx "${expected_marker}" && body_matches=1
-    if [ "${remote_head}" != "${head_sha}" ]; then
-      git -C "${worktree}" push \
-        --force-with-lease="refs/heads/${branch}:${remote_head}" \
-        origin "HEAD:refs/heads/${branch}" >/dev/null
-      body_matches=0
-    fi
+    body_updated=0
+    previous_body="${batch_root}/pr-body.previous.md"
+    rm -f "${previous_body}"
     if [ "${body_matches}" != 1 ]; then
+      printf '%s' "${pr_json}" | jq -r .body >"${previous_body}"
       "${gh_bin}" pr edit "${pr}" --repo "${repo}" \
         --body-file "${batch_root}/pr-body.md" >/dev/null
+      body_updated=1
     fi
+    if [ "${remote_head}" != "${head_sha}" ]; then
+      if ! git -C "${worktree}" push \
+        --force-with-lease="refs/heads/${branch}:${remote_head}" \
+        origin "HEAD:refs/heads/${branch}" >/dev/null; then
+        if [ "${body_updated}" = 1 ]; then
+          "${gh_bin}" pr edit "${pr}" --repo "${repo}" \
+            --body-file "${previous_body}" >/dev/null || \
+            log "failed to restore PR #${pr} body after rejected head update"
+        fi
+        rm -f "${previous_body}"
+        return 1
+      fi
+    fi
+    rm -f "${previous_body}"
   fi
   printf '%s\n' "${pr}"
 }

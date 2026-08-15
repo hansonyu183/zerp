@@ -19,7 +19,7 @@
 
 - 实现、审查、门禁或 CI 失败最多进行三轮自动实现/修复；预览失败保留完整 stderr 和 exact-head gate evidence，并直接标为 `preview-blocked`，不会把宿主沙箱、网络或发布环境故障交给 `$implement` 改业务代码。环境恢复后显式 `retry` 会复用通过的 exact-head gate 直接重试预览；耗尽后整批标为 `blocked`，不会继续发布。
 - `needs_input` 立即将整批标为 `needs-input`，不部署预览、不访问 GitHub。
-- 进程崩溃后以批次运行目录中的 base、attempt、预览证据、远端 Issue 映射和 PR 编号恢复。远端对象带稳定 marker；重启必须复用，不得重复创建。已有 PR 时先校验它仍是预期的 open `automation/local-* -> main` PR；若本地候选因重放产生新 SHA，使用旧远端 head 的精确 `--force-with-lease` 更新原分支和 PR marker，再等待新 head 的检查。
+- 进程崩溃后以批次运行目录中的 base、attempt、预览证据、远端 Issue 映射和 PR 编号恢复。远端对象带稳定 marker；重启必须复用，不得重复创建。已有 PR 时先校验它仍是预期的 open `automation/local-* -> main` PR；若本地候选因重放产生新 SHA，先写入新 head 的 PR marker，再使用旧远端 head 的精确 `--force-with-lease` 更新原分支，确保 GitHub 的 `synchronize` 事件读取到新 marker 后才等待新 head 的检查；推送失败必须恢复旧正文。
 - 生产失败会把批次标为 `production-blocked`、写入本地停止开关并在 PR 通知。控制器不得自动执行数据库回滚、清库、恢复或继续下一批。
 - 人工处理本地失败后可运行 `scripts/issue-local.sh retry <feature>`；若候选 clean、提交与 `implementation.json` 一致且已有 `review=passed`，控制器保留该提交并先恢复其宿主 gate。显式 retry 会清除同一 SHA 的 gate attempt marker，适用于已修复 Docker 等宿主基础设施；dirty、未审查或 SHA 不匹配的候选仍按完整实现轮次重跑。已经发布 PR 的批次不得本地重置。生产故障处理完成后由维护者运行 `scripts/issue-local.sh start`。
 

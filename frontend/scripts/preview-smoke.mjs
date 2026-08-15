@@ -24,7 +24,7 @@ try {
   const marker = await page.request.get(
     `${baseURL}/_zerp-release?preview-release=${expectedSHA}`,
   )
-  if (!marker.ok() || (await marker.text()) !== expectedSHA) {
+  if (!marker.ok() || (await marker.text()).trim() !== expectedSHA) {
     throw new Error(
       'public preview release marker does not match the exact SHA',
     )

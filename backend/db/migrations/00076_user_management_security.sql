@@ -24,6 +24,8 @@ WHERE permission_id IN (
 DELETE FROM app_permissions
 WHERE path IN ('/app/user/signout', '/app/user/change-password');
 
+SELECT rpt_validate_current_reports();
+
 -- +goose Down
 INSERT INTO app_permissions (id, path, domain, entity, action, description, status) VALUES
 ('01JAPP00000000000000000001', '/app/user/signout', 'app', 'user', 'signout', '退出登录', 'ENABLED'),

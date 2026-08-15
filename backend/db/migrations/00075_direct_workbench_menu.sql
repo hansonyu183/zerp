@@ -125,6 +125,8 @@ CREATE UNIQUE INDEX app_business_menu_items_workbench_route_idx
     ON app_business_menu_items(route_key)
     WHERE route_key = 'home/dashboard';
 
+SELECT rpt_validate_current_reports();
+
 -- +goose Down
 DROP INDEX app_business_menu_items_workbench_route_idx;
 

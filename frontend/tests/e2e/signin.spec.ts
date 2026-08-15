@@ -240,7 +240,6 @@ test('辅助对象菜单使用中文并导航到真实页面', async ({
     .locator('.aux-entity-drawer')
     .getByRole('button', { name: '取消', exact: true })
     .click()
-  await page.getByText('筛选条件', { exact: true }).click()
   await expect(
     page.getByRole('combobox', { name: '状态', exact: true }),
   ).toBeVisible()

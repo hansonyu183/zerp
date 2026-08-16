@@ -145,14 +145,37 @@ async function signIn(
   password: string,
 ): Promise<{ api: RealApi; context: APIRequestContext }> {
   const anonymous = await request.newContext({ baseURL })
-  const session = await new RealApi(anonymous).post<SessionData>(
-    'app/user/signin',
-    { username, password },
-  )
-  return {
-    api: new RealApi(anonymous, session.csrfToken),
-    context: anonymous,
+  try {
+    const session = await new RealApi(anonymous).post<SessionData>(
+      'app/user/signin',
+      { username, password },
+    )
+    return {
+      api: new RealApi(anonymous, session.csrfToken),
+      context: anonymous,
+    }
+  } catch (error) {
+    await anonymous.dispose()
+    throw error
   }
+}
+
+async function signInAfterForcedPasswordChange(
+  baseURL: string,
+  username: string,
+  initialPassword: string,
+  password: string,
+): Promise<{ api: RealApi; context: APIRequestContext }> {
+  const initialSession = await signIn(baseURL, username, initialPassword)
+  try {
+    await initialSession.api.post('app/user/change-password', {
+      currentPassword: initialPassword,
+      newPassword: password,
+    })
+  } finally {
+    await initialSession.context.dispose()
+  }
+  return signIn(baseURL, username, password)
 }
 
 async function allPermissions(api: RealApi): Promise<PermissionView[]> {
@@ -507,8 +530,10 @@ export async function createWflWorkerState(options: {
 
     const suffix =
       `${options.parallelIndex.toString(36)}${Date.now().toString(36)}${randomBytes(2).toString('hex')}`.toUpperCase()
-    const operatorPassword = `Wfl!${randomBytes(12).toString('base64url')}Aa1`
-    const reviewerPassword = `Wfl!${randomBytes(12).toString('base64url')}Aa1`
+    const operatorInitialPassword = `Wfl!${randomBytes(12).toString('base64url')}Aa1`
+    const operatorPassword = `Wfl!${randomBytes(12).toString('base64url')}Bb2`
+    const reviewerInitialPassword = `Wfl!${randomBytes(12).toString('base64url')}Aa1`
+    const reviewerPassword = `Wfl!${randomBytes(12).toString('base64url')}Bb2`
     const operatorRole = await bootstrapSession.api.post<RoleView>(
       'app/role/create',
       {
@@ -524,13 +549,14 @@ export async function createWflWorkerState(options: {
       {
         username: operatorUsername,
         displayName: `E2E 操作员 ${suffix}`,
-        password: operatorPassword,
+        password: operatorInitialPassword,
         roleIds: [operatorRole.id],
       },
     )
-    const operatorSession = await signIn(
+    const operatorSession = await signInAfterForcedPasswordChange(
       options.baseURL,
       operatorUsername,
+      operatorInitialPassword,
       operatorPassword,
     )
     contexts.push(operatorSession.context)
@@ -550,13 +576,14 @@ export async function createWflWorkerState(options: {
       {
         username: reviewerUsername,
         displayName: `E2E WFL 复核 ${suffix}`,
-        password: reviewerPassword,
+        password: reviewerInitialPassword,
         roleIds: [reviewerRole.id],
       },
     )
-    const reviewerSession = await signIn(
+    const reviewerSession = await signInAfterForcedPasswordChange(
       options.baseURL,
       reviewerUsername,
+      reviewerInitialPassword,
       reviewerPassword,
     )
     contexts.push(reviewerSession.context)

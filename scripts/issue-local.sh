@@ -37,6 +37,171 @@ write_value() {
   mv "${destination}.new" "${destination}"
 }
 
+repair_budget_file() {
+  printf '%s\n' "$1/repair-budget.json"
+}
+
+ensure_repair_budget() {
+  batch_root=$1
+  budget_file=$(repair_budget_file "${batch_root}")
+  if [ ! -e "${budget_file}" ]; then
+    jq -n '{version: 1, total: 0, lastStage: null, lastFingerprint: null, consecutive: 0, events: [], recoveries: []}' \
+      >"${budget_file}.new"
+    mv "${budget_file}.new" "${budget_file}"
+  fi
+  jq -e '
+    . as $budget |
+    .version == 1 and
+    (.total | type == "number" and floor == . and . >= 0) and
+    ((.lastStage == null) or (.lastStage | type == "string")) and
+    ((.lastFingerprint == null) or (.lastFingerprint | type == "string")) and
+    (.consecutive | type == "number" and floor == . and . >= 0) and
+    (.events | type == "array" and length == $budget.total) and
+    all(.events[]; (
+      (.sequence | type == "number" and floor == . and . >= 1) and
+      (.stage | type == "string") and
+      ((.candidateHead == null) or (.candidateHead | type == "string"))
+    )) and
+    (.recoveries | type == "array") and
+    all(.recoveries[]; (
+      (.atTotal | type == "number" and floor == . and . >= 0) and
+      ((.previousStage == null) or (.previousStage | type == "string")) and
+      ((.previousFingerprint == null) or (.previousFingerprint | type == "string")) and
+      (.previousConsecutive | type == "number" and floor == . and . >= 1) and
+      ((.candidateHead == null) or (.candidateHead | type == "string"))
+    ))
+  ' "${budget_file}" >/dev/null
+}
+
+acknowledge_manual_retry() {
+  batch_root=$1
+  candidate_head=$2
+  ensure_repair_budget "${batch_root}" || return 1
+  budget_file=$(repair_budget_file "${batch_root}")
+  consecutive=$(jq -r .consecutive "${budget_file}")
+  [ "${consecutive}" -gt 0 ] || return 0
+  failed_head=$(jq -r '.events[-1].candidateHead // empty' "${budget_file}")
+  case "${failed_head}" in '' | *[!0-9a-f]*) failed_head= ;; esac
+  [ "${#failed_head}" -eq 40 ] || failed_head=
+  case "${candidate_head}" in '' | *[!0-9a-f]*) candidate_head= ;; esac
+  [ "${#candidate_head}" -eq 40 ] || candidate_head=
+  [ -n "${failed_head}" ] && [ -n "${candidate_head}" ] &&
+    [ "${failed_head}" != "${candidate_head}" ] || return 0
+  jq --arg candidate_head "${candidate_head}" '
+    .recoveries += [{
+      atTotal: .total,
+      previousStage: .lastStage,
+      previousFingerprint: .lastFingerprint,
+      previousConsecutive: .consecutive,
+      candidateHead: (if $candidate_head == "" then null else $candidate_head end)
+    }] |
+    .lastStage = null |
+    .lastFingerprint = null |
+    .consecutive = 0
+  ' "${budget_file}" >"${budget_file}.new"
+  mv "${budget_file}.new" "${budget_file}"
+}
+
+consume_repair_budget() {
+  batch_root=$1
+  stage=$2
+  case "${stage}" in code-review-gate | gate) ;; *) return 1 ;; esac
+  ensure_repair_budget "${batch_root}" || return 1
+  budget_file=$(repair_budget_file "${batch_root}")
+  total=$(jq -r .total "${budget_file}")
+  consecutive=$(jq -r .consecutive "${budget_file}")
+  [ "${total}" -lt 8 ] || return 2
+  [ "${consecutive}" -lt 2 ] || return 3
+  jq --arg stage "${stage}" '
+    (.total + 1) as $total |
+    .total = $total |
+    .events += [{sequence: $total, stage: $stage}]
+  ' "${budget_file}" >"${budget_file}.new"
+  mv "${budget_file}.new" "${budget_file}"
+}
+
+normalized_failure_fingerprint() {
+  stage=$1
+  failure_file=$2
+  {
+    printf 'stage=%s\n' "${stage}"
+    sed \
+      -e '/^Host final gate failed for candidate /d' \
+      -e '/^Full log: /d' \
+      -e '/^Focused error excerpt:/d' \
+      -e 's/[[:space:]][[:space:]]*/ /g' \
+      "${failure_file}"
+  } | shasum -a 256 | awk '{print $1}'
+}
+
+record_repair_failure() {
+  batch_root=$1
+  stage=$2
+  candidate_head=$3
+  failure_file="${batch_root}/failure.md"
+  ensure_repair_budget "${batch_root}" || return 1
+  [ -r "${failure_file}" ] || return 1
+  fingerprint=$(normalized_failure_fingerprint "${stage}" "${failure_file}")
+  budget_file=$(repair_budget_file "${batch_root}")
+  jq --arg stage "${stage}" --arg fingerprint "${fingerprint}" --arg candidate_head "${candidate_head}" '
+    if .lastStage == $stage and .lastFingerprint == $fingerprint then
+      .consecutive += 1
+    else
+      .lastStage = $stage | .lastFingerprint = $fingerprint | .consecutive = 1
+    end |
+    .consecutive as $consecutive |
+    .events |= (
+      .[:-1] + [(.[-1] + {
+        failureStage: $stage,
+        failureFingerprint: $fingerprint,
+        candidateHead: (if $candidate_head == "" then null else $candidate_head end),
+        consecutive: $consecutive
+      })]
+    )
+  ' "${budget_file}" >"${budget_file}.new"
+  mv "${budget_file}.new" "${budget_file}"
+  consecutive=$(jq -r .consecutive "${budget_file}")
+  [ "${consecutive}" -lt 2 ] || return 2
+}
+
+block_for_repair_budget() {
+  batch_root=$1
+  reason=$2
+  failure_file="${batch_root}/failure.md"
+  budget_file=$(repair_budget_file "${batch_root}")
+  total=$(jq -r '.total // "unknown"' "${budget_file}" 2>/dev/null || printf unknown)
+  consecutive=$(jq -r '.consecutive // "unknown"' "${budget_file}" 2>/dev/null || printf unknown)
+  {
+    [ -r "${failure_file}" ] && cat "${failure_file}"
+    printf '\nRepair budget exhausted: %s (total=%s/8, consecutive=%s).\n' \
+      "${reason}" "${total}" "${consecutive}"
+  } >"${failure_file}.new"
+  mv "${failure_file}.new" "${failure_file}"
+}
+
+record_or_block_repair_failure() {
+  batch_root=$1
+  issues_dir=$2
+  worktree=$3
+  stage=$(cat "${batch_root}/repair-stage" 2>/dev/null || printf code-review-gate)
+  case "${stage}" in code-review-gate | gate) ;; *) stage=code-review-gate ;; esac
+  candidate_head=$(git -C "${worktree}" rev-parse HEAD 2>/dev/null || true)
+  case "${candidate_head}" in '' | *[!0-9a-f]*) candidate_head= ;; esac
+  [ "${#candidate_head}" -eq 40 ] || candidate_head=
+  if record_repair_failure "${batch_root}" "${stage}" "${candidate_head}"; then
+    return 0
+  else
+    record_result=$?
+  fi
+  case "${record_result}" in
+    2) block_for_repair_budget "${batch_root}" 'the same normalized failure fingerprint recurred twice' ;;
+    *) block_for_repair_budget "${batch_root}" 'the cumulative repair audit is invalid or unavailable' ;;
+  esac
+  mark_batch "${issues_dir}" blocked
+  write_value "${batch_root}/state" blocked
+  return 1
+}
+
 ticket_status() {
   sed -n 's/^\*\*Status:\*\*[[:space:]]*//p' "$1" | sed -n '1p'
 }
@@ -584,6 +749,7 @@ run_repair_preflight() {
   worktree=$2
   marker="${batch_root}/repair-e2e.env"
   [ -r "${marker}" ] || return 0
+  write_value "${batch_root}/repair-stage" gate
   failed_head=$(sed -n 's/^failed_head=//p' "${marker}")
   project=$(sed -n 's/^project=//p' "${marker}")
   spec=$(sed -n 's/^spec=//p' "${marker}")
@@ -628,6 +794,7 @@ run_final_gate() {
   gate_log="${batch_root}/gate.log"
   failure_file="${batch_root}/failure.md"
   marker_file="${batch_root}/gate-attempted-head"
+  write_value "${batch_root}/repair-stage" gate
   command_path=${gate_command:-${worktree}/scripts/change-gate.sh}
   e2e_env_file=$(ensure_primary_e2e_env) || return 4
   pnpm_wrapper_dir="${worktree}/.scratch/.issue-local-bin"
@@ -728,9 +895,18 @@ run_implement() {
   if [ -n "${review_base}" ] && [ "${previous_head}" != "${review_base}" ]; then
     preexisting_review_delta=1
   fi
-  attempt=$(cat "${batch_root}/attempt" 2>/dev/null || printf 0)
-  attempt=$((attempt + 1))
-  write_value "${batch_root}/attempt" "${attempt}"
+  write_value "${batch_root}/repair-stage" code-review-gate
+  if consume_repair_budget "${batch_root}" code-review-gate; then
+    :
+  else
+    budget_result=$?
+    case "${budget_result}" in
+      2) block_for_repair_budget "${batch_root}" 'the cumulative code/review/gate repair limit was reached' ;;
+      3) block_for_repair_budget "${batch_root}" 'the same normalized failure fingerprint already recurred twice' ;;
+      *) block_for_repair_budget "${batch_root}" 'the cumulative repair audit is invalid or unavailable' ;;
+    esac
+    return 5
+  fi
   rm -f "${result_file}" "${evidence_file}"
   if ! {
     # shellcheck disable=SC2016 # prompt intentionally contains skill and Markdown literals
@@ -1097,22 +1273,38 @@ implement_and_preview() {
   fi
   if resumed_head=$(reviewed_candidate_head "${batch_root}" "${worktree}" "${base_sha}"); then
     write_value "${batch_root}/reviewed-head" "${resumed_head}"
-    if run_repair_preflight "${batch_root}" "${worktree}" &&
-      run_final_gate "${batch_root}" "${worktree}" "${base_sha}" "${resumed_head}"; then
-      if deploy_preview "${feature}" "${batch_root}" "${worktree}"; then
-        rm -f "${batch_root}/failure.md"
-        return 0
-      else
-        preview_result=$?
-        if [ "${preview_result}" = 4 ]; then
-          mark_batch "${issues_dir}" blocked
-          write_value "${batch_root}/state" preview-blocked
-          return 1
+    if consume_repair_budget "${batch_root}" gate; then
+      if run_repair_preflight "${batch_root}" "${worktree}" &&
+        run_final_gate "${batch_root}" "${worktree}" "${base_sha}" "${resumed_head}"; then
+        if deploy_preview "${feature}" "${batch_root}" "${worktree}"; then
+          rm -f "${batch_root}/failure.md"
+          return 0
+        else
+          preview_result=$?
+          if [ "${preview_result}" = 4 ]; then
+            mark_batch "${issues_dir}" blocked
+            write_value "${batch_root}/state" preview-blocked
+            return 1
+          fi
         fi
+      elif ! record_or_block_repair_failure "${batch_root}" "${issues_dir}" "${worktree}"; then
+        return 1
       fi
+    else
+      budget_result=$?
+      if [ "${budget_result}" = 2 ]; then
+        block_for_repair_budget "${batch_root}" 'the cumulative code/review/gate repair limit was reached'
+      elif [ "${budget_result}" = 3 ]; then
+        block_for_repair_budget "${batch_root}" 'the same normalized failure fingerprint already recurred twice'
+      else
+        block_for_repair_budget "${batch_root}" 'the cumulative repair audit is invalid or unavailable'
+      fi
+      mark_batch "${issues_dir}" blocked
+      write_value "${batch_root}/state" blocked
+      return 1
     fi
   fi
-  while [ "$(cat "${batch_root}/attempt" 2>/dev/null || printf 0)" -lt 3 ]; do
+  while :; do
     if run_implement "${feature}" "${batch_root}" "${worktree}" "${base_sha}"; then
       if deploy_preview "${feature}" "${batch_root}" "${worktree}"; then
         rm -f "${batch_root}/failure.md"
@@ -1133,15 +1325,19 @@ implement_and_preview() {
         mark_batch "${issues_dir}" "${status}"
         return 1
       fi
+      if [ "${result}" = 5 ]; then
+        mark_batch "${issues_dir}" blocked
+        write_value "${batch_root}/state" blocked
+        return 1
+      fi
       if [ "${result}" != 4 ]; then
-        printf 'Implementation, review, or final gate failed on attempt %s.\n' \
-          "$(cat "${batch_root}/attempt")" >"${batch_root}/failure.md"
+        printf 'Implementation, review, or final gate repair failed.\n' >"${batch_root}/failure.md"
+      fi
+      if ! record_or_block_repair_failure "${batch_root}" "${issues_dir}" "${worktree}"; then
+        return 1
       fi
     fi
   done
-  mark_batch "${issues_dir}" blocked
-  write_value "${batch_root}/state" blocked
-  return 1
 }
 
 refresh_main() {
@@ -1228,16 +1424,15 @@ wait_checks_and_merge() {
       [ "${registration_delay}" -eq 0 ] || sleep "${registration_delay}"
       continue
     fi
-    if [ "$(cat "${batch_root}/attempt" 2>/dev/null || printf 0)" -ge 3 ]; then
-      mark_batch "${issues_dir}" blocked
-      write_value "${batch_root}/state" blocked
-      release_preview "${feature}"
-      return 1
-    fi
     {
       printf 'GitHub required checks failed for PR #%s.\n\n' "${pr}"
       sed -n '1,240p' "${batch_root}/checks.log"
     } >"${batch_root}/failure.md"
+    write_value "${batch_root}/repair-stage" gate
+    if ! record_or_block_repair_failure "${batch_root}" "${issues_dir}" "${worktree}"; then
+      release_preview "${feature}"
+      return 1
+    fi
     previous_head=$(git -C "${worktree}" rev-parse HEAD)
     if ! refresh_main "${feature}" "${batch_root}" "${worktree}" "${issues_dir}"; then
       release_preview "${feature}"
@@ -1264,6 +1459,19 @@ wait_checks_and_merge() {
         case "${status}" in needs_input) status=needs-input ;; esac
         mark_batch "${issues_dir}" "${status}"
         write_value "${batch_root}/state" "${status}"
+        release_preview "${feature}"
+        return 1
+      fi
+      if [ "${result}" = 5 ]; then
+        mark_batch "${issues_dir}" blocked
+        write_value "${batch_root}/state" blocked
+        release_preview "${feature}"
+        return 1
+      fi
+      if [ "${result}" != 4 ]; then
+        printf 'Implementation, review, or final gate repair failed.\n' >"${batch_root}/failure.md"
+      fi
+      if ! record_or_block_repair_failure "${batch_root}" "${issues_dir}" "${worktree}"; then
         release_preview "${feature}"
         return 1
       fi
@@ -1444,6 +1652,10 @@ retry_command() {
   if [ -d "${worktree}" ]; then
     current_head=$(git -C "${worktree}" rev-parse HEAD 2>/dev/null || true)
   fi
+  acknowledge_manual_retry "${batch_root}" "${current_head}" || {
+    echo "invalid repair budget for batch ${feature}; refusing retry" >&2
+    exit 1
+  }
   if [ -r "${batch_root}/implementation.json" ] && [ -d "${worktree}" ]; then
     prior_reviewed=$(jq -r 'select(.review == "passed") | .commitSha // empty' \
       "${batch_root}/implementation.json" 2>/dev/null || true)
@@ -1477,8 +1689,7 @@ retry_command() {
     release_preview "${feature}"
   fi
   remove_managed_root_dependencies "${worktree}"
-  rm -f "${batch_root}/preview.env" "${batch_root}/attempt" \
-    "${batch_root}/state"
+  rm -f "${batch_root}/preview.env" "${batch_root}/state"
   if [ "${preserve_gate_evidence}" = 1 ]; then
     mark_batch "${issues_dir}" ready-for-agent
     return 0

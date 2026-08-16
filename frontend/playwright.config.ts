@@ -45,8 +45,9 @@ export default defineConfig({
   use: {
     actionTimeout: 30_000,
     baseURL: appUrl,
-    trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
+    trace: 'off',
+    screenshot: 'off',
+    video: 'off',
   },
   projects: [
     {

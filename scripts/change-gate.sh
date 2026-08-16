@@ -101,6 +101,28 @@ check_validation() {
   pnpm format:check
   pnpm docs:check
   scripts/test-release-flow-transition.sh
+  check_changed_validation
+}
+
+changed_path_matches() {
+  pattern=$1
+  printf '%s\n' "${changed_files}" | grep -Eq "${pattern}"
+}
+
+check_changed_validation() {
+  if [ "${impact}" = application ] && changed_path_matches \
+    '^(Makefile|scripts/change-impact\.sh|scripts/test-release-flow-transition\.sh)$'; then
+    scripts/test-release-flow-transition.sh
+  fi
+  if changed_path_matches '^scripts/issue-local(-test)?\.sh$'; then
+    scripts/issue-local-test.sh
+  fi
+  if changed_path_matches '^scripts/pre-push(-test)?\.sh$'; then
+    scripts/pre-push-test.sh
+  fi
+  if [ "${local_e2e}" != 1 ] && changed_path_matches '^frontend/(playwright\.config\.ts|scripts/(check-e2e-constraints(\.test)?|preview-smoke)\.mjs|tests/e2e/)'; then
+    make check-e2e-constraints
+  fi
 }
 
 check_backend() {
@@ -115,6 +137,11 @@ print_plan
 [ "${plan_only}" = 0 ] || exit 0
 gate_started=$(date +%s)
 git diff --check "${diff_range}"
+
+if [ "${impact}" = application ] && changed_path_matches \
+  '^(Makefile|scripts/(change-impact|test-release-flow-transition|issue-local|issue-local-test|pre-push|pre-push-test)\.sh|frontend/scripts/(check-e2e-constraints(\.test)?|preview-smoke)\.mjs)'; then
+  run_stage 'changed validation tooling' check_changed_validation
+fi
 
 case "${impact}" in
   docs) run_stage documentation check_docs ;;

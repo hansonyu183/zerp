@@ -122,9 +122,17 @@ count=$((count + 1))
 printf '%s\n' "${count}" >"${MOCK_CODEX_COUNT}"
 printf '%s\n' "${prompt}" >"${MOCK_PROMPT}-${count}"
 mkdir -p "${worktree}/.pnpm-store" "${worktree}/frontend/node_modules/.pnpm-store"
+if [ "${count}" -le "${MOCK_CODEX_FAILS:-0}" ]; then
+  echo "simulated code review failure ${count}" >&2
+  exit 1
+fi
 if [ "${MOCK_CODEX_MODE:-completed}" = needs-input ]; then
   jq -n '{status:"needs_input",summary:"decision required",commitSha:"",validation:"not_run",review:"not_run"}' >"${output}"
   exit 0
+fi
+if [ "${MOCK_CODEX_MODE:-completed}" = failed ]; then
+  echo 'simulated code review failure' >&2
+  exit 1
 fi
 if [ "${MOCK_CODEX_REVIEW_EXISTING:-0}" = 1 ] &&
   printf '%s\n' "${prompt}" | grep -Fq 'unreviewed manual repair'; then
@@ -171,7 +179,18 @@ if [ "${count}" -le "${MOCK_GATE_FAILS:-0}" ]; then
     echo '==> isolated full-stack E2E'
     echo '  1) [system-serial] › tests/e2e/user-management-lifecycle.spec.ts:48:1 › lifecycle'
   fi
-  echo "simulated host gate failure ${count}" >&2
+  if [ "${MOCK_GATE_FAILURE_NUMERIC_UNIQUE:-0}" = 1 ]; then
+    case "${count}" in
+      1) failure_kind='HTTP 401' ;;
+      *) failure_kind='HTTP 500' ;;
+    esac
+    echo "simulated host gate failure ${failure_kind}" >&2
+  elif [ "${MOCK_GATE_FAILURE_UNIQUE:-0}" = 1 ]; then
+    failure_kind=$(printf 'abcdefgh' | cut -c "${count}")
+    echo "simulated host gate failure ${failure_kind}" >&2
+  else
+    echo 'simulated host gate failure' >&2
+  fi
   exit 1
 fi
 head=$(git rev-parse HEAD)
@@ -306,6 +325,10 @@ case " $* " in
       else
         echo "no required checks reported on the test branch" >&2
       fi
+      exit 1
+    fi
+    if [ "${count}" -le "${MOCK_CHECKS_FAILS:-0}" ]; then
+      echo 'required checks failed for candidate' >&2
       exit 1
     fi
     exit 0
@@ -770,7 +793,7 @@ test "$(cat "${MOCK_GATE_COUNT}")" = 2
 test "$(cat "${MOCK_FOCUSED_E2E_COUNT}")" = 1
 test "$(cat "${MOCK_PREVIEW_COUNT}")" = 1
 grep -Fq 'Host final gate failed' "${MOCK_PROMPT}-2"
-grep -Fq 'simulated host gate failure 1' "${MOCK_PROMPT}-2"
+grep -Fq 'simulated host gate failure' "${MOCK_PROMPT}-2"
 grep -Fq 'review only the repair delta' "${MOCK_PROMPT}-2"
 grep -Fq 'tests/e2e/user-management-lifecycle.spec.ts' "${MOCK_PROMPT}-2"
 if grep -Fxq 'successful gate output line 1' "${MOCK_PROMPT}-2"; then
@@ -786,11 +809,11 @@ make_ticket gate-blocked 'Gate blocked'
 : >"${events}"
 rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
 if MOCK_GATE_FAILS=3 run_agent; then
-  echo 'three failed host gates were accepted' >&2
+  echo 'repeated identical host gate failures were accepted' >&2
   exit 1
 fi
-test "$(cat "${MOCK_CODEX_COUNT}")" = 3
-test "$(cat "${MOCK_GATE_COUNT}")" = 3
+test "$(cat "${MOCK_CODEX_COUNT}")" = 2
+test "$(cat "${MOCK_GATE_COUNT}")" = 2
 test ! -e "${MOCK_PREVIEW_COUNT}"
 if grep -q '^gh ' "${events}"; then
   echo 'GitHub was accessed after failed host gates' >&2
@@ -798,6 +821,115 @@ if grep -q '^gh ' "${events}"; then
 fi
 grep -Fq 'Host final gate failed' "${runtime}/batches/gate-blocked/failure.md"
 grep -Fq '**Status:** blocked' "${primary}/.scratch/gate-blocked/issues/01-ticket.md"
+test "$(jq -r .total "${runtime}/batches/gate-blocked/repair-budget.json")" = 2
+test "$(jq -r .consecutive "${runtime}/batches/gate-blocked/repair-budget.json")" = 2
+test "$(jq '.events | length' "${runtime}/batches/gate-blocked/repair-budget.json")" = 2
+unset MOCK_GATE_FAILS
+retry_agent gate-blocked
+test "$(jq -r .total "${runtime}/batches/gate-blocked/repair-budget.json")" = 2
+test "$(jq -r .consecutive "${runtime}/batches/gate-blocked/repair-budget.json")" = 2
+test "$(jq '.recoveries | length' "${runtime}/batches/gate-blocked/repair-budget.json")" = 0
+gate_blocked_worktree="${runtime}/worktrees/gate-blocked"
+printf 'manual repair\n' >"${gate_blocked_worktree}/manual-repair.txt"
+git -C "${gate_blocked_worktree}" add manual-repair.txt
+git -C "${gate_blocked_worktree}" -c user.name='Manual Repair' -c user.email=manual@example.com \
+  commit -m 'fix: manual gate repair' >/dev/null
+manual_repair_head=$(git -C "${gate_blocked_worktree}" rev-parse HEAD)
+retry_agent gate-blocked
+test "$(jq -r .total "${runtime}/batches/gate-blocked/repair-budget.json")" = 2
+test "$(jq -r .consecutive "${runtime}/batches/gate-blocked/repair-budget.json")" = 0
+test "$(jq '.events | length' "${runtime}/batches/gate-blocked/repair-budget.json")" = 2
+test "$(jq '.recoveries | length' "${runtime}/batches/gate-blocked/repair-budget.json")" = 1
+test "$(jq -r '.events[-1].candidateHead' "${runtime}/batches/gate-blocked/repair-budget.json")" != null
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}"
+MOCK_CODEX_REVIEW_EXISTING=1 run_agent
+test "$(cat "${MOCK_CODEX_COUNT}")" = 1
+test "$(cat "${MOCK_GATE_COUNT}")" = 1
+test "$(cat "${MOCK_PREVIEW_COUNT}")" = 1
+test "$(jq -r .total "${runtime}/batches/gate-blocked/repair-budget.json")" = 3
+test "$(jq '.events | length' "${runtime}/batches/gate-blocked/repair-budget.json")" = 3
+test "$(jq '.recoveries | length' "${runtime}/batches/gate-blocked/repair-budget.json")" = 1
+test "$(jq -r '.recoveries[0].previousConsecutive' "${runtime}/batches/gate-blocked/repair-budget.json")" = 2
+test "$(jq -r '.recoveries[0].candidateHead' "${runtime}/batches/gate-blocked/repair-budget.json")" = "${manual_repair_head}"
+unset MOCK_CODEX_REVIEW_EXISTING
+
+make_ticket gate-fingerprint-advance 'Gate fingerprint advance'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
+MOCK_GATE_FAILS=2 MOCK_GATE_FAILURE_UNIQUE=1 run_agent
+test "$(cat "${MOCK_CODEX_COUNT}")" = 3
+test "$(cat "${MOCK_GATE_COUNT}")" = 3
+test "$(cat "${MOCK_PREVIEW_COUNT}")" = 1
+test "$(jq -r .total "${runtime}/batches/gate-fingerprint-advance/repair-budget.json")" = 3
+test "$(jq -r .consecutive "${runtime}/batches/gate-fingerprint-advance/repair-budget.json")" = 1
+
+make_ticket gate-numeric-fingerprint-advance 'Gate numeric fingerprint advance'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
+MOCK_GATE_FAILS=2 MOCK_GATE_FAILURE_NUMERIC_UNIQUE=1 run_agent
+test "$(cat "${MOCK_CODEX_COUNT}")" = 3
+test "$(cat "${MOCK_GATE_COUNT}")" = 3
+test "$(cat "${MOCK_PREVIEW_COUNT}")" = 1
+test "$(jq -r .total "${runtime}/batches/gate-numeric-fingerprint-advance/repair-budget.json")" = 3
+test "$(jq -r .consecutive "${runtime}/batches/gate-numeric-fingerprint-advance/repair-budget.json")" = 1
+unset MOCK_GATE_FAILURE_NUMERIC_UNIQUE
+
+make_ticket repair-stage-advance 'Repair stage advance'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
+MOCK_CODEX_FAILS=1 MOCK_GATE_FAILS=1 run_agent
+test "$(cat "${MOCK_CODEX_COUNT}")" = 3
+test "$(cat "${MOCK_GATE_COUNT}")" = 2
+test "$(cat "${MOCK_PREVIEW_COUNT}")" = 1
+test "$(jq -r .total "${runtime}/batches/repair-stage-advance/repair-budget.json")" = 3
+test "$(jq -r .consecutive "${runtime}/batches/repair-stage-advance/repair-budget.json")" = 1
+unset MOCK_CODEX_FAILS
+
+make_ticket code-review-retry 'Code review retry'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
+if MOCK_CODEX_FAILS=3 run_agent; then
+  echo 'repeated identical code review failures were accepted' >&2
+  exit 1
+fi
+unset MOCK_CODEX_FAILS
+test "$(cat "${MOCK_CODEX_COUNT}")" = 2
+test ! -e "${MOCK_GATE_COUNT}"
+test ! -e "${runtime}/batches/code-review-retry/gate-attempted-head"
+test "$(jq -r .consecutive "${runtime}/batches/code-review-retry/repair-budget.json")" = 2
+test "$(jq -r '.events[-1].candidateHead' "${runtime}/batches/code-review-retry/repair-budget.json")" != null
+retry_agent code-review-retry
+test "$(jq -r .consecutive "${runtime}/batches/code-review-retry/repair-budget.json")" = 2
+test "$(jq '.recoveries | length' "${runtime}/batches/code-review-retry/repair-budget.json")" = 0
+code_review_worktree="${runtime}/worktrees/code-review-retry"
+printf 'manual code review repair\n' >"${code_review_worktree}/manual-repair.txt"
+git -C "${code_review_worktree}" add manual-repair.txt
+git -C "${code_review_worktree}" -c user.name='Manual Repair' -c user.email=manual@example.com \
+  commit -m 'fix: manual code review repair' >/dev/null
+manual_code_review_head=$(git -C "${code_review_worktree}" rev-parse HEAD)
+retry_agent code-review-retry
+test "$(jq -r .consecutive "${runtime}/batches/code-review-retry/repair-budget.json")" = 0
+test "$(jq '.recoveries | length' "${runtime}/batches/code-review-retry/repair-budget.json")" = 1
+test "$(jq -r '.recoveries[0].candidateHead' "${runtime}/batches/code-review-retry/repair-budget.json")" = "${manual_code_review_head}"
+ticket="${primary}/.scratch/code-review-retry/issues/01-ticket.md"
+sed 's/^\*\*Status:\*\*.*/**Status:** blocked/' "${ticket}" >"${ticket}.new"
+mv "${ticket}.new" "${ticket}"
+
+make_ticket gate-budget-blocked 'Gate budget blocked'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
+if MOCK_GATE_FAILS=9 MOCK_GATE_FAILURE_UNIQUE=1 run_agent; then
+  echo 'repair budget allowed more than eight code/review/gate repairs' >&2
+  exit 1
+fi
+test "$(cat "${MOCK_CODEX_COUNT}")" = 8
+test "$(cat "${MOCK_GATE_COUNT}")" = 8
+test ! -e "${MOCK_PREVIEW_COUNT}"
+test "$(jq -r .total "${runtime}/batches/gate-budget-blocked/repair-budget.json")" = 8
+grep -Fq 'Repair budget exhausted' "${runtime}/batches/gate-budget-blocked/failure.md"
+test "$(grep -c 'Repair budget exhausted:' "${runtime}/batches/gate-budget-blocked/failure.md")" = 1
+unset MOCK_GATE_FAILURE_UNIQUE
 
 make_ticket legacy-model-validation 'Legacy model validation'
 : >"${events}"
@@ -831,6 +963,7 @@ grep -Fq 'simulated preview environment failure 1' "${runtime}/batches/preview-r
 grep -Fq 'simulated preview stdout 1' "${runtime}/batches/preview-repair/failure.md"
 grep -Fq '**Status:** blocked' "${primary}/.scratch/preview-repair/issues/01-ticket.md"
 test "$(cat "${runtime}/batches/preview-repair/state")" = preview-blocked
+test "$(jq -r .total "${runtime}/batches/preview-repair/repair-budget.json")" = 1
 printf 'stale successful gate marker\n' >"${runtime}/batches/preview-repair/repair-e2e.env"
 export MOCK_PREVIEW_CLOSE_TICKET="${primary}/.scratch/preview-repair/issues/01-ticket.md"
 export MOCK_PREVIEW_CLOSE_EXPECT_STATUS=blocked
@@ -839,6 +972,7 @@ unset MOCK_PREVIEW_CLOSE_TICKET MOCK_PREVIEW_CLOSE_EXPECT_STATUS
 test -r "${runtime}/batches/preview-repair/gate-evidence.json"
 test ! -e "${runtime}/batches/preview-repair/repair-e2e.env"
 test -r "${runtime}/batches/preview-repair/failure.md"
+test "$(jq -r .total "${runtime}/batches/preview-repair/repair-budget.json")" = 1
 grep -Fq '**Status:** ready-for-agent' \
   "${primary}/.scratch/preview-repair/issues/01-ticket.md"
 : >"${events}"
@@ -849,6 +983,7 @@ unset MOCK_PREVIEW_FAILS
 test ! -e "${MOCK_CODEX_COUNT}"
 test ! -e "${MOCK_GATE_COUNT}"
 test "$(grep -c '^preview$' "${events}")" = 1
+test "$(jq -r .total "${runtime}/batches/preview-repair/repair-budget.json")" = 1
 grep -Fq '**Status:** done' "${primary}/.scratch/preview-repair/issues/01-ticket.md"
 
 make_ticket preview-blocked 'Preview blocked'
@@ -892,6 +1027,22 @@ MOCK_CODEX_MODE=completed MOCK_PREVIEW_FAILS=0 MOCK_CHECKS_MISSING=1 \
 test "$(cat "${MOCK_CODEX_COUNT}")" = 1
 test "$(cat "${MOCK_CHECK_COUNT}")" = 2
 grep -Fq '**Status:** done' "${primary}/.scratch/checks-registering/issues/01-ticket.md"
+
+make_ticket checks-repeated 'Checks repeated'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" \
+  "${MOCK_ISSUE_COUNT}" "${MOCK_CHECK_COUNT}"
+export MOCK_CHECKS_MISSING=0 MOCK_CHECKS_FAILS=2
+if ZERP_ISSUE_CHECK_REGISTRATION_WAIT_SECONDS=0 run_agent; then
+  echo 'repeated identical required-check failures were accepted' >&2
+  exit 1
+fi
+unset MOCK_CHECKS_MISSING MOCK_CHECKS_FAILS
+test "$(cat "${MOCK_CODEX_COUNT}")" = 2
+test "$(cat "${MOCK_CHECK_COUNT}")" = 2
+test "$(jq -r .total "${runtime}/batches/checks-repeated/repair-budget.json")" = 2
+test "$(jq -r .consecutive "${runtime}/batches/checks-repeated/repair-budget.json")" = 2
+grep -Fq '**Status:** blocked' "${primary}/.scratch/checks-repeated/issues/01-ticket.md"
 
 make_ticket rebase-refresh 'Rebase refresh'
 : >"${events}"

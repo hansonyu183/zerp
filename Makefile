@@ -11,7 +11,7 @@ PRODUCTION_REF ?=
 COMPOSE = docker compose --env-file backend/$(BACKEND_ENV)
 DEV_COMPOSE = $(COMPOSE) -f compose.yaml -f compose.dev.yaml
 
-.PHONY: bootstrap dev dev-down generate generate-check check check-common check-contracts check-frontend check-backend check-backend-fast check-containers check-release check-runtime check-shell release-check test e2e build compose-up compose-down pre-push pre-push-plan preview-up preview-deploy preview-down preview-reset preview-rollback preview-status preview-password preview-touch preview-close preview-accept preview-promote preview-reap preview-gc preview-uninstall-agent issue-local-install production-status production-retry production-rollback
+.PHONY: bootstrap dev dev-down generate generate-check check check-common check-contracts check-frontend check-e2e-constraints check-backend check-backend-fast check-containers check-release check-runtime check-shell release-check test e2e build compose-up compose-down pre-push pre-push-plan preview-up preview-deploy preview-down preview-reset preview-rollback preview-status preview-password preview-touch preview-close preview-accept preview-promote preview-reap preview-gc preview-uninstall-agent issue-local-install production-status production-retry production-rollback
 
 bootstrap:
 	command -v corepack >/dev/null 2>&1 || npm install --global corepack@$(COREPACK_VERSION)
@@ -49,8 +49,12 @@ check-common:
 check-contracts:
 	$(MAKE) generate-check
 
-check-frontend:
+check-frontend: check-e2e-constraints
 	pnpm --filter @zerp/frontend check:core
+
+check-e2e-constraints:
+	pnpm --dir frontend exec node --test scripts/check-e2e-constraints.test.mjs
+	pnpm --dir frontend exec node scripts/check-e2e-constraints.mjs
 
 check-backend:
 	@targets="quality-core"; \
@@ -89,6 +93,7 @@ check-shell:
 
 release-check:
 	$(MAKE) check-shell
+	./scripts/pre-push-test.sh
 	./scripts/test-release-flow-transition.sh
 	./scripts/issue-local-test.sh
 	./scripts/issue-local-preview-test.sh
@@ -103,7 +108,7 @@ test:
 	pnpm test:web
 	$(MAKE) -C backend ENV_FILE=$(BACKEND_ENV) test
 
-e2e:
+e2e: check-e2e-constraints
 	./scripts/e2e.sh
 
 build:

@@ -196,6 +196,7 @@ case "$*" in
       success | success-empty-pulls) checks='full-validation:success' ;;
       untrusted-check) checks='full-validation:success' ;;
       preview-check-success) checks='preview-required:success full-validation:success' ;;
+      full-after-preview | preview-after-full) checks='preview-required:success full-validation:success' ;;
       status-success | accepted-status-*) checks='validation:success' ;;
       missing) checks='validation:success' ;;
       failed) checks='full-validation:failure' ;;
@@ -207,7 +208,13 @@ case "$*" in
       name=${check%%:*}; conclusion=${check##*:}
       app=github-actions
       [ "${MOCK_SCENARIO}" != untrusted-check ] || app=untrusted-app
-      printf '%s{"name":"%s","status":"completed","conclusion":"%s","started_at":"2026-08-08T00:00:00Z","details_url":"https://github.com/example/zerp/actions/runs/88/job/99","app":{"slug":"%s"}}' "$separator" "$name" "$conclusion" "$app"
+      started_at=2026-08-08T00:00:00Z
+      if [ "${MOCK_SCENARIO}" = full-after-preview ] && [ "${name}" = full-validation ]; then
+        started_at=2026-08-08T00:01:00Z
+      elif [ "${MOCK_SCENARIO}" = preview-after-full ] && [ "${name}" = preview-required ]; then
+        started_at=2026-08-08T00:01:00Z
+      fi
+      printf '%s{"name":"%s","status":"completed","conclusion":"%s","started_at":"%s","details_url":"https://github.com/example/zerp/actions/runs/88/job/99","app":{"slug":"%s"}}' "$separator" "$name" "$conclusion" "$started_at" "$app"
       separator=,
     done
     printf ']}\n'
@@ -269,6 +276,8 @@ assert_merge_evidence success 3333333333333333333333333333333333333333 success
 assert_merge_evidence success-empty-pulls 3333333333333333333333333333333333333333 success
 assert_merge_evidence untrusted-check 3333333333333333333333333333333333333333 failure
 assert_merge_evidence preview-check-success 3333333333333333333333333333333333333333 failure
+assert_merge_evidence full-after-preview 3333333333333333333333333333333333333333 success
+assert_merge_evidence preview-after-full 3333333333333333333333333333333333333333 failure
 assert_merge_evidence status-success 3333333333333333333333333333333333333333 failure
 assert_merge_evidence accepted-status-success 3333333333333333333333333333333333333333 success
 assert_merge_evidence accepted-status-bot 3333333333333333333333333333333333333333 failure

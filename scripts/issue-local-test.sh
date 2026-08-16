@@ -1041,7 +1041,27 @@ test ! -e "${MOCK_PREVIEW_COUNT}"
 test "$(jq -r .total "${runtime}/batches/gate-budget-blocked/repair-budget.json")" = 9
 grep -Fq 'Repair budget exhausted' "${runtime}/batches/gate-budget-blocked/failure.md"
 test "$(grep -c 'Repair budget exhausted:' "${runtime}/batches/gate-budget-blocked/failure.md")" = 1
-unset MOCK_GATE_FAILURE_UNIQUE
+unset MOCK_GATE_FAILS MOCK_GATE_FAILURE_UNIQUE
+
+gate_budget_worktree="${runtime}/worktrees/gate-budget-blocked"
+printf 'manual repair after budget exhaustion\n' >"${gate_budget_worktree}/manual-repair.txt"
+git -C "${gate_budget_worktree}" add manual-repair.txt
+git -C "${gate_budget_worktree}" -c user.name='Manual Repair' -c user.email=manual@example.com \
+  commit -m 'fix: manual repair after budget exhaustion' >/dev/null
+manual_budget_repair_head=$(git -C "${gate_budget_worktree}" rev-parse HEAD)
+retry_agent gate-budget-blocked
+test "$(jq -r .total "${runtime}/batches/gate-budget-blocked/repair-budget.json")" = 9
+test "$(jq -r '.recoveries[-1].candidateHead' "${runtime}/batches/gate-budget-blocked/repair-budget.json")" = "${manual_budget_repair_head}"
+test "$(jq -r '.recoveries[-1].consumed' "${runtime}/batches/gate-budget-blocked/repair-budget.json")" = false
+: >"${events}"
+MOCK_CODEX_REVIEW_EXISTING=1 run_agent
+test "$(cat "${MOCK_CODEX_COUNT}")" = 10
+test "$(cat "${MOCK_GATE_COUNT}")" = 10
+test "$(cat "${MOCK_PREVIEW_COUNT}")" = 1
+test "$(jq -r .total "${runtime}/batches/gate-budget-blocked/repair-budget.json")" = 10
+test "$(jq '.events | length' "${runtime}/batches/gate-budget-blocked/repair-budget.json")" = 10
+test "$(jq -r '.recoveries[-1].consumed' "${runtime}/batches/gate-budget-blocked/repair-budget.json")" = true
+unset MOCK_CODEX_REVIEW_EXISTING
 
 make_ticket legacy-model-validation 'Legacy model validation'
 : >"${events}"

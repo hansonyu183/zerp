@@ -12,14 +12,6 @@ const bobPages = [
   { entity: 'fund-account', title: '资金账户' },
 ] as const
 
-function formatIdentifierTitle(identifier: string): string {
-  return identifier
-    .split('-')
-    .filter(Boolean)
-    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
-    .join(' ')
-}
-
 async function signIn(page: Page, workerState: WflWorkerState): Promise<void> {
   await page.goto('/signin')
   await page.getByLabel('用户名').fill(workerState.operator.username)
@@ -275,6 +267,10 @@ test('五个业务域只显示面包屑而不显示页面大标题', async ({
   workerState,
 }) => {
   await signIn(page, workerState)
+  const salesProcessCodePrefix = 'e2e-sales-'
+  const salesProcessSuffix = workerState.fixtures.salesProcessCode.slice(
+    salesProcessCodePrefix.length,
+  )
 
   const pages = [
     ['/bob/customer', '客户'],
@@ -291,7 +287,7 @@ test('五个业务域只显示面包屑而不显示页面大标题', async ({
       await expect(breadcrumb).toHaveText(`ZERP / ${title}`)
     } else {
       await expect(breadcrumb).toHaveText(
-        `ZERP / ${formatIdentifierTitle(workerState.fixtures.salesProcessCode)}`,
+        `ZERP / E2e Sales ${salesProcessSuffix}`,
       )
       await expect(page.getByRole('textbox', { name: '单号' })).toBeVisible()
     }

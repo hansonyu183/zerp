@@ -294,7 +294,7 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 	if err := pool.QueryRow(t.Context(), "select count(*) from app_permissions where domain = 'vou'").Scan(&permissionCount); err != nil {
 		t.Fatalf("count VOU permissions: %v", err)
 	}
-	wantPermissions := 446
+	wantPermissions := 445
 	if permissionCount != wantPermissions {
 		t.Fatalf("VOU permissions = %d, want %d", permissionCount, wantPermissions)
 	}
@@ -307,20 +307,24 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 	if legacyTable != nil {
 		t.Fatalf("legacy intermediary table still exists: %s", *legacyTable)
 	}
-	var legacyPermissions, purchaseWritePermissions, purchaseWorkflowPermissions int
+	var legacyPermissions, purchaseWritePermissions, purchaseInboundCreatePermissions,
+		purchaseWorkflowPermissions int
 	if err := pool.QueryRow(t.Context(), `SELECT
 		count(*) FILTER (WHERE entity='intermediary-sale-order'),
 		count(*) FILTER (WHERE domain='vou' AND entity='purchase-order'
 			AND action NOT IN ('query','get','audit-history','attachment-download')),
+		count(*) FILTER (WHERE path='/vou/purchase-inbound/create'),
 		count(*) FILTER (WHERE domain='wfl' AND entity='purchase-fulfillment')
 		FROM app_permissions`).Scan(
-		&legacyPermissions, &purchaseWritePermissions, &purchaseWorkflowPermissions,
+		&legacyPermissions, &purchaseWritePermissions, &purchaseInboundCreatePermissions,
+		&purchaseWorkflowPermissions,
 	); err != nil {
 		t.Fatalf("check migrated permissions: %v", err)
 	}
 	if legacyPermissions != 0 || purchaseWritePermissions != 10 ||
-		purchaseWorkflowPermissions != 3 {
-		t.Fatalf("migrated permissions = legacy %d, purchase writes %d, workflow %d",
-			legacyPermissions, purchaseWritePermissions, purchaseWorkflowPermissions)
+		purchaseInboundCreatePermissions != 0 || purchaseWorkflowPermissions != 0 {
+		t.Fatalf("migrated permissions = legacy %d, purchase writes %d, inbound create %d, workflow %d",
+			legacyPermissions, purchaseWritePermissions, purchaseInboundCreatePermissions,
+			purchaseWorkflowPermissions)
 	}
 }

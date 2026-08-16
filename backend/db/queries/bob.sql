@@ -647,8 +647,6 @@ SELECT EXISTS (
     FROM vou_expense_reimbursement_details reimbursement
     WHERE reimbursement.employee_object_id = sqlc.arg(target_object_id)
        OR reimbursement.employee_version_id = sqlc.arg(target_version_id)
-       OR reimbursement.fund_account_object_id = sqlc.arg(target_object_id)
-       OR reimbursement.fund_account_version_id = sqlc.arg(target_version_id)
 
     UNION ALL
 

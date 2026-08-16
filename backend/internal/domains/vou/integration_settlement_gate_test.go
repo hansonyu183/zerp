@@ -337,9 +337,8 @@ func TestPrepaidConcurrentSignoffConsumesCurrentBalanceAtomicallyIntegration(t *
 	}
 	service := newIntegrationServiceWithBus(t, pool, bus)
 
-	createCheckedSignoff := func(requestID string) MutationResult {
+	createCheckedSignoff := func(order MutationResult, requestID string) MutationResult {
 		t.Helper()
-		order := createCheckedSettlementSale(t, service, refs, customer, requestID+"-order")
 		approvedOrder, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
 			DocumentID: order.DocumentID, Revision: order.Revision,
 		}, integrationActorOne, requestID+"-order-approve")
@@ -371,13 +370,15 @@ func TestPrepaidConcurrentSignoffConsumesCurrentBalanceAtomicallyIntegration(t *
 		return signoff
 	}
 
-	first := createCheckedSignoff("prepaid-batch-first")
+	firstOrder := createCheckedSettlementSale(t, service, refs, customer, "prepaid-batch-first-order")
+	secondOrder := createCheckedSettlementSale(t, service, refs, customer, "prepaid-batch-second-order")
 	var amount int64
-	if err := pool.QueryRow(t.Context(), `SELECT total_amount_cents FROM vou_documents WHERE id=$1`, first.DocumentID).Scan(&amount); err != nil {
-		t.Fatalf("read signoff amount: %v", err)
+	if err := pool.QueryRow(t.Context(), `SELECT total_amount_cents FROM vou_documents WHERE id=$1`, firstOrder.DocumentID).Scan(&amount); err != nil {
+		t.Fatalf("read settlement amount: %v", err)
 	}
 	activateSettlementLedger(t, pool, customer, -amount, businessdate.Today().Format(businessdate.Layout))
-	second := createCheckedSignoff("prepaid-batch-second")
+	first := createCheckedSignoff(firstOrder, "prepaid-batch-first")
+	second := createCheckedSignoff(secondOrder, "prepaid-batch-second")
 
 	type result struct {
 		input  MutationResult

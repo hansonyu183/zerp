@@ -122,14 +122,25 @@ func (s *Service) CreateWorkflowSaleSignoff(ctx context.Context, tx pgx.Tx, sour
 }
 
 func (s *Service) CreateWorkflowSaleReturn(ctx context.Context, tx pgx.Tx, sourceDocumentID string, initial WorkflowSaleReturnInitial, requestID string) (MutationResult, error) {
-	if existing, ok, err := s.findWorkflowChild(ctx, tx, sourceDocumentID, EntitySaleReturn); err != nil || ok {
-		return existing, err
-	}
 	if err := s.ensureRefusalReturnDraft(ctx, tx, sourceDocumentID, initial, requestID); err != nil {
 		return MutationResult{}, err
 	}
-	result, _, err := s.findWorkflowChild(ctx, tx, sourceDocumentID, EntitySaleReturn)
-	return result, err
+	documentID, err := s.queries.WithTx(tx).FindVouRefusalReturnDocument(ctx, stringPtr(sourceDocumentID))
+	if err != nil {
+		return MutationResult{}, err
+	}
+	document, err := s.queries.WithTx(tx).GetVouDocument(ctx, dbsqlc.GetVouDocumentParams{
+		ID: documentID, Entity: EntitySaleReturn,
+	})
+	if err != nil {
+		return MutationResult{}, err
+	}
+	return MutationResult{
+		DocumentID: document.ID,
+		DocumentNo: document.DocumentNo,
+		Status:     document.Status,
+		Revision:   document.Revision,
+	}, nil
 }
 
 func (s *Service) findWorkflowChild(ctx context.Context, tx pgx.Tx, sourceID, entity string) (MutationResult, bool, error) {

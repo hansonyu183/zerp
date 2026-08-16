@@ -68,9 +68,17 @@ test('标准采购脚本经编辑、试算和发布后支持手工重建下级 @
   await definition
     .getByLabel('流程脚本', { exact: true })
     .fill(standardPurchaseScript(workerState))
-  await definition
-    .getByRole('button', { name: '保存草稿', exact: true })
-    .click()
+  const saveButton = definition.getByRole('button', {
+    name: '保存草稿',
+    exact: true,
+  })
+  const saveResponsePromise = page.waitForResponse((response) =>
+    response.url().endsWith('/wfl/process-definition/save'),
+  )
+  await saveButton.click()
+  const saveResponse = await saveResponsePromise
+  expect(saveResponse.ok()).toBe(true)
+  await expect(saveButton).toBeEnabled()
   await expect(definition.getByText('采购入库', { exact: true })).toBeVisible()
 
   await definition
@@ -86,6 +94,8 @@ test('标准采购脚本经编辑、试算和发布后支持手工重建下级 @
     .getByRole('button', { name: '发布修订', exact: true })
     .click()
   await definition.getByRole('button', { name: '启用', exact: true }).click()
+  await definition.locator('.v-toolbar button').first().click()
+  await expect(definition).toBeHidden()
 
   await workerState.grantWorkflowPermissions([standardPurchaseCode])
   await signInAgain(page, workerState)
@@ -140,6 +150,7 @@ test('标准采购脚本经编辑、试算和发布后支持手工重建下级 @
     .getByLabel('原因', { exact: true })
     .fill('E2E 手工创建下级前删除自动草稿')
   await deleteDialog.getByRole('button', { name: '确认', exact: true }).click()
+  await expect(inboundWorkspace).toBeHidden()
 
   await page.goto(`/wfl/${standardPurchaseCode}`)
   await page.getByRole('textbox', { name: '单号', exact: true }).fill(orderNo!)
@@ -155,9 +166,12 @@ test('标准采购脚本经编辑、试算和发布后支持手工重建下级 @
     .locator('.instance-node')
     .filter({ hasText: '采购订单' })
     .click()
-  await processDialog
-    .getByRole('combobox', { name: '当前可创建目标', exact: true })
-    .click()
+  const targetSelect = processDialog.getByRole('combobox', {
+    name: '当前可创建目标',
+    exact: true,
+  })
+  await targetSelect.focus()
+  await targetSelect.press('ArrowDown')
   await page.getByRole('option', { name: '采购入库', exact: true }).click()
   await processDialog
     .getByLabel('请求键', { exact: true })

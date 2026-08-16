@@ -60,7 +60,7 @@ func TestFeedbackSubmissionAndPublishingIntegration(t *testing.T) {
 	}
 	uploadToken := strings.TrimPrefix(initiated.UploadURL, "/files/feedback/attachments/upload/")
 	if err = service.UploadFeedbackAttachment(
-		t.Context(), uploadToken, bytes.NewReader(png), int64(len(png)), "image/png",
+		t.Context(), uploadToken, principal.User.ID, bytes.NewReader(png), int64(len(png)), "image/png",
 	); err != nil {
 		t.Fatalf("upload feedback attachment: %v", err)
 	}
@@ -176,12 +176,17 @@ func TestFeedbackAttachmentLimitsRemovalAndCleanupIntegration(t *testing.T) {
 	fourth := initiate("fourth.png")
 	secondToken := strings.TrimPrefix(second.UploadURL, "/files/feedback/attachments/upload/")
 	if err := service.UploadFeedbackAttachment(
-		t.Context(), secondToken, bytes.NewReader(content), int64(len(content)), "image/jpeg",
+		t.Context(), secondToken, "01J00000000000000000000001", bytes.NewReader(content), int64(len(content)), "image/png",
+	); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("other owner upload error=%v, want validation", err)
+	}
+	if err := service.UploadFeedbackAttachment(
+		t.Context(), secondToken, admin.ID, bytes.NewReader(content), int64(len(content)), "image/jpeg",
 	); !errorIsKind(err, ErrorValidation) {
 		t.Fatalf("wrong upload content type error=%v, want validation", err)
 	}
 	if err := service.UploadFeedbackAttachment(
-		t.Context(), secondToken, bytes.NewReader(content), int64(len(content)), "image/png",
+		t.Context(), secondToken, admin.ID, bytes.NewReader(content), int64(len(content)), "image/png",
 	); err != nil {
 		t.Fatalf("upload after rejected headers: %v", err)
 	}

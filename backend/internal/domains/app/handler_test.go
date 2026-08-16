@@ -35,6 +35,7 @@ type handlerServiceStub struct {
 	workbenchInput        WorkbenchQueryInput
 	uploadCalls           int
 	uploadToken           string
+	uploadActorID         string
 }
 
 func (stub *handlerServiceStub) AuthorizeSession(_ context.Context, _, _, path, _ string) (Principal, error) {
@@ -107,9 +108,10 @@ func (stub *handlerServiceStub) CreateFeedback(_ context.Context, input CreateFe
 	return FeedbackCreatedView{FeedbackID: "01JAPPFEEDBACK00000000000", Status: FeedbackStatusPending}, nil
 }
 
-func (stub *handlerServiceStub) UploadFeedbackAttachment(_ context.Context, token string, _ io.Reader, _ int64, _ string) error {
+func (stub *handlerServiceStub) UploadFeedbackAttachment(_ context.Context, token, actorID string, _ io.Reader, _ int64, _ string) error {
 	stub.uploadCalls++
 	stub.uploadToken = token
+	stub.uploadActorID = actorID
 	return nil
 }
 
@@ -298,6 +300,9 @@ func TestFeedbackAttachmentUploadUsesSessionAuthorizationAndUploadToken(t *testi
 	}
 	if stub.uploadCalls != 1 || stub.uploadToken != "preissued-token" {
 		t.Fatalf("upload calls = %d, token = %q", stub.uploadCalls, stub.uploadToken)
+	}
+	if stub.uploadActorID != "user-1" {
+		t.Fatalf("upload actor = %q, want user-1", stub.uploadActorID)
 	}
 }
 

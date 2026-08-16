@@ -61,6 +61,7 @@ INSERT INTO app_feedback_files (
 SELECT *
 FROM app_feedback_files
 WHERE upload_token_hash = sqlc.arg(upload_token_hash)
+  AND created_by = sqlc.arg(user_id)
   AND status = 'PENDING'
   AND upload_expires_at > now()
 FOR UPDATE;

@@ -50,7 +50,7 @@ type applicationService interface {
 	CreateFeedback(context.Context, CreateFeedbackInput, string) (FeedbackCreatedView, error)
 	GetFeedback(context.Context, string, string) (FeedbackView, error)
 	InitiateFeedbackAttachment(context.Context, FeedbackAttachmentInitiateInput, string) (FeedbackAttachmentInitiateResult, error)
-	UploadFeedbackAttachment(context.Context, string, io.Reader, int64, string) error
+	UploadFeedbackAttachment(context.Context, string, string, io.Reader, int64, string) error
 	RemoveFeedbackAttachment(context.Context, string, string) error
 }
 

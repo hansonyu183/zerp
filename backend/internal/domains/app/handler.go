@@ -14,6 +14,8 @@ import (
 
 const principalContextKey = "appPrincipal"
 
+const feedbackAttachmentUploadPath = "/files/feedback/attachments/upload/:token"
+
 type applicationService interface {
 	Signin(context.Context, string, string, string) (SessionResult, error)
 	RestoreSession(context.Context, string) (SessionResult, error)
@@ -124,7 +126,7 @@ func (h *Handler) Register(router *gin.Engine) {
 	feedback.POST("/create", h.createFeedback)
 	feedback.POST("/get", h.getFeedback)
 
-	router.PUT("/files/feedback/attachments/upload/:token", h.uploadFeedbackAttachment)
+	router.PUT(feedbackAttachmentUploadPath, h.authorizeSessionAt(feedbackAttachmentUploadPath), h.uploadFeedbackAttachment)
 }
 
 func (h *Handler) authorize() gin.HandlerFunc {
@@ -145,11 +147,19 @@ func (h *Handler) authorize() gin.HandlerFunc {
 }
 
 func (h *Handler) authorizeSession() gin.HandlerFunc {
+	return h.authorizeSessionAt("")
+}
+
+func (h *Handler) authorizeSessionAt(authorizationPath string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		path := authorizationPath
+		if path == "" {
+			path = c.Request.URL.Path
+		}
 		rawToken, _ := c.Cookie(h.cfg.SessionCookieName)
 		principal, err := h.service.AuthorizeSession(
 			c.Request.Context(), rawToken, c.GetHeader("X-CSRF-Token"),
-			c.Request.URL.Path, response.RequestID(c),
+			path, response.RequestID(c),
 		)
 		if err != nil {
 			if errorIsKind(err, ErrorUnauthenticated) {

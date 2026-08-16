@@ -4091,7 +4091,7 @@
               'tags': ['files'],
               'summary': '上传用户反馈附件',
               'operationId': 'uploadFeedbackAttachment',
-              'security': [],
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/FileToken' }],
               'requestBody':
                 {

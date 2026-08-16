@@ -94,6 +94,27 @@ const exactMessages: Readonly<Record<string, string>> = {
   'settlement ledger is not active': '业务账簿尚未启用，无法校验结算资金。',
   'insufficient prepaid funds': '预付款余额不足，无法批准订单。',
   'counterparty has outstanding debt': '往来单位仍有欠款，不能批准现结订单。',
+  'accounting settlement balance is unavailable':
+    '结算余额暂时不可用，请稍后重试。',
+  'process definition code already exists': '流程编码已存在，请使用其他编码。',
+  'process definition changed': '流程定义已被其他操作修改，请刷新后重试。',
+  'the current draft requires a successful document trial before publication':
+    '当前草稿必须先使用真实单据成功试算，才能发布。',
+  'publish the workflow before enabling it': '请先发布流程修订，再启用流程。',
+  'only unused draft definitions can be deleted':
+    '只能删除尚未使用的草稿流程。',
+  'requestKey is already bound to another workflow intent':
+    '该请求键已用于其他创建意图，请使用新的请求键。',
+  'the original create-child result is no longer available; use a new requestKey':
+    '原创建结果已不存在，请使用新的请求键重新创建。',
+  'the workflow target is no longer available':
+    '当前流程目标已不可用，请刷新后重新选择。',
+  'workflow target is not currently available':
+    '当前条件不允许创建该流程目标，请刷新后重试。',
+  'workflow action result is already registered at another position':
+    '该动作结果已登记在流程中的其他位置，不能重复登记。',
+  'multiple enabled workflows match this document':
+    '当前单据同时命中多个已启用流程，请先停用冲突流程。',
   'counterparty already has an unfinished cash-on-delivery order':
     '往来单位已有一张未完成的现结订单。',
   'fund account currency does not match document currency':

@@ -4,9 +4,12 @@ import EntityListControls from '@/components/common/EntityListControls.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import { VoucherReferenceAutocomplete } from '@/components/voucher'
 import {
+  documentEntityText,
   runtimeEventText,
   stageStatusText,
+  workflowActionText,
   workflowStageText,
+  workflowTriggerText,
 } from '@/components/wfl/config'
 import { useProcessInstanceViewModel, type InstanceListItem } from './vm'
 
@@ -192,13 +195,16 @@ function partyText(item: InstanceListItem): string {
               class="instance-node"
               :class="{
                 'instance-node--done': node.documentStatus === 'APPROVED',
-                'instance-node--selected': vm.selectedNode.value?.nodeInstanceId === node.nodeInstanceId,
+                'instance-node--selected':
+                  vm.selectedNode.value?.nodeInstanceId === node.nodeInstanceId,
               }"
               :style="{ left: `${node.x}px`, top: `${node.y}px` }"
               type="button"
               @click="vm.selectNode(node)"
             >
-              <span>{{ node.nodeName || workflowStageText(node.nodeKey) }}</span>
+              <span>{{
+                node.nodeName || workflowStageText(node.nodeKey)
+              }}</span>
               <strong>{{ node.documentNo }}</strong>
               <small>{{ stageStatusText(node.documentStatus) }}</small>
             </button>
@@ -206,29 +212,106 @@ function partyText(item: InstanceListItem): string {
           <aside class="instance-history">
             <template v-if="vm.selectedNode.value">
               <div class="text-h6 mb-3">节点详情</div>
-              <div class="text-subtitle-2">{{ vm.selectedNode.value.nodeName }}</div>
-              <v-btn class="mb-3" size="small" variant="text" prepend-icon="mdi-file-document-outline" @click="vm.openDocument(vm.selectedNode.value)">打开单据</v-btn>
+              <div class="text-subtitle-2">
+                {{ vm.selectedNode.value.nodeName }}
+              </div>
+              <v-btn
+                class="mb-3"
+                size="small"
+                variant="text"
+                prepend-icon="mdi-file-document-outline"
+                @click="vm.openDocument(vm.selectedNode.value)"
+                >打开单据</v-btn
+              >
               <dl class="node-details">
-                <dt>节点键</dt><dd>{{ vm.selectedNode.value.nodeKey }}</dd>
-                <dt>单据类型</dt><dd>{{ vm.selectedNode.value.documentEntity }}</dd>
-                <dt>业务父级</dt><dd>{{ vm.selectedNode.value.businessParentEntity ? `${vm.selectedNode.value.businessParentEntity} · ${vm.selectedNode.value.businessParentDocumentId}` : '—' }}</dd>
-                <dt>关系</dt><dd>{{ vm.selectedNode.value.relation ?? '—' }}</dd>
-                <dt>触发</dt><dd>{{ vm.selectedNode.value.trigger }}</dd>
-                <dt>动作</dt><dd>{{ vm.selectedNode.value.action ?? '—' }}</dd>
+                <dt>节点键</dt>
+                <dd>{{ vm.selectedNode.value.nodeKey }}</dd>
+                <dt>单据类型</dt>
+                <dd>
+                  {{ documentEntityText(vm.selectedNode.value.documentEntity) }}
+                </dd>
+                <dt>业务父级</dt>
+                <dd>
+                  {{
+                    vm.selectedNode.value.businessParentEntity
+                      ? `${documentEntityText(vm.selectedNode.value.businessParentEntity)} · ${vm.selectedNode.value.businessParentDocumentId}`
+                      : '—'
+                  }}
+                </dd>
+                <dt>关系</dt>
+                <dd>{{ vm.selectedNode.value.relation ?? '—' }}</dd>
+                <dt>触发</dt>
+                <dd>
+                  {{ workflowTriggerText(vm.selectedNode.value.trigger) }}
+                </dd>
+                <dt>动作</dt>
+                <dd>{{ workflowActionText(vm.selectedNode.value.action) }}</dd>
               </dl>
-              <template v-if="vm.nodeTargets.value.length && vm.can('create-child')">
+              <template
+                v-if="vm.nodeTargets.value.length && vm.can('create-child')"
+              >
                 <v-divider class="my-4" />
                 <div class="text-subtitle-2 mb-2">创建下级单据</div>
-                <v-select v-model="vm.selectedTarget.value" :items="vm.nodeTargets.value" item-title="targetNodeName" return-object label="当前可创建目标" variant="outlined" />
-                <div v-if="vm.selectedTarget.value" class="text-caption text-medium-emphasis mb-3">{{ vm.selectedTarget.value.relation }} · {{ vm.selectedTarget.value.targetEntity }}</div>
-                <v-text-field v-model="vm.requestKey.value" label="请求键" hint="16 至 64 个字符；网络重试请复用同一键。" persistent-hint variant="outlined" />
-                <v-btn block color="primary" :disabled="!vm.selectedTarget.value" :loading="vm.creatingChild.value" @click="vm.createChild">创建下级</v-btn>
+                <v-select
+                  v-model="vm.selectedTarget.value"
+                  :items="vm.nodeTargets.value"
+                  item-title="targetNodeName"
+                  return-object
+                  label="当前可创建目标"
+                  variant="outlined"
+                />
+                <div
+                  v-if="vm.selectedTarget.value"
+                  class="text-caption text-medium-emphasis mb-3"
+                >
+                  {{ vm.selectedTarget.value.relation }} ·
+                  {{ documentEntityText(vm.selectedTarget.value.targetEntity) }}
+                </div>
+                <v-text-field
+                  v-model="vm.requestKey.value"
+                  label="请求键"
+                  hint="16 至 64 个字符；网络重试请复用同一键。"
+                  persistent-hint
+                  variant="outlined"
+                />
+                <v-btn
+                  block
+                  color="primary"
+                  :disabled="!vm.selectedTarget.value"
+                  :loading="vm.creatingChild.value"
+                  @click="vm.createChild"
+                  >创建下级</v-btn
+                >
               </template>
             </template>
             <v-divider class="my-5" />
             <div class="text-h6 mb-4">运行记录</div>
-            <v-timeline density="compact" side="end"><v-timeline-item v-for="event in vm.history.value" :key="event.id" dot-color="primary" size="x-small"><div class="text-subtitle-2">{{ runtimeEventText(event.eventType) }}<span v-if="event.documentNo"> · {{ event.documentNo }}</span></div><div class="text-caption text-medium-emphasis">{{ new Date(event.occurredAt).toLocaleString() }}</div><div class="text-caption text-medium-emphasis">{{ event.actorId }} · {{ event.requestId }}</div></v-timeline-item></v-timeline>
-            <div v-if="vm.history.value.length === 0" class="text-medium-emphasis">暂无运行记录</div>
+            <v-timeline density="compact" side="end"
+              ><v-timeline-item
+                v-for="event in vm.history.value"
+                :key="event.id"
+                dot-color="primary"
+                size="x-small"
+                ><div class="text-subtitle-2">
+                  {{ runtimeEventText(event.eventType)
+                  }}<span v-if="event.documentNo">
+                    · {{ event.documentNo }}</span
+                  >
+                </div>
+                <div class="text-caption text-medium-emphasis">
+                  {{ new Date(event.occurredAt).toLocaleString() }}
+                </div>
+                <div class="text-caption text-medium-emphasis">
+                  {{ event.actorId }} · {{ event.requestId }}
+                </div></v-timeline-item
+              ></v-timeline
+            >
+            <div
+              v-if="vm.history.value.length === 0"
+              class="text-medium-emphasis"
+            >
+              暂无运行记录
+            </div>
           </aside>
         </v-card-text>
       </v-card>
@@ -331,8 +414,13 @@ function partyText(item: InstanceListItem): string {
   margin: 0;
   font-size: 0.875rem;
 }
-.node-details dt { color: rgb(var(--v-theme-on-surface-variant)); }
-.node-details dd { margin: 0; overflow-wrap: anywhere; }
+.node-details dt {
+  color: rgb(var(--v-theme-on-surface-variant));
+}
+.node-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
 
 .instance-node small {
   color: rgb(var(--v-theme-on-surface-variant));

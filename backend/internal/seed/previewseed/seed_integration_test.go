@@ -106,7 +106,7 @@ func TestPreviewSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T
 	if businessEntities != 9 {
 		t.Fatalf("preview BOB distinct entities = %d, want 9", businessEntities)
 	}
-	assertDistinctEntities(t, pool, "vou_documents", 34)
+	assertDistinctEntities(t, pool, "vou_documents", 33)
 	var workflowDefinitions, workflowInstances int
 	if err = pool.QueryRow(t.Context(), `
 		SELECT
@@ -117,6 +117,17 @@ func TestPreviewSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T
 	}
 	if workflowDefinitions != 3 || workflowInstances != 0 {
 		t.Fatalf("workflow seed coverage definitions=%d instances=%d", workflowDefinitions, workflowInstances)
+	}
+	var generatedExpensePayments int
+	if err = pool.QueryRow(t.Context(), `
+		SELECT count(*)
+		FROM vou_documents
+		WHERE entity='expense-payment'
+	`).Scan(&generatedExpensePayments); err != nil {
+		t.Fatalf("count preview expense payments: %v", err)
+	}
+	if generatedExpensePayments != 0 {
+		t.Fatalf("draft workflow seeds generated %d expense payments, want 0", generatedExpensePayments)
 	}
 	assertAccountingAndReportFacts(t, pool)
 	var receiptID string

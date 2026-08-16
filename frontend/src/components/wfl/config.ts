@@ -15,14 +15,18 @@ export function stageStatusText(value: string): string {
   )
 }
 
+const definitionStatusLabels = {
+  DRAFT: '草稿',
+  ENABLED: '已启用',
+  DISABLED: '已停用',
+} as const
+
+export const definitionStatusOptions = Object.entries(
+  definitionStatusLabels,
+).map(([value, title]) => ({ value, title }))
+
 export function definitionStatusText(value: string): string {
-  return (
-    {
-      DRAFT: '草稿',
-      ENABLED: '已启用',
-      DISABLED: '已停用',
-    }[value] ?? value
-  )
+  return statusText(definitionStatusLabels, value)
 }
 
 export function documentEntityText(value: string): string {
@@ -55,8 +59,33 @@ export function runtimeEventText(value: string): string {
   return (
     {
       STARTED: '流程已启动',
+      ACTION_EXECUTED: '已执行流程动作',
       CHILD_CREATED: '已创建下级单据',
     }[value] ?? value
+  )
+}
+
+export function workflowActionText(value?: string): string {
+  return statusText(
+    {
+      expense_payment: '创建费用付款',
+      purchase_inbound: '创建采购入库',
+      sale_outbound: '创建销售出库',
+      sale_delivery: '创建销售送货',
+      sale_signoff: '创建销售签收',
+      sale_return: '创建销售退货',
+    },
+    value,
+  )
+}
+
+export function workflowTriggerText(value?: string): string {
+  return statusText(
+    {
+      APPROVED: '单据批准',
+      ACTION: '流程动作',
+    },
+    value,
   )
 }
 

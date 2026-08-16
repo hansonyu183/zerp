@@ -263,11 +263,11 @@ build_release() {
       package.json pnpm-lock.yaml pnpm-workspace.yaml \
       frontend/package.json tools/typescript-native/package.json \
       backend/go.mod backend/go.sum backend/tools/go.mod backend/tools/go.sum; do
-      [ -f "${source_root}/${dependency_file}" ] &&
-        [ ! -L "${source_root}/${dependency_file}" ] || {
+      if [ ! -f "${source_root}/${dependency_file}" ] ||
+        [ -L "${source_root}/${dependency_file}" ]; then
         echo "Preview dependency manifest is missing or not regular: ${dependency_file}" >&2
         return 1
-      }
+      fi
     done
     {
       uname -s

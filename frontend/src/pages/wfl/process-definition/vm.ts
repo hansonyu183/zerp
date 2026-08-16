@@ -1,6 +1,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { apiClient } from '@/api/client'
 import { ApiError, getErrorMessage } from '@/api/types'
+import { documentEntityText } from '@/components/wfl/config'
 import { useSessionStore } from '@/stores/session'
 
 export interface DefinitionNode {
@@ -142,6 +143,7 @@ export function useProcessDefinitionViewModel() {
   const scriptDiagnostic = ref<ScriptDiagnostic | null>(null)
   const scriptText = ref(DEFAULT_STARLARK_SCRIPT)
   const trialEntity = ref('')
+  const trialEntityText = computed(() => documentEntityText(trialEntity.value))
   const trialDocumentId = ref('')
   const trialResult = ref<DefinitionTrialResult | null>(null)
 
@@ -163,13 +165,13 @@ export function useProcessDefinitionViewModel() {
           page: number
           pageSize: number
           keyword?: string
-          status?: DefinitionView['status']
+          statuses?: DefinitionView['status'][]
         }
       >('wfl/process-definition/query', {
         page: 1,
         pageSize: 100,
         ...(keyword.value.trim() ? { keyword: keyword.value.trim() } : {}),
-        ...(status.value ? { status: status.value } : {}),
+        ...(status.value ? { statuses: [status.value] } : {}),
       })
       definitions.value = data.items ?? []
     } catch (error) {
@@ -180,6 +182,7 @@ export function useProcessDefinitionViewModel() {
   }
 
   function resetFilters(): void {
+    keyword.value = ''
     status.value = null
     void query()
   }
@@ -346,6 +349,7 @@ export function useProcessDefinitionViewModel() {
     scriptDiagnostic,
     scriptText,
     trialEntity,
+    trialEntityText,
     trialDocumentId,
     trialResult,
     nodeMap,

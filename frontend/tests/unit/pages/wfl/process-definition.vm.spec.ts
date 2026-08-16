@@ -128,6 +128,7 @@ describe('Starlark process definition view model', () => {
     })
     const { vm, wrapper } = await mountViewModel()
     await vm.open(listItem)
+    expect(vm.trialEntityText.value).toBe('销售订单')
     vm.trialDocumentId.value = '01J00000000000000000000088'
     await vm.trial()
     expect(vm.trialResult.value?.matched).toBe(true)
@@ -153,19 +154,21 @@ describe('Starlark process definition view model', () => {
     const { vm, wrapper } = await mountViewModel()
     vi.clearAllMocks()
 
+    vm.keyword.value = '待清除'
     vm.status.value = 'ENABLED'
     await vm.query()
     expect(mockedPost).toHaveBeenLastCalledWith(
       'wfl/process-definition/query',
-      expect.objectContaining({ status: 'ENABLED' }),
+      expect.objectContaining({ statuses: ['ENABLED'] }),
     )
 
     vm.resetFilters()
     await flushPromises()
+    expect(vm.keyword.value).toBe('')
     expect(vm.status.value).toBeNull()
     expect(mockedPost).toHaveBeenLastCalledWith(
       'wfl/process-definition/query',
-      expect.not.objectContaining({ status: expect.anything() }),
+      { page: 1, pageSize: 100 },
     )
     wrapper.unmount()
   })

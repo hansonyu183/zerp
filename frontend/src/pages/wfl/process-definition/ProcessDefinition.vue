@@ -236,7 +236,7 @@ function locateScriptDiagnostic(): void {
               ><v-divider class="my-5" />
               <div class="text-subtitle-1 mb-2">真实单据试算</div>
               <v-text-field
-                v-model="vm.trialEntity.value"
+                :model-value="vm.trialEntityText.value"
                 label="源单据类型"
                 readonly
                 variant="outlined"

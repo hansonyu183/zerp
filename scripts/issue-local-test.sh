@@ -255,6 +255,10 @@ cat >"${tmp}/bin/production" <<'EOF'
 #!/bin/sh
 set -eu
 printf 'production\n' >>"${MOCK_EVENTS}"
+if [ "${MOCK_PRODUCTION_FAIL:-0}" = 1 ]; then
+  echo 'simulated production verification failure' >&2
+  exit 1
+fi
 if [ "${MOCK_VERIFY_COMPLETION_CANDIDATE:-0}" = 1 ]; then
   worktree=${ZERP_ISSUE_WORKTREE:?}
   worktree_git_dir=$(git -C "${worktree}" rev-parse --path-format=absolute --git-dir)
@@ -276,6 +280,50 @@ fi
 printf 'sha=9999999999999999999999999999999999999999\n'
 EOF
 chmod +x "${tmp}/bin/production"
+
+cat >"${tmp}/bin/osascript" <<'EOF'
+#!/bin/sh
+set -eu
+case "${1:-}" in
+  -)
+    test "$#" = 1
+    test -n "${ZERP_ISSUE_MESSAGE_RECIPIENT:-}"
+    test -n "${ZERP_ISSUE_MESSAGE_BODY:-}"
+    grep -Fq 'system attribute "ZERP_ISSUE_MESSAGE_RECIPIENT"' >/dev/null
+    : >"${MOCK_MESSAGES_STARTED}"
+    if [ "${MOCK_OSASCRIPT_HANG:-0}" = 1 ]; then
+      printf 'imessage-send-hanging\n' >>"${MOCK_IMESSAGE_EVENTS}"
+      printf '%s\n' "$$" >"${MOCK_OSASCRIPT_PID}"
+      trap 'rm -f "${MOCK_OSASCRIPT_PID}"; exit 143' TERM
+      while :; do :; done
+    fi
+    if [ "${MOCK_OSASCRIPT_FAIL:-0}" = 1 ]; then
+      printf 'imessage-send-failed\n' >>"${MOCK_IMESSAGE_EVENTS}"
+      exit 1
+    fi
+    printf '%s\n---\n' "${ZERP_ISSUE_MESSAGE_BODY}" >>"${MOCK_IMESSAGE_EVENTS}"
+    ;;
+  -e)
+    test "$#" = 2
+    test "${2:-}" = 'tell application "Messages" to quit'
+    printf 'messages-quit\n' >>"${MOCK_IMESSAGE_EVENTS}"
+    rm -f "${MOCK_MESSAGES_STARTED}"
+    ;;
+  *) exit 2 ;;
+esac
+EOF
+chmod +x "${tmp}/bin/osascript"
+
+cat >"${tmp}/bin/pgrep" <<'EOF'
+#!/bin/sh
+set -eu
+test "$*" = '-x Messages'
+if [ "${MOCK_MESSAGES_ALREADY_RUNNING:-0}" = 1 ] || [ -e "${MOCK_MESSAGES_STARTED}" ]; then
+  exit 0
+fi
+exit 1
+EOF
+chmod +x "${tmp}/bin/pgrep"
 
 cat >"${tmp}/bin/gh" <<'EOF'
 #!/bin/sh
@@ -354,6 +402,7 @@ case " $* " in
       '{state:$state,headRefName:$head_ref,headRefOid:$head,baseRefName:$base_ref,body:$body}'
     ;;
   *' pr view 77 '*) printf '{"state":"MERGED","mergeCommit":{"oid":"9999999999999999999999999999999999999999"}}\n' ;;
+  *' pr comment 77 '*) printf '{}\n' ;;
   *' issue close '*) printf '{}\n' ;;
   *) echo "unexpected gh call: $*" >&2; exit 2 ;;
 esac
@@ -394,6 +443,10 @@ export MOCK_GATE_PNPM_VERSION="${tmp}/gate-pnpm-version"
 export MOCK_GATE_ENV_TARGET="${tmp}/gate-env-target"
 export MOCK_GATE_E2E_ENV_TARGET="${tmp}/gate-e2e-env-target"
 export MOCK_FOCUSED_E2E_ENV_TARGET="${tmp}/focused-e2e-env-target"
+export MOCK_IMESSAGE_RECIPIENT='issue-local-test@example.invalid'
+export MOCK_IMESSAGE_EVENTS="${tmp}/imessage-events"
+export MOCK_MESSAGES_STARTED="${tmp}/messages-started"
+export MOCK_OSASCRIPT_PID="${tmp}/osascript-pid"
 export ZERP_PNPM_STORE_PATH="${pnpm_store}"
 export MOCK_PREVIEW_REQUIRE_DETACHED_MODULES=1
 export MOCK_PREVIEW_LEAVES_DEPENDENCY_RESIDUE=1
@@ -403,10 +456,13 @@ PATH="${tmp}/bin:${PATH}" \
 ZERP_PRIMARY_ROOT="${primary}" \
 ZERP_ISSUE_TRACKER_ROOT="${primary}/.scratch" \
   ZERP_ISSUE_LOCAL_RUNTIME_ROOT="${runtime}" \
-  ZERP_GITHUB_REPOSITORY=example/zerp \
+ZERP_GITHUB_REPOSITORY=example/zerp \
   ZERP_CODEX_BIN=codex \
-  ZERP_GH_BIN=gh \
-  ZERP_ISSUE_PREVIEW_COMMAND="${tmp}/bin/preview" \
+ZERP_GH_BIN=gh \
+ZERP_ISSUE_MESSAGE_RECIPIENT="${MOCK_IMESSAGE_RECIPIENT}" \
+ZERP_OSASCRIPT_BIN="${tmp}/bin/osascript" \
+ZERP_PGREP_BIN="${tmp}/bin/pgrep" \
+ZERP_ISSUE_PREVIEW_COMMAND="${tmp}/bin/preview" \
   ZERP_ISSUE_PRODUCTION_COMMAND="${tmp}/bin/production" \
   ZERP_ISSUE_GATE_COMMAND="${tmp}/bin/gate" \
   MOCK_VERIFY_COMPLETION_CANDIDATE=1 \
@@ -426,7 +482,11 @@ grep -Fq -- '--model gpt-5.6-sol' "${MOCK_CODEX_ARGS}"
 grep -Fq -- 'model_reasoning_effort=high' "${MOCK_CODEX_ARGS}"
 grep -Fq -- 'sandbox_workspace_write.network_access=false' "${MOCK_CODEX_ARGS}"
 grep -Fq -- 'login shells reset PATH' "${MOCK_PROMPT}"
-grep -Fq -- 'business-error-coverage.spec.ts' "${MOCK_PROMPT}"
+grep -Fq -- 'Before editing, inventory every user-visible wire value affected by the batch' "${MOCK_PROMPT}"
+grep -Fq -- 'Start implementation only after every known value has a Chinese business label or is explicitly confirmed not user-visible' "${MOCK_PROMPT}"
+mapping_preflight_line=$(grep -nF 'Before editing, inventory every user-visible wire value affected by the batch' "${MOCK_PROMPT}" | cut -d: -f1)
+tdd_line=$(grep -nF 'Use TDD at the agreed repository seams' "${MOCK_PROMPT}" | cut -d: -f1)
+test "${mapping_preflight_line}" -lt "${tdd_line}"
 grep -Fq -- 'do not rerun unaffected stages already shown as passed' "${MOCK_PROMPT}"
 test "$(cat "${MOCK_COREPACK_ROOT}")" = 1
 test "$(cat "${MOCK_CODEX_PNPM_VERSION}")" = 10.34.5
@@ -524,6 +584,9 @@ run_agent() {
   ZERP_GITHUB_REPOSITORY=example/zerp \
   ZERP_CODEX_BIN=codex \
 ZERP_GH_BIN=gh \
+ZERP_ISSUE_MESSAGE_RECIPIENT="${MOCK_IMESSAGE_RECIPIENT}" \
+ZERP_OSASCRIPT_BIN="${tmp}/bin/osascript" \
+ZERP_PGREP_BIN="${tmp}/bin/pgrep" \
 ZERP_ISSUE_PREVIEW_COMMAND="${tmp}/bin/preview" \
 ZERP_ISSUE_PRODUCTION_COMMAND="${tmp}/bin/production" \
 ZERP_ISSUE_GATE_COMMAND="${tmp}/bin/gate" \
@@ -1124,5 +1187,83 @@ MOCK_CODEX_MODE=completed MOCK_PREVIEW_FAILS=0 MOCK_CHECKS_MISSING=0 \
 test "$(cat "${MOCK_CODEX_COUNT}")" = 2
 grep -Fq '**Status:** done' "${primary}/.scratch/queue-first/issues/01-ticket.md"
 grep -Fq '**Status:** done' "${primary}/.scratch/queue-second/issues/01-ticket.md"
+
+# The repair path and its caller both write this state; exact-key de-dup sends once.
+awk '
+  /^批次=checks-repeated$/ { feature = 1 }
+  feature && /^状态=blocked$/ { blocked += 1 }
+  /^---$/ { feature = 0 }
+  END { exit(blocked == 1 ? 0 : 1) }
+' "${MOCK_IMESSAGE_EVENTS}"
+
+make_ticket imessage-send-failure 'iMessage send failure'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" \
+  "${MOCK_ISSUE_COUNT}" "${MOCK_CHECK_COUNT}"
+if MOCK_OSASCRIPT_FAIL=1 run_agent >"${tmp}/imessage-send-failure.log" 2>&1; then
+  :
+else
+  echo 'iMessage send failure blocked delivery' >&2
+  exit 1
+fi
+grep -Fq '**Status:** done' "${primary}/.scratch/imessage-send-failure/issues/01-ticket.md"
+grep -Fq 'local iMessage notification failed (feature=imessage-send-failure state=in-progress)' \
+  "${tmp}/imessage-send-failure.log"
+if grep -Fq "${MOCK_IMESSAGE_RECIPIENT}" "${tmp}/imessage-send-failure.log"; then
+  echo 'iMessage recipient leaked to the controller log' >&2
+  exit 1
+fi
+grep -Fq 'imessage-send-failed' "${MOCK_IMESSAGE_EVENTS}"
+grep -Fq 'messages-quit' "${MOCK_IMESSAGE_EVENTS}"
+unset MOCK_OSASCRIPT_FAIL
+
+make_ticket imessage-timeout 'iMessage timeout'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" \
+  "${MOCK_ISSUE_COUNT}" "${MOCK_CHECK_COUNT}" "${MOCK_OSASCRIPT_PID}"
+if MOCK_OSASCRIPT_HANG=1 ZERP_ISSUE_MESSAGE_TIMEOUT_SECONDS=1 \
+  run_agent >"${tmp}/imessage-timeout.log" 2>&1; then
+  :
+else
+  echo 'iMessage timeout blocked delivery' >&2
+  exit 1
+fi
+grep -Fq '**Status:** done' "${primary}/.scratch/imessage-timeout/issues/01-ticket.md"
+grep -Fq 'local iMessage notification failed (feature=imessage-timeout state=in-progress)' \
+  "${tmp}/imessage-timeout.log"
+test ! -e "${MOCK_OSASCRIPT_PID}"
+test ! -e "${MOCK_MESSAGES_STARTED}"
+unset MOCK_OSASCRIPT_HANG ZERP_ISSUE_MESSAGE_TIMEOUT_SECONDS
+
+make_ticket messages-already-running 'Messages already running'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" \
+  "${MOCK_ISSUE_COUNT}" "${MOCK_CHECK_COUNT}"
+quit_before=$(grep -c '^messages-quit$' "${MOCK_IMESSAGE_EVENTS}" || true)
+MOCK_MESSAGES_ALREADY_RUNNING=1 run_agent
+quit_after=$(grep -c '^messages-quit$' "${MOCK_IMESSAGE_EVENTS}" || true)
+test "${quit_before}" = "${quit_after}"
+grep -Fq '**Status:** done' "${primary}/.scratch/messages-already-running/issues/01-ticket.md"
+
+make_ticket production-notification 'Production notification'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" \
+  "${MOCK_ISSUE_COUNT}" "${MOCK_CHECK_COUNT}"
+if MOCK_PRODUCTION_FAIL=1 run_agent; then
+  echo 'production verification failure was accepted' >&2
+  exit 1
+fi
+grep -Fq '**Status:** blocked' "${primary}/.scratch/production-notification/issues/01-ticket.md"
+test "$(cat "${runtime}/batches/production-notification/state")" = production-blocked
+
+for message_state in in-progress pr-open blocked preview-blocked production-blocked needs-input 'done'; do
+  grep -Fxq "状态=${message_state}" "${MOCK_IMESSAGE_EVENTS}" || {
+    echo "missing iMessage state: ${message_state}" >&2
+    exit 1
+  }
+done
+grep -Fq 'ZERP 本地 Issue 自动交付' "${MOCK_IMESSAGE_EVENTS}"
+grep -Fq 'head=' "${MOCK_IMESSAGE_EVENTS}"
+grep -Fq '修复累计=' "${MOCK_IMESSAGE_EVENTS}"
 
 echo 'local issue retry and stop tests passed'

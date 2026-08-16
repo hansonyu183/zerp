@@ -189,7 +189,8 @@ ensure_repair_budget() {
       ((.previousStage == null) or (.previousStage | type == "string")) and
       ((.previousFingerprint == null) or (.previousFingerprint | type == "string")) and
       (.previousConsecutive | type == "number" and floor == . and . >= 1) and
-      ((.candidateHead == null) or (.candidateHead | type == "string"))
+      ((.candidateHead == null) or (.candidateHead | type == "string")) and
+      ((.consumed == null) or (.consumed | type == "boolean"))
     ))
   ' "${budget_file}" >/dev/null
 }
@@ -214,7 +215,8 @@ acknowledge_manual_retry() {
       previousStage: .lastStage,
       previousFingerprint: .lastFingerprint,
       previousConsecutive: .consecutive,
-      candidateHead: (if $candidate_head == "" then null else $candidate_head end)
+      candidateHead: (if $candidate_head == "" then null else $candidate_head end),
+      consumed: false
     }] |
     .lastStage = null |
     .lastFingerprint = null |
@@ -226,18 +228,34 @@ acknowledge_manual_retry() {
 consume_repair_budget() {
   batch_root=$1
   stage=$2
+  candidate_head=${3:-}
   case "${stage}" in code-review-gate | gate) ;; *) return 1 ;; esac
   ensure_repair_budget "${batch_root}" || return 1
   budget_file=$(repair_budget_file "${batch_root}")
   total=$(jq -r .total "${budget_file}")
   consecutive=$(jq -r .consecutive "${budget_file}")
-  # One initial implementation attempt plus at most eight repair attempts.
-  [ "${total}" -lt 9 ] || return 2
+  # One initial implementation attempt plus at most eight automatic repair
+  # attempts. A clean manual commit acknowledged by an explicit retry unlocks
+  # exactly one additional reviewed attempt and remains visible in the audit.
+  manual_recovery=0
+  if jq -e --arg candidate_head "${candidate_head}" '
+    ((.recoveries | last) // {}) as $recovery |
+    ($candidate_head | length) == 40 and
+    $recovery.candidateHead == $candidate_head and
+    ($recovery.consumed // false) == false
+  ' "${budget_file}" >/dev/null; then
+    manual_recovery=1
+  fi
+  [ "${total}" -lt 9 ] || [ "${manual_recovery}" = 1 ] || return 2
   [ "${consecutive}" -lt 2 ] || return 3
-  jq --arg stage "${stage}" '
+  jq --arg stage "${stage}" --arg candidate_head "${candidate_head}" \
+    --argjson manual_recovery "${manual_recovery}" '
     (.total + 1) as $total |
     .total = $total |
-    .events += [{sequence: $total, stage: $stage}]
+    .events += [{sequence: $total, stage: $stage}] |
+    if $manual_recovery == 1 then
+      .recoveries[-1].consumed = true
+    else . end
   ' "${budget_file}" >"${budget_file}.new"
   mv "${budget_file}.new" "${budget_file}"
 }
@@ -293,11 +311,14 @@ block_for_repair_budget() {
   budget_file=$(repair_budget_file "${batch_root}")
   total=$(jq -r '.total // "unknown"' "${budget_file}" 2>/dev/null || printf unknown)
   consecutive=$(jq -r '.consecutive // "unknown"' "${budget_file}" 2>/dev/null || printf unknown)
+  manual_recoveries=$(jq -r '[.recoveries[] | select(.consumed == true)] | length' \
+    "${budget_file}" 2>/dev/null || printf unknown)
   {
     [ -r "${failure_file}" ] && cat "${failure_file}"
-    repairs=$((total > 0 ? total - 1 : 0))
-    printf '\nRepair budget exhausted: %s (attempts=%s/9, repairs=%s/8, consecutive=%s).\n' \
-      "${reason}" "${total}" "${repairs}" "${consecutive}"
+    automatic_attempts=$((total - manual_recoveries))
+    automatic_repairs=$((automatic_attempts > 0 ? automatic_attempts - 1 : 0))
+    printf '\nRepair budget exhausted: %s (automaticAttempts=%s/9, automaticRepairs=%s/8, manualRecoveries=%s, consecutive=%s).\n' \
+      "${reason}" "${automatic_attempts}" "${automatic_repairs}" "${manual_recoveries}" "${consecutive}"
   } >"${failure_file}.new"
   mv "${failure_file}.new" "${failure_file}"
 }
@@ -1108,7 +1129,7 @@ run_implement() {
     preexisting_review_delta=1
   fi
   write_value "${batch_root}/repair-stage" code-review-gate
-  if consume_repair_budget "${batch_root}" code-review-gate; then
+  if consume_repair_budget "${batch_root}" code-review-gate "${previous_head}"; then
     :
   else
     budget_result=$?
@@ -1485,7 +1506,7 @@ implement_and_preview() {
   fi
   if resumed_head=$(reviewed_candidate_head "${batch_root}" "${worktree}" "${base_sha}"); then
     write_value "${batch_root}/reviewed-head" "${resumed_head}"
-    if consume_repair_budget "${batch_root}" gate; then
+    if consume_repair_budget "${batch_root}" gate "${resumed_head}"; then
       if run_repair_preflight "${batch_root}" "${worktree}" &&
         run_final_gate "${batch_root}" "${worktree}" "${base_sha}" "${resumed_head}"; then
         if deploy_preview "${feature}" "${batch_root}" "${worktree}"; then

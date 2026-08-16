@@ -7,6 +7,9 @@ import {
 } from '@/components/business-object'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
+import DiscardChangesDialog from './DiscardChangesDialog.vue'
+import TemporaryPasswordDialog from './TemporaryPasswordDialog.vue'
+import UserActionConfirmDialog from './UserActionConfirmDialog.vue'
 import { createUserManagementViewModel } from './vm'
 import type { AdminUser } from '../shared/api'
 
@@ -290,82 +293,25 @@ void vm.query()
     </v-card>
   </v-navigation-drawer>
 
-  <v-dialog v-model="vm.discardConfirmOpen" max-width="420"
-    ><v-card title="放弃修改？"
-      ><v-card-text>未保存的内容将被清除。</v-card-text
-      ><v-card-actions
-        ><v-spacer /><v-btn @click="vm.cancelDiscard">继续编辑</v-btn
-        ><v-btn color="error" @click="confirmDiscard"
-          >放弃</v-btn
-        ></v-card-actions
-      ></v-card
-    ></v-dialog
-  >
-  <v-dialog :model-value="Boolean(vm.pendingAction)" max-width="480" persistent
-    ><v-card
-      ><v-card-title>{{
-        vm.pendingAction?.kind === 'reset'
-          ? '重置密码'
-          : vm.pendingAction?.kind === 'disable'
-            ? '停用用户'
-            : '启用用户'
-      }}</v-card-title
-      ><v-card-text v-if="vm.pendingAction?.kind === 'disable'"
-        >确定停用
-        {{
-          vm.pendingAction?.row.username
-        }}？该用户的全部现有会话将立即失效。</v-card-text
-      ><v-card-text v-else-if="vm.pendingAction?.kind === 'enable'"
-        >确定启用
-        {{
-          vm.pendingAction?.row.username
-        }}？密码保持不变，旧会话不会恢复。</v-card-text
-      ><v-card-text v-else
-        >确定重置
-        {{ vm.pendingAction?.row.username }}
-        的密码？旧密码立即失效，全部会话将被撤销，用户下次登录必须修改临时密码。</v-card-text
-      ><v-card-actions
-        ><v-spacer /><v-btn
-          :disabled="Boolean(vm.actionLoadingID)"
-          @click="vm.pendingAction = null"
-          >取消</v-btn
-        ><v-btn
-          color="primary"
-          :loading="Boolean(vm.actionLoadingID)"
-          @click="vm.confirmPendingAction"
-          >确认</v-btn
-        ></v-card-actions
-      ></v-card
-    ></v-dialog
-  >
-  <v-dialog
-    :model-value="Boolean(vm.temporaryPassword)"
-    max-width="480"
-    persistent
-    ><v-card title="临时密码"
-      ><v-card-text
-        ><p>请立即安全保存，关闭后无法再次查看。</p>
-        <v-text-field
-          :model-value="vm.temporaryPassword ?? ''"
-          readonly
-          label="临时密码"
-          variant="outlined" /><v-alert
-          v-if="vm.copyErrorMessage"
-          type="error"
-          variant="tonal"
-          >{{ vm.copyErrorMessage }}</v-alert
-        ><v-checkbox
-          v-model="vm.passwordSaved"
-          label="我已安全保存临时密码" /></v-card-text
-      ><v-card-actions
-        ><v-spacer /><v-btn
-          :disabled="!vm.passwordSaved"
-          @click="vm.closeResetResult"
-          >关闭</v-btn
-        ><v-btn color="primary" @click="vm.copyTemporaryPassword"
-          >复制</v-btn
-        ></v-card-actions
-      ></v-card
-    ></v-dialog
-  >
+  <DiscardChangesDialog
+    :open="vm.discardConfirmOpen"
+    @cancel="vm.cancelDiscard"
+    @confirm="confirmDiscard"
+  />
+  <UserActionConfirmDialog
+    :kind="vm.pendingAction?.kind ?? null"
+    :loading="Boolean(vm.actionLoadingID)"
+    :open="Boolean(vm.pendingAction)"
+    :username="vm.pendingAction?.row.username ?? ''"
+    @cancel="vm.pendingAction = null"
+    @confirm="vm.confirmPendingAction"
+  />
+  <TemporaryPasswordDialog
+    :copy-error-message="vm.copyErrorMessage"
+    :password="vm.temporaryPassword"
+    :saved="vm.passwordSaved"
+    @close="vm.closeResetResult"
+    @copy="vm.copyTemporaryPassword"
+    @update:saved="vm.passwordSaved = $event"
+  />
 </template>

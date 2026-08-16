@@ -235,7 +235,7 @@ User ──< UserRole >── Role ──< RolePermission >── Permission
 
 `/app/feedback/attachment-initiate`、`/app/feedback/attachment-remove`、`/app/feedback/create` 和 `/app/feedback/get` 是登录用户自助接口，只要求有效会话和 CSRF，不进入 `app_permissions`，也不参与角色逐项授权。该例外只允许操作当前主体的未提交附件、提交反馈和查询本人反馈，不能读取其他用户数据。
 
-会话接口只返回用户资料、CSRF Token 和 API 权限数组。菜单树通过会话级 `/app/menu/get` 单独读取；后端只返回已注册路由键、固定地址及展示元数据，不得指定可执行的前端组件路径。前端仍由本地页面注册表把 `route_key` 解析为固定组件。
+会话接口只返回用户资料、CSRF Token、API 权限数组、`passwordChangeRequired` 和 `passwordMinLength`。菜单树通过会话级 `/app/menu/get` 单独读取；后端只返回已注册路由键、固定地址及展示元数据，不得指定可执行的前端组件路径。前端仍由本地页面注册表把 `route_key` 解析为固定组件。
 
 ## 5. 动作语义
 

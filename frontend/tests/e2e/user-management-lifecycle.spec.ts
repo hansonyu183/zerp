@@ -111,7 +111,7 @@ test(
     await signOut(page)
     await signIn(page, { username, password: changedPassword })
     await expect(
-      page.getByText('用户名或密码错误', { exact: false }),
+      page.getByText('密码错误，剩余重试次数', { exact: false }),
     ).toBeVisible()
     await signIn(page, { username, password: temporaryPassword })
     await changeRequiredPassword(page, temporaryPassword, resetChangedPassword)

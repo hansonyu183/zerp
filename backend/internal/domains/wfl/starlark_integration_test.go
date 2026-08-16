@@ -97,8 +97,8 @@ func TestApprovedExistingRootUsesStartedPublishedRevisionAcrossRootKeyChangeAndN
 	pool := workflowIntegrationPool(t)
 	ctx := t.Context()
 	actorID, definitionID, processID, rootNodeID := newID(), newID(), newID(), newID()
-	rootDocumentID, oldDocumentID, newDocumentID := newID(), newID(), newID()
-	rootDocumentNo, oldDocumentNo, newDocumentNo := "EXR-20260816-9001", "EXP-20260816-9001", "EXP-20260816-9002"
+	rootDocumentID, oldDocumentID, newDocumentID, newPaymentSourceID := newID(), newID(), newID(), newID()
+	rootDocumentNo, oldDocumentNo, newDocumentNo, newPaymentSourceNo := "EXR-20260816-9001", "EXP-20260816-9001", "EXP-20260816-9002", "EXR-20260816-9002"
 	oldFundAccountID, newFundAccountID := newID(), newID()
 	code := "fixed-revision-" + strings.ToLower(newID()[:8])
 	secondCode := "fixed-match-" + strings.ToLower(newID()[:8])
@@ -117,14 +117,43 @@ func TestApprovedExistingRootUsesStartedPublishedRevisionAcrossRootKeyChangeAndN
 	if err != nil {
 		t.Fatalf("compile second matching workflow: %v", err)
 	}
-	if _, err = pool.Exec(ctx, `
+	fixtureTx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin workflow document fixture: %v", err)
+	}
+	defer fixtureTx.Rollback(ctx) //nolint:errcheck
+	if _, err = fixtureTx.Exec(ctx, `
 		INSERT INTO vou_documents(id,entity,document_no,status,business_date,currency,total_amount_cents,created_by,updated_by)
 		VALUES
 			($1,'expense-reimbursement',$2,'DRAFT',DATE '2026-08-16','CNY',1,$4,$4),
 			($3,'expense-payment',$5,'DRAFT',DATE '2026-08-16','CNY',1,$4,$4),
-			($6,'expense-payment',$7,'DRAFT',DATE '2026-08-16','CNY',1,$4,$4)
-	`, rootDocumentID, rootDocumentNo, oldDocumentID, actorID, oldDocumentNo, newDocumentID, newDocumentNo); err != nil {
+			($6,'expense-payment',$7,'DRAFT',DATE '2026-08-16','CNY',1,$4,$4),
+			($8,'expense-reimbursement',$9,'DRAFT',DATE '2026-08-16','CNY',1,$4,$4)
+	`, rootDocumentID, rootDocumentNo, oldDocumentID, actorID, oldDocumentNo, newDocumentID, newDocumentNo, newPaymentSourceID, newPaymentSourceNo); err != nil {
 		t.Fatalf("insert workflow documents: %v", err)
+	}
+	if _, err = fixtureTx.Exec(ctx, `
+		INSERT INTO vou_expense_reimbursement_details(
+			document_id,employee_object_id,employee_version_id,employee_code,employee_name
+		) VALUES
+			($1,$3,$4,'fixture-employee','测试员工'),
+			($2,$3,$4,'fixture-employee','测试员工')
+	`, rootDocumentID, newPaymentSourceID, actorID, newID()); err != nil {
+		t.Fatalf("insert workflow reimbursement details: %v", err)
+	}
+	if _, err = fixtureTx.Exec(ctx, `
+		INSERT INTO vou_expense_payment_details(
+			document_id,source_reimbursement_id,
+			employee_object_id,employee_version_id,employee_code,employee_name,
+			fund_account_object_id,fund_account_version_id,fund_account_code,fund_account_name
+		) VALUES
+			($1,$3,$5,$6,'fixture-employee','测试员工',$7,$8,'fixture-fund','测试资金账户'),
+			($2,$4,$5,$6,'fixture-employee','测试员工',$7,$8,'fixture-fund','测试资金账户')
+	`, oldDocumentID, newDocumentID, rootDocumentID, newPaymentSourceID, actorID, newID(), oldFundAccountID, newID()); err != nil {
+		t.Fatalf("insert workflow payment details: %v", err)
+	}
+	if err = fixtureTx.Commit(ctx); err != nil {
+		t.Fatalf("commit workflow document fixture: %v", err)
 	}
 	if _, err = pool.Exec(ctx, `
 		INSERT INTO wfl_process_definitions(

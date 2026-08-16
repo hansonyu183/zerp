@@ -245,19 +245,6 @@ done
 
 git -C "${repository_root}" worktree add --detach "${source_root}" "${target_sha}"
 
-if [ -n "${current_sha}" ] &&
-   git -C "${repository_root}" merge-base --is-ancestor "${current_sha}" "${target_sha}"; then
-  changed_files=$(git -C "${repository_root}" diff --name-only "${current_sha}..${target_sha}")
-  impact=$(printf '%s\n' "${changed_files}" | "${source_root}/scripts/change-impact.sh" --paths)
-  if [ "${impact}" != "application" ]; then
-    mark_processed "${target_sha}"
-    clear_failed
-    set_deployment_status success "No application changes (${impact})"
-    log "Production no-op for ${impact} commit ${target_sha}"
-    exit 0
-  fi
-fi
-
 find_production_cloudflare_deployment() (
   printf '%s' "${check_runs}" |
     jq -c '[.check_runs[] | select(.name == "Cloudflare Pages")] |

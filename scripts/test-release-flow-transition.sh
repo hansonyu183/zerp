@@ -77,6 +77,9 @@ grep -Fq 'find_production_cloudflare_deployment' scripts/production-watch.sh
 grep -Fq 'verify_cloudflare_pages_deployment "${candidate_deployment}"' scripts/production-watch.sh
 grep -Fq 'sort_by(.started_at) | reverse | .[]' scripts/production-watch.sh
 grep -Fq 'gh api --paginate --slurp' scripts/production-watch.sh
+if grep -Fq 'Production no-op for' scripts/production-watch.sh; then
+  fail 'production agent can mark a commit processed without exact-SHA deployment'
+fi
 # shellcheck disable=SC2016
 grep -Fq 'verify_actions_check_run "${repo}"' scripts/verify-preview-pr.sh
 # shellcheck disable=SC2016

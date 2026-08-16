@@ -1,6 +1,7 @@
 import { computed, reactive, ref } from 'vue'
 import { getErrorMessage, ApiError } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
+import { passwordMaxLength, passwordMeetsPolicy } from '@/utils/password-policy'
 import {
   createAdminUser,
   getAdminUser,
@@ -143,14 +144,9 @@ export function createUserManagementViewModel() {
     if (editing.value && isSelf.value) return ''
     if (
       isCreate.value &&
-      (runeLength(form.password) < session.passwordMinLength ||
-        runeLength(form.password) > 256 ||
-        !/[a-z]/.test(form.password) ||
-        !/[A-Z]/.test(form.password) ||
-        !/\d/.test(form.password) ||
-        !/[^A-Za-z0-9]/.test(form.password))
+      !passwordMeetsPolicy(form.password, session.passwordMinLength)
     )
-      return `初始密码应为 ${session.passwordMinLength} 至 256 个字符，且包含大小写字母、数字和符号。`
+      return `初始密码应为 ${session.passwordMinLength} 至 ${passwordMaxLength} 个字符，且包含大小写字母、数字和符号。`
     if (form.roleIds.length === 0) return '请至少选择一个启用角色。'
     if (selectedDisabledRoles.value.length)
       return `已选角色包含已停用角色（${selectedDisabledRoles.value.map((role) => role.name).join('、')}），请移除后再保存。`

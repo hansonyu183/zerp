@@ -301,13 +301,13 @@ func generateTemporaryPassword(minimum int) (string, error) {
 		}
 		characters = append(characters, alphabet[index.Int64()])
 	}
-	all := "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%^&*-_"
+	temporaryPasswordAlphabet := "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%^&*-_"
 	for len(characters) < length {
-		index, err := rand.Int(rand.Reader, big.NewInt(int64(len(all))))
+		index, err := rand.Int(rand.Reader, big.NewInt(int64(len(temporaryPasswordAlphabet))))
 		if err != nil {
 			return "", err
 		}
-		characters = append(characters, all[index.Int64()])
+		characters = append(characters, temporaryPasswordAlphabet[index.Int64()])
 	}
 	for i := len(characters) - 1; i > 0; i-- {
 		index, err := rand.Int(rand.Reader, big.NewInt(int64(i+1)))

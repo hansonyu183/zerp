@@ -46,7 +46,12 @@ void vm.query()
 
 <template>
   <v-container fluid class="pa-5 pa-md-8">
-    <AppSnackbar :message="vm.errorMessage" @dismiss="vm.errorMessage = null" />
+    <AppSnackbar
+      action-label="重试"
+      :message="vm.errorMessage"
+      @action="vm.query"
+      @dismiss="vm.errorMessage = null"
+    />
     <AppSnackbar
       :message="vm.successMessage"
       type="success"
@@ -55,12 +60,18 @@ void vm.query()
     <BusinessObjectList
       :columns="columns"
       :creatable="vm.canCreate"
-      :deletable="vm.rows.some(vm.canChangeEnabled)"
+      :deletable="
+        (row) => vm.canChangeEnabled(row) || vm.canResetUserPassword(row)
+      "
       :editable="
         vm.rows.some((row) => vm.canEditUser(row) || vm.canViewUser(row))
       "
       :empty-text="
-        vm.total === 0 ? '暂无用户' : '当前页暂无用户，请返回上一页或重新查询。'
+        vm.errorMessage
+          ? '用户加载失败，请重试。'
+          : vm.total === 0
+            ? '暂无用户'
+            : '当前页暂无用户，请返回上一页或重新查询。'
       "
       :keyword="vm.keyword"
       :loading="vm.loading"

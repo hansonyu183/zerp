@@ -97,13 +97,26 @@ function vm(overrides: Record<string, unknown> = {}) {
 }
 const BusinessObjectList = defineComponent({
   name: 'BusinessObjectList',
-  props: { rows: { type: Array, default: () => [] } },
+  props: {
+    rows: { type: Array, default: () => [] },
+    editable: { type: [Boolean, Function], default: false },
+    deletable: { type: [Boolean, Function], default: false },
+    emptyText: { type: String, default: '' },
+  },
   setup(props, { slots }) {
-    return () =>
-      h(
-        'div',
-        props.rows.map((row) => slots.actions?.({ row })),
+    const showsActions = (row: unknown) =>
+      [props.editable, props.deletable].some((state) =>
+        typeof state === 'function' ? state(row) : state,
       )
+    return () =>
+      h('div', [
+        ...(props.rows.length === 0
+          ? [h('span', { class: 'empty-text' }, props.emptyText)]
+          : []),
+        ...props.rows
+          .filter(showsActions)
+          .map((row) => slots.actions?.({ row })),
+      ])
   },
 })
 const ListRowActions = defineComponent({
@@ -117,6 +130,29 @@ const ListRowActions = defineComponent({
           h('button', action.label),
         ),
       )
+  },
+})
+const AppSnackbar = defineComponent({
+  name: 'AppSnackbar',
+  props: {
+    message: { type: String, default: null },
+    actionLabel: { type: String, default: '' },
+  },
+  emits: ['action'],
+  setup(props, { emit }) {
+    return () =>
+      props.message
+        ? h('div', [
+            h('span', props.message),
+            props.actionLabel
+              ? h(
+                  'button',
+                  { onClick: () => emit('action') },
+                  props.actionLabel,
+                )
+              : null,
+          ])
+        : null
   },
 })
 const passthrough = (name: string) =>
@@ -148,7 +184,7 @@ function mountUser() {
         VChip: passthrough('VChip'),
         VDivider: passthrough('VDivider'),
         VSpacer: passthrough('VSpacer'),
-        AppSnackbar: true,
+        AppSnackbar,
       },
     },
   })
@@ -184,5 +220,41 @@ describe('admin user component seams', () => {
     const dialogs = wrapper.findAllComponents({ name: 'VDialog' })
     expect(dialogs.at(-1)?.props('modelValue')).toBe(true)
     expect(wrapper.text()).toContain('关闭')
+  })
+  it('只有重置权限时仍显示合格用户的重置密码操作', () => {
+    const resettableUser = {
+      ...user,
+      id: 'USER-2',
+      username: 'resettable',
+      status: 'ENABLED',
+      system: false,
+    }
+    vmState.value = vm({
+      rows: [resettableUser],
+      canViewUser: () => false,
+      canChangeEnabled: () => false,
+      canResetUserPassword: () => true,
+    })
+
+    const wrapper = mountUser()
+
+    expect(wrapper.text()).toContain('重置密码')
+  })
+  it('首次查询失败时显示重试操作和失败空态，而不是空用户结果', async () => {
+    const query = vi.fn()
+    vmState.value = vm({
+      rows: [],
+      total: 0,
+      errorMessage: '用户加载失败，请稍后重试。',
+      query,
+    })
+
+    const wrapper = mountUser()
+    const initialCalls = query.mock.calls.length
+
+    expect(wrapper.find('.empty-text').text()).toBe('用户加载失败，请重试。')
+    expect(wrapper.text()).not.toContain('暂无用户')
+    await wrapper.get('button').trigger('click')
+    expect(query).toHaveBeenCalledTimes(initialCalls + 1)
   })
 })

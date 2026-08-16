@@ -2,8 +2,7 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { getErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
-
-const runeLength = (value: string) => Array.from(value).length
+import { passwordMaxLength, passwordMeetsPolicy } from '@/utils/password-policy'
 
 export function useChangePasswordViewModel() {
   const router = useRouter()
@@ -13,18 +12,12 @@ export function useChangePasswordViewModel() {
   const errorMessage = ref<string | null>(null)
   const submitting = ref(false)
   const signingOut = ref(false)
-  const newPasswordValid = computed(
-    () =>
-      runeLength(newPassword.value) >= session.passwordMinLength &&
-      runeLength(newPassword.value) <= 256 &&
-      /[a-z]/.test(newPassword.value) &&
-      /[A-Z]/.test(newPassword.value) &&
-      /\d/.test(newPassword.value) &&
-      /[^A-Za-z0-9]/.test(newPassword.value),
+  const newPasswordValid = computed(() =>
+    passwordMeetsPolicy(newPassword.value, session.passwordMinLength),
   )
   const passwordHint = computed(
     () =>
-      `${session.passwordMinLength} 至 256 个字符，包含大小写字母、数字和符号`,
+      `${session.passwordMinLength} 至 ${passwordMaxLength} 个字符，包含大小写字母、数字和符号`,
   )
   const canSubmit = computed(
     () =>

@@ -515,7 +515,7 @@ run_repair_preflight() {
       printf 'Focused E2E repair check failed for candidate %s.\n' "${head_sha}"
       printf 'Target: %s [%s]\n' "${spec}" "${project}"
       printf 'Full log: %s\n\nFocused error excerpt:\n\n' "${repair_log}"
-      tail -n 140 "${repair_log}"
+      tail -n 140 "${repair_log}" | sed '/^dist\/assets\//d'
     } >"${batch_root}/failure.md"
     return 4
   fi
@@ -1297,15 +1297,19 @@ retry_command() {
     verified_gate_candidate_head "${batch_root}" "${worktree}" "${base_sha}" >/dev/null; then
     preserve_gate_evidence=1
   fi
-  failed_head=$(cat "${batch_root}/gate-attempted-head" 2>/dev/null || true)
-  case "${failed_head}" in '' | *[!0-9a-f]*) failed_head= ;; esac
-  if [ -n "${failed_head}" ] && [ "${#failed_head}" -eq 40 ] &&
-    [ -n "${current_head}" ] &&
-    git -C "${worktree}" merge-base --is-ancestor "${failed_head}" "${current_head}" 2>/dev/null; then
-    write_value "${batch_root}/reviewed-head" "${failed_head}"
-  fi
-  if [ -n "${failed_head}" ] && [ -r "${batch_root}/gate.log" ]; then
-    capture_failed_e2e "${batch_root}" "${batch_root}/gate.log" "${failed_head}"
+  if [ "${preserve_gate_evidence}" = 1 ]; then
+    rm -f "${batch_root}/repair-e2e.env"
+  else
+    failed_head=$(cat "${batch_root}/gate-attempted-head" 2>/dev/null || true)
+    case "${failed_head}" in '' | *[!0-9a-f]*) failed_head= ;; esac
+    if [ -n "${failed_head}" ] && [ "${#failed_head}" -eq 40 ] &&
+      [ -n "${current_head}" ] &&
+      git -C "${worktree}" merge-base --is-ancestor "${failed_head}" "${current_head}" 2>/dev/null; then
+      write_value "${batch_root}/reviewed-head" "${failed_head}"
+    fi
+    if [ -n "${failed_head}" ] && [ -r "${batch_root}/gate.log" ]; then
+      capture_failed_e2e "${batch_root}" "${batch_root}/gate.log" "${failed_head}"
+    fi
   fi
   if [ -r "${batch_root}/preview.env" ] ||
     [ "$(cat "${batch_root}/state" 2>/dev/null || true)" = preview-blocked ]; then

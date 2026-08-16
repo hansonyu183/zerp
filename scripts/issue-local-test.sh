@@ -786,11 +786,13 @@ grep -Fq 'simulated preview environment failure 1' "${runtime}/batches/preview-r
 grep -Fq 'simulated preview environment failure 1' "${runtime}/batches/preview-repair/failure.md"
 grep -Fq '**Status:** blocked' "${primary}/.scratch/preview-repair/issues/01-ticket.md"
 test "$(cat "${runtime}/batches/preview-repair/state")" = preview-blocked
+printf 'stale successful gate marker\n' >"${runtime}/batches/preview-repair/repair-e2e.env"
 export MOCK_PREVIEW_CLOSE_TICKET="${primary}/.scratch/preview-repair/issues/01-ticket.md"
 export MOCK_PREVIEW_CLOSE_EXPECT_STATUS=blocked
 retry_agent preview-repair
 unset MOCK_PREVIEW_CLOSE_TICKET MOCK_PREVIEW_CLOSE_EXPECT_STATUS
 test -r "${runtime}/batches/preview-repair/gate-evidence.json"
+test ! -e "${runtime}/batches/preview-repair/repair-e2e.env"
 test -r "${runtime}/batches/preview-repair/failure.md"
 grep -Fq '**Status:** ready-for-agent' \
   "${primary}/.scratch/preview-repair/issues/01-ticket.md"

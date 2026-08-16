@@ -21,7 +21,7 @@ type PendingAction = {
   kind: 'enable' | 'disable' | 'reset'
   row: AdminUser
 } | null
-const isConflict = (error: unknown) =>
+const isRevisionConflict = (error: unknown) =>
   error instanceof ApiError &&
   error.kind === 'business' &&
   [3001, '3001'].includes(error.code ?? '')
@@ -384,7 +384,7 @@ export function createUserManagementViewModel() {
       if (refresh) await session.restore({ force: true })
       await query()
     } catch (error) {
-      errorMessage.value = isConflict(error)
+      errorMessage.value = isRevisionConflict(error)
         ? '用户详情已变化，请重新加载后再决定。'
         : getErrorMessage(error)
     } finally {
@@ -431,7 +431,7 @@ export function createUserManagementViewModel() {
       successMessage.value = success
     } catch (error) {
       pendingAction.value = null
-      const actionError = isConflict(error)
+      const actionError = isRevisionConflict(error)
         ? '数据已更新，请根据最新状态重新操作。'
         : getErrorMessage(error)
       await query()
@@ -439,10 +439,6 @@ export function createUserManagementViewModel() {
     } finally {
       actionLoadingID.value = null
     }
-  }
-  async function changeEnabled(row: AdminUser): Promise<void> {
-    requestChangeEnabled(row)
-    if (pendingAction.value) await confirmPendingAction()
   }
   function requestResetPassword(row: AdminUser): void {
     if (!canResetUserPassword(row)) {
@@ -523,7 +519,6 @@ export function createUserManagementViewModel() {
     cancelDiscard,
     save,
     requestChangeEnabled,
-    changeEnabled,
     confirmPendingAction,
     requestResetPassword,
     copyTemporaryPassword,

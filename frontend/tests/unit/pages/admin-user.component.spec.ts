@@ -84,7 +84,6 @@ function vm(overrides: Record<string, unknown> = {}) {
     cancelDiscard: vi.fn(),
     save: vi.fn(),
     requestChangeEnabled: vi.fn(),
-    changeEnabled: vi.fn(),
     confirmPendingAction: vi.fn(),
     requestResetPassword: vi.fn(),
     copyTemporaryPassword: vi.fn(),

@@ -568,7 +568,8 @@ describe('user management view model', () => {
       revision: 2,
     })
 
-    await vm.changeEnabled(user)
+    vm.requestChangeEnabled(user)
+    await vm.confirmPendingAction()
     expect(setAdminUserEnabled).toHaveBeenCalledWith(user, false)
   })
 
@@ -582,7 +583,7 @@ describe('user management view model', () => {
     const vm = createUserManagementViewModel()
 
     expect(vm.canChangeEnabled(user)).toBe(false)
-    await vm.changeEnabled(user)
+    vm.requestChangeEnabled(user)
 
     expect(setAdminUserEnabled).not.toHaveBeenCalled()
     expect(queryAdminUsers).not.toHaveBeenCalled()
@@ -611,7 +612,7 @@ describe('user management view model', () => {
     expect(getAdminUser).not.toHaveBeenCalled()
     expect(vm.errorMessage.value).toBe('系统用户由服务端维护，不能编辑。')
 
-    await vm.changeEnabled(systemUser)
+    vm.requestChangeEnabled(systemUser)
     expect(setAdminUserEnabled).not.toHaveBeenCalled()
     expect(vm.errorMessage.value).toBe('系统用户由服务端维护，不能修改状态。')
   })
@@ -779,7 +780,8 @@ describe('user management protected actions', () => {
     )
     const vm = createUserManagementViewModel()
 
-    await vm.changeEnabled(user)
+    vm.requestChangeEnabled(user)
+    await vm.confirmPendingAction()
 
     expect(queryAdminUsers).toHaveBeenCalledOnce()
     expect(vm.errorMessage.value).toBe('数据已更新，请根据最新状态重新操作。')

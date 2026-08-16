@@ -41,6 +41,7 @@ export function createUserManagementViewModel() {
     rolesLoading = ref(false),
     disposed = ref(false)
   const errorMessage = ref<string | null>(null),
+    queryErrorMessage = ref<string | null>(null),
     successMessage = ref<string | null>(null),
     roleErrorMessage = ref<string | null>(null),
     editorErrorMessage = ref<string | null>(null)
@@ -194,6 +195,7 @@ export function createUserManagementViewModel() {
     const sequence = ++querySequence
     loading.value = true
     errorMessage.value = null
+    queryErrorMessage.value = null
     try {
       const filters: Record<string, string> = {}
       if (keyword.value.trim()) filters.search = keyword.value.trim()
@@ -219,7 +221,7 @@ export function createUserManagementViewModel() {
       total.value = result.data.total
     } catch (error) {
       if (!disposed.value && sequence === querySequence)
-        errorMessage.value = getErrorMessage(error)
+        queryErrorMessage.value = `用户加载失败：${getErrorMessage(error)}`
     } finally {
       if (!disposed.value && sequence === querySequence) loading.value = false
     }
@@ -475,6 +477,7 @@ export function createUserManagementViewModel() {
     saving,
     rolesLoading,
     errorMessage,
+    queryErrorMessage,
     successMessage,
     roleErrorMessage,
     editorErrorMessage,

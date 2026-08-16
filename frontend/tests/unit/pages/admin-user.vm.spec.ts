@@ -125,6 +125,39 @@ describe('user management view model', () => {
     expect(vm.rows.value[0]).not.toHaveProperty('sessionToken')
   })
 
+  it('查询失败保留上下文和持久失败状态，成功空结果才清除失败状态', async () => {
+    vi.mocked(queryAdminUsers)
+      .mockResolvedValueOnce({
+        data: { items: [user], total: 1, page: 1, pageSize: 20 },
+      })
+      .mockRejectedValueOnce(new Error('unavailable'))
+      .mockResolvedValueOnce({
+        data: { items: [], total: 0, page: 1, pageSize: 20 },
+      })
+    const vm = createUserManagementViewModel()
+
+    await vm.query()
+    vm.keyword.value = '保留筛选'
+    vm.status.value = 'ENABLED'
+    await vm.query()
+
+    expect(vm.rows.value).toEqual([user])
+    expect(vm.total.value).toBe(1)
+    expect(vm.keyword.value).toBe('保留筛选')
+    expect(vm.status.value).toBe('ENABLED')
+    expect(vm.queryErrorMessage.value).toContain('用户加载失败')
+    vm.errorMessage.value = null
+    expect(vm.queryErrorMessage.value).toContain('用户加载失败')
+
+    vm.keyword.value = ''
+    vm.status.value = null
+    await vm.query()
+
+    expect(vm.queryErrorMessage.value).toBeNull()
+    expect(vm.rows.value).toEqual([])
+    expect(vm.total.value).toBe(0)
+  })
+
   it('忽略乱序的旧查询响应且仅由最新请求结束加载状态', async () => {
     const first = deferred<{
       data: {

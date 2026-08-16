@@ -33,6 +33,7 @@ function vm(overrides: Record<string, unknown> = {}) {
     saving: false,
     rolesLoading: false,
     errorMessage: null,
+    queryErrorMessage: null,
     successMessage: null,
     roleErrorMessage: null,
     editorErrorMessage: null,
@@ -176,7 +177,14 @@ function mountUser() {
         VCardText: passthrough('VCardText'),
         VCardActions: passthrough('VCardActions'),
         VDialog: passthrough('VDialog'),
-        VBtn: passthrough('VBtn'),
+        VBtn: defineComponent({
+          name: 'VBtn',
+          emits: ['click'],
+          setup(_, { emit, slots }) {
+            return () =>
+              h('button', { onClick: () => emit('click') }, slots.default?.())
+          },
+        }),
         VTextField: passthrough('VTextField'),
         VSelect: passthrough('VSelect'),
         VCheckbox: passthrough('VCheckbox'),
@@ -240,12 +248,12 @@ describe('admin user component seams', () => {
 
     expect(wrapper.text()).toContain('重置密码')
   })
-  it('首次查询失败时显示重试操作和失败空态，而不是空用户结果', async () => {
+  it('首次查询失败在 snackbar 消失后仍显示持久重试和失败空态', async () => {
     const query = vi.fn()
     vmState.value = vm({
       rows: [],
       total: 0,
-      errorMessage: '用户加载失败，请稍后重试。',
+      queryErrorMessage: '用户加载失败，请稍后重试。',
       query,
     })
 
@@ -256,5 +264,12 @@ describe('admin user component seams', () => {
     expect(wrapper.text()).not.toContain('暂无用户')
     await wrapper.get('button').trigger('click')
     expect(query).toHaveBeenCalledTimes(initialCalls + 1)
+  })
+  it('成功返回零条用户时显示真实空态', () => {
+    vmState.value = vm({ rows: [], total: 0, queryErrorMessage: null })
+
+    const wrapper = mountUser()
+
+    expect(wrapper.find('.empty-text').text()).toBe('暂无用户')
   })
 })

@@ -46,17 +46,23 @@ void vm.query()
 
 <template>
   <v-container fluid class="pa-5 pa-md-8">
-    <AppSnackbar
-      action-label="重试"
-      :message="vm.errorMessage"
-      @action="vm.query"
-      @dismiss="vm.errorMessage = null"
-    />
+    <AppSnackbar :message="vm.errorMessage" @dismiss="vm.errorMessage = null" />
     <AppSnackbar
       :message="vm.successMessage"
       type="success"
       @dismiss="vm.successMessage = null"
     />
+    <v-alert
+      v-if="vm.queryErrorMessage"
+      class="mb-4"
+      type="error"
+      variant="tonal"
+    >
+      {{ vm.queryErrorMessage }}
+      <v-btn class="ml-2" size="small" variant="text" @click="vm.query"
+        >重试</v-btn
+      >
+    </v-alert>
     <BusinessObjectList
       :columns="columns"
       :creatable="vm.canCreate"
@@ -67,7 +73,7 @@ void vm.query()
         vm.rows.some((row) => vm.canEditUser(row) || vm.canViewUser(row))
       "
       :empty-text="
-        vm.errorMessage
+        vm.queryErrorMessage
           ? '用户加载失败，请重试。'
           : vm.total === 0
             ? '暂无用户'

@@ -437,6 +437,7 @@ grep -Fq 'build-cache/${dependency_cache_key}' "${repo_root}/scripts/preview.sh"
 grep -Fq 'backend/tools/go.sum' "${repo_root}/scripts/preview.sh"
 # shellcheck disable=SC2016
 grep -Fq 'rm -rf "${build_cache}/tmp"' "${repo_root}/scripts/preview.sh"
+# shellcheck disable=SC2016
 if grep -Fq 'rm -rf "${build_cache}"' "${repo_root}/scripts/preview.sh"; then
   echo 'preview deletes its persistent dependency cache' >&2
   exit 1

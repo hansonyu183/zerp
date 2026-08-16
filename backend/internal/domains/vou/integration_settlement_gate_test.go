@@ -58,6 +58,19 @@ func createCheckedSettlementSale(
 	return checked
 }
 
+func settlementAmountCents(t *testing.T, service *Service, entity, documentID string) int64 {
+	t.Helper()
+	view, err := service.Get(t.Context(), entity, GetInput{DocumentID: documentID})
+	if err != nil {
+		t.Fatalf("read settlement document: %v", err)
+	}
+	amount, err := moneyCents(view.Amount)
+	if err != nil {
+		t.Fatalf("parse settlement document amount %q: %v", view.Amount, err)
+	}
+	return amount
+}
+
 func activateSettlementLedger(
 	t *testing.T,
 	pool *pgxpool.Pool,
@@ -372,13 +385,31 @@ func TestPrepaidConcurrentSignoffConsumesCurrentBalanceAtomicallyIntegration(t *
 
 	firstOrder := createCheckedSettlementSale(t, service, refs, customer, "prepaid-batch-first-order")
 	secondOrder := createCheckedSettlementSale(t, service, refs, customer, "prepaid-batch-second-order")
-	var amount int64
-	if err := pool.QueryRow(t.Context(), `SELECT total_amount_cents FROM vou_documents WHERE id=$1`, firstOrder.DocumentID).Scan(&amount); err != nil {
-		t.Fatalf("read settlement amount: %v", err)
+	var firstOrderAmount, secondOrderAmount int64
+	firstOrderAmount = settlementAmountCents(t, service, EntitySaleOrder, firstOrder.DocumentID)
+	secondOrderAmount = settlementAmountCents(t, service, EntitySaleOrder, secondOrder.DocumentID)
+	bootstrapBalance := maxInt64(firstOrderAmount, secondOrderAmount)
+	if bootstrapBalance <= 0 {
+		t.Fatalf("settlement order amounts must be positive: first=%d second=%d", firstOrderAmount, secondOrderAmount)
 	}
-	activateSettlementLedger(t, pool, customer, -amount, businessdate.Today().Format(businessdate.Layout))
+	// Order approval validates its own current balance. It does not reserve it, so
+	// seed only enough for that setup and reset to one actual batch below.
+	activateSettlementLedger(t, pool, customer, -bootstrapBalance, businessdate.Today().Format(businessdate.Layout))
 	first := createCheckedSignoff(firstOrder, "prepaid-batch-first")
 	second := createCheckedSignoff(secondOrder, "prepaid-batch-second")
+	var firstSignoffAmount, secondSignoffAmount int64
+	firstSignoffAmount = settlementAmountCents(t, service, EntitySaleSignoff, first.DocumentID)
+	secondSignoffAmount = settlementAmountCents(t, service, EntitySaleSignoff, second.DocumentID)
+	if firstSignoffAmount <= 0 || firstSignoffAmount != secondSignoffAmount {
+		t.Fatalf("concurrent signoff amounts must match and be positive: first=%d second=%d order-first=%d order-second=%d",
+			firstSignoffAmount, secondSignoffAmount, firstOrderAmount, secondOrderAmount)
+	}
+	if adjustment := firstSignoffAmount - bootstrapBalance; adjustment != 0 {
+		if err := insertAccountingPartyEntry(t.Context(), pool, "customer", customer.ObjectID,
+			"ADVANCE_RECEIPT", adjustment, businessdate.Today().Format(businessdate.Layout), newID()); err != nil {
+			t.Fatalf("set prepaid balance for one signoff: %v", err)
+		}
+	}
 
 	type result struct {
 		input  MutationResult
@@ -425,7 +456,7 @@ func TestPrepaidConcurrentSignoffConsumesCurrentBalanceAtomicallyIntegration(t *
 		WHERE voucher.business_date <= $1::date`, businessdate.Today().Format(businessdate.Layout)).Scan(&remaining); err != nil {
 		t.Fatalf("read prepaid balance after unapproval: %v", err)
 	}
-	if remaining != amount {
-		t.Fatalf("prepaid balance after signoff unapproval = %d, want %d", remaining, amount)
+	if remaining != firstSignoffAmount {
+		t.Fatalf("prepaid balance after signoff unapproval = %d, want %d", remaining, firstSignoffAmount)
 	}
 }

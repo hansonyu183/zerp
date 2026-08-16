@@ -237,7 +237,10 @@ NODE
 }
 
 process_group_alive() {
-  /bin/kill -0 "-$1" 2>/dev/null
+  ps -axo pgid=,stat= | awk -v expected_group="$1" '
+    $1 == expected_group && $2 !~ /^Z/ { found = 1 }
+    END { exit(found ? 0 : 1) }
+  '
 }
 
 ticket_number() { basename "$1" | sed -n 's/^\([0-9][0-9]*\)-.*/\1/p'; }

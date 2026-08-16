@@ -196,26 +196,16 @@ func (s *Service) writeExpenseDetail(
 	refs resolvedDraft,
 	update bool,
 ) error {
-	var fundObjectID, fundVersionID, fundCode, fundName *string
-	if refs.FundAccount != nil {
-		fundObjectID = stringPtr(refs.FundAccount.ObjectID)
-		fundVersionID = stringPtr(refs.FundAccount.VersionID)
-		fundCode = stringPtr(refs.FundAccount.Code)
-		fundName = stringPtr(refs.FundAccount.Data.Name)
-	}
 	params := dbsqlc.InsertVouExpenseReimbursementDetailParams{
 		DocumentID: documentID, EmployeeObjectID: refs.Employee.ObjectID,
 		EmployeeVersionID: refs.Employee.VersionID, EmployeeCode: refs.Employee.Code,
-		EmployeeName: refs.Employee.Data.Name, FundAccountObjectID: fundObjectID,
-		FundAccountVersionID: fundVersionID, FundAccountCode: fundCode,
-		FundAccountName: fundName,
+		EmployeeName: refs.Employee.Data.Name,
 	}
 	if update {
 		rows, err := q.UpdateVouExpenseReimbursementDetail(ctx, dbsqlc.UpdateVouExpenseReimbursementDetailParams{
 			EmployeeObjectID: params.EmployeeObjectID, EmployeeVersionID: params.EmployeeVersionID,
 			EmployeeCode: params.EmployeeCode, EmployeeName: params.EmployeeName,
-			FundAccountObjectID: params.FundAccountObjectID, FundAccountVersionID: params.FundAccountVersionID,
-			FundAccountCode: params.FundAccountCode, FundAccountName: params.FundAccountName, DocumentID: documentID,
+			DocumentID: documentID,
 		})
 		return oneRow(rows, err)
 	}

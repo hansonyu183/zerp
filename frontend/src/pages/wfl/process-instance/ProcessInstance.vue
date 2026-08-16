@@ -24,7 +24,7 @@ function partyText(item: InstanceListItem): string {
       :keyword="vm.keyword.value"
       :loading="vm.loading.value"
       filterable
-      search-label="产品或往来单位"
+      search-label="单号"
       @apply-filters="vm.query({ resetPage: true })"
       @query="vm.query({ resetPage: true })"
       @reset-filters="vm.resetFilters"
@@ -192,45 +192,43 @@ function partyText(item: InstanceListItem): string {
               class="instance-node"
               :class="{
                 'instance-node--done': node.documentStatus === 'APPROVED',
+                'instance-node--selected': vm.selectedNode.value?.nodeInstanceId === node.nodeInstanceId,
               }"
               :style="{ left: `${node.x}px`, top: `${node.y}px` }"
               type="button"
-              @click="vm.openDocument(node)"
+              @click="vm.selectNode(node)"
             >
-              <span>{{ workflowStageText(node.nodeName) }}</span>
+              <span>{{ node.nodeName || workflowStageText(node.nodeKey) }}</span>
               <strong>{{ node.documentNo }}</strong>
-              <small
-                >{{ stageStatusText(node.documentStatus)
-                }}{{ node.legacy ? ' · 历史节点' : '' }}</small
-              >
+              <small>{{ stageStatusText(node.documentStatus) }}</small>
             </button>
           </section>
           <aside class="instance-history">
+            <template v-if="vm.selectedNode.value">
+              <div class="text-h6 mb-3">节点详情</div>
+              <div class="text-subtitle-2">{{ vm.selectedNode.value.nodeName }}</div>
+              <v-btn class="mb-3" size="small" variant="text" prepend-icon="mdi-file-document-outline" @click="vm.openDocument(vm.selectedNode.value)">打开单据</v-btn>
+              <dl class="node-details">
+                <dt>节点键</dt><dd>{{ vm.selectedNode.value.nodeKey }}</dd>
+                <dt>单据类型</dt><dd>{{ vm.selectedNode.value.documentEntity }}</dd>
+                <dt>业务父级</dt><dd>{{ vm.selectedNode.value.businessParentEntity ? `${vm.selectedNode.value.businessParentEntity} · ${vm.selectedNode.value.businessParentDocumentId}` : '—' }}</dd>
+                <dt>关系</dt><dd>{{ vm.selectedNode.value.relation ?? '—' }}</dd>
+                <dt>触发</dt><dd>{{ vm.selectedNode.value.trigger }}</dd>
+                <dt>动作</dt><dd>{{ vm.selectedNode.value.action ?? '—' }}</dd>
+              </dl>
+              <template v-if="vm.nodeTargets.value.length && vm.can('create-child')">
+                <v-divider class="my-4" />
+                <div class="text-subtitle-2 mb-2">创建下级单据</div>
+                <v-select v-model="vm.selectedTarget.value" :items="vm.nodeTargets.value" item-title="targetNodeName" return-object label="当前可创建目标" variant="outlined" />
+                <div v-if="vm.selectedTarget.value" class="text-caption text-medium-emphasis mb-3">{{ vm.selectedTarget.value.relation }} · {{ vm.selectedTarget.value.targetEntity }}</div>
+                <v-text-field v-model="vm.requestKey.value" label="请求键" hint="16 至 64 个字符；网络重试请复用同一键。" persistent-hint variant="outlined" />
+                <v-btn block color="primary" :disabled="!vm.selectedTarget.value" :loading="vm.creatingChild.value" @click="vm.createChild">创建下级</v-btn>
+              </template>
+            </template>
+            <v-divider class="my-5" />
             <div class="text-h6 mb-4">运行记录</div>
-            <v-timeline density="compact" side="end">
-              <v-timeline-item
-                v-for="event in vm.history.value"
-                :key="event.id"
-                dot-color="primary"
-                size="x-small"
-              >
-                <div class="text-subtitle-2">
-                  {{ runtimeEventText(event.eventType)
-                  }}<span v-if="event.documentNo">
-                    · {{ event.documentNo }}</span
-                  >
-                </div>
-                <div class="text-caption text-medium-emphasis">
-                  {{ new Date(event.occurredAt).toLocaleString() }}
-                </div>
-              </v-timeline-item>
-            </v-timeline>
-            <div
-              v-if="vm.history.value.length === 0"
-              class="text-medium-emphasis"
-            >
-              暂无运行记录
-            </div>
+            <v-timeline density="compact" side="end"><v-timeline-item v-for="event in vm.history.value" :key="event.id" dot-color="primary" size="x-small"><div class="text-subtitle-2">{{ runtimeEventText(event.eventType) }}<span v-if="event.documentNo"> · {{ event.documentNo }}</span></div><div class="text-caption text-medium-emphasis">{{ new Date(event.occurredAt).toLocaleString() }}</div><div class="text-caption text-medium-emphasis">{{ event.actorId }} · {{ event.requestId }}</div></v-timeline-item></v-timeline>
+            <div v-if="vm.history.value.length === 0" class="text-medium-emphasis">暂无运行记录</div>
           </aside>
         </v-card-text>
       </v-card>
@@ -322,6 +320,20 @@ function partyText(item: InstanceListItem): string {
 .instance-node--done {
   border-color: rgb(var(--v-theme-success));
 }
+.instance-node--selected {
+  border-color: rgb(var(--v-theme-primary));
+  box-shadow: 0 0 0 2px rgba(var(--v-theme-primary), 0.18);
+}
+.node-details {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 6px 10px;
+  margin: 0;
+  font-size: 0.875rem;
+}
+.node-details dt { color: rgb(var(--v-theme-on-surface-variant)); }
+.node-details dd { margin: 0; overflow-wrap: anywhere; }
+
 .instance-node small {
   color: rgb(var(--v-theme-on-surface-variant));
 }

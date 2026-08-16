@@ -23,6 +23,7 @@ import (
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/githubissues"
+	"github.com/hansonyu183/zerp/backend/internal/integrations/workflowactions"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgxpool"
 	oapigin "github.com/oapi-codegen/gin-middleware"
@@ -49,7 +50,7 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 	if err != nil {
 		return nil, nil, err
 	}
-	wflService, err := wfldomain.NewService(db, eventBus, vouService, logger)
+	wflService, err := wfldomain.NewService(db, eventBus, workflowactions.New(vouService), logger)
 	if err != nil {
 		return nil, nil, err
 	}

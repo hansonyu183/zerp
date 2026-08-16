@@ -206,6 +206,6 @@ func TestVOUOrderProductionSnapshotsMultipleLinesAndReservesQuantityIntegration(
 			}},
 		},
 	}, integrationActorOne, "order-production-after-release"); err != nil {
-		t.Fatalf("reservation was not released after delete: %v", err)
+		t.Fatalf("quantity allocation was not released after delete: %v", err)
 	}
 }

@@ -159,17 +159,10 @@ func (s *Service) CreatePurchaseReturn(
 	if err = s.insertPurchaseReturnLines(ctx, tx, id, source.lines); err != nil {
 		return MutationResult{}, err
 	}
-	if err = s.linkPurchaseWorkflowDocument(ctx, tx, source.orderID, id, purchaseStageReturn); err != nil {
-		return MutationResult{}, err
-	}
 	q := s.queries.WithTx(tx)
 	if err = insertAudit(ctx, q, auditInput{DocumentID: id, Entity: EntityPurchaseReturn,
 		Event: "CREATED", To: StatusDraft, ActorID: actorID, RequestID: requestID,
 		Summary: map[string]any{"lineCount": len(source.lines)}}); err != nil {
-		return MutationResult{}, err
-	}
-	document := dbsqlc.VouDocument{ID: id, Entity: EntityPurchaseReturn, DocumentNo: number}
-	if err = s.touchWorkflow(ctx, tx, document, "RETURN_CREATED", StatusDraft, actorID, requestID, nil); err != nil {
 		return MutationResult{}, err
 	}
 	if err = s.events.Publish(ctx, tx, DocumentCreatedEvent{Entity: EntityPurchaseReturn,

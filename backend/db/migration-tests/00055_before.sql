@@ -64,13 +64,6 @@ INSERT INTO vou_sale_order_details (
     '00000000000000000000002555', 'CUS-555', 'Migration customer'
 );
 
-INSERT INTO vou_settlement_reservations (
-    order_id, order_entity, term_code, counterparty_entity, counterparty_object_id,
-    currency, original_amount_cents, reserved_amount_cents, active
-) VALUES (
-    '00000000000000000000000555', 'sale-order', 'PREPAID', 'customer',
-    '00000000000000000000001555', 'CNY', 1, 1, true
-);
 SET CONSTRAINTS ALL IMMEDIATE;
 COMMIT;
 

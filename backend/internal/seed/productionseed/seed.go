@@ -12,6 +12,7 @@ import (
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
+	"github.com/hansonyu183/zerp/backend/internal/integrations/workflowactions"
 	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
@@ -61,7 +62,7 @@ func New(
 	if err != nil {
 		return nil, fmt.Errorf("create VOU service: %w", err)
 	}
-	if _, err = wfldomain.NewService(pool, events, vouchers, logger); err != nil {
+	if _, err = wfldomain.NewService(pool, events, workflowactions.New(vouchers), logger); err != nil {
 		return nil, fmt.Errorf("create WFL service: %w", err)
 	}
 	return &Seeder{pool: pool, bob: bobService, vouchers: vouchers}, nil
@@ -156,7 +157,7 @@ func (s *Seeder) seedPurchaseStock(ctx context.Context, refs references) (seedOu
 		voudomain.EntityPurchaseOrder,
 		"purchase-order",
 		func() (voudomain.MutationResult, error) {
-			return s.vouchers.CreateManagedPurchaseOrder(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
+			return s.vouchers.Create(ctx, voudomain.EntityPurchaseOrder, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: businessDate,
 				Currency:     "CNY",
 				Remark:       "生产测试数据：原料备货",
@@ -214,7 +215,7 @@ func (s *Seeder) seedSaleOrder(ctx context.Context, refs references) (seedOutcom
 		voudomain.EntitySaleOrder,
 		"sale-order",
 		func() (voudomain.MutationResult, error) {
-			return s.vouchers.CreateManagedSalesOrder(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
+			return s.vouchers.Create(ctx, voudomain.EntitySaleOrder, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: businessDate,
 				Currency:     "CNY",
 				Remark:       "生产配货固定测试订单",

@@ -102,8 +102,6 @@ const exactMessages: Readonly<Record<string, string>> = {
     '资金账户币种与报销单币种不一致。',
   'fund account currency does not match source document':
     '资金账户币种与来源单据币种不一致。',
-  'legacy expense fund account is missing':
-    '历史费用单缺少资金账户，请先补充后再继续。',
   'document is not a draft': '当前单据不是草稿状态，不能执行该操作。',
   'draft has attachments or child documents':
     '草稿已有附件或下游单据，不能删除。',
@@ -113,6 +111,8 @@ const exactMessages: Readonly<Record<string, string>> = {
   'parent document does not match parentEntity':
     '上级单据与所选单据类型不匹配。',
   'downstream sales document exists': '已有下游销售单据，不能执行该操作。',
+  'downstream sales document blocks the reverse transition':
+    '已有下游销售单据阻止反向操作，请先处理下游单据。',
   'downstream workflow document cannot be removed':
     '流程已有下游单据，不能移除。',
   'downstream workflow document has changed':
@@ -121,6 +121,10 @@ const exactMessages: Readonly<Record<string, string>> = {
     '已有下游单据，请先反向处理下游单据。',
   'sales-chain source is not approved': '销售来源单据尚未批准。',
   'sales-chain source is not ready': '销售来源资料尚未准备完成。',
+  'parent sales document has not reached the required status':
+    '上级销售单据尚未达到当前操作所需状态。',
+  'production document blocks the reverse transition':
+    '生产单据阻止反向操作，请先处理关联生产单据。',
   'sales fulfillment cannot be changed': '销售履约已生成后续单据，不能修改。',
   'purchase fulfillment cannot be changed':
     '采购履约已生成后续单据，不能修改。',
@@ -156,6 +160,9 @@ const exactMessages: Readonly<Record<string, string>> = {
   'outbound warehouse must match sale order warehouse':
     '出库仓库必须与销售订单仓库一致。',
   'outbound date precedes order date': '出库日期不能早于订单日期。',
+  'inbound warehouse must match purchase order warehouse':
+    '入库仓库必须与采购订单仓库一致。',
+  'inbound date precedes order date': '入库日期不能早于订单日期。',
   'delivery date precedes outbound date': '配送日期不能早于出库日期。',
   'signoff date precedes delivery date': '签收日期不能早于配送日期。',
   'return date precedes signoff': '退货日期不能早于签收日期。',
@@ -164,9 +171,13 @@ const exactMessages: Readonly<Record<string, string>> = {
   'signoff has return documents': '该签收单已有退货单。',
   'signoff must include every outbound line': '签收单必须包含全部出库明细。',
   'sale quantities do not reconcile': '销售各环节数量不一致，请检查后重试。',
-  'automatic refusal lines cannot be changed': '系统生成的拒收明细不能修改。',
-  'automatic refusal return cannot be deleted':
-    '系统生成的拒收退货单不能删除。',
+  'workflow refusal lines cannot be changed': '流程生成的拒收明细不能修改。',
+  'refusal return lines must match rejected signoff lines':
+    '拒收退货明细必须与签收拒收明细一致。',
+  'refusal return quantity must equal rejected quantity':
+    '拒收退货数量必须等于签收拒收数量。',
+  'workflow refusal return cannot be deleted':
+    '流程生成的拒收退货单不能直接删除。',
   'expense reimbursement is not approved': '费用报销单尚未审核通过。',
   'production material output is unavailable':
     '生产材料产出资料不可用，请检查生产单据。',
@@ -569,7 +580,6 @@ const exactMessages: Readonly<Record<string, string>> = {
   'sourceLines are required': '请选择来源明细。',
   'unsupported VOU entity': '当前单据类型不受支持。',
   'unsupported product kind': '当前产品类型不受支持。',
-  'unsupported workflow converter': '当前流程转换方式不受支持。',
   'upload headers do not match declaration':
     '上传文件信息与申请内容不一致，请重新上传。',
   'upload token is invalid or expired':
@@ -579,19 +589,12 @@ const exactMessages: Readonly<Record<string, string>> = {
   'user revision conflict': '用户资料已被其他操作修改，请刷新后重试。',
   'user status unchanged': '用户已经是目标状态，无需重复操作。',
   'vehicle does not belong to platform': '车辆不属于所选物流平台，请重新选择。',
-  'IN condition value must be an array': 'IN 条件的值必须是列表。',
-  'IN requires array': 'IN 条件必须提供列表值。',
   'VOU pool, BOB/AUX resolvers, and event publisher are required':
     '单据服务配置不完整，请联系管理员。',
-  'WFL pool, event bus, and document service are required':
+  'WFL pool, event bus, and runtime are required':
     '流程服务配置不完整，请联系管理员。',
   'auxiliary resolver is not configured':
     '辅助资料服务尚未配置，请联系管理员。',
-  'condition group cannot contain siblings': '条件组不能同时包含同级条件。',
-  'condition group must be an array': '条件组必须是条件列表。',
-  'condition item must be an object': '每条条件必须是完整的条件对象。',
-  'condition must contain one group or one predicate':
-    '条件必须包含一个条件组或一个判断项。',
   'monthly closing day must be 1-31': '月结日必须为 1 至 31。',
   'defaultSalesSurcharge must be a non-negative amount':
     '默认销售附加费不能为负数。',

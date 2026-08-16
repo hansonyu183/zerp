@@ -17,23 +17,45 @@ const (
 )
 
 type compiledScriptDefinition struct {
-	Code    string
-	Name    string
-	RootKey string
-	Nodes   []compiledScriptNode
-	Edges   []compiledScriptEdge
+	Code    string               `json:"code"`
+	Name    string               `json:"name"`
+	RootKey string               `json:"rootKey"`
+	Nodes   []compiledScriptNode `json:"nodes"`
+	Edges   []compiledScriptEdge `json:"edges"`
+	when    starlark.Callable
 }
 
 type compiledScriptNode struct {
-	Key    string
-	Name   string
-	Entity string
+	Key    string `json:"key"`
+	Name   string `json:"name"`
+	Entity string `json:"entity"`
 }
 
 type compiledScriptEdge struct {
-	SourceKey    string
-	TargetKey    string
-	ConverterKey string
+	SourceKey  string `json:"sourceKey"`
+	TargetKey  string `json:"targetKey"`
+	ActionName string `json:"actionName"`
+	Relation   string `json:"relation"`
+	initial    starlark.Value
+	when       starlark.Callable
+}
+
+const (
+	ActionExpensePayment  = "expense_payment"
+	ActionPurchaseInbound = "purchase_inbound"
+	ActionSaleOutbound    = "sale_outbound"
+	ActionSaleDelivery    = "sale_delivery"
+	ActionSaleSignoff     = "sale_signoff"
+	ActionSaleReturn      = "sale_return"
+)
+
+var workflowActionEntities = map[string][2]string{
+	ActionExpensePayment:  {"expense-reimbursement", "expense-payment"},
+	ActionPurchaseInbound: {"purchase-order", "purchase-inbound"},
+	ActionSaleOutbound:    {"sale-order", "sale-outbound"},
+	ActionSaleDelivery:    {"sale-outbound", "sale-delivery"},
+	ActionSaleSignoff:     {"sale-delivery", "sale-signoff"},
+	ActionSaleReturn:      {"sale-signoff", "sale-return"},
 }
 
 type scriptCompiler struct {
@@ -56,11 +78,36 @@ func compileDefinitionScript(source string) (compiledScriptDefinition, error) {
 		},
 	}
 	thread.SetMaxExecutionSteps(maxWorkflowScriptSteps)
-	_, err := starlark.ExecFileOptions(&syntax.FileOptions{}, thread, "workflow.star", source, starlark.StringDict{
+	predeclared := starlark.StringDict{
 		"edge":     starlark.NewBuiltin("edge", compiler.edge),
 		"node":     starlark.NewBuiltin("node", compiler.node),
 		"workflow": starlark.NewBuiltin("workflow", compiler.workflow),
-	})
+	}
+	for actionName := range workflowActionEntities {
+		name := actionName
+		predeclared[name] = starlark.NewBuiltin(name, func(_ *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+			var initial starlark.Value = starlark.None
+			if unpackErr := starlark.UnpackArgs(fn.Name(), args, kwargs, "initial?", &initial); unpackErr != nil {
+				return nil, unpackErr
+			}
+			if initial != starlark.None {
+				if _, ok := initial.(*starlark.Dict); !ok {
+					if _, ok = initial.(starlark.Callable); !ok {
+						return nil, fmt.Errorf("%s initial must be a dict or function", fn.Name())
+					}
+				}
+			}
+			descriptor := starlark.NewDict(2)
+			if setErr := descriptor.SetKey(starlark.String("name"), starlark.String(name)); setErr != nil {
+				return nil, setErr
+			}
+			if setErr := descriptor.SetKey(starlark.String("initial"), initial); setErr != nil {
+				return nil, setErr
+			}
+			return descriptor, nil
+		})
+	}
+	_, err := starlark.ExecFileOptions(&syntax.FileOptions{}, thread, "workflow.star", source, predeclared)
 	if err != nil {
 		diagnostic := err.Error()
 		var evaluationError *starlark.EvalError
@@ -102,8 +149,10 @@ func (c *scriptCompiler) node(_ *starlark.Thread, fn *starlark.Builtin, args sta
 
 func (c *scriptCompiler) edge(_ *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var source, target *starlark.Dict
-	var converter string
-	if err := starlark.UnpackArgs(fn.Name(), args, kwargs, "source", &source, "target", &target, "converter", &converter); err != nil {
+	var action *starlark.Dict
+	var relation string
+	var when starlark.Callable
+	if err := starlark.UnpackArgs(fn.Name(), args, kwargs, "source", &source, "target", &target, "relation", &relation, "action", &action, "when?", &when); err != nil {
 		return nil, err
 	}
 	sourceNode, err := compiledNodeFromDict(source)
@@ -114,17 +163,34 @@ func (c *scriptCompiler) edge(_ *starlark.Thread, fn *starlark.Builtin, args sta
 	if err != nil {
 		return nil, err
 	}
-	converter = strings.TrimSpace(converter)
-	if !workflowConverterAllowed(converter, sourceNode.Entity, targetNode.Entity) {
-		return nil, fmt.Errorf("workflow edge uses an incompatible converter")
+	actionName, err := stringFromDict(action, "name")
+	if err != nil || !workflowActionAllowed(actionName, sourceNode.Entity, targetNode.Entity) {
+		return nil, fmt.Errorf("workflow edge uses an incompatible action")
 	}
-	edge := starlark.NewDict(3)
+	relation = strings.TrimSpace(relation)
+	if relation == "" || len(relation) > 64 {
+		return nil, fmt.Errorf("workflow edge relation is invalid")
+	}
+	edge := starlark.NewDict(4)
 	for _, field := range []struct{ key, value string }{
 		{key: "source", value: sourceNode.Key},
 		{key: "target", value: targetNode.Key},
-		{key: "converter", value: converter},
+		{key: "action", value: actionName},
+		{key: "relation", value: relation},
 	} {
 		if err = edge.SetKey(starlark.String(field.key), starlark.String(field.value)); err != nil {
+			return nil, err
+		}
+	}
+	initial, found, err := action.Get(starlark.String("initial"))
+	if err != nil || !found {
+		return nil, fmt.Errorf("workflow action initial is missing")
+	}
+	if err = edge.SetKey(starlark.String("initial"), initial); err != nil {
+		return nil, err
+	}
+	if when != nil {
+		if err = edge.SetKey(starlark.String("when"), when); err != nil {
 			return nil, err
 		}
 	}
@@ -138,7 +204,8 @@ func (c *scriptCompiler) workflow(_ *starlark.Thread, fn *starlark.Builtin, args
 	var code, name string
 	var root *starlark.Dict
 	var edgeList *starlark.List
-	if err := starlark.UnpackArgs(fn.Name(), args, kwargs, "code", &code, "name", &name, "root", &root, "edges?", &edgeList); err != nil {
+	var when starlark.Callable
+	if err := starlark.UnpackArgs(fn.Name(), args, kwargs, "code", &code, "name", &name, "root", &root, "edges?", &edgeList, "when?", &when); err != nil {
 		return nil, err
 	}
 	code = strings.TrimSpace(code)
@@ -176,7 +243,7 @@ func (c *scriptCompiler) workflow(_ *starlark.Thread, fn *starlark.Builtin, args
 			edges = append(edges, edge)
 		}
 	}
-	definition := compiledScriptDefinition{Code: code, Name: name, RootKey: rootNode.Key, Nodes: nodes, Edges: edges}
+	definition := compiledScriptDefinition{Code: code, Name: name, RootKey: rootNode.Key, Nodes: nodes, Edges: edges, when: when}
 	if err = validateCompiledScriptGraph(definition); err != nil {
 		return nil, err
 	}
@@ -215,13 +282,32 @@ func compiledEdgeFromDict(value *starlark.Dict) (compiledScriptEdge, error) {
 	if err != nil {
 		return compiledScriptEdge{}, fmt.Errorf("workflow edge is invalid")
 	}
-	converterKey, err := stringFromDict(value, "converter")
+	actionName, err := stringFromDict(value, "action")
 	if err != nil {
 		return compiledScriptEdge{}, fmt.Errorf("workflow edge is invalid")
 	}
+	relation, err := stringFromDict(value, "relation")
+	if err != nil {
+		return compiledScriptEdge{}, fmt.Errorf("workflow edge is invalid")
+	}
+	initial, found, err := value.Get(starlark.String("initial"))
+	if err != nil || !found {
+		return compiledScriptEdge{}, fmt.Errorf("workflow edge is invalid")
+	}
+	var when starlark.Callable
+	whenValue, found, err := value.Get(starlark.String("when"))
+	if err != nil {
+		return compiledScriptEdge{}, fmt.Errorf("workflow edge is invalid")
+	}
+	if found {
+		when, _ = whenValue.(starlark.Callable)
+		if when == nil {
+			return compiledScriptEdge{}, fmt.Errorf("workflow edge condition is invalid")
+		}
+	}
 	return compiledScriptEdge{
 		SourceKey: strings.TrimSpace(sourceKey), TargetKey: strings.TrimSpace(targetKey),
-		ConverterKey: strings.TrimSpace(converterKey),
+		ActionName: strings.TrimSpace(actionName), Relation: strings.TrimSpace(relation), initial: initial, when: when,
 	}, nil
 }
 
@@ -262,7 +348,7 @@ func validateCompiledScriptGraph(definition compiledScriptDefinition) error {
 		target, targetExists := nodes[edge.TargetKey]
 		pair := edge.SourceKey + "\x00" + edge.TargetKey
 		if !sourceExists || !targetExists || edge.SourceKey == edge.TargetKey || pairs[pair] ||
-			!workflowConverterAllowed(edge.ConverterKey, source.Entity, target.Entity) {
+			!workflowActionAllowed(edge.ActionName, source.Entity, target.Entity) || edge.Relation == "" {
 			return fmt.Errorf("workflow edge %q -> %q is invalid", edge.SourceKey, edge.TargetKey)
 		}
 		pairs[pair] = true
@@ -310,25 +396,19 @@ func validateCompiledScriptGraph(definition compiledScriptDefinition) error {
 }
 
 func workflowEntityAllowed(entity string) bool {
-	for _, node := range workflowNodes {
-		if node.Entity == entity {
-			return true
+	for _, entities := range workflowActionEntities {
+		for _, candidate := range entities {
+			if candidate == entity {
+				return true
+			}
 		}
 	}
 	return false
 }
 
-func workflowConverterAllowed(key, sourceEntity, targetEntity string) bool {
-	for _, converter := range workflowConverters {
-		if converter.Key == key && converter.SourceEntity == sourceEntity && converter.TargetEntity == targetEntity {
-			return true
-		}
-	}
-	return false
-}
-
-func compiledEdgeSignature(sourceKey, targetKey, converterKey string) string {
-	return sourceKey + "\x00" + targetKey + "\x00" + converterKey
+func workflowActionAllowed(name, sourceEntity, targetEntity string) bool {
+	entities, ok := workflowActionEntities[name]
+	return ok && entities[0] == sourceEntity && entities[1] == targetEntity
 }
 
 func compiledNodeByKey(compiled compiledScriptDefinition, key string) compiledScriptNode {
@@ -338,80 +418,4 @@ func compiledNodeByKey(compiled compiledScriptDefinition, key string) compiledSc
 		}
 	}
 	return compiledScriptNode{}
-}
-
-func compiledTraversal(compiled compiledScriptDefinition) []compiledScriptNode {
-	nodes := make(map[string]compiledScriptNode, len(compiled.Nodes))
-	children := make(map[string][]string, len(compiled.Nodes))
-	for _, node := range compiled.Nodes {
-		nodes[node.Key] = node
-	}
-	for _, edge := range compiled.Edges {
-		children[edge.SourceKey] = append(children[edge.SourceKey], edge.TargetKey)
-	}
-	result := make([]compiledScriptNode, 0, len(compiled.Nodes))
-	queue := []string{compiled.RootKey}
-	for len(queue) > 0 {
-		key := queue[0]
-		queue = queue[1:]
-		result = append(result, nodes[key])
-		queue = append(queue, children[key]...)
-	}
-	return result
-}
-
-func scriptDefinitionInput(compiled compiledScriptDefinition, nodeIDsByKey, edgeIDsBySignature map[string]string, script *string) DefinitionCreateInput {
-	if nodeIDsByKey == nil {
-		nodeIDsByKey = map[string]string{}
-	}
-	if edgeIDsBySignature == nil {
-		edgeIDsBySignature = map[string]string{}
-	}
-	for _, node := range compiled.Nodes {
-		if nodeIDsByKey[node.Key] == "" {
-			nodeIDsByKey[node.Key] = newID()
-		}
-	}
-	depth := map[string]int{compiled.RootKey: 0}
-	children := make(map[string][]string, len(compiled.Nodes))
-	for _, edge := range compiled.Edges {
-		children[edge.SourceKey] = append(children[edge.SourceKey], edge.TargetKey)
-	}
-	queue := []string{compiled.RootKey}
-	for len(queue) > 0 {
-		key := queue[0]
-		queue = queue[1:]
-		for _, child := range children[key] {
-			depth[child] = depth[key] + 1
-			queue = append(queue, child)
-		}
-	}
-	rowsByDepth := map[int]int{}
-	nodes := make([]DefinitionNodeInput, 0, len(compiled.Nodes))
-	for _, node := range compiled.Nodes {
-		row := rowsByDepth[depth[node.Key]]
-		rowsByDepth[depth[node.Key]]++
-		nodes = append(nodes, DefinitionNodeInput{
-			ID: nodeIDsByKey[node.Key], Key: node.Key, Name: node.Name,
-			DocumentEntity: node.Entity, PositionX: 40 + depth[node.Key]*280,
-			PositionY: 80 + row*150, Defaults: []byte(`{}`),
-		})
-	}
-	edges := make([]DefinitionEdgeInput, 0, len(compiled.Edges))
-	for _, edge := range compiled.Edges {
-		signature := compiledEdgeSignature(edge.SourceKey, edge.TargetKey, edge.ConverterKey)
-		id := edgeIDsBySignature[signature]
-		if id == "" {
-			id = newID()
-		}
-		edges = append(edges, DefinitionEdgeInput{
-			ID: id, SourceNodeID: nodeIDsByKey[edge.SourceKey], TargetNodeID: nodeIDsByKey[edge.TargetKey],
-			ConverterKey: edge.ConverterKey, Condition: []byte(`{}`),
-		})
-	}
-	return DefinitionCreateInput{
-		Script: script, Code: compiled.Code, Name: compiled.Name,
-		RootNodeID: nodeIDsByKey[compiled.RootKey], StartCondition: []byte(`{}`),
-		Nodes: nodes, Edges: edges,
-	}
 }

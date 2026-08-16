@@ -58,10 +58,9 @@ func truncateVOU(t *testing.T, pool *pgxpool.Pool) {
 	_, err := pool.Exec(context.Background(), `
 		TRUNCATE acc_books CASCADE;
 		TRUNCATE
-			wfl_runtime_audit_events, wfl_edge_executions, wfl_node_instances,
+			wfl_runtime_audit_events, wfl_action_executions, wfl_create_child_requests, wfl_node_instances,
 			wfl_definition_instances, vou_audit_events, vou_download_tokens, vou_document_attachments,
-			vou_settlement_reservations,
-			vou_files, wfl_audit_events, wfl_process_documents, wfl_process_instances,
+			vou_files,
 			vou_asset_liquidation_lines,vou_asset_liquidation_details,
 			vou_asset_sale_lines,vou_asset_sale_details,
 			vou_asset_acquisition_lines,vou_asset_acquisition_details,

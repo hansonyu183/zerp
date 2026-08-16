@@ -39,7 +39,7 @@ func (s *Seeder) seedPurchaseChain(ctx context.Context, counts *Counts) error {
 		voudomain.EntityPurchaseOrder,
 		voudomain.StatusApproved,
 		func() (voudomain.MutationResult, error) {
-			return s.vouchers.CreateManagedPurchaseOrder(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
+			return s.vouchers.Create(ctx, voudomain.EntityPurchaseOrder, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-01", Currency: "CNY", Supplier: &supplier,
 				Purchaser: &employee, Warehouse: &warehouse,
 				Remark: "预览完整采购链：已批准采购订单",
@@ -104,7 +104,7 @@ func (s *Seeder) seedPurchaseChain(ctx context.Context, counts *Counts) error {
 		voudomain.EntityPurchaseOrder,
 		voudomain.StatusDraft,
 		func() (voudomain.MutationResult, error) {
-			return s.vouchers.CreateManagedPurchaseOrder(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
+			return s.vouchers.Create(ctx, voudomain.EntityPurchaseOrder, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: businessDate, Currency: "CNY", Supplier: &supplier,
 				Purchaser: &employee, Warehouse: &warehouse,
 				Remark: "预览可操作草稿：采购订单",
@@ -125,7 +125,7 @@ func (s *Seeder) seedPurchaseChain(ctx context.Context, counts *Counts) error {
 		voudomain.EntityPurchaseOrder,
 		voudomain.StatusApproved,
 		func() (voudomain.MutationResult, error) {
-			return s.vouchers.CreateManagedPurchaseOrder(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
+			return s.vouchers.Create(ctx, voudomain.EntityPurchaseOrder, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: businessDate, Currency: "CNY", Supplier: &supplier,
 				Purchaser: &employee, Warehouse: &warehouse,
 				Remark: "预览可操作来源：采购入库与退货",
@@ -197,7 +197,7 @@ func (s *Seeder) seedCompletedPurchaseWorkflow(ctx context.Context, counts *Coun
 		voudomain.EntityPurchaseOrder,
 		voudomain.StatusApproved,
 		func() (voudomain.MutationResult, error) {
-			return s.vouchers.CreateManagedPurchaseOrder(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
+			return s.vouchers.Create(ctx, voudomain.EntityPurchaseOrder, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-13", Currency: "CNY", Supplier: &supplier,
 				Purchaser: &employee, Warehouse: &warehouse,
 				Remark: "预览已批准采购履约流程",
@@ -250,7 +250,7 @@ func (s *Seeder) seedProductionDocuments(ctx context.Context, counts *Counts) er
 		voudomain.EntitySaleOrder,
 		voudomain.StatusApproved,
 		func() (voudomain.MutationResult, error) {
-			return s.vouchers.CreateManagedSalesOrder(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
+			return s.vouchers.Create(ctx, voudomain.EntitySaleOrder, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-03", Currency: "CNY", Customer: &customer,
 				Salesperson: &employee, Warehouse: &warehouse, Remark: "预览生产配货来源订单",
 				ProductLines: []voudomain.ProductLineInput{{
@@ -371,7 +371,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 		voudomain.EntitySaleOrder,
 		voudomain.StatusApproved,
 		func() (voudomain.MutationResult, error) {
-			return s.vouchers.CreateManagedSalesOrder(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
+			return s.vouchers.Create(ctx, voudomain.EntitySaleOrder, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-05", Currency: "CNY", Customer: &customer,
 				Salesperson: &employee, Warehouse: &warehouse, Remark: "预览完整销售履约链",
 				ProductLines: []voudomain.ProductLineInput{{
@@ -499,7 +499,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 		voudomain.EntitySaleOrder,
 		voudomain.StatusDraft,
 		func() (voudomain.MutationResult, error) {
-			return s.vouchers.CreateManagedSalesOrder(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
+			return s.vouchers.Create(ctx, voudomain.EntitySaleOrder, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: businessDate, Currency: "CNY", Customer: &customer,
 				Salesperson: &employee, Warehouse: &warehouse, Remark: "预览可操作草稿：销售订单",
 				ProductLines: []voudomain.ProductLineInput{{
@@ -533,7 +533,7 @@ func (s *Seeder) seedCompletedSalesWorkflow(ctx context.Context, counts *Counts)
 		voudomain.EntitySaleOrder,
 		voudomain.StatusApproved,
 		func() (voudomain.MutationResult, error) {
-			return s.vouchers.CreateManagedSalesOrder(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
+			return s.vouchers.Create(ctx, voudomain.EntitySaleOrder, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-13", Currency: "CNY", Customer: &customer,
 				Salesperson: &employee, Warehouse: &warehouse, Remark: "预览已批准销售履约流程",
 				ProductLines: []voudomain.ProductLineInput{{

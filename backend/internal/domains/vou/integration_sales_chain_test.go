@@ -7,7 +7,48 @@ import (
 	"testing"
 
 	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+func advanceWorkflowSalesDraft(
+	t *testing.T,
+	pool *pgxpool.Pool,
+	service *Service,
+	entity string,
+	create func(pgx.Tx) (MutationResult, error),
+) (MutationResult, DocumentView) {
+	t.Helper()
+	tx, err := pool.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("begin workflow %s: %v", entity, err)
+	}
+	defer tx.Rollback(t.Context()) //nolint:errcheck
+	created, err := create(tx)
+	if err != nil {
+		t.Fatalf("create workflow %s: %v", entity, err)
+	}
+	if err = tx.Commit(t.Context()); err != nil {
+		t.Fatalf("commit workflow %s: %v", entity, err)
+	}
+	checked, err := service.Check(t.Context(), entity, DocumentRevisionInput{
+		DocumentID: created.DocumentID, Revision: created.Revision,
+	}, integrationActorOne, "workflow-sales-check")
+	if err != nil {
+		t.Fatalf("check workflow %s: %v", entity, err)
+	}
+	approved, err := service.Approve(t.Context(), entity, DocumentRevisionInput{
+		DocumentID: created.DocumentID, Revision: checked.Revision,
+	}, integrationActorOne, "workflow-sales-approve")
+	if err != nil {
+		t.Fatalf("approve workflow %s: %v", entity, err)
+	}
+	view, err := service.Get(t.Context(), entity, GetInput{DocumentID: approved.DocumentID})
+	if err != nil {
+		t.Fatalf("get workflow %s: %v", entity, err)
+	}
+	return approved, view
+}
 
 func advanceSalesDocument(
 	t *testing.T,
@@ -77,23 +118,24 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 		t.Fatalf("sales order creator = %s, want human actor", orderCreator)
 	}
 	orderLineID := orderView.Data.ProductLines[0].LineID
-	outboundOne, outboundView := advanceSalesDocument(t, service, EntitySaleOutbound, DraftInput{
-		BusinessDate: "2026-07-25", SourceDocumentID: order.DocumentID,
-		Warehouse: &refs.warehouse,
-		SourceLines: []SourceQuantityLineInput{{
-			SourceLineID: orderLineID, Quantity: "6",
-		}},
-	}, true)
+	outboundOne, outboundView := advanceWorkflowSalesDraft(t, pool, service, EntitySaleOutbound, func(tx pgx.Tx) (MutationResult, error) {
+		return service.CreateWorkflowSaleOutbound(t.Context(), tx, order.DocumentID, WorkflowSaleOutboundInitial{
+			BusinessDate: "2026-07-25", WarehouseObjectID: refs.warehouse.ObjectID,
+			Lines: []SourceQuantityLineInput{{SourceLineID: orderLineID, Quantity: "6"}},
+		}, "workflow-outbound")
+	})
 	if outboundView.DocumentNo[:3] != "SOB" ||
 		outboundView.ParentDocumentID != order.DocumentID ||
 		outboundView.Data.ProductLines[0].Quantity != "6.0" {
 		t.Fatalf("outbound view = %+v", outboundView)
 	}
 
-	deliveryOne, deliveryView := advanceSalesDocument(t, service, EntitySaleDelivery, DraftInput{
-		BusinessDate: "2026-07-26", SourceDocumentID: outboundOne.DocumentID,
-		Platform: &refs.platform, Vehicle: &refs.vehicle,
-	}, true)
+	deliveryOne, deliveryView := advanceWorkflowSalesDraft(t, pool, service, EntitySaleDelivery, func(tx pgx.Tx) (MutationResult, error) {
+		return service.CreateWorkflowSaleDelivery(t.Context(), tx, outboundOne.DocumentID, WorkflowSaleDeliveryInitial{
+			BusinessDate: "2026-07-26", PlatformObjectID: refs.platform.ObjectID,
+			VehicleObjectID: refs.vehicle.ObjectID,
+		}, "workflow-delivery")
+	})
 	if deliveryView.DocumentNo[:3] != "SDL" ||
 		deliveryView.ParentDocumentID != outboundOne.DocumentID {
 		t.Fatalf("delivery view = %+v", deliveryView)
@@ -105,13 +147,15 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 		t.Fatal("second delivery for one outbound was accepted")
 	}
 
-	signoffOne, signoffView := advanceSalesDocument(t, service, EntitySaleSignoff, DraftInput{
-		BusinessDate: "2026-07-27", SourceDocumentID: deliveryOne.DocumentID,
-		SignoffLines: []SaleSignoffLineInput{{
-			SourceLineID:   deliveryView.Data.ProductLines[0].LineID,
-			SignedQuantity: "4", RejectedQuantity: "1",
-		}},
-	}, true)
+	signoffOne, signoffView := advanceWorkflowSalesDraft(t, pool, service, EntitySaleSignoff, func(tx pgx.Tx) (MutationResult, error) {
+		return service.CreateWorkflowSaleSignoff(t.Context(), tx, deliveryOne.DocumentID, WorkflowSaleSignoffInitial{
+			BusinessDate: "2026-07-27",
+			Lines: []WorkflowSignoffLineInput{{
+				SourceLineID:   deliveryView.Data.ProductLines[0].LineID,
+				SignedQuantity: "4", RejectedQuantity: "1",
+			}},
+		}, "workflow-signoff")
+	})
 	if signoffView.DocumentNo[:3] != "SSF" ||
 		signoffView.Data.SignoffLines[0].LossQuantity != "1.0" {
 		t.Fatalf("signoff view = %+v", signoffView)
@@ -125,12 +169,31 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 	}}, integrationActorOne, "duplicate-signoff"); err == nil {
 		t.Fatal("second signoff for one delivery was accepted")
 	}
+	refusalTx, err := pool.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("begin workflow refusal return: %v", err)
+	}
+	refusalDraft, err := service.CreateWorkflowSaleReturn(t.Context(), refusalTx, signoffOne.DocumentID, WorkflowSaleReturnInitial{
+		BusinessDate: "2026-07-27", Reason: "包装破损拒收",
+		Lines: []SourceQuantityLineInput{{SourceLineID: signoffView.Data.SignoffLines[0].LineID, Quantity: "1"}},
+	}, "workflow-refusal-return")
+	if err == nil {
+		err = refusalTx.Commit(t.Context())
+	} else {
+		_ = refusalTx.Rollback(t.Context())
+	}
+	if err != nil {
+		t.Fatalf("create workflow refusal return: %v", err)
+	}
 	var refusalID string
 	var refusalRevision int64
 	if err := pool.QueryRow(t.Context(), `SELECT d.id,d.revision
 		FROM vou_documents d JOIN vou_sale_return_details r ON r.document_id=d.id
 		WHERE r.source_signoff_id=$1`, signoffOne.DocumentID).Scan(&refusalID, &refusalRevision); err != nil {
 		t.Fatalf("load refusal return: %v", err)
+	}
+	if refusalID != refusalDraft.DocumentID {
+		t.Fatalf("workflow refusal return = %s, query=%s", refusalDraft.DocumentID, refusalID)
 	}
 	var refusalCreator, refusalAuditActor string
 	if err := pool.QueryRow(t.Context(), `SELECT created_by FROM vou_documents WHERE id=$1`, refusalID).Scan(&refusalCreator); err != nil {
@@ -143,14 +206,7 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 	if refusalCreator != systemidentity.UserID || refusalAuditActor != systemidentity.UserID {
 		t.Fatalf("automatic refusal actors = creator:%s audit:%s", refusalCreator, refusalAuditActor)
 	}
-	savedRefusal, err := service.Save(t.Context(), EntitySaleReturn, SaveInput{
-		DocumentID: refusalID, Revision: refusalRevision, Data: DraftInput{
-			BusinessDate: "2026-07-27", Warehouse: &refs.warehouse, ReturnReason: "包装破损拒收",
-		},
-	}, integrationActorOne, "refusal-save")
-	if err != nil {
-		t.Fatalf("save refusal return header: %v", err)
-	}
+	firstRefusalID := refusalID
 	unapprovedSignoff, err := service.Unapprove(t.Context(), EntitySaleSignoff, ReverseInput{
 		DocumentID: signoffOne.DocumentID, Revision: signoffOne.Revision, Reason: "修正签收测试",
 	}, integrationActorOne, "signoff-unapprove")
@@ -168,13 +224,29 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reapprove signoff: %v", err)
 	}
+	tx, err := pool.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("begin regenerated refusal return: %v", err)
+	}
+	_, err = service.CreateWorkflowSaleReturn(t.Context(), tx, signoffOne.DocumentID, WorkflowSaleReturnInitial{
+		BusinessDate: "2026-07-27", Reason: "包装破损拒收",
+		Lines: []SourceQuantityLineInput{{SourceLineID: signoffView.Data.SignoffLines[0].LineID, Quantity: "1"}},
+	}, "workflow-refusal-return-replay")
+	if err == nil {
+		err = tx.Commit(t.Context())
+	} else {
+		_ = tx.Rollback(t.Context())
+	}
+	if err != nil {
+		t.Fatalf("regenerate refusal return: %v", err)
+	}
 	if err = pool.QueryRow(t.Context(), `SELECT d.id,d.revision
 		FROM vou_documents d JOIN vou_sale_return_details r ON r.document_id=d.id
 		WHERE r.source_signoff_id=$1`, signoffOne.DocumentID).Scan(&refusalID, &refusalRevision); err != nil {
 		t.Fatalf("load regenerated refusal return: %v", err)
 	}
-	if savedRefusal.Revision == refusalRevision {
-		t.Fatal("automatic refusal return was not regenerated")
+	if firstRefusalID == refusalID {
+		t.Fatal("workflow refusal return was not regenerated")
 	}
 	refusalChecked, err := service.Check(t.Context(), EntitySaleReturn, DocumentRevisionInput{
 		DocumentID: refusalID, Revision: refusalRevision,

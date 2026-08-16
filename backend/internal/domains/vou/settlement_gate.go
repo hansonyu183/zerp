@@ -3,8 +3,8 @@ package vou
 import (
 	"context"
 	"strings"
-	"time"
 
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/hansonyu183/zerp/backend/internal/platform/businessdate"
 	"github.com/jackc/pgx/v5"
 )
@@ -19,19 +19,13 @@ type orderSettlementGate struct {
 	AmountCents          int64
 }
 
-func (s *Service) reserveOrderSettlement(
+// validateOrderSettlement checks the control-ledger facts visible at order
+// approval. It never records an order-level claim over those facts: fulfillment
+// validates and consumes the then-current balance in its own transaction.
+func (s *Service) validateOrderSettlement(
 	ctx context.Context,
 	tx pgx.Tx,
 	entity, orderID string,
-) error {
-	return s.reserveOrderSettlementAmount(ctx, tx, entity, orderID, 0)
-}
-
-func (s *Service) reserveOrderSettlementAmount(
-	ctx context.Context,
-	tx pgx.Tx,
-	entity, orderID string,
-	reservedAmount int64,
 ) error {
 	if entity != EntitySaleOrder && entity != EntityPurchaseOrder {
 		return nil
@@ -40,14 +34,56 @@ func (s *Service) reserveOrderSettlementAmount(
 	if err != nil {
 		return err
 	}
+	return s.validateSettlementAmount(ctx, tx, gate, gate.AmountCents)
+}
+
+// validateFulfillmentSettlement locks the counterparty and currency before
+// rereading ACC. The lock remains held until ACC posts the same batch, so two
+// batches cannot both pass against the same balance.
+func (s *Service) validateFulfillmentSettlement(
+	ctx context.Context,
+	tx pgx.Tx,
+	entity, documentID string,
+) error {
+	var orderEntity, orderID string
+	var amount int64
+	var err error
+	q := dbsqlc.New(tx)
+	switch entity {
+	case EntitySaleSignoff:
+		orderEntity = EntitySaleOrder
+		var source dbsqlc.GetSaleSignoffSettlementSourceRow
+		source, err = q.GetSaleSignoffSettlementSource(ctx, documentID)
+		orderID, amount = source.SourceOrderID, source.TotalAmountCents
+	case EntityPurchaseInbound:
+		orderEntity = EntityPurchaseOrder
+		var source dbsqlc.GetPurchaseInboundSettlementSourceRow
+		source, err = q.GetPurchaseInboundSettlementSource(ctx, documentID)
+		orderID, amount = source.SourceOrderID, source.TotalAmountCents
+	default:
+		return nil
+	}
+	if err != nil {
+		return s.internal("read fulfillment settlement", err)
+	}
+	gate, err := loadOrderSettlementGate(ctx, tx, orderEntity, orderID)
+	if err != nil {
+		return err
+	}
+	return s.validateSettlementAmount(ctx, tx, gate, amount)
+}
+
+func (s *Service) validateSettlementAmount(
+	ctx context.Context,
+	tx pgx.Tx,
+	gate orderSettlementGate,
+	amount int64,
+) error {
 	if gate.TermCode != bobSettlementPrepaid && gate.TermCode != bobSettlementCOD {
 		return nil
 	}
-	if reservedAmount <= 0 || reservedAmount > gate.AmountCents {
-		reservedAmount = gate.AmountCents
-	}
-	lockKey := gate.CounterpartyEntity + ":" + gate.CounterpartyObjectID + ":" + gate.Currency
-	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, lockKey); err != nil {
+	if err := s.queries.WithTx(tx).LockVouSettlementBalance(ctx,
+		gate.CounterpartyEntity+":"+gate.CounterpartyObjectID+":"+gate.Currency); err != nil {
 		return s.internal("lock settlement balance", err)
 	}
 	if s.accounting == nil {
@@ -70,173 +106,22 @@ func (s *Service) reserveOrderSettlementAmount(
 		return domainError(ErrorConflict, "accounting settlement balance is unavailable", nil, err)
 	}
 	if gate.TermCode == bobSettlementPrepaid {
-		available := balance
-		if available < 0 {
-			available = 0
-		}
-		var alreadyReserved int64
-		if err = tx.QueryRow(ctx, `SELECT COALESCE(sum(reserved_amount_cents),0)::bigint
-			FROM vou_settlement_reservations
-			WHERE active AND term_code='PREPAID'
-			  AND counterparty_entity=$1 AND counterparty_object_id=$2 AND currency=$3
-			  AND order_id<>$4`, gate.CounterpartyEntity, gate.CounterpartyObjectID,
-			gate.Currency, gate.OrderID).Scan(&alreadyReserved); err != nil {
-			return s.internal("read prepaid reservations", err)
-		}
-		available -= alreadyReserved
-		if available < reservedAmount {
+		available := maxInt64(balance, 0)
+		if available < amount {
 			return domainError(ErrorConflict, "insufficient prepaid funds", map[string]any{
-				"currency":         gate.Currency,
-				"orderAmount":      formatMoney(reservedAmount),
-				"availableBalance": formatMoney(maxInt64(available, 0)),
+				"currency": gate.Currency, "orderAmount": formatMoney(amount),
+				"availableBalance": formatMoney(available),
 			}, nil)
 		}
-	} else {
-		ownTradeBalance, tradeBalanceErr := s.loadOrderTradeBalance(
-			ctx, tx, gate, dimension, tradePurpose, businessdate.Today(),
-		)
-		if tradeBalanceErr != nil {
-			return domainError(ErrorConflict, "accounting order balance is unavailable", nil, tradeBalanceErr)
-		}
-		externalBalance := balance - ownTradeBalance
-		if externalBalance > 0 {
-			return domainError(ErrorConflict, "counterparty has outstanding debt", map[string]any{
-				"currency":           gate.Currency,
-				"orderAmount":        formatMoney(reservedAmount),
-				"outstandingBalance": formatMoney(absInt64(externalBalance)),
-			}, nil)
-		}
-		var existingOrderID string
-		err = tx.QueryRow(ctx, `SELECT order_id FROM vou_settlement_reservations
-			WHERE active AND term_code='CASH_ON_DELIVERY'
-			  AND counterparty_entity=$1 AND counterparty_object_id=$2 AND currency=$3
-			  AND order_id<>$4 LIMIT 1`, gate.CounterpartyEntity, gate.CounterpartyObjectID,
-			gate.Currency, gate.OrderID).Scan(&existingOrderID)
-		if err == nil {
-			return domainError(ErrorConflict, "counterparty already has an unfinished cash-on-delivery order", map[string]any{
-				"currency": gate.Currency, "orderAmount": formatMoney(reservedAmount),
-				"existingOrderId": existingOrderID,
-			}, nil)
-		}
-		if err != nil && err != pgx.ErrNoRows {
-			return s.internal("read cash-on-delivery reservation", err)
-		}
-	}
-	_, err = tx.Exec(ctx, `INSERT INTO vou_settlement_reservations(
-		order_id,order_entity,term_code,counterparty_entity,counterparty_object_id,
-		currency,original_amount_cents,reserved_amount_cents,active
-	) VALUES($1,$2,$3,$4,$5,$6,$7,$8,true)
-	ON CONFLICT(order_id) DO UPDATE SET
-		order_entity=EXCLUDED.order_entity,term_code=EXCLUDED.term_code,
-		counterparty_entity=EXCLUDED.counterparty_entity,
-		counterparty_object_id=EXCLUDED.counterparty_object_id,currency=EXCLUDED.currency,
-		original_amount_cents=EXCLUDED.original_amount_cents,
-		reserved_amount_cents=EXCLUDED.reserved_amount_cents,active=true,updated_at=now()`,
-		gate.OrderID, gate.OrderEntity, gate.TermCode, gate.CounterpartyEntity,
-		gate.CounterpartyObjectID, gate.Currency, gate.AmountCents, reservedAmount)
-	if err != nil {
-		return s.writeError("reserve settlement funds", err)
-	}
-	return nil
-}
-
-func (s *Service) loadOrderTradeBalance(
-	ctx context.Context,
-	tx pgx.Tx,
-	gate orderSettlementGate,
-	dimension string,
-	purpose string,
-	effectiveDate time.Time,
-) (int64, error) {
-	var seedQuery string
-	switch gate.OrderEntity {
-	case EntitySaleOrder:
-		seedQuery = `SELECT document_id FROM vou_sale_signoff_details WHERE source_order_id=$1
-			UNION SELECT document_id FROM vou_sale_return_details WHERE source_order_id=$1`
-	case EntityPurchaseOrder:
-		seedQuery = `SELECT document_id FROM vou_purchase_inbound_details WHERE source_order_id=$1
-			UNION SELECT document_id FROM vou_purchase_return_details WHERE source_order_id=$1`
-	default:
-		return 0, domainError(ErrorValidation, "invalid settlement order", nil, nil)
-	}
-	query := `WITH RECURSIVE order_documents(document_id) AS (
-		SELECT document_id FROM (` + seedQuery + `) seed_documents
-		UNION
-		SELECT child.id
-		FROM vou_documents child
-		JOIN order_documents parent ON child.parent_document_id=parent.document_id
-	)
-	SELECT COALESCE(array_agg(document_id),ARRAY[]::varchar[]) FROM order_documents`
-	var sourceDocumentIDs []string
-	if err := tx.QueryRow(ctx, query, gate.OrderID).Scan(&sourceDocumentIDs); err != nil {
-		return 0, err
-	}
-	return s.accounting.PartyBalance(ctx, tx, PartyBalanceQuery{
-		CounterpartyDimension: dimension, CounterpartyObjectID: gate.CounterpartyObjectID,
-		Currency: gate.Currency, SettlementPurpose: purpose, AsOfDate: effectiveDate,
-		SourceDocumentIDs: sourceDocumentIDs,
-	})
-}
-
-func (s *Service) restoreOrderSettlement(
-	ctx context.Context,
-	tx pgx.Tx,
-	orderEntity, orderID string,
-) error {
-	gate, err := loadOrderSettlementGate(ctx, tx, orderEntity, orderID)
-	if err != nil {
-		return err
-	}
-	if gate.TermCode != bobSettlementPrepaid && gate.TermCode != bobSettlementCOD {
 		return nil
 	}
-	fulfilledAmount, returnedAmount, err := loadOrderFulfillmentTotals(
-		ctx, tx, orderEntity, orderID,
-	)
-	if err != nil {
-		return err
+	if balance > 0 {
+		return domainError(ErrorConflict, "counterparty has outstanding debt", map[string]any{
+			"currency": gate.Currency, "orderAmount": formatMoney(amount),
+			"outstandingBalance": formatMoney(balance),
+		}, nil)
 	}
-	remaining := gate.AmountCents - fulfilledAmount + returnedAmount
-	if remaining <= 0 {
-		return s.releaseOrderSettlement(ctx, tx, orderID)
-	}
-	if remaining > gate.AmountCents {
-		remaining = gate.AmountCents
-	}
-	return s.reserveOrderSettlementAmount(ctx, tx, orderEntity, orderID, remaining)
-}
-
-func loadOrderFulfillmentTotals(
-	ctx context.Context,
-	tx pgx.Tx,
-	orderEntity, orderID string,
-) (fulfilledAmount, returnedAmount int64, err error) {
-	switch orderEntity {
-	case EntitySaleOrder:
-		err = tx.QueryRow(ctx, `SELECT
-			COALESCE((SELECT sum(document.total_amount_cents)
-				FROM vou_sale_signoff_details detail
-				JOIN vou_documents document ON document.id=detail.document_id
-				WHERE detail.source_order_id=$1 AND document.status = 'APPROVED'),0)::bigint,
-			COALESCE((SELECT sum(document.total_amount_cents)
-				FROM vou_sale_return_details detail
-				JOIN vou_documents document ON document.id=detail.document_id
-				WHERE detail.source_order_id=$1 AND detail.return_kind='AFTER_SALE'
-				  AND document.status = 'APPROVED'),0)::bigint`, orderID).
-			Scan(&fulfilledAmount, &returnedAmount)
-	case EntityPurchaseOrder:
-		err = tx.QueryRow(ctx, `SELECT
-			COALESCE((SELECT sum(document.total_amount_cents)
-				FROM vou_purchase_inbound_details detail
-				JOIN vou_documents document ON document.id=detail.document_id
-				WHERE detail.source_order_id=$1 AND document.status = 'APPROVED'),0)::bigint,
-			COALESCE((SELECT sum(document.total_amount_cents)
-				FROM vou_purchase_return_details detail
-				JOIN vou_documents document ON document.id=detail.document_id
-				WHERE detail.source_order_id=$1 AND document.status = 'APPROVED'),0)::bigint`, orderID).
-			Scan(&fulfilledAmount, &returnedAmount)
-	}
-	return fulfilledAmount, returnedAmount, err
+	return nil
 }
 
 func loadOrderSettlementGate(
@@ -248,29 +133,22 @@ func loadOrderSettlementGate(
 	var settlementName, ruleType string
 	var monthOffset, dayOffset int32
 	var err error
+	q := dbsqlc.New(tx)
 	switch entity {
 	case EntitySaleOrder:
 		gate.CounterpartyEntity = "customer"
-		err = tx.QueryRow(ctx, `SELECT detail.settlement_term_code,
-			COALESCE(detail.settlement_method_name,''),
-			COALESCE(detail.settlement_rule_type,''),COALESCE(detail.settlement_month_offset,0),
-			COALESCE(detail.settlement_day_offset,0),detail.customer_object_id,
-			COALESCE(document.currency,''),document.total_amount_cents
-			FROM vou_documents document JOIN vou_sale_order_details detail ON detail.document_id=document.id
-			WHERE document.id=$1`, orderID).Scan(
-			&gate.TermCode, &settlementName, &ruleType, &monthOffset, &dayOffset,
-			&gate.CounterpartyObjectID, &gate.Currency, &gate.AmountCents)
+		var row dbsqlc.GetSaleOrderSettlementGateRow
+		row, err = q.GetSaleOrderSettlementGate(ctx, orderID)
+		gate.TermCode, settlementName, ruleType = row.SettlementTermCode, row.SettlementMethodName, row.SettlementRuleType
+		monthOffset, dayOffset = row.SettlementMonthOffset, row.SettlementDayOffset
+		gate.CounterpartyObjectID, gate.Currency, gate.AmountCents = row.CustomerObjectID, row.Currency, row.TotalAmountCents
 	case EntityPurchaseOrder:
 		gate.CounterpartyEntity = "supplier"
-		err = tx.QueryRow(ctx, `SELECT detail.settlement_term_code,
-			COALESCE(detail.settlement_method_name,''),
-			COALESCE(detail.settlement_rule_type,''),COALESCE(detail.settlement_month_offset,0),
-			COALESCE(detail.settlement_day_offset,0),detail.supplier_object_id,
-			COALESCE(document.currency,''),document.total_amount_cents
-			FROM vou_documents document JOIN vou_purchase_order_details detail ON detail.document_id=document.id
-			WHERE document.id=$1`, orderID).Scan(
-			&gate.TermCode, &settlementName, &ruleType, &monthOffset, &dayOffset,
-			&gate.CounterpartyObjectID, &gate.Currency, &gate.AmountCents)
+		var row dbsqlc.GetPurchaseOrderSettlementGateRow
+		row, err = q.GetPurchaseOrderSettlementGate(ctx, orderID)
+		gate.TermCode, settlementName, ruleType = row.SettlementTermCode, row.SettlementMethodName, row.SettlementRuleType
+		monthOffset, dayOffset = row.SettlementMonthOffset, row.SettlementDayOffset
+		gate.CounterpartyObjectID, gate.Currency, gate.AmountCents = row.SupplierObjectID, row.Currency, row.TotalAmountCents
 	default:
 		return gate, domainError(ErrorValidation, "invalid settlement order", nil, nil)
 	}
@@ -284,83 +162,6 @@ func loadOrderSettlementGate(
 		return gate, domainError(ErrorConflict, "order currency is required for settlement approval", nil, nil)
 	}
 	return gate, nil
-}
-
-func (s *Service) releaseOrderSettlement(ctx context.Context, tx pgx.Tx, orderID string) error {
-	_, err := tx.Exec(ctx, `UPDATE vou_settlement_reservations
-		SET active=false,reserved_amount_cents=0,updated_at=now()
-		WHERE order_id=$1 AND active`, orderID)
-	return err
-}
-
-func (s *Service) adjustFulfillmentSettlement(
-	ctx context.Context,
-	tx pgx.Tx,
-	entity, documentID string,
-	reverse bool,
-) error {
-	var orderID string
-	var amount int64
-	var orderEntity string
-	var err error
-	switch entity {
-	case EntitySaleSignoff:
-		orderEntity = EntitySaleOrder
-		err = tx.QueryRow(ctx, `SELECT detail.source_order_id,document.total_amount_cents
-			FROM vou_sale_signoff_details detail JOIN vou_documents document ON document.id=detail.document_id
-			WHERE detail.document_id=$1`, documentID).Scan(&orderID, &amount)
-	case EntityPurchaseInbound:
-		orderEntity = EntityPurchaseOrder
-		err = tx.QueryRow(ctx, `SELECT detail.source_order_id,document.total_amount_cents
-			FROM vou_purchase_inbound_details detail JOIN vou_documents document ON document.id=detail.document_id
-			WHERE detail.document_id=$1`, documentID).Scan(&orderID, &amount)
-	default:
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	if reverse {
-		var currentlyReserved int64
-		err = tx.QueryRow(ctx, `SELECT reserved_amount_cents
-			FROM vou_settlement_reservations WHERE order_id=$1`, orderID).
-			Scan(&currentlyReserved)
-		if err == pgx.ErrNoRows {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		return s.reserveOrderSettlementAmount(
-			ctx, tx, orderEntity, orderID, currentlyReserved+amount,
-		)
-	} else {
-		_, err = tx.Exec(ctx, `UPDATE vou_settlement_reservations SET
-			reserved_amount_cents=GREATEST(reserved_amount_cents-$1,0),updated_at=now()
-			WHERE order_id=$2 AND active AND term_code='PREPAID'`, amount, orderID)
-	}
-	return err
-}
-
-func (s *Service) closeSettlementReservationIfFulfilled(
-	ctx context.Context,
-	tx pgx.Tx,
-	orderEntity, orderID string,
-) error {
-	var status string
-	var err error
-	if orderEntity == EntitySaleOrder {
-		err = tx.QueryRow(ctx, `SELECT fulfillment_status FROM vou_sale_order_details WHERE document_id=$1`, orderID).Scan(&status)
-	} else {
-		err = tx.QueryRow(ctx, `SELECT fulfillment_status FROM vou_purchase_order_details WHERE document_id=$1`, orderID).Scan(&status)
-	}
-	if err != nil {
-		return err
-	}
-	if status == "FULFILLED" {
-		return s.releaseOrderSettlement(ctx, tx, orderID)
-	}
-	return nil
 }
 
 const (

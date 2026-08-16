@@ -41,8 +41,8 @@ workflow(
     name="安全流程",
     root=root,
     edges=[
-        edge(source=root, target=target, converter="sale-order-to-outbound"),
-        edge(source=second_source, target=target, converter="sale-order-to-outbound"),
+        edge(source=root, target=target, relation="outbound", action=sale_outbound(initial={})),
+        edge(source=second_source, target=target, relation="outbound", action=sale_outbound(initial={})),
     ],
 )`,
 			want: "multiple parents",
@@ -79,7 +79,7 @@ workflow(
     code="safe-flow",
     name="安全流程",
     root=root,
-    edges=[edge(source=root, target=child, converter="sale-order-to-outbound")],
+    edges=[edge(source=root, target=child, relation="outbound", action=sale_outbound(initial={}))],
 )`)
 	if err != nil {
 		t.Fatalf("compile workflow: %v", err)
@@ -89,5 +89,58 @@ workflow(
 	}
 	if compiled.RootKey != "root" || len(compiled.Nodes) != 2 || len(compiled.Edges) != 1 {
 		t.Fatalf("compiled graph = %+v", compiled)
+	}
+}
+
+func TestWorkflowDiagnosticIncludesScriptLocation(t *testing.T) {
+	t.Parallel()
+	_, err := compileDefinitionScript("root = node(\n")
+	if err == nil {
+		t.Fatal("invalid workflow compiled")
+	}
+	diagnostic := workflowDiagnostic(err.Error())
+	if diagnostic.Line == 0 || diagnostic.Column == 0 {
+		t.Fatalf("diagnostic = %+v, want script location", diagnostic)
+	}
+}
+
+func TestCompileDefinitionScriptUsesOnlyStaticWorkflowActions(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name           string
+		source, target string
+		action, want   string
+	}{
+		{name: "expense payment", source: "expense-reimbursement", target: "expense-payment", action: `expense_payment(initial={"fundAccountObjectId": "01J00000000000000000000000"})`, want: ActionExpensePayment},
+		{name: "purchase inbound", source: "purchase-order", target: "purchase-inbound", action: `purchase_inbound(initial={})`, want: ActionPurchaseInbound},
+		{name: "sale outbound", source: "sale-order", target: "sale-outbound", action: `sale_outbound(initial={})`, want: ActionSaleOutbound},
+		{name: "sale delivery", source: "sale-outbound", target: "sale-delivery", action: `sale_delivery(initial={})`, want: ActionSaleDelivery},
+		{name: "sale signoff", source: "sale-delivery", target: "sale-signoff", action: `sale_signoff(initial={})`, want: ActionSaleSignoff},
+		{name: "sale return", source: "sale-signoff", target: "sale-return", action: `sale_return(initial={"reason": "拒收"})`, want: ActionSaleReturn},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			script := `root = node(key="root", name="来源", entity="` + test.source + `")
+child = node(key="child", name="下级", entity="` + test.target + `")
+workflow(code="typed-actions", name="类型化动作", root=root, edges=[
+    edge(source=root, target=child, relation="generated", action=` + test.action + `),
+])`
+			compiled, err := compileDefinitionScript(script)
+			if err != nil {
+				t.Fatalf("compile typed workflow action: %v", err)
+			}
+			if len(compiled.Edges) != 1 || compiled.Edges[0].ActionName != test.want || compiled.Edges[0].Relation != "generated" {
+				t.Fatalf("compiled action = %+v, want %q", compiled.Edges, test.want)
+			}
+		})
+	}
+
+	_, err := compileDefinitionScript(`root = node(key="root", name="来源", entity="expense-reimbursement")
+child = node(key="child", name="下级", entity="expense-payment")
+workflow(code="dynamic-action", name="动态动作", root=root, edges=[
+    edge(source=root, target=child, relation="generated", action=call_action(name="expense_payment")),
+])`)
+	if err == nil || !strings.Contains(err.Error(), "undefined: call_action") {
+		t.Fatalf("dynamic action binding error = %v", err)
 	}
 }

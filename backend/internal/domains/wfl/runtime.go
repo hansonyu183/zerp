@@ -2,417 +2,450 @@ package wfl
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"strconv"
 	"strings"
 
+	"github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
-	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
+	"go.starlark.net/starlark"
 )
 
-type workflowDocumentConverter interface {
-	CreateWorkflowChild(context.Context, pgx.Tx, string, string, json.RawMessage, string) (voudomain.MutationResult, error)
-}
-
-type workflowDocumentValidator interface {
-	ValidateWorkflowDraft(string, voudomain.DraftInput) error
-}
-
-func (s *Service) registerGenericSubscriptions(bus *txevent.Bus) error {
-	for _, node := range workflowNodes {
-		entity := node.Entity
-		if err := bus.Subscribe(voudomain.DocumentChangedTopic(entity), "wfl-generic-approved", s.handleGenericApproved); err != nil {
+func (s *Service) registerSubscriptions(bus *txevent.Bus) error {
+	for _, entity := range workflowDocumentEntities() {
+		if err := bus.Subscribe(voudomain.DocumentApprovedTopic(entity), "wfl-starlark-approved", s.handleApproved); err != nil {
+			return err
+		}
+		if err := bus.Subscribe(voudomain.DocumentDeletedTopic(entity), "wfl-starlark-deleted", s.handleDeleted); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *Service) handleGenericApproved(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
-	event, ok := raw.(voudomain.DocumentChangedEvent)
-	if !ok || event.Action != "APPROVED" {
+func workflowDocumentEntities() []string {
+	seen := map[string]bool{}
+	result := []string{}
+	for _, pair := range workflowActionEntities {
+		for _, entity := range pair {
+			if !seen[entity] {
+				seen[entity] = true
+				result = append(result, entity)
+			}
+		}
+	}
+	return result
+}
+
+func (s *Service) handleApproved(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
+	event, ok := raw.(voudomain.DocumentApprovedEvent)
+	if !ok {
+		return txevent.Reject("invalid workflow approval event", nil)
+	}
+	source, err := s.runtime.LoadWorkflowSource(ctx, tx, event.Entity, event.DocumentID)
+	if err != nil {
+		return err
+	}
+	if err := s.executeExistingNodes(ctx, tx, event, source); err != nil {
+		return err
+	}
+	hasExistingRoot, err := s.queries.WithTx(tx).WorkflowDocumentHasRootInstance(ctx, workflowText(event.DocumentID))
+	if err != nil {
+		return err
+	}
+	if hasExistingRoot {
 		return nil
 	}
-	if s.converter == nil {
-		return txevent.Reject("workflow document converter is unavailable", nil)
-	}
-	projection, err := loadConditionProjection(ctx, tx, event.DocumentID)
+	rows, err := s.queries.WithTx(tx).ListEnabledWorkflowDefinitionsForShare(ctx)
 	if err != nil {
 		return err
 	}
-	if err = s.startMatchingInstances(ctx, tx, event, projection); err != nil {
-		return err
+	type candidate struct {
+		id, code, name string
+		revision       int64
+		compiled       compiledScriptDefinition
 	}
-	rows, err := tx.Query(ctx, `SELECT n.id,n.process_id,n.definition_node_id
-		FROM wfl_node_instances n
-		JOIN wfl_definition_instances i ON i.id=n.process_id
-		WHERE n.document_id=$1 AND NOT n.legacy AND n.definition_node_id IS NOT NULL
-		FOR UPDATE OF n,i`, event.DocumentID)
-	if err != nil {
-		return err
-	}
-	type sourceNode struct{ id, processID, definitionNodeID string }
-	sources := make([]sourceNode, 0)
-	for rows.Next() {
-		var source sourceNode
-		if err = rows.Scan(&source.id, &source.processID, &source.definitionNodeID); err != nil {
-			rows.Close()
-			return err
+	candidates := []candidate{}
+	for _, row := range rows {
+		var item candidate
+		item.id, item.code, item.name = row.ID, row.Code, row.Name
+		item.revision = row.Revision
+		var revisionErr error
+		item.compiled, revisionErr = compileDefinitionScript(row.Script)
+		if revisionErr != nil {
+			return revisionErr
 		}
-		sources = append(sources, source)
+		root := compiledNodeByKey(item.compiled, item.compiled.RootKey)
+		if root.Entity != event.Entity {
+			continue
+		}
+		matched, revisionErr := workflowStartMatches(item.compiled, source)
+		if revisionErr != nil {
+			return txevent.Reject("workflow start condition failed", map[string]any{"definitionId": item.id, "error": revisionErr.Error()})
+		}
+		if matched {
+			candidates = append(candidates, item)
+		}
 	}
-	rows.Close()
-	for _, source := range sources {
-		if err = s.executeOutgoingEdges(ctx, tx, event, source, projection); err != nil {
+	if len(candidates) > 1 {
+		return txevent.Reject("multiple enabled workflows match this document", map[string]any{"entity": event.Entity})
+	}
+	if len(candidates) == 0 {
+		return nil
+	}
+	selected := candidates[0]
+	processID, nodeID, created, err := s.ensureRootInstance(ctx, tx, selected, event)
+	if err != nil {
+		return err
+	}
+	if !created {
+		return nil
+	}
+	return s.executeNode(ctx, tx, selected.compiled, processID, nodeID, selected.compiled.RootKey,
+		event.DocumentID, source, event.ActorID, event.RequestID, "")
+}
+
+func workflowStartMatches(compiled compiledScriptDefinition, source any) (bool, error) {
+	if compiled.when == nil {
+		return true, nil
+	}
+	value, err := workflowStarlarkValue(source)
+	if err != nil {
+		return false, err
+	}
+	thread := &starlark.Thread{Name: "wfl-start"}
+	thread.SetMaxExecutionSteps(maxWorkflowScriptSteps)
+	return callWorkflowCondition(thread, compiled.when, value)
+}
+
+func (s *Service) ensureRootInstance(ctx context.Context, tx pgx.Tx, definition struct {
+	id, code, name string
+	revision       int64
+	compiled       compiledScriptDefinition
+}, event voudomain.DocumentApprovedEvent) (string, string, bool, error) {
+	queries := s.queries.WithTx(tx)
+	locked, err := queries.LockWorkflowRootInstance(ctx, sqlc.LockWorkflowRootInstanceParams{
+		DefinitionID: definition.id, RootDocumentID: workflowText(event.DocumentID),
+	})
+	if err == nil {
+		return locked.ProcessID, locked.NodeID, false, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return "", "", false, err
+	}
+	processID, nodeID := newID(), newID()
+	root := compiledNodeByKey(definition.compiled, definition.compiled.RootKey)
+	var partyObjectID, partyCode, partyName string
+	for _, party := range []*voudomain.ReferenceView{event.Snapshot.Data.Customer, event.Snapshot.Data.Supplier, event.Snapshot.Data.Employee} {
+		if party != nil {
+			partyObjectID, partyCode, partyName = party.ObjectID, party.Code, party.Name
+			break
+		}
+	}
+	if err = queries.CreateWorkflowDefinitionInstance(ctx, sqlc.CreateWorkflowDefinitionInstanceParams{
+		ID: processID, DefinitionID: definition.id, RootDocumentID: workflowText(event.DocumentID), RootDocumentNo: event.DocumentNo,
+		RootEntity: event.Entity, DefinitionCode: definition.code, DefinitionName: definition.name,
+		PartyObjectID: nullableText(partyObjectID), PartyCode: nullableText(partyCode), PartyName: nullableText(partyName),
+		StartedDefinitionRevision: definition.revision, ActorID: event.ActorID,
+	}); err != nil {
+		return "", "", false, err
+	}
+	if err = queries.CreateWorkflowRootNodeInstance(ctx, sqlc.CreateWorkflowRootNodeInstanceParams{
+		ID: nodeID, ProcessID: processID, NodeKey: root.Key, NodeName: root.Name,
+		DocumentID: workflowText(event.DocumentID), DocumentNo: event.DocumentNo, DocumentEntity: event.Entity,
+	}); err != nil {
+		return "", "", false, err
+	}
+	if err = insertRuntimeAudit(ctx, tx, processID, definition.id, definition.revision, "STARTED", nodeID,
+		event.DocumentID, event.DocumentNo, event.ActorID, event.RequestID,
+		map[string]any{"definitionRevision": definition.revision}); err != nil {
+		return "", "", false, err
+	}
+	return processID, nodeID, true, nil
+}
+
+func (s *Service) executeExistingNodes(ctx context.Context, tx pgx.Tx, event voudomain.DocumentApprovedEvent, source any) error {
+	rows, err := s.queries.WithTx(tx).LockWorkflowNodesForDocument(ctx, workflowText(event.DocumentID))
+	if err != nil {
+		return err
+	}
+	type node struct {
+		id, processID, key, definitionID string
+		revision                         int64
+	}
+	nodes := []node{}
+	for _, row := range rows {
+		nodes = append(nodes, node{id: row.ID, processID: row.ProcessID, key: row.NodeKey, definitionID: row.DefinitionID, revision: row.StartedDefinitionRevision})
+	}
+	for _, item := range nodes {
+		revision, revisionErr := s.queries.WithTx(tx).GetWorkflowPublishedRevision(ctx, sqlc.GetWorkflowPublishedRevisionParams{
+			DefinitionID: item.definitionID, Revision: item.revision,
+		})
+		if revisionErr != nil {
+			return revisionErr
+		}
+		compiled, compileErr := compileDefinitionScript(revision.Script)
+		if compileErr != nil {
+			return compileErr
+		}
+		if err = s.executeNode(ctx, tx, compiled, item.processID, item.id, item.key, event.DocumentID,
+			source, event.ActorID, event.RequestID, ""); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *Service) startMatchingInstances(
-	ctx context.Context, tx pgx.Tx, event voudomain.DocumentChangedEvent, projection conditionProjection,
+func (s *Service) executeNode(
+	ctx context.Context, tx pgx.Tx, compiled compiledScriptDefinition,
+	processID, sourceNodeID, sourceNodeKey, sourceDocumentID string,
+	source any, actorID, requestID, onlyTarget string,
 ) error {
-	rows, err := tx.Query(ctx, `SELECT d.id,d.revision,d.root_node_id,d.start_condition,n.node_key,n.name
-		FROM wfl_process_definitions d JOIN wfl_definition_nodes n ON n.id=d.root_node_id
-		WHERE d.status='ENABLED' AND NOT n.archived AND n.document_entity=$1
-		ORDER BY d.id FOR SHARE OF d,n`, event.Entity)
+	sourceDocumentEntity, err := s.queries.WithTx(tx).GetWorkflowNodeDocumentEntity(ctx, sourceNodeID)
 	if err != nil {
 		return err
 	}
-	type definitionRoot struct {
-		id, rootID, key, name string
-		revision              int64
-		condition             json.RawMessage
+	sourceValue, err := workflowStarlarkValue(source)
+	if err != nil {
+		return err
 	}
-	definitions := make([]definitionRoot, 0)
-	for rows.Next() {
-		var value definitionRoot
-		if err = rows.Scan(&value.id, &value.revision, &value.rootID, &value.condition, &value.key, &value.name); err != nil {
-			rows.Close()
-			return err
+	thread := &starlark.Thread{Name: "wfl-runtime"}
+	thread.SetMaxExecutionSteps(maxWorkflowScriptSteps)
+	queries := s.queries.WithTx(tx)
+	for _, edge := range compiled.Edges {
+		if edge.SourceKey != sourceNodeKey || onlyTarget != "" && edge.TargetKey != onlyTarget {
+			continue
 		}
-		definitions = append(definitions, value)
-	}
-	rows.Close()
-	for _, definition := range definitions {
-		matched, matchErr := evaluateCondition(definition.condition, projection)
-		if matchErr != nil {
-			return txevent.Reject("workflow start condition is invalid", map[string]any{"definitionId": definition.id})
+		matched := true
+		if edge.when != nil {
+			matched, err = callWorkflowCondition(thread, edge.when, sourceValue)
+			if err != nil {
+				return txevent.Reject("workflow branch condition failed", map[string]any{"targetNodeKey": edge.TargetKey})
+			}
 		}
 		if !matched {
 			continue
 		}
-		var processID string
-		err = tx.QueryRow(ctx, `SELECT id FROM wfl_definition_instances
-			WHERE definition_id=$1 AND root_document_id=$2`, definition.id, event.DocumentID).Scan(&processID)
-		if err == nil {
-			continue
-		}
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return err
-		}
-		processID = newID()
-		nodeInstanceID := newID()
-		if _, err = tx.Exec(ctx, `INSERT INTO wfl_definition_instances(
-			id,definition_id,root_document_id,revision,started_definition_revision,created_by,updated_by
-		) VALUES($1,$2,$3,1,$4,$5,$5)`, processID, definition.id, event.DocumentID, definition.revision, systemidentity.UserID); err != nil {
-			return err
-		}
-		if _, err = tx.Exec(ctx, `INSERT INTO wfl_node_instances(
-			id,process_id,definition_node_id,document_id,node_key,node_name,document_entity
-		) VALUES($1,$2,$3,$4,$5,$6,$7)`, nodeInstanceID, processID, definition.rootID, event.DocumentID, definition.key, definition.name, event.Entity); err != nil {
-			return err
-		}
-		if err = insertRuntimeAudit(ctx, tx, processID, "STARTED", nodeInstanceID, event, map[string]any{"definitionRevision": definition.revision}); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (s *Service) executeOutgoingEdges(
-	ctx context.Context, tx pgx.Tx, event voudomain.DocumentChangedEvent, source struct{ id, processID, definitionNodeID string }, projection conditionProjection,
-) error {
-	var revision int64
-	if err := tx.QueryRow(ctx, `SELECT d.revision FROM wfl_definition_instances i
-		JOIN wfl_process_definitions d ON d.id=i.definition_id WHERE i.id=$1`, source.processID).Scan(&revision); err != nil {
-		return err
-	}
-	rows, err := tx.Query(ctx, `SELECT e.id,e.target_node_id,e.converter_key,e.condition,n.node_key,n.name,n.document_entity,n.defaults
-		FROM wfl_definition_edges e
-		JOIN wfl_definition_instances i ON i.id=$2 AND i.definition_id=e.definition_id
-		JOIN wfl_definition_nodes n ON n.id=e.target_node_id AND n.definition_id=e.definition_id
-		WHERE e.source_node_id=$1 AND NOT e.archived AND NOT n.archived ORDER BY e.created_at,e.id`, source.definitionNodeID, source.processID)
-	if err != nil {
-		return err
-	}
-	type outgoing struct {
-		id, targetID, converter, key, name, entity string
-		condition, defaults                        json.RawMessage
-	}
-	edges := make([]outgoing, 0)
-	for rows.Next() {
-		var edge outgoing
-		if err = rows.Scan(&edge.id, &edge.targetID, &edge.converter, &edge.condition, &edge.key, &edge.name, &edge.entity, &edge.defaults); err != nil {
-			rows.Close()
-			return err
-		}
-		edges = append(edges, edge)
-	}
-	rows.Close()
-	for _, edge := range edges {
-		var exists bool
-		if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM wfl_edge_executions
-			WHERE process_id=$1 AND source_node_instance_id=$2 AND edge_id=$3)`, source.processID, source.id, edge.id).Scan(&exists); err != nil {
-			return err
-		}
-		if exists {
-			continue
-		}
-		matched, matchErr := evaluateCondition(edge.condition, projection)
-		if matchErr != nil {
-			return txevent.Reject("workflow branch condition is invalid", map[string]any{"edgeId": edge.id})
-		}
-		var targetNodeID *string
-		if matched {
-			child, createErr := s.converter.CreateWorkflowChild(ctx, tx, edge.converter, event.DocumentID, edge.defaults, event.RequestID)
-			if createErr != nil {
-				return createErr
-			}
-			if child.DocumentID == "" {
-				if child.Status == "SKIPPED" {
-					matched = false
-				} else {
-					return txevent.Reject("workflow converter did not create a child document", map[string]any{"edgeId": edge.id})
-				}
-			}
-			if matched {
-				targetID := newID()
-				err = tx.QueryRow(ctx, `INSERT INTO wfl_node_instances(
-				id,process_id,definition_node_id,parent_node_instance_id,document_id,node_key,node_name,document_entity
-			) VALUES($1,$2,$3,$4,$5,$6,$7,$8)
-			ON CONFLICT(process_id,definition_node_id,document_id) DO UPDATE SET parent_node_instance_id=excluded.parent_node_instance_id
-			RETURNING id`, targetID, source.processID, edge.targetID, source.id, child.DocumentID, edge.key, edge.name, edge.entity).Scan(&targetID)
-				if err != nil {
-					return err
-				}
-				targetNodeID = &targetID
-				if err = insertRuntimeAudit(ctx, tx, source.processID, "CHILD_CREATED", targetID, voudomain.DocumentChangedEvent{
-					Entity: edge.entity, DocumentID: child.DocumentID, DocumentNo: child.DocumentNo,
-					ActorID: systemidentity.UserID, RequestID: event.RequestID,
-				}, map[string]any{"sourceDocumentId": event.DocumentID, "edgeId": edge.id}); err != nil {
-					return err
-				}
+		initial := edge.initial
+		if callable, ok := initial.(starlark.Callable); ok {
+			initial, err = starlark.Call(thread, callable, starlark.Tuple{sourceValue}, nil)
+			if err != nil {
+				return txevent.Reject("workflow action initial values failed", map[string]any{"targetNodeKey": edge.TargetKey})
 			}
 		}
-		if _, err = tx.Exec(ctx, `INSERT INTO wfl_edge_executions(
-			process_id,source_node_instance_id,edge_id,matched,target_node_instance_id,definition_revision
-		) VALUES($1,$2,$3,$4,$5,$6)`, source.processID, source.id, edge.id, matched, targetNodeID, revision); err != nil {
+		plain, err := workflowPlainValue(initial)
+		if err != nil {
 			return err
 		}
-	}
-	_, err = tx.Exec(ctx, `UPDATE wfl_node_instances SET evaluated_definition_revision=$1,evaluated_at=now() WHERE id=$2`, revision, source.id)
-	return err
-}
-
-func insertRuntimeAudit(ctx context.Context, tx pgx.Tx, processID, eventType, nodeID string, event voudomain.DocumentChangedEvent, summary map[string]any) error {
-	encoded, err := json.Marshal(summary)
-	if err != nil {
-		return err
-	}
-	_, err = tx.Exec(ctx, `INSERT INTO wfl_runtime_audit_events(
-		id,process_id,event_type,node_instance_id,document_id,document_no,actor_id,request_id,summary
-	) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, newID(), processID, eventType, nodeID, event.DocumentID, event.DocumentNo,
-		systemidentity.UserID, event.RequestID, encoded)
-	return err
-}
-
-type conditionProjection struct {
-	Header map[string]any
-	Lines  []map[string]any
-}
-
-func loadConditionProjection(ctx context.Context, tx pgx.Tx, documentID string) (conditionProjection, error) {
-	result := conditionProjection{Header: map[string]any{}, Lines: []map[string]any{}}
-	var entity, status, businessDate string
-	var currency *string
-	var amount int64
-	err := tx.QueryRow(ctx, `SELECT entity,status,currency,total_amount_cents,to_char(business_date,'YYYY-MM-DD')
-		FROM vou_documents WHERE id=$1`, documentID).Scan(&entity, &status, &currency, &amount, &businessDate)
-	if err != nil {
-		return result, err
-	}
-	result.Header["entity"], result.Header["status"] = entity, status
-	if currency != nil {
-		result.Header["currency"] = *currency
-	}
-	result.Header["businessDate"] = businessDate
-	result.Header["amount"] = float64(amount) / 100
-	rows, err := tx.Query(ctx, `SELECT product_code,product_unit,quantity_micros,unit_price_cents,line_amount_cents FROM (
-		SELECT product_code,product_unit,ordered_qty_micros quantity_micros,unit_price_cents,line_amount_cents FROM vou_product_lines WHERE document_id=$1
-		UNION ALL SELECT product_code,product_unit,quantity_micros,unit_price_cents,line_amount_cents FROM vou_sale_outbound_lines WHERE document_id=$1
-		UNION ALL SELECT line.product_code,line.product_unit,line.quantity_micros,line.unit_price_cents,line.line_amount_cents
-			FROM vou_sale_delivery_details detail JOIN vou_sale_outbound_lines line ON line.document_id=detail.source_outbound_id
-			WHERE detail.document_id=$1
-		UNION ALL SELECT product_code,product_unit,signed_qty_micros,unit_price_cents,line_amount_cents FROM vou_sale_signoff_lines WHERE document_id=$1
-		UNION ALL SELECT product_code,product_unit,quantity_micros,unit_price_cents,line_amount_cents FROM vou_purchase_inbound_lines WHERE document_id=$1
-	) lines`, documentID)
-	if err != nil {
-		return result, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var code, unit string
-		var quantity, price, lineAmount int64
-		if err = rows.Scan(&code, &unit, &quantity, &price, &lineAmount); err != nil {
-			return result, err
-		}
-		result.Lines = append(result.Lines, map[string]any{"productCode": code, "unit": unit, "quantity": float64(quantity) / 1_000_000, "unitPrice": float64(price) / 100, "amount": float64(lineAmount) / 100})
-	}
-	if err = rows.Err(); err != nil {
-		return result, err
-	}
-	if entity != voudomain.EntityExpenseReimbursement {
-		return result, nil
-	}
-	expenseRows, err := tx.Query(ctx, `SELECT category,description,amount_cents
-		FROM vou_expense_lines WHERE document_id=$1 ORDER BY line_no`, documentID)
-	if err != nil {
-		return result, err
-	}
-	defer expenseRows.Close()
-	for expenseRows.Next() {
-		var category, description string
-		var lineAmount int64
-		if err = expenseRows.Scan(&category, &description, &lineAmount); err != nil {
-			return result, err
-		}
-		result.Lines = append(result.Lines, map[string]any{
-			"category": category, "description": description, "amount": float64(lineAmount) / 100,
+		fingerprint := actionFingerprint(processID, sourceNodeID, edge, plain)
+		lockedExecution, lockErr := queries.LockWorkflowActionExecution(ctx, sqlc.LockWorkflowActionExecutionParams{
+			ProcessID: processID, SourceNodeInstanceID: sourceNodeID,
+			TargetNodeKey: edge.TargetKey, RelationName: edge.Relation,
 		})
-	}
-	return result, expenseRows.Err()
-}
-
-func evaluateCondition(raw json.RawMessage, projection conditionProjection) (bool, error) {
-	if len(raw) == 0 || string(raw) == "{}" || string(raw) == "null" {
-		return true, nil
-	}
-	var value map[string]any
-	if err := json.Unmarshal(raw, &value); err != nil {
-		return false, err
-	}
-	return evaluateConditionValue(value, projection.Header, projection.Lines)
-}
-
-func evaluateConditionValue(value map[string]any, header map[string]any, lines []map[string]any) (bool, error) {
-	for key, wantAll := range map[string]bool{"all": true, "any": false} {
-		if raw, ok := value[key]; ok {
-			items, ok := raw.([]any)
-			if !ok {
-				return false, fmt.Errorf("%s must be an array", key)
+		err = lockErr
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		if err == nil && lockedExecution.DocumentID != nil {
+			continue
+		}
+		rebuilding := err == nil
+		businessObject, err := executeTypedAction(ctx, tx, s.runtime, edge.ActionName, sourceDocumentID, requestID, initial)
+		if err != nil {
+			return err
+		}
+		if businessObject.DocumentID == "" {
+			return txevent.Reject("workflow action did not create a document", map[string]any{"action": edge.ActionName})
+		}
+		target := compiledNodeByKey(compiled, edge.TargetKey)
+		var targetNodeID, foundNodeKey, foundParentID, foundRelation string
+		lockedNode, nodeErr := queries.LockWorkflowNodeByProcessAndDocument(ctx, sqlc.LockWorkflowNodeByProcessAndDocumentParams{
+			ProcessID: processID, DocumentID: workflowText(businessObject.DocumentID),
+		})
+		err = nodeErr
+		if err == nil {
+			targetNodeID, foundNodeKey, foundParentID, foundRelation = lockedNode.ID, lockedNode.NodeKey, lockedNode.ParentNodeInstanceID, lockedNode.RelationName
+		}
+		if err == nil && (foundNodeKey != edge.TargetKey || foundParentID != sourceNodeID || foundRelation != edge.Relation) {
+			return txevent.Reject("workflow action result is already registered at another position", map[string]any{
+				"documentId": businessObject.DocumentID, "targetNodeKey": edge.TargetKey,
+			})
+		}
+		if errors.Is(err, pgx.ErrNoRows) && rebuilding && lockedExecution.TargetNodeInstanceID != nil {
+			targetNodeID = *lockedExecution.TargetNodeInstanceID
+			err = queries.RestoreWorkflowNodeInstance(ctx, sqlc.RestoreWorkflowNodeInstanceParams{
+				DocumentID: workflowText(businessObject.DocumentID), DocumentNo: businessObject.DocumentNo, DocumentEntity: businessObject.Entity,
+				BusinessParentEntity: workflowText(sourceDocumentEntity), BusinessParentDocumentID: workflowText(sourceDocumentID),
+				RelationName: workflowText(edge.Relation), ActionName: workflowText(edge.ActionName), ID: targetNodeID,
+			})
+		} else if errors.Is(err, pgx.ErrNoRows) {
+			targetNodeID = newID()
+			err = queries.CreateWorkflowActionNodeInstance(ctx, sqlc.CreateWorkflowActionNodeInstanceParams{
+				ID: targetNodeID, ProcessID: processID, ParentNodeInstanceID: workflowText(sourceNodeID), NodeKey: target.Key, NodeName: target.Name,
+				DocumentID: workflowText(businessObject.DocumentID), DocumentNo: businessObject.DocumentNo, DocumentEntity: businessObject.Entity,
+				BusinessParentEntity: workflowText(sourceDocumentEntity), BusinessParentDocumentID: workflowText(sourceDocumentID),
+				RelationName: workflowText(edge.Relation), ActionName: workflowText(edge.ActionName),
+			})
+		}
+		if err != nil {
+			return err
+		}
+		if rebuilding {
+			if err = queries.RestoreWorkflowActionExecution(ctx, sqlc.RestoreWorkflowActionExecutionParams{
+				TargetNodeInstanceID: workflowText(targetNodeID), ActionFingerprint: fingerprint,
+				ID: lockedExecution.ID,
+			}); err != nil {
+				return err
 			}
-			if len(items) == 0 {
-				return true, nil
+		} else {
+			executionID := newID()
+			if err = queries.CreateWorkflowActionExecution(ctx, sqlc.CreateWorkflowActionExecutionParams{
+				ID: executionID, ProcessID: processID, SourceNodeInstanceID: sourceNodeID, TargetNodeKey: edge.TargetKey,
+				RelationName: edge.Relation, ActionName: edge.ActionName, ActionFingerprint: fingerprint, TargetNodeInstanceID: workflowText(targetNodeID),
+			}); err != nil {
+				return err
 			}
-			result := wantAll
-			for _, item := range items {
-				child, ok := item.(map[string]any)
-				if !ok {
-					return false, errors.New("condition item must be an object")
-				}
-				matched, err := evaluateConditionValue(child, header, lines)
-				if err != nil {
-					return false, err
-				}
-				if wantAll && !matched {
-					return false, nil
-				}
-				if !wantAll && matched {
-					return true, nil
-				}
-				result = matched
-			}
-			return result, nil
+		}
+		if err = insertRuntimeAudit(ctx, tx, processID, "", 0, "ACTION_EXECUTED", targetNodeID,
+			businessObject.DocumentID, businessObject.DocumentNo, actorID, requestID,
+			map[string]any{"action": edge.ActionName, "relation": edge.Relation, "sourceNodeInstanceId": sourceNodeID}); err != nil {
+			return err
 		}
 	}
-	for key, wantAll := range map[string]bool{"lineAll": true, "lineAny": false} {
-		if raw, ok := value[key]; ok {
-			child, ok := raw.(map[string]any)
-			if !ok {
-				return false, fmt.Errorf("%s must be an object", key)
-			}
-			if len(lines) == 0 {
-				return false, nil
-			}
-			for _, line := range lines {
-				matched, err := evaluatePredicate(child, line)
-				if err != nil {
-					return false, err
-				}
-				if wantAll && !matched {
-					return false, nil
-				}
-				if !wantAll && matched {
-					return true, nil
-				}
-			}
-			return wantAll, nil
-		}
-	}
-	return evaluatePredicate(value, header)
+	return queries.MarkWorkflowNodeEvaluated(ctx, sourceNodeID)
 }
 
-func evaluatePredicate(value map[string]any, source map[string]any) (bool, error) {
-	field, _ := value["field"].(string)
-	operator, _ := value["operator"].(string)
-	actual, ok := source[field]
+func (s *Service) CreateChildByDefinitionCode(ctx context.Context, code string, input CreateChildInput, actorID string) (BusinessObjectReference, error) {
+	if !validWorkflowID(input.ProcessID) || !validWorkflowID(input.ParentNodeInstanceID) ||
+		!validWorkflowID(actorID) || len(input.RequestKey) < 16 || len(input.RequestKey) > 64 ||
+		strings.TrimSpace(input.TargetNodeKey) == "" {
+		return BusinessObjectReference{}, validation("invalid create-child request", nil)
+	}
+	definitionID, err := s.definitionIDByCode(ctx, code)
+	if err != nil {
+		return BusinessObjectReference{}, err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return BusinessObjectReference{}, internal("begin create workflow child", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	queries := s.queries.WithTx(tx)
+	if err = queries.AcquireWorkflowCreateChildLock(ctx, definitionID+"\x00"+input.RequestKey); err != nil {
+		return BusinessObjectReference{}, err
+	}
+	existing, err := queries.LockWorkflowCreateChildRequest(ctx, sqlc.LockWorkflowCreateChildRequestParams{
+		DefinitionID: definitionID, RequestKey: input.RequestKey,
+	})
+	if err == nil {
+		if existing.ProcessID != input.ProcessID || existing.ParentNodeInstanceID != input.ParentNodeInstanceID || existing.TargetNodeKey != input.TargetNodeKey {
+			return BusinessObjectReference{}, conflict("requestKey is already bound to another workflow intent", nil)
+		}
+		var result BusinessObjectReference
+		if existing.ActionExecutionID != nil {
+			row, resultErr := queries.GetWorkflowCreateChildExecutionResult(ctx, *existing.ActionExecutionID)
+			err = resultErr
+			result.Entity, result.DocumentID, result.DocumentNo = row.DocumentEntity, row.DocumentID, row.DocumentNo
+			if err == nil && result.DocumentID != "" {
+				return result, nil
+			}
+		}
+		return BusinessObjectReference{}, conflict("the original create-child result is no longer available; use a new requestKey", nil)
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return BusinessObjectReference{}, err
+	}
+	sourceNode, err := queries.LockWorkflowCreateChildSourceNode(ctx, sqlc.LockWorkflowCreateChildSourceNodeParams{
+		ProcessID: input.ProcessID, DefinitionID: definitionID, NodeID: input.ParentNodeInstanceID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return BusinessObjectReference{}, validation("workflow parent node not found", nil)
+	}
+	if err != nil {
+		return BusinessObjectReference{}, err
+	}
+	if err = queries.CreateWorkflowCreateChildRequest(ctx, sqlc.CreateWorkflowCreateChildRequestParams{
+		DefinitionID: definitionID, RequestKey: input.RequestKey, ProcessID: input.ProcessID,
+		ParentNodeInstanceID: input.ParentNodeInstanceID, TargetNodeKey: input.TargetNodeKey,
+	}); err != nil {
+		return BusinessObjectReference{}, err
+	}
+	sourceDocumentID := *sourceNode.DocumentID
+	sourceSnapshot, err := s.runtime.LoadWorkflowSource(ctx, tx, sourceNode.DocumentEntity, sourceDocumentID)
+	if err != nil {
+		return BusinessObjectReference{}, err
+	}
+	revision, err := queries.GetWorkflowPublishedRevision(ctx, sqlc.GetWorkflowPublishedRevisionParams{
+		DefinitionID: definitionID, Revision: sourceNode.StartedDefinitionRevision,
+	})
+	if err != nil {
+		return BusinessObjectReference{}, err
+	}
+	compiled, err := compileDefinitionScript(revision.Script)
+	if err != nil {
+		return BusinessObjectReference{}, err
+	}
+	if err = s.executeNode(ctx, tx, compiled, input.ProcessID, input.ParentNodeInstanceID, sourceNode.NodeKey,
+		sourceDocumentID, sourceSnapshot, actorID, input.RequestKey, input.TargetNodeKey); err != nil {
+		return BusinessObjectReference{}, err
+	}
+	execution, err := queries.GetWorkflowActionExecutionResult(ctx, sqlc.GetWorkflowActionExecutionResultParams{
+		ProcessID: input.ProcessID, SourceNodeInstanceID: input.ParentNodeInstanceID, TargetNodeKey: input.TargetNodeKey,
+	})
+	result := BusinessObjectReference{Entity: execution.DocumentEntity, DocumentID: execution.DocumentID, DocumentNo: execution.DocumentNo}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return BusinessObjectReference{}, conflict("the workflow target is no longer available", nil)
+	}
+	if err != nil {
+		return BusinessObjectReference{}, err
+	}
+	if err = queries.SetWorkflowCreateChildRequestExecution(ctx, sqlc.SetWorkflowCreateChildRequestExecutionParams{
+		ActionExecutionID: workflowText(execution.ID), DefinitionID: definitionID, RequestKey: input.RequestKey,
+	}); err != nil {
+		return BusinessObjectReference{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return BusinessObjectReference{}, internal("commit create workflow child", err)
+	}
+	return result, nil
+}
+
+func (s *Service) handleDeleted(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
+	event, ok := raw.(voudomain.DocumentDeletedEvent)
 	if !ok {
-		return false, nil
+		return txevent.Reject("invalid workflow delete event", nil)
 	}
-	expected := value["value"]
-	switch operator {
-	case "EQ":
-		return fmt.Sprint(actual) == fmt.Sprint(expected), nil
-	case "NE":
-		return fmt.Sprint(actual) != fmt.Sprint(expected), nil
-	case "CONTAINS":
-		return strings.Contains(strings.ToLower(fmt.Sprint(actual)), strings.ToLower(fmt.Sprint(expected))), nil
-	case "IN":
-		items, ok := expected.([]any)
-		if !ok {
-			return false, errors.New("IN requires array")
-		}
-		for _, item := range items {
-			if fmt.Sprint(actual) == fmt.Sprint(item) {
-				return true, nil
-			}
-		}
-		return false, nil
-	case "GT", "GTE", "LT", "LTE":
-		left, err := strconv.ParseFloat(fmt.Sprint(actual), 64)
-		if err != nil {
-			return false, err
-		}
-		right, err := strconv.ParseFloat(fmt.Sprint(expected), 64)
-		if err != nil {
-			return false, err
-		}
-		switch operator {
-		case "GT":
-			return left > right, nil
-		case "GTE":
-			return left >= right, nil
-		case "LT":
-			return left < right, nil
-		default:
-			return left <= right, nil
-		}
+	queries := s.queries.WithTx(tx)
+	if err := queries.MarkWorkflowRootDocumentDeleted(ctx, sqlc.MarkWorkflowRootDocumentDeletedParams{
+		ActorID: event.ActorID, DocumentID: workflowText(event.DocumentID),
+	}); err != nil {
+		return err
 	}
-	return false, errors.New("unknown condition operator")
+	return queries.ClearWorkflowNodeDocument(ctx, workflowText(event.DocumentID))
+}
+
+func insertRuntimeAudit(
+	ctx context.Context, tx pgx.Tx, processID, definitionID string, definitionRevision int64,
+	eventType, nodeID, documentID, documentNo, actorID, requestID string, summary map[string]any,
+) error {
+	if definitionID == "" && processID != "" {
+		instance, err := sqlc.New(tx).GetWorkflowInstanceDefinition(ctx, processID)
+		if err != nil {
+			return err
+		}
+		definitionID, definitionRevision = instance.DefinitionID, instance.StartedDefinitionRevision
+	}
+	return sqlc.New(tx).CreateWorkflowRuntimeAudit(ctx, sqlc.CreateWorkflowRuntimeAuditParams{
+		ID: newID(), ProcessID: nullableText(processID), DefinitionID: definitionID, DefinitionRevision: definitionRevision,
+		EventType: eventType, NodeInstanceID: nullableText(nodeID), DocumentID: nullableText(documentID), DocumentNo: nullableText(documentNo),
+		ActorID: actorID, RequestID: requestID, Summary: mustJSON(summary),
+	})
+}
+
+func nullableText(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }

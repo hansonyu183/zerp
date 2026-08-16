@@ -272,15 +272,21 @@ test('五个业务域只显示面包屑而不显示页面大标题', async ({
     ['/bob/customer', '客户'],
     ['/aux/product-category', '产品分类'],
     ['/vou/sale-order', '销售订单'],
-    ['/wfl/sales-fulfillment', '销售履约'],
+    [`/wfl/${workerState.fixtures.salesProcessCode}`, null],
     ['/acc/book', '会计账簿'],
   ] as const
 
   for (const [path, title] of pages) {
     await page.goto(path)
-    await expect(page.locator('.page-heading__breadcrumb')).toHaveText(
-      `ZERP / ${title}`,
-    )
+    const breadcrumb = page.locator('.page-heading__breadcrumb')
+    if (title) {
+      await expect(breadcrumb).toHaveText(`ZERP / ${title}`)
+    } else {
+      await expect(breadcrumb).toContainText(
+        workerState.fixtures.salesProcessCode,
+      )
+      await expect(page.getByRole('textbox', { name: '单号' })).toBeVisible()
+    }
     const controls = page.locator('.entity-list-controls')
     await expect(controls).toHaveCount(1)
     await expect(

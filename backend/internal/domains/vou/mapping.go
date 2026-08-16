@@ -238,11 +238,6 @@ func (s *Service) loadData(
 		}
 		data.Employee = reference(detail.EmployeeObjectID, detail.EmployeeVersionID, "employee",
 			detail.EmployeeCode, detail.EmployeeName, "", "", "")
-		data.SettlementMode = detail.SettlementMode
-		if detail.FundAccountObjectID != nil {
-			data.FundAccount = reference(deref(detail.FundAccountObjectID), deref(detail.FundAccountVersionID), "fund-account",
-				deref(detail.FundAccountCode), deref(detail.FundAccountName), "", deref(document.Currency), "")
-		}
 		rows, err := q.ListVouExpenseLines(ctx, document.ID)
 		if err != nil {
 			return data, err

@@ -77,6 +77,18 @@ func TestMappingFieldCatalogOnlyExposesEntityCollections(t *testing.T) {
 	}
 }
 
+func TestExpenseReimbursementMappingCatalogOmitsRemovedDirectSettlementFields(t *testing.T) {
+	catalog, err := MappingFieldCatalog("expense-reimbursement")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range catalog.HeaderFields {
+		if field == "fundAccount.objectId" || field == "settlementMode" {
+			t.Fatalf("expense reimbursement catalog exposes removed field %q", field)
+		}
+	}
+}
+
 func TestValidateMappingRejectsFieldsFromAnotherAllowedCollection(t *testing.T) {
 	catalog, err := MappingFieldCatalog("sale-signoff")
 	if err != nil {

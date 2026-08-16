@@ -191,18 +191,6 @@ func (s *Service) saveSalesChain(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	document, err := s.queries.WithTx(tx).GetVouDocument(
-		ctx, dbsqlc.GetVouDocumentParams{ID: input.DocumentID, Entity: entity},
-	)
-	if err != nil {
-		return MutationResult{}, s.internal("read saved sales workflow document", err)
-	}
-	if err = s.touchWorkflow(
-		ctx, tx, document, "SAVED", StatusDraft, actorID, requestID,
-		map[string]any{"revision": result.Revision},
-	); err != nil {
-		return MutationResult{}, err
-	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit sales-chain save", err)
 	}

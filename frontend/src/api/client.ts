@@ -323,7 +323,9 @@ export class ApiClient {
       segments[0] === 'wfl' &&
       segments[1] !== 'process-definition' &&
       segments[1] !== 'process-instance' &&
-      ['query', 'get', 'audit-history'].includes(segments[2] ?? '')
+      ['query', 'get', 'audit-history', 'create-child'].includes(
+        segments[2] ?? '',
+      )
     ) {
       return {
         path: `/wfl/{processName}/${segments[2]}` as ContractPostPath,

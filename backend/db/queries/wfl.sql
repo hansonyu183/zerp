@@ -1,572 +1,370 @@
--- name: ListSalesWorkflowSummaries :many
-SELECT p.id AS process_id,
-       p.process_type,
-       p.status,
-       p.revision,
-       p.root_document_id,
-       d.document_no AS root_document_no,
-		 COALESCE((
-           SELECT x.stage
-           FROM wfl_process_documents x
-           JOIN vou_documents child ON child.id = x.document_id
-           WHERE x.process_id = p.id AND child.status <> 'APPROVED'
-           ORDER BY CASE x.stage
-             WHEN 'SALE_ORDER' THEN 1 WHEN 'PRODUCTION' THEN 2
-             WHEN 'OUTBOUND' THEN 3 WHEN 'DELIVERY' THEN 4
-             WHEN 'SIGNOFF' THEN 5 ELSE 6 END DESC,
-             x.sequence_no DESC
-           LIMIT 1
-		 ), 'SALE_ORDER')::text AS current_stage,
-       d.business_date,
-       detail.customer_name AS party_name,
-       COALESCE(d.currency, '')::text AS currency,
-       d.total_amount_cents,
-       p.updated_at
-FROM wfl_process_instances p
-JOIN vou_documents d ON d.id = p.root_document_id
-JOIN vou_sale_order_details detail ON detail.document_id = p.root_document_id
-WHERE p.process_type = 'SALES_FULFILLMENT'
-  AND (sqlc.arg(keyword)::text = '' OR d.document_no ILIKE '%' || sqlc.arg(keyword)::text || '%')
-  AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]), 0) = 0
-       OR p.status = ANY(sqlc.arg(statuses)::text[]))
-ORDER BY p.updated_at DESC, p.id DESC
-LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
-
 -- name: CountWorkflowDefinitions :one
 SELECT count(*)
-FROM wfl_process_definitions d
-WHERE (sqlc.arg(keyword)::text = ''
-       OR d.code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-       OR d.name ILIKE '%' || sqlc.arg(keyword)::text || '%')
-  AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]), 0) = 0
-       OR d.status = ANY(sqlc.arg(statuses)::text[]));
-
--- name: CountDefinitionInstances :one
-SELECT count(*)
-FROM wfl_definition_instances i
-JOIN vou_documents d ON d.id = i.root_document_id
-JOIN wfl_process_definitions f ON f.id = i.definition_id
-LEFT JOIN LATERAL (
-  SELECT party_object_id, party_code, party_name
-  FROM (
-    SELECT customer_object_id AS party_object_id,
-           customer_code AS party_code,
-           customer_name AS party_name
-    FROM vou_sale_order_details WHERE document_id = d.id
-    UNION ALL SELECT customer_object_id, customer_code, customer_name
-      FROM vou_sale_outbound_details WHERE document_id = d.id
-    UNION ALL SELECT customer_object_id, customer_code, customer_name
-      FROM vou_sale_delivery_details WHERE document_id = d.id
-    UNION ALL SELECT customer_object_id, customer_code, customer_name
-      FROM vou_sale_signoff_details WHERE document_id = d.id
-    UNION ALL SELECT customer_object_id, customer_code, customer_name
-      FROM vou_sale_return_details WHERE document_id = d.id
-    UNION ALL SELECT supplier_object_id, supplier_code, supplier_name
-      FROM vou_purchase_inquiry_details WHERE document_id = d.id
-    UNION ALL SELECT supplier_object_id, supplier_code, supplier_name
-      FROM vou_purchase_order_details WHERE document_id = d.id
-    UNION ALL SELECT supplier_object_id, supplier_code, supplier_name
-      FROM vou_purchase_inbound_details WHERE document_id = d.id
-    UNION ALL SELECT supplier_object_id, supplier_code, supplier_name
-      FROM vou_purchase_return_details WHERE document_id = d.id
-    UNION ALL SELECT counterparty_object_id, counterparty_code, counterparty_name
-      FROM vou_receipt_details WHERE document_id = d.id
-    UNION ALL SELECT counterparty_object_id, counterparty_code, counterparty_name
-      FROM vou_payment_details WHERE document_id = d.id
-    UNION ALL SELECT employee_object_id, employee_code, employee_name
-      FROM vou_expense_reimbursement_details WHERE document_id = d.id
-    UNION ALL SELECT employee_object_id, employee_code, employee_name
-      FROM vou_expense_payment_details WHERE document_id = d.id
-    UNION ALL SELECT counterparty_object_id, COALESCE(counterparty_code, ''),
-      COALESCE(NULLIF(counterparty_name, ''), source_name)
-      FROM vou_other_income_details WHERE document_id = d.id
-  ) parties
-  LIMIT 1
-) party ON true
-WHERE (
-    sqlc.arg(keyword)::text = ''
-    OR party.party_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-    OR party.party_name ILIKE '%' || sqlc.arg(keyword)::text || '%'
-    OR EXISTS (
-      SELECT 1
-      FROM wfl_node_instances search_node
-      WHERE search_node.process_id = i.id
-        AND (
-          EXISTS (SELECT 1 FROM vou_product_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
-          OR EXISTS (SELECT 1 FROM vou_sale_outbound_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
-          OR EXISTS (SELECT 1 FROM vou_sale_signoff_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
-          OR EXISTS (SELECT 1 FROM vou_sale_return_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
-          OR EXISTS (SELECT 1 FROM vou_purchase_inbound_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
-          OR EXISTS (SELECT 1 FROM vou_purchase_return_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
-          OR EXISTS (SELECT 1 FROM vou_production_output_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
-          OR EXISTS (SELECT 1
-            FROM vou_production_material_lines material
-            JOIN vou_production_output_lines output ON output.id = material.output_line_id
-            WHERE output.document_id = search_node.document_id
-              AND (material.formula_material_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-                OR material.formula_material_name ILIKE '%' || sqlc.arg(keyword)::text || '%'
-                OR material.actual_material_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-                OR material.actual_material_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
-        )
-    )
-  )
-  AND (sqlc.arg(definition_id)::text = '' OR i.definition_id = sqlc.arg(definition_id))
-  AND (sqlc.arg(party_object_id)::text = '' OR party.party_object_id = sqlc.arg(party_object_id));
-
--- name: ListDefinitionInstances :many
-SELECT i.id AS process_id,
-       i.definition_id,
-       f.code AS definition_code,
-       f.name AS definition_name,
-       i.revision,
-       i.root_document_id,
-       d.document_no AS root_document_no,
-       d.entity AS root_entity,
-       COALESCE(party.party_code, '')::text AS party_code,
-       COALESCE(party.party_name, '')::text AS party_name,
-       i.updated_at
-FROM wfl_definition_instances i
-JOIN vou_documents d ON d.id = i.root_document_id
-JOIN wfl_process_definitions f ON f.id = i.definition_id
-LEFT JOIN LATERAL (
-  SELECT party_object_id, party_code, party_name
-  FROM (
-    SELECT customer_object_id AS party_object_id,
-           customer_code AS party_code,
-           customer_name AS party_name
-    FROM vou_sale_order_details WHERE document_id = d.id
-    UNION ALL SELECT customer_object_id, customer_code, customer_name
-      FROM vou_sale_outbound_details WHERE document_id = d.id
-    UNION ALL SELECT customer_object_id, customer_code, customer_name
-      FROM vou_sale_delivery_details WHERE document_id = d.id
-    UNION ALL SELECT customer_object_id, customer_code, customer_name
-      FROM vou_sale_signoff_details WHERE document_id = d.id
-    UNION ALL SELECT customer_object_id, customer_code, customer_name
-      FROM vou_sale_return_details WHERE document_id = d.id
-    UNION ALL SELECT supplier_object_id, supplier_code, supplier_name
-      FROM vou_purchase_inquiry_details WHERE document_id = d.id
-    UNION ALL SELECT supplier_object_id, supplier_code, supplier_name
-      FROM vou_purchase_order_details WHERE document_id = d.id
-    UNION ALL SELECT supplier_object_id, supplier_code, supplier_name
-      FROM vou_purchase_inbound_details WHERE document_id = d.id
-    UNION ALL SELECT supplier_object_id, supplier_code, supplier_name
-      FROM vou_purchase_return_details WHERE document_id = d.id
-    UNION ALL SELECT counterparty_object_id, counterparty_code, counterparty_name
-      FROM vou_receipt_details WHERE document_id = d.id
-    UNION ALL SELECT counterparty_object_id, counterparty_code, counterparty_name
-      FROM vou_payment_details WHERE document_id = d.id
-    UNION ALL SELECT employee_object_id, employee_code, employee_name
-      FROM vou_expense_reimbursement_details WHERE document_id = d.id
-    UNION ALL SELECT employee_object_id, employee_code, employee_name
-      FROM vou_expense_payment_details WHERE document_id = d.id
-    UNION ALL SELECT counterparty_object_id, COALESCE(counterparty_code, ''),
-      COALESCE(NULLIF(counterparty_name, ''), source_name)
-      FROM vou_other_income_details WHERE document_id = d.id
-  ) parties
-  LIMIT 1
-) party ON true
-WHERE (
-    sqlc.arg(keyword)::text = ''
-    OR party.party_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-    OR party.party_name ILIKE '%' || sqlc.arg(keyword)::text || '%'
-    OR EXISTS (
-      SELECT 1
-      FROM wfl_node_instances search_node
-      WHERE search_node.process_id = i.id
-        AND (
-          EXISTS (SELECT 1 FROM vou_product_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
-          OR EXISTS (SELECT 1 FROM vou_sale_outbound_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
-          OR EXISTS (SELECT 1 FROM vou_sale_signoff_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
-          OR EXISTS (SELECT 1 FROM vou_sale_return_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
-          OR EXISTS (SELECT 1 FROM vou_purchase_inbound_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
-          OR EXISTS (SELECT 1 FROM vou_purchase_return_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
-          OR EXISTS (SELECT 1 FROM vou_production_output_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-                OR line.product_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
-          OR EXISTS (SELECT 1
-            FROM vou_production_material_lines material
-            JOIN vou_production_output_lines output ON output.id = material.output_line_id
-            WHERE output.document_id = search_node.document_id
-              AND (material.formula_material_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-                OR material.formula_material_name ILIKE '%' || sqlc.arg(keyword)::text || '%'
-                OR material.actual_material_code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-                OR material.actual_material_name ILIKE '%' || sqlc.arg(keyword)::text || '%'))
-        )
-    )
-  )
-  AND (sqlc.arg(definition_id)::text = '' OR i.definition_id = sqlc.arg(definition_id))
-  AND (sqlc.arg(party_object_id)::text = '' OR party.party_object_id = sqlc.arg(party_object_id))
-ORDER BY i.updated_at DESC, i.id DESC
-LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
-
--- name: GetDefinitionInstance :one
-SELECT i.id AS process_id,
-       i.definition_id,
-       f.code AS definition_code,
-       f.name AS definition_name,
-       i.revision,
-       i.root_document_id,
-       d.document_no AS root_document_no,
-       d.entity AS root_entity,
-       i.updated_at,
-       i.started_definition_revision
-FROM wfl_definition_instances i
-JOIN vou_documents d ON d.id = i.root_document_id
-JOIN wfl_process_definitions f ON f.id = i.definition_id
-WHERE i.id = $1;
+FROM wfl_process_definitions
+WHERE (sqlc.arg(keyword)::text = '' OR code ILIKE '%' || sqlc.arg(keyword)::text || '%' OR name ILIKE '%' || sqlc.arg(keyword)::text || '%')
+  AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]), 0) = 0 OR status = ANY(sqlc.arg(statuses)::text[]));
 
 -- name: ListWorkflowDefinitions :many
-SELECT d.id,
-       d.code,
-       d.name,
-       d.status,
-       d.revision,
-       d.source_kind,
-       n.document_entity,
-       (SELECT count(*)
-        FROM wfl_definition_nodes child
-        WHERE child.definition_id = d.id AND NOT child.archived)::bigint AS node_count,
-       d.updated_at
-FROM wfl_process_definitions d
-JOIN wfl_definition_nodes n ON n.id = d.root_node_id
-WHERE (sqlc.arg(keyword)::text = ''
-       OR d.code ILIKE '%' || sqlc.arg(keyword)::text || '%'
-       OR d.name ILIKE '%' || sqlc.arg(keyword)::text || '%')
-  AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]), 0) = 0
-       OR d.status = ANY(sqlc.arg(statuses)::text[]))
-ORDER BY d.updated_at DESC, d.id DESC
+SELECT id,code,name,status,revision,published_revision,draft_compiled,updated_at
+FROM wfl_process_definitions
+WHERE (sqlc.arg(keyword)::text = '' OR code ILIKE '%' || sqlc.arg(keyword)::text || '%' OR name ILIKE '%' || sqlc.arg(keyword)::text || '%')
+  AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]), 0) = 0 OR status = ANY(sqlc.arg(statuses)::text[]))
+ORDER BY updated_at DESC,id DESC
 LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 
 -- name: GetWorkflowDefinition :one
-SELECT id, code, name, status, revision, source_kind, draft_script, draft_diagnostic,
-       root_node_id, start_condition, last_trial_revision, last_trial_at, updated_at
-FROM wfl_process_definitions
-WHERE id = $1;
+SELECT id,code,name,status,revision,draft_script,draft_diagnostic,draft_compiled,last_trial_revision,published_revision,created_at,created_by,updated_at,updated_by
+FROM wfl_process_definitions WHERE id=$1;
+
+-- name: LockWorkflowDefinition :one
+SELECT id,code,name,status,revision,draft_script,draft_diagnostic,draft_compiled,last_trial_revision,published_revision
+FROM wfl_process_definitions WHERE id=$1 FOR UPDATE;
 
 -- name: CreateWorkflowDefinition :exec
-INSERT INTO wfl_process_definitions (
-  id, code, name, status, source_kind, draft_script, root_node_id,
-  start_condition, created_by, updated_by
-) VALUES (
-  sqlc.arg(id), sqlc.arg(code), sqlc.arg(name), 'DRAFT',
-  sqlc.arg(source_kind), sqlc.narg(draft_script), sqlc.arg(root_node_id),
-  sqlc.arg(start_condition), sqlc.arg(actor_id), sqlc.arg(actor_id)
-);
+INSERT INTO wfl_process_definitions(id,code,name,draft_script,draft_compiled,created_by,updated_by)
+VALUES($1,$2,$3,$4,$5,$6,$6);
 
--- name: LockWorkflowDefinitionDraft :one
-SELECT revision, status, code, source_kind, root_node_id
-FROM wfl_process_definitions
-WHERE id = $1
-FOR UPDATE;
-
--- name: SaveWorkflowDefinitionDraft :exec
+-- name: SaveWorkflowDefinition :execrows
 UPDATE wfl_process_definitions
-SET name = sqlc.arg(name),
-    root_node_id = sqlc.arg(root_node_id),
-    start_condition = sqlc.arg(start_condition),
-    draft_script = sqlc.narg(draft_script),
-    draft_diagnostic = NULL,
-    revision = revision + 1,
-    last_trial_revision = NULL,
-    last_trial_at = NULL,
-    updated_at = now(),
-    updated_by = sqlc.arg(actor_id)
-WHERE id = sqlc.arg(id);
-
--- name: SaveWorkflowDefinitionScriptDiagnostic :exec
-UPDATE wfl_process_definitions
-SET draft_script = sqlc.arg(draft_script),
-    draft_diagnostic = sqlc.arg(draft_diagnostic),
-    revision = revision + 1,
-    last_trial_revision = NULL,
-    last_trial_at = NULL,
-    updated_at = now(),
-    updated_by = sqlc.arg(actor_id)
-WHERE id = sqlc.arg(id);
-
--- name: ListWorkflowDefinitionNodeIdentities :many
-SELECT id, node_key
-FROM wfl_definition_nodes
-WHERE definition_id = $1
-ORDER BY archived, created_at, id;
-
--- name: ListWorkflowDefinitionEdgeIdentities :many
-SELECT edge.id,
-       source.node_key AS source_node_key,
-       target.node_key AS target_node_key,
-       edge.converter_key
-FROM wfl_definition_edges edge
-JOIN wfl_definition_nodes source ON source.id = edge.source_node_id
-JOIN wfl_definition_nodes target ON target.id = edge.target_node_id
-WHERE edge.definition_id = $1
-ORDER BY edge.archived, edge.created_at, edge.id;
+SET name=$1,draft_script=$2,draft_diagnostic=$3,draft_compiled=$4,last_trial_revision=NULL,
+    revision=revision+1,updated_at=now(),updated_by=$5
+WHERE id=$6 AND revision=$7;
 
 -- name: RecordWorkflowDefinitionTrial :execrows
+UPDATE wfl_process_definitions SET last_trial_revision=$2,updated_at=now()
+WHERE id=$1 AND revision=$2;
+
+-- name: NextWorkflowPublishedRevision :one
+SELECT (COALESCE(max(revision),0) + 1)::bigint AS revision
+FROM wfl_definition_revisions WHERE definition_id=$1;
+
+-- name: PublishWorkflowDefinitionRevision :exec
+INSERT INTO wfl_definition_revisions(definition_id,revision,script,compiled,published_by)
+VALUES($1,$2,$3,$4,$5);
+
+-- name: SetWorkflowPublishedRevision :execrows
 UPDATE wfl_process_definitions
-SET last_trial_revision = sqlc.arg(revision),
-    last_trial_at = now()
-WHERE id = sqlc.arg(definition_id)
-  AND revision = sqlc.arg(revision);
+SET published_revision=$1,revision=revision+1,updated_at=now(),updated_by=$2
+WHERE id=$3 AND revision=$4;
 
--- name: ListWorkflowDefinitionNodes :many
-SELECT id, node_key, name, document_entity, position_x, position_y, defaults
-FROM wfl_definition_nodes
-WHERE definition_id = $1 AND NOT archived
-ORDER BY created_at, id;
+-- name: GetWorkflowPublishedRevision :one
+SELECT definition_id,revision,script,compiled,published_at,published_by
+FROM wfl_definition_revisions WHERE definition_id=$1 AND revision=$2;
 
--- name: ListWorkflowDefinitionEdges :many
-SELECT id, source_node_id, target_node_id, converter_key, condition
-FROM wfl_definition_edges
-WHERE definition_id = $1 AND NOT archived
-ORDER BY created_at, id;
+-- name: SetWorkflowDefinitionStatus :execrows
+UPDATE wfl_process_definitions
+SET status=$1,revision=revision+1,updated_at=now(),updated_by=$2
+WHERE id=$3 AND revision=$4;
 
--- name: CountSalesWorkflowSummaries :one
+-- name: CountDefinitionInstances :one
 SELECT count(*)
-FROM wfl_process_instances p
-JOIN vou_documents d ON d.id = p.root_document_id
-WHERE p.process_type = 'SALES_FULFILLMENT'
-  AND (sqlc.arg(keyword)::text = '' OR d.document_no ILIKE '%' || sqlc.arg(keyword)::text || '%')
-  AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]), 0) = 0
-       OR p.status = ANY(sqlc.arg(statuses)::text[]));
+FROM wfl_definition_instances instance
+WHERE instance.root_deleted_at IS NULL
+  AND (sqlc.arg(definition_id)::text = '' OR instance.definition_id=sqlc.arg(definition_id)::text)
+  AND (sqlc.arg(party_object_id)::text = '' OR instance.party_object_id=sqlc.arg(party_object_id)::text)
+  AND (sqlc.arg(keyword)::text = '' OR instance.root_document_no ILIKE '%' || sqlc.arg(keyword)::text || '%'
+       OR EXISTS (SELECT 1 FROM wfl_node_instances node WHERE node.process_id=instance.id AND node.document_no ILIKE '%' || sqlc.arg(keyword)::text || '%'));
 
+-- name: ListDefinitionInstances :many
+SELECT instance.id process_id,instance.definition_id,instance.definition_code,instance.definition_name,
+       instance.revision,COALESCE(instance.root_document_id,'') root_document_id,instance.root_document_no,
+       instance.root_entity,COALESCE(instance.party_code,'') party_code,COALESCE(instance.party_name,'') party_name,instance.updated_at
+FROM wfl_definition_instances instance
+WHERE instance.root_deleted_at IS NULL
+  AND (sqlc.arg(definition_id)::text = '' OR instance.definition_id=sqlc.arg(definition_id)::text)
+  AND (sqlc.arg(party_object_id)::text = '' OR instance.party_object_id=sqlc.arg(party_object_id)::text)
+  AND (sqlc.arg(keyword)::text = '' OR instance.root_document_no ILIKE '%' || sqlc.arg(keyword)::text || '%'
+       OR EXISTS (SELECT 1 FROM wfl_node_instances node WHERE node.process_id=instance.id AND node.document_no ILIKE '%' || sqlc.arg(keyword)::text || '%'))
+ORDER BY instance.updated_at DESC,instance.id DESC
+LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
+
+-- name: GetDefinitionInstance :one
+SELECT id process_id,definition_id,definition_code,definition_name,revision,
+       COALESCE(root_document_id,'') root_document_id,root_document_no,root_entity,
+       COALESCE(party_code,'') party_code,COALESCE(party_name,'') party_name,
+       started_definition_revision,updated_at
+FROM wfl_definition_instances WHERE id=$1;
+
+-- These order summaries are VOU read models kept here because they are shared
+-- by the workflow-facing order list and the ordinary voucher list.
 -- name: ListSalesOrderKgSummaries :many
 WITH ordered AS (
   SELECT line.document_id AS order_id,
-         COALESCE(sum(round(line.ordered_qty_micros::numeric
-           * line.pricing_quantity_per_inventory_unit_micros / 1000000)), 0)::bigint AS quantity_micros
+         COALESCE(sum(round(line.ordered_qty_micros::numeric * line.pricing_quantity_per_inventory_unit_micros / 1000000)), 0)::bigint AS quantity_micros
   FROM vou_product_lines line
   WHERE line.document_id = ANY(sqlc.arg(order_ids)::text[]) AND line.product_kind <> 'PACKAGING'
   GROUP BY line.document_id
 ), active_orders AS (
-  SELECT d.id AS order_id, d.business_date, d.document_no,
-         detail.warehouse_object_id, false AS hypothetical
-  FROM wfl_process_instances process
-  JOIN vou_documents d ON d.id = process.root_document_id AND d.status = 'APPROVED'
-  JOIN vou_sale_order_details detail ON detail.document_id = d.id
-	WHERE process.process_type = 'SALES_FULFILLMENT'
-	  AND detail.fulfillment_status = 'OPEN'
-    AND detail.warehouse_object_id IS NOT NULL
-), target_orders AS (
-  SELECT d.id AS order_id, d.business_date, d.document_no,
-         detail.warehouse_object_id,
-         NOT EXISTS (SELECT 1 FROM active_orders active WHERE active.order_id = d.id) AS hypothetical
+  SELECT d.id AS order_id,d.business_date,d.document_no,detail.warehouse_object_id,false AS hypothetical
   FROM vou_documents d
-  JOIN vou_sale_order_details detail ON detail.document_id = d.id
-  WHERE d.id = ANY(sqlc.arg(order_ids)::text[])
-    AND detail.warehouse_object_id IS NOT NULL
+  JOIN vou_sale_order_details detail ON detail.document_id=d.id
+  WHERE d.status='APPROVED' AND detail.fulfillment_status='OPEN' AND detail.warehouse_object_id IS NOT NULL
+), target_orders AS (
+  SELECT d.id AS order_id,d.business_date,d.document_no,detail.warehouse_object_id,
+         NOT EXISTS (SELECT 1 FROM active_orders active WHERE active.order_id=d.id) AS hypothetical
+  FROM vou_documents d JOIN vou_sale_order_details detail ON detail.document_id=d.id
+  WHERE d.id=ANY(sqlc.arg(order_ids)::text[]) AND detail.warehouse_object_id IS NOT NULL
 ), demand_orders AS (
   SELECT * FROM active_orders
-  UNION ALL
-  SELECT target.* FROM target_orders target
-  WHERE NOT EXISTS (SELECT 1 FROM active_orders active WHERE active.order_id = target.order_id)
+  UNION ALL SELECT target.* FROM target_orders target
+  WHERE NOT EXISTS (SELECT 1 FROM active_orders active WHERE active.order_id=target.order_id)
 ), approved_outbound AS (
-  SELECT line.source_order_line_id, sum(line.quantity_micros)::bigint AS quantity_micros
-  FROM vou_sale_outbound_lines line
-  JOIN vou_documents doc ON doc.id = line.document_id AND doc.status = 'APPROVED'
+  SELECT line.source_order_line_id,sum(line.quantity_micros)::bigint AS quantity_micros
+  FROM vou_sale_outbound_lines line JOIN vou_documents doc ON doc.id=line.document_id AND doc.status='APPROVED'
   GROUP BY line.source_order_line_id
 ), demand_lines AS (
-  SELECT orders.order_id, orders.business_date, orders.document_no,
-         orders.warehouse_object_id, orders.hypothetical,
-         line.id AS order_line_id, line.line_no, line.product_object_id,
+  SELECT orders.order_id,orders.business_date,orders.document_no,orders.warehouse_object_id,orders.hypothetical,
+         line.id AS order_line_id,line.line_no,line.product_object_id,
          line.pricing_quantity_per_inventory_unit_micros AS conversion_micros,
-         GREATEST(line.ordered_qty_micros - COALESCE(outbound.quantity_micros, 0), 0)::bigint AS demand_micros
+         GREATEST(line.ordered_qty_micros-COALESCE(outbound.quantity_micros,0),0)::bigint AS demand_micros
   FROM demand_orders orders
-  JOIN vou_product_lines line ON line.document_id = orders.order_id AND line.product_kind <> 'PACKAGING'
-  LEFT JOIN approved_outbound outbound ON outbound.source_order_line_id = line.id
+  JOIN vou_product_lines line ON line.document_id=orders.order_id AND line.product_kind<>'PACKAGING'
+  LEFT JOIN approved_outbound outbound ON outbound.source_order_line_id=line.id
 ), inventory AS (
-  SELECT entry.warehouse_id AS warehouse_object_id, entry.product_id AS product_object_id,
+  SELECT entry.warehouse_id AS warehouse_object_id,entry.product_id AS product_object_id,
          sum(entry.quantity_delta_micros)::bigint AS balance_micros
-  FROM acc_inventory_entries entry
-  JOIN acc_books book ON book.id=entry.book_id AND book.control_book
-  GROUP BY entry.warehouse_id, entry.product_id
+  FROM acc_inventory_entries entry JOIN acc_books book ON book.id=entry.book_id AND book.control_book
+  GROUP BY entry.warehouse_id,entry.product_id
 ), allocated AS (
-  SELECT demand.*,
-         COALESCE(inventory.balance_micros, 0)::bigint AS balance_micros,
+  SELECT demand.*,COALESCE(inventory.balance_micros,0)::bigint AS balance_micros,
          COALESCE(sum(demand.demand_micros) OVER (
-           PARTITION BY demand.warehouse_object_id, demand.product_object_id
-           ORDER BY demand.hypothetical, demand.business_date, demand.document_no, demand.order_id, demand.line_no
+           PARTITION BY demand.warehouse_object_id,demand.product_object_id
+           ORDER BY demand.hypothetical,demand.business_date,demand.document_no,demand.order_id,demand.line_no
            ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-         ), 0)::bigint AS prior_demand_micros
-  FROM demand_lines demand
-  LEFT JOIN inventory USING (warehouse_object_id, product_object_id)
+         ),0)::bigint AS prior_demand_micros
+  FROM demand_lines demand LEFT JOIN inventory USING (warehouse_object_id,product_object_id)
 ), shortage AS (
-  SELECT order_id,
-         COALESCE(sum(round(
-           GREATEST(demand_micros - GREATEST(balance_micros - prior_demand_micros, 0), 0)::numeric
-           * conversion_micros / 1000000
-         )), 0)::bigint AS shortage_quantity_micros
-  FROM allocated
-  WHERE order_id = ANY(sqlc.arg(order_ids)::text[])
-  GROUP BY order_id
+  SELECT order_id,COALESCE(sum(round(
+    GREATEST(demand_micros-GREATEST(balance_micros-prior_demand_micros,0),0)::numeric * conversion_micros / 1000000
+  )),0)::bigint AS shortage_quantity_micros
+  FROM allocated WHERE order_id=ANY(sqlc.arg(order_ids)::text[]) GROUP BY order_id
 ), outbound AS (
   SELECT detail.source_order_id AS order_id,
-         COALESCE(sum(round(line.quantity_micros::numeric
-           * source.pricing_quantity_per_inventory_unit_micros / 1000000)), 0)::bigint AS quantity_micros
+         COALESCE(sum(round(line.quantity_micros::numeric * source.pricing_quantity_per_inventory_unit_micros / 1000000)),0)::bigint AS quantity_micros
   FROM vou_sale_outbound_details detail
-  JOIN vou_documents doc ON doc.id = detail.document_id AND doc.status = 'APPROVED'
-  JOIN vou_sale_outbound_lines line ON line.document_id = detail.document_id
-  JOIN vou_product_lines source ON source.id = line.source_order_line_id AND source.product_kind <> 'PACKAGING'
-  WHERE detail.source_order_id = ANY(sqlc.arg(order_ids)::text[])
-  GROUP BY detail.source_order_id
+  JOIN vou_documents doc ON doc.id=detail.document_id AND doc.status='APPROVED'
+  JOIN vou_sale_outbound_lines line ON line.document_id=detail.document_id
+  JOIN vou_product_lines source ON source.id=line.source_order_line_id AND source.product_kind<>'PACKAGING'
+  WHERE detail.source_order_id=ANY(sqlc.arg(order_ids)::text[]) GROUP BY detail.source_order_id
 ), signoff AS (
   SELECT detail.source_order_id AS order_id,
-         COALESCE(sum(round(line.signed_qty_micros::numeric
-           * source.pricing_quantity_per_inventory_unit_micros / 1000000)), 0)::bigint AS signed_micros,
-         COALESCE(sum(round((line.signed_qty_micros + line.rejected_qty_micros + line.loss_qty_micros)::numeric
-           * source.pricing_quantity_per_inventory_unit_micros / 1000000)), 0)::bigint AS resolved_micros
+         COALESCE(sum(round(line.signed_qty_micros::numeric * source.pricing_quantity_per_inventory_unit_micros / 1000000)),0)::bigint AS signed_micros,
+         COALESCE(sum(round((line.signed_qty_micros+line.rejected_qty_micros+line.loss_qty_micros)::numeric * source.pricing_quantity_per_inventory_unit_micros / 1000000)),0)::bigint AS resolved_micros
   FROM vou_sale_signoff_details detail
-  JOIN vou_documents doc ON doc.id = detail.document_id AND doc.status = 'APPROVED'
-  JOIN vou_sale_signoff_lines line ON line.document_id = detail.document_id
-  JOIN vou_product_lines source ON source.id = line.source_order_line_id AND source.product_kind <> 'PACKAGING'
-  WHERE detail.source_order_id = ANY(sqlc.arg(order_ids)::text[])
-  GROUP BY detail.source_order_id
+  JOIN vou_documents doc ON doc.id=detail.document_id AND doc.status='APPROVED'
+  JOIN vou_sale_signoff_lines line ON line.document_id=detail.document_id
+  JOIN vou_product_lines source ON source.id=line.source_order_line_id AND source.product_kind<>'PACKAGING'
+  WHERE detail.source_order_id=ANY(sqlc.arg(order_ids)::text[]) GROUP BY detail.source_order_id
 ), returns AS (
   SELECT detail.source_order_id AS order_id,
-         COALESCE(sum(round(line.quantity_micros::numeric
-           * source.pricing_quantity_per_inventory_unit_micros / 1000000)), 0)::bigint AS quantity_micros
+         COALESCE(sum(round(line.quantity_micros::numeric * source.pricing_quantity_per_inventory_unit_micros / 1000000)),0)::bigint AS quantity_micros
   FROM vou_sale_return_details detail
-  JOIN vou_documents doc ON doc.id = detail.document_id AND doc.status = 'APPROVED'
-  JOIN vou_sale_return_lines line ON line.document_id = detail.document_id
-  JOIN vou_sale_signoff_lines signoff_line ON signoff_line.id = line.source_signoff_line_id
-  JOIN vou_product_lines source ON source.id = signoff_line.source_order_line_id AND source.product_kind <> 'PACKAGING'
-  WHERE detail.source_order_id = ANY(sqlc.arg(order_ids)::text[])
-    AND detail.return_kind = 'AFTER_SALE'
+  JOIN vou_documents doc ON doc.id=detail.document_id AND doc.status='APPROVED'
+  JOIN vou_sale_return_lines line ON line.document_id=detail.document_id
+  JOIN vou_sale_signoff_lines signoff_line ON signoff_line.id=line.source_signoff_line_id
+  JOIN vou_product_lines source ON source.id=signoff_line.source_order_line_id AND source.product_kind<>'PACKAGING'
+  WHERE detail.source_order_id=ANY(sqlc.arg(order_ids)::text[]) AND detail.return_kind='AFTER_SALE'
   GROUP BY detail.source_order_id
 )
-SELECT d.id AS order_id,
-       (detail.warehouse_object_id IS NOT NULL)::boolean AS warehouse_available,
-       EXISTS (SELECT 1 FROM vou_product_lines line WHERE line.document_id = d.id AND line.product_kind = 'PACKAGING') AS excluded_packaging,
-       COALESCE(shortage.shortage_quantity_micros, 0)::bigint AS shortage_quantity_micros,
-       COALESCE(ordered.quantity_micros, 0)::bigint AS ordered_quantity_micros,
-       COALESCE(outbound.quantity_micros, 0)::bigint AS outbound_quantity_micros,
-       GREATEST(COALESCE(outbound.quantity_micros, 0) - COALESCE(signoff.resolved_micros, 0), 0)::bigint AS in_transit_quantity_micros,
-       COALESCE(signoff.signed_micros, 0)::bigint AS signed_quantity_micros,
-       GREATEST(COALESCE(signoff.signed_micros, 0) - COALESCE(returns.quantity_micros, 0), 0)::bigint AS net_signed_quantity_micros
-FROM vou_documents d
-JOIN vou_sale_order_details detail ON detail.document_id = d.id
-LEFT JOIN ordered ON ordered.order_id = d.id
-LEFT JOIN shortage ON shortage.order_id = d.id
-LEFT JOIN outbound ON outbound.order_id = d.id
-LEFT JOIN signoff ON signoff.order_id = d.id
-LEFT JOIN returns ON returns.order_id = d.id
-WHERE d.id = ANY(sqlc.arg(order_ids)::text[])
-ORDER BY d.id;
+SELECT d.id AS order_id,(detail.warehouse_object_id IS NOT NULL)::boolean AS warehouse_available,
+       EXISTS (SELECT 1 FROM vou_product_lines line WHERE line.document_id=d.id AND line.product_kind='PACKAGING') AS excluded_packaging,
+       COALESCE(shortage.shortage_quantity_micros,0)::bigint AS shortage_quantity_micros,
+       COALESCE(ordered.quantity_micros,0)::bigint AS ordered_quantity_micros,
+       COALESCE(outbound.quantity_micros,0)::bigint AS outbound_quantity_micros,
+       GREATEST(COALESCE(outbound.quantity_micros,0)-COALESCE(signoff.resolved_micros,0),0)::bigint AS in_transit_quantity_micros,
+       COALESCE(signoff.signed_micros,0)::bigint AS signed_quantity_micros,
+       GREATEST(COALESCE(signoff.signed_micros,0)-COALESCE(returns.quantity_micros,0),0)::bigint AS net_signed_quantity_micros
+FROM vou_documents d JOIN vou_sale_order_details detail ON detail.document_id=d.id
+LEFT JOIN ordered ON ordered.order_id=d.id LEFT JOIN shortage ON shortage.order_id=d.id
+LEFT JOIN outbound ON outbound.order_id=d.id LEFT JOIN signoff ON signoff.order_id=d.id
+LEFT JOIN returns ON returns.order_id=d.id
+WHERE d.id=ANY(sqlc.arg(order_ids)::text[]) ORDER BY d.id;
 
 -- name: ListPurchaseOrderKgSummaries :many
 WITH ordered AS (
   SELECT line.document_id AS order_id,
-         COALESCE(sum(round(line.ordered_qty_micros::numeric
-           * line.pricing_quantity_per_inventory_unit_micros / 1000000)), 0)::bigint AS quantity_micros
+         COALESCE(sum(round(line.ordered_qty_micros::numeric * line.pricing_quantity_per_inventory_unit_micros / 1000000)),0)::bigint AS quantity_micros
   FROM vou_product_lines line
-  WHERE line.document_id = ANY(sqlc.arg(order_ids)::text[]) AND line.product_kind <> 'PACKAGING'
+  WHERE line.document_id=ANY(sqlc.arg(order_ids)::text[]) AND line.product_kind<>'PACKAGING'
   GROUP BY line.document_id
 ), inbound AS (
   SELECT detail.source_order_id AS order_id,
-         COALESCE(sum(round(line.quantity_micros::numeric
-           * source.pricing_quantity_per_inventory_unit_micros / 1000000)), 0)::bigint AS quantity_micros
+         COALESCE(sum(round(line.quantity_micros::numeric * source.pricing_quantity_per_inventory_unit_micros / 1000000)),0)::bigint AS quantity_micros
   FROM vou_purchase_inbound_details detail
-  JOIN vou_documents doc ON doc.id = detail.document_id AND doc.status = 'APPROVED'
-  JOIN vou_purchase_inbound_lines line ON line.document_id = detail.document_id
-  JOIN vou_product_lines source ON source.id = line.source_order_line_id AND source.product_kind <> 'PACKAGING'
-  WHERE detail.source_order_id = ANY(sqlc.arg(order_ids)::text[])
-  GROUP BY detail.source_order_id
+  JOIN vou_documents doc ON doc.id=detail.document_id AND doc.status='APPROVED'
+  JOIN vou_purchase_inbound_lines line ON line.document_id=detail.document_id
+  JOIN vou_product_lines source ON source.id=line.source_order_line_id AND source.product_kind<>'PACKAGING'
+  WHERE detail.source_order_id=ANY(sqlc.arg(order_ids)::text[]) GROUP BY detail.source_order_id
 ), returns AS (
   SELECT detail.source_order_id AS order_id,
-         COALESCE(sum(round(line.quantity_micros::numeric
-           * source.pricing_quantity_per_inventory_unit_micros / 1000000)) FILTER (WHERE doc.status <> 'APPROVED'), 0)::bigint AS processing_micros,
-         COALESCE(sum(round(line.quantity_micros::numeric
-           * source.pricing_quantity_per_inventory_unit_micros / 1000000)) FILTER (WHERE doc.status = 'APPROVED'), 0)::bigint AS approved_micros
-  FROM vou_purchase_return_details detail
-  JOIN vou_documents doc ON doc.id = detail.document_id
-  JOIN vou_purchase_return_lines line ON line.document_id = detail.document_id
-  JOIN vou_product_lines source ON source.id = line.source_order_line_id AND source.product_kind <> 'PACKAGING'
-  WHERE detail.source_order_id = ANY(sqlc.arg(order_ids)::text[])
-  GROUP BY detail.source_order_id
+         COALESCE(sum(round(line.quantity_micros::numeric * source.pricing_quantity_per_inventory_unit_micros / 1000000)) FILTER (WHERE doc.status<>'APPROVED'),0)::bigint AS processing_micros,
+         COALESCE(sum(round(line.quantity_micros::numeric * source.pricing_quantity_per_inventory_unit_micros / 1000000)) FILTER (WHERE doc.status='APPROVED'),0)::bigint AS approved_micros
+  FROM vou_purchase_return_details detail JOIN vou_documents doc ON doc.id=detail.document_id
+  JOIN vou_purchase_return_lines line ON line.document_id=detail.document_id
+  JOIN vou_product_lines source ON source.id=line.source_order_line_id AND source.product_kind<>'PACKAGING'
+  WHERE detail.source_order_id=ANY(sqlc.arg(order_ids)::text[]) GROUP BY detail.source_order_id
 )
 SELECT d.id AS order_id,
-       EXISTS (SELECT 1 FROM vou_product_lines line WHERE line.document_id = d.id AND line.product_kind = 'PACKAGING') AS excluded_packaging,
-       COALESCE(ordered.quantity_micros, 0)::bigint AS ordered_quantity_micros,
-       COALESCE(inbound.quantity_micros, 0)::bigint AS inbound_quantity_micros,
-       COALESCE(returns.processing_micros, 0)::bigint AS return_processing_quantity_micros,
-       GREATEST(COALESCE(inbound.quantity_micros, 0) - COALESCE(returns.approved_micros, 0), 0)::bigint AS net_inbound_quantity_micros
-FROM vou_documents d
-LEFT JOIN ordered ON ordered.order_id = d.id
-LEFT JOIN inbound ON inbound.order_id = d.id
-LEFT JOIN returns ON returns.order_id = d.id
-WHERE d.id = ANY(sqlc.arg(order_ids)::text[])
-ORDER BY d.id;
+       EXISTS (SELECT 1 FROM vou_product_lines line WHERE line.document_id=d.id AND line.product_kind='PACKAGING') AS excluded_packaging,
+       COALESCE(ordered.quantity_micros,0)::bigint AS ordered_quantity_micros,
+       COALESCE(inbound.quantity_micros,0)::bigint AS inbound_quantity_micros,
+       COALESCE(returns.processing_micros,0)::bigint AS return_processing_quantity_micros,
+       GREATEST(COALESCE(inbound.quantity_micros,0)-COALESCE(returns.approved_micros,0),0)::bigint AS net_inbound_quantity_micros
+FROM vou_documents d LEFT JOIN ordered ON ordered.order_id=d.id
+LEFT JOIN inbound ON inbound.order_id=d.id LEFT JOIN returns ON returns.order_id=d.id
+WHERE d.id=ANY(sqlc.arg(order_ids)::text[]) ORDER BY d.id;
 
--- name: ListPurchaseWorkflowSummaries :many
-SELECT p.id AS process_id,
-       p.process_type,
-       p.status,
-       p.revision,
-       p.root_document_id,
-       d.document_no AS root_document_no,
-	   CASE
-		 WHEN p.status = 'APPROVED' THEN 'PURCHASE_INBOUND'
-		 ELSE 'PURCHASE_ORDER'
-       END AS current_stage,
-       d.business_date,
-       detail.supplier_name AS party_name,
-       COALESCE(d.currency, '')::text AS currency,
-       d.total_amount_cents,
-       p.updated_at
-FROM wfl_process_instances p
-JOIN vou_documents d ON d.id = p.root_document_id
-JOIN vou_purchase_order_details detail ON detail.document_id = p.root_document_id
-WHERE p.process_type = 'PURCHASE_FULFILLMENT'
-  AND (sqlc.arg(keyword)::text = '' OR d.document_no ILIKE '%' || sqlc.arg(keyword)::text || '%')
-  AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]), 0) = 0
-       OR p.status = ANY(sqlc.arg(statuses)::text[]))
-ORDER BY p.updated_at DESC, p.id DESC
-LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
+-- name: RecordWorkflowTrialAudit :exec
+INSERT INTO wfl_runtime_audit_events(id,definition_id,definition_revision,event_type,document_id,actor_id,request_id,summary)
+VALUES(sqlc.arg(id),sqlc.arg(definition_id),sqlc.arg(definition_revision),'TRIAL',sqlc.arg(document_id),sqlc.arg(actor_id),sqlc.arg(request_id),sqlc.arg(summary));
 
--- name: CountPurchaseWorkflowSummaries :one
-SELECT count(*)
-FROM wfl_process_instances p
-JOIN vou_documents d ON d.id = p.root_document_id
-WHERE p.process_type = 'PURCHASE_FULFILLMENT'
-  AND (sqlc.arg(keyword)::text = '' OR d.document_no ILIKE '%' || sqlc.arg(keyword)::text || '%')
-  AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]), 0) = 0
-       OR p.status = ANY(sqlc.arg(statuses)::text[]));
+-- name: WorkflowDefinitionHasInstances :one
+SELECT EXISTS(SELECT 1 FROM wfl_definition_instances WHERE definition_id=$1);
+
+-- name: DeleteWorkflowDefinition :exec
+DELETE FROM wfl_process_definitions WHERE id=$1;
+
+-- name: UpsertWorkflowDefinitionPermission :exec
+INSERT INTO app_permissions(id,path,domain,entity,action,description,status,created_by,updated_by)
+VALUES(sqlc.arg(id),sqlc.arg(path),'wfl',sqlc.arg(entity),sqlc.arg(action),sqlc.arg(description),'ENABLED',sqlc.arg(actor_id),sqlc.arg(actor_id))
+ON CONFLICT(path) DO UPDATE SET description=excluded.description,status='ENABLED',revision=app_permissions.revision+1,updated_at=now(),updated_by=excluded.updated_by;
+
+-- name: ListWorkflowInstanceNodes :many
+SELECT node.id,node.parent_node_instance_id,node.node_key,node.node_name,
+       COALESCE(node.document_id,'') document_id,node.document_no,node.document_entity,COALESCE(document.status,'') document_status,
+       COALESCE(document.revision,0) document_revision,COALESCE(to_char(document.business_date,'YYYY-MM-DD'),'')::text business_date,
+       COALESCE(node.business_parent_entity,'') business_parent_entity,COALESCE(node.business_parent_document_id,'') business_parent_document_id,
+       COALESCE(node.relation_name,'') relation_name,node.trigger_event,COALESCE(node.action_name,'') action_name,node.evaluated_at
+FROM wfl_node_instances node LEFT JOIN vou_documents document ON document.id=node.document_id
+WHERE node.process_id=$1 ORDER BY node.created_at,node.id;
+
+-- name: ListCompletedWorkflowActionTargets :many
+SELECT execution.source_node_instance_id,execution.target_node_key
+FROM wfl_action_executions execution
+JOIN wfl_node_instances node ON node.id=execution.target_node_instance_id AND node.document_id IS NOT NULL
+WHERE execution.process_id=$1;
+
+-- name: CountWorkflowRuntimeAudits :one
+SELECT count(*) FROM wfl_runtime_audit_events WHERE process_id=$1;
+
+-- name: ListWorkflowRuntimeAudits :many
+SELECT id,event_type,node_instance_id,document_id,document_no,actor_id,request_id,summary,occurred_at
+FROM wfl_runtime_audit_events WHERE process_id=sqlc.arg(process_id)
+ORDER BY occurred_at DESC,id DESC LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
+
+-- name: GetPublishedWorkflowDefinitionIDByCode :one
+SELECT id FROM wfl_process_definitions WHERE code=$1 AND published_revision IS NOT NULL;
+
+-- name: ListEnabledWorkflowDefinitionsForShare :many
+SELECT definition.id,definition.code,definition.name,revision.revision,revision.script
+FROM wfl_process_definitions definition
+JOIN wfl_definition_revisions revision ON revision.definition_id=definition.id AND revision.revision=definition.published_revision
+WHERE definition.status='ENABLED' ORDER BY definition.id FOR SHARE OF definition;
+
+-- name: LockWorkflowRootInstance :one
+SELECT instance.id process_id,node.id node_id
+FROM wfl_definition_instances instance
+JOIN wfl_node_instances node ON node.process_id=instance.id AND node.parent_node_instance_id IS NULL
+WHERE instance.definition_id=sqlc.arg(definition_id) AND instance.root_document_id=sqlc.arg(root_document_id)
+FOR UPDATE OF instance,node;
+
+-- name: WorkflowDocumentHasRootInstance :one
+SELECT EXISTS(
+    SELECT 1
+    FROM wfl_definition_instances instance
+    WHERE instance.root_document_id=sqlc.arg(document_id)
+);
+
+-- name: CreateWorkflowDefinitionInstance :exec
+INSERT INTO wfl_definition_instances(id,definition_id,root_document_id,root_document_no,root_entity,definition_code,definition_name,party_object_id,party_code,party_name,started_definition_revision,created_by,updated_by)
+VALUES(sqlc.arg(id),sqlc.arg(definition_id),sqlc.arg(root_document_id),sqlc.arg(root_document_no),sqlc.arg(root_entity),sqlc.arg(definition_code),sqlc.arg(definition_name),sqlc.narg(party_object_id),sqlc.narg(party_code),sqlc.narg(party_name),sqlc.arg(started_definition_revision),sqlc.arg(actor_id),sqlc.arg(actor_id));
+
+-- name: CreateWorkflowRootNodeInstance :exec
+INSERT INTO wfl_node_instances(id,process_id,node_key,node_name,document_id,document_no,document_entity,trigger_event)
+VALUES(sqlc.arg(id),sqlc.arg(process_id),sqlc.arg(node_key),sqlc.arg(node_name),sqlc.arg(document_id),sqlc.arg(document_no),sqlc.arg(document_entity),'APPROVED');
+
+-- name: LockWorkflowNodesForDocument :many
+SELECT node.id,node.process_id,node.node_key,instance.definition_id,instance.started_definition_revision
+FROM wfl_node_instances node JOIN wfl_definition_instances instance ON instance.id=node.process_id
+WHERE node.document_id=$1 FOR UPDATE OF node,instance;
+
+-- name: GetWorkflowNodeDocumentEntity :one
+SELECT document_entity FROM wfl_node_instances WHERE id=$1;
+
+-- name: LockWorkflowActionExecution :one
+SELECT execution.id,execution.target_node_instance_id,node.document_id,execution.action_fingerprint
+FROM wfl_action_executions execution LEFT JOIN wfl_node_instances node ON node.id=execution.target_node_instance_id
+WHERE execution.process_id=sqlc.arg(process_id)
+  AND execution.source_node_instance_id=sqlc.arg(source_node_instance_id)
+  AND execution.target_node_key=sqlc.arg(target_node_key)
+  AND execution.relation_name=sqlc.arg(relation_name)
+FOR UPDATE OF execution;
+
+-- name: LockWorkflowNodeByProcessAndDocument :one
+SELECT id,node_key,COALESCE(parent_node_instance_id,'') parent_node_instance_id,COALESCE(relation_name,'') relation_name
+FROM wfl_node_instances WHERE process_id=sqlc.arg(process_id) AND document_id=sqlc.arg(document_id) FOR UPDATE;
+
+-- name: RestoreWorkflowNodeInstance :exec
+UPDATE wfl_node_instances SET document_id=sqlc.arg(document_id),document_no=sqlc.arg(document_no),document_entity=sqlc.arg(document_entity),business_parent_entity=sqlc.arg(business_parent_entity),business_parent_document_id=sqlc.arg(business_parent_document_id),relation_name=sqlc.arg(relation_name),trigger_event='ACTION',action_name=sqlc.arg(action_name),evaluated_at=NULL WHERE id=sqlc.arg(id);
+
+-- name: CreateWorkflowActionNodeInstance :exec
+INSERT INTO wfl_node_instances(id,process_id,parent_node_instance_id,node_key,node_name,document_id,document_no,document_entity,business_parent_entity,business_parent_document_id,relation_name,trigger_event,action_name)
+VALUES(sqlc.arg(id),sqlc.arg(process_id),sqlc.arg(parent_node_instance_id),sqlc.arg(node_key),sqlc.arg(node_name),sqlc.arg(document_id),sqlc.arg(document_no),sqlc.arg(document_entity),sqlc.arg(business_parent_entity),sqlc.arg(business_parent_document_id),sqlc.arg(relation_name),'ACTION',sqlc.arg(action_name));
+
+-- name: RestoreWorkflowActionExecution :exec
+UPDATE wfl_action_executions
+SET target_node_instance_id=sqlc.arg(target_node_instance_id),
+    action_fingerprint=sqlc.arg(action_fingerprint),executed_at=now()
+WHERE id=sqlc.arg(id);
+
+-- name: CreateWorkflowActionExecution :exec
+INSERT INTO wfl_action_executions(id,process_id,source_node_instance_id,target_node_key,relation_name,action_name,action_fingerprint,target_node_instance_id)
+VALUES(sqlc.arg(id),sqlc.arg(process_id),sqlc.arg(source_node_instance_id),sqlc.arg(target_node_key),sqlc.arg(relation_name),sqlc.arg(action_name),sqlc.arg(action_fingerprint),sqlc.arg(target_node_instance_id));
+
+-- name: MarkWorkflowNodeEvaluated :exec
+UPDATE wfl_node_instances SET evaluated_at=now() WHERE id=$1;
+
+-- name: AcquireWorkflowCreateChildLock :exec
+SELECT pg_advisory_xact_lock(hashtextextended($1,0));
+
+-- name: LockWorkflowCreateChildRequest :one
+SELECT process_id,parent_node_instance_id,target_node_key,action_execution_id
+FROM wfl_create_child_requests WHERE definition_id=sqlc.arg(definition_id) AND request_key=sqlc.arg(request_key) FOR UPDATE;
+
+-- name: GetWorkflowCreateChildExecutionResult :one
+SELECT node.document_entity,COALESCE(node.document_id,'') document_id,node.document_no
+FROM wfl_action_executions execution JOIN wfl_node_instances node ON node.id=execution.target_node_instance_id
+WHERE execution.id=$1;
+
+-- name: LockWorkflowCreateChildSourceNode :one
+SELECT node.node_key,node.document_entity,node.document_id,instance.started_definition_revision
+FROM wfl_definition_instances instance JOIN wfl_node_instances node ON node.process_id=instance.id
+WHERE instance.id=sqlc.arg(process_id) AND instance.definition_id=sqlc.arg(definition_id) AND node.id=sqlc.arg(node_id) AND node.document_id IS NOT NULL
+FOR UPDATE OF instance,node;
+
+-- name: CreateWorkflowCreateChildRequest :exec
+INSERT INTO wfl_create_child_requests(definition_id,request_key,process_id,parent_node_instance_id,target_node_key)
+VALUES(sqlc.arg(definition_id),sqlc.arg(request_key),sqlc.arg(process_id),sqlc.arg(parent_node_instance_id),sqlc.arg(target_node_key));
+
+-- name: GetWorkflowActionExecutionResult :one
+SELECT execution.id,node.document_entity,COALESCE(node.document_id,'') document_id,node.document_no
+FROM wfl_action_executions execution JOIN wfl_node_instances node ON node.id=execution.target_node_instance_id
+WHERE execution.process_id=sqlc.arg(process_id) AND execution.source_node_instance_id=sqlc.arg(source_node_instance_id) AND execution.target_node_key=sqlc.arg(target_node_key);
+
+-- name: SetWorkflowCreateChildRequestExecution :exec
+UPDATE wfl_create_child_requests SET action_execution_id=sqlc.arg(action_execution_id)
+WHERE definition_id=sqlc.arg(definition_id) AND request_key=sqlc.arg(request_key);
+
+-- name: MarkWorkflowRootDocumentDeleted :exec
+UPDATE wfl_definition_instances SET root_deleted_at=now(),root_document_id=NULL,updated_at=now(),updated_by=sqlc.arg(actor_id)
+WHERE root_document_id=sqlc.arg(document_id);
+
+-- name: ClearWorkflowNodeDocument :exec
+UPDATE wfl_node_instances SET document_id=NULL WHERE document_id=$1;
+
+-- name: GetWorkflowInstanceDefinition :one
+SELECT definition_id,started_definition_revision FROM wfl_definition_instances WHERE id=$1;
+
+-- name: CreateWorkflowRuntimeAudit :exec
+INSERT INTO wfl_runtime_audit_events(id,process_id,definition_id,definition_revision,event_type,node_instance_id,document_id,document_no,actor_id,request_id,summary)
+VALUES(sqlc.arg(id),sqlc.narg(process_id),sqlc.arg(definition_id),sqlc.arg(definition_revision),sqlc.arg(event_type),sqlc.narg(node_instance_id),sqlc.narg(document_id),sqlc.narg(document_no),sqlc.arg(actor_id),sqlc.arg(request_id),sqlc.arg(summary));

@@ -18,12 +18,11 @@ const principalContextKey = "wflPrincipal"
 type applicationService interface{}
 
 type genericApplicationService interface {
-	DefinitionCatalog(context.Context) (DefinitionCatalog, error)
 	DefinitionQuery(context.Context, DefinitionQueryInput) (Page[DefinitionListItem], error)
 	DefinitionGet(context.Context, DefinitionGetInput) (DefinitionView, error)
 	DefinitionCreate(context.Context, DefinitionCreateInput, string) (DefinitionView, error)
 	DefinitionSave(context.Context, DefinitionSaveInput, string) (DefinitionView, error)
-	DefinitionTrial(context.Context, DefinitionTrialInput) (DefinitionTrialResult, error)
+	DefinitionTrial(context.Context, DefinitionTrialInput, string, string) (DefinitionTrialResult, error)
 	DefinitionAction(context.Context, string, DefinitionActionInput, string) (any, error)
 	InstanceQuery(context.Context, InstanceQueryInput) (Page[InstanceListItem], error)
 	InstanceGet(context.Context, InstanceGetInput) (InstanceView, error)
@@ -31,6 +30,7 @@ type genericApplicationService interface {
 	InstanceQueryByDefinitionCode(context.Context, string, InstanceQueryInput) (Page[InstanceListItem], error)
 	InstanceGetByDefinitionCode(context.Context, string, InstanceGetInput) (InstanceView, error)
 	InstanceHistoryByDefinitionCode(context.Context, string, InstanceHistoryInput) (Page[RuntimeAuditView], error)
+	CreateChildByDefinitionCode(context.Context, string, CreateChildInput, string) (BusinessObjectReference, error)
 }
 
 var _ genericApplicationService = (*Service)(nil)
@@ -58,18 +58,6 @@ func (h *Handler) Register(router *gin.Engine) {
 
 func (h *Handler) registerGenericWorkflow(router *gin.Engine) {
 	definitions := router.Group("/wfl/process-definition")
-	definitions.POST("/catalog", h.authorize("/wfl/process-definition/catalog"), func(c *gin.Context) {
-		service, ok := h.service.(genericApplicationService)
-		if !ok {
-			h.writeError(c, internal("generic workflow service is unavailable", nil))
-			return
-		}
-		var input struct{}
-		if h.bind(c, &input) {
-			result, err := service.DefinitionCatalog(c.Request.Context())
-			h.result(c, result, err)
-		}
-	})
 	definitions.POST("/query", h.authorize("/wfl/process-definition/query"), func(c *gin.Context) {
 		service, ok := h.service.(genericApplicationService)
 		if !ok {
@@ -126,11 +114,11 @@ func (h *Handler) registerGenericWorkflow(router *gin.Engine) {
 		}
 		var input DefinitionTrialInput
 		if h.bind(c, &input) {
-			result, err := service.DefinitionTrial(c.Request.Context(), input)
+			result, err := service.DefinitionTrial(c.Request.Context(), input, h.principal(c).ActorID, response.RequestID(c))
 			h.result(c, result, err)
 		}
 	})
-	for _, value := range []string{"enable", "disable", "delete"} {
+	for _, value := range []string{"publish", "enable", "disable", "delete"} {
 		action := value
 		definitions.POST("/"+action, h.authorize("/wfl/process-definition/"+action), func(c *gin.Context) {
 			service, ok := h.service.(genericApplicationService)
@@ -219,6 +207,18 @@ func (h *Handler) registerDynamicWorkflow(router *gin.Engine) {
 		var input InstanceHistoryInput
 		if h.bind(c, &input) {
 			result, err := service.InstanceHistoryByDefinitionCode(c.Request.Context(), c.Param("processName"), input)
+			h.result(c, result, err)
+		}
+	})
+	group.POST("/create-child", h.authorizeDynamicWorkflow("create-child"), func(c *gin.Context) {
+		service, ok := h.service.(genericApplicationService)
+		if !ok {
+			h.writeError(c, internal("generic workflow service is unavailable", nil))
+			return
+		}
+		var input CreateChildInput
+		if h.bind(c, &input) {
+			result, err := service.CreateChildByDefinitionCode(c.Request.Context(), c.Param("processName"), input, h.principal(c).ActorID)
 			h.result(c, result, err)
 		}
 	})

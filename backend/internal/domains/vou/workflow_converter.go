@@ -2,7 +2,6 @@ package vou
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -12,128 +11,166 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-type workflowDefaults struct {
+type WorkflowExpensePaymentInitial struct {
 	FundAccountObjectID string `json:"fundAccountObjectId"`
-	HandlerObjectID     string `json:"handlerObjectId"`
 }
 
-func (s *Service) CreateWorkflowChild(
-	ctx context.Context,
-	tx pgx.Tx,
-	converterKey, sourceDocumentID string,
-	defaultsJSON json.RawMessage,
-	requestID string,
-) (MutationResult, error) {
-	var defaults workflowDefaults
-	if len(defaultsJSON) != 0 {
-		if err := json.Unmarshal(defaultsJSON, &defaults); err != nil {
-			return MutationResult{}, domainError(ErrorValidation, "invalid workflow node defaults", nil, err)
-		}
+type WorkflowPurchaseInboundInitial struct {
+	WarehouseObjectID string                    `json:"warehouseObjectId,omitempty"`
+	BusinessDate      string                    `json:"businessDate,omitempty"`
+	Lines             []SourceQuantityLineInput `json:"lines,omitempty"`
+}
+
+type WorkflowSaleOutboundInitial struct {
+	WarehouseObjectID string                    `json:"warehouseObjectId,omitempty"`
+	BusinessDate      string                    `json:"businessDate,omitempty"`
+	Lines             []SourceQuantityLineInput `json:"lines,omitempty"`
+}
+
+type WorkflowSaleDeliveryInitial struct {
+	PlatformObjectID string                    `json:"platformObjectId"`
+	VehicleObjectID  string                    `json:"vehicleObjectId"`
+	BusinessDate     string                    `json:"businessDate,omitempty"`
+	Lines            []SourceQuantityLineInput `json:"lines,omitempty"`
+}
+
+type WorkflowSaleSignoffInitial struct {
+	BusinessDate string                     `json:"businessDate,omitempty"`
+	Lines        []WorkflowSignoffLineInput `json:"lines,omitempty"`
+}
+
+type WorkflowSignoffLineInput struct {
+	SourceLineID     string `json:"sourceLineId"`
+	SignedQuantity   string `json:"signedQuantity"`
+	RejectedQuantity string `json:"rejectedQuantity"`
+}
+
+type WorkflowSaleReturnInitial struct {
+	BusinessDate string                    `json:"businessDate,omitempty"`
+	Reason       string                    `json:"reason"`
+	Lines        []SourceQuantityLineInput `json:"lines,omitempty"`
+}
+
+func (s *Service) CreateWorkflowExpensePayment(ctx context.Context, tx pgx.Tx, sourceDocumentID string, initial WorkflowExpensePaymentInitial, requestID string) (MutationResult, error) {
+	if existing, ok, err := s.findWorkflowChild(ctx, tx, sourceDocumentID, EntityExpensePayment); err != nil || ok {
+		return existing, err
 	}
-	actorID := systemidentity.UserID
-	var targetEntity string
-	switch converterKey {
-	case "sale-order-to-outbound":
-		targetEntity = EntitySaleOutbound
-	case "sale-outbound-to-delivery":
-		targetEntity = EntitySaleDelivery
-	case "sale-delivery-to-signoff":
-		targetEntity = EntitySaleSignoff
-	case "purchase-order-to-inbound":
-		targetEntity = EntityPurchaseInbound
-	case "sale-signoff-to-receipt":
-		targetEntity = EntitySalesReceipt
-	case "purchase-inbound-to-payment":
-		targetEntity = EntityPurchasePayment
-	case "expense-reimbursement-to-payment":
-		targetEntity = EntityExpensePayment
-	default:
-		return MutationResult{}, domainError(ErrorValidation, "unsupported workflow converter", map[string]any{"converterKey": converterKey}, nil)
-	}
-	if existing, ok, err := s.findWorkflowChild(ctx, tx, sourceDocumentID, targetEntity); err != nil {
+	return s.createWorkflowExpensePayment(ctx, tx, sourceDocumentID, initial, requestID)
+}
+
+func (s *Service) CreateWorkflowPurchaseInbound(ctx context.Context, tx pgx.Tx, sourceDocumentID string, initial WorkflowPurchaseInboundInitial, requestID string) (MutationResult, error) {
+	return s.createWorkflowPurchaseInbound(ctx, tx, sourceDocumentID, initial, requestID)
+}
+
+func (s *Service) CreateWorkflowSaleOutbound(ctx context.Context, tx pgx.Tx, sourceDocumentID string, initial WorkflowSaleOutboundInitial, requestID string) (MutationResult, error) {
+	date, err := parseBusinessDate(initial.BusinessDate)
+	if err != nil {
 		return MutationResult{}, err
-	} else if ok {
-		return existing, nil
 	}
-	switch converterKey {
-	case "sale-order-to-outbound":
-		result, err := s.ensureAutoOutboundDraft(ctx, tx, sourceDocumentID, actorID, requestID)
-		if err != nil {
-			return result, err
-		}
-		if result.DocumentID == "" {
-			result, _, err = s.findWorkflowChild(ctx, tx, sourceDocumentID, targetEntity)
-		}
-		return result, err
-	case "sale-outbound-to-delivery":
-		result, err := s.ensureAutoDeliveryDraft(ctx, tx, sourceDocumentID, actorID, requestID)
-		if err != nil {
-			return result, err
-		}
-		if result.DocumentID == "" {
-			result, _, err = s.findWorkflowChild(ctx, tx, sourceDocumentID, targetEntity)
-		}
-		return result, err
-	case "sale-delivery-to-signoff":
-		result, err := s.ensureAutoSignoffDraft(ctx, tx, sourceDocumentID, actorID, requestID)
-		if err != nil {
-			return result, err
-		}
-		if result.DocumentID == "" {
-			result, _, err = s.findWorkflowChild(ctx, tx, sourceDocumentID, targetEntity)
-		}
-		return result, err
-	case "purchase-order-to-inbound":
-		return s.createWorkflowPurchaseInbound(ctx, tx, sourceDocumentID, requestID)
-	case "sale-signoff-to-receipt", "purchase-inbound-to-payment":
-		return s.createWorkflowCashDocument(ctx, tx, converterKey, sourceDocumentID, defaults, requestID)
-	case "expense-reimbursement-to-payment":
-		return s.createWorkflowExpensePayment(ctx, tx, sourceDocumentID, defaults, requestID)
+	warehouse, err := s.resolveWorkflowDefault(ctx, tx, bobdomain.EntityWarehouse, initial.WarehouseObjectID, "warehouse")
+	if err != nil {
+		return MutationResult{}, err
 	}
-	return MutationResult{}, nil
+	return s.writeSaleOutbound(ctx, tx, "", DraftInput{
+		SourceDocumentID: sourceDocumentID,
+		Warehouse:        &ReferenceInput{ObjectID: warehouse.ObjectID, VersionID: warehouse.VersionID},
+		SourceLines:      initial.Lines,
+	}, date, nil, systemidentity.UserID, requestID)
+}
+
+func (s *Service) CreateWorkflowSaleDelivery(ctx context.Context, tx pgx.Tx, sourceDocumentID string, initial WorkflowSaleDeliveryInitial, requestID string) (MutationResult, error) {
+	if existing, ok, err := s.findWorkflowChild(ctx, tx, sourceDocumentID, EntitySaleDelivery); err != nil || ok {
+		return existing, err
+	}
+	date, err := parseBusinessDate(initial.BusinessDate)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	platform, err := s.resolveWorkflowDefault(ctx, tx, bobdomain.EntitySupplier, initial.PlatformObjectID, "platform")
+	if err != nil {
+		return MutationResult{}, err
+	}
+	vehicle, err := s.resolveWorkflowDefault(ctx, tx, bobdomain.EntityVehicle, initial.VehicleObjectID, "vehicle")
+	if err != nil {
+		return MutationResult{}, err
+	}
+	return s.writeSaleDelivery(ctx, tx, "", DraftInput{
+		SourceDocumentID: sourceDocumentID,
+		Platform:         &ReferenceInput{ObjectID: platform.ObjectID, VersionID: platform.VersionID},
+		Vehicle:          &ReferenceInput{ObjectID: vehicle.ObjectID, VersionID: vehicle.VersionID},
+	}, date, nil, systemidentity.UserID, requestID)
+}
+
+func (s *Service) CreateWorkflowSaleSignoff(ctx context.Context, tx pgx.Tx, sourceDocumentID string, initial WorkflowSaleSignoffInitial, requestID string) (MutationResult, error) {
+	if existing, ok, err := s.findWorkflowChild(ctx, tx, sourceDocumentID, EntitySaleSignoff); err != nil || ok {
+		return existing, err
+	}
+	date, err := parseBusinessDate(initial.BusinessDate)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	lines := make([]SaleSignoffLineInput, 0, len(initial.Lines))
+	for _, line := range initial.Lines {
+		lines = append(lines, SaleSignoffLineInput{
+			SourceLineID: line.SourceLineID, SignedQuantity: line.SignedQuantity,
+			RejectedQuantity: line.RejectedQuantity,
+		})
+	}
+	return s.writeSaleSignoff(ctx, tx, "", DraftInput{
+		SourceDocumentID: sourceDocumentID, SignoffLines: lines,
+	}, date, nil, systemidentity.UserID, requestID)
+}
+
+func (s *Service) CreateWorkflowSaleReturn(ctx context.Context, tx pgx.Tx, sourceDocumentID string, initial WorkflowSaleReturnInitial, requestID string) (MutationResult, error) {
+	if existing, ok, err := s.findWorkflowChild(ctx, tx, sourceDocumentID, EntitySaleReturn); err != nil || ok {
+		return existing, err
+	}
+	if err := s.ensureRefusalReturnDraft(ctx, tx, sourceDocumentID, initial, requestID); err != nil {
+		return MutationResult{}, err
+	}
+	result, _, err := s.findWorkflowChild(ctx, tx, sourceDocumentID, EntitySaleReturn)
+	return result, err
 }
 
 func (s *Service) findWorkflowChild(ctx context.Context, tx pgx.Tx, sourceID, entity string) (MutationResult, bool, error) {
-	var result MutationResult
-	err := tx.QueryRow(ctx, `SELECT id,document_no,status,revision FROM vou_documents
-		WHERE parent_document_id=$1 AND entity=$2 AND status<>'DELETED' ORDER BY created_at,id LIMIT 1 FOR UPDATE`, sourceID, entity).
-		Scan(&result.DocumentID, &result.DocumentNo, &result.Status, &result.Revision)
+	child, err := s.queries.WithTx(tx).FindWorkflowVouChild(ctx, dbsqlc.FindWorkflowVouChildParams{
+		SourceDocumentID: &sourceID,
+		Entity:           entity,
+	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return MutationResult{}, false, nil
 	}
-	return result, err == nil, err
+	if err != nil {
+		return MutationResult{}, false, err
+	}
+	return MutationResult{
+		DocumentID: child.ID,
+		DocumentNo: child.DocumentNo,
+		Status:     child.Status,
+		Revision:   child.Revision,
+	}, true, nil
 }
 
-func (s *Service) createWorkflowPurchaseInbound(ctx context.Context, tx pgx.Tx, orderID, requestID string) (MutationResult, error) {
+func (s *Service) createWorkflowPurchaseInbound(ctx context.Context, tx pgx.Tx, orderID string, initial WorkflowPurchaseInboundInitial, requestID string) (MutationResult, error) {
 	order, detail, err := s.lockPurchaseOrderForInbound(ctx, tx, orderID)
 	if err != nil {
 		return MutationResult{}, err
 	}
-	warehouse, err := s.resolveInboundWarehouse(ctx, tx, nil, detail)
+	date, err := parseBusinessDate(initial.BusinessDate)
 	if err != nil {
 		return MutationResult{}, err
 	}
-	orderLines, err := s.queries.WithTx(tx).ListVouProductLines(ctx, orderID)
+	warehouseRef, err := s.resolveWorkflowDefault(ctx, tx, bobdomain.EntityWarehouse, initial.WarehouseObjectID, "warehouse")
 	if err != nil {
 		return MutationResult{}, err
 	}
-	inputs := make([]SourceQuantityLineInput, 0, len(orderLines))
-	for _, line := range orderLines {
-		var reserved int64
-		if err = tx.QueryRow(ctx, `SELECT COALESCE(sum(l.quantity_micros),0) FROM vou_purchase_inbound_lines l
-			JOIN vou_purchase_inbound_details d ON d.document_id=l.document_id
-			WHERE d.source_order_id=$1 AND l.source_order_line_id=$2`, orderID, line.ID).Scan(&reserved); err != nil {
-			return MutationResult{}, err
-		}
-		remaining := line.OrderedQtyMicros - reserved
-		if remaining > 0 {
-			inputs = append(inputs, SourceQuantityLineInput{SourceLineID: line.ID, Quantity: formatQuantity(remaining)})
-		}
+	if detail.WarehouseObjectID != nil && *detail.WarehouseObjectID != warehouseRef.ObjectID {
+		return MutationResult{}, domainError(ErrorConflict, "inbound warehouse must match purchase order warehouse", nil, nil)
 	}
-	if len(inputs) == 0 {
-		return MutationResult{}, domainError(ErrorConflict, "purchase order has no remaining inbound quantity", nil, nil)
+	if date.Before(order.BusinessDate.Time) {
+		return MutationResult{}, domainError(ErrorValidation, "inbound date precedes order date", nil, nil)
 	}
-	lines, total, err := s.validateAndReserveInboundLines(ctx, tx, orderID, "", inputs)
+	lines, total, err := s.validateAndReserveInboundLines(ctx, tx, orderID, "", initial.Lines)
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -143,37 +180,25 @@ func (s *Service) createWorkflowPurchaseInbound(ctx context.Context, tx pgx.Tx, 
 		return MutationResult{}, err
 	}
 	id := newID()
-	date := order.BusinessDate.Time
 	dueDate, err := s.orderSettlementDueDate(ctx, tx, EntityPurchaseOrder, orderID, date)
 	if err != nil {
 		return MutationResult{}, err
 	}
 	number := fmt.Sprintf("%s-%s-%04d", entityPrefix(EntityPurchaseInbound), date.Format("20060102"), counter)
-	_, err = tx.Exec(ctx, `INSERT INTO vou_documents(id,entity,document_no,business_date,currency,due_date,total_amount_cents,parent_entity,parent_document_id,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)`, id, EntityPurchaseInbound, number, date, order.Currency, dueDate, total, EntityPurchaseOrder, orderID, systemidentity.UserID)
+	err = q.InsertVouDocument(ctx, dbsqlc.InsertVouDocumentParams{
+		ID: id, Entity: EntityPurchaseInbound, DocumentNo: number,
+		BusinessDate: dateValue(date), Currency: order.Currency, DueDate: dateValue(dueDate),
+		TotalAmountCents: total, ParentEntity: stringPtr(EntityPurchaseOrder),
+		ParentDocumentID: stringPtr(orderID), ActorID: systemidentity.UserID,
+	})
 	if err != nil {
 		return MutationResult{}, err
 	}
-	if err = q.InsertVouPurchaseInboundDetail(ctx, dbsqlc.InsertVouPurchaseInboundDetailParams{DocumentID: id, SourceOrderID: orderID, SupplierObjectID: detail.SupplierObjectID, SupplierVersionID: detail.SupplierVersionID, SupplierCode: detail.SupplierCode, SupplierName: detail.SupplierName, WarehouseObjectID: warehouse.ObjectID, WarehouseVersionID: warehouse.VersionID, WarehouseCode: warehouse.Code, WarehouseName: warehouse.Data.Name}); err != nil {
+	if err = q.InsertVouPurchaseInboundDetail(ctx, dbsqlc.InsertVouPurchaseInboundDetailParams{DocumentID: id, SourceOrderID: orderID, SupplierObjectID: detail.SupplierObjectID, SupplierVersionID: detail.SupplierVersionID, SupplierCode: detail.SupplierCode, SupplierName: detail.SupplierName, WarehouseObjectID: warehouseRef.ObjectID, WarehouseVersionID: warehouseRef.VersionID, WarehouseCode: warehouseRef.Code, WarehouseName: warehouseRef.Data.Name}); err != nil {
 		return MutationResult{}, err
 	}
 	if err = s.insertPurchaseInboundLines(ctx, q, id, lines); err != nil {
 		return MutationResult{}, err
-	}
-	var legacyProcess bool
-	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM wfl_process_instances WHERE id=$1 AND process_type=$2)`,
-		orderID, purchaseWorkflowType).Scan(&legacyProcess); err != nil {
-		return MutationResult{}, err
-	}
-	if legacyProcess {
-		var sequence int32
-		if err = tx.QueryRow(ctx, `SELECT COALESCE(max(sequence_no),0)+1 FROM wfl_process_documents
-			WHERE process_id=$1 AND stage=$2`, orderID, purchaseStageInbound).Scan(&sequence); err != nil {
-			return MutationResult{}, err
-		}
-		if _, err = tx.Exec(ctx, `INSERT INTO wfl_process_documents(process_id,document_id,stage,sequence_no)
-			VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`, orderID, id, purchaseStageInbound, sequence); err != nil {
-			return MutationResult{}, err
-		}
 	}
 	if err = insertAudit(ctx, q, auditInput{DocumentID: id, Entity: EntityPurchaseInbound, Event: "CREATED", To: StatusDraft, ActorID: systemidentity.UserID, RequestID: requestID, Summary: map[string]any{"sourceOrderId": orderID}}); err != nil {
 		return MutationResult{}, err
@@ -195,14 +220,17 @@ func (s *Service) resolveWorkflowDefault(ctx context.Context, tx pgx.Tx, entity,
 	return ref, nil
 }
 
-func (s *Service) createWorkflowExpensePayment(ctx context.Context, tx pgx.Tx, reimbursementID string, defaults workflowDefaults, requestID string) (MutationResult, error) {
-	var source dbsqlc.VouDocument
-	var employeeObjectID, employeeVersionID, employeeCode, employeeName string
-	err := tx.QueryRow(ctx, `SELECT d.id,d.entity,d.document_no,d.status,d.revision,d.business_date,d.currency,d.total_amount_cents,d.remark,d.created_at,d.created_by,d.updated_at,d.updated_by,
-		x.employee_object_id,x.employee_version_id,x.employee_code,x.employee_name
-		FROM vou_documents d JOIN vou_expense_reimbursement_details x ON x.document_id=d.id WHERE d.id=$1 FOR UPDATE OF d`, reimbursementID).Scan(&source.ID, &source.Entity, &source.DocumentNo, &source.Status, &source.Revision, &source.BusinessDate, &source.Currency, &source.TotalAmountCents, &source.Remark, &source.CreatedAt, &source.CreatedBy, &source.UpdatedAt, &source.UpdatedBy, &employeeObjectID, &employeeVersionID, &employeeCode, &employeeName)
+func (s *Service) createWorkflowExpensePayment(ctx context.Context, tx pgx.Tx, reimbursementID string, defaults WorkflowExpensePaymentInitial, requestID string) (MutationResult, error) {
+	q := s.queries.WithTx(tx)
+	locked, err := q.LockWorkflowExpenseReimbursement(ctx, reimbursementID)
 	if err != nil {
 		return MutationResult{}, err
+	}
+	source := dbsqlc.VouDocument{
+		ID: locked.ID, Entity: locked.Entity, DocumentNo: locked.DocumentNo, Status: locked.Status,
+		Revision: locked.Revision, BusinessDate: locked.BusinessDate, Currency: locked.Currency,
+		TotalAmountCents: locked.TotalAmountCents, Remark: locked.Remark, CreatedAt: locked.CreatedAt,
+		CreatedBy: locked.CreatedBy, UpdatedAt: locked.UpdatedAt, UpdatedBy: locked.UpdatedBy,
 	}
 	if source.Status != StatusApproved {
 		return MutationResult{}, domainError(ErrorConflict, "expense reimbursement is not approved", nil, nil)
@@ -214,7 +242,6 @@ func (s *Service) createWorkflowExpensePayment(ctx context.Context, tx pgx.Tx, r
 	if fund.Data.Currency != deref(source.Currency) {
 		return MutationResult{}, domainError(ErrorConflict, "fund account currency does not match reimbursement", nil, nil)
 	}
-	q := s.queries.WithTx(tx)
 	counter, err := q.NextVouNumberCounter(ctx, dbsqlc.NextVouNumberCounterParams{Entity: EntityExpensePayment, BusinessDate: source.BusinessDate})
 	if err != nil {
 		return MutationResult{}, err
@@ -222,11 +249,17 @@ func (s *Service) createWorkflowExpensePayment(ctx context.Context, tx pgx.Tx, r
 	id := newID()
 	date := source.BusinessDate.Time
 	number := fmt.Sprintf("%s-%s-%04d", entityPrefix(EntityExpensePayment), date.Format("20060102"), counter)
-	_, err = tx.Exec(ctx, `INSERT INTO vou_documents(id,entity,document_no,business_date,currency,total_amount_cents,remark,parent_entity,parent_document_id,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)`, id, EntityExpensePayment, number, date, source.Currency, source.TotalAmountCents, source.Remark, EntityExpenseReimbursement, reimbursementID, systemidentity.UserID)
+	err = q.InsertVouDocument(ctx, dbsqlc.InsertVouDocumentParams{
+		ID: id, Entity: EntityExpensePayment, DocumentNo: number,
+		BusinessDate: source.BusinessDate, Currency: source.Currency,
+		TotalAmountCents: source.TotalAmountCents, Remark: source.Remark,
+		ParentEntity: stringPtr(EntityExpenseReimbursement), ParentDocumentID: stringPtr(reimbursementID),
+		ActorID: systemidentity.UserID,
+	})
 	if err != nil {
 		return MutationResult{}, err
 	}
-	err = q.InsertVouExpensePaymentDetail(ctx, dbsqlc.InsertVouExpensePaymentDetailParams{DocumentID: id, SourceReimbursementID: reimbursementID, EmployeeObjectID: employeeObjectID, EmployeeVersionID: employeeVersionID, EmployeeCode: employeeCode, EmployeeName: employeeName, FundAccountObjectID: fund.ObjectID, FundAccountVersionID: fund.VersionID, FundAccountCode: fund.Code, FundAccountName: fund.Data.Name})
+	err = q.InsertVouExpensePaymentDetail(ctx, dbsqlc.InsertVouExpensePaymentDetailParams{DocumentID: id, SourceReimbursementID: reimbursementID, EmployeeObjectID: locked.EmployeeObjectID, EmployeeVersionID: locked.EmployeeVersionID, EmployeeCode: locked.EmployeeCode, EmployeeName: locked.EmployeeName, FundAccountObjectID: fund.ObjectID, FundAccountVersionID: fund.VersionID, FundAccountCode: fund.Code, FundAccountName: fund.Data.Name})
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -234,72 +267,6 @@ func (s *Service) createWorkflowExpensePayment(ctx context.Context, tx pgx.Tx, r
 		return MutationResult{}, err
 	}
 	if err = s.events.Publish(ctx, tx, DocumentCreatedEvent{Entity: EntityExpensePayment, DocumentID: id, DocumentNo: number, Revision: 1, ParentEntity: EntityExpenseReimbursement, ParentDocumentID: reimbursementID, ActorID: systemidentity.UserID, RequestID: requestID}); err != nil {
-		return MutationResult{}, err
-	}
-	return MutationResult{DocumentID: id, DocumentNo: number, Status: StatusDraft, Revision: 1}, nil
-}
-
-func (s *Service) createWorkflowCashDocument(ctx context.Context, tx pgx.Tx, converterKey, sourceID string, defaults workflowDefaults, requestID string) (MutationResult, error) {
-	entity := EntitySalesReceipt
-	partyEntity := "customer"
-	var partyObjectID, partyVersionID, partyCode, partyName string
-	var termCode, settlementName, ruleType string
-	var monthOffset, dayOffset int32
-	var source dbsqlc.VouDocument
-	if converterKey == "purchase-inbound-to-payment" {
-		entity = EntityPurchasePayment
-		partyEntity = "supplier"
-		err := tx.QueryRow(ctx, `SELECT d.id,d.entity,d.document_no,d.status,d.revision,d.business_date,d.currency,d.due_date,d.total_amount_cents,d.remark,d.created_at,d.created_by,d.updated_at,d.updated_by,x.supplier_object_id,x.supplier_version_id,x.supplier_code,x.supplier_name,o.settlement_term_code,COALESCE(o.settlement_method_name,''),COALESCE(o.settlement_rule_type,''),COALESCE(o.settlement_month_offset,0),COALESCE(o.settlement_day_offset,0) FROM vou_documents d JOIN vou_purchase_inbound_details x ON x.document_id=d.id JOIN vou_purchase_order_details o ON o.document_id=x.source_order_id WHERE d.id=$1 FOR UPDATE OF d`, sourceID).Scan(&source.ID, &source.Entity, &source.DocumentNo, &source.Status, &source.Revision, &source.BusinessDate, &source.Currency, &source.DueDate, &source.TotalAmountCents, &source.Remark, &source.CreatedAt, &source.CreatedBy, &source.UpdatedAt, &source.UpdatedBy, &partyObjectID, &partyVersionID, &partyCode, &partyName, &termCode, &settlementName, &ruleType, &monthOffset, &dayOffset)
-		if err != nil {
-			return MutationResult{}, err
-		}
-	} else {
-		err := tx.QueryRow(ctx, `SELECT d.id,d.entity,d.document_no,d.status,d.revision,d.business_date,d.currency,d.due_date,d.total_amount_cents,d.remark,d.created_at,d.created_by,d.updated_at,d.updated_by,x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name,o.settlement_term_code,COALESCE(o.settlement_method_name,''),COALESCE(o.settlement_rule_type,''),COALESCE(o.settlement_month_offset,0),COALESCE(o.settlement_day_offset,0) FROM vou_documents d JOIN vou_sale_signoff_details x ON x.document_id=d.id JOIN vou_sale_order_details o ON o.document_id=x.source_order_id WHERE d.id=$1 FOR UPDATE OF d`, sourceID).Scan(&source.ID, &source.Entity, &source.DocumentNo, &source.Status, &source.Revision, &source.BusinessDate, &source.Currency, &source.DueDate, &source.TotalAmountCents, &source.Remark, &source.CreatedAt, &source.CreatedBy, &source.UpdatedAt, &source.UpdatedBy, &partyObjectID, &partyVersionID, &partyCode, &partyName, &termCode, &settlementName, &ruleType, &monthOffset, &dayOffset)
-		if err != nil {
-			return MutationResult{}, err
-		}
-	}
-	termCode = settlementTermFromSnapshot(
-		termCode, settlementName, ruleType, monthOffset, dayOffset,
-	)
-	if termCode == bobSettlementPrepaid {
-		return MutationResult{Status: "SKIPPED"}, nil
-	}
-	fund, err := s.resolveWorkflowDefault(ctx, tx, bobdomain.EntityFundAccount, defaults.FundAccountObjectID, "fundAccount")
-	if err != nil {
-		return MutationResult{}, err
-	}
-	handler, err := s.resolveWorkflowDefault(ctx, tx, bobdomain.EntityEmployee, defaults.HandlerObjectID, "handler")
-	if err != nil {
-		return MutationResult{}, err
-	}
-	if fund.Data.Currency != deref(source.Currency) {
-		return MutationResult{}, domainError(ErrorConflict, "fund account currency does not match source document", nil, nil)
-	}
-	q := s.queries.WithTx(tx)
-	counter, err := q.NextVouNumberCounter(ctx, dbsqlc.NextVouNumberCounterParams{Entity: numberingEntity(entity), BusinessDate: source.BusinessDate})
-	if err != nil {
-		return MutationResult{}, err
-	}
-	id := newID()
-	date := source.BusinessDate.Time
-	number := fmt.Sprintf("%s-%s-%04d", entityPrefix(entity), date.Format("20060102"), counter)
-	_, err = tx.Exec(ctx, `INSERT INTO vou_documents(id,entity,document_no,business_date,currency,due_date,total_amount_cents,remark,parent_entity,parent_document_id,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11)`, id, entity, number, date, source.Currency, source.DueDate, source.TotalAmountCents, source.Remark, source.Entity, sourceID, systemidentity.UserID)
-	if err != nil {
-		return MutationResult{}, err
-	}
-	if receiptEntity(entity) {
-		err = q.InsertVouReceiptDetail(ctx, dbsqlc.InsertVouReceiptDetailParams{DocumentID: id, CounterpartyEntity: partyEntity, CounterpartyObjectID: partyObjectID, CounterpartyVersionID: partyVersionID, CounterpartyCode: partyCode, CounterpartyName: partyName, FundAccountObjectID: fund.ObjectID, FundAccountVersionID: fund.VersionID, FundAccountCode: fund.Code, FundAccountName: fund.Data.Name, HandlerObjectID: stringPtr(handler.ObjectID), HandlerVersionID: stringPtr(handler.VersionID), HandlerCode: stringPtr(handler.Code), HandlerName: stringPtr(handler.Data.Name)})
-	} else {
-		err = q.InsertVouPaymentDetail(ctx, dbsqlc.InsertVouPaymentDetailParams{DocumentID: id, CounterpartyEntity: partyEntity, CounterpartyObjectID: partyObjectID, CounterpartyVersionID: partyVersionID, CounterpartyCode: partyCode, CounterpartyName: partyName, FundAccountObjectID: fund.ObjectID, FundAccountVersionID: fund.VersionID, FundAccountCode: fund.Code, FundAccountName: fund.Data.Name, HandlerObjectID: stringPtr(handler.ObjectID), HandlerVersionID: stringPtr(handler.VersionID), HandlerCode: stringPtr(handler.Code), HandlerName: stringPtr(handler.Data.Name)})
-	}
-	if err != nil {
-		return MutationResult{}, err
-	}
-	if err = insertAudit(ctx, q, auditInput{DocumentID: id, Entity: entity, Event: "CREATED", To: StatusDraft, ActorID: systemidentity.UserID, RequestID: requestID, Summary: map[string]any{"sourceDocumentId": sourceID}}); err != nil {
-		return MutationResult{}, err
-	}
-	if err = s.events.Publish(ctx, tx, DocumentCreatedEvent{Entity: entity, DocumentID: id, DocumentNo: number, Revision: 1, ParentEntity: source.Entity, ParentDocumentID: sourceID, ActorID: systemidentity.UserID, RequestID: requestID}); err != nil {
 		return MutationResult{}, err
 	}
 	return MutationResult{DocumentID: id, DocumentNo: number, Status: StatusDraft, Revision: 1}, nil

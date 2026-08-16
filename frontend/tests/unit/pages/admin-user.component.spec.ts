@@ -74,6 +74,7 @@ function vm(overrides: Record<string, unknown> = {}) {
     canSubmit: false,
     query: vi.fn(),
     search: vi.fn(),
+    applyFilters: vi.fn(),
     resetFilters: vi.fn(),
     changePage: vi.fn(),
     openCreate: vi.fn(),

@@ -57,6 +57,8 @@ export function createUserManagementViewModel() {
     closeAfterDiscard = ref(false)
   let querySequence = 0,
     editorLoadSequence = 0
+  let appliedKeyword = '',
+    appliedStatus: AdminStatus | null = null
   let editorTarget: { row: AdminUser; mode: EditorMode } | null = null
   const form = reactive({
     username: '',
@@ -198,8 +200,8 @@ export function createUserManagementViewModel() {
     queryErrorMessage.value = null
     try {
       const filters: Record<string, string> = {}
-      if (keyword.value.trim()) filters.search = keyword.value.trim()
-      if (status.value) filters.status = status.value
+      if (appliedKeyword) filters.search = appliedKeyword
+      if (appliedStatus) filters.status = appliedStatus
       const result = await queryAdminUsers({
         page: page.value,
         pageSize: 20,
@@ -266,13 +268,22 @@ export function createUserManagementViewModel() {
     if (editorTarget) await openEditor(editorTarget.row, editorTarget.mode)
   }
   async function search(): Promise<void> {
+    appliedKeyword = keyword.value.trim()
+    page.value = 1
+    await query()
+  }
+  async function applyFilters(): Promise<void> {
+    appliedStatus = status.value
     page.value = 1
     await query()
   }
   async function resetFilters(): Promise<void> {
     keyword.value = ''
     status.value = null
-    await search()
+    appliedKeyword = ''
+    appliedStatus = null
+    page.value = 1
+    await query()
   }
   async function changePage(next: number): Promise<void> {
     if (next >= 1 && next !== page.value && !loading.value) {
@@ -509,6 +520,7 @@ export function createUserManagementViewModel() {
     canSubmit,
     query,
     search,
+    applyFilters,
     resetFilters,
     changePage,
     openCreate,

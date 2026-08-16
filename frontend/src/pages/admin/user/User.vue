@@ -90,7 +90,7 @@ void vm.query()
       :rows="vm.rows"
       search-label="用户名或名称"
       :total="vm.total"
-      @apply-filters="vm.search"
+      @apply-filters="vm.applyFilters"
       @create="vm.openCreate"
       @query="vm.search"
       @reset-filters="vm.resetFilters"

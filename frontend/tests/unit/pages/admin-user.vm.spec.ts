@@ -112,7 +112,8 @@ describe('user management view model', () => {
     vm.keyword.value = 'operator'
     vm.status.value = 'ENABLED'
 
-    await vm.query()
+    await vm.search()
+    await vm.applyFilters()
 
     expect(queryAdminUsers).toHaveBeenCalledWith({
       page: 1,
@@ -123,6 +124,33 @@ describe('user management view model', () => {
     expect(vm.rows.value).toEqual([user])
     expect(vm.rows.value[0]).not.toHaveProperty('passwordHash')
     expect(vm.rows.value[0]).not.toHaveProperty('sessionToken')
+  })
+
+  it('关键词查询不会提前应用状态草稿，状态只在应用筛选后请求', async () => {
+    const vm = createUserManagementViewModel()
+    vm.page.value = 2
+    vm.keyword.value = 'operator'
+    vm.status.value = 'ENABLED'
+
+    await vm.search()
+
+    expect(queryAdminUsers).toHaveBeenLastCalledWith({
+      page: 1,
+      pageSize: 20,
+      filters: { search: 'operator' },
+      sort: [{ field: 'username', order: 'asc' }],
+    })
+
+    vm.page.value = 2
+    vm.keyword.value = '尚未查询的关键词'
+    await vm.applyFilters()
+
+    expect(queryAdminUsers).toHaveBeenLastCalledWith({
+      page: 1,
+      pageSize: 20,
+      filters: { search: 'operator', status: 'ENABLED' },
+      sort: [{ field: 'username', order: 'asc' }],
+    })
   })
 
   it('查询失败保留上下文和持久失败状态，成功空结果才清除失败状态', async () => {
@@ -136,10 +164,10 @@ describe('user management view model', () => {
       })
     const vm = createUserManagementViewModel()
 
-    await vm.query()
-    vm.keyword.value = '保留筛选'
     vm.status.value = 'ENABLED'
-    await vm.query()
+    await vm.applyFilters()
+    vm.keyword.value = '保留筛选'
+    await vm.search()
 
     expect(vm.rows.value).toEqual([user])
     expect(vm.total.value).toBe(1)
@@ -151,7 +179,7 @@ describe('user management view model', () => {
 
     vm.keyword.value = ''
     vm.status.value = null
-    await vm.query()
+    await vm.resetFilters()
 
     expect(vm.queryErrorMessage.value).toBeNull()
     expect(vm.rows.value).toEqual([])
@@ -181,9 +209,9 @@ describe('user management view model', () => {
     const vm = createUserManagementViewModel()
 
     vm.keyword.value = '旧查询'
-    const olderQuery = vm.query()
+    const olderQuery = vm.search()
     vm.keyword.value = '新查询'
-    const newerQuery = vm.query()
+    const newerQuery = vm.search()
     expect(vm.loading.value).toBe(true)
 
     second.resolve({

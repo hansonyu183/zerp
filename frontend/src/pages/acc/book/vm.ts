@@ -120,7 +120,7 @@ export function createAccountingBookViewModel() {
     while (collected.length < expected) {
       const result = await queryAccessUsers({
         page: nextPage,
-        pageSize: 200,
+        pageSize: 20,
         sort: [{ field: 'username', order: 'asc' }],
       })
       if (!active || sequence !== editorSequence) return

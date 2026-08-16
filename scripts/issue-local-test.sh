@@ -522,7 +522,8 @@ stop_agent() {
   ZERP_PRIMARY_ROOT="${primary}" \
   ZERP_ISSUE_TRACKER_ROOT="${primary}/.scratch" \
   ZERP_ISSUE_LOCAL_RUNTIME_ROOT="${runtime}" \
-  ZERP_ISSUE_STOP_GRACE_SECONDS="${ZERP_ISSUE_STOP_GRACE_SECONDS:-1}" \
+  ZERP_ISSUE_STOP_GRACE_SECONDS="${ZERP_ISSUE_STOP_GRACE_SECONDS:-5}" \
+  ZERP_ISSUE_STOP_KILL_SECONDS="${ZERP_ISSUE_STOP_KILL_SECONDS:-5}" \
     "${repo_root}/scripts/issue-local.sh" stop
 }
 

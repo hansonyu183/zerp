@@ -1404,7 +1404,12 @@ stop_command() {
   done
   if process_group_alive "${controller_pgid}"; then
     /bin/kill -KILL "-${controller_pgid}" 2>/dev/null || true
-    sleep 1
+    kill_remaining=${ZERP_ISSUE_STOP_KILL_SECONDS:-5}
+    case "${kill_remaining}" in '' | *[!0-9]*) echo 'invalid stop kill period' >&2; return 1 ;; esac
+    while process_group_alive "${controller_pgid}" && [ "${kill_remaining}" -gt 0 ]; do
+      sleep 1
+      kill_remaining=$((kill_remaining - 1))
+    done
   fi
   if process_group_alive "${controller_pgid}"; then
     echo "failed to stop local Issue controller process group ${controller_pgid}" >&2

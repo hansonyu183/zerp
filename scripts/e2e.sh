@@ -1,16 +1,29 @@
 #!/bin/sh
 set -eu
 
-repo_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+if [ -n "${ZERP_E2E_REPO_ROOT:-}" ]; then
+  repo_root=$(CDPATH='' cd -- "${ZERP_E2E_REPO_ROOT}" && pwd -P)
+else
+  repo_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+fi
 cd "${repo_root}"
 
-if [ ! -f backend/.env.e2e.local ]; then
+e2e_env_file=${ZERP_E2E_ENV_FILE:-${repo_root}/backend/.env.e2e.local}
+case "${e2e_env_file}" in
+  /*) ;;
+  *) echo 'ZERP_E2E_ENV_FILE must be an absolute path' >&2; exit 2 ;;
+esac
+if [ -z "${ZERP_E2E_ENV_FILE:-}" ] && [ ! -f "${e2e_env_file}" ]; then
   backend/scripts/init-e2e-env.sh
 fi
+[ -f "${e2e_env_file}" ] || {
+  echo "E2E environment file is unavailable: ${e2e_env_file}" >&2
+  exit 1
+}
 
 set -a
-# shellcheck disable=SC1091
-. backend/.env.e2e.local
+# shellcheck disable=SC1090
+. "${e2e_env_file}"
 set +a
 
 test "${APP_ENV:-}" = "test" || { echo "E2E APP_ENV must be test" >&2; exit 1; }
@@ -31,7 +44,7 @@ runtime_dir=$(mktemp -d "${TMPDIR:-/tmp}/zerp-e2e.XXXXXX")
 api_pid=
 web_pid=
 compose() {
-  docker compose --env-file backend/.env.e2e.local \
+  docker compose --env-file "${e2e_env_file}" \
     -p zerp-fullstack-e2e -f backend/compose.e2e.yaml "$@"
 }
 
@@ -119,4 +132,8 @@ export E2E_PASSWORD="${APP_BOOTSTRAP_PASSWORD}"
 export E2E_RUN_ID="${runtime_dir##*/}"
 export E2E_DISPOSABLE_RUN_ID="${E2E_RUN_ID}"
 
-pnpm --filter @zerp/frontend test:e2e
+if [ "$#" -gt 0 ]; then
+  pnpm --filter @zerp/frontend test:e2e "$@"
+else
+  pnpm --filter @zerp/frontend test:e2e
+fi

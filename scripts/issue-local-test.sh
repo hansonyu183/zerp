@@ -316,21 +316,29 @@ set -eu
 case "${1:-}" in
   -)
     test "$#" = 1
-    test -n "${ZERP_ISSUE_MESSAGE_RECIPIENT:-}"
-    test -n "${ZERP_ISSUE_MESSAGE_BODY:-}"
-    grep -Fq 'system attribute "ZERP_ISSUE_MESSAGE_RECIPIENT"' >/dev/null
-    : >"${MOCK_MESSAGES_STARTED}"
-    if [ "${MOCK_OSASCRIPT_HANG:-0}" = 1 ]; then
-      printf 'imessage-send-hanging\n' >>"${MOCK_IMESSAGE_EVENTS}"
-      printf '%s\n' "$$" >"${MOCK_OSASCRIPT_PID}"
-      trap 'rm -f "${MOCK_OSASCRIPT_PID}"; exit 143' TERM
-      while :; do :; done
+    script=$(cat)
+    if printf '%s' "${script}" | grep -Fq 'system attribute "ZERP_ISSUE_MESSAGE_RECIPIENT"'; then
+      test -n "${ZERP_ISSUE_MESSAGE_RECIPIENT:-}"
+      test -n "${ZERP_ISSUE_MESSAGE_BODY:-}"
+      : >"${MOCK_MESSAGES_STARTED}"
+      if [ "${MOCK_OSASCRIPT_HANG:-0}" = 1 ]; then
+        printf 'imessage-send-hanging\n' >>"${MOCK_IMESSAGE_EVENTS}"
+        printf '%s\n' "$$" >"${MOCK_OSASCRIPT_PID}"
+        trap 'rm -f "${MOCK_OSASCRIPT_PID}"; exit 143' TERM
+        while :; do :; done
+      fi
+      if [ "${MOCK_OSASCRIPT_FAIL:-0}" = 1 ]; then
+        printf 'imessage-send-failed\n' >>"${MOCK_IMESSAGE_EVENTS}"
+        exit 1
+      fi
+      printf '%s\n---\n' "${ZERP_ISSUE_MESSAGE_BODY}" >>"${MOCK_IMESSAGE_EVENTS}"
+    elif printf '%s' "${script}" | grep -Fq 'display notification'; then
+      test -n "${ZERP_ISSUE_NOTIFICATION_TITLE:-}"
+      test -n "${ZERP_ISSUE_MESSAGE_BODY:-}"
+      printf 'macos-notification\n' >>"${MOCK_IMESSAGE_EVENTS}"
+    else
+      exit 2
     fi
-    if [ "${MOCK_OSASCRIPT_FAIL:-0}" = 1 ]; then
-      printf 'imessage-send-failed\n' >>"${MOCK_IMESSAGE_EVENTS}"
-      exit 1
-    fi
-    printf '%s\n---\n' "${ZERP_ISSUE_MESSAGE_BODY}" >>"${MOCK_IMESSAGE_EVENTS}"
     ;;
   -e)
     test "$#" = 2
@@ -1276,13 +1284,14 @@ else
   exit 1
 fi
 grep -Fq '**Status:** done' "${primary}/.scratch/imessage-send-failure/issues/01-ticket.md"
-grep -Fq 'local iMessage notification failed (feature=imessage-send-failure state=in-progress)' \
+grep -Fq 'local iMessage notification failed; macOS fallback delivered (feature=imessage-send-failure state=in-progress)' \
   "${tmp}/imessage-send-failure.log"
 if grep -Fq "${MOCK_IMESSAGE_RECIPIENT}" "${tmp}/imessage-send-failure.log"; then
   echo 'iMessage recipient leaked to the controller log' >&2
   exit 1
 fi
 grep -Fq 'imessage-send-failed' "${MOCK_IMESSAGE_EVENTS}"
+grep -Fq 'macos-notification' "${MOCK_IMESSAGE_EVENTS}"
 grep -Fq 'messages-quit' "${MOCK_IMESSAGE_EVENTS}"
 unset MOCK_OSASCRIPT_FAIL
 
@@ -1298,7 +1307,7 @@ else
   exit 1
 fi
 grep -Fq '**Status:** done' "${primary}/.scratch/imessage-timeout/issues/01-ticket.md"
-grep -Fq 'local iMessage notification failed (feature=imessage-timeout state=in-progress)' \
+grep -Fq 'local iMessage notification failed; macOS fallback delivered (feature=imessage-timeout state=in-progress)' \
   "${tmp}/imessage-timeout.log"
 test ! -e "${MOCK_OSASCRIPT_PID}"
 test ! -e "${MOCK_MESSAGES_STARTED}"

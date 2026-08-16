@@ -35,6 +35,6 @@ scripts/issue-local.sh start
 scripts/issue-local.sh retry <feature>
 ```
 
-首次安装必须以 `ZERP_ISSUE_MESSAGE_RECIPIENT` 传入本机已配置的 iMessage 收件人；安装器只将它保存到 runtime 目录中权限为 `600` 的本机文件，后续重装会自动复用。它不会写入 Git、PR 或普通日志。控制器通过 macOS `Messages`/`osascript` 直接发送，不调用 Codex 或模型；通知仅覆盖 `in-progress`、`pr-open`、`blocked`、`preview-blocked`、`production-blocked`、`needs-input` 和 `done`，不发送 `preview-passed`。控制器每次启动都会补发尚未登记的终态通知，解决旧进程在更新通知逻辑前已经落盘终态的情况。同一批次状态的 exact head、PR 和尝试计数相同时会去重；发送失败只留下不含收件人或正文的泛化本地日志，且不阻断交付。
+首次安装必须以 `ZERP_ISSUE_MESSAGE_RECIPIENT` 传入本机已配置的 iMessage 收件人；安装器只将它保存到 runtime 目录中权限为 `600` 的本机文件，后续重装会自动复用。它不会写入 Git、PR 或普通日志。控制器优先通过 macOS `Messages`/`osascript` 直接发送；Messages 无响应或发送失败时，改发不依赖 Messages 的本机系统通知并记录泛化日志，不调用 Codex 或模型。通知仅覆盖 `in-progress`、`pr-open`、`blocked`、`preview-blocked`、`production-blocked`、`needs-input` 和 `done`，不发送 `preview-passed`。控制器每次启动都会补发尚未登记的终态通知，解决旧进程在更新通知逻辑前已经落盘终态的情况。同一批次状态的 exact head、PR 和尝试计数相同时会去重；两种通知都失败时只留下不含收件人或正文的泛化本地日志，且不阻断交付。
 
 安装器只复制控制脚本和 JSON schema，不复制 Codex `auth.json`、GitHub token 或私钥。实现阶段使用无网络 workspace sandbox；GitHub、预览、生产和宿主测试凭证只属于控制器。依赖隔离、凭证挂载、构建缓存、预览恢复和日志协议由对应脚本及回归测试强制执行，不在本文复制实现细节。

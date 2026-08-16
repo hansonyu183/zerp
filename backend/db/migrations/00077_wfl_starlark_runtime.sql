@@ -227,6 +227,8 @@ ON CONFLICT(path) DO UPDATE SET
     status='ENABLED',
     updated_at=now();
 
+SELECT rpt_validate_current_reports();
+
 -- +goose Down
 
 SELECT 1;

@@ -36,8 +36,7 @@ func NewService(
 	return service, nil
 }
 
-func newID() string             { return ulid.Make().String() }
-func validID(value string) bool { _, err := ulid.ParseStrict(value); return err == nil }
+func newID() string { return ulid.Make().String() }
 
 func validation(message string, data any) error {
 	return &DomainError{Kind: ErrorValidation, Message: message, Data: data}

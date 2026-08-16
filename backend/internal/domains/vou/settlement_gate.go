@@ -188,10 +188,3 @@ func maxInt64(left, right int64) int64 {
 	}
 	return right
 }
-
-func absInt64(value int64) int64 {
-	if value < 0 {
-		return -value
-	}
-	return value
-}

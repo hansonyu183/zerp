@@ -17,6 +17,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+func absInt64(value int64) int64 {
+	if value < 0 {
+		return -value
+	}
+	return value
+}
+
 func createSettlementCustomer(
 	t *testing.T,
 	pool *pgxpool.Pool,

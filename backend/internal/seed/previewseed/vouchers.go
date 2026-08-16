@@ -699,48 +699,6 @@ func (s *Seeder) ensureVoucher(
 	return current, view, outcomeResumed, nil
 }
 
-func (s *Seeder) ensureExistingVoucher(
-	ctx context.Context,
-	key, entity, targetStatus, documentID string,
-) (voudomain.MutationResult, voudomain.DocumentView, outcome, error) {
-	view, err := s.vouchers.Get(ctx, entity, voudomain.GetInput{DocumentID: documentID})
-	if err != nil {
-		return voudomain.MutationResult{}, view, 0, err
-	}
-	current := voudomain.MutationResult{
-		DocumentID: view.DocumentID, DocumentNo: view.DocumentNo,
-		Status: view.Status, Revision: view.Revision,
-	}
-	currentRank, currentKnown := voucherStatusRank(current.Status)
-	targetRank, targetKnown := voucherStatusRank(targetStatus)
-	if !currentKnown || !targetKnown {
-		return current, view, 0, fmt.Errorf("unsupported status %s -> %s", current.Status, targetStatus)
-	}
-	if currentRank >= targetRank {
-		return current, view, outcomeSkipped, nil
-	}
-	var external int
-	if err = s.pool.QueryRow(ctx, `
-		SELECT count(*)
-		FROM vou_audit_events
-		WHERE document_id=$1 AND request_id NOT LIKE $2
-	`, documentID, seedPrefix+"%").Scan(&external); err != nil {
-		return current, view, 0, err
-	}
-	if external > 0 {
-		return current, view, outcomeSkipped, nil
-	}
-	current, err = s.advanceVoucher(ctx, key, entity, current, targetStatus)
-	if err != nil {
-		return current, view, 0, err
-	}
-	view, err = s.vouchers.Get(ctx, entity, voudomain.GetInput{DocumentID: documentID})
-	if err != nil {
-		return current, view, 0, err
-	}
-	return current, view, outcomeResumed, nil
-}
-
 func (s *Seeder) advanceVoucher(
 	ctx context.Context,
 	key, entity string,

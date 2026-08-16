@@ -57,7 +57,9 @@ test(
     await expect(page).toHaveURL(/\/home\/dashboard$/)
     await page.goto('/admin/user')
     await page.getByRole('button', { name: '新增', exact: true }).click()
-    await page.getByLabel('用户名').fill(username)
+    await page
+      .getByRole('textbox', { name: '用户名', exact: true })
+      .fill(username)
     await page.getByLabel('显示名称').fill('E2E 生命周期用户')
     await page.getByLabel('初始密码').fill(initialPassword)
     await page.getByLabel('角色').click()

@@ -98,6 +98,7 @@ if [ -n "${changed_files}" ]; then
         scripts/release-metrics-check.sh | scripts/review-* | \
         scripts/change-gate.sh | scripts/runtime-fingerprint.sh | \
         scripts/issue-local.sh | scripts/issue-local-test.sh | \
+        backend/scripts/run-integration-tests-test.sh | \
         scripts/issue-local-production.sh | \
         scripts/install-issue-local-agent.sh | \
         scripts/install-issue-local-agent-test.sh | \

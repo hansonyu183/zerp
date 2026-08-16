@@ -9,6 +9,8 @@ set -euo pipefail
 : "${TEST_PROJECT:=zerp-api-test}"
 : "${TEST_POSTGRES_PORT:=55434}"
 : "${TEST_INTEGRATION_JOBS:=3}"
+: "${TEST_INTEGRATION_PACKAGES_FILE:=}"
+: "${TEST_INTEGRATION_RESULT_FILE:=}"
 
 fail() {
 	echo "$*" >&2
@@ -22,6 +24,15 @@ fail() {
 [[ "$TEST_POSTGRES_PORT" =~ ^[0-9]+$ ]] || fail "TEST_POSTGRES_PORT must be numeric"
 [[ "$TEST_POSTGRES_PORT" != "${POSTGRES_PORT:-5432}" ]] || fail "TEST_POSTGRES_PORT must differ from POSTGRES_PORT"
 [[ "$TEST_INTEGRATION_JOBS" =~ ^[1-3]$ ]] || fail "TEST_INTEGRATION_JOBS must be between 1 and 3"
+if [[ -n "$TEST_INTEGRATION_PACKAGES_FILE" ]]; then
+	[[ "$TEST_INTEGRATION_PACKAGES_FILE" == /* ]] || fail "TEST_INTEGRATION_PACKAGES_FILE must be absolute"
+	[[ -r "$TEST_INTEGRATION_PACKAGES_FILE" ]] || fail "TEST_INTEGRATION_PACKAGES_FILE must be readable"
+fi
+if [[ -n "$TEST_INTEGRATION_RESULT_FILE" ]]; then
+	[[ "$TEST_INTEGRATION_RESULT_FILE" == /* ]] || fail "TEST_INTEGRATION_RESULT_FILE must be absolute"
+	mkdir -p "$(dirname "$TEST_INTEGRATION_RESULT_FILE")"
+	rm -f "$TEST_INTEGRATION_RESULT_FILE" "${TEST_INTEGRATION_RESULT_FILE}.new"
+fi
 
 compose=(env "POSTGRES_PORT=$TEST_POSTGRES_PORT" docker compose -p "$TEST_PROJECT" --env-file "$ENV_FILE")
 base_database="$TEST_POSTGRES_DB"
@@ -45,6 +56,7 @@ esac
 clone_databases=()
 package_pids=()
 package_labels=()
+package_results="$work_root/package-results.jsonl"
 
 database_url() {
 	printf 'postgres://%s:%s@127.0.0.1:%s/%s?sslmode=disable' \
@@ -88,16 +100,31 @@ goose() {
 
 wait_for_packages() {
 	local failed=0
-	local index
+	local index exit_code status
 	for ((index = 0; index < ${#package_pids[@]}; index++)); do
-		if ! wait "${package_pids[index]}"; then
+		if wait "${package_pids[index]}"; then
+			exit_code=0
+			status=passed
+		else
+			exit_code=$?
+			status=failed
 			echo "integration package failed: ${package_labels[index]}" >&2
 			failed=1
 		fi
+		jq -nc --arg package "${package_labels[index]}" --arg status "$status" \
+			--argjson exitCode "$exit_code" \
+			'{package:$package,status:$status,exitCode:$exitCode}' >>"$package_results"
 	done
 	package_pids=()
 	package_labels=()
 	return "$failed"
+}
+
+write_results() {
+	[[ -n "$TEST_INTEGRATION_RESULT_FILE" ]] || return 0
+	jq -s '{version:1,status:(if any(.[]; .status == "failed") then "failed" else "passed" end),packages:.}' \
+		"$package_results" >"${TEST_INTEGRATION_RESULT_FILE}.new"
+	mv "${TEST_INTEGRATION_RESULT_FILE}.new" "$TEST_INTEGRATION_RESULT_FILE"
 }
 
 # shellcheck disable=SC2317,SC2329 # Invoked by the EXIT and signal traps below.
@@ -166,12 +193,29 @@ recreate_database "$template_database"
 template_url="$(database_url "$template_database")"
 goose "$template_url" up
 
-packages_file="$work_root/packages"
+all_packages_file="$work_root/all-packages"
 git ls-files --cached --others --exclude-standard -- '*_test.go' |
 	while IFS= read -r file; do
 		grep -q '^//go:build integration' "$file" && dirname "$file"
-	done | LC_ALL=C sort -u > "$packages_file"
-[[ -s "$packages_file" ]] || fail "no integration test packages found"
+	done | LC_ALL=C sort -u > "$all_packages_file"
+[[ -s "$all_packages_file" ]] || fail "no integration test packages found"
+
+packages_file="$all_packages_file"
+if [[ -n "$TEST_INTEGRATION_PACKAGES_FILE" ]]; then
+	packages_file="$work_root/selected-packages"
+	: >"$packages_file"
+	while IFS= read -r package || [[ -n "$package" ]]; do
+		[[ -n "$package" ]] || fail "integration package selection contains an empty line"
+		[[ "$package" =~ ^[A-Za-z0-9._/-]+$ && "$package" != *..* && "$package" != /* ]] ||
+			fail "invalid integration package selection: $package"
+		grep -Fxq "$package" "$all_packages_file" || fail "unknown integration package selection: $package"
+		grep -Fxq "$package" "$packages_file" && fail "duplicate integration package selection: $package"
+		printf '%s\n' "$package" >>"$packages_file"
+	done <"$TEST_INTEGRATION_PACKAGES_FILE"
+	[[ -s "$packages_file" ]] || fail "integration package selection is empty"
+fi
+
+: >"$package_results"
 
 index=0
 failed=0
@@ -194,13 +238,13 @@ while IFS= read -r package; do
 	if (( ${#package_pids[@]} == TEST_INTEGRATION_JOBS )); then
 		if ! wait_for_packages; then
 			failed=1
-			break
 		fi
 	fi
 done < "$packages_file"
 
-if (( failed == 0 )) && ! wait_for_packages; then
+if ! wait_for_packages; then
 	failed=1
 fi
+write_results
 
 exit "$failed"

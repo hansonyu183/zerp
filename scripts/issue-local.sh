@@ -19,6 +19,7 @@ production_command=${ZERP_ISSUE_PRODUCTION_COMMAND:-${script_dir}/issue-local-pr
 preview_close_command=${ZERP_ISSUE_PREVIEW_CLOSE_COMMAND:-${script_dir}/issue-local-preview.sh}
 gate_command=${ZERP_ISSUE_GATE_COMMAND:-}
 focused_e2e_command=${ZERP_ISSUE_FOCUSED_E2E_COMMAND:-}
+focused_integration_command=${ZERP_ISSUE_FOCUSED_INTEGRATION_COMMAND:-}
 osascript_bin=${ZERP_OSASCRIPT_BIN:-osascript}
 pgrep_bin=${ZERP_PGREP_BIN:-pgrep}
 schema=${ZERP_ISSUE_RESULT_SCHEMA:-${repo_root}/.github/automation/schemas/local-implementation-output.json}
@@ -87,8 +88,9 @@ notify_batch_event() {
     done) title='批次已完成' ;;
     *) return 0 ;;
   esac
-  body=$(printf 'ZERP 本地 Issue 自动交付\n%s\n批次=%s\n状态=%s\nhead=%s\nPR=%s\n修复累计=%s，连续=%s' \
-    "${title}" "${feature}" "${state}" "${head}" "${pr}" "${total}" "${consecutive}")
+  repairs=$((total > 0 ? total - 1 : 0))
+  body=$(printf 'ZERP 本地 Issue 自动交付\n%s\n批次=%s\n状态=%s\nhead=%s\nPR=%s\n尝试累计=%s，修复次数=%s，连续同错=%s' \
+    "${title}" "${feature}" "${state}" "${head}" "${pr}" "${total}" "${repairs}" "${consecutive}")
   messages_was_running=0
   if "${pgrep_bin}" -x Messages >/dev/null 2>&1; then
     messages_was_running=1
@@ -134,6 +136,19 @@ APPLESCRIPT
   chmod 700 "${runtime_root}"
   printf '%s\n' "${key}" >>"${notification_file}"
   chmod 600 "${notification_file}"
+}
+
+reconcile_batch_notifications() {
+  [ -d "${runtime_root}/batches" ] || return 0
+  for state_file in "${runtime_root}"/batches/*/state; do
+    [ -r "${state_file}" ] || continue
+    state=$(cat "${state_file}")
+    case "${state}" in
+      blocked | preview-blocked | production-blocked | needs-input | done)
+        notify_batch_event "$(dirname "${state_file}")" "${state}"
+        ;;
+    esac
+  done
 }
 
 set_batch_state() {
@@ -216,7 +231,8 @@ consume_repair_budget() {
   budget_file=$(repair_budget_file "${batch_root}")
   total=$(jq -r .total "${budget_file}")
   consecutive=$(jq -r .consecutive "${budget_file}")
-  [ "${total}" -lt 8 ] || return 2
+  # One initial implementation attempt plus at most eight repair attempts.
+  [ "${total}" -lt 9 ] || return 2
   [ "${consecutive}" -lt 2 ] || return 3
   jq --arg stage "${stage}" '
     (.total + 1) as $total |
@@ -279,8 +295,9 @@ block_for_repair_budget() {
   consecutive=$(jq -r '.consecutive // "unknown"' "${budget_file}" 2>/dev/null || printf unknown)
   {
     [ -r "${failure_file}" ] && cat "${failure_file}"
-    printf '\nRepair budget exhausted: %s (total=%s/8, consecutive=%s).\n' \
-      "${reason}" "${total}" "${consecutive}"
+    repairs=$((total > 0 ? total - 1 : 0))
+    printf '\nRepair budget exhausted: %s (attempts=%s/9, repairs=%s/8, consecutive=%s).\n' \
+      "${reason}" "${total}" "${repairs}" "${consecutive}"
   } >"${failure_file}.new"
   mv "${failure_file}.new" "${failure_file}"
 }
@@ -835,24 +852,110 @@ capture_failed_e2e() {
   mv "${repair_file}.new" "${repair_file}"
 }
 
+capture_failed_integration() {
+  batch_root=$1
+  result_file=$2
+  failed_head=$3
+  repair_file="${batch_root}/repair-integration.json"
+  if ! jq -e --arg head "${failed_head}" '
+    . as $result |
+    select(
+      .version == 1 and .status == "failed" and
+      (.packages | type == "array" and length > 0) and
+      all(.packages[];
+        (.package | type == "string" and test("^[A-Za-z0-9._/-]+$") and (contains("..") | not) and startswith("/") == false) and
+        (.status == "passed" or .status == "failed") and
+        (.exitCode | type == "number" and floor == .)) and
+      any(.packages[]; .status == "failed")
+    ) |
+    {version:1, failedHead:$head, packages:[$result.packages[] | select(.status == "failed") | .package]}
+  ' "${result_file}" >"${repair_file}.new" 2>/dev/null; then
+    rm -f "${repair_file}.new"
+    return 1
+  fi
+  mv "${repair_file}.new" "${repair_file}"
+}
+
 write_gate_failure() {
   batch_root=$1
   head_sha=$2
   gate_log=$3
   failure_file="${batch_root}/failure.md"
-  stage=$(grep '^==> ' "${gate_log}" 2>/dev/null | tail -n 1 | sed 's/^==> //' || true)
+  integration_result="${batch_root}/integration-result.json"
+  failed_packages=$(jq -r '.packages[]? | select(.status == "failed") | .package' \
+    "${integration_result}" 2>/dev/null || true)
+  if [ -n "${failed_packages}" ]; then
+    stage="integration packages: $(printf '%s\n' "${failed_packages}" | paste -sd, -)"
+  else
+    stage=$(grep '^==> ' "${gate_log}" 2>/dev/null | tail -n 1 | sed 's/^==> //' || true)
+  fi
   {
     printf 'Host final gate failed for candidate %s. A repair must create a new commit before another gate attempt.\n' "${head_sha}"
     printf 'Failed stage: %s\n' "${stage:-unknown}"
     printf 'Full log: %s\n\nFocused error excerpt:\n\n' "${gate_log}"
     tail -n 140 "${gate_log}" | sed '/^dist\/assets\//d'
   } >"${failure_file}"
+  rm -f "${batch_root}/repair-integration.json"
+  capture_failed_integration "${batch_root}" "${integration_result}" "${head_sha}" || true
   capture_failed_e2e "${batch_root}" "${gate_log}" "${head_sha}"
+}
+
+run_integration_repair_preflight() {
+  batch_root=$1
+  worktree=$2
+  marker="${batch_root}/repair-integration.json"
+  [ -r "${marker}" ] || return 0
+  write_value "${batch_root}/repair-stage" gate
+  failed_head=$(jq -r '.failedHead // empty' "${marker}")
+  head_sha=$(git -C "${worktree}" rev-parse HEAD)
+  [ "${head_sha}" != "${failed_head}" ] || {
+    echo 'focused integration repair requires a new candidate commit' >&2
+    return 4
+  }
+  git -C "${worktree}" merge-base --is-ancestor "${failed_head}" "${head_sha}" || {
+    echo 'focused integration repair candidate does not descend from the failed head' >&2
+    return 4
+  }
+  packages_file="${batch_root}/repair-integration-packages"
+  result_file="${batch_root}/repair-integration-result.json"
+  repair_log="${batch_root}/repair-integration.log"
+  jq -er '.packages[]' "${marker}" >"${packages_file}.new" || return 4
+  mv "${packages_file}.new" "${packages_file}"
+  rm -f "${result_file}"
+  if ! (
+    stage_host_gate_env "${worktree}"
+    trap 'remove_managed_host_env "${worktree}"' EXIT HUP INT TERM
+    cd "${worktree}"
+    if [ -n "${focused_integration_command}" ]; then
+      "${focused_integration_command}" "${packages_file}" "${result_file}"
+    else
+      make -C backend test-integration \
+        ENV_FILE=.env.local \
+        TEST_INTEGRATION_PACKAGES_FILE="${packages_file}" \
+        TEST_INTEGRATION_RESULT_FILE="${result_file}"
+    fi
+  ) >"${repair_log}" 2>&1; then
+    capture_failed_integration "${batch_root}" "${result_file}" "${head_sha}" || true
+    {
+      printf 'Focused integration repair check failed for candidate %s.\n' "${head_sha}"
+      printf 'Packages: %s\n' "$(paste -sd, "${packages_file}")"
+      printf 'Full log: %s\n\nFocused error excerpt:\n\n' "${repair_log}"
+      tail -n 140 "${repair_log}" | sed '/^dist\/assets\//d'
+    } >"${batch_root}/failure.md"
+    return 4
+  fi
+  jq -e '.version == 1 and .status == "passed" and all(.packages[]; .status == "passed")' \
+    "${result_file}" >/dev/null || {
+      echo 'focused integration repair returned invalid evidence' >&2
+      return 4
+    }
+  rm -f "${marker}" "${packages_file}" "${result_file}"
 }
 
 run_repair_preflight() {
   batch_root=$1
   worktree=$2
+  run_integration_repair_preflight "${batch_root}" "${worktree}" || return $?
   marker="${batch_root}/repair-e2e.env"
   [ -r "${marker}" ] || return 0
   write_value "${batch_root}/repair-stage" gate
@@ -900,6 +1003,7 @@ run_final_gate() {
   gate_log="${batch_root}/gate.log"
   failure_file="${batch_root}/failure.md"
   marker_file="${batch_root}/gate-attempted-head"
+  integration_result="${batch_root}/integration-result.json"
   write_value "${batch_root}/repair-stage" gate
   command_path=${gate_command:-${worktree}/scripts/change-gate.sh}
   e2e_env_file=$(ensure_primary_e2e_env) || return 4
@@ -909,7 +1013,7 @@ run_final_gate() {
     return 4
   }
 
-  rm -f "${evidence_file}"
+  rm -f "${evidence_file}" "${integration_result}"
   write_value "${marker_file}" "${head_sha}"
   if ! (
     stage_host_gate_env "${worktree}"
@@ -917,6 +1021,7 @@ run_final_gate() {
     cd "${worktree}"
     PATH="${pnpm_wrapper_dir}:${PATH}" COREPACK_ROOT=1 \
       ZERP_E2E_ENV_FILE="${e2e_env_file}" ZERP_GATE_EVIDENCE_FILE="${evidence_file}" \
+      TEST_INTEGRATION_RESULT_FILE="${integration_result}" \
       "${command_path}" "${base_sha}"
   ) >"${gate_log}" 2>&1; then
     write_gate_failure "${batch_root}" "${head_sha}" "${gate_log}"
@@ -932,6 +1037,7 @@ run_final_gate() {
     } >"${failure_file}"
     return 4
   }
+  rm -f "${batch_root}/repair-integration.json" "${integration_result}"
 }
 
 reviewed_candidate_head() {
@@ -1671,11 +1777,6 @@ run_batch() {
 }
 
 run_command() {
-  [ ! -f "${runtime_root}/disabled" ] || { log 'local Issue delivery is stopped'; return 0; }
-  [ "$("${codex_bin}" login status 2>&1 || true)" = 'Logged in using ChatGPT' ] || {
-    log 'Codex must be logged in with ChatGPT'
-    return 0
-  }
   acquire_lock
   controller_signal() {
     result=$1
@@ -1686,6 +1787,12 @@ run_command() {
   trap 'controller_signal 129' HUP
   trap 'controller_signal 130' INT
   trap 'controller_signal 143' TERM
+  reconcile_batch_notifications
+  [ ! -f "${runtime_root}/disabled" ] || { log 'local Issue delivery is stopped'; return 0; }
+  [ "$("${codex_bin}" login status 2>&1 || true)" = 'Logged in using ChatGPT' ] || {
+    log 'Codex must be logged in with ChatGPT'
+    return 0
+  }
   while :; do
     issues_dir=$(select_batch)
     [ -n "${issues_dir}" ] || return 0
@@ -1780,7 +1887,7 @@ retry_command() {
     preserve_gate_evidence=1
   fi
   if [ "${preserve_gate_evidence}" = 1 ]; then
-    rm -f "${batch_root}/repair-e2e.env"
+    rm -f "${batch_root}/repair-e2e.env" "${batch_root}/repair-integration.json"
   else
     failed_head=$(cat "${batch_root}/gate-attempted-head" 2>/dev/null || true)
     case "${failed_head}" in '' | *[!0-9a-f]*) failed_head= ;; esac
@@ -1790,6 +1897,7 @@ retry_command() {
       write_value "${batch_root}/reviewed-head" "${failed_head}"
     fi
     if [ -n "${failed_head}" ] && [ -r "${batch_root}/gate.log" ]; then
+      capture_failed_integration "${batch_root}" "${batch_root}/integration-result.json" "${failed_head}" || true
       capture_failed_e2e "${batch_root}" "${batch_root}/gate.log" "${failed_head}"
     fi
   fi

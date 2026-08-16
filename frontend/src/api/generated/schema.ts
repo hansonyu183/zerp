@@ -4414,7 +4414,20 @@ export interface components {
             targetEntity: components["schemas"]["VouEntity"];
             relation: string;
         };
-        WflInstanceView: components["schemas"]["WflInstanceListItem"] & {
+        WflInstanceView: {
+            processId: string;
+            definitionId: string;
+            definitionCode: string;
+            definitionName: string;
+            /** Format: int64 */
+            revision: number;
+            rootDocumentId: string;
+            rootDocumentNo: string;
+            rootEntity: string;
+            partyCode: string;
+            partyName: string;
+            /** Format: date-time */
+            updatedAt: string;
             /** Format: int64 */
             startedDefinitionRevision: number;
             nodes: components["schemas"]["WflNodeInstance"][];

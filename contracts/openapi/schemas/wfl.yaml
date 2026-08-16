@@ -378,27 +378,48 @@
   }
 'WflInstanceView':
   {
-    'allOf':
+    'type': 'object',
+    'required':
       [
-        { '$ref': '#/WflInstanceListItem' },
-        {
-          'type': 'object',
-          'required':
-            ['startedDefinitionRevision', 'nodes', 'availableTargets'],
-          'properties':
-            {
-              'startedDefinitionRevision':
-                { 'type': 'integer', 'format': 'int64' },
-              'nodes':
-                { 'type': 'array', 'items': { '$ref': '#/WflNodeInstance' } },
-              'availableTargets':
-                {
-                  'type': 'array',
-                  'items': { '$ref': '#/WflAvailableChildTarget' },
-                },
-            },
-        },
+        'processId',
+        'definitionId',
+        'definitionCode',
+        'definitionName',
+        'revision',
+        'rootDocumentId',
+        'rootDocumentNo',
+        'rootEntity',
+        'partyCode',
+        'partyName',
+        'updatedAt',
+        'startedDefinitionRevision',
+        'nodes',
+        'availableTargets',
       ],
+    'additionalProperties': false,
+    'properties':
+      {
+        'processId': { 'type': 'string' },
+        'definitionId': { 'type': 'string' },
+        'definitionCode': { 'type': 'string' },
+        'definitionName': { 'type': 'string' },
+        'revision': { 'type': 'integer', 'format': 'int64' },
+        'rootDocumentId': { 'type': 'string' },
+        'rootDocumentNo': { 'type': 'string' },
+        'rootEntity': { 'type': 'string' },
+        'partyCode': { 'type': 'string' },
+        'partyName': { 'type': 'string' },
+        'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        'startedDefinitionRevision':
+          { 'type': 'integer', 'format': 'int64' },
+        'nodes':
+          { 'type': 'array', 'items': { '$ref': '#/WflNodeInstance' } },
+        'availableTargets':
+          {
+            'type': 'array',
+            'items': { '$ref': '#/WflAvailableChildTarget' },
+          },
+      },
   }
 'WflInstanceViewResponse':
   {

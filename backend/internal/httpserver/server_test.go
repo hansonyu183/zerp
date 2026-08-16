@@ -382,6 +382,45 @@ func TestOpenAPIValidatorPreservesValidBusinessResponse(t *testing.T) {
 	}
 }
 
+func TestOpenAPIValidatorPreservesExpandedWorkflowInstanceResponse(t *testing.T) {
+	router := newRouter(testConfig(), pingerStub{}, testLogger(), func(router *gin.Engine) {
+		router.POST("/wfl/:processName/get", func(context *gin.Context) {
+			response.OK(context, gin.H{
+				"processId":                 "01J00000000000000000000001",
+				"definitionId":              "01J00000000000000000000002",
+				"definitionCode":            "purchase",
+				"definitionName":            "采购流程",
+				"revision":                  1,
+				"rootDocumentId":            "01J00000000000000000000003",
+				"rootDocumentNo":            "POR-20260816-0001",
+				"rootEntity":                "purchase-order",
+				"partyCode":                 "SUP-0001",
+				"partyName":                 "供应商",
+				"updatedAt":                 "2026-08-16T21:00:00+08:00",
+				"startedDefinitionRevision": 1,
+				"nodes":                     []any{},
+				"availableTargets":          []any{},
+			})
+		})
+	})
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/wfl/purchase/get",
+		strings.NewReader(`{"processId":"01J00000000000000000000001"}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	responseRecorder := httptest.NewRecorder()
+	router.ServeHTTP(responseRecorder, request)
+
+	var envelope response.Envelope
+	if err := json.Unmarshal(responseRecorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if envelope.Code != response.CodeOK {
+		t.Fatalf("code = %d, want %d: %s", envelope.Code, response.CodeOK, responseRecorder.Body.String())
+	}
+}
+
 func TestOpenAPIValidatorPreservesPreciseEndpointBusinessError(t *testing.T) {
 	router := newRouter(testConfig(), pingerStub{}, testLogger(), func(router *gin.Engine) {
 		router.POST("/app/workbench/query", func(context *gin.Context) {

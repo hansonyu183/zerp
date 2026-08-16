@@ -36,6 +36,9 @@ cat >"${control}/scripts/preview.sh" <<'MOCK'
 #!/bin/sh
 set -eu
 printf '%s:%s\n' "$1" "${PREVIEW_PR:-}" >>"${MOCK_EVENTS}"
+if [ "$1" = prepare-db ] && [ "${MOCK_PREVIEW_PREPARE_FAIL:-0}" = 1 ]; then
+  exit 1
+fi
 MOCK
 cat >"${control}/scripts/preview-smoke.sh" <<'MOCK'
 #!/bin/sh
@@ -48,6 +51,17 @@ export MOCK_ACTIVE="${tmp}/active"
 
 ZERP_PRIMARY_ROOT="${control}" ZERP_ISSUE_WORKTREE="${worktree}" \
   "${repo_root}/scripts/issue-local-preview.sh" inventory-query "${head}" >"${tmp}/preview.env"
+prepare_line=$(grep -n '^prepare-db:' "${events}" | sed -n '1s/:.*//p')
+build_line=$(grep -n '^build:' "${events}" | sed -n '1s/:.*//p')
+stop_line=$(grep -n '^stop-app:' "${events}" | sed -n '1s/:.*//p')
+claim_line=$(grep -n '^claim:' "${events}" | sed -n '1s/:.*//p')
+activate_line=$(grep -n '^activate:' "${events}" | sed -n '1s/:.*//p')
+test -n "${prepare_line}" && test -n "${build_line}" && test -n "${stop_line}" && \
+  test -n "${claim_line}" && test -n "${activate_line}"
+test "${prepare_line}" -lt "${build_line}"
+test "${build_line}" -lt "${stop_line}"
+test "${stop_line}" -lt "${claim_line}"
+test "${claim_line}" -lt "${activate_line}"
 ZERP_PRIMARY_ROOT="${control}" \
   "${repo_root}/scripts/issue-local-preview.sh" close inventory-query
 close_count=$(grep -c '^close:' "${events}")
@@ -55,6 +69,15 @@ close_count=$(grep -c '^close:' "${events}")
 ZERP_PRIMARY_ROOT="${control}" \
   "${repo_root}/scripts/issue-local-preview.sh" close inventory-query
 test "$(grep -c '^close:' "${events}")" = "${close_count}"
+
+claim_count=$(grep -c '^claim:' "${events}")
+if MOCK_PREVIEW_PREPARE_FAIL=1 ZERP_PRIMARY_ROOT="${control}" \
+  ZERP_ISSUE_WORKTREE="${worktree}" \
+  "${repo_root}/scripts/issue-local-preview.sh" database-down "${head}" >/dev/null 2>&1; then
+  echo 'preview claimed state after database preparation failed' >&2
+  exit 1
+fi
+test "$(grep -c '^claim:' "${events}")" = "${claim_count}"
 
 claim_id=$(sed -n 's/^claim://p' "${events}")
 close_id=$(sed -n 's/^close://p' "${events}")

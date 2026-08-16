@@ -44,16 +44,26 @@ case "${head_sha}" in *[!0-9a-f]*) echo 'invalid preview SHA' >&2; exit 2 ;; esa
 
 fingerprint=$(ZERP_FINGERPRINT_REPO_ROOT="${worktree}" \
   "${script_dir}/runtime-fingerprint.sh" "${head_sha}")
-if ! ZERP_PREVIEW_OFFLINE=1 PREVIEW_VERIFIED=1 PREVIEW_PR="${id}" PREVIEW_REF="${head_sha}" \
-  PREVIEW_ACTOR=local-batch "${primary_root}/scripts/preview-state.sh" claim; then
+if ! "${primary_root}/scripts/preview.sh" prepare-db; then
   exit 1
 fi
 if ! ZERP_PREVIEW_SOURCE_ROOT="${worktree}" ZERP_RELEASE_SHA="${head_sha}" \
-  "${primary_root}/scripts/preview.sh" build || \
-  ! ZERP_PREVIEW_SOURCE_ROOT="${worktree}" ZERP_RELEASE_SHA="${head_sha}" \
+  "${primary_root}/scripts/preview.sh" build; then
+  exit 1
+fi
+if ! "${primary_root}/scripts/preview.sh" stop-app; then
+  exit 1
+fi
+if ! ZERP_PREVIEW_OFFLINE=1 PREVIEW_VERIFIED=1 PREVIEW_PR="${id}" PREVIEW_REF="${head_sha}" \
+  PREVIEW_ACTOR=local-batch "${primary_root}/scripts/preview-state.sh" claim; then
+  "${primary_root}/scripts/preview.sh" restart-app >/dev/null 2>&1 || true
+  exit 1
+fi
+if ! ZERP_PREVIEW_SOURCE_ROOT="${worktree}" ZERP_RELEASE_SHA="${head_sha}" \
   "${primary_root}/scripts/preview.sh" activate || \
   ! ZERP_PREVIEW_SMOKE_REPO_ROOT="${primary_root}" \
   "${primary_root}/scripts/preview-smoke.sh" "${head_sha}"; then
+  PREVIEW_PR="${id}" "${primary_root}/scripts/preview.sh" close >/dev/null 2>&1 || true
   PREVIEW_PR="${id}" PREVIEW_FAILURE_REASON=local-batch-preview \
     "${primary_root}/scripts/preview-state.sh" fail >/dev/null 2>&1 || true
   exit 1

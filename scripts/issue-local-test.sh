@@ -426,7 +426,11 @@ grep -Fq -- '--model gpt-5.6-sol' "${MOCK_CODEX_ARGS}"
 grep -Fq -- 'model_reasoning_effort=high' "${MOCK_CODEX_ARGS}"
 grep -Fq -- 'sandbox_workspace_write.network_access=false' "${MOCK_CODEX_ARGS}"
 grep -Fq -- 'login shells reset PATH' "${MOCK_PROMPT}"
-grep -Fq -- 'business-error-coverage.spec.ts' "${MOCK_PROMPT}"
+grep -Fq -- 'Before editing, inventory every user-visible wire value affected by the batch' "${MOCK_PROMPT}"
+grep -Fq -- 'Start implementation only after every known value has a Chinese business label or is explicitly confirmed not user-visible' "${MOCK_PROMPT}"
+mapping_preflight_line=$(grep -nF 'Before editing, inventory every user-visible wire value affected by the batch' "${MOCK_PROMPT}" | cut -d: -f1)
+tdd_line=$(grep -nF 'Use TDD at the agreed repository seams' "${MOCK_PROMPT}" | cut -d: -f1)
+test "${mapping_preflight_line}" -lt "${tdd_line}"
 grep -Fq -- 'do not rerun unaffected stages already shown as passed' "${MOCK_PROMPT}"
 test "$(cat "${MOCK_COREPACK_ROOT}")" = 1
 test "$(cat "${MOCK_CODEX_PNPM_VERSION}")" = 10.34.5

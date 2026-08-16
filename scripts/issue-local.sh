@@ -915,6 +915,8 @@ run_implement() {
     printf 'Follow every `Blocked by` edge and satisfy every acceptance criterion in one branch and one PR.\n'
     # shellcheck disable=SC2016 # prompt intentionally contains Markdown literals
     printf 'The batch base commit is `%s`. Do not access GitHub, push, deploy, or read preview or production credentials.\n' "${base_sha}"
+    printf 'Before editing, inventory every user-visible wire value affected by the batch, including statuses, enums, type or entity identifiers, and backend business errors; identify the shared Chinese frontend mapping for each.\n'
+    printf 'Start implementation only after every known value has a Chinese business label or is explicitly confirmed not user-visible; implement each required mapping in the same end-to-end slice and derive selectable options from that mapping.\n'
     printf 'Use TDD at the agreed repository seams. Run focused tests while working.\n'
     printf 'On a repair attempt, trust the recorded root failure: do not rerun unaffected stages already shown as passed; run only tests focused on the failure and your changes.\n'
     if [ -n "${review_base}" ]; then
@@ -926,8 +928,6 @@ run_implement() {
     fi
     # shellcheck disable=SC2016 # prompt intentionally contains shell and Markdown literals
     printf 'For every pnpm command, prepend `PATH="%s:$PATH"` and invoke `%s/pnpm`; login shells reset PATH and package scripts invoke pnpm recursively.\n' "${pnpm_wrapper_dir}" "${pnpm_wrapper_dir}"
-    # shellcheck disable=SC2016 # prompt intentionally contains a Markdown code literal
-    printf 'If you add or change a static backend domain error message, include `frontend/tests/unit/api/business-error-coverage.spec.ts` in focused tests.\n'
     # shellcheck disable=SC2016 # prompt intentionally contains Markdown code delimiters
     printf 'Do not run `scripts/change-gate.sh`: the controller runs the single final gate after your clean commit.\n'
     if [ "${preexisting_review_delta}" = 1 ]; then

@@ -98,6 +98,7 @@ func TestApprovedExistingRootUsesStartedPublishedRevisionAcrossRootKeyChangeAndN
 	ctx := t.Context()
 	actorID, definitionID, processID, rootNodeID := newID(), newID(), newID(), newID()
 	rootDocumentID, oldDocumentID, newDocumentID := newID(), newID(), newID()
+	rootDocumentNo, oldDocumentNo, newDocumentNo := "EXR-20260816-9001", "EXP-20260816-9001", "EXP-20260816-9002"
 	oldFundAccountID, newFundAccountID := newID(), newID()
 	code := "fixed-revision-" + strings.ToLower(newID()[:8])
 	secondCode := "fixed-match-" + strings.ToLower(newID()[:8])
@@ -119,10 +120,10 @@ func TestApprovedExistingRootUsesStartedPublishedRevisionAcrossRootKeyChangeAndN
 	if _, err = pool.Exec(ctx, `
 		INSERT INTO vou_documents(id,entity,document_no,status,business_date,currency,total_amount_cents,created_by,updated_by)
 		VALUES
-			($1,'expense-reimbursement',$2,'DRAFT',current_date,'CNY',1,$4,$4),
-			($3,'expense-payment',$5,'DRAFT',current_date,'CNY',1,$4,$4),
-			($6,'expense-payment',$7,'DRAFT',current_date,'CNY',1,$4,$4)
-	`, rootDocumentID, "ER-"+rootDocumentID[:8], oldDocumentID, actorID, "EP-"+oldDocumentID[:8], newDocumentID, "EP-"+newDocumentID[:8]); err != nil {
+			($1,'expense-reimbursement',$2,'DRAFT',DATE '2026-08-16','CNY',1,$4,$4),
+			($3,'expense-payment',$5,'DRAFT',DATE '2026-08-16','CNY',1,$4,$4),
+			($6,'expense-payment',$7,'DRAFT',DATE '2026-08-16','CNY',1,$4,$4)
+	`, rootDocumentID, rootDocumentNo, oldDocumentID, actorID, oldDocumentNo, newDocumentID, newDocumentNo); err != nil {
 		t.Fatalf("insert workflow documents: %v", err)
 	}
 	if _, err = pool.Exec(ctx, `
@@ -155,20 +156,20 @@ func TestApprovedExistingRootUsesStartedPublishedRevisionAcrossRootKeyChangeAndN
 		INSERT INTO wfl_definition_instances(
 			id,definition_id,root_document_id,root_document_no,root_entity,definition_code,definition_name,started_definition_revision,created_by,updated_by
 		) VALUES($1,$2,$3,$4,'expense-reimbursement',$5,'固定修订流程',1,$6,$6)
-	`, processID, definitionID, rootDocumentID, "ER-"+rootDocumentID[:8], code, actorID); err != nil {
+	`, processID, definitionID, rootDocumentID, rootDocumentNo, code, actorID); err != nil {
 		t.Fatalf("insert workflow instance: %v", err)
 	}
 	if _, err = pool.Exec(ctx, `
 		INSERT INTO wfl_node_instances(id,process_id,node_key,node_name,document_id,document_no,document_entity,trigger_event)
 		VALUES($1,$2,'expense','费用报销',$3,$4,'expense-reimbursement','APPROVED')
-	`, rootNodeID, processID, rootDocumentID, "ER-"+rootDocumentID[:8]); err != nil {
+	`, rootNodeID, processID, rootDocumentID, rootDocumentNo); err != nil {
 		t.Fatalf("insert workflow root node: %v", err)
 	}
 	runtime := &fixedRevisionRuntime{
 		source:           map[string]any{"amount": "1"},
 		oldFundAccountID: oldFundAccountID,
-		oldPayment:       BusinessObjectReference{Entity: "expense-payment", DocumentID: oldDocumentID, DocumentNo: "EP-" + oldDocumentID[:8]},
-		newPayment:       BusinessObjectReference{Entity: "expense-payment", DocumentID: newDocumentID, DocumentNo: "EP-" + newDocumentID[:8]},
+		oldPayment:       BusinessObjectReference{Entity: "expense-payment", DocumentID: oldDocumentID, DocumentNo: oldDocumentNo},
+		newPayment:       BusinessObjectReference{Entity: "expense-payment", DocumentID: newDocumentID, DocumentNo: newDocumentNo},
 	}
 	service, err := NewService(pool, txevent.NewBus(), runtime, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
@@ -180,7 +181,7 @@ func TestApprovedExistingRootUsesStartedPublishedRevisionAcrossRootKeyChangeAndN
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	err = service.handleApproved(ctx, tx, voudomain.DocumentApprovedEvent{
-		Entity: "expense-reimbursement", DocumentID: rootDocumentID, DocumentNo: "ER-" + rootDocumentID[:8],
+		Entity: "expense-reimbursement", DocumentID: rootDocumentID, DocumentNo: rootDocumentNo,
 		ActorID: actorID, RequestID: "fixed-revision-reapproval",
 	})
 	if err != nil {

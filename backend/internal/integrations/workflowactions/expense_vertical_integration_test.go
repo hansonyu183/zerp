@@ -39,21 +39,21 @@ func workflowActionIntegrationPool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-func approveWorkflowReference(t *testing.T, service *bobdomain.Service, entity string, data bobdomain.CreateDetailInput, actorID string) voudomain.ReferenceInput {
+func approveWorkflowReference(t *testing.T, service *bobdomain.Service, entity string, data bobdomain.CreateDetailInput, submitterID, reviewerID string) voudomain.ReferenceInput {
 	t.Helper()
-	created, err := service.Create(t.Context(), entity, bobdomain.CreateInput{Data: data}, actorID, "wfl-reference-create")
+	created, err := service.Create(t.Context(), entity, bobdomain.CreateInput{Data: data}, submitterID, "wfl-reference-create")
 	if err != nil {
 		t.Fatalf("create %s: %v", entity, err)
 	}
 	submitted, err := service.Submit(t.Context(), entity, bobdomain.VersionRevisionInput{
 		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: created.Revision,
-	}, actorID, "wfl-reference-submit")
+	}, submitterID, "wfl-reference-submit")
 	if err != nil {
 		t.Fatalf("submit %s: %v", entity, err)
 	}
 	approved, err := service.Approve(t.Context(), entity, bobdomain.ReviewInput{
 		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: submitted.Revision,
-	}, actorID, "wfl-reference-approve")
+	}, reviewerID, "wfl-reference-approve")
 	if err != nil {
 		t.Fatalf("approve %s: %v", entity, err)
 	}
@@ -88,14 +88,15 @@ func TestExpenseWorkflowRunsThroughRealVOUAdapterInOneApproval(t *testing.T) {
 	pool := workflowActionIntegrationPool(t)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	actorID := ulid.Make().String()
+	submitterID := ulid.Make().String()
 	suffix := strings.ToLower(ulid.Make().String()[:10])
 	bobService := bobdomain.NewService(pool)
 	employee := approveWorkflowReference(t, bobService, bobdomain.EntityEmployee, bobdomain.CreateDetailInput{
 		Code: "WE" + suffix, Name: "流程员工",
-	}, actorID)
+	}, submitterID, actorID)
 	fund := approveWorkflowReference(t, bobService, bobdomain.EntityFundAccount, bobdomain.CreateDetailInput{
 		Code: "WF" + suffix, Name: "流程资金账户", Currency: "CNY",
-	}, actorID)
+	}, submitterID, actorID)
 	bus := txevent.NewBus()
 	vouService, err := voudomain.NewService(pool, bobService, auxiliaryrefs.New(auxdomain.NewService(pool)), bus,
 		voudomain.AttachmentOptions{Root: t.TempDir()}, logger)

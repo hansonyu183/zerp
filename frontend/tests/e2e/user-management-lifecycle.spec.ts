@@ -93,7 +93,9 @@ test(
     await signIn(page, administrator)
     await expect(page).toHaveURL(/\/home\/dashboard$/)
     await page.goto('/admin/user')
-    await page.getByLabel('用户名或名称').fill(username)
+    await page
+      .getByRole('textbox', { name: '用户名或名称', exact: true })
+      .fill(username)
     await page.getByRole('button', { name: '查询', exact: true }).click()
     await page
       .getByLabel(`操作 ${username}`)

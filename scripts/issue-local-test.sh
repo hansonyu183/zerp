@@ -647,6 +647,10 @@ if kill -0 "${active_pid}" 2>/dev/null; then
   exit 1
 fi
 test ! -e "${runtime}/agent.lock"
+# shellcheck disable=SC2016 # intentional literal source assertions
+grep -Fq '/bin/kill -TERM -- "-${controller_pgid}"' "${repo_root}/scripts/issue-local.sh"
+# shellcheck disable=SC2016
+grep -Fq '/bin/kill -KILL -- "-${controller_pgid}"' "${repo_root}/scripts/issue-local.sh"
 sed 's/^\*\*Status:\*\*.*/**Status:** blocked/' "${active_ticket}" >"${active_ticket}.new"
 mv "${active_ticket}.new" "${active_ticket}"
 rm -f "${runtime}/disabled"

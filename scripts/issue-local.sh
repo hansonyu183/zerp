@@ -1395,7 +1395,7 @@ stop_command() {
     echo 'refusing to signal the caller process group' >&2
     return 1
   fi
-  /bin/kill -TERM "-${controller_pgid}" 2>/dev/null || true
+  /bin/kill -TERM -- "-${controller_pgid}" 2>/dev/null || true
   remaining=${ZERP_ISSUE_STOP_GRACE_SECONDS:-120}
   case "${remaining}" in '' | *[!0-9]*) echo 'invalid stop grace period' >&2; return 1 ;; esac
   while process_group_alive "${controller_pgid}" && [ "${remaining}" -gt 0 ]; do
@@ -1403,7 +1403,7 @@ stop_command() {
     remaining=$((remaining - 1))
   done
   if process_group_alive "${controller_pgid}"; then
-    /bin/kill -KILL "-${controller_pgid}" 2>/dev/null || true
+    /bin/kill -KILL -- "-${controller_pgid}" 2>/dev/null || true
     kill_remaining=${ZERP_ISSUE_STOP_KILL_SECONDS:-5}
     case "${kill_remaining}" in '' | *[!0-9]*) echo 'invalid stop kill period' >&2; return 1 ;; esac
     while process_group_alive "${controller_pgid}" && [ "${kill_remaining}" -gt 0 ]; do

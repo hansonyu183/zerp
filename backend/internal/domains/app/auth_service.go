@@ -147,9 +147,8 @@ func (s *Service) Authorize(ctx context.Context, rawToken, csrfToken, path, requ
 		s.auditAuthorizationDenied(ctx, principal, path, requestID, "csrf")
 		return Principal{}, domainError(ErrorForbidden, "csrf validation failed", nil)
 	}
-	if principal.PasswordChangeRequired && !passwordChangeSessionAllows(path) {
-		s.auditAuthorizationDenied(ctx, principal, path, requestID, "password_change_required")
-		return Principal{}, domainError(ErrorForbidden, "password change is required", nil)
+	if err = s.enforceRestrictedSessionPath(ctx, principal, path, requestID); err != nil {
+		return Principal{}, err
 	}
 	if !isSessionSelfServicePath(path) && !permissionAllowsPath(principal.Permissions, path) {
 		s.auditAuthorizationDenied(ctx, principal, path, requestID, "permission")
@@ -164,6 +163,18 @@ func (s *Service) Authorize(ctx context.Context, rawToken, csrfToken, path, requ
 
 func passwordChangeSessionAllows(path string) bool {
 	return path == "/app/user/session" || isSessionSelfServicePath(path)
+}
+
+func (s *Service) enforceRestrictedSessionPath(
+	ctx context.Context,
+	principal Principal,
+	path, requestID string,
+) error {
+	if !principal.PasswordChangeRequired || passwordChangeSessionAllows(path) {
+		return nil
+	}
+	s.auditAuthorizationDenied(ctx, principal, path, requestID, "password_change_required")
+	return domainError(ErrorForbidden, "password change is required", nil)
 }
 
 func isSessionSelfServicePath(path string) bool {

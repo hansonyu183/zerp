@@ -702,6 +702,44 @@ describe('user management protected actions', () => {
     expect(vm.editing.value).toEqual(user)
   })
 
+  it('编辑详情失败时保持编辑模式并禁止退回创建提交', async () => {
+    useSessionStore().permissions.push('/app/user/create')
+    vi.mocked(queryAdminRoles).mockResolvedValueOnce({
+      data: {
+        items: [
+          {
+            id: 'ROLE-1',
+            code: 'operator',
+            name: '操作员',
+            status: 'ENABLED',
+            createdAt: '2026-08-05T00:00:00Z',
+            updatedAt: '2026-08-05T00:00:00Z',
+            revision: 1,
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 200,
+      },
+    })
+    vi.mocked(getAdminUser).mockRejectedValueOnce(new Error('unavailable'))
+    const vm = createUserManagementViewModel()
+
+    await vm.openEdit(user)
+    vm.form.username = 'unexpected-create'
+    vm.form.displayName = '不应创建'
+    vm.form.password = 'Strong-password-1!'
+    vm.form.roleIds = ['ROLE-1']
+
+    expect(vm.editorMode.value).toBe('edit')
+    expect(vm.editing.value).toBeNull()
+    expect(vm.editorErrorMessage.value).toContain('用户详情加载失败')
+    expect(vm.canSubmit.value).toBe(false)
+    await vm.save()
+    expect(createAdminUser).not.toHaveBeenCalled()
+    expect(saveAdminUser).not.toHaveBeenCalled()
+  })
+
   it('状态冲突刷新列表后仍保留重新决策提示', async () => {
     vi.mocked(setAdminUserEnabled).mockRejectedValueOnce(
       new ApiError('business', 'user revision conflict', { code: 3001 }),

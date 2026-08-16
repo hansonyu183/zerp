@@ -160,7 +160,12 @@ void vm.query()
   >
     <v-card class="h-100" flat
       ><v-card-title class="d-flex align-center px-6 py-5"
-        >{{ vm.isDetail ? '查看用户' : vm.editing ? '编辑用户' : '新增用户'
+        >{{
+          vm.isDetail
+            ? '查看用户'
+            : vm.editorMode === 'edit'
+              ? '编辑用户'
+              : '新增用户'
         }}<v-spacer /><v-btn
           icon="mdi-close"
           variant="text"
@@ -186,7 +191,7 @@ void vm.query()
         <v-text-field
           v-model="vm.form.username"
           autocomplete="off"
-          :disabled="Boolean(vm.editing) || vm.isDetail"
+          :disabled="vm.editorMode !== 'create'"
           label="用户名"
           required
           variant="outlined"
@@ -199,7 +204,7 @@ void vm.query()
           variant="outlined"
         />
         <v-text-field
-          v-if="!vm.editing"
+          v-if="vm.editorMode === 'create'"
           v-model="vm.form.password"
           autocomplete="new-password"
           :hint="`${vm.passwordMinLength} 至 256 个字符，包含大小写字母、数字和符号`"

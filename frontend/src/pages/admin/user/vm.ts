@@ -79,9 +79,13 @@ export function createUserManagementViewModel() {
   const canResetPassword = computed(() =>
     session.can('/app/user/reset-password'),
   )
+  const isCreate = computed(() => editorMode.value === 'create')
+  const isEdit = computed(() => editorMode.value === 'edit')
   const isDetail = computed(() => editorMode.value === 'detail')
   const isSelf = computed(() => editing.value?.id === session.user?.id)
-  const rolesReadonly = computed(() => isDetail.value || isSelf.value)
+  const rolesReadonly = computed(
+    () => isDetail.value || isSelf.value || (isEdit.value && !editing.value),
+  )
   const hasUnsavedChanges = computed(
     () =>
       editorOpen.value &&
@@ -123,9 +127,9 @@ export function createUserManagementViewModel() {
     ),
   )
   const validationError = computed(() => {
-    if (isDetail.value) return ''
+    if (isDetail.value || (isEdit.value && !editing.value)) return ''
     if (
-      !editing.value &&
+      isCreate.value &&
       (runeLength(form.username.trim()) < 3 ||
         runeLength(form.username.trim()) > 64)
     )
@@ -135,10 +139,10 @@ export function createUserManagementViewModel() {
       runeLength(form.displayName.trim()) > 128
     )
       return '显示名称应为 1 至 128 个字符。'
-    if (!editing.value && !form.password) return '请输入初始密码。'
+    if (isCreate.value && !form.password) return '请输入初始密码。'
     if (editing.value && isSelf.value) return ''
     if (
-      !editing.value &&
+      isCreate.value &&
       (runeLength(form.password) < session.passwordMinLength ||
         runeLength(form.password) > 256 ||
         !/[a-z]/.test(form.password) ||
@@ -163,8 +167,10 @@ export function createUserManagementViewModel() {
       !saving.value &&
       !rolesLoading.value &&
       !roleErrorMessage.value &&
+      !editorErrorMessage.value &&
       validationError.value === '' &&
-      (editing.value ? canEdit.value : canCreate.value),
+      ((isCreate.value && canCreate.value) ||
+        (isEdit.value && Boolean(editing.value) && canEdit.value)),
   )
 
   function resetForm(): void {
@@ -360,21 +366,22 @@ export function createUserManagementViewModel() {
     errorMessage.value = null
     try {
       const refresh = editing.value?.id === session.user?.id
-      if (editing.value)
+      if (isEdit.value && editing.value)
         await saveAdminUser({
           id: editing.value.id,
           displayName: form.displayName.trim(),
           roleIds: [...form.roleIds],
           revision: editing.value.revision,
         })
-      else
+      else if (isCreate.value)
         await createAdminUser({
           username: form.username.trim(),
           displayName: form.displayName.trim(),
           password: form.password,
           roleIds: [...form.roleIds],
         })
-      successMessage.value = editing.value ? '用户已保存。' : '用户已创建。'
+      else return
+      successMessage.value = isEdit.value ? '用户已保存。' : '用户已创建。'
       closeEditor(true)
       if (refresh) await session.restore({ force: true })
       await query()

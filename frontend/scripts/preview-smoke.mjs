@@ -16,7 +16,7 @@ try {
   const context = await browser.newContext()
   const page = await context.newPage()
   await page.goto(`${baseURL}/signin?preview-release=${expectedSHA}`, {
-    waitUntil: 'domcontentloaded',
+    waitUntil: 'commit',
     timeout: 30_000,
   })
   const usernameInput = page.getByLabel('用户名', { exact: true })

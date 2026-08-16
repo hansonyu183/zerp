@@ -50,9 +50,20 @@ statuses=$(gh api -H "Accept: application/vnd.github+json" "repos/${repository}/
 for required_check in ${required_checks}; do
   check=$(printf '%s' "${check_runs}" | jq -c --arg name "${required_check}" '[.check_runs[] | select(.name == $name)] | sort_by(.started_at) | if length == 0 then null else last end')
   check_state=$(printf '%s' "${check}" | jq -r 'if . == null then "missing" else (.status + ":" + (.conclusion // "")) end')
-  preview_required=$(printf '%s' "${check_runs}" | jq -r '[.check_runs[] | select(.name == "preview-required" and .status == "completed" and .conclusion == "success")] | length > 0')
+  actions_check_supersedes_preview=$(printf '%s' "${check_runs}" | jq -r \
+    --arg name "${required_check}" --argjson selected_check "${check}" '
+      if $name != "full-validation" then true
+      else
+        ([.check_runs[] | select(
+          .name == "preview-required" and
+          .status == "completed" and
+          .conclusion == "success"
+        )] | sort_by(.started_at) | if length == 0 then null else last end) as $preview
+        | ($preview == null or $selected_check.started_at > $preview.started_at)
+      end
+    ')
   if [ "${check_state}" = "completed:success" ]; then
-    if [ "${required_check}" != full-validation ] || [ "${preview_required}" != true ]; then
+    if [ "${actions_check_supersedes_preview}" = true ]; then
       if verify_actions_check_run "${repository}" "${check}" \
         "${required_check}" "${head_sha}" pull_request '' gh; then
         continue

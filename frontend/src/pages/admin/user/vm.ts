@@ -80,8 +80,10 @@ export function createUserManagementViewModel() {
   )
   const canEnable = computed(() => session.can('/app/user/enable'))
   const canDisable = computed(() => session.can('/app/user/disable'))
-  const canResetPassword = computed(() =>
-    session.can('/app/user/reset-password'),
+  const canResetPassword = computed(
+    () =>
+      session.can('/app/user/reset-password') &&
+      session.can('/app/user/query'),
   )
   const isCreate = computed(() => editorMode.value === 'create')
   const isEdit = computed(() => editorMode.value === 'edit')

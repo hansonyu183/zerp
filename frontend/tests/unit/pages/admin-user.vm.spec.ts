@@ -670,6 +670,17 @@ describe('user management protected actions', () => {
     })
   })
 
+  it('重置密码操作包含列表刷新依赖的用户查询权限', () => {
+    const session = useSessionStore()
+    session.permissions = ['/app/user/reset-password']
+    const vm = createUserManagementViewModel()
+
+    expect(vm.canResetUserPassword(user)).toBe(false)
+    vm.requestResetPassword(user)
+    expect(vm.pendingAction.value).toBeNull()
+    expect(resetAdminUserPassword).not.toHaveBeenCalled()
+  })
+
   it('仅为启用的非本人普通用户提供一次性密码重置，并在刷新失败后保留结果', async () => {
     const vm = createUserManagementViewModel()
     expect(vm.canResetUserPassword(user)).toBe(true)

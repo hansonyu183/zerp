@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
+test.use({ screenshot: 'off', trace: 'off' })
+
 const administrator = {
   username: process.env.E2E_USERNAME!,
   password: process.env.E2E_PASSWORD!,

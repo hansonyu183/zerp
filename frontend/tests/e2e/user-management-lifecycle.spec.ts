@@ -62,7 +62,12 @@ test(
       .fill(username)
     await page.getByLabel('显示名称').fill('E2E 生命周期用户')
     await page.getByLabel('初始密码').fill(initialPassword)
-    await page.getByRole('combobox', { name: '角色', exact: true }).click()
+    const roleSelect = page.getByRole('combobox', {
+      name: '角色',
+      exact: true,
+    })
+    await roleSelect.focus()
+    await roleSelect.press('ArrowDown')
     await page
       .locator('[role="option"]:not([aria-disabled="true"])')
       .first()

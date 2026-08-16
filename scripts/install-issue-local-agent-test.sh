@@ -21,17 +21,19 @@ MOCK
 cat >"${tmp}/bin/plutil" <<'MOCK'
 #!/bin/sh
 [ "$1" = -lint ] && [ -r "$2" ]
-grep -Fq '<plist version="1.0">' "$2"
+python3 -c 'import plistlib, sys; plistlib.load(open(sys.argv[1], "rb"))' "$2"
 MOCK
 chmod +x "${tmp}/bin/codex" "${tmp}/bin/gh" "${tmp}/bin/plutil"
 PATH="${tmp}/bin:${PATH}"
 export PATH
 
+message_recipient="test@example.invalid"
 HOME="${tmp}/home" \
   ZERP_PRIMARY_ROOT="${tmp}/primary" \
   ZERP_SKILL_ROOT="${tmp}/skills" \
   ZERP_ISSUE_LOCAL_RUNTIME_ROOT="${tmp}/runtime" \
   ZERP_ISSUE_TRACKER_ROOT="${tmp}/primary/.scratch" \
+  ZERP_ISSUE_MESSAGE_RECIPIENT="${message_recipient}" \
   ZERP_ISSUE_LOCAL_INSTALL_DRY_RUN=1 \
   "${repo_root}/scripts/install-issue-local-agent.sh" >"${tmp}/stdout"
 
@@ -48,10 +50,49 @@ for installed in issue-local.sh issue-local-preview.sh issue-local-production.sh
 test -r "${tmp}/runtime/local-implementation-output.json"
 test ! -x "${tmp}/runtime/local-implementation-output.json"
 test -d "${tmp}/primary/.scratch"
+test "$(cat "${tmp}/runtime/message-recipient")" = "${message_recipient}"
+test "$(stat -f '%Lp' "${tmp}/runtime/message-recipient" 2>/dev/null || \
+  stat -c '%a' "${tmp}/runtime/message-recipient")" = 600
+if grep -Fq 'ZERP_ISSUE_MESSAGE_RECIPIENT' "${plist}"; then
+  echo 'message recipient was duplicated into the LaunchAgent plist' >&2
+  exit 1
+fi
 HOME="${tmp}/home" \
   ZERP_PRIMARY_ROOT="${tmp}/primary" ZERP_ISSUE_LOCAL_RUNTIME_ROOT="${tmp}/runtime" \
   ZERP_ISSUE_TRACKER_ROOT="${tmp}/primary/.scratch" \
   "${tmp}/runtime/issue-local.sh" status >/dev/null
+HOME="${tmp}/home" \
+  ZERP_PRIMARY_ROOT="${tmp}/primary" \
+  ZERP_SKILL_ROOT="${tmp}/skills" \
+  ZERP_ISSUE_LOCAL_RUNTIME_ROOT="${tmp}/runtime" \
+  ZERP_ISSUE_TRACKER_ROOT="${tmp}/primary/.scratch" \
+  ZERP_ISSUE_LOCAL_INSTALL_DRY_RUN=1 \
+  "${repo_root}/scripts/install-issue-local-agent.sh" >/dev/null
+test "$(cat "${tmp}/runtime/message-recipient")" = "${message_recipient}"
+if HOME="${tmp}/home" \
+  ZERP_PRIMARY_ROOT="${tmp}/primary" \
+  ZERP_SKILL_ROOT="${tmp}/skills" \
+  ZERP_ISSUE_LOCAL_RUNTIME_ROOT="${tmp}/invalid-runtime" \
+  ZERP_ISSUE_TRACKER_ROOT="${tmp}/primary/.scratch" \
+  ZERP_ISSUE_MESSAGE_RECIPIENT="$(printf 'bad\nrecipient')" \
+  ZERP_ISSUE_LOCAL_INSTALL_DRY_RUN=1 \
+  "${repo_root}/scripts/install-issue-local-agent.sh" >"${tmp}/invalid-stdout" 2>"${tmp}/invalid-stderr"; then
+  echo 'installer accepted an invalid iMessage recipient' >&2
+  exit 1
+fi
+grep -Fq 'must be non-empty and contain no control characters' "${tmp}/invalid-stderr"
+if HOME="${tmp}/home" \
+  ZERP_PRIMARY_ROOT="${tmp}/primary" \
+  ZERP_SKILL_ROOT="${tmp}/skills" \
+  ZERP_ISSUE_LOCAL_RUNTIME_ROOT="${tmp}/empty-runtime" \
+  ZERP_ISSUE_TRACKER_ROOT="${tmp}/primary/.scratch" \
+  ZERP_ISSUE_MESSAGE_RECIPIENT='' \
+  ZERP_ISSUE_LOCAL_INSTALL_DRY_RUN=1 \
+  "${repo_root}/scripts/install-issue-local-agent.sh" >/dev/null 2>"${tmp}/empty-stderr"; then
+  echo 'installer accepted an empty iMessage recipient' >&2
+  exit 1
+fi
+grep -Fq 'must be non-empty and contain no control characters' "${tmp}/empty-stderr"
 if find "${tmp}" -type f \( -name auth.json -o -name '*.token' -o -name private-key.pem \) | grep -q .; then
   echo 'authentication material was copied by the installer' >&2
   exit 1

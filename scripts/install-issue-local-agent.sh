@@ -14,6 +14,14 @@ preview="${runtime_root}/issue-local-preview.sh"
 production="${runtime_root}/issue-local-production.sh"
 fingerprint="${runtime_root}/runtime-fingerprint.sh"
 schema="${runtime_root}/local-implementation-output.json"
+message_recipient_file="${runtime_root}/message-recipient"
+
+valid_message_recipient() {
+  [ -n "${1:-}" ] || return 1
+  case "$1" in *'
+'*) return 1 ;; esac
+  ! printf '%s' "$1" | LC_ALL=C grep -q '[[:cntrl:]]'
+}
 
 [ "$(codex login status 2>&1 || true)" = 'Logged in using ChatGPT' ] || {
   echo 'Codex must be logged in with ChatGPT before installing the local Issue agent' >&2
@@ -32,6 +40,21 @@ done
 
 mkdir -p "${runtime_root}" "${tracker_root}" "${HOME}/Library/LaunchAgents"
 chmod 700 "${runtime_root}" "${tracker_root}"
+if [ "${ZERP_ISSUE_MESSAGE_RECIPIENT+x}" = x ]; then
+  message_recipient=${ZERP_ISSUE_MESSAGE_RECIPIENT}
+elif [ -r "${message_recipient_file}" ]; then
+  message_recipient=$(cat "${message_recipient_file}")
+else
+  echo 'ZERP_ISSUE_MESSAGE_RECIPIENT is required for the first local Issue agent installation' >&2
+  exit 1
+fi
+valid_message_recipient "${message_recipient}" || {
+  echo 'ZERP_ISSUE_MESSAGE_RECIPIENT must be non-empty and contain no control characters' >&2
+  exit 1
+}
+printf '%s\n' "${message_recipient}" >"${message_recipient_file}.new"
+chmod 600 "${message_recipient_file}.new"
+mv "${message_recipient_file}.new" "${message_recipient_file}"
 for mapping in \
   "scripts/issue-local.sh:${controller}" \
   "scripts/issue-local-preview.sh:${preview}" \

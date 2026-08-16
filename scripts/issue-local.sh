@@ -19,6 +19,8 @@ production_command=${ZERP_ISSUE_PRODUCTION_COMMAND:-${script_dir}/issue-local-pr
 preview_close_command=${ZERP_ISSUE_PREVIEW_CLOSE_COMMAND:-${script_dir}/issue-local-preview.sh}
 gate_command=${ZERP_ISSUE_GATE_COMMAND:-}
 focused_e2e_command=${ZERP_ISSUE_FOCUSED_E2E_COMMAND:-}
+osascript_bin=${ZERP_OSASCRIPT_BIN:-osascript}
+pgrep_bin=${ZERP_PGREP_BIN:-pgrep}
 schema=${ZERP_ISSUE_RESULT_SCHEMA:-${repo_root}/.github/automation/schemas/local-implementation-output.json}
 lock_dir="${runtime_root}/agent.lock"
 controller_path="${script_dir}/$(basename -- "$0")"
@@ -35,6 +37,110 @@ write_value() {
   value=$2
   printf '%s\n' "${value}" >"${destination}.new"
   mv "${destination}.new" "${destination}"
+}
+
+message_recipient() {
+  if [ "${ZERP_ISSUE_MESSAGE_RECIPIENT+x}" = x ]; then
+    printf '%s' "${ZERP_ISSUE_MESSAGE_RECIPIENT}"
+  elif [ -r "${runtime_root}/message-recipient" ]; then
+    cat "${runtime_root}/message-recipient"
+  fi
+}
+
+valid_message_recipient() {
+  [ -n "${1:-}" ] || return 1
+  case "$1" in *'
+'*) return 1 ;; esac
+  ! printf '%s' "$1" | LC_ALL=C grep -q '[[:cntrl:]]'
+}
+
+notify_batch_event() {
+  batch_root=$1
+  state=$2
+  feature=$(basename "${batch_root}")
+  worktree="${runtime_root}/worktrees/${feature}"
+  recipient=$(message_recipient)
+  valid_message_recipient "${recipient}" || return 0
+
+  head=$(git -C "${worktree}" rev-parse HEAD 2>/dev/null || cat "${batch_root}/base-sha" 2>/dev/null || true)
+  case "${head}" in '' | *[!0-9a-f]*) head=unknown ;; esac
+  [ "${#head}" -eq 40 ] || head=unknown
+  pr=$(cat "${batch_root}/pr-number" 2>/dev/null || printf '-')
+  case "${pr}" in '' | *[!0-9]*) pr=- ;; esac
+  budget_file=$(repair_budget_file "${batch_root}")
+  total=$(jq -r '.total // 0' "${budget_file}" 2>/dev/null || printf 0)
+  consecutive=$(jq -r '.consecutive // 0' "${budget_file}" 2>/dev/null || printf 0)
+  key=$(printf '%s\t%s\t%s\t%s\t%s\t%s' \
+    "${feature}" "${state}" "${head}" "${pr}" "${total}" "${consecutive}")
+  notification_file="${runtime_root}/message-notifications.tsv"
+  if [ -r "${notification_file}" ] && grep -Fqx "${key}" "${notification_file}"; then
+    return 0
+  fi
+
+  case "${state}" in
+    in-progress) title='批次开始执行' ;;
+    pr-open) title='PR 已创建，已进入 CI' ;;
+    blocked) title='需要关注：批次已阻塞' ;;
+    preview-blocked) title='需要关注：预览已阻塞' ;;
+    production-blocked) title='需要关注：生产验证已阻塞' ;;
+    needs-input) title='需要关注：需要人工输入' ;;
+    done) title='批次已完成' ;;
+    *) return 0 ;;
+  esac
+  body=$(printf 'ZERP 本地 Issue 自动交付\n%s\n批次=%s\n状态=%s\nhead=%s\nPR=%s\n修复累计=%s，连续=%s' \
+    "${title}" "${feature}" "${state}" "${head}" "${pr}" "${total}" "${consecutive}")
+  messages_was_running=0
+  if "${pgrep_bin}" -x Messages >/dev/null 2>&1; then
+    messages_was_running=1
+  fi
+  notify_result=0
+  timeout_seconds=${ZERP_ISSUE_MESSAGE_TIMEOUT_SECONDS:-10}
+  case "${timeout_seconds}" in '' | *[!0-9]*) timeout_seconds=10 ;; esac
+  ZERP_ISSUE_MESSAGE_RECIPIENT="${recipient}" \
+    ZERP_ISSUE_MESSAGE_BODY="${body}" \
+    "${osascript_bin}" - >/dev/null 2>&1 <<'APPLESCRIPT' &
+on run argv
+  set recipient to system attribute "ZERP_ISSUE_MESSAGE_RECIPIENT"
+  set messageBody to system attribute "ZERP_ISSUE_MESSAGE_BODY"
+  tell application "Messages"
+    set targetService to 1st service whose service type = iMessage
+    send messageBody to buddy recipient of targetService
+  end tell
+end run
+APPLESCRIPT
+  osascript_pid=$!
+  elapsed_seconds=0
+  while kill -0 "${osascript_pid}" >/dev/null 2>&1; do
+    if [ "${elapsed_seconds}" -ge "${timeout_seconds}" ]; then
+      kill "${osascript_pid}" >/dev/null 2>&1 || true
+      wait "${osascript_pid}" >/dev/null 2>&1 || true
+      notify_result=1
+      break
+    fi
+    sleep 1
+    elapsed_seconds=$((elapsed_seconds + 1))
+  done
+  if [ "${notify_result}" -eq 0 ] && ! wait "${osascript_pid}" >/dev/null 2>&1; then
+    notify_result=1
+  fi
+  if [ "${messages_was_running}" = 0 ] && "${pgrep_bin}" -x Messages >/dev/null 2>&1; then
+    "${osascript_bin}" -e 'tell application "Messages" to quit' >/dev/null 2>&1 || true
+  fi
+  if [ "${notify_result}" -ne 0 ]; then
+    log "local iMessage notification failed (feature=${feature} state=${state})"
+    return 0
+  fi
+  mkdir -p "${runtime_root}"
+  chmod 700 "${runtime_root}"
+  printf '%s\n' "${key}" >>"${notification_file}"
+  chmod 600 "${notification_file}"
+}
+
+set_batch_state() {
+  batch_root=$1
+  state=$2
+  write_value "${batch_root}/state" "${state}"
+  notify_batch_event "${batch_root}" "${state}"
 }
 
 repair_budget_file() {
@@ -198,7 +304,7 @@ record_or_block_repair_failure() {
     *) block_for_repair_budget "${batch_root}" 'the cumulative repair audit is invalid or unavailable' ;;
   esac
   mark_batch "${issues_dir}" blocked
-  write_value "${batch_root}/state" blocked
+  set_batch_state "${batch_root}" blocked
   return 1
 }
 
@@ -1266,7 +1372,7 @@ implement_and_preview() {
       preview_result=$?
       if [ "${preview_result}" = 4 ]; then
         mark_batch "${issues_dir}" blocked
-        write_value "${batch_root}/state" preview-blocked
+        set_batch_state "${batch_root}" preview-blocked
         return 1
       fi
     fi
@@ -1283,7 +1389,7 @@ implement_and_preview() {
           preview_result=$?
           if [ "${preview_result}" = 4 ]; then
             mark_batch "${issues_dir}" blocked
-            write_value "${batch_root}/state" preview-blocked
+            set_batch_state "${batch_root}" preview-blocked
             return 1
           fi
         fi
@@ -1300,7 +1406,7 @@ implement_and_preview() {
         block_for_repair_budget "${batch_root}" 'the cumulative repair audit is invalid or unavailable'
       fi
       mark_batch "${issues_dir}" blocked
-      write_value "${batch_root}/state" blocked
+      set_batch_state "${batch_root}" blocked
       return 1
     fi
   fi
@@ -1313,7 +1419,7 @@ implement_and_preview() {
         preview_result=$?
         if [ "${preview_result}" = 4 ]; then
           mark_batch "${issues_dir}" blocked
-          write_value "${batch_root}/state" preview-blocked
+          set_batch_state "${batch_root}" preview-blocked
           return 1
         fi
       fi
@@ -1323,11 +1429,12 @@ implement_and_preview() {
         status=$(jq -r .status "${batch_root}/implementation.json")
         case "${status}" in needs_input) status=needs-input ;; esac
         mark_batch "${issues_dir}" "${status}"
+        set_batch_state "${batch_root}" "${status}"
         return 1
       fi
       if [ "${result}" = 5 ]; then
         mark_batch "${issues_dir}" blocked
-        write_value "${batch_root}/state" blocked
+        set_batch_state "${batch_root}" blocked
         return 1
       fi
       if [ "${result}" != 4 ]; then
@@ -1416,7 +1523,7 @@ wait_checks_and_merge() {
     if grep -Eq 'no (required )?checks reported' "${batch_root}/checks.log"; then
       if [ "${registration_attempts}" -le 0 ]; then
         mark_batch "${issues_dir}" blocked
-        write_value "${batch_root}/state" blocked
+        set_batch_state "${batch_root}" blocked
         release_preview "${feature}"
         return 1
       fi
@@ -1458,13 +1565,13 @@ wait_checks_and_merge() {
         status=$(jq -r .status "${batch_root}/implementation.json")
         case "${status}" in needs_input) status=needs-input ;; esac
         mark_batch "${issues_dir}" "${status}"
-        write_value "${batch_root}/state" "${status}"
+        set_batch_state "${batch_root}" "${status}"
         release_preview "${feature}"
         return 1
       fi
       if [ "${result}" = 5 ]; then
         mark_batch "${issues_dir}" blocked
-        write_value "${batch_root}/state" blocked
+        set_batch_state "${batch_root}" blocked
         release_preview "${feature}"
         return 1
       fi
@@ -1514,10 +1621,11 @@ run_batch() {
   claim_batch "${issues_dir}"
   if ! prepare_worktree "${feature}" "${issues_dir}" "${batch_root}" "${worktree}" "${branch}"; then
     mark_batch "${issues_dir}" blocked
-    write_value "${batch_root}/state" blocked
+    set_batch_state "${batch_root}" blocked
     return 1
   fi
   base_sha=$(cat "${batch_root}/base-sha")
+  notify_batch_event "${batch_root}" in-progress
 
   if [ ! -f "${batch_root}/preview.env" ]; then
     if ! implement_and_preview "${feature}" "${batch_root}" "${worktree}" "${base_sha}" "${issues_dir}"; then
@@ -1537,16 +1645,17 @@ run_batch() {
   fingerprint=$(sed -n 's/^fingerprint=//p' "${batch_root}/preview.env")
   publish_issues "${feature}" "${issues_dir}" "${batch_root}"
   pr=$(publish_pr "${feature}" "${batch_root}" "${worktree}" "${branch}" "${preview_url}" "${fingerprint}")
+  notify_batch_event "${batch_root}" pr-open
   if ! merge_sha=$(wait_checks_and_merge "${feature}" "${batch_root}" "${worktree}" \
     "${issues_dir}" "${branch}" "${pr}"); then
     mark_batch "${issues_dir}" blocked
-    write_value "${batch_root}/state" blocked
+    set_batch_state "${batch_root}" blocked
     return 1
   fi
   if ! ZERP_ISSUE_WORKTREE="${worktree}" \
     "${production_command}" "${pr}" "${merge_sha}" >"${batch_root}/production.env"; then
     mark_batch "${issues_dir}" blocked
-    write_value "${batch_root}/state" production-blocked
+    set_batch_state "${batch_root}" production-blocked
     : >"${runtime_root}/disabled"
     "${gh_bin}" pr comment "${pr}" --repo "${repo}" \
       --body "生产提交 \`${merge_sha}\` 验证失败；后续本地批次已暂停，未执行数据库回滚或恢复动作。" >/dev/null || true
@@ -1554,7 +1663,7 @@ run_batch() {
   fi
   close_remote_issues "${batch_root}/remote-issues.tsv"
   for ticket in "${issues_dir}"/*.md; do complete_ticket "${ticket}"; done
-  write_value "${batch_root}/state" "done"
+  set_batch_state "${batch_root}" "done"
   release_preview "${feature}"
   cleanup_completed_candidate "${worktree}" "${branch}" ||
     log "verified batch ${feature} completed, but candidate cleanup needs attention"

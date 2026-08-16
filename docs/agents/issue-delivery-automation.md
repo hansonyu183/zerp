@@ -6,8 +6,8 @@
 
 1. `$to-tickets` 在主工作区生成 `.scratch/<feature>/issues/*.md`。整个目录是一项不可拆分的发布批次。
 2. launchd 通过 `WatchPaths` 发现 `ready-for-agent` 批次，控制器领取整批并创建 `automation/local-<feature>` 独立 worktree。
-3. 控制器为整批而非逐 ticket 启动临时 `codex exec`，明确要求使用 `$implement` 处理整个目录。`$implement` 在无网络 workspace sandbox 内负责 TDD、聚焦测试、双轴 `/code-review`、修复和提交，返回 `validation=not_run`、`review=passed` 和 commit SHA；它不运行最终门禁。只有失败修复轮次才会再次调用。
-4. 控制器确认模型返回的 commit 与 clean candidate head 完全一致后，才在宿主环境精确运行一次 `scripts/change-gate.sh <base-sha>`。该 gate 可访问宿主 Docker 用于 integration/E2E，但该权限绝不授予 Codex sandbox；成功后写入候选 head、base 和运行时指纹。gate 失败会把日志末尾的根因写入修复证据并保存 exact-head attempt marker；修复轮次只运行与根因和改动相关的聚焦测试，不重复已经通过的无关阶段，并且只有产生新提交才可再次运行最终 gate。
+3. 控制器为整批而非逐 ticket 启动临时 `codex exec`，明确要求使用 `$implement` 处理整个目录。`$implement` 在无网络 workspace sandbox 内负责 TDD、聚焦测试、双轴 `/code-review`、修复和提交，返回 `validation=not_run`、`review=passed` 和 commit SHA；它不运行最终门禁。首次审查覆盖完整批次并记录 `reviewed-head`；失败修复只审查该 SHA 之后的增量，已有 clean 手工修复无需制造空提交。
+4. 控制器确认模型返回的 commit 与 clean candidate head 完全一致后，才在宿主环境精确运行 `scripts/change-gate.sh <base-sha>`。该 gate 可访问宿主 Docker 用于 integration/E2E，但该权限绝不授予 Codex sandbox；成功后写入候选 head、base 和运行时指纹。失败证据只保留失败阶段、完整日志路径和聚焦错误片段。若失败来自可定位的 Playwright 用例，修复提交先在宿主隔离环境运行该用例且使用 `--no-deps`；聚焦用例通过后才允许新候选重新运行完整最终 gate。
 5. 控制器使用受信任主工作区的预览脚本，将候选 worktree 构建到固定公网预览 `https://zerp-preview.bytesucceed.com`，并核对 exact SHA、浏览器 smoke 和运行时指纹。用户查看预览是可选的，不阻塞自动流程。
 6. 到此之前不得调用 GitHub。预览通过后才 fetch 最新 `origin/main`；若 rebase 仅改变 SHA 且运行时指纹不变，复用门禁和预览。指纹改变或发生冲突时，再交给 `$implement` 修复并重新验证，最多三轮。发布工具自测必须使用隔离提交图，不得要求预览前的本地候选分支已包含实时 `origin/main`。
 7. 控制器按本地编号创建远端 Issues、建立原生依赖、推送一个分支，并创建一个引用全部 Issues 的 Ready PR。PR 正文携带 exact head、预览 URL 和运行时指纹。
@@ -17,11 +17,11 @@
 
 ## 失败与恢复
 
-- 实现、审查、门禁或 CI 失败最多进行三轮自动实现/修复；预览失败保留完整 stderr 和 exact-head gate evidence，并直接标为 `preview-blocked`，不会把宿主沙箱、网络或发布环境故障交给 `$implement` 改业务代码。环境恢复后显式 `retry` 会复用通过的 exact-head gate 直接重试预览；耗尽后整批标为 `blocked`，不会继续发布。
+- 实现、审查、门禁或 CI 失败最多进行三轮自动实现/修复；每轮以最近的 `reviewed-head` 和聚焦失败证据为边界，不重新审查未变化的历史。预览失败保留完整 stderr 和 exact-head gate evidence，并直接标为 `preview-blocked`，不会把宿主沙箱、网络或发布环境故障交给 `$implement` 改业务代码。环境恢复后显式 `retry` 会复用通过的 exact-head gate 直接重试预览；耗尽后整批标为 `blocked`，不会继续发布。
 - `needs_input` 立即将整批标为 `needs-input`，不部署预览、不访问 GitHub。
 - 进程崩溃后以批次运行目录中的 base、attempt、预览证据、远端 Issue 映射和 PR 编号恢复。远端对象带稳定 marker；重启必须复用，不得重复创建。已有 PR 时先校验它仍是预期的 open `automation/local-* -> main` PR；若本地候选因重放产生新 SHA，先写入新 head 的 PR marker，再使用旧远端 head 的精确 `--force-with-lease` 更新原分支，确保 GitHub 的 `synchronize` 事件读取到新 marker 后才等待新 head 的检查；推送失败必须恢复旧正文。
 - 生产失败会把批次标为 `production-blocked`、写入本地停止开关并在 PR 通知。控制器不得自动执行数据库回滚、清库、恢复或继续下一批。
-- 人工处理本地失败后可运行 `scripts/issue-local.sh retry <feature>`；若候选 clean、提交与 `implementation.json` 一致且已有 `review=passed`，控制器保留该提交并先恢复其宿主 gate。显式 retry 会清除同一 SHA 的 gate attempt marker，适用于已修复 Docker 等宿主基础设施；dirty、未审查或 SHA 不匹配的候选仍按完整实现轮次重跑。已经发布 PR 的批次不得本地重置。生产故障处理完成后由维护者运行 `scripts/issue-local.sh start`。
+- 人工处理本地失败后先运行 `scripts/issue-local.sh stop`，再运行 `scripts/issue-local.sh retry <feature>`；`stop` 会停止活动 controller 及其子进程，`retry` 在活动 controller 存在时拒绝修改批次。retry 先清理运行状态、保留聚焦失败和已审查边界，最后才原子地把 tickets 标回 `ready-for-agent`。若候选 clean、提交与 `implementation.json` 一致且已有 `review=passed`，控制器保留该提交并先恢复其宿主 gate；clean 手工修复只补增量审查。显式 retry 会清除同一 SHA 的 gate attempt marker，适用于已修复 Docker 等宿主基础设施。已经发布 PR 的批次不得本地重置。生产故障处理完成后由维护者运行 `scripts/issue-local.sh start`。
 
 ## 安装与操作
 

@@ -123,6 +123,14 @@ if [ "${MOCK_CODEX_MODE:-completed}" = needs-input ]; then
   jq -n '{status:"needs_input",summary:"decision required",commitSha:"",validation:"not_run",review:"not_run"}' >"${output}"
   exit 0
 fi
+if [ "${MOCK_CODEX_REVIEW_EXISTING:-0}" = 1 ] &&
+  printf '%s\n' "${prompt}" | grep -Fq 'unreviewed manual repair'; then
+  head=$(git -C "${worktree}" rev-parse HEAD)
+  printf 'model-review\n' >>"${MOCK_EVENTS}"
+  jq -n --arg head "${head}" \
+    '{status:"completed",summary:"reviewed existing repair",commitSha:$head,validation:"not_run",review:"passed"}' >"${output}"
+  exit 0
+fi
 printf 'implemented\n' >"${worktree}/deliverable-${count}.txt"
 git -C "${worktree}" add "deliverable-${count}.txt"
 git -C "${worktree}" -c user.name='Local Implement' -c user.email=local@example.com \
@@ -155,6 +163,10 @@ if [ "${count}" -le "${MOCK_GATE_FAILS:-0}" ]; then
       line=$((line + 1))
     done
   fi
+  if [ "${MOCK_GATE_E2E_FAILURE:-0}" = 1 ]; then
+    echo '==> isolated full-stack E2E'
+    echo '  1) [system-serial] › tests/e2e/user-management-lifecycle.spec.ts:48:1 › lifecycle'
+  fi
   echo "simulated host gate failure ${count}" >&2
   exit 1
 fi
@@ -166,9 +178,31 @@ jq -n --arg head "${head}" --arg base "$1" \
 EOF
 chmod +x "${tmp}/bin/gate"
 
+cat >"${tmp}/bin/focused-e2e" <<'EOF'
+#!/bin/sh
+set -eu
+printf 'focused-e2e %s\n' "$*" >>"${MOCK_EVENTS}"
+count=$(cat "${MOCK_FOCUSED_E2E_COUNT}" 2>/dev/null || printf 0)
+count=$((count + 1))
+printf '%s\n' "${count}" >"${MOCK_FOCUSED_E2E_COUNT}"
+if [ "${count}" -le "${MOCK_FOCUSED_E2E_FAILS:-0}" ]; then
+  echo "simulated focused E2E failure ${count}" >&2
+  exit 1
+fi
+EOF
+chmod +x "${tmp}/bin/focused-e2e"
+
 cat >"${tmp}/bin/preview" <<'EOF'
 #!/bin/sh
 set -eu
+if [ "${1:-}" = close ]; then
+  printf 'preview-close %s\n' "${2:-}" >>"${MOCK_EVENTS}"
+  if [ -n "${MOCK_PREVIEW_CLOSE_TICKET:-}" ]; then
+    grep -Fq "**Status:** ${MOCK_PREVIEW_CLOSE_EXPECT_STATUS}" \
+      "${MOCK_PREVIEW_CLOSE_TICKET}"
+  fi
+  exit 0
+fi
 if [ "${MOCK_PREVIEW_REQUIRE_DETACHED_MODULES:-0}" = 1 ] && \
   { [ -e "${ZERP_ISSUE_WORKTREE}/node_modules" ] || [ -L "${ZERP_ISSUE_WORKTREE}/node_modules" ]; }; then
   echo 'preview received the controller-managed primary node_modules symlink' >&2
@@ -304,6 +338,7 @@ export MOCK_CHECK_COUNT="${tmp}/check-count"
 export MOCK_CODEX_ARGS="${tmp}/codex-args"
 export MOCK_COREPACK_ROOT="${tmp}/corepack-root"
 export MOCK_GATE_COUNT="${tmp}/gate-count"
+export MOCK_FOCUSED_E2E_COUNT="${tmp}/focused-e2e-count"
 export MOCK_GATE_COREPACK_ROOT="${tmp}/gate-corepack-root"
 export MOCK_CODEX_PNPM_PATH="${tmp}/codex-pnpm-path"
 export MOCK_CODEX_PNPM_VERSION="${tmp}/codex-pnpm-version"
@@ -451,6 +486,7 @@ ZERP_GH_BIN=gh \
 ZERP_ISSUE_PREVIEW_COMMAND="${tmp}/bin/preview" \
 ZERP_ISSUE_PRODUCTION_COMMAND="${tmp}/bin/production" \
 ZERP_ISSUE_GATE_COMMAND="${tmp}/bin/gate" \
+ZERP_ISSUE_FOCUSED_E2E_COMMAND="${tmp}/bin/focused-e2e" \
     "${repo_root}/scripts/issue-local.sh" run
 }
 
@@ -459,7 +495,16 @@ retry_agent() {
   ZERP_PRIMARY_ROOT="${primary}" \
   ZERP_ISSUE_TRACKER_ROOT="${primary}/.scratch" \
   ZERP_ISSUE_LOCAL_RUNTIME_ROOT="${runtime}" \
-  "${repo_root}/scripts/issue-local.sh" retry "$1"
+  ZERP_ISSUE_PREVIEW_CLOSE_COMMAND="${tmp}/bin/preview" \
+    "${repo_root}/scripts/issue-local.sh" retry "$1"
+}
+
+stop_agent() {
+  PATH="${tmp}/bin:${PATH}" \
+  ZERP_PRIMARY_ROOT="${primary}" \
+  ZERP_ISSUE_TRACKER_ROOT="${primary}/.scratch" \
+  ZERP_ISSUE_LOCAL_RUNTIME_ROOT="${runtime}" \
+    "${repo_root}/scripts/issue-local.sh" stop
 }
 
 prepare_reviewed_candidate() {
@@ -554,6 +599,39 @@ managed_ticket="${primary}/.scratch/retry-managed-link/issues/01-ticket.md"
 sed 's/^\*\*Status:\*\*.*/**Status:** blocked/' "${managed_ticket}" >"${managed_ticket}.new"
 mv "${managed_ticket}.new" "${managed_ticket}"
 
+make_ticket retry-active-controller 'Retry active controller'
+active_ticket="${primary}/.scratch/retry-active-controller/issues/01-ticket.md"
+sed 's/^\*\*Status:\*\*.*/**Status:** blocked/' "${active_ticket}" >"${active_ticket}.new"
+mv "${active_ticket}.new" "${active_ticket}"
+sleep 30 &
+active_pid=$!
+mkdir -p "${runtime}/agent.lock"
+printf '%s\n' "${active_pid}" >"${runtime}/agent.lock/pid"
+ps -o pgid= -p "${active_pid}" | tr -d ' ' >"${runtime}/agent.lock/pgid"
+if retry_agent retry-active-controller; then
+  echo 'retry accepted an active controller' >&2
+  kill "${active_pid}" 2>/dev/null || true
+  wait "${active_pid}" 2>/dev/null || true
+  exit 1
+fi
+grep -Fq '**Status:** blocked' "${active_ticket}"
+kill "${active_pid}" 2>/dev/null || true
+wait "${active_pid}" 2>/dev/null || true
+rm -rf "${runtime}/agent.lock"
+
+active_pid=$(node -e "const {spawn}=require('child_process'); const child=spawn('sleep',['30'],{detached:true,stdio:'ignore'}); console.log(child.pid); child.unref()")
+mkdir -p "${runtime}/agent.lock"
+printf '%s\n' "${active_pid}" >"${runtime}/agent.lock/pid"
+ps -o pgid= -p "${active_pid}" | tr -d ' ' >"${runtime}/agent.lock/pgid"
+stop_agent
+test -r "${runtime}/disabled"
+if kill -0 "${active_pid}" 2>/dev/null; then
+  echo 'stop left the controller process group alive' >&2
+  exit 1
+fi
+test ! -e "${runtime}/agent.lock"
+rm -f "${runtime}/disabled"
+
 prepare_reviewed_candidate resume-reviewed
 retry_agent resume-reviewed
 test -r "${runtime}/batches/resume-reviewed/implementation.json"
@@ -599,6 +677,33 @@ run_agent
 test "$(cat "${MOCK_CODEX_COUNT}")" = 1
 test "$(cat "${MOCK_GATE_COUNT}")" = 1
 
+prepare_reviewed_candidate resume-manual-repair marker
+manual_candidate="${runtime}/worktrees/resume-manual-repair"
+manual_review_base=$(cat "${runtime}/batches/resume-manual-repair/gate-attempted-head")
+printf 'manual repair\n' >"${manual_candidate}/manual-repair.txt"
+git -C "${manual_candidate}" add manual-repair.txt
+git -C "${manual_candidate}" -c user.name='Local Repair' -c user.email=local@example.com \
+  commit -m 'fix: manual repair' >/dev/null
+manual_head=$(git -C "${manual_candidate}" rev-parse HEAD)
+printf 'focused prior failure\n' >"${runtime}/batches/resume-manual-repair/failure.md"
+rm -f "${runtime}/batches/resume-manual-repair/implementation.json"
+retry_agent resume-manual-repair
+test ! -e "${runtime}/batches/resume-manual-repair/implementation.json"
+test -r "${runtime}/batches/resume-manual-repair/failure.md"
+test "$(cat "${runtime}/batches/resume-manual-repair/reviewed-head")" = "${manual_review_base}"
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
+MOCK_CODEX_REVIEW_EXISTING=1 run_agent
+test "$(cat "${MOCK_CODEX_COUNT}")" = 1
+test "$(cat "${MOCK_GATE_COUNT}")" = 1
+test "$(git -C "${manual_candidate}" rev-parse HEAD)" = "${manual_head}"
+if grep -q '^model-commit$' "${events}"; then
+  echo 'manual repair review created a redundant commit' >&2
+  exit 1
+fi
+grep -Fq 'unreviewed manual repair' "${MOCK_PROMPT}-1"
+grep -Fq 'review only the repair delta' "${MOCK_PROMPT}-1"
+
 prepare_reviewed_candidate marker-without-retry marker
 old_marker=$(cat "${runtime}/batches/marker-without-retry/gate-attempted-head")
 ticket="${primary}/.scratch/marker-without-retry/issues/01-ticket.md"
@@ -615,15 +720,24 @@ test "$(cat "${runtime}/batches/marker-without-retry/gate-attempted-head")" != "
 
 make_ticket gate-repair 'Gate repair'
 : >"${events}"
-rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
-MOCK_GATE_FAILS=1 MOCK_GATE_LONG_FAILURE=1 run_agent
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_FOCUSED_E2E_COUNT}" \
+  "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
+MOCK_GATE_FAILS=1 MOCK_GATE_LONG_FAILURE=1 MOCK_GATE_E2E_FAILURE=1 run_agent
 test "$(cat "${MOCK_CODEX_COUNT}")" = 2
 test "$(cat "${MOCK_GATE_COUNT}")" = 2
+test "$(cat "${MOCK_FOCUSED_E2E_COUNT}")" = 1
 test "$(cat "${MOCK_PREVIEW_COUNT}")" = 1
 grep -Fq 'Host final gate failed' "${MOCK_PROMPT}-2"
 grep -Fq 'simulated host gate failure 1' "${MOCK_PROMPT}-2"
+grep -Fq 'review only the repair delta' "${MOCK_PROMPT}-2"
+grep -Fq 'tests/e2e/user-management-lifecycle.spec.ts' "${MOCK_PROMPT}-2"
+if grep -Fxq 'successful gate output line 1' "${MOCK_PROMPT}-2"; then
+  echo 'repair prompt retained unrelated early gate output' >&2
+  exit 1
+fi
+grep -Fq 'focused-e2e tests/e2e/user-management-lifecycle.spec.ts --project=system-serial --no-deps' "${events}"
 grep -Fq '**Status:** done' "${primary}/.scratch/gate-repair/issues/01-ticket.md"
-unset MOCK_GATE_LONG_FAILURE
+unset MOCK_GATE_LONG_FAILURE MOCK_GATE_E2E_FAILURE
 
 make_ticket gate-blocked 'Gate blocked'
 : >"${events}"
@@ -672,8 +786,14 @@ grep -Fq 'simulated preview environment failure 1' "${runtime}/batches/preview-r
 grep -Fq 'simulated preview environment failure 1' "${runtime}/batches/preview-repair/failure.md"
 grep -Fq '**Status:** blocked' "${primary}/.scratch/preview-repair/issues/01-ticket.md"
 test "$(cat "${runtime}/batches/preview-repair/state")" = preview-blocked
+export MOCK_PREVIEW_CLOSE_TICKET="${primary}/.scratch/preview-repair/issues/01-ticket.md"
+export MOCK_PREVIEW_CLOSE_EXPECT_STATUS=blocked
 retry_agent preview-repair
+unset MOCK_PREVIEW_CLOSE_TICKET MOCK_PREVIEW_CLOSE_EXPECT_STATUS
 test -r "${runtime}/batches/preview-repair/gate-evidence.json"
+test -r "${runtime}/batches/preview-repair/failure.md"
+grep -Fq '**Status:** ready-for-agent' \
+  "${primary}/.scratch/preview-repair/issues/01-ticket.md"
 : >"${events}"
 rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
 export MOCK_PREVIEW_FAILS=0

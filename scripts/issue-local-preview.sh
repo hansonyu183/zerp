@@ -25,6 +25,9 @@ id=$(preview_id "${feature}")
 
 if [ "${1:-}" = close ]; then
   [ "$#" -eq 2 ] || exit 2
+  active=$(PREVIEW_PR="${id}" "${primary_root}/scripts/preview-state.sh" status |
+    sed -n 's/^active=//p')
+  [ "${active}" = "${id}" ] || exit 0
   PREVIEW_PR="${id}" "${primary_root}/scripts/preview.sh" close
   exit
 fi

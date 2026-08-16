@@ -1,7 +1,11 @@
 #!/bin/sh
 set -eu
 
-repo_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+if [ -n "${ZERP_E2E_REPO_ROOT:-}" ]; then
+  repo_root=$(CDPATH='' cd -- "${ZERP_E2E_REPO_ROOT}" && pwd -P)
+else
+  repo_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+fi
 cd "${repo_root}"
 
 if [ ! -f backend/.env.e2e.local ]; then
@@ -119,4 +123,8 @@ export E2E_PASSWORD="${APP_BOOTSTRAP_PASSWORD}"
 export E2E_RUN_ID="${runtime_dir##*/}"
 export E2E_DISPOSABLE_RUN_ID="${E2E_RUN_ID}"
 
-pnpm --filter @zerp/frontend test:e2e
+if [ "$#" -gt 0 ]; then
+  pnpm --filter @zerp/frontend test:e2e "$@"
+else
+  pnpm --filter @zerp/frontend test:e2e
+fi

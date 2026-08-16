@@ -18,6 +18,7 @@ preview_command=${ZERP_ISSUE_PREVIEW_COMMAND:-${script_dir}/issue-local-preview.
 production_command=${ZERP_ISSUE_PRODUCTION_COMMAND:-${script_dir}/issue-local-production.sh}
 preview_close_command=${ZERP_ISSUE_PREVIEW_CLOSE_COMMAND:-${script_dir}/issue-local-preview.sh}
 gate_command=${ZERP_ISSUE_GATE_COMMAND:-}
+focused_e2e_command=${ZERP_ISSUE_FOCUSED_E2E_COMMAND:-}
 schema=${ZERP_ISSUE_RESULT_SCHEMA:-${repo_root}/.github/automation/schemas/local-implementation-output.json}
 lock_dir="${runtime_root}/agent.lock"
 
@@ -137,6 +138,7 @@ acquire_lock() {
   chmod 700 "${runtime_root}"
   if mkdir "${lock_dir}" 2>/dev/null; then
     printf '%s\n' "$$" >"${lock_dir}/pid"
+    ps -o pgid= -p "$$" | tr -d ' ' >"${lock_dir}/pgid"
     return
   fi
   lock_pid=$(cat "${lock_dir}/pid" 2>/dev/null || true)
@@ -147,11 +149,20 @@ acquire_lock() {
   rm -rf "${lock_dir}"
   mkdir "${lock_dir}"
   printf '%s\n' "$$" >"${lock_dir}/pid"
+  ps -o pgid= -p "$$" | tr -d ' ' >"${lock_dir}/pgid"
 }
 
 release_lock() {
-  rm -f "${lock_dir}/pid"
+  [ "$(cat "${lock_dir}/pid" 2>/dev/null || true)" = "$$" ] || return 0
+  rm -f "${lock_dir}/pid" "${lock_dir}/pgid"
   rmdir "${lock_dir}" >/dev/null 2>&1 || true
+}
+
+live_controller_pid() {
+  controller_pid=$(cat "${lock_dir}/pid" 2>/dev/null || true)
+  case "${controller_pid}" in '' | *[!0-9]*) return 1 ;; esac
+  kill -0 "${controller_pid}" 2>/dev/null || return 1
+  printf '%s\n' "${controller_pid}"
 }
 
 ticket_number() { basename "$1" | sed -n 's/^\([0-9][0-9]*\)-.*/\1/p'; }
@@ -428,6 +439,89 @@ verify_worktree_git_metadata() {
   printf '%s\t%s\n' "${git_dir}" "${common_git_dir}"
 }
 
+capture_failed_e2e() {
+  batch_root=$1
+  gate_log=$2
+  failed_head=$3
+  repair_file="${batch_root}/repair-e2e.env"
+  stage=$(grep '^==> ' "${gate_log}" 2>/dev/null | tail -n 1 | sed 's/^==> //' || true)
+  [ "${stage}" = 'isolated full-stack E2E' ] || {
+    rm -f "${repair_file}"
+    return 0
+  }
+  failure_line=$(grep -E '\[[^]]+\].*tests/e2e/[^:]+\.spec\.ts:' "${gate_log}" |
+    tail -n 1 || true)
+  project=$(printf '%s\n' "${failure_line}" |
+    sed -E 's/.*\[([^]]+)\].*/\1/')
+  spec=$(printf '%s\n' "${failure_line}" |
+    sed -E 's@.*› (tests/e2e/[^:]+\.spec\.ts):.*@\1@')
+  case "${project}" in '' | *[!a-z0-9-]*) rm -f "${repair_file}"; return 0 ;; esac
+  case "${spec}" in
+    tests/e2e/*.spec.ts) ;;
+    *) rm -f "${repair_file}"; return 0 ;;
+  esac
+  case "${spec}" in *..*) rm -f "${repair_file}"; return 0 ;; esac
+  {
+    printf 'failed_head=%s\n' "${failed_head}"
+    printf 'project=%s\n' "${project}"
+    printf 'spec=%s\n' "${spec}"
+  } >"${repair_file}.new"
+  mv "${repair_file}.new" "${repair_file}"
+}
+
+write_gate_failure() {
+  batch_root=$1
+  head_sha=$2
+  gate_log=$3
+  failure_file="${batch_root}/failure.md"
+  stage=$(grep '^==> ' "${gate_log}" 2>/dev/null | tail -n 1 | sed 's/^==> //' || true)
+  {
+    printf 'Host final gate failed for candidate %s. A repair must create a new commit before another gate attempt.\n' "${head_sha}"
+    printf 'Failed stage: %s\n' "${stage:-unknown}"
+    printf 'Full log: %s\n\nFocused error excerpt:\n\n' "${gate_log}"
+    tail -n 140 "${gate_log}" | sed '/^dist\/assets\//d'
+  } >"${failure_file}"
+  capture_failed_e2e "${batch_root}" "${gate_log}" "${head_sha}"
+}
+
+run_repair_preflight() {
+  batch_root=$1
+  worktree=$2
+  marker="${batch_root}/repair-e2e.env"
+  [ -r "${marker}" ] || return 0
+  failed_head=$(sed -n 's/^failed_head=//p' "${marker}")
+  project=$(sed -n 's/^project=//p' "${marker}")
+  spec=$(sed -n 's/^spec=//p' "${marker}")
+  head_sha=$(git -C "${worktree}" rev-parse HEAD)
+  [ "${head_sha}" != "${failed_head}" ] || {
+    echo 'focused E2E repair requires a new candidate commit' >&2
+    return 4
+  }
+  git -C "${worktree}" merge-base --is-ancestor "${failed_head}" "${head_sha}" || {
+    echo 'focused E2E repair candidate does not descend from the failed head' >&2
+    return 4
+  }
+  command_path=${focused_e2e_command:-${primary_root}/scripts/e2e.sh}
+  pnpm_wrapper_dir="${worktree}/.scratch/.issue-local-bin"
+  repair_log="${batch_root}/repair-e2e.log"
+  if ! (
+    stage_host_gate_env "${worktree}"
+    trap 'remove_managed_host_env "${worktree}"' EXIT HUP INT TERM
+    cd "${worktree}"
+    PATH="${pnpm_wrapper_dir}:${PATH}" COREPACK_ROOT=1 ZERP_E2E_REPO_ROOT="${worktree}" \
+      "${command_path}" "${spec}" "--project=${project}" --no-deps
+  ) >"${repair_log}" 2>&1; then
+    {
+      printf 'Focused E2E repair check failed for candidate %s.\n' "${head_sha}"
+      printf 'Target: %s [%s]\n' "${spec}" "${project}"
+      printf 'Full log: %s\n\nFocused error excerpt:\n\n' "${repair_log}"
+      tail -n 140 "${repair_log}"
+    } >"${batch_root}/failure.md"
+    return 4
+  fi
+  rm -f "${marker}"
+}
+
 run_final_gate() {
   batch_root=$1
   worktree=$2
@@ -453,10 +547,7 @@ run_final_gate() {
     PATH="${pnpm_wrapper_dir}:${PATH}" COREPACK_ROOT=1 ZERP_GATE_EVIDENCE_FILE="${evidence_file}" \
       "${command_path}" "${base_sha}"
   ) >"${gate_log}" 2>&1; then
-    {
-      printf 'Host final gate failed for candidate %s. A repair must create a new commit before another gate attempt.\n\n' "${head_sha}"
-      tail -n 220 "${gate_log}"
-    } >"${failure_file}"
+    write_gate_failure "${batch_root}" "${head_sha}" "${gate_log}"
     return 4
   fi
   jq -e --arg head "${head_sha}" --arg base "${base_sha}" '
@@ -465,7 +556,7 @@ run_final_gate() {
   ' "${evidence_file}" >/dev/null || {
     {
       printf 'Host final gate returned invalid evidence for candidate %s.\n\n' "${head_sha}"
-      tail -n 220 "${gate_log}"
+      tail -n 140 "${gate_log}" | sed '/^dist\/assets\//d'
     } >"${failure_file}"
     return 4
   }
@@ -527,6 +618,17 @@ run_implement() {
   result_file="${batch_root}/implementation.json"
   evidence_file="${batch_root}/gate-evidence.json"
   failure_file="${batch_root}/failure.md"
+  reviewed_head_file="${batch_root}/reviewed-head"
+  review_base=$(cat "${reviewed_head_file}" 2>/dev/null || true)
+  case "${review_base}" in '' | *[!0-9a-f]*) review_base= ;; esac
+  if [ -n "${review_base}" ] && [ "${#review_base}" -ne 40 ]; then review_base=; fi
+  if [ -n "${review_base}" ]; then
+    git -C "${worktree}" merge-base --is-ancestor "${review_base}" "${previous_head}" || review_base=
+  fi
+  preexisting_review_delta=0
+  if [ -n "${review_base}" ] && [ "${previous_head}" != "${review_base}" ]; then
+    preexisting_review_delta=1
+  fi
   attempt=$(cat "${batch_root}/attempt" 2>/dev/null || printf 0)
   attempt=$((attempt + 1))
   write_value "${batch_root}/attempt" "${attempt}"
@@ -540,13 +642,24 @@ run_implement() {
     printf 'The batch base commit is `%s`. Do not access GitHub, push, deploy, or read preview or production credentials.\n' "${base_sha}"
     printf 'Use TDD at the agreed repository seams. Run focused tests while working.\n'
     printf 'On a repair attempt, trust the recorded root failure: do not rerun unaffected stages already shown as passed; run only tests focused on the failure and your changes.\n'
+    if [ -n "${review_base}" ]; then
+      # shellcheck disable=SC2016 # prompt intentionally contains Markdown delimiters
+      printf 'The complete batch already passed two-axis review through `%s`. Use that SHA as the fixed point and review only the repair delta from it to the final head; preserve the earlier review evidence and do not reread or re-review unchanged history.\n' "${review_base}"
+      if [ "${preexisting_review_delta}" = 1 ]; then
+        printf 'The current clean head already contains an unreviewed manual repair after that fixed point. Review it as-is and create another commit only if the delta needs changes.\n'
+      fi
+    fi
     # shellcheck disable=SC2016 # prompt intentionally contains shell and Markdown literals
     printf 'For every pnpm command, prepend `PATH="%s:$PATH"` and invoke `%s/pnpm`; login shells reset PATH and package scripts invoke pnpm recursively.\n' "${pnpm_wrapper_dir}" "${pnpm_wrapper_dir}"
     # shellcheck disable=SC2016 # prompt intentionally contains a Markdown code literal
     printf 'If you add or change a static backend domain error message, include `frontend/tests/unit/api/business-error-coverage.spec.ts` in focused tests.\n'
     # shellcheck disable=SC2016 # prompt intentionally contains Markdown code delimiters
     printf 'Do not run `scripts/change-gate.sh`: the controller runs the single final gate after your clean commit.\n'
-    printf 'Commit the completed batch to the current branch and return status=completed, validation=not_run, review=passed, and commitSha for that commit.\n'
+    if [ "${preexisting_review_delta}" = 1 ]; then
+      printf 'Return the current clean reviewed head with status=completed, validation=not_run, review=passed, and its commitSha. Commit only if review finds changes are required.\n'
+    else
+      printf 'Commit the completed batch to the current branch and return status=completed, validation=not_run, review=passed, and commitSha for that commit.\n'
+    fi
     if [ -r "${failure_file}" ]; then
       printf '\nRepair evidence from the previous attempt:\n'
       sed -n '1,240p' "${failure_file}"
@@ -573,12 +686,17 @@ run_implement() {
     *) echo "invalid implementation result: ${status}" >&2; return 1 ;;
   esac
   head_sha=$(git -C "${worktree}" rev-parse HEAD)
-  [ "${head_sha}" != "${previous_head}" ] || { echo 'implementation repair produced no new commit' >&2; return 1; }
+  if [ "${head_sha}" = "${previous_head}" ] && [ "${preexisting_review_delta}" != 1 ]; then
+    echo 'implementation repair produced no new commit' >&2
+    return 1
+  fi
   [ -z "$(git -C "${worktree}" status --porcelain)" ] || { echo 'implementation left a dirty worktree' >&2; return 1; }
   jq -e --arg head "${head_sha}" '
     .status == "completed" and .commitSha == $head and
     (.validation == "not_run" or .validation == "passed") and .review == "passed"
   ' "${result_file}" >/dev/null || { echo 'implementation completion evidence is incomplete' >&2; return 1; }
+  write_value "${reviewed_head_file}" "${head_sha}"
+  run_repair_preflight "${batch_root}" "${worktree}" || return $?
   run_final_gate "${batch_root}" "${worktree}" "${base_sha}" "${head_sha}"
 }
 
@@ -836,7 +954,9 @@ implement_and_preview() {
     fi
   fi
   if resumed_head=$(reviewed_candidate_head "${batch_root}" "${worktree}" "${base_sha}"); then
-    if run_final_gate "${batch_root}" "${worktree}" "${base_sha}" "${resumed_head}"; then
+    write_value "${batch_root}/reviewed-head" "${resumed_head}"
+    if run_repair_preflight "${batch_root}" "${worktree}" &&
+      run_final_gate "${batch_root}" "${worktree}" "${base_sha}" "${resumed_head}"; then
       if deploy_preview "${feature}" "${batch_root}" "${worktree}"; then
         rm -f "${batch_root}/failure.md"
         return 0
@@ -1095,12 +1215,53 @@ run_command() {
     return 0
   }
   acquire_lock
-  trap release_lock EXIT HUP INT TERM
+  controller_exit() {
+    result=$1
+    trap - EXIT HUP INT TERM
+    release_lock
+    exit "${result}"
+  }
+  trap release_lock EXIT
+  trap 'controller_exit 129' HUP
+  trap 'controller_exit 130' INT
+  trap 'controller_exit 143' TERM
   while :; do
     issues_dir=$(select_batch)
     [ -n "${issues_dir}" ] || return 0
     run_batch "${issues_dir}"
   done
+}
+
+stop_command() {
+  : >"${runtime_root}/disabled"
+  controller_pid=$(live_controller_pid 2>/dev/null || true)
+  [ -n "${controller_pid}" ] || return 0
+  controller_pgid=$(cat "${lock_dir}/pgid" 2>/dev/null ||
+    ps -o pgid= -p "${controller_pid}" | tr -d ' ' || true)
+  self_pgid=$(ps -o pgid= -p "$$" | tr -d ' ')
+  case "${controller_pgid}" in '' | *[!0-9]*) echo 'active controller has no valid process group' >&2; return 1 ;; esac
+  if [ "${controller_pgid}" = "${self_pgid}" ] || [ "${controller_pgid}" -le 1 ]; then
+    echo 'refusing to signal the caller process group' >&2
+    return 1
+  fi
+  /bin/kill -TERM "-${controller_pgid}" 2>/dev/null || true
+  remaining=3
+  while kill -0 "${controller_pid}" 2>/dev/null && [ "${remaining}" -gt 0 ]; do
+    sleep 1
+    remaining=$((remaining - 1))
+  done
+  if kill -0 "${controller_pid}" 2>/dev/null; then
+    /bin/kill -KILL "-${controller_pgid}" 2>/dev/null || true
+    sleep 1
+  fi
+  if kill -0 "${controller_pid}" 2>/dev/null; then
+    echo "failed to stop local Issue controller pid ${controller_pid}" >&2
+    return 1
+  fi
+  if [ "$(cat "${lock_dir}/pid" 2>/dev/null || true)" = "${controller_pid}" ]; then
+    rm -f "${lock_dir}/pid" "${lock_dir}/pgid"
+    rmdir "${lock_dir}" >/dev/null 2>&1 || true
+  fi
 }
 
 retry_command() {
@@ -1111,25 +1272,58 @@ retry_command() {
     echo "published batch ${feature} cannot be reset locally" >&2
     exit 1
   }
+  if controller_pid=$(live_controller_pid 2>/dev/null); then
+    echo "local Issue controller pid ${controller_pid} is active; run stop before retry" >&2
+    exit 1
+  fi
   batch_root="${runtime_root}/batches/${feature}"
   worktree="${runtime_root}/worktrees/${feature}"
   base_sha=$(cat "${batch_root}/base-sha" 2>/dev/null || true)
+  current_head=
+  if [ -d "${worktree}" ]; then
+    current_head=$(git -C "${worktree}" rev-parse HEAD 2>/dev/null || true)
+  fi
+  if [ -r "${batch_root}/implementation.json" ] && [ -d "${worktree}" ]; then
+    prior_reviewed=$(jq -r 'select(.review == "passed") | .commitSha // empty' \
+      "${batch_root}/implementation.json" 2>/dev/null || true)
+    case "${prior_reviewed}" in '' | *[!0-9a-f]*) prior_reviewed= ;; esac
+    if [ -n "${prior_reviewed}" ] && [ "${#prior_reviewed}" -eq 40 ] &&
+    git -C "${worktree}" merge-base --is-ancestor "${prior_reviewed}" "${current_head}" 2>/dev/null; then
+      write_value "${batch_root}/reviewed-head" "${prior_reviewed}"
+    fi
+  fi
   preserve_gate_evidence=0
   if [ -n "${base_sha}" ] &&
     verified_gate_candidate_head "${batch_root}" "${worktree}" "${base_sha}" >/dev/null; then
     preserve_gate_evidence=1
   fi
-  mark_batch "${issues_dir}" ready-for-agent
-  release_preview "${feature}"
+  failed_head=$(cat "${batch_root}/gate-attempted-head" 2>/dev/null || true)
+  case "${failed_head}" in '' | *[!0-9a-f]*) failed_head= ;; esac
+  if [ -n "${failed_head}" ] && [ "${#failed_head}" -eq 40 ] &&
+    [ -n "${current_head}" ] &&
+    git -C "${worktree}" merge-base --is-ancestor "${failed_head}" "${current_head}" 2>/dev/null; then
+    write_value "${batch_root}/reviewed-head" "${failed_head}"
+  fi
+  if [ -n "${failed_head}" ] && [ -r "${batch_root}/gate.log" ]; then
+    capture_failed_e2e "${batch_root}" "${batch_root}/gate.log" "${failed_head}"
+  fi
+  if [ -r "${batch_root}/preview.env" ] ||
+    [ "$(cat "${batch_root}/state" 2>/dev/null || true)" = preview-blocked ]; then
+    release_preview "${feature}"
+  fi
   remove_managed_root_dependencies "${worktree}"
-  rm -f "${batch_root}/failure.md" "${batch_root}/preview.env" \
-    "${batch_root}/attempt" \
+  rm -f "${batch_root}/preview.env" "${batch_root}/attempt" \
     "${batch_root}/state"
   if [ "${preserve_gate_evidence}" = 1 ]; then
+    mark_batch "${issues_dir}" ready-for-agent
     return 0
   fi
   rm -f "${batch_root}/gate-evidence.json"
   if [ -n "${base_sha}" ] && reviewed_candidate_head "${batch_root}" "${worktree}" "${base_sha}" >/dev/null; then
+    head_sha=$(git -C "${worktree}" rev-parse HEAD)
+    write_value "${batch_root}/reviewed-head" "${head_sha}"
+    rm -f "${batch_root}/gate-attempted-head"
+    mark_batch "${issues_dir}" ready-for-agent
     return 0
   fi
   if [ -r "${batch_root}/implementation.json" ] && [ -d "${worktree}" ] && [ -n "${base_sha}" ]; then
@@ -1140,10 +1334,13 @@ retry_command() {
       .commitSha == $head and .review == "passed"
     ' "${batch_root}/implementation.json" >/dev/null 2>&1; then
       rm -f "${batch_root}/gate-attempted-head"
+      write_value "${batch_root}/reviewed-head" "${head_sha}"
+      mark_batch "${issues_dir}" ready-for-agent
       return 0
     fi
   fi
   rm -f "${batch_root}/implementation.json" "${batch_root}/gate-attempted-head"
+  mark_batch "${issues_dir}" ready-for-agent
 }
 
 mkdir -p "${runtime_root}"
@@ -1151,7 +1348,7 @@ case "${1:-}" in
   run) [ "$#" -eq 1 ] || usage; run_command ;;
   status) [ "$#" -eq 1 ] || usage; status_command ;;
   retry) [ "$#" -eq 2 ] || usage; retry_command "$2" ;;
-  stop) [ "$#" -eq 1 ] || usage; : >"${runtime_root}/disabled" ;;
+  stop) [ "$#" -eq 1 ] || usage; stop_command ;;
   start) [ "$#" -eq 1 ] || usage; rm -f "${runtime_root}/disabled" ;;
   *) usage ;;
 esac

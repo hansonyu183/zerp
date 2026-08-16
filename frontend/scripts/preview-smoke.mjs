@@ -16,9 +16,12 @@ try {
   const context = await browser.newContext()
   const page = await context.newPage()
   await page.goto(`${baseURL}/signin?preview-release=${expectedSHA}`, {
-    waitUntil: 'networkidle',
+    waitUntil: 'domcontentloaded',
+    timeout: 30_000,
   })
-  await page.getByLabel('用户名', { exact: true }).fill(username)
+  const usernameInput = page.getByLabel('用户名', { exact: true })
+  await usernameInput.waitFor({ state: 'visible', timeout: 30_000 })
+  await usernameInput.fill(username)
   await page.getByLabel('密码', { exact: true }).fill(password)
   await page.getByRole('button', { name: '登录', exact: true }).click()
   await page.waitForURL(/\/home\/dashboard$/, { timeout: 30_000 })

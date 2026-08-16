@@ -55,6 +55,22 @@ valid_message_recipient() {
   ! printf '%s' "$1" | LC_ALL=C grep -q '[[:cntrl:]]'
 }
 
+wait_for_notification_process() {
+  process_pid=$1
+  timeout_seconds=$2
+  elapsed_seconds=0
+  while kill -0 "${process_pid}" >/dev/null 2>&1; do
+    if [ "${elapsed_seconds}" -ge "${timeout_seconds}" ]; then
+      kill "${process_pid}" >/dev/null 2>&1 || true
+      wait "${process_pid}" >/dev/null 2>&1 || true
+      return 1
+    fi
+    sleep 1
+    elapsed_seconds=$((elapsed_seconds + 1))
+  done
+  wait "${process_pid}" >/dev/null 2>&1
+}
+
 notify_batch_event() {
   batch_root=$1
   state=$2
@@ -111,26 +127,27 @@ on run argv
 end run
 APPLESCRIPT
   osascript_pid=$!
-  elapsed_seconds=0
-  while kill -0 "${osascript_pid}" >/dev/null 2>&1; do
-    if [ "${elapsed_seconds}" -ge "${timeout_seconds}" ]; then
-      kill "${osascript_pid}" >/dev/null 2>&1 || true
-      wait "${osascript_pid}" >/dev/null 2>&1 || true
-      notify_result=1
-      break
-    fi
-    sleep 1
-    elapsed_seconds=$((elapsed_seconds + 1))
-  done
-  if [ "${notify_result}" -eq 0 ] && ! wait "${osascript_pid}" >/dev/null 2>&1; then
-    notify_result=1
-  fi
+  wait_for_notification_process "${osascript_pid}" "${timeout_seconds}" || notify_result=1
   if [ "${messages_was_running}" = 0 ] && "${pgrep_bin}" -x Messages >/dev/null 2>&1; then
     "${osascript_bin}" -e 'tell application "Messages" to quit' >/dev/null 2>&1 || true
   fi
   if [ "${notify_result}" -ne 0 ]; then
-    log "local iMessage notification failed (feature=${feature} state=${state})"
-    return 0
+    ZERP_ISSUE_NOTIFICATION_TITLE="${title}" \
+      ZERP_ISSUE_MESSAGE_BODY="${body}" \
+      "${osascript_bin}" - >/dev/null 2>&1 <<'APPLESCRIPT' &
+on run argv
+  set notificationTitle to system attribute "ZERP_ISSUE_NOTIFICATION_TITLE"
+  set messageBody to system attribute "ZERP_ISSUE_MESSAGE_BODY"
+  display notification messageBody with title notificationTitle
+end run
+APPLESCRIPT
+    fallback_pid=$!
+    if wait_for_notification_process "${fallback_pid}" "${timeout_seconds}"; then
+      log "local iMessage notification failed; macOS fallback delivered (feature=${feature} state=${state})"
+    else
+      log "local iMessage and macOS fallback notifications failed (feature=${feature} state=${state})"
+      return 0
+    fi
   fi
   mkdir -p "${runtime_root}"
   chmod 700 "${runtime_root}"

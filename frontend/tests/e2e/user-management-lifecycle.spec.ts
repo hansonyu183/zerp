@@ -68,11 +68,17 @@ test(
     })
     await roleSelect.focus()
     await roleSelect.press('ArrowDown')
+    const roleMenuID = await roleSelect.getAttribute('aria-controls')
+    if (!roleMenuID) throw new Error('角色选择器未关联候选列表。')
     await page
-      .locator('[role="option"]:not([aria-disabled="true"])')
+      .locator(
+        `[id="${roleMenuID}"] [role="option"]:not([aria-disabled="true"])`,
+      )
       .first()
       .click()
-    await page.getByRole('button', { name: '保存', exact: true }).click()
+    const saveButton = page.getByRole('button', { name: '保存', exact: true })
+    await expect(saveButton).toBeEnabled()
+    await saveButton.click()
     await expect(page.getByText('用户已创建。', { exact: true })).toBeVisible()
 
     await signOut(page)

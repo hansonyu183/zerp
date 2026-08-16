@@ -377,7 +377,7 @@ describe('user management view model', () => {
     expect(vm.roleOptions.value).toContainEqual({
       title: 'role-201 · 角色 201',
       value: 'ROLE-201',
-      disabled: false,
+      props: { disabled: false, 'aria-disabled': undefined },
     })
   })
 
@@ -417,7 +417,7 @@ describe('user management view model', () => {
       {
         title: 'disabled · 已停用角色（已停用）',
         value: 'ROLE-DISABLED',
-        disabled: true,
+        props: { disabled: true, 'aria-disabled': true },
       },
     ])
   })
@@ -468,7 +468,7 @@ describe('user management view model', () => {
     expect(vm.roleOptions.value).toContainEqual({
       title: 'disabled · 已停用角色（已停用）',
       value: disabledRole.id,
-      disabled: false,
+      props: { disabled: false, 'aria-disabled': undefined },
     })
     expect(vm.validationError.value).toBe(
       '已选角色包含已停用角色（已停用角色），请移除后再保存。',

@@ -119,11 +119,15 @@ export function createUserManagementViewModel() {
     )
   }
   const roleOptions = computed(() =>
-    roles.value.map((role) => ({
-      title: `${role.code} · ${role.name}${role.status === 'DISABLED' ? '（已停用）' : ''}`,
-      value: role.id,
-      disabled: role.status === 'DISABLED' && !form.roleIds.includes(role.id),
-    })),
+    roles.value.map((role) => {
+      const disabled =
+        role.status === 'DISABLED' && !form.roleIds.includes(role.id)
+      return {
+        title: `${role.code} · ${role.name}${role.status === 'DISABLED' ? '（已停用）' : ''}`,
+        value: role.id,
+        props: { disabled, 'aria-disabled': disabled || undefined },
+      }
+    }),
   )
   const selectedDisabledRoles = computed(() =>
     roles.value.filter(

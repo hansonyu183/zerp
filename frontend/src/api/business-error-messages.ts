@@ -96,8 +96,34 @@ const exactMessages: Readonly<Record<string, string>> = {
   'counterparty has outstanding debt': '往来单位仍有欠款，不能批准现结订单。',
   'accounting settlement balance is unavailable':
     '结算余额暂时不可用，请稍后重试。',
+  'ENUM parameter requires values': '枚举参数必须配置可选值。',
+  'REFERENCE parameter requires reference type':
+    '引用参数必须配置引用资料类型。',
+  'enum values only apply to ENUM': '可选值只能用于枚举参数。',
   'process definition code already exists': '流程编码已存在，请使用其他编码。',
   'process definition changed': '流程定义已被其他操作修改，请刷新后重试。',
+  'process definition code is immutable': '流程编码创建后不能修改。',
+  'reference type only applies to REFERENCE': '引用资料类型只能用于引用参数。',
+  'report SQL database validation failed':
+    '报表 SQL 未通过数据库校验，请检查后重试。',
+  'report SQL is invalid': '报表 SQL 不正确，请检查后重试。',
+  'report SQL is not read-only': '报表 SQL 只能执行只读查询。',
+  'report SQL must be a SELECT': '报表 SQL 必须是 SELECT 查询。',
+  'report SQL must contain one statement': '报表 SQL 只能包含一条语句。',
+  'report SQL placeholders do not match parameters':
+    '报表 SQL 占位符与参数定义不一致。',
+  'report enum value is invalid': '报表枚举参数值不在允许范围内。',
+  'report export exceeds row limit': '报表导出行数超过限制，请缩小查询范围。',
+  'report parameter keys must be unique': '报表参数标识不能重复。',
+  'report parameter type is invalid': '报表参数类型不受支持。',
+  'report parameters do not match definition':
+    '报表参数与当前定义不一致，请刷新后重试。',
+  'report reference parameter is invalid': '报表引用参数不正确，请重新选择。',
+  'report reference type is unsupported': '报表引用资料类型不受支持。',
+  'report result columns do not match contract':
+    '报表结果列与当前定义不一致，请联系管理员修复。',
+  'report result columns must be unique': '报表结果列标识不能重复。',
+  'required report parameter is missing': '请填写必填的报表参数。',
   'the current draft requires a successful document trial before publication':
     '当前草稿必须先使用真实单据成功试算，才能发布。',
   'publish the workflow before enabling it': '请先发布流程修订，再启用流程。',
@@ -115,6 +141,14 @@ const exactMessages: Readonly<Record<string, string>> = {
     '该动作结果已登记在流程中的其他位置，不能重复登记。',
   'multiple enabled workflows match this document':
     '当前单据同时命中多个已启用流程，请先停用冲突流程。',
+  'trial source entity does not match the workflow root':
+    '试算单据类型与流程根节点不一致。',
+  'workflow action did not create a document':
+    '流程动作未创建预期单据，操作已回滚。',
+  'workflow action initial values failed':
+    '流程动作初始值计算失败，操作已回滚。',
+  'workflow branch condition failed': '流程分支条件执行失败，操作已回滚。',
+  'workflow start condition failed': '流程启动条件执行失败，操作已回滚。',
   'counterparty already has an unfinished cash-on-delivery order':
     '往来单位已有一张未完成的现结订单。',
   'fund account currency does not match document currency':

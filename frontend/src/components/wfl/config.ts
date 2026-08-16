@@ -60,7 +60,6 @@ export function runtimeEventText(value: string): string {
     {
       STARTED: '流程已启动',
       ACTION_EXECUTED: '已执行流程动作',
-      CHILD_CREATED: '已创建下级单据',
     }[value] ?? value
   )
 }
@@ -84,34 +83,6 @@ export function workflowTriggerText(value?: string): string {
     {
       APPROVED: '单据批准',
       ACTION: '流程动作',
-    },
-    value,
-  )
-}
-
-export function workflowStatusText(value?: string): string {
-  return statusText(
-    {
-      DRAFT: '草稿',
-      CHECKED: '已核对',
-      APPROVED: '已批准',
-    },
-    value,
-  )
-}
-
-export function workflowStageText(value?: string): string {
-  return statusText(
-    {
-      SALE_ORDER: '销售订单',
-      PRODUCTION: '生产配货',
-      OUTBOUND: '销售出库',
-      DELIVERY: '销售送货',
-      SIGNOFF: '销售签收',
-      RETURN: '退货',
-      PURCHASE_ORDER: '采购订单',
-      PURCHASE_INBOUND: '采购入库',
-      PURCHASE_RETURN: '采购退货',
     },
     value,
   )

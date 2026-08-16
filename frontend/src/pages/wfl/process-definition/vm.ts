@@ -50,8 +50,19 @@ export interface DefinitionTrialResult {
   revision?: number
   matched: boolean
   rootNodeKey?: string
-  trace: Array<{ sourceNodeKey: string; targetNodeKey: string; relation: string; action: string; result: { entity: string; documentId: string } }>
-  plannedActions?: Array<{ action: string; sourceDocumentId: string; initial: unknown; result: { entity: string; documentId: string } }>
+  trace: Array<{
+    sourceNodeKey: string
+    targetNodeKey: string
+    relation: string
+    action: string
+    result: { entity: string; documentId: string }
+  }>
+  plannedActions?: Array<{
+    action: string
+    sourceDocumentId: string
+    initial: unknown
+    result: { entity: string; documentId: string }
+  }>
   uncoveredBranches?: string[]
 }
 
@@ -98,13 +109,22 @@ function diagnosticFromString(diagnostic?: string): ScriptDiagnostic | null {
 }
 
 function diagnosticFromError(error: unknown): ScriptDiagnostic | null {
-  if (!(error instanceof ApiError) || !error.details || typeof error.details !== 'object') return null
+  if (
+    !(error instanceof ApiError) ||
+    !error.details ||
+    typeof error.details !== 'object'
+  )
+    return null
   const diagnostic = (error.details as Record<string, unknown>).diagnostic
   if (typeof diagnostic === 'string') return diagnosticFromString(diagnostic)
   if (!diagnostic || typeof diagnostic !== 'object') return null
   const value = diagnostic as Record<string, unknown>
   return typeof value.message === 'string'
-    ? { message: value.message, line: typeof value.line === 'number' ? value.line : undefined, column: typeof value.column === 'number' ? value.column : undefined }
+    ? {
+        message: value.message,
+        line: typeof value.line === 'number' ? value.line : undefined,
+        column: typeof value.column === 'number' ? value.column : undefined,
+      }
     : null
 }
 
@@ -113,6 +133,7 @@ export function useProcessDefinitionViewModel() {
   const definitions = ref<DefinitionListItem[]>([])
   const selected = ref<DefinitionView | null>(null)
   const keyword = ref('')
+  const status = ref<DefinitionView['status'] | null>(null)
   const loading = ref(false)
   const saving = ref(false)
   const trialing = ref(false)
@@ -124,18 +145,31 @@ export function useProcessDefinitionViewModel() {
   const trialDocumentId = ref('')
   const trialResult = ref<DefinitionTrialResult | null>(null)
 
-  const can = (action: string) => session.can(`/wfl/process-definition/${action}`)
-  const nodeMap = computed(() => new Map((selected.value?.nodes ?? []).map((node) => [node.key, node])))
+  const can = (action: string) =>
+    session.can(`/wfl/process-definition/${action}`)
+  const nodeMap = computed(
+    () =>
+      new Map((selected.value?.nodes ?? []).map((node) => [node.key, node])),
+  )
 
   async function query(): Promise<void> {
     if (!can('query')) return
     loading.value = true
     errorMessage.value = null
     try {
-      const { data } = await apiClient.post<{ items: DefinitionListItem[] }, { page: number; pageSize: number; keyword?: string }>('wfl/process-definition/query', {
+      const { data } = await apiClient.post<
+        { items: DefinitionListItem[] },
+        {
+          page: number
+          pageSize: number
+          keyword?: string
+          status?: DefinitionView['status']
+        }
+      >('wfl/process-definition/query', {
         page: 1,
         pageSize: 100,
         ...(keyword.value.trim() ? { keyword: keyword.value.trim() } : {}),
+        ...(status.value ? { status: status.value } : {}),
       })
       definitions.value = data.items ?? []
     } catch (error) {
@@ -145,11 +179,18 @@ export function useProcessDefinitionViewModel() {
     }
   }
 
+  function resetFilters(): void {
+    status.value = null
+    void query()
+  }
+
   function setSelected(definition: DefinitionView): void {
     selected.value = definition
     scriptText.value = definition.script
     scriptDiagnostic.value = definition.diagnostic ?? null
-    trialEntity.value = definition.nodes.find((node) => node.key === definition.rootNodeKey)?.documentEntity ?? ''
+    trialEntity.value =
+      definition.nodes.find((node) => node.key === definition.rootNodeKey)
+        ?.documentEntity ?? ''
     trialDocumentId.value = ''
     trialResult.value = null
   }
@@ -159,7 +200,10 @@ export function useProcessDefinitionViewModel() {
     loading.value = true
     errorMessage.value = null
     try {
-      const { data } = await apiClient.post<DefinitionView, { definitionId: string }>('wfl/process-definition/get', { definitionId: item.definitionId })
+      const { data } = await apiClient.post<
+        DefinitionView,
+        { definitionId: string }
+      >('wfl/process-definition/get', { definitionId: item.definitionId })
       setSelected(data)
       editorOpen.value = true
     } catch (error) {
@@ -171,15 +215,27 @@ export function useProcessDefinitionViewModel() {
 
   function create(): void {
     setSelected({
-      definitionId: '', code: '', name: '', status: 'DRAFT', revision: 0,
-      script: DEFAULT_STARLARK_SCRIPT, rootNodeKey: '', nodes: [], edges: [], updatedAt: '',
+      definitionId: '',
+      code: '',
+      name: '',
+      status: 'DRAFT',
+      revision: 0,
+      script: DEFAULT_STARLARK_SCRIPT,
+      rootNodeKey: '',
+      nodes: [],
+      edges: [],
+      updatedAt: '',
     })
     editorOpen.value = true
   }
 
   async function save(): Promise<void> {
     const definition = selected.value
-    if (!definition || !scriptText.value.trim() || !(definition.definitionId ? can('save') : can('create'))) {
+    if (
+      !definition ||
+      !scriptText.value.trim() ||
+      !(definition.definitionId ? can('save') : can('create'))
+    ) {
       if (!scriptText.value.trim()) errorMessage.value = '请填写流程脚本。'
       return
     }
@@ -189,10 +245,18 @@ export function useProcessDefinitionViewModel() {
     trialResult.value = null
     try {
       const { data } = definition.definitionId
-        ? await apiClient.post<DefinitionView, { definitionId: string; revision: number; script: string }>('wfl/process-definition/save', {
-            definitionId: definition.definitionId, revision: definition.revision, script: scriptText.value,
+        ? await apiClient.post<
+            DefinitionView,
+            { definitionId: string; revision: number; script: string }
+          >('wfl/process-definition/save', {
+            definitionId: definition.definitionId,
+            revision: definition.revision,
+            script: scriptText.value,
           })
-        : await apiClient.post<DefinitionView, { script: string }>('wfl/process-definition/create', { script: scriptText.value })
+        : await apiClient.post<DefinitionView, { script: string }>(
+            'wfl/process-definition/create',
+            { script: scriptText.value },
+          )
       setSelected(data)
       await query()
     } catch (error) {
@@ -214,10 +278,20 @@ export function useProcessDefinitionViewModel() {
     errorMessage.value = null
     trialResult.value = null
     try {
-      const { data } = await apiClient.post<DefinitionTrialResult, { definitionId: string; revision: number; source: { entity: string; documentId: string } }>('wfl/process-definition/trial', {
+      const { data } = await apiClient.post<
+        DefinitionTrialResult,
+        {
+          definitionId: string
+          revision: number
+          source: { entity: string; documentId: string }
+        }
+      >('wfl/process-definition/trial', {
         definitionId: definition.definitionId,
         revision: definition.revision,
-        source: { entity: trialEntity.value, documentId: trialDocumentId.value },
+        source: {
+          entity: trialEntity.value,
+          documentId: trialDocumentId.value,
+        },
       })
       trialResult.value = data
     } catch (error) {
@@ -227,14 +301,20 @@ export function useProcessDefinitionViewModel() {
     }
   }
 
-  async function action(actionName: 'publish' | 'enable' | 'disable' | 'delete'): Promise<void> {
+  async function action(
+    actionName: 'publish' | 'enable' | 'disable' | 'delete',
+  ): Promise<void> {
     const definition = selected.value
     if (!definition?.definitionId || !can(actionName)) return
     saving.value = true
     errorMessage.value = null
     try {
-      const { data } = await apiClient.post<DefinitionView, { definitionId: string; revision: number }>(`wfl/process-definition/${actionName}`, {
-        definitionId: definition.definitionId, revision: definition.revision,
+      const { data } = await apiClient.post<
+        DefinitionView,
+        { definitionId: string; revision: number }
+      >(`wfl/process-definition/${actionName}`, {
+        definitionId: definition.definitionId,
+        revision: definition.revision,
       })
       await session.restore({ force: true })
       if (actionName === 'delete') {
@@ -254,8 +334,28 @@ export function useProcessDefinitionViewModel() {
   onMounted(() => void query())
 
   return {
-    definitions, selected, keyword, loading, saving, trialing, editorOpen,
-    errorMessage, scriptDiagnostic, scriptText, trialEntity, trialDocumentId,
-    trialResult, nodeMap, can, query, create, open, save, trial, action,
+    definitions,
+    selected,
+    keyword,
+    status,
+    loading,
+    saving,
+    trialing,
+    editorOpen,
+    errorMessage,
+    scriptDiagnostic,
+    scriptText,
+    trialEntity,
+    trialDocumentId,
+    trialResult,
+    nodeMap,
+    can,
+    query,
+    resetFilters,
+    create,
+    open,
+    save,
+    trial,
+    action,
   }
 }

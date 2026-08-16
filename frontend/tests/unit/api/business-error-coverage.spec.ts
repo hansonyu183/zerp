@@ -27,6 +27,8 @@ function staticDomainMessages(): string[] {
   const patterns = [
     /domainError\([^\n]*?,\s*"([^"]+)"/gu,
     /errors\.New\("([^"]+)"\)/gu,
+    /\b(?:validation|conflict)\("([^"]+)"/gu,
+    /txevent\.Reject\("([^"]+)"/gu,
   ]
   for (const file of goFiles(domainsRoot)) {
     const source = readFileSync(file, 'utf8')

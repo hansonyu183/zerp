@@ -8,7 +8,6 @@ import {
   runtimeEventText,
   stageStatusText,
   workflowActionText,
-  workflowStageText,
   workflowTriggerText,
 } from '@/components/wfl/config'
 import { useProcessInstanceViewModel, type InstanceListItem } from './vm'
@@ -202,9 +201,7 @@ function partyText(item: InstanceListItem): string {
               type="button"
               @click="vm.selectNode(node)"
             >
-              <span>{{
-                node.nodeName || workflowStageText(node.nodeKey)
-              }}</span>
+              <span>{{ node.nodeName }}</span>
               <strong>{{ node.documentNo }}</strong>
               <small>{{ stageStatusText(node.documentStatus) }}</small>
             </button>

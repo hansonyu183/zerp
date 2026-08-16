@@ -66,7 +66,6 @@ type Querier interface {
 	CountDefinitionInstances(ctx context.Context, arg CountDefinitionInstancesParams) (int64, error)
 	CountEnabledAppPermissionsByIDs(ctx context.Context, ids []string) (int64, error)
 	CountEnabledAppRolesByIDs(ctx context.Context, ids []string) (int64, error)
-	CountEnabledUsersMissingPermission(ctx context.Context, path string) (int64, error)
 	CountEnabledUsersWithPermission(ctx context.Context, path string) (int64, error)
 	CountEnabledUsersWithPermissionExcludingRole(ctx context.Context, arg CountEnabledUsersWithPermissionExcludingRoleParams) (int64, error)
 	CountOtherEnabledUsersWithPermission(ctx context.Context, arg CountOtherEnabledUsersWithPermissionParams) (int64, error)
@@ -250,6 +249,7 @@ type Querier interface {
 	InsertAccountingSubject(ctx context.Context, arg InsertAccountingSubjectParams) error
 	InsertAccountingSubjectDimension(ctx context.Context, arg InsertAccountingSubjectDimensionParams) error
 	InsertAccountingVoucherLine(ctx context.Context, arg InsertAccountingVoucherLineParams) error
+	InsertAppBootstrapUser(ctx context.Context, arg InsertAppBootstrapUserParams) error
 	InsertAppBusinessMenuItem(ctx context.Context, arg InsertAppBusinessMenuItemParams) error
 	InsertAppFeedback(ctx context.Context, arg InsertAppFeedbackParams) error
 	InsertAppFeedbackAttachment(ctx context.Context, arg InsertAppFeedbackAttachmentParams) error
@@ -342,6 +342,7 @@ type Querier interface {
 	ListAppPermissions(ctx context.Context, arg ListAppPermissionsParams) ([]AppPermission, error)
 	ListAppRoles(ctx context.Context, arg ListAppRolesParams) ([]AppRole, error)
 	ListAppSystemParameters(ctx context.Context, arg ListAppSystemParametersParams) ([]AppSystemParameter, error)
+	ListAppUserRoleSummaries(ctx context.Context, userID string) ([]ListAppUserRoleSummariesRow, error)
 	ListAppUsers(ctx context.Context, arg ListAppUsersParams) ([]ListAppUsersRow, error)
 	ListBobAuditEvents(ctx context.Context, arg ListBobAuditEventsParams) ([]BobAuditEvent, error)
 	ListBobObjects(ctx context.Context, arg ListBobObjectsParams) ([]BobVersionView, error)
@@ -399,7 +400,7 @@ type Querier interface {
 	LockEffectiveCategoryReference(ctx context.Context, targetCategoryID string) (string, error)
 	LockEffectiveLogisticsPlatform(ctx context.Context, platformObjectID string) (string, error)
 	LockExpiredPendingVouFile(ctx context.Context, id string) (string, error)
-	LockPendingAppFeedbackUpload(ctx context.Context, uploadTokenHash string) (AppFeedbackFile, error)
+	LockPendingAppFeedbackUpload(ctx context.Context, arg LockPendingAppFeedbackUploadParams) (AppFeedbackFile, error)
 	LockPendingVouUpload(ctx context.Context, uploadTokenHash string) (LockPendingVouUploadRow, error)
 	LockUnsubmittedAppFeedbackFile(ctx context.Context, arg LockUnsubmittedAppFeedbackFileParams) (AppFeedbackFile, error)
 	LockVouAttachmentForRemoval(ctx context.Context, arg LockVouAttachmentForRemovalParams) (LockVouAttachmentForRemovalRow, error)
@@ -424,6 +425,7 @@ type Querier interface {
 	RejectBobVersion(ctx context.Context, arg RejectBobVersionParams) (int64, error)
 	RescheduleAppFeedback(ctx context.Context, arg RescheduleAppFeedbackParams) (int64, error)
 	ResetAppSystemParameterValue(ctx context.Context, arg ResetAppSystemParameterValueParams) (AppSystemParameter, error)
+	ResetAppUserPassword(ctx context.Context, arg ResetAppUserPasswordParams) (int64, error)
 	ResetSigninFailures(ctx context.Context, id string) error
 	ResolveBobEffectiveReference(ctx context.Context, arg ResolveBobEffectiveReferenceParams) (BobVersionView, error)
 	ResolveCurrentBobEffectiveReference(ctx context.Context, arg ResolveCurrentBobEffectiveReferenceParams) (BobVersionView, error)

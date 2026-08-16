@@ -343,6 +343,7 @@ export class ApiClient {
       '/files/attachments/upload/',
       file,
       options,
+      false,
     )
   }
 
@@ -356,6 +357,7 @@ export class ApiClient {
       '/files/feedback/attachments/upload/',
       file,
       options,
+      true,
     )
   }
 
@@ -364,6 +366,7 @@ export class ApiClient {
     requiredPrefix: string,
     file: File,
     options: FileRequestOptions,
+    requiresCsrf: boolean,
   ): Promise<void> {
     const url = this.resolveFileUrl(uploadUrl, requiredPrefix)
     const response = await this.fileRequest(
@@ -371,7 +374,12 @@ export class ApiClient {
       {
         method: 'PUT',
         credentials: 'include',
-        headers: new Headers({ 'Content-Type': file.type }),
+        headers: new Headers({
+          'Content-Type': file.type,
+          ...(requiresCsrf && this.csrfToken
+            ? { 'X-CSRF-Token': this.csrfToken }
+            : {}),
+        }),
         body: file,
       },
       options,

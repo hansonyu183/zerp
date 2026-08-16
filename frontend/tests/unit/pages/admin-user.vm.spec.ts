@@ -7,9 +7,11 @@ import {
   queryAdminUsers,
   saveAdminUser,
   setAdminUserEnabled,
+  resetAdminUserPassword,
 } from '@/pages/admin/shared/api'
 import { createUserManagementViewModel } from '@/pages/admin/user/vm'
 import { useSessionStore } from '@/stores/session'
+import { ApiError } from '@/api/types'
 
 vi.mock('@/pages/admin/shared/api', () => ({
   queryAdminUsers: vi.fn(),
@@ -17,6 +19,7 @@ vi.mock('@/pages/admin/shared/api', () => ({
   createAdminUser: vi.fn(),
   saveAdminUser: vi.fn(),
   setAdminUserEnabled: vi.fn(),
+  resetAdminUserPassword: vi.fn(),
   queryAdminRoles: vi.fn(),
 }))
 
@@ -25,20 +28,28 @@ const user = {
   username: 'operator',
   displayName: '操作员',
   status: 'ENABLED' as const,
-  failedSigninCount: 0,
-  passwordChangedAt: '2026-08-05T00:00:00Z',
+  system: false,
   createdAt: '2026-08-05T00:00:00Z',
   updatedAt: '2026-08-05T00:00:00Z',
   revision: 2,
-  roleIds: ['ROLE-1'],
+  roles: [
+    {
+      id: 'ROLE-1',
+      code: 'operator',
+      name: '操作员',
+      status: 'ENABLED' as const,
+    },
+  ],
 }
 
 function deferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((resolvePromise) => {
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise
+    reject = rejectPromise
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 describe('user management view model', () => {
@@ -88,6 +99,9 @@ describe('user management view model', () => {
     vi.mocked(getAdminUser).mockResolvedValue({ data: user })
     vi.mocked(createAdminUser).mockResolvedValue({ data: user })
     vi.mocked(saveAdminUser).mockResolvedValue({ data: user })
+    vi.mocked(resetAdminUserPassword).mockResolvedValue({
+      data: { temporaryPassword: 'temporary-value' },
+    })
     vi.mocked(setAdminUserEnabled).mockResolvedValue({
       data: { ...user, status: 'DISABLED', revision: 3 },
     })
@@ -98,7 +112,8 @@ describe('user management view model', () => {
     vm.keyword.value = 'operator'
     vm.status.value = 'ENABLED'
 
-    await vm.query()
+    await vm.search()
+    await vm.applyFilters()
 
     expect(queryAdminUsers).toHaveBeenCalledWith({
       page: 1,
@@ -109,6 +124,66 @@ describe('user management view model', () => {
     expect(vm.rows.value).toEqual([user])
     expect(vm.rows.value[0]).not.toHaveProperty('passwordHash')
     expect(vm.rows.value[0]).not.toHaveProperty('sessionToken')
+  })
+
+  it('关键词查询不会提前应用状态草稿，状态只在应用筛选后请求', async () => {
+    const vm = createUserManagementViewModel()
+    vm.page.value = 2
+    vm.keyword.value = 'operator'
+    vm.status.value = 'ENABLED'
+
+    await vm.search()
+
+    expect(queryAdminUsers).toHaveBeenLastCalledWith({
+      page: 1,
+      pageSize: 20,
+      filters: { search: 'operator' },
+      sort: [{ field: 'username', order: 'asc' }],
+    })
+
+    vm.page.value = 2
+    vm.keyword.value = '尚未查询的关键词'
+    await vm.applyFilters()
+
+    expect(queryAdminUsers).toHaveBeenLastCalledWith({
+      page: 1,
+      pageSize: 20,
+      filters: { search: 'operator', status: 'ENABLED' },
+      sort: [{ field: 'username', order: 'asc' }],
+    })
+  })
+
+  it('查询失败保留上下文和持久失败状态，成功空结果才清除失败状态', async () => {
+    vi.mocked(queryAdminUsers)
+      .mockResolvedValueOnce({
+        data: { items: [user], total: 1, page: 1, pageSize: 20 },
+      })
+      .mockRejectedValueOnce(new Error('unavailable'))
+      .mockResolvedValueOnce({
+        data: { items: [], total: 0, page: 1, pageSize: 20 },
+      })
+    const vm = createUserManagementViewModel()
+
+    vm.status.value = 'ENABLED'
+    await vm.applyFilters()
+    vm.keyword.value = '保留筛选'
+    await vm.search()
+
+    expect(vm.rows.value).toEqual([user])
+    expect(vm.total.value).toBe(1)
+    expect(vm.keyword.value).toBe('保留筛选')
+    expect(vm.status.value).toBe('ENABLED')
+    expect(vm.queryErrorMessage.value).toContain('用户加载失败')
+    vm.errorMessage.value = null
+    expect(vm.queryErrorMessage.value).toContain('用户加载失败')
+
+    vm.keyword.value = ''
+    vm.status.value = null
+    await vm.resetFilters()
+
+    expect(vm.queryErrorMessage.value).toBeNull()
+    expect(vm.rows.value).toEqual([])
+    expect(vm.total.value).toBe(0)
   })
 
   it('忽略乱序的旧查询响应且仅由最新请求结束加载状态', async () => {
@@ -134,9 +209,9 @@ describe('user management view model', () => {
     const vm = createUserManagementViewModel()
 
     vm.keyword.value = '旧查询'
-    const olderQuery = vm.query()
+    const olderQuery = vm.search()
     vm.keyword.value = '新查询'
-    const newerQuery = vm.query()
+    const newerQuery = vm.search()
     expect(vm.loading.value).toBe(true)
 
     second.resolve({
@@ -165,6 +240,24 @@ describe('user management view model', () => {
     expect(vm.loading.value).toBe(false)
   })
 
+  it('并发删除导致页码越界时回到最后一个有效页而不显示真实空态', async () => {
+    vi.mocked(queryAdminUsers)
+      .mockResolvedValueOnce({
+        data: { items: [], total: 1, page: 2, pageSize: 20 },
+      })
+      .mockResolvedValueOnce({
+        data: { items: [user], total: 1, page: 1, pageSize: 20 },
+      })
+    const vm = createUserManagementViewModel()
+    vm.page.value = 2
+
+    await vm.query()
+
+    expect(queryAdminUsers).toHaveBeenCalledTimes(2)
+    expect(vm.page.value).toBe(1)
+    expect(vm.rows.value).toEqual([user])
+  })
+
   it('忽略乱序的旧用户编辑详情响应', async () => {
     const first = deferred<{ data: typeof user }>()
     const second = deferred<{ data: typeof user }>()
@@ -174,7 +267,14 @@ describe('user management view model', () => {
       username: 'reviewer',
       displayName: '审核员',
       revision: 4,
-      roleIds: ['ROLE-2'],
+      roles: [
+        {
+          id: 'ROLE-2',
+          code: 'reviewer',
+          name: '审核员',
+          status: 'ENABLED' as const,
+        },
+      ],
     }
     vi.mocked(getAdminUser)
       .mockReturnValueOnce(first.promise)
@@ -212,6 +312,25 @@ describe('user management view model', () => {
       roleIds: ['ROLE-1'],
     })
     expect(vm.form.password).toBe('')
+  })
+
+  it('创建用户基础字段校验与服务端长度边界一致', async () => {
+    const vm = createUserManagementViewModel()
+    await vm.openCreate()
+    vm.form.roleIds = ['ROLE-1']
+    vm.form.displayName = '新用户'
+    vm.form.password = 'Strong-password-1!'
+
+    vm.form.username = 'ab'
+    expect(vm.validationError.value).toBe('用户名应为 3 至 64 个字符。')
+    vm.form.username = 'new-user'
+    vm.form.displayName = '名'.repeat(129)
+    expect(vm.validationError.value).toBe('显示名称应为 1 至 128 个字符。')
+    vm.form.displayName = '新用户'
+    vm.form.password = `Aa1!${'x'.repeat(253)}`
+    expect(vm.validationError.value).toBe(
+      '初始密码应为 12 至 256 个字符，且包含大小写字母、数字和符号。',
+    )
   })
 
   it('分页加载全部角色并保留后续页角色的选择标签', async () => {
@@ -258,7 +377,7 @@ describe('user management view model', () => {
     expect(vm.roleOptions.value).toContainEqual({
       title: 'role-201 · 角色 201',
       value: 'ROLE-201',
-      disabled: false,
+      props: { disabled: false, 'aria-disabled': undefined },
     })
   })
 
@@ -298,7 +417,7 @@ describe('user management view model', () => {
       {
         title: 'disabled · 已停用角色（已停用）',
         value: 'ROLE-DISABLED',
-        disabled: true,
+        props: { disabled: true, 'aria-disabled': true },
       },
     ])
   })
@@ -322,7 +441,17 @@ describe('user management view model', () => {
       updatedAt: '2026-08-05T00:00:00Z',
       revision: 1,
     }
-    const userWithDisabledRole = { ...user, roleIds: [disabledRole.id] }
+    const userWithDisabledRole = {
+      ...user,
+      roles: [
+        {
+          id: disabledRole.id,
+          code: disabledRole.code,
+          name: disabledRole.name,
+          status: 'DISABLED' as const,
+        },
+      ],
+    }
     vi.mocked(queryAdminRoles).mockResolvedValue({
       data: {
         items: [enabledRole, disabledRole],
@@ -339,7 +468,7 @@ describe('user management view model', () => {
     expect(vm.roleOptions.value).toContainEqual({
       title: 'disabled · 已停用角色（已停用）',
       value: disabledRole.id,
-      disabled: false,
+      props: { disabled: false, 'aria-disabled': undefined },
     })
     expect(vm.validationError.value).toBe(
       '已选角色包含已停用角色（已停用角色），请移除后再保存。',
@@ -467,7 +596,8 @@ describe('user management view model', () => {
       revision: 2,
     })
 
-    await vm.changeEnabled(user)
+    vm.requestChangeEnabled(user)
+    await vm.confirmPendingAction()
     expect(setAdminUserEnabled).toHaveBeenCalledWith(user, false)
   })
 
@@ -481,13 +611,13 @@ describe('user management view model', () => {
     const vm = createUserManagementViewModel()
 
     expect(vm.canChangeEnabled(user)).toBe(false)
-    await vm.changeEnabled(user)
+    vm.requestChangeEnabled(user)
 
     expect(setAdminUserEnabled).not.toHaveBeenCalled()
     expect(queryAdminUsers).not.toHaveBeenCalled()
     expect(vm.errorMessage.value).toBe('不能停用当前登录用户。')
     expect(vm.canChangeEnabled({ ...user, id: 'USER-2' })).toBe(true)
-    expect(vm.canChangeEnabled({ ...user, status: 'DISABLED' })).toBe(true)
+    expect(vm.canChangeEnabled({ ...user, status: 'DISABLED' })).toBe(false)
   })
 
   it('系统用户不提供编辑或启停操作，也不发起后端请求', async () => {
@@ -497,6 +627,7 @@ describe('user management view model', () => {
       username: 'system',
       displayName: '系统用户',
       status: 'DISABLED' as const,
+      system: true,
     }
     const vm = createUserManagementViewModel()
 
@@ -509,8 +640,291 @@ describe('user management view model', () => {
     expect(getAdminUser).not.toHaveBeenCalled()
     expect(vm.errorMessage.value).toBe('系统用户由服务端维护，不能编辑。')
 
-    await vm.changeEnabled(systemUser)
+    vm.requestChangeEnabled(systemUser)
     expect(setAdminUserEnabled).not.toHaveBeenCalled()
     expect(vm.errorMessage.value).toBe('系统用户由服务端维护，不能修改状态。')
+  })
+})
+
+describe('user management protected actions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setActivePinia(createPinia())
+    const session = useSessionStore()
+    session.permissions = [
+      '/app/user/query',
+      '/app/user/get',
+      '/app/user/save',
+      '/app/user/disable',
+      '/app/role/query',
+      '/app/user/reset-password',
+    ]
+    vi.mocked(queryAdminUsers).mockResolvedValue({
+      data: { items: [user], total: 1, page: 1, pageSize: 20 },
+    })
+    vi.mocked(queryAdminRoles).mockResolvedValue({
+      data: { items: [], total: 0, page: 1, pageSize: 200 },
+    })
+    vi.mocked(resetAdminUserPassword).mockResolvedValue({
+      data: { temporaryPassword: 'never-persisted' },
+    })
+  })
+
+  it('重置密码操作包含列表刷新依赖的用户查询权限', () => {
+    const session = useSessionStore()
+    session.permissions = ['/app/user/reset-password']
+    const vm = createUserManagementViewModel()
+
+    expect(vm.canResetUserPassword(user)).toBe(false)
+    vm.requestResetPassword(user)
+    expect(vm.pendingAction.value).toBeNull()
+    expect(resetAdminUserPassword).not.toHaveBeenCalled()
+  })
+
+  it('仅为启用的非本人普通用户提供一次性密码重置，并在刷新失败后保留结果', async () => {
+    const vm = createUserManagementViewModel()
+    expect(vm.canResetUserPassword(user)).toBe(true)
+    expect(vm.canResetUserPassword({ ...user, status: 'DISABLED' })).toBe(false)
+    const session = useSessionStore()
+    session.user = {
+      id: user.id,
+      username: user.username,
+      displayName: user.displayName,
+    }
+    expect(vm.canResetUserPassword(user)).toBe(false)
+
+    session.user = null
+    vm.requestResetPassword(user)
+    const refresh = deferred<{
+      data: {
+        items: (typeof user)[]
+        total: number
+        page: number
+        pageSize: number
+      }
+    }>()
+    vi.mocked(queryAdminUsers).mockReturnValueOnce(refresh.promise)
+    const reset = vm.confirmPendingAction()
+    await Promise.resolve()
+    expect(resetAdminUserPassword).toHaveBeenCalledWith({
+      id: user.id,
+      revision: user.revision,
+    })
+    expect(vm.temporaryPassword.value).toBe('never-persisted')
+    refresh.reject(new Error('refresh failed'))
+    await reset
+    expect(vm.temporaryPassword.value).toBe('never-persisted')
+    expect(vm.passwordSaved.value).toBe(false)
+    await vm.closeResetResult()
+    expect(vm.temporaryPassword.value).toBe('never-persisted')
+    vm.passwordSaved.value = true
+    await vm.closeResetResult()
+    expect(vm.temporaryPassword.value).toBeNull()
+  })
+
+  it('页面离开同步清除临时密码，且挂起刷新不会将其写回', async () => {
+    const vm = createUserManagementViewModel()
+    const refresh = deferred<{
+      data: {
+        items: (typeof user)[]
+        total: number
+        page: number
+        pageSize: number
+      }
+    }>()
+    vi.mocked(queryAdminUsers).mockReturnValueOnce(refresh.promise)
+    vm.requestResetPassword(user)
+
+    const reset = vm.confirmPendingAction()
+    await Promise.resolve()
+    expect(vm.temporaryPassword.value).toBe('never-persisted')
+
+    vm.dispose()
+    expect(vm.temporaryPassword.value).toBeNull()
+    expect(vm.passwordSaved.value).toBe(false)
+
+    refresh.resolve({
+      data: { items: [user], total: 1, page: 1, pageSize: 20 },
+    })
+    await reset
+    expect(vm.temporaryPassword.value).toBeNull()
+  })
+
+  it('角色目录失败时保留重试入口并禁止创建保存', async () => {
+    vi.mocked(queryAdminRoles).mockRejectedValueOnce(new Error('unavailable'))
+    const vm = createUserManagementViewModel()
+    await vm.openCreate()
+    vm.form.username = 'new-user'
+    vm.form.displayName = '新用户'
+    vm.form.password = 'strong-password'
+    vm.form.roleIds = ['role']
+    expect(vm.roleErrorMessage.value).toContain('角色加载失败')
+    expect(vm.canSubmit.value).toBe(false)
+  })
+
+  it('编辑依赖加载失败后可重试完整编辑上下文', async () => {
+    vi.mocked(queryAdminRoles).mockRejectedValueOnce(new Error('unavailable'))
+    const vm = createUserManagementViewModel()
+
+    await vm.openEdit(user)
+    expect(vm.roleErrorMessage.value).toContain('角色加载失败')
+    expect(vm.editing.value).toBeNull()
+
+    await vm.retryRoles()
+    expect(vm.roleErrorMessage.value).toBeNull()
+    expect(vm.editing.value).toEqual(user)
+  })
+
+  it('编辑详情失败时保持编辑模式并禁止退回创建提交', async () => {
+    useSessionStore().permissions.push('/app/user/create')
+    vi.mocked(queryAdminRoles).mockResolvedValueOnce({
+      data: {
+        items: [
+          {
+            id: 'ROLE-1',
+            code: 'operator',
+            name: '操作员',
+            status: 'ENABLED',
+            createdAt: '2026-08-05T00:00:00Z',
+            updatedAt: '2026-08-05T00:00:00Z',
+            revision: 1,
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 200,
+      },
+    })
+    vi.mocked(getAdminUser).mockRejectedValueOnce(new Error('unavailable'))
+    const vm = createUserManagementViewModel()
+
+    await vm.openEdit(user)
+    vm.form.username = 'unexpected-create'
+    vm.form.displayName = '不应创建'
+    vm.form.password = 'Strong-password-1!'
+    vm.form.roleIds = ['ROLE-1']
+
+    expect(vm.editorMode.value).toBe('edit')
+    expect(vm.editing.value).toBeNull()
+    expect(vm.editorErrorMessage.value).toContain('用户详情加载失败')
+    expect(vm.canSubmit.value).toBe(false)
+    await vm.save()
+    expect(createAdminUser).not.toHaveBeenCalled()
+    expect(saveAdminUser).not.toHaveBeenCalled()
+  })
+
+  it('状态冲突刷新列表后仍保留重新决策提示', async () => {
+    vi.mocked(setAdminUserEnabled).mockRejectedValueOnce(
+      new ApiError('business', 'user revision conflict', { code: 3001 }),
+    )
+    const vm = createUserManagementViewModel()
+
+    vm.requestChangeEnabled(user)
+    await vm.confirmPendingAction()
+
+    expect(queryAdminUsers).toHaveBeenCalledOnce()
+    expect(vm.errorMessage.value).toBe('数据已更新，请根据最新状态重新操作。')
+  })
+})
+
+it('脏编辑器通过统一关闭 seam 请求确认，确认后清除密码和表单', async () => {
+  setActivePinia(createPinia())
+  const session = useSessionStore()
+  session.permissions = [
+    '/app/user/query',
+    '/app/user/create',
+    '/app/role/query',
+  ]
+  vi.mocked(queryAdminRoles).mockResolvedValue({
+    data: {
+      items: [
+        {
+          id: 'ROLE-1',
+          code: 'operator',
+          name: '操作员',
+          status: 'ENABLED',
+          createdAt: '2026-08-05T00:00:00Z',
+          updatedAt: '2026-08-05T00:00:00Z',
+          revision: 1,
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 200,
+    },
+  })
+  const vm = createUserManagementViewModel()
+  await vm.openCreate()
+  vm.form.username = 'pending-user'
+  vm.form.password = 'Strong-password-1!'
+  expect(vm.hasUnsavedChanges.value).toBe(true)
+  vm.closeEditor()
+  expect(vm.discardConfirmOpen.value).toBe(true)
+  expect(vm.editorOpen.value).toBe(true)
+  vm.confirmDiscard()
+  expect(vm.editorOpen.value).toBe(false)
+  expect(vm.form.password).toBe('')
+})
+
+it('本人含已停用角色时仍可仅保存显示名称且提交原角色集合', async () => {
+  setActivePinia(createPinia())
+  const session = useSessionStore()
+  session.permissions = [
+    '/app/user/query',
+    '/app/user/get',
+    '/app/user/save',
+    '/app/role/query',
+  ]
+  session.user = {
+    id: user.id,
+    username: user.username,
+    displayName: user.displayName,
+  }
+  const detail = {
+    ...user,
+    roles: [
+      {
+        id: 'ROLE-DISABLED',
+        code: 'disabled',
+        name: '已停用角色',
+        status: 'DISABLED' as const,
+      },
+    ],
+  }
+  vi.mocked(getAdminUser).mockResolvedValue({ data: detail })
+  vi.mocked(queryAdminRoles).mockResolvedValue({
+    data: {
+      items: [
+        {
+          id: 'ROLE-DISABLED',
+          code: 'disabled',
+          name: '已停用角色',
+          status: 'DISABLED',
+          createdAt: '2026-08-05T00:00:00Z',
+          updatedAt: '2026-08-05T00:00:00Z',
+          revision: 1,
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 200,
+    },
+  })
+  vi.mocked(saveAdminUser).mockResolvedValue({ data: detail })
+  vi.spyOn(session, 'restore').mockResolvedValue(true)
+  vi.mocked(queryAdminUsers).mockResolvedValue({
+    data: { items: [user], total: 1, page: 1, pageSize: 20 },
+  })
+  const vm = createUserManagementViewModel()
+  await vm.openEdit(user)
+  expect(vm.rolesReadonly.value).toBe(true)
+  vm.form.displayName = '更新后的本人名称'
+  expect(vm.canSubmit.value).toBe(true)
+  await vm.save()
+  expect(saveAdminUser).toHaveBeenCalledWith({
+    id: user.id,
+    displayName: '更新后的本人名称',
+    roleIds: ['ROLE-DISABLED'],
+    revision: user.revision,
   })
 })

@@ -2,7 +2,10 @@ package app
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
+	"fmt"
+	"math/big"
 	"slices"
 	"strings"
 
@@ -12,7 +15,11 @@ import (
 )
 
 func (s *Service) QueryUsers(ctx context.Context, request PageRequest) (Page[UserView], error) {
-	spec, err := validatePage(request, map[string]bool{"createdAt": true, "username": true, "displayName": true}, "createdAt", "desc")
+	if request.Page < 1 || request.PageSize != 20 || len(request.Sort) != 1 ||
+		request.Sort[0].Field != "username" || strings.ToLower(request.Sort[0].Order) != "asc" {
+		return Page[UserView]{}, domainError(ErrorValidation, "invalid user query pagination or sort", nil)
+	}
+	spec, err := validatePage(request, map[string]bool{"username": true}, "username", "asc")
 	if err != nil {
 		return Page[UserView]{}, err
 	}
@@ -59,6 +66,14 @@ func (s *Service) GetUser(ctx context.Context, id string) (UserView, error) {
 	}
 	view := userView(user)
 	view.RoleIDs = roles
+	roleRows, err := s.queries.ListAppUserRoleSummaries(ctx, id)
+	if err != nil {
+		return UserView{}, s.internal("get user role summaries", err)
+	}
+	view.Roles = make([]UserRoleSummary, 0, len(roleRows))
+	for _, role := range roleRows {
+		view.Roles = append(view.Roles, UserRoleSummary{ID: role.ID, Code: role.Code, Name: role.Name, Status: role.Status})
+	}
 	return view, nil
 }
 
@@ -98,9 +113,6 @@ func (s *Service) CreateUser(ctx context.Context, input CreateUserInput, actorID
 	if err = replaceUserRoles(ctx, qtx, id, input.RoleIDs, actorID); err != nil {
 		return UserView{}, err
 	}
-	if err = ensureSafeSignout(ctx, qtx, id); err != nil {
-		return UserView{}, err
-	}
 	if err = s.audit(ctx, qtx, "USER_CREATE", &actorID, "user", &id, "SUCCESS", requestID, map[string]any{"roleCount": len(input.RoleIDs)}); err != nil {
 		return UserView{}, s.internal("audit create user", err)
 	}
@@ -113,7 +125,7 @@ func (s *Service) CreateUser(ctx context.Context, input CreateUserInput, actorID
 func (s *Service) SaveUser(ctx context.Context, input SaveUserInput, actorID, requestID string) (UserView, error) {
 	input.DisplayName = strings.TrimSpace(input.DisplayName)
 	input.RoleIDs = uniqueStrings(input.RoleIDs)
-	if systemidentity.IsUser(input.ID) || slices.Contains(input.RoleIDs, systemidentity.RoleID) {
+	if systemidentity.IsUser(input.ID) {
 		return UserView{}, domainError(ErrorConflict, "system identity is managed internally", nil)
 	}
 	if !validID(input.ID) || input.Revision < 1 || !runeLengthBetween(input.DisplayName, 1, 128) || !validRoleIDs(input.RoleIDs) {
@@ -128,7 +140,25 @@ func (s *Service) SaveUser(ctx context.Context, input SaveUserInput, actorID, re
 	if err = qtx.AcquireAppAuthorizationLock(ctx); err != nil {
 		return UserView{}, s.internal("lock user authorization update", err)
 	}
-	if err = validateRoles(ctx, qtx, input.RoleIDs); err != nil {
+	_, err = qtx.GetAppUserByIDForUpdate(ctx, input.ID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return UserView{}, domainError(ErrorNotFound, "user not found", nil)
+	}
+	if err != nil {
+		return UserView{}, s.internal("lock user for save", err)
+	}
+	if actorID == input.ID {
+		currentRoles, roleErr := qtx.GetAppUserRoleIDs(ctx, input.ID)
+		if roleErr != nil {
+			return UserView{}, s.internal("get current user roles", roleErr)
+		}
+		slices.Sort(currentRoles)
+		if !slices.Equal(currentRoles, input.RoleIDs) {
+			return UserView{}, domainError(ErrorForbidden, "cannot change own roles", nil)
+		}
+	} else if slices.Contains(input.RoleIDs, systemidentity.RoleID) {
+		return UserView{}, domainError(ErrorConflict, "system identity is managed internally", nil)
+	} else if err = validateRoles(ctx, qtx, input.RoleIDs); err != nil {
 		return UserView{}, err
 	}
 	rows, err := qtx.UpdateAppUser(ctx, dbsqlc.UpdateAppUserParams{ID: input.ID, DisplayName: input.DisplayName, Revision: input.Revision, ActorID: &actorID})
@@ -139,9 +169,6 @@ func (s *Service) SaveUser(ctx context.Context, input SaveUserInput, actorID, re
 		return UserView{}, classifyUserWriteMiss(ctx, qtx, input.ID, input.Revision, "")
 	}
 	if err = replaceUserRoles(ctx, qtx, input.ID, input.RoleIDs, actorID); err != nil {
-		return UserView{}, err
-	}
-	if err = ensureSafeSignout(ctx, qtx, input.ID); err != nil {
 		return UserView{}, err
 	}
 	if err = ensureGlobalAuthorizationSafety(ctx, qtx); err != nil {
@@ -159,6 +186,9 @@ func (s *Service) SaveUser(ctx context.Context, input SaveUserInput, actorID, re
 func (s *Service) SetUserStatus(ctx context.Context, id string, revision int64, status, actorID, requestID string) (UserView, error) {
 	if systemidentity.IsUser(id) {
 		return UserView{}, domainError(ErrorConflict, "system identity is managed internally", nil)
+	}
+	if id == actorID {
+		return UserView{}, domainError(ErrorConflict, "cannot change current user status", nil)
 	}
 	if !validID(id) || revision < 1 || (status != StatusEnabled && status != StatusDisabled) {
 		return UserView{}, domainError(ErrorValidation, "invalid status request", nil)
@@ -181,11 +211,6 @@ func (s *Service) SetUserStatus(ctx context.Context, id string, revision int64, 
 			return UserView{}, domainError(ErrorConflict, "cannot disable the last authorization administrator", nil)
 		}
 	}
-	if status == StatusEnabled {
-		if err = ensureSafeSignout(ctx, qtx, id); err != nil {
-			return UserView{}, err
-		}
-	}
 	rows, err := qtx.SetAppUserStatus(ctx, dbsqlc.SetAppUserStatusParams{ID: id, Revision: revision, Status: status, ActorID: &actorID})
 	if err != nil {
 		return UserView{}, s.writeError("set user status", err)
@@ -205,4 +230,91 @@ func (s *Service) SetUserStatus(ctx context.Context, id string, revision int64, 
 		return UserView{}, s.internal("commit user status", err)
 	}
 	return s.GetUser(ctx, id)
+}
+
+func (s *Service) ResetUserPassword(ctx context.Context, input ResetPasswordInput, actorID, requestID string) (ResetPasswordResult, error) {
+	if !validID(input.ID) || input.Revision < 1 {
+		return ResetPasswordResult{}, domainError(ErrorValidation, "invalid password reset request", nil)
+	}
+	if input.ID == actorID || systemidentity.IsUser(input.ID) {
+		return ResetPasswordResult{}, domainError(ErrorForbidden, "cannot reset this user password", nil)
+	}
+	temporaryPassword, err := generateTemporaryPassword(s.cfg.PasswordMinLength)
+	if err != nil {
+		return ResetPasswordResult{}, s.internal("generate temporary password", err)
+	}
+	passwordHash, err := hashPassword(temporaryPassword)
+	if err != nil {
+		return ResetPasswordResult{}, s.internal("hash temporary password", err)
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return ResetPasswordResult{}, s.internal("begin password reset", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	qtx := s.queries.WithTx(tx)
+	locked, err := qtx.GetAppUserByIDForUpdate(ctx, input.ID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ResetPasswordResult{}, domainError(ErrorNotFound, "user not found", nil)
+	}
+	if err != nil {
+		return ResetPasswordResult{}, s.internal("lock password reset user", err)
+	}
+	if locked.Status != StatusEnabled {
+		return ResetPasswordResult{}, domainError(ErrorConflict, "user is not enabled", nil)
+	}
+	if locked.Revision != input.Revision {
+		return ResetPasswordResult{}, domainError(ErrorConflict, "user revision conflict", nil)
+	}
+	rows, err := qtx.ResetAppUserPassword(ctx, dbsqlc.ResetAppUserPasswordParams{
+		ID: input.ID, Revision: input.Revision, PasswordHash: passwordHash, ActorID: &actorID,
+	})
+	if err != nil {
+		return ResetPasswordResult{}, s.writeError("reset user password", err)
+	}
+	if rows != 1 {
+		return ResetPasswordResult{}, domainError(ErrorConflict, "user changed concurrently", nil)
+	}
+	if err = qtx.RevokeAppUserSessions(ctx, dbsqlc.RevokeAppUserSessionsParams{UserID: input.ID, Reason: stringPointer("password_reset")}); err != nil {
+		return ResetPasswordResult{}, s.internal("revoke reset user sessions", err)
+	}
+	if err = s.audit(ctx, qtx, "USER_RESET_PASSWORD", &actorID, "user", &input.ID, "SUCCESS", requestID, nil); err != nil {
+		return ResetPasswordResult{}, s.internal("audit password reset", err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return ResetPasswordResult{}, s.internal("commit password reset", err)
+	}
+	return ResetPasswordResult{TemporaryPassword: temporaryPassword}, nil
+}
+
+func generateTemporaryPassword(minimum int) (string, error) {
+	length := max(minimum, 16)
+	if length > 256 {
+		return "", fmt.Errorf("invalid password policy")
+	}
+	alphabets := []string{"abcdefghijkmnopqrstuvwxyz", "ABCDEFGHJKLMNPQRSTUVWXYZ", "23456789", "!@#$%^&*-_"}
+	characters := make([]byte, 0, length)
+	for _, alphabet := range alphabets {
+		index, err := rand.Int(rand.Reader, big.NewInt(int64(len(alphabet))))
+		if err != nil {
+			return "", err
+		}
+		characters = append(characters, alphabet[index.Int64()])
+	}
+	temporaryPasswordAlphabet := "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%^&*-_"
+	for len(characters) < length {
+		index, err := rand.Int(rand.Reader, big.NewInt(int64(len(temporaryPasswordAlphabet))))
+		if err != nil {
+			return "", err
+		}
+		characters = append(characters, temporaryPasswordAlphabet[index.Int64()])
+	}
+	for i := len(characters) - 1; i > 0; i-- {
+		index, err := rand.Int(rand.Reader, big.NewInt(int64(i+1)))
+		if err != nil {
+			return "", err
+		}
+		characters[i], characters[index.Int64()] = characters[index.Int64()], characters[i]
+	}
+	return string(characters), nil
 }

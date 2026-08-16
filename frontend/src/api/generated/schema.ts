@@ -616,6 +616,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/app/user/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 重置普通用户密码 */
+        post: operations["appUserResetPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/app/role/query": {
         parameters: {
             query?: never;
@@ -2771,6 +2788,26 @@ export interface components {
             username: string;
             password: string;
         };
+        SessionUser: {
+            id: string;
+            username: string;
+            displayName: string;
+            avatarUrl: string | null;
+        };
+        SessionData: {
+            user: components["schemas"]["SessionUser"];
+            csrfToken: string;
+            permissions: string[];
+            passwordChangeRequired: boolean;
+            passwordMinLength: number;
+        };
+        SessionResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["SessionData"] | null;
+            requestId: string;
+        };
         EmptyObject: Record<string, never>;
         /** @enum {string} */
         WorkbenchCategory: "BOB" | "VOU";
@@ -2845,17 +2882,50 @@ export interface components {
             data: components["schemas"]["WorkbenchPage"] | null;
             requestId: string;
         };
-        PageRequest: {
+        /** @enum {string} */
+        UserStatus: "ENABLED" | "DISABLED";
+        UserQueryRequest: {
             page: number;
-            pageSize: number;
+            /** @enum {integer} */
+            pageSize: 20;
             filters?: {
-                [key: string]: unknown;
+                search?: string;
+                status?: components["schemas"]["UserStatus"];
             };
-            sort?: {
-                field: string;
+            sort: {
                 /** @enum {string} */
-                order: "asc" | "desc";
+                field: "username";
+                /** @enum {string} */
+                order: "asc";
             }[];
+        };
+        UserListItem: {
+            id: string;
+            username: string;
+            displayName: string;
+            status: components["schemas"]["UserStatus"];
+            system: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        UserPage: {
+            items: components["schemas"]["UserListItem"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            /** @enum {integer} */
+            pageSize: 20;
+        };
+        UserPageResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["UserPage"] | null;
+            requestId: string;
         };
         ProfileRequest: {
             displayName?: string;
@@ -2867,6 +2937,35 @@ export interface components {
         };
         IdRequest: {
             id: string;
+        };
+        UserRoleSummary: {
+            id: string;
+            code: string;
+            name: string;
+            status: components["schemas"]["UserStatus"];
+        };
+        UserDetail: {
+            id: string;
+            username: string;
+            displayName: string;
+            status: components["schemas"]["UserStatus"];
+            system: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: int64 */
+            revision: number;
+            /** Format: date-time */
+            passwordChangedAt: string;
+            roles: components["schemas"]["UserRoleSummary"][];
+        };
+        UserDetailResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["UserDetail"] | null;
+            requestId: string;
         };
         CreateUserRequest: {
             username: string;
@@ -2885,6 +2984,33 @@ export interface components {
             id: string;
             /** Format: int64 */
             revision: number;
+        };
+        ResetPasswordRequest: {
+            id: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        ResetPasswordResult: {
+            temporaryPassword: string;
+        };
+        ResetPasswordResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["ResetPasswordResult"] | null;
+            requestId: string;
+        };
+        PageRequest: {
+            page: number;
+            pageSize: number;
+            filters?: {
+                [key: string]: unknown;
+            };
+            sort?: {
+                field: string;
+                /** @enum {string} */
+                order: "asc" | "desc";
+            }[];
         };
         CreateRoleRequest: {
             code: string;
@@ -5067,7 +5193,15 @@ export interface operations {
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 已建立的会话。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
         };
     };
     appUserSession: {
@@ -5083,7 +5217,15 @@ export interface operations {
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 已恢复的会话。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
         };
     };
     appUserSignout: {
@@ -5135,11 +5277,19 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["PageRequest"];
+                "application/json": components["schemas"]["UserQueryRequest"];
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 用户分页结果。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPageResponse"];
+                };
+            };
         };
     };
     appUserprofile: {
@@ -5187,7 +5337,15 @@ export interface operations {
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 用户只读详情。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDetailResponse"];
+                };
+            };
         };
     };
     appUsercreate: {
@@ -5252,6 +5410,30 @@ export interface operations {
         };
         responses: {
             200: components["responses"]["Business"];
+        };
+    };
+    appUserResetPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description 仅本次响应可见的临时密码。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResetPasswordResponse"];
+                };
+            };
         };
     };
     appRoleQuery: {

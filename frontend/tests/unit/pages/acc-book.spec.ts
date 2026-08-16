@@ -80,7 +80,7 @@ describe('ACC accounting book view model', () => {
         ],
         total: 1,
         page: 1,
-        pageSize: 200,
+        pageSize: 20,
       },
     })
     await vm.openCreate()
@@ -89,6 +89,53 @@ describe('ACC accounting book view model', () => {
         title: 'query-user · 查询人员',
         value: '01JACC00000000000000000002',
       },
+    ])
+  })
+
+  it('loads access users in 20-item pages until the reported total is retained', async () => {
+    useSessionStore().permissions = [
+      '/acc/book/create',
+      '/app/user/query',
+      '/acc/book/query',
+    ]
+    const firstUser = {
+      id: '01JACC00000000000000000002',
+      username: 'first-user',
+      displayName: '第一页人员',
+      status: 'ENABLED' as const,
+      revision: 1,
+    }
+    const secondUser = {
+      id: '01JACC00000000000000000003',
+      username: 'second-user',
+      displayName: '第二页人员',
+      status: 'ENABLED' as const,
+      revision: 1,
+    }
+    mockedPost
+      .mockResolvedValueOnce({
+        data: { items: [firstUser], total: 2, page: 1, pageSize: 20 },
+      })
+      .mockResolvedValueOnce({
+        data: { items: [secondUser], total: 2, page: 2, pageSize: 20 },
+      })
+
+    const vm = createAccountingBookViewModel()
+    await vm.openCreate()
+
+    expect(mockedPost).toHaveBeenNthCalledWith(1, 'app/user/query', {
+      page: 1,
+      pageSize: 20,
+      sort: [{ field: 'username', order: 'asc' }],
+    })
+    expect(mockedPost).toHaveBeenNthCalledWith(2, 'app/user/query', {
+      page: 2,
+      pageSize: 20,
+      sort: [{ field: 'username', order: 'asc' }],
+    })
+    expect(vm.userOptions).toEqual([
+      { title: 'first-user · 第一页人员', value: firstUser.id },
+      { title: 'second-user · 第二页人员', value: secondUser.id },
     ])
   })
 

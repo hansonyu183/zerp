@@ -31,6 +31,11 @@ export function useSignInViewModel() {
         password: password.value,
       })
 
+      if (session.passwordChangeRequired) {
+        await router.replace('/change-password')
+        return
+      }
+
       const redirect =
         typeof route.query.redirect === 'string' ? route.query.redirect : ''
       const safeRedirect =

@@ -23,6 +23,9 @@ func (s *Service) AuthorizeSession(
 		s.auditAuthorizationDenied(ctx, principal, path, requestID, "csrf")
 		return Principal{}, domainError(ErrorForbidden, "csrf validation failed", nil)
 	}
+	if err = s.enforceRestrictedSessionPath(ctx, principal, path, requestID); err != nil {
+		return Principal{}, err
+	}
 	idleEnds := time.Now().UTC().Add(s.cfg.SessionIdleTimeout)
 	if err = s.queries.TouchAppSession(ctx, dbsqlc.TouchAppSessionParams{
 		ID: principal.SessionID, IdleExpiresAt: timestamptz(idleEnds),

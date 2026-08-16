@@ -977,7 +977,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '已建立的会话。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/SessionResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/app/user/session':
@@ -1001,7 +1016,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '已恢复的会话。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/SessionResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/app/user/signout':
@@ -1085,12 +1115,27 @@
                       'application/json':
                         {
                           'schema':
-                            { '$ref': './schemas/common.yaml#/PageRequest' },
+                            { '$ref': './schemas/app.yaml#/UserQueryRequest' },
                         },
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '用户分页结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/UserPageResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/app/user/profile':
@@ -1164,7 +1209,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '用户只读详情。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/UserDetailResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/app/user/create':
@@ -1265,6 +1325,47 @@
                 },
               'responses':
                 { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/app/user/reset-password':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '重置普通用户密码',
+              'operationId': 'appUserResetPassword',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/app.yaml#/ResetPasswordRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '仅本次响应可见的临时密码。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/ResetPasswordResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/app/role/query':
@@ -3990,7 +4091,7 @@
               'tags': ['files'],
               'summary': '上传用户反馈附件',
               'operationId': 'uploadFeedbackAttachment',
-              'security': [],
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/FileToken' }],
               'requestBody':
                 {

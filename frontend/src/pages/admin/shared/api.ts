@@ -8,13 +8,22 @@ export interface AdminUser {
   username: string
   displayName: string
   status: AdminStatus
-  failedSigninCount: number
-  lockedUntil?: string | null
-  passwordChangedAt: string
+  system: boolean
   createdAt: string
   updatedAt: string
   revision: number
-  roleIds?: string[]
+}
+
+export interface AdminUserDetail extends AdminUser {
+  passwordChangedAt: string
+  roles: AdminRoleSummary[]
+}
+
+export interface AdminRoleSummary {
+  id: string
+  code: string
+  name: string
+  status: AdminStatus
 }
 
 export interface AdminRole {
@@ -65,7 +74,7 @@ export function queryAdminUsers(request: PageRequest) {
 }
 
 export function getAdminUser(id: string) {
-  return apiClient.post<AdminUser, { id: string }>('app/user/get', { id })
+  return apiClient.post<AdminUserDetail, { id: string }>('app/user/get', { id })
 }
 
 export function createAdminUser(input: {
@@ -84,6 +93,16 @@ export function saveAdminUser(input: {
   revision: number
 }) {
   return apiClient.post<AdminUser, typeof input>('app/user/save', input)
+}
+
+export function resetAdminUserPassword(input: {
+  id: string
+  revision: number
+}) {
+  return apiClient.post<{ temporaryPassword: string }, typeof input>(
+    'app/user/reset-password',
+    input,
+  )
 }
 
 export function setAdminUserEnabled(user: AdminUser, enabled: boolean) {

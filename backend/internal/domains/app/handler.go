@@ -14,6 +14,8 @@ import (
 
 const principalContextKey = "appPrincipal"
 
+const feedbackAttachmentUploadPath = "/files/feedback/attachments/upload/:token"
+
 type applicationService interface {
 	Signin(context.Context, string, string, string) (SessionResult, error)
 	RestoreSession(context.Context, string) (SessionResult, error)
@@ -28,6 +30,7 @@ type applicationService interface {
 	CreateUser(context.Context, CreateUserInput, string, string) (UserView, error)
 	SaveUser(context.Context, SaveUserInput, string, string) (UserView, error)
 	SetUserStatus(context.Context, string, int64, string, string, string) (UserView, error)
+	ResetUserPassword(context.Context, ResetPasswordInput, string, string) (ResetPasswordResult, error)
 	QueryRoles(context.Context, PageRequest) (Page[RoleView], error)
 	GetRole(context.Context, string) (RoleView, error)
 	CreateRole(context.Context, CreateRoleInput, string, string) (RoleView, error)
@@ -47,7 +50,7 @@ type applicationService interface {
 	CreateFeedback(context.Context, CreateFeedbackInput, string) (FeedbackCreatedView, error)
 	GetFeedback(context.Context, string, string) (FeedbackView, error)
 	InitiateFeedbackAttachment(context.Context, FeedbackAttachmentInitiateInput, string) (FeedbackAttachmentInitiateResult, error)
-	UploadFeedbackAttachment(context.Context, string, io.Reader, int64, string) error
+	UploadFeedbackAttachment(context.Context, string, string, io.Reader, int64, string) error
 	RemoveFeedbackAttachment(context.Context, string, string) error
 }
 
@@ -79,6 +82,7 @@ func (h *Handler) Register(router *gin.Engine) {
 	protectedUser.POST("/save", h.saveUser)
 	protectedUser.POST("/enable", h.setUserStatus(StatusEnabled))
 	protectedUser.POST("/disable", h.setUserStatus(StatusDisabled))
+	protectedUser.POST("/reset-password", h.resetUserPassword)
 
 	role := appGroup.Group("/role")
 	role.Use(h.authorize())
@@ -122,7 +126,7 @@ func (h *Handler) Register(router *gin.Engine) {
 	feedback.POST("/create", h.createFeedback)
 	feedback.POST("/get", h.getFeedback)
 
-	router.PUT("/files/feedback/attachments/upload/:token", h.uploadFeedbackAttachment)
+	router.PUT(feedbackAttachmentUploadPath, h.authorizeSessionAt(feedbackAttachmentUploadPath), h.uploadFeedbackAttachment)
 }
 
 func (h *Handler) authorize() gin.HandlerFunc {
@@ -143,11 +147,19 @@ func (h *Handler) authorize() gin.HandlerFunc {
 }
 
 func (h *Handler) authorizeSession() gin.HandlerFunc {
+	return h.authorizeSessionAt("")
+}
+
+func (h *Handler) authorizeSessionAt(authorizationPath string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		path := authorizationPath
+		if path == "" {
+			path = c.Request.URL.Path
+		}
 		rawToken, _ := c.Cookie(h.cfg.SessionCookieName)
 		principal, err := h.service.AuthorizeSession(
 			c.Request.Context(), rawToken, c.GetHeader("X-CSRF-Token"),
-			c.Request.URL.Path, response.RequestID(c),
+			path, response.RequestID(c),
 		)
 		if err != nil {
 			if errorIsKind(err, ErrorUnauthenticated) {

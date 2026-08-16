@@ -5,9 +5,11 @@ package app
 import (
 	"errors"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
+	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -18,7 +20,6 @@ func TestManagementContractsIntegration(t *testing.T) {
 	}
 	catalogPermissionIDs := permissionIDsByPath(
 		t, pool,
-		signoutPath,
 		"/bob/customer/query", "/bob/customer/get",
 		"/bob/customer/unapprove", "/bob/customer/enable", "/bob/customer/disable",
 		"/aux/department/query", "/aux/asset-category/query",
@@ -39,13 +40,13 @@ func TestManagementContractsIntegration(t *testing.T) {
 	}
 	if _, err := service.CreateRole(t.Context(), CreateRoleInput{
 		Code: "independent-get", Name: "独立查看权限",
-		PermissionIDs: permissionIDsByPath(t, pool, signoutPath, "/app/user/get"),
+		PermissionIDs: permissionIDsByPath(t, pool, "/app/user/get"),
 	}, admin.ID, "allow-role-without-query"); err != nil {
 		t.Fatalf("independent get permission error = %v", err)
 	}
 	if _, err := service.CreateRole(t.Context(), CreateRoleInput{
 		Code: "independent-close", Name: "独立结账权限",
-		PermissionIDs: permissionIDsByPath(t, pool, signoutPath, "/acc/period/lock"),
+		PermissionIDs: permissionIDsByPath(t, pool, "/acc/period/lock"),
 	}, admin.ID, "allow-led-role-without-get"); err != nil {
 		t.Fatalf("independent close permission error = %v", err)
 	}
@@ -53,7 +54,7 @@ func TestManagementContractsIntegration(t *testing.T) {
 	role, err := service.CreateRole(t.Context(), CreateRoleInput{
 		Code: "user-reader", Name: "用户查看",
 		PermissionIDs: permissionIDsByPath(
-			t, pool, signoutPath, "/app/user/query", "/app/user/get",
+			t, pool, "/app/user/query", "/app/user/get",
 			"/acc/book/get", "/acc/period/lock",
 		),
 	}, admin.ID, "create-role")
@@ -61,7 +62,7 @@ func TestManagementContractsIntegration(t *testing.T) {
 		t.Fatalf("create role: %v", err)
 	}
 	expectedPermissionIDs := permissionIDsByPath(
-		t, pool, "/app/user/get", "/app/user/query", signoutPath,
+		t, pool, "/app/user/get", "/app/user/query",
 		"/acc/book/get", "/acc/period/lock",
 	)
 	gotRole, err := service.GetRole(t.Context(), role.ID)
@@ -143,22 +144,6 @@ func TestManagementContractsIntegration(t *testing.T) {
 	if roleAfter.Name != roleBefore.Name || roleAfter.Revision != roleBefore.Revision || !slices.Equal(roleAfter.PermissionIDs, roleBefore.PermissionIDs) {
 		t.Fatalf("failed save changed role: before=%+v after=%+v", roleBefore, roleAfter)
 	}
-	unsafeRole, err := service.CreateRole(t.Context(), CreateRoleInput{
-		Code: "unsafe-reader", Name: "不安全角色",
-		PermissionIDs: permissionIDsByPath(t, pool, "/app/user/query"),
-	}, admin.ID, "create-unsafe-role")
-	if err != nil {
-		t.Fatalf("create unsafe role: %v", err)
-	}
-	if _, err = service.CreateUser(t.Context(), CreateUserInput{
-		Username: "unsafe-user", DisplayName: "无法退出", Password: integrationUserPassword, RoleIDs: []string{unsafeRole.ID},
-	}, admin.ID, "reject-unsafe-user"); !errorIsKind(err, ErrorValidation) {
-		t.Fatalf("unsafe user error = %v", err)
-	}
-	unsafePage, err := service.QueryUsers(t.Context(), PageRequest{Filters: map[string]string{"search": "unsafe-user"}})
-	if err != nil || len(unsafePage.Items) != 0 {
-		t.Fatalf("unsafe user transaction was not rolled back: items=%v err=%v", unsafePage.Items, err)
-	}
 	missing := newID()
 	_, err = service.SaveUser(t.Context(), SaveUserInput{
 		ID: missing, DisplayName: "Missing", RoleIDs: []string{role.ID}, Revision: 1,
@@ -173,6 +158,15 @@ func TestManagementContractsIntegration(t *testing.T) {
 
 func TestQueryAndPermissionCatalogIntegration(t *testing.T) {
 	service, pool, _ := appIntegrationService(t)
+	for _, request := range []PageRequest{
+		{Page: 1, PageSize: 10, Sort: []SortItem{{Field: "username", Order: "asc"}}},
+		{Page: 1, PageSize: 20, Sort: []SortItem{{Field: "username", Order: "desc"}}},
+		{Page: 1, PageSize: 20, Sort: []SortItem{{Field: "username", Order: "asc"}, {Field: "username", Order: "asc"}}},
+	} {
+		if _, err := service.QueryUsers(t.Context(), request); !errorIsKind(err, ErrorValidation) {
+			t.Fatalf("strict user query must reject %#v: %v", request, err)
+		}
+	}
 	if _, err := service.QueryUsers(t.Context(), PageRequest{Filters: map[string]string{"unknown": "value"}}); !errorIsKind(err, ErrorValidation) {
 		t.Fatalf("unknown user filter error = %v", err)
 	}
@@ -194,8 +188,8 @@ func TestQueryAndPermissionCatalogIntegration(t *testing.T) {
 		"/app/permission/get", "/app/permission/query",
 		"/app/role/create", "/app/role/disable", "/app/role/enable", "/app/role/get", "/app/role/query", "/app/role/save",
 		"/app/system-parameter/get", "/app/system-parameter/query", "/app/system-parameter/reset", "/app/system-parameter/save",
-		"/app/user/change-password", "/app/user/create", "/app/user/disable", "/app/user/enable", "/app/user/get",
-		"/app/user/profile", "/app/user/query", "/app/user/save", "/app/user/signout",
+		"/app/user/create", "/app/user/disable", "/app/user/enable", "/app/user/get",
+		"/app/user/profile", "/app/user/query", "/app/user/reset-password", "/app/user/save",
 	}
 	rows, err := pool.Query(t.Context(), `SELECT path FROM app_permissions WHERE domain = 'app' ORDER BY path`)
 	if err != nil {
@@ -217,6 +211,110 @@ func TestQueryAndPermissionCatalogIntegration(t *testing.T) {
 	accPermission, err := service.GetPermission(t.Context(), accPermissionID)
 	if err != nil || accPermission.ID != accPermissionID || accPermission.Path != "/acc/book/get" {
 		t.Fatalf("get ACC permission = %+v, err=%v", accPermission, err)
+	}
+}
+
+func TestUserManagementSecurityIntegration(t *testing.T) {
+	service, pool, admin := appIntegrationService(t)
+	restoreAPPSystemIdentity(t, pool)
+	role, err := service.CreateRole(t.Context(), CreateRoleInput{
+		Code: "managed-reader", Name: "受管用户角色", PermissionIDs: permissionIDsByPath(t, pool, "/app/user/query"),
+	}, admin.ID, "create-managed-reader")
+	if err != nil {
+		t.Fatalf("create managed role: %v", err)
+	}
+	user, err := service.CreateUser(t.Context(), CreateUserInput{
+		Username: "managed-security", DisplayName: "受管用户", Password: integrationUserPassword, RoleIDs: []string{role.ID},
+	}, admin.ID, "create-managed-security")
+	if err != nil {
+		t.Fatalf("create managed user: %v", err)
+	}
+	detail, err := service.GetUser(t.Context(), user.ID)
+	if err != nil || len(detail.Roles) != 1 || detail.Roles[0].Code != role.Code || detail.Roles[0].Name != role.Name || detail.Roles[0].Status != StatusEnabled {
+		t.Fatalf("detail role summary=%+v err=%v", detail.Roles, err)
+	}
+	if _, err = service.SetRoleStatus(t.Context(), role.ID, role.Revision, StatusDisabled, admin.ID, "disable-managed-role"); err != nil {
+		t.Fatalf("disable managed role: %v", err)
+	}
+	selfSaved, err := service.SaveUser(t.Context(), SaveUserInput{ID: user.ID, DisplayName: "受管用户更新", RoleIDs: []string{role.ID}, Revision: user.Revision}, user.ID, "self-save-disabled-role")
+	if err != nil || selfSaved.DisplayName != "受管用户更新" {
+		t.Fatalf("self save with disabled role=%+v err=%v", selfSaved, err)
+	}
+	user = selfSaved
+	if _, err = service.SaveUser(t.Context(), SaveUserInput{ID: user.ID, DisplayName: user.DisplayName, RoleIDs: []string{newID()}, Revision: user.Revision}, user.ID, "self-role-forgery"); !errorIsKind(err, ErrorForbidden) {
+		t.Fatalf("self role forgery error=%v", err)
+	}
+	if _, err = service.SetUserStatus(t.Context(), user.ID, user.Revision, StatusDisabled, user.ID, "self-disable"); !errorIsKind(err, ErrorConflict) {
+		t.Fatalf("self disable error=%v", err)
+	}
+	if _, err = service.SetUserStatus(t.Context(), user.ID, user.Revision, StatusEnabled, user.ID, "self-enable"); !errorIsKind(err, ErrorConflict) {
+		t.Fatalf("self enable error=%v", err)
+	}
+	system, err := service.GetUser(t.Context(), systemidentity.UserID)
+	if err != nil {
+		t.Fatalf("get system user: %v", err)
+	}
+	if _, err = service.SetUserStatus(t.Context(), system.ID, system.Revision, StatusEnabled, admin.ID, "system-enable"); !errorIsKind(err, ErrorConflict) {
+		t.Fatalf("system status error=%v", err)
+	}
+	if _, err = service.SetUserStatus(t.Context(), system.ID, system.Revision, StatusDisabled, admin.ID, "system-disable"); !errorIsKind(err, ErrorConflict) {
+		t.Fatalf("system disable error=%v", err)
+	}
+	signin, err := service.Signin(t.Context(), user.Username, integrationUserPassword, "managed-session")
+	if err != nil {
+		t.Fatalf("signin managed user: %v", err)
+	}
+	disabled, err := service.SetUserStatus(t.Context(), user.ID, user.Revision, StatusDisabled, admin.ID, "disable-managed")
+	if err != nil {
+		t.Fatalf("disable managed user: %v", err)
+	}
+	if _, err = service.RestoreSession(t.Context(), signin.SessionToken); !errorIsKind(err, ErrorUnauthenticated) {
+		t.Fatalf("disabled session remains valid: %v", err)
+	}
+	if _, err = service.ResetUserPassword(t.Context(), ResetPasswordInput{ID: user.ID, Revision: disabled.Revision}, admin.ID, "reset-disabled"); !errorIsKind(err, ErrorConflict) {
+		t.Fatalf("reset disabled error=%v", err)
+	}
+	stillDisabled, err := service.GetUser(t.Context(), user.ID)
+	if err != nil || stillDisabled.Status != StatusDisabled {
+		t.Fatalf("disabled reset changed user=%+v err=%v", stillDisabled, err)
+	}
+	enabled, err := service.SetUserStatus(t.Context(), user.ID, disabled.Revision, StatusEnabled, admin.ID, "enable-managed")
+	if err != nil {
+		t.Fatalf("enable managed user: %v", err)
+	}
+	if _, err = service.RestoreSession(t.Context(), signin.SessionToken); !errorIsKind(err, ErrorUnauthenticated) {
+		t.Fatalf("enabled user revived an old session: %v", err)
+	}
+	if _, err = service.ResetUserPassword(t.Context(), ResetPasswordInput{ID: admin.ID, Revision: admin.Revision}, admin.ID, "reset-self"); !errorIsKind(err, ErrorForbidden) {
+		t.Fatalf("reset self error=%v", err)
+	}
+	if _, err = service.ResetUserPassword(t.Context(), ResetPasswordInput{ID: system.ID, Revision: system.Revision}, admin.ID, "reset-system"); !errorIsKind(err, ErrorForbidden) {
+		t.Fatalf("reset system error=%v", err)
+	}
+	if _, err = service.ResetUserPassword(t.Context(), ResetPasswordInput{ID: user.ID, Revision: disabled.Revision}, admin.ID, "reset-conflict"); !errorIsKind(err, ErrorConflict) {
+		t.Fatalf("reset stale error=%v", err)
+	}
+	beforeReset, err := service.Signin(t.Context(), user.Username, integrationUserPassword, "before-reset")
+	if err != nil {
+		t.Fatalf("signin before reset: %v", err)
+	}
+	reset, err := service.ResetUserPassword(t.Context(), ResetPasswordInput{ID: user.ID, Revision: enabled.Revision}, admin.ID, "reset-managed")
+	if err != nil || validatePassword(reset.TemporaryPassword, service.cfg.PasswordMinLength) != nil {
+		t.Fatalf("reset result invalid: %v", err)
+	}
+	if _, err = service.RestoreSession(t.Context(), beforeReset.SessionToken); !errorIsKind(err, ErrorUnauthenticated) {
+		t.Fatalf("reset session remains valid: %v", err)
+	}
+	if _, err = service.Signin(t.Context(), user.Username, integrationUserPassword, "old-password-after-reset"); !errorIsKind(err, ErrorUnauthenticated) {
+		t.Fatalf("old password remains valid: %v", err)
+	}
+	temporarySignin, err := service.Signin(t.Context(), user.Username, reset.TemporaryPassword, "temporary-signin")
+	if err != nil || !temporarySignin.Data.PasswordChangeRequired {
+		t.Fatalf("temporary signin is not restricted: %v", err)
+	}
+	var summary string
+	if err = pool.QueryRow(t.Context(), `SELECT summary::text FROM app_audit_events WHERE event_type = 'USER_RESET_PASSWORD' ORDER BY created_at DESC LIMIT 1`).Scan(&summary); err != nil || strings.Contains(summary, reset.TemporaryPassword) {
+		t.Fatalf("reset audit leaked password or failed: %v", err)
 	}
 }
 

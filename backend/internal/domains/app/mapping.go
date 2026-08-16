@@ -4,6 +4,7 @@ import (
 	"time"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -19,15 +20,24 @@ func profileView(user dbsqlc.AppUser, avatarURL *string) ProfileView {
 }
 
 func userView(user dbsqlc.AppUser) UserView {
-	return UserView{ID: user.ID, Username: user.Username, DisplayName: user.DisplayName, Status: user.Status,
+	return UserView{ID: user.ID, Username: user.Username, DisplayName: user.DisplayName, Status: user.Status, System: systemidentity.IsUser(user.ID),
 		FailedSigninCount: user.FailedSigninCount, LockedUntil: nullableTime(user.LockedUntil),
 		PasswordChangedAt: user.PasswordChangedAt.Time, CreatedAt: user.CreatedAt.Time, UpdatedAt: user.UpdatedAt.Time, Revision: user.Revision}
 }
 
 func userListView(user dbsqlc.ListAppUsersRow) UserView {
-	return UserView{ID: user.ID, Username: user.Username, DisplayName: user.DisplayName, Status: user.Status,
+	return UserView{ID: user.ID, Username: user.Username, DisplayName: user.DisplayName, Status: user.Status, System: systemidentity.IsUser(user.ID),
 		FailedSigninCount: user.FailedSigninCount, LockedUntil: nullableTime(user.LockedUntil),
 		PasswordChangedAt: user.PasswordChangedAt.Time, CreatedAt: user.CreatedAt.Time, UpdatedAt: user.UpdatedAt.Time, Revision: user.Revision}
+}
+
+func userListItem(user UserView) UserListItem {
+	return UserListItem{ID: user.ID, Username: user.Username, DisplayName: user.DisplayName,
+		Status: user.Status, System: user.System, CreatedAt: user.CreatedAt, UpdatedAt: user.UpdatedAt, Revision: user.Revision}
+}
+
+func userDetail(user UserView) UserDetail {
+	return UserDetail{UserListItem: userListItem(user), PasswordChangedAt: user.PasswordChangedAt, Roles: user.Roles}
 }
 
 func roleView(role dbsqlc.AppRole) RoleView {

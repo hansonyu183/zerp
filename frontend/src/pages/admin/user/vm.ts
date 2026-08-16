@@ -1,43 +1,75 @@
 import { computed, reactive, ref } from 'vue'
-import { getErrorMessage } from '@/api/types'
+import { getErrorMessage, ApiError } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
+import { passwordMaxLength, passwordMeetsPolicy } from '@/utils/password-policy'
 import {
   createAdminUser,
   getAdminUser,
   queryAdminRoles,
   queryAdminUsers,
+  resetAdminUserPassword,
   saveAdminUser,
   setAdminUserEnabled,
   type AdminRole,
   type AdminStatus,
   type AdminUser,
+  type AdminUserDetail,
 } from '../shared/api'
+
+type EditorMode = 'create' | 'edit' | 'detail'
+type PendingAction = {
+  kind: 'enable' | 'disable' | 'reset'
+  row: AdminUser
+} | null
+const isRevisionConflict = (error: unknown) =>
+  error instanceof ApiError &&
+  error.kind === 'business' &&
+  [3001, '3001'].includes(error.code ?? '')
+const runeLength = (value: string) => Array.from(value).length
 
 export function createUserManagementViewModel() {
   const session = useSessionStore()
-  const rows = ref<AdminUser[]>([])
-  const roles = ref<AdminRole[]>([])
-  const total = ref(0)
-  const page = ref(1)
-  const pageSize = ref(20)
-  const keyword = ref('')
-  const status = ref<AdminStatus | null>(null)
-  const loading = ref(false)
-  const saving = ref(false)
-  const errorMessage = ref<string | null>(null)
-  const successMessage = ref<string | null>(null)
-  let querySequence = 0
-  let editorLoadSequence = 0
-  const editorOpen = ref(false)
-  const editing = ref<AdminUser | null>(null)
+  const rows = ref<AdminUser[]>([]),
+    roles = ref<AdminRole[]>([]),
+    total = ref(0)
+  const page = ref(1),
+    pageSize = ref(20),
+    keyword = ref(''),
+    status = ref<AdminStatus | null>(null)
+  const loading = ref(false),
+    saving = ref(false),
+    rolesLoading = ref(false),
+    disposed = ref(false)
+  const errorMessage = ref<string | null>(null),
+    queryErrorMessage = ref<string | null>(null),
+    successMessage = ref<string | null>(null),
+    roleErrorMessage = ref<string | null>(null),
+    editorErrorMessage = ref<string | null>(null)
+  const editorOpen = ref(false),
+    editorMode = ref<EditorMode>('create'),
+    editing = ref<AdminUserDetail | null>(null)
+  const pendingAction = ref<PendingAction>(null),
+    actionLoadingID = ref<string | null>(null)
+  const temporaryPassword = ref<string | null>(null),
+    passwordSaved = ref(false),
+    copyErrorMessage = ref<string | null>(null)
+  const discardConfirmOpen = ref(false),
+    closeAfterDiscard = ref(false)
+  let querySequence = 0,
+    editorLoadSequence = 0
+  let appliedKeyword = '',
+    appliedStatus: AdminStatus | null = null
+  let editorTarget: { row: AdminUser; mode: EditorMode } | null = null
   const form = reactive({
     username: '',
     displayName: '',
     password: '',
     roleIds: [] as string[],
   })
+  let initialForm = ''
 
   const canReadRoles = computed(() => session.can('/app/role/query'))
+  const passwordMinLength = computed(() => session.passwordMinLength)
   const canGet = computed(() => session.can('/app/user/get'))
   const canCreate = computed(
     () => session.can('/app/user/create') && canReadRoles.value,
@@ -48,141 +80,236 @@ export function createUserManagementViewModel() {
   )
   const canEnable = computed(() => session.can('/app/user/enable'))
   const canDisable = computed(() => session.can('/app/user/disable'))
+  const canResetPassword = computed(
+    () =>
+      session.can('/app/user/reset-password') &&
+      session.can('/app/user/query'),
+  )
+  const isCreate = computed(() => editorMode.value === 'create')
+  const isEdit = computed(() => editorMode.value === 'edit')
+  const isDetail = computed(() => editorMode.value === 'detail')
+  const isSelf = computed(() => editing.value?.id === session.user?.id)
+  const rolesReadonly = computed(
+    () => isDetail.value || isSelf.value || (isEdit.value && !editing.value),
+  )
+  const hasUnsavedChanges = computed(
+    () =>
+      editorOpen.value &&
+      !isDetail.value &&
+      JSON.stringify(form) !== initialForm,
+  )
 
   function isSystemUser(row: AdminUser): boolean {
-    return row.username === 'system'
+    return row.system
   }
-
   function canEditUser(row: AdminUser): boolean {
     return !isSystemUser(row) && canEdit.value
   }
-
+  function canViewUser(row: AdminUser): boolean {
+    return canGet.value && !canEditUser(row)
+  }
   function canChangeEnabled(row: AdminUser): boolean {
-    if (isSystemUser(row)) return false
-    if (row.status === 'ENABLED' && row.id === session.user?.id) return false
+    if (isSystemUser(row) || row.id === session.user?.id) return false
     return row.status === 'ENABLED' ? canDisable.value : canEnable.value
   }
+  function canResetUserPassword(row: AdminUser): boolean {
+    return (
+      !isSystemUser(row) &&
+      row.id !== session.user?.id &&
+      row.status === 'ENABLED' &&
+      canResetPassword.value
+    )
+  }
   const roleOptions = computed(() =>
-    roles.value.map((role) => ({
-      title: `${role.code} · ${role.name}${role.status === 'DISABLED' ? '（已停用）' : ''}`,
-      value: role.id,
-      disabled: role.status === 'DISABLED' && !form.roleIds.includes(role.id),
-    })),
+    roles.value.map((role) => {
+      const disabled =
+        role.status === 'DISABLED' && !form.roleIds.includes(role.id)
+      return {
+        title: `${role.code} · ${role.name}${role.status === 'DISABLED' ? '（已停用）' : ''}`,
+        value: role.id,
+        props: { disabled, 'aria-disabled': disabled || undefined },
+      }
+    }),
   )
   const selectedDisabledRoles = computed(() =>
     roles.value.filter(
       (role) => role.status === 'DISABLED' && form.roleIds.includes(role.id),
     ),
   )
-  const hasOnlyEnabledSelectedRoles = computed(
-    () =>
-      form.roleIds.length > 0 &&
-      form.roleIds.every((roleID) =>
-        roles.value.some(
-          (role) => role.id === roleID && role.status === 'ENABLED',
-        ),
-      ),
-  )
   const validationError = computed(() => {
-    if (!editing.value && !form.username.trim()) return '请输入用户名。'
-    if (!form.displayName.trim()) return '请输入显示名称。'
-    if (!editing.value && !form.password) return '请输入初始密码。'
+    if (isDetail.value || (isEdit.value && !editing.value)) return ''
+    if (
+      isCreate.value &&
+      (runeLength(form.username.trim()) < 3 ||
+        runeLength(form.username.trim()) > 64)
+    )
+      return '用户名应为 3 至 64 个字符。'
+    if (
+      runeLength(form.displayName.trim()) < 1 ||
+      runeLength(form.displayName.trim()) > 128
+    )
+      return '显示名称应为 1 至 128 个字符。'
+    if (isCreate.value && !form.password) return '请输入初始密码。'
+    if (editing.value && isSelf.value) return ''
+    if (
+      isCreate.value &&
+      !passwordMeetsPolicy(form.password, session.passwordMinLength)
+    )
+      return `初始密码应为 ${session.passwordMinLength} 至 ${passwordMaxLength} 个字符，且包含大小写字母、数字和符号。`
     if (form.roleIds.length === 0) return '请至少选择一个启用角色。'
-    if (selectedDisabledRoles.value.length > 0) {
+    if (selectedDisabledRoles.value.length)
       return `已选角色包含已停用角色（${selectedDisabledRoles.value.map((role) => role.name).join('、')}），请移除后再保存。`
-    }
-    if (!hasOnlyEnabledSelectedRoles.value) {
+    if (
+      !form.roleIds.every((id) =>
+        roles.value.some((role) => role.id === id && role.status === 'ENABLED'),
+      )
+    )
       return '所选角色不存在或未启用，请重新选择。'
-    }
     return ''
   })
   const canSubmit = computed(
     () =>
       !saving.value &&
+      !rolesLoading.value &&
+      !roleErrorMessage.value &&
+      !editorErrorMessage.value &&
       validationError.value === '' &&
-      (editing.value ? canEdit.value : canCreate.value),
+      ((isCreate.value && canCreate.value) ||
+        (isEdit.value && Boolean(editing.value) && canEdit.value)),
   )
-
-  async function query(): Promise<void> {
-    const sequence = ++querySequence
-    loading.value = true
-    errorMessage.value = null
-    try {
-      const filters: Record<string, string> = {}
-      if (keyword.value.trim()) filters.search = keyword.value.trim()
-      if (status.value) filters.status = status.value
-      const result = await queryAdminUsers({
-        page: page.value,
-        pageSize: pageSize.value,
-        filters,
-        sort: [{ field: 'username', order: 'asc' }],
-      })
-      if (sequence !== querySequence) return
-      rows.value = result.data.items
-      total.value = result.data.total
-    } catch (error) {
-      if (sequence !== querySequence) return
-      errorMessage.value = getErrorMessage(error)
-    } finally {
-      if (sequence === querySequence) loading.value = false
-    }
-  }
-
-  async function loadRoles(): Promise<void> {
-    try {
-      const collected: AdminRole[] = []
-      let nextPage = 1
-      let totalCount = 1
-      while (collected.length < totalCount) {
-        const result = await queryAdminRoles({
-          page: nextPage,
-          pageSize: 200,
-          sort: [{ field: 'code', order: 'asc' }],
-        })
-        collected.push(...result.data.items)
-        totalCount = result.data.total
-        nextPage += 1
-        if (result.data.items.length === 0) break
-      }
-      roles.value = collected.filter((role) => role.code !== 'system')
-    } catch (error) {
-      errorMessage.value = getErrorMessage(error)
-    }
-  }
-
-  async function search(): Promise<void> {
-    page.value = 1
-    await query()
-  }
-
-  async function resetFilters(): Promise<void> {
-    keyword.value = ''
-    status.value = null
-    await search()
-  }
-
-  async function changePage(next: number): Promise<void> {
-    if (next < 1 || next === page.value || loading.value) return
-    page.value = next
-    await query()
-  }
 
   function resetForm(): void {
     form.username = ''
     form.displayName = ''
     form.password = ''
     form.roleIds = []
+    initialForm = JSON.stringify(form)
   }
-
-  async function openCreate(): Promise<void> {
+  function clearTemporaryPassword(): void {
+    temporaryPassword.value = null
+    passwordSaved.value = false
+    copyErrorMessage.value = null
+  }
+  function setCleanForm(): void {
+    initialForm = JSON.stringify(form)
+  }
+  function dispose(): void {
+    disposed.value = true
+    querySequence += 1
     editorLoadSequence += 1
-    loading.value = false
-    editing.value = null
-    resetForm()
-    editorOpen.value = true
+    clearTemporaryPassword()
+  }
+  async function query(): Promise<void> {
+    const sequence = ++querySequence
+    loading.value = true
+    errorMessage.value = null
+    queryErrorMessage.value = null
+    try {
+      const filters: Record<string, string> = {}
+      if (appliedKeyword) filters.search = appliedKeyword
+      if (appliedStatus) filters.status = appliedStatus
+      const result = await queryAdminUsers({
+        page: page.value,
+        pageSize: 20,
+        filters,
+        sort: [{ field: 'username', order: 'asc' }],
+      })
+      if (disposed.value || sequence !== querySequence) return
+      const lastPage = Math.max(1, Math.ceil(result.data.total / 20))
+      if (
+        !result.data.items.length &&
+        result.data.total > 0 &&
+        page.value > lastPage
+      ) {
+        page.value = lastPage
+        await query()
+        return
+      }
+      rows.value = result.data.items
+      total.value = result.data.total
+    } catch (error) {
+      if (!disposed.value && sequence === querySequence)
+        queryErrorMessage.value = `用户加载失败：${getErrorMessage(error)}`
+    } finally {
+      if (!disposed.value && sequence === querySequence) loading.value = false
+    }
+  }
+  async function loadRoles(sequence = editorLoadSequence): Promise<boolean> {
+    rolesLoading.value = true
+    roleErrorMessage.value = null
+    try {
+      const collected: AdminRole[] = []
+      let nextPage = 1,
+        totalCount = 1
+      while (collected.length < totalCount) {
+        const result = await queryAdminRoles({
+          page: nextPage++,
+          pageSize: 200,
+          sort: [{ field: 'code', order: 'asc' }],
+        })
+        if (disposed.value || sequence !== editorLoadSequence) return false
+        collected.push(...result.data.items)
+        totalCount = result.data.total
+        if (!result.data.items.length) break
+      }
+      roles.value = collected.filter((role) => role.code !== 'system')
+      return true
+    } catch (error) {
+      if (!disposed.value && sequence === editorLoadSequence)
+        roleErrorMessage.value = `角色加载失败：${getErrorMessage(error)}`
+      return false
+    } finally {
+      if (!disposed.value && sequence === editorLoadSequence)
+        rolesLoading.value = false
+    }
+  }
+  async function retryRoles(): Promise<void> {
+    if (editorTarget) {
+      await openEditor(editorTarget.row, editorTarget.mode)
+      return
+    }
     await loadRoles()
   }
-
+  async function retryEditor(): Promise<void> {
+    if (editorTarget) await openEditor(editorTarget.row, editorTarget.mode)
+  }
+  async function search(): Promise<void> {
+    appliedKeyword = keyword.value.trim()
+    page.value = 1
+    await query()
+  }
+  async function applyFilters(): Promise<void> {
+    appliedStatus = status.value
+    page.value = 1
+    await query()
+  }
+  async function resetFilters(): Promise<void> {
+    keyword.value = ''
+    status.value = null
+    appliedKeyword = ''
+    appliedStatus = null
+    page.value = 1
+    await query()
+  }
+  async function changePage(next: number): Promise<void> {
+    if (next >= 1 && next !== page.value && !loading.value) {
+      page.value = next
+      await query()
+    }
+  }
+  async function openCreate(): Promise<void> {
+    const sequence = ++editorLoadSequence
+    editorTarget = null
+    editing.value = null
+    editorMode.value = 'create'
+    editorErrorMessage.value = null
+    resetForm()
+    editorOpen.value = true
+    await loadRoles(sequence)
+  }
+  async function openDetail(row: AdminUser): Promise<void> {
+    await openEditor(row, 'detail')
+  }
   async function openEdit(row: AdminUser): Promise<void> {
     if (!canEditUser(row)) {
       errorMessage.value = isSystemUser(row)
@@ -190,93 +317,167 @@ export function createUserManagementViewModel() {
         : '没有权限编辑用户。'
       return
     }
+    await openEditor(row, 'edit')
+  }
+  async function openEditor(row: AdminUser, mode: EditorMode): Promise<void> {
     const sequence = ++editorLoadSequence
+    editorTarget = { row, mode }
     loading.value = true
     errorMessage.value = null
+    roleErrorMessage.value = null
+    editorErrorMessage.value = null
+    editorOpen.value = true
+    editorMode.value = mode
+    resetForm()
     try {
-      const [detail] = await Promise.all([getAdminUser(row.id), loadRoles()])
-      if (sequence !== editorLoadSequence) return
+      const detailPromise = getAdminUser(row.id)
+      const rolePromise =
+        mode === 'detail' ? Promise.resolve(true) : loadRoles(sequence)
+      const [detail, rolesOK] = await Promise.all([detailPromise, rolePromise])
+      if (disposed.value || sequence !== editorLoadSequence || !rolesOK) return
       editing.value = detail.data
       form.username = detail.data.username
       form.displayName = detail.data.displayName
-      form.password = ''
-      form.roleIds = [...(detail.data.roleIds ?? [])]
-      editorOpen.value = true
+      form.roleIds = detail.data.roles.map((role) => role.id)
+      setCleanForm()
     } catch (error) {
-      if (sequence !== editorLoadSequence) return
-      errorMessage.value = getErrorMessage(error)
+      if (!disposed.value && sequence === editorLoadSequence)
+        editorErrorMessage.value = `用户详情加载失败：${getErrorMessage(error)}`
     } finally {
-      if (sequence === editorLoadSequence) loading.value = false
+      if (!disposed.value && sequence === editorLoadSequence)
+        loading.value = false
     }
   }
-
-  function closeEditor(): void {
+  function closeEditor(force = false): void {
+    if (!force && hasUnsavedChanges.value) {
+      closeAfterDiscard.value = true
+      discardConfirmOpen.value = true
+      return
+    }
     editorLoadSequence += 1
-    loading.value = false
     editorOpen.value = false
     editing.value = null
+    editorTarget = null
     resetForm()
+    roleErrorMessage.value = null
+    editorErrorMessage.value = null
   }
-
+  function confirmDiscard(): void {
+    discardConfirmOpen.value = false
+    if (closeAfterDiscard.value) closeEditor(true)
+    closeAfterDiscard.value = false
+  }
+  function cancelDiscard(): void {
+    discardConfirmOpen.value = false
+    closeAfterDiscard.value = false
+  }
   async function save(): Promise<void> {
     if (!canSubmit.value) {
-      errorMessage.value = validationError.value || '没有权限保存用户。'
+      errorMessage.value =
+        validationError.value || roleErrorMessage.value || '没有权限保存用户。'
       return
     }
     saving.value = true
     errorMessage.value = null
     try {
-      const refreshCurrentSession =
-        editing.value !== null && editing.value.id === session.user?.id
-      if (editing.value) {
+      const refresh = editing.value?.id === session.user?.id
+      if (isEdit.value && editing.value)
         await saveAdminUser({
           id: editing.value.id,
           displayName: form.displayName.trim(),
           roleIds: [...form.roleIds],
           revision: editing.value.revision,
         })
-      } else {
+      else if (isCreate.value)
         await createAdminUser({
           username: form.username.trim(),
           displayName: form.displayName.trim(),
           password: form.password,
           roleIds: [...form.roleIds],
         })
-      }
-      successMessage.value = editing.value ? '用户已保存。' : '用户已创建。'
-      closeEditor()
-      if (refreshCurrentSession) await session.restore({ force: true })
+      else return
+      successMessage.value = isEdit.value ? '用户已保存。' : '用户已创建。'
+      closeEditor(true)
+      if (refresh) await session.restore({ force: true })
       await query()
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      errorMessage.value = isRevisionConflict(error)
+        ? '用户详情已变化，请重新加载后再决定。'
+        : getErrorMessage(error)
     } finally {
       saving.value = false
     }
   }
-
-  async function changeEnabled(row: AdminUser): Promise<void> {
+  function requestChangeEnabled(row: AdminUser): void {
     if (!canChangeEnabled(row)) {
       errorMessage.value = isSystemUser(row)
         ? '系统用户由服务端维护，不能修改状态。'
-        : row.status === 'ENABLED' && row.id === session.user?.id
+        : row.id === session.user?.id
           ? '不能停用当前登录用户。'
           : '没有权限修改用户状态。'
       return
     }
-    loading.value = true
-    errorMessage.value = null
-    try {
-      await setAdminUserEnabled(row, row.status === 'DISABLED')
-      successMessage.value =
-        row.status === 'ENABLED' ? '用户已停用。' : '用户已启用。'
-      await query()
-    } catch (error) {
-      errorMessage.value = getErrorMessage(error)
-    } finally {
-      loading.value = false
+    pendingAction.value = {
+      kind: row.status === 'ENABLED' ? 'disable' : 'enable',
+      row,
     }
   }
-
+  async function confirmPendingAction(): Promise<void> {
+    const pending = pendingAction.value
+    if (!pending || actionLoadingID.value) return
+    actionLoadingID.value = pending.row.id
+    errorMessage.value = null
+    try {
+      if (pending.kind === 'reset') {
+        const result = await resetAdminUserPassword({
+          id: pending.row.id,
+          revision: pending.row.revision,
+        })
+        if (disposed.value) return
+        pendingAction.value = null
+        temporaryPassword.value = result.data.temporaryPassword
+        passwordSaved.value = false
+        await query()
+        return
+      }
+      await setAdminUserEnabled(pending.row, pending.kind === 'enable')
+      const success =
+        pending.kind === 'enable' ? '用户已启用。' : '用户已停用。'
+      pendingAction.value = null
+      await query()
+      successMessage.value = success
+    } catch (error) {
+      pendingAction.value = null
+      const actionError = isRevisionConflict(error)
+        ? '数据已更新，请根据最新状态重新操作。'
+        : getErrorMessage(error)
+      await query()
+      errorMessage.value = actionError
+    } finally {
+      actionLoadingID.value = null
+    }
+  }
+  function requestResetPassword(row: AdminUser): void {
+    if (!canResetUserPassword(row)) {
+      errorMessage.value = '该用户不符合重置密码条件。'
+      return
+    }
+    pendingAction.value = { kind: 'reset', row }
+  }
+  async function copyTemporaryPassword(): Promise<void> {
+    if (!temporaryPassword.value) return
+    copyErrorMessage.value = null
+    try {
+      await navigator.clipboard.writeText(temporaryPassword.value)
+    } catch {
+      copyErrorMessage.value = '复制失败，请手动安全保存临时密码。'
+    }
+  }
+  async function closeResetResult(): Promise<void> {
+    if (!passwordSaved.value) return
+    clearTemporaryPassword()
+    await query()
+  }
   return {
     rows,
     roles,
@@ -287,35 +488,65 @@ export function createUserManagementViewModel() {
     status,
     loading,
     saving,
+    rolesLoading,
     errorMessage,
+    queryErrorMessage,
     successMessage,
+    roleErrorMessage,
+    editorErrorMessage,
     editorOpen,
+    editorMode,
     editing,
     form,
+    pendingAction,
+    actionLoadingID,
+    temporaryPassword,
+    passwordSaved,
+    copyErrorMessage,
+    discardConfirmOpen,
+    isDetail,
+    isSelf,
+    rolesReadonly,
+    hasUnsavedChanges,
     canCreate,
     canGet,
     canSave,
     canEdit,
     canEnable,
     canDisable,
+    canResetPassword,
+    passwordMinLength,
     isSystemUser,
     canEditUser,
+    canViewUser,
     canChangeEnabled,
+    canResetUserPassword,
     roleOptions,
     validationError,
     canSubmit,
     query,
     search,
+    applyFilters,
     resetFilters,
     changePage,
     openCreate,
     openEdit,
+    openDetail,
     closeEditor,
+    confirmDiscard,
+    cancelDiscard,
     save,
-    changeEnabled,
+    requestChangeEnabled,
+    confirmPendingAction,
+    requestResetPassword,
+    copyTemporaryPassword,
+    closeResetResult,
+    clearTemporaryPassword,
+    retryRoles,
+    retryEditor,
+    dispose,
   }
 }
-
 export type UserManagementViewModel = ReturnType<
   typeof createUserManagementViewModel
 >

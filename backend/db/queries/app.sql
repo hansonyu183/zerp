@@ -39,7 +39,7 @@ INSERT INTO app_sessions (id, user_id, token_hash, csrf_token_hash, last_seen_at
 VALUES (sqlc.arg(id), sqlc.arg(user_id), sqlc.arg(token_hash), sqlc.arg(csrf_token_hash), now(), sqlc.arg(idle_expires_at), sqlc.arg(absolute_expires_at));
 
 -- name: GetAppSessionByTokenHash :one
-SELECT s.*, u.username, u.display_name, u.status AS user_status, p.avatar_url
+SELECT s.*, u.username, u.display_name, u.status AS user_status, u.password_change_required, p.avatar_url
 FROM app_sessions s
 JOIN app_users u ON u.id = s.user_id
 LEFT JOIN app_user_profiles p ON p.user_id = u.id
@@ -195,34 +195,13 @@ WHERE u.status = 'ENABLED'
       )
   );
 
--- name: CountEnabledUsersMissingPermission :one
-SELECT count(*)
-FROM app_users u
-WHERE u.status = 'ENABLED' AND NOT EXISTS (
-  SELECT 1
-  FROM app_user_roles ur
-  JOIN app_roles r ON r.id = ur.role_id AND r.status = 'ENABLED'
-  WHERE ur.user_id = u.id
-    AND (
-      (
-        r.code = 'superadmin'
-        AND EXISTS (
-          SELECT 1 FROM app_permissions p
-          WHERE p.path = sqlc.arg(path) AND p.status = 'ENABLED'
-        )
-      )
-      OR EXISTS (
-        SELECT 1
-        FROM app_role_permissions rp
-        JOIN app_permissions p ON p.id = rp.permission_id AND p.status = 'ENABLED'
-        WHERE rp.role_id = r.id AND p.path = sqlc.arg(path)
-      )
-    )
-);
-
 -- name: InsertAppUser :exec
-INSERT INTO app_users (id, username, display_name, password_hash, status, password_changed_at, created_by, updated_by)
-VALUES (sqlc.arg(id), sqlc.arg(username), sqlc.arg(display_name), sqlc.arg(password_hash), 'ENABLED', now(), sqlc.narg(actor_id), sqlc.narg(actor_id));
+INSERT INTO app_users (id, username, display_name, password_hash, status, password_change_required, password_changed_at, created_by, updated_by)
+VALUES (sqlc.arg(id), sqlc.arg(username), sqlc.arg(display_name), sqlc.arg(password_hash), 'ENABLED', true, now(), sqlc.narg(actor_id), sqlc.narg(actor_id));
+
+-- name: InsertAppBootstrapUser :exec
+INSERT INTO app_users (id, username, display_name, password_hash, status, password_change_required, password_changed_at, created_by, updated_by)
+VALUES (sqlc.arg(id), sqlc.arg(username), sqlc.arg(display_name), sqlc.arg(password_hash), 'ENABLED', false, now(), sqlc.narg(actor_id), sqlc.narg(actor_id));
 
 -- name: DeleteAppUserRoles :exec
 DELETE FROM app_user_roles WHERE user_id = sqlc.arg(user_id);
@@ -258,12 +237,32 @@ DELETE FROM app_user_profiles WHERE user_id = sqlc.arg(user_id);
 UPDATE app_users SET
   password_hash = sqlc.arg(password_hash),
   password_changed_at = now(),
+  password_change_required = false,
   failed_signin_count = 0,
   locked_until = NULL,
   updated_at = now(),
   updated_by = sqlc.narg(actor_id),
   revision = revision + 1
 WHERE id = sqlc.arg(id) AND revision = sqlc.arg(revision);
+
+-- name: ListAppUserRoleSummaries :many
+SELECT r.id, r.code, r.name, r.status
+FROM app_user_roles ur
+JOIN app_roles r ON r.id = ur.role_id
+WHERE ur.user_id = sqlc.arg(user_id)
+ORDER BY r.code, r.id;
+
+-- name: ResetAppUserPassword :execrows
+UPDATE app_users SET
+  password_hash = sqlc.arg(password_hash),
+  password_change_required = true,
+  password_changed_at = now(),
+  failed_signin_count = 0,
+  locked_until = NULL,
+  updated_at = now(),
+  updated_by = sqlc.narg(actor_id),
+  revision = revision + 1
+WHERE id = sqlc.arg(id) AND revision = sqlc.arg(revision) AND status = 'ENABLED';
 
 -- name: SetAppUserStatus :execrows
 UPDATE app_users SET status = sqlc.arg(status), updated_at = now(), updated_by = sqlc.narg(actor_id), revision = revision + 1

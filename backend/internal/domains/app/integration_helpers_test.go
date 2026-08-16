@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/hansonyu183/zerp/backend/internal/config"
+	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -103,6 +104,61 @@ func appIntegrationService(t *testing.T) (*Service, *pgxpool.Pool, UserView) {
 		t.Fatalf("seed APP system parameters: %v", err)
 	}
 	return service, pool, admin
+}
+
+func restoreAPPSystemIdentity(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	if _, err := pool.Exec(t.Context(), `
+		INSERT INTO app_roles(id, code, name, status, created_by, updated_by)
+		VALUES($1, $2, $3, 'ENABLED', $4, $4)
+	`, systemidentity.RoleID, systemidentity.RoleCode, systemidentity.RoleName, systemidentity.UserID); err != nil {
+		t.Fatalf("seed APP system role: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `
+		INSERT INTO app_users(
+			id, username, display_name, password_hash, status,
+			password_change_required, password_changed_at, created_by, updated_by
+		) VALUES($1, $2, $3, '!system-login-disabled!', 'DISABLED', false, now(), $1, $1)
+	`, systemidentity.UserID, systemidentity.Username, systemidentity.UserDisplayName); err != nil {
+		t.Fatalf("seed APP system user: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `
+		INSERT INTO app_user_roles(user_id, role_id, created_by)
+		VALUES($1, $2, $1)
+	`, systemidentity.UserID, systemidentity.RoleID); err != nil {
+		t.Fatalf("restore APP system identity: %v", err)
+	}
+}
+
+func completeRequiredPasswordChange(
+	t *testing.T,
+	service *Service,
+	signin SessionResult,
+	currentPassword string,
+	newPassword string,
+) SessionResult {
+	t.Helper()
+	principal, err := service.Authorize(
+		t.Context(), signin.SessionToken, signin.Data.CSRFToken,
+		changePasswordPath, "integration-required-password-change",
+	)
+	if err != nil {
+		t.Fatalf("authorize required password change: %v", err)
+	}
+	if err = service.ChangePassword(t.Context(), principal, ChangePasswordInput{
+		CurrentPassword: currentPassword,
+		NewPassword:     newPassword,
+	}, "integration-required-password-change"); err != nil {
+		t.Fatalf("complete required password change: %v", err)
+	}
+	changed, err := service.Signin(t.Context(), signin.Data.User.Username, newPassword, "integration-signin-after-password-change")
+	if err != nil {
+		t.Fatalf("signin after required password change: %v", err)
+	}
+	if changed.Data.PasswordChangeRequired {
+		t.Fatal("password change remained required")
+	}
+	return changed
 }
 
 func permissionIDsByPath(t *testing.T, pool *pgxpool.Pool, paths ...string) []string {

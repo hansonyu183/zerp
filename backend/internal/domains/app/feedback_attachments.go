@@ -76,6 +76,7 @@ func (s *Service) InitiateFeedbackAttachment(
 func (s *Service) UploadFeedbackAttachment(
 	ctx context.Context,
 	rawToken string,
+	actorID string,
 	body io.Reader,
 	contentLength int64,
 	contentType string,
@@ -89,7 +90,10 @@ func (s *Service) UploadFeedbackAttachment(
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	file, err := q.LockPendingAppFeedbackUpload(ctx, hex.EncodeToString(tokenHash(rawToken)))
+	file, err := q.LockPendingAppFeedbackUpload(ctx, dbsqlc.LockPendingAppFeedbackUploadParams{
+		UploadTokenHash: hex.EncodeToString(tokenHash(rawToken)),
+		UserID:          actorID,
+	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domainError(ErrorValidation, "upload token is invalid or expired", nil)
 	}

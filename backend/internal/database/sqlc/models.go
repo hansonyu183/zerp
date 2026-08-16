@@ -471,19 +471,20 @@ type AppSystemParameter struct {
 }
 
 type AppUser struct {
-	ID                string             `db:"id" json:"id"`
-	Username          string             `db:"username" json:"username"`
-	DisplayName       string             `db:"display_name" json:"display_name"`
-	PasswordHash      string             `db:"password_hash" json:"password_hash"`
-	Status            string             `db:"status" json:"status"`
-	FailedSigninCount int32              `db:"failed_signin_count" json:"failed_signin_count"`
-	LockedUntil       pgtype.Timestamptz `db:"locked_until" json:"locked_until"`
-	PasswordChangedAt pgtype.Timestamptz `db:"password_changed_at" json:"password_changed_at"`
-	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy         *string            `db:"created_by" json:"created_by"`
-	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy         *string            `db:"updated_by" json:"updated_by"`
-	Revision          int64              `db:"revision" json:"revision"`
+	ID                     string             `db:"id" json:"id"`
+	Username               string             `db:"username" json:"username"`
+	DisplayName            string             `db:"display_name" json:"display_name"`
+	PasswordHash           string             `db:"password_hash" json:"password_hash"`
+	Status                 string             `db:"status" json:"status"`
+	FailedSigninCount      int32              `db:"failed_signin_count" json:"failed_signin_count"`
+	LockedUntil            pgtype.Timestamptz `db:"locked_until" json:"locked_until"`
+	PasswordChangedAt      pgtype.Timestamptz `db:"password_changed_at" json:"password_changed_at"`
+	CreatedAt              pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy              *string            `db:"created_by" json:"created_by"`
+	UpdatedAt              pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy              *string            `db:"updated_by" json:"updated_by"`
+	Revision               int64              `db:"revision" json:"revision"`
+	PasswordChangeRequired bool               `db:"password_change_required" json:"password_change_required"`
 }
 
 type AppUserProfile struct {

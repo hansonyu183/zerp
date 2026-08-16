@@ -9,14 +9,17 @@ const exactMessages: Readonly<Record<string, string>> = {
     '报表依赖的结构已变化，当前版本已失效，请联系管理员修复。',
   'report not found or draft exists':
     '报表不存在或已有草稿版本，请刷新后重试。',
-  'account has no safe signout permission': '账号权限配置异常，请联系管理员。',
   'current password is incorrect': '当前密码错误，请重新输入。',
+  'password change is required': '请先完成密码修改后再使用业务功能。',
+  'cannot change own roles': '不能通过用户管理修改自己的角色。',
+  'cannot change current user status': '不能修改当前登录用户的状态。',
+  'cannot reset this user password': '该用户当前不能重置密码。',
+  'invalid password reset request': '重置密码请求无效，请刷新后重试。',
+  'user is not enabled': '该用户未启用，不能执行此操作。',
+  'invalid user query pagination or sort':
+    '用户查询条件无效，请按默认排序和分页重新查询。',
   'new password must differ from current password':
     '新密码不能与当前密码相同。',
-  'assigned roles must grant /app/user/signout':
-    '所选角色缺少安全退出权限，请调整角色授权。',
-  'every enabled user must retain /app/user/signout':
-    '启用中的用户必须保留安全退出权限。',
   'cannot disable the last authorization administrator':
     '不能停用最后一个授权管理员。',
   'cannot disable the last authorization administrator role':

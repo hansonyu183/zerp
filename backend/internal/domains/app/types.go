@@ -10,6 +10,7 @@ const (
 	StatusDisabled     = "DISABLED"
 	superadminRoleCode = "superadmin"
 	signoutPath        = "/app/user/signout"
+	changePasswordPath = "/app/user/change-password"
 )
 
 type ErrorKind int
@@ -45,7 +46,7 @@ type UserSummary struct {
 	ID          string  `json:"id"`
 	Username    string  `json:"username"`
 	DisplayName string  `json:"displayName"`
-	AvatarURL   *string `json:"avatarUrl,omitempty"`
+	AvatarURL   *string `json:"avatarUrl"`
 }
 
 type ProfileView struct {
@@ -97,9 +98,11 @@ type SaveRoleInput struct {
 }
 
 type SessionData struct {
-	User        UserSummary `json:"user"`
-	CSRFToken   string      `json:"csrfToken"`
-	Permissions []string    `json:"permissions"`
+	User                   UserSummary `json:"user"`
+	CSRFToken              string      `json:"csrfToken"`
+	Permissions            []string    `json:"permissions"`
+	PasswordChangeRequired bool        `json:"passwordChangeRequired"`
+	PasswordMinLength      int         `json:"passwordMinLength"`
 }
 
 type SessionResult struct {
@@ -109,12 +112,13 @@ type SessionResult struct {
 }
 
 type Principal struct {
-	SessionID    string
-	User         UserSummary
-	CSRFHash     []byte
-	Permissions  []string
-	IdleExpires  time.Time
-	AbsoluteEnds time.Time
+	SessionID              string
+	User                   UserSummary
+	CSRFHash               []byte
+	Permissions            []string
+	PasswordChangeRequired bool
+	IdleExpires            time.Time
+	AbsoluteEnds           time.Time
 }
 
 type PageRequest struct {
@@ -183,17 +187,52 @@ type pageSpec struct {
 }
 
 type UserView struct {
-	ID                string     `json:"id"`
-	Username          string     `json:"username"`
-	DisplayName       string     `json:"displayName"`
-	Status            string     `json:"status"`
-	FailedSigninCount int32      `json:"failedSigninCount"`
-	LockedUntil       *time.Time `json:"lockedUntil"`
-	PasswordChangedAt time.Time  `json:"passwordChangedAt"`
-	CreatedAt         time.Time  `json:"createdAt"`
-	UpdatedAt         time.Time  `json:"updatedAt"`
-	Revision          int64      `json:"revision"`
-	RoleIDs           []string   `json:"roleIds,omitempty"`
+	ID                string
+	Username          string
+	DisplayName       string
+	Status            string
+	FailedSigninCount int32
+	LockedUntil       *time.Time
+	PasswordChangedAt time.Time
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	Revision          int64
+	RoleIDs           []string
+	Roles             []UserRoleSummary
+	System            bool
+}
+
+type UserListItem struct {
+	ID          string    `json:"id"`
+	Username    string    `json:"username"`
+	DisplayName string    `json:"displayName"`
+	Status      string    `json:"status"`
+	System      bool      `json:"system"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+	Revision    int64     `json:"revision"`
+}
+
+type UserDetail struct {
+	UserListItem
+	PasswordChangedAt time.Time         `json:"passwordChangedAt"`
+	Roles             []UserRoleSummary `json:"roles"`
+}
+
+type UserRoleSummary struct {
+	ID     string `json:"id"`
+	Code   string `json:"code"`
+	Name   string `json:"name"`
+	Status string `json:"status"`
+}
+
+type ResetPasswordInput struct {
+	ID       string `json:"id"`
+	Revision int64  `json:"revision"`
+}
+
+type ResetPasswordResult struct {
+	TemporaryPassword string `json:"temporaryPassword"`
 }
 
 type RoleView struct {

@@ -301,11 +301,13 @@ describe('ApiClient', () => {
 
   it('通过反馈专用技术端点上传截图', async () => {
     let uploadedType: string | null = null
+    let csrfToken: string | null = null
     mockServer.use(
       http.put(
         'https://api.test/files/feedback/attachments/upload/feedback-token',
         async ({ request }) => {
           uploadedType = request.headers.get('Content-Type')
+          csrfToken = request.headers.get('X-CSRF-Token')
           await request.arrayBuffer()
           return new HttpResponse(null, { status: 204 })
         },
@@ -313,12 +315,14 @@ describe('ApiClient', () => {
     )
 
     const client = new ApiClient({ baseUrl: 'https://api.test/' })
+    client.setCsrfToken('csrf-feedback')
     await client.uploadFeedbackAttachment(
       '/files/feedback/attachments/upload/feedback-token',
       new File(['jpeg-content'], 'screen.jpg', { type: 'image/jpeg' }),
     )
 
     expect(uploadedType).toBe('image/jpeg')
+    expect(csrfToken).toBe('csrf-feedback')
   })
 
   it('拒绝跨源或错误前缀的附件令牌地址', async () => {

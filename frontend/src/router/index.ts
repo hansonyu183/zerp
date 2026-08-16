@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import AppLayout from '@/layouts/AppLayout.vue'
 import SignIn from '@/pages/auth/user/SignIn.vue'
+import ChangePassword from '@/pages/auth/user/ChangePassword.vue'
 import Dashboard from '@/pages/home/dashboard/Dashboard.vue'
 import NotFound from '@/pages/system/notfound/NotFound.vue'
 import Forbidden from '@/pages/system/forbidden/Forbidden.vue'
@@ -16,6 +17,12 @@ export const router = createRouter({
       name: 'signin',
       component: SignIn,
       meta: { public: true, title: '登录' },
+    },
+    {
+      path: '/change-password',
+      name: 'change-password',
+      component: ChangePassword,
+      meta: { requiresAuth: true, restrictedSession: true, title: '修改密码' },
     },
     {
       path: '/',

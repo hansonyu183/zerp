@@ -28,8 +28,14 @@ type handlerServiceStub struct {
 	savedProfile          SaveProfileInput
 	savedProfileUserID    string
 	changedPassword       ChangePasswordInput
+	resetPassword         ResetPasswordInput
+	resetPasswordResult   ResetPasswordResult
+	queryUsersResult      Page[UserView]
 	createdFeedback       CreateFeedbackInput
 	workbenchInput        WorkbenchQueryInput
+	uploadCalls           int
+	uploadToken           string
+	uploadActorID         string
 }
 
 func (stub *handlerServiceStub) AuthorizeSession(_ context.Context, _, _, path, _ string) (Principal, error) {
@@ -47,7 +53,15 @@ func (stub *handlerServiceStub) Authorize(_ context.Context, _, _, path, _ strin
 }
 
 func (stub *handlerServiceStub) QueryUsers(context.Context, PageRequest) (Page[UserView], error) {
+	if stub.queryUsersResult.Items != nil {
+		return stub.queryUsersResult, nil
+	}
 	return Page[UserView]{Items: []UserView{}, Page: 1, PageSize: 20}, nil
+}
+
+func (stub *handlerServiceStub) ResetUserPassword(_ context.Context, input ResetPasswordInput, _, _ string) (ResetPasswordResult, error) {
+	stub.resetPassword = input
+	return stub.resetPasswordResult, nil
 }
 
 func (stub *handlerServiceStub) QueryWorkbench(
@@ -94,6 +108,13 @@ func (stub *handlerServiceStub) CreateFeedback(_ context.Context, input CreateFe
 	return FeedbackCreatedView{FeedbackID: "01JAPPFEEDBACK00000000000", Status: FeedbackStatusPending}, nil
 }
 
+func (stub *handlerServiceStub) UploadFeedbackAttachment(_ context.Context, token, actorID string, _ io.Reader, _ int64, _ string) error {
+	stub.uploadCalls++
+	stub.uploadToken = token
+	stub.uploadActorID = actorID
+	return nil
+}
+
 func testRouter(stub *handlerServiceStub) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -107,7 +128,7 @@ func TestHandlerRegistersCompleteAPIRouteSet(t *testing.T) {
 	expected := []string{
 		"/app/user/signin", "/app/user/session", "/app/user/signout",
 		"/app/user/profile", "/app/user/change-password", "/app/user/query",
-		"/app/user/get", "/app/user/create", "/app/user/save", "/app/user/enable", "/app/user/disable",
+		"/app/user/get", "/app/user/create", "/app/user/save", "/app/user/enable", "/app/user/disable", "/app/user/reset-password",
 		"/app/role/query", "/app/role/get", "/app/role/create", "/app/role/save", "/app/role/enable", "/app/role/disable",
 		"/app/permission/query", "/app/permission/get",
 		"/app/system-parameter/query", "/app/system-parameter/get",
@@ -228,9 +249,66 @@ func TestFeedbackUsesSessionAuthorizationWithoutPathPermission(t *testing.T) {
 	}
 }
 
+func TestFeedbackAttachmentUploadRejectsRestrictedSession(t *testing.T) {
+	stub := &handlerServiceStub{authorizeError: domainError(ErrorForbidden, "password change is required", nil)}
+	request := httptest.NewRequest(
+		http.MethodPut,
+		"/files/feedback/attachments/upload/preissued-token",
+		strings.NewReader("image bytes"),
+	)
+	request.Header.Set("Content-Type", "image/png")
+	request.Header.Set("X-CSRF-Token", "csrf")
+	request.AddCookie(&http.Cookie{Name: "zerp_session", Value: "restricted-session"})
+	recorder := httptest.NewRecorder()
+
+	testRouter(stub).ServeHTTP(recorder, request)
+
+	if stub.sessionAuthorizedPath != feedbackAttachmentUploadPath {
+		t.Fatalf("session authorized path = %q", stub.sessionAuthorizedPath)
+	}
+	if stub.uploadCalls != 0 {
+		t.Fatalf("upload calls = %d, want 0", stub.uploadCalls)
+	}
+	var envelope response.Envelope
+	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode envelope: %v", err)
+	}
+	if envelope.Code != response.CodeForbidden || envelope.Message != "password change is required" {
+		t.Fatalf("envelope = %#v", envelope)
+	}
+}
+
+func TestFeedbackAttachmentUploadUsesSessionAuthorizationAndUploadToken(t *testing.T) {
+	stub := &handlerServiceStub{authorizeResult: Principal{User: UserSummary{ID: "user-1"}}}
+	request := httptest.NewRequest(
+		http.MethodPut,
+		"/files/feedback/attachments/upload/preissued-token",
+		strings.NewReader("image bytes"),
+	)
+	request.Header.Set("Content-Type", "image/png")
+	request.Header.Set("X-CSRF-Token", "csrf")
+	request.AddCookie(&http.Cookie{Name: "zerp_session", Value: "session"})
+	recorder := httptest.NewRecorder()
+
+	testRouter(stub).ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNoContent)
+	}
+	if stub.sessionAuthorizedPath != feedbackAttachmentUploadPath {
+		t.Fatalf("session authorized path = %q", stub.sessionAuthorizedPath)
+	}
+	if stub.uploadCalls != 1 || stub.uploadToken != "preissued-token" {
+		t.Fatalf("upload calls = %d, token = %q", stub.uploadCalls, stub.uploadToken)
+	}
+	if stub.uploadActorID != "user-1" {
+		t.Fatalf("upload actor = %q, want user-1", stub.uploadActorID)
+	}
+}
+
 func TestSigninSetsHardenedCookieAndEnvelope(t *testing.T) {
 	stub := &handlerServiceStub{signinResult: SessionResult{
-		Data:         SessionData{User: UserSummary{ID: "user-1", Username: "alice", DisplayName: "Alice"}, CSRFToken: "csrf", Permissions: []string{signoutPath}},
+		Data:         SessionData{User: UserSummary{ID: "user-1", Username: "alice", DisplayName: "Alice"}, CSRFToken: "csrf", Permissions: []string{}},
 		SessionToken: "session-token", ExpiresAt: time.Now().Add(time.Hour),
 	}}
 	request := httptest.NewRequest(http.MethodPost, "/app/user/signin", strings.NewReader(`{"username":"alice","password":"Strong-password-1!"}`))
@@ -272,6 +350,36 @@ func TestProtectedRouteAuthorizesExactPath(t *testing.T) {
 	}
 	if envelope.Code != response.CodeOK {
 		t.Fatalf("code = %d, want 0", envelope.Code)
+	}
+}
+
+func TestUserQueryReturnsOnlyListContractFields(t *testing.T) {
+	stub := &handlerServiceStub{queryUsersResult: Page[UserView]{
+		Items: []UserView{{ID: "user-1", Username: "alice", DisplayName: "Alice", Status: StatusEnabled, System: false,
+			FailedSigninCount: 4, RoleIDs: []string{"role-1"}, PasswordChangedAt: time.Now(), Revision: 3}},
+		Page: 1, PageSize: 20, Total: 1,
+	}}
+	request := httptest.NewRequest(http.MethodPost, "/app/user/query", strings.NewReader(`{"page":1,"pageSize":20,"sort":[{"field":"username","order":"asc"}]}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-CSRF-Token", "csrf")
+	request.AddCookie(&http.Cookie{Name: "zerp_session", Value: "session"})
+	recorder := httptest.NewRecorder()
+	testRouter(stub).ServeHTTP(recorder, request)
+	if strings.Contains(recorder.Body.String(), "failedSigninCount") || strings.Contains(recorder.Body.String(), "roleIds") || strings.Contains(recorder.Body.String(), "passwordChangedAt") {
+		t.Fatalf("sensitive/non-list fields leaked: %s", recorder.Body.String())
+	}
+}
+
+func TestResetPasswordUsesExactPathAndReturnsOnlyTemporaryResult(t *testing.T) {
+	stub := &handlerServiceStub{authorizeResult: Principal{User: UserSummary{ID: "actor-1"}}, resetPasswordResult: ResetPasswordResult{TemporaryPassword: "temporary"}}
+	request := httptest.NewRequest(http.MethodPost, "/app/user/reset-password", strings.NewReader(`{"id":"01J00000000000000000000000","revision":2}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-CSRF-Token", "csrf")
+	request.AddCookie(&http.Cookie{Name: "zerp_session", Value: "session"})
+	recorder := httptest.NewRecorder()
+	testRouter(stub).ServeHTTP(recorder, request)
+	if stub.authorizedPath != "/app/user/reset-password" || stub.resetPassword.Revision != 2 || !strings.Contains(recorder.Body.String(), "temporaryPassword") {
+		t.Fatalf("reset dispatch path=%q input=%+v body=%s", stub.authorizedPath, stub.resetPassword, recorder.Body.String())
 	}
 }
 

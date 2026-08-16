@@ -440,13 +440,19 @@ const lockPendingAppFeedbackUpload = `-- name: LockPendingAppFeedbackUpload :one
 SELECT id, storage_key, original_name, content_type, declared_size, sha256_hex, status, upload_token_hash, upload_expires_at, stored_at, removed_at, created_at, created_by
 FROM app_feedback_files
 WHERE upload_token_hash = $1
+  AND created_by = $2
   AND status = 'PENDING'
   AND upload_expires_at > now()
 FOR UPDATE
 `
 
-func (q *Queries) LockPendingAppFeedbackUpload(ctx context.Context, uploadTokenHash string) (AppFeedbackFile, error) {
-	row := q.db.QueryRow(ctx, lockPendingAppFeedbackUpload, uploadTokenHash)
+type LockPendingAppFeedbackUploadParams struct {
+	UploadTokenHash string `db:"upload_token_hash" json:"upload_token_hash"`
+	UserID          string `db:"user_id" json:"user_id"`
+}
+
+func (q *Queries) LockPendingAppFeedbackUpload(ctx context.Context, arg LockPendingAppFeedbackUploadParams) (AppFeedbackFile, error) {
+	row := q.db.QueryRow(ctx, lockPendingAppFeedbackUpload, arg.UploadTokenHash, arg.UserID)
 	var i AppFeedbackFile
 	err := row.Scan(
 		&i.ID,

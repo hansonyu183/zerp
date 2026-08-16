@@ -77,6 +77,7 @@ describe('useSessionStore permissions', () => {
         data: {
           user: { id: '1', username: 'admin', displayName: '管理员' },
           csrfToken: 'csrf-1',
+          passwordChangeRequired: false,
           permissions: [
             '/app/user/signout',
             '/bob/customer/query',
@@ -161,6 +162,7 @@ describe('useSessionStore permissions', () => {
         data: {
           user: { id: '1', username: 'admin', displayName: '管理员' },
           csrfToken: 'csrf-1',
+          passwordChangeRequired: false,
           permissions: [
             '/wfl/process-instance/query',
             '/wfl/sales-fulfillment/query',
@@ -240,6 +242,7 @@ describe('useSessionStore permissions', () => {
         data: {
           user: { id: '1', username: 'admin', displayName: '管理员' },
           csrfToken: 'csrf-1',
+          passwordChangeRequired: false,
           permissions: ['/bob/customer/query'],
         },
       })
@@ -311,6 +314,7 @@ describe('useSessionStore.restore errors', () => {
         data: {
           user: { id: '1', username: 'admin', displayName: '管理员' },
           csrfToken: 'csrf-1',
+          passwordChangeRequired: false,
           permissions: ['/bob/customer/query'],
         },
       })
@@ -390,6 +394,7 @@ describe('useSessionStore.restore errors', () => {
         data: {
           user: { id: '1', username: 'admin', displayName: '管理员' },
           csrfToken: 'csrf-1',
+          passwordChangeRequired: false,
           permissions: ['/bob/customer/query'],
         },
       })
@@ -414,6 +419,7 @@ describe('useSessionStore.restore errors', () => {
         data: {
           user: { id: '1', username: 'admin', displayName: '管理员' },
           csrfToken: 'csrf-1',
+          passwordChangeRequired: false,
           permissions: ['/bob/customer/query'],
         },
       })
@@ -564,4 +570,23 @@ describe('useSessionStore account actions', () => {
     expect(session.user?.username).toBe('admin')
     expect(session.errorMessage).toBe('当前密码错误。')
   })
+})
+
+it('受限会话不加载菜单并保留受限标记', async () => {
+  setActivePinia(createPinia())
+  mockedApiClient.post.mockResolvedValueOnce({
+    data: {
+      user: { id: '1', username: 'new-user', displayName: '新用户' },
+      csrfToken: 'csrf-1',
+      permissions: ['/app/user/query'],
+      passwordChangeRequired: true,
+      passwordMinLength: 10,
+    },
+  })
+  const session = useSessionStore()
+  await expect(session.restore()).resolves.toBe(true)
+  expect(session.passwordChangeRequired).toBe(true)
+  expect(session.passwordMinLength).toBe(10)
+  expect(session.menus).toEqual([])
+  expect(mockedApiClient.post).not.toHaveBeenCalledWith('app/menu/get', {})
 })

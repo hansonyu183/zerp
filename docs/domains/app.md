@@ -235,7 +235,7 @@ User ──< UserRole >── Role ──< RolePermission >── Permission
 
 `/app/feedback/attachment-initiate`、`/app/feedback/attachment-remove`、`/app/feedback/create` 和 `/app/feedback/get` 是登录用户自助接口，只要求有效会话和 CSRF，不进入 `app_permissions`，也不参与角色逐项授权。该例外只允许操作当前主体的未提交附件、提交反馈和查询本人反馈，不能读取其他用户数据。
 
-会话接口只返回用户资料、CSRF Token 和 API 权限数组。菜单树通过会话级 `/app/menu/get` 单独读取；后端只返回已注册路由键、固定地址及展示元数据，不得指定可执行的前端组件路径。前端仍由本地页面注册表把 `route_key` 解析为固定组件。
+会话接口只返回用户资料、CSRF Token、API 权限数组、`passwordChangeRequired` 和 `passwordMinLength`。菜单树通过会话级 `/app/menu/get` 单独读取；后端只返回已注册路由键、固定地址及展示元数据，不得指定可执行的前端组件路径。前端仍由本地页面注册表把 `route_key` 解析为固定组件。
 
 ## 5. 动作语义
 
@@ -312,14 +312,15 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 
 ### 5.6 用户管理
 
-| 路径                | 说明                   | 关键约束                             |
-| ------------------- | ---------------------- | ------------------------------------ |
-| `/app/user/query`   | 分页查询用户           | 过滤、排序字段白名单；不返回密码摘要 |
-| `/app/user/get`     | 查询用户详情及角色     | 不返回会话令牌、密码摘要             |
-| `/app/user/create`  | 创建用户并分配初始角色 | 用户名唯一；密码强度校验；单事务     |
-| `/app/user/save`    | 修改资料或角色         | 携带 `revision`；角色必须存在且有效  |
-| `/app/user/enable`  | 启用用户               | 携带 `revision`，记录审计            |
-| `/app/user/disable` | 停用用户               | 携带 `revision`，同时撤销全部会话    |
+| 路径                       | 说明                   | 关键约束                             |
+| -------------------------- | ---------------------- | ------------------------------------ |
+| `/app/user/query`          | 分页查询用户           | 过滤、排序字段白名单；不返回密码摘要 |
+| `/app/user/get`            | 查询用户详情及角色     | 不返回会话令牌、密码摘要             |
+| `/app/user/create`         | 创建用户并分配初始角色 | 用户名唯一；密码强度校验；单事务     |
+| `/app/user/save`           | 修改资料或角色         | 携带 `revision`；角色必须存在且有效  |
+| `/app/user/enable`         | 启用用户               | 携带 `revision`，记录审计            |
+| `/app/user/disable`        | 停用用户               | 携带 `revision`，同时撤销全部会话    |
+| `/app/user/reset-password` | 重置普通用户密码       | 携带 `revision`；只返回一次临时密码  |
 
 创建用户时初始状态固定为 `ENABLED`，并设置必须修改初始密码；响应不得返回初始密码。管理员重置密码和账号恢复仍属于独立安全流程，不得复用普通 `save` 接口直接传递新密码。
 
@@ -390,6 +391,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 - 创建或修改角色及替换权限集合；
 - 停用用户并撤销其会话；
 - 修改密码并撤销旧会话；
+- 管理员重置密码并撤销目标用户全部会话；
 - 创建、轮换或撤销会话与写入对应关键审计事件。
 - 创建反馈、附件元数据快照及滚动窗口限流判断。
 - 修改或恢复系统参数及写入对应审计事件。
@@ -434,6 +436,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 - 用户名在比较和保存前去除首尾空白并转为小写，长度为 3–64 个 Unicode 字符；
 - 密码最小长度由 `APP_PASSWORD_MIN_LENGTH` 配置，默认 12、允许 8–128，实际密码最长 256 个字符，
   并且必须同时包含 ASCII 小写、大写、数字和符号；
+- 登录和会话恢复响应返回当前生效的密码最小长度，供开户和本人改密界面使用同一策略边界；
 - 连续失败锁定阈值和锁定时间分别由 `APP_SIGNIN_LOCK_THRESHOLD`、`APP_SIGNIN_LOCK_DURATION` 配置，
   默认 5 次和 15 分钟；进程内还按规范化用户名限制每分钟最多 30 次登录请求；
 - 会话空闲和绝对有效期分别由 `APP_SESSION_IDLE_TIMEOUT`、`APP_SESSION_ABSOLUTE_TIMEOUT` 配置，

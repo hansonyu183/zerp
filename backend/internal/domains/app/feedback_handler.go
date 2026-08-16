@@ -28,7 +28,7 @@ func (h *Handler) removeFeedbackAttachment(c *gin.Context) {
 
 func (h *Handler) uploadFeedbackAttachment(c *gin.Context) {
 	err := h.service.UploadFeedbackAttachment(
-		c.Request.Context(), c.Param("token"), c.Request.Body,
+		c.Request.Context(), c.Param("token"), actorID(c), c.Request.Body,
 		c.Request.ContentLength, c.GetHeader("Content-Type"),
 	)
 	if err != nil {

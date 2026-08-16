@@ -10,7 +10,8 @@
         'page': { 'type': 'integer', 'minimum': 1 },
         'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
         'keyword': { 'type': 'string' },
-        'statuses': { 'type': 'array', 'items': { '$ref': '#/WflDefinitionStatus' } },
+        'statuses':
+          { 'type': 'array', 'items': { '$ref': '#/WflDefinitionStatus' } },
       },
   }
 'WflDefinitionGetRequest':
@@ -110,7 +111,15 @@
         'action':
           {
             'type': 'string',
-            'enum': ['expense_payment', 'purchase_inbound', 'sale_outbound', 'sale_delivery', 'sale_signoff', 'sale_return'],
+            'enum':
+              [
+                'expense_payment',
+                'purchase_inbound',
+                'sale_outbound',
+                'sale_delivery',
+                'sale_signoff',
+                'sale_return',
+              ],
           },
         'relation': { 'type': 'string' },
       },
@@ -118,7 +127,21 @@
 'WflDefinitionView':
   {
     'type': 'object',
-    'required': ['definitionId', 'code', 'name', 'status', 'revision', 'rootEntity', 'nodeCount', 'updatedAt', 'script', 'rootNodeKey', 'nodes', 'edges'],
+    'required':
+      [
+        'definitionId',
+        'code',
+        'name',
+        'status',
+        'revision',
+        'rootEntity',
+        'nodeCount',
+        'updatedAt',
+        'script',
+        'rootNodeKey',
+        'nodes',
+        'edges',
+      ],
     'additionalProperties': false,
     'properties':
       {
@@ -134,14 +157,25 @@
         'script': { 'type': 'string' },
         'diagnostic': { '$ref': '#/WflDefinitionDiagnostic' },
         'rootNodeKey': { 'type': 'string' },
-        'nodes': { 'type': 'array', 'items': { '$ref': '#/WflDefinitionNode' } },
-        'edges': { 'type': 'array', 'items': { '$ref': '#/WflDefinitionEdge' } },
+        'nodes':
+          { 'type': 'array', 'items': { '$ref': '#/WflDefinitionNode' } },
+        'edges':
+          { 'type': 'array', 'items': { '$ref': '#/WflDefinitionEdge' } },
       },
   }
 'WflDefinitionTrialResult':
   {
     'type': 'object',
-    'required': ['definitionId', 'revision', 'matched', 'rootNodeKey', 'trace', 'plannedActions', 'uncoveredBranches'],
+    'required':
+      [
+        'definitionId',
+        'revision',
+        'matched',
+        'rootNodeKey',
+        'trace',
+        'plannedActions',
+        'uncoveredBranches',
+      ],
     'additionalProperties': false,
     'properties':
       {
@@ -149,8 +183,16 @@
         'revision': { 'type': 'integer', 'format': 'int64' },
         'matched': { 'type': 'boolean' },
         'rootNodeKey': { 'type': 'string' },
-        'trace': { 'type': 'array', 'items': { 'type': 'object', 'additionalProperties': true } },
-        'plannedActions': { 'type': 'array', 'items': { 'type': 'object', 'additionalProperties': true } },
+        'trace':
+          {
+            'type': 'array',
+            'items': { 'type': 'object', 'additionalProperties': true },
+          },
+        'plannedActions':
+          {
+            'type': 'array',
+            'items': { 'type': 'object', 'additionalProperties': true },
+          },
         'uncoveredBranches': { 'type': 'array', 'items': { 'type': 'string' } },
       },
   }
@@ -163,7 +205,12 @@
       {
         'code': { 'type': 'integer', 'format': 'int32' },
         'message': { 'type': 'string' },
-        'data': { 'type': 'object', 'nullable': true, 'allOf': [{ '$ref': '#/WflDefinitionView' }] },
+        'data':
+          {
+            'type': 'object',
+            'nullable': true,
+            'allOf': [{ '$ref': '#/WflDefinitionView' }],
+          },
         'requestId': { 'type': 'string' },
       },
   }
@@ -176,7 +223,12 @@
       {
         'code': { 'type': 'integer', 'format': 'int32' },
         'message': { 'type': 'string' },
-        'data': { 'type': 'object', 'nullable': true, 'allOf': [{ '$ref': '#/WflDefinitionTrialResult' }] },
+        'data':
+          {
+            'type': 'object',
+            'nullable': true,
+            'allOf': [{ '$ref': '#/WflDefinitionTrialResult' }],
+          },
         'requestId': { 'type': 'string' },
       },
   }
@@ -198,7 +250,19 @@
   {
     'type': 'object',
     'required':
-      ['processId', 'definitionId', 'definitionCode', 'definitionName', 'revision', 'rootDocumentId', 'rootDocumentNo', 'rootEntity', 'partyCode', 'partyName', 'updatedAt'],
+      [
+        'processId',
+        'definitionId',
+        'definitionCode',
+        'definitionName',
+        'revision',
+        'rootDocumentId',
+        'rootDocumentNo',
+        'rootEntity',
+        'partyCode',
+        'partyName',
+        'updatedAt',
+      ],
     'additionalProperties': false,
     'properties':
       {
@@ -222,7 +286,8 @@
     'additionalProperties': false,
     'properties':
       {
-        'items': { 'type': 'array', 'items': { '$ref': '#/WflInstanceListItem' } },
+        'items':
+          { 'type': 'array', 'items': { '$ref': '#/WflInstanceListItem' } },
         'total': { 'type': 'integer', 'format': 'int64' },
         'page': { 'type': 'integer' },
         'pageSize': { 'type': 'integer' },
@@ -237,7 +302,12 @@
       {
         'code': { 'type': 'integer', 'format': 'int32' },
         'message': { 'type': 'string' },
-        'data': { 'type': 'object', 'nullable': true, 'allOf': [{ '$ref': '#/WflInstancePage' }] },
+        'data':
+          {
+            'type': 'object',
+            'nullable': true,
+            'allOf': [{ '$ref': '#/WflInstancePage' }],
+          },
         'requestId': { 'type': 'string' },
       },
   }
@@ -251,7 +321,19 @@
 'WflNodeInstance':
   {
     'type': 'object',
-    'required': ['nodeInstanceId', 'nodeKey', 'nodeName', 'documentId', 'documentNo', 'documentEntity', 'documentStatus', 'documentRevision', 'businessDate', 'trigger'],
+    'required':
+      [
+        'nodeInstanceId',
+        'nodeKey',
+        'nodeName',
+        'documentId',
+        'documentNo',
+        'documentEntity',
+        'documentStatus',
+        'documentRevision',
+        'businessDate',
+        'trigger',
+      ],
     'additionalProperties': false,
     'properties':
       {
@@ -276,7 +358,14 @@
 'WflAvailableChildTarget':
   {
     'type': 'object',
-    'required': ['parentNodeInstanceId', 'targetNodeKey', 'targetNodeName', 'targetEntity', 'relation'],
+    'required':
+      [
+        'parentNodeInstanceId',
+        'targetNodeKey',
+        'targetNodeName',
+        'targetEntity',
+        'relation',
+      ],
     'additionalProperties': false,
     'properties':
       {
@@ -294,12 +383,19 @@
         { '$ref': '#/WflInstanceListItem' },
         {
           'type': 'object',
-          'required': ['startedDefinitionRevision', 'nodes', 'availableTargets'],
+          'required':
+            ['startedDefinitionRevision', 'nodes', 'availableTargets'],
           'properties':
             {
-              'startedDefinitionRevision': { 'type': 'integer', 'format': 'int64' },
-              'nodes': { 'type': 'array', 'items': { '$ref': '#/WflNodeInstance' } },
-              'availableTargets': { 'type': 'array', 'items': { '$ref': '#/WflAvailableChildTarget' } },
+              'startedDefinitionRevision':
+                { 'type': 'integer', 'format': 'int64' },
+              'nodes':
+                { 'type': 'array', 'items': { '$ref': '#/WflNodeInstance' } },
+              'availableTargets':
+                {
+                  'type': 'array',
+                  'items': { '$ref': '#/WflAvailableChildTarget' },
+                },
             },
         },
       ],
@@ -313,7 +409,12 @@
       {
         'code': { 'type': 'integer', 'format': 'int32' },
         'message': { 'type': 'string' },
-        'data': { 'type': 'object', 'nullable': true, 'allOf': [{ '$ref': '#/WflInstanceView' }] },
+        'data':
+          {
+            'type': 'object',
+            'nullable': true,
+            'allOf': [{ '$ref': '#/WflInstanceView' }],
+          },
         'requestId': { 'type': 'string' },
       },
   }
@@ -332,7 +433,8 @@
 'WflCreateChildRequest':
   {
     'type': 'object',
-    'required': ['processId', 'parentNodeInstanceId', 'targetNodeKey', 'requestKey'],
+    'required':
+      ['processId', 'parentNodeInstanceId', 'targetNodeKey', 'requestKey'],
     'additionalProperties': false,
     'properties':
       {

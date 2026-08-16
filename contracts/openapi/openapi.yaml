@@ -3306,7 +3306,16 @@
                   '200':
                     {
                       'description': 'Starlark 草稿与只读编译图。',
-                      'content': { 'application/json': { 'schema': { '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse' } } },
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
+                                },
+                            },
+                        },
                     },
                 },
             },
@@ -3334,7 +3343,22 @@
                     },
                 },
               'responses':
-                { '200': { 'description': '创建后的定义。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse' } } } } },
+                {
+                  '200':
+                    {
+                      'description': '创建后的定义。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/wfl/process-definition/save':
@@ -3360,7 +3384,22 @@
                     },
                 },
               'responses':
-                { '200': { 'description': '保存后的定义及诊断。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse' } } } } },
+                {
+                  '200':
+                    {
+                      'description': '保存后的定义及诊断。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/wfl/process-definition/trial':
@@ -3386,7 +3425,22 @@
                     },
                 },
               'responses':
-                { '200': { 'description': '零写入试算轨迹与计划动作。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/wfl.yaml#/WflDefinitionTrialResponse' } } } } },
+                {
+                  '200':
+                    {
+                      'description': '零写入试算轨迹与计划动作。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflDefinitionTrialResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/wfl/process-definition/publish':
@@ -3412,7 +3466,22 @@
                     },
                 },
               'responses':
-                { '200': { 'description': '发布后的定义。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse' } } } } },
+                {
+                  '200':
+                    {
+                      'description': '发布后的定义。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/wfl/process-definition/enable':
@@ -3438,7 +3507,22 @@
                     },
                 },
               'responses':
-                { '200': { 'description': '启用后的定义。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse' } } } } },
+                {
+                  '200':
+                    {
+                      'description': '启用后的定义。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/wfl/process-definition/disable':
@@ -3464,7 +3548,22 @@
                     },
                 },
               'responses':
-                { '200': { 'description': '停用后的定义。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse' } } } } },
+                {
+                  '200':
+                    {
+                      'description': '停用后的定义。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/wfl/process-definition/delete':
@@ -3616,7 +3715,22 @@
                     },
                 },
               'responses':
-                { '200': { 'description': '完整实际节点树及可创建目标。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/wfl.yaml#/WflInstanceViewResponse' } } } } },
+                {
+                  '200':
+                    {
+                      'description': '完整实际节点树及可创建目标。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflInstanceViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/wfl/{processName}/audit-history':
@@ -3712,7 +3826,22 @@
                     },
                 },
               'responses':
-                { '200': { 'description': '完整实际节点树及可创建目标。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/wfl.yaml#/WflInstanceViewResponse' } } } } },
+                {
+                  '200':
+                    {
+                      'description': '完整实际节点树及可创建目标。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflInstanceViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/wfl/process-instance/audit-history':

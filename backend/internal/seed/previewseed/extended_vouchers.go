@@ -8,6 +8,8 @@ import (
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -250,6 +252,16 @@ func (s *Seeder) ensureGeneratedExpensePayment(ctx context.Context, counts *Coun
 		return fmt.Errorf("recover expense payment workflow: %w", err)
 	}
 	counts.add(result)
+	if err = pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		_, createErr := s.actions.CreateExpensePayment(ctx, tx, wfldomain.WorkflowActionInput[wfldomain.ExpensePaymentInitial]{
+			SourceDocumentID: reimbursement.DocumentID,
+			RequestID:        requestID("expense-workflow-payment", "create"),
+			Initial:          wfldomain.ExpensePaymentInitial{FundAccountObjectID: fund.ObjectID},
+		})
+		return createErr
+	}); err != nil {
+		return fmt.Errorf("create preview expense payment through workflow action: %w", err)
+	}
 	parentDocumentID := reimbursement.DocumentID
 	if count, err = s.queries.CountVouDocumentsByParentAndEntity(ctx, dbsqlc.CountVouDocumentsByParentAndEntityParams{
 		ParentDocumentID: &parentDocumentID, Entity: voudomain.EntityExpensePayment,
@@ -257,7 +269,7 @@ func (s *Seeder) ensureGeneratedExpensePayment(ctx context.Context, counts *Coun
 		return err
 	}
 	if count != 1 {
-		return fmt.Errorf("expense reimbursement workflow generated %d expense-payment documents, want 1", count)
+		return fmt.Errorf("preview workflow action created %d expense-payment documents, want 1", count)
 	}
 	counts.add(outcomeCreated)
 	return nil

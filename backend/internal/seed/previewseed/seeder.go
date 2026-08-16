@@ -69,6 +69,7 @@ type Seeder struct {
 	business   *bobdomain.Service
 	vouchers   *voudomain.Service
 	accounting *accdomain.Service
+	actions    *workflowactions.Adapter
 	auxRefs    map[string]auxdomain.ObjectView
 	bobRefs    map[string]bobdomain.ObjectView
 }
@@ -101,7 +102,8 @@ func New(
 	if err != nil {
 		return nil, fmt.Errorf("create voucher service: %w", err)
 	}
-	_, err = wfldomain.NewService(pool, events, workflowactions.New(vouchers), logger)
+	actions := workflowactions.New(vouchers)
+	_, err = wfldomain.NewService(pool, events, actions, logger)
 	if err != nil {
 		return nil, fmt.Errorf("create workflow service: %w", err)
 	}
@@ -110,7 +112,7 @@ func New(
 	}
 	return &Seeder{
 		pool: pool, queries: dbsqlc.New(pool), auxiliary: auxiliary, business: business,
-		vouchers: vouchers, accounting: accounting,
+		vouchers: vouchers, accounting: accounting, actions: actions,
 		auxRefs: make(map[string]auxdomain.ObjectView),
 		bobRefs: make(map[string]bobdomain.ObjectView),
 	}, nil

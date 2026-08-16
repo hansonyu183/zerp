@@ -38,12 +38,13 @@ mkdir -p "${primary}/backend/var" "${primary}/node_modules/.pnpm" \
   "${primary}/frontend/node_modules/.pnpm" "${primary}/frontend/node_modules/.tmp" \
   "${primary}/frontend/node_modules/.vite" "${primary}/frontend/node_modules/.vite-temp" \
   "${primary}/frontend/node_modules/.pnpm-store"
-printf '.scratch/\nbackend/var/\nnode_modules\n' >"${primary}/.gitignore"
+printf '.scratch/\nbackend/var/\nbackend/.env*.local\nnode_modules\n' >"${primary}/.gitignore"
 printf 'seed\n' >"${primary}/README.md"
 printf 'backend seed\n' >"${primary}/backend/README.md"
 printf 'lockfileVersion: "9.0"\n' >"${primary}/pnpm-lock.yaml"
 printf '{"packageManager":"pnpm@10.34.5"}\n' >"${primary}/package.json"
 printf 'TEST_POSTGRES_DB=issue_local_test\n' >"${primary}/backend/.env.local"
+printf 'APP_ENV=test\n' >"${primary}/backend/.env.e2e.local"
 printf 'layoutVersion: 1\n' >"${primary}/node_modules/.modules.yaml"
 printf '#!/bin/sh\nexit 0\n' >"${primary}/frontend/node_modules/.bin/vite"
 chmod +x "${primary}/frontend/node_modules/.bin/vite"
@@ -107,11 +108,13 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 prompt=$(cat)
-if [ -e "${worktree}/backend/.env.local" ] || [ -L "${worktree}/backend/.env.local" ]; then
+if [ -e "${worktree}/backend/.env.local" ] || [ -L "${worktree}/backend/.env.local" ] ||
+  [ -e "${worktree}/backend/.env.e2e.local" ] || [ -L "${worktree}/backend/.env.e2e.local" ]; then
   echo 'Codex received the host backend environment file' >&2
   exit 3
 fi
 printf 'codex\n' >>"${MOCK_EVENTS}"
+if [ "${MOCK_CODEX_SLEEP:-0}" = 1 ]; then sleep 30; fi
 printf '%s\n' "${prompt}" >"${MOCK_PROMPT}"
 printf '%s\n' "${prompt}" | grep -Fq '$implement'
 count=$(cat "${MOCK_CODEX_COUNT}" 2>/dev/null || printf 0)
@@ -152,6 +155,7 @@ command -v pnpm >"${MOCK_GATE_PNPM_PATH}"
 pnpm --version >"${MOCK_GATE_PNPM_VERSION}"
 test -L backend/.env.local
 readlink backend/.env.local >"${MOCK_GATE_ENV_TARGET}"
+printf '%s\n' "${ZERP_E2E_ENV_FILE:-}" >"${MOCK_GATE_E2E_ENV_TARGET}"
 count=$(cat "${MOCK_GATE_COUNT}" 2>/dev/null || printf 0)
 count=$((count + 1))
 printf '%s\n' "${count}" >"${MOCK_GATE_COUNT}"
@@ -182,6 +186,7 @@ cat >"${tmp}/bin/focused-e2e" <<'EOF'
 #!/bin/sh
 set -eu
 printf 'focused-e2e %s\n' "$*" >>"${MOCK_EVENTS}"
+printf '%s\n' "${ZERP_E2E_ENV_FILE:-}" >"${MOCK_FOCUSED_E2E_ENV_TARGET}"
 count=$(cat "${MOCK_FOCUSED_E2E_COUNT}" 2>/dev/null || printf 0)
 count=$((count + 1))
 printf '%s\n' "${count}" >"${MOCK_FOCUSED_E2E_COUNT}"
@@ -218,6 +223,7 @@ count=$(cat "${MOCK_PREVIEW_COUNT}" 2>/dev/null || printf 0)
 count=$((count + 1))
 printf '%s\n' "${count}" >"${MOCK_PREVIEW_COUNT}"
 if [ "${count}" -le "${MOCK_PREVIEW_FAILS:-0}" ]; then
+  echo "simulated preview stdout ${count}"
   echo "simulated preview environment failure ${count}" >&2
   exit 1
 fi
@@ -230,6 +236,24 @@ cat >"${tmp}/bin/production" <<'EOF'
 #!/bin/sh
 set -eu
 printf 'production\n' >>"${MOCK_EVENTS}"
+if [ "${MOCK_VERIFY_COMPLETION_CANDIDATE:-0}" = 1 ]; then
+  worktree=${ZERP_ISSUE_WORKTREE:?}
+  worktree_git_dir=$(git -C "${worktree}" rev-parse --path-format=absolute --git-dir)
+  common_git_dir=$(git -C "${worktree}" rev-parse --path-format=absolute --git-common-dir)
+  grep -Fq -- "--add-dir ${worktree_git_dir}" "${MOCK_CODEX_ARGS}"
+  grep -Fq -- "--add-dir ${common_git_dir}" "${MOCK_CODEX_ARGS}"
+  test -L "${worktree}/node_modules"
+  test "$(readlink "${worktree}/node_modules")" = "${MOCK_PRIMARY}/node_modules"
+  test ! -e "${worktree}/backend/.env.local"
+  test ! -e "${worktree}/backend/.env.e2e.local"
+  test -d "${worktree}/frontend/node_modules/.tmp"
+  test ! -e "${worktree}/frontend/node_modules/.tmp/primary-cache"
+  test ! -e "${worktree}/frontend/node_modules/.pnpm"
+  test ! -e "${worktree}/frontend/node_modules/.vite"
+  test ! -e "${worktree}/.pnpm-store"
+  test ! -e "${worktree}/frontend/node_modules/.pnpm-store"
+  : >"${MOCK_CAPTURE}/completion-candidate-verified"
+fi
 printf 'sha=9999999999999999999999999999999999999999\n'
 EOF
 chmod +x "${tmp}/bin/production"
@@ -345,6 +369,8 @@ export MOCK_CODEX_PNPM_VERSION="${tmp}/codex-pnpm-version"
 export MOCK_GATE_PNPM_PATH="${tmp}/gate-pnpm-path"
 export MOCK_GATE_PNPM_VERSION="${tmp}/gate-pnpm-version"
 export MOCK_GATE_ENV_TARGET="${tmp}/gate-env-target"
+export MOCK_GATE_E2E_ENV_TARGET="${tmp}/gate-e2e-env-target"
+export MOCK_FOCUSED_E2E_ENV_TARGET="${tmp}/focused-e2e-env-target"
 export ZERP_PNPM_STORE_PATH="${pnpm_store}"
 export MOCK_PREVIEW_REQUIRE_DETACHED_MODULES=1
 export MOCK_PREVIEW_LEAVES_DEPENDENCY_RESIDUE=1
@@ -360,6 +386,7 @@ ZERP_ISSUE_TRACKER_ROOT="${primary}/.scratch" \
   ZERP_ISSUE_PREVIEW_COMMAND="${tmp}/bin/preview" \
   ZERP_ISSUE_PRODUCTION_COMMAND="${tmp}/bin/production" \
   ZERP_ISSUE_GATE_COMMAND="${tmp}/bin/gate" \
+  MOCK_VERIFY_COMPLETION_CANDIDATE=1 \
   "${repo_root}/scripts/issue-local.sh" run
 
 test "$(cat "${tmp}/issue-count")" = 2
@@ -368,6 +395,7 @@ test "$(grep -c '^gate$' "${events}")" = 1
 test "$(cat "${MOCK_GATE_COREPACK_ROOT}")" = 1
 test "$(cat "${MOCK_GATE_PNPM_VERSION}")" = 10.34.5
 test "$(cat "${MOCK_GATE_ENV_TARGET}")" = "${primary}/backend/.env.local"
+test "$(cat "${MOCK_GATE_E2E_ENV_TARGET}")" = "${primary}/backend/.env.e2e.local"
 test "$(grep -c '^preview$' "${events}")" = 1
 grep -Fq -- '--ignore-user-config' "${MOCK_CODEX_ARGS}"
 grep -Fq -- '--ask-for-approval never' "${MOCK_CODEX_ARGS}"
@@ -383,10 +411,7 @@ if grep -Fqx 'wrong-homebrew-pnpm' "${events}"; then
   echo 'Codex or host gate used the wrong PATH pnpm instead of the exact cached wrapper' >&2
   exit 1
 fi
-worktree_git_dir=$(git -C "${runtime}/worktrees/inventory-query" rev-parse --path-format=absolute --git-dir)
-common_git_dir=$(git -C "${runtime}/worktrees/inventory-query" rev-parse --path-format=absolute --git-common-dir)
-grep -Fq -- "--add-dir ${worktree_git_dir}" "${MOCK_CODEX_ARGS}"
-grep -Fq -- "--add-dir ${common_git_dir}" "${MOCK_CODEX_ARGS}"
+test -r "${tmp}/capture/completion-candidate-verified"
 test "$(grep -o -- '--add-dir ' "${MOCK_CODEX_ARGS}" | wc -l | tr -d ' ')" = 2
 if grep -Fq -- "--add-dir ${primary}/node_modules" "${MOCK_CODEX_ARGS}"; then
   echo 'Codex received an unexpected primary node_modules write grant' >&2
@@ -400,20 +425,13 @@ if grep -Fq -- '--dangerously-bypass-approvals-and-sandbox' "${MOCK_CODEX_ARGS}"
   echo 'Codex bypassed its sandbox' >&2
   exit 1
 fi
-test -L "${runtime}/worktrees/inventory-query/node_modules"
 test "$(cat "${MOCK_CODEX_PNPM_PATH}")" = "${runtime}/worktrees/inventory-query/.scratch/.issue-local-bin/pnpm"
 test "$(cat "${MOCK_GATE_PNPM_PATH}")" = "${runtime}/worktrees/inventory-query/.scratch/.issue-local-bin/pnpm"
-test "$("${runtime}/worktrees/inventory-query/.scratch/.issue-local-bin/pnpm" --version)" = 10.34.5
-test ! -e "${runtime}/worktrees/inventory-query/backend/.env.local"
-test ! -L "${runtime}/worktrees/inventory-query/backend/.env.local"
-test "$(readlink "${runtime}/worktrees/inventory-query/node_modules")" = "${primary}/node_modules"
-test -d "${runtime}/worktrees/inventory-query/frontend/node_modules/.tmp"
-test ! -e "${runtime}/worktrees/inventory-query/frontend/node_modules/.tmp/primary-cache"
-test ! -e "${runtime}/worktrees/inventory-query/frontend/node_modules/.pnpm"
-test ! -e "${runtime}/worktrees/inventory-query/frontend/node_modules/.vite"
-test ! -e "${runtime}/worktrees/inventory-query/frontend/node_modules/.vite-temp"
-test ! -e "${runtime}/worktrees/inventory-query/.pnpm-store"
-test ! -e "${runtime}/worktrees/inventory-query/frontend/node_modules/.pnpm-store"
+test ! -e "${runtime}/worktrees/inventory-query"
+if git -C "${primary}" show-ref --verify --quiet refs/heads/automation/local-inventory-query; then
+  echo 'completed candidate branch was not removed' >&2
+  exit 1
+fi
 cmp -s "${tmp}/git-exclude-before" "${primary}/.git/info/exclude"
 if find "${primary}/.git" \( -name 'issue-local-index-probe-*' -o -path '*/refs/issue-local-probe/*' \) -print | grep -q .; then
   echo 'Git metadata writability preflight did not clean up its probe files' >&2
@@ -504,6 +522,7 @@ stop_agent() {
   ZERP_PRIMARY_ROOT="${primary}" \
   ZERP_ISSUE_TRACKER_ROOT="${primary}/.scratch" \
   ZERP_ISSUE_LOCAL_RUNTIME_ROOT="${runtime}" \
+  ZERP_ISSUE_STOP_GRACE_SECONDS="${ZERP_ISSUE_STOP_GRACE_SECONDS:-1}" \
     "${repo_root}/scripts/issue-local.sh" stop
 }
 
@@ -601,35 +620,54 @@ mv "${managed_ticket}.new" "${managed_ticket}"
 
 make_ticket retry-active-controller 'Retry active controller'
 active_ticket="${primary}/.scratch/retry-active-controller/issues/01-ticket.md"
-sed 's/^\*\*Status:\*\*.*/**Status:** blocked/' "${active_ticket}" >"${active_ticket}.new"
-mv "${active_ticket}.new" "${active_ticket}"
-sleep 30 &
-active_pid=$!
-mkdir -p "${runtime}/agent.lock"
-printf '%s\n' "${active_pid}" >"${runtime}/agent.lock/pid"
-ps -o pgid= -p "${active_pid}" | tr -d ' ' >"${runtime}/agent.lock/pgid"
+: >"${events}"
+rm -rf "${runtime}/agent.lock"
+MOCK_CODEX_SLEEP=1 run_agent >"${tmp}/active-controller.log" 2>&1 &
+active_runner=$!
+attempts=100
+until [ -r "${runtime}/agent.lock/command" ] && grep -q '^codex$' "${events}" ||
+  [ "${attempts}" -eq 0 ]; do
+  sleep 0.05
+  attempts=$((attempts - 1))
+done
+test "${attempts}" -gt 0
+active_pid=$(cat "${runtime}/agent.lock/pid")
 if retry_agent retry-active-controller; then
   echo 'retry accepted an active controller' >&2
-  kill "${active_pid}" 2>/dev/null || true
-  wait "${active_pid}" 2>/dev/null || true
+  stop_agent || true
+  wait "${active_runner}" 2>/dev/null || true
   exit 1
 fi
-grep -Fq '**Status:** blocked' "${active_ticket}"
-kill "${active_pid}" 2>/dev/null || true
-wait "${active_pid}" 2>/dev/null || true
-rm -rf "${runtime}/agent.lock"
-
-active_pid=$(node -e "const {spawn}=require('child_process'); const child=spawn('sleep',['30'],{detached:true,stdio:'ignore'}); console.log(child.pid); child.unref()")
-mkdir -p "${runtime}/agent.lock"
-printf '%s\n' "${active_pid}" >"${runtime}/agent.lock/pid"
-ps -o pgid= -p "${active_pid}" | tr -d ' ' >"${runtime}/agent.lock/pgid"
 stop_agent
 test -r "${runtime}/disabled"
+wait "${active_runner}" 2>/dev/null || true
 if kill -0 "${active_pid}" 2>/dev/null; then
   echo 'stop left the controller process group alive' >&2
   exit 1
 fi
 test ! -e "${runtime}/agent.lock"
+sed 's/^\*\*Status:\*\*.*/**Status:** blocked/' "${active_ticket}" >"${active_ticket}.new"
+mv "${active_ticket}.new" "${active_ticket}"
+rm -f "${runtime}/disabled"
+
+sleep 30 &
+shared_pid=$!
+mkdir -p "${runtime}/agent.lock"
+printf '%s\n' "${shared_pid}" >"${runtime}/agent.lock/pid"
+ps -o pgid= -p "${shared_pid}" | tr -d ' ' >"${runtime}/agent.lock/pgid"
+ps -o lstart= -p "${shared_pid}" | sed 's/^[[:space:]]*//' >"${runtime}/agent.lock/started"
+ps -o command= -p "${shared_pid}" | sed 's/^[[:space:]]*//' >"${runtime}/agent.lock/command"
+printf '%s\n' "${repo_root}/scripts/issue-local.sh" >"${runtime}/agent.lock/script"
+if stop_agent; then
+  echo 'stop accepted an unverifiable shared process group' >&2
+  kill "${shared_pid}" 2>/dev/null || true
+  wait "${shared_pid}" 2>/dev/null || true
+  exit 1
+fi
+kill -0 "${shared_pid}"
+kill "${shared_pid}"
+wait "${shared_pid}" 2>/dev/null || true
+rm -rf "${runtime}/agent.lock"
 rm -f "${runtime}/disabled"
 
 prepare_reviewed_candidate resume-reviewed
@@ -684,7 +722,6 @@ printf 'manual repair\n' >"${manual_candidate}/manual-repair.txt"
 git -C "${manual_candidate}" add manual-repair.txt
 git -C "${manual_candidate}" -c user.name='Local Repair' -c user.email=local@example.com \
   commit -m 'fix: manual repair' >/dev/null
-manual_head=$(git -C "${manual_candidate}" rev-parse HEAD)
 printf 'focused prior failure\n' >"${runtime}/batches/resume-manual-repair/failure.md"
 rm -f "${runtime}/batches/resume-manual-repair/implementation.json"
 retry_agent resume-manual-repair
@@ -696,7 +733,7 @@ rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK
 MOCK_CODEX_REVIEW_EXISTING=1 run_agent
 test "$(cat "${MOCK_CODEX_COUNT}")" = 1
 test "$(cat "${MOCK_GATE_COUNT}")" = 1
-test "$(git -C "${manual_candidate}" rev-parse HEAD)" = "${manual_head}"
+test ! -e "${manual_candidate}"
 if grep -q '^model-commit$' "${events}"; then
   echo 'manual repair review created a redundant commit' >&2
   exit 1
@@ -736,6 +773,7 @@ if grep -Fxq 'successful gate output line 1' "${MOCK_PROMPT}-2"; then
   exit 1
 fi
 grep -Fq 'focused-e2e tests/e2e/user-management-lifecycle.spec.ts --project=system-serial --no-deps' "${events}"
+test "$(cat "${MOCK_FOCUSED_E2E_ENV_TARGET}")" = "${primary}/backend/.env.e2e.local"
 grep -Fq '**Status:** done' "${primary}/.scratch/gate-repair/issues/01-ticket.md"
 unset MOCK_GATE_LONG_FAILURE MOCK_GATE_E2E_FAILURE
 
@@ -783,7 +821,9 @@ if grep -q '^gh ' "${events}"; then
   exit 1
 fi
 grep -Fq 'simulated preview environment failure 1' "${runtime}/batches/preview-repair/preview.log"
+grep -Fq 'simulated preview stdout 1' "${runtime}/batches/preview-repair/preview.log"
 grep -Fq 'simulated preview environment failure 1' "${runtime}/batches/preview-repair/failure.md"
+grep -Fq 'simulated preview stdout 1' "${runtime}/batches/preview-repair/failure.md"
 grep -Fq '**Status:** blocked' "${primary}/.scratch/preview-repair/issues/01-ticket.md"
 test "$(cat "${runtime}/batches/preview-repair/state")" = preview-blocked
 printf 'stale successful gate marker\n' >"${runtime}/batches/preview-repair/repair-e2e.env"

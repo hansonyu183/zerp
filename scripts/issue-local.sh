@@ -21,6 +21,7 @@ gate_command=${ZERP_ISSUE_GATE_COMMAND:-}
 focused_e2e_command=${ZERP_ISSUE_FOCUSED_E2E_COMMAND:-}
 schema=${ZERP_ISSUE_RESULT_SCHEMA:-${repo_root}/.github/automation/schemas/local-implementation-output.json}
 lock_dir="${runtime_root}/agent.lock"
+controller_path="${script_dir}/$(basename -- "$0")"
 
 usage() {
   echo "usage: $0 {run|status|retry <feature>|stop|start}" >&2
@@ -137,32 +138,106 @@ acquire_lock() {
   mkdir -p "${runtime_root}"
   chmod 700 "${runtime_root}"
   if mkdir "${lock_dir}" 2>/dev/null; then
-    printf '%s\n' "$$" >"${lock_dir}/pid"
-    ps -o pgid= -p "$$" | tr -d ' ' >"${lock_dir}/pgid"
+    write_controller_identity
     return
   fi
-  lock_pid=$(cat "${lock_dir}/pid" 2>/dev/null || true)
-  if [ -n "${lock_pid}" ] && kill -0 "${lock_pid}" 2>/dev/null; then
+  if lock_identity=$(verified_controller_identity 2>/dev/null); then
+    lock_pid=$(printf '%s\n' "${lock_identity}" | cut -f1)
     log "local Issue agent already runs as pid ${lock_pid}"
     exit 0
   fi
+  lock_pid=$(cat "${lock_dir}/pid" 2>/dev/null || true)
+  if valid_pid "${lock_pid}" && kill -0 "${lock_pid}" 2>/dev/null; then
+    echo "refusing to replace unverifiable active controller lock for pid ${lock_pid}" >&2
+    return 1
+  fi
   rm -rf "${lock_dir}"
   mkdir "${lock_dir}"
-  printf '%s\n' "$$" >"${lock_dir}/pid"
-  ps -o pgid= -p "$$" | tr -d ' ' >"${lock_dir}/pgid"
+  write_controller_identity
 }
 
 release_lock() {
   [ "$(cat "${lock_dir}/pid" 2>/dev/null || true)" = "$$" ] || return 0
-  rm -f "${lock_dir}/pid" "${lock_dir}/pgid"
+  rm -f "${lock_dir}/pid" "${lock_dir}/pgid" "${lock_dir}/started" \
+    "${lock_dir}/command" "${lock_dir}/script"
   rmdir "${lock_dir}" >/dev/null 2>&1 || true
 }
 
-live_controller_pid() {
+valid_pid() {
+  case "${1:-}" in '' | *[!0-9]*) return 1 ;; esac
+  [ "$1" -gt 1 ]
+}
+
+process_group() { ps -o pgid= -p "$1" 2>/dev/null | tr -d ' '; }
+process_start() { ps -o lstart= -p "$1" 2>/dev/null | sed 's/^[[:space:]]*//'; }
+process_command() { ps -o command= -p "$1" 2>/dev/null | sed 's/^[[:space:]]*//'; }
+
+write_controller_identity() {
+  controller_pgid=$(process_group "$$")
+  [ "${controller_pgid}" = "$$" ] || {
+    echo 'local Issue controller must own its process group' >&2
+    return 1
+  }
+  chmod 700 "${lock_dir}"
+  printf '%s\n' "$$" >"${lock_dir}/pid"
+  printf '%s\n' "${controller_pgid}" >"${lock_dir}/pgid"
+  process_start "$$" >"${lock_dir}/started"
+  process_command "$$" >"${lock_dir}/command"
+  printf '%s\n' "${controller_path}" >"${lock_dir}/script"
+  chmod 600 "${lock_dir}"/*
+}
+
+verified_controller_identity() {
   controller_pid=$(cat "${lock_dir}/pid" 2>/dev/null || true)
-  case "${controller_pid}" in '' | *[!0-9]*) return 1 ;; esac
+  controller_pgid=$(cat "${lock_dir}/pgid" 2>/dev/null || true)
+  recorded_start=$(cat "${lock_dir}/started" 2>/dev/null || true)
+  recorded_command=$(cat "${lock_dir}/command" 2>/dev/null || true)
+  recorded_script=$(cat "${lock_dir}/script" 2>/dev/null || true)
+  valid_pid "${controller_pid}" || return 1
+  valid_pid "${controller_pgid}" || return 1
+  [ "${controller_pid}" = "${controller_pgid}" ] || return 1
+  [ "${recorded_script}" = "${controller_path}" ] || return 1
   kill -0 "${controller_pid}" 2>/dev/null || return 1
-  printf '%s\n' "${controller_pid}"
+  actual_pgid=$(process_group "${controller_pid}")
+  actual_start=$(process_start "${controller_pid}")
+  actual_command=$(process_command "${controller_pid}")
+  [ "${actual_pgid}" = "${controller_pgid}" ] || return 1
+  [ -n "${recorded_start}" ] && [ "${actual_start}" = "${recorded_start}" ] || return 1
+  [ -n "${recorded_command}" ] && [ "${actual_command}" = "${recorded_command}" ] || return 1
+  case "${actual_command}" in *"${controller_path} run"*) ;; *) return 1 ;; esac
+  printf '%s\t%s\n' "${controller_pid}" "${controller_pgid}"
+}
+
+live_controller_pid() {
+  identity=$(verified_controller_identity) || return 1
+  printf '%s\n' "${identity}" | cut -f1
+}
+
+ensure_dedicated_controller_group() {
+  current_pgid=$(process_group "$$")
+  if [ "${current_pgid}" = "$$" ]; then return 0; fi
+  [ "${ZERP_ISSUE_DEDICATED_GROUP:-0}" != 1 ] || {
+    echo 'failed to create a dedicated local Issue controller process group' >&2
+    exit 1
+  }
+  ZERP_ISSUE_DEDICATED_GROUP=1 node - "${controller_path}" <<'NODE'
+const {spawnSync} = require('child_process');
+const child = spawnSync('/bin/sh', [process.argv[2], 'run'], {
+  detached: true,
+  stdio: 'inherit',
+  env: process.env,
+});
+if (child.error) {
+  console.error(child.error.message);
+  process.exit(1);
+}
+process.exit(child.status === null ? 1 : child.status);
+NODE
+  exit $?
+}
+
+process_group_alive() {
+  /bin/kill -0 "-$1" 2>/dev/null
 }
 
 ticket_number() { basename "$1" | sed -n 's/^\([0-9][0-9]*\)-.*/\1/p'; }
@@ -283,6 +358,18 @@ stage_host_gate_env() {
   ln -s "${primary_env}" "${candidate_env}"
 }
 
+ensure_primary_e2e_env() {
+  primary_e2e_env="${primary_root}/backend/.env.e2e.local"
+  if [ ! -f "${primary_e2e_env}" ]; then
+    "${primary_root}/backend/scripts/init-e2e-env.sh"
+  fi
+  [ -f "${primary_e2e_env}" ] || {
+    echo 'host final gate cannot prepare primary backend/.env.e2e.local' >&2
+    return 1
+  }
+  printf '%s\n' "${primary_e2e_env}"
+}
+
 prepare_cached_pnpm() {
   worktree=$1
   package_json="${worktree}/package.json"
@@ -351,6 +438,11 @@ prepare_offline_dependencies() {
   remove_managed_host_env "${worktree}"
   if [ -e "${worktree}/backend/.env.local" ] || [ -L "${worktree}/backend/.env.local" ]; then
     echo 'offline dependency preparation blocked: candidate backend/.env.local must be absent before Codex starts' >&2
+    return 1
+  fi
+  if [ -e "${worktree}/backend/.env.e2e.local" ] ||
+    [ -L "${worktree}/backend/.env.e2e.local" ]; then
+    echo 'offline dependency preparation blocked: candidate backend/.env.e2e.local must be absent before Codex starts' >&2
     return 1
   fi
 
@@ -502,13 +594,15 @@ run_repair_preflight() {
     return 4
   }
   command_path=${focused_e2e_command:-${primary_root}/scripts/e2e.sh}
+  e2e_env_file=$(ensure_primary_e2e_env) || return 4
   pnpm_wrapper_dir="${worktree}/.scratch/.issue-local-bin"
   repair_log="${batch_root}/repair-e2e.log"
   if ! (
     stage_host_gate_env "${worktree}"
     trap 'remove_managed_host_env "${worktree}"' EXIT HUP INT TERM
     cd "${worktree}"
-    PATH="${pnpm_wrapper_dir}:${PATH}" COREPACK_ROOT=1 ZERP_E2E_REPO_ROOT="${worktree}" \
+    PATH="${pnpm_wrapper_dir}:${PATH}" COREPACK_ROOT=1 \
+      ZERP_E2E_REPO_ROOT="${worktree}" ZERP_E2E_ENV_FILE="${e2e_env_file}" \
       "${command_path}" "${spec}" "--project=${project}" --no-deps
   ) >"${repair_log}" 2>&1; then
     {
@@ -532,6 +626,7 @@ run_final_gate() {
   failure_file="${batch_root}/failure.md"
   marker_file="${batch_root}/gate-attempted-head"
   command_path=${gate_command:-${worktree}/scripts/change-gate.sh}
+  e2e_env_file=$(ensure_primary_e2e_env) || return 4
   pnpm_wrapper_dir="${worktree}/.scratch/.issue-local-bin"
   [ -x "${pnpm_wrapper_dir}/pnpm" ] || {
     echo 'host final gate cannot find the prepared exact pnpm wrapper' >&2
@@ -544,7 +639,8 @@ run_final_gate() {
     stage_host_gate_env "${worktree}"
     trap 'remove_managed_host_env "${worktree}"' EXIT HUP INT TERM
     cd "${worktree}"
-    PATH="${pnpm_wrapper_dir}:${PATH}" COREPACK_ROOT=1 ZERP_GATE_EVIDENCE_FILE="${evidence_file}" \
+    PATH="${pnpm_wrapper_dir}:${PATH}" COREPACK_ROOT=1 \
+      ZERP_E2E_ENV_FILE="${e2e_env_file}" ZERP_GATE_EVIDENCE_FILE="${evidence_file}" \
       "${command_path}" "${base_sha}"
   ) >"${gate_log}" 2>&1; then
     write_gate_failure "${batch_root}" "${head_sha}" "${gate_log}"
@@ -864,6 +960,33 @@ release_preview() {
   "${preview_close_command}" close "${feature}" >/dev/null 2>&1 || true
 }
 
+cleanup_completed_candidate() {
+  worktree=$1
+  branch=$2
+  [ -d "${worktree}" ] || return 0
+  [ "$(git -C "${worktree}" branch --show-current)" = "${branch}" ] || {
+    log "completed candidate cleanup skipped: ${worktree} is not on ${branch}"
+    return 1
+  }
+  [ -z "$(git -C "${worktree}" status --porcelain)" ] || {
+    log "completed candidate cleanup skipped: ${worktree} is not clean"
+    return 1
+  }
+  remove_managed_root_dependencies "${worktree}"
+  remove_managed_host_env "${worktree}"
+  cleanup_candidate_dependency_stores "${worktree}"
+  rm -rf "${worktree}/frontend/node_modules" "${worktree}/.scratch/.issue-local-bin"
+  if ! git -C "${primary_root}" worktree remove "${worktree}"; then
+    log "failed to remove completed candidate worktree ${worktree}"
+    return 1
+  fi
+  if git -C "${primary_root}" show-ref --verify --quiet "refs/heads/${branch}" &&
+    ! git -C "${primary_root}" branch -D "${branch}" >/dev/null; then
+    log "failed to remove completed candidate branch ${branch}"
+    return 1
+  fi
+}
+
 detach_candidate_modules_for_preview() {
   worktree=$1
   candidate_modules="${worktree}/node_modules"
@@ -915,9 +1038,15 @@ deploy_preview() {
     preview_result=4
   fi
   if [ "${preview_result}" -ne 0 ]; then
+    if [ -s "${preview_output}" ]; then
+      {
+        printf '\nPreview stdout before failure:\n\n'
+        cat "${preview_output}"
+      } >>"${preview_log}"
+    fi
     rm -f "${preview_output}"
     {
-      printf 'Public preview failed for candidate %s.\n\nPreview stderr:\n\n' "${head_sha}"
+      printf 'Public preview failed for candidate %s.\n\nPreview log:\n\n' "${head_sha}"
       cat "${preview_log}"
     } >"${batch_root}/failure.md"
     return 4
@@ -925,10 +1054,20 @@ deploy_preview() {
   preview_url=$(sed -n 's/^url=//p' "${preview_output}")
   fingerprint=$(sed -n 's/^fingerprint=//p' "${preview_output}")
   expected=$(jq -r .runtimeFingerprint "${batch_root}/gate-evidence.json")
-  if [ -z "${preview_url}" ] || [ "${fingerprint}" != "${expected}" ]; then
+  evidence_lines=$(wc -l <"${preview_output}" | tr -d ' ')
+  valid_lines=$(grep -Ec '^(url|fingerprint)=' "${preview_output}" || true)
+  if [ "${evidence_lines}" != 2 ] || [ "${valid_lines}" != 2 ] ||
+    [ -z "${preview_url}" ] || [ "${fingerprint}" != "${expected}" ]; then
+    {
+      printf '\nInvalid preview stdout evidence:\n\n'
+      cat "${preview_output}"
+    } >>"${preview_log}"
     rm -f "${preview_output}"
-    printf 'Preview evidence fingerprint %s does not match gate fingerprint %s.\n' \
-      "${fingerprint:-missing}" "${expected}" >"${batch_root}/failure.md"
+    {
+      printf 'Preview evidence is invalid or fingerprint %s does not match gate fingerprint %s.\n' \
+        "${fingerprint:-missing}" "${expected}"
+      printf 'Full log: %s\n' "${preview_log}"
+    } >"${batch_root}/failure.md"
     return 4
   fi
   mv "${preview_output}" "${batch_root}/preview.env"
@@ -1193,7 +1332,8 @@ run_batch() {
     write_value "${batch_root}/state" blocked
     return 1
   fi
-  if ! "${production_command}" "${pr}" "${merge_sha}" >"${batch_root}/production.env"; then
+  if ! ZERP_ISSUE_WORKTREE="${worktree}" \
+    "${production_command}" "${pr}" "${merge_sha}" >"${batch_root}/production.env"; then
     mark_batch "${issues_dir}" blocked
     write_value "${batch_root}/state" production-blocked
     : >"${runtime_root}/disabled"
@@ -1205,6 +1345,8 @@ run_batch() {
   for ticket in "${issues_dir}"/*.md; do complete_ticket "${ticket}"; done
   write_value "${batch_root}/state" "done"
   release_preview "${feature}"
+  cleanup_completed_candidate "${worktree}" "${branch}" ||
+    log "verified batch ${feature} completed, but candidate cleanup needs attention"
   log "local ticket batch ${feature} reached verified production through PR #${pr}"
 }
 
@@ -1215,16 +1357,15 @@ run_command() {
     return 0
   }
   acquire_lock
-  controller_exit() {
+  controller_signal() {
     result=$1
     trap - EXIT HUP INT TERM
-    release_lock
     exit "${result}"
   }
   trap release_lock EXIT
-  trap 'controller_exit 129' HUP
-  trap 'controller_exit 130' INT
-  trap 'controller_exit 143' TERM
+  trap 'controller_signal 129' HUP
+  trap 'controller_signal 130' INT
+  trap 'controller_signal 143' TERM
   while :; do
     issues_dir=$(select_batch)
     [ -n "${issues_dir}" ] || return 0
@@ -1234,33 +1375,40 @@ run_command() {
 
 stop_command() {
   : >"${runtime_root}/disabled"
-  controller_pid=$(live_controller_pid 2>/dev/null || true)
-  [ -n "${controller_pid}" ] || return 0
-  controller_pgid=$(cat "${lock_dir}/pgid" 2>/dev/null ||
-    ps -o pgid= -p "${controller_pid}" | tr -d ' ' || true)
+  identity=$(verified_controller_identity 2>/dev/null || true)
+  if [ -z "${identity}" ]; then
+    controller_pid=$(cat "${lock_dir}/pid" 2>/dev/null || true)
+    if valid_pid "${controller_pid}" && kill -0 "${controller_pid}" 2>/dev/null; then
+      echo "refusing to signal unverifiable controller pid ${controller_pid}" >&2
+      return 1
+    fi
+    rm -rf "${lock_dir}"
+    return 0
+  fi
+  controller_pid=$(printf '%s\n' "${identity}" | cut -f1)
+  controller_pgid=$(printf '%s\n' "${identity}" | cut -f2)
   self_pgid=$(ps -o pgid= -p "$$" | tr -d ' ')
-  case "${controller_pgid}" in '' | *[!0-9]*) echo 'active controller has no valid process group' >&2; return 1 ;; esac
   if [ "${controller_pgid}" = "${self_pgid}" ] || [ "${controller_pgid}" -le 1 ]; then
     echo 'refusing to signal the caller process group' >&2
     return 1
   fi
   /bin/kill -TERM "-${controller_pgid}" 2>/dev/null || true
-  remaining=3
-  while kill -0 "${controller_pid}" 2>/dev/null && [ "${remaining}" -gt 0 ]; do
+  remaining=${ZERP_ISSUE_STOP_GRACE_SECONDS:-120}
+  case "${remaining}" in '' | *[!0-9]*) echo 'invalid stop grace period' >&2; return 1 ;; esac
+  while process_group_alive "${controller_pgid}" && [ "${remaining}" -gt 0 ]; do
     sleep 1
     remaining=$((remaining - 1))
   done
-  if kill -0 "${controller_pid}" 2>/dev/null; then
+  if process_group_alive "${controller_pgid}"; then
     /bin/kill -KILL "-${controller_pgid}" 2>/dev/null || true
     sleep 1
   fi
-  if kill -0 "${controller_pid}" 2>/dev/null; then
-    echo "failed to stop local Issue controller pid ${controller_pid}" >&2
+  if process_group_alive "${controller_pgid}"; then
+    echo "failed to stop local Issue controller process group ${controller_pgid}" >&2
     return 1
   fi
   if [ "$(cat "${lock_dir}/pid" 2>/dev/null || true)" = "${controller_pid}" ]; then
-    rm -f "${lock_dir}/pid" "${lock_dir}/pgid"
-    rmdir "${lock_dir}" >/dev/null 2>&1 || true
+    rm -rf "${lock_dir}"
   fi
 }
 
@@ -1274,6 +1422,11 @@ retry_command() {
   }
   if controller_pid=$(live_controller_pid 2>/dev/null); then
     echo "local Issue controller pid ${controller_pid} is active; run stop before retry" >&2
+    exit 1
+  fi
+  lock_pid=$(cat "${lock_dir}/pid" 2>/dev/null || true)
+  if valid_pid "${lock_pid}" && kill -0 "${lock_pid}" 2>/dev/null; then
+    echo "unverifiable local Issue controller pid ${lock_pid} may be active; refusing retry" >&2
     exit 1
   fi
   batch_root="${runtime_root}/batches/${feature}"
@@ -1349,7 +1502,7 @@ retry_command() {
 
 mkdir -p "${runtime_root}"
 case "${1:-}" in
-  run) [ "$#" -eq 1 ] || usage; run_command ;;
+  run) [ "$#" -eq 1 ] || usage; ensure_dedicated_controller_group; run_command ;;
   status) [ "$#" -eq 1 ] || usage; status_command ;;
   retry) [ "$#" -eq 2 ] || usage; retry_command "$2" ;;
   stop) [ "$#" -eq 1 ] || usage; stop_command ;;

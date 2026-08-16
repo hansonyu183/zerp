@@ -258,7 +258,33 @@ release_identity() {
 }
 
 build_release() {
-  build_cache="${runtime_root}/build-cache/${release_name}"
+  build_cache_key() {
+    for dependency_file in \
+      package.json pnpm-lock.yaml pnpm-workspace.yaml \
+      frontend/package.json tools/typescript-native/package.json \
+      backend/go.mod backend/go.sum backend/tools/go.mod backend/tools/go.sum; do
+      [ -f "${source_root}/${dependency_file}" ] &&
+        [ ! -L "${source_root}/${dependency_file}" ] || {
+        echo "Preview dependency manifest is missing or not regular: ${dependency_file}" >&2
+        return 1
+      }
+    done
+    {
+      uname -s
+      uname -m
+      go version
+      node --version
+      for dependency_file in \
+        package.json pnpm-lock.yaml pnpm-workspace.yaml \
+        frontend/package.json tools/typescript-native/package.json \
+        backend/go.mod backend/go.sum backend/tools/go.mod backend/tools/go.sum; do
+        printf '%s  ' "${dependency_file}"
+        shasum -a 256 "${source_root}/${dependency_file}"
+      done
+    } | shasum -a 256 | awk '{print $1}'
+  }
+  dependency_cache_key=$(build_cache_key)
+  build_cache="${runtime_root}/build-cache/${dependency_cache_key}"
   validate_regular_tree() {
     artifact_root=$1
     invalid_artifact=$(find -P "${artifact_root}" ! -type f ! -type d -print -quit)
@@ -267,11 +293,8 @@ build_release() {
       return 1
     }
   }
-  remove_build_cache() {
-    [ ! -e "${build_cache}" ] || {
-      chmod -R u+w "${build_cache}"
-      rm -rf "${build_cache}"
-    }
+  clean_transient_build_cache() {
+    [ ! -e "${build_cache}/tmp" ] || rm -rf "${build_cache}/tmp"
   }
   if [ -x "${release_dir}/bin/zerp-server" ] && \
     [ -x "${release_dir}/bin/zerp-preview-web" ] && \
@@ -281,7 +304,6 @@ build_release() {
     [ -d "${release_dir}/migrations" ] && \
     [ -f "${release_dir}/web/index.html" ]; then
     validate_regular_tree "${release_dir}"
-    remove_build_cache
     echo "Reusing native preview release ${release_name}"
     return
   fi
@@ -341,7 +363,7 @@ build_release() {
   chmod -R a+rX "${build_temp}"
   mv "${build_temp}" "${release_dir}"
   build_temp=
-  remove_build_cache
+  clean_transient_build_cache
 }
 
 xml_escape() {

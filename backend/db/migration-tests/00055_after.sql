@@ -38,11 +38,7 @@ BEGIN
         WHERE id = '00000000000000000000000555') <> 'APPROVED'
        OR (SELECT posted_at FROM vou_documents
            WHERE id = '00000000000000000000000555') <>
-          '2055-01-01 02:00:00+00'::timestamptz
-       OR NOT (SELECT active FROM vou_settlement_reservations
-               WHERE order_id = '00000000000000000000000555')
-       OR (SELECT reserved_amount_cents FROM vou_settlement_reservations
-           WHERE order_id = '00000000000000000000000555') <> 1 THEN
+          '2055-01-01 02:00:00+00'::timestamptz THEN
         RAISE EXCEPTION 'ledger-neutral approved order was not preserved';
     END IF;
 
@@ -103,9 +99,6 @@ WHERE id = '00000000000000000000005501';
 
 BEGIN;
 SET CONSTRAINTS ALL DEFERRED;
-DELETE FROM vou_settlement_reservations
-WHERE order_id = '00000000000000000000000555';
-
 DELETE FROM vou_sale_order_details
 WHERE document_id = '00000000000000000000000555';
 

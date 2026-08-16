@@ -28,6 +28,10 @@ interface Page<T> {
 
 interface RoleView {
   id: string
+  name: string
+  description: string | null
+  revision: number
+  permissionIds: string[]
 }
 
 interface UserView {
@@ -79,13 +83,29 @@ interface BobQueryItem {
 
 interface VouMutation {
   documentId: string
+  documentNo?: string
   revision: number
 }
 
-interface VouDocumentView {
-  data: {
-    productLines?: Array<{ lineId: string }>
-  }
+interface WflDefinitionView {
+  definitionId: string
+  code: string
+  status: 'DRAFT' | 'ENABLED' | 'DISABLED'
+  revision: number
+  publishedRevision?: number
+}
+
+interface WflInstanceListItem {
+  processId: string
+  rootDocumentId: string
+}
+
+interface WflInstanceView {
+  nodes: Array<{
+    documentId: string
+    documentEntity: string
+    documentRevision: number
+  }>
 }
 
 export interface E2ECredentials {
@@ -103,6 +123,11 @@ export interface WflFixtures {
   vehicle: string
   warehouse: string
   fundAccount: string
+  purchaseProcessCode: string
+  salesProcessCode: string
+  purchaseTrialDocumentId: string
+  supplierObjectId: string
+  warehouseObjectId: string
 }
 
 export interface WflWorkerState {
@@ -110,6 +135,7 @@ export interface WflWorkerState {
   reviewer: E2ECredentials
   fixtures: WflFixtures
   storageState: Awaited<ReturnType<APIRequestContext['storageState']>>
+  grantWorkflowPermissions: (processCodes: string[]) => Promise<void>
 }
 
 class RealApi {
@@ -270,32 +296,183 @@ async function fixedSettlementMethod(operator: RealApi): Promise<BobMutation> {
   }
 }
 
+function workflowScript(options: {
+  code: string
+  name: string
+  rootEntity: 'purchase-order' | 'sale-order'
+  rootName: string
+  childEntity: 'purchase-inbound' | 'sale-outbound'
+  childName: string
+  action: 'purchase_inbound' | 'sale_outbound'
+  warehouseObjectId: string
+  partyField: 'supplier' | 'customer'
+  partyObjectId: string
+}): string {
+  return `root = node(key="order", name="${options.rootName}", entity="${options.rootEntity}")
+child = node(key="fulfillment", name="${options.childName}", entity="${options.childEntity}")
+workflow(code="${options.code}", name="${options.name}", root=root, when=lambda source: source["data"]["${options.partyField}"]["objectId"] == "${options.partyObjectId}", edges=[
+  edge(source=root, target=child, relation="fulfillment", action=${options.action}(initial=lambda source: {
+    "warehouseObjectId": "${options.warehouseObjectId}",
+    "businessDate": source["data"]["businessDate"],
+    "lines": [{"sourceLineId": line["lineId"], "quantity": line["orderedQuantity"]} for line in source["data"]["productLines"]],
+  })),
+])`
+}
+
+async function createEnabledWorkflowDefinition(
+  operator: RealApi,
+  options: {
+    code: string
+    name: string
+    script: string
+    trialSource: { entity: 'purchase-order' | 'sale-order'; documentId: string }
+  },
+): Promise<WflDefinitionView> {
+  const created = await operator.post<WflDefinitionView>(
+    'wfl/process-definition/create',
+    { script: options.script },
+  )
+  if (created.status !== 'DRAFT') {
+    throw new Error(`WFL 预置流程定义 ${options.code} 未以草稿创建。`)
+  }
+  const edited = await operator.post<WflDefinitionView>(
+    'wfl/process-definition/save',
+    {
+      definitionId: created.definitionId,
+      revision: created.revision,
+      script: `${options.script}\n`,
+    },
+  )
+  const trial = await operator.post<{
+    matched: boolean
+    plannedActions: unknown[]
+  }>('wfl/process-definition/trial', {
+    definitionId: edited.definitionId,
+    revision: edited.revision,
+    source: options.trialSource,
+  })
+  if (!trial.matched || trial.plannedActions.length !== 1) {
+    throw new Error(`WFL 预置流程定义 ${options.code} 试算未生成预期动作。`)
+  }
+  const published = await operator.post<WflDefinitionView>(
+    'wfl/process-definition/publish',
+    { definitionId: edited.definitionId, revision: edited.revision },
+  )
+  if (!published.publishedRevision) {
+    throw new Error(`WFL 预置流程定义 ${options.code} 未发布。`)
+  }
+  const enabled = await operator.post<WflDefinitionView>(
+    'wfl/process-definition/enable',
+    { definitionId: published.definitionId, revision: published.revision },
+  )
+  if (enabled.status !== 'ENABLED') {
+    throw new Error(`WFL 预置流程定义 ${options.code} 未启用。`)
+  }
+  return enabled
+}
+
+async function createWorkflowTrialOrder(
+  operator: RealApi,
+  entity: 'purchase-order' | 'sale-order',
+  references: {
+    customer: BobMutation
+    supplier: BobMutation
+    employee: BobMutation
+    warehouse: BobMutation
+    product: BobMutation
+    quantity?: string
+  },
+): Promise<VouMutation> {
+  const reference = (value: BobMutation) => ({
+    objectId: value.objectId,
+    versionId: value.versionId,
+  })
+  const data = {
+    businessDate: new Date().toISOString().slice(0, 10),
+    currency: 'CNY',
+    ...(entity === 'purchase-order'
+      ? {
+          supplier: reference(references.supplier),
+          purchaser: reference(references.employee),
+        }
+      : {
+          customer: reference(references.customer),
+          salesperson: reference(references.employee),
+        }),
+    warehouse: reference(references.warehouse),
+    productLines: [
+      {
+        product: reference(references.product),
+        orderedQuantity: references.quantity ?? '1',
+        unitPrice: '1.00',
+      },
+    ],
+  }
+  return operator.post<VouMutation>(`vou/${entity}/create`, { data })
+}
+
+async function addWorkflowPermissionsToOperatorRole(
+  bootstrap: RealApi,
+  operatorRole: RoleView,
+  processCodes: string[],
+): Promise<void> {
+  const paths = new Set(
+    processCodes.flatMap((code) => [
+      `/wfl/${code}/query`,
+      `/wfl/${code}/get`,
+      `/wfl/${code}/audit-history`,
+      `/wfl/${code}/create-child`,
+    ]),
+  )
+  const dynamicPermissionIds = (await allPermissions(bootstrap))
+    .filter((permission) => paths.has(permission.path))
+    .map((permission) => permission.id)
+  if (dynamicPermissionIds.length !== paths.size) {
+    throw new Error('WFL 预置流程未生成完整动态权限。')
+  }
+  await bootstrap.post<RoleView>('app/role/save', {
+    id: operatorRole.id,
+    name: operatorRole.name,
+    description: operatorRole.description,
+    permissionIds: [
+      ...new Set([...operatorRole.permissionIds, ...dynamicPermissionIds]),
+    ],
+    revision: operatorRole.revision,
+  })
+}
+
+async function grantWorkflowPermissionsToRole(
+  baseURL: string,
+  bootstrap: E2ECredentials,
+  roleId: string,
+  processCodes: string[],
+): Promise<void> {
+  const session = await signIn(baseURL, bootstrap.username, bootstrap.password)
+  try {
+    const role = await session.api.post<RoleView>('app/role/get', {
+      id: roleId,
+    })
+    await addWorkflowPermissionsToOperatorRole(session.api, role, processCodes)
+  } finally {
+    await session.context.dispose()
+  }
+}
+
 async function seedInventoryThroughLifecycle(
   operator: RealApi,
+  processCode: string,
   supplier: BobMutation,
   purchaser: BobMutation,
   warehouse: BobMutation,
   product: BobMutation,
 ): Promise<void> {
-  const reference = (value: BobMutation) => ({
-    objectId: value.objectId,
-    versionId: value.versionId,
-  })
-  const order = await operator.post<VouMutation>('vou/purchase-order/create', {
-    data: {
-      businessDate: new Date().toISOString().slice(0, 10),
-      currency: 'CNY',
-      supplier: reference(supplier),
-      purchaser: reference(purchaser),
-      warehouse: reference(warehouse),
-      productLines: [
-        {
-          product: reference(product),
-          orderedQuantity: '1000',
-          unitPrice: '1.00',
-        },
-      ],
-    },
+  const order = await createWorkflowTrialOrder(operator, 'purchase-order', {
+    customer: supplier,
+    supplier,
+    employee: purchaser,
+    warehouse,
+    product,
+    quantity: '1000',
   })
   const checkedOrder = await operator.post<VouMutation>(
     'vou/purchase-order/check',
@@ -305,29 +482,29 @@ async function seedInventoryThroughLifecycle(
     documentId: checkedOrder.documentId,
     revision: checkedOrder.revision,
   })
-  const orderView = await operator.post<VouDocumentView>(
-    'vou/purchase-order/get',
-    { documentId: order.documentId },
+  const processes = await operator.post<Page<WflInstanceListItem>>(
+    `wfl/${processCode}/query`,
+    { page: 1, pageSize: 20, keyword: order.documentNo },
   )
-  const sourceLineId = orderView.data.productLines?.[0]?.lineId
-  if (!sourceLineId) {
-    throw new Error('WFL 库存预置未取得采购订单明细。')
+  const process = processes.items.find(
+    (item) => item.rootDocumentId === order.documentId,
+  )
+  if (!process) {
+    throw new Error('WFL 库存预置未取得采购流程实例。')
   }
-  const inbound = await operator.post<VouMutation>(
-    'vou/purchase-inbound/create',
-    {
-      parentEntity: 'purchase-order',
-      parentDocumentId: order.documentId,
-      data: {
-        businessDate: new Date().toISOString().slice(0, 10),
-        warehouse: reference(warehouse),
-        sourceLines: [{ sourceLineId, quantity: '1000' }],
-      },
-    },
+  const instance = await operator.post<WflInstanceView>(
+    `wfl/${processCode}/get`,
+    { processId: process.processId },
   )
+  const inbound = instance.nodes.find(
+    (node) => node.documentEntity === 'purchase-inbound',
+  )
+  if (!inbound) {
+    throw new Error('WFL 库存预置未取得采购入库节点。')
+  }
   const checkedInbound = await operator.post<VouMutation>(
     'vou/purchase-inbound/check',
-    { documentId: inbound.documentId, revision: inbound.revision },
+    { documentId: inbound.documentId, revision: inbound.documentRevision },
   )
   await operator.post<VouMutation>('vou/purchase-inbound/approve', {
     documentId: checkedInbound.documentId,
@@ -683,6 +860,71 @@ export async function createWflWorkerState(options: {
       },
     )
 
+    const purchaseProcessCode = `e2e-purchase-${suffix}`.toLowerCase()
+    const salesProcessCode = `e2e-sales-${suffix}`.toLowerCase()
+    const trialReferences = {
+      customer,
+      supplier,
+      employee,
+      warehouse,
+      product: solventProduct,
+    }
+    const purchaseTrial = await createWorkflowTrialOrder(
+      operatorSession.api,
+      'purchase-order',
+      trialReferences,
+    )
+    const salesTrial = await createWorkflowTrialOrder(
+      operatorSession.api,
+      'sale-order',
+      trialReferences,
+    )
+    await createEnabledWorkflowDefinition(operatorSession.api, {
+      code: purchaseProcessCode,
+      name: purchaseProcessCode,
+      script: workflowScript({
+        code: purchaseProcessCode,
+        name: purchaseProcessCode,
+        rootEntity: 'purchase-order',
+        rootName: '采购订单',
+        childEntity: 'purchase-inbound',
+        childName: '采购入库',
+        action: 'purchase_inbound',
+        warehouseObjectId: warehouse.objectId,
+        partyField: 'supplier',
+        partyObjectId: supplier.objectId,
+      }),
+      trialSource: {
+        entity: 'purchase-order',
+        documentId: purchaseTrial.documentId,
+      },
+    })
+    await createEnabledWorkflowDefinition(operatorSession.api, {
+      code: salesProcessCode,
+      name: salesProcessCode,
+      script: workflowScript({
+        code: salesProcessCode,
+        name: salesProcessCode,
+        rootEntity: 'sale-order',
+        rootName: '销售订单',
+        childEntity: 'sale-outbound',
+        childName: '销售出库',
+        action: 'sale_outbound',
+        warehouseObjectId: warehouse.objectId,
+        partyField: 'customer',
+        partyObjectId: customer.objectId,
+      }),
+      trialSource: {
+        entity: 'sale-order',
+        documentId: salesTrial.documentId,
+      },
+    })
+    await addWorkflowPermissionsToOperatorRole(
+      bootstrapSession.api,
+      operatorRole,
+      [purchaseProcessCode, salesProcessCode],
+    )
+
     await withLedgerProvisioningLock(async () => {
       const vouEntities = enabledPermissions
         .map(
@@ -698,6 +940,7 @@ export async function createWflWorkerState(options: {
       )
       await seedInventoryThroughLifecycle(
         operatorSession.api,
+        purchaseProcessCode,
         supplier,
         employee,
         warehouse,
@@ -724,8 +967,20 @@ export async function createWflWorkerState(options: {
         vehicle: vehicle.code,
         warehouse: warehouse.code,
         fundAccount: fundAccount.code,
+        purchaseProcessCode,
+        salesProcessCode,
+        purchaseTrialDocumentId: purchaseTrial.documentId,
+        supplierObjectId: supplier.objectId,
+        warehouseObjectId: warehouse.objectId,
       },
       storageState: await operatorSession.context.storageState(),
+      grantWorkflowPermissions: (processCodes) =>
+        grantWorkflowPermissionsToRole(
+          options.baseURL,
+          options.bootstrap,
+          operatorRole.id,
+          processCodes,
+        ),
     }
   } finally {
     await Promise.all(contexts.map((context) => context.dispose()))

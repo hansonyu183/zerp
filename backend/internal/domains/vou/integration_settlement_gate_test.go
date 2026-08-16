@@ -11,10 +11,18 @@ import (
 
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/hansonyu183/zerp/backend/internal/platform/businessdate"
+	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+func absInt64(value int64) int64 {
+	if value < 0 {
+		return -value
+	}
+	return value
+}
 
 func createSettlementCustomer(
 	t *testing.T,
@@ -55,6 +63,19 @@ func createCheckedSettlementSale(
 		t.Fatalf("check settlement order: %v", err)
 	}
 	return checked
+}
+
+func settlementAmountCents(t *testing.T, service *Service, entity, documentID string) int64 {
+	t.Helper()
+	view, err := service.Get(t.Context(), entity, GetInput{DocumentID: documentID})
+	if err != nil {
+		t.Fatalf("read settlement document: %v", err)
+	}
+	amount, err := moneyCents(view.Amount)
+	if err != nil {
+		t.Fatalf("parse settlement document amount %q: %v", view.Amount, err)
+	}
+	return amount
 }
 
 func activateSettlementLedger(
@@ -155,14 +176,14 @@ func insertAccountingPartyEntry(
 	return err
 }
 
-func TestPrepaidApprovalReservesAtomicallyAndUnapproveReleasesIntegration(t *testing.T) {
+func TestPrepaidOrderApprovalChecksCurrentBalanceWithoutReservationIntegration(t *testing.T) {
 	pool := vouIntegrationPool(t)
 	truncateVOU(t, pool)
 	t.Cleanup(func() { truncateVOU(t, pool) })
 	refs := prepareReferences(t, pool)
 	service := newIntegrationService(t, pool)
 	customer := createSettlementCustomer(
-		t, pool, refs.employee, bobdomain.SettlementTermPrepaid, "预付并发客户",
+		t, pool, refs.employee, bobdomain.SettlementTermPrepaid, "预付实时结算客户",
 	)
 	first := createCheckedSettlementSale(t, service, refs, customer, "prepaid-first")
 	second := createCheckedSettlementSale(t, service, refs, customer, "prepaid-second")
@@ -171,155 +192,17 @@ func TestPrepaidApprovalReservesAtomicallyAndUnapproveReleasesIntegration(t *tes
 	if err := pool.QueryRow(t.Context(), `SELECT total_amount_cents FROM vou_documents WHERE id=$1`, first.DocumentID).Scan(&amount); err != nil {
 		t.Fatalf("read prepaid order amount: %v", err)
 	}
-	activateSettlementLedger(t, pool, customer, -amount, "2026-08-04")
+	activateSettlementLedger(t, pool, customer, -amount, businessdate.Today().Format(businessdate.Layout))
 
-	type approvalResult struct {
-		input  MutationResult
-		result MutationResult
-		err    error
+	if _, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
+		DocumentID: first.DocumentID, Revision: first.Revision,
+	}, integrationActorTwo, "prepaid-first-approve"); err != nil {
+		t.Fatalf("approve first prepaid order: %v", err)
 	}
-	results := make(chan approvalResult, 2)
-	var wait sync.WaitGroup
-	for index, input := range []MutationResult{first, second} {
-		wait.Add(1)
-		go func(index int, input MutationResult) {
-			defer wait.Done()
-			result, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
-				DocumentID: input.DocumentID, Revision: input.Revision,
-			}, integrationActorTwo, "prepaid-concurrent-"+string(rune('a'+index)))
-			results <- approvalResult{input: input, result: result, err: err}
-		}(index, input)
-	}
-	wait.Wait()
-	close(results)
-
-	var winner, loser approvalResult
-	for result := range results {
-		if result.err == nil {
-			winner = result
-		} else {
-			loser = result
-		}
-	}
-	if winner.result.DocumentID == "" || loser.input.DocumentID == "" ||
-		loser.err == nil || !strings.Contains(loser.err.Error(), "insufficient prepaid funds") {
-		t.Fatalf("unexpected concurrent prepaid results winner=%+v loser=%+v", winner, loser)
-	}
-
-	unapproved, err := service.Unapprove(t.Context(), EntitySaleOrder, ReverseInput{
-		DocumentID: winner.result.DocumentID, Revision: winner.result.Revision,
-		Reason: "release prepaid reservation",
-	}, integrationActorOne, "prepaid-unapprove")
-	if err != nil {
-		t.Fatalf("unapprove prepaid winner: %v", err)
-	}
-	if unapproved.Status != StatusChecked {
-		t.Fatalf("unapproved prepaid status = %s", unapproved.Status)
-	}
-	if _, err = service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
-		DocumentID: loser.input.DocumentID, Revision: loser.input.Revision,
-	}, integrationActorTwo, "prepaid-after-release"); err != nil {
-		t.Fatalf("approve prepaid order after release: %v", err)
-	}
-}
-
-func TestPrepaidReopenDoesNotReserveRefusalReturnAmountIntegration(t *testing.T) {
-	pool := vouIntegrationPool(t)
-	truncateVOU(t, pool)
-	t.Cleanup(func() { truncateVOU(t, pool) })
-	refs := prepareReferences(t, pool)
-	service := newIntegrationService(t, pool)
-	customer := createSettlementCustomer(
-		t, pool, refs.employee, bobdomain.SettlementTermPrepaid, "预付拒收客户",
-	)
-	order := createCheckedSettlementSale(t, service, refs, customer, "prepaid-refusal")
-	var orderAmount int64
-	if err := pool.QueryRow(t.Context(), `SELECT total_amount_cents FROM vou_documents WHERE id=$1`, order.DocumentID).
-		Scan(&orderAmount); err != nil {
-		t.Fatalf("read refusal order amount: %v", err)
-	}
-	activateSettlementLedger(t, pool, customer, -orderAmount, "2026-08-04")
-	approved, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
-		DocumentID: order.DocumentID, Revision: order.Revision,
-	}, integrationActorTwo, "prepaid-refusal-approve")
-	if err != nil {
-		t.Fatalf("approve refusal order: %v", err)
-	}
-	orderView, err := service.Get(t.Context(), EntitySaleOrder, GetInput{DocumentID: approved.DocumentID})
-	if err != nil {
-		t.Fatalf("get refusal order: %v", err)
-	}
-	outbound, _ := advanceSalesDocument(t, service, EntitySaleOutbound, DraftInput{
-		BusinessDate: "2026-08-05", SourceDocumentID: approved.DocumentID,
-		Warehouse: &refs.warehouse,
-		SourceLines: []SourceQuantityLineInput{{
-			SourceLineID: orderView.Data.ProductLines[0].LineID, Quantity: "1",
-		}},
-	}, true)
-	delivery, deliveryView := advanceSalesDocument(t, service, EntitySaleDelivery, DraftInput{
-		BusinessDate: "2026-08-05", SourceDocumentID: outbound.DocumentID,
-		Platform: &refs.platform, Vehicle: &refs.vehicle,
-	}, true)
-	signoff, _ := advanceSalesDocument(t, service, EntitySaleSignoff, DraftInput{
-		BusinessDate: "2026-08-05", SourceDocumentID: delivery.DocumentID,
-		SignoffLines: []SaleSignoffLineInput{{
-			SourceLineID:   deliveryView.Data.ProductLines[0].LineID,
-			SignedQuantity: "0.6", RejectedQuantity: "0.4",
-		}},
-	}, true)
-
-	var refusalID string
-	var refusalRevision int64
-	if err = pool.QueryRow(t.Context(), `SELECT document.id,document.revision
-		FROM vou_documents document
-		JOIN vou_sale_return_details detail ON detail.document_id=document.id
-		WHERE detail.source_signoff_id=$1 AND detail.return_kind='REFUSAL'`, signoff.DocumentID).
-		Scan(&refusalID, &refusalRevision); err != nil {
-		t.Fatalf("load refusal return: %v", err)
-	}
-	saved, err := service.Save(t.Context(), EntitySaleReturn, SaveInput{
-		DocumentID: refusalID, Revision: refusalRevision, Data: DraftInput{
-			BusinessDate: "2026-08-05", Warehouse: &refs.warehouse, ReturnReason: "客户拒收",
-		},
-	}, integrationActorOne, "prepaid-refusal-save")
-	if err != nil {
-		t.Fatalf("save refusal return: %v", err)
-	}
-	checked, err := service.Check(t.Context(), EntitySaleReturn, DocumentRevisionInput{
-		DocumentID: refusalID, Revision: saved.Revision,
-	}, integrationActorOne, "prepaid-refusal-check")
-	if err != nil {
-		t.Fatalf("check refusal return: %v", err)
-	}
-	if _, err = service.Approve(t.Context(), EntitySaleReturn, DocumentRevisionInput{
-		DocumentID: refusalID, Revision: checked.Revision,
-	}, integrationActorOne, "prepaid-refusal-return-approve"); err != nil {
-		t.Fatalf("approve refusal return: %v", err)
-	}
-
-	tx, err := pool.Begin(t.Context())
-	if err != nil {
-		t.Fatalf("begin refusal settlement reopen: %v", err)
-	}
-	if err = service.restoreOrderSettlement(t.Context(), tx, EntitySaleOrder, approved.DocumentID); err != nil {
-		_ = tx.Rollback(t.Context())
-		t.Fatalf("reopen refusal settlement: %v", err)
-	}
-	if err = tx.Commit(t.Context()); err != nil {
-		t.Fatalf("commit refusal settlement reopen: %v", err)
-	}
-	var signoffAmount, reservedAmount int64
-	if err = pool.QueryRow(t.Context(), `SELECT total_amount_cents FROM vou_documents WHERE id=$1`, signoff.DocumentID).
-		Scan(&signoffAmount); err != nil {
-		t.Fatalf("read signoff amount: %v", err)
-	}
-	if err = pool.QueryRow(t.Context(), `SELECT reserved_amount_cents
-		FROM vou_settlement_reservations WHERE order_id=$1`, approved.DocumentID).
-		Scan(&reservedAmount); err != nil {
-		t.Fatalf("read refusal reservation: %v", err)
-	}
-	if want := orderAmount - signoffAmount; reservedAmount != want {
-		t.Fatalf("refusal reservation = %d, want %d", reservedAmount, want)
+	if _, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
+		DocumentID: second.DocumentID, Revision: second.Revision,
+	}, integrationActorTwo, "prepaid-second-approve"); err != nil {
+		t.Fatalf("approve second prepaid order without an order-level balance claim: %v", err)
 	}
 }
 
@@ -369,7 +252,7 @@ func TestPrepaidApprovalUsesBusinessDateInsteadOfDatabaseSessionDateIntegration(
 	if _, err = tx.Exec(t.Context(), `SET LOCAL TIME ZONE 'Etc/GMT+12'`); err != nil {
 		t.Fatalf("set database session timezone: %v", err)
 	}
-	if err = service.reserveOrderSettlement(t.Context(), tx, EntitySaleOrder, order.DocumentID); err != nil {
+	if err = service.validateOrderSettlement(t.Context(), tx, EntitySaleOrder, order.DocumentID); err != nil {
 		t.Fatalf("business-local same-day funds were excluded: %v", err)
 	}
 }
@@ -420,7 +303,7 @@ func TestSettlementApprovalRequiresActiveLedgerIntegration(t *testing.T) {
 	}
 }
 
-func TestCashOnDeliveryBlocksDebtAndSecondOpenOrderIntegration(t *testing.T) {
+func TestCashOnDeliveryBlocksCurrentDebtIntegration(t *testing.T) {
 	pool := vouIntegrationPool(t)
 	truncateVOU(t, pool)
 	t.Cleanup(func() { truncateVOU(t, pool) })
@@ -429,136 +312,158 @@ func TestCashOnDeliveryBlocksDebtAndSecondOpenOrderIntegration(t *testing.T) {
 	customer := createSettlementCustomer(
 		t, pool, refs.employee, bobdomain.SettlementTermCashOnDelivery, "现结门槛客户",
 	)
-	activateSettlementLedger(t, pool, customer, 0, "2026-08-04")
-	first := createCheckedSettlementSale(t, service, refs, customer, "cod-first")
-	second := createCheckedSettlementSale(t, service, refs, customer, "cod-second")
-	approved, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
-		DocumentID: first.DocumentID, Revision: first.Revision,
-	}, integrationActorTwo, "cod-first-approve")
-	if err != nil {
-		t.Fatalf("approve first COD order: %v", err)
-	}
-	if _, err = service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
-		DocumentID: second.DocumentID, Revision: second.Revision,
-	}, integrationActorTwo, "cod-second-approve"); err == nil ||
-		!strings.Contains(err.Error(), "unfinished cash-on-delivery order") {
-		t.Fatalf("second COD order error = %v", err)
-	}
-	if _, err = service.Unapprove(t.Context(), EntitySaleOrder, ReverseInput{
-		DocumentID: approved.DocumentID, Revision: approved.Revision, Reason: "release COD order",
-	}, integrationActorOne, "cod-first-unapprove"); err != nil {
-		t.Fatalf("unapprove first COD order: %v", err)
-	}
-	secondApproved, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
-		DocumentID: second.DocumentID, Revision: second.Revision,
-	}, integrationActorTwo, "cod-second-after-release")
-	if err != nil {
-		t.Fatalf("approve second COD order after release: %v", err)
-	}
-	tx, err := pool.Begin(t.Context())
-	if err != nil {
-		t.Fatalf("begin COD reopen transaction: %v", err)
-	}
-	if err = service.reserveOrderSettlement(
-		t.Context(), tx, EntitySaleOrder, first.DocumentID,
-	); err == nil || !strings.Contains(err.Error(), "unfinished cash-on-delivery order") {
-		_ = tx.Rollback(t.Context())
-		t.Fatalf("reopened first COD order ignored active second order: %v", err)
-	}
-	if err = tx.Rollback(t.Context()); err != nil {
-		t.Fatalf("rollback COD reopen transaction: %v", err)
-	}
-	if _, err = service.Unapprove(t.Context(), EntitySaleOrder, ReverseInput{
-		DocumentID: secondApproved.DocumentID, Revision: secondApproved.Revision,
-		Reason: "release second COD order",
-	}, integrationActorOne, "cod-second-unapprove"); err != nil {
-		t.Fatalf("unapprove second COD order: %v", err)
-	}
-	if err = insertAccountingPartyEntry(t.Context(), pool, "customer", customer.ObjectID,
-		"RECEIVABLE", 1, "2026-08-04", newID()); err != nil {
+	activateSettlementLedger(t, pool, customer, 0, businessdate.Today().Format(businessdate.Layout))
+	if err := insertAccountingPartyEntry(t.Context(), pool, "customer", customer.ObjectID,
+		"RECEIVABLE", 1, businessdate.Today().Format(businessdate.Layout), newID()); err != nil {
 		t.Fatalf("insert COD debt: %v", err)
 	}
-	tx, err = pool.Begin(t.Context())
-	if err != nil {
-		t.Fatalf("begin COD debt reopen transaction: %v", err)
-	}
-	if err = service.reserveOrderSettlement(
-		t.Context(), tx, EntitySaleOrder, first.DocumentID,
-	); err == nil || !strings.Contains(err.Error(), "outstanding debt") {
-		_ = tx.Rollback(t.Context())
-		t.Fatalf("reopened COD order ignored unrelated debt: %v", err)
-	}
-	if err = tx.Rollback(t.Context()); err != nil {
-		t.Fatalf("rollback COD debt reopen transaction: %v", err)
-	}
-	third := createCheckedSettlementSale(t, service, refs, customer, "cod-debt")
-	if _, err = service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
-		DocumentID: third.DocumentID, Revision: third.Revision,
+	order := createCheckedSettlementSale(t, service, refs, customer, "cod-debt")
+	if _, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
+		DocumentID: order.DocumentID, Revision: order.Revision,
 	}, integrationActorTwo, "cod-debt-approve"); err == nil ||
 		!strings.Contains(err.Error(), "outstanding debt") {
 		t.Fatalf("COD debt error = %v", err)
 	}
 }
 
-func TestCashOnDeliveryReopenExcludesOnlyOrderAttributedTradeBalanceIntegration(t *testing.T) {
+func TestPrepaidConcurrentSignoffConsumesCurrentBalanceAtomicallyIntegration(t *testing.T) {
 	pool := vouIntegrationPool(t)
 	truncateVOU(t, pool)
 	t.Cleanup(func() { truncateVOU(t, pool) })
 	refs := prepareReferences(t, pool)
-	service := newIntegrationService(t, pool)
 	customer := createSettlementCustomer(
-		t, pool, refs.employee, bobdomain.SettlementTermCashOnDelivery, "现结归因客户",
+		t, pool, refs.employee, bobdomain.SettlementTermPrepaid, "预付签收并发客户",
 	)
-	activateSettlementLedger(t, pool, customer, 0, "2026-08-04")
-	order := createCheckedSettlementSale(t, service, refs, customer, "cod-attributed")
-	approved, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
-		DocumentID: order.DocumentID, Revision: order.Revision,
-	}, integrationActorTwo, "cod-attributed-approve")
-	if err != nil {
-		t.Fatalf("approve attributed COD order: %v", err)
+	bus := txevent.NewBus()
+	if err := bus.Subscribe(DocumentApprovedTopic(EntitySaleSignoff), "test-prepaid-signoff-posting",
+		func(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
+			event := raw.(DocumentApprovedEvent)
+			var amount int64
+			if err := tx.QueryRow(ctx, `SELECT total_amount_cents FROM vou_documents WHERE id=$1`, event.DocumentID).Scan(&amount); err != nil {
+				return err
+			}
+			return insertAccountingPartyEntry(ctx, tx, "customer", customer.ObjectID,
+				"ADVANCE_RECEIPT", -amount, businessdate.Today().Format(businessdate.Layout), event.DocumentID)
+		}); err != nil {
+		t.Fatalf("subscribe prepaid signoff posting: %v", err)
 	}
-	orderView, err := service.Get(t.Context(), EntitySaleOrder, GetInput{DocumentID: approved.DocumentID})
-	if err != nil {
-		t.Fatalf("get attributed COD order: %v", err)
+	if err := bus.Subscribe(DocumentUnapprovedTopic(EntitySaleSignoff), "test-prepaid-signoff-reversal",
+		func(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
+			event := raw.(DocumentUnapprovedEvent)
+			_, err := tx.Exec(ctx, `DELETE FROM acc_vouchers WHERE source_id=$1`, event.DocumentID)
+			return err
+		}); err != nil {
+		t.Fatalf("subscribe prepaid signoff reversal: %v", err)
 	}
-	outbound, _ := advanceSalesDocument(t, service, EntitySaleOutbound, DraftInput{
-		BusinessDate: "2026-08-05", SourceDocumentID: approved.DocumentID,
-		Warehouse: &refs.warehouse,
-		SourceLines: []SourceQuantityLineInput{{
-			SourceLineID: orderView.Data.ProductLines[0].LineID, Quantity: "1",
-		}},
-	}, true)
-	delivery, deliveryView := advanceSalesDocument(t, service, EntitySaleDelivery, DraftInput{
-		BusinessDate: "2026-08-05", SourceDocumentID: outbound.DocumentID,
-		Platform: &refs.platform, Vehicle: &refs.vehicle,
-	}, true)
-	signoff, _ := advanceSalesDocument(t, service, EntitySaleSignoff, DraftInput{
-		BusinessDate: "2026-08-05", SourceDocumentID: delivery.DocumentID,
-		SignoffLines: []SaleSignoffLineInput{{
-			SourceLineID:   deliveryView.Data.ProductLines[0].LineID,
-			SignedQuantity: "1", RejectedQuantity: "0",
-		}},
-	}, true)
+	service := newIntegrationServiceWithBus(t, pool, bus)
 
-	if err = insertAccountingPartyEntry(t.Context(), pool, "customer", customer.ObjectID,
-		"RECEIVABLE", -200, "2026-08-05", signoff.DocumentID); err != nil {
-		t.Fatalf("insert attributed COD credit: %v", err)
-	}
-	if err = insertAccountingPartyEntry(t.Context(), pool, "customer", customer.ObjectID,
-		"RECEIVABLE", 500, "2026-08-05", newID()); err != nil {
-		t.Fatalf("insert unrelated COD debt: %v", err)
+	createCheckedSignoff := func(order MutationResult, requestID string) MutationResult {
+		t.Helper()
+		approvedOrder, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
+			DocumentID: order.DocumentID, Revision: order.Revision,
+		}, integrationActorOne, requestID+"-order-approve")
+		if err != nil {
+			t.Fatalf("approve settlement order: %v", err)
+		}
+		orderView, err := service.Get(t.Context(), EntitySaleOrder, GetInput{DocumentID: approvedOrder.DocumentID})
+		if err != nil {
+			t.Fatalf("get settlement order: %v", err)
+		}
+		outbound, _ := advanceSalesDocument(t, service, EntitySaleOutbound, DraftInput{
+			BusinessDate: "2026-08-05", SourceDocumentID: approvedOrder.DocumentID,
+			Warehouse: &refs.warehouse,
+			SourceLines: []SourceQuantityLineInput{{
+				SourceLineID: orderView.Data.ProductLines[0].LineID, Quantity: "1",
+			}},
+		}, true)
+		delivery, deliveryView := advanceSalesDocument(t, service, EntitySaleDelivery, DraftInput{
+			BusinessDate: "2026-08-05", SourceDocumentID: outbound.DocumentID,
+			Platform: &refs.platform, Vehicle: &refs.vehicle,
+		}, true)
+		signoff, _ := advanceSalesDocument(t, service, EntitySaleSignoff, DraftInput{
+			BusinessDate: "2026-08-05", SourceDocumentID: delivery.DocumentID,
+			SignoffLines: []SaleSignoffLineInput{{
+				SourceLineID:   deliveryView.Data.ProductLines[0].LineID,
+				SignedQuantity: "1", RejectedQuantity: "0",
+			}},
+		}, false)
+		return signoff
 	}
 
-	tx, err := pool.Begin(t.Context())
-	if err != nil {
-		t.Fatalf("begin attributed COD reopen transaction: %v", err)
+	firstOrder := createCheckedSettlementSale(t, service, refs, customer, "prepaid-batch-first-order")
+	secondOrder := createCheckedSettlementSale(t, service, refs, customer, "prepaid-batch-second-order")
+	var firstOrderAmount, secondOrderAmount int64
+	firstOrderAmount = settlementAmountCents(t, service, EntitySaleOrder, firstOrder.DocumentID)
+	secondOrderAmount = settlementAmountCents(t, service, EntitySaleOrder, secondOrder.DocumentID)
+	bootstrapBalance := maxInt64(firstOrderAmount, secondOrderAmount)
+	if bootstrapBalance <= 0 {
+		t.Fatalf("settlement order amounts must be positive: first=%d second=%d", firstOrderAmount, secondOrderAmount)
 	}
-	if err = service.reserveOrderSettlement(t.Context(), tx, EntitySaleOrder, approved.DocumentID); err == nil ||
-		!strings.Contains(err.Error(), "outstanding debt") {
-		_ = tx.Rollback(t.Context())
-		t.Fatalf("attributed COD credit hid unrelated debt: %v", err)
+	// Order approval validates its own current balance. It does not reserve it, so
+	// seed only enough for that setup and reset to one actual batch below.
+	activateSettlementLedger(t, pool, customer, -bootstrapBalance, businessdate.Today().Format(businessdate.Layout))
+	first := createCheckedSignoff(firstOrder, "prepaid-batch-first")
+	second := createCheckedSignoff(secondOrder, "prepaid-batch-second")
+	var firstSignoffAmount, secondSignoffAmount int64
+	firstSignoffAmount = settlementAmountCents(t, service, EntitySaleSignoff, first.DocumentID)
+	secondSignoffAmount = settlementAmountCents(t, service, EntitySaleSignoff, second.DocumentID)
+	if firstSignoffAmount <= 0 || firstSignoffAmount != secondSignoffAmount {
+		t.Fatalf("concurrent signoff amounts must match and be positive: first=%d second=%d order-first=%d order-second=%d",
+			firstSignoffAmount, secondSignoffAmount, firstOrderAmount, secondOrderAmount)
 	}
-	if err = tx.Rollback(t.Context()); err != nil {
-		t.Fatalf("rollback attributed COD reopen transaction: %v", err)
+	if adjustment := firstSignoffAmount - bootstrapBalance; adjustment != 0 {
+		if err := insertAccountingPartyEntry(t.Context(), pool, "customer", customer.ObjectID,
+			"ADVANCE_RECEIPT", adjustment, businessdate.Today().Format(businessdate.Layout), newID()); err != nil {
+			t.Fatalf("set prepaid balance for one signoff: %v", err)
+		}
+	}
+
+	type result struct {
+		input  MutationResult
+		result MutationResult
+		err    error
+	}
+	results := make(chan result, 2)
+	var workers sync.WaitGroup
+	for index, input := range []MutationResult{first, second} {
+		workers.Add(1)
+		go func(index int, input MutationResult) {
+			defer workers.Done()
+			approved, err := service.Approve(t.Context(), EntitySaleSignoff, DocumentRevisionInput{
+				DocumentID: input.DocumentID, Revision: input.Revision,
+			}, integrationActorTwo, "prepaid-batch-concurrent-"+string(rune('a'+index)))
+			results <- result{input: input, result: approved, err: err}
+		}(index, input)
+	}
+	workers.Wait()
+	close(results)
+
+	var winner, loser result
+	for outcome := range results {
+		if outcome.err == nil {
+			winner = outcome
+		} else {
+			loser = outcome
+		}
+	}
+	if winner.result.DocumentID == "" || loser.input.DocumentID == "" || loser.err == nil ||
+		!strings.Contains(loser.err.Error(), "insufficient prepaid funds") {
+		t.Fatalf("concurrent prepaid signoffs = winner:%+v loser:%+v", winner, loser)
+	}
+	if _, err := service.Unapprove(t.Context(), EntitySaleSignoff, ReverseInput{
+		DocumentID: winner.result.DocumentID, Revision: winner.result.Revision, Reason: "验证反批准流水撤销",
+	}, integrationActorOne, "prepaid-batch-unapprove"); err != nil {
+		t.Fatalf("unapprove winning signoff: %v", err)
+	}
+	var remaining int64
+	if err := pool.QueryRow(t.Context(), `SELECT COALESCE(sum(credit_minor-debit_minor),0)::bigint
+		FROM acc_voucher_lines line
+		JOIN acc_subjects subject ON subject.id=line.subject_id AND subject.settlement_purpose='ADVANCE_RECEIPT'
+		JOIN acc_vouchers voucher ON voucher.id=line.voucher_id
+		WHERE voucher.business_date <= $1::date`, businessdate.Today().Format(businessdate.Layout)).Scan(&remaining); err != nil {
+		t.Fatalf("read prepaid balance after unapproval: %v", err)
+	}
+	if remaining != firstSignoffAmount {
+		t.Fatalf("prepaid balance after signoff unapproval = %d, want %d", remaining, firstSignoffAmount)
 	}
 }

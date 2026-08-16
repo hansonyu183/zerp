@@ -5,7 +5,7 @@ import { getErrorMessage, type PageRequest, type PageResult } from '@/api/types'
 import type { VoucherReference } from '@/components/voucher'
 import { useSessionStore } from '@/stores/session'
 
-export interface CurrentNode {
+export interface DocumentNodeReference {
   nodeInstanceId: string
   nodeName: string
   documentId: string
@@ -39,17 +39,31 @@ interface ReferenceListItem {
   }
 }
 
-export interface NodeInstance extends CurrentNode {
+export interface NodeInstance extends DocumentNodeReference {
   parentNodeInstanceId?: string
   nodeKey: string
   documentRevision: number
   businessDate: string
-  legacy: boolean
+  businessParentEntity?: string
+  businessParentDocumentId?: string
+  relation?: string
+  trigger: string
+  action?: string
+  evaluatedAt?: string
+}
+
+export interface AvailableTarget {
+  parentNodeInstanceId: string
+  targetNodeKey: string
+  targetNodeName: string
+  targetEntity: string
+  relation: string
 }
 
 export interface InstanceView extends InstanceListItem {
   startedDefinitionRevision: number
   nodes: NodeInstance[]
+  availableTargets: AvailableTarget[]
 }
 
 export interface AuditEvent {
@@ -81,6 +95,10 @@ export function useProcessInstanceViewModel() {
   const loading = ref(false)
   const detailOpen = ref(false)
   const errorMessage = ref<string | null>(null)
+  const selectedNode = ref<NodeInstance | null>(null)
+  const selectedTarget = ref<AvailableTarget | null>(null)
+  const requestKey = ref('')
+  const creatingChild = ref(false)
   let partySearchTimer: ReturnType<typeof setTimeout> | null = null
   let partySearchSequence = 0
   const can = (action: string) =>
@@ -201,7 +219,18 @@ export function useProcessInstanceViewModel() {
           })
         }),
       )
-      if (sequence === partySearchSequence) partyOptions.value = pages.flat()
+      if (sequence === partySearchSequence) {
+        const options = pages.flat()
+        const selectedPartyOption = selectedParty.value
+        partyOptions.value = selectedPartyOption
+          ? [
+              selectedPartyOption,
+              ...options.filter(
+                (option) => option.objectId !== selectedPartyOption.objectId,
+              ),
+            ]
+          : options
+      }
     } catch (error) {
       if (sequence === partySearchSequence) {
         partyError.value = getErrorMessage(error)
@@ -242,6 +271,9 @@ export function useProcessInstanceViewModel() {
             }),
       ])
       selected.value = detail.data
+      selectedNode.value = detail.data.nodes[0] ?? null
+      selectedTarget.value = null
+      requestKey.value = ''
       history.value = audit.data.items ?? []
       detailOpen.value = true
     } catch (error) {
@@ -251,7 +283,46 @@ export function useProcessInstanceViewModel() {
     }
   }
 
-  function openDocument(node: CurrentNode): void {
+  function selectNode(node: NodeInstance): void {
+    selectedNode.value = node
+    selectedTarget.value = null
+  }
+
+  const nodeTargets = computed(() => {
+    const node = selectedNode.value
+    if (!node) return []
+    return (selected.value?.availableTargets ?? []).filter(
+      (target) => target.parentNodeInstanceId === node.nodeInstanceId,
+    )
+  })
+
+  async function createChild(): Promise<void> {
+    const process = selected.value
+    const target = selectedTarget.value
+    if (!process || !target || !can('create-child')) return
+    const key = requestKey.value.trim()
+    if (key.length < 16 || key.length > 64) {
+      errorMessage.value = '请求键必须为 16 至 64 个字符。'
+      return
+    }
+    creatingChild.value = true
+    errorMessage.value = null
+    try {
+      await apiClient.post(`wfl/${processName.value}/create-child`, {
+        processId: process.processId,
+        parentNodeInstanceId: target.parentNodeInstanceId,
+        targetNodeKey: target.targetNodeKey,
+        requestKey: key,
+      })
+      await open(process)
+    } catch (error) {
+      errorMessage.value = getErrorMessage(error)
+    } finally {
+      creatingChild.value = false
+    }
+  }
+
+  function openDocument(node: DocumentNodeReference): void {
     void router.push({
       path: `/vou/${node.documentEntity}`,
       query: { documentId: node.documentId },
@@ -300,6 +371,11 @@ export function useProcessInstanceViewModel() {
     loading,
     detailOpen,
     errorMessage,
+    selectedNode,
+    selectedTarget,
+    requestKey,
+    creatingChild,
+    nodeTargets,
     positionedNodes,
     nodeMap,
     can,
@@ -310,5 +386,7 @@ export function useProcessInstanceViewModel() {
     openRoot,
     changePage,
     openDocument,
+    selectNode,
+    createChild,
   }
 }

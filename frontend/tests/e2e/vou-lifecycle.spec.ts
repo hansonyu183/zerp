@@ -16,6 +16,8 @@ function vouFixture(workerState: WflWorkerState) {
     platform: workerState.fixtures.platform,
     vehicle: workerState.fixtures.vehicle,
     fundAccount: workerState.fixtures.fundAccount,
+    purchaseProcessCode: workerState.fixtures.purchaseProcessCode,
+    salesProcessCode: workerState.fixtures.salesProcessCode,
     currency: 'CNY',
   }
 }
@@ -336,10 +338,7 @@ test('库存盘点加载账面库存并按批准时差异过账', async ({
   await reverse(page, '反批准')
 })
 
-test('销售订单独立流转并由流程事件自动生成出库草稿', async ({
-  page,
-  workerState,
-}) => {
+test('销售订单经动态流程生成出库草稿', async ({ page, workerState }) => {
   test.skip(
     test.info().project.name === 'mobile-chromium',
     '该有状态用例在桌面项目内切换到 390px 验收手机布局',
@@ -383,59 +382,33 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   await workspace.getByRole('button', { name: '批准', exact: true }).click()
   await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
 
-  await page.goto('/vou/sale-order')
+  await page.goto(`/wfl/${fixture.salesProcessCode}`)
   await page.getByRole('textbox', { name: '单号' }).fill(orderNo!)
-  await page.getByRole('button', { name: '查询', exact: true }).click()
-  await expect(
-    page.locator('tbody tr').filter({ hasText: orderNo! }),
-  ).toContainText('订购 / 出库 / 净签收')
-
-  await page.goto('/wfl/sales-fulfillment')
-  await page
-    .getByRole('textbox', { name: '产品或往来单位' })
-    .fill(fixture.product)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   const processRow = page.locator('tbody tr').filter({ hasText: orderNo! })
   await expect(processRow).toHaveCount(1)
-  await expect(processRow).toContainText('销售履约')
+  await expect(processRow).toContainText(fixture.salesProcessCode)
   await expect(processRow).toContainText(fixture.customer)
-  await expect(
-    page.getByRole('columnheader', { name: '流程完成情况' }),
-  ).toHaveCount(0)
+  await expect(page.getByRole('columnheader', { name: '流程' })).toBeVisible()
+  await expect(page.getByRole('columnheader', { name: '根单号' })).toBeVisible()
   await expect(
     page.getByRole('columnheader', { name: '往来单位' }),
   ).toBeVisible()
-  await expect(page.getByRole('columnheader', { name: '根单据' })).toHaveCount(
-    0,
-  )
-  await expect(page.getByRole('columnheader', { name: '状态' })).toHaveCount(0)
-  await expect(
-    page.getByRole('columnheader', { name: '更新时间' }),
-  ).toHaveCount(0)
   await selectReference(page, '往来单位', fixture.customer)
   await page.getByRole('button', { name: '应用筛选', exact: true }).click()
   await expect(processRow).toHaveCount(1)
   await page.setViewportSize({ width: 390, height: 844 })
   await page.reload()
-  await page
-    .getByRole('textbox', { name: '产品或往来单位' })
-    .fill(fixture.product)
+  await page.getByRole('textbox', { name: '单号' }).fill(orderNo!)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   const mobileProcess = page
     .locator('.instance-card')
     .filter({ hasText: orderNo! })
   await expect(mobileProcess).toBeVisible()
-  await expect(mobileProcess).toContainText('销售履约')
-  await expect(mobileProcess).not.toContainText('流程完成情况')
-  await expect(mobileProcess).not.toContainText('根单据：')
-  await expect(mobileProcess).not.toContainText('更新时间')
-  await expect(mobileProcess).not.toContainText('进行中')
   await expectNoPageHorizontalOverflow(page)
   await page.setViewportSize({ width: 1280, height: 720 })
   await page.reload()
-  await page
-    .getByRole('textbox', { name: '产品或往来单位' })
-    .fill(fixture.product)
+  await page.getByRole('textbox', { name: '单号' }).fill(orderNo!)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   const desktopProcessRow = page
     .locator('tbody tr')
@@ -445,16 +418,21 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
     .click()
   const composition = page.getByRole('dialog')
   await expect(composition).toContainText(orderNo!)
+  const root = composition
+    .locator('.instance-node')
+    .filter({ hasText: '销售订单' })
+  await expect(root).toContainText(orderNo!)
   const outbound = composition
     .locator('.instance-node')
     .filter({ hasText: '销售出库' })
-  await expect(outbound).toContainText(/^.*销售出库.*SOB-\d{8}-\d{4}.*草稿.*$/)
+  await expect(outbound).toContainText('销售出库')
   const outboundNo = (await outbound.textContent())?.match(
     /SOB-\d{8}-\d{4}/,
   )?.[0]
   expect(outboundNo).toBeTruthy()
 
   await outbound.click()
+  await page.getByRole('button', { name: '打开单据', exact: true }).click()
   const outboundWorkspace = page.locator('.voucher-workspace')
   await expect(outboundWorkspace).toBeVisible()
   await expect(outboundWorkspace.getByLabel('来源单据')).toHaveAttribute(
@@ -487,10 +465,7 @@ test('销售订单独立流转并由流程事件自动生成出库草稿', async
   await expect(outboundWorkbenchRow).toHaveCount(0, { timeout: 15_000 })
 })
 
-test('采购流程列表展示中文阶段和按单位履约数据', async ({
-  page,
-  workerState,
-}) => {
+test('采购订单经动态流程显示实例树', async ({ page, workerState }) => {
   test.skip(
     test.info().project.name === 'mobile-chromium',
     '该有状态用例在桌面项目内切换到 430px 验收手机布局',
@@ -523,40 +498,35 @@ test('采购流程列表展示中文阶段和按单位履约数据', async ({
   await workspace.getByRole('button', { name: '批准', exact: true }).click()
   await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
 
-  await page.goto('/vou/purchase-order')
+  await page.goto(`/wfl/${fixture.purchaseProcessCode}`)
   await page.getByRole('textbox', { name: '单号' }).fill(orderNo!)
-  await page.getByRole('button', { name: '查询', exact: true }).click()
-  await expect(
-    page.locator('tbody tr').filter({ hasText: orderNo! }),
-  ).toContainText('订购 / 净入库')
-
-  await page.goto('/wfl/purchase-fulfillment')
-  await page
-    .getByRole('textbox', { name: '产品或往来单位' })
-    .fill(fixture.product)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   const processRow = page.locator('tbody tr').filter({ hasText: orderNo! })
   await expect(processRow).toHaveCount(1)
-  await expect(processRow).toContainText('采购履约')
+  await expect(processRow).toContainText(fixture.purchaseProcessCode)
   await expect(processRow).toContainText(fixture.supplier)
   await processRow
     .getByRole('button', { name: '查看流程', exact: true })
     .click()
   const processDialog = page.getByRole('dialog')
-  await expect(processDialog).toContainText('采购订单')
-  await expect(processDialog).toContainText('采购入库')
+  const root = processDialog
+    .locator('.instance-node')
+    .filter({ hasText: '采购订单' })
+  await expect(root).toContainText(orderNo!)
+  const inbound = processDialog
+    .locator('.instance-node')
+    .filter({ hasText: '采购入库' })
+  await expect(inbound).toContainText('采购入库')
   await page.keyboard.press('Escape')
   await expect(processDialog).toBeHidden()
+
   await page.setViewportSize({ width: 430, height: 932 })
   await page.reload()
-  await page
-    .getByRole('textbox', { name: '产品或往来单位' })
-    .fill(fixture.product)
+  await page.getByRole('textbox', { name: '单号' }).fill(orderNo!)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   const mobileProcess = page
     .locator('.instance-card')
     .filter({ hasText: orderNo! })
   await expect(mobileProcess).toBeVisible()
-  await expect(mobileProcess).toContainText('采购履约')
   await expectNoPageHorizontalOverflow(page)
 })

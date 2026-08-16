@@ -415,7 +415,6 @@ export interface VoucherDocumentData {
   platform?: VoucherReferenceView
   vehicle?: VoucherReferenceView
   differenceReason?: string
-  settlementMode?: 'LEGACY_DIRECT' | 'FLOW_PAYMENT'
   signoffLines?: VoucherSaleSignoffLineView[]
   fulfillmentStatus?: 'OPEN' | 'FULFILLED'
   signedQuantity?: string

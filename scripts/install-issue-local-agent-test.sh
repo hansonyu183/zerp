@@ -5,6 +5,14 @@ repo_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/zerp-issue-local-install-test.XXXXXX")
 cleanup() { rm -rf "${tmp}"; }
 trap cleanup EXIT HUP INT TERM
+
+file_mode() {
+  case "$(uname -s)" in
+    Darwin) stat -f '%Lp' "$1" ;;
+    *) stat -c '%a' "$1" ;;
+  esac
+}
+
 mkdir -p "${tmp}/bin" "${tmp}/home" "${tmp}/primary/backend/var"
 git -C "${tmp}/primary" init -q
 for skill in implement tdd code-review; do mkdir -p "${tmp}/skills/${skill}"; printf 'test\n' >"${tmp}/skills/${skill}/SKILL.md"; done
@@ -51,8 +59,7 @@ test -r "${tmp}/runtime/local-implementation-output.json"
 test ! -x "${tmp}/runtime/local-implementation-output.json"
 test -d "${tmp}/primary/.scratch"
 test "$(cat "${tmp}/runtime/message-recipient")" = "${message_recipient}"
-test "$(stat -f '%Lp' "${tmp}/runtime/message-recipient" 2>/dev/null || \
-  stat -c '%a' "${tmp}/runtime/message-recipient")" = 600
+test "$(file_mode "${tmp}/runtime/message-recipient")" = 600
 if grep -Fq 'ZERP_ISSUE_MESSAGE_RECIPIENT' "${plist}"; then
   echo 'message recipient was duplicated into the LaunchAgent plist' >&2
   exit 1

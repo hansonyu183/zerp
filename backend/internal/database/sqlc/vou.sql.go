@@ -383,6 +383,15 @@ func (q *Queries) DeleteVouAttachmentByFileID(ctx context.Context, fileID string
 	return result.RowsAffected(), nil
 }
 
+const deleteVouAuditEventsForDocument = `-- name: DeleteVouAuditEventsForDocument :exec
+DELETE FROM vou_audit_events WHERE document_id=$1
+`
+
+func (q *Queries) DeleteVouAuditEventsForDocument(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouAuditEventsForDocument, documentID)
+	return err
+}
+
 const deleteVouBillCashLines = `-- name: DeleteVouBillCashLines :exec
 DELETE FROM vou_bill_cash_lines WHERE document_id=$1
 `
@@ -410,6 +419,15 @@ func (q *Queries) DeleteVouBillLines(ctx context.Context, documentID string) err
 	return err
 }
 
+const deleteVouDocument = `-- name: DeleteVouDocument :exec
+DELETE FROM vou_documents WHERE id=$1
+`
+
+func (q *Queries) DeleteVouDocument(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouDocument, documentID)
+	return err
+}
+
 const deleteVouDocumentAttachment = `-- name: DeleteVouDocumentAttachment :execrows
 DELETE FROM vou_document_attachments
 WHERE document_id = $1 AND file_id = $2
@@ -428,12 +446,30 @@ func (q *Queries) DeleteVouDocumentAttachment(ctx context.Context, arg DeleteVou
 	return result.RowsAffected(), nil
 }
 
+const deleteVouEmployeeLoanWriteoffDetails = `-- name: DeleteVouEmployeeLoanWriteoffDetails :exec
+DELETE FROM vou_employee_loan_writeoff_details WHERE document_id=$1
+`
+
+func (q *Queries) DeleteVouEmployeeLoanWriteoffDetails(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouEmployeeLoanWriteoffDetails, documentID)
+	return err
+}
+
 const deleteVouExpenseLines = `-- name: DeleteVouExpenseLines :exec
 DELETE FROM vou_expense_lines WHERE document_id = $1
 `
 
 func (q *Queries) DeleteVouExpenseLines(ctx context.Context, documentID string) error {
 	_, err := q.db.Exec(ctx, deleteVouExpenseLines, documentID)
+	return err
+}
+
+const deleteVouExpensePaymentDetails = `-- name: DeleteVouExpensePaymentDetails :exec
+DELETE FROM vou_expense_payment_details WHERE document_id=$1
+`
+
+func (q *Queries) DeleteVouExpensePaymentDetails(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouExpensePaymentDetails, documentID)
 	return err
 }
 
@@ -458,6 +494,15 @@ func (q *Queries) DeleteVouInventoryCountLines(ctx context.Context, documentID s
 	return err
 }
 
+const deleteVouPaymentDetails = `-- name: DeleteVouPaymentDetails :exec
+DELETE FROM vou_payment_details WHERE document_id=$1
+`
+
+func (q *Queries) DeleteVouPaymentDetails(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouPaymentDetails, documentID)
+	return err
+}
+
 const deleteVouPriceLines = `-- name: DeleteVouPriceLines :exec
 DELETE FROM vou_price_lines WHERE document_id=$1
 `
@@ -476,12 +521,93 @@ func (q *Queries) DeleteVouProductLines(ctx context.Context, documentID string) 
 	return err
 }
 
+const deleteVouPurchaseInboundDetails = `-- name: DeleteVouPurchaseInboundDetails :exec
+DELETE FROM vou_purchase_inbound_details WHERE document_id=$1
+`
+
+func (q *Queries) DeleteVouPurchaseInboundDetails(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouPurchaseInboundDetails, documentID)
+	return err
+}
+
 const deleteVouPurchaseInboundLines = `-- name: DeleteVouPurchaseInboundLines :exec
 DELETE FROM vou_purchase_inbound_lines WHERE document_id = $1
 `
 
 func (q *Queries) DeleteVouPurchaseInboundLines(ctx context.Context, documentID string) error {
 	_, err := q.db.Exec(ctx, deleteVouPurchaseInboundLines, documentID)
+	return err
+}
+
+const deleteVouReceiptDetails = `-- name: DeleteVouReceiptDetails :exec
+DELETE FROM vou_receipt_details WHERE document_id=$1
+`
+
+func (q *Queries) DeleteVouReceiptDetails(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouReceiptDetails, documentID)
+	return err
+}
+
+const deleteVouSaleDeliveryDetails = `-- name: DeleteVouSaleDeliveryDetails :exec
+DELETE FROM vou_sale_delivery_details WHERE document_id=$1
+`
+
+func (q *Queries) DeleteVouSaleDeliveryDetails(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouSaleDeliveryDetails, documentID)
+	return err
+}
+
+const deleteVouSaleOutboundDetails = `-- name: DeleteVouSaleOutboundDetails :exec
+DELETE FROM vou_sale_outbound_details WHERE document_id=$1
+`
+
+func (q *Queries) DeleteVouSaleOutboundDetails(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouSaleOutboundDetails, documentID)
+	return err
+}
+
+const deleteVouSaleOutboundLines = `-- name: DeleteVouSaleOutboundLines :exec
+DELETE FROM vou_sale_outbound_lines WHERE document_id=$1
+`
+
+func (q *Queries) DeleteVouSaleOutboundLines(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouSaleOutboundLines, documentID)
+	return err
+}
+
+const deleteVouSaleReturnDetails = `-- name: DeleteVouSaleReturnDetails :exec
+DELETE FROM vou_sale_return_details WHERE document_id=$1
+`
+
+func (q *Queries) DeleteVouSaleReturnDetails(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouSaleReturnDetails, documentID)
+	return err
+}
+
+const deleteVouSaleReturnLines = `-- name: DeleteVouSaleReturnLines :exec
+DELETE FROM vou_sale_return_lines WHERE document_id=$1
+`
+
+func (q *Queries) DeleteVouSaleReturnLines(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouSaleReturnLines, documentID)
+	return err
+}
+
+const deleteVouSaleSignoffDetails = `-- name: DeleteVouSaleSignoffDetails :exec
+DELETE FROM vou_sale_signoff_details WHERE document_id=$1
+`
+
+func (q *Queries) DeleteVouSaleSignoffDetails(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouSaleSignoffDetails, documentID)
+	return err
+}
+
+const deleteVouSaleSignoffLines = `-- name: DeleteVouSaleSignoffLines :exec
+DELETE FROM vou_sale_signoff_lines WHERE document_id=$1
+`
+
+func (q *Queries) DeleteVouSaleSignoffLines(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouSaleSignoffLines, documentID)
 	return err
 }
 
@@ -574,6 +700,19 @@ func (q *Queries) FindVouPurchasePriceReference(ctx context.Context, arg FindVou
 	return i, err
 }
 
+const findVouRefusalReturnDocument = `-- name: FindVouRefusalReturnDocument :one
+SELECT document_id
+FROM vou_sale_return_details
+WHERE source_signoff_id=$1 AND return_kind='REFUSAL'
+`
+
+func (q *Queries) FindVouRefusalReturnDocument(ctx context.Context, sourceSignoffID *string) (string, error) {
+	row := q.db.QueryRow(ctx, findVouRefusalReturnDocument, sourceSignoffID)
+	var document_id string
+	err := row.Scan(&document_id)
+	return document_id, err
+}
+
 const findVouSalePriceReference = `-- name: FindVouSalePriceReference :one
 SELECT line.id AS source_line_id, document.id AS source_document_id,
        document.document_no AS source_document_no, document.business_date,
@@ -612,6 +751,36 @@ func (q *Queries) FindVouSalePriceReference(ctx context.Context, arg FindVouSale
 		&i.SourceDocumentNo,
 		&i.BusinessDate,
 		&i.UnitPriceCents,
+	)
+	return i, err
+}
+
+const findWorkflowVouChild = `-- name: FindWorkflowVouChild :one
+SELECT id,document_no,status,revision FROM vou_documents
+WHERE parent_document_id=$1 AND entity=$2 AND status<>'DELETED'
+ORDER BY created_at,id LIMIT 1 FOR UPDATE
+`
+
+type FindWorkflowVouChildParams struct {
+	SourceDocumentID *string `db:"source_document_id" json:"source_document_id"`
+	Entity           string  `db:"entity" json:"entity"`
+}
+
+type FindWorkflowVouChildRow struct {
+	ID         string `db:"id" json:"id"`
+	DocumentNo string `db:"document_no" json:"document_no"`
+	Status     string `db:"status" json:"status"`
+	Revision   int64  `db:"revision" json:"revision"`
+}
+
+func (q *Queries) FindWorkflowVouChild(ctx context.Context, arg FindWorkflowVouChildParams) (FindWorkflowVouChildRow, error) {
+	row := q.db.QueryRow(ctx, findWorkflowVouChild, arg.SourceDocumentID, arg.Entity)
+	var i FindWorkflowVouChildRow
+	err := row.Scan(
+		&i.ID,
+		&i.DocumentNo,
+		&i.Status,
+		&i.Revision,
 	)
 	return i, err
 }
@@ -685,6 +854,61 @@ func (q *Queries) GetActiveAccountingAssetForVou(ctx context.Context, assetID st
 	return i, err
 }
 
+const getPurchaseInboundSettlementSource = `-- name: GetPurchaseInboundSettlementSource :one
+SELECT detail.source_order_id,document.total_amount_cents
+FROM vou_purchase_inbound_details detail JOIN vou_documents document ON document.id=detail.document_id
+WHERE detail.document_id=$1
+`
+
+type GetPurchaseInboundSettlementSourceRow struct {
+	SourceOrderID    string `db:"source_order_id" json:"source_order_id"`
+	TotalAmountCents int64  `db:"total_amount_cents" json:"total_amount_cents"`
+}
+
+func (q *Queries) GetPurchaseInboundSettlementSource(ctx context.Context, documentID string) (GetPurchaseInboundSettlementSourceRow, error) {
+	row := q.db.QueryRow(ctx, getPurchaseInboundSettlementSource, documentID)
+	var i GetPurchaseInboundSettlementSourceRow
+	err := row.Scan(&i.SourceOrderID, &i.TotalAmountCents)
+	return i, err
+}
+
+const getPurchaseOrderSettlementGate = `-- name: GetPurchaseOrderSettlementGate :one
+SELECT detail.settlement_term_code,COALESCE(detail.settlement_method_name,'') AS settlement_method_name,
+       COALESCE(detail.settlement_rule_type,'') AS settlement_rule_type,
+       COALESCE(detail.settlement_month_offset,0) AS settlement_month_offset,
+       COALESCE(detail.settlement_day_offset,0) AS settlement_day_offset,
+       detail.supplier_object_id,COALESCE(document.currency,'') AS currency,document.total_amount_cents
+FROM vou_documents document JOIN vou_purchase_order_details detail ON detail.document_id=document.id
+WHERE document.id=$1
+`
+
+type GetPurchaseOrderSettlementGateRow struct {
+	SettlementTermCode    string `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementMethodName  string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementRuleType    string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset int32  `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOffset   int32  `db:"settlement_day_offset" json:"settlement_day_offset"`
+	SupplierObjectID      string `db:"supplier_object_id" json:"supplier_object_id"`
+	Currency              string `db:"currency" json:"currency"`
+	TotalAmountCents      int64  `db:"total_amount_cents" json:"total_amount_cents"`
+}
+
+func (q *Queries) GetPurchaseOrderSettlementGate(ctx context.Context, orderID string) (GetPurchaseOrderSettlementGateRow, error) {
+	row := q.db.QueryRow(ctx, getPurchaseOrderSettlementGate, orderID)
+	var i GetPurchaseOrderSettlementGateRow
+	err := row.Scan(
+		&i.SettlementTermCode,
+		&i.SettlementMethodName,
+		&i.SettlementRuleType,
+		&i.SettlementMonthOffset,
+		&i.SettlementDayOffset,
+		&i.SupplierObjectID,
+		&i.Currency,
+		&i.TotalAmountCents,
+	)
+	return i, err
+}
+
 const getReadyVouAttachment = `-- name: GetReadyVouAttachment :one
 SELECT f.id, f.storage_key, f.original_name, f.content_type, f.declared_size, f.sha256_hex, f.status, f.upload_token_hash, f.upload_expires_at, f.stored_at, f.created_at, f.created_by, a.document_id, d.entity
 FROM vou_files f
@@ -734,6 +958,61 @@ func (q *Queries) GetReadyVouAttachment(ctx context.Context, arg GetReadyVouAtta
 		&i.DocumentID,
 		&i.Entity,
 	)
+	return i, err
+}
+
+const getSaleOrderSettlementGate = `-- name: GetSaleOrderSettlementGate :one
+SELECT detail.settlement_term_code,COALESCE(detail.settlement_method_name,'') AS settlement_method_name,
+       COALESCE(detail.settlement_rule_type,'') AS settlement_rule_type,
+       COALESCE(detail.settlement_month_offset,0) AS settlement_month_offset,
+       COALESCE(detail.settlement_day_offset,0) AS settlement_day_offset,
+       detail.customer_object_id,COALESCE(document.currency,'') AS currency,document.total_amount_cents
+FROM vou_documents document JOIN vou_sale_order_details detail ON detail.document_id=document.id
+WHERE document.id=$1
+`
+
+type GetSaleOrderSettlementGateRow struct {
+	SettlementTermCode    string `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementMethodName  string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementRuleType    string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset int32  `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOffset   int32  `db:"settlement_day_offset" json:"settlement_day_offset"`
+	CustomerObjectID      string `db:"customer_object_id" json:"customer_object_id"`
+	Currency              string `db:"currency" json:"currency"`
+	TotalAmountCents      int64  `db:"total_amount_cents" json:"total_amount_cents"`
+}
+
+func (q *Queries) GetSaleOrderSettlementGate(ctx context.Context, orderID string) (GetSaleOrderSettlementGateRow, error) {
+	row := q.db.QueryRow(ctx, getSaleOrderSettlementGate, orderID)
+	var i GetSaleOrderSettlementGateRow
+	err := row.Scan(
+		&i.SettlementTermCode,
+		&i.SettlementMethodName,
+		&i.SettlementRuleType,
+		&i.SettlementMonthOffset,
+		&i.SettlementDayOffset,
+		&i.CustomerObjectID,
+		&i.Currency,
+		&i.TotalAmountCents,
+	)
+	return i, err
+}
+
+const getSaleSignoffSettlementSource = `-- name: GetSaleSignoffSettlementSource :one
+SELECT detail.source_order_id,document.total_amount_cents
+FROM vou_sale_signoff_details detail JOIN vou_documents document ON document.id=detail.document_id
+WHERE detail.document_id=$1
+`
+
+type GetSaleSignoffSettlementSourceRow struct {
+	SourceOrderID    string `db:"source_order_id" json:"source_order_id"`
+	TotalAmountCents int64  `db:"total_amount_cents" json:"total_amount_cents"`
+}
+
+func (q *Queries) GetSaleSignoffSettlementSource(ctx context.Context, documentID string) (GetSaleSignoffSettlementSourceRow, error) {
+	row := q.db.QueryRow(ctx, getSaleSignoffSettlementSource, documentID)
+	var i GetSaleSignoffSettlementSourceRow
+	err := row.Scan(&i.SourceOrderID, &i.TotalAmountCents)
 	return i, err
 }
 
@@ -905,7 +1184,7 @@ func (q *Queries) GetVouExpensePaymentDetail(ctx context.Context, documentID str
 }
 
 const getVouExpenseReimbursementDetail = `-- name: GetVouExpenseReimbursementDetail :one
-SELECT document_id, entity, employee_object_id, employee_version_id, employee_code, employee_name, fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name, settlement_mode FROM vou_expense_reimbursement_details WHERE document_id = $1
+SELECT document_id, entity, employee_object_id, employee_version_id, employee_code, employee_name FROM vou_expense_reimbursement_details WHERE document_id = $1
 `
 
 func (q *Queries) GetVouExpenseReimbursementDetail(ctx context.Context, documentID string) (VouExpenseReimbursementDetail, error) {
@@ -918,11 +1197,6 @@ func (q *Queries) GetVouExpenseReimbursementDetail(ctx context.Context, document
 		&i.EmployeeVersionID,
 		&i.EmployeeCode,
 		&i.EmployeeName,
-		&i.FundAccountObjectID,
-		&i.FundAccountVersionID,
-		&i.FundAccountCode,
-		&i.FundAccountName,
-		&i.SettlementMode,
 	)
 	return i, err
 }
@@ -1197,6 +1471,28 @@ func (q *Queries) GetVouSaleOrderFormula(ctx context.Context, productLineID stri
 		&i.BaseOutputQuantityMicros,
 	)
 	return i, err
+}
+
+const hasVouPurchaseInboundLines = `-- name: HasVouPurchaseInboundLines :one
+SELECT EXISTS(SELECT 1 FROM vou_purchase_inbound_lines WHERE document_id=$1)
+`
+
+func (q *Queries) HasVouPurchaseInboundLines(ctx context.Context, documentID string) (bool, error) {
+	row := q.db.QueryRow(ctx, hasVouPurchaseInboundLines, documentID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const hasVouPurchaseReturnLines = `-- name: HasVouPurchaseReturnLines :one
+SELECT EXISTS(SELECT 1 FROM vou_purchase_return_lines WHERE document_id=$1)
+`
+
+func (q *Queries) HasVouPurchaseReturnLines(ctx context.Context, documentID string) (bool, error) {
+	row := q.db.QueryRow(ctx, hasVouPurchaseReturnLines, documentID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const insertVouAssetAcquisitionDetail = `-- name: InsertVouAssetAcquisitionDetail :exec
@@ -1763,27 +2059,19 @@ func (q *Queries) InsertVouExpensePaymentDetail(ctx context.Context, arg InsertV
 
 const insertVouExpenseReimbursementDetail = `-- name: InsertVouExpenseReimbursementDetail :exec
 INSERT INTO vou_expense_reimbursement_details (
-    document_id, employee_object_id, employee_version_id, employee_code, employee_name,
-    fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name,
-    settlement_mode
+    document_id, employee_object_id, employee_version_id, employee_code, employee_name
 ) VALUES (
     $1, $2, $3,
-    $4, $5, $6,
-    $7, $8, $9,
-    'FLOW_PAYMENT'
+    $4, $5
 )
 `
 
 type InsertVouExpenseReimbursementDetailParams struct {
-	DocumentID           string  `db:"document_id" json:"document_id"`
-	EmployeeObjectID     string  `db:"employee_object_id" json:"employee_object_id"`
-	EmployeeVersionID    string  `db:"employee_version_id" json:"employee_version_id"`
-	EmployeeCode         string  `db:"employee_code" json:"employee_code"`
-	EmployeeName         string  `db:"employee_name" json:"employee_name"`
-	FundAccountObjectID  *string `db:"fund_account_object_id" json:"fund_account_object_id"`
-	FundAccountVersionID *string `db:"fund_account_version_id" json:"fund_account_version_id"`
-	FundAccountCode      *string `db:"fund_account_code" json:"fund_account_code"`
-	FundAccountName      *string `db:"fund_account_name" json:"fund_account_name"`
+	DocumentID        string `db:"document_id" json:"document_id"`
+	EmployeeObjectID  string `db:"employee_object_id" json:"employee_object_id"`
+	EmployeeVersionID string `db:"employee_version_id" json:"employee_version_id"`
+	EmployeeCode      string `db:"employee_code" json:"employee_code"`
+	EmployeeName      string `db:"employee_name" json:"employee_name"`
 }
 
 func (q *Queries) InsertVouExpenseReimbursementDetail(ctx context.Context, arg InsertVouExpenseReimbursementDetailParams) error {
@@ -1793,10 +2081,6 @@ func (q *Queries) InsertVouExpenseReimbursementDetail(ctx context.Context, arg I
 		arg.EmployeeVersionID,
 		arg.EmployeeCode,
 		arg.EmployeeName,
-		arg.FundAccountObjectID,
-		arg.FundAccountVersionID,
-		arg.FundAccountCode,
-		arg.FundAccountName,
 	)
 	return err
 }
@@ -2595,6 +2879,106 @@ func (q *Queries) InsertVouSalePricingDetail(ctx context.Context, documentID str
 	return err
 }
 
+const insertVouSaleReturnDetail = `-- name: InsertVouSaleReturnDetail :exec
+INSERT INTO vou_sale_return_details(
+    document_id,source_order_id,source_signoff_id,return_kind,return_reason,
+    customer_object_id,customer_version_id,customer_code,customer_name,
+    warehouse_object_id,warehouse_version_id,warehouse_code,warehouse_name
+) VALUES(
+    $1,$2,$3,
+    $4,$5,$6,
+    $7,$8,$9,
+    $10,$11,$12,
+    $13
+)
+`
+
+type InsertVouSaleReturnDetailParams struct {
+	DocumentID         string  `db:"document_id" json:"document_id"`
+	SourceOrderID      string  `db:"source_order_id" json:"source_order_id"`
+	SourceSignoffID    *string `db:"source_signoff_id" json:"source_signoff_id"`
+	ReturnKind         string  `db:"return_kind" json:"return_kind"`
+	ReturnReason       string  `db:"return_reason" json:"return_reason"`
+	CustomerObjectID   string  `db:"customer_object_id" json:"customer_object_id"`
+	CustomerVersionID  string  `db:"customer_version_id" json:"customer_version_id"`
+	CustomerCode       string  `db:"customer_code" json:"customer_code"`
+	CustomerName       string  `db:"customer_name" json:"customer_name"`
+	WarehouseObjectID  string  `db:"warehouse_object_id" json:"warehouse_object_id"`
+	WarehouseVersionID string  `db:"warehouse_version_id" json:"warehouse_version_id"`
+	WarehouseCode      string  `db:"warehouse_code" json:"warehouse_code"`
+	WarehouseName      string  `db:"warehouse_name" json:"warehouse_name"`
+}
+
+func (q *Queries) InsertVouSaleReturnDetail(ctx context.Context, arg InsertVouSaleReturnDetailParams) error {
+	_, err := q.db.Exec(ctx, insertVouSaleReturnDetail,
+		arg.DocumentID,
+		arg.SourceOrderID,
+		arg.SourceSignoffID,
+		arg.ReturnKind,
+		arg.ReturnReason,
+		arg.CustomerObjectID,
+		arg.CustomerVersionID,
+		arg.CustomerCode,
+		arg.CustomerName,
+		arg.WarehouseObjectID,
+		arg.WarehouseVersionID,
+		arg.WarehouseCode,
+		arg.WarehouseName,
+	)
+	return err
+}
+
+const insertVouSaleReturnLine = `-- name: InsertVouSaleReturnLine :exec
+INSERT INTO vou_sale_return_lines(
+    id,document_id,source_signoff_line_id,source_signoff_id,line_no,
+    product_object_id,product_version_id,product_code,product_name,product_unit,
+    quantity_micros,unit_price_cents,line_amount_cents,remark
+) VALUES(
+    $1,$2,$3,
+    $4,$5,$6,
+    $7,$8,$9,
+    $10,$11,$12,
+    $13,$14
+)
+`
+
+type InsertVouSaleReturnLineParams struct {
+	ID                  string  `db:"id" json:"id"`
+	DocumentID          string  `db:"document_id" json:"document_id"`
+	SourceSignoffLineID string  `db:"source_signoff_line_id" json:"source_signoff_line_id"`
+	SourceSignoffID     string  `db:"source_signoff_id" json:"source_signoff_id"`
+	LineNo              int32   `db:"line_no" json:"line_no"`
+	ProductObjectID     string  `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID    string  `db:"product_version_id" json:"product_version_id"`
+	ProductCode         string  `db:"product_code" json:"product_code"`
+	ProductName         string  `db:"product_name" json:"product_name"`
+	ProductUnit         string  `db:"product_unit" json:"product_unit"`
+	QuantityMicros      int64   `db:"quantity_micros" json:"quantity_micros"`
+	UnitPriceCents      int64   `db:"unit_price_cents" json:"unit_price_cents"`
+	LineAmountCents     int64   `db:"line_amount_cents" json:"line_amount_cents"`
+	Remark              *string `db:"remark" json:"remark"`
+}
+
+func (q *Queries) InsertVouSaleReturnLine(ctx context.Context, arg InsertVouSaleReturnLineParams) error {
+	_, err := q.db.Exec(ctx, insertVouSaleReturnLine,
+		arg.ID,
+		arg.DocumentID,
+		arg.SourceSignoffLineID,
+		arg.SourceSignoffID,
+		arg.LineNo,
+		arg.ProductObjectID,
+		arg.ProductVersionID,
+		arg.ProductCode,
+		arg.ProductName,
+		arg.ProductUnit,
+		arg.QuantityMicros,
+		arg.UnitPriceCents,
+		arg.LineAmountCents,
+		arg.Remark,
+	)
+	return err
+}
+
 const isVouDocumentInClosedPeriod = `-- name: IsVouDocumentInClosedPeriod :one
 SELECT EXISTS(
     SELECT 1
@@ -2608,6 +2992,44 @@ SELECT EXISTS(
 
 func (q *Queries) IsVouDocumentInClosedPeriod(ctx context.Context, id string) (bool, error) {
 	row := q.db.QueryRow(ctx, isVouDocumentInClosedPeriod, id)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const isVouSaleDeliveryReady = `-- name: IsVouSaleDeliveryReady :one
+SELECT x.platform_object_id IS NOT NULL AND x.platform_version_id IS NOT NULL
+       AND x.vehicle_object_id IS NOT NULL AND x.vehicle_version_id IS NOT NULL
+FROM vou_sale_delivery_details x WHERE x.document_id=$1
+`
+
+func (q *Queries) IsVouSaleDeliveryReady(ctx context.Context, documentID string) (*bool, error) {
+	row := q.db.QueryRow(ctx, isVouSaleDeliveryReady, documentID)
+	var column_1 *bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const isVouSaleOutboundReady = `-- name: IsVouSaleOutboundReady :one
+SELECT x.warehouse_object_id IS NOT NULL AND x.warehouse_version_id IS NOT NULL
+       AND EXISTS(SELECT 1 FROM vou_sale_outbound_lines l WHERE l.document_id=x.document_id AND l.quantity_micros>0)
+FROM vou_sale_outbound_details x WHERE x.document_id=$1
+`
+
+func (q *Queries) IsVouSaleOutboundReady(ctx context.Context, documentID string) (*bool, error) {
+	row := q.db.QueryRow(ctx, isVouSaleOutboundReady, documentID)
+	var column_1 *bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const isVouSaleSignoffReady = `-- name: IsVouSaleSignoffReady :one
+SELECT EXISTS(SELECT 1 FROM vou_sale_signoff_lines l WHERE l.document_id=$1
+              AND l.signed_qty_micros+l.rejected_qty_micros>=0)
+`
+
+func (q *Queries) IsVouSaleSignoffReady(ctx context.Context, documentID string) (bool, error) {
+	row := q.db.QueryRow(ctx, isVouSaleSignoffReady, documentID)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
@@ -2660,6 +3082,48 @@ func (q *Queries) ListExpiredPendingVouFiles(ctx context.Context, batchSize int3
 	for rows.Next() {
 		var i ListExpiredPendingVouFilesRow
 		if err := rows.Scan(&i.ID, &i.StorageKey); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGeneratedWorkflowChildrenForUpdate = `-- name: ListGeneratedWorkflowChildrenForUpdate :many
+SELECT id,entity,status,revision,created_by,
+       EXISTS(SELECT 1 FROM vou_document_attachments attachment WHERE attachment.document_id=vou_documents.id) AS has_attachments
+FROM vou_documents WHERE parent_document_id=$1 FOR UPDATE
+`
+
+type ListGeneratedWorkflowChildrenForUpdateRow struct {
+	ID             string `db:"id" json:"id"`
+	Entity         string `db:"entity" json:"entity"`
+	Status         string `db:"status" json:"status"`
+	Revision       int64  `db:"revision" json:"revision"`
+	CreatedBy      string `db:"created_by" json:"created_by"`
+	HasAttachments bool   `db:"has_attachments" json:"has_attachments"`
+}
+
+func (q *Queries) ListGeneratedWorkflowChildrenForUpdate(ctx context.Context, parentDocumentID *string) ([]ListGeneratedWorkflowChildrenForUpdateRow, error) {
+	rows, err := q.db.Query(ctx, listGeneratedWorkflowChildrenForUpdate, parentDocumentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListGeneratedWorkflowChildrenForUpdateRow{}
+	for rows.Next() {
+		var i ListGeneratedWorkflowChildrenForUpdateRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Entity,
+			&i.Status,
+			&i.Revision,
+			&i.CreatedBy,
+			&i.HasAttachments,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -3428,6 +3892,56 @@ func (q *Queries) ListVouPurchaseInboundLines(ctx context.Context, documentID st
 	return items, nil
 }
 
+const listVouRefusalReturnSourceLines = `-- name: ListVouRefusalReturnSourceLines :many
+SELECT id,product_object_id,product_version_id,product_code,product_name,product_unit,
+       rejected_qty_micros,unit_price_cents,COALESCE(remark,'') AS remark
+FROM vou_sale_signoff_lines
+WHERE document_id=$1 AND rejected_qty_micros>0
+ORDER BY line_no
+`
+
+type ListVouRefusalReturnSourceLinesRow struct {
+	ID                string `db:"id" json:"id"`
+	ProductObjectID   string `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID  string `db:"product_version_id" json:"product_version_id"`
+	ProductCode       string `db:"product_code" json:"product_code"`
+	ProductName       string `db:"product_name" json:"product_name"`
+	ProductUnit       string `db:"product_unit" json:"product_unit"`
+	RejectedQtyMicros int64  `db:"rejected_qty_micros" json:"rejected_qty_micros"`
+	UnitPriceCents    int64  `db:"unit_price_cents" json:"unit_price_cents"`
+	Remark            string `db:"remark" json:"remark"`
+}
+
+func (q *Queries) ListVouRefusalReturnSourceLines(ctx context.Context, documentID string) ([]ListVouRefusalReturnSourceLinesRow, error) {
+	rows, err := q.db.Query(ctx, listVouRefusalReturnSourceLines, documentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListVouRefusalReturnSourceLinesRow{}
+	for rows.Next() {
+		var i ListVouRefusalReturnSourceLinesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProductObjectID,
+			&i.ProductVersionID,
+			&i.ProductCode,
+			&i.ProductName,
+			&i.ProductUnit,
+			&i.RejectedQtyMicros,
+			&i.UnitPriceCents,
+			&i.Remark,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listVouSaleOrderFormulaLines = `-- name: ListVouSaleOrderFormulaLines :many
 SELECT line_no, material_object_id, material_version_id, material_code,
        material_name, material_unit, quantity_micros
@@ -3464,6 +3978,36 @@ func (q *Queries) ListVouSaleOrderFormulaLines(ctx context.Context, productLineI
 			&i.MaterialUnit,
 			&i.QuantityMicros,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listVouWorkflowChildrenForShare = `-- name: ListVouWorkflowChildrenForShare :many
+SELECT id,entity,status FROM vou_documents WHERE parent_document_id=$1 FOR SHARE
+`
+
+type ListVouWorkflowChildrenForShareRow struct {
+	ID     string `db:"id" json:"id"`
+	Entity string `db:"entity" json:"entity"`
+	Status string `db:"status" json:"status"`
+}
+
+func (q *Queries) ListVouWorkflowChildrenForShare(ctx context.Context, parentDocumentID *string) ([]ListVouWorkflowChildrenForShareRow, error) {
+	rows, err := q.db.Query(ctx, listVouWorkflowChildrenForShare, parentDocumentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListVouWorkflowChildrenForShareRow{}
+	for rows.Next() {
+		var i ListVouWorkflowChildrenForShareRow
+		if err := rows.Scan(&i.ID, &i.Entity, &i.Status); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -3721,6 +4265,126 @@ func (q *Queries) LockVouDocument(ctx context.Context, arg LockVouDocumentParams
 		&i.OitID,
 		&i.PostedAt,
 		&i.PostedBy,
+	)
+	return i, err
+}
+
+const lockVouDocumentStatusForShare = `-- name: LockVouDocumentStatusForShare :one
+SELECT status FROM vou_documents WHERE id=$1 FOR SHARE
+`
+
+func (q *Queries) LockVouDocumentStatusForShare(ctx context.Context, documentID string) (string, error) {
+	row := q.db.QueryRow(ctx, lockVouDocumentStatusForShare, documentID)
+	var status string
+	err := row.Scan(&status)
+	return status, err
+}
+
+const lockVouRefusalReturnSource = `-- name: LockVouRefusalReturnSource :one
+SELECT detail.source_order_id,document.business_date,document.status,document.currency,
+       detail.customer_object_id,detail.customer_version_id,detail.customer_code,detail.customer_name,
+       detail.warehouse_object_id,detail.warehouse_version_id,detail.warehouse_code,detail.warehouse_name
+FROM vou_sale_signoff_details detail
+JOIN vou_documents document ON document.id=detail.document_id
+WHERE detail.document_id=$1
+FOR UPDATE OF document
+`
+
+type LockVouRefusalReturnSourceRow struct {
+	SourceOrderID      string      `db:"source_order_id" json:"source_order_id"`
+	BusinessDate       pgtype.Date `db:"business_date" json:"business_date"`
+	Status             string      `db:"status" json:"status"`
+	Currency           *string     `db:"currency" json:"currency"`
+	CustomerObjectID   string      `db:"customer_object_id" json:"customer_object_id"`
+	CustomerVersionID  string      `db:"customer_version_id" json:"customer_version_id"`
+	CustomerCode       string      `db:"customer_code" json:"customer_code"`
+	CustomerName       string      `db:"customer_name" json:"customer_name"`
+	WarehouseObjectID  string      `db:"warehouse_object_id" json:"warehouse_object_id"`
+	WarehouseVersionID string      `db:"warehouse_version_id" json:"warehouse_version_id"`
+	WarehouseCode      string      `db:"warehouse_code" json:"warehouse_code"`
+	WarehouseName      string      `db:"warehouse_name" json:"warehouse_name"`
+}
+
+func (q *Queries) LockVouRefusalReturnSource(ctx context.Context, documentID string) (LockVouRefusalReturnSourceRow, error) {
+	row := q.db.QueryRow(ctx, lockVouRefusalReturnSource, documentID)
+	var i LockVouRefusalReturnSourceRow
+	err := row.Scan(
+		&i.SourceOrderID,
+		&i.BusinessDate,
+		&i.Status,
+		&i.Currency,
+		&i.CustomerObjectID,
+		&i.CustomerVersionID,
+		&i.CustomerCode,
+		&i.CustomerName,
+		&i.WarehouseObjectID,
+		&i.WarehouseVersionID,
+		&i.WarehouseCode,
+		&i.WarehouseName,
+	)
+	return i, err
+}
+
+const lockVouSettlementBalance = `-- name: LockVouSettlementBalance :exec
+SELECT pg_advisory_xact_lock(hashtextextended($1,0))
+`
+
+func (q *Queries) LockVouSettlementBalance(ctx context.Context, lockKey string) error {
+	_, err := q.db.Exec(ctx, lockVouSettlementBalance, lockKey)
+	return err
+}
+
+const lockWorkflowExpenseReimbursement = `-- name: LockWorkflowExpenseReimbursement :one
+SELECT d.id,d.entity,d.document_no,d.status,d.revision,d.business_date,d.currency,
+       d.total_amount_cents,d.remark,d.created_at,d.created_by,d.updated_at,d.updated_by,
+       x.employee_object_id,x.employee_version_id,x.employee_code,x.employee_name
+FROM vou_documents d
+JOIN vou_expense_reimbursement_details x ON x.document_id=d.id
+WHERE d.id=$1
+FOR UPDATE OF d
+`
+
+type LockWorkflowExpenseReimbursementRow struct {
+	ID                string             `db:"id" json:"id"`
+	Entity            string             `db:"entity" json:"entity"`
+	DocumentNo        string             `db:"document_no" json:"document_no"`
+	Status            string             `db:"status" json:"status"`
+	Revision          int64              `db:"revision" json:"revision"`
+	BusinessDate      pgtype.Date        `db:"business_date" json:"business_date"`
+	Currency          *string            `db:"currency" json:"currency"`
+	TotalAmountCents  int64              `db:"total_amount_cents" json:"total_amount_cents"`
+	Remark            *string            `db:"remark" json:"remark"`
+	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy         string             `db:"created_by" json:"created_by"`
+	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy         string             `db:"updated_by" json:"updated_by"`
+	EmployeeObjectID  string             `db:"employee_object_id" json:"employee_object_id"`
+	EmployeeVersionID string             `db:"employee_version_id" json:"employee_version_id"`
+	EmployeeCode      string             `db:"employee_code" json:"employee_code"`
+	EmployeeName      string             `db:"employee_name" json:"employee_name"`
+}
+
+func (q *Queries) LockWorkflowExpenseReimbursement(ctx context.Context, reimbursementID string) (LockWorkflowExpenseReimbursementRow, error) {
+	row := q.db.QueryRow(ctx, lockWorkflowExpenseReimbursement, reimbursementID)
+	var i LockWorkflowExpenseReimbursementRow
+	err := row.Scan(
+		&i.ID,
+		&i.Entity,
+		&i.DocumentNo,
+		&i.Status,
+		&i.Revision,
+		&i.BusinessDate,
+		&i.Currency,
+		&i.TotalAmountCents,
+		&i.Remark,
+		&i.CreatedAt,
+		&i.CreatedBy,
+		&i.UpdatedAt,
+		&i.UpdatedBy,
+		&i.EmployeeObjectID,
+		&i.EmployeeVersionID,
+		&i.EmployeeCode,
+		&i.EmployeeName,
 	)
 	return i, err
 }
@@ -4091,24 +4755,16 @@ func (q *Queries) UpdateVouExpensePaymentFundAccount(ctx context.Context, arg Up
 const updateVouExpenseReimbursementDetail = `-- name: UpdateVouExpenseReimbursementDetail :execrows
 UPDATE vou_expense_reimbursement_details
 SET employee_object_id = $1, employee_version_id = $2,
-    employee_code = $3, employee_name = $4,
-    fund_account_object_id = CASE WHEN settlement_mode='LEGACY_DIRECT' THEN $5 ELSE NULL END,
-    fund_account_version_id = CASE WHEN settlement_mode='LEGACY_DIRECT' THEN $6 ELSE NULL END,
-    fund_account_code = CASE WHEN settlement_mode='LEGACY_DIRECT' THEN $7 ELSE NULL END,
-    fund_account_name = CASE WHEN settlement_mode='LEGACY_DIRECT' THEN $8 ELSE NULL END
-WHERE document_id = $9
+    employee_code = $3, employee_name = $4
+WHERE document_id = $5
 `
 
 type UpdateVouExpenseReimbursementDetailParams struct {
-	EmployeeObjectID     string  `db:"employee_object_id" json:"employee_object_id"`
-	EmployeeVersionID    string  `db:"employee_version_id" json:"employee_version_id"`
-	EmployeeCode         string  `db:"employee_code" json:"employee_code"`
-	EmployeeName         string  `db:"employee_name" json:"employee_name"`
-	FundAccountObjectID  *string `db:"fund_account_object_id" json:"fund_account_object_id"`
-	FundAccountVersionID *string `db:"fund_account_version_id" json:"fund_account_version_id"`
-	FundAccountCode      *string `db:"fund_account_code" json:"fund_account_code"`
-	FundAccountName      *string `db:"fund_account_name" json:"fund_account_name"`
-	DocumentID           string  `db:"document_id" json:"document_id"`
+	EmployeeObjectID  string `db:"employee_object_id" json:"employee_object_id"`
+	EmployeeVersionID string `db:"employee_version_id" json:"employee_version_id"`
+	EmployeeCode      string `db:"employee_code" json:"employee_code"`
+	EmployeeName      string `db:"employee_name" json:"employee_name"`
+	DocumentID        string `db:"document_id" json:"document_id"`
 }
 
 func (q *Queries) UpdateVouExpenseReimbursementDetail(ctx context.Context, arg UpdateVouExpenseReimbursementDetailParams) (int64, error) {
@@ -4117,10 +4773,6 @@ func (q *Queries) UpdateVouExpenseReimbursementDetail(ctx context.Context, arg U
 		arg.EmployeeVersionID,
 		arg.EmployeeCode,
 		arg.EmployeeName,
-		arg.FundAccountObjectID,
-		arg.FundAccountVersionID,
-		arg.FundAccountCode,
-		arg.FundAccountName,
 		arg.DocumentID,
 	)
 	if err != nil {

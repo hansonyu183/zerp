@@ -11,152 +11,42 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const acquireWorkflowCreateChildLock = `-- name: AcquireWorkflowCreateChildLock :exec
+SELECT pg_advisory_xact_lock(hashtextextended($1,0))
+`
+
+func (q *Queries) AcquireWorkflowCreateChildLock(ctx context.Context, hashtextextended string) error {
+	_, err := q.db.Exec(ctx, acquireWorkflowCreateChildLock, hashtextextended)
+	return err
+}
+
+const clearWorkflowNodeDocument = `-- name: ClearWorkflowNodeDocument :exec
+UPDATE wfl_node_instances SET document_id=NULL WHERE document_id=$1
+`
+
+func (q *Queries) ClearWorkflowNodeDocument(ctx context.Context, documentID *string) error {
+	_, err := q.db.Exec(ctx, clearWorkflowNodeDocument, documentID)
+	return err
+}
+
 const countDefinitionInstances = `-- name: CountDefinitionInstances :one
 SELECT count(*)
-FROM wfl_definition_instances i
-JOIN vou_documents d ON d.id = i.root_document_id
-JOIN wfl_process_definitions f ON f.id = i.definition_id
-LEFT JOIN LATERAL (
-  SELECT party_object_id, party_code, party_name
-  FROM (
-    SELECT customer_object_id AS party_object_id,
-           customer_code AS party_code,
-           customer_name AS party_name
-    FROM vou_sale_order_details WHERE document_id = d.id
-    UNION ALL SELECT customer_object_id, customer_code, customer_name
-      FROM vou_sale_outbound_details WHERE document_id = d.id
-    UNION ALL SELECT customer_object_id, customer_code, customer_name
-      FROM vou_sale_delivery_details WHERE document_id = d.id
-    UNION ALL SELECT customer_object_id, customer_code, customer_name
-      FROM vou_sale_signoff_details WHERE document_id = d.id
-    UNION ALL SELECT customer_object_id, customer_code, customer_name
-      FROM vou_sale_return_details WHERE document_id = d.id
-    UNION ALL SELECT supplier_object_id, supplier_code, supplier_name
-      FROM vou_purchase_inquiry_details WHERE document_id = d.id
-    UNION ALL SELECT supplier_object_id, supplier_code, supplier_name
-      FROM vou_purchase_order_details WHERE document_id = d.id
-    UNION ALL SELECT supplier_object_id, supplier_code, supplier_name
-      FROM vou_purchase_inbound_details WHERE document_id = d.id
-    UNION ALL SELECT supplier_object_id, supplier_code, supplier_name
-      FROM vou_purchase_return_details WHERE document_id = d.id
-    UNION ALL SELECT counterparty_object_id, counterparty_code, counterparty_name
-      FROM vou_receipt_details WHERE document_id = d.id
-    UNION ALL SELECT counterparty_object_id, counterparty_code, counterparty_name
-      FROM vou_payment_details WHERE document_id = d.id
-    UNION ALL SELECT employee_object_id, employee_code, employee_name
-      FROM vou_expense_reimbursement_details WHERE document_id = d.id
-    UNION ALL SELECT employee_object_id, employee_code, employee_name
-      FROM vou_expense_payment_details WHERE document_id = d.id
-    UNION ALL SELECT counterparty_object_id, COALESCE(counterparty_code, ''),
-      COALESCE(NULLIF(counterparty_name, ''), source_name)
-      FROM vou_other_income_details WHERE document_id = d.id
-  ) parties
-  LIMIT 1
-) party ON true
-WHERE (
-    $1::text = ''
-    OR party.party_code ILIKE '%' || $1::text || '%'
-    OR party.party_name ILIKE '%' || $1::text || '%'
-    OR EXISTS (
-      SELECT 1
-      FROM wfl_node_instances search_node
-      WHERE search_node.process_id = i.id
-        AND (
-          EXISTS (SELECT 1 FROM vou_product_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || $1::text || '%'
-                OR line.product_name ILIKE '%' || $1::text || '%'))
-          OR EXISTS (SELECT 1 FROM vou_sale_outbound_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || $1::text || '%'
-                OR line.product_name ILIKE '%' || $1::text || '%'))
-          OR EXISTS (SELECT 1 FROM vou_sale_signoff_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || $1::text || '%'
-                OR line.product_name ILIKE '%' || $1::text || '%'))
-          OR EXISTS (SELECT 1 FROM vou_sale_return_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || $1::text || '%'
-                OR line.product_name ILIKE '%' || $1::text || '%'))
-          OR EXISTS (SELECT 1 FROM vou_purchase_inbound_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || $1::text || '%'
-                OR line.product_name ILIKE '%' || $1::text || '%'))
-          OR EXISTS (SELECT 1 FROM vou_purchase_return_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || $1::text || '%'
-                OR line.product_name ILIKE '%' || $1::text || '%'))
-          OR EXISTS (SELECT 1 FROM vou_production_output_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || $1::text || '%'
-                OR line.product_name ILIKE '%' || $1::text || '%'))
-          OR EXISTS (SELECT 1
-            FROM vou_production_material_lines material
-            JOIN vou_production_output_lines output ON output.id = material.output_line_id
-            WHERE output.document_id = search_node.document_id
-              AND (material.formula_material_code ILIKE '%' || $1::text || '%'
-                OR material.formula_material_name ILIKE '%' || $1::text || '%'
-                OR material.actual_material_code ILIKE '%' || $1::text || '%'
-                OR material.actual_material_name ILIKE '%' || $1::text || '%'))
-        )
-    )
-  )
-  AND ($2::text = '' OR i.definition_id = $2)
-  AND ($3::text = '' OR party.party_object_id = $3)
+FROM wfl_definition_instances instance
+WHERE instance.root_deleted_at IS NULL
+  AND ($1::text = '' OR instance.definition_id=$1::text)
+  AND ($2::text = '' OR instance.party_object_id=$2::text)
+  AND ($3::text = '' OR instance.root_document_no ILIKE '%' || $3::text || '%'
+       OR EXISTS (SELECT 1 FROM wfl_node_instances node WHERE node.process_id=instance.id AND node.document_no ILIKE '%' || $3::text || '%'))
 `
 
 type CountDefinitionInstancesParams struct {
-	Keyword       string `db:"keyword" json:"keyword"`
 	DefinitionID  string `db:"definition_id" json:"definition_id"`
 	PartyObjectID string `db:"party_object_id" json:"party_object_id"`
+	Keyword       string `db:"keyword" json:"keyword"`
 }
 
 func (q *Queries) CountDefinitionInstances(ctx context.Context, arg CountDefinitionInstancesParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countDefinitionInstances, arg.Keyword, arg.DefinitionID, arg.PartyObjectID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countPurchaseWorkflowSummaries = `-- name: CountPurchaseWorkflowSummaries :one
-SELECT count(*)
-FROM wfl_process_instances p
-JOIN vou_documents d ON d.id = p.root_document_id
-WHERE p.process_type = 'PURCHASE_FULFILLMENT'
-  AND ($1::text = '' OR d.document_no ILIKE '%' || $1::text || '%')
-  AND (COALESCE(cardinality($2::text[]), 0) = 0
-       OR p.status = ANY($2::text[]))
-`
-
-type CountPurchaseWorkflowSummariesParams struct {
-	Keyword  string   `db:"keyword" json:"keyword"`
-	Statuses []string `db:"statuses" json:"statuses"`
-}
-
-func (q *Queries) CountPurchaseWorkflowSummaries(ctx context.Context, arg CountPurchaseWorkflowSummariesParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countPurchaseWorkflowSummaries, arg.Keyword, arg.Statuses)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countSalesWorkflowSummaries = `-- name: CountSalesWorkflowSummaries :one
-SELECT count(*)
-FROM wfl_process_instances p
-JOIN vou_documents d ON d.id = p.root_document_id
-WHERE p.process_type = 'SALES_FULFILLMENT'
-  AND ($1::text = '' OR d.document_no ILIKE '%' || $1::text || '%')
-  AND (COALESCE(cardinality($2::text[]), 0) = 0
-       OR p.status = ANY($2::text[]))
-`
-
-type CountSalesWorkflowSummariesParams struct {
-	Keyword  string   `db:"keyword" json:"keyword"`
-	Statuses []string `db:"statuses" json:"statuses"`
-}
-
-func (q *Queries) CountSalesWorkflowSummaries(ctx context.Context, arg CountSalesWorkflowSummariesParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countSalesWorkflowSummaries, arg.Keyword, arg.Statuses)
+	row := q.db.QueryRow(ctx, countDefinitionInstances, arg.DefinitionID, arg.PartyObjectID, arg.Keyword)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -164,12 +54,9 @@ func (q *Queries) CountSalesWorkflowSummaries(ctx context.Context, arg CountSale
 
 const countWorkflowDefinitions = `-- name: CountWorkflowDefinitions :one
 SELECT count(*)
-FROM wfl_process_definitions d
-WHERE ($1::text = ''
-       OR d.code ILIKE '%' || $1::text || '%'
-       OR d.name ILIKE '%' || $1::text || '%')
-  AND (COALESCE(cardinality($2::text[]), 0) = 0
-       OR d.status = ANY($2::text[]))
+FROM wfl_process_definitions
+WHERE ($1::text = '' OR code ILIKE '%' || $1::text || '%' OR name ILIKE '%' || $1::text || '%')
+  AND (COALESCE(cardinality($2::text[]), 0) = 0 OR status = ANY($2::text[]))
 `
 
 type CountWorkflowDefinitionsParams struct {
@@ -184,26 +71,121 @@ func (q *Queries) CountWorkflowDefinitions(ctx context.Context, arg CountWorkflo
 	return count, err
 }
 
+const countWorkflowRuntimeAudits = `-- name: CountWorkflowRuntimeAudits :one
+SELECT count(*) FROM wfl_runtime_audit_events WHERE process_id=$1
+`
+
+func (q *Queries) CountWorkflowRuntimeAudits(ctx context.Context, processID *string) (int64, error) {
+	row := q.db.QueryRow(ctx, countWorkflowRuntimeAudits, processID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const createWorkflowActionExecution = `-- name: CreateWorkflowActionExecution :exec
+INSERT INTO wfl_action_executions(id,process_id,source_node_instance_id,target_node_key,relation_name,action_name,action_fingerprint,target_node_instance_id)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+`
+
+type CreateWorkflowActionExecutionParams struct {
+	ID                   string  `db:"id" json:"id"`
+	ProcessID            string  `db:"process_id" json:"process_id"`
+	SourceNodeInstanceID string  `db:"source_node_instance_id" json:"source_node_instance_id"`
+	TargetNodeKey        string  `db:"target_node_key" json:"target_node_key"`
+	RelationName         string  `db:"relation_name" json:"relation_name"`
+	ActionName           string  `db:"action_name" json:"action_name"`
+	ActionFingerprint    string  `db:"action_fingerprint" json:"action_fingerprint"`
+	TargetNodeInstanceID *string `db:"target_node_instance_id" json:"target_node_instance_id"`
+}
+
+func (q *Queries) CreateWorkflowActionExecution(ctx context.Context, arg CreateWorkflowActionExecutionParams) error {
+	_, err := q.db.Exec(ctx, createWorkflowActionExecution,
+		arg.ID,
+		arg.ProcessID,
+		arg.SourceNodeInstanceID,
+		arg.TargetNodeKey,
+		arg.RelationName,
+		arg.ActionName,
+		arg.ActionFingerprint,
+		arg.TargetNodeInstanceID,
+	)
+	return err
+}
+
+const createWorkflowActionNodeInstance = `-- name: CreateWorkflowActionNodeInstance :exec
+INSERT INTO wfl_node_instances(id,process_id,parent_node_instance_id,node_key,node_name,document_id,document_no,document_entity,business_parent_entity,business_parent_document_id,relation_name,trigger_event,action_name)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'ACTION',$12)
+`
+
+type CreateWorkflowActionNodeInstanceParams struct {
+	ID                       string  `db:"id" json:"id"`
+	ProcessID                string  `db:"process_id" json:"process_id"`
+	ParentNodeInstanceID     *string `db:"parent_node_instance_id" json:"parent_node_instance_id"`
+	NodeKey                  string  `db:"node_key" json:"node_key"`
+	NodeName                 string  `db:"node_name" json:"node_name"`
+	DocumentID               *string `db:"document_id" json:"document_id"`
+	DocumentNo               string  `db:"document_no" json:"document_no"`
+	DocumentEntity           string  `db:"document_entity" json:"document_entity"`
+	BusinessParentEntity     *string `db:"business_parent_entity" json:"business_parent_entity"`
+	BusinessParentDocumentID *string `db:"business_parent_document_id" json:"business_parent_document_id"`
+	RelationName             *string `db:"relation_name" json:"relation_name"`
+	ActionName               *string `db:"action_name" json:"action_name"`
+}
+
+func (q *Queries) CreateWorkflowActionNodeInstance(ctx context.Context, arg CreateWorkflowActionNodeInstanceParams) error {
+	_, err := q.db.Exec(ctx, createWorkflowActionNodeInstance,
+		arg.ID,
+		arg.ProcessID,
+		arg.ParentNodeInstanceID,
+		arg.NodeKey,
+		arg.NodeName,
+		arg.DocumentID,
+		arg.DocumentNo,
+		arg.DocumentEntity,
+		arg.BusinessParentEntity,
+		arg.BusinessParentDocumentID,
+		arg.RelationName,
+		arg.ActionName,
+	)
+	return err
+}
+
+const createWorkflowCreateChildRequest = `-- name: CreateWorkflowCreateChildRequest :exec
+INSERT INTO wfl_create_child_requests(definition_id,request_key,process_id,parent_node_instance_id,target_node_key)
+VALUES($1,$2,$3,$4,$5)
+`
+
+type CreateWorkflowCreateChildRequestParams struct {
+	DefinitionID         string `db:"definition_id" json:"definition_id"`
+	RequestKey           string `db:"request_key" json:"request_key"`
+	ProcessID            string `db:"process_id" json:"process_id"`
+	ParentNodeInstanceID string `db:"parent_node_instance_id" json:"parent_node_instance_id"`
+	TargetNodeKey        string `db:"target_node_key" json:"target_node_key"`
+}
+
+func (q *Queries) CreateWorkflowCreateChildRequest(ctx context.Context, arg CreateWorkflowCreateChildRequestParams) error {
+	_, err := q.db.Exec(ctx, createWorkflowCreateChildRequest,
+		arg.DefinitionID,
+		arg.RequestKey,
+		arg.ProcessID,
+		arg.ParentNodeInstanceID,
+		arg.TargetNodeKey,
+	)
+	return err
+}
+
 const createWorkflowDefinition = `-- name: CreateWorkflowDefinition :exec
-INSERT INTO wfl_process_definitions (
-  id, code, name, status, source_kind, draft_script, root_node_id,
-  start_condition, created_by, updated_by
-) VALUES (
-  $1, $2, $3, 'DRAFT',
-  $4, $5, $6,
-  $7, $8, $8
-)
+INSERT INTO wfl_process_definitions(id,code,name,draft_script,draft_compiled,created_by,updated_by)
+VALUES($1,$2,$3,$4,$5,$6,$6)
 `
 
 type CreateWorkflowDefinitionParams struct {
-	ID             string  `db:"id" json:"id"`
-	Code           string  `db:"code" json:"code"`
-	Name           string  `db:"name" json:"name"`
-	SourceKind     string  `db:"source_kind" json:"source_kind"`
-	DraftScript    *string `db:"draft_script" json:"draft_script"`
-	RootNodeID     string  `db:"root_node_id" json:"root_node_id"`
-	StartCondition []byte  `db:"start_condition" json:"start_condition"`
-	ActorID        string  `db:"actor_id" json:"actor_id"`
+	ID            string `db:"id" json:"id"`
+	Code          string `db:"code" json:"code"`
+	Name          string `db:"name" json:"name"`
+	DraftScript   string `db:"draft_script" json:"draft_script"`
+	DraftCompiled []byte `db:"draft_compiled" json:"draft_compiled"`
+	CreatedBy     string `db:"created_by" json:"created_by"`
 }
 
 func (q *Queries) CreateWorkflowDefinition(ctx context.Context, arg CreateWorkflowDefinitionParams) error {
@@ -211,30 +193,130 @@ func (q *Queries) CreateWorkflowDefinition(ctx context.Context, arg CreateWorkfl
 		arg.ID,
 		arg.Code,
 		arg.Name,
-		arg.SourceKind,
 		arg.DraftScript,
-		arg.RootNodeID,
-		arg.StartCondition,
+		arg.DraftCompiled,
+		arg.CreatedBy,
+	)
+	return err
+}
+
+const createWorkflowDefinitionInstance = `-- name: CreateWorkflowDefinitionInstance :exec
+INSERT INTO wfl_definition_instances(id,definition_id,root_document_id,root_document_no,root_entity,definition_code,definition_name,party_object_id,party_code,party_name,started_definition_revision,created_by,updated_by)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12)
+`
+
+type CreateWorkflowDefinitionInstanceParams struct {
+	ID                        string  `db:"id" json:"id"`
+	DefinitionID              string  `db:"definition_id" json:"definition_id"`
+	RootDocumentID            *string `db:"root_document_id" json:"root_document_id"`
+	RootDocumentNo            string  `db:"root_document_no" json:"root_document_no"`
+	RootEntity                string  `db:"root_entity" json:"root_entity"`
+	DefinitionCode            string  `db:"definition_code" json:"definition_code"`
+	DefinitionName            string  `db:"definition_name" json:"definition_name"`
+	PartyObjectID             *string `db:"party_object_id" json:"party_object_id"`
+	PartyCode                 *string `db:"party_code" json:"party_code"`
+	PartyName                 *string `db:"party_name" json:"party_name"`
+	StartedDefinitionRevision int64   `db:"started_definition_revision" json:"started_definition_revision"`
+	ActorID                   string  `db:"actor_id" json:"actor_id"`
+}
+
+func (q *Queries) CreateWorkflowDefinitionInstance(ctx context.Context, arg CreateWorkflowDefinitionInstanceParams) error {
+	_, err := q.db.Exec(ctx, createWorkflowDefinitionInstance,
+		arg.ID,
+		arg.DefinitionID,
+		arg.RootDocumentID,
+		arg.RootDocumentNo,
+		arg.RootEntity,
+		arg.DefinitionCode,
+		arg.DefinitionName,
+		arg.PartyObjectID,
+		arg.PartyCode,
+		arg.PartyName,
+		arg.StartedDefinitionRevision,
 		arg.ActorID,
 	)
 	return err
 }
 
+const createWorkflowRootNodeInstance = `-- name: CreateWorkflowRootNodeInstance :exec
+INSERT INTO wfl_node_instances(id,process_id,node_key,node_name,document_id,document_no,document_entity,trigger_event)
+VALUES($1,$2,$3,$4,$5,$6,$7,'APPROVED')
+`
+
+type CreateWorkflowRootNodeInstanceParams struct {
+	ID             string  `db:"id" json:"id"`
+	ProcessID      string  `db:"process_id" json:"process_id"`
+	NodeKey        string  `db:"node_key" json:"node_key"`
+	NodeName       string  `db:"node_name" json:"node_name"`
+	DocumentID     *string `db:"document_id" json:"document_id"`
+	DocumentNo     string  `db:"document_no" json:"document_no"`
+	DocumentEntity string  `db:"document_entity" json:"document_entity"`
+}
+
+func (q *Queries) CreateWorkflowRootNodeInstance(ctx context.Context, arg CreateWorkflowRootNodeInstanceParams) error {
+	_, err := q.db.Exec(ctx, createWorkflowRootNodeInstance,
+		arg.ID,
+		arg.ProcessID,
+		arg.NodeKey,
+		arg.NodeName,
+		arg.DocumentID,
+		arg.DocumentNo,
+		arg.DocumentEntity,
+	)
+	return err
+}
+
+const createWorkflowRuntimeAudit = `-- name: CreateWorkflowRuntimeAudit :exec
+INSERT INTO wfl_runtime_audit_events(id,process_id,definition_id,definition_revision,event_type,node_instance_id,document_id,document_no,actor_id,request_id,summary)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+`
+
+type CreateWorkflowRuntimeAuditParams struct {
+	ID                 string  `db:"id" json:"id"`
+	ProcessID          *string `db:"process_id" json:"process_id"`
+	DefinitionID       string  `db:"definition_id" json:"definition_id"`
+	DefinitionRevision int64   `db:"definition_revision" json:"definition_revision"`
+	EventType          string  `db:"event_type" json:"event_type"`
+	NodeInstanceID     *string `db:"node_instance_id" json:"node_instance_id"`
+	DocumentID         *string `db:"document_id" json:"document_id"`
+	DocumentNo         *string `db:"document_no" json:"document_no"`
+	ActorID            string  `db:"actor_id" json:"actor_id"`
+	RequestID          string  `db:"request_id" json:"request_id"`
+	Summary            []byte  `db:"summary" json:"summary"`
+}
+
+func (q *Queries) CreateWorkflowRuntimeAudit(ctx context.Context, arg CreateWorkflowRuntimeAuditParams) error {
+	_, err := q.db.Exec(ctx, createWorkflowRuntimeAudit,
+		arg.ID,
+		arg.ProcessID,
+		arg.DefinitionID,
+		arg.DefinitionRevision,
+		arg.EventType,
+		arg.NodeInstanceID,
+		arg.DocumentID,
+		arg.DocumentNo,
+		arg.ActorID,
+		arg.RequestID,
+		arg.Summary,
+	)
+	return err
+}
+
+const deleteWorkflowDefinition = `-- name: DeleteWorkflowDefinition :exec
+DELETE FROM wfl_process_definitions WHERE id=$1
+`
+
+func (q *Queries) DeleteWorkflowDefinition(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, deleteWorkflowDefinition, id)
+	return err
+}
+
 const getDefinitionInstance = `-- name: GetDefinitionInstance :one
-SELECT i.id AS process_id,
-       i.definition_id,
-       f.code AS definition_code,
-       f.name AS definition_name,
-       i.revision,
-       i.root_document_id,
-       d.document_no AS root_document_no,
-       d.entity AS root_entity,
-       i.updated_at,
-       i.started_definition_revision
-FROM wfl_definition_instances i
-JOIN vou_documents d ON d.id = i.root_document_id
-JOIN wfl_process_definitions f ON f.id = i.definition_id
-WHERE i.id = $1
+SELECT id process_id,definition_id,definition_code,definition_name,revision,
+       COALESCE(root_document_id,'') root_document_id,root_document_no,root_entity,
+       COALESCE(party_code,'') party_code,COALESCE(party_name,'') party_name,
+       started_definition_revision,updated_at
+FROM wfl_definition_instances WHERE id=$1
 `
 
 type GetDefinitionInstanceRow struct {
@@ -246,8 +328,10 @@ type GetDefinitionInstanceRow struct {
 	RootDocumentID            string             `db:"root_document_id" json:"root_document_id"`
 	RootDocumentNo            string             `db:"root_document_no" json:"root_document_no"`
 	RootEntity                string             `db:"root_entity" json:"root_entity"`
-	UpdatedAt                 pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	PartyCode                 string             `db:"party_code" json:"party_code"`
+	PartyName                 string             `db:"party_name" json:"party_name"`
 	StartedDefinitionRevision int64              `db:"started_definition_revision" json:"started_definition_revision"`
+	UpdatedAt                 pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 func (q *Queries) GetDefinitionInstance(ctx context.Context, id string) (GetDefinitionInstanceRow, error) {
@@ -262,166 +346,203 @@ func (q *Queries) GetDefinitionInstance(ctx context.Context, id string) (GetDefi
 		&i.RootDocumentID,
 		&i.RootDocumentNo,
 		&i.RootEntity,
-		&i.UpdatedAt,
+		&i.PartyCode,
+		&i.PartyName,
 		&i.StartedDefinitionRevision,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const getWorkflowDefinition = `-- name: GetWorkflowDefinition :one
-SELECT id, code, name, status, revision, source_kind, draft_script, draft_diagnostic,
-       root_node_id, start_condition, last_trial_revision, last_trial_at, updated_at
-FROM wfl_process_definitions
-WHERE id = $1
+const getPublishedWorkflowDefinitionIDByCode = `-- name: GetPublishedWorkflowDefinitionIDByCode :one
+SELECT id FROM wfl_process_definitions WHERE code=$1 AND published_revision IS NOT NULL
 `
 
-type GetWorkflowDefinitionRow struct {
-	ID                string             `db:"id" json:"id"`
-	Code              string             `db:"code" json:"code"`
-	Name              string             `db:"name" json:"name"`
-	Status            string             `db:"status" json:"status"`
-	Revision          int64              `db:"revision" json:"revision"`
-	SourceKind        string             `db:"source_kind" json:"source_kind"`
-	DraftScript       *string            `db:"draft_script" json:"draft_script"`
-	DraftDiagnostic   *string            `db:"draft_diagnostic" json:"draft_diagnostic"`
-	RootNodeID        string             `db:"root_node_id" json:"root_node_id"`
-	StartCondition    []byte             `db:"start_condition" json:"start_condition"`
-	LastTrialRevision *int64             `db:"last_trial_revision" json:"last_trial_revision"`
-	LastTrialAt       pgtype.Timestamptz `db:"last_trial_at" json:"last_trial_at"`
-	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+func (q *Queries) GetPublishedWorkflowDefinitionIDByCode(ctx context.Context, code string) (string, error) {
+	row := q.db.QueryRow(ctx, getPublishedWorkflowDefinitionIDByCode, code)
+	var id string
+	err := row.Scan(&id)
+	return id, err
 }
 
-func (q *Queries) GetWorkflowDefinition(ctx context.Context, id string) (GetWorkflowDefinitionRow, error) {
+const getWorkflowActionExecutionResult = `-- name: GetWorkflowActionExecutionResult :one
+SELECT execution.id,node.document_entity,COALESCE(node.document_id,'') document_id,node.document_no
+FROM wfl_action_executions execution JOIN wfl_node_instances node ON node.id=execution.target_node_instance_id
+WHERE execution.process_id=$1 AND execution.source_node_instance_id=$2 AND execution.target_node_key=$3
+`
+
+type GetWorkflowActionExecutionResultParams struct {
+	ProcessID            string `db:"process_id" json:"process_id"`
+	SourceNodeInstanceID string `db:"source_node_instance_id" json:"source_node_instance_id"`
+	TargetNodeKey        string `db:"target_node_key" json:"target_node_key"`
+}
+
+type GetWorkflowActionExecutionResultRow struct {
+	ID             string `db:"id" json:"id"`
+	DocumentEntity string `db:"document_entity" json:"document_entity"`
+	DocumentID     string `db:"document_id" json:"document_id"`
+	DocumentNo     string `db:"document_no" json:"document_no"`
+}
+
+func (q *Queries) GetWorkflowActionExecutionResult(ctx context.Context, arg GetWorkflowActionExecutionResultParams) (GetWorkflowActionExecutionResultRow, error) {
+	row := q.db.QueryRow(ctx, getWorkflowActionExecutionResult, arg.ProcessID, arg.SourceNodeInstanceID, arg.TargetNodeKey)
+	var i GetWorkflowActionExecutionResultRow
+	err := row.Scan(
+		&i.ID,
+		&i.DocumentEntity,
+		&i.DocumentID,
+		&i.DocumentNo,
+	)
+	return i, err
+}
+
+const getWorkflowCreateChildExecutionResult = `-- name: GetWorkflowCreateChildExecutionResult :one
+SELECT node.document_entity,COALESCE(node.document_id,'') document_id,node.document_no
+FROM wfl_action_executions execution JOIN wfl_node_instances node ON node.id=execution.target_node_instance_id
+WHERE execution.id=$1
+`
+
+type GetWorkflowCreateChildExecutionResultRow struct {
+	DocumentEntity string `db:"document_entity" json:"document_entity"`
+	DocumentID     string `db:"document_id" json:"document_id"`
+	DocumentNo     string `db:"document_no" json:"document_no"`
+}
+
+func (q *Queries) GetWorkflowCreateChildExecutionResult(ctx context.Context, id string) (GetWorkflowCreateChildExecutionResultRow, error) {
+	row := q.db.QueryRow(ctx, getWorkflowCreateChildExecutionResult, id)
+	var i GetWorkflowCreateChildExecutionResultRow
+	err := row.Scan(&i.DocumentEntity, &i.DocumentID, &i.DocumentNo)
+	return i, err
+}
+
+const getWorkflowDefinition = `-- name: GetWorkflowDefinition :one
+SELECT id,code,name,status,revision,draft_script,draft_diagnostic,draft_compiled,last_trial_revision,published_revision,created_at,created_by,updated_at,updated_by
+FROM wfl_process_definitions WHERE id=$1
+`
+
+func (q *Queries) GetWorkflowDefinition(ctx context.Context, id string) (WflProcessDefinition, error) {
 	row := q.db.QueryRow(ctx, getWorkflowDefinition, id)
-	var i GetWorkflowDefinitionRow
+	var i WflProcessDefinition
 	err := row.Scan(
 		&i.ID,
 		&i.Code,
 		&i.Name,
 		&i.Status,
 		&i.Revision,
-		&i.SourceKind,
 		&i.DraftScript,
 		&i.DraftDiagnostic,
-		&i.RootNodeID,
-		&i.StartCondition,
+		&i.DraftCompiled,
 		&i.LastTrialRevision,
-		&i.LastTrialAt,
+		&i.PublishedRevision,
+		&i.CreatedAt,
+		&i.CreatedBy,
 		&i.UpdatedAt,
+		&i.UpdatedBy,
 	)
 	return i, err
 }
 
+const getWorkflowInstanceDefinition = `-- name: GetWorkflowInstanceDefinition :one
+SELECT definition_id,started_definition_revision FROM wfl_definition_instances WHERE id=$1
+`
+
+type GetWorkflowInstanceDefinitionRow struct {
+	DefinitionID              string `db:"definition_id" json:"definition_id"`
+	StartedDefinitionRevision int64  `db:"started_definition_revision" json:"started_definition_revision"`
+}
+
+func (q *Queries) GetWorkflowInstanceDefinition(ctx context.Context, id string) (GetWorkflowInstanceDefinitionRow, error) {
+	row := q.db.QueryRow(ctx, getWorkflowInstanceDefinition, id)
+	var i GetWorkflowInstanceDefinitionRow
+	err := row.Scan(&i.DefinitionID, &i.StartedDefinitionRevision)
+	return i, err
+}
+
+const getWorkflowNodeDocumentEntity = `-- name: GetWorkflowNodeDocumentEntity :one
+SELECT document_entity FROM wfl_node_instances WHERE id=$1
+`
+
+func (q *Queries) GetWorkflowNodeDocumentEntity(ctx context.Context, id string) (string, error) {
+	row := q.db.QueryRow(ctx, getWorkflowNodeDocumentEntity, id)
+	var document_entity string
+	err := row.Scan(&document_entity)
+	return document_entity, err
+}
+
+const getWorkflowPublishedRevision = `-- name: GetWorkflowPublishedRevision :one
+SELECT definition_id,revision,script,compiled,published_at,published_by
+FROM wfl_definition_revisions WHERE definition_id=$1 AND revision=$2
+`
+
+type GetWorkflowPublishedRevisionParams struct {
+	DefinitionID string `db:"definition_id" json:"definition_id"`
+	Revision     int64  `db:"revision" json:"revision"`
+}
+
+func (q *Queries) GetWorkflowPublishedRevision(ctx context.Context, arg GetWorkflowPublishedRevisionParams) (WflDefinitionRevision, error) {
+	row := q.db.QueryRow(ctx, getWorkflowPublishedRevision, arg.DefinitionID, arg.Revision)
+	var i WflDefinitionRevision
+	err := row.Scan(
+		&i.DefinitionID,
+		&i.Revision,
+		&i.Script,
+		&i.Compiled,
+		&i.PublishedAt,
+		&i.PublishedBy,
+	)
+	return i, err
+}
+
+const listCompletedWorkflowActionTargets = `-- name: ListCompletedWorkflowActionTargets :many
+SELECT execution.source_node_instance_id,execution.target_node_key
+FROM wfl_action_executions execution
+JOIN wfl_node_instances node ON node.id=execution.target_node_instance_id AND node.document_id IS NOT NULL
+WHERE execution.process_id=$1
+`
+
+type ListCompletedWorkflowActionTargetsRow struct {
+	SourceNodeInstanceID string `db:"source_node_instance_id" json:"source_node_instance_id"`
+	TargetNodeKey        string `db:"target_node_key" json:"target_node_key"`
+}
+
+func (q *Queries) ListCompletedWorkflowActionTargets(ctx context.Context, processID string) ([]ListCompletedWorkflowActionTargetsRow, error) {
+	rows, err := q.db.Query(ctx, listCompletedWorkflowActionTargets, processID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCompletedWorkflowActionTargetsRow{}
+	for rows.Next() {
+		var i ListCompletedWorkflowActionTargetsRow
+		if err := rows.Scan(&i.SourceNodeInstanceID, &i.TargetNodeKey); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDefinitionInstances = `-- name: ListDefinitionInstances :many
-SELECT i.id AS process_id,
-       i.definition_id,
-       f.code AS definition_code,
-       f.name AS definition_name,
-       i.revision,
-       i.root_document_id,
-       d.document_no AS root_document_no,
-       d.entity AS root_entity,
-       COALESCE(party.party_code, '')::text AS party_code,
-       COALESCE(party.party_name, '')::text AS party_name,
-       i.updated_at
-FROM wfl_definition_instances i
-JOIN vou_documents d ON d.id = i.root_document_id
-JOIN wfl_process_definitions f ON f.id = i.definition_id
-LEFT JOIN LATERAL (
-  SELECT party_object_id, party_code, party_name
-  FROM (
-    SELECT customer_object_id AS party_object_id,
-           customer_code AS party_code,
-           customer_name AS party_name
-    FROM vou_sale_order_details WHERE document_id = d.id
-    UNION ALL SELECT customer_object_id, customer_code, customer_name
-      FROM vou_sale_outbound_details WHERE document_id = d.id
-    UNION ALL SELECT customer_object_id, customer_code, customer_name
-      FROM vou_sale_delivery_details WHERE document_id = d.id
-    UNION ALL SELECT customer_object_id, customer_code, customer_name
-      FROM vou_sale_signoff_details WHERE document_id = d.id
-    UNION ALL SELECT customer_object_id, customer_code, customer_name
-      FROM vou_sale_return_details WHERE document_id = d.id
-    UNION ALL SELECT supplier_object_id, supplier_code, supplier_name
-      FROM vou_purchase_inquiry_details WHERE document_id = d.id
-    UNION ALL SELECT supplier_object_id, supplier_code, supplier_name
-      FROM vou_purchase_order_details WHERE document_id = d.id
-    UNION ALL SELECT supplier_object_id, supplier_code, supplier_name
-      FROM vou_purchase_inbound_details WHERE document_id = d.id
-    UNION ALL SELECT supplier_object_id, supplier_code, supplier_name
-      FROM vou_purchase_return_details WHERE document_id = d.id
-    UNION ALL SELECT counterparty_object_id, counterparty_code, counterparty_name
-      FROM vou_receipt_details WHERE document_id = d.id
-    UNION ALL SELECT counterparty_object_id, counterparty_code, counterparty_name
-      FROM vou_payment_details WHERE document_id = d.id
-    UNION ALL SELECT employee_object_id, employee_code, employee_name
-      FROM vou_expense_reimbursement_details WHERE document_id = d.id
-    UNION ALL SELECT employee_object_id, employee_code, employee_name
-      FROM vou_expense_payment_details WHERE document_id = d.id
-    UNION ALL SELECT counterparty_object_id, COALESCE(counterparty_code, ''),
-      COALESCE(NULLIF(counterparty_name, ''), source_name)
-      FROM vou_other_income_details WHERE document_id = d.id
-  ) parties
-  LIMIT 1
-) party ON true
-WHERE (
-    $1::text = ''
-    OR party.party_code ILIKE '%' || $1::text || '%'
-    OR party.party_name ILIKE '%' || $1::text || '%'
-    OR EXISTS (
-      SELECT 1
-      FROM wfl_node_instances search_node
-      WHERE search_node.process_id = i.id
-        AND (
-          EXISTS (SELECT 1 FROM vou_product_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || $1::text || '%'
-                OR line.product_name ILIKE '%' || $1::text || '%'))
-          OR EXISTS (SELECT 1 FROM vou_sale_outbound_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || $1::text || '%'
-                OR line.product_name ILIKE '%' || $1::text || '%'))
-          OR EXISTS (SELECT 1 FROM vou_sale_signoff_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || $1::text || '%'
-                OR line.product_name ILIKE '%' || $1::text || '%'))
-          OR EXISTS (SELECT 1 FROM vou_sale_return_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || $1::text || '%'
-                OR line.product_name ILIKE '%' || $1::text || '%'))
-          OR EXISTS (SELECT 1 FROM vou_purchase_inbound_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || $1::text || '%'
-                OR line.product_name ILIKE '%' || $1::text || '%'))
-          OR EXISTS (SELECT 1 FROM vou_purchase_return_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || $1::text || '%'
-                OR line.product_name ILIKE '%' || $1::text || '%'))
-          OR EXISTS (SELECT 1 FROM vou_production_output_lines line
-            WHERE line.document_id = search_node.document_id
-              AND (line.product_code ILIKE '%' || $1::text || '%'
-                OR line.product_name ILIKE '%' || $1::text || '%'))
-          OR EXISTS (SELECT 1
-            FROM vou_production_material_lines material
-            JOIN vou_production_output_lines output ON output.id = material.output_line_id
-            WHERE output.document_id = search_node.document_id
-              AND (material.formula_material_code ILIKE '%' || $1::text || '%'
-                OR material.formula_material_name ILIKE '%' || $1::text || '%'
-                OR material.actual_material_code ILIKE '%' || $1::text || '%'
-                OR material.actual_material_name ILIKE '%' || $1::text || '%'))
-        )
-    )
-  )
-  AND ($2::text = '' OR i.definition_id = $2)
-  AND ($3::text = '' OR party.party_object_id = $3)
-ORDER BY i.updated_at DESC, i.id DESC
+SELECT instance.id process_id,instance.definition_id,instance.definition_code,instance.definition_name,
+       instance.revision,COALESCE(instance.root_document_id,'') root_document_id,instance.root_document_no,
+       instance.root_entity,COALESCE(instance.party_code,'') party_code,COALESCE(instance.party_name,'') party_name,instance.updated_at
+FROM wfl_definition_instances instance
+WHERE instance.root_deleted_at IS NULL
+  AND ($1::text = '' OR instance.definition_id=$1::text)
+  AND ($2::text = '' OR instance.party_object_id=$2::text)
+  AND ($3::text = '' OR instance.root_document_no ILIKE '%' || $3::text || '%'
+       OR EXISTS (SELECT 1 FROM wfl_node_instances node WHERE node.process_id=instance.id AND node.document_no ILIKE '%' || $3::text || '%'))
+ORDER BY instance.updated_at DESC,instance.id DESC
 LIMIT $5 OFFSET $4
 `
 
 type ListDefinitionInstancesParams struct {
-	Keyword       string `db:"keyword" json:"keyword"`
 	DefinitionID  string `db:"definition_id" json:"definition_id"`
 	PartyObjectID string `db:"party_object_id" json:"party_object_id"`
+	Keyword       string `db:"keyword" json:"keyword"`
 	PageOffset    int32  `db:"page_offset" json:"page_offset"`
 	PageSize      int32  `db:"page_size" json:"page_size"`
 }
@@ -442,9 +563,9 @@ type ListDefinitionInstancesRow struct {
 
 func (q *Queries) ListDefinitionInstances(ctx context.Context, arg ListDefinitionInstancesParams) ([]ListDefinitionInstancesRow, error) {
 	rows, err := q.db.Query(ctx, listDefinitionInstances,
-		arg.Keyword,
 		arg.DefinitionID,
 		arg.PartyObjectID,
+		arg.Keyword,
 		arg.PageOffset,
 		arg.PageSize,
 	)
@@ -478,49 +599,80 @@ func (q *Queries) ListDefinitionInstances(ctx context.Context, arg ListDefinitio
 	return items, nil
 }
 
+const listEnabledWorkflowDefinitionsForShare = `-- name: ListEnabledWorkflowDefinitionsForShare :many
+SELECT definition.id,definition.code,definition.name,revision.revision,revision.script
+FROM wfl_process_definitions definition
+JOIN wfl_definition_revisions revision ON revision.definition_id=definition.id AND revision.revision=definition.published_revision
+WHERE definition.status='ENABLED' ORDER BY definition.id FOR SHARE OF definition
+`
+
+type ListEnabledWorkflowDefinitionsForShareRow struct {
+	ID       string `db:"id" json:"id"`
+	Code     string `db:"code" json:"code"`
+	Name     string `db:"name" json:"name"`
+	Revision int64  `db:"revision" json:"revision"`
+	Script   string `db:"script" json:"script"`
+}
+
+func (q *Queries) ListEnabledWorkflowDefinitionsForShare(ctx context.Context) ([]ListEnabledWorkflowDefinitionsForShareRow, error) {
+	rows, err := q.db.Query(ctx, listEnabledWorkflowDefinitionsForShare)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListEnabledWorkflowDefinitionsForShareRow{}
+	for rows.Next() {
+		var i ListEnabledWorkflowDefinitionsForShareRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Code,
+			&i.Name,
+			&i.Revision,
+			&i.Script,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPurchaseOrderKgSummaries = `-- name: ListPurchaseOrderKgSummaries :many
 WITH ordered AS (
   SELECT line.document_id AS order_id,
-         COALESCE(sum(round(line.ordered_qty_micros::numeric
-           * line.pricing_quantity_per_inventory_unit_micros / 1000000)), 0)::bigint AS quantity_micros
+         COALESCE(sum(round(line.ordered_qty_micros::numeric * line.pricing_quantity_per_inventory_unit_micros / 1000000)),0)::bigint AS quantity_micros
   FROM vou_product_lines line
-  WHERE line.document_id = ANY($1::text[]) AND line.product_kind <> 'PACKAGING'
+  WHERE line.document_id=ANY($1::text[]) AND line.product_kind<>'PACKAGING'
   GROUP BY line.document_id
 ), inbound AS (
   SELECT detail.source_order_id AS order_id,
-         COALESCE(sum(round(line.quantity_micros::numeric
-           * source.pricing_quantity_per_inventory_unit_micros / 1000000)), 0)::bigint AS quantity_micros
+         COALESCE(sum(round(line.quantity_micros::numeric * source.pricing_quantity_per_inventory_unit_micros / 1000000)),0)::bigint AS quantity_micros
   FROM vou_purchase_inbound_details detail
-  JOIN vou_documents doc ON doc.id = detail.document_id AND doc.status = 'APPROVED'
-  JOIN vou_purchase_inbound_lines line ON line.document_id = detail.document_id
-  JOIN vou_product_lines source ON source.id = line.source_order_line_id AND source.product_kind <> 'PACKAGING'
-  WHERE detail.source_order_id = ANY($1::text[])
-  GROUP BY detail.source_order_id
+  JOIN vou_documents doc ON doc.id=detail.document_id AND doc.status='APPROVED'
+  JOIN vou_purchase_inbound_lines line ON line.document_id=detail.document_id
+  JOIN vou_product_lines source ON source.id=line.source_order_line_id AND source.product_kind<>'PACKAGING'
+  WHERE detail.source_order_id=ANY($1::text[]) GROUP BY detail.source_order_id
 ), returns AS (
   SELECT detail.source_order_id AS order_id,
-         COALESCE(sum(round(line.quantity_micros::numeric
-           * source.pricing_quantity_per_inventory_unit_micros / 1000000)) FILTER (WHERE doc.status <> 'APPROVED'), 0)::bigint AS processing_micros,
-         COALESCE(sum(round(line.quantity_micros::numeric
-           * source.pricing_quantity_per_inventory_unit_micros / 1000000)) FILTER (WHERE doc.status = 'APPROVED'), 0)::bigint AS approved_micros
-  FROM vou_purchase_return_details detail
-  JOIN vou_documents doc ON doc.id = detail.document_id
-  JOIN vou_purchase_return_lines line ON line.document_id = detail.document_id
-  JOIN vou_product_lines source ON source.id = line.source_order_line_id AND source.product_kind <> 'PACKAGING'
-  WHERE detail.source_order_id = ANY($1::text[])
-  GROUP BY detail.source_order_id
+         COALESCE(sum(round(line.quantity_micros::numeric * source.pricing_quantity_per_inventory_unit_micros / 1000000)) FILTER (WHERE doc.status<>'APPROVED'),0)::bigint AS processing_micros,
+         COALESCE(sum(round(line.quantity_micros::numeric * source.pricing_quantity_per_inventory_unit_micros / 1000000)) FILTER (WHERE doc.status='APPROVED'),0)::bigint AS approved_micros
+  FROM vou_purchase_return_details detail JOIN vou_documents doc ON doc.id=detail.document_id
+  JOIN vou_purchase_return_lines line ON line.document_id=detail.document_id
+  JOIN vou_product_lines source ON source.id=line.source_order_line_id AND source.product_kind<>'PACKAGING'
+  WHERE detail.source_order_id=ANY($1::text[]) GROUP BY detail.source_order_id
 )
 SELECT d.id AS order_id,
-       EXISTS (SELECT 1 FROM vou_product_lines line WHERE line.document_id = d.id AND line.product_kind = 'PACKAGING') AS excluded_packaging,
-       COALESCE(ordered.quantity_micros, 0)::bigint AS ordered_quantity_micros,
-       COALESCE(inbound.quantity_micros, 0)::bigint AS inbound_quantity_micros,
-       COALESCE(returns.processing_micros, 0)::bigint AS return_processing_quantity_micros,
-       GREATEST(COALESCE(inbound.quantity_micros, 0) - COALESCE(returns.approved_micros, 0), 0)::bigint AS net_inbound_quantity_micros
-FROM vou_documents d
-LEFT JOIN ordered ON ordered.order_id = d.id
-LEFT JOIN inbound ON inbound.order_id = d.id
-LEFT JOIN returns ON returns.order_id = d.id
-WHERE d.id = ANY($1::text[])
-ORDER BY d.id
+       EXISTS (SELECT 1 FROM vou_product_lines line WHERE line.document_id=d.id AND line.product_kind='PACKAGING') AS excluded_packaging,
+       COALESCE(ordered.quantity_micros,0)::bigint AS ordered_quantity_micros,
+       COALESCE(inbound.quantity_micros,0)::bigint AS inbound_quantity_micros,
+       COALESCE(returns.processing_micros,0)::bigint AS return_processing_quantity_micros,
+       GREATEST(COALESCE(inbound.quantity_micros,0)-COALESCE(returns.approved_micros,0),0)::bigint AS net_inbound_quantity_micros
+FROM vou_documents d LEFT JOIN ordered ON ordered.order_id=d.id
+LEFT JOIN inbound ON inbound.order_id=d.id LEFT JOIN returns ON returns.order_id=d.id
+WHERE d.id=ANY($1::text[]) ORDER BY d.id
 `
 
 type ListPurchaseOrderKgSummariesRow struct {
@@ -559,215 +711,98 @@ func (q *Queries) ListPurchaseOrderKgSummaries(ctx context.Context, orderIds []s
 	return items, nil
 }
 
-const listPurchaseWorkflowSummaries = `-- name: ListPurchaseWorkflowSummaries :many
-SELECT p.id AS process_id,
-       p.process_type,
-       p.status,
-       p.revision,
-       p.root_document_id,
-       d.document_no AS root_document_no,
-	   CASE
-		 WHEN p.status = 'APPROVED' THEN 'PURCHASE_INBOUND'
-		 ELSE 'PURCHASE_ORDER'
-       END AS current_stage,
-       d.business_date,
-       detail.supplier_name AS party_name,
-       COALESCE(d.currency, '')::text AS currency,
-       d.total_amount_cents,
-       p.updated_at
-FROM wfl_process_instances p
-JOIN vou_documents d ON d.id = p.root_document_id
-JOIN vou_purchase_order_details detail ON detail.document_id = p.root_document_id
-WHERE p.process_type = 'PURCHASE_FULFILLMENT'
-  AND ($1::text = '' OR d.document_no ILIKE '%' || $1::text || '%')
-  AND (COALESCE(cardinality($2::text[]), 0) = 0
-       OR p.status = ANY($2::text[]))
-ORDER BY p.updated_at DESC, p.id DESC
-LIMIT $4 OFFSET $3
-`
-
-type ListPurchaseWorkflowSummariesParams struct {
-	Keyword    string   `db:"keyword" json:"keyword"`
-	Statuses   []string `db:"statuses" json:"statuses"`
-	PageOffset int32    `db:"page_offset" json:"page_offset"`
-	PageSize   int32    `db:"page_size" json:"page_size"`
-}
-
-type ListPurchaseWorkflowSummariesRow struct {
-	ProcessID        string             `db:"process_id" json:"process_id"`
-	ProcessType      string             `db:"process_type" json:"process_type"`
-	Status           string             `db:"status" json:"status"`
-	Revision         int64              `db:"revision" json:"revision"`
-	RootDocumentID   string             `db:"root_document_id" json:"root_document_id"`
-	RootDocumentNo   string             `db:"root_document_no" json:"root_document_no"`
-	CurrentStage     string             `db:"current_stage" json:"current_stage"`
-	BusinessDate     pgtype.Date        `db:"business_date" json:"business_date"`
-	PartyName        string             `db:"party_name" json:"party_name"`
-	Currency         string             `db:"currency" json:"currency"`
-	TotalAmountCents int64              `db:"total_amount_cents" json:"total_amount_cents"`
-	UpdatedAt        pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
-func (q *Queries) ListPurchaseWorkflowSummaries(ctx context.Context, arg ListPurchaseWorkflowSummariesParams) ([]ListPurchaseWorkflowSummariesRow, error) {
-	rows, err := q.db.Query(ctx, listPurchaseWorkflowSummaries,
-		arg.Keyword,
-		arg.Statuses,
-		arg.PageOffset,
-		arg.PageSize,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListPurchaseWorkflowSummariesRow{}
-	for rows.Next() {
-		var i ListPurchaseWorkflowSummariesRow
-		if err := rows.Scan(
-			&i.ProcessID,
-			&i.ProcessType,
-			&i.Status,
-			&i.Revision,
-			&i.RootDocumentID,
-			&i.RootDocumentNo,
-			&i.CurrentStage,
-			&i.BusinessDate,
-			&i.PartyName,
-			&i.Currency,
-			&i.TotalAmountCents,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listSalesOrderKgSummaries = `-- name: ListSalesOrderKgSummaries :many
 WITH ordered AS (
   SELECT line.document_id AS order_id,
-         COALESCE(sum(round(line.ordered_qty_micros::numeric
-           * line.pricing_quantity_per_inventory_unit_micros / 1000000)), 0)::bigint AS quantity_micros
+         COALESCE(sum(round(line.ordered_qty_micros::numeric * line.pricing_quantity_per_inventory_unit_micros / 1000000)), 0)::bigint AS quantity_micros
   FROM vou_product_lines line
   WHERE line.document_id = ANY($1::text[]) AND line.product_kind <> 'PACKAGING'
   GROUP BY line.document_id
 ), active_orders AS (
-  SELECT d.id AS order_id, d.business_date, d.document_no,
-         detail.warehouse_object_id, false AS hypothetical
-  FROM wfl_process_instances process
-  JOIN vou_documents d ON d.id = process.root_document_id AND d.status = 'APPROVED'
-  JOIN vou_sale_order_details detail ON detail.document_id = d.id
-	WHERE process.process_type = 'SALES_FULFILLMENT'
-	  AND detail.fulfillment_status = 'OPEN'
-    AND detail.warehouse_object_id IS NOT NULL
-), target_orders AS (
-  SELECT d.id AS order_id, d.business_date, d.document_no,
-         detail.warehouse_object_id,
-         NOT EXISTS (SELECT 1 FROM active_orders active WHERE active.order_id = d.id) AS hypothetical
+  SELECT d.id AS order_id,d.business_date,d.document_no,detail.warehouse_object_id,false AS hypothetical
   FROM vou_documents d
-  JOIN vou_sale_order_details detail ON detail.document_id = d.id
-  WHERE d.id = ANY($1::text[])
-    AND detail.warehouse_object_id IS NOT NULL
+  JOIN vou_sale_order_details detail ON detail.document_id=d.id
+  WHERE d.status='APPROVED' AND detail.fulfillment_status='OPEN' AND detail.warehouse_object_id IS NOT NULL
+), target_orders AS (
+  SELECT d.id AS order_id,d.business_date,d.document_no,detail.warehouse_object_id,
+         NOT EXISTS (SELECT 1 FROM active_orders active WHERE active.order_id=d.id) AS hypothetical
+  FROM vou_documents d JOIN vou_sale_order_details detail ON detail.document_id=d.id
+  WHERE d.id=ANY($1::text[]) AND detail.warehouse_object_id IS NOT NULL
 ), demand_orders AS (
   SELECT order_id, business_date, document_no, warehouse_object_id, hypothetical FROM active_orders
-  UNION ALL
-  SELECT target.order_id, target.business_date, target.document_no, target.warehouse_object_id, target.hypothetical FROM target_orders target
-  WHERE NOT EXISTS (SELECT 1 FROM active_orders active WHERE active.order_id = target.order_id)
+  UNION ALL SELECT target.order_id, target.business_date, target.document_no, target.warehouse_object_id, target.hypothetical FROM target_orders target
+  WHERE NOT EXISTS (SELECT 1 FROM active_orders active WHERE active.order_id=target.order_id)
 ), approved_outbound AS (
-  SELECT line.source_order_line_id, sum(line.quantity_micros)::bigint AS quantity_micros
-  FROM vou_sale_outbound_lines line
-  JOIN vou_documents doc ON doc.id = line.document_id AND doc.status = 'APPROVED'
+  SELECT line.source_order_line_id,sum(line.quantity_micros)::bigint AS quantity_micros
+  FROM vou_sale_outbound_lines line JOIN vou_documents doc ON doc.id=line.document_id AND doc.status='APPROVED'
   GROUP BY line.source_order_line_id
 ), demand_lines AS (
-  SELECT orders.order_id, orders.business_date, orders.document_no,
-         orders.warehouse_object_id, orders.hypothetical,
-         line.id AS order_line_id, line.line_no, line.product_object_id,
+  SELECT orders.order_id,orders.business_date,orders.document_no,orders.warehouse_object_id,orders.hypothetical,
+         line.id AS order_line_id,line.line_no,line.product_object_id,
          line.pricing_quantity_per_inventory_unit_micros AS conversion_micros,
-         GREATEST(line.ordered_qty_micros - COALESCE(outbound.quantity_micros, 0), 0)::bigint AS demand_micros
+         GREATEST(line.ordered_qty_micros-COALESCE(outbound.quantity_micros,0),0)::bigint AS demand_micros
   FROM demand_orders orders
-  JOIN vou_product_lines line ON line.document_id = orders.order_id AND line.product_kind <> 'PACKAGING'
-  LEFT JOIN approved_outbound outbound ON outbound.source_order_line_id = line.id
+  JOIN vou_product_lines line ON line.document_id=orders.order_id AND line.product_kind<>'PACKAGING'
+  LEFT JOIN approved_outbound outbound ON outbound.source_order_line_id=line.id
 ), inventory AS (
-  SELECT entry.warehouse_id AS warehouse_object_id, entry.product_id AS product_object_id,
+  SELECT entry.warehouse_id AS warehouse_object_id,entry.product_id AS product_object_id,
          sum(entry.quantity_delta_micros)::bigint AS balance_micros
-  FROM acc_inventory_entries entry
-  JOIN acc_books book ON book.id=entry.book_id AND book.control_book
-  GROUP BY entry.warehouse_id, entry.product_id
+  FROM acc_inventory_entries entry JOIN acc_books book ON book.id=entry.book_id AND book.control_book
+  GROUP BY entry.warehouse_id,entry.product_id
 ), allocated AS (
-  SELECT demand.order_id, demand.business_date, demand.document_no, demand.warehouse_object_id, demand.hypothetical, demand.order_line_id, demand.line_no, demand.product_object_id, demand.conversion_micros, demand.demand_micros,
-         COALESCE(inventory.balance_micros, 0)::bigint AS balance_micros,
+  SELECT demand.order_id, demand.business_date, demand.document_no, demand.warehouse_object_id, demand.hypothetical, demand.order_line_id, demand.line_no, demand.product_object_id, demand.conversion_micros, demand.demand_micros,COALESCE(inventory.balance_micros,0)::bigint AS balance_micros,
          COALESCE(sum(demand.demand_micros) OVER (
-           PARTITION BY demand.warehouse_object_id, demand.product_object_id
-           ORDER BY demand.hypothetical, demand.business_date, demand.document_no, demand.order_id, demand.line_no
+           PARTITION BY demand.warehouse_object_id,demand.product_object_id
+           ORDER BY demand.hypothetical,demand.business_date,demand.document_no,demand.order_id,demand.line_no
            ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-         ), 0)::bigint AS prior_demand_micros
-  FROM demand_lines demand
-  LEFT JOIN inventory USING (warehouse_object_id, product_object_id)
+         ),0)::bigint AS prior_demand_micros
+  FROM demand_lines demand LEFT JOIN inventory USING (warehouse_object_id,product_object_id)
 ), shortage AS (
-  SELECT order_id,
-         COALESCE(sum(round(
-           GREATEST(demand_micros - GREATEST(balance_micros - prior_demand_micros, 0), 0)::numeric
-           * conversion_micros / 1000000
-         )), 0)::bigint AS shortage_quantity_micros
-  FROM allocated
-  WHERE order_id = ANY($1::text[])
-  GROUP BY order_id
+  SELECT order_id,COALESCE(sum(round(
+    GREATEST(demand_micros-GREATEST(balance_micros-prior_demand_micros,0),0)::numeric * conversion_micros / 1000000
+  )),0)::bigint AS shortage_quantity_micros
+  FROM allocated WHERE order_id=ANY($1::text[]) GROUP BY order_id
 ), outbound AS (
   SELECT detail.source_order_id AS order_id,
-         COALESCE(sum(round(line.quantity_micros::numeric
-           * source.pricing_quantity_per_inventory_unit_micros / 1000000)), 0)::bigint AS quantity_micros
+         COALESCE(sum(round(line.quantity_micros::numeric * source.pricing_quantity_per_inventory_unit_micros / 1000000)),0)::bigint AS quantity_micros
   FROM vou_sale_outbound_details detail
-  JOIN vou_documents doc ON doc.id = detail.document_id AND doc.status = 'APPROVED'
-  JOIN vou_sale_outbound_lines line ON line.document_id = detail.document_id
-  JOIN vou_product_lines source ON source.id = line.source_order_line_id AND source.product_kind <> 'PACKAGING'
-  WHERE detail.source_order_id = ANY($1::text[])
-  GROUP BY detail.source_order_id
+  JOIN vou_documents doc ON doc.id=detail.document_id AND doc.status='APPROVED'
+  JOIN vou_sale_outbound_lines line ON line.document_id=detail.document_id
+  JOIN vou_product_lines source ON source.id=line.source_order_line_id AND source.product_kind<>'PACKAGING'
+  WHERE detail.source_order_id=ANY($1::text[]) GROUP BY detail.source_order_id
 ), signoff AS (
   SELECT detail.source_order_id AS order_id,
-         COALESCE(sum(round(line.signed_qty_micros::numeric
-           * source.pricing_quantity_per_inventory_unit_micros / 1000000)), 0)::bigint AS signed_micros,
-         COALESCE(sum(round((line.signed_qty_micros + line.rejected_qty_micros + line.loss_qty_micros)::numeric
-           * source.pricing_quantity_per_inventory_unit_micros / 1000000)), 0)::bigint AS resolved_micros
+         COALESCE(sum(round(line.signed_qty_micros::numeric * source.pricing_quantity_per_inventory_unit_micros / 1000000)),0)::bigint AS signed_micros,
+         COALESCE(sum(round((line.signed_qty_micros+line.rejected_qty_micros+line.loss_qty_micros)::numeric * source.pricing_quantity_per_inventory_unit_micros / 1000000)),0)::bigint AS resolved_micros
   FROM vou_sale_signoff_details detail
-  JOIN vou_documents doc ON doc.id = detail.document_id AND doc.status = 'APPROVED'
-  JOIN vou_sale_signoff_lines line ON line.document_id = detail.document_id
-  JOIN vou_product_lines source ON source.id = line.source_order_line_id AND source.product_kind <> 'PACKAGING'
-  WHERE detail.source_order_id = ANY($1::text[])
-  GROUP BY detail.source_order_id
+  JOIN vou_documents doc ON doc.id=detail.document_id AND doc.status='APPROVED'
+  JOIN vou_sale_signoff_lines line ON line.document_id=detail.document_id
+  JOIN vou_product_lines source ON source.id=line.source_order_line_id AND source.product_kind<>'PACKAGING'
+  WHERE detail.source_order_id=ANY($1::text[]) GROUP BY detail.source_order_id
 ), returns AS (
   SELECT detail.source_order_id AS order_id,
-         COALESCE(sum(round(line.quantity_micros::numeric
-           * source.pricing_quantity_per_inventory_unit_micros / 1000000)), 0)::bigint AS quantity_micros
+         COALESCE(sum(round(line.quantity_micros::numeric * source.pricing_quantity_per_inventory_unit_micros / 1000000)),0)::bigint AS quantity_micros
   FROM vou_sale_return_details detail
-  JOIN vou_documents doc ON doc.id = detail.document_id AND doc.status = 'APPROVED'
-  JOIN vou_sale_return_lines line ON line.document_id = detail.document_id
-  JOIN vou_sale_signoff_lines signoff_line ON signoff_line.id = line.source_signoff_line_id
-  JOIN vou_product_lines source ON source.id = signoff_line.source_order_line_id AND source.product_kind <> 'PACKAGING'
-  WHERE detail.source_order_id = ANY($1::text[])
-    AND detail.return_kind = 'AFTER_SALE'
+  JOIN vou_documents doc ON doc.id=detail.document_id AND doc.status='APPROVED'
+  JOIN vou_sale_return_lines line ON line.document_id=detail.document_id
+  JOIN vou_sale_signoff_lines signoff_line ON signoff_line.id=line.source_signoff_line_id
+  JOIN vou_product_lines source ON source.id=signoff_line.source_order_line_id AND source.product_kind<>'PACKAGING'
+  WHERE detail.source_order_id=ANY($1::text[]) AND detail.return_kind='AFTER_SALE'
   GROUP BY detail.source_order_id
 )
-SELECT d.id AS order_id,
-       (detail.warehouse_object_id IS NOT NULL)::boolean AS warehouse_available,
-       EXISTS (SELECT 1 FROM vou_product_lines line WHERE line.document_id = d.id AND line.product_kind = 'PACKAGING') AS excluded_packaging,
-       COALESCE(shortage.shortage_quantity_micros, 0)::bigint AS shortage_quantity_micros,
-       COALESCE(ordered.quantity_micros, 0)::bigint AS ordered_quantity_micros,
-       COALESCE(outbound.quantity_micros, 0)::bigint AS outbound_quantity_micros,
-       GREATEST(COALESCE(outbound.quantity_micros, 0) - COALESCE(signoff.resolved_micros, 0), 0)::bigint AS in_transit_quantity_micros,
-       COALESCE(signoff.signed_micros, 0)::bigint AS signed_quantity_micros,
-       GREATEST(COALESCE(signoff.signed_micros, 0) - COALESCE(returns.quantity_micros, 0), 0)::bigint AS net_signed_quantity_micros
-FROM vou_documents d
-JOIN vou_sale_order_details detail ON detail.document_id = d.id
-LEFT JOIN ordered ON ordered.order_id = d.id
-LEFT JOIN shortage ON shortage.order_id = d.id
-LEFT JOIN outbound ON outbound.order_id = d.id
-LEFT JOIN signoff ON signoff.order_id = d.id
-LEFT JOIN returns ON returns.order_id = d.id
-WHERE d.id = ANY($1::text[])
-ORDER BY d.id
+SELECT d.id AS order_id,(detail.warehouse_object_id IS NOT NULL)::boolean AS warehouse_available,
+       EXISTS (SELECT 1 FROM vou_product_lines line WHERE line.document_id=d.id AND line.product_kind='PACKAGING') AS excluded_packaging,
+       COALESCE(shortage.shortage_quantity_micros,0)::bigint AS shortage_quantity_micros,
+       COALESCE(ordered.quantity_micros,0)::bigint AS ordered_quantity_micros,
+       COALESCE(outbound.quantity_micros,0)::bigint AS outbound_quantity_micros,
+       GREATEST(COALESCE(outbound.quantity_micros,0)-COALESCE(signoff.resolved_micros,0),0)::bigint AS in_transit_quantity_micros,
+       COALESCE(signoff.signed_micros,0)::bigint AS signed_quantity_micros,
+       GREATEST(COALESCE(signoff.signed_micros,0)-COALESCE(returns.quantity_micros,0),0)::bigint AS net_signed_quantity_micros
+FROM vou_documents d JOIN vou_sale_order_details detail ON detail.document_id=d.id
+LEFT JOIN ordered ON ordered.order_id=d.id LEFT JOIN shortage ON shortage.order_id=d.id
+LEFT JOIN outbound ON outbound.order_id=d.id LEFT JOIN signoff ON signoff.order_id=d.id
+LEFT JOIN returns ON returns.order_id=d.id
+WHERE d.id=ANY($1::text[]) ORDER BY d.id
 `
 
 type ListSalesOrderKgSummariesRow struct {
@@ -782,6 +817,8 @@ type ListSalesOrderKgSummariesRow struct {
 	NetSignedQuantityMicros int64  `db:"net_signed_quantity_micros" json:"net_signed_quantity_micros"`
 }
 
+// These order summaries are VOU read models kept here because they are shared
+// by the workflow-facing order list and the ordinary voucher list.
 func (q *Queries) ListSalesOrderKgSummaries(ctx context.Context, orderIds []string) ([]ListSalesOrderKgSummariesRow, error) {
 	rows, err := q.db.Query(ctx, listSalesOrderKgSummaries, orderIds)
 	if err != nil {
@@ -812,283 +849,12 @@ func (q *Queries) ListSalesOrderKgSummaries(ctx context.Context, orderIds []stri
 	return items, nil
 }
 
-const listSalesWorkflowSummaries = `-- name: ListSalesWorkflowSummaries :many
-SELECT p.id AS process_id,
-       p.process_type,
-       p.status,
-       p.revision,
-       p.root_document_id,
-       d.document_no AS root_document_no,
-		 COALESCE((
-           SELECT x.stage
-           FROM wfl_process_documents x
-           JOIN vou_documents child ON child.id = x.document_id
-           WHERE x.process_id = p.id AND child.status <> 'APPROVED'
-           ORDER BY CASE x.stage
-             WHEN 'SALE_ORDER' THEN 1 WHEN 'PRODUCTION' THEN 2
-             WHEN 'OUTBOUND' THEN 3 WHEN 'DELIVERY' THEN 4
-             WHEN 'SIGNOFF' THEN 5 ELSE 6 END DESC,
-             x.sequence_no DESC
-           LIMIT 1
-		 ), 'SALE_ORDER')::text AS current_stage,
-       d.business_date,
-       detail.customer_name AS party_name,
-       COALESCE(d.currency, '')::text AS currency,
-       d.total_amount_cents,
-       p.updated_at
-FROM wfl_process_instances p
-JOIN vou_documents d ON d.id = p.root_document_id
-JOIN vou_sale_order_details detail ON detail.document_id = p.root_document_id
-WHERE p.process_type = 'SALES_FULFILLMENT'
-  AND ($1::text = '' OR d.document_no ILIKE '%' || $1::text || '%')
-  AND (COALESCE(cardinality($2::text[]), 0) = 0
-       OR p.status = ANY($2::text[]))
-ORDER BY p.updated_at DESC, p.id DESC
-LIMIT $4 OFFSET $3
-`
-
-type ListSalesWorkflowSummariesParams struct {
-	Keyword    string   `db:"keyword" json:"keyword"`
-	Statuses   []string `db:"statuses" json:"statuses"`
-	PageOffset int32    `db:"page_offset" json:"page_offset"`
-	PageSize   int32    `db:"page_size" json:"page_size"`
-}
-
-type ListSalesWorkflowSummariesRow struct {
-	ProcessID        string             `db:"process_id" json:"process_id"`
-	ProcessType      string             `db:"process_type" json:"process_type"`
-	Status           string             `db:"status" json:"status"`
-	Revision         int64              `db:"revision" json:"revision"`
-	RootDocumentID   string             `db:"root_document_id" json:"root_document_id"`
-	RootDocumentNo   string             `db:"root_document_no" json:"root_document_no"`
-	CurrentStage     string             `db:"current_stage" json:"current_stage"`
-	BusinessDate     pgtype.Date        `db:"business_date" json:"business_date"`
-	PartyName        string             `db:"party_name" json:"party_name"`
-	Currency         string             `db:"currency" json:"currency"`
-	TotalAmountCents int64              `db:"total_amount_cents" json:"total_amount_cents"`
-	UpdatedAt        pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
-func (q *Queries) ListSalesWorkflowSummaries(ctx context.Context, arg ListSalesWorkflowSummariesParams) ([]ListSalesWorkflowSummariesRow, error) {
-	rows, err := q.db.Query(ctx, listSalesWorkflowSummaries,
-		arg.Keyword,
-		arg.Statuses,
-		arg.PageOffset,
-		arg.PageSize,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListSalesWorkflowSummariesRow{}
-	for rows.Next() {
-		var i ListSalesWorkflowSummariesRow
-		if err := rows.Scan(
-			&i.ProcessID,
-			&i.ProcessType,
-			&i.Status,
-			&i.Revision,
-			&i.RootDocumentID,
-			&i.RootDocumentNo,
-			&i.CurrentStage,
-			&i.BusinessDate,
-			&i.PartyName,
-			&i.Currency,
-			&i.TotalAmountCents,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listWorkflowDefinitionEdgeIdentities = `-- name: ListWorkflowDefinitionEdgeIdentities :many
-SELECT edge.id,
-       source.node_key AS source_node_key,
-       target.node_key AS target_node_key,
-       edge.converter_key
-FROM wfl_definition_edges edge
-JOIN wfl_definition_nodes source ON source.id = edge.source_node_id
-JOIN wfl_definition_nodes target ON target.id = edge.target_node_id
-WHERE edge.definition_id = $1
-ORDER BY edge.archived, edge.created_at, edge.id
-`
-
-type ListWorkflowDefinitionEdgeIdentitiesRow struct {
-	ID            string `db:"id" json:"id"`
-	SourceNodeKey string `db:"source_node_key" json:"source_node_key"`
-	TargetNodeKey string `db:"target_node_key" json:"target_node_key"`
-	ConverterKey  string `db:"converter_key" json:"converter_key"`
-}
-
-func (q *Queries) ListWorkflowDefinitionEdgeIdentities(ctx context.Context, definitionID string) ([]ListWorkflowDefinitionEdgeIdentitiesRow, error) {
-	rows, err := q.db.Query(ctx, listWorkflowDefinitionEdgeIdentities, definitionID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListWorkflowDefinitionEdgeIdentitiesRow{}
-	for rows.Next() {
-		var i ListWorkflowDefinitionEdgeIdentitiesRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.SourceNodeKey,
-			&i.TargetNodeKey,
-			&i.ConverterKey,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listWorkflowDefinitionEdges = `-- name: ListWorkflowDefinitionEdges :many
-SELECT id, source_node_id, target_node_id, converter_key, condition
-FROM wfl_definition_edges
-WHERE definition_id = $1 AND NOT archived
-ORDER BY created_at, id
-`
-
-type ListWorkflowDefinitionEdgesRow struct {
-	ID           string `db:"id" json:"id"`
-	SourceNodeID string `db:"source_node_id" json:"source_node_id"`
-	TargetNodeID string `db:"target_node_id" json:"target_node_id"`
-	ConverterKey string `db:"converter_key" json:"converter_key"`
-	Condition    []byte `db:"condition" json:"condition"`
-}
-
-func (q *Queries) ListWorkflowDefinitionEdges(ctx context.Context, definitionID string) ([]ListWorkflowDefinitionEdgesRow, error) {
-	rows, err := q.db.Query(ctx, listWorkflowDefinitionEdges, definitionID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListWorkflowDefinitionEdgesRow{}
-	for rows.Next() {
-		var i ListWorkflowDefinitionEdgesRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.SourceNodeID,
-			&i.TargetNodeID,
-			&i.ConverterKey,
-			&i.Condition,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listWorkflowDefinitionNodeIdentities = `-- name: ListWorkflowDefinitionNodeIdentities :many
-SELECT id, node_key
-FROM wfl_definition_nodes
-WHERE definition_id = $1
-ORDER BY archived, created_at, id
-`
-
-type ListWorkflowDefinitionNodeIdentitiesRow struct {
-	ID      string `db:"id" json:"id"`
-	NodeKey string `db:"node_key" json:"node_key"`
-}
-
-func (q *Queries) ListWorkflowDefinitionNodeIdentities(ctx context.Context, definitionID string) ([]ListWorkflowDefinitionNodeIdentitiesRow, error) {
-	rows, err := q.db.Query(ctx, listWorkflowDefinitionNodeIdentities, definitionID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListWorkflowDefinitionNodeIdentitiesRow{}
-	for rows.Next() {
-		var i ListWorkflowDefinitionNodeIdentitiesRow
-		if err := rows.Scan(&i.ID, &i.NodeKey); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listWorkflowDefinitionNodes = `-- name: ListWorkflowDefinitionNodes :many
-SELECT id, node_key, name, document_entity, position_x, position_y, defaults
-FROM wfl_definition_nodes
-WHERE definition_id = $1 AND NOT archived
-ORDER BY created_at, id
-`
-
-type ListWorkflowDefinitionNodesRow struct {
-	ID             string `db:"id" json:"id"`
-	NodeKey        string `db:"node_key" json:"node_key"`
-	Name           string `db:"name" json:"name"`
-	DocumentEntity string `db:"document_entity" json:"document_entity"`
-	PositionX      int32  `db:"position_x" json:"position_x"`
-	PositionY      int32  `db:"position_y" json:"position_y"`
-	Defaults       []byte `db:"defaults" json:"defaults"`
-}
-
-func (q *Queries) ListWorkflowDefinitionNodes(ctx context.Context, definitionID string) ([]ListWorkflowDefinitionNodesRow, error) {
-	rows, err := q.db.Query(ctx, listWorkflowDefinitionNodes, definitionID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListWorkflowDefinitionNodesRow{}
-	for rows.Next() {
-		var i ListWorkflowDefinitionNodesRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.NodeKey,
-			&i.Name,
-			&i.DocumentEntity,
-			&i.PositionX,
-			&i.PositionY,
-			&i.Defaults,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listWorkflowDefinitions = `-- name: ListWorkflowDefinitions :many
-SELECT d.id,
-       d.code,
-       d.name,
-       d.status,
-       d.revision,
-       d.source_kind,
-       n.document_entity,
-       (SELECT count(*)
-        FROM wfl_definition_nodes child
-        WHERE child.definition_id = d.id AND NOT child.archived)::bigint AS node_count,
-       d.updated_at
-FROM wfl_process_definitions d
-JOIN wfl_definition_nodes n ON n.id = d.root_node_id
-WHERE ($1::text = ''
-       OR d.code ILIKE '%' || $1::text || '%'
-       OR d.name ILIKE '%' || $1::text || '%')
-  AND (COALESCE(cardinality($2::text[]), 0) = 0
-       OR d.status = ANY($2::text[]))
-ORDER BY d.updated_at DESC, d.id DESC
+SELECT id,code,name,status,revision,published_revision,draft_compiled,updated_at
+FROM wfl_process_definitions
+WHERE ($1::text = '' OR code ILIKE '%' || $1::text || '%' OR name ILIKE '%' || $1::text || '%')
+  AND (COALESCE(cardinality($2::text[]), 0) = 0 OR status = ANY($2::text[]))
+ORDER BY updated_at DESC,id DESC
 LIMIT $4 OFFSET $3
 `
 
@@ -1100,15 +866,14 @@ type ListWorkflowDefinitionsParams struct {
 }
 
 type ListWorkflowDefinitionsRow struct {
-	ID             string             `db:"id" json:"id"`
-	Code           string             `db:"code" json:"code"`
-	Name           string             `db:"name" json:"name"`
-	Status         string             `db:"status" json:"status"`
-	Revision       int64              `db:"revision" json:"revision"`
-	SourceKind     string             `db:"source_kind" json:"source_kind"`
-	DocumentEntity string             `db:"document_entity" json:"document_entity"`
-	NodeCount      int64              `db:"node_count" json:"node_count"`
-	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ID                string             `db:"id" json:"id"`
+	Code              string             `db:"code" json:"code"`
+	Name              string             `db:"name" json:"name"`
+	Status            string             `db:"status" json:"status"`
+	Revision          int64              `db:"revision" json:"revision"`
+	PublishedRevision *int64             `db:"published_revision" json:"published_revision"`
+	DraftCompiled     []byte             `db:"draft_compiled" json:"draft_compiled"`
+	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 func (q *Queries) ListWorkflowDefinitions(ctx context.Context, arg ListWorkflowDefinitionsParams) ([]ListWorkflowDefinitionsRow, error) {
@@ -1131,9 +896,8 @@ func (q *Queries) ListWorkflowDefinitions(ctx context.Context, arg ListWorkflowD
 			&i.Name,
 			&i.Status,
 			&i.Revision,
-			&i.SourceKind,
-			&i.DocumentEntity,
-			&i.NodeCount,
+			&i.PublishedRevision,
+			&i.DraftCompiled,
 			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
@@ -1146,116 +910,661 @@ func (q *Queries) ListWorkflowDefinitions(ctx context.Context, arg ListWorkflowD
 	return items, nil
 }
 
-const lockWorkflowDefinitionDraft = `-- name: LockWorkflowDefinitionDraft :one
-SELECT revision, status, code, source_kind, root_node_id
-FROM wfl_process_definitions
-WHERE id = $1
-FOR UPDATE
+const listWorkflowInstanceNodes = `-- name: ListWorkflowInstanceNodes :many
+SELECT node.id,node.parent_node_instance_id,node.node_key,node.node_name,
+       COALESCE(node.document_id,'') document_id,node.document_no,node.document_entity,COALESCE(document.status,'') document_status,
+       COALESCE(document.revision,0) document_revision,COALESCE(to_char(document.business_date,'YYYY-MM-DD'),'')::text business_date,
+       COALESCE(node.business_parent_entity,'') business_parent_entity,COALESCE(node.business_parent_document_id,'') business_parent_document_id,
+       COALESCE(node.relation_name,'') relation_name,node.trigger_event,COALESCE(node.action_name,'') action_name,node.evaluated_at
+FROM wfl_node_instances node LEFT JOIN vou_documents document ON document.id=node.document_id
+WHERE node.process_id=$1 ORDER BY node.created_at,node.id
 `
 
-type LockWorkflowDefinitionDraftRow struct {
-	Revision   int64  `db:"revision" json:"revision"`
-	Status     string `db:"status" json:"status"`
-	Code       string `db:"code" json:"code"`
-	SourceKind string `db:"source_kind" json:"source_kind"`
-	RootNodeID string `db:"root_node_id" json:"root_node_id"`
+type ListWorkflowInstanceNodesRow struct {
+	ID                       string             `db:"id" json:"id"`
+	ParentNodeInstanceID     *string            `db:"parent_node_instance_id" json:"parent_node_instance_id"`
+	NodeKey                  string             `db:"node_key" json:"node_key"`
+	NodeName                 string             `db:"node_name" json:"node_name"`
+	DocumentID               string             `db:"document_id" json:"document_id"`
+	DocumentNo               string             `db:"document_no" json:"document_no"`
+	DocumentEntity           string             `db:"document_entity" json:"document_entity"`
+	DocumentStatus           string             `db:"document_status" json:"document_status"`
+	DocumentRevision         int64              `db:"document_revision" json:"document_revision"`
+	BusinessDate             string             `db:"business_date" json:"business_date"`
+	BusinessParentEntity     string             `db:"business_parent_entity" json:"business_parent_entity"`
+	BusinessParentDocumentID string             `db:"business_parent_document_id" json:"business_parent_document_id"`
+	RelationName             string             `db:"relation_name" json:"relation_name"`
+	TriggerEvent             string             `db:"trigger_event" json:"trigger_event"`
+	ActionName               string             `db:"action_name" json:"action_name"`
+	EvaluatedAt              pgtype.Timestamptz `db:"evaluated_at" json:"evaluated_at"`
 }
 
-func (q *Queries) LockWorkflowDefinitionDraft(ctx context.Context, id string) (LockWorkflowDefinitionDraftRow, error) {
-	row := q.db.QueryRow(ctx, lockWorkflowDefinitionDraft, id)
-	var i LockWorkflowDefinitionDraftRow
+func (q *Queries) ListWorkflowInstanceNodes(ctx context.Context, processID string) ([]ListWorkflowInstanceNodesRow, error) {
+	rows, err := q.db.Query(ctx, listWorkflowInstanceNodes, processID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkflowInstanceNodesRow{}
+	for rows.Next() {
+		var i ListWorkflowInstanceNodesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParentNodeInstanceID,
+			&i.NodeKey,
+			&i.NodeName,
+			&i.DocumentID,
+			&i.DocumentNo,
+			&i.DocumentEntity,
+			&i.DocumentStatus,
+			&i.DocumentRevision,
+			&i.BusinessDate,
+			&i.BusinessParentEntity,
+			&i.BusinessParentDocumentID,
+			&i.RelationName,
+			&i.TriggerEvent,
+			&i.ActionName,
+			&i.EvaluatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkflowRuntimeAudits = `-- name: ListWorkflowRuntimeAudits :many
+SELECT id,event_type,node_instance_id,document_id,document_no,actor_id,request_id,summary,occurred_at
+FROM wfl_runtime_audit_events WHERE process_id=$1
+ORDER BY occurred_at DESC,id DESC LIMIT $3 OFFSET $2
+`
+
+type ListWorkflowRuntimeAuditsParams struct {
+	ProcessID  *string `db:"process_id" json:"process_id"`
+	PageOffset int32   `db:"page_offset" json:"page_offset"`
+	PageSize   int32   `db:"page_size" json:"page_size"`
+}
+
+type ListWorkflowRuntimeAuditsRow struct {
+	ID             string             `db:"id" json:"id"`
+	EventType      string             `db:"event_type" json:"event_type"`
+	NodeInstanceID *string            `db:"node_instance_id" json:"node_instance_id"`
+	DocumentID     *string            `db:"document_id" json:"document_id"`
+	DocumentNo     *string            `db:"document_no" json:"document_no"`
+	ActorID        string             `db:"actor_id" json:"actor_id"`
+	RequestID      string             `db:"request_id" json:"request_id"`
+	Summary        []byte             `db:"summary" json:"summary"`
+	OccurredAt     pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
+}
+
+func (q *Queries) ListWorkflowRuntimeAudits(ctx context.Context, arg ListWorkflowRuntimeAuditsParams) ([]ListWorkflowRuntimeAuditsRow, error) {
+	rows, err := q.db.Query(ctx, listWorkflowRuntimeAudits, arg.ProcessID, arg.PageOffset, arg.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkflowRuntimeAuditsRow{}
+	for rows.Next() {
+		var i ListWorkflowRuntimeAuditsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.EventType,
+			&i.NodeInstanceID,
+			&i.DocumentID,
+			&i.DocumentNo,
+			&i.ActorID,
+			&i.RequestID,
+			&i.Summary,
+			&i.OccurredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockWorkflowActionExecution = `-- name: LockWorkflowActionExecution :one
+SELECT execution.id,execution.target_node_instance_id,node.document_id,execution.action_fingerprint
+FROM wfl_action_executions execution LEFT JOIN wfl_node_instances node ON node.id=execution.target_node_instance_id
+WHERE execution.process_id=$1
+  AND execution.source_node_instance_id=$2
+  AND execution.target_node_key=$3
+  AND execution.relation_name=$4
+FOR UPDATE OF execution
+`
+
+type LockWorkflowActionExecutionParams struct {
+	ProcessID            string `db:"process_id" json:"process_id"`
+	SourceNodeInstanceID string `db:"source_node_instance_id" json:"source_node_instance_id"`
+	TargetNodeKey        string `db:"target_node_key" json:"target_node_key"`
+	RelationName         string `db:"relation_name" json:"relation_name"`
+}
+
+type LockWorkflowActionExecutionRow struct {
+	ID                   string  `db:"id" json:"id"`
+	TargetNodeInstanceID *string `db:"target_node_instance_id" json:"target_node_instance_id"`
+	DocumentID           *string `db:"document_id" json:"document_id"`
+	ActionFingerprint    string  `db:"action_fingerprint" json:"action_fingerprint"`
+}
+
+func (q *Queries) LockWorkflowActionExecution(ctx context.Context, arg LockWorkflowActionExecutionParams) (LockWorkflowActionExecutionRow, error) {
+	row := q.db.QueryRow(ctx, lockWorkflowActionExecution,
+		arg.ProcessID,
+		arg.SourceNodeInstanceID,
+		arg.TargetNodeKey,
+		arg.RelationName,
+	)
+	var i LockWorkflowActionExecutionRow
 	err := row.Scan(
-		&i.Revision,
-		&i.Status,
-		&i.Code,
-		&i.SourceKind,
-		&i.RootNodeID,
+		&i.ID,
+		&i.TargetNodeInstanceID,
+		&i.DocumentID,
+		&i.ActionFingerprint,
 	)
 	return i, err
 }
 
+const lockWorkflowCreateChildRequest = `-- name: LockWorkflowCreateChildRequest :one
+SELECT process_id,parent_node_instance_id,target_node_key,action_execution_id
+FROM wfl_create_child_requests WHERE definition_id=$1 AND request_key=$2 FOR UPDATE
+`
+
+type LockWorkflowCreateChildRequestParams struct {
+	DefinitionID string `db:"definition_id" json:"definition_id"`
+	RequestKey   string `db:"request_key" json:"request_key"`
+}
+
+type LockWorkflowCreateChildRequestRow struct {
+	ProcessID            string  `db:"process_id" json:"process_id"`
+	ParentNodeInstanceID string  `db:"parent_node_instance_id" json:"parent_node_instance_id"`
+	TargetNodeKey        string  `db:"target_node_key" json:"target_node_key"`
+	ActionExecutionID    *string `db:"action_execution_id" json:"action_execution_id"`
+}
+
+func (q *Queries) LockWorkflowCreateChildRequest(ctx context.Context, arg LockWorkflowCreateChildRequestParams) (LockWorkflowCreateChildRequestRow, error) {
+	row := q.db.QueryRow(ctx, lockWorkflowCreateChildRequest, arg.DefinitionID, arg.RequestKey)
+	var i LockWorkflowCreateChildRequestRow
+	err := row.Scan(
+		&i.ProcessID,
+		&i.ParentNodeInstanceID,
+		&i.TargetNodeKey,
+		&i.ActionExecutionID,
+	)
+	return i, err
+}
+
+const lockWorkflowCreateChildSourceNode = `-- name: LockWorkflowCreateChildSourceNode :one
+SELECT node.node_key,node.document_entity,node.document_id,instance.started_definition_revision
+FROM wfl_definition_instances instance JOIN wfl_node_instances node ON node.process_id=instance.id
+WHERE instance.id=$1 AND instance.definition_id=$2 AND node.id=$3 AND node.document_id IS NOT NULL
+FOR UPDATE OF instance,node
+`
+
+type LockWorkflowCreateChildSourceNodeParams struct {
+	ProcessID    string `db:"process_id" json:"process_id"`
+	DefinitionID string `db:"definition_id" json:"definition_id"`
+	NodeID       string `db:"node_id" json:"node_id"`
+}
+
+type LockWorkflowCreateChildSourceNodeRow struct {
+	NodeKey                   string  `db:"node_key" json:"node_key"`
+	DocumentEntity            string  `db:"document_entity" json:"document_entity"`
+	DocumentID                *string `db:"document_id" json:"document_id"`
+	StartedDefinitionRevision int64   `db:"started_definition_revision" json:"started_definition_revision"`
+}
+
+func (q *Queries) LockWorkflowCreateChildSourceNode(ctx context.Context, arg LockWorkflowCreateChildSourceNodeParams) (LockWorkflowCreateChildSourceNodeRow, error) {
+	row := q.db.QueryRow(ctx, lockWorkflowCreateChildSourceNode, arg.ProcessID, arg.DefinitionID, arg.NodeID)
+	var i LockWorkflowCreateChildSourceNodeRow
+	err := row.Scan(
+		&i.NodeKey,
+		&i.DocumentEntity,
+		&i.DocumentID,
+		&i.StartedDefinitionRevision,
+	)
+	return i, err
+}
+
+const lockWorkflowDefinition = `-- name: LockWorkflowDefinition :one
+SELECT id,code,name,status,revision,draft_script,draft_diagnostic,draft_compiled,last_trial_revision,published_revision
+FROM wfl_process_definitions WHERE id=$1 FOR UPDATE
+`
+
+type LockWorkflowDefinitionRow struct {
+	ID                string  `db:"id" json:"id"`
+	Code              string  `db:"code" json:"code"`
+	Name              string  `db:"name" json:"name"`
+	Status            string  `db:"status" json:"status"`
+	Revision          int64   `db:"revision" json:"revision"`
+	DraftScript       string  `db:"draft_script" json:"draft_script"`
+	DraftDiagnostic   *string `db:"draft_diagnostic" json:"draft_diagnostic"`
+	DraftCompiled     []byte  `db:"draft_compiled" json:"draft_compiled"`
+	LastTrialRevision *int64  `db:"last_trial_revision" json:"last_trial_revision"`
+	PublishedRevision *int64  `db:"published_revision" json:"published_revision"`
+}
+
+func (q *Queries) LockWorkflowDefinition(ctx context.Context, id string) (LockWorkflowDefinitionRow, error) {
+	row := q.db.QueryRow(ctx, lockWorkflowDefinition, id)
+	var i LockWorkflowDefinitionRow
+	err := row.Scan(
+		&i.ID,
+		&i.Code,
+		&i.Name,
+		&i.Status,
+		&i.Revision,
+		&i.DraftScript,
+		&i.DraftDiagnostic,
+		&i.DraftCompiled,
+		&i.LastTrialRevision,
+		&i.PublishedRevision,
+	)
+	return i, err
+}
+
+const lockWorkflowNodeByProcessAndDocument = `-- name: LockWorkflowNodeByProcessAndDocument :one
+SELECT id,node_key,COALESCE(parent_node_instance_id,'') parent_node_instance_id,COALESCE(relation_name,'') relation_name
+FROM wfl_node_instances WHERE process_id=$1 AND document_id=$2 FOR UPDATE
+`
+
+type LockWorkflowNodeByProcessAndDocumentParams struct {
+	ProcessID  string  `db:"process_id" json:"process_id"`
+	DocumentID *string `db:"document_id" json:"document_id"`
+}
+
+type LockWorkflowNodeByProcessAndDocumentRow struct {
+	ID                   string `db:"id" json:"id"`
+	NodeKey              string `db:"node_key" json:"node_key"`
+	ParentNodeInstanceID string `db:"parent_node_instance_id" json:"parent_node_instance_id"`
+	RelationName         string `db:"relation_name" json:"relation_name"`
+}
+
+func (q *Queries) LockWorkflowNodeByProcessAndDocument(ctx context.Context, arg LockWorkflowNodeByProcessAndDocumentParams) (LockWorkflowNodeByProcessAndDocumentRow, error) {
+	row := q.db.QueryRow(ctx, lockWorkflowNodeByProcessAndDocument, arg.ProcessID, arg.DocumentID)
+	var i LockWorkflowNodeByProcessAndDocumentRow
+	err := row.Scan(
+		&i.ID,
+		&i.NodeKey,
+		&i.ParentNodeInstanceID,
+		&i.RelationName,
+	)
+	return i, err
+}
+
+const lockWorkflowNodesForDocument = `-- name: LockWorkflowNodesForDocument :many
+SELECT node.id,node.process_id,node.node_key,instance.definition_id,instance.started_definition_revision
+FROM wfl_node_instances node JOIN wfl_definition_instances instance ON instance.id=node.process_id
+WHERE node.document_id=$1 FOR UPDATE OF node,instance
+`
+
+type LockWorkflowNodesForDocumentRow struct {
+	ID                        string `db:"id" json:"id"`
+	ProcessID                 string `db:"process_id" json:"process_id"`
+	NodeKey                   string `db:"node_key" json:"node_key"`
+	DefinitionID              string `db:"definition_id" json:"definition_id"`
+	StartedDefinitionRevision int64  `db:"started_definition_revision" json:"started_definition_revision"`
+}
+
+func (q *Queries) LockWorkflowNodesForDocument(ctx context.Context, documentID *string) ([]LockWorkflowNodesForDocumentRow, error) {
+	rows, err := q.db.Query(ctx, lockWorkflowNodesForDocument, documentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LockWorkflowNodesForDocumentRow{}
+	for rows.Next() {
+		var i LockWorkflowNodesForDocumentRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProcessID,
+			&i.NodeKey,
+			&i.DefinitionID,
+			&i.StartedDefinitionRevision,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockWorkflowRootInstance = `-- name: LockWorkflowRootInstance :one
+SELECT instance.id process_id,node.id node_id
+FROM wfl_definition_instances instance
+JOIN wfl_node_instances node ON node.process_id=instance.id AND node.parent_node_instance_id IS NULL
+WHERE instance.definition_id=$1 AND instance.root_document_id=$2
+FOR UPDATE OF instance,node
+`
+
+type LockWorkflowRootInstanceParams struct {
+	DefinitionID   string  `db:"definition_id" json:"definition_id"`
+	RootDocumentID *string `db:"root_document_id" json:"root_document_id"`
+}
+
+type LockWorkflowRootInstanceRow struct {
+	ProcessID string `db:"process_id" json:"process_id"`
+	NodeID    string `db:"node_id" json:"node_id"`
+}
+
+func (q *Queries) LockWorkflowRootInstance(ctx context.Context, arg LockWorkflowRootInstanceParams) (LockWorkflowRootInstanceRow, error) {
+	row := q.db.QueryRow(ctx, lockWorkflowRootInstance, arg.DefinitionID, arg.RootDocumentID)
+	var i LockWorkflowRootInstanceRow
+	err := row.Scan(&i.ProcessID, &i.NodeID)
+	return i, err
+}
+
+const markWorkflowNodeEvaluated = `-- name: MarkWorkflowNodeEvaluated :exec
+UPDATE wfl_node_instances SET evaluated_at=now() WHERE id=$1
+`
+
+func (q *Queries) MarkWorkflowNodeEvaluated(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, markWorkflowNodeEvaluated, id)
+	return err
+}
+
+const markWorkflowRootDocumentDeleted = `-- name: MarkWorkflowRootDocumentDeleted :exec
+UPDATE wfl_definition_instances SET root_deleted_at=now(),root_document_id=NULL,updated_at=now(),updated_by=$1
+WHERE root_document_id=$2
+`
+
+type MarkWorkflowRootDocumentDeletedParams struct {
+	ActorID    string  `db:"actor_id" json:"actor_id"`
+	DocumentID *string `db:"document_id" json:"document_id"`
+}
+
+func (q *Queries) MarkWorkflowRootDocumentDeleted(ctx context.Context, arg MarkWorkflowRootDocumentDeletedParams) error {
+	_, err := q.db.Exec(ctx, markWorkflowRootDocumentDeleted, arg.ActorID, arg.DocumentID)
+	return err
+}
+
+const nextWorkflowPublishedRevision = `-- name: NextWorkflowPublishedRevision :one
+SELECT (COALESCE(max(revision),0) + 1)::bigint AS revision
+FROM wfl_definition_revisions WHERE definition_id=$1
+`
+
+func (q *Queries) NextWorkflowPublishedRevision(ctx context.Context, definitionID string) (int64, error) {
+	row := q.db.QueryRow(ctx, nextWorkflowPublishedRevision, definitionID)
+	var revision int64
+	err := row.Scan(&revision)
+	return revision, err
+}
+
+const publishWorkflowDefinitionRevision = `-- name: PublishWorkflowDefinitionRevision :exec
+INSERT INTO wfl_definition_revisions(definition_id,revision,script,compiled,published_by)
+VALUES($1,$2,$3,$4,$5)
+`
+
+type PublishWorkflowDefinitionRevisionParams struct {
+	DefinitionID string `db:"definition_id" json:"definition_id"`
+	Revision     int64  `db:"revision" json:"revision"`
+	Script       string `db:"script" json:"script"`
+	Compiled     []byte `db:"compiled" json:"compiled"`
+	PublishedBy  string `db:"published_by" json:"published_by"`
+}
+
+func (q *Queries) PublishWorkflowDefinitionRevision(ctx context.Context, arg PublishWorkflowDefinitionRevisionParams) error {
+	_, err := q.db.Exec(ctx, publishWorkflowDefinitionRevision,
+		arg.DefinitionID,
+		arg.Revision,
+		arg.Script,
+		arg.Compiled,
+		arg.PublishedBy,
+	)
+	return err
+}
+
 const recordWorkflowDefinitionTrial = `-- name: RecordWorkflowDefinitionTrial :execrows
-UPDATE wfl_process_definitions
-SET last_trial_revision = $1,
-    last_trial_at = now()
-WHERE id = $2
-  AND revision = $1
+UPDATE wfl_process_definitions SET last_trial_revision=$2,updated_at=now()
+WHERE id=$1 AND revision=$2
 `
 
 type RecordWorkflowDefinitionTrialParams struct {
-	Revision     *int64 `db:"revision" json:"revision"`
-	DefinitionID string `db:"definition_id" json:"definition_id"`
+	ID                string `db:"id" json:"id"`
+	LastTrialRevision *int64 `db:"last_trial_revision" json:"last_trial_revision"`
 }
 
 func (q *Queries) RecordWorkflowDefinitionTrial(ctx context.Context, arg RecordWorkflowDefinitionTrialParams) (int64, error) {
-	result, err := q.db.Exec(ctx, recordWorkflowDefinitionTrial, arg.Revision, arg.DefinitionID)
+	result, err := q.db.Exec(ctx, recordWorkflowDefinitionTrial, arg.ID, arg.LastTrialRevision)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
 }
 
-const saveWorkflowDefinitionDraft = `-- name: SaveWorkflowDefinitionDraft :exec
-UPDATE wfl_process_definitions
-SET name = $1,
-    root_node_id = $2,
-    start_condition = $3,
-    draft_script = $4,
-    draft_diagnostic = NULL,
-    revision = revision + 1,
-    last_trial_revision = NULL,
-    last_trial_at = NULL,
-    updated_at = now(),
-    updated_by = $5
-WHERE id = $6
+const recordWorkflowTrialAudit = `-- name: RecordWorkflowTrialAudit :exec
+INSERT INTO wfl_runtime_audit_events(id,definition_id,definition_revision,event_type,document_id,actor_id,request_id,summary)
+VALUES($1,$2,$3,'TRIAL',$4,$5,$6,$7)
 `
 
-type SaveWorkflowDefinitionDraftParams struct {
-	Name           string  `db:"name" json:"name"`
-	RootNodeID     string  `db:"root_node_id" json:"root_node_id"`
-	StartCondition []byte  `db:"start_condition" json:"start_condition"`
-	DraftScript    *string `db:"draft_script" json:"draft_script"`
-	ActorID        string  `db:"actor_id" json:"actor_id"`
-	ID             string  `db:"id" json:"id"`
+type RecordWorkflowTrialAuditParams struct {
+	ID                 string  `db:"id" json:"id"`
+	DefinitionID       string  `db:"definition_id" json:"definition_id"`
+	DefinitionRevision int64   `db:"definition_revision" json:"definition_revision"`
+	DocumentID         *string `db:"document_id" json:"document_id"`
+	ActorID            string  `db:"actor_id" json:"actor_id"`
+	RequestID          string  `db:"request_id" json:"request_id"`
+	Summary            []byte  `db:"summary" json:"summary"`
 }
 
-func (q *Queries) SaveWorkflowDefinitionDraft(ctx context.Context, arg SaveWorkflowDefinitionDraftParams) error {
-	_, err := q.db.Exec(ctx, saveWorkflowDefinitionDraft,
-		arg.Name,
-		arg.RootNodeID,
-		arg.StartCondition,
-		arg.DraftScript,
+func (q *Queries) RecordWorkflowTrialAudit(ctx context.Context, arg RecordWorkflowTrialAuditParams) error {
+	_, err := q.db.Exec(ctx, recordWorkflowTrialAudit,
+		arg.ID,
+		arg.DefinitionID,
+		arg.DefinitionRevision,
+		arg.DocumentID,
 		arg.ActorID,
+		arg.RequestID,
+		arg.Summary,
+	)
+	return err
+}
+
+const restoreWorkflowActionExecution = `-- name: RestoreWorkflowActionExecution :exec
+UPDATE wfl_action_executions
+SET target_node_instance_id=$1,
+    action_fingerprint=$2,executed_at=now()
+WHERE id=$3
+`
+
+type RestoreWorkflowActionExecutionParams struct {
+	TargetNodeInstanceID *string `db:"target_node_instance_id" json:"target_node_instance_id"`
+	ActionFingerprint    string  `db:"action_fingerprint" json:"action_fingerprint"`
+	ID                   string  `db:"id" json:"id"`
+}
+
+func (q *Queries) RestoreWorkflowActionExecution(ctx context.Context, arg RestoreWorkflowActionExecutionParams) error {
+	_, err := q.db.Exec(ctx, restoreWorkflowActionExecution, arg.TargetNodeInstanceID, arg.ActionFingerprint, arg.ID)
+	return err
+}
+
+const restoreWorkflowNodeInstance = `-- name: RestoreWorkflowNodeInstance :exec
+UPDATE wfl_node_instances SET document_id=$1,document_no=$2,document_entity=$3,business_parent_entity=$4,business_parent_document_id=$5,relation_name=$6,trigger_event='ACTION',action_name=$7,evaluated_at=NULL WHERE id=$8
+`
+
+type RestoreWorkflowNodeInstanceParams struct {
+	DocumentID               *string `db:"document_id" json:"document_id"`
+	DocumentNo               string  `db:"document_no" json:"document_no"`
+	DocumentEntity           string  `db:"document_entity" json:"document_entity"`
+	BusinessParentEntity     *string `db:"business_parent_entity" json:"business_parent_entity"`
+	BusinessParentDocumentID *string `db:"business_parent_document_id" json:"business_parent_document_id"`
+	RelationName             *string `db:"relation_name" json:"relation_name"`
+	ActionName               *string `db:"action_name" json:"action_name"`
+	ID                       string  `db:"id" json:"id"`
+}
+
+func (q *Queries) RestoreWorkflowNodeInstance(ctx context.Context, arg RestoreWorkflowNodeInstanceParams) error {
+	_, err := q.db.Exec(ctx, restoreWorkflowNodeInstance,
+		arg.DocumentID,
+		arg.DocumentNo,
+		arg.DocumentEntity,
+		arg.BusinessParentEntity,
+		arg.BusinessParentDocumentID,
+		arg.RelationName,
+		arg.ActionName,
 		arg.ID,
 	)
 	return err
 }
 
-const saveWorkflowDefinitionScriptDiagnostic = `-- name: SaveWorkflowDefinitionScriptDiagnostic :exec
+const saveWorkflowDefinition = `-- name: SaveWorkflowDefinition :execrows
 UPDATE wfl_process_definitions
-SET draft_script = $1,
-    draft_diagnostic = $2,
-    revision = revision + 1,
-    last_trial_revision = NULL,
-    last_trial_at = NULL,
-    updated_at = now(),
-    updated_by = $3
-WHERE id = $4
+SET name=$1,draft_script=$2,draft_diagnostic=$3,draft_compiled=$4,last_trial_revision=NULL,
+    revision=revision+1,updated_at=now(),updated_by=$5
+WHERE id=$6 AND revision=$7
 `
 
-type SaveWorkflowDefinitionScriptDiagnosticParams struct {
-	DraftScript     *string `db:"draft_script" json:"draft_script"`
+type SaveWorkflowDefinitionParams struct {
+	Name            string  `db:"name" json:"name"`
+	DraftScript     string  `db:"draft_script" json:"draft_script"`
 	DraftDiagnostic *string `db:"draft_diagnostic" json:"draft_diagnostic"`
-	ActorID         string  `db:"actor_id" json:"actor_id"`
+	DraftCompiled   []byte  `db:"draft_compiled" json:"draft_compiled"`
+	UpdatedBy       string  `db:"updated_by" json:"updated_by"`
 	ID              string  `db:"id" json:"id"`
+	Revision        int64   `db:"revision" json:"revision"`
 }
 
-func (q *Queries) SaveWorkflowDefinitionScriptDiagnostic(ctx context.Context, arg SaveWorkflowDefinitionScriptDiagnosticParams) error {
-	_, err := q.db.Exec(ctx, saveWorkflowDefinitionScriptDiagnostic,
+func (q *Queries) SaveWorkflowDefinition(ctx context.Context, arg SaveWorkflowDefinitionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, saveWorkflowDefinition,
+		arg.Name,
 		arg.DraftScript,
 		arg.DraftDiagnostic,
-		arg.ActorID,
+		arg.DraftCompiled,
+		arg.UpdatedBy,
 		arg.ID,
+		arg.Revision,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setWorkflowCreateChildRequestExecution = `-- name: SetWorkflowCreateChildRequestExecution :exec
+UPDATE wfl_create_child_requests SET action_execution_id=$1
+WHERE definition_id=$2 AND request_key=$3
+`
+
+type SetWorkflowCreateChildRequestExecutionParams struct {
+	ActionExecutionID *string `db:"action_execution_id" json:"action_execution_id"`
+	DefinitionID      string  `db:"definition_id" json:"definition_id"`
+	RequestKey        string  `db:"request_key" json:"request_key"`
+}
+
+func (q *Queries) SetWorkflowCreateChildRequestExecution(ctx context.Context, arg SetWorkflowCreateChildRequestExecutionParams) error {
+	_, err := q.db.Exec(ctx, setWorkflowCreateChildRequestExecution, arg.ActionExecutionID, arg.DefinitionID, arg.RequestKey)
+	return err
+}
+
+const setWorkflowDefinitionStatus = `-- name: SetWorkflowDefinitionStatus :execrows
+UPDATE wfl_process_definitions
+SET status=$1,revision=revision+1,updated_at=now(),updated_by=$2
+WHERE id=$3 AND revision=$4
+`
+
+type SetWorkflowDefinitionStatusParams struct {
+	Status    string `db:"status" json:"status"`
+	UpdatedBy string `db:"updated_by" json:"updated_by"`
+	ID        string `db:"id" json:"id"`
+	Revision  int64  `db:"revision" json:"revision"`
+}
+
+func (q *Queries) SetWorkflowDefinitionStatus(ctx context.Context, arg SetWorkflowDefinitionStatusParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setWorkflowDefinitionStatus,
+		arg.Status,
+		arg.UpdatedBy,
+		arg.ID,
+		arg.Revision,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setWorkflowPublishedRevision = `-- name: SetWorkflowPublishedRevision :execrows
+UPDATE wfl_process_definitions
+SET published_revision=$1,revision=revision+1,updated_at=now(),updated_by=$2
+WHERE id=$3 AND revision=$4
+`
+
+type SetWorkflowPublishedRevisionParams struct {
+	PublishedRevision *int64 `db:"published_revision" json:"published_revision"`
+	UpdatedBy         string `db:"updated_by" json:"updated_by"`
+	ID                string `db:"id" json:"id"`
+	Revision          int64  `db:"revision" json:"revision"`
+}
+
+func (q *Queries) SetWorkflowPublishedRevision(ctx context.Context, arg SetWorkflowPublishedRevisionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setWorkflowPublishedRevision,
+		arg.PublishedRevision,
+		arg.UpdatedBy,
+		arg.ID,
+		arg.Revision,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const upsertWorkflowDefinitionPermission = `-- name: UpsertWorkflowDefinitionPermission :exec
+INSERT INTO app_permissions(id,path,domain,entity,action,description,status,created_by,updated_by)
+VALUES($1,$2,'wfl',$3,$4,$5,'ENABLED',$6,$6)
+ON CONFLICT(path) DO UPDATE SET description=excluded.description,status='ENABLED',revision=app_permissions.revision+1,updated_at=now(),updated_by=excluded.updated_by
+`
+
+type UpsertWorkflowDefinitionPermissionParams struct {
+	ID          string  `db:"id" json:"id"`
+	Path        string  `db:"path" json:"path"`
+	Entity      string  `db:"entity" json:"entity"`
+	Action      string  `db:"action" json:"action"`
+	Description *string `db:"description" json:"description"`
+	ActorID     *string `db:"actor_id" json:"actor_id"`
+}
+
+func (q *Queries) UpsertWorkflowDefinitionPermission(ctx context.Context, arg UpsertWorkflowDefinitionPermissionParams) error {
+	_, err := q.db.Exec(ctx, upsertWorkflowDefinitionPermission,
+		arg.ID,
+		arg.Path,
+		arg.Entity,
+		arg.Action,
+		arg.Description,
+		arg.ActorID,
 	)
 	return err
+}
+
+const workflowDefinitionHasInstances = `-- name: WorkflowDefinitionHasInstances :one
+SELECT EXISTS(SELECT 1 FROM wfl_definition_instances WHERE definition_id=$1)
+`
+
+func (q *Queries) WorkflowDefinitionHasInstances(ctx context.Context, definitionID string) (bool, error) {
+	row := q.db.QueryRow(ctx, workflowDefinitionHasInstances, definitionID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const workflowDocumentHasRootInstance = `-- name: WorkflowDocumentHasRootInstance :one
+SELECT EXISTS(
+    SELECT 1
+    FROM wfl_definition_instances instance
+    WHERE instance.root_document_id=$1
+)
+`
+
+func (q *Queries) WorkflowDocumentHasRootInstance(ctx context.Context, documentID *string) (bool, error) {
+	row := q.db.QueryRow(ctx, workflowDocumentHasRootInstance, documentID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }

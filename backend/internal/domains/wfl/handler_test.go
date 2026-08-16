@@ -24,8 +24,8 @@ func TestHandlerRegistersTypedWorkflowPermissions(t *testing.T) {
 	for _, route := range router.Routes() {
 		routes[route.Path] = route.Method
 	}
-	if len(routes) != 15 {
-		t.Fatalf("route count = %d, want 15", len(routes))
+	if len(routes) != 16 {
+		t.Fatalf("route count = %d, want 16", len(routes))
 	}
 	for _, path := range []string{
 		"/wfl/process-definition/query",
@@ -33,16 +33,17 @@ func TestHandlerRegistersTypedWorkflowPermissions(t *testing.T) {
 		"/wfl/process-definition/create",
 		"/wfl/process-definition/save",
 		"/wfl/process-definition/trial",
+		"/wfl/process-definition/publish",
 		"/wfl/process-definition/enable",
 		"/wfl/process-definition/disable",
 		"/wfl/process-definition/delete",
-		"/wfl/process-definition/catalog",
 		"/wfl/process-instance/query",
 		"/wfl/process-instance/get",
 		"/wfl/process-instance/audit-history",
 		"/wfl/:processName/query",
 		"/wfl/:processName/get",
 		"/wfl/:processName/audit-history",
+		"/wfl/:processName/create-child",
 	} {
 		if routes[path] != http.MethodPost {
 			t.Fatalf("missing POST %s", path)

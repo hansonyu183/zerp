@@ -263,8 +263,6 @@ SELECT EXISTS (
     FROM vou_expense_reimbursement_details reimbursement
     WHERE reimbursement.employee_object_id = $1
        OR reimbursement.employee_version_id = $2
-       OR reimbursement.fund_account_object_id = $1
-       OR reimbursement.fund_account_version_id = $2
 
     UNION ALL
 

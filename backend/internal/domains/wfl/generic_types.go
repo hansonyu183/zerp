@@ -3,16 +3,12 @@ package wfl
 import (
 	"encoding/json"
 	"time"
-
-	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 )
 
 const (
-	DefinitionDraft          = "DRAFT"
-	DefinitionEnabled        = "ENABLED"
-	DefinitionDisabled       = "DISABLED"
-	DefinitionSourceGraph    = "GRAPH"
-	DefinitionSourceStarlark = "STARLARK"
+	DefinitionDraft    = "DRAFT"
+	DefinitionEnabled  = "ENABLED"
+	DefinitionDisabled = "DISABLED"
 )
 
 type DefinitionQueryInput struct {
@@ -26,38 +22,14 @@ type DefinitionGetInput struct {
 	DefinitionID string `json:"definitionId"`
 }
 
-type DefinitionNodeInput struct {
-	ID             string          `json:"id"`
-	Key            string          `json:"key"`
-	Name           string          `json:"name"`
-	DocumentEntity string          `json:"documentEntity"`
-	PositionX      int             `json:"positionX"`
-	PositionY      int             `json:"positionY"`
-	Defaults       json.RawMessage `json:"defaults"`
-}
-
-type DefinitionEdgeInput struct {
-	ID           string          `json:"id"`
-	SourceNodeID string          `json:"sourceNodeId"`
-	TargetNodeID string          `json:"targetNodeId"`
-	ConverterKey string          `json:"converterKey"`
-	Condition    json.RawMessage `json:"condition"`
-}
-
 type DefinitionCreateInput struct {
-	Script         *string               `json:"script,omitempty"`
-	Code           string                `json:"code"`
-	Name           string                `json:"name"`
-	RootNodeID     string                `json:"rootNodeId"`
-	StartCondition json.RawMessage       `json:"startCondition"`
-	Nodes          []DefinitionNodeInput `json:"nodes"`
-	Edges          []DefinitionEdgeInput `json:"edges"`
+	Script string `json:"script"`
 }
 
 type DefinitionSaveInput struct {
-	DefinitionCreateInput
 	DefinitionID string `json:"definitionId"`
 	Revision     int64  `json:"revision"`
+	Script       string `json:"script"`
 }
 
 type DefinitionActionInput struct {
@@ -65,32 +37,46 @@ type DefinitionActionInput struct {
 	Revision     int64  `json:"revision"`
 }
 
+type DefinitionDiagnostic struct {
+	Message string `json:"message"`
+	Line    int    `json:"line,omitempty"`
+	Column  int    `json:"column,omitempty"`
+}
+
+type DefinitionNodeView struct {
+	Key            string `json:"key"`
+	Name           string `json:"name"`
+	DocumentEntity string `json:"documentEntity"`
+	PositionX      int    `json:"positionX"`
+	PositionY      int    `json:"positionY"`
+}
+
+type DefinitionEdgeView struct {
+	SourceNodeKey string `json:"sourceNodeKey"`
+	TargetNodeKey string `json:"targetNodeKey"`
+	Action        string `json:"action"`
+	Relation      string `json:"relation"`
+}
+
 type DefinitionListItem struct {
-	DefinitionID string    `json:"definitionId"`
-	Code         string    `json:"code"`
-	Name         string    `json:"name"`
-	Status       string    `json:"status"`
-	Revision     int64     `json:"revision"`
-	SourceKind   string    `json:"sourceKind"`
-	RootEntity   string    `json:"rootEntity"`
-	NodeCount    int       `json:"nodeCount"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	DefinitionID      string    `json:"definitionId"`
+	Code              string    `json:"code"`
+	Name              string    `json:"name"`
+	Status            string    `json:"status"`
+	Revision          int64     `json:"revision"`
+	PublishedRevision *int64    `json:"publishedRevision,omitempty"`
+	RootEntity        string    `json:"rootEntity"`
+	NodeCount         int       `json:"nodeCount"`
+	UpdatedAt         time.Time `json:"updatedAt"`
 }
 
 type DefinitionView struct {
-	DefinitionID   string                `json:"definitionId"`
-	Code           string                `json:"code"`
-	Name           string                `json:"name"`
-	Status         string                `json:"status"`
-	Revision       int64                 `json:"revision"`
-	SourceKind     string                `json:"sourceKind"`
-	Script         *string               `json:"script,omitempty"`
-	Diagnostic     *string               `json:"diagnostic,omitempty"`
-	RootNodeID     string                `json:"rootNodeId"`
-	StartCondition json.RawMessage       `json:"startCondition"`
-	Nodes          []DefinitionNodeInput `json:"nodes"`
-	Edges          []DefinitionEdgeInput `json:"edges"`
-	UpdatedAt      time.Time             `json:"updatedAt"`
+	DefinitionListItem
+	Script      string                `json:"script"`
+	Diagnostic  *DefinitionDiagnostic `json:"diagnostic,omitempty"`
+	RootNodeKey string                `json:"rootNodeKey"`
+	Nodes       []DefinitionNodeView  `json:"nodes"`
+	Edges       []DefinitionEdgeView  `json:"edges"`
 }
 
 type DefinitionTrialInput struct {
@@ -100,22 +86,18 @@ type DefinitionTrialInput struct {
 }
 
 type DefinitionTrialSource struct {
-	Entity string               `json:"entity"`
-	Data   voudomain.DraftInput `json:"data"`
-}
-
-type DefinitionTrialTrace struct {
-	Kind           string `json:"kind"`
-	NodeKey        string `json:"nodeKey"`
-	DocumentEntity string `json:"documentEntity"`
+	Entity     string `json:"entity"`
+	DocumentID string `json:"documentId"`
 }
 
 type DefinitionTrialResult struct {
-	DefinitionID string                 `json:"definitionId"`
-	Revision     int64                  `json:"revision"`
-	Matched      bool                   `json:"matched"`
-	RootNodeKey  string                 `json:"rootNodeKey"`
-	Trace        []DefinitionTrialTrace `json:"trace"`
+	DefinitionID      string                   `json:"definitionId"`
+	Revision          int64                    `json:"revision"`
+	Matched           bool                     `json:"matched"`
+	RootNodeKey       string                   `json:"rootNodeKey"`
+	Trace             []WorkflowExecutionTrace `json:"trace"`
+	PlannedActions    []PlannedAction          `json:"plannedActions"`
+	UncoveredBranches []string                 `json:"uncoveredBranches"`
 }
 
 type InstanceQueryInput struct {
@@ -151,26 +133,44 @@ type InstanceListItem struct {
 }
 
 type NodeInstanceView struct {
-	NodeInstanceID       string     `json:"nodeInstanceId"`
-	DefinitionNodeID     *string    `json:"definitionNodeId,omitempty"`
-	ParentNodeInstanceID *string    `json:"parentNodeInstanceId,omitempty"`
-	NodeKey              string     `json:"nodeKey"`
-	NodeName             string     `json:"nodeName"`
-	DocumentID           string     `json:"documentId"`
-	DocumentNo           string     `json:"documentNo"`
-	DocumentEntity       string     `json:"documentEntity"`
-	DocumentStatus       string     `json:"documentStatus"`
-	DocumentRevision     int64      `json:"documentRevision"`
-	BusinessDate         string     `json:"businessDate"`
-	Legacy               bool       `json:"legacy"`
-	EvaluatedRevision    *int64     `json:"evaluatedDefinitionRevision,omitempty"`
-	EvaluatedAt          *time.Time `json:"evaluatedAt,omitempty"`
+	NodeInstanceID           string     `json:"nodeInstanceId"`
+	ParentNodeInstanceID     *string    `json:"parentNodeInstanceId,omitempty"`
+	NodeKey                  string     `json:"nodeKey"`
+	NodeName                 string     `json:"nodeName"`
+	DocumentID               string     `json:"documentId"`
+	DocumentNo               string     `json:"documentNo"`
+	DocumentEntity           string     `json:"documentEntity"`
+	DocumentStatus           string     `json:"documentStatus"`
+	DocumentRevision         int64      `json:"documentRevision"`
+	BusinessDate             string     `json:"businessDate"`
+	BusinessParentEntity     string     `json:"businessParentEntity,omitempty"`
+	BusinessParentDocumentID string     `json:"businessParentDocumentId,omitempty"`
+	Relation                 string     `json:"relation,omitempty"`
+	Trigger                  string     `json:"trigger"`
+	Action                   string     `json:"action,omitempty"`
+	EvaluatedAt              *time.Time `json:"evaluatedAt,omitempty"`
+}
+
+type AvailableChildTarget struct {
+	ParentNodeInstanceID string `json:"parentNodeInstanceId"`
+	TargetNodeKey        string `json:"targetNodeKey"`
+	TargetNodeName       string `json:"targetNodeName"`
+	TargetEntity         string `json:"targetEntity"`
+	Relation             string `json:"relation"`
 }
 
 type InstanceView struct {
 	InstanceListItem
-	StartedDefinitionRevision int64              `json:"startedDefinitionRevision"`
-	Nodes                     []NodeInstanceView `json:"nodes"`
+	StartedDefinitionRevision int64                  `json:"startedDefinitionRevision"`
+	Nodes                     []NodeInstanceView     `json:"nodes"`
+	AvailableTargets          []AvailableChildTarget `json:"availableTargets"`
+}
+
+type CreateChildInput struct {
+	ProcessID            string `json:"processId"`
+	ParentNodeInstanceID string `json:"parentNodeInstanceId"`
+	TargetNodeKey        string `json:"targetNodeKey"`
+	RequestKey           string `json:"requestKey"`
 }
 
 type RuntimeAuditView struct {
@@ -183,22 +183,4 @@ type RuntimeAuditView struct {
 	RequestID      string          `json:"requestId"`
 	Summary        json.RawMessage `json:"summary"`
 	OccurredAt     time.Time       `json:"occurredAt"`
-}
-
-type CatalogNode struct {
-	Entity string `json:"entity"`
-	Name   string `json:"name"`
-}
-
-type CatalogConverter struct {
-	Key              string   `json:"key"`
-	SourceEntity     string   `json:"sourceEntity"`
-	TargetEntity     string   `json:"targetEntity"`
-	RequiredDefaults []string `json:"requiredDefaults"`
-}
-
-type DefinitionCatalog struct {
-	Nodes      []CatalogNode      `json:"nodes"`
-	Converters []CatalogConverter `json:"converters"`
-	Operators  []string           `json:"operators"`
 }

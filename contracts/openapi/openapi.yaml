@@ -3302,7 +3302,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': 'Starlark 草稿与只读编译图。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/wfl/process-definition/create':
@@ -3328,7 +3343,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '创建后的定义。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/wfl/process-definition/save':
@@ -3354,7 +3384,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '保存后的定义及诊断。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/wfl/process-definition/trial':
@@ -3380,7 +3425,63 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '零写入试算轨迹与计划动作。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflDefinitionTrialResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/wfl/process-definition/publish':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '发布不可变流程修订',
+              'operationId': 'wflProcessDefinitionPublish',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflDefinitionActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '发布后的定义。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/wfl/process-definition/enable':
@@ -3406,7 +3507,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '启用后的定义。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/wfl/process-definition/disable':
@@ -3432,7 +3548,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '停用后的定义。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/wfl/process-definition/delete':
@@ -3454,30 +3585,6 @@
                             {
                               '$ref': './schemas/wfl.yaml#/WflDefinitionActionRequest',
                             },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/wfl/process-definition/catalog':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '读取流程配置目录',
-              'operationId': 'wflProcessDefinitionCatalog',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/common.yaml#/EmptyObject' },
                         },
                     },
                 },
@@ -3608,7 +3715,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '完整实际节点树及可创建目标。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflInstanceViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/wfl/{processName}/audit-history':
@@ -3646,6 +3768,41 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
+      '/wfl/{processName}/create-child':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '按固定流程修订创建下级单据',
+              'operationId': 'wflDynamicProcessCreateChild',
+              'parameters':
+                [
+                  {
+                    'name': 'processName',
+                    'in': 'path',
+                    'required': true,
+                    'schema': { 'type': 'string' },
+                  },
+                ],
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflCreateChildRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
       '/wfl/process-instance/get':
         {
           'post':
@@ -3669,7 +3826,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '完整实际节点树及可创建目标。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflInstanceViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/wfl/process-instance/audit-history':

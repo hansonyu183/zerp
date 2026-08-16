@@ -76,7 +76,7 @@ func (s *Seeder) seedExtendedVouchers(ctx context.Context, counts *Counts) error
 	if err := s.seedIntermediaryCalculation(ctx, counts); err != nil {
 		return err
 	}
-	return s.ensureGeneratedExpensePayment(ctx, counts)
+	return nil
 }
 
 func cashDraft(counterparty, fund, handler voudomain.ReferenceInput, amount, remark string) voudomain.DraftInput {
@@ -225,40 +225,5 @@ func (s *Seeder) seedIntermediaryCalculation(ctx context.Context, counts *Counts
 		return fmt.Errorf("intermediary calculation: %w", err)
 	}
 	counts.add(result)
-	return nil
-}
-
-func (s *Seeder) ensureGeneratedExpensePayment(ctx context.Context, counts *Counts) error {
-	count, err := s.queries.CountVouDocumentsByEntity(ctx, voudomain.EntityExpensePayment)
-	if err != nil {
-		return err
-	}
-	if count > 0 {
-		counts.add(outcomeSkipped)
-		return nil
-	}
-	fund := s.voucherReference("fund-effective")
-	employee := s.voucherReference("employee-effective")
-	reimbursement, _, result, err := s.ensureVoucher(ctx, "expense-workflow-approved", voudomain.EntityExpenseReimbursement, voudomain.StatusApproved, func() (voudomain.MutationResult, error) {
-		return s.vouchers.Create(ctx, voudomain.EntityExpenseReimbursement, voudomain.CreateInput{Data: voudomain.DraftInput{
-			BusinessDate: "2026-07-14", Currency: "CNY", FundAccount: &fund, Employee: &employee,
-			ExpenseLines: []voudomain.ExpenseLineInput{{Category: "交通", Description: "预览费用付款工作流", Amount: "66.00"}},
-			Remark:       "预览费用付款工作流来源",
-		}}, actorID, requestID("expense-workflow-approved", "create"))
-	})
-	if err != nil {
-		return fmt.Errorf("recover expense payment workflow: %w", err)
-	}
-	counts.add(result)
-	parentDocumentID := reimbursement.DocumentID
-	if count, err = s.queries.CountVouDocumentsByParentAndEntity(ctx, dbsqlc.CountVouDocumentsByParentAndEntityParams{
-		ParentDocumentID: &parentDocumentID, Entity: voudomain.EntityExpensePayment,
-	}); err != nil {
-		return err
-	}
-	if count != 1 {
-		return fmt.Errorf("expense reimbursement workflow generated %d expense-payment documents, want 1", count)
-	}
-	counts.add(outcomeCreated)
 	return nil
 }

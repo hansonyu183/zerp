@@ -24,7 +24,7 @@ func TestManagementContractsIntegration(t *testing.T) {
 		"/bob/customer/unapprove", "/bob/customer/enable", "/bob/customer/disable",
 		"/aux/department/query", "/aux/asset-category/query",
 		"/vou/sale-order/query", "/vou/sale-order/get",
-		"/wfl/sales-fulfillment/query", "/wfl/sales-fulfillment/get",
+		"/wfl/process-instance/query", "/wfl/process-instance/get",
 	)
 	slices.Sort(catalogPermissionIDs)
 	catalogRole, catalogErr := service.CreateRole(t.Context(), CreateRoleInput{

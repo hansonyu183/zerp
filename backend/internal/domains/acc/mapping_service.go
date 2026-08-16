@@ -57,7 +57,7 @@ var mappingEntityHeaderFields = map[string][]string{
 	"employee-loan":          {"counterparty.objectId", "fundAccount.objectId", "handler.objectId"},
 	"employee-repayment":     {"counterparty.objectId", "fundAccount.objectId", "handler.objectId"},
 	"employee-loan-writeoff": {"employee.objectId"},
-	"expense-reimbursement":  {"employee.objectId", "fundAccount.objectId", "settlementMode"},
+	"expense-reimbursement":  {"employee.objectId"},
 	"expense-payment":        {"employee.objectId", "fundAccount.objectId"},
 	"other-income":           {"counterparty.objectId", "fundAccount.objectId", "handler.objectId", "sourceName"},
 	"asset-acquisition":      {"supplier.objectId"},

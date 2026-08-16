@@ -4,8 +4,8 @@ import {
   documentEntityText,
   runtimeEventText,
   stageStatusText,
-  workflowStageText,
-  workflowStatusText,
+  workflowActionText,
+  workflowTriggerText,
 } from '@/components/wfl/config'
 import {
   lifecycleLabels,
@@ -13,37 +13,8 @@ import {
 } from '@/pages/vou/shared/config'
 
 describe('WFL Chinese labels', () => {
-  it('translates every workflow status and preserves unknown values', () => {
-    expect(
-      ['DRAFT', 'CHECKED', 'APPROVED'].map(workflowStatusText),
-    ).toEqual(['草稿', '已核对', '已批准'])
-    expect(workflowStatusText('FUTURE_STATUS')).toBe('FUTURE_STATUS')
-  })
-
-  it('translates workflow stages and approved document status', () => {
-    expect(
-      [
-        'SALE_ORDER',
-        'PRODUCTION',
-        'OUTBOUND',
-        'DELIVERY',
-        'SIGNOFF',
-        'RETURN',
-        'PURCHASE_ORDER',
-        'PURCHASE_INBOUND',
-      ].map(workflowStageText),
-    ).toEqual([
-      '销售订单',
-      '生产配货',
-      '销售出库',
-      '销售送货',
-      '销售签收',
-      '退货',
-      '采购订单',
-      '采购入库',
-    ])
+  it('translates document status', () => {
     expect(stageStatusText('APPROVED')).toBe('已批准')
-    expect(workflowStageText('FUTURE_STAGE')).toBe('FUTURE_STAGE')
   })
 
   it('translates definition-list and instance-list values', () => {
@@ -57,10 +28,12 @@ describe('WFL Chinese labels', () => {
         documentEntityText,
       ),
     ).toEqual(['销售订单', '采购入库', '费用付款'])
-    expect(['STARTED', 'CHILD_CREATED'].map(runtimeEventText)).toEqual([
+    expect(['STARTED', 'ACTION_EXECUTED'].map(runtimeEventText)).toEqual([
       '流程已启动',
-      '已创建下级单据',
+      '已执行流程动作',
     ])
+    expect(workflowActionText('sale_outbound')).toBe('创建销售出库')
+    expect(workflowTriggerText('APPROVED')).toBe('单据批准')
     expect(documentEntityText('future-document')).toBe('future-document')
     expect(definitionStatusText('FUTURE_STATUS')).toBe('FUTURE_STATUS')
     expect(runtimeEventText('FUTURE_EVENT')).toBe('FUTURE_EVENT')

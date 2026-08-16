@@ -2,7 +2,6 @@ package vou
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -11,15 +10,7 @@ import (
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
-	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/jackc/pgx/v5"
-)
-
-const (
-	purchaseWorkflowType = "PURCHASE_FULFILLMENT"
-	purchaseStageOrder   = "PURCHASE_ORDER"
-	purchaseStageInbound = "PURCHASE_INBOUND"
-	purchaseStageReturn  = "PURCHASE_RETURN"
 )
 
 func managedPurchaseDocument(document dbsqlc.VouDocument) bool {
@@ -65,125 +56,6 @@ func (s *Service) validateManagedPurchaseParentStatus(
 	return nil
 }
 
-func (s *Service) touchWorkflow(
-	ctx context.Context,
-	tx pgx.Tx,
-	document dbsqlc.VouDocument,
-	event, toStatus string,
-	_ string,
-	requestID string,
-	summary map[string]any,
-) error {
-	actorID := systemidentity.UserID
-	if managedPurchaseDocument(document) {
-		return s.touchPurchaseWorkflow(
-			ctx, tx, document, event, toStatus, actorID, requestID, summary,
-		)
-	}
-	return s.touchSalesWorkflow(ctx, tx, document, event, toStatus, actorID, requestID, summary)
-}
-
-func (s *Service) touchPurchaseWorkflow(
-	ctx context.Context,
-	tx pgx.Tx,
-	document dbsqlc.VouDocument,
-	event, documentStatus, actorID, requestID string,
-	summary map[string]any,
-) error {
-	var processID, previous string
-	err := tx.QueryRow(ctx, `SELECT p.id,p.status
-		FROM wfl_process_documents x
-		JOIN wfl_process_instances p ON p.id=x.process_id
-		WHERE x.document_id=$1 AND p.process_type=$2 FOR UPDATE OF p`,
-		document.ID, purchaseWorkflowType).Scan(&processID, &previous)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil
-	}
-	if err != nil {
-		return s.internal("lock purchase workflow", err)
-	}
-	next, err := s.purchaseWorkflowStatus(ctx, tx, processID)
-	if err != nil {
-		return err
-	}
-	if _, err = tx.Exec(ctx, `UPDATE wfl_process_instances SET
-		status=$1::varchar,revision=revision+1,updated_at=now(),updated_by=$2
-		WHERE id=$3`, next, actorID, processID); err != nil {
-		return s.writeError("touch purchase workflow", err)
-	}
-	stage := purchaseStageOrder
-	if document.Entity == EntityPurchaseInbound {
-		stage = purchaseStageInbound
-	} else if document.Entity == EntityPurchaseReturn {
-		stage = purchaseStageReturn
-	}
-	return s.insertPurchaseWorkflowAudit(ctx, tx, processID, event, stringPtr(previous), next,
-		stage, document.ID, document.DocumentNo, documentStatus, actorID, requestID, summary)
-}
-
-func (s *Service) purchaseWorkflowStatus(
-	ctx context.Context, tx pgx.Tx, processID string,
-) (string, error) {
-	var status string
-	err := tx.QueryRow(ctx, `SELECT d.status
-		FROM wfl_process_instances p
-		JOIN vou_documents d ON d.id=p.root_document_id
-		WHERE p.id=$1`, processID).Scan(&status)
-	if err != nil {
-		return "", s.internal("derive purchase workflow status", err)
-	}
-	if status == StatusDraft || status == StatusChecked {
-		return status, nil
-	}
-	return StatusApproved, nil
-}
-
-func (s *Service) insertPurchaseWorkflowAudit(
-	ctx context.Context,
-	tx pgx.Tx,
-	processID, event string,
-	from *string,
-	to, stage, documentID, documentNo, documentStatus, actorID, requestID string,
-	summary map[string]any,
-) error {
-	if summary == nil {
-		summary = map[string]any{}
-	}
-	encoded, err := json.Marshal(summary)
-	if err != nil {
-		return err
-	}
-	_, err = tx.Exec(ctx, `INSERT INTO wfl_audit_events(
-		id,process_id,event_type,from_status,to_status,stage,document_id,document_no,
-		document_status,actor_id,request_id,summary
-	) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-		newID(), processID, event, from, to, stage, documentID, documentNo,
-		documentStatus, actorID, requestID, encoded)
-	return err
-}
-
-func (s *Service) linkPurchaseWorkflowDocument(
-	ctx context.Context, tx pgx.Tx, orderID, documentID, stage string,
-) error {
-	var processID string
-	if err := tx.QueryRow(ctx, `SELECT process_id FROM wfl_process_documents
-		WHERE document_id=$1`, orderID).Scan(&processID); errors.Is(err, pgx.ErrNoRows) {
-		return nil
-	} else if err != nil {
-		return err
-	}
-	var sequence int32
-	if err := tx.QueryRow(ctx, `SELECT COALESCE(max(sequence_no),0)+1
-		FROM wfl_process_documents WHERE process_id=$1 AND stage=$2`,
-		processID, stage).Scan(&sequence); err != nil {
-		return err
-	}
-	_, err := tx.Exec(ctx, `INSERT INTO wfl_process_documents(
-		process_id,document_id,stage,sequence_no
-	) VALUES($1,$2,$3,$4)`, processID, documentID, stage, sequence)
-	return err
-}
-
 // CreatePurchaseInbound reserves quantities immediately, including while the
 // inbound is still a draft. The root row lock serializes competing creations.
 func (s *Service) CreatePurchaseInbound(
@@ -215,52 +87,6 @@ func (s *Service) CreatePurchaseInbound(
 	dueDate, err := s.orderSettlementDueDate(ctx, tx, EntityPurchaseOrder, order.ID, businessDate)
 	if err != nil {
 		return MutationResult{}, err
-	}
-	var generatedID, generatedNo string
-	var generatedRevision int64
-	err = tx.QueryRow(ctx, `SELECT id,document_no,revision FROM vou_documents
-		WHERE parent_document_id=$1 AND entity='purchase-inbound' AND status='DRAFT'
-		  AND revision=1 AND created_by=$2 ORDER BY created_at,id LIMIT 1 FOR UPDATE`,
-		order.ID, systemidentity.UserID).Scan(&generatedID, &generatedNo, &generatedRevision)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return MutationResult{}, err
-	}
-	if err == nil {
-		lines, total, reserveErr := s.validateAndReserveInboundLines(ctx, tx, order.ID, generatedID, input.Data.SourceLines)
-		if reserveErr != nil {
-			return MutationResult{}, reserveErr
-		}
-		q := s.queries.WithTx(tx)
-		revision, updateErr := q.UpdateVouDraft(ctx, dbsqlc.UpdateVouDraftParams{
-			BusinessDate: dateValue(businessDate), Currency: order.Currency,
-			DueDate:          dateValue(dueDate),
-			TotalAmountCents: total, Remark: optionalText(input.Data.Remark), ActorID: actorID,
-			ID: generatedID, Entity: EntityPurchaseInbound, Revision: generatedRevision,
-		})
-		if updateErr != nil {
-			return MutationResult{}, s.writeError("adopt generated purchase inbound", updateErr)
-		}
-		if _, updateErr = q.UpdateVouPurchaseInboundWarehouse(ctx, dbsqlc.UpdateVouPurchaseInboundWarehouseParams{
-			WarehouseObjectID: warehouse.ObjectID, WarehouseVersionID: warehouse.VersionID,
-			WarehouseCode: warehouse.Code, WarehouseName: warehouse.Data.Name, DocumentID: generatedID,
-		}); updateErr != nil {
-			return MutationResult{}, updateErr
-		}
-		if updateErr = q.DeleteVouPurchaseInboundLines(ctx, generatedID); updateErr != nil {
-			return MutationResult{}, updateErr
-		}
-		if updateErr = s.insertPurchaseInboundLines(ctx, q, generatedID, lines); updateErr != nil {
-			return MutationResult{}, updateErr
-		}
-		if updateErr = insertAudit(ctx, q, auditInput{DocumentID: generatedID, Entity: EntityPurchaseInbound,
-			Event: "SAVED", From: stringPtr(StatusDraft), To: StatusDraft, ActorID: actorID,
-			RequestID: requestID, Summary: map[string]any{"adoptedWorkflowDraft": true, "lineCount": len(lines)}}); updateErr != nil {
-			return MutationResult{}, updateErr
-		}
-		if updateErr = tx.Commit(ctx); updateErr != nil {
-			return MutationResult{}, updateErr
-		}
-		return MutationResult{DocumentID: generatedID, DocumentNo: generatedNo, Status: StatusDraft, Revision: revision}, nil
 	}
 	lines, total, err := s.validateAndReserveInboundLines(ctx, tx, order.ID, "", input.Data.SourceLines)
 	if err != nil {
@@ -298,37 +124,10 @@ func (s *Service) CreatePurchaseInbound(
 	if err = s.insertPurchaseInboundLines(ctx, q, id, lines); err != nil {
 		return MutationResult{}, err
 	}
-	var processExists bool
-	if err = tx.QueryRow(ctx, `SELECT EXISTS(
-		SELECT 1 FROM wfl_process_instances WHERE id=$1 AND process_type=$2
-	)`, order.ID, purchaseWorkflowType).Scan(&processExists); err != nil {
-		return MutationResult{}, s.internal("check purchase workflow", err)
-	}
-	if processExists {
-		var sequence int32
-		if err = tx.QueryRow(ctx, `SELECT COALESCE(max(sequence_no),0)+1
-			FROM wfl_process_documents WHERE process_id=$1 AND stage=$2`,
-			order.ID, purchaseStageInbound).Scan(&sequence); err != nil {
-			return MutationResult{}, err
-		}
-		if _, err = tx.Exec(ctx, `INSERT INTO wfl_process_documents(
-			process_id,document_id,stage,sequence_no
-		) VALUES($1,$2,$3,$4)`, order.ID, id, purchaseStageInbound, sequence); err != nil {
-			return MutationResult{}, s.writeError("link purchase inbound", err)
-		}
-	}
 	if err = insertAudit(ctx, q, auditInput{
 		DocumentID: id, Entity: EntityPurchaseInbound, Event: "CREATED", To: StatusDraft,
 		ActorID: actorID, RequestID: requestID, Summary: map[string]any{"sourceOrderId": order.ID},
 	}); err != nil {
-		return MutationResult{}, err
-	}
-	inbound := dbsqlc.VouDocument{
-		ID: id, Entity: EntityPurchaseInbound, DocumentNo: number,
-		ParentDocumentID: stringPtr(order.ID),
-	}
-	if err = s.touchPurchaseWorkflow(ctx, tx, inbound, "INBOUND_CREATED", StatusDraft,
-		actorID, requestID, map[string]any{"lineCount": len(lines)}); err != nil {
 		return MutationResult{}, err
 	}
 	if err = s.events.Publish(ctx, tx, DocumentCreatedEvent{
@@ -420,10 +219,6 @@ func (s *Service) SavePurchaseInbound(
 	}); err != nil {
 		return MutationResult{}, err
 	}
-	if err = s.touchPurchaseWorkflow(ctx, tx, document, "SAVED", StatusDraft,
-		actorID, requestID, map[string]any{"lineCount": len(lines)}); err != nil {
-		return MutationResult{}, err
-	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit save purchase inbound", err)
 	}
@@ -470,13 +265,6 @@ func (s *Service) DeletePurchaseInbound(
 		return MutationResult{}, domainError(ErrorConflict,
 			"purchase inbound has return documents", nil, nil)
 	}
-	var processID string
-	if err = tx.QueryRow(ctx, `SELECT process_id FROM wfl_process_documents
-		WHERE document_id=$1`, input.DocumentID).Scan(&processID); errors.Is(err, pgx.ErrNoRows) {
-		processID = ""
-	} else if err != nil {
-		return MutationResult{}, err
-	}
 	if err = s.events.Publish(ctx, tx, DocumentDeletedEvent{
 		Entity: EntityPurchaseInbound, DocumentID: document.ID,
 		DocumentNo: document.DocumentNo, ParentDocumentID: deref(document.ParentDocumentID),
@@ -492,19 +280,6 @@ func (s *Service) DeletePurchaseInbound(
 	} {
 		if _, err = tx.Exec(ctx, statement, input.DocumentID); err != nil {
 			return MutationResult{}, s.writeError("delete purchase inbound", err)
-		}
-	}
-	if processID != "" {
-		workflowActorID := systemidentity.UserID
-		if _, err = tx.Exec(ctx, `UPDATE wfl_process_instances SET revision=revision+1,
-			updated_at=now(),updated_by=$1 WHERE id=$2`, workflowActorID, processID); err != nil {
-			return MutationResult{}, err
-		}
-		if err = s.insertPurchaseWorkflowAudit(ctx, tx, processID, "INBOUND_DELETED",
-			stringPtr(StatusApproved), StatusApproved, purchaseStageInbound,
-			document.ID, document.DocumentNo, StatusDraft, workflowActorID, requestID,
-			map[string]any{"reason": strings.TrimSpace(input.Reason)}); err != nil {
-			return MutationResult{}, err
 		}
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -713,7 +488,6 @@ func (s *Service) setPurchaseOrderBalances(
 func (s *Service) refreshPurchaseOrderFulfillment(
 	ctx context.Context, tx pgx.Tx, documentID, _ string,
 ) error {
-	actorID := systemidentity.UserID
 	var orderID string
 	if err := tx.QueryRow(ctx, `SELECT source_order_id FROM (
 		SELECT document_id,source_order_id FROM vou_purchase_inbound_details
@@ -748,18 +522,5 @@ func (s *Service) refreshPurchaseOrderFulfillment(
 	}
 	_, err = tx.Exec(ctx, `UPDATE vou_purchase_order_details SET fulfillment_status=$1
 		WHERE document_id=$2`, status, orderID)
-	if err == nil {
-		_, err = tx.Exec(ctx, `UPDATE wfl_process_instances SET
-			status='APPROVED',revision=revision+1,updated_at=now(),updated_by=$1
-			WHERE root_document_id=$2 AND process_type=$3`,
-			actorID, orderID, purchaseWorkflowType)
-	}
-	if err == nil {
-		if complete {
-			err = s.closeSettlementReservationIfFulfilled(ctx, tx, EntityPurchaseOrder, orderID)
-		} else {
-			err = s.restoreOrderSettlement(ctx, tx, EntityPurchaseOrder, orderID)
-		}
-	}
 	return err
 }

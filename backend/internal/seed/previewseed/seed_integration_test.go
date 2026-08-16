@@ -84,11 +84,11 @@ func TestPreviewSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T
 		t.Fatalf("repeat preview seed: %v", err)
 	}
 	if created := second.Auxiliary.Created + second.Business.Created +
-		second.Workflows.Created + second.Vouchers.Created + second.Accounting.Created; created != 0 {
+		second.Vouchers.Created + second.Accounting.Created; created != 0 {
 		t.Fatalf("repeat seed created %d rows: %+v", created, second)
 	}
 	if resumed := second.Auxiliary.Resumed + second.Business.Resumed +
-		second.Workflows.Resumed + second.Vouchers.Resumed + second.Accounting.Resumed; resumed != 0 {
+		second.Vouchers.Resumed + second.Accounting.Resumed; resumed != 0 {
 		t.Fatalf("repeat seed resumed %d rows: %+v", resumed, second)
 	}
 	assertDistinctEntities(t, pool, "aux_objects", 8)
@@ -106,19 +106,28 @@ func TestPreviewSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T
 	if businessEntities != 9 {
 		t.Fatalf("preview BOB distinct entities = %d, want 9", businessEntities)
 	}
-	assertDistinctEntities(t, pool, "vou_documents", 34)
-	var legacyWorkflowTypes, expenseWorkflowInstances int
+	assertDistinctEntities(t, pool, "vou_documents", 33)
+	var workflowDefinitions, workflowInstances int
 	if err = pool.QueryRow(t.Context(), `
 		SELECT
-			(SELECT count(DISTINCT process_type) FROM wfl_process_instances),
-			(SELECT count(*) FROM wfl_definition_instances instance
-			 JOIN wfl_process_definitions definition ON definition.id=instance.definition_id
-			 WHERE definition.code='expense-payment')
-	`).Scan(&legacyWorkflowTypes, &expenseWorkflowInstances); err != nil {
-		t.Fatalf("count workflow types: %v", err)
+			(SELECT count(*) FROM wfl_process_definitions WHERE status='DRAFT' AND published_revision IS NULL),
+			(SELECT count(*) FROM wfl_definition_instances)
+	`).Scan(&workflowDefinitions, &workflowInstances); err != nil {
+		t.Fatalf("count workflow seeds: %v", err)
 	}
-	if legacyWorkflowTypes != 2 || expenseWorkflowInstances != 1 {
-		t.Fatalf("workflow coverage legacyTypes=%d expenseInstances=%d", legacyWorkflowTypes, expenseWorkflowInstances)
+	if workflowDefinitions != 3 || workflowInstances != 0 {
+		t.Fatalf("workflow seed coverage definitions=%d instances=%d", workflowDefinitions, workflowInstances)
+	}
+	var generatedExpensePayments int
+	if err = pool.QueryRow(t.Context(), `
+		SELECT count(*)
+		FROM vou_documents
+		WHERE entity='expense-payment'
+	`).Scan(&generatedExpensePayments); err != nil {
+		t.Fatalf("count preview expense payments: %v", err)
+	}
+	if generatedExpensePayments != 0 {
+		t.Fatalf("draft workflow seeds generated %d expense payments, want 0", generatedExpensePayments)
 	}
 	assertAccountingAndReportFacts(t, pool)
 	var receiptID string

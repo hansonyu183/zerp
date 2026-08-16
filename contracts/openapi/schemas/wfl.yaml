@@ -1,437 +1,462 @@
-{
-  'WflGetRequest':
-    {
-      'type': 'object',
-      'required': ['processId'],
-      'additionalProperties': false,
-      'properties': { 'processId': { 'type': 'string' } },
-    },
-  'WflStageGetRequest':
-    {
-      'type': 'object',
-      'required': ['processId', 'documentId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'processId': { 'type': 'string' },
-          'documentId': { 'type': 'string' },
-        },
-    },
-  'WflCreateRequest':
-    {
-      'type': 'object',
-      'required': ['data'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'data':
-            {
-              'type': 'object',
-              'additionalProperties': true,
-              'properties': {},
-            },
-        },
-    },
-  'WflSaveRequest':
-    {
-      'type': 'object',
-      'required':
-        [
-          'processId',
-          'processRevision',
-          'documentId',
-          'documentRevision',
-          'data',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'processId': { 'type': 'string' },
-          'processRevision': { 'type': 'integer', 'format': 'int64' },
-          'documentId': { 'type': 'string' },
-          'documentRevision': { 'type': 'integer', 'format': 'int64' },
-          'data':
-            {
-              'type': 'object',
-              'additionalProperties': true,
-              'properties': {},
-            },
-        },
-    },
-  'WflHistoryRequest':
-    {
-      'type': 'object',
-      'required': ['processId', 'page', 'pageSize'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'processId': { 'type': 'string' },
-          'page': { 'type': 'integer', 'minimum': 1 },
-          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
-        },
-    },
-  'WflActionRequest':
-    {
-      'type': 'object',
-      'required': ['processId', 'processRevision'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'processId': { 'type': 'string' },
-          'processRevision': { 'type': 'integer', 'format': 'int64' },
-          'documentId': { 'type': 'string' },
-          'documentRevision': { 'type': 'integer', 'format': 'int64' },
-          'data':
-            {
-              'type': 'object',
-              'additionalProperties': true,
-              'properties': {},
-            },
-          'reason': { 'type': 'string' },
-        },
-    },
-  'WflAttachmentInitiateRequest':
-    {
-      'type': 'object',
-      'required':
-        [
-          'processId',
-          'processRevision',
-          'documentId',
-          'documentRevision',
-          'fileName',
-          'contentType',
-          'size',
-          'sha256',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'processId': { 'type': 'string' },
-          'processRevision': { 'type': 'integer', 'format': 'int64' },
-          'documentId': { 'type': 'string' },
-          'documentRevision': { 'type': 'integer', 'format': 'int64' },
-          'fileName': { 'type': 'string' },
-          'contentType': { 'type': 'string' },
-          'size': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
-          'sha256': { 'type': 'string' },
-        },
-    },
-  'WflAttachmentDownloadRequest':
-    {
-      'type': 'object',
-      'required': ['processId', 'documentId', 'fileId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'processId': { 'type': 'string' },
-          'documentId': { 'type': 'string' },
-          'fileId': { 'type': 'string' },
-        },
-    },
-  'WflAttachmentRemoveRequest':
-    {
-      'type': 'object',
-      'required':
-        [
-          'processId',
-          'processRevision',
-          'documentId',
-          'documentRevision',
-          'fileId',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'processId': { 'type': 'string' },
-          'processRevision': { 'type': 'integer', 'format': 'int64' },
-          'documentId': { 'type': 'string' },
-          'documentRevision': { 'type': 'integer', 'format': 'int64' },
-          'fileId': { 'type': 'string' },
-        },
-    },
-  'WflDefinitionQueryRequest':
-    {
-      'type': 'object',
-      'required': ['page', 'pageSize'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'page': { 'type': 'integer', 'minimum': 1 },
-          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
-          'keyword': { 'type': 'string' },
-        },
-    },
-  'WflDefinitionGetRequest':
-    {
-      'type': 'object',
-      'required': ['definitionId'],
-      'additionalProperties': false,
-      'properties': { 'definitionId': { 'type': 'string' } },
-    },
-  'WflDefinitionNodeInput':
-    {
-      'type': 'object',
-      'required':
-        [
-          'id',
-          'key',
-          'name',
-          'documentEntity',
-          'positionX',
-          'positionY',
-          'defaults',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'id': { 'type': 'string' },
-          'key': { 'type': 'string' },
-          'name': { 'type': 'string' },
-          'documentEntity': { 'type': 'string' },
-          'positionX': { 'type': 'integer' },
-          'positionY': { 'type': 'integer' },
-          'defaults': { 'type': 'object', 'additionalProperties': true },
-        },
-    },
-  'WflDefinitionEdgeInput':
-    {
-      'type': 'object',
-      'required':
-        ['id', 'sourceNodeId', 'targetNodeId', 'converterKey', 'condition'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'id': { 'type': 'string' },
-          'sourceNodeId': { 'type': 'string' },
-          'targetNodeId': { 'type': 'string' },
-          'converterKey': { 'type': 'string' },
-          'condition': { 'type': 'object', 'additionalProperties': true },
-        },
-    },
-  'WflDefinitionScriptSource':
-    {
-      'type': 'object',
-      'required': ['script'],
-      'additionalProperties': false,
-      'properties': { 'script': { 'type': 'string', 'minLength': 1 } },
-    },
-  'WflDefinitionGraphSource':
-    {
-      'type': 'object',
-      'required':
-        ['code', 'name', 'rootNodeId', 'startCondition', 'nodes', 'edges'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'string' },
-          'name': { 'type': 'string' },
-          'rootNodeId': { 'type': 'string' },
-          'startCondition': { 'type': 'object', 'additionalProperties': true },
-          'nodes':
-            {
-              'type': 'array',
-              'items': { '$ref': '#/WflDefinitionNodeInput' },
-            },
-          'edges':
-            {
-              'type': 'array',
-              'items': { '$ref': '#/WflDefinitionEdgeInput' },
-            },
-        },
-    },
-  'WflDefinitionCreateRequest':
-    {
-      'oneOf':
-        [
-          { '$ref': '#/WflDefinitionScriptSource' },
-          { '$ref': '#/WflDefinitionGraphSource' },
-        ],
-    },
-  'WflDefinitionSaveRequest':
-    {
-      'oneOf':
-        [
-          { '$ref': '#/WflDefinitionScriptSaveRequest' },
-          { '$ref': '#/WflDefinitionGraphSaveRequest' },
-        ],
-    },
-  'WflDefinitionScriptSaveRequest':
-    {
-      'type': 'object',
-      'required': ['definitionId', 'revision', 'script'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'definitionId': { 'type': 'string' },
-          'revision': { 'type': 'integer', 'format': 'int64' },
-          'script': { 'type': 'string', 'minLength': 1 },
-        },
-    },
-  'WflDefinitionGraphSaveRequest':
-    {
-      'type': 'object',
-      'required':
-        [
-          'definitionId',
-          'revision',
-          'code',
-          'name',
-          'rootNodeId',
-          'startCondition',
-          'nodes',
-          'edges',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'definitionId': { 'type': 'string' },
-          'revision': { 'type': 'integer', 'format': 'int64' },
-          'code': { 'type': 'string' },
-          'name': { 'type': 'string' },
-          'rootNodeId': { 'type': 'string' },
-          'startCondition': { 'type': 'object', 'additionalProperties': true },
-          'nodes':
-            {
-              'type': 'array',
-              'items': { '$ref': '#/WflDefinitionNodeInput' },
-            },
-          'edges':
-            {
-              'type': 'array',
-              'items': { '$ref': '#/WflDefinitionEdgeInput' },
-            },
-        },
-    },
-  'WflDefinitionTrialRequest':
-    {
-      'type': 'object',
-      'required': ['definitionId', 'revision', 'source'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'definitionId': { 'type': 'string' },
-          'revision': { 'type': 'integer', 'format': 'int64' },
-          'source':
-            {
-              'type': 'object',
-              'required': ['entity', 'data'],
-              'additionalProperties': false,
-              'properties':
-                {
-                  'entity': { '$ref': './vou.yaml#/VouEntity' },
-                  'data': { '$ref': './vou.yaml#/VouDraftInput' },
-                },
-            },
-        },
-    },
-  'WflDefinitionActionRequest':
-    {
-      'type': 'object',
-      'required': ['definitionId', 'revision'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'definitionId': { 'type': 'string' },
-          'revision': { 'type': 'integer', 'format': 'int64' },
-        },
-    },
-  'WflInstanceQueryRequest':
-    {
-      'type': 'object',
-      'required': ['page', 'pageSize'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'page': { 'type': 'integer', 'minimum': 1 },
-          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
-          'keyword': { 'type': 'string' },
-          'definitionId': { 'type': 'string' },
-          'partyObjectId': { 'type': 'string' },
-        },
-    },
-  'WflInstanceListItem':
-    {
-      'type': 'object',
-      'required':
-        [
-          'processId',
-          'definitionId',
-          'definitionCode',
-          'definitionName',
-          'revision',
-          'rootDocumentId',
-          'rootDocumentNo',
-          'rootEntity',
-          'partyCode',
-          'partyName',
-          'updatedAt',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'processId': { 'type': 'string' },
-          'definitionId': { 'type': 'string' },
-          'definitionCode': { 'type': 'string' },
-          'definitionName': { 'type': 'string' },
-          'revision': { 'type': 'integer', 'format': 'int64' },
-          'rootDocumentId': { 'type': 'string' },
-          'rootDocumentNo': { 'type': 'string' },
-          'rootEntity': { 'type': 'string' },
-          'partyCode': { 'type': 'string' },
-          'partyName': { 'type': 'string' },
-          'updatedAt': { 'type': 'string', 'format': 'date-time' },
-        },
-    },
-  'WflInstancePage':
-    {
-      'type': 'object',
-      'required': ['items', 'total', 'page', 'pageSize'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'items':
-            { 'type': 'array', 'items': { '$ref': '#/WflInstanceListItem' } },
-          'total': { 'type': 'integer', 'format': 'int64' },
-          'page': { 'type': 'integer' },
-          'pageSize': { 'type': 'integer' },
-        },
-    },
-  'WflInstanceQueryResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer', 'format': 'int32' },
-          'message': { 'type': 'string' },
-          'data':
-            {
-              'type': 'object',
-              'nullable': true,
-              'allOf': [{ '$ref': '#/WflInstancePage' }],
-            },
-          'requestId': { 'type': 'string' },
-        },
-    },
-  'WflInstanceGetRequest':
-    {
-      'type': 'object',
-      'required': ['processId'],
-      'additionalProperties': false,
-      'properties': { 'processId': { 'type': 'string' } },
-    },
-  'WflInstanceHistoryRequest':
-    {
-      'type': 'object',
-      'required': ['processId', 'page', 'pageSize'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'processId': { 'type': 'string' },
-          'page': { 'type': 'integer', 'minimum': 1 },
-          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
-        },
-    },
-}
+'WflDefinitionStatus':
+  { 'type': 'string', 'enum': ['DRAFT', 'ENABLED', 'DISABLED'] }
+'WflDefinitionQueryRequest':
+  {
+    'type': 'object',
+    'required': ['page', 'pageSize'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'page': { 'type': 'integer', 'minimum': 1 },
+        'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
+        'keyword': { 'type': 'string' },
+        'statuses':
+          { 'type': 'array', 'items': { '$ref': '#/WflDefinitionStatus' } },
+      },
+  }
+'WflDefinitionGetRequest':
+  {
+    'type': 'object',
+    'required': ['definitionId'],
+    'additionalProperties': false,
+    'properties': { 'definitionId': { 'type': 'string' } },
+  }
+'WflDefinitionCreateRequest':
+  {
+    'type': 'object',
+    'required': ['script'],
+    'additionalProperties': false,
+    'properties': { 'script': { 'type': 'string', 'minLength': 1 } },
+  }
+'WflDefinitionSaveRequest':
+  {
+    'type': 'object',
+    'required': ['definitionId', 'revision', 'script'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'definitionId': { 'type': 'string' },
+        'revision': { 'type': 'integer', 'format': 'int64' },
+        'script': { 'type': 'string', 'minLength': 1 },
+      },
+  }
+'WflDefinitionTrialRequest':
+  {
+    'type': 'object',
+    'required': ['definitionId', 'revision', 'source'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'definitionId': { 'type': 'string' },
+        'revision': { 'type': 'integer', 'format': 'int64' },
+        'source':
+          {
+            'type': 'object',
+            'required': ['entity', 'documentId'],
+            'additionalProperties': false,
+            'properties':
+              {
+                'entity': { '$ref': './vou.yaml#/VouEntity' },
+                'documentId': { 'type': 'string' },
+              },
+          },
+      },
+  }
+'WflDefinitionActionRequest':
+  {
+    'type': 'object',
+    'required': ['definitionId', 'revision'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'definitionId': { 'type': 'string' },
+        'revision': { 'type': 'integer', 'format': 'int64' },
+      },
+  }
+'WflDefinitionDiagnostic':
+  {
+    'type': 'object',
+    'required': ['message'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'message': { 'type': 'string' },
+        'line': { 'type': 'integer' },
+        'column': { 'type': 'integer' },
+      },
+  }
+'WflDefinitionNode':
+  {
+    'type': 'object',
+    'required': ['key', 'name', 'documentEntity', 'positionX', 'positionY'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'key': { 'type': 'string' },
+        'name': { 'type': 'string' },
+        'documentEntity': { '$ref': './vou.yaml#/VouEntity' },
+        'positionX': { 'type': 'integer' },
+        'positionY': { 'type': 'integer' },
+      },
+  }
+'WflDefinitionEdge':
+  {
+    'type': 'object',
+    'required': ['sourceNodeKey', 'targetNodeKey', 'action', 'relation'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'sourceNodeKey': { 'type': 'string' },
+        'targetNodeKey': { 'type': 'string' },
+        'action':
+          {
+            'type': 'string',
+            'enum':
+              [
+                'expense_payment',
+                'purchase_inbound',
+                'sale_outbound',
+                'sale_delivery',
+                'sale_signoff',
+                'sale_return',
+              ],
+          },
+        'relation': { 'type': 'string' },
+      },
+  }
+'WflDefinitionView':
+  {
+    'type': 'object',
+    'required':
+      [
+        'definitionId',
+        'code',
+        'name',
+        'status',
+        'revision',
+        'rootEntity',
+        'nodeCount',
+        'updatedAt',
+        'script',
+        'rootNodeKey',
+        'nodes',
+        'edges',
+      ],
+    'additionalProperties': false,
+    'properties':
+      {
+        'definitionId': { 'type': 'string' },
+        'code': { 'type': 'string' },
+        'name': { 'type': 'string' },
+        'status': { '$ref': '#/WflDefinitionStatus' },
+        'revision': { 'type': 'integer', 'format': 'int64' },
+        'publishedRevision': { 'type': 'integer', 'format': 'int64' },
+        'rootEntity': { '$ref': './vou.yaml#/VouEntity' },
+        'nodeCount': { 'type': 'integer' },
+        'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        'script': { 'type': 'string' },
+        'diagnostic': { '$ref': '#/WflDefinitionDiagnostic' },
+        'rootNodeKey': { 'type': 'string' },
+        'nodes':
+          { 'type': 'array', 'items': { '$ref': '#/WflDefinitionNode' } },
+        'edges':
+          { 'type': 'array', 'items': { '$ref': '#/WflDefinitionEdge' } },
+      },
+  }
+'WflDefinitionTrialResult':
+  {
+    'type': 'object',
+    'required':
+      [
+        'definitionId',
+        'revision',
+        'matched',
+        'rootNodeKey',
+        'trace',
+        'plannedActions',
+        'uncoveredBranches',
+      ],
+    'additionalProperties': false,
+    'properties':
+      {
+        'definitionId': { 'type': 'string' },
+        'revision': { 'type': 'integer', 'format': 'int64' },
+        'matched': { 'type': 'boolean' },
+        'rootNodeKey': { 'type': 'string' },
+        'trace':
+          {
+            'type': 'array',
+            'items': { 'type': 'object', 'additionalProperties': true },
+          },
+        'plannedActions':
+          {
+            'type': 'array',
+            'items': { 'type': 'object', 'additionalProperties': true },
+          },
+        'uncoveredBranches': { 'type': 'array', 'items': { 'type': 'string' } },
+      },
+  }
+'WflDefinitionViewResponse':
+  {
+    'type': 'object',
+    'required': ['code', 'message', 'data', 'requestId'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'code': { 'type': 'integer', 'format': 'int32' },
+        'message': { 'type': 'string' },
+        'data':
+          {
+            'type': 'object',
+            'nullable': true,
+            'allOf': [{ '$ref': '#/WflDefinitionView' }],
+          },
+        'requestId': { 'type': 'string' },
+      },
+  }
+'WflDefinitionTrialResponse':
+  {
+    'type': 'object',
+    'required': ['code', 'message', 'data', 'requestId'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'code': { 'type': 'integer', 'format': 'int32' },
+        'message': { 'type': 'string' },
+        'data':
+          {
+            'type': 'object',
+            'nullable': true,
+            'allOf': [{ '$ref': '#/WflDefinitionTrialResult' }],
+          },
+        'requestId': { 'type': 'string' },
+      },
+  }
+'WflInstanceQueryRequest':
+  {
+    'type': 'object',
+    'required': ['page', 'pageSize'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'page': { 'type': 'integer', 'minimum': 1 },
+        'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
+        'keyword': { 'type': 'string' },
+        'definitionId': { 'type': 'string' },
+        'partyObjectId': { 'type': 'string' },
+      },
+  }
+'WflInstanceListItem':
+  {
+    'type': 'object',
+    'required':
+      [
+        'processId',
+        'definitionId',
+        'definitionCode',
+        'definitionName',
+        'revision',
+        'rootDocumentId',
+        'rootDocumentNo',
+        'rootEntity',
+        'partyCode',
+        'partyName',
+        'updatedAt',
+      ],
+    'additionalProperties': false,
+    'properties':
+      {
+        'processId': { 'type': 'string' },
+        'definitionId': { 'type': 'string' },
+        'definitionCode': { 'type': 'string' },
+        'definitionName': { 'type': 'string' },
+        'revision': { 'type': 'integer', 'format': 'int64' },
+        'rootDocumentId': { 'type': 'string' },
+        'rootDocumentNo': { 'type': 'string' },
+        'rootEntity': { 'type': 'string' },
+        'partyCode': { 'type': 'string' },
+        'partyName': { 'type': 'string' },
+        'updatedAt': { 'type': 'string', 'format': 'date-time' },
+      },
+  }
+'WflInstancePage':
+  {
+    'type': 'object',
+    'required': ['items', 'total', 'page', 'pageSize'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'items':
+          { 'type': 'array', 'items': { '$ref': '#/WflInstanceListItem' } },
+        'total': { 'type': 'integer', 'format': 'int64' },
+        'page': { 'type': 'integer' },
+        'pageSize': { 'type': 'integer' },
+      },
+  }
+'WflInstanceQueryResponse':
+  {
+    'type': 'object',
+    'required': ['code', 'message', 'data', 'requestId'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'code': { 'type': 'integer', 'format': 'int32' },
+        'message': { 'type': 'string' },
+        'data':
+          {
+            'type': 'object',
+            'nullable': true,
+            'allOf': [{ '$ref': '#/WflInstancePage' }],
+          },
+        'requestId': { 'type': 'string' },
+      },
+  }
+'WflInstanceGetRequest':
+  {
+    'type': 'object',
+    'required': ['processId'],
+    'additionalProperties': false,
+    'properties': { 'processId': { 'type': 'string' } },
+  }
+'WflNodeInstance':
+  {
+    'type': 'object',
+    'required':
+      [
+        'nodeInstanceId',
+        'nodeKey',
+        'nodeName',
+        'documentId',
+        'documentNo',
+        'documentEntity',
+        'documentStatus',
+        'documentRevision',
+        'businessDate',
+        'trigger',
+      ],
+    'additionalProperties': false,
+    'properties':
+      {
+        'nodeInstanceId': { 'type': 'string' },
+        'parentNodeInstanceId': { 'type': 'string' },
+        'nodeKey': { 'type': 'string' },
+        'nodeName': { 'type': 'string' },
+        'documentId': { 'type': 'string' },
+        'documentNo': { 'type': 'string' },
+        'documentEntity': { '$ref': './vou.yaml#/VouEntity' },
+        'documentStatus': { 'type': 'string' },
+        'documentRevision': { 'type': 'integer', 'format': 'int64' },
+        'businessDate': { 'type': 'string' },
+        'businessParentEntity': { 'type': 'string' },
+        'businessParentDocumentId': { 'type': 'string' },
+        'relation': { 'type': 'string' },
+        'trigger': { 'type': 'string' },
+        'action': { 'type': 'string' },
+        'evaluatedAt': { 'type': 'string', 'format': 'date-time' },
+      },
+  }
+'WflAvailableChildTarget':
+  {
+    'type': 'object',
+    'required':
+      [
+        'parentNodeInstanceId',
+        'targetNodeKey',
+        'targetNodeName',
+        'targetEntity',
+        'relation',
+      ],
+    'additionalProperties': false,
+    'properties':
+      {
+        'parentNodeInstanceId': { 'type': 'string' },
+        'targetNodeKey': { 'type': 'string' },
+        'targetNodeName': { 'type': 'string' },
+        'targetEntity': { '$ref': './vou.yaml#/VouEntity' },
+        'relation': { 'type': 'string' },
+      },
+  }
+'WflInstanceView':
+  {
+    'type': 'object',
+    'required':
+      [
+        'processId',
+        'definitionId',
+        'definitionCode',
+        'definitionName',
+        'revision',
+        'rootDocumentId',
+        'rootDocumentNo',
+        'rootEntity',
+        'partyCode',
+        'partyName',
+        'updatedAt',
+        'startedDefinitionRevision',
+        'nodes',
+        'availableTargets',
+      ],
+    'additionalProperties': false,
+    'properties':
+      {
+        'processId': { 'type': 'string' },
+        'definitionId': { 'type': 'string' },
+        'definitionCode': { 'type': 'string' },
+        'definitionName': { 'type': 'string' },
+        'revision': { 'type': 'integer', 'format': 'int64' },
+        'rootDocumentId': { 'type': 'string' },
+        'rootDocumentNo': { 'type': 'string' },
+        'rootEntity': { 'type': 'string' },
+        'partyCode': { 'type': 'string' },
+        'partyName': { 'type': 'string' },
+        'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        'startedDefinitionRevision': { 'type': 'integer', 'format': 'int64' },
+        'nodes': { 'type': 'array', 'items': { '$ref': '#/WflNodeInstance' } },
+        'availableTargets':
+          { 'type': 'array', 'items': { '$ref': '#/WflAvailableChildTarget' } },
+      },
+  }
+'WflInstanceViewResponse':
+  {
+    'type': 'object',
+    'required': ['code', 'message', 'data', 'requestId'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'code': { 'type': 'integer', 'format': 'int32' },
+        'message': { 'type': 'string' },
+        'data':
+          {
+            'type': 'object',
+            'nullable': true,
+            'allOf': [{ '$ref': '#/WflInstanceView' }],
+          },
+        'requestId': { 'type': 'string' },
+      },
+  }
+'WflInstanceHistoryRequest':
+  {
+    'type': 'object',
+    'required': ['processId', 'page', 'pageSize'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'processId': { 'type': 'string' },
+        'page': { 'type': 'integer', 'minimum': 1 },
+        'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
+      },
+  }
+'WflCreateChildRequest':
+  {
+    'type': 'object',
+    'required':
+      ['processId', 'parentNodeInstanceId', 'targetNodeKey', 'requestKey'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'processId': { 'type': 'string' },
+        'parentNodeInstanceId': { 'type': 'string' },
+        'targetNodeKey': { 'type': 'string' },
+        'requestKey': { 'type': 'string', 'minLength': 16, 'maxLength': 64 },
+      },
+  }

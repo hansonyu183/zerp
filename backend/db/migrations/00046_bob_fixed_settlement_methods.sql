@@ -244,113 +244,6 @@ WHERE detail.settlement_method_id = mapping.aux_object_id
         AND backup.version_id = detail.version_id
   );
 
-CREATE TABLE vou_settlement_reservations (
-    order_id varchar(26) PRIMARY KEY REFERENCES vou_documents(id) ON DELETE RESTRICT,
-    order_entity varchar(32) NOT NULL CHECK (order_entity IN ('sale-order','purchase-order')),
-    term_code varchar(32) NOT NULL CHECK (term_code IN ('PREPAID','CASH_ON_DELIVERY')),
-    counterparty_entity varchar(16) NOT NULL CHECK (counterparty_entity IN ('customer','supplier')),
-    counterparty_object_id varchar(26) NOT NULL,
-    currency varchar(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
-    original_amount_cents bigint NOT NULL CHECK (original_amount_cents >= 0),
-    reserved_amount_cents bigint NOT NULL CHECK (reserved_amount_cents >= 0),
-    active boolean NOT NULL DEFAULT true,
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX vou_settlement_reservations_prepaid_idx
-    ON vou_settlement_reservations(counterparty_entity, counterparty_object_id, currency)
-    WHERE active AND term_code = 'PREPAID';
-CREATE INDEX vou_settlement_reservations_cod_idx
-    ON vou_settlement_reservations(counterparty_entity, counterparty_object_id, currency)
-    WHERE active AND term_code = 'CASH_ON_DELIVERY';
-
-WITH active_orders AS (
-    SELECT document.id AS order_id,
-           document.entity AS order_entity,
-           CASE
-             WHEN detail.settlement_method_name LIKE '%预付%' THEN 'PREPAID'
-             WHEN detail.settlement_rule_type IN ('DUE_DAYS','RELATIVE_DAYS')
-                  AND detail.settlement_day_offset <= 0 THEN 'CASH_ON_DELIVERY'
-           END AS term_code,
-           'customer'::varchar(16) AS counterparty_entity,
-           detail.customer_object_id AS counterparty_object_id,
-           document.currency,
-           document.total_amount_cents AS original_amount_cents,
-           detail.fulfillment_status,
-           GREATEST(LEAST(
-               document.total_amount_cents
-               - COALESCE((
-                   SELECT sum(fulfilled.total_amount_cents)
-                   FROM vou_sale_signoff_details fulfillment
-                   JOIN vou_documents fulfilled ON fulfilled.id = fulfillment.document_id
-                   WHERE fulfillment.source_order_id = document.id
-                     AND fulfilled.status IN ('APPROVED','FINALIZED')
-               ), 0)
-               + COALESCE((
-                   SELECT sum(returned.total_amount_cents)
-                   FROM vou_sale_return_details return_detail
-                   JOIN vou_documents returned ON returned.id = return_detail.document_id
-                   WHERE return_detail.source_order_id = document.id
-                     AND return_detail.return_kind = 'AFTER_SALE'
-                     AND returned.status IN ('APPROVED','FINALIZED')
-               ), 0),
-               document.total_amount_cents
-           ), 0)::bigint AS reserved_amount_cents
-    FROM vou_documents document
-    JOIN vou_sale_order_details detail ON detail.document_id = document.id
-    WHERE document.entity = 'sale-order'
-      AND document.status IN ('APPROVED','FINALIZED')
-
-    UNION ALL
-
-    SELECT document.id,
-           document.entity,
-           CASE
-             WHEN detail.settlement_method_name LIKE '%预付%' THEN 'PREPAID'
-             WHEN detail.settlement_rule_type IN ('DUE_DAYS','RELATIVE_DAYS')
-                  AND detail.settlement_day_offset <= 0 THEN 'CASH_ON_DELIVERY'
-           END,
-           'supplier'::varchar(16),
-           detail.supplier_object_id,
-           document.currency,
-           document.total_amount_cents,
-           detail.fulfillment_status,
-           GREATEST(LEAST(
-               document.total_amount_cents
-               - COALESCE((
-                   SELECT sum(fulfilled.total_amount_cents)
-                   FROM vou_purchase_inbound_details fulfillment
-                   JOIN vou_documents fulfilled ON fulfilled.id = fulfillment.document_id
-                   WHERE fulfillment.source_order_id = document.id
-                     AND fulfilled.status IN ('APPROVED','FINALIZED')
-               ), 0)
-               + COALESCE((
-                   SELECT sum(returned.total_amount_cents)
-                   FROM vou_purchase_return_details return_detail
-                   JOIN vou_documents returned ON returned.id = return_detail.document_id
-                   WHERE return_detail.source_order_id = document.id
-                     AND returned.status IN ('APPROVED','FINALIZED')
-               ), 0),
-               document.total_amount_cents
-           ), 0)::bigint
-    FROM vou_documents document
-    JOIN vou_purchase_order_details detail ON detail.document_id = document.id
-    WHERE document.entity = 'purchase-order'
-      AND document.status IN ('APPROVED','FINALIZED')
-)
-INSERT INTO vou_settlement_reservations(
-    order_id, order_entity, term_code, counterparty_entity, counterparty_object_id,
-    currency, original_amount_cents, reserved_amount_cents, active
-)
-SELECT order_id, order_entity, term_code, counterparty_entity, counterparty_object_id,
-       currency, original_amount_cents,
-       CASE WHEN fulfillment_status NOT IN ('FULFILLED','SHORT_CLOSED')
-            THEN reserved_amount_cents ELSE 0 END,
-       fulfillment_status NOT IN ('FULFILLED','SHORT_CLOSED')
-         AND reserved_amount_cents > 0
-FROM active_orders
-WHERE term_code IN ('PREPAID','CASH_ON_DELIVERY');
-
 CREATE TABLE bob_migration_00046_role_permissions (
     role_id varchar(26) NOT NULL,
     old_action varchar(64) NOT NULL,
@@ -462,7 +355,6 @@ JOIN app_permissions permission
  AND permission.action = saved.old_action
 ON CONFLICT DO NOTHING;
 
-DROP TABLE vou_settlement_reservations;
 
 UPDATE bob_customer_versions detail
 SET settlement_method_id = backup.old_settlement_method_id

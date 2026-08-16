@@ -52,11 +52,11 @@ trap cleanup_lock EXIT HUP INT TERM
 
 "${repo_root}/scripts/change-gate.sh" origin/main
 
-[ "$(git rev-parse HEAD)" = "${head_sha}" ] &&
-  [ "$(git rev-parse 'origin/main^{commit}')" = "${base_sha}" ] || {
+if [ "$(git rev-parse HEAD)" != "${head_sha}" ] ||
+  [ "$(git rev-parse 'origin/main^{commit}')" != "${base_sha}" ]; then
   echo 'HEAD or origin/main changed during the final gate; evidence was not recorded' >&2
   exit 1
-}
+fi
 jq -n --arg head "${head_sha}" --arg base "${base_sha}" \
   '{status:"passed",head:$head,base:$base}' >"${evidence_file}.new"
 mv "${evidence_file}.new" "${evidence_file}"

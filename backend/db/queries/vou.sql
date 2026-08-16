@@ -735,24 +735,16 @@ SELECT * FROM vou_payment_details WHERE document_id = sqlc.arg(document_id);
 
 -- name: InsertVouExpenseReimbursementDetail :exec
 INSERT INTO vou_expense_reimbursement_details (
-    document_id, employee_object_id, employee_version_id, employee_code, employee_name,
-    fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name,
-    settlement_mode
+    document_id, employee_object_id, employee_version_id, employee_code, employee_name
 ) VALUES (
     sqlc.arg(document_id), sqlc.arg(employee_object_id), sqlc.arg(employee_version_id),
-    sqlc.arg(employee_code), sqlc.arg(employee_name), sqlc.narg(fund_account_object_id),
-    sqlc.narg(fund_account_version_id), sqlc.narg(fund_account_code), sqlc.narg(fund_account_name),
-    'FLOW_PAYMENT'
+    sqlc.arg(employee_code), sqlc.arg(employee_name)
 );
 
 -- name: UpdateVouExpenseReimbursementDetail :execrows
 UPDATE vou_expense_reimbursement_details
 SET employee_object_id = sqlc.arg(employee_object_id), employee_version_id = sqlc.arg(employee_version_id),
-    employee_code = sqlc.arg(employee_code), employee_name = sqlc.arg(employee_name),
-    fund_account_object_id = CASE WHEN settlement_mode='LEGACY_DIRECT' THEN sqlc.narg(fund_account_object_id) ELSE NULL END,
-    fund_account_version_id = CASE WHEN settlement_mode='LEGACY_DIRECT' THEN sqlc.narg(fund_account_version_id) ELSE NULL END,
-    fund_account_code = CASE WHEN settlement_mode='LEGACY_DIRECT' THEN sqlc.narg(fund_account_code) ELSE NULL END,
-    fund_account_name = CASE WHEN settlement_mode='LEGACY_DIRECT' THEN sqlc.narg(fund_account_name) ELSE NULL END
+    employee_code = sqlc.arg(employee_code), employee_name = sqlc.arg(employee_name)
 WHERE document_id = sqlc.arg(document_id);
 
 -- name: GetVouExpenseReimbursementDetail :one
@@ -1092,3 +1084,145 @@ INSERT INTO vou_bill_cash_lines(id,document_id,line_no,bill_line_id,fund_account
 VALUES(sqlc.arg(id),sqlc.arg(document_id),sqlc.arg(line_no),sqlc.narg(bill_line_id),sqlc.arg(fund_account_object_id),sqlc.arg(fund_account_version_id),sqlc.arg(fund_account_code),sqlc.arg(fund_account_name),sqlc.arg(direction),sqlc.arg(amount_type),sqlc.arg(amount_cents),sqlc.narg(remark));
 -- name: ListVouBillCashLines :many
 SELECT * FROM vou_bill_cash_lines WHERE document_id=sqlc.arg(document_id) ORDER BY line_no;
+
+-- name: FindWorkflowVouChild :one
+SELECT id,document_no,status,revision FROM vou_documents
+WHERE parent_document_id=sqlc.arg(source_document_id) AND entity=sqlc.arg(entity) AND status<>'DELETED'
+ORDER BY created_at,id LIMIT 1 FOR UPDATE;
+
+-- name: LockWorkflowExpenseReimbursement :one
+SELECT d.id,d.entity,d.document_no,d.status,d.revision,d.business_date,d.currency,
+       d.total_amount_cents,d.remark,d.created_at,d.created_by,d.updated_at,d.updated_by,
+       x.employee_object_id,x.employee_version_id,x.employee_code,x.employee_name
+FROM vou_documents d
+JOIN vou_expense_reimbursement_details x ON x.document_id=d.id
+WHERE d.id=sqlc.arg(reimbursement_id)
+FOR UPDATE OF d;
+
+-- name: ListGeneratedWorkflowChildrenForUpdate :many
+SELECT id,entity,status,revision,created_by,
+       EXISTS(SELECT 1 FROM vou_document_attachments attachment WHERE attachment.document_id=vou_documents.id) AS has_attachments
+FROM vou_documents WHERE parent_document_id=sqlc.arg(parent_document_id) FOR UPDATE;
+
+-- name: DeleteVouAuditEventsForDocument :exec
+DELETE FROM vou_audit_events WHERE document_id=sqlc.arg(document_id);
+-- name: DeleteVouSaleOutboundLines :exec
+DELETE FROM vou_sale_outbound_lines WHERE document_id=sqlc.arg(document_id);
+-- name: DeleteVouSaleOutboundDetails :exec
+DELETE FROM vou_sale_outbound_details WHERE document_id=sqlc.arg(document_id);
+-- name: DeleteVouSaleDeliveryDetails :exec
+DELETE FROM vou_sale_delivery_details WHERE document_id=sqlc.arg(document_id);
+-- name: DeleteVouSaleSignoffLines :exec
+DELETE FROM vou_sale_signoff_lines WHERE document_id=sqlc.arg(document_id);
+-- name: DeleteVouSaleSignoffDetails :exec
+DELETE FROM vou_sale_signoff_details WHERE document_id=sqlc.arg(document_id);
+-- name: DeleteVouPurchaseInboundDetails :exec
+DELETE FROM vou_purchase_inbound_details WHERE document_id=sqlc.arg(document_id);
+-- name: DeleteVouExpensePaymentDetails :exec
+DELETE FROM vou_expense_payment_details WHERE document_id=sqlc.arg(document_id);
+-- name: DeleteVouEmployeeLoanWriteoffDetails :exec
+DELETE FROM vou_employee_loan_writeoff_details WHERE document_id=sqlc.arg(document_id);
+-- name: DeleteVouReceiptDetails :exec
+DELETE FROM vou_receipt_details WHERE document_id=sqlc.arg(document_id);
+-- name: DeleteVouPaymentDetails :exec
+DELETE FROM vou_payment_details WHERE document_id=sqlc.arg(document_id);
+-- name: DeleteVouSaleReturnLines :exec
+DELETE FROM vou_sale_return_lines WHERE document_id=sqlc.arg(document_id);
+-- name: DeleteVouSaleReturnDetails :exec
+DELETE FROM vou_sale_return_details WHERE document_id=sqlc.arg(document_id);
+
+-- name: FindVouRefusalReturnDocument :one
+SELECT document_id
+FROM vou_sale_return_details
+WHERE source_signoff_id=sqlc.arg(source_signoff_id) AND return_kind='REFUSAL';
+
+-- name: LockVouRefusalReturnSource :one
+SELECT detail.source_order_id,document.business_date,document.status,document.currency,
+       detail.customer_object_id,detail.customer_version_id,detail.customer_code,detail.customer_name,
+       detail.warehouse_object_id,detail.warehouse_version_id,detail.warehouse_code,detail.warehouse_name
+FROM vou_sale_signoff_details detail
+JOIN vou_documents document ON document.id=detail.document_id
+WHERE detail.document_id=sqlc.arg(document_id)
+FOR UPDATE OF document;
+
+-- name: ListVouRefusalReturnSourceLines :many
+SELECT id,product_object_id,product_version_id,product_code,product_name,product_unit,
+       rejected_qty_micros,unit_price_cents,COALESCE(remark,'') AS remark
+FROM vou_sale_signoff_lines
+WHERE document_id=sqlc.arg(document_id) AND rejected_qty_micros>0
+ORDER BY line_no;
+
+-- name: InsertVouSaleReturnDetail :exec
+INSERT INTO vou_sale_return_details(
+    document_id,source_order_id,source_signoff_id,return_kind,return_reason,
+    customer_object_id,customer_version_id,customer_code,customer_name,
+    warehouse_object_id,warehouse_version_id,warehouse_code,warehouse_name
+) VALUES(
+    sqlc.arg(document_id),sqlc.arg(source_order_id),sqlc.narg(source_signoff_id),
+    sqlc.arg(return_kind),sqlc.arg(return_reason),sqlc.arg(customer_object_id),
+    sqlc.arg(customer_version_id),sqlc.arg(customer_code),sqlc.arg(customer_name),
+    sqlc.arg(warehouse_object_id),sqlc.arg(warehouse_version_id),sqlc.arg(warehouse_code),
+    sqlc.arg(warehouse_name)
+);
+
+-- name: InsertVouSaleReturnLine :exec
+INSERT INTO vou_sale_return_lines(
+    id,document_id,source_signoff_line_id,source_signoff_id,line_no,
+    product_object_id,product_version_id,product_code,product_name,product_unit,
+    quantity_micros,unit_price_cents,line_amount_cents,remark
+) VALUES(
+    sqlc.arg(id),sqlc.arg(document_id),sqlc.arg(source_signoff_line_id),
+    sqlc.arg(source_signoff_id),sqlc.arg(line_no),sqlc.arg(product_object_id),
+    sqlc.arg(product_version_id),sqlc.arg(product_code),sqlc.arg(product_name),
+    sqlc.arg(product_unit),sqlc.arg(quantity_micros),sqlc.arg(unit_price_cents),
+    sqlc.arg(line_amount_cents),sqlc.narg(remark)
+);
+-- name: DeleteVouDocument :exec
+DELETE FROM vou_documents WHERE id=sqlc.arg(document_id);
+
+-- name: GetSaleSignoffSettlementSource :one
+SELECT detail.source_order_id,document.total_amount_cents
+FROM vou_sale_signoff_details detail JOIN vou_documents document ON document.id=detail.document_id
+WHERE detail.document_id=sqlc.arg(document_id);
+-- name: GetPurchaseInboundSettlementSource :one
+SELECT detail.source_order_id,document.total_amount_cents
+FROM vou_purchase_inbound_details detail JOIN vou_documents document ON document.id=detail.document_id
+WHERE detail.document_id=sqlc.arg(document_id);
+-- name: LockVouSettlementBalance :exec
+SELECT pg_advisory_xact_lock(hashtextextended(sqlc.arg(lock_key),0));
+-- name: GetSaleOrderSettlementGate :one
+SELECT detail.settlement_term_code,COALESCE(detail.settlement_method_name,'') AS settlement_method_name,
+       COALESCE(detail.settlement_rule_type,'') AS settlement_rule_type,
+       COALESCE(detail.settlement_month_offset,0) AS settlement_month_offset,
+       COALESCE(detail.settlement_day_offset,0) AS settlement_day_offset,
+       detail.customer_object_id,COALESCE(document.currency,'') AS currency,document.total_amount_cents
+FROM vou_documents document JOIN vou_sale_order_details detail ON detail.document_id=document.id
+WHERE document.id=sqlc.arg(order_id);
+
+-- name: LockVouDocumentStatusForShare :one
+SELECT status FROM vou_documents WHERE id=sqlc.arg(document_id) FOR SHARE;
+-- name: HasVouPurchaseInboundLines :one
+SELECT EXISTS(SELECT 1 FROM vou_purchase_inbound_lines WHERE document_id=sqlc.arg(document_id));
+-- name: HasVouPurchaseReturnLines :one
+SELECT EXISTS(SELECT 1 FROM vou_purchase_return_lines WHERE document_id=sqlc.arg(document_id));
+-- name: IsVouSaleOutboundReady :one
+SELECT x.warehouse_object_id IS NOT NULL AND x.warehouse_version_id IS NOT NULL
+       AND EXISTS(SELECT 1 FROM vou_sale_outbound_lines l WHERE l.document_id=x.document_id AND l.quantity_micros>0)
+FROM vou_sale_outbound_details x WHERE x.document_id=sqlc.arg(document_id);
+-- name: IsVouSaleDeliveryReady :one
+SELECT x.platform_object_id IS NOT NULL AND x.platform_version_id IS NOT NULL
+       AND x.vehicle_object_id IS NOT NULL AND x.vehicle_version_id IS NOT NULL
+FROM vou_sale_delivery_details x WHERE x.document_id=sqlc.arg(document_id);
+-- name: IsVouSaleSignoffReady :one
+SELECT EXISTS(SELECT 1 FROM vou_sale_signoff_lines l WHERE l.document_id=sqlc.arg(document_id)
+              AND l.signed_qty_micros+l.rejected_qty_micros>=0);
+-- name: ListVouWorkflowChildrenForShare :many
+SELECT id,entity,status FROM vou_documents WHERE parent_document_id=sqlc.arg(parent_document_id) FOR SHARE;
+-- name: GetPurchaseOrderSettlementGate :one
+SELECT detail.settlement_term_code,COALESCE(detail.settlement_method_name,'') AS settlement_method_name,
+       COALESCE(detail.settlement_rule_type,'') AS settlement_rule_type,
+       COALESCE(detail.settlement_month_offset,0) AS settlement_month_offset,
+       COALESCE(detail.settlement_day_offset,0) AS settlement_day_offset,
+       detail.supplier_object_id,COALESCE(document.currency,'') AS currency,document.total_amount_cents
+FROM vou_documents document JOIN vou_purchase_order_details detail ON detail.document_id=document.id
+WHERE document.id=sqlc.arg(order_id);

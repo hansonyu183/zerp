@@ -169,23 +169,16 @@ func (s *Service) CreateSaleReturn(
 		source.orderID, actorID); err != nil {
 		return MutationResult{}, s.writeError("insert sale return", err)
 	}
-	if err = s.insertSaleReturnDetail(ctx, tx, id, returnKindAfterSale, "", reason, source, warehouse); err != nil {
+	if err = s.insertSaleReturnDetail(ctx, s.queries.WithTx(tx), id, returnKindAfterSale, "", reason, source, warehouse); err != nil {
 		return MutationResult{}, err
 	}
-	if err = s.insertSaleReturnLines(ctx, tx, id, source.lines); err != nil {
-		return MutationResult{}, err
-	}
-	if err = s.linkSalesWorkflowDocument(ctx, tx, source.orderID, id, salesStageReturn); err != nil {
+	if err = s.insertSaleReturnLines(ctx, s.queries.WithTx(tx), id, source.lines); err != nil {
 		return MutationResult{}, err
 	}
 	q := s.queries.WithTx(tx)
 	if err = insertAudit(ctx, q, auditInput{DocumentID: id, Entity: EntitySaleReturn,
 		Event: "CREATED", To: StatusDraft, ActorID: actorID, RequestID: requestID,
 		Summary: map[string]any{"returnKind": returnKindAfterSale, "lineCount": len(source.lines)}}); err != nil {
-		return MutationResult{}, err
-	}
-	document := dbsqlc.VouDocument{ID: id, Entity: EntitySaleReturn, DocumentNo: number}
-	if err = s.touchWorkflow(ctx, tx, document, "RETURN_CREATED", StatusDraft, actorID, requestID, nil); err != nil {
 		return MutationResult{}, err
 	}
 	if err = s.events.Publish(ctx, tx, DocumentCreatedEvent{Entity: EntitySaleReturn,
@@ -251,7 +244,7 @@ func (s *Service) SaveSaleReturn(
 		warehouse.Code, warehouse.Data.Name, input.DocumentID); err != nil {
 		return MutationResult{}, err
 	}
-	if err = s.insertSaleReturnLines(ctx, tx, input.DocumentID, source.lines); err != nil {
+	if err = s.insertSaleReturnLines(ctx, s.queries.WithTx(tx), input.DocumentID, source.lines); err != nil {
 		return MutationResult{}, err
 	}
 	return s.finishReturnSave(ctx, tx, document, input, date, source.total, actorID, requestID)
@@ -262,7 +255,7 @@ func (s *Service) saveRefusalReturnHeader(
 	date time.Time, reason, actorID, requestID string,
 ) (MutationResult, error) {
 	if len(input.Data.ReturnLines) != 0 {
-		return MutationResult{}, domainError(ErrorValidation, "automatic refusal lines cannot be changed", nil, nil)
+		return MutationResult{}, domainError(ErrorValidation, "workflow refusal lines cannot be changed", nil, nil)
 	}
 	warehouse, err := s.resolver.ResolveEffectiveReference(
 		ctx, tx, bobdomain.EntityWarehouse, input.Data.Warehouse.ObjectID, input.Data.Warehouse.VersionID,
@@ -305,9 +298,6 @@ func (s *Service) finishReturnSave(
 		ActorID: actorID, RequestID: requestID}); err != nil {
 		return MutationResult{}, err
 	}
-	if err = s.touchWorkflow(ctx, tx, document, "SAVED", StatusDraft, actorID, requestID, nil); err != nil {
-		return MutationResult{}, err
-	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, err
 	}
@@ -316,32 +306,31 @@ func (s *Service) finishReturnSave(
 }
 
 func (s *Service) insertSaleReturnDetail(
-	ctx context.Context, tx pgx.Tx, id, kind, signoffID, reason string,
+	ctx context.Context, q *dbsqlc.Queries, id, kind, signoffID, reason string,
 	source returnSource, warehouse bobdomain.EffectiveReference,
 ) error {
-	_, err := tx.Exec(ctx, `INSERT INTO vou_sale_return_details(
-		document_id,source_order_id,source_signoff_id,return_kind,return_reason,
-		customer_object_id,customer_version_id,customer_code,customer_name,
-		warehouse_object_id,warehouse_version_id,warehouse_code,warehouse_name
-	) VALUES($1,$2,NULLIF($3,''),$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-		id, source.orderID, signoffID, kind, reason, source.customerID, source.customerVersion,
-		source.customerCode, source.customerName, warehouse.ObjectID, warehouse.VersionID,
-		warehouse.Code, warehouse.Data.Name)
-	return err
+	return q.InsertVouSaleReturnDetail(ctx, dbsqlc.InsertVouSaleReturnDetailParams{
+		DocumentID: id, SourceOrderID: source.orderID, SourceSignoffID: optionalText(signoffID),
+		ReturnKind: kind, ReturnReason: reason, CustomerObjectID: source.customerID,
+		CustomerVersionID: source.customerVersion, CustomerCode: source.customerCode,
+		CustomerName: source.customerName, WarehouseObjectID: warehouse.ObjectID,
+		WarehouseVersionID: warehouse.VersionID, WarehouseCode: warehouse.Code,
+		WarehouseName: warehouse.Data.Name,
+	})
 }
 
 func (s *Service) insertSaleReturnLines(
-	ctx context.Context, tx pgx.Tx, id string, lines []fixedReturnLine,
+	ctx context.Context, q *dbsqlc.Queries, id string, lines []fixedReturnLine,
 ) error {
 	for index, line := range lines {
-		if _, err := tx.Exec(ctx, `INSERT INTO vou_sale_return_lines(
-			id,document_id,source_signoff_line_id,source_signoff_id,line_no,
-			product_object_id,product_version_id,product_code,product_name,product_unit,
-			quantity_micros,unit_price_cents,line_amount_cents,remark
-		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
-			newID(), id, line.sourceLineID, line.signoffID, index+1,
-			line.productID, line.productVersion, line.productCode, line.productName, line.productUnit,
-			line.quantity, line.price, line.amount, line.remark); err != nil {
+		if err := q.InsertVouSaleReturnLine(ctx, dbsqlc.InsertVouSaleReturnLineParams{
+			ID: newID(), DocumentID: id, SourceSignoffLineID: line.sourceLineID,
+			SourceSignoffID: line.signoffID, LineNo: int32(index + 1),
+			ProductObjectID: line.productID, ProductVersionID: line.productVersion,
+			ProductCode: line.productCode, ProductName: line.productName, ProductUnit: line.productUnit,
+			QuantityMicros: line.quantity, UnitPriceCents: line.price, LineAmountCents: line.amount,
+			Remark: line.remark,
+		}); err != nil {
 			return err
 		}
 	}
@@ -391,12 +380,33 @@ func (s *Service) loadSaleReturnData(
 }
 
 func (s *Service) ensureRefusalReturnDraft(
-	ctx context.Context, tx pgx.Tx, signoffID, _ string, requestID string,
+	ctx context.Context, tx pgx.Tx, signoffID string, initial WorkflowSaleReturnInitial, requestID string,
 ) error {
 	actorID := systemidentity.UserID
-	var existing string
-	err := tx.QueryRow(ctx, `SELECT document_id FROM vou_sale_return_details
-		WHERE source_signoff_id=$1 AND return_kind='REFUSAL'`, signoffID).Scan(&existing)
+	date, err := parseBusinessDate(initial.BusinessDate)
+	if err != nil {
+		return err
+	}
+	reason := strings.TrimSpace(initial.Reason)
+	if reason == "" || utf8.RuneCountInString(reason) > 1000 {
+		return domainError(ErrorValidation, "invalid returnReason", nil, nil)
+	}
+	requested := make(map[string]int64, len(initial.Lines))
+	for _, input := range initial.Lines {
+		if !validID(input.SourceLineID) || requested[input.SourceLineID] != 0 {
+			return domainError(ErrorValidation, "invalid sourceLineId", nil, nil)
+		}
+		quantity, parseErr := quantityMicros(input.Quantity, false)
+		if parseErr != nil {
+			return domainError(ErrorValidation, "invalid return quantity", nil, parseErr)
+		}
+		requested[input.SourceLineID] = quantity
+	}
+	if len(requested) == 0 {
+		return domainError(ErrorValidation, "returnLines must contain 1 to 200 items", nil, nil)
+	}
+	q := s.queries.WithTx(tx)
+	_, err = q.FindVouRefusalReturnDocument(ctx, stringPtr(signoffID))
 	if err == nil {
 		return nil
 	}
@@ -404,52 +414,45 @@ func (s *Service) ensureRefusalReturnDraft(
 		return err
 	}
 	var source returnSource
-	var date time.Time
 	var warehouse bobdomain.EffectiveReference
-	err = tx.QueryRow(ctx, `SELECT sd.source_order_id,d.business_date,d.currency,
-		sd.customer_object_id,sd.customer_version_id,sd.customer_code,sd.customer_name,
-		sd.warehouse_object_id,sd.warehouse_version_id,sd.warehouse_code,sd.warehouse_name
-		FROM vou_sale_signoff_details sd JOIN vou_documents d ON d.id=sd.document_id
-		WHERE sd.document_id=$1`, signoffID).Scan(
-		&source.orderID, &date, &source.currency, &source.customerID, &source.customerVersion,
-		&source.customerCode, &source.customerName, &warehouse.ObjectID, &warehouse.VersionID,
-		&warehouse.Code, &warehouse.Data.Name)
+	sourceRow, err := q.LockVouRefusalReturnSource(ctx, signoffID)
 	if err != nil {
 		return err
 	}
-	rows, err := tx.Query(ctx, `SELECT id,product_object_id,product_version_id,product_code,
-		product_name,product_unit,rejected_qty_micros,unit_price_cents,COALESCE(remark,'')
-		FROM vou_sale_signoff_lines WHERE document_id=$1 AND rejected_qty_micros>0 ORDER BY line_no`, signoffID)
+	source.orderID, source.currency = sourceRow.SourceOrderID, deref(sourceRow.Currency)
+	source.customerID, source.customerVersion = sourceRow.CustomerObjectID, sourceRow.CustomerVersionID
+	source.customerCode, source.customerName = sourceRow.CustomerCode, sourceRow.CustomerName
+	warehouse.ObjectID, warehouse.VersionID = sourceRow.WarehouseObjectID, sourceRow.WarehouseVersionID
+	warehouse.Code, warehouse.Data.Name = sourceRow.WarehouseCode, sourceRow.WarehouseName
+	if sourceRow.Status != StatusApproved || date.Before(sourceRow.BusinessDate.Time) {
+		return domainError(ErrorConflict, "source signoff is not returnable", nil, nil)
+	}
+	rows, err := q.ListVouRefusalReturnSourceLines(ctx, signoffID)
 	if err != nil {
 		return err
 	}
-	for rows.Next() {
+	for _, row := range rows {
 		var line fixedReturnLine
-		var remark string
-		if err = rows.Scan(&line.sourceLineID, &line.productID, &line.productVersion,
-			&line.productCode, &line.productName, &line.productUnit, &line.quantity,
-			&line.price, &remark); err != nil {
-			rows.Close()
-			return err
+		line.sourceLineID, line.productID, line.productVersion = row.ID, row.ProductObjectID, row.ProductVersionID
+		line.productCode, line.productName, line.productUnit = row.ProductCode, row.ProductName, row.ProductUnit
+		line.quantity, line.price = row.RejectedQtyMicros, row.UnitPriceCents
+		quantity, ok := requested[line.sourceLineID]
+		if !ok || quantity != line.quantity {
+			return domainError(ErrorValidation, "refusal return quantity must equal rejected quantity", nil, nil)
 		}
-		line.signoffID, line.signoffDate, line.remark = signoffID, date, optionalText(remark)
+		delete(requested, line.sourceLineID)
+		line.signoffID, line.signoffDate, line.remark = signoffID, sourceRow.BusinessDate.Time, optionalText(row.Remark)
 		line.amount, err = lineAmountCents(line.quantity, line.price)
 		if err != nil || source.total > math.MaxInt64-line.amount {
-			rows.Close()
 			return domainError(ErrorValidation, "refusal return amount is out of range", nil, err)
 		}
 		source.total += line.amount
 		source.lines = append(source.lines, line)
 	}
-	if err = rows.Err(); err != nil {
-		rows.Close()
-		return err
+	if len(source.lines) == 0 || len(requested) != 0 {
+		return domainError(ErrorValidation, "refusal return lines must match rejected signoff lines", nil, nil)
 	}
-	rows.Close()
-	if len(source.lines) == 0 {
-		return nil
-	}
-	counter, err := s.queries.WithTx(tx).NextVouNumberCounter(ctx, dbsqlc.NextVouNumberCounterParams{
+	counter, err := q.NextVouNumberCounter(ctx, dbsqlc.NextVouNumberCounterParams{
 		Entity: EntitySaleReturn, BusinessDate: dateValue(date),
 	})
 	if err != nil {
@@ -459,24 +462,21 @@ func (s *Service) ensureRefusalReturnDraft(
 		return err
 	}
 	id, number := newID(), fmt.Sprintf("%s-%s-%04d", entityPrefix(EntitySaleReturn), date.Format("20060102"), counter)
-	if _, err = tx.Exec(ctx, `INSERT INTO vou_documents(
-		id,entity,document_no,business_date,currency,total_amount_cents,remark,
-		parent_entity,parent_document_id,created_by,updated_by
-	) VALUES($1,'sale-return',$2,$3,$4,$5,'客户拒收','sale-order',$6,$7,$7)`,
-		id, number, date, source.currency, source.total, source.orderID, actorID); err != nil {
+	if err = q.InsertVouDocument(ctx, dbsqlc.InsertVouDocumentParams{
+		ID: id, Entity: EntitySaleReturn, DocumentNo: number, BusinessDate: dateValue(date),
+		Currency: stringPtr(source.currency), TotalAmountCents: source.total, Remark: stringPtr(reason),
+		ParentEntity: stringPtr(EntitySaleOrder), ParentDocumentID: stringPtr(source.orderID), ActorID: actorID,
+	}); err != nil {
 		return err
 	}
-	if err = s.insertSaleReturnDetail(ctx, tx, id, returnKindRefusal, signoffID,
-		"客户拒收", source, warehouse); err != nil {
+	if err = s.insertSaleReturnDetail(ctx, q, id, returnKindRefusal, signoffID,
+		reason, source, warehouse); err != nil {
 		return err
 	}
-	if err = s.insertSaleReturnLines(ctx, tx, id, source.lines); err != nil {
+	if err = s.insertSaleReturnLines(ctx, q, id, source.lines); err != nil {
 		return err
 	}
-	if err = s.linkSalesWorkflowDocument(ctx, tx, source.orderID, id, salesStageReturn); err != nil {
-		return err
-	}
-	if err = insertAudit(ctx, s.queries.WithTx(tx), auditInput{DocumentID: id,
+	if err = insertAudit(ctx, q, auditInput{DocumentID: id,
 		Entity: EntitySaleReturn, Event: "CREATED", To: StatusDraft, ActorID: actorID,
 		RequestID: requestID, Summary: map[string]any{"returnKind": returnKindRefusal,
 			"sourceSignoffId": signoffID}}); err != nil {
@@ -520,7 +520,6 @@ func (s *Service) removeSignoffReturnDrafts(
 			return domainError(ErrorConflict, "signoff has return documents", nil, nil)
 		}
 		for _, statement := range []string{
-			`DELETE FROM wfl_process_documents WHERE document_id=$1`,
 			`DELETE FROM vou_audit_events WHERE document_id=$1`,
 			`DELETE FROM vou_sale_return_lines WHERE document_id=$1`,
 			`DELETE FROM vou_sale_return_details WHERE document_id=$1`,

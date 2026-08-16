@@ -20,7 +20,7 @@ func TestFulfilledPurchaseOrderAllowsReturnDraftInOpenPeriodIntegration(t *testi
 	refs := prepareReferences(t, pool)
 	activateSettlementLedgerForParty(t, pool, "supplier", refs.supplier, 0, "2026-07-01")
 	service := newIntegrationService(t, pool)
-	order, err := service.CreateManagedPurchaseOrder(t.Context(), CreateInput{Data: DraftInput{
+	order, err := service.Create(t.Context(), EntityPurchaseOrder, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-28", Currency: "CNY",
 		Supplier: &refs.supplier, Purchaser: &refs.employee, Warehouse: &refs.warehouse,
 		ProductLines: []ProductLineInput{{
@@ -103,7 +103,7 @@ func TestFulfilledPurchaseOrderAllowsReturnDraftInOpenPeriodIntegration(t *testi
 	}
 }
 
-func TestPurchaseFulfillmentQuantitiesAndReservationsIntegration(t *testing.T) {
+func TestPurchaseFulfillmentQuantitiesIntegration(t *testing.T) {
 	pool := vouIntegrationPool(t)
 	truncateVOU(t, pool)
 	t.Cleanup(func() { truncateVOU(t, pool) })
@@ -151,7 +151,7 @@ func TestPurchaseFulfillmentQuantitiesAndReservationsIntegration(t *testing.T) {
 	registerSettlementPosting(EntityPurchaseReturn, 1)
 	service := newIntegrationServiceWithBus(t, pool, bus)
 
-	order, err := service.CreateManagedPurchaseOrder(t.Context(), CreateInput{Data: DraftInput{
+	order, err := service.Create(t.Context(), EntityPurchaseOrder, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-28", Currency: "CNY",
 		Supplier: &refs.supplier, Purchaser: &refs.employee, Warehouse: &refs.warehouse,
 		ProductLines: []ProductLineInput{{
@@ -194,13 +194,21 @@ func TestPurchaseFulfillmentQuantitiesAndReservationsIntegration(t *testing.T) {
 	sourceLineID := view.Data.ProductLines[0].LineID
 	createInbound := func(quantity, requestID string) MutationResult {
 		t.Helper()
-		result, createErr := service.CreatePurchaseInbound(t.Context(), CreateInput{Data: DraftInput{
-			BusinessDate: "2026-07-28", SourceDocumentID: order.DocumentID,
-			Warehouse: &refs.warehouse,
-			SourceLines: []SourceQuantityLineInput{{
+		tx, createErr := pool.Begin(t.Context())
+		if createErr != nil {
+			t.Fatalf("begin workflow inbound %s: %v", quantity, createErr)
+		}
+		result, createErr := service.CreateWorkflowPurchaseInbound(t.Context(), tx, order.DocumentID, WorkflowPurchaseInboundInitial{
+			BusinessDate: "2026-07-28", WarehouseObjectID: refs.warehouse.ObjectID,
+			Lines: []SourceQuantityLineInput{{
 				SourceLineID: sourceLineID, Quantity: quantity,
 			}},
-		}}, integrationActorOne, requestID)
+		}, requestID)
+		if createErr == nil {
+			createErr = tx.Commit(t.Context())
+		} else {
+			_ = tx.Rollback(t.Context())
+		}
 		if createErr != nil {
 			t.Fatalf("create inbound %s: %v", quantity, createErr)
 		}
@@ -267,13 +275,6 @@ func TestPurchaseFulfillmentQuantitiesAndReservationsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("approve partial purchase return: %v", err)
 	}
-	var reservationActive bool
-	var reservedAmount int64
-	if err = pool.QueryRow(t.Context(), `SELECT active,reserved_amount_cents
-		FROM vou_settlement_reservations WHERE order_id=$1`, order.DocumentID).
-		Scan(&reservationActive, &reservedAmount); err != nil || !reservationActive || reservedAmount != 8400 {
-		t.Fatalf("partial purchase return reservation = active:%t amount:%d err=%v", reservationActive, reservedAmount, err)
-	}
 	partialReversed, err := service.Unapprove(t.Context(), EntityPurchaseReturn, ReverseInput{
 		DocumentID: partialReturn.DocumentID, Revision: partialApproved.Revision,
 		Reason: "清理部分退货测试",
@@ -292,11 +293,6 @@ func TestPurchaseFulfillmentQuantitiesAndReservationsIntegration(t *testing.T) {
 		Reason: "清理部分退货测试",
 	}, integrationActorOne, "partial-purchase-return-delete"); err != nil {
 		t.Fatalf("delete partial purchase return: %v", err)
-	}
-	if err = pool.QueryRow(t.Context(), `SELECT active,reserved_amount_cents
-		FROM vou_settlement_reservations WHERE order_id=$1`, order.DocumentID).
-		Scan(&reservationActive, &reservedAmount); err != nil || !reservationActive || reservedAmount != 7200 {
-		t.Fatalf("partial return reversal reservation = active:%t amount:%d err=%v", reservationActive, reservedAmount, err)
 	}
 
 	draft := createInbound("6", "inbound-draft")
@@ -341,9 +337,6 @@ func TestPurchaseFulfillmentQuantitiesAndReservationsIntegration(t *testing.T) {
 	if err != nil || orderWithoutDraftReturn.Status != StatusApproved {
 		t.Fatalf("deleting draft return changed order lifecycle: status=%s err=%v", orderWithoutDraftReturn.Status, err)
 	}
-	if _, err = pool.Exec(t.Context(), `DELETE FROM vou_settlement_reservations WHERE order_id=$1`, order.DocumentID); err != nil {
-		t.Fatalf("remove completed legacy reservation fixture: %v", err)
-	}
 	purchaseReturn, err := service.CreatePurchaseReturn(t.Context(), CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-29", Warehouse: &refs.warehouse,
 		ReturnReason: "供应商质量退货",
@@ -374,17 +367,12 @@ func TestPurchaseFulfillmentQuantitiesAndReservationsIntegration(t *testing.T) {
 		Scan(&fulfillment); err != nil || fulfillment != "OPEN" {
 		t.Fatalf("purchase return did not restore available quantity: %s, err=%v", fulfillment, err)
 	}
-	if err = pool.QueryRow(t.Context(), `SELECT active,reserved_amount_cents
-		FROM vou_settlement_reservations WHERE order_id=$1`, order.DocumentID).
-		Scan(&reservationActive, &reservedAmount); err != nil || !reservationActive || reservedAmount != 2400 {
-		t.Fatalf("purchase return reservation = active:%t amount:%d err=%v", reservationActive, reservedAmount, err)
-	}
 	replacement := createInbound("2", "replacement-inbound")
 	if _, err = service.Unapprove(t.Context(), EntityPurchaseReturn, ReverseInput{
 		DocumentID: purchaseReturn.DocumentID, Revision: returnApproved.Revision,
 		Reason: "尝试撤销",
 	}, integrationActorOne, "purchase-return-unapprove-blocked"); err == nil {
-		t.Fatal("purchase return reversal ignored replacement inbound reservation")
+		t.Fatal("purchase return reversal ignored replacement inbound")
 	}
 	if _, err = service.DeletePurchaseInbound(t.Context(), ReverseInput{
 		DocumentID: replacement.DocumentID, Revision: replacement.Revision, Reason: "释放替代入库",
@@ -421,14 +409,14 @@ func TestPurchaseFulfillmentQuantitiesAndReservationsIntegration(t *testing.T) {
 	_ = approved
 }
 
-func TestPurchaseFulfillmentConcurrentInboundReservationAllowsOneWinnerIntegration(t *testing.T) {
+func TestPurchaseFulfillmentConcurrentInboundCreationAllowsOneWinnerIntegration(t *testing.T) {
 	pool := vouIntegrationPool(t)
 	truncateVOU(t, pool)
 	t.Cleanup(func() { truncateVOU(t, pool) })
 	refs := prepareReferences(t, pool)
 	service := newIntegrationService(t, pool)
 
-	order, err := service.CreateManagedPurchaseOrder(t.Context(), CreateInput{Data: DraftInput{
+	order, err := service.Create(t.Context(), EntityPurchaseOrder, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-28", Currency: "CNY",
 		Supplier: &refs.supplier, Purchaser: &refs.employee, Warehouse: &refs.warehouse,
 		ProductLines: []ProductLineInput{{
@@ -489,7 +477,7 @@ func TestPurchaseFulfillmentConcurrentInboundReservationAllowsOneWinnerIntegrati
 		}
 	}
 	if successes != 1 || failures != 1 {
-		t.Fatalf("concurrent reservations = %d success/%d failure, want 1/1", successes, failures)
+		t.Fatalf("concurrent inbound drafts = %d success/%d failure, want 1/1", successes, failures)
 	}
 	var reserved int64
 	if err = pool.QueryRow(t.Context(), `

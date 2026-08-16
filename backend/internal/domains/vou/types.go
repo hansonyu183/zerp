@@ -84,7 +84,7 @@ var entities = [...]string{
 
 func publicCreateEntity(entity string) bool {
 	switch entity {
-	case EntitySalePricing, EntityPurchaseInquiry, EntitySaleOrder, EntityPurchaseOrder, EntityPurchaseInbound,
+	case EntitySalePricing, EntityPurchaseInquiry, EntitySaleOrder, EntityPurchaseOrder,
 		EntitySaleReturn, EntityPurchaseReturn, EntityOrderProduction, EntitySelfProduction,
 		EntityInventoryCount,
 		EntitySalesReceipt, EntityPurchaseRefund, EntityOtherReceipt,
@@ -855,7 +855,6 @@ type DocumentDataView struct {
 	CustomerSettlementMethod  *SettlementMethodSnapshotView `json:"customerSettlementMethod,omitempty"`
 	SupplierSettlementMethod  *SettlementMethodSnapshotView `json:"supplierSettlementMethod,omitempty"`
 	SourceName                string                        `json:"sourceName,omitempty"`
-	SettlementMode            string                        `json:"settlementMode,omitempty"`
 	ProductLines              []ProductLineView             `json:"productLines,omitempty"`
 	PriceLines                []PriceLineView               `json:"priceLines,omitempty"`
 	ExpenseLines              []ExpenseLineView             `json:"expenseLines,omitempty"`

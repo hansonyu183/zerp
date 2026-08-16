@@ -15,14 +15,18 @@ export function stageStatusText(value: string): string {
   )
 }
 
+const definitionStatusLabels = {
+  DRAFT: '草稿',
+  ENABLED: '已启用',
+  DISABLED: '已停用',
+} as const
+
+export const definitionStatusOptions = Object.entries(
+  definitionStatusLabels,
+).map(([value, title]) => ({ value, title }))
+
 export function definitionStatusText(value: string): string {
-  return (
-    {
-      DRAFT: '草稿',
-      ENABLED: '已启用',
-      DISABLED: '已停用',
-    }[value] ?? value
-  )
+  return statusText(definitionStatusLabels, value)
 }
 
 export function documentEntityText(value: string): string {
@@ -55,34 +59,30 @@ export function runtimeEventText(value: string): string {
   return (
     {
       STARTED: '流程已启动',
-      CHILD_CREATED: '已创建下级单据',
+      ACTION_EXECUTED: '已执行流程动作',
     }[value] ?? value
   )
 }
 
-export function workflowStatusText(value?: string): string {
+export function workflowActionText(value?: string): string {
   return statusText(
     {
-      DRAFT: '草稿',
-      CHECKED: '已核对',
-      APPROVED: '已批准',
+      expense_payment: '创建费用付款',
+      purchase_inbound: '创建采购入库',
+      sale_outbound: '创建销售出库',
+      sale_delivery: '创建销售送货',
+      sale_signoff: '创建销售签收',
+      sale_return: '创建销售退货',
     },
     value,
   )
 }
 
-export function workflowStageText(value?: string): string {
+export function workflowTriggerText(value?: string): string {
   return statusText(
     {
-      SALE_ORDER: '销售订单',
-      PRODUCTION: '生产配货',
-      OUTBOUND: '销售出库',
-      DELIVERY: '销售送货',
-      SIGNOFF: '销售签收',
-      RETURN: '退货',
-      PURCHASE_ORDER: '采购订单',
-      PURCHASE_INBOUND: '采购入库',
-      PURCHASE_RETURN: '采购退货',
+      APPROVED: '单据批准',
+      ACTION: '流程动作',
     },
     value,
   )

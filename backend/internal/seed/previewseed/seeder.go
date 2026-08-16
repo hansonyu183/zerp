@@ -13,6 +13,7 @@ import (
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
+	"github.com/hansonyu183/zerp/backend/internal/integrations/workflowactions"
 	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -49,7 +50,6 @@ func (c Counts) Total() int { return c.Created + c.Resumed + c.Skipped }
 type Result struct {
 	Auxiliary  Counts
 	Business   Counts
-	Workflows  Counts
 	Vouchers   Counts
 	Accounting Counts
 }
@@ -68,7 +68,6 @@ type Seeder struct {
 	auxiliary  *auxdomain.Service
 	business   *bobdomain.Service
 	vouchers   *voudomain.Service
-	workflows  *wfldomain.Service
 	accounting *accdomain.Service
 	auxRefs    map[string]auxdomain.ObjectView
 	bobRefs    map[string]bobdomain.ObjectView
@@ -102,7 +101,7 @@ func New(
 	if err != nil {
 		return nil, fmt.Errorf("create voucher service: %w", err)
 	}
-	workflows, err := wfldomain.NewService(pool, events, vouchers, logger)
+	_, err = wfldomain.NewService(pool, events, workflowactions.New(vouchers), logger)
 	if err != nil {
 		return nil, fmt.Errorf("create workflow service: %w", err)
 	}
@@ -111,7 +110,7 @@ func New(
 	}
 	return &Seeder{
 		pool: pool, queries: dbsqlc.New(pool), auxiliary: auxiliary, business: business,
-		vouchers: vouchers, workflows: workflows, accounting: accounting,
+		vouchers: vouchers, accounting: accounting,
 		auxRefs: make(map[string]auxdomain.ObjectView),
 		bobRefs: make(map[string]bobdomain.ObjectView),
 	}, nil
@@ -124,9 +123,6 @@ func (s *Seeder) Seed(ctx context.Context) (Result, error) {
 	}
 	if err := s.seedBusiness(ctx, &result.Business); err != nil {
 		return result, fmt.Errorf("seed business data: %w", err)
-	}
-	if err := s.seedWorkflows(ctx, &result.Workflows); err != nil {
-		return result, fmt.Errorf("seed workflow data: %w", err)
 	}
 	if err := s.seedVouchers(ctx, &result.Vouchers); err != nil {
 		return result, fmt.Errorf("seed voucher data: %w", err)

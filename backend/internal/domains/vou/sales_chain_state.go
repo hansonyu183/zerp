@@ -359,9 +359,6 @@ func (s *Service) refreshSaleOrderFulfillment(
 				WHERE id=$2`, actorID, orderID)
 		}
 	}
-	if err == nil {
-		err = s.closeSettlementReservationIfFulfilled(ctx, tx, EntitySaleOrder, orderID)
-	}
 	return err
 }
 
@@ -399,7 +396,7 @@ func (s *Service) Delete(
 			return MutationResult{}, err
 		}
 		if kind == returnKindRefusal {
-			return MutationResult{}, domainError(ErrorConflict, "automatic refusal return cannot be deleted", nil, nil)
+			return MutationResult{}, domainError(ErrorConflict, "workflow refusal return cannot be deleted", nil, nil)
 		}
 	}
 	if entity == EntityIntermediaryCalculation {
@@ -554,31 +551,7 @@ func (s *Service) Delete(
 		}); err != nil {
 			return MutationResult{}, err
 		}
-		if entity == EntitySaleReturn {
-			root, loadErr := s.queries.WithTx(tx).GetVouDocument(
-				ctx, dbsqlc.GetVouDocumentParams{ID: *parentID, Entity: EntitySaleOrder},
-			)
-			if loadErr != nil {
-				return MutationResult{}, loadErr
-			}
-			if err = s.touchSalesWorkflow(
-				ctx, tx, root, "RETURN_DELETED", root.Status, derivedActorID, requestID, nil,
-			); err != nil {
-				return MutationResult{}, err
-			}
-		} else if entity == EntityPurchaseReturn {
-			root, loadErr := s.queries.WithTx(tx).GetVouDocument(
-				ctx, dbsqlc.GetVouDocumentParams{ID: *parentID, Entity: EntityPurchaseOrder},
-			)
-			if loadErr != nil {
-				return MutationResult{}, loadErr
-			}
-			if err = s.touchPurchaseWorkflow(
-				ctx, tx, root, "RETURN_DELETED", root.Status, derivedActorID, requestID, nil,
-			); err != nil {
-				return MutationResult{}, err
-			}
-		}
+
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, err

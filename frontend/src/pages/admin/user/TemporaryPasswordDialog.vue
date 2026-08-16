@@ -29,7 +29,7 @@ const emit = defineEmits<{
         <v-checkbox
           :model-value="saved"
           label="我已安全保存临时密码"
-          @update:model-value="emit('update:saved', $event)"
+          @update:model-value="emit('update:saved', Boolean($event))"
         />
       </v-card-text>
       <v-card-actions>

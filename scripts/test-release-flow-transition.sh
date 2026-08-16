@@ -40,6 +40,11 @@ assert_check 'scripts/issue-local-preview.sh' 1 preview
 assert_check 'scripts/issue-local-preview-test.sh' validation impact
 assert_check 'frontend/scripts/preview-smoke.mjs' validation impact
 assert_check 'frontend/scripts/preview-smoke.mjs' 1 preview
+assert_check 'frontend/scripts/check-e2e-constraints.mjs' validation impact
+assert_check 'frontend/scripts/check-e2e-constraints.test.mjs' validation impact
+assert_check 'frontend/playwright.config.ts' application impact
+assert_check 'frontend/playwright.config.ts' 0 containers
+assert_check 'frontend/playwright.config.ts' 1 local_e2e
 assert_check 'scripts/production-watch.sh' application impact
 assert_check 'scripts/preview-runtime-sandbox.sh' 1 preview
 

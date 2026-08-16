@@ -90,6 +90,9 @@ if [ -n "${changed_files}" ]; then
       .github/* | .gitignore | .prettierignore | .prettierrc.json | .vscode/* | \
         Makefile | backend/Makefile | \
         scripts/change-impact.sh | scripts/check-docs.mjs | scripts/pre-push.sh | \
+        scripts/pre-push-test.sh | \
+        frontend/scripts/check-e2e-constraints.mjs | \
+        frontend/scripts/check-e2e-constraints.test.mjs | \
         scripts/test-release-flow-transition.sh | scripts/reusable-pr-checks.sh | \
         scripts/preview-state-test.sh | scripts/release-metrics.sh | \
         scripts/release-metrics-check.sh | scripts/review-* | \
@@ -219,10 +222,15 @@ if [ -n "${changed_files}" ]; then
         preview=1
         ;;
 
-      compose.e2e.yaml | backend/.env.e2e.example | scripts/e2e.sh | \
-        frontend/playwright.config.ts)
+      compose.e2e.yaml | backend/.env.e2e.example | scripts/e2e.sh)
         mark_application
         containers=1
+        e2e=1
+        local_e2e=1
+        ;;
+
+      frontend/playwright.config.ts)
+        mark_application
         e2e=1
         local_e2e=1
         ;;

@@ -61,4 +61,4 @@ shellcheck -x scripts/preview.sh scripts/preview-deploy.sh scripts/preview-state
 go -C backend test ./cmd/preview-web
 ```
 
-受信任浏览器验收必须通过固定 HTTPS 入口登录，核对 exact-SHA release marker，并由 PR 中的隔离 E2E 覆盖受影响的桌面和手机流程。敏感值填充后不得采集 DOM、截图或调试日志。
+受信任浏览器验收必须通过固定 HTTPS 入口登录，核对 exact-SHA release marker，并由 PR 中的隔离 E2E 覆盖受影响的桌面和手机流程。敏感值填充后不得采集 DOM 或调试日志。

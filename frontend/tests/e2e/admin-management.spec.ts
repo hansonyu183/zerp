@@ -24,9 +24,9 @@ interface MenuData {
 
 async function signIn(page: Page): Promise<void> {
   await page.goto('/signin')
-  await page.getByLabel('用户名').fill(username)
-  await page.getByLabel('密码').fill(password)
-  await page.getByRole('button', { name: '登录' }).click()
+  await page.getByLabel('用户名', { exact: true }).fill(username)
+  await page.getByLabel('密码', { exact: true }).fill(password)
+  await page.getByRole('button', { name: '登录', exact: true }).click()
   await expect(page).toHaveURL(/\/home\/dashboard$/)
 }
 
@@ -61,11 +61,17 @@ async function createApiSession(): Promise<{
 }
 
 async function selectMode(page: Page, label: string): Promise<void> {
-  const select = page.getByRole('combobox', { name: '当前菜单方式' })
+  const select = page.getByRole('combobox', {
+    name: '当前菜单方式',
+    exact: true,
+  })
   await select.focus()
   await select.press('ArrowDown')
   await page.getByRole('option', { name: label, exact: true }).click()
-  const applyButton = page.getByRole('button', { name: '应用菜单方式' })
+  const applyButton = page.getByRole('button', {
+    name: '应用菜单方式',
+    exact: true,
+  })
   await expect(applyButton).toBeEnabled()
   const responsePromise = page.waitForResponse((response) =>
     response.url().includes('/app/menu/activate'),
@@ -80,7 +86,7 @@ async function selectMode(page: Page, label: string): Promise<void> {
 async function expectNavigationGroup(page: Page, label: string): Promise<void> {
   const group = page.getByRole('navigation').getByText(label, { exact: true })
   if (!(await group.isVisible())) {
-    await page.getByRole('button', { name: '切换导航' }).click()
+    await page.getByRole('button', { name: '切换导航', exact: true }).click()
   }
   await expect(group).toBeVisible()
 }

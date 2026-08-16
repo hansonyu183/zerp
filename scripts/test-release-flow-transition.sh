@@ -35,6 +35,7 @@ assert_check 'scripts/preview-state-test.sh' validation impact
 assert_check 'scripts/preview-state.sh' validation impact
 assert_check 'scripts/preview-state.sh' 1 preview
 assert_check 'scripts/issue-local.sh' validation impact
+assert_check 'backend/scripts/run-integration-tests-test.sh' validation impact
 assert_check 'scripts/issue-local-preview.sh' validation impact
 assert_check 'scripts/issue-local-preview.sh' 1 preview
 assert_check 'scripts/issue-local-preview-test.sh' validation impact

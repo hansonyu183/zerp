@@ -67,6 +67,8 @@ test-migration-upgrade: test-db-prepare
 
 test-integration:
 	@ENV_FILE="$(ENV_FILE)" TEST_INTEGRATION_JOBS="$(TEST_INTEGRATION_JOBS)" \
+		TEST_INTEGRATION_PACKAGES_FILE="$(TEST_INTEGRATION_PACKAGES_FILE)" \
+		TEST_INTEGRATION_RESULT_FILE="$(TEST_INTEGRATION_RESULT_FILE)" \
 		./scripts/run-integration-tests.sh
 
 generate:

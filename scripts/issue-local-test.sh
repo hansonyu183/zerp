@@ -179,6 +179,13 @@ if [ "${count}" -le "${MOCK_GATE_FAILS:-0}" ]; then
     echo '==> isolated full-stack E2E'
     echo '  1) [system-serial] › tests/e2e/user-management-lifecycle.spec.ts:48:1 › lifecycle'
   fi
+  if [ "${MOCK_GATE_INTEGRATION_FAILURE:-0}" = 1 ]; then
+    echo '==> isolated integration package internal/seed/productionseed'
+    jq -n '{version:1,status:"failed",packages:[
+      {package:"internal/wfl",status:"failed",exitCode:1},
+      {package:"internal/seed/productionseed",status:"passed",exitCode:0}
+    ]}' >"${TEST_INTEGRATION_RESULT_FILE}"
+  fi
   if [ "${MOCK_GATE_FAILURE_NUMERIC_UNIQUE:-0}" = 1 ]; then
     case "${count}" in
       1) failure_kind='HTTP 401' ;;
@@ -215,6 +222,28 @@ if [ "${count}" -le "${MOCK_FOCUSED_E2E_FAILS:-0}" ]; then
 fi
 EOF
 chmod +x "${tmp}/bin/focused-e2e"
+
+cat >"${tmp}/bin/focused-integration" <<'EOF'
+#!/bin/sh
+set -eu
+packages_file=$1
+result_file=$2
+printf 'focused-integration %s\n' "$(paste -sd, "${packages_file}")" >>"${MOCK_EVENTS}"
+count=$(cat "${MOCK_FOCUSED_INTEGRATION_COUNT}" 2>/dev/null || printf 0)
+count=$((count + 1))
+printf '%s\n' "${count}" >"${MOCK_FOCUSED_INTEGRATION_COUNT}"
+status=passed
+exit_code=0
+if [ "${count}" -le "${MOCK_FOCUSED_INTEGRATION_FAILS:-0}" ]; then
+  status=failed
+  exit_code=1
+fi
+jq -Rn --arg status "${status}" --argjson exitCode "${exit_code}" \
+  '[inputs | {package:.,status:$status,exitCode:$exitCode}] | {version:1,status:$status,packages:.}' \
+  <"${packages_file}" >"${result_file}"
+[ "${status}" = passed ]
+EOF
+chmod +x "${tmp}/bin/focused-integration"
 
 cat >"${tmp}/bin/preview" <<'EOF'
 #!/bin/sh
@@ -435,6 +464,7 @@ export MOCK_CODEX_ARGS="${tmp}/codex-args"
 export MOCK_COREPACK_ROOT="${tmp}/corepack-root"
 export MOCK_GATE_COUNT="${tmp}/gate-count"
 export MOCK_FOCUSED_E2E_COUNT="${tmp}/focused-e2e-count"
+export MOCK_FOCUSED_INTEGRATION_COUNT="${tmp}/focused-integration-count"
 export MOCK_GATE_COREPACK_ROOT="${tmp}/gate-corepack-root"
 export MOCK_CODEX_PNPM_PATH="${tmp}/codex-pnpm-path"
 export MOCK_CODEX_PNPM_VERSION="${tmp}/codex-pnpm-version"
@@ -591,6 +621,7 @@ ZERP_ISSUE_PREVIEW_COMMAND="${tmp}/bin/preview" \
 ZERP_ISSUE_PRODUCTION_COMMAND="${tmp}/bin/production" \
 ZERP_ISSUE_GATE_COMMAND="${tmp}/bin/gate" \
 ZERP_ISSUE_FOCUSED_E2E_COMMAND="${tmp}/bin/focused-e2e" \
+ZERP_ISSUE_FOCUSED_INTEGRATION_COMMAND="${tmp}/bin/focused-integration" \
     "${repo_root}/scripts/issue-local.sh" run
 }
 
@@ -868,6 +899,24 @@ test "$(cat "${MOCK_FOCUSED_E2E_ENV_TARGET}")" = "${primary}/backend/.env.e2e.lo
 grep -Fq '**Status:** done' "${primary}/.scratch/gate-repair/issues/01-ticket.md"
 unset MOCK_GATE_LONG_FAILURE MOCK_GATE_E2E_FAILURE
 
+make_ticket integration-repair 'Integration repair'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_FOCUSED_INTEGRATION_COUNT}" \
+  "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
+MOCK_GATE_FAILS=1 MOCK_GATE_INTEGRATION_FAILURE=1 run_agent
+test "$(cat "${MOCK_CODEX_COUNT}")" = 2
+test "$(cat "${MOCK_GATE_COUNT}")" = 2
+test "$(cat "${MOCK_FOCUSED_INTEGRATION_COUNT}")" = 1
+test "$(cat "${MOCK_PREVIEW_COUNT}")" = 1
+grep -Fq 'Failed stage: integration packages: internal/wfl' "${MOCK_PROMPT}-2"
+grep -Fq 'focused-integration internal/wfl' "${events}"
+focused_integration_line=$(grep -n '^focused-integration ' "${events}" | cut -d: -f1)
+last_gate_line=$(grep -n '^gate$' "${events}" | tail -n 1 | cut -d: -f1)
+test "${focused_integration_line}" -lt "${last_gate_line}"
+test ! -e "${runtime}/batches/integration-repair/repair-integration.json"
+grep -Fq '**Status:** done' "${primary}/.scratch/integration-repair/issues/01-ticket.md"
+unset MOCK_GATE_INTEGRATION_FAILURE
+
 make_ticket gate-blocked 'Gate blocked'
 : >"${events}"
 rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
@@ -982,14 +1031,14 @@ mv "${ticket}.new" "${ticket}"
 make_ticket gate-budget-blocked 'Gate budget blocked'
 : >"${events}"
 rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
-if MOCK_GATE_FAILS=9 MOCK_GATE_FAILURE_UNIQUE=1 run_agent; then
+if MOCK_GATE_FAILS=10 MOCK_GATE_FAILURE_UNIQUE=1 run_agent; then
   echo 'repair budget allowed more than eight code/review/gate repairs' >&2
   exit 1
 fi
-test "$(cat "${MOCK_CODEX_COUNT}")" = 8
-test "$(cat "${MOCK_GATE_COUNT}")" = 8
+test "$(cat "${MOCK_CODEX_COUNT}")" = 9
+test "$(cat "${MOCK_GATE_COUNT}")" = 9
 test ! -e "${MOCK_PREVIEW_COUNT}"
-test "$(jq -r .total "${runtime}/batches/gate-budget-blocked/repair-budget.json")" = 8
+test "$(jq -r .total "${runtime}/batches/gate-budget-blocked/repair-budget.json")" = 9
 grep -Fq 'Repair budget exhausted' "${runtime}/batches/gate-budget-blocked/failure.md"
 test "$(grep -c 'Repair budget exhausted:' "${runtime}/batches/gate-budget-blocked/failure.md")" = 1
 unset MOCK_GATE_FAILURE_UNIQUE
@@ -1256,6 +1305,16 @@ fi
 grep -Fq '**Status:** blocked' "${primary}/.scratch/production-notification/issues/01-ticket.md"
 test "$(cat "${runtime}/batches/production-notification/state")" = production-blocked
 
+missed_notification_batch="${runtime}/batches/missed-notification"
+mkdir -p "${missed_notification_batch}"
+printf '%s\n' "$(git -C "${primary}" rev-parse HEAD)" >"${missed_notification_batch}/base-sha"
+printf 'blocked\n' >"${missed_notification_batch}/state"
+missed_before=$(grep -c '^批次=missed-notification$' "${MOCK_IMESSAGE_EVENTS}" || true)
+run_agent
+run_agent
+missed_after=$(grep -c '^批次=missed-notification$' "${MOCK_IMESSAGE_EVENTS}" || true)
+test "$((missed_after - missed_before))" = 1
+
 for message_state in in-progress pr-open blocked preview-blocked production-blocked needs-input 'done'; do
   grep -Fxq "状态=${message_state}" "${MOCK_IMESSAGE_EVENTS}" || {
     echo "missing iMessage state: ${message_state}" >&2
@@ -1264,6 +1323,7 @@ for message_state in in-progress pr-open blocked preview-blocked production-bloc
 done
 grep -Fq 'ZERP 本地 Issue 自动交付' "${MOCK_IMESSAGE_EVENTS}"
 grep -Fq 'head=' "${MOCK_IMESSAGE_EVENTS}"
-grep -Fq '修复累计=' "${MOCK_IMESSAGE_EVENTS}"
+grep -Fq '尝试累计=' "${MOCK_IMESSAGE_EVENTS}"
+grep -Fq '修复次数=' "${MOCK_IMESSAGE_EVENTS}"
 
 echo 'local issue retry and stop tests passed'

@@ -117,6 +117,9 @@ check_changed_validation() {
   if changed_path_matches '^scripts/issue-local(-test)?\.sh$'; then
     scripts/issue-local-test.sh
   fi
+  if changed_path_matches '^(backend/Makefile|backend/scripts/run-integration-tests(-test)?\.sh)$'; then
+    backend/scripts/run-integration-tests-test.sh
+  fi
   if changed_path_matches '^scripts/pre-push(-test)?\.sh$'; then
     scripts/pre-push-test.sh
   fi

@@ -93,6 +93,7 @@ check-shell:
 
 release-check:
 	$(MAKE) check-shell
+	./backend/scripts/run-integration-tests-test.sh
 	./scripts/pre-push-test.sh
 	./scripts/test-release-flow-transition.sh
 	./scripts/issue-local-test.sh

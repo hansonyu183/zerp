@@ -410,15 +410,10 @@
         'partyCode': { 'type': 'string' },
         'partyName': { 'type': 'string' },
         'updatedAt': { 'type': 'string', 'format': 'date-time' },
-        'startedDefinitionRevision':
-          { 'type': 'integer', 'format': 'int64' },
-        'nodes':
-          { 'type': 'array', 'items': { '$ref': '#/WflNodeInstance' } },
+        'startedDefinitionRevision': { 'type': 'integer', 'format': 'int64' },
+        'nodes': { 'type': 'array', 'items': { '$ref': '#/WflNodeInstance' } },
         'availableTargets':
-          {
-            'type': 'array',
-            'items': { '$ref': '#/WflAvailableChildTarget' },
-          },
+          { 'type': 'array', 'items': { '$ref': '#/WflAvailableChildTarget' } },
       },
   }
 'WflInstanceViewResponse':

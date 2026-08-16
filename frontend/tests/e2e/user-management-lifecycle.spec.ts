@@ -102,7 +102,9 @@ test(
       .getByRole('button', { name: '重置密码' })
       .click()
     await page.getByRole('button', { name: '确认', exact: true }).click()
-    const temporaryPassword = await page.getByLabel('临时密码').inputValue()
+    const temporaryPassword = await page
+      .getByRole('textbox', { name: '临时密码', exact: true })
+      .inputValue()
     await page.getByLabel('我已安全保存临时密码').check()
     await page.getByRole('button', { name: '关闭', exact: true }).last().click()
 

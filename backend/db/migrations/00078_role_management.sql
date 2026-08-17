@@ -13,5 +13,7 @@ VALUES (
   ), 0)
 );
 
+SELECT rpt_validate_current_reports();
+
 -- +goose Down
 DROP TABLE app_role_code_counters;

@@ -1647,7 +1647,15 @@ run_incremental_validation_resilient() {
 validation_baseline() {
   run_incremental_validation_resilient baseline "$@" || return $?
   batch_root=$1
+  worktree=$2
+  base_sha=$3
   head_sha=$4
+  if [ -n "$(git -C "${worktree}" status --porcelain)" ]; then
+    append_timeline "${batch_root}" validation-dirty baseline automation '' "${head_sha}" \
+      'Baseline passed but modified the candidate; running release instead of promoting evidence'
+    validation_release "${batch_root}" "${worktree}" "${base_sha}" "${head_sha}"
+    return $?
+  fi
   jq '.mode = "release" | .promotedFrom = "baseline"' \
     "${batch_root}/validation-evidence.json" >"${batch_root}/gate-evidence.json.new"
   mv "${batch_root}/gate-evidence.json.new" "${batch_root}/gate-evidence.json"

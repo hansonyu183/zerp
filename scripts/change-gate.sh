@@ -167,8 +167,17 @@ check_backend() {
   fi
 }
 
+check_clean_worktree() {
+  [ -z "$(git status --porcelain)" ] || {
+    echo 'validation stage modified the worktree' >&2
+    git status --short >&2
+    return 1
+  }
+}
+
 validation_stage_file=
 validation_failed=0
+delta_impact=docs
 delta_contracts=0
 delta_frontend=0
 delta_backend=0
@@ -240,22 +249,29 @@ stage_was_present() {
     "${previous_evidence}" >/dev/null
 }
 
-stage_needs_reverify() {
+stage_is_delta_impacted() {
   stage_id=$1
-  previous_status=$(jq -r --arg id "${stage_id}" \
-    '.stages[] | select(.id == $id) | .status' "${previous_evidence}")
-  [ "${previous_status}" != passed ] && return 0
   case "${stage_id}" in
-    common) return 0 ;;
-    diff) return 0 ;;
+    diff | common | worktree) return 0 ;;
+    validation) [ "${delta_impact}" = validation ] ;;
+    docs) [ "${delta_impact}" = docs ] ;;
     contracts) [ "${delta_contracts}" = 1 ] ;;
     frontend) [ "${delta_frontend}" = 1 ] ;;
     backend) [ "${delta_backend}" = 1 ] ;;
     runtime) [ "${delta_containers}" = 1 ] ;;
     e2e) [ "${delta_local_e2e}" = 1 ] ;;
-    docs | validation) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+stage_needs_reverify() {
+  stage_id=$1
+  if stage_was_present "${stage_id}"; then
+    previous_status=$(jq -r --arg id "${stage_id}" \
+      '.stages[] | select(.id == $id) | .status' "${previous_evidence}")
+    [ "${previous_status}" != passed ] && return 0
+  fi
+  stage_is_delta_impacted "${stage_id}"
 }
 
 retain_validation_stage() {
@@ -313,6 +329,7 @@ if [ "${validation_mode}" = baseline ] || [ "${validation_mode}" = reverify ]; t
         ;;
       *) echo "Unsupported change impact: ${impact}" >&2; exit 1 ;;
     esac
+    run_validation_stage worktree 'clean worktree' check_clean_worktree || true
     write_validation_evidence baseline
   else
     jq -e --arg base "$(git rev-parse "${base_ref}^{commit}")" '
@@ -334,9 +351,9 @@ if [ "${validation_mode}" = baseline ] || [ "${validation_mode}" = reverify ]; t
     delta_matrix=$(scripts/change-impact.sh --checks "${previous_head}...HEAD" | sed 's/^/delta_/')
     eval "${delta_matrix}"
 
-    for stage_id in diff validation docs common contracts frontend backend runtime e2e; do
-      stage_was_present "${stage_id}" || continue
+    for stage_id in diff validation docs common contracts frontend backend runtime e2e worktree; do
       if ! stage_needs_reverify "${stage_id}"; then
+        stage_was_present "${stage_id}" || continue
         retain_validation_stage "${stage_id}"
         continue
       fi
@@ -360,6 +377,7 @@ if [ "${validation_mode}" = baseline ] || [ "${validation_mode}" = reverify ]; t
             validation_failed=1
           fi
           ;;
+        worktree) run_validation_stage worktree 'clean worktree' check_clean_worktree || true ;;
       esac
     done
     write_validation_evidence reverify

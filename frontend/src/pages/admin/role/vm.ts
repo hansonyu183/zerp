@@ -30,8 +30,7 @@ export interface RoleRowAction {
 const isRevisionConflict = (error: unknown) =>
   error instanceof ApiError &&
   error.kind === 'business' &&
-  ([3001, '3001'].includes(error.code ?? '') ||
-    error.message === 'role revision conflict')
+  error.message === 'role changed concurrently'
 
 export function createRoleManagementViewModel() {
   const session = useSessionStore()
@@ -289,6 +288,9 @@ export function createRoleManagementViewModel() {
         if (!result.data.items.length) break
       }
       permissions.value = collected
+      if (isEdit.value && editing.value) {
+        mergeDetailPermissions(editing.value)
+      }
       return true
     } catch (error) {
       if (!disposed.value && sequence === editorLoadSequence) {
@@ -339,15 +341,14 @@ export function createRoleManagementViewModel() {
         getAdminRole(row.id),
         permissionPromise,
       ])
-      if (disposed.value || sequence !== editorLoadSequence || !permissionsOK)
-        return
+      if (disposed.value || sequence !== editorLoadSequence) return
       editing.value = result.data
-      if (mode === 'edit') mergeDetailPermissions(result.data)
       form.name = result.data.name
       form.description = result.data.description ?? ''
       form.permissionIds = result.data.permissions.map(
         (permission) => permission.id,
       )
+      if (mode === 'edit' && permissionsOK) mergeDetailPermissions(result.data)
       setCleanForm()
     } catch (error) {
       if (!disposed.value && sequence === editorLoadSequence) {

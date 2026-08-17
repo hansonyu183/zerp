@@ -19,14 +19,14 @@ func TestFeedbackSubmissionAndPublishingIntegration(t *testing.T) {
 	service, pool, admin := appIntegrationService(t)
 	role, err := service.CreateRole(t.Context(), CreateRoleInput{Name: "反馈用户",
 		PermissionIDs: permissionIDsByPath(t, pool, "/app/user/query"),
-	}, admin.ID, "feedback-role")
+	}, integrationPrincipal(admin.ID), "feedback-role")
 	if err != nil {
 		t.Fatalf("create feedback role: %v", err)
 	}
 	user, err := service.CreateUser(t.Context(), CreateUserInput{
 		Username: "feedback-user", DisplayName: "反馈用户",
 		Password: integrationUserPassword, RoleIDs: []string{role.ID},
-	}, admin.ID, "feedback-user")
+	}, integrationPrincipal(admin.ID), "feedback-user")
 	if err != nil {
 		t.Fatalf("create feedback user: %v", err)
 	}

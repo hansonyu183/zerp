@@ -17,7 +17,7 @@ func TestBoundedRoleDelegationIntegration(t *testing.T) {
 		"/app/user/query", "/app/user/get", "/app/user/create", "/app/user/save",
 	}
 	limitedPermissionIDs := permissionIDsByPath(t, pool, limitedPaths...)
-	limitedRole, err := service.Service.CreateRole(t.Context(), CreateRoleInput{
+	limitedRole, err := service.CreateRole(t.Context(), CreateRoleInput{
 		Name: "有限管理员", PermissionIDs: limitedPermissionIDs,
 	}, adminPrincipal, "create-limited-role")
 	if err != nil {
@@ -26,13 +26,13 @@ func TestBoundedRoleDelegationIntegration(t *testing.T) {
 	if limitedRole.Code != "ROL-0001" || limitedRole.Type != RoleTypeNormal || limitedRole.Status != StatusEnabled {
 		t.Fatalf("limited role identity = %+v", limitedRole.RoleListItem)
 	}
-	if _, err = service.Service.CreateRole(t.Context(), CreateRoleInput{
+	if _, err = service.CreateRole(t.Context(), CreateRoleInput{
 		Name: "  有限管理员  ", PermissionIDs: limitedPermissionIDs,
 	}, adminPrincipal, "duplicate-limited-role"); !errorIsKind(err, ErrorConflict) || err.Error() != "role name already exists" {
 		t.Fatalf("duplicate normalized role name error = %v", err)
 	}
 
-	directory, err := service.Service.QueryRoles(t.Context(), PageRequest{
+	directory, err := service.QueryRoles(t.Context(), PageRequest{
 		Page: 1, PageSize: 20, Sort: []SortItem{{Field: "code", Order: "asc"}},
 	}, adminPrincipal)
 	if err != nil {
@@ -46,7 +46,7 @@ func TestBoundedRoleDelegationIntegration(t *testing.T) {
 		t.Fatalf("special role types are not both visible: %v", types)
 	}
 
-	limitedUser, err := service.Service.CreateUser(t.Context(), CreateUserInput{
+	limitedUser, err := service.CreateUser(t.Context(), CreateUserInput{
 		Username: "limited-admin", DisplayName: "有限管理员", Password: integrationUserPassword,
 		RoleIDs: []string{limitedRole.ID},
 	}, adminPrincipal, "create-limited-admin")
@@ -55,7 +55,7 @@ func TestBoundedRoleDelegationIntegration(t *testing.T) {
 	}
 	limitedPrincipal := Principal{User: UserSummary{ID: limitedUser.ID}}
 	narrowPermissionIDs := permissionIDsByPath(t, pool, "/app/user/query")
-	narrowRole, err := service.Service.CreateRole(t.Context(), CreateRoleInput{
+	narrowRole, err := service.CreateRole(t.Context(), CreateRoleInput{
 		Name: "更窄查询员", PermissionIDs: narrowPermissionIDs,
 	}, limitedPrincipal, "create-narrow-role")
 	if err != nil {
@@ -64,42 +64,42 @@ func TestBoundedRoleDelegationIntegration(t *testing.T) {
 	if narrowRole.Code != "ROL-0002" {
 		t.Fatalf("narrow role code = %q, want ROL-0002", narrowRole.Code)
 	}
-	superiorRole, err := service.Service.CreateRole(t.Context(), CreateRoleInput{
+	superiorRole, err := service.CreateRole(t.Context(), CreateRoleInput{
 		Name: "上级用户角色", PermissionIDs: permissionIDsByPath(t, pool, "/app/user/disable"),
 	}, adminPrincipal, "create-superior-user-role")
 	if err != nil {
 		t.Fatalf("create superior user role: %v", err)
 	}
-	superiorUser, err := service.Service.CreateUser(t.Context(), CreateUserInput{
+	superiorUser, err := service.CreateUser(t.Context(), CreateUserInput{
 		Username: "superior-user", DisplayName: "上级用户", Password: integrationUserPassword,
 		RoleIDs: []string{superiorRole.ID},
 	}, adminPrincipal, "create-superior-user")
 	if err != nil {
 		t.Fatalf("create superior user: %v", err)
 	}
-	if _, err = service.Service.SaveUser(t.Context(), SaveUserInput{
+	if _, err = service.SaveUser(t.Context(), SaveUserInput{
 		ID: limitedUser.ID, DisplayName: "有限管理员更新", RoleIDs: []string{narrowRole.ID}, Revision: limitedUser.Revision,
 	}, limitedPrincipal, "save-own-roles"); !errorIsKind(err, ErrorForbidden) {
 		t.Fatalf("save own roles error = %v, want forbidden", err)
 	}
-	if _, err = service.Service.SaveUser(t.Context(), SaveUserInput{
+	if _, err = service.SaveUser(t.Context(), SaveUserInput{
 		ID: superiorUser.ID, DisplayName: "上级用户更新", RoleIDs: []string{superiorRole.ID}, Revision: superiorUser.Revision,
 	}, limitedPrincipal, "save-superior-user"); !errorIsKind(err, ErrorForbidden) {
 		t.Fatalf("save superior user error = %v, want forbidden", err)
 	}
 
 	outsidePermissionIDs := permissionIDsByPath(t, pool, "/app/system-parameter/query")
-	if _, err = service.Service.CreateRole(t.Context(), CreateRoleInput{
+	if _, err = service.CreateRole(t.Context(), CreateRoleInput{
 		Name: "越权角色", PermissionIDs: outsidePermissionIDs,
 	}, limitedPrincipal, "create-over-ceiling-role"); !errorIsKind(err, ErrorForbidden) || err.Error() != "requested permissions exceed authorization ceiling" {
 		t.Fatalf("over-ceiling role error = %v", err)
 	}
-	if _, err = service.Service.SaveRole(t.Context(), SaveRoleInput{
+	if _, err = service.SaveRole(t.Context(), SaveRoleInput{
 		ID: limitedRole.ID, Name: limitedRole.Name, PermissionIDs: limitedPermissionIDs, Revision: limitedRole.Revision,
 	}, limitedPrincipal, "save-held-role"); !errorIsKind(err, ErrorForbidden) {
 		t.Fatalf("save actor-held role error = %v", err)
 	}
-	if _, err = service.Service.SaveRole(t.Context(), SaveRoleInput{
+	if _, err = service.SaveRole(t.Context(), SaveRoleInput{
 		ID: admin.RoleIDs[0], Name: "超级管理员", PermissionIDs: nil, Revision: 1,
 	}, limitedPrincipal, "save-superior-role"); !errorIsKind(err, ErrorForbidden) {
 		t.Fatalf("save superadmin role error = %v", err)
@@ -112,7 +112,7 @@ func TestBoundedRoleDelegationIntegration(t *testing.T) {
 	if adminDetail.Manageable || adminDetail.RoleAssignmentEditable {
 		t.Fatalf("superadmin target unexpectedly manageable: %+v", adminDetail)
 	}
-	if _, err = service.Service.CreateUser(t.Context(), CreateUserInput{
+	if _, err = service.CreateUser(t.Context(), CreateUserInput{
 		Username: "forged-superadmin", DisplayName: "伪造管理员", Password: integrationUserPassword,
 		RoleIDs: admin.RoleIDs,
 	}, limitedPrincipal, "assign-superadmin"); !errorIsKind(err, ErrorForbidden) {
@@ -129,7 +129,7 @@ func TestBoundedRoleDelegationIntegration(t *testing.T) {
 		t.Fatalf("disabled-superadmin target unexpectedly manageable: %+v", disabledSuperadminDetail)
 	}
 
-	child, err := service.Service.CreateUser(t.Context(), CreateUserInput{
+	child, err := service.CreateUser(t.Context(), CreateUserInput{
 		Username: "narrow-user", DisplayName: "更窄用户", Password: integrationUserPassword,
 		RoleIDs: []string{narrowRole.ID},
 	}, limitedPrincipal, "create-narrow-user")
@@ -144,7 +144,7 @@ func TestBoundedRoleDelegationIntegration(t *testing.T) {
 	if _, err = service.Authorize(t.Context(), childSession.SessionToken, childSession.Data.CSRFToken, "/app/user/query", "before-disable"); err != nil {
 		t.Fatalf("authorize before role disable: %v", err)
 	}
-	disabledRole, err := service.Service.SetRoleStatus(t.Context(), narrowRole.ID, narrowRole.Revision, StatusDisabled, limitedPrincipal, "disable-narrow-role")
+	disabledRole, err := service.SetRoleStatus(t.Context(), narrowRole.ID, narrowRole.Revision, StatusDisabled, limitedPrincipal, "disable-narrow-role")
 	if err != nil {
 		t.Fatalf("disable narrow role: %v", err)
 	}
@@ -155,7 +155,7 @@ func TestBoundedRoleDelegationIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("role disable revoked the existing session: %v", err)
 	}
-	if _, err = service.Service.SetRoleStatus(t.Context(), narrowRole.ID, disabledRole.Revision, StatusEnabled, limitedPrincipal, "enable-narrow-role"); err != nil {
+	if _, err = service.SetRoleStatus(t.Context(), narrowRole.ID, disabledRole.Revision, StatusEnabled, limitedPrincipal, "enable-narrow-role"); err != nil {
 		t.Fatalf("enable narrow role: %v", err)
 	}
 	if _, err = service.Authorize(t.Context(), childSession.SessionToken, restored.Data.CSRFToken, "/app/user/query", "after-enable"); err != nil {

@@ -154,6 +154,13 @@ func (s *Service) roleActions(ctx context.Context, q *dbsqlc.Queries, role dbsql
 	return actions, assignable, nil
 }
 
+func rolePermission(id, path, domain, entity, action string, description *string, status string) RolePermission {
+	return RolePermission{
+		ID: id, Path: path, Domain: domain, Entity: entity,
+		Action: action, Description: description, Status: status,
+	}
+}
+
 func (s *Service) rolePermissionDetails(ctx context.Context, q *dbsqlc.Queries, role dbsqlc.AppRole) ([]RolePermission, error) {
 	if role.Code == superadminRoleCode {
 		rows, err := q.ListAllEnabledAppPermissionDetails(ctx)
@@ -162,7 +169,7 @@ func (s *Service) rolePermissionDetails(ctx context.Context, q *dbsqlc.Queries, 
 		}
 		items := make([]RolePermission, 0, len(rows))
 		for _, p := range rows {
-			items = append(items, RolePermission{ID: p.ID, Path: p.Path, Domain: p.Domain, Entity: p.Entity, Action: p.Action, Description: p.Description, Status: p.Status})
+			items = append(items, rolePermission(p.ID, p.Path, p.Domain, p.Entity, p.Action, p.Description, p.Status))
 		}
 		return items, nil
 	}
@@ -172,7 +179,7 @@ func (s *Service) rolePermissionDetails(ctx context.Context, q *dbsqlc.Queries, 
 	}
 	items := make([]RolePermission, 0, len(rows))
 	for _, p := range rows {
-		items = append(items, RolePermission{ID: p.ID, Path: p.Path, Domain: p.Domain, Entity: p.Entity, Action: p.Action, Description: p.Description, Status: p.Status})
+		items = append(items, rolePermission(p.ID, p.Path, p.Domain, p.Entity, p.Action, p.Description, p.Status))
 	}
 	return items, nil
 }

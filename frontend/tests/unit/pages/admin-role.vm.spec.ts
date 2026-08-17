@@ -226,13 +226,55 @@ describe('role management view model', () => {
     vm.togglePermission(disabledPermission.id, false)
     vm.form.name = '保留输入'
     vi.mocked(saveAdminRole).mockRejectedValueOnce(
-      new ApiError('business', 'role revision conflict', { code: 3001 }),
+      new ApiError('business', 'role changed concurrently', { code: 3001 }),
     )
     await vm.save()
 
     expect(vm.editorOpen.value).toBe(true)
     expect(vm.form.name).toBe('保留输入')
     expect(vm.editorErrorMessage.value).toContain('重新加载')
+  })
+
+  it('编辑权限目录失败后重试会恢复表单并允许保存', async () => {
+    vi.mocked(queryAdminPermissions)
+      .mockRejectedValueOnce(new Error('down'))
+      .mockResolvedValueOnce({
+        data: { items: [permission], total: 1, page: 1, pageSize: 200 },
+      })
+    const vm = createRoleManagementViewModel()
+
+    await vm.openEdit(role)
+    expect(vm.editorOpen.value).toBe(true)
+    expect(vm.editorMode.value).toBe('edit')
+    expect(vm.editing.value?.id).toBe(role.id)
+    expect(vm.form.permissionIds).toEqual([permission.id])
+    expect(vm.canSubmit.value).toBe(false)
+
+    await vm.loadPermissions()
+    expect(vm.permissionErrorMessage.value).toBeNull()
+    expect(vm.canSubmit.value).toBe(true)
+    await vm.save()
+    expect(saveAdminRole).toHaveBeenCalledWith({
+      id: role.id,
+      name: role.name,
+      description: null,
+      permissionIds: [permission.id],
+      revision: role.revision,
+    })
+  })
+
+  it('仅将明确的并发变更显示为冲突，其他业务冲突使用中文映射', async () => {
+    const vm = createRoleManagementViewModel()
+    await vm.openCreate()
+    vm.form.name = '重复角色'
+    vm.togglePermission(permission.id, true)
+    vi.mocked(createAdminRole).mockRejectedValueOnce(
+      new ApiError('business', 'role name already exists', { code: 3001 }),
+    )
+
+    await vm.save()
+
+    expect(vm.editorErrorMessage.value).toBe('角色名称已存在，请使用其他名称。')
   })
 
   it('所有脏表单离开入口共享同一放弃确认', async () => {
@@ -268,7 +310,7 @@ describe('role management view model', () => {
     expect(vm.pendingActionMessage.value).toContain('仍启用的权限')
 
     vi.mocked(setAdminRoleEnabled).mockRejectedValueOnce(
-      new ApiError('business', 'role revision conflict', { code: 3001 }),
+      new ApiError('business', 'role changed concurrently', { code: 3001 }),
     )
     await vm.confirmPendingAction()
     expect(vm.errorMessage.value).toContain('重新发起')

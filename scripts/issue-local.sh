@@ -1018,6 +1018,77 @@ _worktree_environment_failure_class() {
   esac
 }
 
+_worktree_environment_file_hash() {
+  shasum -a 256 "$1" | awk '{print $1}'
+}
+
+_worktree_environment_workspace_hash() {
+  worktree=$1
+  {
+    printf 'pnpm-workspace.yaml\t'
+    _worktree_environment_file_hash "${worktree}/pnpm-workspace.yaml"
+    git -C "${worktree}" ls-files '*package.json' | LC_ALL=C sort |
+      while IFS= read -r manifest; do
+        printf '%s\t' "${manifest}"
+        _worktree_environment_file_hash "${worktree}/${manifest}"
+      done
+  } | shasum -a 256 | awk '{print $1}'
+}
+
+_worktree_environment_invariants_hold() {
+  worktree=$1
+  expected_store_path=$2
+  candidate_modules="${worktree}/node_modules"
+  candidate_frontend_modules="${worktree}/frontend/node_modules"
+  [ -d "${candidate_modules}" ] && [ ! -L "${candidate_modules}" ] &&
+    [ -d "${candidate_modules}/.pnpm" ] &&
+    [ -f "${candidate_modules}/.modules.yaml" ] &&
+    [ -d "${candidate_modules}/.bin" ] &&
+    jq -e --arg store "${expected_store_path}" '.storeDir == $store' \
+      "${candidate_modules}/.modules.yaml" >/dev/null 2>&1 &&
+    [ -d "${candidate_frontend_modules}" ] &&
+    [ ! -L "${candidate_frontend_modules}" ] &&
+    [ -d "${candidate_frontend_modules}/.bin" ] &&
+    [ -x "${candidate_frontend_modules}/.bin/vite" ] &&
+    [ -e "${candidate_frontend_modules}/vite" ]
+}
+
+_worktree_environment_metadata_matches() {
+  metadata_file=$1
+  lockfile_hash=$2
+  package_json_hash=$3
+  workspace_hash=$4
+  pnpm_version=$5
+  expected_store_path=$6
+  jq -e --arg lockfile_hash "${lockfile_hash}" \
+    --arg package_json_hash "${package_json_hash}" \
+    --arg workspace_hash "${workspace_hash}" \
+    --arg pnpm_version "${pnpm_version}" \
+    --arg store_path "${expected_store_path}" '
+      .version == 1 and .lockfileHash == $lockfile_hash and
+      .packageJsonHash == $package_json_hash and .workspaceHash == $workspace_hash and
+      .pnpmVersion == $pnpm_version and .storePath == $store_path
+    ' "${metadata_file}" >/dev/null 2>&1
+}
+
+_worktree_environment_write_metadata() {
+  metadata_file=$1
+  lockfile_hash=$2
+  package_json_hash=$3
+  workspace_hash=$4
+  pnpm_version=$5
+  expected_store_path=$6
+  jq -n --arg lockfile_hash "${lockfile_hash}" \
+    --arg package_json_hash "${package_json_hash}" \
+    --arg workspace_hash "${workspace_hash}" \
+    --arg pnpm_version "${pnpm_version}" \
+    --arg store_path "${expected_store_path}" \
+    '{version:1,lockfileHash:$lockfile_hash,packageJsonHash:$package_json_hash,
+      workspaceHash:$workspace_hash,pnpmVersion:$pnpm_version,storePath:$store_path}' \
+    >"${metadata_file}.new"
+  mv "${metadata_file}.new" "${metadata_file}"
+}
+
 remove_managed_host_env() {
   worktree=$1
   candidate_env="${worktree}/backend/.env.local"
@@ -1120,6 +1191,7 @@ worktree_environment_ensure() {
   pnpm_store=${ZERP_PNPM_STORE_PATH:-${HOME}/Library/pnpm/store}
   wrapper="${worktree}/.scratch/.issue-local-bin/pnpm"
   install_log="${worktree}/.scratch/.issue-local-deps-install.log"
+  metadata_file="${worktree}/.scratch/.issue-local-deps.json"
 
   remove_managed_host_env "${worktree}"
   if [ -e "${worktree}/backend/.env.local" ] || [ -L "${worktree}/backend/.env.local" ]; then
@@ -1136,7 +1208,19 @@ worktree_environment_ensure() {
     echo 'offline dependency preparation blocked: candidate pnpm-lock.yaml is missing' >&2
     return 2
   }
+  [ -f "${worktree}/pnpm-workspace.yaml" ] || {
+    echo 'offline dependency preparation blocked: candidate pnpm-workspace.yaml is missing' >&2
+    return 2
+  }
   _worktree_environment_prepare_pnpm "${worktree}" || return $?
+  expected_store_path=$("${wrapper}" store path --store-dir "${pnpm_store}") || {
+    echo 'offline dependency preparation blocked: exact pnpm could not resolve the shared store' >&2
+    return 1
+  }
+  [ -d "${expected_store_path}" ] || {
+    echo 'offline dependency preparation blocked: resolved shared pnpm store is unavailable' >&2
+    return 1
+  }
   _worktree_environment_verify_ignored "${worktree}" || return $?
   if [ -L "${candidate_modules}" ]; then
     if [ "$(readlink "${candidate_modules}")" = "${primary_root}/node_modules" ]; then
@@ -1158,7 +1242,17 @@ worktree_environment_ensure() {
     echo 'offline dependency preparation blocked: candidate frontend/node_modules must be an owned directory' >&2
     return 3
   fi
+  lockfile_hash=$(_worktree_environment_file_hash "${candidate_lockfile}")
+  package_json_hash=$(_worktree_environment_file_hash "${worktree}/package.json")
+  workspace_hash=$(_worktree_environment_workspace_hash "${worktree}")
   _worktree_environment_clean_residue "${worktree}"
+  if _worktree_environment_metadata_matches "${metadata_file}" \
+    "${lockfile_hash}" "${package_json_hash}" "${workspace_hash}" \
+    "${pnpm_version}" "${expected_store_path}" &&
+    _worktree_environment_invariants_hold "${worktree}" "${expected_store_path}"; then
+    mkdir -p "${candidate_frontend_modules}/.tmp"
+    return 0
+  fi
   if ! (
     cd "${worktree}"
     CI=true COREPACK_ROOT=1 "${wrapper}" install --offline --frozen-lockfile \
@@ -1176,18 +1270,8 @@ worktree_environment_ensure() {
   cat "${install_log}"
   rm -f "${install_log}"
   _worktree_environment_clean_residue "${worktree}"
-  if ! { [ -d "${candidate_modules}" ] && [ ! -L "${candidate_modules}" ] &&
-    [ -d "${candidate_modules}/.pnpm" ] && [ -f "${candidate_modules}/.modules.yaml" ] &&
-    [ -d "${candidate_modules}/.bin" ]; }; then
-    echo 'offline dependency preparation blocked: candidate root node_modules is incomplete' >&2
-    return 3
-  fi
-  if ! { [ -d "${candidate_frontend_modules}" ] &&
-    [ ! -L "${candidate_frontend_modules}" ] &&
-    [ -d "${candidate_frontend_modules}/.bin" ] &&
-    [ -x "${candidate_frontend_modules}/.bin/vite" ] &&
-    [ -e "${candidate_frontend_modules}/vite" ]; }; then
-    echo 'offline dependency preparation blocked: candidate frontend node_modules is incomplete' >&2
+  if ! _worktree_environment_invariants_hold "${worktree}" "${expected_store_path}"; then
+    echo 'offline dependency preparation blocked: candidate node_modules invariants are incomplete' >&2
     return 3
   fi
   mkdir -p "${candidate_frontend_modules}/.tmp"
@@ -1196,6 +1280,9 @@ worktree_environment_ensure() {
     echo 'offline dependency preparation blocked: candidate pnpm store cleanup failed' >&2
     return 3
   fi
+  _worktree_environment_write_metadata "${metadata_file}" \
+    "${lockfile_hash}" "${package_json_hash}" "${workspace_hash}" \
+    "${pnpm_version}" "${expected_store_path}"
 }
 
 ensure_worktree_environment_resilient() {

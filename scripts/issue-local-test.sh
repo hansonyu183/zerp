@@ -352,10 +352,11 @@ if [ "${1:-}" = close ]; then
   fi
   exit 0
 fi
-if [ "${MOCK_PREVIEW_REQUIRE_DETACHED_MODULES:-0}" = 1 ] && \
-  { [ -e "${ZERP_ISSUE_WORKTREE}/node_modules" ] || [ -L "${ZERP_ISSUE_WORKTREE}/node_modules" ]; }; then
-  echo 'preview received the controller-managed primary node_modules symlink' >&2
-  exit 2
+if [ "${MOCK_PREVIEW_REQUIRE_INDEPENDENT_MODULES:-0}" = 1 ]; then
+  test -d "${ZERP_ISSUE_WORKTREE}/node_modules"
+  test ! -L "${ZERP_ISSUE_WORKTREE}/node_modules"
+  test -d "${ZERP_ISSUE_WORKTREE}/frontend/node_modules"
+  test ! -L "${ZERP_ISSUE_WORKTREE}/frontend/node_modules"
 fi
 if [ "${MOCK_PREVIEW_LEAVES_DEPENDENCY_RESIDUE:-0}" = 1 ]; then
   mkdir -p "${ZERP_ISSUE_WORKTREE}/node_modules/.pnpm" \
@@ -399,13 +400,15 @@ if [ "${MOCK_VERIFY_COMPLETION_CANDIDATE:-0}" = 1 ]; then
   common_git_dir=$(git -C "${worktree}" rev-parse --path-format=absolute --git-common-dir)
   grep -Fq -- "--add-dir ${worktree_git_dir}" "${MOCK_CODEX_ARGS}"
   grep -Fq -- "--add-dir ${common_git_dir}" "${MOCK_CODEX_ARGS}"
-  test -L "${worktree}/node_modules"
-  test "$(readlink "${worktree}/node_modules")" = "${MOCK_PRIMARY}/node_modules"
+  test -d "${worktree}/node_modules"
+  test ! -L "${worktree}/node_modules"
+  test -d "${worktree}/frontend/node_modules"
+  test ! -L "${worktree}/frontend/node_modules"
+  grep -Fq "storeDir: ${ZERP_PNPM_STORE_PATH}" "${worktree}/node_modules/.modules.yaml"
   test ! -e "${worktree}/backend/.env.local"
   test ! -e "${worktree}/backend/.env.e2e.local"
   test -d "${worktree}/frontend/node_modules/.tmp"
   test ! -e "${worktree}/frontend/node_modules/.tmp/primary-cache"
-  test ! -e "${worktree}/frontend/node_modules/.pnpm"
   test ! -e "${worktree}/frontend/node_modules/.vite"
   test ! -e "${worktree}/.pnpm-store"
   test ! -e "${worktree}/frontend/node_modules/.pnpm-store"
@@ -610,7 +613,45 @@ cached_pnpm="${pnpm_store}/v11/links/@/pnpm/10.34.5/test/node_modules/pnpm"
 mkdir -p "${cached_pnpm}/bin"
 printf '{"name":"pnpm","version":"10.34.5"}\n' >"${cached_pnpm}/package.json"
 cat >"${cached_pnpm}/bin/pnpm.cjs" <<'EOF'
-process.stdout.write('10.34.5\n')
+const fs = require('fs')
+const path = require('path')
+
+if (process.argv.includes('--version')) {
+  process.stdout.write('10.34.5\n')
+  process.exit(0)
+}
+
+if (process.argv[2] !== 'install') {
+  process.stderr.write(`unexpected cached pnpm command: ${process.argv.slice(2).join(' ')}\n`)
+  process.exit(2)
+}
+
+const worktree = process.cwd()
+const args = process.argv.slice(2)
+fs.appendFileSync(process.env.MOCK_PNPM_INSTALL_LOG, `${worktree}\t${args.join(' ')}\n`)
+const attemptFile = process.env.MOCK_PNPM_INSTALL_COUNT
+const attempt = Number(fs.existsSync(attemptFile) ? fs.readFileSync(attemptFile, 'utf8') : '0') + 1
+fs.writeFileSync(attemptFile, `${attempt}\n`)
+if (
+  attempt <= Number(process.env.MOCK_PNPM_INSTALL_FAILS || 0) ||
+  attempt === Number(process.env.MOCK_PNPM_INSTALL_FAIL_ON || 0)
+) {
+  process.stderr.write(`simulated offline install failure ${attempt}\n`)
+  process.exit(1)
+}
+fs.rmSync(path.join(worktree, '.pnpm-store'), { recursive: true, force: true })
+fs.rmSync(path.join(worktree, 'frontend/node_modules'), { recursive: true, force: true })
+fs.mkdirSync(path.join(worktree, 'node_modules/.pnpm'), { recursive: true })
+fs.mkdirSync(path.join(worktree, 'node_modules/.bin'), { recursive: true })
+fs.mkdirSync(path.join(worktree, 'frontend/node_modules/.bin'), { recursive: true })
+fs.mkdirSync(path.join(worktree, 'frontend/node_modules/.tmp'), { recursive: true })
+fs.writeFileSync(
+  path.join(worktree, 'node_modules/.modules.yaml'),
+  `storeDir: ${args[args.indexOf('--store-dir') + 1]}\n`,
+)
+fs.writeFileSync(path.join(worktree, 'frontend/node_modules/.bin/vite'), '#!/bin/sh\nexit 0\n')
+fs.chmodSync(path.join(worktree, 'frontend/node_modules/.bin/vite'), 0o700)
+fs.writeFileSync(path.join(worktree, 'frontend/node_modules/vite'), '')
 EOF
 cat >"${tmp}/bin/pnpm" <<'EOF'
 #!/bin/sh
@@ -642,12 +683,15 @@ export MOCK_GATE_PNPM_VERSION="${tmp}/gate-pnpm-version"
 export MOCK_GATE_ENV_TARGET="${tmp}/gate-env-target"
 export MOCK_GATE_E2E_ENV_TARGET="${tmp}/gate-e2e-env-target"
 export MOCK_FOCUSED_E2E_ENV_TARGET="${tmp}/focused-e2e-env-target"
+export MOCK_PNPM_INSTALL_LOG="${tmp}/pnpm-install.log"
+export MOCK_PNPM_INSTALL_COUNT="${tmp}/pnpm-install-count"
 export MOCK_IMESSAGE_RECIPIENT='issue-local-test@example.invalid'
 export MOCK_IMESSAGE_EVENTS="${tmp}/imessage-events"
 export MOCK_MESSAGES_STARTED="${tmp}/messages-started"
 export MOCK_OSASCRIPT_PID="${tmp}/osascript-pid"
 export ZERP_PNPM_STORE_PATH="${pnpm_store}"
-export MOCK_PREVIEW_REQUIRE_DETACHED_MODULES=1
+export ZERP_ISSUE_ENVIRONMENT_RETRY_WAIT_SECONDS=0
+export MOCK_PREVIEW_REQUIRE_INDEPENDENT_MODULES=1
 export MOCK_PREVIEW_LEAVES_DEPENDENCY_RESIDUE=1
 : >"${events}"
 
@@ -722,6 +766,13 @@ if grep -Fq -- '--dangerously-bypass-approvals-and-sandbox' "${MOCK_CODEX_ARGS}"
 fi
 test "$(cat "${MOCK_CODEX_PNPM_PATH}")" = "${runtime}/worktrees/inventory-query/.scratch/.issue-local-bin/pnpm"
 test "$(cat "${MOCK_GATE_PNPM_PATH}")" = "${runtime}/worktrees/inventory-query/.scratch/.issue-local-bin/pnpm"
+grep -Fq -- "install --offline --frozen-lockfile --store-dir ${pnpm_store}" \
+  "${MOCK_PNPM_INSTALL_LOG}"
+if awk -F '\t' -v primary="${primary}" '$1 == primary {found=1} END {exit !found}' \
+  "${MOCK_PNPM_INSTALL_LOG}"; then
+  echo 'WorktreeEnvironment installed dependencies in the primary worktree' >&2
+  exit 1
+fi
 test ! -e "${runtime}/worktrees/inventory-query"
 if git -C "${primary}" show-ref --verify --quiet refs/heads/automation/local-inventory-query; then
   echo 'completed candidate branch was not removed' >&2
@@ -1035,36 +1086,64 @@ grep -Fq '**Status:** done' \
 unset MOCK_BASELINE_DIRTY
 test_checkpoint validation-dirty-promotion
 
-make_ticket dependency-lock-mismatch 'Dependency lock mismatch'
-mismatch_worktree="${runtime}/worktrees/dependency-lock-mismatch"
-mkdir -p "$(dirname "${mismatch_worktree}")"
-git -C "${primary}" worktree add -b automation/local-dependency-lock-mismatch \
-  "${mismatch_worktree}" main >/dev/null
-printf 'lockfileVersion: "different"\n' >"${mismatch_worktree}/pnpm-lock.yaml"
+make_ticket dependency-lock-independent 'Candidate lockfile independence'
+independent_lock_worktree="${runtime}/worktrees/dependency-lock-independent"
+mkdir -p "$(dirname "${independent_lock_worktree}")"
+git -C "${primary}" worktree add -b automation/local-dependency-lock-independent \
+  "${independent_lock_worktree}" main >/dev/null
+printf 'lockfileVersion: "9.0"\nsettings:\n  autoInstallPeers: false\n' \
+  >"${independent_lock_worktree}/pnpm-lock.yaml"
+git -C "${independent_lock_worktree}" add pnpm-lock.yaml
+git -C "${independent_lock_worktree}" \
+  -c user.name='Dependency Test' -c user.email=dependency@example.com \
+  commit -m 'test: candidate lockfile change' >/dev/null
 : >"${events}"
-rm -f "${MOCK_CODEX_COUNT}" "${MOCK_COREPACK_ROOT}"
-if run_agent; then
-  echo 'mismatched candidate lockfile was accepted' >&2
-  exit 1
-fi
-test ! -e "${MOCK_CODEX_COUNT}"
-test ! -e "${MOCK_COREPACK_ROOT}"
-test ! -s "${events}"
-grep -Fq '**Status:** blocked' "${primary}/.scratch/dependency-lock-mismatch/issues/01-ticket.md"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_COREPACK_ROOT}" "${MOCK_PNPM_INSTALL_LOG}"
+run_agent
+grep -Fq 'worktrees/dependency-lock-independent' "${MOCK_PNPM_INSTALL_LOG}"
+grep -Fq '**Status:** done' \
+  "${primary}/.scratch/dependency-lock-independent/issues/01-ticket.md"
+test_checkpoint dependency-lock-independent
 
-make_ticket dependency-missing 'Dependency missing'
+make_ticket primary-dependencies-absent 'Primary dependencies absent'
+mv "${primary}/node_modules" "${primary}/node_modules.saved"
 mv "${primary}/frontend/node_modules" "${primary}/frontend/node_modules.saved"
 : >"${events}"
-rm -f "${MOCK_CODEX_COUNT}" "${MOCK_COREPACK_ROOT}"
-if run_agent; then
-  echo 'missing primary dependencies were accepted' >&2
-  exit 1
-fi
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_COREPACK_ROOT}" "${MOCK_PNPM_INSTALL_LOG}"
+run_agent
+mv "${primary}/node_modules.saved" "${primary}/node_modules"
 mv "${primary}/frontend/node_modules.saved" "${primary}/frontend/node_modules"
-test ! -e "${MOCK_CODEX_COUNT}"
-test ! -e "${MOCK_COREPACK_ROOT}"
-test ! -s "${events}"
-grep -Fq '**Status:** blocked' "${primary}/.scratch/dependency-missing/issues/01-ticket.md"
+grep -Fq '**Status:** done' \
+  "${primary}/.scratch/primary-dependencies-absent/issues/01-ticket.md"
+test_checkpoint primary-dependencies-absent
+
+make_ticket environment-prepare-retry 'Environment prepare retry'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" \
+  "${MOCK_ISSUE_COUNT}" "${MOCK_PNPM_INSTALL_COUNT}"
+MOCK_PNPM_INSTALL_FAILS=1 run_agent
+test "$(cat "${MOCK_CODEX_COUNT}")" = 1
+test "$(jq -r '[.nonProductEvents[] |
+  select(.failureClass == "environment" and .stage == "preparing-worktree")] | length' \
+  "${runtime}/batches/environment-prepare-retry/repair-budget.json")" = 1
+grep -Fq '**Status:** done' \
+  "${primary}/.scratch/environment-prepare-retry/issues/01-ticket.md"
+unset MOCK_PNPM_INSTALL_FAILS
+test_checkpoint environment-prepare-retry
+
+make_ticket environment-restore-retry 'Environment restore retry'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" \
+  "${MOCK_ISSUE_COUNT}" "${MOCK_PNPM_INSTALL_COUNT}"
+MOCK_PNPM_INSTALL_FAIL_ON=2 run_agent
+test "$(cat "${MOCK_CODEX_COUNT}")" = 1
+test "$(jq -r '[.nonProductEvents[] |
+  select(.failureClass == "environment" and .stage == "worktree-environment")] | length' \
+  "${runtime}/batches/environment-restore-retry/repair-budget.json")" = 1
+grep -Fq '**Status:** done' \
+  "${primary}/.scratch/environment-restore-retry/issues/01-ticket.md"
+unset MOCK_PNPM_INSTALL_FAIL_ON
+test_checkpoint environment-restore-retry
 
 make_ticket pnpm-cache-missing 'Exact pnpm cache missing'
 mkdir -p "${tmp}/empty-pnpm-store"
@@ -1080,26 +1159,17 @@ test ! -e "${MOCK_COREPACK_ROOT}"
 test ! -s "${events}"
 grep -Fq '**Status:** blocked' "${primary}/.scratch/pnpm-cache-missing/issues/01-ticket.md"
 
-prepare_reviewed_candidate retry-managed-link
-managed_candidate="${runtime}/worktrees/retry-managed-link"
-printf '.scratch/\nbackend/var/\nnode_modules/\n' >"${managed_candidate}/.gitignore"
-git -C "${managed_candidate}" add .gitignore
-git -C "${managed_candidate}" -c user.name='Local Implement' -c user.email=local@example.com \
-  commit --amend --no-edit >/dev/null
-managed_head=$(git -C "${managed_candidate}" rev-parse HEAD)
-jq --arg head "${managed_head}" '.commitSha = $head' \
-  "${runtime}/batches/retry-managed-link/implementation.json" \
-  >"${runtime}/batches/retry-managed-link/implementation.json.new"
-mv "${runtime}/batches/retry-managed-link/implementation.json.new" \
-  "${runtime}/batches/retry-managed-link/implementation.json"
-ln -s "${primary}/node_modules" "${managed_candidate}/node_modules"
-git -C "${managed_candidate}" status --porcelain | grep -Fq '?? node_modules'
-retry_agent retry-managed-link
-test -r "${runtime}/batches/retry-managed-link/implementation.json"
-test ! -e "${managed_candidate}/node_modules"
-managed_ticket="${primary}/.scratch/retry-managed-link/issues/01-ticket.md"
-sed 's/^\*\*Status:\*\*.*/**Status:** blocked/' "${managed_ticket}" >"${managed_ticket}.new"
-mv "${managed_ticket}.new" "${managed_ticket}"
+prepare_reviewed_candidate retry-independent-environment
+retry_agent retry-independent-environment
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" \
+  "${MOCK_ISSUE_COUNT}" "${MOCK_PNPM_INSTALL_LOG}"
+run_agent
+test ! -e "${MOCK_CODEX_COUNT}"
+grep -Fq 'worktrees/retry-independent-environment' "${MOCK_PNPM_INSTALL_LOG}"
+grep -Fq '**Status:** done' \
+  "${primary}/.scratch/retry-independent-environment/issues/01-ticket.md"
+test_checkpoint retry-independent-environment
 
 make_ticket retry-active-controller 'Retry active controller'
 active_ticket="${primary}/.scratch/retry-active-controller/issues/01-ticket.md"

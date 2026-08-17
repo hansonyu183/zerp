@@ -86,10 +86,14 @@
         },
     },
   'UserStatus': { 'type': 'string', 'enum': ['ENABLED', 'DISABLED'] },
+  'RoleType':
+    { 'type': 'string', 'enum': ['NORMAL', 'SYSTEM', 'SUPERADMIN'] },
+  'RoleAction':
+    { 'type': 'string', 'enum': ['VIEW', 'EDIT', 'ENABLE', 'DISABLE'] },
   'UserRoleSummary':
     {
       'type': 'object',
-      'required': ['id', 'code', 'name', 'status'],
+      'required': ['id', 'code', 'name', 'status', 'type', 'assignable'],
       'additionalProperties': false,
       'properties':
         {
@@ -97,6 +101,8 @@
           'code': { 'type': 'string' },
           'name': { 'type': 'string' },
           'status': { '$ref': '#/UserStatus' },
+          'type': { '$ref': '#/RoleType' },
+          'assignable': { 'type': 'boolean' },
         },
     },
   'UserListItem':
@@ -141,6 +147,8 @@
           'revision',
           'passwordChangedAt',
           'roles',
+          'manageable',
+          'roleAssignmentEditable',
         ],
       'additionalProperties': false,
       'properties':
@@ -156,6 +164,8 @@
           'passwordChangedAt': { 'type': 'string', 'format': 'date-time' },
           'roles':
             { 'type': 'array', 'items': { '$ref': '#/UserRoleSummary' } },
+          'manageable': { 'type': 'boolean' },
+          'roleAssignmentEditable': { 'type': 'boolean' },
         },
     },
   'UserPage':
@@ -312,14 +322,19 @@
   'CreateRoleRequest':
     {
       'type': 'object',
-      'required': ['code', 'name', 'description', 'permissionIds'],
+      'required': ['name', 'description', 'permissionIds'],
       'additionalProperties': false,
       'properties':
         {
-          'code': { 'type': 'string' },
-          'name': { 'type': 'string' },
+          'name': { 'type': 'string', 'minLength': 1, 'maxLength': 128 },
           'description': { 'type': 'string', 'nullable': true },
-          'permissionIds': { 'type': 'array', 'items': { 'type': 'string' } },
+          'permissionIds':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'uniqueItems': true,
+              'items': { 'type': 'string' },
+            },
         },
     },
   'SaveRoleRequest':
@@ -330,10 +345,300 @@
       'properties':
         {
           'id': { 'type': 'string' },
+          'name': { 'type': 'string', 'minLength': 1, 'maxLength': 128 },
+          'description': { 'type': 'string', 'nullable': true },
+          'permissionIds':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'uniqueItems': true,
+              'items': { 'type': 'string' },
+            },
+          'revision':
+            { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+        },
+    },
+  'RolePermission':
+    {
+      'type': 'object',
+      'required':
+        ['id', 'path', 'description', 'status', 'domain', 'entity', 'action'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'id': { 'type': 'string' },
+          'path': { 'type': 'string' },
+          'description': { 'type': 'string', 'nullable': true },
+          'status': { '$ref': '#/UserStatus' },
+          'domain': { 'type': 'string' },
+          'entity': { 'type': 'string' },
+          'action': { 'type': 'string' },
+        },
+    },
+  'RoleListItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'id',
+          'code',
+          'name',
+          'description',
+          'status',
+          'type',
+          'availableActions',
+          'assignable',
+          'createdAt',
+          'updatedAt',
+          'revision',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'id': { 'type': 'string' },
+          'code': { 'type': 'string' },
           'name': { 'type': 'string' },
           'description': { 'type': 'string', 'nullable': true },
-          'permissionIds': { 'type': 'array', 'items': { 'type': 'string' } },
-          'revision': { 'type': 'integer', 'format': 'int64' },
+          'status': { '$ref': '#/UserStatus' },
+          'type': { '$ref': '#/RoleType' },
+          'availableActions':
+            {
+              'type': 'array',
+              'uniqueItems': true,
+              'items': { '$ref': '#/RoleAction' },
+            },
+          'assignable': { 'type': 'boolean' },
+          'createdAt': { 'type': 'string', 'format': 'date-time' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+          'revision':
+            { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+        },
+    },
+  'RoleDetail':
+    {
+      'allOf':
+        [
+          { '$ref': '#/RoleListItem' },
+          {
+            'type': 'object',
+            'required': ['permissions'],
+            'properties':
+              {
+                'permissions':
+                  {
+                    'type': 'array',
+                    'items': { '$ref': '#/RolePermission' },
+                  },
+              },
+          },
+        ],
+    },
+  'RolePage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items': { 'type': 'array', 'items': { '$ref': '#/RoleListItem' } },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'enum': [20] },
+        },
+    },
+  'RoleQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize', 'sort'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'enum': [20] },
+          'filters':
+            {
+              'type': 'object',
+              'additionalProperties': false,
+              'properties':
+                {
+                  'search': { 'type': 'string', 'maxLength': 128 },
+                  'status': { '$ref': '#/UserStatus' },
+                },
+            },
+          'sort':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'maxItems': 1,
+              'items':
+                {
+                  'type': 'object',
+                  'required': ['field', 'order'],
+                  'additionalProperties': false,
+                  'properties':
+                    {
+                      'field': { 'type': 'string', 'enum': ['code'] },
+                      'order': { 'type': 'string', 'enum': ['asc'] },
+                    },
+                },
+            },
+        },
+    },
+  'RolePageResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/RolePage' }],
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'RoleDetailResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/RoleDetail' }],
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'PermissionView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'id',
+          'path',
+          'domain',
+          'entity',
+          'action',
+          'description',
+          'status',
+          'revision',
+          'assignable',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'id': { 'type': 'string' },
+          'path': { 'type': 'string' },
+          'domain': { 'type': 'string' },
+          'entity': { 'type': 'string' },
+          'action': { 'type': 'string' },
+          'description': { 'type': 'string', 'nullable': true },
+          'status': { '$ref': '#/UserStatus' },
+          'revision':
+            { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'assignable': { 'type': 'boolean' },
+          'roleCount':
+            { 'type': 'integer', 'format': 'int64', 'nullable': true },
+        },
+    },
+  'PermissionPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            { 'type': 'array', 'items': { '$ref': '#/PermissionView' } },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'enum': [20, 200] },
+        },
+    },
+  'PermissionQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize', 'sort'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'enum': [20, 200] },
+          'filters':
+            {
+              'type': 'object',
+              'additionalProperties': false,
+              'properties':
+                {
+                  'domain': { 'type': 'string', 'maxLength': 64 },
+                  'entity': { 'type': 'string', 'maxLength': 64 },
+                  'status': { '$ref': '#/UserStatus' },
+                },
+            },
+          'sort':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'maxItems': 1,
+              'items':
+                {
+                  'type': 'object',
+                  'required': ['field', 'order'],
+                  'additionalProperties': false,
+                  'properties':
+                    {
+                      'field': { 'type': 'string', 'enum': ['path'] },
+                      'order': { 'type': 'string', 'enum': ['asc'] },
+                    },
+                },
+            },
+        },
+    },
+  'PermissionPageResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/PermissionPage' }],
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'PermissionDetailResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/PermissionView' }],
+            },
+          'requestId': { 'type': 'string' },
         },
     },
   'SystemParameterValueType':

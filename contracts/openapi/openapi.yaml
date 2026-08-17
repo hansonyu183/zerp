@@ -1384,12 +1384,27 @@
                       'application/json':
                         {
                           'schema':
-                            { '$ref': './schemas/common.yaml#/PageRequest' },
+                            { '$ref': './schemas/app.yaml#/RoleQueryRequest' },
                         },
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '按当前操作者授权上限计算的角色分页结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/RolePageResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/app/role/get':
@@ -1413,7 +1428,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '角色完整只读详情及当前可执行动作。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/RoleDetailResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/app/role/create':
@@ -1437,7 +1467,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '已创建角色的完整详情。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/RoleDetailResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/app/role/save':
@@ -1461,7 +1506,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '已保存角色的完整详情。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/RoleDetailResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/app/role/enable':
@@ -1487,7 +1547,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '已启用角色的完整详情。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/RoleDetailResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/app/role/disable':
@@ -1513,7 +1588,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '已停用角色的完整详情。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/RoleDetailResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/app/permission/query':
@@ -1532,12 +1622,29 @@
                       'application/json':
                         {
                           'schema':
-                            { '$ref': './schemas/common.yaml#/PageRequest' },
+                            {
+                              '$ref': './schemas/app.yaml#/PermissionQueryRequest',
+                            },
                         },
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '包含当前操作者可授予结论的权限目录。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/PermissionPageResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/app/permission/get':
@@ -1561,7 +1668,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '权限详情及当前操作者可授予结论。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/PermissionDetailResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/app/system-parameter/query':

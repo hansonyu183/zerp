@@ -22,3 +22,14 @@ func TestCurrentUserCanMaintainProfileWithoutEditingRoleAssignment(t *testing.T)
 		t.Fatal("current user's role assignment must remain read-only")
 	}
 }
+
+func TestFiniteCeilingCannotManageSuperadminTarget(t *testing.T) {
+	finite := actorAuthorization{permissionIDs: map[string]bool{"PERMISSION-A": true}}
+	if targetWithinActorCeiling([]string{"PERMISSION-A"}, true, finite) {
+		t.Fatal("a finite actor must not be treated as a superadmin delegate")
+	}
+	actualSuperadmin := actorAuthorization{superadmin: true}
+	if !targetWithinActorCeiling([]string{"PERMISSION-A"}, true, actualSuperadmin) {
+		t.Fatal("an enabled superadmin actor must be able to manage a superadmin target")
+	}
+}

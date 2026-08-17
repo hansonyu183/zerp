@@ -15,11 +15,22 @@ func (s *Service) userManageable(ctx context.Context, q *dbsqlc.Queries, user Us
 	if user.ID == actor.id {
 		return true, nil
 	}
+	targetSuperadmin, err := q.ActorHasEnabledSuperadminRole(ctx, user.ID)
+	if err != nil {
+		return false, domainError(ErrorInternal, "internal server error", err)
+	}
 	ids, err := q.ListEnabledAppPermissionIDsForUser(ctx, user.ID)
 	if err != nil {
 		return false, domainError(ErrorInternal, "internal server error", err)
 	}
-	return withinActorCeiling(ids, actor), nil
+	return targetWithinActorCeiling(ids, targetSuperadmin, actor), nil
+}
+
+func targetWithinActorCeiling(permissionIDs []string, targetSuperadmin bool, actor actorAuthorization) bool {
+	if targetSuperadmin && !actor.superadmin {
+		return false
+	}
+	return withinActorCeiling(permissionIDs, actor)
 }
 
 func (s *Service) userRoleSummaries(ctx context.Context, q *dbsqlc.Queries, userID string, actor actorAuthorization) ([]UserRoleSummary, error) {

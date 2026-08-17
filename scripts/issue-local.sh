@@ -27,7 +27,7 @@ lock_dir="${runtime_root}/agent.lock"
 controller_path="${script_dir}/$(basename -- "$0")"
 
 usage() {
-  echo "usage: $0 {run|status|retry <feature>|stop|start}" >&2
+  echo "usage: $0 {run|status|diagnose <feature>|retry <feature>|stop|start}" >&2
   exit 2
 }
 
@@ -38,6 +38,100 @@ write_value() {
   value=$2
   printf '%s\n' "${value}" >"${destination}.new"
   mv "${destination}.new" "${destination}"
+}
+
+valid_failure_class() {
+  case "${1:-}" in
+    product | test-flake | environment | external | automation) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+append_timeline() {
+  batch_root=$1
+  event=$2
+  phase=$3
+  failure_class=${4:-}
+  stage=${5:-}
+  head=${6:-}
+  summary=${7:-}
+  timeline_file="${batch_root}/timeline.jsonl"
+  mkdir -p "${batch_root}"
+  jq -nc \
+    --arg at "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+    --arg event "${event}" --arg phase "${phase}" \
+    --arg class "${failure_class}" --arg stage "${stage}" \
+    --arg head "${head}" --arg summary "${summary}" \
+    '{at:$at,event:$event,phase:$phase} +
+      (if $class == "" then {} else {failureClass:$class} end) +
+      (if $stage == "" then {} else {stage:$stage} end) +
+      (if $head == "" then {} else {head:$head} end) +
+      (if $summary == "" then {} else {summary:$summary} end)' \
+    >>"${timeline_file}"
+  chmod 600 "${timeline_file}"
+}
+
+set_batch_phase() {
+  batch_root=$1
+  phase=$2
+  write_value "${batch_root}/phase" "${phase}"
+  append_timeline "${batch_root}" phase "${phase}"
+}
+
+stable_failure_signal() {
+  failure_file=$1
+  signal=$(grep -E '^(Failed stage:|Packages:|Target:)|FAIL|Error|error:|SC[0-9]{4}|expected|simulated' \
+    "${failure_file}" 2>/dev/null | head -n 12 || true)
+  if [ -z "${signal}" ]; then
+    signal=$(sed -n '1,12p' "${failure_file}" 2>/dev/null || true)
+  fi
+  printf '%s\n' "${signal}" | sed -E \
+    -e 's/[0-9a-f]{40}/<sha>/g' \
+    -e 's#/[A-Za-z0-9._/-]*/backend/var/issue-delivery/#<runtime>/#g' \
+    -e 's/[[:space:]][[:space:]]*/ /g' \
+    -e 's/[0-9]+\.[0-9]+(ms|s)/<duration>/g' \
+    -e 's/([Ff]ailure|[Aa]ttempt|[Rr]etry|stdout|line) [0-9]+/\1 <n>/g'
+}
+
+archive_failure() {
+  batch_root=$1
+  timeline_file="${batch_root}/timeline.jsonl"
+  event_number=$(( $(wc -l <"${timeline_file}" 2>/dev/null || printf 0) + 1 ))
+  attempt_dir=$(printf '%s/attempts/%03d' "${batch_root}" "${event_number}")
+  mkdir -p "${attempt_dir}"
+  cp "${batch_root}/failure.md" "${attempt_dir}/failure.md"
+  cp "${batch_root}/failure.json" "${attempt_dir}/failure.json"
+  chmod 700 "${batch_root}/attempts" "${attempt_dir}"
+  chmod 600 "${attempt_dir}/failure.md" "${attempt_dir}/failure.json"
+}
+
+write_structured_failure() {
+  batch_root=$1
+  failure_class=$2
+  stage=$3
+  head=$4
+  source=$5
+  summary=$6
+  valid_failure_class "${failure_class}" || return 1
+  signal=$(stable_failure_signal "${batch_root}/failure.md")
+  signature=$(printf 'class=%s\nstage=%s\nsignal=%s\n' \
+    "${failure_class}" "${stage}" "${signal}" | shasum -a 256 | awk '{print $1}')
+  jq -n --arg class "${failure_class}" --arg stage "${stage}" \
+    --arg head "${head}" --arg source "${source}" --arg summary "${summary}" \
+    --arg signature "${signature}" \
+    '{version:1,failureClass:$class,stage:$stage,head:$head,source:$source,summary:$summary,signature:$signature}' \
+    >"${batch_root}/failure.json.new"
+  mv "${batch_root}/failure.json.new" "${batch_root}/failure.json"
+  append_timeline "${batch_root}" failure "${source}" "${failure_class}" \
+    "${stage}" "${head}" "${summary}"
+  archive_failure "${batch_root}"
+}
+
+failure_field() {
+  batch_root=$1
+  field=$2
+  jq -r --arg field "${field}" '.[$field] // empty' \
+    "${batch_root}/failure.json" 2>/dev/null || true
 }
 
 message_recipient() {
@@ -87,8 +181,11 @@ notify_batch_event() {
   budget_file=$(repair_budget_file "${batch_root}")
   total=$(jq -r '.total // 0' "${budget_file}" 2>/dev/null || printf 0)
   consecutive=$(jq -r '.consecutive // 0' "${budget_file}" 2>/dev/null || printf 0)
-  key=$(printf '%s\t%s\t%s\t%s\t%s\t%s' \
-    "${feature}" "${state}" "${head}" "${pr}" "${total}" "${consecutive}")
+  failure_class=$(failure_field "${batch_root}" failureClass)
+  failure_stage=$(failure_field "${batch_root}" stage)
+  key=$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
+    "${feature}" "${state}" "${head}" "${pr}" "${total}" "${consecutive}" \
+    "${failure_class}" "${failure_stage}")
   notification_file="${runtime_root}/message-notifications.tsv"
   if [ -r "${notification_file}" ] && grep -Fqx "${key}" "${notification_file}"; then
     return 0
@@ -98,6 +195,9 @@ notify_batch_event() {
     in-progress) title='批次开始执行' ;;
     pr-open) title='PR 已创建，已进入 CI' ;;
     blocked) title='需要关注：批次已阻塞' ;;
+    automation-blocked) title='需要关注：自动化控制器已阻塞' ;;
+    environment-blocked) title='需要关注：宿主环境已阻塞' ;;
+    external-blocked) title='需要关注：外部服务已阻塞' ;;
     preview-blocked) title='需要关注：预览已阻塞' ;;
     production-blocked) title='需要关注：生产验证已阻塞' ;;
     needs-input) title='需要关注：需要人工输入' ;;
@@ -105,8 +205,9 @@ notify_batch_event() {
     *) return 0 ;;
   esac
   repairs=$((total > 0 ? total - 1 : 0))
-  body=$(printf 'ZERP 本地 Issue 自动交付\n%s\n批次=%s\n状态=%s\nhead=%s\nPR=%s\n尝试累计=%s，修复次数=%s，连续同错=%s' \
-    "${title}" "${feature}" "${state}" "${head}" "${pr}" "${total}" "${repairs}" "${consecutive}")
+  body=$(printf 'ZERP 本地 Issue 自动交付\n%s\n批次=%s\n状态=%s\n阶段=%s\n失败分类=%s\nhead=%s\nPR=%s\n代码尝试=%s，修复次数=%s，连续同错=%s' \
+    "${title}" "${feature}" "${state}" "${failure_stage:--}" \
+    "${failure_class:--}" "${head}" "${pr}" "${total}" "${repairs}" "${consecutive}")
   messages_was_running=0
   if "${pgrep_bin}" -x Messages >/dev/null 2>&1; then
     messages_was_running=1
@@ -161,7 +262,7 @@ reconcile_batch_notifications() {
     [ -r "${state_file}" ] || continue
     state=$(cat "${state_file}")
     case "${state}" in
-      blocked | preview-blocked | production-blocked | needs-input | done)
+      blocked | automation-blocked | environment-blocked | external-blocked | preview-blocked | production-blocked | needs-input | done)
         notify_batch_event "$(dirname "${state_file}")" "${state}"
         ;;
     esac
@@ -172,6 +273,8 @@ set_batch_state() {
   batch_root=$1
   state=$2
   write_value "${batch_root}/state" "${state}"
+  write_value "${batch_root}/phase" "${state}"
+  append_timeline "${batch_root}" state "${state}"
   notify_batch_event "${batch_root}" "${state}"
 }
 
@@ -183,7 +286,8 @@ ensure_repair_budget() {
   batch_root=$1
   budget_file=$(repair_budget_file "${batch_root}")
   if [ ! -e "${budget_file}" ]; then
-    jq -n '{version: 1, total: 0, lastStage: null, lastFingerprint: null, consecutive: 0, events: [], recoveries: []}' \
+    jq -n '{version: 1, total: 0, lastStage: null, lastFingerprint: null, consecutive: 0,
+      events: [], recoveries: [], nonProductEvents: []}' \
       >"${budget_file}.new"
     mv "${budget_file}.new" "${budget_file}"
   fi
@@ -198,6 +302,14 @@ ensure_repair_budget() {
     all(.events[]; (
       (.sequence | type == "number" and floor == . and . >= 1) and
       (.stage | type == "string") and
+      ((.candidateHead == null) or (.candidateHead | type == "string"))
+    )) and
+    (.nonProductEvents | type == "array") and
+    all(.nonProductEvents[]; (
+      (.failureClass == "test-flake" or .failureClass == "environment" or
+        .failureClass == "external" or .failureClass == "automation") and
+      (.stage | type == "string") and
+      (.signature | type == "string" and length == 64) and
       ((.candidateHead == null) or (.candidateHead | type == "string"))
     )) and
     (.recoveries | type == "array") and
@@ -269,7 +381,9 @@ consume_repair_budget() {
     --argjson manual_recovery "${manual_recovery}" '
     (.total + 1) as $total |
     .total = $total |
-    .events += [{sequence: $total, stage: $stage}] |
+    .events += [{sequence: $total, stage: $stage,
+      candidateHead:(if $candidate_head == "" then null else $candidate_head end),
+      manualRecovery:($manual_recovery == 1)}] |
     if $manual_recovery == 1 then
       .recoveries[-1].consumed = true
     else . end
@@ -280,6 +394,12 @@ consume_repair_budget() {
 normalized_failure_fingerprint() {
   stage=$1
   failure_file=$2
+  failure_json="$(dirname "${failure_file}")/failure.json"
+  if [ -r "${failure_json}" ] &&
+    [ "$(jq -r '.failureClass // empty' "${failure_json}" 2>/dev/null || true)" = product ]; then
+    jq -r '.signature' "${failure_json}"
+    return
+  fi
   {
     printf 'stage=%s\n' "${stage}"
     sed \
@@ -289,6 +409,74 @@ normalized_failure_fingerprint() {
       -e 's/[[:space:]][[:space:]]*/ /g' \
       "${failure_file}"
   } | shasum -a 256 | awk '{print $1}'
+}
+
+cancel_repair_budget_reservation() {
+  batch_root=$1
+  ensure_repair_budget "${batch_root}" || return 1
+  budget_file=$(repair_budget_file "${batch_root}")
+  jq '
+    if .total > 0 and ((.events[-1].failureFingerprint // null) == null) then
+      if (.events[-1].manualRecovery // false) == true then
+        .recoveries[-1].consumed = false
+      else . end |
+      .events = .events[:-1] |
+      .total -= 1
+    else error("latest code attempt is already finalized") end
+  ' "${budget_file}" >"${budget_file}.new" || {
+    rm -f "${budget_file}.new"
+    return 1
+  }
+  mv "${budget_file}.new" "${budget_file}"
+}
+
+non_product_retry_limit() {
+  case "$1" in
+    test-flake) printf '%s\n' "${ZERP_ISSUE_FLAKE_RETRY_LIMIT:-2}" ;;
+    environment) printf '%s\n' "${ZERP_ISSUE_ENVIRONMENT_RETRY_LIMIT:-3}" ;;
+    external) printf '%s\n' "${ZERP_ISSUE_EXTERNAL_RETRY_LIMIT:-6}" ;;
+    automation) printf '%s\n' "${ZERP_ISSUE_AUTOMATION_RETRY_LIMIT:-2}" ;;
+    *) return 1 ;;
+  esac
+}
+
+non_product_block_state() {
+  case "$1" in
+    automation) printf 'automation-blocked\n' ;;
+    external) printf 'external-blocked\n' ;;
+    environment | test-flake) printf 'environment-blocked\n' ;;
+    *) printf 'blocked\n' ;;
+  esac
+}
+
+record_non_product_failure() {
+  batch_root=$1
+  failure_class=$2
+  stage=$3
+  candidate_head=${4:-}
+  valid_failure_class "${failure_class}" || return 1
+  [ "${failure_class}" != product ] || return 1
+  ensure_repair_budget "${batch_root}" || return 1
+  signature=$(failure_field "${batch_root}" signature)
+  [ "${#signature}" -eq 64 ] || return 1
+  limit=$(non_product_retry_limit "${failure_class}") || return 1
+  case "${limit}" in '' | *[!0-9]*) return 1 ;; esac
+  [ "${limit}" -gt 0 ] || return 1
+  budget_file=$(repair_budget_file "${batch_root}")
+  jq --arg class "${failure_class}" --arg stage "${stage}" \
+    --arg signature "${signature}" --arg candidate_head "${candidate_head}" '
+    .nonProductEvents += [{
+      failureClass:$class,
+      stage:$stage,
+      signature:$signature,
+      candidateHead:(if $candidate_head == "" then null else $candidate_head end)
+    }]
+  ' "${budget_file}" >"${budget_file}.new"
+  mv "${budget_file}.new" "${budget_file}"
+  count=$(jq -r --arg class "${failure_class}" --arg signature "${signature}" \
+    '[.nonProductEvents[] | select(.failureClass == $class and .signature == $signature)] | length' \
+    "${budget_file}")
+  [ "${count}" -lt "${limit}" ]
 }
 
 record_repair_failure() {
@@ -349,6 +537,10 @@ record_or_block_repair_failure() {
   candidate_head=$(git -C "${worktree}" rev-parse HEAD 2>/dev/null || true)
   case "${candidate_head}" in '' | *[!0-9a-f]*) candidate_head= ;; esac
   [ "${#candidate_head}" -eq 40 ] || candidate_head=
+  if [ "$(failure_field "${batch_root}" failureClass)" != product ]; then
+    write_structured_failure "${batch_root}" product "${stage}" "${candidate_head}" \
+      controller 'Code, review, or deterministic validation failed'
+  fi
   if record_repair_failure "${batch_root}" "${stage}" "${candidate_head}"; then
     return 0
   else
@@ -422,8 +614,49 @@ feature_dirs() {
 status_command() {
   feature_dirs | while IFS= read -r issues_dir; do
     feature=$(basename "$(dirname "${issues_dir}")")
-    printf '%s: %s\n' "${feature}" "$(feature_status "${issues_dir}")"
+    ticket_state=$(feature_status "${issues_dir}")
+    batch_root="${runtime_root}/batches/${feature}"
+    state=$(cat "${batch_root}/state" 2>/dev/null || printf '%s' "${ticket_state}")
+    phase=$(cat "${batch_root}/phase" 2>/dev/null || true)
+    failure_class=$(failure_field "${batch_root}" failureClass)
+    failure_stage=$(failure_field "${batch_root}" stage)
+    total=$(jq -r '.total // 0' "${batch_root}/repair-budget.json" 2>/dev/null || printf 0)
+    non_product=$(jq -r '.nonProductEvents | length' \
+      "${batch_root}/repair-budget.json" 2>/dev/null || printf 0)
+    if [ "${state}" = "done" ]; then
+      printf '%s: done\n' "${feature}"
+    else
+      printf '%s: %s phase=%s codeAttempts=%s/9 nonProductRetries=%s failure=%s stage=%s\n' \
+        "${feature}" "${state}" "${phase:--}" "${total}" "${non_product}" \
+        "${failure_class:--}" "${failure_stage:--}"
+    fi
   done
+}
+
+diagnose_command() {
+  feature=$1
+  issues_dir="${tracker_root}/${feature}/issues"
+  [ -d "${issues_dir}" ] || { echo "unknown feature: ${feature}" >&2; exit 2; }
+  batch_root="${runtime_root}/batches/${feature}"
+  state=$(cat "${batch_root}/state" 2>/dev/null || feature_status "${issues_dir}")
+  phase=$(cat "${batch_root}/phase" 2>/dev/null || printf '-')
+  head=$(git -C "${runtime_root}/worktrees/${feature}" rev-parse HEAD 2>/dev/null || \
+    cat "${batch_root}/base-sha" 2>/dev/null || printf unknown)
+  printf 'feature=%s\nstate=%s\nphase=%s\nhead=%s\n' \
+    "${feature}" "${state}" "${phase}" "${head}"
+  if [ -r "${batch_root}/repair-budget.json" ]; then
+    jq '{codeAttempts:.total,codeConsecutive:.consecutive,
+      nonProductRetries:(.nonProductEvents | group_by(.failureClass) |
+        map({key:.[0].failureClass,value:length}) | from_entries)}' \
+      "${batch_root}/repair-budget.json"
+  fi
+  if [ -r "${batch_root}/failure.json" ]; then
+    jq '{failureClass,stage,source,summary,signature}' "${batch_root}/failure.json"
+  fi
+  if [ -r "${batch_root}/timeline.jsonl" ]; then
+    echo 'recentTimeline='
+    tail -n 10 "${batch_root}/timeline.jsonl"
+  fi
 }
 
 select_batch() {
@@ -619,6 +852,24 @@ validate_tickets() {
   done
 }
 
+write_batch_risk() {
+  issues_dir=$1
+  batch_root=$2
+  ticket_count=$(find "${issues_dir}" -maxdepth 1 -type f -name '*.md' | wc -l | tr -d ' ')
+  acceptance_count=$(awk '/^- \[[ x]\]/{count++} END{print count+0}' "${issues_dir}"/*.md)
+  cross_stack=0
+  if grep -Eiq 'OpenAPI|契约|前端|后端|迁移|migration|E2E|preview' "${issues_dir}"/*.md; then
+    cross_stack=1
+  fi
+  large=0
+  if [ "${ticket_count}" -ge 5 ] || [ "${acceptance_count}" -ge 20 ]; then large=1; fi
+  jq -n --argjson tickets "${ticket_count}" --argjson acceptance "${acceptance_count}" \
+    --argjson cross_stack "${cross_stack}" --argjson large "${large}" \
+    '{version:1,tickets:$tickets,acceptanceCriteria:$acceptance,crossStack:($cross_stack == 1),largeBatch:($large == 1)}' \
+    >"${batch_root}/risk.json.new"
+  mv "${batch_root}/risk.json.new" "${batch_root}/risk.json"
+}
+
 prepare_worktree() {
   feature=$1
   issues_dir=$2
@@ -627,6 +878,7 @@ prepare_worktree() {
   branch=$5
   base_file="${batch_root}/base-sha"
   mkdir -p "${batch_root}" "$(dirname "${worktree}")"
+  set_batch_phase "${batch_root}" preparing-worktree
   if [ ! -f "${base_file}" ]; then
     base_sha=$(git -C "${primary_root}" rev-parse main)
     write_value "${base_file}" "${base_sha}"
@@ -927,6 +1179,7 @@ write_gate_failure() {
   else
     stage=$(grep '^==> ' "${gate_log}" 2>/dev/null | tail -n 1 | sed 's/^==> //' || true)
   fi
+  rm -f "${batch_root}/failure.json"
   {
     printf 'Host final gate failed for candidate %s. A repair must create a new commit before another gate attempt.\n' "${head_sha}"
     printf 'Failed stage: %s\n' "${stage:-unknown}"
@@ -936,24 +1189,44 @@ write_gate_failure() {
   rm -f "${batch_root}/repair-integration.json"
   capture_failed_integration "${batch_root}" "${integration_result}" "${head_sha}" || true
   capture_failed_e2e "${batch_root}" "${gate_log}" "${head_sha}"
+  if [ -r "${batch_root}/repair-integration.json" ] || [ -r "${batch_root}/repair-e2e.env" ]; then
+    failure_class=test-flake
+    summary='A focused test must distinguish a product defect from a transient test failure'
+  elif grep -Eiq 'cannot connect to (the )?docker|docker daemon|connection refused|no space left|temporary failure|TLS handshake|network is unreachable|timed? out|port is already allocated' \
+    "${gate_log}"; then
+    failure_class=environment
+    summary='Host validation environment failed before code correctness was established'
+  else
+    failure_class=product
+    summary='Deterministic host validation failed'
+  fi
+  write_structured_failure "${batch_root}" "${failure_class}" "${stage:-unknown}" \
+    "${head_sha}" gate "${summary}"
 }
 
 run_integration_repair_preflight() {
   batch_root=$1
   worktree=$2
+  mode=${3:-repair}
   marker="${batch_root}/repair-integration.json"
   [ -r "${marker}" ] || return 0
   write_value "${batch_root}/repair-stage" gate
   failed_head=$(jq -r '.failedHead // empty' "${marker}")
   head_sha=$(git -C "${worktree}" rev-parse HEAD)
-  [ "${head_sha}" != "${failed_head}" ] || {
-    echo 'focused integration repair requires a new candidate commit' >&2
-    return 4
-  }
-  git -C "${worktree}" merge-base --is-ancestor "${failed_head}" "${head_sha}" || {
-    echo 'focused integration repair candidate does not descend from the failed head' >&2
-    return 4
-  }
+  case "${mode}" in
+    repair)
+      [ "${head_sha}" != "${failed_head}" ] || {
+        echo 'focused integration repair requires a new candidate commit' >&2
+        return 4
+      }
+      git -C "${worktree}" merge-base --is-ancestor "${failed_head}" "${head_sha}" || {
+        echo 'focused integration repair candidate does not descend from the failed head' >&2
+        return 4
+      }
+      ;;
+    verify-flake) [ "${head_sha}" = "${failed_head}" ] || return 4 ;;
+    *) return 4 ;;
+  esac
   packages_file="${batch_root}/repair-integration-packages"
   result_file="${batch_root}/repair-integration-result.json"
   repair_log="${batch_root}/repair-integration.log"
@@ -993,7 +1266,7 @@ run_integration_repair_preflight() {
 run_repair_preflight() {
   batch_root=$1
   worktree=$2
-  run_integration_repair_preflight "${batch_root}" "${worktree}" || return $?
+  run_integration_repair_preflight "${batch_root}" "${worktree}" repair || return $?
   marker="${batch_root}/repair-e2e.env"
   [ -r "${marker}" ] || return 0
   write_value "${batch_root}/repair-stage" gate
@@ -1030,6 +1303,50 @@ run_repair_preflight() {
     return 4
   fi
   rm -f "${marker}"
+}
+
+verify_same_head_flake() {
+  batch_root=$1
+  worktree=$2
+  head_sha=$(git -C "${worktree}" rev-parse HEAD)
+  if [ -r "${batch_root}/repair-integration.json" ]; then
+    if run_integration_repair_preflight "${batch_root}" "${worktree}" verify-flake; then
+      return 0
+    fi
+    stage=$(failure_field "${batch_root}" stage)
+    write_structured_failure "${batch_root}" product "${stage:-integration}" "${head_sha}" \
+      gate 'Focused integration test reproduced the failure on the same commit'
+    return 1
+  fi
+  marker="${batch_root}/repair-e2e.env"
+  [ -r "${marker}" ] || return 1
+  failed_head=$(sed -n 's/^failed_head=//p' "${marker}")
+  project=$(sed -n 's/^project=//p' "${marker}")
+  spec=$(sed -n 's/^spec=//p' "${marker}")
+  [ "${head_sha}" = "${failed_head}" ] || return 1
+  command_path=${focused_e2e_command:-${primary_root}/scripts/e2e.sh}
+  e2e_env_file=$(ensure_primary_e2e_env) || return 1
+  pnpm_wrapper_dir="${worktree}/.scratch/.issue-local-bin"
+  repair_log="${batch_root}/repair-e2e.log"
+  if (
+    stage_host_gate_env "${worktree}"
+    trap 'remove_managed_host_env "${worktree}"' EXIT HUP INT TERM
+    cd "${worktree}"
+    PATH="${pnpm_wrapper_dir}:${PATH}" COREPACK_ROOT=1 \
+      ZERP_E2E_REPO_ROOT="${worktree}" ZERP_E2E_ENV_FILE="${e2e_env_file}" \
+      "${command_path}" "${spec}" "--project=${project}" --no-deps
+  ) >"${repair_log}" 2>&1; then
+    rm -f "${marker}"
+    return 0
+  fi
+  {
+    printf 'Focused E2E reproduced the failure for candidate %s.\n' "${head_sha}"
+    printf 'Target: %s [%s]\n\nFocused error excerpt:\n\n' "${spec}" "${project}"
+    tail -n 140 "${repair_log}" | sed '/^dist\/assets\//d'
+  } >"${batch_root}/failure.md"
+  write_structured_failure "${batch_root}" product "isolated full-stack E2E" \
+    "${head_sha}" gate 'Focused E2E reproduced the failure on the same commit'
+  return 1
 }
 
 run_final_gate() {
@@ -1073,9 +1390,63 @@ run_final_gate() {
       printf 'Host final gate returned invalid evidence for candidate %s.\n\n' "${head_sha}"
       tail -n 140 "${gate_log}" | sed '/^dist\/assets\//d'
     } >"${failure_file}"
+    write_structured_failure "${batch_root}" automation final-gate-evidence \
+      "${head_sha}" gate 'Host final gate returned invalid completion evidence'
     return 4
   }
   rm -f "${batch_root}/repair-integration.json" "${integration_result}"
+}
+
+run_final_gate_resilient() {
+  batch_root=$1
+  worktree=$2
+  base_sha=$3
+  head_sha=$4
+  while :; do
+    set_batch_phase "${batch_root}" final-gate
+    if run_final_gate "${batch_root}" "${worktree}" "${base_sha}" "${head_sha}"; then
+      append_timeline "${batch_root}" gate-passed final-gate '' '' "${head_sha}" \
+        'Complete host validation passed'
+      return 0
+    fi
+    failure_class=$(failure_field "${batch_root}" failureClass)
+    stage=$(failure_field "${batch_root}" stage)
+    case "${failure_class}" in
+      test-flake)
+        set_batch_phase "${batch_root}" verifying-test-flake
+        if ! verify_same_head_flake "${batch_root}" "${worktree}"; then
+          return 4
+        fi
+        if ! record_non_product_failure "${batch_root}" test-flake "${stage}" "${head_sha}"; then
+          return 8
+        fi
+        ;;
+      environment)
+        if ! record_non_product_failure "${batch_root}" environment "${stage}" "${head_sha}"; then
+          return 8
+        fi
+        set_batch_phase "${batch_root}" recovering-environment
+        prepare_offline_dependencies "${worktree}" >>"${batch_root}/gate.log" 2>&1 || true
+        retry_delay=${ZERP_ISSUE_ENVIRONMENT_RETRY_WAIT_SECONDS:-5}
+        case "${retry_delay}" in '' | *[!0-9]*) retry_delay=5 ;; esac
+        [ "${retry_delay}" -eq 0 ] || sleep "${retry_delay}"
+        ;;
+      automation)
+        if ! record_non_product_failure "${batch_root}" automation "${stage}" "${head_sha}"; then
+          return 8
+        fi
+        retry_delay=${ZERP_ISSUE_AUTOMATION_RETRY_WAIT_SECONDS:-2}
+        case "${retry_delay}" in '' | *[!0-9]*) retry_delay=2 ;; esac
+        [ "${retry_delay}" -eq 0 ] || sleep "${retry_delay}"
+        ;;
+      product) return 4 ;;
+      *)
+        write_structured_failure "${batch_root}" automation "${stage:-final-gate}" \
+          "${head_sha}" controller 'Final gate did not produce valid failure classification'
+        return 8
+        ;;
+    esac
+  done
 }
 
 reviewed_candidate_head() {
@@ -1120,6 +1491,32 @@ verified_gate_candidate_head() {
   printf '%s\n' "${head_sha}"
 }
 
+record_automation_failure() {
+  batch_root=$1
+  worktree=$2
+  head_sha=$3
+  stage=$4
+  summary=$5
+  log_file=${6:-}
+  {
+    printf '%s\n' "${summary}"
+    if [ -n "${log_file}" ] && [ -r "${log_file}" ]; then
+      printf '\nFocused error excerpt:\n\n'
+      tail -n 80 "${log_file}"
+    fi
+  } >"${batch_root}/failure.md"
+  write_structured_failure "${batch_root}" automation "${stage}" "${head_sha}" \
+    controller "${summary}"
+  cancel_repair_budget_reservation "${batch_root}" || return 8
+  if [ -n "$(git -C "${worktree}" status --porcelain 2>/dev/null || true)" ]; then
+    return 8
+  fi
+  if record_non_product_failure "${batch_root}" automation "${stage}" "${head_sha}"; then
+    return 6
+  fi
+  return 8
+}
+
 run_implement() {
   feature=$1
   batch_root=$2
@@ -1146,6 +1543,7 @@ run_implement() {
     preexisting_review_delta=1
   fi
   write_value "${batch_root}/repair-stage" code-review-gate
+  set_batch_phase "${batch_root}" implementing
   if consume_repair_budget "${batch_root}" code-review-gate "${previous_head}"; then
     :
   else
@@ -1158,6 +1556,11 @@ run_implement() {
     return 5
   fi
   rm -f "${result_file}" "${evidence_file}"
+  attempt_number=$(jq -r .total "$(repair_budget_file "${batch_root}")")
+  attempt_dir=$(printf '%s/code-attempts/%03d' "${batch_root}" "${attempt_number}")
+  mkdir -p "${attempt_dir}"
+  chmod 700 "${batch_root}/code-attempts" "${attempt_dir}"
+  codex_log="${attempt_dir}/codex.log"
   if ! {
     # shellcheck disable=SC2016 # prompt intentionally contains skill and Markdown literals
     printf 'Use $implement to implement the complete local ticket batch at `.scratch/%s/issues`.\n' "${feature}"
@@ -1168,6 +1571,11 @@ run_implement() {
     printf 'Before editing, inventory every user-visible wire value affected by the batch, including statuses, enums, type or entity identifiers, and backend business errors; identify the shared Chinese frontend mapping for each.\n'
     printf 'Start implementation only after every known value has a Chinese business label or is explicitly confirmed not user-visible; implement each required mapping in the same end-to-end slice and derive selectable options from that mapping.\n'
     printf 'Use TDD at the agreed repository seams. Run focused tests while working.\n'
+    if jq -e '.largeBatch == true' "${batch_root}/risk.json" >/dev/null 2>&1; then
+      printf 'This is a large batch. Implement it in Blocked-by dependency order, commit coherent dependency layers, and run focused checks after each layer so defects are found before the final review.\n'
+    fi
+    # shellcheck disable=SC2016 # prompt intentionally contains Markdown delimiters
+    printf 'Before the final two-axis review, run `scripts/change-gate.sh --fast %s` and resolve every deterministic failure it reports. The host controller will still run the complete final gate.\n' "${base_sha}"
     printf 'On a repair attempt, trust the recorded root failure: do not rerun unaffected stages already shown as passed; run only tests focused on the failure and your changes.\n'
     if [ -n "${review_base}" ]; then
       # shellcheck disable=SC2016 # prompt intentionally contains Markdown delimiters
@@ -1198,31 +1606,54 @@ run_implement() {
       -C "${worktree}" \
       --add-dir "${worktree_git_dir}" \
       --add-dir "${common_git_dir}" \
-      --output-schema "${schema}" -o "${result_file}" -; then
+      --output-schema "${schema}" -o "${result_file}" - \
+      >"${codex_log}" 2>&1; then
     cleanup_candidate_dependency_stores "${worktree}"
-    return 1
+    record_automation_failure "${batch_root}" "${worktree}" "${previous_head}" \
+      code-review-gate 'Codex implementation or review process failed' "${codex_log}"
+    return $?
   fi
   cleanup_candidate_dependency_stores "${worktree}"
-  [ -r "${result_file}" ] || { echo 'Codex did not return a structured result' >&2; return 1; }
+  [ -r "${result_file}" ] || {
+    record_automation_failure "${batch_root}" "${worktree}" "${previous_head}" \
+      code-review-gate 'Codex did not return a structured result' "${codex_log}"
+    return $?
+  }
   status=$(jq -r .status "${result_file}")
   case "${status}" in
     completed) ;;
     needs_input | blocked) return 3 ;;
-    *) echo "invalid implementation result: ${status}" >&2; return 1 ;;
+    *)
+      record_automation_failure "${batch_root}" "${worktree}" "${previous_head}" \
+        code-review-gate "Codex returned invalid implementation status: ${status}" "${codex_log}"
+      return $?
+      ;;
   esac
   head_sha=$(git -C "${worktree}" rev-parse HEAD)
   if [ "${head_sha}" = "${previous_head}" ] && [ "${preexisting_review_delta}" != 1 ]; then
-    echo 'implementation repair produced no new commit' >&2
-    return 1
+    record_automation_failure "${batch_root}" "${worktree}" "${previous_head}" \
+      code-review-gate 'Implementation repair produced no new commit' "${codex_log}"
+    return $?
   fi
-  [ -z "$(git -C "${worktree}" status --porcelain)" ] || { echo 'implementation left a dirty worktree' >&2; return 1; }
+  [ -z "$(git -C "${worktree}" status --porcelain)" ] || {
+    record_automation_failure "${batch_root}" "${worktree}" "${previous_head}" \
+      code-review-gate 'Implementation left a dirty worktree' "${codex_log}"
+    return $?
+  }
   jq -e --arg head "${head_sha}" '
     .status == "completed" and .commitSha == $head and
     (.validation == "not_run" or .validation == "passed") and .review == "passed"
-  ' "${result_file}" >/dev/null || { echo 'implementation completion evidence is incomplete' >&2; return 1; }
+  ' "${result_file}" >/dev/null || {
+    record_automation_failure "${batch_root}" "${worktree}" "${previous_head}" \
+      code-review-gate 'Implementation completion evidence is incomplete' "${codex_log}"
+    return $?
+  }
   write_value "${reviewed_head_file}" "${head_sha}"
+  append_timeline "${batch_root}" code-reviewed review '' '' "${head_sha}" \
+    'Implementation and two-axis review completed'
+  set_batch_phase "${batch_root}" final-gate
   run_repair_preflight "${batch_root}" "${worktree}" || return $?
-  run_final_gate "${batch_root}" "${worktree}" "${base_sha}" "${head_sha}"
+  run_final_gate_resilient "${batch_root}" "${worktree}" "${base_sha}" "${head_sha}"
 }
 
 remote_for_number() {
@@ -1271,9 +1702,12 @@ publish_issues() {
     body=$(printf '## What to build\n\n%s\n\n## Acceptance criteria\n\n%s\n\n## Blocked by\n\n%b\n<!-- zerp-local-ticket feature=%s ticket=%s hash=%s -->\n' \
       "${build}" "${acceptance}" "${remote_blockers}" "${feature}" "${number}" "${ticket_hash}")
     payload=$(jq -n --arg title "${title}" --arg body "${body}" '{title:$title,body:$body}')
-    created=$(printf '%s' "${payload}" | "${gh_bin}" api --method POST "repos/${repo}/issues" --input -)
-    remote_number=$(printf '%s' "${created}" | jq -r .number)
-    remote_id=$(printf '%s' "${created}" | jq -r .id)
+    created=$(printf '%s' "${payload}" | "${gh_bin}" api --method POST \
+      "repos/${repo}/issues" --input -) || return 1
+    remote_number=$(printf '%s' "${created}" | jq -er \
+      '.number | select(type == "number")') || return 1
+    remote_id=$(printf '%s' "${created}" | jq -er \
+      '.id | select(type == "number")') || return 1
     printf '%s\t%s\t%s\n' "${number}" "${remote_number}" "${remote_id}" >>"${manifest}"
   done
   for ticket in "${issues_dir}"/*.md; do
@@ -1313,9 +1747,9 @@ publish_pr() {
   existing_pr=0
   [ ! -f "${pr_file}" ] || existing_pr=1
   if [ ! -f "${pr_file}" ]; then
-    git -C "${worktree}" push -u origin "HEAD:refs/heads/${branch}" >/dev/null
+    git -C "${worktree}" push -u origin "HEAD:refs/heads/${branch}" >/dev/null || return 1
     recovered_pr=$("${gh_bin}" pr list --repo "${repo}" --head "${branch}" --state all \
-      --json number --jq '.[0].number // empty')
+      --json number --jq '.[0].number // empty') || return 1
     if [ -n "${recovered_pr}" ]; then
       write_value "${pr_file}" "${recovered_pr}"
       existing_pr=1
@@ -1326,7 +1760,7 @@ publish_pr() {
     body_file="${batch_root}/pr-body.md"
     title=$(printf '%s' "${feature}" | tr '-' ' ')
     pr_url=$("${gh_bin}" pr create --repo "${repo}" --base main --head "${branch}" \
-      --title "${title}" --body-file "${body_file}")
+      --title "${title}" --body-file "${body_file}") || return 1
     pr=$(printf '%s' "${pr_url}" | sed -n 's#.*/pull/\([0-9][0-9]*\).*#\1#p')
     [ -n "${pr}" ] || { echo "could not parse PR number from ${pr_url}" >&2; return 1; }
     write_value "${pr_file}" "${pr}"
@@ -1354,7 +1788,7 @@ publish_pr() {
     if [ "${body_matches}" != 1 ]; then
       printf '%s' "${pr_json}" | jq -r .body >"${previous_body}"
       "${gh_bin}" pr edit "${pr}" --repo "${repo}" \
-        --body-file "${batch_root}/pr-body.md" >/dev/null
+        --body-file "${batch_root}/pr-body.md" >/dev/null || return 1
       body_updated=1
     fi
     if [ "${remote_head}" != "${head_sha}" ]; then
@@ -1380,7 +1814,7 @@ close_remote_issues() {
   tab=$(printf '\t')
   while IFS="${tab}" read -r _ remote_number _; do
     "${gh_bin}" issue close "${remote_number}" --repo "${repo}" \
-      --comment '批次 PR 已合并，生产发布与公网健康验证成功。' >/dev/null
+      --comment '批次 PR 已合并，生产发布与公网健康验证成功。' >/dev/null || return 1
   done <"${manifest}"
 }
 
@@ -1449,57 +1883,82 @@ deploy_preview() {
   head_sha=$(git -C "${worktree}" rev-parse HEAD)
   preview_output="${batch_root}/preview.env.new"
   preview_log="${batch_root}/preview.log"
-  preview_result=0
-  (
-    modules_detached=0
-    # shellcheck disable=SC2317,SC2329 # invoked by the subshell EXIT trap
-    restore_modules() {
-      [ "${modules_detached}" = 1 ] || return 0
-      restore_candidate_modules_after_preview "${worktree}"
-    }
-    trap restore_modules EXIT HUP INT TERM
-    detach_candidate_modules_for_preview "${worktree}"
-    modules_detached=1
-    ZERP_ISSUE_WORKTREE="${worktree}" \
-      "${preview_command}" "${feature}" "${head_sha}"
-  ) >"${preview_output}" 2>"${preview_log}" || preview_result=$?
-  if ! prepare_offline_dependencies "${worktree}" >>"${preview_log}" 2>&1; then
-    preview_result=4
-  fi
-  if [ "${preview_result}" -ne 0 ]; then
-    if [ -s "${preview_output}" ]; then
+  while :; do
+    set_batch_phase "${batch_root}" public-preview
+    preview_result=0
+    (
+      modules_detached=0
+      # shellcheck disable=SC2317,SC2329 # invoked by the subshell EXIT trap
+      restore_modules() {
+        [ "${modules_detached}" = 1 ] || return 0
+        restore_candidate_modules_after_preview "${worktree}"
+      }
+      trap restore_modules EXIT HUP INT TERM
+      detach_candidate_modules_for_preview "${worktree}"
+      modules_detached=1
+      ZERP_ISSUE_WORKTREE="${worktree}" \
+        "${preview_command}" "${feature}" "${head_sha}"
+    ) >"${preview_output}" 2>"${preview_log}" || preview_result=$?
+    if ! prepare_offline_dependencies "${worktree}" >>"${preview_log}" 2>&1; then
+      preview_result=4
+    fi
+    if [ "${preview_result}" -ne 0 ]; then
+      if [ -s "${preview_output}" ]; then
+        {
+          printf '\nPreview stdout before failure:\n\n'
+          cat "${preview_output}"
+        } >>"${preview_log}"
+      fi
+      rm -f "${preview_output}"
       {
-        printf '\nPreview stdout before failure:\n\n'
+        printf 'Public preview failed for candidate %s.\n\nPreview log:\n\n' "${head_sha}"
+        cat "${preview_log}"
+      } >"${batch_root}/failure.md"
+      if grep -Eiq 'AssertionError|expect\(|locator|business assertion|exact (SHA|marker).*mismatch' \
+        "${preview_log}"; then
+        write_structured_failure "${batch_root}" product public-preview "${head_sha}" \
+          preview 'Public browser acceptance found a product behavior mismatch'
+        return 9
+      fi
+      write_structured_failure "${batch_root}" environment public-preview "${head_sha}" \
+        preview 'Public preview infrastructure failed'
+      if ! record_non_product_failure "${batch_root}" environment public-preview "${head_sha}"; then
+        return 4
+      fi
+      retry_delay=${ZERP_ISSUE_ENVIRONMENT_RETRY_WAIT_SECONDS:-5}
+      case "${retry_delay}" in '' | *[!0-9]*) retry_delay=5 ;; esac
+      [ "${retry_delay}" -eq 0 ] || sleep "${retry_delay}"
+      continue
+    fi
+    preview_url=$(sed -n 's/^url=//p' "${preview_output}")
+    fingerprint=$(sed -n 's/^fingerprint=//p' "${preview_output}")
+    expected=$(jq -r .runtimeFingerprint "${batch_root}/gate-evidence.json")
+    evidence_lines=$(wc -l <"${preview_output}" | tr -d ' ')
+    valid_lines=$(grep -Ec '^(url|fingerprint)=' "${preview_output}" || true)
+    if [ "${evidence_lines}" != 2 ] || [ "${valid_lines}" != 2 ] ||
+      [ -z "${preview_url}" ] || [ "${fingerprint}" != "${expected}" ]; then
+      {
+        printf '\nInvalid preview stdout evidence:\n\n'
         cat "${preview_output}"
       } >>"${preview_log}"
+      rm -f "${preview_output}"
+      {
+        printf 'Preview evidence is invalid or fingerprint %s does not match gate fingerprint %s.\n' \
+          "${fingerprint:-missing}" "${expected}"
+        printf 'Full log: %s\n' "${preview_log}"
+      } >"${batch_root}/failure.md"
+      write_structured_failure "${batch_root}" automation preview-evidence "${head_sha}" \
+        preview 'Preview command returned invalid exact-SHA evidence'
+      if ! record_non_product_failure "${batch_root}" automation preview-evidence "${head_sha}"; then
+        return 8
+      fi
+      continue
     fi
-    rm -f "${preview_output}"
-    {
-      printf 'Public preview failed for candidate %s.\n\nPreview log:\n\n' "${head_sha}"
-      cat "${preview_log}"
-    } >"${batch_root}/failure.md"
-    return 4
-  fi
-  preview_url=$(sed -n 's/^url=//p' "${preview_output}")
-  fingerprint=$(sed -n 's/^fingerprint=//p' "${preview_output}")
-  expected=$(jq -r .runtimeFingerprint "${batch_root}/gate-evidence.json")
-  evidence_lines=$(wc -l <"${preview_output}" | tr -d ' ')
-  valid_lines=$(grep -Ec '^(url|fingerprint)=' "${preview_output}" || true)
-  if [ "${evidence_lines}" != 2 ] || [ "${valid_lines}" != 2 ] ||
-    [ -z "${preview_url}" ] || [ "${fingerprint}" != "${expected}" ]; then
-    {
-      printf '\nInvalid preview stdout evidence:\n\n'
-      cat "${preview_output}"
-    } >>"${preview_log}"
-    rm -f "${preview_output}"
-    {
-      printf 'Preview evidence is invalid or fingerprint %s does not match gate fingerprint %s.\n' \
-        "${fingerprint:-missing}" "${expected}"
-      printf 'Full log: %s\n' "${preview_log}"
-    } >"${batch_root}/failure.md"
-    return 4
-  fi
-  mv "${preview_output}" "${batch_root}/preview.env"
+    mv "${preview_output}" "${batch_root}/preview.env"
+    append_timeline "${batch_root}" preview-passed public-preview '' '' "${head_sha}" \
+      'Exact-SHA public preview passed'
+    return 0
+  done
 }
 
 implement_and_preview() {
@@ -1510,7 +1969,7 @@ implement_and_preview() {
   issues_dir=$5
   if verified_gate_candidate_head "${batch_root}" "${worktree}" "${base_sha}" >/dev/null; then
     if deploy_preview "${feature}" "${batch_root}" "${worktree}"; then
-      rm -f "${batch_root}/failure.md"
+      rm -f "${batch_root}/failure.md" "${batch_root}/failure.json"
       return 0
     else
       preview_result=$?
@@ -1519,15 +1978,22 @@ implement_and_preview() {
         set_batch_state "${batch_root}" preview-blocked
         return 1
       fi
+      if [ "${preview_result}" = 8 ]; then
+        mark_batch "${issues_dir}" blocked
+        set_batch_state "${batch_root}" automation-blocked
+        return 1
+      fi
     fi
   fi
   if resumed_head=$(reviewed_candidate_head "${batch_root}" "${worktree}" "${base_sha}"); then
     write_value "${batch_root}/reviewed-head" "${resumed_head}"
     if consume_repair_budget "${batch_root}" gate "${resumed_head}"; then
-      if run_repair_preflight "${batch_root}" "${worktree}" &&
-        run_final_gate "${batch_root}" "${worktree}" "${base_sha}" "${resumed_head}"; then
+      gate_result=0
+      run_repair_preflight "${batch_root}" "${worktree}" &&
+        run_final_gate_resilient "${batch_root}" "${worktree}" "${base_sha}" "${resumed_head}" || gate_result=$?
+      if [ "${gate_result}" = 0 ]; then
         if deploy_preview "${feature}" "${batch_root}" "${worktree}"; then
-          rm -f "${batch_root}/failure.md"
+          rm -f "${batch_root}/failure.md" "${batch_root}/failure.json"
           return 0
         else
           preview_result=$?
@@ -1536,7 +2002,17 @@ implement_and_preview() {
             set_batch_state "${batch_root}" preview-blocked
             return 1
           fi
+          if [ "${preview_result}" = 8 ]; then
+            mark_batch "${issues_dir}" blocked
+            set_batch_state "${batch_root}" automation-blocked
+            return 1
+          fi
         fi
+      elif [ "${gate_result}" = 8 ]; then
+        mark_batch "${issues_dir}" blocked
+        set_batch_state "${batch_root}" \
+          "$(non_product_block_state "$(failure_field "${batch_root}" failureClass)")"
+        return 1
       elif ! record_or_block_repair_failure "${batch_root}" "${issues_dir}" "${worktree}"; then
         return 1
       fi
@@ -1557,13 +2033,18 @@ implement_and_preview() {
   while :; do
     if run_implement "${feature}" "${batch_root}" "${worktree}" "${base_sha}"; then
       if deploy_preview "${feature}" "${batch_root}" "${worktree}"; then
-        rm -f "${batch_root}/failure.md"
+        rm -f "${batch_root}/failure.md" "${batch_root}/failure.json"
         return 0
       else
         preview_result=$?
         if [ "${preview_result}" = 4 ]; then
           mark_batch "${issues_dir}" blocked
           set_batch_state "${batch_root}" preview-blocked
+          return 1
+        fi
+        if [ "${preview_result}" = 8 ]; then
+          mark_batch "${issues_dir}" blocked
+          set_batch_state "${batch_root}" automation-blocked
           return 1
         fi
       fi
@@ -1581,6 +2062,15 @@ implement_and_preview() {
         set_batch_state "${batch_root}" blocked
         return 1
       fi
+      if [ "${result}" = 6 ]; then
+        continue
+      fi
+      if [ "${result}" = 8 ]; then
+        mark_batch "${issues_dir}" blocked
+        set_batch_state "${batch_root}" \
+          "$(non_product_block_state "$(failure_field "${batch_root}" failureClass)")"
+        return 1
+      fi
       if [ "${result}" != 4 ]; then
         printf 'Implementation, review, or final gate repair failed.\n' >"${batch_root}/failure.md"
       fi
@@ -1591,13 +2081,46 @@ implement_and_preview() {
   done
 }
 
+run_external_step() {
+  external_batch_root=$1
+  external_stage=$2
+  external_head_sha=$3
+  shift 3
+  external_step_log="${external_batch_root}/${external_stage}.log"
+  while :; do
+    set_batch_phase "${external_batch_root}" "${external_stage}"
+    if "$@" >"${external_step_log}" 2>&1; then
+      cat "${external_step_log}"
+      append_timeline "${external_batch_root}" external-step-passed "${external_stage}" '' '' \
+        "${external_head_sha}" "${external_stage} completed"
+      return 0
+    fi
+    {
+      printf 'External step %s failed for candidate %s.\n\nFocused error excerpt:\n\n' \
+        "${external_stage}" "${external_head_sha}"
+      tail -n 120 "${external_step_log}"
+    } >"${external_batch_root}/failure.md"
+    write_structured_failure "${external_batch_root}" external "${external_stage}" \
+      "${external_head_sha}" controller "${external_stage} failed"
+    if ! record_non_product_failure "${external_batch_root}" external \
+      "${external_stage}" "${external_head_sha}"; then
+      return 1
+    fi
+    retry_delay=${ZERP_ISSUE_EXTERNAL_RETRY_WAIT_SECONDS:-5}
+    case "${retry_delay}" in '' | *[!0-9]*) retry_delay=5 ;; esac
+    [ "${retry_delay}" -eq 0 ] || sleep "${retry_delay}"
+  done
+}
+
 refresh_main() {
   feature=$1
   batch_root=$2
   worktree=$3
   issues_dir=$4
   base_sha=$(cat "${batch_root}/base-sha")
-  git -C "${primary_root}" fetch origin main --prune
+  head_sha=$(git -C "${worktree}" rev-parse HEAD)
+  run_external_step "${batch_root}" fetch-main "${head_sha}" \
+    git -C "${primary_root}" fetch origin main --prune || return 8
   current_main=$(git -C "${primary_root}" rev-parse origin/main)
   [ "${current_main}" != "${base_sha}" ] || return 0
 
@@ -1660,14 +2183,20 @@ wait_checks_and_merge() {
   registration_attempts=${ZERP_ISSUE_CHECK_REGISTRATION_ATTEMPTS:-60}
   registration_delay=${ZERP_ISSUE_CHECK_REGISTRATION_WAIT_SECONDS:-5}
   while :; do
+    set_batch_phase "${batch_root}" github-checks
     if "${gh_bin}" pr checks "${pr}" --repo "${repo}" --watch --required \
       >"${batch_root}/checks.log" 2>&1; then
       break
     fi
     if grep -Eq 'no (required )?checks reported' "${batch_root}/checks.log"; then
       if [ "${registration_attempts}" -le 0 ]; then
+        head_sha=$(git -C "${worktree}" rev-parse HEAD)
+        printf 'GitHub did not register required checks for PR #%s within the wait budget.\n' \
+          "${pr}" >"${batch_root}/failure.md"
+        write_structured_failure "${batch_root}" external github-check-registration \
+          "${head_sha}" github 'Required checks were not registered in time'
         mark_batch "${issues_dir}" blocked
-        set_batch_state "${batch_root}" blocked
+        set_batch_state "${batch_root}" external-blocked
         release_preview "${feature}"
         return 1
       fi
@@ -1675,10 +2204,30 @@ wait_checks_and_merge() {
       [ "${registration_delay}" -eq 0 ] || sleep "${registration_delay}"
       continue
     fi
+    head_sha=$(git -C "${worktree}" rev-parse HEAD)
+    if grep -Eiq 'TLS handshake|HTTP (429|5[0-9][0-9])|timed? out|temporary failure|network is unreachable|connection reset|could not resolve' \
+      "${batch_root}/checks.log"; then
+      {
+        printf 'GitHub required-check query failed for PR #%s.\n\n' "${pr}"
+        sed -n '1,120p' "${batch_root}/checks.log"
+      } >"${batch_root}/failure.md"
+      write_structured_failure "${batch_root}" external github-checks "${head_sha}" \
+        github 'GitHub check status was temporarily unavailable'
+      if record_non_product_failure "${batch_root}" external github-checks "${head_sha}"; then
+        [ "${registration_delay}" -eq 0 ] || sleep "${registration_delay}"
+        continue
+      fi
+      mark_batch "${issues_dir}" blocked
+      set_batch_state "${batch_root}" external-blocked
+      release_preview "${feature}"
+      return 1
+    fi
     {
       printf 'GitHub required checks failed for PR #%s.\n\n' "${pr}"
       sed -n '1,240p' "${batch_root}/checks.log"
     } >"${batch_root}/failure.md"
+    write_structured_failure "${batch_root}" product github-required-checks "${head_sha}" \
+      github 'A required GitHub code check failed'
     write_value "${batch_root}/repair-stage" gate
     if ! record_or_block_repair_failure "${batch_root}" "${issues_dir}" "${worktree}"; then
       release_preview "${feature}"
@@ -1694,10 +2243,23 @@ wait_checks_and_merge() {
       preview_url=$(sed -n 's/^url=//p' "${batch_root}/preview.env")
       fingerprint=$(sed -n 's/^fingerprint=//p' "${batch_root}/preview.env")
       update_pr_body "${feature}" "${batch_root}" "${worktree}" "${preview_url}" "${fingerprint}"
-      git -C "${worktree}" push \
+      if ! run_external_step "${batch_root}" publish-repaired-head "${current_head}" \
+        git -C "${worktree}" push \
         --force-with-lease="refs/heads/${branch}:${previous_head}" \
-        origin "HEAD:refs/heads/${branch}" >/dev/null
-      "${gh_bin}" pr edit "${pr}" --repo "${repo}" --body-file "${batch_root}/pr-body.md" >/dev/null
+        origin "HEAD:refs/heads/${branch}" >/dev/null; then
+        mark_batch "${issues_dir}" blocked
+        set_batch_state "${batch_root}" external-blocked
+        release_preview "${feature}"
+        return 1
+      fi
+      if ! run_external_step "${batch_root}" update-pr-body "${current_head}" \
+        "${gh_bin}" pr edit "${pr}" --repo "${repo}" \
+          --body-file "${batch_root}/pr-body.md" >/dev/null; then
+        mark_batch "${issues_dir}" blocked
+        set_batch_state "${batch_root}" external-blocked
+        release_preview "${feature}"
+        return 1
+      fi
       continue
     fi
     base_sha=$(cat "${batch_root}/base-sha")
@@ -1719,6 +2281,16 @@ wait_checks_and_merge() {
         release_preview "${feature}"
         return 1
       fi
+      if [ "${result}" = 6 ]; then
+        continue
+      fi
+      if [ "${result}" = 8 ]; then
+        mark_batch "${issues_dir}" blocked
+        set_batch_state "${batch_root}" \
+          "$(non_product_block_state "$(failure_field "${batch_root}" failureClass)")"
+        release_preview "${feature}"
+        return 1
+      fi
       if [ "${result}" != 4 ]; then
         printf 'Implementation, review, or final gate repair failed.\n' >"${batch_root}/failure.md"
       fi
@@ -1735,14 +2307,42 @@ wait_checks_and_merge() {
     fi
     preview_url=$(sed -n 's/^url=//p' "${batch_root}/preview.env")
     update_pr_body "${feature}" "${batch_root}" "${worktree}" "${preview_url}" "${new_fingerprint}"
-    git -C "${worktree}" push origin "HEAD:refs/heads/${branch}" >/dev/null
-    "${gh_bin}" pr edit "${pr}" --repo "${repo}" --body-file "${batch_root}/pr-body.md" >/dev/null
+    repaired_head=$(git -C "${worktree}" rev-parse HEAD)
+    if ! run_external_step "${batch_root}" publish-repaired-head "${repaired_head}" \
+      git -C "${worktree}" push origin "HEAD:refs/heads/${branch}" >/dev/null; then
+      mark_batch "${issues_dir}" blocked
+      set_batch_state "${batch_root}" external-blocked
+      release_preview "${feature}"
+      return 1
+    fi
+    if ! run_external_step "${batch_root}" update-pr-body "${repaired_head}" \
+      "${gh_bin}" pr edit "${pr}" --repo "${repo}" \
+        --body-file "${batch_root}/pr-body.md" >/dev/null; then
+      mark_batch "${issues_dir}" blocked
+      set_batch_state "${batch_root}" external-blocked
+      release_preview "${feature}"
+      return 1
+    fi
   done
-  "${gh_bin}" pr merge "${pr}" --repo "${repo}" --auto --squash --delete-branch >/dev/null || return 1
+  head_sha=$(git -C "${worktree}" rev-parse HEAD)
+  if ! run_external_step "${batch_root}" request-auto-merge "${head_sha}" \
+    "${gh_bin}" pr merge "${pr}" --repo "${repo}" --auto --squash --delete-branch \
+    >/dev/null; then
+    mark_batch "${issues_dir}" blocked
+    set_batch_state "${batch_root}" external-blocked
+    release_preview "${feature}"
+    return 1
+  fi
   attempts=${ZERP_ISSUE_MERGE_WAIT_ATTEMPTS:-120}
   delay=${ZERP_ISSUE_MERGE_WAIT_SECONDS:-5}
   while [ "${attempts}" -gt 0 ]; do
-    pr_json=$("${gh_bin}" pr view "${pr}" --repo "${repo}" --json state,mergeCommit) || return 1
+    if ! pr_json=$(run_external_step "${batch_root}" wait-merge "${head_sha}" \
+      "${gh_bin}" pr view "${pr}" --repo "${repo}" --json state,mergeCommit); then
+      mark_batch "${issues_dir}" blocked
+      set_batch_state "${batch_root}" external-blocked
+      release_preview "${feature}"
+      return 1
+    fi
     merge_sha=$(printf '%s' "${pr_json}" | jq -r '.mergeCommit.oid // ""')
     if [ "$(printf '%s' "${pr_json}" | jq -r .state)" = MERGED ] && [ -n "${merge_sha}" ]; then
       printf '%s\n' "${merge_sha}"
@@ -1751,6 +2351,12 @@ wait_checks_and_merge() {
     sleep "${delay}"
     attempts=$((attempts - 1))
   done
+  printf 'PR #%s did not merge within the wait budget.\n' "${pr}" >"${batch_root}/failure.md"
+  write_structured_failure "${batch_root}" external wait-merge "${head_sha}" github \
+    'Auto-merge did not complete in time'
+  mark_batch "${issues_dir}" blocked
+  set_batch_state "${batch_root}" external-blocked
+  release_preview "${feature}"
   return 1
 }
 
@@ -1761,14 +2367,25 @@ run_batch() {
   worktree="${runtime_root}/worktrees/${feature}"
   branch="automation/local-${feature}"
   mkdir -p "${batch_root}"
+  write_batch_risk "${issues_dir}" "${batch_root}"
   validate_tickets "${issues_dir}"
   claim_batch "${issues_dir}"
-  if ! prepare_worktree "${feature}" "${issues_dir}" "${batch_root}" "${worktree}" "${branch}"; then
+  if ! prepare_worktree "${feature}" "${issues_dir}" "${batch_root}" "${worktree}" "${branch}" \
+    >"${batch_root}/prepare.log" 2>&1; then
+    {
+      printf 'Controller environment preparation failed before Codex started.\n\n'
+      tail -n 120 "${batch_root}/prepare.log"
+    } >"${batch_root}/failure.md"
+    head_sha=$(git -C "${worktree}" rev-parse HEAD 2>/dev/null || \
+      cat "${batch_root}/base-sha" 2>/dev/null || true)
+    write_structured_failure "${batch_root}" environment preparing-worktree \
+      "${head_sha}" controller 'Candidate environment preparation failed'
     mark_batch "${issues_dir}" blocked
-    set_batch_state "${batch_root}" blocked
+    set_batch_state "${batch_root}" environment-blocked
     return 1
   fi
   base_sha=$(cat "${batch_root}/base-sha")
+  set_batch_phase "${batch_root}" claimed
   notify_batch_event "${batch_root}" in-progress
 
   if [ ! -f "${batch_root}/preview.env" ]; then
@@ -1781,23 +2398,54 @@ run_batch() {
   # Remote operations begin only after the complete local batch and public preview passed.
   preview_url=$(sed -n 's/^url=//p' "${batch_root}/preview.env")
   fingerprint=$(sed -n 's/^fingerprint=//p' "${batch_root}/preview.env")
+  set_batch_phase "${batch_root}" refreshing-main
   if ! refresh_main "${feature}" "${batch_root}" "${worktree}" "${issues_dir}"; then
+    if [ ! -r "${batch_root}/state" ]; then
+      mark_batch "${issues_dir}" blocked
+      set_batch_state "${batch_root}" \
+        "$(non_product_block_state "$(failure_field "${batch_root}" failureClass)")"
+    fi
     release_preview "${feature}"
     return 1
   fi
   preview_url=$(sed -n 's/^url=//p' "${batch_root}/preview.env")
   fingerprint=$(sed -n 's/^fingerprint=//p' "${batch_root}/preview.env")
-  publish_issues "${feature}" "${issues_dir}" "${batch_root}"
-  pr=$(publish_pr "${feature}" "${batch_root}" "${worktree}" "${branch}" "${preview_url}" "${fingerprint}")
+  head_sha=$(git -C "${worktree}" rev-parse HEAD)
+  if ! run_external_step "${batch_root}" publish-issues "${head_sha}" \
+    publish_issues "${feature}" "${issues_dir}" "${batch_root}" >/dev/null; then
+    mark_batch "${issues_dir}" blocked
+    set_batch_state "${batch_root}" external-blocked
+    release_preview "${feature}"
+    return 1
+  fi
+  set_batch_phase "${batch_root}" publishing-pr
+  if ! pr=$(run_external_step "${batch_root}" publish-pr "${head_sha}" \
+    publish_pr "${feature}" "${batch_root}" "${worktree}" "${branch}" \
+      "${preview_url}" "${fingerprint}"); then
+    mark_batch "${issues_dir}" blocked
+    set_batch_state "${batch_root}" external-blocked
+    release_preview "${feature}"
+    return 1
+  fi
   notify_batch_event "${batch_root}" pr-open
   if ! merge_sha=$(wait_checks_and_merge "${feature}" "${batch_root}" "${worktree}" \
     "${issues_dir}" "${branch}" "${pr}"); then
-    mark_batch "${issues_dir}" blocked
-    set_batch_state "${batch_root}" blocked
+    if [ ! -r "${batch_root}/state" ]; then
+      mark_batch "${issues_dir}" blocked
+      set_batch_state "${batch_root}" blocked
+    fi
     return 1
   fi
+  set_batch_phase "${batch_root}" production
   if ! ZERP_ISSUE_WORKTREE="${worktree}" \
-    "${production_command}" "${pr}" "${merge_sha}" >"${batch_root}/production.env"; then
+    "${production_command}" "${pr}" "${merge_sha}" \
+      >"${batch_root}/production.env" 2>"${batch_root}/production.log"; then
+    {
+      printf 'Production verification failed for merge commit %s.\n\n' "${merge_sha}"
+      tail -n 120 "${batch_root}/production.log"
+    } >"${batch_root}/failure.md"
+    write_structured_failure "${batch_root}" environment production "${merge_sha}" \
+      production 'Production deployment or verification failed'
     mark_batch "${issues_dir}" blocked
     set_batch_state "${batch_root}" production-blocked
     : >"${runtime_root}/disabled"
@@ -1805,7 +2453,12 @@ run_batch() {
       --body "生产提交 \`${merge_sha}\` 验证失败；后续本地批次已暂停，未执行数据库回滚或恢复动作。" >/dev/null || true
     return 1
   fi
-  close_remote_issues "${batch_root}/remote-issues.tsv"
+  if ! run_external_step "${batch_root}" close-issues "${merge_sha}" \
+    close_remote_issues "${batch_root}/remote-issues.tsv" >/dev/null; then
+    log "verified batch ${feature} completed, but remote Issue cleanup needs attention"
+    append_timeline "${batch_root}" cleanup-warning close-issues external close-issues \
+      "${merge_sha}" 'Production is verified but remote Issue cleanup failed'
+  fi
   for ticket in "${issues_dir}"/*.md; do complete_ticket "${ticket}"; done
   set_batch_state "${batch_root}" "done"
   release_preview "${feature}"
@@ -1978,6 +2631,7 @@ mkdir -p "${runtime_root}"
 case "${1:-}" in
   run) [ "$#" -eq 1 ] || usage; ensure_dedicated_controller_group; run_command ;;
   status) [ "$#" -eq 1 ] || usage; status_command ;;
+  diagnose) [ "$#" -eq 2 ] || usage; diagnose_command "$2" ;;
   retry) [ "$#" -eq 2 ] || usage; retry_command "$2" ;;
   stop) [ "$#" -eq 1 ] || usage; stop_command ;;
   start) [ "$#" -eq 1 ] || usage; rm -f "${runtime_root}/disabled" ;;

@@ -6,7 +6,7 @@
 
 1. `$to-tickets` 在主工作区生成 `.scratch/<feature>/issues/*.md`。整个目录是一项不可拆分的发布批次。
 2. launchd 通过 `WatchPaths` 发现 `ready-for-agent` 批次，控制器领取整批并创建 `automation/local-<feature>` 独立 worktree。
-3. 控制器为整批启动临时 `codex exec`，使用 `$implement` 在无网络 workspace sandbox 内完成实现、聚焦测试、双轴 `/code-review` 和提交。
+3. 控制器先记录 Ticket 数量、验收项数量和跨端风险；至少五个 Ticket 或二十项验收条件记为大批次。大批次仍保持一个分支和一个 PR，但 `$implement` 必须按 `Blocked by` 依赖层分段提交并在每层后聚焦验证。最终双轴 `/code-review` 前运行 `scripts/change-gate.sh --fast <base-sha>`，提前关闭格式、生成物、类型和基础测试错误。实现始终运行在无网络 workspace sandbox 内。
 4. 控制器在宿主环境对 clean candidate head 运行 `scripts/change-gate.sh <base-sha>`；Docker、E2E 环境和最终门禁证据只属于宿主控制器。集成测试即使有并发组失败也会跑完全部包，并输出结构化的逐包结果。
 5. 控制器使用受信任主工作区的预览脚本，将候选 worktree 构建到固定公网预览 `https://zerp-preview.bytesucceed.com`，并核对 exact SHA、浏览器 smoke 和运行时指纹。用户查看预览是可选的，不阻塞自动流程。
 6. 到此之前不得调用 GitHub。预览通过后才 fetch 最新 `origin/main`；重放改变运行时指纹或发生冲突时，再交给 `$implement` 修复并重新验证。
@@ -17,10 +17,13 @@
 
 ## 失败与恢复
 
-- 需求无法客观判断时整批进入 `needs-input`；代码或验证无法在控制器预算内收敛时进入 `blocked`；宿主预览故障进入 `preview-blocked`。这些状态都不会继续发布。
+- 每次失败写入结构化 `failure.json`，分类固定为 `product`、`test-flake`、`environment`、`external` 或 `automation`。只有 `product` 会调用 Codex 并消耗代码修复预算；其余类别使用各自的同签名重试预算。
+- E2E 或集成测试首次失败时，控制器先在同一 SHA 聚焦复验：复验通过记为 `test-flake` 并直接重跑完整门禁，复验仍失败才记为 `product`。宿主依赖、Docker、网络、预览和 GitHub 查询故障不得伪装成代码修复。
+- 需求无法客观判断时整批进入 `needs-input`；产品代码或确定性验证无法在预算内收敛时进入 `blocked`；控制器、宿主环境和外部服务分别进入 `automation-blocked`、`environment-blocked`、`external-blocked`；公网预览和生产失败继续使用 `preview-blocked`、`production-blocked`。这些状态都不会继续发布。
 - 生产失败进入 `production-blocked` 并停止后续批次。数据库恢复和发布车道重开仍由维护者判断，控制器不得自行决定。
 - 最终门禁记录集成测试的准确失败包。模型提交新修复后，控制器先在宿主环境只复验这些包；通过后仍必须运行完整最终门禁，定向复验不能替代最终证据。Docker、数据库 URL 和本机环境文件都不会交给模型 sandbox。
-- 每批预算是一次初始实现尝试加最多八次修复尝试；通知分别显示累计尝试、修复次数和连续同错次数。相同规范化失败连续出现两次时仍会提前阻塞，避免无效循环。
+- 每批产品代码预算是一次初始实现尝试加最多八次修复尝试；Codex 进程或输出协议失败会撤销尚未成立的代码尝试，再使用独立自动化预算。稳定签名由失败分类、阶段和去除 SHA、路径、耗时、尝试编号后的关键错误共同生成；相同产品错误连续出现两次仍会提前阻塞。
+- `timeline.jsonl`、`code-attempts/` 和 `attempts/` 分别保留阶段变化、Codex 会话日志及每次结构化失败快照，后一次失败不得覆盖前一次审计。`status` 显示当前阶段、代码尝试、非产品重试和失败分类；`diagnose <feature>` 输出最近十条时间线和准确失败摘要。
 - 本地人工恢复使用 `scripts/issue-local.sh stop` 和 `scripts/issue-local.sh retry <feature>`。新候选提交可重开连续失败窗口，同一提交继续快速停止；修复预算、证据复用和崩溃恢复以控制脚本及其回归测试为准。已经发布 PR 的批次不得本地重置。
 
 ## 安装与操作
@@ -30,6 +33,7 @@
 ```sh
 ZERP_ISSUE_MESSAGE_RECIPIENT='<本机 iMessage 手机号或地址>' make issue-local-install
 scripts/issue-local.sh status
+scripts/issue-local.sh diagnose <feature>
 scripts/issue-local.sh stop
 scripts/issue-local.sh start
 scripts/issue-local.sh retry <feature>

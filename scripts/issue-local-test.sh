@@ -846,6 +846,8 @@ test "$(cat "${MOCK_PUBLISH_ISSUE_ATTEMPT_COUNT}")" = 3
 test "$(cat "${runtime}/batches/external-stage-cap/state")" = external-blocked
 test "$(jq -r '.nonProductEvents | length' \
   "${runtime}/batches/external-stage-cap/repair-budget.json")" = 3
+test "$(jq -r '.policyDecision' \
+  "${runtime}/batches/external-stage-cap/failure.json")" = BLOCK_EXTERNAL
 unset MOCK_PUBLISH_ISSUE_FAILS ZERP_ISSUE_NON_PRODUCT_STAGE_RETRY_LIMIT
 test_checkpoint external-stage-cap
 
@@ -1152,6 +1154,7 @@ test "$(jq -r '[.nonProductEvents[] | select(.failureClass == "test-flake")] | l
 grep -Fq '"event":"gate-passed"' "${runtime}/batches/gate-repair/timeline.jsonl"
 grep -Fq '**Status:** done' "${primary}/.scratch/gate-repair/issues/01-ticket.md"
 unset MOCK_GATE_FAILS MOCK_GATE_LONG_FAILURE MOCK_GATE_E2E_FAILURE
+test_checkpoint gate-repair
 
 make_ticket gate-invalid-evidence 'Gate invalid evidence'
 : >"${events}"
@@ -1297,7 +1300,8 @@ test "$(jq -r .total "${runtime}/batches/code-review-retry/repair-budget.json")"
 test "$(jq -r '.nonProductEvents | length' \
   "${runtime}/batches/code-review-retry/repair-budget.json")" = 2
 test "$(cat "${runtime}/batches/code-review-retry/state")" = automation-blocked
-jq -e '.failureClass == "automation" and .stage == "code-review-gate"' \
+jq -e '.failureClass == "automation" and .stage == "code-review-gate" and
+  .policyDecision == "BLOCK_AUTOMATION"' \
   "${runtime}/batches/code-review-retry/failure.json" >/dev/null
 retry_agent code-review-retry
 : >"${events}"
@@ -1306,6 +1310,7 @@ run_agent
 test "$(cat "${MOCK_CODEX_COUNT}")" = 1
 test "$(jq -r .total "${runtime}/batches/code-review-retry/repair-budget.json")" = 1
 grep -Fq '**Status:** done' "${primary}/.scratch/code-review-retry/issues/01-ticket.md"
+test_checkpoint code-review-retry
 
 make_ticket gate-budget-blocked 'Gate budget blocked'
 : >"${events}"
@@ -1401,6 +1406,8 @@ test "$(cat "${MOCK_PREVIEW_COUNT}")" = 2
 test "$(cat "${runtime}/batches/preview-invalid-evidence/state")" = automation-blocked
 test "$(jq -r '[.nonProductEvents[] | select(.failureClass == "automation")] | length' \
   "${runtime}/batches/preview-invalid-evidence/repair-budget.json")" = 2
+test "$(jq -r '.policyDecision' \
+  "${runtime}/batches/preview-invalid-evidence/failure.json")" = BLOCK_AUTOMATION
 unset MOCK_PREVIEW_INVALID_EVIDENCE_FAILS
 
 make_ticket needs-decision 'Needs decision'

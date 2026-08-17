@@ -458,15 +458,6 @@ non_product_retry_limit() {
   esac
 }
 
-non_product_block_state() {
-  case "$1" in
-    automation) printf 'automation-blocked\n' ;;
-    external) printf 'external-blocked\n' ;;
-    environment | test-flake) printf 'environment-blocked\n' ;;
-    *) printf 'blocked\n' ;;
-  esac
-}
-
 record_non_product_failure() {
   batch_root=$1
   failure_class=$2
@@ -536,6 +527,52 @@ record_non_product_failure() {
   fi
 }
 
+write_failure_policy_decision() {
+  batch_root=$1
+  decision=$2
+  jq --arg decision "${decision}" '.policyDecision = $decision' \
+    "${batch_root}/failure.json" >"${batch_root}/failure.json.new" || return 1
+  mv "${batch_root}/failure.json.new" "${batch_root}/failure.json"
+}
+
+failure_policy_decide() {
+  batch_root=$1
+  failure_class=$2
+  stage=$3
+  candidate_head=${4:-}
+  valid_failure_class "${failure_class}" || return 1
+  if [ "${failure_class}" = product ]; then
+    decision=REPAIR_CODE
+  elif record_non_product_failure "${batch_root}" "${failure_class}" \
+    "${stage}" "${candidate_head}"; then
+    case "${failure_class}" in
+      test-flake | automation) decision=RETRY_SAME_HEAD ;;
+      environment) decision=RETRY_ENVIRONMENT ;;
+      external) decision=RETRY_EXTERNAL ;;
+    esac
+  else
+    case "${failure_class}" in
+      automation) decision=BLOCK_AUTOMATION ;;
+      external) decision=BLOCK_EXTERNAL ;;
+      environment | test-flake) decision=BLOCK_ENVIRONMENT ;;
+    esac
+  fi
+  write_failure_policy_decision "${batch_root}" "${decision}" || return 1
+  printf '%s\n' "${decision}"
+}
+
+failure_policy_block_state() {
+  batch_root=$1
+  decision=$(failure_field "${batch_root}" policyDecision)
+  case "${decision}" in
+    BLOCK_AUTOMATION) printf 'automation-blocked\n' ;;
+    BLOCK_EXTERNAL) printf 'external-blocked\n' ;;
+    BLOCK_ENVIRONMENT) printf 'environment-blocked\n' ;;
+    BLOCK_PRODUCT) printf 'blocked\n' ;;
+    *) return 1 ;;
+  esac
+}
+
 record_repair_failure() {
   batch_root=$1
   stage=$2
@@ -585,7 +622,7 @@ block_for_repair_budget() {
   mv "${failure_file}.new" "${failure_file}"
 }
 
-record_or_block_repair_failure() {
+apply_product_failure_policy() {
   batch_root=$1
   issues_dir=$2
   worktree=$3
@@ -599,6 +636,7 @@ record_or_block_repair_failure() {
       controller 'Code, review, or deterministic validation failed'
   fi
   if record_repair_failure "${batch_root}" "${stage}" "${candidate_head}"; then
+    write_failure_policy_decision "${batch_root}" REPAIR_CODE
     return 0
   else
     record_result=$?
@@ -607,6 +645,7 @@ record_or_block_repair_failure() {
     2) block_for_repair_budget "${batch_root}" 'the same normalized failure fingerprint recurred twice' ;;
     *) block_for_repair_budget "${batch_root}" 'the cumulative repair audit is invalid or unavailable' ;;
   esac
+  write_failure_policy_decision "${batch_root}" BLOCK_PRODUCT
   mark_batch "${issues_dir}" blocked
   set_batch_state "${batch_root}" blocked
   return 1
@@ -677,15 +716,16 @@ status_command() {
     phase=$(cat "${batch_root}/phase" 2>/dev/null || true)
     failure_class=$(failure_field "${batch_root}" failureClass)
     failure_stage=$(failure_field "${batch_root}" stage)
+    policy_decision=$(failure_field "${batch_root}" policyDecision)
     total=$(jq -r '.total // 0' "${batch_root}/repair-budget.json" 2>/dev/null || printf 0)
     non_product=$(jq -r '.nonProductEvents | length' \
       "${batch_root}/repair-budget.json" 2>/dev/null || printf 0)
     if [ "${state}" = "done" ]; then
       printf '%s: done\n' "${feature}"
     else
-      printf '%s: %s phase=%s codeAttempts=%s/9 nonProductRetries=%s failure=%s stage=%s\n' \
+      printf '%s: %s phase=%s codeAttempts=%s/9 nonProductRetries=%s failure=%s stage=%s decision=%s\n' \
         "${feature}" "${state}" "${phase:--}" "${total}" "${non_product}" \
-        "${failure_class:--}" "${failure_stage:--}"
+        "${failure_class:--}" "${failure_stage:--}" "${policy_decision:--}"
     fi
   done
 }
@@ -1483,7 +1523,8 @@ run_fast_gate_resilient() {
         "${fast_log}"; then
         write_structured_failure "${batch_root}" environment fast-gate "${head_sha}" \
           gate 'Host fast-gate environment failed'
-        if ! record_non_product_failure "${batch_root}" environment fast-gate "${head_sha}"; then
+        decision=$(failure_policy_decide "${batch_root}" environment fast-gate "${head_sha}") || return 8
+        if [ "${decision}" != RETRY_ENVIRONMENT ]; then
           return 8
         fi
         prepare_offline_dependencies "${worktree}" >>"${fast_log}" 2>&1 || true
@@ -1510,8 +1551,9 @@ run_fast_gate_resilient() {
     } >"${batch_root}/failure.md"
     write_structured_failure "${batch_root}" automation fast-gate-evidence "${head_sha}" \
       gate 'Host fast gate returned invalid exact-head evidence'
-    if ! record_non_product_failure "${batch_root}" automation \
-      fast-gate-evidence "${head_sha}"; then
+    decision=$(failure_policy_decide "${batch_root}" automation \
+      fast-gate-evidence "${head_sha}") || return 8
+    if [ "${decision}" != RETRY_SAME_HEAD ]; then
       return 8
     fi
     retry_delay=${ZERP_ISSUE_AUTOMATION_RETRY_WAIT_SECONDS:-2}
@@ -1532,42 +1574,33 @@ run_final_gate_resilient() {
         'Complete host validation passed'
       return 0
     fi
-    failure_class=$(failure_field "${batch_root}" failureClass)
-    stage=$(failure_field "${batch_root}" stage)
-    case "${failure_class}" in
-      test-flake)
-        set_batch_phase "${batch_root}" verifying-test-flake
-        if ! verify_same_head_flake "${batch_root}" "${worktree}"; then
-          return 4
-        fi
-        if ! record_non_product_failure "${batch_root}" test-flake "${stage}" "${head_sha}"; then
-          return 8
-        fi
-        ;;
-      environment)
-        if ! record_non_product_failure "${batch_root}" environment "${stage}" "${head_sha}"; then
-          return 8
-        fi
+    policy_class=$(failure_field "${batch_root}" failureClass)
+    if [ "${policy_class}" = test-flake ]; then
+      set_batch_phase "${batch_root}" verifying-test-flake
+      if ! verify_same_head_flake "${batch_root}" "${worktree}"; then
+        return 4
+      fi
+    fi
+    policy_class=$(failure_field "${batch_root}" failureClass)
+    policy_stage=$(failure_field "${batch_root}" stage)
+    decision=$(failure_policy_decide "${batch_root}" "${policy_class}" \
+      "${policy_stage:-final-gate}" "${head_sha}") || {
+      write_structured_failure "${batch_root}" automation "${policy_stage:-final-gate}" \
+        "${head_sha}" controller 'Final gate did not produce a valid failure-policy decision'
+      return 8
+    }
+    case "${decision}" in
+      RETRY_SAME_HEAD) ;;
+      RETRY_ENVIRONMENT)
         set_batch_phase "${batch_root}" recovering-environment
         prepare_offline_dependencies "${worktree}" >>"${batch_root}/gate.log" 2>&1 || true
         retry_delay=${ZERP_ISSUE_ENVIRONMENT_RETRY_WAIT_SECONDS:-5}
         case "${retry_delay}" in '' | *[!0-9]*) retry_delay=5 ;; esac
         [ "${retry_delay}" -eq 0 ] || sleep "${retry_delay}"
         ;;
-      automation)
-        if ! record_non_product_failure "${batch_root}" automation "${stage}" "${head_sha}"; then
-          return 8
-        fi
-        retry_delay=${ZERP_ISSUE_AUTOMATION_RETRY_WAIT_SECONDS:-2}
-        case "${retry_delay}" in '' | *[!0-9]*) retry_delay=2 ;; esac
-        [ "${retry_delay}" -eq 0 ] || sleep "${retry_delay}"
-        ;;
-      product) return 4 ;;
-      *)
-        write_structured_failure "${batch_root}" automation "${stage:-final-gate}" \
-          "${head_sha}" controller 'Final gate did not produce valid failure classification'
-        return 8
-        ;;
+      REPAIR_CODE) return 4 ;;
+      BLOCK_AUTOMATION | BLOCK_ENVIRONMENT | BLOCK_EXTERNAL) return 8 ;;
+      *) return 8 ;;
     esac
   done
 }
@@ -1663,8 +1696,9 @@ record_automation_failure() {
     write_value "${batch_root}/reviewed-head" "${previous_head}"
     write_value "${batch_root}/automation-review-base" "${previous_head}"
   fi
-  if record_non_product_failure "${batch_root}" automation \
-    "${failure_stage}" "${failure_head}"; then
+  decision=$(failure_policy_decide "${batch_root}" automation \
+    "${failure_stage}" "${failure_head}") || return 8
+  if [ "${decision}" = RETRY_SAME_HEAD ]; then
     return 6
   fi
   return 8
@@ -2075,8 +2109,9 @@ deploy_preview() {
         "${preview_log}"; then
         write_structured_failure "${batch_root}" automation preview-identity \
           "${head_sha}" preview 'Preview identity did not match the requested candidate'
-        if ! record_non_product_failure "${batch_root}" automation \
-          preview-identity "${head_sha}"; then
+        decision=$(failure_policy_decide "${batch_root}" automation \
+          preview-identity "${head_sha}") || return 8
+        if [ "${decision}" != RETRY_SAME_HEAD ]; then
           return 8
         fi
         continue
@@ -2088,7 +2123,9 @@ deploy_preview() {
       fi
       write_structured_failure "${batch_root}" environment public-preview "${head_sha}" \
         preview 'Public preview infrastructure failed'
-      if ! record_non_product_failure "${batch_root}" environment public-preview "${head_sha}"; then
+      decision=$(failure_policy_decide "${batch_root}" environment \
+        public-preview "${head_sha}") || return 4
+      if [ "${decision}" != RETRY_ENVIRONMENT ]; then
         return 4
       fi
       retry_delay=${ZERP_ISSUE_ENVIRONMENT_RETRY_WAIT_SECONDS:-5}
@@ -2115,7 +2152,9 @@ deploy_preview() {
       } >"${batch_root}/failure.md"
       write_structured_failure "${batch_root}" automation preview-evidence "${head_sha}" \
         preview 'Preview command returned invalid exact-SHA evidence'
-      if ! record_non_product_failure "${batch_root}" automation preview-evidence "${head_sha}"; then
+      decision=$(failure_policy_decide "${batch_root}" automation \
+        preview-evidence "${head_sha}") || return 8
+      if [ "${decision}" != RETRY_SAME_HEAD ]; then
         return 8
       fi
       continue
@@ -2176,10 +2215,9 @@ implement_and_preview() {
         fi
       elif [ "${gate_result}" = 8 ]; then
         mark_batch "${issues_dir}" blocked
-        set_batch_state "${batch_root}" \
-          "$(non_product_block_state "$(failure_field "${batch_root}" failureClass)")"
+        set_batch_state "${batch_root}" "$(failure_policy_block_state "${batch_root}")"
         return 1
-      elif ! record_or_block_repair_failure "${batch_root}" "${issues_dir}" "${worktree}"; then
+      elif ! apply_product_failure_policy "${batch_root}" "${issues_dir}" "${worktree}"; then
         return 1
       fi
     else
@@ -2233,14 +2271,13 @@ implement_and_preview() {
       fi
       if [ "${result}" = 8 ]; then
         mark_batch "${issues_dir}" blocked
-        set_batch_state "${batch_root}" \
-          "$(non_product_block_state "$(failure_field "${batch_root}" failureClass)")"
+        set_batch_state "${batch_root}" "$(failure_policy_block_state "${batch_root}")"
         return 1
       fi
       if [ "${result}" != 4 ]; then
         printf 'Implementation, review, or final gate repair failed.\n' >"${batch_root}/failure.md"
       fi
-      if ! record_or_block_repair_failure "${batch_root}" "${issues_dir}" "${worktree}"; then
+      if ! apply_product_failure_policy "${batch_root}" "${issues_dir}" "${worktree}"; then
         return 1
       fi
     fi
@@ -2268,8 +2305,9 @@ run_external_step() {
     } >"${external_batch_root}/failure.md"
     write_structured_failure "${external_batch_root}" external "${external_stage}" \
       "${external_head_sha}" controller "${external_stage} failed"
-    if ! record_non_product_failure "${external_batch_root}" external \
-      "${external_stage}" "${external_head_sha}"; then
+    decision=$(failure_policy_decide "${external_batch_root}" external \
+      "${external_stage}" "${external_head_sha}") || return 1
+    if [ "${decision}" != RETRY_EXTERNAL ]; then
       return 1
     fi
     retry_delay=${ZERP_ISSUE_EXTERNAL_RETRY_WAIT_SECONDS:-5}
@@ -2468,7 +2506,9 @@ wait_checks_and_merge() {
       } >"${batch_root}/failure.md"
       write_structured_failure "${batch_root}" external github-checks "${head_sha}" \
         github 'GitHub check status was temporarily unavailable'
-      if record_non_product_failure "${batch_root}" external github-checks "${head_sha}"; then
+      decision=$(failure_policy_decide "${batch_root}" external \
+        github-checks "${head_sha}") || decision=BLOCK_EXTERNAL
+      if [ "${decision}" = RETRY_EXTERNAL ]; then
         [ "${registration_delay}" -eq 0 ] || sleep "${registration_delay}"
         continue
       fi
@@ -2488,8 +2528,9 @@ wait_checks_and_merge() {
       } >"${batch_root}/failure.md"
       write_structured_failure "${batch_root}" external github-check-evidence "${head_sha}" \
         github 'Required-check source or exact-head evidence was unavailable'
-      if record_non_product_failure "${batch_root}" external \
-        github-check-evidence "${head_sha}"; then
+      decision=$(failure_policy_decide "${batch_root}" external \
+        github-check-evidence "${head_sha}") || decision=BLOCK_EXTERNAL
+      if [ "${decision}" = RETRY_EXTERNAL ]; then
         [ "${registration_delay}" -eq 0 ] || sleep "${registration_delay}"
         continue
       fi
@@ -2512,10 +2553,11 @@ wait_checks_and_merge() {
       } >"${batch_root}/failure.md"
       write_structured_failure "${batch_root}" external github-check-confirmation \
         "${head_sha}" github 'Required-check failure is awaiting same-SHA confirmation'
-      if ! record_non_product_failure "${batch_root}" external \
-        github-check-confirmation "${head_sha}"; then
+      decision=$(failure_policy_decide "${batch_root}" external \
+        github-check-confirmation "${head_sha}") || decision=BLOCK_EXTERNAL
+      if [ "${decision}" != RETRY_EXTERNAL ]; then
         mark_batch "${issues_dir}" blocked
-        set_batch_state "${batch_root}" external-blocked
+        set_batch_state "${batch_root}" "$(failure_policy_block_state "${batch_root}")"
         release_preview "${feature}"
         return 1
       fi
@@ -2534,26 +2576,32 @@ wait_checks_and_merge() {
       printf '\nFailed job excerpts:\n\n'
       sed -n '1,200p' "${evidence_log}"
     } >"${batch_root}/failure.md"
-    if [ "${failure_class}" != product ]; then
-      write_structured_failure "${batch_root}" "${failure_class}" \
-        "github-required-checks:${failure_names}" "${head_sha}" github \
-        'A verified required check failed twice on the same commit'
-      if record_non_product_failure "${batch_root}" "${failure_class}" \
-        "github-required-checks:${failure_names}" "${head_sha}"; then
+    write_structured_failure "${batch_root}" "${failure_class}" \
+      "github-required-checks:${failure_names}" "${head_sha}" github \
+      'A verified required check failed twice on the same commit'
+    decision=$(failure_policy_decide "${batch_root}" "${failure_class}" \
+      "github-required-checks:${failure_names}" "${head_sha}") || decision=BLOCK_AUTOMATION
+    case "${decision}" in
+      RETRY_SAME_HEAD | RETRY_ENVIRONMENT | RETRY_EXTERNAL)
         [ "${registration_delay}" -eq 0 ] || sleep "${registration_delay}"
         continue
-      fi
-      mark_batch "${issues_dir}" blocked
-      set_batch_state "${batch_root}" \
-        "$(non_product_block_state "${failure_class}")"
-      release_preview "${feature}"
-      return 1
-    fi
-    write_structured_failure "${batch_root}" product \
-      "github-required-checks:${failure_names}" "${head_sha}" github \
-      'A verified deterministic required code check failed twice on the same commit'
+        ;;
+      BLOCK_AUTOMATION | BLOCK_ENVIRONMENT | BLOCK_EXTERNAL)
+        mark_batch "${issues_dir}" blocked
+        set_batch_state "${batch_root}" "$(failure_policy_block_state "${batch_root}")"
+        release_preview "${feature}"
+        return 1
+        ;;
+      REPAIR_CODE) ;;
+      *)
+        mark_batch "${issues_dir}" blocked
+        set_batch_state "${batch_root}" automation-blocked
+        release_preview "${feature}"
+        return 1
+        ;;
+    esac
     write_value "${batch_root}/repair-stage" gate
-    if ! record_or_block_repair_failure "${batch_root}" "${issues_dir}" "${worktree}"; then
+    if ! apply_product_failure_policy "${batch_root}" "${issues_dir}" "${worktree}"; then
       release_preview "${feature}"
       return 1
     fi
@@ -2610,15 +2658,14 @@ wait_checks_and_merge() {
       fi
       if [ "${result}" = 8 ]; then
         mark_batch "${issues_dir}" blocked
-        set_batch_state "${batch_root}" \
-          "$(non_product_block_state "$(failure_field "${batch_root}" failureClass)")"
+        set_batch_state "${batch_root}" "$(failure_policy_block_state "${batch_root}")"
         release_preview "${feature}"
         return 1
       fi
       if [ "${result}" != 4 ]; then
         printf 'Implementation, review, or final gate repair failed.\n' >"${batch_root}/failure.md"
       fi
-      if ! record_or_block_repair_failure "${batch_root}" "${issues_dir}" "${worktree}"; then
+      if ! apply_product_failure_policy "${batch_root}" "${issues_dir}" "${worktree}"; then
         release_preview "${feature}"
         return 1
       fi
@@ -2726,8 +2773,7 @@ run_batch() {
   if ! refresh_main "${feature}" "${batch_root}" "${worktree}" "${issues_dir}"; then
     if [ ! -r "${batch_root}/state" ]; then
       mark_batch "${issues_dir}" blocked
-      set_batch_state "${batch_root}" \
-        "$(non_product_block_state "$(failure_field "${batch_root}" failureClass)")"
+      set_batch_state "${batch_root}" "$(failure_policy_block_state "${batch_root}")"
     fi
     release_preview "${feature}"
     return 1

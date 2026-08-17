@@ -17,7 +17,7 @@
 
 ## 失败与恢复
 
-- 每次失败写入结构化 `failure.json`，分类固定为 `product`、`test-flake`、`environment`、`external` 或 `automation`。只有 `product` 会调用 Codex 并消耗代码修复预算；其余类别使用各自的同签名重试预算。
+- 每次失败写入结构化 `failure.json`，分类固定为 `product`、`test-flake`、`environment`、`external` 或 `automation`。控制器的 Failure Policy 是分类、历史预算、恢复动作和阻塞状态的唯一决策入口，并把 `RETRY_SAME_HEAD`、`RETRY_ENVIRONMENT`、`RETRY_EXTERNAL`、`REPAIR_CODE` 或对应的 `BLOCK_*` decision 写回失败证据；调用阶段只执行 decision，不再自行组合分类与状态。只有 `product` 会调用 Codex 并消耗代码修复预算；其余类别使用各自的同签名重试预算。
 - E2E 或集成测试首次失败时，控制器先在同一 SHA 聚焦复验：复验通过记为 `test-flake` 并直接重跑完整门禁，复验仍失败才记为 `product`。宿主依赖、Docker、网络、预览和 GitHub 查询故障不得伪装成代码修复。
 - 需求无法客观判断时整批进入 `needs-input`；产品代码或确定性验证无法在预算内收敛时进入 `blocked`；控制器、宿主环境和外部服务分别进入 `automation-blocked`、`environment-blocked`、`external-blocked`；公网预览和生产失败继续使用 `preview-blocked`、`production-blocked`。这些状态都不会继续发布。
 - 生产失败进入 `production-blocked` 并停止后续批次。数据库恢复和发布车道重开仍由维护者判断，控制器不得自行决定。

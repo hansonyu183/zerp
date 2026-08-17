@@ -1257,7 +1257,9 @@
                           'application/json':
                             {
                               'schema':
-                                { '$ref': './schemas/app.yaml#/UserDetailResponse' },
+                                {
+                                  '$ref': './schemas/app.yaml#/UserDetailResponse',
+                                },
                             },
                         },
                     },
@@ -1294,7 +1296,9 @@
                           'application/json':
                             {
                               'schema':
-                                { '$ref': './schemas/app.yaml#/UserDetailResponse' },
+                                {
+                                  '$ref': './schemas/app.yaml#/UserDetailResponse',
+                                },
                             },
                         },
                     },
@@ -1333,7 +1337,9 @@
                           'application/json':
                             {
                               'schema':
-                                { '$ref': './schemas/app.yaml#/UserDetailResponse' },
+                                {
+                                  '$ref': './schemas/app.yaml#/UserDetailResponse',
+                                },
                             },
                         },
                     },
@@ -1372,7 +1378,9 @@
                           'application/json':
                             {
                               'schema':
-                                { '$ref': './schemas/app.yaml#/UserDetailResponse' },
+                                {
+                                  '$ref': './schemas/app.yaml#/UserDetailResponse',
+                                },
                             },
                         },
                     },

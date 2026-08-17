@@ -86,8 +86,7 @@
         },
     },
   'UserStatus': { 'type': 'string', 'enum': ['ENABLED', 'DISABLED'] },
-  'RoleType':
-    { 'type': 'string', 'enum': ['NORMAL', 'SYSTEM', 'SUPERADMIN'] },
+  'RoleType': { 'type': 'string', 'enum': ['NORMAL', 'SYSTEM', 'SUPERADMIN'] },
   'RoleAction':
     { 'type': 'string', 'enum': ['VIEW', 'EDIT', 'ENABLE', 'DISABLE'] },
   'UserRoleSummary':
@@ -356,8 +355,7 @@
               'uniqueItems': true,
               'items': { 'type': 'string' },
             },
-          'revision':
-            { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
         },
     },
   'RolePermission':
@@ -412,8 +410,7 @@
           'assignable': { 'type': 'boolean' },
           'createdAt': { 'type': 'string', 'format': 'date-time' },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
-          'revision':
-            { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
         },
     },
   'RoleDetail':
@@ -452,13 +449,9 @@
           'assignable': { 'type': 'boolean' },
           'createdAt': { 'type': 'string', 'format': 'date-time' },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
-          'revision':
-            { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
           'permissions':
-            {
-              'type': 'array',
-              'items': { '$ref': '#/RolePermission' },
-            },
+            { 'type': 'array', 'items': { '$ref': '#/RolePermission' } },
         },
     },
   'RolePage':
@@ -573,8 +566,7 @@
           'action': { 'type': 'string' },
           'description': { 'type': 'string', 'nullable': true },
           'status': { '$ref': '#/UserStatus' },
-          'revision':
-            { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
           'assignable': { 'type': 'boolean' },
           'roleCount':
             { 'type': 'integer', 'format': 'int64', 'nullable': true },
@@ -587,8 +579,7 @@
       'additionalProperties': false,
       'properties':
         {
-          'items':
-            { 'type': 'array', 'items': { '$ref': '#/PermissionView' } },
+          'items': { 'type': 'array', 'items': { '$ref': '#/PermissionView' } },
           'total': { 'type': 'integer', 'format': 'int64' },
           'page': { 'type': 'integer', 'minimum': 1 },
           'pageSize': { 'type': 'integer', 'enum': [20, 200] },

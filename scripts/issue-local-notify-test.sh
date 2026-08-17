@@ -29,14 +29,32 @@ case "${1:-}" in
   -)
     script=$(cat)
     if printf '%s' "${script}" | grep -Fq 'display notification'; then
+      [ -r "${ZERP_ISSUE_MESSAGE_BODY_FILE:-}" ] || exit 3
+      [ -r "${ZERP_ISSUE_NOTIFICATION_TITLE_FILE:-}" ] || exit 3
       printf 'local-fallback\n' >>"${MOCK_MESSAGES}"
+      cat "${ZERP_ISSUE_NOTIFICATION_TITLE_FILE}" >>"${MOCK_MESSAGES}"
+      printf '\n' >>"${MOCK_MESSAGES}"
+      cat "${ZERP_ISSUE_MESSAGE_BODY_FILE}" >>"${MOCK_MESSAGES}"
+      printf '\n---\n' >>"${MOCK_MESSAGES}"
       exit 0
     fi
     case "${MOCK_OSASCRIPT_MODE:-success}" in
-      success) printf '%s\n---\n' "${ZERP_ISSUE_MESSAGE_BODY}" >>"${MOCK_MESSAGES}" ;;
+      success)
+        [ -r "${ZERP_ISSUE_MESSAGE_BODY_FILE:-}" ] || {
+          printf 'message body was not passed as an explicit UTF-8 file\n' >&2
+          exit 3
+        }
+        cat "${ZERP_ISSUE_MESSAGE_BODY_FILE}" >>"${MOCK_MESSAGES}"
+        printf '\n---\n' >>"${MOCK_MESSAGES}"
+        ;;
       fail) echo 'simulated send failure' >&2; exit 1 ;;
       denied) echo 'Not authorized to send Apple events. (-1743)' >&2; exit 1 ;;
-      slow) sleep 2; printf '%s\n---\n' "${ZERP_ISSUE_MESSAGE_BODY}" >>"${MOCK_MESSAGES}" ;;
+      slow)
+        sleep 2
+        [ -r "${ZERP_ISSUE_MESSAGE_BODY_FILE:-}" ] || exit 3
+        cat "${ZERP_ISSUE_MESSAGE_BODY_FILE}" >>"${MOCK_MESSAGES}"
+        printf '\n---\n' >>"${MOCK_MESSAGES}"
+        ;;
       *) exit 2 ;;
     esac
     ;;
@@ -85,6 +103,7 @@ test "$(find "${runtime}/notifications/pending" -type f -name '*.json' | wc -l |
 test "$(find "${runtime}/notifications/delivered" -type f -name '*.json' | wc -l | tr -d ' ')" = 1
 grep -Fq '批次=inventory-query' "${tmp}/messages"
 grep -Fq '事件=implementing' "${tmp}/messages"
+grep -Fq '批次进度' "${tmp}/messages"
 grep -Fq '批次耗时=100秒' "${tmp}/messages"
 
 printf '%s\n' 'fast-gate' >"${batch}/phase"
@@ -100,6 +119,7 @@ pending=$(find "${runtime}/notifications/pending" -type f -name '*.json' -print 
 jq -e '.attemptCount == 1 and .nextAttemptAt == 1060 and
   .lastError == "send-failed" and .localFallbackAt == 1000' "${pending}" >/dev/null
 grep -Fq 'local-fallback' "${tmp}/messages"
+grep -Fq 'ZERP 通知待补发：inventory-query' "${tmp}/messages"
 notify status | grep -Fq 'notification=degraded pending=1 lastError=send-failed'
 
 MOCK_OSASCRIPT_MODE=success ZERP_ISSUE_NOTIFICATION_NOW_EPOCH=1060 notify drain

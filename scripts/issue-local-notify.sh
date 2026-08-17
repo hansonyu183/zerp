@@ -212,20 +212,25 @@ send_event() {
   event_file=$1
   event_id=$(jq -r .id "${event_file}")
   send_error_file="${notification_root}/send-${event_id}.stderr"
+  send_body_file="${notification_root}/send-${event_id}.body"
   recipient=$(message_recipient)
   if ! valid_message_recipient "${recipient}"; then
     send_error='recipient-unresolved'
     return 1
   fi
   body=$(event_body "${event_file}")
+  printf '%s' "${body}" >"${send_body_file}.new"
+  chmod 600 "${send_body_file}.new"
+  mv "${send_body_file}.new" "${send_body_file}"
   timeout_seconds=${ZERP_ISSUE_MESSAGE_TIMEOUT_SECONDS:-20}
   case "${timeout_seconds}" in '' | *[!0-9]*) timeout_seconds=20 ;; esac
   ZERP_ISSUE_MESSAGE_RECIPIENT="${recipient}" \
-    ZERP_ISSUE_MESSAGE_BODY="${body}" \
+    ZERP_ISSUE_MESSAGE_BODY_FILE="${send_body_file}" \
     "${osascript_bin}" - >/dev/null 2>"${send_error_file}" <<'APPLESCRIPT' &
 on run argv
   set recipient to system attribute "ZERP_ISSUE_MESSAGE_RECIPIENT"
-  set messageBody to system attribute "ZERP_ISSUE_MESSAGE_BODY"
+  set bodyPath to system attribute "ZERP_ISSUE_MESSAGE_BODY_FILE"
+  set messageBody to read POSIX file bodyPath as «class utf8»
   with timeout of 15 seconds
     tell application "Messages"
       set matchingServices to every service whose service type = iMessage
@@ -243,9 +248,11 @@ end run
 APPLESCRIPT
   send_pid=$!
   if wait_for_send_process "${send_pid}" "${timeout_seconds}"; then
+    unlink "${send_body_file}" 2>/dev/null || true
     unlink "${send_error_file}" 2>/dev/null || true
     return 0
   fi
+  unlink "${send_body_file}" 2>/dev/null || true
   if [ "${process_timed_out}" = 1 ]; then
     send_error='timeout'
   elif grep -Eiq -- '-1743|not authorized.*apple event' "${send_error_file}"; then
@@ -265,17 +272,29 @@ APPLESCRIPT
 
 send_local_fallback() {
   event_file=$1
+  event_id=$(jq -r .id "${event_file}")
+  fallback_body_file="${notification_root}/fallback-${event_id}.body"
+  fallback_title_file="${notification_root}/fallback-${event_id}.title"
   title=$(jq -r '"ZERP 通知待补发：" + .feature' "${event_file}")
   body=$(event_body "${event_file}")
-  ZERP_ISSUE_NOTIFICATION_TITLE="${title}" \
-    ZERP_ISSUE_MESSAGE_BODY="${body}" \
-    "${osascript_bin}" - >/dev/null 2>&1 <<'APPLESCRIPT'
+  printf '%s' "${title}" >"${fallback_title_file}"
+  printf '%s' "${body}" >"${fallback_body_file}"
+  chmod 600 "${fallback_title_file}" "${fallback_body_file}"
+  fallback_result=0
+  ZERP_ISSUE_NOTIFICATION_TITLE_FILE="${fallback_title_file}" \
+    ZERP_ISSUE_MESSAGE_BODY_FILE="${fallback_body_file}" \
+    "${osascript_bin}" - >/dev/null 2>&1 <<'APPLESCRIPT' || fallback_result=1
 on run argv
-  set notificationTitle to system attribute "ZERP_ISSUE_NOTIFICATION_TITLE"
-  set messageBody to system attribute "ZERP_ISSUE_MESSAGE_BODY"
+  set titlePath to system attribute "ZERP_ISSUE_NOTIFICATION_TITLE_FILE"
+  set bodyPath to system attribute "ZERP_ISSUE_MESSAGE_BODY_FILE"
+  set notificationTitle to read POSIX file titlePath as «class utf8»
+  set messageBody to read POSIX file bodyPath as «class utf8»
   display notification messageBody with title notificationTitle
 end run
 APPLESCRIPT
+  unlink "${fallback_title_file}" 2>/dev/null || true
+  unlink "${fallback_body_file}" 2>/dev/null || true
+  return "${fallback_result}"
 }
 
 retry_delay() {

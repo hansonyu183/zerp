@@ -167,8 +167,18 @@ cat >"${tmp}/bin/gate" <<'EOF'
 #!/bin/sh
 set -eu
 fast=0
+mode=legacy
 if [ "${1:-}" = --fast ]; then
   fast=1
+  shift
+elif [ "${1:-}" = --baseline ]; then
+  mode=baseline
+  shift
+elif [ "${1:-}" = --reverify ]; then
+  mode=reverify
+  shift 2
+elif [ "${1:-}" = --release ]; then
+  mode=release
   shift
 fi
 if [ "${fast}" = 1 ]; then
@@ -182,6 +192,7 @@ if [ "${fast}" = 1 ]; then
   exit 0
 fi
 printf 'gate\n' >>"${MOCK_EVENTS}"
+[ "${mode}" = legacy ] || printf 'gate-%s\n' "${mode}" >>"${MOCK_EVENTS}"
 printf '%s\n' "${COREPACK_ROOT:-}" >"${MOCK_GATE_COREPACK_ROOT}"
 command -v pnpm >"${MOCK_GATE_PNPM_PATH}"
 pnpm --version >"${MOCK_GATE_PNPM_VERSION}"
@@ -191,6 +202,30 @@ printf '%s\n' "${ZERP_E2E_ENV_FILE:-}" >"${MOCK_GATE_E2E_ENV_TARGET}"
 count=$(cat "${MOCK_GATE_COUNT}" 2>/dev/null || printf 0)
 count=$((count + 1))
 printf '%s\n' "${count}" >"${MOCK_GATE_COUNT}"
+head=$(git rev-parse HEAD)
+if [ "${MOCK_VALIDATION_MULTI_FAILURE:-0}" = 1 ]; then
+  if [ "${mode}" = baseline ]; then
+    printf 'frontend typecheck failed\nbackend integration failed\n' >&2
+    jq -n --arg head "${head}" --arg base "$1" '
+      {version:1,status:"failed",mode:"baseline",head:$head,base:$base,stages:[
+        {id:"common",status:"passed",verifiedHead:$head},
+        {id:"frontend",status:"failed",verifiedHead:$head},
+        {id:"backend",status:"failed",verifiedHead:$head},
+        {id:"e2e",status:"blocked",blockedBy:["frontend","backend"]}
+      ]}' >"${ZERP_GATE_EVIDENCE_FILE}"
+    exit 1
+  fi
+  if [ "${mode}" = reverify ]; then
+    jq -n --arg head "${head}" --arg base "$1" '
+      {version:1,status:"passed",mode:"reverify",head:$head,base:$base,stages:[
+        {id:"common",status:"passed",verifiedHead:$head},
+        {id:"frontend",status:"passed",verifiedHead:$head},
+        {id:"backend",status:"passed",verifiedHead:$head},
+        {id:"e2e",status:"passed",verifiedHead:$head}
+      ]}' >"${ZERP_GATE_EVIDENCE_FILE}"
+    exit 0
+  fi
+fi
 if [ "${count}" -le "${MOCK_GATE_FAILS:-0}" ]; then
   if [ "${MOCK_GATE_LONG_FAILURE:-0}" = 1 ]; then
     line=1
@@ -222,16 +257,41 @@ if [ "${count}" -le "${MOCK_GATE_FAILS:-0}" ]; then
   else
     echo 'simulated host gate failure' >&2
   fi
+  if [ "${mode}" = baseline ] || [ "${mode}" = reverify ]; then
+    failed_stage=common
+    [ "${MOCK_GATE_E2E_FAILURE:-0}" != 1 ] || failed_stage=e2e
+    [ "${MOCK_GATE_INTEGRATION_FAILURE:-0}" != 1 ] || failed_stage=backend
+    if [ "${MOCK_GATE_INTEGRATION_FAILURE:-0}" = 1 ]; then
+      jq -n --arg head "${head}" --arg base "$1" --arg mode "${mode}" '
+        {version:1,status:"failed",mode:$mode,head:$head,base:$base,stages:[
+          {id:"backend",status:"failed",verifiedHead:$head},
+          {id:"e2e",status:"blocked",blockedBy:["backend"]}
+        ]}' >"${ZERP_GATE_EVIDENCE_FILE}"
+    else
+      jq -n --arg head "${head}" --arg base "$1" --arg mode "${mode}" \
+        --arg failed_stage "${failed_stage}" '
+        {version:1,status:"failed",mode:$mode,head:$head,base:$base,stages:[
+          {id:$failed_stage,status:"failed",verifiedHead:$head}
+        ]}' >"${ZERP_GATE_EVIDENCE_FILE}"
+    fi
+  fi
   exit 1
 fi
 if [ "${count}" -le "${MOCK_GATE_INVALID_EVIDENCE_FAILS:-0}" ]; then
   printf '{"status":"passed","head":"invalid"}\n' >"${ZERP_GATE_EVIDENCE_FILE}"
   exit 0
 fi
-head=$(git rev-parse HEAD)
 jq -n --arg head "${head}" --arg base "$1" \
   --arg runtime_fingerprint "${MOCK_RUNTIME_FINGERPRINT:-runtime-one}" \
-  '{status:"passed",head:$head,base:$base,runtimeFingerprint:$runtime_fingerprint}' \
+  --arg mode "${mode}" \
+  '{version:1,status:"passed",mode:$mode,head:$head,base:$base,
+    runtimeFingerprint:$runtime_fingerprint,stages:[
+      {id:"common",status:"passed",verifiedHead:$head},
+      {id:"frontend",status:"passed",verifiedHead:$head},
+      {id:"backend",status:"passed",verifiedHead:$head},
+      {id:"runtime",status:"passed",verifiedHead:$head},
+      {id:"e2e",status:"passed",verifiedHead:$head}
+    ]}' \
   >"${ZERP_GATE_EVIDENCE_FILE}"
 EOF
 chmod +x "${tmp}/bin/gate"
@@ -624,7 +684,8 @@ if grep -Fq -- 'Before the final two-axis review, run `scripts/change-gate.sh --
   echo 'Codex prompt still delegates the host fast gate to the sandbox' >&2
   exit 1
 fi
-grep -Fq -- 'The host controller runs the fast gate and complete final gate' "${MOCK_PROMPT}"
+grep -Fq -- 'The host Validation module runs fast, baseline, delta reverify, and final release checks' \
+  "${MOCK_PROMPT}"
 expected_fast_head=$(jq -r .commitSha "${runtime}/batches/inventory-query/implementation.json")
 jq -e --arg head "${expected_fast_head}" '
   .status == "passed" and .mode == "fast" and .head == $head
@@ -931,6 +992,26 @@ grep -Fq '**Status:** done' "${primary}/.scratch/checks-environment/issues/01-ti
 unset MOCK_CHECKS_FAILS MOCK_CHECK_LOG_KIND ZERP_ISSUE_CHECK_REGISTRATION_WAIT_SECONDS
 test_checkpoint checks-environment
 
+make_ticket validation-lifecycle 'Incremental validation lifecycle'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_FAST_GATE_COUNT}" "${MOCK_GATE_COUNT}" \
+  "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
+MOCK_VALIDATION_MULTI_FAILURE=1 run_agent
+test "$(cat "${MOCK_CODEX_COUNT}")" = 2
+test "$(grep -c '^gate-baseline$' "${events}")" = 1
+test "$(grep -c '^gate-reverify$' "${events}")" = 1
+test "$(grep -c '^gate-release$' "${events}")" = 1
+grep -Fq 'frontend' "${MOCK_PROMPT}-2"
+grep -Fq 'backend' "${MOCK_PROMPT}-2"
+jq -e '.mode == "reverify" and .status == "passed" and
+  all(.stages[]; .status == "passed")' \
+  "${runtime}/batches/validation-lifecycle/validation-evidence.json" >/dev/null
+jq -e '.mode == "release" and .status == "passed"' \
+  "${runtime}/batches/validation-lifecycle/gate-evidence.json" >/dev/null
+grep -Fq '**Status:** done' "${primary}/.scratch/validation-lifecycle/issues/01-ticket.md"
+unset MOCK_VALIDATION_MULTI_FAILURE
+test_checkpoint validation-lifecycle
+
 make_ticket dependency-lock-mismatch 'Dependency lock mismatch'
 mismatch_worktree="${runtime}/worktrees/dependency-lock-mismatch"
 mkdir -p "$(dirname "${mismatch_worktree}")"
@@ -1173,7 +1254,7 @@ rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_FOCUSED_E2E_COUNT}" \
   "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
 MOCK_GATE_FAILS=1 MOCK_GATE_E2E_FAILURE=1 MOCK_FOCUSED_E2E_FAILS=1 run_agent
 test "$(cat "${MOCK_CODEX_COUNT}")" = 2
-test "$(cat "${MOCK_GATE_COUNT}")" = 2
+test "$(cat "${MOCK_GATE_COUNT}")" = 3
 test "$(cat "${MOCK_FOCUSED_E2E_COUNT}")" = 2
 grep -Fq 'Focused E2E reproduced the failure' "${MOCK_PROMPT}-2"
 test "$(jq -r .total \
@@ -1182,6 +1263,7 @@ test "$(jq -r '.nonProductEvents | length' \
   "${runtime}/batches/e2e-product-repair/repair-budget.json")" = 0
 grep -Fq '**Status:** done' "${primary}/.scratch/e2e-product-repair/issues/01-ticket.md"
 unset MOCK_GATE_FAILS MOCK_GATE_E2E_FAILURE MOCK_FOCUSED_E2E_FAILS
+test_checkpoint e2e-product-repair
 
 make_ticket integration-repair 'Integration repair'
 : >"${events}"
@@ -1201,6 +1283,7 @@ test "$(jq -r '[.nonProductEvents[] | select(.failureClass == "test-flake")] | l
   "${runtime}/batches/integration-repair/repair-budget.json")" = 1
 grep -Fq '**Status:** done' "${primary}/.scratch/integration-repair/issues/01-ticket.md"
 unset MOCK_GATE_FAILS MOCK_GATE_INTEGRATION_FAILURE
+test_checkpoint integration-repair
 
 make_ticket gate-blocked 'Gate blocked'
 : >"${events}"
@@ -1216,7 +1299,8 @@ if grep -q '^gh ' "${events}"; then
   echo 'GitHub was accessed after failed host gates' >&2
   exit 1
 fi
-grep -Fq 'Host final gate failed' "${runtime}/batches/gate-blocked/failure.md"
+grep -Eq 'Validation (baseline|reverify) collected failures' \
+  "${runtime}/batches/gate-blocked/failure.md"
 grep -Fq '**Status:** blocked' "${primary}/.scratch/gate-blocked/issues/01-ticket.md"
 test "$(jq -r .total "${runtime}/batches/gate-blocked/repair-budget.json")" = 2
 test "$(jq -r .consecutive "${runtime}/batches/gate-blocked/repair-budget.json")" = 2
@@ -1242,7 +1326,7 @@ test "$(jq -r '.events[-1].candidateHead' "${runtime}/batches/gate-blocked/repai
 rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}"
 MOCK_CODEX_REVIEW_EXISTING=1 run_agent
 test "$(cat "${MOCK_CODEX_COUNT}")" = 1
-test "$(cat "${MOCK_GATE_COUNT}")" = 1
+test "$(cat "${MOCK_GATE_COUNT}")" = 2
 test "$(cat "${MOCK_PREVIEW_COUNT}")" = 1
 test "$(jq -r .total "${runtime}/batches/gate-blocked/repair-budget.json")" = 3
 test "$(jq '.events | length' "${runtime}/batches/gate-blocked/repair-budget.json")" = 3
@@ -1250,13 +1334,14 @@ test "$(jq '.recoveries | length' "${runtime}/batches/gate-blocked/repair-budget
 test "$(jq -r '.recoveries[0].previousConsecutive' "${runtime}/batches/gate-blocked/repair-budget.json")" = 2
 test "$(jq -r '.recoveries[0].candidateHead' "${runtime}/batches/gate-blocked/repair-budget.json")" = "${manual_repair_head}"
 unset MOCK_CODEX_REVIEW_EXISTING
+test_checkpoint gate-blocked
 
 make_ticket gate-fingerprint-advance 'Gate fingerprint advance'
 : >"${events}"
 rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
 MOCK_GATE_FAILS=2 MOCK_GATE_FAILURE_UNIQUE=1 run_agent
 test "$(cat "${MOCK_CODEX_COUNT}")" = 3
-test "$(cat "${MOCK_GATE_COUNT}")" = 3
+test "$(cat "${MOCK_GATE_COUNT}")" = 4
 test "$(cat "${MOCK_PREVIEW_COUNT}")" = 1
 test "$(jq -r .total "${runtime}/batches/gate-fingerprint-advance/repair-budget.json")" = 3
 test "$(jq -r .consecutive "${runtime}/batches/gate-fingerprint-advance/repair-budget.json")" = 1
@@ -1266,7 +1351,7 @@ make_ticket gate-numeric-fingerprint-advance 'Gate numeric fingerprint advance'
 rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
 MOCK_GATE_FAILS=2 MOCK_GATE_FAILURE_NUMERIC_UNIQUE=1 run_agent
 test "$(cat "${MOCK_CODEX_COUNT}")" = 3
-test "$(cat "${MOCK_GATE_COUNT}")" = 3
+test "$(cat "${MOCK_GATE_COUNT}")" = 4
 test "$(cat "${MOCK_PREVIEW_COUNT}")" = 1
 test "$(jq -r .total "${runtime}/batches/gate-numeric-fingerprint-advance/repair-budget.json")" = 3
 test "$(jq -r .consecutive "${runtime}/batches/gate-numeric-fingerprint-advance/repair-budget.json")" = 1
@@ -1277,7 +1362,7 @@ make_ticket repair-stage-advance 'Repair stage advance'
 rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
 MOCK_CODEX_FAILS=1 MOCK_GATE_FAILS=1 run_agent
 test "$(cat "${MOCK_CODEX_COUNT}")" = 3
-test "$(cat "${MOCK_GATE_COUNT}")" = 2
+test "$(cat "${MOCK_GATE_COUNT}")" = 3
 test "$(cat "${MOCK_PREVIEW_COUNT}")" = 1
 test "$(jq -r .total "${runtime}/batches/repair-stage-advance/repair-budget.json")" = 2
 test "$(jq -r .consecutive "${runtime}/batches/repair-stage-advance/repair-budget.json")" = 1
@@ -1340,12 +1425,13 @@ test "$(jq -r '.recoveries[-1].consumed' "${runtime}/batches/gate-budget-blocked
 : >"${events}"
 MOCK_CODEX_REVIEW_EXISTING=1 run_agent
 test "$(cat "${MOCK_CODEX_COUNT}")" = 10
-test "$(cat "${MOCK_GATE_COUNT}")" = 10
+test "$(cat "${MOCK_GATE_COUNT}")" = 11
 test "$(cat "${MOCK_PREVIEW_COUNT}")" = 1
 test "$(jq -r .total "${runtime}/batches/gate-budget-blocked/repair-budget.json")" = 10
 test "$(jq '.events | length' "${runtime}/batches/gate-budget-blocked/repair-budget.json")" = 10
 test "$(jq -r '.recoveries[-1].consumed' "${runtime}/batches/gate-budget-blocked/repair-budget.json")" = true
 unset MOCK_CODEX_REVIEW_EXISTING
+test_checkpoint gate-budget-blocked
 
 make_ticket legacy-model-validation 'Legacy model validation'
 : >"${events}"
@@ -1356,6 +1442,7 @@ test "$(cat "${MOCK_GATE_COUNT}")" = 1
 test "$(cat "${MOCK_PREVIEW_COUNT}")" = 1
 grep -Fq '**Status:** done' "${primary}/.scratch/legacy-model-validation/issues/01-ticket.md"
 unset MOCK_GATE_FAILS MOCK_VALIDATION
+test_checkpoint legacy-model-validation
 
 make_ticket preview-repair 'Preview repair'
 : >"${events}"

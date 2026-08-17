@@ -30,7 +30,9 @@ export interface RoleRowAction {
 const isRevisionConflict = (error: unknown) =>
   error instanceof ApiError &&
   error.kind === 'business' &&
-  error.message === 'role changed concurrently'
+  ['role revision conflict', 'role changed concurrently'].includes(
+    error.message,
+  )
 
 export function createRoleManagementViewModel() {
   const session = useSessionStore()

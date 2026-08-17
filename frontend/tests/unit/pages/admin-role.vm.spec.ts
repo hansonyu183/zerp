@@ -226,7 +226,7 @@ describe('role management view model', () => {
     vm.togglePermission(disabledPermission.id, false)
     vm.form.name = '保留输入'
     vi.mocked(saveAdminRole).mockRejectedValueOnce(
-      new ApiError('business', 'role changed concurrently', { code: 3001 }),
+      new ApiError('business', 'role revision conflict', { code: 3001 }),
     )
     await vm.save()
 
@@ -310,7 +310,7 @@ describe('role management view model', () => {
     expect(vm.pendingActionMessage.value).toContain('仍启用的权限')
 
     vi.mocked(setAdminRoleEnabled).mockRejectedValueOnce(
-      new ApiError('business', 'role changed concurrently', { code: 3001 }),
+      new ApiError('business', 'role revision conflict', { code: 3001 }),
     )
     await vm.confirmPendingAction()
     expect(vm.errorMessage.value).toContain('重新发起')

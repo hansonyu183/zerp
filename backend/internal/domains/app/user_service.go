@@ -257,8 +257,11 @@ func (s *Service) SaveUser(ctx context.Context, input SaveUserInput, principal P
 	if err != nil {
 		return UserDetail{}, err
 	}
-	if err = actor.require("/app/user/save"); err != nil {
-		return UserDetail{}, err
+	self := input.ID == actor.id
+	if !self {
+		if err = actor.require("/app/user/save"); err != nil {
+			return UserDetail{}, err
+		}
 	}
 	locked, err := qtx.GetAppUserByIDForUpdate(ctx, input.ID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -268,7 +271,7 @@ func (s *Service) SaveUser(ctx context.Context, input SaveUserInput, principal P
 		return UserDetail{}, s.internal("lock user for save", err)
 	}
 	user := userView(locked)
-	if input.ID == actor.id {
+	if self {
 		current, roleErr := qtx.GetAppUserRoleIDs(ctx, input.ID)
 		if roleErr != nil {
 			return UserDetail{}, s.internal("get current user roles", roleErr)
@@ -308,8 +311,22 @@ func (s *Service) SaveUser(ctx context.Context, input SaveUserInput, principal P
 	if err = s.audit(ctx, qtx, "USER_SAVE", &actor.id, "user", &input.ID, "SUCCESS", requestID, map[string]any{"roleCount": len(input.RoleIDs)}); err != nil {
 		return UserDetail{}, s.internal("audit save user", err)
 	}
+	var selfDetail UserDetail
+	if self {
+		updated, detailErr := qtx.GetAppUserByID(ctx, input.ID)
+		if detailErr != nil {
+			return UserDetail{}, s.internal("get saved current user", detailErr)
+		}
+		selfDetail, detailErr = s.userDetailAs(ctx, qtx, userView(updated), actor)
+		if detailErr != nil {
+			return UserDetail{}, detailErr
+		}
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return UserDetail{}, s.internal("commit save user", err)
+	}
+	if self {
+		return selfDetail, nil
 	}
 	return s.GetUserDetail(ctx, input.ID, principal)
 }

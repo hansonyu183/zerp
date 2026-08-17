@@ -168,7 +168,7 @@ func (s *Service) CreateRole(ctx context.Context, input CreateRoleInput, princip
 func (s *Service) SaveRole(ctx context.Context, input SaveRoleInput, principal Principal, requestID string) (RoleDetail, error) {
 	input.Name = strings.TrimSpace(input.Name)
 	input.PermissionIDs = uniqueStrings(input.PermissionIDs)
-	if !validID(input.ID) || input.Revision < 1 || !runeLengthBetween(input.Name, 1, 128) || !validPermissionIDs(input.PermissionIDs) {
+	if !validID(input.ID) || input.Revision < 1 || !runeLengthBetween(input.Name, 1, 128) {
 		return RoleDetail{}, domainError(ErrorValidation, "invalid role fields", nil)
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -203,6 +203,9 @@ func (s *Service) SaveRole(ctx context.Context, input SaveRoleInput, principal P
 	}
 	if !manageable {
 		return RoleDetail{}, domainError(ErrorForbidden, "role cannot be maintained", nil)
+	}
+	if !validPermissionIDs(input.PermissionIDs) {
+		return RoleDetail{}, domainError(ErrorValidation, "invalid role fields", nil)
 	}
 	if err = ensureRoleNameUnique(ctx, qtx, input.Name, input.ID); err != nil {
 		return RoleDetail{}, err

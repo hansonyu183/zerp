@@ -64,6 +64,11 @@ func (stub *handlerServiceStub) ResetUserPassword(_ context.Context, input Reset
 	return stub.resetPasswordResult, nil
 }
 
+func (stub *handlerServiceStub) ResetUserPasswordAs(_ context.Context, input ResetPasswordInput, _ Principal, _ string) (ResetPasswordResult, error) {
+	stub.resetPassword = input
+	return stub.resetPasswordResult, nil
+}
+
 func (stub *handlerServiceStub) QueryWorkbench(
 	_ context.Context,
 	_ Principal,

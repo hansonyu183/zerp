@@ -29,6 +29,43 @@ func (q *Queries) AcquireAppMenuLock(ctx context.Context) error {
 	return err
 }
 
+const actorHasEnabledSuperadminRole = `-- name: ActorHasEnabledSuperadminRole :one
+SELECT EXISTS (
+  SELECT 1
+  FROM app_user_roles ur
+  JOIN app_roles r ON r.id = ur.role_id
+  WHERE ur.user_id = $1
+    AND r.status = 'ENABLED'
+    AND r.code = 'superadmin'
+)
+`
+
+func (q *Queries) ActorHasEnabledSuperadminRole(ctx context.Context, userID string) (bool, error) {
+	row := q.db.QueryRow(ctx, actorHasEnabledSuperadminRole, userID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const actorHoldsAppRole = `-- name: ActorHoldsAppRole :one
+SELECT EXISTS (
+  SELECT 1 FROM app_user_roles
+  WHERE user_id = $1 AND role_id = $2
+)
+`
+
+type ActorHoldsAppRoleParams struct {
+	UserID string `db:"user_id" json:"user_id"`
+	RoleID string `db:"role_id" json:"role_id"`
+}
+
+func (q *Queries) ActorHoldsAppRole(ctx context.Context, arg ActorHoldsAppRoleParams) (bool, error) {
+	row := q.db.QueryRow(ctx, actorHoldsAppRole, arg.UserID, arg.RoleID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const countAppPermissions = `-- name: CountAppPermissions :one
 SELECT count(*) FROM app_permissions
 WHERE ($1::text IS NULL OR domain = $1)
@@ -361,6 +398,26 @@ func (q *Queries) DeleteAppUserRoles(ctx context.Context, userID string) error {
 	return err
 }
 
+const findAppRoleIDByNormalizedNameExcludingID = `-- name: FindAppRoleIDByNormalizedNameExcludingID :one
+SELECT id
+FROM app_roles
+WHERE lower(btrim(name)) = lower(btrim($1))
+  AND id <> $2
+LIMIT 1
+`
+
+type FindAppRoleIDByNormalizedNameExcludingIDParams struct {
+	Name       string `db:"name" json:"name"`
+	ExcludedID string `db:"excluded_id" json:"excluded_id"`
+}
+
+func (q *Queries) FindAppRoleIDByNormalizedNameExcludingID(ctx context.Context, arg FindAppRoleIDByNormalizedNameExcludingIDParams) (string, error) {
+	row := q.db.QueryRow(ctx, findAppRoleIDByNormalizedNameExcludingID, arg.Name, arg.ExcludedID)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
 const findEnabledAppUserIDExcludingID = `-- name: FindEnabledAppUserIDExcludingID :one
 SELECT id
 FROM app_users
@@ -435,6 +492,76 @@ func (q *Queries) GetAppRoleByID(ctx context.Context, id string) (AppRole, error
 	return i, err
 }
 
+const getAppRoleByIDForUpdate = `-- name: GetAppRoleByIDForUpdate :one
+SELECT id, code, name, description, status, created_at, created_by, updated_at, updated_by, revision FROM app_roles WHERE id = $1 LIMIT 1 FOR UPDATE
+`
+
+func (q *Queries) GetAppRoleByIDForUpdate(ctx context.Context, id string) (AppRole, error) {
+	row := q.db.QueryRow(ctx, getAppRoleByIDForUpdate, id)
+	var i AppRole
+	err := row.Scan(
+		&i.ID,
+		&i.Code,
+		&i.Name,
+		&i.Description,
+		&i.Status,
+		&i.CreatedAt,
+		&i.CreatedBy,
+		&i.UpdatedAt,
+		&i.UpdatedBy,
+		&i.Revision,
+	)
+	return i, err
+}
+
+const getAppRolePermissionDetails = `-- name: GetAppRolePermissionDetails :many
+SELECT p.id, p.path, p.domain, p.entity, p.action, p.description, p.status, p.revision
+FROM app_role_permissions rp
+JOIN app_permissions p ON p.id = rp.permission_id
+WHERE rp.role_id = $1
+ORDER BY p.path, p.id
+`
+
+type GetAppRolePermissionDetailsRow struct {
+	ID          string  `db:"id" json:"id"`
+	Path        string  `db:"path" json:"path"`
+	Domain      string  `db:"domain" json:"domain"`
+	Entity      string  `db:"entity" json:"entity"`
+	Action      string  `db:"action" json:"action"`
+	Description *string `db:"description" json:"description"`
+	Status      string  `db:"status" json:"status"`
+	Revision    int64   `db:"revision" json:"revision"`
+}
+
+func (q *Queries) GetAppRolePermissionDetails(ctx context.Context, roleID string) ([]GetAppRolePermissionDetailsRow, error) {
+	rows, err := q.db.Query(ctx, getAppRolePermissionDetails, roleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetAppRolePermissionDetailsRow{}
+	for rows.Next() {
+		var i GetAppRolePermissionDetailsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Path,
+			&i.Domain,
+			&i.Entity,
+			&i.Action,
+			&i.Description,
+			&i.Status,
+			&i.Revision,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAppRolePermissionIDs = `-- name: GetAppRolePermissionIDs :many
 SELECT rp.permission_id
 FROM app_role_permissions rp
@@ -461,6 +588,36 @@ func (q *Queries) GetAppRolePermissionIDs(ctx context.Context, roleID string) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const getAppSessionAuthorizationState = `-- name: GetAppSessionAuthorizationState :one
+SELECT id, user_id, csrf_token_hash, idle_expires_at, absolute_expires_at, revoked_at
+FROM app_sessions
+WHERE id = $1
+LIMIT 1
+`
+
+type GetAppSessionAuthorizationStateRow struct {
+	ID                string             `db:"id" json:"id"`
+	UserID            string             `db:"user_id" json:"user_id"`
+	CsrfTokenHash     []byte             `db:"csrf_token_hash" json:"csrf_token_hash"`
+	IdleExpiresAt     pgtype.Timestamptz `db:"idle_expires_at" json:"idle_expires_at"`
+	AbsoluteExpiresAt pgtype.Timestamptz `db:"absolute_expires_at" json:"absolute_expires_at"`
+	RevokedAt         pgtype.Timestamptz `db:"revoked_at" json:"revoked_at"`
+}
+
+func (q *Queries) GetAppSessionAuthorizationState(ctx context.Context, id string) (GetAppSessionAuthorizationStateRow, error) {
+	row := q.db.QueryRow(ctx, getAppSessionAuthorizationState, id)
+	var i GetAppSessionAuthorizationStateRow
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CsrfTokenHash,
+		&i.IdleExpiresAt,
+		&i.AbsoluteExpiresAt,
+		&i.RevokedAt,
+	)
+	return i, err
 }
 
 const getAppSessionByTokenHash = `-- name: GetAppSessionByTokenHash :one
@@ -866,6 +1023,53 @@ func (q *Queries) InsertAppUserRole(ctx context.Context, arg InsertAppUserRolePa
 	return err
 }
 
+const listAllEnabledAppPermissionDetails = `-- name: ListAllEnabledAppPermissionDetails :many
+SELECT id, path, domain, entity, action, description, status, revision
+FROM app_permissions
+WHERE status = 'ENABLED'
+ORDER BY path, id
+`
+
+type ListAllEnabledAppPermissionDetailsRow struct {
+	ID          string  `db:"id" json:"id"`
+	Path        string  `db:"path" json:"path"`
+	Domain      string  `db:"domain" json:"domain"`
+	Entity      string  `db:"entity" json:"entity"`
+	Action      string  `db:"action" json:"action"`
+	Description *string `db:"description" json:"description"`
+	Status      string  `db:"status" json:"status"`
+	Revision    int64   `db:"revision" json:"revision"`
+}
+
+func (q *Queries) ListAllEnabledAppPermissionDetails(ctx context.Context) ([]ListAllEnabledAppPermissionDetailsRow, error) {
+	rows, err := q.db.Query(ctx, listAllEnabledAppPermissionDetails)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAllEnabledAppPermissionDetailsRow{}
+	for rows.Next() {
+		var i ListAllEnabledAppPermissionDetailsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Path,
+			&i.Domain,
+			&i.Entity,
+			&i.Action,
+			&i.Description,
+			&i.Status,
+			&i.Revision,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAllEnabledAppPermissionIDs = `-- name: ListAllEnabledAppPermissionIDs :many
 SELECT id FROM app_permissions WHERE status = 'ENABLED' ORDER BY path
 `
@@ -1075,11 +1279,7 @@ WHERE ($1::text IS NULL OR status = $1)
   AND ($2::text IS NULL OR code ILIKE '%' || $2 || '%' OR name ILIKE '%' || $2 || '%')
 ORDER BY
   CASE WHEN $3::text = 'code' AND $4::text = 'asc' THEN code END ASC,
-  CASE WHEN $3::text = 'code' AND $4::text = 'desc' THEN code END DESC,
-  CASE WHEN $3::text = 'name' AND $4::text = 'asc' THEN name END ASC,
-  CASE WHEN $3::text = 'name' AND $4::text = 'desc' THEN name END DESC,
-  CASE WHEN $3::text = 'createdAt' AND $4::text = 'asc' THEN created_at END ASC,
-  created_at DESC, id ASC
+  id ASC
 LIMIT $6 OFFSET $5
 `
 
@@ -1320,6 +1520,92 @@ func (q *Queries) ListAppUsers(ctx context.Context, arg ListAppUsersParams) ([]L
 		return nil, err
 	}
 	return items, nil
+}
+
+const listEnabledAppPermissionIDsForUser = `-- name: ListEnabledAppPermissionIDsForUser :many
+SELECT DISTINCT p.id
+FROM app_permissions p
+WHERE p.status = 'ENABLED'
+  AND (
+    EXISTS (
+      SELECT 1
+      FROM app_user_roles ur
+      JOIN app_roles r ON r.id = ur.role_id
+      WHERE ur.user_id = $1
+        AND r.status = 'ENABLED'
+        AND r.code = 'superadmin'
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM app_user_roles ur
+      JOIN app_roles r ON r.id = ur.role_id AND r.status = 'ENABLED'
+      JOIN app_role_permissions rp ON rp.role_id = r.id
+      WHERE ur.user_id = $1 AND rp.permission_id = p.id
+    )
+  )
+ORDER BY p.id
+`
+
+func (q *Queries) ListEnabledAppPermissionIDsForUser(ctx context.Context, userID string) ([]string, error) {
+	rows, err := q.db.Query(ctx, listEnabledAppPermissionIDsForUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEnabledAppRolePermissionIDs = `-- name: ListEnabledAppRolePermissionIDs :many
+SELECT rp.permission_id
+FROM app_role_permissions rp
+JOIN app_permissions p ON p.id = rp.permission_id AND p.status = 'ENABLED'
+WHERE rp.role_id = $1
+ORDER BY p.id
+`
+
+func (q *Queries) ListEnabledAppRolePermissionIDs(ctx context.Context, roleID string) ([]string, error) {
+	rows, err := q.db.Query(ctx, listEnabledAppRolePermissionIDs, roleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var permission_id string
+		if err := rows.Scan(&permission_id); err != nil {
+			return nil, err
+		}
+		items = append(items, permission_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const nextAppRoleCode = `-- name: NextAppRoleCode :one
+UPDATE app_role_code_counters
+SET next_value = next_value + 1
+WHERE counter_key = 'default' AND next_value < 9999
+RETURNING ('ROL-' || lpad(next_value::text, 4, '0'))::text
+`
+
+func (q *Queries) NextAppRoleCode(ctx context.Context) (string, error) {
+	row := q.db.QueryRow(ctx, nextAppRoleCode)
+	var column_1 string
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const recordSigninFailure = `-- name: RecordSigninFailure :one

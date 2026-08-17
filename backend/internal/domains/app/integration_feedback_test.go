@@ -17,8 +17,7 @@ import (
 
 func TestFeedbackSubmissionAndPublishingIntegration(t *testing.T) {
 	service, pool, admin := appIntegrationService(t)
-	role, err := service.CreateRole(t.Context(), CreateRoleInput{
-		Code: "feedback-user", Name: "反馈用户",
+	role, err := service.CreateRole(t.Context(), CreateRoleInput{Name: "反馈用户",
 		PermissionIDs: permissionIDsByPath(t, pool, "/app/user/query"),
 	}, admin.ID, "feedback-role")
 	if err != nil {

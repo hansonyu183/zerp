@@ -64,9 +64,7 @@ func TestAuthenticationAndSessionIntegration(t *testing.T) {
 
 func TestPasswordChangeRequiredSessionIntegration(t *testing.T) {
 	service, pool, admin := appIntegrationService(t)
-	role, err := service.CreateRole(t.Context(), CreateRoleInput{
-		Code: "restricted-reader", Name: "受限读取", PermissionIDs: permissionIDsByPath(t, pool, "/bob/customer/query"),
-	}, admin.ID, "create-restricted-reader")
+	role, err := service.CreateRole(t.Context(), CreateRoleInput{Name: "受限读取", PermissionIDs: permissionIDsByPath(t, pool, "/bob/customer/query")}, admin.ID, "create-restricted-reader")
 	if err != nil {
 		t.Fatalf("create role: %v", err)
 	}
@@ -161,15 +159,13 @@ func TestSuperadminWildcardIntegration(t *testing.T) {
 		t.Fatalf("authorize dynamic permission: %v", err)
 	}
 
-	ordinaryRole, err := service.CreateRole(t.Context(), CreateRoleInput{
-		Code: "ordinary", Name: "普通角色",
+	ordinaryRole, err := service.CreateRole(t.Context(), CreateRoleInput{Name: "普通角色",
 		PermissionIDs: permissionIDsByPath(t, pool, "/bob/customer/query"),
 	}, admin.ID, "create-ordinary-role")
 	if err != nil {
 		t.Fatalf("create ordinary role: %v", err)
 	}
-	if _, err = service.CreateRole(t.Context(), CreateRoleInput{
-		Code: superadminRoleCode, Name: "重复超级管理员",
+	if _, err = service.CreateRole(t.Context(), CreateRoleInput{Name: "重复超级管理员",
 		PermissionIDs: permissionIDsByPath(t, pool, "/bob/customer/query"),
 	}, admin.ID, "create-reserved-role"); !errorIsKind(err, ErrorValidation) {
 		t.Fatalf("reserved superadmin code error = %v", err)
@@ -284,15 +280,11 @@ func TestAuthorizationChangesAreImmediateIntegration(t *testing.T) {
 	service, pool, admin := appIntegrationService(t)
 	pathsA := []string{"/bob/customer/query"}
 	pathsB := []string{"/bob/supplier/query"}
-	roleA, err := service.CreateRole(t.Context(), CreateRoleInput{
-		Code: "customer-reader", Name: "客户查看", PermissionIDs: permissionIDsByPath(t, pool, pathsA...),
-	}, admin.ID, "role-a")
+	roleA, err := service.CreateRole(t.Context(), CreateRoleInput{Name: "客户查看", PermissionIDs: permissionIDsByPath(t, pool, pathsA...)}, admin.ID, "role-a")
 	if err != nil {
 		t.Fatalf("create role A: %v", err)
 	}
-	roleB, err := service.CreateRole(t.Context(), CreateRoleInput{
-		Code: "supplier-reader", Name: "供应商查看", PermissionIDs: permissionIDsByPath(t, pool, pathsB...),
-	}, admin.ID, "role-b")
+	roleB, err := service.CreateRole(t.Context(), CreateRoleInput{Name: "供应商查看", PermissionIDs: permissionIDsByPath(t, pool, pathsB...)}, admin.ID, "role-b")
 	if err != nil {
 		t.Fatalf("create role B: %v", err)
 	}

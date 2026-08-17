@@ -27,8 +27,7 @@ func TestManagementContractsIntegration(t *testing.T) {
 		"/wfl/process-instance/query", "/wfl/process-instance/get",
 	)
 	slices.Sort(catalogPermissionIDs)
-	catalogRole, catalogErr := service.CreateRole(t.Context(), CreateRoleInput{
-		Code: "vou-wfl-reader", Name: "VOU WFL 查看",
+	catalogRole, catalogErr := service.CreateRole(t.Context(), CreateRoleInput{Name: "VOU WFL 查看",
 		PermissionIDs: catalogPermissionIDs,
 	}, admin.ID, "create-role-with-seeded-permissions")
 	if catalogErr != nil {
@@ -38,21 +37,18 @@ func TestManagementContractsIntegration(t *testing.T) {
 	if !slices.Equal(catalogRole.PermissionIDs, catalogPermissionIDs) {
 		t.Fatalf("catalog role permissions = %v, want %v", catalogRole.PermissionIDs, catalogPermissionIDs)
 	}
-	if _, err := service.CreateRole(t.Context(), CreateRoleInput{
-		Code: "independent-get", Name: "独立查看权限",
+	if _, err := service.CreateRole(t.Context(), CreateRoleInput{Name: "独立查看权限",
 		PermissionIDs: permissionIDsByPath(t, pool, "/app/user/get"),
 	}, admin.ID, "allow-role-without-query"); err != nil {
 		t.Fatalf("independent get permission error = %v", err)
 	}
-	if _, err := service.CreateRole(t.Context(), CreateRoleInput{
-		Code: "independent-close", Name: "独立结账权限",
+	if _, err := service.CreateRole(t.Context(), CreateRoleInput{Name: "独立结账权限",
 		PermissionIDs: permissionIDsByPath(t, pool, "/acc/period/lock"),
 	}, admin.ID, "allow-led-role-without-get"); err != nil {
 		t.Fatalf("independent close permission error = %v", err)
 	}
 	role := RoleView{}
-	role, err := service.CreateRole(t.Context(), CreateRoleInput{
-		Code: "user-reader", Name: "用户查看",
+	role, err := service.CreateRole(t.Context(), CreateRoleInput{Name: "用户查看",
 		PermissionIDs: permissionIDsByPath(
 			t, pool, "/app/user/query", "/app/user/get",
 			"/acc/book/get", "/acc/period/lock",
@@ -217,9 +213,7 @@ func TestQueryAndPermissionCatalogIntegration(t *testing.T) {
 func TestUserManagementSecurityIntegration(t *testing.T) {
 	service, pool, admin := appIntegrationService(t)
 	restoreAPPSystemIdentity(t, pool)
-	role, err := service.CreateRole(t.Context(), CreateRoleInput{
-		Code: "managed-reader", Name: "受管用户角色", PermissionIDs: permissionIDsByPath(t, pool, "/app/user/query"),
-	}, admin.ID, "create-managed-reader")
+	role, err := service.CreateRole(t.Context(), CreateRoleInput{Name: "受管用户角色", PermissionIDs: permissionIDsByPath(t, pool, "/app/user/query")}, admin.ID, "create-managed-reader")
 	if err != nil {
 		t.Fatalf("create managed role: %v", err)
 	}

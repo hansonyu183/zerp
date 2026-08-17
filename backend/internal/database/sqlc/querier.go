@@ -25,6 +25,8 @@ type Querier interface {
 	AcquireAppAuthorizationLock(ctx context.Context) error
 	AcquireAppMenuLock(ctx context.Context) error
 	AcquireWorkflowCreateChildLock(ctx context.Context, hashtextextended string) error
+	ActorHasEnabledSuperadminRole(ctx context.Context, userID string) (bool, error)
+	ActorHoldsAppRole(ctx context.Context, arg ActorHoldsAppRoleParams) (bool, error)
 	AddAccountingAssetDepreciation(ctx context.Context, arg AddAccountingAssetDepreciationParams) error
 	AdvanceBobObjectForUnapprove(ctx context.Context, arg AdvanceBobObjectForUnapproveParams) (int64, error)
 	ApproveAccountingMapping(ctx context.Context, arg ApproveAccountingMappingParams) (int64, error)
@@ -189,6 +191,7 @@ type Querier interface {
 	DisposeAccountingAsset(ctx context.Context, arg DisposeAccountingAssetParams) (int64, error)
 	FindAccountingBillIDBySourceDocument(ctx context.Context, sourceDocumentID string) (string, error)
 	FindAccountingBookIDByDescription(ctx context.Context, description string) (string, error)
+	FindAppRoleIDByNormalizedNameExcludingID(ctx context.Context, arg FindAppRoleIDByNormalizedNameExcludingIDParams) (string, error)
 	FindBobObjectIDByCode(ctx context.Context, arg FindBobObjectIDByCodeParams) (string, error)
 	FindBobSeedObjectID(ctx context.Context, arg FindBobSeedObjectIDParams) (string, error)
 	FindEnabledAppUserIDExcludingID(ctx context.Context, excludedUserID string) (string, error)
@@ -217,7 +220,10 @@ type Querier interface {
 	GetAppFeedbackByOwner(ctx context.Context, arg GetAppFeedbackByOwnerParams) (AppFeedback, error)
 	GetAppPermissionByID(ctx context.Context, id string) (AppPermission, error)
 	GetAppRoleByID(ctx context.Context, id string) (AppRole, error)
+	GetAppRoleByIDForUpdate(ctx context.Context, id string) (AppRole, error)
+	GetAppRolePermissionDetails(ctx context.Context, roleID string) ([]GetAppRolePermissionDetailsRow, error)
 	GetAppRolePermissionIDs(ctx context.Context, roleID string) ([]string, error)
+	GetAppSessionAuthorizationState(ctx context.Context, id string) (GetAppSessionAuthorizationStateRow, error)
 	GetAppSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetAppSessionByTokenHashRow, error)
 	GetAppSystemParameter(ctx context.Context, parameterKey string) (AppSystemParameter, error)
 	GetAppSystemParameterForUpdate(ctx context.Context, parameterKey string) (AppSystemParameter, error)
@@ -374,6 +380,7 @@ type Querier interface {
 	ListAccountingSubjectDimensions(ctx context.Context, subjectID string) ([]string, error)
 	ListAccountingSubjects(ctx context.Context, arg ListAccountingSubjectsParams) ([]ListAccountingSubjectsRow, error)
 	ListAffectedAccountingFunds(ctx context.Context, arg ListAffectedAccountingFundsParams) ([]ListAffectedAccountingFundsRow, error)
+	ListAllEnabledAppPermissionDetails(ctx context.Context) ([]ListAllEnabledAppPermissionDetailsRow, error)
 	ListAllEnabledAppPermissionIDs(ctx context.Context) ([]string, error)
 	ListAllVouStorageKeys(ctx context.Context) ([]string, error)
 	ListAppBusinessMenuItems(ctx context.Context) ([]AppBusinessMenuItem, error)
@@ -392,6 +399,8 @@ type Querier interface {
 	ListBobVersions(ctx context.Context, arg ListBobVersionsParams) ([]BobVersionView, error)
 	ListCompletedWorkflowActionTargets(ctx context.Context, processID string) ([]ListCompletedWorkflowActionTargetsRow, error)
 	ListDefinitionInstances(ctx context.Context, arg ListDefinitionInstancesParams) ([]ListDefinitionInstancesRow, error)
+	ListEnabledAppPermissionIDsForUser(ctx context.Context, userID string) ([]string, error)
+	ListEnabledAppRolePermissionIDs(ctx context.Context, roleID string) ([]string, error)
 	ListEnabledWorkflowDefinitionsForShare(ctx context.Context) ([]ListEnabledWorkflowDefinitionsForShareRow, error)
 	ListExpiredPendingVouFiles(ctx context.Context, batchSize int32) ([]ListExpiredPendingVouFilesRow, error)
 	ListGeneratedWorkflowChildrenForUpdate(ctx context.Context, parentDocumentID *string) ([]ListGeneratedWorkflowChildrenForUpdateRow, error)
@@ -471,6 +480,7 @@ type Querier interface {
 	MarkWorkflowRootDocumentDeleted(ctx context.Context, arg MarkWorkflowRootDocumentDeletedParams) error
 	NextAccountingBookNumber(ctx context.Context) (int32, error)
 	NextAccountingMappingVersion(ctx context.Context, arg NextAccountingMappingVersionParams) (int32, error)
+	NextAppRoleCode(ctx context.Context) (string, error)
 	NextObjectNumberCounter(ctx context.Context, arg NextObjectNumberCounterParams) (int32, error)
 	NextVouNumberCounter(ctx context.Context, arg NextVouNumberCounterParams) (int32, error)
 	NextWorkflowPublishedRevision(ctx context.Context, definitionID string) (int64, error)

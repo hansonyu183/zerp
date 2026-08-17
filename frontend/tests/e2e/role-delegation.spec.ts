@@ -27,6 +27,8 @@ type Role = {
   revision: number
 }
 
+type User = { id: string; revision: number }
+
 type Permission = { id: string; path: string; status: string }
 
 const successCodes = [0, '0'] as const
@@ -180,8 +182,10 @@ test(
     const childInitialPassword = generatedPassword()
     const childPassword = generatedPassword()
     const forgedUserPassword = generatedPassword()
+    const superiorUserPassword = generatedPassword()
     const limitedUsername = `e2e-role-admin-${crypto.randomUUID().slice(0, 12)}`
     const childUsername = `e2e-role-child-${crypto.randomUUID().slice(0, 12)}`
+    const superiorUsername = `e2e-role-superior-${crypto.randomUUID().slice(0, 12)}`
 
     try {
       const permissions = await queryPermissions(
@@ -227,7 +231,7 @@ test(
       expectRejected(duplicate)
 
       const limitedUser = expectSuccess(
-        await post<{ id: string }>(
+        await post<User>(
           superSession.api,
           'app/user/create',
           {
@@ -246,6 +250,19 @@ test(
         superSession.csrfToken,
         uniqueName('E2E 上级角色'),
         permissionIDs(['/app/user/disable'], permissions),
+      )
+      const superiorUser = expectSuccess(
+        await post<User>(
+          superSession.api,
+          'app/user/create',
+          {
+            username: superiorUsername,
+            displayName: 'E2E 上级用户',
+            password: superiorUserPassword,
+            roleIds: [superiorRole.id],
+          },
+          superSession.csrfToken,
+        ),
       )
 
       const staleRole = await createRole(
@@ -316,6 +333,33 @@ test(
           permissionIDs(['/app/user/query'], permissions),
         )
         expect(narrowRole.code).toMatch(/^ROL-\d{4}$/)
+
+        expectRejected(
+          await post<User>(
+            limitedSession.api,
+            'app/user/save',
+            {
+              id: limitedUser.id,
+              displayName: 'E2E 有限管理员越权自改',
+              roleIds: [narrowRole.id],
+              revision: limitedUser.revision,
+            },
+            limitedSession.csrfToken,
+          ),
+        )
+        expectRejected(
+          await post<User>(
+            limitedSession.api,
+            'app/user/save',
+            {
+              id: superiorUser.id,
+              displayName: 'E2E 有限管理员越权改上级',
+              roleIds: [superiorRole.id],
+              revision: superiorUser.revision,
+            },
+            limitedSession.csrfToken,
+          ),
+        )
 
         expectRejected(
           await post<Role>(

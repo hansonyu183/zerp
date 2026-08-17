@@ -64,6 +64,29 @@ func TestBoundedRoleDelegationIntegration(t *testing.T) {
 	if narrowRole.Code != "ROL-0002" {
 		t.Fatalf("narrow role code = %q, want ROL-0002", narrowRole.Code)
 	}
+	superiorRole, err := service.Service.CreateRole(t.Context(), CreateRoleInput{
+		Name: "上级用户角色", PermissionIDs: permissionIDsByPath(t, pool, "/app/user/disable"),
+	}, adminPrincipal, "create-superior-user-role")
+	if err != nil {
+		t.Fatalf("create superior user role: %v", err)
+	}
+	superiorUser, err := service.Service.CreateUser(t.Context(), CreateUserInput{
+		Username: "superior-user", DisplayName: "上级用户", Password: integrationUserPassword,
+		RoleIDs: []string{superiorRole.ID},
+	}, adminPrincipal, "create-superior-user")
+	if err != nil {
+		t.Fatalf("create superior user: %v", err)
+	}
+	if _, err = service.Service.SaveUser(t.Context(), SaveUserInput{
+		ID: limitedUser.ID, DisplayName: "有限管理员更新", RoleIDs: []string{narrowRole.ID}, Revision: limitedUser.Revision,
+	}, limitedPrincipal, "save-own-roles"); !errorIsKind(err, ErrorForbidden) {
+		t.Fatalf("save own roles error = %v, want forbidden", err)
+	}
+	if _, err = service.Service.SaveUser(t.Context(), SaveUserInput{
+		ID: superiorUser.ID, DisplayName: "上级用户更新", RoleIDs: []string{superiorRole.ID}, Revision: superiorUser.Revision,
+	}, limitedPrincipal, "save-superior-user"); !errorIsKind(err, ErrorForbidden) {
+		t.Fatalf("save superior user error = %v, want forbidden", err)
+	}
 
 	outsidePermissionIDs := permissionIDsByPath(t, pool, "/app/system-parameter/query")
 	if _, err = service.Service.CreateRole(t.Context(), CreateRoleInput{

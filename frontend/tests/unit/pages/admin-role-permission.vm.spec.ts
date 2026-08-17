@@ -49,8 +49,6 @@ describe('permission management view model', () => {
 
   it('权限目录只支持筛选和详情读取', async () => {
     const vm = createPermissionManagementViewModel()
-    vm.domain.value = 'app'
-    vm.entity.value = 'user'
     vm.status.value = 'ENABLED'
     await vm.query()
     await vm.openDetail(permission)
@@ -58,7 +56,7 @@ describe('permission management view model', () => {
     expect(queryAdminPermissions).toHaveBeenCalledWith({
       page: 1,
       pageSize: 20,
-      filters: { domain: 'app', entity: 'user', status: 'ENABLED' },
+      filters: { status: 'ENABLED' },
       sort: [{ field: 'path', order: 'asc' }],
     })
     expect(getAdminPermission).toHaveBeenCalledWith('PERMISSION-1')
@@ -114,9 +112,9 @@ describe('permission management view model', () => {
       .mockImplementationOnce(() => second.promise)
     const vm = createPermissionManagementViewModel()
 
-    vm.domain.value = '旧领域'
+    vm.status.value = 'ENABLED'
     const olderQuery = vm.query()
-    vm.domain.value = '新领域'
+    vm.status.value = 'DISABLED'
     const newerQuery = vm.query()
     second.resolve({
       data: {

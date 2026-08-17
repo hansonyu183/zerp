@@ -15,8 +15,6 @@ export function createPermissionManagementViewModel() {
   const total = ref(0)
   const page = ref(1)
   const pageSize = ref<20 | 200>(20)
-  const domain = ref('')
-  const entity = ref('')
   const status = ref<AdminStatus | null>(null)
   const loading = ref(false)
   const errorMessage = ref<string | null>(null)
@@ -31,8 +29,6 @@ export function createPermissionManagementViewModel() {
     errorMessage.value = null
     try {
       const filters: Record<string, string> = {}
-      if (domain.value.trim()) filters.domain = domain.value.trim()
-      if (entity.value.trim()) filters.entity = entity.value.trim()
       if (status.value) filters.status = status.value
       const result = await queryAdminPermissions({
         page: page.value,
@@ -57,8 +53,6 @@ export function createPermissionManagementViewModel() {
   }
 
   async function resetFilters(): Promise<void> {
-    domain.value = ''
-    entity.value = ''
     status.value = null
     await search()
   }
@@ -92,8 +86,6 @@ export function createPermissionManagementViewModel() {
     total,
     page,
     pageSize,
-    domain,
-    entity,
     status,
     loading,
     errorMessage,

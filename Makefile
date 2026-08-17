@@ -11,7 +11,7 @@ PRODUCTION_REF ?=
 COMPOSE = docker compose --env-file backend/$(BACKEND_ENV)
 DEV_COMPOSE = $(COMPOSE) -f compose.yaml -f compose.dev.yaml
 
-.PHONY: bootstrap dev dev-down generate generate-check check check-common check-contracts check-frontend check-e2e-constraints check-backend check-backend-fast check-containers check-release check-runtime check-shell release-check test e2e build compose-up compose-down pre-push pre-push-plan preview-up preview-deploy preview-down preview-reset preview-rollback preview-status preview-password preview-touch preview-close preview-accept preview-promote preview-reap preview-gc preview-uninstall-agent issue-local-install production-status production-retry production-rollback
+.PHONY: bootstrap dev dev-down generate generate-check check check-common check-contracts check-frontend check-frontend-fast check-e2e-constraints check-backend check-backend-fast check-containers check-release check-runtime check-shell release-check test e2e build compose-up compose-down pre-push pre-push-plan preview-up preview-deploy preview-down preview-reset preview-rollback preview-status preview-password preview-touch preview-close preview-accept preview-promote preview-reap preview-gc preview-uninstall-agent issue-local-install production-status production-retry production-rollback
 
 bootstrap:
 	command -v corepack >/dev/null 2>&1 || npm install --global corepack@$(COREPACK_VERSION)
@@ -51,6 +51,12 @@ check-contracts:
 
 check-frontend: check-e2e-constraints
 	pnpm --filter @zerp/frontend check:core
+
+check-frontend-fast: check-e2e-constraints
+	pnpm --filter @zerp/frontend lint
+	pnpm --filter @zerp/frontend format:check
+	pnpm typecheck:native
+	pnpm --filter @zerp/frontend exec vue-tsc -b
 
 check-e2e-constraints:
 	pnpm --dir frontend exec node --test scripts/check-e2e-constraints.test.mjs

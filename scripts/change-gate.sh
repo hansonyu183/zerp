@@ -5,10 +5,15 @@ repo_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 cd "${repo_root}"
 
 plan_only=0
-case "${1:-}" in
-  --plan) plan_only=1; shift ;;
-esac
-[ "$#" -eq 1 ] || { echo "usage: scripts/change-gate.sh [--plan] <base-ref>" >&2; exit 2; }
+fast_only=0
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --plan) plan_only=1; shift ;;
+    --fast) fast_only=1; shift ;;
+    *) break ;;
+  esac
+done
+[ "$#" -eq 1 ] || { echo "usage: scripts/change-gate.sh [--plan] [--fast] <base-ref>" >&2; exit 2; }
 base_ref=$1
 
 case "${PRE_PUSH_FULL:-0}" in
@@ -58,6 +63,7 @@ fi
 
 print_plan() {
   echo "Change gate plan relative to ${base_ref}:"
+  [ "${fast_only}" != 1 ] || echo '  mode: fast deterministic checks only'
   printf '  impact: %s\n' "${impact}"
   if [ "${impact}" = application ]; then
     printf '  contracts: %s\n' "${contracts}"
@@ -152,10 +158,15 @@ case "${impact}" in
   application)
     run_stage 'common checks' make check-common
     [ "${contracts}" != 1 ] || run_stage 'generated contracts' make check-contracts
-    [ "${frontend}" != 1 ] || run_stage 'frontend quality' make check-frontend
-    [ "${backend}" != 1 ] || run_stage 'backend quality' check_backend
-    [ "${containers}" != 1 ] || run_stage 'container and release configuration' make check-runtime
-    [ "${local_e2e}" != 1 ] || run_stage 'isolated full-stack E2E' make e2e
+    if [ "${fast_only}" = 1 ]; then
+      [ "${frontend}" != 1 ] || run_stage 'frontend fast quality' make check-frontend-fast
+      [ "${backend}" != 1 ] || run_stage 'backend fast quality' make check-backend-fast
+    else
+      [ "${frontend}" != 1 ] || run_stage 'frontend quality' make check-frontend
+      [ "${backend}" != 1 ] || run_stage 'backend quality' check_backend
+      [ "${containers}" != 1 ] || run_stage 'container and release configuration' make check-runtime
+      [ "${local_e2e}" != 1 ] || run_stage 'isolated full-stack E2E' make e2e
+    fi
     ;;
   *) echo "Unsupported change impact: ${impact}" >&2; exit 1 ;;
 esac
@@ -168,6 +179,17 @@ esac
 
 head_sha=$(git rev-parse HEAD)
 base_sha=$(git rev-parse "${base_ref}^{commit}")
+if [ "${fast_only}" = 1 ]; then
+  if [ -n "${ZERP_GATE_EVIDENCE_FILE:-}" ]; then
+    jq -n --arg head "${head_sha}" --arg base "${base_sha}" --arg impact "${impact}" \
+      '{version:1,status:"passed",mode:"fast",head:$head,base:$base,impact:$impact}' \
+      >"${ZERP_GATE_EVIDENCE_FILE}.new"
+    mv "${ZERP_GATE_EVIDENCE_FILE}.new" "${ZERP_GATE_EVIDENCE_FILE}"
+  fi
+  gate_finished=$(date +%s)
+  printf 'Fast change gate passed: %s (%ss)\n' "${impact}" "$((gate_finished - gate_started))"
+  exit 0
+fi
 runtime_fingerprint=$(scripts/runtime-fingerprint.sh HEAD)
 if [ -n "${ZERP_GATE_EVIDENCE_FILE:-}" ]; then
   jq -n --arg head "${head_sha}" --arg base "${base_sha}" \

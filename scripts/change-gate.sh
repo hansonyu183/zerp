@@ -6,15 +6,36 @@ cd "${repo_root}"
 
 plan_only=0
 fast_only=0
+validation_mode=release
+previous_evidence=
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --plan) plan_only=1; shift ;;
     --fast) fast_only=1; shift ;;
+    --baseline) validation_mode=baseline; shift ;;
+    --reverify)
+      [ "$#" -ge 2 ] || { echo '--reverify requires previous evidence' >&2; exit 2; }
+      validation_mode=reverify
+      previous_evidence=$2
+      shift 2
+      ;;
+    --release) validation_mode=release; shift ;;
     *) break ;;
   esac
 done
-[ "$#" -eq 1 ] || { echo "usage: scripts/change-gate.sh [--plan] [--fast] <base-ref>" >&2; exit 2; }
+[ "$#" -eq 1 ] || {
+  echo "usage: scripts/change-gate.sh [--plan] [--fast|--baseline|--reverify <evidence>|--release] <base-ref>" >&2
+  exit 2
+}
 base_ref=$1
+[ "${fast_only}" != 1 ] || [ "${validation_mode}" = release ] || {
+  echo '--fast cannot be combined with a validation lifecycle mode' >&2
+  exit 2
+}
+[ "${validation_mode}" != reverify ] || [ -r "${previous_evidence}" ] || {
+  echo "previous validation evidence is not readable: ${previous_evidence}" >&2
+  exit 2
+}
 
 case "${PRE_PUSH_FULL:-0}" in
   0 | 1) ;;
@@ -64,6 +85,7 @@ fi
 print_plan() {
   echo "Change gate plan relative to ${base_ref}:"
   [ "${fast_only}" != 1 ] || echo '  mode: fast deterministic checks only'
+  [ "${fast_only}" = 1 ] || printf '  mode: %s\n' "${validation_mode}"
   printf '  impact: %s\n' "${impact}"
   if [ "${impact}" = application ]; then
     printf '  contracts: %s\n' "${contracts}"
@@ -116,6 +138,9 @@ changed_path_matches() {
 }
 
 check_changed_validation() {
+  if changed_path_matches '^scripts/change-gate(-test)?\.sh$'; then
+    scripts/change-gate-test.sh
+  fi
   if [ "${impact}" = application ] && changed_path_matches \
     '^(Makefile|scripts/change-impact\.sh|scripts/test-release-flow-transition\.sh)$'; then
     scripts/test-release-flow-transition.sh
@@ -142,13 +167,216 @@ check_backend() {
   fi
 }
 
+validation_stage_file=
+validation_failed=0
+delta_contracts=0
+delta_frontend=0
+delta_backend=0
+delta_containers=0
+delta_local_e2e=0
+
+append_validation_stage() {
+  stage_id=$1
+  stage_status=$2
+  verified_head=${3:-}
+  blocked_by=${4:-'[]'}
+  retained=${5:-false}
+  jq -nc --arg id "${stage_id}" --arg status "${stage_status}" \
+    --arg verified_head "${verified_head}" --argjson blocked_by "${blocked_by}" \
+    --argjson retained "${retained}" '
+    {id:$id,status:$status} +
+    (if $verified_head == "" then {} else {verifiedHead:$verified_head} end) +
+    (if ($blocked_by | length) == 0 then {} else {blockedBy:$blocked_by} end) +
+    (if $retained then {retained:true} else {} end)
+  ' >>"${validation_stage_file}"
+}
+
+run_validation_stage() {
+  stage_id=$1
+  stage_name=$2
+  shift 2
+  stage_started=$(date +%s)
+  echo "==> ${stage_name}"
+  if "$@"; then
+    stage_finished=$(date +%s)
+    printf '<== %s passed in %ss\n' "${stage_name}" "$((stage_finished - stage_started))"
+    append_validation_stage "${stage_id}" passed "$(git rev-parse HEAD)"
+    return 0
+  else
+    stage_result=$?
+  fi
+  stage_finished=$(date +%s)
+  printf '<== %s failed in %ss\n' "${stage_name}" "$((stage_finished - stage_started))" >&2
+  append_validation_stage "${stage_id}" failed "$(git rev-parse HEAD)"
+  validation_failed=1
+  return "${stage_result}"
+}
+
+write_validation_evidence() {
+  evidence_mode=$1
+  evidence_status=passed
+  [ "${validation_failed}" = 0 ] || evidence_status=failed
+  head_sha=$(git rev-parse HEAD)
+  base_sha=$(git rev-parse "${base_ref}^{commit}")
+  runtime_fingerprint=
+  if [ "${evidence_status}" = passed ]; then
+    runtime_fingerprint=$(scripts/runtime-fingerprint.sh HEAD)
+  fi
+  stages=$(jq -s '.' "${validation_stage_file}")
+  jq -n --arg status "${evidence_status}" --arg mode "${evidence_mode}" \
+    --arg head "${head_sha}" --arg base "${base_sha}" --arg impact "${impact}" \
+    --arg runtime_fingerprint "${runtime_fingerprint}" --argjson preview "${preview}" \
+    --argjson stages "${stages}" '
+    {version:1,status:$status,mode:$mode,head:$head,base:$base,impact:$impact,
+      previewRequired:($preview == 1),stages:$stages} +
+    (if $runtime_fingerprint == "" then {} else {runtimeFingerprint:$runtime_fingerprint} end)
+  ' >"${ZERP_GATE_EVIDENCE_FILE}.new"
+  mv "${ZERP_GATE_EVIDENCE_FILE}.new" "${ZERP_GATE_EVIDENCE_FILE}"
+}
+
+stage_was_present() {
+  stage_id=$1
+  jq -e --arg id "${stage_id}" 'any(.stages[]; .id == $id)' \
+    "${previous_evidence}" >/dev/null
+}
+
+stage_needs_reverify() {
+  stage_id=$1
+  previous_status=$(jq -r --arg id "${stage_id}" \
+    '.stages[] | select(.id == $id) | .status' "${previous_evidence}")
+  [ "${previous_status}" != passed ] && return 0
+  case "${stage_id}" in
+    common) return 0 ;;
+    diff) return 0 ;;
+    contracts) [ "${delta_contracts}" = 1 ] ;;
+    frontend) [ "${delta_frontend}" = 1 ] ;;
+    backend) [ "${delta_backend}" = 1 ] ;;
+    runtime) [ "${delta_containers}" = 1 ] ;;
+    e2e) [ "${delta_local_e2e}" = 1 ] ;;
+    docs | validation) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+retain_validation_stage() {
+  stage_id=$1
+  jq -c --arg id "${stage_id}" '
+    .stages[] | select(.id == $id) | . + {retained:true}
+  ' "${previous_evidence}" >>"${validation_stage_file}"
+}
+
 print_plan
 [ "${plan_only}" = 0 ] || exit 0
 gate_started=$(date +%s)
+
+if [ "${validation_mode}" = baseline ] || [ "${validation_mode}" = reverify ]; then
+  [ -n "${ZERP_GATE_EVIDENCE_FILE:-}" ] || {
+    echo 'baseline and reverify require ZERP_GATE_EVIDENCE_FILE' >&2
+    exit 2
+  }
+  validation_stage_file=$(mktemp "${TMPDIR:-/tmp}/zerp-validation-stages.XXXXXX")
+  cleanup_validation_stage_file() { rm -f "${validation_stage_file}"; }
+  trap cleanup_validation_stage_file EXIT HUP INT TERM
+
+  if [ "${validation_mode}" = baseline ]; then
+    run_validation_stage diff 'patch whitespace' git diff --check "${diff_range}" || true
+    case "${impact}" in
+      docs) run_validation_stage docs documentation check_docs || true ;;
+      validation) run_validation_stage validation 'validation tooling' check_validation || true ;;
+      application)
+        if changed_path_matches \
+          '^(Makefile|scripts/(change-gate(-test)?|change-impact|test-release-flow-transition|issue-local|issue-local-test|pre-push|pre-push-test)\.sh|frontend/scripts/(check-e2e-constraints(\.test)?|preview-smoke)\.mjs)'; then
+          run_validation_stage validation 'changed validation tooling' check_changed_validation || true
+        fi
+        run_validation_stage common 'common checks' make check-common || true
+        [ "${contracts}" != 1 ] || \
+          run_validation_stage contracts 'generated contracts' make check-contracts || true
+        [ "${frontend}" != 1 ] || \
+          run_validation_stage frontend 'frontend quality' make check-frontend || true
+        [ "${backend}" != 1 ] || \
+          run_validation_stage backend 'backend quality' check_backend || true
+        [ "${containers}" != 1 ] || \
+          run_validation_stage runtime 'container and release configuration' make check-runtime || true
+        if [ "${local_e2e}" = 1 ]; then
+          blocked_by=$(jq -sc '[.[] | select(
+            (.id == "contracts" or .id == "frontend" or .id == "backend" or .id == "runtime") and
+            .status != "passed") | .id]' "${validation_stage_file}")
+          if [ "${blocked_by}" = '[]' ]; then
+            run_validation_stage e2e 'isolated full-stack E2E' make e2e || true
+          else
+            append_validation_stage e2e blocked '' "${blocked_by}"
+            validation_failed=1
+            printf '<== isolated full-stack E2E blocked by %s\n' \
+              "$(printf '%s' "${blocked_by}" | jq -r 'join(",")')" >&2
+          fi
+        fi
+        ;;
+      *) echo "Unsupported change impact: ${impact}" >&2; exit 1 ;;
+    esac
+    write_validation_evidence baseline
+  else
+    jq -e --arg base "$(git rev-parse "${base_ref}^{commit}")" '
+      .version == 1 and (.mode == "baseline" or .mode == "reverify") and
+      .base == $base and (.head | type == "string" and length == 40) and
+      (.stages | type == "array" and length > 0) and
+      all(.stages[];
+        (.id | type == "string" and length > 0) and
+        (.status == "passed" or .status == "failed" or .status == "blocked"))
+    ' "${previous_evidence}" >/dev/null || {
+      echo 'previous validation evidence is invalid' >&2
+      exit 2
+    }
+    previous_head=$(jq -r .head "${previous_evidence}")
+    git merge-base --is-ancestor "${previous_head}" HEAD || {
+      echo "validation evidence head ${previous_head} is not an ancestor of HEAD" >&2
+      exit 2
+    }
+    delta_matrix=$(scripts/change-impact.sh --checks "${previous_head}...HEAD" | sed 's/^/delta_/')
+    eval "${delta_matrix}"
+
+    for stage_id in diff validation docs common contracts frontend backend runtime e2e; do
+      stage_was_present "${stage_id}" || continue
+      if ! stage_needs_reverify "${stage_id}"; then
+        retain_validation_stage "${stage_id}"
+        continue
+      fi
+      case "${stage_id}" in
+        diff) run_validation_stage diff 'patch whitespace' git diff --check "${diff_range}" || true ;;
+        validation) run_validation_stage validation 'changed validation tooling' check_changed_validation || true ;;
+        docs) run_validation_stage docs documentation check_docs || true ;;
+        common) run_validation_stage common 'common checks' make check-common || true ;;
+        contracts) run_validation_stage contracts 'generated contracts' make check-contracts || true ;;
+        frontend) run_validation_stage frontend 'frontend delta quality' make check-frontend-fast || true ;;
+        backend) run_validation_stage backend 'backend delta quality' make check-backend-fast || true ;;
+        runtime) run_validation_stage runtime 'container and release configuration' make check-runtime || true ;;
+        e2e)
+          blocked_by=$(jq -sc '[.[] | select(
+            (.id == "contracts" or .id == "frontend" or .id == "backend" or .id == "runtime") and
+            .status != "passed") | .id]' "${validation_stage_file}")
+          if [ "${blocked_by}" = '[]' ]; then
+            run_validation_stage e2e 'isolated full-stack E2E' make e2e || true
+          else
+            append_validation_stage e2e blocked '' "${blocked_by}"
+            validation_failed=1
+          fi
+          ;;
+      esac
+    done
+    write_validation_evidence reverify
+  fi
+  cleanup_validation_stage_file
+  trap - EXIT HUP INT TERM
+  [ "${validation_failed}" = 0 ] || exit 1
+  gate_finished=$(date +%s)
+  printf '%s validation passed: %s (%ss)\n' \
+    "${validation_mode}" "${impact}" "$((gate_finished - gate_started))"
+  exit 0
+fi
+
 git diff --check "${diff_range}"
 
 if [ "${impact}" = application ] && changed_path_matches \
-  '^(Makefile|scripts/(change-impact|test-release-flow-transition|issue-local|issue-local-test|pre-push|pre-push-test)\.sh|frontend/scripts/(check-e2e-constraints(\.test)?|preview-smoke)\.mjs)'; then
+  '^(Makefile|scripts/(change-gate(-test)?|change-impact|test-release-flow-transition|issue-local|issue-local-test|pre-push|pre-push-test)\.sh|frontend/scripts/(check-e2e-constraints(\.test)?|preview-smoke)\.mjs)'; then
   run_stage 'changed validation tooling' check_changed_validation
 fi
 
@@ -194,7 +422,8 @@ runtime_fingerprint=$(scripts/runtime-fingerprint.sh HEAD)
 if [ -n "${ZERP_GATE_EVIDENCE_FILE:-}" ]; then
   jq -n --arg head "${head_sha}" --arg base "${base_sha}" \
     --arg runtime_fingerprint "${runtime_fingerprint}" --argjson preview "${preview}" \
-    '{status:"passed",head:$head,base:$base,runtimeFingerprint:$runtime_fingerprint,previewRequired:($preview == 1)}' \
+    '{version:1,status:"passed",mode:"release",head:$head,base:$base,
+      runtimeFingerprint:$runtime_fingerprint,previewRequired:($preview == 1)}' \
     >"${ZERP_GATE_EVIDENCE_FILE}.new"
   mv "${ZERP_GATE_EVIDENCE_FILE}.new" "${ZERP_GATE_EVIDENCE_FILE}"
 fi

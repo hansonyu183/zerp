@@ -748,7 +748,12 @@ diagnose_command() {
       "${batch_root}/repair-budget.json"
   fi
   if [ -r "${batch_root}/failure.json" ]; then
-    jq '{failureClass,stage,source,summary,signature}' "${batch_root}/failure.json"
+    jq '{failureClass,stage,source,summary,signature,policyDecision}' "${batch_root}/failure.json"
+  fi
+  if [ -r "${batch_root}/validation-evidence.json" ]; then
+    jq '{validation:{mode,status,head,stages:[.stages[] |
+      {id,status,verifiedHead,blockedBy,retained}]}}' \
+      "${batch_root}/validation-evidence.json"
   fi
   if [ -r "${batch_root}/timeline.jsonl" ]; then
     echo 'recentTimeline='
@@ -1474,7 +1479,7 @@ run_final_gate() {
     PATH="${pnpm_wrapper_dir}:${PATH}" COREPACK_ROOT=1 \
       ZERP_E2E_ENV_FILE="${e2e_env_file}" ZERP_GATE_EVIDENCE_FILE="${evidence_file}" \
       TEST_INTEGRATION_RESULT_FILE="${integration_result}" \
-      "${command_path}" "${base_sha}"
+      "${command_path}" --release "${base_sha}"
   ) >"${gate_log}" 2>&1; then
     write_gate_failure "${batch_root}" "${head_sha}" "${gate_log}"
     return 4
@@ -1492,6 +1497,170 @@ run_final_gate() {
     return 4
   }
   rm -f "${batch_root}/repair-integration.json" "${integration_result}"
+}
+
+write_incremental_validation_failure() {
+  batch_root=$1
+  head_sha=$2
+  mode=$3
+  evidence_file=$4
+  validation_log=$5
+  integration_result="${batch_root}/integration-result.json"
+  failed_stages=$(jq -r '[.stages[] | select(.status == "failed") | .id] | join(",")' \
+    "${evidence_file}" 2>/dev/null || true)
+  blocked_stages=$(jq -r '[.stages[] | select(.status == "blocked") |
+    (.id + "<-" + ((.blockedBy // []) | join("+")))] | join(",")' \
+    "${evidence_file}" 2>/dev/null || true)
+  {
+    printf 'Validation %s collected failures for candidate %s.\n' "${mode}" "${head_sha}"
+    printf 'Failed stages: %s\n' "${failed_stages:-none}"
+    printf 'Blocked stages: %s\n\n' "${blocked_stages:-none}"
+    printf 'Stage evidence:\n'
+    jq -r '.stages[] | "- \(.id): \(.status)" +
+      (if .blockedBy then " (blocked by " + (.blockedBy | join(",")) + ")" else "" end)' \
+      "${evidence_file}" 2>/dev/null || true
+    printf '\nFocused error excerpt:\n\n'
+    tail -n 180 "${validation_log}" | sed '/^dist\/assets\//d'
+  } >"${batch_root}/failure.md"
+  rm -f "${batch_root}/repair-integration.json"
+  capture_failed_integration "${batch_root}" "${integration_result}" "${head_sha}" || true
+  capture_failed_e2e "${batch_root}" "${validation_log}" "${head_sha}"
+  if grep -Eiq 'cannot connect to (the )?docker|docker daemon|connection refused|no space left|temporary failure|TLS handshake|network is unreachable|timed? out|port is already allocated' \
+    "${validation_log}"; then
+    failure_class=environment
+    summary='Incremental validation environment failed'
+  elif { [ "${failed_stages}" = backend ] && \
+      [ -r "${batch_root}/repair-integration.json" ]; } || \
+    { [ "${failed_stages}" = e2e ] && \
+      [ -r "${batch_root}/repair-e2e.env" ]; }; then
+    failure_class=test-flake
+    summary='A focused test must distinguish a product defect from a transient test failure'
+  else
+    failure_class=product
+    summary="Validation ${mode} found deterministic failures: ${failed_stages:-unknown}"
+  fi
+  write_structured_failure "${batch_root}" "${failure_class}" \
+    "validation:${failed_stages:-unknown}" "${head_sha}" validation "${summary}"
+}
+
+run_incremental_validation() {
+  mode=$1
+  batch_root=$2
+  worktree=$3
+  base_sha=$4
+  head_sha=$5
+  evidence_file="${batch_root}/validation-evidence.json"
+  validation_log="${batch_root}/validation-${mode}.log"
+  marker_file="${batch_root}/gate-attempted-head"
+  integration_result="${batch_root}/integration-result.json"
+  command_path=${gate_command:-${worktree}/scripts/change-gate.sh}
+  e2e_env_file=$(ensure_primary_e2e_env) || return 4
+  pnpm_wrapper_dir="${worktree}/.scratch/.issue-local-bin"
+  [ -x "${pnpm_wrapper_dir}/pnpm" ] || return 4
+  write_value "${batch_root}/repair-stage" gate
+  write_value "${marker_file}" "${head_sha}"
+  [ "${mode}" != baseline ] || rm -f "${evidence_file}"
+  rm -f "${integration_result}"
+  if [ "${mode}" = baseline ]; then
+    set -- --baseline "${base_sha}"
+  else
+    set -- --reverify "${evidence_file}" "${base_sha}"
+  fi
+  validation_result=0
+  (
+    stage_host_gate_env "${worktree}"
+    trap 'remove_managed_host_env "${worktree}"' EXIT HUP INT TERM
+    cd "${worktree}"
+    PATH="${pnpm_wrapper_dir}:${PATH}" COREPACK_ROOT=1 \
+      ZERP_E2E_ENV_FILE="${e2e_env_file}" ZERP_GATE_EVIDENCE_FILE="${evidence_file}" \
+      TEST_INTEGRATION_RESULT_FILE="${integration_result}" \
+      "${command_path}" "$@"
+  ) >"${validation_log}" 2>&1 || validation_result=$?
+  if ! jq -e --arg mode "${mode}" --arg head "${head_sha}" --arg base "${base_sha}" '
+    .version == 1 and .mode == $mode and .head == $head and .base == $base and
+    (.status == "passed" or .status == "failed") and
+    (.stages | type == "array" and length > 0) and
+    all(.stages[]; .status == "passed" or .status == "failed" or .status == "blocked")
+  ' "${evidence_file}" >/dev/null 2>&1; then
+    {
+      printf 'Host validation %s returned invalid evidence for candidate %s.\n\n' \
+        "${mode}" "${head_sha}"
+      tail -n 160 "${validation_log}" | sed '/^dist\/assets\//d'
+    } >"${batch_root}/failure.md"
+    write_structured_failure "${batch_root}" automation "validation-${mode}-evidence" \
+      "${head_sha}" validation 'Host validation returned invalid exact-head stage evidence'
+    return 4
+  fi
+  evidence_status=$(jq -r .status "${evidence_file}")
+  if [ "${validation_result}" -ne 0 ] || [ "${evidence_status}" != passed ]; then
+    write_incremental_validation_failure "${batch_root}" "${head_sha}" "${mode}" \
+      "${evidence_file}" "${validation_log}"
+    return 4
+  fi
+  rm -f "${batch_root}/repair-integration.json" "${integration_result}"
+  append_timeline "${batch_root}" validation-passed "${mode}" '' '' "${head_sha}" \
+    "Validation ${mode} passed"
+}
+
+run_incremental_validation_resilient() {
+  validation_loop_mode=$1
+  validation_loop_batch_root=$2
+  validation_loop_worktree=$3
+  validation_loop_base_sha=$4
+  validation_loop_head_sha=$5
+  while :; do
+    set_batch_phase "${validation_loop_batch_root}" "validation-${validation_loop_mode}"
+    if run_incremental_validation "${validation_loop_mode}" "${validation_loop_batch_root}" \
+      "${validation_loop_worktree}" "${validation_loop_base_sha}" \
+      "${validation_loop_head_sha}"; then
+      return 0
+    fi
+    policy_class=$(failure_field "${validation_loop_batch_root}" failureClass)
+    if [ "${policy_class}" = test-flake ]; then
+      set_batch_phase "${validation_loop_batch_root}" verifying-test-flake
+      if ! verify_same_head_flake "${validation_loop_batch_root}" \
+        "${validation_loop_worktree}"; then
+        return 4
+      fi
+    fi
+    policy_class=$(failure_field "${validation_loop_batch_root}" failureClass)
+    policy_stage=$(failure_field "${validation_loop_batch_root}" stage)
+    decision=$(failure_policy_decide "${validation_loop_batch_root}" "${policy_class}" \
+      "${policy_stage:-validation-${validation_loop_mode}}" \
+      "${validation_loop_head_sha}") || return 8
+    case "${decision}" in
+      RETRY_SAME_HEAD) ;;
+      RETRY_ENVIRONMENT)
+        prepare_offline_dependencies "${validation_loop_worktree}" \
+          >>"${validation_loop_batch_root}/validation-${validation_loop_mode}.log" 2>&1 || true
+        retry_delay=${ZERP_ISSUE_ENVIRONMENT_RETRY_WAIT_SECONDS:-5}
+        case "${retry_delay}" in '' | *[!0-9]*) retry_delay=5 ;; esac
+        [ "${retry_delay}" -eq 0 ] || sleep "${retry_delay}"
+        ;;
+      REPAIR_CODE) return 4 ;;
+      BLOCK_AUTOMATION | BLOCK_ENVIRONMENT | BLOCK_EXTERNAL) return 8 ;;
+      *) return 8 ;;
+    esac
+  done
+}
+
+validation_baseline() {
+  run_incremental_validation_resilient baseline "$@" || return $?
+  batch_root=$1
+  head_sha=$4
+  jq '.mode = "release" | .promotedFrom = "baseline"' \
+    "${batch_root}/validation-evidence.json" >"${batch_root}/gate-evidence.json.new"
+  mv "${batch_root}/gate-evidence.json.new" "${batch_root}/gate-evidence.json"
+  append_timeline "${batch_root}" gate-passed release '' '' "${head_sha}" \
+    'Baseline full validation passed unchanged and became release evidence'
+}
+
+validation_reverify() {
+  run_incremental_validation_resilient reverify "$@"
+}
+
+validation_release() {
+  run_final_gate_resilient "$@"
 }
 
 run_fast_gate_resilient() {
@@ -1776,7 +1945,7 @@ run_implement() {
     # shellcheck disable=SC2016 # prompt intentionally contains shell and Markdown literals
     printf 'For every pnpm command, prepend `PATH="%s:$PATH"` and invoke `%s/pnpm`; login shells reset PATH and package scripts invoke pnpm recursively.\n' "${pnpm_wrapper_dir}" "${pnpm_wrapper_dir}"
     # shellcheck disable=SC2016 # prompt intentionally contains Markdown code delimiters
-    printf 'Do not run `scripts/change-gate.sh` in the sandbox. The host controller runs the fast gate and complete final gate after your clean commit.\n'
+    printf 'Do not run `scripts/change-gate.sh` in the sandbox. The host Validation module runs fast, baseline, delta reverify, and final release checks after your clean commit.\n'
     if [ "${preexisting_review_delta}" = 1 ]; then
       printf 'Return the current clean reviewed head with status=completed, validation=not_run, review=passed, and its commitSha. Commit only if review finds changes are required.\n'
     else
@@ -1842,9 +2011,6 @@ run_implement() {
   write_value "${reviewed_head_file}" "${head_sha}"
   append_timeline "${batch_root}" code-reviewed review '' '' "${head_sha}" \
     'Implementation and two-axis review completed'
-  set_batch_phase "${batch_root}" final-gate
-  run_repair_preflight "${batch_root}" "${worktree}" || return $?
-  run_final_gate_resilient "${batch_root}" "${worktree}" "${base_sha}" "${head_sha}"
 }
 
 remote_for_number() {
@@ -2166,6 +2332,47 @@ deploy_preview() {
   done
 }
 
+validation_evidence_head() {
+  batch_root=$1
+  worktree=$2
+  base_sha=$3
+  evidence_file="${batch_root}/validation-evidence.json"
+  [ -r "${evidence_file}" ] || return 1
+  head_sha=$(git -C "${worktree}" rev-parse HEAD)
+  evidence_head=$(jq -r --arg base "${base_sha}" '
+    select(.version == 1 and (.mode == "baseline" or .mode == "reverify") and
+      .base == $base and (.head | type == "string" and length == 40) and
+      (.stages | type == "array" and length > 0)) | .head
+  ' "${evidence_file}" 2>/dev/null || true)
+  [ "${#evidence_head}" -eq 40 ] || return 1
+  git -C "${worktree}" merge-base --is-ancestor "${evidence_head}" "${head_sha}" || return 1
+  printf '%s\n' "${evidence_head}"
+}
+
+validate_candidate() {
+  batch_root=$1
+  worktree=$2
+  base_sha=$3
+  head_sha=$4
+  if verified_gate_candidate_head "${batch_root}" "${worktree}" "${base_sha}" >/dev/null; then
+    return 0
+  fi
+  if evidence_head=$(validation_evidence_head "${batch_root}" "${worktree}" "${base_sha}"); then
+    if [ "${evidence_head}" = "${head_sha}" ] && \
+      jq -e '.status == "passed"' "${batch_root}/validation-evidence.json" >/dev/null; then
+      validation_release "${batch_root}" "${worktree}" "${base_sha}" "${head_sha}"
+      return $?
+    fi
+    if [ "${evidence_head}" != "${head_sha}" ]; then
+      run_repair_preflight "${batch_root}" "${worktree}" || return $?
+      validation_reverify "${batch_root}" "${worktree}" "${base_sha}" "${head_sha}" || return $?
+      validation_release "${batch_root}" "${worktree}" "${base_sha}" "${head_sha}"
+      return $?
+    fi
+  fi
+  validation_baseline "${batch_root}" "${worktree}" "${base_sha}" "${head_sha}"
+}
+
 implement_and_preview() {
   feature=$1
   batch_root=$2
@@ -2194,8 +2401,7 @@ implement_and_preview() {
     write_value "${batch_root}/reviewed-head" "${resumed_head}"
     if consume_repair_budget "${batch_root}" gate "${resumed_head}"; then
       gate_result=0
-      run_repair_preflight "${batch_root}" "${worktree}" &&
-        run_final_gate_resilient "${batch_root}" "${worktree}" "${base_sha}" "${resumed_head}" || gate_result=$?
+      validate_candidate "${batch_root}" "${worktree}" "${base_sha}" "${resumed_head}" || gate_result=$?
       if [ "${gate_result}" = 0 ]; then
         if deploy_preview "${feature}" "${batch_root}" "${worktree}"; then
           rm -f "${batch_root}/failure.md" "${batch_root}/failure.json"
@@ -2236,21 +2442,33 @@ implement_and_preview() {
   fi
   while :; do
     if run_implement "${feature}" "${batch_root}" "${worktree}" "${base_sha}"; then
-      if deploy_preview "${feature}" "${batch_root}" "${worktree}"; then
-        rm -f "${batch_root}/failure.md" "${batch_root}/failure.json"
-        return 0
-      else
-        preview_result=$?
-        if [ "${preview_result}" = 4 ]; then
-          mark_batch "${issues_dir}" blocked
-          set_batch_state "${batch_root}" preview-blocked
-          return 1
+      candidate_head=$(git -C "${worktree}" rev-parse HEAD)
+      validation_result=0
+      validate_candidate "${batch_root}" "${worktree}" "${base_sha}" "${candidate_head}" || \
+        validation_result=$?
+      if [ "${validation_result}" = 0 ]; then
+        if deploy_preview "${feature}" "${batch_root}" "${worktree}"; then
+          rm -f "${batch_root}/failure.md" "${batch_root}/failure.json"
+          return 0
+        else
+          preview_result=$?
+          if [ "${preview_result}" = 4 ]; then
+            mark_batch "${issues_dir}" blocked
+            set_batch_state "${batch_root}" preview-blocked
+            return 1
+          fi
+          if [ "${preview_result}" = 8 ]; then
+            mark_batch "${issues_dir}" blocked
+            set_batch_state "${batch_root}" automation-blocked
+            return 1
+          fi
         fi
-        if [ "${preview_result}" = 8 ]; then
-          mark_batch "${issues_dir}" blocked
-          set_batch_state "${batch_root}" automation-blocked
-          return 1
-        fi
+      elif [ "${validation_result}" = 8 ]; then
+        mark_batch "${issues_dir}" blocked
+        set_batch_state "${batch_root}" "$(failure_policy_block_state "${batch_root}")"
+        return 1
+      elif ! apply_product_failure_policy "${batch_root}" "${issues_dir}" "${worktree}"; then
+        return 1
       fi
     else
       result=$?
@@ -2636,7 +2854,23 @@ wait_checks_and_merge() {
     fi
     base_sha=$(cat "${batch_root}/base-sha")
     if run_implement "${feature}" "${batch_root}" "${worktree}" "${base_sha}"; then
-      :
+      candidate_head=$(git -C "${worktree}" rev-parse HEAD)
+      validation_result=0
+      validate_candidate "${batch_root}" "${worktree}" "${base_sha}" "${candidate_head}" || \
+        validation_result=$?
+      if [ "${validation_result}" = 8 ]; then
+        mark_batch "${issues_dir}" blocked
+        set_batch_state "${batch_root}" "$(failure_policy_block_state "${batch_root}")"
+        release_preview "${feature}"
+        return 1
+      fi
+      if [ "${validation_result}" != 0 ]; then
+        if ! apply_product_failure_policy "${batch_root}" "${issues_dir}" "${worktree}"; then
+          release_preview "${feature}"
+          return 1
+        fi
+        continue
+      fi
     else
       result=$?
       if [ "${result}" = 3 ] && [ -r "${batch_root}/implementation.json" ]; then
@@ -2663,7 +2897,7 @@ wait_checks_and_merge() {
         return 1
       fi
       if [ "${result}" != 4 ]; then
-        printf 'Implementation, review, or final gate repair failed.\n' >"${batch_root}/failure.md"
+        printf 'Implementation or review repair failed.\n' >"${batch_root}/failure.md"
       fi
       if ! apply_product_failure_policy "${batch_root}" "${issues_dir}" "${worktree}"; then
         release_preview "${feature}"

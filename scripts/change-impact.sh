@@ -96,7 +96,7 @@ if [ -n "${changed_files}" ]; then
         scripts/test-release-flow-transition.sh | scripts/reusable-pr-checks.sh | \
         scripts/preview-state-test.sh | scripts/release-metrics.sh | \
         scripts/release-metrics-check.sh | scripts/review-* | \
-        scripts/change-gate.sh | scripts/runtime-fingerprint.sh | \
+        scripts/change-gate.sh | scripts/change-gate-test.sh | scripts/runtime-fingerprint.sh | \
         scripts/issue-local.sh | scripts/issue-local-test.sh | \
         backend/scripts/run-integration-tests-test.sh | \
         scripts/issue-local-production.sh | \

@@ -31,6 +31,23 @@ e2e=0
 local_e2e=0
 preview=1
 MATRIX
+elif [ "${MOCK_DELTA:-all}" = backend ]; then
+  cat <<'MATRIX'
+impact=application
+contracts=0
+frontend=0
+frontend_audit=0
+frontend_full=0
+backend=1
+backend_full=0
+backend_deps=0
+containers=0
+api_image=0
+web_image=0
+e2e=1
+local_e2e=1
+preview=1
+MATRIX
 else
   cat <<'MATRIX'
 impact=application
@@ -61,6 +78,9 @@ cat >"${tmp}/bin/make" <<'EOF'
 set -eu
 target=$1
 printf '%s\n' "${target}" >>"${MOCK_MAKE_LOG}"
+if [ "${target}" = "${MOCK_DIRTY_TARGET:-}" ]; then
+  printf 'generated\n' >generated.tmp
+fi
 case " ${MOCK_FAIL_TARGETS:-} " in
   *" ${target} "*) exit 1 ;;
 esac
@@ -138,5 +158,46 @@ jq -e --arg head "${repair_head}" '
   .version == 1 and .mode == "release" and .status == "passed" and
   .head == $head and .runtimeFingerprint == "runtime-test"
 ' "${release_evidence}" >/dev/null
+
+missing_stage_evidence="${tmp}/missing-stage-evidence.json"
+jq -n --arg head "${repair_head}" --arg base "${base_sha}" '
+  {version:1,status:"passed",mode:"baseline",head:$head,base:$base,stages:[
+    {id:"diff",status:"passed",verifiedHead:$head},
+    {id:"common",status:"passed",verifiedHead:$head},
+    {id:"frontend",status:"passed",verifiedHead:$head}
+  ]}' >"${missing_stage_evidence}"
+printf 'backend repair\n' >>"${test_repo}/backend/value.txt"
+git -C "${test_repo}" add backend/value.txt
+git -C "${test_repo}" commit -m backend-repair >/dev/null
+backend_repair_head=$(git -C "${test_repo}" rev-parse HEAD)
+: >"${make_log}"
+PATH="${tmp}/bin:${PATH}" MOCK_MAKE_LOG="${make_log}" MOCK_DELTA=backend \
+  ZERP_GATE_EVIDENCE_FILE="${missing_stage_evidence}" \
+  "${test_repo}/scripts/change-gate.sh" --reverify "${missing_stage_evidence}" \
+    "${base_sha}" >/dev/null
+jq -e --arg head "${backend_repair_head}" '
+  .mode == "reverify" and .status == "passed" and .head == $head and
+  any(.stages[]; .id == "backend" and .status == "passed" and
+    .verifiedHead == $head) and
+  any(.stages[]; .id == "e2e" and .status == "passed" and
+    .verifiedHead == $head)
+' "${missing_stage_evidence}" >/dev/null
+grep -Fxq check-backend-fast "${make_log}"
+grep -Fxq e2e "${make_log}"
+
+dirty_evidence="${tmp}/dirty-evidence.json"
+: >"${make_log}"
+if PATH="${tmp}/bin:${PATH}" MOCK_MAKE_LOG="${make_log}" \
+  MOCK_DELTA=backend MOCK_DIRTY_TARGET=check-common \
+  ZERP_GATE_EVIDENCE_FILE="${dirty_evidence}" \
+  "${test_repo}/scripts/change-gate.sh" --baseline "${base_sha}" >/dev/null 2>&1; then
+  echo 'baseline accepted a stage-generated dirty worktree' >&2
+  exit 1
+fi
+jq -e '
+  .mode == "baseline" and .status == "failed" and
+  any(.stages[]; .id == "worktree" and .status == "failed")
+' "${dirty_evidence}" >/dev/null
+rm -f "${test_repo}/generated.tmp"
 
 echo 'change gate validation lifecycle tests passed'

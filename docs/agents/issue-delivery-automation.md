@@ -21,7 +21,7 @@
 - E2E 或集成测试首次失败时，控制器先在同一 SHA 聚焦复验：复验通过记为 `test-flake` 并重跑当前 Validation 阶段，复验仍失败才记为 `product`。宿主依赖、Docker、网络、预览和 GitHub 查询故障不得伪装成代码修复。
 - 需求无法客观判断时整批进入 `needs-input`；产品代码或确定性验证无法在预算内收敛时进入 `blocked`；控制器、宿主环境和外部服务分别进入 `automation-blocked`、`environment-blocked`、`external-blocked`；公网预览和生产失败继续使用 `preview-blocked`、`production-blocked`。这些状态都不会继续发布。
 - 生产失败进入 `production-blocked` 并停止后续批次。数据库恢复和发布车道重开仍由维护者判断，控制器不得自行决定。
-- Validation module 的 controller interface 固定为 `baseline`、`reverify`、`release`。`baseline` evidence 逐阶段记录 `passed`、`failed` 或 `blocked` 及依赖阻塞原因；`reverify` 从旧 evidence head 到新 candidate head 调用 `change-impact.sh`，保留未受影响的本地 PASS，只复验旧失败、旧阻塞和被 delta 失效的阶段；`release` 才生成可进入预览与发布的最终 exact-head evidence。若 baseline 在未产生修复提交时完整通过，它本身就是同一 SHA 的 release evidence，不重复执行。
+- Validation module 的 controller interface 固定为 `baseline`、`reverify`、`release`。`baseline` evidence 逐阶段记录 `passed`、`failed` 或 `blocked` 及依赖阻塞原因；`reverify` 从旧 evidence head 到新 candidate head 调用 `change-impact.sh`，保留未受影响的本地 PASS，并复验旧失败、旧阻塞、被 delta 失效以及由 delta 新增的阶段；`release` 才生成可进入预览与发布的最终 exact-head evidence。若 baseline 在未产生修复提交时完整通过且 worktree 仍 clean，它本身就是同一 SHA 的 release evidence，不重复执行；否则必须执行真正的 release。
 - Validation 记录集成测试的准确失败包。模型提交新修复后，宿主先复验失败目标，再进入阶段级 `reverify`；中间保留的 PASS 只用于本地收敛，不能替代新 head 的最终 `release`、远端 required checks 或发布证据。Docker、数据库 URL 和本机环境文件都不会交给模型 sandbox。
 - 每批产品代码预算是一次初始实现尝试加最多八次修复尝试；只有 Codex 失败前 HEAD 未变且 worktree clean 才撤销尚未成立的代码尝试。已经产生 clean commit 时保留代码预算和新 HEAD，并在下一次会话只 review 该 delta。`repair-budget.json` 使用 version 2；控制器会原子迁移缺少非产品事件和起始时间的 version 1 旧批次。
 - 非产品故障同时受同签名、同阶段、批次总量和批次 wall-clock 四层限制；默认同签名上限按类别为 flake 2、environment 3、external 6、automation 2，同阶段最多 8 次、全批次最多 15 次、截止时间 20 分钟。变化的错误文本不得绕过后面三层上限。稳定签名由失败分类、阶段和去除 SHA、路径、耗时、尝试编号后的关键错误共同生成；相同产品错误连续出现两次仍会提前阻塞。

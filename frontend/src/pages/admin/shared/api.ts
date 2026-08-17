@@ -1,54 +1,16 @@
 import { apiClient } from '@/api/client'
+import type { components } from '@/api/generated/schema'
 import type { PageRequest, PageResult } from '@/api/types'
 
-export type AdminStatus = 'ENABLED' | 'DISABLED'
+export type { AdminStatus } from './labels'
+export type AdminUser = components['schemas']['UserListItem']
+export type AdminUserDetail = components['schemas']['UserDetail']
+export type AdminRoleSummary = components['schemas']['UserRoleSummary']
+export type AdminRole = components['schemas']['RoleListItem']
+export type AdminRoleDetail = components['schemas']['RoleDetail']
+export type AdminRolePermission = components['schemas']['RolePermission']
 
-export interface AdminUser {
-  id: string
-  username: string
-  displayName: string
-  status: AdminStatus
-  system: boolean
-  createdAt: string
-  updatedAt: string
-  revision: number
-}
-
-export interface AdminUserDetail extends AdminUser {
-  passwordChangedAt: string
-  roles: AdminRoleSummary[]
-}
-
-export interface AdminRoleSummary {
-  id: string
-  code: string
-  name: string
-  status: AdminStatus
-}
-
-export interface AdminRole {
-  id: string
-  code: string
-  name: string
-  description?: string | null
-  status: AdminStatus
-  createdAt: string
-  updatedAt: string
-  revision: number
-  permissionIds?: string[]
-}
-
-export interface AdminPermission {
-  id: string
-  path: string
-  domain: string
-  entity: string
-  action: string
-  description?: string | null
-  status: AdminStatus
-  revision: number
-  roleCount?: number
-}
+export type AdminPermission = components['schemas']['PermissionView']
 
 export type SystemParameterValueType =
   'STRING' | 'INTEGER' | 'DECIMAL' | 'BOOLEAN'
@@ -112,54 +74,41 @@ export function setAdminUserEnabled(user: AdminUser, enabled: boolean) {
   )
 }
 
-export function queryAdminRoles(request: PageRequest) {
-  return apiClient.post<PageResult<AdminRole>, PageRequest>(
-    'app/role/query',
-    request,
-  )
+export function queryAdminRoles(
+  request: components['schemas']['RoleQueryRequest'],
+) {
+  return apiClient.postContract('app/role/query', request)
 }
 
 export function getAdminRole(id: string) {
-  return apiClient.post<AdminRole, { id: string }>('app/role/get', { id })
+  return apiClient.postContract('app/role/get', { id })
 }
 
-export function createAdminRole(input: {
-  code: string
-  name: string
-  description: string | null
-  permissionIds: string[]
-}) {
-  return apiClient.post<AdminRole, typeof input>('app/role/create', input)
+export function createAdminRole(
+  input: components['schemas']['CreateRoleRequest'],
+) {
+  return apiClient.postContract('app/role/create', input)
 }
 
-export function saveAdminRole(input: {
-  id: string
-  name: string
-  description: string | null
-  permissionIds: string[]
-  revision: number
-}) {
-  return apiClient.post<AdminRole, typeof input>('app/role/save', input)
+export function saveAdminRole(input: components['schemas']['SaveRoleRequest']) {
+  return apiClient.postContract('app/role/save', input)
 }
 
 export function setAdminRoleEnabled(role: AdminRole, enabled: boolean) {
-  return apiClient.post<AdminRole, { id: string; revision: number }>(
-    enabled ? 'app/role/enable' : 'app/role/disable',
-    { id: role.id, revision: role.revision },
-  )
+  const input = { id: role.id, revision: role.revision }
+  return enabled
+    ? apiClient.postContract('app/role/enable', input)
+    : apiClient.postContract('app/role/disable', input)
 }
 
-export function queryAdminPermissions(request: PageRequest) {
-  return apiClient.post<PageResult<AdminPermission>, PageRequest>(
-    'app/permission/query',
-    request,
-  )
+export function queryAdminPermissions(
+  request: components['schemas']['PermissionQueryRequest'],
+) {
+  return apiClient.postContract('app/permission/query', request)
 }
 
 export function getAdminPermission(id: string) {
-  return apiClient.post<AdminPermission, { id: string }>('app/permission/get', {
-    id,
-  })
+  return apiClient.postContract('app/permission/get', { id })
 }
 
 export function querySystemParameters(request: PageRequest) {

@@ -1,22 +1,66 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { onUnmounted, reactive } from 'vue'
+import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import {
   BusinessObjectList,
   type BusinessObjectColumn,
 } from '@/components/business-object'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
+import DiscardChangesDialog from '../shared/DiscardChangesDialog.vue'
+import {
+  adminStatusOptions,
+  formatAdminStatus,
+  formatRoleType,
+} from '../shared/labels'
 import type { AdminRole } from '../shared/api'
+import RoleActionConfirmDialog from './RoleActionConfirmDialog.vue'
 import { createRoleManagementViewModel } from './vm'
 
 const vm = reactive(createRoleManagementViewModel())
+const router = useRouter()
+let pendingRoute: string | null = null
+
 const columns: readonly BusinessObjectColumn<AdminRole>[] = [
   { key: 'code', label: '编码', value: (item) => item.code },
   { key: 'name', label: '名称', value: (item) => item.name },
-  { key: 'description', label: '说明', value: (item) => item.description },
-  { key: 'status', label: '状态', value: (item) => item.status },
+  {
+    key: 'type',
+    label: '类型',
+    value: (item) => formatRoleType(item.type),
+    sizing: 'compact',
+  },
+  {
+    key: 'status',
+    label: '状态',
+    value: (item) => formatAdminStatus(item.status),
+    sizing: 'compact',
+  },
 ]
 
+function formatTime(value: string): string {
+  return new Date(value).toLocaleString('zh-CN')
+}
+
+function selectAction(action: string, row: AdminRole): void {
+  if (action === 'VIEW') void vm.openDetail(row)
+  else if (action === 'EDIT') void vm.openEdit(row)
+  else vm.requestChangeEnabled(row)
+}
+
+async function confirmDiscard(): Promise<void> {
+  vm.confirmDiscard()
+  const target = pendingRoute
+  pendingRoute = null
+  if (target) await router.push(target)
+}
+
+onBeforeRouteLeave((to) => {
+  if (vm.requestRouteLeave()) return true
+  pendingRoute = to.fullPath
+  return false
+})
+onUnmounted(() => vm.dispose())
 void vm.query()
 </script>
 
@@ -28,11 +72,22 @@ void vm.query()
       type="success"
       @dismiss="vm.successMessage = null"
     />
+    <v-alert
+      v-if="vm.queryErrorMessage"
+      class="mb-4"
+      type="error"
+      variant="tonal"
+    >
+      {{ vm.queryErrorMessage }}
+      <v-btn class="ml-2" size="small" variant="text" @click="vm.query">
+        重试
+      </v-btn>
+    </v-alert>
     <BusinessObjectList
       :columns="columns"
       :creatable="vm.canCreate"
-      :deletable="vm.canChangeEnabled"
-      :editable="vm.canEditRole"
+      :editable="(row) => vm.rowActions(row).length > 0"
+      :empty-text="vm.queryErrorMessage ? '角色加载失败，请重试。' : '暂无角色'"
       :keyword="vm.keyword"
       :loading="vm.loading"
       :page="vm.page"
@@ -41,7 +96,7 @@ void vm.query()
       :rows="vm.rows"
       search-label="角色编码或名称"
       :total="vm.total"
-      @apply-filters="vm.search"
+      @apply-filters="vm.applyFilters"
       @create="vm.openCreate"
       @query="vm.search"
       @reset-filters="vm.resetFilters"
@@ -55,10 +110,7 @@ void vm.query()
           density="comfortable"
           item-title="title"
           item-value="value"
-          :items="[
-            { title: '启用', value: 'ENABLED' },
-            { title: '停用', value: 'DISABLED' },
-          ]"
+          :items="adminStatusOptions"
           label="状态"
           variant="outlined"
         />
@@ -69,122 +121,164 @@ void vm.query()
           size="small"
           variant="tonal"
         >
-          {{ row.status === 'ENABLED' ? '启用' : '停用' }}
+          {{ formatAdminStatus(row.status) }}
         </v-chip>
       </template>
       <template #actions="{ row }">
         <ListRowActions
-          :actions="[
-            ...(vm.canEditRole(row)
-              ? [
-                  {
-                    key: 'edit',
-                    label: '编辑',
-                    icon: 'mdi-pencil-outline',
-                    color: 'primary',
-                  },
-                ]
-              : []),
-            ...(vm.canChangeEnabled(row)
-              ? [
-                  {
-                    key: 'toggle',
-                    label: row.status === 'ENABLED' ? '停用' : '启用',
-                    icon:
-                      row.status === 'ENABLED'
-                        ? 'mdi-pause-circle-outline'
-                        : 'mdi-play-circle-outline',
-                  },
-                ]
-              : []),
-          ]"
+          :actions="vm.rowActions(row)"
           :label="`操作 ${row.code}`"
-          @select="$event === 'edit' ? vm.openEdit(row) : vm.changeEnabled(row)"
+          :loading="vm.actionLoadingID === row.id"
+          @select="selectAction($event, row)"
         />
       </template>
     </BusinessObjectList>
   </v-container>
 
   <v-navigation-drawer
-    v-model="vm.editorOpen"
+    :model-value="vm.editorOpen"
     location="end"
     temporary
     width="760"
+    @update:model-value="!$event && vm.requestCloseEditor()"
   >
     <v-card class="h-100" flat>
       <v-card-title class="d-flex align-center px-6 py-5">
-        {{ vm.editing ? '编辑角色' : '新增角色' }}
+        {{ vm.isDetail ? '查看角色' : vm.isEdit ? '编辑角色' : '新增角色' }}
         <v-spacer />
-        <v-btn icon="mdi-close" variant="text" @click="vm.closeEditor" />
+        <v-btn icon="mdi-close" variant="text" @click="vm.requestCloseEditor" />
       </v-card-title>
       <v-divider />
       <v-card-text class="pa-6">
-        <v-text-field
-          v-model="vm.form.code"
-          :disabled="Boolean(vm.editing)"
-          label="角色编码"
-          required
-          variant="outlined"
-        />
-        <v-text-field
-          v-model="vm.form.name"
-          label="角色名称"
-          required
-          variant="outlined"
-        />
-        <v-textarea
-          v-model="vm.form.description"
-          label="说明"
-          rows="2"
-          variant="outlined"
-        />
-        <v-alert v-if="vm.superadmin" class="mb-4" type="info" variant="tonal">
-          超级管理员权限由服务端动态展开为全部启用权限，不能逐项修改。
-        </v-alert>
-        <div class="text-subtitle-1 font-weight-medium mb-2">权限树</div>
-        <v-expansion-panels multiple variant="accordion">
-          <v-expansion-panel
-            v-for="domain in vm.permissionGroups"
-            :key="domain.domain"
-            :title="domain.domain"
-          >
-            <v-expansion-panel-text>
-              <div
-                v-for="entity in domain.entities"
-                :key="entity.entity"
-                class="permission-entity"
-              >
-                <div class="font-weight-medium">{{ entity.entity }}</div>
-                <v-checkbox
-                  v-for="permission in entity.permissions"
-                  :key="permission.id"
-                  density="compact"
-                  :disabled="vm.permissionDisabled(permission)"
-                  hide-details
-                  :label="vm.permissionLabel(permission)"
-                  :model-value="vm.permissionChecked(permission.id)"
-                  @update:model-value="
-                    vm.togglePermission(permission.id, Boolean($event))
-                  "
-                />
-              </div>
-            </v-expansion-panel-text>
-          </v-expansion-panel>
-        </v-expansion-panels>
         <v-alert
-          v-if="vm.validationError"
-          class="mt-4"
-          density="compact"
-          type="warning"
+          v-if="vm.editorErrorMessage"
+          class="mb-4"
+          type="error"
           variant="tonal"
         >
-          {{ vm.validationError }}
+          {{ vm.editorErrorMessage }}
         </v-alert>
+        <v-alert
+          v-if="vm.permissionErrorMessage"
+          class="mb-4"
+          type="error"
+          variant="tonal"
+        >
+          {{ vm.permissionErrorMessage }}
+          <v-btn
+            class="ml-2"
+            size="small"
+            variant="text"
+            @click="vm.loadPermissions()"
+          >
+            重试
+          </v-btn>
+        </v-alert>
+
+        <template v-if="vm.isDetail">
+          <dl class="role-detail">
+            <dt>编码</dt>
+            <dd>{{ vm.editing?.code }}</dd>
+            <dt>名称</dt>
+            <dd>{{ vm.editing?.name }}</dd>
+            <dt>说明</dt>
+            <dd>{{ vm.editing?.description || '—' }}</dd>
+            <dt>类型</dt>
+            <dd>{{ vm.editing ? formatRoleType(vm.editing.type) : '—' }}</dd>
+            <dt>状态</dt>
+            <dd>
+              {{ vm.editing ? formatAdminStatus(vm.editing.status) : '—' }}
+            </dd>
+            <dt>版本</dt>
+            <dd>{{ vm.editing?.revision }}</dd>
+            <dt>创建时间</dt>
+            <dd>{{ vm.editing ? formatTime(vm.editing.createdAt) : '—' }}</dd>
+            <dt>更新时间</dt>
+            <dd>{{ vm.editing ? formatTime(vm.editing.updatedAt) : '—' }}</dd>
+          </dl>
+          <div class="text-subtitle-1 font-weight-medium mt-6 mb-2">
+            完整权限
+          </div>
+          <v-list density="compact" lines="two">
+            <v-list-item
+              v-for="permission in vm.editing?.permissions ?? []"
+              :key="permission.id"
+              :subtitle="permission.path"
+              :title="permission.description || '未命名权限'"
+            >
+              <template #append>
+                <v-chip
+                  :color="
+                    permission.status === 'ENABLED' ? 'success' : 'default'
+                  "
+                  size="x-small"
+                  variant="tonal"
+                >
+                  {{ formatAdminStatus(permission.status) }}
+                </v-chip>
+              </template>
+            </v-list-item>
+          </v-list>
+        </template>
+
+        <template v-else>
+          <v-text-field
+            v-if="vm.isEdit"
+            :model-value="vm.editing?.code"
+            label="角色编码"
+            readonly
+            variant="outlined"
+          />
+          <v-text-field
+            v-model="vm.form.name"
+            label="角色名称"
+            required
+            variant="outlined"
+          />
+          <v-textarea
+            v-model="vm.form.description"
+            label="说明"
+            rows="2"
+            variant="outlined"
+          />
+          <div class="text-subtitle-1 font-weight-medium mb-2">权限</div>
+          <div class="permission-list">
+            <div
+              v-for="permission in vm.permissions"
+              :key="permission.id"
+              class="permission-list__item"
+            >
+              <v-checkbox
+                density="compact"
+                :disabled="vm.permissionDisabled(permission)"
+                hide-details
+                :label="vm.permissionLabel(permission)"
+                :model-value="vm.permissionChecked(permission.id)"
+                @update:model-value="
+                  vm.togglePermission(permission.id, Boolean($event))
+                "
+              />
+              <small>{{ permission.path }}</small>
+            </div>
+          </div>
+          <v-alert
+            v-if="vm.validationError"
+            class="mt-4"
+            density="compact"
+            type="warning"
+            variant="tonal"
+          >
+            {{ vm.validationError }}
+          </v-alert>
+        </template>
       </v-card-text>
       <v-card-actions class="px-6 pb-6">
         <v-spacer />
-        <v-btn variant="text" @click="vm.closeEditor">取消</v-btn>
+        <v-btn variant="text" @click="vm.requestCloseEditor">
+          {{ vm.isDetail ? '关闭' : '取消' }}
+        </v-btn>
         <v-btn
+          v-if="!vm.isDetail"
           color="primary"
           :disabled="!vm.canSubmit"
           :loading="vm.saving"
@@ -195,11 +289,41 @@ void vm.query()
       </v-card-actions>
     </v-card>
   </v-navigation-drawer>
+
+  <DiscardChangesDialog
+    :open="vm.discardConfirmOpen"
+    @cancel="vm.cancelDiscard"
+    @confirm="confirmDiscard"
+  />
+  <RoleActionConfirmDialog
+    :loading="Boolean(vm.actionLoadingID)"
+    :message="vm.pendingActionMessage"
+    :open="Boolean(vm.pendingAction)"
+    :title="vm.pendingAction?.kind === 'disable' ? '停用角色' : '启用角色'"
+    @cancel="vm.pendingAction = null"
+    @confirm="vm.confirmPendingAction"
+  />
 </template>
 
 <style scoped>
-.permission-entity {
-  padding: 12px 0;
+.role-detail {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 10px 20px;
+}
+
+.role-detail dt {
+  color: rgb(var(--v-theme-on-surface-variant));
+}
+
+.permission-list__item {
+  padding: 8px 0;
   border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.permission-list__item small {
+  display: block;
+  margin-left: 40px;
+  color: rgb(var(--v-theme-on-surface-variant));
 }
 </style>

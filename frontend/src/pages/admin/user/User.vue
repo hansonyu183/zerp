@@ -7,7 +7,12 @@ import {
 } from '@/components/business-object'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
-import DiscardChangesDialog from './DiscardChangesDialog.vue'
+import DiscardChangesDialog from '../shared/DiscardChangesDialog.vue'
+import {
+  adminStatusOptions,
+  formatAdminStatus,
+  formatRoleType,
+} from '../shared/labels'
 import TemporaryPasswordDialog from './TemporaryPasswordDialog.vue'
 import UserActionConfirmDialog from './UserActionConfirmDialog.vue'
 import { createUserManagementViewModel } from './vm'
@@ -19,7 +24,11 @@ let pendingRoute: string | null = null
 const columns: readonly BusinessObjectColumn<AdminUser>[] = [
   { key: 'username', label: '用户名', value: (item) => item.username },
   { key: 'displayName', label: '名称', value: (item) => item.displayName },
-  { key: 'status', label: '状态', value: (item) => item.status },
+  {
+    key: 'status',
+    label: '状态',
+    value: (item) => formatAdminStatus(item.status),
+  },
   {
     key: 'updatedAt',
     label: '更新时间',
@@ -102,10 +111,7 @@ void vm.query()
           v-model="vm.status"
           clearable
           density="comfortable"
-          :items="[
-            { title: '启用', value: 'ENABLED' },
-            { title: '停用', value: 'DISABLED' },
-          ]"
+          :items="adminStatusOptions"
           label="状态"
           variant="outlined"
       /></template>
@@ -114,7 +120,7 @@ void vm.query()
           :color="row.status === 'ENABLED' ? 'success' : 'default'"
           size="small"
           variant="tonal"
-          >{{ row.status === 'ENABLED' ? '启用' : '停用' }}</v-chip
+          >{{ formatAdminStatus(row.status) }}</v-chip
         ></template
       >
       <template #actions="{ row }">
@@ -240,12 +246,21 @@ void vm.query()
             :key="role.id"
             class="mr-2 mb-2"
             :color="role.status === 'DISABLED' ? 'default' : 'primary'"
-            >{{ role.code }} · {{ role.name
-            }}{{ role.status === 'DISABLED' ? '（已停用）' : '' }}</v-chip
+            >{{ role.code }} · {{ role.name }}（{{
+              formatRoleType(role.type)
+            }}）{{
+              role.status === 'DISABLED'
+                ? '（已停用）'
+                : !role.assignable
+                  ? '（不可分配）'
+                  : ''
+            }}</v-chip
           >
           <dl class="mt-5">
             <dt>账号状态</dt>
-            <dd>{{ vm.editing?.status === 'ENABLED' ? '启用' : '停用' }}</dd>
+            <dd>
+              {{ vm.editing ? formatAdminStatus(vm.editing.status) : '—' }}
+            </dd>
             <dt>密码更新时间</dt>
             <dd>{{ vm.editing?.passwordChangedAt }}</dd>
             <dt>创建时间</dt>

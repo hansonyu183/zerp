@@ -47,6 +47,29 @@ const exactMessages: Readonly<Record<string, string>> = {
   'system identity is managed internally':
     '系统用户和系统角色由系统维护，不能人工修改。',
   'role code is reserved': '该角色编码为系统保留编码，请使用其他编码。',
+  'role code is server assigned': '角色编码由系统自动生成，不能手工指定。',
+  'role name already exists': '角色名称已存在，请使用其他名称。',
+  'role code capacity exhausted': '角色编码已用尽，请联系管理员。',
+  'requested permissions exceed authorization ceiling':
+    '所选权限超出当前授权上限，请刷新权限目录后重新选择。',
+  'role cannot be maintained': '当前角色不可维护，请刷新后查看最新授权状态。',
+  'one or more roles exceed authorization ceiling':
+    '所选角色超出当前授权上限，请刷新角色目录后重新选择。',
+  'user cannot be maintained': '当前用户的授权高于您的管理范围，只能查看。',
+  'invalid role query pagination or sort':
+    '角色查询条件无效，请按默认排序和分页重新查询。',
+  'invalid role fields': '角色资料不完整或格式不正确，请检查后重试。',
+  'invalid role id': '角色标识无效，请刷新列表后重试。',
+  'role not found': '角色不存在，请刷新列表。',
+  'invalid permission id': '权限标识无效，请刷新权限目录后重试。',
+  'permission not found': '权限不存在，请刷新权限目录。',
+  'role changed concurrently': '角色已被其他操作修改，请刷新后重试。',
+  'invalid status request': '状态操作请求无效，请刷新后重试。',
+  'invalid user fields': '用户资料不完整或格式不正确，请检查后重试。',
+  'invalid user id': '用户标识无效，请刷新列表后重试。',
+  'user not found': '用户不存在，请刷新列表。',
+  'user changed concurrently': '用户资料已被其他操作修改，请刷新后重试。',
+  'internal server error': '服务暂时不可用，请稍后重试。',
   'referenced object cannot be deleted; disable it instead':
     '该资料已被引用，不能删除；可以改为停用。',
   'object cannot be edited in its current state': '当前状态下不能编辑该资料。',

@@ -32,12 +32,17 @@ const user = {
   createdAt: '2026-08-05T00:00:00Z',
   updatedAt: '2026-08-05T00:00:00Z',
   revision: 2,
+  passwordChangedAt: '2026-08-05T00:00:00Z',
+  manageable: true,
+  roleAssignmentEditable: true,
   roles: [
     {
       id: 'ROLE-1',
       code: 'operator',
       name: '操作员',
       status: 'ENABLED' as const,
+      type: 'NORMAL' as const,
+      assignable: true,
     },
   ],
 }
@@ -72,28 +77,12 @@ describe('user management view model', () => {
     vi.mocked(queryAdminRoles).mockResolvedValue({
       data: {
         items: [
-          {
-            id: 'ROLE-1',
-            code: 'operator',
-            name: '操作员',
-            status: 'ENABLED',
-            createdAt: '2026-08-05T00:00:00Z',
-            updatedAt: '2026-08-05T00:00:00Z',
-            revision: 1,
-          },
-          {
-            id: 'ROLE-2',
-            code: 'reviewer',
-            name: '审核员',
-            status: 'ENABLED',
-            createdAt: '2026-08-05T00:00:00Z',
-            updatedAt: '2026-08-05T00:00:00Z',
-            revision: 1,
-          },
+          { ...roleListItem('ROLE-1', 'operator', '操作员'), assignable: true },
+          { ...roleListItem('ROLE-2', 'reviewer', '审核员'), assignable: true },
         ],
         total: 2,
         page: 1,
-        pageSize: 200,
+        pageSize: 20,
       },
     })
     vi.mocked(getAdminUser).mockResolvedValue({ data: user })
@@ -273,6 +262,8 @@ describe('user management view model', () => {
           code: 'reviewer',
           name: '审核员',
           status: 'ENABLED' as const,
+          type: 'NORMAL' as const,
+          assignable: true,
         },
       ],
     }
@@ -334,30 +325,24 @@ describe('user management view model', () => {
   })
 
   it('分页加载全部角色并保留后续页角色的选择标签', async () => {
-    const firstPageRoles = Array.from({ length: 200 }, (_, index) => ({
-      id: `ROLE-${index + 1}`,
-      code: `role-${String(index + 1).padStart(3, '0')}`,
-      name: `角色 ${index + 1}`,
-      status: 'ENABLED' as const,
-      createdAt: '2026-08-05T00:00:00Z',
-      updatedAt: '2026-08-05T00:00:00Z',
-      revision: 1,
+    const firstPageRoles = Array.from({ length: 20 }, (_, index) => ({
+      ...roleListItem(
+        `ROLE-${index + 1}`,
+        `role-${String(index + 1).padStart(3, '0')}`,
+        `角色 ${index + 1}`,
+      ),
+      assignable: true,
     }))
     const lastRole = {
-      id: 'ROLE-201',
-      code: 'role-201',
-      name: '角色 201',
-      status: 'ENABLED' as const,
-      createdAt: '2026-08-05T00:00:00Z',
-      updatedAt: '2026-08-05T00:00:00Z',
-      revision: 1,
+      ...roleListItem('ROLE-21', 'role-021', '角色 21'),
+      assignable: true,
     }
     vi.mocked(queryAdminRoles)
       .mockResolvedValueOnce({
-        data: { items: firstPageRoles, total: 201, page: 1, pageSize: 200 },
+        data: { items: firstPageRoles, total: 21, page: 1, pageSize: 20 },
       })
       .mockResolvedValueOnce({
-        data: { items: [lastRole], total: 201, page: 2, pageSize: 200 },
+        data: { items: [lastRole], total: 21, page: 2, pageSize: 20 },
       })
     const vm = createUserManagementViewModel()
 
@@ -366,46 +351,36 @@ describe('user management view model', () => {
 
     expect(queryAdminRoles).toHaveBeenNthCalledWith(1, {
       page: 1,
-      pageSize: 200,
+      pageSize: 20,
       sort: [{ field: 'code', order: 'asc' }],
     })
     expect(queryAdminRoles).toHaveBeenNthCalledWith(2, {
       page: 2,
-      pageSize: 200,
+      pageSize: 20,
       sort: [{ field: 'code', order: 'asc' }],
     })
     expect(vm.roleOptions.value).toContainEqual({
-      title: 'role-201 · 角色 201',
-      value: 'ROLE-201',
+      title: 'role-021 · 角色 21',
+      value: 'ROLE-21',
       props: { disabled: false, 'aria-disabled': undefined },
     })
   })
 
   it('不将内置系统角色作为可分配角色，保留已禁用角色策略', async () => {
     const systemRole = {
-      id: 'ROLE-SYSTEM',
-      code: 'system',
-      name: '系统角色',
-      status: 'ENABLED' as const,
-      createdAt: '2026-08-05T00:00:00Z',
-      updatedAt: '2026-08-05T00:00:00Z',
-      revision: 1,
+      ...roleListItem('ROLE-SYSTEM', 'system', '系统角色'),
+      type: 'SYSTEM' as const,
     }
     const disabledRole = {
-      id: 'ROLE-DISABLED',
-      code: 'disabled',
-      name: '已停用角色',
+      ...roleListItem('ROLE-DISABLED', 'disabled', '已停用角色'),
       status: 'DISABLED' as const,
-      createdAt: '2026-08-05T00:00:00Z',
-      updatedAt: '2026-08-05T00:00:00Z',
-      revision: 1,
     }
     vi.mocked(queryAdminRoles).mockResolvedValue({
       data: {
         items: [systemRole, disabledRole],
         total: 2,
         page: 1,
-        pageSize: 200,
+        pageSize: 20,
       },
     })
     const vm = createUserManagementViewModel()
@@ -413,33 +388,17 @@ describe('user management view model', () => {
     await vm.openCreate()
 
     expect(vm.roles.value).toEqual([disabledRole])
-    expect(vm.roleOptions.value).toEqual([
-      {
-        title: 'disabled · 已停用角色（已停用）',
-        value: 'ROLE-DISABLED',
-        props: { disabled: true, 'aria-disabled': true },
-      },
-    ])
+    expect(vm.roleOptions.value).toEqual([])
   })
 
   it('编辑时保留已停用角色标签，但要求移除后才能保存', async () => {
     const enabledRole = {
-      id: 'ROLE-ENABLED',
-      code: 'enabled',
-      name: '启用角色',
-      status: 'ENABLED' as const,
-      createdAt: '2026-08-05T00:00:00Z',
-      updatedAt: '2026-08-05T00:00:00Z',
-      revision: 1,
+      ...roleListItem('ROLE-ENABLED', 'enabled', '启用角色'),
+      assignable: true,
     }
     const disabledRole = {
-      id: 'ROLE-DISABLED',
-      code: 'disabled',
-      name: '已停用角色',
+      ...roleListItem('ROLE-DISABLED', 'disabled', '已停用角色'),
       status: 'DISABLED' as const,
-      createdAt: '2026-08-05T00:00:00Z',
-      updatedAt: '2026-08-05T00:00:00Z',
-      revision: 1,
     }
     const userWithDisabledRole = {
       ...user,
@@ -449,6 +408,8 @@ describe('user management view model', () => {
           code: disabledRole.code,
           name: disabledRole.name,
           status: 'DISABLED' as const,
+          type: 'NORMAL' as const,
+          assignable: false,
         },
       ],
     }
@@ -457,7 +418,7 @@ describe('user management view model', () => {
         items: [enabledRole, disabledRole],
         total: 2,
         page: 1,
-        pageSize: 200,
+        pageSize: 20,
       },
     })
     vi.mocked(getAdminUser).mockResolvedValue({ data: userWithDisabledRole })
@@ -663,7 +624,7 @@ describe('user management protected actions', () => {
       data: { items: [user], total: 1, page: 1, pageSize: 20 },
     })
     vi.mocked(queryAdminRoles).mockResolvedValue({
-      data: { items: [], total: 0, page: 1, pageSize: 200 },
+      data: { items: [], total: 0, page: 1, pageSize: 20 },
     })
     vi.mocked(resetAdminUserPassword).mockResolvedValue({
       data: { temporaryPassword: 'never-persisted' },
@@ -780,19 +741,11 @@ describe('user management protected actions', () => {
     vi.mocked(queryAdminRoles).mockResolvedValueOnce({
       data: {
         items: [
-          {
-            id: 'ROLE-1',
-            code: 'operator',
-            name: '操作员',
-            status: 'ENABLED',
-            createdAt: '2026-08-05T00:00:00Z',
-            updatedAt: '2026-08-05T00:00:00Z',
-            revision: 1,
-          },
+          { ...roleListItem('ROLE-1', 'operator', '操作员'), assignable: true },
         ],
         total: 1,
         page: 1,
-        pageSize: 200,
+        pageSize: 20,
       },
     })
     vi.mocked(getAdminUser).mockRejectedValueOnce(new Error('unavailable'))
@@ -838,19 +791,11 @@ it('脏编辑器通过统一关闭 seam 请求确认，确认后清除密码和�
   vi.mocked(queryAdminRoles).mockResolvedValue({
     data: {
       items: [
-        {
-          id: 'ROLE-1',
-          code: 'operator',
-          name: '操作员',
-          status: 'ENABLED',
-          createdAt: '2026-08-05T00:00:00Z',
-          updatedAt: '2026-08-05T00:00:00Z',
-          revision: 1,
-        },
+        { ...roleListItem('ROLE-1', 'operator', '操作员'), assignable: true },
       ],
       total: 1,
       page: 1,
-      pageSize: 200,
+      pageSize: 20,
     },
   })
   const vm = createUserManagementViewModel()
@@ -888,6 +833,8 @@ it('本人含已停用角色时仍可仅保存显示名称且提交原角色集�
         code: 'disabled',
         name: '已停用角色',
         status: 'DISABLED' as const,
+        type: 'NORMAL' as const,
+        assignable: false,
       },
     ],
   }
@@ -896,18 +843,13 @@ it('本人含已停用角色时仍可仅保存显示名称且提交原角色集�
     data: {
       items: [
         {
-          id: 'ROLE-DISABLED',
-          code: 'disabled',
-          name: '已停用角色',
+          ...roleListItem('ROLE-DISABLED', 'disabled', '已停用角色'),
           status: 'DISABLED',
-          createdAt: '2026-08-05T00:00:00Z',
-          updatedAt: '2026-08-05T00:00:00Z',
-          revision: 1,
         },
       ],
       total: 1,
       page: 1,
-      pageSize: 200,
+      pageSize: 20,
     },
   })
   vi.mocked(saveAdminUser).mockResolvedValue({ data: detail })
@@ -928,3 +870,105 @@ it('本人含已停用角色时仍可仅保存显示名称且提交原角色集�
     revision: user.revision,
   })
 })
+
+it('用户角色候选只包含服务端可分配角色且保留既有不可分配关联', async () => {
+  vi.clearAllMocks()
+  setActivePinia(createPinia())
+  const session = useSessionStore()
+  session.permissions = ['/app/user/get', '/app/user/save', '/app/role/query']
+  const assignedSuperior = {
+    id: 'ROLE-SUPERIOR',
+    code: 'ROL-0099',
+    name: '上级角色',
+    status: 'ENABLED' as const,
+    type: 'NORMAL' as const,
+    assignable: false,
+  }
+  vi.mocked(getAdminUser).mockResolvedValue({
+    data: {
+      ...user,
+      passwordChangedAt: '2026-08-05T00:00:00Z',
+      manageable: true,
+      roleAssignmentEditable: true,
+      roles: [assignedSuperior],
+    },
+  })
+  vi.mocked(queryAdminRoles).mockResolvedValue({
+    data: {
+      items: [
+        {
+          ...roleListItem('ROLE-ASSIGNABLE', 'ROL-0002', '可分配角色'),
+          assignable: true,
+        },
+        {
+          ...roleListItem('ROLE-SUPERIOR', 'ROL-0099', '上级角色'),
+          assignable: false,
+        },
+      ],
+      total: 2,
+      page: 1,
+      pageSize: 20,
+    },
+  })
+  const vm = createUserManagementViewModel()
+  await vm.openEdit(user)
+
+  expect(vm.roleOptions.value).toEqual([
+    expect.objectContaining({ value: 'ROLE-ASSIGNABLE' }),
+    expect.objectContaining({
+      value: 'ROLE-SUPERIOR',
+      props: expect.objectContaining({ disabled: false }),
+    }),
+  ])
+})
+
+it('后端判定上级用户不可维护时自动保持只读且不提交', async () => {
+  vi.clearAllMocks()
+  setActivePinia(createPinia())
+  const session = useSessionStore()
+  session.permissions = ['/app/user/get', '/app/user/save', '/app/role/query']
+  vi.mocked(getAdminUser).mockResolvedValue({
+    data: {
+      ...user,
+      passwordChangedAt: '2026-08-05T00:00:00Z',
+      manageable: false,
+      roleAssignmentEditable: false,
+      roles: [
+        {
+          id: 'ROLE-SUPERIOR',
+          code: 'ROL-0099',
+          name: '上级角色',
+          status: 'ENABLED',
+          type: 'NORMAL',
+          assignable: false,
+        },
+      ],
+    },
+  })
+  vi.mocked(queryAdminRoles).mockResolvedValue({
+    data: { items: [], total: 0, page: 1, pageSize: 20 },
+  })
+  const vm = createUserManagementViewModel()
+  await vm.openEdit(user)
+
+  expect(vm.isDetail.value).toBe(true)
+  expect(vm.rolesReadonly.value).toBe(true)
+  await vm.save()
+  expect(saveAdminUser).not.toHaveBeenCalled()
+})
+
+function roleListItem(id: string, code: string, name: string) {
+  return {
+    id,
+    code,
+    name,
+    description: null,
+    status: 'ENABLED' as const,
+    type: 'NORMAL' as const,
+    availableActions: ['VIEW'] as Array<'VIEW'>,
+    assignable: false,
+    createdAt: '2026-08-05T00:00:00Z',
+    updatedAt: '2026-08-05T00:00:00Z',
+    revision: 1,
+  }
+}

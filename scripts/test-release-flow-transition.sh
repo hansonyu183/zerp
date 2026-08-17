@@ -104,9 +104,9 @@ grep -Fq -- '--sandbox workspace-write' scripts/issue-local.sh
 grep -Fq 'Logged in using ChatGPT' scripts/install-issue-local-agent.sh
 grep -Fq 'com.hansonyu.zerp-issue-local' scripts/install-issue-local-agent.sh
 grep -Fq '<key>WatchPaths</key>' scripts/install-issue-local-agent.sh
-if grep -Fq '<key>StartInterval</key>' scripts/install-issue-local-agent.sh; then
-  fail 'local Issue agent uses polling'
-fi
+test "$(grep -Fc '<key>StartInterval</key>' scripts/install-issue-local-agent.sh)" = 1 ||
+  fail 'only the notification outbox worker may use interval recovery'
+grep -Fq 'com.hansonyu.zerp-issue-local-notifications' scripts/install-issue-local-agent.sh
 if grep -ERq 'openai/codex-action|OPENAI_API_KEY|issue-queue|issue-implement|issue-review' .github/workflows; then
   fail 'retired cloud Codex workflow remains reachable'
 fi

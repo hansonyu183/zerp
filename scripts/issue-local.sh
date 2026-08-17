@@ -994,25 +994,18 @@ prepare_worktree() {
       git -C "${primary_root}" worktree add -b "${branch}" "${worktree}" "${base_sha}"
     fi
   fi
-  prepare_offline_dependencies "${worktree}" || return 1
+  worktree_environment_ensure "${worktree}" || return 1
   mkdir -p "${worktree}/.scratch/${feature}"
   rm -rf "${worktree}/.scratch/${feature}/issues"
   cp -R "${issues_dir}" "${worktree}/.scratch/${feature}/issues"
 }
 
-cleanup_candidate_dependency_stores() {
+_worktree_environment_clean_residue() {
   worktree=$1
-  rm -rf "${worktree}/.pnpm-store" "${worktree}/frontend/node_modules/.pnpm-store"
-}
-
-remove_managed_root_dependencies() {
-  worktree=$1
-  candidate_modules="${worktree}/node_modules"
-  primary_modules="${primary_root}/node_modules"
-  if [ -L "${candidate_modules}" ] &&
-    [ "$(readlink "${candidate_modules}")" = "${primary_modules}" ]; then
-    rm -f "${candidate_modules}"
-  fi
+  rm -rf "${worktree}/.pnpm-store" \
+    "${worktree}/frontend/node_modules/.pnpm-store" \
+    "${worktree}/frontend/node_modules/.vite" \
+    "${worktree}/frontend/node_modules/.vite-temp"
 }
 
 remove_managed_host_env() {
@@ -1053,7 +1046,7 @@ ensure_primary_e2e_env() {
   printf '%s\n' "${primary_e2e_env}"
 }
 
-prepare_cached_pnpm() {
+_worktree_environment_prepare_pnpm() {
   worktree=$1
   package_json="${worktree}/package.json"
   pnpm_store=${ZERP_PNPM_STORE_PATH:-${HOME}/Library/pnpm/store}
@@ -1097,7 +1090,7 @@ prepare_cached_pnpm() {
   mv "${wrapper_dir}/pnpm.new" "${wrapper_dir}/pnpm"
 }
 
-verify_candidate_dependencies_ignored() {
+_worktree_environment_verify_ignored() {
   worktree=$1
   git -C "${worktree}" check-ignore -q -- node_modules || {
     echo 'offline dependency preparation blocked: candidate node_modules is not ignored by Git' >&2
@@ -1109,14 +1102,13 @@ verify_candidate_dependencies_ignored() {
   }
 }
 
-prepare_offline_dependencies() {
+worktree_environment_ensure() {
   worktree=$1
-  primary_lockfile="${primary_root}/pnpm-lock.yaml"
   candidate_lockfile="${worktree}/pnpm-lock.yaml"
-  primary_modules="${primary_root}/node_modules"
-  primary_frontend_modules="${primary_root}/frontend/node_modules"
   candidate_modules="${worktree}/node_modules"
   candidate_frontend_modules="${worktree}/frontend/node_modules"
+  pnpm_store=${ZERP_PNPM_STORE_PATH:-${HOME}/Library/pnpm/store}
+  wrapper="${worktree}/.scratch/.issue-local-bin/pnpm"
 
   remove_managed_host_env "${worktree}"
   if [ -e "${worktree}/backend/.env.local" ] || [ -L "${worktree}/backend/.env.local" ]; then
@@ -1129,62 +1121,79 @@ prepare_offline_dependencies() {
     return 1
   fi
 
-  if ! { [ -f "${primary_lockfile}" ] && [ -f "${candidate_lockfile}" ] &&
-    cmp -s "${primary_lockfile}" "${candidate_lockfile}"; }; then
-      echo 'offline dependency preparation blocked: candidate pnpm-lock.yaml differs from the primary worktree' >&2
-      return 1
-  fi
-  if ! { [ -d "${primary_modules}" ] && [ -d "${primary_modules}/.pnpm" ] &&
-    [ -f "${primary_modules}/.modules.yaml" ] && [ -d "${primary_modules}/.bin" ]; }; then
-      echo 'offline dependency preparation blocked: primary root node_modules is incomplete' >&2
-      return 1
-  fi
-  if ! { [ -d "${primary_frontend_modules}" ] && [ -d "${primary_frontend_modules}/.bin" ] &&
-    [ -x "${primary_frontend_modules}/.bin/vite" ] && [ -e "${primary_frontend_modules}/vite" ]; }; then
-      echo 'offline dependency preparation blocked: primary frontend node_modules is incomplete' >&2
-      return 1
-  fi
-  if ! command -v rsync >/dev/null 2>&1; then
-      echo 'offline dependency preparation blocked: rsync is required' >&2
-      return 1
-  fi
-  prepare_cached_pnpm "${worktree}" || return 1
-  if [ -e "${candidate_modules}" ] || [ -L "${candidate_modules}" ]; then
-    if [ ! -L "${candidate_modules}" ] ||
-      [ "$(readlink "${candidate_modules}")" != "${primary_modules}" ]; then
-      echo 'offline dependency preparation blocked: candidate node_modules is not the controller-managed primary symlink' >&2
-      return 1
-    fi
-  else
-    ln -s "${primary_modules}" "${candidate_modules}"
+  [ -f "${candidate_lockfile}" ] || {
+    echo 'offline dependency preparation blocked: candidate pnpm-lock.yaml is missing' >&2
+    return 1
+  }
+  _worktree_environment_prepare_pnpm "${worktree}" || return 1
+  _worktree_environment_verify_ignored "${worktree}" || return 1
+  if [ -L "${candidate_modules}" ] || {
+    [ -e "${candidate_modules}" ] && [ ! -d "${candidate_modules}" ]
+  }; then
+    echo 'offline dependency preparation blocked: candidate node_modules must be an owned directory' >&2
+    return 1
   fi
   if [ -L "${candidate_frontend_modules}" ] || {
     [ -e "${candidate_frontend_modules}" ] && [ ! -d "${candidate_frontend_modules}" ]
   }; then
-    echo 'offline dependency preparation blocked: candidate frontend/node_modules is not a directory' >&2
+    echo 'offline dependency preparation blocked: candidate frontend/node_modules must be an owned directory' >&2
     return 1
   fi
-  mkdir -p "${candidate_frontend_modules}"
-  verify_candidate_dependencies_ignored "${worktree}" || return 1
-  cleanup_candidate_dependency_stores "${worktree}"
-  rm -rf "${candidate_frontend_modules}/.pnpm" \
-    "${candidate_frontend_modules}/.tmp" \
-    "${candidate_frontend_modules}/.vite" \
-    "${candidate_frontend_modules}/.vite-temp"
-  rsync -a --delete \
-    --exclude '.pnpm' \
-    --exclude '.tmp' \
-    --exclude '.vite' \
-    --exclude '.vite-temp' \
-    --exclude '.pnpm-store' \
-    "${primary_frontend_modules}/" "${candidate_frontend_modules}/"
+  _worktree_environment_clean_residue "${worktree}"
+  if ! (
+    cd "${worktree}"
+    CI=true COREPACK_ROOT=1 "${wrapper}" install --offline --frozen-lockfile \
+      --store-dir "${pnpm_store}"
+  ); then
+    echo 'offline dependency preparation blocked: candidate install failed' >&2
+    return 1
+  fi
+  _worktree_environment_clean_residue "${worktree}"
+  if ! { [ -d "${candidate_modules}" ] && [ ! -L "${candidate_modules}" ] &&
+    [ -d "${candidate_modules}/.pnpm" ] && [ -f "${candidate_modules}/.modules.yaml" ] &&
+    [ -d "${candidate_modules}/.bin" ]; }; then
+    echo 'offline dependency preparation blocked: candidate root node_modules is incomplete' >&2
+    return 1
+  fi
+  if ! { [ -d "${candidate_frontend_modules}" ] &&
+    [ ! -L "${candidate_frontend_modules}" ] &&
+    [ -d "${candidate_frontend_modules}/.bin" ] &&
+    [ -x "${candidate_frontend_modules}/.bin/vite" ] &&
+    [ -e "${candidate_frontend_modules}/vite" ]; }; then
+    echo 'offline dependency preparation blocked: candidate frontend node_modules is incomplete' >&2
+    return 1
+  fi
   mkdir -p "${candidate_frontend_modules}/.tmp"
-  cleanup_candidate_dependency_stores "${worktree}"
   if [ -e "${worktree}/.pnpm-store" ] ||
     [ -e "${candidate_frontend_modules}/.pnpm-store" ]; then
     echo 'offline dependency preparation blocked: candidate pnpm store cleanup failed' >&2
     return 1
   fi
+}
+
+ensure_worktree_environment_resilient() {
+  batch_root=$1
+  worktree=$2
+  head_sha=$3
+  stage=$4
+  environment_log=$5
+  while :; do
+    if worktree_environment_ensure "${worktree}" >>"${environment_log}" 2>&1; then
+      return 0
+    fi
+    {
+      printf 'Worktree environment preparation failed for candidate %s.\n\n' "${head_sha}"
+      tail -n 120 "${environment_log}"
+    } >"${batch_root}/failure.md"
+    write_structured_failure "${batch_root}" environment "${stage}" \
+      "${head_sha}" controller 'Candidate dependency environment preparation failed'
+    decision=$(failure_policy_decide "${batch_root}" environment "${stage}" "${head_sha}") || \
+      return 8
+    [ "${decision}" = RETRY_ENVIRONMENT ] || return 8
+    retry_delay=${ZERP_ISSUE_ENVIRONMENT_RETRY_WAIT_SECONDS:-5}
+    case "${retry_delay}" in '' | *[!0-9]*) retry_delay=5 ;; esac
+    [ "${retry_delay}" -eq 0 ] || sleep "${retry_delay}"
+  done
 }
 
 verify_worktree_git_metadata() {
@@ -1631,7 +1640,7 @@ run_incremental_validation_resilient() {
     case "${decision}" in
       RETRY_SAME_HEAD) ;;
       RETRY_ENVIRONMENT)
-        prepare_offline_dependencies "${validation_loop_worktree}" \
+        worktree_environment_ensure "${validation_loop_worktree}" \
           >>"${validation_loop_batch_root}/validation-${validation_loop_mode}.log" 2>&1 || true
         retry_delay=${ZERP_ISSUE_ENVIRONMENT_RETRY_WAIT_SECONDS:-5}
         case "${retry_delay}" in '' | *[!0-9]*) retry_delay=5 ;; esac
@@ -1704,7 +1713,7 @@ run_fast_gate_resilient() {
         if [ "${decision}" != RETRY_ENVIRONMENT ]; then
           return 8
         fi
-        prepare_offline_dependencies "${worktree}" >>"${fast_log}" 2>&1 || true
+        worktree_environment_ensure "${worktree}" >>"${fast_log}" 2>&1 || true
         retry_delay=${ZERP_ISSUE_ENVIRONMENT_RETRY_WAIT_SECONDS:-5}
         case "${retry_delay}" in '' | *[!0-9]*) retry_delay=5 ;; esac
         [ "${retry_delay}" -eq 0 ] || sleep "${retry_delay}"
@@ -1770,7 +1779,7 @@ run_final_gate_resilient() {
       RETRY_SAME_HEAD) ;;
       RETRY_ENVIRONMENT)
         set_batch_phase "${batch_root}" recovering-environment
-        prepare_offline_dependencies "${worktree}" >>"${batch_root}/gate.log" 2>&1 || true
+        worktree_environment_ensure "${worktree}" >>"${batch_root}/gate.log" 2>&1 || true
         retry_delay=${ZERP_ISSUE_ENVIRONMENT_RETRY_WAIT_SECONDS:-5}
         case "${retry_delay}" in '' | *[!0-9]*) retry_delay=5 ;; esac
         [ "${retry_delay}" -eq 0 ] || sleep "${retry_delay}"
@@ -1974,12 +1983,16 @@ run_implement() {
       --add-dir "${common_git_dir}" \
       --output-schema "${schema}" -o "${result_file}" - \
       >"${codex_log}" 2>&1; then
-    cleanup_candidate_dependency_stores "${worktree}"
+    worktree_environment_ensure "${worktree}" >>"${codex_log}" 2>&1 || true
     record_automation_failure "${batch_root}" "${worktree}" "${previous_head}" \
       code-review-gate 'Codex implementation or review process failed' "${codex_log}"
     return $?
   fi
-  cleanup_candidate_dependency_stores "${worktree}"
+  head_sha=$(git -C "${worktree}" rev-parse HEAD 2>/dev/null || printf '%s' "${previous_head}")
+  if ! ensure_worktree_environment_resilient "${batch_root}" "${worktree}" \
+    "${head_sha}" worktree-environment "${codex_log}"; then
+    return 8
+  fi
   [ -r "${result_file}" ] || {
     record_automation_failure "${batch_root}" "${worktree}" "${previous_head}" \
       code-review-gate 'Codex did not return a structured result' "${codex_log}"
@@ -2200,10 +2213,10 @@ cleanup_completed_candidate() {
     log "completed candidate cleanup skipped: ${worktree} is not clean"
     return 1
   }
-  remove_managed_root_dependencies "${worktree}"
   remove_managed_host_env "${worktree}"
-  cleanup_candidate_dependency_stores "${worktree}"
-  rm -rf "${worktree}/frontend/node_modules" "${worktree}/.scratch/.issue-local-bin"
+  rm -rf "${worktree}/.pnpm-store" "${worktree}/node_modules" \
+    "${worktree}/frontend/node_modules" \
+    "${worktree}/.scratch/.issue-local-bin"
   if ! git -C "${primary_root}" worktree remove "${worktree}"; then
     log "failed to remove completed candidate worktree ${worktree}"
     return 1
@@ -2213,32 +2226,6 @@ cleanup_completed_candidate() {
     log "failed to remove completed candidate branch ${branch}"
     return 1
   fi
-}
-
-detach_candidate_modules_for_preview() {
-  worktree=$1
-  candidate_modules="${worktree}/node_modules"
-  primary_modules="${primary_root}/node_modules"
-  if [ ! -L "${candidate_modules}" ] ||
-    [ "$(readlink "${candidate_modules}")" != "${primary_modules}" ]; then
-    echo 'preview cannot detach an unmanaged candidate node_modules path' >&2
-    return 1
-  fi
-  [ -z "$(git -C "${worktree}" status --porcelain)" ] || {
-    echo 'preview requires a clean candidate worktree before isolating node_modules' >&2
-    return 1
-  }
-  rm -f "${candidate_modules}"
-}
-
-restore_candidate_modules_after_preview() {
-  worktree=$1
-  candidate_modules="${worktree}/node_modules"
-  primary_modules="${primary_root}/node_modules"
-  if [ -e "${candidate_modules}" ] || [ -L "${candidate_modules}" ]; then
-    rm -rf "${candidate_modules}"
-  fi
-  ln -s "${primary_modules}" "${candidate_modules}"
 }
 
 deploy_preview() {
@@ -2251,21 +2238,13 @@ deploy_preview() {
   while :; do
     set_batch_phase "${batch_root}" public-preview
     preview_result=0
-    (
-      modules_detached=0
-      # shellcheck disable=SC2317,SC2329 # invoked by the subshell EXIT trap
-      restore_modules() {
-        [ "${modules_detached}" = 1 ] || return 0
-        restore_candidate_modules_after_preview "${worktree}"
-      }
-      trap restore_modules EXIT HUP INT TERM
-      detach_candidate_modules_for_preview "${worktree}"
-      modules_detached=1
-      ZERP_ISSUE_WORKTREE="${worktree}" \
-        "${preview_command}" "${feature}" "${head_sha}"
-    ) >"${preview_output}" 2>"${preview_log}" || preview_result=$?
-    if ! prepare_offline_dependencies "${worktree}" >>"${preview_log}" 2>&1; then
-      preview_result=4
+    ZERP_ISSUE_WORKTREE="${worktree}" \
+      "${preview_command}" "${feature}" "${head_sha}" \
+      >"${preview_output}" 2>"${preview_log}" || preview_result=$?
+    if ! ensure_worktree_environment_resilient "${batch_root}" "${worktree}" \
+      "${head_sha}" preview-environment "${preview_log}"; then
+      rm -f "${preview_output}"
+      return 8
     fi
     if [ "${preview_result}" -ne 0 ]; then
       if [ -s "${preview_output}" ]; then
@@ -2983,8 +2962,8 @@ run_batch() {
   write_batch_risk "${issues_dir}" "${batch_root}"
   validate_tickets "${issues_dir}"
   claim_batch "${issues_dir}"
-  if ! prepare_worktree "${feature}" "${issues_dir}" "${batch_root}" "${worktree}" "${branch}" \
-    >"${batch_root}/prepare.log" 2>&1; then
+  while ! prepare_worktree "${feature}" "${issues_dir}" "${batch_root}" "${worktree}" "${branch}" \
+    >"${batch_root}/prepare.log" 2>&1; do
     {
       printf 'Controller environment preparation failed before Codex started.\n\n'
       tail -n 120 "${batch_root}/prepare.log"
@@ -2993,10 +2972,17 @@ run_batch() {
       cat "${batch_root}/base-sha" 2>/dev/null || true)
     write_structured_failure "${batch_root}" environment preparing-worktree \
       "${head_sha}" controller 'Candidate environment preparation failed'
-    mark_batch "${issues_dir}" blocked
-    set_batch_state "${batch_root}" environment-blocked
-    return 1
-  fi
+    decision=$(failure_policy_decide "${batch_root}" environment preparing-worktree \
+      "${head_sha}") || decision=BLOCK_ENVIRONMENT
+    if [ "${decision}" != RETRY_ENVIRONMENT ]; then
+      mark_batch "${issues_dir}" blocked
+      set_batch_state "${batch_root}" environment-blocked
+      return 1
+    fi
+    retry_delay=${ZERP_ISSUE_ENVIRONMENT_RETRY_WAIT_SECONDS:-5}
+    case "${retry_delay}" in '' | *[!0-9]*) retry_delay=5 ;; esac
+    [ "${retry_delay}" -eq 0 ] || sleep "${retry_delay}"
+  done
   base_sha=$(cat "${batch_root}/base-sha")
   set_batch_phase "${batch_root}" claimed
   notify_batch_event "${batch_root}" in-progress
@@ -3208,7 +3194,6 @@ retry_command() {
     [ "$(cat "${batch_root}/state" 2>/dev/null || true)" = preview-blocked ]; then
     release_preview "${feature}"
   fi
-  remove_managed_root_dependencies "${worktree}"
   rm -f "${batch_root}/preview.env" "${batch_root}/state"
   if [ "${preserve_gate_evidence}" = 1 ]; then
     mark_batch "${issues_dir}" ready-for-agent

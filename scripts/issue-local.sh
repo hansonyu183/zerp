@@ -286,14 +286,32 @@ ensure_repair_budget() {
   batch_root=$1
   budget_file=$(repair_budget_file "${batch_root}")
   if [ ! -e "${budget_file}" ]; then
-    jq -n '{version: 1, total: 0, lastStage: null, lastFingerprint: null, consecutive: 0,
-      events: [], recoveries: [], nonProductEvents: []}' \
+    jq -n --arg started_at "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+      --argjson started_at_epoch "$(date +%s)" \
+      '{version: 2, startedAt: $started_at, startedAtEpoch: $started_at_epoch,
+      total: 0, lastStage: null,
+      lastFingerprint: null, consecutive: 0, events: [], recoveries: [],
+      nonProductEvents: []}' \
       >"${budget_file}.new"
+    mv "${budget_file}.new" "${budget_file}"
+  fi
+  if [ "$(jq -r '.version // empty' "${budget_file}" 2>/dev/null || true)" = 1 ]; then
+    jq --arg started_at "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" '
+      .version = 2 |
+      .startedAt = (.startedAt // $started_at) |
+      .startedAtEpoch = (.startedAtEpoch // (now | floor)) |
+      .nonProductEvents = (.nonProductEvents // [])
+    ' "${budget_file}" >"${budget_file}.new" || {
+      rm -f "${budget_file}.new"
+      return 1
+    }
     mv "${budget_file}.new" "${budget_file}"
   fi
   jq -e '
     . as $budget |
-    .version == 1 and
+    .version == 2 and
+    (.startedAt | type == "string" and length > 0) and
+    (.startedAtEpoch | type == "number" and floor == . and . >= 0) and
     (.total | type == "number" and floor == . and . >= 0) and
     ((.lastStage == null) or (.lastStage | type == "string")) and
     ((.lastFingerprint == null) or (.lastFingerprint | type == "string")) and
@@ -462,21 +480,60 @@ record_non_product_failure() {
   limit=$(non_product_retry_limit "${failure_class}") || return 1
   case "${limit}" in '' | *[!0-9]*) return 1 ;; esac
   [ "${limit}" -gt 0 ] || return 1
+  stage_limit=${ZERP_ISSUE_NON_PRODUCT_STAGE_RETRY_LIMIT:-8}
+  batch_limit=${ZERP_ISSUE_NON_PRODUCT_BATCH_RETRY_LIMIT:-15}
+  deadline_seconds=${ZERP_ISSUE_BATCH_DEADLINE_SECONDS:-1200}
+  for numeric_limit in "${stage_limit}" "${batch_limit}" "${deadline_seconds}"; do
+    case "${numeric_limit}" in '' | *[!0-9]*) return 1 ;; esac
+  done
+  [ "${stage_limit}" -gt 0 ] && [ "${batch_limit}" -gt 0 ] || return 1
   budget_file=$(repair_budget_file "${batch_root}")
+  now_epoch=$(date +%s)
   jq --arg class "${failure_class}" --arg stage "${stage}" \
-    --arg signature "${signature}" --arg candidate_head "${candidate_head}" '
+    --arg signature "${signature}" --arg candidate_head "${candidate_head}" \
+    --argjson at_epoch "${now_epoch}" '
     .nonProductEvents += [{
       failureClass:$class,
       stage:$stage,
       signature:$signature,
-      candidateHead:(if $candidate_head == "" then null else $candidate_head end)
+      candidateHead:(if $candidate_head == "" then null else $candidate_head end),
+      atEpoch:$at_epoch
     }]
   ' "${budget_file}" >"${budget_file}.new"
   mv "${budget_file}.new" "${budget_file}"
   count=$(jq -r --arg class "${failure_class}" --arg signature "${signature}" \
     '[.nonProductEvents[] | select(.failureClass == $class and .signature == $signature)] | length' \
     "${budget_file}")
-  [ "${count}" -lt "${limit}" ]
+  stage_count=$(jq -r --arg stage "${stage}" \
+    '[.nonProductEvents[] | select(.stage == $stage)] | length' "${budget_file}")
+  batch_count=$(jq -r '.nonProductEvents | length' "${budget_file}")
+  started_at_epoch=$(jq -r .startedAtEpoch "${budget_file}")
+  elapsed_seconds=$((now_epoch - started_at_epoch))
+  exhausted=
+  if [ "${count}" -ge "${limit}" ]; then exhausted='same-signature'
+  elif [ "${stage_count}" -ge "${stage_limit}" ]; then exhausted='stage-total'
+  elif [ "${batch_count}" -ge "${batch_limit}" ]; then exhausted='batch-total'
+  elif [ "${elapsed_seconds}" -ge "${deadline_seconds}" ]; then exhausted='deadline'
+  fi
+  jq --argjson signature_count "${count}" --argjson signature_limit "${limit}" \
+    --argjson stage_count "${stage_count}" --argjson stage_limit "${stage_limit}" \
+    --argjson batch_count "${batch_count}" --argjson batch_limit "${batch_limit}" \
+    --argjson elapsed "${elapsed_seconds}" --argjson deadline "${deadline_seconds}" \
+    --arg exhausted "${exhausted}" '
+    .retryBudget = {
+      sameSignatureCount:$signature_count,sameSignatureLimit:$signature_limit,
+      stageCount:$stage_count,stageLimit:$stage_limit,
+      batchCount:$batch_count,batchLimit:$batch_limit,
+      elapsedSeconds:$elapsed,deadlineSeconds:$deadline,
+      exhausted:(if $exhausted == "" then null else $exhausted end)
+    }
+  ' "${batch_root}/failure.json" >"${batch_root}/failure.json.new" || return 1
+  mv "${batch_root}/failure.json.new" "${batch_root}/failure.json"
+  if [ -n "${exhausted}" ]; then
+    append_timeline "${batch_root}" retry-budget-exhausted "${stage}" \
+      "${failure_class}" "${stage}" "${candidate_head}" "${exhausted}"
+    return 1
+  fi
 }
 
 record_repair_failure() {
@@ -1397,6 +1454,72 @@ run_final_gate() {
   rm -f "${batch_root}/repair-integration.json" "${integration_result}"
 }
 
+run_fast_gate_resilient() {
+  batch_root=$1
+  worktree=$2
+  base_sha=$3
+  head_sha=$4
+  evidence_file="${batch_root}/fast-gate-evidence.json"
+  fast_log="${batch_root}/fast-gate.log"
+  command_path=${gate_command:-${worktree}/scripts/change-gate.sh}
+  e2e_env_file=$(ensure_primary_e2e_env) || return 8
+  pnpm_wrapper_dir="${worktree}/.scratch/.issue-local-bin"
+  while :; do
+    set_batch_phase "${batch_root}" fast-gate
+    rm -f "${evidence_file}"
+    if ! (
+      stage_host_gate_env "${worktree}"
+      trap 'remove_managed_host_env "${worktree}"' EXIT HUP INT TERM
+      cd "${worktree}"
+      PATH="${pnpm_wrapper_dir}:${PATH}" COREPACK_ROOT=1 \
+        ZERP_E2E_ENV_FILE="${e2e_env_file}" ZERP_GATE_EVIDENCE_FILE="${evidence_file}" \
+        "${command_path}" --fast "${base_sha}"
+    ) >"${fast_log}" 2>&1; then
+      {
+        printf 'Host fast gate failed for candidate %s.\n\nFocused error excerpt:\n\n' "${head_sha}"
+        tail -n 140 "${fast_log}" | sed '/^dist\/assets\//d'
+      } >"${batch_root}/failure.md"
+      if grep -Eiq 'cannot connect to (the )?docker|docker daemon|connection refused|no space left|temporary failure|TLS handshake|network is unreachable|timed? out|port is already allocated' \
+        "${fast_log}"; then
+        write_structured_failure "${batch_root}" environment fast-gate "${head_sha}" \
+          gate 'Host fast-gate environment failed'
+        if ! record_non_product_failure "${batch_root}" environment fast-gate "${head_sha}"; then
+          return 8
+        fi
+        prepare_offline_dependencies "${worktree}" >>"${fast_log}" 2>&1 || true
+        retry_delay=${ZERP_ISSUE_ENVIRONMENT_RETRY_WAIT_SECONDS:-5}
+        case "${retry_delay}" in '' | *[!0-9]*) retry_delay=5 ;; esac
+        [ "${retry_delay}" -eq 0 ] || sleep "${retry_delay}"
+        continue
+      fi
+      write_structured_failure "${batch_root}" product fast-gate "${head_sha}" \
+        gate 'Deterministic host fast gate failed'
+      return 4
+    fi
+    if jq -e --arg head "${head_sha}" --arg base "${base_sha}" '
+      .version == 1 and .status == "passed" and .mode == "fast" and
+      .head == $head and .base == $base
+    ' "${evidence_file}" >/dev/null 2>&1; then
+      append_timeline "${batch_root}" gate-passed fast-gate '' '' "${head_sha}" \
+        'Host fast gate passed with exact-head evidence'
+      return 0
+    fi
+    {
+      printf 'Host fast gate returned invalid evidence for candidate %s.\n\n' "${head_sha}"
+      tail -n 140 "${fast_log}" | sed '/^dist\/assets\//d'
+    } >"${batch_root}/failure.md"
+    write_structured_failure "${batch_root}" automation fast-gate-evidence "${head_sha}" \
+      gate 'Host fast gate returned invalid exact-head evidence'
+    if ! record_non_product_failure "${batch_root}" automation \
+      fast-gate-evidence "${head_sha}"; then
+      return 8
+    fi
+    retry_delay=${ZERP_ISSUE_AUTOMATION_RETRY_WAIT_SECONDS:-2}
+    case "${retry_delay}" in '' | *[!0-9]*) retry_delay=2 ;; esac
+    [ "${retry_delay}" -eq 0 ] || sleep "${retry_delay}"
+  done
+}
+
 run_final_gate_resilient() {
   batch_root=$1
   worktree=$2
@@ -1494,10 +1617,20 @@ verified_gate_candidate_head() {
 record_automation_failure() {
   batch_root=$1
   worktree=$2
-  head_sha=$3
+  previous_head=$3
   stage=$4
   summary=$5
   log_file=${6:-}
+  current_head=$(git -C "${worktree}" rev-parse HEAD 2>/dev/null || printf '%s' "${previous_head}")
+  dirty=0
+  [ -z "$(git -C "${worktree}" status --porcelain 2>/dev/null || true)" ] || dirty=1
+  failure_stage=${stage}
+  failure_head=${previous_head}
+  if [ "${current_head}" != "${previous_head}" ] || [ "${dirty}" = 1 ]; then
+    failure_stage=automation-after-code-change
+    failure_head=${current_head}
+    summary="${summary}; candidate code changed before automation failed"
+  fi
   {
     printf '%s\n' "${summary}"
     if [ -n "${log_file}" ] && [ -r "${log_file}" ]; then
@@ -1505,13 +1638,33 @@ record_automation_failure() {
       tail -n 80 "${log_file}"
     fi
   } >"${batch_root}/failure.md"
-  write_structured_failure "${batch_root}" automation "${stage}" "${head_sha}" \
+  write_structured_failure "${batch_root}" automation "${failure_stage}" "${failure_head}" \
     controller "${summary}"
-  cancel_repair_budget_reservation "${batch_root}" || return 8
-  if [ -n "$(git -C "${worktree}" status --porcelain 2>/dev/null || true)" ]; then
+  if [ "${current_head}" = "${previous_head}" ] && [ "${dirty}" = 0 ]; then
+    cancel_repair_budget_reservation "${batch_root}" || return 8
+  else
+    budget_file=$(repair_budget_file "${batch_root}")
+    jq --arg current_head "${current_head}" '
+      if .total > 0 and ((.events[-1].failureFingerprint // null) == null) then
+        .events[-1].candidateHead = $current_head |
+        .events[-1].automationAfterCodeChange = true
+      else error("latest code attempt cannot record an automation code change") end
+    ' "${budget_file}" >"${budget_file}.new" || {
+      rm -f "${budget_file}.new"
+      return 8
+    }
+    mv "${budget_file}.new" "${budget_file}"
+  fi
+  if [ "${dirty}" = 1 ]; then
     return 8
   fi
-  if record_non_product_failure "${batch_root}" automation "${stage}" "${head_sha}"; then
+  if [ "${current_head}" != "${previous_head}" ]; then
+    git -C "${worktree}" merge-base --is-ancestor "${previous_head}" "${current_head}" || return 8
+    write_value "${batch_root}/reviewed-head" "${previous_head}"
+    write_value "${batch_root}/automation-review-base" "${previous_head}"
+  fi
+  if record_non_product_failure "${batch_root}" automation \
+    "${failure_stage}" "${failure_head}"; then
     return 6
   fi
   return 8
@@ -1574,20 +1727,22 @@ run_implement() {
     if jq -e '.largeBatch == true' "${batch_root}/risk.json" >/dev/null 2>&1; then
       printf 'This is a large batch. Implement it in Blocked-by dependency order, commit coherent dependency layers, and run focused checks after each layer so defects are found before the final review.\n'
     fi
-    # shellcheck disable=SC2016 # prompt intentionally contains Markdown delimiters
-    printf 'Before the final two-axis review, run `scripts/change-gate.sh --fast %s` and resolve every deterministic failure it reports. The host controller will still run the complete final gate.\n' "${base_sha}"
     printf 'On a repair attempt, trust the recorded root failure: do not rerun unaffected stages already shown as passed; run only tests focused on the failure and your changes.\n'
     if [ -n "${review_base}" ]; then
       # shellcheck disable=SC2016 # prompt intentionally contains Markdown delimiters
       printf 'The complete batch already passed two-axis review through `%s`. Use that SHA as the fixed point and review only the repair delta from it to the final head; preserve the earlier review evidence and do not reread or re-review unchanged history.\n' "${review_base}"
       if [ "${preexisting_review_delta}" = 1 ]; then
-        printf 'The current clean head already contains an unreviewed manual repair after that fixed point. Review it as-is and create another commit only if the delta needs changes.\n'
+        if [ "$(cat "${batch_root}/automation-review-base" 2>/dev/null || true)" = "${review_base}" ]; then
+          printf 'The current clean head contains an unreviewed automated commit created before the previous controller failure. Review that delta as-is and create another commit only if the delta needs changes.\n'
+        else
+          printf 'The current clean head already contains an unreviewed manual repair after that fixed point. Review it as-is and create another commit only if the delta needs changes.\n'
+        fi
       fi
     fi
     # shellcheck disable=SC2016 # prompt intentionally contains shell and Markdown literals
     printf 'For every pnpm command, prepend `PATH="%s:$PATH"` and invoke `%s/pnpm`; login shells reset PATH and package scripts invoke pnpm recursively.\n' "${pnpm_wrapper_dir}" "${pnpm_wrapper_dir}"
     # shellcheck disable=SC2016 # prompt intentionally contains Markdown code delimiters
-    printf 'Do not run `scripts/change-gate.sh`: the controller runs the single final gate after your clean commit.\n'
+    printf 'Do not run `scripts/change-gate.sh` in the sandbox. The host controller runs the fast gate and complete final gate after your clean commit.\n'
     if [ "${preexisting_review_delta}" = 1 ]; then
       printf 'Return the current clean reviewed head with status=completed, validation=not_run, review=passed, and its commitSha. Commit only if review finds changes are required.\n'
     else
@@ -1648,6 +1803,8 @@ run_implement() {
       code-review-gate 'Implementation completion evidence is incomplete' "${codex_log}"
     return $?
   }
+  run_fast_gate_resilient "${batch_root}" "${worktree}" "${base_sha}" "${head_sha}" || return $?
+  rm -f "${batch_root}/automation-review-base"
   write_value "${reviewed_head_file}" "${head_sha}"
   append_timeline "${batch_root}" code-reviewed review '' '' "${head_sha}" \
     'Implementation and two-axis review completed'
@@ -1914,8 +2071,17 @@ deploy_preview() {
         printf 'Public preview failed for candidate %s.\n\nPreview log:\n\n' "${head_sha}"
         cat "${preview_log}"
       } >"${batch_root}/failure.md"
-      if grep -Eiq 'AssertionError|expect\(|locator|business assertion|exact (SHA|marker).*mismatch' \
+      if grep -Eiq 'exact (SHA|marker).*mismatch|fingerprint.*mismatch|mismatch.*fingerprint' \
         "${preview_log}"; then
+        write_structured_failure "${batch_root}" automation preview-identity \
+          "${head_sha}" preview 'Preview identity did not match the requested candidate'
+        if ! record_non_product_failure "${batch_root}" automation \
+          preview-identity "${head_sha}"; then
+          return 8
+        fi
+        continue
+      fi
+      if grep -Eiq 'AssertionError|expect\(|locator|business assertion' "${preview_log}"; then
         write_structured_failure "${batch_root}" product public-preview "${head_sha}" \
           preview 'Public browser acceptance found a product behavior mismatch'
         return 9
@@ -2173,6 +2339,93 @@ update_pr_body() {
   } >"${body_file}"
 }
 
+read_required_check_evidence() {
+  batch_root=$1
+  worktree=$2
+  pr=$3
+  head_sha=$(git -C "${worktree}" rev-parse HEAD)
+  pr_evidence="${batch_root}/required-check-pr.json"
+  checks_evidence="${batch_root}/required-checks.json"
+  api_evidence="${batch_root}/required-check-runs.json"
+  result_evidence="${batch_root}/required-check-evidence.json"
+  logs_evidence="${batch_root}/required-check-failures.log"
+  "${gh_bin}" pr view "${pr}" --repo "${repo}" \
+    --json number,headRefOid,url >"${pr_evidence}" || return 1
+  "${gh_bin}" pr checks "${pr}" --repo "${repo}" --required \
+    --json name,state,link,bucket,workflow >"${checks_evidence}" 2>"${batch_root}/required-checks.err" || true
+  "${gh_bin}" api "repos/${repo}/commits/${head_sha}/check-runs?filter=latest&per_page=100" \
+    >"${api_evidence}" || return 1
+  jq -n --slurpfile pr "${pr_evidence}" --slurpfile checks "${checks_evidence}" \
+    --slurpfile api "${api_evidence}" --arg head "${head_sha}" \
+    --argjson pr_number "${pr}" --arg repo "${repo}" '
+    ($checks[0] | map(select(
+      .bucket == "fail" or
+      (.state == "FAILURE" or .state == "CANCELLED" or .state == "TIMED_OUT" or
+       .state == "ACTION_REQUIRED" or .state == "STARTUP_FAILURE" or .state == "STALE")
+    ))) as $failed |
+    ($api[0].check_runs // []) as $runs |
+    select($pr[0].number == $pr_number and $pr[0].headRefOid == $head and
+      $pr[0].url == ("https://github.com/" + $repo + "/pull/" + ($pr_number | tostring))) |
+    select(($failed | length) > 0) |
+    select(all($failed[]; . as $failure |
+      any($runs[];
+        .name == $failure.name and .details_url == $failure.link and
+        .head_sha == $head and .app.slug == "github-actions" and
+        (.status == "completed") and
+        (.conclusion != null and .conclusion != "success" and
+         .conclusion != "neutral" and .conclusion != "skipped") and
+        (.details_url | test("^https://github[.]com/" + $repo +
+          "/actions/runs/[0-9]+/job/[0-9]+$"))
+      )
+    )) |
+    {version:1,head:$head,pr:$pr_number,prUrl:$pr[0].url,
+      failures:[$failed[] as $failure |
+        $runs[] | select(.name == $failure.name and .details_url == $failure.link) |
+        {name:.name,workflow:$failure.workflow,state:$failure.state,
+         conclusion:.conclusion,link:.details_url,provider:.app.slug}]}
+  ' >"${result_evidence}.new" || {
+    rm -f "${result_evidence}.new"
+    return 1
+  }
+  mv "${result_evidence}.new" "${result_evidence}"
+  : >"${logs_evidence}"
+  jq -r '.failures[] | [.name,.link] | @tsv' "${result_evidence}" |
+    while IFS="$(printf '\t')" read -r check_name check_link; do
+      run_id=$(printf '%s\n' "${check_link}" | sed -n 's#.*/actions/runs/\([0-9][0-9]*\)/job/[0-9][0-9]*$#\1#p')
+      job_id=$(printf '%s\n' "${check_link}" | sed -n 's#.*/job/\([0-9][0-9]*\)$#\1#p')
+      [ -n "${run_id}" ] && [ -n "${job_id}" ] || exit 1
+      printf '==> %s run=%s job=%s\n' "${check_name}" "${run_id}" "${job_id}" \
+        >>"${logs_evidence}"
+      "${gh_bin}" run view "${run_id}" --repo "${repo}" --job "${job_id}" \
+        --log-failed >>"${logs_evidence}" 2>&1 || exit 1
+    done || return 1
+}
+
+required_check_evidence_signature() {
+  jq -cS '{head,failures:(.failures | sort_by(.name,.link) |
+    map({name,workflow,state,conclusion,link,provider}))}' "$1" |
+    shasum -a 256 | awk '{print $1}'
+}
+
+classify_required_check_failure() {
+  evidence_file=$1
+  log_file=$2
+  if grep -Eiq 'hosted runner.*lost connection|runner.*(offline|shutdown)|Docker.*(pull|registry)|TLS|timed? out|network|connection reset|no space left|package registry' \
+    "${log_file}"; then
+    printf 'environment\n'
+  elif jq -e 'any(.failures[]; (.name | test("e2e|playwright"; "i")))' \
+    "${evidence_file}" >/dev/null || \
+    grep -Eiq 'Playwright|browser process.*(exit|crash)|flaky test' "${log_file}"; then
+    printf 'test-flake\n'
+  elif jq -e 'all(.failures[];
+    (.name | test("^(contracts|frontend|backend|containers)$")))' \
+    "${evidence_file}" >/dev/null; then
+    printf 'product\n'
+  else
+    printf 'automation\n'
+  fi
+}
+
 wait_checks_and_merge() {
   feature=$1
   batch_root=$2
@@ -2186,6 +2439,8 @@ wait_checks_and_merge() {
     set_batch_phase "${batch_root}" github-checks
     if "${gh_bin}" pr checks "${pr}" --repo "${repo}" --watch --required \
       >"${batch_root}/checks.log" 2>&1; then
+      rm -f "${batch_root}/required-check-confirmation.json" \
+        "${batch_root}/failure.md" "${batch_root}/failure.json"
       break
     fi
     if grep -Eq 'no (required )?checks reported' "${batch_root}/checks.log"; then
@@ -2222,12 +2477,81 @@ wait_checks_and_merge() {
       release_preview "${feature}"
       return 1
     fi
+    evidence_file="${batch_root}/required-check-evidence.json"
+    evidence_log="${batch_root}/required-check-failures.log"
+    confirmation_file="${batch_root}/required-check-confirmation.json"
+    if ! read_required_check_evidence "${batch_root}" "${worktree}" "${pr}"; then
+      {
+        printf 'GitHub required-check evidence could not be verified for PR #%s at %s.\n\n' \
+          "${pr}" "${head_sha}"
+        sed -n '1,120p' "${batch_root}/checks.log"
+      } >"${batch_root}/failure.md"
+      write_structured_failure "${batch_root}" external github-check-evidence "${head_sha}" \
+        github 'Required-check source or exact-head evidence was unavailable'
+      if record_non_product_failure "${batch_root}" external \
+        github-check-evidence "${head_sha}"; then
+        [ "${registration_delay}" -eq 0 ] || sleep "${registration_delay}"
+        continue
+      fi
+      mark_batch "${issues_dir}" blocked
+      set_batch_state "${batch_root}" external-blocked
+      release_preview "${feature}"
+      return 1
+    fi
+    evidence_signature=$(required_check_evidence_signature "${evidence_file}")
+    confirmed_signature=$(jq -r --arg head "${head_sha}" '
+      select(.head == $head) | .signature // empty
+    ' "${confirmation_file}" 2>/dev/null || true)
+    if [ "${confirmed_signature}" != "${evidence_signature}" ]; then
+      {
+        printf 'GitHub required checks need same-SHA confirmation for PR #%s at %s.\n\n' \
+          "${pr}" "${head_sha}"
+        cat "${evidence_file}"
+        printf '\nFailed job excerpts:\n\n'
+        sed -n '1,160p' "${evidence_log}"
+      } >"${batch_root}/failure.md"
+      write_structured_failure "${batch_root}" external github-check-confirmation \
+        "${head_sha}" github 'Required-check failure is awaiting same-SHA confirmation'
+      if ! record_non_product_failure "${batch_root}" external \
+        github-check-confirmation "${head_sha}"; then
+        mark_batch "${issues_dir}" blocked
+        set_batch_state "${batch_root}" external-blocked
+        release_preview "${feature}"
+        return 1
+      fi
+      jq -n --arg head "${head_sha}" --arg signature "${evidence_signature}" \
+        '{version:1,head:$head,signature:$signature}' >"${confirmation_file}.new"
+      mv "${confirmation_file}.new" "${confirmation_file}"
+      [ "${registration_delay}" -eq 0 ] || sleep "${registration_delay}"
+      continue
+    fi
+    failure_class=$(classify_required_check_failure "${evidence_file}" "${evidence_log}")
+    failure_names=$(jq -r '[.failures[].name] | unique | join(",")' "${evidence_file}")
     {
-      printf 'GitHub required checks failed for PR #%s.\n\n' "${pr}"
-      sed -n '1,240p' "${batch_root}/checks.log"
+      printf 'GitHub required checks failed twice on the same SHA for PR #%s.\n' "${pr}"
+      printf 'Verified failed checks: %s\n\n' "${failure_names}"
+      cat "${evidence_file}"
+      printf '\nFailed job excerpts:\n\n'
+      sed -n '1,200p' "${evidence_log}"
     } >"${batch_root}/failure.md"
-    write_structured_failure "${batch_root}" product github-required-checks "${head_sha}" \
-      github 'A required GitHub code check failed'
+    if [ "${failure_class}" != product ]; then
+      write_structured_failure "${batch_root}" "${failure_class}" \
+        "github-required-checks:${failure_names}" "${head_sha}" github \
+        'A verified required check failed twice on the same commit'
+      if record_non_product_failure "${batch_root}" "${failure_class}" \
+        "github-required-checks:${failure_names}" "${head_sha}"; then
+        [ "${registration_delay}" -eq 0 ] || sleep "${registration_delay}"
+        continue
+      fi
+      mark_batch "${issues_dir}" blocked
+      set_batch_state "${batch_root}" \
+        "$(non_product_block_state "${failure_class}")"
+      release_preview "${feature}"
+      return 1
+    fi
+    write_structured_failure "${batch_root}" product \
+      "github-required-checks:${failure_names}" "${head_sha}" github \
+      'A verified deterministic required code check failed twice on the same commit'
     write_value "${batch_root}/repair-stage" gate
     if ! record_or_block_repair_failure "${batch_root}" "${issues_dir}" "${worktree}"; then
       release_preview "${feature}"

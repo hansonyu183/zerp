@@ -134,8 +134,17 @@ if [ "${MOCK_CODEX_MODE:-completed}" = failed ]; then
   echo 'simulated code review failure' >&2
   exit 1
 fi
+if [ "${MOCK_CODEX_MODE:-completed}" = commit-then-fail ] && [ "${count}" = 1 ]; then
+  printf 'implemented before controller failure\n' >"${worktree}/deliverable-${count}.txt"
+  git -C "${worktree}" add "deliverable-${count}.txt"
+  git -C "${worktree}" -c user.name='Local Implement' -c user.email=local@example.com \
+    commit -m 'feat: commit before controller failure' >/dev/null
+  printf 'model-commit\n' >>"${MOCK_EVENTS}"
+  echo 'simulated protocol failure after clean commit' >&2
+  exit 1
+fi
 if [ "${MOCK_CODEX_REVIEW_EXISTING:-0}" = 1 ] &&
-  printf '%s\n' "${prompt}" | grep -Fq 'unreviewed manual repair'; then
+  printf '%s\n' "${prompt}" | grep -Eq 'unreviewed (manual repair|automated commit)'; then
   head=$(git -C "${worktree}" rev-parse HEAD)
   printf 'model-review\n' >>"${MOCK_EVENTS}"
   jq -n --arg head "${head}" \
@@ -157,6 +166,21 @@ chmod +x "${tmp}/bin/codex"
 cat >"${tmp}/bin/gate" <<'EOF'
 #!/bin/sh
 set -eu
+fast=0
+if [ "${1:-}" = --fast ]; then
+  fast=1
+  shift
+fi
+if [ "${fast}" = 1 ]; then
+  count=$(cat "${MOCK_FAST_GATE_COUNT}" 2>/dev/null || printf 0)
+  count=$((count + 1))
+  printf '%s\n' "${count}" >"${MOCK_FAST_GATE_COUNT}"
+  head=$(git rev-parse HEAD)
+  jq -n --arg head "${head}" --arg base "$1" \
+    '{version:1,status:"passed",mode:"fast",head:$head,base:$base}' \
+    >"${ZERP_GATE_EVIDENCE_FILE}"
+  exit 0
+fi
 printf 'gate\n' >>"${MOCK_EVENTS}"
 printf '%s\n' "${COREPACK_ROOT:-}" >"${MOCK_GATE_COREPACK_ROOT}"
 command -v pnpm >"${MOCK_GATE_PNPM_PATH}"
@@ -279,6 +303,10 @@ if [ "${count}" -le "${MOCK_PREVIEW_FAILS:-0}" ]; then
   echo "simulated preview environment failure ${count}" >&2
   exit 1
 fi
+if [ "${count}" -le "${MOCK_PREVIEW_EXACT_MISMATCH_FAILS:-0}" ]; then
+  echo "exact SHA mismatch: expected candidate, received stale preview" >&2
+  exit 1
+fi
 if [ "${count}" -le "${MOCK_PREVIEW_INVALID_EVIDENCE_FAILS:-0}" ]; then
   printf 'url=https://zerp-preview.bytesucceed.com\n'
   printf 'fingerprint=invalid\n'
@@ -377,12 +405,30 @@ set -eu
 printf 'gh %s\n' "$*" >>"${MOCK_EVENTS}"
 case " $* " in
   *' api --paginate repos/example/zerp/issues?state=all&per_page=100 '*) printf '[]\n' ;;
+  *' api repos/example/zerp/commits/'*'/check-runs?filter=latest&per_page=100 '*)
+    head=$(sed -n 's/.* head=\([0-9a-f]\{40\}\) fingerprint=.*/\1/p' \
+      "${MOCK_CAPTURE}/pr-body.md")
+    jq -n --arg head "${head}" --arg name "${MOCK_CHECK_FAILURE_NAME:-frontend}" \
+      --arg workflow "${MOCK_CHECK_FAILURE_WORKFLOW:-Full-stack quality}" \
+      '{check_runs:[{name:$name,status:"completed",conclusion:"failure",head_sha:$head,
+        details_url:"https://github.com/example/zerp/actions/runs/123/job/456",
+        app:{slug:"github-actions"},workflow_name:$workflow}]}'
+    ;;
   *' api --method POST repos/example/zerp/issues '*)
     payload=$(cat)
     attempt=$(cat "${MOCK_PUBLISH_ISSUE_ATTEMPT_COUNT}" 2>/dev/null || printf 0)
     attempt=$((attempt + 1))
     printf '%s\n' "${attempt}" >"${MOCK_PUBLISH_ISSUE_ATTEMPT_COUNT}"
     payload_title=$(printf '%s' "${payload}" | jq -r '.title // empty')
+    if [ "${attempt}" -le "${MOCK_PUBLISH_ISSUE_FAILS:-0}" ]; then
+      case "${attempt}" in
+        1) echo 'HTTP 502 temporary GitHub failure' >&2 ;;
+        2) echo 'HTTP 503 temporary GitHub failure' >&2 ;;
+        3) echo 'connection reset by peer' >&2 ;;
+        *) echo 'TLS timeout while publishing issue' >&2 ;;
+      esac
+      exit 1
+    fi
     case "${payload_title}" in
       *'External publish retry'*)
         if [ -e "${MOCK_PUBLISH_ISSUE_FAILS_FILE}" ]; then
@@ -414,15 +460,24 @@ case " $* " in
     printf 'https://github.com/example/zerp/pull/77\n'
     ;;
   *' pr list '*) printf '\n' ;;
+  *' pr checks 77 '*'--json name,state,link,bucket,workflow'*)
+    jq -n --arg name "${MOCK_CHECK_FAILURE_NAME:-frontend}" \
+      --arg workflow "${MOCK_CHECK_FAILURE_WORKFLOW:-Full-stack quality}" \
+      '[{name:$name,state:"FAILURE",bucket:"fail",workflow:$workflow,
+        link:"https://github.com/example/zerp/actions/runs/123/job/456"}]'
+    exit 1
+    ;;
   *' pr checks 77 '*)
     count=$(cat "${MOCK_CHECK_COUNT}" 2>/dev/null || printf 0)
     count=$((count + 1))
     printf '%s\n' "${count}" >"${MOCK_CHECK_COUNT}"
-    if [ "${MOCK_CHECK_MODE:-}" = advance-main-once ] && [ "${count}" = 1 ]; then
-      printf 'upstream\n' >"${MOCK_PRIMARY}/upstream.txt"
-      git -C "${MOCK_PRIMARY}" add upstream.txt
-      git -C "${MOCK_PRIMARY}" commit -m 'upstream change' >/dev/null
-      git -C "${MOCK_PRIMARY}" push origin main >/dev/null
+    if [ "${MOCK_CHECK_MODE:-}" = advance-main-once ] && [ "${count}" -le 2 ]; then
+      if [ "${count}" = 1 ]; then
+        printf 'upstream\n' >"${MOCK_PRIMARY}/upstream.txt"
+        git -C "${MOCK_PRIMARY}" add upstream.txt
+        git -C "${MOCK_PRIMARY}" commit -m 'upstream change' >/dev/null
+        git -C "${MOCK_PRIMARY}" push origin main >/dev/null
+      fi
       echo 'required checks failed' >&2
       exit 1
     fi
@@ -439,6 +494,13 @@ case " $* " in
       exit 1
     fi
     exit 0
+    ;;
+  *' run view 123 '*'--job 456 --log-failed'*)
+    case "${MOCK_CHECK_LOG_KIND:-product}" in
+      product) echo 'TypeScript compilation failed with deterministic error' ;;
+      environment) echo 'The hosted runner lost connection while pulling a Docker image' ;;
+      test-flake) echo 'Playwright browser process exited unexpectedly' ;;
+    esac
     ;;
   *' pr merge 77 '*) printf '{}\n' ;;
   *' pr edit 77 '*)
@@ -459,6 +521,12 @@ case " $* " in
       --arg base_ref "${MOCK_EXISTING_PR_BASE:-main}" \
       --arg body "${MOCK_EXISTING_PR_BODY:-stale body}" \
       '{state:$state,headRefName:$head_ref,headRefOid:$head,baseRefName:$base_ref,body:$body}'
+    ;;
+  *' pr view 77 '*'number,headRefOid,url'*)
+    head=$(sed -n 's/.* head=\([0-9a-f]\{40\}\) fingerprint=.*/\1/p' \
+      "${MOCK_CAPTURE}/pr-body.md")
+    jq -n --arg head "${head}" \
+      '{number:77,headRefOid:$head,url:"https://github.com/example/zerp/pull/77"}'
     ;;
   *' pr view 77 '*) printf '{"state":"MERGED","mergeCommit":{"oid":"9999999999999999999999999999999999999999"}}\n' ;;
   *' pr comment 77 '*) printf '{}\n' ;;
@@ -495,6 +563,7 @@ export MOCK_PUBLISH_ISSUE_FAILS_FILE="${tmp}/publish-issue-fails"
 export MOCK_CODEX_ARGS="${tmp}/codex-args"
 export MOCK_COREPACK_ROOT="${tmp}/corepack-root"
 export MOCK_GATE_COUNT="${tmp}/gate-count"
+export MOCK_FAST_GATE_COUNT="${tmp}/fast-gate-count"
 export MOCK_FOCUSED_E2E_COUNT="${tmp}/focused-e2e-count"
 export MOCK_FOCUSED_INTEGRATION_COUNT="${tmp}/focused-integration-count"
 export MOCK_GATE_COREPACK_ROOT="${tmp}/gate-corepack-root"
@@ -532,6 +601,7 @@ ZERP_ISSUE_PREVIEW_COMMAND="${tmp}/bin/preview" \
 
 test "$(cat "${tmp}/issue-count")" = 2
 test "$(grep -c '^codex$' "${events}")" = 1
+test "$(cat "${MOCK_FAST_GATE_COUNT}")" = 1
 test "$(grep -c '^gate$' "${events}")" = 1
 test "$(cat "${MOCK_GATE_COREPACK_ROOT}")" = 1
 test "$(cat "${MOCK_GATE_PNPM_VERSION}")" = 10.34.5
@@ -550,7 +620,15 @@ mapping_preflight_line=$(grep -nF 'Before editing, inventory every user-visible 
 tdd_line=$(grep -nF 'Use TDD at the agreed repository seams' "${MOCK_PROMPT}" | cut -d: -f1)
 test "${mapping_preflight_line}" -lt "${tdd_line}"
 grep -Fq -- 'do not rerun unaffected stages already shown as passed' "${MOCK_PROMPT}"
-grep -Fq -- 'scripts/change-gate.sh --fast' "${MOCK_PROMPT}"
+if grep -Fq -- 'Before the final two-axis review, run `scripts/change-gate.sh --fast' "${MOCK_PROMPT}"; then
+  echo 'Codex prompt still delegates the host fast gate to the sandbox' >&2
+  exit 1
+fi
+grep -Fq -- 'The host controller runs the fast gate and complete final gate' "${MOCK_PROMPT}"
+expected_fast_head=$(jq -r .commitSha "${runtime}/batches/inventory-query/implementation.json")
+jq -e --arg head "${expected_fast_head}" '
+  .status == "passed" and .mode == "fast" and .head == $head
+' "${runtime}/batches/inventory-query/fast-gate-evidence.json" >/dev/null
 jq -e '.tickets == 2 and .acceptanceCriteria == 2 and .largeBatch == false' \
   "${runtime}/batches/inventory-query/risk.json" >/dev/null
 test "$(cat "${MOCK_COREPACK_ROOT}")" = 1
@@ -641,6 +719,13 @@ make_ticket() {
 EOF
 }
 
+test_checkpoint() {
+  [ "${ZERP_ISSUE_LOCAL_TEST_STOP_AFTER:-}" != "$1" ] || {
+    echo "local issue tests passed through $1"
+    exit 0
+  }
+}
+
 run_agent() {
   PATH="${tmp}/bin:${PATH}" \
   ZERP_PRIMARY_ROOT="${primary}" \
@@ -704,6 +789,145 @@ prepare_reviewed_candidate() {
   sed 's/^\*\*Status:\*\*.*/**Status:** blocked/' "${ticket}" >"${ticket}.new"
   mv "${ticket}.new" "${ticket}"
 }
+
+prepare_reviewed_candidate legacy-budget-migration
+legacy_budget="${runtime}/batches/legacy-budget-migration/repair-budget.json"
+jq -n '{version:1,total:0,lastStage:null,lastFingerprint:null,consecutive:0,
+  events:[],recoveries:[]}' >"${legacy_budget}"
+retry_agent legacy-budget-migration
+jq -e '.version == 2 and .nonProductEvents == [] and .startedAt != null and
+  (.startedAtEpoch | type == "number")' \
+  "${legacy_budget}" >/dev/null
+test_checkpoint legacy-budget-migration
+
+make_ticket automation-after-code-change 'Automation after code change'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_FAST_GATE_COUNT}" "${MOCK_GATE_COUNT}" \
+  "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
+MOCK_CODEX_MODE=commit-then-fail MOCK_CODEX_REVIEW_EXISTING=1 run_agent
+test "$(cat "${MOCK_CODEX_COUNT}")" = 2
+test "$(grep -c '^model-commit$' "${events}")" = 1
+test "$(jq -r .total \
+  "${runtime}/batches/automation-after-code-change/repair-budget.json")" = 2
+test "$(jq -r '.events[0].automationAfterCodeChange' \
+  "${runtime}/batches/automation-after-code-change/repair-budget.json")" = true
+test "$(jq -r '[.nonProductEvents[] | select(.failureClass == "automation")] | length' \
+  "${runtime}/batches/automation-after-code-change/repair-budget.json")" = 1
+grep -Fq 'unreviewed automated commit' "${MOCK_PROMPT}-2"
+grep -Fq '**Status:** done' \
+  "${primary}/.scratch/automation-after-code-change/issues/01-ticket.md"
+unset MOCK_CODEX_MODE MOCK_CODEX_REVIEW_EXISTING
+test_checkpoint automation-after-code-change
+
+make_ticket preview-exact-mismatch 'Preview exact SHA mismatch'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_FAST_GATE_COUNT}" "${MOCK_GATE_COUNT}" \
+  "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}"
+MOCK_PREVIEW_EXACT_MISMATCH_FAILS=1 run_agent
+test "$(cat "${MOCK_CODEX_COUNT}")" = 1
+test "$(cat "${MOCK_PREVIEW_COUNT}")" = 2
+test "$(jq -r .total \
+  "${runtime}/batches/preview-exact-mismatch/repair-budget.json")" = 1
+test "$(jq -r '[.nonProductEvents[] | select(.failureClass == "automation")] | length' \
+  "${runtime}/batches/preview-exact-mismatch/repair-budget.json")" = 1
+grep -Fq '**Status:** done' "${primary}/.scratch/preview-exact-mismatch/issues/01-ticket.md"
+unset MOCK_PREVIEW_EXACT_MISMATCH_FAILS
+test_checkpoint preview-exact-mismatch
+
+make_ticket external-stage-cap 'External stage retry cap'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_FAST_GATE_COUNT}" "${MOCK_GATE_COUNT}" \
+  "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}" "${MOCK_PUBLISH_ISSUE_ATTEMPT_COUNT}"
+if MOCK_PUBLISH_ISSUE_FAILS=4 ZERP_ISSUE_NON_PRODUCT_STAGE_RETRY_LIMIT=3 run_agent; then
+  echo 'varying external failures exceeded the per-stage retry cap' >&2
+  exit 1
+fi
+test "$(cat "${MOCK_PUBLISH_ISSUE_ATTEMPT_COUNT}")" = 3
+test "$(cat "${runtime}/batches/external-stage-cap/state")" = external-blocked
+test "$(jq -r '.nonProductEvents | length' \
+  "${runtime}/batches/external-stage-cap/repair-budget.json")" = 3
+unset MOCK_PUBLISH_ISSUE_FAILS ZERP_ISSUE_NON_PRODUCT_STAGE_RETRY_LIMIT
+test_checkpoint external-stage-cap
+
+make_ticket external-batch-cap 'External batch retry cap'
+external_batch_budget="${runtime}/batches/external-batch-cap/repair-budget.json"
+mkdir -p "$(dirname "${external_batch_budget}")"
+jq -n --arg started_at "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+  --argjson started_at_epoch "$(date +%s)" \
+  '{version:2,startedAt:$started_at,startedAtEpoch:$started_at_epoch,total:0,
+    lastStage:null,lastFingerprint:null,consecutive:0,events:[],recoveries:[],
+    nonProductEvents:[
+      {failureClass:"environment",stage:"preparing-worktree",signature:("a" * 64),candidateHead:null},
+      {failureClass:"automation",stage:"fast-gate-evidence",signature:("b" * 64),candidateHead:null}
+    ]}' >"${external_batch_budget}"
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_FAST_GATE_COUNT}" "${MOCK_GATE_COUNT}" \
+  "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}" "${MOCK_PUBLISH_ISSUE_ATTEMPT_COUNT}"
+if MOCK_PUBLISH_ISSUE_FAILS=1 ZERP_ISSUE_NON_PRODUCT_BATCH_RETRY_LIMIT=3 run_agent; then
+  echo 'external failure exceeded the batch-wide retry cap' >&2
+  exit 1
+fi
+test "$(cat "${MOCK_PUBLISH_ISSUE_ATTEMPT_COUNT}")" = 1
+test "$(cat "${runtime}/batches/external-batch-cap/state")" = external-blocked
+test "$(jq -r '.retryBudget.exhausted' \
+  "${runtime}/batches/external-batch-cap/failure.json")" = batch-total
+unset MOCK_PUBLISH_ISSUE_FAILS ZERP_ISSUE_NON_PRODUCT_BATCH_RETRY_LIMIT
+test_checkpoint external-batch-cap
+
+make_ticket external-deadline 'External batch deadline'
+external_deadline_budget="${runtime}/batches/external-deadline/repair-budget.json"
+mkdir -p "$(dirname "${external_deadline_budget}")"
+jq -n '{version:2,startedAt:"1970-01-01T00:00:01Z",startedAtEpoch:1,total:0,
+  lastStage:null,lastFingerprint:null,consecutive:0,events:[],recoveries:[],
+  nonProductEvents:[]}' >"${external_deadline_budget}"
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_FAST_GATE_COUNT}" "${MOCK_GATE_COUNT}" \
+  "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}" "${MOCK_PUBLISH_ISSUE_ATTEMPT_COUNT}"
+if MOCK_PUBLISH_ISSUE_FAILS=1 run_agent; then
+  echo 'external failure exceeded the batch wall-clock deadline' >&2
+  exit 1
+fi
+test "$(cat "${MOCK_PUBLISH_ISSUE_ATTEMPT_COUNT}")" = 1
+test "$(cat "${runtime}/batches/external-deadline/state")" = external-blocked
+test "$(jq -r '.retryBudget.exhausted' \
+  "${runtime}/batches/external-deadline/failure.json")" = deadline
+unset MOCK_PUBLISH_ISSUE_FAILS
+test_checkpoint external-deadline
+
+make_ticket checks-transient 'Transient required check failure'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_FAST_GATE_COUNT}" "${MOCK_GATE_COUNT}" \
+  "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}" "${MOCK_CHECK_COUNT}"
+MOCK_CHECKS_FAILS=1 ZERP_ISSUE_CHECK_REGISTRATION_WAIT_SECONDS=0 run_agent
+test "$(cat "${MOCK_CODEX_COUNT}")" = 1
+test "$(cat "${MOCK_CHECK_COUNT}")" = 2
+test "$(jq -r '[.nonProductEvents[] | select(.failureClass == "external")] | length' \
+  "${runtime}/batches/checks-transient/repair-budget.json")" = 1
+expected_check_head=$(jq -r .commitSha \
+  "${runtime}/batches/checks-transient/implementation.json")
+jq -e --arg head "${expected_check_head}" '
+  .head == $head and .pr == 77 and .failures[0].provider == "github-actions" and
+  .failures[0].link == "https://github.com/example/zerp/actions/runs/123/job/456"
+' "${runtime}/batches/checks-transient/required-check-evidence.json" >/dev/null
+grep -Fq '**Status:** done' "${primary}/.scratch/checks-transient/issues/01-ticket.md"
+unset MOCK_CHECKS_FAILS ZERP_ISSUE_CHECK_REGISTRATION_WAIT_SECONDS
+test_checkpoint checks-transient
+
+make_ticket checks-environment 'Required check runner failure'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_FAST_GATE_COUNT}" "${MOCK_GATE_COUNT}" \
+  "${MOCK_PREVIEW_COUNT}" "${MOCK_ISSUE_COUNT}" "${MOCK_CHECK_COUNT}"
+MOCK_CHECKS_FAILS=2 MOCK_CHECK_LOG_KIND=environment \
+  ZERP_ISSUE_CHECK_REGISTRATION_WAIT_SECONDS=0 run_agent
+test "$(cat "${MOCK_CODEX_COUNT}")" = 1
+test "$(cat "${MOCK_CHECK_COUNT}")" = 3
+test "$(jq -r '[.nonProductEvents[] | select(.failureClass == "external")] | length' \
+  "${runtime}/batches/checks-environment/repair-budget.json")" = 1
+test "$(jq -r '[.nonProductEvents[] | select(.failureClass == "environment")] | length' \
+  "${runtime}/batches/checks-environment/repair-budget.json")" = 1
+grep -Fq '**Status:** done' "${primary}/.scratch/checks-environment/issues/01-ticket.md"
+unset MOCK_CHECKS_FAILS MOCK_CHECK_LOG_KIND ZERP_ISSUE_CHECK_REGISTRATION_WAIT_SECONDS
+test_checkpoint checks-environment
 
 make_ticket dependency-lock-mismatch 'Dependency lock mismatch'
 mismatch_worktree="${runtime}/worktrees/dependency-lock-mismatch"
@@ -1251,14 +1475,14 @@ make_ticket checks-repeated 'Checks repeated'
 : >"${events}"
 rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" \
   "${MOCK_ISSUE_COUNT}" "${MOCK_CHECK_COUNT}"
-export MOCK_CHECKS_MISSING=0 MOCK_CHECKS_FAILS=2
+export MOCK_CHECKS_MISSING=0 MOCK_CHECKS_FAILS=4
 if ZERP_ISSUE_CHECK_REGISTRATION_WAIT_SECONDS=0 run_agent; then
   echo 'repeated identical required-check failures were accepted' >&2
   exit 1
 fi
 unset MOCK_CHECKS_MISSING MOCK_CHECKS_FAILS
 test "$(cat "${MOCK_CODEX_COUNT}")" = 2
-test "$(cat "${MOCK_CHECK_COUNT}")" = 2
+test "$(cat "${MOCK_CHECK_COUNT}")" = 4
 test "$(jq -r .total "${runtime}/batches/checks-repeated/repair-budget.json")" = 2
 test "$(jq -r .consecutive "${runtime}/batches/checks-repeated/repair-budget.json")" = 2
 grep -Fq '**Status:** blocked' "${primary}/.scratch/checks-repeated/issues/01-ticket.md"
@@ -1272,7 +1496,7 @@ MOCK_CODEX_MODE=completed MOCK_PREVIEW_FAILS=0 MOCK_CHECKS_MISSING=0 \
   MOCK_CHECK_MODE=advance-main-once MOCK_RUNTIME_FINGERPRINT="${runtime_fingerprint}" \
   ZERP_ISSUE_CHECK_REGISTRATION_WAIT_SECONDS=0 run_agent
 test "$(cat "${MOCK_CODEX_COUNT}")" = 1
-test "$(cat "${MOCK_CHECK_COUNT}")" = 2
+test "$(cat "${MOCK_CHECK_COUNT}")" = 3
 grep -Fq 'gh pr edit 77' "${events}"
 grep -Fq '**Status:** done' "${primary}/.scratch/rebase-refresh/issues/01-ticket.md"
 

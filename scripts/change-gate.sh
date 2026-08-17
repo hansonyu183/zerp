@@ -180,6 +180,12 @@ esac
 head_sha=$(git rev-parse HEAD)
 base_sha=$(git rev-parse "${base_ref}^{commit}")
 if [ "${fast_only}" = 1 ]; then
+  if [ -n "${ZERP_GATE_EVIDENCE_FILE:-}" ]; then
+    jq -n --arg head "${head_sha}" --arg base "${base_sha}" --arg impact "${impact}" \
+      '{version:1,status:"passed",mode:"fast",head:$head,base:$base,impact:$impact}' \
+      >"${ZERP_GATE_EVIDENCE_FILE}.new"
+    mv "${ZERP_GATE_EVIDENCE_FILE}.new" "${ZERP_GATE_EVIDENCE_FILE}"
+  fi
   gate_finished=$(date +%s)
   printf 'Fast change gate passed: %s (%ss)\n' "${impact}" "$((gate_finished - gate_started))"
   exit 0

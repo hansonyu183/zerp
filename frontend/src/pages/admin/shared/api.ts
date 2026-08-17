@@ -28,50 +28,38 @@ export interface SystemParameter {
   updatedBy?: string | null
 }
 
-export function queryAdminUsers(request: PageRequest) {
-  return apiClient.post<PageResult<AdminUser>, PageRequest>(
-    'app/user/query',
-    request,
-  )
+export function queryAdminUsers(
+  request: components['schemas']['UserQueryRequest'],
+) {
+  return apiClient.postContract('app/user/query', request)
 }
 
 export function getAdminUser(id: string) {
-  return apiClient.post<AdminUserDetail, { id: string }>('app/user/get', { id })
+  return apiClient.postContract('app/user/get', { id })
 }
 
-export function createAdminUser(input: {
-  username: string
-  displayName: string
-  password: string
-  roleIds: string[]
-}) {
-  return apiClient.post<AdminUser, typeof input>('app/user/create', input)
+export function createAdminUser(
+  input: components['schemas']['CreateUserRequest'],
+) {
+  return apiClient.postContract('app/user/create', input)
 }
 
-export function saveAdminUser(input: {
-  id: string
-  displayName: string
-  roleIds: string[]
-  revision: number
-}) {
-  return apiClient.post<AdminUser, typeof input>('app/user/save', input)
+export function saveAdminUser(input: components['schemas']['SaveUserRequest']) {
+  return apiClient.postContract('app/user/save', input)
 }
 
 export function resetAdminUserPassword(input: {
   id: string
   revision: number
 }) {
-  return apiClient.post<{ temporaryPassword: string }, typeof input>(
-    'app/user/reset-password',
-    input,
-  )
+  return apiClient.postContract('app/user/reset-password', input)
 }
 
 export function setAdminUserEnabled(user: AdminUser, enabled: boolean) {
-  return apiClient.post<AdminUser, { id: string; revision: number }>(
-    enabled ? 'app/user/enable' : 'app/user/disable',
-    { id: user.id, revision: user.revision },
-  )
+  const input = { id: user.id, revision: user.revision }
+  return enabled
+    ? apiClient.postContract('app/user/enable', input)
+    : apiClient.postContract('app/user/disable', input)
 }
 
 export function queryAdminRoles(

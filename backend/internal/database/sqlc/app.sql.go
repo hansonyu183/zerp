@@ -2064,3 +2064,20 @@ func (q *Queries) UpsertAppUserProfileAvatar(ctx context.Context, arg UpsertAppU
 	_, err := q.db.Exec(ctx, upsertAppUserProfileAvatar, arg.UserID, arg.AvatarUrl, arg.ActorID)
 	return err
 }
+
+const userHoldsSuperadminRole = `-- name: UserHoldsSuperadminRole :one
+SELECT EXISTS (
+  SELECT 1
+  FROM app_user_roles ur
+  JOIN app_roles r ON r.id = ur.role_id
+  WHERE ur.user_id = $1
+    AND r.code = 'superadmin'
+)
+`
+
+func (q *Queries) UserHoldsSuperadminRole(ctx context.Context, userID string) (bool, error) {
+	row := q.db.QueryRow(ctx, userHoldsSuperadminRole, userID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}

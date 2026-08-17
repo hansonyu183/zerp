@@ -15,7 +15,7 @@ func (s *Service) userManageable(ctx context.Context, q *dbsqlc.Queries, user Us
 	if user.ID == actor.id {
 		return true, nil
 	}
-	targetSuperadmin, err := q.ActorHasEnabledSuperadminRole(ctx, user.ID)
+	targetSuperadmin, err := q.UserHoldsSuperadminRole(ctx, user.ID)
 	if err != nil {
 		return false, domainError(ErrorInternal, "internal server error", err)
 	}
@@ -66,7 +66,9 @@ func (s *Service) userDetailAs(ctx context.Context, q *dbsqlc.Queries, user User
 	if err != nil {
 		return UserDetail{}, err
 	}
-	return UserDetail{UserListItem: userListItem(user), PasswordChangedAt: user.PasswordChangedAt, Roles: roles, Manageable: manageable,
+	item := userListItem(user)
+	item.Manageable = manageable
+	return UserDetail{UserListItem: item, PasswordChangedAt: user.PasswordChangedAt, Roles: roles,
 		RoleAssignmentEditable: roleAssignmentEditable(user.ID, manageable, actor)}, nil
 }
 

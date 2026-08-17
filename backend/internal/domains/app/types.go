@@ -212,13 +212,13 @@ type UserListItem struct {
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
 	Revision    int64     `json:"revision"`
+	Manageable  bool      `json:"manageable"`
 }
 
 type UserDetail struct {
 	UserListItem
 	PasswordChangedAt      time.Time         `json:"passwordChangedAt"`
 	Roles                  []UserRoleSummary `json:"roles"`
-	Manageable             bool              `json:"manageable"`
 	RoleAssignmentEditable bool              `json:"roleAssignmentEditable"`
 }
 
@@ -238,18 +238,6 @@ type ResetPasswordInput struct {
 
 type ResetPasswordResult struct {
 	TemporaryPassword string `json:"temporaryPassword"`
-}
-
-type RoleView struct {
-	ID            string    `json:"id"`
-	Code          string    `json:"code"`
-	Name          string    `json:"name"`
-	Description   *string   `json:"description"`
-	Status        string    `json:"status"`
-	CreatedAt     time.Time `json:"createdAt"`
-	UpdatedAt     time.Time `json:"updatedAt"`
-	Revision      int64     `json:"revision"`
-	PermissionIDs []string  `json:"permissionIds,omitempty"`
 }
 
 type PermissionView struct {

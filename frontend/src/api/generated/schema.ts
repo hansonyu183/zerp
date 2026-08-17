@@ -2928,6 +2928,7 @@ export interface components {
             updatedAt: string;
             /** Format: int64 */
             revision: number;
+            manageable: boolean;
         };
         UserPage: {
             items: components["schemas"]["UserListItem"][];
@@ -3080,7 +3081,21 @@ export interface components {
             entity: string;
             action: string;
         };
-        RoleDetail: components["schemas"]["RoleListItem"] & {
+        RoleDetail: {
+            id: string;
+            code: string;
+            name: string;
+            description: string | null;
+            status: components["schemas"]["UserStatus"];
+            type: components["schemas"]["RoleType"];
+            availableActions: components["schemas"]["RoleAction"][];
+            assignable: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: int64 */
+            revision: number;
             permissions: components["schemas"]["RolePermission"][];
         };
         RoleDetailResponse: {
@@ -5463,7 +5478,15 @@ export interface operations {
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 创建后的用户详情及当前可维护结论。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDetailResponse"];
+                };
+            };
         };
     };
     appUsersave: {
@@ -5479,7 +5502,15 @@ export interface operations {
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 保存后的用户详情及当前可维护结论。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDetailResponse"];
+                };
+            };
         };
     };
     appUserenable: {
@@ -5495,7 +5526,15 @@ export interface operations {
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 启用后的用户详情及当前可维护结论。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDetailResponse"];
+                };
+            };
         };
     };
     appUserdisable: {
@@ -5511,7 +5550,15 @@ export interface operations {
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 停用后的用户详情及当前可维护结论。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDetailResponse"];
+                };
+            };
         };
     };
     appUserResetPassword: {

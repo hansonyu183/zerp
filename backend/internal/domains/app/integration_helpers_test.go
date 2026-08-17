@@ -85,7 +85,113 @@ func appIntegrationConfig(t *testing.T) config.Config {
 	}
 }
 
-func appIntegrationService(t *testing.T) (*Service, *pgxpool.Pool, UserView) {
+// integrationService keeps setup-oriented conveniences in test code only; the
+// production Service exposes exclusively principal-aware management methods.
+type integrationService struct {
+	*Service
+	principal Principal
+}
+
+type RoleView struct {
+	ID            string
+	Code          string
+	Name          string
+	Description   *string
+	Status        string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	Revision      int64
+	PermissionIDs []string
+}
+
+func fixtureRoleView(detail RoleDetail) RoleView {
+	permissionIDs := make([]string, 0, len(detail.Permissions))
+	for _, permission := range detail.Permissions {
+		permissionIDs = append(permissionIDs, permission.ID)
+	}
+	return RoleView{ID: detail.ID, Code: detail.Code, Name: detail.Name, Description: detail.Description,
+		Status: detail.Status, CreatedAt: detail.CreatedAt, UpdatedAt: detail.UpdatedAt,
+		Revision: detail.Revision, PermissionIDs: permissionIDs}
+}
+
+func (s *integrationService) CreateRole(ctx context.Context, input CreateRoleInput, actorID, requestID string) (RoleView, error) {
+	detail, err := s.Service.CreateRole(ctx, input, Principal{User: UserSummary{ID: actorID}}, requestID)
+	return fixtureRoleView(detail), err
+}
+
+func (s *integrationService) SaveRole(ctx context.Context, input SaveRoleInput, actorID, requestID string) (RoleView, error) {
+	detail, err := s.Service.SaveRole(ctx, input, Principal{User: UserSummary{ID: actorID}}, requestID)
+	return fixtureRoleView(detail), err
+}
+
+func (s *integrationService) SetRoleStatus(ctx context.Context, id string, revision int64, status, actorID, requestID string) (RoleView, error) {
+	detail, err := s.Service.SetRoleStatus(ctx, id, revision, status, Principal{User: UserSummary{ID: actorID}}, requestID)
+	return fixtureRoleView(detail), err
+}
+
+func (s *integrationService) GetRole(ctx context.Context, id string) (RoleView, error) {
+	role, err := s.queries.GetAppRoleByID(ctx, id)
+	if err != nil {
+		return RoleView{}, err
+	}
+	ids, err := s.effectiveRolePermissionIDs(ctx, s.queries, role)
+	view := RoleView{
+		ID: role.ID, Code: role.Code, Name: role.Name, Description: role.Description,
+		Status: role.Status, CreatedAt: role.CreatedAt.Time, UpdatedAt: role.UpdatedAt.Time, Revision: role.Revision,
+	}
+	view.PermissionIDs = ids
+	return view, err
+}
+
+func (s *integrationService) QueryRoles(ctx context.Context, request PageRequest) (Page[RoleListItem], error) {
+	return s.Service.QueryRoles(ctx, request, s.principal)
+}
+
+func (s *integrationService) CreateUser(ctx context.Context, input CreateUserInput, actorID, requestID string) (UserView, error) {
+	detail, err := s.Service.CreateUser(ctx, input, Principal{User: UserSummary{ID: actorID}}, requestID)
+	if err != nil {
+		return UserView{}, err
+	}
+	return s.getUser(ctx, detail.ID)
+}
+
+func (s *integrationService) SaveUser(ctx context.Context, input SaveUserInput, actorID, requestID string) (UserView, error) {
+	detail, err := s.Service.SaveUser(ctx, input, Principal{User: UserSummary{ID: actorID}}, requestID)
+	if err != nil {
+		return UserView{}, err
+	}
+	return s.getUser(ctx, detail.ID)
+}
+
+func (s *integrationService) SetUserStatus(ctx context.Context, id string, revision int64, status, actorID, requestID string) (UserView, error) {
+	detail, err := s.Service.SetUserStatus(ctx, id, revision, status, Principal{User: UserSummary{ID: actorID}}, requestID)
+	if err != nil {
+		return UserView{}, err
+	}
+	return s.getUser(ctx, detail.ID)
+}
+
+func (s *integrationService) ResetUserPassword(ctx context.Context, input ResetPasswordInput, actorID, requestID string) (ResetPasswordResult, error) {
+	return s.Service.ResetUserPassword(ctx, input, Principal{User: UserSummary{ID: actorID}}, requestID)
+}
+
+func (s *integrationService) GetUser(ctx context.Context, id string) (UserView, error) {
+	return s.getUser(ctx, id)
+}
+
+func (s *integrationService) QueryUsers(ctx context.Context, request PageRequest) (Page[UserListItem], error) {
+	return s.Service.QueryUsers(ctx, request, s.principal)
+}
+
+func (s *integrationService) QueryPermissions(ctx context.Context, request PageRequest) (Page[PermissionView], error) {
+	return s.Service.QueryPermissions(ctx, request, s.principal)
+}
+
+func (s *integrationService) GetPermission(ctx context.Context, id string) (PermissionView, error) {
+	return s.Service.GetPermission(ctx, id, s.principal)
+}
+
+func appIntegrationService(t *testing.T) (*integrationService, *pgxpool.Pool, UserView) {
 	t.Helper()
 	pool := appIntegrationPool(t)
 	resetAPPIntegrationData(t, pool)
@@ -105,7 +211,7 @@ func appIntegrationService(t *testing.T) (*Service, *pgxpool.Pool, UserView) {
 	`, admin.ID); err != nil {
 		t.Fatalf("seed APP system parameters: %v", err)
 	}
-	return service, pool, admin
+	return &integrationService{Service: service, principal: Principal{User: UserSummary{ID: admin.ID}}}, pool, admin
 }
 
 func restoreAPPSystemIdentity(t *testing.T, pool *pgxpool.Pool) {
@@ -134,7 +240,7 @@ func restoreAPPSystemIdentity(t *testing.T, pool *pgxpool.Pool) {
 
 func completeRequiredPasswordChange(
 	t *testing.T,
-	service *Service,
+	service *integrationService,
 	signin SessionResult,
 	currentPassword string,
 	newPassword string,

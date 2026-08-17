@@ -28,7 +28,7 @@ func validateRoleQuery(request PageRequest) (pageSpec, *string, *string, error) 
 	return spec, status, search, err
 }
 
-func (s *Service) QueryRoleDirectory(ctx context.Context, request PageRequest, principal Principal) (Page[RoleListItem], error) {
+func (s *Service) QueryRoles(ctx context.Context, request PageRequest, principal Principal) (Page[RoleListItem], error) {
 	spec, status, search, err := validateRoleQuery(request)
 	if err != nil {
 		return Page[RoleListItem]{}, err
@@ -71,7 +71,7 @@ func (s *Service) QueryRoleDirectory(ctx context.Context, request PageRequest, p
 	return Page[RoleListItem]{Items: items, Total: total, Page: spec.Page, PageSize: spec.PageSize}, nil
 }
 
-func (s *Service) GetRoleDetail(ctx context.Context, id string, principal Principal) (RoleDetail, error) {
+func (s *Service) GetRole(ctx context.Context, id string, principal Principal) (RoleDetail, error) {
 	if !validID(id) {
 		return RoleDetail{}, domainError(ErrorValidation, "invalid role id", nil)
 	}
@@ -108,7 +108,7 @@ func (s *Service) GetRoleDetail(ctx context.Context, id string, principal Princi
 	return detail, nil
 }
 
-func (s *Service) CreateRoleAs(ctx context.Context, input CreateRoleInput, principal Principal, requestID string) (RoleDetail, error) {
+func (s *Service) CreateRole(ctx context.Context, input CreateRoleInput, principal Principal, requestID string) (RoleDetail, error) {
 	input.Name = strings.TrimSpace(input.Name)
 	input.PermissionIDs = uniqueStrings(input.PermissionIDs)
 	if strings.TrimSpace(input.Code) != "" {
@@ -162,10 +162,10 @@ func (s *Service) CreateRoleAs(ctx context.Context, input CreateRoleInput, princ
 	if err = tx.Commit(ctx); err != nil {
 		return RoleDetail{}, s.internal("commit create role", err)
 	}
-	return s.GetRoleDetail(ctx, id, principal)
+	return s.GetRole(ctx, id, principal)
 }
 
-func (s *Service) SaveRoleAs(ctx context.Context, input SaveRoleInput, principal Principal, requestID string) (RoleDetail, error) {
+func (s *Service) SaveRole(ctx context.Context, input SaveRoleInput, principal Principal, requestID string) (RoleDetail, error) {
 	input.Name = strings.TrimSpace(input.Name)
 	input.PermissionIDs = uniqueStrings(input.PermissionIDs)
 	if !validID(input.ID) || input.Revision < 1 || !runeLengthBetween(input.Name, 1, 128) || !validPermissionIDs(input.PermissionIDs) {
@@ -232,10 +232,10 @@ func (s *Service) SaveRoleAs(ctx context.Context, input SaveRoleInput, principal
 	if err = tx.Commit(ctx); err != nil {
 		return RoleDetail{}, s.internal("commit save role", err)
 	}
-	return s.GetRoleDetail(ctx, input.ID, principal)
+	return s.GetRole(ctx, input.ID, principal)
 }
 
-func (s *Service) SetRoleStatusAs(ctx context.Context, id string, revision int64, status string, principal Principal, requestID string) (RoleDetail, error) {
+func (s *Service) SetRoleStatus(ctx context.Context, id string, revision int64, status string, principal Principal, requestID string) (RoleDetail, error) {
 	if !validID(id) || revision < 1 || (status != StatusEnabled && status != StatusDisabled) {
 		return RoleDetail{}, domainError(ErrorValidation, "invalid status request", nil)
 	}
@@ -289,66 +289,5 @@ func (s *Service) SetRoleStatusAs(ctx context.Context, id string, revision int64
 	if err = tx.Commit(ctx); err != nil {
 		return RoleDetail{}, s.internal("commit role status", err)
 	}
-	return s.GetRoleDetail(ctx, id, principal)
-}
-
-// The following service-level projections keep non-HTTP callers on the same storage model.
-func (s *Service) QueryRoles(ctx context.Context, request PageRequest) (Page[RoleView], error) {
-	spec, status, search, err := validateRoleQuery(request)
-	if err != nil {
-		return Page[RoleView]{}, err
-	}
-	total, err := s.queries.CountAppRoles(ctx, dbsqlc.CountAppRolesParams{Status: status, Search: search})
-	if err != nil {
-		return Page[RoleView]{}, s.internal("count roles", err)
-	}
-	rows, err := s.queries.ListAppRoles(ctx, dbsqlc.ListAppRolesParams{Status: status, Search: search, SortField: spec.SortField, SortOrder: spec.SortOrder, PageOffset: spec.Offset, PageSize: int32(spec.PageSize)})
-	if err != nil {
-		return Page[RoleView]{}, s.internal("list roles", err)
-	}
-	items := make([]RoleView, 0, len(rows))
-	for _, r := range rows {
-		items = append(items, roleView(r))
-	}
-	return Page[RoleView]{Items: items, Total: total, Page: spec.Page, PageSize: spec.PageSize}, nil
-}
-func (s *Service) GetRole(ctx context.Context, id string) (RoleView, error) {
-	if !validID(id) {
-		return RoleView{}, domainError(ErrorValidation, "invalid role id", nil)
-	}
-	role, err := s.queries.GetAppRoleByID(ctx, id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return RoleView{}, domainError(ErrorNotFound, "role not found", nil)
-	}
-	if err != nil {
-		return RoleView{}, s.internal("get role", err)
-	}
-	ids, err := s.effectiveRolePermissionIDs(ctx, s.queries, role)
-	if err != nil {
-		return RoleView{}, s.internal("get role permissions", err)
-	}
-	view := roleView(role)
-	view.PermissionIDs = ids
-	return view, nil
-}
-func (s *Service) CreateRole(ctx context.Context, input CreateRoleInput, actorID, requestID string) (RoleView, error) {
-	detail, err := s.CreateRoleAs(ctx, input, Principal{User: UserSummary{ID: actorID}}, requestID)
-	if err != nil {
-		return RoleView{}, err
-	}
-	return s.GetRole(ctx, detail.ID)
-}
-func (s *Service) SaveRole(ctx context.Context, input SaveRoleInput, actorID, requestID string) (RoleView, error) {
-	detail, err := s.SaveRoleAs(ctx, input, Principal{User: UserSummary{ID: actorID}}, requestID)
-	if err != nil {
-		return RoleView{}, err
-	}
-	return s.GetRole(ctx, detail.ID)
-}
-func (s *Service) SetRoleStatus(ctx context.Context, id string, revision int64, status, actorID, requestID string) (RoleView, error) {
-	detail, err := s.SetRoleStatusAs(ctx, id, revision, status, Principal{User: UserSummary{ID: actorID}}, requestID)
-	if err != nil {
-		return RoleView{}, err
-	}
-	return s.GetRole(ctx, detail.ID)
+	return s.GetRole(ctx, id, principal)
 }

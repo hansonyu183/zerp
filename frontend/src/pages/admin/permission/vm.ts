@@ -14,7 +14,7 @@ export function createPermissionManagementViewModel() {
   const detail = ref<AdminPermission | null>(null)
   const total = ref(0)
   const page = ref(1)
-  const pageSize = ref(20)
+  const pageSize = ref<20 | 200>(20)
   const domain = ref('')
   const entity = ref('')
   const status = ref<AdminStatus | null>(null)

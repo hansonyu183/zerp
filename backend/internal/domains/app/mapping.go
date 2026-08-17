@@ -36,15 +36,6 @@ func userListItem(user UserView) UserListItem {
 		Status: user.Status, System: user.System, CreatedAt: user.CreatedAt, UpdatedAt: user.UpdatedAt, Revision: user.Revision}
 }
 
-func userDetail(user UserView) UserDetail {
-	return UserDetail{UserListItem: userListItem(user), PasswordChangedAt: user.PasswordChangedAt, Roles: user.Roles}
-}
-
-func roleView(role dbsqlc.AppRole) RoleView {
-	return RoleView{ID: role.ID, Code: role.Code, Name: role.Name, Description: role.Description, Status: role.Status,
-		CreatedAt: role.CreatedAt.Time, UpdatedAt: role.UpdatedAt.Time, Revision: role.Revision}
-}
-
 func permissionView(permission dbsqlc.AppPermission) PermissionView {
 	return PermissionView{ID: permission.ID, Path: permission.Path, Domain: permission.Domain, Entity: permission.Entity,
 		Action: permission.Action, Description: permission.Description, Status: permission.Status, Revision: permission.Revision}

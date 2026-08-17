@@ -481,6 +481,15 @@ SELECT EXISTS (
     AND r.code = 'superadmin'
 );
 
+-- name: UserHoldsSuperadminRole :one
+SELECT EXISTS (
+  SELECT 1
+  FROM app_user_roles ur
+  JOIN app_roles r ON r.id = ur.role_id
+  WHERE ur.user_id = sqlc.arg(user_id)
+    AND r.code = 'superadmin'
+);
+
 -- name: ListEnabledAppPermissionIDsForUser :many
 SELECT DISTINCT p.id
 FROM app_permissions p

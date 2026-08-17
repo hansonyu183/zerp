@@ -106,18 +106,20 @@ export function createUserManagementViewModel() {
     return row.system
   }
   function canEditUser(row: AdminUser): boolean {
-    return !isSystemUser(row) && canEdit.value
+    return !isSystemUser(row) && row.manageable && canEdit.value
   }
   function canViewUser(row: AdminUser): boolean {
     return canGet.value && !canEditUser(row)
   }
   function canChangeEnabled(row: AdminUser): boolean {
-    if (isSystemUser(row) || row.id === session.user?.id) return false
+    if (isSystemUser(row) || !row.manageable || row.id === session.user?.id)
+      return false
     return row.status === 'ENABLED' ? canDisable.value : canEnable.value
   }
   function canResetUserPassword(row: AdminUser): boolean {
     return (
       !isSystemUser(row) &&
+      row.manageable &&
       row.id !== session.user?.id &&
       row.status === 'ENABLED' &&
       canResetPassword.value

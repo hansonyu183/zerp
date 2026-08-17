@@ -605,6 +605,17 @@ describe('user management view model', () => {
     expect(setAdminUserEnabled).not.toHaveBeenCalled()
     expect(vm.errorMessage.value).toBe('系统用户由服务端维护，不能修改状态。')
   })
+
+  it('后端判定不可维护的用户只提供查看操作', () => {
+    useSessionStore().permissions.push('/app/user/reset-password')
+    const superiorUser = { ...user, id: 'USER-SUPERIOR', manageable: false }
+    const vm = createUserManagementViewModel()
+
+    expect(vm.canEditUser(superiorUser)).toBe(false)
+    expect(vm.canViewUser(superiorUser)).toBe(true)
+    expect(vm.canChangeEnabled(superiorUser)).toBe(false)
+    expect(vm.canResetUserPassword(superiorUser)).toBe(false)
+  })
 })
 
 describe('user management protected actions', () => {

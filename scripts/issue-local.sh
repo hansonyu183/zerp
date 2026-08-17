@@ -20,14 +20,13 @@ preview_close_command=${ZERP_ISSUE_PREVIEW_CLOSE_COMMAND:-${script_dir}/issue-lo
 gate_command=${ZERP_ISSUE_GATE_COMMAND:-}
 focused_e2e_command=${ZERP_ISSUE_FOCUSED_E2E_COMMAND:-}
 focused_integration_command=${ZERP_ISSUE_FOCUSED_INTEGRATION_COMMAND:-}
-osascript_bin=${ZERP_OSASCRIPT_BIN:-osascript}
-pgrep_bin=${ZERP_PGREP_BIN:-pgrep}
+notification_command=${ZERP_ISSUE_NOTIFICATION_COMMAND:-${script_dir}/issue-local-notify.sh}
 schema=${ZERP_ISSUE_RESULT_SCHEMA:-${repo_root}/.github/automation/schemas/local-implementation-output.json}
 lock_dir="${runtime_root}/agent.lock"
 controller_path="${script_dir}/$(basename -- "$0")"
 
 usage() {
-  echo "usage: $0 {run|status|diagnose <feature>|retry <feature>|stop|start}" >&2
+  echo "usage: $0 {run|status|diagnose <feature>|notify-test|retry <feature>|stop|start}" >&2
   exit 2
 }
 
@@ -76,6 +75,11 @@ set_batch_phase() {
   phase=$2
   write_value "${batch_root}/phase" "${phase}"
   append_timeline "${batch_root}" phase "${phase}"
+  case "${phase}" in
+    implementing | fast-gate | validation-baseline | validation-reverify | validation-release | public-preview | github-checks | production)
+      notify_batch_event "${batch_root}" "${phase}"
+      ;;
+  esac
 }
 
 stable_failure_signal() {
@@ -134,140 +138,14 @@ failure_field() {
     "${batch_root}/failure.json" 2>/dev/null || true
 }
 
-message_recipient() {
-  if [ "${ZERP_ISSUE_MESSAGE_RECIPIENT+x}" = x ]; then
-    printf '%s' "${ZERP_ISSUE_MESSAGE_RECIPIENT}"
-  elif [ -r "${runtime_root}/message-recipient" ]; then
-    cat "${runtime_root}/message-recipient"
-  fi
-}
-
-valid_message_recipient() {
-  [ -n "${1:-}" ] || return 1
-  case "$1" in *'
-'*) return 1 ;; esac
-  ! printf '%s' "$1" | LC_ALL=C grep -q '[[:cntrl:]]'
-}
-
-wait_for_notification_process() {
-  process_pid=$1
-  timeout_seconds=$2
-  elapsed_seconds=0
-  while kill -0 "${process_pid}" >/dev/null 2>&1; do
-    if [ "${elapsed_seconds}" -ge "${timeout_seconds}" ]; then
-      kill "${process_pid}" >/dev/null 2>&1 || true
-      wait "${process_pid}" >/dev/null 2>&1 || true
-      return 1
-    fi
-    sleep 1
-    elapsed_seconds=$((elapsed_seconds + 1))
-  done
-  wait "${process_pid}" >/dev/null 2>&1
-}
-
-notify_batch_event() {
+notify_batch_event() (
   batch_root=$1
-  state=$2
+  event=$2
   feature=$(basename "${batch_root}")
-  worktree="${runtime_root}/worktrees/${feature}"
-  recipient=$(message_recipient)
-  valid_message_recipient "${recipient}" || return 0
-
-  head=$(git -C "${worktree}" rev-parse HEAD 2>/dev/null || cat "${batch_root}/base-sha" 2>/dev/null || true)
-  case "${head}" in '' | *[!0-9a-f]*) head=unknown ;; esac
-  [ "${#head}" -eq 40 ] || head=unknown
-  pr=$(cat "${batch_root}/pr-number" 2>/dev/null || printf '-')
-  case "${pr}" in '' | *[!0-9]*) pr=- ;; esac
-  budget_file=$(repair_budget_file "${batch_root}")
-  total=$(jq -r '.total // 0' "${budget_file}" 2>/dev/null || printf 0)
-  consecutive=$(jq -r '.consecutive // 0' "${budget_file}" 2>/dev/null || printf 0)
-  failure_class=$(failure_field "${batch_root}" failureClass)
-  failure_stage=$(failure_field "${batch_root}" stage)
-  key=$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
-    "${feature}" "${state}" "${head}" "${pr}" "${total}" "${consecutive}" \
-    "${failure_class}" "${failure_stage}")
-  notification_file="${runtime_root}/message-notifications.tsv"
-  if [ -r "${notification_file}" ] && grep -Fqx "${key}" "${notification_file}"; then
-    return 0
+  if ! "${notification_command}" emit "${batch_root}" "${event}" >/dev/null 2>&1; then
+    log "notification event could not be persisted (feature=${feature} event=${event})"
   fi
-
-  case "${state}" in
-    in-progress) title='批次开始执行' ;;
-    pr-open) title='PR 已创建，已进入 CI' ;;
-    blocked) title='需要关注：批次已阻塞' ;;
-    automation-blocked) title='需要关注：自动化控制器已阻塞' ;;
-    environment-blocked) title='需要关注：宿主环境已阻塞' ;;
-    external-blocked) title='需要关注：外部服务已阻塞' ;;
-    preview-blocked) title='需要关注：预览已阻塞' ;;
-    production-blocked) title='需要关注：生产验证已阻塞' ;;
-    needs-input) title='需要关注：需要人工输入' ;;
-    done) title='批次已完成' ;;
-    *) return 0 ;;
-  esac
-  repairs=$((total > 0 ? total - 1 : 0))
-  body=$(printf 'ZERP 本地 Issue 自动交付\n%s\n批次=%s\n状态=%s\n阶段=%s\n失败分类=%s\nhead=%s\nPR=%s\n代码尝试=%s，修复次数=%s，连续同错=%s' \
-    "${title}" "${feature}" "${state}" "${failure_stage:--}" \
-    "${failure_class:--}" "${head}" "${pr}" "${total}" "${repairs}" "${consecutive}")
-  messages_was_running=0
-  if "${pgrep_bin}" -x Messages >/dev/null 2>&1; then
-    messages_was_running=1
-  fi
-  notify_result=0
-  timeout_seconds=${ZERP_ISSUE_MESSAGE_TIMEOUT_SECONDS:-10}
-  case "${timeout_seconds}" in '' | *[!0-9]*) timeout_seconds=10 ;; esac
-  ZERP_ISSUE_MESSAGE_RECIPIENT="${recipient}" \
-    ZERP_ISSUE_MESSAGE_BODY="${body}" \
-    "${osascript_bin}" - >/dev/null 2>&1 <<'APPLESCRIPT' &
-on run argv
-  set recipient to system attribute "ZERP_ISSUE_MESSAGE_RECIPIENT"
-  set messageBody to system attribute "ZERP_ISSUE_MESSAGE_BODY"
-  tell application "Messages"
-    set targetService to 1st service whose service type = iMessage
-    send messageBody to buddy recipient of targetService
-  end tell
-end run
-APPLESCRIPT
-  osascript_pid=$!
-  wait_for_notification_process "${osascript_pid}" "${timeout_seconds}" || notify_result=1
-  if [ "${messages_was_running}" = 0 ] && "${pgrep_bin}" -x Messages >/dev/null 2>&1; then
-    "${osascript_bin}" -e 'tell application "Messages" to quit' >/dev/null 2>&1 || true
-  fi
-  if [ "${notify_result}" -ne 0 ]; then
-    ZERP_ISSUE_NOTIFICATION_TITLE="${title}" \
-      ZERP_ISSUE_MESSAGE_BODY="${body}" \
-      "${osascript_bin}" - >/dev/null 2>&1 <<'APPLESCRIPT' &
-on run argv
-  set notificationTitle to system attribute "ZERP_ISSUE_NOTIFICATION_TITLE"
-  set messageBody to system attribute "ZERP_ISSUE_MESSAGE_BODY"
-  display notification messageBody with title notificationTitle
-end run
-APPLESCRIPT
-    fallback_pid=$!
-    if wait_for_notification_process "${fallback_pid}" "${timeout_seconds}"; then
-      log "local iMessage notification failed; macOS fallback delivered (feature=${feature} state=${state})"
-    else
-      log "local iMessage and macOS fallback notifications failed (feature=${feature} state=${state})"
-      return 0
-    fi
-  fi
-  mkdir -p "${runtime_root}"
-  chmod 700 "${runtime_root}"
-  printf '%s\n' "${key}" >>"${notification_file}"
-  chmod 600 "${notification_file}"
-}
-
-reconcile_batch_notifications() {
-  [ -d "${runtime_root}/batches" ] || return 0
-  for state_file in "${runtime_root}"/batches/*/state; do
-    [ -r "${state_file}" ] || continue
-    state=$(cat "${state_file}")
-    case "${state}" in
-      blocked | automation-blocked | environment-blocked | external-blocked | preview-blocked | production-blocked | needs-input | done)
-        notify_batch_event "$(dirname "${state_file}")" "${state}"
-        ;;
-    esac
-  done
-}
+)
 
 set_batch_state() {
   batch_root=$1
@@ -558,6 +436,11 @@ failure_policy_decide() {
     esac
   fi
   write_failure_policy_decision "${batch_root}" "${decision}" || return 1
+  case "${decision}" in
+    RETRY_SAME_HEAD | RETRY_ENVIRONMENT | RETRY_EXTERNAL | REPAIR_CODE)
+      notify_batch_event "${batch_root}" "retry-${decision}"
+      ;;
+  esac
   printf '%s\n' "${decision}"
 }
 
@@ -637,6 +520,7 @@ apply_product_failure_policy() {
   fi
   if record_repair_failure "${batch_root}" "${stage}" "${candidate_head}"; then
     write_failure_policy_decision "${batch_root}" REPAIR_CODE
+    notify_batch_event "${batch_root}" retry-REPAIR_CODE
     return 0
   else
     record_result=$?
@@ -728,6 +612,8 @@ status_command() {
         "${failure_class:--}" "${failure_stage:--}" "${policy_decision:--}"
     fi
   done
+  "${notification_command}" status 2>/dev/null || \
+    echo 'notification=degraded pending=unknown lastError=module-unavailable'
 }
 
 diagnose_command() {
@@ -2437,6 +2323,7 @@ deploy_preview() {
     mv "${preview_output}" "${batch_root}/preview.env"
     append_timeline "${batch_root}" preview-passed public-preview '' '' "${head_sha}" \
       'Exact-SHA public preview passed'
+    notify_batch_event "${batch_root}" preview-passed
     return 0
   done
 }
@@ -2806,6 +2693,7 @@ wait_checks_and_merge() {
       >"${batch_root}/checks.log" 2>&1; then
       rm -f "${batch_root}/required-check-confirmation.json" \
         "${batch_root}/failure.md" "${batch_root}/failure.json"
+      notify_batch_event "${batch_root}" ci-passed
       break
     fi
     if grep -Eq 'no (required )?checks reported' "${batch_root}/checks.log"; then
@@ -3059,6 +2947,8 @@ wait_checks_and_merge() {
     fi
     merge_sha=$(printf '%s' "${pr_json}" | jq -r '.mergeCommit.oid // ""')
     if [ "$(printf '%s' "${pr_json}" | jq -r .state)" = MERGED ] && [ -n "${merge_sha}" ]; then
+      write_value "${batch_root}/merge-sha" "${merge_sha}"
+      notify_batch_event "${batch_root}" merged
       printf '%s\n' "${merge_sha}"
       return 0
     fi
@@ -3084,6 +2974,7 @@ run_batch() {
   write_batch_risk "${issues_dir}" "${batch_root}"
   validate_tickets "${issues_dir}"
   claim_batch "${issues_dir}"
+  notify_batch_event "${batch_root}" in-progress
   prepare_result=0
   prepare_worktree "${feature}" "${issues_dir}" "${batch_root}" "${worktree}" "${branch}" \
     >"${batch_root}/prepare.log" 2>&1 || prepare_result=$?
@@ -3118,7 +3009,6 @@ run_batch() {
   done
   base_sha=$(cat "${batch_root}/base-sha")
   set_batch_phase "${batch_root}" claimed
-  notify_batch_event "${batch_root}" in-progress
 
   if [ ! -f "${batch_root}/preview.env" ]; then
     if ! implement_and_preview "${feature}" "${batch_root}" "${worktree}" "${base_sha}" "${issues_dir}"; then
@@ -3150,7 +3040,7 @@ run_batch() {
     return 1
   fi
   set_batch_phase "${batch_root}" publishing-pr
-  if ! pr=$(run_external_step "${batch_root}" publish-pr "${head_sha}" \
+  if ! pr_output=$(run_external_step "${batch_root}" publish-pr "${head_sha}" \
     publish_pr "${feature}" "${batch_root}" "${worktree}" "${branch}" \
       "${preview_url}" "${fingerprint}"); then
     mark_batch "${issues_dir}" blocked
@@ -3158,6 +3048,13 @@ run_batch() {
     release_preview "${feature}"
     return 1
   fi
+  pr=$(printf '%s\n' "${pr_output}" | sed -n '/^[0-9][0-9]*$/p' | tail -n 1)
+  [ -n "${pr}" ] || {
+    mark_batch "${issues_dir}" blocked
+    set_batch_state "${batch_root}" automation-blocked
+    release_preview "${feature}"
+    return 1
+  }
   notify_batch_event "${batch_root}" pr-open
   if ! merge_sha=$(wait_checks_and_merge "${feature}" "${batch_root}" "${worktree}" \
     "${issues_dir}" "${branch}" "${pr}"); then
@@ -3209,7 +3106,6 @@ run_command() {
   trap 'controller_signal 129' HUP
   trap 'controller_signal 130' INT
   trap 'controller_signal 143' TERM
-  reconcile_batch_notifications
   [ ! -f "${runtime_root}/disabled" ] || { log 'local Issue delivery is stopped'; return 0; }
   [ "$("${codex_bin}" login status 2>&1 || true)" = 'Logged in using ChatGPT' ] || {
     log 'Codex must be logged in with ChatGPT'
@@ -3362,6 +3258,7 @@ case "${1:-}" in
   run) [ "$#" -eq 1 ] || usage; ensure_dedicated_controller_group; run_command ;;
   status) [ "$#" -eq 1 ] || usage; status_command ;;
   diagnose) [ "$#" -eq 2 ] || usage; diagnose_command "$2" ;;
+  notify-test) [ "$#" -eq 1 ] || usage; "${notification_command}" test ;;
   retry) [ "$#" -eq 2 ] || usage; retry_command "$2" ;;
   stop) [ "$#" -eq 1 ] || usage; stop_command ;;
   start) [ "$#" -eq 1 ] || usage; rm -f "${runtime_root}/disabled" ;;

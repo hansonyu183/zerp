@@ -5,7 +5,7 @@
 ## 完整流程
 
 1. `$to-tickets` 在主工作区生成 `.scratch/<feature>/issues/*.md`。整个目录是一项不可拆分的发布批次。
-2. launchd 通过 `WatchPaths` 发现 `ready-for-agent` 批次，控制器领取整批并创建 `automation/local-<feature>` 独立 worktree。Worktree Environment 通过单一 `ensure(worktree)` 生命周期入口，为候选目录执行准确 pnpm 版本的 `--offline --frozen-lockfile` 安装；每个 worktree 拥有自己的 `node_modules`，只共享 pnpm 内容寻址 store，不读取、链接或复制主工作区安装结果。
+2. 控制器 LaunchAgent 通过 `WatchPaths` 发现 `ready-for-agent` 批次，领取整批并创建 `automation/local-<feature>` 独立 worktree。Worktree Environment 通过单一 `ensure(worktree)` 生命周期入口，为候选目录执行准确 pnpm 版本的 `--offline --frozen-lockfile` 安装；每个 worktree 拥有自己的 `node_modules`，只共享 pnpm 内容寻址 store，不读取、链接或复制主工作区安装结果。
 3. 控制器先记录 Ticket 数量、验收项数量和跨端风险；至少五个 Ticket 或二十项验收条件记为大批次。大批次仍保持一个分支和一个 PR，但 `$implement` 必须按 `Blocked by` 依赖层分段提交并在每层后聚焦验证。模型返回 clean reviewed commit 后，由宿主控制器强制运行 `scripts/change-gate.sh --fast <base-sha>` 并核对 exact-head 结构化证据，提前关闭格式、生成物、类型和基础测试错误；模型不得在 sandbox 内运行整套门禁。实现始终运行在无网络 workspace sandbox 内。
 4. 控制器在宿主环境通过 Validation module 验证 clean candidate：首次运行 `baseline`，独立阶段尽量全部执行并一次收集失败；修复提交只运行 `reverify` 所选的旧失败阶段、被 delta 失效的已通过阶段和必要下游阶段；全部中间证据恢复后运行一次 `release`。Docker、E2E 环境和最终门禁证据只属于宿主控制器。
 5. 控制器使用受信任主工作区的预览脚本，将候选 worktree 构建到固定公网预览 `https://zerp-preview.bytesucceed.com`，并核对 exact SHA、浏览器 smoke 和运行时指纹。用户查看预览是可选的，不阻塞自动流程。
@@ -38,11 +38,16 @@
 ZERP_ISSUE_MESSAGE_RECIPIENT='<本机 iMessage 手机号或地址>' make issue-local-install
 scripts/issue-local.sh status
 scripts/issue-local.sh diagnose <feature>
+scripts/issue-local.sh notify-test
 scripts/issue-local.sh stop
 scripts/issue-local.sh start
 scripts/issue-local.sh retry <feature>
 ```
 
-首次安装必须以 `ZERP_ISSUE_MESSAGE_RECIPIENT` 传入本机已配置的 iMessage 收件人；安装器只将它保存到 runtime 目录中权限为 `600` 的本机文件，后续重装会自动复用。它不会写入 Git、PR 或普通日志。控制器优先通过 macOS `Messages`/`osascript` 直接发送；Messages 无响应或发送失败时，改发不依赖 Messages 的本机系统通知并记录泛化日志，不调用 Codex 或模型。通知仅覆盖 `in-progress`、`pr-open`、`blocked`、`preview-blocked`、`production-blocked`、`needs-input` 和 `done`，不发送 `preview-passed`。控制器每次启动都会补发尚未登记的终态通知，解决旧进程在更新通知逻辑前已经落盘终态的情况。同一批次状态的 exact head、PR 和尝试计数相同时会去重；两种通知都失败时只留下不含收件人或正文的泛化本地日志，且不阻断交付。
+首次安装必须以 `ZERP_ISSUE_MESSAGE_RECIPIENT` 传入本机已配置的 iMessage 收件人；安装器只将它保存到 runtime 目录中权限为 `600` 的本机文件，后续重装会自动复用。它不会写入 Git、plist、PR 或普通日志。
+
+Notification module 的接口固定为 `emit`、`drain`、`status`。控制器只把开始、主要阶段、每次 Failure Policy 重试、预览通过、PR、CI、合并、阻塞和结束事件原子写入持久 outbox；独立通知 LaunchAgent 监听 outbox 并每分钟补扫，不让 Messages 卡顿或 AppleEvent 权限故障阻塞交付控制器。iMessage 发送失败会分类为 `automation-denied`、`service-unavailable`、`recipient-unresolved`、`timeout` 或 `send-failed`，先发一次本机系统通知作为提示，再按 1、2、5、10、15 分钟退避持续补发；本机提示不算远端送达。终态到达时，已经发送失败的旧进度和重试事件会合并为一条补发摘要，避免恢复后轰炸。
+
+通知正文包含批次、阶段、准确 head、PR、代码尝试、修复次数、非产品重试预算、Failure Policy decision 和批次耗时。`status` 额外显示通知队列健康度；`notify-test` 通过同一 outbox 和 Messages 路径发送唯一自检事件，只有真实 iMessage 发送成功才返回成功。通知持久化或发送失败只记录不含收件人和正文的泛化日志，不调用 Codex，也不改变批次状态。
 
 安装器只复制控制脚本和 JSON schema，不复制 Codex `auth.json`、GitHub token 或私钥。实现阶段使用无网络 workspace sandbox；GitHub、预览、生产和宿主测试凭证只属于控制器。依赖隔离、凭证挂载、构建缓存、预览恢复和日志协议由对应脚本及回归测试强制执行，不在本文复制实现细节。

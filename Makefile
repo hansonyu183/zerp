@@ -103,6 +103,7 @@ release-check:
 	./scripts/pre-push-test.sh
 	./scripts/test-release-flow-transition.sh
 	./scripts/issue-local-test.sh
+	./scripts/issue-local-notify-test.sh
 	./scripts/issue-local-preview-test.sh
 	./scripts/install-issue-local-agent-test.sh
 	./scripts/preview-state-test.sh

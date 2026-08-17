@@ -876,6 +876,18 @@ test_checkpoint() {
   }
 }
 
+for notification_event in in-progress implementing fast-gate validation-baseline \
+  public-preview preview-passed pr-open github-checks ci-passed merged production 'done'; do
+  find "${runtime}/notifications/pending" -type f -name '*.json' -exec \
+    jq -e --arg event "${notification_event}" \
+      'select(.feature == "inventory-query" and .event == $event) | true' {} \; \
+    | grep -q true || {
+      echo "missing notification progress event: ${notification_event}" >&2
+      exit 1
+    }
+done
+test_checkpoint notification-progress
+
 run_agent() {
   PATH="${tmp}/bin:${PATH}" \
   ZERP_PRIMARY_ROOT="${primary}" \
@@ -1169,6 +1181,9 @@ test "$(jq -r '[.nonProductEvents[] |
   "${runtime}/batches/environment-prepare-retry/repair-budget.json")" = 1
 grep -Fq '**Status:** done' \
   "${primary}/.scratch/environment-prepare-retry/issues/01-ticket.md"
+find "${runtime}/notifications/pending" -type f -name '*.json' -exec \
+  jq -e 'select(.feature == "environment-prepare-retry" and
+    .event == "retry-RETRY_ENVIRONMENT") | true' {} \; | grep -q true
 unset MOCK_PNPM_INSTALL_FAILS
 test_checkpoint environment-prepare-retry
 
@@ -1201,6 +1216,9 @@ test "$(jq -r '.nonProductEvents | length' \
 grep -Fq 'ERR_PNPM_OUTDATED_LOCKFILE' "${MOCK_PROMPT}-2"
 grep -Fq '**Status:** done' \
   "${primary}/.scratch/dependency-manifest-repair/issues/01-ticket.md"
+find "${runtime}/notifications/pending" -type f -name '*.json' -exec \
+  jq -e 'select(.feature == "dependency-manifest-repair" and
+    .event == "retry-REPAIR_CODE") | true' {} \; | grep -q true
 unset MOCK_PNPM_MANIFEST_FAIL_ON MOCK_CODEX_CHANGE_MANIFEST
 test_checkpoint dependency-manifest-repair
 
@@ -1837,63 +1855,10 @@ test "$(cat "${MOCK_CODEX_COUNT}")" = 2
 grep -Fq '**Status:** done' "${primary}/.scratch/queue-first/issues/01-ticket.md"
 grep -Fq '**Status:** done' "${primary}/.scratch/queue-second/issues/01-ticket.md"
 
-# The repair path and its caller both write this state; exact-key de-dup sends once.
-awk '
-  /^批次=checks-repeated$/ { feature = 1 }
-  feature && /^状态=blocked$/ { blocked += 1 }
-  /^---$/ { feature = 0 }
-  END { exit(blocked == 1 ? 0 : 1) }
-' "${MOCK_IMESSAGE_EVENTS}"
-
-make_ticket imessage-send-failure 'iMessage send failure'
-: >"${events}"
-rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" \
-  "${MOCK_ISSUE_COUNT}" "${MOCK_CHECK_COUNT}"
-if MOCK_OSASCRIPT_FAIL=1 run_agent >"${tmp}/imessage-send-failure.log" 2>&1; then
-  :
-else
-  echo 'iMessage send failure blocked delivery' >&2
-  exit 1
-fi
-grep -Fq '**Status:** done' "${primary}/.scratch/imessage-send-failure/issues/01-ticket.md"
-grep -Fq 'local iMessage notification failed; macOS fallback delivered (feature=imessage-send-failure state=in-progress)' \
-  "${tmp}/imessage-send-failure.log"
-if grep -Fq "${MOCK_IMESSAGE_RECIPIENT}" "${tmp}/imessage-send-failure.log"; then
-  echo 'iMessage recipient leaked to the controller log' >&2
-  exit 1
-fi
-grep -Fq 'imessage-send-failed' "${MOCK_IMESSAGE_EVENTS}"
-grep -Fq 'macos-notification' "${MOCK_IMESSAGE_EVENTS}"
-grep -Fq 'messages-quit' "${MOCK_IMESSAGE_EVENTS}"
-unset MOCK_OSASCRIPT_FAIL
-
-make_ticket imessage-timeout 'iMessage timeout'
-: >"${events}"
-rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" \
-  "${MOCK_ISSUE_COUNT}" "${MOCK_CHECK_COUNT}" "${MOCK_OSASCRIPT_PID}"
-if MOCK_OSASCRIPT_HANG=1 ZERP_ISSUE_MESSAGE_TIMEOUT_SECONDS=1 \
-  run_agent >"${tmp}/imessage-timeout.log" 2>&1; then
-  :
-else
-  echo 'iMessage timeout blocked delivery' >&2
-  exit 1
-fi
-grep -Fq '**Status:** done' "${primary}/.scratch/imessage-timeout/issues/01-ticket.md"
-grep -Fq 'local iMessage notification failed; macOS fallback delivered (feature=imessage-timeout state=in-progress)' \
-  "${tmp}/imessage-timeout.log"
-test ! -e "${MOCK_OSASCRIPT_PID}"
-test ! -e "${MOCK_MESSAGES_STARTED}"
-unset MOCK_OSASCRIPT_HANG ZERP_ISSUE_MESSAGE_TIMEOUT_SECONDS
-
-make_ticket messages-already-running 'Messages already running'
-: >"${events}"
-rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" \
-  "${MOCK_ISSUE_COUNT}" "${MOCK_CHECK_COUNT}"
-quit_before=$(grep -c '^messages-quit$' "${MOCK_IMESSAGE_EVENTS}" || true)
-MOCK_MESSAGES_ALREADY_RUNNING=1 run_agent
-quit_after=$(grep -c '^messages-quit$' "${MOCK_IMESSAGE_EVENTS}" || true)
-test "${quit_before}" = "${quit_after}"
-grep -Fq '**Status:** done' "${primary}/.scratch/messages-already-running/issues/01-ticket.md"
+# The repair path and its caller both request this event; the outbox de-duplicates it.
+test "$(find "${runtime}/notifications/pending" -type f -name '*.json' -exec \
+  jq -r 'select(.feature == "checks-repeated" and .event == "blocked") | .id' {} \; | \
+  wc -l | tr -d ' ')" = 1
 
 make_ticket production-notification 'Production notification'
 : >"${events}"
@@ -1907,29 +1872,9 @@ grep -Fq '**Status:** blocked' "${primary}/.scratch/production-notification/issu
 test "$(cat "${runtime}/batches/production-notification/state")" = production-blocked
 test "$(jq -r '.failureClass' \
   "${runtime}/batches/production-notification/failure.json")" = environment
-
-missed_notification_batch="${runtime}/batches/missed-notification"
-mkdir -p "${missed_notification_batch}"
-printf '%s\n' "$(git -C "${primary}" rev-parse HEAD)" >"${missed_notification_batch}/base-sha"
-printf 'blocked\n' >"${missed_notification_batch}/state"
-missed_before=$(grep -c '^批次=missed-notification$' "${MOCK_IMESSAGE_EVENTS}" || true)
-run_agent
-run_agent
-missed_after=$(grep -c '^批次=missed-notification$' "${MOCK_IMESSAGE_EVENTS}" || true)
-test "$((missed_after - missed_before))" = 1
-
-for message_state in in-progress pr-open blocked automation-blocked environment-blocked \
-  preview-blocked production-blocked needs-input 'done'; do
-  grep -Fxq "状态=${message_state}" "${MOCK_IMESSAGE_EVENTS}" || {
-    echo "missing iMessage state: ${message_state}" >&2
-    exit 1
-  }
-done
-grep -Fq 'ZERP 本地 Issue 自动交付' "${MOCK_IMESSAGE_EVENTS}"
-grep -Fq 'head=' "${MOCK_IMESSAGE_EVENTS}"
-grep -Fq '代码尝试=' "${MOCK_IMESSAGE_EVENTS}"
-grep -Fq '修复次数=' "${MOCK_IMESSAGE_EVENTS}"
-grep -Fq '失败分类=' "${MOCK_IMESSAGE_EVENTS}"
+test "$(find "${runtime}/notifications/pending" -type f -name '*.json' -exec \
+  jq -r 'select(.feature == "production-notification" and .event == "production-blocked") | .id' {} \; | \
+  wc -l | tr -d ' ')" = 1
 
 PATH="${tmp}/bin:${PATH}" \
 ZERP_PRIMARY_ROOT="${primary}" \

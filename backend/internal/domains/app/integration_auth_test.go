@@ -165,7 +165,7 @@ func TestSuperadminWildcardIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create ordinary role: %v", err)
 	}
-	if _, err = service.CreateRole(t.Context(), CreateRoleInput{Name: "重复超级管理员",
+	if _, err = service.CreateRole(t.Context(), CreateRoleInput{Code: superadminRoleCode, Name: "重复超级管理员",
 		PermissionIDs: permissionIDsByPath(t, pool, "/bob/customer/query"),
 	}, admin.ID, "create-reserved-role"); !errorIsKind(err, ErrorValidation) {
 		t.Fatalf("reserved superadmin code error = %v", err)
@@ -200,14 +200,11 @@ func TestSuperadminWildcardIntegration(t *testing.T) {
 		t.Fatalf("disabled permission authorization error = %v", err)
 	}
 
-	savedRole, err := service.SaveRole(t.Context(), SaveRoleInput{
+	_, err = service.SaveRole(t.Context(), SaveRoleInput{
 		ID: superadminRoleID, Name: "Super Administrator", PermissionIDs: nil, Revision: role.Revision,
 	}, admin.ID, "save-superadmin")
-	if err != nil {
-		t.Fatalf("save superadmin without permission IDs: %v", err)
-	}
-	if len(savedRole.PermissionIDs) != enabledPermissionCount {
-		t.Fatalf("saved superadmin permissions = %d, want %d", len(savedRole.PermissionIDs), enabledPermissionCount)
+	if !errorIsKind(err, ErrorForbidden) {
+		t.Fatalf("save superadmin error = %v, want forbidden", err)
 	}
 	if err = pool.QueryRow(t.Context(), `
 		SELECT count(*) FROM app_role_permissions WHERE role_id = $1

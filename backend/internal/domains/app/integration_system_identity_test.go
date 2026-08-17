@@ -66,10 +66,10 @@ func TestSystemIdentityIntegration(t *testing.T) {
 	}
 	if _, err = service.SaveRole(t.Context(), SaveRoleInput{
 		ID: role.ID, Name: "changed", Revision: role.Revision,
-	}, admin.ID, "save-system-role"); !errorIsKind(err, ErrorConflict) {
+	}, admin.ID, "save-system-role"); !errorIsKind(err, ErrorForbidden) {
 		t.Fatalf("save system role error = %v", err)
 	}
-	if _, err = service.SetRoleStatus(t.Context(), role.ID, role.Revision, StatusDisabled, admin.ID, "disable-system-role"); !errorIsKind(err, ErrorConflict) {
+	if _, err = service.SetRoleStatus(t.Context(), role.ID, role.Revision, StatusDisabled, admin.ID, "disable-system-role"); !errorIsKind(err, ErrorForbidden) {
 		t.Fatalf("disable system role error = %v", err)
 	}
 	if _, err = service.CreateUser(t.Context(), CreateUserInput{

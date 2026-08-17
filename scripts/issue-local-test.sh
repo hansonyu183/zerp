@@ -639,6 +639,10 @@ if (
   process.stderr.write(`simulated offline install failure ${attempt}\n`)
   process.exit(1)
 }
+if (attempt === Number(process.env.MOCK_PNPM_MANIFEST_FAIL_ON || 0)) {
+  process.stderr.write('ERR_PNPM_OUTDATED_LOCKFILE Cannot install with frozen-lockfile because pnpm-lock.yaml is not up to date with package.json\n')
+  process.exit(1)
+}
 fs.rmSync(path.join(worktree, '.pnpm-store'), { recursive: true, force: true })
 fs.rmSync(path.join(worktree, 'frontend/node_modules'), { recursive: true, force: true })
 fs.mkdirSync(path.join(worktree, 'node_modules/.pnpm'), { recursive: true })
@@ -1145,6 +1149,22 @@ grep -Fq '**Status:** done' \
 unset MOCK_PNPM_INSTALL_FAIL_ON
 test_checkpoint environment-restore-retry
 
+make_ticket dependency-manifest-repair 'Dependency manifest repair'
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" \
+  "${MOCK_ISSUE_COUNT}" "${MOCK_PNPM_INSTALL_COUNT}"
+MOCK_PNPM_MANIFEST_FAIL_ON=2 run_agent
+test "$(cat "${MOCK_CODEX_COUNT}")" = 2
+test "$(jq -r .total \
+  "${runtime}/batches/dependency-manifest-repair/repair-budget.json")" = 2
+test "$(jq -r '.nonProductEvents | length' \
+  "${runtime}/batches/dependency-manifest-repair/repair-budget.json")" = 0
+grep -Fq 'ERR_PNPM_OUTDATED_LOCKFILE' "${MOCK_PROMPT}-2"
+grep -Fq '**Status:** done' \
+  "${primary}/.scratch/dependency-manifest-repair/issues/01-ticket.md"
+unset MOCK_PNPM_MANIFEST_FAIL_ON
+test_checkpoint dependency-manifest-repair
+
 make_ticket pnpm-cache-missing 'Exact pnpm cache missing'
 mkdir -p "${tmp}/empty-pnpm-store"
 : >"${events}"
@@ -1159,17 +1179,40 @@ test ! -e "${MOCK_COREPACK_ROOT}"
 test ! -s "${events}"
 grep -Fq '**Status:** blocked' "${primary}/.scratch/pnpm-cache-missing/issues/01-ticket.md"
 
-prepare_reviewed_candidate retry-independent-environment
-retry_agent retry-independent-environment
+prepare_reviewed_candidate retry-managed-link
+managed_candidate="${runtime}/worktrees/retry-managed-link"
+ln -s "${primary}/node_modules" "${managed_candidate}/node_modules"
+retry_agent retry-managed-link
 : >"${events}"
 rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" \
   "${MOCK_ISSUE_COUNT}" "${MOCK_PNPM_INSTALL_LOG}"
 run_agent
 test ! -e "${MOCK_CODEX_COUNT}"
-grep -Fq 'worktrees/retry-independent-environment' "${MOCK_PNPM_INSTALL_LOG}"
+grep -Fq 'worktrees/retry-managed-link' "${MOCK_PNPM_INSTALL_LOG}"
 grep -Fq '**Status:** done' \
-  "${primary}/.scratch/retry-independent-environment/issues/01-ticket.md"
-test_checkpoint retry-independent-environment
+  "${primary}/.scratch/retry-managed-link/issues/01-ticket.md"
+test_checkpoint retry-managed-link
+
+make_ticket unmanaged-dependency-link 'Unmanaged dependency link'
+unmanaged_candidate="${runtime}/worktrees/unmanaged-dependency-link"
+mkdir -p "$(dirname "${unmanaged_candidate}")" "${tmp}/unmanaged-modules"
+git -C "${primary}" worktree add -b automation/local-unmanaged-dependency-link \
+  "${unmanaged_candidate}" main >/dev/null
+ln -s "${tmp}/unmanaged-modules" "${unmanaged_candidate}/node_modules"
+: >"${events}"
+rm -f "${MOCK_CODEX_COUNT}" "${MOCK_GATE_COUNT}" "${MOCK_PREVIEW_COUNT}" \
+  "${MOCK_ISSUE_COUNT}"
+if run_agent; then
+  echo 'unmanaged candidate dependency symlink was accepted' >&2
+  exit 1
+fi
+test ! -e "${MOCK_CODEX_COUNT}"
+test "$(cat "${runtime}/batches/unmanaged-dependency-link/state")" = automation-blocked
+jq -e '.failureClass == "automation" and .policyDecision == "BLOCK_AUTOMATION"' \
+  "${runtime}/batches/unmanaged-dependency-link/failure.json" >/dev/null
+grep -Fq '**Status:** blocked' \
+  "${primary}/.scratch/unmanaged-dependency-link/issues/01-ticket.md"
+test_checkpoint unmanaged-dependency-link
 
 make_ticket retry-active-controller 'Retry active controller'
 active_ticket="${primary}/.scratch/retry-active-controller/issues/01-ticket.md"

@@ -351,15 +351,15 @@ func (s *Service) SetUserStatus(ctx context.Context, id string, revision int64, 
 	if err != nil {
 		return UserDetail{}, err
 	}
+	if id == actor.id {
+		return UserDetail{}, domainError(ErrorConflict, "cannot change current user status", nil)
+	}
 	path := "/app/user/enable"
 	if status == StatusDisabled {
 		path = "/app/user/disable"
 	}
 	if err = actor.require(path); err != nil {
 		return UserDetail{}, err
-	}
-	if id == actor.id {
-		return UserDetail{}, domainError(ErrorConflict, "cannot change current user status", nil)
 	}
 	locked, err := qtx.GetAppUserByIDForUpdate(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {

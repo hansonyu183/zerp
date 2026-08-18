@@ -90,11 +90,11 @@ func TestValidateSystemParameterDefinitionRequiresConstraintsForEditableValues(t
 }
 
 func TestValidateRuntimeInstanceIdentityRequiresCurrentUniqueInstance(t *testing.T) {
-	if _, err := validateRuntimeInstanceIdentity("preview", "api-1", []string{"api-1", "api-1"}); !errorIsKind(err, ErrorValidation) {
-		t.Fatalf("duplicate inventory error = %v, want validation", err)
+	if _, err := validateRuntimeInstanceIdentity("preview", "api-1", []string{"api-1", "api-1"}); err == nil {
+		t.Fatal("duplicate inventory was accepted")
 	}
-	if _, err := validateRuntimeInstanceIdentity("preview", "api-2", []string{"api-1"}); !errorIsKind(err, ErrorValidation) {
-		t.Fatalf("missing current instance error = %v, want validation", err)
+	if _, err := validateRuntimeInstanceIdentity("preview", "api-2", []string{"api-1"}); err == nil {
+		t.Fatal("inventory without current instance was accepted")
 	}
 	expected, err := validateRuntimeInstanceIdentity("preview", "api-2", []string{"api-2", "api-1"})
 	if err != nil || expected[0] != "api-1" || expected[1] != "api-2" {

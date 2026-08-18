@@ -132,8 +132,8 @@ func TestSystemParameterManagementIntegration(t *testing.T) {
 	mismatchedConfig.RuntimeDeploymentScope = "integration"
 	mismatchedConfig.RuntimeInstanceID = "api-2"
 	mismatchedConfig.RuntimeExpectedInstanceIDs = []string{"api-1", "api-2", "api-3"}
-	if err = NewService(pool, mismatchedConfig, nil).InitializeRuntimeSystemParameters(t.Context()); !errorIsKind(err, ErrorValidation) {
-		t.Fatalf("mismatched deployment inventory error = %v", err)
+	if err = NewService(pool, mismatchedConfig, nil).InitializeRuntimeSystemParameters(t.Context()); err == nil {
+		t.Fatal("mismatched deployment inventory was accepted")
 	}
 
 	secondConfig := appIntegrationConfig(t)

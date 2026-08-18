@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/big"
 	"regexp"
 	"slices"
@@ -243,7 +244,7 @@ func (s *Service) InitializeRuntimeSystemParameters(ctx context.Context) error {
 			return s.internal("lock system parameter runtime scope", scopeErr)
 		}
 		if !slices.Equal(registeredExpected, expectedInstanceIDs) {
-			return domainError(ErrorValidation, "runtime deployment inventory does not match existing adoption scope", nil)
+			return fmt.Errorf("runtime deployment inventory does not match existing adoption scope")
 		}
 		if err = qtx.ReportAppSystemParameterRuntimeAdoption(ctx, dbsqlc.ReportAppSystemParameterRuntimeAdoptionParams{
 			ParameterKey:    parameter.ParameterKey,
@@ -296,19 +297,19 @@ func (s *Service) runtimeSystemParameter(key string) (string, int64, bool) {
 
 func validateRuntimeInstanceIdentity(scope, instanceID string, expectedInstanceIDs []string) ([]string, error) {
 	if !validRuntimeIdentifier(scope) || !validRuntimeIdentifier(instanceID) || len(expectedInstanceIDs) == 0 {
-		return nil, domainError(ErrorValidation, "invalid runtime instance identity", nil)
+		return nil, fmt.Errorf("invalid runtime instance identity")
 	}
 	expected := append([]string(nil), expectedInstanceIDs...)
 	sort.Strings(expected)
 	currentFound := false
 	for index, expectedID := range expected {
 		if !validRuntimeIdentifier(expectedID) || index > 0 && expected[index-1] == expectedID {
-			return nil, domainError(ErrorValidation, "invalid expected runtime instance set", nil)
+			return nil, fmt.Errorf("invalid expected runtime instance set")
 		}
 		currentFound = currentFound || expectedID == instanceID
 	}
 	if !currentFound {
-		return nil, domainError(ErrorValidation, "runtime instance is not part of deployment inventory", nil)
+		return nil, fmt.Errorf("runtime instance is not part of deployment inventory")
 	}
 	return expected, nil
 }

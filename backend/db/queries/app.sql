@@ -304,7 +304,8 @@ SELECT id FROM app_permissions WHERE status = 'ENABLED' ORDER BY path;
 -- name: CountAppSystemParameters :one
 SELECT count(*)
 FROM app_system_parameters
-WHERE (sqlc.narg(value_type)::text IS NULL OR value_type = sqlc.narg(value_type))
+WHERE safe_to_expose = true
+  AND (sqlc.narg(value_type)::text IS NULL OR value_type = sqlc.narg(value_type))
   AND (sqlc.narg(editable)::boolean IS NULL OR editable = sqlc.narg(editable))
   AND (
     sqlc.narg(search)::text IS NULL
@@ -315,7 +316,8 @@ WHERE (sqlc.narg(value_type)::text IS NULL OR value_type = sqlc.narg(value_type)
 -- name: ListAppSystemParameters :many
 SELECT *
 FROM app_system_parameters
-WHERE (sqlc.narg(value_type)::text IS NULL OR value_type = sqlc.narg(value_type))
+WHERE safe_to_expose = true
+  AND (sqlc.narg(value_type)::text IS NULL OR value_type = sqlc.narg(value_type))
   AND (sqlc.narg(editable)::boolean IS NULL OR editable = sqlc.narg(editable))
   AND (
     sqlc.narg(search)::text IS NULL
@@ -333,11 +335,15 @@ ORDER BY
 LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 
 -- name: GetAppSystemParameter :one
-SELECT * FROM app_system_parameters WHERE parameter_key = sqlc.arg(parameter_key) LIMIT 1;
+SELECT * FROM app_system_parameters
+WHERE parameter_key = sqlc.arg(parameter_key)
+  AND safe_to_expose = true
+LIMIT 1;
 
 -- name: GetAppSystemParameterForUpdate :one
 SELECT * FROM app_system_parameters
 WHERE parameter_key = sqlc.arg(parameter_key)
+  AND safe_to_expose = true
 LIMIT 1 FOR UPDATE;
 
 -- name: UpdateAppSystemParameterValue :one
@@ -351,10 +357,7 @@ SET configured_value = sqlc.arg(configured_value),
       WHEN effect_mode IN ('IMMEDIATE', 'NEXT_REQUEST') THEN revision + 1
       ELSE running_revision
     END,
-    restart_pending = CASE
-      WHEN effect_mode = 'RESTART_REQUIRED' THEN running_value IS DISTINCT FROM sqlc.arg(configured_value)
-      ELSE false
-    END,
+    restart_pending = effect_mode = 'RESTART_REQUIRED',
     revision = revision + 1,
     updated_at = now(),
     updated_by = sqlc.arg(actor_id)
@@ -374,10 +377,7 @@ SET configured_value = default_value,
       WHEN effect_mode IN ('IMMEDIATE', 'NEXT_REQUEST') THEN revision + 1
       ELSE running_revision
     END,
-    restart_pending = CASE
-      WHEN effect_mode = 'RESTART_REQUIRED' THEN running_value IS DISTINCT FROM default_value
-      ELSE false
-    END,
+    restart_pending = effect_mode = 'RESTART_REQUIRED',
     revision = revision + 1,
     updated_at = now(),
     updated_by = sqlc.arg(actor_id)

@@ -9,7 +9,7 @@ import (
 )
 
 func (s *Service) QueryPermissions(ctx context.Context, request PageRequest, principal Principal) (Page[PermissionView], error) {
-	spec, err := validatePage(request, map[string]bool{"path": true}, "path", "asc")
+	spec, err := validateFixedPage(request, "path", "asc")
 	if err != nil {
 		return Page[PermissionView]{}, err
 	}

@@ -3138,7 +3138,7 @@ export interface components {
         PermissionQueryRequest: {
             page: number;
             /** @enum {integer} */
-            pageSize: 20 | 200;
+            pageSize: 20;
             filters?: {
                 domain?: string;
                 entity?: string;
@@ -3171,7 +3171,7 @@ export interface components {
             total: number;
             page: number;
             /** @enum {integer} */
-            pageSize: 20 | 200;
+            pageSize: 20;
         };
         PermissionPageResponse: {
             /** Format: int32 */

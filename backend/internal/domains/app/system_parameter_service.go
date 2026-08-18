@@ -20,7 +20,7 @@ var (
 )
 
 func (s *Service) QuerySystemParameters(ctx context.Context, request PageRequest) (Page[SystemParameterView], error) {
-	spec, err := validatePage(request, map[string]bool{"key": true}, "key", "asc")
+	spec, err := validateFixedPage(request, "key", "asc")
 	if err != nil {
 		return Page[SystemParameterView]{}, err
 	}
@@ -283,10 +283,9 @@ func validSystemParameterKey(key string) bool {
 }
 
 func optionalSystemParameterType(value string) (*string, error) {
-	if strings.TrimSpace(value) == "" {
+	if value == "" {
 		return nil, nil
 	}
-	value = strings.ToUpper(strings.TrimSpace(value))
 	if _, err := normalizeSystemParameterValue(value, defaultValueForType(value)); err != nil {
 		return nil, domainError(ErrorValidation, "invalid system parameter value type", nil)
 	}
@@ -294,13 +293,13 @@ func optionalSystemParameterType(value string) (*string, error) {
 }
 
 func optionalBool(value string) (*bool, error) {
-	if strings.TrimSpace(value) == "" {
+	if value == "" {
 		return nil, nil
 	}
-	parsed, err := strconv.ParseBool(value)
-	if err != nil {
+	if value != "true" && value != "false" {
 		return nil, domainError(ErrorValidation, "invalid boolean filter", nil)
 	}
+	parsed := value == "true"
 	return &parsed, nil
 }
 
@@ -441,6 +440,9 @@ func decodeSystemParameterConstraints(raw []byte) (*SystemParameterConstraints, 
 }
 
 func systemParameterView(parameter dbsqlc.AppSystemParameter) (SystemParameterView, error) {
+	if !parameter.SafeToExpose {
+		return SystemParameterView{}, errors.New("system parameter is not registered for generic exposure")
+	}
 	constraints, err := decodeSystemParameterConstraints(parameter.Constraints)
 	if err != nil {
 		return SystemParameterView{}, err

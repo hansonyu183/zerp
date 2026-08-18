@@ -4,6 +4,7 @@ ALTER TABLE app_system_parameters
     RENAME COLUMN current_value TO configured_value;
 
 ALTER TABLE app_system_parameters
+    ADD COLUMN safe_to_expose boolean NOT NULL DEFAULT false,
     ADD COLUMN constraints jsonb,
     ADD COLUMN effect_mode varchar(24) NOT NULL DEFAULT 'IMMEDIATE',
     ADD COLUMN running_value text,
@@ -50,6 +51,12 @@ WHERE editable;
 UPDATE app_system_parameters
 SET running_value = configured_value,
     running_revision = revision;
+
+-- The generic management surface is deny-by-default. Only entries that have
+-- been explicitly reviewed as non-sensitive are registered for exposure.
+UPDATE app_system_parameters
+SET safe_to_expose = true
+WHERE parameter_key = 'app.menu.mode';
 
 ALTER TABLE app_system_parameters
     ALTER COLUMN running_value SET NOT NULL,

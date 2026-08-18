@@ -9,6 +9,7 @@ BEGIN
           AND running_revision = revision
           AND effect_mode = 'IMMEDIATE'
           AND restart_pending = false
+          AND safe_to_expose = false
           AND constraints ->> 'maxLength' = '4000'
     ) THEN
         RAISE EXCEPTION 'editable parameter effect state was not migrated';
@@ -19,6 +20,7 @@ BEGIN
         FROM app_system_parameters
         WHERE parameter_key = 'test.read-only-setting'
           AND constraints IS NULL
+          AND safe_to_expose = false
           AND configured_value = running_value
           AND running_revision = revision
     ) THEN

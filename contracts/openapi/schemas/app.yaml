@@ -582,7 +582,7 @@
           'items': { 'type': 'array', 'items': { '$ref': '#/PermissionView' } },
           'total': { 'type': 'integer', 'format': 'int64' },
           'page': { 'type': 'integer', 'minimum': 1 },
-          'pageSize': { 'type': 'integer', 'enum': [20, 200] },
+          'pageSize': { 'type': 'integer', 'enum': [20] },
         },
     },
   'PermissionQueryRequest':
@@ -593,7 +593,7 @@
       'properties':
         {
           'page': { 'type': 'integer', 'minimum': 1 },
-          'pageSize': { 'type': 'integer', 'enum': [20, 200] },
+          'pageSize': { 'type': 'integer', 'enum': [20] },
           'filters':
             {
               'type': 'object',

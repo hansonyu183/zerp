@@ -82,7 +82,7 @@ function sampleMenu(): MenuData {
   }
 }
 
-function setup() {
+function setup(can: (permission: string) => boolean = () => true) {
   const data = sampleMenu()
   const load = vi.fn(async () => ({ data }))
   const save = vi.fn(async () => ({
@@ -105,7 +105,7 @@ function setup() {
     activate: activate as unknown as typeof activateMenu,
     reset: reset as unknown as typeof resetBusinessMenu,
     apply,
-    can: () => true,
+    can,
   })
   return { vm, load, save, publish, activate, reset, apply }
 }
@@ -225,5 +225,29 @@ describe('menu management view model', () => {
 
     expect(save).not.toHaveBeenCalled()
     expect(vm.errorMessage).toBe('必须保留已启用的菜单管理入口。')
+  })
+
+  it('没有保存权限时所有草稿编辑入口均不产生本地修改', async () => {
+    const { vm } = setup(
+      (permission) => permission !== '/app/menu/save-business-template',
+    )
+    await vm.load()
+    const before = JSON.stringify(vm.editableItems)
+    const group = vm.groups[0]!
+    const route = vm.children(group.id)[0]!
+
+    vm.addGroup()
+    vm.removeGroup(group.id)
+    vm.newRouteByGroup[group.id] = 'app/user'
+    vm.addRoute(group.id)
+    vm.removeRoute(route.id)
+    vm.move(route.id, 1)
+    vm.startDrag(route.id)
+    vm.dropOnGroup(group.id)
+    vm.dropOnGroupOrder(group.id)
+
+    expect(JSON.stringify(vm.editableItems)).toBe(before)
+    expect(vm.draggedID).toBeNull()
+    expect(vm.dirty).toBe(false)
   })
 })

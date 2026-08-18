@@ -100,7 +100,7 @@ async function queryPermissions(
         'app/permission/query',
         {
           page: page++,
-          pageSize: 200,
+          pageSize: 20,
           sort: [{ field: 'path', order: 'asc' }],
         },
         csrfToken,

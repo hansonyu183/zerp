@@ -648,6 +648,8 @@ const exactMessages: Readonly<Record<string, string>> = {
     '“工作台”名称仅可用于一级入口，请使用其他名称。',
   'system parameter is managed by its owning service':
     '该系统参数只能由对应功能修改。',
+  'system parameter is not registered for generic exposure':
+    '该系统参数未登记为可在通用管理页面展示。',
   'editable system parameter requires registered constraints':
     '可编辑系统参数必须先登记完整约束。',
   'runtime adoption evidence is incomplete':

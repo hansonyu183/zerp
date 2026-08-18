@@ -169,7 +169,7 @@ User ──< UserRole >── Role ──< RolePermission >── Permission
 
 ### 3.8 系统参数
 
-`app_system_parameters` 只保存由代码或迁移注册的非敏感参数，至少包含参数键、名称、说明、值类型、配置值、默认值、是否可编辑、`revision`、更新时间和更新人。对 `RESTART_REQUIRED` 参数，还必须保存或可确定运行值与 `restartPending`，以区分已配置目标和当前运行实例采用的值。
+`app_system_parameters` 只保存由代码或迁移注册的参数；其中只有被注册流程显式标记为 `safe_to_expose=true` 的非敏感项才能进入通用查询、详情、保存和恢复默认接口，未标记项默认隐藏且按不存在处理。安全项至少包含参数键、名称、说明、值类型、配置值、默认值、是否可编辑、`revision`、更新时间和更新人。对 `RESTART_REQUIRED` 参数，还必须保存或可确定运行值与 `restartPending`，以区分已配置目标和当前运行实例采用的值。
 
 参数键是不可由页面创建或修改的稳定标识。首版基础值类型只允许 `STRING`、`INTEGER`、`DECIMAL`、`BOOLEAN`。通用编辑仅适用于已显式注册参数专属约束的参数；约束至少能在基础类型之外完整判定默认值、既有配置值与新值是否有效。未注册充分约束的参数必须只读。注册参数或变更约束时，不得静默转换、重置或接受不满足新约束的默认值或既有配置值，必须先由受控注册流程处理不一致数据。
 
@@ -183,7 +183,7 @@ User ──< UserRole >── Role ──< RolePermission >── Permission
 | `NEXT_REQUEST`     | 下次请求生效 | 保存或恢复默认后，后续请求按该模式采用配置值。       |
 | `RESTART_REQUIRED` | 重启后生效   | 保存或恢复默认只更新配置值；运行值等待受控重启确认。 |
 
-`IMMEDIATE` 和 `NEXT_REQUEST` 的保存成功语义必须按各自名称明确表达，不产生待重启状态；`reset` 与 `save` 使用同一生效模式语义。对 `RESTART_REQUIRED`，保存或恢复默认只更新配置值和 `revision`，不得伪称运行值已变化，页面也不得执行重启。部署或运维流程负责重启；服务启动后上报所采用的参数版本，只有部署范围内全部运行实例被证明采用同一最新配置版本时，才更新运行值并清除 `restartPending`。证明不完整时必须保留旧运行值和待重启状态，不得猜测成功。
+`IMMEDIATE` 和 `NEXT_REQUEST` 的保存成功语义必须按各自名称明确表达，不产生待重启状态；`reset` 与 `save` 使用同一生效模式语义。对 `RESTART_REQUIRED`，每次产生新 `revision` 的保存或恢复默认都必须设置或保留 `restartPending`，即使新的配置文本恰好等于旧运行值，也不得用文本相等代替最新版本采用证明。页面不得执行重启。部署或运维流程负责重启，并从准确部署范围的运行实例收集所采用的参数版本；受信部署控制器使用 `go run ./cmd/confirm-system-parameter-adoption --key <key> --revision <revision> --scope <scope> --expected-instances <id,...> --reports <id:revision,...>` 提交完整证据。该入口只由持有后端数据库凭证的受控运行环境调用，不暴露为用户 HTTP API。只有全部预期实例证明采用同一最新版本时，事务才更新运行值并清除 `restartPending`；证明不完整、重复或陈旧时保留旧运行值和待重启状态。
 
 `app.menu.mode` 是菜单服务专用参数，只允许 `DEFAULT` 或 `BUSINESS_TEMPLATE`。它在通用系统参数查询中可见但不可编辑，仍由菜单服务维护；通用 `save` 和 `reset` 必须拒绝修改该键。
 

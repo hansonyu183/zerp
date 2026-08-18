@@ -264,7 +264,7 @@ void vm.load()
           v-for="group in vm.groups"
           :key="group.id"
           class="menu-group mb-4"
-          draggable="true"
+          :draggable="vm.canSave"
           rounded="lg"
           variant="outlined"
           @dragstart="vm.startDrag(group.id)"
@@ -275,6 +275,7 @@ void vm.load()
             <v-icon icon="mdi-drag" />
             <v-text-field
               v-model="group.displayName"
+              :disabled="!vm.canSave"
               class="group-name"
               density="compact"
               hide-details
@@ -283,6 +284,7 @@ void vm.load()
             />
             <v-text-field
               v-model="group.icon"
+              :disabled="!vm.canSave"
               class="group-icon"
               density="compact"
               hide-details
@@ -291,23 +293,27 @@ void vm.load()
             />
             <v-switch
               v-model="group.enabled"
+              :disabled="!vm.canSave"
               color="primary"
               hide-details
               label="启用"
             />
             <v-btn
+              :disabled="!vm.canSave"
               icon="mdi-arrow-up"
               size="small"
               variant="text"
               @click="vm.move(group.id, -1)"
             />
             <v-btn
+              :disabled="!vm.canSave"
               icon="mdi-arrow-down"
               size="small"
               variant="text"
               @click="vm.move(group.id, 1)"
             />
             <v-btn
+              :disabled="!vm.canSave"
               color="error"
               icon="mdi-delete-outline"
               size="small"
@@ -325,12 +331,13 @@ void vm.load()
               v-for="item in vm.children(group.id)"
               :key="item.id"
               class="menu-route"
-              draggable="true"
+              :draggable="vm.canSave"
               @dragstart.stop="vm.startDrag(item.id)"
             >
               <v-icon icon="mdi-drag-vertical" />
               <v-text-field
                 v-model="item.displayName"
+                :disabled="!vm.canSave"
                 density="compact"
                 hide-details
                 label="显示名称"
@@ -338,6 +345,7 @@ void vm.load()
               />
               <v-text-field
                 v-model="item.icon"
+                :disabled="!vm.canSave"
                 density="compact"
                 hide-details
                 label="图标"
@@ -362,11 +370,13 @@ void vm.load()
               <div class="route-actions">
                 <v-switch
                   v-model="item.enabled"
+                  :disabled="!vm.canSave"
                   color="primary"
                   hide-details
                   label="启用"
                 />
                 <v-btn
+                  :disabled="!vm.canSave"
                   aria-label="上移路由"
                   icon="mdi-arrow-up"
                   size="small"
@@ -374,6 +384,7 @@ void vm.load()
                   @click="vm.move(item.id, -1)"
                 />
                 <v-btn
+                  :disabled="!vm.canSave"
                   aria-label="下移路由"
                   icon="mdi-arrow-down"
                   size="small"
@@ -381,6 +392,7 @@ void vm.load()
                   @click="vm.move(item.id, 1)"
                 />
                 <v-btn
+                  :disabled="!vm.canSave"
                   aria-label="删除路由"
                   color="error"
                   icon="mdi-delete-outline"
@@ -394,6 +406,7 @@ void vm.load()
             <div class="d-flex align-center ga-3 mt-3">
               <v-select
                 v-model="vm.newRouteByGroup[group.id]"
+                :disabled="!vm.canSave"
                 class="route-select"
                 clearable
                 item-title="displayName"
@@ -406,7 +419,7 @@ void vm.load()
               <v-btn
                 prepend-icon="mdi-plus"
                 variant="outlined"
-                :disabled="!vm.newRouteByGroup[group.id]"
+                :disabled="!vm.canSave || !vm.newRouteByGroup[group.id]"
                 @click="vm.addRoute(group.id)"
               >
                 添加路由

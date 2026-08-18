@@ -120,6 +120,7 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
       if (applyNavigation) dependencies.apply(data)
     },
     addGroup(): void {
+      if (!this.canSave) return
       const order = Math.max(0, ...this.groups.map((item) => item.order)) + 10
       this.editableItems.push({
         id: nextItemID('group'),
@@ -133,11 +134,13 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
       })
     },
     removeGroup(groupID: string): void {
+      if (!this.canSave) return
       this.editableItems = this.editableItems.filter(
         (item) => item.id !== groupID && item.parentId !== groupID,
       )
     },
     addRoute(groupID: string): void {
+      if (!this.canSave) return
       const routeKey = this.newRouteByGroup[groupID]
       const option = this.routeOption(routeKey ?? null)
       if (!option) return
@@ -155,9 +158,11 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
       this.newRouteByGroup[groupID] = null
     },
     removeRoute(id: string): void {
+      if (!this.canSave) return
       this.editableItems = this.editableItems.filter((item) => item.id !== id)
     },
     moveRoute(id: string, groupID: string): void {
+      if (!this.canSave) return
       const item = this.editableItems.find((candidate) => candidate.id === id)
       if (!item || item.type !== 'ROUTE') return
       item.parentId = groupID
@@ -166,6 +171,7 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
       this.normalizeOrders()
     },
     move(id: string, direction: -1 | 1): void {
+      if (!this.canSave) return
       const item = this.editableItems.find((candidate) => candidate.id === id)
       if (!item) return
       const siblings =
@@ -179,13 +185,22 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
       this.normalizeOrders()
     },
     startDrag(id: string): void {
+      if (!this.canSave) return
       this.draggedID = id
     },
     dropOnGroup(groupID: string): void {
+      if (!this.canSave) {
+        this.draggedID = null
+        return
+      }
       if (this.draggedID) this.moveRoute(this.draggedID, groupID)
       this.draggedID = null
     },
     dropOnGroupOrder(targetID: string): void {
+      if (!this.canSave) {
+        this.draggedID = null
+        return
+      }
       const source = this.editableItems.find(
         (item) => item.id === this.draggedID,
       )

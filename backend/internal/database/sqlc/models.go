@@ -474,6 +474,7 @@ type AppSystemParameter struct {
 	CreatedBy       *string            `db:"created_by" json:"created_by"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	UpdatedBy       *string            `db:"updated_by" json:"updated_by"`
+	SafeToExpose    bool               `db:"safe_to_expose" json:"safe_to_expose"`
 	Constraints     []byte             `db:"constraints" json:"constraints"`
 	EffectMode      string             `db:"effect_mode" json:"effect_mode"`
 	RunningValue    string             `db:"running_value" json:"running_value"`

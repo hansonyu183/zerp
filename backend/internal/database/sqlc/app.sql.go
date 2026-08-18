@@ -77,7 +77,7 @@ WHERE parameter_key = $2
   AND revision = $3
   AND effect_mode = 'RESTART_REQUIRED'
   AND restart_pending = true
-RETURNING parameter_key, name, description, value_type, configured_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by, constraints, effect_mode, running_value, running_revision, restart_pending
+RETURNING parameter_key, name, description, value_type, configured_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by, safe_to_expose, constraints, effect_mode, running_value, running_revision, restart_pending
 `
 
 type ConfirmAppSystemParameterAdoptionParams struct {
@@ -102,6 +102,7 @@ func (q *Queries) ConfirmAppSystemParameterAdoption(ctx context.Context, arg Con
 		&i.CreatedBy,
 		&i.UpdatedAt,
 		&i.UpdatedBy,
+		&i.SafeToExpose,
 		&i.Constraints,
 		&i.EffectMode,
 		&i.RunningValue,
@@ -163,7 +164,8 @@ func (q *Queries) CountAppRolesUsingPermission(ctx context.Context, permissionID
 const countAppSystemParameters = `-- name: CountAppSystemParameters :one
 SELECT count(*)
 FROM app_system_parameters
-WHERE ($1::text IS NULL OR value_type = $1)
+WHERE safe_to_expose = true
+  AND ($1::text IS NULL OR value_type = $1)
   AND ($2::boolean IS NULL OR editable = $2)
   AND (
     $3::text IS NULL
@@ -717,7 +719,10 @@ func (q *Queries) GetAppSessionByTokenHash(ctx context.Context, tokenHash []byte
 }
 
 const getAppSystemParameter = `-- name: GetAppSystemParameter :one
-SELECT parameter_key, name, description, value_type, configured_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by, constraints, effect_mode, running_value, running_revision, restart_pending FROM app_system_parameters WHERE parameter_key = $1 LIMIT 1
+SELECT parameter_key, name, description, value_type, configured_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by, safe_to_expose, constraints, effect_mode, running_value, running_revision, restart_pending FROM app_system_parameters
+WHERE parameter_key = $1
+  AND safe_to_expose = true
+LIMIT 1
 `
 
 func (q *Queries) GetAppSystemParameter(ctx context.Context, parameterKey string) (AppSystemParameter, error) {
@@ -736,6 +741,7 @@ func (q *Queries) GetAppSystemParameter(ctx context.Context, parameterKey string
 		&i.CreatedBy,
 		&i.UpdatedAt,
 		&i.UpdatedBy,
+		&i.SafeToExpose,
 		&i.Constraints,
 		&i.EffectMode,
 		&i.RunningValue,
@@ -746,8 +752,9 @@ func (q *Queries) GetAppSystemParameter(ctx context.Context, parameterKey string
 }
 
 const getAppSystemParameterForUpdate = `-- name: GetAppSystemParameterForUpdate :one
-SELECT parameter_key, name, description, value_type, configured_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by, constraints, effect_mode, running_value, running_revision, restart_pending FROM app_system_parameters
+SELECT parameter_key, name, description, value_type, configured_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by, safe_to_expose, constraints, effect_mode, running_value, running_revision, restart_pending FROM app_system_parameters
 WHERE parameter_key = $1
+  AND safe_to_expose = true
 LIMIT 1 FOR UPDATE
 `
 
@@ -767,6 +774,7 @@ func (q *Queries) GetAppSystemParameterForUpdate(ctx context.Context, parameterK
 		&i.CreatedBy,
 		&i.UpdatedAt,
 		&i.UpdatedBy,
+		&i.SafeToExpose,
 		&i.Constraints,
 		&i.EffectMode,
 		&i.RunningValue,
@@ -1392,9 +1400,10 @@ func (q *Queries) ListAppRoles(ctx context.Context, arg ListAppRolesParams) ([]A
 }
 
 const listAppSystemParameters = `-- name: ListAppSystemParameters :many
-SELECT parameter_key, name, description, value_type, configured_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by, constraints, effect_mode, running_value, running_revision, restart_pending
+SELECT parameter_key, name, description, value_type, configured_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by, safe_to_expose, constraints, effect_mode, running_value, running_revision, restart_pending
 FROM app_system_parameters
-WHERE ($1::text IS NULL OR value_type = $1)
+WHERE safe_to_expose = true
+  AND ($1::text IS NULL OR value_type = $1)
   AND ($2::boolean IS NULL OR editable = $2)
   AND (
     $3::text IS NULL
@@ -1452,6 +1461,7 @@ func (q *Queries) ListAppSystemParameters(ctx context.Context, arg ListAppSystem
 			&i.CreatedBy,
 			&i.UpdatedAt,
 			&i.UpdatedBy,
+			&i.SafeToExpose,
 			&i.Constraints,
 			&i.EffectMode,
 			&i.RunningValue,
@@ -1722,17 +1732,14 @@ SET configured_value = default_value,
       WHEN effect_mode IN ('IMMEDIATE', 'NEXT_REQUEST') THEN revision + 1
       ELSE running_revision
     END,
-    restart_pending = CASE
-      WHEN effect_mode = 'RESTART_REQUIRED' THEN running_value IS DISTINCT FROM default_value
-      ELSE false
-    END,
+    restart_pending = effect_mode = 'RESTART_REQUIRED',
     revision = revision + 1,
     updated_at = now(),
     updated_by = $1
 WHERE parameter_key = $2
   AND revision = $3
   AND editable = true
-RETURNING parameter_key, name, description, value_type, configured_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by, constraints, effect_mode, running_value, running_revision, restart_pending
+RETURNING parameter_key, name, description, value_type, configured_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by, safe_to_expose, constraints, effect_mode, running_value, running_revision, restart_pending
 `
 
 type ResetAppSystemParameterValueParams struct {
@@ -1757,6 +1764,7 @@ func (q *Queries) ResetAppSystemParameterValue(ctx context.Context, arg ResetApp
 		&i.CreatedBy,
 		&i.UpdatedAt,
 		&i.UpdatedBy,
+		&i.SafeToExpose,
 		&i.Constraints,
 		&i.EffectMode,
 		&i.RunningValue,
@@ -1935,7 +1943,7 @@ SET configured_value = $1,
     updated_by = $2
 WHERE parameter_key = 'app.menu.mode'
   AND revision = $3
-RETURNING parameter_key, name, description, value_type, configured_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by, constraints, effect_mode, running_value, running_revision, restart_pending
+RETURNING parameter_key, name, description, value_type, configured_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by, safe_to_expose, constraints, effect_mode, running_value, running_revision, restart_pending
 `
 
 type UpdateAppMenuModeParams struct {
@@ -1960,6 +1968,7 @@ func (q *Queries) UpdateAppMenuMode(ctx context.Context, arg UpdateAppMenuModePa
 		&i.CreatedBy,
 		&i.UpdatedAt,
 		&i.UpdatedBy,
+		&i.SafeToExpose,
 		&i.Constraints,
 		&i.EffectMode,
 		&i.RunningValue,
@@ -2007,17 +2016,14 @@ SET configured_value = $1,
       WHEN effect_mode IN ('IMMEDIATE', 'NEXT_REQUEST') THEN revision + 1
       ELSE running_revision
     END,
-    restart_pending = CASE
-      WHEN effect_mode = 'RESTART_REQUIRED' THEN running_value IS DISTINCT FROM $1
-      ELSE false
-    END,
+    restart_pending = effect_mode = 'RESTART_REQUIRED',
     revision = revision + 1,
     updated_at = now(),
     updated_by = $2
 WHERE parameter_key = $3
   AND revision = $4
   AND editable = true
-RETURNING parameter_key, name, description, value_type, configured_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by, constraints, effect_mode, running_value, running_revision, restart_pending
+RETURNING parameter_key, name, description, value_type, configured_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by, safe_to_expose, constraints, effect_mode, running_value, running_revision, restart_pending
 `
 
 type UpdateAppSystemParameterValueParams struct {
@@ -2048,6 +2054,7 @@ func (q *Queries) UpdateAppSystemParameterValue(ctx context.Context, arg UpdateA
 		&i.CreatedBy,
 		&i.UpdatedAt,
 		&i.UpdatedBy,
+		&i.SafeToExpose,
 		&i.Constraints,
 		&i.EffectMode,
 		&i.RunningValue,

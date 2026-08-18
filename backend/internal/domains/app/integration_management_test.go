@@ -171,14 +171,19 @@ func TestQueryAndPermissionCatalogIntegration(t *testing.T) {
 		t.Fatalf("overflow pagination error = %v", err)
 	}
 	page, err := service.QueryPermissions(t.Context(), PageRequest{
-		Page: 1, PageSize: 200, Filters: map[string]string{"domain": "app"},
-		Sort: []SortItem{{Field: "path", Order: "desc"}},
+		Page: 1, PageSize: 20, Filters: map[string]string{"domain": "app"},
+		Sort: []SortItem{{Field: "path", Order: "asc"}},
 	}, integrationPrincipal(admin.ID))
 	if err != nil {
 		t.Fatalf("query permissions: %v", err)
 	}
-	if len(page.Items) < 2 || page.Items[0].Path < page.Items[1].Path {
-		t.Fatalf("permissions are not descending: %+v", page.Items)
+	if len(page.Items) < 2 || page.Items[0].Path > page.Items[1].Path {
+		t.Fatalf("permissions are not ascending: %+v", page.Items)
+	}
+	if _, err = service.QueryPermissions(t.Context(), PageRequest{
+		Page: 1, PageSize: 200, Sort: []SortItem{{Field: "path", Order: "asc"}},
+	}, integrationPrincipal(admin.ID)); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("non-fixed permission page size error = %v", err)
 	}
 	expectedProtected := []string{
 		"/app/menu/activate", "/app/menu/publish-business-template", "/app/menu/reset-business-template", "/app/menu/save-business-template",

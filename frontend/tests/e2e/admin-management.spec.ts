@@ -39,6 +39,16 @@ interface MenuTree {
   }>
 }
 
+interface SystemParameterData {
+  key: string
+  configuredValue: string
+  defaultValue: string
+  effectMode: 'IMMEDIATE' | 'NEXT_REQUEST' | 'RESTART_REQUIRED'
+  runningValue: string | null
+  restartPending: boolean
+  revision: number
+}
+
 async function signIn(page: Page): Promise<void> {
   await page.goto('/signin')
   await page.getByLabel('用户名', { exact: true }).fill(username)
@@ -60,6 +70,22 @@ async function menuRequest(
   expect(response.ok()).toBe(true)
   const envelope = (await response.json()) as Envelope<MenuData>
   expect([0, '0']).toContain(envelope.code)
+  return envelope.data
+}
+
+async function systemParameterRequest(
+  api: APIRequestContext,
+  action: 'get' | 'save' | 'reset',
+  data: unknown,
+  csrfToken: string,
+): Promise<SystemParameterData> {
+  const response = await api.post(`app/system-parameter/${action}`, {
+    data,
+    headers: { 'X-CSRF-Token': csrfToken },
+  })
+  expect(response.ok()).toBe(true)
+  const envelope = (await response.json()) as Envelope<SystemParameterData>
+  expect([0, '0'], envelope.message).toContain(envelope.code)
   return envelope.data
 }
 
@@ -117,10 +143,11 @@ test(
   async ({ page }) => {
     test.setTimeout(60_000)
     const { api, csrfToken } = await createApiSession()
+    const observer = await createApiSession()
     const originalMenu = await menuRequest(api, 'app/menu/get', {}, csrfToken)
-    await signIn(page)
 
     try {
+      await signIn(page)
       const pages = [
         ['/app/user', '用户管理'],
         ['/app/role', '角色管理'],
@@ -184,6 +211,62 @@ test(
         page.getByText('恢复默认值成功，立即生效。', { exact: true }),
       ).toBeVisible()
 
+      const nextRequest = await systemParameterRequest(
+        api,
+        'get',
+        { key: 'e2e.next-request-mode' },
+        csrfToken,
+      )
+      const nextRequestSaved = await systemParameterRequest(
+        api,
+        'save',
+        {
+          key: nextRequest.key,
+          configuredValue: 'COMFORTABLE',
+          revision: nextRequest.revision,
+        },
+        csrfToken,
+      )
+      expect(nextRequestSaved.effectMode).toBe('NEXT_REQUEST')
+      expect(nextRequestSaved.runningValue).toBe('COMFORTABLE')
+      expect(nextRequestSaved.restartPending).toBe(false)
+      await systemParameterRequest(
+        api,
+        'reset',
+        { key: nextRequestSaved.key, revision: nextRequestSaved.revision },
+        csrfToken,
+      )
+
+      const restartRequired = await systemParameterRequest(
+        api,
+        'get',
+        { key: 'e2e.restart-mode' },
+        csrfToken,
+      )
+      const restartSaved = await systemParameterRequest(
+        api,
+        'save',
+        {
+          key: restartRequired.key,
+          configuredValue: '2',
+          revision: restartRequired.revision,
+        },
+        csrfToken,
+      )
+      expect(restartSaved.effectMode).toBe('RESTART_REQUIRED')
+      expect(restartSaved.configuredValue).toBe('2')
+      expect(restartSaved.runningValue).toBe('1')
+      expect(restartSaved.restartPending).toBe(true)
+      const restartReset = await systemParameterRequest(
+        api,
+        'reset',
+        { key: restartSaved.key, revision: restartSaved.revision },
+        csrfToken,
+      )
+      expect(restartReset.configuredValue).toBe('1')
+      expect(restartReset.runningValue).toBe('1')
+      expect(restartReset.restartPending).toBe(true)
+
       for (const path of [
         '/admin/user',
         '/admin/role',
@@ -198,6 +281,16 @@ test(
       }
 
       await page.goto('/app/menu')
+      if (originalMenu.mode !== 'DEFAULT') {
+        await selectMode(page, '系统默认')
+      }
+      const observerBeforePublish = await menuRequest(
+        observer.api,
+        'app/menu/get',
+        {},
+        observer.csrfToken,
+      )
+      expect(observerBeforePublish.mode).toBe('DEFAULT')
       const beforeSave = await menuRequest(api, 'app/menu/get', {}, csrfToken)
       await page.getByRole('button', { name: '新增分组', exact: true }).click()
       await page
@@ -251,29 +344,53 @@ test(
         ),
       ).toBe(true)
       expect(afterPublish.mode).toBe(beforeSave.mode)
+      const observerAfterPublish = await menuRequest(
+        observer.api,
+        'app/menu/get',
+        {},
+        observer.csrfToken,
+      )
+      expect(observerAfterPublish.mode).toBe('DEFAULT')
+      expect(observerAfterPublish.navigation).toEqual(
+        observerBeforePublish.navigation,
+      )
 
-      if (originalMenu.mode === 'DEFAULT') {
-        await selectMode(page, '业务归类模板')
-        await expectNavigationGroup(page, '基础资料')
-      } else {
-        await selectMode(page, '系统默认')
-        await expectNavigationGroup(page, '业务对象')
-      }
+      await selectMode(page, '业务归类模板')
+      await expectNavigationGroup(page, '基础资料')
+      const observerAfterActivation = await menuRequest(
+        observer.api,
+        'app/menu/get',
+        {},
+        observer.csrfToken,
+      )
+      expect(observerAfterActivation.mode).toBe('BUSINESS_TEMPLATE')
+      expect(observerAfterActivation.navigation.revision).toBe(
+        afterPublish.published.revision,
+      )
     } finally {
-      const currentMenu = await menuRequest(api, 'app/menu/get', {}, csrfToken)
-      if (currentMenu.mode !== originalMenu.mode) {
-        await menuRequest(
+      try {
+        const currentMenu = await menuRequest(
           api,
-          'app/menu/activate',
-          {
-            mode: originalMenu.mode,
-            revision: currentMenu.modeRevision,
-            catalogRevision: currentMenu.catalogRevision,
-          },
+          'app/menu/get',
+          {},
           csrfToken,
         )
+        if (currentMenu.mode !== originalMenu.mode) {
+          await menuRequest(
+            api,
+            'app/menu/activate',
+            {
+              mode: originalMenu.mode,
+              revision: currentMenu.modeRevision,
+              catalogRevision: currentMenu.catalogRevision,
+            },
+            csrfToken,
+          )
+        }
+      } finally {
+        await observer.api.dispose()
+        await api.dispose()
       }
-      await api.dispose()
     }
   },
 )

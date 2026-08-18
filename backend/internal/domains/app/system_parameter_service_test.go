@@ -44,3 +44,68 @@ func TestSystemParameterKeyValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateSystemParameterValueUsesRegisteredConstraints(t *testing.T) {
+	minimum := "1"
+	maximum := "4"
+	constraints := &SystemParameterConstraints{
+		Required: true, Minimum: &minimum, Maximum: &maximum,
+		AllowedValues: []string{},
+	}
+	for _, test := range []struct {
+		name  string
+		value string
+		want  string
+		valid bool
+	}{
+		{name: "minimum", value: "1", want: "1", valid: true},
+		{name: "normalized", value: "004", want: "4", valid: true},
+		{name: "below", value: "0", valid: false},
+		{name: "above", value: "5", valid: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := validateSystemParameterValue(SystemParameterInteger, test.value, constraints)
+			if test.valid && (err != nil || got != test.want) {
+				t.Fatalf("validate value = %q, %v; want %q", got, err, test.want)
+			}
+			if !test.valid && !errorIsKind(err, ErrorValidation) {
+				t.Fatalf("validation error = %v, want validation", err)
+			}
+		})
+	}
+}
+
+func TestValidateSystemParameterDefinitionRequiresConstraintsForEditableValues(t *testing.T) {
+	if err := validateSystemParameterDefinition(SystemParameterString, "value", "default", true, nil); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("missing editable constraints error = %v, want validation", err)
+	}
+	maxLength := int32(10)
+	constraints := &SystemParameterConstraints{MaxLength: &maxLength, AllowedValues: []string{}}
+	if err := validateSystemParameterDefinition(SystemParameterString, "value", "default", true, constraints); err != nil {
+		t.Fatalf("valid definition rejected: %v", err)
+	}
+	if err := validateSystemParameterDefinition(SystemParameterString, "value", "default value too long", true, constraints); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("invalid default error = %v, want validation", err)
+	}
+}
+
+func TestValidateRuntimeAdoptionEvidenceRequiresEveryExpectedInstanceAtLatestRevision(t *testing.T) {
+	input := ConfirmSystemParameterAdoptionInput{
+		Key: "test.restart", Revision: 4, DeploymentScope: "preview",
+		ExpectedInstanceIDs: []string{"api-1", "api-2"},
+		Reports: []RuntimeInstanceAdoption{
+			{InstanceID: "api-1", Revision: 4},
+		},
+	}
+	if err := validateRuntimeAdoptionEvidence(input); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("partial evidence error = %v, want validation", err)
+	}
+	input.Reports = append(input.Reports, RuntimeInstanceAdoption{InstanceID: "api-2", Revision: 3})
+	if err := validateRuntimeAdoptionEvidence(input); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("stale evidence error = %v, want validation", err)
+	}
+	input.Reports[1].Revision = 4
+	if err := validateRuntimeAdoptionEvidence(input); err != nil {
+		t.Fatalf("complete evidence rejected: %v", err)
+	}
+}

@@ -31,6 +31,31 @@ function createTestRouter() {
 }
 
 describe('permission menu registry', () => {
+  it('不将 APP 管理页面作为动态菜单路由注册', () => {
+    const router = createTestRouter()
+
+    expect(
+      registerMenuRoutes(router, [
+        {
+          domain: 'app',
+          title: '系统管理',
+          order: 1,
+          children: [
+            {
+              entity: 'permission',
+              routeKey: 'app/permission',
+              routePath: '/app/permission',
+              title: '权限管理',
+              order: 1,
+              actions: ['query'],
+            },
+          ],
+        },
+      ]),
+    ).toBe(0)
+    expect(router.hasRoute('page:app/permission')).toBe(false)
+  })
+
   it('将服务端一级工作台路由投影为唯一的直接导航入口', () => {
     const menus = buildServerMenus(
       [

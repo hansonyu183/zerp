@@ -253,36 +253,75 @@ type PermissionView struct {
 	Assignable  bool    `json:"assignable"`
 }
 
+type PermissionDetail struct {
+	Path        string  `json:"path"`
+	Domain      string  `json:"domain"`
+	Entity      string  `json:"entity"`
+	Action      string  `json:"action"`
+	Description *string `json:"description"`
+	Status      string  `json:"status"`
+	RoleCount   int64   `json:"roleCount"`
+}
+
 const (
 	SystemParameterString  = "STRING"
 	SystemParameterInteger = "INTEGER"
 	SystemParameterDecimal = "DECIMAL"
 	SystemParameterBoolean = "BOOLEAN"
+	EffectModeImmediate    = "IMMEDIATE"
+	EffectModeNextRequest  = "NEXT_REQUEST"
+	EffectModeRestart      = "RESTART_REQUIRED"
 	MenuModeParameterKey   = "app.menu.mode"
 )
 
+type SystemParameterConstraints struct {
+	Required      bool     `json:"required"`
+	MinLength     *int32   `json:"minLength"`
+	MaxLength     *int32   `json:"maxLength"`
+	Minimum       *string  `json:"minimum"`
+	Maximum       *string  `json:"maximum"`
+	AllowedValues []string `json:"allowedValues"`
+}
+
 type SystemParameterView struct {
-	Key          string    `json:"key"`
-	Name         string    `json:"name"`
-	Description  *string   `json:"description"`
-	ValueType    string    `json:"valueType"`
-	Value        string    `json:"value"`
-	DefaultValue string    `json:"defaultValue"`
-	Editable     bool      `json:"editable"`
-	Revision     int64     `json:"revision"`
-	UpdatedAt    time.Time `json:"updatedAt"`
-	UpdatedBy    *string   `json:"updatedBy"`
+	Key             string                      `json:"key"`
+	Name            string                      `json:"name"`
+	Description     *string                     `json:"description"`
+	ValueType       string                      `json:"valueType"`
+	ConfiguredValue string                      `json:"configuredValue"`
+	DefaultValue    string                      `json:"defaultValue"`
+	Editable        bool                        `json:"editable"`
+	Constraints     *SystemParameterConstraints `json:"constraints"`
+	EffectMode      string                      `json:"effectMode"`
+	RunningValue    *string                     `json:"runningValue"`
+	RestartPending  bool                        `json:"restartPending"`
+	Revision        int64                       `json:"revision"`
+	UpdatedAt       time.Time                   `json:"updatedAt"`
+	UpdatedBy       *string                     `json:"updatedBy"`
 }
 
 type SaveSystemParameterInput struct {
-	Key      string `json:"key"`
-	Value    string `json:"value"`
-	Revision int64  `json:"revision"`
+	Key             string `json:"key"`
+	ConfiguredValue string `json:"configuredValue"`
+	Revision        int64  `json:"revision"`
 }
 
 type ResetSystemParameterInput struct {
 	Key      string `json:"key"`
 	Revision int64  `json:"revision"`
+}
+
+type RuntimeInstanceAdoption struct {
+	InstanceID string
+	Revision   int64
+}
+
+type ConfirmSystemParameterAdoptionInput struct {
+	Key                 string
+	Revision            int64
+	DeploymentScope     string
+	ExpectedInstanceIDs []string
+	Reports             []RuntimeInstanceAdoption
 }
 
 const (
@@ -319,13 +358,14 @@ type MenuRouteOption struct {
 }
 
 type MenuGetData struct {
-	Mode             string            `json:"mode"`
-	ModeRevision     int64             `json:"modeRevision"`
-	CatalogRevision  string            `json:"catalogRevision"`
-	DefaultMenu      MenuTree          `json:"defaultMenu"`
-	BusinessTemplate MenuTree          `json:"businessTemplate"`
-	Navigation       MenuTree          `json:"navigation"`
-	AvailableRoutes  []MenuRouteOption `json:"availableRoutes"`
+	Mode            string            `json:"mode"`
+	ModeRevision    int64             `json:"modeRevision"`
+	CatalogRevision string            `json:"catalogRevision"`
+	DefaultMenu     MenuTree          `json:"defaultMenu"`
+	Draft           MenuTree          `json:"draft"`
+	Published       MenuTree          `json:"published"`
+	Navigation      MenuTree          `json:"navigation"`
+	AvailableRoutes []MenuRouteOption `json:"availableRoutes"`
 }
 
 type SaveMenuItemInput struct {
@@ -346,12 +386,19 @@ type SaveBusinessMenuInput struct {
 }
 
 type ActivateMenuInput struct {
-	Mode     string `json:"mode"`
-	Revision int64  `json:"revision"`
+	Mode            string `json:"mode"`
+	Revision        int64  `json:"revision"`
+	CatalogRevision string `json:"catalogRevision"`
+}
+
+type PublishBusinessMenuInput struct {
+	Revision        int64  `json:"revision"`
+	CatalogRevision string `json:"catalogRevision"`
 }
 
 type ResetBusinessMenuInput struct {
-	Revision int64 `json:"revision"`
+	Revision        int64  `json:"revision"`
+	CatalogRevision string `json:"catalogRevision"`
 }
 
 type RoleType string

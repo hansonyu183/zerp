@@ -1762,7 +1762,9 @@
                       'application/json':
                         {
                           'schema':
-                            { '$ref': './schemas/common.yaml#/PageRequest' },
+                            {
+                              '$ref': './schemas/app.yaml#/SystemParameterQueryRequest',
+                            },
                         },
                     },
                 },
@@ -1974,6 +1976,47 @@
                   '200':
                     {
                       'description': '保存后的菜单配置。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/MenuGetResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/app/menu/publish-business-template':
+        {
+          'post':
+            {
+              'tags': ['app'],
+              'summary': '发布业务菜单草稿',
+              'operationId': 'appMenuPublishBusinessTemplate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/app.yaml#/PublishBusinessMenuRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '发布后的菜单配置。',
                       'content':
                         {
                           'application/json':

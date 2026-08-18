@@ -655,13 +655,69 @@
             {
               'type': 'object',
               'nullable': true,
-              'allOf': [{ '$ref': '#/PermissionView' }],
+              'allOf': [{ '$ref': '#/PermissionDetail' }],
             },
           'requestId': { 'type': 'string' },
         },
     },
+  'PermissionDetail':
+    {
+      'type': 'object',
+      'required':
+        [
+          'path',
+          'domain',
+          'entity',
+          'action',
+          'description',
+          'status',
+          'roleCount',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'path': { 'type': 'string' },
+          'domain': { 'type': 'string' },
+          'entity': { 'type': 'string' },
+          'action': { 'type': 'string' },
+          'description': { 'type': 'string', 'nullable': true },
+          'status': { '$ref': '#/UserStatus' },
+          'roleCount': { 'type': 'integer', 'format': 'int64', 'minimum': 0 },
+        },
+    },
   'SystemParameterValueType':
     { 'type': 'string', 'enum': ['STRING', 'INTEGER', 'DECIMAL', 'BOOLEAN'] },
+  'SystemParameterEffectMode':
+    {
+      'type': 'string',
+      'enum': ['IMMEDIATE', 'NEXT_REQUEST', 'RESTART_REQUIRED'],
+    },
+  'SystemParameterConstraints':
+    {
+      'type': 'object',
+      'required':
+        [
+          'required',
+          'minLength',
+          'maxLength',
+          'minimum',
+          'maximum',
+          'allowedValues',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'required': { 'type': 'boolean' },
+          'minLength':
+            { 'type': 'integer', 'nullable': true, 'minimum': 0 },
+          'maxLength':
+            { 'type': 'integer', 'nullable': true, 'minimum': 0 },
+          'minimum': { 'type': 'string', 'nullable': true },
+          'maximum': { 'type': 'string', 'nullable': true },
+          'allowedValues':
+            { 'type': 'array', 'items': { 'type': 'string' } },
+        },
+    },
   'SystemParameterView':
     {
       'type': 'object',
@@ -671,9 +727,13 @@
           'name',
           'description',
           'valueType',
-          'value',
+          'configuredValue',
           'defaultValue',
           'editable',
+          'constraints',
+          'effectMode',
+          'runningValue',
+          'restartPending',
           'revision',
           'updatedAt',
           'updatedBy',
@@ -685,12 +745,60 @@
           'name': { 'type': 'string', 'maxLength': 128 },
           'description': { 'type': 'string', 'nullable': true },
           'valueType': { '$ref': '#/SystemParameterValueType' },
-          'value': { 'type': 'string' },
+          'configuredValue': { 'type': 'string' },
           'defaultValue': { 'type': 'string' },
           'editable': { 'type': 'boolean' },
+          'constraints':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/SystemParameterConstraints' }],
+            },
+          'effectMode': { '$ref': '#/SystemParameterEffectMode' },
+          'runningValue': { 'type': 'string', 'nullable': true },
+          'restartPending': { 'type': 'boolean' },
           'revision': { 'type': 'integer', 'format': 'int64' },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
           'updatedBy': { 'type': 'string', 'nullable': true },
+        },
+    },
+  'SystemParameterQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize', 'sort'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'enum': [20] },
+          'filters':
+            {
+              'type': 'object',
+              'additionalProperties': false,
+              'properties':
+                {
+                  'search': { 'type': 'string', 'maxLength': 128 },
+                  'valueType': { '$ref': '#/SystemParameterValueType' },
+                  'editable': { 'type': 'string', 'enum': ['true', 'false'] },
+                },
+            },
+          'sort':
+            {
+              'type': 'array',
+              'minItems': 1,
+              'maxItems': 1,
+              'items':
+                {
+                  'type': 'object',
+                  'required': ['field', 'order'],
+                  'additionalProperties': false,
+                  'properties':
+                    {
+                      'field': { 'type': 'string', 'enum': ['key'] },
+                      'order': { 'type': 'string', 'enum': ['asc'] },
+                    },
+                },
+            },
         },
     },
   'SystemParameterPage':
@@ -717,12 +825,12 @@
   'SaveSystemParameterRequest':
     {
       'type': 'object',
-      'required': ['key', 'value', 'revision'],
+      'required': ['key', 'configuredValue', 'revision'],
       'additionalProperties': false,
       'properties':
         {
           'key': { 'type': 'string', 'maxLength': 128 },
-          'value': { 'type': 'string' },
+          'configuredValue': { 'type': 'string' },
           'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
         },
     },
@@ -842,7 +950,8 @@
           'modeRevision',
           'catalogRevision',
           'defaultMenu',
-          'businessTemplate',
+          'draft',
+          'published',
           'navigation',
           'availableRoutes',
         ],
@@ -855,7 +964,8 @@
           'catalogRevision':
             { 'type': 'string', 'minLength': 1, 'maxLength': 64 },
           'defaultMenu': { '$ref': '#/MenuTree' },
-          'businessTemplate': { '$ref': '#/MenuTree' },
+          'draft': { '$ref': '#/MenuTree' },
+          'published': { '$ref': '#/MenuTree' },
           'navigation': { '$ref': '#/MenuTree' },
           'availableRoutes':
             { 'type': 'array', 'items': { '$ref': '#/MenuRouteOption' } },
@@ -928,21 +1038,39 @@
   'ActivateMenuRequest':
     {
       'type': 'object',
-      'required': ['mode', 'revision'],
+      'required': ['mode', 'revision', 'catalogRevision'],
       'additionalProperties': false,
       'properties':
         {
           'mode': { '$ref': '#/MenuMode' },
           'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'catalogRevision':
+            { 'type': 'string', 'minLength': 1, 'maxLength': 64 },
+        },
+    },
+  'PublishBusinessMenuRequest':
+    {
+      'type': 'object',
+      'required': ['revision', 'catalogRevision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'catalogRevision':
+            { 'type': 'string', 'minLength': 1, 'maxLength': 64 },
         },
     },
   'ResetBusinessMenuRequest':
     {
       'type': 'object',
-      'required': ['revision'],
+      'required': ['revision', 'catalogRevision'],
       'additionalProperties': false,
       'properties':
-        { 'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 } },
+        {
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'catalogRevision':
+            { 'type': 'string', 'minLength': 1, 'maxLength': 64 },
+        },
     },
   'FeedbackAttachmentInitiateRequest':
     {

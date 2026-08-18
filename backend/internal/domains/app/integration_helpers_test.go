@@ -116,11 +116,12 @@ func appIntegrationService(t *testing.T) (*Service, *pgxpool.Pool, UserView) {
 	}
 	if _, err = pool.Exec(t.Context(), `
 		INSERT INTO app_system_parameters (
-			parameter_key, name, description, value_type, current_value,
-			default_value, editable, created_by, updated_by
+			parameter_key, name, description, value_type, configured_value,
+			default_value, editable, constraints, effect_mode, running_value,
+			running_revision, restart_pending, created_by, updated_by
 		) VALUES (
 			'app.menu.mode', '当前菜单方式', '菜单服务专用', 'STRING',
-			'DEFAULT', 'DEFAULT', false, $1, $1
+			'DEFAULT', 'DEFAULT', false, NULL, 'IMMEDIATE', 'DEFAULT', 1, false, $1, $1
 		)
 	`, admin.ID); err != nil {
 		t.Fatalf("seed APP system parameters: %v", err)

@@ -1,6 +1,5 @@
 import { apiClient } from '@/api/client'
 import type { components } from '@/api/generated/schema'
-import type { PageRequest, PageResult } from '@/api/types'
 
 export type { AdminStatus } from './labels'
 export type AdminUser = components['schemas']['UserListItem']
@@ -11,22 +10,15 @@ export type AdminRoleDetail = components['schemas']['RoleDetail']
 export type AdminRolePermission = components['schemas']['RolePermission']
 
 export type AdminPermission = components['schemas']['PermissionView']
+export type AdminPermissionDetail = components['schemas']['PermissionDetail']
 
 export type SystemParameterValueType =
-  'STRING' | 'INTEGER' | 'DECIMAL' | 'BOOLEAN'
-
-export interface SystemParameter {
-  key: string
-  name: string
-  description?: string | null
-  valueType: SystemParameterValueType
-  value: string
-  defaultValue: string
-  editable: boolean
-  revision: number
-  updatedAt: string
-  updatedBy?: string | null
-}
+  components['schemas']['SystemParameterValueType']
+export type SystemParameterEffectMode =
+  components['schemas']['SystemParameterEffectMode']
+export type SystemParameterConstraints =
+  components['schemas']['SystemParameterConstraints']
+export type SystemParameter = components['schemas']['SystemParameterView']
 
 export function queryAdminUsers(
   request: components['schemas']['UserQueryRequest'],
@@ -99,34 +91,24 @@ export function getAdminPermission(id: string) {
   return apiClient.postContract('app/permission/get', { id })
 }
 
-export function querySystemParameters(request: PageRequest) {
-  return apiClient.post<PageResult<SystemParameter>, PageRequest>(
-    'app/system-parameter/query',
-    request,
-  )
+export function querySystemParameters(
+  request: components['schemas']['SystemParameterQueryRequest'],
+) {
+  return apiClient.postContract('app/system-parameter/query', request)
 }
 
 export function getSystemParameter(key: string) {
-  return apiClient.post<SystemParameter, { key: string }>(
-    'app/system-parameter/get',
-    { key },
-  )
+  return apiClient.postContract('app/system-parameter/get', { key })
 }
 
-export function saveSystemParameter(input: {
-  key: string
-  value: string
-  revision: number
-}) {
-  return apiClient.post<SystemParameter, typeof input>(
-    'app/system-parameter/save',
-    input,
-  )
+export function saveSystemParameter(
+  input: components['schemas']['SaveSystemParameterRequest'],
+) {
+  return apiClient.postContract('app/system-parameter/save', input)
 }
 
-export function resetSystemParameter(input: { key: string; revision: number }) {
-  return apiClient.post<SystemParameter, typeof input>(
-    'app/system-parameter/reset',
-    input,
-  )
+export function resetSystemParameter(
+  input: components['schemas']['ResetSystemParameterRequest'],
+) {
+  return apiClient.postContract('app/system-parameter/reset', input)
 }

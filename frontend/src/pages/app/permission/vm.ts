@@ -5,16 +5,17 @@ import {
   getAdminPermission,
   queryAdminPermissions,
   type AdminPermission,
+  type AdminPermissionDetail,
   type AdminStatus,
 } from '../shared/api'
 
 export function createPermissionManagementViewModel() {
   const session = useSessionStore()
   const rows = ref<AdminPermission[]>([])
-  const detail = ref<AdminPermission | null>(null)
+  const detail = ref<AdminPermissionDetail | null>(null)
   const total = ref(0)
   const page = ref(1)
-  const pageSize = ref<20 | 200>(20)
+  const pageSize = ref<20>(20)
   const status = ref<AdminStatus | null>(null)
   const loading = ref(false)
   const errorMessage = ref<string | null>(null)

@@ -1,6 +1,7 @@
 import {
   activateMenu,
   getMenu,
+  publishBusinessMenu,
   resetBusinessMenu,
   saveBusinessMenu,
   type MenuData,
@@ -14,6 +15,7 @@ import { getErrorMessage } from '@/api/types'
 interface MenuDependencies {
   load: typeof getMenu
   save: typeof saveBusinessMenu
+  publish: typeof publishBusinessMenu
   activate: typeof activateMenu
   reset: typeof resetBusinessMenu
   apply: (data: MenuData) => void
@@ -48,8 +50,13 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
     data: null as MenuData | null,
     selectedMode: 'DEFAULT' as MenuMode,
     editableItems: [] as SaveMenuItem[],
+    draftBaseline: '[]',
     newRouteByGroup: {} as Record<string, string | null>,
+    publishConfirmationOpen: false,
+    activationConfirmationOpen: false,
     resetConfirmationOpen: false,
+    discardConfirmationOpen: false,
+    pendingAfterDiscard: null as 'publish' | 'activate' | 'reset' | null,
     draggedID: null as string | null,
 
     get canSave(): boolean {
@@ -58,8 +65,14 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
     get canActivate(): boolean {
       return dependencies.can('/app/menu/activate')
     },
+    get canPublish(): boolean {
+      return dependencies.can('/app/menu/publish-business-template')
+    },
     get canReset(): boolean {
       return dependencies.can('/app/menu/reset-business-template')
+    },
+    get dirty(): boolean {
+      return JSON.stringify(this.editableItems) !== this.draftBaseline
     },
     get groups(): SaveMenuItem[] {
       return this.editableItems
@@ -92,18 +105,19 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
       this.errorMessage = null
       try {
         const { data } = await dependencies.load()
-        this.applyData(data)
+        this.applyData(data, true)
       } catch (error) {
         this.errorMessage = getErrorMessage(error)
       } finally {
         this.loading = false
       }
     },
-    applyData(data: MenuData): void {
+    applyData(data: MenuData, applyNavigation: boolean): void {
       this.data = data
       this.selectedMode = data.mode
-      this.editableItems = cloneEditable(data.businessTemplate.items)
-      dependencies.apply(data)
+      this.editableItems = cloneEditable(data.draft.items)
+      this.draftBaseline = JSON.stringify(this.editableItems)
+      if (applyNavigation) dependencies.apply(data)
     },
     addGroup(): void {
       const order = Math.max(0, ...this.groups.map((item) => item.order)) + 10
@@ -214,7 +228,7 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
         return '工作台名称只能用于唯一的一级入口。'
       }
       const menuEntry = this.editableItems.find(
-        (item) => item.routeKey === 'admin/menu' && item.enabled,
+        (item) => item.routeKey === 'app/menu' && item.enabled,
       )
       const parent = this.editableItems.find(
         (item) => item.id === menuEntry?.parentId,
@@ -235,7 +249,7 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
       try {
         this.normalizeOrders()
         const { data } = await dependencies.save({
-          revision: this.data.businessTemplate.revision,
+          revision: this.data.draft.revision,
           catalogRevision: this.data.catalogRevision,
           items: this.editableItems.map((item) => ({
             ...item,
@@ -243,15 +257,56 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
             icon: item.icon?.trim() || null,
           })),
         })
-        this.applyData(data)
-        this.successMessage = '业务归类模板已保存。'
+        this.applyData(data, false)
+        this.successMessage = '草稿已保存，尚未发布。'
       } catch (error) {
         this.errorMessage = getErrorMessage(error)
       } finally {
         this.saving = false
       }
     },
-    async applyMode(): Promise<void> {
+    requestPublish(): void {
+      if (!this.canPublish || !this.data) return
+      if (this.dirty) {
+        this.pendingAfterDiscard = 'publish'
+        this.discardConfirmationOpen = true
+        return
+      }
+      this.publishConfirmationOpen = true
+    },
+    async confirmPublish(): Promise<void> {
+      if (!this.canPublish || !this.data || this.dirty) return
+      this.saving = true
+      this.errorMessage = null
+      try {
+        const { data } = await dependencies.publish({
+          revision: this.data.draft.revision,
+          catalogRevision: this.data.catalogRevision,
+        })
+        this.applyData(data, true)
+        this.publishConfirmationOpen = false
+        this.successMessage = '草稿已发布；当前菜单方式保持不变。'
+      } catch (error) {
+        this.errorMessage = getErrorMessage(error)
+      } finally {
+        this.saving = false
+      }
+    },
+    requestActivation(): void {
+      if (
+        !this.canActivate ||
+        !this.data ||
+        this.selectedMode === this.data.mode
+      )
+        return
+      if (this.dirty) {
+        this.pendingAfterDiscard = 'activate'
+        this.discardConfirmationOpen = true
+        return
+      }
+      this.activationConfirmationOpen = true
+    },
+    async confirmActivation(): Promise<void> {
       if (!this.canActivate || !this.data) return
       this.saving = true
       this.errorMessage = null
@@ -259,8 +314,10 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
         const { data } = await dependencies.activate({
           mode: this.selectedMode,
           revision: this.data.modeRevision,
+          catalogRevision: this.data.catalogRevision,
         })
-        this.applyData(data)
+        this.applyData(data, true)
+        this.activationConfirmationOpen = false
         this.successMessage = '菜单方式已应用，主导航已刷新。'
       } catch (error) {
         this.errorMessage = getErrorMessage(error)
@@ -269,7 +326,28 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
       }
     },
     requestReset(): void {
-      if (this.canReset) this.resetConfirmationOpen = true
+      if (!this.canReset || !this.data) return
+      if (this.dirty) {
+        this.pendingAfterDiscard = 'reset'
+        this.discardConfirmationOpen = true
+        return
+      }
+      this.resetConfirmationOpen = true
+    },
+    confirmDiscard(): void {
+      if (!this.data) return
+      const pending = this.pendingAfterDiscard
+      this.editableItems = cloneEditable(this.data.draft.items)
+      this.draftBaseline = JSON.stringify(this.editableItems)
+      this.discardConfirmationOpen = false
+      this.pendingAfterDiscard = null
+      if (pending === 'publish') this.publishConfirmationOpen = true
+      if (pending === 'activate') this.activationConfirmationOpen = true
+      if (pending === 'reset') this.resetConfirmationOpen = true
+    },
+    cancelDiscard(): void {
+      this.discardConfirmationOpen = false
+      this.pendingAfterDiscard = null
     },
     async confirmReset(): Promise<void> {
       if (!this.canReset || !this.data) return
@@ -277,11 +355,12 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
       this.errorMessage = null
       try {
         const { data } = await dependencies.reset({
-          revision: this.data.businessTemplate.revision,
+          revision: this.data.draft.revision,
+          catalogRevision: this.data.catalogRevision,
         })
-        this.applyData(data)
+        this.applyData(data, false)
         this.resetConfirmationOpen = false
-        this.successMessage = '业务归类模板已恢复为初始模板。'
+        this.successMessage = '草稿已恢复，尚未发布。'
       } catch (error) {
         this.errorMessage = getErrorMessage(error)
       } finally {

@@ -42,9 +42,9 @@ export const router = createRouter({
           meta: { requiresAuth: true, title: '工作台' },
         },
         {
-          path: 'admin/user',
-          name: 'page:admin/user',
-          component: () => import('@/pages/admin/user/User.vue'),
+          path: 'app/user',
+          name: 'page:app/user',
+          component: () => import('@/pages/app/user/User.vue'),
           meta: {
             requiresAuth: true,
             requiredPermission: '/app/user/query',
@@ -52,9 +52,9 @@ export const router = createRouter({
           },
         },
         {
-          path: 'admin/role',
-          name: 'page:admin/role',
-          component: () => import('@/pages/admin/role/Role.vue'),
+          path: 'app/role',
+          name: 'page:app/role',
+          component: () => import('@/pages/app/role/Role.vue'),
           meta: {
             requiresAuth: true,
             requiredPermission: '/app/role/query',
@@ -62,9 +62,9 @@ export const router = createRouter({
           },
         },
         {
-          path: 'admin/permission',
-          name: 'page:admin/permission',
-          component: () => import('@/pages/admin/permission/Permission.vue'),
+          path: 'app/permission',
+          name: 'page:app/permission',
+          component: () => import('@/pages/app/permission/Permission.vue'),
           meta: {
             requiresAuth: true,
             requiredPermission: '/app/permission/query',
@@ -72,10 +72,10 @@ export const router = createRouter({
           },
         },
         {
-          path: 'admin/system-parameter',
-          name: 'page:admin/system-parameter',
+          path: 'app/system-parameter',
+          name: 'page:app/system-parameter',
           component: () =>
-            import('@/pages/admin/system-parameter/SystemParameter.vue'),
+            import('@/pages/app/system-parameter/SystemParameter.vue'),
           meta: {
             requiresAuth: true,
             requiredPermission: '/app/system-parameter/query',
@@ -83,13 +83,14 @@ export const router = createRouter({
           },
         },
         {
-          path: 'admin/menu',
-          name: 'page:admin/menu',
-          component: () => import('@/pages/admin/menu/Menu.vue'),
+          path: 'app/menu',
+          name: 'page:app/menu',
+          component: () => import('@/pages/app/menu/Menu.vue'),
           meta: {
             requiresAuth: true,
             requiredAnyPermissions: [
               '/app/menu/save-business-template',
+              '/app/menu/publish-business-template',
               '/app/menu/activate',
               '/app/menu/reset-business-template',
             ],

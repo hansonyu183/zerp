@@ -89,8 +89,8 @@ function createTestRouter(): Router {
             meta: { requiresAuth: true },
           },
           {
-            path: 'admin/user',
-            name: 'page:admin/user',
+            path: 'app/user',
+            name: 'page:app/user',
             component: { template: '<div />' },
             meta: {
               requiresAuth: true,
@@ -98,13 +98,14 @@ function createTestRouter(): Router {
             },
           },
           {
-            path: 'admin/menu',
-            name: 'page:admin/menu',
+            path: 'app/menu',
+            name: 'page:app/menu',
             component: { template: '<div />' },
             meta: {
               requiresAuth: true,
               requiredAnyPermissions: [
                 '/app/menu/save-business-template',
+                '/app/menu/publish-business-template',
                 '/app/menu/activate',
                 '/app/menu/reset-business-template',
               ],
@@ -224,16 +225,16 @@ describe('session menu route synchronization', () => {
     const session = createAuthenticatedSession()
     router.beforeEach(createSessionNavigationGuard(router, session))
 
-    await router.push('/admin/user')
+    await router.push('/app/user')
     expect(router.currentRoute.value.name).toBe('forbidden')
 
     session.permissions = ['/app/user/query-extra']
-    await router.push('/admin/user')
+    await router.push('/app/user')
     expect(router.currentRoute.value.name).toBe('forbidden')
 
     session.permissions = ['/app/user/query']
-    await router.push('/admin/user')
-    expect(router.currentRoute.value.name).toBe('page:admin/user')
+    await router.push('/app/user')
+    expect(router.currentRoute.value.name).toBe('page:app/user')
   })
 
   it('菜单管理入口接受任一菜单写权限且拒绝无关权限', async () => {
@@ -242,12 +243,16 @@ describe('session menu route synchronization', () => {
     router.beforeEach(createSessionNavigationGuard(router, session))
 
     session.permissions = ['/app/user/query']
-    await router.push('/admin/menu')
+    await router.push('/app/menu')
     expect(router.currentRoute.value.name).toBe('forbidden')
 
     session.permissions = ['/app/menu/activate']
-    await router.push('/admin/menu')
-    expect(router.currentRoute.value.name).toBe('page:admin/menu')
+    await router.push('/app/menu')
+    expect(router.currentRoute.value.name).toBe('page:app/menu')
+
+    session.permissions = ['/app/menu/publish-business-template']
+    await router.push('/app/menu')
+    expect(router.currentRoute.value.name).toBe('page:app/menu')
   })
 
   it('会话已初始化但路由缺失时，在首次导航中注册并重新匹配真实页面', async () => {
@@ -381,9 +386,9 @@ describe('password-change restricted session', () => {
     session.passwordChangeRequired = true
     session.permissions = ['/app/user/query']
     router.beforeEach(createSessionNavigationGuard(router, session))
-    await router.push('/admin/user')
+    await router.push('/app/user')
     expect(router.currentRoute.value.name).toBe('change-password')
-    await router.push('/signin?redirect=/admin/user')
+    await router.push('/signin?redirect=/app/user')
     expect(router.currentRoute.value.name).toBe('change-password')
   })
 })

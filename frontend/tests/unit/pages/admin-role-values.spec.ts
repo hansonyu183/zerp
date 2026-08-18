@@ -6,7 +6,7 @@ import {
   formatAssignability,
   roleActionLabels,
   roleTypeLabels,
-} from '@/pages/admin/shared/labels'
+} from '@/pages/app/shared/labels'
 
 describe('admin role wire-value labels', () => {
   it('为完整状态集合提供共享中文标签并从映射派生选项', () => {

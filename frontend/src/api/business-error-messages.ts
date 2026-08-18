@@ -626,6 +626,8 @@ const exactMessages: Readonly<Record<string, string>> = {
   'role status unchanged': '角色已经是目标状态，无需重复操作。',
   'business menu revision conflict':
     '业务菜单已被其他管理员修改，请刷新后重试。',
+  'draft menu revision conflict':
+    '业务菜单草稿已被其他管理员修改，请刷新后重试。',
   'menu catalog revision conflict': '菜单目录已更新，请刷新后重试。',
   'menu depth exceeds two levels or parent is invalid':
     '菜单最多支持两级，请检查分组与路由的父子关系。',
@@ -646,11 +648,29 @@ const exactMessages: Readonly<Record<string, string>> = {
     '“工作台”名称仅可用于一级入口，请使用其他名称。',
   'system parameter is managed by its owning service':
     '该系统参数只能由对应功能修改。',
+  'editable system parameter requires registered constraints':
+    '可编辑系统参数必须先登记完整约束。',
+  'runtime adoption evidence is incomplete':
+    '运行实例采用证明不完整，请等待全部实例上报。',
+  'runtime adoption evidence is incomplete or stale':
+    '运行实例采用证明不完整或已过期，请重新收集最新证明。',
+  'system parameter does not have registered editing constraints':
+    '该系统参数没有完整编辑约束，不能修改。',
+  'system parameter does not require restart adoption':
+    '该系统参数无需登记重启采用结果。',
   'system parameter must be a decimal': '系统参数必须填写为小数。',
   'system parameter must be an integer': '系统参数必须填写为整数。',
   'system parameter must be true or false': '系统参数必须选择是或否。',
+  'system parameter numeric constraint requires a numeric value':
+    '系统参数的数值约束必须填写有效数字。',
+  'system parameter registration is inconsistent':
+    '系统参数登记信息不一致，请联系管理员。',
   'system parameter revision conflict':
     '系统参数已被其他管理员修改，请刷新后重试。',
+  'system parameter value is above the maximum': '系统参数值超过允许的最大值。',
+  'system parameter value is below the minimum': '系统参数值低于允许的最小值。',
+  'system parameter value is not allowed': '系统参数值不在允许范围内。',
+  'system parameter value is too short': '系统参数值长度不足。',
   'unsupported system parameter value type': '系统参数类型不受支持。',
   'saleAmount is invalid': '销售金额不正确，请检查后重试。',
   'salvageIncome is invalid': '残值收入不正确，请检查后重试。',

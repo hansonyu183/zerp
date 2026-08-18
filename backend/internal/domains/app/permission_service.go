@@ -64,42 +64,44 @@ func (s *Service) QueryPermissions(ctx context.Context, request PageRequest, pri
 	return Page[PermissionView]{Items: items, Total: total, Page: spec.Page, PageSize: spec.PageSize}, nil
 }
 
-func (s *Service) GetPermission(ctx context.Context, id string, principal Principal) (PermissionView, error) {
+func (s *Service) GetPermission(ctx context.Context, id string, principal Principal) (PermissionDetail, error) {
 	if !validPermissionID(id) {
-		return PermissionView{}, domainError(ErrorValidation, "invalid permission id", nil)
+		return PermissionDetail{}, domainError(ErrorValidation, "invalid permission id", nil)
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return PermissionView{}, s.internal("begin permission detail", err)
+		return PermissionDetail{}, s.internal("begin permission detail", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.queries.WithTx(tx)
 	if err = qtx.AcquireAppAuthorizationLock(ctx); err != nil {
-		return PermissionView{}, s.internal("lock permission detail", err)
+		return PermissionDetail{}, s.internal("lock permission detail", err)
 	}
 	actor, err := s.currentActorAuthorization(ctx, qtx, principal)
 	if err != nil {
-		return PermissionView{}, err
+		return PermissionDetail{}, err
 	}
 	if err = actor.require("/app/permission/get"); err != nil {
-		return PermissionView{}, err
+		return PermissionDetail{}, err
 	}
 	permission, err := qtx.GetAppPermissionByID(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return PermissionView{}, domainError(ErrorNotFound, "permission not found", nil)
+		return PermissionDetail{}, domainError(ErrorNotFound, "permission not found", nil)
 	}
 	if err != nil {
-		return PermissionView{}, s.internal("get permission", err)
+		return PermissionDetail{}, s.internal("get permission", err)
 	}
 	count, err := qtx.CountAppRolesUsingPermission(ctx, id)
 	if err != nil {
-		return PermissionView{}, s.internal("count permission references", err)
+		return PermissionDetail{}, s.internal("count permission references", err)
 	}
-	view := permissionView(permission)
-	view.RoleCount = &count
-	view.Assignable = permission.Status == StatusEnabled && actor.permissionIDs[permission.ID]
+	view := PermissionDetail{
+		Path: permission.Path, Domain: permission.Domain,
+		Entity: permission.Entity, Action: permission.Action, Description: permission.Description,
+		Status: permission.Status, RoleCount: count,
+	}
 	if err = tx.Commit(ctx); err != nil {
-		return PermissionView{}, s.internal("commit permission detail", err)
+		return PermissionDetail{}, s.internal("commit permission detail", err)
 	}
 	return view, nil
 }

@@ -76,7 +76,7 @@ test('登录后对已知但无权限的深链显示无权访问', async ({
   page,
   workerState,
 }) => {
-  await page.goto('/admin/permission?source=deep-link#table')
+  await page.goto('/app/permission?source=deep-link#table')
   await expect(page).toHaveURL(/\/signin\?redirect=/)
 
   await submitCredentials(page, workerState.reviewer)

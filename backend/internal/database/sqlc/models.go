@@ -356,6 +356,7 @@ type AppBusinessMenuItem struct {
 	CreatedBy      *string            `db:"created_by" json:"created_by"`
 	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	UpdatedBy      *string            `db:"updated_by" json:"updated_by"`
+	SnapshotType   string             `db:"snapshot_type" json:"snapshot_type"`
 }
 
 type AppFeedback struct {
@@ -461,18 +462,23 @@ type AppSession struct {
 }
 
 type AppSystemParameter struct {
-	ParameterKey string             `db:"parameter_key" json:"parameter_key"`
-	Name         string             `db:"name" json:"name"`
-	Description  *string            `db:"description" json:"description"`
-	ValueType    string             `db:"value_type" json:"value_type"`
-	CurrentValue string             `db:"current_value" json:"current_value"`
-	DefaultValue string             `db:"default_value" json:"default_value"`
-	Editable     bool               `db:"editable" json:"editable"`
-	Revision     int64              `db:"revision" json:"revision"`
-	CreatedAt    pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy    *string            `db:"created_by" json:"created_by"`
-	UpdatedAt    pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy    *string            `db:"updated_by" json:"updated_by"`
+	ParameterKey    string             `db:"parameter_key" json:"parameter_key"`
+	Name            string             `db:"name" json:"name"`
+	Description     *string            `db:"description" json:"description"`
+	ValueType       string             `db:"value_type" json:"value_type"`
+	ConfiguredValue string             `db:"configured_value" json:"configured_value"`
+	DefaultValue    string             `db:"default_value" json:"default_value"`
+	Editable        bool               `db:"editable" json:"editable"`
+	Revision        int64              `db:"revision" json:"revision"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy       *string            `db:"created_by" json:"created_by"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy       *string            `db:"updated_by" json:"updated_by"`
+	Constraints     []byte             `db:"constraints" json:"constraints"`
+	EffectMode      string             `db:"effect_mode" json:"effect_mode"`
+	RunningValue    string             `db:"running_value" json:"running_value"`
+	RunningRevision int64              `db:"running_revision" json:"running_revision"`
+	RestartPending  bool               `db:"restart_pending" json:"restart_pending"`
 }
 
 type AppUser struct {

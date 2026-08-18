@@ -16,3 +16,6 @@
 - [工作台](app/workbench.md)
 - [用户管理](app/user-management.md)
 - [角色管理](app/role-management.md)
+- [权限管理](app/permission-management.md)
+- [系统参数](app/system-parameter-management.md)
+- [菜单管理](app/menu-management.md)

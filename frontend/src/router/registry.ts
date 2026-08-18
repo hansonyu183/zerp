@@ -777,7 +777,7 @@ export function registerMenuRoutes(
   for (const domain of menus) {
     for (const entity of domain.children) {
       const key = entity.routeKey ?? `${domain.domain}/${entity.entity}`
-      if (key.startsWith('admin/') || key === 'home/dashboard') continue
+      if (key.startsWith('app/') || key === 'home/dashboard') continue
       const routeName = `page:${key}`
       if (expectedRouteNames.has(routeName)) continue
       const registration = pageRegistry[key]

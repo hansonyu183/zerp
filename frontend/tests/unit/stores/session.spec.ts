@@ -4,12 +4,16 @@ import { apiClient } from '@/api/client'
 import { ApiError } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
 
-vi.mock('@/api/client', () => ({
-  apiClient: {
-    post: vi.fn(),
-    setCsrfToken: vi.fn(),
-  },
-}))
+vi.mock('@/api/client', () => {
+  const post = vi.fn()
+  return {
+    apiClient: {
+      post,
+      postContract: (...args: unknown[]) => post(...args),
+      setCsrfToken: vi.fn(),
+    },
+  }
+})
 
 const mockedApiClient = vi.mocked(apiClient)
 
@@ -58,7 +62,8 @@ function menuResponse(
       modeRevision: 1,
       catalogRevision: 'catalog-revision',
       defaultMenu: tree,
-      businessTemplate: tree,
+      draft: tree,
+      published: tree,
       navigation: tree,
       availableRoutes: [],
     },

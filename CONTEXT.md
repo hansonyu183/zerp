@@ -2,6 +2,26 @@
 
 ZERP uses shared business terms across its auxiliary-data, business-object, voucher, workflow, and business-ledger domains. This glossary fixes the meaning of terms that cross those domain boundaries.
 
+## Navigation
+
+**APP Page Route（APP 页面路由）**:
+APP 领域管理页面在菜单目录和前端路由中使用的稳定 `routeKey` 与 `routePath`。用户、角色、权限、系统参数和菜单均属于 APP 领域；“管理”是职责描述，不是 `admin` 领域或路由命名空间。
+_Avoid_: admin 领域、`admin/*` 管理页面路由、把页面路由等同于 API 动作路径
+
+## Configuration
+
+**Configured Value（配置值）**:
+已登记系统参数当前持久化的目标值。保存或恢复默认值只更新配置值；其是否已被运行实例采用由生效模式决定。
+_Avoid_: 当前值、已生效值
+
+**Running Value（运行值）**:
+运行实例已经采用的系统参数值。仅当部署范围内全部运行实例已被证明采用同一最新配置版本时，才更新为配置值。
+_Avoid_: 推测已生效的配置值
+
+**Effect Mode（生效模式）**:
+系统参数值从配置值影响运行行为的既定方式；包括立即生效、下次请求生效和重启后生效。
+_Avoid_: 页面重启、未说明的生效时机
+
 ## Accounting
 
 **Accounting Subject（会计科目）**:

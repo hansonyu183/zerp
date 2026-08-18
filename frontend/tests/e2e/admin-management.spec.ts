@@ -192,9 +192,12 @@ test(
       await expect(
         page.getByText('e2e.display-mode', { exact: true }),
       ).toBeVisible()
-      await page
-        .getByRole('button', { name: '查看并编辑', exact: true })
-        .click()
+      const editParameterButton = page.getByRole('button', {
+        name: '查看并编辑',
+        exact: true,
+      })
+      await expect(editParameterButton).toHaveCount(1)
+      await editParameterButton.click()
       await page.locator('.v-navigation-drawer .v-select .v-field').click()
       await page
         .getByRole('option', { name: 'COMFORTABLE', exact: true })

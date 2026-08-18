@@ -31,7 +31,7 @@ interface RoleView {
   name: string
   description: string | null
   revision: number
-  permissionIds: string[]
+  permissions: Array<{ id: string }>
 }
 
 interface UserView {
@@ -435,7 +435,10 @@ async function addWorkflowPermissionsToOperatorRole(
     name: operatorRole.name,
     description: operatorRole.description,
     permissionIds: [
-      ...new Set([...operatorRole.permissionIds, ...dynamicPermissionIds]),
+      ...new Set([
+        ...operatorRole.permissions.map((permission) => permission.id),
+        ...dynamicPermissionIds,
+      ]),
     ],
     revision: operatorRole.revision,
   })
@@ -714,7 +717,6 @@ export async function createWflWorkerState(options: {
     const operatorRole = await bootstrapSession.api.post<RoleView>(
       'app/role/create',
       {
-        code: `e2e-operator-${suffix}`.toLowerCase(),
         name: `E2E Operator ${suffix}`,
         description: '隔离测试 worker 全权限操作角色',
         permissionIds: enabledPermissions.map((item) => item.id),
@@ -741,7 +743,6 @@ export async function createWflWorkerState(options: {
     const reviewerRole = await bootstrapSession.api.post<RoleView>(
       'app/role/create',
       {
-        code: `e2e-wfl-${suffix}`.toLowerCase(),
         name: `E2E WFL ${suffix}`,
         description: '隔离测试临时精确权限角色',
         permissionIds: selectedReviewerPermissions.map((item) => item.id),

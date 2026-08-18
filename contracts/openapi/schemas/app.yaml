@@ -708,14 +708,11 @@
       'properties':
         {
           'required': { 'type': 'boolean' },
-          'minLength':
-            { 'type': 'integer', 'nullable': true, 'minimum': 0 },
-          'maxLength':
-            { 'type': 'integer', 'nullable': true, 'minimum': 0 },
+          'minLength': { 'type': 'integer', 'nullable': true, 'minimum': 0 },
+          'maxLength': { 'type': 'integer', 'nullable': true, 'minimum': 0 },
           'minimum': { 'type': 'string', 'nullable': true },
           'maximum': { 'type': 'string', 'nullable': true },
-          'allowedValues':
-            { 'type': 'array', 'items': { 'type': 'string' } },
+          'allowedValues': { 'type': 'array', 'items': { 'type': 'string' } },
         },
     },
   'SystemParameterView':

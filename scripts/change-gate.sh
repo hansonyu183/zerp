@@ -145,9 +145,6 @@ check_changed_validation() {
     '^(Makefile|scripts/change-impact\.sh|scripts/test-release-flow-transition\.sh)$'; then
     scripts/test-release-flow-transition.sh
   fi
-  if changed_path_matches '^scripts/issue-local(-test)?\.sh$'; then
-    scripts/issue-local-test.sh
-  fi
   if changed_path_matches '^(backend/Makefile|backend/scripts/run-integration-tests(-test)?\.sh)$'; then
     backend/scripts/run-integration-tests-test.sh
   fi
@@ -301,7 +298,7 @@ if [ "${validation_mode}" = baseline ] || [ "${validation_mode}" = reverify ]; t
       validation) run_validation_stage validation 'validation tooling' check_validation || true ;;
       application)
         if changed_path_matches \
-          '^(Makefile|scripts/(change-gate(-test)?|change-impact|test-release-flow-transition|issue-local|issue-local-test|pre-push|pre-push-test)\.sh|frontend/scripts/(check-e2e-constraints(\.test)?|preview-smoke)\.mjs)'; then
+          '^(Makefile|scripts/(change-gate(-test)?|change-impact|test-release-flow-transition|pre-push|pre-push-test)\.sh|frontend/scripts/(check-e2e-constraints(\.test)?|preview-smoke)\.mjs)'; then
           run_validation_stage validation 'changed validation tooling' check_changed_validation || true
         fi
         run_validation_stage common 'common checks' make check-common || true
@@ -394,7 +391,7 @@ fi
 git diff --check "${diff_range}"
 
 if [ "${impact}" = application ] && changed_path_matches \
-  '^(Makefile|scripts/(change-gate(-test)?|change-impact|test-release-flow-transition|issue-local|issue-local-test|pre-push|pre-push-test)\.sh|frontend/scripts/(check-e2e-constraints(\.test)?|preview-smoke)\.mjs)'; then
+  '^(Makefile|scripts/(change-gate(-test)?|change-impact|test-release-flow-transition|pre-push|pre-push-test)\.sh|frontend/scripts/(check-e2e-constraints(\.test)?|preview-smoke)\.mjs)'; then
   run_stage 'changed validation tooling' check_changed_validation
 fi
 

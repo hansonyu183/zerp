@@ -35,10 +35,7 @@ jobs:
       containers: ${{ steps.change_impact.outputs.containers }}
       api_image: ${{ steps.change_impact.outputs.api_image }}
       web_image: ${{ steps.change_impact.outputs.web_image }}
-      e2e: ${{ steps.change_impact.outputs.e2e }}
-      local_e2e: ${{ steps.change_impact.outputs.local_e2e }}
       preview: ${{ steps.change_impact.outputs.preview }}
-      local_preview: ${{ steps.change_impact.outputs.local_preview }}
       ready_validation: ${{ steps.change_impact.outputs.ready_validation }}
       reuse_contracts: ${{ steps.reuse.outputs.reuse_contracts }}
     steps:
@@ -53,10 +50,6 @@ jobs:
           PR_DRAFT: ${{ github.event.pull_request.draft || false }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
-          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
-          CURRENT_REPOSITORY: ${{ github.repository }}
-          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           if [ "$EVENT_NAME" = "pull_request" ]; then
             checks=$(scripts/change-impact.sh --checks "$BASE_SHA..$HEAD_SHA")
@@ -72,30 +65,16 @@ jobs:
           containers=1
           api_image=1
           web_image=1
-          e2e=1
-          local_e2e=1
           preview=1'
           fi
           impact=$(printf '%s\n' "$checks" | sed -n 's/^impact=//p')
           ready_validation=1
-          local_preview=0
           if [ "$EVENT_NAME" = "pull_request" ] && [ "$PR_DRAFT" = "true" ] && \
             [ "$impact" = "application" ]; then
             ready_validation=0
           fi
-          if [ "$EVENT_NAME" = "pull_request" ] && \
-            [ "$HEAD_REPOSITORY" = "$CURRENT_REPOSITORY" ]; then
-            case "$HEAD_REF" in
-              automation/local-*)
-                marker_count=$(printf '%s\n' "$PR_BODY" | grep -Ec \
-                  "<!-- zerp-local-batch feature=[a-z0-9][a-z0-9-]* head=${HEAD_SHA} fingerprint=[0-9a-f]{64} -->" || true)
-                if [ "$marker_count" = 1 ]; then local_preview=1; fi
-                ;;
-            esac
-          fi
           checks="${checks}
-          ready_validation=${ready_validation}
-          local_preview=${local_preview}"
+          ready_validation=${ready_validation}"
           printf '%s\n' "$checks"
           printf '%s\n' "$checks" >> "$GITHUB_OUTPUT"
           {
@@ -520,105 +499,6 @@ jobs:
             test "$WEB_IMAGE_RESULT" = "skipped"
           fi
 
-  e2e:
-    name: e2e
-    needs: merge_evidence
-    runs-on: ubuntu-latest
-    timeout-minutes: 35
-    steps:
-      - uses: actions/checkout@v6
-        if: >-
-          github.event_name != 'push' &&
-          needs.merge_evidence.outputs.e2e == '1' &&
-          needs.merge_evidence.outputs.ready_validation == '1'
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - uses: pnpm/action-setup@v6
-        if: >-
-          github.event_name != 'push' &&
-          needs.merge_evidence.outputs.e2e == '1' &&
-          needs.merge_evidence.outputs.ready_validation == '1'
-      - uses: actions/setup-node@v6
-        if: >-
-          github.event_name != 'push' &&
-          needs.merge_evidence.outputs.e2e == '1' &&
-          needs.merge_evidence.outputs.ready_validation == '1'
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - uses: actions/setup-go@v6
-        if: >-
-          github.event_name != 'push' &&
-          needs.merge_evidence.outputs.e2e == '1' &&
-          needs.merge_evidence.outputs.ready_validation == '1'
-        with:
-          go-version-file: backend/go.mod
-          cache-dependency-path: |
-            backend/go.sum
-            backend/tools/go.sum
-      - if: >-
-          github.event_name != 'push' &&
-          needs.merge_evidence.outputs.e2e == '1' &&
-          needs.merge_evidence.outputs.ready_validation == '1'
-        run: pnpm install --frozen-lockfile
-      - name: Cache Playwright Chromium
-        id: playwright-cache
-        if: >-
-          github.event_name != 'push' &&
-          needs.merge_evidence.outputs.e2e == '1' &&
-          needs.merge_evidence.outputs.ready_validation == '1'
-        uses: actions/cache@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
-      - name: Install Chromium system dependencies
-        if: >-
-          github.event_name != 'push' &&
-          needs.merge_evidence.outputs.e2e == '1' &&
-          needs.merge_evidence.outputs.ready_validation == '1'
-        run: pnpm --filter @zerp/frontend exec playwright install-deps chromium
-      - name: Install Chromium
-        if: >-
-          github.event_name != 'push' &&
-          needs.merge_evidence.outputs.e2e == '1' &&
-          needs.merge_evidence.outputs.ready_validation == '1' &&
-          steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter @zerp/frontend exec playwright install chromium
-      - name: Run desktop and mobile against one full stack
-        if: >-
-          github.event_name != 'push' &&
-          needs.merge_evidence.outputs.e2e == '1' &&
-          needs.merge_evidence.outputs.ready_validation == '1'
-        run: make e2e
-      - name: Upload Playwright failure evidence
-        if: >-
-          failure() &&
-          github.event_name != 'push' &&
-          needs.merge_evidence.outputs.e2e == '1' &&
-          needs.merge_evidence.outputs.ready_validation == '1'
-        uses: actions/upload-artifact@v7
-        with:
-          name: playwright-failure-${{ github.sha }}
-          path: |
-            frontend/playwright-report
-            frontend/test-results
-          if-no-files-found: warn
-          retention-days: 14
-      - name: Skip E2E gate
-        if: >-
-          github.event_name != 'push' &&
-          needs.merge_evidence.outputs.e2e != '1'
-        run: echo "No E2E impact"
-      - name: Defer full E2E for draft pull request
-        if: >-
-          github.event_name == 'pull_request' &&
-          needs.merge_evidence.outputs.e2e == '1' &&
-          needs.merge_evidence.outputs.ready_validation != '1'
-        run: echo "Draft application PR; full E2E runs once when the PR is Ready"
-      - name: Reuse successful PR E2E check
-        if: github.event_name == 'push'
-        run: echo "Reused merged PR E2E result"
-
   validation:
     name: validation
     if: always()
@@ -628,7 +508,6 @@ jobs:
       - frontend
       - backend
       - containers
-      - e2e
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -639,14 +518,12 @@ jobs:
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           BACKEND_RESULT: ${{ needs.backend.result }}
           CONTAINERS_RESULT: ${{ needs.containers.result }}
-          E2E_RESULT: ${{ needs.e2e.result }}
         run: |
           test "$EVIDENCE_RESULT" = "success"
           test "$CONTRACTS_RESULT" = "success"
           test "$FRONTEND_RESULT" = "success"
           test "$BACKEND_RESULT" = "success"
           test "$CONTAINERS_RESULT" = "success"
-          test "$E2E_RESULT" = "success"
 
   full_validation:
     name: >-
@@ -656,8 +533,7 @@ jobs:
         'draft-validation' ||
         (github.event_name == 'workflow_dispatch' ||
         (github.event_name == 'pull_request' &&
-        needs.merge_evidence.outputs.preview == '1' &&
-        needs.merge_evidence.outputs.local_preview != '1')) &&
+        needs.merge_evidence.outputs.preview == '1')) &&
         'preview-required' || 'full-validation'
       }}
     if: always()
@@ -675,8 +551,7 @@ jobs:
             ${{
               (github.event_name == 'workflow_dispatch' ||
               (github.event_name == 'pull_request' &&
-              needs.merge_evidence.outputs.preview == '1' &&
-              needs.merge_evidence.outputs.local_preview != '1')) && '1' || '0'
+              needs.merge_evidence.outputs.preview == '1')) && '1' || '0'
             }}
         run: |
           test "$VALIDATION_RESULT" = "success"

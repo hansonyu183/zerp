@@ -43,17 +43,14 @@ test('enforces serial interactions and static locators', () => {
   assert.match(violations.join('\n'), /getByRole requires name and exact: true/)
 })
 
-test('only applies locator rules to serial tests and preview smoke', () => {
+test('only applies locator rules to serial tests', () => {
   assert.deepEqual(
     validateE2EConstraintSources({
       testSources: {
         'ordinary.spec.ts': `await page.getByRole('button').click({ force: true })`,
-        'preview-smoke.mjs': `await page.getByRole('button').click()`,
       },
     }),
-    [
-      'preview-smoke.mjs:1: @system-serial getByRole requires name and exact: true',
-    ],
+    [],
   )
 })
 
@@ -65,9 +62,6 @@ test('recursively scans nested E2E sources', () => {
     fs.mkdirSync(path.join(frontendRoot, 'tests/e2e/nested'), {
       recursive: true,
     })
-    fs.mkdirSync(path.join(frontendRoot, 'scripts'), { recursive: true })
-    fs.writeFileSync(path.join(frontendRoot, 'playwright.config.ts'), '')
-    fs.writeFileSync(path.join(frontendRoot, 'scripts/preview-smoke.mjs'), '')
     fs.writeFileSync(
       path.join(frontendRoot, 'tests/e2e/nested/unsafe.js'),
       `test('unsafe', { tag: '@system-serial' }, () => {

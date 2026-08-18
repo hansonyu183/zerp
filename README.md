@@ -10,9 +10,8 @@ backend/              Go、Gin、pgx、sqlc、Goose
 contracts/openapi/    唯一 HTTP 线协议与生成后的 bundle
 docs/domains/         唯一业务规则与领域职责说明
 docs/use-cases/       按页面组织的前后端处理流程与验收场景
-scripts/              联调、测试、预览与发布编排
+scripts/              联调与测试工具
 tools/                独立版本的构建工具
-.github/workflows/    全栈质量门禁
 ```
 
 ## 环境
@@ -51,18 +50,14 @@ make dev-down
 | `make dev`            | 启动数据库、迁移、API 与前端热更新     |
 | `make generate`       | 生成 OpenAPI bundle、Go/TS API 与 sqlc |
 | `make generate-check` | 验证生成物已提交且无漂移               |
-| `make check`          | 运行前端与后端质量门禁                 |
-| `make pre-push-plan`  | 显示当前提交将运行的分层门禁           |
-| `make pre-push`       | 按变更影响运行分层推送前门禁           |
+| `make check`          | 运行前端与后端质量检查                 |
 | `make test`           | 运行前后端测试                         |
 | `make e2e`            | 启动隔离全栈并运行真实 API Playwright  |
 | `make build`          | 构建前端、后端及容器镜像               |
 | `make compose-up`     | 启动生产形态 Compose                   |
 | `make compose-down`   | 停止生产形态 Compose                   |
 
-固定预览的完整命令、参数和证据边界只在[固定预览运维说明](docs/operations/fixed-preview.md)维护；生产发布、状态、重试与回滚只在[开发与发布规范](docs/operations/development-release.md)维护，避免入口表复制不完整的操作清单。
-
-## 契约工作流
+## 契约开发
 
 `contracts/openapi/openapi.yaml` 及其引用文件是 HTTP 线协议的唯一来源。修改契约后运行：
 
@@ -70,7 +65,7 @@ make dev-down
 make generate
 ```
 
-需要纳入版本控制的生成物必须与契约源文件一同提交；形成可验收提交后运行 `make pre-push` 检查生成漂移和全栈行为。需提交的生成物包括：
+需要纳入版本控制的生成物必须与契约源文件一同提交；使用 `make generate-check` 检查生成漂移。需提交的生成物包括：
 
 - `backend/internal/api/generated/server.gen.go`
 - `frontend/src/api/generated/schema.ts`
@@ -97,19 +92,7 @@ make generate
 
 ### Cloudflare Pages
 
-前端也可由 Cloudflare Pages 托管并直连 HTTPS API。Pages Git 集成使用 `pnpm build` 和根目录 `dist/`，构建时写入精确 commit 标记；后端必须精确允许前端 Origin，并按实际站点拓扑配置 Cookie。两种方式的环境变量和验收步骤见前端 API 配置手册。
-
-### 固定外网开发预览
-
-固定验收使用本机 PostgreSQL、Go API 和静态 Web 进程，不依赖 Docker/Colima，并持久保留测试数据。桌面、手机和本机统一访问：
-
-```text
-https://zerp-preview.bytesucceed.com
-```
-
-首次运行 `make preview-up` 会生成权限为 `600` 的 `backend/.env.preview.local`、建立独立本机 PostgreSQL cluster、迁移数据库、初始化管理员，并补齐 AUX、BOB、全部 VOU 单据、WFL、ACC 与 RPT 所需的全业务测试数据。若检测到旧 Compose 预览，会先备份并一次性导入数据库与附件，再停止旧容器；该环境不复用 E2E 数据，也不会被 `make e2e` 清理。
-
-临时检查可用 `make preview-up` 构建当前工作区。需要固定预览的 Ready PR 先由质量工作流签发 `preview-required`，再从受信任控制 checkout 部署准确 head SHA、执行无密钥的 exact-SHA 浏览器 smoke，并由配置的 release-verifier GitHub App Bot 签发 `full-validation`；PR worktree、实现者和审查者均不能操作预览控制面。证据齐全后才可请求 squash auto-merge，合并后的 `main` 由生产代理自动发布。
+前端也可由 Cloudflare Pages 托管并直连 HTTPS API。Pages 构建使用 `pnpm build` 和根目录 `dist/`，并写入当前 commit 标记；后端必须精确允许前端 Origin，并按实际站点拓扑配置 Cookie。两种方式的环境变量和验收步骤见前端 API 配置手册。
 
 ## 文档
 
@@ -122,9 +105,6 @@ https://zerp-preview.bytesucceed.com
 - [RPT：报表](docs/domains/rpt.md)
 - [页面用例索引](docs/use-cases/README.md)
 - [前端 API 与双部署配置](docs/operations/frontend-api-configuration.md)
-- [固定外网开发预览](docs/operations/fixed-preview.md)
-- [开发、PR 与自动上线规范](docs/operations/development-release.md)
-- [测试与发布流程指标](docs/operations/release-metrics.md)
 
 ## 安全
 

@@ -482,6 +482,22 @@ type AppSystemParameter struct {
 	RestartPending  bool               `db:"restart_pending" json:"restart_pending"`
 }
 
+type AppSystemParameterRuntimeAdoption struct {
+	ParameterKey    string             `db:"parameter_key" json:"parameter_key"`
+	Revision        int64              `db:"revision" json:"revision"`
+	DeploymentScope string             `db:"deployment_scope" json:"deployment_scope"`
+	InstanceID      string             `db:"instance_id" json:"instance_id"`
+	AdoptedAt       pgtype.Timestamptz `db:"adopted_at" json:"adopted_at"`
+}
+
+type AppSystemParameterRuntimeScope struct {
+	ParameterKey        string             `db:"parameter_key" json:"parameter_key"`
+	Revision            int64              `db:"revision" json:"revision"`
+	DeploymentScope     string             `db:"deployment_scope" json:"deployment_scope"`
+	ExpectedInstanceIds []string           `db:"expected_instance_ids" json:"expected_instance_ids"`
+	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
 type AppUser struct {
 	ID                     string             `db:"id" json:"id"`
 	Username               string             `db:"username" json:"username"`

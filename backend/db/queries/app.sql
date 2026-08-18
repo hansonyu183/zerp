@@ -399,6 +399,46 @@ WHERE parameter_key = sqlc.arg(parameter_key)
   AND restart_pending = true
 RETURNING *;
 
+-- name: ListRestartRequiredAppSystemParametersForUpdate :many
+SELECT *
+FROM app_system_parameters
+WHERE effect_mode = 'RESTART_REQUIRED'
+ORDER BY parameter_key
+FOR UPDATE;
+
+-- name: RegisterAppSystemParameterRuntimeScope :exec
+INSERT INTO app_system_parameter_runtime_scopes (
+  parameter_key, revision, deployment_scope, expected_instance_ids
+) VALUES (
+  sqlc.arg(parameter_key), sqlc.arg(revision), sqlc.arg(deployment_scope), sqlc.arg(expected_instance_ids)
+)
+ON CONFLICT (parameter_key, revision, deployment_scope) DO NOTHING;
+
+-- name: GetAppSystemParameterRuntimeScopeForUpdate :one
+SELECT expected_instance_ids
+FROM app_system_parameter_runtime_scopes
+WHERE parameter_key = sqlc.arg(parameter_key)
+  AND revision = sqlc.arg(revision)
+  AND deployment_scope = sqlc.arg(deployment_scope)
+FOR UPDATE;
+
+-- name: ReportAppSystemParameterRuntimeAdoption :exec
+INSERT INTO app_system_parameter_runtime_adoptions (
+  parameter_key, revision, deployment_scope, instance_id
+) VALUES (
+  sqlc.arg(parameter_key), sqlc.arg(revision), sqlc.arg(deployment_scope), sqlc.arg(instance_id)
+)
+ON CONFLICT (parameter_key, revision, deployment_scope, instance_id)
+DO UPDATE SET adopted_at = now();
+
+-- name: CountExpectedAppSystemParameterRuntimeAdoptions :one
+SELECT count(*)
+FROM app_system_parameter_runtime_adoptions
+WHERE parameter_key = sqlc.arg(parameter_key)
+  AND revision = sqlc.arg(revision)
+  AND deployment_scope = sqlc.arg(deployment_scope)
+  AND instance_id = ANY(sqlc.arg(expected_instance_ids)::text[]);
+
 -- name: AcquireAppMenuLock :exec
 SELECT pg_advisory_xact_lock(74155002);
 

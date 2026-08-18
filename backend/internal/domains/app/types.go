@@ -311,19 +311,6 @@ type ResetSystemParameterInput struct {
 	Revision int64  `json:"revision"`
 }
 
-type RuntimeInstanceAdoption struct {
-	InstanceID string
-	Revision   int64
-}
-
-type ConfirmSystemParameterAdoptionInput struct {
-	Key                 string
-	Revision            int64
-	DeploymentScope     string
-	ExpectedInstanceIDs []string
-	Reports             []RuntimeInstanceAdoption
-}
-
 const (
 	MenuModeDefault          = "DEFAULT"
 	MenuModeBusinessTemplate = "BUSINESS_TEMPLATE"

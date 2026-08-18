@@ -55,6 +55,9 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 		return nil, nil, err
 	}
 	appService := appdomain.NewService(db, cfg, logger)
+	if err = appService.InitializeRuntimeSystemParameters(context.Background()); err != nil {
+		return nil, nil, err
+	}
 	if err = accService.RegisterSubscriptions(eventBus); err != nil {
 		return nil, nil, err
 	}

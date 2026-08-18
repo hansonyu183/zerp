@@ -6,6 +6,8 @@ import (
 	"errors"
 	"math/big"
 	"regexp"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -196,79 +198,133 @@ func (s *Service) ResetSystemParameter(ctx context.Context, input ResetSystemPar
 	return view, nil
 }
 
-func (s *Service) ConfirmSystemParameterAdoption(ctx context.Context, input ConfirmSystemParameterAdoptionInput, actorID, requestID string) (SystemParameterView, error) {
-	if err := validateRuntimeAdoptionEvidence(input); err != nil {
-		return SystemParameterView{}, err
+func (s *Service) InitializeRuntimeSystemParameters(ctx context.Context) error {
+	expectedInstanceIDs, err := validateRuntimeInstanceIdentity(
+		s.cfg.RuntimeDeploymentScope,
+		s.cfg.RuntimeInstanceID,
+		s.cfg.RuntimeExpectedInstanceIDs,
+	)
+	if err != nil {
+		return err
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return SystemParameterView{}, s.internal("begin confirm system parameter adoption", err)
+		return s.internal("begin runtime system parameter initialization", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.queries.WithTx(tx)
-	parameter, err := qtx.GetAppSystemParameterForUpdate(ctx, input.Key)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return SystemParameterView{}, domainError(ErrorNotFound, "system parameter not found", nil)
-	}
+	parameters, err := qtx.ListRestartRequiredAppSystemParametersForUpdate(ctx)
 	if err != nil {
-		return SystemParameterView{}, s.internal("lock system parameter adoption", err)
+		return s.internal("load restart-required system parameters", err)
 	}
-	if parameter.EffectMode != EffectModeRestart {
-		return SystemParameterView{}, domainError(ErrorForbidden, "system parameter does not require restart adoption", nil)
-	}
-	if parameter.Revision != input.Revision {
-		return SystemParameterView{}, domainError(ErrorConflict, "system parameter revision conflict", nil)
-	}
-	if !parameter.RestartPending {
-		view, viewErr := systemParameterView(parameter)
-		return view, viewErr
-	}
-	updated, err := qtx.ConfirmAppSystemParameterAdoption(ctx, dbsqlc.ConfirmAppSystemParameterAdoptionParams{
-		ActorID: &actorID, ParameterKey: input.Key, Revision: input.Revision,
-	})
-	if err != nil {
-		return SystemParameterView{}, s.systemParameterWriteError("confirm system parameter adoption", err)
-	}
-	if err = s.audit(ctx, qtx, "SYSTEM_PARAMETER_ADOPTION_CONFIRM", &actorID, "system-parameter", &input.Key, "SUCCESS", requestID, map[string]any{
-		"key": input.Key, "revision": input.Revision, "deploymentScope": input.DeploymentScope,
-		"instanceCount": len(input.ExpectedInstanceIDs),
-	}); err != nil {
-		return SystemParameterView{}, s.internal("audit system parameter adoption", err)
+	loaded := make(map[string]runtimeSystemParameterSnapshot, len(parameters))
+	for _, parameter := range parameters {
+		loaded[parameter.ParameterKey] = runtimeSystemParameterSnapshot{
+			value: parameter.ConfiguredValue, revision: parameter.Revision,
+		}
+		if !parameter.RestartPending {
+			continue
+		}
+		params := dbsqlc.RegisterAppSystemParameterRuntimeScopeParams{
+			ParameterKey:        parameter.ParameterKey,
+			Revision:            parameter.Revision,
+			DeploymentScope:     s.cfg.RuntimeDeploymentScope,
+			ExpectedInstanceIds: expectedInstanceIDs,
+		}
+		if err = qtx.RegisterAppSystemParameterRuntimeScope(ctx, params); err != nil {
+			return s.internal("register system parameter runtime scope", err)
+		}
+		registeredExpected, scopeErr := qtx.GetAppSystemParameterRuntimeScopeForUpdate(ctx, dbsqlc.GetAppSystemParameterRuntimeScopeForUpdateParams{
+			ParameterKey:    parameter.ParameterKey,
+			Revision:        parameter.Revision,
+			DeploymentScope: s.cfg.RuntimeDeploymentScope,
+		})
+		if scopeErr != nil {
+			return s.internal("lock system parameter runtime scope", scopeErr)
+		}
+		if !slices.Equal(registeredExpected, expectedInstanceIDs) {
+			return domainError(ErrorValidation, "runtime deployment inventory does not match existing adoption scope", nil)
+		}
+		if err = qtx.ReportAppSystemParameterRuntimeAdoption(ctx, dbsqlc.ReportAppSystemParameterRuntimeAdoptionParams{
+			ParameterKey:    parameter.ParameterKey,
+			Revision:        parameter.Revision,
+			DeploymentScope: s.cfg.RuntimeDeploymentScope,
+			InstanceID:      s.cfg.RuntimeInstanceID,
+		}); err != nil {
+			return s.internal("report system parameter runtime adoption", err)
+		}
+		adoptionCount, countErr := qtx.CountExpectedAppSystemParameterRuntimeAdoptions(ctx, dbsqlc.CountExpectedAppSystemParameterRuntimeAdoptionsParams{
+			ParameterKey:        parameter.ParameterKey,
+			Revision:            parameter.Revision,
+			DeploymentScope:     s.cfg.RuntimeDeploymentScope,
+			ExpectedInstanceIds: expectedInstanceIDs,
+		})
+		if countErr != nil {
+			return s.internal("count system parameter runtime adoptions", countErr)
+		}
+		if adoptionCount != int64(len(expectedInstanceIDs)) {
+			continue
+		}
+		if _, err = qtx.ConfirmAppSystemParameterAdoption(ctx, dbsqlc.ConfirmAppSystemParameterAdoptionParams{
+			ActorID: nil, ParameterKey: parameter.ParameterKey, Revision: parameter.Revision,
+		}); err != nil {
+			return s.systemParameterWriteError("confirm system parameter adoption", err)
+		}
+		requestID := "runtime-startup:" + s.cfg.RuntimeDeploymentScope + ":" + s.cfg.RuntimeInstanceID
+		if err = s.audit(ctx, qtx, "SYSTEM_PARAMETER_ADOPTION_CONFIRM", nil, "system-parameter", &parameter.ParameterKey, "SUCCESS", requestID, map[string]any{
+			"key": parameter.ParameterKey, "revision": parameter.Revision,
+			"deploymentScope": s.cfg.RuntimeDeploymentScope, "instanceCount": len(expectedInstanceIDs),
+		}); err != nil {
+			return s.internal("audit system parameter adoption", err)
+		}
 	}
 	if err = tx.Commit(ctx); err != nil {
-		return SystemParameterView{}, s.internal("commit system parameter adoption", err)
+		return s.internal("commit runtime system parameter initialization", err)
 	}
-	view, err := systemParameterView(updated)
-	if err != nil {
-		return SystemParameterView{}, s.internal("map adopted system parameter", err)
-	}
-	return view, nil
+	s.runtimeMu.Lock()
+	s.runtimeSystemParameters = loaded
+	s.runtimeMu.Unlock()
+	return nil
 }
 
-func validateRuntimeAdoptionEvidence(input ConfirmSystemParameterAdoptionInput) error {
-	if !validSystemParameterKey(input.Key) || input.Revision < 1 || strings.TrimSpace(input.DeploymentScope) == "" || len(input.DeploymentScope) > 128 || len(input.ExpectedInstanceIDs) == 0 {
-		return domainError(ErrorValidation, "invalid system parameter adoption evidence", nil)
+func (s *Service) runtimeSystemParameter(key string) (string, int64, bool) {
+	s.runtimeMu.RLock()
+	defer s.runtimeMu.RUnlock()
+	parameter, ok := s.runtimeSystemParameters[key]
+	return parameter.value, parameter.revision, ok
+}
+
+func validateRuntimeInstanceIdentity(scope, instanceID string, expectedInstanceIDs []string) ([]string, error) {
+	if !validRuntimeIdentifier(scope) || !validRuntimeIdentifier(instanceID) || len(expectedInstanceIDs) == 0 {
+		return nil, domainError(ErrorValidation, "invalid runtime instance identity", nil)
 	}
-	expected := make(map[string]bool, len(input.ExpectedInstanceIDs))
-	for _, instanceID := range input.ExpectedInstanceIDs {
-		instanceID = strings.TrimSpace(instanceID)
-		if instanceID == "" || len(instanceID) > 128 || expected[instanceID] {
-			return domainError(ErrorValidation, "invalid expected runtime instance set", nil)
+	expected := append([]string(nil), expectedInstanceIDs...)
+	sort.Strings(expected)
+	currentFound := false
+	for index, expectedID := range expected {
+		if !validRuntimeIdentifier(expectedID) || index > 0 && expected[index-1] == expectedID {
+			return nil, domainError(ErrorValidation, "invalid expected runtime instance set", nil)
 		}
-		expected[instanceID] = true
+		currentFound = currentFound || expectedID == instanceID
 	}
-	if len(input.Reports) != len(expected) {
-		return domainError(ErrorValidation, "runtime adoption evidence is incomplete", nil)
+	if !currentFound {
+		return nil, domainError(ErrorValidation, "runtime instance is not part of deployment inventory", nil)
 	}
-	reported := make(map[string]bool, len(input.Reports))
-	for _, report := range input.Reports {
-		instanceID := strings.TrimSpace(report.InstanceID)
-		if !expected[instanceID] || reported[instanceID] || report.Revision != input.Revision {
-			return domainError(ErrorValidation, "runtime adoption evidence is incomplete or stale", nil)
+	return expected, nil
+}
+
+func validRuntimeIdentifier(value string) bool {
+	if value == "" || len(value) > 128 {
+		return false
+	}
+	for index, character := range value {
+		letter := character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z'
+		digit := character >= '0' && character <= '9'
+		if !letter && !digit && (index == 0 || character != '-' && character != '_' && character != '.') {
+			return false
 		}
-		reported[instanceID] = true
 	}
-	return nil
+	return true
 }
 
 func (s *Service) systemParameterWriteError(operation string, err error) error {

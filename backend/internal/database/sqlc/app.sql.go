@@ -311,6 +311,34 @@ func (q *Queries) CountEnabledUsersWithPermissionExcludingRole(ctx context.Conte
 	return count, err
 }
 
+const countExpectedAppSystemParameterRuntimeAdoptions = `-- name: CountExpectedAppSystemParameterRuntimeAdoptions :one
+SELECT count(*)
+FROM app_system_parameter_runtime_adoptions
+WHERE parameter_key = $1
+  AND revision = $2
+  AND deployment_scope = $3
+  AND instance_id = ANY($4::text[])
+`
+
+type CountExpectedAppSystemParameterRuntimeAdoptionsParams struct {
+	ParameterKey        string   `db:"parameter_key" json:"parameter_key"`
+	Revision            int64    `db:"revision" json:"revision"`
+	DeploymentScope     string   `db:"deployment_scope" json:"deployment_scope"`
+	ExpectedInstanceIds []string `db:"expected_instance_ids" json:"expected_instance_ids"`
+}
+
+func (q *Queries) CountExpectedAppSystemParameterRuntimeAdoptions(ctx context.Context, arg CountExpectedAppSystemParameterRuntimeAdoptionsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countExpectedAppSystemParameterRuntimeAdoptions,
+		arg.ParameterKey,
+		arg.Revision,
+		arg.DeploymentScope,
+		arg.ExpectedInstanceIds,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countOtherEnabledUsersWithPermission = `-- name: CountOtherEnabledUsersWithPermission :one
 SELECT count(*)
 FROM app_users u
@@ -782,6 +810,28 @@ func (q *Queries) GetAppSystemParameterForUpdate(ctx context.Context, parameterK
 		&i.RestartPending,
 	)
 	return i, err
+}
+
+const getAppSystemParameterRuntimeScopeForUpdate = `-- name: GetAppSystemParameterRuntimeScopeForUpdate :one
+SELECT expected_instance_ids
+FROM app_system_parameter_runtime_scopes
+WHERE parameter_key = $1
+  AND revision = $2
+  AND deployment_scope = $3
+FOR UPDATE
+`
+
+type GetAppSystemParameterRuntimeScopeForUpdateParams struct {
+	ParameterKey    string `db:"parameter_key" json:"parameter_key"`
+	Revision        int64  `db:"revision" json:"revision"`
+	DeploymentScope string `db:"deployment_scope" json:"deployment_scope"`
+}
+
+func (q *Queries) GetAppSystemParameterRuntimeScopeForUpdate(ctx context.Context, arg GetAppSystemParameterRuntimeScopeForUpdateParams) ([]string, error) {
+	row := q.db.QueryRow(ctx, getAppSystemParameterRuntimeScopeForUpdate, arg.ParameterKey, arg.Revision, arg.DeploymentScope)
+	var expected_instance_ids []string
+	err := row.Scan(&expected_instance_ids)
+	return expected_instance_ids, err
 }
 
 const getAppUserAvatarURL = `-- name: GetAppUserAvatarURL :one
@@ -1670,6 +1720,53 @@ func (q *Queries) ListEnabledAppRolePermissionIDs(ctx context.Context, roleID st
 	return items, nil
 }
 
+const listRestartRequiredAppSystemParametersForUpdate = `-- name: ListRestartRequiredAppSystemParametersForUpdate :many
+SELECT parameter_key, name, description, value_type, configured_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by, safe_to_expose, constraints, effect_mode, running_value, running_revision, restart_pending
+FROM app_system_parameters
+WHERE effect_mode = 'RESTART_REQUIRED'
+ORDER BY parameter_key
+FOR UPDATE
+`
+
+func (q *Queries) ListRestartRequiredAppSystemParametersForUpdate(ctx context.Context) ([]AppSystemParameter, error) {
+	rows, err := q.db.Query(ctx, listRestartRequiredAppSystemParametersForUpdate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AppSystemParameter{}
+	for rows.Next() {
+		var i AppSystemParameter
+		if err := rows.Scan(
+			&i.ParameterKey,
+			&i.Name,
+			&i.Description,
+			&i.ValueType,
+			&i.ConfiguredValue,
+			&i.DefaultValue,
+			&i.Editable,
+			&i.Revision,
+			&i.CreatedAt,
+			&i.CreatedBy,
+			&i.UpdatedAt,
+			&i.UpdatedBy,
+			&i.SafeToExpose,
+			&i.Constraints,
+			&i.EffectMode,
+			&i.RunningValue,
+			&i.RunningRevision,
+			&i.RestartPending,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const nextAppRoleCode = `-- name: NextAppRoleCode :one
 UPDATE app_role_code_counters
 SET next_value = next_value + 1
@@ -1719,6 +1816,59 @@ func (q *Queries) RecordSigninFailure(ctx context.Context, arg RecordSigninFailu
 		&i.PasswordChangeRequired,
 	)
 	return i, err
+}
+
+const registerAppSystemParameterRuntimeScope = `-- name: RegisterAppSystemParameterRuntimeScope :exec
+INSERT INTO app_system_parameter_runtime_scopes (
+  parameter_key, revision, deployment_scope, expected_instance_ids
+) VALUES (
+  $1, $2, $3, $4
+)
+ON CONFLICT (parameter_key, revision, deployment_scope) DO NOTHING
+`
+
+type RegisterAppSystemParameterRuntimeScopeParams struct {
+	ParameterKey        string   `db:"parameter_key" json:"parameter_key"`
+	Revision            int64    `db:"revision" json:"revision"`
+	DeploymentScope     string   `db:"deployment_scope" json:"deployment_scope"`
+	ExpectedInstanceIds []string `db:"expected_instance_ids" json:"expected_instance_ids"`
+}
+
+func (q *Queries) RegisterAppSystemParameterRuntimeScope(ctx context.Context, arg RegisterAppSystemParameterRuntimeScopeParams) error {
+	_, err := q.db.Exec(ctx, registerAppSystemParameterRuntimeScope,
+		arg.ParameterKey,
+		arg.Revision,
+		arg.DeploymentScope,
+		arg.ExpectedInstanceIds,
+	)
+	return err
+}
+
+const reportAppSystemParameterRuntimeAdoption = `-- name: ReportAppSystemParameterRuntimeAdoption :exec
+INSERT INTO app_system_parameter_runtime_adoptions (
+  parameter_key, revision, deployment_scope, instance_id
+) VALUES (
+  $1, $2, $3, $4
+)
+ON CONFLICT (parameter_key, revision, deployment_scope, instance_id)
+DO UPDATE SET adopted_at = now()
+`
+
+type ReportAppSystemParameterRuntimeAdoptionParams struct {
+	ParameterKey    string `db:"parameter_key" json:"parameter_key"`
+	Revision        int64  `db:"revision" json:"revision"`
+	DeploymentScope string `db:"deployment_scope" json:"deployment_scope"`
+	InstanceID      string `db:"instance_id" json:"instance_id"`
+}
+
+func (q *Queries) ReportAppSystemParameterRuntimeAdoption(ctx context.Context, arg ReportAppSystemParameterRuntimeAdoptionParams) error {
+	_, err := q.db.Exec(ctx, reportAppSystemParameterRuntimeAdoption,
+		arg.ParameterKey,
+		arg.Revision,
+		arg.DeploymentScope,
+		arg.InstanceID,
+	)
+	return err
 }
 
 const resetAppSystemParameterValue = `-- name: ResetAppSystemParameterValue :one

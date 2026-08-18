@@ -111,16 +111,40 @@ func TestSystemParameterManagementIntegration(t *testing.T) {
 	if err != nil || reverted.RunningValue == nil || *reverted.RunningValue != "1.25" || !reverted.RestartPending {
 		t.Fatalf("restart-required revert must remain pending = %+v, %v", reverted, err)
 	}
-	partialEvidence := ConfirmSystemParameterAdoptionInput{
-		Key: reverted.Key, Revision: reverted.Revision, DeploymentScope: "integration",
-		ExpectedInstanceIDs: []string{"api-1", "api-2"},
-		Reports:             []RuntimeInstanceAdoption{{InstanceID: "api-1", Revision: reverted.Revision}},
+	firstConfig := appIntegrationConfig(t)
+	firstConfig.RuntimeDeploymentScope = "integration"
+	firstConfig.RuntimeInstanceID = "api-1"
+	firstConfig.RuntimeExpectedInstanceIDs = []string{"api-1", "api-2"}
+	firstInstance := NewService(pool, firstConfig, nil)
+	if err = firstInstance.InitializeRuntimeSystemParameters(t.Context()); err != nil {
+		t.Fatalf("initialize first runtime instance: %v", err)
 	}
-	if _, err = service.ConfirmSystemParameterAdoption(t.Context(), partialEvidence, admin.ID, "partial-adoption"); !errorIsKind(err, ErrorValidation) {
-		t.Fatalf("partial adoption error = %v", err)
+	loadedValue, loadedRevision, loaded := firstInstance.runtimeSystemParameter(reverted.Key)
+	if !loaded || loadedValue != reverted.ConfiguredValue || loadedRevision != reverted.Revision {
+		t.Fatalf("first runtime loaded = %q/%d/%t", loadedValue, loadedRevision, loaded)
 	}
-	partialEvidence.Reports = append(partialEvidence.Reports, RuntimeInstanceAdoption{InstanceID: "api-2", Revision: reverted.Revision})
-	adopted, err := service.ConfirmSystemParameterAdoption(t.Context(), partialEvidence, admin.ID, "complete-adoption")
+	partiallyAdopted, err := service.GetSystemParameter(t.Context(), reverted.Key)
+	if err != nil || !partiallyAdopted.RestartPending {
+		t.Fatalf("first instance must not complete adoption = %+v, %v", partiallyAdopted, err)
+	}
+
+	mismatchedConfig := appIntegrationConfig(t)
+	mismatchedConfig.RuntimeDeploymentScope = "integration"
+	mismatchedConfig.RuntimeInstanceID = "api-2"
+	mismatchedConfig.RuntimeExpectedInstanceIDs = []string{"api-1", "api-2", "api-3"}
+	if err = NewService(pool, mismatchedConfig, nil).InitializeRuntimeSystemParameters(t.Context()); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("mismatched deployment inventory error = %v", err)
+	}
+
+	secondConfig := appIntegrationConfig(t)
+	secondConfig.RuntimeDeploymentScope = "integration"
+	secondConfig.RuntimeInstanceID = "api-2"
+	secondConfig.RuntimeExpectedInstanceIDs = []string{"api-1", "api-2"}
+	secondInstance := NewService(pool, secondConfig, nil)
+	if err = secondInstance.InitializeRuntimeSystemParameters(t.Context()); err != nil {
+		t.Fatalf("initialize second runtime instance: %v", err)
+	}
+	adopted, err := service.GetSystemParameter(t.Context(), reverted.Key)
 	if err != nil || adopted.RunningValue == nil || *adopted.RunningValue != "1.25" || adopted.RestartPending {
 		t.Fatalf("complete adoption = %+v, %v", adopted, err)
 	}

@@ -89,23 +89,15 @@ func TestValidateSystemParameterDefinitionRequiresConstraintsForEditableValues(t
 	}
 }
 
-func TestValidateRuntimeAdoptionEvidenceRequiresEveryExpectedInstanceAtLatestRevision(t *testing.T) {
-	input := ConfirmSystemParameterAdoptionInput{
-		Key: "test.restart", Revision: 4, DeploymentScope: "preview",
-		ExpectedInstanceIDs: []string{"api-1", "api-2"},
-		Reports: []RuntimeInstanceAdoption{
-			{InstanceID: "api-1", Revision: 4},
-		},
+func TestValidateRuntimeInstanceIdentityRequiresCurrentUniqueInstance(t *testing.T) {
+	if _, err := validateRuntimeInstanceIdentity("preview", "api-1", []string{"api-1", "api-1"}); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("duplicate inventory error = %v, want validation", err)
 	}
-	if err := validateRuntimeAdoptionEvidence(input); !errorIsKind(err, ErrorValidation) {
-		t.Fatalf("partial evidence error = %v, want validation", err)
+	if _, err := validateRuntimeInstanceIdentity("preview", "api-2", []string{"api-1"}); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("missing current instance error = %v, want validation", err)
 	}
-	input.Reports = append(input.Reports, RuntimeInstanceAdoption{InstanceID: "api-2", Revision: 3})
-	if err := validateRuntimeAdoptionEvidence(input); !errorIsKind(err, ErrorValidation) {
-		t.Fatalf("stale evidence error = %v, want validation", err)
-	}
-	input.Reports[1].Revision = 4
-	if err := validateRuntimeAdoptionEvidence(input); err != nil {
-		t.Fatalf("complete evidence rejected: %v", err)
+	expected, err := validateRuntimeInstanceIdentity("preview", "api-2", []string{"api-2", "api-1"})
+	if err != nil || expected[0] != "api-1" || expected[1] != "api-2" {
+		t.Fatalf("valid runtime identity = %#v, %v", expected, err)
 	}
 }

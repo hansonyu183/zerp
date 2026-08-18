@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hansonyu183/zerp/backend/internal/config"
@@ -13,12 +14,19 @@ import (
 )
 
 type Service struct {
-	pool          *pgxpool.Pool
-	queries       *dbsqlc.Queries
-	cfg           config.Config
-	logger        *slog.Logger
-	dummyPassword string
-	storage       *attachmentstore.Store
+	pool                    *pgxpool.Pool
+	queries                 *dbsqlc.Queries
+	cfg                     config.Config
+	logger                  *slog.Logger
+	dummyPassword           string
+	storage                 *attachmentstore.Store
+	runtimeMu               sync.RWMutex
+	runtimeSystemParameters map[string]runtimeSystemParameterSnapshot
+}
+
+type runtimeSystemParameterSnapshot struct {
+	value    string
+	revision int64
 }
 
 func NewService(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) *Service {
@@ -45,5 +53,6 @@ func NewService(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) *Ser
 	return &Service{
 		pool: pool, queries: dbsqlc.New(pool), cfg: cfg, logger: logger,
 		dummyPassword: dummy, storage: storage,
+		runtimeSystemParameters: make(map[string]runtimeSystemParameterSnapshot),
 	}
 }

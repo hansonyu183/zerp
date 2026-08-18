@@ -183,7 +183,7 @@ User ──< UserRole >── Role ──< RolePermission >── Permission
 | `NEXT_REQUEST`     | 下次请求生效 | 保存或恢复默认后，后续请求按该模式采用配置值。       |
 | `RESTART_REQUIRED` | 重启后生效   | 保存或恢复默认只更新配置值；运行值等待受控重启确认。 |
 
-`IMMEDIATE` 和 `NEXT_REQUEST` 的保存成功语义必须按各自名称明确表达，不产生待重启状态；`reset` 与 `save` 使用同一生效模式语义。对 `RESTART_REQUIRED`，每次产生新 `revision` 的保存或恢复默认都必须设置或保留 `restartPending`，即使新的配置文本恰好等于旧运行值，也不得用文本相等代替最新版本采用证明。页面不得执行重启。部署或运维流程负责重启，并从准确部署范围的运行实例收集所采用的参数版本；受信部署控制器使用 `go run ./cmd/confirm-system-parameter-adoption --key <key> --revision <revision> --scope <scope> --expected-instances <id,...> --reports <id:revision,...>` 提交完整证据。该入口只由持有后端数据库凭证的受控运行环境调用，不暴露为用户 HTTP API。只有全部预期实例证明采用同一最新版本时，事务才更新运行值并清除 `restartPending`；证明不完整、重复或陈旧时保留旧运行值和待重启状态。
+`IMMEDIATE` 和 `NEXT_REQUEST` 的保存成功语义必须按各自名称明确表达，不产生待重启状态；`reset` 与 `save` 使用同一生效模式语义。对 `RESTART_REQUIRED`，每次产生新 `revision` 的保存或恢复默认都必须设置或保留 `restartPending`，即使新的配置文本恰好等于旧运行值，也不得用文本相等代替最新版本采用证明。页面不得执行重启。部署配置必须固定部署范围、当前实例标识和完整预期实例清单；每个服务实例启动时先把当前配置值及版本加载为本实例运行快照，再只能以自己的部署身份上报自己实际加载的版本，不接受 HTTP 或人工命令代报其他实例。首个上报事务固化该版本的预期实例清单，后续实例的清单不一致时启动失败。只有固定清单内全部实例都为同一最新版本完成自报时，事务才更新运行值并清除 `restartPending`；证明不完整、重复或陈旧时保留旧运行值和待重启状态。
 
 `app.menu.mode` 是菜单服务专用参数，只允许 `DEFAULT` 或 `BUSINESS_TEMPLATE`。它在通用系统参数查询中可见但不可编辑，仍由菜单服务维护；通用 `save` 和 `reset` 必须拒绝修改该键。
 

@@ -209,7 +209,7 @@ async function allPermissions(api: RealApi): Promise<PermissionView[]> {
   for (let page = 1; ; page += 1) {
     const data = await api.post<Page<PermissionView>>('app/permission/query', {
       page,
-      pageSize: 200,
+      pageSize: 20,
       filters: { status: 'ENABLED' },
       sort: [{ field: 'path', order: 'asc' }],
     })

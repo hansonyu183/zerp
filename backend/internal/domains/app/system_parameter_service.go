@@ -288,13 +288,6 @@ func (s *Service) InitializeRuntimeSystemParameters(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) runtimeSystemParameter(key string) (string, int64, bool) {
-	s.runtimeMu.RLock()
-	defer s.runtimeMu.RUnlock()
-	parameter, ok := s.runtimeSystemParameters[key]
-	return parameter.value, parameter.revision, ok
-}
-
 func validateRuntimeInstanceIdentity(scope, instanceID string, expectedInstanceIDs []string) ([]string, error) {
 	if !validRuntimeIdentifier(scope) || !validRuntimeIdentifier(instanceID) || len(expectedInstanceIDs) == 0 {
 		return nil, fmt.Errorf("invalid runtime instance identity")

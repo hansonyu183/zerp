@@ -119,9 +119,11 @@ func TestSystemParameterManagementIntegration(t *testing.T) {
 	if err = firstInstance.InitializeRuntimeSystemParameters(t.Context()); err != nil {
 		t.Fatalf("initialize first runtime instance: %v", err)
 	}
-	loadedValue, loadedRevision, loaded := firstInstance.runtimeSystemParameter(reverted.Key)
-	if !loaded || loadedValue != reverted.ConfiguredValue || loadedRevision != reverted.Revision {
-		t.Fatalf("first runtime loaded = %q/%d/%t", loadedValue, loadedRevision, loaded)
+	firstInstance.runtimeMu.RLock()
+	loadedParameter, loaded := firstInstance.runtimeSystemParameters[reverted.Key]
+	firstInstance.runtimeMu.RUnlock()
+	if !loaded || loadedParameter.value != reverted.ConfiguredValue || loadedParameter.revision != reverted.Revision {
+		t.Fatalf("first runtime loaded = %+v/%t", loadedParameter, loaded)
 	}
 	partiallyAdopted, err := service.GetSystemParameter(t.Context(), reverted.Key)
 	if err != nil || !partiallyAdopted.RestartPending {

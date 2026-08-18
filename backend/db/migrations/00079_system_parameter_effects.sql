@@ -71,6 +71,8 @@ ALTER TABLE app_system_parameters
 ALTER TABLE app_system_parameters
     ALTER COLUMN effect_mode DROP DEFAULT;
 
+SELECT rpt_validate_current_reports();
+
 -- +goose Down
 -- +goose StatementBegin
 DO $$

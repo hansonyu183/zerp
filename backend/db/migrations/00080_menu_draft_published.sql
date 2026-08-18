@@ -66,6 +66,8 @@ VALUES ('01JAPPMENU0000000000000004', '/app/menu/publish-business-template', 'ap
 ON CONFLICT (path) DO UPDATE
 SET description = EXCLUDED.description, status = EXCLUDED.status;
 
+SELECT rpt_validate_current_reports();
+
 -- +goose Down
 -- +goose StatementBegin
 DO $$

@@ -2,6 +2,12 @@
 
 ZERP uses shared business terms across its auxiliary-data, business-object, voucher, workflow, and business-ledger domains. This glossary fixes the meaning of terms that cross those domain boundaries.
 
+## Authorization
+
+**Delegation Ceiling（授权上限）**:
+管理员当前最终权限集合形成其授权上限；管理员只能创建、修改或分配有效权限不超过该上限的角色。`superadmin` 的未来通配语义也属于授权范围，因此只能由当前 `superadmin` 分配。
+_Avoid_: 角色管理权限等于全部权限、可授予未拥有权限
+
 ## Navigation
 
 **APP Page Route（APP 页面路由）**:

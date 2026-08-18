@@ -25,6 +25,26 @@ func TestValidatePageAndFilters(t *testing.T) {
 	}
 }
 
+func TestValidateFixedPageRequiresExactContractShape(t *testing.T) {
+	valid := PageRequest{
+		Page: 1, PageSize: 20,
+		Sort: []SortItem{{Field: "path", Order: "asc"}},
+	}
+	if _, err := validateFixedPage(valid, "path", "asc"); err != nil {
+		t.Fatalf("valid fixed page rejected: %v", err)
+	}
+	for _, request := range []PageRequest{
+		{},
+		{Page: 1, PageSize: 200, Sort: valid.Sort},
+		{Page: 1, PageSize: 20, Sort: []SortItem{{Field: "path", Order: "desc"}}},
+		{Page: 1, PageSize: 20, Sort: []SortItem{{Field: "PATH", Order: "asc"}}},
+	} {
+		if _, err := validateFixedPage(request, "path", "asc"); !errorIsKind(err, ErrorValidation) {
+			t.Fatalf("invalid fixed page accepted: %#v", request)
+		}
+	}
+}
+
 func TestStrictIDsAndUnicodeLengths(t *testing.T) {
 	if !validID("01J00000000000000000000000") || validID("user-1") || validID(strings.ToLower("01J00000000000000000000000")) {
 		t.Fatal("validID() did not enforce canonical ULID")

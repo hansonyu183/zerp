@@ -100,7 +100,7 @@ async function queryPermissions(
         'app/permission/query',
         {
           page: page++,
-          pageSize: 200,
+          pageSize: 20,
           sort: [{ field: 'path', order: 'asc' }],
         },
         csrfToken,
@@ -530,7 +530,7 @@ test(
       }
 
       await signInPage(page, administrator)
-      await page.goto('/admin/role')
+      await page.goto('/app/role')
       const roleSearch = page.getByLabel('角色编码或名称', { exact: true })
       await roleSearch.fill('system')
       await page.getByRole('button', { name: '查询', exact: true }).click()

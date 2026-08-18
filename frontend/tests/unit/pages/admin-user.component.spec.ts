@@ -1,12 +1,12 @@
 import { mount } from '@vue/test-utils'
 import { computed, defineComponent, h, reactive } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import User from '@/pages/admin/user/User.vue'
+import User from '@/pages/app/user/User.vue'
 
 const vmState = vi.hoisted(() => ({
   value: null as Record<string, unknown> | null,
 }))
-vi.mock('@/pages/admin/user/vm', () => ({
+vi.mock('@/pages/app/user/vm', () => ({
   createUserManagementViewModel: () => vmState.value,
 }))
 

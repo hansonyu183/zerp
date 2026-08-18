@@ -8,12 +8,12 @@ import {
   saveAdminUser,
   setAdminUserEnabled,
   resetAdminUserPassword,
-} from '@/pages/admin/shared/api'
-import { createUserManagementViewModel } from '@/pages/admin/user/vm'
+} from '@/pages/app/shared/api'
+import { createUserManagementViewModel } from '@/pages/app/user/vm'
 import { useSessionStore } from '@/stores/session'
 import { ApiError } from '@/api/types'
 
-vi.mock('@/pages/admin/shared/api', () => ({
+vi.mock('@/pages/app/shared/api', () => ({
   queryAdminUsers: vi.fn(),
   getAdminUser: vi.fn(),
   createAdminUser: vi.fn(),

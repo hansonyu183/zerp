@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import menuSource from '@/pages/admin/menu/Menu.vue?raw'
+import menuSource from '@/pages/app/menu/Menu.vue?raw'
 
 describe('menu management responsive layout', () => {
   it('stacks editable routes into labeled cards at phone widths', () => {

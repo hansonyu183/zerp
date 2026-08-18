@@ -76,10 +76,11 @@ func (stub *handlerServiceStub) QueryWorkbench(
 func (stub *handlerServiceStub) GetMenu(context.Context, Principal) (MenuGetData, error) {
 	return MenuGetData{
 		Mode: MenuModeDefault, ModeRevision: 1,
-		DefaultMenu:      MenuTree{Revision: 1, Items: []MenuItemView{}},
-		BusinessTemplate: MenuTree{Revision: 1, Items: []MenuItemView{}},
-		Navigation:       MenuTree{Revision: 1, Items: []MenuItemView{}},
-		AvailableRoutes:  []MenuRouteOption{},
+		DefaultMenu:     MenuTree{Revision: 1, Items: []MenuItemView{}},
+		Draft:           MenuTree{Revision: 1, Items: []MenuItemView{}},
+		Published:       MenuTree{Revision: 1, Items: []MenuItemView{}},
+		Navigation:      MenuTree{Revision: 1, Items: []MenuItemView{}},
+		AvailableRoutes: []MenuRouteOption{},
 	}, nil
 }
 
@@ -133,7 +134,7 @@ func TestHandlerRegistersCompleteAPIRouteSet(t *testing.T) {
 		"/app/permission/query", "/app/permission/get",
 		"/app/system-parameter/query", "/app/system-parameter/get",
 		"/app/system-parameter/save", "/app/system-parameter/reset",
-		"/app/menu/get", "/app/menu/save-business-template",
+		"/app/menu/get", "/app/menu/save-business-template", "/app/menu/publish-business-template",
 		"/app/menu/activate", "/app/menu/reset-business-template",
 		"/app/workbench/query",
 		"/app/feedback/attachment-initiate", "/app/feedback/attachment-remove",

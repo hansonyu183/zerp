@@ -31,7 +31,7 @@ async function changeRequiredPassword(
   newPassword: string,
 ): Promise<void> {
   await expect(page).toHaveURL(/\/change-password$/)
-  await page.goto('/admin/user')
+  await page.goto('/app/user')
   await expect(page).toHaveURL(/\/change-password$/)
   await page.getByLabel('当前密码', { exact: true }).fill(currentPassword)
   await page.getByLabel('新密码', { exact: true }).fill(newPassword)
@@ -55,7 +55,7 @@ test(
 
     await signIn(page, administrator)
     await expect(page).toHaveURL(/\/home\/dashboard$/)
-    await page.goto('/admin/user')
+    await page.goto('/app/user')
     await page.getByRole('button', { name: '新增', exact: true }).click()
     await page
       .getByRole('textbox', { name: '用户名', exact: true })
@@ -90,7 +90,7 @@ test(
     await signOut(page)
     await signIn(page, administrator)
     await expect(page).toHaveURL(/\/home\/dashboard$/)
-    await page.goto('/admin/user')
+    await page.goto('/app/user')
     await page
       .getByRole('textbox', { name: '用户名或名称', exact: true })
       .fill(username)

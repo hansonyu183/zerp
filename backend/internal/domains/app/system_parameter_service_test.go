@@ -44,3 +44,60 @@ func TestSystemParameterKeyValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateSystemParameterValueUsesRegisteredConstraints(t *testing.T) {
+	minimum := "1"
+	maximum := "4"
+	constraints := &SystemParameterConstraints{
+		Required: true, Minimum: &minimum, Maximum: &maximum,
+		AllowedValues: []string{},
+	}
+	for _, test := range []struct {
+		name  string
+		value string
+		want  string
+		valid bool
+	}{
+		{name: "minimum", value: "1", want: "1", valid: true},
+		{name: "normalized", value: "004", want: "4", valid: true},
+		{name: "below", value: "0", valid: false},
+		{name: "above", value: "5", valid: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := validateSystemParameterValue(SystemParameterInteger, test.value, constraints)
+			if test.valid && (err != nil || got != test.want) {
+				t.Fatalf("validate value = %q, %v; want %q", got, err, test.want)
+			}
+			if !test.valid && !errorIsKind(err, ErrorValidation) {
+				t.Fatalf("validation error = %v, want validation", err)
+			}
+		})
+	}
+}
+
+func TestValidateSystemParameterDefinitionRequiresConstraintsForEditableValues(t *testing.T) {
+	if err := validateSystemParameterDefinition(SystemParameterString, "value", "default", true, nil); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("missing editable constraints error = %v, want validation", err)
+	}
+	maxLength := int32(10)
+	constraints := &SystemParameterConstraints{MaxLength: &maxLength, AllowedValues: []string{}}
+	if err := validateSystemParameterDefinition(SystemParameterString, "value", "default", true, constraints); err != nil {
+		t.Fatalf("valid definition rejected: %v", err)
+	}
+	if err := validateSystemParameterDefinition(SystemParameterString, "value", "default value too long", true, constraints); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("invalid default error = %v, want validation", err)
+	}
+}
+
+func TestValidateRuntimeInstanceIdentityRequiresCurrentUniqueInstance(t *testing.T) {
+	if _, err := validateRuntimeInstanceIdentity("preview", "api-1", []string{"api-1", "api-1"}); err == nil {
+		t.Fatal("duplicate inventory was accepted")
+	}
+	if _, err := validateRuntimeInstanceIdentity("preview", "api-2", []string{"api-1"}); err == nil {
+		t.Fatal("inventory without current instance was accepted")
+	}
+	expected, err := validateRuntimeInstanceIdentity("preview", "api-2", []string{"api-2", "api-1"})
+	if err != nil || expected[0] != "api-1" || expected[1] != "api-2" {
+		t.Fatalf("valid runtime identity = %#v, %v", expected, err)
+	}
+}

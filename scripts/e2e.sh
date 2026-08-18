@@ -106,6 +106,8 @@ go -C backend run ./cmd/bootstrap-admin \
   -username "${APP_BOOTSTRAP_USERNAME}" \
   -display-name "${APP_BOOTSTRAP_DISPLAY_NAME}"
 go -C backend run ./cmd/seed-bob
+compose exec -T db psql -v ON_ERROR_STOP=1 \
+  -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" < backend/db/e2e-fixtures.sql
 
 mkdir -p "${runtime_dir}/bin" "${runtime_dir}/attachments"
 go -C backend build -trimpath -o "${runtime_dir}/bin/zerp-server" ./cmd/server

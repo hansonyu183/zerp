@@ -281,7 +281,7 @@ export function createRoleManagementViewModel() {
       while (collected.length < totalCount) {
         const result = await queryAdminPermissions({
           page: nextPage++,
-          pageSize: 200,
+          pageSize: 20,
           sort: [{ field: 'path', order: 'asc' }],
         })
         if (disposed.value || sequence !== editorLoadSequence) return false

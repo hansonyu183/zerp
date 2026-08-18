@@ -52,16 +52,17 @@ func appIntegrationPool(t *testing.T) *pgxpool.Pool {
 func resetAPPIntegrationData(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	_, err := pool.Exec(t.Context(), `
-		TRUNCATE acc_depreciation_entries, acc_period_balances, acc_inventory_cost_allocations,
+		TRUNCATE acc_period_balances, acc_inventory_cost_allocations,
 			acc_opening_containers, acc_opening_bills, acc_opening_assets,
 			acc_container_entries, acc_bill_book_values, acc_bills, acc_asset_book_values, acc_assets, acc_register_events,
 			acc_periods, acc_inventory_entries, acc_voucher_lines, acc_opening_lines, acc_openings, acc_vouchers, acc_mapping_versions,
 			acc_subject_usages, acc_subject_dimensions, acc_subjects,
 			acc_book_user_scopes, acc_books, vou_intermediary_scripts,
+			app_system_parameter_runtime_adoptions, app_system_parameter_runtime_scopes,
 			app_business_menu_items, app_system_parameters, app_feedback_attachments, app_feedback_files, app_feedback, app_audit_events, app_sessions,
 			app_user_profiles,
 			app_user_roles, app_role_permissions, app_roles, app_users,
-			app_role_code_counters;
+			app_role_code_counters CASCADE;
 		INSERT INTO app_role_code_counters(counter_key, next_value) VALUES ('default', 0);
 		UPDATE app_permissions SET status = 'ENABLED', revision = 1, updated_at = now(), updated_by = NULL;
 	`)
@@ -116,11 +117,12 @@ func appIntegrationService(t *testing.T) (*Service, *pgxpool.Pool, UserView) {
 	}
 	if _, err = pool.Exec(t.Context(), `
 		INSERT INTO app_system_parameters (
-			parameter_key, name, description, value_type, current_value,
-			default_value, editable, created_by, updated_by
+			parameter_key, name, description, value_type, configured_value,
+			default_value, safe_to_expose, editable, constraints, effect_mode, running_value,
+			running_revision, restart_pending, created_by, updated_by
 		) VALUES (
 			'app.menu.mode', '当前菜单方式', '菜单服务专用', 'STRING',
-			'DEFAULT', 'DEFAULT', false, $1, $1
+			'DEFAULT', 'DEFAULT', true, false, NULL, 'IMMEDIATE', 'DEFAULT', 1, false, $1, $1
 		)
 	`, admin.ID); err != nil {
 		t.Fatalf("seed APP system parameters: %v", err)

@@ -41,6 +41,7 @@ type Querier interface {
 	ClearVouInventoryCountResults(ctx context.Context, documentID string) error
 	ClearVouProductLineExecution(ctx context.Context, documentID string) error
 	ClearWorkflowNodeDocument(ctx context.Context, documentID *string) error
+	ConfirmAppSystemParameterAdoption(ctx context.Context, arg ConfirmAppSystemParameterAdoptionParams) (AppSystemParameter, error)
 	ConsumeVouDownloadToken(ctx context.Context, tokenHash string) (ConsumeVouDownloadTokenRow, error)
 	CopyBobCategoryDetail(ctx context.Context, arg CopyBobCategoryDetailParams) error
 	CopyBobCustomerDetail(ctx context.Context, arg CopyBobCustomerDetailParams) error
@@ -72,6 +73,7 @@ type Querier interface {
 	CountEnabledAppRolesByIDs(ctx context.Context, ids []string) (int64, error)
 	CountEnabledUsersWithPermission(ctx context.Context, path string) (int64, error)
 	CountEnabledUsersWithPermissionExcludingRole(ctx context.Context, arg CountEnabledUsersWithPermissionExcludingRoleParams) (int64, error)
+	CountExpectedAppSystemParameterRuntimeAdoptions(ctx context.Context, arg CountExpectedAppSystemParameterRuntimeAdoptionsParams) (int64, error)
 	CountOtherEnabledUsersWithPermission(ctx context.Context, arg CountOtherEnabledUsersWithPermissionParams) (int64, error)
 	CountPendingVouAttachments(ctx context.Context, documentID string) (int64, error)
 	CountRecentAppFeedback(ctx context.Context, userID string) (int64, error)
@@ -131,7 +133,7 @@ type Querier interface {
 	DeleteAccountingSubjectUsages(ctx context.Context, arg DeleteAccountingSubjectUsagesParams) error
 	DeleteAccountingVoucher(ctx context.Context, arg DeleteAccountingVoucherParams) error
 	DeleteActiveAccountingAssetsBySource(ctx context.Context, documentID string) error
-	DeleteAppBusinessMenuItems(ctx context.Context) error
+	DeleteAppBusinessMenuItems(ctx context.Context, snapshotType string) error
 	DeleteAppFeedbackFile(ctx context.Context, id string) (int64, error)
 	DeleteAppRolePermissions(ctx context.Context, roleID string) error
 	DeleteAppUserProfileAvatar(ctx context.Context, userID string) error
@@ -216,7 +218,7 @@ type Querier interface {
 	GetAccountingSubjectParent(ctx context.Context, arg GetAccountingSubjectParentParams) (*string, error)
 	GetAccountingSubjectStateForUpdate(ctx context.Context, arg GetAccountingSubjectStateForUpdateParams) (GetAccountingSubjectStateForUpdateRow, error)
 	GetActiveAccountingAssetForVou(ctx context.Context, assetID string) (GetActiveAccountingAssetForVouRow, error)
-	GetAppBusinessMenuRevision(ctx context.Context) (int64, error)
+	GetAppBusinessMenuRevision(ctx context.Context, snapshotType string) (int64, error)
 	GetAppFeedbackByOwner(ctx context.Context, arg GetAppFeedbackByOwnerParams) (AppFeedback, error)
 	GetAppPermissionByID(ctx context.Context, id string) (AppPermission, error)
 	GetAppRoleByID(ctx context.Context, id string) (AppRole, error)
@@ -227,6 +229,7 @@ type Querier interface {
 	GetAppSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetAppSessionByTokenHashRow, error)
 	GetAppSystemParameter(ctx context.Context, parameterKey string) (AppSystemParameter, error)
 	GetAppSystemParameterForUpdate(ctx context.Context, parameterKey string) (AppSystemParameter, error)
+	GetAppSystemParameterRuntimeScopeForUpdate(ctx context.Context, arg GetAppSystemParameterRuntimeScopeForUpdateParams) ([]string, error)
 	GetAppUserAvatarURL(ctx context.Context, userID string) (*string, error)
 	GetAppUserByID(ctx context.Context, id string) (AppUser, error)
 	GetAppUserByIDForUpdate(ctx context.Context, id string) (AppUser, error)
@@ -383,7 +386,7 @@ type Querier interface {
 	ListAllEnabledAppPermissionDetails(ctx context.Context) ([]ListAllEnabledAppPermissionDetailsRow, error)
 	ListAllEnabledAppPermissionIDs(ctx context.Context) ([]string, error)
 	ListAllVouStorageKeys(ctx context.Context) ([]string, error)
-	ListAppBusinessMenuItems(ctx context.Context) ([]AppBusinessMenuItem, error)
+	ListAppBusinessMenuItems(ctx context.Context, snapshotType string) ([]AppBusinessMenuItem, error)
 	ListAppFeedbackAttachments(ctx context.Context, feedbackID string) ([]AppFeedbackAttachment, error)
 	ListAppMenuPermissionRoutes(ctx context.Context) ([]ListAppMenuPermissionRoutesRow, error)
 	ListAppPermissionPathsByIDs(ctx context.Context, ids []string) ([]string, error)
@@ -411,6 +414,7 @@ type Querier interface {
 	ListIntermediarySignoffSourceRows(ctx context.Context, arg ListIntermediarySignoffSourceRowsParams) ([]ListIntermediarySignoffSourceRowsRow, error)
 	ListPurchaseOrderKgSummaries(ctx context.Context, orderIds []string) ([]ListPurchaseOrderKgSummariesRow, error)
 	ListReadyAppFeedbackFilesForCreate(ctx context.Context, arg ListReadyAppFeedbackFilesForCreateParams) ([]AppFeedbackFile, error)
+	ListRestartRequiredAppSystemParametersForUpdate(ctx context.Context) ([]AppSystemParameter, error)
 	// These order summaries are VOU read models kept here because they are shared
 	// by the workflow-facing order list and the ordinary voucher list.
 	ListSalesOrderKgSummaries(ctx context.Context, orderIds []string) ([]ListSalesOrderKgSummariesRow, error)
@@ -491,7 +495,9 @@ type Querier interface {
 	RecordWorkflowTrialAudit(ctx context.Context, arg RecordWorkflowTrialAuditParams) error
 	RegisterAccountingGlobalEvent(ctx context.Context, arg RegisterAccountingGlobalEventParams) (bool, error)
 	RegisterAccountingSubjectUsage(ctx context.Context, arg RegisterAccountingSubjectUsageParams) error
+	RegisterAppSystemParameterRuntimeScope(ctx context.Context, arg RegisterAppSystemParameterRuntimeScopeParams) error
 	RejectBobVersion(ctx context.Context, arg RejectBobVersionParams) (int64, error)
+	ReportAppSystemParameterRuntimeAdoption(ctx context.Context, arg ReportAppSystemParameterRuntimeAdoptionParams) error
 	RescheduleAppFeedback(ctx context.Context, arg RescheduleAppFeedbackParams) (int64, error)
 	ResetAppSystemParameterValue(ctx context.Context, arg ResetAppSystemParameterValueParams) (AppSystemParameter, error)
 	ResetAppUserPassword(ctx context.Context, arg ResetAppUserPasswordParams) (int64, error)

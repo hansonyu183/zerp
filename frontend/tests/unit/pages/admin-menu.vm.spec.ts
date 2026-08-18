@@ -3,10 +3,11 @@ import type { MenuData } from '@/api/menu'
 import {
   activateMenu,
   getMenu,
+  publishBusinessMenu,
   resetBusinessMenu,
   saveBusinessMenu,
 } from '@/api/menu'
-import { createMenuViewModel } from '@/pages/admin/menu/vm'
+import { createMenuViewModel } from '@/pages/app/menu/vm'
 
 function sampleMenu(): MenuData {
   const items = [
@@ -28,7 +29,7 @@ function sampleMenu(): MenuData {
       parentId: null,
       type: 'GROUP' as const,
       level: 1,
-      order: 10,
+      order: 20,
       displayName: '系统管理',
       icon: 'mdi-cog-outline',
       enabled: true,
@@ -45,19 +46,19 @@ function sampleMenu(): MenuData {
       displayName: '菜单管理',
       icon: 'mdi-menu',
       enabled: true,
-      routeKey: 'admin/menu',
-      routePath: '/admin/menu',
+      routeKey: 'app/menu',
+      routePath: '/app/menu',
       permissionCode: '/app/menu/save-business-template',
     },
   ]
-  const tree = { revision: 3, items }
   return {
     mode: 'DEFAULT',
     modeRevision: 2,
     catalogRevision: 'catalog-revision-1',
-    defaultMenu: tree,
-    businessTemplate: tree,
-    navigation: tree,
+    defaultMenu: { revision: 1, items },
+    draft: { revision: 3, items },
+    published: { revision: 5, items },
+    navigation: { revision: 1, items },
     availableRoutes: [
       {
         routeKey: 'home/dashboard',
@@ -66,14 +67,14 @@ function sampleMenu(): MenuData {
         permissionCode: '/app/workbench/query',
       },
       {
-        routeKey: 'admin/menu',
-        routePath: '/admin/menu',
+        routeKey: 'app/menu',
+        routePath: '/app/menu',
         displayName: '菜单管理',
         permissionCode: '/app/menu/save-business-template',
       },
       {
-        routeKey: 'admin/user',
-        routePath: '/admin/user',
+        routeKey: 'app/user',
+        routePath: '/app/user',
         displayName: '用户管理',
         permissionCode: '/app/user/query',
       },
@@ -81,124 +82,144 @@ function sampleMenu(): MenuData {
   }
 }
 
-function setup() {
+function setup(can: (permission: string) => boolean = () => true) {
   const data = sampleMenu()
   const load = vi.fn(async () => ({ data }))
   const save = vi.fn(async () => ({
-    data: {
-      ...data,
-      businessTemplate: { ...data.businessTemplate, revision: 4 },
-    },
+    data: { ...data, draft: { ...data.draft, revision: 4 } },
+  }))
+  const publish = vi.fn(async () => ({
+    data: { ...data, published: { ...data.draft, revision: 6 } },
   }))
   const activate = vi.fn(async () => ({
     data: { ...data, mode: 'BUSINESS_TEMPLATE' as const, modeRevision: 3 },
   }))
   const reset = vi.fn(async () => ({
-    data: {
-      ...data,
-      businessTemplate: { ...data.businessTemplate, revision: 4 },
-    },
+    data: { ...data, draft: { ...data.draft, revision: 4 } },
   }))
   const apply = vi.fn()
   const vm = createMenuViewModel({
     load: load as unknown as typeof getMenu,
     save: save as unknown as typeof saveBusinessMenu,
+    publish: publish as unknown as typeof publishBusinessMenu,
     activate: activate as unknown as typeof activateMenu,
     reset: reset as unknown as typeof resetBusinessMenu,
     apply,
-    can: () => true,
+    can,
   })
-  return { vm, load, save, activate, reset, apply }
+  return { vm, load, save, publish, activate, reset, apply }
 }
 
 describe('menu management view model', () => {
-  it('不暴露工作台作为可添加路由', async () => {
+  it('加载草稿和已发布快照且不暴露工作台作为可添加路由', async () => {
     const { vm } = setup()
     await vm.load()
 
+    expect(vm.data?.draft.revision).toBe(3)
+    expect(vm.data?.published.revision).toBe(5)
+    expect(vm.dirty).toBe(false)
     expect(
       vm.availableRoutes.some((item) => item.routeKey === 'home/dashboard'),
     ).toBe(false)
   })
 
-  it('禁止通过新增路由直接添加工作台', async () => {
-    const { vm } = setup()
-    await vm.load()
-
-    vm.newRouteByGroup.system = 'home/dashboard'
-    vm.addRoute('system')
-
-    expect(
-      vm.children('system').some((item) => item.routeKey === 'home/dashboard'),
-    ).toBe(false)
-  })
-
-  it('加载模板并允许重复路由、跨组移动和整树保存', async () => {
+  it('允许重复路由和整树保存草稿，但保存不刷新当前导航', async () => {
     const { vm, save, apply } = setup()
     await vm.load()
+    apply.mockClear()
     vm.addGroup()
-    const target = vm.groups.at(-1)
-    expect(target).toBeDefined()
-    vm.newRouteByGroup[target!.id] = 'admin/user'
-    vm.addRoute(target!.id)
-    vm.newRouteByGroup[target!.id] = 'admin/user'
-    vm.addRoute(target!.id)
+    const target = vm.groups.at(-1)!
+    vm.newRouteByGroup[target.id] = 'app/user'
+    vm.addRoute(target.id)
+    vm.newRouteByGroup[target.id] = 'app/user'
+    vm.addRoute(target.id)
 
-    const duplicates = vm.children(target!.id)
-    expect(duplicates).toHaveLength(2)
-    vm.move(duplicates[1]!.id, -1)
-    vm.startDrag(duplicates[0]!.id)
-    vm.dropOnGroup('system')
-    expect(
-      vm.children('system').some((item) => item.routeKey === 'admin/user'),
-    ).toBe(true)
-
-    vm.startDrag(target!.id)
-    vm.dropOnGroupOrder('system')
-    const removableRoute = vm.children(target!.id)[0]
-    vm.removeRoute(removableRoute!.id)
-    vm.addGroup()
-    const removableGroup = vm.groups.at(-1)!
-    vm.removeGroup(removableGroup.id)
-
+    expect(vm.children(target.id)).toHaveLength(2)
+    expect(vm.dirty).toBe(true)
     await vm.saveTemplate()
+
     expect(save).toHaveBeenCalledWith(
       expect.objectContaining({
         revision: 3,
         catalogRevision: 'catalog-revision-1',
       }),
     )
-    expect(
-      save.mock.calls[0]?.[0].items.some(
-        (item) => item.routeKey === 'admin/user',
-      ),
-    ).toBe(true)
-    expect(apply).toHaveBeenCalled()
+    expect(apply).not.toHaveBeenCalled()
+    expect(vm.dirty).toBe(false)
+    expect(vm.successMessage).toBe('草稿已保存，尚未发布。')
   })
 
-  it('应用模式后立即更新导航数据，并以二次确认恢复模板', async () => {
-    const { vm, activate, reset } = setup()
+  it('发布使用准确草稿证据、不切换模式并刷新当前管理员导航', async () => {
+    const { vm, publish, apply } = setup()
     await vm.load()
+    apply.mockClear()
+
+    vm.requestPublish()
+    expect(vm.publishConfirmationOpen).toBe(true)
+    await vm.confirmPublish()
+
+    expect(publish).toHaveBeenCalledWith({
+      revision: 3,
+      catalogRevision: 'catalog-revision-1',
+    })
+    expect(vm.data?.mode).toBe('DEFAULT')
+    expect(apply).toHaveBeenCalledOnce()
+  })
+
+  it('切换模式需要二次确认并只提交模式与目录证据', async () => {
+    const { vm, activate, apply } = setup()
+    await vm.load()
+    apply.mockClear()
     vm.selectedMode = 'BUSINESS_TEMPLATE'
-    await vm.applyMode()
+
+    vm.requestActivation()
+    expect(vm.activationConfirmationOpen).toBe(true)
+    await vm.confirmActivation()
+
     expect(activate).toHaveBeenCalledWith({
       mode: 'BUSINESS_TEMPLATE',
       revision: 2,
+      catalogRevision: 'catalog-revision-1',
     })
-    expect(vm.data?.mode).toBe('BUSINESS_TEMPLATE')
+    expect(apply).toHaveBeenCalledOnce()
+  })
+
+  it('恢复只提交草稿和目录证据且不会刷新当前导航', async () => {
+    const { vm, reset, apply } = setup()
+    await vm.load()
+    apply.mockClear()
 
     vm.requestReset()
     expect(vm.resetConfirmationOpen).toBe(true)
     await vm.confirmReset()
-    expect(reset).toHaveBeenCalledWith({ revision: 3 })
-    expect(vm.resetConfirmationOpen).toBe(false)
+
+    expect(reset).toHaveBeenCalledWith({
+      revision: 3,
+      catalogRevision: 'catalog-revision-1',
+    })
+    expect(apply).not.toHaveBeenCalled()
+    expect(vm.successMessage).toBe('草稿已恢复，尚未发布。')
+  })
+
+  it('脏草稿不能直接发布或切换模式', async () => {
+    const { vm, publish, activate } = setup()
+    await vm.load()
+    vm.addGroup()
+
+    vm.requestPublish()
+    vm.selectedMode = 'BUSINESS_TEMPLATE'
+    vm.requestActivation()
+
+    expect(publish).not.toHaveBeenCalled()
+    expect(activate).not.toHaveBeenCalled()
+    expect(vm.discardConfirmationOpen).toBe(true)
   })
 
   it('阻止删除或停用最后一个菜单管理入口', async () => {
     const { vm, save } = setup()
     await vm.load()
-    const menu = vm.editableItems.find((item) => item.routeKey === 'admin/menu')
-    menu!.enabled = false
+    const menu = vm.editableItems.find((item) => item.routeKey === 'app/menu')!
+    menu.enabled = false
 
     await vm.saveTemplate()
 
@@ -206,15 +227,27 @@ describe('menu management view model', () => {
     expect(vm.errorMessage).toBe('必须保留已启用的菜单管理入口。')
   })
 
-  it('阻止其他菜单使用工作台名称', async () => {
-    const { vm, save } = setup()
+  it('没有保存权限时所有草稿编辑入口均不产生本地修改', async () => {
+    const { vm } = setup(
+      (permission) => permission !== '/app/menu/save-business-template',
+    )
     await vm.load()
-    const menu = vm.editableItems.find((item) => item.routeKey === 'admin/menu')
-    menu!.displayName = ' 工作台 '
+    const before = JSON.stringify(vm.editableItems)
+    const group = vm.groups[0]!
+    const route = vm.children(group.id)[0]!
 
-    await vm.saveTemplate()
+    vm.addGroup()
+    vm.removeGroup(group.id)
+    vm.newRouteByGroup[group.id] = 'app/user'
+    vm.addRoute(group.id)
+    vm.removeRoute(route.id)
+    vm.move(route.id, 1)
+    vm.startDrag(route.id)
+    vm.dropOnGroup(group.id)
+    vm.dropOnGroupOrder(group.id)
 
-    expect(save).not.toHaveBeenCalled()
-    expect(vm.errorMessage).toBe('工作台名称只能用于唯一的一级入口。')
+    expect(JSON.stringify(vm.editableItems)).toBe(before)
+    expect(vm.draggedID).toBeNull()
+    expect(vm.dirty).toBe(false)
   })
 })

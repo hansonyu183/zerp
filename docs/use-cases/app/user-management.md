@@ -2,7 +2,7 @@
 
 ## 页面范围
 
-- 路由：`/admin/user`
+- 路由：`/app/user`
 - 领域规则：[APP 用户与授权规则](../../domains/app.md)
 - 线协议：[OpenAPI](../../../contracts/openapi/openapi.yaml) 与 [APP Schema](../../../contracts/openapi/schemas/app.yaml)
 - 全站筛选和行操作规范：[前端工程约束](../../../frontend/AGENTS.md)

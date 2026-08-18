@@ -36,6 +36,14 @@ func validatePage(request PageRequest, allowedSort map[string]bool, defaultField
 	}, nil
 }
 
+func validateFixedPage(request PageRequest, field, order string) (pageSpec, error) {
+	if request.Page < 1 || request.PageSize != 20 || len(request.Sort) != 1 ||
+		request.Sort[0].Field != field || request.Sort[0].Order != order {
+		return pageSpec{}, domainError(ErrorValidation, "invalid fixed pagination or sort", nil)
+	}
+	return validatePage(request, map[string]bool{field: true}, field, order)
+}
+
 func validateFilterKeys(filters map[string]string, allowed ...string) error {
 	for key := range filters {
 		if !slices.Contains(allowed, key) {

@@ -1,26 +1,52 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
+import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import { useSessionStore } from '@/stores/session'
+import DiscardChangesDialog from '../shared/DiscardChangesDialog.vue'
 import { createMenuViewModel } from './vm'
 import {
   activateMenu,
   getMenu,
+  publishBusinessMenu,
   resetBusinessMenu,
   saveBusinessMenu,
 } from '@/api/menu'
 
 const session = useSessionStore()
+const router = useRouter()
+let pendingRoute: string | null = null
+const templateView = ref<'DEFAULT' | 'BUSINESS_TEMPLATE'>('BUSINESS_TEMPLATE')
 const vm = reactive(
   createMenuViewModel({
     load: getMenu,
     save: saveBusinessMenu,
+    publish: publishBusinessMenu,
     activate: activateMenu,
     reset: resetBusinessMenu,
     apply: session.applyMenuData,
     can: session.can,
   }),
 )
+
+async function confirmDiscard(): Promise<void> {
+  vm.confirmDiscard()
+  const target = pendingRoute
+  pendingRoute = null
+  if (target) await router.push(target)
+}
+
+function cancelDiscard(): void {
+  pendingRoute = null
+  vm.cancelDiscard()
+}
+
+onBeforeRouteLeave((to) => {
+  if (!vm.dirty) return true
+  pendingRoute = to.fullPath
+  vm.discardConfirmationOpen = true
+  return false
+})
 
 void vm.load()
 </script>
@@ -44,7 +70,7 @@ void vm.load()
           { title: '系统默认', value: 'DEFAULT' },
           { title: '业务归类模板', value: 'BUSINESS_TEMPLATE' },
         ]"
-        label="当前菜单方式"
+        label="选择要应用的菜单方式"
         variant="outlined"
         hide-details
       />
@@ -52,12 +78,15 @@ void vm.load()
         color="primary"
         :disabled="!vm.canActivate || vm.selectedMode === vm.data?.mode"
         :loading="vm.saving"
-        @click="vm.applyMode()"
+        @click="vm.requestActivation()"
       >
         应用菜单方式
       </v-btn>
       <v-chip v-if="vm.data" variant="tonal">
         当前：{{ vm.data.mode === 'DEFAULT' ? '系统默认' : '业务归类模板' }}
+      </v-chip>
+      <v-chip v-if="vm.data" variant="tonal">
+        当前导航版本：{{ vm.data.navigation.revision }}
       </v-chip>
     </div>
 
@@ -68,13 +97,19 @@ void vm.load()
     <v-progress-linear v-if="vm.loading" indeterminate color="primary" />
 
     <template v-if="vm.data">
-      <section v-if="vm.selectedMode === 'DEFAULT'" aria-label="系统默认菜单">
+      <v-tabs v-model="templateView" class="mb-4" color="primary">
+        <v-tab value="BUSINESS_TEMPLATE">业务归类草稿与已发布</v-tab>
+        <v-tab value="DEFAULT">系统默认菜单</v-tab>
+      </v-tabs>
+
+      <section v-if="templateView === 'DEFAULT'" aria-label="系统默认菜单">
         <v-alert class="mb-4" type="info" variant="outlined">
           系统默认菜单为只读。切换到“业务归类模板”后可编辑自定义归类。
         </v-alert>
         <v-card
           v-for="item in vm.data.defaultMenu.items.filter(
-            (candidate) => candidate.type === 'ROUTE' && candidate.parentId === null,
+            (candidate) =>
+              candidate.type === 'ROUTE' && candidate.parentId === null,
           )"
           :key="item.id"
           class="mb-3"
@@ -117,6 +152,61 @@ void vm.load()
       </section>
 
       <section v-else aria-label="业务归类模板">
+        <div class="snapshot-summary mb-4">
+          <v-card rounded="lg" variant="outlined">
+            <v-card-title class="d-flex align-center ga-2">
+              草稿
+              <v-chip size="small" variant="tonal">
+                版本 {{ vm.data.draft.revision }}
+              </v-chip>
+              <v-chip v-if="vm.dirty" color="warning" size="small">
+                有未保存修改
+              </v-chip>
+            </v-card-title>
+            <v-card-text>保存只更新草稿，不会改变当前主导航。</v-card-text>
+          </v-card>
+          <v-card rounded="lg" variant="outlined">
+            <v-card-title class="d-flex align-center ga-2">
+              已发布
+              <v-chip size="small" variant="tonal">
+                版本 {{ vm.data.published.revision }}
+              </v-chip>
+            </v-card-title>
+            <v-card-text>
+              只读快照，共
+              {{ vm.data.published.items.length }} 项；业务归类模式使用此版本。
+            </v-card-text>
+          </v-card>
+        </div>
+
+        <v-expansion-panels class="mb-4" variant="accordion">
+          <v-expansion-panel>
+            <v-expansion-panel-title>查看已发布快照</v-expansion-panel-title>
+            <v-expansion-panel-text>
+              <v-list density="compact">
+                <v-list-item
+                  v-for="item in [...vm.data.published.items].sort(
+                    (left, right) => left.order - right.order,
+                  )"
+                  :key="item.id"
+                  :prepend-icon="
+                    item.icon ||
+                    (item.type === 'GROUP'
+                      ? 'mdi-folder-outline'
+                      : 'mdi-file-document-outline')
+                  "
+                  :title="item.displayName"
+                  :subtitle="
+                    item.type === 'GROUP'
+                      ? '分组'
+                      : `${item.routePath} · ${item.permissionCode}`
+                  "
+                />
+              </v-list>
+            </v-expansion-panel-text>
+          </v-expansion-panel>
+        </v-expansion-panels>
+
         <div class="d-flex flex-wrap ga-3 mb-4">
           <v-btn
             prepend-icon="mdi-folder-plus-outline"
@@ -133,7 +223,16 @@ void vm.load()
             :loading="vm.saving"
             @click="vm.saveTemplate()"
           >
-            保存模板
+            保存草稿
+          </v-btn>
+          <v-btn
+            color="success"
+            prepend-icon="mdi-publish"
+            :disabled="!vm.canPublish"
+            :loading="vm.saving"
+            @click="vm.requestPublish()"
+          >
+            发布草稿
           </v-btn>
           <v-btn
             color="warning"
@@ -142,7 +241,7 @@ void vm.load()
             :disabled="!vm.canReset"
             @click="vm.requestReset()"
           >
-            恢复初始模板
+            恢复初始草稿
           </v-btn>
         </div>
 
@@ -165,7 +264,7 @@ void vm.load()
           v-for="group in vm.groups"
           :key="group.id"
           class="menu-group mb-4"
-          draggable="true"
+          :draggable="vm.canSave"
           rounded="lg"
           variant="outlined"
           @dragstart="vm.startDrag(group.id)"
@@ -176,6 +275,7 @@ void vm.load()
             <v-icon icon="mdi-drag" />
             <v-text-field
               v-model="group.displayName"
+              :disabled="!vm.canSave"
               class="group-name"
               density="compact"
               hide-details
@@ -184,6 +284,7 @@ void vm.load()
             />
             <v-text-field
               v-model="group.icon"
+              :disabled="!vm.canSave"
               class="group-icon"
               density="compact"
               hide-details
@@ -192,23 +293,27 @@ void vm.load()
             />
             <v-switch
               v-model="group.enabled"
+              :disabled="!vm.canSave"
               color="primary"
               hide-details
               label="启用"
             />
             <v-btn
+              :disabled="!vm.canSave"
               icon="mdi-arrow-up"
               size="small"
               variant="text"
               @click="vm.move(group.id, -1)"
             />
             <v-btn
+              :disabled="!vm.canSave"
               icon="mdi-arrow-down"
               size="small"
               variant="text"
               @click="vm.move(group.id, 1)"
             />
             <v-btn
+              :disabled="!vm.canSave"
               color="error"
               icon="mdi-delete-outline"
               size="small"
@@ -226,12 +331,13 @@ void vm.load()
               v-for="item in vm.children(group.id)"
               :key="item.id"
               class="menu-route"
-              draggable="true"
+              :draggable="vm.canSave"
               @dragstart.stop="vm.startDrag(item.id)"
             >
               <v-icon icon="mdi-drag-vertical" />
               <v-text-field
                 v-model="item.displayName"
+                :disabled="!vm.canSave"
                 density="compact"
                 hide-details
                 label="显示名称"
@@ -239,6 +345,7 @@ void vm.load()
               />
               <v-text-field
                 v-model="item.icon"
+                :disabled="!vm.canSave"
                 density="compact"
                 hide-details
                 label="图标"
@@ -255,17 +362,21 @@ void vm.load()
                 </span>
                 <span class="route-meta-line">
                   <span class="route-meta-label">权限</span>
-                  <span>{{ vm.routeOption(item.routeKey)?.permissionCode }}</span>
+                  <span>{{
+                    vm.routeOption(item.routeKey)?.permissionCode
+                  }}</span>
                 </span>
               </div>
               <div class="route-actions">
                 <v-switch
                   v-model="item.enabled"
+                  :disabled="!vm.canSave"
                   color="primary"
                   hide-details
                   label="启用"
                 />
                 <v-btn
+                  :disabled="!vm.canSave"
                   aria-label="上移路由"
                   icon="mdi-arrow-up"
                   size="small"
@@ -273,6 +384,7 @@ void vm.load()
                   @click="vm.move(item.id, -1)"
                 />
                 <v-btn
+                  :disabled="!vm.canSave"
                   aria-label="下移路由"
                   icon="mdi-arrow-down"
                   size="small"
@@ -280,6 +392,7 @@ void vm.load()
                   @click="vm.move(item.id, 1)"
                 />
                 <v-btn
+                  :disabled="!vm.canSave"
                   aria-label="删除路由"
                   color="error"
                   icon="mdi-delete-outline"
@@ -293,6 +406,7 @@ void vm.load()
             <div class="d-flex align-center ga-3 mt-3">
               <v-select
                 v-model="vm.newRouteByGroup[group.id]"
+                :disabled="!vm.canSave"
                 class="route-select"
                 clearable
                 item-title="displayName"
@@ -305,7 +419,7 @@ void vm.load()
               <v-btn
                 prepend-icon="mdi-plus"
                 variant="outlined"
-                :disabled="!vm.newRouteByGroup[group.id]"
+                :disabled="!vm.canSave || !vm.newRouteByGroup[group.id]"
                 @click="vm.addRoute(group.id)"
               >
                 添加路由
@@ -318,9 +432,9 @@ void vm.load()
   </v-container>
 
   <v-dialog v-model="vm.resetConfirmationOpen" max-width="520">
-    <v-card rounded="xl" title="恢复初始业务归类模板">
+    <v-card rounded="xl" title="恢复初始业务归类草稿">
       <v-card-text>
-        此操作会替换整棵业务归类模板，当前分组、名称、图标、排序和启停设置都会丢失。确认继续吗？
+        此操作只会替换草稿，不会改变已发布快照或当前主导航。草稿中的分组、名称、图标、排序和启停设置都会丢失。确认继续吗？
       </v-card-text>
       <v-card-actions class="px-6 pb-5">
         <v-spacer />
@@ -333,11 +447,64 @@ void vm.load()
       </v-card-actions>
     </v-card>
   </v-dialog>
+
+  <v-dialog v-model="vm.publishConfirmationOpen" max-width="520">
+    <v-card rounded="xl" title="发布业务归类草稿">
+      <v-card-text>
+        发布会用当前草稿替换只读的已发布快照，但不会切换当前菜单方式。确认继续吗？
+      </v-card-text>
+      <v-card-actions class="px-6 pb-5">
+        <v-spacer />
+        <v-btn variant="text" @click="vm.publishConfirmationOpen = false">
+          取消
+        </v-btn>
+        <v-btn
+          color="success"
+          :loading="vm.saving"
+          @click="vm.confirmPublish()"
+        >
+          确认发布
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <v-dialog v-model="vm.activationConfirmationOpen" max-width="520">
+    <v-card rounded="xl" title="应用菜单方式">
+      <v-card-text>
+        将立即切换当前会话主导航。业务归类模式只使用已发布快照，不会使用未发布草稿。确认继续吗？
+      </v-card-text>
+      <v-card-actions class="px-6 pb-5">
+        <v-spacer />
+        <v-btn variant="text" @click="vm.activationConfirmationOpen = false">
+          取消
+        </v-btn>
+        <v-btn
+          color="primary"
+          :loading="vm.saving"
+          @click="vm.confirmActivation()"
+        >
+          确认应用
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <DiscardChangesDialog
+    :open="vm.discardConfirmationOpen"
+    @cancel="cancelDiscard"
+    @confirm="confirmDiscard"
+  />
 </template>
 
 <style scoped>
 .mode-select {
   max-width: 340px;
+}
+.snapshot-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
 }
 .group-name {
   min-width: 220px;
@@ -401,6 +568,9 @@ void vm.load()
   }
 }
 @media (max-width: 700px) {
+  .snapshot-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .menu-route {
     grid-template-columns: minmax(0, 1fr);
     align-items: stretch;

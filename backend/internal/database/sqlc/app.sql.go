@@ -66,6 +66,52 @@ func (q *Queries) ActorHoldsAppRole(ctx context.Context, arg ActorHoldsAppRolePa
 	return exists, err
 }
 
+const confirmAppSystemParameterAdoption = `-- name: ConfirmAppSystemParameterAdoption :one
+UPDATE app_system_parameters
+SET running_value = configured_value,
+    running_revision = revision,
+    restart_pending = false,
+    updated_at = now(),
+    updated_by = $1
+WHERE parameter_key = $2
+  AND revision = $3
+  AND effect_mode = 'RESTART_REQUIRED'
+  AND restart_pending = true
+RETURNING parameter_key, name, description, value_type, configured_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by, safe_to_expose, constraints, effect_mode, running_value, running_revision, restart_pending
+`
+
+type ConfirmAppSystemParameterAdoptionParams struct {
+	ActorID      *string `db:"actor_id" json:"actor_id"`
+	ParameterKey string  `db:"parameter_key" json:"parameter_key"`
+	Revision     int64   `db:"revision" json:"revision"`
+}
+
+func (q *Queries) ConfirmAppSystemParameterAdoption(ctx context.Context, arg ConfirmAppSystemParameterAdoptionParams) (AppSystemParameter, error) {
+	row := q.db.QueryRow(ctx, confirmAppSystemParameterAdoption, arg.ActorID, arg.ParameterKey, arg.Revision)
+	var i AppSystemParameter
+	err := row.Scan(
+		&i.ParameterKey,
+		&i.Name,
+		&i.Description,
+		&i.ValueType,
+		&i.ConfiguredValue,
+		&i.DefaultValue,
+		&i.Editable,
+		&i.Revision,
+		&i.CreatedAt,
+		&i.CreatedBy,
+		&i.UpdatedAt,
+		&i.UpdatedBy,
+		&i.SafeToExpose,
+		&i.Constraints,
+		&i.EffectMode,
+		&i.RunningValue,
+		&i.RunningRevision,
+		&i.RestartPending,
+	)
+	return i, err
+}
+
 const countAppPermissions = `-- name: CountAppPermissions :one
 SELECT count(*) FROM app_permissions
 WHERE ($1::text IS NULL OR domain = $1)
@@ -118,7 +164,8 @@ func (q *Queries) CountAppRolesUsingPermission(ctx context.Context, permissionID
 const countAppSystemParameters = `-- name: CountAppSystemParameters :one
 SELECT count(*)
 FROM app_system_parameters
-WHERE ($1::text IS NULL OR value_type = $1)
+WHERE safe_to_expose = true
+  AND ($1::text IS NULL OR value_type = $1)
   AND ($2::boolean IS NULL OR editable = $2)
   AND (
     $3::text IS NULL
@@ -264,6 +311,34 @@ func (q *Queries) CountEnabledUsersWithPermissionExcludingRole(ctx context.Conte
 	return count, err
 }
 
+const countExpectedAppSystemParameterRuntimeAdoptions = `-- name: CountExpectedAppSystemParameterRuntimeAdoptions :one
+SELECT count(*)
+FROM app_system_parameter_runtime_adoptions
+WHERE parameter_key = $1
+  AND revision = $2
+  AND deployment_scope = $3
+  AND instance_id = ANY($4::text[])
+`
+
+type CountExpectedAppSystemParameterRuntimeAdoptionsParams struct {
+	ParameterKey        string   `db:"parameter_key" json:"parameter_key"`
+	Revision            int64    `db:"revision" json:"revision"`
+	DeploymentScope     string   `db:"deployment_scope" json:"deployment_scope"`
+	ExpectedInstanceIds []string `db:"expected_instance_ids" json:"expected_instance_ids"`
+}
+
+func (q *Queries) CountExpectedAppSystemParameterRuntimeAdoptions(ctx context.Context, arg CountExpectedAppSystemParameterRuntimeAdoptionsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countExpectedAppSystemParameterRuntimeAdoptions,
+		arg.ParameterKey,
+		arg.Revision,
+		arg.DeploymentScope,
+		arg.ExpectedInstanceIds,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countOtherEnabledUsersWithPermission = `-- name: CountOtherEnabledUsersWithPermission :one
 SELECT count(*)
 FROM app_users u
@@ -364,10 +439,11 @@ func (q *Queries) CreateAppSession(ctx context.Context, arg CreateAppSessionPara
 
 const deleteAppBusinessMenuItems = `-- name: DeleteAppBusinessMenuItems :exec
 DELETE FROM app_business_menu_items
+WHERE snapshot_type = $1
 `
 
-func (q *Queries) DeleteAppBusinessMenuItems(ctx context.Context) error {
-	_, err := q.db.Exec(ctx, deleteAppBusinessMenuItems)
+func (q *Queries) DeleteAppBusinessMenuItems(ctx context.Context, snapshotType string) error {
+	_, err := q.db.Exec(ctx, deleteAppBusinessMenuItems, snapshotType)
 	return err
 }
 
@@ -436,10 +512,11 @@ func (q *Queries) FindEnabledAppUserIDExcludingID(ctx context.Context, excludedU
 const getAppBusinessMenuRevision = `-- name: GetAppBusinessMenuRevision :one
 SELECT COALESCE(max(revision), 1)::bigint
 FROM app_business_menu_items
+WHERE snapshot_type = $1
 `
 
-func (q *Queries) GetAppBusinessMenuRevision(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, getAppBusinessMenuRevision)
+func (q *Queries) GetAppBusinessMenuRevision(ctx context.Context, snapshotType string) (int64, error) {
+	row := q.db.QueryRow(ctx, getAppBusinessMenuRevision, snapshotType)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -670,7 +747,10 @@ func (q *Queries) GetAppSessionByTokenHash(ctx context.Context, tokenHash []byte
 }
 
 const getAppSystemParameter = `-- name: GetAppSystemParameter :one
-SELECT parameter_key, name, description, value_type, current_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by FROM app_system_parameters WHERE parameter_key = $1 LIMIT 1
+SELECT parameter_key, name, description, value_type, configured_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by, safe_to_expose, constraints, effect_mode, running_value, running_revision, restart_pending FROM app_system_parameters
+WHERE parameter_key = $1
+  AND safe_to_expose = true
+LIMIT 1
 `
 
 func (q *Queries) GetAppSystemParameter(ctx context.Context, parameterKey string) (AppSystemParameter, error) {
@@ -681,7 +761,7 @@ func (q *Queries) GetAppSystemParameter(ctx context.Context, parameterKey string
 		&i.Name,
 		&i.Description,
 		&i.ValueType,
-		&i.CurrentValue,
+		&i.ConfiguredValue,
 		&i.DefaultValue,
 		&i.Editable,
 		&i.Revision,
@@ -689,13 +769,20 @@ func (q *Queries) GetAppSystemParameter(ctx context.Context, parameterKey string
 		&i.CreatedBy,
 		&i.UpdatedAt,
 		&i.UpdatedBy,
+		&i.SafeToExpose,
+		&i.Constraints,
+		&i.EffectMode,
+		&i.RunningValue,
+		&i.RunningRevision,
+		&i.RestartPending,
 	)
 	return i, err
 }
 
 const getAppSystemParameterForUpdate = `-- name: GetAppSystemParameterForUpdate :one
-SELECT parameter_key, name, description, value_type, current_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by FROM app_system_parameters
+SELECT parameter_key, name, description, value_type, configured_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by, safe_to_expose, constraints, effect_mode, running_value, running_revision, restart_pending FROM app_system_parameters
 WHERE parameter_key = $1
+  AND safe_to_expose = true
 LIMIT 1 FOR UPDATE
 `
 
@@ -707,7 +794,7 @@ func (q *Queries) GetAppSystemParameterForUpdate(ctx context.Context, parameterK
 		&i.Name,
 		&i.Description,
 		&i.ValueType,
-		&i.CurrentValue,
+		&i.ConfiguredValue,
 		&i.DefaultValue,
 		&i.Editable,
 		&i.Revision,
@@ -715,8 +802,36 @@ func (q *Queries) GetAppSystemParameterForUpdate(ctx context.Context, parameterK
 		&i.CreatedBy,
 		&i.UpdatedAt,
 		&i.UpdatedBy,
+		&i.SafeToExpose,
+		&i.Constraints,
+		&i.EffectMode,
+		&i.RunningValue,
+		&i.RunningRevision,
+		&i.RestartPending,
 	)
 	return i, err
+}
+
+const getAppSystemParameterRuntimeScopeForUpdate = `-- name: GetAppSystemParameterRuntimeScopeForUpdate :one
+SELECT expected_instance_ids
+FROM app_system_parameter_runtime_scopes
+WHERE parameter_key = $1
+  AND revision = $2
+  AND deployment_scope = $3
+FOR UPDATE
+`
+
+type GetAppSystemParameterRuntimeScopeForUpdateParams struct {
+	ParameterKey    string `db:"parameter_key" json:"parameter_key"`
+	Revision        int64  `db:"revision" json:"revision"`
+	DeploymentScope string `db:"deployment_scope" json:"deployment_scope"`
+}
+
+func (q *Queries) GetAppSystemParameterRuntimeScopeForUpdate(ctx context.Context, arg GetAppSystemParameterRuntimeScopeForUpdateParams) ([]string, error) {
+	row := q.db.QueryRow(ctx, getAppSystemParameterRuntimeScopeForUpdate, arg.ParameterKey, arg.Revision, arg.DeploymentScope)
+	var expected_instance_ids []string
+	err := row.Scan(&expected_instance_ids)
+	return expected_instance_ids, err
 }
 
 const getAppUserAvatarURL = `-- name: GetAppUserAvatarURL :one
@@ -902,17 +1017,18 @@ func (q *Queries) InsertAppBootstrapUser(ctx context.Context, arg InsertAppBoots
 
 const insertAppBusinessMenuItem = `-- name: InsertAppBusinessMenuItem :exec
 INSERT INTO app_business_menu_items (
-  id, parent_id, item_type, item_level, sort_order, display_name, icon,
+  snapshot_type, id, parent_id, item_type, item_level, sort_order, display_name, icon,
   enabled, route_key, permission_code, revision, created_by, updated_by
 ) VALUES (
-  $1, $2, $3, $4,
-  $5, $6, $7, $8,
-  $9, $10, $11,
-  $12, $12
+  $1, $2, $3, $4, $5,
+  $6, $7, $8, $9,
+  $10, $11, $12,
+  $13, $13
 )
 `
 
 type InsertAppBusinessMenuItemParams struct {
+	SnapshotType   string  `db:"snapshot_type" json:"snapshot_type"`
 	ID             string  `db:"id" json:"id"`
 	ParentID       *string `db:"parent_id" json:"parent_id"`
 	ItemType       string  `db:"item_type" json:"item_type"`
@@ -929,6 +1045,7 @@ type InsertAppBusinessMenuItemParams struct {
 
 func (q *Queries) InsertAppBusinessMenuItem(ctx context.Context, arg InsertAppBusinessMenuItemParams) error {
 	_, err := q.db.Exec(ctx, insertAppBusinessMenuItem,
+		arg.SnapshotType,
 		arg.ID,
 		arg.ParentID,
 		arg.ItemType,
@@ -1095,13 +1212,14 @@ func (q *Queries) ListAllEnabledAppPermissionIDs(ctx context.Context) ([]string,
 }
 
 const listAppBusinessMenuItems = `-- name: ListAppBusinessMenuItems :many
-SELECT id, parent_id, item_type, item_level, sort_order, display_name, icon, enabled, route_key, permission_code, revision, created_at, created_by, updated_at, updated_by
+SELECT id, parent_id, item_type, item_level, sort_order, display_name, icon, enabled, route_key, permission_code, revision, created_at, created_by, updated_at, updated_by, snapshot_type
 FROM app_business_menu_items
+WHERE snapshot_type = $1
 ORDER BY item_level, sort_order, id
 `
 
-func (q *Queries) ListAppBusinessMenuItems(ctx context.Context) ([]AppBusinessMenuItem, error) {
-	rows, err := q.db.Query(ctx, listAppBusinessMenuItems)
+func (q *Queries) ListAppBusinessMenuItems(ctx context.Context, snapshotType string) ([]AppBusinessMenuItem, error) {
+	rows, err := q.db.Query(ctx, listAppBusinessMenuItems, snapshotType)
 	if err != nil {
 		return nil, err
 	}
@@ -1125,6 +1243,7 @@ func (q *Queries) ListAppBusinessMenuItems(ctx context.Context) ([]AppBusinessMe
 			&i.CreatedBy,
 			&i.UpdatedAt,
 			&i.UpdatedBy,
+			&i.SnapshotType,
 		); err != nil {
 			return nil, err
 		}
@@ -1331,9 +1450,10 @@ func (q *Queries) ListAppRoles(ctx context.Context, arg ListAppRolesParams) ([]A
 }
 
 const listAppSystemParameters = `-- name: ListAppSystemParameters :many
-SELECT parameter_key, name, description, value_type, current_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by
+SELECT parameter_key, name, description, value_type, configured_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by, safe_to_expose, constraints, effect_mode, running_value, running_revision, restart_pending
 FROM app_system_parameters
-WHERE ($1::text IS NULL OR value_type = $1)
+WHERE safe_to_expose = true
+  AND ($1::text IS NULL OR value_type = $1)
   AND ($2::boolean IS NULL OR editable = $2)
   AND (
     $3::text IS NULL
@@ -1383,7 +1503,7 @@ func (q *Queries) ListAppSystemParameters(ctx context.Context, arg ListAppSystem
 			&i.Name,
 			&i.Description,
 			&i.ValueType,
-			&i.CurrentValue,
+			&i.ConfiguredValue,
 			&i.DefaultValue,
 			&i.Editable,
 			&i.Revision,
@@ -1391,6 +1511,12 @@ func (q *Queries) ListAppSystemParameters(ctx context.Context, arg ListAppSystem
 			&i.CreatedBy,
 			&i.UpdatedAt,
 			&i.UpdatedBy,
+			&i.SafeToExpose,
+			&i.Constraints,
+			&i.EffectMode,
+			&i.RunningValue,
+			&i.RunningRevision,
+			&i.RestartPending,
 		); err != nil {
 			return nil, err
 		}
@@ -1594,6 +1720,53 @@ func (q *Queries) ListEnabledAppRolePermissionIDs(ctx context.Context, roleID st
 	return items, nil
 }
 
+const listRestartRequiredAppSystemParametersForUpdate = `-- name: ListRestartRequiredAppSystemParametersForUpdate :many
+SELECT parameter_key, name, description, value_type, configured_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by, safe_to_expose, constraints, effect_mode, running_value, running_revision, restart_pending
+FROM app_system_parameters
+WHERE effect_mode = 'RESTART_REQUIRED'
+ORDER BY parameter_key
+FOR UPDATE
+`
+
+func (q *Queries) ListRestartRequiredAppSystemParametersForUpdate(ctx context.Context) ([]AppSystemParameter, error) {
+	rows, err := q.db.Query(ctx, listRestartRequiredAppSystemParametersForUpdate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AppSystemParameter{}
+	for rows.Next() {
+		var i AppSystemParameter
+		if err := rows.Scan(
+			&i.ParameterKey,
+			&i.Name,
+			&i.Description,
+			&i.ValueType,
+			&i.ConfiguredValue,
+			&i.DefaultValue,
+			&i.Editable,
+			&i.Revision,
+			&i.CreatedAt,
+			&i.CreatedBy,
+			&i.UpdatedAt,
+			&i.UpdatedBy,
+			&i.SafeToExpose,
+			&i.Constraints,
+			&i.EffectMode,
+			&i.RunningValue,
+			&i.RunningRevision,
+			&i.RestartPending,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const nextAppRoleCode = `-- name: NextAppRoleCode :one
 UPDATE app_role_code_counters
 SET next_value = next_value + 1
@@ -1645,16 +1818,78 @@ func (q *Queries) RecordSigninFailure(ctx context.Context, arg RecordSigninFailu
 	return i, err
 }
 
+const registerAppSystemParameterRuntimeScope = `-- name: RegisterAppSystemParameterRuntimeScope :exec
+INSERT INTO app_system_parameter_runtime_scopes (
+  parameter_key, revision, deployment_scope, expected_instance_ids
+) VALUES (
+  $1, $2, $3, $4
+)
+ON CONFLICT (parameter_key, revision, deployment_scope) DO NOTHING
+`
+
+type RegisterAppSystemParameterRuntimeScopeParams struct {
+	ParameterKey        string   `db:"parameter_key" json:"parameter_key"`
+	Revision            int64    `db:"revision" json:"revision"`
+	DeploymentScope     string   `db:"deployment_scope" json:"deployment_scope"`
+	ExpectedInstanceIds []string `db:"expected_instance_ids" json:"expected_instance_ids"`
+}
+
+func (q *Queries) RegisterAppSystemParameterRuntimeScope(ctx context.Context, arg RegisterAppSystemParameterRuntimeScopeParams) error {
+	_, err := q.db.Exec(ctx, registerAppSystemParameterRuntimeScope,
+		arg.ParameterKey,
+		arg.Revision,
+		arg.DeploymentScope,
+		arg.ExpectedInstanceIds,
+	)
+	return err
+}
+
+const reportAppSystemParameterRuntimeAdoption = `-- name: ReportAppSystemParameterRuntimeAdoption :exec
+INSERT INTO app_system_parameter_runtime_adoptions (
+  parameter_key, revision, deployment_scope, instance_id
+) VALUES (
+  $1, $2, $3, $4
+)
+ON CONFLICT (parameter_key, revision, deployment_scope, instance_id)
+DO UPDATE SET adopted_at = now()
+`
+
+type ReportAppSystemParameterRuntimeAdoptionParams struct {
+	ParameterKey    string `db:"parameter_key" json:"parameter_key"`
+	Revision        int64  `db:"revision" json:"revision"`
+	DeploymentScope string `db:"deployment_scope" json:"deployment_scope"`
+	InstanceID      string `db:"instance_id" json:"instance_id"`
+}
+
+func (q *Queries) ReportAppSystemParameterRuntimeAdoption(ctx context.Context, arg ReportAppSystemParameterRuntimeAdoptionParams) error {
+	_, err := q.db.Exec(ctx, reportAppSystemParameterRuntimeAdoption,
+		arg.ParameterKey,
+		arg.Revision,
+		arg.DeploymentScope,
+		arg.InstanceID,
+	)
+	return err
+}
+
 const resetAppSystemParameterValue = `-- name: ResetAppSystemParameterValue :one
 UPDATE app_system_parameters
-SET current_value = default_value,
+SET configured_value = default_value,
+    running_value = CASE
+      WHEN effect_mode IN ('IMMEDIATE', 'NEXT_REQUEST') THEN default_value
+      ELSE running_value
+    END,
+    running_revision = CASE
+      WHEN effect_mode IN ('IMMEDIATE', 'NEXT_REQUEST') THEN revision + 1
+      ELSE running_revision
+    END,
+    restart_pending = effect_mode = 'RESTART_REQUIRED',
     revision = revision + 1,
     updated_at = now(),
     updated_by = $1
 WHERE parameter_key = $2
   AND revision = $3
   AND editable = true
-RETURNING parameter_key, name, description, value_type, current_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by
+RETURNING parameter_key, name, description, value_type, configured_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by, safe_to_expose, constraints, effect_mode, running_value, running_revision, restart_pending
 `
 
 type ResetAppSystemParameterValueParams struct {
@@ -1671,7 +1906,7 @@ func (q *Queries) ResetAppSystemParameterValue(ctx context.Context, arg ResetApp
 		&i.Name,
 		&i.Description,
 		&i.ValueType,
-		&i.CurrentValue,
+		&i.ConfiguredValue,
 		&i.DefaultValue,
 		&i.Editable,
 		&i.Revision,
@@ -1679,6 +1914,12 @@ func (q *Queries) ResetAppSystemParameterValue(ctx context.Context, arg ResetApp
 		&i.CreatedBy,
 		&i.UpdatedAt,
 		&i.UpdatedBy,
+		&i.SafeToExpose,
+		&i.Constraints,
+		&i.EffectMode,
+		&i.RunningValue,
+		&i.RunningRevision,
+		&i.RestartPending,
 	)
 	return i, err
 }
@@ -1843,13 +2084,16 @@ func (q *Queries) TouchAppSession(ctx context.Context, arg TouchAppSessionParams
 
 const updateAppMenuMode = `-- name: UpdateAppMenuMode :one
 UPDATE app_system_parameters
-SET current_value = $1,
+SET configured_value = $1,
+    running_value = $1,
+    running_revision = revision + 1,
+    restart_pending = false,
     revision = revision + 1,
     updated_at = now(),
     updated_by = $2
 WHERE parameter_key = 'app.menu.mode'
   AND revision = $3
-RETURNING parameter_key, name, description, value_type, current_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by
+RETURNING parameter_key, name, description, value_type, configured_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by, safe_to_expose, constraints, effect_mode, running_value, running_revision, restart_pending
 `
 
 type UpdateAppMenuModeParams struct {
@@ -1866,7 +2110,7 @@ func (q *Queries) UpdateAppMenuMode(ctx context.Context, arg UpdateAppMenuModePa
 		&i.Name,
 		&i.Description,
 		&i.ValueType,
-		&i.CurrentValue,
+		&i.ConfiguredValue,
 		&i.DefaultValue,
 		&i.Editable,
 		&i.Revision,
@@ -1874,6 +2118,12 @@ func (q *Queries) UpdateAppMenuMode(ctx context.Context, arg UpdateAppMenuModePa
 		&i.CreatedBy,
 		&i.UpdatedAt,
 		&i.UpdatedBy,
+		&i.SafeToExpose,
+		&i.Constraints,
+		&i.EffectMode,
+		&i.RunningValue,
+		&i.RunningRevision,
+		&i.RestartPending,
 	)
 	return i, err
 }
@@ -1907,26 +2157,35 @@ func (q *Queries) UpdateAppRole(ctx context.Context, arg UpdateAppRoleParams) (i
 
 const updateAppSystemParameterValue = `-- name: UpdateAppSystemParameterValue :one
 UPDATE app_system_parameters
-SET current_value = $1,
+SET configured_value = $1,
+    running_value = CASE
+      WHEN effect_mode IN ('IMMEDIATE', 'NEXT_REQUEST') THEN $1
+      ELSE running_value
+    END,
+    running_revision = CASE
+      WHEN effect_mode IN ('IMMEDIATE', 'NEXT_REQUEST') THEN revision + 1
+      ELSE running_revision
+    END,
+    restart_pending = effect_mode = 'RESTART_REQUIRED',
     revision = revision + 1,
     updated_at = now(),
     updated_by = $2
 WHERE parameter_key = $3
   AND revision = $4
   AND editable = true
-RETURNING parameter_key, name, description, value_type, current_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by
+RETURNING parameter_key, name, description, value_type, configured_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by, safe_to_expose, constraints, effect_mode, running_value, running_revision, restart_pending
 `
 
 type UpdateAppSystemParameterValueParams struct {
-	CurrentValue string  `db:"current_value" json:"current_value"`
-	ActorID      *string `db:"actor_id" json:"actor_id"`
-	ParameterKey string  `db:"parameter_key" json:"parameter_key"`
-	Revision     int64   `db:"revision" json:"revision"`
+	ConfiguredValue string  `db:"configured_value" json:"configured_value"`
+	ActorID         *string `db:"actor_id" json:"actor_id"`
+	ParameterKey    string  `db:"parameter_key" json:"parameter_key"`
+	Revision        int64   `db:"revision" json:"revision"`
 }
 
 func (q *Queries) UpdateAppSystemParameterValue(ctx context.Context, arg UpdateAppSystemParameterValueParams) (AppSystemParameter, error) {
 	row := q.db.QueryRow(ctx, updateAppSystemParameterValue,
-		arg.CurrentValue,
+		arg.ConfiguredValue,
 		arg.ActorID,
 		arg.ParameterKey,
 		arg.Revision,
@@ -1937,7 +2196,7 @@ func (q *Queries) UpdateAppSystemParameterValue(ctx context.Context, arg UpdateA
 		&i.Name,
 		&i.Description,
 		&i.ValueType,
-		&i.CurrentValue,
+		&i.ConfiguredValue,
 		&i.DefaultValue,
 		&i.Editable,
 		&i.Revision,
@@ -1945,6 +2204,12 @@ func (q *Queries) UpdateAppSystemParameterValue(ctx context.Context, arg UpdateA
 		&i.CreatedBy,
 		&i.UpdatedAt,
 		&i.UpdatedBy,
+		&i.SafeToExpose,
+		&i.Constraints,
+		&i.EffectMode,
+		&i.RunningValue,
+		&i.RunningRevision,
+		&i.RestartPending,
 	)
 	return i, err
 }

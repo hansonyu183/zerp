@@ -8,11 +8,11 @@ import {
   queryAdminRoles,
   saveAdminRole,
   setAdminRoleEnabled,
-} from '@/pages/admin/shared/api'
-import { createRoleManagementViewModel } from '@/pages/admin/role/vm'
+} from '@/pages/app/shared/api'
+import { createRoleManagementViewModel } from '@/pages/app/role/vm'
 import { useSessionStore } from '@/stores/session'
 
-vi.mock('@/pages/admin/shared/api', () => ({
+vi.mock('@/pages/app/shared/api', () => ({
   queryAdminRoles: vi.fn(),
   getAdminRole: vi.fn(),
   createAdminRole: vi.fn(),
@@ -84,7 +84,7 @@ describe('role management view model', () => {
     })
     vi.mocked(getAdminRole).mockResolvedValue({ data: detail })
     vi.mocked(queryAdminPermissions).mockResolvedValue({
-      data: { items: [permission], total: 1, page: 1, pageSize: 200 },
+      data: { items: [permission], total: 1, page: 1, pageSize: 20 },
     })
     vi.mocked(createAdminRole).mockResolvedValue({ data: detail })
     vi.mocked(saveAdminRole).mockResolvedValue({ data: detail })
@@ -213,7 +213,7 @@ describe('role management view model', () => {
         items: [permission, disabledPermission],
         total: 2,
         page: 1,
-        pageSize: 200,
+        pageSize: 20,
       },
     })
     const vm = createRoleManagementViewModel()
@@ -239,7 +239,7 @@ describe('role management view model', () => {
     vi.mocked(queryAdminPermissions)
       .mockRejectedValueOnce(new Error('down'))
       .mockResolvedValueOnce({
-        data: { items: [permission], total: 1, page: 1, pageSize: 200 },
+        data: { items: [permission], total: 1, page: 1, pageSize: 20 },
       })
     const vm = createRoleManagementViewModel()
 

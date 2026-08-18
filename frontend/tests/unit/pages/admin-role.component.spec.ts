@@ -1,12 +1,12 @@
 import { mount } from '@vue/test-utils'
 import { computed, defineComponent, h, reactive } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import Role from '@/pages/admin/role/Role.vue'
+import Role from '@/pages/app/role/Role.vue'
 
 const vmState = vi.hoisted(() => ({
   value: null as Record<string, unknown> | null,
 }))
-vi.mock('@/pages/admin/role/vm', () => ({
+vi.mock('@/pages/app/role/vm', () => ({
   createRoleManagementViewModel: () => vmState.value,
 }))
 vi.mock('vue-router', async () => {

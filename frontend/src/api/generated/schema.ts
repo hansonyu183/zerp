@@ -871,6 +871,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/app/menu/publish-business-template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 发布业务菜单草稿 */
+        post: operations["appMenuPublishBusinessTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/app/menu/activate": {
         parameters: {
             query?: never;
@@ -3121,7 +3138,7 @@ export interface components {
         PermissionQueryRequest: {
             page: number;
             /** @enum {integer} */
-            pageSize: 20 | 200;
+            pageSize: 20;
             filters?: {
                 domain?: string;
                 entity?: string;
@@ -3154,7 +3171,7 @@ export interface components {
             total: number;
             page: number;
             /** @enum {integer} */
-            pageSize: 20 | 200;
+            pageSize: 20;
         };
         PermissionPageResponse: {
             /** Format: int32 */
@@ -3163,35 +3180,64 @@ export interface components {
             data: components["schemas"]["PermissionPage"] | null;
             requestId: string;
         };
+        PermissionDetail: {
+            path: string;
+            domain: string;
+            entity: string;
+            action: string;
+            description: string | null;
+            status: components["schemas"]["UserStatus"];
+            /** Format: int64 */
+            roleCount: number;
+        };
         PermissionDetailResponse: {
             /** Format: int32 */
             code: number;
             message: string;
-            data: components["schemas"]["PermissionView"] | null;
+            data: components["schemas"]["PermissionDetail"] | null;
             requestId: string;
-        };
-        PageRequest: {
-            page: number;
-            pageSize: number;
-            filters?: {
-                [key: string]: unknown;
-            };
-            sort?: {
-                field: string;
-                /** @enum {string} */
-                order: "asc" | "desc";
-            }[];
         };
         /** @enum {string} */
         SystemParameterValueType: "STRING" | "INTEGER" | "DECIMAL" | "BOOLEAN";
+        SystemParameterQueryRequest: {
+            page: number;
+            /** @enum {integer} */
+            pageSize: 20;
+            filters?: {
+                search?: string;
+                valueType?: components["schemas"]["SystemParameterValueType"];
+                /** @enum {string} */
+                editable?: "true" | "false";
+            };
+            sort: {
+                /** @enum {string} */
+                field: "key";
+                /** @enum {string} */
+                order: "asc";
+            }[];
+        };
+        SystemParameterConstraints: {
+            required: boolean;
+            minLength: number | null;
+            maxLength: number | null;
+            minimum: string | null;
+            maximum: string | null;
+            allowedValues: string[];
+        };
+        /** @enum {string} */
+        SystemParameterEffectMode: "IMMEDIATE" | "NEXT_REQUEST" | "RESTART_REQUIRED";
         SystemParameterView: {
             key: string;
             name: string;
             description: string | null;
             valueType: components["schemas"]["SystemParameterValueType"];
-            value: string;
+            configuredValue: string;
             defaultValue: string;
             editable: boolean;
+            constraints: components["schemas"]["SystemParameterConstraints"] | null;
+            effectMode: components["schemas"]["SystemParameterEffectMode"];
+            runningValue: string | null;
+            restartPending: boolean;
             /** Format: int64 */
             revision: number;
             /** Format: date-time */
@@ -3224,7 +3270,7 @@ export interface components {
         };
         SaveSystemParameterRequest: {
             key: string;
-            value: string;
+            configuredValue: string;
             /** Format: int64 */
             revision: number;
         };
@@ -3267,7 +3313,8 @@ export interface components {
             modeRevision: number;
             catalogRevision: string;
             defaultMenu: components["schemas"]["MenuTree"];
-            businessTemplate: components["schemas"]["MenuTree"];
+            draft: components["schemas"]["MenuTree"];
+            published: components["schemas"]["MenuTree"];
             navigation: components["schemas"]["MenuTree"];
             availableRoutes: components["schemas"]["MenuRouteOption"][];
         };
@@ -3294,14 +3341,21 @@ export interface components {
             catalogRevision: string;
             items: components["schemas"]["SaveMenuItem"][];
         };
+        PublishBusinessMenuRequest: {
+            /** Format: int64 */
+            revision: number;
+            catalogRevision: string;
+        };
         ActivateMenuRequest: {
             mode: components["schemas"]["MenuMode"];
             /** Format: int64 */
             revision: number;
+            catalogRevision: string;
         };
         ResetBusinessMenuRequest: {
             /** Format: int64 */
             revision: number;
+            catalogRevision: string;
         };
         FeedbackAttachmentInitiateRequest: {
             fileName: string;
@@ -5786,7 +5840,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["PageRequest"];
+                "application/json": components["schemas"]["SystemParameterQueryRequest"];
             };
         };
         responses: {
@@ -5911,6 +5965,30 @@ export interface operations {
         };
         responses: {
             /** @description 保存后的菜单配置。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuGetResponse"];
+                };
+            };
+        };
+    };
+    appMenuPublishBusinessTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishBusinessMenuRequest"];
+            };
+        };
+        responses: {
+            /** @description 发布后的菜单配置。 */
             200: {
                 headers: {
                     [name: string]: unknown;

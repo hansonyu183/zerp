@@ -3,11 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getAdminPermission,
   queryAdminPermissions,
-} from '@/pages/admin/shared/api'
-import { createPermissionManagementViewModel } from '@/pages/admin/permission/vm'
+} from '@/pages/app/shared/api'
+import { createPermissionManagementViewModel } from '@/pages/app/permission/vm'
 import { useSessionStore } from '@/stores/session'
 
-vi.mock('@/pages/admin/shared/api', () => ({
+vi.mock('@/pages/app/shared/api', () => ({
   queryAdminPermissions: vi.fn(),
   getAdminPermission: vi.fn(),
 }))
@@ -49,6 +49,7 @@ describe('permission management view model', () => {
 
   it('权限目录只支持筛选和详情读取', async () => {
     const vm = createPermissionManagementViewModel()
+    expect(vm.pageSize.value).toBe(20)
     vm.status.value = 'ENABLED'
     await vm.query()
     await vm.openDetail(permission)

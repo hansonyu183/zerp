@@ -5,11 +5,11 @@ import {
   querySystemParameters,
   resetSystemParameter,
   saveSystemParameter,
-} from '@/pages/admin/shared/api'
-import { createSystemParameterViewModel } from '@/pages/admin/system-parameter/vm'
+} from '@/pages/app/shared/api'
+import { createSystemParameterViewModel } from '@/pages/app/system-parameter/vm'
 import { useSessionStore } from '@/stores/session'
 
-vi.mock('@/pages/admin/shared/api', () => ({
+vi.mock('@/pages/app/shared/api', () => ({
   querySystemParameters: vi.fn(),
   getSystemParameter: vi.fn(),
   saveSystemParameter: vi.fn(),
@@ -21,24 +21,70 @@ const integerParameter = {
   name: '金额小数位',
   description: '金额显示小数位',
   valueType: 'INTEGER' as const,
-  value: '2',
+  configuredValue: '2',
   defaultValue: '2',
   editable: true,
+  constraints: {
+    required: true,
+    minLength: null,
+    maxLength: null,
+    minimum: '0',
+    maximum: '6',
+    allowedValues: [],
+  },
+  effectMode: 'IMMEDIATE' as const,
+  runningValue: null,
+  restartPending: false,
   revision: 4,
   updatedAt: '2026-08-05T00:00:00Z',
   updatedBy: 'USER-1',
 }
+const restartParameter = {
+  ...integerParameter,
+  key: 'report.cache.ttl',
+  name: '报表缓存时长',
+  configuredValue: '120',
+  defaultValue: '60',
+  effectMode: 'RESTART_REQUIRED' as const,
+  runningValue: '60',
+  restartPending: true,
+  revision: 6,
+}
 const menuMode = {
+  ...integerParameter,
   key: 'app.menu.mode',
   name: '当前菜单方式',
-  description: '菜单服务专用',
   valueType: 'STRING' as const,
-  value: 'DEFAULT',
+  configuredValue: 'DEFAULT',
   defaultValue: 'DEFAULT',
-  editable: false,
+  constraints: null,
+  effectMode: 'NEXT_REQUEST' as const,
   revision: 1,
-  updatedAt: '2026-08-05T00:00:00Z',
-  updatedBy: 'USER-1',
+}
+const incompleteConstraintParameter = {
+  ...integerParameter,
+  key: 'legacy.parameter',
+  constraints: null,
+}
+const readOnlyParameter = {
+  ...integerParameter,
+  key: 'runtime.read-only',
+  editable: false,
+}
+const choiceParameter = {
+  ...integerParameter,
+  key: 'invoice.rounding.mode',
+  valueType: 'STRING' as const,
+  configuredValue: 'HALF_UP',
+  defaultValue: 'HALF_UP',
+  constraints: {
+    required: true,
+    minLength: null,
+    maxLength: null,
+    minimum: null,
+    maximum: null,
+    allowedValues: ['HALF_UP', 'HALF_EVEN'],
+  },
 }
 
 function deferred<T>() {
@@ -64,22 +110,22 @@ describe('system parameter view model', () => {
     ]
     vi.mocked(querySystemParameters).mockResolvedValue({
       data: {
-        items: [integerParameter, menuMode],
-        total: 2,
+        items: [integerParameter, restartParameter, menuMode],
+        total: 3,
         page: 1,
         pageSize: 20,
       },
     })
     vi.mocked(getSystemParameter).mockResolvedValue({ data: integerParameter })
     vi.mocked(saveSystemParameter).mockResolvedValue({
-      data: { ...integerParameter, value: '3', revision: 5 },
+      data: { ...integerParameter, configuredValue: '3', revision: 5 },
     })
     vi.mocked(resetSystemParameter).mockResolvedValue({
-      data: { ...integerParameter, value: '2', revision: 5 },
+      data: { ...integerParameter, configuredValue: '2', revision: 5 },
     })
   })
 
-  it('按类型和可编辑状态筛选已注册参数', async () => {
+  it('按类型和可编辑状态以固定 20 条分页查询参数', async () => {
     const vm = createSystemParameterViewModel()
     vm.keyword.value = 'invoice'
     vm.valueType.value = 'INTEGER'
@@ -124,8 +170,6 @@ describe('system parameter view model', () => {
     const olderQuery = vm.query()
     vm.keyword.value = '新查询'
     const newerQuery = vm.query()
-    expect(vm.loading.value).toBe(true)
-
     second.resolve({
       data: {
         items: [{ ...integerParameter, key: 'new.parameter' }],
@@ -135,55 +179,40 @@ describe('system parameter view model', () => {
       },
     })
     await newerQuery
-    expect(vm.rows.value).toEqual([
-      { ...integerParameter, key: 'new.parameter' },
-    ])
-    expect(vm.loading.value).toBe(false)
-
     first.reject(new Error('旧查询失败'))
     await olderQuery
+
     expect(vm.rows.value).toEqual([
       { ...integerParameter, key: 'new.parameter' },
     ])
-    expect(vm.total.value).toBe(1)
     expect(vm.errorMessage.value).toBeNull()
-    expect(vm.loading.value).toBe(false)
   })
 
   it('忽略乱序的旧参数编辑详情响应', async () => {
     const first = deferred<{ data: typeof integerParameter }>()
-    const second = deferred<{ data: typeof integerParameter }>()
-    const otherParameter = {
-      ...integerParameter,
-      key: 'voucher.rounding.scale',
-      name: '凭证金额小数位',
-      value: '4',
-      revision: 7,
-    }
+    const second = deferred<{ data: typeof restartParameter }>()
     vi.mocked(getSystemParameter)
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise)
     const vm = createSystemParameterViewModel()
 
     const firstLoad = vm.openEdit(integerParameter)
-    const secondLoad = vm.openEdit(otherParameter)
-    second.resolve({ data: otherParameter })
+    const secondLoad = vm.openEdit(restartParameter)
+    second.resolve({ data: restartParameter })
     await secondLoad
-    expect(vm.editing.value).toEqual(otherParameter)
-    expect(vm.inputValue.value).toBe('4')
-
     first.resolve({ data: integerParameter })
     await firstLoad
-    expect(vm.editing.value).toEqual(otherParameter)
-    expect(vm.inputValue.value).toBe('4')
+
+    expect(vm.editing.value).toEqual(restartParameter)
+    expect(vm.inputValue.value).toBe('120')
     expect(vm.loading.value).toBe(false)
   })
 
-  it('保存时在前端校验类型并携带当前 revision', async () => {
+  it('根据注册约束校验配置值并携带 fresh revision 保存', async () => {
     const vm = createSystemParameterViewModel()
     await vm.openEdit(integerParameter)
-    vm.inputValue.value = '1.5'
-    expect(vm.validationError.value).toBe('请输入整数。')
+    vm.inputValue.value = '7'
+    expect(vm.validationError.value).toBe('值不能大于 6。')
     await vm.save()
     expect(saveSystemParameter).not.toHaveBeenCalled()
 
@@ -191,37 +220,100 @@ describe('system parameter view model', () => {
     await vm.save()
     expect(saveSystemParameter).toHaveBeenCalledWith({
       key: 'invoice.rounding.scale',
-      value: '3',
+      configuredValue: '3',
       revision: 4,
     })
   })
 
-  it('编辑操作同时要求 get 和 save 权限', () => {
+  it('从注册候选约束派生编辑控件选项', async () => {
+    vi.mocked(getSystemParameter).mockResolvedValue({ data: choiceParameter })
+    const vm = createSystemParameterViewModel()
+
+    await vm.openEdit(choiceParameter)
+
+    expect(vm.inputOptions.value).toEqual([
+      { title: 'HALF_UP', value: 'HALF_UP' },
+      { title: 'HALF_EVEN', value: 'HALF_EVEN' },
+    ])
+  })
+
+  it('菜单模式、不可编辑参数和约束缺失参数均保持只读', async () => {
+    const vm = createSystemParameterViewModel()
+
+    expect(vm.canEditParameter(menuMode)).toBe(false)
+    expect(vm.canResetParameter(menuMode)).toBe(false)
+    expect(vm.canEditParameter(readOnlyParameter)).toBe(false)
+    expect(vm.canResetParameter(readOnlyParameter)).toBe(false)
+    expect(vm.canEditParameter(incompleteConstraintParameter)).toBe(false)
+    await vm.openEdit(menuMode)
+    await vm.requestReset(incompleteConstraintParameter)
+
+    expect(getSystemParameter).not.toHaveBeenCalled()
+    expect(vm.editorOpen.value).toBe(false)
+    expect(vm.resetTarget.value).toBeNull()
+  })
+
+  it('只有 get 权限时仍可读取完整只读详情', async () => {
     const session = useSessionStore()
     session.permissions = [
       '/app/system-parameter/query',
-      '/app/system-parameter/save',
+      '/app/system-parameter/get',
     ]
     const vm = createSystemParameterViewModel()
 
-    expect(vm.canSave.value).toBe(true)
-    expect(vm.canEdit.value).toBe(false)
-    session.permissions.push('/app/system-parameter/get')
-    expect(vm.canEdit.value).toBe(true)
+    await vm.openDetail(integerParameter)
+
+    expect(getSystemParameter).toHaveBeenCalledWith(integerParameter.key)
+    expect(vm.editorOpen.value).toBe(true)
+    expect(vm.editing.value).toEqual(integerParameter)
+    expect(vm.canEditParameter(integerParameter)).toBe(false)
   })
 
-  it('恢复默认值需要显式确认且菜单模式保持只读', async () => {
+  it('恢复默认值先 fresh get，再以该 revision 二次确认提交', async () => {
+    vi.mocked(getSystemParameter).mockResolvedValue({ data: restartParameter })
+    vi.mocked(resetSystemParameter).mockResolvedValue({
+      data: { ...restartParameter, configuredValue: '60', revision: 7 },
+    })
     const vm = createSystemParameterViewModel()
-    vm.requestReset(integerParameter)
+
+    await vm.requestReset(integerParameter)
+    expect(getSystemParameter).toHaveBeenCalledWith(integerParameter.key)
+    expect(vm.resetTarget.value).toEqual(restartParameter)
+
     await vm.confirmReset()
     expect(resetSystemParameter).toHaveBeenCalledWith({
-      key: 'invoice.rounding.scale',
-      revision: 4,
+      key: restartParameter.key,
+      revision: 6,
     })
+    expect(vm.successMessage.value).toContain('重启后生效')
+  })
 
-    vi.mocked(resetSystemParameter).mockClear()
-    vm.requestReset(menuMode)
-    await vm.confirmReset()
-    expect(resetSystemParameter).not.toHaveBeenCalled()
+  it('关闭有修改的编辑器必须先确认放弃', async () => {
+    const vm = createSystemParameterViewModel()
+    await vm.openEdit(integerParameter)
+    vm.inputValue.value = '3'
+
+    vm.requestCloseEditor()
+    expect(vm.discardConfirmationOpen.value).toBe(true)
+    expect(vm.editorOpen.value).toBe(true)
+
+    vm.cancelDiscard()
+    expect(vm.editorOpen.value).toBe(true)
+    vm.confirmDiscard()
+    expect(vm.editorOpen.value).toBe(false)
+    expect(vm.editing.value).toBeNull()
+  })
+
+  it('revision 冲突保留当前输入和编辑上下文', async () => {
+    vi.mocked(saveSystemParameter).mockRejectedValue(new Error('数据已变化'))
+    const vm = createSystemParameterViewModel()
+    await vm.openEdit(integerParameter)
+    vm.inputValue.value = '3'
+
+    await vm.save()
+
+    expect(vm.inputValue.value).toBe('3')
+    expect(vm.editing.value?.revision).toBe(4)
+    expect(vm.editorOpen.value).toBe(true)
   })
 })

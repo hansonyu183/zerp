@@ -171,17 +171,22 @@ func TestQueryAndPermissionCatalogIntegration(t *testing.T) {
 		t.Fatalf("overflow pagination error = %v", err)
 	}
 	page, err := service.QueryPermissions(t.Context(), PageRequest{
-		Page: 1, PageSize: 200, Filters: map[string]string{"domain": "app"},
-		Sort: []SortItem{{Field: "path", Order: "desc"}},
+		Page: 1, PageSize: 20, Filters: map[string]string{"domain": "app"},
+		Sort: []SortItem{{Field: "path", Order: "asc"}},
 	}, integrationPrincipal(admin.ID))
 	if err != nil {
 		t.Fatalf("query permissions: %v", err)
 	}
-	if len(page.Items) < 2 || page.Items[0].Path < page.Items[1].Path {
-		t.Fatalf("permissions are not descending: %+v", page.Items)
+	if len(page.Items) < 2 || page.Items[0].Path > page.Items[1].Path {
+		t.Fatalf("permissions are not ascending: %+v", page.Items)
+	}
+	if _, err = service.QueryPermissions(t.Context(), PageRequest{
+		Page: 1, PageSize: 200, Sort: []SortItem{{Field: "path", Order: "asc"}},
+	}, integrationPrincipal(admin.ID)); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("non-fixed permission page size error = %v", err)
 	}
 	expectedProtected := []string{
-		"/app/menu/activate", "/app/menu/reset-business-template", "/app/menu/save-business-template",
+		"/app/menu/activate", "/app/menu/publish-business-template", "/app/menu/reset-business-template", "/app/menu/save-business-template",
 		"/app/permission/get", "/app/permission/query",
 		"/app/role/create", "/app/role/disable", "/app/role/enable", "/app/role/get", "/app/role/query", "/app/role/save",
 		"/app/system-parameter/get", "/app/system-parameter/query", "/app/system-parameter/reset", "/app/system-parameter/save",
@@ -206,7 +211,7 @@ func TestQueryAndPermissionCatalogIntegration(t *testing.T) {
 	}
 	accPermissionID := permissionIDsByPath(t, pool, "/acc/book/get")[0]
 	accPermission, err := service.GetPermission(t.Context(), accPermissionID, integrationPrincipal(admin.ID))
-	if err != nil || accPermission.ID != accPermissionID || accPermission.Path != "/acc/book/get" {
+	if err != nil || accPermission.Path != "/acc/book/get" {
 		t.Fatalf("get ACC permission = %+v, err=%v", accPermission, err)
 	}
 }

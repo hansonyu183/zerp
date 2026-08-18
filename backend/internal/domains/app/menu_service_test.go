@@ -20,6 +20,20 @@ func TestBusinessMenuRevisionComesFromOneRowSnapshot(t *testing.T) {
 	}
 }
 
+func TestEditableMenuTreeOmitsRetiredNormalRoutes(t *testing.T) {
+	groupID := "group"
+	retiredKey := "led/asset"
+	rows := []dbsqlc.AppBusinessMenuItem{
+		{ID: groupID, ItemType: MenuItemGroup, ItemLevel: 1, DisplayName: "资产", Enabled: true, Revision: 3},
+		{ID: "retired", ParentID: &groupID, ItemType: MenuItemRoute, ItemLevel: 2, DisplayName: "旧资产", Enabled: true, RouteKey: &retiredKey, Revision: 3},
+	}
+
+	tree := editableMenuTreeFromRows(rows, 3, nil)
+	if len(tree.Items) != 1 || tree.Items[0].ID != groupID {
+		t.Fatalf("editable tree exposed retired route: %+v", tree.Items)
+	}
+}
+
 func TestInitialBusinessMenuClassifiesEveryCashRoute(t *testing.T) {
 	for _, key := range []string{
 		"vou/employee-loan-writeoff",
@@ -68,11 +82,11 @@ func TestWorkbenchIsTheUniqueDirectMenuEntry(t *testing.T) {
 func TestValidateBusinessMenuRequiresOneEnabledDirectWorkbench(t *testing.T) {
 	catalog := []registeredMenuRoute{
 		{RouteKey: "home/dashboard", RoutePath: "/home/dashboard", DisplayName: "工作台", PermissionCode: "/app/workbench/query", Always: true},
-		{RouteKey: "admin/menu", RoutePath: "/admin/menu", DisplayName: "菜单管理", PermissionCode: "/app/menu/save-business-template"},
+		{RouteKey: "app/menu", RoutePath: "/app/menu", DisplayName: "菜单管理", PermissionCode: "/app/menu/save-business-template"},
 	}
 	systemID := "system"
 	workbenchKey := "home/dashboard"
-	menuKey := "admin/menu"
+	menuKey := "app/menu"
 	items := []SaveMenuItemInput{
 		{ID: "workbench", Type: MenuItemRoute, Order: 10, DisplayName: "工作台", Enabled: true, RouteKey: &workbenchKey},
 		{ID: systemID, Type: MenuItemGroup, Order: 20, DisplayName: "系统管理", Enabled: true},

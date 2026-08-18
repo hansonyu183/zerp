@@ -304,7 +304,8 @@ SELECT id FROM app_permissions WHERE status = 'ENABLED' ORDER BY path;
 -- name: CountAppSystemParameters :one
 SELECT count(*)
 FROM app_system_parameters
-WHERE (sqlc.narg(value_type)::text IS NULL OR value_type = sqlc.narg(value_type))
+WHERE safe_to_expose = true
+  AND (sqlc.narg(value_type)::text IS NULL OR value_type = sqlc.narg(value_type))
   AND (sqlc.narg(editable)::boolean IS NULL OR editable = sqlc.narg(editable))
   AND (
     sqlc.narg(search)::text IS NULL
@@ -315,7 +316,8 @@ WHERE (sqlc.narg(value_type)::text IS NULL OR value_type = sqlc.narg(value_type)
 -- name: ListAppSystemParameters :many
 SELECT *
 FROM app_system_parameters
-WHERE (sqlc.narg(value_type)::text IS NULL OR value_type = sqlc.narg(value_type))
+WHERE safe_to_expose = true
+  AND (sqlc.narg(value_type)::text IS NULL OR value_type = sqlc.narg(value_type))
   AND (sqlc.narg(editable)::boolean IS NULL OR editable = sqlc.narg(editable))
   AND (
     sqlc.narg(search)::text IS NULL
@@ -333,16 +335,29 @@ ORDER BY
 LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 
 -- name: GetAppSystemParameter :one
-SELECT * FROM app_system_parameters WHERE parameter_key = sqlc.arg(parameter_key) LIMIT 1;
+SELECT * FROM app_system_parameters
+WHERE parameter_key = sqlc.arg(parameter_key)
+  AND safe_to_expose = true
+LIMIT 1;
 
 -- name: GetAppSystemParameterForUpdate :one
 SELECT * FROM app_system_parameters
 WHERE parameter_key = sqlc.arg(parameter_key)
+  AND safe_to_expose = true
 LIMIT 1 FOR UPDATE;
 
 -- name: UpdateAppSystemParameterValue :one
 UPDATE app_system_parameters
-SET current_value = sqlc.arg(current_value),
+SET configured_value = sqlc.arg(configured_value),
+    running_value = CASE
+      WHEN effect_mode IN ('IMMEDIATE', 'NEXT_REQUEST') THEN sqlc.arg(configured_value)
+      ELSE running_value
+    END,
+    running_revision = CASE
+      WHEN effect_mode IN ('IMMEDIATE', 'NEXT_REQUEST') THEN revision + 1
+      ELSE running_revision
+    END,
+    restart_pending = effect_mode = 'RESTART_REQUIRED',
     revision = revision + 1,
     updated_at = now(),
     updated_by = sqlc.arg(actor_id)
@@ -353,7 +368,16 @@ RETURNING *;
 
 -- name: ResetAppSystemParameterValue :one
 UPDATE app_system_parameters
-SET current_value = default_value,
+SET configured_value = default_value,
+    running_value = CASE
+      WHEN effect_mode IN ('IMMEDIATE', 'NEXT_REQUEST') THEN default_value
+      ELSE running_value
+    END,
+    running_revision = CASE
+      WHEN effect_mode IN ('IMMEDIATE', 'NEXT_REQUEST') THEN revision + 1
+      ELSE running_revision
+    END,
+    restart_pending = effect_mode = 'RESTART_REQUIRED',
     revision = revision + 1,
     updated_at = now(),
     updated_by = sqlc.arg(actor_id)
@@ -362,27 +386,83 @@ WHERE parameter_key = sqlc.arg(parameter_key)
   AND editable = true
 RETURNING *;
 
+-- name: ConfirmAppSystemParameterAdoption :one
+UPDATE app_system_parameters
+SET running_value = configured_value,
+    running_revision = revision,
+    restart_pending = false,
+    updated_at = now(),
+    updated_by = sqlc.arg(actor_id)
+WHERE parameter_key = sqlc.arg(parameter_key)
+  AND revision = sqlc.arg(revision)
+  AND effect_mode = 'RESTART_REQUIRED'
+  AND restart_pending = true
+RETURNING *;
+
+-- name: ListRestartRequiredAppSystemParametersForUpdate :many
+SELECT *
+FROM app_system_parameters
+WHERE effect_mode = 'RESTART_REQUIRED'
+ORDER BY parameter_key
+FOR UPDATE;
+
+-- name: RegisterAppSystemParameterRuntimeScope :exec
+INSERT INTO app_system_parameter_runtime_scopes (
+  parameter_key, revision, deployment_scope, expected_instance_ids
+) VALUES (
+  sqlc.arg(parameter_key), sqlc.arg(revision), sqlc.arg(deployment_scope), sqlc.arg(expected_instance_ids)
+)
+ON CONFLICT (parameter_key, revision, deployment_scope) DO NOTHING;
+
+-- name: GetAppSystemParameterRuntimeScopeForUpdate :one
+SELECT expected_instance_ids
+FROM app_system_parameter_runtime_scopes
+WHERE parameter_key = sqlc.arg(parameter_key)
+  AND revision = sqlc.arg(revision)
+  AND deployment_scope = sqlc.arg(deployment_scope)
+FOR UPDATE;
+
+-- name: ReportAppSystemParameterRuntimeAdoption :exec
+INSERT INTO app_system_parameter_runtime_adoptions (
+  parameter_key, revision, deployment_scope, instance_id
+) VALUES (
+  sqlc.arg(parameter_key), sqlc.arg(revision), sqlc.arg(deployment_scope), sqlc.arg(instance_id)
+)
+ON CONFLICT (parameter_key, revision, deployment_scope, instance_id)
+DO UPDATE SET adopted_at = now();
+
+-- name: CountExpectedAppSystemParameterRuntimeAdoptions :one
+SELECT count(*)
+FROM app_system_parameter_runtime_adoptions
+WHERE parameter_key = sqlc.arg(parameter_key)
+  AND revision = sqlc.arg(revision)
+  AND deployment_scope = sqlc.arg(deployment_scope)
+  AND instance_id = ANY(sqlc.arg(expected_instance_ids)::text[]);
+
 -- name: AcquireAppMenuLock :exec
 SELECT pg_advisory_xact_lock(74155002);
 
 -- name: ListAppBusinessMenuItems :many
 SELECT *
 FROM app_business_menu_items
+WHERE snapshot_type = sqlc.arg(snapshot_type)
 ORDER BY item_level, sort_order, id;
 
 -- name: GetAppBusinessMenuRevision :one
 SELECT COALESCE(max(revision), 1)::bigint
-FROM app_business_menu_items;
+FROM app_business_menu_items
+WHERE snapshot_type = sqlc.arg(snapshot_type);
 
 -- name: DeleteAppBusinessMenuItems :exec
-DELETE FROM app_business_menu_items;
+DELETE FROM app_business_menu_items
+WHERE snapshot_type = sqlc.arg(snapshot_type);
 
 -- name: InsertAppBusinessMenuItem :exec
 INSERT INTO app_business_menu_items (
-  id, parent_id, item_type, item_level, sort_order, display_name, icon,
+  snapshot_type, id, parent_id, item_type, item_level, sort_order, display_name, icon,
   enabled, route_key, permission_code, revision, created_by, updated_by
 ) VALUES (
-  sqlc.arg(id), sqlc.narg(parent_id), sqlc.arg(item_type), sqlc.arg(item_level),
+  sqlc.arg(snapshot_type), sqlc.arg(id), sqlc.narg(parent_id), sqlc.arg(item_type), sqlc.arg(item_level),
   sqlc.arg(sort_order), sqlc.arg(display_name), sqlc.narg(icon), sqlc.arg(enabled),
   sqlc.narg(route_key), sqlc.narg(permission_code), sqlc.arg(revision),
   sqlc.narg(actor_id), sqlc.narg(actor_id)
@@ -407,7 +487,10 @@ ORDER BY domain, min(menu_order) FILTER (WHERE action = 'query') NULLS LAST, ent
 
 -- name: UpdateAppMenuMode :one
 UPDATE app_system_parameters
-SET current_value = sqlc.arg(mode),
+SET configured_value = sqlc.arg(mode),
+    running_value = sqlc.arg(mode),
+    running_revision = revision + 1,
+    restart_pending = false,
     revision = revision + 1,
     updated_at = now(),
     updated_by = sqlc.arg(actor_id)

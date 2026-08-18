@@ -69,6 +69,26 @@ func testLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
+func TestRuntimeInitializationContextHasDatabaseBoundedDeadline(t *testing.T) {
+	ctx, cancel := runtimeInitializationContext(config.Config{DatabaseConnectTimeout: 2 * time.Second})
+	defer cancel()
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		t.Fatal("runtime initialization context has no deadline")
+	}
+	remaining := time.Until(deadline)
+	if remaining <= 0 || remaining > 2*time.Second {
+		t.Fatalf("runtime initialization deadline remaining = %s", remaining)
+	}
+
+	defaultContext, cancelDefault := runtimeInitializationContext(config.Config{})
+	defer cancelDefault()
+	defaultDeadline, ok := defaultContext.Deadline()
+	if !ok || time.Until(defaultDeadline) <= 0 || time.Until(defaultDeadline) > 5*time.Second {
+		t.Fatal("runtime initialization context did not apply five second default")
+	}
+}
+
 func TestHealthAndReadiness(t *testing.T) {
 	router := newRouter(testConfig(), pingerStub{}, testLogger(), nil)
 

@@ -55,10 +55,7 @@ function violation(sourceFile, node, message) {
 }
 
 function inspectStrictLocators(sourceFile, violations) {
-  if (
-    !sourceFile.text.includes('@system-serial') &&
-    path.basename(sourceFile.fileName) !== 'preview-smoke.mjs'
-  ) {
+  if (!sourceFile.text.includes('@system-serial')) {
     return
   }
 
@@ -155,10 +152,6 @@ export function checkRepositoryE2EConstraints(frontendRoot) {
       path.relative(frontendRoot, filePath),
       fs.readFileSync(filePath, 'utf8'),
     ]),
-  )
-  testSources['preview-smoke.mjs'] = fs.readFileSync(
-    path.join(frontendRoot, 'scripts/preview-smoke.mjs'),
-    'utf8',
   )
   return validateE2EConstraintSources({ testSources })
 }

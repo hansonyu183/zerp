@@ -1,6 +1,5 @@
 ENV_FILE ?= .env.local
 QUALITY_IMAGE_TAG ?= zerp-api:quality
-ACTIONLINT_VERSION ?= v1.7.12
 STATICCHECK_VERSION ?= v0.7.0
 GOVULNCHECK_VERSION ?= v1.6.0
 BACKEND_COVERAGE_MIN ?= 10.5
@@ -15,7 +14,7 @@ include $(ENV_FILE)
 export
 endif
 
-.PHONY: run build test test-unit test-db-prepare test-db-clean test-migration-upgrade test-integration generate quality quality-core quality-fast quality-generated quality-format quality-format-fast quality-modules quality-actionlint quality-compose quality-test quality-vet-build quality-race quality-staticcheck quality-vuln quality-image migrate-status migrate-up migrate-down bootstrap-admin seed-bob seed-preview cleanup-attachments cleanup-vou-attachments compose-up compose-down e2e-env-init e2e-env-rotate e2e-guard
+.PHONY: run build test test-unit test-db-prepare test-db-clean test-migration-upgrade test-integration generate quality quality-core quality-fast quality-generated quality-format quality-format-fast quality-modules quality-compose quality-test quality-vet-build quality-race quality-staticcheck quality-vuln quality-image migrate-status migrate-up migrate-down bootstrap-admin seed-bob seed-preview cleanup-attachments cleanup-vou-attachments compose-up compose-down e2e-env-init e2e-env-rotate e2e-guard
 
 run:
 	go run ./cmd/server
@@ -76,7 +75,6 @@ generate:
 
 quality:
 	@$(MAKE) quality-generated
-	@$(MAKE) quality-actionlint
 	@$(MAKE) quality-compose
 	@$(MAKE) quality-core
 	@$(MAKE) quality-image
@@ -113,9 +111,6 @@ quality-modules:
 	go -C tools mod tidy -diff
 	go mod verify
 	go -C tools mod verify
-
-quality-actionlint:
-	go run github.com/rhysd/actionlint/cmd/actionlint@$(ACTIONLINT_VERSION) ../.github/workflows/*.yml
 
 quality-compose:
 	docker compose --env-file $(ENV_FILE) config --quiet

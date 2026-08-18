@@ -38,7 +38,6 @@ jobs:
       e2e: ${{ steps.change_impact.outputs.e2e }}
       local_e2e: ${{ steps.change_impact.outputs.local_e2e }}
       preview: ${{ steps.change_impact.outputs.preview }}
-      local_preview: ${{ steps.change_impact.outputs.local_preview }}
       ready_validation: ${{ steps.change_impact.outputs.ready_validation }}
       reuse_contracts: ${{ steps.reuse.outputs.reuse_contracts }}
     steps:
@@ -53,10 +52,6 @@ jobs:
           PR_DRAFT: ${{ github.event.pull_request.draft || false }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
-          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
-          CURRENT_REPOSITORY: ${{ github.repository }}
-          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           if [ "$EVENT_NAME" = "pull_request" ]; then
             checks=$(scripts/change-impact.sh --checks "$BASE_SHA..$HEAD_SHA")
@@ -78,24 +73,12 @@ jobs:
           fi
           impact=$(printf '%s\n' "$checks" | sed -n 's/^impact=//p')
           ready_validation=1
-          local_preview=0
           if [ "$EVENT_NAME" = "pull_request" ] && [ "$PR_DRAFT" = "true" ] && \
             [ "$impact" = "application" ]; then
             ready_validation=0
           fi
-          if [ "$EVENT_NAME" = "pull_request" ] && \
-            [ "$HEAD_REPOSITORY" = "$CURRENT_REPOSITORY" ]; then
-            case "$HEAD_REF" in
-              automation/local-*)
-                marker_count=$(printf '%s\n' "$PR_BODY" | grep -Ec \
-                  "<!-- zerp-local-batch feature=[a-z0-9][a-z0-9-]* head=${HEAD_SHA} fingerprint=[0-9a-f]{64} -->" || true)
-                if [ "$marker_count" = 1 ]; then local_preview=1; fi
-                ;;
-            esac
-          fi
           checks="${checks}
-          ready_validation=${ready_validation}
-          local_preview=${local_preview}"
+          ready_validation=${ready_validation}"
           printf '%s\n' "$checks"
           printf '%s\n' "$checks" >> "$GITHUB_OUTPUT"
           {
@@ -656,8 +639,7 @@ jobs:
         'draft-validation' ||
         (github.event_name == 'workflow_dispatch' ||
         (github.event_name == 'pull_request' &&
-        needs.merge_evidence.outputs.preview == '1' &&
-        needs.merge_evidence.outputs.local_preview != '1')) &&
+        needs.merge_evidence.outputs.preview == '1')) &&
         'preview-required' || 'full-validation'
       }}
     if: always()
@@ -675,8 +657,7 @@ jobs:
             ${{
               (github.event_name == 'workflow_dispatch' ||
               (github.event_name == 'pull_request' &&
-              needs.merge_evidence.outputs.preview == '1' &&
-              needs.merge_evidence.outputs.local_preview != '1')) && '1' || '0'
+              needs.merge_evidence.outputs.preview == '1')) && '1' || '0'
             }}
         run: |
           test "$VALIDATION_RESULT" = "success"

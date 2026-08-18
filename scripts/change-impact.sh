@@ -97,11 +97,7 @@ if [ -n "${changed_files}" ]; then
         scripts/preview-state-test.sh | scripts/release-metrics.sh | \
         scripts/release-metrics-check.sh | scripts/review-* | \
         scripts/change-gate.sh | scripts/change-gate-test.sh | scripts/runtime-fingerprint.sh | \
-        scripts/issue-local.sh | scripts/issue-local-test.sh | \
         backend/scripts/run-integration-tests-test.sh | \
-        scripts/issue-local-production.sh | \
-        scripts/install-issue-local-agent.sh | \
-        scripts/install-issue-local-agent-test.sh | \
         scripts/github-app-token.sh | \
         scripts/verify-pr-base.sh | scripts/verify-merged-pr.sh | scripts/dev.sh)
         if [ "${impact}" = "docs" ]; then
@@ -247,7 +243,6 @@ if [ -n "${changed_files}" ]; then
         scripts/preview-build-sandbox.sh | scripts/preview-runtime-sandbox.sh | \
         scripts/preview-deploy.sh | scripts/preview-state.sh | \
         scripts/verify-preview-pr.sh | scripts/preview-smoke.sh | \
-        scripts/issue-local-preview.sh | scripts/issue-local-preview-test.sh | \
         scripts/uninstall-preview-agent.sh | \
         frontend/scripts/preview-smoke.mjs)
         if [ "${impact}" = "docs" ]; then

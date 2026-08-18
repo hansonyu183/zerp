@@ -29,14 +29,13 @@
 - SQL 修改后运行 `make generate`，不得手改 sqlc 生成代码。
 - 每项工作使用独立分支或工作树，不得把无关修改混入提交、预览、PR 或部署。
 - PR 必须直接以 `main` 为基线和目标；依赖中的后续工作可以保留本地分支，但必须等前置 PR 合并后基于最新 `main` 重放，再创建 PR，禁止堆叠 PR 重复触发完整门禁。
-- 本地批次控制器使用 `scripts/change-gate.sh <base-sha>` 验证可验收提交，普通人工工作在重放最新 `origin/main` 后运行 `make pre-push`；同一 exact head 复用成功证据并跳过重复门禁，门禁范围由 `scripts/change-impact.sh` 判定。
-- 本地批次必须先在没有 GitHub 读写的情况下完成实现、最终门禁和公网 exact-SHA 预览，再获取最新 `origin/main`。若重放只改变提交 SHA 且运行时指纹不变，复用已有门禁和预览；若运行时指纹改变或发生冲突，必须再次交给 `$implement` 修复并重新生成门禁和预览证据。通过后按依赖创建远端 Issues、推送一个分支并直接创建目标为 `main` 的 Ready PR。普通人工开发仍须在创建 PR 前重放最新 `main`，禁止先创建 PR 再常规强推。
-- `validation` 是自动化门禁聚合，`full-validation` 是最终可合并证据。GitHub 的 `contracts`、`frontend`、`backend`、`containers`、`e2e` 和 `validation` 必须按影响矩阵成功。受信任本地批次的 Ready PR 必须使用同仓 `automation/local-*` 分支，并在 PR 正文携带与事件 head 完全一致的批次 marker 和运行时指纹；GitHub Actions 核对这些条件后，只有完整矩阵成功才发布 `full-validation`。普通需要预览的 PR 仍先发布 `preview-required`，再由配置的 release-verifier 对 exact SHA 验收并发布 `full-validation`。任何新提交都使旧 head 的远端证据失效。
-- 运行代码、契约、迁移、依赖、构建和预览工具变更必须完成固定公网预览。受信任本地批次在创建任何 GitHub 对象前，由主工作区控制脚本对候选 worktree 执行 exact-SHA 浏览器验收；普通 PR 继续使用独立 release-verifier。文档、普通验证工具、单元测试-only、E2E-only 和生产工具-only 变更无需部署应用预览。固定预览一次只服务一个活跃批次或 PR；关闭或拒绝时恢复基线，生产成功后释放。
+- 人工工作在创建 PR 前获取最新 `origin/main` 并完成重放，然后运行 `make pre-push`；禁止先创建 PR 再常规强推。门禁范围由 `scripts/change-impact.sh` 判定。
+- `validation` 是自动化门禁聚合，`full-validation` 是最终可合并证据。GitHub 的 `contracts`、`frontend`、`backend`、`containers`、`e2e` 和 `validation` 必须按影响矩阵成功。需要预览的 PR 先发布 `preview-required`，再由配置的 release-verifier 对 exact SHA 验收并发布 `full-validation`。任何新提交都使旧 head 的远端证据失效。
+- 运行代码、契约、迁移、依赖、构建和预览工具变更必须完成固定公网预览。文档、普通验证工具、单元测试-only、E2E-only 和生产工具-only 变更无需部署应用预览。固定预览一次只服务一个活跃 PR；关闭或拒绝时恢复基线，生产成功后释放。
 - 固定预览失败时必须区分构建、迁移/种子、本机原生进程健康和公网 Tunnel 四层。若本机 Web/API 已健康且运行准确 SHA，公网 `530`、TLS 或资源预热失败不得通过 `preview-reset`、清空数据或重复改代码处理；应核对 Tunnel ingress、edge 连接和准确服务实例，恢复入口后重新运行 `make preview-status`。
-- 合并前必须确认 PR 最新 SHA 的全部必需检查成功；本地批次控制器使用 `gh pr checks --required` 等待分支保护要求的检查。
+- 合并前必须使用 `gh pr checks --required` 确认 PR 最新 SHA 的全部必需检查成功。
 - 生产可见问题必须核对真实 URL、浏览器实际请求目标、已加载资源和发布 SHA；不得仅凭本地代码或健康检查推断线上版本和行为。
-- 禁止直接推送或强推 `main`。只有本地批次控制器可以在全部 exact-SHA 证据成功后请求 squash auto-merge；GitHub ruleset 决定是否执行。合并后的 `main` 由生产发布代理自动部署，不得从开发工作区直接上线。
+- 禁止直接推送或强推 `main`。全部 exact-SHA 证据成功后才可请求 squash auto-merge，GitHub ruleset 决定是否执行。合并后的 `main` 由生产发布代理自动部署，不得从开发工作区直接上线。
 - 需要完成合并交付时，必须等待生产发布代理处理 squash 后的发布提交，并以 `make production-status` 确认 API、Web、公网入口和发布 SHA 一致后再结束；容器先切换而发布代理或公网标记尚未完成时不得提前宣称上线成功。
 - 保留用户已有修改，只改任务相关文件。
 
@@ -47,14 +46,6 @@
 ### 发布证据来源
 
 - 当代码把 GitHub check、commit status 或 deployment 作为验证、预览、合并或生产发布证据时，必须同时核对准确仓库、提交 SHA、事件/PR 绑定、预期提供者身份和不可变运行链接。安全路径：从 GitHub API 读取结构化来源并拒绝同名但来源不可信或提交不一致的证据。
-
-## Agent skills
-
-### Issue tracker
-
-Development tickets are local `$to-tickets` batches under `.scratch/<feature>/issues`; GitHub Issues are published only after the complete batch passes its public preview. See `docs/agents/issue-tracker.md`.
-
-When work changes local batch claiming, automated implementation/review, preview publication, GitHub mirroring, auto-merge, stop behavior, or production closure, follow `docs/agents/issue-delivery-automation.md` completely.
 
 ### Domain docs
 

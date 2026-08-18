@@ -58,6 +58,9 @@ grep -Fq 'needs.merge_evidence.outputs.preview == '"'"'1'"'"'' .github/workflows
 if grep -Eq 'local_preview|automation/local-|zerp-local-batch' .github/workflows/quality.yml; then
   fail 'workflow retains the retired trusted local-controller path'
 fi
+if grep -Eq '^  e2e:|needs\.e2e|run: make e2e' .github/workflows/quality.yml; then
+  fail 'workflow retains the retired GitHub-hosted E2E job'
+fi
 grep -Fq "github.event_name == 'workflow_dispatch' ||" .github/workflows/quality.yml
 grep -Fq "github.event_name == 'pull_request' &&" .github/workflows/quality.yml
 # A manual run is conservative: the non-PR classifier marks it preview-bound,

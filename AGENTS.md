@@ -30,7 +30,7 @@
 - 每项工作使用独立分支或工作树，不得把无关修改混入提交、预览、PR 或部署。
 - PR 必须直接以 `main` 为基线和目标；依赖中的后续工作可以保留本地分支，但必须等前置 PR 合并后基于最新 `main` 重放，再创建 PR，禁止堆叠 PR 重复触发完整门禁。
 - 人工工作在创建 PR 前获取最新 `origin/main` 并完成重放，然后运行 `make pre-push`；禁止先创建 PR 再常规强推。门禁范围由 `scripts/change-impact.sh` 判定。
-- `validation` 是自动化门禁聚合，`full-validation` 是最终可合并证据。GitHub 的 `contracts`、`frontend`、`backend`、`containers`、`e2e` 和 `validation` 必须按影响矩阵成功。需要预览的 PR 先发布 `preview-required`，再由配置的 release-verifier 对 exact SHA 验收并发布 `full-validation`。任何新提交都使旧 head 的远端证据失效。
+- `validation` 是自动化门禁聚合，`full-validation` 是最终可合并证据。GitHub 的 `contracts`、`frontend`、`backend`、`containers` 和 `validation` 必须按影响矩阵成功。真实 E2E 由本地最终门禁执行，不在 GitHub runner 重复运行。需要预览的 PR 先发布 `preview-required`，再由配置的 release-verifier 对 exact SHA 验收并发布 `full-validation`。任何新提交都使旧 head 的远端证据失效。
 - 运行代码、契约、迁移、依赖、构建和预览工具变更必须完成固定公网预览。文档、普通验证工具、单元测试-only、E2E-only 和生产工具-only 变更无需部署应用预览。固定预览一次只服务一个活跃 PR；关闭或拒绝时恢复基线，生产成功后释放。
 - 固定预览失败时必须区分构建、迁移/种子、本机原生进程健康和公网 Tunnel 四层。若本机 Web/API 已健康且运行准确 SHA，公网 `530`、TLS 或资源预热失败不得通过 `preview-reset`、清空数据或重复改代码处理；应核对 Tunnel ingress、edge 连接和准确服务实例，恢复入口后重新运行 `make preview-status`。
 - 合并前必须使用 `gh pr checks --required` 确认 PR 最新 SHA 的全部必需检查成功。

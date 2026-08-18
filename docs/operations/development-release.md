@@ -19,7 +19,7 @@ E2E 使用一次性 PostgreSQL 容器加本机 Go API/Web，并由 Playwright �
 
 本地门禁通过后推送并创建目标为 `main` 的 Draft PR。应用 Draft 运行格式、静态、聚焦单元测试和构建，产出成功的 `draft-validation`；它不会用故意失败的 `full-validation` 表示未就绪。
 
-确认分支基于最新 `main` 后转为 Ready。Ready 的最新 SHA 运行完整前端覆盖率、后端集成/race、需要的镜像验证和一次真实 E2E。相同 PR 在不改变 SHA 的 Ready 转换中，只有输入指纹完全相同的组件证据可以复用；第一阶段仅复用等价的 `contracts` 作业，其他风险矩阵继续执行。依赖和构建缓存可跨运行复用，但不当作测试成功证据。
+确认分支基于最新 `main` 后转为 Ready。Ready 的最新 SHA 运行完整前端覆盖率、后端集成/race 和需要的镜像验证；真实 E2E 已由创建 PR 前的本地最终门禁执行，不在 GitHub runner 重复安装浏览器并再跑一次。相同 PR 在不改变 SHA 的 Ready 转换中，只有输入指纹完全相同的组件证据可以复用；第一阶段仅复用等价的 `contracts` 作业，其他风险矩阵继续执行。依赖和构建缓存可跨运行复用，但不当作测试成功证据。
 
 `validation` 是自动化门禁聚合。无需预览的 Ready PR 在自动门禁成功后获得 `full-validation`。需要预览的 PR 只获得 `preview-required`，随后从受信任控制 checkout 执行：
 

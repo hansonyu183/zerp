@@ -35,3 +35,5 @@
 ### Domain docs
 
 This repository uses a single-context domain-documentation layout. See `docs/agents/domain.md`.
+
+页面用例讨论直接采用已经确立的全站规则、当前领域不变量和成熟 CRUD 默认值；只向用户询问会改变业务语义、授权或安全边界、不可逆结果，或存在真实产品取舍的未决问题。确认后立即更新权威用例或领域文档。

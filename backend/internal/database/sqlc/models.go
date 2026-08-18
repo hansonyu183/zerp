@@ -435,6 +435,11 @@ type AppRole struct {
 	Revision    int64              `db:"revision" json:"revision"`
 }
 
+type AppRoleCodeCounter struct {
+	CounterKey string `db:"counter_key" json:"counter_key"`
+	NextValue  int32  `db:"next_value" json:"next_value"`
+}
+
 type AppRolePermission struct {
 	RoleID       string             `db:"role_id" json:"role_id"`
 	PermissionID string             `db:"permission_id" json:"permission_id"`

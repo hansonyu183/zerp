@@ -95,6 +95,23 @@ describe('API user messages', () => {
     expect(
       getErrorMessage(new ApiError('business', 'role code is reserved')),
     ).toBe('该角色编码为系统保留编码，请使用其他编码。')
+    expect(
+      getErrorMessage(new ApiError('business', 'role name already exists')),
+    ).toBe('角色名称已存在，请使用其他名称。')
+    expect(
+      getErrorMessage(
+        new ApiError(
+          'business',
+          'requested permissions exceed authorization ceiling',
+        ),
+      ),
+    ).toBe('所选权限超出当前授权上限，请刷新权限目录后重新选择。')
+    expect(
+      getErrorMessage(new ApiError('business', 'user cannot be maintained')),
+    ).toBe('当前用户的授权高于您的管理范围，只能查看。')
+    expect(
+      getErrorMessage(new ApiError('business', 'permission not found')),
+    ).toBe('权限不存在，请刷新权限目录。')
   })
 
   it('按业务错误码提供明确原因并隐藏未知内部细节', () => {

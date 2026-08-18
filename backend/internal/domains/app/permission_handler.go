@@ -7,7 +7,7 @@ func (h *Handler) queryPermissions(c *gin.Context) {
 	if !h.bind(c, &input) {
 		return
 	}
-	result, err := h.service.QueryPermissions(c.Request.Context(), input)
+	result, err := h.service.QueryPermissions(c.Request.Context(), input, currentPrincipal(c))
 	h.result(c, result, err)
 }
 
@@ -16,6 +16,6 @@ func (h *Handler) getPermission(c *gin.Context) {
 	if !h.bind(c, &input) {
 		return
 	}
-	result, err := h.service.GetPermission(c.Request.Context(), input.ID)
+	result, err := h.service.GetPermission(c.Request.Context(), input.ID, currentPrincipal(c))
 	h.result(c, result, err)
 }

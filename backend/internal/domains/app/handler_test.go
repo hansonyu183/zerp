@@ -30,7 +30,7 @@ type handlerServiceStub struct {
 	changedPassword       ChangePasswordInput
 	resetPassword         ResetPasswordInput
 	resetPasswordResult   ResetPasswordResult
-	queryUsersResult      Page[UserView]
+	queryUsersResult      Page[UserListItem]
 	createdFeedback       CreateFeedbackInput
 	workbenchInput        WorkbenchQueryInput
 	uploadCalls           int
@@ -52,14 +52,14 @@ func (stub *handlerServiceStub) Authorize(_ context.Context, _, _, path, _ strin
 	return stub.authorizeResult, stub.authorizeError
 }
 
-func (stub *handlerServiceStub) QueryUsers(context.Context, PageRequest) (Page[UserView], error) {
+func (stub *handlerServiceStub) QueryUsers(context.Context, PageRequest, Principal) (Page[UserListItem], error) {
 	if stub.queryUsersResult.Items != nil {
 		return stub.queryUsersResult, nil
 	}
-	return Page[UserView]{Items: []UserView{}, Page: 1, PageSize: 20}, nil
+	return Page[UserListItem]{Items: []UserListItem{}, Page: 1, PageSize: 20}, nil
 }
 
-func (stub *handlerServiceStub) ResetUserPassword(_ context.Context, input ResetPasswordInput, _, _ string) (ResetPasswordResult, error) {
+func (stub *handlerServiceStub) ResetUserPassword(_ context.Context, input ResetPasswordInput, _ Principal, _ string) (ResetPasswordResult, error) {
 	stub.resetPassword = input
 	return stub.resetPasswordResult, nil
 }
@@ -354,9 +354,9 @@ func TestProtectedRouteAuthorizesExactPath(t *testing.T) {
 }
 
 func TestUserQueryReturnsOnlyListContractFields(t *testing.T) {
-	stub := &handlerServiceStub{queryUsersResult: Page[UserView]{
-		Items: []UserView{{ID: "user-1", Username: "alice", DisplayName: "Alice", Status: StatusEnabled, System: false,
-			FailedSigninCount: 4, RoleIDs: []string{"role-1"}, PasswordChangedAt: time.Now(), Revision: 3}},
+	stub := &handlerServiceStub{queryUsersResult: Page[UserListItem]{
+		Items: []UserListItem{{ID: "user-1", Username: "alice", DisplayName: "Alice", Status: StatusEnabled, System: false,
+			Revision: 3, Manageable: true}},
 		Page: 1, PageSize: 20, Total: 1,
 	}}
 	request := httptest.NewRequest(http.MethodPost, "/app/user/query", strings.NewReader(`{"page":1,"pageSize":20,"sort":[{"field":"username","order":"asc"}]}`))

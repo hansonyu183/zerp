@@ -7,15 +7,31 @@ import {
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { AdminPermission } from '../shared/api'
+import {
+  adminStatusOptions,
+  formatAdminStatus,
+  formatAssignability,
+} from '../shared/labels'
 import { createPermissionManagementViewModel } from './vm'
 
 const vm = reactive(createPermissionManagementViewModel())
 const columns: readonly BusinessObjectColumn<AdminPermission>[] = [
-  { key: 'path', label: '权限路径', value: (item) => item.path },
-  { key: 'domain', label: '领域', value: (item) => item.domain },
-  { key: 'entity', label: '实体', value: (item) => item.entity },
-  { key: 'action', label: '动作', value: (item) => item.action },
-  { key: 'status', label: '状态', value: (item) => item.status },
+  {
+    key: 'description',
+    label: '权限',
+    value: (item) => item.description || '未命名权限',
+  },
+  { key: 'path', label: '稳定标识', value: (item) => item.path },
+  {
+    key: 'status',
+    label: '状态',
+    value: (item) => formatAdminStatus(item.status),
+  },
+  {
+    key: 'assignable',
+    label: '当前可授予',
+    value: (item) => formatAssignability(item.assignable),
+  },
 ]
 
 void vm.query()
@@ -44,17 +60,12 @@ void vm.query()
       @update:page="vm.changePage"
     >
       <template #filters>
-        <v-text-field v-model="vm.domain" label="领域" variant="outlined" />
-        <v-text-field v-model="vm.entity" label="实体" variant="outlined" />
         <v-select
           v-model="vm.status"
           clearable
           item-title="title"
           item-value="value"
-          :items="[
-            { title: '启用', value: 'ENABLED' },
-            { title: '停用', value: 'DISABLED' },
-          ]"
+          :items="adminStatusOptions"
           label="状态"
           variant="outlined"
         />
@@ -65,7 +76,7 @@ void vm.query()
           size="small"
           variant="tonal"
         >
-          {{ row.status === 'ENABLED' ? '启用' : '停用' }}
+          {{ formatAdminStatus(row.status) }}
         </v-chip>
       </template>
       <template #actions="{ row }">
@@ -94,10 +105,15 @@ void vm.query()
       <v-card-text v-if="vm.detail">
         <v-list density="compact">
           <v-list-item title="路径" :subtitle="vm.detail.path" />
-          <v-list-item title="领域" :subtitle="vm.detail.domain" />
-          <v-list-item title="实体" :subtitle="vm.detail.entity" />
-          <v-list-item title="动作" :subtitle="vm.detail.action" />
           <v-list-item title="说明" :subtitle="vm.detail.description || '—'" />
+          <v-list-item
+            title="状态"
+            :subtitle="formatAdminStatus(vm.detail.status)"
+          />
+          <v-list-item
+            title="当前可授予"
+            :subtitle="formatAssignability(vm.detail.assignable)"
+          />
           <v-list-item
             title="引用角色数"
             :subtitle="String(vm.detail.roleCount ?? 0)"

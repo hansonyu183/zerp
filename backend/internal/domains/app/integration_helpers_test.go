@@ -60,7 +60,9 @@ func resetAPPIntegrationData(t *testing.T, pool *pgxpool.Pool) {
 			acc_book_user_scopes, acc_books, vou_intermediary_scripts,
 			app_business_menu_items, app_system_parameters, app_feedback_attachments, app_feedback_files, app_feedback, app_audit_events, app_sessions,
 			app_user_profiles,
-			app_user_roles, app_role_permissions, app_roles, app_users;
+			app_user_roles, app_role_permissions, app_roles, app_users,
+			app_role_code_counters;
+		INSERT INTO app_role_code_counters(counter_key, next_value) VALUES ('default', 0);
 		UPDATE app_permissions SET status = 'ENABLED', revision = 1, updated_at = now(), updated_by = NULL;
 	`)
 	if err != nil {
@@ -81,6 +83,26 @@ func appIntegrationConfig(t *testing.T) config.Config {
 		AttachmentUploadTTL:         15 * time.Minute,
 		FeedbackAttachmentOrphanTTL: 24 * time.Hour,
 	}
+}
+
+func integrationPrincipal(userID string) Principal {
+	return Principal{User: UserSummary{ID: userID}}
+}
+
+func rolePermissionIDs(detail RoleDetail) []string {
+	ids := make([]string, 0, len(detail.Permissions))
+	for _, permission := range detail.Permissions {
+		ids = append(ids, permission.ID)
+	}
+	return ids
+}
+
+func userRoleIDs(detail UserDetail) []string {
+	ids := make([]string, 0, len(detail.Roles))
+	for _, role := range detail.Roles {
+		ids = append(ids, role.ID)
+	}
+	return ids
 }
 
 func appIntegrationService(t *testing.T) (*Service, *pgxpool.Pool, UserView) {

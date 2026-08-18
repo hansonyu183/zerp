@@ -82,15 +82,18 @@ export function createUserManagementViewModel() {
   const canDisable = computed(() => session.can('/app/user/disable'))
   const canResetPassword = computed(
     () =>
-      session.can('/app/user/reset-password') &&
-      session.can('/app/user/query'),
+      session.can('/app/user/reset-password') && session.can('/app/user/query'),
   )
   const isCreate = computed(() => editorMode.value === 'create')
   const isEdit = computed(() => editorMode.value === 'edit')
   const isDetail = computed(() => editorMode.value === 'detail')
   const isSelf = computed(() => editing.value?.id === session.user?.id)
   const rolesReadonly = computed(
-    () => isDetail.value || isSelf.value || (isEdit.value && !editing.value),
+    () =>
+      isDetail.value ||
+      isSelf.value ||
+      editing.value?.roleAssignmentEditable === false ||
+      (isEdit.value && !editing.value),
   )
   const hasUnsavedChanges = computed(
     () =>
@@ -103,33 +106,43 @@ export function createUserManagementViewModel() {
     return row.system
   }
   function canEditUser(row: AdminUser): boolean {
-    return !isSystemUser(row) && canEdit.value
+    return !isSystemUser(row) && row.manageable && canEdit.value
   }
   function canViewUser(row: AdminUser): boolean {
     return canGet.value && !canEditUser(row)
   }
   function canChangeEnabled(row: AdminUser): boolean {
-    if (isSystemUser(row) || row.id === session.user?.id) return false
+    if (isSystemUser(row) || !row.manageable || row.id === session.user?.id)
+      return false
     return row.status === 'ENABLED' ? canDisable.value : canEnable.value
   }
   function canResetUserPassword(row: AdminUser): boolean {
     return (
       !isSystemUser(row) &&
+      row.manageable &&
       row.id !== session.user?.id &&
       row.status === 'ENABLED' &&
       canResetPassword.value
     )
   }
   const roleOptions = computed(() =>
-    roles.value.map((role) => {
-      const disabled =
-        role.status === 'DISABLED' && !form.roleIds.includes(role.id)
-      return {
-        title: `${role.code} · ${role.name}${role.status === 'DISABLED' ? '（已停用）' : ''}`,
-        value: role.id,
-        props: { disabled, 'aria-disabled': disabled || undefined },
-      }
-    }),
+    roles.value
+      .filter(
+        (role) =>
+          (role.status === 'ENABLED' && role.assignable) ||
+          (!isCreate.value && form.roleIds.includes(role.id)),
+      )
+      .map((role) => {
+        const selected = form.roleIds.includes(role.id)
+        const disabled =
+          (!selected && (role.status === 'DISABLED' || !role.assignable)) ||
+          editing.value?.roleAssignmentEditable === false
+        return {
+          title: `${role.code} · ${role.name}${role.status === 'DISABLED' ? '（已停用）' : !role.assignable ? '（不可分配）' : ''}`,
+          value: role.id,
+          props: { disabled, 'aria-disabled': disabled || undefined },
+        }
+      }),
   )
   const selectedDisabledRoles = computed(() =>
     roles.value.filter(
@@ -151,6 +164,7 @@ export function createUserManagementViewModel() {
       return '显示名称应为 1 至 128 个字符。'
     if (isCreate.value && !form.password) return '请输入初始密码。'
     if (editing.value && isSelf.value) return ''
+    if (editing.value && !editing.value.manageable) return ''
     if (
       isCreate.value &&
       !passwordMeetsPolicy(form.password, session.passwordMinLength)
@@ -161,7 +175,10 @@ export function createUserManagementViewModel() {
       return `已选角色包含已停用角色（${selectedDisabledRoles.value.map((role) => role.name).join('、')}），请移除后再保存。`
     if (
       !form.roleIds.every((id) =>
-        roles.value.some((role) => role.id === id && role.status === 'ENABLED'),
+        roles.value.some(
+          (role) =>
+            role.id === id && role.status === 'ENABLED' && role.assignable,
+        ),
       )
     )
       return '所选角色不存在或未启用，请重新选择。'
@@ -175,7 +192,7 @@ export function createUserManagementViewModel() {
       !editorErrorMessage.value &&
       validationError.value === '' &&
       ((isCreate.value && canCreate.value) ||
-        (isEdit.value && Boolean(editing.value) && canEdit.value)),
+        (isEdit.value && Boolean(editing.value?.manageable) && canEdit.value)),
   )
 
   function resetForm(): void {
@@ -244,7 +261,7 @@ export function createUserManagementViewModel() {
       while (collected.length < totalCount) {
         const result = await queryAdminRoles({
           page: nextPage++,
-          pageSize: 200,
+          pageSize: 20,
           sort: [{ field: 'code', order: 'asc' }],
         })
         if (disposed.value || sequence !== editorLoadSequence) return false
@@ -252,7 +269,7 @@ export function createUserManagementViewModel() {
         totalCount = result.data.total
         if (!result.data.items.length) break
       }
-      roles.value = collected.filter((role) => role.code !== 'system')
+      roles.value = collected.filter((role) => role.type !== 'SYSTEM')
       return true
     } catch (error) {
       if (!disposed.value && sequence === editorLoadSequence)
@@ -336,6 +353,22 @@ export function createUserManagementViewModel() {
       const [detail, rolesOK] = await Promise.all([detailPromise, rolePromise])
       if (disposed.value || sequence !== editorLoadSequence || !rolesOK) return
       editing.value = detail.data
+      if (mode === 'edit' && !detail.data.manageable) {
+        editorMode.value = 'detail'
+      }
+      const catalog = new Map(roles.value.map((role) => [role.id, role]))
+      for (const role of detail.data.roles) {
+        if (catalog.has(role.id) || role.type === 'SYSTEM') continue
+        catalog.set(role.id, {
+          ...role,
+          description: null,
+          availableActions: [],
+          createdAt: '',
+          updatedAt: '',
+          revision: 1,
+        })
+      }
+      roles.value = [...catalog.values()]
       form.username = detail.data.username
       form.displayName = detail.data.displayName
       form.roleIds = detail.data.roles.map((role) => role.id)

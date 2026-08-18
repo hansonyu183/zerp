@@ -64,15 +64,13 @@ func TestAuthenticationAndSessionIntegration(t *testing.T) {
 
 func TestPasswordChangeRequiredSessionIntegration(t *testing.T) {
 	service, pool, admin := appIntegrationService(t)
-	role, err := service.CreateRole(t.Context(), CreateRoleInput{
-		Code: "restricted-reader", Name: "受限读取", PermissionIDs: permissionIDsByPath(t, pool, "/bob/customer/query"),
-	}, admin.ID, "create-restricted-reader")
+	role, err := service.CreateRole(t.Context(), CreateRoleInput{Name: "受限读取", PermissionIDs: permissionIDsByPath(t, pool, "/bob/customer/query")}, integrationPrincipal(admin.ID), "create-restricted-reader")
 	if err != nil {
 		t.Fatalf("create role: %v", err)
 	}
 	user, err := service.CreateUser(t.Context(), CreateUserInput{
 		Username: "restricted-user", DisplayName: "受限用户", Password: integrationUserPassword, RoleIDs: []string{role.ID},
-	}, admin.ID, "create-restricted-user")
+	}, integrationPrincipal(admin.ID), "create-restricted-user")
 	if err != nil {
 		t.Fatalf("create user: %v", err)
 	}
@@ -116,7 +114,7 @@ func TestSuperadminWildcardIntegration(t *testing.T) {
 		t.Fatalf("stored superadmin grants = %d, want 0", storedGrantCount)
 	}
 
-	role, err := service.GetRole(t.Context(), superadminRoleID)
+	role, err := service.GetRole(t.Context(), superadminRoleID, integrationPrincipal(admin.ID))
 	if err != nil {
 		t.Fatalf("get superadmin role: %v", err)
 	}
@@ -126,8 +124,9 @@ func TestSuperadminWildcardIntegration(t *testing.T) {
 	`).Scan(&enabledPermissionCount); err != nil {
 		t.Fatalf("count enabled permissions: %v", err)
 	}
-	if len(role.PermissionIDs) != enabledPermissionCount {
-		t.Fatalf("superadmin role permissions = %d, want %d", len(role.PermissionIDs), enabledPermissionCount)
+	superadminPermissionIDs := rolePermissionIDs(role)
+	if len(superadminPermissionIDs) != enabledPermissionCount {
+		t.Fatalf("superadmin role permissions = %d, want %d", len(superadminPermissionIDs), enabledPermissionCount)
 	}
 
 	signin, err := service.Signin(t.Context(), "admin", integrationAdminPassword, "wildcard-signin")
@@ -161,22 +160,20 @@ func TestSuperadminWildcardIntegration(t *testing.T) {
 		t.Fatalf("authorize dynamic permission: %v", err)
 	}
 
-	ordinaryRole, err := service.CreateRole(t.Context(), CreateRoleInput{
-		Code: "ordinary", Name: "普通角色",
+	ordinaryRole, err := service.CreateRole(t.Context(), CreateRoleInput{Name: "普通角色",
 		PermissionIDs: permissionIDsByPath(t, pool, "/bob/customer/query"),
-	}, admin.ID, "create-ordinary-role")
+	}, integrationPrincipal(admin.ID), "create-ordinary-role")
 	if err != nil {
 		t.Fatalf("create ordinary role: %v", err)
 	}
-	if _, err = service.CreateRole(t.Context(), CreateRoleInput{
-		Code: superadminRoleCode, Name: "重复超级管理员",
+	if _, err = service.CreateRole(t.Context(), CreateRoleInput{Code: superadminRoleCode, Name: "重复超级管理员",
 		PermissionIDs: permissionIDsByPath(t, pool, "/bob/customer/query"),
-	}, admin.ID, "create-reserved-role"); !errorIsKind(err, ErrorValidation) {
+	}, integrationPrincipal(admin.ID), "create-reserved-role"); !errorIsKind(err, ErrorValidation) {
 		t.Fatalf("reserved superadmin code error = %v", err)
 	}
 	_, err = service.CreateUser(t.Context(), CreateUserInput{
 		Username: "ordinary-user", DisplayName: "普通用户", Password: integrationUserPassword, RoleIDs: []string{ordinaryRole.ID},
-	}, admin.ID, "create-ordinary-user")
+	}, integrationPrincipal(admin.ID), "create-ordinary-user")
 	if err != nil {
 		t.Fatalf("create ordinary user: %v", err)
 	}
@@ -204,14 +201,11 @@ func TestSuperadminWildcardIntegration(t *testing.T) {
 		t.Fatalf("disabled permission authorization error = %v", err)
 	}
 
-	savedRole, err := service.SaveRole(t.Context(), SaveRoleInput{
+	_, err = service.SaveRole(t.Context(), SaveRoleInput{
 		ID: superadminRoleID, Name: "Super Administrator", PermissionIDs: nil, Revision: role.Revision,
-	}, admin.ID, "save-superadmin")
-	if err != nil {
-		t.Fatalf("save superadmin without permission IDs: %v", err)
-	}
-	if len(savedRole.PermissionIDs) != enabledPermissionCount {
-		t.Fatalf("saved superadmin permissions = %d, want %d", len(savedRole.PermissionIDs), enabledPermissionCount)
+	}, integrationPrincipal(admin.ID), "save-superadmin")
+	if !errorIsKind(err, ErrorForbidden) {
+		t.Fatalf("save superadmin error = %v, want forbidden", err)
 	}
 	if err = pool.QueryRow(t.Context(), `
 		SELECT count(*) FROM app_role_permissions WHERE role_id = $1
@@ -284,22 +278,18 @@ func TestAuthorizationChangesAreImmediateIntegration(t *testing.T) {
 	service, pool, admin := appIntegrationService(t)
 	pathsA := []string{"/bob/customer/query"}
 	pathsB := []string{"/bob/supplier/query"}
-	roleA, err := service.CreateRole(t.Context(), CreateRoleInput{
-		Code: "customer-reader", Name: "客户查看", PermissionIDs: permissionIDsByPath(t, pool, pathsA...),
-	}, admin.ID, "role-a")
+	roleA, err := service.CreateRole(t.Context(), CreateRoleInput{Name: "客户查看", PermissionIDs: permissionIDsByPath(t, pool, pathsA...)}, integrationPrincipal(admin.ID), "role-a")
 	if err != nil {
 		t.Fatalf("create role A: %v", err)
 	}
-	roleB, err := service.CreateRole(t.Context(), CreateRoleInput{
-		Code: "supplier-reader", Name: "供应商查看", PermissionIDs: permissionIDsByPath(t, pool, pathsB...),
-	}, admin.ID, "role-b")
+	roleB, err := service.CreateRole(t.Context(), CreateRoleInput{Name: "供应商查看", PermissionIDs: permissionIDsByPath(t, pool, pathsB...)}, integrationPrincipal(admin.ID), "role-b")
 	if err != nil {
 		t.Fatalf("create role B: %v", err)
 	}
 	user, err := service.CreateUser(t.Context(), CreateUserInput{
 		Username: "reader", DisplayName: strings.Repeat("中", 128), Password: integrationUserPassword,
 		RoleIDs: []string{roleA.ID, roleB.ID},
-	}, admin.ID, "create-reader")
+	}, integrationPrincipal(admin.ID), "create-reader")
 	if err != nil {
 		t.Fatalf("create reader: %v", err)
 	}
@@ -313,11 +303,11 @@ func TestAuthorizationChangesAreImmediateIntegration(t *testing.T) {
 		}
 	}
 	signin = completeRequiredPasswordChange(t, service, signin, integrationUserPassword, "Reader-password-2!")
-	user, err = service.GetUser(t.Context(), user.ID)
+	user, err = service.GetUserDetail(t.Context(), user.ID, integrationPrincipal(admin.ID))
 	if err != nil {
 		t.Fatalf("refresh reader after password change: %v", err)
 	}
-	if _, err = service.SetRoleStatus(t.Context(), roleA.ID, roleA.Revision, StatusDisabled, admin.ID, "disable-role-a"); err != nil {
+	if _, err = service.SetRoleStatus(t.Context(), roleA.ID, roleA.Revision, StatusDisabled, integrationPrincipal(admin.ID), "disable-role-a"); err != nil {
 		t.Fatalf("disable role A: %v", err)
 	}
 	if _, err = service.Authorize(t.Context(), signin.SessionToken, signin.Data.CSRFToken, "/bob/customer/query", "revoked-permission"); !errorIsKind(err, ErrorForbidden) {
@@ -326,7 +316,7 @@ func TestAuthorizationChangesAreImmediateIntegration(t *testing.T) {
 	if _, err = service.Authorize(t.Context(), signin.SessionToken, signin.Data.CSRFToken, "/bob/supplier/query", "retained-permission"); err != nil {
 		t.Fatalf("retained permission: %v", err)
 	}
-	if _, err = service.SetUserStatus(t.Context(), user.ID, user.Revision, StatusDisabled, admin.ID, "disable-reader"); err != nil {
+	if _, err = service.SetUserStatus(t.Context(), user.ID, user.Revision, StatusDisabled, integrationPrincipal(admin.ID), "disable-reader"); err != nil {
 		t.Fatalf("disable reader: %v", err)
 	}
 	if _, err = service.RestoreSession(t.Context(), signin.SessionToken); !errorIsKind(err, ErrorUnauthenticated) {

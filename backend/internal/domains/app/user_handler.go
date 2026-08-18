@@ -10,16 +10,8 @@ func (h *Handler) queryUsers(c *gin.Context) {
 	if !h.bind(c, &input) {
 		return
 	}
-	result, err := h.service.QueryUsers(c.Request.Context(), input)
-	if err != nil {
-		h.result(c, nil, err)
-		return
-	}
-	items := make([]UserListItem, 0, len(result.Items))
-	for _, user := range result.Items {
-		items = append(items, userListItem(user))
-	}
-	h.result(c, Page[UserListItem]{Items: items, Total: result.Total, Page: result.Page, PageSize: result.PageSize}, nil)
+	result, err := h.service.QueryUsers(c.Request.Context(), input, currentPrincipal(c))
+	h.result(c, result, err)
 }
 
 func (h *Handler) getUser(c *gin.Context) {
@@ -27,12 +19,12 @@ func (h *Handler) getUser(c *gin.Context) {
 	if !h.bind(c, &input) {
 		return
 	}
-	result, err := h.service.GetUser(c.Request.Context(), input.ID)
+	result, err := h.service.GetUserDetail(c.Request.Context(), input.ID, currentPrincipal(c))
 	if err != nil {
 		h.result(c, nil, err)
 		return
 	}
-	h.result(c, userDetail(result), nil)
+	h.result(c, result, nil)
 }
 
 func (h *Handler) createUser(c *gin.Context) {
@@ -40,12 +32,12 @@ func (h *Handler) createUser(c *gin.Context) {
 	if !h.bind(c, &input) {
 		return
 	}
-	result, err := h.service.CreateUser(c.Request.Context(), input, actorID(c), response.RequestID(c))
+	result, err := h.service.CreateUser(c.Request.Context(), input, currentPrincipal(c), response.RequestID(c))
 	if err != nil {
 		h.result(c, nil, err)
 		return
 	}
-	h.result(c, userDetail(result), nil)
+	h.result(c, result, nil)
 }
 
 func (h *Handler) saveUser(c *gin.Context) {
@@ -53,12 +45,12 @@ func (h *Handler) saveUser(c *gin.Context) {
 	if !h.bind(c, &input) {
 		return
 	}
-	result, err := h.service.SaveUser(c.Request.Context(), input, actorID(c), response.RequestID(c))
+	result, err := h.service.SaveUser(c.Request.Context(), input, currentPrincipal(c), response.RequestID(c))
 	if err != nil {
 		h.result(c, nil, err)
 		return
 	}
-	h.result(c, userDetail(result), nil)
+	h.result(c, result, nil)
 }
 
 func (h *Handler) setUserStatus(status string) gin.HandlerFunc {
@@ -67,12 +59,12 @@ func (h *Handler) setUserStatus(status string) gin.HandlerFunc {
 		if !h.bind(c, &input) {
 			return
 		}
-		result, err := h.service.SetUserStatus(c.Request.Context(), input.ID, input.Revision, status, actorID(c), response.RequestID(c))
+		result, err := h.service.SetUserStatus(c.Request.Context(), input.ID, input.Revision, status, currentPrincipal(c), response.RequestID(c))
 		if err != nil {
 			h.result(c, nil, err)
 			return
 		}
-		h.result(c, userDetail(result), nil)
+		h.result(c, result, nil)
 	}
 }
 
@@ -81,6 +73,6 @@ func (h *Handler) resetUserPassword(c *gin.Context) {
 	if !h.bind(c, &input) {
 		return
 	}
-	result, err := h.service.ResetUserPassword(c.Request.Context(), input, actorID(c), response.RequestID(c))
+	result, err := h.service.ResetUserPassword(c.Request.Context(), input, currentPrincipal(c), response.RequestID(c))
 	h.result(c, result, err)
 }

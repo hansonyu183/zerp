@@ -83,7 +83,8 @@ type SaveUserInput struct {
 }
 
 type CreateRoleInput struct {
-	Code          string   `json:"code"`
+	// Code is intentionally not deserializable. Role codes are server-assigned.
+	Code          string   `json:"-"`
 	Name          string   `json:"name"`
 	Description   *string  `json:"description"`
 	PermissionIDs []string `json:"permissionIds"`
@@ -211,19 +212,23 @@ type UserListItem struct {
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
 	Revision    int64     `json:"revision"`
+	Manageable  bool      `json:"manageable"`
 }
 
 type UserDetail struct {
 	UserListItem
-	PasswordChangedAt time.Time         `json:"passwordChangedAt"`
-	Roles             []UserRoleSummary `json:"roles"`
+	PasswordChangedAt      time.Time         `json:"passwordChangedAt"`
+	Roles                  []UserRoleSummary `json:"roles"`
+	RoleAssignmentEditable bool              `json:"roleAssignmentEditable"`
 }
 
 type UserRoleSummary struct {
-	ID     string `json:"id"`
-	Code   string `json:"code"`
-	Name   string `json:"name"`
-	Status string `json:"status"`
+	ID         string   `json:"id"`
+	Code       string   `json:"code"`
+	Name       string   `json:"name"`
+	Status     string   `json:"status"`
+	Type       RoleType `json:"type"`
+	Assignable bool     `json:"assignable"`
 }
 
 type ResetPasswordInput struct {
@@ -233,18 +238,6 @@ type ResetPasswordInput struct {
 
 type ResetPasswordResult struct {
 	TemporaryPassword string `json:"temporaryPassword"`
-}
-
-type RoleView struct {
-	ID            string    `json:"id"`
-	Code          string    `json:"code"`
-	Name          string    `json:"name"`
-	Description   *string   `json:"description"`
-	Status        string    `json:"status"`
-	CreatedAt     time.Time `json:"createdAt"`
-	UpdatedAt     time.Time `json:"updatedAt"`
-	Revision      int64     `json:"revision"`
-	PermissionIDs []string  `json:"permissionIds,omitempty"`
 }
 
 type PermissionView struct {
@@ -257,6 +250,7 @@ type PermissionView struct {
 	Status      string  `json:"status"`
 	Revision    int64   `json:"revision"`
 	RoleCount   *int64  `json:"roleCount,omitempty"`
+	Assignable  bool    `json:"assignable"`
 }
 
 const (
@@ -358,4 +352,50 @@ type ActivateMenuInput struct {
 
 type ResetBusinessMenuInput struct {
 	Revision int64 `json:"revision"`
+}
+
+type RoleType string
+
+const (
+	RoleTypeNormal     RoleType = "NORMAL"
+	RoleTypeSystem     RoleType = "SYSTEM"
+	RoleTypeSuperadmin RoleType = "SUPERADMIN"
+)
+
+type RoleAction string
+
+const (
+	RoleActionView    RoleAction = "VIEW"
+	RoleActionEdit    RoleAction = "EDIT"
+	RoleActionEnable  RoleAction = "ENABLE"
+	RoleActionDisable RoleAction = "DISABLE"
+)
+
+type RolePermission struct {
+	ID          string  `json:"id"`
+	Path        string  `json:"path"`
+	Domain      string  `json:"domain"`
+	Entity      string  `json:"entity"`
+	Action      string  `json:"action"`
+	Description *string `json:"description"`
+	Status      string  `json:"status"`
+}
+
+type RoleListItem struct {
+	ID               string       `json:"id"`
+	Code             string       `json:"code"`
+	Name             string       `json:"name"`
+	Description      *string      `json:"description"`
+	Status           string       `json:"status"`
+	Type             RoleType     `json:"type"`
+	Assignable       bool         `json:"assignable"`
+	AvailableActions []RoleAction `json:"availableActions"`
+	CreatedAt        time.Time    `json:"createdAt"`
+	UpdatedAt        time.Time    `json:"updatedAt"`
+	Revision         int64        `json:"revision"`
+}
+
+type RoleDetail struct {
+	RoleListItem
+	Permissions []RolePermission `json:"permissions"`
 }

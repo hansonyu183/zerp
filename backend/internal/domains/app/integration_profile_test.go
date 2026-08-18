@@ -11,7 +11,7 @@ import (
 
 func TestProfileSelfSaveIntegration(t *testing.T) {
 	service, pool, admin := appIntegrationService(t)
-	before, err := service.GetUser(t.Context(), admin.ID)
+	before, err := service.GetUserDetail(t.Context(), admin.ID, integrationPrincipal(admin.ID))
 	if err != nil {
 		t.Fatalf("get initial user: %v", err)
 	}
@@ -67,8 +67,8 @@ func TestProfileSelfSaveIntegration(t *testing.T) {
 		t.Fatalf("fresh signin user = %#v", freshSignin.Data.User)
 	}
 	if _, err = service.SaveUser(t.Context(), SaveUserInput{
-		ID: admin.ID, DisplayName: "过期管理员保存", RoleIDs: before.RoleIDs, Revision: before.Revision,
-	}, admin.ID, "stale-admin-save"); !errorIsKind(err, ErrorConflict) {
+		ID: admin.ID, DisplayName: "过期管理员保存", RoleIDs: userRoleIDs(before), Revision: before.Revision,
+	}, integrationPrincipal(admin.ID), "stale-admin-save"); !errorIsKind(err, ErrorConflict) {
 		t.Fatalf("stale administrator save error=%v, want conflict", err)
 	}
 
@@ -124,11 +124,11 @@ func TestProfileSelfSaveIntegration(t *testing.T) {
 	if cleared.AvatarURL != nil || cleared.Revision != saved.Revision+1 {
 		t.Fatalf("cleared profile = %#v", cleared)
 	}
-	current, err := service.GetUser(t.Context(), admin.ID)
+	current, err := service.GetUserDetail(t.Context(), admin.ID, integrationPrincipal(admin.ID))
 	if err != nil {
 		t.Fatalf("get user after profile saves: %v", err)
 	}
-	if !slices.Equal(current.RoleIDs, before.RoleIDs) || current.Status != before.Status {
+	if !slices.Equal(userRoleIDs(current), userRoleIDs(before)) || current.Status != before.Status {
 		t.Fatalf("profile save changed authorization: before=%#v after=%#v", before, current)
 	}
 	var afterPasswordHash string

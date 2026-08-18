@@ -60,5 +60,5 @@ func (s *Service) BootstrapAdmin(ctx context.Context, username, displayName, pas
 	if err = tx.Commit(ctx); err != nil {
 		return UserView{}, s.internal("commit bootstrap", err)
 	}
-	return s.GetUser(ctx, userID)
+	return s.getUser(ctx, userID)
 }

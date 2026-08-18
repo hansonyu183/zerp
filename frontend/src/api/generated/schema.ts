@@ -2928,6 +2928,7 @@ export interface components {
             updatedAt: string;
             /** Format: int64 */
             revision: number;
+            manageable: boolean;
         };
         UserPage: {
             items: components["schemas"]["UserListItem"][];
@@ -2955,11 +2956,15 @@ export interface components {
         IdRequest: {
             id: string;
         };
+        /** @enum {string} */
+        RoleType: "NORMAL" | "SYSTEM" | "SUPERADMIN";
         UserRoleSummary: {
             id: string;
             code: string;
             name: string;
             status: components["schemas"]["UserStatus"];
+            type: components["schemas"]["RoleType"];
+            assignable: boolean;
         };
         UserDetail: {
             id: string;
@@ -2976,6 +2981,8 @@ export interface components {
             /** Format: date-time */
             passwordChangedAt: string;
             roles: components["schemas"]["UserRoleSummary"][];
+            manageable: boolean;
+            roleAssignmentEditable: boolean;
         };
         UserDetailResponse: {
             /** Format: int32 */
@@ -3017,20 +3024,88 @@ export interface components {
             data: components["schemas"]["ResetPasswordResult"] | null;
             requestId: string;
         };
-        PageRequest: {
+        RoleQueryRequest: {
             page: number;
-            pageSize: number;
+            /** @enum {integer} */
+            pageSize: 20;
             filters?: {
-                [key: string]: unknown;
+                search?: string;
+                status?: components["schemas"]["UserStatus"];
             };
-            sort?: {
-                field: string;
+            sort: {
                 /** @enum {string} */
-                order: "asc" | "desc";
+                field: "code";
+                /** @enum {string} */
+                order: "asc";
             }[];
         };
-        CreateRoleRequest: {
+        /** @enum {string} */
+        RoleAction: "VIEW" | "EDIT" | "ENABLE" | "DISABLE";
+        RoleListItem: {
+            id: string;
             code: string;
+            name: string;
+            description: string | null;
+            status: components["schemas"]["UserStatus"];
+            type: components["schemas"]["RoleType"];
+            availableActions: components["schemas"]["RoleAction"][];
+            assignable: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        RolePage: {
+            items: components["schemas"]["RoleListItem"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            /** @enum {integer} */
+            pageSize: 20;
+        };
+        RolePageResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["RolePage"] | null;
+            requestId: string;
+        };
+        RolePermission: {
+            id: string;
+            path: string;
+            description: string | null;
+            status: components["schemas"]["UserStatus"];
+            domain: string;
+            entity: string;
+            action: string;
+        };
+        RoleDetail: {
+            id: string;
+            code: string;
+            name: string;
+            description: string | null;
+            status: components["schemas"]["UserStatus"];
+            type: components["schemas"]["RoleType"];
+            availableActions: components["schemas"]["RoleAction"][];
+            assignable: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: int64 */
+            revision: number;
+            permissions: components["schemas"]["RolePermission"][];
+        };
+        RoleDetailResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["RoleDetail"] | null;
+            requestId: string;
+        };
+        CreateRoleRequest: {
             name: string;
             description: string | null;
             permissionIds: string[];
@@ -3042,6 +3117,70 @@ export interface components {
             permissionIds: string[];
             /** Format: int64 */
             revision: number;
+        };
+        PermissionQueryRequest: {
+            page: number;
+            /** @enum {integer} */
+            pageSize: 20 | 200;
+            filters?: {
+                domain?: string;
+                entity?: string;
+                status?: components["schemas"]["UserStatus"];
+            };
+            sort: {
+                /** @enum {string} */
+                field: "path";
+                /** @enum {string} */
+                order: "asc";
+            }[];
+        };
+        PermissionView: {
+            id: string;
+            path: string;
+            domain: string;
+            entity: string;
+            action: string;
+            description: string | null;
+            status: components["schemas"]["UserStatus"];
+            /** Format: int64 */
+            revision: number;
+            assignable: boolean;
+            /** Format: int64 */
+            roleCount?: number | null;
+        };
+        PermissionPage: {
+            items: components["schemas"]["PermissionView"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            /** @enum {integer} */
+            pageSize: 20 | 200;
+        };
+        PermissionPageResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["PermissionPage"] | null;
+            requestId: string;
+        };
+        PermissionDetailResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["PermissionView"] | null;
+            requestId: string;
+        };
+        PageRequest: {
+            page: number;
+            pageSize: number;
+            filters?: {
+                [key: string]: unknown;
+            };
+            sort?: {
+                field: string;
+                /** @enum {string} */
+                order: "asc" | "desc";
+            }[];
         };
         /** @enum {string} */
         SystemParameterValueType: "STRING" | "INTEGER" | "DECIMAL" | "BOOLEAN";
@@ -5339,7 +5478,15 @@ export interface operations {
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 创建后的用户详情及当前可维护结论。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDetailResponse"];
+                };
+            };
         };
     };
     appUsersave: {
@@ -5355,7 +5502,15 @@ export interface operations {
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 保存后的用户详情及当前可维护结论。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDetailResponse"];
+                };
+            };
         };
     };
     appUserenable: {
@@ -5371,7 +5526,15 @@ export interface operations {
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 启用后的用户详情及当前可维护结论。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDetailResponse"];
+                };
+            };
         };
     };
     appUserdisable: {
@@ -5387,7 +5550,15 @@ export interface operations {
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 停用后的用户详情及当前可维护结论。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDetailResponse"];
+                };
+            };
         };
     };
     appUserResetPassword: {
@@ -5423,11 +5594,19 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["PageRequest"];
+                "application/json": components["schemas"]["RoleQueryRequest"];
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 按当前操作者授权上限计算的角色分页结果。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RolePageResponse"];
+                };
+            };
         };
     };
     appRoleGet: {
@@ -5443,7 +5622,15 @@ export interface operations {
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 角色完整只读详情及当前可执行动作。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleDetailResponse"];
+                };
+            };
         };
     };
     appRoleCreate: {
@@ -5459,7 +5646,15 @@ export interface operations {
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 已创建角色的完整详情。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleDetailResponse"];
+                };
+            };
         };
     };
     appRoleSave: {
@@ -5475,7 +5670,15 @@ export interface operations {
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 已保存角色的完整详情。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleDetailResponse"];
+                };
+            };
         };
     };
     appRoleEnable: {
@@ -5491,7 +5694,15 @@ export interface operations {
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 已启用角色的完整详情。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleDetailResponse"];
+                };
+            };
         };
     };
     appRoleDisable: {
@@ -5507,7 +5718,15 @@ export interface operations {
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 已停用角色的完整详情。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleDetailResponse"];
+                };
+            };
         };
     };
     appPermissionQuery: {
@@ -5519,11 +5738,19 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["PageRequest"];
+                "application/json": components["schemas"]["PermissionQueryRequest"];
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 包含当前操作者可授予结论的权限目录。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionPageResponse"];
+                };
+            };
         };
     };
     appPermissionGet: {
@@ -5539,7 +5766,15 @@ export interface operations {
             };
         };
         responses: {
-            200: components["responses"]["Business"];
+            /** @description 权限详情及当前操作者可授予结论。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionDetailResponse"];
+                };
+            };
         };
     };
     appSystemParameterQuery: {

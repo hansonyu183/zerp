@@ -279,11 +279,7 @@ WHERE (sqlc.narg(status)::text IS NULL OR status = sqlc.narg(status))
   AND (sqlc.narg(search)::text IS NULL OR code ILIKE '%' || sqlc.narg(search) || '%' OR name ILIKE '%' || sqlc.narg(search) || '%')
 ORDER BY
   CASE WHEN sqlc.arg(sort_field)::text = 'code' AND sqlc.arg(sort_order)::text = 'asc' THEN code END ASC,
-  CASE WHEN sqlc.arg(sort_field)::text = 'code' AND sqlc.arg(sort_order)::text = 'desc' THEN code END DESC,
-  CASE WHEN sqlc.arg(sort_field)::text = 'name' AND sqlc.arg(sort_order)::text = 'asc' THEN name END ASC,
-  CASE WHEN sqlc.arg(sort_field)::text = 'name' AND sqlc.arg(sort_order)::text = 'desc' THEN name END DESC,
-  CASE WHEN sqlc.arg(sort_field)::text = 'createdAt' AND sqlc.arg(sort_order)::text = 'asc' THEN created_at END ASC,
-  created_at DESC, id ASC
+  id ASC
 LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 
 -- name: GetAppRoleByID :one
@@ -458,3 +454,93 @@ SELECT * FROM app_permissions WHERE id = sqlc.arg(id) LIMIT 1;
 
 -- name: CountAppRolesUsingPermission :one
 SELECT count(*) FROM app_role_permissions WHERE permission_id = sqlc.arg(permission_id);
+
+-- name: GetAppRoleByIDForUpdate :one
+SELECT * FROM app_roles WHERE id = sqlc.arg(id) LIMIT 1 FOR UPDATE;
+
+-- name: FindAppRoleIDByNormalizedNameExcludingID :one
+SELECT id
+FROM app_roles
+WHERE lower(btrim(name)) = lower(btrim(sqlc.arg(name)))
+  AND id <> sqlc.arg(excluded_id)
+LIMIT 1;
+
+-- name: NextAppRoleCode :one
+UPDATE app_role_code_counters
+SET next_value = next_value + 1
+WHERE counter_key = 'default' AND next_value < 9999
+RETURNING ('ROL-' || lpad(next_value::text, 4, '0'))::text;
+
+-- name: ActorHasEnabledSuperadminRole :one
+SELECT EXISTS (
+  SELECT 1
+  FROM app_user_roles ur
+  JOIN app_roles r ON r.id = ur.role_id
+  WHERE ur.user_id = sqlc.arg(user_id)
+    AND r.status = 'ENABLED'
+    AND r.code = 'superadmin'
+);
+
+-- name: UserHoldsSuperadminRole :one
+SELECT EXISTS (
+  SELECT 1
+  FROM app_user_roles ur
+  JOIN app_roles r ON r.id = ur.role_id
+  WHERE ur.user_id = sqlc.arg(user_id)
+    AND r.code = 'superadmin'
+);
+
+-- name: ListEnabledAppPermissionIDsForUser :many
+SELECT DISTINCT p.id
+FROM app_permissions p
+WHERE p.status = 'ENABLED'
+  AND (
+    EXISTS (
+      SELECT 1
+      FROM app_user_roles ur
+      JOIN app_roles r ON r.id = ur.role_id
+      WHERE ur.user_id = sqlc.arg(user_id)
+        AND r.status = 'ENABLED'
+        AND r.code = 'superadmin'
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM app_user_roles ur
+      JOIN app_roles r ON r.id = ur.role_id AND r.status = 'ENABLED'
+      JOIN app_role_permissions rp ON rp.role_id = r.id
+      WHERE ur.user_id = sqlc.arg(user_id) AND rp.permission_id = p.id
+    )
+  )
+ORDER BY p.id;
+
+-- name: ActorHoldsAppRole :one
+SELECT EXISTS (
+  SELECT 1 FROM app_user_roles
+  WHERE user_id = sqlc.arg(user_id) AND role_id = sqlc.arg(role_id)
+);
+
+-- name: GetAppRolePermissionDetails :many
+SELECT p.id, p.path, p.domain, p.entity, p.action, p.description, p.status, p.revision
+FROM app_role_permissions rp
+JOIN app_permissions p ON p.id = rp.permission_id
+WHERE rp.role_id = sqlc.arg(role_id)
+ORDER BY p.path, p.id;
+
+-- name: ListAllEnabledAppPermissionDetails :many
+SELECT id, path, domain, entity, action, description, status, revision
+FROM app_permissions
+WHERE status = 'ENABLED'
+ORDER BY path, id;
+
+-- name: GetAppSessionAuthorizationState :one
+SELECT id, user_id, csrf_token_hash, idle_expires_at, absolute_expires_at, revoked_at
+FROM app_sessions
+WHERE id = sqlc.arg(id)
+LIMIT 1;
+
+-- name: ListEnabledAppRolePermissionIDs :many
+SELECT rp.permission_id
+FROM app_role_permissions rp
+JOIN app_permissions p ON p.id = rp.permission_id AND p.status = 'ENABLED'
+WHERE rp.role_id = sqlc.arg(role_id)
+ORDER BY p.id;

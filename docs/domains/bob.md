@@ -20,10 +20,8 @@ service
 warehouse
 vehicle
 fund-account
-settlement-method
+operating-entity
 ```
-
-已确认的目标模型新增 `operating-entity`，并把 `settlement-method` 的所有权迁至 AUX。OpenAPI 完成对应契约变更前，当前接口仍以上述清单为准；下文经营主体、客户和结算方式规则描述目标领域模型，不表示这些契约已经实现。
 
 数据库内部名称可使用 `fund_account`，但 HTTP 路径、权限路径和对外 JSON 中必须始终使用 `fund-account`，不得混用。
 
@@ -46,7 +44,7 @@ BOB 不负责：
 - 在 2.3 节明确允许的客户候选版本例外之外，物理删除已经进入提交、审核或生效历史的对象、版本和审核记录；
 - 绕过 APP 领域执行身份认证和 API 权限判断。
 
-客户结算子账户、供应商和其他往来单位是三个独立的稳定业务对象，各自建档、版本化、审核、授权、启停并被交易引用。客户集团另保存客户侧共享公司和税务当前资料。同一外部单位兼具多种业务身份时，客户集团、供应商和其他往来单位可以使用相同税号分别建档；系统不建立共享业务伙伴、不合并生命周期，也不自动同步后续修改。跨实体发现相同税号只用于提示用户并按权限复制初始资料，不阻止创建。
+客户结算子账户、供应商和其他往来单位是三个独立的稳定业务对象，各自建档、版本化、审核、授权、启停并被交易引用。客户集团另保存客户侧共享公司和税务当前资料。同一外部单位兼具多种业务身份时，客户集团、供应商和其他往来单位可以使用相同税号分别建档；系统不建立共享业务伙伴、不合并生命周期，也不自动同步后续修改。
 
 客户内部统一采用“集团客户—客户结算子账户”结构。每个客户结算子账户必须且只能属于一个集团客户；每个集团至少有一个子账户。普通客户创建时也形成只有一个子账户的集团，不维护另一套特例。集团保存共享公司名称、税号、开票资料和一至多个付款银行账户，只作为付款识别和收款分摊入口。
 
@@ -64,18 +62,18 @@ BOB 不负责：
 
 十类实体使用类型化版本明细，不使用无约束 JSONB 保存正式业务数据。客户易变的定价策略是唯一例外：以本节严格定义、后端类型化校验的 `pricingPolicy` JSONB 值对象随客户版本保存；它不是任意扩展字段。除由服务端生成且创建后不可修改的 `code` 外，下表字段均随所属对象版本保存：
 
-| 实体               | 版本字段                                                                                                                                                                                                                                                                                                   |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `operating-entity` | `name`、`shortName`、`taxNumber`、`phone`、`address`、`remark`                                                                                                                                                                                                                                             |
-| `customer`         | `name`、`customerType`、`shortName`、`contactName`、`contactPhone`、`email`、`address`、`internalReminder`、`defaultSalesOrderRemark`、默认经营主体引用及法定资料快照、结算方式快照、收款方式快照、默认运输方式及运输加价、`pricingPolicy`、`creditLimits`、`monthlyClosingDay`、`primarySalesAttribution` |
-| `supplier`         | `name`、`supplierType`、`shortName`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`salespersonEmployeeId`                                                                                                                                               |
-| `other-party`      | `name`、`shortName`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`salespersonEmployeeId`                                                                                                                                                               |
-| `employee`         | `name`、`departmentId`、`positionId`、`phone`、`email`、`hireDate`、`remark`                                                                                                                                                                                                                               |
-| `product`          | `name`、`productKind`、`inventoryUnitId`、`pricingUnitId`、`pricingQuantityPerInventoryUnit`、`returnable`、`packagingSpecs`、`formula`、`categoryId`、`specification`、`model`、`barcode`、`remark`                                                                                                       |
-| `service`          | `name`、`inventoryUnitId`、`description`、`remark`                                                                                                                                                                                                                                                         |
-| `warehouse`        | `name`、`address`、`contactName`、`contactPhone`、`managerEmployeeId`、`remark`                                                                                                                                                                                                                            |
-| `vehicle`          | `name`、`plateNumber`、`vehicleType`、`platformObjectId`、`vin`、`engineNumber`、`loadCapacityKg`、`remark`                                                                                                                                                                                                |
-| `fund-account`     | 经营主体引用及名称快照、`name`、`currency`、`accountName`、`bankName`、`bankBranch`、`accountNumber`、`remark`                                                                                                                                                                                             |
+| 实体               | 版本字段                                                                                                                                                                                                                                                                              |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `operating-entity` | `name`、`shortName`、`taxNumber`、`phone`、`address`、`remark`                                                                                                                                                                                                                        |
+| `customer`         | `name`、`customerType`、`shortName`、`contactName`、`contactPhone`、`email`、`address`、`internalReminder`、`defaultSalesOrderRemark`、默认经营主体引用及法定资料快照、结算方式快照、收款方式快照、默认运输方式及运输加价、`pricingPolicy`、`creditLimits`、`primarySalesAttribution` |
+| `supplier`         | `name`、`supplierType`、`shortName`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`salespersonEmployeeId`                                                                                                                          |
+| `other-party`      | `name`、`shortName`、`taxNumber`、`contactName`、`contactPhone`、`email`、`address`、`remark`、`settlementMethodId`、`salespersonEmployeeId`                                                                                                                                          |
+| `employee`         | `name`、`departmentId`、`positionId`、`phone`、`email`、`hireDate`、`remark`                                                                                                                                                                                                          |
+| `product`          | `name`、`productKind`、`inventoryUnitId`、`pricingUnitId`、`pricingQuantityPerInventoryUnit`、`returnable`、`packagingSpecs`、`formula`、`categoryId`、`specification`、`model`、`barcode`、`remark`                                                                                  |
+| `service`          | `name`、`inventoryUnitId`、`description`、`remark`                                                                                                                                                                                                                                    |
+| `warehouse`        | `name`、`address`、`contactName`、`contactPhone`、`managerEmployeeId`、`remark`                                                                                                                                                                                                       |
+| `vehicle`          | `name`、`plateNumber`、`vehicleType`、`platformObjectId`、`vin`、`engineNumber`、`loadCapacityKg`、`remark`                                                                                                                                                                           |
+| `fund-account`     | 经营主体引用及名称快照、`name`、`currency`、`accountName`、`bankName`、`bankBranch`、`accountNumber`、`remark`                                                                                                                                                                        |
 
 客户草稿可以暂缺默认经营主体，但提交和审核时必须引用一个当前有效的经营主体，并把其对象、版本、编码、名称、税号、地址和电话快照保存进客户版本。新销售订单默认使用该经营主体，制单人可以改选另一个当前有效经营主体；订单保存最终主体完整快照。客户后续变更默认主体、经营主体后续换版或失效都不改写已有订单。
 
@@ -96,8 +94,6 @@ BOB 不负责：
 配方快照。原材料、定制成品和包装物不维护产品固定配方。
 
 客户通过 `settlementMethodId` 选择当前启用的结算方式辅助对象。选择时必须把交易使用的结算方式名称、术语、到期计算参数和销售加价复制进客户版本，`settlementMethodId` 只保留来源追踪，不形成运行时版本依赖。客户草稿可以暂不维护，但提交和审核时必须具有一套完整且内部一致的结算快照，保证任何 `EFFECTIVE` 客户都可用于贸易制单；供应商是否必填及是否采用相同快照由供应商页面用例单独确定。交易单据的到期日和销售加价规则见 VOU 文档。
-
-客户的 `monthlyClosingDay` 为月结日，取 `1–31`，默认为 `31`。实际签收日在该日及之前时归入当月账单，在该日之后归入下月账单。`31` 与自然月等价，因此未单独设置时使用 `31`，数据库列保持 `NOT NULL DEFAULT 31`。新建时省略或 UI 空值均归一化为 `31`；保存时省略表示保持原值。
 
 客户自动定价基础数据聚合为一个 `pricingPolicy` 值对象，其严格持久化结构如下；不得出现未声明属性：
 
@@ -151,7 +147,7 @@ OIT/KY 销售单据中的“品牌”并非商品品牌，其真实业务含义�
 
 客户的 `primarySalesAttribution` 必填并按本章 2.1 节联合引用员工或其他往来单位；创建时必须传入完整的类型、主体对象和版本，保存时省略表示保持，显式 `null` 或空字符串无效。供应商继续使用必填 `salespersonEmployeeId`，引用任意当前有效员工且不附加岗位限制。客户和供应商的存量归属迁移规则在契约实现时分别确定，不用员工默认值覆盖已经可识别的外部兼职或经销型关系。
 
-所有新增可选字段在 `save` 中采用补丁语义：省略字段保持当前值，显式传 `null` 或空字符串清空；`monthlyClosingDay` 例外，它不可为空，创建省略时取 `31`，保存省略时保持原值。客户 `pricingPolicy` 采用聚合补丁语义：省略表示保持整个当前策略，传入对象时必须提交完整合法策略并整组替换，不接受 `null`，不支持 JSON Path、Merge Patch 或成本行独立增删改。创建省略时使用完整默认策略。客户必填的 `primarySalesAttribution` 和供应商必填的 `salespersonEmployeeId` 只能省略保持或显式替换为另一有效引用。`name`、`unit`、`currency`、车辆原有字段和 `platformObjectId` 保持既有完整保存契约。调用方不得传入不属于路径实体的字段。
+所有新增可选字段在 `save` 中采用补丁语义：省略字段保持当前值，显式传 `null` 或空字符串清空。客户 `pricingPolicy` 采用聚合补丁语义：省略表示保持整个当前策略，传入对象时必须提交完整合法策略并整组替换，不接受 `null`，不支持 JSON Path、Merge Patch 或成本行独立增删改。创建省略时使用完整默认策略。客户必填的 `primarySalesAttribution` 和供应商必填的 `salespersonEmployeeId` 只能省略保持或显式替换为另一有效引用。`name`、`unit`、`currency`、车辆原有字段和 `platformObjectId` 保持既有完整保存契约。调用方不得传入不属于路径实体的字段。
 
 `code` 由服务端按对象实体分配，格式固定为 `PPP-NNNN`：`PPP` 是全局唯一的三位对象前缀，
 `NNNN` 是该实体永久递增且不复用的四位流水号。达到 `9999` 后拒绝继续创建。前缀固定为：
@@ -357,11 +353,11 @@ BOB 关联批量转移是受限的跨 BOB 生命周期例外，规则见 4.2.2 �
 
 每个 BOB 类型必须在统一字段元数据中声明全部直接 BOB 关联及其目标实体和字段约束。当前至少包括客户的默认经营主体及三类 `primarySalesAttribution` 主体、供应商和其他往来单位的 `salespersonEmployeeId`、仓库的 `managerEmployeeId`、车辆的 `platformObjectId`、资金账户的经营主体，以及产品配方原料和包装规格引用。新增任何直接引用 BOB 对象的业务字段时必须同步加入该元数据；失效服务遍历元数据，不在页面或服务中维护第二份实体白名单。AUX 引用不在本流程范围内。
 
-任一 BOB 对象失效前，领域服务按上述元数据扫描所有命中它的当前有效 BOB 版本，并按来源实体和字段返回数量、用户有权查看的清单及接任对象选择。每个接任对象必须与原引用属于相同目标实体、当前启用且生效，并满足该字段原有约束；例如车辆只能转移到物流平台供应商，配方原料只能转移到可用原材料。没有当前引用时可直接失效；存在引用时，普通 `disable` 不得绕过完整转移方案。
+任一 BOB 对象失效前，领域服务按上述元数据扫描所有命中它的当前有效 BOB 版本，并按来源实体和字段返回数量。操作者为原对象选择一个同类型接任对象；接任对象必须当前启用且生效，并满足全部命中字段的原有约束，例如车辆平台只能接任为物流平台供应商，配方原料只能接任为可用原材料。没有当前引用时可直接失效；存在引用时，普通 `disable` 不得绕过完整转移方案。
 
 对每个命中的引用对象，领域服务复制最后有效版本的全部业务字段，只替换命中的关联，直接创建新的 `EFFECTIVE` 版本并冻结旧有效版本，不创建 `DRAFT` 或 `PENDING`，也不写普通 `SUBMITTED` 或 `APPROVED` 事件。任一受影响对象已经存在 `DRAFT` 或 `PENDING` 候选版本时，整个事务拒绝并按实体、字段返回冲突清单，不自动合并、覆盖或删除候选版本。同一目标被多个字段引用时可以为各字段选择不同接任对象。
 
-所有引用对象的版本切换、`BULK_BOB_REFERENCE_TRANSFERRED` 审计和原目标对象失效在同一事务完成，任一校验、权限、锁、版本写入或审计失败全部回滚。操作者必须拥有目标实体的 `disable` 权限，以及每个非空受影响来源实体的专属 BOB 关联批量转移权限；缺少任一权限时不得执行部分转移。
+所有引用对象的版本切换、`BULK_BOB_REFERENCE_TRANSFERRED` 审计和原目标对象失效在同一事务完成，任一校验、权限、锁、版本写入或审计失败全部回滚。操作者必须同时拥有原对象实体的 `disable` 权限和 `/bob/reference/transfer` 权限；缺少任一权限时不得执行转移。
 
 `createdBy`、`submittedBy`、`reviewedBy` 等审计身份、历史 BOB 版本及 VOU 单据保存的对象、版本和快照不是可转移 BOB 关联，始终保留业务发生时的原事实。目标失效也不改写这些历史引用。
 
@@ -736,7 +732,7 @@ AUX 产品分类、部门、岗位，以及 BOB 经营主体、负责人、主�
 
 AUX 结算方式和客户资料类别、BOB 默认经营主体和主要业务归属分别作为客户交易默认值、附件分类及业务归属的选择来源。结算方式固定为系统预置的 11 类，不允许新增或删除；选择时按 2.2 节把来源与全部关键值保存进客户版本，VOU 制单直接从客户版本复制，不解析结算方式版本。客户资料类别允许新增或停用，附件保存类别快照。默认经营主体引用当前有效经营主体；主要业务归属按类型引用当前启用且生效的员工或其他往来单位，二者均由 VOU 在制单时保存主体快照。
 
-除名称、客户类型、月结日、默认经营主体、主要业务归属和本章明确非空的定价字段外，其余客户字段是否可清空按各字段规则执行；省略字段与显式清空的语义按 2.2 节执行。客户类型新建时默认为 `DIT-0001`，月结日默认为 `31`；提交和审核时默认经营主体必须有效，主要业务归属必须引用对应类型的有效员工或其他往来单位且不可清空。
+除名称、客户类型、默认经营主体、主要业务归属和本章明确非空的定价字段外，其余客户字段是否可清空按各字段规则执行；省略字段与显式清空的语义按 2.2 节执行。客户类型新建时默认为 `DIT-0001`；提交和审核时默认经营主体必须有效，主要业务归属必须引用对应类型的有效员工或其他往来单位且不可清空。
 
 ### 14.2 统一实体交互
 

@@ -244,10 +244,17 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 				LoadCapacityKG: "12000", Remark: "预览测试草稿车辆",
 			}
 		}},
+		{"operating-effective", bobdomain.EntityOperatingEntity, bobdomain.StatusEffective, func(*Seeder) bobdomain.CreateDetailInput {
+			return bobdomain.CreateDetailInput{
+				Name: "上海预览科技有限公司", ShortName: "上海预览", TaxNumber: "91310000PREVIEWOPE1",
+				Address: "上海市浦东新区预览路1号", Phone: "021-61000000",
+			}
+		}},
 		{"fund-effective", bobdomain.EntityFundAccount, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
 				Name: "人民币基本账户（预览）", Currency: "CNY",
-				AccountName: "上海预览科技有限公司", BankName: "示例银行",
+				OperatingEntityID: s.bobRefs["operating-effective"].ObjectID,
+				AccountName:       "上海预览科技有限公司", BankName: "示例银行",
 				BankBranch: "上海浦东支行", AccountNumber: "622200000000001001",
 				Remark: "预览测试有效资金账户",
 			}
@@ -255,7 +262,8 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 		{"fund-draft", bobdomain.EntityFundAccount, bobdomain.StatusDraft, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
 				Name: "备用结算账户（预览草稿）", Currency: "CNY",
-				AccountName: "上海预览科技有限公司", BankName: "示例银行",
+				OperatingEntityID: s.bobRefs["operating-effective"].ObjectID,
+				AccountName:       "上海预览科技有限公司", BankName: "示例银行",
 				BankBranch: "上海虹桥支行", AccountNumber: "622200000000001002",
 				Remark: "预览测试草稿资金账户",
 			}

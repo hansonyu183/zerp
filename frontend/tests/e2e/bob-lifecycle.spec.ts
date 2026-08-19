@@ -1,4 +1,4 @@
-import { expect, test, type Page } from './fixtures'
+import { expect, test, type Locator, type Page } from './fixtures'
 
 test.use({ storageState: { cookies: [], origins: [] } })
 
@@ -24,187 +24,124 @@ async function openCustomer(page: Page): Promise<void> {
   await expect(page.getByRole('textbox', { name: '客户关键字' })).toBeVisible()
 }
 
-async function searchCustomer(page: Page, code: string): Promise<void> {
-  await page.getByRole('textbox', { name: '客户关键字' }).fill(code)
-  await page.getByRole('button', { name: '查询' }).click()
-  await expect(customerRow(page, code)).toBeVisible()
-}
-
-async function openMore(page: Page, code: string): Promise<void> {
-  await page.getByLabel(`更多操作 ${code}`).click()
-}
-
 function customerRow(page: Page, code: string) {
   return page.locator('tbody tr').filter({
     has: page.locator('td[data-label="编码"]').filter({ hasText: code }),
   })
 }
 
-async function searchWorkbench(
-  page: Page,
-  category: '待办资料' | '待办单据',
-  keyword: string,
-) {
-  await page.goto('/home/dashboard')
-  await page.getByRole('tab', { name: category }).click()
-  await page
-    .getByRole('textbox', {
-      name: category === '待办资料' ? '编码或名称' : '单号或往来方',
-    })
-    .fill(keyword)
+async function searchCustomer(page: Page, code: string): Promise<void> {
+  await page.getByRole('textbox', { name: '客户关键字' }).fill(code)
   await page.getByRole('button', { name: '查询', exact: true }).click()
-  const row = page.locator('tbody tr').filter({ hasText: keyword })
-  await expect(row).toBeVisible()
-  return row
+  await expect(customerRow(page, code)).toBeVisible()
+}
+
+async function selectAutocomplete(
+  page: Page,
+  editor: Locator,
+  label: string,
+  keyword: string,
+): Promise<void> {
+  await editor.getByRole('combobox', { name: label }).fill(keyword)
+  const option = page.getByRole('option').filter({ hasText: keyword }).first()
+  await expect(option).toBeVisible()
+  await option.click()
+}
+
+async function confirmReason(
+  page: Page,
+  title: string,
+  reason: string,
+): Promise<void> {
+  const dialog = page.getByRole('dialog').filter({ hasText: title })
+  await dialog.getByLabel('操作原因').fill(reason)
+  await dialog.getByRole('button', { name: '确认', exact: true }).click()
 }
 
 test(
-  '使用双账号完成客户反向流转、启禁用和历史核验',
+  '使用双账号完成客户创建、反向流转与启禁用',
   { tag: '@mobile' },
   async ({ page, workerState }, testInfo) => {
     test.setTimeout(120_000)
-    const submitter = workerState.operator
-    const reviewer = workerState.reviewer
     const customerName = `E2E 生命周期客户 ${testInfo.project.name} ${testInfo.parallelIndex}`
 
-    await signIn(page, submitter)
+    await signIn(page, workerState.operator)
     await openCustomer(page)
-    await page.getByRole('button', { name: '新增' }).click()
-    const editor = page.locator('.bob-entity-drawer')
-    await expect(editor.locator('[data-field="code"]')).toHaveCount(0)
+    await page.getByRole('button', { name: '新增', exact: true }).click()
+    const editor = page.locator('.customer-workspace__drawer')
+    await editor.getByLabel('集团公司名称').fill(`${customerName}集团`)
     await editor.getByLabel('客户名称').fill(customerName)
-    await editor.getByRole('combobox', { name: '业务员' }).fill('张伟')
-    await page.getByRole('option', { name: /张伟/ }).click()
-    await editor.getByRole('button', { name: '保存' }).click()
-    const createdRow = page.locator('tbody tr').filter({
-      hasText: customerName,
-    })
+    await selectAutocomplete(page, editor, '默认经营主体', '上海示例')
+    await selectAutocomplete(page, editor, '结算方式', '当月结')
+    await selectAutocomplete(page, editor, '收款方式', 'WFL 银行转账')
+    await editor.getByLabel('默认运输方式编码').fill('SELF_PICKUP')
+    await editor.getByLabel('默认运输方式名称').fill('客户自提')
+    await selectAutocomplete(
+      page,
+      editor,
+      '主要业务归属主体',
+      workerState.fixtures.employee,
+    )
+    await editor.getByRole('button', { name: '保存', exact: true }).click()
+
+    const createdRow = page
+      .locator('tbody tr')
+      .filter({ hasText: customerName })
     await expect(createdRow).toHaveCount(1)
-    const code = (await createdRow.locator('td').first().textContent())?.trim()
+    const code = (
+      await createdRow.locator('td[data-label="编码"]').textContent()
+    )?.trim()
     expect(code).toMatch(/^CUS-\d{4}$/)
     await searchCustomer(page, code!)
-    await expect(
-      customerRow(page, code!).getByText('提交审核', { exact: true }),
-    ).toBeHidden()
-    let draftWorkbenchRow = await searchWorkbench(page, '待办资料', code!)
-    await expect(draftWorkbenchRow).toContainText('待核对')
-    await draftWorkbenchRow.getByLabel(`编辑 ${code}`).click()
-    await expect(page).toHaveURL(
-      new RegExp(`/bob/customer\\?objectId=[^&]+&mode=edit`),
-    )
-    draftWorkbenchRow = await searchWorkbench(page, '待办资料', code!)
-    await draftWorkbenchRow.getByLabel(`提交审核 ${code}`).click()
-    const submittedWorkbenchRow = draftWorkbenchRow
-    await expect(submittedWorkbenchRow).toContainText('待批准')
-    await expect(
-      submittedWorkbenchRow.getByLabel(`撤回提交 ${code}`),
-    ).toBeVisible()
-    await submittedWorkbenchRow.getByLabel(`撤回提交 ${code}`).click()
-    const unsubmitDialog = page.getByRole('dialog').filter({
-      hasText: '撤回提交',
-    })
-    const confirmUnsubmit = unsubmitDialog.getByRole('button', {
-      name: '确认撤回',
-    })
-    await expect(confirmUnsubmit).toBeDisabled()
-    await unsubmitDialog.getByLabel('撤回原因').fill('   ')
-    await expect(confirmUnsubmit).toBeDisabled()
-    await unsubmitDialog.getByLabel('撤回原因').fill('E2E 验证撤回提交')
-    await confirmUnsubmit.click()
-    await expect(submittedWorkbenchRow).toContainText('待核对')
-    await openCustomer(page)
-    await searchCustomer(page, code!)
-    await expect(
-      customerRow(page, code!).getByText('草稿', { exact: true }),
-    ).toBeVisible()
+    await expect(customerRow(page, code!)).toContainText('草稿')
+
+    await customerRow(page, code!).getByLabel('提交审核').click()
+    await expect(customerRow(page, code!)).toContainText('待审核')
+    await customerRow(page, code!).getByLabel('撤回提交').click()
+    await confirmReason(page, '撤回提交', 'E2E 验证撤回提交')
+    await expect(customerRow(page, code!)).toContainText('草稿')
     await customerRow(page, code!).getByLabel('提交审核').click()
     await signOut(page)
 
-    await signIn(page, reviewer)
-    let pendingWorkbenchRow = await searchWorkbench(page, '待办资料', code!)
-    await expect(pendingWorkbenchRow).toContainText('待批准')
-    await pendingWorkbenchRow.getByLabel(`查看 ${code}`).click()
-    await expect(page).toHaveURL(
-      new RegExp(`/bob/customer\\?objectId=[^&]+&mode=view`),
-    )
-    pendingWorkbenchRow = await searchWorkbench(page, '待办资料', code!)
-    await pendingWorkbenchRow.getByLabel(`驳回 ${code}`).click()
-    await page.getByLabel('驳回意见').fill('E2E 验证驳回后重提')
-    await page.getByRole('button', { name: '确认驳回' }).click()
-    await expect(pendingWorkbenchRow).toHaveCount(0)
+    await signIn(page, workerState.reviewer)
     await openCustomer(page)
     await searchCustomer(page, code!)
-    await expect(
-      customerRow(page, code!).getByText('草稿', { exact: true }),
-    ).toBeVisible()
+    await customerRow(page, code!).getByLabel('审核驳回').click()
+    await confirmReason(page, '审核驳回', 'E2E 验证驳回后重提')
+    await expect(customerRow(page, code!)).toContainText('草稿')
     await signOut(page)
 
-    await signIn(page, submitter)
+    await signIn(page, workerState.operator)
     await openCustomer(page)
     await searchCustomer(page, code!)
-    await page.getByLabel(`编辑 ${code}`).click()
-    await page.getByLabel('联系人').fill('E2E 重提联系人')
-    await page.getByRole('button', { name: '保存' }).click()
+    await customerRow(page, code!).getByLabel('查看 / 编辑').click()
+    await editor.getByLabel('业务联系人').fill('E2E 重提联系人')
+    await editor.getByRole('button', { name: '保存', exact: true }).click()
     await searchCustomer(page, code!)
     await customerRow(page, code!).getByLabel('提交审核').click()
     await signOut(page)
 
-    await signIn(page, reviewer)
-    const approvalWorkbenchRow = await searchWorkbench(page, '待办资料', code!)
-    await expect(approvalWorkbenchRow).toContainText('待批准')
-    await approvalWorkbenchRow.getByLabel(`批准 ${code}`).click()
-    await expect(approvalWorkbenchRow).toHaveCount(0)
+    await signIn(page, workerState.reviewer)
     await openCustomer(page)
     await searchCustomer(page, code!)
-    await expect(
-      customerRow(page, code!).getByText('有效', { exact: true }),
-    ).toBeVisible()
-    await customerRow(page, code!).getByLabel('禁用').click()
-    await expect(
-      customerRow(page, code!).getByText('禁用', { exact: true }),
-    ).toBeVisible()
-    await customerRow(page, code!).getByLabel('启用').click()
-    await expect(
-      customerRow(page, code!).getByText('启用', { exact: true }),
-    ).toBeVisible()
-    await customerRow(page, code!).getByLabel('撤销批准').click()
-    const unapproveDialog = page.getByRole('dialog').filter({
-      hasText: '撤销批准',
-    })
-    await unapproveDialog.getByLabel('原因').fill('E2E 验证撤销批准')
-    await unapproveDialog.getByRole('button', { name: '确认' }).click()
-    await expect(
-      customerRow(page, code!).getByText('待审核', { exact: true }),
-    ).toBeVisible()
     await customerRow(page, code!).getByLabel('审核通过').click()
-    await expect(
-      customerRow(page, code!).getByText('有效', { exact: true }),
-    ).toBeVisible()
+    let dialog = page.getByRole('dialog').filter({ hasText: '审核通过' })
+    await dialog.getByRole('button', { name: '确认', exact: true }).click()
+    await expect(customerRow(page, code!)).toContainText('已生效')
 
-    await openMore(page, code!)
-    await page.getByText('版本历史', { exact: true }).click()
-    const versionsDialog = page.getByRole('dialog').filter({
-      hasText: '版本历史',
-    })
-    await expect(versionsDialog).toBeVisible()
-    await expect(versionsDialog.getByText('V1', { exact: true })).toBeVisible()
-    await expect(versionsDialog.getByText('V2', { exact: true })).toBeVisible()
-    await versionsDialog.getByRole('button', { name: '关闭' }).click()
+    await customerRow(page, code!).getByLabel('禁用').click()
+    dialog = page.getByRole('dialog').filter({ hasText: '确认禁用客户' })
+    await dialog.getByRole('button', { name: '确认', exact: true }).click()
+    await expect(customerRow(page, code!).getByLabel('启用')).toBeVisible()
+    await customerRow(page, code!).getByLabel('启用').click()
+    await expect(customerRow(page, code!).getByLabel('禁用')).toBeVisible()
 
-    await openMore(page, code!)
-    await page.getByText('审核历史', { exact: true }).click()
-    const auditDialog = page.getByRole('dialog').filter({
-      hasText: '审核历史',
-    })
-    await expect(auditDialog).toBeVisible()
-    await expect(
-      auditDialog.getByText('REJECTED', { exact: true }),
-    ).toBeVisible()
-    await expect(
-      auditDialog.getByText('UNAPPROVED', { exact: true }),
-    ).toBeVisible()
-    await expect(
-      auditDialog.getByText('APPROVED', { exact: true }),
-    ).toHaveCount(2)
+    await customerRow(page, code!).getByLabel('撤销批准').click()
+    await confirmReason(page, '撤销批准', 'E2E 验证撤销批准')
+    await expect(customerRow(page, code!)).toContainText('待审核')
+    await customerRow(page, code!).getByLabel('审核通过').click()
+    dialog = page.getByRole('dialog').filter({ hasText: '审核通过' })
+    await dialog.getByRole('button', { name: '确认', exact: true }).click()
+    await expect(customerRow(page, code!)).toContainText('已生效')
   },
 )

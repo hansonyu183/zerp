@@ -3,6 +3,7 @@ import {
   baseFilters,
   commonFields,
   defineBobEntityConfig,
+  reference,
   text,
   textarea,
 } from '../shared/config-helpers'
@@ -14,16 +15,24 @@ export const fundAccountConfig = defineBobEntityConfig({
   nameLabel: '账户名称',
   defaults: {
     currency: 'CNY',
+    operatingEntityId: '',
     accountName: '',
     bankName: '',
     bankBranch: '',
     accountNumber: '',
     remark: '',
   },
-  requiredKeys: ['name', 'currency'],
+  requiredKeys: ['name', 'currency', 'operatingEntityId'],
   uppercaseKeys: ['currency', 'accountNumber'],
+  references: {
+    operatingEntityId: {
+      entity: 'operating-entity',
+      label: '经营主体',
+    },
+  },
   fields: (context) => [
     ...commonFields(context, '账户编码', '账户名称'),
+    reference('operatingEntityId', '经营主体', context, true),
     text('accountName', '户名', 200),
     text('bankName', '银行', 200),
     text('bankBranch', '支行', 200),
@@ -37,5 +46,12 @@ export const fundAccountConfig = defineBobEntityConfig({
       value: (row) => row.currentVersion.summary.bankName,
     },
   ]),
-  filters: baseFilters(),
+  filters: baseFilters([
+    {
+      key: 'operatingEntityId',
+      label: '经营主体',
+      type: 'autocomplete',
+      reference: { entity: 'operating-entity', label: '经营主体' },
+    },
+  ]),
 })

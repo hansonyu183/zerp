@@ -1143,6 +1143,244 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/bob/customer/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询客户结算子账户最小投影 */
+        post: operations["customerQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/customer/get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取客户集团、有效版本与候选版本 */
+        post: operations["customerGet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/customer/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 原子创建客户集团与首个结算子账户 */
+        post: operations["customerCreate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/customer/tax-match": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 按权限精确发现同税号资料 */
+        post: operations["customerTaxMatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/customer/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存客户结算子账户候选版本 */
+        post: operations["customerSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/customer/attachment-initiate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 初始化客户资料附件 */
+        post: operations["customerAttachmentInitiate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/customer/attachment-download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 申请客户资料附件下载 */
+        post: operations["customerAttachmentDownload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/customer/attachment-remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 移除客户资料附件 */
+        post: operations["customerAttachmentRemove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/customer-group/get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取客户集团当前资料 */
+        post: operations["customerGroupGet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/customer-group/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 按 revision 保存客户集团当前资料 */
+        post: operations["customerGroupSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/customer-group/audit-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询客户集团追加审计 */
+        post: operations["customerGroupAuditHistory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/reference/transfer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 原子批量转移当前 BOB 直接引用 */
+        post: operations["bobReferenceTransfer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/reference/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询 BOB 最小引用候选 */
+        post: operations["bobReferenceQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/aux/reference/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询 AUX 最小引用候选 */
+        post: operations["auxReferenceQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/bob/{entity}/query": {
         parameters: {
             query?: never;
@@ -2265,6 +2503,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/files/customer-attachments/upload/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 上传客户资料附件内容 */
+        put: operations["uploadCustomerAttachment"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/files/customer-attachments/download/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 下载客户资料附件内容 */
+        get: operations["downloadCustomerAttachment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/files/attachments/upload/{token}": {
         parameters: {
             query?: never;
@@ -2857,7 +3129,7 @@ export interface components {
             pageSize: 20;
         };
         /** @enum {string} */
-        BobEntity: "customer" | "supplier" | "other-party" | "employee" | "product" | "service" | "warehouse" | "vehicle" | "fund-account" | "settlement-method";
+        BobEntity: "customer" | "supplier" | "other-party" | "employee" | "product" | "service" | "warehouse" | "vehicle" | "fund-account" | "operating-entity";
         /** @enum {string} */
         WorkbenchAction: "view" | "edit" | "submit" | "unsubmit" | "approve" | "reject" | "check" | "uncheck";
         WorkbenchObjectItem: {
@@ -3383,7 +3655,7 @@ export interface components {
             feedbackId: string;
         };
         /** @enum {string} */
-        AuxEntity: "product-category" | "department" | "position" | "dictionary-type" | "dictionary-item" | "measurement-unit" | "income-expense-type" | "asset-category";
+        AuxEntity: "product-category" | "department" | "position" | "settlement-method" | "payment-method" | "dictionary-type" | "dictionary-item" | "measurement-unit" | "income-expense-type" | "asset-category";
         AuxQueryRequest: {
             page: number;
             pageSize: number;
@@ -3431,6 +3703,417 @@ export interface components {
             objectId: string;
             page: number;
             pageSize: number;
+        };
+        CustomerQueryRequest: {
+            page: number;
+            /** @enum {integer} */
+            pageSize: 20;
+            filters?: {
+                keyword?: string;
+                status?: string[];
+                enabled?: boolean;
+                customerType?: string;
+                operatingEntityId?: string;
+                /** @enum {string} */
+                salesAttributionType?: "INTERNAL_EMPLOYEE" | "EXTERNAL_PART_TIME" | "DEALER";
+                salesAttributionSubjectId?: string;
+            };
+            sort?: {
+                /** @enum {string} */
+                field: "code";
+                /** @enum {string} */
+                order: "asc";
+            }[];
+        };
+        CustomerListItem: {
+            objectId: string;
+            code: string;
+            /** Format: int64 */
+            objectRevision: number;
+            enabled: boolean;
+            effective: {
+                versionId?: string;
+                version?: number;
+                status?: string;
+                /** Format: int64 */
+                revision?: number;
+                name?: string;
+                customerTypeCode?: string;
+                operatingEntityName?: string;
+                salesAttributionName?: string;
+                submittedBy?: string | null;
+            } | null;
+            candidate: {
+                versionId?: string;
+                version?: number;
+                status?: string;
+                /** Format: int64 */
+                revision?: number;
+                name?: string;
+                customerTypeCode?: string;
+                submittedBy?: string | null;
+            } | null;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CustomerQueryResponse: {
+            code: number;
+            message: string;
+            data: {
+                items: components["schemas"]["CustomerListItem"][];
+                /** Format: int64 */
+                total: number;
+                page: number;
+                pageSize: number;
+            };
+            requestId: string;
+        };
+        BobGetRequest: {
+            objectId: string;
+            versionId?: string;
+        };
+        CustomerGroupBankAccount: {
+            accountName: string;
+            bankName: string;
+            bankBranch: string;
+            accountNumber: string;
+        };
+        CustomerGroupData: {
+            companyName: string;
+            shortName?: string | null;
+            taxNumber?: string | null;
+            invoiceTitle?: string | null;
+            invoiceAddress?: string | null;
+            invoicePhone?: string | null;
+            bankAccounts: components["schemas"]["CustomerGroupBankAccount"][];
+        };
+        CustomerAttachmentView: {
+            fileId: string;
+            fileName: string;
+            /** @enum {string} */
+            contentType: "application/pdf" | "image/jpeg" | "image/png";
+            /** Format: int64 */
+            size: number;
+            sha256: string;
+            /** @enum {string} */
+            status: "PENDING" | "READY";
+            categoryObjectId: string;
+            categoryVersionId: string;
+            categoryCode: string;
+            categoryName: string;
+            /** Format: date-time */
+            storedAt?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            createdBy: string;
+        };
+        CustomerGroupView: {
+            groupId: string;
+            code: string;
+            /** Format: int64 */
+            revision: number;
+            data: components["schemas"]["CustomerGroupData"];
+            attachments: components["schemas"]["CustomerAttachmentView"][];
+            /** Format: date-time */
+            updatedAt: string;
+            updatedBy: string;
+        };
+        CustomerVersionMeta: {
+            versionId: string;
+            /** Format: int32 */
+            version: number;
+            /** @enum {string} */
+            status: "DRAFT" | "PENDING" | "EFFECTIVE" | "INVALID";
+            /** Format: int64 */
+            revision: number;
+            /** Format: date-time */
+            createdAt: string;
+            createdBy: string;
+            /** Format: date-time */
+            updatedAt: string;
+            updatedBy: string;
+            /** Format: date-time */
+            submittedAt: string | null;
+            submittedBy: string | null;
+            /** Format: date-time */
+            reviewedAt: string | null;
+            reviewedBy: string | null;
+            reviewComment: string | null;
+        };
+        CustomerPricingCostItem: {
+            name: string;
+            /** @enum {string} */
+            basis: "UNIT_PRICE" | "ORDER_AMOUNT";
+            unitPrice?: string;
+            orderAmount?: string;
+        } & ({
+            unitPrice: unknown;
+            orderAmount?: unknown;
+        } | {
+            unitPrice?: unknown;
+            orderAmount: unknown;
+        });
+        CustomerPricingPolicy: {
+            defaultPremiumUnitPrice: string;
+            defaultDiscountUnitPrice: string;
+            costItems: components["schemas"]["CustomerPricingCostItem"][];
+            thirdPartyIntermediaryFixedUnitCost: string;
+            thirdPartyIntermediaryVariableUnitCost: string;
+        };
+        CustomerCreditLimit: {
+            /** @enum {string} */
+            currency: "CNY";
+            amount: string;
+        };
+        CustomerSnapshot: {
+            sourceObjectId: string;
+            code: string;
+            name: string;
+            termCode?: string;
+            ruleType?: string;
+            /** Format: int32 */
+            dueDays?: number;
+            /** Format: int32 */
+            monthOffset?: number;
+            /** Format: int32 */
+            cutoffDay?: number;
+            defaultSalesSurcharge?: string;
+            taxNumber?: string;
+            address?: string;
+            phone?: string;
+        };
+        CustomerSalesAttributionView: {
+            /** @enum {string} */
+            type: "INTERNAL_EMPLOYEE" | "EXTERNAL_PART_TIME" | "DEALER";
+            subjectObjectId: string;
+            subjectVersionId: string;
+            subjectCode: string;
+            subjectName: string;
+        };
+        CustomerAccountView: {
+            name: string;
+            shortName?: string | null;
+            customerTypeCode: string;
+            contactName?: string | null;
+            contactPhone?: string | null;
+            email?: string | null;
+            address?: string | null;
+            operatingEntityId?: string | null;
+            settlementMethodId?: string | null;
+            paymentMethodId?: string | null;
+            defaultTransportMethodCode?: string | null;
+            defaultTransportMethodName?: string | null;
+            transportSurcharge?: string | null;
+            pricingPolicy: components["schemas"]["CustomerPricingPolicy"];
+            creditLimits: components["schemas"]["CustomerCreditLimit"][];
+            operatingEntity: components["schemas"]["CustomerSnapshot"] | null;
+            settlementMethod: components["schemas"]["CustomerSnapshot"] | null;
+            paymentMethod: components["schemas"]["CustomerSnapshot"] | null;
+            primarySalesAttribution: components["schemas"]["CustomerSalesAttributionView"];
+            internalReminder?: string | null;
+            defaultSalesOrderRemark?: string | null;
+        };
+        CustomerVersionView: {
+            version: components["schemas"]["CustomerVersionMeta"];
+            data: components["schemas"]["CustomerAccountView"];
+            attachments: components["schemas"]["CustomerAttachmentView"][];
+        };
+        CustomerDetailView: {
+            objectId: string;
+            code: string;
+            /** Format: int64 */
+            objectRevision: number;
+            enabled: boolean;
+            group: components["schemas"]["CustomerGroupView"];
+            effective: components["schemas"]["CustomerVersionView"] | null;
+            candidate: components["schemas"]["CustomerVersionView"] | null;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CustomerGetResponse: {
+            code: number;
+            message: string;
+            data: components["schemas"]["CustomerDetailView"] | null;
+            requestId: string;
+        };
+        CustomerSalesAttributionInput: {
+            /** @enum {string} */
+            type: "INTERNAL_EMPLOYEE" | "EXTERNAL_PART_TIME" | "DEALER";
+            subjectObjectId: string;
+        };
+        CustomerAccountInput: {
+            name: string;
+            shortName?: string | null;
+            customerTypeCode: string;
+            contactName?: string | null;
+            contactPhone?: string | null;
+            email?: string | null;
+            address?: string | null;
+            operatingEntityId?: string | null;
+            settlementMethodId?: string | null;
+            paymentMethodId?: string | null;
+            defaultTransportMethodCode?: string | null;
+            defaultTransportMethodName?: string | null;
+            transportSurcharge?: string | null;
+            pricingPolicy: components["schemas"]["CustomerPricingPolicy"];
+            creditLimits: components["schemas"]["CustomerCreditLimit"][];
+            primarySalesAttribution: components["schemas"]["CustomerSalesAttributionInput"];
+            internalReminder?: string | null;
+            defaultSalesOrderRemark?: string | null;
+        };
+        CustomerCreateRequest: {
+            group: components["schemas"]["CustomerGroupData"];
+            data: components["schemas"]["CustomerAccountInput"];
+        } | {
+            groupId: string;
+            data: components["schemas"]["CustomerAccountInput"];
+        };
+        CustomerTaxMatchRequest: {
+            taxNumber: string;
+        };
+        CustomerTaxMatch: {
+            /** @enum {string} */
+            sourceEntity: "customer-group" | "supplier" | "other-party";
+            objectId: string;
+            code: string;
+            companyName: string;
+            shortName: string;
+            taxNumber: string;
+            invoiceTitle: string;
+            invoiceAddress: string;
+            invoicePhone: string;
+        };
+        CustomerTaxMatchResponse: {
+            code: number;
+            message: string;
+            data: components["schemas"]["CustomerTaxMatch"][];
+            requestId: string;
+        };
+        CustomerSaveRequest: {
+            objectId: string;
+            versionId: string;
+            /** Format: int64 */
+            revision: number;
+            /** Format: int64 */
+            groupRevision: number;
+            group: components["schemas"]["CustomerGroupData"];
+            data: components["schemas"]["CustomerAccountInput"];
+        };
+        /** @enum {string} */
+        CustomerAttachmentScope: "GROUP" | "ACCOUNT";
+        CustomerAttachmentInitiateRequest: {
+            scope: components["schemas"]["CustomerAttachmentScope"];
+            ownerId: string;
+            /** Format: int64 */
+            revision: number;
+            categoryObjectId: string;
+            fileName: string;
+            /** @enum {string} */
+            contentType: "application/pdf" | "image/jpeg" | "image/png";
+            /** Format: int64 */
+            size: number;
+            sha256: string;
+        };
+        CustomerAttachmentInitiateResult: {
+            fileId: string;
+            uploadUrl: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        CustomerAttachmentInitiateResponse: {
+            code: number;
+            message: string;
+            data: components["schemas"]["CustomerAttachmentInitiateResult"];
+            requestId: string;
+        };
+        CustomerAttachmentDownloadRequest: {
+            scope: components["schemas"]["CustomerAttachmentScope"];
+            ownerId: string;
+            fileId: string;
+        };
+        CustomerAttachmentDownloadResult: {
+            downloadUrl: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        CustomerAttachmentDownloadResponse: {
+            code: number;
+            message: string;
+            data: components["schemas"]["CustomerAttachmentDownloadResult"];
+            requestId: string;
+        };
+        CustomerAttachmentRemoveRequest: {
+            scope: components["schemas"]["CustomerAttachmentScope"];
+            ownerId: string;
+            /** Format: int64 */
+            revision: number;
+            fileId: string;
+        };
+        CustomerAttachmentMutationResult: {
+            /** Format: int64 */
+            revision: number;
+        };
+        CustomerAttachmentRemoveResponse: {
+            code: number;
+            message: string;
+            data: components["schemas"]["CustomerAttachmentMutationResult"];
+            requestId: string;
+        };
+        CustomerGroupSaveRequest: {
+            groupId: string;
+            /** Format: int64 */
+            revision: number;
+            data: components["schemas"]["CustomerGroupData"];
+        };
+        BobHistoryRequest: {
+            objectId: string;
+            page: number;
+            pageSize: number;
+        };
+        CustomerReferenceTransferRequest: {
+            /** @enum {string} */
+            entity: "customer" | "operating-entity" | "employee" | "other-party" | "supplier" | "product";
+            sourceObjectId: string;
+            targetObjectId: string;
+            /** Format: int64 */
+            sourceObjectRevision: number;
+        };
+        CustomerReferenceTransferResult: {
+            sourceObjectId: string;
+            targetObjectId: string;
+            affectedObjects: number;
+        };
+        CustomerReferenceTransferResponse: {
+            code: number;
+            message: string;
+            data: components["schemas"]["CustomerReferenceTransferResult"];
+            requestId: string;
+        };
+        BobReferenceQueryRequest: {
+            /** @enum {string} */
+            entity: "customer" | "operating-entity" | "employee" | "other-party" | "supplier" | "product";
+            keyword?: string;
+            sourceObjectId?: string;
+        };
+        ReferenceCandidate: {
+            objectId: string;
+            versionId: string;
+            code: string;
+            name: string;
+        };
+        ReferenceQueryResponse: {
+            code: number;
+            message: string;
+            data: components["schemas"]["ReferenceCandidate"][];
+            requestId: string;
+        };
+        AuxReferenceQueryRequest: {
+            /** @enum {string} */
+            entity: "settlement-method" | "payment-method" | "dictionary-item";
+            keyword?: string;
+            dictionaryTypeCode?: string;
         };
         BobQueryRequest: {
             page: number;
@@ -3483,10 +4166,6 @@ export interface components {
             data: components["schemas"]["BobListPage"] | null;
             requestId: string;
         };
-        BobGetRequest: {
-            objectId: string;
-            versionId?: string;
-        };
         BobPackagingSpecInput: {
             packagingProductObjectId: string;
             packagingProductVersionId: string;
@@ -3538,9 +4217,8 @@ export interface components {
                 bankName?: string | null;
                 bankBranch?: string | null;
                 accountNumber?: string | null;
+                operatingEntityId?: string | null;
                 settlementMethodId?: string | null;
-                /** @description 仅客户适用；创建客户时省略则按 31 处理 */
-                monthlyClosingDay?: number;
                 termCode?: string | null;
                 defaultSalesSurcharge?: string | null;
                 salespersonEmployeeId?: string | null;
@@ -3596,8 +4274,8 @@ export interface components {
                 bankName?: string | null;
                 bankBranch?: string | null;
                 accountNumber?: string | null;
+                operatingEntityId?: string | null;
                 settlementMethodId?: string | null;
-                monthlyClosingDay?: number;
                 termCode?: string | null;
                 defaultSalesSurcharge?: string | null;
                 salespersonEmployeeId?: string | null;
@@ -3647,11 +4325,6 @@ export interface components {
             objectId: string;
             /** Format: int64 */
             objectRevision: number;
-        };
-        BobHistoryRequest: {
-            objectId: string;
-            page: number;
-            pageSize: number;
         };
         /** @enum {string} */
         VouStatus: "DRAFT" | "CHECKED" | "APPROVED";
@@ -6273,6 +6946,302 @@ export interface operations {
             200: components["responses"]["Business"];
         };
     };
+    customerQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomerQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description 客户结算子账户分页响应。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerQueryResponse"];
+                };
+            };
+        };
+    };
+    customerGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BobGetRequest"];
+            };
+        };
+        responses: {
+            /** @description 客户完整资料。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerGetResponse"];
+                };
+            };
+        };
+    };
+    customerCreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomerCreateRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    customerTaxMatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomerTaxMatchRequest"];
+            };
+        };
+        responses: {
+            /** @description 当前用户可读的同税号资料。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerTaxMatchResponse"];
+                };
+            };
+        };
+    };
+    customerSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomerSaveRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    customerAttachmentInitiate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomerAttachmentInitiateRequest"];
+            };
+        };
+        responses: {
+            /** @description 附件上传令牌及新的所属资料 revision。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerAttachmentInitiateResponse"];
+                };
+            };
+        };
+    };
+    customerAttachmentDownload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomerAttachmentDownloadRequest"];
+            };
+        };
+        responses: {
+            /** @description 短时下载地址。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerAttachmentDownloadResponse"];
+                };
+            };
+        };
+    };
+    customerAttachmentRemove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomerAttachmentRemoveRequest"];
+            };
+        };
+        responses: {
+            /** @description 新的所属资料 revision。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerAttachmentRemoveResponse"];
+                };
+            };
+        };
+    };
+    customerGroupGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IdRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    customerGroupSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomerGroupSaveRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    customerGroupAuditHistory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BobHistoryRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    bobReferenceTransfer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomerReferenceTransferRequest"];
+            };
+        };
+        responses: {
+            /** @description 批量转移结果。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerReferenceTransferResponse"];
+                };
+            };
+        };
+    };
+    bobReferenceQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BobReferenceQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description 最小引用候选。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferenceQueryResponse"];
+                };
+            };
+        };
+    };
+    auxReferenceQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuxReferenceQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description 最小引用候选。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferenceQueryResponse"];
+                };
+            };
+        };
+    };
     bobquery: {
         parameters: {
             query?: never;
@@ -7580,6 +8549,55 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            400: components["responses"]["TechnicalError"];
+        };
+    };
+    uploadCustomerAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: components["parameters"]["FileToken"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "*/*": string;
+            };
+        };
+        responses: {
+            /** @description 上传成功。 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["TechnicalError"];
+            409: components["responses"]["TechnicalError"];
+        };
+    };
+    downloadCustomerAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: components["parameters"]["FileToken"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 附件字节流。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
             };
             400: components["responses"]["TechnicalError"];
         };

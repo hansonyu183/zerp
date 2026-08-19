@@ -98,6 +98,56 @@ func (s *serviceStub) AuditHistory(_ context.Context, entity string, _ HistoryIn
 	return Page[AuditEventView]{Items: []AuditEventView{}}, nil
 }
 
+func (s *serviceStub) CustomerQuery(_ context.Context, input QueryInput) (Page[CustomerListItem], error) {
+	s.record("query", EntityCustomer)
+	return Page[CustomerListItem]{Items: []CustomerListItem{}, Page: input.Page, PageSize: input.PageSize}, nil
+}
+
+func (s *serviceStub) CustomerGet(_ context.Context, _ GetInput) (CustomerDetailView, error) {
+	s.record("get", EntityCustomer)
+	return CustomerDetailView{}, nil
+}
+
+func (s *serviceStub) CustomerCreate(_ context.Context, _ CustomerCreateInput, _, _ string) (CustomerCreateResult, error) {
+	s.record("create", EntityCustomer)
+	return CustomerCreateResult{}, nil
+}
+
+func (s *serviceStub) CustomerSave(_ context.Context, _ CustomerSaveInput, _, _ string) (MutationResult, error) {
+	s.record("save", EntityCustomer)
+	return MutationResult{}, nil
+}
+
+func (s *serviceStub) CustomerGroupGet(_ context.Context, _ string) (CustomerGroupView, error) {
+	s.record("get", "customer-group")
+	return CustomerGroupView{}, nil
+}
+
+func (s *serviceStub) CustomerGroupSave(_ context.Context, _ CustomerGroupSaveInput, _, _ string) (CustomerGroupView, error) {
+	s.record("save", "customer-group")
+	return CustomerGroupView{}, nil
+}
+
+func (s *serviceStub) CustomerGroupAuditHistory(_ context.Context, _ HistoryInput) (Page[AuditEventView], error) {
+	s.record("audit-history", "customer-group")
+	return Page[AuditEventView]{Items: []AuditEventView{}}, nil
+}
+
+func (s *serviceStub) TransferReferences(_ context.Context, _ ReferenceTransferInput, _, _ string) (ReferenceTransferResult, error) {
+	s.record("transfer", "reference")
+	return ReferenceTransferResult{}, nil
+}
+
+func (s *serviceStub) QueryReferenceCandidates(_ context.Context, _ ReferenceQueryInput) ([]ReferenceCandidate, error) {
+	s.record("query", "reference")
+	return []ReferenceCandidate{}, nil
+}
+
+func (s *serviceStub) CustomerTaxMatches(_ context.Context, _ CustomerTaxMatchInput) ([]CustomerTaxMatch, error) {
+	s.record("tax-match", EntityCustomer)
+	return []CustomerTaxMatch{}, nil
+}
+
 func testBOBLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
@@ -106,7 +156,7 @@ func newBOBTestRouter(service applicationService, authorizer authorization.Autho
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(middleware.RequestID())
-	NewHandler(service, authorizer, testBOBLogger()).Register(router)
+	NewHandler(service, nil, authorizer, testBOBLogger()).Register(router)
 	return router
 }
 
@@ -115,7 +165,7 @@ func TestHandlerRegistersEveryEntityAction(t *testing.T) {
 	routes := router.Routes()
 	expectedEntities := []string{
 		"customer", "supplier", "other-party", "employee", "product", "service", "warehouse",
-		"vehicle", "fund-account", "settlement-method",
+		"vehicle", "fund-account", "operating-entity",
 	}
 	expectedActions := []string{
 		"query", "get", "create", "save", "delete", "submit", "unsubmit",
@@ -137,8 +187,9 @@ func TestHandlerRegistersEveryEntityAction(t *testing.T) {
 			t.Errorf("route %s is not registered", path)
 		}
 	}
-	if len(routes) != len(wanted) {
-		t.Fatalf("registered route count = %d, want %d", len(routes), len(wanted))
+	const customerSpecificRoutes = 11
+	if len(routes) != len(wanted)+customerSpecificRoutes {
+		t.Fatalf("registered route count = %d, want %d", len(routes), len(wanted)+customerSpecificRoutes)
 	}
 }
 
@@ -281,6 +332,44 @@ func TestHandlerUsesExactPermissionPathAndPrincipal(t *testing.T) {
 	}
 	if len(service.actions) != 1 || service.actions[0] != "delete" || service.entity != EntityVehicle {
 		t.Fatalf("actions = %v, entity = %q", service.actions, service.entity)
+	}
+}
+
+func TestReferenceTransferRequiresBothTransferAndSourceDisablePermissions(t *testing.T) {
+	service := &serviceStub{}
+	paths := []string{}
+	authorizer := authorization.Func(func(
+		_ context.Context, _ *http.Request, path, _ string,
+	) (authorization.Principal, error) {
+		paths = append(paths, path)
+		if path == "/bob/employee/disable" {
+			return authorization.Principal{}, authorization.NewError(
+				authorization.ErrorForbidden, "permission denied", nil,
+			)
+		}
+		return authorization.Principal{ActorID: "01J00000000000000000000000"}, nil
+	})
+	router := newBOBTestRouter(service, authorizer)
+	request := httptest.NewRequest(http.MethodPost, "/bob/reference/transfer", strings.NewReader(
+		`{"entity":"employee","sourceObjectId":"01J00000000000000000000010","targetObjectId":"01J00000000000000000000011","sourceObjectRevision":1}`,
+	))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	var envelope response.Envelope
+	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if envelope.Code != response.CodeForbidden {
+		t.Fatalf("code = %d, want %d", envelope.Code, response.CodeForbidden)
+	}
+	want := []string{"/bob/reference/transfer", "/bob/employee/disable"}
+	if len(paths) != len(want) || paths[0] != want[0] || paths[1] != want[1] {
+		t.Fatalf("permission paths = %v, want %v", paths, want)
+	}
+	if len(service.actions) != 0 {
+		t.Fatalf("service calls = %v", service.actions)
 	}
 }
 

@@ -1,6 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '@/api/client'
+import { ApiError } from '@/api/types'
 import { getBobEntityConfig, statusOptions } from '@/pages/bob/shared/config'
 import { useBobEntityViewModel } from '@/pages/bob/shared/vm'
 import type {
@@ -14,6 +15,7 @@ import { useSessionStore } from '@/stores/session'
 vi.mock('@/api/client', () => ({
   apiClient: {
     post: vi.fn(),
+    postContract: vi.fn(),
     setCsrfToken: vi.fn(),
   },
 }))
@@ -200,21 +202,15 @@ describe('shared BOB entity configuration and view model', () => {
 
   it('定义全部九类业务对象和完整状态筛选', () => {
     const expectedColumns: Record<string, string[]> = {
-      customer: ['编码', '名称', '类型', '状态'],
       supplier: ['编码', '名称', '类型', '状态'],
+      'other-party': ['编码', '名称', '状态'],
       employee: ['编码', '姓名', '电话', '入职', '状态'],
       product: ['编码', '名称', '类型', '库存单位', '型号', '状态'],
       service: ['编码', '名称', '单位', '说明', '状态'],
       warehouse: ['编码', '名称', '地址', '联系人', '状态'],
       vehicle: ['编码', '名称', '车牌', '类型', '状态'],
       'fund-account': ['编码', '名称', '银行', '状态'],
-      'settlement-method': [
-        '编码',
-        '名称',
-        '术语代码',
-        '销售加价（元/kg）',
-        '状态',
-      ],
+      'operating-entity': ['编码', '法定公司名称', '税号', '状态'],
     }
 
     for (const [entity, columns] of Object.entries(expectedColumns)) {
@@ -339,78 +335,6 @@ describe('shared BOB entity configuration and view model', () => {
         (field) => field.key === 'salespersonEmployeeId',
       )?.options,
     ).toEqual([{ title: 'DEMO-EMP-001 · 演示员工', value: 'EMP-1' }])
-  })
-
-  it('按编码保存的引用在详情中补齐编码和名称', async () => {
-    useSessionStore().permissions = [
-      '/bob/customer/get',
-      '/aux/dictionary-item/query',
-    ]
-    const customerRow = {
-      ...row(),
-      entity: 'customer',
-      code: 'CUS-001',
-      currentVersion: {
-        ...row().currentVersion,
-        summary: { name: '示例客户', customerType: 'DIT-0001' },
-      },
-    } as BobListItem
-    const customerView = {
-      ...objectView(),
-      entity: 'customer',
-      code: 'CUS-001',
-      data: {
-        name: '示例客户',
-        customerType: 'DIT-0001',
-        shortName: '',
-        settlementMethodId: '',
-        salespersonEmployeeId: '',
-        taxNumber: '',
-        contactName: '',
-        contactPhone: '',
-        email: '',
-        address: '',
-        remark: '',
-      },
-    } as BobObjectView
-    mockedApiClient.post
-      .mockResolvedValueOnce({ data: customerView })
-      .mockResolvedValueOnce({
-        data: {
-          items: [
-            {
-              objectId: 'TYPE-1',
-              code: 'DIT-0001',
-              currentVersion: { data: { name: '终端客户' } },
-            },
-          ],
-          total: 1,
-          page: 1,
-          pageSize: 20,
-        },
-      })
-    const vm = useBobEntityViewModel(getBobEntityConfig('customer'))
-
-    await vm.openView(customerRow)
-
-    expect(mockedApiClient.post).toHaveBeenNthCalledWith(
-      2,
-      'aux/dictionary-item/query',
-      {
-        page: 1,
-        pageSize: 20,
-        filters: {
-          dictionaryTypeCode: 'DCT-0001',
-          keyword: 'DIT-0001',
-          enabled: true,
-        },
-        sort: [{ field: 'name', order: 'asc' }],
-      },
-    )
-    expect(
-      vm.editorFields.value.find((field) => field.key === 'customerType')
-        ?.options,
-    ).toEqual([{ title: 'DIT-0001 · 终端客户', value: 'DIT-0001' }])
   })
 
   it('供应商创建和保存发送 salespersonEmployeeId', async () => {
@@ -668,6 +592,7 @@ describe('shared BOB entity configuration and view model', () => {
     const saving = vm.save({
       ...config.emptyForm(),
       name: '测试资金账户',
+      operatingEntityId: 'OPE-1',
     })
 
     await vi.waitFor(() => {
@@ -824,6 +749,87 @@ describe('shared BOB entity configuration and view model', () => {
 
     resolveQuery(emptyPage())
     await vi.waitFor(() => expect(vm.loading.value).toBe(false))
+  })
+
+  it('停用被引用资料时加载同类接替项并原子批量转移', async () => {
+    grant('product', 'query', 'disable')
+    useSessionStore().permissions.push('/bob/reference/transfer')
+    mockedApiClient.post.mockRejectedValueOnce(
+      new ApiError('business', 'object has active direct references', {
+        code: 3001,
+      }),
+    )
+    mockedApiClient.postContract.mockResolvedValueOnce({
+      data: [
+        {
+          objectId: 'OBJ-2',
+          versionId: 'VER-2',
+          code: 'PRD-2',
+          name: '接替原料',
+        },
+      ],
+    })
+    const vm = useBobEntityViewModel(getBobEntityConfig('product'))
+
+    await expect(vm.changeEnabled(row('EFFECTIVE'))).resolves.toBe(false)
+
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith(
+      'bob/reference/query',
+      {
+        entity: 'product',
+        keyword: '',
+        sourceObjectId: 'OBJ-1',
+      },
+    )
+    expect(vm.referenceTransferOpen.value).toBe(true)
+    expect(vm.referenceTransferOptions.value).toEqual([
+      { title: 'PRD-2 · 接替原料', value: 'OBJ-2' },
+    ])
+    expect(vm.errorMessage.value).toBeNull()
+
+    mockedApiClient.postContract.mockResolvedValueOnce({
+      data: {
+        sourceObjectId: 'OBJ-1',
+        targetObjectId: 'OBJ-2',
+        affectedObjects: 3,
+      },
+    })
+    mockedApiClient.post.mockResolvedValueOnce(emptyPage())
+    vm.referenceTransferTargetId.value = 'OBJ-2'
+
+    await expect(vm.confirmReferenceTransfer()).resolves.toBe(true)
+
+    expect(mockedApiClient.postContract).toHaveBeenLastCalledWith(
+      'bob/reference/transfer',
+      {
+        entity: 'product',
+        sourceObjectId: 'OBJ-1',
+        targetObjectId: 'OBJ-2',
+        sourceObjectRevision: 3,
+      },
+    )
+    expect(vm.referenceTransferOpen.value).toBe(false)
+    expect(vm.successMessage.value).toBe(
+      'PRD-1 已停用，并完成 3 个业务对象的引用转移。',
+    )
+  })
+
+  it('缺少批量转移权限时只显示停用冲突且不打开入口', async () => {
+    grant('product', 'query', 'disable')
+    mockedApiClient.post.mockRejectedValueOnce(
+      new ApiError('business', 'object has active direct references', {
+        code: 3001,
+      }),
+    )
+    const vm = useBobEntityViewModel(getBobEntityConfig('product'))
+
+    await vm.changeEnabled(row('EFFECTIVE'))
+
+    expect(vm.referenceTransferOpen.value).toBe(false)
+    expect(mockedApiClient.postContract).not.toHaveBeenCalled()
+    expect(vm.errorMessage.value).toBe(
+      '该资料仍被当前有效业务对象引用，请先选择接替资料并批量转移。',
+    )
   })
 
   it('关联对象搜索带有效状态和实体约束', async () => {

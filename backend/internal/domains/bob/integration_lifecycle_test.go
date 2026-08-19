@@ -171,6 +171,9 @@ func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 		Code: "PL" + newID(), Name: "Lifecycle Platform",
 		SupplierType: stringIntegrationPointer(SupplierTypeLogisticsPlatform),
 	}, "contract-platform")
+	_, operating := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{
+		Name: "Lifecycle Operating Entity", TaxNumber: "TAX" + newID()[3:],
+	}, "contract-operating")
 	tests := []struct {
 		entity string
 		data   CreateDetailInput
@@ -196,6 +199,9 @@ func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 			test.data.Code = "LC" + newID()
 			if test.entity == EntityCustomer || test.entity == EntitySupplier || test.entity == EntityOtherParty {
 				test.data.SalespersonEmployeeID = salesperson.ObjectID
+			}
+			if test.entity == EntityFundAccount {
+				test.data.OperatingEntityID = operating.ObjectID
 			}
 			created, err := service.Create(t.Context(), test.entity, CreateInput{Data: test.data}, integrationActorOne, "contract-create")
 			if err != nil {

@@ -45,7 +45,7 @@ async function openCustomer(page: Page, isMobile: boolean): Promise<void> {
   await page.goto('/home/dashboard')
   if (isMobile) await page.getByLabel('切换导航').click()
 
-  const customerLink = page.getByRole('link', { name: /客户/ })
+  const customerLink = page.getByRole('link', { name: '客户', exact: true })
   if (!(await customerLink.isVisible())) {
     await page.getByText('业务对象', { exact: true }).click()
   }
@@ -330,7 +330,9 @@ test(
     await expectSingleDirectWorkbenchEntry(page)
     await expect(page.getByText('业务对象', { exact: true })).toBeVisible()
     await page.getByText('业务对象', { exact: true }).click()
-    await expect(page.getByRole('link', { name: /客户/ })).toBeVisible()
+    await expect(
+      page.getByRole('link', { name: '客户', exact: true }),
+    ).toBeVisible()
     await expect(page.getByText('系统能力')).toHaveCount(0)
   },
 )

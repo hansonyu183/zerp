@@ -48,7 +48,7 @@ type ContractPathFor<Path extends ApiPostPath> =
               : never
 
 type ContractPostOperation<Path extends ApiPostPath> =
-  paths[ContractPathFor<Path>] extends {
+  paths[ContractPathFor<Path> & keyof paths] extends {
     post: infer Operation
   }
     ? Operation
@@ -349,6 +349,20 @@ export class ApiClient {
     )
   }
 
+  async uploadCustomerAttachment(
+    uploadUrl: string,
+    file: File,
+    options: FileRequestOptions = {},
+  ): Promise<void> {
+    await this.uploadFile(
+      uploadUrl,
+      '/files/customer-attachments/upload/',
+      file,
+      options,
+      false,
+    )
+  }
+
   async uploadFeedbackAttachment(
     uploadUrl: string,
     file: File,
@@ -410,6 +424,27 @@ export class ApiClient {
     if (response.status !== 200) {
       await this.throwFileResponseError(response)
     }
+    return response.blob()
+  }
+
+  async fetchCustomerAttachment(
+    downloadUrl: string,
+    options: FileRequestOptions = {},
+  ): Promise<Blob> {
+    const url = this.resolveFileUrl(
+      downloadUrl,
+      '/files/customer-attachments/download/',
+    )
+    const response = await this.fileRequest(
+      url,
+      {
+        method: 'GET',
+        credentials: 'include',
+        headers: new Headers({ Accept: 'application/octet-stream' }),
+      },
+      options,
+    )
+    if (response.status !== 200) await this.throwFileResponseError(response)
     return response.blob()
   }
 

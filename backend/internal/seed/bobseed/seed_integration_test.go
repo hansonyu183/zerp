@@ -71,7 +71,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 		counts[status]++
 	}
 	expected := map[string]int{
-		bob.StatusEffective: 15,
+		bob.StatusEffective: 16,
 		bob.StatusDraft:     7,
 		bob.StatusPending:   3,
 	}

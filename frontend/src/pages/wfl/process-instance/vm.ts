@@ -184,6 +184,26 @@ export function useProcessInstanceViewModel() {
     try {
       const pages = await Promise.all(
         entities.map(async (entity) => {
+          if (entity === 'customer') {
+            const { data } = await apiClient.postContract(
+              'bob/reference/query',
+              {
+                entity,
+                ...(keywordValue.trim()
+                  ? { keyword: keywordValue.trim() }
+                  : {}),
+              },
+            )
+            return data.map(
+              (item): VoucherReference => ({
+                objectId: item.objectId,
+                versionId: item.versionId,
+                entity,
+                code: item.code,
+                name: item.name,
+              }),
+            )
+          }
           const { data } = await apiClient.post<
             PageResult<ReferenceListItem>,
             PageRequest

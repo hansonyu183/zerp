@@ -90,6 +90,17 @@ const exactMessages: Readonly<Record<string, string>> = {
     '包装计价单位必须与库存单位一致。',
   'goods pricing unit must be KG': '货物计价单位必须为千克。',
   'formula component must reference a raw material': '配方明细必须引用原材料。',
+  'formula material replacement must be a raw material':
+    '配方原料的继任资料必须是原材料。',
+  'packaging product replacement must be a packaging product':
+    '包装物的继任资料必须是包装物料。',
+  'vehicle platform replacement must be a logistics platform supplier':
+    '车辆平台的继任资料必须是物流平台供应商。',
+  'customer attachment limit reached': '该范围最多只能保存 10 个客户附件。',
+  'customer version is not a draft': '只有客户草稿版本可以修改附件。',
+  'only the customer draft can change attachments':
+    '只有客户草稿版本可以修改附件。',
+  'category name is not text': '客户资料类别配置无效，请联系管理员。',
   'formula only applies to sale order lines': '配方只适用于销售订单明细。',
   'formula only applies to standard finished products':
     '配方只适用于标准产成品。',
@@ -111,6 +122,24 @@ const exactMessages: Readonly<Record<string, string>> = {
     '结算方式由系统固定维护，不能新增或删除。',
   'settlement rule does not match fixed term':
     '结算规则与系统固定期限不一致，请刷新后重试。',
+  'settlement method facts do not match fixed term':
+    '结算方式参数与系统固定期限不一致，请刷新后重试。',
+  'termCode must be one of the 11 fixed settlement terms':
+    '结算期限必须从系统固定的十一种方式中选择。',
+  'customer name and customerTypeCode are required':
+    '请填写客户名称并选择客户类型。',
+  'customer transaction defaults are incomplete':
+    '客户交易默认资料不完整，请补全经营主体、结算、收款和运输方式。',
+  'only CNY credit limits are supported': '当前信用额度仅支持人民币。',
+  'referencing object already has a candidate version':
+    '被引用资料已有候选版本，请先处理该候选版本。',
+  'object has active direct references':
+    '该资料仍被当前有效业务对象引用，请先选择接替资料并批量转移。',
+  'source object changed before transfer':
+    '待停用资料已被修改，请刷新引用清单后重试。',
+  'target object is not a current effective object of the same type':
+    '接任资料类型不一致、未启用或尚未生效，请重新选择。',
+  'multiple JSON values': '定价资料格式无效，请重新填写。',
   'unsupported settlement term': '当前订单的结算方式不受支持，请重新选择。',
   'order currency is required for settlement approval':
     '订单缺少币种，无法校验结算资金。',

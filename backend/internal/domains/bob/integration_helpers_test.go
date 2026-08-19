@@ -51,7 +51,7 @@ func integrationPool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-func deleteIntegrationData(entity, platformObjectID, salespersonEmployeeID string) CreateDetailInput {
+func deleteIntegrationData(entity, platformObjectID, salespersonEmployeeID, operatingEntityID string) CreateDetailInput {
 	data := CreateDetailInput{
 		Code: "DEL" + newID(),
 		Name: "Deletable " + entity,
@@ -63,6 +63,7 @@ func deleteIntegrationData(entity, platformObjectID, salespersonEmployeeID strin
 		data.Unit = "unit"
 	case EntityFundAccount:
 		data.Currency = "CNY"
+		data.OperatingEntityID = operatingEntityID
 	case EntityVehicle:
 		data.PlateNumber = "沪D" + newID()
 		data.VehicleType = "Truck"
@@ -206,6 +207,12 @@ func createApprovedIntegration(
 			Code: "AUTOEMP" + newID(), Name: "Integration Salesperson",
 		}, requestPrefix+"-salesperson")
 		data.SalespersonEmployeeID = employee.ObjectID
+	}
+	if entity == EntityFundAccount && data.OperatingEntityID == "" {
+		_, operating := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{
+			Name: "Integration Operating Entity", TaxNumber: "TAX" + newID()[3:],
+		}, requestPrefix+"-operating")
+		data.OperatingEntityID = operating.ObjectID
 	}
 	created, err := service.Create(
 		t.Context(), entity, CreateInput{Data: data}, integrationActorOne, requestPrefix+"-create",

@@ -32,7 +32,7 @@ func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email),
 			Address: nilIfEmpty(data.Address), Remark: nilIfEmpty(data.Remark),
 			SettlementMethodID:       nilIfEmpty(data.SettlementMethodID),
-			MonthlyClosingDay:        monthlyClosingDay,
+			MonthlyClosingDay:        &monthlyClosingDay,
 			SalespersonEmployeeID:    data.SalespersonEmployeeID,
 			RebateUnitPriceCents:     rebateUnitPrice,
 			IntermediaryOtherPartyID: nilIfEmpty(data.IntermediaryOtherPartyID),
@@ -105,6 +105,8 @@ func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			CategoryID: nilIfEmpty(data.CategoryID), AccountName: nilIfEmpty(data.AccountName),
 			BankName: nilIfEmpty(data.BankName), BankBranch: nilIfEmpty(data.BankBranch),
 			AccountNumber: nilIfEmpty(data.AccountNumber), Remark: nilIfEmpty(data.Remark),
+			OperatingEntityID: nilIfEmpty(data.OperatingEntityID), OperatingEntityVersionID: nilIfEmpty(data.OperatingEntityVersionID),
+			OperatingEntityCode: nilIfEmpty(data.OperatingEntityCode), OperatingEntityName: nilIfEmpty(data.OperatingEntityName),
 		})
 	case EntityCategory:
 		return q.InsertBobCategoryDetail(ctx, dbsqlc.InsertBobCategoryDetailParams{
@@ -131,6 +133,12 @@ func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			MonthOffset: data.MonthOffset, DayOfMonth: data.DayOfMonth,
 			DayOffset: data.DayOffset, DefaultSalesSurchargeCents: surcharge,
 			Description: nilIfEmpty(data.Description),
+		})
+	case EntityOperatingEntity:
+		return q.InsertBobOperatingEntityDetail(ctx, dbsqlc.InsertBobOperatingEntityDetailParams{
+			VersionID: versionID, LegalName: data.Name, ShortName: nilIfEmpty(data.ShortName),
+			TaxNumber: nilIfEmpty(data.TaxNumber), Address: nilIfEmpty(data.Address),
+			Phone: nilIfEmpty(data.Phone), Remark: nilIfEmpty(data.Remark),
 		})
 	default:
 		return domainError(ErrorValidation, "invalid entity", nil, nil)
@@ -160,7 +168,7 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone),
 			Email: nilIfEmpty(data.Email), Address: nilIfEmpty(data.Address),
 			Remark: nilIfEmpty(data.Remark), SettlementMethodID: nilIfEmpty(data.SettlementMethodID),
-			MonthlyClosingDay:        monthlyClosingDay,
+			MonthlyClosingDay:        &monthlyClosingDay,
 			SalespersonEmployeeID:    data.SalespersonEmployeeID,
 			RebateUnitPriceCents:     rebateUnitPrice,
 			IntermediaryOtherPartyID: nilIfEmpty(data.IntermediaryOtherPartyID),
@@ -239,6 +247,8 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			AccountName: nilIfEmpty(data.AccountName), BankName: nilIfEmpty(data.BankName),
 			BankBranch: nilIfEmpty(data.BankBranch), AccountNumber: nilIfEmpty(data.AccountNumber),
 			Remark: nilIfEmpty(data.Remark), VersionID: versionID,
+			OperatingEntityID: nilIfEmpty(data.OperatingEntityID), OperatingEntityVersionID: nilIfEmpty(data.OperatingEntityVersionID),
+			OperatingEntityCode: nilIfEmpty(data.OperatingEntityCode), OperatingEntityName: nilIfEmpty(data.OperatingEntityName),
 		})
 	case EntityCategory:
 		rows, err = q.UpdateBobCategoryDetail(ctx, dbsqlc.UpdateBobCategoryDetailParams{
@@ -266,6 +276,12 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			DefaultSalesSurchargeCents: surcharge,
 			Description:                nilIfEmpty(data.Description), VersionID: versionID,
 		})
+	case EntityOperatingEntity:
+		rows, err = q.UpdateBobOperatingEntityDetail(ctx, dbsqlc.UpdateBobOperatingEntityDetailParams{
+			LegalName: data.Name, ShortName: nilIfEmpty(data.ShortName), TaxNumber: nilIfEmpty(data.TaxNumber),
+			Address: nilIfEmpty(data.Address), Phone: nilIfEmpty(data.Phone), Remark: nilIfEmpty(data.Remark),
+			VersionID: versionID,
+		})
 	default:
 		return domainError(ErrorValidation, "invalid entity", nil, nil)
 	}
@@ -278,7 +294,20 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 func copyDetail(ctx context.Context, q *dbsqlc.Queries, entity, newVersionID, sourceVersionID string) error {
 	switch entity {
 	case EntityCustomer, EntityOtherParty:
-		return q.CopyBobCustomerDetail(ctx, dbsqlc.CopyBobCustomerDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID})
+		if err := q.CopyBobCustomerDetail(ctx, dbsqlc.CopyBobCustomerDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID}); err != nil {
+			return err
+		}
+		if entity == EntityCustomer {
+			if err := q.CopyBobCustomerCreditLimits(ctx, dbsqlc.CopyBobCustomerCreditLimitsParams{
+				NewVersionID: newVersionID, SourceVersionID: sourceVersionID,
+			}); err != nil {
+				return err
+			}
+			return q.CopyCustomerVersionAttachments(ctx, dbsqlc.CopyCustomerVersionAttachmentsParams{
+				TargetVersionID: newVersionID, SourceVersionID: sourceVersionID,
+			})
+		}
+		return nil
 	case EntitySupplier:
 		return q.CopyBobSupplierDetail(ctx, dbsqlc.CopyBobSupplierDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID})
 	case EntityEmployee:
@@ -316,6 +345,8 @@ func copyDetail(ctx context.Context, q *dbsqlc.Queries, entity, newVersionID, so
 		return q.CopyBobPositionDetail(ctx, dbsqlc.CopyBobPositionDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID})
 	case EntitySettlementMethod:
 		return q.CopyBobSettlementMethodDetail(ctx, dbsqlc.CopyBobSettlementMethodDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID})
+	case EntityOperatingEntity:
+		return q.CopyBobOperatingEntityDetail(ctx, dbsqlc.CopyBobOperatingEntityDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID})
 	default:
 		return domainError(ErrorValidation, "invalid entity", nil, nil)
 	}
@@ -436,6 +467,8 @@ func deleteDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 		return q.DeleteBobPositionDetail(ctx, versionID)
 	case EntitySettlementMethod:
 		return q.DeleteBobSettlementMethodDetail(ctx, versionID)
+	case EntityOperatingEntity:
+		return q.DeleteBobOperatingEntityDetail(ctx, versionID)
 	default:
 		return 0, domainError(ErrorValidation, "invalid entity", nil, nil)
 	}

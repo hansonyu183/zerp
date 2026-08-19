@@ -32,7 +32,7 @@ func createSettlementCustomer(
 ) ReferenceInput {
 	t.Helper()
 	settlement := fixedSettlementReference(t, pool, termCode)
-	return createApprovedBOB(t, bobdomain.NewService(pool), bobdomain.EntityCustomer, bobdomain.CreateDetailInput{
+	return createApprovedBOB(t, newBOBIntegrationService(pool), bobdomain.EntityCustomer, bobdomain.CreateDetailInput{
 		Name: name, SettlementMethodID: settlement.ObjectID,
 		SalespersonEmployeeID: employee.ObjectID,
 	})

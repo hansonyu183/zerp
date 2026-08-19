@@ -178,14 +178,67 @@ func (s *Service) resolveSettlement(
 	party *bobdomain.EffectiveReference,
 	label string,
 ) (*bobdomain.EffectiveReference, error) {
-	if party == nil || party.Data.SettlementMethodID == "" ||
-		party.Data.SettlementMethodVersionID == "" {
+	if party == nil || party.Data.SettlementMethodID == "" {
 		return nil, domainError(ErrorConflict, label+" settlement method is not configured", nil, nil)
 	}
-	return s.resolveReference(ctx, tx, bobdomain.EntitySettlementMethod, &ReferenceInput{
-		ObjectID:  party.Data.SettlementMethodID,
-		VersionID: party.Data.SettlementMethodVersionID,
-	})
+	if party.Data.TermCode != "" && party.Data.RuleType != "" && party.Data.SettlementMethodCode != "" {
+		return &bobdomain.EffectiveReference{
+			ObjectID: party.Data.SettlementMethodID, Entity: bobdomain.EntitySettlementMethod,
+			Code: party.Data.SettlementMethodCode,
+			Data: bobdomain.DetailView{
+				Name: party.Data.SettlementMethodName, TermCode: party.Data.TermCode, RuleType: party.Data.RuleType,
+				MonthOffset: party.Data.MonthOffset, DayOfMonth: party.Data.DayOfMonth, DayOffset: party.Data.DayOffset,
+				DueDays: party.Data.DueDays, CutoffDay: party.Data.CutoffDay,
+				DefaultSalesSurcharge: party.Data.DefaultSalesSurcharge,
+			},
+		}, nil
+	}
+	if party.Data.SettlementMethodVersionID == "" {
+		return nil, domainError(ErrorConflict, label+" settlement method is not configured", nil, nil)
+	}
+	reference, err := s.auxResolver.ResolveAuxiliaryReference(
+		ctx, tx, "settlement-method", party.Data.SettlementMethodID, party.Data.SettlementMethodVersionID,
+	)
+	if err != nil {
+		return nil, domainError(ErrorConflict, label+" settlement method is not effective", nil, err)
+	}
+	dayOfMonth := int32(auxiliaryInt(reference.Data, "dayOfMonth"))
+	var dayOfMonthPointer *int32
+	if dayOfMonth > 0 {
+		dayOfMonthPointer = &dayOfMonth
+	}
+	return &bobdomain.EffectiveReference{
+		ObjectID: reference.ObjectID, Entity: bobdomain.EntitySettlementMethod,
+		Code: reference.Code, VersionID: reference.VersionID,
+		Data: bobdomain.DetailView{
+			Name: auxiliaryString(reference.Data, "name"), TermCode: auxiliaryString(reference.Data, "termCode"),
+			RuleType:    auxiliaryString(reference.Data, "ruleType"),
+			MonthOffset: int32(auxiliaryInt(reference.Data, "monthOffset")), DayOfMonth: dayOfMonthPointer,
+			DayOffset: int32(auxiliaryInt(reference.Data, "dayOffset")), DueDays: int32(auxiliaryInt(reference.Data, "dayOffset")),
+			CutoffDay: dayOfMonth, DefaultSalesSurcharge: auxiliaryString(reference.Data, "defaultSalesSurcharge"),
+			Description: auxiliaryString(reference.Data, "description"),
+		},
+	}, nil
+}
+
+func auxiliaryString(data map[string]any, key string) string {
+	value, _ := data[key].(string)
+	return value
+}
+
+func auxiliaryInt(data map[string]any, key string) int {
+	switch value := data[key].(type) {
+	case int:
+		return value
+	case int32:
+		return int(value)
+	case int64:
+		return int(value)
+	case float64:
+		return int(value)
+	default:
+		return 0
+	}
 }
 
 func (s *Service) resolveDraftProducts(

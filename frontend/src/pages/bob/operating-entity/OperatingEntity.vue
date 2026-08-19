@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import BobEntityPage from '../shared/BobEntityPage.vue'
-import { useSettlementMethodViewModel } from './vm'
+import { useOperatingEntityViewModel } from './vm'
 
-const model = useSettlementMethodViewModel()
+const model = useOperatingEntityViewModel()
 </script>
 
 <template><BobEntityPage :model="model" /></template>

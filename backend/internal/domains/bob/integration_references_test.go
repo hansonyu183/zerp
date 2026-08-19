@@ -237,6 +237,7 @@ func TestCommonAttributesReferencesFiltersAndRedactionIntegration(t *testing.T) 
 	}
 	if _, err = service.Create(t.Context(), EntityFundAccount, CreateInput{Data: CreateDetailInput{
 		Code: "FD" + newID(), Name: "重复账号", Currency: "CNY", AccountNumber: accountNumber,
+		OperatingEntityID: accountView.Data.OperatingEntityID,
 	}}, integrationActorOne, "duplicate-account"); !errorIsKind(err, ErrorConflict) {
 		t.Fatalf("duplicate account error = %v", err)
 	}

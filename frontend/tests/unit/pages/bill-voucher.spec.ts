@@ -74,6 +74,21 @@ beforeEach(() => {
   setActivePinia(createPinia())
   mockedPost.mockReset()
   mockedPostContract.mockReset()
+  mockedPostContract.mockImplementation(async (path: string) => {
+    if (path === 'bob/reference/query') {
+      return {
+        data: [
+          {
+            objectId: 'r',
+            versionId: 'rv',
+            code: 'R',
+            name: '引用',
+          },
+        ],
+      } as never
+    }
+    return availableBillPage as never
+  })
   mockedPost.mockImplementation(async (path: string) => {
     if (path.endsWith('/bill-source')) return availableBillPage as never
     if (path.startsWith('bob/'))
@@ -170,7 +185,6 @@ beforeEach(() => {
       },
     } as never
   })
-  mockedPostContract.mockResolvedValue(availableBillPage as never)
 })
 
 function form(): BillVoucherForm {

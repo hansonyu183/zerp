@@ -8,6 +8,8 @@ AUX（Auxiliary Object）管理会被业务规则或其他对象引用、但不�
 product-category
 department
 position
+settlement-method
+payment-method
 dictionary-type
 dictionary-item
 measurement-unit
@@ -18,8 +20,6 @@ asset-category
 不具有明确业务语义和用途的“通用分类”或字典不得建立。字典只归集不参与业务逻辑的稳定选项；客户类型、车辆类型可由字典提供，供应商类型和币种仍是业务枚举。
 
 本文中的对象名称、字段和持久化规则只定义目标领域模型，不自行声明当前 HTTP 接口。只有根目录 OpenAPI 已同步定义的实体、路径和数据结构才构成线协议。
-
-已确认的目标模型还包括 `settlement-method` 和 `payment-method`；前者从 BOB 迁入 AUX，后者为新增 AUX 对象。OpenAPI 完成对应契约变更前，它们不属于上述当前接口实体清单。
 
 ## 2. 统一生命周期
 

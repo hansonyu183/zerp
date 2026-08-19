@@ -166,6 +166,47 @@ func (s *Store) RemoveOrphans(known map[string]struct{}, excludedNamespaces ...s
 	return removed, err
 }
 
+// RemoveNamespaceOrphans removes only files below one top-level namespace.
+// It lets each owning domain clean its own files without learning another
+// domain's database schema.
+func (s *Store) RemoveNamespaceOrphans(namespace string, known map[string]struct{}) (int, error) {
+	if namespace == "" || namespace == "." || namespace == ".." || filepath.Base(namespace) != namespace || strings.ContainsAny(namespace, `/\`) {
+		return 0, errors.New("invalid attachment namespace")
+	}
+	root, err := s.path(namespace)
+	if err != nil {
+		return 0, err
+	}
+	if _, err = os.Stat(root); errors.Is(err, os.ErrNotExist) {
+		return 0, nil
+	} else if err != nil {
+		return 0, err
+	}
+	removed := 0
+	err = filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		relative, relErr := filepath.Rel(s.root, path)
+		if relErr != nil {
+			return relErr
+		}
+		key := filepath.ToSlash(relative)
+		if _, exists := known[key]; exists {
+			return nil
+		}
+		if removeErr := os.Remove(path); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+			return removeErr
+		}
+		removed++
+		return nil
+	})
+	return removed, err
+}
+
 func (s *Store) RemoveStaleTemps(before time.Time) (int, error) {
 	entries, err := os.ReadDir(filepath.Join(s.root, ".tmp"))
 	if err != nil {

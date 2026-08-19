@@ -96,6 +96,12 @@ export function useBobLifecycleActions(
     action:
       'approve' | 'reject' | 'unsubmit' | 'unapprove' | 'enable' | 'disable',
   ) => void,
+  onError?: (
+    error: unknown,
+    row: BobListItem,
+    action:
+      'approve' | 'reject' | 'unsubmit' | 'unapprove' | 'enable' | 'disable',
+  ) => boolean | Promise<boolean>,
 ) {
   async function review(
     row: BobListItem,
@@ -130,7 +136,9 @@ export function useBobLifecycleActions(
       onSuccess(row, action)
       return true
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      if (!(await onError?.(error, row, action))) {
+        errorMessage.value = getErrorMessage(error)
+      }
       return false
     } finally {
       actionLoading.value = null
@@ -169,7 +177,9 @@ export function useBobLifecycleActions(
       void query()
       return true
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      if (!(await onError?.(error, row, action))) {
+        errorMessage.value = getErrorMessage(error)
+      }
       return false
     } finally {
       actionLoading.value = null
@@ -193,7 +203,9 @@ export function useBobLifecycleActions(
       onSuccess(row, action)
       return true
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      if (!(await onError?.(error, row, action))) {
+        errorMessage.value = getErrorMessage(error)
+      }
       return false
     } finally {
       actionLoading.value = null

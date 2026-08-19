@@ -110,13 +110,17 @@ func TestPurchaseFulfillmentQuantitiesIntegration(t *testing.T) {
 	refs := prepareReferences(t, pool)
 	general := bobdomain.SupplierTypeGeneral
 	prepaid := fixedSettlementReference(t, pool, bobdomain.SettlementTermPrepaid)
-	refs.supplier = createApprovedBOB(t, bobdomain.NewService(pool), bobdomain.EntitySupplier, bobdomain.CreateDetailInput{
+	refs.supplier = createApprovedBOB(t, newBOBIntegrationService(pool), bobdomain.EntitySupplier, bobdomain.CreateDetailInput{
 		Code: "VSP" + newID(), Name: "VOU 预付供应商", SupplierType: &general,
 		SettlementMethodID: prepaid.ObjectID, SalespersonEmployeeID: refs.employee.ObjectID,
 	})
-	refs.product = createApprovedBOB(t, bobdomain.NewService(pool), bobdomain.EntityProduct, bobdomain.CreateDetailInput{
+	var pieceUnitID string
+	if err := pool.QueryRow(t.Context(), `SELECT id FROM aux_objects WHERE entity='measurement-unit' AND code='UNT-0004'`).Scan(&pieceUnitID); err != nil {
+		t.Fatalf("find packaging measurement unit: %v", err)
+	}
+	refs.product = createApprovedBOB(t, newBOBIntegrationService(pool), bobdomain.EntityProduct, bobdomain.CreateDetailInput{
 		Code: "VPP" + newID(), Name: "VOU 预付采购包装物", Unit: "件",
-		ProductKind: bobdomain.ProductKindPackaging,
+		ProductKind: bobdomain.ProductKindPackaging, InventoryUnitID: pieceUnitID, PricingUnitID: pieceUnitID,
 	})
 	activateSettlementLedgerForParty(
 		t, pool, "supplier", refs.supplier, 12000,

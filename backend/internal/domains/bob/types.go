@@ -18,6 +18,7 @@ const (
 	EntityWarehouse        = "warehouse"
 	EntityVehicle          = "vehicle"
 	EntityFundAccount      = "fund-account"
+	EntityOperatingEntity  = "operating-entity"
 	EntityCategory         = "category"
 	EntityDepartment       = "department"
 	EntityPosition         = "position"
@@ -66,6 +67,7 @@ var entities = [...]string{
 	EntityVehicle,
 	EntityFundAccount,
 	EntitySettlementMethod,
+	EntityOperatingEntity,
 	EntityCategory,
 	EntityDepartment,
 	EntityPosition,
@@ -81,7 +83,7 @@ var publicEntities = [...]string{
 	EntityWarehouse,
 	EntityVehicle,
 	EntityFundAccount,
-	EntitySettlementMethod,
+	EntityOperatingEntity,
 }
 
 type ErrorKind int
@@ -140,6 +142,7 @@ type DetailInput struct {
 	BankName                        OptionalString        `json:"bankName,omitempty"`
 	BankBranch                      OptionalString        `json:"bankBranch,omitempty"`
 	AccountNumber                   OptionalString        `json:"accountNumber,omitempty"`
+	OperatingEntityID               OptionalString        `json:"operatingEntityId,omitempty"`
 	ParentID                        OptionalString        `json:"parentId,omitempty"`
 	SettlementMethodID              OptionalString        `json:"settlementMethodId,omitempty"`
 	MonthlyClosingDay               *int32                `json:"monthlyClosingDay,omitempty"`
@@ -199,6 +202,10 @@ type CreateDetailInput struct {
 	BankName                        string               `json:"bankName,omitempty"`
 	BankBranch                      string               `json:"bankBranch,omitempty"`
 	AccountNumber                   string               `json:"accountNumber,omitempty"`
+	OperatingEntityID               string               `json:"operatingEntityId,omitempty"`
+	OperatingEntityVersionID        string               `json:"-"`
+	OperatingEntityCode             string               `json:"-"`
+	OperatingEntityName             string               `json:"-"`
 	ParentID                        string               `json:"parentId,omitempty"`
 	SettlementMethodID              string               `json:"settlementMethodId,omitempty"`
 	MonthlyClosingDay               int32                `json:"monthlyClosingDay,omitempty"`
@@ -323,21 +330,24 @@ type GetInput struct {
 }
 
 type QueryFilters struct {
-	Keyword               string   `json:"keyword,omitempty"`
-	Status                []string `json:"status,omitempty"`
-	Enabled               *bool    `json:"enabled,omitempty"`
-	CustomerType          string   `json:"customerType,omitempty"`
-	SupplierType          string   `json:"supplierType,omitempty"`
-	CategoryID            string   `json:"categoryId,omitempty"`
-	DepartmentID          string   `json:"departmentId,omitempty"`
-	PositionID            string   `json:"positionId,omitempty"`
-	SalespersonEmployeeID string   `json:"salespersonEmployeeId,omitempty"`
-	Currency              string   `json:"currency,omitempty"`
-	ProductKind           string   `json:"productKind,omitempty"`
-	TargetEntity          string   `json:"targetEntity,omitempty"`
-	ParentID              string   `json:"parentId,omitempty"`
-	RootOnly              bool     `json:"rootOnly,omitempty"`
-	provided              map[string]bool
+	Keyword                   string   `json:"keyword,omitempty"`
+	Status                    []string `json:"status,omitempty"`
+	Enabled                   *bool    `json:"enabled,omitempty"`
+	CustomerType              string   `json:"customerType,omitempty"`
+	OperatingEntityID         string   `json:"operatingEntityId,omitempty"`
+	SalesAttributionType      string   `json:"salesAttributionType,omitempty"`
+	SalesAttributionSubjectID string   `json:"salesAttributionSubjectId,omitempty"`
+	SupplierType              string   `json:"supplierType,omitempty"`
+	CategoryID                string   `json:"categoryId,omitempty"`
+	DepartmentID              string   `json:"departmentId,omitempty"`
+	PositionID                string   `json:"positionId,omitempty"`
+	SalespersonEmployeeID     string   `json:"salespersonEmployeeId,omitempty"`
+	Currency                  string   `json:"currency,omitempty"`
+	ProductKind               string   `json:"productKind,omitempty"`
+	TargetEntity              string   `json:"targetEntity,omitempty"`
+	ParentID                  string   `json:"parentId,omitempty"`
+	RootOnly                  bool     `json:"rootOnly,omitempty"`
+	provided                  map[string]bool
 }
 
 func (filters *QueryFilters) UnmarshalJSON(data []byte) error {
@@ -418,6 +428,10 @@ type DetailView struct {
 	BankName                        string               `json:"bankName,omitempty"`
 	BankBranch                      string               `json:"bankBranch,omitempty"`
 	AccountNumber                   string               `json:"accountNumber,omitempty"`
+	OperatingEntityID               string               `json:"operatingEntityId,omitempty"`
+	OperatingEntityVersionID        string               `json:"-"`
+	OperatingEntityCode             string               `json:"-"`
+	OperatingEntityName             string               `json:"-"`
 	ParentID                        string               `json:"parentId,omitempty"`
 	SettlementMethodID              string               `json:"settlementMethodId,omitempty"`
 	MonthlyClosingDay               int32                `json:"monthlyClosingDay,omitempty"`
@@ -425,6 +439,8 @@ type DetailView struct {
 	RebateUnitPrice                 string               `json:"rebateUnitPrice,omitempty"`
 	IntermediaryOtherPartyID        string               `json:"intermediaryOtherPartyId,omitempty"`
 	SettlementMethodVersionID       string               `json:"-"`
+	SettlementMethodCode            string               `json:"-"`
+	SettlementMethodName            string               `json:"-"`
 	RuleType                        string               `json:"ruleType,omitempty"`
 	MonthOffset                     int32                `json:"monthOffset,omitempty"`
 	DayOfMonth                      *int32               `json:"dayOfMonth,omitempty"`

@@ -199,3 +199,74 @@ func errorKind(err error, kind ErrorKind) bool {
 	var domainErr *DomainError
 	return errors.As(err, &domainErr) && domainErr.Kind == kind
 }
+
+func TestSettlementAndPaymentMethodsIntegration(t *testing.T) {
+	service := NewService(integrationPool(t))
+
+	if _, err := service.Create(t.Context(), EntitySettlementMethod, CreateInput{Data: CreateData{Data: map[string]any{
+		"name": "自定义结算", "termCode": "PREPAID", "ruleType": "RELATIVE_DAYS",
+		"monthOffset": 0, "dayOfMonth": 0, "dayOffset": 0, "defaultSalesSurcharge": "0.00", "description": "",
+	}}}, integrationActor, "settlement-create"); !errorKind(err, ErrorValidation) {
+		t.Fatalf("create fixed settlement method error = %v", err)
+	}
+
+	settlement, err := service.Query(t.Context(), EntitySettlementMethod, QueryInput{Page: 1, PageSize: 20})
+	if err != nil || settlement.Total != 11 {
+		t.Fatalf("list fixed settlement methods total=%d err=%v", settlement.Total, err)
+	}
+	var monthly30 ObjectView
+	for _, item := range settlement.Items {
+		if item.CurrentVersion.Data["termCode"] == "MONTHLY_30" {
+			monthly30 = item
+			break
+		}
+	}
+	if monthly30.ObjectID == "" {
+		t.Fatal("MONTHLY_30 settlement method is missing")
+	}
+	updated := cloneData(monthly30.CurrentVersion.Data)
+	updated["defaultSalesSurcharge"] = "0.25"
+	updated["description"] = "集成测试说明"
+	saved, err := service.Save(t.Context(), EntitySettlementMethod, SaveInput{
+		ObjectID: monthly30.ObjectID, Revision: monthly30.ObjectRevision, Data: updated,
+	}, integrationActor, "settlement-save")
+	if err != nil || saved.Version != monthly30.CurrentVersion.Version+1 {
+		t.Fatalf("save settlement method result=%+v err=%v", saved, err)
+	}
+	immutable := cloneData(updated)
+	immutable["name"] = "不可改名"
+	if _, err = service.Save(t.Context(), EntitySettlementMethod, SaveInput{
+		ObjectID: monthly30.ObjectID, Revision: saved.ObjectRevision, Data: immutable,
+	}, integrationActor, "settlement-rename"); !errorKind(err, ErrorValidation) {
+		t.Fatalf("rename settlement method error = %v", err)
+	}
+	if err = service.Delete(t.Context(), EntitySettlementMethod, DeleteInput{
+		ObjectID: monthly30.ObjectID, Revision: saved.ObjectRevision,
+	}); !errorKind(err, ErrorValidation) {
+		t.Fatalf("delete fixed settlement method error = %v", err)
+	}
+
+	payment, err := service.Create(t.Context(), EntityPaymentMethod, CreateInput{Data: CreateData{Data: map[string]any{
+		"name": "集成测试收款方式",
+	}}}, integrationActor, "payment-create")
+	if err != nil {
+		t.Fatalf("create payment method: %v", err)
+	}
+	paymentView, err := service.Get(t.Context(), EntityPaymentMethod, GetInput{ObjectID: payment.ObjectID})
+	if err != nil || paymentView.CurrentVersion.Data["defaultSalesSurcharge"] != "0.00" {
+		t.Fatalf("get payment method view=%+v err=%v", paymentView, err)
+	}
+	paymentData := cloneData(paymentView.CurrentVersion.Data)
+	paymentData["defaultSalesSurcharge"] = "0.15"
+	paymentSaved, err := service.Save(t.Context(), EntityPaymentMethod, SaveInput{
+		ObjectID: payment.ObjectID, Revision: payment.ObjectRevision, Data: paymentData,
+	}, integrationActor, "payment-save")
+	if err != nil {
+		t.Fatalf("save payment method: %v", err)
+	}
+	if err = service.Delete(t.Context(), EntityPaymentMethod, DeleteInput{
+		ObjectID: payment.ObjectID, Revision: paymentSaved.ObjectRevision,
+	}); err != nil {
+		t.Fatalf("delete unreferenced payment method: %v", err)
+	}
+}

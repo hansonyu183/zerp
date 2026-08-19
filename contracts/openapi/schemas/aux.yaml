@@ -4,15 +4,100 @@ AuxEntity:
     - product-category
     - department
     - position
+    - settlement-method
+    - payment-method
     - dictionary-type
     - dictionary-item
     - measurement-unit
     - income-expense-type
     - asset-category
 
+# Other AUX entities retain their existing entity-specific JSON object shapes.
+# Settlement and payment methods below are closed and validated by the AUX
+# service according to the path entity.
 AuxData:
   type: object
   additionalProperties: true
+
+AuxSettlementMethodData:
+  type: object
+  additionalProperties: false
+  required:
+    - name
+    - termCode
+    - ruleType
+    - monthOffset
+    - dayOfMonth
+    - dayOffset
+    - defaultSalesSurcharge
+    - description
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 200
+      description: 系统固定名称，不可修改。
+    termCode:
+      type: string
+      enum:
+        [
+          PREPAID,
+          CASH_ON_DELIVERY,
+          ARRIVAL_3,
+          ARRIVAL_5,
+          ARRIVAL_7,
+          ARRIVAL_15,
+          ARRIVAL_30,
+          MONTHLY_CURRENT,
+          MONTHLY_30,
+          MONTHLY_60,
+          MONTHLY_90,
+        ]
+      description: 系统固定术语代码，不可修改。
+    ruleType:
+      type: string
+      enum: [RELATIVE_DAYS, MONTH_END]
+      description: 系统固定到期规则，不可修改。
+    monthOffset:
+      type: integer
+      minimum: 0
+      maximum: 3
+      description: 系统固定月偏移；不适用时为 0。
+    dayOfMonth:
+      type: integer
+      minimum: 0
+      maximum: 31
+      description: 系统固定月内日；不适用时为 0。
+    dayOffset:
+      type: integer
+      minimum: 0
+      maximum: 30
+      description: 系统固定日偏移；不适用时为 0。
+    defaultSalesSurcharge:
+      type: string
+      pattern: '^(0|[1-9][0-9]*)(\.[0-9]{1,2})?$'
+      description: 非负、最多两位小数的元/kg默认销售加价。
+    description:
+      type: string
+      maxLength: 1000
+
+AuxPaymentMethodData:
+  type: object
+  additionalProperties: false
+  required: [name, defaultSalesSurcharge, description]
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 200
+    defaultSalesSurcharge:
+      type: string
+      pattern: '^(0|[1-9][0-9]*)(\.[0-9]{1,2})?$'
+      default: '0.00'
+      description: 非负、最多两位小数的元/kg默认销售加价。
+    description:
+      type: string
+      maxLength: 1000
 
 AuxCreateData:
   allOf:
@@ -132,3 +217,18 @@ AuxHistoryRequest:
       type: integer
       minimum: 1
       maximum: 200
+
+AuxReferenceQueryRequest:
+  type: object
+  additionalProperties: false
+  required: [entity]
+  properties:
+    entity:
+      type: string
+      enum: [settlement-method, payment-method, dictionary-item]
+    keyword:
+      type: string
+      maxLength: 100
+    dictionaryTypeCode:
+      type: string
+      maxLength: 32

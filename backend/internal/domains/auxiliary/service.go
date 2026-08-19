@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -30,6 +31,27 @@ type Service struct {
 }
 
 func NewService(pool *pgxpool.Pool) *Service { return &Service{pool: pool} }
+
+func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQueryInput) ([]ReferenceCandidate, error) {
+	if input.Entity != EntitySettlementMethod && input.Entity != EntityPaymentMethod && input.Entity != EntityDictionaryItem {
+		return nil, domainError(ErrorValidation, "invalid AUX reference entity", nil, nil)
+	}
+	keyword := strings.TrimSpace(input.Keyword)
+	dictionaryTypeCode := strings.TrimSpace(input.DictionaryTypeCode)
+	rows, err := dbsqlc.New(s.pool).QueryAuxReferenceCandidates(ctx, dbsqlc.QueryAuxReferenceCandidatesParams{
+		Entity: input.Entity, Keyword: keyword, DictionaryTypeCode: dictionaryTypeCode,
+	})
+	if err != nil {
+		return nil, s.internal("query AUX reference candidates", err)
+	}
+	result := make([]ReferenceCandidate, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, ReferenceCandidate{
+			ObjectID: row.ObjectID, VersionID: row.VersionID, Code: row.Code, Name: row.Name,
+		})
+	}
+	return result, nil
+}
 
 func validEntity(entity string) bool { return slices.Contains(entities[:], entity) }
 
@@ -156,6 +178,9 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Objec
 }
 
 func (s *Service) Create(ctx context.Context, entity string, input CreateInput, actorID, requestID string) (MutationResult, error) {
+	if entity == EntitySettlementMethod {
+		return MutationResult{}, domainError(ErrorValidation, "settlement methods are system-defined", nil, nil)
+	}
 	if !validEntity(entity) || !validID(actorID) || strings.TrimSpace(requestID) == "" {
 		return MutationResult{}, domainError(ErrorValidation, "invalid create request", nil, nil)
 	}
@@ -238,9 +263,26 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 	if object.revision != input.Revision {
 		return MutationResult{}, domainError(ErrorConflict, "object changed before save", map[string]any{"objectRevision": object.revision}, nil)
 	}
+	var currentData map[string]any
+	if entity == EntitySettlementMethod {
+		rawCurrentData, queryErr := dbsqlc.New(tx).GetAuxVersionData(ctx, dbsqlc.GetAuxVersionDataParams{
+			VersionID: object.currentVersionID, ObjectID: input.ObjectID, Entity: entity,
+		})
+		if queryErr != nil {
+			return MutationResult{}, s.internal("read current settlement method", queryErr)
+		}
+		if err = json.Unmarshal(rawCurrentData, &currentData); err != nil {
+			return MutationResult{}, s.internal("decode current settlement method", err)
+		}
+	}
 	data, err := s.validateData(ctx, tx, entity, input.ObjectID, input.Data)
 	if err != nil {
 		return MutationResult{}, domainError(ErrorValidation, "invalid save request", nil, err)
+	}
+	if entity == EntitySettlementMethod {
+		if err = validateSettlementMethodUpdate(currentData, data); err != nil {
+			return MutationResult{}, domainError(ErrorValidation, "invalid save request", nil, err)
+		}
 	}
 	versionID := ulid.Make().String()
 	raw, _ := json.Marshal(data)
@@ -275,7 +317,7 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 func objectPrefix(entity string) string {
 	return map[string]string{
 		EntityProductCategory: "PCT", EntityDepartment: "DEP", EntityPosition: "POS",
-		EntitySettlementMethod: "STM", EntityDictionaryType: "DCT", EntityDictionaryItem: "DIT",
+		EntitySettlementMethod: "STM", EntityPaymentMethod: "PAY", EntityDictionaryType: "DCT", EntityDictionaryItem: "DIT",
 		EntityMeasurementUnit: "UNT", EntityIncomeExpense: "IET", EntityAssetCategory: "ACT",
 	}[entity]
 }
@@ -335,6 +377,9 @@ func (s *Service) setEnabled(ctx context.Context, entity string, input RevisionI
 }
 
 func (s *Service) Delete(ctx context.Context, entity string, input DeleteInput) error {
+	if entity == EntitySettlementMethod {
+		return domainError(ErrorValidation, "settlement methods are system-defined", nil, nil)
+	}
 	if !validEntity(entity) || !validID(input.ObjectID) || input.Revision < 1 {
 		return domainError(ErrorValidation, "invalid delete request", nil, nil)
 	}
@@ -553,20 +598,15 @@ func (s *Service) validateData(ctx context.Context, q dbtx, entity, objectID str
 		}
 		data["symbol"], data["quantityScale"] = symbol, scale
 	case EntitySettlementMethod:
-		allow("ruleType", "dueDays", "defaultSalesSurcharge", "description")
-		rule := strings.ToUpper(strings.TrimSpace(stringValue(data["ruleType"])))
-		switch rule {
-		case "DUE_DAYS":
-			days, ok := intValue(data["dueDays"])
-			if !ok || days < 0 || days > 3650 {
-				return nil, errors.New("dueDays must be 0-3650")
-			}
-		case "MONTH_END":
-			delete(data, "dueDays")
-		default:
-			return nil, errors.New("ruleType must be DUE_DAYS or MONTH_END")
+		allow("termCode", "ruleType", "monthOffset", "dayOfMonth", "dayOffset", "defaultSalesSurcharge", "description")
+		if err := validateSettlementMethodData(data); err != nil {
+			return nil, err
 		}
-		data["ruleType"] = rule
+	case EntityPaymentMethod:
+		allow("defaultSalesSurcharge", "description")
+		if _, present := data["defaultSalesSurcharge"]; !present {
+			data["defaultSalesSurcharge"] = "0.00"
+		}
 		if !validMoney(stringValue(data["defaultSalesSurcharge"])) {
 			return nil, errors.New("defaultSalesSurcharge must be a non-negative amount")
 		}
@@ -672,6 +712,9 @@ func (s *Service) enabledObjectData(
 }
 
 func objectReferenced(ctx context.Context, q dbtx, entity, objectID string) (bool, error) {
+	if entity == EntityPaymentMethod {
+		return dbsqlc.New(q).IsBobCustomerPaymentMethodReferenced(ctx, objectID)
+	}
 	var referenced bool
 	err := q.QueryRow(ctx, `SELECT CASE $1
 		WHEN 'product-category' THEN EXISTS(
@@ -777,4 +820,60 @@ func (s *Service) writeError(operation string, err error) error {
 		return domainError(ErrorConflict, "code already exists", nil, err)
 	}
 	return s.internal(operation, err)
+}
+
+var fixedSettlementMethods = map[string]settlementMethodRule{
+	"PREPAID":          {name: "预付", ruleType: "RELATIVE_DAYS", monthOffset: 0, dayOfMonth: 0, dayOffset: 0},
+	"CASH_ON_DELIVERY": {name: "现结", ruleType: "RELATIVE_DAYS", monthOffset: 0, dayOfMonth: 0, dayOffset: 0},
+	"ARRIVAL_3":        {name: "货到3天", ruleType: "RELATIVE_DAYS", monthOffset: 0, dayOfMonth: 0, dayOffset: 3},
+	"ARRIVAL_5":        {name: "货到5天", ruleType: "RELATIVE_DAYS", monthOffset: 0, dayOfMonth: 0, dayOffset: 5},
+	"ARRIVAL_7":        {name: "货到7天", ruleType: "RELATIVE_DAYS", monthOffset: 0, dayOfMonth: 0, dayOffset: 7},
+	"ARRIVAL_15":       {name: "货到15天", ruleType: "RELATIVE_DAYS", monthOffset: 0, dayOfMonth: 0, dayOffset: 15},
+	"ARRIVAL_30":       {name: "货到30天", ruleType: "RELATIVE_DAYS", monthOffset: 0, dayOfMonth: 0, dayOffset: 30},
+	"MONTHLY_CURRENT":  {name: "当月结", ruleType: "MONTH_END", monthOffset: 0, dayOfMonth: 0, dayOffset: 0},
+	"MONTHLY_30":       {name: "月结30天", ruleType: "MONTH_END", monthOffset: 1, dayOfMonth: 0, dayOffset: 0},
+	"MONTHLY_60":       {name: "月结60天", ruleType: "MONTH_END", monthOffset: 2, dayOfMonth: 0, dayOffset: 0},
+	"MONTHLY_90":       {name: "月结90天", ruleType: "MONTH_END", monthOffset: 3, dayOfMonth: 0, dayOffset: 0},
+}
+
+type settlementMethodRule struct {
+	name                               string
+	ruleType                           string
+	monthOffset, dayOfMonth, dayOffset int
+}
+
+func validateSettlementMethodData(data map[string]any) error {
+	termCode := strings.ToUpper(strings.TrimSpace(stringValue(data["termCode"])))
+	expected, ok := fixedSettlementMethods[termCode]
+	if !ok {
+		return errors.New("termCode must be one of the 11 fixed settlement terms")
+	}
+	monthOffset, monthOffsetOK := intValue(data["monthOffset"])
+	dayOfMonth, dayOfMonthOK := intValue(data["dayOfMonth"])
+	dayOffset, dayOffsetOK := intValue(data["dayOffset"])
+	if strings.TrimSpace(stringValue(data["name"])) != expected.name ||
+		strings.ToUpper(strings.TrimSpace(stringValue(data["ruleType"]))) != expected.ruleType ||
+		!monthOffsetOK || monthOffset != expected.monthOffset ||
+		!dayOfMonthOK || dayOfMonth != expected.dayOfMonth ||
+		!dayOffsetOK || dayOffset != expected.dayOffset {
+		return errors.New("settlement method facts do not match fixed term")
+	}
+	if !validMoney(stringValue(data["defaultSalesSurcharge"])) {
+		return errors.New("defaultSalesSurcharge must be a non-negative amount")
+	}
+	data["termCode"] = termCode
+	data["ruleType"] = expected.ruleType
+	data["monthOffset"] = expected.monthOffset
+	data["dayOfMonth"] = expected.dayOfMonth
+	data["dayOffset"] = expected.dayOffset
+	return nil
+}
+
+func validateSettlementMethodUpdate(current, updated map[string]any) error {
+	for _, key := range []string{"name", "termCode", "ruleType", "monthOffset", "dayOfMonth", "dayOffset"} {
+		if fmt.Sprint(current[key]) != fmt.Sprint(updated[key]) {
+			return fmt.Errorf("settlement method %s is system-defined", key)
+		}
+	}
+	return nil
 }

@@ -39,6 +39,7 @@ func TestDeletePermissionCatalogIntegration(t *testing.T) {
 		{EntityWarehouse, 86},
 		{EntityVehicle, 87},
 		{EntityFundAccount, 88},
+		{EntityOperatingEntity, 0},
 		{EntityOtherParty, 0},
 	}
 	index := 0
@@ -81,6 +82,9 @@ func TestDeleteFirstDraftEveryEntityIntegration(t *testing.T) {
 		Name:         "Delete Vehicle Platform",
 		SupplierType: stringIntegrationPointer(SupplierTypeLogisticsPlatform),
 	}, "delete-platform")
+	_, operating := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{
+		Name: "Delete Operating Entity", TaxNumber: "TAX" + newID()[3:],
+	}, "delete-operating")
 
 	for _, entity := range entities {
 		if entity == EntitySettlementMethod {
@@ -90,7 +94,7 @@ func TestDeleteFirstDraftEveryEntityIntegration(t *testing.T) {
 			created, err := service.Create(
 				t.Context(),
 				entity,
-				CreateInput{Data: deleteIntegrationData(entity, platform.ObjectID, salesperson.ObjectID)},
+				CreateInput{Data: deleteIntegrationData(entity, platform.ObjectID, salesperson.ObjectID, operating.ObjectID)},
 				integrationActorOne,
 				"delete-create-"+entity,
 			)

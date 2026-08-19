@@ -13,7 +13,7 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 	truncateVOU(t, pool)
 	t.Cleanup(func() { truncateVOU(t, pool) })
 	refs := prepareReferences(t, pool)
-	bobService := bobdomain.NewService(pool)
+	bobService := newBOBIntegrationService(pool)
 	suffix := newID()
 
 	standard := createApprovedBOB(t, bobService, bobdomain.EntityProduct, bobdomain.CreateDetailInput{

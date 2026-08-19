@@ -12,6 +12,7 @@ const (
 	EntityDepartment       = "department"
 	EntityPosition         = "position"
 	EntitySettlementMethod = "settlement-method"
+	EntityPaymentMethod    = "payment-method"
 	EntityDictionaryType   = "dictionary-type"
 	EntityDictionaryItem   = "dictionary-item"
 	EntityMeasurementUnit  = "measurement-unit"
@@ -23,6 +24,8 @@ var entities = [...]string{
 	EntityProductCategory,
 	EntityDepartment,
 	EntityPosition,
+	EntitySettlementMethod,
+	EntityPaymentMethod,
 	EntityDictionaryType,
 	EntityDictionaryItem,
 	EntityMeasurementUnit,
@@ -191,6 +194,19 @@ type Reference struct {
 	Entity    string
 	Code      string
 	Data      map[string]any
+}
+
+type ReferenceQueryInput struct {
+	Entity             string `json:"entity"`
+	Keyword            string `json:"keyword"`
+	DictionaryTypeCode string `json:"dictionaryTypeCode"`
+}
+
+type ReferenceCandidate struct {
+	ObjectID  string `json:"objectId"`
+	VersionID string `json:"versionId"`
+	Code      string `json:"code"`
+	Name      string `json:"name"`
 }
 
 func cloneData(source map[string]any) map[string]any {

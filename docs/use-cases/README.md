@@ -45,10 +45,12 @@
 - [ ] 仓库（`/bob/warehouse`）
 - [ ] 车辆（`/bob/vehicle`）
 - [ ] 资金账户（`/bob/fund-account`）
+- [ ] 经营主体（`/bob/operating-entity`）
 
 ### AUX
 
 - [ ] 结算方式（`/aux/settlement-method`）
+- [ ] 收款方式（`/aux/payment-method`）
 - [ ] 资产类别（`/aux/asset-category`）
 - [ ] 产品分类（`/aux/product-category`）
 - [ ] 部门（`/aux/department`）

@@ -36,8 +36,25 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	}, admin.ID, "workbench-submit-pending"); err != nil {
 		t.Fatalf("submit pending object: %v", err)
 	}
+	operating, err := bobService.Create(t.Context(), bobdomain.EntityOperatingEntity, bobdomain.CreateInput{
+		Data: bobdomain.CreateDetailInput{Name: "工作台经营主体-" + suffix},
+	}, admin.ID, "workbench-create-operating")
+	if err != nil {
+		t.Fatalf("create operating entity: %v", err)
+	}
+	operatingSubmitted, err := bobService.Submit(t.Context(), bobdomain.EntityOperatingEntity, bobdomain.VersionRevisionInput{
+		ObjectID: operating.ObjectID, VersionID: operating.VersionID, Revision: operating.Revision,
+	}, admin.ID, "workbench-submit-operating")
+	if err != nil {
+		t.Fatalf("submit operating entity: %v", err)
+	}
+	if _, err = bobService.Approve(t.Context(), bobdomain.EntityOperatingEntity, bobdomain.ReviewInput{
+		ObjectID: operating.ObjectID, VersionID: operating.VersionID, Revision: operatingSubmitted.Revision,
+	}, ulid.Make().String(), "workbench-approve-operating"); err != nil {
+		t.Fatalf("approve operating entity: %v", err)
+	}
 	fund, err := bobService.Create(t.Context(), bobdomain.EntityFundAccount, bobdomain.CreateInput{
-		Data: bobdomain.CreateDetailInput{Name: "工作台资金账户-" + suffix, Currency: "CNY"},
+		Data: bobdomain.CreateDetailInput{Name: "工作台资金账户-" + suffix, Currency: "CNY", OperatingEntityID: operating.ObjectID},
 	}, admin.ID, "workbench-create-fund")
 	if err != nil {
 		t.Fatalf("create fund account: %v", err)

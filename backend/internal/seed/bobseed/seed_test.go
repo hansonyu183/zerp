@@ -17,17 +17,18 @@ func TestSamplesCoverEveryEntityAndLifecycleState(t *testing.T) {
 		statusCounts[item.status]++
 	}
 	expectedEntityCounts := map[string]int{
-		bob.EntityCustomer:    2,
-		bob.EntitySupplier:    3,
-		bob.EntityEmployee:    2,
-		bob.EntityProduct:     4,
-		bob.EntityService:     2,
-		bob.EntityWarehouse:   2,
-		bob.EntityVehicle:     2,
-		bob.EntityFundAccount: 2,
-		bob.EntityCategory:    2,
-		bob.EntityDepartment:  2,
-		bob.EntityPosition:    2,
+		bob.EntityCustomer:        2,
+		bob.EntitySupplier:        3,
+		bob.EntityEmployee:        2,
+		bob.EntityProduct:         4,
+		bob.EntityService:         2,
+		bob.EntityWarehouse:       2,
+		bob.EntityVehicle:         2,
+		bob.EntityFundAccount:     2,
+		bob.EntityOperatingEntity: 1,
+		bob.EntityCategory:        2,
+		bob.EntityDepartment:      2,
+		bob.EntityPosition:        2,
 	}
 	for entity, expected := range expectedEntityCounts {
 		if entityCounts[entity] != expected {
@@ -52,7 +53,7 @@ func TestSeedCreatesLifecycleDataAndIsIdempotent(t *testing.T) {
 	if first != (Result{Created: len(samples)}) {
 		t.Fatalf("first result = %+v", first)
 	}
-	if store.createCalls != 25 || store.submitCalls != 18 || store.approveCalls != 15 || store.rejectCalls != 0 {
+	if store.createCalls != 26 || store.submitCalls != 19 || store.approveCalls != 16 || store.rejectCalls != 0 {
 		t.Fatalf(
 			"calls create=%d submit=%d approve=%d reject=%d",
 			store.createCalls,
@@ -69,7 +70,7 @@ func TestSeedCreatesLifecycleDataAndIsIdempotent(t *testing.T) {
 	if second != (Result{Skipped: len(samples)}) {
 		t.Fatalf("second result = %+v", second)
 	}
-	if store.createCalls != 25 || store.submitCalls != 18 || store.approveCalls != 15 || store.rejectCalls != 0 {
+	if store.createCalls != 26 || store.submitCalls != 19 || store.approveCalls != 16 || store.rejectCalls != 0 {
 		t.Fatal("idempotent seed performed extra lifecycle mutations")
 	}
 }
@@ -272,6 +273,7 @@ func (s *fakeStore) Create(_ context.Context, entity string, input bob.CreateInp
 			BankName:              input.Data.BankName,
 			BankBranch:            input.Data.BankBranch,
 			AccountNumber:         input.Data.AccountNumber,
+			OperatingEntityID:     input.Data.OperatingEntityID,
 			ParentID:              input.Data.ParentID,
 			SettlementMethodID:    input.Data.SettlementMethodID,
 			MonthlyClosingDay:     monthlyClosingDay,
@@ -327,6 +329,7 @@ func (s *fakeStore) Save(_ context.Context, _ string, input bob.SaveInput, _, _ 
 		}
 	}
 	applyOptional(input.Data.ShortName, &view.Data.ShortName)
+	applyOptional(input.Data.OperatingEntityID, &view.Data.OperatingEntityID)
 	applyOptional(input.Data.CategoryID, &view.Data.CategoryID)
 	applyOptional(input.Data.TaxNumber, &view.Data.TaxNumber)
 	applyOptional(input.Data.ContactName, &view.Data.ContactName)

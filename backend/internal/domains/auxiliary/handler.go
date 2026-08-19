@@ -24,6 +24,7 @@ type applicationService interface {
 	Delete(context.Context, string, DeleteInput) error
 	Versions(context.Context, string, HistoryInput) (Page[VersionView], error)
 	AuditHistory(context.Context, string, HistoryInput) (Page[AuditEventView], error)
+	QueryReferenceCandidates(context.Context, ReferenceQueryInput) ([]ReferenceCandidate, error)
 }
 
 type Handler struct {
@@ -58,6 +59,7 @@ func NewHandler(service applicationService, authorizer authorization.Authorizer,
 
 func (h *Handler) Register(router *gin.Engine) {
 	group := router.Group("/aux")
+	group.POST("/reference/query", h.referenceQuery)
 	for _, registeredEntity := range entities {
 		entity := registeredEntity
 		entityGroup := group.Group("/" + entity)
@@ -69,6 +71,19 @@ func (h *Handler) Register(router *gin.Engine) {
 			})
 		}
 	}
+}
+
+func (h *Handler) referenceQuery(c *gin.Context) {
+	var input ReferenceQueryInput
+	if !h.bind(c, &input) {
+		return
+	}
+	if _, err := h.authorizer.Authorize(c.Request.Context(), c.Request, "/aux/"+input.Entity+"/query", response.RequestID(c)); err != nil {
+		h.writeAuthorizationError(c, err)
+		return
+	}
+	result, err := h.service.QueryReferenceCandidates(c.Request.Context(), input)
+	h.result(c, result, err)
 }
 
 func (h *Handler) authorize(path string) gin.HandlerFunc {

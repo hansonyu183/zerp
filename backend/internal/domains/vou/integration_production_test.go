@@ -14,7 +14,7 @@ func TestVOUOrderProductionSnapshotsMultipleLinesAndReservesQuantityIntegration(
 	truncateVOU(t, pool)
 	t.Cleanup(func() { truncateVOU(t, pool) })
 	refs := prepareReferences(t, pool)
-	bobService := bobdomain.NewService(pool)
+	bobService := newBOBIntegrationService(pool)
 	suffix := newID()
 	createFinished := func(code, name, formulaQuantity string) ReferenceInput {
 		t.Helper()

@@ -77,6 +77,7 @@ type sample struct {
 	managerEmployeeCode     string
 	salespersonEmployeeCode string
 	settlementMethodCode    string
+	operatingEntityCode     string
 	formulaMaterialCode     string
 	formulaBaseQuantity     string
 	formulaMaterialQuantity string
@@ -174,16 +175,20 @@ var samples = [...]sample{
 		Code: "DEMO-VEH-002", Name: "自营配送二号车", PlateNumber: "沪A10002", VehicleType: "DIT-0003",
 		VIN: "LSVAA4187N2000002", EngineNumber: "ENG-DEMO-002", LoadCapacityKG: "12000.000",
 	}, status: bob.StatusDraft, platformCode: "DEMO-SUP-001"},
+	{entity: bob.EntityOperatingEntity, data: bob.CreateDetailInput{
+		Code: "DEMO-OPE-001", Name: "上海示例科技有限公司", ShortName: "上海示例",
+		TaxNumber: "91310000DEMO0OPE01", Address: "上海市浦东新区示例路1号", Phone: "021-60000000",
+	}, status: bob.StatusEffective},
 	{entity: bob.EntityFundAccount, data: bob.CreateDetailInput{
 		Code: "DEMO-FA-001", Name: "人民币基本账户", Currency: "CNY",
 		AccountName: "上海示例科技有限公司", BankName: "示例银行",
 		BankBranch: "上海浦东支行", AccountNumber: "622200000000000001", Remark: "演示基本账户",
-	}, status: bob.StatusEffective},
+	}, status: bob.StatusEffective, operatingEntityCode: "DEMO-OPE-001"},
 	{entity: bob.EntityFundAccount, data: bob.CreateDetailInput{
 		Code: "DEMO-FA-002", Name: "备用结算账户", Currency: "CNY",
 		AccountName: "上海示例科技有限公司", BankName: "示例银行",
 		BankBranch: "上海虹桥支行", AccountNumber: "622200000000000002",
-	}, status: bob.StatusDraft},
+	}, status: bob.StatusDraft, operatingEntityCode: "DEMO-OPE-001"},
 }
 
 func (s *Seeder) Seed(ctx context.Context) (Result, error) {
@@ -250,6 +255,11 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 	}
 	if item.data.SettlementMethodID, err = resolve(
 		bob.EntitySettlementMethod, item.settlementMethodCode, "settlement method",
+	); err != nil {
+		return 0, err
+	}
+	if item.data.OperatingEntityID, err = resolve(
+		bob.EntityOperatingEntity, item.operatingEntityCode, "operating entity",
 	); err != nil {
 		return 0, err
 	}
@@ -411,6 +421,7 @@ func matches(item sample, view bob.ObjectView) bool {
 		view.Data.BankName == item.data.BankName &&
 		view.Data.BankBranch == item.data.BankBranch &&
 		view.Data.AccountNumber == item.data.AccountNumber &&
+		view.Data.OperatingEntityID == item.data.OperatingEntityID &&
 		view.Data.ParentID == item.data.ParentID &&
 		view.Data.SalespersonEmployeeID == item.data.SalespersonEmployeeID &&
 		view.Data.SettlementMethodID == item.data.SettlementMethodID &&
@@ -594,6 +605,7 @@ func detailInput(entity string, input bob.CreateDetailInput) bob.DetailInput {
 		result.BankName = bob.Optional(input.BankName)
 		result.BankBranch = bob.Optional(input.BankBranch)
 		result.AccountNumber = bob.Optional(input.AccountNumber)
+		result.OperatingEntityID = bob.Optional(input.OperatingEntityID)
 		result.Remark = bob.Optional(input.Remark)
 	case bob.EntityCategory:
 		result.ParentID = bob.Optional(input.ParentID)

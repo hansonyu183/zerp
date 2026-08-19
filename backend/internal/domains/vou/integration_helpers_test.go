@@ -94,6 +94,12 @@ func createApprovedBOB(
 	t *testing.T, service *bobdomain.Service, entity string, data bobdomain.CreateDetailInput,
 ) ReferenceInput {
 	t.Helper()
+	if entity == bobdomain.EntityFundAccount && data.OperatingEntityID == "" {
+		operating := createApprovedBOB(t, service, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{
+			Name: "VOU 自动经营主体", TaxNumber: "TAX" + newID()[3:],
+		})
+		data.OperatingEntityID = operating.ObjectID
+	}
 	created, err := service.Create(t.Context(), entity, bobdomain.CreateInput{Data: data},
 		integrationActorOne, "vou-ref-create")
 	if err != nil {
@@ -143,19 +149,25 @@ func fixedSettlementReference(t *testing.T, pool *pgxpool.Pool, termCode string)
 	t.Helper()
 	var result ReferenceInput
 	if err := pool.QueryRow(t.Context(), `
-		SELECT object.id,object.effective_version_id
-		FROM bob_objects object
-		JOIN bob_settlement_method_versions method ON method.version_id=object.effective_version_id
-		WHERE object.entity='settlement-method' AND object.enabled AND method.term_code=$1
+		SELECT object.id,object.current_version_id
+		FROM aux_objects object
+		JOIN aux_versions version ON version.id=object.current_version_id
+		WHERE object.entity='settlement-method' AND object.enabled AND version.data->>'termCode'=$1
 	`, termCode).Scan(&result.ObjectID, &result.VersionID); err != nil {
 		t.Fatalf("find fixed settlement method %s: %v", termCode, err)
 	}
 	return result
 }
 
+func newBOBIntegrationService(pool *pgxpool.Pool) *bobdomain.Service {
+	service := bobdomain.NewService(pool)
+	service.SetAuxiliaryResolver(auxiliaryrefs.New(auxdomain.NewService(pool)))
+	return service
+}
+
 func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {
 	t.Helper()
-	service := bobdomain.NewService(pool)
+	service := newBOBIntegrationService(pool)
 	suffix := newID()
 	general := bobdomain.SupplierTypeGeneral
 	logistics := bobdomain.SupplierTypeLogisticsPlatform
@@ -166,6 +178,9 @@ func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {
 	platform := createApprovedBOB(t, service, bobdomain.EntitySupplier, bobdomain.CreateDetailInput{
 		Code: "VLP" + suffix, Name: "VOU 物流平台", SupplierType: &logistics,
 		SalespersonEmployeeID: employee.ObjectID,
+	})
+	operating := createApprovedBOB(t, service, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{
+		Name: "VOU 经营主体", TaxNumber: "TAX" + suffix[3:],
 	})
 	return integrationReferences{
 		customer: createApprovedBOB(t, service, bobdomain.EntityCustomer, bobdomain.CreateDetailInput{
@@ -188,12 +203,12 @@ func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {
 			Code: "VW" + suffix, Name: "VOU 仓库",
 		}),
 		fundAccount: createApprovedBOB(t, service, bobdomain.EntityFundAccount, bobdomain.CreateDetailInput{
-			Code: "VF" + suffix, Name: "VOU 资金账户", Currency: "CNY",
+			Code: "VF" + suffix, Name: "VOU 资金账户", Currency: "CNY", OperatingEntityID: operating.ObjectID,
 		}),
 		settlement: settlement, platform: platform,
 		vehicle: createApprovedBOB(t, service, bobdomain.EntityVehicle, bobdomain.CreateDetailInput{
 			Code: "VV" + suffix, Name: "VOU 车辆", PlateNumber: "粤V" + suffix[len(suffix)-6:],
-			VehicleType: "厢式货车", PlatformObjectID: platform.ObjectID,
+			VehicleType: "DIT-0003", PlatformObjectID: platform.ObjectID,
 		}),
 	}
 }
@@ -205,7 +220,7 @@ func newIntegrationService(t *testing.T, pool *pgxpool.Pool) *Service {
 
 func newIntegrationServiceWithBus(t *testing.T, pool *pgxpool.Pool, bus *txevent.Bus) *Service {
 	t.Helper()
-	service, err := NewService(pool, bobdomain.NewService(pool), auxiliaryrefs.New(auxdomain.NewService(pool)), bus, AttachmentOptions{Root: t.TempDir()},
+	service, err := NewService(pool, newBOBIntegrationService(pool), auxiliaryrefs.New(auxdomain.NewService(pool)), bus, AttachmentOptions{Root: t.TempDir()},
 		slog.New(slog.NewTextHandler(io.Discard, nil)), WithAccountingControl(integrationAccountingControl{}))
 	if err != nil {
 		t.Fatalf("new VOU service: %v", err)

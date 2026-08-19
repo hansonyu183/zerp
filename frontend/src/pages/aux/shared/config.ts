@@ -29,6 +29,33 @@ const text = (
 const description = text('description', '说明', { type: 'textarea' })
 
 export const auxConfigs: Readonly<Record<AuxApiEntity, AuxEntityConfig>> = {
+  'settlement-method': {
+    entity: 'settlement-method',
+    title: '结算方式',
+    defaults: () => ({ defaultSalesSurcharge: '0.00', description: '' }),
+    fields: [
+      text('defaultSalesSurcharge', '默认销售加价（元/kg）', {
+        required: true,
+      }),
+      description,
+    ],
+  },
+  'payment-method': {
+    entity: 'payment-method',
+    title: '收款方式',
+    defaults: () => ({
+      name: '',
+      defaultSalesSurcharge: '0.00',
+      description: '',
+    }),
+    fields: [
+      text('name', '名称', { required: true }),
+      text('defaultSalesSurcharge', '默认销售加价（元/kg）', {
+        required: true,
+      }),
+      description,
+    ],
+  },
   'asset-category': {
     entity: 'asset-category',
     title: '资产类别',

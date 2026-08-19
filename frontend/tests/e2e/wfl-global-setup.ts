@@ -73,12 +73,19 @@ interface BobMutation {
   code: string
 }
 
-interface BobQueryItem {
+interface AuxQueryItem {
   objectId: string
   currentVersion: {
-    versionId: string
-    summary: { termCode?: string }
+    data: { termCode?: string }
   }
+}
+
+interface BobReferenceQueryItem {
+  objectId: string
+}
+
+interface AuxMutation {
+  objectId: string
 }
 
 interface VouMutation {
@@ -272,28 +279,102 @@ async function createEffectiveBob(
   return { ...approved, code: view.code }
 }
 
-async function fixedSettlementMethod(operator: RealApi): Promise<BobMutation> {
-  const page = await operator.post<Page<BobQueryItem>>(
-    'bob/settlement-method/query',
+async function fixedSettlementMethod(
+  operator: RealApi,
+): Promise<Pick<BobMutation, 'objectId'>> {
+  const page = await operator.post<Page<AuxQueryItem>>(
+    'aux/settlement-method/query',
     {
       page: 1,
       pageSize: 20,
-      filters: { status: ['EFFECTIVE'], enabled: true },
+      filters: { enabled: true },
       sort: [{ field: 'code', order: 'asc' }],
     },
   )
   const item = page.items.find(
     (candidate) =>
-      candidate.currentVersion.summary.termCode === 'MONTHLY_CURRENT',
+      candidate.currentVersion.data.termCode === 'MONTHLY_CURRENT',
   )
   if (!item) throw new Error('WFL 预置未找到系统固定当月结结算方式。')
-  return {
-    objectId: item.objectId,
-    objectRevision: 1,
-    versionId: item.currentVersion.versionId,
-    revision: 1,
-    code: 'MONTHLY_CURRENT',
-  }
+  return { objectId: item.objectId }
+}
+
+async function fixedOperatingEntity(operator: RealApi): Promise<string> {
+  const page = await operator.post<Page<BobReferenceQueryItem>>(
+    'bob/operating-entity/query',
+    {
+      page: 1,
+      pageSize: 20,
+      filters: {
+        status: ['EFFECTIVE'],
+        enabled: true,
+      },
+      sort: [{ field: 'code', order: 'asc' }],
+    },
+  )
+  const item = page.items[0]
+  if (!item) throw new Error('WFL 预置未找到演示经营主体。')
+  return item.objectId
+}
+
+async function createPaymentMethod(
+  operator: RealApi,
+  name: string,
+): Promise<string> {
+  const result = await operator.post<AuxMutation>('aux/payment-method/create', {
+    data: { name, defaultSalesSurcharge: '0.00', description: 'E2E 测试' },
+  })
+  return result.objectId
+}
+
+async function createEffectiveCustomer(
+  operator: RealApi,
+  reviewer: RealApi,
+  name: string,
+  employeeObjectId: string,
+  operatingEntityId: string,
+  settlementMethodId: string,
+  paymentMethodId: string,
+): Promise<BobMutation> {
+  const created = await operator.post<BobMutation>('bob/customer/create', {
+    group: { companyName: name, bankAccounts: [] },
+    data: {
+      name,
+      customerTypeCode: 'DIT-0001',
+      operatingEntityId,
+      settlementMethodId,
+      paymentMethodId,
+      defaultTransportMethodCode: 'SELF_PICKUP',
+      defaultTransportMethodName: '客户自提',
+      transportSurcharge: '0.00',
+      pricingPolicy: {
+        defaultPremiumUnitPrice: '0.00',
+        defaultDiscountUnitPrice: '0.00',
+        costItems: [],
+        thirdPartyIntermediaryFixedUnitCost: '0.00',
+        thirdPartyIntermediaryVariableUnitCost: '0.00',
+      },
+      creditLimits: [],
+      primarySalesAttribution: {
+        type: 'INTERNAL_EMPLOYEE',
+        subjectObjectId: employeeObjectId,
+      },
+    },
+  })
+  const submitted = await operator.post<BobMutation>('bob/customer/submit', {
+    objectId: created.objectId,
+    versionId: created.versionId,
+    revision: created.revision,
+  })
+  const approved = await reviewer.post<BobMutation>('bob/customer/approve', {
+    objectId: submitted.objectId,
+    versionId: submitted.versionId,
+    revision: submitted.revision,
+  })
+  const view = await operator.post<{ code: string }>('bob/customer/get', {
+    objectId: approved.objectId,
+  })
+  return { ...approved, code: view.code }
 }
 
 function workflowScript(options: {
@@ -773,16 +854,19 @@ export async function createWflWorkerState(options: {
       { name: `WFL 员工 ${suffix}` },
     )
     const settlement = await fixedSettlementMethod(operatorSession.api)
-    const customer = await createEffectiveBob(
+    const operatingEntityId = await fixedOperatingEntity(operatorSession.api)
+    const paymentMethodId = await createPaymentMethod(
+      operatorSession.api,
+      `WFL 银行转账 ${suffix}`,
+    )
+    const customer = await createEffectiveCustomer(
       operatorSession.api,
       reviewerSession.api,
-      'customer',
-      {
-        name: `WFL 客户 ${suffix}`,
-        customerType: 'DIT-0001',
-        salespersonEmployeeId: employee.objectId,
-        settlementMethodId: settlement.objectId,
-      },
+      `WFL 客户 ${suffix}`,
+      employee.objectId,
+      operatingEntityId,
+      settlement.objectId,
+      paymentMethodId,
     )
     const supplier = await createEffectiveBob(
       operatorSession.api,
@@ -858,6 +942,7 @@ export async function createWflWorkerState(options: {
       {
         name: `WFL 测试资金账户 ${suffix}`,
         currency: 'CNY',
+        operatingEntityId,
       },
     )
 

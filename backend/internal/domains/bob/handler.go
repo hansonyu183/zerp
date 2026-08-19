@@ -3,7 +3,10 @@ package bob
 import (
 	"context"
 	"errors"
+	"io"
 	"log/slog"
+	"mime"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hansonyu183/zerp/backend/internal/api/authmiddleware"
@@ -29,12 +32,32 @@ type applicationService interface {
 	Disable(context.Context, string, ObjectRevisionInput, string, string) (MutationResult, error)
 	Versions(context.Context, string, HistoryInput) (Page[VersionHistoryItem], error)
 	AuditHistory(context.Context, string, HistoryInput) (Page[AuditEventView], error)
+	CustomerQuery(context.Context, QueryInput) (Page[CustomerListItem], error)
+	CustomerGet(context.Context, GetInput) (CustomerDetailView, error)
+	CustomerCreate(context.Context, CustomerCreateInput, string, string) (CustomerCreateResult, error)
+	CustomerSave(context.Context, CustomerSaveInput, string, string) (MutationResult, error)
+	CustomerGroupGet(context.Context, string) (CustomerGroupView, error)
+	CustomerGroupSave(context.Context, CustomerGroupSaveInput, string, string) (CustomerGroupView, error)
+	CustomerGroupAuditHistory(context.Context, HistoryInput) (Page[AuditEventView], error)
+	TransferReferences(context.Context, ReferenceTransferInput, string, string) (ReferenceTransferResult, error)
+	QueryReferenceCandidates(context.Context, ReferenceQueryInput) ([]ReferenceCandidate, error)
+	CustomerTaxMatches(context.Context, CustomerTaxMatchInput) ([]CustomerTaxMatch, error)
+}
+
+type customerAttachmentApplicationService interface {
+	Initiate(context.Context, CustomerAttachmentInitiateInput, string, string) (CustomerAttachmentInitiateResult, error)
+	CreateDownload(context.Context, CustomerAttachmentDownloadInput, string) (CustomerAttachmentDownloadResult, error)
+	Remove(context.Context, CustomerAttachmentRemoveInput, string, string) (CustomerAttachmentMutationResult, error)
+	Upload(context.Context, string, io.Reader, int64, string) error
+	OpenDownload(context.Context, string) (CustomerAttachmentDownloadFile, error)
+	EnrichDetail(context.Context, *CustomerDetailView) error
 }
 
 type Handler struct {
-	service    applicationService
-	authorizer authorization.Authorizer
-	logger     *slog.Logger
+	service     applicationService
+	attachments customerAttachmentApplicationService
+	authorizer  authorization.Authorizer
+	logger      *slog.Logger
 }
 
 type actionRoute struct {
@@ -59,11 +82,16 @@ var actionRoutes = [...]actionRoute{
 	{action: "audit-history", handle: (*Handler).auditHistory},
 }
 
-func NewHandler(service applicationService, authorizer authorization.Authorizer, logger *slog.Logger) *Handler {
+func NewHandler(
+	service applicationService,
+	attachments customerAttachmentApplicationService,
+	authorizer authorization.Authorizer,
+	logger *slog.Logger,
+) *Handler {
 	if authorizer == nil {
 		authorizer = authorization.FailClosed{}
 	}
-	return &Handler{service: service, authorizer: authorizer, logger: logger}
+	return &Handler{service: service, attachments: attachments, authorizer: authorizer, logger: logger}
 }
 
 func (h *Handler) Register(router *gin.Engine) {
@@ -80,6 +108,59 @@ func (h *Handler) Register(router *gin.Engine) {
 			})
 		}
 	}
+	groupGroup := group.Group("/customer-group")
+	groupGroup.POST("/get", h.authorize("/bob/customer-group/get"), h.customerGroupGet)
+	groupGroup.POST("/save", h.authorize("/bob/customer-group/save"), h.customerGroupSave)
+	groupGroup.POST("/audit-history", h.authorize("/bob/customer-group/audit-history"), h.customerGroupAuditHistory)
+	group.POST("/customer/tax-match", h.customerTaxMatch)
+	customerGroup := group.Group("/customer")
+	customerGroup.POST("/attachment-initiate", h.authorize("/bob/customer/attachment-initiate"), h.customerAttachmentInitiate)
+	customerGroup.POST("/attachment-download", h.authorize("/bob/customer/attachment-download"), h.customerAttachmentDownload)
+	customerGroup.POST("/attachment-remove", h.authorize("/bob/customer/attachment-remove"), h.customerAttachmentRemove)
+	referenceGroup := group.Group("/reference")
+	referenceGroup.POST("/query", h.referenceQuery)
+	referenceGroup.POST("/transfer", h.authorize("/bob/reference/transfer"), h.referenceTransfer)
+	router.PUT("/files/customer-attachments/upload/:token", h.customerAttachmentUpload)
+	router.GET("/files/customer-attachments/download/:token", h.customerAttachmentFileDownload)
+}
+
+func (h *Handler) customerTaxMatch(c *gin.Context) {
+	var request struct {
+		TaxNumber string `json:"taxNumber"`
+	}
+	if !h.bind(c, &request) {
+		return
+	}
+	principal, err := h.authorizer.Authorize(c.Request.Context(), c.Request, "/bob/customer/create", response.RequestID(c))
+	if err != nil {
+		h.writeAuthorizationError(c, err)
+		return
+	}
+	has := func(path string) bool {
+		for _, permission := range principal.Permissions {
+			if permission == path {
+				return true
+			}
+		}
+		return false
+	}
+	result, err := h.service.CustomerTaxMatches(c.Request.Context(), CustomerTaxMatchInput{TaxNumber: request.TaxNumber,
+		IncludeCustomer: has("/bob/customer/get"), IncludeSupplier: has("/bob/supplier/get"),
+		IncludeOtherParty: has("/bob/other-party/get")})
+	h.result(c, result, err)
+}
+
+func (h *Handler) referenceQuery(c *gin.Context) {
+	var input ReferenceQueryInput
+	if !h.bind(c, &input) {
+		return
+	}
+	if _, err := h.authorizer.Authorize(c.Request.Context(), c.Request, "/bob/"+input.Entity+"/query", response.RequestID(c)); err != nil {
+		h.writeAuthorizationError(c, err)
+		return
+	}
+	result, err := h.service.QueryReferenceCandidates(c.Request.Context(), input)
+	h.result(c, result, err)
 }
 
 func (h *Handler) authorize(path string) gin.HandlerFunc {
@@ -89,6 +170,11 @@ func (h *Handler) authorize(path string) gin.HandlerFunc {
 func (h *Handler) query(c *gin.Context, entity string) {
 	var input QueryInput
 	if h.bind(c, &input) {
+		if entity == EntityCustomer {
+			result, err := h.service.CustomerQuery(c.Request.Context(), input)
+			h.result(c, result, err)
+			return
+		}
 		result, err := h.service.Query(c.Request.Context(), entity, input)
 		h.result(c, result, err)
 	}
@@ -97,12 +183,78 @@ func (h *Handler) query(c *gin.Context, entity string) {
 func (h *Handler) get(c *gin.Context, entity string) {
 	var input GetInput
 	if h.bind(c, &input) {
+		if entity == EntityCustomer {
+			result, err := h.service.CustomerGet(c.Request.Context(), input)
+			if err == nil && h.attachments != nil {
+				err = h.attachments.EnrichDetail(c.Request.Context(), &result)
+			}
+			h.result(c, result, err)
+			return
+		}
 		result, err := h.service.Get(c.Request.Context(), entity, input)
 		h.result(c, result, err)
 	}
 }
 
+func (h *Handler) customerAttachmentInitiate(c *gin.Context) {
+	var input CustomerAttachmentInitiateInput
+	if h.bind(c, &input) {
+		result, err := h.attachments.Initiate(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) customerAttachmentDownload(c *gin.Context) {
+	var input CustomerAttachmentDownloadInput
+	if h.bind(c, &input) {
+		result, err := h.attachments.CreateDownload(c.Request.Context(), input, h.actorID(c))
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) customerAttachmentRemove(c *gin.Context) {
+	var input CustomerAttachmentRemoveInput
+	if h.bind(c, &input) {
+		result, err := h.attachments.Remove(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) customerAttachmentUpload(c *gin.Context) {
+	err := h.attachments.Upload(c.Request.Context(), c.Param("token"), c.Request.Body, c.Request.ContentLength, c.GetHeader("Content-Type"))
+	if err != nil {
+		h.writeFileError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (h *Handler) customerAttachmentFileDownload(c *gin.Context) {
+	file, err := h.attachments.OpenDownload(c.Request.Context(), c.Param("token"))
+	if err != nil {
+		h.writeFileError(c, err)
+		return
+	}
+	defer file.Reader.Close()
+	c.Header("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": file.FileName}))
+	c.Header("Content-Type", file.ContentType)
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Cache-Control", "private, no-store")
+	c.Status(http.StatusOK)
+	if _, err = io.Copy(c.Writer, file.Reader); err != nil {
+		h.logger.Warn("customer attachment download interrupted", "requestId", response.RequestID(c), "error", err)
+	}
+}
+
 func (h *Handler) create(c *gin.Context, entity string) {
+	if entity == EntityCustomer {
+		var input CustomerCreateInput
+		if h.bind(c, &input) {
+			result, err := h.service.CustomerCreate(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
+			h.result(c, result, err)
+		}
+		return
+	}
 	var input CreateInput
 	if h.bind(c, &input) {
 		result, err := h.service.Create(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
@@ -110,7 +262,59 @@ func (h *Handler) create(c *gin.Context, entity string) {
 	}
 }
 
+func (h *Handler) customerGroupGet(c *gin.Context) {
+	var input struct {
+		ID string `json:"id"`
+	}
+	if !h.bind(c, &input) {
+		return
+	}
+	result, err := h.service.CustomerGroupGet(c.Request.Context(), input.ID)
+	h.result(c, result, err)
+}
+
+func (h *Handler) customerGroupSave(c *gin.Context) {
+	var input CustomerGroupSaveInput
+	if !h.bind(c, &input) {
+		return
+	}
+	result, err := h.service.CustomerGroupSave(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
+	h.result(c, result, err)
+}
+
+func (h *Handler) customerGroupAuditHistory(c *gin.Context) {
+	var input HistoryInput
+	if !h.bind(c, &input) {
+		return
+	}
+	result, err := h.service.CustomerGroupAuditHistory(c.Request.Context(), input)
+	h.result(c, result, err)
+}
+
+func (h *Handler) referenceTransfer(c *gin.Context) {
+	var input ReferenceTransferInput
+	if !h.bind(c, &input) {
+		return
+	}
+	if _, err := h.authorizer.Authorize(
+		c.Request.Context(), c.Request, "/bob/"+input.Entity+"/disable", response.RequestID(c),
+	); err != nil {
+		h.writeAuthorizationError(c, err)
+		return
+	}
+	result, err := h.service.TransferReferences(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
+	h.result(c, result, err)
+}
+
 func (h *Handler) save(c *gin.Context, entity string) {
+	if entity == EntityCustomer {
+		var input CustomerSaveInput
+		if h.bind(c, &input) {
+			result, err := h.service.CustomerSave(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
+			h.result(c, result, err)
+		}
+		return
+	}
 	var input SaveInput
 	if h.bind(c, &input) {
 		result, err := h.service.Save(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
@@ -249,4 +453,21 @@ func (h *Handler) writeError(c *gin.Context, err error) {
 		h.logger.Error("bob handler failure", "requestId", response.RequestID(c), "path", c.Request.URL.Path, "error", domainErr.Cause)
 	}
 	response.BusinessError(c, code, domainErr.Message, domainErr.Data)
+}
+
+func (h *Handler) writeFileError(c *gin.Context, err error) {
+	var domainErr *DomainError
+	if !errors.As(err, &domainErr) {
+		domainErr = &DomainError{Kind: ErrorInternal, Message: "internal server error", Cause: err}
+	}
+	status := http.StatusInternalServerError
+	if domainErr.Kind == ErrorValidation {
+		status = http.StatusBadRequest
+	} else if domainErr.Kind == ErrorConflict {
+		status = http.StatusConflict
+	}
+	if status == http.StatusInternalServerError {
+		h.logger.Error("bob file endpoint failure", "requestId", response.RequestID(c), "path", c.FullPath(), "error", domainErr.Cause)
+	}
+	c.JSON(status, gin.H{"error": domainErr.Message, "requestId": response.RequestID(c)})
 }

@@ -3,11 +3,13 @@ import type { BusinessObjectSort } from '@/components/business-object'
 import { apiClient } from '@/api/client'
 import { getErrorMessage, type PageRequest, type PageResult } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
+import { comparableProductValue } from './product-data'
 import {
-  comparableProductValue,
-  productFormFields,
-  productPayload,
-} from './product-data'
+  bobCreateData,
+  bobFormFromView,
+  bobSaveData,
+  normalizeBobForm,
+} from './form-data'
 import { useBobHistory } from './history'
 import {
   bobActionAvailability,
@@ -16,6 +18,7 @@ import {
   useBobLifecycleActions,
 } from './lifecycle'
 import { useBobReferences } from './references'
+import { useBobReferenceTransfer } from './reference-transfer'
 import type {
   BobActionAvailability,
   BobEditContext,
@@ -217,71 +220,6 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     await search()
   }
 
-  function normalizeForm(form: BobForm): BobForm {
-    const uppercase = new Set(config.uppercaseKeys ?? [])
-    const normalized: BobForm = { ...form }
-    for (const [key, value] of Object.entries(normalized)) {
-      if (typeof value !== 'string') continue
-      const trimmed = value.trim()
-      normalized[key] = uppercase.has(key) ? trimmed.toUpperCase() : trimmed
-    }
-    if (config.entity === 'fund-account') {
-      const accountNumber = normalized.accountNumber
-      if (typeof accountNumber === 'string') {
-        normalized.accountNumber = accountNumber
-          .replace(/[\s-]+/g, '')
-          .toUpperCase()
-      }
-    }
-    return normalized
-  }
-
-  function createData(form: BobForm): Record<string, unknown> {
-    const normalized = normalizeForm(form)
-    const allowedKeys = [...config.detailKeys]
-    const data: Record<string, unknown> = {}
-    for (const key of allowedKeys) {
-      const value = normalized[key]
-      if (
-        !config.requiredKeys.includes(key) &&
-        (value === '' || value === null)
-      ) {
-        continue
-      }
-      data[key] = value
-    }
-    if (config.entity === 'product') {
-      Object.assign(data, productPayload(normalized))
-    }
-    for (const [key, value] of Object.entries(data)) {
-      if (value === undefined) delete data[key]
-    }
-    return data
-  }
-
-  function saveData(form: BobForm): Record<string, unknown> {
-    const normalized = normalizeForm(form)
-    const data = Object.fromEntries(
-      config.detailKeys.map((key) => [key, normalized[key]]),
-    )
-    if (config.entity === 'product') {
-      Object.assign(data, productPayload(normalized))
-    }
-    return data
-  }
-
-  function formFromView(view: BobObjectView): BobForm {
-    const form = config.emptyForm()
-    form.code = view.code
-    for (const key of config.detailKeys) {
-      form[key] = view.data[key] ?? form[key] ?? ''
-    }
-    if (config.entity === 'product') {
-      Object.assign(form, productFormFields(view.data))
-    }
-    return form
-  }
-
   async function getObject(
     row: Pick<BobListItem, 'objectId'>,
     versionId?: string,
@@ -316,7 +254,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     try {
       const view = await getObject(row, versionId)
       currentView.value = view
-      editorModel.value = formFromView(view)
+      editorModel.value = bobFormFromView(config, view)
       editorResetKey.value += 1
       drawerOpen.value = true
       await hydrateReferences(editorModel.value)
@@ -344,7 +282,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
         versionId,
         revision: view.version.revision ?? row.currentVersion.revision,
       }
-      editorModel.value = formFromView(view)
+      editorModel.value = bobFormFromView(config, view)
       editorResetKey.value += 1
       drawerOpen.value = true
       preloadEditorReferences(editorModel.value)
@@ -382,7 +320,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
             revision: view.version.revision,
           }
         : null
-      editorModel.value = formFromView(view)
+      editorModel.value = bobFormFromView(config, view)
       editorResetKey.value += 1
       drawerOpen.value = true
       if (editable) preloadEditorReferences(editorModel.value)
@@ -407,7 +345,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
 
   async function save(form: BobForm): Promise<boolean> {
     if (saving.value || editorMode.value === 'view') return false
-    const normalized = normalizeForm(form)
+    const normalized = normalizeBobForm(config, form)
     const missingRequiredKey = config.requiredKeys.find(
       (key) => !hasValue(normalized[key]),
     )
@@ -426,7 +364,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
         const result = await apiClient.post<
           BobMutationResult,
           { data: Record<string, unknown> }
-        >(`bob/${config.entity}/create`, { data: createData(form) })
+        >(`bob/${config.entity}/create`, { data: bobCreateData(config, form) })
         mutation = result.data
       } else {
         const context = editContext.value
@@ -438,7 +376,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
           objectId: context.objectId,
           versionId: context.versionId,
           revision: context.revision,
-          data: saveData(form),
+          data: bobSaveData(config, form),
         })
         mutation = result.data
       }
@@ -447,7 +385,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
           { objectId: mutation.objectId },
           mutation.versionId,
         )
-        const normalized = normalizeForm(form)
+        const normalized = normalizeBobForm(config, form)
         const missing = config.persistedKeys?.find(
           (key) =>
             JSON.stringify(
@@ -533,6 +471,20 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     return runRowAction(row, 'submit')
   }
 
+  const {
+    referenceTransferOpen,
+    referenceTransferLoading,
+    referenceTransferError,
+    referenceTransferSource,
+    referenceTransferTargetId,
+    referenceTransferCandidates,
+    referenceTransferOptions,
+    closeReferenceTransfer,
+    confirmReferenceTransfer,
+    searchReferenceTransfer,
+    handleReferenceTransferLifecycleError,
+  } = useBobReferenceTransfer(config.entity, successMessage, query)
+
   const { review, reverse, changeEnabled } = useBobLifecycleActions(
     config.entity,
     actionLoading,
@@ -543,6 +495,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
       if (currentView.value?.objectId === row.objectId) closeEditor()
       successMessage.value = `${row.code} ${bobLifecycleSuccessLabel(action)}。`
     },
+    handleReferenceTransferLifecycleError,
   )
 
   return {
@@ -566,6 +519,13 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     editorModel,
     editorResetKey,
     currentView,
+    referenceTransferOpen,
+    referenceTransferLoading,
+    referenceTransferError,
+    referenceTransferSource,
+    referenceTransferTargetId,
+    referenceTransferCandidates,
+    referenceTransferOptions,
     canCreate,
     editorTitle,
     editorFields,
@@ -601,6 +561,9 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     review,
     reverse,
     changeEnabled,
+    closeReferenceTransfer,
+    confirmReferenceTransfer,
+    searchReferenceTransfer,
     searchEditorReference,
     searchFilterReference,
     filterReferenceOptions,

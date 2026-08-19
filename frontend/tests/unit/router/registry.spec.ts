@@ -327,7 +327,7 @@ describe('permission menu registry', () => {
       'warehouse',
       'vehicle',
       'fund-account',
-      'settlement-method',
+      'operating-entity',
     ]
     const titles = [
       '客户',
@@ -338,7 +338,7 @@ describe('permission menu registry', () => {
       '仓库',
       '车辆',
       '资金账户',
-      '结算方式',
+      '经营主体',
     ]
     const router = createTestRouter()
     const menus = buildMenus(entities.map((entity) => `/bob/${entity}/query`))

@@ -58,6 +58,8 @@ func detailFields(entity string) []string {
 		return []string{"name", "categoryId", "description"}
 	case EntitySettlementMethod:
 		return []string{"name", "termCode", "ruleType", "monthOffset", "dayOfMonth", "dayOffset", "defaultSalesSurcharge", "description"}
+	case EntityOperatingEntity:
+		return []string{"name", "shortName", "taxNumber", "address", "phone", "remark"}
 	default:
 		return []string{"name"}
 	}

@@ -78,7 +78,8 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 	}
 	business := bobdomain.NewService(pool)
 	handler := createApprovedAccountingReference(t, business, bobdomain.EntityEmployee, bobdomain.CreateDetailInput{Name: "自动记账经办人"})
-	fund := createApprovedAccountingReference(t, business, bobdomain.EntityFundAccount, bobdomain.CreateDetailInput{Name: "自动记账账户", Currency: "CNY"})
+	operating := createApprovedAccountingReference(t, business, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{Name: "自动记账经营主体"})
+	fund := createApprovedAccountingReference(t, business, bobdomain.EntityFundAccount, bobdomain.CreateDetailInput{Name: "自动记账账户", Currency: "CNY", OperatingEntityID: operating.ObjectID})
 	vouchers, err := voudomain.NewService(pool, business, auxiliaryrefs.New(auxdomain.NewService(pool)), bus, voudomain.AttachmentOptions{Root: t.TempDir()}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatalf("new VOU service: %v", err)

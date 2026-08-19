@@ -219,12 +219,27 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/bob/fund-account/FundAccount.vue'),
   }),
   registerPage('bob', {
+    entity: 'operating-entity',
+    entityTitle: '经营主体',
+    icon: 'mdi-office-building-cog-outline',
+    order: 90,
+    component: () =>
+      import('@/pages/bob/operating-entity/OperatingEntity.vue'),
+  }),
+  registerPage('aux', {
     entity: 'settlement-method',
     entityTitle: '结算方式',
     icon: 'mdi-calendar-clock-outline',
-    order: 90,
+    order: 3,
     component: () =>
-      import('@/pages/bob/settlement-method/SettlementMethod.vue'),
+      import('@/pages/aux/settlement-method/SettlementMethod.vue'),
+  }),
+  registerPage('aux', {
+    entity: 'payment-method',
+    entityTitle: '收款方式',
+    icon: 'mdi-cash-check',
+    order: 4,
+    component: () => import('@/pages/aux/payment-method/PaymentMethod.vue'),
   }),
   registerPage('aux', {
     entity: 'asset-category',

@@ -110,7 +110,8 @@ type VouRevisionRequest = components['schemas']['VouDocumentRevisionRequest']
 type VouReverseRequest = components['schemas']['VouReverseRequest']
 type BobQueryRequest = components['schemas']['BobQueryRequest']
 type BobListPage = components['schemas']['BobListPage']
-type AvailableBillQueryRequest = components['schemas']['VouAvailableBillQueryRequest']
+type AvailableBillQueryRequest =
+  components['schemas']['VouAvailableBillQueryRequest']
 type AvailableBillItem = components['schemas']['VouAvailableBillItem']
 type BillPaymentData = ReturnType<typeof buildBillPaymentPayload>
 type BillIssueData = ReturnType<typeof buildBillIssuePayload>
@@ -673,6 +674,18 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     value: string,
     signal: AbortSignal,
   ) {
+    if (entity === 'customer') {
+      try {
+        const result = await apiClient.postContract(
+          'bob/reference/query',
+          { entity, ...(value.trim() ? { keyword: value.trim() } : {}) },
+          { signal },
+        )
+        return result.data.map((item) => ({ ...item, entity }))
+      } catch {
+        return []
+      }
+    }
     const request: BobQueryRequest = {
       page: 1,
       pageSize: 20,

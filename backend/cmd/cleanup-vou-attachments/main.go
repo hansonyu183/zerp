@@ -45,5 +45,17 @@ func main() {
 		logger.Error("cleanup APP feedback attachments", "error", err)
 		os.Exit(1)
 	}
-	logger.Info("attachment cleanup completed", "vouRemoved", removed, "feedbackRemoved", appRemoved)
+	customerAttachments, err := bobdomain.NewCustomerAttachmentService(pool, bobdomain.CustomerAttachmentOptions{
+		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
+	})
+	if err != nil {
+		logger.Error("initialize customer attachment storage", "error", err)
+		os.Exit(1)
+	}
+	customerRemoved, err := customerAttachments.CleanupOrphanFiles(context.Background())
+	if err != nil {
+		logger.Error("cleanup BOB customer attachments", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("attachment cleanup completed", "vouRemoved", removed, "feedbackRemoved", appRemoved, "customerRemoved", customerRemoved)
 }

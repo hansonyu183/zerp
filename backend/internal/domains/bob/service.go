@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sort"
 	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
@@ -37,6 +38,9 @@ func (s *Service) SetAuxiliaryResolver(resolver AuxiliaryResolver) {
 }
 
 func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (Page[QueryItem], error) {
+	if entity == EntityOperatingEntity {
+		return s.queryOperatingEntities(ctx, input)
+	}
 	offset, validPage := pageOffset(input.Page, input.PageSize)
 	if !validEntity(entity) || !validPage {
 		return Page[QueryItem]{}, domainError(ErrorValidation, "invalid query", nil, nil)
@@ -123,6 +127,9 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 }
 
 func (s *Service) Get(ctx context.Context, entity string, input GetInput) (ObjectView, error) {
+	if entity == EntityOperatingEntity {
+		return s.getOperatingEntity(ctx, input)
+	}
 	if !validEntity(entity) || !validID(input.ObjectID) || (input.VersionID != "" && !validID(input.VersionID)) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid object or version", nil, nil)
 	}
@@ -142,6 +149,11 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Objec
 		return ObjectView{}, s.internal("read object availability", err)
 	}
 	result := objectView(row, enabled)
+	if entity == EntityFundAccount {
+		if err = loadFundAccountOperating(ctx, s.queries, row.VersionID, &result.Data); err != nil {
+			return ObjectView{}, s.internal("read fund account operating entity", err)
+		}
+	}
 	if entity == EntityProduct {
 		result.Data.Formula, err = loadProductFormula(ctx, s.queries, row.VersionID)
 		if err != nil {
@@ -176,6 +188,12 @@ func (s *Service) Create(ctx context.Context, entity string, input CreateInput, 
 		return MutationResult{}, s.writeError("allocate object number", err)
 	}
 	code := fmt.Sprintf("%s-%04d", objectPrefix(entity), counter)
+	if entity == EntityFundAccount {
+		data, err = s.resolveFundAccountOperating(ctx, tx, data)
+		if err != nil {
+			return MutationResult{}, err
+		}
+	}
 	if err = s.validateDetailReferences(ctx, tx, qtx, entity, objectID, data); err != nil {
 		return MutationResult{}, err
 	}
@@ -210,7 +228,7 @@ func objectPrefix(entity string) string {
 		EntityProduct: "PRD", EntityService: "SVC", EntityWarehouse: "WHS",
 		EntityVehicle: "VEH", EntityFundAccount: "FAC",
 		EntityCategory: "PCT", EntityDepartment: "DEP", EntityPosition: "POS",
-		EntitySettlementMethod: "STM",
+		EntitySettlementMethod: "STM", EntityOperatingEntity: "OPE",
 	}[entity]
 }
 
@@ -237,6 +255,11 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 		return MutationResult{}, s.internal("read current detail", readErr)
 	}
 	current := detailView(row)
+	if entity == EntityFundAccount {
+		if readErr = loadFundAccountOperating(ctx, qtx, input.VersionID, &current); readErr != nil {
+			return MutationResult{}, s.internal("read fund account operating entity", readErr)
+		}
+	}
 	if entity == EntityProduct {
 		current.Formula, readErr = loadProductFormula(ctx, qtx, input.VersionID)
 		if readErr != nil {
@@ -253,6 +276,12 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 	data, err := validateDetailData(entity, merged)
 	if err != nil {
 		return MutationResult{}, domainError(ErrorValidation, "invalid save request", nil, err)
+	}
+	if entity == EntityFundAccount {
+		data, err = s.resolveFundAccountOperating(ctx, tx, data)
+		if err != nil {
+			return MutationResult{}, err
+		}
 	}
 	if entity == EntityCategory && data.TargetEntity != current.TargetEntity {
 		referenced, referenceErr := qtx.BobObjectHasExternalReferences(ctx, dbsqlc.BobObjectHasExternalReferencesParams{
@@ -308,6 +337,9 @@ func (s *Service) Delete(ctx context.Context, entity string, input DeleteInput) 
 		return err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+	if entity == EntityCustomer && customerHasEffectiveCandidate(entity, object) {
+		return s.deleteCustomerCandidate(ctx, tx, object, version, input)
+	}
 
 	if object.Revision != input.ObjectRevision ||
 		object.CurrentVersionID != input.VersionID ||
@@ -407,6 +439,44 @@ func (s *Service) Delete(ctx context.Context, entity string, input DeleteInput) 
 	return nil
 }
 
+func (s *Service) deleteCustomerCandidate(
+	ctx context.Context, tx pgx.Tx, object dbsqlc.LockBobObjectRow, version dbsqlc.LockBobVersionRow, input DeleteInput,
+) error {
+	if object.EffectiveVersionID == nil || object.Revision != input.ObjectRevision ||
+		object.CurrentVersionID != input.VersionID || version.Revision != input.Revision ||
+		(version.Status != StatusDraft && version.Status != StatusPending) {
+		return conflict(object, version, "customer candidate changed before delete")
+	}
+	rows, err := s.queries.WithTx(tx).RestoreBobCustomerEffectiveVersion(ctx, dbsqlc.RestoreBobCustomerEffectiveVersionParams{
+		ObjectID: input.ObjectID, Revision: input.ObjectRevision, VersionID: input.VersionID, EffectiveVersionID: object.EffectiveVersionID,
+	})
+	if err != nil {
+		return s.writeError("restore customer effective version", err)
+	}
+	if rows != 1 {
+		return conflict(object, version, "customer candidate changed before delete")
+	}
+	qtx := s.queries.WithTx(tx)
+	if err = qtx.DeleteBobAuditEventsForVersion(ctx, dbsqlc.DeleteBobAuditEventsForVersionParams{ObjectID: input.ObjectID, VersionID: input.VersionID, Entity: EntityCustomer}); err != nil {
+		return s.writeError("delete customer candidate audit", err)
+	}
+	if err = qtx.DeleteBobCustomerCreditLimits(ctx, input.VersionID); err != nil {
+		return s.writeError("delete customer candidate credit", err)
+	}
+	rows, err = qtx.DeleteBobCustomerDetail(ctx, input.VersionID)
+	if err != nil || rows != 1 {
+		return s.writeError("delete customer candidate detail", err)
+	}
+	rows, err = qtx.DeleteBobCustomerVersion(ctx, dbsqlc.DeleteBobCustomerVersionParams{VersionID: input.VersionID, ObjectID: input.ObjectID})
+	if err != nil || rows != 1 {
+		return s.writeError("delete customer candidate version", err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return s.writeError("commit customer candidate delete", err)
+	}
+	return nil
+}
+
 func (s *Service) Submit(ctx context.Context, entity string, input VersionRevisionInput, actorID, requestID string) (MutationResult, error) {
 	if !validWriteInput(entity, input.ObjectID, input.VersionID, input.Revision, actorID, requestID) {
 		return MutationResult{}, domainError(ErrorValidation, "invalid submit request", nil, nil)
@@ -416,7 +486,7 @@ func (s *Service) Submit(ctx context.Context, entity string, input VersionRevisi
 		return MutationResult{}, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	if object.CurrentVersionID != input.VersionID || object.EffectiveVersionID != nil || version.Revision != input.Revision ||
+	if object.CurrentVersionID != input.VersionID || (!customerHasEffectiveCandidate(entity, object) && object.EffectiveVersionID != nil) || version.Revision != input.Revision ||
 		version.Status != StatusDraft {
 		return MutationResult{}, conflict(object, version, "version changed before submit")
 	}
@@ -458,6 +528,9 @@ func (s *Service) Approve(ctx context.Context, entity string, input ReviewInput,
 		return MutationResult{}, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+	if entity == EntityCustomer && customerHasEffectiveCandidate(entity, object) {
+		return s.approveCustomerCandidate(ctx, tx, qtx, object, version, input, actorID, requestID, comment)
+	}
 	if object.CurrentVersionID != input.VersionID || object.EffectiveVersionID != nil || version.Status != StatusPending || version.Revision != input.Revision {
 		return MutationResult{}, conflict(object, version, "version changed before approval")
 	}
@@ -510,7 +583,7 @@ func (s *Service) Reject(ctx context.Context, entity string, input ReviewInput, 
 		return MutationResult{}, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	if object.CurrentVersionID != input.VersionID || object.EffectiveVersionID != nil || version.Status != StatusPending || version.Revision != input.Revision {
+	if object.CurrentVersionID != input.VersionID || (!customerHasEffectiveCandidate(entity, object) && object.EffectiveVersionID != nil) || version.Status != StatusPending || version.Revision != input.Revision {
 		return MutationResult{}, conflict(object, version, "version changed before rejection")
 	}
 	if version.SubmittedBy == nil || (*version.SubmittedBy == actorID && !systemidentity.IsUser(actorID)) {
@@ -552,7 +625,7 @@ func (s *Service) Unsubmit(ctx context.Context, entity string, input ReverseInpu
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	if object.Revision != input.ObjectRevision || object.CurrentVersionID != input.VersionID ||
-		object.EffectiveVersionID != nil || version.Revision != input.Revision || version.Status != StatusPending {
+		(!customerHasEffectiveCandidate(entity, object) && object.EffectiveVersionID != nil) || version.Revision != input.Revision || version.Status != StatusPending {
 		return MutationResult{}, conflict(object, version, "version changed before unsubmit")
 	}
 	rows, err := qtx.UnsubmitBobVersion(ctx, dbsqlc.UnsubmitBobVersionParams{
@@ -578,6 +651,81 @@ func (s *Service) Unsubmit(ctx context.Context, entity string, input ReverseInpu
 		return MutationResult{}, s.writeError("commit unsubmit", err)
 	}
 	return mutation(object, version, StatusDraft, input.Revision+1), nil
+}
+
+func customerHasEffectiveCandidate(entity string, object dbsqlc.LockBobObjectRow) bool {
+	return entity == EntityCustomer && object.EffectiveVersionID != nil &&
+		object.CurrentVersionID != *object.EffectiveVersionID
+}
+
+func (s *Service) approveCustomerCandidate(
+	ctx context.Context, tx pgx.Tx, qtx *dbsqlc.Queries, object dbsqlc.LockBobObjectRow,
+	version dbsqlc.LockBobVersionRow, input ReviewInput, actorID, requestID string, comment *string,
+) (MutationResult, error) {
+	if object.CurrentVersionID != input.VersionID || object.EffectiveVersionID == nil ||
+		version.Status != StatusPending || version.Revision != input.Revision {
+		return MutationResult{}, conflict(object, version, "customer changed before approval")
+	}
+	if version.SubmittedBy == nil || (*version.SubmittedBy == actorID && !systemidentity.IsUser(actorID)) {
+		return MutationResult{}, domainError(ErrorConflict, "submitter cannot review the same version", conflictData(object, version), nil)
+	}
+	if err := s.validateStoredDetail(ctx, tx, qtx, EntityCustomer, input.ObjectID, input.VersionID); err != nil {
+		return MutationResult{}, err
+	}
+	oldVersion, err := qtx.LockBobVersion(ctx, dbsqlc.LockBobVersionParams{
+		ID: *object.EffectiveVersionID, ObjectID: input.ObjectID, Entity: EntityCustomer,
+	})
+	if err != nil || oldVersion.Status != StatusEffective {
+		return MutationResult{}, conflict(object, version, "customer effective version changed before approval")
+	}
+	rows, err := qtx.InvalidateBobVersion(ctx, dbsqlc.InvalidateBobVersionParams{
+		ActorID: actorID, ID: oldVersion.ID, ObjectID: input.ObjectID, Entity: EntityCustomer, Revision: oldVersion.Revision,
+	})
+	if err != nil {
+		return MutationResult{}, s.writeError("freeze customer effective version", err)
+	}
+	if rows != 1 {
+		return MutationResult{}, conflict(object, version, "customer effective version changed before approval")
+	}
+	rows, err = qtx.ApproveBobVersion(ctx, dbsqlc.ApproveBobVersionParams{
+		ActorID: &actorID, Comment: comment, ID: input.VersionID, ObjectID: input.ObjectID,
+		Entity: EntityCustomer, Revision: input.Revision,
+	})
+	if err != nil {
+		return MutationResult{}, s.writeError("approve customer candidate", err)
+	}
+	if rows != 1 {
+		return MutationResult{}, conflict(object, version, "customer changed before approval")
+	}
+	newVersionID, oldVersionID := input.VersionID, oldVersion.ID
+	rows, err = qtx.SwitchBobCustomerEffectiveCandidate(ctx, dbsqlc.SwitchBobCustomerEffectiveCandidateParams{
+		NewVersionID: &newVersionID, ActorID: actorID, ID: input.ObjectID,
+		OldVersionID: &oldVersionID, Revision: object.Revision,
+	})
+	if err != nil {
+		return MutationResult{}, s.writeError("switch customer effective version", err)
+	}
+	if rows != 1 {
+		return MutationResult{}, conflict(object, version, "customer changed before approval")
+	}
+	fromEffective := StatusEffective
+	if err = insertAudit(ctx, qtx, auditInput{ObjectID: input.ObjectID, VersionID: oldVersion.ID,
+		Entity: EntityCustomer, Event: "INVALIDATED", From: &fromEffective, To: StatusInvalid,
+		ActorID: actorID, RequestID: requestID, Summary: map[string]any{"replacementVersionId": input.VersionID}}); err != nil {
+		return MutationResult{}, s.writeError("audit replaced customer version", err)
+	}
+	fromPending := StatusPending
+	if err = insertAudit(ctx, qtx, auditInput{ObjectID: input.ObjectID, VersionID: input.VersionID,
+		Entity: EntityCustomer, Event: "APPROVED", From: &fromPending, To: StatusEffective,
+		ActorID: actorID, RequestID: requestID, Comment: comment,
+		Summary: map[string]any{"replacedVersionId": oldVersion.ID}}); err != nil {
+		return MutationResult{}, s.writeError("audit customer approval", err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return MutationResult{}, s.writeError("commit customer approval", err)
+	}
+	return MutationResult{ObjectID: input.ObjectID, ObjectRevision: object.Revision + 1, Enabled: object.Enabled,
+		VersionID: input.VersionID, Version: version.VersionNo, Status: StatusEffective, Revision: input.Revision + 1}, nil
 }
 
 func (s *Service) Unapprove(ctx context.Context, entity string, input ReverseInput, actorID, requestID string) (MutationResult, error) {
@@ -690,6 +838,40 @@ func (s *Service) SetEnabled(
 	}
 	if version.Status != StatusEffective {
 		return MutationResult{}, conflict(object, version, "object is not effective")
+	}
+	if !enabled {
+		uses, scanErr := listDirectReferenceUses(ctx, qtx, entity, input.ObjectID)
+		if scanErr != nil {
+			return MutationResult{}, s.internal("scan direct references before disable", scanErr)
+		}
+		if len(uses) > 0 {
+			type referenceCount struct {
+				Entity string `json:"entity"`
+				Field  string `json:"field"`
+				Count  int    `json:"count"`
+			}
+			grouped := make(map[string]*referenceCount)
+			for _, use := range uses {
+				key := use.entity + "\x00" + use.role
+				if grouped[key] == nil {
+					grouped[key] = &referenceCount{Entity: use.entity, Field: use.role}
+				}
+				grouped[key].Count++
+			}
+			counts := make([]referenceCount, 0, len(grouped))
+			for _, count := range grouped {
+				counts = append(counts, *count)
+			}
+			sort.Slice(counts, func(left, right int) bool {
+				if counts[left].Entity != counts[right].Entity {
+					return counts[left].Entity < counts[right].Entity
+				}
+				return counts[left].Field < counts[right].Field
+			})
+			return MutationResult{}, domainError(ErrorConflict, "object has active direct references", map[string]any{
+				"references": counts,
+			}, nil)
+		}
 	}
 	rows, err := qtx.SetBobObjectEnabled(ctx, dbsqlc.SetBobObjectEnabledParams{
 		Enabled: enabled, ActorID: actorID, ID: input.ObjectID, Entity: entity, Revision: input.ObjectRevision,
@@ -807,6 +989,16 @@ func (s *Service) ResolveEffectiveReference(ctx context.Context, tx pgx.Tx, enti
 		}
 	}
 	data := effectiveReferenceDetail(row)
+	if entity == EntityCustomer {
+		if err = loadStoredCustomerSettlement(ctx, s.queries.WithTx(tx), row.ObjectID, row.VersionID, &data); err != nil {
+			return EffectiveReference{}, s.internal("read customer settlement snapshot", err)
+		}
+	}
+	if entity == EntityFundAccount {
+		if err = loadFundAccountOperating(ctx, s.queries.WithTx(tx), row.VersionID, &data); err != nil {
+			return EffectiveReference{}, s.internal("read fund account operating entity", err)
+		}
+	}
 	if entity == EntityProduct {
 		data.Formula, err = loadProductFormula(ctx, s.queries.WithTx(tx), row.VersionID)
 		if err != nil {
@@ -871,6 +1063,16 @@ func (s *Service) ResolveCurrentEffectiveReference(
 		}
 	}
 	data := effectiveReferenceDetail(row)
+	if entity == EntityCustomer {
+		if err = loadStoredCustomerSettlement(ctx, s.queries.WithTx(tx), row.ObjectID, row.VersionID, &data); err != nil {
+			return EffectiveReference{}, s.internal("read customer settlement snapshot", err)
+		}
+	}
+	if entity == EntityFundAccount {
+		if err = loadFundAccountOperating(ctx, s.queries.WithTx(tx), row.VersionID, &data); err != nil {
+			return EffectiveReference{}, s.internal("read fund account operating entity", err)
+		}
+	}
 	if entity == EntityProduct {
 		data.Formula, err = loadProductFormula(ctx, s.queries.WithTx(tx), row.VersionID)
 		if err != nil {
@@ -913,11 +1115,34 @@ func (s *Service) lockTarget(ctx context.Context, entity, objectID, versionID st
 }
 
 func (s *Service) validateStoredDetail(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, entity, objectID, versionID string) error {
+	if entity == EntityCustomer {
+		specialized, err := q.BobObjectIsCustomerAccount(ctx, objectID)
+		if err != nil {
+			return s.internal("classify stored customer", err)
+		}
+		if specialized {
+			return s.validateStoredCustomer(ctx, tx, versionID)
+		}
+	}
+	if entity == EntityOperatingEntity {
+		row, err := q.GetStoredBobOperatingEntityDetail(ctx, versionID)
+		if err != nil {
+			return s.internal("read stored operating entity", err)
+		}
+		data := DetailView{Name: row.LegalName, ShortName: row.ShortName, TaxNumber: row.TaxNumber, Address: row.Address, Phone: row.Phone, Remark: row.Remark}
+		_, err = validateDetailData(entity, data)
+		return err
+	}
 	row, err := q.GetBobVersionView(ctx, dbsqlc.GetBobVersionViewParams{ObjectID: objectID, Entity: entity, VersionID: versionID})
 	if err != nil {
 		return s.internal("read stored detail", err)
 	}
 	data := detailView(row)
+	if entity == EntityFundAccount {
+		if err = loadFundAccountOperating(ctx, q, versionID, &data); err != nil {
+			return s.internal("read stored fund account operating entity", err)
+		}
+	}
 	if entity == EntityProduct {
 		data.Formula, err = loadProductFormula(ctx, q, versionID)
 		if err != nil {
@@ -929,6 +1154,32 @@ func (s *Service) validateStoredDetail(ctx context.Context, tx pgx.Tx, q *dbsqlc
 		return err
 	}
 	return s.validateDetailReferences(ctx, tx, q, entity, objectID, data)
+}
+
+func (s *Service) validateStoredCustomer(ctx context.Context, tx pgx.Tx, versionID string) error {
+	row, err := s.queries.WithTx(tx).GetStoredBobCustomerValidationData(ctx, versionID)
+	if err != nil {
+		return s.internal("read stored customer", err)
+	}
+	var policy PricingPolicy
+	if err = json.Unmarshal(row.PricingPolicy, &policy); err != nil {
+		return domainError(ErrorValidation, "invalid customer pricing policy", nil, err)
+	}
+	if _, err = normalizePricingPolicy(policy); err != nil {
+		return domainError(ErrorValidation, "invalid customer pricing policy", nil, err)
+	}
+	if row.OperatingEntityID == "" || row.OperatingEntityCode == "" || row.OperatingEntityName == "" || row.SettlementMethodID == "" || row.SettlementMethodCode == "" || row.SettlementMethodName == "" || row.PaymentMethodID == "" || row.PaymentMethodCode == "" || row.PaymentMethodName == "" || row.DefaultTransportMethodCode == "" || row.DefaultTransportMethodName == "" {
+		return domainError(ErrorConflict, "customer transaction defaults are incomplete", nil, nil)
+	}
+	if err = s.validateDictionaryCode(ctx, tx, row.CustomerType, "DCT-0001"); err != nil {
+		return err
+	}
+	targetEntity := EntityEmployee
+	if deref(row.PrimarySalesAttributionType) != SalesAttributionInternalEmployee {
+		targetEntity = EntityOtherParty
+	}
+	_, err = s.ResolveCurrentEffectiveReference(ctx, tx, targetEntity, deref(row.PrimarySalesSubjectID))
+	return err
 }
 
 func effectiveReferenceDetail(row dbsqlc.BobVersionView) DetailView {
@@ -1041,6 +1292,7 @@ func (s *Service) validateDetailReferences(
 	add(EntityDepartment, data.DepartmentID)
 	add(EntityPosition, data.PositionID)
 	add(EntityEmployee, data.ManagerEmployeeID)
+	add(EntityOperatingEntity, data.OperatingEntityID)
 	add(EntitySettlementMethod, data.SettlementMethodID)
 	add(EntityEmployee, data.SalespersonEmployeeID)
 	add(EntityOtherParty, data.IntermediaryOtherPartyID)
@@ -1076,8 +1328,50 @@ func (s *Service) validateDetailReferences(
 	return nil
 }
 
+func loadFundAccountOperating(ctx context.Context, q *dbsqlc.Queries, versionID string, data *DetailView) error {
+	row, err := q.GetFundAccountOperatingDetail(ctx, versionID)
+	if err != nil {
+		return err
+	}
+	data.OperatingEntityID, data.OperatingEntityVersionID, data.OperatingEntityCode, data.OperatingEntityName = row.OperatingEntityID, row.OperatingEntityVersionID, row.OperatingEntityCode, row.OperatingEntityName
+	return nil
+}
+
+func loadStoredCustomerSettlement(ctx context.Context, q *dbsqlc.Queries, objectID, versionID string, data *DetailView) error {
+	row, err := q.GetStoredCustomerSettlement(ctx, dbsqlc.GetStoredCustomerSettlementParams{ObjectID: objectID, VersionID: versionID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	data.SettlementMethodID, data.SettlementMethodCode, data.SettlementMethodName, data.TermCode, data.RuleType = row.SettlementMethodID, row.SettlementMethodCode, row.SettlementMethodName, row.SettlementTermCode, row.SettlementRuleType
+	data.DueDays, data.MonthOffset, data.CutoffDay = row.SettlementDueDays, row.SettlementMonthOffset, row.SettlementCutoffDay
+	data.DayOffset = data.DueDays
+	if data.CutoffDay > 0 {
+		data.DayOfMonth = &data.CutoffDay
+	}
+	data.DefaultSalesSurcharge = formatMoneyCents(row.SettlementSalesSurchargeCents)
+	data.SettlementMethodVersionID = ""
+	return nil
+}
+
+func (s *Service) resolveFundAccountOperating(
+	ctx context.Context, tx pgx.Tx, data DetailView,
+) (DetailView, error) {
+	row, err := s.queries.WithTx(tx).ResolveFundAccountOperatingEntity(ctx, data.OperatingEntityID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DetailView{}, domainError(ErrorConflict, "operating-entity reference is unavailable", nil, nil)
+	}
+	if err != nil {
+		return DetailView{}, s.internal("resolve fund account operating entity", err)
+	}
+	data.OperatingEntityID, data.OperatingEntityVersionID, data.OperatingEntityCode, data.OperatingEntityName = row.ID, row.ID_2, row.Code, row.LegalName
+	return data, nil
+}
+
 func auxiliaryEntity(entity string) bool {
-	return slices.Contains([]string{EntityCategory, EntityDepartment, EntityPosition}, entity)
+	return slices.Contains([]string{EntityCategory, EntityDepartment, EntityPosition, EntitySettlementMethod}, entity)
 }
 
 func auxiliaryEntityName(entity string) string {
@@ -1099,14 +1393,22 @@ func (s *Service) resolveAuxiliaryReference(
 	if err != nil {
 		return EffectiveReference{}, domainError(ErrorConflict, auxiliaryEntityName(entity)+" reference is unavailable", nil, err)
 	}
+	dayOfMonth := int32(mapInt(reference.Data, "dayOfMonth"))
+	var dayOfMonthPointer *int32
+	if dayOfMonth > 0 {
+		dayOfMonthPointer = &dayOfMonth
+	}
 	data := DetailView{
 		Name:                  mapString(reference.Data, "name"),
 		ParentID:              mapString(reference.Data, "parentId"),
 		Description:           mapString(reference.Data, "description"),
+		TermCode:              mapString(reference.Data, "termCode"),
 		RuleType:              mapString(reference.Data, "ruleType"),
 		MonthOffset:           int32(mapInt(reference.Data, "monthOffset")),
-		DueDays:               int32(mapInt(reference.Data, "dueDays")),
-		CutoffDay:             int32(mapInt(reference.Data, "cutoffDay")),
+		DayOfMonth:            dayOfMonthPointer,
+		DayOffset:             int32(mapInt(reference.Data, "dayOffset")),
+		DueDays:               int32(mapInt(reference.Data, "dayOffset")),
+		CutoffDay:             int32(mapInt(reference.Data, "dayOfMonth")),
 		DefaultSalesSurcharge: mapString(reference.Data, "defaultSalesSurcharge"),
 	}
 	if data.RuleType == "DUE_DAYS" {

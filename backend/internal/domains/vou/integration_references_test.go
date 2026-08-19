@@ -14,7 +14,7 @@ func TestVOUIntegrationSnapshotsSettlementGapsAndLegacyRows(t *testing.T) {
 	t.Cleanup(func() { truncateVOU(t, pool) })
 	refs := prepareReferences(t, pool)
 	service := newIntegrationService(t, pool)
-	bobService := bobdomain.NewService(pool)
+	bobService := newBOBIntegrationService(pool)
 	saleDraft := DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
 		Salesperson: &refs.employee, Warehouse: &refs.warehouse,
@@ -79,8 +79,8 @@ func TestVOUIntegrationSnapshotsSettlementGapsAndLegacyRows(t *testing.T) {
 		t, bobService, bobdomain.EntitySettlementMethod, settlementView, "snapshot-settlement-edit",
 	)
 	if _, err = service.Create(t.Context(), EntitySaleOrder, CreateInput{Data: saleDraft},
-		integrationActorOne, "snapshot-settlement-gap"); err == nil {
-		t.Fatal("sale was created while settlement method had no effective version")
+		integrationActorOne, "snapshot-settlement-gap"); err != nil {
+		t.Fatalf("saved customer settlement stopped working after source edit: %v", err)
 	}
 	updatedSurcharge := "0.25"
 	settlementSaved, err := bobService.Save(t.Context(), bobdomain.EntitySettlementMethod, bobdomain.SaveInput{
@@ -179,7 +179,7 @@ func TestVOUIntegrationPersonnelDefaultsOverridesAndSavePreservesSnapshot(t *tes
 	truncateVOU(t, pool)
 	t.Cleanup(func() { truncateVOU(t, pool) })
 	refs := prepareReferences(t, pool)
-	bobService := bobdomain.NewService(pool)
+	bobService := newBOBIntegrationService(pool)
 	override := createApprovedBOB(t, bobService, bobdomain.EntityEmployee, bobdomain.CreateDetailInput{
 		Code: "VOE" + newID(), Name: "显式覆盖员工",
 	})
@@ -242,7 +242,7 @@ func TestVOUIntegrationRejectsInvalidReferencesAndDatabaseContracts(t *testing.T
 		t.Fatal("purchase accepted logistics platform as supplier")
 	}
 
-	usdAccount := createApprovedBOB(t, bobdomain.NewService(pool), bobdomain.EntityFundAccount,
+	usdAccount := createApprovedBOB(t, newBOBIntegrationService(pool), bobdomain.EntityFundAccount,
 		bobdomain.CreateDetailInput{Code: "USD" + newID(), Name: "美元账户", Currency: "USD"})
 	_, err = service.Create(t.Context(), EntitySalesReceipt, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",

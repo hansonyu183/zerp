@@ -25,34 +25,40 @@ import (
 
 // Defines values for AuxEntity.
 const (
-	AssetCategory     AuxEntity = "asset-category"
-	Department        AuxEntity = "department"
-	DictionaryItem    AuxEntity = "dictionary-item"
-	DictionaryType    AuxEntity = "dictionary-type"
-	IncomeExpenseType AuxEntity = "income-expense-type"
-	MeasurementUnit   AuxEntity = "measurement-unit"
-	Position          AuxEntity = "position"
-	ProductCategory   AuxEntity = "product-category"
+	AuxEntityAssetCategory     AuxEntity = "asset-category"
+	AuxEntityDepartment        AuxEntity = "department"
+	AuxEntityDictionaryItem    AuxEntity = "dictionary-item"
+	AuxEntityDictionaryType    AuxEntity = "dictionary-type"
+	AuxEntityIncomeExpenseType AuxEntity = "income-expense-type"
+	AuxEntityMeasurementUnit   AuxEntity = "measurement-unit"
+	AuxEntityPaymentMethod     AuxEntity = "payment-method"
+	AuxEntityPosition          AuxEntity = "position"
+	AuxEntityProductCategory   AuxEntity = "product-category"
+	AuxEntitySettlementMethod  AuxEntity = "settlement-method"
 )
 
 // Valid indicates whether the value is a known member of the AuxEntity enum.
 func (e AuxEntity) Valid() bool {
 	switch e {
-	case AssetCategory:
+	case AuxEntityAssetCategory:
 		return true
-	case Department:
+	case AuxEntityDepartment:
 		return true
-	case DictionaryItem:
+	case AuxEntityDictionaryItem:
 		return true
-	case DictionaryType:
+	case AuxEntityDictionaryType:
 		return true
-	case IncomeExpenseType:
+	case AuxEntityIncomeExpenseType:
 		return true
-	case MeasurementUnit:
+	case AuxEntityMeasurementUnit:
 		return true
-	case Position:
+	case AuxEntityPaymentMethod:
 		return true
-	case ProductCategory:
+	case AuxEntityPosition:
+		return true
+	case AuxEntityProductCategory:
+		return true
+	case AuxEntitySettlementMethod:
 		return true
 	default:
 		return false
@@ -119,6 +125,27 @@ func (e AuxQueryRequestSortOrder) Valid() bool {
 	}
 }
 
+// Defines values for AuxReferenceQueryRequestEntity.
+const (
+	AuxReferenceQueryRequestEntityDictionaryItem   AuxReferenceQueryRequestEntity = "dictionary-item"
+	AuxReferenceQueryRequestEntityPaymentMethod    AuxReferenceQueryRequestEntity = "payment-method"
+	AuxReferenceQueryRequestEntitySettlementMethod AuxReferenceQueryRequestEntity = "settlement-method"
+)
+
+// Valid indicates whether the value is a known member of the AuxReferenceQueryRequestEntity enum.
+func (e AuxReferenceQueryRequestEntity) Valid() bool {
+	switch e {
+	case AuxReferenceQueryRequestEntityDictionaryItem:
+		return true
+	case AuxReferenceQueryRequestEntityPaymentMethod:
+		return true
+	case AuxReferenceQueryRequestEntitySettlementMethod:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BalanceDirection.
 const (
 	CREDIT BalanceDirection = "CREDIT"
@@ -163,16 +190,16 @@ func (e BobCreateRequestDataProductKind) Valid() bool {
 
 // Defines values for BobEntity.
 const (
-	BobEntityCustomer         BobEntity = "customer"
-	BobEntityEmployee         BobEntity = "employee"
-	BobEntityFundAccount      BobEntity = "fund-account"
-	BobEntityOtherParty       BobEntity = "other-party"
-	BobEntityProduct          BobEntity = "product"
-	BobEntityService          BobEntity = "service"
-	BobEntitySettlementMethod BobEntity = "settlement-method"
-	BobEntitySupplier         BobEntity = "supplier"
-	BobEntityVehicle          BobEntity = "vehicle"
-	BobEntityWarehouse        BobEntity = "warehouse"
+	BobEntityCustomer        BobEntity = "customer"
+	BobEntityEmployee        BobEntity = "employee"
+	BobEntityFundAccount     BobEntity = "fund-account"
+	BobEntityOperatingEntity BobEntity = "operating-entity"
+	BobEntityOtherParty      BobEntity = "other-party"
+	BobEntityProduct         BobEntity = "product"
+	BobEntityService         BobEntity = "service"
+	BobEntitySupplier        BobEntity = "supplier"
+	BobEntityVehicle         BobEntity = "vehicle"
+	BobEntityWarehouse       BobEntity = "warehouse"
 )
 
 // Valid indicates whether the value is a known member of the BobEntity enum.
@@ -184,13 +211,13 @@ func (e BobEntity) Valid() bool {
 		return true
 	case BobEntityFundAccount:
 		return true
+	case BobEntityOperatingEntity:
+		return true
 	case BobEntityOtherParty:
 		return true
 	case BobEntityProduct:
 		return true
 	case BobEntityService:
-		return true
-	case BobEntitySettlementMethod:
 		return true
 	case BobEntitySupplier:
 		return true
@@ -215,6 +242,36 @@ func (e BobQueryRequestSortOrder) Valid() bool {
 	case BobQueryRequestSortOrderAsc:
 		return true
 	case BobQueryRequestSortOrderDesc:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BobReferenceQueryRequestEntity.
+const (
+	BobReferenceQueryRequestEntityCustomer        BobReferenceQueryRequestEntity = "customer"
+	BobReferenceQueryRequestEntityEmployee        BobReferenceQueryRequestEntity = "employee"
+	BobReferenceQueryRequestEntityOperatingEntity BobReferenceQueryRequestEntity = "operating-entity"
+	BobReferenceQueryRequestEntityOtherParty      BobReferenceQueryRequestEntity = "other-party"
+	BobReferenceQueryRequestEntityProduct         BobReferenceQueryRequestEntity = "product"
+	BobReferenceQueryRequestEntitySupplier        BobReferenceQueryRequestEntity = "supplier"
+)
+
+// Valid indicates whether the value is a known member of the BobReferenceQueryRequestEntity enum.
+func (e BobReferenceQueryRequestEntity) Valid() bool {
+	switch e {
+	case BobReferenceQueryRequestEntityCustomer:
+		return true
+	case BobReferenceQueryRequestEntityEmployee:
+		return true
+	case BobReferenceQueryRequestEntityOperatingEntity:
+		return true
+	case BobReferenceQueryRequestEntityOtherParty:
+		return true
+	case BobReferenceQueryRequestEntityProduct:
+		return true
+	case BobReferenceQueryRequestEntitySupplier:
 		return true
 	default:
 		return false
@@ -266,6 +323,300 @@ func (e BobVersionSummaryStatus) Valid() bool {
 	case BobVersionSummaryStatusPENDING:
 		return true
 	case BobVersionSummaryStatusREJECTED:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CustomerAttachmentInitiateRequestContentType.
+const (
+	CustomerAttachmentInitiateRequestContentTypeApplicationpdf CustomerAttachmentInitiateRequestContentType = "application/pdf"
+	CustomerAttachmentInitiateRequestContentTypeImagejpeg      CustomerAttachmentInitiateRequestContentType = "image/jpeg"
+	CustomerAttachmentInitiateRequestContentTypeImagepng       CustomerAttachmentInitiateRequestContentType = "image/png"
+)
+
+// Valid indicates whether the value is a known member of the CustomerAttachmentInitiateRequestContentType enum.
+func (e CustomerAttachmentInitiateRequestContentType) Valid() bool {
+	switch e {
+	case CustomerAttachmentInitiateRequestContentTypeApplicationpdf:
+		return true
+	case CustomerAttachmentInitiateRequestContentTypeImagejpeg:
+		return true
+	case CustomerAttachmentInitiateRequestContentTypeImagepng:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CustomerAttachmentScope.
+const (
+	CustomerAttachmentScopeACCOUNT CustomerAttachmentScope = "ACCOUNT"
+	CustomerAttachmentScopeGROUP   CustomerAttachmentScope = "GROUP"
+)
+
+// Valid indicates whether the value is a known member of the CustomerAttachmentScope enum.
+func (e CustomerAttachmentScope) Valid() bool {
+	switch e {
+	case CustomerAttachmentScopeACCOUNT:
+		return true
+	case CustomerAttachmentScopeGROUP:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CustomerAttachmentViewContentType.
+const (
+	CustomerAttachmentViewContentTypeApplicationpdf CustomerAttachmentViewContentType = "application/pdf"
+	CustomerAttachmentViewContentTypeImagejpeg      CustomerAttachmentViewContentType = "image/jpeg"
+	CustomerAttachmentViewContentTypeImagepng       CustomerAttachmentViewContentType = "image/png"
+)
+
+// Valid indicates whether the value is a known member of the CustomerAttachmentViewContentType enum.
+func (e CustomerAttachmentViewContentType) Valid() bool {
+	switch e {
+	case CustomerAttachmentViewContentTypeApplicationpdf:
+		return true
+	case CustomerAttachmentViewContentTypeImagejpeg:
+		return true
+	case CustomerAttachmentViewContentTypeImagepng:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CustomerAttachmentViewStatus.
+const (
+	CustomerAttachmentViewStatusPENDING CustomerAttachmentViewStatus = "PENDING"
+	CustomerAttachmentViewStatusREADY   CustomerAttachmentViewStatus = "READY"
+)
+
+// Valid indicates whether the value is a known member of the CustomerAttachmentViewStatus enum.
+func (e CustomerAttachmentViewStatus) Valid() bool {
+	switch e {
+	case CustomerAttachmentViewStatusPENDING:
+		return true
+	case CustomerAttachmentViewStatusREADY:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CustomerCreditLimitCurrency.
+const (
+	CustomerCreditLimitCurrencyCNY CustomerCreditLimitCurrency = "CNY"
+)
+
+// Valid indicates whether the value is a known member of the CustomerCreditLimitCurrency enum.
+func (e CustomerCreditLimitCurrency) Valid() bool {
+	switch e {
+	case CustomerCreditLimitCurrencyCNY:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CustomerPricingCostItemBasis.
+const (
+	ORDERAMOUNT CustomerPricingCostItemBasis = "ORDER_AMOUNT"
+	UNITPRICE   CustomerPricingCostItemBasis = "UNIT_PRICE"
+)
+
+// Valid indicates whether the value is a known member of the CustomerPricingCostItemBasis enum.
+func (e CustomerPricingCostItemBasis) Valid() bool {
+	switch e {
+	case ORDERAMOUNT:
+		return true
+	case UNITPRICE:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CustomerQueryRequestFiltersSalesAttributionType.
+const (
+	CustomerQueryRequestFiltersSalesAttributionTypeDEALER           CustomerQueryRequestFiltersSalesAttributionType = "DEALER"
+	CustomerQueryRequestFiltersSalesAttributionTypeEXTERNALPARTTIME CustomerQueryRequestFiltersSalesAttributionType = "EXTERNAL_PART_TIME"
+	CustomerQueryRequestFiltersSalesAttributionTypeINTERNALEMPLOYEE CustomerQueryRequestFiltersSalesAttributionType = "INTERNAL_EMPLOYEE"
+)
+
+// Valid indicates whether the value is a known member of the CustomerQueryRequestFiltersSalesAttributionType enum.
+func (e CustomerQueryRequestFiltersSalesAttributionType) Valid() bool {
+	switch e {
+	case CustomerQueryRequestFiltersSalesAttributionTypeDEALER:
+		return true
+	case CustomerQueryRequestFiltersSalesAttributionTypeEXTERNALPARTTIME:
+		return true
+	case CustomerQueryRequestFiltersSalesAttributionTypeINTERNALEMPLOYEE:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CustomerQueryRequestPageSize.
+const (
+	CustomerQueryRequestPageSizeN20 CustomerQueryRequestPageSize = 20
+)
+
+// Valid indicates whether the value is a known member of the CustomerQueryRequestPageSize enum.
+func (e CustomerQueryRequestPageSize) Valid() bool {
+	switch e {
+	case CustomerQueryRequestPageSizeN20:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CustomerQueryRequestSortField.
+const (
+	CustomerQueryRequestSortFieldCode CustomerQueryRequestSortField = "code"
+)
+
+// Valid indicates whether the value is a known member of the CustomerQueryRequestSortField enum.
+func (e CustomerQueryRequestSortField) Valid() bool {
+	switch e {
+	case CustomerQueryRequestSortFieldCode:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CustomerQueryRequestSortOrder.
+const (
+	CustomerQueryRequestSortOrderAsc CustomerQueryRequestSortOrder = "asc"
+)
+
+// Valid indicates whether the value is a known member of the CustomerQueryRequestSortOrder enum.
+func (e CustomerQueryRequestSortOrder) Valid() bool {
+	switch e {
+	case CustomerQueryRequestSortOrderAsc:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CustomerReferenceTransferRequestEntity.
+const (
+	CustomerReferenceTransferRequestEntityCustomer        CustomerReferenceTransferRequestEntity = "customer"
+	CustomerReferenceTransferRequestEntityEmployee        CustomerReferenceTransferRequestEntity = "employee"
+	CustomerReferenceTransferRequestEntityOperatingEntity CustomerReferenceTransferRequestEntity = "operating-entity"
+	CustomerReferenceTransferRequestEntityOtherParty      CustomerReferenceTransferRequestEntity = "other-party"
+	CustomerReferenceTransferRequestEntityProduct         CustomerReferenceTransferRequestEntity = "product"
+	CustomerReferenceTransferRequestEntitySupplier        CustomerReferenceTransferRequestEntity = "supplier"
+)
+
+// Valid indicates whether the value is a known member of the CustomerReferenceTransferRequestEntity enum.
+func (e CustomerReferenceTransferRequestEntity) Valid() bool {
+	switch e {
+	case CustomerReferenceTransferRequestEntityCustomer:
+		return true
+	case CustomerReferenceTransferRequestEntityEmployee:
+		return true
+	case CustomerReferenceTransferRequestEntityOperatingEntity:
+		return true
+	case CustomerReferenceTransferRequestEntityOtherParty:
+		return true
+	case CustomerReferenceTransferRequestEntityProduct:
+		return true
+	case CustomerReferenceTransferRequestEntitySupplier:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CustomerSalesAttributionInputType.
+const (
+	CustomerSalesAttributionInputTypeDEALER           CustomerSalesAttributionInputType = "DEALER"
+	CustomerSalesAttributionInputTypeEXTERNALPARTTIME CustomerSalesAttributionInputType = "EXTERNAL_PART_TIME"
+	CustomerSalesAttributionInputTypeINTERNALEMPLOYEE CustomerSalesAttributionInputType = "INTERNAL_EMPLOYEE"
+)
+
+// Valid indicates whether the value is a known member of the CustomerSalesAttributionInputType enum.
+func (e CustomerSalesAttributionInputType) Valid() bool {
+	switch e {
+	case CustomerSalesAttributionInputTypeDEALER:
+		return true
+	case CustomerSalesAttributionInputTypeEXTERNALPARTTIME:
+		return true
+	case CustomerSalesAttributionInputTypeINTERNALEMPLOYEE:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CustomerSalesAttributionViewType.
+const (
+	CustomerSalesAttributionViewTypeDEALER           CustomerSalesAttributionViewType = "DEALER"
+	CustomerSalesAttributionViewTypeEXTERNALPARTTIME CustomerSalesAttributionViewType = "EXTERNAL_PART_TIME"
+	CustomerSalesAttributionViewTypeINTERNALEMPLOYEE CustomerSalesAttributionViewType = "INTERNAL_EMPLOYEE"
+)
+
+// Valid indicates whether the value is a known member of the CustomerSalesAttributionViewType enum.
+func (e CustomerSalesAttributionViewType) Valid() bool {
+	switch e {
+	case CustomerSalesAttributionViewTypeDEALER:
+		return true
+	case CustomerSalesAttributionViewTypeEXTERNALPARTTIME:
+		return true
+	case CustomerSalesAttributionViewTypeINTERNALEMPLOYEE:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CustomerTaxMatchSourceEntity.
+const (
+	CustomerTaxMatchSourceEntityCustomerGroup CustomerTaxMatchSourceEntity = "customer-group"
+	CustomerTaxMatchSourceEntityOtherParty    CustomerTaxMatchSourceEntity = "other-party"
+	CustomerTaxMatchSourceEntitySupplier      CustomerTaxMatchSourceEntity = "supplier"
+)
+
+// Valid indicates whether the value is a known member of the CustomerTaxMatchSourceEntity enum.
+func (e CustomerTaxMatchSourceEntity) Valid() bool {
+	switch e {
+	case CustomerTaxMatchSourceEntityCustomerGroup:
+		return true
+	case CustomerTaxMatchSourceEntityOtherParty:
+		return true
+	case CustomerTaxMatchSourceEntitySupplier:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CustomerVersionMetaStatus.
+const (
+	CustomerVersionMetaStatusDRAFT     CustomerVersionMetaStatus = "DRAFT"
+	CustomerVersionMetaStatusEFFECTIVE CustomerVersionMetaStatus = "EFFECTIVE"
+	CustomerVersionMetaStatusINVALID   CustomerVersionMetaStatus = "INVALID"
+	CustomerVersionMetaStatusPENDING   CustomerVersionMetaStatus = "PENDING"
+)
+
+// Valid indicates whether the value is a known member of the CustomerVersionMetaStatus enum.
+func (e CustomerVersionMetaStatus) Valid() bool {
+	switch e {
+	case CustomerVersionMetaStatusDRAFT:
+		return true
+	case CustomerVersionMetaStatusEFFECTIVE:
+		return true
+	case CustomerVersionMetaStatusINVALID:
+		return true
+	case CustomerVersionMetaStatusPENDING:
 		return true
 	default:
 		return false
@@ -361,16 +712,16 @@ func (e MappingState) Valid() bool {
 
 // Defines values for MenuItemType.
 const (
-	GROUP MenuItemType = "GROUP"
-	ROUTE MenuItemType = "ROUTE"
+	MenuItemTypeGROUP MenuItemType = "GROUP"
+	MenuItemTypeROUTE MenuItemType = "ROUTE"
 )
 
 // Valid indicates whether the value is a known member of the MenuItemType enum.
 func (e MenuItemType) Valid() bool {
 	switch e {
-	case GROUP:
+	case MenuItemTypeGROUP:
 		return true
-	case ROUTE:
+	case MenuItemTypeROUTE:
 		return true
 	default:
 		return false
@@ -1699,13 +2050,13 @@ func (e VouFormulaInputSourceType) Valid() bool {
 
 // Defines values for VouIntermediaryCalculationSourceCurrency.
 const (
-	CNY VouIntermediaryCalculationSourceCurrency = "CNY"
+	VouIntermediaryCalculationSourceCurrencyCNY VouIntermediaryCalculationSourceCurrency = "CNY"
 )
 
 // Valid indicates whether the value is a known member of the VouIntermediaryCalculationSourceCurrency enum.
 func (e VouIntermediaryCalculationSourceCurrency) Valid() bool {
 	switch e {
-	case CNY:
+	case VouIntermediaryCalculationSourceCurrencyCNY:
 		return true
 	default:
 		return false
@@ -2224,6 +2575,16 @@ type AuxQueryRequestSortField string
 // AuxQueryRequestSortOrder defines model for AuxQueryRequest.Sort.Order.
 type AuxQueryRequestSortOrder string
 
+// AuxReferenceQueryRequest defines model for AuxReferenceQueryRequest.
+type AuxReferenceQueryRequest struct {
+	DictionaryTypeCode *string                        `json:"dictionaryTypeCode,omitempty"`
+	Entity             AuxReferenceQueryRequestEntity `json:"entity"`
+	Keyword            *string                        `json:"keyword,omitempty"`
+}
+
+// AuxReferenceQueryRequestEntity defines model for AuxReferenceQueryRequest.Entity.
+type AuxReferenceQueryRequestEntity string
+
 // AuxRevisionRequest defines model for AuxRevisionRequest.
 type AuxRevisionRequest struct {
 	ObjectId string `json:"objectId"`
@@ -2263,15 +2624,13 @@ type BobCreateRequest struct {
 		HireDate              *string                 `json:"hireDate,omitempty"`
 
 		// IntermediaryOtherPartyId 仅客户适用；引用其他往来单位中的居间商
-		IntermediaryOtherPartyId *string `json:"intermediaryOtherPartyId,omitempty"`
-		InventoryUnitId          *string `json:"inventoryUnitId,omitempty"`
-		LoadCapacityKg           *string `json:"loadCapacityKg,omitempty"`
-		ManagerEmployeeId        *string `json:"managerEmployeeId,omitempty"`
-		Model                    *string `json:"model,omitempty"`
-
-		// MonthlyClosingDay 仅客户适用；创建客户时省略则按 31 处理
-		MonthlyClosingDay               *int                             `json:"monthlyClosingDay,omitempty"`
+		IntermediaryOtherPartyId        *string                          `json:"intermediaryOtherPartyId,omitempty"`
+		InventoryUnitId                 *string                          `json:"inventoryUnitId,omitempty"`
+		LoadCapacityKg                  *string                          `json:"loadCapacityKg,omitempty"`
+		ManagerEmployeeId               *string                          `json:"managerEmployeeId,omitempty"`
+		Model                           *string                          `json:"model,omitempty"`
 		Name                            *string                          `json:"name"`
+		OperatingEntityId               *string                          `json:"operatingEntityId,omitempty"`
 		PackagingSpecs                  *[]BobPackagingSpecInput         `json:"packagingSpecs,omitempty"`
 		Phone                           *string                          `json:"phone,omitempty"`
 		PlateNumber                     *string                          `json:"plateNumber,omitempty"`
@@ -2396,6 +2755,16 @@ type BobQueryResponse struct {
 	RequestId string       `json:"requestId"`
 }
 
+// BobReferenceQueryRequest defines model for BobReferenceQueryRequest.
+type BobReferenceQueryRequest struct {
+	Entity         BobReferenceQueryRequestEntity `json:"entity"`
+	Keyword        *string                        `json:"keyword,omitempty"`
+	SourceObjectId *string                        `json:"sourceObjectId,omitempty"`
+}
+
+// BobReferenceQueryRequestEntity defines model for BobReferenceQueryRequest.Entity.
+type BobReferenceQueryRequestEntity string
+
 // BobReverseRequest defines model for BobReverseRequest.
 type BobReverseRequest struct {
 	ObjectId       string `json:"objectId"`
@@ -2439,8 +2808,8 @@ type BobSaveRequest struct {
 		LoadCapacityKg                  *string                        `json:"loadCapacityKg,omitempty"`
 		ManagerEmployeeId               *string                        `json:"managerEmployeeId,omitempty"`
 		Model                           *string                        `json:"model,omitempty"`
-		MonthlyClosingDay               *int                           `json:"monthlyClosingDay,omitempty"`
 		Name                            *string                        `json:"name,omitempty"`
+		OperatingEntityId               *string                        `json:"operatingEntityId,omitempty"`
 		PackagingSpecs                  *[]BobPackagingSpecInput       `json:"packagingSpecs,omitempty"`
 		Phone                           *string                        `json:"phone,omitempty"`
 		PlateNumber                     *string                        `json:"plateNumber,omitempty"`
@@ -2599,6 +2968,470 @@ type CreateUserRequest struct {
 	Password    string   `json:"password"`
 	RoleIds     []string `json:"roleIds"`
 	Username    string   `json:"username"`
+}
+
+// CustomerAccountInput defines model for CustomerAccountInput.
+type CustomerAccountInput struct {
+	Address                    *string                       `json:"address,omitempty"`
+	ContactName                *string                       `json:"contactName,omitempty"`
+	ContactPhone               *string                       `json:"contactPhone,omitempty"`
+	CreditLimits               []CustomerCreditLimit         `json:"creditLimits"`
+	CustomerTypeCode           string                        `json:"customerTypeCode"`
+	DefaultSalesOrderRemark    *string                       `json:"defaultSalesOrderRemark,omitempty"`
+	DefaultTransportMethodCode *string                       `json:"defaultTransportMethodCode,omitempty"`
+	DefaultTransportMethodName *string                       `json:"defaultTransportMethodName,omitempty"`
+	Email                      *string                       `json:"email,omitempty"`
+	InternalReminder           *string                       `json:"internalReminder,omitempty"`
+	Name                       string                        `json:"name"`
+	OperatingEntityId          *string                       `json:"operatingEntityId,omitempty"`
+	PaymentMethodId            *string                       `json:"paymentMethodId,omitempty"`
+	PricingPolicy              CustomerPricingPolicy         `json:"pricingPolicy"`
+	PrimarySalesAttribution    CustomerSalesAttributionInput `json:"primarySalesAttribution"`
+	SettlementMethodId         *string                       `json:"settlementMethodId,omitempty"`
+	ShortName                  *string                       `json:"shortName,omitempty"`
+	TransportSurcharge         *string                       `json:"transportSurcharge,omitempty"`
+}
+
+// CustomerAccountView defines model for CustomerAccountView.
+type CustomerAccountView struct {
+	Address                    *string                      `json:"address,omitempty"`
+	ContactName                *string                      `json:"contactName,omitempty"`
+	ContactPhone               *string                      `json:"contactPhone,omitempty"`
+	CreditLimits               []CustomerCreditLimit        `json:"creditLimits"`
+	CustomerTypeCode           string                       `json:"customerTypeCode"`
+	DefaultSalesOrderRemark    *string                      `json:"defaultSalesOrderRemark,omitempty"`
+	DefaultTransportMethodCode *string                      `json:"defaultTransportMethodCode,omitempty"`
+	DefaultTransportMethodName *string                      `json:"defaultTransportMethodName,omitempty"`
+	Email                      *string                      `json:"email,omitempty"`
+	InternalReminder           *string                      `json:"internalReminder,omitempty"`
+	Name                       string                       `json:"name"`
+	OperatingEntity            *CustomerSnapshot            `json:"operatingEntity"`
+	OperatingEntityId          *string                      `json:"operatingEntityId,omitempty"`
+	PaymentMethod              *CustomerSnapshot            `json:"paymentMethod"`
+	PaymentMethodId            *string                      `json:"paymentMethodId,omitempty"`
+	PricingPolicy              CustomerPricingPolicy        `json:"pricingPolicy"`
+	PrimarySalesAttribution    CustomerSalesAttributionView `json:"primarySalesAttribution"`
+	SettlementMethod           *CustomerSnapshot            `json:"settlementMethod"`
+	SettlementMethodId         *string                      `json:"settlementMethodId,omitempty"`
+	ShortName                  *string                      `json:"shortName,omitempty"`
+	TransportSurcharge         *string                      `json:"transportSurcharge,omitempty"`
+}
+
+// CustomerAttachmentDownloadRequest defines model for CustomerAttachmentDownloadRequest.
+type CustomerAttachmentDownloadRequest struct {
+	FileId  string                  `json:"fileId"`
+	OwnerId string                  `json:"ownerId"`
+	Scope   CustomerAttachmentScope `json:"scope"`
+}
+
+// CustomerAttachmentDownloadResponse defines model for CustomerAttachmentDownloadResponse.
+type CustomerAttachmentDownloadResponse struct {
+	Code      int                              `json:"code"`
+	Data      CustomerAttachmentDownloadResult `json:"data"`
+	Message   string                           `json:"message"`
+	RequestId string                           `json:"requestId"`
+}
+
+// CustomerAttachmentDownloadResult defines model for CustomerAttachmentDownloadResult.
+type CustomerAttachmentDownloadResult struct {
+	DownloadUrl string    `json:"downloadUrl"`
+	ExpiresAt   time.Time `json:"expiresAt"`
+}
+
+// CustomerAttachmentInitiateRequest defines model for CustomerAttachmentInitiateRequest.
+type CustomerAttachmentInitiateRequest struct {
+	CategoryObjectId string                                       `json:"categoryObjectId"`
+	ContentType      CustomerAttachmentInitiateRequestContentType `json:"contentType"`
+	FileName         string                                       `json:"fileName"`
+	OwnerId          string                                       `json:"ownerId"`
+	Revision         int64                                        `json:"revision"`
+	Scope            CustomerAttachmentScope                      `json:"scope"`
+	Sha256           string                                       `json:"sha256"`
+	Size             int64                                        `json:"size"`
+}
+
+// CustomerAttachmentInitiateRequestContentType defines model for CustomerAttachmentInitiateRequest.ContentType.
+type CustomerAttachmentInitiateRequestContentType string
+
+// CustomerAttachmentInitiateResponse defines model for CustomerAttachmentInitiateResponse.
+type CustomerAttachmentInitiateResponse struct {
+	Code      int                              `json:"code"`
+	Data      CustomerAttachmentInitiateResult `json:"data"`
+	Message   string                           `json:"message"`
+	RequestId string                           `json:"requestId"`
+}
+
+// CustomerAttachmentInitiateResult defines model for CustomerAttachmentInitiateResult.
+type CustomerAttachmentInitiateResult struct {
+	ExpiresAt time.Time `json:"expiresAt"`
+	FileId    string    `json:"fileId"`
+	Revision  int64     `json:"revision"`
+	UploadUrl string    `json:"uploadUrl"`
+}
+
+// CustomerAttachmentMutationResult defines model for CustomerAttachmentMutationResult.
+type CustomerAttachmentMutationResult struct {
+	Revision int64 `json:"revision"`
+}
+
+// CustomerAttachmentRemoveRequest defines model for CustomerAttachmentRemoveRequest.
+type CustomerAttachmentRemoveRequest struct {
+	FileId   string                  `json:"fileId"`
+	OwnerId  string                  `json:"ownerId"`
+	Revision int64                   `json:"revision"`
+	Scope    CustomerAttachmentScope `json:"scope"`
+}
+
+// CustomerAttachmentRemoveResponse defines model for CustomerAttachmentRemoveResponse.
+type CustomerAttachmentRemoveResponse struct {
+	Code      int                              `json:"code"`
+	Data      CustomerAttachmentMutationResult `json:"data"`
+	Message   string                           `json:"message"`
+	RequestId string                           `json:"requestId"`
+}
+
+// CustomerAttachmentScope defines model for CustomerAttachmentScope.
+type CustomerAttachmentScope string
+
+// CustomerAttachmentView defines model for CustomerAttachmentView.
+type CustomerAttachmentView struct {
+	CategoryCode      string                            `json:"categoryCode"`
+	CategoryName      string                            `json:"categoryName"`
+	CategoryObjectId  string                            `json:"categoryObjectId"`
+	CategoryVersionId string                            `json:"categoryVersionId"`
+	ContentType       CustomerAttachmentViewContentType `json:"contentType"`
+	CreatedAt         time.Time                         `json:"createdAt"`
+	CreatedBy         string                            `json:"createdBy"`
+	FileId            string                            `json:"fileId"`
+	FileName          string                            `json:"fileName"`
+	Sha256            string                            `json:"sha256"`
+	Size              int64                             `json:"size"`
+	Status            CustomerAttachmentViewStatus      `json:"status"`
+	StoredAt          *time.Time                        `json:"storedAt,omitempty"`
+}
+
+// CustomerAttachmentViewContentType defines model for CustomerAttachmentView.ContentType.
+type CustomerAttachmentViewContentType string
+
+// CustomerAttachmentViewStatus defines model for CustomerAttachmentView.Status.
+type CustomerAttachmentViewStatus string
+
+// CustomerCreateRequest defines model for CustomerCreateRequest.
+type CustomerCreateRequest struct {
+	union json.RawMessage
+}
+
+// CustomerCreateRequest0 defines model for CustomerCreateRequest.0.
+type CustomerCreateRequest0 struct {
+	Data  CustomerAccountInput `json:"data"`
+	Group CustomerGroupData    `json:"group"`
+}
+
+// CustomerCreateRequest1 defines model for CustomerCreateRequest.1.
+type CustomerCreateRequest1 struct {
+	Data    CustomerAccountInput `json:"data"`
+	GroupId string               `json:"groupId"`
+}
+
+// CustomerCreditLimit defines model for CustomerCreditLimit.
+type CustomerCreditLimit struct {
+	Amount   string                      `json:"amount"`
+	Currency CustomerCreditLimitCurrency `json:"currency"`
+}
+
+// CustomerCreditLimitCurrency defines model for CustomerCreditLimit.Currency.
+type CustomerCreditLimitCurrency string
+
+// CustomerDetailView defines model for CustomerDetailView.
+type CustomerDetailView struct {
+	Candidate      *CustomerVersionView `json:"candidate"`
+	Code           string               `json:"code"`
+	Effective      *CustomerVersionView `json:"effective"`
+	Enabled        bool                 `json:"enabled"`
+	Group          CustomerGroupView    `json:"group"`
+	ObjectId       string               `json:"objectId"`
+	ObjectRevision int64                `json:"objectRevision"`
+	UpdatedAt      time.Time            `json:"updatedAt"`
+}
+
+// CustomerGetResponse defines model for CustomerGetResponse.
+type CustomerGetResponse struct {
+	Code      int                 `json:"code"`
+	Data      *CustomerDetailView `json:"data"`
+	Message   string              `json:"message"`
+	RequestId string              `json:"requestId"`
+}
+
+// CustomerGroupBankAccount defines model for CustomerGroupBankAccount.
+type CustomerGroupBankAccount struct {
+	AccountName   string `json:"accountName"`
+	AccountNumber string `json:"accountNumber"`
+	BankBranch    string `json:"bankBranch"`
+	BankName      string `json:"bankName"`
+}
+
+// CustomerGroupData defines model for CustomerGroupData.
+type CustomerGroupData struct {
+	BankAccounts   []CustomerGroupBankAccount `json:"bankAccounts"`
+	CompanyName    string                     `json:"companyName"`
+	InvoiceAddress *string                    `json:"invoiceAddress,omitempty"`
+	InvoicePhone   *string                    `json:"invoicePhone,omitempty"`
+	InvoiceTitle   *string                    `json:"invoiceTitle,omitempty"`
+	ShortName      *string                    `json:"shortName,omitempty"`
+	TaxNumber      *string                    `json:"taxNumber,omitempty"`
+}
+
+// CustomerGroupSaveRequest defines model for CustomerGroupSaveRequest.
+type CustomerGroupSaveRequest struct {
+	Data     CustomerGroupData `json:"data"`
+	GroupId  string            `json:"groupId"`
+	Revision int64             `json:"revision"`
+}
+
+// CustomerGroupView defines model for CustomerGroupView.
+type CustomerGroupView struct {
+	Attachments []CustomerAttachmentView `json:"attachments"`
+	Code        string                   `json:"code"`
+	Data        CustomerGroupData        `json:"data"`
+	GroupId     string                   `json:"groupId"`
+	Revision    int64                    `json:"revision"`
+	UpdatedAt   time.Time                `json:"updatedAt"`
+	UpdatedBy   string                   `json:"updatedBy"`
+}
+
+// CustomerListItem defines model for CustomerListItem.
+type CustomerListItem struct {
+	Candidate *struct {
+		CustomerTypeCode *string `json:"customerTypeCode,omitempty"`
+		Name             *string `json:"name,omitempty"`
+		Revision         *int64  `json:"revision,omitempty"`
+		Status           *string `json:"status,omitempty"`
+		SubmittedBy      *string `json:"submittedBy,omitempty"`
+		Version          *int    `json:"version,omitempty"`
+		VersionId        *string `json:"versionId,omitempty"`
+	} `json:"candidate"`
+	Code      string `json:"code"`
+	Effective *struct {
+		CustomerTypeCode     *string `json:"customerTypeCode,omitempty"`
+		Name                 *string `json:"name,omitempty"`
+		OperatingEntityName  *string `json:"operatingEntityName,omitempty"`
+		Revision             *int64  `json:"revision,omitempty"`
+		SalesAttributionName *string `json:"salesAttributionName,omitempty"`
+		Status               *string `json:"status,omitempty"`
+		SubmittedBy          *string `json:"submittedBy,omitempty"`
+		Version              *int    `json:"version,omitempty"`
+		VersionId            *string `json:"versionId,omitempty"`
+	} `json:"effective"`
+	Enabled        bool      `json:"enabled"`
+	ObjectId       string    `json:"objectId"`
+	ObjectRevision int64     `json:"objectRevision"`
+	UpdatedAt      time.Time `json:"updatedAt"`
+}
+
+// CustomerPricingCostItem defines model for CustomerPricingCostItem.
+type CustomerPricingCostItem struct {
+	Basis       CustomerPricingCostItemBasis `json:"basis"`
+	Name        string                       `json:"name"`
+	OrderAmount *string                      `json:"orderAmount,omitempty"`
+	UnitPrice   *string                      `json:"unitPrice,omitempty"`
+	union       json.RawMessage
+}
+
+// CustomerPricingCostItemBasis defines model for CustomerPricingCostItem.Basis.
+type CustomerPricingCostItemBasis string
+
+// CustomerPricingCostItem0 defines model for CustomerPricingCostItem.0.
+type CustomerPricingCostItem0 struct {
+	OrderAmount interface{} `json:"orderAmount,omitempty"`
+	UnitPrice   interface{} `json:"unitPrice"`
+}
+
+// CustomerPricingCostItem1 defines model for CustomerPricingCostItem.1.
+type CustomerPricingCostItem1 struct {
+	OrderAmount interface{} `json:"orderAmount"`
+	UnitPrice   interface{} `json:"unitPrice,omitempty"`
+}
+
+// CustomerPricingPolicy defines model for CustomerPricingPolicy.
+type CustomerPricingPolicy struct {
+	CostItems                              []CustomerPricingCostItem `json:"costItems"`
+	DefaultDiscountUnitPrice               string                    `json:"defaultDiscountUnitPrice"`
+	DefaultPremiumUnitPrice                string                    `json:"defaultPremiumUnitPrice"`
+	ThirdPartyIntermediaryFixedUnitCost    string                    `json:"thirdPartyIntermediaryFixedUnitCost"`
+	ThirdPartyIntermediaryVariableUnitCost string                    `json:"thirdPartyIntermediaryVariableUnitCost"`
+}
+
+// CustomerQueryRequest defines model for CustomerQueryRequest.
+type CustomerQueryRequest struct {
+	Filters *struct {
+		CustomerType              *string                                          `json:"customerType,omitempty"`
+		Enabled                   *bool                                            `json:"enabled,omitempty"`
+		Keyword                   *string                                          `json:"keyword,omitempty"`
+		OperatingEntityId         *string                                          `json:"operatingEntityId,omitempty"`
+		SalesAttributionSubjectId *string                                          `json:"salesAttributionSubjectId,omitempty"`
+		SalesAttributionType      *CustomerQueryRequestFiltersSalesAttributionType `json:"salesAttributionType,omitempty"`
+		Status                    *[]string                                        `json:"status,omitempty"`
+	} `json:"filters,omitempty"`
+	Page     int                          `json:"page"`
+	PageSize CustomerQueryRequestPageSize `json:"pageSize"`
+	Sort     *[]struct {
+		Field CustomerQueryRequestSortField `json:"field"`
+		Order CustomerQueryRequestSortOrder `json:"order"`
+	} `json:"sort,omitempty"`
+}
+
+// CustomerQueryRequestFiltersSalesAttributionType defines model for CustomerQueryRequest.Filters.SalesAttributionType.
+type CustomerQueryRequestFiltersSalesAttributionType string
+
+// CustomerQueryRequestPageSize defines model for CustomerQueryRequest.PageSize.
+type CustomerQueryRequestPageSize int
+
+// CustomerQueryRequestSortField defines model for CustomerQueryRequest.Sort.Field.
+type CustomerQueryRequestSortField string
+
+// CustomerQueryRequestSortOrder defines model for CustomerQueryRequest.Sort.Order.
+type CustomerQueryRequestSortOrder string
+
+// CustomerQueryResponse defines model for CustomerQueryResponse.
+type CustomerQueryResponse struct {
+	Code int `json:"code"`
+	Data struct {
+		Items    []CustomerListItem `json:"items"`
+		Page     int                `json:"page"`
+		PageSize int                `json:"pageSize"`
+		Total    int64              `json:"total"`
+	} `json:"data"`
+	Message   string `json:"message"`
+	RequestId string `json:"requestId"`
+}
+
+// CustomerReferenceTransferRequest defines model for CustomerReferenceTransferRequest.
+type CustomerReferenceTransferRequest struct {
+	Entity               CustomerReferenceTransferRequestEntity `json:"entity"`
+	SourceObjectId       string                                 `json:"sourceObjectId"`
+	SourceObjectRevision int64                                  `json:"sourceObjectRevision"`
+	TargetObjectId       string                                 `json:"targetObjectId"`
+}
+
+// CustomerReferenceTransferRequestEntity defines model for CustomerReferenceTransferRequest.Entity.
+type CustomerReferenceTransferRequestEntity string
+
+// CustomerReferenceTransferResponse defines model for CustomerReferenceTransferResponse.
+type CustomerReferenceTransferResponse struct {
+	Code      int                             `json:"code"`
+	Data      CustomerReferenceTransferResult `json:"data"`
+	Message   string                          `json:"message"`
+	RequestId string                          `json:"requestId"`
+}
+
+// CustomerReferenceTransferResult defines model for CustomerReferenceTransferResult.
+type CustomerReferenceTransferResult struct {
+	AffectedObjects int    `json:"affectedObjects"`
+	SourceObjectId  string `json:"sourceObjectId"`
+	TargetObjectId  string `json:"targetObjectId"`
+}
+
+// CustomerSalesAttributionInput defines model for CustomerSalesAttributionInput.
+type CustomerSalesAttributionInput struct {
+	SubjectObjectId string                            `json:"subjectObjectId"`
+	Type            CustomerSalesAttributionInputType `json:"type"`
+}
+
+// CustomerSalesAttributionInputType defines model for CustomerSalesAttributionInput.Type.
+type CustomerSalesAttributionInputType string
+
+// CustomerSalesAttributionView defines model for CustomerSalesAttributionView.
+type CustomerSalesAttributionView struct {
+	SubjectCode      string                           `json:"subjectCode"`
+	SubjectName      string                           `json:"subjectName"`
+	SubjectObjectId  string                           `json:"subjectObjectId"`
+	SubjectVersionId string                           `json:"subjectVersionId"`
+	Type             CustomerSalesAttributionViewType `json:"type"`
+}
+
+// CustomerSalesAttributionViewType defines model for CustomerSalesAttributionView.Type.
+type CustomerSalesAttributionViewType string
+
+// CustomerSaveRequest defines model for CustomerSaveRequest.
+type CustomerSaveRequest struct {
+	Data          CustomerAccountInput `json:"data"`
+	Group         CustomerGroupData    `json:"group"`
+	GroupRevision int64                `json:"groupRevision"`
+	ObjectId      string               `json:"objectId"`
+	Revision      int64                `json:"revision"`
+	VersionId     string               `json:"versionId"`
+}
+
+// CustomerSnapshot defines model for CustomerSnapshot.
+type CustomerSnapshot struct {
+	Address               *string `json:"address,omitempty"`
+	Code                  string  `json:"code"`
+	CutoffDay             *int32  `json:"cutoffDay,omitempty"`
+	DefaultSalesSurcharge *string `json:"defaultSalesSurcharge,omitempty"`
+	DueDays               *int32  `json:"dueDays,omitempty"`
+	MonthOffset           *int32  `json:"monthOffset,omitempty"`
+	Name                  string  `json:"name"`
+	Phone                 *string `json:"phone,omitempty"`
+	RuleType              *string `json:"ruleType,omitempty"`
+	SourceObjectId        string  `json:"sourceObjectId"`
+	TaxNumber             *string `json:"taxNumber,omitempty"`
+	TermCode              *string `json:"termCode,omitempty"`
+}
+
+// CustomerTaxMatch defines model for CustomerTaxMatch.
+type CustomerTaxMatch struct {
+	Code           string                       `json:"code"`
+	CompanyName    string                       `json:"companyName"`
+	InvoiceAddress string                       `json:"invoiceAddress"`
+	InvoicePhone   string                       `json:"invoicePhone"`
+	InvoiceTitle   string                       `json:"invoiceTitle"`
+	ObjectId       string                       `json:"objectId"`
+	ShortName      string                       `json:"shortName"`
+	SourceEntity   CustomerTaxMatchSourceEntity `json:"sourceEntity"`
+	TaxNumber      string                       `json:"taxNumber"`
+}
+
+// CustomerTaxMatchSourceEntity defines model for CustomerTaxMatch.SourceEntity.
+type CustomerTaxMatchSourceEntity string
+
+// CustomerTaxMatchRequest defines model for CustomerTaxMatchRequest.
+type CustomerTaxMatchRequest struct {
+	TaxNumber string `json:"taxNumber"`
+}
+
+// CustomerTaxMatchResponse defines model for CustomerTaxMatchResponse.
+type CustomerTaxMatchResponse struct {
+	Code      int                `json:"code"`
+	Data      []CustomerTaxMatch `json:"data"`
+	Message   string             `json:"message"`
+	RequestId string             `json:"requestId"`
+}
+
+// CustomerVersionMeta defines model for CustomerVersionMeta.
+type CustomerVersionMeta struct {
+	CreatedAt     time.Time                 `json:"createdAt"`
+	CreatedBy     string                    `json:"createdBy"`
+	ReviewComment *string                   `json:"reviewComment"`
+	ReviewedAt    *time.Time                `json:"reviewedAt"`
+	ReviewedBy    *string                   `json:"reviewedBy"`
+	Revision      int64                     `json:"revision"`
+	Status        CustomerVersionMetaStatus `json:"status"`
+	SubmittedAt   *time.Time                `json:"submittedAt"`
+	SubmittedBy   *string                   `json:"submittedBy"`
+	UpdatedAt     time.Time                 `json:"updatedAt"`
+	UpdatedBy     string                    `json:"updatedBy"`
+	Version       int32                     `json:"version"`
+	VersionId     string                    `json:"versionId"`
+}
+
+// CustomerVersionMetaStatus defines model for CustomerVersionMeta.Status.
+type CustomerVersionMetaStatus string
+
+// CustomerVersionView defines model for CustomerVersionView.
+type CustomerVersionView struct {
+	Attachments []CustomerAttachmentView `json:"attachments"`
+	Data        CustomerAccountView      `json:"data"`
+	Version     CustomerVersionMeta      `json:"version"`
 }
 
 // EmptyObject defines model for EmptyObject.
@@ -3143,6 +3976,22 @@ type ProfileRequest struct {
 type PublishBusinessMenuRequest struct {
 	CatalogRevision string `json:"catalogRevision"`
 	Revision        int64  `json:"revision"`
+}
+
+// ReferenceCandidate defines model for ReferenceCandidate.
+type ReferenceCandidate struct {
+	Code      string `json:"code"`
+	Name      string `json:"name"`
+	ObjectId  string `json:"objectId"`
+	VersionId string `json:"versionId"`
+}
+
+// ReferenceQueryResponse defines model for ReferenceQueryResponse.
+type ReferenceQueryResponse struct {
+	Code      int                  `json:"code"`
+	Data      []ReferenceCandidate `json:"data"`
+	Message   string               `json:"message"`
+	RequestId string               `json:"requestId"`
 }
 
 // ResetBusinessMenuRequest defines model for ResetBusinessMenuRequest.
@@ -5205,6 +6054,9 @@ type AppUserSignoutJSONRequestBody = EmptyObject
 // AppWorkbenchQueryJSONRequestBody defines body for AppWorkbenchQuery for application/json ContentType.
 type AppWorkbenchQueryJSONRequestBody = WorkbenchQueryRequest
 
+// AuxReferenceQueryJSONRequestBody defines body for AuxReferenceQuery for application/json ContentType.
+type AuxReferenceQueryJSONRequestBody = AuxReferenceQueryRequest
+
 // AuxaudithistoryJSONRequestBody defines body for Auxaudithistory for application/json ContentType.
 type AuxaudithistoryJSONRequestBody = AuxHistoryRequest
 
@@ -5231,6 +6083,45 @@ type AuxsaveJSONRequestBody = AuxSaveRequest
 
 // AuxversionsJSONRequestBody defines body for Auxversions for application/json ContentType.
 type AuxversionsJSONRequestBody = AuxHistoryRequest
+
+// CustomerGroupAuditHistoryJSONRequestBody defines body for CustomerGroupAuditHistory for application/json ContentType.
+type CustomerGroupAuditHistoryJSONRequestBody = BobHistoryRequest
+
+// CustomerGroupGetJSONRequestBody defines body for CustomerGroupGet for application/json ContentType.
+type CustomerGroupGetJSONRequestBody = IdRequest
+
+// CustomerGroupSaveJSONRequestBody defines body for CustomerGroupSave for application/json ContentType.
+type CustomerGroupSaveJSONRequestBody = CustomerGroupSaveRequest
+
+// CustomerAttachmentDownloadJSONRequestBody defines body for CustomerAttachmentDownload for application/json ContentType.
+type CustomerAttachmentDownloadJSONRequestBody = CustomerAttachmentDownloadRequest
+
+// CustomerAttachmentInitiateJSONRequestBody defines body for CustomerAttachmentInitiate for application/json ContentType.
+type CustomerAttachmentInitiateJSONRequestBody = CustomerAttachmentInitiateRequest
+
+// CustomerAttachmentRemoveJSONRequestBody defines body for CustomerAttachmentRemove for application/json ContentType.
+type CustomerAttachmentRemoveJSONRequestBody = CustomerAttachmentRemoveRequest
+
+// CustomerCreateJSONRequestBody defines body for CustomerCreate for application/json ContentType.
+type CustomerCreateJSONRequestBody = CustomerCreateRequest
+
+// CustomerGetJSONRequestBody defines body for CustomerGet for application/json ContentType.
+type CustomerGetJSONRequestBody = BobGetRequest
+
+// CustomerQueryJSONRequestBody defines body for CustomerQuery for application/json ContentType.
+type CustomerQueryJSONRequestBody = CustomerQueryRequest
+
+// CustomerSaveJSONRequestBody defines body for CustomerSave for application/json ContentType.
+type CustomerSaveJSONRequestBody = CustomerSaveRequest
+
+// CustomerTaxMatchJSONRequestBody defines body for CustomerTaxMatch for application/json ContentType.
+type CustomerTaxMatchJSONRequestBody = CustomerTaxMatchRequest
+
+// BobReferenceQueryJSONRequestBody defines body for BobReferenceQuery for application/json ContentType.
+type BobReferenceQueryJSONRequestBody = BobReferenceQueryRequest
+
+// BobReferenceTransferJSONRequestBody defines body for BobReferenceTransfer for application/json ContentType.
+type BobReferenceTransferJSONRequestBody = CustomerReferenceTransferRequest
 
 // BobapproveJSONRequestBody defines body for Bobapprove for application/json ContentType.
 type BobapproveJSONRequestBody = BobVersionRevisionRequest
@@ -5491,6 +6382,202 @@ func (a AuxCreateData) MarshalJSON() ([]byte, error) {
 		}
 	}
 	return json.Marshal(object)
+}
+
+// AsCustomerCreateRequest0 returns the union data inside the CustomerCreateRequest as a CustomerCreateRequest0
+func (t CustomerCreateRequest) AsCustomerCreateRequest0() (CustomerCreateRequest0, error) {
+	var body CustomerCreateRequest0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCustomerCreateRequest0 overwrites any union data inside the CustomerCreateRequest as the provided CustomerCreateRequest0
+func (t *CustomerCreateRequest) FromCustomerCreateRequest0(v CustomerCreateRequest0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCustomerCreateRequest0 performs a merge with any union data inside the CustomerCreateRequest, using the provided CustomerCreateRequest0
+func (t *CustomerCreateRequest) MergeCustomerCreateRequest0(v CustomerCreateRequest0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCustomerCreateRequest1 returns the union data inside the CustomerCreateRequest as a CustomerCreateRequest1
+func (t CustomerCreateRequest) AsCustomerCreateRequest1() (CustomerCreateRequest1, error) {
+	var body CustomerCreateRequest1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCustomerCreateRequest1 overwrites any union data inside the CustomerCreateRequest as the provided CustomerCreateRequest1
+func (t *CustomerCreateRequest) FromCustomerCreateRequest1(v CustomerCreateRequest1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCustomerCreateRequest1 performs a merge with any union data inside the CustomerCreateRequest, using the provided CustomerCreateRequest1
+func (t *CustomerCreateRequest) MergeCustomerCreateRequest1(v CustomerCreateRequest1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t CustomerCreateRequest) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *CustomerCreateRequest) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsCustomerPricingCostItem0 returns the union data inside the CustomerPricingCostItem as a CustomerPricingCostItem0
+func (t CustomerPricingCostItem) AsCustomerPricingCostItem0() (CustomerPricingCostItem0, error) {
+	var body CustomerPricingCostItem0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCustomerPricingCostItem0 overwrites any union data inside the CustomerPricingCostItem as the provided CustomerPricingCostItem0
+func (t *CustomerPricingCostItem) FromCustomerPricingCostItem0(v CustomerPricingCostItem0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCustomerPricingCostItem0 performs a merge with any union data inside the CustomerPricingCostItem, using the provided CustomerPricingCostItem0
+func (t *CustomerPricingCostItem) MergeCustomerPricingCostItem0(v CustomerPricingCostItem0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCustomerPricingCostItem1 returns the union data inside the CustomerPricingCostItem as a CustomerPricingCostItem1
+func (t CustomerPricingCostItem) AsCustomerPricingCostItem1() (CustomerPricingCostItem1, error) {
+	var body CustomerPricingCostItem1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCustomerPricingCostItem1 overwrites any union data inside the CustomerPricingCostItem as the provided CustomerPricingCostItem1
+func (t *CustomerPricingCostItem) FromCustomerPricingCostItem1(v CustomerPricingCostItem1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCustomerPricingCostItem1 performs a merge with any union data inside the CustomerPricingCostItem, using the provided CustomerPricingCostItem1
+func (t *CustomerPricingCostItem) MergeCustomerPricingCostItem1(v CustomerPricingCostItem1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t CustomerPricingCostItem) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	object["basis"], err = json.Marshal(t.Basis)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'basis': %w", err)
+	}
+
+	object["name"], err = json.Marshal(t.Name)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'name': %w", err)
+	}
+
+	if t.OrderAmount != nil {
+		object["orderAmount"], err = json.Marshal(t.OrderAmount)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'orderAmount': %w", err)
+		}
+	}
+
+	if t.UnitPrice != nil {
+		object["unitPrice"], err = json.Marshal(t.UnitPrice)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'unitPrice': %w", err)
+		}
+	}
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *CustomerPricingCostItem) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["basis"]; found {
+		err = json.Unmarshal(raw, &t.Basis)
+		if err != nil {
+			return fmt.Errorf("error reading 'basis': %w", err)
+		}
+	}
+
+	if raw, found := object["name"]; found {
+		err = json.Unmarshal(raw, &t.Name)
+		if err != nil {
+			return fmt.Errorf("error reading 'name': %w", err)
+		}
+	}
+
+	if raw, found := object["orderAmount"]; found {
+		err = json.Unmarshal(raw, &t.OrderAmount)
+		if err != nil {
+			return fmt.Errorf("error reading 'orderAmount': %w", err)
+		}
+	}
+
+	if raw, found := object["unitPrice"]; found {
+		err = json.Unmarshal(raw, &t.UnitPrice)
+		if err != nil {
+			return fmt.Errorf("error reading 'unitPrice': %w", err)
+		}
+	}
+
+	return err
 }
 
 // AsVouBillPrimaryLineInput returns the union data inside the VouBillLineInput as a VouBillPrimaryLineInput
@@ -5897,6 +6984,9 @@ type ServerInterface interface {
 	// AppWorkbenchQuery 查询当前用户工作台待办
 	// (POST /app/workbench/query)
 	AppWorkbenchQuery(c *gin.Context)
+	// AuxReferenceQuery 查询 AUX 最小引用候选
+	// (POST /aux/reference/query)
+	AuxReferenceQuery(c *gin.Context)
 	// Auxaudithistory 查询辅助对象变更记录
 	// (POST /aux/{entity}/audit-history)
 	Auxaudithistory(c *gin.Context, entity AuxEntity)
@@ -5924,6 +7014,45 @@ type ServerInterface interface {
 	// Auxversions 查询辅助对象版本
 	// (POST /aux/{entity}/versions)
 	Auxversions(c *gin.Context, entity AuxEntity)
+	// CustomerGroupAuditHistory 查询客户集团追加审计
+	// (POST /bob/customer-group/audit-history)
+	CustomerGroupAuditHistory(c *gin.Context)
+	// CustomerGroupGet 读取客户集团当前资料
+	// (POST /bob/customer-group/get)
+	CustomerGroupGet(c *gin.Context)
+	// CustomerGroupSave 按 revision 保存客户集团当前资料
+	// (POST /bob/customer-group/save)
+	CustomerGroupSave(c *gin.Context)
+	// CustomerAttachmentDownload 申请客户资料附件下载
+	// (POST /bob/customer/attachment-download)
+	CustomerAttachmentDownload(c *gin.Context)
+	// CustomerAttachmentInitiate 初始化客户资料附件
+	// (POST /bob/customer/attachment-initiate)
+	CustomerAttachmentInitiate(c *gin.Context)
+	// CustomerAttachmentRemove 移除客户资料附件
+	// (POST /bob/customer/attachment-remove)
+	CustomerAttachmentRemove(c *gin.Context)
+	// CustomerCreate 原子创建客户集团与首个结算子账户
+	// (POST /bob/customer/create)
+	CustomerCreate(c *gin.Context)
+	// CustomerGet 读取客户集团、有效版本与候选版本
+	// (POST /bob/customer/get)
+	CustomerGet(c *gin.Context)
+	// CustomerQuery 查询客户结算子账户最小投影
+	// (POST /bob/customer/query)
+	CustomerQuery(c *gin.Context)
+	// CustomerSave 保存客户结算子账户候选版本
+	// (POST /bob/customer/save)
+	CustomerSave(c *gin.Context)
+	// CustomerTaxMatch 按权限精确发现同税号资料
+	// (POST /bob/customer/tax-match)
+	CustomerTaxMatch(c *gin.Context)
+	// BobReferenceQuery 查询 BOB 最小引用候选
+	// (POST /bob/reference/query)
+	BobReferenceQuery(c *gin.Context)
+	// BobReferenceTransfer 原子批量转移当前 BOB 直接引用
+	// (POST /bob/reference/transfer)
+	BobReferenceTransfer(c *gin.Context)
 	// Bobapprove 批准业务对象
 	// (POST /bob/{entity}/approve)
 	Bobapprove(c *gin.Context, entity BobEntity)
@@ -5972,6 +7101,12 @@ type ServerInterface interface {
 	// UploadAttachment 上传业务附件
 	// (PUT /files/attachments/upload/{token})
 	UploadAttachment(c *gin.Context, token FileToken)
+	// DownloadCustomerAttachment 下载客户资料附件内容
+	// (GET /files/customer-attachments/download/{token})
+	DownloadCustomerAttachment(c *gin.Context, token FileToken)
+	// UploadCustomerAttachment 上传客户资料附件内容
+	// (PUT /files/customer-attachments/upload/{token})
+	UploadCustomerAttachment(c *gin.Context, token FileToken)
 	// UploadFeedbackAttachment 上传用户反馈附件
 	// (PUT /files/feedback/attachments/upload/{token})
 	UploadFeedbackAttachment(c *gin.Context, token FileToken)
@@ -6899,6 +8034,19 @@ func (siw *ServerInterfaceWrapper) AppWorkbenchQuery(c *gin.Context) {
 	siw.Handler.AppWorkbenchQuery(c)
 }
 
+// AuxReferenceQuery operation middleware
+func (siw *ServerInterfaceWrapper) AuxReferenceQuery(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AuxReferenceQuery(c)
+}
+
 // Auxaudithistory operation middleware
 func (siw *ServerInterfaceWrapper) Auxaudithistory(c *gin.Context) {
 
@@ -7122,6 +8270,175 @@ func (siw *ServerInterfaceWrapper) Auxversions(c *gin.Context) {
 	}
 
 	siw.Handler.Auxversions(c, entity)
+}
+
+// CustomerGroupAuditHistory operation middleware
+func (siw *ServerInterfaceWrapper) CustomerGroupAuditHistory(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CustomerGroupAuditHistory(c)
+}
+
+// CustomerGroupGet operation middleware
+func (siw *ServerInterfaceWrapper) CustomerGroupGet(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CustomerGroupGet(c)
+}
+
+// CustomerGroupSave operation middleware
+func (siw *ServerInterfaceWrapper) CustomerGroupSave(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CustomerGroupSave(c)
+}
+
+// CustomerAttachmentDownload operation middleware
+func (siw *ServerInterfaceWrapper) CustomerAttachmentDownload(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CustomerAttachmentDownload(c)
+}
+
+// CustomerAttachmentInitiate operation middleware
+func (siw *ServerInterfaceWrapper) CustomerAttachmentInitiate(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CustomerAttachmentInitiate(c)
+}
+
+// CustomerAttachmentRemove operation middleware
+func (siw *ServerInterfaceWrapper) CustomerAttachmentRemove(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CustomerAttachmentRemove(c)
+}
+
+// CustomerCreate operation middleware
+func (siw *ServerInterfaceWrapper) CustomerCreate(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CustomerCreate(c)
+}
+
+// CustomerGet operation middleware
+func (siw *ServerInterfaceWrapper) CustomerGet(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CustomerGet(c)
+}
+
+// CustomerQuery operation middleware
+func (siw *ServerInterfaceWrapper) CustomerQuery(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CustomerQuery(c)
+}
+
+// CustomerSave operation middleware
+func (siw *ServerInterfaceWrapper) CustomerSave(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CustomerSave(c)
+}
+
+// CustomerTaxMatch operation middleware
+func (siw *ServerInterfaceWrapper) CustomerTaxMatch(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CustomerTaxMatch(c)
+}
+
+// BobReferenceQuery operation middleware
+func (siw *ServerInterfaceWrapper) BobReferenceQuery(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.BobReferenceQuery(c)
+}
+
+// BobReferenceTransfer operation middleware
+func (siw *ServerInterfaceWrapper) BobReferenceTransfer(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.BobReferenceTransfer(c)
 }
 
 // Bobapprove operation middleware
@@ -7522,6 +8839,56 @@ func (siw *ServerInterfaceWrapper) UploadAttachment(c *gin.Context) {
 	}
 
 	siw.Handler.UploadAttachment(c, token)
+}
+
+// DownloadCustomerAttachment operation middleware
+func (siw *ServerInterfaceWrapper) DownloadCustomerAttachment(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "token" -------------
+	var token FileToken
+
+	err = runtime.BindStyledParameterWithOptions("simple", "token", c.Param("token"), &token, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter token: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DownloadCustomerAttachment(c, token)
+}
+
+// UploadCustomerAttachment operation middleware
+func (siw *ServerInterfaceWrapper) UploadCustomerAttachment(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "token" -------------
+	var token FileToken
+
+	err = runtime.BindStyledParameterWithOptions("simple", "token", c.Param("token"), &token, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter token: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UploadCustomerAttachment(c, token)
 }
 
 // UploadFeedbackAttachment operation middleware
@@ -8668,6 +10035,20 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/aux/:entity/delete", wrapper.Auxdelete)
 	router.POST(options.BaseURL+"/aux/:entity/versions", wrapper.Auxversions)
 	router.POST(options.BaseURL+"/aux/:entity/audit-history", wrapper.Auxaudithistory)
+	router.POST(options.BaseURL+"/bob/customer/query", wrapper.CustomerQuery)
+	router.POST(options.BaseURL+"/bob/customer/get", wrapper.CustomerGet)
+	router.POST(options.BaseURL+"/bob/customer/create", wrapper.CustomerCreate)
+	router.POST(options.BaseURL+"/bob/customer/tax-match", wrapper.CustomerTaxMatch)
+	router.POST(options.BaseURL+"/bob/customer/save", wrapper.CustomerSave)
+	router.POST(options.BaseURL+"/bob/customer/attachment-initiate", wrapper.CustomerAttachmentInitiate)
+	router.POST(options.BaseURL+"/bob/customer/attachment-download", wrapper.CustomerAttachmentDownload)
+	router.POST(options.BaseURL+"/bob/customer/attachment-remove", wrapper.CustomerAttachmentRemove)
+	router.POST(options.BaseURL+"/bob/customer-group/get", wrapper.CustomerGroupGet)
+	router.POST(options.BaseURL+"/bob/customer-group/save", wrapper.CustomerGroupSave)
+	router.POST(options.BaseURL+"/bob/customer-group/audit-history", wrapper.CustomerGroupAuditHistory)
+	router.POST(options.BaseURL+"/bob/reference/transfer", wrapper.BobReferenceTransfer)
+	router.POST(options.BaseURL+"/bob/reference/query", wrapper.BobReferenceQuery)
+	router.POST(options.BaseURL+"/aux/reference/query", wrapper.AuxReferenceQuery)
 	router.POST(options.BaseURL+"/bob/:entity/query", wrapper.Bobquery)
 	router.POST(options.BaseURL+"/bob/:entity/get", wrapper.Bobget)
 	router.POST(options.BaseURL+"/bob/:entity/create", wrapper.Bobcreate)
@@ -8734,6 +10115,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/rpt/:report/export", wrapper.RptReportExport)
 	router.POST(options.BaseURL+"/rpt/:report/reference-query", wrapper.RptReportReferenceQuery)
 	router.PUT(options.BaseURL+"/files/feedback/attachments/upload/:token", wrapper.UploadFeedbackAttachment)
+	router.PUT(options.BaseURL+"/files/customer-attachments/upload/:token", wrapper.UploadCustomerAttachment)
+	router.GET(options.BaseURL+"/files/customer-attachments/download/:token", wrapper.DownloadCustomerAttachment)
 	router.PUT(options.BaseURL+"/files/attachments/upload/:token", wrapper.UploadAttachment)
 	router.GET(options.BaseURL+"/files/attachments/download/:token", wrapper.DownloadAttachment)
 	router.GET(options.BaseURL+"/healthz", wrapper.Health)
@@ -10022,6 +11405,28 @@ func (response AppWorkbenchQuery200JSONResponse) VisitAppWorkbenchQueryResponse(
 	return err
 }
 
+type AuxReferenceQueryRequestObject struct {
+	Body *AuxReferenceQueryJSONRequestBody
+}
+
+type AuxReferenceQueryResponseObject interface {
+	VisitAuxReferenceQueryResponse(w http.ResponseWriter) error
+}
+
+type AuxReferenceQuery200JSONResponse ReferenceQueryResponse
+
+func (response AuxReferenceQuery200JSONResponse) VisitAuxReferenceQueryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type AuxaudithistoryRequestObject struct {
 	Entity AuxEntity `json:"entity"`
 	Body   *AuxaudithistoryJSONRequestBody
@@ -10218,6 +11623,292 @@ type AuxversionsResponseObject interface {
 type Auxversions200JSONResponse struct{ BusinessJSONResponse }
 
 func (response Auxversions200JSONResponse) VisitAuxversionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CustomerGroupAuditHistoryRequestObject struct {
+	Body *CustomerGroupAuditHistoryJSONRequestBody
+}
+
+type CustomerGroupAuditHistoryResponseObject interface {
+	VisitCustomerGroupAuditHistoryResponse(w http.ResponseWriter) error
+}
+
+type CustomerGroupAuditHistory200JSONResponse struct{ BusinessJSONResponse }
+
+func (response CustomerGroupAuditHistory200JSONResponse) VisitCustomerGroupAuditHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CustomerGroupGetRequestObject struct {
+	Body *CustomerGroupGetJSONRequestBody
+}
+
+type CustomerGroupGetResponseObject interface {
+	VisitCustomerGroupGetResponse(w http.ResponseWriter) error
+}
+
+type CustomerGroupGet200JSONResponse struct{ BusinessJSONResponse }
+
+func (response CustomerGroupGet200JSONResponse) VisitCustomerGroupGetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CustomerGroupSaveRequestObject struct {
+	Body *CustomerGroupSaveJSONRequestBody
+}
+
+type CustomerGroupSaveResponseObject interface {
+	VisitCustomerGroupSaveResponse(w http.ResponseWriter) error
+}
+
+type CustomerGroupSave200JSONResponse struct{ BusinessJSONResponse }
+
+func (response CustomerGroupSave200JSONResponse) VisitCustomerGroupSaveResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CustomerAttachmentDownloadRequestObject struct {
+	Body *CustomerAttachmentDownloadJSONRequestBody
+}
+
+type CustomerAttachmentDownloadResponseObject interface {
+	VisitCustomerAttachmentDownloadResponse(w http.ResponseWriter) error
+}
+
+type CustomerAttachmentDownload200JSONResponse CustomerAttachmentDownloadResponse
+
+func (response CustomerAttachmentDownload200JSONResponse) VisitCustomerAttachmentDownloadResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CustomerAttachmentInitiateRequestObject struct {
+	Body *CustomerAttachmentInitiateJSONRequestBody
+}
+
+type CustomerAttachmentInitiateResponseObject interface {
+	VisitCustomerAttachmentInitiateResponse(w http.ResponseWriter) error
+}
+
+type CustomerAttachmentInitiate200JSONResponse CustomerAttachmentInitiateResponse
+
+func (response CustomerAttachmentInitiate200JSONResponse) VisitCustomerAttachmentInitiateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CustomerAttachmentRemoveRequestObject struct {
+	Body *CustomerAttachmentRemoveJSONRequestBody
+}
+
+type CustomerAttachmentRemoveResponseObject interface {
+	VisitCustomerAttachmentRemoveResponse(w http.ResponseWriter) error
+}
+
+type CustomerAttachmentRemove200JSONResponse CustomerAttachmentRemoveResponse
+
+func (response CustomerAttachmentRemove200JSONResponse) VisitCustomerAttachmentRemoveResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CustomerCreateRequestObject struct {
+	Body *CustomerCreateJSONRequestBody
+}
+
+type CustomerCreateResponseObject interface {
+	VisitCustomerCreateResponse(w http.ResponseWriter) error
+}
+
+type CustomerCreate200JSONResponse struct{ BusinessJSONResponse }
+
+func (response CustomerCreate200JSONResponse) VisitCustomerCreateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CustomerGetRequestObject struct {
+	Body *CustomerGetJSONRequestBody
+}
+
+type CustomerGetResponseObject interface {
+	VisitCustomerGetResponse(w http.ResponseWriter) error
+}
+
+type CustomerGet200JSONResponse CustomerGetResponse
+
+func (response CustomerGet200JSONResponse) VisitCustomerGetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CustomerQueryRequestObject struct {
+	Body *CustomerQueryJSONRequestBody
+}
+
+type CustomerQueryResponseObject interface {
+	VisitCustomerQueryResponse(w http.ResponseWriter) error
+}
+
+type CustomerQuery200JSONResponse CustomerQueryResponse
+
+func (response CustomerQuery200JSONResponse) VisitCustomerQueryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CustomerSaveRequestObject struct {
+	Body *CustomerSaveJSONRequestBody
+}
+
+type CustomerSaveResponseObject interface {
+	VisitCustomerSaveResponse(w http.ResponseWriter) error
+}
+
+type CustomerSave200JSONResponse struct{ BusinessJSONResponse }
+
+func (response CustomerSave200JSONResponse) VisitCustomerSaveResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CustomerTaxMatchRequestObject struct {
+	Body *CustomerTaxMatchJSONRequestBody
+}
+
+type CustomerTaxMatchResponseObject interface {
+	VisitCustomerTaxMatchResponse(w http.ResponseWriter) error
+}
+
+type CustomerTaxMatch200JSONResponse CustomerTaxMatchResponse
+
+func (response CustomerTaxMatch200JSONResponse) VisitCustomerTaxMatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type BobReferenceQueryRequestObject struct {
+	Body *BobReferenceQueryJSONRequestBody
+}
+
+type BobReferenceQueryResponseObject interface {
+	VisitBobReferenceQueryResponse(w http.ResponseWriter) error
+}
+
+type BobReferenceQuery200JSONResponse ReferenceQueryResponse
+
+func (response BobReferenceQuery200JSONResponse) VisitBobReferenceQueryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type BobReferenceTransferRequestObject struct {
+	Body *BobReferenceTransferJSONRequestBody
+}
+
+type BobReferenceTransferResponseObject interface {
+	VisitBobReferenceTransferResponse(w http.ResponseWriter) error
+}
+
+type BobReferenceTransfer200JSONResponse CustomerReferenceTransferResponse
+
+func (response BobReferenceTransfer200JSONResponse) VisitBobReferenceTransferResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -10628,6 +12319,94 @@ func (response UploadAttachment400JSONResponse) VisitUploadAttachmentResponse(w 
 type UploadAttachment409JSONResponse TechnicalError
 
 func (response UploadAttachment409JSONResponse) VisitUploadAttachmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DownloadCustomerAttachmentRequestObject struct {
+	Token FileToken `json:"token"`
+}
+
+type DownloadCustomerAttachmentResponseObject interface {
+	VisitDownloadCustomerAttachmentResponse(w http.ResponseWriter) error
+}
+
+type DownloadCustomerAttachment200ApplicationoctetStreamResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response DownloadCustomerAttachment200ApplicationoctetStreamResponse) VisitDownloadCustomerAttachmentResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type DownloadCustomerAttachment400JSONResponse struct{ TechnicalErrorJSONResponse }
+
+func (response DownloadCustomerAttachment400JSONResponse) VisitDownloadCustomerAttachmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UploadCustomerAttachmentRequestObject struct {
+	Token       FileToken `json:"token"`
+	ContentType string
+	Body        io.Reader
+}
+
+type UploadCustomerAttachmentResponseObject interface {
+	VisitUploadCustomerAttachmentResponse(w http.ResponseWriter) error
+}
+
+type UploadCustomerAttachment204Response struct {
+}
+
+func (response UploadCustomerAttachment204Response) VisitUploadCustomerAttachmentResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type UploadCustomerAttachment400JSONResponse struct{ TechnicalErrorJSONResponse }
+
+func (response UploadCustomerAttachment400JSONResponse) VisitUploadCustomerAttachmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UploadCustomerAttachment409JSONResponse TechnicalError
+
+func (response UploadCustomerAttachment409JSONResponse) VisitUploadCustomerAttachmentResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -12071,6 +13850,9 @@ type StrictServerInterface interface {
 	// AppWorkbenchQuery 查询当前用户工作台待办
 	// (POST /app/workbench/query)
 	AppWorkbenchQuery(ctx context.Context, request AppWorkbenchQueryRequestObject) (AppWorkbenchQueryResponseObject, error)
+	// AuxReferenceQuery 查询 AUX 最小引用候选
+	// (POST /aux/reference/query)
+	AuxReferenceQuery(ctx context.Context, request AuxReferenceQueryRequestObject) (AuxReferenceQueryResponseObject, error)
 	// Auxaudithistory 查询辅助对象变更记录
 	// (POST /aux/{entity}/audit-history)
 	Auxaudithistory(ctx context.Context, request AuxaudithistoryRequestObject) (AuxaudithistoryResponseObject, error)
@@ -12098,6 +13880,45 @@ type StrictServerInterface interface {
 	// Auxversions 查询辅助对象版本
 	// (POST /aux/{entity}/versions)
 	Auxversions(ctx context.Context, request AuxversionsRequestObject) (AuxversionsResponseObject, error)
+	// CustomerGroupAuditHistory 查询客户集团追加审计
+	// (POST /bob/customer-group/audit-history)
+	CustomerGroupAuditHistory(ctx context.Context, request CustomerGroupAuditHistoryRequestObject) (CustomerGroupAuditHistoryResponseObject, error)
+	// CustomerGroupGet 读取客户集团当前资料
+	// (POST /bob/customer-group/get)
+	CustomerGroupGet(ctx context.Context, request CustomerGroupGetRequestObject) (CustomerGroupGetResponseObject, error)
+	// CustomerGroupSave 按 revision 保存客户集团当前资料
+	// (POST /bob/customer-group/save)
+	CustomerGroupSave(ctx context.Context, request CustomerGroupSaveRequestObject) (CustomerGroupSaveResponseObject, error)
+	// CustomerAttachmentDownload 申请客户资料附件下载
+	// (POST /bob/customer/attachment-download)
+	CustomerAttachmentDownload(ctx context.Context, request CustomerAttachmentDownloadRequestObject) (CustomerAttachmentDownloadResponseObject, error)
+	// CustomerAttachmentInitiate 初始化客户资料附件
+	// (POST /bob/customer/attachment-initiate)
+	CustomerAttachmentInitiate(ctx context.Context, request CustomerAttachmentInitiateRequestObject) (CustomerAttachmentInitiateResponseObject, error)
+	// CustomerAttachmentRemove 移除客户资料附件
+	// (POST /bob/customer/attachment-remove)
+	CustomerAttachmentRemove(ctx context.Context, request CustomerAttachmentRemoveRequestObject) (CustomerAttachmentRemoveResponseObject, error)
+	// CustomerCreate 原子创建客户集团与首个结算子账户
+	// (POST /bob/customer/create)
+	CustomerCreate(ctx context.Context, request CustomerCreateRequestObject) (CustomerCreateResponseObject, error)
+	// CustomerGet 读取客户集团、有效版本与候选版本
+	// (POST /bob/customer/get)
+	CustomerGet(ctx context.Context, request CustomerGetRequestObject) (CustomerGetResponseObject, error)
+	// CustomerQuery 查询客户结算子账户最小投影
+	// (POST /bob/customer/query)
+	CustomerQuery(ctx context.Context, request CustomerQueryRequestObject) (CustomerQueryResponseObject, error)
+	// CustomerSave 保存客户结算子账户候选版本
+	// (POST /bob/customer/save)
+	CustomerSave(ctx context.Context, request CustomerSaveRequestObject) (CustomerSaveResponseObject, error)
+	// CustomerTaxMatch 按权限精确发现同税号资料
+	// (POST /bob/customer/tax-match)
+	CustomerTaxMatch(ctx context.Context, request CustomerTaxMatchRequestObject) (CustomerTaxMatchResponseObject, error)
+	// BobReferenceQuery 查询 BOB 最小引用候选
+	// (POST /bob/reference/query)
+	BobReferenceQuery(ctx context.Context, request BobReferenceQueryRequestObject) (BobReferenceQueryResponseObject, error)
+	// BobReferenceTransfer 原子批量转移当前 BOB 直接引用
+	// (POST /bob/reference/transfer)
+	BobReferenceTransfer(ctx context.Context, request BobReferenceTransferRequestObject) (BobReferenceTransferResponseObject, error)
 	// Bobapprove 批准业务对象
 	// (POST /bob/{entity}/approve)
 	Bobapprove(ctx context.Context, request BobapproveRequestObject) (BobapproveResponseObject, error)
@@ -12146,6 +13967,12 @@ type StrictServerInterface interface {
 	// UploadAttachment 上传业务附件
 	// (PUT /files/attachments/upload/{token})
 	UploadAttachment(ctx context.Context, request UploadAttachmentRequestObject) (UploadAttachmentResponseObject, error)
+	// DownloadCustomerAttachment 下载客户资料附件内容
+	// (GET /files/customer-attachments/download/{token})
+	DownloadCustomerAttachment(ctx context.Context, request DownloadCustomerAttachmentRequestObject) (DownloadCustomerAttachmentResponseObject, error)
+	// UploadCustomerAttachment 上传客户资料附件内容
+	// (PUT /files/customer-attachments/upload/{token})
+	UploadCustomerAttachment(ctx context.Context, request UploadCustomerAttachmentRequestObject) (UploadCustomerAttachmentResponseObject, error)
 	// UploadFeedbackAttachment 上传用户反馈附件
 	// (PUT /files/feedback/attachments/upload/{token})
 	UploadFeedbackAttachment(ctx context.Context, request UploadFeedbackAttachmentRequestObject) (UploadFeedbackAttachmentResponseObject, error)
@@ -14165,6 +15992,37 @@ func (sh *strictHandler) AppWorkbenchQuery(ctx *gin.Context) {
 	}
 }
 
+// AuxReferenceQuery operation middleware
+func (sh *strictHandler) AuxReferenceQuery(ctx *gin.Context) {
+	var request AuxReferenceQueryRequestObject
+
+	var body AuxReferenceQueryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.AuxReferenceQuery(ctx, request.(AuxReferenceQueryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AuxReferenceQuery")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(AuxReferenceQueryResponseObject); ok {
+		if err := validResponse.VisitAuxReferenceQueryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Auxaudithistory operation middleware
 func (sh *strictHandler) Auxaudithistory(ctx *gin.Context, entity AuxEntity) {
 	var request AuxaudithistoryRequestObject
@@ -14455,6 +16313,409 @@ func (sh *strictHandler) Auxversions(ctx *gin.Context, entity AuxEntity) {
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(AuxversionsResponseObject); ok {
 		if err := validResponse.VisitAuxversionsResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CustomerGroupAuditHistory operation middleware
+func (sh *strictHandler) CustomerGroupAuditHistory(ctx *gin.Context) {
+	var request CustomerGroupAuditHistoryRequestObject
+
+	var body CustomerGroupAuditHistoryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.CustomerGroupAuditHistory(ctx, request.(CustomerGroupAuditHistoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CustomerGroupAuditHistory")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(CustomerGroupAuditHistoryResponseObject); ok {
+		if err := validResponse.VisitCustomerGroupAuditHistoryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CustomerGroupGet operation middleware
+func (sh *strictHandler) CustomerGroupGet(ctx *gin.Context) {
+	var request CustomerGroupGetRequestObject
+
+	var body CustomerGroupGetJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.CustomerGroupGet(ctx, request.(CustomerGroupGetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CustomerGroupGet")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(CustomerGroupGetResponseObject); ok {
+		if err := validResponse.VisitCustomerGroupGetResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CustomerGroupSave operation middleware
+func (sh *strictHandler) CustomerGroupSave(ctx *gin.Context) {
+	var request CustomerGroupSaveRequestObject
+
+	var body CustomerGroupSaveJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.CustomerGroupSave(ctx, request.(CustomerGroupSaveRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CustomerGroupSave")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(CustomerGroupSaveResponseObject); ok {
+		if err := validResponse.VisitCustomerGroupSaveResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CustomerAttachmentDownload operation middleware
+func (sh *strictHandler) CustomerAttachmentDownload(ctx *gin.Context) {
+	var request CustomerAttachmentDownloadRequestObject
+
+	var body CustomerAttachmentDownloadJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.CustomerAttachmentDownload(ctx, request.(CustomerAttachmentDownloadRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CustomerAttachmentDownload")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(CustomerAttachmentDownloadResponseObject); ok {
+		if err := validResponse.VisitCustomerAttachmentDownloadResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CustomerAttachmentInitiate operation middleware
+func (sh *strictHandler) CustomerAttachmentInitiate(ctx *gin.Context) {
+	var request CustomerAttachmentInitiateRequestObject
+
+	var body CustomerAttachmentInitiateJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.CustomerAttachmentInitiate(ctx, request.(CustomerAttachmentInitiateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CustomerAttachmentInitiate")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(CustomerAttachmentInitiateResponseObject); ok {
+		if err := validResponse.VisitCustomerAttachmentInitiateResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CustomerAttachmentRemove operation middleware
+func (sh *strictHandler) CustomerAttachmentRemove(ctx *gin.Context) {
+	var request CustomerAttachmentRemoveRequestObject
+
+	var body CustomerAttachmentRemoveJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.CustomerAttachmentRemove(ctx, request.(CustomerAttachmentRemoveRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CustomerAttachmentRemove")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(CustomerAttachmentRemoveResponseObject); ok {
+		if err := validResponse.VisitCustomerAttachmentRemoveResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CustomerCreate operation middleware
+func (sh *strictHandler) CustomerCreate(ctx *gin.Context) {
+	var request CustomerCreateRequestObject
+
+	var body CustomerCreateJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.CustomerCreate(ctx, request.(CustomerCreateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CustomerCreate")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(CustomerCreateResponseObject); ok {
+		if err := validResponse.VisitCustomerCreateResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CustomerGet operation middleware
+func (sh *strictHandler) CustomerGet(ctx *gin.Context) {
+	var request CustomerGetRequestObject
+
+	var body CustomerGetJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.CustomerGet(ctx, request.(CustomerGetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CustomerGet")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(CustomerGetResponseObject); ok {
+		if err := validResponse.VisitCustomerGetResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CustomerQuery operation middleware
+func (sh *strictHandler) CustomerQuery(ctx *gin.Context) {
+	var request CustomerQueryRequestObject
+
+	var body CustomerQueryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.CustomerQuery(ctx, request.(CustomerQueryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CustomerQuery")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(CustomerQueryResponseObject); ok {
+		if err := validResponse.VisitCustomerQueryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CustomerSave operation middleware
+func (sh *strictHandler) CustomerSave(ctx *gin.Context) {
+	var request CustomerSaveRequestObject
+
+	var body CustomerSaveJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.CustomerSave(ctx, request.(CustomerSaveRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CustomerSave")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(CustomerSaveResponseObject); ok {
+		if err := validResponse.VisitCustomerSaveResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CustomerTaxMatch operation middleware
+func (sh *strictHandler) CustomerTaxMatch(ctx *gin.Context) {
+	var request CustomerTaxMatchRequestObject
+
+	var body CustomerTaxMatchJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.CustomerTaxMatch(ctx, request.(CustomerTaxMatchRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CustomerTaxMatch")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(CustomerTaxMatchResponseObject); ok {
+		if err := validResponse.VisitCustomerTaxMatchResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// BobReferenceQuery operation middleware
+func (sh *strictHandler) BobReferenceQuery(ctx *gin.Context) {
+	var request BobReferenceQueryRequestObject
+
+	var body BobReferenceQueryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.BobReferenceQuery(ctx, request.(BobReferenceQueryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "BobReferenceQuery")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(BobReferenceQueryResponseObject); ok {
+		if err := validResponse.VisitBobReferenceQueryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// BobReferenceTransfer operation middleware
+func (sh *strictHandler) BobReferenceTransfer(ctx *gin.Context) {
+	var request BobReferenceTransferRequestObject
+
+	var body BobReferenceTransferJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.BobReferenceTransfer(ctx, request.(BobReferenceTransferRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "BobReferenceTransfer")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(BobReferenceTransferResponseObject); ok {
+		if err := validResponse.VisitBobReferenceTransferResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -14972,6 +17233,61 @@ func (sh *strictHandler) UploadAttachment(ctx *gin.Context, token FileToken) {
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(UploadAttachmentResponseObject); ok {
 		if err := validResponse.VisitUploadAttachmentResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DownloadCustomerAttachment operation middleware
+func (sh *strictHandler) DownloadCustomerAttachment(ctx *gin.Context, token FileToken) {
+	var request DownloadCustomerAttachmentRequestObject
+
+	request.Token = token
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.DownloadCustomerAttachment(ctx, request.(DownloadCustomerAttachmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DownloadCustomerAttachment")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(DownloadCustomerAttachmentResponseObject); ok {
+		if err := validResponse.VisitDownloadCustomerAttachmentResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UploadCustomerAttachment operation middleware
+func (sh *strictHandler) UploadCustomerAttachment(ctx *gin.Context, token FileToken) {
+	var request UploadCustomerAttachmentRequestObject
+
+	request.Token = token
+	request.ContentType = ctx.ContentType()
+
+	request.Body = ctx.Request.Body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.UploadCustomerAttachment(ctx, request.(UploadCustomerAttachmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UploadCustomerAttachment")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(UploadCustomerAttachmentResponseObject); ok {
+		if err := validResponse.VisitUploadCustomerAttachmentResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -16698,308 +19014,350 @@ func (sh *strictHandler) WflDynamicProcessQuery(ctx *gin.Context, processName st
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"AAD//w==",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

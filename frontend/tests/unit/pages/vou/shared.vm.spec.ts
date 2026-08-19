@@ -836,33 +836,14 @@ describe('shared VOU entity view model', () => {
       voucherEntityConfigs['sales-receipt'],
     )
     mockedPost.mockResolvedValue({
-      data: {
-        items: [
-          {
-            objectId: 'VALID',
-            code: 'CUS-1',
-            effectiveVersionId: 'VER-1',
-            currentVersion: {
-              versionId: 'VER-1',
-              status: 'EFFECTIVE',
-              summary: { name: '有效客户' },
-            },
-          },
-          {
-            objectId: 'MISMATCH',
-            code: 'CUS-2',
-            effectiveVersionId: 'VER-OLD',
-            currentVersion: {
-              versionId: 'VER-DRAFT',
-              status: 'DRAFT',
-              summary: { name: '编辑中的客户' },
-            },
-          },
-        ],
-        total: 2,
-        page: 1,
-        pageSize: 20,
-      },
+      data: [
+        {
+          objectId: 'VALID',
+          versionId: 'VER-1',
+          code: 'CUS-1',
+          name: '有效客户',
+        },
+      ],
     })
 
     vm.searchReference('counterparty', 'CUS')

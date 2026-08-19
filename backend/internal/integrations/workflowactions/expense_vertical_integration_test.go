@@ -94,8 +94,11 @@ func TestExpenseWorkflowRunsThroughRealVOUAdapterInOneApproval(t *testing.T) {
 	employee := approveWorkflowReference(t, bobService, bobdomain.EntityEmployee, bobdomain.CreateDetailInput{
 		Code: "WE" + suffix, Name: "流程员工",
 	}, submitterID, actorID)
+	operating := approveWorkflowReference(t, bobService, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{
+		Name: "流程经营主体", TaxNumber: "TAX" + suffix,
+	}, submitterID, actorID)
 	fund := approveWorkflowReference(t, bobService, bobdomain.EntityFundAccount, bobdomain.CreateDetailInput{
-		Code: "WF" + suffix, Name: "流程资金账户", Currency: "CNY",
+		Code: "WF" + suffix, Name: "流程资金账户", Currency: "CNY", OperatingEntityID: operating.ObjectID,
 	}, submitterID, actorID)
 	bus := txevent.NewBus()
 	vouService, err := voudomain.NewService(pool, bobService, auxiliaryrefs.New(auxdomain.NewService(pool)), bus,

@@ -2448,6 +2448,499 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
+      '/bob/customer/query':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '查询客户结算子账户最小投影',
+              'operationId': 'customerQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/CustomerQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户结算子账户分页响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/CustomerQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/bob/customer/get':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '读取客户集团、有效版本与候选版本',
+              'operationId': 'customerGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobGetRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '客户完整资料。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/CustomerGetResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/bob/customer/create':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '原子创建客户集团与首个结算子账户',
+              'operationId': 'customerCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/CustomerCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/customer/tax-match':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '按权限精确发现同税号资料',
+              'operationId': 'customerTaxMatch',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/CustomerTaxMatchRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '当前用户可读的同税号资料。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/CustomerTaxMatchResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/bob/customer/save':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '保存客户结算子账户候选版本',
+              'operationId': 'customerSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/CustomerSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/customer/attachment-initiate':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '初始化客户资料附件',
+              'operationId': 'customerAttachmentInitiate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/CustomerAttachmentInitiateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '附件上传令牌及新的所属资料 revision。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/CustomerAttachmentInitiateResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/bob/customer/attachment-download':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '申请客户资料附件下载',
+              'operationId': 'customerAttachmentDownload',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/CustomerAttachmentDownloadRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '短时下载地址。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/CustomerAttachmentDownloadResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/bob/customer/attachment-remove':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '移除客户资料附件',
+              'operationId': 'customerAttachmentRemove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/CustomerAttachmentRemoveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '新的所属资料 revision。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/CustomerAttachmentRemoveResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/bob/customer-group/get':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '读取客户集团当前资料',
+              'operationId': 'customerGroupGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/common.yaml#/IdRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/customer-group/save':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '按 revision 保存客户集团当前资料',
+              'operationId': 'customerGroupSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/CustomerGroupSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/customer-group/audit-history':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '查询客户集团追加审计',
+              'operationId': 'customerGroupAuditHistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobHistoryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/reference/transfer':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '原子批量转移当前 BOB 直接引用',
+              'operationId': 'bobReferenceTransfer',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/CustomerReferenceTransferRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '批量转移结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/CustomerReferenceTransferResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/bob/reference/query':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '查询 BOB 最小引用候选',
+              'operationId': 'bobReferenceQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/BobReferenceQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '最小引用候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/ReferenceQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/aux/reference/query':
+        {
+          'post':
+            {
+              'tags': ['aux'],
+              'summary': '查询 AUX 最小引用候选',
+              'operationId': 'auxReferenceQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/aux.yaml#/AuxReferenceQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '最小引用候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/ReferenceQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       '/bob/{entity}/query':
         {
           'post':
@@ -4502,6 +4995,59 @@
               'responses':
                 {
                   '204': { 'description': 'Uploaded' },
+                  '400': { '$ref': '#/components/responses/TechnicalError' },
+                },
+            },
+        },
+      '/files/customer-attachments/upload/{token}':
+        {
+          'put':
+            {
+              'tags': ['files'],
+              'summary': '上传客户资料附件内容',
+              'operationId': 'uploadCustomerAttachment',
+              'security': [],
+              'parameters': [{ '$ref': '#/components/parameters/FileToken' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      '*/*':
+                        { 'schema': { 'type': 'string', 'format': 'binary' } },
+                    },
+                },
+              'responses':
+                {
+                  '204': { 'description': '上传成功。' },
+                  '400': { '$ref': '#/components/responses/TechnicalError' },
+                  '409': { '$ref': '#/components/responses/TechnicalError' },
+                },
+            },
+        },
+      '/files/customer-attachments/download/{token}':
+        {
+          'get':
+            {
+              'tags': ['files'],
+              'summary': '下载客户资料附件内容',
+              'operationId': 'downloadCustomerAttachment',
+              'security': [],
+              'parameters': [{ '$ref': '#/components/parameters/FileToken' }],
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '附件字节流。',
+                      'content':
+                        {
+                          'application/octet-stream':
+                            {
+                              'schema':
+                                { 'type': 'string', 'format': 'binary' },
+                            },
+                        },
+                    },
                   '400': { '$ref': '#/components/responses/TechnicalError' },
                 },
             },

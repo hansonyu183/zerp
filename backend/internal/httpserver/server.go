@@ -41,6 +41,12 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 		return nil, nil, err
 	}
 	bobService := bobdomain.NewService(db)
+	bobAttachmentService, err := bobdomain.NewCustomerAttachmentService(db, bobdomain.CustomerAttachmentOptions{
+		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
 	auxService := auxdomain.NewService(db)
 	bobService.SetAuxiliaryResolver(auxiliaryrefs.New(auxService))
 	eventBus := txevent.NewBus()
@@ -80,7 +86,7 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 		appdomain.NewHandler(appService, cfg, logger).Register(router)
 		authorizer := appAuthorizer{service: appService, cfg: cfg}
 		accdomain.NewHandler(accService, authorizer, logger).Register(router)
-		bobdomain.NewHandler(bobService, authorizer, logger).Register(router)
+		bobdomain.NewHandler(bobService, bobAttachmentService, authorizer, logger).Register(router)
 		auxdomain.NewHandler(auxService, authorizer, logger).Register(router)
 		voudomain.NewHandler(vouService, authorizer, logger).Register(router)
 		wfldomain.NewHandler(wflService, authorizer, logger).Register(router)

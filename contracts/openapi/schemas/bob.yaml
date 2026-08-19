@@ -13,7 +13,7 @@
           'warehouse',
           'vehicle',
           'fund-account',
-          'settlement-method',
+          'operating-entity',
         ],
     },
   'BobQueryRequest':
@@ -187,14 +187,8 @@
                   'bankName': { 'type': 'string', 'nullable': true },
                   'bankBranch': { 'type': 'string', 'nullable': true },
                   'accountNumber': { 'type': 'string', 'nullable': true },
+                  'operatingEntityId': { 'type': 'string', 'nullable': true },
                   'settlementMethodId': { 'type': 'string', 'nullable': true },
-                  'monthlyClosingDay':
-                    {
-                      'type': 'integer',
-                      'minimum': 1,
-                      'maximum': 31,
-                      'description': '仅客户适用；创建客户时省略则按 31 处理',
-                    },
                   'termCode': { 'type': 'string', 'nullable': true },
                   'defaultSalesSurcharge':
                     { 'type': 'string', 'nullable': true },
@@ -304,9 +298,8 @@
                   'bankName': { 'type': 'string', 'nullable': true },
                   'bankBranch': { 'type': 'string', 'nullable': true },
                   'accountNumber': { 'type': 'string', 'nullable': true },
+                  'operatingEntityId': { 'type': 'string', 'nullable': true },
                   'settlementMethodId': { 'type': 'string', 'nullable': true },
-                  'monthlyClosingDay':
-                    { 'type': 'integer', 'minimum': 1, 'maximum': 31 },
                   'termCode': { 'type': 'string', 'nullable': true },
                   'defaultSalesSurcharge':
                     { 'type': 'string', 'nullable': true },
@@ -468,6 +461,946 @@
           'objectId': { 'type': 'string' },
           'page': { 'type': 'integer', 'minimum': 1 },
           'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 100 },
+        },
+    },
+  'CustomerPricingCostItem':
+    {
+      'type': 'object',
+      'required': ['name', 'basis'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'name': { 'type': 'string', 'minLength': 1, 'maxLength': 100 },
+          'basis': { 'type': 'string', 'enum': ['UNIT_PRICE', 'ORDER_AMOUNT'] },
+          'unitPrice':
+            {
+              'type': 'string',
+              'pattern': '^(0|[1-9][0-9]*)(\\.[0-9]{1,2})?$',
+            },
+          'orderAmount':
+            {
+              'type': 'string',
+              'pattern': '^(0|[1-9][0-9]*)(\\.[0-9]{1,2})?$',
+            },
+        },
+      'oneOf':
+        [
+          {
+            'required': ['unitPrice'],
+            'properties': { 'unitPrice': {}, 'orderAmount': {} },
+            'not':
+              {
+                'required': ['orderAmount'],
+                'properties': { 'orderAmount': {} },
+              },
+          },
+          {
+            'required': ['orderAmount'],
+            'properties': { 'unitPrice': {}, 'orderAmount': {} },
+            'not':
+              { 'required': ['unitPrice'], 'properties': { 'unitPrice': {} } },
+          },
+        ],
+    },
+  'CustomerPricingPolicy':
+    {
+      'type': 'object',
+      'required':
+        [
+          'defaultPremiumUnitPrice',
+          'defaultDiscountUnitPrice',
+          'costItems',
+          'thirdPartyIntermediaryFixedUnitCost',
+          'thirdPartyIntermediaryVariableUnitCost',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'defaultPremiumUnitPrice': { 'type': 'string' },
+          'defaultDiscountUnitPrice': { 'type': 'string' },
+          'costItems':
+            {
+              'type': 'array',
+              'maxItems': 100,
+              'items': { '$ref': '#/CustomerPricingCostItem' },
+            },
+          'thirdPartyIntermediaryFixedUnitCost': { 'type': 'string' },
+          'thirdPartyIntermediaryVariableUnitCost': { 'type': 'string' },
+        },
+    },
+  'CustomerGroupBankAccount':
+    {
+      'type': 'object',
+      'required': ['accountName', 'bankName', 'bankBranch', 'accountNumber'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'accountName': { 'type': 'string', 'maxLength': 200 },
+          'bankName': { 'type': 'string', 'maxLength': 200 },
+          'bankBranch': { 'type': 'string', 'maxLength': 200 },
+          'accountNumber': { 'type': 'string', 'maxLength': 100 },
+        },
+    },
+  'CustomerGroupData':
+    {
+      'type': 'object',
+      'required': ['companyName', 'bankAccounts'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'companyName': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'shortName': { 'type': 'string', 'nullable': true, 'maxLength': 100 },
+          'taxNumber': { 'type': 'string', 'nullable': true, 'maxLength': 100 },
+          'invoiceTitle':
+            { 'type': 'string', 'nullable': true, 'maxLength': 200 },
+          'invoiceAddress':
+            { 'type': 'string', 'nullable': true, 'maxLength': 500 },
+          'invoicePhone':
+            { 'type': 'string', 'nullable': true, 'maxLength': 100 },
+          'bankAccounts':
+            {
+              'type': 'array',
+              'maxItems': 20,
+              'items': { '$ref': '#/CustomerGroupBankAccount' },
+            },
+        },
+    },
+  'CustomerGroupView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'groupId',
+          'code',
+          'revision',
+          'data',
+          'attachments',
+          'updatedAt',
+          'updatedBy',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'groupId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'data': { '$ref': '#/CustomerGroupData' },
+          'attachments':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/CustomerAttachmentView' },
+            },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+          'updatedBy': { 'type': 'string' },
+        },
+    },
+  'CustomerSnapshot':
+    {
+      'type': 'object',
+      'required': ['sourceObjectId', 'code', 'name'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'sourceObjectId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'name': { 'type': 'string' },
+          'termCode': { 'type': 'string' },
+          'ruleType': { 'type': 'string' },
+          'dueDays': { 'type': 'integer', 'format': 'int32' },
+          'monthOffset': { 'type': 'integer', 'format': 'int32' },
+          'cutoffDay': { 'type': 'integer', 'format': 'int32' },
+          'defaultSalesSurcharge': { 'type': 'string' },
+          'taxNumber': { 'type': 'string' },
+          'address': { 'type': 'string' },
+          'phone': { 'type': 'string' },
+        },
+    },
+  'CustomerSalesAttributionInput':
+    {
+      'type': 'object',
+      'required': ['type', 'subjectObjectId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'type':
+            {
+              'type': 'string',
+              'enum': ['INTERNAL_EMPLOYEE', 'EXTERNAL_PART_TIME', 'DEALER'],
+            },
+          'subjectObjectId': { 'type': 'string' },
+        },
+    },
+  'CustomerSalesAttributionView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'type',
+          'subjectObjectId',
+          'subjectVersionId',
+          'subjectCode',
+          'subjectName',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'type':
+            {
+              'type': 'string',
+              'enum': ['INTERNAL_EMPLOYEE', 'EXTERNAL_PART_TIME', 'DEALER'],
+            },
+          'subjectObjectId': { 'type': 'string' },
+          'subjectVersionId': { 'type': 'string' },
+          'subjectCode': { 'type': 'string' },
+          'subjectName': { 'type': 'string' },
+        },
+    },
+  'CustomerCreditLimit':
+    {
+      'type': 'object',
+      'required': ['currency', 'amount'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'currency': { 'type': 'string', 'enum': ['CNY'] },
+          'amount': { 'type': 'string' },
+        },
+    },
+  'CustomerAccountInput':
+    {
+      'type': 'object',
+      'required':
+        [
+          'name',
+          'customerTypeCode',
+          'pricingPolicy',
+          'creditLimits',
+          'primarySalesAttribution',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'name': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'shortName': { 'type': 'string', 'nullable': true },
+          'customerTypeCode': { 'type': 'string' },
+          'contactName': { 'type': 'string', 'nullable': true },
+          'contactPhone': { 'type': 'string', 'nullable': true },
+          'email': { 'type': 'string', 'nullable': true },
+          'address': { 'type': 'string', 'nullable': true },
+          'operatingEntityId': { 'type': 'string', 'nullable': true },
+          'settlementMethodId': { 'type': 'string', 'nullable': true },
+          'paymentMethodId': { 'type': 'string', 'nullable': true },
+          'defaultTransportMethodCode':
+            { 'type': 'string', 'nullable': true, 'maxLength': 32 },
+          'defaultTransportMethodName':
+            { 'type': 'string', 'nullable': true, 'maxLength': 100 },
+          'transportSurcharge': { 'type': 'string', 'nullable': true },
+          'pricingPolicy': { '$ref': '#/CustomerPricingPolicy' },
+          'creditLimits':
+            {
+              'type': 'array',
+              'maxItems': 1,
+              'items': { '$ref': '#/CustomerCreditLimit' },
+            },
+          'primarySalesAttribution':
+            { '$ref': '#/CustomerSalesAttributionInput' },
+          'internalReminder': { 'type': 'string', 'nullable': true },
+          'defaultSalesOrderRemark': { 'type': 'string', 'nullable': true },
+        },
+    },
+  'CustomerAccountView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'name',
+          'customerTypeCode',
+          'pricingPolicy',
+          'creditLimits',
+          'operatingEntity',
+          'settlementMethod',
+          'paymentMethod',
+          'primarySalesAttribution',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'name': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'shortName': { 'type': 'string', 'nullable': true },
+          'customerTypeCode': { 'type': 'string' },
+          'contactName': { 'type': 'string', 'nullable': true },
+          'contactPhone': { 'type': 'string', 'nullable': true },
+          'email': { 'type': 'string', 'nullable': true },
+          'address': { 'type': 'string', 'nullable': true },
+          'operatingEntityId': { 'type': 'string', 'nullable': true },
+          'settlementMethodId': { 'type': 'string', 'nullable': true },
+          'paymentMethodId': { 'type': 'string', 'nullable': true },
+          'defaultTransportMethodCode':
+            { 'type': 'string', 'nullable': true, 'maxLength': 32 },
+          'defaultTransportMethodName':
+            { 'type': 'string', 'nullable': true, 'maxLength': 100 },
+          'transportSurcharge': { 'type': 'string', 'nullable': true },
+          'pricingPolicy': { '$ref': '#/CustomerPricingPolicy' },
+          'creditLimits':
+            {
+              'type': 'array',
+              'maxItems': 1,
+              'items': { '$ref': '#/CustomerCreditLimit' },
+            },
+          'operatingEntity':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/CustomerSnapshot' }],
+              'nullable': true,
+            },
+          'settlementMethod':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/CustomerSnapshot' }],
+              'nullable': true,
+            },
+          'paymentMethod':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/CustomerSnapshot' }],
+              'nullable': true,
+            },
+          'primarySalesAttribution':
+            { '$ref': '#/CustomerSalesAttributionView' },
+          'internalReminder': { 'type': 'string', 'nullable': true },
+          'defaultSalesOrderRemark': { 'type': 'string', 'nullable': true },
+        },
+    },
+  'CustomerVersionView':
+    {
+      'type': 'object',
+      'required': ['version', 'data', 'attachments'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'version': { '$ref': '#/CustomerVersionMeta' },
+          'data': { '$ref': '#/CustomerAccountView' },
+          'attachments':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/CustomerAttachmentView' },
+            },
+        },
+    },
+  'CustomerAttachmentScope': { 'type': 'string', 'enum': ['GROUP', 'ACCOUNT'] },
+  'CustomerAttachmentView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'fileId',
+          'fileName',
+          'contentType',
+          'size',
+          'sha256',
+          'status',
+          'categoryObjectId',
+          'categoryVersionId',
+          'categoryCode',
+          'categoryName',
+          'createdAt',
+          'createdBy',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'fileId': { 'type': 'string' },
+          'fileName': { 'type': 'string' },
+          'contentType':
+            {
+              'type': 'string',
+              'enum': ['application/pdf', 'image/jpeg', 'image/png'],
+            },
+          'size': { 'type': 'integer', 'format': 'int64' },
+          'sha256': { 'type': 'string' },
+          'status': { 'type': 'string', 'enum': ['PENDING', 'READY'] },
+          'categoryObjectId': { 'type': 'string' },
+          'categoryVersionId': { 'type': 'string' },
+          'categoryCode': { 'type': 'string' },
+          'categoryName': { 'type': 'string' },
+          'storedAt':
+            { 'type': 'string', 'format': 'date-time', 'nullable': true },
+          'createdAt': { 'type': 'string', 'format': 'date-time' },
+          'createdBy': { 'type': 'string' },
+        },
+    },
+  'CustomerAttachmentInitiateRequest':
+    {
+      'type': 'object',
+      'required':
+        [
+          'scope',
+          'ownerId',
+          'revision',
+          'categoryObjectId',
+          'fileName',
+          'contentType',
+          'size',
+          'sha256',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'scope': { '$ref': '#/CustomerAttachmentScope' },
+          'ownerId': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'categoryObjectId': { 'type': 'string' },
+          'fileName': { 'type': 'string', 'minLength': 1, 'maxLength': 255 },
+          'contentType':
+            {
+              'type': 'string',
+              'enum': ['application/pdf', 'image/jpeg', 'image/png'],
+            },
+          'size':
+            {
+              'type': 'integer',
+              'format': 'int64',
+              'minimum': 1,
+              'maximum': 10485760,
+            },
+          'sha256': { 'type': 'string', 'pattern': '^[0-9a-f]{64}$' },
+        },
+    },
+  'CustomerAttachmentInitiateResult':
+    {
+      'type': 'object',
+      'required': ['fileId', 'uploadUrl', 'expiresAt', 'revision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'fileId': { 'type': 'string' },
+          'uploadUrl': { 'type': 'string' },
+          'expiresAt': { 'type': 'string', 'format': 'date-time' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+        },
+    },
+  'CustomerAttachmentInitiateResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/CustomerAttachmentInitiateResult' },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'CustomerAttachmentDownloadRequest':
+    {
+      'type': 'object',
+      'required': ['scope', 'ownerId', 'fileId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'scope': { '$ref': '#/CustomerAttachmentScope' },
+          'ownerId': { 'type': 'string' },
+          'fileId': { 'type': 'string' },
+        },
+    },
+  'CustomerAttachmentDownloadResult':
+    {
+      'type': 'object',
+      'required': ['downloadUrl', 'expiresAt'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'downloadUrl': { 'type': 'string' },
+          'expiresAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'CustomerAttachmentDownloadResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/CustomerAttachmentDownloadResult' },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'CustomerAttachmentRemoveRequest':
+    {
+      'type': 'object',
+      'required': ['scope', 'ownerId', 'revision', 'fileId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'scope': { '$ref': '#/CustomerAttachmentScope' },
+          'ownerId': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'fileId': { 'type': 'string' },
+        },
+    },
+  'CustomerAttachmentMutationResult':
+    {
+      'type': 'object',
+      'required': ['revision'],
+      'additionalProperties': false,
+      'properties': { 'revision': { 'type': 'integer', 'format': 'int64' } },
+    },
+  'CustomerAttachmentRemoveResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/CustomerAttachmentMutationResult' },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'CustomerVersionMeta':
+    {
+      'type': 'object',
+      'required':
+        [
+          'versionId',
+          'version',
+          'status',
+          'revision',
+          'createdAt',
+          'createdBy',
+          'updatedAt',
+          'updatedBy',
+          'submittedAt',
+          'submittedBy',
+          'reviewedAt',
+          'reviewedBy',
+          'reviewComment',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'versionId': { 'type': 'string' },
+          'version': { 'type': 'integer', 'format': 'int32' },
+          'status':
+            {
+              'type': 'string',
+              'enum': ['DRAFT', 'PENDING', 'EFFECTIVE', 'INVALID'],
+            },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'createdAt': { 'type': 'string', 'format': 'date-time' },
+          'createdBy': { 'type': 'string' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+          'updatedBy': { 'type': 'string' },
+          'submittedAt':
+            { 'type': 'string', 'format': 'date-time', 'nullable': true },
+          'submittedBy': { 'type': 'string', 'nullable': true },
+          'reviewedAt':
+            { 'type': 'string', 'format': 'date-time', 'nullable': true },
+          'reviewedBy': { 'type': 'string', 'nullable': true },
+          'reviewComment': { 'type': 'string', 'nullable': true },
+        },
+    },
+  'CustomerCreateRequest':
+    {
+      'oneOf':
+        [
+          {
+            'type': 'object',
+            'required': ['group', 'data'],
+            'additionalProperties': false,
+            'properties':
+              {
+                'group': { '$ref': '#/CustomerGroupData' },
+                'data': { '$ref': '#/CustomerAccountInput' },
+              },
+          },
+          {
+            'type': 'object',
+            'required': ['groupId', 'data'],
+            'additionalProperties': false,
+            'properties':
+              {
+                'groupId': { 'type': 'string' },
+                'data': { '$ref': '#/CustomerAccountInput' },
+              },
+          },
+        ],
+    },
+  'CustomerSaveRequest':
+    {
+      'type': 'object',
+      'required':
+        ['objectId', 'versionId', 'revision', 'groupRevision', 'group', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'versionId': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'groupRevision': { 'type': 'integer', 'format': 'int64' },
+          'group': { '$ref': '#/CustomerGroupData' },
+          'data': { '$ref': '#/CustomerAccountInput' },
+        },
+    },
+  'CustomerQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'enum': [20] },
+          'filters':
+            {
+              'type': 'object',
+              'additionalProperties': false,
+              'properties':
+                {
+                  'keyword': { 'type': 'string' },
+                  'status': { 'type': 'array', 'items': { 'type': 'string' } },
+                  'enabled': { 'type': 'boolean' },
+                  'customerType': { 'type': 'string' },
+                  'operatingEntityId': { 'type': 'string' },
+                  'salesAttributionType':
+                    {
+                      'type': 'string',
+                      'enum':
+                        ['INTERNAL_EMPLOYEE', 'EXTERNAL_PART_TIME', 'DEALER'],
+                    },
+                  'salesAttributionSubjectId': { 'type': 'string' },
+                },
+            },
+          'sort':
+            {
+              'type': 'array',
+              'maxItems': 1,
+              'items':
+                {
+                  'type': 'object',
+                  'required': ['field', 'order'],
+                  'additionalProperties': false,
+                  'properties':
+                    {
+                      'field': { 'type': 'string', 'enum': ['code'] },
+                      'order': { 'type': 'string', 'enum': ['asc'] },
+                    },
+                },
+            },
+        },
+    },
+  'CustomerListItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'code',
+          'objectRevision',
+          'enabled',
+          'effective',
+          'candidate',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'effective':
+            {
+              'type': 'object',
+              'nullable': true,
+              'additionalProperties': false,
+              'properties':
+                {
+                  'versionId': { 'type': 'string' },
+                  'version': { 'type': 'integer' },
+                  'status': { 'type': 'string' },
+                  'revision': { 'type': 'integer', 'format': 'int64' },
+                  'name': { 'type': 'string' },
+                  'customerTypeCode': { 'type': 'string' },
+                  'operatingEntityName': { 'type': 'string' },
+                  'salesAttributionName': { 'type': 'string' },
+                  'submittedBy': { 'type': 'string', 'nullable': true },
+                },
+            },
+          'candidate':
+            {
+              'type': 'object',
+              'nullable': true,
+              'additionalProperties': false,
+              'properties':
+                {
+                  'versionId': { 'type': 'string' },
+                  'version': { 'type': 'integer' },
+                  'status': { 'type': 'string' },
+                  'revision': { 'type': 'integer', 'format': 'int64' },
+                  'name': { 'type': 'string' },
+                  'customerTypeCode': { 'type': 'string' },
+                  'submittedBy': { 'type': 'string', 'nullable': true },
+                },
+            },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'CustomerQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'required': ['items', 'total', 'page', 'pageSize'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'items':
+                    {
+                      'type': 'array',
+                      'items': { '$ref': '#/CustomerListItem' },
+                    },
+                  'total': { 'type': 'integer', 'format': 'int64' },
+                  'page': { 'type': 'integer' },
+                  'pageSize': { 'type': 'integer' },
+                },
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'CustomerDetailView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'code',
+          'objectRevision',
+          'enabled',
+          'group',
+          'effective',
+          'candidate',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'group': { '$ref': '#/CustomerGroupView' },
+          'effective':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/CustomerVersionView' }],
+              'nullable': true,
+            },
+          'candidate':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/CustomerVersionView' }],
+              'nullable': true,
+            },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'CustomerGetResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/CustomerDetailView' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'CustomerGroupSaveRequest':
+    {
+      'type': 'object',
+      'required': ['groupId', 'revision', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'groupId': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'data': { '$ref': '#/CustomerGroupData' },
+        },
+    },
+  'CustomerReferenceTransferRequest':
+    {
+      'type': 'object',
+      'required':
+        ['entity', 'sourceObjectId', 'targetObjectId', 'sourceObjectRevision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'entity':
+            {
+              'type': 'string',
+              'enum':
+                [
+                  'customer',
+                  'operating-entity',
+                  'employee',
+                  'other-party',
+                  'supplier',
+                  'product',
+                ],
+            },
+          'sourceObjectId': { 'type': 'string' },
+          'targetObjectId': { 'type': 'string' },
+          'sourceObjectRevision': { 'type': 'integer', 'format': 'int64' },
+        },
+    },
+  'CustomerReferenceTransferResult':
+    {
+      'type': 'object',
+      'required': ['sourceObjectId', 'targetObjectId', 'affectedObjects'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'sourceObjectId': { 'type': 'string' },
+          'targetObjectId': { 'type': 'string' },
+          'affectedObjects': { 'type': 'integer' },
+        },
+    },
+  'CustomerReferenceTransferResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/CustomerReferenceTransferResult' },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'BobReferenceQueryRequest':
+    {
+      'type': 'object',
+      'required': ['entity'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'entity':
+            {
+              'type': 'string',
+              'enum':
+                [
+                  'customer',
+                  'operating-entity',
+                  'employee',
+                  'other-party',
+                  'supplier',
+                  'product',
+                ],
+            },
+          'keyword': { 'type': 'string', 'maxLength': 100 },
+          'sourceObjectId': { 'type': 'string', 'maxLength': 26 },
+        },
+    },
+  'ReferenceCandidate':
+    {
+      'type': 'object',
+      'required': ['objectId', 'versionId', 'code', 'name'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'versionId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'name': { 'type': 'string' },
+        },
+    },
+  'ReferenceQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'message': { 'type': 'string' },
+          'data':
+            { 'type': 'array', 'items': { '$ref': '#/ReferenceCandidate' } },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'CustomerTaxMatchRequest':
+    {
+      'type': 'object',
+      'required': ['taxNumber'],
+      'additionalProperties': false,
+      'properties':
+        { 'taxNumber': { 'type': 'string', 'minLength': 1, 'maxLength': 100 } },
+    },
+  'CustomerTaxMatch':
+    {
+      'type': 'object',
+      'required':
+        [
+          'sourceEntity',
+          'objectId',
+          'code',
+          'companyName',
+          'shortName',
+          'taxNumber',
+          'invoiceTitle',
+          'invoiceAddress',
+          'invoicePhone',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'sourceEntity':
+            {
+              'type': 'string',
+              'enum': ['customer-group', 'supplier', 'other-party'],
+            },
+          'objectId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'companyName': { 'type': 'string' },
+          'shortName': { 'type': 'string' },
+          'taxNumber': { 'type': 'string' },
+          'invoiceTitle': { 'type': 'string' },
+          'invoiceAddress': { 'type': 'string' },
+          'invoicePhone': { 'type': 'string' },
+        },
+    },
+  'CustomerTaxMatchResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'message': { 'type': 'string' },
+          'data':
+            { 'type': 'array', 'items': { '$ref': '#/CustomerTaxMatch' } },
+          'requestId': { 'type': 'string' },
         },
     },
 }

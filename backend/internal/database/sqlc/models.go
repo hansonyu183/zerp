@@ -604,27 +604,149 @@ type BobCategoryVersion struct {
 	Description  *string `db:"description" json:"description"`
 }
 
+type BobCustomerAccount struct {
+	ObjectID string `db:"object_id" json:"object_id"`
+	GroupID  string `db:"group_id" json:"group_id"`
+	Entity   string `db:"entity" json:"entity"`
+}
+
+type BobCustomerCreditLimit struct {
+	VersionID   string `db:"version_id" json:"version_id"`
+	Currency    string `db:"currency" json:"currency"`
+	AmountCents int64  `db:"amount_cents" json:"amount_cents"`
+}
+
+type BobCustomerDownloadToken struct {
+	TokenHash string             `db:"token_hash" json:"token_hash"`
+	FileID    string             `db:"file_id" json:"file_id"`
+	ExpiresAt pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	UsedAt    pgtype.Timestamptz `db:"used_at" json:"used_at"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy string             `db:"created_by" json:"created_by"`
+}
+
+type BobCustomerFile struct {
+	ID              string             `db:"id" json:"id"`
+	StorageKey      string             `db:"storage_key" json:"storage_key"`
+	OriginalName    string             `db:"original_name" json:"original_name"`
+	ContentType     string             `db:"content_type" json:"content_type"`
+	DeclaredSize    int64              `db:"declared_size" json:"declared_size"`
+	Sha256Hex       string             `db:"sha256_hex" json:"sha256_hex"`
+	Status          string             `db:"status" json:"status"`
+	UploadTokenHash string             `db:"upload_token_hash" json:"upload_token_hash"`
+	UploadExpiresAt pgtype.Timestamptz `db:"upload_expires_at" json:"upload_expires_at"`
+	StoredAt        pgtype.Timestamptz `db:"stored_at" json:"stored_at"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy       string             `db:"created_by" json:"created_by"`
+}
+
+type BobCustomerGroup struct {
+	ID             string             `db:"id" json:"id"`
+	Code           string             `db:"code" json:"code"`
+	CompanyName    string             `db:"company_name" json:"company_name"`
+	ShortName      *string            `db:"short_name" json:"short_name"`
+	TaxNumber      *string            `db:"tax_number" json:"tax_number"`
+	InvoiceTitle   *string            `db:"invoice_title" json:"invoice_title"`
+	InvoiceAddress *string            `db:"invoice_address" json:"invoice_address"`
+	InvoicePhone   *string            `db:"invoice_phone" json:"invoice_phone"`
+	Revision       int64              `db:"revision" json:"revision"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy      string             `db:"created_by" json:"created_by"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy      string             `db:"updated_by" json:"updated_by"`
+}
+
+type BobCustomerGroupAttachment struct {
+	GroupID           string             `db:"group_id" json:"group_id"`
+	FileID            string             `db:"file_id" json:"file_id"`
+	CategoryObjectID  string             `db:"category_object_id" json:"category_object_id"`
+	CategoryVersionID string             `db:"category_version_id" json:"category_version_id"`
+	CategoryCode      string             `db:"category_code" json:"category_code"`
+	CategoryName      string             `db:"category_name" json:"category_name"`
+	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy         string             `db:"created_by" json:"created_by"`
+}
+
+type BobCustomerGroupAuditEvent struct {
+	ID         string             `db:"id" json:"id"`
+	GroupID    string             `db:"group_id" json:"group_id"`
+	EventType  string             `db:"event_type" json:"event_type"`
+	ActorID    string             `db:"actor_id" json:"actor_id"`
+	OccurredAt pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
+	RequestID  string             `db:"request_id" json:"request_id"`
+	Summary    []byte             `db:"summary" json:"summary"`
+}
+
+type BobCustomerGroupBankAccount struct {
+	GroupID       string `db:"group_id" json:"group_id"`
+	LineNo        int32  `db:"line_no" json:"line_no"`
+	AccountName   string `db:"account_name" json:"account_name"`
+	BankName      string `db:"bank_name" json:"bank_name"`
+	BankBranch    string `db:"bank_branch" json:"bank_branch"`
+	AccountNumber string `db:"account_number" json:"account_number"`
+}
+
 type BobCustomerVersion struct {
-	VersionID                 string  `db:"version_id" json:"version_id"`
-	Entity                    string  `db:"entity" json:"entity"`
-	Name                      string  `db:"name" json:"name"`
-	CustomerType              string  `db:"customer_type" json:"customer_type"`
-	ShortName                 *string `db:"short_name" json:"short_name"`
-	CategoryID                *string `db:"category_id" json:"category_id"`
-	CategoryEntity            string  `db:"category_entity" json:"category_entity"`
-	TaxNumber                 *string `db:"tax_number" json:"tax_number"`
-	ContactName               *string `db:"contact_name" json:"contact_name"`
-	ContactPhone              *string `db:"contact_phone" json:"contact_phone"`
-	Email                     *string `db:"email" json:"email"`
-	Address                   *string `db:"address" json:"address"`
-	Remark                    *string `db:"remark" json:"remark"`
-	SettlementMethodID        *string `db:"settlement_method_id" json:"settlement_method_id"`
-	SettlementMethodEntity    string  `db:"settlement_method_entity" json:"settlement_method_entity"`
-	SalespersonEmployeeID     string  `db:"salesperson_employee_id" json:"salesperson_employee_id"`
-	SalespersonEmployeeEntity string  `db:"salesperson_employee_entity" json:"salesperson_employee_entity"`
-	MonthlyClosingDay         int32   `db:"monthly_closing_day" json:"monthly_closing_day"`
-	RebateUnitPriceCents      int64   `db:"rebate_unit_price_cents" json:"rebate_unit_price_cents"`
-	IntermediaryOtherPartyID  *string `db:"intermediary_other_party_id" json:"intermediary_other_party_id"`
+	VersionID                     string  `db:"version_id" json:"version_id"`
+	Entity                        string  `db:"entity" json:"entity"`
+	Name                          string  `db:"name" json:"name"`
+	CustomerType                  string  `db:"customer_type" json:"customer_type"`
+	ShortName                     *string `db:"short_name" json:"short_name"`
+	CategoryID                    *string `db:"category_id" json:"category_id"`
+	CategoryEntity                string  `db:"category_entity" json:"category_entity"`
+	TaxNumber                     *string `db:"tax_number" json:"tax_number"`
+	ContactName                   *string `db:"contact_name" json:"contact_name"`
+	ContactPhone                  *string `db:"contact_phone" json:"contact_phone"`
+	Email                         *string `db:"email" json:"email"`
+	Address                       *string `db:"address" json:"address"`
+	Remark                        *string `db:"remark" json:"remark"`
+	SettlementMethodID            *string `db:"settlement_method_id" json:"settlement_method_id"`
+	SettlementMethodEntity        string  `db:"settlement_method_entity" json:"settlement_method_entity"`
+	SalespersonEmployeeID         string  `db:"salesperson_employee_id" json:"salesperson_employee_id"`
+	SalespersonEmployeeEntity     string  `db:"salesperson_employee_entity" json:"salesperson_employee_entity"`
+	MonthlyClosingDay             *int32  `db:"monthly_closing_day" json:"monthly_closing_day"`
+	RebateUnitPriceCents          int64   `db:"rebate_unit_price_cents" json:"rebate_unit_price_cents"`
+	IntermediaryOtherPartyID      *string `db:"intermediary_other_party_id" json:"intermediary_other_party_id"`
+	OperatingEntityID             *string `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityCode           *string `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName           *string `db:"operating_entity_name" json:"operating_entity_name"`
+	OperatingEntityTaxNumber      *string `db:"operating_entity_tax_number" json:"operating_entity_tax_number"`
+	OperatingEntityAddress        *string `db:"operating_entity_address" json:"operating_entity_address"`
+	OperatingEntityPhone          *string `db:"operating_entity_phone" json:"operating_entity_phone"`
+	SettlementMethodCode          *string `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName          *string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementTermCode            *string `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementRuleType            *string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementDueDays             int32   `db:"settlement_due_days" json:"settlement_due_days"`
+	SettlementMonthOffset         int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementCutoffDay           int32   `db:"settlement_cutoff_day" json:"settlement_cutoff_day"`
+	SettlementSalesSurchargeCents int64   `db:"settlement_sales_surcharge_cents" json:"settlement_sales_surcharge_cents"`
+	PaymentMethodID               *string `db:"payment_method_id" json:"payment_method_id"`
+	PaymentMethodCode             *string `db:"payment_method_code" json:"payment_method_code"`
+	PaymentMethodName             *string `db:"payment_method_name" json:"payment_method_name"`
+	PaymentSalesSurchargeCents    int64   `db:"payment_sales_surcharge_cents" json:"payment_sales_surcharge_cents"`
+	DefaultTransportMethodCode    *string `db:"default_transport_method_code" json:"default_transport_method_code"`
+	DefaultTransportMethodName    *string `db:"default_transport_method_name" json:"default_transport_method_name"`
+	TransportSurchargeCents       int64   `db:"transport_surcharge_cents" json:"transport_surcharge_cents"`
+	PricingPolicy                 []byte  `db:"pricing_policy" json:"pricing_policy"`
+	PrimarySalesAttributionType   *string `db:"primary_sales_attribution_type" json:"primary_sales_attribution_type"`
+	PrimarySalesSubjectID         *string `db:"primary_sales_subject_id" json:"primary_sales_subject_id"`
+	PrimarySalesSubjectVersionID  *string `db:"primary_sales_subject_version_id" json:"primary_sales_subject_version_id"`
+	PrimarySalesSubjectCode       *string `db:"primary_sales_subject_code" json:"primary_sales_subject_code"`
+	PrimarySalesSubjectName       *string `db:"primary_sales_subject_name" json:"primary_sales_subject_name"`
+	InternalReminder              *string `db:"internal_reminder" json:"internal_reminder"`
+	DefaultSalesOrderRemark       *string `db:"default_sales_order_remark" json:"default_sales_order_remark"`
+}
+
+type BobCustomerVersionAttachment struct {
+	VersionID         string             `db:"version_id" json:"version_id"`
+	FileID            string             `db:"file_id" json:"file_id"`
+	CategoryObjectID  string             `db:"category_object_id" json:"category_object_id"`
+	CategoryVersionID string             `db:"category_version_id" json:"category_version_id"`
+	CategoryCode      string             `db:"category_code" json:"category_code"`
+	CategoryName      string             `db:"category_name" json:"category_name"`
+	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy         string             `db:"created_by" json:"created_by"`
 }
 
 type BobDepartmentVersion struct {
@@ -655,17 +777,21 @@ type BobEmployeeVersion struct {
 }
 
 type BobFundAccountVersion struct {
-	VersionID      string  `db:"version_id" json:"version_id"`
-	Entity         string  `db:"entity" json:"entity"`
-	Name           string  `db:"name" json:"name"`
-	Currency       string  `db:"currency" json:"currency"`
-	CategoryID     *string `db:"category_id" json:"category_id"`
-	CategoryEntity string  `db:"category_entity" json:"category_entity"`
-	AccountName    *string `db:"account_name" json:"account_name"`
-	BankName       *string `db:"bank_name" json:"bank_name"`
-	BankBranch     *string `db:"bank_branch" json:"bank_branch"`
-	AccountNumber  *string `db:"account_number" json:"account_number"`
-	Remark         *string `db:"remark" json:"remark"`
+	VersionID                string  `db:"version_id" json:"version_id"`
+	Entity                   string  `db:"entity" json:"entity"`
+	Name                     string  `db:"name" json:"name"`
+	Currency                 string  `db:"currency" json:"currency"`
+	CategoryID               *string `db:"category_id" json:"category_id"`
+	CategoryEntity           string  `db:"category_entity" json:"category_entity"`
+	AccountName              *string `db:"account_name" json:"account_name"`
+	BankName                 *string `db:"bank_name" json:"bank_name"`
+	BankBranch               *string `db:"bank_branch" json:"bank_branch"`
+	AccountNumber            *string `db:"account_number" json:"account_number"`
+	Remark                   *string `db:"remark" json:"remark"`
+	OperatingEntityID        *string `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityVersionID *string `db:"operating_entity_version_id" json:"operating_entity_version_id"`
+	OperatingEntityCode      *string `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName      *string `db:"operating_entity_name" json:"operating_entity_name"`
 }
 
 type BobMigration00046AuxMap struct {
@@ -721,6 +847,17 @@ type BobObject struct {
 	UpdatedBy          string             `db:"updated_by" json:"updated_by"`
 	Enabled            bool               `db:"enabled" json:"enabled"`
 	OitID              *string            `db:"oit_id" json:"oit_id"`
+}
+
+type BobOperatingEntityVersion struct {
+	VersionID string  `db:"version_id" json:"version_id"`
+	Entity    string  `db:"entity" json:"entity"`
+	LegalName string  `db:"legal_name" json:"legal_name"`
+	ShortName *string `db:"short_name" json:"short_name"`
+	TaxNumber *string `db:"tax_number" json:"tax_number"`
+	Address   *string `db:"address" json:"address"`
+	Phone     *string `db:"phone" json:"phone"`
+	Remark    *string `db:"remark" json:"remark"`
 }
 
 type BobPositionVersion struct {

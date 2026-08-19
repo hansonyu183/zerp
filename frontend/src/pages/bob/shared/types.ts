@@ -8,7 +8,6 @@ export type BobStatus =
   'DRAFT' | 'PENDING' | 'REJECTED' | 'EFFECTIVE' | 'INVALID'
 
 export type BobEntity =
-  | 'customer'
   | 'supplier'
   | 'other-party'
   | 'employee'
@@ -17,7 +16,7 @@ export type BobEntity =
   | 'warehouse'
   | 'vehicle'
   | 'fund-account'
-  | 'settlement-method'
+  | 'operating-entity'
 
 export type BobForm = {
   code: string

@@ -21,11 +21,25 @@ func TestObjectPrefixes(t *testing.T) {
 		EntityVehicle: "VEH", EntityFundAccount: "FAC",
 		EntityCategory: "PCT", EntityDepartment: "DEP", EntityPosition: "POS",
 		EntitySettlementMethod: "STM",
+		EntityOperatingEntity:  "OPE",
 	}
 	for entity, prefix := range expected {
 		if actual := objectPrefix(entity); actual != prefix {
 			t.Fatalf("objectPrefix(%q) = %q, want %q", entity, actual, prefix)
 		}
+	}
+}
+
+func TestOperatingEntityUsesLegalInvoiceFields(t *testing.T) {
+	data, _, err := validateCreate(EntityOperatingEntity, CreateDetailInput{
+		Name: "深圳示例科技有限公司", ShortName: "深圳示例", TaxNumber: "91440300TEST000001",
+		Address: "深圳市南山区", Phone: "0755-12345678", Remark: "开票主体",
+	})
+	if err != nil {
+		t.Fatalf("validate operating entity: %v", err)
+	}
+	if data.Name != "深圳示例科技有限公司" || data.TaxNumber != "91440300TEST000001" {
+		t.Fatalf("unexpected operating entity: %#v", data)
 	}
 }
 
@@ -53,7 +67,7 @@ func TestValidateCreateIgnoresInternalFixtureCodeAndNormalizesEntityFields(t *te
 			Code: "veh01", Name: "配送车", PlateNumber: " 沪a12345 ",
 			VehicleType: " 厢式货车 ", PlatformObjectID: platformObjectID,
 		}},
-		{EntityFundAccount, CreateDetailInput{Code: "cash01", Name: "Cash", Currency: "cny"}},
+		{EntityFundAccount, CreateDetailInput{Code: "cash01", Name: "Cash", Currency: "cny", OperatingEntityID: "01J00000000000000000000030"}},
 		{EntityCategory, CreateDetailInput{Code: "cat01", Name: "产品分类", TargetEntity: EntityProduct}},
 		{EntityDepartment, CreateDetailInput{Code: "dept01", Name: "运营部"}},
 		{EntityPosition, CreateDetailInput{Code: "pos01", Name: "主管"}},
@@ -365,6 +379,7 @@ func TestCommonAttributesNormalizeAndValidate(t *testing.T) {
 
 	account, _, err := validateCreate(EntityFundAccount, CreateDetailInput{
 		Code: "account-1", Name: "基本户", Currency: "cny", AccountNumber: " 6222-0000 0001 ",
+		OperatingEntityID: "01J00000000000000000000030",
 	})
 	if err != nil {
 		t.Fatalf("validate account: %v", err)

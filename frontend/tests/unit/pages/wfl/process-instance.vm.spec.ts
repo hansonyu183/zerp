@@ -183,6 +183,16 @@ describe('process instance view model', () => {
       }
       throw new Error(`unexpected API path: ${path}`)
     })
+    mockedPostContract.mockResolvedValue({
+      data: [
+        {
+          objectId: '01J00000000000000000000012',
+          versionId: '01J00000000000000000000013',
+          code: 'C-002',
+          name: '搜索结果客户',
+        },
+      ],
+    } as never)
     const { vm, wrapper } = await mountViewModel()
     useSessionStore().permissions.push('/bob/customer/query')
     vm.selectedParty.value = selectedParty

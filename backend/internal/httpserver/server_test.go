@@ -176,7 +176,7 @@ func TestOpenAPIContractCoversEveryRegisteredRoute(t *testing.T) {
 		appdomain.NewHandler(nil, testConfig(), testLogger()).Register(router)
 		accdomain.NewHandler(nil, nil, testLogger()).Register(router)
 		auxdomain.NewHandler(nil, nil, testLogger()).Register(router)
-		bobdomain.NewHandler(nil, nil, testLogger()).Register(router)
+		bobdomain.NewHandler(nil, nil, nil, testLogger()).Register(router)
 		voudomain.NewHandler(nil, nil, testLogger()).Register(router)
 		wfldomain.NewHandler(nil, nil, testLogger()).Register(router)
 		rptdomain.NewHandler(nil, nil, testLogger()).Register(router)
@@ -190,7 +190,8 @@ func TestOpenAPIContractCoversEveryRegisteredRoute(t *testing.T) {
 	for _, route := range router.Routes() {
 		contractPath := ginParameter.ReplaceAllString(route.Path, `{$1}`)
 		segments := strings.Split(contractPath, "/")
-		if len(segments) > 3 && (segments[1] == "aux" || segments[1] == "bob" || segments[1] == "vou") {
+		if swagger.Paths.Value(contractPath) == nil && len(segments) > 3 &&
+			(segments[1] == "aux" || segments[1] == "bob" || segments[1] == "vou") {
 			segments[2] = "{entity}"
 			contractPath = strings.Join(segments, "/")
 		}

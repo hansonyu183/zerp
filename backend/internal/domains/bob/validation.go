@@ -57,7 +57,7 @@ func validateCreate(entity string, input CreateDetailInput) (DetailView, string,
 		Description: input.Description, ManagerEmployeeID: input.ManagerEmployeeID,
 		VIN: input.VIN, EngineNumber: input.EngineNumber, LoadCapacityKG: input.LoadCapacityKG,
 		AccountName: input.AccountName, BankName: input.BankName, BankBranch: input.BankBranch,
-		AccountNumber: input.AccountNumber, ParentID: input.ParentID,
+		AccountNumber: input.AccountNumber, OperatingEntityID: input.OperatingEntityID, ParentID: input.ParentID,
 		SettlementMethodID: input.SettlementMethodID, MonthlyClosingDay: monthlyClosingDay,
 		SalespersonEmployeeID:    input.SalespersonEmployeeID,
 		RebateUnitPrice:          rebateUnitPrice,
@@ -168,6 +168,7 @@ func mergeDetailInput(current DetailView, input DetailInput) DetailView {
 	mergeOptional(input.BankName, &result.BankName)
 	mergeOptional(input.BankBranch, &result.BankBranch)
 	mergeOptional(input.AccountNumber, &result.AccountNumber)
+	mergeOptional(input.OperatingEntityID, &result.OperatingEntityID)
 	mergeOptional(input.ParentID, &result.ParentID)
 	mergeOptional(input.SettlementMethodID, &result.SettlementMethodID)
 	if input.MonthlyClosingDay != nil {
@@ -241,7 +242,7 @@ func validateDetailInputFields(entity string, input DetailInput) error {
 	case EntityVehicle:
 		allow("vin", "engineNumber", "loadCapacityKg", "remark")
 	case EntityFundAccount:
-		allow("accountName", "bankName", "bankBranch", "accountNumber", "remark")
+		allow("accountName", "bankName", "bankBranch", "accountNumber", "operatingEntityId", "remark")
 	case EntityCategory:
 		allow("parentId", "description")
 	case EntityDepartment:
@@ -250,6 +251,8 @@ func validateDetailInputFields(entity string, input DetailInput) error {
 		allow("categoryId", "description")
 	case EntitySettlementMethod:
 		allow("defaultSalesSurcharge")
+	case EntityOperatingEntity:
+		allow("shortName", "taxNumber", "address", "phone", "remark")
 	default:
 		return domainError(ErrorValidation, "invalid entity", nil, nil)
 	}
@@ -479,8 +482,8 @@ func validateEntityFields(entity string, input DetailView) error {
 			return domainError(ErrorValidation, "invalid vehicle fields", nil, nil)
 		}
 	case EntityFundAccount:
-		allow("currency", "accountName", "bankName", "bankBranch", "accountNumber", "remark")
-		if !currencyPattern.MatchString(input.Currency) {
+		allow("currency", "accountName", "bankName", "bankBranch", "accountNumber", "operatingEntityId", "remark")
+		if !currencyPattern.MatchString(input.Currency) || !validID(input.OperatingEntityID) {
 			return domainError(ErrorValidation, "invalid currency", nil, nil)
 		}
 	case EntityCategory:
@@ -503,6 +506,8 @@ func validateEntityFields(entity string, input DetailView) error {
 		if _, err := moneyCents(input.DefaultSalesSurcharge); err != nil {
 			return domainError(ErrorValidation, "invalid default sales surcharge", nil, nil)
 		}
+	case EntityOperatingEntity:
+		allow("shortName", "taxNumber", "address", "phone", "remark")
 	default:
 		return domainError(ErrorValidation, "invalid entity", nil, nil)
 	}

@@ -196,7 +196,6 @@ func (s *Service) resolveSettlement(
 	return nil, domainError(ErrorConflict, label+" settlement snapshot is incomplete", nil, nil)
 }
 
-
 func (s *Service) resolveDraftProducts(
 	ctx context.Context,
 	tx pgx.Tx,

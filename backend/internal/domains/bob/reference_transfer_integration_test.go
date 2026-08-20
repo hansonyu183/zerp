@@ -18,7 +18,7 @@ func TestEmployeeReferenceTransferUpdatesEffectiveSupplierAndDisablesSourceInteg
 		Code: "ET" + suffix, Name: "接替业务员",
 	}, "reference-transfer-target")
 	_, supplier := createApprovedIntegration(t, service, EntitySupplier, CreateDetailInput{
-		Code: "ST" + suffix, Name: "待转移供应商", SalespersonEmployeeID: source.ObjectID,
+		Code: "ST" + suffix, Name: "待转移供应商", DefaultPurchaserEmployeeID: source.ObjectID,
 	}, "reference-transfer-supplier")
 
 	if _, err := service.Disable(t.Context(), EntityEmployee, ObjectRevisionInput{
@@ -65,7 +65,7 @@ func TestEmployeeReferenceTransferUpdatesEffectiveSupplierAndDisablesSourceInteg
 	if err != nil {
 		t.Fatalf("get transferred supplier: %v", err)
 	}
-	if supplierView.Data.SalespersonEmployeeID != target.ObjectID ||
+	if supplierView.Data.DefaultPurchaserEmployeeID != target.ObjectID ||
 		supplierView.CurrentVersionID == supplier.VersionID {
 		t.Fatalf("supplier reference was not versioned to target: %#v", supplierView)
 	}

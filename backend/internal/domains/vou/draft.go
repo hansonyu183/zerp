@@ -41,13 +41,17 @@ func (s *Service) loadPreservedPersonnel(
 		surcharge int64,
 		description *string,
 	) *bobdomain.EffectiveReference {
-		if objectID == nil || versionID == nil || code == nil || name == nil ||
+		if objectID == nil || code == nil || name == nil ||
 			termCode == nil || ruleType == nil || monthOffset == nil || dayOffset == nil {
 			return nil
 		}
+		version := ""
+		if versionID != nil {
+			version = *versionID
+		}
 		return &bobdomain.EffectiveReference{
 			ObjectID: *objectID, Entity: bobdomain.EntitySettlementMethod,
-			Code: *code, VersionID: *versionID,
+			Code: *code, VersionID: version,
 			Data: bobdomain.DetailView{
 				Name: *name, TermCode: *termCode, RuleType: *ruleType,
 				MonthOffset: *monthOffset, DayOfMonth: dayOfMonth, DayOffset: *dayOffset,

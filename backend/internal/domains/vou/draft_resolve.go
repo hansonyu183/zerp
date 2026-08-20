@@ -89,8 +89,8 @@ func (s *Service) resolveDraftPersonnel(
 		result.Purchaser, err = s.resolveCurrentEmployee(
 			ctx,
 			tx,
-			result.Supplier.Data.SalespersonEmployeeID,
-			"supplier salesperson",
+			result.Supplier.Data.DefaultPurchaserEmployeeID,
+			"supplier default purchaser",
 		)
 	} else if entity == EntityPurchaseOrder {
 		err = domainError(ErrorConflict, "purchaser is required", nil, nil)
@@ -193,53 +193,9 @@ func (s *Service) resolveSettlement(
 			},
 		}, nil
 	}
-	if party.Data.SettlementMethodVersionID == "" {
-		return nil, domainError(ErrorConflict, label+" settlement method is not configured", nil, nil)
-	}
-	reference, err := s.auxResolver.ResolveAuxiliaryReference(
-		ctx, tx, "settlement-method", party.Data.SettlementMethodID, party.Data.SettlementMethodVersionID,
-	)
-	if err != nil {
-		return nil, domainError(ErrorConflict, label+" settlement method is not effective", nil, err)
-	}
-	dayOfMonth := int32(auxiliaryInt(reference.Data, "dayOfMonth"))
-	var dayOfMonthPointer *int32
-	if dayOfMonth > 0 {
-		dayOfMonthPointer = &dayOfMonth
-	}
-	return &bobdomain.EffectiveReference{
-		ObjectID: reference.ObjectID, Entity: bobdomain.EntitySettlementMethod,
-		Code: reference.Code, VersionID: reference.VersionID,
-		Data: bobdomain.DetailView{
-			Name: auxiliaryString(reference.Data, "name"), TermCode: auxiliaryString(reference.Data, "termCode"),
-			RuleType:    auxiliaryString(reference.Data, "ruleType"),
-			MonthOffset: int32(auxiliaryInt(reference.Data, "monthOffset")), DayOfMonth: dayOfMonthPointer,
-			DayOffset: int32(auxiliaryInt(reference.Data, "dayOffset")), DueDays: int32(auxiliaryInt(reference.Data, "dayOffset")),
-			CutoffDay: dayOfMonth, DefaultSalesSurcharge: auxiliaryString(reference.Data, "defaultSalesSurcharge"),
-			Description: auxiliaryString(reference.Data, "description"),
-		},
-	}, nil
+	return nil, domainError(ErrorConflict, label+" settlement snapshot is incomplete", nil, nil)
 }
 
-func auxiliaryString(data map[string]any, key string) string {
-	value, _ := data[key].(string)
-	return value
-}
-
-func auxiliaryInt(data map[string]any, key string) int {
-	switch value := data[key].(type) {
-	case int:
-		return value
-	case int32:
-		return int(value)
-	case int64:
-		return int(value)
-	case float64:
-		return int(value)
-	default:
-		return 0
-	}
-}
 
 func (s *Service) resolveDraftProducts(
 	ctx context.Context,

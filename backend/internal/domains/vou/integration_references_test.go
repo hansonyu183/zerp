@@ -3,6 +3,7 @@
 package vou
 
 import (
+	"errors"
 	"testing"
 
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
@@ -15,6 +16,8 @@ func TestVOUIntegrationSnapshotsSettlementGapsAndLegacyRows(t *testing.T) {
 	refs := prepareReferences(t, pool)
 	service := newIntegrationService(t, pool)
 	bobService := newBOBIntegrationService(pool)
+	customerService := bobdomain.NewService(pool)
+	customerService.SetAuxiliaryResolver(vouCustomerAuxiliaryResolver{})
 	saleDraft := DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
 		Salesperson: &refs.employee, Warehouse: &refs.warehouse,
@@ -28,38 +31,37 @@ func TestVOUIntegrationSnapshotsSettlementGapsAndLegacyRows(t *testing.T) {
 		t.Fatalf("create snapshot sale: %v", err)
 	}
 
-	customerView, err := bobService.Get(t.Context(), bobdomain.EntityCustomer,
+	customerView, err := customerService.CustomerGet(t.Context(),
 		bobdomain.GetInput{ObjectID: refs.customer.ObjectID})
-	if err != nil {
+	if err != nil || customerView.Effective == nil {
 		t.Fatalf("get customer before edit: %v", err)
 	}
-	customerEdit := reverseApprovedBOBToDraft(
-		t, bobService, bobdomain.EntityCustomer, customerView, "snapshot-customer-edit",
-	)
-	if _, err = service.Create(t.Context(), EntitySaleOrder, CreateInput{Data: saleDraft},
-		integrationActorOne, "snapshot-customer-gap"); err == nil {
-		t.Fatal("sale was created while customer had no effective version")
-	}
-	customerSaved, err := bobService.Save(t.Context(), bobdomain.EntityCustomer, bobdomain.SaveInput{
-		ObjectID: refs.customer.ObjectID, VersionID: customerEdit.VersionID, Revision: customerEdit.Revision,
-		Data: bobdomain.DetailInput{
-			Name: "VOU 客户更新", ContactName: bobdomain.Optional("新联系人"),
-			ContactPhone: bobdomain.Optional("13700000000"),
-			Address:      bobdomain.Optional("深圳市新地址"),
-		},
-	}, integrationActorOne, "snapshot-customer-save")
+	changedCustomer := customerView.Effective.Data
+	changedCustomer.Name = "VOU 客户更新"
+	changedCustomer.ContactName = "新联系人"
+	changedCustomer.ContactPhone = "13700000000"
+	changedCustomer.Address = "深圳市新地址"
+	customerEdit, err := customerService.CustomerSave(t.Context(), bobdomain.CustomerSaveInput{
+		ObjectID: refs.customer.ObjectID, VersionID: customerView.Effective.Version.VersionID,
+		Revision: customerView.Effective.Version.Revision, GroupRevision: customerView.Group.Revision,
+		Group: customerView.Group.Data, Data: changedCustomer,
+	}, integrationActorOne, "snapshot-customer-edit")
 	if err != nil {
-		t.Fatalf("save customer edit: %v", err)
+		t.Fatalf("create customer candidate: %v", err)
 	}
-	customerSubmitted, err := bobService.Submit(t.Context(), bobdomain.EntityCustomer,
+	if _, err = service.Create(t.Context(), EntitySaleOrder, CreateInput{Data: saleDraft},
+		integrationActorOne, "snapshot-customer-candidate"); err != nil {
+		t.Fatalf("effective customer stopped working while candidate existed: %v", err)
+	}
+	customerSubmitted, err := customerService.Submit(t.Context(), bobdomain.EntityCustomer,
 		bobdomain.VersionRevisionInput{
 			ObjectID: refs.customer.ObjectID, VersionID: customerEdit.VersionID,
-			Revision: customerSaved.Revision,
+			Revision: customerEdit.Revision,
 		}, integrationActorOne, "snapshot-customer-submit")
 	if err != nil {
 		t.Fatalf("submit customer edit: %v", err)
 	}
-	customerApproved, err := bobService.Approve(t.Context(), bobdomain.EntityCustomer,
+	customerApproved, err := customerService.Approve(t.Context(), bobdomain.EntityCustomer,
 		bobdomain.ReviewInput{
 			ObjectID: refs.customer.ObjectID, VersionID: customerEdit.VersionID,
 			Revision: customerSubmitted.Revision,
@@ -119,19 +121,6 @@ func TestVOUIntegrationSnapshotsSettlementGapsAndLegacyRows(t *testing.T) {
 		snapshot.Data.SettlementMethod.Name != "月结30天" ||
 		snapshot.Data.SettlementMethod.DefaultSalesSurcharge != "0.10" {
 		t.Fatalf("historical sale snapshot changed with BOB: %+v", snapshot.Data)
-	}
-
-	withoutSettlement := createApprovedBOB(t, bobService, bobdomain.EntityCustomer,
-		bobdomain.CreateDetailInput{
-			Code: "NS" + newID(), Name: "未配置结算客户",
-			SalespersonEmployeeID: refs.employee.ObjectID,
-		})
-	missingSettlementDraft := saleDraft
-	missingSettlementDraft.Customer = &withoutSettlement
-	if _, err = service.Create(t.Context(), EntitySaleOrder,
-		CreateInput{Data: missingSettlementDraft}, integrationActorOne,
-		"missing-settlement-create"); err == nil {
-		t.Fatal("sale accepted a customer without settlement method")
 	}
 
 	receiptDraft := DraftInput{
@@ -194,7 +183,7 @@ func TestVOUIntegrationPersonnelDefaultsOverridesAndSavePreservesSnapshot(t *tes
 	created, err := service.Create(t.Context(), EntitySaleOrder, CreateInput{Data: draft},
 		integrationActorOne, "personnel-default-create")
 	if err != nil {
-		t.Fatalf("create with default salesperson: %v", err)
+		t.Fatalf("create with default salesperson: %v (cause: %v)", err, errors.Unwrap(err))
 	}
 	view, err := service.Get(t.Context(), EntitySaleOrder, GetInput{DocumentID: created.DocumentID})
 	if err != nil || view.Data.Salesperson == nil ||
@@ -221,6 +210,46 @@ func TestVOUIntegrationPersonnelDefaultsOverridesAndSavePreservesSnapshot(t *tes
 		view.Data.Salesperson.ObjectID != override.ObjectID ||
 		view.Data.Salesperson.VersionID != override.VersionID {
 		t.Fatalf("preserved salesperson view=%+v err=%v", view.Data.Salesperson, err)
+	}
+
+	purchaseDraft := DraftInput{
+		BusinessDate: "2026-07-24", Currency: "CNY", Supplier: &refs.supplier,
+		Warehouse: &refs.warehouse,
+		ProductLines: []ProductLineInput{{
+			Product: refs.product, OrderedQuantity: "1", UnitPrice: "12.00",
+		}},
+	}
+	purchase, err := service.Create(t.Context(), EntityPurchaseOrder, CreateInput{Data: purchaseDraft},
+		integrationActorOne, "purchase-default-create")
+	if err != nil {
+		t.Fatalf("create with default purchaser: %v", err)
+	}
+	purchaseView, err := service.Get(t.Context(), EntityPurchaseOrder, GetInput{DocumentID: purchase.DocumentID})
+	if err != nil || purchaseView.Data.Purchaser == nil ||
+		purchaseView.Data.Purchaser.ObjectID != refs.employee.ObjectID ||
+		purchaseView.Data.SettlementMethod == nil ||
+		purchaseView.Data.SettlementMethod.VersionID != "" ||
+		purchaseView.Data.SettlementMethod.DefaultSalesSurcharge != "" {
+		t.Fatalf("purchase defaults or settlement snapshot=%+v err=%v", purchaseView.Data, err)
+	}
+	purchaseDraft.Purchaser = &override
+	purchaseSaved, err := service.Save(t.Context(), EntityPurchaseOrder, SaveInput{
+		DocumentID: purchase.DocumentID, Revision: purchase.Revision, Data: purchaseDraft,
+	}, integrationActorOne, "purchase-override-save")
+	if err != nil {
+		t.Fatalf("save explicit purchaser override: %v", err)
+	}
+	purchaseDraft.Purchaser = nil
+	purchaseSaved, err = service.Save(t.Context(), EntityPurchaseOrder, SaveInput{
+		DocumentID: purchase.DocumentID, Revision: purchaseSaved.Revision, Data: purchaseDraft,
+	}, integrationActorOne, "purchase-preserve-save")
+	if err != nil {
+		t.Fatalf("save omitted purchaser: %v", err)
+	}
+	purchaseView, err = service.Get(t.Context(), EntityPurchaseOrder, GetInput{DocumentID: purchaseSaved.DocumentID})
+	if err != nil || purchaseView.Data.Purchaser == nil || purchaseView.Data.Purchaser.ObjectID != override.ObjectID ||
+		purchaseView.Data.SettlementMethod == nil || purchaseView.Data.SettlementMethod.VersionID != "" {
+		t.Fatalf("preserved purchase defaults=%+v err=%v", purchaseView.Data, err)
 	}
 }
 

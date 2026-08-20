@@ -25,7 +25,6 @@ export type CustomerLifecycleAction =
   | 'unsubmit'
   | 'approve'
   | 'reject'
-  | 'unapprove'
   | 'enable'
   | 'disable'
   | 'delete'
@@ -152,9 +151,6 @@ export function useCustomerViewModel() {
         row.submittedBy !== null &&
         row.submittedBy !== session.user?.id
       )
-    }
-    if (action === 'unapprove') {
-      return row.status === 'EFFECTIVE' && !row.hasCandidate
     }
     if (action === 'enable') {
       return row.status === 'EFFECTIVE' && !row.hasCandidate && !row.enabled
@@ -659,7 +655,7 @@ export function useCustomerViewModel() {
     if (actionLoading.value || !canLifecycleFor(row, action)) return false
     const normalizedReason = reason.trim()
     if (
-      (action === 'reject' || action === 'unsubmit' || action === 'unapprove') &&
+      (action === 'reject' || action === 'unsubmit') &&
       !normalizedReason
     ) {
       errorMessage.value = '请填写操作原因。'
@@ -682,8 +678,8 @@ export function useCustomerViewModel() {
         await customerApi[action]({ objectId: row.objectId, objectRevision: row.objectRevision })
       } else if (action === 'delete') {
         await customerApi.delete({ ...baseVersion, objectRevision: row.objectRevision })
-      } else if (action === 'unsubmit' || action === 'unapprove') {
-        await customerApi[action](reverse)
+      } else if (action === 'unsubmit') {
+        await customerApi.unsubmit(reverse)
       } else if (action === 'reject') {
         await customerApi.reject({ ...baseVersion, comment: normalizedReason })
       } else if (action === 'approve') {
@@ -697,7 +693,6 @@ export function useCustomerViewModel() {
         unsubmit: '已撤回提交',
         approve: '已审核通过',
         reject: '已审核驳回',
-        unapprove: '已撤销批准',
         enable: '已启用',
         disable: '已禁用',
         delete: '候选版本已删除',

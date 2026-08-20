@@ -194,15 +194,26 @@ export function useProcessInstanceViewModel() {
                   : {}),
               },
             )
-            return data.map(
-              (item): VoucherReference => ({
-                objectId: item.objectId,
-                versionId: item.versionId,
+            return data.map((item): VoucherReference => ({
+              objectId: item.objectId,
+              versionId: item.versionId,
+              entity,
+              code: item.code,
+              name: item.name,
+            }))
+          }
+          if (entity === 'supplier') {
+            const { data } = await apiClient.postContract(
+              'bob/reference/query',
+              {
                 entity,
-                code: item.code,
-                name: item.name,
-              }),
+                supplierType: 'GENERAL',
+                ...(keywordValue.trim()
+                  ? { keyword: keywordValue.trim() }
+                  : {}),
+              },
             )
+            return data.map((item): VoucherReference => ({ ...item, entity }))
           }
           const { data } = await apiClient.post<
             PageResult<ReferenceListItem>,
@@ -213,7 +224,6 @@ export function useProcessInstanceViewModel() {
             filters: {
               status: ['EFFECTIVE'],
               ...(keywordValue.trim() ? { keyword: keywordValue.trim() } : {}),
-              ...(entity === 'supplier' ? { supplierType: 'GENERAL' } : {}),
             },
             sort: [{ field: 'name', order: 'asc' }],
           })

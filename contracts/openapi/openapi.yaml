@@ -2744,6 +2744,179 @@
                 },
             },
         },
+      '/bob/supplier/query':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '查询供应商有效资料与候选状态',
+              'operationId': 'supplierQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/SupplierQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '供应商分页响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/SupplierQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/bob/supplier/get':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '读取供应商有效版本与候选版本',
+              'operationId': 'supplierGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobGetRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '供应商完整资料。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/SupplierGetResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/bob/supplier/create':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '创建供应商草稿',
+              'operationId': 'supplierCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/SupplierCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/supplier/save':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '保存供应商草稿或候选版本',
+              'operationId': 'supplierSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/SupplierSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/supplier/tax-match':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '按权限精确发现同税号客户集团或其他往来单位',
+              'operationId': 'supplierTaxMatch',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/SupplierTaxMatchRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '当前用户可读的同税号资料。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/SupplierTaxMatchResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       '/bob/customer-group/get':
         {
           'post':
@@ -2949,7 +3122,8 @@
               'summary': '查询业务对象',
               'operationId': 'bobquery',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'parameters':
+                [{ '$ref': '#/components/parameters/BobCrudEntity' }],
               'requestBody':
                 {
                   'required': true,
@@ -2989,7 +3163,8 @@
               'summary': '读取业务对象',
               'operationId': 'bobget',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'parameters':
+                [{ '$ref': '#/components/parameters/BobCrudEntity' }],
               'requestBody':
                 {
                   'required': true,
@@ -3014,7 +3189,8 @@
               'summary': '创建业务对象草稿',
               'operationId': 'bobcreate',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'parameters':
+                [{ '$ref': '#/components/parameters/BobCrudEntity' }],
               'requestBody':
                 {
                   'required': true,
@@ -3039,7 +3215,8 @@
               'summary': '保存业务对象草稿',
               'operationId': 'bobsave',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'parameters':
+                [{ '$ref': '#/components/parameters/BobCrudEntity' }],
               'requestBody':
                 {
                   'required': true,
@@ -5160,6 +5337,13 @@
               'in': 'path',
               'required': true,
               'schema': { '$ref': './schemas/bob.yaml#/BobEntity' },
+            },
+          'BobCrudEntity':
+            {
+              'name': 'entity',
+              'in': 'path',
+              'required': true,
+              'schema': { '$ref': './schemas/bob.yaml#/BobCrudEntity' },
             },
           'AuxEntity':
             {

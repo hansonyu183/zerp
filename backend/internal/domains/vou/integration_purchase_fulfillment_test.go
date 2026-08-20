@@ -112,7 +112,7 @@ func TestPurchaseFulfillmentQuantitiesIntegration(t *testing.T) {
 	prepaid := fixedSettlementReference(t, pool, bobdomain.SettlementTermPrepaid)
 	refs.supplier = createApprovedBOB(t, newBOBIntegrationService(pool), bobdomain.EntitySupplier, bobdomain.CreateDetailInput{
 		Code: "VSP" + newID(), Name: "VOU 预付供应商", SupplierType: &general,
-		SettlementMethodID: prepaid.ObjectID, SalespersonEmployeeID: refs.employee.ObjectID,
+		SettlementMethodID: prepaid.ObjectID, DefaultPurchaserEmployeeID: refs.employee.ObjectID,
 	})
 	var pieceUnitID string
 	if err := pool.QueryRow(t.Context(), `SELECT id FROM aux_objects WHERE entity='measurement-unit' AND code='UNT-0004'`).Scan(&pieceUnitID); err != nil {

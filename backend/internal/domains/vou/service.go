@@ -213,8 +213,8 @@ func settlementSnapshot(
 	}
 	surcharge, _ := parseFixed(reference.Data.DefaultSalesSurcharge, 2, true)
 	result := settlementSnapshotFields{
-		ObjectID: stringPtr(reference.ObjectID), VersionID: stringPtr(reference.VersionID),
-		Code: stringPtr(reference.Code), Name: stringPtr(reference.Data.Name),
+		ObjectID: stringPtr(reference.ObjectID),
+		Code:     stringPtr(reference.Code), Name: stringPtr(reference.Data.Name),
 		TermCode:                   stringPtr(reference.Data.TermCode),
 		RuleType:                   stringPtr(reference.Data.RuleType),
 		MonthOffset:                int32Ptr(reference.Data.MonthOffset),
@@ -222,6 +222,9 @@ func settlementSnapshot(
 		DayOffset:                  int32Ptr(reference.Data.DayOffset),
 		DefaultSalesSurchargeCents: surcharge,
 		Description:                optionalText(reference.Data.Description),
+	}
+	if reference.VersionID != "" {
+		result.VersionID = stringPtr(reference.VersionID)
 	}
 	if reference.Data.RuleType == bobdomain.SettlementRuleRelativeDays {
 		result.DueDays = int32Ptr(reference.Data.DayOffset)

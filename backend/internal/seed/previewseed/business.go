@@ -95,10 +95,10 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 			return bobdomain.CreateDetailInput{
 				Name: "自营物流平台（预览）", SupplierType: &supplierType,
 				ShortName: "预览物流", ContactName: "调度中心", ContactPhone: "021-60000101",
-				Address:               "上海市嘉定区预览物流园",
-				SettlementMethodID:    s.bobRefs["settlement-due-days"].ObjectID,
-				SalespersonEmployeeID: s.bobRefs["employee-effective"].ObjectID,
-				Remark:                "预览测试物流平台",
+				Address:                    "上海市嘉定区预览物流园",
+				SettlementMethodID:         s.bobRefs["settlement-due-days"].ObjectID,
+				DefaultPurchaserEmployeeID: s.bobRefs["employee-effective"].ObjectID,
+				Remark:                     "预览测试物流平台",
 			}
 		}},
 		{"supplier-effective", bobdomain.EntitySupplier, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
@@ -107,10 +107,10 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 				Name: "通用原料供应商（预览）", SupplierType: &supplierType,
 				ShortName: "预览原料", TaxNumber: "91310000PREVIEW0102",
 				ContactName: "赵经理", ContactPhone: "13800000105",
-				Address:               "江苏省苏州市预览工业园",
-				SettlementMethodID:    s.bobRefs["settlement-due-days"].ObjectID,
-				SalespersonEmployeeID: s.bobRefs["employee-effective"].ObjectID,
-				Remark:                "预览测试有效供应商",
+				Address:                    "江苏省苏州市预览工业园",
+				SettlementMethodID:         s.bobRefs["settlement-due-days"].ObjectID,
+				DefaultPurchaserEmployeeID: s.bobRefs["employee-effective"].ObjectID,
+				Remark:                     "预览测试有效供应商",
 			}
 		}},
 		{"supplier-pending", bobdomain.EntitySupplier, bobdomain.StatusPending, func(s *Seeder) bobdomain.CreateDetailInput {
@@ -118,9 +118,9 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 			return bobdomain.CreateDetailInput{
 				Name: "候选供应商（预览待审核）", SupplierType: &supplierType,
 				ContactName: "周经理", ContactPhone: "13800000106",
-				SettlementMethodID:    s.bobRefs["settlement-due-days"].ObjectID,
-				SalespersonEmployeeID: s.bobRefs["employee-effective"].ObjectID,
-				Remark:                "预览测试待审核供应商",
+				SettlementMethodID:         s.bobRefs["settlement-due-days"].ObjectID,
+				DefaultPurchaserEmployeeID: s.bobRefs["employee-effective"].ObjectID,
+				Remark:                     "预览测试待审核供应商",
 			}
 		}},
 		{"warehouse-effective", bobdomain.EntityWarehouse, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {

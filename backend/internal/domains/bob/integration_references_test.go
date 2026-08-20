@@ -120,24 +120,27 @@ func TestCommonAttributesReferencesFiltersAndRedactionIntegration(t *testing.T) 
 		page.Items[0].CurrentVersion.Summary.IntermediaryOtherPartyID != intermediary.ObjectID {
 		t.Fatalf("query common attributes page=%+v err=%v", page, err)
 	}
+	previousAuxiliaryResolver := service.auxiliaryResolver
+	service.SetAuxiliaryResolver(customerAuxiliaryResolverStub{})
 	supplier, err := service.Create(t.Context(), EntitySupplier, CreateInput{Data: CreateDetailInput{
 		Code: "SA" + newID(), Name: "属性供应商",
-		SettlementMethodID:    settlementObjectID,
-		SalespersonEmployeeID: salesperson.ObjectID,
+		SettlementMethodID:         settlementObjectID,
+		DefaultPurchaserEmployeeID: salesperson.ObjectID,
 	}}, integrationActorOne, "common-supplier-create")
+	service.SetAuxiliaryResolver(previousAuxiliaryResolver)
 	if err != nil {
 		t.Fatalf("create supplier salesperson: %v", err)
 	}
 	supplierView, err := service.Get(t.Context(), EntitySupplier, GetInput{ObjectID: supplier.ObjectID})
-	if err != nil || supplierView.Data.SalespersonEmployeeID != salesperson.ObjectID {
-		t.Fatalf("supplier salesperson view=%+v err=%v", supplierView.Data, err)
+	if err != nil || supplierView.Data.DefaultPurchaserEmployeeID != salesperson.ObjectID || supplierView.Data.SalespersonEmployeeID != "" {
+		t.Fatalf("supplier purchaser view=%+v err=%v", supplierView.Data, err)
 	}
 	supplierPage, err := service.Query(t.Context(), EntitySupplier, QueryInput{
 		Page: 1, PageSize: 20,
-		Filters: QueryFilters{SalespersonEmployeeID: salesperson.ObjectID},
+		Filters: QueryFilters{DefaultPurchaserEmployeeID: salesperson.ObjectID},
 	})
 	if err != nil || supplierPage.Total < 1 {
-		t.Fatalf("query supplier salesperson page=%+v err=%v", supplierPage, err)
+		t.Fatalf("query supplier purchaser page=%+v err=%v", supplierPage, err)
 	}
 	saved, err = service.Save(t.Context(), EntityCustomer, SaveInput{
 		ObjectID: customer.ObjectID, VersionID: customer.VersionID, Revision: saved.Revision,

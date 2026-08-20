@@ -36,12 +36,17 @@ type applicationService interface {
 	CustomerGet(context.Context, GetInput) (CustomerDetailView, error)
 	CustomerCreate(context.Context, CustomerCreateInput, string, string) (CustomerCreateResult, error)
 	CustomerSave(context.Context, CustomerSaveInput, string, string) (MutationResult, error)
+	SupplierQuery(context.Context, QueryInput) (Page[SupplierListItem], error)
+	SupplierGet(context.Context, GetInput) (SupplierDetailView, error)
+	SupplierCreate(context.Context, SupplierCreateInput, string, string) (MutationResult, error)
+	SupplierSave(context.Context, SupplierSaveInput, string, string) (MutationResult, error)
 	CustomerGroupGet(context.Context, string) (CustomerGroupView, error)
 	CustomerGroupSave(context.Context, CustomerGroupSaveInput, string, string) (CustomerGroupView, error)
 	CustomerGroupAuditHistory(context.Context, HistoryInput) (Page[AuditEventView], error)
 	TransferReferences(context.Context, ReferenceTransferInput, string, string) (ReferenceTransferResult, error)
 	QueryReferenceCandidates(context.Context, ReferenceQueryInput) ([]ReferenceCandidate, error)
 	CustomerTaxMatches(context.Context, CustomerTaxMatchInput) ([]CustomerTaxMatch, error)
+	SupplierTaxMatches(context.Context, SupplierTaxMatchInput) ([]SupplierTaxMatch, error)
 }
 
 type customerAttachmentApplicationService interface {
@@ -113,6 +118,7 @@ func (h *Handler) Register(router *gin.Engine) {
 	groupGroup.POST("/save", h.authorize("/bob/customer-group/save"), h.customerGroupSave)
 	groupGroup.POST("/audit-history", h.authorize("/bob/customer-group/audit-history"), h.customerGroupAuditHistory)
 	group.POST("/customer/tax-match", h.customerTaxMatch)
+	group.POST("/supplier/tax-match", h.supplierTaxMatch)
 	customerGroup := group.Group("/customer")
 	customerGroup.POST("/attachment-initiate", h.authorize("/bob/customer/attachment-initiate"), h.customerAttachmentInitiate)
 	customerGroup.POST("/attachment-download", h.authorize("/bob/customer/attachment-download"), h.customerAttachmentDownload)
@@ -150,6 +156,31 @@ func (h *Handler) customerTaxMatch(c *gin.Context) {
 	h.result(c, result, err)
 }
 
+func (h *Handler) supplierTaxMatch(c *gin.Context) {
+	var request struct {
+		TaxNumber string `json:"taxNumber"`
+	}
+	if !h.bind(c, &request) {
+		return
+	}
+	principal, err := h.authorizer.Authorize(c.Request.Context(), c.Request, "/bob/supplier/create", response.RequestID(c))
+	if err != nil {
+		h.writeAuthorizationError(c, err)
+		return
+	}
+	has := func(path string) bool {
+		for _, permission := range principal.Permissions {
+			if permission == path {
+				return true
+			}
+		}
+		return false
+	}
+	result, err := h.service.SupplierTaxMatches(c.Request.Context(), SupplierTaxMatchInput{TaxNumber: request.TaxNumber,
+		IncludeCustomer: has("/bob/customer-group/get"), IncludeOtherParty: has("/bob/other-party/get")})
+	h.result(c, result, err)
+}
+
 func (h *Handler) referenceQuery(c *gin.Context) {
 	var input ReferenceQueryInput
 	if !h.bind(c, &input) {
@@ -175,6 +206,11 @@ func (h *Handler) query(c *gin.Context, entity string) {
 			h.result(c, result, err)
 			return
 		}
+		if entity == EntitySupplier {
+			result, err := h.service.SupplierQuery(c.Request.Context(), input)
+			h.result(c, result, err)
+			return
+		}
 		result, err := h.service.Query(c.Request.Context(), entity, input)
 		h.result(c, result, err)
 	}
@@ -188,6 +224,11 @@ func (h *Handler) get(c *gin.Context, entity string) {
 			if err == nil && h.attachments != nil {
 				err = h.attachments.EnrichDetail(c.Request.Context(), &result)
 			}
+			h.result(c, result, err)
+			return
+		}
+		if entity == EntitySupplier {
+			result, err := h.service.SupplierGet(c.Request.Context(), input)
 			h.result(c, result, err)
 			return
 		}
@@ -255,6 +296,14 @@ func (h *Handler) create(c *gin.Context, entity string) {
 		}
 		return
 	}
+	if entity == EntitySupplier {
+		var input SupplierCreateInput
+		if h.bind(c, &input) {
+			result, err := h.service.SupplierCreate(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
+			h.result(c, result, err)
+		}
+		return
+	}
 	var input CreateInput
 	if h.bind(c, &input) {
 		result, err := h.service.Create(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
@@ -311,6 +360,14 @@ func (h *Handler) save(c *gin.Context, entity string) {
 		var input CustomerSaveInput
 		if h.bind(c, &input) {
 			result, err := h.service.CustomerSave(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
+			h.result(c, result, err)
+		}
+		return
+	}
+	if entity == EntitySupplier {
+		var input SupplierSaveInput
+		if h.bind(c, &input) {
+			result, err := h.service.SupplierSave(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
 			h.result(c, result, err)
 		}
 		return

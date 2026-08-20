@@ -1279,6 +1279,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/bob/supplier/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询供应商有效资料与候选状态 */
+        post: operations["supplierQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/supplier/get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取供应商有效版本与候选版本 */
+        post: operations["supplierGet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/supplier/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 创建供应商草稿 */
+        post: operations["supplierCreate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/supplier/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存供应商草稿或候选版本 */
+        post: operations["supplierSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/supplier/tax-match": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 按权限精确发现同税号客户集团或其他往来单位 */
+        post: operations["supplierTaxMatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/bob/customer-group/get": {
         parameters: {
             query?: never;
@@ -4061,6 +4146,155 @@ export interface components {
             data: components["schemas"]["CustomerAttachmentMutationResult"];
             requestId: string;
         };
+        /** @enum {string} */
+        SupplierType: "GENERAL" | "LOGISTICS_PLATFORM";
+        SupplierQueryRequest: {
+            page: number;
+            /** @enum {integer} */
+            pageSize: 20;
+            filters?: {
+                keyword?: string;
+                status?: string[];
+                enabled?: boolean;
+                supplierType?: components["schemas"]["SupplierType"];
+                defaultPurchaserEmployeeId?: string;
+            };
+            sort?: {
+                /** @enum {string} */
+                field: "code";
+                /** @enum {string} */
+                order: "asc";
+            }[];
+        };
+        SupplierListVersion: {
+            versionId: string;
+            /** Format: int32 */
+            version: number;
+            status: string;
+            /** Format: int64 */
+            revision: number;
+            name: string;
+            supplierType: components["schemas"]["SupplierType"];
+            defaultPurchaserCode?: string;
+            defaultPurchaserName?: string;
+            submittedBy: string | null;
+        };
+        SupplierListItem: {
+            objectId: string;
+            code: string;
+            /** Format: int64 */
+            objectRevision: number;
+            enabled: boolean;
+            effective: components["schemas"]["SupplierListVersion"] | null;
+            candidate: components["schemas"]["SupplierListVersion"] | null;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        SupplierQueryResponse: {
+            code: number;
+            message: string;
+            data: {
+                items: components["schemas"]["SupplierListItem"][];
+                /** Format: int64 */
+                total: number;
+                page: number;
+                pageSize: number;
+            };
+            requestId: string;
+        };
+        SupplierSettlementSnapshot: {
+            sourceObjectId: string;
+            code: string;
+            name: string;
+            termCode: string;
+            ruleType: string;
+            /** Format: int32 */
+            monthOffset: number;
+            /** Format: int32 */
+            dayOfMonth: number;
+            /** Format: int32 */
+            dayOffset: number;
+        };
+        SupplierView: {
+            name: string;
+            supplierType: components["schemas"]["SupplierType"];
+            shortName?: string | null;
+            taxNumber?: string | null;
+            contactName?: string | null;
+            contactPhone?: string | null;
+            email?: string | null;
+            address?: string | null;
+            remark?: string | null;
+            settlementMethodId?: string | null;
+            defaultPurchaserEmployeeId?: string | null;
+            settlementMethod: components["schemas"]["SupplierSettlementSnapshot"] | null;
+        };
+        SupplierVersionView: {
+            version: components["schemas"]["CustomerVersionMeta"];
+            data: components["schemas"]["SupplierView"];
+        };
+        SupplierDetailView: {
+            objectId: string;
+            code: string;
+            /** Format: int64 */
+            objectRevision: number;
+            enabled: boolean;
+            effective: components["schemas"]["SupplierVersionView"] | null;
+            candidate: components["schemas"]["SupplierVersionView"] | null;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        SupplierGetResponse: {
+            code: number;
+            message: string;
+            data: components["schemas"]["SupplierDetailView"] | null;
+            requestId: string;
+        };
+        SupplierInput: {
+            name: string;
+            supplierType: components["schemas"]["SupplierType"];
+            shortName?: string | null;
+            taxNumber?: string | null;
+            contactName?: string | null;
+            contactPhone?: string | null;
+            email?: string | null;
+            address?: string | null;
+            remark?: string | null;
+            settlementMethodId?: string | null;
+            defaultPurchaserEmployeeId?: string | null;
+        };
+        SupplierCreateRequest: {
+            data: components["schemas"]["SupplierInput"];
+        };
+        SupplierSaveRequest: {
+            objectId: string;
+            versionId: string;
+            /** Format: int64 */
+            revision: number;
+            data: components["schemas"]["SupplierInput"];
+        };
+        SupplierTaxMatchRequest: {
+            taxNumber: string;
+        };
+        SupplierTaxMatch: {
+            /** @enum {string} */
+            sourceEntity: "customer-group" | "other-party";
+            objectId: string;
+            code: string;
+            companyName: string;
+            shortName: string;
+            taxNumber: string;
+            contactName: string;
+            contactPhone: string;
+            email: string;
+            address: string;
+        };
+        SupplierTaxMatchResponse: {
+            code: number;
+            message: string;
+            data: components["schemas"]["SupplierTaxMatch"][];
+            requestId: string;
+        };
         CustomerGroupSaveRequest: {
             groupId: string;
             /** Format: int64 */
@@ -4096,6 +4330,7 @@ export interface components {
             entity: "customer" | "operating-entity" | "employee" | "other-party" | "supplier" | "product";
             keyword?: string;
             sourceObjectId?: string;
+            supplierType?: components["schemas"]["SupplierType"];
         };
         ReferenceCandidate: {
             objectId: string;
@@ -4115,6 +4350,11 @@ export interface components {
             keyword?: string;
             dictionaryTypeCode?: string;
         };
+        /**
+         * @description 仍使用通用 CRUD 契约的 BOB 实体；客户和供应商使用各自的封闭契约。
+         * @enum {string}
+         */
+        BobCrudEntity: "other-party" | "employee" | "product" | "service" | "warehouse" | "vehicle" | "fund-account" | "operating-entity";
         BobQueryRequest: {
             page: number;
             pageSize: number;
@@ -5452,6 +5692,7 @@ export interface components {
     };
     parameters: {
         BobEntity: components["schemas"]["BobEntity"];
+        BobCrudEntity: components["schemas"]["BobCrudEntity"];
         AuxEntity: components["schemas"]["AuxEntity"];
         VouEntity: components["schemas"]["VouEntity"];
         RptReportCode: string;
@@ -7122,6 +7363,110 @@ export interface operations {
             };
         };
     };
+    supplierQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupplierQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description 供应商分页响应。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierQueryResponse"];
+                };
+            };
+        };
+    };
+    supplierGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BobGetRequest"];
+            };
+        };
+        responses: {
+            /** @description 供应商完整资料。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierGetResponse"];
+                };
+            };
+        };
+    };
+    supplierCreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupplierCreateRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    supplierSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupplierSaveRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    supplierTaxMatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupplierTaxMatchRequest"];
+            };
+        };
+        responses: {
+            /** @description 当前用户可读的同税号资料。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierTaxMatchResponse"];
+                };
+            };
+        };
+    };
     customerGroupGet: {
         parameters: {
             query?: never;
@@ -7247,7 +7592,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                entity: components["parameters"]["BobEntity"];
+                entity: components["parameters"]["BobCrudEntity"];
             };
             cookie?: never;
         };
@@ -7273,7 +7618,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                entity: components["parameters"]["BobEntity"];
+                entity: components["parameters"]["BobCrudEntity"];
             };
             cookie?: never;
         };
@@ -7291,7 +7636,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                entity: components["parameters"]["BobEntity"];
+                entity: components["parameters"]["BobCrudEntity"];
             };
             cookie?: never;
         };
@@ -7309,7 +7654,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                entity: components["parameters"]["BobEntity"];
+                entity: components["parameters"]["BobCrudEntity"];
             };
             cookie?: never;
         };

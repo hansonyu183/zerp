@@ -226,16 +226,16 @@ func TestDeleteFirstDraftRejectsLifecycleAndIdentityConflictsIntegration(t *test
 		assertConflict("effective", EntityCustomer, input)
 	})
 	t.Run("multiple versions and version two", func(t *testing.T) {
-		created, approved := createApprovedIntegration(t, service, EntityCustomer, CreateDetailInput{
+		created, approved := createApprovedIntegration(t, service, EntityEmployee, CreateDetailInput{
 			Code: "DMV" + newID(), Name: "Multiple Version Customer",
 		}, "delete-multiple")
-		edited, err := service.Edit(t.Context(), EntityCustomer, ObjectRevisionInput{
+		edited, err := service.Edit(t.Context(), EntityEmployee, ObjectRevisionInput{
 			ObjectID: created.ObjectID, ObjectRevision: approved.ObjectRevision,
 		}, integrationActorOne, "delete-multiple-edit")
 		if err != nil {
 			t.Fatalf("edit multiple-version delete case: %v", err)
 		}
-		assertConflict("multiple versions", EntityCustomer, deleteInput(edited))
+		assertConflict("multiple versions", EntityEmployee, deleteInput(edited))
 	})
 }
 
@@ -401,20 +401,20 @@ func TestConcurrentEditAllowsOneWinnerIntegration(t *testing.T) {
 	_, salesperson := createApprovedIntegration(t, service, EntityEmployee, CreateDetailInput{
 		Code: "CCE" + newID(), Name: "Concurrent Edit Salesperson",
 	}, "concurrent-salesperson")
-	created, err := service.Create(t.Context(), EntityCustomer, CreateInput{Data: CreateDetailInput{
+	created, err := service.Create(t.Context(), EntityOtherParty, CreateInput{Data: CreateDetailInput{
 		Code: "CC" + newID(), Name: "Concurrent Customer",
 		SalespersonEmployeeID: salesperson.ObjectID,
 	}}, integrationActorOne, "concurrent-create")
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	submitted, err := service.Submit(t.Context(), EntityCustomer, VersionRevisionInput{
+	submitted, err := service.Submit(t.Context(), EntityOtherParty, VersionRevisionInput{
 		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: created.Revision,
 	}, integrationActorOne, "concurrent-submit")
 	if err != nil {
 		t.Fatalf("submit: %v", err)
 	}
-	approved, err := service.Approve(t.Context(), EntityCustomer, ReviewInput{
+	approved, err := service.Approve(t.Context(), EntityOtherParty, ReviewInput{
 		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: submitted.Revision,
 	}, integrationActorTwo, "concurrent-approve")
 	if err != nil {
@@ -426,7 +426,7 @@ func TestConcurrentEditAllowsOneWinnerIntegration(t *testing.T) {
 	for index := 0; index < 2; index++ {
 		go func() {
 			<-start
-			_, editErr := service.Edit(context.Background(), EntityCustomer, ObjectRevisionInput{
+			_, editErr := service.Edit(context.Background(), EntityOtherParty, ObjectRevisionInput{
 				ObjectID: created.ObjectID, ObjectRevision: approved.ObjectRevision,
 			}, integrationActorOne, "concurrent-edit")
 			errorsChannel <- editErr
@@ -456,20 +456,20 @@ func TestEffectiveReferenceLockBlocksEditIntegration(t *testing.T) {
 	_, salesperson := createApprovedIntegration(t, service, EntityEmployee, CreateDetailInput{
 		Code: "RLE" + newID(), Name: "Reference Lock Salesperson",
 	}, "lock-salesperson")
-	created, err := service.Create(t.Context(), EntityCustomer, CreateInput{Data: CreateDetailInput{
+	created, err := service.Create(t.Context(), EntityOtherParty, CreateInput{Data: CreateDetailInput{
 		Code: "RL" + newID(), Name: "Reference Lock Customer",
 		SalespersonEmployeeID: salesperson.ObjectID,
 	}}, integrationActorOne, "lock-create")
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	submitted, err := service.Submit(t.Context(), EntityCustomer, VersionRevisionInput{
+	submitted, err := service.Submit(t.Context(), EntityOtherParty, VersionRevisionInput{
 		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: created.Revision,
 	}, integrationActorOne, "lock-submit")
 	if err != nil {
 		t.Fatalf("submit: %v", err)
 	}
-	approved, err := service.Approve(t.Context(), EntityCustomer, ReviewInput{
+	approved, err := service.Approve(t.Context(), EntityOtherParty, ReviewInput{
 		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: submitted.Revision,
 	}, integrationActorTwo, "lock-approve")
 	if err != nil {
@@ -480,14 +480,14 @@ func TestEffectiveReferenceLockBlocksEditIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin reference transaction: %v", err)
 	}
-	if _, err = service.ResolveEffectiveReference(t.Context(), tx, EntityCustomer, created.ObjectID, created.VersionID); err != nil {
+	if _, err = service.ResolveEffectiveReference(t.Context(), tx, EntityOtherParty, created.ObjectID, created.VersionID); err != nil {
 		t.Fatalf("resolve reference: %v", err)
 	}
 	editResult := make(chan error, 1)
 	editContext, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	go func() {
-		_, editErr := service.Edit(editContext, EntityCustomer, ObjectRevisionInput{
+		_, editErr := service.Edit(editContext, EntityOtherParty, ObjectRevisionInput{
 			ObjectID: created.ObjectID, ObjectRevision: approved.ObjectRevision,
 		}, integrationActorOne, "lock-edit")
 		editResult <- editErr

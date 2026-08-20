@@ -12,10 +12,11 @@ import (
 func TestLifecycleIntegration(t *testing.T) {
 	pool := integrationPool(t)
 	service := NewService(pool)
+	const lifecycleEntity = EntityOtherParty
 	_, salesperson := createApprovedIntegration(t, service, EntityEmployee, CreateDetailInput{
 		Code: "LSE" + newID(), Name: "Lifecycle Salesperson",
 	}, "lifecycle-salesperson")
-	created, err := service.Create(t.Context(), EntityCustomer, CreateInput{Data: CreateDetailInput{
+	created, err := service.Create(t.Context(), lifecycleEntity, CreateInput{Data: CreateDetailInput{
 		Name: "Integration Customer", SalespersonEmployeeID: salesperson.ObjectID,
 	}}, integrationActorOne, "integration-create")
 	if err != nil {
@@ -25,70 +26,70 @@ func TestLifecycleIntegration(t *testing.T) {
 		t.Fatalf("unexpected create result: %+v", created)
 	}
 
-	submitted, err := service.Submit(t.Context(), EntityCustomer, VersionRevisionInput{
+	submitted, err := service.Submit(t.Context(), lifecycleEntity, VersionRevisionInput{
 		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: created.Revision,
 	}, integrationActorOne, "integration-submit-1")
 	if err != nil || submitted.Status != StatusPending || submitted.Revision != 2 {
 		t.Fatalf("submit: result=%+v err=%v", submitted, err)
 	}
 	comment := "needs correction"
-	rejected, err := service.Reject(t.Context(), EntityCustomer, ReviewInput{
+	rejected, err := service.Reject(t.Context(), lifecycleEntity, ReviewInput{
 		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: submitted.Revision, Comment: &comment,
 	}, integrationActorTwo, "integration-reject")
 	if err != nil || rejected.Status != StatusDraft || rejected.Revision != 3 {
 		t.Fatalf("reject: result=%+v err=%v", rejected, err)
 	}
-	saved, err := service.Save(t.Context(), EntityCustomer, SaveInput{
+	saved, err := service.Save(t.Context(), lifecycleEntity, SaveInput{
 		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: rejected.Revision,
 		Data: DetailInput{Name: "Integration Customer Corrected"},
 	}, integrationActorOne, "integration-save")
 	if err != nil || saved.Revision != 4 {
 		t.Fatalf("save: result=%+v err=%v", saved, err)
 	}
-	if _, err = service.Save(t.Context(), EntityCustomer, SaveInput{
+	if _, err = service.Save(t.Context(), lifecycleEntity, SaveInput{
 		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: rejected.Revision,
 		Data: DetailInput{Name: "Stale Save"},
 	}, integrationActorOne, "integration-stale-save"); !errorIsKind(err, ErrorConflict) {
 		t.Fatalf("stale save error = %v", err)
 	}
-	submitted, err = service.Submit(t.Context(), EntityCustomer, VersionRevisionInput{
+	submitted, err = service.Submit(t.Context(), lifecycleEntity, VersionRevisionInput{
 		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: saved.Revision,
 	}, integrationActorOne, "integration-submit-2")
 	if err != nil || submitted.Revision != 5 {
 		t.Fatalf("resubmit: result=%+v err=%v", submitted, err)
 	}
-	if _, err = service.Submit(t.Context(), EntityCustomer, VersionRevisionInput{
+	if _, err = service.Submit(t.Context(), lifecycleEntity, VersionRevisionInput{
 		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: saved.Revision,
 	}, integrationActorOne, "integration-stale-submit"); !errorIsKind(err, ErrorConflict) {
 		t.Fatalf("stale submit error = %v", err)
 	}
-	approved, err := service.Approve(t.Context(), EntityCustomer, ReviewInput{
+	approved, err := service.Approve(t.Context(), lifecycleEntity, ReviewInput{
 		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: submitted.Revision,
 	}, integrationActorTwo, "integration-approve")
 	if err != nil || approved.Status != StatusEffective || approved.Revision != 6 || approved.ObjectRevision != 2 {
 		t.Fatalf("approve: result=%+v err=%v", approved, err)
 	}
-	if _, err = service.Approve(t.Context(), EntityCustomer, ReviewInput{
+	if _, err = service.Approve(t.Context(), lifecycleEntity, ReviewInput{
 		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: submitted.Revision,
 	}, integrationActorTwo, "integration-stale-approve"); !errorIsKind(err, ErrorConflict) {
 		t.Fatalf("stale approve error = %v", err)
 	}
 
-	view, err := service.Get(t.Context(), EntityCustomer, GetInput{ObjectID: created.ObjectID})
+	view, err := service.Get(t.Context(), lifecycleEntity, GetInput{ObjectID: created.ObjectID})
 	if err != nil || view.Data.Name != "Integration Customer Corrected" || view.Version.Status != StatusEffective {
 		t.Fatalf("get effective: view=%+v err=%v", view, err)
 	}
-	page, err := service.Query(t.Context(), EntityCustomer, QueryInput{
+	page, err := service.Query(t.Context(), lifecycleEntity, QueryInput{
 		Page: 1, PageSize: 20, Filters: QueryFilters{Keyword: view.Code}, Sort: []SortItem{},
 	})
 	if err != nil || page.Total != 1 || len(page.Items) != 1 {
 		t.Fatalf("query: page=%+v err=%v", page, err)
 	}
-	history, err := service.AuditHistory(t.Context(), EntityCustomer, HistoryInput{ObjectID: created.ObjectID, Page: 1, PageSize: 20})
+	history, err := service.AuditHistory(t.Context(), lifecycleEntity, HistoryInput{ObjectID: created.ObjectID, Page: 1, PageSize: 20})
 	if err != nil || history.Total != 6 {
 		t.Fatalf("audit history: total=%d err=%v", history.Total, err)
 	}
-	versions, err := service.Versions(t.Context(), EntityCustomer, HistoryInput{ObjectID: created.ObjectID, Page: 1, PageSize: 20})
+	versions, err := service.Versions(t.Context(), lifecycleEntity, HistoryInput{ObjectID: created.ObjectID, Page: 1, PageSize: 20})
 	if err != nil || versions.Total != 1 || len(versions.Items) != 1 || versions.Items[0].ReviewedBy == nil {
 		t.Fatalf("versions: page=%+v err=%v", versions, err)
 	}
@@ -97,7 +98,7 @@ func TestLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin reference transaction: %v", err)
 	}
-	reference, err := service.ResolveEffectiveReference(t.Context(), tx, EntityCustomer, created.ObjectID, created.VersionID)
+	reference, err := service.ResolveEffectiveReference(t.Context(), tx, lifecycleEntity, created.ObjectID, created.VersionID)
 	if err != nil || reference.Code != view.Code {
 		t.Fatalf("resolve reference: reference=%+v err=%v", reference, err)
 	}
@@ -105,7 +106,7 @@ func TestLifecycleIntegration(t *testing.T) {
 		t.Fatalf("commit reference transaction: %v", err)
 	}
 
-	disabled, err := service.Disable(t.Context(), EntityCustomer, ObjectRevisionInput{
+	disabled, err := service.Disable(t.Context(), lifecycleEntity, ObjectRevisionInput{
 		ObjectID: created.ObjectID, ObjectRevision: approved.ObjectRevision,
 	}, integrationActorOne, "integration-disable")
 	if err != nil || disabled.Enabled || disabled.ObjectRevision != 3 {
@@ -115,32 +116,32 @@ func TestLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin disabled reference transaction: %v", err)
 	}
-	_, err = service.ResolveEffectiveReference(t.Context(), tx, EntityCustomer, created.ObjectID, created.VersionID)
+	_, err = service.ResolveEffectiveReference(t.Context(), tx, lifecycleEntity, created.ObjectID, created.VersionID)
 	_ = tx.Rollback(t.Context())
 	if !errorIsKind(err, ErrorConflict) {
 		t.Fatalf("disabled reference error = %v", err)
 	}
-	enabled, err := service.Enable(t.Context(), EntityCustomer, ObjectRevisionInput{
+	enabled, err := service.Enable(t.Context(), lifecycleEntity, ObjectRevisionInput{
 		ObjectID: created.ObjectID, ObjectRevision: disabled.ObjectRevision,
 	}, integrationActorOne, "integration-enable")
 	if err != nil || !enabled.Enabled || enabled.ObjectRevision != 4 {
 		t.Fatalf("enable: result=%+v err=%v", enabled, err)
 	}
-	unapproved, err := service.Unapprove(t.Context(), EntityCustomer, ReverseInput{
+	unapproved, err := service.Unapprove(t.Context(), lifecycleEntity, ReverseInput{
 		ObjectID: created.ObjectID, ObjectRevision: enabled.ObjectRevision,
 		VersionID: created.VersionID, Revision: approved.Revision, Reason: "correct approved object",
 	}, integrationActorOne, "integration-unapprove")
 	if err != nil || unapproved.Status != StatusPending || unapproved.Version != 2 || unapproved.ObjectRevision != 5 {
 		t.Fatalf("unapprove: result=%+v err=%v", unapproved, err)
 	}
-	edited, err := service.Unsubmit(t.Context(), EntityCustomer, ReverseInput{
+	edited, err := service.Unsubmit(t.Context(), lifecycleEntity, ReverseInput{
 		ObjectID: created.ObjectID, ObjectRevision: unapproved.ObjectRevision,
 		VersionID: unapproved.VersionID, Revision: unapproved.Revision, Reason: "return to draft",
 	}, integrationActorOne, "integration-unsubmit")
 	if err != nil || edited.Status != StatusDraft || edited.Version != 2 || edited.ObjectRevision != 5 {
 		t.Fatalf("unsubmit: result=%+v err=%v", edited, err)
 	}
-	oldView, err := service.Get(t.Context(), EntityCustomer, GetInput{ObjectID: created.ObjectID, VersionID: created.VersionID})
+	oldView, err := service.Get(t.Context(), lifecycleEntity, GetInput{ObjectID: created.ObjectID, VersionID: created.VersionID})
 	if err != nil || oldView.Version.Status != StatusInvalid {
 		t.Fatalf("old version after edit: view=%+v err=%v", oldView, err)
 	}
@@ -148,12 +149,12 @@ func TestLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin invalid reference transaction: %v", err)
 	}
-	_, err = service.ResolveEffectiveReference(t.Context(), tx, EntityCustomer, created.ObjectID, created.VersionID)
+	_, err = service.ResolveEffectiveReference(t.Context(), tx, lifecycleEntity, created.ObjectID, created.VersionID)
 	_ = tx.Rollback(t.Context())
 	if !errorIsKind(err, ErrorConflict) {
 		t.Fatalf("invalidated reference error = %v", err)
 	}
-	if _, err = service.Unapprove(t.Context(), EntityCustomer, ReverseInput{
+	if _, err = service.Unapprove(t.Context(), lifecycleEntity, ReverseInput{
 		ObjectID: created.ObjectID, ObjectRevision: enabled.ObjectRevision,
 		VersionID: created.VersionID, Revision: approved.Revision, Reason: "repeat",
 	}, integrationActorOne, "integration-unapprove-repeat"); !errorIsKind(err, ErrorConflict) {
@@ -196,9 +197,20 @@ func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.entity, func(t *testing.T) {
+			previousAuxiliaryResolver := service.auxiliaryResolver
+			if test.entity == EntitySupplier {
+				service.SetAuxiliaryResolver(customerAuxiliaryResolverStub{})
+				defer service.SetAuxiliaryResolver(previousAuxiliaryResolver)
+			}
 			test.data.Code = "LC" + newID()
-			if test.entity == EntityCustomer || test.entity == EntitySupplier || test.entity == EntityOtherParty {
+			if test.entity == EntityCustomer || test.entity == EntityOtherParty {
 				test.data.SalespersonEmployeeID = salesperson.ObjectID
+			}
+			if test.entity == EntitySupplier {
+				test.data.DefaultPurchaserEmployeeID = salesperson.ObjectID
+				if err := pool.QueryRow(t.Context(), `SELECT id FROM aux_objects WHERE entity='settlement-method' AND enabled ORDER BY code LIMIT 1`).Scan(&test.data.SettlementMethodID); err != nil {
+					t.Fatalf("find supplier settlement: %v", err)
+				}
 			}
 			if test.entity == EntityFundAccount {
 				test.data.OperatingEntityID = operating.ObjectID
@@ -237,6 +249,9 @@ func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 			}
 			if err = tx.Commit(t.Context()); err != nil {
 				t.Fatalf("commit resolve: %v", err)
+			}
+			if test.entity == EntityCustomer || test.entity == EntitySupplier {
+				return
 			}
 			edited, err := service.Edit(t.Context(), test.entity, ObjectRevisionInput{
 				ObjectID: created.ObjectID, ObjectRevision: approved.ObjectRevision,
@@ -309,36 +324,36 @@ func TestLogisticsPlatformAndVehicleLifecycleIntegration(t *testing.T) {
 		t.Fatalf("create draft vehicle: %v", err)
 	}
 
-	platformEdited, err := service.Edit(t.Context(), EntitySupplier, ObjectRevisionInput{
-		ObjectID: platformCreated.ObjectID, ObjectRevision: platformApproved.ObjectRevision,
-	}, integrationActorOne, "platform-edit")
+	platformDetail, err := service.SupplierGet(t.Context(), GetInput{ObjectID: platformCreated.ObjectID})
+	if err != nil || platformDetail.Effective == nil {
+		t.Fatalf("get effective platform: detail=%+v err=%v", platformDetail, err)
+	}
+	updatedPlatformData := platformDetail.Effective.Data
+	updatedPlatformData.Name = "自营物流平台（更新）"
+	platformSaved, err := service.SupplierSave(t.Context(), SupplierSaveInput{
+		ObjectID: platformCreated.ObjectID, VersionID: platformApproved.VersionID,
+		Revision: platformApproved.Revision, Data: updatedPlatformData,
+	}, integrationActorOne, "platform-candidate-save")
 	if err != nil {
-		t.Fatalf("edit platform: %v", err)
+		t.Fatalf("save platform candidate: %v", err)
 	}
 	tx, err = pool.Begin(t.Context())
 	if err != nil {
-		t.Fatalf("begin unavailable vehicle reference: %v", err)
+		t.Fatalf("begin candidate vehicle reference: %v", err)
 	}
 	_, err = service.ResolveEffectiveReference(
 		t.Context(), tx, EntityVehicle, vehicleCreated.ObjectID, vehicleCreated.VersionID,
 	)
-	_ = tx.Rollback(t.Context())
-	if !errorIsKind(err, ErrorConflict) {
-		t.Fatalf("platform edit vehicle reference error = %v", err)
+	if err != nil {
+		_ = tx.Rollback(t.Context())
+		t.Fatalf("platform candidate blocked vehicle reference: %v", err)
 	}
+	_ = tx.Commit(t.Context())
 	if _, err = service.Save(t.Context(), EntityVehicle, SaveInput{
 		ObjectID: draftVehicle.ObjectID, VersionID: draftVehicle.VersionID, Revision: draftVehicle.Revision,
 		Data: draftVehicleData,
-	}, integrationActorOne, "vehicle-save-platform-unavailable"); !errorIsKind(err, ErrorConflict) {
-		t.Fatalf("vehicle save while platform unavailable error = %v", err)
-	}
-
-	platformSaved, err := service.Save(t.Context(), EntitySupplier, SaveInput{
-		ObjectID: platformEdited.ObjectID, VersionID: platformEdited.VersionID, Revision: platformEdited.Revision,
-		Data: DetailInput{Name: "自营物流平台（更新）"},
-	}, integrationActorOne, "platform-save-compatible")
-	if err != nil {
-		t.Fatalf("save platform without supplierType: %v", err)
+	}, integrationActorOne, "vehicle-save-platform-candidate"); err != nil {
+		t.Fatalf("vehicle save while platform has candidate: %v", err)
 	}
 	platformSubmitted, err := service.Submit(t.Context(), EntitySupplier, VersionRevisionInput{
 		ObjectID: platformSaved.ObjectID, VersionID: platformSaved.VersionID, Revision: platformSaved.Revision,
@@ -352,8 +367,8 @@ func TestLogisticsPlatformAndVehicleLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("approve platform: %v", err)
 	}
-	platformView, err := service.Get(t.Context(), EntitySupplier, GetInput{ObjectID: platformCreated.ObjectID})
-	if err != nil || platformView.Data.SupplierType != SupplierTypeLogisticsPlatform {
+	platformView, err := service.SupplierGet(t.Context(), GetInput{ObjectID: platformCreated.ObjectID})
+	if err != nil || platformView.Effective == nil || platformView.Effective.Data.SupplierType != SupplierTypeLogisticsPlatform {
 		t.Fatalf("platform type after compatible save: view=%+v err=%v", platformView, err)
 	}
 
@@ -369,24 +384,12 @@ func TestLogisticsPlatformAndVehicleLifecycleIntegration(t *testing.T) {
 	if err = tx.Commit(t.Context()); err != nil {
 		t.Fatalf("commit restored vehicle reference: %v", err)
 	}
-	if _, err = service.Save(t.Context(), EntityVehicle, SaveInput{
-		ObjectID: draftVehicle.ObjectID, VersionID: draftVehicle.VersionID, Revision: draftVehicle.Revision,
-		Data: draftVehicleData,
-	}, integrationActorOne, "vehicle-save-platform-restored"); err != nil {
-		t.Fatalf("save vehicle after platform approval: %v", err)
-	}
-
-	downgradeEdit, err := service.Edit(t.Context(), EntitySupplier, ObjectRevisionInput{
-		ObjectID: platformCreated.ObjectID, ObjectRevision: platformReapproved.ObjectRevision,
-	}, integrationActorOne, "platform-downgrade-edit")
-	if err != nil {
-		t.Fatalf("edit platform for downgrade: %v", err)
-	}
-	if _, err = service.Save(t.Context(), EntitySupplier, SaveInput{
-		ObjectID: downgradeEdit.ObjectID, VersionID: downgradeEdit.VersionID, Revision: downgradeEdit.Revision,
-		Data: DetailInput{
-			Name: "普通供应商", SupplierType: stringIntegrationPointer(SupplierTypeGeneral),
-		},
+	downgradeData := platformView.Effective.Data
+	downgradeData.Name = "普通供应商"
+	downgradeData.SupplierType = SupplierTypeGeneral
+	if _, err = service.SupplierSave(t.Context(), SupplierSaveInput{
+		ObjectID: platformCreated.ObjectID, VersionID: platformReapproved.VersionID,
+		Revision: platformReapproved.Revision, Data: downgradeData,
 	}, integrationActorOne, "platform-downgrade-save"); !errorIsKind(err, ErrorConflict) {
 		t.Fatalf("platform downgrade error = %v", err)
 	}

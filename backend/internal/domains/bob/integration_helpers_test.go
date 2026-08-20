@@ -57,8 +57,10 @@ func deleteIntegrationData(entity, platformObjectID, salespersonEmployeeID, oper
 		Name: "Deletable " + entity,
 	}
 	switch entity {
-	case EntityCustomer, EntitySupplier, EntityOtherParty:
+	case EntityCustomer, EntityOtherParty:
 		data.SalespersonEmployeeID = salespersonEmployeeID
+	case EntitySupplier:
+		data.DefaultPurchaserEmployeeID = salespersonEmployeeID
 	case EntityProduct, EntityService:
 		data.Unit = "unit"
 	case EntityFundAccount:
@@ -202,11 +204,34 @@ func createApprovedIntegration(
 	requestPrefix string,
 ) (MutationResult, MutationResult) {
 	t.Helper()
-	if (entity == EntityCustomer || entity == EntitySupplier) && data.SalespersonEmployeeID == "" {
+	previousAuxiliaryResolver := service.auxiliaryResolver
+	if entity == EntitySupplier && previousAuxiliaryResolver == nil {
+		service.SetAuxiliaryResolver(customerAuxiliaryResolverStub{})
+		defer service.SetAuxiliaryResolver(previousAuxiliaryResolver)
+	}
+	if entity == EntityCustomer && data.SalespersonEmployeeID == "" {
 		_, employee := createApprovedIntegration(t, service, EntityEmployee, CreateDetailInput{
 			Code: "AUTOEMP" + newID(), Name: "Integration Salesperson",
 		}, requestPrefix+"-salesperson")
 		data.SalespersonEmployeeID = employee.ObjectID
+	}
+	if entity == EntitySupplier {
+		if data.DefaultPurchaserEmployeeID == "" {
+			_, employee := createApprovedIntegration(t, service, EntityEmployee, CreateDetailInput{
+				Code: "AUTOBUY" + newID(), Name: "Integration Purchaser",
+			}, requestPrefix+"-purchaser")
+			data.DefaultPurchaserEmployeeID = employee.ObjectID
+		}
+		if data.SettlementMethodID == "" {
+			if err := service.pool.QueryRow(t.Context(), `
+				SELECT object.id FROM aux_objects object
+				JOIN aux_versions version ON version.id=object.current_version_id
+				WHERE object.entity='settlement-method' AND object.enabled
+				ORDER BY object.code LIMIT 1
+			`).Scan(&data.SettlementMethodID); err != nil {
+				t.Fatalf("find supplier settlement method: %v", err)
+			}
+		}
 	}
 	if entity == EntityFundAccount && data.OperatingEntityID == "" {
 		_, operating := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{

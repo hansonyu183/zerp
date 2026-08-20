@@ -97,12 +97,6 @@ function rowActions(row: CustomerListItem): ListRowAction[] {
       color: 'error',
     },
     {
-      action: 'unapprove',
-      label: '撤销批准',
-      icon: 'mdi-backup-restore',
-      color: 'warning',
-    },
-    {
       action: 'enable',
       label: '启用',
       icon: 'mdi-play-circle-outline',
@@ -159,7 +153,6 @@ const lifecycleTitle = computed(() =>
         unsubmit: '撤回提交',
         approve: '审核通过',
         reject: '审核驳回',
-        unapprove: '撤销批准',
         disable: '确认禁用客户',
         delete: '确认删除候选版本',
         submit: '提交审核',
@@ -168,7 +161,7 @@ const lifecycleTitle = computed(() =>
     : '',
 )
 const lifecycleRequiresReason = computed(() =>
-  ['unsubmit', 'reject', 'unapprove'].includes(lifecycleAction.value ?? ''),
+  ['unsubmit', 'reject'].includes(lifecycleAction.value ?? ''),
 )
 
 function closeLifecycleDialog(): void {
@@ -334,7 +327,7 @@ onMounted(() => {
         </v-alert>
         <v-textarea
           v-if="
-            ['unsubmit', 'approve', 'reject', 'unapprove'].includes(
+            ['unsubmit', 'approve', 'reject'].includes(
               lifecycleAction ?? '',
             )
           "

@@ -130,6 +130,12 @@ const exactMessages: Readonly<Record<string, string>> = {
     '请填写客户名称并选择客户类型。',
   'customer transaction defaults are incomplete':
     '客户交易默认资料不完整，请补全经营主体、结算、收款和运输方式。',
+  'supplier transaction defaults are incomplete':
+    '供应商交易默认资料不完整，请补全结算方式和默认采购员。',
+  'settlementMethod is read-only':
+    '结算方式快照由系统生成，不能直接修改。',
+  'continuous-effective objects are edited through candidate save':
+    '该资料采用连续生效模式，请直接保存候选版本。',
   'only CNY credit limits are supported': '当前信用额度仅支持人民币。',
   'referencing object already has a candidate version':
     '被引用资料已有候选版本，请先处理该候选版本。',

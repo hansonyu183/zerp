@@ -59,11 +59,12 @@ func validateCreate(entity string, input CreateDetailInput) (DetailView, string,
 		AccountName: input.AccountName, BankName: input.BankName, BankBranch: input.BankBranch,
 		AccountNumber: input.AccountNumber, OperatingEntityID: input.OperatingEntityID, ParentID: input.ParentID,
 		SettlementMethodID: input.SettlementMethodID, MonthlyClosingDay: monthlyClosingDay,
-		SalespersonEmployeeID:    input.SalespersonEmployeeID,
-		RebateUnitPrice:          rebateUnitPrice,
-		IntermediaryOtherPartyID: input.IntermediaryOtherPartyID,
-		RuleType:                 input.RuleType,
-		MonthOffset:              input.MonthOffset, DayOfMonth: input.DayOfMonth, DayOffset: input.DayOffset,
+		SalespersonEmployeeID:      input.SalespersonEmployeeID,
+		DefaultPurchaserEmployeeID: input.DefaultPurchaserEmployeeID,
+		RebateUnitPrice:            rebateUnitPrice,
+		IntermediaryOtherPartyID:   input.IntermediaryOtherPartyID,
+		RuleType:                   input.RuleType,
+		MonthOffset:                input.MonthOffset, DayOfMonth: input.DayOfMonth, DayOffset: input.DayOffset,
 		ContainerType: input.ContainerType, QuantityPerContainer: input.QuantityPerContainer,
 		ProductKind: input.ProductKind, InventoryUnitID: input.InventoryUnitID,
 		PricingUnitID:                   input.PricingUnitID,
@@ -181,6 +182,7 @@ func mergeDetailInput(current DetailView, input DetailInput) DetailView {
 		result.DefaultSalesSurcharge = *input.DefaultSalesSurcharge
 	}
 	mergeOptional(input.SalespersonEmployeeID, &result.SalespersonEmployeeID)
+	mergeOptional(input.DefaultPurchaserEmployeeID, &result.DefaultPurchaserEmployeeID)
 	mergeOptional(input.IntermediaryOtherPartyID, &result.IntermediaryOtherPartyID)
 	mergeOptional(input.QuantityPerContainer, &result.QuantityPerContainer)
 	mergeOptional(input.InventoryUnitID, &result.InventoryUnitID)
@@ -228,7 +230,7 @@ func validateDetailInputFields(entity string, input DetailInput) error {
 	case EntityOtherParty:
 		allow("shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
 	case EntitySupplier:
-		allow("shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
+		allow("shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "defaultPurchaserEmployeeId")
 	case EntityEmployee:
 		allow("departmentId", "positionId", "phone", "email", "hireDate", "remark")
 	case EntityProduct:
@@ -275,6 +277,7 @@ func validateDetailInputFields(entity string, input DetailInput) error {
 		"intermediaryOtherPartyId":        input.IntermediaryOtherPartyID.Set,
 		"defaultSalesSurcharge":           input.DefaultSalesSurcharge != nil,
 		"salespersonEmployeeId":           input.SalespersonEmployeeID.Set,
+		"defaultPurchaserEmployeeId":      input.DefaultPurchaserEmployeeID.Set,
 		"quantityPerContainer":            input.QuantityPerContainer.Set,
 		"inventoryUnitId":                 input.InventoryUnitID.Set,
 		"pricingUnitId":                   input.PricingUnitID.Set,
@@ -332,6 +335,7 @@ func normalizeDetail(input *DetailView) {
 	for _, value := range []*string{
 		&input.PlatformObjectID, &input.CategoryID, &input.DepartmentID, &input.PositionID,
 		&input.ManagerEmployeeID, &input.ParentID, &input.SettlementMethodID, &input.SalespersonEmployeeID,
+		&input.DefaultPurchaserEmployeeID,
 		&input.IntermediaryOtherPartyID,
 		&input.InventoryUnitID, &input.PricingUnitID,
 	} {
@@ -443,12 +447,9 @@ func validateEntityFields(entity string, input DetailView) error {
 			return domainError(ErrorValidation, "salesperson employee is required", nil, nil)
 		}
 	case EntitySupplier:
-		allow("supplierType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId")
+		allow("supplierType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "defaultPurchaserEmployeeId")
 		if !validSupplierType(input.SupplierType) {
 			return domainError(ErrorValidation, "invalid supplier type", nil, nil)
-		}
-		if input.SalespersonEmployeeID == "" {
-			return domainError(ErrorValidation, "salesperson employee is required", nil, nil)
 		}
 	case EntityEmployee:
 		allow("departmentId", "positionId", "phone", "email", "hireDate", "remark")
@@ -827,6 +828,7 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 	input.DepartmentID = strings.TrimSpace(input.DepartmentID)
 	input.PositionID = strings.TrimSpace(input.PositionID)
 	input.SalespersonEmployeeID = strings.TrimSpace(input.SalespersonEmployeeID)
+	input.DefaultPurchaserEmployeeID = strings.TrimSpace(input.DefaultPurchaserEmployeeID)
 	input.ParentID = strings.TrimSpace(input.ParentID)
 	if utf8.RuneCountInString(input.Keyword) > 128 || len(input.Status) > 5 ||
 		(input.CustomerType != "" && !validCustomerType(input.CustomerType)) ||
@@ -842,7 +844,7 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 	}
 	for _, id := range []string{
 		input.CategoryID, input.DepartmentID, input.PositionID,
-		input.SalespersonEmployeeID, input.ParentID,
+		input.SalespersonEmployeeID, input.DefaultPurchaserEmployeeID, input.ParentID,
 	} {
 		if id != "" && !validID(id) {
 			return QueryFilters{}, domainError(ErrorValidation, "invalid query reference filter", nil, nil)
@@ -861,6 +863,8 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 			"positionId":   input.PositionID != "" || input.provided["positionId"],
 			"salespersonEmployeeId": input.SalespersonEmployeeID != "" ||
 				input.provided["salespersonEmployeeId"],
+			"defaultPurchaserEmployeeId": input.DefaultPurchaserEmployeeID != "" ||
+				input.provided["defaultPurchaserEmployeeId"],
 			"currency":     input.Currency != "" || input.provided["currency"],
 			"productKind":  input.ProductKind != "" || input.provided["productKind"],
 			"targetEntity": input.TargetEntity != "" || input.provided["targetEntity"],
@@ -879,7 +883,7 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 	case EntityCustomer, EntityOtherParty:
 		unexpected = hasUnexpected("customerType", "salespersonEmployeeId")
 	case EntitySupplier:
-		unexpected = hasUnexpected("supplierType", "salespersonEmployeeId")
+		unexpected = hasUnexpected("supplierType", "defaultPurchaserEmployeeId")
 	case EntityEmployee:
 		unexpected = hasUnexpected("departmentId", "positionId")
 	case EntityProduct:

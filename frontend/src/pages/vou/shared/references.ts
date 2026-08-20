@@ -178,15 +178,28 @@ export function useVoucherReferences(
               },
               { signal: controller.signal },
             )
-            return data.map(
-              (item): VoucherReference => ({
-                objectId: item.objectId,
-                versionId: item.versionId,
+            return data.map((item): VoucherReference => ({
+              objectId: item.objectId,
+              versionId: item.versionId,
+              entity,
+              code: item.code,
+              name: item.name,
+            }))
+          }
+          if (entity === 'supplier') {
+            const { data } = await apiClient.postContract(
+              'bob/reference/query',
+              {
                 entity,
-                code: item.code,
-                name: item.name,
-              }),
+                supplierType:
+                  definition.filters?.supplierType === 'LOGISTICS_PLATFORM'
+                    ? 'LOGISTICS_PLATFORM'
+                    : 'GENERAL',
+                ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
+              },
+              { signal: controller.signal },
             )
+            return data.map((item): VoucherReference => ({ ...item, entity }))
           }
           const { data } = await apiClient.post<
             PageResult<ReferenceListItem>,
@@ -200,10 +213,6 @@ export function useVoucherReferences(
                 status: ['EFFECTIVE'],
                 ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
                 ...(definition.filters ?? {}),
-                ...(entity === 'supplier' &&
-                (key === 'counterparty' || key === 'party')
-                  ? { supplierType: 'GENERAL' }
-                  : {}),
               },
               sort: [{ field: 'name', order: 'asc' }],
             },

@@ -2,51 +2,12 @@
 
 ## 1. 领域边界
 
-VOU（Voucher）负责销售、采购、资金及费用单据的制单、审核、批准、执行、反向流转、附件和审计。首批实体为：
-
-```text
-sale-pricing
-sale-order
-sale-outbound
-sale-delivery
-sale-signoff
-sale-return
-purchase-order
-purchase-inbound
-purchase-return
-purchase-inquiry
-order-production
-self-production
-inventory-count
-sales-receipt
-purchase-refund
-other-receipt
-sales-refund
-purchase-payment
-other-payment
-employee-loan
-employee-repayment
-employee-loan-writeoff
-expense-reimbursement
-expense-payment
-other-income
-asset-acquisition
-asset-sale
-asset-liquidation
-bill-receipt
-bill-payment
-bill-issue
-bill-discount
-bill-maturity
-intermediary-calculation
-```
+VOU（Voucher）负责销售、采购、资金及费用单据的制单、审核、批准、执行、反向流转、附件和审计。当前实体、可创建实体、路径与数据结构见 [OpenAPI VOU Schema](../../contracts/openapi/schemas/vou.yaml)，本文不维护其副本。
 
 HTTP 路径和数据结构以根目录 OpenAPI 为准；本文只维护单据生命周期、计算、快照、事务和前端交互语义。
 
-当前共 34 类原子单据，均由 VOU 独立管理，唯一授权依据是精确的 VOU API 权限。WFL 只消费事件并维护
+各类原子单据均由 VOU 独立管理，唯一授权依据是精确的 VOU API 权限。WFL 只消费事件并维护
 单据组合、跨单据规则和自动建单，不代理单据正文、生命周期、附件或审计。
-
-业务 API 固定为 `POST /vou/{entity}/{action}`，使用 `application/json` 和统一响应包络。文件字节流是技术端点，使用短时令牌访问 `/files/attachments/*`。
 
 VOU 自身不保存会计、数量、票据或资产账簿事实。ACC 领域同步消费已批准单据副本并在同一事务中生成会计及辅助账流水；反批准必须在同一事务中删除本单生成的全部 ACC 记录，若会破坏严格库存约束则拒绝。
 
@@ -68,7 +29,7 @@ SPR/SOR/SOB/SDL/SSF/SRT/PIQ/POR/PIN/PRT/MTO/MTS/IVC/SRC/SRF/PPY/PRF/ORC/OPY/ELN/
 
 `vou_documents.oit_id` 仅作为旧 OIT 聚合根映射的数据库内部字段。非空值不得含首尾空格，长度为 1–64，且在同一 `entity` 内唯一；应用 HTTP/API/UI 不读取或写入它。
 
-客户草稿可以暂不配置结算方式，但提交和审核时必须已经保存一套完整结算快照，因此任何有效客户都具有可供新销售单据使用的默认结算事实。结算方式辅助对象只在用户选择时提供名称、术语、到期参数和销售加价，客户版本直接持久化这些关键值；新销售单据从客户有效版本复制结算快照，不再逐层解析结算方式版本。供应商的对应规则由供应商页面用例确定。联系人、电话和地址同样只从客户或供应商有效版本读取并保存快照，不接受客户端直接输入。
+客户和供应商草稿可以暂不配置结算方式，但提交和审核时必须已经保存一套完整结算快照，因此任何有效客户或供应商都具有可供新贸易单据使用的默认结算事实。结算方式辅助对象只在用户选择时提供名称、术语和到期参数；客户版本另保存销售加价，供应商版本不保存该销售加价。新销售或采购单据从对应有效版本复制结算快照，不再逐层解析结算方式版本。委托配制制造费等采购加价由对应专门采购单据维护并保存自身事实，不写入供应商版本，也不并入结算时间。联系人、电话和地址同样只从客户或供应商有效版本读取并保存快照，不接受客户端直接输入。
 
 每个有效客户结算子账户都保存一个默认经营主体。新销售订单默认带入，允许改选另一当前有效经营主体，并保存最终经营主体对象、版本、编码、名称、税号、地址和电话快照。最终经营主体是该单合同销售方和后续开票主体；销售收款只能选择归属同一经营主体的资金账户。经营主体或客户默认值后续变化不改写历史单据。
 
@@ -88,11 +49,11 @@ SPR/SOR/SOB/SDL/SSF/SRT/PIQ/POR/PIN/PRT/MTO/MTS/IVC/SRC/SRF/PPY/PRF/ORC/OPY/ELN/
 
 禁用客户后，不得用该客户新建销售单据，已经引用该客户但尚未批准的销售单据也不得再提交或审核生效。已经批准的销售订单及其后续出库、送货、签收、退货、收退款和结算继续使用订单保存的客户对象、版本与业务快照完成，不因客户后来禁用被中断。
 
-新建销售订单时保存客户 `primarySalesAttribution` 的类型、主体对象、版本、编码和名称快照；专职类型的主体是员工，兼职和经销型主体是其他往来单位，不再假定全部客户都有 `salespersonEmployeeId`。新建采购订单仍以供应商 `salespersonEmployeeId` 作为默认 `purchaser`。已有草稿保存时省略归属或采购员字段即保留原快照，不因主数据或交易对方变化自动替换；显式传入时重新校验并替换。
+新建销售订单时保存客户 `primarySalesAttribution` 的类型、主体对象、版本、编码和名称快照；专职类型的主体是员工，兼职和经销型主体是其他往来单位。新建采购订单以供应商 `defaultPurchaserEmployeeId` 作为默认 `purchaser`。已有草稿保存时省略归属或采购员字段即保留原快照，不因主数据或交易对方变化自动替换；显式传入时重新校验并替换。
 
 订单阶段实际履约日未知，`dueDate` 为空。每个销售签收或采购入库批次以自己的实际日期计算到期日：预付和现结为实际日；货到 N 天为实际日加 N 天；当月结为账单归属月月末；月结30/60/90天分别为账单归属月后 1/2/3 个自然月的月末，不按固定天数相加。销售依客户月结日划分账单月，未设置时按自然月；采购始终按自然月。
 
-销售订单明细的客户端 `unitPrice` 表示基础单价。非包装物默认带入客户版本结算快照中的元/kg 加价，允许制单时覆盖；包装物与全部采购加价固定为零。后端保存订单使用的客户结算事实和最终加价快照；结算方式辅助对象后续变化不影响客户、已有订单或草稿，只有客户显式重选结算方式并形成新的有效客户版本后，之后新建的订单才使用新快照。
+销售订单明细的客户端 `unitPrice` 表示基础单价。非包装物默认带入客户版本结算快照中的元/kg 加价，允许制单时覆盖；包装物销售加价固定为零。普通采购不使用客户销售加价。委托配制制造费等采购加价只在对应专门采购单据中确定和留存，不从供应商主数据推导。后端保存订单使用的结算事实和最终加价快照；结算方式辅助对象后续变化不影响已有订单或草稿，只有对应 BOB 对象形成新的有效版本后，之后新建的订单才使用新结算快照。
 
 订单审批时按往来单位和币种校验 ACC 控制账簿在系统业务时区 `Asia/Shanghai` 当日的可用净余额，未来日期资金不计入，也不创建订单级资金预留。预付要求客户预收或供应商预付在审批当时覆盖订单总额；每个销售签收或采购入库批次在同一事务内锁定往来方与币种、重新读取 ACC 当前事实，并以实际批次金额再次校验。现结要求审批或批次结算当时不存在历史应收/应付。各账期继续按其快照规则计算到期日；订单和实际批次均不在 ACC 外保存余额或资金占用状态。
 
@@ -124,72 +85,11 @@ DRAFT ⇄ CHECKED ⇄ APPROVED
 - 不比较动作操作者身份，只校验精确 APP 路径权限。
 - 所有写动作携带文档 `revision`，使用乐观并发控制。
 
-VOU 路由动作集合如下；各实体实际开放的动作按后文创建例外和精确权限确定：
-
-```text
-query get create save delete
-check uncheck approve unapprove
-audit-history
-attachment-initiate attachment-download attachment-remove
-```
-
-上述单据均提供查询、查看、保存、删除草稿、生命周期、审计和附件动作；实际可用性继续受单据
-状态、上下级关系和精确权限约束。`purchase-inbound`、`sale-outbound`、`sale-delivery`、
-`sale-signoff` 和 `expense-payment` 不提供公开 `create` 权限，由 WFL 事件订阅自动创建；
-其他 OpenAPI 声明可创建的单据允许按各自规则创建。
-`formula-default` 用于销售订单和生产自制品单解析默认配方。
-`price-reference` 用于销售订单和采购订单批量解析产品参考价。
+各实体开放的 wire 动作及可创建范围以 [OpenAPI VOU Schema](../../contracts/openapi/schemas/vou.yaml) 为准。销售出库、销售送货、销售签收和费用付款由 WFL 事件订阅自动创建；采购入库允许人工创建。动作实际可用性继续受单据状态、上下级关系和精确权限约束。
 
 ### 2.3 通用写入语义
 
-BOB 引用结构固定为：
-
-```json
-{
-  "objectId": "01J...",
-  "versionId": "01J..."
-}
-```
-
-`create` 只接收 `data`，`save` 在相同 `data` 外要求当前单据 ID 和 revision：
-
-```json
-{
-  "documentId": "01J...",
-  "revision": 3,
-  "data": {
-    "businessDate": "2026-07-26",
-    "currency": "CNY"
-  }
-}
-```
-
-动作请求按下表固定，未列出的字段会被拒绝：
-
-| 动作               | 请求字段                                                    |
-| ------------------ | ----------------------------------------------------------- |
-| `query`            | `page`、`pageSize`、`filters`、最多一项 `sort`              |
-| `get`              | `documentId`                                                |
-| `formula-default`  | 销售订单可选 `customer`，销售订单和生产自制品均传 `product` |
-| `create`           | `data`                                                      |
-| `save`             | `documentId`、`revision`、`data`                            |
-| `delete`           | `documentId`、`revision`、`reason`                          |
-| `check`、`approve` | `documentId`、`revision`                                    |
-| `uncheck`          | `documentId`、`revision`                                    |
-| `unapprove`        | `documentId`、`revision`、`reason`                          |
-| `audit-history`    | `documentId`、`page`、`pageSize`                            |
-| 附件动作           | 见第 5 节                                                   |
-
-创建、保存和生命周期动作成功时，`data` 使用同一结构：
-
-```json
-{
-  "documentId": "01J...",
-  "documentNo": "SOR-20260726-0001",
-  "status": "DRAFT",
-  "revision": 1
-}
-```
+请求、响应和 BOB 引用结构以 [OpenAPI VOU Schema](../../contracts/openapi/schemas/vou.yaml) 为准。后端仍须在写入事务中解析有效 BOB 对象与版本；客户端提交的引用不构成有效性证明。
 
 ### 2.4 居间计算单
 
@@ -441,156 +341,19 @@ WFL 流程或 ACC 流水。
 
 ### 3.14 草稿与执行载荷
 
-贸易单据草稿使用统一 `data` 结构。销售订单示例：
+草稿与执行载荷的 wire 结构以 [OpenAPI VOU Schema](../../contracts/openapi/schemas/vou.yaml) 为准。WFL 自动创建的单据来源只能由服务端注入，客户端不能覆盖。
 
-```json
-{
-  "data": {
-    "businessDate": "2026-07-26",
-    "currency": "CNY",
-    "customer": { "objectId": "01J...", "versionId": "01J..." },
-    "salesperson": { "objectId": "01J...", "versionId": "01J..." },
-    "remark": "客户要求分批送货",
-    "productLines": [
-      {
-        "product": { "objectId": "01J...", "versionId": "01J..." },
-        "orderedQuantity": "10.000000",
-        "unitPrice": "25.50",
-        "remark": "首批"
-      }
-    ]
-  }
-}
-```
-
-各实体在通用字段之外使用：
-
-| 实体                     | 草稿专用字段                                                                                                              |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| `sale-pricing`           | `priceLines`（产品、销售基准价、可选备注）                                                                                |
-| `sale-order`             | `customer`、可省略并从客户带入的 `salesperson`、`productLines`                                                            |
-| `sale-outbound`          | WFL 注入来源；客户端只传 `warehouse`、`sourceLines`                                                                       |
-| `sale-delivery`          | WFL 注入来源；客户端只传 `platform`、`vehicle`                                                                            |
-| `sale-signoff`           | WFL 注入来源；客户端只传 `signoffLines`                                                                                   |
-| `order-production`       | 销售订单来源、`materialWarehouse`、`finishedWarehouse`、`productionLines`                                                 |
-| `self-production`        | `materialWarehouse`、`finishedWarehouse`、`productionLines`                                                               |
-| `purchase-order`         | `supplier`、可省略并从供应商带入的 `purchaser`、`warehouse`、`productLines`                                               |
-| `purchase-inquiry`       | 必填 `supplier`、`priceLines`（产品、采购询价、可选备注）                                                                 |
-| `purchase-inbound`       | WFL 注入订单来源；客户端只传实际 `warehouse` 和 `sourceLines`                                                             |
-| `inventory-count`        | `warehouse`、`inventoryCountLines`（商品和实盘数量）                                                                      |
-| 六类往来收付款实体       | 对应类型 `counterparty`、`fundAccount`、`handler`、`amount`；其他往来收付款另传 `counterpartyType` 和可选 `otherCategory` |
-| `employee-loan`          | 固定员工类型 `counterparty`、`fundAccount`、`handler`、`amount`                                                           |
-| `employee-repayment`     | 固定员工类型 `counterparty`、`fundAccount`、`handler`、`amount`                                                           |
-| `employee-loan-writeoff` | `employee`、`expenseLines`                                                                                                |
-| `expense-reimbursement`  | `employee`、`expenseLines`                                                                                                |
-| `expense-payment`        | WFL 注入来源、员工和金额；草稿只提交 `fundAccount`                                                                        |
-| `other-income`           | `sourceName`、可选 `counterpartyType`/`counterparty`、`fundAccount`、`handler`、`amount`                                  |
-
-往来收付款、员工借还与核销、费用报销、费用付款和其他收入批准只传 `documentId`、`revision`，不接受日期、车辆或行字段。`unapprove` 的
-`reason` 去除首尾空白后必须为 1–1000 个 Unicode 字符。
+各实体的草稿字段和动作载荷不在本文重复列举；字段之间的业务关系由 3.1–3.13 节定义。
 
 ## 4. 查询与展示语义
 
-`query` 支持分页、单号或往来方关键字、状态、业务日期起止和客户/供应商对象 ID。排序字段白名单为 `updatedAt`、`documentNo`、`businessDate`、`status`、`amount`。
-销售订单和采购订单列表额外返回 KG 履约摘要。摘要排除包装物，并使用订单行保存的
+查询、详情和审计的请求、分页、排序与响应结构以 [OpenAPI VOU Schema](../../contracts/openapi/schemas/vou.yaml) 为准。
+
+销售订单和采购订单列表返回的 KG 履约摘要排除包装物，并使用订单行保存的
 `pricingQuantityPerInventoryUnit` 将库存单位数量换算为 KG；原计量单位明细仍由 WFL 流程列表展开查看。
 销售订单摘要显示订购、累计已批准出库和净签收；采购订单摘要显示订购和净入库。
 
-```json
-{
-  "page": 1,
-  "pageSize": 20,
-  "filters": {
-    "keyword": "SOR-20260726",
-    "status": ["DRAFT", "CHECKED"],
-    "dateFrom": "2026-07-01",
-    "dateTo": "2026-07-31",
-    "partyObjectId": "01J..."
-  },
-  "sort": [{ "field": "updatedAt", "order": "desc" }]
-}
-```
-
-`page` 和 `pageSize` 均必须为正数，`pageSize` 最大 100，`sort` 最多一项；省略排序时按
-`updatedAt desc`。查询成功返回统一分页结构，单项至少包含 `documentId`、`entity`、`documentNo`、
-`status`、`revision`、`businessDate`、`currency`、`amount` 和 `updatedAt`。
-
-```json
-{
-  "items": [
-    {
-      "documentId": "01J...",
-      "entity": "sale-order",
-      "documentNo": "SOR-20260726-0001",
-      "status": "DRAFT",
-      "revision": 2,
-      "businessDate": "2026-07-26",
-      "partyName": "示例客户",
-      "currency": "CNY",
-      "amount": "255.00",
-      "updatedAt": "2026-07-26T08:00:00Z"
-    }
-  ],
-  "total": 1,
-  "page": 1,
-  "pageSize": 20
-}
-```
-
-`get` 返回抬头、明细、人员、仓库、联系人、结算规则、`dueDate`、基础单价和结算加价等快照、执行结果、审计字段和附件摘要。金额、数量仍以规范化十进制字符串返回。
-
-```json
-{ "documentId": "01J..." }
-```
-
-成功 `data` 示例：
-
-```json
-{
-  "documentId": "01J...",
-  "entity": "sale-order",
-  "documentNo": "SOR-20260726-0001",
-  "status": "DRAFT",
-  "revision": 2,
-  "amount": "255.00",
-  "data": {
-    "businessDate": "2026-07-26",
-    "currency": "CNY",
-    "remark": "客户要求分批送货",
-    "customer": {
-      "objectId": "01J...",
-      "versionId": "01J...",
-      "entity": "customer",
-      "code": "CUS-001",
-      "name": "示例客户"
-    },
-    "productLines": [
-      {
-        "lineId": "01J...",
-        "lineNo": 1,
-        "product": {
-          "objectId": "01J...",
-          "versionId": "01J...",
-          "entity": "product",
-          "code": "PRD-001",
-          "name": "示例商品",
-          "unit": "件"
-        },
-        "orderedQuantity": "10.000000",
-        "unitPrice": "25.50",
-        "lineAmount": "255.00"
-      }
-    ]
-  },
-  "attachments": [],
-  "createdAt": "2026-07-26T08:00:00Z",
-  "createdBy": "01J...",
-  "updatedAt": "2026-07-26T08:05:00Z",
-  "updatedBy": "01J..."
-}
-```
-
-`audit-history` 使用 `{"documentId":"01J...","page":1,"pageSize":20}`，`pageSize` 最大 100。
+详情展示业务发生时保存的抬头、明细、引用、结算和附件快照；后续主数据变化不能改写历史详情。
 
 ## 5. 附件
 
@@ -602,25 +365,7 @@ WFL 流程或 ACC 流水。
 - 下载强制 `Content-Disposition: attachment` 和 `X-Content-Type-Options: nosniff`。
 - 生产运行限定单 API 实例，并把数据库和附件持久卷作为同一备份恢复边界。
 
-发起上传：
-
-```json
-{
-  "documentId": "01J...",
-  "revision": 2,
-  "fileName": "contract.pdf",
-  "contentType": "application/pdf",
-  "size": 102400,
-  "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-}
-```
-
-成功返回 `fileId`、一次性 `uploadUrl`、`expiresAt` 和递增后的 `revision`。客户端随后对技术端点执行
-`PUT uploadUrl`，请求头中的 MIME 和长度必须与发起请求一致。
-
-下载令牌请求为 `{"documentId":"01J...","fileId":"01J..."}`，成功返回一次性 `downloadUrl` 和
-`expiresAt`；移除附件请求还要求当前 `revision`。发起和移除只允许草稿，文件名不得包含路径，
-`sha256` 必须为 64 位十六进制字符串。
+附件请求与响应结构以 [OpenAPI VOU Schema](../../contracts/openapi/schemas/vou.yaml) 为准。技术上传必须使用服务端签发的一次性 URL，声明 MIME、长度和哈希必须与已登记附件一致。
 
 ## 6. 事务与审计
 
@@ -676,46 +421,9 @@ VOU 组件提供可嵌入的原子单据标题、状态、动作、详情、附�
 VOU 权限提供完整能力；销售出库、销售送货和销售签收不注册公开创建 API，由 WFL 事件订阅
 自动创建；费用付款由费用报销流程自动创建。采购入库允许人工创建。
 
-### 9.1 实体与页面
+### 9.1 页面覆盖
 
-| 实体                       | 页面         | 创建入口 |
-| -------------------------- | ------------ | -------- |
-| `sale-pricing`             | 销售定价     | 公开     |
-| `sale-order`               | 销售订单     | 公开     |
-| `sale-outbound`            | 销售出库     | WFL 自动 |
-| `sale-delivery`            | 销售送货     | WFL 自动 |
-| `sale-signoff`             | 销售签收     | WFL 自动 |
-| `sale-return`              | 销售退货     | 公开     |
-| `purchase-order`           | 采购订单     | 公开     |
-| `purchase-inbound`         | 采购入库     | 公开     |
-| `purchase-return`          | 采购退货     | 公开     |
-| `purchase-inquiry`         | 采购询价     | 公开     |
-| `order-production`         | 生产配货     | 公开     |
-| `self-production`          | 生产自制品   | 公开     |
-| `inventory-count`          | 库存盘点     | 公开     |
-| `sales-receipt`            | 销售收款     | 公开     |
-| `purchase-refund`          | 采购退款     | 公开     |
-| `other-receipt`            | 其他往来收款 | 公开     |
-| `sales-refund`             | 销售退款     | 公开     |
-| `purchase-payment`         | 采购付款     | 公开     |
-| `other-payment`            | 其他往来付款 | 公开     |
-| `employee-loan`            | 员工借款     | 公开     |
-| `employee-repayment`       | 员工还款     | 公开     |
-| `employee-loan-writeoff`   | 员工借款核销 | 公开     |
-| `expense-reimbursement`    | 费用报销     | 公开     |
-| `expense-payment`          | 费用付款     | WFL 自动 |
-| `other-income`             | 其他收入     | 公开     |
-| `asset-acquisition`        | 资产购置     | 公开     |
-| `asset-sale`               | 资产出让     | 公开     |
-| `asset-liquidation`        | 资产清算     | 公开     |
-| `bill-receipt`             | 票据收入     | 公开     |
-| `bill-payment`             | 票据支付     | 公开     |
-| `bill-issue`               | 票据开具     | 公开     |
-| `bill-discount`            | 票据贴现     | 公开     |
-| `bill-maturity`            | 票据到期     | 公开     |
-| `intermediary-calculation` | 居间计算     | 公开     |
-
-实体名包含连字符，前端路由、权限路径和 API 路径必须原样使用，不得改写为 `saleorder` 等别名。
+实体与页面注册以[前端注册表](../../frontend/src/router/registry.ts)为准，页面用例覆盖情况由[自动覆盖率](../use-cases/COVERAGE.md)生成。公开创建范围以 OpenAPI 为准；由 WFL 自动创建的单据不因存在查看页面而获得人工创建入口。
 
 ### 9.2 通用交互
 

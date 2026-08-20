@@ -3,9 +3,10 @@
 ## 页面范围
 
 - 路由：`/bob/customer`
-- 客户集团、结算子账户、版本生命周期、交易默认值、定价资料、附件及引用转移规则：[BOB 业务对象领域](../../domains/bob.md)
-- 收款分摊、开票跟踪、订单快照及履约边界：[VOU 单据领域](../../domains/vou.md)
-- 信用额度实时占用：[ACC 业务台账领域](../../domains/acc.md)
+- 客户集团、结算子账户与交易默认值：[BOB 领域职责与边界](../../domains/bob.md#2-领域职责与边界)
+- 版本生命周期与引用转移：[BOB 生命周期](../../domains/bob.md#4-生命周期状态机)和[关联批量转移](../../domains/bob.md#422-bob-关联批量转移)
+- 收款分摊、开票跟踪、订单快照及履约边界：[VOU 编号、金额和引用](../../domains/vou.md#21-编号金额和引用)与[往来收付款](../../domains/vou.md#36-往来收款与往来付款)
+- 信用额度实时占用：[ACC 会计期间](../../domains/acc.md#10-会计期间)
 - 线协议：[OpenAPI](../../../contracts/openapi/openapi.yaml) 与 [BOB Schema](../../../contracts/openapi/schemas/bob.yaml)
 
 本用例只记录客户页面的编排、状态和可观察结果，不重复上述领域文档中的业务规则。

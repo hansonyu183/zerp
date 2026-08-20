@@ -2,7 +2,7 @@
 
 ## 页面目标
 
-用户从 session permissions 进入 `/wfl/{code}/*` 动态流程页面。实例结构、权限和事务规则见 [WFL 领域文档](../../domains/wfl.md)，请求结构见 [OpenAPI](../../../contracts/openapi/openapi.yaml)。
+用户从会话权限进入动态流程页面。实例、事务与重试规则见 [WFL 事件、实例与幂等](../../domains/wfl.md#4-事件实例与幂等)，页面权限边界见[权限与页面边界](../../domains/wfl.md#6-权限与页面边界)，请求结构见 [OpenAPI](../../../contracts/openapi/openapi.yaml)。
 
 ## 主流程
 

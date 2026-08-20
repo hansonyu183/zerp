@@ -11,6 +11,7 @@
 - 全站通用交互规范写入 [`frontend/AGENTS.md`](../../frontend/AGENTS.md)，页面文档只记录有业务含义的例外。
 
 全站列表、详情和引用候选的读取边界见 [`frontend/AGENTS.md`](../../frontend/AGENTS.md)。
+前端注册页面的文档覆盖情况由 [`COVERAGE.md`](COVERAGE.md) 自动生成；新增或删除页面及用例后运行 `pnpm docs:coverage`，`pnpm docs:check` 会拒绝覆盖文件漂移。
 
 ## APP
 
@@ -25,87 +26,9 @@
 ## BOB
 
 - [客户](bob/customer.md)
+- [供应商](bob/supplier.md)
 
 ## WFL
 
 - [流程定义](wfl/process-definition.md)
 - [流程实例](wfl/process-instance.md)
-
-## 待讨论
-
-以下清单以当前前端已注册、但尚无权威用例文档的用户可见业务页面为边界。完成一项讨论后，在对应领域目录新增页面文档，并将该项从本节移动到上方的领域索引；不得同时保留已完成链接和待办项。登录页用例已经包含首次强制改密流程，系统错误页和未注册实体的“开发中”占位页不单独进入讨论清单。动态报表统一复用同一页面，其公共查询、钻取和导出编排只讨论一次，不按报表编码重复拆分。
-
-### BOB
-
-- [ ] 供应商（`/bob/supplier`）
-- [ ] 其他往来单位（`/bob/other-party`）
-- [ ] 员工（`/bob/employee`）
-- [ ] 产品（`/bob/product`）
-- [ ] 服务（`/bob/service`）
-- [ ] 仓库（`/bob/warehouse`）
-- [ ] 车辆（`/bob/vehicle`）
-- [ ] 资金账户（`/bob/fund-account`）
-- [ ] 经营主体（`/bob/operating-entity`）
-
-### AUX
-
-- [ ] 结算方式（`/aux/settlement-method`）
-- [ ] 收款方式（`/aux/payment-method`）
-- [ ] 资产类别（`/aux/asset-category`）
-- [ ] 产品分类（`/aux/product-category`）
-- [ ] 部门（`/aux/department`）
-- [ ] 岗位（`/aux/position`）
-- [ ] 计量单位（`/aux/measurement-unit`）
-- [ ] 字典类型（`/aux/dictionary-type`）
-- [ ] 字典项（`/aux/dictionary-item`）
-- [ ] 收支类型（`/aux/income-expense-type`）
-
-### VOU
-
-- [ ] 销售定价（`/vou/sale-pricing`）
-- [ ] 销售订单（`/vou/sale-order`）
-- [ ] 销售出库（`/vou/sale-outbound`）
-- [ ] 销售送货（`/vou/sale-delivery`）
-- [ ] 销售签收（`/vou/sale-signoff`）
-- [ ] 销售退货（`/vou/sale-return`）
-- [ ] 居间计算单（`/vou/intermediary-calculation`）
-- [ ] 生产配货（`/vou/order-production`）
-- [ ] 生产自制品（`/vou/self-production`）
-- [ ] 库存盘点（`/vou/inventory-count`）
-- [ ] 采购询价（`/vou/purchase-inquiry`）
-- [ ] 采购订单（`/vou/purchase-order`）
-- [ ] 采购入库（`/vou/purchase-inbound`）
-- [ ] 采购退货（`/vou/purchase-return`）
-- [ ] 销售收款（`/vou/sales-receipt`）
-- [ ] 销售退款（`/vou/sales-refund`）
-- [ ] 采购付款（`/vou/purchase-payment`）
-- [ ] 采购退款（`/vou/purchase-refund`）
-- [ ] 其他往来收款（`/vou/other-receipt`）
-- [ ] 其他往来付款（`/vou/other-payment`）
-- [ ] 员工借款（`/vou/employee-loan`）
-- [ ] 员工还款（`/vou/employee-repayment`）
-- [ ] 员工借款核销（`/vou/employee-loan-writeoff`）
-- [ ] 费用报销（`/vou/expense-reimbursement`）
-- [ ] 费用付款（`/vou/expense-payment`）
-- [ ] 其他收入（`/vou/other-income`）
-- [ ] 资产购置（`/vou/asset-acquisition`）
-- [ ] 资产出让（`/vou/asset-sale`）
-- [ ] 资产清算（`/vou/asset-liquidation`）
-- [ ] 票据收入（`/vou/bill-receipt`）
-- [ ] 票据付出（`/vou/bill-payment`）
-- [ ] 票据开出（`/vou/bill-issue`）
-- [ ] 票据贴现（`/vou/bill-discount`）
-- [ ] 票据到期处理（`/vou/bill-maturity`）
-
-### ACC
-
-- [ ] 会计账簿（`/acc/book`）
-- [ ] 会计科目（`/acc/subject`）
-- [ ] 账簿期初（`/acc/opening`）
-- [ ] VOU 会计映射（`/acc/mapping`）
-- [ ] 会计期间（`/acc/period`）
-
-### RPT
-
-- [ ] 报表定义管理（`/rpt/definition`）
-- [ ] 报表查询与导出（动态路由 `/rpt/{reportCode}`）

@@ -33,11 +33,7 @@ asset-category
   内部树和业务映射保存在 JSONB 中，创建、保存、启停和删除还必须在事务内
   取得 AUX 域写锁，使引用校验与写入串行化，避免并发产生循环或悬空引用。
 
-统一动作是：
-
-```text
-query get create save enable disable delete versions audit-history
-```
+公开动作、路径和请求响应结构以 [OpenAPI AUX Schema](../../contracts/openapi/schemas/aux.yaml) 为准。
 
 ## 3. 对象规则
 
@@ -66,7 +62,7 @@ payment-method PMT
 
 `settlement-method` 是固定结算方式辅助对象。系统只维护 11 个对象：`PREPAID` 预付、`CASH_ON_DELIVERY` 现结（货到付款）、`ARRIVAL_3/5/7/15/30` 货到 N 天、`MONTHLY_CURRENT` 当月结、`MONTHLY_30/60/90` 月结 30/60/90 天。禁止创建、删除或增加第 12 种方式。
 
-字段为 `name`、`termCode`、`ruleType`、`monthOffset`、`dayOfMonth`、`dayOffset`、`defaultSalesSurcharge` 和 `description`。名称、术语代码和到期计算参数是系统固定事实；页面只允许修改非负、最多两位小数的元/kg 默认销售加价和说明，并可启用或停用。初始销售加价依次为：预付、现结、货到 3/5/7/15 天均为 `0.00`；货到 30 天 `0.10`；当月结 `0.05`；月结 30/60/90 天为 `0.10/0.20/0.30`。加价只适用于客户销售，供应商采购固定为零。
+字段为 `name`、`termCode`、`ruleType`、`monthOffset`、`dayOfMonth`、`dayOffset`、`defaultSalesSurcharge` 和 `description`。名称、术语代码和到期计算参数是系统固定事实；页面只允许修改非负、最多两位小数的元/kg 默认销售加价和说明，并可启用或停用。初始销售加价依次为：预付、现结、货到 3/5/7/15 天均为 `0.00`；货到 30 天 `0.10`；当月结 `0.05`；月结 30/60/90 天为 `0.10/0.20/0.30`。本字段只适用于客户销售；供应商结算快照中的该项固定为零，不限制专门采购单据自行维护的采购费用。
 
 客户选择当前启用的结算方式时，直接把 `settlementMethodId`、`code`、`name`、`termCode`、`ruleType`、`monthOffset`、`dayOfMonth`、`dayOffset` 和 `defaultSalesSurcharge` 保存进客户版本，不保存结算方式版本 ID。保存后这些值是客户自身的结算事实；辅助对象后续改名、调价、停用或产生新版本均不改变客户，只有客户显式重新选择时才复制新值。
 
@@ -102,4 +98,4 @@ payment-method PMT
 
 `aux_objects.oit_id` 仅作为旧 OIT 聚合根映射的数据库内部字段。非空值不得含首尾空格，长度为 1–64，且在同一 `entity` 内唯一；应用 HTTP/API/UI 不读取或写入它。
 
-BOB、VOU 和 ACC 在同一 PostgreSQL 事务中解析辅助对象引用并对稳定对象取得共享锁。历史版本永不被后续保存覆盖；停用、改名或新版本不会改写既有交易快照。结算方式和收款方式只在客户显式选择时解析，客户分别按 3.3 和 3.4 节保存自足快照，后续提交、审核和制单不递归解析来源版本；供应商是否采用相同规则由供应商页面用例确定。
+BOB、VOU 和 ACC 在同一 PostgreSQL 事务中解析辅助对象引用并对稳定对象取得共享锁。历史版本永不被后续保存覆盖；停用、改名或新版本不会改写既有交易快照。结算方式在客户或供应商显式选择时解析，收款方式只在客户显式选择时解析；引用方按 3.3 和 3.4 节保存自足快照，后续提交、审核和制单不递归解析来源版本。客户结算快照保存销售加价，供应商结算快照不保存销售加价；委托配制制造费等采购加价由对应专门采购单据维护，不进入 AUX 或供应商主数据。

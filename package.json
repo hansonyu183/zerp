@@ -13,6 +13,7 @@
     "build:web": "pnpm --filter @zerp/frontend build",
     "check:web": "pnpm --filter @zerp/frontend check",
     "test:web": "pnpm --filter @zerp/frontend test:unit",
+    "docs:coverage": "node scripts/check-docs.mjs --write-use-case-coverage",
     "docs:check": "node scripts/check-docs.mjs",
     "contracts:lint": "redocly lint contracts/openapi/openapi.yaml --config contracts/openapi/redocly.yaml",
     "contracts:bundle": "redocly bundle contracts/openapi/openapi.yaml --config contracts/openapi/redocly.yaml --output contracts/openapi/dist/openapi.yaml --ext yaml",

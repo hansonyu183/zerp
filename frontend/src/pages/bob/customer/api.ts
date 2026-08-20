@@ -42,5 +42,8 @@ export const customerApi = {
   disable: (input: ApiPostRequest<'bob/customer/disable'>) =>
     apiClient.postContract('bob/customer/disable', input),
   delete: (input: ApiPostRequest<'bob/customer/delete'>) =>
-    apiClient.postContract('bob/customer/delete', input),
+    apiClient.post<null, ApiPostRequest<'bob/customer/delete'>>(
+      'bob/customer/delete',
+      input,
+    ),
 }

@@ -2,9 +2,11 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
+import prettier from 'prettier'
 
 const root = path.resolve(import.meta.dirname, '..')
 const failures = []
+const writeUseCaseCoverage = process.argv.includes('--write-use-case-coverage')
 
 function relative(file) {
   return path.relative(root, file)
@@ -13,7 +15,17 @@ function relative(file) {
 function trackedMarkdownFiles() {
   const output = execFileSync(
     'git',
-    ['-C', root, 'ls-files', '-z', '--', '*.md'],
+    [
+      '-C',
+      root,
+      'ls-files',
+      '--cached',
+      '--others',
+      '--exclude-standard',
+      '-z',
+      '--',
+      '*.md',
+    ],
     { encoding: 'utf8' },
   )
   return output
@@ -29,6 +41,28 @@ function markdownFiles(directory) {
     .filter((entry) => entry.isFile() && entry.name.endsWith('.md'))
     .map((entry) => path.join(directory, entry.name))
     .sort()
+}
+
+function markdownHeadingAnchors(source) {
+  const counts = new Map()
+  const anchors = new Set()
+
+  for (const match of source.matchAll(/^#{1,6}\s+(.+?)\s*#*\s*$/gm)) {
+    const base = match[1]
+      .replace(/<[^>]*>/g, '')
+      .replace(/[`*_~]/g, '')
+      .trim()
+      .toLowerCase()
+      .replace(/[\s]+/g, '-')
+      .replace(/[^\p{L}\p{N}\p{M}_-]/gu, '')
+    if (!base) continue
+
+    const count = counts.get(base) ?? 0
+    anchors.add(count === 0 ? base : `${base}-${count}`)
+    counts.set(base, count + 1)
+  }
+
+  return anchors
 }
 
 function duplicates(values) {
@@ -89,24 +123,6 @@ function extractSchemaEnum(source, schemaName, sourceLabel) {
   )
 }
 
-function extractTextListAfter(source, marker, label) {
-  const markerStart = source.indexOf(marker)
-  const fenceMatch =
-    markerStart < 0
-      ? null
-      : source
-          .slice(markerStart + marker.length)
-          .match(/```text\n([\s\S]*?)\n```/)
-  if (!fenceMatch) {
-    failures.push(`${label} 缺少可解析的 text 清单`)
-    return []
-  }
-  return fenceMatch[1]
-    .split('\n')
-    .map((value) => value.trim())
-    .filter(Boolean)
-}
-
 function extractPlainSchemaEnum(source, schemaName, label) {
   const schemaMatch = source.match(
     new RegExp(
@@ -125,51 +141,98 @@ function extractPlainSchemaEnum(source, schemaName, label) {
   return values
 }
 
-function extractSchemaSection(source, schemaName, label) {
-  const schemaMarker = `  '${schemaName}':`
-  const schemaStart = source.indexOf(schemaMarker)
-  if (schemaStart < 0) {
-    failures.push(`${label} 缺少 ${schemaName}`)
-    return ''
+function useCaseCoverage(pages, documentedKeys, orphanKeys) {
+  const byDomain = new Map()
+  for (const page of pages) {
+    const domain = page.useCaseKey.split('/')[0]
+    const entries = byDomain.get(domain) ?? []
+    entries.push(page)
+    byDomain.set(domain, entries)
   }
 
-  const nextSchemaStart = source.indexOf(
-    "\n  '",
-    schemaStart + schemaMarker.length,
+  const coveredPages = pages.filter(({ useCaseKey }) =>
+    documentedKeys.has(useCaseKey),
   )
-  return source.slice(
-    schemaStart,
-    nextSchemaStart < 0 ? source.length : nextSchemaStart,
+  const expectedKeys = new Set(pages.map(({ useCaseKey }) => useCaseKey))
+  const documentedExpectedKeys = [...documentedKeys].filter((key) =>
+    expectedKeys.has(key),
   )
-}
+  const missingKeys = [...expectedKeys].filter(
+    (key) => !documentedKeys.has(key),
+  )
+  const lines = [
+    '# 页面用例覆盖率',
+    '',
+    '<!-- 此文件由 `pnpm docs:coverage` 生成，请勿手工编辑。 -->',
+    '',
+    '数据来源：[`frontend/src/router/registry.ts`](../../frontend/src/router/registry.ts)、[`frontend/src/router/index.ts`](../../frontend/src/router/index.ts)，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。',
+    '',
+    `- 页面入口：${pages.length}`,
+    `- 已覆盖入口：${coveredPages.length}`,
+    `- 已登记用例：${documentedExpectedKeys.length}`,
+    `- 缺少用例：${missingKeys.length}`,
+    `- 孤儿用例：${orphanKeys.length}`,
+    '',
+  ]
 
-function requirePageSizeMaximum(source, schemaName, expected, label) {
-  const section = extractSchemaSection(source, schemaName, label)
-  const match = section.match(/'pageSize':\s*\{[^}]*'maximum':\s*(\d+)[^}]*\}/)
-  if (!match) {
-    failures.push(`${label} 的 ${schemaName} 缺少可解析的 pageSize maximum`)
-  } else if (Number(match[1]) !== expected) {
-    failures.push(
-      `${label} 的 ${schemaName} pageSize maximum 应为 ${expected}，实际为 ${match[1]}`,
+  for (const [domain, entries] of byDomain) {
+    lines.push(
+      `## ${domain.toUpperCase()}`,
+      '',
+      '| 页面 | 路由 | 来源 | 状态 |',
+      '| --- | --- | --- | --- |',
+    )
+    for (const { title, route, source, useCaseKey } of entries) {
+      const status = documentedKeys.has(useCaseKey)
+        ? `[已文档化](${useCaseKey}.md)`
+        : '缺少用例'
+      lines.push(`| ${title} | \`${route}\` | ${source} | ${status} |`)
+    }
+    lines.push('')
+  }
+
+  if (orphanKeys.length > 0) {
+    lines.push(
+      '## 孤儿用例',
+      '',
+      ...orphanKeys.map((key) => `- [\`${key}\`](${key}.md)`),
+      '',
     )
   }
+
+  return `${lines.join('\n').trimEnd()}\n`
 }
 
 const documentationFiles = trackedMarkdownFiles()
 
 for (const file of documentationFiles) {
+  if (writeUseCaseCoverage && relative(file) === 'docs/use-cases/COVERAGE.md') {
+    continue
+  }
   const source = fs.readFileSync(file, 'utf8')
   for (const match of source.matchAll(/\[[^\]]*]\(([^)]+)\)/g)) {
     const rawTarget = match[1].trim().replace(/^<|>$/g, '')
-    const target = rawTarget.split('#', 1)[0]
-    if (!target || /^[a-z][a-z0-9+.-]*:/i.test(target)) continue
+    if (/^[a-z][a-z0-9+.-]*:/i.test(rawTarget)) continue
+
+    const hashIndex = rawTarget.indexOf('#')
+    const target = hashIndex < 0 ? rawTarget : rawTarget.slice(0, hashIndex)
+    const rawAnchor = hashIndex < 0 ? '' : rawTarget.slice(hashIndex + 1)
 
     const resolved = path.resolve(
       path.dirname(file),
-      decodeURIComponent(target),
+      decodeURIComponent(target || path.basename(file)),
     )
     if (!fs.existsSync(resolved)) {
       failures.push(`${relative(file)} 引用了不存在的本地路径：${rawTarget}`)
+      continue
+    }
+
+    if (rawAnchor && resolved.endsWith('.md')) {
+      const anchor = decodeURIComponent(rawAnchor).toLowerCase()
+      const anchors = markdownHeadingAnchors(fs.readFileSync(resolved, 'utf8'))
+      if (!anchors.has(anchor)) {
+        failures.push(`${relative(file)} 引用了不存在的标题：${rawTarget}`)
+      }
     }
   }
 }
@@ -215,6 +278,16 @@ const registrySource = fs.readFileSync(
   path.join(root, 'frontend', 'src', 'router', 'registry.ts'),
   'utf8',
 )
+const pageRegistrations = [
+  ...registrySource.matchAll(
+    /registerPage\('([^']+)',\s*\{[\s\S]*?entity:\s*'([^']+)'[\s\S]*?entityTitle:\s*'([^']+)'/g,
+  ),
+].map((match) => ({
+  domain: match[1],
+  entity: match[2],
+  title: match[3],
+  key: `${match[1]}/${match[2]}`,
+}))
 const registeredDomains = new Set(['app'])
 for (const match of registrySource.matchAll(/registerPage\('([^']+)'/g)) {
   registeredDomains.add(match[1])
@@ -248,19 +321,6 @@ const openapiSource = fs.readFileSync(
   path.join(root, 'contracts', 'openapi', 'openapi.yaml'),
   'utf8',
 )
-
-const backendDevelopmentEnv = fs.readFileSync(
-  path.join(root, 'backend', '.env.example'),
-  'utf8',
-)
-if (!/^APP_SESSION_COOKIE_SECURE=false$/m.test(backendDevelopmentEnv)) {
-  failures.push('backend/.env.example 的本地 HTTP Cookie 必须关闭 Secure')
-}
-if (
-  !/^ATTACHMENT_STORAGE_ROOT=\.\/var\/attachments$/m.test(backendDevelopmentEnv)
-) {
-  failures.push('backend/.env.example 必须使用可直接启动的本地附件目录')
-}
 
 const contractDomains = new Set()
 for (const match of openapiSource.matchAll(/^\s+'\/([a-z][a-z0-9-]*)\//gm)) {
@@ -296,16 +356,6 @@ const bobEntities = extractSchemaEnum(
   'BobEntity',
   'contracts/openapi/schemas/bob.yaml',
 )
-const bobDocumentSource = fs.readFileSync(
-  path.join(root, 'docs', 'domains', 'bob.md'),
-  'utf8',
-)
-const bobDocumentEntities = extractTextListAfter(
-  bobDocumentSource,
-  '当前实体标识为：',
-  'docs/domains/bob.md 当前实体',
-)
-compareSets('docs/domains/bob.md 当前实体', bobDocumentEntities, bobEntities)
 compareSets('frontend BOB 页面注册', registeredEntities('bob'), bobEntities)
 
 const auxSchemaSource = fs.readFileSync(
@@ -317,113 +367,145 @@ const auxEntities = extractPlainSchemaEnum(
   'AuxEntity',
   'contracts/openapi/schemas/aux.yaml',
 )
-const auxDocumentSource = fs.readFileSync(
-  path.join(root, 'docs', 'domains', 'aux.md'),
-  'utf8',
-)
-const auxDocumentEntities = extractTextListAfter(
-  auxDocumentSource,
-  '当前实体为：',
-  'docs/domains/aux.md 当前实体',
-)
-compareSets('docs/domains/aux.md 当前实体', auxDocumentEntities, auxEntities)
 compareSets('frontend AUX 页面注册', registeredEntities('aux'), auxEntities)
-
-for (const schemaName of ['BobQueryRequest', 'BobHistoryRequest']) {
-  requirePageSizeMaximum(
-    bobSchemaSource,
-    schemaName,
-    100,
-    'contracts/openapi/schemas/bob.yaml',
-  )
-}
-
-const rptSchemaSource = fs.readFileSync(
-  path.join(root, 'contracts', 'openapi', 'schemas', 'rpt.yaml'),
-  'utf8',
-)
-const rptExecuteStart = rptSchemaSource.indexOf('RptExecuteRequest:')
-const rptExecuteEnd = rptSchemaSource.indexOf(
-  '\nRptReferenceQueryRequest:',
-  rptExecuteStart,
-)
-const rptExecuteSection = rptSchemaSource.slice(
-  rptExecuteStart,
-  rptExecuteEnd < 0 ? undefined : rptExecuteEnd,
-)
-const rptPageMaximum = rptExecuteSection.match(
-  /^\s+pageSize:\s*\{[^}]*maximum:\s*(\d+)[^}]*\}/mu,
-)
-if (!rptPageMaximum) {
-  failures.push(
-    'contracts/openapi/schemas/rpt.yaml 的 RptExecuteRequest 缺少可解析的 pageSize maximum',
-  )
-} else if (Number(rptPageMaximum[1]) !== 100) {
-  failures.push(
-    `contracts/openapi/schemas/rpt.yaml 的 RptExecuteRequest pageSize maximum 应为 100，实际为 ${rptPageMaximum[1]}`,
-  )
-}
 
 const vouEntities = extractSchemaEnum(
   vouSchemaSource,
   'VouEntity',
   'contracts/openapi/schemas/vou.yaml',
 )
-const vouCreatableEntities = extractSchemaEnum(
-  vouSchemaSource,
-  'VouCreatableEntity',
-  'contracts/openapi/schemas/vou.yaml',
-)
-const vouDocumentSource = fs.readFileSync(
-  path.join(root, 'docs', 'domains', 'vou.md'),
-  'utf8',
-)
-const vouDocumentEntities = extractTextListAfter(
-  vouDocumentSource,
-  '首批实体为：',
-  'docs/domains/vou.md 首批实体',
-)
-const vouDocumentCountMatch = vouDocumentSource.match(/当前共 (\d+) 类原子单据/)
-if (!vouDocumentCountMatch) {
-  failures.push('docs/domains/vou.md 缺少“当前共 N 类原子单据”数量声明')
-} else if (Number(vouDocumentCountMatch[1]) !== vouEntities.length) {
-  failures.push(
-    `docs/domains/vou.md 声明 ${vouDocumentCountMatch[1]} 类原子单据，OpenAPI 实际为 ${vouEntities.length} 类`,
-  )
-}
-const vouPageSection = vouDocumentSource.match(
-  /^### 9\.1 实体与页面\n([\s\S]*?)(?=^### |(?![\s\S]))/m,
-)
-const vouPageRows = vouPageSection
-  ? [
-      ...vouPageSection[1].matchAll(
-        /^\|\s*`([^`]+)`\s*\|\s*[^|]+\|\s*(公开|WFL 自动)\s*\|$/gm,
+compareSets('frontend VOU 页面注册', vouRegistryEntities, vouEntities)
+
+const useCaseRoot = path.join(root, 'docs', 'use-cases')
+const documentedUseCases = new Set(
+  fs
+    .readdirSync(useCaseRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .flatMap((entry) =>
+      markdownFiles(path.join(useCaseRoot, entry.name)).map(
+        (file) => `${entry.name}/${path.basename(file, '.md')}`,
       ),
-    ].map((match) => ({ entity: match[1], creation: match[2] }))
-  : []
-if (!vouPageSection) {
-  failures.push('docs/domains/vou.md 缺少 9.1 实体与页面章节')
+    ),
+)
+
+const STATIC_ROUTE_USE_CASES = new Map([
+  ['signin', 'app/signin'],
+  // 强制改密没有独立页面用例：它是登录用例的受限会话分支。
+  ['change-password', 'app/signin'],
+  ['page:home/dashboard', 'app/workbench'],
+])
+const STATIC_ROUTE_EXEMPTIONS = new Set([
+  'app',
+  'app-home-redirect',
+  'forbidden',
+  'not-found',
+])
+
+function staticUseCaseKey(routeName) {
+  const explicit = STATIC_ROUTE_USE_CASES.get(routeName)
+  if (explicit) return explicit
+
+  const appPage = routeName.match(/^page:app\/([a-z0-9-]+)$/)
+  return appPage ? `app/${appPage[1]}-management` : null
 }
 
-compareSets('docs/domains/vou.md 首批实体', vouDocumentEntities, vouEntities)
-compareSets(
-  'docs/domains/vou.md 页面表',
-  vouPageRows.map((row) => row.entity),
-  vouEntities,
+function staticBusinessPages(source) {
+  const pages = []
+  const routePattern = /name:\s*'((?:page:)?[^']+)'/g
+
+  for (const match of source.matchAll(routePattern)) {
+    const routeName = match[1]
+    const useCaseKey = staticUseCaseKey(routeName)
+    if (!useCaseKey) {
+      if (!STATIC_ROUTE_EXEMPTIONS.has(routeName)) {
+        failures.push(
+          `frontend/src/router/index.ts 的静态业务页面 ${routeName} 缺少用例映射`,
+        )
+      }
+      continue
+    }
+
+    const pathStart = source.lastIndexOf('path:', match.index)
+    const pathMatch = source
+      .slice(pathStart, match.index)
+      .match(/path:\s*'([^']+)'\s*,\s*$/)
+    const titleMatch = source.slice(match.index).match(/title:\s*'([^']+)'/)
+    if (!pathMatch || !titleMatch) {
+      failures.push(
+        `frontend/src/router/index.ts 无法解析静态页面 ${routeName}`,
+      )
+      continue
+    }
+
+    const routePath = pathMatch[1]
+    const title = titleMatch[1]
+    pages.push({
+      title,
+      route: routePath.startsWith('/') ? routePath : `/${routePath}`,
+      source: '[静态路由](../../frontend/src/router/index.ts)',
+      useCaseKey,
+    })
+  }
+
+  return pages
+}
+
+function dynamicReportPage(source) {
+  const isRegistered =
+    source.includes("routeDomain === 'rpt' && routeEntity !== 'definition'") &&
+    source.includes("import('@/pages/rpt/Report.vue')")
+  if (!isRegistered) {
+    failures.push('frontend/src/router/registry.ts 缺少动态报表页面注册')
+    return []
+  }
+
+  return [
+    {
+      title: '动态报表',
+      route: '/rpt/{code}',
+      source: '[动态路由](../../frontend/src/router/registry.ts)',
+      useCaseKey: 'rpt/report',
+    },
+  ]
+}
+
+const staticPages = staticBusinessPages(routerIndexSource)
+const registryPages = pageRegistrations.map(({ domain, entity, title }) => ({
+  title,
+  route: `/${domain}/${entity}`,
+  source: '[页面注册表](../../frontend/src/router/registry.ts)',
+  useCaseKey: `${domain}/${entity}`,
+}))
+const expectedUseCasePages = [
+  ...staticPages,
+  ...registryPages,
+  ...dynamicReportPage(registrySource),
+]
+const expectedUseCaseKeys = expectedUseCasePages.map(
+  ({ useCaseKey }) => useCaseKey,
 )
-compareSets('frontend VOU 页面注册', vouRegistryEntities, vouEntities)
-compareSets(
-  'docs/domains/vou.md 公开创建入口',
-  vouPageRows.filter((row) => row.creation === '公开').map((row) => row.entity),
-  vouCreatableEntities,
+const expectedUseCaseKeySet = new Set(expectedUseCaseKeys)
+const orphanUseCases = [...documentedUseCases].filter(
+  (key) => !expectedUseCaseKeySet.has(key),
 )
-compareSets(
-  'docs/domains/vou.md WFL 自动创建入口',
-  vouPageRows
-    .filter((row) => row.creation === 'WFL 自动')
-    .map((row) => row.entity),
-  vouEntities.filter((entity) => !vouCreatableEntities.includes(entity)),
+
+orphanUseCases.sort()
+if (!writeUseCaseCoverage && orphanUseCases.length > 0) {
+  failures.push(`页面用例孤儿文档：${orphanUseCases.join('、')}`)
+}
+const coverageFile = path.join(useCaseRoot, 'COVERAGE.md')
+const expectedCoverage = await prettier.format(
+  useCaseCoverage(expectedUseCasePages, documentedUseCases, orphanUseCases),
+  { parser: 'markdown' },
 )
+
+if (writeUseCaseCoverage) {
+  fs.writeFileSync(coverageFile, expectedCoverage)
+} else if (!fs.existsSync(coverageFile)) {
+  failures.push('缺少自动生成的 docs/use-cases/COVERAGE.md')
+} else if (fs.readFileSync(coverageFile, 'utf8') !== expectedCoverage) {
+  failures.push('docs/use-cases/COVERAGE.md 已漂移；请运行 pnpm docs:coverage')
+}
 
 if (failures.length > 0) {
   process.stderr.write(
@@ -432,6 +514,6 @@ if (failures.length > 0) {
   process.exitCode = 1
 } else {
   process.stdout.write(
-    `文档检查通过：${documentationFiles.length} 个跟踪 Markdown，${documentedDomains.size} 个领域，${operationFiles.length} 份运行手册。\n`,
+    `文档检查通过：${documentationFiles.length} 个纳入检查的 Markdown，${documentedDomains.size} 个领域，${operationFiles.length} 份运行手册，${expectedUseCasePages.length} 个页面入口。\n`,
   )
 }

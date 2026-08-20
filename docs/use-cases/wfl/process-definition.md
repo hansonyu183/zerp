@@ -2,7 +2,7 @@
 
 ## 页面目标
 
-流程管理员通过 `/wfl/process-definition/*` 管理唯一的 Starlark 定义来源。业务规则见 [WFL 领域文档](../../domains/wfl.md)，HTTP 线协议见 [OpenAPI](../../../contracts/openapi/openapi.yaml)。
+流程管理员管理 Starlark 定义来源。定义、试算、发布和静态动作规则见 [WFL 定义、草稿和发布](../../domains/wfl.md#2-定义草稿和发布)与[静态动作边界](../../domains/wfl.md#3-静态动作边界)，HTTP 线协议见 [OpenAPI](../../../contracts/openapi/openapi.yaml)。
 
 ## 主流程
 

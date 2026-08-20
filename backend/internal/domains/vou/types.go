@@ -804,7 +804,7 @@ type BillCashLineView struct {
 
 type SettlementMethodSnapshotView struct {
 	ObjectID              string `json:"objectId"`
-	VersionID             string `json:"versionId"`
+	VersionID             string `json:"versionId,omitempty"`
 	Code                  string `json:"code"`
 	Name                  string `json:"name"`
 	RuleType              string `json:"ruleType"`
@@ -813,7 +813,7 @@ type SettlementMethodSnapshotView struct {
 	DayOffset             int32  `json:"dayOffset"`
 	DueDays               int32  `json:"dueDays,omitempty"`
 	CutoffDay             int32  `json:"cutoffDay,omitempty"`
-	DefaultSalesSurcharge string `json:"defaultSalesSurcharge"`
+	DefaultSalesSurcharge string `json:"defaultSalesSurcharge,omitempty"`
 	Description           string `json:"description,omitempty"`
 }
 

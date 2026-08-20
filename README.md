@@ -77,22 +77,7 @@ make generate
 
 ## 部署方式
 
-仓库正式支持两种部署方式，二者共享同一套 OpenAPI、领域规则和生成客户端。
-
-### 同源 Web
-
-根目录 `compose.yaml` 构建四个核心服务：
-
-- `web`：Nginx 提供 SPA，并反向代理 `/api/` 和 `/files/`；
-- `api`：Go 服务，仅在容器网络暴露；
-- `migrate`：API 启动前执行 Goose migrations；
-- `db`：PostgreSQL 持久卷。
-
-`pgadmin` 仅通过 `--profile admin` 显式启用。该方式只公开 Web 入口，TLS 在外层入口终止，前端以 `/api/` 访问业务 API。
-
-### Cloudflare Pages
-
-前端也可由 Cloudflare Pages 托管并直连 HTTPS API。Pages 构建使用 `pnpm build` 和根目录 `dist/`，并写入当前 commit 标记；后端必须精确允许前端 Origin，并按实际站点拓扑配置 Cookie。两种方式的环境变量和验收步骤见前端 API 配置手册。
+ZERP 正式支持同源 Web 和 Cloudflare Pages 两种前端部署。拓扑、API 基址、Origin、Cookie、联调和验收步骤统一见[前端 API 与双部署配置](docs/operations/frontend-api-configuration.md)。
 
 ## 文档
 
@@ -106,12 +91,7 @@ make generate
 - [页面用例索引](docs/use-cases/README.md)
 - [前端 API 与双部署配置](docs/operations/frontend-api-configuration.md)
 
-## 安全
-
-- 本地环境文件、数据库、附件和测试凭证均被 Git 忽略。
-- 所有浏览器会话使用 HttpOnly Cookie 与 CSRF Token；当前同站生产拓扑使用 `Secure + SameSite=Lax + Path=/`，真正跨站且必须携带 Cookie 时使用 `SameSite=None + Secure`。
-- 后端鉴权是最终安全边界，前端权限只控制菜单和交互。
-- 错误、日志和用户反馈不得包含凭证、Cookie、Token 或敏感业务数据。
+安全开发约束见 [AGENTS.md](AGENTS.md)，部署安全配置见[运行手册](docs/operations/frontend-api-configuration.md)。
 
 ## License
 

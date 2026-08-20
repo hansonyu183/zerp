@@ -118,6 +118,26 @@ func (s *serviceStub) CustomerSave(_ context.Context, _ CustomerSaveInput, _, _ 
 	return MutationResult{}, nil
 }
 
+func (s *serviceStub) SupplierQuery(_ context.Context, input QueryInput) (Page[SupplierListItem], error) {
+	s.record("query", EntitySupplier)
+	return Page[SupplierListItem]{Items: []SupplierListItem{}, Page: input.Page, PageSize: input.PageSize}, nil
+}
+
+func (s *serviceStub) SupplierGet(_ context.Context, _ GetInput) (SupplierDetailView, error) {
+	s.record("get", EntitySupplier)
+	return SupplierDetailView{}, nil
+}
+
+func (s *serviceStub) SupplierCreate(_ context.Context, _ SupplierCreateInput, _, _ string) (MutationResult, error) {
+	s.record("create", EntitySupplier)
+	return MutationResult{}, nil
+}
+
+func (s *serviceStub) SupplierSave(_ context.Context, _ SupplierSaveInput, _, _ string) (MutationResult, error) {
+	s.record("save", EntitySupplier)
+	return MutationResult{}, nil
+}
+
 func (s *serviceStub) CustomerGroupGet(_ context.Context, _ string) (CustomerGroupView, error) {
 	s.record("get", "customer-group")
 	return CustomerGroupView{}, nil
@@ -146,6 +166,11 @@ func (s *serviceStub) QueryReferenceCandidates(_ context.Context, _ ReferenceQue
 func (s *serviceStub) CustomerTaxMatches(_ context.Context, _ CustomerTaxMatchInput) ([]CustomerTaxMatch, error) {
 	s.record("tax-match", EntityCustomer)
 	return []CustomerTaxMatch{}, nil
+}
+
+func (s *serviceStub) SupplierTaxMatches(_ context.Context, _ SupplierTaxMatchInput) ([]SupplierTaxMatch, error) {
+	s.record("tax-match", EntitySupplier)
+	return []SupplierTaxMatch{}, nil
 }
 
 func testBOBLogger() *slog.Logger {
@@ -187,9 +212,9 @@ func TestHandlerRegistersEveryEntityAction(t *testing.T) {
 			t.Errorf("route %s is not registered", path)
 		}
 	}
-	const customerSpecificRoutes = 11
-	if len(routes) != len(wanted)+customerSpecificRoutes {
-		t.Fatalf("registered route count = %d, want %d", len(routes), len(wanted)+customerSpecificRoutes)
+	const entitySpecificRoutes = 12
+	if len(routes) != len(wanted)+entitySpecificRoutes {
+		t.Fatalf("registered route count = %d, want %d", len(routes), len(wanted)+entitySpecificRoutes)
 	}
 }
 

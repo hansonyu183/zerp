@@ -4,6 +4,7 @@ package vou
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -165,6 +166,85 @@ func newBOBIntegrationService(pool *pgxpool.Pool) *bobdomain.Service {
 	return service
 }
 
+type vouCustomerAuxiliaryResolver struct{}
+
+func (vouCustomerAuxiliaryResolver) ResolveAuxiliaryReference(
+	ctx context.Context, tx pgx.Tx, entity, objectID, _ string,
+) (bobdomain.AuxiliaryReference, error) {
+	if entity == "payment-method" {
+		return bobdomain.AuxiliaryReference{ObjectID: objectID, VersionID: "01J00000000000000000000083",
+			Entity: entity, Code: "PAY-0001", Data: map[string]any{"name": "银行转账"}}, nil
+	}
+	var versionID, code string
+	var raw []byte
+	if err := tx.QueryRow(ctx, `
+		SELECT object.current_version_id,object.code,version.data
+		FROM aux_objects object JOIN aux_versions version ON version.id=object.current_version_id
+		WHERE object.id=$1 AND object.entity=$2 AND object.enabled
+	`, objectID, entity).Scan(&versionID, &code, &raw); err != nil {
+		return bobdomain.AuxiliaryReference{}, err
+	}
+	data := map[string]any{}
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return bobdomain.AuxiliaryReference{}, err
+	}
+	return bobdomain.AuxiliaryReference{ObjectID: objectID, VersionID: versionID, Entity: entity, Code: code, Data: data}, nil
+}
+
+func (vouCustomerAuxiliaryResolver) ResolveAuxiliaryCode(
+	_ context.Context, _ pgx.Tx, entity, code string,
+) (bobdomain.AuxiliaryReference, error) {
+	return bobdomain.AuxiliaryReference{ObjectID: "01J00000000000000000000092",
+		VersionID: "01J00000000000000000000093", Entity: entity, Code: code,
+		Data: map[string]any{"dictionaryTypeCode": "DCT-0001", "name": "终端客户"}}, nil
+}
+
+func createApprovedCustomer(
+	t *testing.T, pool *pgxpool.Pool, data bobdomain.CreateDetailInput,
+) ReferenceInput {
+	t.Helper()
+	service := bobdomain.NewService(pool)
+	service.SetAuxiliaryResolver(vouCustomerAuxiliaryResolver{})
+	operating := createApprovedBOB(t, service, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{
+		Name: "VOU 客户经营主体", TaxNumber: "TAX" + newID()[3:],
+	})
+	if data.SettlementMethodID == "" {
+		data.SettlementMethodID = "01JSMT00000000000000000017"
+	}
+	created, err := service.CustomerCreate(t.Context(), bobdomain.CustomerCreateInput{
+		Group: bobdomain.CustomerGroupData{CompanyName: data.Name + "集团" + newID()[20:], BankAccounts: []bobdomain.CustomerGroupBankAccount{}},
+		Data: bobdomain.CustomerAccountData{
+			Name: data.Name, CustomerTypeCode: bobdomain.CustomerTypeEndUser,
+			ContactName: data.ContactName, ContactPhone: data.ContactPhone, Address: data.Address,
+			OperatingEntityID: operating.ObjectID, SettlementMethodID: data.SettlementMethodID,
+			PaymentMethodID:            "01J00000000000000000000082",
+			DefaultTransportMethodCode: "SELF_PICKUP", DefaultTransportMethodName: "客户自提",
+			TransportSurcharge: "0.00", PricingPolicy: bobdomain.PricingPolicy{
+				DefaultPremiumUnitPrice: "0.00", DefaultDiscountUnitPrice: "0.00", CostItems: []bobdomain.PricingCostItem{},
+				ThirdPartyIntermediaryFixedUnitCost: "0.00", ThirdPartyIntermediaryVariableUnitCost: "0.00",
+			}, CreditLimits: []bobdomain.CustomerCreditLimit{}, PrimarySalesAttribution: bobdomain.CustomerSalesAttributionInput{
+				Type: bobdomain.SalesAttributionInternalEmployee, SubjectObjectID: data.SalespersonEmployeeID,
+			},
+		},
+	}, integrationActorOne, "vou-customer-create")
+	if err != nil {
+		t.Fatalf("create customer reference: %v", err)
+	}
+	submitted, err := service.Submit(t.Context(), bobdomain.EntityCustomer, bobdomain.VersionRevisionInput{
+		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: created.Revision,
+	}, integrationActorOne, "vou-customer-submit")
+	if err != nil {
+		t.Fatalf("submit customer reference: %v", err)
+	}
+	approved, err := service.Approve(t.Context(), bobdomain.EntityCustomer, bobdomain.ReviewInput{
+		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: submitted.Revision,
+	}, integrationActorTwo, "vou-customer-approve")
+	if err != nil {
+		t.Fatalf("approve customer reference: %v", err)
+	}
+	return ReferenceInput{ObjectID: approved.ObjectID, VersionID: approved.VersionID}
+}
+
 func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {
 	t.Helper()
 	service := newBOBIntegrationService(pool)
@@ -177,13 +257,13 @@ func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {
 	})
 	platform := createApprovedBOB(t, service, bobdomain.EntitySupplier, bobdomain.CreateDetailInput{
 		Code: "VLP" + suffix, Name: "VOU 物流平台", SupplierType: &logistics,
-		SalespersonEmployeeID: employee.ObjectID,
+		SettlementMethodID: settlement.ObjectID, DefaultPurchaserEmployeeID: employee.ObjectID,
 	})
 	operating := createApprovedBOB(t, service, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{
 		Name: "VOU 经营主体", TaxNumber: "TAX" + suffix[3:],
 	})
 	return integrationReferences{
-		customer: createApprovedBOB(t, service, bobdomain.EntityCustomer, bobdomain.CreateDetailInput{
+		customer: createApprovedCustomer(t, pool, bobdomain.CreateDetailInput{
 			Code: "VC" + suffix, Name: "VOU 客户", ContactName: "客户联系人",
 			ContactPhone: "13800000000", Address: "深圳市测试路 1 号",
 			SettlementMethodID:    settlement.ObjectID,
@@ -192,8 +272,8 @@ func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {
 		supplier: createApprovedBOB(t, service, bobdomain.EntitySupplier, bobdomain.CreateDetailInput{
 			Code: "VS" + suffix, Name: "VOU 供应商", SupplierType: &general,
 			ContactName: "供应商联系人", ContactPhone: "13900000000",
-			SettlementMethodID:    settlement.ObjectID,
-			SalespersonEmployeeID: employee.ObjectID,
+			SettlementMethodID:         settlement.ObjectID,
+			DefaultPurchaserEmployeeID: employee.ObjectID,
 		}),
 		employee: employee,
 		product: createApprovedBOB(t, service, bobdomain.EntityProduct, bobdomain.CreateDetailInput{

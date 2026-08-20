@@ -10,6 +10,13 @@ import (
 	"github.com/oklog/ulid/v2"
 )
 
+func derefInt32(value *int32) int32 {
+	if value == nil {
+		return 0
+	}
+	return *value
+}
+
 func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID string, data DetailView) error {
 	switch entity {
 	case EntityCustomer, EntityOtherParty:
@@ -18,11 +25,18 @@ func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			monthlyClosingDay = 31
 		}
 		var rebateUnitPrice int64
+		var settlementSalesSurcharge int64
 		if entity == EntityCustomer {
 			var err error
 			rebateUnitPrice, err = moneyCents(data.RebateUnitPrice)
 			if err != nil {
 				return err
+			}
+			if data.DefaultSalesSurcharge != "" {
+				settlementSalesSurcharge, err = moneyCents(data.DefaultSalesSurcharge)
+				if err != nil {
+					return err
+				}
 			}
 		}
 		return q.InsertBobCustomerDetail(ctx, dbsqlc.InsertBobCustomerDetailParams{
@@ -31,11 +45,19 @@ func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			TaxNumber: nilIfEmpty(data.TaxNumber), ContactName: nilIfEmpty(data.ContactName),
 			ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email),
 			Address: nilIfEmpty(data.Address), Remark: nilIfEmpty(data.Remark),
-			SettlementMethodID:       nilIfEmpty(data.SettlementMethodID),
-			MonthlyClosingDay:        &monthlyClosingDay,
-			SalespersonEmployeeID:    data.SalespersonEmployeeID,
-			RebateUnitPriceCents:     rebateUnitPrice,
-			IntermediaryOtherPartyID: nilIfEmpty(data.IntermediaryOtherPartyID),
+			SettlementMethodID:            nilIfEmpty(data.SettlementMethodID),
+			SettlementMethodCode:          nilIfEmpty(data.SettlementMethodCode),
+			SettlementMethodName:          nilIfEmpty(data.SettlementMethodName),
+			SettlementTermCode:            nilIfEmpty(data.TermCode),
+			SettlementRuleType:            nilIfEmpty(data.RuleType),
+			SettlementDueDays:             data.DueDays,
+			SettlementMonthOffset:         data.MonthOffset,
+			SettlementCutoffDay:           data.CutoffDay,
+			SettlementSalesSurchargeCents: settlementSalesSurcharge,
+			MonthlyClosingDay:             &monthlyClosingDay,
+			SalespersonEmployeeID:         data.SalespersonEmployeeID,
+			RebateUnitPriceCents:          rebateUnitPrice,
+			IntermediaryOtherPartyID:      nilIfEmpty(data.IntermediaryOtherPartyID),
 		})
 	case EntitySupplier:
 		return q.InsertBobSupplierDetail(ctx, dbsqlc.InsertBobSupplierDetailParams{
@@ -44,8 +66,15 @@ func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			TaxNumber: nilIfEmpty(data.TaxNumber), ContactName: nilIfEmpty(data.ContactName),
 			ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email),
 			Address: nilIfEmpty(data.Address), Remark: nilIfEmpty(data.Remark),
-			SettlementMethodID:    nilIfEmpty(data.SettlementMethodID),
-			SalespersonEmployeeID: data.SalespersonEmployeeID,
+			SettlementMethodID:         nilIfEmpty(data.SettlementMethodID),
+			SettlementMethodCode:       nilIfEmpty(data.SettlementMethodCode),
+			SettlementMethodName:       nilIfEmpty(data.SettlementMethodName),
+			SettlementTermCode:         nilIfEmpty(data.TermCode),
+			SettlementRuleType:         nilIfEmpty(data.RuleType),
+			SettlementMonthOffset:      data.MonthOffset,
+			SettlementDayOfMonth:       derefInt32(data.DayOfMonth),
+			SettlementDayOffset:        data.DayOffset,
+			DefaultPurchaserEmployeeID: nilIfEmpty(data.DefaultPurchaserEmployeeID),
 		})
 	case EntityEmployee:
 		return q.InsertBobEmployeeDetail(ctx, dbsqlc.InsertBobEmployeeDetailParams{
@@ -155,11 +184,18 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			monthlyClosingDay = 31
 		}
 		var rebateUnitPrice int64
+		var settlementSalesSurcharge int64
 		if entity == EntityCustomer {
 			var parseErr error
 			rebateUnitPrice, parseErr = moneyCents(data.RebateUnitPrice)
 			if parseErr != nil {
 				return parseErr
+			}
+			if data.DefaultSalesSurcharge != "" {
+				settlementSalesSurcharge, parseErr = moneyCents(data.DefaultSalesSurcharge)
+				if parseErr != nil {
+					return parseErr
+				}
 			}
 		}
 		rows, err = q.UpdateBobCustomerDetail(ctx, dbsqlc.UpdateBobCustomerDetailParams{
@@ -168,11 +204,19 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone),
 			Email: nilIfEmpty(data.Email), Address: nilIfEmpty(data.Address),
 			Remark: nilIfEmpty(data.Remark), SettlementMethodID: nilIfEmpty(data.SettlementMethodID),
-			MonthlyClosingDay:        &monthlyClosingDay,
-			SalespersonEmployeeID:    data.SalespersonEmployeeID,
-			RebateUnitPriceCents:     rebateUnitPrice,
-			IntermediaryOtherPartyID: nilIfEmpty(data.IntermediaryOtherPartyID),
-			VersionID:                versionID,
+			SettlementMethodCode:          nilIfEmpty(data.SettlementMethodCode),
+			SettlementMethodName:          nilIfEmpty(data.SettlementMethodName),
+			SettlementTermCode:            nilIfEmpty(data.TermCode),
+			SettlementRuleType:            nilIfEmpty(data.RuleType),
+			SettlementDueDays:             data.DueDays,
+			SettlementMonthOffset:         data.MonthOffset,
+			SettlementCutoffDay:           data.CutoffDay,
+			SettlementSalesSurchargeCents: settlementSalesSurcharge,
+			MonthlyClosingDay:             &monthlyClosingDay,
+			SalespersonEmployeeID:         data.SalespersonEmployeeID,
+			RebateUnitPriceCents:          rebateUnitPrice,
+			IntermediaryOtherPartyID:      nilIfEmpty(data.IntermediaryOtherPartyID),
+			VersionID:                     versionID,
 		})
 	case EntitySupplier:
 		rows, err = q.UpdateBobSupplierDetail(ctx, dbsqlc.UpdateBobSupplierDetailParams{
@@ -181,8 +225,15 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone),
 			Email: nilIfEmpty(data.Email), Address: nilIfEmpty(data.Address),
 			Remark: nilIfEmpty(data.Remark), SettlementMethodID: nilIfEmpty(data.SettlementMethodID),
-			SalespersonEmployeeID: data.SalespersonEmployeeID,
-			VersionID:             versionID,
+			SettlementMethodCode:       nilIfEmpty(data.SettlementMethodCode),
+			SettlementMethodName:       nilIfEmpty(data.SettlementMethodName),
+			SettlementTermCode:         nilIfEmpty(data.TermCode),
+			SettlementRuleType:         nilIfEmpty(data.RuleType),
+			SettlementMonthOffset:      data.MonthOffset,
+			SettlementDayOfMonth:       derefInt32(data.DayOfMonth),
+			SettlementDayOffset:        data.DayOffset,
+			DefaultPurchaserEmployeeID: nilIfEmpty(data.DefaultPurchaserEmployeeID),
+			VersionID:                  versionID,
 		})
 	case EntityEmployee:
 		rows, err = q.UpdateBobEmployeeDetail(ctx, dbsqlc.UpdateBobEmployeeDetailParams{

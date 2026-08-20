@@ -20,7 +20,7 @@ RPT 不拥有：
 - 独立的角色权限体系、用户账簿分配或执行层追加账簿过滤；
 - 集中式“报表中心”入口或未授权报表的菜单。
 
-HTTP 业务接口使用 `POST application/json`、统一响应包络和 `/rpt/{report}/{action}` 前缀。具体实体、字段和响应以 OpenAPI 为唯一线协议来源。
+公开动作、路径和数据结构以 [OpenAPI RPT Schema](../../contracts/openapi/schemas/rpt.yaml) 为唯一线协议来源。
 
 ## 2. 首批报表
 

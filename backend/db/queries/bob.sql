@@ -112,6 +112,56 @@ ORDER BY o.code ASC
 OFFSET sqlc.arg(row_offset)
 LIMIT sqlc.arg(row_limit);
 
+-- name: CountBobSuppliers :one
+SELECT count(*)
+FROM bob_objects o
+JOIN bob_versions current_version ON current_version.id=o.current_version_id
+JOIN bob_supplier_versions current_detail ON current_detail.version_id=current_version.id
+LEFT JOIN bob_supplier_versions effective_detail ON effective_detail.version_id=o.effective_version_id
+WHERE o.entity='supplier'
+  AND (sqlc.arg(keyword)::text='' OR o.code ILIKE '%'||sqlc.arg(keyword)::text||'%'
+       OR COALESCE(effective_detail.name,current_detail.name) ILIKE '%'||sqlc.arg(keyword)::text||'%')
+  AND (cardinality(sqlc.arg(statuses)::text[])=0 OR current_version.status=ANY(sqlc.arg(statuses)::text[]))
+  AND (sqlc.arg(enabled_filter)::integer=-1 OR o.enabled=(sqlc.arg(enabled_filter)::integer=1))
+  AND (sqlc.arg(supplier_type)::text='' OR COALESCE(effective_detail.supplier_type,current_detail.supplier_type)=sqlc.arg(supplier_type)::text)
+  AND (sqlc.arg(default_purchaser_employee_id)::text='' OR COALESCE(effective_detail.default_purchaser_employee_id,current_detail.default_purchaser_employee_id)=sqlc.arg(default_purchaser_employee_id)::text);
+
+-- name: ListBobSuppliers :many
+SELECT o.id AS object_id,o.code,o.revision AS object_revision,o.enabled,o.updated_at,
+  effective_version.id AS effective_version_id,effective_version.version_no AS effective_version_no,
+  effective_version.status AS effective_status,effective_version.revision AS effective_revision,
+  effective_detail.name AS effective_name,effective_detail.supplier_type AS effective_supplier_type,
+  COALESCE(effective_purchaser.code,'') AS effective_default_purchaser_code,
+  COALESCE(effective_purchaser_detail.name,'') AS effective_default_purchaser_name,
+  effective_version.submitted_by AS effective_submitted_by,
+  candidate_version.id AS candidate_version_id,candidate_version.version_no AS candidate_version_no,
+  candidate_version.status AS candidate_status,candidate_version.revision AS candidate_revision,
+  candidate_detail.name AS candidate_name,candidate_detail.supplier_type AS candidate_supplier_type,
+  COALESCE(candidate_purchaser.code,'') AS candidate_default_purchaser_code,
+  COALESCE(candidate_purchaser_detail.name,'') AS candidate_default_purchaser_name,
+  candidate_version.submitted_by AS candidate_submitted_by
+FROM bob_objects o
+JOIN bob_versions current_version ON current_version.id=o.current_version_id
+JOIN bob_supplier_versions current_detail ON current_detail.version_id=current_version.id
+LEFT JOIN bob_versions effective_version ON effective_version.id=o.effective_version_id
+LEFT JOIN bob_supplier_versions effective_detail ON effective_detail.version_id=effective_version.id
+LEFT JOIN bob_objects effective_purchaser ON effective_purchaser.id=effective_detail.default_purchaser_employee_id
+LEFT JOIN bob_employee_versions effective_purchaser_detail ON effective_purchaser_detail.version_id=effective_purchaser.effective_version_id
+LEFT JOIN bob_versions candidate_version ON candidate_version.id=o.current_version_id
+  AND (o.effective_version_id IS NULL OR o.current_version_id<>o.effective_version_id)
+LEFT JOIN bob_supplier_versions candidate_detail ON candidate_detail.version_id=candidate_version.id
+LEFT JOIN bob_objects candidate_purchaser ON candidate_purchaser.id=candidate_detail.default_purchaser_employee_id
+LEFT JOIN bob_employee_versions candidate_purchaser_detail ON candidate_purchaser_detail.version_id=candidate_purchaser.effective_version_id
+WHERE o.entity='supplier'
+  AND (sqlc.arg(keyword)::text='' OR o.code ILIKE '%'||sqlc.arg(keyword)::text||'%'
+       OR COALESCE(effective_detail.name,current_detail.name) ILIKE '%'||sqlc.arg(keyword)::text||'%')
+  AND (cardinality(sqlc.arg(statuses)::text[])=0 OR current_version.status=ANY(sqlc.arg(statuses)::text[]))
+  AND (sqlc.arg(enabled_filter)::integer=-1 OR o.enabled=(sqlc.arg(enabled_filter)::integer=1))
+  AND (sqlc.arg(supplier_type)::text='' OR COALESCE(effective_detail.supplier_type,current_detail.supplier_type)=sqlc.arg(supplier_type)::text)
+  AND (sqlc.arg(default_purchaser_employee_id)::text='' OR COALESCE(effective_detail.default_purchaser_employee_id,current_detail.default_purchaser_employee_id)=sqlc.arg(default_purchaser_employee_id)::text)
+ORDER BY o.code ASC
+OFFSET sqlc.arg(row_offset) LIMIT sqlc.arg(row_limit);
+
 -- name: InsertBobObject :exec
 INSERT INTO bob_objects (
     id, entity, code, current_version_id, next_version_no, revision, created_by, updated_by
@@ -130,6 +180,9 @@ INSERT INTO bob_versions (
 INSERT INTO bob_customer_versions (
     version_id, entity, name, customer_type, short_name, category_id, tax_number,
     contact_name, contact_phone, email, address, remark, settlement_method_id,
+    settlement_method_code, settlement_method_name, settlement_term_code,
+    settlement_rule_type, settlement_due_days, settlement_month_offset,
+    settlement_cutoff_day, settlement_sales_surcharge_cents,
     monthly_closing_day, salesperson_employee_id, rebate_unit_price_cents,
     intermediary_other_party_id,
     primary_sales_attribution_type, primary_sales_subject_id,
@@ -139,6 +192,10 @@ INSERT INTO bob_customer_versions (
     sqlc.narg(short_name), sqlc.narg(category_id), sqlc.narg(tax_number),
     sqlc.narg(contact_name), sqlc.narg(contact_phone), sqlc.narg(email),
     sqlc.narg(address), sqlc.narg(remark), sqlc.narg(settlement_method_id),
+    sqlc.narg(settlement_method_code), sqlc.narg(settlement_method_name),
+    sqlc.narg(settlement_term_code), sqlc.narg(settlement_rule_type),
+    sqlc.arg(settlement_due_days), sqlc.arg(settlement_month_offset),
+    sqlc.arg(settlement_cutoff_day), sqlc.arg(settlement_sales_surcharge_cents),
     sqlc.arg(monthly_closing_day),
     sqlc.arg(salesperson_employee_id)::varchar(26), sqlc.arg(rebate_unit_price_cents),
     sqlc.narg(intermediary_other_party_id),
@@ -161,13 +218,18 @@ INSERT INTO bob_customer_versions (
 INSERT INTO bob_supplier_versions (
     version_id, name, supplier_type, short_name, category_id, tax_number,
     contact_name, contact_phone, email, address, remark, settlement_method_id,
-    salesperson_employee_id
+    settlement_method_code, settlement_method_name, settlement_term_code,
+    settlement_rule_type, settlement_month_offset, settlement_day_of_month,
+    settlement_day_offset, default_purchaser_employee_id
 ) VALUES (
     sqlc.arg(version_id), sqlc.arg(name), sqlc.arg(supplier_type),
     sqlc.narg(short_name), sqlc.narg(category_id), sqlc.narg(tax_number),
     sqlc.narg(contact_name), sqlc.narg(contact_phone), sqlc.narg(email),
     sqlc.narg(address), sqlc.narg(remark), sqlc.narg(settlement_method_id),
-    sqlc.arg(salesperson_employee_id)
+    sqlc.narg(settlement_method_code), sqlc.narg(settlement_method_name),
+    sqlc.narg(settlement_term_code), sqlc.narg(settlement_rule_type),
+    sqlc.arg(settlement_month_offset), sqlc.arg(settlement_day_of_month),
+    sqlc.arg(settlement_day_offset), sqlc.narg(default_purchaser_employee_id)
 );
 
 -- name: InsertBobEmployeeDetail :exec
@@ -329,11 +391,15 @@ FROM bob_customer_credit_limits source WHERE source.version_id=sqlc.arg(source_v
 INSERT INTO bob_supplier_versions (
     version_id, name, supplier_type, short_name, category_id, tax_number,
     contact_name, contact_phone, email, address, remark, settlement_method_id,
-    salesperson_employee_id
+    settlement_method_code, settlement_method_name, settlement_term_code,
+    settlement_rule_type, settlement_month_offset, settlement_day_of_month,
+    settlement_day_offset, default_purchaser_employee_id
 )
 SELECT sqlc.arg(new_version_id), d.name, d.supplier_type, d.short_name, d.category_id,
        d.tax_number, d.contact_name, d.contact_phone, d.email, d.address, d.remark,
-       d.settlement_method_id, d.salesperson_employee_id
+       d.settlement_method_id, d.settlement_method_code, d.settlement_method_name,
+       d.settlement_term_code, d.settlement_rule_type, d.settlement_month_offset,
+       d.settlement_day_of_month, d.settlement_day_offset, d.default_purchaser_employee_id
 FROM bob_supplier_versions d WHERE d.version_id = sqlc.arg(source_version_id);
 
 -- name: CopyBobEmployeeDetail :exec
@@ -421,6 +487,14 @@ SET name = sqlc.arg(name), customer_type = sqlc.arg(customer_type),
     contact_phone = sqlc.narg(contact_phone), email = sqlc.narg(email),
     address = sqlc.narg(address), remark = sqlc.narg(remark),
     settlement_method_id = sqlc.narg(settlement_method_id),
+    settlement_method_code = sqlc.narg(settlement_method_code),
+    settlement_method_name = sqlc.narg(settlement_method_name),
+    settlement_term_code = sqlc.narg(settlement_term_code),
+    settlement_rule_type = sqlc.narg(settlement_rule_type),
+    settlement_due_days = sqlc.arg(settlement_due_days),
+    settlement_month_offset = sqlc.arg(settlement_month_offset),
+    settlement_cutoff_day = sqlc.arg(settlement_cutoff_day),
+    settlement_sales_surcharge_cents = sqlc.arg(settlement_sales_surcharge_cents),
     monthly_closing_day = sqlc.arg(monthly_closing_day),
     salesperson_employee_id = sqlc.arg(salesperson_employee_id),
     rebate_unit_price_cents = sqlc.arg(rebate_unit_price_cents),
@@ -435,7 +509,14 @@ SET name = sqlc.arg(name), supplier_type = sqlc.arg(supplier_type),
     contact_phone = sqlc.narg(contact_phone), email = sqlc.narg(email),
     address = sqlc.narg(address), remark = sqlc.narg(remark),
     settlement_method_id = sqlc.narg(settlement_method_id),
-    salesperson_employee_id = sqlc.arg(salesperson_employee_id)
+    settlement_method_code = sqlc.narg(settlement_method_code),
+    settlement_method_name = sqlc.narg(settlement_method_name),
+    settlement_term_code = sqlc.narg(settlement_term_code),
+    settlement_rule_type = sqlc.narg(settlement_rule_type),
+    settlement_month_offset = sqlc.arg(settlement_month_offset),
+    settlement_day_of_month = sqlc.arg(settlement_day_of_month),
+    settlement_day_offset = sqlc.arg(settlement_day_offset),
+    default_purchaser_employee_id = sqlc.narg(default_purchaser_employee_id)
 WHERE version_id = sqlc.arg(version_id);
 
 -- name: UpdateBobEmployeeDetail :execrows
@@ -683,7 +764,7 @@ SELECT EXISTS (
     SELECT 1 FROM bob_supplier_versions
     WHERE category_id = sqlc.arg(target_object_id)
        OR settlement_method_id = sqlc.arg(target_object_id)
-       OR salesperson_employee_id = sqlc.arg(target_object_id)
+       OR default_purchaser_employee_id = sqlc.arg(target_object_id)
 
     UNION ALL
 
@@ -950,7 +1031,6 @@ JOIN bob_supplier_versions s ON s.version_id = v.id
 WHERE o.id = sqlc.arg(platform_object_id)
   AND o.entity = 'supplier'
   AND o.enabled
-  AND o.current_version_id = o.effective_version_id
   AND v.status = 'EFFECTIVE'
   AND s.supplier_type = 'LOGISTICS_PLATFORM'
 FOR SHARE OF o;
@@ -965,7 +1045,6 @@ JOIN bob_versions v
 WHERE o.id = sqlc.arg(object_id)
   AND o.entity = sqlc.arg(entity)
   AND o.enabled
-  AND o.current_version_id = o.effective_version_id
   AND v.status = 'EFFECTIVE'
 FOR SHARE OF o;
 
@@ -1053,7 +1132,7 @@ SET enabled = sqlc.arg(enabled), revision = revision + 1,
     updated_at = now(), updated_by = sqlc.arg(actor_id)
 WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity)
   AND revision = sqlc.arg(revision)
-  AND current_version_id = effective_version_id
+  AND (current_version_id = effective_version_id OR entity IN ('customer','supplier'))
   AND effective_version_id IS NOT NULL
   AND enabled <> sqlc.arg(enabled);
 
@@ -1063,11 +1142,12 @@ SET effective_version_id = sqlc.arg(version_id), revision = revision + 1, update
 WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity) AND current_version_id = sqlc.arg(version_id)
   AND effective_version_id IS NULL AND revision = sqlc.arg(revision);
 
--- name: SwitchBobCustomerEffectiveCandidate :execrows
+-- name: SwitchBobEffectiveCandidate :execrows
 UPDATE bob_objects
 SET effective_version_id = sqlc.arg(new_version_id), revision = revision + 1,
     updated_at = now(), updated_by = sqlc.arg(actor_id)
-WHERE id = sqlc.arg(id) AND entity = 'customer'
+WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity)
+  AND entity IN ('customer','supplier')
   AND current_version_id = sqlc.arg(new_version_id)
   AND effective_version_id = sqlc.arg(old_version_id)
   AND revision = sqlc.arg(revision);
@@ -1232,7 +1312,6 @@ SELECT view.*
 FROM bob_version_views view
 JOIN bob_objects o ON o.id = view.object_id AND o.entity = view.entity
 WHERE view.object_id = sqlc.arg(object_id) AND view.entity = sqlc.arg(entity)
-  AND view.version_id = o.current_version_id
   AND view.version_id = o.effective_version_id
   AND view.status = 'EFFECTIVE'
   AND o.enabled
@@ -1260,6 +1339,7 @@ LEFT JOIN bob_supplier_versions source_supplier ON source_supplier.version_id=so
 LEFT JOIN bob_product_versions source_product ON source_product.version_id=source_object.effective_version_id
 WHERE o.entity=sqlc.arg(entity) AND o.enabled AND o.effective_version_id IS NOT NULL
   AND (btrim(sqlc.arg(source_object_id)::text)='' OR o.id<>sqlc.arg(source_object_id))
+  AND (o.entity<>'supplier' OR btrim(sqlc.arg(supplier_type)::text)='' OR supplier.supplier_type=sqlc.arg(supplier_type))
   AND (o.entity<>'supplier' OR source_object.id IS NULL OR supplier.supplier_type=source_supplier.supplier_type)
   AND (o.entity<>'product' OR source_object.id IS NULL OR product.product_kind=source_product.product_kind)
   AND (
@@ -1331,8 +1411,8 @@ FOR SHARE;
 -- name: ListCustomerSalesReferencesForEmployee :many
 SELECT object.id AS object_id,object.entity,'customer-sales'::text AS role FROM bob_objects object JOIN bob_customer_versions customer_detail ON customer_detail.version_id=object.effective_version_id WHERE customer_detail.primary_sales_subject_id=sqlc.arg(source_object_id) AND customer_detail.primary_sales_attribution_type='INTERNAL_EMPLOYEE';
 
--- name: ListSupplierSalesReferencesForEmployee :many
-SELECT object.id AS object_id,object.entity,'supplier-sales'::text AS role FROM bob_objects object JOIN bob_supplier_versions supplier_detail ON supplier_detail.version_id=object.effective_version_id WHERE supplier_detail.salesperson_employee_id=sqlc.arg(source_object_id);
+-- name: ListSupplierPurchaserReferencesForEmployee :many
+SELECT object.id AS object_id,object.entity,'supplier-purchaser'::text AS role FROM bob_objects object JOIN bob_supplier_versions supplier_detail ON supplier_detail.version_id=object.effective_version_id WHERE supplier_detail.default_purchaser_employee_id=sqlc.arg(source_object_id);
 
 -- name: ListOtherPartySalesReferencesForEmployee :many
 SELECT object.id AS object_id,object.entity,'other-party-sales'::text AS role FROM bob_objects object JOIN bob_customer_versions other_party_detail ON other_party_detail.version_id=object.effective_version_id WHERE object.entity='other-party' AND other_party_detail.salesperson_employee_id=sqlc.arg(source_object_id);
@@ -1364,7 +1444,7 @@ SELECT object.id AS object_id,object.entity,'packaging-product'::text AS role FR
 -- name: DisableReferenceTransferSource :execrows
 UPDATE bob_objects SET enabled=false,revision=revision+1,updated_at=now(),updated_by=sqlc.arg(actor_id)
 WHERE id=sqlc.arg(object_id) AND entity=sqlc.arg(entity) AND revision=sqlc.arg(revision) AND enabled
-  AND current_version_id=effective_version_id;
+  AND (current_version_id=effective_version_id OR (entity='supplier' AND effective_version_id IS NOT NULL));
 
 -- name: ActivateReferenceTransferVersion :execrows
 UPDATE bob_versions SET status='EFFECTIVE',revision=revision+1,
@@ -1397,8 +1477,8 @@ WHERE version_id=sqlc.arg(version_id);
 UPDATE bob_customer_versions SET primary_sales_subject_id=sqlc.arg(target_object_id),primary_sales_subject_version_id=sqlc.arg(target_version_id),primary_sales_subject_code=sqlc.arg(code),primary_sales_subject_name=sqlc.arg(name),salesperson_employee_id=CASE WHEN primary_sales_attribution_type='INTERNAL_EMPLOYEE' THEN sqlc.arg(target_object_id) ELSE salesperson_employee_id END
 WHERE version_id=sqlc.arg(version_id);
 
--- name: ReplaceSupplierSalesReference :exec
-UPDATE bob_supplier_versions SET salesperson_employee_id=sqlc.arg(target_object_id) WHERE version_id=sqlc.arg(version_id);
+-- name: ReplaceSupplierPurchaserReference :exec
+UPDATE bob_supplier_versions SET default_purchaser_employee_id=sqlc.arg(target_object_id) WHERE version_id=sqlc.arg(version_id);
 
 -- name: ReplaceOtherPartySalesReference :exec
 UPDATE bob_customer_versions SET salesperson_employee_id=sqlc.arg(target_object_id) WHERE version_id=sqlc.arg(version_id);
@@ -1447,8 +1527,9 @@ FROM bob_fund_account_versions WHERE version_id=sqlc.arg(version_id);
 
 -- name: GetStoredCustomerSettlement :one
 SELECT COALESCE(detail.settlement_method_id,''),COALESCE(detail.settlement_method_code,''),COALESCE(detail.settlement_method_name,''),COALESCE(detail.settlement_term_code,''),COALESCE(detail.settlement_rule_type,''),detail.settlement_due_days,detail.settlement_month_offset,detail.settlement_cutoff_day,detail.settlement_sales_surcharge_cents
-FROM bob_customer_accounts account JOIN bob_customer_versions detail ON detail.version_id=sqlc.arg(version_id)
-WHERE account.object_id=sqlc.arg(object_id);
+FROM bob_customer_versions detail
+JOIN bob_versions version ON version.id=detail.version_id AND version.object_id=sqlc.arg(object_id)
+WHERE detail.version_id=sqlc.arg(version_id) AND detail.entity='customer';
 
 -- name: ResolveFundAccountOperatingEntity :one
 SELECT object.id,version.id,object.code,detail.legal_name
@@ -1506,6 +1587,61 @@ VALUES(sqlc.arg(group_id),sqlc.arg(line_no),sqlc.arg(account_name),sqlc.arg(bank
 SELECT o.id,o.code,o.revision,o.enabled,a.group_id,o.effective_version_id,o.current_version_id,o.updated_at
 FROM bob_objects o JOIN bob_customer_accounts a ON a.object_id=o.id
 WHERE o.id=sqlc.arg(object_id) AND o.entity='customer';
+
+-- name: GetBobSupplierDetail :one
+SELECT id,code,revision,enabled,effective_version_id,current_version_id,updated_at
+FROM bob_objects WHERE id=sqlc.arg(object_id) AND entity='supplier';
+
+-- name: GetBobSupplierVersion :one
+SELECT v.id,v.version_no,v.status,v.revision,v.created_at,v.created_by,v.updated_at,v.updated_by,
+  v.submitted_at,v.submitted_by,v.reviewed_at,v.reviewed_by,v.review_comment,
+  d.name,d.supplier_type,COALESCE(d.short_name,''),COALESCE(d.tax_number,''),
+  COALESCE(d.contact_name,''),COALESCE(d.contact_phone,''),COALESCE(d.email,''),
+  COALESCE(d.address,''),COALESCE(d.remark,''),COALESCE(d.settlement_method_id,''),
+  COALESCE(d.settlement_method_code,''),COALESCE(d.settlement_method_name,''),
+  COALESCE(d.settlement_term_code,''),COALESCE(d.settlement_rule_type,''),
+  d.settlement_month_offset,d.settlement_day_of_month,d.settlement_day_offset,
+  COALESCE(d.default_purchaser_employee_id,'') AS default_purchaser_employee_id
+FROM bob_versions v JOIN bob_supplier_versions d ON d.version_id=v.id
+WHERE v.object_id=sqlc.arg(object_id) AND v.entity='supplier' AND v.id=sqlc.arg(version_id);
+
+-- name: GetStoredBobSupplierValidationData :one
+SELECT COALESCE(settlement_method_id,''),COALESCE(settlement_method_code,''),
+  COALESCE(settlement_method_name,''),COALESCE(settlement_term_code,''),
+  COALESCE(settlement_rule_type,''),settlement_month_offset,settlement_day_of_month,
+  settlement_day_offset,COALESCE(default_purchaser_employee_id,'') AS default_purchaser_employee_id
+FROM bob_supplier_versions WHERE version_id=sqlc.arg(version_id);
+
+-- name: AdvanceBobSupplierCandidate :execrows
+UPDATE bob_objects SET current_version_id=sqlc.arg(version_id),next_version_no=next_version_no+1,
+  revision=revision+1,updated_at=now(),updated_by=sqlc.arg(actor_id)
+WHERE id=sqlc.arg(object_id) AND entity='supplier' AND revision=sqlc.arg(revision)
+  AND current_version_id=sqlc.arg(current_version_id);
+
+-- name: RestoreBobSupplierEffectiveVersion :execrows
+UPDATE bob_objects SET current_version_id=effective_version_id,revision=revision+1,updated_at=now()
+WHERE id=sqlc.arg(object_id) AND entity='supplier' AND revision=sqlc.arg(revision)
+  AND current_version_id=sqlc.arg(version_id) AND effective_version_id=sqlc.arg(effective_version_id);
+
+-- name: DeleteBobSupplierVersion :execrows
+DELETE FROM bob_versions WHERE id=sqlc.arg(version_id) AND object_id=sqlc.arg(object_id) AND entity='supplier';
+
+-- name: QuerySupplierTaxMatches :many
+SELECT source_entity,object_id,code,company_name,short_name,tax_number,contact_name,contact_phone,email,address
+FROM (
+  SELECT 'customer-group'::text AS source_entity,g.id AS object_id,g.code,g.company_name,
+    COALESCE(g.short_name,'') AS short_name,COALESCE(g.tax_number,'') AS tax_number,
+    ''::text AS contact_name,COALESCE(g.invoice_phone,'') AS contact_phone,''::text AS email,
+    COALESCE(g.invoice_address,'') AS address
+  FROM bob_customer_groups g
+  WHERE sqlc.arg(include_customer)::boolean AND upper(btrim(g.tax_number))=sqlc.arg(tax_number)
+  UNION ALL
+  SELECT 'other-party'::text,o.id,o.code,d.name,COALESCE(d.short_name,''),COALESCE(d.tax_number,''),
+    COALESCE(d.contact_name,''),COALESCE(d.contact_phone,''),COALESCE(d.email,''),COALESCE(d.address,'')
+  FROM bob_objects o JOIN bob_customer_versions d ON d.version_id=o.effective_version_id
+  WHERE o.entity='other-party' AND o.enabled AND sqlc.arg(include_other_party)::boolean
+    AND upper(btrim(d.tax_number))=sqlc.arg(tax_number)
+) matched ORDER BY source_entity,code,object_id;
 
 -- name: GetBobCustomerGroup :one
 SELECT id,code,revision,company_name,COALESCE(short_name,''),COALESCE(tax_number,''),COALESCE(invoice_title,''),COALESCE(invoice_address,''),COALESCE(invoice_phone,''),updated_at,updated_by

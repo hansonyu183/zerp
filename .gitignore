@@ -22,6 +22,7 @@ blob-report/
 *.test
 *.out
 coverage.*
+!docs/use-cases/COVERAGE.md
 *.coverprofile
 profile.cov
 backend/tmp/

@@ -875,7 +875,7 @@ export async function createWflWorkerState(options: {
       {
         name: `WFL 普通供应商 ${suffix}`,
         supplierType: 'GENERAL',
-        salespersonEmployeeId: employee.objectId,
+        defaultPurchaserEmployeeId: employee.objectId,
         settlementMethodId: settlement.objectId,
       },
     )
@@ -886,7 +886,7 @@ export async function createWflWorkerState(options: {
       {
         name: `WFL 物流平台 ${suffix}`,
         supplierType: 'LOGISTICS_PLATFORM',
-        salespersonEmployeeId: employee.objectId,
+        defaultPurchaserEmployeeId: employee.objectId,
         settlementMethodId: settlement.objectId,
       },
     )

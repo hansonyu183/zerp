@@ -6,7 +6,9 @@ import (
 	"fmt"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	"github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -34,6 +36,29 @@ type lifecycleService interface {
 	Reject(context.Context, string, bob.ReviewInput, string, string) (bob.MutationResult, error)
 }
 
+type supplierAwareLifecycleService struct {
+	lifecycleService
+	supplier *bob.Service
+}
+
+func (service supplierAwareLifecycleService) Create(
+	ctx context.Context, entity string, input bob.CreateInput, actorID, requestID string,
+) (bob.MutationResult, error) {
+	if entity == bob.EntitySupplier {
+		return service.supplier.Create(ctx, entity, input, actorID, requestID)
+	}
+	return service.lifecycleService.Create(ctx, entity, input, actorID, requestID)
+}
+
+func (service supplierAwareLifecycleService) Save(
+	ctx context.Context, entity string, input bob.SaveInput, actorID, requestID string,
+) (bob.MutationResult, error) {
+	if entity == bob.EntitySupplier {
+		return service.supplier.Save(ctx, entity, input, actorID, requestID)
+	}
+	return service.lifecycleService.Save(ctx, entity, input, actorID, requestID)
+}
+
 type objectLookup interface {
 	Find(context.Context, string, string) (string, bool, error)
 }
@@ -59,8 +84,11 @@ type Seeder struct {
 }
 
 func New(pool *pgxpool.Pool) *Seeder {
+	service := bob.NewService(pool)
+	supplier := bob.NewService(pool)
+	supplier.SetAuxiliaryResolver(auxiliaryrefs.New(auxdomain.NewService(pool)))
 	return &Seeder{
-		service: bob.NewService(pool),
+		service: supplierAwareLifecycleService{lifecycleService: service, supplier: supplier},
 		lookup:  queryLookup{queries: dbsqlc.New(pool)},
 	}
 }
@@ -123,7 +151,7 @@ var samples = [...]sample{
 		Code: "DEMO-SUP-001", Name: "自营物流平台", SupplierType: stringPointer(bob.SupplierTypeLogisticsPlatform),
 		ShortName: "自营物流", ContactName: "调度中心", ContactPhone: "021-60000001",
 		Address: "上海市闵行区物流路1号", Remark: "演示物流平台供应商",
-	}, status: bob.StatusEffective, salespersonEmployeeCode: "DEMO-EMP-001"},
+	}, status: bob.StatusEffective, salespersonEmployeeCode: "DEMO-EMP-001", settlementMethodCode: bob.SettlementTermMonthlyCurrent},
 	{entity: bob.EntitySupplier, data: bob.CreateDetailInput{
 		Code: "DEMO-SUP-003", Name: "通用零部件供应商", SupplierType: stringPointer(bob.SupplierTypeGeneral),
 		ShortName: "通用供应商", ContactName: "采购对接人", ContactPhone: "13800000006",
@@ -132,7 +160,7 @@ var samples = [...]sample{
 	{entity: bob.EntitySupplier, data: bob.CreateDetailInput{
 		Code: "DEMO-SUP-002", Name: "待审核供应商", TaxNumber: "91310000DEMO000002",
 		ContactName: "赵经理", ContactPhone: "13800000003",
-	}, status: bob.StatusPending, salespersonEmployeeCode: "DEMO-EMP-001"},
+	}, status: bob.StatusPending, salespersonEmployeeCode: "DEMO-EMP-001", settlementMethodCode: bob.SettlementTermMonthlyCurrent},
 	{entity: bob.EntityProduct, data: bob.CreateDetailInput{
 		Code: "DEMO-PROD-001", Name: "标准零件 A", Unit: "件",
 		Specification: "M20", Model: "A-20", Barcode: "DEMO-BARCODE-001", Remark: "演示标准产品",
@@ -257,6 +285,10 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 		bob.EntitySettlementMethod, item.settlementMethodCode, "settlement method",
 	); err != nil {
 		return 0, err
+	}
+	if item.entity == bob.EntitySupplier {
+		item.data.DefaultPurchaserEmployeeID = item.data.SalespersonEmployeeID
+		item.data.SalespersonEmployeeID = ""
 	}
 	if item.data.OperatingEntityID, err = resolve(
 		bob.EntityOperatingEntity, item.operatingEntityCode, "operating entity",
@@ -424,6 +456,7 @@ func matches(item sample, view bob.ObjectView) bool {
 		view.Data.OperatingEntityID == item.data.OperatingEntityID &&
 		view.Data.ParentID == item.data.ParentID &&
 		view.Data.SalespersonEmployeeID == item.data.SalespersonEmployeeID &&
+		view.Data.DefaultPurchaserEmployeeID == item.data.DefaultPurchaserEmployeeID &&
 		view.Data.SettlementMethodID == item.data.SettlementMethodID &&
 		view.Data.MonthlyClosingDay == expectedMonthlyClosingDay(item) &&
 		view.Data.RuleType == item.data.RuleType &&
@@ -503,6 +536,16 @@ func (s *Seeder) reconcileExisting(ctx context.Context, item sample, view bob.Ob
 		ObjectID: view.ObjectID, ObjectRevision: view.ObjectRevision,
 		VersionID: view.Version.VersionID, Status: view.Version.Status, Revision: view.Version.Revision,
 	}
+	if item.entity == bob.EntitySupplier && current.Status == bob.StatusEffective {
+		saved, err := s.service.Save(ctx, item.entity, bob.SaveInput{
+			ObjectID: current.ObjectID, VersionID: current.VersionID, Revision: current.Revision,
+			Data: detailInput(item.entity, item.data),
+		}, submitterID, requestID(item.data.Code, "upgrade-save"))
+		if err != nil {
+			return bob.MutationResult{}, fmt.Errorf("save upgraded demo supplier: %w", err)
+		}
+		return saved, nil
+	}
 	var err error
 	switch current.Status {
 	case bob.StatusEffective:
@@ -564,6 +607,9 @@ func detailInput(entity string, input bob.CreateDetailInput) bob.DetailInput {
 			result.MonthlyClosingDay = &closingDay
 		}
 		result.SalespersonEmployeeID = bob.Optional(input.SalespersonEmployeeID)
+		if entity == bob.EntitySupplier {
+			result.DefaultPurchaserEmployeeID = bob.Optional(input.DefaultPurchaserEmployeeID)
+		}
 	case bob.EntityEmployee:
 		result.CategoryID = bob.Optional(input.CategoryID)
 		result.DepartmentID = bob.Optional(input.DepartmentID)

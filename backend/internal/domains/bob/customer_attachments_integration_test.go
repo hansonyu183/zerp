@@ -103,33 +103,30 @@ func TestCustomerAttachmentGroupAndAccountRoundTripIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("approve customer with attachment: %v", err)
 	}
-	unapproved, err := master.Unapprove(t.Context(), EntityCustomer, ReverseInput{
-		ObjectID: created.ObjectID, ObjectRevision: approved.ObjectRevision,
-		VersionID: approved.VersionID, Revision: approved.Revision, Reason: "附件继承检查",
-	}, integrationActorOne, "customer-attachment-unapprove")
+	detail, err = master.CustomerGet(t.Context(), GetInput{ObjectID: created.ObjectID})
 	if err != nil {
-		t.Fatalf("unapprove customer with attachment: %v", err)
+		t.Fatalf("get effective customer: %v", err)
+	}
+	candidate, err := master.CustomerSave(t.Context(), CustomerSaveInput{
+		ObjectID: created.ObjectID, VersionID: approved.VersionID, Revision: approved.Revision,
+		GroupRevision: detail.Group.Revision, Group: detail.Group.Data, Data: detail.Effective.Data,
+	}, integrationActorOne, "customer-attachment-candidate")
+	if err != nil {
+		t.Fatalf("create customer candidate with attachment: %v", err)
 	}
 	detail, err = master.CustomerGet(t.Context(), GetInput{ObjectID: created.ObjectID})
 	if err != nil {
-		t.Fatalf("get unapproved customer: %v", err)
+		t.Fatalf("get customer candidate: %v", err)
 	}
 	if err = attachments.EnrichDetail(t.Context(), &detail); err != nil {
 		t.Fatalf("enrich copied customer attachments: %v", err)
 	}
-	if detail.Candidate == nil || detail.Candidate.Version.VersionID != unapproved.VersionID ||
+	if detail.Candidate == nil || detail.Candidate.Version.VersionID != candidate.VersionID ||
 		len(detail.Candidate.Attachments) != 1 || detail.Candidate.Attachments[0].FileID != accountFile.FileID {
 		t.Fatalf("copied account attachments = %#v", detail.Candidate)
 	}
-	draft, err := master.Unsubmit(t.Context(), EntityCustomer, ReverseInput{
-		ObjectID: created.ObjectID, ObjectRevision: unapproved.ObjectRevision,
-		VersionID: unapproved.VersionID, Revision: unapproved.Revision, Reason: "返回草稿清理附件",
-	}, integrationActorOne, "customer-attachment-unsubmit")
-	if err != nil {
-		t.Fatalf("unsubmit copied customer version: %v", err)
-	}
 	if _, err = attachments.Remove(t.Context(), CustomerAttachmentRemoveInput{
-		Scope: CustomerAttachmentScopeAccount, OwnerID: draft.VersionID, Revision: draft.Revision, FileID: accountFile.FileID,
+		Scope: CustomerAttachmentScopeAccount, OwnerID: candidate.VersionID, Revision: candidate.Revision, FileID: accountFile.FileID,
 	}, integrationActorOne, "customer-attachment-remove"); err != nil {
 		t.Fatalf("remove account attachment: %v", err)
 	}

@@ -147,6 +147,7 @@ type DetailInput struct {
 	SettlementMethodID              OptionalString        `json:"settlementMethodId,omitempty"`
 	MonthlyClosingDay               *int32                `json:"monthlyClosingDay,omitempty"`
 	SalespersonEmployeeID           OptionalString        `json:"salespersonEmployeeId,omitempty"`
+	DefaultPurchaserEmployeeID      OptionalString        `json:"defaultPurchaserEmployeeId,omitempty"`
 	RebateUnitPrice                 *string               `json:"rebateUnitPrice,omitempty"`
 	IntermediaryOtherPartyID        OptionalString        `json:"intermediaryOtherPartyId,omitempty"`
 	RuleType                        string                `json:"ruleType,omitempty"`
@@ -210,6 +211,7 @@ type CreateDetailInput struct {
 	SettlementMethodID              string               `json:"settlementMethodId,omitempty"`
 	MonthlyClosingDay               int32                `json:"monthlyClosingDay,omitempty"`
 	SalespersonEmployeeID           string               `json:"salespersonEmployeeId,omitempty"`
+	DefaultPurchaserEmployeeID      string               `json:"defaultPurchaserEmployeeId,omitempty"`
 	RebateUnitPrice                 string               `json:"rebateUnitPrice,omitempty"`
 	IntermediaryOtherPartyID        string               `json:"intermediaryOtherPartyId,omitempty"`
 	RuleType                        string               `json:"ruleType,omitempty"`
@@ -330,24 +332,25 @@ type GetInput struct {
 }
 
 type QueryFilters struct {
-	Keyword                   string   `json:"keyword,omitempty"`
-	Status                    []string `json:"status,omitempty"`
-	Enabled                   *bool    `json:"enabled,omitempty"`
-	CustomerType              string   `json:"customerType,omitempty"`
-	OperatingEntityID         string   `json:"operatingEntityId,omitempty"`
-	SalesAttributionType      string   `json:"salesAttributionType,omitempty"`
-	SalesAttributionSubjectID string   `json:"salesAttributionSubjectId,omitempty"`
-	SupplierType              string   `json:"supplierType,omitempty"`
-	CategoryID                string   `json:"categoryId,omitempty"`
-	DepartmentID              string   `json:"departmentId,omitempty"`
-	PositionID                string   `json:"positionId,omitempty"`
-	SalespersonEmployeeID     string   `json:"salespersonEmployeeId,omitempty"`
-	Currency                  string   `json:"currency,omitempty"`
-	ProductKind               string   `json:"productKind,omitempty"`
-	TargetEntity              string   `json:"targetEntity,omitempty"`
-	ParentID                  string   `json:"parentId,omitempty"`
-	RootOnly                  bool     `json:"rootOnly,omitempty"`
-	provided                  map[string]bool
+	Keyword                    string   `json:"keyword,omitempty"`
+	Status                     []string `json:"status,omitempty"`
+	Enabled                    *bool    `json:"enabled,omitempty"`
+	CustomerType               string   `json:"customerType,omitempty"`
+	OperatingEntityID          string   `json:"operatingEntityId,omitempty"`
+	SalesAttributionType       string   `json:"salesAttributionType,omitempty"`
+	SalesAttributionSubjectID  string   `json:"salesAttributionSubjectId,omitempty"`
+	SupplierType               string   `json:"supplierType,omitempty"`
+	CategoryID                 string   `json:"categoryId,omitempty"`
+	DepartmentID               string   `json:"departmentId,omitempty"`
+	PositionID                 string   `json:"positionId,omitempty"`
+	SalespersonEmployeeID      string   `json:"salespersonEmployeeId,omitempty"`
+	DefaultPurchaserEmployeeID string   `json:"defaultPurchaserEmployeeId,omitempty"`
+	Currency                   string   `json:"currency,omitempty"`
+	ProductKind                string   `json:"productKind,omitempty"`
+	TargetEntity               string   `json:"targetEntity,omitempty"`
+	ParentID                   string   `json:"parentId,omitempty"`
+	RootOnly                   bool     `json:"rootOnly,omitempty"`
+	provided                   map[string]bool
 }
 
 func (filters *QueryFilters) UnmarshalJSON(data []byte) error {
@@ -436,6 +439,7 @@ type DetailView struct {
 	SettlementMethodID              string               `json:"settlementMethodId,omitempty"`
 	MonthlyClosingDay               int32                `json:"monthlyClosingDay,omitempty"`
 	SalespersonEmployeeID           string               `json:"salespersonEmployeeId,omitempty"`
+	DefaultPurchaserEmployeeID      string               `json:"defaultPurchaserEmployeeId,omitempty"`
 	RebateUnitPrice                 string               `json:"rebateUnitPrice,omitempty"`
 	IntermediaryOtherPartyID        string               `json:"intermediaryOtherPartyId,omitempty"`
 	SettlementMethodVersionID       string               `json:"-"`

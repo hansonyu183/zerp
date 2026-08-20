@@ -13,6 +13,7 @@ import {
   textarea,
 } from '../shared/config-helpers'
 
+// Registered only for shared BOB metadata. Supplier rendering uses SupplierWorkspace.
 export const supplierConfig = defineBobEntityConfig({
   entity: 'supplier',
   title: '供应商',
@@ -21,16 +22,16 @@ export const supplierConfig = defineBobEntityConfig({
   defaults: {
     supplierType: 'GENERAL',
     shortName: '',
-    settlementMethodId: '',
-    salespersonEmployeeId: '',
     taxNumber: '',
     contactName: '',
     contactPhone: '',
     email: '',
     address: '',
     remark: '',
+    settlementMethodId: '',
+    defaultPurchaserEmployeeId: '',
   },
-  requiredKeys: ['name', 'supplierType', 'salespersonEmployeeId'],
+  requiredKeys: ['name', 'supplierType'],
   uppercaseKeys: ['taxNumber'],
   references: {
     settlementMethodId: {
@@ -38,10 +39,7 @@ export const supplierConfig = defineBobEntityConfig({
       entity: 'settlement-method',
       label: '结算方式',
     },
-    salespersonEmployeeId: {
-      entity: 'employee',
-      label: '业务员',
-    },
+    defaultPurchaserEmployeeId: { entity: 'employee', label: '默认采购员' },
   },
   fields: (context) => [
     ...commonFields(context, '供应商编码', '供应商名称'),
@@ -52,22 +50,23 @@ export const supplierConfig = defineBobEntityConfig({
       required: true,
       options: supplierTypeOptions,
     },
-    reference('settlementMethodId', '结算方式', context),
-    reference('salespersonEmployeeId', '业务员', context, true),
-    text('taxNumber', '税号', 50, {
+    text('shortName', '简称', 100),
+    text('taxNumber', '税号', 100, {
       rules: [
         patternRule(taxNumberPattern, '税号只能包含字母、数字和连字符。'),
       ],
     }),
     text('contactName', '联系人', 100),
-    text('contactPhone', '联系电话', 32, {
-      rules: [patternRule(phonePattern, '联系电话格式不正确。')],
+    text('contactPhone', '电话', 32, {
+      rules: [patternRule(phonePattern, '电话格式不正确。')],
     }),
     text('email', '邮箱', 254, {
       rules: [patternRule(emailPattern, '邮箱格式不正确。')],
     }),
     textarea('address', '地址', 500),
     textarea('remark', '备注'),
+    reference('settlementMethodId', '结算方式', context),
+    reference('defaultPurchaserEmployeeId', '默认采购员', context),
   ],
   columns: baseColumns('编码', '名称', [
     {
@@ -85,6 +84,12 @@ export const supplierConfig = defineBobEntityConfig({
       label: '供应商类型',
       type: 'select',
       options: supplierTypeOptions,
+    },
+    {
+      key: 'defaultPurchaserEmployeeId',
+      label: '默认采购员',
+      type: 'autocomplete',
+      reference: { entity: 'employee', label: '默认采购员' },
     },
   ]),
 })

@@ -167,6 +167,19 @@ func (s *Service) Create(ctx context.Context, entity string, input CreateInput, 
 	if entity == EntitySettlementMethod {
 		return MutationResult{}, domainError(ErrorValidation, "settlement methods are system-defined", nil, nil)
 	}
+	if entity == EntitySupplier {
+		supplierType := SupplierTypeGeneral
+		if input.Data.SupplierType != nil {
+			supplierType = *input.Data.SupplierType
+		}
+		return s.SupplierCreate(ctx, SupplierCreateInput{Data: SupplierData{
+			Name: input.Data.Name, SupplierType: supplierType, ShortName: input.Data.ShortName,
+			TaxNumber: input.Data.TaxNumber, ContactName: input.Data.ContactName,
+			ContactPhone: input.Data.ContactPhone, Email: input.Data.Email, Address: input.Data.Address,
+			Remark: input.Data.Remark, SettlementMethodID: input.Data.SettlementMethodID,
+			DefaultPurchaserEmployeeID: input.Data.DefaultPurchaserEmployeeID,
+		}}, actorID, requestID)
+	}
 	data, _, err := validateCreate(entity, input.Data)
 	if err != nil || !validActorAndRequest(actorID, requestID) {
 		return MutationResult{}, domainError(ErrorValidation, "invalid create request", nil, err)
@@ -196,6 +209,12 @@ func (s *Service) Create(ctx context.Context, entity string, input CreateInput, 
 	}
 	if err = s.validateDetailReferences(ctx, tx, qtx, entity, objectID, data); err != nil {
 		return MutationResult{}, err
+	}
+	if entity == EntityCustomer {
+		data, err = s.resolveGenericCustomerSettlement(ctx, tx, data)
+		if err != nil {
+			return MutationResult{}, err
+		}
 	}
 	if err = qtx.InsertBobObject(ctx, dbsqlc.InsertBobObjectParams{
 		ID: objectID, Entity: entity, Code: code, CurrentVersionID: versionID, ActorID: actorID,
@@ -233,6 +252,30 @@ func objectPrefix(entity string) string {
 }
 
 func (s *Service) Save(ctx context.Context, entity string, input SaveInput, actorID, requestID string) (MutationResult, error) {
+	if entity == EntitySupplier {
+		data := SupplierData{Name: input.Data.Name, provided: map[string]bool{"name": true}}
+		if input.Data.SupplierType != nil {
+			data.SupplierType = *input.Data.SupplierType
+			data.provided["supplierType"] = true
+		}
+		copyOptional := func(key string, value OptionalString, target *string) {
+			if value.Set {
+				data.provided[key] = true
+				*target = value.Value
+			}
+		}
+		copyOptional("shortName", input.Data.ShortName, &data.ShortName)
+		copyOptional("taxNumber", input.Data.TaxNumber, &data.TaxNumber)
+		copyOptional("contactName", input.Data.ContactName, &data.ContactName)
+		copyOptional("contactPhone", input.Data.ContactPhone, &data.ContactPhone)
+		copyOptional("email", input.Data.Email, &data.Email)
+		copyOptional("address", input.Data.Address, &data.Address)
+		copyOptional("remark", input.Data.Remark, &data.Remark)
+		copyOptional("settlementMethodId", input.Data.SettlementMethodID, &data.SettlementMethodID)
+		copyOptional("defaultPurchaserEmployeeId", input.Data.DefaultPurchaserEmployeeID, &data.DefaultPurchaserEmployeeID)
+		return s.SupplierSave(ctx, SupplierSaveInput{ObjectID: input.ObjectID, VersionID: input.VersionID,
+			Revision: input.Revision, Data: data}, actorID, requestID)
+	}
 	if !validWriteInput(entity, input.ObjectID, input.VersionID, input.Revision, actorID, requestID) {
 		return MutationResult{}, domainError(ErrorValidation, "invalid save request", nil, nil)
 	}
@@ -297,6 +340,12 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 	if err = s.validateDetailReferences(ctx, tx, qtx, entity, input.ObjectID, data); err != nil {
 		return MutationResult{}, err
 	}
+	if entity == EntityCustomer {
+		data, err = s.resolveGenericCustomerSettlement(ctx, tx, data)
+		if err != nil {
+			return MutationResult{}, err
+		}
+	}
 	if err = updateDetail(ctx, qtx, entity, input.VersionID, data); err != nil {
 		return MutationResult{}, s.writeError("update detail", err)
 	}
@@ -337,8 +386,8 @@ func (s *Service) Delete(ctx context.Context, entity string, input DeleteInput) 
 		return err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	if entity == EntityCustomer && customerHasEffectiveCandidate(entity, object) {
-		return s.deleteCustomerCandidate(ctx, tx, object, version, input)
+	if hasEffectiveCandidate(entity, object) {
+		return s.deleteEffectiveCandidate(ctx, tx, entity, object, version, input)
 	}
 
 	if object.Revision != input.ObjectRevision ||
@@ -439,40 +488,75 @@ func (s *Service) Delete(ctx context.Context, entity string, input DeleteInput) 
 	return nil
 }
 
-func (s *Service) deleteCustomerCandidate(
-	ctx context.Context, tx pgx.Tx, object dbsqlc.LockBobObjectRow, version dbsqlc.LockBobVersionRow, input DeleteInput,
+func (s *Service) deleteEffectiveCandidate(
+	ctx context.Context, tx pgx.Tx, entity string, object dbsqlc.LockBobObjectRow, version dbsqlc.LockBobVersionRow, input DeleteInput,
 ) error {
 	if object.EffectiveVersionID == nil || object.Revision != input.ObjectRevision ||
 		object.CurrentVersionID != input.VersionID || version.Revision != input.Revision ||
 		(version.Status != StatusDraft && version.Status != StatusPending) {
-		return conflict(object, version, "customer candidate changed before delete")
+		return conflict(object, version, entity+" candidate changed before delete")
 	}
-	rows, err := s.queries.WithTx(tx).RestoreBobCustomerEffectiveVersion(ctx, dbsqlc.RestoreBobCustomerEffectiveVersionParams{
-		ObjectID: input.ObjectID, Revision: input.ObjectRevision, VersionID: input.VersionID, EffectiveVersionID: object.EffectiveVersionID,
-	})
+	qtx := s.queries.WithTx(tx)
+	var rows int64
+	var err error
+	if entity == EntityCustomer {
+		rows, err = qtx.RestoreBobCustomerEffectiveVersion(ctx, dbsqlc.RestoreBobCustomerEffectiveVersionParams{ObjectID: input.ObjectID,
+			Revision: input.ObjectRevision, VersionID: input.VersionID, EffectiveVersionID: object.EffectiveVersionID})
+	} else {
+		rows, err = qtx.RestoreBobSupplierEffectiveVersion(ctx, dbsqlc.RestoreBobSupplierEffectiveVersionParams{ObjectID: input.ObjectID,
+			Revision: input.ObjectRevision, VersionID: input.VersionID, EffectiveVersionID: object.EffectiveVersionID})
+	}
 	if err != nil {
 		return s.writeError("restore customer effective version", err)
 	}
 	if rows != 1 {
-		return conflict(object, version, "customer candidate changed before delete")
+		return conflict(object, version, entity+" candidate changed before delete")
 	}
-	qtx := s.queries.WithTx(tx)
-	if err = qtx.DeleteBobAuditEventsForVersion(ctx, dbsqlc.DeleteBobAuditEventsForVersionParams{ObjectID: input.ObjectID, VersionID: input.VersionID, Entity: EntityCustomer}); err != nil {
-		return s.writeError("delete customer candidate audit", err)
+	if err = qtx.DeleteBobAuditEventsForVersion(ctx, dbsqlc.DeleteBobAuditEventsForVersionParams{ObjectID: input.ObjectID, VersionID: input.VersionID, Entity: entity}); err != nil {
+		return s.writeError("delete candidate audit", err)
 	}
-	if err = qtx.DeleteBobCustomerCreditLimits(ctx, input.VersionID); err != nil {
-		return s.writeError("delete customer candidate credit", err)
+	if entity == EntityCustomer {
+		if err = qtx.DeleteBobCustomerCreditLimits(ctx, input.VersionID); err != nil {
+			return s.writeError("delete customer candidate credit", err)
+		}
+		rows, err = qtx.DeleteBobCustomerDetail(ctx, input.VersionID)
+	} else {
+		rows, err = qtx.DeleteBobSupplierDetail(ctx, input.VersionID)
 	}
-	rows, err = qtx.DeleteBobCustomerDetail(ctx, input.VersionID)
 	if err != nil || rows != 1 {
-		return s.writeError("delete customer candidate detail", err)
+		return s.writeError("delete candidate detail", err)
 	}
-	rows, err = qtx.DeleteBobCustomerVersion(ctx, dbsqlc.DeleteBobCustomerVersionParams{VersionID: input.VersionID, ObjectID: input.ObjectID})
+	if entity == EntityCustomer {
+		rows, err = qtx.DeleteBobCustomerVersion(ctx, dbsqlc.DeleteBobCustomerVersionParams{VersionID: input.VersionID, ObjectID: input.ObjectID})
+	} else {
+		rows, err = qtx.DeleteBobSupplierVersion(ctx, dbsqlc.DeleteBobSupplierVersionParams{VersionID: input.VersionID, ObjectID: input.ObjectID})
+	}
 	if err != nil || rows != 1 {
-		return s.writeError("delete customer candidate version", err)
+		return s.writeError("delete candidate version", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
-		return s.writeError("commit customer candidate delete", err)
+		return s.writeError("commit candidate delete", err)
+	}
+	return nil
+}
+
+func loadStoredSupplierReference(ctx context.Context, q *dbsqlc.Queries, versionID string, data *DetailView) error {
+	row, err := q.GetStoredBobSupplierValidationData(ctx, versionID)
+	if err != nil {
+		return err
+	}
+	data.SettlementMethodID = row.SettlementMethodID
+	data.SettlementMethodCode = row.SettlementMethodCode
+	data.SettlementMethodName = row.SettlementMethodName
+	data.TermCode = row.SettlementTermCode
+	data.RuleType = row.SettlementRuleType
+	data.MonthOffset = row.SettlementMonthOffset
+	data.DayOffset = row.SettlementDayOffset
+	data.DueDays = row.SettlementDayOffset
+	data.CutoffDay = row.SettlementDayOfMonth
+	data.DefaultPurchaserEmployeeID = row.DefaultPurchaserEmployeeID
+	if row.SettlementDayOfMonth > 0 {
+		data.DayOfMonth = &row.SettlementDayOfMonth
 	}
 	return nil
 }
@@ -486,7 +570,7 @@ func (s *Service) Submit(ctx context.Context, entity string, input VersionRevisi
 		return MutationResult{}, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	if object.CurrentVersionID != input.VersionID || (!customerHasEffectiveCandidate(entity, object) && object.EffectiveVersionID != nil) || version.Revision != input.Revision ||
+	if object.CurrentVersionID != input.VersionID || (!hasEffectiveCandidate(entity, object) && object.EffectiveVersionID != nil) || version.Revision != input.Revision ||
 		version.Status != StatusDraft {
 		return MutationResult{}, conflict(object, version, "version changed before submit")
 	}
@@ -528,8 +612,8 @@ func (s *Service) Approve(ctx context.Context, entity string, input ReviewInput,
 		return MutationResult{}, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	if entity == EntityCustomer && customerHasEffectiveCandidate(entity, object) {
-		return s.approveCustomerCandidate(ctx, tx, qtx, object, version, input, actorID, requestID, comment)
+	if hasEffectiveCandidate(entity, object) {
+		return s.approveEffectiveCandidate(ctx, tx, qtx, entity, object, version, input, actorID, requestID, comment)
 	}
 	if object.CurrentVersionID != input.VersionID || object.EffectiveVersionID != nil || version.Status != StatusPending || version.Revision != input.Revision {
 		return MutationResult{}, conflict(object, version, "version changed before approval")
@@ -583,7 +667,7 @@ func (s *Service) Reject(ctx context.Context, entity string, input ReviewInput, 
 		return MutationResult{}, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	if object.CurrentVersionID != input.VersionID || (!customerHasEffectiveCandidate(entity, object) && object.EffectiveVersionID != nil) || version.Status != StatusPending || version.Revision != input.Revision {
+	if object.CurrentVersionID != input.VersionID || (!hasEffectiveCandidate(entity, object) && object.EffectiveVersionID != nil) || version.Status != StatusPending || version.Revision != input.Revision {
 		return MutationResult{}, conflict(object, version, "version changed before rejection")
 	}
 	if version.SubmittedBy == nil || (*version.SubmittedBy == actorID && !systemidentity.IsUser(actorID)) {
@@ -625,7 +709,7 @@ func (s *Service) Unsubmit(ctx context.Context, entity string, input ReverseInpu
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	if object.Revision != input.ObjectRevision || object.CurrentVersionID != input.VersionID ||
-		(!customerHasEffectiveCandidate(entity, object) && object.EffectiveVersionID != nil) || version.Revision != input.Revision || version.Status != StatusPending {
+		(!hasEffectiveCandidate(entity, object) && object.EffectiveVersionID != nil) || version.Revision != input.Revision || version.Status != StatusPending {
 		return MutationResult{}, conflict(object, version, "version changed before unsubmit")
 	}
 	rows, err := qtx.UnsubmitBobVersion(ctx, dbsqlc.UnsubmitBobVersionParams{
@@ -653,76 +737,76 @@ func (s *Service) Unsubmit(ctx context.Context, entity string, input ReverseInpu
 	return mutation(object, version, StatusDraft, input.Revision+1), nil
 }
 
-func customerHasEffectiveCandidate(entity string, object dbsqlc.LockBobObjectRow) bool {
-	return entity == EntityCustomer && object.EffectiveVersionID != nil &&
+func hasEffectiveCandidate(entity string, object dbsqlc.LockBobObjectRow) bool {
+	return (entity == EntityCustomer || entity == EntitySupplier) && object.EffectiveVersionID != nil &&
 		object.CurrentVersionID != *object.EffectiveVersionID
 }
 
-func (s *Service) approveCustomerCandidate(
-	ctx context.Context, tx pgx.Tx, qtx *dbsqlc.Queries, object dbsqlc.LockBobObjectRow,
+func (s *Service) approveEffectiveCandidate(
+	ctx context.Context, tx pgx.Tx, qtx *dbsqlc.Queries, entity string, object dbsqlc.LockBobObjectRow,
 	version dbsqlc.LockBobVersionRow, input ReviewInput, actorID, requestID string, comment *string,
 ) (MutationResult, error) {
 	if object.CurrentVersionID != input.VersionID || object.EffectiveVersionID == nil ||
 		version.Status != StatusPending || version.Revision != input.Revision {
-		return MutationResult{}, conflict(object, version, "customer changed before approval")
+		return MutationResult{}, conflict(object, version, entity+" changed before approval")
 	}
 	if version.SubmittedBy == nil || (*version.SubmittedBy == actorID && !systemidentity.IsUser(actorID)) {
 		return MutationResult{}, domainError(ErrorConflict, "submitter cannot review the same version", conflictData(object, version), nil)
 	}
-	if err := s.validateStoredDetail(ctx, tx, qtx, EntityCustomer, input.ObjectID, input.VersionID); err != nil {
+	if err := s.validateStoredDetail(ctx, tx, qtx, entity, input.ObjectID, input.VersionID); err != nil {
 		return MutationResult{}, err
 	}
 	oldVersion, err := qtx.LockBobVersion(ctx, dbsqlc.LockBobVersionParams{
-		ID: *object.EffectiveVersionID, ObjectID: input.ObjectID, Entity: EntityCustomer,
+		ID: *object.EffectiveVersionID, ObjectID: input.ObjectID, Entity: entity,
 	})
 	if err != nil || oldVersion.Status != StatusEffective {
-		return MutationResult{}, conflict(object, version, "customer effective version changed before approval")
+		return MutationResult{}, conflict(object, version, entity+" effective version changed before approval")
 	}
 	rows, err := qtx.InvalidateBobVersion(ctx, dbsqlc.InvalidateBobVersionParams{
-		ActorID: actorID, ID: oldVersion.ID, ObjectID: input.ObjectID, Entity: EntityCustomer, Revision: oldVersion.Revision,
+		ActorID: actorID, ID: oldVersion.ID, ObjectID: input.ObjectID, Entity: entity, Revision: oldVersion.Revision,
 	})
 	if err != nil {
-		return MutationResult{}, s.writeError("freeze customer effective version", err)
+		return MutationResult{}, s.writeError("freeze effective version", err)
 	}
 	if rows != 1 {
-		return MutationResult{}, conflict(object, version, "customer effective version changed before approval")
+		return MutationResult{}, conflict(object, version, entity+" effective version changed before approval")
 	}
 	rows, err = qtx.ApproveBobVersion(ctx, dbsqlc.ApproveBobVersionParams{
 		ActorID: &actorID, Comment: comment, ID: input.VersionID, ObjectID: input.ObjectID,
-		Entity: EntityCustomer, Revision: input.Revision,
+		Entity: entity, Revision: input.Revision,
 	})
 	if err != nil {
-		return MutationResult{}, s.writeError("approve customer candidate", err)
+		return MutationResult{}, s.writeError("approve candidate", err)
 	}
 	if rows != 1 {
-		return MutationResult{}, conflict(object, version, "customer changed before approval")
+		return MutationResult{}, conflict(object, version, entity+" changed before approval")
 	}
 	newVersionID, oldVersionID := input.VersionID, oldVersion.ID
-	rows, err = qtx.SwitchBobCustomerEffectiveCandidate(ctx, dbsqlc.SwitchBobCustomerEffectiveCandidateParams{
+	rows, err = qtx.SwitchBobEffectiveCandidate(ctx, dbsqlc.SwitchBobEffectiveCandidateParams{
 		NewVersionID: &newVersionID, ActorID: actorID, ID: input.ObjectID,
-		OldVersionID: &oldVersionID, Revision: object.Revision,
+		Entity: entity, OldVersionID: &oldVersionID, Revision: object.Revision,
 	})
 	if err != nil {
-		return MutationResult{}, s.writeError("switch customer effective version", err)
+		return MutationResult{}, s.writeError("switch effective version", err)
 	}
 	if rows != 1 {
-		return MutationResult{}, conflict(object, version, "customer changed before approval")
+		return MutationResult{}, conflict(object, version, entity+" changed before approval")
 	}
 	fromEffective := StatusEffective
 	if err = insertAudit(ctx, qtx, auditInput{ObjectID: input.ObjectID, VersionID: oldVersion.ID,
-		Entity: EntityCustomer, Event: "INVALIDATED", From: &fromEffective, To: StatusInvalid,
+		Entity: entity, Event: "INVALIDATED", From: &fromEffective, To: StatusInvalid,
 		ActorID: actorID, RequestID: requestID, Summary: map[string]any{"replacementVersionId": input.VersionID}}); err != nil {
-		return MutationResult{}, s.writeError("audit replaced customer version", err)
+		return MutationResult{}, s.writeError("audit replaced version", err)
 	}
 	fromPending := StatusPending
 	if err = insertAudit(ctx, qtx, auditInput{ObjectID: input.ObjectID, VersionID: input.VersionID,
-		Entity: EntityCustomer, Event: "APPROVED", From: &fromPending, To: StatusEffective,
+		Entity: entity, Event: "APPROVED", From: &fromPending, To: StatusEffective,
 		ActorID: actorID, RequestID: requestID, Comment: comment,
 		Summary: map[string]any{"replacedVersionId": oldVersion.ID}}); err != nil {
-		return MutationResult{}, s.writeError("audit customer approval", err)
+		return MutationResult{}, s.writeError("audit candidate approval", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
-		return MutationResult{}, s.writeError("commit customer approval", err)
+		return MutationResult{}, s.writeError("commit candidate approval", err)
 	}
 	return MutationResult{ObjectID: input.ObjectID, ObjectRevision: object.Revision + 1, Enabled: object.Enabled,
 		VersionID: input.VersionID, Version: version.VersionNo, Status: StatusEffective, Revision: input.Revision + 1}, nil
@@ -732,6 +816,9 @@ func (s *Service) Unapprove(ctx context.Context, entity string, input ReverseInp
 	reason, err := requiredComment(&input.Reason)
 	if err != nil || !validReverseInput(entity, input, actorID, requestID) {
 		return MutationResult{}, domainError(ErrorValidation, "invalid unapprove request", nil, err)
+	}
+	if entity == EntityCustomer || entity == EntitySupplier {
+		return MutationResult{}, domainError(ErrorConflict, "continuous-effective objects are edited through candidate save", nil, nil)
 	}
 	tx, qtx, object, oldVersion, err := s.lockTarget(ctx, entity, input.ObjectID, input.VersionID)
 	if err != nil {
@@ -825,13 +912,13 @@ func (s *Service) SetEnabled(
 		return MutationResult{}, s.internal("lock object", err)
 	}
 	if object.Revision != input.ObjectRevision || object.EffectiveVersionID == nil ||
-		object.CurrentVersionID != *object.EffectiveVersionID || object.Enabled == enabled {
+		(!hasEffectiveCandidate(entity, object) && object.CurrentVersionID != *object.EffectiveVersionID) || object.Enabled == enabled {
 		return MutationResult{}, domainError(ErrorConflict, "object availability changed", map[string]any{
 			"objectRevision": object.Revision, "enabled": object.Enabled,
 		}, nil)
 	}
 	version, err := qtx.LockBobVersion(ctx, dbsqlc.LockBobVersionParams{
-		ID: object.CurrentVersionID, ObjectID: input.ObjectID, Entity: entity,
+		ID: *object.EffectiveVersionID, ObjectID: input.ObjectID, Entity: entity,
 	})
 	if err != nil {
 		return MutationResult{}, s.internal("lock effective version", err)
@@ -994,6 +1081,11 @@ func (s *Service) ResolveEffectiveReference(ctx context.Context, tx pgx.Tx, enti
 			return EffectiveReference{}, s.internal("read customer settlement snapshot", err)
 		}
 	}
+	if entity == EntitySupplier {
+		if err = loadStoredSupplierReference(ctx, s.queries.WithTx(tx), row.VersionID, &data); err != nil {
+			return EffectiveReference{}, s.internal("read supplier defaults", err)
+		}
+	}
 	if entity == EntityFundAccount {
 		if err = loadFundAccountOperating(ctx, s.queries.WithTx(tx), row.VersionID, &data); err != nil {
 			return EffectiveReference{}, s.internal("read fund account operating entity", err)
@@ -1068,6 +1160,11 @@ func (s *Service) ResolveCurrentEffectiveReference(
 			return EffectiveReference{}, s.internal("read customer settlement snapshot", err)
 		}
 	}
+	if entity == EntitySupplier {
+		if err = loadStoredSupplierReference(ctx, s.queries.WithTx(tx), row.VersionID, &data); err != nil {
+			return EffectiveReference{}, s.internal("read supplier defaults", err)
+		}
+	}
 	if entity == EntityFundAccount {
 		if err = loadFundAccountOperating(ctx, s.queries.WithTx(tx), row.VersionID, &data); err != nil {
 			return EffectiveReference{}, s.internal("read fund account operating entity", err)
@@ -1124,6 +1221,9 @@ func (s *Service) validateStoredDetail(ctx context.Context, tx pgx.Tx, q *dbsqlc
 			return s.validateStoredCustomer(ctx, tx, versionID)
 		}
 	}
+	if entity == EntitySupplier {
+		return s.validateStoredSupplier(ctx, tx, q, versionID)
+	}
 	if entity == EntityOperatingEntity {
 		row, err := q.GetStoredBobOperatingEntityDetail(ctx, versionID)
 		if err != nil {
@@ -1154,6 +1254,28 @@ func (s *Service) validateStoredDetail(ctx context.Context, tx pgx.Tx, q *dbsqlc
 		return err
 	}
 	return s.validateDetailReferences(ctx, tx, q, entity, objectID, data)
+}
+
+func (s *Service) validateStoredSupplier(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, versionID string) error {
+	row, err := q.GetStoredBobSupplierValidationData(ctx, versionID)
+	if err != nil {
+		return s.internal("read stored supplier", err)
+	}
+	data := SupplierData{SettlementMethodID: row.SettlementMethodID,
+		DefaultPurchaserEmployeeID: row.DefaultPurchaserEmployeeID}
+	if row.SettlementMethodID != "" {
+		data.SettlementMethod = &SupplierSettlementSnapshot{SourceObjectID: row.SettlementMethodID,
+			Code: row.SettlementMethodCode, Name: row.SettlementMethodName, TermCode: row.SettlementTermCode,
+			RuleType: row.SettlementRuleType, MonthOffset: row.SettlementMonthOffset,
+			DayOfMonth: row.SettlementDayOfMonth, DayOffset: row.SettlementDayOffset}
+	}
+	if err = validateSupplierEffective(data); err != nil {
+		return domainError(ErrorConflict, "supplier transaction defaults are incomplete", nil, err)
+	}
+	if _, err = s.ResolveCurrentEffectiveReference(ctx, tx, EntityEmployee, row.DefaultPurchaserEmployeeID); err != nil {
+		return domainError(ErrorConflict, "default purchaser reference is unavailable", nil, err)
+	}
+	return nil
 }
 
 func (s *Service) validateStoredCustomer(ctx context.Context, tx pgx.Tx, versionID string) error {
@@ -1295,6 +1417,7 @@ func (s *Service) validateDetailReferences(
 	add(EntityOperatingEntity, data.OperatingEntityID)
 	add(EntitySettlementMethod, data.SettlementMethodID)
 	add(EntityEmployee, data.SalespersonEmployeeID)
+	add(EntityEmployee, data.DefaultPurchaserEmployeeID)
 	add(EntityOtherParty, data.IntermediaryOtherPartyID)
 	if entity == EntityDepartment {
 		add(EntityDepartment, data.ParentID)
@@ -1348,12 +1471,56 @@ func loadStoredCustomerSettlement(ctx context.Context, q *dbsqlc.Queries, object
 	data.SettlementMethodID, data.SettlementMethodCode, data.SettlementMethodName, data.TermCode, data.RuleType = row.SettlementMethodID, row.SettlementMethodCode, row.SettlementMethodName, row.SettlementTermCode, row.SettlementRuleType
 	data.DueDays, data.MonthOffset, data.CutoffDay = row.SettlementDueDays, row.SettlementMonthOffset, row.SettlementCutoffDay
 	data.DayOffset = data.DueDays
-	if data.CutoffDay > 0 {
-		data.DayOfMonth = &data.CutoffDay
-	}
 	data.DefaultSalesSurcharge = formatMoneyCents(row.SettlementSalesSurchargeCents)
 	data.SettlementMethodVersionID = ""
 	return nil
+}
+
+func (s *Service) resolveGenericCustomerSettlement(
+	ctx context.Context, tx pgx.Tx, data DetailView,
+) (DetailView, error) {
+	if data.SettlementMethodID == "" {
+		return data, nil
+	}
+	var reference EffectiveReference
+	var err error
+	if s.auxiliaryResolver != nil {
+		reference, err = s.resolveAuxiliaryReference(
+			ctx, tx, EntitySettlementMethod, data.SettlementMethodID, "",
+		)
+	} else {
+		var row dbsqlc.BobVersionView
+		row, err = s.queries.WithTx(tx).ResolveCurrentBobEffectiveReference(
+			ctx,
+			dbsqlc.ResolveCurrentBobEffectiveReferenceParams{
+				ObjectID: data.SettlementMethodID,
+				Entity:   EntitySettlementMethod,
+			},
+		)
+		if err == nil {
+			reference = EffectiveReference{
+				ObjectID:  row.ObjectID,
+				VersionID: row.VersionID,
+				Entity:    row.Entity,
+				Code:      row.Code,
+				Data:      effectiveReferenceDetail(row),
+			}
+		}
+	}
+	if err != nil {
+		return DetailView{}, domainError(ErrorConflict, "settlement-method reference is unavailable", nil, err)
+	}
+	data.SettlementMethodCode = reference.Code
+	data.SettlementMethodName = reference.Data.Name
+	data.TermCode = reference.Data.TermCode
+	data.RuleType = reference.Data.RuleType
+	data.MonthOffset = reference.Data.MonthOffset
+	data.DayOfMonth = reference.Data.DayOfMonth
+	data.DayOffset = reference.Data.DayOffset
+	data.DueDays = reference.Data.DueDays
+	data.CutoffDay = reference.Data.CutoffDay
+	data.DefaultSalesSurcharge = reference.Data.DefaultSalesSurcharge
+	return data, nil
 }
 
 func (s *Service) resolveFundAccountOperating(
@@ -1440,6 +1607,12 @@ func mapString(data map[string]any, key string) string {
 
 func mapInt(data map[string]any, key string) int {
 	switch value := data[key].(type) {
+	case int:
+		return value
+	case int32:
+		return int(value)
+	case int64:
+		return int(value)
 	case float64:
 		return int(value)
 	case json.Number:

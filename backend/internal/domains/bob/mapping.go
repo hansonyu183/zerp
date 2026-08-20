@@ -35,7 +35,7 @@ func detailFields(entity string) []string {
 	case EntityOtherParty:
 		return []string{"name", "customerType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId"}
 	case EntitySupplier:
-		return []string{"name", "supplierType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId"}
+		return []string{"name", "supplierType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "defaultPurchaserEmployeeId"}
 	case EntityEmployee:
 		return []string{"name", "departmentId", "positionId", "phone", "email", "hireDate", "remark"}
 	case EntityProduct:
@@ -132,6 +132,10 @@ func detailView(row dbsqlc.BobVersionView) DetailView {
 		result.MonthlyClosingDay = row.MonthlyClosingDay
 		result.RebateUnitPrice = formatMoneyCents(row.RebateUnitPriceCents)
 		result.IntermediaryOtherPartyID = row.IntermediaryOtherPartyID
+	}
+	if row.Entity == EntitySupplier {
+		result.DefaultPurchaserEmployeeID = row.SalespersonEmployeeID
+		result.SalespersonEmployeeID = ""
 	}
 	if row.Entity == EntitySettlementMethod {
 		result.TermCode = row.SettlementTermCode

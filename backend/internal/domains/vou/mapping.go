@@ -82,7 +82,7 @@ func (s *Service) loadData(
 			detail.SettlementMonthOffset, detail.SettlementDayOfMonth,
 			detail.SettlementDayOffset, detail.SettlementDueDays,
 			detail.SettlementCutoffDay, detail.SettlementDefaultSalesSurchargeCents,
-			detail.SettlementDescription,
+			detail.SettlementDescription, true,
 		)
 		data.ProductLines, err = loadProductLines(ctx, q, document.ID)
 		if err != nil {
@@ -122,7 +122,7 @@ func (s *Service) loadData(
 			detail.SettlementMonthOffset, detail.SettlementDayOfMonth,
 			detail.SettlementDayOffset, detail.SettlementDueDays,
 			detail.SettlementCutoffDay, detail.SettlementDefaultSalesSurchargeCents,
-			detail.SettlementDescription,
+			detail.SettlementDescription, false,
 		)
 		data.ProductLines, err = loadProductLines(ctx, q, document.ID)
 		if err == nil {
@@ -413,17 +413,21 @@ func settlementView(
 	monthOffset, dayOfMonth, dayOffset, dueDays, cutoffDay *int32,
 	defaultSalesSurchargeCents int64,
 	description *string,
+	includeSalesSurcharge bool,
 ) *SettlementMethodSnapshotView {
 	if objectID == nil {
 		return nil
 	}
-	return &SettlementMethodSnapshotView{
+	result := &SettlementMethodSnapshotView{
 		ObjectID: deref(objectID), VersionID: deref(versionID), Code: deref(code), Name: deref(name),
 		RuleType: deref(ruleType), MonthOffset: derefInt32(monthOffset),
 		DayOfMonth: dayOfMonth, DayOffset: derefInt32(dayOffset), Description: deref(description),
 		DueDays: derefInt32(dueDays), CutoffDay: derefInt32(cutoffDay),
-		DefaultSalesSurcharge: formatMoney(defaultSalesSurchargeCents),
 	}
+	if includeSalesSurcharge {
+		result.DefaultSalesSurcharge = formatMoney(defaultSalesSurchargeCents)
+	}
+	return result
 }
 
 func derefInt32(value *int32) int32 {

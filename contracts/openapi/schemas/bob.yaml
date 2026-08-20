@@ -16,6 +16,22 @@
           'operating-entity',
         ],
     },
+  'BobCrudEntity':
+    {
+      'type': 'string',
+      'enum':
+        [
+          'other-party',
+          'employee',
+          'product',
+          'service',
+          'warehouse',
+          'vehicle',
+          'fund-account',
+          'operating-entity',
+        ],
+      'description': '仍使用通用 CRUD 契约的 BOB 实体；客户和供应商使用各自的封闭契约。',
+    },
   'BobQueryRequest':
     {
       'type': 'object',
@@ -1234,6 +1250,352 @@
           'requestId': { 'type': 'string' },
         },
     },
+  'SupplierType':
+    { 'type': 'string', 'enum': ['GENERAL', 'LOGISTICS_PLATFORM'] },
+  'SupplierInput':
+    {
+      'type': 'object',
+      'required': ['name', 'supplierType'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'name': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'supplierType': { '$ref': '#/SupplierType' },
+          'shortName': { 'type': 'string', 'nullable': true, 'maxLength': 100 },
+          'taxNumber': { 'type': 'string', 'nullable': true, 'maxLength': 100 },
+          'contactName':
+            { 'type': 'string', 'nullable': true, 'maxLength': 100 },
+          'contactPhone':
+            { 'type': 'string', 'nullable': true, 'maxLength': 32 },
+          'email': { 'type': 'string', 'nullable': true, 'maxLength': 254 },
+          'address': { 'type': 'string', 'nullable': true, 'maxLength': 500 },
+          'remark': { 'type': 'string', 'nullable': true, 'maxLength': 1000 },
+          'settlementMethodId': { 'type': 'string', 'nullable': true },
+          'defaultPurchaserEmployeeId': { 'type': 'string', 'nullable': true },
+        },
+    },
+  'SupplierSettlementSnapshot':
+    {
+      'type': 'object',
+      'required':
+        [
+          'sourceObjectId',
+          'code',
+          'name',
+          'termCode',
+          'ruleType',
+          'monthOffset',
+          'dayOfMonth',
+          'dayOffset',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'sourceObjectId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'name': { 'type': 'string' },
+          'termCode': { 'type': 'string' },
+          'ruleType': { 'type': 'string' },
+          'monthOffset': { 'type': 'integer', 'format': 'int32' },
+          'dayOfMonth': { 'type': 'integer', 'format': 'int32' },
+          'dayOffset': { 'type': 'integer', 'format': 'int32' },
+        },
+    },
+  'SupplierView':
+    {
+      'type': 'object',
+      'required': ['name', 'supplierType', 'settlementMethod'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'name': { 'type': 'string' },
+          'supplierType': { '$ref': '#/SupplierType' },
+          'shortName': { 'type': 'string', 'nullable': true },
+          'taxNumber': { 'type': 'string', 'nullable': true },
+          'contactName': { 'type': 'string', 'nullable': true },
+          'contactPhone': { 'type': 'string', 'nullable': true },
+          'email': { 'type': 'string', 'nullable': true },
+          'address': { 'type': 'string', 'nullable': true },
+          'remark': { 'type': 'string', 'nullable': true },
+          'settlementMethodId': { 'type': 'string', 'nullable': true },
+          'defaultPurchaserEmployeeId': { 'type': 'string', 'nullable': true },
+          'settlementMethod':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/SupplierSettlementSnapshot' }],
+              'nullable': true,
+            },
+        },
+    },
+  'SupplierCreateRequest':
+    {
+      'type': 'object',
+      'required': ['data'],
+      'additionalProperties': false,
+      'properties': { 'data': { '$ref': '#/SupplierInput' } },
+    },
+  'SupplierSaveRequest':
+    {
+      'type': 'object',
+      'required': ['objectId', 'versionId', 'revision', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'versionId': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'data': { '$ref': '#/SupplierInput' },
+        },
+    },
+  'SupplierVersionView':
+    {
+      'type': 'object',
+      'required': ['version', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'version': { '$ref': '#/CustomerVersionMeta' },
+          'data': { '$ref': '#/SupplierView' },
+        },
+    },
+  'SupplierDetailView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'code',
+          'objectRevision',
+          'enabled',
+          'effective',
+          'candidate',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'effective':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/SupplierVersionView' }],
+              'nullable': true,
+            },
+          'candidate':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/SupplierVersionView' }],
+              'nullable': true,
+            },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'SupplierGetResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/SupplierDetailView' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'SupplierQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'enum': [20] },
+          'filters':
+            {
+              'type': 'object',
+              'additionalProperties': false,
+              'properties':
+                {
+                  'keyword': { 'type': 'string' },
+                  'status': { 'type': 'array', 'items': { 'type': 'string' } },
+                  'enabled': { 'type': 'boolean' },
+                  'supplierType': { '$ref': '#/SupplierType' },
+                  'defaultPurchaserEmployeeId': { 'type': 'string' },
+                },
+            },
+          'sort':
+            {
+              'type': 'array',
+              'maxItems': 1,
+              'items':
+                {
+                  'type': 'object',
+                  'required': ['field', 'order'],
+                  'additionalProperties': false,
+                  'properties':
+                    {
+                      'field': { 'type': 'string', 'enum': ['code'] },
+                      'order': { 'type': 'string', 'enum': ['asc'] },
+                    },
+                },
+            },
+        },
+    },
+  'SupplierListVersion':
+    {
+      'type': 'object',
+      'required':
+        [
+          'versionId',
+          'version',
+          'status',
+          'revision',
+          'name',
+          'supplierType',
+          'submittedBy',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'versionId': { 'type': 'string' },
+          'version': { 'type': 'integer', 'format': 'int32' },
+          'status': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'name': { 'type': 'string' },
+          'supplierType': { '$ref': '#/SupplierType' },
+          'defaultPurchaserCode': { 'type': 'string' },
+          'defaultPurchaserName': { 'type': 'string' },
+          'submittedBy': { 'type': 'string', 'nullable': true },
+        },
+    },
+  'SupplierListItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'code',
+          'objectRevision',
+          'enabled',
+          'effective',
+          'candidate',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'effective':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/SupplierListVersion' }],
+              'nullable': true,
+            },
+          'candidate':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/SupplierListVersion' }],
+              'nullable': true,
+            },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'SupplierQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'required': ['items', 'total', 'page', 'pageSize'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'items':
+                    {
+                      'type': 'array',
+                      'items': { '$ref': '#/SupplierListItem' },
+                    },
+                  'total': { 'type': 'integer', 'format': 'int64' },
+                  'page': { 'type': 'integer' },
+                  'pageSize': { 'type': 'integer' },
+                },
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'SupplierTaxMatchRequest':
+    {
+      'type': 'object',
+      'required': ['taxNumber'],
+      'additionalProperties': false,
+      'properties':
+        { 'taxNumber': { 'type': 'string', 'minLength': 1, 'maxLength': 50 } },
+    },
+  'SupplierTaxMatch':
+    {
+      'type': 'object',
+      'required':
+        [
+          'sourceEntity',
+          'objectId',
+          'code',
+          'companyName',
+          'shortName',
+          'taxNumber',
+          'contactName',
+          'contactPhone',
+          'email',
+          'address',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'sourceEntity':
+            { 'type': 'string', 'enum': ['customer-group', 'other-party'] },
+          'objectId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'companyName': { 'type': 'string' },
+          'shortName': { 'type': 'string' },
+          'taxNumber': { 'type': 'string' },
+          'contactName': { 'type': 'string' },
+          'contactPhone': { 'type': 'string' },
+          'email': { 'type': 'string' },
+          'address': { 'type': 'string' },
+        },
+    },
+  'SupplierTaxMatchResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'message': { 'type': 'string' },
+          'data':
+            { 'type': 'array', 'items': { '$ref': '#/SupplierTaxMatch' } },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'CustomerGroupSaveRequest':
     {
       'type': 'object',
@@ -1319,6 +1681,7 @@
             },
           'keyword': { 'type': 'string', 'maxLength': 100 },
           'sourceObjectId': { 'type': 'string', 'maxLength': 26 },
+          'supplierType': { '$ref': '#/SupplierType' },
         },
     },
   'ReferenceCandidate':

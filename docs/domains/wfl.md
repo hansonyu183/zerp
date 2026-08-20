@@ -47,11 +47,11 @@ WFL 复用 VOU 的同步事务事件总线。根单据批准时允许零个或�
 
 新环境由数据库初始化费用、采购和销售三条普通 Starlark `DRAFT` 定义。它们与管理员新建定义使用同一表和 API，没有系统类型、保护位、隐藏 converter 或专用运行时；默认不发布、不启用，也不创建实例或业务单据。删除或修改后，应用启动和 preview seed 不会补回或覆盖。
 
-## 6. API、权限与前端
+## 6. 权限与页面边界
 
-定义 API 为 `/wfl/process-definition/{query,get,create,save,trial,publish,enable,disable,delete}`。统一实例 API 为 `/wfl/process-instance/{query,get,audit-history}`。定义首次启用时登记 `/wfl/{code}/{query,get,audit-history,create-child}` 动态 APP 权限；停用保留权限及角色关联，使既有实例仍可查询和运行。
+公开动作、路径和数据结构以 [OpenAPI WFL Schema](../../contracts/openapi/schemas/wfl.yaml) 为准。定义首次启用时登记该流程的动态 APP 权限；停用保留权限及角色关联，使既有实例仍可查询和运行。
 
-前端仅从 session `permissions` 生成“业务流程”菜单和流程类型，不调用 menu API。定义页只提供 Starlark 编辑、诊断、真实单据试算和只读编译图。实例页展示完整实际树、业务父级、关系、触发、动作和系统/人工审计；WFL 结构不会按节点 VOU get 权限裁剪。用户打开节点正文时深链接到相应 VOU 页面，由该 VOU get API 精确鉴权。创建下级页面只展示当前固定修订中当下满足且尚未执行的目标，服务端提交时仍重新校验。
+页面编排见[流程定义用例](../use-cases/wfl/process-definition.md)和[流程实例用例](../use-cases/wfl/process-instance.md)。WFL 结构不会按节点 VOU 详情权限裁剪；用户打开节点正文时由对应 VOU 详情动作精确鉴权，创建下级提交时服务端仍重新校验。
 
 ## 7. 验收边界
 

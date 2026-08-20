@@ -54,7 +54,7 @@ func TestValidateCreateIgnoresInternalFixtureCodeAndNormalizesEntityFields(t *te
 			Code: " cus.01 ", Name: " Customer ", SalespersonEmployeeID: salespersonEmployeeID,
 		}},
 		{EntitySupplier, CreateDetailInput{
-			Code: "sup-01", Name: "Supplier", SalespersonEmployeeID: salespersonEmployeeID,
+			Code: "sup-01", Name: "Supplier", DefaultPurchaserEmployeeID: salespersonEmployeeID,
 		}},
 		{EntityOtherParty, CreateDetailInput{
 			Code: "otp-01", Name: "Other party", SalespersonEmployeeID: salespersonEmployeeID,
@@ -108,17 +108,17 @@ func TestValidateCreateIgnoresInternalFixtureCodeAndNormalizesEntityFields(t *te
 	}
 }
 
-func TestValidateSupplierTypeCompatibility(t *testing.T) {
+func TestValidateSupplierTypeAndPurchaserVocabulary(t *testing.T) {
 	logisticsPlatform := " logistics_platform "
 	data, _, err := validateCreate(EntitySupplier, CreateDetailInput{
 		Code: "platform01", Name: "物流平台", SupplierType: &logisticsPlatform,
-		SalespersonEmployeeID: "01J00000000000000000000021",
+		DefaultPurchaserEmployeeID: "01J00000000000000000000021",
 	})
 	if err != nil || data.SupplierType != SupplierTypeLogisticsPlatform {
 		t.Fatalf("logistics supplier data=%+v err=%v", data, err)
 	}
 	if _, err = validateDetail(EntitySupplier, DetailInput{
-		Name: "兼容保存", SalespersonEmployeeID: Optional("01J00000000000000000000021"),
+		Name: "保存供应商", DefaultPurchaserEmployeeID: Optional("01J00000000000000000000021"),
 	}); err != nil {
 		t.Fatalf("omitted supplier type rejected: %v", err)
 	}
@@ -427,8 +427,8 @@ func TestCommonAttributesNormalizeAndValidate(t *testing.T) {
 		{"missing customer salesperson", EntityCustomer, CreateDetailInput{
 			Code: "CUSTOMER-5", Name: "客户",
 		}},
-		{"missing supplier salesperson", EntitySupplier, CreateDetailInput{
-			Code: "SUPPLIER-5", Name: "供应商",
+		{"legacy supplier salesperson", EntitySupplier, CreateDetailInput{
+			Code: "SUPPLIER-5", Name: "供应商", SalespersonEmployeeID: "01J00000000000000000000021",
 		}},
 	}
 	for _, test := range invalidCases {
@@ -495,9 +495,9 @@ func TestCategoryAndQueryFilterValidation(t *testing.T) {
 		t.Fatalf("employee filters rejected: %v", err)
 	}
 	if _, err := validateQueryFilters(EntitySupplier, QueryFilters{
-		SalespersonEmployeeID: "01J00000000000000000000022",
+		DefaultPurchaserEmployeeID: "01J00000000000000000000022",
 	}); err != nil {
-		t.Fatalf("supplier salesperson filter rejected: %v", err)
+		t.Fatalf("supplier default purchaser filter rejected: %v", err)
 	}
 	if _, err := validateQueryFilters(EntityProduct, QueryFilters{CustomerType: CustomerTypeDealer}); !errorIsKind(err, ErrorValidation) {
 		t.Fatalf("cross-entity filter error = %v", err)

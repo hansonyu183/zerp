@@ -27,6 +27,7 @@ type ReferenceQueryInput struct {
 	Entity         string `json:"entity"`
 	Keyword        string `json:"keyword"`
 	SourceObjectID string `json:"sourceObjectId"`
+	SupplierType   string `json:"supplierType"`
 }
 
 type ReferenceCandidate struct {
@@ -44,8 +45,11 @@ func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQ
 	if input.SourceObjectID != "" && !validID(input.SourceObjectID) {
 		return nil, domainError(ErrorValidation, "invalid BOB reference source", nil, nil)
 	}
+	if input.SupplierType != "" && (input.Entity != EntitySupplier || !validSupplierType(input.SupplierType)) {
+		return nil, domainError(ErrorValidation, "invalid supplier reference type", nil, nil)
+	}
 	rows, err := s.queries.QueryBobReferenceCandidates(ctx, dbsqlc.QueryBobReferenceCandidatesParams{
-		Entity: input.Entity, Keyword: input.Keyword, SourceObjectID: input.SourceObjectID,
+		Entity: input.Entity, Keyword: input.Keyword, SourceObjectID: input.SourceObjectID, SupplierType: input.SupplierType,
 	})
 	if err != nil {
 		return nil, s.internal("query BOB reference candidates", err)
@@ -100,8 +104,9 @@ func (s *Service) TransferReferences(
 		return ReferenceTransferResult{}, s.internal("lock reference source", err)
 	}
 	sourceEntity, sourceRevision, sourceEnabled, sourceCurrentVersionID, sourceEffectiveVersionID = source.Entity, source.Revision, source.Enabled, source.CurrentVersionID, source.EffectiveVersionID
+	sourceHasSupportedCandidate := sourceEntity == EntitySupplier && sourceEffectiveVersionID != nil
 	if sourceEntity != input.Entity || sourceRevision != input.SourceObjectRevision || !sourceEnabled || sourceEffectiveVersionID == nil ||
-		sourceCurrentVersionID != *sourceEffectiveVersionID {
+		(!sourceHasSupportedCandidate && sourceCurrentVersionID != *sourceEffectiveVersionID) {
 		return ReferenceTransferResult{}, domainError(ErrorConflict, "source object changed before transfer", nil, nil)
 	}
 	target, err := qtx.LockReferenceTransferTarget(ctx, dbsqlc.LockReferenceTransferTargetParams{ObjectID: input.TargetObjectID, Entity: sourceEntity})
@@ -142,7 +147,7 @@ func (s *Service) TransferReferences(
 	if rows != 1 {
 		return ReferenceTransferResult{}, domainError(ErrorConflict, "source object changed before transfer", nil, nil)
 	}
-	if err = insertAudit(ctx, qtx, auditInput{ObjectID: input.SourceObjectID, VersionID: sourceCurrentVersionID,
+	if err = insertAudit(ctx, qtx, auditInput{ObjectID: input.SourceObjectID, VersionID: *sourceEffectiveVersionID,
 		Entity: sourceEntity, Event: "DISABLED", To: StatusEffective, ActorID: actorID, RequestID: requestID,
 		Summary: map[string]any{"replacementObjectId": input.TargetObjectID, "affectedObjects": len(candidateByObject)}}); err != nil {
 		return ReferenceTransferResult{}, s.writeError("audit disabled reference source", err)
@@ -169,7 +174,7 @@ func listDirectReferenceUses(ctx context.Context, q *dbsqlc.Queries, entity, obj
 		for _, row := range rows {
 			uses = append(uses, directReferenceUse{row.ObjectID, row.Entity, row.Role})
 		}
-		rows2, err := q.ListSupplierSalesReferencesForEmployee(ctx, objectID)
+		rows2, err := q.ListSupplierPurchaserReferencesForEmployee(ctx, &objectID)
 		if err != nil {
 			return nil, err
 		}
@@ -333,8 +338,8 @@ func (s *Service) replaceDirectReference(
 	switch use.role {
 	case "customer-sales":
 		err = qtx.ReplaceCustomerSalesReference(ctx, dbsqlc.ReplaceCustomerSalesReferenceParams{TargetObjectID: &targetObjectID, TargetVersionID: &targetVersionID, Code: &target.Code, Name: &target.Data.Name, VersionID: candidateID})
-	case "supplier-sales":
-		err = qtx.ReplaceSupplierSalesReference(ctx, dbsqlc.ReplaceSupplierSalesReferenceParams{TargetObjectID: targetObjectID, VersionID: candidateID})
+	case "supplier-purchaser":
+		err = qtx.ReplaceSupplierPurchaserReference(ctx, dbsqlc.ReplaceSupplierPurchaserReferenceParams{TargetObjectID: &targetObjectID, VersionID: candidateID})
 	case "other-party-sales":
 		err = qtx.ReplaceOtherPartySalesReference(ctx, dbsqlc.ReplaceOtherPartySalesReferenceParams{TargetObjectID: targetObjectID, VersionID: candidateID})
 	case "warehouse-manager":

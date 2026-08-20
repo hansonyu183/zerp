@@ -3,7 +3,7 @@
 ## 页面范围
 
 - 路由：`/app/menu`
-- 领域规则：[菜单模板](../../domains/app.md#39-菜单模板)、[菜单管理接口](../../domains/app.md#510-菜单管理) 与 [动态菜单](../../domains/app.md#111-动态菜单)
+- 领域规则：[菜单模板](../../domains/app.md#39-菜单模板) 与 [菜单管理接口](../../domains/app.md#510-菜单管理)
 - 线协议：[OpenAPI](../../../contracts/openapi/openapi.yaml) 与 [APP Schema](../../../contracts/openapi/schemas/app.yaml)
 - 全站列表、筛选和行操作规范：[前端工程约束](../../../frontend/AGENTS.md)
 

@@ -141,25 +141,37 @@ function extractPlainSchemaEnum(source, schemaName, label) {
   return values
 }
 
-function useCaseCoverage(registrations, documentedKeys) {
+function useCaseCoverage(pages, documentedKeys, orphanKeys) {
   const byDomain = new Map()
-  for (const registration of registrations) {
-    const entries = byDomain.get(registration.domain) ?? []
-    entries.push(registration)
-    byDomain.set(registration.domain, entries)
+  for (const page of pages) {
+    const domain = page.useCaseKey.split('/')[0]
+    const entries = byDomain.get(domain) ?? []
+    entries.push(page)
+    byDomain.set(domain, entries)
   }
 
-  const documented = registrations.filter(({ key }) => documentedKeys.has(key))
+  const coveredPages = pages.filter(({ useCaseKey }) =>
+    documentedKeys.has(useCaseKey),
+  )
+  const expectedKeys = new Set(pages.map(({ useCaseKey }) => useCaseKey))
+  const documentedExpectedKeys = [...documentedKeys].filter((key) =>
+    expectedKeys.has(key),
+  )
+  const missingKeys = [...expectedKeys].filter(
+    (key) => !documentedKeys.has(key),
+  )
   const lines = [
     '# 页面用例覆盖率',
     '',
     '<!-- 此文件由 `pnpm docs:coverage` 生成，请勿手工编辑。 -->',
     '',
-    '数据来源：[`frontend/src/router/registry.ts`](../../frontend/src/router/registry.ts) 与本目录下按 `<domain>/<entity>.md` 命名的页面用例。',
+    '数据来源：[`frontend/src/router/registry.ts`](../../frontend/src/router/registry.ts)、[`frontend/src/router/index.ts`](../../frontend/src/router/index.ts)，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。',
     '',
-    `- 已注册：${registrations.length}`,
-    `- 已文档化：${documented.length}`,
-    `- 缺少用例：${registrations.length - documented.length}`,
+    `- 页面入口：${pages.length}`,
+    `- 已覆盖入口：${coveredPages.length}`,
+    `- 已登记用例：${documentedExpectedKeys.length}`,
+    `- 缺少用例：${missingKeys.length}`,
+    `- 孤儿用例：${orphanKeys.length}`,
     '',
   ]
 
@@ -167,16 +179,25 @@ function useCaseCoverage(registrations, documentedKeys) {
     lines.push(
       `## ${domain.toUpperCase()}`,
       '',
-      '| 页面 | 路由 | 状态 |',
-      '| --- | --- | --- |',
+      '| 页面 | 路由 | 来源 | 状态 |',
+      '| --- | --- | --- | --- |',
     )
-    for (const { entity, title, key } of entries) {
-      const status = documentedKeys.has(key)
-        ? `[已文档化](${domain}/${entity}.md)`
+    for (const { title, route, source, useCaseKey } of entries) {
+      const status = documentedKeys.has(useCaseKey)
+        ? `[已文档化](${useCaseKey}.md)`
         : '缺少用例'
-      lines.push(`| ${title} | \`/${domain}/${entity}\` | ${status} |`)
+      lines.push(`| ${title} | \`${route}\` | ${source} | ${status} |`)
     }
     lines.push('')
+  }
+
+  if (orphanKeys.length > 0) {
+    lines.push(
+      '## 孤儿用例',
+      '',
+      ...orphanKeys.map((key) => `- [\`${key}\`](${key}.md)`),
+      '',
+    )
   }
 
   return `${lines.join('\n').trimEnd()}\n`
@@ -366,9 +387,115 @@ const documentedUseCases = new Set(
       ),
     ),
 )
+
+const STATIC_ROUTE_USE_CASES = new Map([
+  ['signin', 'app/signin'],
+  // 强制改密没有独立页面用例：它是登录用例的受限会话分支。
+  ['change-password', 'app/signin'],
+  ['page:home/dashboard', 'app/workbench'],
+])
+const STATIC_ROUTE_EXEMPTIONS = new Set([
+  'app',
+  'app-home-redirect',
+  'forbidden',
+  'not-found',
+])
+
+function staticUseCaseKey(routeName) {
+  const explicit = STATIC_ROUTE_USE_CASES.get(routeName)
+  if (explicit) return explicit
+
+  const appPage = routeName.match(/^page:app\/([a-z0-9-]+)$/)
+  return appPage ? `app/${appPage[1]}-management` : null
+}
+
+function staticBusinessPages(source) {
+  const pages = []
+  const routePattern = /name:\s*'((?:page:)?[^']+)'/g
+
+  for (const match of source.matchAll(routePattern)) {
+    const routeName = match[1]
+    const useCaseKey = staticUseCaseKey(routeName)
+    if (!useCaseKey) {
+      if (!STATIC_ROUTE_EXEMPTIONS.has(routeName)) {
+        failures.push(
+          `frontend/src/router/index.ts 的静态业务页面 ${routeName} 缺少用例映射`,
+        )
+      }
+      continue
+    }
+
+    const pathStart = source.lastIndexOf('path:', match.index)
+    const pathMatch = source
+      .slice(pathStart, match.index)
+      .match(/path:\s*'([^']+)'\s*,\s*$/)
+    const titleMatch = source.slice(match.index).match(/title:\s*'([^']+)'/)
+    if (!pathMatch || !titleMatch) {
+      failures.push(
+        `frontend/src/router/index.ts 无法解析静态页面 ${routeName}`,
+      )
+      continue
+    }
+
+    const routePath = pathMatch[1]
+    const title = titleMatch[1]
+    pages.push({
+      title,
+      route: routePath.startsWith('/') ? routePath : `/${routePath}`,
+      source: '[静态路由](../../frontend/src/router/index.ts)',
+      useCaseKey,
+    })
+  }
+
+  return pages
+}
+
+function dynamicReportPage(source) {
+  const isRegistered =
+    source.includes("routeDomain === 'rpt' && routeEntity !== 'definition'") &&
+    source.includes("import('@/pages/rpt/Report.vue')")
+  if (!isRegistered) {
+    failures.push('frontend/src/router/registry.ts 缺少动态报表页面注册')
+    return []
+  }
+
+  return [
+    {
+      title: '动态报表',
+      route: '/rpt/{code}',
+      source: '[动态路由](../../frontend/src/router/registry.ts)',
+      useCaseKey: 'rpt/report',
+    },
+  ]
+}
+
+const staticPages = staticBusinessPages(routerIndexSource)
+const registryPages = pageRegistrations.map(({ domain, entity, title }) => ({
+  title,
+  route: `/${domain}/${entity}`,
+  source: '[页面注册表](../../frontend/src/router/registry.ts)',
+  useCaseKey: `${domain}/${entity}`,
+}))
+const expectedUseCasePages = [
+  ...staticPages,
+  ...registryPages,
+  ...dynamicReportPage(registrySource),
+]
+const expectedUseCaseKeys = expectedUseCasePages.map(
+  ({ useCaseKey }) => useCaseKey,
+)
+const expectedUseCaseKeySet = new Set(expectedUseCaseKeys)
+const orphanUseCases = [...documentedUseCases].filter(
+  (key) => !expectedUseCaseKeySet.has(key),
+)
+
+orphanUseCases.sort()
+if (!writeUseCaseCoverage && orphanUseCases.length > 0) {
+  failures.push(`页面用例孤儿文档：${orphanUseCases.join('、')}`)
+}
 const coverageFile = path.join(useCaseRoot, 'COVERAGE.md')
 const expectedCoverage = await prettier.format(
-  useCaseCoverage(pageRegistrations, documentedUseCases),
+  useCaseCoverage(expectedUseCasePages, documentedUseCases, orphanUseCases),
   { parser: 'markdown' },
 )
 
@@ -387,6 +514,6 @@ if (failures.length > 0) {
   process.exitCode = 1
 } else {
   process.stdout.write(
-    `文档检查通过：${documentationFiles.length} 个纳入检查的 Markdown，${documentedDomains.size} 个领域，${operationFiles.length} 份运行手册，${pageRegistrations.length} 个已注册页面。\n`,
+    `文档检查通过：${documentationFiles.length} 个纳入检查的 Markdown，${documentedDomains.size} 个领域，${operationFiles.length} 份运行手册，${expectedUseCasePages.length} 个页面入口。\n`,
   )
 }

@@ -12,23 +12,6 @@ How the engineering skills should consume this repo's domain documentation when 
 
 If any of these files don't exist, **proceed silently**. Don't flag their absence or suggest creating them upfront. The `/domain-modeling` skill creates `CONTEXT.md` and ADRs lazily when terms or decisions are resolved.
 
-## File structure
-
-This repository uses a single shared domain context:
-
-```
-/
-├── CONTEXT.md
-├── docs/
-│   ├── adr/
-│   ├── domains/
-│   └── use-cases/
-├── contracts/
-│   └── openapi/
-├── frontend/
-└── backend/
-```
-
 Do not introduce per-module `CONTEXT.md` files or duplicate domain documentation under `frontend/` or `backend/`.
 
 ## Use the glossary's vocabulary

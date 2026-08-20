@@ -10,25 +10,4 @@
 - 通过链接引用 OpenAPI，不维护请求或响应结构副本；
 - 全站通用交互规范写入 [`frontend/AGENTS.md`](../../frontend/AGENTS.md)，页面文档只记录有业务含义的例外。
 
-全站列表、详情和引用候选的读取边界见 [`frontend/AGENTS.md`](../../frontend/AGENTS.md)。
-前端注册页面的文档覆盖情况由 [`COVERAGE.md`](COVERAGE.md) 自动生成；新增或删除页面及用例后运行 `pnpm docs:coverage`，`pnpm docs:check` 会拒绝覆盖文件漂移。
-
-## APP
-
-- [登录页](app/signin.md)
-- [工作台](app/workbench.md)
-- [用户管理](app/user-management.md)
-- [角色管理](app/role-management.md)
-- [权限管理](app/permission-management.md)
-- [系统参数](app/system-parameter-management.md)
-- [菜单管理](app/menu-management.md)
-
-## BOB
-
-- [客户](bob/customer.md)
-- [供应商](bob/supplier.md)
-
-## WFL
-
-- [流程定义](wfl/process-definition.md)
-- [流程实例](wfl/process-instance.md)
+全站列表、详情和引用候选的读取边界见 [`frontend/AGENTS.md`](../../frontend/AGENTS.md)。前端页面及用例的双向覆盖清单见自动生成的 [`COVERAGE.md`](COVERAGE.md)；新增、删除或重命名页面或用例后运行 `pnpm docs:coverage`。缺失用例在覆盖清单中统一跟踪；`pnpm docs:check` 会拒绝孤儿用例或覆盖文件漂移。

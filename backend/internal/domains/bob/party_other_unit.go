@@ -760,21 +760,7 @@ func (s *Service) OtherUnitQuery(ctx context.Context, input QueryInput) (Page[Ot
 	}
 	items := make([]OtherUnitView, 0, len(rows))
 	for _, row := range rows {
-		getRow := dbsqlc.GetBobOtherUnitRow{
-			ObjectID: row.ObjectID, Code: row.Code, ObjectRevision: row.ObjectRevision, Enabled: row.Enabled,
-			VersionID: row.VersionID, VersionNo: row.VersionNo, Status: row.Status,
-			VersionRevision: row.VersionRevision, SubmittedBy: row.SubmittedBy,
-			EffectiveVersionID: row.EffectiveVersionID, CurrentVersionID: row.CurrentVersionID,
-			PartyID: row.PartyID, PartyKind: row.PartyKind, PartyDisplayName: row.PartyDisplayName,
-			OperatingEntityID: row.OperatingEntityID, OperatingEntityCode: row.OperatingEntityCode,
-			OperatingEntityName: row.OperatingEntityName, ContactName: row.ContactName,
-			ContactPhone: row.ContactPhone, Email: row.Email, Address: row.Address,
-			SettlementMethodID: row.SettlementMethodID, SettlementMethodCode: row.SettlementMethodCode,
-			SettlementMethodName: row.SettlementMethodName, SettlementTermCode: row.SettlementTermCode,
-			SettlementRuleType: row.SettlementRuleType, SettlementMonthOffset: row.SettlementMonthOffset,
-			SettlementDayOfMonth: row.SettlementDayOfMonth, SettlementDayOffset: row.SettlementDayOffset,
-			Remark: row.Remark, UpdatedAt: row.UpdatedAt,
-		}
+		getRow := dbsqlc.GetBobOtherUnitRow(row)
 		items = append(items, otherUnitView(getRow))
 	}
 	return Page[OtherUnitView]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil

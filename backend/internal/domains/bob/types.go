@@ -11,7 +11,7 @@ import (
 const (
 	EntityCustomer         = "customer"
 	EntitySupplier         = "supplier"
-	EntityOtherParty       = "other-party"
+	EntityOtherUnit        = "other-unit"
 	EntityEmployee         = "employee"
 	EntityProduct          = "product"
 	EntityService          = "service"
@@ -59,7 +59,7 @@ const (
 var entities = [...]string{
 	EntityCustomer,
 	EntitySupplier,
-	EntityOtherParty,
+	EntityOtherUnit,
 	EntityEmployee,
 	EntityProduct,
 	EntityService,
@@ -76,7 +76,6 @@ var entities = [...]string{
 var publicEntities = [...]string{
 	EntityCustomer,
 	EntitySupplier,
-	EntityOtherParty,
 	EntityEmployee,
 	EntityProduct,
 	EntityService,
@@ -333,6 +332,7 @@ type GetInput struct {
 
 type QueryFilters struct {
 	Keyword                    string   `json:"keyword,omitempty"`
+	PartyKind                  string   `json:"kind,omitempty"`
 	Status                     []string `json:"status,omitempty"`
 	Enabled                    *bool    `json:"enabled,omitempty"`
 	CustomerType               string   `json:"customerType,omitempty"`

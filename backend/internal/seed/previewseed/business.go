@@ -34,6 +34,12 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 		s.bobRefs[key] = view
 	}
 	samples := []bobSample{
+		{"operating-effective", bobdomain.EntityOperatingEntity, bobdomain.StatusEffective, func(*Seeder) bobdomain.CreateDetailInput {
+			return bobdomain.CreateDetailInput{
+				Name: "上海预览科技有限公司", ShortName: "上海预览", TaxNumber: "91310000PREVIEWOPE1",
+				Address: "上海市浦东新区预览路1号", Phone: "021-61000000",
+			}
+		}},
 		{"employee-effective", bobdomain.EntityEmployee, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
 				Name: "张伟（预览）", DepartmentID: s.auxRefs["department-root"].ObjectID,
@@ -48,7 +54,7 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 				Remark: "预览测试草稿员工",
 			}
 		}},
-		{"other-party-effective", bobdomain.EntityOtherParty, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
+		{"other-unit-effective", bobdomain.EntityOtherUnit, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
 				Name: "远航居间服务有限公司（预览）", ShortName: "远航居间",
 				TaxNumber: "91310000PREVIEW0103", ContactName: "刘顾问", ContactPhone: "13800000107",
@@ -58,12 +64,12 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 				Remark:                "预览测试有效居间往来单位",
 			}
 		}},
-		{"other-party-draft", bobdomain.EntityOtherParty, bobdomain.StatusDraft, func(s *Seeder) bobdomain.CreateDetailInput {
+		{"other-unit-draft", bobdomain.EntityOtherUnit, bobdomain.StatusDraft, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
 				Name: "待确认居间单位（预览草稿）", ContactName: "陈顾问", ContactPhone: "13800000108",
 				SettlementMethodID:    s.bobRefs["settlement-due-days"].ObjectID,
 				SalespersonEmployeeID: s.bobRefs["employee-effective"].ObjectID,
-				Remark:                "预览测试草稿其他往来单位",
+				Remark:                "预览测试草稿其他单位",
 			}
 		}},
 		{"customer-effective", bobdomain.EntityCustomer, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
@@ -76,7 +82,7 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 				SettlementMethodID:       s.bobRefs["settlement-month-end"].ObjectID,
 				MonthlyClosingDay:        15,
 				SalespersonEmployeeID:    s.bobRefs["employee-effective"].ObjectID,
-				IntermediaryOtherPartyID: s.bobRefs["other-party-effective"].ObjectID,
+				IntermediaryOtherPartyID: s.bobRefs["other-unit-effective"].ObjectID,
 				Remark:                   "预览测试有效客户",
 			}
 		}},
@@ -244,12 +250,6 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 				LoadCapacityKG: "12000", Remark: "预览测试草稿车辆",
 			}
 		}},
-		{"operating-effective", bobdomain.EntityOperatingEntity, bobdomain.StatusEffective, func(*Seeder) bobdomain.CreateDetailInput {
-			return bobdomain.CreateDetailInput{
-				Name: "上海预览科技有限公司", ShortName: "上海预览", TaxNumber: "91310000PREVIEWOPE1",
-				Address: "上海市浦东新区预览路1号", Phone: "021-61000000",
-			}
-		}},
 		{"fund-effective", bobdomain.EntityFundAccount, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
 				Name: "人民币基本账户（预览）", Currency: "CNY",
@@ -270,7 +270,14 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 		}},
 	}
 	for _, sample := range samples {
-		view, result, err := s.ensureBusiness(ctx, sample)
+		var view bobdomain.ObjectView
+		var result outcome
+		var err error
+		if sample.entity == bobdomain.EntityOtherUnit {
+			view, result, err = s.ensureOtherUnit(ctx, sample)
+		} else {
+			view, result, err = s.ensureBusiness(ctx, sample)
+		}
 		if err != nil {
 			return fmt.Errorf("%s: %w", sample.key, err)
 		}
@@ -278,6 +285,77 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 		counts.add(result)
 	}
 	return nil
+}
+
+func (s *Seeder) ensureOtherUnit(ctx context.Context, sample bobSample) (bobdomain.ObjectView, outcome, error) {
+	var objectID string
+	err := s.pool.QueryRow(ctx, `
+		SELECT object_id FROM bob_audit_events
+		WHERE request_id=$1 AND event_type='CREATED'
+		ORDER BY occurred_at,id LIMIT 1
+	`, requestID(sample.key, "create")).Scan(&objectID)
+	created := false
+	if errors.Is(err, pgx.ErrNoRows) {
+		data := sample.data(s)
+		result, createErr := s.business.OtherUnitCreate(ctx, bobdomain.OtherUnitCreateInput{
+			NewParty: &bobdomain.PartyCreateData{
+				Kind: bobdomain.PartyKindOrganization, LegalName: data.Name,
+				DisplayName: data.ShortName, TaxNumber: data.TaxNumber,
+			},
+			Data: bobdomain.OtherUnitData{
+				OperatingEntityID: s.bobRefs["operating-effective"].ObjectID,
+				ContactName:       data.ContactName, ContactPhone: data.ContactPhone,
+				Email: data.Email, Address: data.Address,
+				SettlementMethodID: data.SettlementMethodID, Remark: data.Remark,
+			},
+		}, actorID, requestID(sample.key, "create"), true)
+		if createErr != nil {
+			return bobdomain.ObjectView{}, 0, createErr
+		}
+		objectID, created = result.ObjectID, true
+	} else if err != nil {
+		return bobdomain.ObjectView{}, 0, err
+	}
+	view, err := s.business.OtherUnitGet(ctx, bobdomain.GetInput{ObjectID: objectID})
+	if err != nil {
+		return bobdomain.ObjectView{}, 0, err
+	}
+	converted := otherUnitObjectView(view)
+	if view.Status != sample.status {
+		if err = s.advanceBusiness(ctx, sample, converted); err != nil {
+			return bobdomain.ObjectView{}, 0, err
+		}
+		view, err = s.business.OtherUnitGet(ctx, bobdomain.GetInput{ObjectID: objectID})
+		if err != nil {
+			return bobdomain.ObjectView{}, 0, err
+		}
+		converted = otherUnitObjectView(view)
+		if !created {
+			return converted, outcomeResumed, nil
+		}
+	}
+	if created {
+		return converted, outcomeCreated, nil
+	}
+	return converted, outcomeSkipped, nil
+}
+
+func otherUnitObjectView(view bobdomain.OtherUnitView) bobdomain.ObjectView {
+	return bobdomain.ObjectView{
+		ObjectID: view.ObjectID, Entity: bobdomain.EntityOtherUnit, Code: view.Code,
+		ObjectRevision: view.ObjectRevision, Enabled: view.Enabled,
+		CurrentVersionID: view.VersionID, EffectiveVersionID: view.EffectiveVersionID,
+		Version: bobdomain.VersionMeta{
+			VersionID: view.VersionID, Version: view.Version, Status: view.Status,
+			Revision: view.Revision, SubmittedBy: view.SubmittedBy,
+		},
+		Data: bobdomain.DetailView{
+			Name: view.PartyDisplayName, ContactName: view.Data.ContactName,
+			ContactPhone: view.Data.ContactPhone, Email: view.Data.Email,
+			Address: view.Data.Address, SettlementMethodID: view.Data.SettlementMethodID,
+			OperatingEntityID: view.OperatingEntityID, Remark: view.Data.Remark,
+		},
+	}
 }
 
 func (s *Seeder) ensureBusiness(

@@ -57,8 +57,10 @@ func deleteIntegrationData(entity, platformObjectID, salespersonEmployeeID, oper
 		Name: "Deletable " + entity,
 	}
 	switch entity {
-	case EntityCustomer, EntityOtherParty:
+	case EntityCustomer:
 		data.SalespersonEmployeeID = salespersonEmployeeID
+	case EntityOtherUnit:
+		data.OperatingEntityID = operatingEntityID
 	case EntitySupplier:
 		data.DefaultPurchaserEmployeeID = salespersonEmployeeID
 	case EntityProduct, EntityService:
@@ -99,6 +101,7 @@ func assertBobAggregateCounts(
 			(SELECT count(*) FROM bob_warehouse_versions WHERE version_id = $2) +
 			(SELECT count(*) FROM bob_vehicle_versions WHERE version_id = $2) +
 			(SELECT count(*) FROM bob_fund_account_versions WHERE version_id = $2) +
+			(SELECT count(*) FROM bob_service_relationship_versions WHERE version_id = $2) +
 			(SELECT count(*) FROM bob_category_versions WHERE version_id = $2) +
 			(SELECT count(*) FROM bob_department_versions WHERE version_id = $2) +
 			(SELECT count(*) FROM bob_position_versions WHERE version_id = $2) +
@@ -131,7 +134,8 @@ func assertBobAggregatePresent(t *testing.T, pool *pgxpool.Pool, objectID, versi
 			(SELECT count(*) FROM bob_service_versions WHERE version_id = $2) +
 			(SELECT count(*) FROM bob_warehouse_versions WHERE version_id = $2) +
 			(SELECT count(*) FROM bob_vehicle_versions WHERE version_id = $2) +
-			(SELECT count(*) FROM bob_fund_account_versions WHERE version_id = $2),
+			(SELECT count(*) FROM bob_fund_account_versions WHERE version_id = $2) +
+			(SELECT count(*) FROM bob_service_relationship_versions WHERE version_id = $2),
 			(SELECT count(*) FROM bob_audit_events WHERE object_id = $1 AND version_id = $2)
 	`, objectID, versionID).Scan(&objects, &versions, &details, &audits)
 	if err != nil {
@@ -239,9 +243,15 @@ func createApprovedIntegration(
 		}, requestPrefix+"-operating")
 		data.OperatingEntityID = operating.ObjectID
 	}
-	created, err := service.Create(
-		t.Context(), entity, CreateInput{Data: data}, integrationActorOne, requestPrefix+"-create",
-	)
+	var created MutationResult
+	var err error
+	if entity == EntityOtherUnit {
+		created = createOtherUnitDraftIntegration(t, service, data, requestPrefix)
+	} else {
+		created, err = service.Create(
+			t.Context(), entity, CreateInput{Data: data}, integrationActorOne, requestPrefix+"-create",
+		)
+	}
 	if err != nil {
 		t.Fatalf("create approved %s: %v", entity, err)
 	}
@@ -258,6 +268,36 @@ func createApprovedIntegration(
 		t.Fatalf("approve %s: %v", entity, err)
 	}
 	return created, approved
+}
+
+func createOtherUnitDraftIntegration(
+	t *testing.T,
+	service *Service,
+	data CreateDetailInput,
+	requestPrefix string,
+) MutationResult {
+	t.Helper()
+	if data.OperatingEntityID == "" {
+		_, operating := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{
+			Name: "Integration Other Unit Operating Entity", TaxNumber: "TAX" + newID()[3:],
+		}, requestPrefix+"-operating")
+		data.OperatingEntityID = operating.ObjectID
+	}
+	created, err := service.OtherUnitCreate(t.Context(), OtherUnitCreateInput{
+		NewParty: &PartyCreateData{
+			Kind: PartyKindOrganization, LegalName: data.Name, DisplayName: data.ShortName,
+			TaxNumber: data.TaxNumber, Phone: data.Phone, Email: data.Email, Address: data.Address,
+		},
+		Data: OtherUnitData{
+			OperatingEntityID: data.OperatingEntityID, ContactName: data.ContactName,
+			ContactPhone: data.ContactPhone, Email: data.Email, Address: data.Address,
+			SettlementMethodID: data.SettlementMethodID, Remark: data.Remark,
+		},
+	}, integrationActorOne, requestPrefix+"-create", true)
+	if err != nil {
+		t.Fatalf("create other-unit draft: %v", err)
+	}
+	return created.MutationResult
 }
 
 // editEffectiveToDraft keeps legacy integration scenarios concise while the

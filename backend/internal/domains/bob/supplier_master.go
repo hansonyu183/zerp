@@ -90,9 +90,9 @@ type SupplierSaveInput struct {
 }
 
 type SupplierTaxMatchInput struct {
-	TaxNumber         string
-	IncludeCustomer   bool
-	IncludeOtherParty bool
+	TaxNumber        string
+	IncludeCustomer  bool
+	IncludeOtherUnit bool
 }
 
 type SupplierTaxMatch struct {
@@ -461,7 +461,7 @@ func (s *Service) SupplierTaxMatches(ctx context.Context, input SupplierTaxMatch
 		return nil, domainError(ErrorValidation, "invalid tax number", nil, nil)
 	}
 	rows, err := s.queries.QuerySupplierTaxMatches(ctx, dbsqlc.QuerySupplierTaxMatchesParams{
-		IncludeCustomer: input.IncludeCustomer, TaxNumber: &taxNumber, IncludeOtherParty: input.IncludeOtherParty})
+		IncludeCustomer: input.IncludeCustomer, TaxNumber: &taxNumber, IncludeOtherUnit: input.IncludeOtherUnit})
 	if err != nil {
 		return nil, s.internal("query supplier tax matches", err)
 	}

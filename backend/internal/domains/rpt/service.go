@@ -112,7 +112,7 @@ func (s *Service) QueryReferences(ctx context.Context, code string, in Reference
 	default:
 		entity := map[ReferenceType]string{
 			ReferenceTypeCustomer: "customer", ReferenceTypeSupplier: "supplier",
-			ReferenceTypeOtherParty: "other-party", ReferenceTypeEmployee: "employee",
+			ReferenceTypeOtherParty: "other-unit", ReferenceTypeEmployee: "employee",
 			ReferenceTypeDepartment: "department", ReferenceTypeProduct: "product",
 			ReferenceTypeWarehouse: "warehouse", ReferenceTypeFundAccount: "fund-account",
 		}[referenceType]

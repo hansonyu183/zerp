@@ -1143,6 +1143,278 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/bob/party/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询主体 */
+        post: operations["partyQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/party/get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取主体与授权关系卡片 */
+        post: operations["partyGet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/party/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存主体共享身份资料 */
+        post: operations["partySave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/other-unit/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询其他单位服务关系 */
+        post: operations["otherUnitQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/other-unit/get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 读取其他单位服务关系 */
+        post: operations["otherUnitGet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/other-unit/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 原子创建或复用主体并创建其他单位 */
+        post: operations["otherUnitCreate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/other-unit/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存其他单位关系草稿 */
+        post: operations["otherUnitSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/other-unit/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 删除其他单位首版或候选草稿 */
+        post: operations["otherUnitDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/other-unit/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 提交其他单位审核 */
+        post: operations["otherUnitSubmit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/other-unit/unsubmit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 撤回其他单位提交 */
+        post: operations["otherUnitUnsubmit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/other-unit/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 审核通过其他单位 */
+        post: operations["otherUnitApprove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/other-unit/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 驳回其他单位 */
+        post: operations["otherUnitReject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/other-unit/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 启用其他单位 */
+        post: operations["otherUnitEnable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/other-unit/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 停用其他单位 */
+        post: operations["otherUnitDisable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/other-unit/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询其他单位版本 */
+        post: operations["otherUnitVersions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bob/other-unit/audit-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 查询其他单位审核历史 */
+        post: operations["otherUnitAuditHistory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/bob/customer/query": {
         parameters: {
             query?: never;
@@ -1356,7 +1628,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 按权限精确发现同税号客户集团或其他往来单位 */
+        /** 按权限精确发现同税号客户集团或其他单位 */
         post: operations["supplierTaxMatch"];
         delete?: never;
         options?: never;
@@ -3214,7 +3486,7 @@ export interface components {
             pageSize: 20;
         };
         /** @enum {string} */
-        BobEntity: "customer" | "supplier" | "other-party" | "employee" | "product" | "service" | "warehouse" | "vehicle" | "fund-account" | "operating-entity";
+        BobEntity: "customer" | "supplier" | "employee" | "product" | "service" | "warehouse" | "vehicle" | "fund-account" | "operating-entity";
         /** @enum {string} */
         WorkbenchAction: "view" | "edit" | "submit" | "unsubmit" | "approve" | "reject" | "check" | "uncheck";
         WorkbenchObjectItem: {
@@ -3789,6 +4061,266 @@ export interface components {
             page: number;
             pageSize: number;
         };
+        /** @enum {string} */
+        PartyKind: "PERSON" | "ORGANIZATION";
+        PartyQueryRequest: {
+            page: number;
+            /** @enum {integer} */
+            pageSize: 20;
+            filters?: {
+                keyword?: string;
+                kind?: components["schemas"]["PartyKind"];
+            };
+        };
+        PartyListItem: {
+            partyId: string;
+            kind: components["schemas"]["PartyKind"];
+            legalName: string;
+            displayName: string;
+            /** Format: int64 */
+            revision: number;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        PartyQueryResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: {
+                items: components["schemas"]["PartyListItem"][];
+                /** Format: int64 */
+                total: number;
+                page: number;
+                pageSize: number;
+            } | null;
+            requestId: string;
+        };
+        PartyGetRequest: {
+            partyId: string;
+        };
+        /** @enum {string} */
+        PartyIdentifierType: "PERSON_ID" | "UNIFIED_SOCIAL_CREDIT_CODE";
+        PartyIdentifier: {
+            type: components["schemas"]["PartyIdentifierType"];
+            value: string;
+        };
+        PartyRelationshipCard: {
+            objectId: string;
+            /** @enum {string} */
+            entity: "other-unit";
+            code: string;
+            operatingEntityId: string;
+            operatingEntityCode: string;
+            operatingEntityName: string;
+            enabled: boolean;
+            /** @enum {string} */
+            status: "DRAFT" | "PENDING" | "REJECTED" | "EFFECTIVE" | "INVALID";
+            /** Format: int32 */
+            version: number;
+        };
+        PartyView: {
+            partyId: string;
+            kind: components["schemas"]["PartyKind"];
+            legalName: string;
+            displayName: string;
+            taxNumber?: string;
+            strongIdentifiers: components["schemas"]["PartyIdentifier"][];
+            phone?: string;
+            email?: string;
+            address?: string;
+            /** Format: int64 */
+            revision: number;
+            relationships: components["schemas"]["PartyRelationshipCard"][];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        PartyGetResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["PartyView"];
+            requestId: string;
+        };
+        PartySaveRequest: {
+            partyId: string;
+            /** Format: int64 */
+            revision: number;
+            data: {
+                kind?: components["schemas"]["PartyKind"];
+                legalName?: string | null;
+                displayName?: string | null;
+                taxNumber?: string | null;
+                strongIdentifiers?: components["schemas"]["PartyIdentifier"][];
+                phone?: string | null;
+                email?: string | null;
+                address?: string | null;
+            };
+        };
+        OtherUnitQueryRequest: {
+            page: number;
+            /** @enum {integer} */
+            pageSize: 20;
+            filters?: {
+                keyword?: string;
+                status?: ("DRAFT" | "PENDING" | "EFFECTIVE" | "INVALID")[];
+                operatingEntityId?: string;
+            };
+        };
+        OtherUnitData: {
+            operatingEntityId: string;
+            contactName?: string;
+            contactPhone?: string;
+            email?: string;
+            address?: string;
+            settlementMethodId?: string;
+            readonly settlementMethodCode?: string;
+            readonly settlementMethodName?: string;
+            remark?: string;
+        };
+        OtherUnitView: {
+            objectId: string;
+            code: string;
+            /** Format: int64 */
+            objectRevision: number;
+            enabled: boolean;
+            versionId: string;
+            /** Format: int32 */
+            version: number;
+            /** @enum {string} */
+            status: "DRAFT" | "PENDING" | "REJECTED" | "EFFECTIVE" | "INVALID";
+            /** Format: int64 */
+            revision: number;
+            submittedBy: string | null;
+            effectiveVersionId: string | null;
+            partyId: string;
+            partyKind: components["schemas"]["PartyKind"];
+            partyDisplayName: string;
+            operatingEntityId: string;
+            operatingEntityCode: string;
+            operatingEntityName: string;
+            data: components["schemas"]["OtherUnitData"];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        OtherUnitPage: {
+            items: components["schemas"]["OtherUnitView"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        OtherUnitQueryResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["OtherUnitPage"];
+            requestId: string;
+        };
+        BobGetRequest: {
+            objectId: string;
+            versionId?: string;
+        };
+        OtherUnitGetResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["OtherUnitView"];
+            requestId: string;
+        };
+        OtherUnitCreateWithExistingPartyRequest: {
+            partyId: string;
+            data: components["schemas"]["OtherUnitData"];
+        };
+        PartyIdentityData: {
+            kind: components["schemas"]["PartyKind"];
+            legalName: string;
+            displayName?: string;
+            taxNumber?: string;
+            strongIdentifiers: components["schemas"]["PartyIdentifier"][];
+            phone?: string;
+            email?: string;
+            address?: string;
+        };
+        OtherUnitCreateWithNewPartyRequest: {
+            newParty: components["schemas"]["PartyIdentityData"];
+            data: components["schemas"]["OtherUnitData"];
+        };
+        OtherUnitCreateRequest: components["schemas"]["OtherUnitCreateWithExistingPartyRequest"] | components["schemas"]["OtherUnitCreateWithNewPartyRequest"];
+        OtherUnitMutationResult: {
+            objectId: string;
+            /** Format: int64 */
+            objectRevision: number;
+            enabled: boolean;
+            versionId: string;
+            /** Format: int32 */
+            version: number;
+            /** @enum {string} */
+            status: "DRAFT" | "PENDING" | "REJECTED" | "EFFECTIVE" | "INVALID";
+            /** Format: int64 */
+            revision: number;
+            partyId?: string;
+        };
+        OtherUnitMutationResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["OtherUnitMutationResult"];
+            requestId: string;
+        };
+        OtherUnitSaveRequest: {
+            objectId: string;
+            versionId: string;
+            /** Format: int64 */
+            revision: number;
+            data: {
+                contactName?: string | null;
+                contactPhone?: string | null;
+                email?: string | null;
+                address?: string | null;
+                settlementMethodId?: string | null;
+                remark?: string | null;
+            };
+        };
+        BobDeleteRequest: {
+            objectId: string;
+            /** Format: int64 */
+            objectRevision: number;
+            versionId: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        BobVersionRevisionRequest: {
+            objectId: string;
+            versionId: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        BobReverseRequest: {
+            objectId: string;
+            /** Format: int64 */
+            objectRevision: number;
+            versionId: string;
+            /** Format: int64 */
+            revision: number;
+            reason: string;
+        };
+        BobReviewRequest: {
+            objectId: string;
+            versionId: string;
+            /** Format: int64 */
+            revision: number;
+            comment: string | null;
+        };
+        BobObjectRevisionRequest: {
+            objectId: string;
+            /** Format: int64 */
+            objectRevision: number;
+        };
+        BobHistoryRequest: {
+            objectId: string;
+            page: number;
+            pageSize: number;
+        };
         CustomerQueryRequest: {
             page: number;
             /** @enum {integer} */
@@ -3852,10 +4384,6 @@ export interface components {
                 pageSize: number;
             };
             requestId: string;
-        };
-        BobGetRequest: {
-            objectId: string;
-            versionId?: string;
         };
         CustomerGroupBankAccount: {
             accountName: string;
@@ -4058,7 +4586,7 @@ export interface components {
         };
         CustomerTaxMatch: {
             /** @enum {string} */
-            sourceEntity: "customer-group" | "supplier" | "other-party";
+            sourceEntity: "customer-group" | "supplier" | "other-unit";
             objectId: string;
             code: string;
             companyName: string;
@@ -4278,7 +4806,7 @@ export interface components {
         };
         SupplierTaxMatch: {
             /** @enum {string} */
-            sourceEntity: "customer-group" | "other-party";
+            sourceEntity: "customer-group" | "other-unit";
             objectId: string;
             code: string;
             companyName: string;
@@ -4301,14 +4829,9 @@ export interface components {
             revision: number;
             data: components["schemas"]["CustomerGroupData"];
         };
-        BobHistoryRequest: {
-            objectId: string;
-            page: number;
-            pageSize: number;
-        };
         CustomerReferenceTransferRequest: {
             /** @enum {string} */
-            entity: "customer" | "operating-entity" | "employee" | "other-party" | "supplier" | "product";
+            entity: "customer" | "operating-entity" | "employee" | "other-unit" | "supplier" | "product";
             sourceObjectId: string;
             targetObjectId: string;
             /** Format: int64 */
@@ -4327,7 +4850,7 @@ export interface components {
         };
         BobReferenceQueryRequest: {
             /** @enum {string} */
-            entity: "customer" | "operating-entity" | "employee" | "other-party" | "supplier" | "product";
+            entity: "customer" | "operating-entity" | "employee" | "other-unit" | "supplier" | "product";
             keyword?: string;
             sourceObjectId?: string;
             supplierType?: components["schemas"]["SupplierType"];
@@ -4354,7 +4877,7 @@ export interface components {
          * @description 仍使用通用 CRUD 契约的 BOB 实体；客户和供应商使用各自的封闭契约。
          * @enum {string}
          */
-        BobCrudEntity: "other-party" | "employee" | "product" | "service" | "warehouse" | "vehicle" | "fund-account" | "operating-entity";
+        BobCrudEntity: "employee" | "product" | "service" | "warehouse" | "vehicle" | "fund-account" | "operating-entity";
         BobQueryRequest: {
             page: number;
             pageSize: number;
@@ -4464,7 +4987,7 @@ export interface components {
                 salespersonEmployeeId?: string | null;
                 /** @description 仅客户适用；返点单价，单位为元/kg，省略按 0 处理 */
                 rebateUnitPrice?: string | null;
-                /** @description 仅客户适用；引用其他往来单位中的居间商 */
+                /** @description 仅客户适用；引用其他单位中的居间商 */
                 intermediaryOtherPartyId?: string | null;
                 /** @enum {string|null} */
                 productKind?: "RAW_MATERIAL" | "STANDARD_FINISHED" | "CUSTOM_FINISHED" | "PACKAGING" | null;
@@ -4530,41 +5053,6 @@ export interface components {
                 packagingSpecs?: components["schemas"]["BobPackagingSpecInput"][] | null;
                 formula?: components["schemas"]["BobProductFormulaInput"] | null;
             };
-        };
-        BobDeleteRequest: {
-            objectId: string;
-            /** Format: int64 */
-            objectRevision: number;
-            versionId: string;
-            /** Format: int64 */
-            revision: number;
-        };
-        BobVersionRevisionRequest: {
-            objectId: string;
-            versionId: string;
-            /** Format: int64 */
-            revision: number;
-        };
-        BobReverseRequest: {
-            objectId: string;
-            /** Format: int64 */
-            objectRevision: number;
-            versionId: string;
-            /** Format: int64 */
-            revision: number;
-            reason: string;
-        };
-        BobReviewRequest: {
-            objectId: string;
-            versionId: string;
-            /** Format: int64 */
-            revision: number;
-            comment: string | null;
-        };
-        BobObjectRevisionRequest: {
-            objectId: string;
-            /** Format: int64 */
-            objectRevision: number;
         };
         /** @enum {string} */
         VouStatus: "DRAFT" | "CHECKED" | "APPROVED";
@@ -4649,7 +5137,7 @@ export interface components {
             objectId: string;
             versionId: string;
             /** @enum {string} */
-            entity: "customer" | "employee" | "other-party" | "product";
+            entity: "customer" | "employee" | "other-unit" | "product";
             code: string;
             name: string;
         };
@@ -7181,6 +7669,318 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["AuxHistoryRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    partyQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartyQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description 主体分页响应。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartyQueryResponse"];
+                };
+            };
+        };
+    };
+    partyGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartyGetRequest"];
+            };
+        };
+        responses: {
+            /** @description 主体当前身份资料。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartyGetResponse"];
+                };
+            };
+        };
+    };
+    partySave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartySaveRequest"];
+            };
+        };
+        responses: {
+            /** @description 保存后的主体资料。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartyGetResponse"];
+                };
+            };
+        };
+    };
+    otherUnitQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OtherUnitQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description 其他单位分页响应。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OtherUnitQueryResponse"];
+                };
+            };
+        };
+    };
+    otherUnitGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BobGetRequest"];
+            };
+        };
+        responses: {
+            /** @description 其他单位关系详情。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OtherUnitGetResponse"];
+                };
+            };
+        };
+    };
+    otherUnitCreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OtherUnitCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description 已创建的其他单位关系。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OtherUnitMutationResponse"];
+                };
+            };
+        };
+    };
+    otherUnitSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OtherUnitSaveRequest"];
+            };
+        };
+        responses: {
+            /** @description 已保存的其他单位关系。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OtherUnitMutationResponse"];
+                };
+            };
+        };
+    };
+    otherUnitDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BobDeleteRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    otherUnitSubmit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BobVersionRevisionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    otherUnitUnsubmit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BobReverseRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    otherUnitApprove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BobVersionRevisionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    otherUnitReject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BobReviewRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    otherUnitEnable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BobObjectRevisionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    otherUnitDisable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BobObjectRevisionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    otherUnitVersions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BobHistoryRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Business"];
+        };
+    };
+    otherUnitAuditHistory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BobHistoryRequest"];
             };
         };
         responses: {

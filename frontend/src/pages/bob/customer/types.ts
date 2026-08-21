@@ -10,7 +10,7 @@ export interface CustomerReference {
   name: string
   entity:
     | 'employee'
-    | 'other-party'
+    | 'other-unit'
     | 'operating-entity'
     | 'settlement-method'
     | 'payment-method'
@@ -146,6 +146,6 @@ export const salesAttributionLabels: Readonly<
 
 export function salesAttributionSubjectEntity(
   type: CustomerSalesAttributionType,
-): 'employee' | 'other-party' {
-  return type === 'INTERNAL_EMPLOYEE' ? 'employee' : 'other-party'
+): 'employee' | 'other-unit' {
+  return type === 'INTERNAL_EMPLOYEE' ? 'employee' : 'other-unit'
 }

@@ -370,7 +370,7 @@ func (s *Service) intermediarySource(
 				if row.IntermediaryVersionID == nil || row.IntermediaryCode == nil || row.IntermediaryName == nil {
 					return IntermediarySourceView{}, domainError(ErrorConflict, "customer intermediary is not effective", map[string]any{"customerCode": row.CustomerCode}, nil)
 				}
-				ref := intermediaryReference(*row.IntermediaryOtherPartyID, *row.IntermediaryVersionID, "other-party", *row.IntermediaryCode, *row.IntermediaryName)
+				ref := intermediaryReference(*row.IntermediaryOtherPartyID, *row.IntermediaryVersionID, "other-unit", *row.IntermediaryCode, *row.IntermediaryName)
 				line.Intermediary = &ref
 			}
 			source.Lines = append(source.Lines, line)

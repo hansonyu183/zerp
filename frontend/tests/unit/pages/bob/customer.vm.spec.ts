@@ -43,10 +43,18 @@ describe('customer workspace view model', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     useSessionStore().permissions = [
-      '/bob/customer/query', '/bob/customer/get', '/bob/customer/create', '/bob/customer/save',
-      '/bob/customer/submit', '/bob/customer/disable', '/bob/operating-entity/query',
-      '/bob/employee/query', '/bob/other-party/query', '/aux/settlement-method/query',
-      '/aux/payment-method/query', '/aux/dictionary-item/query',
+      '/bob/customer/query',
+      '/bob/customer/get',
+      '/bob/customer/create',
+      '/bob/customer/save',
+      '/bob/customer/submit',
+      '/bob/customer/disable',
+      '/bob/operating-entity/query',
+      '/bob/employee/query',
+      '/bob/other-unit/query',
+      '/aux/settlement-method/query',
+      '/aux/payment-method/query',
+      '/aux/dictionary-item/query',
     ]
     mockedApiClient.postContract.mockReset()
   })
@@ -135,7 +143,9 @@ describe('customer workspace view model', () => {
   })
 
   it('sends only the fields allowed by each lifecycle action contract', async () => {
-    mockedApiClient.postContract.mockResolvedValue({ data: { items: [], total: 0, page: 1, pageSize: 20 } })
+    mockedApiClient.postContract.mockResolvedValue({
+      data: { items: [], total: 0, page: 1, pageSize: 20 },
+    })
     const vm = useCustomerViewModel()
     const row = {
       objectId: 'customer-1',
@@ -172,9 +182,16 @@ describe('customer workspace view model', () => {
     )
     const vm = useCustomerViewModel()
     const pending = {
-      objectId: 'customer-1', code: 'CUS-1', name: '客户', enabled: true,
-      status: 'PENDING', customerType: 'DIT-0001', hasCandidate: true,
-      objectRevision: 2, versionId: 'version-2', revision: 3,
+      objectId: 'customer-1',
+      code: 'CUS-1',
+      name: '客户',
+      enabled: true,
+      status: 'PENDING',
+      customerType: 'DIT-0001',
+      hasCandidate: true,
+      objectRevision: 2,
+      versionId: 'version-2',
+      revision: 3,
       submittedBy: 'user-1',
     }
 
@@ -198,9 +215,16 @@ describe('customer workspace view model', () => {
     await expect(
       vm.runLifecycle(
         {
-          objectId: 'customer-1', code: 'CUS-1', name: '客户', enabled: true,
-          status: 'DRAFT', customerType: 'DIT-0001', hasCandidate: true,
-          objectRevision: 1, versionId: 'version-1', revision: 1,
+          objectId: 'customer-1',
+          code: 'CUS-1',
+          name: '客户',
+          enabled: true,
+          status: 'DRAFT',
+          customerType: 'DIT-0001',
+          hasCandidate: true,
+          objectRevision: 1,
+          versionId: 'version-1',
+          revision: 1,
         },
         'submit',
       ),
@@ -226,17 +250,35 @@ describe('customer workspace view model', () => {
     const vm = useCustomerViewModel()
     const form = createCustomerForm()
     vm.detail.value = {
-      objectId: 'customer-1', code: 'CUS-1', objectRevision: 1,
-      versionId: 'version-1', revision: 2, versionStatus: 'DRAFT',
-      group: { ...form.group, groupId: 'group-1', revision: 4, attachments: [] },
-      accountAttachments: [], effectiveAccount: null, candidateAccount: null,
+      objectId: 'customer-1',
+      code: 'CUS-1',
+      objectRevision: 1,
+      versionId: 'version-1',
+      revision: 2,
+      versionStatus: 'DRAFT',
+      group: {
+        ...form.group,
+        groupId: 'group-1',
+        revision: 4,
+        attachments: [],
+      },
+      accountAttachments: [],
+      effectiveAccount: null,
+      candidateAccount: null,
     }
     const attachment = {
-      fileId: 'file-1', fileName: 'contract.pdf', contentType: 'application/pdf' as const,
-      size: 10, sha256: 'a'.repeat(64), status: 'READY' as const,
-      categoryObjectId: 'category-1', categoryVersionId: 'category-v1',
-      categoryCode: 'DIT-0007', categoryName: '合同',
-      createdAt: '2026-08-19T00:00:00Z', createdBy: 'actor-1',
+      fileId: 'file-1',
+      fileName: 'contract.pdf',
+      contentType: 'application/pdf' as const,
+      size: 10,
+      sha256: 'a'.repeat(64),
+      status: 'READY' as const,
+      categoryObjectId: 'category-1',
+      categoryVersionId: 'category-v1',
+      categoryCode: 'DIT-0007',
+      categoryName: '合同',
+      createdAt: '2026-08-19T00:00:00Z',
+      createdBy: 'actor-1',
     }
 
     await vm.removeAttachment('ACCOUNT', attachment)

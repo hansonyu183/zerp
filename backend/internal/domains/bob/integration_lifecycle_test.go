@@ -12,12 +12,9 @@ import (
 func TestLifecycleIntegration(t *testing.T) {
 	pool := integrationPool(t)
 	service := NewService(pool)
-	const lifecycleEntity = EntityOtherParty
-	_, salesperson := createApprovedIntegration(t, service, EntityEmployee, CreateDetailInput{
-		Code: "LSE" + newID(), Name: "Lifecycle Salesperson",
-	}, "lifecycle-salesperson")
+	const lifecycleEntity = EntityWarehouse
 	created, err := service.Create(t.Context(), lifecycleEntity, CreateInput{Data: CreateDetailInput{
-		Name: "Integration Customer", SalespersonEmployeeID: salesperson.ObjectID,
+		Name: "Integration Warehouse",
 	}}, integrationActorOne, "integration-create")
 	if err != nil {
 		t.Fatalf("create: %v", err)
@@ -41,7 +38,7 @@ func TestLifecycleIntegration(t *testing.T) {
 	}
 	saved, err := service.Save(t.Context(), lifecycleEntity, SaveInput{
 		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: rejected.Revision,
-		Data: DetailInput{Name: "Integration Customer Corrected"},
+		Data: DetailInput{Name: "Integration Warehouse Corrected"},
 	}, integrationActorOne, "integration-save")
 	if err != nil || saved.Revision != 4 {
 		t.Fatalf("save: result=%+v err=%v", saved, err)
@@ -76,7 +73,7 @@ func TestLifecycleIntegration(t *testing.T) {
 	}
 
 	view, err := service.Get(t.Context(), lifecycleEntity, GetInput{ObjectID: created.ObjectID})
-	if err != nil || view.Data.Name != "Integration Customer Corrected" || view.Version.Status != StatusEffective {
+	if err != nil || view.Data.Name != "Integration Warehouse Corrected" || view.Version.Status != StatusEffective {
 		t.Fatalf("get effective: view=%+v err=%v", view, err)
 	}
 	page, err := service.Query(t.Context(), lifecycleEntity, QueryInput{
@@ -181,7 +178,7 @@ func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 	}{
 		{EntityCustomer, CreateDetailInput{Name: "Customer"}},
 		{EntitySupplier, CreateDetailInput{Name: "Supplier"}},
-		{EntityOtherParty, CreateDetailInput{Name: "Other Party"}},
+		{EntityOtherUnit, CreateDetailInput{Name: "Other Party"}},
 		{EntityEmployee, CreateDetailInput{Name: "Employee"}},
 		{EntityProduct, CreateDetailInput{Name: "Product", Unit: "piece"}},
 		{EntityService, CreateDetailInput{Name: "Service", Unit: "hour"}},
@@ -203,8 +200,11 @@ func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 				defer service.SetAuxiliaryResolver(previousAuxiliaryResolver)
 			}
 			test.data.Code = "LC" + newID()
-			if test.entity == EntityCustomer || test.entity == EntityOtherParty {
+			if test.entity == EntityCustomer {
 				test.data.SalespersonEmployeeID = salesperson.ObjectID
+			}
+			if test.entity == EntityOtherUnit {
+				test.data.OperatingEntityID = operating.ObjectID
 			}
 			if test.entity == EntitySupplier {
 				test.data.DefaultPurchaserEmployeeID = salesperson.ObjectID
@@ -215,7 +215,13 @@ func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 			if test.entity == EntityFundAccount {
 				test.data.OperatingEntityID = operating.ObjectID
 			}
-			created, err := service.Create(t.Context(), test.entity, CreateInput{Data: test.data}, integrationActorOne, "contract-create")
+			var created MutationResult
+			var err error
+			if test.entity == EntityOtherUnit {
+				created = createOtherUnitDraftIntegration(t, service, test.data, "contract")
+			} else {
+				created, err = service.Create(t.Context(), test.entity, CreateInput{Data: test.data}, integrationActorOne, "contract-create")
+			}
 			if err != nil {
 				t.Fatalf("create: %v", err)
 			}
@@ -250,7 +256,7 @@ func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 			if err = tx.Commit(t.Context()); err != nil {
 				t.Fatalf("commit resolve: %v", err)
 			}
-			if test.entity == EntityCustomer || test.entity == EntitySupplier {
+			if test.entity == EntityCustomer || test.entity == EntitySupplier || test.entity == EntityOtherUnit {
 				return
 			}
 			edited, err := service.Edit(t.Context(), test.entity, ObjectRevisionInput{

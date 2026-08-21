@@ -36,7 +36,7 @@ const listLifecycleReason = ref('')
 const payeeEntityLabels: Readonly<Record<string, string>> = {
   customer: '客户',
   employee: '员工',
-  'other-party': '居间商',
+  'other-unit': '居间商',
 }
 
 function payeeEntityLabel(entity: string): string {

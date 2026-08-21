@@ -67,7 +67,7 @@ func TestCommonAttributesReferencesFiltersAndRedactionIntegration(t *testing.T) 
 	}}, integrationActorOne, "inactive-salesperson-target"); !errorIsKind(err, ErrorConflict) {
 		t.Fatalf("inactive salesperson target error = %v", err)
 	}
-	intermediary, _ := createApprovedIntegration(t, service, EntityOtherParty, CreateDetailInput{
+	intermediary, _ := createApprovedIntegration(t, service, EntityOtherUnit, CreateDetailInput{
 		Code: "IM" + newID(), Name: "客户居间商", SalespersonEmployeeID: salesperson.ObjectID,
 	}, "customer-intermediary")
 	if _, err = service.Create(t.Context(), EntityCustomer, CreateInput{Data: CreateDetailInput{

@@ -277,7 +277,7 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 			}
 			result.CounterpartyType = fixed
 		}
-		if result.CounterpartyType != "customer" && result.CounterpartyType != "supplier" && result.CounterpartyType != "other-party" && result.CounterpartyType != "employee" {
+		if result.CounterpartyType != "customer" && result.CounterpartyType != "supplier" && result.CounterpartyType != "other-unit" && result.CounterpartyType != "employee" {
 			return validatedDraft{}, domainError(ErrorValidation, "invalid counterpartyType", nil, nil)
 		}
 		if err = validateReference(input.Counterparty, "counterparty", true); err != nil {

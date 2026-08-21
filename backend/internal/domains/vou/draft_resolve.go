@@ -47,7 +47,7 @@ func (s *Service) resolveDraftParties(
 	if result.Employee, err = s.resolveReference(ctx, tx, bobdomain.EntityEmployee, draft.Employee); err != nil {
 		return err
 	}
-	if result.InterestParty, err = s.resolveReference(ctx, tx, bobdomain.EntityOtherParty, draft.InterestParty); err != nil {
+	if result.InterestParty, err = s.resolveReference(ctx, tx, bobdomain.EntityOtherUnit, draft.InterestParty); err != nil {
 		return err
 	}
 	return nil

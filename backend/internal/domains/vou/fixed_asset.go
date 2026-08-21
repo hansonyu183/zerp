@@ -181,8 +181,8 @@ func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Qu
 			result.acquisitions = append(result.acquisitions, preparedAssetAcquisitionLine{input: line, category: category, department: department, custodian: custodian, originalValue: original, residualRateBps: int32(rate)})
 		}
 	case EntityAssetSale:
-		if input.CounterpartyType != "customer" && input.CounterpartyType != "other-party" {
-			return result, domainError(ErrorValidation, "counterpartyType must be customer or other-party", nil, nil)
+		if input.CounterpartyType != "customer" && input.CounterpartyType != "other-unit" {
+			return result, domainError(ErrorValidation, "counterpartyType must be customer or other-unit", nil, nil)
 		}
 		if err = validateReference(input.Counterparty, "counterparty", true); err != nil {
 			return result, err

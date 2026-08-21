@@ -475,7 +475,7 @@ onMounted(() => {
                   ? '客户集团'
                   : match.sourceEntity === 'supplier'
                     ? '供应商'
-                    : '其他往来单位'
+                    : '其他单位'
               "
             >
               <template #append>

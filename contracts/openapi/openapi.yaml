@@ -2448,6 +2448,509 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
+      '/bob/party/query':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '查询主体',
+              'operationId': 'partyQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/PartyQueryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体分页响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/PartyQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/bob/party/get':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '读取主体与授权关系卡片',
+              'operationId': 'partyGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/PartyGetRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体当前身份资料。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/PartyGetResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/bob/party/save':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '保存主体共享身份资料',
+              'operationId': 'partySave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/PartySaveRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '保存后的主体资料。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/PartyGetResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/bob/other-unit/query':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '查询其他单位服务关系',
+              'operationId': 'otherUnitQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/OtherUnitQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '其他单位分页响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/OtherUnitQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/bob/other-unit/get':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '读取其他单位服务关系',
+              'operationId': 'otherUnitGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobGetRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '其他单位关系详情。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/OtherUnitGetResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/bob/other-unit/create':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '原子创建或复用主体并创建其他单位',
+              'operationId': 'otherUnitCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/OtherUnitCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '已创建的其他单位关系。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/OtherUnitMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/bob/other-unit/save':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '保存其他单位关系草稿',
+              'operationId': 'otherUnitSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/OtherUnitSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '已保存的其他单位关系。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/OtherUnitMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/bob/other-unit/delete':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '删除其他单位首版或候选草稿',
+              'operationId': 'otherUnitDelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobDeleteRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/other-unit/submit':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '提交其他单位审核',
+              'operationId': 'otherUnitSubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/BobVersionRevisionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/other-unit/unsubmit':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '撤回其他单位提交',
+              'operationId': 'otherUnitUnsubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobReverseRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/other-unit/approve':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '审核通过其他单位',
+              'operationId': 'otherUnitApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/BobVersionRevisionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/other-unit/reject':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '驳回其他单位',
+              'operationId': 'otherUnitReject',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobReviewRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/other-unit/enable':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '启用其他单位',
+              'operationId': 'otherUnitEnable',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/BobObjectRevisionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/other-unit/disable':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '停用其他单位',
+              'operationId': 'otherUnitDisable',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/BobObjectRevisionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/other-unit/versions':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '查询其他单位版本',
+              'operationId': 'otherUnitVersions',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobHistoryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/other-unit/audit-history':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '查询其他单位审核历史',
+              'operationId': 'otherUnitAuditHistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobHistoryRequest' },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
       '/bob/customer/query':
         {
           'post':
@@ -2881,7 +3384,7 @@
           'post':
             {
               'tags': ['bob'],
-              'summary': '按权限精确发现同税号客户集团或其他往来单位',
+              'summary': '按权限精确发现同税号客户集团或其他单位',
               'operationId': 'supplierTaxMatch',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':

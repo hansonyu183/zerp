@@ -338,7 +338,7 @@ export const voucherEntityConfigs: Readonly<
     icon: 'mdi-cash-fast',
     order: 133,
     partyMode: 'counterparty',
-    fixedCounterpartyType: 'other-party',
+    fixedCounterpartyType: 'other-unit',
     lineKind: 'none',
   },
   'bill-maturity': {

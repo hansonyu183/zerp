@@ -175,7 +175,7 @@ function changeCounterpartyType(value: string): void {
   vm.form.counterpartyType = [
     'customer',
     'supplier',
-    'other-party',
+    'other-unit',
     'employee',
   ].includes(value)
     ? (value as typeof vm.form.counterpartyType)
@@ -446,14 +446,14 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                       vm.config.entity === 'asset-sale'
                         ? [
                             { title: '客户', value: 'customer' },
-                            { title: '其他往来单位', value: 'other-party' },
+                            { title: '其他单位', value: 'other-unit' },
                           ]
                         : vm.config.entity === 'other-receipt' ||
                             vm.config.entity === 'other-payment'
                           ? [
                               { title: '客户', value: 'customer' },
                               { title: '供应商', value: 'supplier' },
-                              { title: '其他单位', value: 'other-party' },
+                              { title: '其他单位', value: 'other-unit' },
                               { title: '员工', value: 'employee' },
                             ]
                           : [
@@ -473,8 +473,8 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     :label="
                       vm.form.counterpartyType === 'supplier'
                         ? '供应商'
-                        : vm.form.counterpartyType === 'other-party'
-                          ? '其他往来单位'
+                        : vm.form.counterpartyType === 'other-unit'
+                          ? '其他单位'
                           : vm.form.counterpartyType === 'employee'
                             ? vm.config.entity === 'other-receipt' ||
                               vm.config.entity === 'other-payment'

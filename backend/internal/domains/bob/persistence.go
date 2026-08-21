@@ -19,7 +19,7 @@ func derefInt32(value *int32) int32 {
 
 func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID string, data DetailView) error {
 	switch entity {
-	case EntityCustomer, EntityOtherParty:
+	case EntityCustomer:
 		monthlyClosingDay := data.MonthlyClosingDay
 		if monthlyClosingDay == 0 {
 			monthlyClosingDay = 31
@@ -58,6 +58,16 @@ func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			SalespersonEmployeeID:         data.SalespersonEmployeeID,
 			RebateUnitPriceCents:          rebateUnitPrice,
 			IntermediaryOtherPartyID:      nilIfEmpty(data.IntermediaryOtherPartyID),
+		})
+	case EntityOtherUnit:
+		return q.InsertBobServiceRelationshipDetail(ctx, dbsqlc.InsertBobServiceRelationshipDetailParams{
+			VersionID: versionID, ContactName: nilIfEmpty(data.ContactName),
+			ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email),
+			Address: nilIfEmpty(data.Address), SettlementMethodID: nilIfEmpty(data.SettlementMethodID),
+			SettlementMethodCode: nilIfEmpty(data.SettlementMethodCode), SettlementMethodName: nilIfEmpty(data.SettlementMethodName),
+			SettlementTermCode: nilIfEmpty(data.TermCode), SettlementRuleType: nilIfEmpty(data.RuleType),
+			SettlementMonthOffset: data.MonthOffset, SettlementDayOfMonth: derefInt32(data.DayOfMonth),
+			SettlementDayOffset: data.DayOffset, Remark: nilIfEmpty(data.Remark),
 		})
 	case EntitySupplier:
 		return q.InsertBobSupplierDetail(ctx, dbsqlc.InsertBobSupplierDetailParams{
@@ -178,7 +188,7 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 	var rows int64
 	var err error
 	switch entity {
-	case EntityCustomer, EntityOtherParty:
+	case EntityCustomer:
 		monthlyClosingDay := data.MonthlyClosingDay
 		if monthlyClosingDay == 0 {
 			monthlyClosingDay = 31
@@ -217,6 +227,16 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			RebateUnitPriceCents:          rebateUnitPrice,
 			IntermediaryOtherPartyID:      nilIfEmpty(data.IntermediaryOtherPartyID),
 			VersionID:                     versionID,
+		})
+	case EntityOtherUnit:
+		rows, err = q.UpdateBobServiceRelationshipDetail(ctx, dbsqlc.UpdateBobServiceRelationshipDetailParams{
+			ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone),
+			Email: nilIfEmpty(data.Email), Address: nilIfEmpty(data.Address),
+			SettlementMethodID: nilIfEmpty(data.SettlementMethodID), SettlementMethodCode: nilIfEmpty(data.SettlementMethodCode),
+			SettlementMethodName: nilIfEmpty(data.SettlementMethodName), SettlementTermCode: nilIfEmpty(data.TermCode),
+			SettlementRuleType: nilIfEmpty(data.RuleType), SettlementMonthOffset: data.MonthOffset,
+			SettlementDayOfMonth: derefInt32(data.DayOfMonth), SettlementDayOffset: data.DayOffset,
+			Remark: nilIfEmpty(data.Remark), VersionID: versionID,
 		})
 	case EntitySupplier:
 		rows, err = q.UpdateBobSupplierDetail(ctx, dbsqlc.UpdateBobSupplierDetailParams{
@@ -344,7 +364,7 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 
 func copyDetail(ctx context.Context, q *dbsqlc.Queries, entity, newVersionID, sourceVersionID string) error {
 	switch entity {
-	case EntityCustomer, EntityOtherParty:
+	case EntityCustomer:
 		if err := q.CopyBobCustomerDetail(ctx, dbsqlc.CopyBobCustomerDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID}); err != nil {
 			return err
 		}
@@ -359,6 +379,10 @@ func copyDetail(ctx context.Context, q *dbsqlc.Queries, entity, newVersionID, so
 			})
 		}
 		return nil
+	case EntityOtherUnit:
+		return q.CopyBobServiceRelationshipDetail(ctx, dbsqlc.CopyBobServiceRelationshipDetailParams{
+			NewVersionID: newVersionID, SourceVersionID: sourceVersionID,
+		})
 	case EntitySupplier:
 		return q.CopyBobSupplierDetail(ctx, dbsqlc.CopyBobSupplierDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID})
 	case EntityEmployee:
@@ -488,8 +512,10 @@ func loadProductFormula(
 
 func deleteDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID string) (int64, error) {
 	switch entity {
-	case EntityCustomer, EntityOtherParty:
+	case EntityCustomer:
 		return q.DeleteBobCustomerDetail(ctx, versionID)
+	case EntityOtherUnit:
+		return q.DeleteBobServiceRelationshipDetail(ctx, versionID)
 	case EntitySupplier:
 		return q.DeleteBobSupplierDetail(ctx, versionID)
 	case EntityEmployee:

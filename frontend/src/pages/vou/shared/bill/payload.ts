@@ -107,7 +107,7 @@ export function buildBillDiscountPayload(form: BillVoucherForm) {
     currency: form.currency,
     remark: form.remark || undefined,
     counterparty: reference(form.counterparty),
-    counterpartyType: 'other-party' as const,
+    counterpartyType: 'other-unit' as const,
     interestMode: form.interestMode,
     ...(form.interestMode === 'THIRD_PARTY_PAYABLE'
       ? { interestParty: reference(form.interestParty) }

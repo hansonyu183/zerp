@@ -89,7 +89,7 @@
           'entity':
             {
               'type': 'string',
-              'enum': ['customer', 'employee', 'other-party', 'product'],
+              'enum': ['customer', 'employee', 'other-unit', 'product'],
             },
           'code': { 'type': 'string' },
           'name': { 'type': 'string' },
@@ -691,7 +691,7 @@
                   'versionId': { 'type': 'string' },
                 },
             },
-          'counterpartyType': { 'type': 'string', 'enum': ['other-party'] },
+          'counterpartyType': { 'type': 'string', 'enum': ['other-unit'] },
           'interestMode':
             {
               'type': 'string',

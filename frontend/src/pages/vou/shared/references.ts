@@ -28,6 +28,8 @@ interface ReferenceState {
   sequence: number
 }
 
+type ReferenceEntity = BobApiEntity | 'other-unit'
+
 export function useVoucherReferences(
   config: VoucherEntityConfig,
   form: Ref<VoucherDraftForm>,
@@ -62,7 +64,7 @@ export function useVoucherReferences(
   }
 
   function referenceDefinition(key: string): {
-    entities: BobApiEntity[]
+    entities: ReferenceEntity[]
     filters?: Record<string, unknown>
   } {
     if (key === 'customer') return { entities: ['customer'] }
@@ -201,6 +203,30 @@ export function useVoucherReferences(
             )
             return data.map((item): VoucherReference => ({ ...item, entity }))
           }
+          if (entity === 'other-unit') {
+            const { data } = await apiClient.postContract(
+              'bob/other-unit/query',
+              {
+                page: 1,
+                pageSize: 20,
+                filters: keyword.trim() ? { keyword: keyword.trim() } : {},
+              },
+              { signal: controller.signal },
+            )
+            return data.items.flatMap((item): VoucherReference[] =>
+              item.enabled && item.effectiveVersionId
+                ? [
+                    {
+                      objectId: item.objectId,
+                      versionId: item.effectiveVersionId,
+                      entity,
+                      code: item.code,
+                      name: item.partyDisplayName,
+                    },
+                  ]
+                : [],
+            )
+          }
           const { data } = await apiClient.post<
             PageResult<ReferenceListItem>,
             PageRequest
@@ -270,7 +296,7 @@ export function useVoucherReferences(
       state.options = [...selectedReferences(), ...pages.flat()]
         .filter(
           (item) =>
-            definition.entities.includes(item.entity as BobApiEntity) &&
+            definition.entities.includes(item.entity as ReferenceEntity) &&
             (!platformObjectId || item.platformObjectId === platformObjectId),
         )
         .filter(

@@ -145,10 +145,9 @@ describe('shared BOB entity configuration and view model', () => {
     expect(vm.editorErrorMessage.value).toBe('详情加载失败')
   })
 
-  it('定义全部九类业务对象和完整状态筛选', () => {
+  it('定义仍使用通用工作区的八类业务对象和完整状态筛选', () => {
     const expectedColumns: Record<string, string[]> = {
       supplier: ['编码', '名称', '类型', '状态'],
-      'other-party': ['编码', '名称', '状态'],
       employee: ['编码', '姓名', '电话', '入职', '状态'],
       product: ['编码', '名称', '类型', '库存单位', '型号', '状态'],
       service: ['编码', '名称', '单位', '说明', '状态'],
@@ -388,9 +387,11 @@ describe('shared BOB entity configuration and view model', () => {
   it('保存接口成功后立即反馈，不等待列表刷新', async () => {
     grant('fund-account', 'create', 'query')
     let resolveQuery!: (value: ReturnType<typeof emptyPage>) => void
-    const pendingQuery = new Promise<ReturnType<typeof emptyPage>>((resolve) => {
-      resolveQuery = resolve
-    })
+    const pendingQuery = new Promise<ReturnType<typeof emptyPage>>(
+      (resolve) => {
+        resolveQuery = resolve
+      },
+    )
     mockedApiClient.post
       .mockResolvedValueOnce({ data: mutation() })
       .mockReturnValueOnce(pendingQuery)
@@ -540,9 +541,11 @@ describe('shared BOB entity configuration and view model', () => {
   it('撤回接口成功后立即反馈并在后台刷新列表', async () => {
     grant('product', 'query', 'unsubmit')
     let resolveQuery!: (value: ReturnType<typeof emptyPage>) => void
-    const pendingQuery = new Promise<ReturnType<typeof emptyPage>>((resolve) => {
-      resolveQuery = resolve
-    })
+    const pendingQuery = new Promise<ReturnType<typeof emptyPage>>(
+      (resolve) => {
+        resolveQuery = resolve
+      },
+    )
     mockedApiClient.post
       .mockResolvedValueOnce({ data: mutation('DRAFT') })
       .mockReturnValueOnce(pendingQuery)

@@ -769,7 +769,7 @@ SELECT
     customer_version.intermediary_other_party_id,
     intermediary_object.effective_version_id AS intermediary_version_id,
     intermediary_object.code AS intermediary_code,
-    intermediary_version.name AS intermediary_name,
+    intermediary_party.display_name AS intermediary_name,
     line.product_object_id,
     line.product_version_id,
     line.product_code,
@@ -798,9 +798,14 @@ JOIN vou_product_lines order_line ON order_line.id=line.source_order_line_id
 JOIN bob_customer_versions customer_version ON customer_version.version_id=detail.customer_version_id
 LEFT JOIN bob_objects intermediary_object
   ON intermediary_object.id=customer_version.intermediary_other_party_id
- AND intermediary_object.entity='other-party'
-LEFT JOIN bob_customer_versions intermediary_version
+ AND intermediary_object.entity='other-unit'
+ AND intermediary_object.enabled
+LEFT JOIN bob_service_relationships intermediary_relationship
+  ON intermediary_relationship.object_id=intermediary_object.id
+LEFT JOIN bob_service_relationship_versions intermediary_version
   ON intermediary_version.version_id=intermediary_object.effective_version_id
+LEFT JOIN bob_parties intermediary_party
+  ON intermediary_party.id=intermediary_relationship.party_id
 LEFT JOIN returned ON returned.source_signoff_line_id=line.id
 WHERE signoff.entity='sale-signoff'
   AND signoff.status = 'APPROVED'

@@ -49,6 +49,17 @@ type applicationService interface {
 	SupplierTaxMatches(context.Context, SupplierTaxMatchInput) ([]SupplierTaxMatch, error)
 }
 
+type partyOtherUnitApplicationService interface {
+	PartyQuery(context.Context, QueryInput) (Page[PartyListItem], error)
+	PartyGet(context.Context, PartyGetInput, PartyRelationshipVisibility) (PartyView, error)
+	PartySave(context.Context, PartySaveInput, string, string) (PartyView, error)
+	OtherUnitQuery(context.Context, QueryInput) (Page[OtherUnitView], error)
+	OtherUnitGet(context.Context, GetInput) (OtherUnitView, error)
+	OtherUnitCreate(context.Context, OtherUnitCreateInput, string, string, bool) (OtherUnitCreateResult, error)
+	OtherUnitSave(context.Context, OtherUnitSaveInput, string, string) (MutationResult, error)
+	OtherUnitVersions(context.Context, HistoryInput) (Page[VersionHistoryItem], error)
+}
+
 type customerAttachmentApplicationService interface {
 	Initiate(context.Context, CustomerAttachmentInitiateInput, string, string) (CustomerAttachmentInitiateResult, error)
 	CreateDownload(context.Context, CustomerAttachmentDownloadInput, string) (CustomerAttachmentDownloadResult, error)
@@ -113,6 +124,26 @@ func (h *Handler) Register(router *gin.Engine) {
 			})
 		}
 	}
+	partyGroup := group.Group("/party")
+	partyGroup.POST("/query", h.authorize("/bob/party/query"), h.partyQuery)
+	partyGroup.POST("/get", h.authorize("/bob/party/get"), h.partyGet)
+	partyGroup.POST("/save", h.authorize("/bob/party/save"), h.partySave)
+	otherUnitGroup := group.Group("/" + EntityOtherUnit)
+	otherUnitGroup.POST("/query", h.authorize("/bob/other-unit/query"), h.otherUnitQuery)
+	otherUnitGroup.POST("/get", h.authorize("/bob/other-unit/get"), h.otherUnitGet)
+	otherUnitGroup.POST("/create", h.authorize("/bob/other-unit/create"), h.otherUnitCreate)
+	otherUnitGroup.POST("/save", h.authorize("/bob/other-unit/save"), h.otherUnitSave)
+	otherUnitGroup.POST("/versions", h.authorize("/bob/other-unit/versions"), h.otherUnitVersions)
+	for _, route := range actionRoutes {
+		if route.action == "query" || route.action == "get" || route.action == "create" || route.action == "save" || route.action == "versions" || route.action == "unapprove" {
+			continue
+		}
+		action, handle := route.action, route.handle
+		path := "/bob/other-unit/" + action
+		otherUnitGroup.POST("/"+action, h.authorize(path), func(c *gin.Context) {
+			handle(h, c, EntityOtherUnit)
+		})
+	}
 	groupGroup := group.Group("/customer-group")
 	groupGroup.POST("/get", h.authorize("/bob/customer-group/get"), h.customerGroupGet)
 	groupGroup.POST("/save", h.authorize("/bob/customer-group/save"), h.customerGroupSave)
@@ -128,6 +159,102 @@ func (h *Handler) Register(router *gin.Engine) {
 	referenceGroup.POST("/transfer", h.authorize("/bob/reference/transfer"), h.referenceTransfer)
 	router.PUT("/files/customer-attachments/upload/:token", h.customerAttachmentUpload)
 	router.GET("/files/customer-attachments/download/:token", h.customerAttachmentFileDownload)
+}
+
+func (h *Handler) otherUnitVersions(c *gin.Context) {
+	var input HistoryInput
+	if h.bind(c, &input) {
+		result, err := h.partyOtherUnitService().OtherUnitVersions(c.Request.Context(), input)
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) partyQuery(c *gin.Context) {
+	var input QueryInput
+	if h.bind(c, &input) {
+		result, err := h.partyOtherUnitService().PartyQuery(c.Request.Context(), input)
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) partyGet(c *gin.Context) {
+	var input PartyGetInput
+	if !h.bind(c, &input) {
+		return
+	}
+	principal := h.principal(c)
+	result, err := h.partyOtherUnitService().PartyGet(c.Request.Context(), input, PartyRelationshipVisibility{
+		OtherUnit: hasPermission(principal, "/bob/other-unit/get"),
+	})
+	h.result(c, result, err)
+}
+
+func (h *Handler) partySave(c *gin.Context) {
+	var input PartySaveInput
+	if h.bind(c, &input) {
+		result, err := h.partyOtherUnitService().PartySave(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) otherUnitQuery(c *gin.Context) {
+	var input QueryInput
+	if h.bind(c, &input) {
+		result, err := h.partyOtherUnitService().OtherUnitQuery(c.Request.Context(), input)
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) otherUnitGet(c *gin.Context) {
+	var input GetInput
+	if h.bind(c, &input) {
+		result, err := h.partyOtherUnitService().OtherUnitGet(c.Request.Context(), input)
+		h.result(c, result, err)
+	}
+}
+
+func (h *Handler) otherUnitCreate(c *gin.Context) {
+	var input OtherUnitCreateInput
+	if !h.bind(c, &input) {
+		return
+	}
+	requiredPartyPath := "/bob/party/get"
+	if input.NewParty != nil {
+		requiredPartyPath = "/bob/party/create"
+	}
+	if _, err := h.authorizer.Authorize(c.Request.Context(), c.Request, requiredPartyPath, response.RequestID(c)); err != nil {
+		h.writeAuthorizationError(c, err)
+		return
+	}
+	result, err := h.partyOtherUnitService().OtherUnitCreate(c.Request.Context(), input, h.actorID(c), response.RequestID(c),
+		hasPermission(h.principal(c), "/bob/party/get"))
+	h.result(c, result, err)
+}
+
+func (h *Handler) otherUnitSave(c *gin.Context) {
+	var input OtherUnitSaveInput
+	if h.bind(c, &input) {
+		result, err := h.partyOtherUnitService().OtherUnitSave(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
+		h.result(c, result, err)
+	}
+}
+
+func hasPermission(principal authorization.Principal, path string) bool {
+	for _, permission := range principal.Permissions {
+		if permission == path {
+			return true
+		}
+	}
+	return false
+}
+
+func (h *Handler) principal(c *gin.Context) authorization.Principal {
+	principal, _ := c.Get(principalContextKey)
+	return principal.(authorization.Principal)
+}
+
+func (h *Handler) partyOtherUnitService() partyOtherUnitApplicationService {
+	return h.service.(partyOtherUnitApplicationService)
 }
 
 func (h *Handler) customerTaxMatch(c *gin.Context) {
@@ -152,7 +279,7 @@ func (h *Handler) customerTaxMatch(c *gin.Context) {
 	}
 	result, err := h.service.CustomerTaxMatches(c.Request.Context(), CustomerTaxMatchInput{TaxNumber: request.TaxNumber,
 		IncludeCustomer: has("/bob/customer/get"), IncludeSupplier: has("/bob/supplier/get"),
-		IncludeOtherParty: has("/bob/other-party/get")})
+		IncludeOtherUnit: has("/bob/other-unit/get")})
 	h.result(c, result, err)
 }
 
@@ -177,7 +304,7 @@ func (h *Handler) supplierTaxMatch(c *gin.Context) {
 		return false
 	}
 	result, err := h.service.SupplierTaxMatches(c.Request.Context(), SupplierTaxMatchInput{TaxNumber: request.TaxNumber,
-		IncludeCustomer: has("/bob/customer-group/get"), IncludeOtherParty: has("/bob/other-party/get")})
+		IncludeCustomer: has("/bob/customer-group/get"), IncludeOtherUnit: has("/bob/other-unit/get")})
 	h.result(c, result, err)
 }
 

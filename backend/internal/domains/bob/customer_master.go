@@ -172,10 +172,10 @@ type CustomerCreateResult struct {
 }
 
 type CustomerTaxMatchInput struct {
-	TaxNumber         string
-	IncludeCustomer   bool
-	IncludeSupplier   bool
-	IncludeOtherParty bool
+	TaxNumber        string
+	IncludeCustomer  bool
+	IncludeSupplier  bool
+	IncludeOtherUnit bool
 }
 
 type CustomerTaxMatch struct {
@@ -197,7 +197,7 @@ func (s *Service) CustomerTaxMatches(ctx context.Context, input CustomerTaxMatch
 	}
 	rows, err := s.queries.QueryCustomerTaxMatches(ctx, dbsqlc.QueryCustomerTaxMatchesParams{
 		IncludeCustomer: input.IncludeCustomer, IncludeSupplier: input.IncludeSupplier,
-		IncludeOtherParty: input.IncludeOtherParty, TaxNumber: &taxNumber,
+		IncludeOtherUnit: input.IncludeOtherUnit, TaxNumber: &taxNumber,
 	})
 	if err != nil {
 		return nil, s.internal("query customer tax matches", err)
@@ -770,7 +770,7 @@ func insertCustomerAccountData(ctx context.Context, q *dbsqlc.Queries, versionID
 func (s *Service) resolveCustomerSnapshots(ctx context.Context, tx pgx.Tx, data CustomerAccountData) (CustomerAccountData, error) {
 	targetEntity := EntityEmployee
 	if data.PrimarySalesAttribution.Type != SalesAttributionInternalEmployee {
-		targetEntity = EntityOtherParty
+		targetEntity = EntityOtherUnit
 	}
 	subject, err := s.ResolveCurrentEffectiveReference(ctx, tx, targetEntity, data.PrimarySalesAttribution.SubjectObjectID)
 	if err != nil {

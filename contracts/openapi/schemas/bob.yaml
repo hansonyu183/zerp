@@ -6,7 +6,6 @@
         [
           'customer',
           'supplier',
-          'other-party',
           'employee',
           'product',
           'service',
@@ -21,7 +20,6 @@
       'type': 'string',
       'enum':
         [
-          'other-party',
           'employee',
           'product',
           'service',
@@ -220,7 +218,7 @@
                     {
                       'type': 'string',
                       'nullable': true,
-                      'description': '仅客户适用；引用其他往来单位中的居间商',
+                      'description': '仅客户适用；引用其他单位中的居间商',
                     },
                   'productKind':
                     {
@@ -1570,7 +1568,7 @@
       'properties':
         {
           'sourceEntity':
-            { 'type': 'string', 'enum': ['customer-group', 'other-party'] },
+            { 'type': 'string', 'enum': ['customer-group', 'other-unit'] },
           'objectId': { 'type': 'string' },
           'code': { 'type': 'string' },
           'companyName': { 'type': 'string' },
@@ -1624,7 +1622,7 @@
                   'customer',
                   'operating-entity',
                   'employee',
-                  'other-party',
+                  'other-unit',
                   'supplier',
                   'product',
                 ],
@@ -1674,7 +1672,7 @@
                   'customer',
                   'operating-entity',
                   'employee',
-                  'other-party',
+                  'other-unit',
                   'supplier',
                   'product',
                 ],
@@ -1740,7 +1738,7 @@
           'sourceEntity':
             {
               'type': 'string',
-              'enum': ['customer-group', 'supplier', 'other-party'],
+              'enum': ['customer-group', 'supplier', 'other-unit'],
             },
           'objectId': { 'type': 'string' },
           'code': { 'type': 'string' },
@@ -1763,6 +1761,463 @@
           'message': { 'type': 'string' },
           'data':
             { 'type': 'array', 'items': { '$ref': '#/CustomerTaxMatch' } },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'PartyKind': { 'type': 'string', 'enum': ['PERSON', 'ORGANIZATION'] },
+  'PartyIdentifierType':
+    { 'type': 'string', 'enum': ['PERSON_ID', 'UNIFIED_SOCIAL_CREDIT_CODE'] },
+  'PartyIdentifier':
+    {
+      'type': 'object',
+      'required': ['type', 'value'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'type': { '$ref': '#/PartyIdentifierType' },
+          'value': { 'type': 'string', 'minLength': 1, 'maxLength': 100 },
+        },
+    },
+  'PartyIdentityData':
+    {
+      'type': 'object',
+      'required': ['kind', 'legalName', 'strongIdentifiers'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'kind': { '$ref': '#/PartyKind' },
+          'legalName': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
+          'displayName': { 'type': 'string', 'maxLength': 200 },
+          'taxNumber': { 'type': 'string', 'maxLength': 100 },
+          'strongIdentifiers':
+            { 'type': 'array', 'items': { '$ref': '#/PartyIdentifier' } },
+          'phone': { 'type': 'string', 'maxLength': 32 },
+          'email': { 'type': 'string', 'maxLength': 254 },
+          'address': { 'type': 'string', 'maxLength': 500 },
+        },
+    },
+  'PartyQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'enum': [20] },
+          'filters':
+            {
+              'type': 'object',
+              'additionalProperties': false,
+              'properties':
+                {
+                  'keyword': { 'type': 'string', 'maxLength': 200 },
+                  'kind': { '$ref': '#/PartyKind' },
+                },
+            },
+        },
+    },
+  'PartyGetRequest':
+    {
+      'type': 'object',
+      'required': ['partyId'],
+      'additionalProperties': false,
+      'properties': { 'partyId': { 'type': 'string' } },
+    },
+  'PartySaveRequest':
+    {
+      'type': 'object',
+      'required': ['partyId', 'revision', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'partyId': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'data':
+            {
+              'type': 'object',
+              'additionalProperties': false,
+              'properties':
+                {
+                  'kind': { '$ref': '#/PartyKind' },
+                  'legalName': { 'type': 'string', 'nullable': true },
+                  'displayName': { 'type': 'string', 'nullable': true },
+                  'taxNumber': { 'type': 'string', 'nullable': true },
+                  'strongIdentifiers':
+                    {
+                      'type': 'array',
+                      'items': { '$ref': '#/PartyIdentifier' },
+                    },
+                  'phone': { 'type': 'string', 'nullable': true },
+                  'email': { 'type': 'string', 'nullable': true },
+                  'address': { 'type': 'string', 'nullable': true },
+                },
+            },
+        },
+    },
+  'PartyRelationshipCard':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'entity',
+          'code',
+          'operatingEntityId',
+          'operatingEntityCode',
+          'operatingEntityName',
+          'enabled',
+          'status',
+          'version',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'entity': { 'type': 'string', 'enum': ['other-unit'] },
+          'code': { 'type': 'string' },
+          'operatingEntityId': { 'type': 'string' },
+          'operatingEntityCode': { 'type': 'string' },
+          'operatingEntityName': { 'type': 'string' },
+          'enabled': { 'type': 'boolean' },
+          'status':
+            {
+              'type': 'string',
+              'enum': ['DRAFT', 'PENDING', 'REJECTED', 'EFFECTIVE', 'INVALID'],
+            },
+          'version': { 'type': 'integer', 'format': 'int32' },
+        },
+    },
+  'PartyView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'partyId',
+          'kind',
+          'legalName',
+          'displayName',
+          'strongIdentifiers',
+          'revision',
+          'relationships',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'partyId': { 'type': 'string' },
+          'kind': { '$ref': '#/PartyKind' },
+          'legalName': { 'type': 'string' },
+          'displayName': { 'type': 'string' },
+          'taxNumber': { 'type': 'string' },
+          'strongIdentifiers':
+            { 'type': 'array', 'items': { '$ref': '#/PartyIdentifier' } },
+          'phone': { 'type': 'string' },
+          'email': { 'type': 'string' },
+          'address': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'relationships':
+            { 'type': 'array', 'items': { '$ref': '#/PartyRelationshipCard' } },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'PartyListItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'partyId',
+          'kind',
+          'legalName',
+          'displayName',
+          'revision',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'partyId': { 'type': 'string' },
+          'kind': { '$ref': '#/PartyKind' },
+          'legalName': { 'type': 'string' },
+          'displayName': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'PartyGetResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/PartyView', 'nullable': true },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'PartyQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'required': ['items', 'total', 'page', 'pageSize'],
+              'additionalProperties': false,
+              'properties':
+                {
+                  'items':
+                    { 'type': 'array', 'items': { '$ref': '#/PartyListItem' } },
+                  'total': { 'type': 'integer', 'format': 'int64' },
+                  'page': { 'type': 'integer' },
+                  'pageSize': { 'type': 'integer' },
+                },
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'OtherUnitData':
+    {
+      'type': 'object',
+      'required': ['operatingEntityId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'operatingEntityId': { 'type': 'string' },
+          'contactName': { 'type': 'string', 'maxLength': 100 },
+          'contactPhone': { 'type': 'string', 'maxLength': 32 },
+          'email': { 'type': 'string', 'maxLength': 254 },
+          'address': { 'type': 'string', 'maxLength': 500 },
+          'settlementMethodId': { 'type': 'string' },
+          'settlementMethodCode': { 'type': 'string', 'readOnly': true },
+          'settlementMethodName': { 'type': 'string', 'readOnly': true },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+        },
+    },
+  'OtherUnitCreateRequest':
+    {
+      'oneOf':
+        [
+          { '$ref': '#/OtherUnitCreateWithExistingPartyRequest' },
+          { '$ref': '#/OtherUnitCreateWithNewPartyRequest' },
+        ],
+    },
+  'OtherUnitCreateWithExistingPartyRequest':
+    {
+      'type': 'object',
+      'required': ['partyId', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'partyId': { 'type': 'string' },
+          'data': { '$ref': '#/OtherUnitData' },
+        },
+    },
+  'OtherUnitCreateWithNewPartyRequest':
+    {
+      'type': 'object',
+      'required': ['newParty', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'newParty': { '$ref': '#/PartyIdentityData' },
+          'data': { '$ref': '#/OtherUnitData' },
+        },
+    },
+  'OtherUnitQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'enum': [20] },
+          'filters':
+            {
+              'type': 'object',
+              'additionalProperties': false,
+              'properties':
+                {
+                  'keyword': { 'type': 'string' },
+                  'status':
+                    {
+                      'type': 'array',
+                      'items':
+                        {
+                          'type': 'string',
+                          'enum': ['DRAFT', 'PENDING', 'EFFECTIVE', 'INVALID'],
+                        },
+                    },
+                  'operatingEntityId': { 'type': 'string' },
+                },
+            },
+        },
+    },
+  'OtherUnitSaveRequest':
+    {
+      'type': 'object',
+      'required': ['objectId', 'versionId', 'revision', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'versionId': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'data':
+            {
+              'type': 'object',
+              'additionalProperties': false,
+              'properties':
+                {
+                  'contactName': { 'type': 'string', 'nullable': true },
+                  'contactPhone': { 'type': 'string', 'nullable': true },
+                  'email': { 'type': 'string', 'nullable': true },
+                  'address': { 'type': 'string', 'nullable': true },
+                  'settlementMethodId': { 'type': 'string', 'nullable': true },
+                  'remark': { 'type': 'string', 'nullable': true },
+                },
+            },
+        },
+    },
+  'OtherUnitView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'code',
+          'objectRevision',
+          'enabled',
+          'versionId',
+          'version',
+          'status',
+          'revision',
+          'submittedBy',
+          'effectiveVersionId',
+          'partyId',
+          'partyKind',
+          'partyDisplayName',
+          'operatingEntityId',
+          'operatingEntityCode',
+          'operatingEntityName',
+          'data',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'versionId': { 'type': 'string' },
+          'version': { 'type': 'integer', 'format': 'int32' },
+          'status':
+            {
+              'type': 'string',
+              'enum': ['DRAFT', 'PENDING', 'REJECTED', 'EFFECTIVE', 'INVALID'],
+            },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'submittedBy': { 'type': 'string', 'nullable': true },
+          'effectiveVersionId': { 'type': 'string', 'nullable': true },
+          'partyId': { 'type': 'string' },
+          'partyKind': { '$ref': '#/PartyKind' },
+          'partyDisplayName': { 'type': 'string' },
+          'operatingEntityId': { 'type': 'string' },
+          'operatingEntityCode': { 'type': 'string' },
+          'operatingEntityName': { 'type': 'string' },
+          'data': { '$ref': '#/OtherUnitData' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'OtherUnitMutationResult':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'objectRevision',
+          'enabled',
+          'versionId',
+          'version',
+          'status',
+          'revision',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'versionId': { 'type': 'string' },
+          'version': { 'type': 'integer', 'format': 'int32' },
+          'status':
+            {
+              'type': 'string',
+              'enum': ['DRAFT', 'PENDING', 'REJECTED', 'EFFECTIVE', 'INVALID'],
+            },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'partyId': { 'type': 'string' },
+        },
+    },
+  'OtherUnitPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items': { 'type': 'array', 'items': { '$ref': '#/OtherUnitView' } },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'OtherUnitGetResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/OtherUnitView', 'nullable': true },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'OtherUnitQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/OtherUnitPage', 'nullable': true },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'OtherUnitMutationResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/OtherUnitMutationResult', 'nullable': true },
           'requestId': { 'type': 'string' },
         },
     },

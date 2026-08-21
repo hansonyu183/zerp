@@ -89,7 +89,9 @@ async function dismissSupplierNotice(
   page: Page,
   message: string,
 ): Promise<void> {
-  await expect(page.getByRole('status').filter({ hasText: message })).toBeVisible()
+  await expect(
+    page.getByRole('status').filter({ hasText: message }),
+  ).toBeVisible()
   await page.getByRole('button', { name: '关闭提示' }).click()
 }
 
@@ -114,6 +116,51 @@ async function confirmReason(
   await dialog.getByLabel('操作原因').fill(reason)
   await dialog.getByRole('button', { name: '确认', exact: true }).click()
 }
+
+test(
+  '原子创建 Party 与其他单位并从主体页查看关系卡片',
+  { tag: '@mobile' },
+  async ({ page, workerState }, testInfo) => {
+    test.setTimeout(120_000)
+    const suffix = `${testInfo.project.name}-${testInfo.parallelIndex}`
+    const partyName = `E2E 服务主体 ${suffix}`
+
+    await signIn(page, workerState.operator)
+    await page.goto('/bob/other-unit')
+    await expect(
+      page.getByText('其他单位', { exact: true }).first(),
+    ).toBeVisible()
+    await page.getByRole('button', { name: '新增', exact: true }).click()
+    const editor = page.getByRole('dialog').filter({ hasText: '新增其他单位' })
+    await editor.getByLabel('法定名称').fill(partyName)
+    await editor.getByLabel('显示名称').fill(`${partyName}简称`)
+    await editor
+      .getByLabel('强标识（精确命中会自动复用）')
+      .fill(`91310000E2E${suffix.replaceAll('-', '').toUpperCase()}`)
+    await selectAutocomplete(page, editor, '经营主体', '上海示例')
+    await editor.getByLabel('业务联系人').fill('E2E 联系人')
+    await editor.getByRole('button', { name: '保存草稿' }).click()
+
+    const createdRow = page.locator('tbody tr').filter({ hasText: partyName })
+    await expect(createdRow).toHaveCount(1)
+    const code = (await createdRow.locator('td').first().textContent())?.trim()
+    expect(code).toMatch(/^OTU-\d{4}$/)
+
+    await page.goto('/bob/party')
+    await page
+      .getByRole('textbox', { name: '名称、电话、邮箱或地址' })
+      .fill(partyName)
+    await page.getByRole('button', { name: '查询', exact: true }).click()
+    const partyRow = page.locator('tbody tr').filter({ hasText: partyName })
+    await expect(partyRow).toHaveCount(1)
+    await partyRow.getByRole('button', { name: '查看 / 编辑' }).click()
+    const partyDialog = page
+      .getByRole('dialog')
+      .filter({ hasText: '主体共享身份' })
+    await expect(partyDialog).toContainText(`${code} · 其他单位`)
+    await expect(partyDialog).toContainText('上海示例')
+  },
+)
 
 test(
   '使用双账号完成客户创建、审核与启禁用',
@@ -193,9 +240,7 @@ test(
     await customerRow(page, code!).getByLabel('启用').click()
     await expect(customerRow(page, code!).getByLabel('禁用')).toBeVisible()
 
-    await expect(
-      customerRow(page, code!).getByLabel('撤销批准'),
-    ).toHaveCount(0)
+    await expect(customerRow(page, code!).getByLabel('撤销批准')).toHaveCount(0)
   },
 )
 

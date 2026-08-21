@@ -1,4 +1,5 @@
 const exactMessages: Readonly<Record<string, string>> = {
+  'Party changed before delete': '主体资料已发生变化，请重新读取后再删除。',
   'authentication failed': '用户名或密码错误。',
   'session expired': '登录状态已过期，请重新登录。',
   'permission denied': '没有权限执行此操作，请联系管理员。',
@@ -120,6 +121,8 @@ const exactMessages: Readonly<Record<string, string>> = {
   'settlement method is not configured': '尚未配置结算方式，请先完成配置。',
   'settlement methods are system-defined':
     '结算方式由系统固定维护，不能新增或删除。',
+  'other-units must be created with a Party relationship':
+    '其他单位必须通过主体关系入口创建。',
   'settlement rule does not match fixed term':
     '结算规则与系统固定期限不一致，请刷新后重试。',
   'settlement method facts do not match fixed term':
@@ -365,8 +368,8 @@ const exactMessages: Readonly<Record<string, string>> = {
   'fields do not match bill payment': '提交内容与票据付出业务不匹配。',
   'bill issue requires supplier': '请选择供应商。',
   'bill issue requires interestMode': '请选择利息承担方式。',
-  'bill issue requires other-party interestParty':
-    '第三方承担利息时必须选择其他往来单位。',
+  'bill issue requires other-unit interestParty':
+    '第三方承担利息时必须选择其他单位。',
   'bill issue interestParty is not allowed':
     '银行扣息时不能填写第三方利息承担方。',
   'fields do not match bill issue': '提交内容与票据开出业务不匹配。',
@@ -375,11 +378,11 @@ const exactMessages: Readonly<Record<string, string>> = {
   'bill issue total is invalid': '自开票据票面合计无效。',
   'billLineId is not supported in bill issue cash lines':
     '自开票据现金行不能关联票据行。',
-  'bill discount requires other-party counterparty': '请选择贴现方。',
+  'bill discount requires other-unit counterparty': '请选择贴现方。',
   'bill discount requires interestMode': '请选择利息承担方式。',
   'invalid bill discount interestMode': '请选择有效的利息承担方式。',
-  'bill discount requires other-party interestParty':
-    '第三方承担利息时必须选择其他往来单位。',
+  'bill discount requires other-unit interestParty':
+    '第三方承担利息时必须选择其他单位。',
   'bill discount interestParty is not allowed':
     '银行扣息时不能填写第三方利息承担方。',
   'bill discount requires available billId':
@@ -535,8 +538,8 @@ const exactMessages: Readonly<Record<string, string>> = {
     '系统已有用户，不能再次初始化管理员。',
   'category is only supported for products': '分类只适用于产品资料。',
   'code already exists': '编码已存在，请使用其他编码。',
-  'counterpartyType must be customer or other-party':
-    '往来对象类型必须是客户或其他往来单位。',
+  'counterpartyType must be customer or other-unit':
+    '往来对象类型必须是客户或其他单位。',
   'counterpartyType requires counterparty':
     '选择往来对象类型后必须填写往来对象。',
   'csrf validation failed': '页面安全凭证已失效，请刷新页面后重试。',

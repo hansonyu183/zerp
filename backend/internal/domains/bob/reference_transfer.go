@@ -38,7 +38,7 @@ type ReferenceCandidate struct {
 }
 
 func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQueryInput) ([]ReferenceCandidate, error) {
-	if input.Entity != EntityCustomer && input.Entity != EntityOperatingEntity && input.Entity != EntityEmployee && input.Entity != EntityOtherParty &&
+	if input.Entity != EntityCustomer && input.Entity != EntityOperatingEntity && input.Entity != EntityEmployee && input.Entity != EntityOtherUnit &&
 		input.Entity != EntitySupplier && input.Entity != EntityProduct {
 		return nil, domainError(ErrorValidation, "invalid BOB reference entity", nil, nil)
 	}
@@ -159,7 +159,7 @@ func (s *Service) TransferReferences(
 }
 
 func isTransferableReferenceEntity(entity string) bool {
-	return entity == EntityOperatingEntity || entity == EntityEmployee || entity == EntityOtherParty ||
+	return entity == EntityOperatingEntity || entity == EntityEmployee || entity == EntityOtherUnit ||
 		entity == EntitySupplier || entity == EntityProduct
 }
 
@@ -181,13 +181,6 @@ func listDirectReferenceUses(ctx context.Context, q *dbsqlc.Queries, entity, obj
 		for _, row := range rows2 {
 			uses = append(uses, directReferenceUse{row.ObjectID, row.Entity, row.Role})
 		}
-		rows3, err := q.ListOtherPartySalesReferencesForEmployee(ctx, objectID)
-		if err != nil {
-			return nil, err
-		}
-		for _, row := range rows3 {
-			uses = append(uses, directReferenceUse{row.ObjectID, row.Entity, row.Role})
-		}
 		rows4, err := q.ListWarehouseManagerReferencesForEmployee(ctx, &objectID)
 		if err != nil {
 			return nil, err
@@ -195,8 +188,8 @@ func listDirectReferenceUses(ctx context.Context, q *dbsqlc.Queries, entity, obj
 		for _, row := range rows4 {
 			uses = append(uses, directReferenceUse{row.ObjectID, row.Entity, row.Role})
 		}
-	case EntityOtherParty:
-		rows, err := q.ListCustomerSalesReferencesForOtherParty(ctx, &objectID)
+	case EntityOtherUnit:
+		rows, err := q.ListCustomerSalesReferencesForOtherUnit(ctx, &objectID)
 		if err != nil {
 			return nil, err
 		}
@@ -340,8 +333,6 @@ func (s *Service) replaceDirectReference(
 		err = qtx.ReplaceCustomerSalesReference(ctx, dbsqlc.ReplaceCustomerSalesReferenceParams{TargetObjectID: &targetObjectID, TargetVersionID: &targetVersionID, Code: &target.Code, Name: &target.Data.Name, VersionID: candidateID})
 	case "supplier-purchaser":
 		err = qtx.ReplaceSupplierPurchaserReference(ctx, dbsqlc.ReplaceSupplierPurchaserReferenceParams{TargetObjectID: &targetObjectID, VersionID: candidateID})
-	case "other-party-sales":
-		err = qtx.ReplaceOtherPartySalesReference(ctx, dbsqlc.ReplaceOtherPartySalesReferenceParams{TargetObjectID: targetObjectID, VersionID: candidateID})
 	case "warehouse-manager":
 		err = qtx.ReplaceWarehouseManagerReference(ctx, dbsqlc.ReplaceWarehouseManagerReferenceParams{TargetObjectID: &targetObjectID, VersionID: candidateID})
 	case "customer-intermediary":

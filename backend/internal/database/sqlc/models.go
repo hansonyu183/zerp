@@ -860,6 +860,40 @@ type BobOperatingEntityVersion struct {
 	Remark    *string `db:"remark" json:"remark"`
 }
 
+type BobParty struct {
+	ID          string             `db:"id" json:"id"`
+	Kind        string             `db:"kind" json:"kind"`
+	LegalName   string             `db:"legal_name" json:"legal_name"`
+	DisplayName string             `db:"display_name" json:"display_name"`
+	TaxNumber   *string            `db:"tax_number" json:"tax_number"`
+	Phone       *string            `db:"phone" json:"phone"`
+	Email       *string            `db:"email" json:"email"`
+	Address     *string            `db:"address" json:"address"`
+	Revision    int64              `db:"revision" json:"revision"`
+	CreatedAt   pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy   string             `db:"created_by" json:"created_by"`
+	UpdatedAt   pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy   string             `db:"updated_by" json:"updated_by"`
+}
+
+type BobPartyAuditEvent struct {
+	ID         string             `db:"id" json:"id"`
+	PartyID    string             `db:"party_id" json:"party_id"`
+	EventType  string             `db:"event_type" json:"event_type"`
+	Revision   int64              `db:"revision" json:"revision"`
+	ActorID    string             `db:"actor_id" json:"actor_id"`
+	OccurredAt pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
+	RequestID  string             `db:"request_id" json:"request_id"`
+	Summary    []byte             `db:"summary" json:"summary"`
+}
+
+type BobPartyIdentifier struct {
+	PartyID         string `db:"party_id" json:"party_id"`
+	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
+	Value           string `db:"value" json:"value"`
+	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
+}
+
 type BobPositionVersion struct {
 	VersionID      string  `db:"version_id" json:"version_id"`
 	Entity         string  `db:"entity" json:"entity"`
@@ -908,6 +942,34 @@ type BobProductVersion struct {
 	PricingUnitID                         string  `db:"pricing_unit_id" json:"pricing_unit_id"`
 	PricingQuantityPerInventoryUnitMicros int64   `db:"pricing_quantity_per_inventory_unit_micros" json:"pricing_quantity_per_inventory_unit_micros"`
 	Returnable                            bool    `db:"returnable" json:"returnable"`
+}
+
+type BobServiceRelationship struct {
+	ObjectID              string             `db:"object_id" json:"object_id"`
+	ObjectEntity          string             `db:"object_entity" json:"object_entity"`
+	PartyID               string             `db:"party_id" json:"party_id"`
+	OperatingEntityID     string             `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityEntity string             `db:"operating_entity_entity" json:"operating_entity_entity"`
+	CreatedAt             pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy             string             `db:"created_by" json:"created_by"`
+}
+
+type BobServiceRelationshipVersion struct {
+	VersionID             string  `db:"version_id" json:"version_id"`
+	Entity                string  `db:"entity" json:"entity"`
+	ContactName           *string `db:"contact_name" json:"contact_name"`
+	ContactPhone          *string `db:"contact_phone" json:"contact_phone"`
+	Email                 *string `db:"email" json:"email"`
+	Address               *string `db:"address" json:"address"`
+	SettlementMethodID    *string `db:"settlement_method_id" json:"settlement_method_id"`
+	SettlementMethodCode  *string `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName  *string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementTermCode    *string `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementRuleType    *string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth  int32   `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset   int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
+	Remark                *string `db:"remark" json:"remark"`
 }
 
 type BobServiceVersion struct {

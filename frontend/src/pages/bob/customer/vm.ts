@@ -107,7 +107,7 @@ export function useCustomerViewModel() {
   const requiredReferencePermissions = [
     '/bob/operating-entity/query',
     '/bob/employee/query',
-    '/bob/other-party/query',
+    '/bob/other-unit/query',
     '/aux/settlement-method/query',
     '/aux/payment-method/query',
     '/aux/dictionary-item/query',
@@ -239,7 +239,7 @@ export function useCustomerViewModel() {
     customerType: 'dictionary-item',
     documentCategory: 'dictionary-item',
     employee: 'employee',
-    otherParty: 'other-party',
+    otherParty: 'other-unit',
   }
 
   async function loadReferenceOptions(
@@ -248,7 +248,7 @@ export function useCustomerViewModel() {
   ): Promise<void> {
     const entity = referenceConfigs[key]
     try {
-      const isBob = entity === 'operating-entity' || entity === 'employee' || entity === 'other-party'
+      const isBob = entity === 'operating-entity' || entity === 'employee' || entity === 'other-unit'
       const result = isBob
         ? await customerApi.queryBobReferences({ entity, keyword: searchKeyword.trim() })
         : await customerApi.queryAuxReferences({
@@ -418,7 +418,7 @@ export function useCustomerViewModel() {
                     entity:
                       attribution.type === 'INTERNAL_EMPLOYEE'
                         ? 'employee'
-                        : 'other-party',
+                        : 'other-unit',
                   }
                 : null,
           },

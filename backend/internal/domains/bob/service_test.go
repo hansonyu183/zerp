@@ -16,7 +16,7 @@ func errorIsKind(err error, kind ErrorKind) bool {
 func TestObjectPrefixes(t *testing.T) {
 	t.Parallel()
 	expected := map[string]string{
-		EntityCustomer: "CUS", EntitySupplier: "SUP", EntityOtherParty: "OTP", EntityEmployee: "EMP",
+		EntityCustomer: "CUS", EntitySupplier: "SUP", EntityOtherUnit: "OTU", EntityEmployee: "EMP",
 		EntityProduct: "PRD", EntityService: "SVC", EntityWarehouse: "WHS",
 		EntityVehicle: "VEH", EntityFundAccount: "FAC",
 		EntityCategory: "PCT", EntityDepartment: "DEP", EntityPosition: "POS",
@@ -27,6 +27,43 @@ func TestObjectPrefixes(t *testing.T) {
 		if actual := objectPrefix(entity); actual != prefix {
 			t.Fatalf("objectPrefix(%q) = %q, want %q", entity, actual, prefix)
 		}
+	}
+}
+
+func TestGenericCreateRejectsOtherUnitWithoutPartyRelationship(t *testing.T) {
+	t.Parallel()
+	service := &Service{}
+	_, err := service.Create(t.Context(), EntityOtherUnit, CreateInput{}, "", "")
+	if !errorIsKind(err, ErrorValidation) || !strings.Contains(err.Error(), "Party relationship") {
+		t.Fatalf("Create(other-unit) error = %v, want Party relationship validation", err)
+	}
+}
+
+func TestPartyAndOtherUnitQueriesRequireFixedPageSize(t *testing.T) {
+	t.Parallel()
+	service := &Service{}
+	if _, err := service.PartyQuery(t.Context(), QueryInput{Page: 1, PageSize: 10}); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("PartyQuery pageSize=10 error = %v, want validation", err)
+	}
+	if _, err := service.OtherUnitQuery(t.Context(), QueryInput{Page: 1, PageSize: 100}); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("OtherUnitQuery pageSize=100 error = %v, want validation", err)
+	}
+}
+
+func TestPartyTaxNumberHasSinglePublicSource(t *testing.T) {
+	t.Parallel()
+	_, _, err := validatePartyData(PartyCreateData{
+		Kind: PartyKindOrganization, LegalName: "测试机构",
+		StrongIdentifiers: []PartyIdentifierInput{{Type: PartyIdentifierTaxNumber, Value: "91330001"}},
+	})
+	if !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("strongIdentifiers TAX_NUMBER error = %v, want validation", err)
+	}
+	_, identifiers, err := validatePartyData(PartyCreateData{
+		Kind: PartyKindOrganization, LegalName: "测试机构", TaxNumber: " 9133-0001 ",
+	})
+	if err != nil || len(identifiers) != 1 || identifiers[0].Type != PartyIdentifierTaxNumber {
+		t.Fatalf("taxNumber identifiers = %+v, error = %v", identifiers, err)
 	}
 }
 
@@ -55,9 +92,6 @@ func TestValidateCreateIgnoresInternalFixtureCodeAndNormalizesEntityFields(t *te
 		}},
 		{EntitySupplier, CreateDetailInput{
 			Code: "sup-01", Name: "Supplier", DefaultPurchaserEmployeeID: salespersonEmployeeID,
-		}},
-		{EntityOtherParty, CreateDetailInput{
-			Code: "otp-01", Name: "Other party", SalespersonEmployeeID: salespersonEmployeeID,
 		}},
 		{EntityEmployee, CreateDetailInput{Code: "emp_01", Name: "Employee"}},
 		{EntityProduct, CreateDetailInput{Code: "prd01", Name: "Product", Unit: "件"}},
@@ -94,7 +128,7 @@ func TestValidateCreateIgnoresInternalFixtureCodeAndNormalizesEntityFields(t *te
 			if test.entity == EntitySupplier && data.SupplierType != SupplierTypeGeneral {
 				t.Fatalf("supplier type = %v", data.SupplierType)
 			}
-			if (test.entity == EntityCustomer || test.entity == EntityOtherParty) && data.CustomerType != CustomerTypeEndUser {
+			if test.entity == EntityCustomer && data.CustomerType != CustomerTypeEndUser {
 				t.Fatalf("customer type = %v", data.CustomerType)
 			}
 			if test.entity == EntityCustomer && data.MonthlyClosingDay != 31 {

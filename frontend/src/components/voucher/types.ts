@@ -177,7 +177,7 @@ export interface VoucherDraftForm {
   returnKind: '' | 'REFUSAL' | 'AFTER_SALE'
   customer: VoucherReference | null
   supplier: VoucherReference | null
-  counterpartyType: '' | 'customer' | 'supplier' | 'other-party' | 'employee'
+  counterpartyType: '' | 'customer' | 'supplier' | 'other-unit' | 'employee'
   counterparty: VoucherReference | null
   otherCategory: '' | 'COMMISSION' | 'INTERMEDIARY' | 'REBATE'
   employee: VoucherReference | null
@@ -433,7 +433,7 @@ export interface VoucherDocumentData {
 export interface IntermediaryReference {
   objectId: string
   versionId: string
-  entity: 'customer' | 'employee' | 'other-party' | 'product'
+  entity: 'customer' | 'employee' | 'other-unit' | 'product'
   code: string
   name: string
 }
@@ -696,7 +696,7 @@ export interface VoucherEntityConfig {
   icon: string
   order: number
   partyMode: 'customer' | 'supplier' | 'dual' | 'counterparty' | 'none'
-  fixedCounterpartyType?: 'customer' | 'supplier' | 'other-party' | 'employee'
+  fixedCounterpartyType?: 'customer' | 'supplier' | 'other-unit' | 'employee'
   lineKind: VoucherLineKind
   lifecycleLabels?: Partial<VoucherLifecycleLabels>
   parentEntity?: VoucherEntity

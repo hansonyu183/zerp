@@ -32,8 +32,8 @@ func detailFields(entity string) []string {
 	switch entity {
 	case EntityCustomer:
 		return []string{"name", "customerType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "monthlyClosingDay", "salespersonEmployeeId", "rebateUnitPrice", "intermediaryOtherPartyId"}
-	case EntityOtherParty:
-		return []string{"name", "customerType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "salespersonEmployeeId"}
+	case EntityOtherUnit:
+		return []string{"contactName", "contactPhone", "email", "address", "remark", "settlementMethodId"}
 	case EntitySupplier:
 		return []string{"name", "supplierType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "defaultPurchaserEmployeeId"}
 	case EntityEmployee:

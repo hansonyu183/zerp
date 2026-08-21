@@ -4,10 +4,10 @@
 
 数据来源：[`frontend/src/router/registry.ts`](../../frontend/src/router/registry.ts)、[`frontend/src/router/index.ts`](../../frontend/src/router/index.ts)，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。
 
-- 页面入口：71
-- 已覆盖入口：12
-- 已登记用例：11
-- 缺少用例：59
+- 页面入口：72
+- 已覆盖入口：14
+- 已登记用例：13
+- 缺少用例：58
 - 孤儿用例：0
 
 ## APP
@@ -42,18 +42,19 @@
 
 ## BOB
 
-| 页面         | 路由                    | 来源                                                | 状态                        |
-| ------------ | ----------------------- | --------------------------------------------------- | --------------------------- |
-| 客户         | `/bob/customer`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/customer.md) |
-| 供应商       | `/bob/supplier`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/supplier.md) |
-| 其他往来单位 | `/bob/other-party`      | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                    |
-| 员工         | `/bob/employee`         | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                    |
-| 产品         | `/bob/product`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                    |
-| 服务         | `/bob/service`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                    |
-| 仓库         | `/bob/warehouse`        | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                    |
-| 车辆         | `/bob/vehicle`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                    |
-| 资金账户     | `/bob/fund-account`     | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                    |
-| 经营主体     | `/bob/operating-entity` | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                    |
+| 页面     | 路由                    | 来源                                                | 状态                          |
+| -------- | ----------------------- | --------------------------------------------------- | ----------------------------- |
+| 主体     | `/bob/party`            | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/party.md)      |
+| 客户     | `/bob/customer`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/customer.md)   |
+| 供应商   | `/bob/supplier`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/supplier.md)   |
+| 其他单位 | `/bob/other-unit`       | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/other-unit.md) |
+| 员工     | `/bob/employee`         | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                      |
+| 产品     | `/bob/product`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                      |
+| 服务     | `/bob/service`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                      |
+| 仓库     | `/bob/warehouse`        | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                      |
+| 车辆     | `/bob/vehicle`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                      |
+| 资金账户 | `/bob/fund-account`     | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                      |
+| 经营主体 | `/bob/operating-entity` | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                      |
 
 ## AUX
 

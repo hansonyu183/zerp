@@ -154,9 +154,9 @@ describe('intermediary calculation QuickJS sandbox', () => {
     })
 
     const intermediary = {
-      objectId: 'other-party-1',
-      versionId: 'other-party-v1',
-      entity: 'other-party' as const,
+      objectId: 'other-unit-1',
+      versionId: 'other-unit-v1',
+      entity: 'other-unit' as const,
       code: 'OTP-001',
       name: '居间商一',
     }
@@ -466,9 +466,9 @@ describe('intermediary calculation QuickJS sandbox', () => {
       adjustmentIntermediaryAmount: '5.00',
       adjustmentRebateAmount: '2.00',
       intermediary: {
-        objectId: 'other-party-1',
-        versionId: 'other-party-v1',
-        entity: 'other-party',
+        objectId: 'other-unit-1',
+        versionId: 'other-unit-v1',
+        entity: 'other-unit',
         code: 'OTP-001',
         name: '居间商一',
       },

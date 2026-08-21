@@ -248,7 +248,7 @@ function formCounterpartyType(
   switch (reference?.entity) {
     case 'customer':
     case 'supplier':
-    case 'other-party':
+    case 'other-unit':
     case 'employee':
       return reference.entity
     default:

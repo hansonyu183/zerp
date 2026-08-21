@@ -21,7 +21,7 @@ export const dimensionOptions: readonly {
 }[] = [
   { title: '客户', value: 'CUSTOMER' },
   { title: '供应商', value: 'SUPPLIER' },
-  { title: '其他往来单位', value: 'OTHER_PARTY' },
+  { title: '其他单位', value: 'OTHER_PARTY' },
   { title: '员工', value: 'EMPLOYEE' },
   { title: '部门', value: 'DEPARTMENT' },
   { title: '商品', value: 'PRODUCT' },

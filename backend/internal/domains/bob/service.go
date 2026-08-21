@@ -167,6 +167,9 @@ func (s *Service) Create(ctx context.Context, entity string, input CreateInput, 
 	if entity == EntitySettlementMethod {
 		return MutationResult{}, domainError(ErrorValidation, "settlement methods are system-defined", nil, nil)
 	}
+	if entity == EntityOtherUnit {
+		return MutationResult{}, domainError(ErrorValidation, "other-units must be created with a Party relationship", nil, nil)
+	}
 	if entity == EntitySupplier {
 		supplierType := SupplierTypeGeneral
 		if input.Data.SupplierType != nil {
@@ -243,7 +246,7 @@ func (s *Service) Create(ctx context.Context, entity string, input CreateInput, 
 
 func objectPrefix(entity string) string {
 	return map[string]string{
-		EntityCustomer: "CUS", EntitySupplier: "SUP", EntityOtherParty: "OTP", EntityEmployee: "EMP",
+		EntityCustomer: "CUS", EntitySupplier: "SUP", EntityOtherUnit: "OTU", EntityEmployee: "EMP",
 		EntityProduct: "PRD", EntityService: "SVC", EntityWarehouse: "WHS",
 		EntityVehicle: "VEH", EntityFundAccount: "FAC",
 		EntityCategory: "PCT", EntityDepartment: "DEP", EntityPosition: "POS",
@@ -386,6 +389,18 @@ func (s *Service) Delete(ctx context.Context, entity string, input DeleteInput) 
 		return err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+	var otherUnitParty *dbsqlc.BobParty
+	if entity == EntityOtherUnit {
+		partyID, partyErr := qtx.GetBobServiceRelationshipPartyID(ctx, input.ObjectID)
+		if partyErr != nil {
+			return s.internal("read other-unit Party", partyErr)
+		}
+		party, partyErr := qtx.LockBobParty(ctx, partyID)
+		if partyErr != nil {
+			return s.internal("lock other-unit Party", partyErr)
+		}
+		otherUnitParty = &party
+	}
 	if hasEffectiveCandidate(entity, object) {
 		return s.deleteEffectiveCandidate(ctx, tx, entity, object, version, input)
 	}
@@ -470,6 +485,17 @@ func (s *Service) Delete(ctx context.Context, entity string, input DeleteInput) 
 	if versionRows != 1 {
 		return conflict(object, version, "version changed before delete")
 	}
+	if otherUnitParty != nil {
+		relationRows, relationErr := qtx.DeleteBobServiceRelationship(ctx, dbsqlc.DeleteBobServiceRelationshipParams{
+			ObjectID: input.ObjectID, PartyID: otherUnitParty.ID,
+		})
+		if relationErr != nil {
+			return s.writeError("delete Service Relationship", relationErr)
+		}
+		if relationRows != 1 {
+			return conflict(object, version, "Service Relationship changed before delete")
+		}
+	}
 	objectRows, err := qtx.DeleteBobObject(ctx, dbsqlc.DeleteBobObjectParams{
 		ObjectID:       input.ObjectID,
 		Entity:         entity,
@@ -481,6 +507,33 @@ func (s *Service) Delete(ctx context.Context, entity string, input DeleteInput) 
 	}
 	if objectRows != 1 {
 		return conflict(object, version, "object changed before delete")
+	}
+	if otherUnitParty != nil {
+		relationCount, countErr := qtx.CountBobPartyRelationships(ctx, otherUnitParty.ID)
+		if countErr != nil {
+			return s.internal("count remaining Party relationships", countErr)
+		}
+		auditCount, countErr := qtx.CountBobPartyAuditEvents(ctx, otherUnitParty.ID)
+		if countErr != nil {
+			return s.internal("count Party history", countErr)
+		}
+		if relationCount == 0 && auditCount == 1 {
+			if err = qtx.DeleteBobPartyAuditEvents(ctx, otherUnitParty.ID); err != nil {
+				return s.writeError("delete unused Party audit", err)
+			}
+			if err = qtx.DeleteBobPartyIdentifiers(ctx, otherUnitParty.ID); err != nil {
+				return s.writeError("delete unused Party identifiers", err)
+			}
+			partyRows, partyErr := qtx.DeleteBobParty(ctx, dbsqlc.DeleteBobPartyParams{
+				PartyID: otherUnitParty.ID, Revision: otherUnitParty.Revision,
+			})
+			if partyErr != nil {
+				return s.writeError("delete unused Party", partyErr)
+			}
+			if partyRows != 1 {
+				return domainError(ErrorConflict, "Party changed before delete", nil, nil)
+			}
+		}
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return s.writeError("commit delete", err)
@@ -502,6 +555,9 @@ func (s *Service) deleteEffectiveCandidate(
 	if entity == EntityCustomer {
 		rows, err = qtx.RestoreBobCustomerEffectiveVersion(ctx, dbsqlc.RestoreBobCustomerEffectiveVersionParams{ObjectID: input.ObjectID,
 			Revision: input.ObjectRevision, VersionID: input.VersionID, EffectiveVersionID: object.EffectiveVersionID})
+	} else if entity == EntityOtherUnit {
+		rows, err = qtx.RestoreBobOtherUnitEffectiveVersion(ctx, dbsqlc.RestoreBobOtherUnitEffectiveVersionParams{ObjectID: input.ObjectID,
+			Revision: input.ObjectRevision, VersionID: input.VersionID, EffectiveVersionID: object.EffectiveVersionID})
 	} else {
 		rows, err = qtx.RestoreBobSupplierEffectiveVersion(ctx, dbsqlc.RestoreBobSupplierEffectiveVersionParams{ObjectID: input.ObjectID,
 			Revision: input.ObjectRevision, VersionID: input.VersionID, EffectiveVersionID: object.EffectiveVersionID})
@@ -520,6 +576,8 @@ func (s *Service) deleteEffectiveCandidate(
 			return s.writeError("delete customer candidate credit", err)
 		}
 		rows, err = qtx.DeleteBobCustomerDetail(ctx, input.VersionID)
+	} else if entity == EntityOtherUnit {
+		rows, err = qtx.DeleteBobServiceRelationshipDetail(ctx, input.VersionID)
 	} else {
 		rows, err = qtx.DeleteBobSupplierDetail(ctx, input.VersionID)
 	}
@@ -528,6 +586,8 @@ func (s *Service) deleteEffectiveCandidate(
 	}
 	if entity == EntityCustomer {
 		rows, err = qtx.DeleteBobCustomerVersion(ctx, dbsqlc.DeleteBobCustomerVersionParams{VersionID: input.VersionID, ObjectID: input.ObjectID})
+	} else if entity == EntityOtherUnit {
+		rows, err = qtx.DeleteBobOtherUnitVersion(ctx, dbsqlc.DeleteBobOtherUnitVersionParams{VersionID: input.VersionID, ObjectID: input.ObjectID})
 	} else {
 		rows, err = qtx.DeleteBobSupplierVersion(ctx, dbsqlc.DeleteBobSupplierVersionParams{VersionID: input.VersionID, ObjectID: input.ObjectID})
 	}
@@ -738,7 +798,7 @@ func (s *Service) Unsubmit(ctx context.Context, entity string, input ReverseInpu
 }
 
 func hasEffectiveCandidate(entity string, object dbsqlc.LockBobObjectRow) bool {
-	return (entity == EntityCustomer || entity == EntitySupplier) && object.EffectiveVersionID != nil &&
+	return (entity == EntityCustomer || entity == EntitySupplier || entity == EntityOtherUnit) && object.EffectiveVersionID != nil &&
 		object.CurrentVersionID != *object.EffectiveVersionID
 }
 
@@ -817,7 +877,7 @@ func (s *Service) Unapprove(ctx context.Context, entity string, input ReverseInp
 	if err != nil || !validReverseInput(entity, input, actorID, requestID) {
 		return MutationResult{}, domainError(ErrorValidation, "invalid unapprove request", nil, err)
 	}
-	if entity == EntityCustomer || entity == EntitySupplier {
+	if entity == EntityCustomer || entity == EntitySupplier || entity == EntityOtherUnit {
 		return MutationResult{}, domainError(ErrorConflict, "continuous-effective objects are edited through candidate save", nil, nil)
 	}
 	tx, qtx, object, oldVersion, err := s.lockTarget(ctx, entity, input.ObjectID, input.VersionID)
@@ -1061,6 +1121,29 @@ func (s *Service) ResolveEffectiveReference(ctx context.Context, tx pgx.Tx, enti
 	if auxiliaryEntity(entity) && s.auxiliaryResolver != nil {
 		return s.resolveAuxiliaryReference(ctx, tx, entity, objectID, versionID)
 	}
+	if entity == EntityOtherUnit {
+		row, otherUnitErr := s.queries.WithTx(tx).ResolveBobEffectiveOtherUnitReference(
+			ctx, dbsqlc.ResolveBobEffectiveOtherUnitReferenceParams{ObjectID: objectID, VersionID: versionID},
+		)
+		if errors.Is(otherUnitErr, pgx.ErrNoRows) {
+			return EffectiveReference{}, domainError(ErrorConflict, "version is not currently effective", nil, nil)
+		}
+		if otherUnitErr != nil {
+			return EffectiveReference{}, s.internal("resolve effective other-unit reference", otherUnitErr)
+		}
+		data := DetailView{
+			Name: row.Name, ContactName: deref(row.ContactName), ContactPhone: deref(row.ContactPhone),
+			Email: deref(row.Email), Address: deref(row.Address), SettlementMethodID: deref(row.SettlementMethodID),
+			SettlementMethodCode: deref(row.SettlementMethodCode), SettlementMethodName: deref(row.SettlementMethodName),
+			TermCode: deref(row.SettlementTermCode), RuleType: deref(row.SettlementRuleType),
+			MonthOffset: row.SettlementMonthOffset, DayOffset: row.SettlementDayOffset,
+			OperatingEntityID: row.OperatingEntityID,
+		}
+		if row.SettlementDayOfMonth > 0 {
+			data.DayOfMonth = &row.SettlementDayOfMonth
+		}
+		return EffectiveReference{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, VersionID: row.VersionID, Data: data}, nil
+	}
 	row, err := s.queries.WithTx(tx).ResolveBobEffectiveReference(ctx, dbsqlc.ResolveBobEffectiveReferenceParams{
 		ObjectID: objectID, Entity: entity, VersionID: versionID,
 	})
@@ -1097,7 +1180,7 @@ func (s *Service) ResolveEffectiveReference(ctx context.Context, tx pgx.Tx, enti
 			return EffectiveReference{}, s.internal("read effective product formula", err)
 		}
 	}
-	if entity == EntityCustomer || entity == EntityOtherParty {
+	if entity == EntityCustomer {
 		if err := s.validateDictionaryCode(ctx, tx, data.CustomerType, "DCT-0001"); err != nil {
 			return EffectiveReference{}, err
 		}
@@ -1138,6 +1221,27 @@ func (s *Service) ResolveCurrentEffectiveReference(
 	}
 	if auxiliaryEntity(entity) {
 		return s.resolveAuxiliaryReference(ctx, tx, entity, objectID, "")
+	}
+	if entity == EntityOtherUnit {
+		row, otherUnitErr := s.queries.WithTx(tx).ResolveCurrentBobEffectiveOtherUnitReference(ctx, objectID)
+		if errors.Is(otherUnitErr, pgx.ErrNoRows) {
+			return EffectiveReference{}, domainError(ErrorConflict, "object is not currently effective", nil, nil)
+		}
+		if otherUnitErr != nil {
+			return EffectiveReference{}, s.internal("resolve current effective other-unit reference", otherUnitErr)
+		}
+		data := DetailView{
+			Name: row.Name, ContactName: deref(row.ContactName), ContactPhone: deref(row.ContactPhone),
+			Email: deref(row.Email), Address: deref(row.Address), SettlementMethodID: deref(row.SettlementMethodID),
+			SettlementMethodCode: deref(row.SettlementMethodCode), SettlementMethodName: deref(row.SettlementMethodName),
+			TermCode: deref(row.SettlementTermCode), RuleType: deref(row.SettlementRuleType),
+			MonthOffset: row.SettlementMonthOffset, DayOffset: row.SettlementDayOffset,
+			OperatingEntityID: row.OperatingEntityID,
+		}
+		if row.SettlementDayOfMonth > 0 {
+			data.DayOfMonth = &row.SettlementDayOfMonth
+		}
+		return EffectiveReference{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, VersionID: row.VersionID, Data: data}, nil
 	}
 	row, err := s.queries.WithTx(tx).ResolveCurrentBobEffectiveReference(
 		ctx,
@@ -1224,6 +1328,14 @@ func (s *Service) validateStoredDetail(ctx context.Context, tx pgx.Tx, q *dbsqlc
 	if entity == EntitySupplier {
 		return s.validateStoredSupplier(ctx, tx, q, versionID)
 	}
+	if entity == EntityOtherUnit {
+		row, err := q.GetStoredBobServiceRelationshipDetail(ctx, versionID)
+		if err != nil {
+			return s.internal("read stored other-unit", err)
+		}
+		_, err = validateDetailData(entity, storedOtherUnitData(row))
+		return err
+	}
 	if entity == EntityOperatingEntity {
 		row, err := q.GetStoredBobOperatingEntityDetail(ctx, versionID)
 		if err != nil {
@@ -1298,7 +1410,7 @@ func (s *Service) validateStoredCustomer(ctx context.Context, tx pgx.Tx, version
 	}
 	targetEntity := EntityEmployee
 	if deref(row.PrimarySalesAttributionType) != SalesAttributionInternalEmployee {
-		targetEntity = EntityOtherParty
+		targetEntity = EntityOtherUnit
 	}
 	_, err = s.ResolveCurrentEffectiveReference(ctx, tx, targetEntity, deref(row.PrimarySalesSubjectID))
 	return err
@@ -1323,7 +1435,7 @@ func (s *Service) validateDetailReferences(
 			return err
 		}
 	}
-	if entity == EntityCustomer || entity == EntityOtherParty {
+	if entity == EntityCustomer || entity == EntityOtherUnit {
 		if err := s.validateDictionaryCode(ctx, tx, data.CustomerType, "DCT-0001"); err != nil {
 			return err
 		}
@@ -1418,7 +1530,7 @@ func (s *Service) validateDetailReferences(
 	add(EntitySettlementMethod, data.SettlementMethodID)
 	add(EntityEmployee, data.SalespersonEmployeeID)
 	add(EntityEmployee, data.DefaultPurchaserEmployeeID)
-	add(EntityOtherParty, data.IntermediaryOtherPartyID)
+	add(EntityOtherUnit, data.IntermediaryOtherPartyID)
 	if entity == EntityDepartment {
 		add(EntityDepartment, data.ParentID)
 	}

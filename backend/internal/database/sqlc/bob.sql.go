@@ -11,6 +11,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const acquireBobPartyIdentifierLock = `-- name: AcquireBobPartyIdentifierLock :exec
+SELECT pg_advisory_xact_lock(hashtextextended($1,0))
+`
+
+func (q *Queries) AcquireBobPartyIdentifierLock(ctx context.Context, lockKey string) error {
+	_, err := q.db.Exec(ctx, acquireBobPartyIdentifierLock, lockKey)
+	return err
+}
+
 const activateReferenceTransferVersion = `-- name: ActivateReferenceTransferVersion :execrows
 UPDATE bob_versions SET status='EFFECTIVE',revision=revision+1,
   submitted_at=now(),submitted_by=$1,reviewed_at=now(),reviewed_by=$2,
@@ -92,6 +101,35 @@ func (q *Queries) AdvanceBobObjectForUnapprove(ctx context.Context, arg AdvanceB
 		arg.Entity,
 		arg.Revision,
 		arg.OldVersionID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const advanceBobOtherUnitCandidate = `-- name: AdvanceBobOtherUnitCandidate :execrows
+UPDATE bob_objects SET current_version_id=$1,next_version_no=next_version_no+1,
+  revision=revision+1,updated_at=now(),updated_by=$2
+WHERE id=$3 AND entity='other-unit' AND revision=$4
+  AND current_version_id=$5
+`
+
+type AdvanceBobOtherUnitCandidateParams struct {
+	VersionID        string `db:"version_id" json:"version_id"`
+	ActorID          string `db:"actor_id" json:"actor_id"`
+	ObjectID         string `db:"object_id" json:"object_id"`
+	Revision         int64  `db:"revision" json:"revision"`
+	CurrentVersionID string `db:"current_version_id" json:"current_version_id"`
+}
+
+func (q *Queries) AdvanceBobOtherUnitCandidate(ctx context.Context, arg AdvanceBobOtherUnitCandidateParams) (int64, error) {
+	result, err := q.db.Exec(ctx, advanceBobOtherUnitCandidate,
+		arg.VersionID,
+		arg.ActorID,
+		arg.ObjectID,
+		arg.Revision,
+		arg.CurrentVersionID,
 	)
 	if err != nil {
 		return 0, err
@@ -689,6 +727,31 @@ func (q *Queries) CopyBobServiceDetail(ctx context.Context, arg CopyBobServiceDe
 	return err
 }
 
+const copyBobServiceRelationshipDetail = `-- name: CopyBobServiceRelationshipDetail :exec
+INSERT INTO bob_service_relationship_versions(
+    version_id,contact_name,contact_phone,email,address,settlement_method_id,
+    settlement_method_code,settlement_method_name,settlement_term_code,
+    settlement_rule_type,settlement_month_offset,settlement_day_of_month,
+    settlement_day_offset,remark
+)
+SELECT $1,source.contact_name,source.contact_phone,source.email,source.address,
+       source.settlement_method_id,source.settlement_method_code,source.settlement_method_name,
+       source.settlement_term_code,source.settlement_rule_type,source.settlement_month_offset,
+       source.settlement_day_of_month,source.settlement_day_offset,source.remark
+FROM bob_service_relationship_versions source
+WHERE source.version_id=$2
+`
+
+type CopyBobServiceRelationshipDetailParams struct {
+	NewVersionID    string `db:"new_version_id" json:"new_version_id"`
+	SourceVersionID string `db:"source_version_id" json:"source_version_id"`
+}
+
+func (q *Queries) CopyBobServiceRelationshipDetail(ctx context.Context, arg CopyBobServiceRelationshipDetailParams) error {
+	_, err := q.db.Exec(ctx, copyBobServiceRelationshipDetail, arg.NewVersionID, arg.SourceVersionID)
+	return err
+}
+
 const copyBobSettlementMethodDetail = `-- name: CopyBobSettlementMethodDetail :exec
 INSERT INTO bob_settlement_method_versions (
     version_id, name, term_code, rule_type, month_offset, day_of_month, day_offset,
@@ -977,6 +1040,79 @@ func (q *Queries) CountBobOperatingEntities(ctx context.Context, arg CountBobOpe
 	return count, err
 }
 
+const countBobOtherUnits = `-- name: CountBobOtherUnits :one
+SELECT count(*)
+FROM bob_objects object
+JOIN bob_service_relationships relation ON relation.object_id=object.id
+JOIN bob_parties party ON party.id=relation.party_id
+JOIN bob_versions current_version ON current_version.id=object.current_version_id
+WHERE object.entity='other-unit'
+  AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%'
+       OR party.display_name ILIKE '%'||$1::text||'%')
+  AND ($2::text=''
+       OR relation.operating_entity_id=$2::text)
+  AND (cardinality($3::text[])=0
+       OR current_version.status=ANY($3::text[]))
+`
+
+type CountBobOtherUnitsParams struct {
+	Keyword           string   `db:"keyword" json:"keyword"`
+	OperatingEntityID string   `db:"operating_entity_id" json:"operating_entity_id"`
+	Statuses          []string `db:"statuses" json:"statuses"`
+}
+
+func (q *Queries) CountBobOtherUnits(ctx context.Context, arg CountBobOtherUnitsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countBobOtherUnits, arg.Keyword, arg.OperatingEntityID, arg.Statuses)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countBobParties = `-- name: CountBobParties :one
+SELECT count(*) FROM bob_parties
+WHERE ($1::text='' OR kind=$1::text)
+  AND ($2::text=''
+   OR legal_name ILIKE '%'||$2::text||'%'
+   OR display_name ILIKE '%'||$2::text||'%'
+   OR COALESCE(phone,'') ILIKE '%'||$2::text||'%'
+   OR COALESCE(email,'') ILIKE '%'||$2::text||'%'
+   OR COALESCE(address,'') ILIKE '%'||$2::text||'%')
+`
+
+type CountBobPartiesParams struct {
+	PartyKind string `db:"party_kind" json:"party_kind"`
+	Keyword   string `db:"keyword" json:"keyword"`
+}
+
+func (q *Queries) CountBobParties(ctx context.Context, arg CountBobPartiesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countBobParties, arg.PartyKind, arg.Keyword)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countBobPartyAuditEvents = `-- name: CountBobPartyAuditEvents :one
+SELECT count(*) FROM bob_party_audit_events WHERE party_id=$1
+`
+
+func (q *Queries) CountBobPartyAuditEvents(ctx context.Context, partyID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countBobPartyAuditEvents, partyID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countBobPartyRelationships = `-- name: CountBobPartyRelationships :one
+SELECT count(*) FROM bob_service_relationships WHERE party_id=$1
+`
+
+func (q *Queries) CountBobPartyRelationships(ctx context.Context, partyID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countBobPartyRelationships, partyID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countBobSuppliers = `-- name: CountBobSuppliers :one
 SELECT count(*)
 FROM bob_objects o
@@ -1237,6 +1373,58 @@ func (q *Queries) DeleteBobOperatingEntityDetail(ctx context.Context, versionID 
 	return result.RowsAffected(), nil
 }
 
+const deleteBobOtherUnitVersion = `-- name: DeleteBobOtherUnitVersion :execrows
+DELETE FROM bob_versions WHERE id=$1 AND object_id=$2 AND entity='other-unit'
+`
+
+type DeleteBobOtherUnitVersionParams struct {
+	VersionID string `db:"version_id" json:"version_id"`
+	ObjectID  string `db:"object_id" json:"object_id"`
+}
+
+func (q *Queries) DeleteBobOtherUnitVersion(ctx context.Context, arg DeleteBobOtherUnitVersionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteBobOtherUnitVersion, arg.VersionID, arg.ObjectID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteBobParty = `-- name: DeleteBobParty :execrows
+DELETE FROM bob_parties WHERE id=$1 AND revision=$2
+`
+
+type DeleteBobPartyParams struct {
+	PartyID  string `db:"party_id" json:"party_id"`
+	Revision int64  `db:"revision" json:"revision"`
+}
+
+func (q *Queries) DeleteBobParty(ctx context.Context, arg DeleteBobPartyParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteBobParty, arg.PartyID, arg.Revision)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteBobPartyAuditEvents = `-- name: DeleteBobPartyAuditEvents :exec
+DELETE FROM bob_party_audit_events WHERE party_id=$1
+`
+
+func (q *Queries) DeleteBobPartyAuditEvents(ctx context.Context, partyID string) error {
+	_, err := q.db.Exec(ctx, deleteBobPartyAuditEvents, partyID)
+	return err
+}
+
+const deleteBobPartyIdentifiers = `-- name: DeleteBobPartyIdentifiers :exec
+DELETE FROM bob_party_identifiers WHERE party_id=$1
+`
+
+func (q *Queries) DeleteBobPartyIdentifiers(ctx context.Context, partyID string) error {
+	_, err := q.db.Exec(ctx, deleteBobPartyIdentifiers, partyID)
+	return err
+}
+
 const deleteBobPositionDetail = `-- name: DeleteBobPositionDetail :execrows
 DELETE FROM bob_position_versions WHERE version_id = $1
 `
@@ -1287,6 +1475,36 @@ DELETE FROM bob_service_versions WHERE version_id = $1
 
 func (q *Queries) DeleteBobServiceDetail(ctx context.Context, versionID string) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteBobServiceDetail, versionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteBobServiceRelationship = `-- name: DeleteBobServiceRelationship :execrows
+DELETE FROM bob_service_relationships
+WHERE object_id=$1 AND party_id=$2
+`
+
+type DeleteBobServiceRelationshipParams struct {
+	ObjectID string `db:"object_id" json:"object_id"`
+	PartyID  string `db:"party_id" json:"party_id"`
+}
+
+func (q *Queries) DeleteBobServiceRelationship(ctx context.Context, arg DeleteBobServiceRelationshipParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteBobServiceRelationship, arg.ObjectID, arg.PartyID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteBobServiceRelationshipDetail = `-- name: DeleteBobServiceRelationshipDetail :execrows
+DELETE FROM bob_service_relationship_versions WHERE version_id=$1
+`
+
+func (q *Queries) DeleteBobServiceRelationshipDetail(ctx context.Context, versionID string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteBobServiceRelationshipDetail, versionID)
 	if err != nil {
 		return 0, err
 	}
@@ -1401,6 +1619,41 @@ func (q *Queries) FindBobObjectIDByCode(ctx context.Context, arg FindBobObjectID
 	var id string
 	err := row.Scan(&id)
 	return id, err
+}
+
+const findBobPartyByIdentifier = `-- name: FindBobPartyByIdentifier :one
+SELECT p.id,p.kind,p.legal_name,p.display_name,p.tax_number,p.phone,p.email,p.address,
+       p.revision,p.created_at,p.created_by,p.updated_at,p.updated_by
+FROM bob_party_identifiers identifier
+JOIN bob_parties p ON p.id=identifier.party_id
+WHERE identifier.identifier_type=$1
+  AND identifier.normalized_value=$2
+`
+
+type FindBobPartyByIdentifierParams struct {
+	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
+	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
+}
+
+func (q *Queries) FindBobPartyByIdentifier(ctx context.Context, arg FindBobPartyByIdentifierParams) (BobParty, error) {
+	row := q.db.QueryRow(ctx, findBobPartyByIdentifier, arg.IdentifierType, arg.NormalizedValue)
+	var i BobParty
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.LegalName,
+		&i.DisplayName,
+		&i.TaxNumber,
+		&i.Phone,
+		&i.Email,
+		&i.Address,
+		&i.Revision,
+		&i.CreatedAt,
+		&i.CreatedBy,
+		&i.UpdatedAt,
+		&i.UpdatedBy,
+	)
+	return i, err
 }
 
 const findBobSeedObjectID = `-- name: FindBobSeedObjectID :one
@@ -1742,6 +1995,134 @@ func (q *Queries) GetBobOperatingEntity(ctx context.Context, arg GetBobOperating
 	return i, err
 }
 
+const getBobOtherUnit = `-- name: GetBobOtherUnit :one
+SELECT object.id AS object_id,object.code,object.revision AS object_revision,object.enabled,
+       version.id AS version_id,version.version_no,version.status,version.revision AS version_revision,
+       version.submitted_by,object.effective_version_id,object.current_version_id,
+       relation.party_id,party.kind AS party_kind,party.display_name AS party_display_name,
+       relation.operating_entity_id,operating.code AS operating_entity_code,
+       operating_detail.legal_name AS operating_entity_name,
+       detail.contact_name,detail.contact_phone,detail.email,detail.address,
+       detail.settlement_method_id,detail.settlement_method_code,detail.settlement_method_name,
+       detail.settlement_term_code,detail.settlement_rule_type,
+       detail.settlement_month_offset,detail.settlement_day_of_month,
+       detail.settlement_day_offset,detail.remark,object.updated_at
+FROM bob_objects object
+JOIN bob_service_relationships relation ON relation.object_id=object.id
+JOIN bob_parties party ON party.id=relation.party_id
+JOIN bob_objects operating ON operating.id=relation.operating_entity_id AND operating.entity='operating-entity'
+JOIN bob_operating_entity_versions operating_detail ON operating_detail.version_id=operating.current_version_id
+JOIN bob_versions version ON version.object_id=object.id AND version.entity=object.entity
+JOIN bob_service_relationship_versions detail ON detail.version_id=version.id
+WHERE object.id=$1 AND object.entity='other-unit'
+  AND version.id=COALESCE(NULLIF($2::text,''),object.current_version_id)
+`
+
+type GetBobOtherUnitParams struct {
+	ObjectID  string `db:"object_id" json:"object_id"`
+	VersionID string `db:"version_id" json:"version_id"`
+}
+
+type GetBobOtherUnitRow struct {
+	ObjectID              string             `db:"object_id" json:"object_id"`
+	Code                  string             `db:"code" json:"code"`
+	ObjectRevision        int64              `db:"object_revision" json:"object_revision"`
+	Enabled               bool               `db:"enabled" json:"enabled"`
+	VersionID             string             `db:"version_id" json:"version_id"`
+	VersionNo             int32              `db:"version_no" json:"version_no"`
+	Status                string             `db:"status" json:"status"`
+	VersionRevision       int64              `db:"version_revision" json:"version_revision"`
+	SubmittedBy           *string            `db:"submitted_by" json:"submitted_by"`
+	EffectiveVersionID    *string            `db:"effective_version_id" json:"effective_version_id"`
+	CurrentVersionID      string             `db:"current_version_id" json:"current_version_id"`
+	PartyID               string             `db:"party_id" json:"party_id"`
+	PartyKind             string             `db:"party_kind" json:"party_kind"`
+	PartyDisplayName      string             `db:"party_display_name" json:"party_display_name"`
+	OperatingEntityID     string             `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityCode   string             `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName   string             `db:"operating_entity_name" json:"operating_entity_name"`
+	ContactName           *string            `db:"contact_name" json:"contact_name"`
+	ContactPhone          *string            `db:"contact_phone" json:"contact_phone"`
+	Email                 *string            `db:"email" json:"email"`
+	Address               *string            `db:"address" json:"address"`
+	SettlementMethodID    *string            `db:"settlement_method_id" json:"settlement_method_id"`
+	SettlementMethodCode  *string            `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName  *string            `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementTermCode    *string            `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementRuleType    *string            `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset int32              `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth  int32              `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset   int32              `db:"settlement_day_offset" json:"settlement_day_offset"`
+	Remark                *string            `db:"remark" json:"remark"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) GetBobOtherUnit(ctx context.Context, arg GetBobOtherUnitParams) (GetBobOtherUnitRow, error) {
+	row := q.db.QueryRow(ctx, getBobOtherUnit, arg.ObjectID, arg.VersionID)
+	var i GetBobOtherUnitRow
+	err := row.Scan(
+		&i.ObjectID,
+		&i.Code,
+		&i.ObjectRevision,
+		&i.Enabled,
+		&i.VersionID,
+		&i.VersionNo,
+		&i.Status,
+		&i.VersionRevision,
+		&i.SubmittedBy,
+		&i.EffectiveVersionID,
+		&i.CurrentVersionID,
+		&i.PartyID,
+		&i.PartyKind,
+		&i.PartyDisplayName,
+		&i.OperatingEntityID,
+		&i.OperatingEntityCode,
+		&i.OperatingEntityName,
+		&i.ContactName,
+		&i.ContactPhone,
+		&i.Email,
+		&i.Address,
+		&i.SettlementMethodID,
+		&i.SettlementMethodCode,
+		&i.SettlementMethodName,
+		&i.SettlementTermCode,
+		&i.SettlementRuleType,
+		&i.SettlementMonthOffset,
+		&i.SettlementDayOfMonth,
+		&i.SettlementDayOffset,
+		&i.Remark,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getBobParty = `-- name: GetBobParty :one
+SELECT id,kind,legal_name,display_name,tax_number,phone,email,address,
+       revision,created_at,created_by,updated_at,updated_by
+FROM bob_parties WHERE id=$1
+`
+
+func (q *Queries) GetBobParty(ctx context.Context, partyID string) (BobParty, error) {
+	row := q.db.QueryRow(ctx, getBobParty, partyID)
+	var i BobParty
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.LegalName,
+		&i.DisplayName,
+		&i.TaxNumber,
+		&i.Phone,
+		&i.Email,
+		&i.Address,
+		&i.Revision,
+		&i.CreatedAt,
+		&i.CreatedBy,
+		&i.UpdatedAt,
+		&i.UpdatedBy,
+	)
+	return i, err
+}
+
 const getBobProductFormula = `-- name: GetBobProductFormula :one
 SELECT base_output_quantity_micros
 FROM bob_product_formulas
@@ -1753,6 +2134,18 @@ func (q *Queries) GetBobProductFormula(ctx context.Context, productVersionID str
 	var base_output_quantity_micros int64
 	err := row.Scan(&base_output_quantity_micros)
 	return base_output_quantity_micros, err
+}
+
+const getBobServiceRelationshipPartyID = `-- name: GetBobServiceRelationshipPartyID :one
+SELECT party_id FROM bob_service_relationships
+WHERE object_id=$1
+`
+
+func (q *Queries) GetBobServiceRelationshipPartyID(ctx context.Context, objectID string) (string, error) {
+	row := q.db.QueryRow(ctx, getBobServiceRelationshipPartyID, objectID)
+	var party_id string
+	err := row.Scan(&party_id)
+	return party_id, err
 }
 
 const getBobSupplierDetail = `-- name: GetBobSupplierDetail :one
@@ -2082,6 +2475,51 @@ func (q *Queries) GetStoredBobOperatingEntityDetail(ctx context.Context, version
 		&i.TaxNumber,
 		&i.Address,
 		&i.Phone,
+		&i.Remark,
+	)
+	return i, err
+}
+
+const getStoredBobServiceRelationshipDetail = `-- name: GetStoredBobServiceRelationshipDetail :one
+SELECT contact_name,contact_phone,email,address,settlement_method_id,
+       settlement_method_code,settlement_method_name,settlement_term_code,
+       settlement_rule_type,settlement_month_offset,settlement_day_of_month,
+       settlement_day_offset,remark
+FROM bob_service_relationship_versions WHERE version_id=$1
+`
+
+type GetStoredBobServiceRelationshipDetailRow struct {
+	ContactName           *string `db:"contact_name" json:"contact_name"`
+	ContactPhone          *string `db:"contact_phone" json:"contact_phone"`
+	Email                 *string `db:"email" json:"email"`
+	Address               *string `db:"address" json:"address"`
+	SettlementMethodID    *string `db:"settlement_method_id" json:"settlement_method_id"`
+	SettlementMethodCode  *string `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName  *string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementTermCode    *string `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementRuleType    *string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth  int32   `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset   int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
+	Remark                *string `db:"remark" json:"remark"`
+}
+
+func (q *Queries) GetStoredBobServiceRelationshipDetail(ctx context.Context, versionID string) (GetStoredBobServiceRelationshipDetailRow, error) {
+	row := q.db.QueryRow(ctx, getStoredBobServiceRelationshipDetail, versionID)
+	var i GetStoredBobServiceRelationshipDetailRow
+	err := row.Scan(
+		&i.ContactName,
+		&i.ContactPhone,
+		&i.Email,
+		&i.Address,
+		&i.SettlementMethodID,
+		&i.SettlementMethodCode,
+		&i.SettlementMethodName,
+		&i.SettlementTermCode,
+		&i.SettlementRuleType,
+		&i.SettlementMonthOffset,
+		&i.SettlementDayOfMonth,
+		&i.SettlementDayOffset,
 		&i.Remark,
 	)
 	return i, err
@@ -2714,6 +3152,97 @@ func (q *Queries) InsertBobOperatingEntityDetail(ctx context.Context, arg Insert
 	return err
 }
 
+const insertBobParty = `-- name: InsertBobParty :exec
+INSERT INTO bob_parties (
+    id,kind,legal_name,display_name,tax_number,phone,email,address,created_by,updated_by
+) VALUES (
+    $1,$2,$3,$4,
+    $5,$6,$7,$8,
+    $9,$9
+)
+`
+
+type InsertBobPartyParams struct {
+	ID          string  `db:"id" json:"id"`
+	Kind        string  `db:"kind" json:"kind"`
+	LegalName   string  `db:"legal_name" json:"legal_name"`
+	DisplayName string  `db:"display_name" json:"display_name"`
+	TaxNumber   *string `db:"tax_number" json:"tax_number"`
+	Phone       *string `db:"phone" json:"phone"`
+	Email       *string `db:"email" json:"email"`
+	Address     *string `db:"address" json:"address"`
+	ActorID     string  `db:"actor_id" json:"actor_id"`
+}
+
+func (q *Queries) InsertBobParty(ctx context.Context, arg InsertBobPartyParams) error {
+	_, err := q.db.Exec(ctx, insertBobParty,
+		arg.ID,
+		arg.Kind,
+		arg.LegalName,
+		arg.DisplayName,
+		arg.TaxNumber,
+		arg.Phone,
+		arg.Email,
+		arg.Address,
+		arg.ActorID,
+	)
+	return err
+}
+
+const insertBobPartyAuditEvent = `-- name: InsertBobPartyAuditEvent :exec
+INSERT INTO bob_party_audit_events(
+    id,party_id,event_type,revision,actor_id,request_id,summary
+) VALUES (
+    $1,$2,$3,$4,
+    $5,$6,$7
+)
+`
+
+type InsertBobPartyAuditEventParams struct {
+	ID        string `db:"id" json:"id"`
+	PartyID   string `db:"party_id" json:"party_id"`
+	EventType string `db:"event_type" json:"event_type"`
+	Revision  int64  `db:"revision" json:"revision"`
+	ActorID   string `db:"actor_id" json:"actor_id"`
+	RequestID string `db:"request_id" json:"request_id"`
+	Summary   []byte `db:"summary" json:"summary"`
+}
+
+func (q *Queries) InsertBobPartyAuditEvent(ctx context.Context, arg InsertBobPartyAuditEventParams) error {
+	_, err := q.db.Exec(ctx, insertBobPartyAuditEvent,
+		arg.ID,
+		arg.PartyID,
+		arg.EventType,
+		arg.Revision,
+		arg.ActorID,
+		arg.RequestID,
+		arg.Summary,
+	)
+	return err
+}
+
+const insertBobPartyIdentifier = `-- name: InsertBobPartyIdentifier :exec
+INSERT INTO bob_party_identifiers(party_id,identifier_type,value,normalized_value)
+VALUES ($1,$2,$3,$4)
+`
+
+type InsertBobPartyIdentifierParams struct {
+	PartyID         string `db:"party_id" json:"party_id"`
+	IdentifierType  string `db:"identifier_type" json:"identifier_type"`
+	Value           string `db:"value" json:"value"`
+	NormalizedValue string `db:"normalized_value" json:"normalized_value"`
+}
+
+func (q *Queries) InsertBobPartyIdentifier(ctx context.Context, arg InsertBobPartyIdentifierParams) error {
+	_, err := q.db.Exec(ctx, insertBobPartyIdentifier,
+		arg.PartyID,
+		arg.IdentifierType,
+		arg.Value,
+		arg.NormalizedValue,
+	)
+	return err
+}
+
 const insertBobPositionDetail = `-- name: InsertBobPositionDetail :exec
 INSERT INTO bob_position_versions (version_id, name, category_id, description)
 VALUES (
@@ -2896,6 +3425,83 @@ func (q *Queries) InsertBobServiceDetail(ctx context.Context, arg InsertBobServi
 		arg.UnitID,
 		arg.CategoryID,
 		arg.Description,
+		arg.Remark,
+	)
+	return err
+}
+
+const insertBobServiceRelationship = `-- name: InsertBobServiceRelationship :exec
+INSERT INTO bob_service_relationships(
+    object_id,party_id,operating_entity_id,created_by
+) VALUES (
+    $1,$2,$3,$4
+)
+`
+
+type InsertBobServiceRelationshipParams struct {
+	ObjectID          string `db:"object_id" json:"object_id"`
+	PartyID           string `db:"party_id" json:"party_id"`
+	OperatingEntityID string `db:"operating_entity_id" json:"operating_entity_id"`
+	ActorID           string `db:"actor_id" json:"actor_id"`
+}
+
+func (q *Queries) InsertBobServiceRelationship(ctx context.Context, arg InsertBobServiceRelationshipParams) error {
+	_, err := q.db.Exec(ctx, insertBobServiceRelationship,
+		arg.ObjectID,
+		arg.PartyID,
+		arg.OperatingEntityID,
+		arg.ActorID,
+	)
+	return err
+}
+
+const insertBobServiceRelationshipDetail = `-- name: InsertBobServiceRelationshipDetail :exec
+INSERT INTO bob_service_relationship_versions(
+    version_id,contact_name,contact_phone,email,address,settlement_method_id,
+    settlement_method_code,settlement_method_name,settlement_term_code,
+    settlement_rule_type,settlement_month_offset,settlement_day_of_month,
+    settlement_day_offset,remark
+) VALUES (
+    $1,$2,$3,$4,
+    $5,$6,$7,
+    $8,$9,
+    $10,$11,
+    $12,$13,$14
+)
+`
+
+type InsertBobServiceRelationshipDetailParams struct {
+	VersionID             string  `db:"version_id" json:"version_id"`
+	ContactName           *string `db:"contact_name" json:"contact_name"`
+	ContactPhone          *string `db:"contact_phone" json:"contact_phone"`
+	Email                 *string `db:"email" json:"email"`
+	Address               *string `db:"address" json:"address"`
+	SettlementMethodID    *string `db:"settlement_method_id" json:"settlement_method_id"`
+	SettlementMethodCode  *string `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName  *string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementTermCode    *string `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementRuleType    *string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth  int32   `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset   int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
+	Remark                *string `db:"remark" json:"remark"`
+}
+
+func (q *Queries) InsertBobServiceRelationshipDetail(ctx context.Context, arg InsertBobServiceRelationshipDetailParams) error {
+	_, err := q.db.Exec(ctx, insertBobServiceRelationshipDetail,
+		arg.VersionID,
+		arg.ContactName,
+		arg.ContactPhone,
+		arg.Email,
+		arg.Address,
+		arg.SettlementMethodID,
+		arg.SettlementMethodCode,
+		arg.SettlementMethodName,
+		arg.SettlementTermCode,
+		arg.SettlementRuleType,
+		arg.SettlementMonthOffset,
+		arg.SettlementDayOfMonth,
+		arg.SettlementDayOffset,
 		arg.Remark,
 	)
 	return err
@@ -3689,6 +4295,383 @@ func (q *Queries) ListBobObjectsEnabled(ctx context.Context, ids []string) ([]Li
 	return items, nil
 }
 
+const listBobOtherUnitVersions = `-- name: ListBobOtherUnitVersions :many
+SELECT version.id AS version_id,version.version_no,version.status,version.revision,
+       version.created_at,version.created_by,version.updated_at,version.updated_by,
+       version.submitted_at,version.submitted_by,version.reviewed_at,version.reviewed_by,
+       version.review_comment,party.display_name AS party_display_name,
+       relation.operating_entity_id,operating.code AS operating_entity_code,
+       operating_detail.legal_name AS operating_entity_name,
+       detail.contact_name,detail.contact_phone,detail.email,detail.address,
+       detail.settlement_method_id,detail.remark
+FROM bob_objects object
+JOIN bob_service_relationships relation ON relation.object_id=object.id
+JOIN bob_parties party ON party.id=relation.party_id
+JOIN bob_objects operating ON operating.id=relation.operating_entity_id AND operating.entity='operating-entity'
+JOIN bob_operating_entity_versions operating_detail ON operating_detail.version_id=operating.current_version_id
+JOIN bob_versions version ON version.object_id=object.id AND version.entity='other-unit'
+JOIN bob_service_relationship_versions detail ON detail.version_id=version.id
+WHERE object.id=$1 AND object.entity='other-unit'
+ORDER BY version.version_no DESC
+LIMIT $3 OFFSET $2
+`
+
+type ListBobOtherUnitVersionsParams struct {
+	ObjectID   string `db:"object_id" json:"object_id"`
+	PageOffset int32  `db:"page_offset" json:"page_offset"`
+	PageSize   int32  `db:"page_size" json:"page_size"`
+}
+
+type ListBobOtherUnitVersionsRow struct {
+	VersionID           string             `db:"version_id" json:"version_id"`
+	VersionNo           int32              `db:"version_no" json:"version_no"`
+	Status              string             `db:"status" json:"status"`
+	Revision            int64              `db:"revision" json:"revision"`
+	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy           string             `db:"created_by" json:"created_by"`
+	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy           string             `db:"updated_by" json:"updated_by"`
+	SubmittedAt         pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
+	SubmittedBy         *string            `db:"submitted_by" json:"submitted_by"`
+	ReviewedAt          pgtype.Timestamptz `db:"reviewed_at" json:"reviewed_at"`
+	ReviewedBy          *string            `db:"reviewed_by" json:"reviewed_by"`
+	ReviewComment       *string            `db:"review_comment" json:"review_comment"`
+	PartyDisplayName    string             `db:"party_display_name" json:"party_display_name"`
+	OperatingEntityID   string             `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityCode string             `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName string             `db:"operating_entity_name" json:"operating_entity_name"`
+	ContactName         *string            `db:"contact_name" json:"contact_name"`
+	ContactPhone        *string            `db:"contact_phone" json:"contact_phone"`
+	Email               *string            `db:"email" json:"email"`
+	Address             *string            `db:"address" json:"address"`
+	SettlementMethodID  *string            `db:"settlement_method_id" json:"settlement_method_id"`
+	Remark              *string            `db:"remark" json:"remark"`
+}
+
+func (q *Queries) ListBobOtherUnitVersions(ctx context.Context, arg ListBobOtherUnitVersionsParams) ([]ListBobOtherUnitVersionsRow, error) {
+	rows, err := q.db.Query(ctx, listBobOtherUnitVersions, arg.ObjectID, arg.PageOffset, arg.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListBobOtherUnitVersionsRow{}
+	for rows.Next() {
+		var i ListBobOtherUnitVersionsRow
+		if err := rows.Scan(
+			&i.VersionID,
+			&i.VersionNo,
+			&i.Status,
+			&i.Revision,
+			&i.CreatedAt,
+			&i.CreatedBy,
+			&i.UpdatedAt,
+			&i.UpdatedBy,
+			&i.SubmittedAt,
+			&i.SubmittedBy,
+			&i.ReviewedAt,
+			&i.ReviewedBy,
+			&i.ReviewComment,
+			&i.PartyDisplayName,
+			&i.OperatingEntityID,
+			&i.OperatingEntityCode,
+			&i.OperatingEntityName,
+			&i.ContactName,
+			&i.ContactPhone,
+			&i.Email,
+			&i.Address,
+			&i.SettlementMethodID,
+			&i.Remark,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBobOtherUnits = `-- name: ListBobOtherUnits :many
+SELECT object.id AS object_id,object.code,object.revision AS object_revision,object.enabled,
+       current_version.id AS version_id,current_version.version_no,current_version.status,
+       current_version.revision AS version_revision,current_version.submitted_by,
+       object.effective_version_id,object.current_version_id,
+       relation.party_id,party.kind AS party_kind,party.display_name AS party_display_name,
+       relation.operating_entity_id,operating.code AS operating_entity_code,
+       operating_detail.legal_name AS operating_entity_name,
+       current_detail.contact_name,current_detail.contact_phone,current_detail.email,
+       current_detail.address,current_detail.settlement_method_id,
+       current_detail.settlement_method_code,current_detail.settlement_method_name,
+       current_detail.settlement_term_code,current_detail.settlement_rule_type,
+       current_detail.settlement_month_offset,current_detail.settlement_day_of_month,
+       current_detail.settlement_day_offset,current_detail.remark,object.updated_at
+FROM bob_objects object
+JOIN bob_service_relationships relation ON relation.object_id=object.id
+JOIN bob_parties party ON party.id=relation.party_id
+JOIN bob_objects operating ON operating.id=relation.operating_entity_id AND operating.entity='operating-entity'
+JOIN bob_operating_entity_versions operating_detail ON operating_detail.version_id=operating.current_version_id
+JOIN bob_versions current_version ON current_version.id=object.current_version_id
+JOIN bob_service_relationship_versions current_detail ON current_detail.version_id=current_version.id
+WHERE object.entity='other-unit'
+  AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%'
+       OR party.display_name ILIKE '%'||$1::text||'%')
+  AND ($2::text=''
+       OR relation.operating_entity_id=$2::text)
+  AND (cardinality($3::text[])=0
+       OR current_version.status=ANY($3::text[]))
+ORDER BY object.code ASC
+LIMIT $5 OFFSET $4
+`
+
+type ListBobOtherUnitsParams struct {
+	Keyword           string   `db:"keyword" json:"keyword"`
+	OperatingEntityID string   `db:"operating_entity_id" json:"operating_entity_id"`
+	Statuses          []string `db:"statuses" json:"statuses"`
+	PageOffset        int32    `db:"page_offset" json:"page_offset"`
+	PageSize          int32    `db:"page_size" json:"page_size"`
+}
+
+type ListBobOtherUnitsRow struct {
+	ObjectID              string             `db:"object_id" json:"object_id"`
+	Code                  string             `db:"code" json:"code"`
+	ObjectRevision        int64              `db:"object_revision" json:"object_revision"`
+	Enabled               bool               `db:"enabled" json:"enabled"`
+	VersionID             string             `db:"version_id" json:"version_id"`
+	VersionNo             int32              `db:"version_no" json:"version_no"`
+	Status                string             `db:"status" json:"status"`
+	VersionRevision       int64              `db:"version_revision" json:"version_revision"`
+	SubmittedBy           *string            `db:"submitted_by" json:"submitted_by"`
+	EffectiveVersionID    *string            `db:"effective_version_id" json:"effective_version_id"`
+	CurrentVersionID      string             `db:"current_version_id" json:"current_version_id"`
+	PartyID               string             `db:"party_id" json:"party_id"`
+	PartyKind             string             `db:"party_kind" json:"party_kind"`
+	PartyDisplayName      string             `db:"party_display_name" json:"party_display_name"`
+	OperatingEntityID     string             `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityCode   string             `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName   string             `db:"operating_entity_name" json:"operating_entity_name"`
+	ContactName           *string            `db:"contact_name" json:"contact_name"`
+	ContactPhone          *string            `db:"contact_phone" json:"contact_phone"`
+	Email                 *string            `db:"email" json:"email"`
+	Address               *string            `db:"address" json:"address"`
+	SettlementMethodID    *string            `db:"settlement_method_id" json:"settlement_method_id"`
+	SettlementMethodCode  *string            `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName  *string            `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementTermCode    *string            `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementRuleType    *string            `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset int32              `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth  int32              `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset   int32              `db:"settlement_day_offset" json:"settlement_day_offset"`
+	Remark                *string            `db:"remark" json:"remark"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) ListBobOtherUnits(ctx context.Context, arg ListBobOtherUnitsParams) ([]ListBobOtherUnitsRow, error) {
+	rows, err := q.db.Query(ctx, listBobOtherUnits,
+		arg.Keyword,
+		arg.OperatingEntityID,
+		arg.Statuses,
+		arg.PageOffset,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListBobOtherUnitsRow{}
+	for rows.Next() {
+		var i ListBobOtherUnitsRow
+		if err := rows.Scan(
+			&i.ObjectID,
+			&i.Code,
+			&i.ObjectRevision,
+			&i.Enabled,
+			&i.VersionID,
+			&i.VersionNo,
+			&i.Status,
+			&i.VersionRevision,
+			&i.SubmittedBy,
+			&i.EffectiveVersionID,
+			&i.CurrentVersionID,
+			&i.PartyID,
+			&i.PartyKind,
+			&i.PartyDisplayName,
+			&i.OperatingEntityID,
+			&i.OperatingEntityCode,
+			&i.OperatingEntityName,
+			&i.ContactName,
+			&i.ContactPhone,
+			&i.Email,
+			&i.Address,
+			&i.SettlementMethodID,
+			&i.SettlementMethodCode,
+			&i.SettlementMethodName,
+			&i.SettlementTermCode,
+			&i.SettlementRuleType,
+			&i.SettlementMonthOffset,
+			&i.SettlementDayOfMonth,
+			&i.SettlementDayOffset,
+			&i.Remark,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBobParties = `-- name: ListBobParties :many
+SELECT id,kind,legal_name,display_name,tax_number,phone,email,address,
+       revision,created_at,created_by,updated_at,updated_by
+FROM bob_parties
+WHERE ($1::text='' OR kind=$1::text)
+  AND ($2::text=''
+   OR legal_name ILIKE '%'||$2::text||'%'
+   OR display_name ILIKE '%'||$2::text||'%'
+   OR COALESCE(phone,'') ILIKE '%'||$2::text||'%'
+   OR COALESCE(email,'') ILIKE '%'||$2::text||'%'
+   OR COALESCE(address,'') ILIKE '%'||$2::text||'%')
+ORDER BY display_name ASC,id ASC
+LIMIT $4 OFFSET $3
+`
+
+type ListBobPartiesParams struct {
+	PartyKind  string `db:"party_kind" json:"party_kind"`
+	Keyword    string `db:"keyword" json:"keyword"`
+	PageOffset int32  `db:"page_offset" json:"page_offset"`
+	PageSize   int32  `db:"page_size" json:"page_size"`
+}
+
+func (q *Queries) ListBobParties(ctx context.Context, arg ListBobPartiesParams) ([]BobParty, error) {
+	rows, err := q.db.Query(ctx, listBobParties,
+		arg.PartyKind,
+		arg.Keyword,
+		arg.PageOffset,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []BobParty{}
+	for rows.Next() {
+		var i BobParty
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.LegalName,
+			&i.DisplayName,
+			&i.TaxNumber,
+			&i.Phone,
+			&i.Email,
+			&i.Address,
+			&i.Revision,
+			&i.CreatedAt,
+			&i.CreatedBy,
+			&i.UpdatedAt,
+			&i.UpdatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBobPartyIdentifiers = `-- name: ListBobPartyIdentifiers :many
+SELECT identifier_type,value
+FROM bob_party_identifiers
+WHERE party_id=$1
+ORDER BY identifier_type,value
+`
+
+type ListBobPartyIdentifiersRow struct {
+	IdentifierType string `db:"identifier_type" json:"identifier_type"`
+	Value          string `db:"value" json:"value"`
+}
+
+func (q *Queries) ListBobPartyIdentifiers(ctx context.Context, partyID string) ([]ListBobPartyIdentifiersRow, error) {
+	rows, err := q.db.Query(ctx, listBobPartyIdentifiers, partyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListBobPartyIdentifiersRow{}
+	for rows.Next() {
+		var i ListBobPartyIdentifiersRow
+		if err := rows.Scan(&i.IdentifierType, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBobPartyRelationshipCards = `-- name: ListBobPartyRelationshipCards :many
+SELECT relation.object_id,object.code,object.entity,relation.operating_entity_id,
+       operating.code AS operating_entity_code,operating_detail.legal_name AS operating_entity_name,
+       object.enabled,current_version.status,current_version.version_no
+FROM bob_service_relationships relation
+JOIN bob_objects object ON object.id=relation.object_id AND object.entity='other-unit'
+JOIN bob_versions current_version ON current_version.id=object.current_version_id
+JOIN bob_objects operating ON operating.id=relation.operating_entity_id AND operating.entity='operating-entity'
+JOIN bob_operating_entity_versions operating_detail ON operating_detail.version_id=operating.current_version_id
+WHERE relation.party_id=$1
+ORDER BY object.code ASC
+`
+
+type ListBobPartyRelationshipCardsRow struct {
+	ObjectID            string `db:"object_id" json:"object_id"`
+	Code                string `db:"code" json:"code"`
+	Entity              string `db:"entity" json:"entity"`
+	OperatingEntityID   string `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityCode string `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName string `db:"operating_entity_name" json:"operating_entity_name"`
+	Enabled             bool   `db:"enabled" json:"enabled"`
+	Status              string `db:"status" json:"status"`
+	VersionNo           int32  `db:"version_no" json:"version_no"`
+}
+
+func (q *Queries) ListBobPartyRelationshipCards(ctx context.Context, partyID string) ([]ListBobPartyRelationshipCardsRow, error) {
+	rows, err := q.db.Query(ctx, listBobPartyRelationshipCards, partyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListBobPartyRelationshipCardsRow{}
+	for rows.Next() {
+		var i ListBobPartyRelationshipCardsRow
+		if err := rows.Scan(
+			&i.ObjectID,
+			&i.Code,
+			&i.Entity,
+			&i.OperatingEntityID,
+			&i.OperatingEntityCode,
+			&i.OperatingEntityName,
+			&i.Enabled,
+			&i.Status,
+			&i.VersionNo,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listBobProductFormulaLines = `-- name: ListBobProductFormulaLines :many
 SELECT line.line_no, line.material_object_id, line.material_version_id,
        object.code AS material_code, detail.name AS material_name,
@@ -4072,25 +5055,25 @@ func (q *Queries) ListCustomerSalesReferencesForEmployee(ctx context.Context, so
 	return items, nil
 }
 
-const listCustomerSalesReferencesForOtherParty = `-- name: ListCustomerSalesReferencesForOtherParty :many
+const listCustomerSalesReferencesForOtherUnit = `-- name: ListCustomerSalesReferencesForOtherUnit :many
 SELECT object.id AS object_id,object.entity,'customer-sales'::text AS role FROM bob_objects object JOIN bob_customer_versions customer_detail ON customer_detail.version_id=object.effective_version_id WHERE customer_detail.primary_sales_subject_id=$1 AND customer_detail.primary_sales_attribution_type IN ('EXTERNAL_PART_TIME','DEALER')
 `
 
-type ListCustomerSalesReferencesForOtherPartyRow struct {
+type ListCustomerSalesReferencesForOtherUnitRow struct {
 	ObjectID string `db:"object_id" json:"object_id"`
 	Entity   string `db:"entity" json:"entity"`
 	Role     string `db:"role" json:"role"`
 }
 
-func (q *Queries) ListCustomerSalesReferencesForOtherParty(ctx context.Context, sourceObjectID *string) ([]ListCustomerSalesReferencesForOtherPartyRow, error) {
-	rows, err := q.db.Query(ctx, listCustomerSalesReferencesForOtherParty, sourceObjectID)
+func (q *Queries) ListCustomerSalesReferencesForOtherUnit(ctx context.Context, sourceObjectID *string) ([]ListCustomerSalesReferencesForOtherUnitRow, error) {
+	rows, err := q.db.Query(ctx, listCustomerSalesReferencesForOtherUnit, sourceObjectID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListCustomerSalesReferencesForOtherPartyRow{}
+	items := []ListCustomerSalesReferencesForOtherUnitRow{}
 	for rows.Next() {
-		var i ListCustomerSalesReferencesForOtherPartyRow
+		var i ListCustomerSalesReferencesForOtherUnitRow
 		if err := rows.Scan(&i.ObjectID, &i.Entity, &i.Role); err != nil {
 			return nil, err
 		}
@@ -4151,36 +5134,6 @@ func (q *Queries) ListFundOperatingReferences(ctx context.Context, sourceObjectI
 	items := []ListFundOperatingReferencesRow{}
 	for rows.Next() {
 		var i ListFundOperatingReferencesRow
-		if err := rows.Scan(&i.ObjectID, &i.Entity, &i.Role); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listOtherPartySalesReferencesForEmployee = `-- name: ListOtherPartySalesReferencesForEmployee :many
-SELECT object.id AS object_id,object.entity,'other-party-sales'::text AS role FROM bob_objects object JOIN bob_customer_versions other_party_detail ON other_party_detail.version_id=object.effective_version_id WHERE object.entity='other-party' AND other_party_detail.salesperson_employee_id=$1
-`
-
-type ListOtherPartySalesReferencesForEmployeeRow struct {
-	ObjectID string `db:"object_id" json:"object_id"`
-	Entity   string `db:"entity" json:"entity"`
-	Role     string `db:"role" json:"role"`
-}
-
-func (q *Queries) ListOtherPartySalesReferencesForEmployee(ctx context.Context, sourceObjectID string) ([]ListOtherPartySalesReferencesForEmployeeRow, error) {
-	rows, err := q.db.Query(ctx, listOtherPartySalesReferencesForEmployee, sourceObjectID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListOtherPartySalesReferencesForEmployeeRow{}
-	for rows.Next() {
-		var i ListOtherPartySalesReferencesForEmployeeRow
 		if err := rows.Scan(&i.ObjectID, &i.Entity, &i.Role); err != nil {
 			return nil, err
 		}
@@ -4360,6 +5313,33 @@ func (q *Queries) LockBobObject(ctx context.Context, arg LockBobObjectParams) (L
 		&i.NextVersionNo,
 		&i.Revision,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const lockBobParty = `-- name: LockBobParty :one
+SELECT id,kind,legal_name,display_name,tax_number,phone,email,address,
+       revision,created_at,created_by,updated_at,updated_by
+FROM bob_parties WHERE id=$1 FOR UPDATE
+`
+
+func (q *Queries) LockBobParty(ctx context.Context, partyID string) (BobParty, error) {
+	row := q.db.QueryRow(ctx, lockBobParty, partyID)
+	var i BobParty
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.LegalName,
+		&i.DisplayName,
+		&i.TaxNumber,
+		&i.Phone,
+		&i.Email,
+		&i.Address,
+		&i.Revision,
+		&i.CreatedAt,
+		&i.CreatedBy,
+		&i.UpdatedAt,
+		&i.UpdatedBy,
 	)
 	return i, err
 }
@@ -4614,7 +5594,7 @@ SELECT o.id AS object_id,o.effective_version_id AS version_id,o.code,
     WHEN o.entity='customer' THEN customer.name
     WHEN o.entity='operating-entity' THEN operating.legal_name
     WHEN o.entity='employee' THEN employee.name
-    WHEN o.entity='other-party' THEN other_party.name
+    WHEN o.entity='other-unit' THEN other_unit_party.display_name
     WHEN o.entity='supplier' THEN supplier.name
     WHEN o.entity='product' THEN product.name
   END)::text AS name
@@ -4622,7 +5602,8 @@ FROM bob_objects o
 LEFT JOIN bob_customer_versions customer ON customer.version_id=o.effective_version_id AND customer.entity='customer'
 LEFT JOIN bob_operating_entity_versions operating ON operating.version_id=o.effective_version_id
 LEFT JOIN bob_employee_versions employee ON employee.version_id=o.effective_version_id
-LEFT JOIN bob_customer_versions other_party ON other_party.version_id=o.effective_version_id AND other_party.entity='other-party'
+LEFT JOIN bob_service_relationships other_unit_relation ON other_unit_relation.object_id=o.id AND o.entity='other-unit'
+LEFT JOIN bob_parties other_unit_party ON other_unit_party.id=other_unit_relation.party_id
 LEFT JOIN bob_supplier_versions supplier ON supplier.version_id=o.effective_version_id
 LEFT JOIN bob_product_versions product ON product.version_id=o.effective_version_id
 LEFT JOIN bob_objects source_object ON source_object.id=NULLIF($1::text,'') AND source_object.entity=o.entity
@@ -4640,7 +5621,7 @@ WHERE o.entity=$2 AND o.enabled AND o.effective_version_id IS NOT NULL
       WHEN o.entity='customer' THEN customer.name
       WHEN o.entity='operating-entity' THEN operating.legal_name
       WHEN o.entity='employee' THEN employee.name
-      WHEN o.entity='other-party' THEN other_party.name
+      WHEN o.entity='other-unit' THEN other_unit_party.display_name
       WHEN o.entity='supplier' THEN supplier.name
       WHEN o.entity='product' THEN product.name
     END ILIKE '%'||btrim($4::text)||'%'
@@ -4704,26 +5685,29 @@ FROM (
   FROM bob_customer_groups g
   WHERE $1::boolean AND upper(btrim(g.tax_number))=$2
   UNION ALL
-  SELECT o.entity::text,o.id,o.code,d.name,COALESCE(d.short_name,''),COALESCE(d.tax_number,''),
-    '',COALESCE(d.address,''),COALESCE(d.contact_phone,'')
+  SELECT o.entity::text,o.id,o.code,d.display_name,''::text,COALESCE(d.tax_number,''),
+    '',COALESCE(relation_detail.address,''),COALESCE(relation_detail.contact_phone,'')
   FROM bob_objects o JOIN bob_supplier_versions d ON d.version_id=o.effective_version_id
   WHERE o.entity='supplier' AND o.enabled AND $3::boolean
     AND upper(btrim(d.tax_number))=$2
   UNION ALL
   SELECT o.entity::text,o.id,o.code,d.name,COALESCE(d.short_name,''),COALESCE(d.tax_number,''),
     '',COALESCE(d.address,''),COALESCE(d.contact_phone,'')
-  FROM bob_objects o JOIN bob_customer_versions d ON d.version_id=o.effective_version_id
-  WHERE o.entity='other-party' AND o.enabled AND $4::boolean
-    AND upper(btrim(d.tax_number))=$2
+  FROM bob_objects o
+  JOIN bob_service_relationships relation ON relation.object_id=o.id
+  JOIN bob_parties d ON d.id=relation.party_id
+  LEFT JOIN bob_service_relationship_versions relation_detail ON relation_detail.version_id=o.effective_version_id
+  WHERE o.entity='other-unit' AND o.enabled AND $4::boolean
+    AND upper(btrim(COALESCE(d.tax_number,'')))=$2
 ) matched
 ORDER BY source_entity,code,object_id
 `
 
 type QueryCustomerTaxMatchesParams struct {
-	IncludeCustomer   bool    `db:"include_customer" json:"include_customer"`
-	TaxNumber         *string `db:"tax_number" json:"tax_number"`
-	IncludeSupplier   bool    `db:"include_supplier" json:"include_supplier"`
-	IncludeOtherParty bool    `db:"include_other_party" json:"include_other_party"`
+	IncludeCustomer  bool    `db:"include_customer" json:"include_customer"`
+	TaxNumber        *string `db:"tax_number" json:"tax_number"`
+	IncludeSupplier  bool    `db:"include_supplier" json:"include_supplier"`
+	IncludeOtherUnit bool    `db:"include_other_unit" json:"include_other_unit"`
 }
 
 type QueryCustomerTaxMatchesRow struct {
@@ -4743,7 +5727,7 @@ func (q *Queries) QueryCustomerTaxMatches(ctx context.Context, arg QueryCustomer
 		arg.IncludeCustomer,
 		arg.TaxNumber,
 		arg.IncludeSupplier,
-		arg.IncludeOtherParty,
+		arg.IncludeOtherUnit,
 	)
 	if err != nil {
 		return nil, err
@@ -4783,18 +5767,22 @@ FROM (
   FROM bob_customer_groups g
   WHERE $1::boolean AND upper(btrim(g.tax_number))=$2
   UNION ALL
-  SELECT 'other-party'::text,o.id,o.code,d.name,COALESCE(d.short_name,''),COALESCE(d.tax_number,''),
-    COALESCE(d.contact_name,''),COALESCE(d.contact_phone,''),COALESCE(d.email,''),COALESCE(d.address,'')
-  FROM bob_objects o JOIN bob_customer_versions d ON d.version_id=o.effective_version_id
-  WHERE o.entity='other-party' AND o.enabled AND $3::boolean
-    AND upper(btrim(d.tax_number))=$2
+  SELECT 'other-unit'::text,o.id,o.code,d.display_name,''::text,COALESCE(d.tax_number,''),
+    COALESCE(relation_detail.contact_name,''),COALESCE(relation_detail.contact_phone,''),
+    COALESCE(relation_detail.email,''),COALESCE(relation_detail.address,'')
+  FROM bob_objects o
+  JOIN bob_service_relationships relation ON relation.object_id=o.id
+  JOIN bob_parties d ON d.id=relation.party_id
+  LEFT JOIN bob_service_relationship_versions relation_detail ON relation_detail.version_id=o.effective_version_id
+  WHERE o.entity='other-unit' AND o.enabled AND $3::boolean
+    AND upper(btrim(COALESCE(d.tax_number,'')))=$2
 ) matched ORDER BY source_entity,code,object_id
 `
 
 type QuerySupplierTaxMatchesParams struct {
-	IncludeCustomer   bool    `db:"include_customer" json:"include_customer"`
-	TaxNumber         *string `db:"tax_number" json:"tax_number"`
-	IncludeOtherParty bool    `db:"include_other_party" json:"include_other_party"`
+	IncludeCustomer  bool    `db:"include_customer" json:"include_customer"`
+	TaxNumber        *string `db:"tax_number" json:"tax_number"`
+	IncludeOtherUnit bool    `db:"include_other_unit" json:"include_other_unit"`
 }
 
 type QuerySupplierTaxMatchesRow struct {
@@ -4811,7 +5799,7 @@ type QuerySupplierTaxMatchesRow struct {
 }
 
 func (q *Queries) QuerySupplierTaxMatches(ctx context.Context, arg QuerySupplierTaxMatchesParams) ([]QuerySupplierTaxMatchesRow, error) {
-	rows, err := q.db.Query(ctx, querySupplierTaxMatches, arg.IncludeCustomer, arg.TaxNumber, arg.IncludeOtherParty)
+	rows, err := q.db.Query(ctx, querySupplierTaxMatches, arg.IncludeCustomer, arg.TaxNumber, arg.IncludeOtherUnit)
 	if err != nil {
 		return nil, err
 	}
@@ -5004,20 +5992,6 @@ func (q *Queries) ReplaceFundOperatingEntityReference(ctx context.Context, arg R
 	return err
 }
 
-const replaceOtherPartySalesReference = `-- name: ReplaceOtherPartySalesReference :exec
-UPDATE bob_customer_versions SET salesperson_employee_id=$1 WHERE version_id=$2
-`
-
-type ReplaceOtherPartySalesReferenceParams struct {
-	TargetObjectID string `db:"target_object_id" json:"target_object_id"`
-	VersionID      string `db:"version_id" json:"version_id"`
-}
-
-func (q *Queries) ReplaceOtherPartySalesReference(ctx context.Context, arg ReplaceOtherPartySalesReferenceParams) error {
-	_, err := q.db.Exec(ctx, replaceOtherPartySalesReference, arg.TargetObjectID, arg.VersionID)
-	return err
-}
-
 const replacePackagingProductReference = `-- name: ReplacePackagingProductReference :exec
 UPDATE bob_product_packaging_specs SET packaging_product_object_id=$1,packaging_product_version_id=$2
 WHERE product_version_id=$3 AND packaging_product_object_id=$4
@@ -5080,6 +6054,77 @@ type ReplaceWarehouseManagerReferenceParams struct {
 func (q *Queries) ReplaceWarehouseManagerReference(ctx context.Context, arg ReplaceWarehouseManagerReferenceParams) error {
 	_, err := q.db.Exec(ctx, replaceWarehouseManagerReference, arg.TargetObjectID, arg.VersionID)
 	return err
+}
+
+const resolveBobEffectiveOtherUnitReference = `-- name: ResolveBobEffectiveOtherUnitReference :one
+SELECT object.id AS object_id,object.entity,object.code,version.id AS version_id,
+       party.display_name AS name,detail.contact_name,detail.contact_phone,
+       detail.email,detail.address,detail.settlement_method_id,
+       detail.settlement_method_code,detail.settlement_method_name,
+       detail.settlement_term_code,detail.settlement_rule_type,
+       detail.settlement_month_offset,detail.settlement_day_of_month,
+       detail.settlement_day_offset,relation.operating_entity_id
+FROM bob_objects object
+JOIN bob_versions version ON version.object_id=object.id AND version.entity=object.entity
+JOIN bob_service_relationships relation ON relation.object_id=object.id
+JOIN bob_parties party ON party.id=relation.party_id
+JOIN bob_service_relationship_versions detail ON detail.version_id=version.id
+WHERE object.id=$1 AND object.entity='other-unit'
+  AND version.id=$2 AND object.effective_version_id=version.id
+  AND version.status='EFFECTIVE' AND object.enabled
+FOR SHARE OF object,version
+`
+
+type ResolveBobEffectiveOtherUnitReferenceParams struct {
+	ObjectID  string `db:"object_id" json:"object_id"`
+	VersionID string `db:"version_id" json:"version_id"`
+}
+
+type ResolveBobEffectiveOtherUnitReferenceRow struct {
+	ObjectID              string  `db:"object_id" json:"object_id"`
+	Entity                string  `db:"entity" json:"entity"`
+	Code                  string  `db:"code" json:"code"`
+	VersionID             string  `db:"version_id" json:"version_id"`
+	Name                  string  `db:"name" json:"name"`
+	ContactName           *string `db:"contact_name" json:"contact_name"`
+	ContactPhone          *string `db:"contact_phone" json:"contact_phone"`
+	Email                 *string `db:"email" json:"email"`
+	Address               *string `db:"address" json:"address"`
+	SettlementMethodID    *string `db:"settlement_method_id" json:"settlement_method_id"`
+	SettlementMethodCode  *string `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName  *string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementTermCode    *string `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementRuleType    *string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth  int32   `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset   int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
+	OperatingEntityID     string  `db:"operating_entity_id" json:"operating_entity_id"`
+}
+
+func (q *Queries) ResolveBobEffectiveOtherUnitReference(ctx context.Context, arg ResolveBobEffectiveOtherUnitReferenceParams) (ResolveBobEffectiveOtherUnitReferenceRow, error) {
+	row := q.db.QueryRow(ctx, resolveBobEffectiveOtherUnitReference, arg.ObjectID, arg.VersionID)
+	var i ResolveBobEffectiveOtherUnitReferenceRow
+	err := row.Scan(
+		&i.ObjectID,
+		&i.Entity,
+		&i.Code,
+		&i.VersionID,
+		&i.Name,
+		&i.ContactName,
+		&i.ContactPhone,
+		&i.Email,
+		&i.Address,
+		&i.SettlementMethodID,
+		&i.SettlementMethodCode,
+		&i.SettlementMethodName,
+		&i.SettlementTermCode,
+		&i.SettlementRuleType,
+		&i.SettlementMonthOffset,
+		&i.SettlementDayOfMonth,
+		&i.SettlementDayOffset,
+		&i.OperatingEntityID,
+	)
+	return i, err
 }
 
 const resolveBobEffectiveReference = `-- name: ResolveBobEffectiveReference :one
@@ -5178,6 +6223,71 @@ func (q *Queries) ResolveBobEffectiveReference(ctx context.Context, arg ResolveB
 		&i.SettlementDefaultSalesSurchargeCents,
 		&i.RebateUnitPriceCents,
 		&i.IntermediaryOtherPartyID,
+	)
+	return i, err
+}
+
+const resolveCurrentBobEffectiveOtherUnitReference = `-- name: ResolveCurrentBobEffectiveOtherUnitReference :one
+SELECT object.id AS object_id,object.entity,object.code,version.id AS version_id,
+       party.display_name AS name,detail.contact_name,detail.contact_phone,
+       detail.email,detail.address,detail.settlement_method_id,
+       detail.settlement_method_code,detail.settlement_method_name,
+       detail.settlement_term_code,detail.settlement_rule_type,
+       detail.settlement_month_offset,detail.settlement_day_of_month,
+       detail.settlement_day_offset,relation.operating_entity_id
+FROM bob_objects object
+JOIN bob_versions version ON version.id=object.effective_version_id
+JOIN bob_service_relationships relation ON relation.object_id=object.id
+JOIN bob_parties party ON party.id=relation.party_id
+JOIN bob_service_relationship_versions detail ON detail.version_id=version.id
+WHERE object.id=$1 AND object.entity='other-unit'
+  AND version.status='EFFECTIVE' AND object.enabled
+FOR SHARE OF object,version
+`
+
+type ResolveCurrentBobEffectiveOtherUnitReferenceRow struct {
+	ObjectID              string  `db:"object_id" json:"object_id"`
+	Entity                string  `db:"entity" json:"entity"`
+	Code                  string  `db:"code" json:"code"`
+	VersionID             string  `db:"version_id" json:"version_id"`
+	Name                  string  `db:"name" json:"name"`
+	ContactName           *string `db:"contact_name" json:"contact_name"`
+	ContactPhone          *string `db:"contact_phone" json:"contact_phone"`
+	Email                 *string `db:"email" json:"email"`
+	Address               *string `db:"address" json:"address"`
+	SettlementMethodID    *string `db:"settlement_method_id" json:"settlement_method_id"`
+	SettlementMethodCode  *string `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName  *string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementTermCode    *string `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementRuleType    *string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth  int32   `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset   int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
+	OperatingEntityID     string  `db:"operating_entity_id" json:"operating_entity_id"`
+}
+
+func (q *Queries) ResolveCurrentBobEffectiveOtherUnitReference(ctx context.Context, objectID string) (ResolveCurrentBobEffectiveOtherUnitReferenceRow, error) {
+	row := q.db.QueryRow(ctx, resolveCurrentBobEffectiveOtherUnitReference, objectID)
+	var i ResolveCurrentBobEffectiveOtherUnitReferenceRow
+	err := row.Scan(
+		&i.ObjectID,
+		&i.Entity,
+		&i.Code,
+		&i.VersionID,
+		&i.Name,
+		&i.ContactName,
+		&i.ContactPhone,
+		&i.Email,
+		&i.Address,
+		&i.SettlementMethodID,
+		&i.SettlementMethodCode,
+		&i.SettlementMethodName,
+		&i.SettlementTermCode,
+		&i.SettlementRuleType,
+		&i.SettlementMonthOffset,
+		&i.SettlementDayOfMonth,
+		&i.SettlementDayOffset,
+		&i.OperatingEntityID,
 	)
 	return i, err
 }
@@ -5364,6 +6474,32 @@ func (q *Queries) RestoreBobCustomerEffectiveVersion(ctx context.Context, arg Re
 	return result.RowsAffected(), nil
 }
 
+const restoreBobOtherUnitEffectiveVersion = `-- name: RestoreBobOtherUnitEffectiveVersion :execrows
+UPDATE bob_objects SET current_version_id=effective_version_id,revision=revision+1,updated_at=now()
+WHERE id=$1 AND entity='other-unit' AND revision=$2
+  AND current_version_id=$3 AND effective_version_id=$4
+`
+
+type RestoreBobOtherUnitEffectiveVersionParams struct {
+	ObjectID           string  `db:"object_id" json:"object_id"`
+	Revision           int64   `db:"revision" json:"revision"`
+	VersionID          string  `db:"version_id" json:"version_id"`
+	EffectiveVersionID *string `db:"effective_version_id" json:"effective_version_id"`
+}
+
+func (q *Queries) RestoreBobOtherUnitEffectiveVersion(ctx context.Context, arg RestoreBobOtherUnitEffectiveVersionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, restoreBobOtherUnitEffectiveVersion,
+		arg.ObjectID,
+		arg.Revision,
+		arg.VersionID,
+		arg.EffectiveVersionID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const restoreBobSupplierEffectiveVersion = `-- name: RestoreBobSupplierEffectiveVersion :execrows
 UPDATE bob_objects SET current_version_id=effective_version_id,revision=revision+1,updated_at=now()
 WHERE id=$1 AND entity='supplier' AND revision=$2
@@ -5425,7 +6561,7 @@ SET enabled = $1, revision = revision + 1,
     updated_at = now(), updated_by = $2
 WHERE id = $3 AND entity = $4
   AND revision = $5
-  AND (current_version_id = effective_version_id OR entity IN ('customer','supplier'))
+  AND (current_version_id = effective_version_id OR entity IN ('customer','supplier','other-unit'))
   AND effective_version_id IS NOT NULL
   AND enabled <> $1
 `
@@ -5487,7 +6623,7 @@ UPDATE bob_objects
 SET effective_version_id = $1, revision = revision + 1,
     updated_at = now(), updated_by = $2
 WHERE id = $3 AND entity = $4
-  AND entity IN ('customer','supplier')
+  AND entity IN ('customer','supplier','other-unit')
   AND current_version_id = $1
   AND effective_version_id = $5
   AND revision = $6
@@ -5892,6 +7028,46 @@ func (q *Queries) UpdateBobOperatingEntityDetail(ctx context.Context, arg Update
 	return result.RowsAffected(), nil
 }
 
+const updateBobParty = `-- name: UpdateBobParty :execrows
+UPDATE bob_parties SET
+    kind=$1,legal_name=$2,display_name=$3,
+    tax_number=$4,phone=$5,email=$6,
+    address=$7,revision=revision+1,updated_at=now(),updated_by=$8
+WHERE id=$9 AND revision=$10
+`
+
+type UpdateBobPartyParams struct {
+	Kind        string  `db:"kind" json:"kind"`
+	LegalName   string  `db:"legal_name" json:"legal_name"`
+	DisplayName string  `db:"display_name" json:"display_name"`
+	TaxNumber   *string `db:"tax_number" json:"tax_number"`
+	Phone       *string `db:"phone" json:"phone"`
+	Email       *string `db:"email" json:"email"`
+	Address     *string `db:"address" json:"address"`
+	ActorID     string  `db:"actor_id" json:"actor_id"`
+	PartyID     string  `db:"party_id" json:"party_id"`
+	Revision    int64   `db:"revision" json:"revision"`
+}
+
+func (q *Queries) UpdateBobParty(ctx context.Context, arg UpdateBobPartyParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateBobParty,
+		arg.Kind,
+		arg.LegalName,
+		arg.DisplayName,
+		arg.TaxNumber,
+		arg.Phone,
+		arg.Email,
+		arg.Address,
+		arg.ActorID,
+		arg.PartyID,
+		arg.Revision,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const updateBobPositionDetail = `-- name: UpdateBobPositionDetail :execrows
 UPDATE bob_position_versions
 SET name = $1, category_id = $2, description = $3
@@ -6000,6 +7176,61 @@ func (q *Queries) UpdateBobServiceDetail(ctx context.Context, arg UpdateBobServi
 		arg.UnitID,
 		arg.CategoryID,
 		arg.Description,
+		arg.Remark,
+		arg.VersionID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateBobServiceRelationshipDetail = `-- name: UpdateBobServiceRelationshipDetail :execrows
+UPDATE bob_service_relationship_versions SET
+    contact_name=$1,contact_phone=$2,
+    email=$3,address=$4,
+    settlement_method_id=$5,
+    settlement_method_code=$6,
+    settlement_method_name=$7,
+    settlement_term_code=$8,
+    settlement_rule_type=$9,
+    settlement_month_offset=$10,
+    settlement_day_of_month=$11,
+    settlement_day_offset=$12,remark=$13
+WHERE version_id=$14
+`
+
+type UpdateBobServiceRelationshipDetailParams struct {
+	ContactName           *string `db:"contact_name" json:"contact_name"`
+	ContactPhone          *string `db:"contact_phone" json:"contact_phone"`
+	Email                 *string `db:"email" json:"email"`
+	Address               *string `db:"address" json:"address"`
+	SettlementMethodID    *string `db:"settlement_method_id" json:"settlement_method_id"`
+	SettlementMethodCode  *string `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName  *string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementTermCode    *string `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementRuleType    *string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth  int32   `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset   int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
+	Remark                *string `db:"remark" json:"remark"`
+	VersionID             string  `db:"version_id" json:"version_id"`
+}
+
+func (q *Queries) UpdateBobServiceRelationshipDetail(ctx context.Context, arg UpdateBobServiceRelationshipDetailParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateBobServiceRelationshipDetail,
+		arg.ContactName,
+		arg.ContactPhone,
+		arg.Email,
+		arg.Address,
+		arg.SettlementMethodID,
+		arg.SettlementMethodCode,
+		arg.SettlementMethodName,
+		arg.SettlementTermCode,
+		arg.SettlementRuleType,
+		arg.SettlementMonthOffset,
+		arg.SettlementDayOfMonth,
+		arg.SettlementDayOffset,
 		arg.Remark,
 		arg.VersionID,
 	)

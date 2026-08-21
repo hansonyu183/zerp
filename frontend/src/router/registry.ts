@@ -156,6 +156,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/acc/period/Period.vue'),
   }),
   registerPage('bob', {
+    entity: 'party',
+    entityTitle: '主体',
+    icon: 'mdi-account-box-multiple-outline',
+    order: 5,
+    component: () => import('@/pages/bob/party/Party.vue'),
+  }),
+  registerPage('bob', {
     entity: 'customer',
     entityTitle: '客户',
     icon: 'mdi-account-group',
@@ -170,11 +177,11 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/bob/supplier/Supplier.vue'),
   }),
   registerPage('bob', {
-    entity: 'other-party',
-    entityTitle: '其他往来单位',
+    entity: 'other-unit',
+    entityTitle: '其他单位',
     icon: 'mdi-account-question-outline',
     order: 25,
-    component: () => import('@/pages/bob/other-party/OtherParty.vue'),
+    component: () => import('@/pages/bob/other-unit/OtherUnit.vue'),
   }),
   registerPage('bob', {
     entity: 'employee',
@@ -223,8 +230,7 @@ export const pageRegistrations: readonly PageRegistration[] = [
     entityTitle: '经营主体',
     icon: 'mdi-office-building-cog-outline',
     order: 90,
-    component: () =>
-      import('@/pages/bob/operating-entity/OperatingEntity.vue'),
+    component: () => import('@/pages/bob/operating-entity/OperatingEntity.vue'),
   }),
   registerPage('aux', {
     entity: 'settlement-method',

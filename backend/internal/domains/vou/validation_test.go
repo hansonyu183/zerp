@@ -62,7 +62,7 @@ func TestCashEntitiesFixOrAcceptCounterpartyType(t *testing.T) {
 		t.Fatal("customer receipt accepted supplier counterparty type")
 	}
 	for _, entity := range []string{EntityOtherReceipt, EntityOtherPayment} {
-		for _, counterpartyType := range []string{"customer", "supplier", "other-party", "employee"} {
+		for _, counterpartyType := range []string{"customer", "supplier", "other-unit", "employee"} {
 			draft, err := validateDraft(entity, DraftInput{
 				BusinessDate: "2026-08-03", Currency: "CNY", CounterpartyType: counterpartyType,
 				Counterparty: refInput(), FundAccount: refInput(), Handler: refInput(), Amount: "10.00",

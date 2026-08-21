@@ -389,8 +389,8 @@ func validateBillIssueDraft(input DraftInput, result validatedDraft) (validatedD
 }
 
 func validateBillDiscountDraft(input DraftInput, result validatedDraft) (validatedDraft, error) {
-	if input.Counterparty == nil || strings.ToLower(strings.TrimSpace(input.CounterpartyType)) != "other-party" {
-		return result, domainError(ErrorValidation, "bill discount requires other-party counterparty", nil, nil)
+	if input.Counterparty == nil || strings.ToLower(strings.TrimSpace(input.CounterpartyType)) != "other-unit" {
+		return result, domainError(ErrorValidation, "bill discount requires other-unit counterparty", nil, nil)
 	}
 	if err := validateReference(input.Counterparty, "counterparty", true); err != nil {
 		return result, err
@@ -413,7 +413,7 @@ func validateBillDiscountDraft(input DraftInput, result validatedDraft) (validat
 	if len(input.BillLines) < 1 || len(input.BillLines) > 20 || len(input.BillCashLines) > 20 {
 		return result, domainError(ErrorValidation, "bill discount lines must contain 1 to 20 items", nil, nil)
 	}
-	result.Counterparty, result.CounterpartyType = input.Counterparty, "other-party"
+	result.Counterparty, result.CounterpartyType = input.Counterparty, "other-unit"
 	result.MaturityType, result.InterestMode, result.WithRecourse = "NONE", mode, input.WithRecourse
 	if mode == "THIRD_PARTY_PAYABLE" {
 		result.InterestParty = input.InterestParty
@@ -585,7 +585,7 @@ func (s *Service) writeBillDetail(ctx context.Context, q *dbsqlc.Queries, entity
 	if entity == EntityBillPayment || entity == EntityBillIssue {
 		party, partyEntity = r.Supplier, "supplier"
 	} else if entity == EntityBillDiscount {
-		partyEntity = "other-party"
+		partyEntity = "other-unit"
 	} else if entity == EntityBillMaturity {
 		party = nil
 	}

@@ -15,7 +15,7 @@ import (
 // purposes return credit minus debit.
 func (s *Service) PartyBalance(ctx context.Context, tx pgx.Tx, input voudomain.PartyBalanceQuery) (int64, error) {
 	dimension := strings.TrimSpace(input.CounterpartyDimension)
-	if dimension != DimensionCustomer && dimension != DimensionSupplier {
+	if dimension != DimensionCustomerAccount && dimension != DimensionSupplierRelationship {
 		return 0, domainError(ErrorValidation, "invalid accounting counterparty dimension", nil)
 	}
 	purpose := strings.TrimSpace(input.SettlementPurpose)

@@ -80,8 +80,8 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 	countParams := dbsqlc.CountBobObjectsParams{
 		Entity: entity, Statuses: statuses, Keyword: filters.Keyword,
 		EnabledFilter: enabledFilter,
-		CustomerType:  filters.CustomerType, SupplierType: filters.SupplierType,
-		CategoryID: filters.CategoryID, DepartmentID: filters.DepartmentID,
+		CustomerType:  filters.CustomerType,
+		CategoryID:    filters.CategoryID, DepartmentID: filters.DepartmentID,
 		PositionID: filters.PositionID, SalespersonEmployeeID: filters.SalespersonEmployeeID,
 		Currency:     filters.Currency,
 		ProductKind:  filters.ProductKind,
@@ -94,8 +94,8 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 	rows, err := s.queries.ListBobObjects(ctx, dbsqlc.ListBobObjectsParams{
 		Entity: entity, Statuses: statuses, Keyword: filters.Keyword, SortField: sortField, SortOrder: sortOrder,
 		EnabledFilter: enabledFilter,
-		CustomerType:  filters.CustomerType, SupplierType: filters.SupplierType,
-		CategoryID: filters.CategoryID, DepartmentID: filters.DepartmentID,
+		CustomerType:  filters.CustomerType,
+		CategoryID:    filters.CategoryID, DepartmentID: filters.DepartmentID,
 		PositionID: filters.PositionID, SalespersonEmployeeID: filters.SalespersonEmployeeID,
 		Currency:     filters.Currency,
 		ProductKind:  filters.ProductKind,
@@ -121,7 +121,16 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 	}
 	items := make([]QueryItem, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, queryItem(row, enabledByID[row.ObjectID]))
+		item := queryItem(row, enabledByID[row.ObjectID])
+		if entity == EntityEmployee {
+			identity, identityErr := s.queries.GetBobEmploymentRelationshipIdentity(ctx, row.ObjectID)
+			if identityErr != nil {
+				return Page[QueryItem]{}, s.internal("read Employment Relationship identity", identityErr)
+			}
+			item.Relationship = employmentRelationshipIdentity(identity)
+			item.CurrentVersion.Summary.Name = identity.PartyDisplayName
+		}
+		items = append(items, item)
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
@@ -149,6 +158,14 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Objec
 		return ObjectView{}, s.internal("read object availability", err)
 	}
 	result := objectView(row, enabled)
+	if entity == EntityEmployee {
+		identity, identityErr := s.queries.GetBobEmploymentRelationshipIdentity(ctx, input.ObjectID)
+		if identityErr != nil {
+			return ObjectView{}, s.internal("read Employment Relationship identity", identityErr)
+		}
+		result.Relationship = employmentRelationshipIdentity(identity)
+		result.Data.Name = identity.PartyDisplayName
+	}
 	if entity == EntityFundAccount {
 		if err = loadFundAccountOperating(ctx, s.queries, row.VersionID, &result.Data); err != nil {
 			return ObjectView{}, s.internal("read fund account operating entity", err)
@@ -167,18 +184,20 @@ func (s *Service) Create(ctx context.Context, entity string, input CreateInput, 
 	if entity == EntitySettlementMethod {
 		return MutationResult{}, domainError(ErrorValidation, "settlement methods are system-defined", nil, nil)
 	}
+	if entity == EntityOtherUnit {
+		return MutationResult{}, domainError(ErrorValidation, "other-units must be created with a Party relationship", nil, nil)
+	}
 	if entity == EntitySupplier {
-		supplierType := SupplierTypeGeneral
-		if input.Data.SupplierType != nil {
-			supplierType = *input.Data.SupplierType
-		}
-		return s.SupplierCreate(ctx, SupplierCreateInput{Data: SupplierData{
-			Name: input.Data.Name, SupplierType: supplierType, ShortName: input.Data.ShortName,
-			TaxNumber: input.Data.TaxNumber, ContactName: input.Data.ContactName,
-			ContactPhone: input.Data.ContactPhone, Email: input.Data.Email, Address: input.Data.Address,
-			Remark: input.Data.Remark, SettlementMethodID: input.Data.SettlementMethodID,
-			DefaultPurchaserEmployeeID: input.Data.DefaultPurchaserEmployeeID,
-		}}, actorID, requestID)
+		return MutationResult{}, domainError(ErrorValidation, "suppliers must be created with a Party relationship", nil, nil)
+	}
+	if entity == EntityEmployee {
+		return MutationResult{}, domainError(ErrorValidation, "employees must be created with a Party relationship", nil, nil)
+	}
+	if entity == EntitySalesPartner {
+		return MutationResult{}, domainError(ErrorValidation, "sales partners must be created with a Party relationship", nil, nil)
+	}
+	if entity == EntityCustomer || entity == EntityCustomerAccount {
+		return MutationResult{}, domainError(ErrorValidation, "customers must be created with a Party relationship and account", nil, nil)
 	}
 	data, _, err := validateCreate(entity, input.Data)
 	if err != nil || !validActorAndRequest(actorID, requestID) {
@@ -243,7 +262,7 @@ func (s *Service) Create(ctx context.Context, entity string, input CreateInput, 
 
 func objectPrefix(entity string) string {
 	return map[string]string{
-		EntityCustomer: "CUS", EntitySupplier: "SUP", EntityOtherParty: "OTP", EntityEmployee: "EMP",
+		EntityCustomer: "CUS", EntitySupplier: "SUP", EntityOtherUnit: "OTU", EntityEmployee: "EMP", EntitySalesPartner: "SLP",
 		EntityProduct: "PRD", EntityService: "SVC", EntityWarehouse: "WHS",
 		EntityVehicle: "VEH", EntityFundAccount: "FAC",
 		EntityCategory: "PCT", EntityDepartment: "DEP", EntityPosition: "POS",
@@ -252,12 +271,11 @@ func objectPrefix(entity string) string {
 }
 
 func (s *Service) Save(ctx context.Context, entity string, input SaveInput, actorID, requestID string) (MutationResult, error) {
+	if entity == EntityCustomer || entity == EntityCustomerAccount || entity == EntityOtherUnit || entity == EntitySalesPartner {
+		return MutationResult{}, domainError(ErrorValidation, "typed relationships must use their dedicated save operation", nil, nil)
+	}
 	if entity == EntitySupplier {
 		data := SupplierData{Name: input.Data.Name, provided: map[string]bool{"name": true}}
-		if input.Data.SupplierType != nil {
-			data.SupplierType = *input.Data.SupplierType
-			data.provided["supplierType"] = true
-		}
 		copyOptional := func(key string, value OptionalString, target *string) {
 			if value.Set {
 				data.provided[key] = true
@@ -386,6 +404,46 @@ func (s *Service) Delete(ctx context.Context, entity string, input DeleteInput) 
 		return err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+	var customerRelationshipID string
+	if entity == EntityCustomerAccount {
+		customerRelationshipID, err = qtx.LockBobCustomerAccountRelationship(ctx, input.ObjectID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domainError(ErrorConflict, "customer relationship is unavailable", nil, nil)
+		}
+		if err != nil {
+			return s.internal("lock customer relationship for account delete", err)
+		}
+		count, countErr := qtx.CountBobCustomerRelationshipAccounts(ctx, customerRelationshipID)
+		if countErr != nil {
+			return s.internal("count customer accounts", countErr)
+		}
+		if count <= 1 {
+			return domainError(ErrorConflict, "customer relationship must retain at least one account", nil, nil)
+		}
+	}
+	var relationshipParty *dbsqlc.BobParty
+	var partyID string
+	var partyErr error
+	switch entity {
+	case EntityOtherUnit:
+		partyID, partyErr = qtx.GetBobServiceRelationshipPartyID(ctx, input.ObjectID)
+	case EntitySupplier:
+		partyID, partyErr = qtx.GetBobSupplierRelationshipPartyID(ctx, input.ObjectID)
+	case EntityEmployee:
+		partyID, partyErr = qtx.GetBobEmploymentRelationshipPartyID(ctx, input.ObjectID)
+	case EntitySalesPartner:
+		partyID, partyErr = qtx.GetBobSalesRelationshipPartyID(ctx, input.ObjectID)
+	}
+	if partyID != "" || partyErr != nil {
+		if partyErr != nil {
+			return s.internal("read relationship Party", partyErr)
+		}
+		party, partyErr := qtx.LockBobParty(ctx, partyID)
+		if partyErr != nil {
+			return s.internal("lock relationship Party", partyErr)
+		}
+		relationshipParty = &party
+	}
 	if hasEffectiveCandidate(entity, object) {
 		return s.deleteEffectiveCandidate(ctx, tx, entity, object, version, input)
 	}
@@ -470,6 +528,35 @@ func (s *Service) Delete(ctx context.Context, entity string, input DeleteInput) 
 	if versionRows != 1 {
 		return conflict(object, version, "version changed before delete")
 	}
+	if entity == EntityCustomerAccount {
+		rows, deleteErr := qtx.DeleteBobCustomerAccountRelationship(ctx, dbsqlc.DeleteBobCustomerAccountRelationshipParams{ObjectID: input.ObjectID, CustomerRelationshipID: customerRelationshipID})
+		if deleteErr != nil {
+			return s.writeError("delete customer account relationship", deleteErr)
+		}
+		if rows != 1 {
+			return conflict(object, version, "customer account relationship changed before delete")
+		}
+	}
+	if relationshipParty != nil {
+		var relationRows int64
+		var relationErr error
+		switch entity {
+		case EntityOtherUnit:
+			relationRows, relationErr = qtx.DeleteBobServiceRelationship(ctx, dbsqlc.DeleteBobServiceRelationshipParams{ObjectID: input.ObjectID, PartyID: relationshipParty.ID})
+		case EntitySupplier:
+			relationRows, relationErr = qtx.DeleteBobSupplierRelationship(ctx, dbsqlc.DeleteBobSupplierRelationshipParams{ObjectID: input.ObjectID, PartyID: relationshipParty.ID})
+		case EntityEmployee:
+			relationRows, relationErr = qtx.DeleteBobEmploymentRelationship(ctx, dbsqlc.DeleteBobEmploymentRelationshipParams{ObjectID: input.ObjectID, PartyID: relationshipParty.ID})
+		case EntitySalesPartner:
+			relationRows, relationErr = qtx.DeleteBobSalesRelationship(ctx, dbsqlc.DeleteBobSalesRelationshipParams{ObjectID: input.ObjectID, PartyID: relationshipParty.ID})
+		}
+		if relationErr != nil {
+			return s.writeError("delete typed relationship", relationErr)
+		}
+		if relationRows != 1 {
+			return conflict(object, version, "typed relationship changed before delete")
+		}
+	}
 	objectRows, err := qtx.DeleteBobObject(ctx, dbsqlc.DeleteBobObjectParams{
 		ObjectID:       input.ObjectID,
 		Entity:         entity,
@@ -481,6 +568,33 @@ func (s *Service) Delete(ctx context.Context, entity string, input DeleteInput) 
 	}
 	if objectRows != 1 {
 		return conflict(object, version, "object changed before delete")
+	}
+	if relationshipParty != nil {
+		relationCount, countErr := qtx.CountBobPartyRelationships(ctx, relationshipParty.ID)
+		if countErr != nil {
+			return s.internal("count remaining Party relationships", countErr)
+		}
+		auditCount, countErr := qtx.CountBobPartyAuditEvents(ctx, relationshipParty.ID)
+		if countErr != nil {
+			return s.internal("count Party history", countErr)
+		}
+		if relationCount == 0 && auditCount == 1 {
+			if err = qtx.DeleteBobPartyAuditEvents(ctx, relationshipParty.ID); err != nil {
+				return s.writeError("delete unused Party audit", err)
+			}
+			if err = qtx.DeleteBobPartyIdentifiers(ctx, relationshipParty.ID); err != nil {
+				return s.writeError("delete unused Party identifiers", err)
+			}
+			partyRows, partyErr := qtx.DeleteBobParty(ctx, dbsqlc.DeleteBobPartyParams{
+				PartyID: relationshipParty.ID, Revision: relationshipParty.Revision,
+			})
+			if partyErr != nil {
+				return s.writeError("delete unused Party", partyErr)
+			}
+			if partyRows != 1 {
+				return domainError(ErrorConflict, "Party changed before delete", nil, nil)
+			}
+		}
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return s.writeError("commit delete", err)
@@ -499,8 +613,14 @@ func (s *Service) deleteEffectiveCandidate(
 	qtx := s.queries.WithTx(tx)
 	var rows int64
 	var err error
-	if entity == EntityCustomer {
+	if entity == EntityCustomerAccount {
 		rows, err = qtx.RestoreBobCustomerEffectiveVersion(ctx, dbsqlc.RestoreBobCustomerEffectiveVersionParams{ObjectID: input.ObjectID,
+			Revision: input.ObjectRevision, VersionID: input.VersionID, EffectiveVersionID: object.EffectiveVersionID})
+	} else if entity == EntityOtherUnit {
+		rows, err = qtx.RestoreBobOtherUnitEffectiveVersion(ctx, dbsqlc.RestoreBobOtherUnitEffectiveVersionParams{ObjectID: input.ObjectID,
+			Revision: input.ObjectRevision, VersionID: input.VersionID, EffectiveVersionID: object.EffectiveVersionID})
+	} else if entity == EntitySalesPartner {
+		rows, err = qtx.RestoreBobSalesPartnerEffectiveVersion(ctx, dbsqlc.RestoreBobSalesPartnerEffectiveVersionParams{ObjectID: input.ObjectID,
 			Revision: input.ObjectRevision, VersionID: input.VersionID, EffectiveVersionID: object.EffectiveVersionID})
 	} else {
 		rows, err = qtx.RestoreBobSupplierEffectiveVersion(ctx, dbsqlc.RestoreBobSupplierEffectiveVersionParams{ObjectID: input.ObjectID,
@@ -515,19 +635,27 @@ func (s *Service) deleteEffectiveCandidate(
 	if err = qtx.DeleteBobAuditEventsForVersion(ctx, dbsqlc.DeleteBobAuditEventsForVersionParams{ObjectID: input.ObjectID, VersionID: input.VersionID, Entity: entity}); err != nil {
 		return s.writeError("delete candidate audit", err)
 	}
-	if entity == EntityCustomer {
+	if entity == EntityCustomerAccount {
 		if err = qtx.DeleteBobCustomerCreditLimits(ctx, input.VersionID); err != nil {
 			return s.writeError("delete customer candidate credit", err)
 		}
 		rows, err = qtx.DeleteBobCustomerDetail(ctx, input.VersionID)
+	} else if entity == EntityOtherUnit {
+		rows, err = qtx.DeleteBobServiceRelationshipDetail(ctx, input.VersionID)
+	} else if entity == EntitySalesPartner {
+		rows, err = qtx.DeleteBobSalesPartnerDetail(ctx, input.VersionID)
 	} else {
 		rows, err = qtx.DeleteBobSupplierDetail(ctx, input.VersionID)
 	}
 	if err != nil || rows != 1 {
 		return s.writeError("delete candidate detail", err)
 	}
-	if entity == EntityCustomer {
+	if entity == EntityCustomerAccount {
 		rows, err = qtx.DeleteBobCustomerVersion(ctx, dbsqlc.DeleteBobCustomerVersionParams{VersionID: input.VersionID, ObjectID: input.ObjectID})
+	} else if entity == EntityOtherUnit {
+		rows, err = qtx.DeleteBobOtherUnitVersion(ctx, dbsqlc.DeleteBobOtherUnitVersionParams{VersionID: input.VersionID, ObjectID: input.ObjectID})
+	} else if entity == EntitySalesPartner {
+		rows, err = qtx.DeleteBobSalesPartnerVersion(ctx, dbsqlc.DeleteBobSalesPartnerVersionParams{VersionID: input.VersionID, ObjectID: input.ObjectID})
 	} else {
 		rows, err = qtx.DeleteBobSupplierVersion(ctx, dbsqlc.DeleteBobSupplierVersionParams{VersionID: input.VersionID, ObjectID: input.ObjectID})
 	}
@@ -738,7 +866,7 @@ func (s *Service) Unsubmit(ctx context.Context, entity string, input ReverseInpu
 }
 
 func hasEffectiveCandidate(entity string, object dbsqlc.LockBobObjectRow) bool {
-	return (entity == EntityCustomer || entity == EntitySupplier) && object.EffectiveVersionID != nil &&
+	return (entity == EntityCustomerAccount || entity == EntitySupplier || entity == EntityOtherUnit || entity == EntitySalesPartner) && object.EffectiveVersionID != nil &&
 		object.CurrentVersionID != *object.EffectiveVersionID
 }
 
@@ -817,7 +945,7 @@ func (s *Service) Unapprove(ctx context.Context, entity string, input ReverseInp
 	if err != nil || !validReverseInput(entity, input, actorID, requestID) {
 		return MutationResult{}, domainError(ErrorValidation, "invalid unapprove request", nil, err)
 	}
-	if entity == EntityCustomer || entity == EntitySupplier {
+	if entity == EntityCustomer || entity == EntityCustomerAccount || entity == EntitySupplier || entity == EntityOtherUnit || entity == EntitySalesPartner {
 		return MutationResult{}, domainError(ErrorConflict, "continuous-effective objects are edited through candidate save", nil, nil)
 	}
 	tx, qtx, object, oldVersion, err := s.lockTarget(ctx, entity, input.ObjectID, input.VersionID)
@@ -1061,6 +1189,41 @@ func (s *Service) ResolveEffectiveReference(ctx context.Context, tx pgx.Tx, enti
 	if auxiliaryEntity(entity) && s.auxiliaryResolver != nil {
 		return s.resolveAuxiliaryReference(ctx, tx, entity, objectID, versionID)
 	}
+	if entity == EntitySalesPartner {
+		row, salesErr := s.queries.WithTx(tx).ResolveBobEffectiveSalesPartnerReference(ctx,
+			dbsqlc.ResolveBobEffectiveSalesPartnerReferenceParams{ObjectID: objectID, VersionID: versionID})
+		if errors.Is(salesErr, pgx.ErrNoRows) {
+			return EffectiveReference{}, domainError(ErrorConflict, "version is not currently effective", nil, nil)
+		}
+		if salesErr != nil {
+			return EffectiveReference{}, s.internal("resolve effective sales relationship", salesErr)
+		}
+		return EffectiveReference{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, VersionID: row.VersionID,
+			Data: DetailView{Name: row.Name, OperatingEntityID: row.OperatingEntityID, SalesCapabilities: row.Capabilities}}, nil
+	}
+	if entity == EntityOtherUnit {
+		row, otherUnitErr := s.queries.WithTx(tx).ResolveBobEffectiveOtherUnitReference(
+			ctx, dbsqlc.ResolveBobEffectiveOtherUnitReferenceParams{ObjectID: objectID, VersionID: versionID},
+		)
+		if errors.Is(otherUnitErr, pgx.ErrNoRows) {
+			return EffectiveReference{}, domainError(ErrorConflict, "version is not currently effective", nil, nil)
+		}
+		if otherUnitErr != nil {
+			return EffectiveReference{}, s.internal("resolve effective other-unit reference", otherUnitErr)
+		}
+		data := DetailView{
+			Name: row.Name, ContactName: deref(row.ContactName), ContactPhone: deref(row.ContactPhone),
+			Email: deref(row.Email), Address: deref(row.Address), SettlementMethodID: deref(row.SettlementMethodID),
+			SettlementMethodCode: deref(row.SettlementMethodCode), SettlementMethodName: deref(row.SettlementMethodName),
+			TermCode: deref(row.SettlementTermCode), RuleType: deref(row.SettlementRuleType),
+			MonthOffset: row.SettlementMonthOffset, DayOffset: row.SettlementDayOffset,
+			OperatingEntityID: row.OperatingEntityID,
+		}
+		if row.SettlementDayOfMonth > 0 {
+			data.DayOfMonth = &row.SettlementDayOfMonth
+		}
+		return EffectiveReference{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, VersionID: row.VersionID, Data: data}, nil
+	}
 	row, err := s.queries.WithTx(tx).ResolveBobEffectiveReference(ctx, dbsqlc.ResolveBobEffectiveReferenceParams{
 		ObjectID: objectID, Entity: entity, VersionID: versionID,
 	})
@@ -1076,7 +1239,7 @@ func (s *Service) ResolveEffectiveReference(ctx context.Context, tx pgx.Tx, enti
 		}
 	}
 	data := effectiveReferenceDetail(row)
-	if entity == EntityCustomer {
+	if entity == EntityCustomerAccount {
 		if err = loadStoredCustomerSettlement(ctx, s.queries.WithTx(tx), row.ObjectID, row.VersionID, &data); err != nil {
 			return EffectiveReference{}, s.internal("read customer settlement snapshot", err)
 		}
@@ -1097,7 +1260,7 @@ func (s *Service) ResolveEffectiveReference(ctx context.Context, tx pgx.Tx, enti
 			return EffectiveReference{}, s.internal("read effective product formula", err)
 		}
 	}
-	if entity == EntityCustomer || entity == EntityOtherParty {
+	if entity == EntityCustomerAccount {
 		if err := s.validateDictionaryCode(ctx, tx, data.CustomerType, "DCT-0001"); err != nil {
 			return EffectiveReference{}, err
 		}
@@ -1139,6 +1302,38 @@ func (s *Service) ResolveCurrentEffectiveReference(
 	if auxiliaryEntity(entity) {
 		return s.resolveAuxiliaryReference(ctx, tx, entity, objectID, "")
 	}
+	if entity == EntitySalesPartner {
+		row, salesErr := s.queries.WithTx(tx).ResolveCurrentBobEffectiveSalesPartnerReference(ctx, objectID)
+		if errors.Is(salesErr, pgx.ErrNoRows) {
+			return EffectiveReference{}, domainError(ErrorConflict, "object is not currently effective", nil, nil)
+		}
+		if salesErr != nil {
+			return EffectiveReference{}, s.internal("resolve current effective sales relationship", salesErr)
+		}
+		return EffectiveReference{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, VersionID: row.VersionID,
+			Data: DetailView{Name: row.Name, OperatingEntityID: row.OperatingEntityID, SalesCapabilities: row.Capabilities}}, nil
+	}
+	if entity == EntityOtherUnit {
+		row, otherUnitErr := s.queries.WithTx(tx).ResolveCurrentBobEffectiveOtherUnitReference(ctx, objectID)
+		if errors.Is(otherUnitErr, pgx.ErrNoRows) {
+			return EffectiveReference{}, domainError(ErrorConflict, "object is not currently effective", nil, nil)
+		}
+		if otherUnitErr != nil {
+			return EffectiveReference{}, s.internal("resolve current effective other-unit reference", otherUnitErr)
+		}
+		data := DetailView{
+			Name: row.Name, ContactName: deref(row.ContactName), ContactPhone: deref(row.ContactPhone),
+			Email: deref(row.Email), Address: deref(row.Address), SettlementMethodID: deref(row.SettlementMethodID),
+			SettlementMethodCode: deref(row.SettlementMethodCode), SettlementMethodName: deref(row.SettlementMethodName),
+			TermCode: deref(row.SettlementTermCode), RuleType: deref(row.SettlementRuleType),
+			MonthOffset: row.SettlementMonthOffset, DayOffset: row.SettlementDayOffset,
+			OperatingEntityID: row.OperatingEntityID,
+		}
+		if row.SettlementDayOfMonth > 0 {
+			data.DayOfMonth = &row.SettlementDayOfMonth
+		}
+		return EffectiveReference{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, VersionID: row.VersionID, Data: data}, nil
+	}
 	row, err := s.queries.WithTx(tx).ResolveCurrentBobEffectiveReference(
 		ctx,
 		dbsqlc.ResolveCurrentBobEffectiveReferenceParams{ObjectID: objectID, Entity: entity},
@@ -1155,7 +1350,7 @@ func (s *Service) ResolveCurrentEffectiveReference(
 		}
 	}
 	data := effectiveReferenceDetail(row)
-	if entity == EntityCustomer {
+	if entity == EntityCustomerAccount {
 		if err = loadStoredCustomerSettlement(ctx, s.queries.WithTx(tx), row.ObjectID, row.VersionID, &data); err != nil {
 			return EffectiveReference{}, s.internal("read customer settlement snapshot", err)
 		}
@@ -1213,16 +1408,35 @@ func (s *Service) lockTarget(ctx context.Context, entity, objectID, versionID st
 
 func (s *Service) validateStoredDetail(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, entity, objectID, versionID string) error {
 	if entity == EntityCustomer {
-		specialized, err := q.BobObjectIsCustomerAccount(ctx, objectID)
+		exists, err := q.BobCustomerRelationshipVersionExists(ctx, versionID)
 		if err != nil {
-			return s.internal("classify stored customer", err)
+			return s.internal("read stored customer relationship", err)
 		}
-		if specialized {
-			return s.validateStoredCustomer(ctx, tx, versionID)
+		if !exists {
+			return domainError(ErrorConflict, "customer relationship detail is unavailable", nil, nil)
 		}
+		return nil
+	}
+	if entity == EntityCustomerAccount {
+		return s.validateStoredCustomer(ctx, tx, versionID)
 	}
 	if entity == EntitySupplier {
 		return s.validateStoredSupplier(ctx, tx, q, versionID)
+	}
+	if entity == EntityOtherUnit {
+		row, err := q.GetStoredBobServiceRelationshipDetail(ctx, versionID)
+		if err != nil {
+			return s.internal("read stored other-unit", err)
+		}
+		_, err = validateDetailData(entity, storedOtherUnitData(row))
+		return err
+	}
+	if entity == EntitySalesPartner {
+		row, err := q.GetStoredBobSalesPartnerDetail(ctx, versionID)
+		if err != nil {
+			return s.internal("read stored sales relationship", err)
+		}
+		return validateEffectiveSalesPartnerCapabilities(row.Capabilities)
 	}
 	if entity == EntityOperatingEntity {
 		row, err := q.GetStoredBobOperatingEntityDetail(ctx, versionID)
@@ -1296,12 +1510,26 @@ func (s *Service) validateStoredCustomer(ctx context.Context, tx pgx.Tx, version
 	if err = s.validateDictionaryCode(ctx, tx, row.CustomerType, "DCT-0001"); err != nil {
 		return err
 	}
-	targetEntity := EntityEmployee
-	if deref(row.PrimarySalesAttributionType) != SalesAttributionInternalEmployee {
-		targetEntity = EntityOtherParty
+	attributionType := deref(row.PrimarySalesAttributionType)
+	if attributionType == SalesAttributionInternalEmployee {
+		_, err = s.ResolveCurrentEffectiveReference(ctx, tx, EntityEmployee, deref(row.PrimarySalesSubjectID))
+		return err
 	}
-	_, err = s.ResolveCurrentEffectiveReference(ctx, tx, targetEntity, deref(row.PrimarySalesSubjectID))
-	return err
+	partner, err := s.queries.WithTx(tx).ResolveCurrentBobEffectiveSalesPartnerReference(ctx, deref(row.PrimarySalesSubjectID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domainError(ErrorConflict, "sales-partner reference is unavailable", nil, nil)
+	}
+	if err != nil {
+		return s.internal("resolve stored sales-partner attribution", err)
+	}
+	required := SalesCapabilityExternalPartTime
+	if attributionType == SalesAttributionDealer {
+		required = SalesCapabilityChannelPartner
+	}
+	if !hasSalesCapability(partner.Capabilities, required) {
+		return domainError(ErrorConflict, "sales-partner capability is unavailable", nil, nil)
+	}
+	return nil
 }
 
 func effectiveReferenceDetail(row dbsqlc.BobVersionView) DetailView {
@@ -1323,7 +1551,7 @@ func (s *Service) validateDetailReferences(
 			return err
 		}
 	}
-	if entity == EntityCustomer || entity == EntityOtherParty {
+	if entity == EntityCustomerAccount || entity == EntityOtherUnit {
 		if err := s.validateDictionaryCode(ctx, tx, data.CustomerType, "DCT-0001"); err != nil {
 			return err
 		}
@@ -1418,7 +1646,6 @@ func (s *Service) validateDetailReferences(
 	add(EntitySettlementMethod, data.SettlementMethodID)
 	add(EntityEmployee, data.SalespersonEmployeeID)
 	add(EntityEmployee, data.DefaultPurchaserEmployeeID)
-	add(EntityOtherParty, data.IntermediaryOtherPartyID)
 	if entity == EntityDepartment {
 		add(EntityDepartment, data.ParentID)
 	}
@@ -1473,6 +1700,11 @@ func loadStoredCustomerSettlement(ctx context.Context, q *dbsqlc.Queries, object
 	data.DayOffset = data.DueDays
 	data.DefaultSalesSurcharge = formatMoneyCents(row.SettlementSalesSurchargeCents)
 	data.SettlementMethodVersionID = ""
+	if row.PrimarySalesAttributionType == SalesAttributionInternalEmployee {
+		data.SalespersonEmployeeID = row.PrimarySalesSubjectID
+	} else {
+		data.SalespersonEmployeeID = ""
+	}
 	return nil
 }
 
@@ -1627,9 +1859,9 @@ func (s *Service) validatePlatformReference(ctx context.Context, q *dbsqlc.Queri
 	if !validID(platformObjectID) {
 		return domainError(ErrorValidation, "invalid logistics platform reference", nil, nil)
 	}
-	_, err := q.LockEffectiveLogisticsPlatform(ctx, platformObjectID)
+	_, err := q.LockEffectiveServiceRelationship(ctx, platformObjectID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return domainError(ErrorConflict, "logistics platform is not currently effective", nil, nil)
+		return domainError(ErrorConflict, "carrier Service Relationship is not currently effective", nil, nil)
 	}
 	if err != nil {
 		return s.internal("lock logistics platform", err)

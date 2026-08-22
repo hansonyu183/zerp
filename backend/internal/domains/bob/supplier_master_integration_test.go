@@ -11,11 +11,15 @@ func TestSupplierDraftSnapshotAndContinuousCandidateIntegration(t *testing.T) {
 	_, purchaser := createApprovedIntegration(t, service, EntityEmployee, CreateDetailInput{
 		Name: "默认采购员",
 	}, "supplier-master-purchaser")
+	_, operating := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{
+		Name: "供应关系经营主体",
+	}, "supplier-master-operating")
 	taxNumber := "TAX" + newID()[3:]
 
-	created, err := service.SupplierCreate(t.Context(), SupplierCreateInput{Data: SupplierData{
-		Name: "华东原料供应商", SupplierType: SupplierTypeGeneral, TaxNumber: taxNumber,
-	}}, integrationActorOne, "supplier-master-create")
+	created, err := service.SupplierCreate(t.Context(), SupplierCreateInput{
+		NewParty: &PartyCreateData{Kind: PartyKindOrganization, LegalName: "华东原料供应商", TaxNumber: taxNumber},
+		Data:     SupplierData{OperatingEntityID: operating.ObjectID},
+	}, integrationActorOne, "supplier-master-create", true)
 	if err != nil {
 		t.Fatalf("create incomplete supplier draft: %v", err)
 	}
@@ -26,7 +30,7 @@ func TestSupplierDraftSnapshotAndContinuousCandidateIntegration(t *testing.T) {
 
 	saved, err := service.SupplierSave(t.Context(), SupplierSaveInput{ObjectID: created.ObjectID,
 		VersionID: created.VersionID, Revision: created.Revision, Data: SupplierData{
-			Name: "华东原料供应商", SupplierType: SupplierTypeGeneral, TaxNumber: taxNumber,
+			Name:                       "华东原料供应商",
 			SettlementMethodID:         "01J00000000000000000000081",
 			DefaultPurchaserEmployeeID: purchaser.ObjectID,
 		}}, integrationActorOne, "supplier-master-save-complete")
@@ -47,23 +51,27 @@ func TestSupplierDraftSnapshotAndContinuousCandidateIntegration(t *testing.T) {
 	if err != nil || detail.Effective == nil || detail.Candidate != nil {
 		t.Fatalf("read effective supplier: detail=%#v err=%v", detail, err)
 	}
+	if detail.PartyID != created.PartyID || detail.OperatingEntityID != operating.ObjectID ||
+		detail.PartyDisplayName != "华东原料供应商" {
+		t.Fatalf("supplier relationship identity = %#v", detail)
+	}
 	if snapshot := detail.Effective.Data.SettlementMethod; snapshot == nil || snapshot.TermCode != SettlementTermMonthly30 || snapshot.MonthOffset != 1 {
 		t.Fatalf("supplier settlement snapshot = %#v", snapshot)
 	}
 
 	changed := detail.Effective.Data
-	changed.Name = "华东原料供应商候选"
+	changed.ContactName = "候选采购联系人"
 	candidate, err := service.SupplierSave(t.Context(), SupplierSaveInput{ObjectID: effective.ObjectID,
 		VersionID: effective.VersionID, Revision: effective.Revision, Data: changed}, integrationActorOne, "supplier-master-candidate")
 	if err != nil {
 		t.Fatalf("create supplier candidate: %v", err)
 	}
 	detail, err = service.SupplierGet(t.Context(), GetInput{ObjectID: effective.ObjectID})
-	if err != nil || detail.Effective == nil || detail.Candidate == nil || detail.Effective.Data.Name != "华东原料供应商" {
+	if err != nil || detail.Effective == nil || detail.Candidate == nil || detail.Effective.Data.ContactName != "" {
 		t.Fatalf("supplier effective version was not preserved: detail=%#v err=%v", detail, err)
 	}
 	references, err := service.QueryReferenceCandidates(t.Context(), ReferenceQueryInput{
-		Entity: EntitySupplier, SupplierType: SupplierTypeGeneral,
+		Entity: EntitySupplier,
 	})
 	if err != nil {
 		t.Fatalf("query effective supplier references: %v", err)

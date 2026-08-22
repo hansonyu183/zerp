@@ -1,12 +1,14 @@
 package bob
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func TestNormalizeSupplierDraftAllowsMissingSettlementAndPurchaser(t *testing.T) {
 	data, err := normalizeSupplier(SupplierData{
-		Name:         "  华东原料  ",
-		SupplierType: SupplierTypeGeneral,
-		TaxNumber:    " ab-123 ",
+		Name:      "  华东原料  ",
+		TaxNumber: " ab-123 ",
 	})
 	if err != nil {
 		t.Fatalf("normalize supplier draft: %v", err)
@@ -20,7 +22,7 @@ func TestNormalizeSupplierDraftAllowsMissingSettlementAndPurchaser(t *testing.T)
 }
 
 func TestValidateSupplierEffectiveRequiresSnapshotAndPurchaser(t *testing.T) {
-	base := SupplierData{Name: "华东原料", SupplierType: SupplierTypeGeneral}
+	base := SupplierData{Name: "华东原料"}
 	if err := validateSupplierEffective(base); err == nil {
 		t.Fatal("missing settlement snapshot and purchaser accepted")
 	}
@@ -42,8 +44,9 @@ func TestValidateSupplierEffectiveRequiresSnapshotAndPurchaser(t *testing.T) {
 	}
 }
 
-func TestNormalizeSupplierRejectsUnknownType(t *testing.T) {
-	if _, err := normalizeSupplier(SupplierData{Name: "华东原料", SupplierType: "CONTRACT_MANUFACTURING"}); err == nil {
-		t.Fatal("unknown supplier type accepted")
+func TestSupplierWireRejectsRemovedSupplierType(t *testing.T) {
+	var data SupplierData
+	if err := json.Unmarshal([]byte(`{"operatingEntityId":"01J00000000000000000000001","supplierType":"GENERAL"}`), &data); err == nil {
+		t.Fatal("removed supplierType field accepted")
 	}
 }

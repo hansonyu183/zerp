@@ -259,6 +259,8 @@ export function useIntermediaryCalculationViewModel() {
     return (
       {
         COMMISSION: '员工提成',
+        EXTERNAL_PART_TIME: '外部兼职收益',
+        CHANNEL_PARTNER: '渠道差价',
         INTERMEDIARY: '居间费',
         REBATE: '客户返点',
       }[category] ?? category

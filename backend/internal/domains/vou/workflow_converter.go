@@ -86,7 +86,7 @@ func (s *Service) CreateWorkflowSaleDelivery(ctx context.Context, tx pgx.Tx, sou
 	if err != nil {
 		return MutationResult{}, err
 	}
-	platform, err := s.resolveWorkflowDefault(ctx, tx, bobdomain.EntitySupplier, initial.PlatformObjectID, "platform")
+	platform, err := s.resolveWorkflowDefault(ctx, tx, bobdomain.EntityOtherUnit, initial.PlatformObjectID, "platform")
 	if err != nil {
 		return MutationResult{}, err
 	}

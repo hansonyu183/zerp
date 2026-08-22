@@ -156,6 +156,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/acc/period/Period.vue'),
   }),
   registerPage('bob', {
+    entity: 'party',
+    entityTitle: '主体',
+    icon: 'mdi-account-box-multiple-outline',
+    order: 5,
+    component: () => import('@/pages/bob/party/Party.vue'),
+  }),
+  registerPage('bob', {
     entity: 'customer',
     entityTitle: '客户',
     icon: 'mdi-account-group',
@@ -170,11 +177,18 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/bob/supplier/Supplier.vue'),
   }),
   registerPage('bob', {
-    entity: 'other-party',
-    entityTitle: '其他往来单位',
+    entity: 'other-unit',
+    entityTitle: '其他单位',
     icon: 'mdi-account-question-outline',
     order: 25,
-    component: () => import('@/pages/bob/other-party/OtherParty.vue'),
+    component: () => import('@/pages/bob/other-unit/OtherUnit.vue'),
+  }),
+  registerPage('bob', {
+    entity: 'sales-partner',
+    entityTitle: '销售合作方',
+    icon: 'mdi-handshake-outline',
+    order: 27,
+    component: () => import('@/pages/bob/sales-partner/SalesPartner.vue'),
   }),
   registerPage('bob', {
     entity: 'employee',
@@ -223,8 +237,7 @@ export const pageRegistrations: readonly PageRegistration[] = [
     entityTitle: '经营主体',
     icon: 'mdi-office-building-cog-outline',
     order: 90,
-    component: () =>
-      import('@/pages/bob/operating-entity/OperatingEntity.vue'),
+    component: () => import('@/pages/bob/operating-entity/OperatingEntity.vue'),
   }),
   registerPage('aux', {
     entity: 'settlement-method',
@@ -382,6 +395,21 @@ export const pageRegistrations: readonly PageRegistration[] = [
     order: 45,
     component: () =>
       import('@/pages/vou/intermediary-calculation/IntermediaryCalculation.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'service-contract',
+    entityTitle: '服务合同',
+    icon: 'mdi-file-sign',
+    order: 46,
+    component: () => import('@/pages/vou/service-contract/ServiceContract.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'service-acceptance',
+    entityTitle: '履约验收',
+    icon: 'mdi-file-check-outline',
+    order: 47,
+    component: () =>
+      import('@/pages/vou/service-acceptance/ServiceAcceptance.vue'),
   }),
   registerPage('vou', {
     entity: 'order-production',

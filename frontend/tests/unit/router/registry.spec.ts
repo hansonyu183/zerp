@@ -93,14 +93,14 @@ describe('permission menu registry', () => {
 
   it('系统默认菜单保留本地注册名称，业务模板保留管理员名称', () => {
     const route = {
-      id: 'route-other-party',
+      id: 'route-other-unit',
       parentId: 'default-bob',
       type: 'ROUTE' as const,
       order: 10,
       displayName: '客户',
       icon: null,
-      routeKey: 'bob/other-party',
-      routePath: '/bob/other-party',
+      routeKey: 'bob/other-unit',
+      routePath: '/bob/other-unit',
     }
     const defaultMenu = buildServerMenus(
       [
@@ -116,7 +116,7 @@ describe('permission menu registry', () => {
         },
         route,
       ],
-      ['/bob/other-party/query'],
+      ['/bob/other-unit/query'],
     )
     const businessMenu = buildServerMenus(
       [
@@ -132,10 +132,10 @@ describe('permission menu registry', () => {
         },
         { ...route, parentId: 'menu-group-sales' },
       ],
-      ['/bob/other-party/query'],
+      ['/bob/other-unit/query'],
     )
 
-    expect(defaultMenu[0]?.children[0]?.title).toBe('其他往来单位')
+    expect(defaultMenu[0]?.children[0]?.title).toBe('其他单位')
     expect(businessMenu[0]?.children[0]?.title).toBe('客户')
   })
 
@@ -317,10 +317,12 @@ describe('permission menu registry', () => {
     expect(resolveFirstMenuPath([])).toBe('/home/dashboard')
   })
 
-  it('为 BOB 九类实体加载真实页面组件', () => {
+  it('为 BOB 主体和其他单位加载独立页面并移除旧入口', () => {
     const entities = [
+      'party',
       'customer',
       'supplier',
+      'other-unit',
       'employee',
       'product',
       'service',
@@ -330,8 +332,10 @@ describe('permission menu registry', () => {
       'operating-entity',
     ]
     const titles = [
+      '主体',
       '客户',
       '供应商',
+      '其他单位',
       '员工',
       '产品',
       '服务',
@@ -353,6 +357,7 @@ describe('permission menu registry', () => {
         title: titles[index],
       })
     }
+    expect(hasRegisteredPage('bob', 'other-party')).toBe(false)
 
     registerMenuRoutes(router, [])
   })

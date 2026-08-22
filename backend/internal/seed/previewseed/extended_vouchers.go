@@ -14,7 +14,7 @@ import (
 func (s *Seeder) seedExtendedVouchers(ctx context.Context, counts *Counts) error {
 	customer := s.voucherReference("customer-effective")
 	supplier := s.voucherReference("supplier-effective")
-	otherParty := s.voucherReference("other-party-effective")
+	otherUnit := s.voucherReference("other-unit-effective")
 	employee := s.voucherReference("employee-effective")
 	warehouse := s.voucherReference("warehouse-effective")
 	fund := s.voucherReference("fund-effective")
@@ -40,9 +40,9 @@ func (s *Seeder) seedExtendedVouchers(ctx context.Context, counts *Counts) error
 			InventoryCountLines: []voudomain.InventoryCountLineInput{{Product: finished, ActualQuantity: "6"}},
 		}},
 		{"purchase-refund-draft", voudomain.EntityPurchaseRefund, voudomain.StatusDraft, cashDraft(supplier, fund, employee, "200.00", "预览可操作草稿：采购退款")},
-		{"other-receipt-draft", voudomain.EntityOtherReceipt, voudomain.StatusDraft, otherCashDraft("other-party", otherParty, fund, employee, "160.00", "COMMISSION", "预览可操作草稿：其他收款")},
+		{"other-receipt-draft", voudomain.EntityOtherReceipt, voudomain.StatusDraft, otherCashDraft("other-unit", otherUnit, fund, employee, "160.00", "COMMISSION", "预览可操作草稿：其他收款")},
 		{"sales-refund-draft", voudomain.EntitySalesRefund, voudomain.StatusDraft, cashDraft(customer, fund, employee, "120.00", "预览可操作草稿：销售退款")},
-		{"other-payment-draft", voudomain.EntityOtherPayment, voudomain.StatusDraft, otherCashDraft("other-party", otherParty, fund, employee, "90.00", "INTERMEDIARY", "预览可操作草稿：其他付款")},
+		{"other-payment-draft", voudomain.EntityOtherPayment, voudomain.StatusDraft, otherCashDraft("other-unit", otherUnit, fund, employee, "90.00", "INTERMEDIARY", "预览可操作草稿：其他付款")},
 		{"employee-loan-draft", voudomain.EntityEmployeeLoan, voudomain.StatusDraft, cashDraft(employee, fund, employee, "500.00", "预览可操作草稿：员工借款")},
 		{"employee-repayment-draft", voudomain.EntityEmployeeRepayment, voudomain.StatusDraft, cashDraft(employee, fund, employee, "100.00", "预览可操作草稿：员工还款")},
 		{"employee-writeoff-draft", voudomain.EntityEmployeeLoanWriteoff, voudomain.StatusDraft, voudomain.DraftInput{
@@ -52,7 +52,7 @@ func (s *Seeder) seedExtendedVouchers(ctx context.Context, counts *Counts) error
 		}},
 		{"accounting-income-approved", voudomain.EntityOtherIncome, voudomain.StatusApproved, voudomain.DraftInput{
 			BusinessDate: "2026-07-13", Currency: "CNY",
-			CounterpartyType: bobdomain.EntityCustomer, Counterparty: &customer,
+			CounterpartyType: bobdomain.EntityCustomerAccount, Counterparty: &customer,
 			FundAccount: &fund, Handler: &employee, SourceName: "会计联动测试",
 			Amount: "88.00", Remark: "预览 ACC/RPT 过账样本",
 		}},
@@ -70,7 +70,7 @@ func (s *Seeder) seedExtendedVouchers(ctx context.Context, counts *Counts) error
 	if err := s.seedAssetDocuments(ctx, counts, supplier, customer, employee); err != nil {
 		return err
 	}
-	if err := s.seedBillDocuments(ctx, counts, customer, supplier, otherParty, employee, fund); err != nil {
+	if err := s.seedBillDocuments(ctx, counts, customer, supplier, otherUnit, employee, fund); err != nil {
 		return err
 	}
 	if err := s.seedIntermediaryCalculation(ctx, counts); err != nil {
@@ -121,7 +121,7 @@ func (s *Seeder) seedAssetDocuments(ctx context.Context, counts *Counts, supplie
 		key, entity string
 		data        voudomain.DraftInput
 	}{
-		{"asset-sale-draft", voudomain.EntityAssetSale, voudomain.DraftInput{BusinessDate: businessDate, Currency: "CNY", CounterpartyType: bobdomain.EntityCustomer, Counterparty: &customer, Remark: "预览可操作草稿：资产出让", AssetSaleLines: []voudomain.AssetSaleLineInput{{AssetID: assetIDs[0], SaleAmount: "42000.00"}}}},
+		{"asset-sale-draft", voudomain.EntityAssetSale, voudomain.DraftInput{BusinessDate: businessDate, Currency: "CNY", CounterpartyType: bobdomain.EntityCustomerAccount, Counterparty: &customer, Remark: "预览可操作草稿：资产出让", AssetSaleLines: []voudomain.AssetSaleLineInput{{AssetID: assetIDs[0], SaleAmount: "42000.00"}}}},
 		{"asset-liquidation-draft", voudomain.EntityAssetLiquidation, voudomain.DraftInput{BusinessDate: businessDate, Currency: "CNY", Remark: "预览可操作草稿：资产清算", AssetLiquidationLines: []voudomain.AssetLiquidationLineInput{{AssetID: assetIDs[1], Reason: "设备更新", SalvageIncome: "3000.00", DisposalExpense: "500.00"}}}},
 	}
 	for _, sample := range assetSamples {
@@ -140,7 +140,7 @@ func (s *Seeder) seedAssetDocuments(ctx context.Context, counts *Counts, supplie
 func (s *Seeder) seedBillDocuments(
 	ctx context.Context,
 	counts *Counts,
-	customer, supplier, otherParty, employee, fund voudomain.ReferenceInput,
+	customer, supplier, otherUnit, employee, fund voudomain.ReferenceInput,
 ) error {
 	assetReceipt, _, result, err := s.ensureVoucher(ctx, "bill-receipt-approved", voudomain.EntityBillReceipt, voudomain.StatusApproved, func() (voudomain.MutationResult, error) {
 		return s.vouchers.Create(ctx, voudomain.EntityBillReceipt, voudomain.CreateInput{Data: voudomain.DraftInput{
@@ -176,7 +176,7 @@ func (s *Seeder) seedBillDocuments(
 		data        voudomain.DraftInput
 	}{
 		{"bill-payment-draft", voudomain.EntityBillPayment, voudomain.DraftInput{BusinessDate: businessDate, Currency: "CNY", Supplier: &supplier, Remark: "预览可操作草稿：票据付出", BillLines: []voudomain.BillLineInput{{BillID: assetBillID, Purpose: "PRIMARY"}}}},
-		{"bill-discount-draft", voudomain.EntityBillDiscount, voudomain.DraftInput{BusinessDate: businessDate, Currency: "CNY", CounterpartyType: bobdomain.EntityOtherParty, Counterparty: &otherParty, InterestMode: "BANK_DEDUCTED", WithRecourse: true, Remark: "预览可操作草稿：票据贴现", BillLines: []voudomain.BillLineInput{{BillID: assetBillID, Purpose: "PRIMARY", AnnualRateBps: 365}}, BillCashLines: []voudomain.BillCashLineInput{{FundAccount: fund, Direction: "IN", AmountType: "PRINCIPAL", Amount: "9800.00"}}}},
+		{"bill-discount-draft", voudomain.EntityBillDiscount, voudomain.DraftInput{BusinessDate: businessDate, Currency: "CNY", CounterpartyType: bobdomain.EntityOtherUnit, Counterparty: &otherUnit, InterestMode: "BANK_DEDUCTED", WithRecourse: true, Remark: "预览可操作草稿：票据贴现", BillLines: []voudomain.BillLineInput{{BillID: assetBillID, Purpose: "PRIMARY", AnnualRateBps: 365}}, BillCashLines: []voudomain.BillCashLineInput{{FundAccount: fund, Direction: "IN", AmountType: "PRINCIPAL", Amount: "9800.00"}}}},
 		{"bill-maturity-draft", voudomain.EntityBillMaturity, voudomain.DraftInput{BusinessDate: "2026-09-30", Currency: "CNY", MaturityType: "PAYMENT", Remark: "预览可操作草稿：票据到期", BillLines: []voudomain.BillLineInput{{BillID: liabilityBillID, Purpose: "PRIMARY"}}, BillCashLines: []voudomain.BillCashLineInput{{FundAccount: fund, Direction: "OUT", AmountType: "PRINCIPAL", Amount: "8000.00"}}}},
 	}
 	for _, sample := range billSamples {

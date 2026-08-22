@@ -440,6 +440,8 @@ describe('shared VOU entity view model', () => {
       'bill-discount',
       'bill-maturity',
       'intermediary-calculation',
+      'service-contract',
+      'service-acceptance',
     ])
     expect(voucherEntityConfigs['sale-outbound'].icon).toBe('mdi-tray-arrow-up')
     expect(voucherEntityConfigs['sale-outbound'].parentEntity).toBe(
@@ -510,7 +512,10 @@ describe('shared VOU entity view model', () => {
 
   it('builds entity-specific create payloads without dueDate or unrelated fields', async () => {
     for (const config of Object.values(voucherEntityConfigs).filter(
-      (item) => !item.parentEntity,
+      (item) =>
+        !item.parentEntity &&
+        item.entity !== 'service-contract' &&
+        item.entity !== 'service-acceptance',
     )) {
       vi.clearAllMocks()
       useSessionStore().permissions = [`/vou/${config.entity}/create`]
@@ -831,10 +836,8 @@ describe('shared VOU entity view model', () => {
 
   it('only exposes matching effective BOB object and version pairs', async () => {
     vi.useFakeTimers()
-    useSessionStore().permissions = ['/bob/customer/query']
-    const vm = useVoucherEntityViewModel(
-      voucherEntityConfigs['sales-receipt'],
-    )
+    useSessionStore().permissions = ['/bob/customer-account/query']
+    const vm = useVoucherEntityViewModel(voucherEntityConfigs['sales-receipt'])
     mockedPost.mockResolvedValue({
       data: [
         {
@@ -853,12 +856,93 @@ describe('shared VOU entity view model', () => {
       {
         objectId: 'VALID',
         versionId: 'VER-1',
-        entity: 'customer',
+        entity: 'customer-account',
         code: 'CUS-1',
         name: '有效客户',
       },
     ])
     vi.useRealTimers()
+  })
+
+  it('loads service and sales relationships through the typed reference contract', async () => {
+    vi.useFakeTimers()
+    useSessionStore().permissions = [
+      '/bob/other-unit/query',
+      '/bob/sales-partner/query',
+    ]
+    const vm = useVoucherEntityViewModel(
+      voucherEntityConfigs['service-contract'],
+    )
+    mockedPost.mockImplementation(async (_path, body) => {
+      const input = body as { entity: string }
+      return {
+        data: [
+          {
+            objectId: `${input.entity}-object`,
+            versionId: `${input.entity}-version`,
+            code: input.entity === 'other-unit' ? 'OTU-1' : 'SLP-1',
+            name: input.entity === 'other-unit' ? '服务单位' : '销售合作方',
+          },
+        ],
+      }
+    })
+
+    vm.form.value.counterpartyType = 'other-unit'
+    vm.searchReference('counterparty', 'OTU')
+    await vi.advanceTimersByTimeAsync(250)
+    expect(mockedPost).toHaveBeenLastCalledWith(
+      'bob/reference/query',
+      { entity: 'other-unit', keyword: 'OTU' },
+      expect.any(Object),
+    )
+    expect(vm.referenceOptions('counterparty')).toMatchObject([
+      { entity: 'other-unit', code: 'OTU-1' },
+    ])
+
+    vm.form.value.counterpartyType = 'sales-partner'
+    vm.searchReference('counterparty', 'SLP')
+    await vi.advanceTimersByTimeAsync(250)
+    expect(mockedPost).toHaveBeenLastCalledWith(
+      'bob/reference/query',
+      { entity: 'sales-partner', keyword: 'SLP' },
+      expect.any(Object),
+    )
+    expect(vm.referenceOptions('counterparty')).toMatchObject([
+      { entity: 'sales-partner', code: 'SLP-1' },
+    ])
+    vi.useRealTimers()
+  })
+
+  it('omits empty optional sales-contract fields from a service relationship contract', async () => {
+    const config = voucherEntityConfigs['service-contract']
+    useSessionStore().permissions = ['/vou/service-contract/create']
+    const vm = useVoucherEntityViewModel(config)
+    vm.openCreate()
+    vm.form.value.counterpartyType = 'other-unit'
+    vm.form.value.counterparty = reference('other-unit')
+    vm.form.value.handler = reference('employee')
+    vm.form.value.serviceContract.terms = '服务条款'
+    let captured: { data?: Record<string, unknown> } | undefined
+    mockedPost.mockImplementation(async (path, body) => {
+      if (path.endsWith('/create')) {
+        captured = body as { data?: Record<string, unknown> }
+        return {
+          data: {
+            documentId: 'CONTRACT-1',
+            documentNo: 'SCT-0001',
+            status: 'DRAFT',
+            revision: 1,
+          },
+        }
+      }
+      if (path.endsWith('/get')) {
+        return { data: documentView(config, vm.form.value) }
+      }
+      return { data: { items: [], total: 0, page: 1, pageSize: 20 } }
+    })
+
+    expect(await vm.save()).toBe(true)
+    expect(captured?.data?.serviceContract).toEqual({ terms: '服务条款' })
   })
 
   it('filters delivery vehicles by the selected platform without an unsupported BOB filter', async () => {

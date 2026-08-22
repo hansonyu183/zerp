@@ -44,6 +44,8 @@ const source: IntermediaryCalculationSource = {
       collectionDelayDays: 5,
       customer,
       salesperson,
+      salesAttributionType: 'INTERNAL_EMPLOYEE',
+      salesContractStatus: 'NOT_REQUIRED',
       product: {
         objectId: 'product-1',
         versionId: 'product-v1',
@@ -107,6 +109,35 @@ function result() {
 }
 
 describe('intermediary calculation QuickJS sandbox', () => {
+  it('classifies external part-time and channel earnings by sales relationship capability', () => {
+    const externalSource = structuredClone(source)
+    externalSource.lines[0].salesperson = {
+      objectId: 'sales-partner-1',
+      versionId: 'sales-partner-v1',
+      entity: 'sales-partner',
+      code: 'SLP-001',
+      name: '外部销售一',
+    }
+    externalSource.lines[0].salesAttributionType = 'EXTERNAL_PART_TIME'
+    externalSource.lines[0].salesContractStatus = 'APPLICABLE'
+    externalSource.lines[0].salesContract = {
+      documentId: 'contract-1',
+      revision: 2,
+      applicableFrom: '2026-01-01',
+      terms: '兼职销售收益约定',
+    }
+    const externalResult = result()
+    externalResult.summaries[0] = {
+      payee: externalSource.lines[0].salesperson,
+      category: 'EXTERNAL_PART_TIME',
+      amount: '1890.00',
+    }
+
+    expect(() =>
+      validateIntermediaryResult(externalResult, externalSource),
+    ).not.toThrow()
+  })
+
   it('executes the exact seeded business rules', async () => {
     const ordinarySource = structuredClone(source)
     ordinarySource.bills = [
@@ -116,7 +147,6 @@ describe('intermediary calculation QuickJS sandbox', () => {
         receiptDocumentNo: 'BRE-001',
         receiptDate: '2026-07-01',
         customer,
-        salesperson,
         billType: 'BANK_ACCEPTANCE',
         faceAmount: '3650.00',
         issueDate: '2026-07-01',
@@ -154,9 +184,9 @@ describe('intermediary calculation QuickJS sandbox', () => {
     })
 
     const intermediary = {
-      objectId: 'other-party-1',
-      versionId: 'other-party-v1',
-      entity: 'other-party' as const,
+      objectId: 'other-unit-1',
+      versionId: 'other-unit-v1',
+      entity: 'other-unit' as const,
       code: 'OTP-001',
       name: '居间商一',
     }
@@ -253,6 +283,21 @@ describe('intermediary calculation QuickJS sandbox', () => {
     expect(calculated).toEqual(result())
   })
 
+  it('accepts numerically equal canonical quantity representations', () => {
+    const canonicalSource = structuredClone(source)
+    canonicalSource.lines[0]!.barrelQuantity = '2.0'
+
+    expect(
+      validateIntermediaryResult(
+        {
+          ...result(),
+          lines: [{ ...resultLine, barrelQuantity: '2' }],
+        },
+        canonicalSource,
+      ),
+    ).toBeTruthy()
+  })
+
   it('rejects missing entrypoints and script exceptions', async () => {
     await expect(
       runIntermediaryScript('const value = 1;', source),
@@ -347,7 +392,6 @@ describe('intermediary calculation QuickJS sandbox', () => {
         receiptDocumentNo: 'BRE-001',
         receiptDate: '2026-07-01',
         customer,
-        salesperson,
         billType: 'BANK_ACCEPTANCE',
         faceAmount: '100.00',
         issueDate: '2026-07-01',
@@ -373,7 +417,6 @@ describe('intermediary calculation QuickJS sandbox', () => {
         receiptDocumentNo: 'BRE-CARRY',
         receiptDate: '2026-07-01',
         customer,
-        salesperson,
         billType: 'CHECK',
         faceAmount: '100.00',
         issueDate: '2026-07-01',
@@ -399,7 +442,6 @@ describe('intermediary calculation QuickJS sandbox', () => {
         receiptDocumentNo: 'BRE-ZERO-COST',
         receiptDate: '2026-07-01',
         customer,
-        salesperson,
         billType: 'CHECK',
         faceAmount: '1.00',
         issueDate: '2026-07-01',
@@ -426,7 +468,6 @@ describe('intermediary calculation QuickJS sandbox', () => {
         receiptDocumentNo: 'BRE-TOO-LARGE',
         receiptDate: '2026-07-01',
         customer,
-        salesperson,
         billType: 'BANK_ACCEPTANCE',
         faceAmount: '365000.00',
         issueDate: '2026-07-01',
@@ -466,9 +507,9 @@ describe('intermediary calculation QuickJS sandbox', () => {
       adjustmentIntermediaryAmount: '5.00',
       adjustmentRebateAmount: '2.00',
       intermediary: {
-        objectId: 'other-party-1',
-        versionId: 'other-party-v1',
-        entity: 'other-party',
+        objectId: 'other-unit-1',
+        versionId: 'other-unit-v1',
+        entity: 'other-unit',
         code: 'OTP-001',
         name: '居间商一',
       },

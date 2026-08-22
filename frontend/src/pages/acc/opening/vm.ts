@@ -72,10 +72,11 @@ interface OpeningContainerForm {
 }
 
 export const openingDimensionLabels: Readonly<Record<string, string>> = {
-  CUSTOMER: '客户',
-  SUPPLIER: '供应商',
-  OTHER_PARTY: '其他往来单位',
-  EMPLOYEE: '员工',
+  CUSTOMER_ACCOUNT: '客户结算账户',
+  SUPPLIER_RELATIONSHIP: '供应关系',
+  SERVICE_RELATIONSHIP: '服务关系',
+  EMPLOYMENT_RELATIONSHIP: '雇佣关系',
+  SALES_RELATIONSHIP: '销售合作关系',
   DEPARTMENT: '部门',
   PRODUCT: '商品',
   WAREHOUSE: '仓库',

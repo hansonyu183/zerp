@@ -105,9 +105,6 @@ func (s *Service) PriceReference(
 		if resolveErr != nil {
 			return PriceReferenceView{}, resolveErr
 		}
-		if supplier.Data.SupplierType != bobdomain.SupplierTypeGeneral {
-			return PriceReferenceView{}, domainError(ErrorConflict, "supplier must be a general supplier", nil, nil)
-		}
 		supplierID = supplier.ObjectID
 	}
 	result := PriceReferenceView{Lines: make([]PriceReferenceLineView, 0, len(input.Products))}

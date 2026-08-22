@@ -2,8 +2,23 @@ package bob
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
+
+func TestCustomerListItemAlwaysSerializesVersionSlots(t *testing.T) {
+	t.Parallel()
+
+	raw, err := json.Marshal(CustomerListItem{})
+	if err != nil {
+		t.Fatalf("marshal customer list item: %v", err)
+	}
+	for _, field := range []string{`"effective":null`, `"candidate":null`} {
+		if !strings.Contains(string(raw), field) {
+			t.Fatalf("customer list item JSON %s is missing %s", raw, field)
+		}
+	}
+}
 
 func TestPricingPolicyRejectsPartialUnknownAndMixedCostRows(t *testing.T) {
 	t.Parallel()

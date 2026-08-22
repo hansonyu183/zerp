@@ -4,10 +4,10 @@
 
 数据来源：[`frontend/src/router/registry.ts`](../../frontend/src/router/registry.ts)、[`frontend/src/router/index.ts`](../../frontend/src/router/index.ts)，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。
 
-- 页面入口：71
-- 已覆盖入口：12
-- 已登记用例：11
-- 缺少用例：59
+- 页面入口：75
+- 已覆盖入口：18
+- 已登记用例：17
+- 缺少用例：57
 - 孤儿用例：0
 
 ## APP
@@ -42,18 +42,20 @@
 
 ## BOB
 
-| 页面         | 路由                    | 来源                                                | 状态                        |
-| ------------ | ----------------------- | --------------------------------------------------- | --------------------------- |
-| 客户         | `/bob/customer`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/customer.md) |
-| 供应商       | `/bob/supplier`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/supplier.md) |
-| 其他往来单位 | `/bob/other-party`      | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                    |
-| 员工         | `/bob/employee`         | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                    |
-| 产品         | `/bob/product`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                    |
-| 服务         | `/bob/service`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                    |
-| 仓库         | `/bob/warehouse`        | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                    |
-| 车辆         | `/bob/vehicle`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                    |
-| 资金账户     | `/bob/fund-account`     | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                    |
-| 经营主体     | `/bob/operating-entity` | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                    |
+| 页面       | 路由                    | 来源                                                | 状态                             |
+| ---------- | ----------------------- | --------------------------------------------------- | -------------------------------- |
+| 主体       | `/bob/party`            | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/party.md)         |
+| 客户       | `/bob/customer`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/customer.md)      |
+| 供应商     | `/bob/supplier`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/supplier.md)      |
+| 其他单位   | `/bob/other-unit`       | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/other-unit.md)    |
+| 销售合作方 | `/bob/sales-partner`    | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/sales-partner.md) |
+| 员工       | `/bob/employee`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/employee.md)      |
+| 产品       | `/bob/product`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                         |
+| 服务       | `/bob/service`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                         |
+| 仓库       | `/bob/warehouse`        | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                         |
+| 车辆       | `/bob/vehicle`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                         |
+| 资金账户   | `/bob/fund-account`     | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                         |
+| 经营主体   | `/bob/operating-entity` | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                         |
 
 ## AUX
 
@@ -72,42 +74,44 @@
 
 ## VOU
 
-| 页面         | 路由                            | 来源                                                | 状态     |
-| ------------ | ------------------------------- | --------------------------------------------------- | -------- |
-| 票据收入     | `/vou/bill-receipt`             | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 票据付出     | `/vou/bill-payment`             | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 票据开出     | `/vou/bill-issue`               | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 票据贴现     | `/vou/bill-discount`            | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 票据到期处理 | `/vou/bill-maturity`            | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 销售定价     | `/vou/sale-pricing`             | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 销售订单     | `/vou/sale-order`               | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 销售出库     | `/vou/sale-outbound`            | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 销售送货     | `/vou/sale-delivery`            | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 销售签收     | `/vou/sale-signoff`             | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 销售退货     | `/vou/sale-return`              | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 居间计算单   | `/vou/intermediary-calculation` | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 生产配货     | `/vou/order-production`         | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 生产自制品   | `/vou/self-production`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 库存盘点     | `/vou/inventory-count`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 采购询价     | `/vou/purchase-inquiry`         | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 采购订单     | `/vou/purchase-order`           | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 采购入库     | `/vou/purchase-inbound`         | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 采购退货     | `/vou/purchase-return`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 销售收款     | `/vou/sales-receipt`            | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 采购退款     | `/vou/purchase-refund`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 其他往来收款 | `/vou/other-receipt`            | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 销售退款     | `/vou/sales-refund`             | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 采购付款     | `/vou/purchase-payment`         | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 其他往来付款 | `/vou/other-payment`            | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 费用报销     | `/vou/expense-reimbursement`    | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 员工借款     | `/vou/employee-loan`            | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 员工还款     | `/vou/employee-repayment`       | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 员工借款核销 | `/vou/employee-loan-writeoff`   | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 费用付款     | `/vou/expense-payment`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 其他收入     | `/vou/other-income`             | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 资产购置     | `/vou/asset-acquisition`        | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 资产出让     | `/vou/asset-sale`               | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
-| 资产清算     | `/vou/asset-liquidation`        | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
+| 页面         | 路由                            | 来源                                                | 状态                                  |
+| ------------ | ------------------------------- | --------------------------------------------------- | ------------------------------------- |
+| 票据收入     | `/vou/bill-receipt`             | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 票据付出     | `/vou/bill-payment`             | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 票据开出     | `/vou/bill-issue`               | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 票据贴现     | `/vou/bill-discount`            | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 票据到期处理 | `/vou/bill-maturity`            | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 销售定价     | `/vou/sale-pricing`             | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 销售订单     | `/vou/sale-order`               | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 销售出库     | `/vou/sale-outbound`            | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 销售送货     | `/vou/sale-delivery`            | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 销售签收     | `/vou/sale-signoff`             | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 销售退货     | `/vou/sale-return`              | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 居间计算单   | `/vou/intermediary-calculation` | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 服务合同     | `/vou/service-contract`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](vou/service-contract.md)   |
+| 履约验收     | `/vou/service-acceptance`       | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](vou/service-acceptance.md) |
+| 生产配货     | `/vou/order-production`         | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 生产自制品   | `/vou/self-production`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 库存盘点     | `/vou/inventory-count`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 采购询价     | `/vou/purchase-inquiry`         | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 采购订单     | `/vou/purchase-order`           | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 采购入库     | `/vou/purchase-inbound`         | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 采购退货     | `/vou/purchase-return`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 销售收款     | `/vou/sales-receipt`            | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 采购退款     | `/vou/purchase-refund`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 其他往来收款 | `/vou/other-receipt`            | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 销售退款     | `/vou/sales-refund`             | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 采购付款     | `/vou/purchase-payment`         | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 其他往来付款 | `/vou/other-payment`            | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 费用报销     | `/vou/expense-reimbursement`    | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 员工借款     | `/vou/employee-loan`            | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 员工还款     | `/vou/employee-repayment`       | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 员工借款核销 | `/vou/employee-loan-writeoff`   | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 费用付款     | `/vou/expense-payment`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 其他收入     | `/vou/other-income`             | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 资产购置     | `/vou/asset-acquisition`        | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 资产出让     | `/vou/asset-sale`               | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
+| 资产清算     | `/vou/asset-liquidation`        | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                              |
 
 ## WFL
 

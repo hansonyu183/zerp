@@ -170,9 +170,9 @@ export function useProcessInstanceViewModel() {
   }
 
   async function loadPartyOptions(keywordValue: string): Promise<void> {
-    const entities = (['customer', 'supplier'] as BobApiEntity[]).filter(
-      (entity) => session.can(`/bob/${entity}/query`),
-    )
+    const entities = (
+      ['customer-account', 'supplier'] as BobApiEntity[]
+    ).filter((entity) => session.can(`/bob/${entity}/query`))
     if (entities.length === 0) {
       partyOptions.value = []
       partyError.value = '缺少客户或供应商查询权限。'
@@ -184,7 +184,7 @@ export function useProcessInstanceViewModel() {
     try {
       const pages = await Promise.all(
         entities.map(async (entity) => {
-          if (entity === 'customer') {
+          if (entity === 'customer-account') {
             const { data } = await apiClient.postContract(
               'bob/reference/query',
               {
@@ -207,7 +207,6 @@ export function useProcessInstanceViewModel() {
               'bob/reference/query',
               {
                 entity,
-                supplierType: 'GENERAL',
                 ...(keywordValue.trim()
                   ? { keyword: keywordValue.trim() }
                   : {}),

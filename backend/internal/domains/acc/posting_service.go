@@ -474,6 +474,24 @@ func newPostingSnapshot(document voudomain.DocumentView) (postingSnapshot, error
 		}
 		flattenSnapshotValue(result.header, key, value)
 	}
+	if document.Entity == voudomain.EntityIntermediaryCalculation {
+		calculation, _ := data["intermediaryCalculation"].(map[string]any)
+		calculationResult, _ := calculation["result"].(map[string]any)
+		if summaries, ok := calculationResult["summaries"].([]any); ok {
+			items := make([]map[string]string, 0, len(summaries))
+			for index, raw := range summaries {
+				item := map[string]string{"lineId": document.DocumentID + ":summary:" + strconv.Itoa(index)}
+				flattenSnapshotValue(item, "", raw)
+				// Only the typed Sales Relationship fact can form the other
+				// payable. Party identity is deliberately never exposed here.
+				if (item["category"] == "EXTERNAL_PART_TIME" || item["category"] == "CHANNEL_PARTNER") &&
+					item["payee.entity"] == "sales-partner" {
+					items = append(items, item)
+				}
+			}
+			result.collections["intermediarySalesPartnerPayables"] = items
+		}
+	}
 	return result, nil
 }
 

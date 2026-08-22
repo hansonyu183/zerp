@@ -91,12 +91,29 @@ func TestExpenseWorkflowRunsThroughRealVOUAdapterInOneApproval(t *testing.T) {
 	submitterID := ulid.Make().String()
 	suffix := strings.ToLower(ulid.Make().String()[:10])
 	bobService := bobdomain.NewService(pool)
-	employee := approveWorkflowReference(t, bobService, bobdomain.EntityEmployee, bobdomain.CreateDetailInput{
-		Code: "WE" + suffix, Name: "流程员工",
-	}, submitterID, actorID)
 	operating := approveWorkflowReference(t, bobService, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{
 		Name: "流程经营主体", TaxNumber: "TAX" + suffix,
 	}, submitterID, actorID)
+	employment, err := bobService.EmploymentCreate(t.Context(), bobdomain.EmploymentCreateInput{
+		NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: "流程员工"},
+		Data:     bobdomain.CreateDetailInput{OperatingEntityID: operating.ObjectID},
+	}, submitterID, "wfl-reference-create", true)
+	if err != nil {
+		t.Fatalf("create employee: %v", err)
+	}
+	submittedEmployment, err := bobService.Submit(t.Context(), bobdomain.EntityEmployee, bobdomain.VersionRevisionInput{
+		ObjectID: employment.ObjectID, VersionID: employment.VersionID, Revision: employment.Revision,
+	}, submitterID, "wfl-reference-submit")
+	if err != nil {
+		t.Fatalf("submit employee: %v", err)
+	}
+	approvedEmployment, err := bobService.Approve(t.Context(), bobdomain.EntityEmployee, bobdomain.ReviewInput{
+		ObjectID: employment.ObjectID, VersionID: employment.VersionID, Revision: submittedEmployment.Revision,
+	}, actorID, "wfl-reference-approve")
+	if err != nil {
+		t.Fatalf("approve employee: %v", err)
+	}
+	employee := voudomain.ReferenceInput{ObjectID: approvedEmployment.ObjectID, VersionID: approvedEmployment.VersionID}
 	fund := approveWorkflowReference(t, bobService, bobdomain.EntityFundAccount, bobdomain.CreateDetailInput{
 		Code: "WF" + suffix, Name: "流程资金账户", Currency: "CNY", OperatingEntityID: operating.ObjectID,
 	}, submitterID, actorID)

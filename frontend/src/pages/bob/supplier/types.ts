@@ -1,16 +1,16 @@
-import type { components } from '@/api/generated/schema'
 import type {
   BobAuditEvent,
   BobMutationResult,
   BobVersionHistoryItem,
 } from '@/pages/bob/shared/types'
+import type { components } from '@/api/generated/schema'
 
-export type SupplierType = components['schemas']['SupplierType']
-export type SupplierTaxMatch = components['schemas']['SupplierTaxMatch']
 export type SupplierMutationResult = BobMutationResult
 export type SupplierVersionHistoryItem = BobVersionHistoryItem
 export type SupplierAuditEvent = BobAuditEvent
-export type SupplierReferenceEntity = 'employee' | 'settlement-method'
+export type SupplierPartyOption = components['schemas']['PartyListItem']
+export type SupplierReferenceEntity =
+  'employee' | 'settlement-method' | 'operating-entity'
 
 export interface SupplierReference {
   objectId: string
@@ -23,9 +23,13 @@ export interface SupplierReference {
 export interface SupplierForm {
   code: string
   name: string
-  supplierType: SupplierType
-  shortName: string
+  partyMode: 'new' | 'existing'
+  selectedParty: SupplierPartyOption | null
+  partyKind: 'PERSON' | 'ORGANIZATION'
   taxNumber: string
+  identifierType: 'PERSON_ID' | 'UNIFIED_SOCIAL_CREDIT_CODE'
+  identifierValue: string
+  operatingEntity: SupplierReference | null
   contactName: string
   contactPhone: string
   email: string
@@ -51,8 +55,6 @@ export interface SupplierListVersion {
   version: number
   revision: number
   status: string
-  name: string
-  supplierType: SupplierType
   defaultPurchaserCode?: string
   defaultPurchaserName?: string
   submittedBy: string | null
@@ -65,7 +67,6 @@ export interface SupplierListItem {
   enabled: boolean
   status: string
   name: string
-  supplierType: SupplierType
   hasCandidate: boolean
   effective: SupplierListVersion | null
   candidate: SupplierListVersion | null
@@ -79,6 +80,12 @@ export interface SupplierDetail {
   code: string
   objectRevision: number
   enabled: boolean
+  partyId: string
+  partyKind: 'PERSON' | 'ORGANIZATION'
+  partyDisplayName: string
+  operatingEntityId: string
+  operatingEntityCode: string
+  operatingEntityName: string
   effective: SupplierVersion | null
   candidate: SupplierVersion | null
 }

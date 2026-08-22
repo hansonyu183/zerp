@@ -2,6 +2,7 @@ package vou
 
 import (
 	"context"
+	"errors"
 	"math"
 	"math/big"
 	"time"
@@ -15,6 +16,7 @@ type resolvedDraft struct {
 	Customer, Supplier, Counterparty, Employee, FundAccount, InterestParty *bobdomain.EffectiveReference
 	Salesperson, Purchaser, Handler, Warehouse                             *bobdomain.EffectiveReference
 	CustomerSettlement, SupplierSettlement                                 *bobdomain.EffectiveReference
+	Settlement                                                             *bobdomain.EffectiveReference
 	Products                                                               []bobdomain.EffectiveReference
 	FormulaMaterials                                                       [][]bobdomain.EffectiveReference
 	BillFunds                                                              []bobdomain.EffectiveReference
@@ -379,6 +381,10 @@ func (s *Service) writeDetail(
 			WarehouseCode: params.WarehouseCode, WarehouseName: params.WarehouseName,
 			DocumentID: params.DocumentID,
 		}))
+	case EntityServiceContract:
+		return s.writeServiceContractDetail(ctx, q, documentID, draft, refs, update)
+	case EntityServiceAcceptance:
+		return s.writeServiceAcceptanceDetail(ctx, q, documentID, draft, update)
 	case EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount, EntityBillMaturity:
 		return s.writeBillDetail(ctx, q, entity, documentID, draft, refs, update)
 	default:
@@ -514,6 +520,37 @@ func (s *Service) validateStoredAttributes(
 ) error {
 	missing := false
 	switch entity {
+	case EntityServiceContract:
+		detail, err := q.GetVouServiceContractDetail(ctx, documentID)
+		if err != nil {
+			return s.internal("read service contract detail", err)
+		}
+		missing = detail.CounterpartyObjectID == "" || detail.CounterpartyVersionID == "" || detail.HandlerObjectID == "" || detail.HandlerVersionID == ""
+		if detail.CounterpartyEntity == contractCounterpartyService {
+			missing = missing || detail.SettlementMethodObjectID == nil || detail.SettlementMethodVersionID == nil
+		} else if detail.CounterpartyEntity == contractCounterpartySales {
+			missing = missing || len(detail.Capabilities) == 0 || !detail.ApplicableFrom.Valid
+		} else {
+			missing = true
+		}
+	case EntityServiceAcceptance:
+		detail, err := q.GetVouServiceAcceptanceDetail(ctx, documentID)
+		if err != nil {
+			return s.internal("read service acceptance detail", err)
+		}
+		missing = detail.ContractDocumentID == "" || !detail.ServiceDate.Valid || !detail.AcceptanceDate.Valid || len(detail.ContractSnapshot) == 0
+		if !missing {
+			contract, lockErr := q.LockVouServiceAcceptanceContract(ctx, detail.ContractDocumentID)
+			if errors.Is(lockErr, pgx.ErrNoRows) {
+				return domainError(ErrorConflict, "service acceptance requires an approved service relationship contract", nil, nil)
+			}
+			if lockErr != nil {
+				return s.internal("lock service acceptance contract", lockErr)
+			}
+			if contract.Status != StatusApproved || contract.CounterpartyEntity != contractCounterpartyService {
+				return domainError(ErrorConflict, "service acceptance requires an approved service relationship contract", nil, nil)
+			}
+		}
 	case EntityIntermediaryCalculation:
 		return s.validateStoredIntermediaryCalculation(ctx, q, documentID)
 	case EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount, EntityBillMaturity:

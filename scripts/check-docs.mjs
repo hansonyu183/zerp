@@ -351,12 +351,19 @@ const bobSchemaSource = fs.readFileSync(
   path.join(root, 'contracts', 'openapi', 'schemas', 'bob.yaml'),
   'utf8',
 )
-const bobEntities = extractSchemaEnum(
+const bobCrudEntities = extractSchemaEnum(
   bobSchemaSource,
-  'BobEntity',
+  'BobCrudEntity',
   'contracts/openapi/schemas/bob.yaml',
 )
-compareSets('frontend BOB 页面注册', registeredEntities('bob'), bobEntities)
+const explicitBobQueryEntities = [
+  ...openapiSource.matchAll(/^\s+'\/bob\/([a-z][a-z0-9-]*)\/query':/gmu),
+]
+  .map((match) => match[1])
+  .filter((entity) => openapiSource.includes(`'/bob/${entity}/get':`))
+compareSets('frontend BOB 页面注册', registeredEntities('bob'), [
+  ...new Set([...bobCrudEntities, ...explicitBobQueryEntities]),
+])
 
 const auxSchemaSource = fs.readFileSync(
   path.join(root, 'contracts', 'openapi', 'schemas', 'aux.yaml'),

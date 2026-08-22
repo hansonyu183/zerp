@@ -133,14 +133,11 @@ SELECT
     detail.customer_version_id,
     detail.customer_code,
     detail.customer_name,
-    order_detail.salesperson_object_id,
-    order_detail.salesperson_version_id,
-    order_detail.salesperson_code,
-    order_detail.salesperson_name,
-    customer_version.intermediary_other_party_id,
-    intermediary_object.effective_version_id AS intermediary_version_id,
-    intermediary_object.code AS intermediary_code,
-    intermediary_version.name AS intermediary_name,
+    order_detail.sales_attribution_type,
+    order_detail.sales_attribution_subject_object_id,
+    order_detail.sales_attribution_subject_version_id,
+    order_detail.sales_attribution_subject_code,
+    order_detail.sales_attribution_subject_name,
     line.product_object_id,
     line.product_version_id,
     line.product_code,
@@ -167,11 +164,6 @@ JOIN vou_documents order_document ON order_document.id=detail.source_order_id
 JOIN vou_sale_order_details order_detail ON order_detail.document_id=order_document.id
 JOIN vou_product_lines order_line ON order_line.id=line.source_order_line_id
 JOIN bob_customer_versions customer_version ON customer_version.version_id=detail.customer_version_id
-LEFT JOIN bob_objects intermediary_object
-  ON intermediary_object.id=customer_version.intermediary_other_party_id
- AND intermediary_object.entity='other-party'
-LEFT JOIN bob_customer_versions intermediary_version
-  ON intermediary_version.version_id=intermediary_object.effective_version_id
 LEFT JOIN returned ON returned.source_signoff_line_id=line.id
 WHERE signoff.entity='sale-signoff'
   AND signoff.status = 'APPROVED'
@@ -289,7 +281,7 @@ ORDER BY return_line.source_signoff_line_id,return_document.business_date,
 -- name: ListIntermediaryCustomerTradeEvents :many
 WITH trade AS (
     SELECT line.id,
-           (line.dimensions->>'CUSTOMER')::text AS counterparty_object_id,
+           (line.dimensions->>'CUSTOMER_ACCOUNT')::text AS counterparty_object_id,
            voucher.business_date AS effective_date,
            (line.debit_minor-line.credit_minor)::bigint AS amount_delta_cents,
            voucher.source_entity,
@@ -299,7 +291,7 @@ WITH trade AS (
     JOIN acc_books book ON book.id=line.book_id AND book.control_book
     JOIN acc_subjects subject ON subject.book_id=line.book_id AND subject.id=line.subject_id
     WHERE subject.settlement_purpose='CUSTOMER_RECEIVABLE'
-      AND line.dimensions ? 'CUSTOMER'
+      AND line.dimensions ? 'CUSTOMER_ACCOUNT'
       AND line.currency='CNY'
       AND voucher.business_date<=sqlc.arg(period_end)
 ), precutover_return_baseline AS (
@@ -429,10 +421,6 @@ SELECT
     detail.counterparty_version_id AS customer_version_id,
     detail.counterparty_code AS customer_code,
     detail.counterparty_name AS customer_name,
-    employee_object.id AS salesperson_object_id,
-    employee_object.effective_version_id AS salesperson_version_id,
-    employee_object.code AS salesperson_code,
-    employee_version.name AS salesperson_name,
     bill_line.bill_type,
     bill_line.face_amount_cents,
     bill_line.issue_date,
@@ -440,13 +428,6 @@ SELECT
 FROM vou_documents document
 JOIN vou_bill_details detail ON detail.document_id=document.id
 JOIN vou_bill_lines bill_line ON bill_line.document_id=document.id
-JOIN bob_customer_versions customer_version
-  ON customer_version.version_id=detail.counterparty_version_id
-LEFT JOIN bob_objects employee_object
-  ON employee_object.id=customer_version.salesperson_employee_id
- AND employee_object.entity='employee'
-LEFT JOIN bob_employee_versions employee_version
-  ON employee_version.version_id=employee_object.effective_version_id
 WHERE document.entity='bill-receipt'
   AND document.status = 'APPROVED'
   AND document.business_date >= sqlc.arg(cutover_date)
@@ -467,4 +448,4 @@ WHERE document.entity='bill-receipt'
       WHERE allocation.bill_line_id=bill_line.id
         AND allocation_document.business_date <> sqlc.arg(period_end)::date
   )
-ORDER BY employee_object.id,document.business_date,document.document_no,bill_line.line_no;
+ORDER BY detail.counterparty_object_id,document.business_date,document.document_no,bill_line.line_no;

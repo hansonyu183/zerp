@@ -539,11 +539,11 @@ func TestRPTBuiltInAccountingSemanticsIntegration(t *testing.T) {
 	})
 	type subject struct{ id, code, purpose, direction, dimension string }
 	subjects := []subject{
-		{newID(), "1122", "RECEIVABLE", "DEBIT", "CUSTOMER"},
-		{newID(), "2203", "ADVANCE_RECEIPT", "CREDIT", "CUSTOMER"},
-		{newID(), "2202", "PAYABLE", "CREDIT", "SUPPLIER"},
-		{newID(), "1123", "PREPAID", "DEBIT", "SUPPLIER"},
-		{newID(), "1221", "OTHER", "DEBIT", "EMPLOYEE"},
+		{newID(), "1122", "RECEIVABLE", "DEBIT", "CUSTOMER_ACCOUNT"},
+		{newID(), "2203", "ADVANCE_RECEIPT", "CREDIT", "CUSTOMER_ACCOUNT"},
+		{newID(), "2202", "PAYABLE", "CREDIT", "SUPPLIER_RELATIONSHIP"},
+		{newID(), "1123", "PREPAID", "DEBIT", "SUPPLIER_RELATIONSHIP"},
+		{newID(), "1221", "OTHER", "DEBIT", "EMPLOYMENT_RELATIONSHIP"},
 		{newID(), "1405", "NONE", "DEBIT", "WAREHOUSE"},
 	}
 	for _, item := range subjects {
@@ -574,13 +574,13 @@ func TestRPTBuiltInAccountingSemanticsIntegration(t *testing.T) {
 		amount                                                    int64
 	}
 	postings := []posting{
-		{"sale-delivery", "2026-01-01", "2026-01-01", subjectID("1122"), "DEBIT", "CUSTOMER", customerID, 10000},
-		{"sale-delivery", "2026-02-01", "2026-02-01", subjectID("1122"), "DEBIT", "CUSTOMER", customerID, 5000},
-		{"sales-receipt", "2026-02-10", "2026-02-10", subjectID("2203"), "CREDIT", "CUSTOMER", customerID, 12000},
-		{"purchase-inbound", "2026-01-05", "2026-01-05", subjectID("2202"), "CREDIT", "SUPPLIER", supplierID, 20000},
-		{"purchase-payment", "2026-02-05", "2026-02-05", subjectID("1123"), "DEBIT", "SUPPLIER", supplierID, 15000},
-		{"employee-loan", "2026-01-10", "2026-01-10", subjectID("1221"), "DEBIT", "EMPLOYEE", employeeID, 10000},
-		{"employee-repayment", "2026-02-10", "2026-02-10", subjectID("1221"), "CREDIT", "EMPLOYEE", employeeID, 12000},
+		{"sale-delivery", "2026-01-01", "2026-01-01", subjectID("1122"), "DEBIT", "CUSTOMER_ACCOUNT", customerID, 10000},
+		{"sale-delivery", "2026-02-01", "2026-02-01", subjectID("1122"), "DEBIT", "CUSTOMER_ACCOUNT", customerID, 5000},
+		{"sales-receipt", "2026-02-10", "2026-02-10", subjectID("2203"), "CREDIT", "CUSTOMER_ACCOUNT", customerID, 12000},
+		{"purchase-inbound", "2026-01-05", "2026-01-05", subjectID("2202"), "CREDIT", "SUPPLIER_RELATIONSHIP", supplierID, 20000},
+		{"purchase-payment", "2026-02-05", "2026-02-05", subjectID("1123"), "DEBIT", "SUPPLIER_RELATIONSHIP", supplierID, 15000},
+		{"employee-loan", "2026-01-10", "2026-01-10", subjectID("1221"), "DEBIT", "EMPLOYMENT_RELATIONSHIP", employeeID, 10000},
+		{"employee-repayment", "2026-02-10", "2026-02-10", subjectID("1221"), "CREDIT", "EMPLOYMENT_RELATIONSHIP", employeeID, 12000},
 	}
 	for index, item := range postings {
 		voucherID, documentID := newID(), newID()
@@ -601,7 +601,7 @@ func TestRPTBuiltInAccountingSemanticsIntegration(t *testing.T) {
 		}
 	}
 	var customerFacts int
-	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM acc_voucher_lines line JOIN acc_vouchers voucher ON voucher.id=line.voucher_id JOIN acc_subjects subject ON subject.id=line.subject_id WHERE line.book_id=$1 AND line.dimensions ? 'CUSTOMER' AND subject.settlement_purpose IN ('RECEIVABLE','ADVANCE_RECEIPT') AND voucher.business_date<='2026-03-01'`, bookID).Scan(&customerFacts); err != nil || customerFacts != 3 {
+	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM acc_voucher_lines line JOIN acc_vouchers voucher ON voucher.id=line.voucher_id JOIN acc_subjects subject ON subject.id=line.subject_id WHERE line.book_id=$1 AND line.dimensions ? 'CUSTOMER_ACCOUNT' AND subject.settlement_purpose IN ('RECEIVABLE','ADVANCE_RECEIPT') AND voucher.business_date<='2026-03-01'`, bookID).Scan(&customerFacts); err != nil || customerFacts != 3 {
 		t.Fatalf("customer fact fixture count = %d, err=%v", customerFacts, err)
 	}
 	execute := func(code string, parameters map[string]any) map[string]any {

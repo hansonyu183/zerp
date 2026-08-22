@@ -22,6 +22,7 @@ var supportedMappingEntitySet = func() map[string]struct{} {
 		"employee-loan", "employee-repayment", "employee-loan-writeoff", "expense-reimbursement", "expense-payment", "other-income",
 		"asset-acquisition", "asset-sale", "asset-liquidation",
 		"bill-receipt", "bill-payment", "bill-issue", "bill-discount", "bill-maturity", "intermediary-calculation",
+		"service-contract", "service-acceptance",
 	}
 	result := make(map[string]struct{}, len(entities))
 	for _, entity := range entities {
@@ -67,21 +68,23 @@ var mappingEntityHeaderFields = map[string][]string{
 	"bill-issue":             {"interestMode", "interestParty.objectId", "maturityType", "supplier.objectId", "withRecourse"},
 	"bill-discount":          {"counterparty.objectId", "handler.objectId", "interestMode", "interestParty.objectId", "maturityType", "withRecourse"},
 	"bill-maturity":          {"interestMode", "interestParty.objectId", "maturityType", "withRecourse"},
+	"service-acceptance":     {"counterparty.objectId", "serviceAcceptance.contractDocumentId", "serviceAcceptance.settlementDirection"},
 }
 
 var mappingCollectionFields = map[string][]string{
-	"assetAcquisitionLines": {"lineId", "assetName", "originalValue", "category.objectId", "department.objectId", "custodian.objectId"},
-	"assetLiquidationLines": {"lineId", "assetId", "salvageIncome", "disposalExpense"},
-	"assetSaleLines":        {"lineId", "assetId", "saleAmount"},
-	"billCashLines":         {"lineId", "billLineId", "fundAccount.objectId", "direction", "amount"},
-	"billLines":             {"lineId", "billId", "direction", "faceAmount", "interestAmount"},
-	"expenseLines":          {"lineId", "category", "description", "amount"},
-	"inventoryCountLines":   {"lineId", "product.objectId", "actualQuantity", "bookQuantity", "differenceQuantity"},
-	"lines":                 {"lineId", "product.objectId", "quantity", "orderedQuantity", "signedQuantity", "rejectedQuantity", "unitPrice", "lineAmount"},
-	"priceLines":            {"lineId", "product.objectId", "unitPrice"},
-	"productLines":          {"lineId", "product.objectId", "quantity", "orderedQuantity", "signedQuantity", "rejectedQuantity", "unitPrice", "lineAmount"},
-	"productionLines":       {"lineId", "product.objectId", "outputQuantity"},
-	"signoffLines":          {"lineId", "product.objectId", "signedQuantity", "rejectedQuantity", "unitPrice", "lineAmount"},
+	"intermediarySalesPartnerPayables": {"lineId", "payee.objectId", "category", "amount"},
+	"assetAcquisitionLines":            {"lineId", "assetName", "originalValue", "category.objectId", "department.objectId", "custodian.objectId"},
+	"assetLiquidationLines":            {"lineId", "assetId", "salvageIncome", "disposalExpense"},
+	"assetSaleLines":                   {"lineId", "assetId", "saleAmount"},
+	"billCashLines":                    {"lineId", "billLineId", "fundAccount.objectId", "direction", "amount"},
+	"billLines":                        {"lineId", "billId", "direction", "faceAmount", "interestAmount"},
+	"expenseLines":                     {"lineId", "category", "description", "amount"},
+	"inventoryCountLines":              {"lineId", "product.objectId", "actualQuantity", "bookQuantity", "differenceQuantity"},
+	"lines":                            {"lineId", "product.objectId", "quantity", "orderedQuantity", "signedQuantity", "rejectedQuantity", "unitPrice", "lineAmount"},
+	"priceLines":                       {"lineId", "product.objectId", "unitPrice"},
+	"productLines":                     {"lineId", "product.objectId", "quantity", "orderedQuantity", "signedQuantity", "rejectedQuantity", "unitPrice", "lineAmount"},
+	"productionLines":                  {"lineId", "product.objectId", "outputQuantity"},
+	"signoffLines":                     {"lineId", "product.objectId", "signedQuantity", "rejectedQuantity", "unitPrice", "lineAmount"},
 }
 
 var mappingEntityCollections = map[string][]string{
@@ -96,7 +99,8 @@ var mappingEntityCollections = map[string][]string{
 	"asset-acquisition": {"assetAcquisitionLines"}, "asset-sale": {"assetSaleLines"}, "asset-liquidation": {"assetLiquidationLines"},
 	"bill-receipt": {"billLines", "billCashLines"}, "bill-payment": {"billLines", "billCashLines"},
 	"bill-issue": {"billLines", "billCashLines"}, "bill-discount": {"billLines", "billCashLines"},
-	"bill-maturity": {"billLines", "billCashLines"},
+	"bill-maturity":            {"billLines", "billCashLines"},
+	"intermediary-calculation": {"intermediarySalesPartnerPayables"},
 }
 
 func SupportedMappingEntities() []string {

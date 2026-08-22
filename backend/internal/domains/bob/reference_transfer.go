@@ -27,7 +27,6 @@ type ReferenceQueryInput struct {
 	Entity         string `json:"entity"`
 	Keyword        string `json:"keyword"`
 	SourceObjectID string `json:"sourceObjectId"`
-	SupplierType   string `json:"supplierType"`
 }
 
 type ReferenceCandidate struct {
@@ -38,18 +37,15 @@ type ReferenceCandidate struct {
 }
 
 func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQueryInput) ([]ReferenceCandidate, error) {
-	if input.Entity != EntityCustomer && input.Entity != EntityOperatingEntity && input.Entity != EntityEmployee && input.Entity != EntityOtherParty &&
-		input.Entity != EntitySupplier && input.Entity != EntityProduct {
+	if input.Entity != EntityCustomerAccount && input.Entity != EntityOperatingEntity && input.Entity != EntityEmployee && input.Entity != EntityOtherUnit &&
+		input.Entity != EntitySupplier && input.Entity != EntitySalesPartner && input.Entity != EntityProduct {
 		return nil, domainError(ErrorValidation, "invalid BOB reference entity", nil, nil)
 	}
 	if input.SourceObjectID != "" && !validID(input.SourceObjectID) {
 		return nil, domainError(ErrorValidation, "invalid BOB reference source", nil, nil)
 	}
-	if input.SupplierType != "" && (input.Entity != EntitySupplier || !validSupplierType(input.SupplierType)) {
-		return nil, domainError(ErrorValidation, "invalid supplier reference type", nil, nil)
-	}
 	rows, err := s.queries.QueryBobReferenceCandidates(ctx, dbsqlc.QueryBobReferenceCandidatesParams{
-		Entity: input.Entity, Keyword: input.Keyword, SourceObjectID: input.SourceObjectID, SupplierType: input.SupplierType,
+		Entity: input.Entity, Keyword: input.Keyword, SourceObjectID: input.SourceObjectID,
 	})
 	if err != nil {
 		return nil, s.internal("query BOB reference candidates", err)
@@ -104,7 +100,8 @@ func (s *Service) TransferReferences(
 		return ReferenceTransferResult{}, s.internal("lock reference source", err)
 	}
 	sourceEntity, sourceRevision, sourceEnabled, sourceCurrentVersionID, sourceEffectiveVersionID = source.Entity, source.Revision, source.Enabled, source.CurrentVersionID, source.EffectiveVersionID
-	sourceHasSupportedCandidate := sourceEntity == EntitySupplier && sourceEffectiveVersionID != nil
+	sourceHasSupportedCandidate := (sourceEntity == EntitySupplier || sourceEntity == EntityOtherUnit ||
+		sourceEntity == EntitySalesPartner) && sourceEffectiveVersionID != nil
 	if sourceEntity != input.Entity || sourceRevision != input.SourceObjectRevision || !sourceEnabled || sourceEffectiveVersionID == nil ||
 		(!sourceHasSupportedCandidate && sourceCurrentVersionID != *sourceEffectiveVersionID) {
 		return ReferenceTransferResult{}, domainError(ErrorConflict, "source object changed before transfer", nil, nil)
@@ -159,8 +156,8 @@ func (s *Service) TransferReferences(
 }
 
 func isTransferableReferenceEntity(entity string) bool {
-	return entity == EntityOperatingEntity || entity == EntityEmployee || entity == EntityOtherParty ||
-		entity == EntitySupplier || entity == EntityProduct
+	return entity == EntityOperatingEntity || entity == EntityEmployee || entity == EntityOtherUnit ||
+		entity == EntitySupplier || entity == EntitySalesPartner || entity == EntityProduct
 }
 
 func listDirectReferenceUses(ctx context.Context, q *dbsqlc.Queries, entity, objectID string) ([]directReferenceUse, error) {
@@ -181,13 +178,6 @@ func listDirectReferenceUses(ctx context.Context, q *dbsqlc.Queries, entity, obj
 		for _, row := range rows2 {
 			uses = append(uses, directReferenceUse{row.ObjectID, row.Entity, row.Role})
 		}
-		rows3, err := q.ListOtherPartySalesReferencesForEmployee(ctx, objectID)
-		if err != nil {
-			return nil, err
-		}
-		for _, row := range rows3 {
-			uses = append(uses, directReferenceUse{row.ObjectID, row.Entity, row.Role})
-		}
 		rows4, err := q.ListWarehouseManagerReferencesForEmployee(ctx, &objectID)
 		if err != nil {
 			return nil, err
@@ -195,19 +185,20 @@ func listDirectReferenceUses(ctx context.Context, q *dbsqlc.Queries, entity, obj
 		for _, row := range rows4 {
 			uses = append(uses, directReferenceUse{row.ObjectID, row.Entity, row.Role})
 		}
-	case EntityOtherParty:
-		rows, err := q.ListCustomerSalesReferencesForOtherParty(ctx, &objectID)
+	case EntityOtherUnit:
+		rows, err := q.ListVehiclePlatformReferences(ctx, objectID)
 		if err != nil {
 			return nil, err
 		}
 		for _, row := range rows {
 			uses = append(uses, directReferenceUse{row.ObjectID, row.Entity, row.Role})
 		}
-		rows2, err := q.ListCustomerIntermediaryReferences(ctx, &objectID)
+	case EntitySalesPartner:
+		rows, err := q.ListCustomerSalesReferencesForSalesPartner(ctx, &objectID)
 		if err != nil {
 			return nil, err
 		}
-		for _, row := range rows2 {
+		for _, row := range rows {
 			uses = append(uses, directReferenceUse{row.ObjectID, row.Entity, row.Role})
 		}
 	case EntityOperatingEntity:
@@ -223,14 +214,6 @@ func listDirectReferenceUses(ctx context.Context, q *dbsqlc.Queries, entity, obj
 			return nil, err
 		}
 		for _, row := range rows2 {
-			uses = append(uses, directReferenceUse{row.ObjectID, row.Entity, row.Role})
-		}
-	case EntitySupplier:
-		rows, err := q.ListVehiclePlatformReferences(ctx, objectID)
-		if err != nil {
-			return nil, err
-		}
-		for _, row := range rows {
 			uses = append(uses, directReferenceUse{row.ObjectID, row.Entity, row.Role})
 		}
 	case EntityProduct:
@@ -336,16 +319,12 @@ func (s *Service) replaceDirectReference(
 		return err
 	}
 	switch use.role {
-	case "customer-sales":
+	case "customer-sales", "customer-sales-external-part-time", "customer-sales-channel-partner":
 		err = qtx.ReplaceCustomerSalesReference(ctx, dbsqlc.ReplaceCustomerSalesReferenceParams{TargetObjectID: &targetObjectID, TargetVersionID: &targetVersionID, Code: &target.Code, Name: &target.Data.Name, VersionID: candidateID})
 	case "supplier-purchaser":
 		err = qtx.ReplaceSupplierPurchaserReference(ctx, dbsqlc.ReplaceSupplierPurchaserReferenceParams{TargetObjectID: &targetObjectID, VersionID: candidateID})
-	case "other-party-sales":
-		err = qtx.ReplaceOtherPartySalesReference(ctx, dbsqlc.ReplaceOtherPartySalesReferenceParams{TargetObjectID: targetObjectID, VersionID: candidateID})
 	case "warehouse-manager":
 		err = qtx.ReplaceWarehouseManagerReference(ctx, dbsqlc.ReplaceWarehouseManagerReferenceParams{TargetObjectID: &targetObjectID, VersionID: candidateID})
-	case "customer-intermediary":
-		err = qtx.ReplaceCustomerIntermediaryReference(ctx, dbsqlc.ReplaceCustomerIntermediaryReferenceParams{TargetObjectID: &targetObjectID, VersionID: candidateID})
 	case "vehicle-platform":
 		err = qtx.ReplaceVehiclePlatformReference(ctx, dbsqlc.ReplaceVehiclePlatformReferenceParams{TargetObjectID: targetObjectID, VersionID: candidateID})
 	case "formula-material":
@@ -373,12 +352,26 @@ func validateReferenceTransferTarget(ctx context.Context, q *dbsqlc.Queries, rol
 			return domainError(ErrorConflict, "packaging product replacement must be a packaging product", nil, nil)
 		}
 	case "vehicle-platform":
-		eligible, err := q.ReferenceTransferTargetIsLogisticsPlatform(ctx, dbsqlc.ReferenceTransferTargetIsLogisticsPlatformParams{ObjectID: objectID, VersionID: &versionID})
+		eligible, err := q.ReferenceTransferTargetIsServiceRelationship(ctx, dbsqlc.ReferenceTransferTargetIsServiceRelationshipParams{ObjectID: objectID, VersionID: &versionID})
 		if err != nil {
 			return domainError(ErrorConflict, "vehicle platform replacement is unavailable", nil, err)
 		}
 		if !eligible {
-			return domainError(ErrorConflict, "vehicle platform replacement must be a logistics platform supplier", nil, nil)
+			return domainError(ErrorConflict, "vehicle platform replacement must be an effective service relationship", nil, nil)
+		}
+	case "customer-sales-external-part-time", "customer-sales-channel-partner":
+		capability := SalesCapabilityExternalPartTime
+		if role == "customer-sales-channel-partner" {
+			capability = SalesCapabilityChannelPartner
+		}
+		eligible, err := q.ReferenceTransferTargetHasSalesCapability(ctx, dbsqlc.ReferenceTransferTargetHasSalesCapabilityParams{
+			ObjectID: objectID, VersionID: &versionID, Capability: capability,
+		})
+		if err != nil {
+			return domainError(ErrorConflict, "sales relationship replacement is unavailable", nil, err)
+		}
+		if !eligible {
+			return domainError(ErrorConflict, "sales relationship replacement lacks the required capability", nil, nil)
 		}
 	}
 	return nil

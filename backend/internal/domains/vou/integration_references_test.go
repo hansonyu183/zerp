@@ -31,20 +31,32 @@ func TestVOUIntegrationSnapshotsSettlementGapsAndLegacyRows(t *testing.T) {
 		t.Fatalf("create snapshot sale: %v", err)
 	}
 
-	customerView, err := customerService.CustomerGet(t.Context(),
-		bobdomain.GetInput{ObjectID: refs.customer.ObjectID})
-	if err != nil || customerView.Effective == nil {
+	var customerRelationshipID string
+	if err := pool.QueryRow(t.Context(), `SELECT customer_relationship_id FROM bob_customer_accounts WHERE object_id=$1`, refs.customer.ObjectID).Scan(&customerRelationshipID); err != nil {
+		t.Fatalf("find customer relationship: %v", err)
+	}
+	customerView, err := customerService.CustomerGet(t.Context(), bobdomain.GetInput{ObjectID: customerRelationshipID})
+	if err != nil {
 		t.Fatalf("get customer before edit: %v", err)
 	}
-	changedCustomer := customerView.Effective.Data
+	var customerAccount *bobdomain.CustomerAccountView
+	for index := range customerView.Accounts {
+		if customerView.Accounts[index].ObjectID == refs.customer.ObjectID {
+			customerAccount = &customerView.Accounts[index]
+			break
+		}
+	}
+	if customerAccount == nil || customerAccount.Effective == nil {
+		t.Fatalf("effective customer account missing: %#v", customerView.Accounts)
+	}
+	changedCustomer := customerAccount.Effective.Data
 	changedCustomer.Name = "VOU 客户更新"
 	changedCustomer.ContactName = "新联系人"
 	changedCustomer.ContactPhone = "13700000000"
 	changedCustomer.Address = "深圳市新地址"
 	customerEdit, err := customerService.CustomerSave(t.Context(), bobdomain.CustomerSaveInput{
-		ObjectID: refs.customer.ObjectID, VersionID: customerView.Effective.Version.VersionID,
-		Revision: customerView.Effective.Version.Revision, GroupRevision: customerView.Group.Revision,
-		Group: customerView.Group.Data, Data: changedCustomer,
+		ObjectID: refs.customer.ObjectID, VersionID: customerAccount.Effective.Version.VersionID,
+		Revision: customerAccount.Effective.Version.Revision, Data: changedCustomer,
 	}, integrationActorOne, "snapshot-customer-edit")
 	if err != nil {
 		t.Fatalf("create customer candidate: %v", err)
@@ -53,7 +65,7 @@ func TestVOUIntegrationSnapshotsSettlementGapsAndLegacyRows(t *testing.T) {
 		integrationActorOne, "snapshot-customer-candidate"); err != nil {
 		t.Fatalf("effective customer stopped working while candidate existed: %v", err)
 	}
-	customerSubmitted, err := customerService.Submit(t.Context(), bobdomain.EntityCustomer,
+	customerSubmitted, err := customerService.Submit(t.Context(), bobdomain.EntityCustomerAccount,
 		bobdomain.VersionRevisionInput{
 			ObjectID: refs.customer.ObjectID, VersionID: customerEdit.VersionID,
 			Revision: customerEdit.Revision,
@@ -61,7 +73,7 @@ func TestVOUIntegrationSnapshotsSettlementGapsAndLegacyRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("submit customer edit: %v", err)
 	}
-	customerApproved, err := customerService.Approve(t.Context(), bobdomain.EntityCustomer,
+	customerApproved, err := customerService.Approve(t.Context(), bobdomain.EntityCustomerAccount,
 		bobdomain.ReviewInput{
 			ObjectID: refs.customer.ObjectID, VersionID: customerEdit.VersionID,
 			Revision: customerSubmitted.Revision,
@@ -124,7 +136,7 @@ func TestVOUIntegrationSnapshotsSettlementGapsAndLegacyRows(t *testing.T) {
 	}
 
 	receiptDraft := DraftInput{
-		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
+		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: bobdomain.EntityCustomerAccount,
 		Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
 		Handler: &refs.employee, Amount: "10.00",
 	}
@@ -274,7 +286,7 @@ func TestVOUIntegrationRejectsInvalidReferencesAndDatabaseContracts(t *testing.T
 	usdAccount := createApprovedBOB(t, newBOBIntegrationService(pool), bobdomain.EntityFundAccount,
 		bobdomain.CreateDetailInput{Code: "USD" + newID(), Name: "美元账户", Currency: "USD"})
 	_, err = service.Create(t.Context(), EntitySalesReceipt, CreateInput{Data: DraftInput{
-		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
+		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: bobdomain.EntityCustomerAccount,
 		Counterparty: &refs.customer, FundAccount: &usdAccount,
 		Handler: &refs.employee, Amount: "1.00",
 	}}, integrationActorOne, "currency-mismatch")

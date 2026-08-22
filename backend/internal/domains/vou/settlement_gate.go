@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/hansonyu183/zerp/backend/internal/platform/businessdate"
 	"github.com/jackc/pgx/v5"
 )
@@ -89,10 +90,10 @@ func (s *Service) validateSettlementAmount(
 	if s.accounting == nil {
 		return domainError(ErrorConflict, "accounting control is not configured", nil, nil)
 	}
-	dimension := "CUSTOMER"
+	dimension := "CUSTOMER_ACCOUNT"
 	prepaidPurpose, tradePurpose := "ADVANCE_RECEIPT", "RECEIVABLE"
 	if gate.CounterpartyEntity == "supplier" {
-		dimension, prepaidPurpose, tradePurpose = "SUPPLIER", "PREPAID", "PAYABLE"
+		dimension, prepaidPurpose, tradePurpose = "SUPPLIER_RELATIONSHIP", "PREPAID", "PAYABLE"
 	}
 	purpose := tradePurpose
 	if gate.TermCode == bobSettlementPrepaid {
@@ -136,7 +137,7 @@ func loadOrderSettlementGate(
 	q := dbsqlc.New(tx)
 	switch entity {
 	case EntitySaleOrder:
-		gate.CounterpartyEntity = "customer"
+		gate.CounterpartyEntity = bobdomain.EntityCustomerAccount
 		var row dbsqlc.GetSaleOrderSettlementGateRow
 		row, err = q.GetSaleOrderSettlementGate(ctx, orderID)
 		gate.TermCode, settlementName, ruleType = row.SettlementTermCode, row.SettlementMethodName, row.SettlementRuleType

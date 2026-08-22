@@ -12,14 +12,15 @@ const positiveDecimalPattern =
 
 export function createCustomerForm(): CustomerForm {
   return {
-    group: {
-      companyName: '',
-      shortName: '',
+    party: {
+      mode: 'NEW',
+      partyId: '',
+      kind: 'ORGANIZATION',
+      legalName: '',
+      displayName: '',
       taxNumber: '',
-      invoiceTitle: '',
-      invoiceAddress: '',
-      invoicePhone: '',
-      bankAccounts: [],
+      identifierType: 'UNIFIED_SOCIAL_CREDIT_CODE',
+      identifierValue: '',
     },
     account: {
       code: '',
@@ -33,8 +34,8 @@ export function createCustomerForm(): CustomerForm {
       operatingEntity: null,
       settlementMethod: null,
       paymentMethod: null,
-      defaultTransportMethodCode: '',
-      defaultTransportMethodName: '',
+      defaultTransportMethodCode: 'SELF_PICKUP',
+      defaultTransportMethodName: '客户自提',
       transportSurcharge: '0.00',
       primarySalesAttribution: { type: 'INTERNAL_EMPLOYEE', subject: null },
       pricingPolicy: {
@@ -54,7 +55,6 @@ export function createCustomerForm(): CustomerForm {
 export function normalizedCostName(value: string): string {
   return value.trim().replace(/\s+/g, ' ')
 }
-
 export function sortedCostItems(
   items: readonly CustomerPricingCostItem[],
 ): CustomerPricingCostItem[] {
@@ -67,15 +67,12 @@ export function sortedCostItems(
       ),
     )
 }
-
 function isPositiveDecimal(value: string | undefined): boolean {
   return typeof value === 'string' && positiveDecimalPattern.test(value.trim())
 }
-
 function costAmountLabel(basis: CustomerCostCalculationBasis): string {
   return basis === 'UNIT_PRICE' ? '单位价格' : '整单金额'
 }
-
 export function pricingPolicyErrors(
   policy: CustomerPricingPolicy,
 ): readonly string[] {
@@ -85,12 +82,9 @@ export function pricingPolicyErrors(
     ['默认优惠', policy.defaultDiscountUnitPrice],
     ['固定第三方居间成本', policy.thirdPartyIntermediaryFixedUnitCost],
     ['浮动第三方居间成本', policy.thirdPartyIntermediaryVariableUnitCost],
-  ] as const) {
-    if (!nonNegativeDecimalPattern.test(value.trim())) {
+  ] as const)
+    if (!nonNegativeDecimalPattern.test(value.trim()))
       errors.push(`${label}必须是非负且最多两位小数的金额。`)
-    }
-  }
-
   const names = new Set<string>()
   for (const item of policy.costItems) {
     const name = normalizedCostName(item.name)
@@ -100,25 +94,19 @@ export function pricingPolicyErrors(
     }
     if (names.has(name)) errors.push(`成本名称“${name}”重复。`)
     names.add(name)
-
-    const selectedAmount =
+    const selected =
       item.basis === 'UNIT_PRICE' ? item.unitPrice : item.orderAmount
-    const unexpectedAmount =
+    const unexpected =
       item.basis === 'UNIT_PRICE' ? item.orderAmount : item.unitPrice
-    if (unexpectedAmount?.trim()) {
-      errors.push(
-        `成本“${name}”只能填写${costAmountLabel(item.basis)}。`,
-      )
-    }
-    if (!isPositiveDecimal(selectedAmount)) {
+    if (unexpected?.trim())
+      errors.push(`成本“${name}”只能填写${costAmountLabel(item.basis)}。`)
+    if (!isPositiveDecimal(selected))
       errors.push(
         `成本“${name}”的${costAmountLabel(item.basis)}必须大于 0 且最多两位小数。`,
       )
-    }
   }
   return errors
 }
-
 export function creditLimitErrors(
   limits: readonly CustomerCreditLimit[],
 ): readonly string[] {
@@ -129,11 +117,10 @@ export function creditLimitErrors(
     if (!currency) errors.push('请填写信用额度币种。')
     else if (currencies.has(currency)) errors.push(`币种“${currency}”重复。`)
     currencies.add(currency)
-    if (!nonNegativeDecimalPattern.test(limit.amount.trim())) {
+    if (!nonNegativeDecimalPattern.test(limit.amount.trim()))
       errors.push(
         `币种“${currency || '未填写'}”的信用额度必须是非负且最多两位小数。`,
       )
-    }
   }
   return errors
 }

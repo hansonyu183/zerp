@@ -171,6 +171,8 @@ func entityPrefix(entity string) string {
 		EntityBillDiscount:            "BLD",
 		EntityBillMaturity:            "BLM",
 		EntityIntermediaryCalculation: "ICL",
+		EntityServiceContract:         "SCT",
+		EntityServiceAcceptance:       "SAC",
 	}[entity]
 }
 

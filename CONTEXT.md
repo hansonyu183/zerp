@@ -11,15 +11,50 @@ _Rules_: [APP 最终权限计算](docs/domains/app.md#4-最终权限计算)、[A
 
 ## Business Objects
 
-**Customer Account（客户结算子账户）**:
-与本企业发生具体销售并独立结算的客户账户。
-_Avoid_: 用共享付款公司合并多个客户的账期和应收、共享业务伙伴角色
-_Rules_: [BOB 领域边界](docs/domains/bob.md#2-领域职责与边界)、[VOU 往来收付款](docs/domains/vou.md#36-往来收款与往来付款)、[ACC 会计期间](docs/domains/acc.md#10-会计期间)
-
-**Customer Group（集团客户）**:
-归集一个或多个客户结算子账户的收款识别根。
-_Avoid_: 集团统一应收或信用额度、集团规则由子账户继承覆盖、只在多客户特例时临时建组
+**Party（主体）**:
+现实中的个人或组织，是名称、身份标识和联系资料等共享身份事实的唯一根；同一主体可以同时拥有多种业务关系。
+_Avoid_: 业务伙伴、客户主体、供应商主体、为每种业务身份重复建档
 _Rules_: [BOB 领域边界](docs/domains/bob.md#2-领域职责与边界)
+
+**Person（个人）**:
+以自然人身份参与业务的主体。
+_Avoid_: 个人客户、兼职员工主体、把人员身份与雇佣或销售合作关系混为一体
+_Rules_: [BOB 领域边界](docs/domains/bob.md#2-领域职责与边界)
+
+**Organization（组织）**:
+以非自然人身份参与业务的主体；当前不再细分企业、机构或其他组织类别。
+_Avoid_: 企业主体、机构主体、没有业务规则用途的组织分类
+_Rules_: [BOB 领域边界](docs/domains/bob.md#2-领域职责与边界)
+
+**Business Relationship（业务关系）**:
+外部主体与一个我方经营主体之间的强类型业务关系，拥有该业务专属资料和生命周期；客户、供应、雇佣、服务和销售合作分别使用自己的关系定义。同一外部主体面对不同经营主体时分别建立关系。
+_Avoid_: 主体类型、可任意扩展字段的万能关系、用 JSON 或 EAV 保存正式关系属性
+_Rules_: [BOB 领域边界](docs/domains/bob.md#2-领域职责与边界)
+
+**Party Identity Fact（主体身份事实）**:
+名称、身份标识、税号和通用联系资料等与具体业务关系无关、由同一主体共享的当前资料。
+_Avoid_: 在每条客户、供应、服务或销售合作关系中复制主体身份、把结算或信用资料放入主体
+_Rules_: [BOB 领域边界](docs/domains/bob.md#2-领域职责与边界)
+
+**Party Merge（主体合并）**:
+把误建的重复主体归入一个保留主体，并转移不冲突的当前业务关系；历史交易和关系快照保持原事实。
+_Avoid_: 自动合并、覆盖同类型关系、删除来源主体或改写历史快照
+_Rules_: [BOB 主体合并](docs/domains/bob.md#45-主体合并)
+
+**Relationship Detail（关系明细）**:
+业务编码、业务联系人、结算、信用、价格或岗位等只属于一条具体业务关系的资料。服务内容由合同和履约单据表达，不在服务关系上另设服务范围。
+_Avoid_: 主体身份资料、任意键值属性、跨经营主体共享业务条件
+_Rules_: [BOB 领域边界](docs/domains/bob.md#2-领域职责与边界)
+
+**Relationship Reference（关系引用）**:
+交易或核算对一个强类型业务关系或其交易子账户的引用，用来确定业务身份和经营主体边界。
+_Avoid_: 裸主体引用、主体 ID 加自由文本关系类型、把同一主体的不同往来余额合并
+_Rules_: [BOB 有效引用](docs/domains/bob.md#8-有效引用规则)、[ACC 会计科目](docs/domains/acc.md#5-会计科目)
+
+**Customer Account（客户结算子账户）**:
+客户关系中发生具体销售并独立结算的账户。
+_Avoid_: 主体、用共享付款公司合并多个结算账户的账期和应收
+_Rules_: [BOB 领域边界](docs/domains/bob.md#2-领域职责与边界)、[VOU 往来收付款](docs/domains/vou.md#36-往来收款与往来付款)、[ACC 会计期间](docs/domains/acc.md#10-会计期间)
 
 **Operating Entity（经营主体）**:
 我方实际承担合同销售方、开票方和收款方责任的法人公司。
@@ -27,7 +62,7 @@ _Avoid_: 商品品牌、客户类型、报表标签、允许跨经营主体收�
 _Rules_: [BOB 领域边界](docs/domains/bob.md#2-领域职责与边界)、[VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
 
 **Sales Receipt Allocation（销售收款分摊）**:
-一笔集团客户来款分配到具体客户结算子账户及其未结应收的金额明细。
+一笔客户关系来款分配到该关系下具体客户结算子账户及其未结应收的金额明细。
 _Avoid_: 依付款公司直接冲减共享余额、把一笔银行流水伪造为多笔来款
 _Rules_: [VOU 往来收付款](docs/domains/vou.md#36-往来收款与往来付款)
 
@@ -37,13 +72,13 @@ _Avoid_: 是否开票布尔值、由每张订单任意选择是否需要开票�
 _Rules_: [VOU 往来收付款](docs/domains/vou.md#36-往来收款与往来付款)
 
 **Supplier（供应商）**:
-与本企业发生采购或物流服务关系的独立 BOB 业务对象。相同税号的客户集团或其他往来单位不与其共享身份、生命周期或编码。
-_Avoid_: 共享业务伙伴下的供应商角色
+主体与本企业之间适用采购订单—仓库收货流程的供应关系。
+_Avoid_: 供应商主体、按应付科目定义供应商
 _Rules_: [BOB 领域边界](docs/domains/bob.md#2-领域职责与边界)
 
-**Other Dealings Unit（其他往来单位）**:
-承担销售、采购之外其他债权债务关系的独立 BOB 业务对象。
-_Avoid_: 共享业务伙伴下的其他往来角色
+**Other Unit（其他单位）**:
+用户页面对服务关系的称呼；主体与本企业之间适用服务合同—履约验收流程，与供应商的主要区别是业务流程，而不是 ACC 往来科目。
+_Avoid_: 其他往来单位、其他单位主体、按会计科目区分供应商与其他单位
 _Rules_: [BOB 领域边界](docs/domains/bob.md#2-领域职责与边界)
 
 **Customer Type（客户类型）**:
@@ -89,6 +124,16 @@ _Rules_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)、[VOU 编号�
 **Customer Sales Attribution（客户业务归属）**:
 客户结算子账户的主要业务关系。
 _Avoid_: 同一客户同时配置多个主要业务归属、把不具名第三方居间另建为客户资料中的具名收款方
+_Rules_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)、[VOU 居间计算单](docs/domains/vou.md#24-居间计算单)
+
+**Sales Partner（销售合作方）**:
+主体与本企业之间承接外部兼职销售或渠道拓客，并据此取得销售服务收益或渠道差价的独立销售合作关系；个人或组织都可建立，同一关系可以同时具备兼职销售和渠道商能力。
+_Avoid_: 销售合作方主体、员工、其他单位、把所有购买商品的客户称为销售合作方
+_Rules_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)、[VOU 居间计算单](docs/domains/vou.md#24-居间计算单)
+
+**Channel Partner（渠道商）**:
+销售合作关系上“通过拓展其他客户取得渠道差价”的能力；购买我方商品本身只形成客户关系，同一主体可以同时拥有客户关系和渠道商能力，但不得把自己的客户关系归属给自己。
+_Avoid_: 经销商客户、把渠道商固定为一种客户类型、把所有销售合作关系统称为渠道关系
 _Rules_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)、[VOU 居间计算单](docs/domains/vou.md#24-居间计算单)
 
 **Default Purchaser（默认采购员）**:
@@ -168,7 +213,7 @@ _Rules_: [AUX 收支类型](docs/domains/aux.md#37-收支类型)、[ACC 会计�
 
 **Other Dealings Subject（其他往来主体）**:
 其他往来的权利义务对象。
-_Avoid_: 其他往来单位
+_Avoid_: 其他单位
 _Rules_: [ACC 会计科目](docs/domains/acc.md#5-会计科目)
 
 **Other Dealings Category（其他往来类别）**:

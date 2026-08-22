@@ -10,38 +10,38 @@ import (
 
 func TestSystemIdentityMayApproveAutomaticBOBSeedIntegration(t *testing.T) {
 	service := NewService(integrationPool(t))
-	created, err := service.Create(t.Context(), EntityEmployee, CreateInput{Data: CreateDetailInput{
-		Code: "SYSAUTO" + newID(), Name: "System Generated Employee",
+	created, err := service.Create(t.Context(), EntityProduct, CreateInput{Data: CreateDetailInput{
+		Name: "System Generated Product", Unit: "unit",
 	}}, systemidentity.UserID, "system-bob-create")
 	if err != nil {
 		t.Fatalf("create automatic BOB object: %v", err)
 	}
-	submitted, err := service.Submit(t.Context(), EntityEmployee, VersionRevisionInput{
+	submitted, err := service.Submit(t.Context(), EntityProduct, VersionRevisionInput{
 		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: created.Revision,
 	}, systemidentity.UserID, "system-bob-submit")
 	if err != nil {
 		t.Fatalf("submit automatic BOB object: %v", err)
 	}
-	approved, err := service.Approve(t.Context(), EntityEmployee, ReviewInput{
+	approved, err := service.Approve(t.Context(), EntityProduct, ReviewInput{
 		ObjectID: submitted.ObjectID, VersionID: submitted.VersionID, Revision: submitted.Revision,
 	}, systemidentity.UserID, "system-bob-approve")
 	if err != nil || approved.Status != StatusEffective {
 		t.Fatalf("approve automatic BOB object: result=%+v err=%v", approved, err)
 	}
 
-	humanCreated, err := service.Create(t.Context(), EntityEmployee, CreateInput{Data: CreateDetailInput{
-		Code: "HUMAN" + newID(), Name: "Human Employee",
+	humanCreated, err := service.Create(t.Context(), EntityProduct, CreateInput{Data: CreateDetailInput{
+		Name: "Human Product", Unit: "unit",
 	}}, integrationActorOne, "human-bob-create")
 	if err != nil {
 		t.Fatalf("create human BOB object: %v", err)
 	}
-	humanSubmitted, err := service.Submit(t.Context(), EntityEmployee, VersionRevisionInput{
+	humanSubmitted, err := service.Submit(t.Context(), EntityProduct, VersionRevisionInput{
 		ObjectID: humanCreated.ObjectID, VersionID: humanCreated.VersionID, Revision: humanCreated.Revision,
 	}, integrationActorOne, "human-bob-submit")
 	if err != nil {
 		t.Fatalf("submit human BOB object: %v", err)
 	}
-	if _, err = service.Approve(t.Context(), EntityEmployee, ReviewInput{
+	if _, err = service.Approve(t.Context(), EntityProduct, ReviewInput{
 		ObjectID: humanSubmitted.ObjectID, VersionID: humanSubmitted.VersionID, Revision: humanSubmitted.Revision,
 	}, integrationActorOne, "human-bob-self-approve"); !errorIsKind(err, ErrorConflict) {
 		t.Fatalf("human self approval error = %v", err)

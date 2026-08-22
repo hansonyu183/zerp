@@ -28,6 +28,8 @@ interface ReferenceState {
   sequence: number
 }
 
+type ReferenceEntity = BobApiEntity | 'other-unit' | 'sales-partner'
+
 export function useVoucherReferences(
   config: VoucherEntityConfig,
   form: Ref<VoucherDraftForm>,
@@ -62,24 +64,36 @@ export function useVoucherReferences(
   }
 
   function referenceDefinition(key: string): {
-    entities: BobApiEntity[]
+    entities: ReferenceEntity[]
     filters?: Record<string, unknown>
   } {
-    if (key === 'customer') return { entities: ['customer'] }
+    if (key === 'customer') return { entities: ['customer-account'] }
     if (key === 'supplier') {
-      return {
-        entities: ['supplier'],
-        filters: { supplierType: 'GENERAL' },
-      }
+      return { entities: ['supplier'] }
     }
     if (key === 'counterparty' || key === 'party') {
       if (key === 'counterparty') {
-        return { entities: [form.value.counterpartyType || 'customer'] }
+        const entity =
+          form.value.counterpartyType === 'customer'
+            ? 'customer-account'
+            : form.value.counterpartyType
+        return {
+          entities: [
+            'customer-account',
+            'supplier',
+            'other-unit',
+            'employee',
+            'sales-partner',
+          ].includes(entity)
+            ? [entity as ReferenceEntity]
+            : [],
+        }
       }
-      if (config.partyMode === 'customer') return { entities: ['customer'] }
+      if (config.partyMode === 'customer')
+        return { entities: ['customer-account'] }
       if (config.partyMode === 'supplier') return { entities: ['supplier'] }
       if (config.partyMode === 'none') return { entities: [] }
-      return { entities: ['customer', 'supplier'] }
+      return { entities: ['customer-account', 'supplier'] }
     }
     if (['employee', 'salesperson', 'purchaser', 'handler'].includes(key)) {
       return { entities: ['employee'] }
@@ -92,6 +106,7 @@ export function useVoucherReferences(
       return { entities: ['warehouse'] }
     }
     if (key === 'fundAccount') return { entities: ['fund-account'] }
+    if (key === 'settlementMethod') return { entities: [] }
     if (key === 'product') {
       return {
         entities: ['product'],
@@ -107,10 +122,7 @@ export function useVoucherReferences(
       }
     }
     if (key === 'platform') {
-      return {
-        entities: ['supplier'],
-        filters: { supplierType: 'LOGISTICS_PLATFORM' },
-      }
+      return { entities: ['other-unit'] }
     }
     if (key === 'vehicle') {
       return { entities: ['vehicle'] }
@@ -149,6 +161,26 @@ export function useVoucherReferences(
   }
 
   async function loadReference(key: string, keyword: string): Promise<void> {
+    if (key === 'settlementMethod') {
+      const state = referenceState(key)
+      state.loading = true
+      state.errorMessage = null
+      try {
+        const { data } = await apiClient.postContract('aux/reference/query', {
+          entity: 'settlement-method',
+          ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
+        })
+        state.options = data.map((item) => ({
+          ...item,
+          entity: 'settlement-method',
+        }))
+      } catch (error) {
+        state.errorMessage = getErrorMessage(error)
+      } finally {
+        state.loading = false
+      }
+      return
+    }
     const definition = referenceDefinition(key)
     const state = referenceState(key)
     if (definition.entities.length === 0) return
@@ -169,7 +201,13 @@ export function useVoucherReferences(
     try {
       const pages = await Promise.all(
         definition.entities.map(async (entity) => {
-          if (entity === 'customer') {
+          if (
+            entity === 'customer-account' ||
+            entity === 'employee' ||
+            entity === 'supplier' ||
+            entity === 'other-unit' ||
+            entity === 'sales-partner'
+          ) {
             const { data } = await apiClient.postContract(
               'bob/reference/query',
               {
@@ -185,21 +223,6 @@ export function useVoucherReferences(
               code: item.code,
               name: item.name,
             }))
-          }
-          if (entity === 'supplier') {
-            const { data } = await apiClient.postContract(
-              'bob/reference/query',
-              {
-                entity,
-                supplierType:
-                  definition.filters?.supplierType === 'LOGISTICS_PLATFORM'
-                    ? 'LOGISTICS_PLATFORM'
-                    : 'GENERAL',
-                ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
-              },
-              { signal: controller.signal },
-            )
-            return data.map((item): VoucherReference => ({ ...item, entity }))
           }
           const { data } = await apiClient.post<
             PageResult<ReferenceListItem>,
@@ -244,9 +267,6 @@ export function useVoucherReferences(
                 ...(typeof summary.plateNumber === 'string'
                   ? { plateNumber: summary.plateNumber }
                   : {}),
-                ...(typeof summary.supplierType === 'string'
-                  ? { supplierType: summary.supplierType }
-                  : {}),
                 ...(typeof summary.platformObjectId === 'string'
                   ? { platformObjectId: summary.platformObjectId }
                   : {}),
@@ -270,7 +290,7 @@ export function useVoucherReferences(
       state.options = [...selectedReferences(), ...pages.flat()]
         .filter(
           (item) =>
-            definition.entities.includes(item.entity as BobApiEntity) &&
+            definition.entities.includes(item.entity as ReferenceEntity) &&
             (!platformObjectId || item.platformObjectId === platformObjectId),
         )
         .filter(

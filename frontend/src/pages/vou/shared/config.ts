@@ -338,7 +338,7 @@ export const voucherEntityConfigs: Readonly<
     icon: 'mdi-cash-fast',
     order: 133,
     partyMode: 'counterparty',
-    fixedCounterpartyType: 'other-party',
+    fixedCounterpartyType: 'other-unit',
     lineKind: 'none',
   },
   'bill-maturity': {
@@ -356,5 +356,23 @@ export const voucherEntityConfigs: Readonly<
     order: 45,
     partyMode: 'none',
     lineKind: 'none',
+  },
+  'service-contract': {
+    entity: 'service-contract',
+    title: '服务合同',
+    icon: 'mdi-file-sign',
+    order: 46,
+    partyMode: 'counterparty',
+    lineKind: 'none',
+    usesHandler: true,
+  },
+  'service-acceptance': {
+    entity: 'service-acceptance',
+    title: '履约验收',
+    icon: 'mdi-file-check-outline',
+    order: 47,
+    partyMode: 'none',
+    lineKind: 'none',
+    directAmount: true,
   },
 }

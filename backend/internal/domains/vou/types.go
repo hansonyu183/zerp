@@ -40,6 +40,8 @@ const (
 	EntityBillDiscount            = "bill-discount"
 	EntityBillMaturity            = "bill-maturity"
 	EntityIntermediaryCalculation = "intermediary-calculation"
+	EntityServiceContract         = "service-contract"
+	EntityServiceAcceptance       = "service-acceptance"
 	StatusDraft                   = "DRAFT"
 	StatusChecked                 = "CHECKED"
 	StatusApproved                = "APPROVED"
@@ -80,6 +82,8 @@ var entities = [...]string{
 	EntityBillDiscount,
 	EntityBillMaturity,
 	EntityIntermediaryCalculation,
+	EntityServiceContract,
+	EntityServiceAcceptance,
 }
 
 func publicCreateEntity(entity string) bool {
@@ -93,7 +97,7 @@ func publicCreateEntity(entity string) bool {
 		EntityExpenseReimbursement, EntityOtherIncome,
 		EntityAssetAcquisition, EntityAssetSale, EntityAssetLiquidation,
 		EntityBillReceipt, EntityBillPayment, EntityBillIssue, EntityBillDiscount, EntityBillMaturity,
-		EntityIntermediaryCalculation:
+		EntityIntermediaryCalculation, EntityServiceContract, EntityServiceAcceptance:
 		return true
 	default:
 		return false
@@ -268,6 +272,24 @@ type AssetLiquidationLineInput struct {
 	Remark          string `json:"remark,omitempty"`
 }
 
+// ServiceContractInput contains the contract-only facts. Counterparty and
+// Handler stay on DraftInput so all VOU references retain one wire shape.
+type ServiceContractInput struct {
+	Capabilities   []string `json:"capabilities,omitempty"`
+	ApplicableFrom string   `json:"applicableFrom,omitempty"`
+	ApplicableTo   string   `json:"applicableTo,omitempty"`
+	Terms          string   `json:"terms,omitempty"`
+}
+
+type ServiceAcceptanceInput struct {
+	ContractDocumentID  string `json:"contractDocumentId"`
+	ServiceDate         string `json:"serviceDate"`
+	AcceptanceDate      string `json:"acceptanceDate"`
+	SettlementDirection string `json:"settlementDirection"`
+	FulfillmentFact     string `json:"fulfillmentFact,omitempty"`
+	AcceptanceFact      string `json:"acceptanceFact,omitempty"`
+}
+
 type DraftInput struct {
 	BusinessDate            string                        `json:"businessDate"`
 	Currency                string                        `json:"currency"`
@@ -289,6 +311,7 @@ type DraftInput struct {
 	Platform                *ReferenceInput               `json:"platform,omitempty"`
 	Vehicle                 *ReferenceInput               `json:"vehicle,omitempty"`
 	FundAccount             *ReferenceInput               `json:"fundAccount,omitempty"`
+	SettlementMethod        *ReferenceInput               `json:"settlementMethod,omitempty"`
 	SourceName              string                        `json:"sourceName,omitempty"`
 	Amount                  string                        `json:"amount,omitempty"`
 	ProductLines            []ProductLineInput            `json:"productLines,omitempty"`
@@ -311,6 +334,8 @@ type DraftInput struct {
 	WithRecourse            bool                          `json:"withRecourse,omitempty"`
 	SpecialApproval         bool                          `json:"specialApproval,omitempty"`
 	IntermediaryCalculation *IntermediaryCalculationInput `json:"intermediaryCalculation,omitempty"`
+	ServiceContract         *ServiceContractInput         `json:"serviceContract,omitempty"`
+	ServiceAcceptance       *ServiceAcceptanceInput       `json:"serviceAcceptance,omitempty"`
 }
 
 type IntermediaryReference struct {
@@ -321,38 +346,49 @@ type IntermediaryReference struct {
 	Name      string `json:"name"`
 }
 
+type IntermediarySalesContractSnapshot struct {
+	DocumentID     string `json:"documentId"`
+	Revision       int64  `json:"revision"`
+	ApplicableFrom string `json:"applicableFrom"`
+	ApplicableTo   string `json:"applicableTo,omitempty"`
+	Terms          string `json:"terms"`
+}
+
 type IntermediarySourceLine struct {
 	sourceCalculationDocumentID  string
-	SourceSignoffLineID          string                 `json:"sourceSignoffLineId"`
-	SourceKind                   string                 `json:"sourceKind"`
-	SignoffDocumentID            string                 `json:"signoffDocumentId"`
-	SignoffDocumentNo            string                 `json:"signoffDocumentNo"`
-	SignoffDate                  string                 `json:"signoffDate"`
-	DueDate                      string                 `json:"dueDate"`
-	CollectionDate               string                 `json:"collectionDate"`
-	CollectionDelayDays          int                    `json:"collectionDelayDays"`
-	OrderDocumentID              string                 `json:"orderDocumentId"`
-	OrderDocumentNo              string                 `json:"orderDocumentNo"`
-	OrderDate                    string                 `json:"orderDate"`
-	Customer                     IntermediaryReference  `json:"customer"`
-	Salesperson                  IntermediaryReference  `json:"salesperson"`
-	Product                      IntermediaryReference  `json:"product"`
-	Intermediary                 *IntermediaryReference `json:"intermediary,omitempty"`
-	ProductKind                  string                 `json:"productKind"`
-	SignedQuantity               string                 `json:"signedQuantity"`
-	PricingQuantity              string                 `json:"pricingQuantity"`
-	BarrelQuantity               string                 `json:"barrelQuantity"`
-	UnitPrice                    string                 `json:"unitPrice"`
-	ReferenceUnitPrice           string                 `json:"referenceUnitPrice"`
-	SettlementSurcharge          string                 `json:"settlementSurcharge"`
-	RebateUnitPrice              string                 `json:"rebateUnitPrice"`
-	LineAmount                   string                 `json:"lineAmount"`
-	SettlementTermCode           string                 `json:"settlementTermCode"`
-	SpecialApproval              bool                   `json:"specialApproval"`
-	ReturnDocumentNos            []string               `json:"returnDocumentNos,omitempty"`
-	AdjustmentEmployeeAmount     string                 `json:"adjustmentEmployeeAmount"`
-	AdjustmentIntermediaryAmount string                 `json:"adjustmentIntermediaryAmount"`
-	AdjustmentRebateAmount       string                 `json:"adjustmentRebateAmount"`
+	SourceSignoffLineID          string                             `json:"sourceSignoffLineId"`
+	SourceKind                   string                             `json:"sourceKind"`
+	SignoffDocumentID            string                             `json:"signoffDocumentId"`
+	SignoffDocumentNo            string                             `json:"signoffDocumentNo"`
+	SignoffDate                  string                             `json:"signoffDate"`
+	DueDate                      string                             `json:"dueDate"`
+	CollectionDate               string                             `json:"collectionDate"`
+	CollectionDelayDays          int                                `json:"collectionDelayDays"`
+	OrderDocumentID              string                             `json:"orderDocumentId"`
+	OrderDocumentNo              string                             `json:"orderDocumentNo"`
+	OrderDate                    string                             `json:"orderDate"`
+	Customer                     IntermediaryReference              `json:"customer"`
+	Salesperson                  IntermediaryReference              `json:"salesperson"`
+	SalesAttributionType         string                             `json:"salesAttributionType"`
+	SalesContractStatus          string                             `json:"salesContractStatus"`
+	SalesContract                *IntermediarySalesContractSnapshot `json:"salesContract,omitempty"`
+	Product                      IntermediaryReference              `json:"product"`
+	Intermediary                 *IntermediaryReference             `json:"intermediary,omitempty"`
+	ProductKind                  string                             `json:"productKind"`
+	SignedQuantity               string                             `json:"signedQuantity"`
+	PricingQuantity              string                             `json:"pricingQuantity"`
+	BarrelQuantity               string                             `json:"barrelQuantity"`
+	UnitPrice                    string                             `json:"unitPrice"`
+	ReferenceUnitPrice           string                             `json:"referenceUnitPrice"`
+	SettlementSurcharge          string                             `json:"settlementSurcharge"`
+	RebateUnitPrice              string                             `json:"rebateUnitPrice"`
+	LineAmount                   string                             `json:"lineAmount"`
+	SettlementTermCode           string                             `json:"settlementTermCode"`
+	SpecialApproval              bool                               `json:"specialApproval"`
+	ReturnDocumentNos            []string                           `json:"returnDocumentNos,omitempty"`
+	AdjustmentEmployeeAmount     string                             `json:"adjustmentEmployeeAmount"`
+	AdjustmentIntermediaryAmount string                             `json:"adjustmentIntermediaryAmount"`
+	AdjustmentRebateAmount       string                             `json:"adjustmentRebateAmount"`
 }
 
 type IntermediarySourceBill struct {
@@ -361,7 +397,6 @@ type IntermediarySourceBill struct {
 	ReceiptDocumentNo string                `json:"receiptDocumentNo"`
 	ReceiptDate       string                `json:"receiptDate"`
 	Customer          IntermediaryReference `json:"customer"`
-	Salesperson       IntermediaryReference `json:"salesperson"`
 	BillType          string                `json:"billType"`
 	FaceAmount        string                `json:"faceAmount"`
 	IssueDate         string                `json:"issueDate"`
@@ -889,6 +924,31 @@ type DocumentDataView struct {
 	WithRecourse              bool                          `json:"withRecourse,omitempty"`
 	SpecialApproval           bool                          `json:"specialApproval,omitempty"`
 	IntermediaryCalculation   *IntermediaryCalculationInput `json:"intermediaryCalculation,omitempty"`
+	ServiceContract           *ServiceContractView          `json:"serviceContract,omitempty"`
+	ServiceAcceptance         *ServiceAcceptanceView        `json:"serviceAcceptance,omitempty"`
+}
+
+type ServiceContractView struct {
+	Counterparty     *ReferenceView                `json:"counterparty"`
+	PartyID          string                        `json:"partyId"`
+	PartyName        string                        `json:"partyName"`
+	OperatingEntity  *ReferenceView                `json:"operatingEntity"`
+	Handler          *ReferenceView                `json:"handler"`
+	SettlementMethod *SettlementMethodSnapshotView `json:"settlementMethod,omitempty"`
+	Capabilities     []string                      `json:"capabilities,omitempty"`
+	ApplicableFrom   string                        `json:"applicableFrom,omitempty"`
+	ApplicableTo     string                        `json:"applicableTo,omitempty"`
+	Terms            string                        `json:"terms,omitempty"`
+}
+
+type ServiceAcceptanceView struct {
+	ContractDocumentID  string               `json:"contractDocumentId"`
+	Contract            *ServiceContractView `json:"contract"`
+	ServiceDate         string               `json:"serviceDate"`
+	AcceptanceDate      string               `json:"acceptanceDate"`
+	SettlementDirection string               `json:"settlementDirection"`
+	FulfillmentFact     string               `json:"fulfillmentFact,omitempty"`
+	AcceptanceFact      string               `json:"acceptanceFact,omitempty"`
 }
 
 type DocumentView struct {

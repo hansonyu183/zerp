@@ -19,49 +19,19 @@ func derefInt32(value *int32) int32 {
 
 func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID string, data DetailView) error {
 	switch entity {
-	case EntityCustomer, EntityOtherParty:
-		monthlyClosingDay := data.MonthlyClosingDay
-		if monthlyClosingDay == 0 {
-			monthlyClosingDay = 31
-		}
-		var rebateUnitPrice int64
-		var settlementSalesSurcharge int64
-		if entity == EntityCustomer {
-			var err error
-			rebateUnitPrice, err = moneyCents(data.RebateUnitPrice)
-			if err != nil {
-				return err
-			}
-			if data.DefaultSalesSurcharge != "" {
-				settlementSalesSurcharge, err = moneyCents(data.DefaultSalesSurcharge)
-				if err != nil {
-					return err
-				}
-			}
-		}
-		return q.InsertBobCustomerDetail(ctx, dbsqlc.InsertBobCustomerDetailParams{
-			VersionID: versionID, Entity: entity, Name: data.Name, CustomerType: data.CustomerType,
-			ShortName: nilIfEmpty(data.ShortName), CategoryID: nilIfEmpty(data.CategoryID),
-			TaxNumber: nilIfEmpty(data.TaxNumber), ContactName: nilIfEmpty(data.ContactName),
+	case EntityOtherUnit:
+		return q.InsertBobServiceRelationshipDetail(ctx, dbsqlc.InsertBobServiceRelationshipDetailParams{
+			VersionID: versionID, ContactName: nilIfEmpty(data.ContactName),
 			ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email),
-			Address: nilIfEmpty(data.Address), Remark: nilIfEmpty(data.Remark),
-			SettlementMethodID:            nilIfEmpty(data.SettlementMethodID),
-			SettlementMethodCode:          nilIfEmpty(data.SettlementMethodCode),
-			SettlementMethodName:          nilIfEmpty(data.SettlementMethodName),
-			SettlementTermCode:            nilIfEmpty(data.TermCode),
-			SettlementRuleType:            nilIfEmpty(data.RuleType),
-			SettlementDueDays:             data.DueDays,
-			SettlementMonthOffset:         data.MonthOffset,
-			SettlementCutoffDay:           data.CutoffDay,
-			SettlementSalesSurchargeCents: settlementSalesSurcharge,
-			MonthlyClosingDay:             &monthlyClosingDay,
-			SalespersonEmployeeID:         data.SalespersonEmployeeID,
-			RebateUnitPriceCents:          rebateUnitPrice,
-			IntermediaryOtherPartyID:      nilIfEmpty(data.IntermediaryOtherPartyID),
+			Address: nilIfEmpty(data.Address), SettlementMethodID: nilIfEmpty(data.SettlementMethodID),
+			SettlementMethodCode: nilIfEmpty(data.SettlementMethodCode), SettlementMethodName: nilIfEmpty(data.SettlementMethodName),
+			SettlementTermCode: nilIfEmpty(data.TermCode), SettlementRuleType: nilIfEmpty(data.RuleType),
+			SettlementMonthOffset: data.MonthOffset, SettlementDayOfMonth: derefInt32(data.DayOfMonth),
+			SettlementDayOffset: data.DayOffset, Remark: nilIfEmpty(data.Remark),
 		})
 	case EntitySupplier:
 		return q.InsertBobSupplierDetail(ctx, dbsqlc.InsertBobSupplierDetailParams{
-			VersionID: versionID, Name: data.Name, SupplierType: data.SupplierType,
+			VersionID: versionID, Name: data.Name,
 			ShortName: nilIfEmpty(data.ShortName), CategoryID: nilIfEmpty(data.CategoryID),
 			TaxNumber: nilIfEmpty(data.TaxNumber), ContactName: nilIfEmpty(data.ContactName),
 			ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email),
@@ -178,49 +148,19 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 	var rows int64
 	var err error
 	switch entity {
-	case EntityCustomer, EntityOtherParty:
-		monthlyClosingDay := data.MonthlyClosingDay
-		if monthlyClosingDay == 0 {
-			monthlyClosingDay = 31
-		}
-		var rebateUnitPrice int64
-		var settlementSalesSurcharge int64
-		if entity == EntityCustomer {
-			var parseErr error
-			rebateUnitPrice, parseErr = moneyCents(data.RebateUnitPrice)
-			if parseErr != nil {
-				return parseErr
-			}
-			if data.DefaultSalesSurcharge != "" {
-				settlementSalesSurcharge, parseErr = moneyCents(data.DefaultSalesSurcharge)
-				if parseErr != nil {
-					return parseErr
-				}
-			}
-		}
-		rows, err = q.UpdateBobCustomerDetail(ctx, dbsqlc.UpdateBobCustomerDetailParams{
-			Name: data.Name, CustomerType: data.CustomerType, ShortName: nilIfEmpty(data.ShortName),
-			CategoryID: nilIfEmpty(data.CategoryID), TaxNumber: nilIfEmpty(data.TaxNumber),
+	case EntityOtherUnit:
+		rows, err = q.UpdateBobServiceRelationshipDetail(ctx, dbsqlc.UpdateBobServiceRelationshipDetailParams{
 			ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone),
 			Email: nilIfEmpty(data.Email), Address: nilIfEmpty(data.Address),
-			Remark: nilIfEmpty(data.Remark), SettlementMethodID: nilIfEmpty(data.SettlementMethodID),
-			SettlementMethodCode:          nilIfEmpty(data.SettlementMethodCode),
-			SettlementMethodName:          nilIfEmpty(data.SettlementMethodName),
-			SettlementTermCode:            nilIfEmpty(data.TermCode),
-			SettlementRuleType:            nilIfEmpty(data.RuleType),
-			SettlementDueDays:             data.DueDays,
-			SettlementMonthOffset:         data.MonthOffset,
-			SettlementCutoffDay:           data.CutoffDay,
-			SettlementSalesSurchargeCents: settlementSalesSurcharge,
-			MonthlyClosingDay:             &monthlyClosingDay,
-			SalespersonEmployeeID:         data.SalespersonEmployeeID,
-			RebateUnitPriceCents:          rebateUnitPrice,
-			IntermediaryOtherPartyID:      nilIfEmpty(data.IntermediaryOtherPartyID),
-			VersionID:                     versionID,
+			SettlementMethodID: nilIfEmpty(data.SettlementMethodID), SettlementMethodCode: nilIfEmpty(data.SettlementMethodCode),
+			SettlementMethodName: nilIfEmpty(data.SettlementMethodName), SettlementTermCode: nilIfEmpty(data.TermCode),
+			SettlementRuleType: nilIfEmpty(data.RuleType), SettlementMonthOffset: data.MonthOffset,
+			SettlementDayOfMonth: derefInt32(data.DayOfMonth), SettlementDayOffset: data.DayOffset,
+			Remark: nilIfEmpty(data.Remark), VersionID: versionID,
 		})
 	case EntitySupplier:
 		rows, err = q.UpdateBobSupplierDetail(ctx, dbsqlc.UpdateBobSupplierDetailParams{
-			Name: data.Name, SupplierType: data.SupplierType, ShortName: nilIfEmpty(data.ShortName),
+			Name: data.Name, ShortName: nilIfEmpty(data.ShortName),
 			CategoryID: nilIfEmpty(data.CategoryID), TaxNumber: nilIfEmpty(data.TaxNumber),
 			ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone),
 			Email: nilIfEmpty(data.Email), Address: nilIfEmpty(data.Address),
@@ -344,21 +284,10 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 
 func copyDetail(ctx context.Context, q *dbsqlc.Queries, entity, newVersionID, sourceVersionID string) error {
 	switch entity {
-	case EntityCustomer, EntityOtherParty:
-		if err := q.CopyBobCustomerDetail(ctx, dbsqlc.CopyBobCustomerDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID}); err != nil {
-			return err
-		}
-		if entity == EntityCustomer {
-			if err := q.CopyBobCustomerCreditLimits(ctx, dbsqlc.CopyBobCustomerCreditLimitsParams{
-				NewVersionID: newVersionID, SourceVersionID: sourceVersionID,
-			}); err != nil {
-				return err
-			}
-			return q.CopyCustomerVersionAttachments(ctx, dbsqlc.CopyCustomerVersionAttachmentsParams{
-				TargetVersionID: newVersionID, SourceVersionID: sourceVersionID,
-			})
-		}
-		return nil
+	case EntityOtherUnit:
+		return q.CopyBobServiceRelationshipDetail(ctx, dbsqlc.CopyBobServiceRelationshipDetailParams{
+			NewVersionID: newVersionID, SourceVersionID: sourceVersionID,
+		})
 	case EntitySupplier:
 		return q.CopyBobSupplierDetail(ctx, dbsqlc.CopyBobSupplierDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID})
 	case EntityEmployee:
@@ -488,12 +417,16 @@ func loadProductFormula(
 
 func deleteDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID string) (int64, error) {
 	switch entity {
-	case EntityCustomer, EntityOtherParty:
+	case EntityCustomer, EntityCustomerAccount:
 		return q.DeleteBobCustomerDetail(ctx, versionID)
+	case EntityOtherUnit:
+		return q.DeleteBobServiceRelationshipDetail(ctx, versionID)
 	case EntitySupplier:
 		return q.DeleteBobSupplierDetail(ctx, versionID)
 	case EntityEmployee:
 		return q.DeleteBobEmployeeDetail(ctx, versionID)
+	case EntitySalesPartner:
+		return q.DeleteBobSalesPartnerDetail(ctx, versionID)
 	case EntityProduct:
 		if err := q.DeleteBobProductPackagingSpecs(ctx, versionID); err != nil {
 			return 0, err

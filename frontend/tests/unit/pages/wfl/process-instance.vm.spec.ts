@@ -148,7 +148,7 @@ describe('process instance view model', () => {
     const selectedParty = {
       objectId: '01J00000000000000000000010',
       versionId: '01J00000000000000000000011',
-      entity: 'customer' as const,
+      entity: 'customer-account' as const,
       code: 'C-001',
       name: '已选客户',
     }
@@ -194,7 +194,7 @@ describe('process instance view model', () => {
       ],
     } as never)
     const { vm, wrapper } = await mountViewModel()
-    useSessionStore().permissions.push('/bob/customer/query')
+    useSessionStore().permissions.push('/bob/customer-account/query')
     vm.selectedParty.value = selectedParty
     const selectedPartyReference = vm.selectedParty.value
 
@@ -207,7 +207,7 @@ describe('process instance view model', () => {
       {
         objectId: '01J00000000000000000000012',
         versionId: '01J00000000000000000000013',
-        entity: 'customer',
+        entity: 'customer-account',
         code: 'C-002',
         name: '搜索结果客户',
       },

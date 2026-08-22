@@ -17,8 +17,9 @@ func TestSamplesCoverEveryEntityAndLifecycleState(t *testing.T) {
 		statusCounts[item.status]++
 	}
 	expectedEntityCounts := map[string]int{
-		bob.EntityCustomer:        2,
-		bob.EntitySupplier:        3,
+		bob.EntityCustomerAccount: 2,
+		bob.EntitySupplier:        2,
+		bob.EntityOtherUnit:       1,
 		bob.EntityEmployee:        2,
 		bob.EntityProduct:         4,
 		bob.EntityService:         2,
@@ -119,7 +120,7 @@ func TestDetailInputOnlySetsFieldsAllowedForEntity(t *testing.T) {
 		Name: "演示资料", Description: "说明", Remark: "备注",
 		DepartmentID: "department", SettlementMethodID: "settlement",
 	}
-	customer := detailInput(bob.EntityCustomer, input)
+	customer := detailInput(bob.EntityCustomerAccount, input)
 	if !customer.SettlementMethodID.Set || !customer.Remark.Set ||
 		customer.DepartmentID.Set || customer.Description.Set {
 		t.Fatalf("customer detail input over-posted fields: %+v", customer)
@@ -128,48 +129,6 @@ func TestDetailInputOnlySetsFieldsAllowedForEntity(t *testing.T) {
 	if !settlement.Description.Set || settlement.Remark.Set ||
 		settlement.SettlementMethodID.Set || settlement.DepartmentID.Set {
 		t.Fatalf("settlement detail input over-posted fields: %+v", settlement)
-	}
-}
-
-func TestSeedUpgradesLegacyDemoSupplierToLogisticsPlatform(t *testing.T) {
-	store := newFakeStore()
-	legacy, err := store.Create(t.Context(), bob.EntitySupplier, bob.CreateInput{Data: bob.CreateDetailInput{
-		Code: "DEMO-SUP-001", Name: "远山供应链有限公司",
-	}}, submitterID, "legacy-create")
-	if err != nil {
-		t.Fatalf("create legacy supplier: %v", err)
-	}
-	submitted, err := store.Submit(t.Context(), bob.EntitySupplier, bob.VersionRevisionInput{
-		ObjectID: legacy.ObjectID, VersionID: legacy.VersionID, Revision: legacy.Revision,
-	}, submitterID, "legacy-submit")
-	if err != nil {
-		t.Fatalf("submit legacy supplier: %v", err)
-	}
-	if _, err = store.Approve(t.Context(), bob.EntitySupplier, bob.ReviewInput{
-		ObjectID: submitted.ObjectID, VersionID: submitted.VersionID, Revision: submitted.Revision,
-	}, reviewerID, "legacy-approve"); err != nil {
-		t.Fatalf("approve legacy supplier: %v", err)
-	}
-
-	result, err := (&Seeder{service: store, lookup: store}).Seed(t.Context())
-	if err != nil {
-		t.Fatalf("seed with legacy supplier: %v", err)
-	}
-	if result != (Result{Created: len(samples) - 1, Resumed: 1}) {
-		t.Fatalf("result = %+v", result)
-	}
-	view := store.byKey[key(bob.EntitySupplier, "DEMO-SUP-001")]
-	if view.Data.Name != "自营物流平台" || view.Data.SupplierType != bob.SupplierTypeLogisticsPlatform ||
-		view.Version.Status != bob.StatusEffective {
-		t.Fatalf("upgraded supplier = %+v", view)
-	}
-	if store.unapproveCalls != 0 || store.unsubmitCalls != 0 || store.saveCalls != 1 {
-		t.Fatalf(
-			"unapprove calls=%d unsubmit calls=%d save calls=%d",
-			store.unapproveCalls,
-			store.unsubmitCalls,
-			store.saveCalls,
-		)
 	}
 }
 
@@ -210,16 +169,12 @@ func (s *fakeStore) Create(_ context.Context, entity string, input bob.CreateInp
 	s.nextID++
 	objectID := fmt.Sprintf("object-%d", s.nextID)
 	versionID := fmt.Sprintf("version-%d", s.nextID)
-	supplierType := deref(input.Data.SupplierType)
-	if entity == bob.EntitySupplier && supplierType == "" {
-		supplierType = bob.SupplierTypeGeneral
-	}
 	customerType := deref(input.Data.CustomerType)
-	if entity == bob.EntityCustomer && customerType == "" {
+	if entity == bob.EntityCustomerAccount && customerType == "" {
 		customerType = bob.CustomerTypeEndUser
 	}
 	monthlyClosingDay := input.Data.MonthlyClosingDay
-	if entity == bob.EntityCustomer && monthlyClosingDay == 0 {
+	if entity == bob.EntityCustomerAccount && monthlyClosingDay == 0 {
 		monthlyClosingDay = 31
 	}
 	productKind := input.Data.ProductKind
@@ -243,7 +198,6 @@ func (s *fakeStore) Create(_ context.Context, entity string, input bob.CreateInp
 			Name:                       input.Data.Name,
 			Unit:                       input.Data.Unit,
 			Currency:                   input.Data.Currency,
-			SupplierType:               supplierType,
 			CustomerType:               customerType,
 			PlateNumber:                input.Data.PlateNumber,
 			VehicleType:                input.Data.VehicleType,
@@ -308,10 +262,6 @@ func (s *fakeStore) Save(_ context.Context, _ string, input bob.SaveInput, _, _ 
 		return bob.MutationResult{}, fmt.Errorf("object not found")
 	}
 	view := s.byKey[recordKey]
-	supplierType := view.Data.SupplierType
-	if input.Data.SupplierType != nil {
-		supplierType = *input.Data.SupplierType
-	}
 	customerType := view.Data.CustomerType
 	if input.Data.CustomerType != nil {
 		customerType = *input.Data.CustomerType
@@ -321,7 +271,7 @@ func (s *fakeStore) Save(_ context.Context, _ string, input bob.SaveInput, _, _ 
 		targetEntity = *input.Data.TargetEntity
 	}
 	view.Data.Name, view.Data.Unit, view.Data.Currency = input.Data.Name, input.Data.Unit, input.Data.Currency
-	view.Data.SupplierType, view.Data.CustomerType = supplierType, customerType
+	view.Data.CustomerType = customerType
 	view.Data.PlateNumber, view.Data.VehicleType = input.Data.PlateNumber, input.Data.VehicleType
 	view.Data.PlatformObjectID, view.Data.TargetEntity = input.Data.PlatformObjectID, targetEntity
 	applyOptional := func(value bob.OptionalString, target *string) {

@@ -26,7 +26,7 @@ func TestVOUCreateRejectsExhaustedDocumentNumberIntegration(t *testing.T) {
 
 	_, err := newIntegrationService(t, pool).Create(t.Context(), EntitySalesReceipt, CreateInput{
 		Data: DraftInput{
-			BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
+			BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: bobdomain.EntityCustomerAccount,
 			Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
 			Handler: &refs.employee, Amount: "100.00",
 		},
@@ -60,7 +60,7 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 			Warehouse: &refs.warehouse, ProductLines: productLine,
 		}},
 		{EntitySalesReceipt, DraftInput{
-			BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
+			BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: bobdomain.EntityCustomerAccount,
 			Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
 			Handler: &refs.employee, Amount: "100.00",
 		}},
@@ -78,7 +78,7 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 		}},
 		{EntityOtherIncome, DraftInput{
 			BusinessDate: "2026-07-24", Currency: "CNY", SourceName: "废料收入",
-			CounterpartyType: "customer", Counterparty: &refs.customer,
+			CounterpartyType: bobdomain.EntityCustomerAccount, Counterparty: &refs.customer,
 			FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "60.00",
 		}},
 		{EntityPurchaseInquiry, DraftInput{
@@ -205,7 +205,7 @@ func TestVOUIntegrationGenericParentValidationAndImmutability(t *testing.T) {
 	refs := prepareReferences(t, pool)
 	service := newIntegrationService(t, pool)
 	parent, err := service.Create(t.Context(), EntitySalesReceipt, CreateInput{Data: DraftInput{
-		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
+		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: bobdomain.EntityCustomerAccount,
 		Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
 		Handler: &refs.employee, Amount: "100.00",
 	}}, integrationActorOne, "parent-create")
@@ -260,7 +260,7 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 		go func() {
 			defer group.Done()
 			result, err := service.Create(context.Background(), EntitySalesReceipt, CreateInput{Data: DraftInput{
-				BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
+				BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: bobdomain.EntityCustomerAccount,
 				Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
 				Handler: &refs.employee, Amount: "1.00",
 			}}, integrationActorOne, "concurrent-number")
@@ -294,7 +294,7 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 	if err := pool.QueryRow(t.Context(), "select count(*) from app_permissions where domain = 'vou'").Scan(&permissionCount); err != nil {
 		t.Fatalf("count VOU permissions: %v", err)
 	}
-	wantPermissions := 445
+	wantPermissions := 465
 	if permissionCount != wantPermissions {
 		t.Fatalf("VOU permissions = %d, want %d", permissionCount, wantPermissions)
 	}

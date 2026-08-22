@@ -32,14 +32,11 @@ func (s *Service) resolveDraftParties(
 	result *resolvedDraft,
 ) error {
 	var err error
-	if result.Customer, err = s.resolveReference(ctx, tx, bobdomain.EntityCustomer, draft.Customer); err != nil {
+	if result.Customer, err = s.resolveReference(ctx, tx, bobdomain.EntityCustomerAccount, draft.Customer); err != nil {
 		return err
 	}
 	if result.Supplier, err = s.resolveReference(ctx, tx, bobdomain.EntitySupplier, draft.Supplier); err != nil {
 		return err
-	}
-	if result.Supplier != nil && result.Supplier.Data.SupplierType != bobdomain.SupplierTypeGeneral {
-		return domainError(ErrorConflict, "supplier must be a general supplier", nil, nil)
 	}
 	if result.Counterparty, err = s.resolveReference(ctx, tx, draft.CounterpartyType, draft.Counterparty); err != nil {
 		return err
@@ -47,7 +44,10 @@ func (s *Service) resolveDraftParties(
 	if result.Employee, err = s.resolveReference(ctx, tx, bobdomain.EntityEmployee, draft.Employee); err != nil {
 		return err
 	}
-	if result.InterestParty, err = s.resolveReference(ctx, tx, bobdomain.EntityOtherParty, draft.InterestParty); err != nil {
+	if result.InterestParty, err = s.resolveReference(ctx, tx, bobdomain.EntityOtherUnit, draft.InterestParty); err != nil {
+		return err
+	}
+	if result.Settlement, err = s.resolveReference(ctx, tx, bobdomain.EntitySettlementMethod, draft.SettlementMethod); err != nil {
 		return err
 	}
 	return nil

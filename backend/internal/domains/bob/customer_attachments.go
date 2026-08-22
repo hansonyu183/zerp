@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -22,9 +21,9 @@ import (
 )
 
 const (
-	CustomerAttachmentScopeGroup   = "GROUP"
-	CustomerAttachmentScopeAccount = "ACCOUNT"
-	maxCustomerAttachments         = 10
+	CustomerAttachmentScopeRelationship = "RELATIONSHIP"
+	CustomerAttachmentScopeAccount      = "ACCOUNT"
+	maxCustomerAttachments              = 10
 )
 
 type CustomerAttachmentOptions struct {
@@ -128,7 +127,7 @@ func validateCustomerAttachmentInitiate(input CustomerAttachmentInitiateInput) (
 	name := strings.TrimSpace(input.FileName)
 	validType := input.ContentType == "application/pdf" || input.ContentType == "image/jpeg" || input.ContentType == "image/png"
 	validHash := len(input.SHA256) == 64 && input.SHA256 == strings.ToLower(input.SHA256)
-	if input.Scope != CustomerAttachmentScopeGroup && input.Scope != CustomerAttachmentScopeAccount ||
+	if input.Scope != CustomerAttachmentScopeRelationship && input.Scope != CustomerAttachmentScopeAccount ||
 		!validID(input.OwnerID) || input.Revision < 1 || !validID(input.CategoryObjectID) ||
 		name == "" || len(name) > 255 || filepath.Base(name) != name || strings.ContainsAny(name, "/\\") ||
 		!validType || input.Size < 1 || input.Size > 10<<20 || !validHash {
@@ -201,12 +200,12 @@ func (s *CustomerAttachmentService) Initiate(
 	}); err != nil {
 		return CustomerAttachmentInitiateResult{}, domainError(ErrorInternal, "internal server error", nil, err)
 	}
-	link := dbsqlc.InsertCustomerGroupAttachmentParams{
+	link := dbsqlc.InsertCustomerRelationshipAttachmentParams{
 		OwnerID: input.OwnerID, FileID: fileID, CategoryObjectID: category.ObjectID,
 		CategoryVersionID: category.VersionID, CategoryCode: category.Code, CategoryName: categoryName, ActorID: actorID,
 	}
-	if input.Scope == CustomerAttachmentScopeGroup {
-		err = q.InsertCustomerGroupAttachment(ctx, link)
+	if input.Scope == CustomerAttachmentScopeRelationship {
+		err = q.InsertCustomerRelationshipAttachment(ctx, link)
 	} else {
 		err = q.InsertCustomerVersionAttachment(ctx, dbsqlc.InsertCustomerVersionAttachmentParams(link))
 	}
@@ -229,15 +228,15 @@ func (s *CustomerAttachmentService) Initiate(
 func (s *CustomerAttachmentService) lockAndCount(
 	ctx context.Context, q *dbsqlc.Queries, scope, ownerID string, revision int64,
 ) (int64, error) {
-	if scope == CustomerAttachmentScopeGroup {
-		owner, err := q.LockCustomerAttachmentGroup(ctx, ownerID)
+	if scope == CustomerAttachmentScopeRelationship {
+		owner, err := q.LockCustomerAttachmentRelationship(ctx, ownerID)
 		if errors.Is(err, pgx.ErrNoRows) || err == nil && owner.Revision != revision {
 			return 0, domainError(ErrorConflict, "customer group changed", nil, nil)
 		}
 		if err != nil {
 			return 0, domainError(ErrorInternal, "internal server error", nil, err)
 		}
-		count, err := q.CountCustomerGroupAttachments(ctx, ownerID)
+		count, err := q.CountCustomerRelationshipAttachments(ctx, ownerID)
 		if err != nil {
 			return 0, domainError(ErrorInternal, "internal server error", nil, err)
 		}
@@ -261,21 +260,14 @@ func (s *CustomerAttachmentService) touchAndAudit(
 	ctx context.Context, q *dbsqlc.Queries, scope, ownerID string, revision int64,
 	fileID, event, actorID, requestID string,
 ) (int64, error) {
-	summary, _ := json.Marshal(map[string]any{"fileId": fileID})
-	if scope == CustomerAttachmentScopeGroup {
-		next, err := q.TouchCustomerGroupAttachment(ctx, dbsqlc.TouchCustomerGroupAttachmentParams{
+	if scope == CustomerAttachmentScopeRelationship {
+		next, err := q.TouchCustomerRelationshipAttachment(ctx, dbsqlc.TouchCustomerRelationshipAttachmentParams{
 			ActorID: actorID, OwnerID: ownerID, Revision: revision,
 		})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return 0, domainError(ErrorConflict, "customer group changed", nil, nil)
 		}
 		if err != nil {
-			return 0, domainError(ErrorInternal, "internal server error", nil, err)
-		}
-		if err = q.InsertCustomerGroupAttachmentAudit(ctx, dbsqlc.InsertCustomerGroupAttachmentAuditParams{
-			ID: newID(), GroupID: ownerID, EventType: map[string]string{"ATTACHED": "ATTACHED", "DETACHED": "DETACHED"}[event],
-			ActorID: actorID, RequestID: requestID, Summary: summary,
-		}); err != nil {
 			return 0, domainError(ErrorInternal, "internal server error", nil, err)
 		}
 		return next, nil
@@ -346,13 +338,13 @@ func (s *CustomerAttachmentService) Upload(
 func (s *CustomerAttachmentService) CreateDownload(
 	ctx context.Context, input CustomerAttachmentDownloadInput, actorID string,
 ) (CustomerAttachmentDownloadResult, error) {
-	if (input.Scope != CustomerAttachmentScopeGroup && input.Scope != CustomerAttachmentScopeAccount) ||
+	if (input.Scope != CustomerAttachmentScopeRelationship && input.Scope != CustomerAttachmentScopeAccount) ||
 		!validID(input.OwnerID) || !validID(input.FileID) || !validID(actorID) {
 		return CustomerAttachmentDownloadResult{}, domainError(ErrorValidation, "invalid customer attachment", nil, nil)
 	}
 	var fileID string
-	if input.Scope == CustomerAttachmentScopeGroup {
-		row, err := s.queries.GetReadyCustomerGroupAttachment(ctx, dbsqlc.GetReadyCustomerGroupAttachmentParams{OwnerID: input.OwnerID, FileID: input.FileID})
+	if input.Scope == CustomerAttachmentScopeRelationship {
+		row, err := s.queries.GetReadyCustomerRelationshipAttachment(ctx, dbsqlc.GetReadyCustomerRelationshipAttachmentParams{OwnerID: input.OwnerID, FileID: input.FileID})
 		if err != nil {
 			return CustomerAttachmentDownloadResult{}, customerAttachmentNotFound(err)
 		}
@@ -414,7 +406,7 @@ func (s *CustomerAttachmentService) OpenDownload(ctx context.Context, token stri
 func (s *CustomerAttachmentService) Remove(
 	ctx context.Context, input CustomerAttachmentRemoveInput, actorID, requestID string,
 ) (CustomerAttachmentMutationResult, error) {
-	if (input.Scope != CustomerAttachmentScopeGroup && input.Scope != CustomerAttachmentScopeAccount) ||
+	if (input.Scope != CustomerAttachmentScopeRelationship && input.Scope != CustomerAttachmentScopeAccount) ||
 		!validID(input.OwnerID) || !validID(input.FileID) || input.Revision < 1 || !validID(actorID) || strings.TrimSpace(requestID) == "" {
 		return CustomerAttachmentMutationResult{}, domainError(ErrorValidation, "invalid customer attachment", nil, nil)
 	}
@@ -439,8 +431,8 @@ func (s *CustomerAttachmentService) Remove(
 		}
 	}
 	var rows int64
-	if input.Scope == CustomerAttachmentScopeGroup {
-		rows, err = q.DeleteCustomerGroupAttachment(ctx, dbsqlc.DeleteCustomerGroupAttachmentParams{OwnerID: input.OwnerID, FileID: input.FileID})
+	if input.Scope == CustomerAttachmentScopeRelationship {
+		rows, err = q.DeleteCustomerRelationshipAttachment(ctx, dbsqlc.DeleteCustomerRelationshipAttachmentParams{OwnerID: input.OwnerID, FileID: input.FileID})
 	} else {
 		rows, err = q.DeleteCustomerVersionAttachment(ctx, dbsqlc.DeleteCustomerVersionAttachmentParams{OwnerID: input.OwnerID, FileID: input.FileID})
 	}
@@ -466,25 +458,27 @@ func (s *CustomerAttachmentService) Remove(
 }
 
 func (s *CustomerAttachmentService) EnrichDetail(ctx context.Context, detail *CustomerDetailView) error {
-	groupRows, err := s.queries.ListCustomerGroupAttachments(ctx, detail.Group.GroupID)
+	groupRows, err := s.queries.ListCustomerRelationshipAttachments(ctx, detail.ObjectID)
 	if err != nil {
 		return domainError(ErrorInternal, "internal server error", nil, err)
 	}
-	detail.Group.Attachments = make([]CustomerAttachmentView, 0, len(groupRows))
+	detail.Attachments = make([]CustomerAttachmentView, 0, len(groupRows))
 	for _, row := range groupRows {
-		detail.Group.Attachments = append(detail.Group.Attachments, customerGroupAttachmentView(row))
+		detail.Attachments = append(detail.Attachments, customerRelationshipAttachmentView(row))
 	}
-	for _, version := range []*CustomerVersionView{detail.Effective, detail.Candidate} {
-		if version == nil {
-			continue
-		}
-		rows, listErr := s.queries.ListCustomerVersionAttachments(ctx, version.Version.VersionID)
-		if listErr != nil {
-			return domainError(ErrorInternal, "internal server error", nil, listErr)
-		}
-		version.Attachments = make([]CustomerAttachmentView, 0, len(rows))
-		for _, row := range rows {
-			version.Attachments = append(version.Attachments, customerVersionAttachmentView(row))
+	for index := range detail.Accounts {
+		for _, version := range []*CustomerVersionView{detail.Accounts[index].Effective, detail.Accounts[index].Candidate} {
+			if version == nil {
+				continue
+			}
+			rows, listErr := s.queries.ListCustomerVersionAttachments(ctx, version.Version.VersionID)
+			if listErr != nil {
+				return domainError(ErrorInternal, "internal server error", nil, listErr)
+			}
+			version.Attachments = make([]CustomerAttachmentView, 0, len(rows))
+			for _, row := range rows {
+				version.Attachments = append(version.Attachments, customerVersionAttachmentView(row))
+			}
 		}
 	}
 	return nil
@@ -506,7 +500,7 @@ func (s *CustomerAttachmentService) CleanupOrphanFiles(ctx context.Context) (int
 	return removed, nil
 }
 
-func customerGroupAttachmentView(row dbsqlc.ListCustomerGroupAttachmentsRow) CustomerAttachmentView {
+func customerRelationshipAttachmentView(row dbsqlc.ListCustomerRelationshipAttachmentsRow) CustomerAttachmentView {
 	return CustomerAttachmentView{
 		FileID: row.FileID, FileName: row.FileName, ContentType: row.ContentType, Size: row.DeclaredSize,
 		SHA256: row.Sha256Hex, Status: row.Status, StoredAt: nullableTime(row.StoredAt),

@@ -17,6 +17,9 @@ type auxSample struct {
 
 func (s *Seeder) seedAuxiliary(ctx context.Context, counts *Counts) error {
 	samples := []auxSample{
+		{"payment-bank-transfer", auxdomain.EntityPaymentMethod, fixedAux(map[string]any{
+			"name": "银行转账", "defaultSalesSurcharge": "0.00", "description": "预览测试收款方式",
+		}), true},
 		{"asset-category-preview", auxdomain.EntityAssetCategory, fixedAux(map[string]any{
 			"name": "通用固定资产", "defaultUsefulLifeMonths": 60,
 			"defaultResidualRate": "5.00", "description": "预览测试资产类别",

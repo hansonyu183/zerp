@@ -1,7 +1,11 @@
-export type CustomerSalesAttributionType =
-  'INTERNAL_EMPLOYEE' | 'EXTERNAL_PART_TIME' | 'DEALER'
+import type { components } from '@/api/generated/schema'
 
+export type CustomerSalesAttributionType =
+  | 'INTERNAL_EMPLOYEE'
+  | 'EXTERNAL_PART_TIME'
+  | 'CHANNEL_PARTNER'
 export type CustomerCostCalculationBasis = 'UNIT_PRICE' | 'ORDER_AMOUNT'
+export type CustomerPartyMode = 'EXISTING' | 'NEW'
 
 export interface CustomerReference {
   objectId: string
@@ -10,7 +14,7 @@ export interface CustomerReference {
   name: string
   entity:
     | 'employee'
-    | 'other-party'
+    | 'sales-partner'
     | 'operating-entity'
     | 'settlement-method'
     | 'payment-method'
@@ -24,7 +28,7 @@ export type CustomerReferenceKey =
   | 'customerType'
   | 'documentCategory'
   | 'employee'
-  | 'otherParty'
+  | 'salesPartner'
 
 export interface CustomerSalesAttributionDraft {
   type: CustomerSalesAttributionType
@@ -52,23 +56,6 @@ export interface CustomerCreditLimit {
   usedAmount?: string
 }
 
-export interface CustomerPayerBankAccount {
-  bankName: string
-  bankBranch: string
-  accountName: string
-  accountNumber: string
-}
-
-export interface CustomerGroupDraft {
-  companyName: string
-  shortName: string
-  taxNumber: string
-  invoiceTitle: string
-  invoiceAddress: string
-  invoicePhone: string
-  bankAccounts: CustomerPayerBankAccount[]
-}
-
 export interface CustomerAccountDraft {
   code: string
   name: string
@@ -91,8 +78,19 @@ export interface CustomerAccountDraft {
   defaultSalesOrderRemark: string
 }
 
+export interface CustomerPartyDraft {
+  mode: CustomerPartyMode
+  partyId: string
+  kind: 'PERSON' | 'ORGANIZATION'
+  legalName: string
+  displayName: string
+  taxNumber: string
+  identifierType: 'PERSON_ID' | 'UNIFIED_SOCIAL_CREDIT_CODE'
+  identifierValue: string
+}
+
 export interface CustomerForm {
-  group: CustomerGroupDraft
+  party: CustomerPartyDraft
   account: CustomerAccountDraft
 }
 
@@ -110,42 +108,45 @@ export interface CustomerListItem {
   submittedBy: string | null
 }
 
-export interface CustomerListPage {
-  items: CustomerListItem[]
-  total: number
-  page: number
-  pageSize: number
+export interface CustomerAccount {
+  objectId: string
+  code: string
+  objectRevision: number
+  enabled: boolean
+  status: string
+  versionId: string
+  revision: number
+  data: CustomerAccountDraft
+  attachments: CustomerAttachment[]
 }
 
 export interface CustomerDetail {
   objectId: string
   code: string
   objectRevision: number
-  versionId: string
-  revision: number
-  group: CustomerGroupDraft & {
-    groupId: string
-    revision: number
-    attachments: CustomerAttachment[]
-  }
-  versionStatus: string
-  accountAttachments: CustomerAttachment[]
-  effectiveAccount: CustomerAccountDraft | null
-  candidateAccount: CustomerAccountDraft | null
+  enabled: boolean
+  partyId: string
+  partyKind: string
+  partyDisplayName: string
+  operatingEntityId: string
+  operatingEntityCode: string
+  operatingEntityName: string
+  accounts: CustomerAccount[]
+  attachments: CustomerAttachment[]
 }
 
-export type CustomerAttachment = import('@/api/generated/schema').components['schemas']['CustomerAttachmentView']
+export type CustomerAttachment = components['schemas']['CustomerAttachmentView']
 
 export const salesAttributionLabels: Readonly<
   Record<CustomerSalesAttributionType, string>
 > = {
   INTERNAL_EMPLOYEE: '本公司专职业务员',
   EXTERNAL_PART_TIME: '外部兼职业务员',
-  DEALER: '经销型业务关系',
+  CHANNEL_PARTNER: '渠道合作伙伴',
 }
 
 export function salesAttributionSubjectEntity(
   type: CustomerSalesAttributionType,
-): 'employee' | 'other-party' {
-  return type === 'INTERNAL_EMPLOYEE' ? 'employee' : 'other-party'
+): 'employee' | 'sales-partner' {
+  return type === 'INTERNAL_EMPLOYEE' ? 'employee' : 'sales-partner'
 }

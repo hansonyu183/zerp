@@ -345,6 +345,11 @@ func (s *Service) forwardTransition(
 		return MutationResult{}, err
 	}
 	if to == StatusApproved {
+		if entity == EntityIntermediaryCalculation {
+			if err = s.validateIntermediarySalesContracts(ctx, q, input.DocumentID); err != nil {
+				return MutationResult{}, err
+			}
+		}
 		if err = s.validateOrderSettlement(ctx, tx, entity, input.DocumentID); err != nil {
 			return MutationResult{}, err
 		}

@@ -1410,7 +1410,7 @@ func (q *Queries) GetVouReceiptDetail(ctx context.Context, documentID string) (V
 }
 
 const getVouSaleOrderDetail = `-- name: GetVouSaleOrderDetail :one
-SELECT document_id, entity, customer_object_id, customer_version_id, customer_code, customer_name, salesperson_object_id, salesperson_version_id, salesperson_code, salesperson_name, contact_name, contact_phone, delivery_address, settlement_method_object_id, settlement_method_version_id, settlement_method_code, settlement_method_name, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, settlement_description, fulfillment_status, settlement_due_days, settlement_cutoff_day, settlement_default_sales_surcharge_cents, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, settlement_term_code, special_approval FROM vou_sale_order_details WHERE document_id = $1
+SELECT document_id, entity, customer_object_id, customer_version_id, customer_code, customer_name, salesperson_object_id, salesperson_version_id, salesperson_code, salesperson_name, contact_name, contact_phone, delivery_address, settlement_method_object_id, settlement_method_version_id, settlement_method_code, settlement_method_name, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, settlement_description, fulfillment_status, settlement_due_days, settlement_cutoff_day, settlement_default_sales_surcharge_cents, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, settlement_term_code, special_approval, sales_attribution_type, sales_attribution_subject_object_id, sales_attribution_subject_version_id, sales_attribution_subject_code, sales_attribution_subject_name FROM vou_sale_order_details WHERE document_id = $1
 `
 
 func (q *Queries) GetVouSaleOrderDetail(ctx context.Context, documentID string) (VouSaleOrderDetail, error) {
@@ -1449,6 +1449,11 @@ func (q *Queries) GetVouSaleOrderDetail(ctx context.Context, documentID string) 
 		&i.WarehouseName,
 		&i.SettlementTermCode,
 		&i.SpecialApproval,
+		&i.SalesAttributionType,
+		&i.SalesAttributionSubjectObjectID,
+		&i.SalesAttributionSubjectVersionID,
+		&i.SalesAttributionSubjectCode,
+		&i.SalesAttributionSubjectName,
 	)
 	return i, err
 }
@@ -1469,6 +1474,34 @@ func (q *Queries) GetVouSaleOrderFormula(ctx context.Context, productLineID stri
 		&i.SourceDocumentID,
 		&i.SourceDocumentNo,
 		&i.BaseOutputQuantityMicros,
+	)
+	return i, err
+}
+
+const getVouSalesAttributionSnapshot = `-- name: GetVouSalesAttributionSnapshot :one
+SELECT primary_sales_attribution_type,primary_sales_subject_id,
+       primary_sales_subject_version_id,primary_sales_subject_code,primary_sales_subject_name
+FROM bob_customer_versions
+WHERE version_id=$1
+`
+
+type GetVouSalesAttributionSnapshotRow struct {
+	PrimarySalesAttributionType  *string `db:"primary_sales_attribution_type" json:"primary_sales_attribution_type"`
+	PrimarySalesSubjectID        *string `db:"primary_sales_subject_id" json:"primary_sales_subject_id"`
+	PrimarySalesSubjectVersionID *string `db:"primary_sales_subject_version_id" json:"primary_sales_subject_version_id"`
+	PrimarySalesSubjectCode      *string `db:"primary_sales_subject_code" json:"primary_sales_subject_code"`
+	PrimarySalesSubjectName      *string `db:"primary_sales_subject_name" json:"primary_sales_subject_name"`
+}
+
+func (q *Queries) GetVouSalesAttributionSnapshot(ctx context.Context, customerVersionID string) (GetVouSalesAttributionSnapshotRow, error) {
+	row := q.db.QueryRow(ctx, getVouSalesAttributionSnapshot, customerVersionID)
+	var i GetVouSalesAttributionSnapshotRow
+	err := row.Scan(
+		&i.PrimarySalesAttributionType,
+		&i.PrimarySalesSubjectID,
+		&i.PrimarySalesSubjectVersionID,
+		&i.PrimarySalesSubjectCode,
+		&i.PrimarySalesSubjectName,
 	)
 	return i, err
 }
@@ -2708,6 +2741,8 @@ const insertVouSaleOrderDetail = `-- name: InsertVouSaleOrderDetail :exec
 INSERT INTO vou_sale_order_details (
     document_id, customer_object_id, customer_version_id, customer_code, customer_name,
     salesperson_object_id, salesperson_version_id, salesperson_code, salesperson_name,
+    sales_attribution_type, sales_attribution_subject_object_id, sales_attribution_subject_version_id,
+    sales_attribution_subject_code, sales_attribution_subject_name,
     warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name,
     contact_name, contact_phone, delivery_address,
     settlement_method_object_id, settlement_method_version_id,
@@ -2723,14 +2758,17 @@ INSERT INTO vou_sale_order_details (
     $8, $9,
     $10, $11,
     $12, $13,
-    $14, $15, $16,
+    $14,
+    $15, $16,
     $17, $18,
-    $19, $20,
-    $21, $22,
-    $23, $24,
-    $25, $26,
-    $27, $28,
-    $29, $30
+    $19, $20, $21,
+    $22, $23,
+    $24, $25,
+    $26, $27,
+    $28, $29,
+    $30, $31,
+    $32, $33,
+    $34, $35
 )
 `
 
@@ -2744,6 +2782,11 @@ type InsertVouSaleOrderDetailParams struct {
 	SalespersonVersionID                 *string `db:"salesperson_version_id" json:"salesperson_version_id"`
 	SalespersonCode                      *string `db:"salesperson_code" json:"salesperson_code"`
 	SalespersonName                      *string `db:"salesperson_name" json:"salesperson_name"`
+	SalesAttributionType                 string  `db:"sales_attribution_type" json:"sales_attribution_type"`
+	SalesAttributionSubjectObjectID      string  `db:"sales_attribution_subject_object_id" json:"sales_attribution_subject_object_id"`
+	SalesAttributionSubjectVersionID     string  `db:"sales_attribution_subject_version_id" json:"sales_attribution_subject_version_id"`
+	SalesAttributionSubjectCode          string  `db:"sales_attribution_subject_code" json:"sales_attribution_subject_code"`
+	SalesAttributionSubjectName          string  `db:"sales_attribution_subject_name" json:"sales_attribution_subject_name"`
 	WarehouseObjectID                    *string `db:"warehouse_object_id" json:"warehouse_object_id"`
 	WarehouseVersionID                   *string `db:"warehouse_version_id" json:"warehouse_version_id"`
 	WarehouseCode                        *string `db:"warehouse_code" json:"warehouse_code"`
@@ -2778,6 +2821,11 @@ func (q *Queries) InsertVouSaleOrderDetail(ctx context.Context, arg InsertVouSal
 		arg.SalespersonVersionID,
 		arg.SalespersonCode,
 		arg.SalespersonName,
+		arg.SalesAttributionType,
+		arg.SalesAttributionSubjectObjectID,
+		arg.SalesAttributionSubjectVersionID,
+		arg.SalesAttributionSubjectCode,
+		arg.SalesAttributionSubjectName,
 		arg.WarehouseObjectID,
 		arg.WarehouseVersionID,
 		arg.WarehouseCode,
@@ -5137,26 +5185,31 @@ SET customer_object_id = $1, customer_version_id = $2,
     salesperson_object_id = $5,
     salesperson_version_id = $6,
     salesperson_code = $7, salesperson_name = $8,
-    warehouse_object_id = $9,
-    warehouse_version_id = $10,
-    warehouse_code = $11, warehouse_name = $12,
-    contact_name = $13, contact_phone = $14,
-    delivery_address = $15,
-    settlement_method_object_id = $16,
-    settlement_method_version_id = $17,
-    settlement_method_code = $18,
-    settlement_method_name = $19,
-    settlement_rule_type = $20,
-    settlement_month_offset = $21,
-    settlement_day_of_month = $22,
-    settlement_day_offset = $23,
-    settlement_due_days = $24,
-    settlement_cutoff_day = $25,
-    settlement_default_sales_surcharge_cents = $26,
-    settlement_term_code = $27,
-    settlement_description = $28,
-    special_approval = $29
-WHERE document_id = $30
+    sales_attribution_type = $9,
+    sales_attribution_subject_object_id = $10,
+    sales_attribution_subject_version_id = $11,
+    sales_attribution_subject_code = $12,
+    sales_attribution_subject_name = $13,
+    warehouse_object_id = $14,
+    warehouse_version_id = $15,
+    warehouse_code = $16, warehouse_name = $17,
+    contact_name = $18, contact_phone = $19,
+    delivery_address = $20,
+    settlement_method_object_id = $21,
+    settlement_method_version_id = $22,
+    settlement_method_code = $23,
+    settlement_method_name = $24,
+    settlement_rule_type = $25,
+    settlement_month_offset = $26,
+    settlement_day_of_month = $27,
+    settlement_day_offset = $28,
+    settlement_due_days = $29,
+    settlement_cutoff_day = $30,
+    settlement_default_sales_surcharge_cents = $31,
+    settlement_term_code = $32,
+    settlement_description = $33,
+    special_approval = $34
+WHERE document_id = $35
 `
 
 type UpdateVouSaleOrderDetailParams struct {
@@ -5168,6 +5221,11 @@ type UpdateVouSaleOrderDetailParams struct {
 	SalespersonVersionID                 *string `db:"salesperson_version_id" json:"salesperson_version_id"`
 	SalespersonCode                      *string `db:"salesperson_code" json:"salesperson_code"`
 	SalespersonName                      *string `db:"salesperson_name" json:"salesperson_name"`
+	SalesAttributionType                 string  `db:"sales_attribution_type" json:"sales_attribution_type"`
+	SalesAttributionSubjectObjectID      string  `db:"sales_attribution_subject_object_id" json:"sales_attribution_subject_object_id"`
+	SalesAttributionSubjectVersionID     string  `db:"sales_attribution_subject_version_id" json:"sales_attribution_subject_version_id"`
+	SalesAttributionSubjectCode          string  `db:"sales_attribution_subject_code" json:"sales_attribution_subject_code"`
+	SalesAttributionSubjectName          string  `db:"sales_attribution_subject_name" json:"sales_attribution_subject_name"`
 	WarehouseObjectID                    *string `db:"warehouse_object_id" json:"warehouse_object_id"`
 	WarehouseVersionID                   *string `db:"warehouse_version_id" json:"warehouse_version_id"`
 	WarehouseCode                        *string `db:"warehouse_code" json:"warehouse_code"`
@@ -5202,6 +5260,11 @@ func (q *Queries) UpdateVouSaleOrderDetail(ctx context.Context, arg UpdateVouSal
 		arg.SalespersonVersionID,
 		arg.SalespersonCode,
 		arg.SalespersonName,
+		arg.SalesAttributionType,
+		arg.SalesAttributionSubjectObjectID,
+		arg.SalesAttributionSubjectVersionID,
+		arg.SalesAttributionSubjectCode,
+		arg.SalesAttributionSubjectName,
 		arg.WarehouseObjectID,
 		arg.WarehouseVersionID,
 		arg.WarehouseCode,

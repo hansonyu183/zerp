@@ -538,7 +538,7 @@ describe('bill issue payload', () => {
       versionId: 'ov',
       code: 'O',
       name: '其他单位',
-      entity: 'other-party',
+      entity: 'other-unit',
     }
     value.billLines = [{ ...value.billLines[0]!, billId: undefined }]
     value.billCashLines = [
@@ -586,7 +586,7 @@ describe('bill discount payload', () => {
       versionId: 'pv',
       code: 'P',
       name: '利息方',
-      entity: 'other-party',
+      entity: 'other-unit',
     }
     value.withRecourse = true
     value.billLines = [{ ...value.billLines[0]!, billId: 'held-1' }]
@@ -971,7 +971,7 @@ describe('bill voucher view model behavior', () => {
     const cases = [
       {
         entity: 'bill-receipt' as const,
-        permissions: ['/bob/customer/query', '/bob/employee/query'],
+        permissions: ['/bob/customer-account/query', '/bob/employee/query'],
       },
       {
         entity: 'bill-payment' as const,
@@ -983,7 +983,7 @@ describe('bill voucher view model behavior', () => {
       },
       {
         entity: 'bill-discount' as const,
-        permissions: ['/vou/bill-discount/query', '/bob/other-party/query'],
+        permissions: ['/vou/bill-discount/query', '/bob/other-unit/query'],
       },
       {
         entity: 'bill-maturity' as const,

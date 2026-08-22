@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -89,6 +90,9 @@ type validatedDraft struct {
 	InterestParty                                           *ReferenceInput
 	WithRecourse                                            bool
 	SpecialApproval                                         bool
+	SettlementMethod                                        *ReferenceInput
+	ServiceContract                                         *validatedServiceContract
+	ServiceAcceptance                                       *validatedServiceAcceptance
 	TotalAmount                                             int64
 }
 
@@ -121,7 +125,7 @@ func paymentEntity(entity string) bool {
 func fixedCounterpartyType(entity string) string {
 	switch entity {
 	case EntitySalesReceipt, EntitySalesRefund:
-		return "customer"
+		return bobdomain.EntityCustomerAccount
 	case EntityPurchaseRefund, EntityPurchasePayment:
 		return "supplier"
 	case EntityEmployeeLoan, EntityEmployeeRepayment:
@@ -178,6 +182,7 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 		Employee: input.Employee, FundAccount: input.FundAccount,
 		Salesperson: input.Salesperson, Purchaser: input.Purchaser,
 		Handler: input.Handler, Warehouse: input.Warehouse,
+		SettlementMethod: input.SettlementMethod,
 		CounterpartyType: strings.ToLower(strings.TrimSpace(input.CounterpartyType)),
 		SourceName:       strings.TrimSpace(input.SourceName),
 		SpecialApproval:  input.SpecialApproval,
@@ -200,6 +205,12 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 	}
 	if entity == EntityBillMaturity {
 		return validateBillMaturityDraft(input, result)
+	}
+	if entity == EntityServiceContract {
+		return validateServiceContractDraft(input, result)
+	}
+	if entity == EntityServiceAcceptance {
+		return validateServiceAcceptanceDraft(input, result)
 	}
 
 	switch entity {
@@ -277,7 +288,7 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 			}
 			result.CounterpartyType = fixed
 		}
-		if result.CounterpartyType != "customer" && result.CounterpartyType != "supplier" && result.CounterpartyType != "other-party" && result.CounterpartyType != "employee" {
+		if result.CounterpartyType != bobdomain.EntityCustomerAccount && result.CounterpartyType != "supplier" && result.CounterpartyType != "other-unit" && result.CounterpartyType != "employee" && result.CounterpartyType != bobdomain.EntitySalesPartner {
 			return validatedDraft{}, domainError(ErrorValidation, "invalid counterpartyType", nil, nil)
 		}
 		if err = validateReference(input.Counterparty, "counterparty", true); err != nil {
@@ -319,7 +330,7 @@ func validateDraft(entity string, input DraftInput) (validatedDraft, error) {
 			return validatedDraft{}, err
 		}
 		if input.Counterparty != nil {
-			if result.CounterpartyType != "customer" && result.CounterpartyType != "supplier" {
+			if result.CounterpartyType != bobdomain.EntityCustomerAccount && result.CounterpartyType != "supplier" {
 				return validatedDraft{}, domainError(ErrorValidation, "invalid counterpartyType", nil, nil)
 			}
 			if err = validateReference(input.Counterparty, "counterparty", true); err != nil {

@@ -59,12 +59,12 @@ func (q *Queries) CopyCustomerVersionAttachments(ctx context.Context, arg CopyCu
 	return err
 }
 
-const countCustomerGroupAttachments = `-- name: CountCustomerGroupAttachments :one
-SELECT count(*) FROM bob_customer_group_attachments WHERE group_id=$1
+const countCustomerRelationshipAttachments = `-- name: CountCustomerRelationshipAttachments :one
+SELECT count(*) FROM bob_customer_relationship_attachments WHERE customer_relationship_id=$1
 `
 
-func (q *Queries) CountCustomerGroupAttachments(ctx context.Context, ownerID string) (int64, error) {
-	row := q.db.QueryRow(ctx, countCustomerGroupAttachments, ownerID)
+func (q *Queries) CountCustomerRelationshipAttachments(ctx context.Context, ownerID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countCustomerRelationshipAttachments, ownerID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -82,7 +82,7 @@ func (q *Queries) CountCustomerVersionAttachments(ctx context.Context, ownerID s
 }
 
 const customerFileReferenceCount = `-- name: CustomerFileReferenceCount :one
-SELECT (SELECT count(*) FROM bob_customer_group_attachments group_relation WHERE group_relation.file_id=$1)+
+SELECT (SELECT count(*) FROM bob_customer_relationship_attachments relationship_relation WHERE relationship_relation.file_id=$1)+
        (SELECT count(*) FROM bob_customer_version_attachments version_relation WHERE version_relation.file_id=$1) AS reference_count
 `
 
@@ -93,18 +93,18 @@ func (q *Queries) CustomerFileReferenceCount(ctx context.Context, targetFileID s
 	return reference_count, err
 }
 
-const deleteCustomerGroupAttachment = `-- name: DeleteCustomerGroupAttachment :execrows
-DELETE FROM bob_customer_group_attachments
-WHERE group_id=$1 AND file_id=$2
+const deleteCustomerRelationshipAttachment = `-- name: DeleteCustomerRelationshipAttachment :execrows
+DELETE FROM bob_customer_relationship_attachments
+WHERE customer_relationship_id=$1 AND file_id=$2
 `
 
-type DeleteCustomerGroupAttachmentParams struct {
+type DeleteCustomerRelationshipAttachmentParams struct {
 	OwnerID string `db:"owner_id" json:"owner_id"`
 	FileID  string `db:"file_id" json:"file_id"`
 }
 
-func (q *Queries) DeleteCustomerGroupAttachment(ctx context.Context, arg DeleteCustomerGroupAttachmentParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteCustomerGroupAttachment, arg.OwnerID, arg.FileID)
+func (q *Queries) DeleteCustomerRelationshipAttachment(ctx context.Context, arg DeleteCustomerRelationshipAttachmentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteCustomerRelationshipAttachment, arg.OwnerID, arg.FileID)
 	if err != nil {
 		return 0, err
 	}
@@ -140,19 +140,19 @@ func (q *Queries) GetCustomerFileStorageKey(ctx context.Context, fileID string) 
 	return storage_key, err
 }
 
-const getReadyCustomerGroupAttachment = `-- name: GetReadyCustomerGroupAttachment :one
+const getReadyCustomerRelationshipAttachment = `-- name: GetReadyCustomerRelationshipAttachment :one
 SELECT file.id,file.storage_key,file.original_name,file.content_type,file.declared_size
-FROM bob_customer_group_attachments relation
+FROM bob_customer_relationship_attachments relation
 JOIN bob_customer_files file ON file.id=relation.file_id
-WHERE relation.group_id=$1 AND file.id=$2 AND file.status='READY'
+WHERE relation.customer_relationship_id=$1 AND file.id=$2 AND file.status='READY'
 `
 
-type GetReadyCustomerGroupAttachmentParams struct {
+type GetReadyCustomerRelationshipAttachmentParams struct {
 	OwnerID string `db:"owner_id" json:"owner_id"`
 	FileID  string `db:"file_id" json:"file_id"`
 }
 
-type GetReadyCustomerGroupAttachmentRow struct {
+type GetReadyCustomerRelationshipAttachmentRow struct {
 	ID           string `db:"id" json:"id"`
 	StorageKey   string `db:"storage_key" json:"storage_key"`
 	OriginalName string `db:"original_name" json:"original_name"`
@@ -160,9 +160,9 @@ type GetReadyCustomerGroupAttachmentRow struct {
 	DeclaredSize int64  `db:"declared_size" json:"declared_size"`
 }
 
-func (q *Queries) GetReadyCustomerGroupAttachment(ctx context.Context, arg GetReadyCustomerGroupAttachmentParams) (GetReadyCustomerGroupAttachmentRow, error) {
-	row := q.db.QueryRow(ctx, getReadyCustomerGroupAttachment, arg.OwnerID, arg.FileID)
-	var i GetReadyCustomerGroupAttachmentRow
+func (q *Queries) GetReadyCustomerRelationshipAttachment(ctx context.Context, arg GetReadyCustomerRelationshipAttachmentParams) (GetReadyCustomerRelationshipAttachmentRow, error) {
+	row := q.db.QueryRow(ctx, getReadyCustomerRelationshipAttachment, arg.OwnerID, arg.FileID)
+	var i GetReadyCustomerRelationshipAttachmentRow
 	err := row.Scan(
 		&i.ID,
 		&i.StorageKey,
@@ -266,16 +266,16 @@ func (q *Queries) InsertCustomerFile(ctx context.Context, arg InsertCustomerFile
 	return err
 }
 
-const insertCustomerGroupAttachment = `-- name: InsertCustomerGroupAttachment :exec
-INSERT INTO bob_customer_group_attachments(
-    group_id,file_id,category_object_id,category_version_id,category_code,category_name,created_by
+const insertCustomerRelationshipAttachment = `-- name: InsertCustomerRelationshipAttachment :exec
+INSERT INTO bob_customer_relationship_attachments(
+    customer_relationship_id,file_id,category_object_id,category_version_id,category_code,category_name,created_by
 ) VALUES (
     $1,$2,$3,$4,
     $5,$6,$7
 )
 `
 
-type InsertCustomerGroupAttachmentParams struct {
+type InsertCustomerRelationshipAttachmentParams struct {
 	OwnerID           string `db:"owner_id" json:"owner_id"`
 	FileID            string `db:"file_id" json:"file_id"`
 	CategoryObjectID  string `db:"category_object_id" json:"category_object_id"`
@@ -285,8 +285,8 @@ type InsertCustomerGroupAttachmentParams struct {
 	ActorID           string `db:"actor_id" json:"actor_id"`
 }
 
-func (q *Queries) InsertCustomerGroupAttachment(ctx context.Context, arg InsertCustomerGroupAttachmentParams) error {
-	_, err := q.db.Exec(ctx, insertCustomerGroupAttachment,
+func (q *Queries) InsertCustomerRelationshipAttachment(ctx context.Context, arg InsertCustomerRelationshipAttachmentParams) error {
+	_, err := q.db.Exec(ctx, insertCustomerRelationshipAttachment,
 		arg.OwnerID,
 		arg.FileID,
 		arg.CategoryObjectID,
@@ -294,36 +294,6 @@ func (q *Queries) InsertCustomerGroupAttachment(ctx context.Context, arg InsertC
 		arg.CategoryCode,
 		arg.CategoryName,
 		arg.ActorID,
-	)
-	return err
-}
-
-const insertCustomerGroupAttachmentAudit = `-- name: InsertCustomerGroupAttachmentAudit :exec
-INSERT INTO bob_customer_group_audit_events(
-    id,group_id,event_type,actor_id,request_id,summary
-) VALUES (
-    $1,$2,$3,$4,
-    $5,$6
-)
-`
-
-type InsertCustomerGroupAttachmentAuditParams struct {
-	ID        string `db:"id" json:"id"`
-	GroupID   string `db:"group_id" json:"group_id"`
-	EventType string `db:"event_type" json:"event_type"`
-	ActorID   string `db:"actor_id" json:"actor_id"`
-	RequestID string `db:"request_id" json:"request_id"`
-	Summary   []byte `db:"summary" json:"summary"`
-}
-
-func (q *Queries) InsertCustomerGroupAttachmentAudit(ctx context.Context, arg InsertCustomerGroupAttachmentAuditParams) error {
-	_, err := q.db.Exec(ctx, insertCustomerGroupAttachmentAudit,
-		arg.ID,
-		arg.GroupID,
-		arg.EventType,
-		arg.ActorID,
-		arg.RequestID,
-		arg.Summary,
 	)
 	return err
 }
@@ -384,18 +354,18 @@ func (q *Queries) ListAllCustomerStorageKeys(ctx context.Context) ([]string, err
 	return items, nil
 }
 
-const listCustomerGroupAttachments = `-- name: ListCustomerGroupAttachments :many
+const listCustomerRelationshipAttachments = `-- name: ListCustomerRelationshipAttachments :many
 SELECT file.id AS file_id,file.original_name AS file_name,file.content_type,file.declared_size,
        file.sha256_hex,file.status,file.stored_at,relation.category_object_id,
        relation.category_version_id,relation.category_code,relation.category_name,
        relation.created_at,relation.created_by
-FROM bob_customer_group_attachments relation
+FROM bob_customer_relationship_attachments relation
 JOIN bob_customer_files file ON file.id=relation.file_id
-WHERE relation.group_id=$1
+WHERE relation.customer_relationship_id=$1
 ORDER BY relation.created_at,relation.file_id
 `
 
-type ListCustomerGroupAttachmentsRow struct {
+type ListCustomerRelationshipAttachmentsRow struct {
 	FileID            string             `db:"file_id" json:"file_id"`
 	FileName          string             `db:"file_name" json:"file_name"`
 	ContentType       string             `db:"content_type" json:"content_type"`
@@ -411,15 +381,15 @@ type ListCustomerGroupAttachmentsRow struct {
 	CreatedBy         string             `db:"created_by" json:"created_by"`
 }
 
-func (q *Queries) ListCustomerGroupAttachments(ctx context.Context, ownerID string) ([]ListCustomerGroupAttachmentsRow, error) {
-	rows, err := q.db.Query(ctx, listCustomerGroupAttachments, ownerID)
+func (q *Queries) ListCustomerRelationshipAttachments(ctx context.Context, ownerID string) ([]ListCustomerRelationshipAttachmentsRow, error) {
+	rows, err := q.db.Query(ctx, listCustomerRelationshipAttachments, ownerID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListCustomerGroupAttachmentsRow{}
+	items := []ListCustomerRelationshipAttachmentsRow{}
 	for rows.Next() {
-		var i ListCustomerGroupAttachmentsRow
+		var i ListCustomerRelationshipAttachmentsRow
 		if err := rows.Scan(
 			&i.FileID,
 			&i.FileName,
@@ -506,18 +476,18 @@ func (q *Queries) ListCustomerVersionAttachments(ctx context.Context, ownerID st
 	return items, nil
 }
 
-const lockCustomerAttachmentGroup = `-- name: LockCustomerAttachmentGroup :one
-SELECT id,revision FROM bob_customer_groups WHERE id=$1 FOR UPDATE
+const lockCustomerAttachmentRelationship = `-- name: LockCustomerAttachmentRelationship :one
+SELECT id,revision FROM bob_objects WHERE id=$1 AND entity='customer' FOR UPDATE
 `
 
-type LockCustomerAttachmentGroupRow struct {
+type LockCustomerAttachmentRelationshipRow struct {
 	ID       string `db:"id" json:"id"`
 	Revision int64  `db:"revision" json:"revision"`
 }
 
-func (q *Queries) LockCustomerAttachmentGroup(ctx context.Context, ownerID string) (LockCustomerAttachmentGroupRow, error) {
-	row := q.db.QueryRow(ctx, lockCustomerAttachmentGroup, ownerID)
-	var i LockCustomerAttachmentGroupRow
+func (q *Queries) LockCustomerAttachmentRelationship(ctx context.Context, ownerID string) (LockCustomerAttachmentRelationshipRow, error) {
+	row := q.db.QueryRow(ctx, lockCustomerAttachmentRelationship, ownerID)
+	var i LockCustomerAttachmentRelationshipRow
 	err := row.Scan(&i.ID, &i.Revision)
 	return i, err
 }
@@ -550,13 +520,13 @@ func (q *Queries) LockCustomerAttachmentVersion(ctx context.Context, ownerID str
 
 const lockPendingCustomerUpload = `-- name: LockPendingCustomerUpload :one
 SELECT file.id,file.storage_key,file.content_type,file.declared_size,file.sha256_hex,
-       COALESCE(group_relation.group_id,version_relation.version_id) AS owner_id,
-       CASE WHEN group_relation.group_id IS NOT NULL THEN 'GROUP' ELSE 'ACCOUNT' END AS scope,
-       group_owner.revision AS group_revision,version_owner.status AS version_status,
+       COALESCE(relationship_relation.customer_relationship_id,version_relation.version_id) AS owner_id,
+       CASE WHEN relationship_relation.customer_relationship_id IS NOT NULL THEN 'RELATIONSHIP' ELSE 'ACCOUNT' END AS scope,
+       relationship_owner.revision AS group_revision,version_owner.status AS version_status,
        version_owner.revision AS version_revision
 FROM bob_customer_files file
-LEFT JOIN bob_customer_group_attachments group_relation ON group_relation.file_id=file.id
-LEFT JOIN bob_customer_groups group_owner ON group_owner.id=group_relation.group_id
+LEFT JOIN bob_customer_relationship_attachments relationship_relation ON relationship_relation.file_id=file.id
+LEFT JOIN bob_objects relationship_owner ON relationship_owner.id=relationship_relation.customer_relationship_id
 LEFT JOIN bob_customer_version_attachments version_relation ON version_relation.file_id=file.id
 LEFT JOIN bob_versions version_owner ON version_owner.id=version_relation.version_id
 WHERE file.upload_token_hash=$1 AND file.status='PENDING'
@@ -637,21 +607,21 @@ func (q *Queries) ResolveCustomerDocumentCategory(ctx context.Context, objectID 
 	return i, err
 }
 
-const touchCustomerGroupAttachment = `-- name: TouchCustomerGroupAttachment :one
-UPDATE bob_customer_groups
+const touchCustomerRelationshipAttachment = `-- name: TouchCustomerRelationshipAttachment :one
+UPDATE bob_objects
 SET revision=revision+1,updated_at=now(),updated_by=$1
-WHERE id=$2 AND revision=$3
+WHERE id=$2 AND entity='customer' AND revision=$3
 RETURNING revision
 `
 
-type TouchCustomerGroupAttachmentParams struct {
+type TouchCustomerRelationshipAttachmentParams struct {
 	ActorID  string `db:"actor_id" json:"actor_id"`
 	OwnerID  string `db:"owner_id" json:"owner_id"`
 	Revision int64  `db:"revision" json:"revision"`
 }
 
-func (q *Queries) TouchCustomerGroupAttachment(ctx context.Context, arg TouchCustomerGroupAttachmentParams) (int64, error) {
-	row := q.db.QueryRow(ctx, touchCustomerGroupAttachment, arg.ActorID, arg.OwnerID, arg.Revision)
+func (q *Queries) TouchCustomerRelationshipAttachment(ctx context.Context, arg TouchCustomerRelationshipAttachmentParams) (int64, error) {
+	row := q.db.QueryRow(ctx, touchCustomerRelationshipAttachment, arg.ActorID, arg.OwnerID, arg.Revision)
 	var revision int64
 	err := row.Scan(&revision)
 	return revision, err
@@ -660,7 +630,7 @@ func (q *Queries) TouchCustomerGroupAttachment(ctx context.Context, arg TouchCus
 const touchCustomerVersionAttachment = `-- name: TouchCustomerVersionAttachment :one
 UPDATE bob_versions
 SET revision=revision+1,updated_at=now(),updated_by=$1
-WHERE id=$2 AND entity='customer' AND status='DRAFT' AND revision=$3
+WHERE id=$2 AND entity='customer-account' AND status='DRAFT' AND revision=$3
 RETURNING revision
 `
 

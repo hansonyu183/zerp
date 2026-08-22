@@ -26,10 +26,10 @@ type SupplierSettlementSnapshot struct {
 }
 
 type SupplierData struct {
-	Name                       string                      `json:"name"`
-	SupplierType               string                      `json:"supplierType"`
-	ShortName                  string                      `json:"shortName,omitempty"`
-	TaxNumber                  string                      `json:"taxNumber,omitempty"`
+	OperatingEntityID          string                      `json:"operatingEntityId,omitempty"`
+	Name                       string                      `json:"-"`
+	ShortName                  string                      `json:"-"`
+	TaxNumber                  string                      `json:"-"`
 	ContactName                string                      `json:"contactName,omitempty"`
 	ContactPhone               string                      `json:"contactPhone,omitempty"`
 	Email                      string                      `json:"email,omitempty"`
@@ -47,13 +47,19 @@ type SupplierVersionView struct {
 }
 
 type SupplierDetailView struct {
-	ObjectID       string               `json:"objectId"`
-	Code           string               `json:"code"`
-	ObjectRevision int64                `json:"objectRevision"`
-	Enabled        bool                 `json:"enabled"`
-	Effective      *SupplierVersionView `json:"effective"`
-	Candidate      *SupplierVersionView `json:"candidate"`
-	UpdatedAt      time.Time            `json:"updatedAt"`
+	ObjectID            string               `json:"objectId"`
+	Code                string               `json:"code"`
+	ObjectRevision      int64                `json:"objectRevision"`
+	Enabled             bool                 `json:"enabled"`
+	PartyID             string               `json:"partyId"`
+	PartyKind           string               `json:"partyKind"`
+	PartyDisplayName    string               `json:"partyDisplayName"`
+	OperatingEntityID   string               `json:"operatingEntityId"`
+	OperatingEntityCode string               `json:"operatingEntityCode"`
+	OperatingEntityName string               `json:"operatingEntityName"`
+	Effective           *SupplierVersionView `json:"effective"`
+	Candidate           *SupplierVersionView `json:"candidate"`
+	UpdatedAt           time.Time            `json:"updatedAt"`
 }
 
 type SupplierListVersion struct {
@@ -61,25 +67,36 @@ type SupplierListVersion struct {
 	Version              int32   `json:"version"`
 	Status               string  `json:"status"`
 	Revision             int64   `json:"revision"`
-	Name                 string  `json:"name"`
-	SupplierType         string  `json:"supplierType"`
 	DefaultPurchaserCode string  `json:"defaultPurchaserCode,omitempty"`
 	DefaultPurchaserName string  `json:"defaultPurchaserName,omitempty"`
 	SubmittedBy          *string `json:"submittedBy"`
 }
 
 type SupplierListItem struct {
-	ObjectID       string               `json:"objectId"`
-	Code           string               `json:"code"`
-	ObjectRevision int64                `json:"objectRevision"`
-	Enabled        bool                 `json:"enabled"`
-	Effective      *SupplierListVersion `json:"effective"`
-	Candidate      *SupplierListVersion `json:"candidate"`
-	UpdatedAt      time.Time            `json:"updatedAt"`
+	ObjectID            string               `json:"objectId"`
+	Code                string               `json:"code"`
+	ObjectRevision      int64                `json:"objectRevision"`
+	Enabled             bool                 `json:"enabled"`
+	PartyID             string               `json:"partyId"`
+	PartyKind           string               `json:"partyKind"`
+	PartyDisplayName    string               `json:"partyDisplayName"`
+	OperatingEntityID   string               `json:"operatingEntityId"`
+	OperatingEntityCode string               `json:"operatingEntityCode"`
+	OperatingEntityName string               `json:"operatingEntityName"`
+	Effective           *SupplierListVersion `json:"effective"`
+	Candidate           *SupplierListVersion `json:"candidate"`
+	UpdatedAt           time.Time            `json:"updatedAt"`
 }
 
 type SupplierCreateInput struct {
-	Data SupplierData `json:"data"`
+	PartyID  string           `json:"partyId,omitempty"`
+	NewParty *PartyCreateData `json:"newParty,omitempty"`
+	Data     SupplierData     `json:"data"`
+}
+
+type SupplierCreateResult struct {
+	MutationResult
+	PartyID string `json:"partyId"`
 }
 
 type SupplierSaveInput struct {
@@ -87,25 +104,6 @@ type SupplierSaveInput struct {
 	VersionID string       `json:"versionId"`
 	Revision  int64        `json:"revision"`
 	Data      SupplierData `json:"data"`
-}
-
-type SupplierTaxMatchInput struct {
-	TaxNumber         string
-	IncludeCustomer   bool
-	IncludeOtherParty bool
-}
-
-type SupplierTaxMatch struct {
-	SourceEntity string `json:"sourceEntity"`
-	ObjectID     string `json:"objectId"`
-	Code         string `json:"code"`
-	CompanyName  string `json:"companyName"`
-	ShortName    string `json:"shortName"`
-	TaxNumber    string `json:"taxNumber"`
-	ContactName  string `json:"contactName"`
-	ContactPhone string `json:"contactPhone"`
-	Email        string `json:"email"`
-	Address      string `json:"address"`
 }
 
 func (data *SupplierData) UnmarshalJSON(raw []byte) error {
@@ -136,7 +134,6 @@ func (data *SupplierData) UnmarshalJSON(raw []byte) error {
 
 func normalizeSupplier(data SupplierData) (SupplierData, error) {
 	data.Name = strings.TrimSpace(data.Name)
-	data.SupplierType = strings.TrimSpace(data.SupplierType)
 	data.ShortName = strings.TrimSpace(data.ShortName)
 	data.TaxNumber = strings.ToUpper(strings.TrimSpace(data.TaxNumber))
 	data.ContactName = strings.TrimSpace(data.ContactName)
@@ -147,17 +144,11 @@ func normalizeSupplier(data SupplierData) (SupplierData, error) {
 	data.SettlementMethodID = strings.TrimSpace(data.SettlementMethodID)
 	data.DefaultPurchaserEmployeeID = strings.TrimSpace(data.DefaultPurchaserEmployeeID)
 	data.SettlementMethod = nil
-	if data.Name == "" || len([]rune(data.Name)) > 200 {
-		return SupplierData{}, errors.New("supplier name is required")
-	}
 	if err := validateLengthsAndFormats(DetailView{
-		ShortName: data.ShortName, TaxNumber: data.TaxNumber, ContactName: data.ContactName,
+		ContactName:  data.ContactName,
 		ContactPhone: data.ContactPhone, Email: data.Email, Address: data.Address, Remark: data.Remark,
 	}); err != nil {
 		return SupplierData{}, err
-	}
-	if data.SupplierType != SupplierTypeGeneral && data.SupplierType != SupplierTypeLogisticsPlatform {
-		return SupplierData{}, errors.New("invalid supplier type")
 	}
 	if data.SettlementMethodID != "" && !validID(data.SettlementMethodID) {
 		return SupplierData{}, errors.New("invalid settlement method")
@@ -194,19 +185,11 @@ func mergeSupplierData(current, update SupplierData) SupplierData {
 		return update
 	}
 	result := current
-	if update.provided["name"] {
-		result.Name = update.Name
-	}
-	if update.provided["supplierType"] {
-		result.SupplierType = update.SupplierType
-	}
 	set := func(key string, target *string, value string) {
 		if update.provided[key] {
 			*target = value
 		}
 	}
-	set("shortName", &result.ShortName, update.ShortName)
-	set("taxNumber", &result.TaxNumber, update.TaxNumber)
 	set("contactName", &result.ContactName, update.ContactName)
 	set("contactPhone", &result.ContactPhone, update.ContactPhone)
 	set("email", &result.Email, update.Email)
@@ -238,9 +221,6 @@ func (s *Service) SupplierQuery(ctx context.Context, input QueryInput) (Page[Sup
 			return Page[SupplierListItem]{}, domainError(ErrorValidation, "invalid supplier status", nil, nil)
 		}
 	}
-	if input.Filters.SupplierType != "" && !validSupplierType(input.Filters.SupplierType) {
-		return Page[SupplierListItem]{}, domainError(ErrorValidation, "invalid supplier type", nil, nil)
-	}
 	if input.Filters.DefaultPurchaserEmployeeID != "" && !validID(input.Filters.DefaultPurchaserEmployeeID) {
 		return Page[SupplierListItem]{}, domainError(ErrorValidation, "invalid default purchaser", nil, nil)
 	}
@@ -253,14 +233,14 @@ func (s *Service) SupplierQuery(ctx context.Context, input QueryInput) (Page[Sup
 		}
 	}
 	params := dbsqlc.CountBobSuppliersParams{Keyword: strings.TrimSpace(input.Filters.Keyword), Statuses: statuses,
-		EnabledFilter: enabledFilter, SupplierType: input.Filters.SupplierType,
+		EnabledFilter:              enabledFilter,
 		DefaultPurchaserEmployeeID: input.Filters.DefaultPurchaserEmployeeID}
 	total, err := s.queries.CountBobSuppliers(ctx, params)
 	if err != nil {
 		return Page[SupplierListItem]{}, s.internal("count suppliers", err)
 	}
 	rows, err := s.queries.ListBobSuppliers(ctx, dbsqlc.ListBobSuppliersParams{Keyword: params.Keyword,
-		Statuses: statuses, EnabledFilter: enabledFilter, SupplierType: params.SupplierType,
+		Statuses: statuses, EnabledFilter: enabledFilter,
 		DefaultPurchaserEmployeeID: params.DefaultPurchaserEmployeeID,
 		RowOffset:                  int32((input.Page - 1) * input.PageSize), RowLimit: int32(input.PageSize)})
 	if err != nil {
@@ -269,17 +249,20 @@ func (s *Service) SupplierQuery(ctx context.Context, input QueryInput) (Page[Sup
 	items := make([]SupplierListItem, 0, len(rows))
 	for _, row := range rows {
 		item := SupplierListItem{ObjectID: row.ObjectID, Code: row.Code, ObjectRevision: row.ObjectRevision,
-			Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time}
+			Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time, PartyID: row.PartyID,
+			PartyKind: row.PartyKind, PartyDisplayName: row.PartyDisplayName,
+			OperatingEntityID: row.OperatingEntityID, OperatingEntityCode: row.OperatingEntityCode,
+			OperatingEntityName: row.OperatingEntityName}
 		if row.EffectiveVersionID != nil {
 			item.Effective = &SupplierListVersion{VersionID: *row.EffectiveVersionID, Version: *row.EffectiveVersionNo,
-				Status: deref(row.EffectiveStatus), Revision: *row.EffectiveRevision, Name: deref(row.EffectiveName),
-				SupplierType: deref(row.EffectiveSupplierType), DefaultPurchaserCode: row.EffectiveDefaultPurchaserCode,
+				Status: deref(row.EffectiveStatus), Revision: *row.EffectiveRevision,
+				DefaultPurchaserCode: row.EffectiveDefaultPurchaserCode,
 				DefaultPurchaserName: row.EffectiveDefaultPurchaserName, SubmittedBy: row.EffectiveSubmittedBy}
 		}
 		if row.CandidateVersionID != nil {
 			item.Candidate = &SupplierListVersion{VersionID: *row.CandidateVersionID, Version: *row.CandidateVersionNo,
-				Status: deref(row.CandidateStatus), Revision: *row.CandidateRevision, Name: deref(row.CandidateName),
-				SupplierType: deref(row.CandidateSupplierType), DefaultPurchaserCode: row.CandidateDefaultPurchaserCode,
+				Status: deref(row.CandidateStatus), Revision: *row.CandidateRevision,
+				DefaultPurchaserCode: row.CandidateDefaultPurchaserCode,
 				DefaultPurchaserName: row.CandidateDefaultPurchaserName, SubmittedBy: row.CandidateSubmittedBy}
 		}
 		items = append(items, item)
@@ -287,47 +270,67 @@ func (s *Service) SupplierQuery(ctx context.Context, input QueryInput) (Page[Sup
 	return Page[SupplierListItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
 
-func (s *Service) SupplierCreate(ctx context.Context, input SupplierCreateInput, actorID, requestID string) (MutationResult, error) {
-	data, err := normalizeSupplier(input.Data)
-	if err != nil || !validActorAndRequest(actorID, requestID) {
-		return MutationResult{}, domainError(ErrorValidation, "invalid supplier create", nil, err)
+func (s *Service) SupplierCreate(ctx context.Context, input SupplierCreateInput, actorID, requestID string, canReadMatchedParty bool) (SupplierCreateResult, error) {
+	if !validActorAndRequest(actorID, requestID) || !validID(input.Data.OperatingEntityID) ||
+		(input.PartyID == "") == (input.NewParty == nil) {
+		return SupplierCreateResult{}, domainError(ErrorValidation, "invalid supplier create", nil, nil)
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return MutationResult{}, s.internal("begin supplier create", err)
+		return SupplierCreateResult{}, s.internal("begin supplier create", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+	qtx := s.queries.WithTx(tx)
+	if _, err = qtx.ResolveCustomerOperatingEntity(ctx, input.Data.OperatingEntityID); errors.Is(err, pgx.ErrNoRows) {
+		return SupplierCreateResult{}, domainError(ErrorConflict, "经营主体不可用", nil, nil)
+	} else if err != nil {
+		return SupplierCreateResult{}, s.internal("resolve operating entity", err)
+	}
+	party, err := s.resolveOrCreateRelationshipParty(ctx, qtx, input.PartyID, input.NewParty,
+		actorID, requestID, canReadMatchedParty)
+	if err != nil {
+		return SupplierCreateResult{}, err
+	}
+	input.Data.Name = party.DisplayName
+	data, err := normalizeSupplier(input.Data)
+	if err != nil {
+		return SupplierCreateResult{}, domainError(ErrorValidation, "invalid supplier create", nil, err)
+	}
 	data, err = s.resolveSupplierReferences(ctx, tx, data)
 	if err != nil {
-		return MutationResult{}, err
+		return SupplierCreateResult{}, err
 	}
-	qtx := s.queries.WithTx(tx)
 	counter, err := qtx.NextObjectNumberCounter(ctx, dbsqlc.NextObjectNumberCounterParams{Domain: "bob", Entity: EntitySupplier})
 	if err != nil {
-		return MutationResult{}, s.writeError("allocate supplier number", err)
+		return SupplierCreateResult{}, s.writeError("allocate supplier number", err)
 	}
 	objectID, versionID := newID(), newID()
 	if err = qtx.InsertBobObject(ctx, dbsqlc.InsertBobObjectParams{ID: objectID, Entity: EntitySupplier,
 		Code: fmt.Sprintf("SUP-%04d", counter), CurrentVersionID: versionID, ActorID: actorID}); err != nil {
-		return MutationResult{}, s.writeError("insert supplier", err)
+		return SupplierCreateResult{}, s.writeError("insert supplier", err)
 	}
 	if err = qtx.InsertBobVersion(ctx, dbsqlc.InsertBobVersionParams{ID: versionID, ObjectID: objectID,
 		Entity: EntitySupplier, VersionNo: 1, ActorID: actorID}); err != nil {
-		return MutationResult{}, s.writeError("insert supplier version", err)
+		return SupplierCreateResult{}, s.writeError("insert supplier version", err)
+	}
+	if err = qtx.InsertBobSupplierRelationship(ctx, dbsqlc.InsertBobSupplierRelationshipParams{
+		ObjectID: objectID, PartyID: party.ID, OperatingEntityID: input.Data.OperatingEntityID, ActorID: actorID,
+	}); err != nil {
+		return SupplierCreateResult{}, s.writeError("insert Supplier Relationship", err)
 	}
 	if err = insertSupplierData(ctx, qtx, versionID, data); err != nil {
-		return MutationResult{}, s.writeError("insert supplier detail", err)
+		return SupplierCreateResult{}, s.writeError("insert supplier detail", err)
 	}
 	if err = insertAudit(ctx, qtx, auditInput{ObjectID: objectID, VersionID: versionID, Entity: EntitySupplier,
 		Event: "CREATED", To: StatusDraft, ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"fields": []string{"code", "name", "supplierType", "settlementMethodId", "defaultPurchaserEmployeeId"}}}); err != nil {
-		return MutationResult{}, s.writeError("audit supplier create", err)
+		Summary: map[string]any{"fields": []string{"code", "settlementMethodId", "defaultPurchaserEmployeeId"}}}); err != nil {
+		return SupplierCreateResult{}, s.writeError("audit supplier create", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
-		return MutationResult{}, s.writeError("commit supplier create", err)
+		return SupplierCreateResult{}, s.writeError("commit supplier create", err)
 	}
-	return MutationResult{ObjectID: objectID, ObjectRevision: 1, Enabled: true, VersionID: versionID,
-		Version: 1, Status: StatusDraft, Revision: 1}, nil
+	return SupplierCreateResult{MutationResult: MutationResult{ObjectID: objectID, ObjectRevision: 1, Enabled: true,
+		VersionID: versionID, Version: 1, Status: StatusDraft, Revision: 1}, PartyID: party.ID}, nil
 }
 
 func (s *Service) SupplierSave(ctx context.Context, input SupplierSaveInput, actorID, requestID string) (MutationResult, error) {
@@ -399,7 +402,7 @@ func (s *Service) SupplierSave(ctx context.Context, input SupplierSaveInput, act
 	}
 	if err = insertAudit(ctx, qtx, auditInput{ObjectID: input.ObjectID, VersionID: targetVersionID,
 		Entity: EntitySupplier, Event: event, To: StatusDraft, ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"fields": []string{"name", "supplierType", "settlementMethodId", "defaultPurchaserEmployeeId"}}}); err != nil {
+		Summary: map[string]any{"fields": []string{"name", "settlementMethodId", "defaultPurchaserEmployeeId"}}}); err != nil {
 		return MutationResult{}, s.writeError("audit supplier save", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -426,6 +429,16 @@ func (s *Service) SupplierGet(ctx context.Context, input GetInput) (SupplierDeta
 	}
 	result := SupplierDetailView{ObjectID: row.ID, Code: row.Code, ObjectRevision: row.Revision,
 		Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time}
+	identity, err := s.queries.GetBobSupplierRelationshipIdentity(ctx, input.ObjectID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return SupplierDetailView{}, domainError(ErrorConflict, "supplier relationship is unavailable", nil, nil)
+	}
+	if err != nil {
+		return SupplierDetailView{}, s.internal("get Supplier Relationship identity", err)
+	}
+	result.PartyID, result.PartyKind, result.PartyDisplayName = identity.PartyID, identity.PartyKind, identity.PartyDisplayName
+	result.OperatingEntityID, result.OperatingEntityCode, result.OperatingEntityName = identity.OperatingEntityID,
+		identity.OperatingEntityCode, identity.OperatingEntityName
 	if input.VersionID != "" {
 		version, loadErr := s.loadSupplierVersion(ctx, input.ObjectID, input.VersionID)
 		if loadErr != nil {
@@ -451,25 +464,6 @@ func (s *Service) SupplierGet(ctx context.Context, input GetInput) (SupplierDeta
 			return SupplierDetailView{}, loadErr
 		}
 		result.Candidate = &version
-	}
-	return result, nil
-}
-
-func (s *Service) SupplierTaxMatches(ctx context.Context, input SupplierTaxMatchInput) ([]SupplierTaxMatch, error) {
-	taxNumber := strings.ToUpper(strings.TrimSpace(input.TaxNumber))
-	if taxNumber == "" || len(taxNumber) > 50 || !taxNumberPattern.MatchString(taxNumber) {
-		return nil, domainError(ErrorValidation, "invalid tax number", nil, nil)
-	}
-	rows, err := s.queries.QuerySupplierTaxMatches(ctx, dbsqlc.QuerySupplierTaxMatchesParams{
-		IncludeCustomer: input.IncludeCustomer, TaxNumber: &taxNumber, IncludeOtherParty: input.IncludeOtherParty})
-	if err != nil {
-		return nil, s.internal("query supplier tax matches", err)
-	}
-	result := make([]SupplierTaxMatch, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, SupplierTaxMatch{SourceEntity: row.SourceEntity, ObjectID: row.ObjectID,
-			Code: row.Code, CompanyName: row.CompanyName, ShortName: row.ShortName, TaxNumber: row.TaxNumber,
-			ContactName: row.ContactName, ContactPhone: row.ContactPhone, Email: row.Email, Address: row.Address})
 	}
 	return result, nil
 }
@@ -502,7 +496,7 @@ func insertSupplierData(ctx context.Context, q *dbsqlc.Queries, versionID string
 		snapshot = *data.SettlementMethod
 	}
 	return q.InsertBobSupplierDetail(ctx, dbsqlc.InsertBobSupplierDetailParams{VersionID: versionID,
-		Name: data.Name, SupplierType: data.SupplierType, ShortName: nilIfEmpty(data.ShortName), TaxNumber: nilIfEmpty(data.TaxNumber),
+		Name: data.Name, ShortName: nilIfEmpty(data.ShortName), TaxNumber: nilIfEmpty(data.TaxNumber),
 		ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email),
 		Address: nilIfEmpty(data.Address), Remark: nilIfEmpty(data.Remark), SettlementMethodID: nilIfEmpty(data.SettlementMethodID),
 		SettlementMethodCode: nilIfEmpty(snapshot.Code), SettlementMethodName: nilIfEmpty(snapshot.Name),
@@ -517,7 +511,7 @@ func updateSupplierData(ctx context.Context, q *dbsqlc.Queries, versionID string
 		snapshot = *data.SettlementMethod
 	}
 	rows, err := q.UpdateBobSupplierDetail(ctx, dbsqlc.UpdateBobSupplierDetailParams{VersionID: versionID,
-		Name: data.Name, SupplierType: data.SupplierType, ShortName: nilIfEmpty(data.ShortName), TaxNumber: nilIfEmpty(data.TaxNumber),
+		Name: data.Name, ShortName: nilIfEmpty(data.ShortName), TaxNumber: nilIfEmpty(data.TaxNumber),
 		ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email),
 		Address: nilIfEmpty(data.Address), Remark: nilIfEmpty(data.Remark), SettlementMethodID: nilIfEmpty(data.SettlementMethodID),
 		SettlementMethodCode: nilIfEmpty(snapshot.Code), SettlementMethodName: nilIfEmpty(snapshot.Name),
@@ -549,7 +543,7 @@ func loadSupplierVersionWithQueries(ctx context.Context, q *dbsqlc.Queries, obje
 	if err != nil {
 		return SupplierVersionView{}, err
 	}
-	data := SupplierData{Name: row.Name, SupplierType: row.SupplierType, ShortName: row.ShortName,
+	data := SupplierData{Name: row.Name, ShortName: row.ShortName,
 		TaxNumber: row.TaxNumber, ContactName: row.ContactName, ContactPhone: row.ContactPhone, Email: row.Email,
 		Address: row.Address, Remark: row.Remark, SettlementMethodID: row.SettlementMethodID,
 		DefaultPurchaserEmployeeID: row.DefaultPurchaserEmployeeID}

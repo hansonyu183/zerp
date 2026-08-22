@@ -1,28 +1,25 @@
 import {
   baseColumns,
   baseFilters,
-  commonFields,
   defineBobEntityConfig,
   emailPattern,
   patternRule,
   phonePattern,
   reference,
-  supplierTypeOptions,
-  taxNumberPattern,
   text,
   textarea,
 } from '../shared/config-helpers'
 
-// Registered only for shared BOB metadata. Supplier rendering uses SupplierWorkspace.
+// Shared metadata for navigation and generic reference surfaces. The dedicated
+// supplier workspace owns the Party + relationship creation flow.
 export const supplierConfig = defineBobEntityConfig({
   entity: 'supplier',
   title: '供应商',
-  codeLabel: '供应商编码',
-  nameLabel: '供应商名称',
+  codeLabel: '供应关系编码',
+  nameLabel: '主体名称',
   defaults: {
-    supplierType: 'GENERAL',
-    shortName: '',
-    taxNumber: '',
+    name: '',
+    operatingEntityId: '',
     contactName: '',
     contactPhone: '',
     email: '',
@@ -31,9 +28,12 @@ export const supplierConfig = defineBobEntityConfig({
     settlementMethodId: '',
     defaultPurchaserEmployeeId: '',
   },
-  requiredKeys: ['name', 'supplierType'],
-  uppercaseKeys: ['taxNumber'],
+  requiredKeys: ['name', 'operatingEntityId'],
   references: {
+    operatingEntityId: {
+      entity: 'operating-entity',
+      label: '经营主体',
+    },
     settlementMethodId: {
       domain: 'aux',
       entity: 'settlement-method',
@@ -42,20 +42,8 @@ export const supplierConfig = defineBobEntityConfig({
     defaultPurchaserEmployeeId: { entity: 'employee', label: '默认采购员' },
   },
   fields: (context) => [
-    ...commonFields(context, '供应商编码', '供应商名称'),
-    {
-      key: 'supplierType',
-      label: '供应商类型',
-      type: 'select',
-      required: true,
-      options: supplierTypeOptions,
-    },
-    text('shortName', '简称', 100),
-    text('taxNumber', '税号', 100, {
-      rules: [
-        patternRule(taxNumberPattern, '税号只能包含字母、数字和连字符。'),
-      ],
-    }),
+    text('name', '主体名称', 200, { required: true }),
+    reference('operatingEntityId', '经营主体', context, true),
     text('contactName', '联系人', 100),
     text('contactPhone', '电话', 32, {
       rules: [patternRule(phonePattern, '电话格式不正确。')],
@@ -68,23 +56,8 @@ export const supplierConfig = defineBobEntityConfig({
     reference('settlementMethodId', '结算方式', context),
     reference('defaultPurchaserEmployeeId', '默认采购员', context),
   ],
-  columns: baseColumns('编码', '名称', [
-    {
-      key: 'supplierType',
-      label: '类型',
-      value: (row) => row.currentVersion.summary.supplierType,
-      format: (value) =>
-        supplierTypeOptions.find((item) => item.value === value)?.title ??
-        String(value),
-    },
-  ]),
+  columns: baseColumns('编码', '主体名称'),
   filters: baseFilters([
-    {
-      key: 'supplierType',
-      label: '供应商类型',
-      type: 'select',
-      options: supplierTypeOptions,
-    },
     {
       key: 'defaultPurchaserEmployeeId',
       label: '默认采购员',

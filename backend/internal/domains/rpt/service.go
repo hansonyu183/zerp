@@ -111,9 +111,10 @@ func (s *Service) QueryReferences(ctx context.Context, code string, in Reference
 		}
 	default:
 		entity := map[ReferenceType]string{
-			ReferenceTypeCustomer: "customer", ReferenceTypeSupplier: "supplier",
-			ReferenceTypeOtherParty: "other-party", ReferenceTypeEmployee: "employee",
-			ReferenceTypeDepartment: "department", ReferenceTypeProduct: "product",
+			ReferenceTypeCustomerAccount: "customer-account", ReferenceTypeSupplierRelationship: "supplier",
+			ReferenceTypeServiceRelationship: "other-unit", ReferenceTypeEmploymentRelationship: "employee",
+			ReferenceTypeSalesRelationship: "sales-partner",
+			ReferenceTypeDepartment:        "department", ReferenceTypeProduct: "product",
 			ReferenceTypeWarehouse: "warehouse", ReferenceTypeFundAccount: "fund-account",
 		}[referenceType]
 		if entity == "" {

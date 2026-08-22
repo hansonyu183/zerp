@@ -5,22 +5,14 @@ import { bobSharedApi, type BobReferenceCandidate } from './api'
 import type { BobEntity, BobListItem } from './types'
 
 type TransferableBobEntity =
-  | 'operating-entity'
-  | 'employee'
-  | 'other-party'
-  | 'supplier'
-  | 'product'
+  'operating-entity' | 'employee' | 'supplier' | 'product'
 
 function isTransferableBobEntity(
   entity: BobEntity,
 ): entity is TransferableBobEntity {
-  return [
-    'operating-entity',
-    'employee',
-    'other-party',
-    'supplier',
-    'product',
-  ].includes(entity)
+  return ['operating-entity', 'employee', 'supplier', 'product'].includes(
+    entity,
+  )
 }
 
 export function useBobReferenceTransfer(
@@ -93,7 +85,12 @@ export function useBobReferenceTransfer(
   async function confirm(): Promise<boolean> {
     const currentSource = source.value
     const targetObjectId = targetId.value
-    if (!currentSource || !targetObjectId || !transferableEntity || loading.value) {
+    if (
+      !currentSource ||
+      !targetObjectId ||
+      !transferableEntity ||
+      loading.value
+    ) {
       return false
     }
     loading.value = true

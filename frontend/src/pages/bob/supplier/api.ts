@@ -19,6 +19,8 @@ export const supplierApi = {
     apiClient.postContract('bob/supplier/query', input),
   get: (input: ApiPostRequest<'bob/supplier/get'>) =>
     apiClient.postContract('bob/supplier/get', input),
+  partyQuery: (input: ApiPostRequest<'bob/party/query'>) =>
+    apiClient.postContract('bob/party/query', input),
   create: (input: SupplierCreateRequest) =>
     apiClient.post<SupplierMutationResult, SupplierCreateRequest>(
       'bob/supplier/create',
@@ -29,8 +31,6 @@ export const supplierApi = {
       'bob/supplier/save',
       input,
     ),
-  taxMatch: (input: ApiPostRequest<'bob/supplier/tax-match'>) =>
-    apiClient.postContract('bob/supplier/tax-match', input),
   queryBobReferences: (input: ApiPostRequest<'bob/reference/query'>) =>
     apiClient.postContract('bob/reference/query', input),
   queryAuxReferences: (input: ApiPostRequest<'aux/reference/query'>) =>

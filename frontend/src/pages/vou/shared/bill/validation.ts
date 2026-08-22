@@ -83,14 +83,14 @@ export function validateBillVoucherForm(
     if (!form.supplier) return '请选择供应商。'
     if (!form.interestMode) return '请选择利息承担方式。'
     if (form.interestMode === 'THIRD_PARTY_PAYABLE' && !form.interestParty)
-      return '第三方承担利息时必须选择其他往来单位。'
+      return '第三方承担利息时必须选择其他单位。'
     if (form.interestMode === 'BANK_DEDUCTED' && form.interestParty)
       return '银行扣息时不能填写第三方利息承担方。'
   } else if (mode === 'discount') {
     if (!form.counterparty) return '请选择贴现方。'
     if (!form.interestMode) return '请选择利息承担方式。'
     if (form.interestMode === 'THIRD_PARTY_PAYABLE' && !form.interestParty)
-      return '第三方承担利息时必须选择其他往来单位。'
+      return '第三方承担利息时必须选择其他单位。'
     if (form.interestMode === 'BANK_DEDUCTED' && form.interestParty)
       return '银行扣息时不能填写第三方利息承担方。'
   } else if (mode === 'maturity') {

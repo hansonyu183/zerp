@@ -271,10 +271,6 @@ SELECT
     detail.counterparty_version_id AS customer_version_id,
     detail.counterparty_code AS customer_code,
     detail.counterparty_name AS customer_name,
-    employee_object.id AS salesperson_object_id,
-    employee_object.effective_version_id AS salesperson_version_id,
-    employee_object.code AS salesperson_code,
-    employee_version.name AS salesperson_name,
     bill_line.bill_type,
     bill_line.face_amount_cents,
     bill_line.issue_date,
@@ -282,13 +278,6 @@ SELECT
 FROM vou_documents document
 JOIN vou_bill_details detail ON detail.document_id=document.id
 JOIN vou_bill_lines bill_line ON bill_line.document_id=document.id
-JOIN bob_customer_versions customer_version
-  ON customer_version.version_id=detail.counterparty_version_id
-LEFT JOIN bob_objects employee_object
-  ON employee_object.id=customer_version.salesperson_employee_id
- AND employee_object.entity='employee'
-LEFT JOIN bob_employee_versions employee_version
-  ON employee_version.version_id=employee_object.effective_version_id
 WHERE document.entity='bill-receipt'
   AND document.status = 'APPROVED'
   AND document.business_date >= $1
@@ -309,7 +298,7 @@ WHERE document.entity='bill-receipt'
       WHERE allocation.bill_line_id=bill_line.id
         AND allocation_document.business_date <> $2::date
   )
-ORDER BY employee_object.id,document.business_date,document.document_no,bill_line.line_no
+ORDER BY detail.counterparty_object_id,document.business_date,document.document_no,bill_line.line_no
 `
 
 type ListIntermediaryBillSourceRowsParams struct {
@@ -318,22 +307,18 @@ type ListIntermediaryBillSourceRowsParams struct {
 }
 
 type ListIntermediaryBillSourceRowsRow struct {
-	BillLineID           string      `db:"bill_line_id" json:"bill_line_id"`
-	ReceiptDocumentID    string      `db:"receipt_document_id" json:"receipt_document_id"`
-	ReceiptDocumentNo    string      `db:"receipt_document_no" json:"receipt_document_no"`
-	ReceiptDate          pgtype.Date `db:"receipt_date" json:"receipt_date"`
-	CustomerObjectID     *string     `db:"customer_object_id" json:"customer_object_id"`
-	CustomerVersionID    *string     `db:"customer_version_id" json:"customer_version_id"`
-	CustomerCode         *string     `db:"customer_code" json:"customer_code"`
-	CustomerName         *string     `db:"customer_name" json:"customer_name"`
-	SalespersonObjectID  *string     `db:"salesperson_object_id" json:"salesperson_object_id"`
-	SalespersonVersionID *string     `db:"salesperson_version_id" json:"salesperson_version_id"`
-	SalespersonCode      *string     `db:"salesperson_code" json:"salesperson_code"`
-	SalespersonName      *string     `db:"salesperson_name" json:"salesperson_name"`
-	BillType             string      `db:"bill_type" json:"bill_type"`
-	FaceAmountCents      int64       `db:"face_amount_cents" json:"face_amount_cents"`
-	IssueDate            pgtype.Date `db:"issue_date" json:"issue_date"`
-	MaturityDate         pgtype.Date `db:"maturity_date" json:"maturity_date"`
+	BillLineID        string      `db:"bill_line_id" json:"bill_line_id"`
+	ReceiptDocumentID string      `db:"receipt_document_id" json:"receipt_document_id"`
+	ReceiptDocumentNo string      `db:"receipt_document_no" json:"receipt_document_no"`
+	ReceiptDate       pgtype.Date `db:"receipt_date" json:"receipt_date"`
+	CustomerObjectID  *string     `db:"customer_object_id" json:"customer_object_id"`
+	CustomerVersionID *string     `db:"customer_version_id" json:"customer_version_id"`
+	CustomerCode      *string     `db:"customer_code" json:"customer_code"`
+	CustomerName      *string     `db:"customer_name" json:"customer_name"`
+	BillType          string      `db:"bill_type" json:"bill_type"`
+	FaceAmountCents   int64       `db:"face_amount_cents" json:"face_amount_cents"`
+	IssueDate         pgtype.Date `db:"issue_date" json:"issue_date"`
+	MaturityDate      pgtype.Date `db:"maturity_date" json:"maturity_date"`
 }
 
 func (q *Queries) ListIntermediaryBillSourceRows(ctx context.Context, arg ListIntermediaryBillSourceRowsParams) ([]ListIntermediaryBillSourceRowsRow, error) {
@@ -354,10 +339,6 @@ func (q *Queries) ListIntermediaryBillSourceRows(ctx context.Context, arg ListIn
 			&i.CustomerVersionID,
 			&i.CustomerCode,
 			&i.CustomerName,
-			&i.SalespersonObjectID,
-			&i.SalespersonVersionID,
-			&i.SalespersonCode,
-			&i.SalespersonName,
 			&i.BillType,
 			&i.FaceAmountCents,
 			&i.IssueDate,
@@ -376,7 +357,7 @@ func (q *Queries) ListIntermediaryBillSourceRows(ctx context.Context, arg ListIn
 const listIntermediaryCustomerTradeEvents = `-- name: ListIntermediaryCustomerTradeEvents :many
 WITH trade AS (
     SELECT line.id,
-           (line.dimensions->>'CUSTOMER')::text AS counterparty_object_id,
+           (line.dimensions->>'CUSTOMER_ACCOUNT')::text AS counterparty_object_id,
            voucher.business_date AS effective_date,
            (line.debit_minor-line.credit_minor)::bigint AS amount_delta_cents,
            voucher.source_entity,
@@ -386,7 +367,7 @@ WITH trade AS (
     JOIN acc_books book ON book.id=line.book_id AND book.control_book
     JOIN acc_subjects subject ON subject.book_id=line.book_id AND subject.id=line.subject_id
     WHERE subject.settlement_purpose='CUSTOMER_RECEIVABLE'
-      AND line.dimensions ? 'CUSTOMER'
+      AND line.dimensions ? 'CUSTOMER_ACCOUNT'
       AND line.currency='CNY'
       AND voucher.business_date<=$1
 ), precutover_return_baseline AS (
@@ -762,14 +743,11 @@ SELECT
     detail.customer_version_id,
     detail.customer_code,
     detail.customer_name,
-    order_detail.salesperson_object_id,
-    order_detail.salesperson_version_id,
-    order_detail.salesperson_code,
-    order_detail.salesperson_name,
-    customer_version.intermediary_other_party_id,
-    intermediary_object.effective_version_id AS intermediary_version_id,
-    intermediary_object.code AS intermediary_code,
-    intermediary_version.name AS intermediary_name,
+    order_detail.sales_attribution_type,
+    order_detail.sales_attribution_subject_object_id,
+    order_detail.sales_attribution_subject_version_id,
+    order_detail.sales_attribution_subject_code,
+    order_detail.sales_attribution_subject_name,
     line.product_object_id,
     line.product_version_id,
     line.product_code,
@@ -796,11 +774,6 @@ JOIN vou_documents order_document ON order_document.id=detail.source_order_id
 JOIN vou_sale_order_details order_detail ON order_detail.document_id=order_document.id
 JOIN vou_product_lines order_line ON order_line.id=line.source_order_line_id
 JOIN bob_customer_versions customer_version ON customer_version.version_id=detail.customer_version_id
-LEFT JOIN bob_objects intermediary_object
-  ON intermediary_object.id=customer_version.intermediary_other_party_id
- AND intermediary_object.entity='other-party'
-LEFT JOIN bob_customer_versions intermediary_version
-  ON intermediary_version.version_id=intermediary_object.effective_version_id
 LEFT JOIN returned ON returned.source_signoff_line_id=line.id
 WHERE signoff.entity='sale-signoff'
   AND signoff.status = 'APPROVED'
@@ -828,14 +801,11 @@ type ListIntermediarySignoffSourceRowsRow struct {
 	CustomerVersionID                     string      `db:"customer_version_id" json:"customer_version_id"`
 	CustomerCode                          string      `db:"customer_code" json:"customer_code"`
 	CustomerName                          string      `db:"customer_name" json:"customer_name"`
-	SalespersonObjectID                   *string     `db:"salesperson_object_id" json:"salesperson_object_id"`
-	SalespersonVersionID                  *string     `db:"salesperson_version_id" json:"salesperson_version_id"`
-	SalespersonCode                       *string     `db:"salesperson_code" json:"salesperson_code"`
-	SalespersonName                       *string     `db:"salesperson_name" json:"salesperson_name"`
-	IntermediaryOtherPartyID              *string     `db:"intermediary_other_party_id" json:"intermediary_other_party_id"`
-	IntermediaryVersionID                 *string     `db:"intermediary_version_id" json:"intermediary_version_id"`
-	IntermediaryCode                      *string     `db:"intermediary_code" json:"intermediary_code"`
-	IntermediaryName                      *string     `db:"intermediary_name" json:"intermediary_name"`
+	SalesAttributionType                  string      `db:"sales_attribution_type" json:"sales_attribution_type"`
+	SalesAttributionSubjectObjectID       string      `db:"sales_attribution_subject_object_id" json:"sales_attribution_subject_object_id"`
+	SalesAttributionSubjectVersionID      string      `db:"sales_attribution_subject_version_id" json:"sales_attribution_subject_version_id"`
+	SalesAttributionSubjectCode           string      `db:"sales_attribution_subject_code" json:"sales_attribution_subject_code"`
+	SalesAttributionSubjectName           string      `db:"sales_attribution_subject_name" json:"sales_attribution_subject_name"`
 	ProductObjectID                       string      `db:"product_object_id" json:"product_object_id"`
 	ProductVersionID                      string      `db:"product_version_id" json:"product_version_id"`
 	ProductCode                           string      `db:"product_code" json:"product_code"`
@@ -876,14 +846,11 @@ func (q *Queries) ListIntermediarySignoffSourceRows(ctx context.Context, arg Lis
 			&i.CustomerVersionID,
 			&i.CustomerCode,
 			&i.CustomerName,
-			&i.SalespersonObjectID,
-			&i.SalespersonVersionID,
-			&i.SalespersonCode,
-			&i.SalespersonName,
-			&i.IntermediaryOtherPartyID,
-			&i.IntermediaryVersionID,
-			&i.IntermediaryCode,
-			&i.IntermediaryName,
+			&i.SalesAttributionType,
+			&i.SalesAttributionSubjectObjectID,
+			&i.SalesAttributionSubjectVersionID,
+			&i.SalesAttributionSubjectCode,
+			&i.SalesAttributionSubjectName,
 			&i.ProductObjectID,
 			&i.ProductVersionID,
 			&i.ProductCode,

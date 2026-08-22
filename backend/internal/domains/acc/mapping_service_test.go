@@ -1,9 +1,11 @@
 package acc
 
 import (
+	"strings"
 	"testing"
 	"time"
 
+	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -85,6 +87,28 @@ func TestExpenseReimbursementMappingCatalogOmitsRemovedDirectSettlementFields(t 
 	for _, field := range catalog.HeaderFields {
 		if field == "fundAccount.objectId" || field == "settlementMode" {
 			t.Fatalf("expense reimbursement catalog exposes removed field %q", field)
+		}
+	}
+}
+
+func TestServiceAcceptanceMappingCatalogExposesTypedRelationshipFacts(t *testing.T) {
+	catalog, err := MappingFieldCatalog("service-acceptance")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{
+		"serviceAcceptance.contractDocumentId":  false,
+		"serviceAcceptance.settlementDirection": false,
+		"counterparty.objectId":                 false,
+	}
+	for _, field := range catalog.HeaderFields {
+		if _, ok := want[field]; ok {
+			want[field] = true
+		}
+	}
+	for field, found := range want {
+		if !found {
+			t.Fatalf("service acceptance catalog is missing %q", field)
 		}
 	}
 }
@@ -171,5 +195,42 @@ func TestAutomaticTrialBalanceAllowsQuantityOnlyFacts(t *testing.T) {
 	}}
 	if err := validateAutomaticTrialBalance(lines); err != nil {
 		t.Fatalf("quantity-only facts rejected: %v", err)
+	}
+}
+
+func TestIntermediaryCalculationMappingUsesSalesRelationshipSummaryFields(t *testing.T) {
+	t.Parallel()
+	catalog, err := MappingFieldCatalog("intermediary-calculation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields := strings.Join(catalog.Collections["intermediarySalesPartnerPayables"], ",")
+	for _, want := range []string{"payee.objectId", "category", "amount"} {
+		if !strings.Contains(fields, want) {
+			t.Fatalf("intermediary mapping fields %q missing %q", fields, want)
+		}
+	}
+	if strings.Contains(fields, "payee.entity") {
+		t.Fatalf("intermediary sales-partner payable mapping must not expose a mutable Party/entity field: %q", fields)
+	}
+}
+
+func TestIntermediaryPostingSnapshotFlattensSummaryPayee(t *testing.T) {
+	t.Parallel()
+	document := voudomain.DocumentView{DocumentID: "CALC-1", Entity: voudomain.EntityIntermediaryCalculation, DocumentNo: "IC-1", Status: voudomain.StatusApproved, Revision: 1,
+		Data: voudomain.DocumentDataView{BusinessDate: "2026-08-31", Currency: "CNY", IntermediaryCalculation: &voudomain.IntermediaryCalculationInput{
+			Result: voudomain.IntermediaryCalculationResult{Summaries: []voudomain.IntermediarySummary{
+				{Category: "EXTERNAL_PART_TIME", Amount: "10.00", Payee: voudomain.IntermediaryReference{ObjectID: "01J00000000000000000000001", Entity: "sales-partner"}},
+				{Category: "REBATE", Amount: "5.00", Payee: voudomain.IntermediaryReference{ObjectID: "01J00000000000000000000002", Entity: "customer"}},
+			}},
+		}},
+	}
+	snapshot, err := newPostingSnapshot(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := snapshot.collections["intermediarySalesPartnerPayables"]
+	if len(items) != 1 || items[0]["payee.objectId"] != "01J00000000000000000000001" || items[0]["payee.entity"] != "sales-partner" {
+		t.Fatalf("unexpected intermediary summary items: %#v", items)
 	}
 }

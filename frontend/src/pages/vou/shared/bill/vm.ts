@@ -145,10 +145,10 @@ type BillMaturitySaveRequest = {
 const requiredCreateReferencePermissions: Readonly<
   Record<BillVoucherConfig['mode'], readonly string[]>
 > = {
-  receipt: ['/bob/customer/query', '/bob/employee/query'],
+  receipt: ['/bob/customer-account/query', '/bob/employee/query'],
   payment: ['/bob/supplier/query'],
   issue: ['/bob/supplier/query'],
-  discount: ['/bob/other-party/query'],
+  discount: ['/bob/other-unit/query'],
   maturity: ['/bob/fund-account/query'],
 }
 
@@ -635,7 +635,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     const requestController = new AbortController()
     otherPartyController = requestController
     const result = await searchReferencesWithSignal(
-      'other-party',
+      'other-unit',
       value,
       requestController.signal,
     )
@@ -670,18 +670,48 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
   }
   async function searchReferencesWithSignal(
     entity:
-      'customer' | 'supplier' | 'other-party' | 'employee' | 'fund-account',
+      'customer' | 'supplier' | 'other-unit' | 'employee' | 'fund-account',
     value: string,
     signal: AbortSignal,
   ) {
-    if (entity === 'customer') {
+    if (entity === 'customer' || entity === 'supplier' || entity === 'employee') {
       try {
         const result = await apiClient.postContract(
           'bob/reference/query',
-          { entity, ...(value.trim() ? { keyword: value.trim() } : {}) },
+          {
+            entity: entity === 'customer' ? 'customer-account' : entity,
+            ...(value.trim() ? { keyword: value.trim() } : {}),
+          },
           { signal },
         )
-        return result.data.map((item) => ({ ...item, entity }))
+        return result.data.map((item) => ({
+          ...item,
+          entity: entity === 'customer' ? ('customer-account' as const) : entity,
+        }))
+      } catch {
+        return []
+      }
+    }
+    if (entity === 'other-unit') {
+      try {
+        const result = await apiClient.postContract(
+          'bob/other-unit/query',
+          {
+            page: 1,
+            pageSize: 20,
+            filters: value.trim() ? { keyword: value.trim() } : {},
+          },
+          { signal },
+        )
+        return result.data.items
+          .filter((item) => item.effectiveVersionId && item.enabled)
+          .map((item) => ({
+            objectId: item.objectId,
+            versionId: item.effectiveVersionId!,
+            entity,
+            code: item.code,
+            name: item.partyDisplayName,
+          }))
       } catch {
         return []
       }

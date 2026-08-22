@@ -25,13 +25,48 @@ export function buildVoucherDraftPayload(
   if (config.entity === 'intermediary-calculation') {
     payload.intermediaryCalculation = value.intermediaryCalculation
   }
+  if (config.entity === 'service-contract') {
+    payload.counterpartyType = value.counterpartyType
+    payload.counterparty = inputReference(value.counterparty)
+    payload.handler = inputReference(value.handler)
+    payload.settlementMethod = inputReference(value.settlementMethod)
+    payload.serviceContract = {
+      ...(value.serviceContract.capabilities.length
+        ? { capabilities: [...value.serviceContract.capabilities] }
+        : {}),
+      ...(value.serviceContract.applicableFrom
+        ? { applicableFrom: value.serviceContract.applicableFrom }
+        : {}),
+      ...(value.serviceContract.applicableTo
+        ? { applicableTo: value.serviceContract.applicableTo }
+        : {}),
+      ...(value.serviceContract.terms.trim()
+        ? { terms: value.serviceContract.terms.trim() }
+        : {}),
+    }
+  }
+  if (config.entity === 'service-acceptance') {
+    payload.amount = value.amount.trim()
+    payload.serviceAcceptance = {
+      contractDocumentId: value.serviceAcceptance.contractDocumentId.trim(),
+      serviceDate: value.serviceAcceptance.serviceDate,
+      acceptanceDate: value.serviceAcceptance.acceptanceDate,
+      settlementDirection: value.serviceAcceptance.settlementDirection,
+      fulfillmentFact: value.serviceAcceptance.fulfillmentFact.trim(),
+      acceptanceFact: value.serviceAcceptance.acceptanceFact.trim(),
+    }
+  }
   if (config.partyMode === 'customer' || config.partyMode === 'dual') {
     payload.customer = inputReference(value.customer)
   }
   if (config.partyMode === 'supplier' || config.partyMode === 'dual') {
     payload.supplier = inputReference(value.supplier)
   }
-  if (config.partyMode === 'counterparty' && value.counterparty) {
+  if (
+    config.entity !== 'service-contract' &&
+    config.partyMode === 'counterparty' &&
+    value.counterparty
+  ) {
     if (!config.fixedCounterpartyType) {
       payload.counterpartyType = value.counterpartyType
     }
@@ -56,7 +91,9 @@ export function buildVoucherDraftPayload(
   ) {
     payload.purchaser = inputReference(value.purchaser)
   }
-  if (config.usesHandler) payload.handler = inputReference(value.handler)
+  if (config.usesHandler && config.entity !== 'service-contract') {
+    payload.handler = inputReference(value.handler)
+  }
   if (config.usesWarehouse) {
     payload.warehouse = inputReference(value.warehouse)
   }
@@ -98,7 +135,9 @@ export function buildVoucherDraftPayload(
       }))
     }
   }
-  if (config.directAmount) payload.amount = value.amount.trim()
+  if (config.directAmount && config.entity !== 'service-acceptance') {
+    payload.amount = value.amount.trim()
+  }
   if (config.lineKind === 'product') {
     payload.productLines = value.productLines.map((line) => ({
       product: inputReference(line.product)!,

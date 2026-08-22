@@ -108,10 +108,16 @@ func (s *serviceStub) CustomerGet(_ context.Context, _ GetInput) (CustomerDetail
 	return CustomerDetailView{}, nil
 }
 
-func (s *serviceStub) CustomerCreate(_ context.Context, _ CustomerCreateInput, _, _ string) (CustomerCreateResult, error) {
+func (s *serviceStub) CustomerCreate(_ context.Context, _ CustomerCreateInput, _, _ string, _ bool) (CustomerCreateResult, error) {
 	s.record("create", EntityCustomer)
 	return CustomerCreateResult{}, nil
 }
+
+func (s *serviceStub) CustomerAccountAdd(_ context.Context, _ CustomerAccountAddInput, _, _ string) (CustomerAccountView, error) {
+	return CustomerAccountView{}, nil
+}
+
+func (s *serviceStub) CustomerAccountDelete(_ context.Context, _ DeleteInput) error { return nil }
 
 func (s *serviceStub) CustomerSave(_ context.Context, _ CustomerSaveInput, _, _ string) (MutationResult, error) {
 	s.record("save", EntityCustomer)
@@ -128,9 +134,9 @@ func (s *serviceStub) SupplierGet(_ context.Context, _ GetInput) (SupplierDetail
 	return SupplierDetailView{}, nil
 }
 
-func (s *serviceStub) SupplierCreate(_ context.Context, _ SupplierCreateInput, _, _ string) (MutationResult, error) {
+func (s *serviceStub) SupplierCreate(_ context.Context, _ SupplierCreateInput, _, _ string, _ bool) (SupplierCreateResult, error) {
 	s.record("create", EntitySupplier)
-	return MutationResult{}, nil
+	return SupplierCreateResult{}, nil
 }
 
 func (s *serviceStub) SupplierSave(_ context.Context, _ SupplierSaveInput, _, _ string) (MutationResult, error) {
@@ -138,19 +144,29 @@ func (s *serviceStub) SupplierSave(_ context.Context, _ SupplierSaveInput, _, _ 
 	return MutationResult{}, nil
 }
 
-func (s *serviceStub) CustomerGroupGet(_ context.Context, _ string) (CustomerGroupView, error) {
-	s.record("get", "customer-group")
-	return CustomerGroupView{}, nil
+func (s *serviceStub) EmploymentCreate(_ context.Context, _ EmploymentCreateInput, _, _ string, _ bool) (EmploymentCreateResult, error) {
+	s.record("create", EntityEmployee)
+	return EmploymentCreateResult{}, nil
 }
 
-func (s *serviceStub) CustomerGroupSave(_ context.Context, _ CustomerGroupSaveInput, _, _ string) (CustomerGroupView, error) {
-	s.record("save", "customer-group")
-	return CustomerGroupView{}, nil
+func (s *serviceStub) SalesPartnerQuery(_ context.Context, input QueryInput) (Page[SalesPartnerListItem], error) {
+	s.record("query", EntitySalesPartner)
+	return Page[SalesPartnerListItem]{Items: []SalesPartnerListItem{}, Page: input.Page, PageSize: input.PageSize}, nil
 }
 
-func (s *serviceStub) CustomerGroupAuditHistory(_ context.Context, _ HistoryInput) (Page[AuditEventView], error) {
-	s.record("audit-history", "customer-group")
-	return Page[AuditEventView]{Items: []AuditEventView{}}, nil
+func (s *serviceStub) SalesPartnerGet(_ context.Context, _ GetInput) (SalesPartnerDetailView, error) {
+	s.record("get", EntitySalesPartner)
+	return SalesPartnerDetailView{}, nil
+}
+
+func (s *serviceStub) SalesPartnerCreate(_ context.Context, _ SalesPartnerCreateInput, _, _ string, _ bool) (SalesPartnerCreateResult, error) {
+	s.record("create", EntitySalesPartner)
+	return SalesPartnerCreateResult{}, nil
+}
+
+func (s *serviceStub) SalesPartnerSave(_ context.Context, _ SalesPartnerSaveInput, _, _ string) (MutationResult, error) {
+	s.record("save", EntitySalesPartner)
+	return MutationResult{}, nil
 }
 
 func (s *serviceStub) TransferReferences(_ context.Context, _ ReferenceTransferInput, _, _ string) (ReferenceTransferResult, error) {
@@ -163,14 +179,54 @@ func (s *serviceStub) QueryReferenceCandidates(_ context.Context, _ ReferenceQue
 	return []ReferenceCandidate{}, nil
 }
 
-func (s *serviceStub) CustomerTaxMatches(_ context.Context, _ CustomerTaxMatchInput) ([]CustomerTaxMatch, error) {
-	s.record("tax-match", EntityCustomer)
-	return []CustomerTaxMatch{}, nil
+func (s *serviceStub) PartyQuery(_ context.Context, input QueryInput) (Page[PartyListItem], error) {
+	s.record("query", "party")
+	return Page[PartyListItem]{Items: []PartyListItem{}, Page: input.Page, PageSize: input.PageSize}, nil
 }
 
-func (s *serviceStub) SupplierTaxMatches(_ context.Context, _ SupplierTaxMatchInput) ([]SupplierTaxMatch, error) {
-	s.record("tax-match", EntitySupplier)
-	return []SupplierTaxMatch{}, nil
+func (s *serviceStub) PartyGet(_ context.Context, _ PartyGetInput, _ PartyRelationshipVisibility) (PartyView, error) {
+	s.record("get", "party")
+	return PartyView{}, nil
+}
+
+func (s *serviceStub) PartySave(_ context.Context, _ PartySaveInput, _, _ string) (PartyView, error) {
+	s.record("save", "party")
+	return PartyView{}, nil
+}
+
+func (s *serviceStub) PartyMergePreflight(_ context.Context, _ PartyMergePreflightInput, _ PartyRelationshipVisibility, _, _ string) (PartyMergePreflightResult, error) {
+	s.record("merge-preflight", "party")
+	return PartyMergePreflightResult{}, nil
+}
+
+func (s *serviceStub) PartyMergeConfirm(_ context.Context, _ PartyMergeConfirmInput, _ PartyRelationshipVisibility, _, _ string) (PartyMergeResult, error) {
+	s.record("merge-confirm", "party")
+	return PartyMergeResult{}, nil
+}
+
+func (s *serviceStub) OtherUnitQuery(_ context.Context, input QueryInput) (Page[OtherUnitView], error) {
+	s.record("query", EntityOtherUnit)
+	return Page[OtherUnitView]{Items: []OtherUnitView{}, Page: input.Page, PageSize: input.PageSize}, nil
+}
+
+func (s *serviceStub) OtherUnitGet(_ context.Context, _ GetInput) (OtherUnitView, error) {
+	s.record("get", EntityOtherUnit)
+	return OtherUnitView{}, nil
+}
+
+func (s *serviceStub) OtherUnitCreate(_ context.Context, _ OtherUnitCreateInput, _, _ string, _ bool) (OtherUnitCreateResult, error) {
+	s.record("create", EntityOtherUnit)
+	return OtherUnitCreateResult{}, nil
+}
+
+func (s *serviceStub) OtherUnitSave(_ context.Context, _ OtherUnitSaveInput, _, _ string) (MutationResult, error) {
+	s.record("save", EntityOtherUnit)
+	return MutationResult{}, nil
+}
+
+func (s *serviceStub) OtherUnitVersions(_ context.Context, input HistoryInput) (Page[VersionHistoryItem], error) {
+	s.record("versions", EntityOtherUnit)
+	return Page[VersionHistoryItem]{Items: []VersionHistoryItem{}, Page: input.Page, PageSize: input.PageSize}, nil
 }
 
 func testBOBLogger() *slog.Logger {
@@ -189,7 +245,7 @@ func TestHandlerRegistersEveryEntityAction(t *testing.T) {
 	router := newBOBTestRouter(&serviceStub{}, authorization.FailClosed{})
 	routes := router.Routes()
 	expectedEntities := []string{
-		"customer", "supplier", "other-party", "employee", "product", "service", "warehouse",
+		"customer", "supplier", "employee", "sales-partner", "product", "service", "warehouse",
 		"vehicle", "fund-account", "operating-entity",
 	}
 	expectedActions := []string{
@@ -202,7 +258,23 @@ func TestHandlerRegistersEveryEntityAction(t *testing.T) {
 			wanted["/bob/"+entity+"/"+action] = false
 		}
 	}
+	for _, path := range []string{
+		"/bob/party/query", "/bob/party/get", "/bob/party/save",
+		"/bob/other-unit/query", "/bob/other-unit/get", "/bob/other-unit/create", "/bob/other-unit/save",
+		"/bob/other-unit/delete", "/bob/other-unit/submit", "/bob/other-unit/unsubmit",
+		"/bob/other-unit/approve", "/bob/other-unit/reject", "/bob/other-unit/enable",
+		"/bob/other-unit/disable", "/bob/other-unit/versions", "/bob/other-unit/audit-history",
+		"/bob/customer-account/submit", "/bob/customer-account/unsubmit",
+		"/bob/customer-account/approve", "/bob/customer-account/reject",
+		"/bob/customer-account/enable", "/bob/customer-account/disable",
+		"/bob/customer-account/versions", "/bob/customer-account/audit-history",
+	} {
+		wanted[path] = false
+	}
 	for _, route := range routes {
+		if strings.HasPrefix(route.Path, "/bob/other-party/") {
+			t.Fatalf("obsolete route remains registered: %s", route.Path)
+		}
 		if _, exists := wanted[route.Path]; exists && route.Method == http.MethodPost {
 			wanted[route.Path] = true
 		}
@@ -212,9 +284,63 @@ func TestHandlerRegistersEveryEntityAction(t *testing.T) {
 			t.Errorf("route %s is not registered", path)
 		}
 	}
-	const entitySpecificRoutes = 12
+	const entitySpecificRoutes = 11
 	if len(routes) != len(wanted)+entitySpecificRoutes {
 		t.Fatalf("registered route count = %d, want %d", len(routes), len(wanted)+entitySpecificRoutes)
+	}
+}
+
+func TestHandlerDoesNotRegisterLegacyTaxMatchRoutes(t *testing.T) {
+	router := newBOBTestRouter(&serviceStub{}, authorization.FailClosed{})
+	for _, route := range router.Routes() {
+		if route.Path == "/bob/customer/tax-match" || route.Path == "/bob/supplier/tax-match" {
+			t.Fatalf("legacy route remains reachable: %s", route.Path)
+		}
+	}
+}
+
+func TestOtherUnitCreateRequiresMatchingPartyPermission(t *testing.T) {
+	tests := []struct {
+		name          string
+		body          string
+		partyPathWant string
+	}{
+		{
+			name:          "new Party",
+			body:          `{"newParty":{"kind":"ORGANIZATION","legalName":"测试机构","strongIdentifiers":[]},"data":{"operatingEntityId":"01J00000000000000000000010"}}`,
+			partyPathWant: "/bob/party/create",
+		},
+		{
+			name:          "existing Party",
+			body:          `{"partyId":"01J00000000000000000000011","data":{"operatingEntityId":"01J00000000000000000000010"}}`,
+			partyPathWant: "/bob/party/get",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var paths []string
+			authorizer := authorization.Func(func(_ context.Context, _ *http.Request, path, _ string) (authorization.Principal, error) {
+				paths = append(paths, path)
+				return authorization.Principal{
+					ActorID:     "01J00000000000000000000000",
+					Permissions: []string{"/bob/party/get", "/bob/other-unit/get"},
+				}, nil
+			})
+			service := &serviceStub{}
+			router := newBOBTestRouter(service, authorizer)
+			request := httptest.NewRequest(http.MethodPost, "/bob/other-unit/create", strings.NewReader(test.body))
+			request.Header.Set("Content-Type", "application/json")
+			recorder := httptest.NewRecorder()
+
+			router.ServeHTTP(recorder, request)
+
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+			}
+			if len(paths) != 2 || paths[0] != "/bob/other-unit/create" || paths[1] != test.partyPathWant {
+				t.Fatalf("authorization paths = %v", paths)
+			}
+		})
 	}
 }
 

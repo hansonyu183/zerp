@@ -8,7 +8,7 @@ import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
 import { formatLocalDateTime } from '@/utils/date'
-import type { SupplierListItem, SupplierType, SupplierVersion } from './types'
+import type { SupplierListItem, SupplierVersion } from './types'
 import type { SupplierLifecycleAction, SupplierViewModel } from './vm'
 
 const props = defineProps<{ model: SupplierViewModel }>()
@@ -23,18 +23,12 @@ const auditLength = computed(() =>
   Math.max(1, Math.ceil(vm.auditTotal / vm.auditPageSize)),
 )
 
-const supplierTypeItems = [
-  { value: 'GENERAL', title: '普通供应商' },
-  { value: 'LOGISTICS_PLATFORM', title: '物流平台' },
-] as const
 const statusItems = [
   { value: 'DRAFT', title: '草稿' },
   { value: 'PENDING', title: '待审核' },
   { value: 'EFFECTIVE', title: '有效' },
   { value: 'INVALID', title: '已失效' },
 ] as const
-const supplierTypeLabel = (value: SupplierType) =>
-  supplierTypeItems.find((item) => item.value === value)?.title ?? value
 const statusLabel = (value: string) =>
   statusItems.find((item) => item.value === value)?.title ?? value
 const eventLabels: Readonly<Record<string, string>> = {
@@ -58,11 +52,6 @@ const purchaserLabel = (version: SupplierListItem['effective']) =>
 const columns: readonly BusinessObjectColumn<SupplierListItem>[] = [
   { key: 'code', label: '编码', value: (row) => row.code, sizing: 'compact' },
   { key: 'name', label: '名称', value: (row) => row.name, sizing: 'fluid' },
-  {
-    key: 'supplierType',
-    label: '类型',
-    value: (row) => supplierTypeLabel(row.supplierType),
-  },
   {
     key: 'defaultPurchaser',
     label: '默认采购员',
@@ -225,6 +214,9 @@ async function confirmLifecycle(): Promise<void> {
 function referenceTitle(item: { code: string; name: string }): string {
   return `${item.code} · ${item.name}`
 }
+function partyTitle(item: { displayName: string; legalName: string }): string {
+  return item.displayName || item.legalName
+}
 function versionTitle(label: string, version: SupplierVersion | null): string {
   return version
     ? `${label}（${statusLabel(version.status)}）`
@@ -274,14 +266,6 @@ onMounted(() => {
           label="生命周期状态"
           :items="statusItems"
           multiple
-          variant="outlined"
-        />
-        <v-select
-          v-model="vm.filters.supplierType"
-          clearable
-          density="comfortable"
-          label="供应商类型"
-          :items="supplierTypeItems"
           variant="outlined"
         />
         <v-autocomplete
@@ -423,6 +407,18 @@ onMounted(() => {
       >
       <section class="supplier-workspace__section">
         <h3>供应商资料</h3>
+        <v-btn-toggle
+          v-if="vm.mode === 'create'"
+          v-model="vm.form.partyMode"
+          class="mb-4"
+          color="primary"
+          mandatory
+        >
+          <v-btn v-if="vm.canCreateWithNewParty" value="new">新主体</v-btn>
+          <v-btn v-if="vm.canCreateWithExistingParty" value="existing"
+            >复用已有主体</v-btn
+          >
+        </v-btn-toggle>
         <div class="supplier-workspace__grid">
           <v-text-field
             v-if="vm.form.code"
@@ -432,42 +428,72 @@ onMounted(() => {
             variant="outlined"
           />
           <v-text-field
+            v-if="vm.mode !== 'create' || vm.form.partyMode === 'new'"
             v-model="vm.form.name"
-            label="供应商名称"
-            :readonly="vm.mode === 'view'"
+            label="主体名称"
+            :readonly="vm.mode !== 'create'"
             required
             variant="outlined"
           />
+          <v-autocomplete
+            v-else
+            v-model="vm.form.selectedParty"
+            :item-title="partyTitle"
+            :items="vm.partyOptions"
+            label="已有主体"
+            required
+            return-object
+            variant="outlined"
+            @update:search="vm.searchParties($event ?? '')"
+          />
           <v-select
-            v-model="vm.form.supplierType"
-            :items="supplierTypeItems"
-            label="供应商类型"
-            :readonly="vm.mode === 'view'"
+            v-if="vm.mode === 'create' && vm.form.partyMode === 'new'"
+            v-model="vm.form.partyKind"
+            :items="[
+              { value: 'ORGANIZATION', title: '企业/机构' },
+              { value: 'PERSON', title: '个人' },
+            ]"
+            label="主体类型"
             variant="outlined"
           />
           <v-text-field
-            v-model="vm.form.shortName"
-            label="简称"
-            :readonly="vm.mode === 'view'"
-            variant="outlined"
-          />
-          <v-text-field
+            v-if="vm.mode === 'create' && vm.form.partyMode === 'new'"
             v-model="vm.form.taxNumber"
             label="税号"
-            :readonly="vm.mode === 'view'"
             variant="outlined"
-          >
-            <template v-if="vm.mode === 'create'" #append-inner>
-              <v-btn
-                :disabled="!vm.form.taxNumber.trim()"
-                :loading="vm.taxMatching"
-                size="small"
-                variant="text"
-                @click="vm.matchTaxNumber"
-                >匹配</v-btn
-              >
-            </template>
-          </v-text-field>
+          />
+          <v-select
+            v-if="vm.mode === 'create' && vm.form.partyMode === 'new'"
+            v-model="vm.form.identifierType"
+            :items="[
+              { title: '身份证件号', value: 'PERSON_ID' },
+              {
+                title: '统一社会信用代码',
+                value: 'UNIFIED_SOCIAL_CREDIT_CODE',
+              },
+            ]"
+            label="强标识类型"
+            variant="outlined"
+          />
+          <v-text-field
+            v-if="vm.mode === 'create' && vm.form.partyMode === 'new'"
+            v-model="vm.form.identifierValue"
+            label="强标识值（可选）"
+            variant="outlined"
+          />
+          <v-autocomplete
+            v-model="vm.form.operatingEntity"
+            :item-title="referenceTitle"
+            :items="vm.referenceOptions.operatingEntity"
+            label="经营主体"
+            :readonly="vm.mode !== 'create'"
+            required
+            return-object
+            variant="outlined"
+            @update:search="
+              vm.loadReferenceOptions('operatingEntity', $event ?? '')
+            "
+          />
           <v-text-field
             v-model="vm.form.contactName"
             label="联系人"
@@ -525,30 +551,6 @@ onMounted(() => {
             variant="outlined"
           />
         </div>
-        <v-card
-          v-if="vm.taxMatches.length"
-          class="mt-3"
-          title="同税号可读取资料"
-          variant="tonal"
-        >
-          <v-list density="comfortable">
-            <v-list-item
-              v-for="match in vm.taxMatches"
-              :key="`${match.sourceEntity}:${match.objectId}`"
-              :subtitle="`${match.code} · ${match.taxNumber}`"
-              :title="match.companyName"
-            >
-              <template #append>
-                <v-btn
-                  size="small"
-                  variant="text"
-                  @click="vm.applyTaxMatch(match)"
-                  >采用</v-btn
-                >
-              </template>
-            </v-list-item>
-          </v-list>
-        </v-card>
       </section>
       <section v-if="vm.detail" class="supplier-workspace__section">
         <h3>版本资料</h3>
@@ -565,10 +567,8 @@ onMounted(() => {
               ><dl class="supplier-workspace__detail">
                 <template
                   v-for="(value, key) in {
-                    名称: version.data.name,
-                    类型: supplierTypeLabel(version.data.supplierType),
-                    简称: version.data.shortName || '—',
-                    税号: version.data.taxNumber || '—',
+                    主体: vm.detail.partyDisplayName,
+                    经营主体: vm.detail.operatingEntityName,
                     联系人: version.data.contactName || '—',
                     电话: version.data.contactPhone || '—',
                     邮箱: version.data.email || '—',

@@ -7,7 +7,7 @@ import (
 
 func TestValidateCustomerAttachmentInitiate(t *testing.T) {
 	valid := CustomerAttachmentInitiateInput{
-		Scope: CustomerAttachmentScopeGroup, OwnerID: "01J00000000000000000000001", Revision: 1,
+		Scope: CustomerAttachmentScopeRelationship, OwnerID: "01J00000000000000000000001", Revision: 1,
 		CategoryObjectID: "01J00000000000000000000002", FileName: "license.pdf",
 		ContentType: "application/pdf", Size: 12, SHA256: strings.Repeat("a", 64),
 	}

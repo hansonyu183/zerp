@@ -16,7 +16,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-cl
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-bootstrap-admin ./cmd/bootstrap-admin
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-seed-bob ./cmd/seed-bob
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-seed-production-demo ./cmd/seed-production-demo
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-seed-preview ./cmd/seed-preview
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-seed-test ./cmd/seed-test
 RUN go -C tools build -trimpath -ldflags="-s -w" -o /out/goose github.com/pressly/goose/v3/cmd/goose
 
 FROM alpine:3.23
@@ -32,7 +32,7 @@ COPY --from=build /out/zerp-cleanup-vou-attachments /usr/local/bin/zerp-cleanup-
 COPY --from=build /out/zerp-bootstrap-admin /usr/local/bin/zerp-bootstrap-admin
 COPY --from=build /out/zerp-seed-bob /usr/local/bin/zerp-seed-bob
 COPY --from=build /out/zerp-seed-production-demo /usr/local/bin/zerp-seed-production-demo
-COPY --from=build /out/zerp-seed-preview /usr/local/bin/zerp-seed-preview
+COPY --from=build /out/zerp-seed-test /usr/local/bin/zerp-seed-test
 COPY --from=build /out/goose /usr/local/bin/goose
 COPY db/migrations /app/migrations
 RUN chmod -R a+rX /app/migrations

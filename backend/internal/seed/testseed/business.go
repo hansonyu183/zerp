@@ -1,4 +1,4 @@
-package previewseed
+package testseed
 
 import (
 	"context"
@@ -52,140 +52,140 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 	samples := []bobSample{
 		{"operating-effective", bobdomain.EntityOperatingEntity, bobdomain.StatusEffective, func(*Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name: "上海预览科技有限公司", ShortName: "上海预览", TaxNumber: "91310000PREVIEWOPE1",
-				Address: "上海市浦东新区预览路1号", Phone: "021-61000000",
+				Name: "上海测试科技有限公司", ShortName: "上海测试", TaxNumber: "91310000TESTOPE1",
+				Address: "上海市浦东新区测试路1号", Phone: "021-61000000",
 			}
 		}},
 		{"employee-effective", bobdomain.EntityEmployee, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name: "张伟（预览）", DepartmentID: s.auxRefs["department-root"].ObjectID,
+				Name: "张伟（测试）", DepartmentID: s.auxRefs["department-root"].ObjectID,
 				PositionID: s.auxRefs["position-operator"].ObjectID, Phone: "13800000101",
-				Email: "preview.employee@example.com", HireDate: "2024-01-15", Remark: "预览测试有效员工",
+				Email: "test.employee@example.com", HireDate: "2024-01-15", Remark: "测试有效员工",
 			}
 		}},
 		{"employee-rejected", bobdomain.EntityEmployee, bobdomain.StatusDraft, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name: "李娜（预览草稿）", DepartmentID: s.auxRefs["department-sales"].ObjectID,
+				Name: "李娜（测试草稿）", DepartmentID: s.auxRefs["department-sales"].ObjectID,
 				PositionID: s.auxRefs["position-operator"].ObjectID, Phone: "13800000102",
-				Remark: "预览测试草稿员工",
+				Remark: "测试草稿员工",
 			}
 		}},
 		{"other-unit-effective", bobdomain.EntityOtherUnit, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name: "远航居间服务有限公司（预览）", ShortName: "远航居间",
-				TaxNumber: "91310000PREVIEW0103", ContactName: "刘顾问", ContactPhone: "13800000107",
-				Email: "preview.intermediary@example.com", Address: "上海市静安区预览商务路 88 号",
+				Name: "远航居间服务有限公司（测试）", ShortName: "远航居间",
+				TaxNumber: "91310000TEST0103", ContactName: "刘顾问", ContactPhone: "13800000107",
+				Email: "test.intermediary@example.com", Address: "上海市静安区测试商务路 88 号",
 				SettlementMethodID:    s.bobRefs["settlement-due-days"].ObjectID,
 				SalespersonEmployeeID: s.bobRefs["employee-effective"].ObjectID,
-				Remark:                "预览测试有效居间往来单位",
+				Remark:                "测试有效居间往来单位",
 			}
 		}},
 		{"other-unit-draft", bobdomain.EntityOtherUnit, bobdomain.StatusDraft, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name: "待确认居间单位（预览草稿）", ContactName: "陈顾问", ContactPhone: "13800000108",
+				Name: "待确认居间单位（测试草稿）", ContactName: "陈顾问", ContactPhone: "13800000108",
 				SettlementMethodID:    s.bobRefs["settlement-due-days"].ObjectID,
 				SalespersonEmployeeID: s.bobRefs["employee-effective"].ObjectID,
-				Remark:                "预览测试草稿其他单位",
+				Remark:                "测试草稿其他单位",
 			}
 		}},
 		{"customer-effective", bobdomain.EntityCustomerAccount, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			customerType := bobdomain.CustomerTypeEndUser
 			return bobdomain.CreateDetailInput{
-				Name: "星河制造有限公司（预览）", CustomerType: &customerType,
-				ShortName: "星河制造", TaxNumber: "91310000PREVIEW0101",
+				Name: "星河制造有限公司（测试）", CustomerType: &customerType,
+				ShortName: "星河制造", TaxNumber: "91310000TEST0101",
 				ContactName: "王经理", ContactPhone: "13800000103",
-				Email: "preview.customer@example.com", Address: "上海市浦东新区预览路 101 号",
+				Email: "test.customer@example.com", Address: "上海市浦东新区测试路 101 号",
 				SettlementMethodID:    s.bobRefs["settlement-month-end"].ObjectID,
 				MonthlyClosingDay:     15,
 				SalespersonEmployeeID: s.bobRefs["employee-effective"].ObjectID,
-				Remark:                "预览测试有效客户",
+				Remark:                "测试有效客户",
 			}
 		}},
 		{"customer-draft", bobdomain.EntityCustomerAccount, bobdomain.StatusDraft, func(s *Seeder) bobdomain.CreateDetailInput {
 			customerType := bobdomain.CustomerTypeEndUser
 			return bobdomain.CreateDetailInput{
-				Name: "新客户（预览草稿）", CustomerType: &customerType,
+				Name: "新客户（测试草稿）", CustomerType: &customerType,
 				ContactName: "陈先生", ContactPhone: "13800000104",
 				SettlementMethodID:    s.bobRefs["settlement-due-days"].ObjectID,
 				SalespersonEmployeeID: s.bobRefs["employee-effective"].ObjectID,
-				Remark:                "预览测试草稿客户",
+				Remark:                "测试草稿客户",
 			}
 		}},
 		{"logistics-service", bobdomain.EntityOtherUnit, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name:      "自营物流服务单位（预览）",
-				ShortName: "预览物流", ContactName: "调度中心", ContactPhone: "021-60000101",
-				Address:                    "上海市嘉定区预览物流园",
+				Name:      "自营物流服务单位（测试）",
+				ShortName: "测试物流", ContactName: "调度中心", ContactPhone: "021-60000101",
+				Address:                    "上海市嘉定区测试物流园",
 				SettlementMethodID:         s.bobRefs["settlement-due-days"].ObjectID,
 				DefaultPurchaserEmployeeID: s.bobRefs["employee-effective"].ObjectID,
-				Remark:                     "预览测试物流服务单位",
+				Remark:                     "测试物流服务单位",
 			}
 		}},
 		{"supplier-effective", bobdomain.EntitySupplier, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name:      "通用原料供应商（预览）",
-				ShortName: "预览原料", TaxNumber: "91310000PREVIEW0102",
+				Name:      "通用原料供应商（测试）",
+				ShortName: "测试原料", TaxNumber: "91310000TEST0102",
 				ContactName: "赵经理", ContactPhone: "13800000105",
-				Address:                    "江苏省苏州市预览工业园",
+				Address:                    "江苏省苏州市测试工业园",
 				SettlementMethodID:         s.bobRefs["settlement-due-days"].ObjectID,
 				DefaultPurchaserEmployeeID: s.bobRefs["employee-effective"].ObjectID,
-				Remark:                     "预览测试有效供应商",
+				Remark:                     "测试有效供应商",
 			}
 		}},
 		{"supplier-pending", bobdomain.EntitySupplier, bobdomain.StatusPending, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name:        "候选供应商（预览待审核）",
+				Name:        "候选供应商（测试待审核）",
 				ContactName: "周经理", ContactPhone: "13800000106",
 				SettlementMethodID:         s.bobRefs["settlement-due-days"].ObjectID,
 				DefaultPurchaserEmployeeID: s.bobRefs["employee-effective"].ObjectID,
-				Remark:                     "预览测试待审核供应商",
+				Remark:                     "测试待审核供应商",
 			}
 		}},
 		{"warehouse-effective", bobdomain.EntityWarehouse, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name: "华东主仓（预览）", Address: "上海市嘉定区预览仓储路 1 号",
+				Name: "华东主仓（测试）", Address: "上海市嘉定区测试仓储路 1 号",
 				ContactName: "张伟", ContactPhone: "13800000101",
 				ManagerEmployeeID: s.bobRefs["employee-effective"].ObjectID,
-				Remark:            "预览测试有效仓库",
+				Remark:            "测试有效仓库",
 			}
 		}},
 		{"warehouse-rejected", bobdomain.EntityWarehouse, bobdomain.StatusDraft, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name: "临时仓（预览草稿）", Address: "上海市青浦区预览临时仓",
+				Name: "临时仓（测试草稿）", Address: "上海市青浦区测试临时仓",
 				ManagerEmployeeID: s.bobRefs["employee-effective"].ObjectID,
-				Remark:            "预览测试草稿仓库",
+				Remark:            "测试草稿仓库",
 			}
 		}},
 		{"packaging-effective", bobdomain.EntityProduct, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name: "可回收包装桶（预览）", ProductTypeID: s.auxRefs["product-type-packaging"].ObjectID,
+				Name: "可回收包装桶（测试）", ProductTypeID: s.auxRefs["product-type-packaging"].ObjectID,
 				DefaultInputUnitID: s.auxRefs["UNT-0002"].ObjectID, PricingUnitID: s.auxRefs["UNT-0002"].ObjectID,
 				UnitConversions: []bobdomain.ProductUnitConversion{{Unit: unitSnapshot(s.auxRefs["UNT-0002"]), Factor: "1"}}, Returnable: true,
 				CategoryID:    s.auxRefs["product-category-parts"].ObjectID,
-				Specification: "20L", Model: "PK-20", Barcode: "PREVIEW-PACK-001",
-				Remark: "预览测试可回收包装物",
+				Specification: "20L", Model: "PK-20", Barcode: "TEST-PACK-001",
+				Remark: "测试可回收包装物",
 			}
 		}},
 		{"raw-effective", bobdomain.EntityProduct, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name: "标准原料 A（预览）", ProductTypeID: s.auxRefs["product-type-raw"].ObjectID,
+				Name: "标准原料 A（测试）", ProductTypeID: s.auxRefs["product-type-raw"].ObjectID,
 				DefaultInputUnitID: s.auxRefs["UNT-0002"].ObjectID, PricingUnitID: s.auxRefs["UNT-0001"].ObjectID,
 				UnitConversions:      productUnits(s.auxRefs["UNT-0002"], s.auxRefs["UNT-0001"], "2.5"),
 				DefaultPackagingSpec: "10",
 				CategoryID:           s.auxRefs["product-category-parts"].ObjectID,
-				Specification:        "M20", Model: "RM-A", Barcode: "PREVIEW-RAW-001",
-				Remark: "预览测试原材料",
+				Specification:        "M20", Model: "RM-A", Barcode: "TEST-RAW-001",
+				Remark: "测试原材料",
 			}
 		}},
 		{"finished-effective", bobdomain.EntityProduct, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			raw := s.bobRefs["raw-effective"]
 			return bobdomain.CreateDetailInput{
-				Name: "标准自制品 A（预览）", ProductTypeID: s.auxRefs["product-type-finished"].ObjectID,
+				Name: "标准自制品 A（测试）", ProductTypeID: s.auxRefs["product-type-finished"].ObjectID,
 				DefaultInputUnitID: s.auxRefs["UNT-0002"].ObjectID, PricingUnitID: s.auxRefs["UNT-0001"].ObjectID,
 				UnitConversions:      productUnits(s.auxRefs["UNT-0002"], s.auxRefs["UNT-0001"], "3"),
 				DefaultPackagingSpec: "10",
 				CategoryID:           s.auxRefs["product-category-parts"].ObjectID,
-				Specification:        "FG-A", Model: "FG-100", Barcode: "PREVIEW-FG-001",
+				Specification:        "FG-A", Model: "FG-100", Barcode: "TEST-FG-001",
 				Formula: &bobdomain.ProductFormula{
 					Output: quantitySnapshot(s.auxRefs["UNT-0002"], "1"),
 					Components: []bobdomain.ProductFormulaComponent{{
@@ -195,77 +195,77 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 						Quantity: quantitySnapshot(s.auxRefs["UNT-0002"], "2"), ResolutionStatus: "CURRENT",
 					}},
 				},
-				Remark: "预览测试标准自制品",
+				Remark: "测试标准自制品",
 			}
 		}},
 		{"custom-effective", bobdomain.EntityProduct, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name: "客户定制品 B（预览）", ProductTypeID: s.auxRefs["product-type-custom"].ObjectID,
+				Name: "客户定制品 B（测试）", ProductTypeID: s.auxRefs["product-type-custom"].ObjectID,
 				DefaultInputUnitID: s.auxRefs["UNT-0002"].ObjectID, PricingUnitID: s.auxRefs["UNT-0001"].ObjectID,
 				UnitConversions:      productUnits(s.auxRefs["UNT-0002"], s.auxRefs["UNT-0001"], "4"),
 				DefaultPackagingSpec: "10",
 				CategoryID:           s.auxRefs["product-category-parts"].ObjectID,
-				Specification:        "FG-B", Model: "FG-200", Barcode: "PREVIEW-FG-002",
-				Remark: "预览测试客户定制品",
+				Specification:        "FG-B", Model: "FG-200", Barcode: "TEST-FG-002",
+				Remark: "测试客户定制品",
 			}
 		}},
 		{"product-draft", bobdomain.EntityProduct, bobdomain.StatusDraft, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name: "试制原料（预览草稿）", ProductTypeID: s.auxRefs["product-type-raw"].ObjectID,
+				Name: "试制原料（测试草稿）", ProductTypeID: s.auxRefs["product-type-raw"].ObjectID,
 				DefaultInputUnitID: s.auxRefs["UNT-0002"].ObjectID, PricingUnitID: s.auxRefs["UNT-0001"].ObjectID,
 				UnitConversions:      productUnits(s.auxRefs["UNT-0002"], s.auxRefs["UNT-0001"], "1"),
 				DefaultPackagingSpec: "10",
 				CategoryID:           s.auxRefs["product-category-parts"].ObjectID,
-				Specification:        "TEST", Model: "DRAFT", Barcode: "PREVIEW-DRAFT-001",
-				Remark: "预览测试草稿产品",
+				Specification:        "TEST", Model: "DRAFT", Barcode: "TEST-DRAFT-001",
+				Remark: "测试草稿产品",
 			}
 		}},
 		{"service-effective", bobdomain.EntityService, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name: "设备巡检服务（预览）", Unit: "次",
+				Name: "设备巡检服务（测试）", Unit: "次",
 				InventoryUnitID: s.auxRefs["UNT-0004"].ObjectID,
-				Description:     "现场设备巡检与报告", Remark: "预览测试有效服务",
+				Description:     "现场设备巡检与报告", Remark: "测试有效服务",
 			}
 		}},
 		{"service-pending", bobdomain.EntityService, bobdomain.StatusPending, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name: "年度维保服务（预览待审核）", Unit: "年",
+				Name: "年度维保服务（测试待审核）", Unit: "年",
 				InventoryUnitID: s.auxRefs["UNT-0003"].ObjectID,
-				Description:     "年度维保方案", Remark: "预览测试待审核服务",
+				Description:     "年度维保方案", Remark: "测试待审核服务",
 			}
 		}},
 		{"vehicle-effective", bobdomain.EntityVehicle, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name: "自营配送一号车（预览）", PlateNumber: "沪A10101",
+				Name: "自营配送一号车（测试）", PlateNumber: "沪A10101",
 				VehicleType: "DIT-0003", PlatformObjectID: s.bobRefs["logistics-service"].ObjectID,
-				VIN: "LSVAA4187N2100101", EngineNumber: "ENG-PREVIEW-101",
-				LoadCapacityKG: "18000", Remark: "预览测试有效车辆",
+				VIN: "LSVAA4187N2100101", EngineNumber: "ENG-TEST-101",
+				LoadCapacityKG: "18000", Remark: "测试有效车辆",
 			}
 		}},
 		{"vehicle-draft", bobdomain.EntityVehicle, bobdomain.StatusDraft, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name: "自营配送二号车（预览草稿）", PlateNumber: "沪A10102",
+				Name: "自营配送二号车（测试草稿）", PlateNumber: "沪A10102",
 				VehicleType: "DIT-0003", PlatformObjectID: s.bobRefs["logistics-service"].ObjectID,
-				VIN: "LSVAA4187N2100102", EngineNumber: "ENG-PREVIEW-102",
-				LoadCapacityKG: "12000", Remark: "预览测试草稿车辆",
+				VIN: "LSVAA4187N2100102", EngineNumber: "ENG-TEST-102",
+				LoadCapacityKG: "12000", Remark: "测试草稿车辆",
 			}
 		}},
 		{"fund-effective", bobdomain.EntityFundAccount, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name: "人民币基本账户（预览）", Currency: "CNY",
+				Name: "人民币基本账户（测试）", Currency: "CNY",
 				OperatingEntityID: s.bobRefs["operating-effective"].ObjectID,
-				AccountName:       "上海预览科技有限公司", BankName: "示例银行",
+				AccountName:       "上海测试科技有限公司", BankName: "示例银行",
 				BankBranch: "上海浦东支行", AccountNumber: "622200000000001001",
-				Remark: "预览测试有效资金账户",
+				Remark: "测试有效资金账户",
 			}
 		}},
 		{"fund-draft", bobdomain.EntityFundAccount, bobdomain.StatusDraft, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name: "备用结算账户（预览草稿）", Currency: "CNY",
+				Name: "备用结算账户（测试草稿）", Currency: "CNY",
 				OperatingEntityID: s.bobRefs["operating-effective"].ObjectID,
-				AccountName:       "上海预览科技有限公司", BankName: "示例银行",
+				AccountName:       "上海测试科技有限公司", BankName: "示例银行",
 				BankBranch: "上海虹桥支行", AccountNumber: "622200000000001002",
-				Remark: "预览测试草稿资金账户",
+				Remark: "测试草稿资金账户",
 			}
 		}},
 	}
@@ -498,7 +498,7 @@ func (s *Seeder) advanceBusiness(
 	case current.Status == sample.status:
 		return nil
 	case current.Status == bobdomain.StatusPending && sample.status == bobdomain.StatusEffective:
-		comment := "预览测试数据：审核通过"
+		comment := "测试数据：审核通过"
 		_, err = s.business.Approve(ctx, sample.entity, bobdomain.ReviewInput{
 			ObjectID: current.ObjectID, VersionID: current.VersionID,
 			Revision: current.Revision, Comment: &comment,

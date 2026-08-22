@@ -1,4 +1,4 @@
-package previewseed
+package testseed
 
 import (
 	"context"
@@ -77,7 +77,7 @@ func (s *Seeder) seedPurchaseChain(ctx context.Context, counts *Counts) error {
 			return s.vouchers.Create(ctx, voudomain.EntityPurchaseOrder, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-01", Currency: "CNY", Supplier: &supplier,
 				Purchaser: &employee, Warehouse: &warehouse,
-				Remark:       "预览完整采购链：已批准采购订单",
+				Remark:       "测试完整采购链：已批准采购订单",
 				ProductLines: []voudomain.ProductLineInput{s.productLine(raw, "500", "10.00")},
 			}}, actorID, requestID("purchase-complete-order", "create"))
 		},
@@ -97,7 +97,7 @@ func (s *Seeder) seedPurchaseChain(ctx context.Context, counts *Counts) error {
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.CreatePurchaseInbound(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-02", SourceDocumentID: order.DocumentID,
-				Warehouse: &warehouse, Remark: "预览完整采购链：已批准采购入库",
+				Warehouse: &warehouse, Remark: "测试完整采购链：已批准采购入库",
 				SourceLines: []voudomain.SourceQuantityLineInput{{
 					SourceLineID: orderView.Data.ProductLines[0].LineID, BaseQuantity: "500",
 				}},
@@ -119,7 +119,7 @@ func (s *Seeder) seedPurchaseChain(ctx context.Context, counts *Counts) error {
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.CreatePurchaseReturn(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-09", Warehouse: &warehouse,
-				ReturnReason: "预览测试质量退货",
+				ReturnReason: "测试质量退货",
 				ReturnLines: []voudomain.ReturnLineInput{{
 					SourceLineID: inboundView.Data.ProductLines[0].LineID, BaseQuantity: "20",
 				}},
@@ -140,7 +140,7 @@ func (s *Seeder) seedPurchaseChain(ctx context.Context, counts *Counts) error {
 			return s.vouchers.Create(ctx, voudomain.EntityPurchaseOrder, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: businessDate, Currency: "CNY", Supplier: &supplier,
 				Purchaser: &employee, Warehouse: &warehouse,
-				Remark:       "预览可操作草稿：采购订单",
+				Remark:       "测试可操作草稿：采购订单",
 				ProductLines: []voudomain.ProductLineInput{s.productLine(raw, "80", "11.00")},
 			}}, actorID, requestID("purchase-draft", "create"))
 		},
@@ -159,7 +159,7 @@ func (s *Seeder) seedPurchaseChain(ctx context.Context, counts *Counts) error {
 			return s.vouchers.Create(ctx, voudomain.EntityPurchaseOrder, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: businessDate, Currency: "CNY", Supplier: &supplier,
 				Purchaser: &employee, Warehouse: &warehouse,
-				Remark:       "预览可操作来源：采购入库与退货",
+				Remark:       "测试可操作来源：采购入库与退货",
 				ProductLines: []voudomain.ProductLineInput{s.productLine(raw, "100", "10.50")},
 			}}, actorID, requestID("purchase-open-order", "create"))
 		},
@@ -179,7 +179,7 @@ func (s *Seeder) seedPurchaseChain(ctx context.Context, counts *Counts) error {
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.CreatePurchaseInbound(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: businessDate, SourceDocumentID: openOrder.DocumentID,
-				Warehouse: &warehouse, Remark: "预览可操作草稿：采购入库",
+				Warehouse: &warehouse, Remark: "测试可操作草稿：采购入库",
 				SourceLines: []voudomain.SourceQuantityLineInput{{
 					SourceLineID: openView.Data.ProductLines[0].LineID, BaseQuantity: "40",
 				}},
@@ -198,7 +198,7 @@ func (s *Seeder) seedPurchaseChain(ctx context.Context, counts *Counts) error {
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.CreatePurchaseReturn(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: businessDate, Warehouse: &warehouse,
-				ReturnReason: "预览可操作草稿：采购退货",
+				ReturnReason: "测试可操作草稿：采购退货",
 				ReturnLines: []voudomain.ReturnLineInput{{
 					SourceLineID: inboundView.Data.ProductLines[0].LineID, BaseQuantity: "10",
 				}},
@@ -229,7 +229,7 @@ func (s *Seeder) seedCompletedPurchaseWorkflow(ctx context.Context, counts *Coun
 			return s.vouchers.Create(ctx, voudomain.EntityPurchaseOrder, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-13", Currency: "CNY", Supplier: &supplier,
 				Purchaser: &employee, Warehouse: &warehouse,
-				Remark:       "预览已批准采购履约流程",
+				Remark:       "测试已批准采购履约流程",
 				ProductLines: []voudomain.ProductLineInput{s.productLine(raw, "50", "10.00")},
 			}}, actorID, requestID("purchase-fulfilled-order", "create"))
 		},
@@ -249,7 +249,7 @@ func (s *Seeder) seedCompletedPurchaseWorkflow(ctx context.Context, counts *Coun
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.CreatePurchaseInbound(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-13", SourceDocumentID: order.DocumentID,
-				Warehouse: &warehouse, Remark: "预览已批准采购履约流程：全部入库",
+				Warehouse: &warehouse, Remark: "测试已批准采购履约流程：全部入库",
 				SourceLines: []voudomain.SourceQuantityLineInput{{
 					SourceLineID: orderView.Data.ProductLines[0].LineID, BaseQuantity: "50",
 				}},
@@ -279,7 +279,7 @@ func (s *Seeder) seedProductionDocuments(ctx context.Context, counts *Counts) er
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.Create(ctx, voudomain.EntitySaleOrder, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-03", Currency: "CNY", Customer: &customer,
-				Salesperson: &employee, Warehouse: &warehouse, Remark: "预览生产配货来源订单",
+				Salesperson: &employee, Warehouse: &warehouse, Remark: "测试生产配货来源订单",
 				ProductLines: []voudomain.ProductLineInput{func() voudomain.ProductLineInput {
 					line := s.productLine(finished, "40", "80.00")
 					line.Formula = formula
@@ -312,7 +312,7 @@ func (s *Seeder) seedProductionDocuments(ctx context.Context, counts *Counts) er
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.Create(ctx, voudomain.EntityOrderProduction, voudomain.CreateInput{
 				ParentEntity: voudomain.EntitySaleOrder, ParentDocumentID: order.DocumentID,
-				Data: productionData("10", "2", "20.4", "预览生产配货：已批准"),
+				Data: productionData("10", "2", "20.4", "测试生产配货：已批准"),
 			}, actorID, requestID("order-production-approved", "create"))
 		},
 	)
@@ -328,7 +328,7 @@ func (s *Seeder) seedProductionDocuments(ctx context.Context, counts *Counts) er
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.Create(ctx, voudomain.EntityOrderProduction, voudomain.CreateInput{
 				ParentEntity: voudomain.EntitySaleOrder, ParentDocumentID: order.DocumentID,
-				Data: productionData("8", "3", "16.48", "预览可操作草稿：生产配货"),
+				Data: productionData("8", "3", "16.48", "测试可操作草稿：生产配货"),
 			}, actorID, requestID("order-production-draft", "create"))
 		},
 	)
@@ -352,7 +352,7 @@ func (s *Seeder) seedProductionDocuments(ctx context.Context, counts *Counts) er
 		voudomain.StatusApproved,
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.Create(ctx, voudomain.EntitySelfProduction, voudomain.CreateInput{
-				Data: selfData("20", "5", "42", "预览生产自制品：已批准"),
+				Data: selfData("20", "5", "42", "测试生产自制品：已批准"),
 			}, actorID, requestID("self-production-approved", "create"))
 		},
 	)
@@ -367,7 +367,7 @@ func (s *Seeder) seedProductionDocuments(ctx context.Context, counts *Counts) er
 		voudomain.StatusDraft,
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.Create(ctx, voudomain.EntitySelfProduction, voudomain.CreateInput{
-				Data: selfData("15", "3", "30.9", "预览可操作草稿：生产自制品"),
+				Data: selfData("15", "3", "30.9", "测试可操作草稿：生产自制品"),
 			}, actorID, requestID("self-production-draft", "create"))
 		},
 	)
@@ -395,7 +395,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.Create(ctx, voudomain.EntitySaleOrder, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-05", Currency: "CNY", Customer: &customer,
-				Salesperson: &employee, Warehouse: &warehouse, Remark: "预览完整销售履约链",
+				Salesperson: &employee, Warehouse: &warehouse, Remark: "测试完整销售履约链",
 				ProductLines: []voudomain.ProductLineInput{func() voudomain.ProductLineInput {
 					line := s.productLine(finished, "12", "85.00")
 					line.Formula = s.fixedFormula(raw, "2")
@@ -419,7 +419,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.Create(ctx, voudomain.EntitySaleOutbound, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-06", SourceDocumentID: order.DocumentID,
-				Warehouse: &warehouse, Remark: "预览完整销售履约链：已出库",
+				Warehouse: &warehouse, Remark: "测试完整销售履约链：已出库",
 				SourceLines: []voudomain.SourceQuantityLineInput{{
 					SourceLineID: orderView.Data.ProductLines[0].LineID, BaseQuantity: "10",
 				}},
@@ -438,7 +438,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.Create(ctx, voudomain.EntitySaleDelivery, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-07", SourceDocumentID: outbound.DocumentID,
-				Platform: &platform, Vehicle: &vehicle, Remark: "预览完整销售履约链：配送中",
+				Platform: &platform, Vehicle: &vehicle, Remark: "测试完整销售履约链：配送中",
 			}}, actorID, requestID("sales-complete-delivery", "create"))
 		},
 	)
@@ -463,7 +463,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.Create(ctx, voudomain.EntitySaleSignoff, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-08", SourceDocumentID: delivery.DocumentID,
-				Remark: "预览完整销售履约链：已签收",
+				Remark: "测试完整销售履约链：已签收",
 				SignoffLines: []voudomain.SaleSignoffLineInput{{
 					SourceLineID:       deliveryView.Data.ProductLines[0].LineID,
 					SignedBaseQuantity: "10", RejectedBaseQuantity: "0",
@@ -486,7 +486,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.CreateSaleReturn(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-10", Warehouse: &warehouse,
-				ReturnReason: "预览测试售后退货",
+				ReturnReason: "测试售后退货",
 				ReturnLines: []voudomain.ReturnLineInput{{
 					SourceLineID: signoffView.Data.SignoffLines[0].LineID, BaseQuantity: "2",
 				}},
@@ -505,7 +505,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.CreateSaleReturn(ctx, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: businessDate, Warehouse: &warehouse,
-				ReturnReason: "预览可操作草稿：销售退货",
+				ReturnReason: "测试可操作草稿：销售退货",
 				ReturnLines: []voudomain.ReturnLineInput{{
 					SourceLineID: signoffView.Data.SignoffLines[0].LineID, BaseQuantity: "1",
 				}},
@@ -524,7 +524,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.Create(ctx, voudomain.EntitySaleOrder, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: businessDate, Currency: "CNY", Customer: &customer,
-				Salesperson: &employee, Warehouse: &warehouse, Remark: "预览可操作草稿：销售订单",
+				Salesperson: &employee, Warehouse: &warehouse, Remark: "测试可操作草稿：销售订单",
 				ProductLines: []voudomain.ProductLineInput{func() voudomain.ProductLineInput {
 					line := s.productLine(finished, "20", "88.00")
 					line.Formula = s.fixedFormula(raw, "2")
@@ -557,7 +557,7 @@ func (s *Seeder) seedFinancialDocuments(ctx context.Context, counts *Counts) err
 				BusinessDate: "2026-07-11", Currency: "CNY",
 				CounterpartyType: "customer-account", Counterparty: &customer,
 				FundAccount: &fund, Handler: &employee, Amount: "1200.00",
-				Remark: "预览往来收款：已批准",
+				Remark: "测试往来收款：已批准",
 			},
 		},
 		{
@@ -566,7 +566,7 @@ func (s *Seeder) seedFinancialDocuments(ctx context.Context, counts *Counts) err
 				BusinessDate: businessDate, Currency: "CNY",
 				CounterpartyType: "customer-account", Counterparty: &customer,
 				FundAccount: &fund, Handler: &employee, Amount: "300.00",
-				Remark: "预览可操作草稿：往来收款",
+				Remark: "测试可操作草稿：往来收款",
 			},
 		},
 		{
@@ -575,7 +575,7 @@ func (s *Seeder) seedFinancialDocuments(ctx context.Context, counts *Counts) err
 				BusinessDate: "2026-07-11", Currency: "CNY",
 				CounterpartyType: "supplier", Counterparty: &supplier,
 				FundAccount: &fund, Handler: &employee, Amount: "800.00",
-				Remark: "预览往来付款：已批准",
+				Remark: "测试往来付款：已批准",
 			},
 		},
 		{
@@ -584,7 +584,7 @@ func (s *Seeder) seedFinancialDocuments(ctx context.Context, counts *Counts) err
 				BusinessDate: businessDate, Currency: "CNY",
 				CounterpartyType: "supplier", Counterparty: &supplier,
 				FundAccount: &fund, Handler: &employee, Amount: "200.00",
-				Remark: "预览可操作草稿：往来付款",
+				Remark: "测试可操作草稿：往来付款",
 			},
 		},
 		{
@@ -596,7 +596,7 @@ func (s *Seeder) seedFinancialDocuments(ctx context.Context, counts *Counts) err
 					{Category: "交通", Description: "客户现场交通费", Amount: "120.00"},
 					{Category: "住宿", Description: "客户现场住宿费", Amount: "380.00"},
 				},
-				Remark: "预览费用报销：已批准",
+				Remark: "测试费用报销：已批准",
 			},
 		},
 		{
@@ -605,9 +605,9 @@ func (s *Seeder) seedFinancialDocuments(ctx context.Context, counts *Counts) err
 				BusinessDate: businessDate, Currency: "CNY",
 				FundAccount: &fund, Employee: &employee,
 				ExpenseLines: []voudomain.ExpenseLineInput{{
-					Category: "交通", Description: "预览可编辑费用", Amount: "50.00",
+					Category: "交通", Description: "测试可编辑费用", Amount: "50.00",
 				}},
-				Remark: "预览可操作草稿：费用报销",
+				Remark: "测试可操作草稿：费用报销",
 			},
 		},
 		{
@@ -616,7 +616,7 @@ func (s *Seeder) seedFinancialDocuments(ctx context.Context, counts *Counts) err
 				BusinessDate: "2026-07-12", Currency: "CNY",
 				CounterpartyType: "customer-account", Counterparty: &customer,
 				FundAccount: &fund, Handler: &employee, SourceName: "废料处置",
-				Amount: "600.00", Remark: "预览其他收入：已批准",
+				Amount: "600.00", Remark: "测试其他收入：已批准",
 			},
 		},
 		{
@@ -625,7 +625,7 @@ func (s *Seeder) seedFinancialDocuments(ctx context.Context, counts *Counts) err
 				BusinessDate: businessDate, Currency: "CNY",
 				CounterpartyType: "customer-account", Counterparty: &customer,
 				FundAccount: &fund, Handler: &employee, SourceName: "服务收入",
-				Amount: "180.00", Remark: "预览可操作草稿：其他收入",
+				Amount: "180.00", Remark: "测试可操作草稿：其他收入",
 			},
 		},
 	}

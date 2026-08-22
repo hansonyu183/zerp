@@ -1,4 +1,4 @@
-package previewseed
+package testseed
 
 import (
 	"context"
@@ -10,9 +10,9 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-const previewAccountingBookDescription = "seed-preview:business-control-book"
+const testAccountingBookDescription = "seed-test:business-control-book"
 
-var previewVouEntities = []string{
+var testVouEntities = []string{
 	voudomain.EntitySalePricing, voudomain.EntitySaleOrder,
 	voudomain.EntitySaleOutbound, voudomain.EntitySaleDelivery,
 	voudomain.EntitySaleSignoff, voudomain.EntitySaleReturn,
@@ -47,52 +47,52 @@ func (s *Seeder) seedAccounting(ctx context.Context, counts *Counts) error {
 		return err
 	}
 	debit, err := s.ensureAccountingSubject(
-		ctx, book.ID, accountingActor, "109901", "预览测试资金", accdomain.BalanceDirectionDebit,
+		ctx, book.ID, accountingActor, "109901", "测试资金", accdomain.BalanceDirectionDebit,
 	)
 	if err != nil {
 		return err
 	}
 	credit, err := s.ensureAccountingSubject(
-		ctx, book.ID, accountingActor, "609901", "预览测试收入", accdomain.BalanceDirectionCredit,
+		ctx, book.ID, accountingActor, "609901", "测试收入", accdomain.BalanceDirectionCredit,
 	)
 	if err != nil {
 		return err
 	}
 	serviceExpense, err := s.ensureAccountingSubjectWithConfiguration(
-		ctx, book.ID, accountingActor, "660901", "预览服务费用", accdomain.BalanceDirectionDebit,
+		ctx, book.ID, accountingActor, "660901", "测试服务费用", accdomain.BalanceDirectionDebit,
 		[]string{}, accdomain.SettlementPurposeNone,
 	)
 	if err != nil {
 		return err
 	}
 	serviceIncome, err := s.ensureAccountingSubjectWithConfiguration(
-		ctx, book.ID, accountingActor, "605901", "预览服务收入", accdomain.BalanceDirectionCredit,
+		ctx, book.ID, accountingActor, "605901", "测试服务收入", accdomain.BalanceDirectionCredit,
 		[]string{}, accdomain.SettlementPurposeNone,
 	)
 	if err != nil {
 		return err
 	}
 	serviceReceivable, err := s.ensureAccountingSubjectWithConfiguration(
-		ctx, book.ID, accountingActor, "122102", "预览服务往来应收", accdomain.BalanceDirectionDebit,
+		ctx, book.ID, accountingActor, "122102", "测试服务往来应收", accdomain.BalanceDirectionDebit,
 		[]string{accdomain.DimensionServiceRelationship}, accdomain.SettlementPurposeOther,
 	)
 	if err != nil {
 		return err
 	}
 	servicePayable, err := s.ensureAccountingSubjectWithConfiguration(
-		ctx, book.ID, accountingActor, "224102", "预览服务往来应付", accdomain.BalanceDirectionCredit,
+		ctx, book.ID, accountingActor, "224102", "测试服务往来应付", accdomain.BalanceDirectionCredit,
 		[]string{accdomain.DimensionServiceRelationship}, accdomain.SettlementPurposeOther,
 	)
 	if err != nil {
 		return err
 	}
-	for _, entity := range previewVouEntities {
+	for _, entity := range testVouEntities {
 		definition := accdomain.MappingDefinition{
 			Rules: []accdomain.MappingRule{}, Templates: []accdomain.PostingTemplate{},
 		}
 		result := accdomain.MappingResultUnpost
 		if entity == voudomain.EntityOtherIncome {
-			templateID := "preview-other-income"
+			templateID := "test-other-income"
 			definition.DefaultTemplateID = &templateID
 			definition.Templates = []accdomain.PostingTemplate{{
 				ID: templateID,
@@ -104,7 +104,7 @@ func (s *Seeder) seedAccounting(ctx context.Context, counts *Counts) error {
 			result = accdomain.MappingResultPost
 		}
 		if entity == voudomain.EntityServiceAcceptance {
-			payableTemplateID, receivableTemplateID := "preview-service-acceptance-payable", "preview-service-acceptance-receivable"
+			payableTemplateID, receivableTemplateID := "test-service-acceptance-payable", "test-service-acceptance-receivable"
 			definition.Rules = []accdomain.MappingRule{
 				{Conditions: []accdomain.MappingCondition{{Field: "serviceAcceptance.settlementDirection", Operator: "EQ", Values: []string{"PAYABLE"}}}, Result: accdomain.MappingResultPost, TemplateID: &payableTemplateID},
 				{Conditions: []accdomain.MappingCondition{{Field: "serviceAcceptance.settlementDirection", Operator: "EQ", Values: []string{"RECEIVABLE"}}}, Result: accdomain.MappingResultPost, TemplateID: &receivableTemplateID},
@@ -137,10 +137,10 @@ func (s *Seeder) ensureAccountingBook(
 	accountingActor string,
 ) (accdomain.BookView, outcome, error) {
 	var bookID string
-	bookID, err := s.queries.FindAccountingBookIDByDescription(ctx, previewAccountingBookDescription)
+	bookID, err := s.queries.FindAccountingBookIDByDescription(ctx, testAccountingBookDescription)
 	if errors.Is(err, pgx.ErrNoRows) {
 		book, createErr := s.accounting.CreateBook(ctx, accdomain.CreateBookInput{
-			Name: "预览业务控制账簿", Description: previewAccountingBookDescription,
+			Name: "测试业务控制账簿", Description: testAccountingBookDescription,
 			StartMonth: "2026-06", BaseCurrency: "CNY",
 			SubjectTemplate: accdomain.SubjectTemplateEmpty,
 		}, accountingActor)
@@ -169,7 +169,7 @@ func (s *Seeder) ensureAccountingOpening(
 	}
 	if opening.Revision != 0 || len(opening.Lines) != 0 || len(opening.Assets) != 0 ||
 		len(opening.Bills) != 0 || len(opening.Containers) != 0 {
-		return errors.New("preview accounting opening was changed by a tester")
+		return errors.New("test accounting opening was changed by a tester")
 	}
 	opening, err = s.accounting.SaveOpening(ctx, accdomain.SaveOpeningInput{
 		BookID: bookID, Revision: 0,
@@ -256,7 +256,7 @@ func (s *Seeder) ensureAccountingMapping(
 func (s *Seeder) accountingActor(ctx context.Context) (string, error) {
 	userID, err := s.queries.FindEnabledAppUserIDExcludingID(ctx, actorID)
 	if err != nil {
-		return "", fmt.Errorf("load preview accounting actor: %w", err)
+		return "", fmt.Errorf("load test accounting actor: %w", err)
 	}
 	return userID, nil
 }

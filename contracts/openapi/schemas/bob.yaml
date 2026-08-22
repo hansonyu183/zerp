@@ -1895,7 +1895,12 @@
         {
           'code': { 'type': 'integer', 'format': 'int32' },
           'message': { 'type': 'string' },
-          'data': { '$ref': '#/PartyView', 'nullable': true },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/PartyView' }],
+            },
           'requestId': { 'type': 'string' },
         },
     },
@@ -2133,7 +2138,12 @@
         {
           'code': { 'type': 'integer', 'format': 'int32' },
           'message': { 'type': 'string' },
-          'data': { '$ref': '#/OtherUnitView', 'nullable': true },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/OtherUnitView' }],
+            },
           'requestId': { 'type': 'string' },
         },
     },
@@ -2146,7 +2156,12 @@
         {
           'code': { 'type': 'integer', 'format': 'int32' },
           'message': { 'type': 'string' },
-          'data': { '$ref': '#/OtherUnitPage', 'nullable': true },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/OtherUnitPage' }],
+            },
           'requestId': { 'type': 'string' },
         },
     },
@@ -2159,7 +2174,12 @@
         {
           'code': { 'type': 'integer', 'format': 'int32' },
           'message': { 'type': 'string' },
-          'data': { '$ref': '#/OtherUnitMutationResult', 'nullable': true },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/OtherUnitMutationResult' }],
+            },
           'requestId': { 'type': 'string' },
         },
     },
@@ -2473,7 +2493,12 @@
         {
           'code': { 'type': 'integer', 'format': 'int32' },
           'message': { 'type': 'string' },
-          'data': { '$ref': '#/SalesPartnerPage', 'nullable': true },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/SalesPartnerPage' }],
+            },
           'requestId': { 'type': 'string' },
         },
     },
@@ -2486,7 +2511,12 @@
         {
           'code': { 'type': 'integer', 'format': 'int32' },
           'message': { 'type': 'string' },
-          'data': { '$ref': '#/SalesPartnerDetailView', 'nullable': true },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/SalesPartnerDetailView' }],
+            },
           'requestId': { 'type': 'string' },
         },
     },
@@ -2499,7 +2529,12 @@
         {
           'code': { 'type': 'integer', 'format': 'int32' },
           'message': { 'type': 'string' },
-          'data': { '$ref': '#/SalesPartnerMutationResult', 'nullable': true },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/SalesPartnerMutationResult' }],
+            },
           'requestId': { 'type': 'string' },
         },
     },
@@ -2636,7 +2671,12 @@
         {
           'code': { 'type': 'integer', 'format': 'int32' },
           'message': { 'type': 'string' },
-          'data': { '$ref': '#/PartyMergePreflightResult', 'nullable': true },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/PartyMergePreflightResult' }],
+            },
           'requestId': { 'type': 'string' },
         },
     },

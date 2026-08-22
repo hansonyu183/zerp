@@ -4214,7 +4214,7 @@ export interface components {
             /** Format: int32 */
             code: number;
             message: string;
-            data: components["schemas"]["PartyView"];
+            data: components["schemas"]["PartyView"] | null;
             requestId: string;
         };
         PartySaveRequest: {
@@ -4289,7 +4289,7 @@ export interface components {
             /** Format: int32 */
             code: number;
             message: string;
-            data: components["schemas"]["OtherUnitPage"];
+            data: components["schemas"]["OtherUnitPage"] | null;
             requestId: string;
         };
         BobGetRequest: {
@@ -4300,7 +4300,7 @@ export interface components {
             /** Format: int32 */
             code: number;
             message: string;
-            data: components["schemas"]["OtherUnitView"];
+            data: components["schemas"]["OtherUnitView"] | null;
             requestId: string;
         };
         OtherUnitCreateWithExistingPartyRequest: {
@@ -4340,7 +4340,7 @@ export interface components {
             /** Format: int32 */
             code: number;
             message: string;
-            data: components["schemas"]["OtherUnitMutationResult"];
+            data: components["schemas"]["OtherUnitMutationResult"] | null;
             requestId: string;
         };
         OtherUnitSaveRequest: {
@@ -4960,7 +4960,7 @@ export interface components {
             /** Format: int32 */
             code: number;
             message: string;
-            data: components["schemas"]["SalesPartnerPage"];
+            data: components["schemas"]["SalesPartnerPage"] | null;
             requestId: string;
         };
         SalesPartnerDataView: {
@@ -4996,7 +4996,7 @@ export interface components {
             /** Format: int32 */
             code: number;
             message: string;
-            data: components["schemas"]["SalesPartnerDetailView"];
+            data: components["schemas"]["SalesPartnerDetailView"] | null;
             requestId: string;
         };
         SalesPartnerInput: {
@@ -5033,7 +5033,7 @@ export interface components {
             /** Format: int32 */
             code: number;
             message: string;
-            data: components["schemas"]["SalesPartnerMutationResult"];
+            data: components["schemas"]["SalesPartnerMutationResult"] | null;
             requestId: string;
         };
         SalesPartnerSaveRequest: {
@@ -5077,7 +5077,7 @@ export interface components {
             /** Format: int32 */
             code: number;
             message: string;
-            data: components["schemas"]["PartyMergePreflightResult"];
+            data: components["schemas"]["PartyMergePreflightResult"] | null;
             requestId: string;
         };
         PartyMergeConflictResolution: {

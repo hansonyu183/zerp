@@ -466,6 +466,46 @@ func TestOpenAPIValidatorPreservesPreciseEndpointBusinessError(t *testing.T) {
 	}
 }
 
+func TestOpenAPIValidatorPreservesNullableBOBEndpointBusinessErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		body string
+	}{
+		{name: "party get", path: "/bob/party/get", body: `{"partyId":"01J00000000000000000000001"}`},
+		{name: "party save", path: "/bob/party/save", body: `{"partyId":"01J00000000000000000000001","revision":1,"data":{}}`},
+		{name: "other unit query", path: "/bob/other-unit/query", body: `{"page":1,"pageSize":20}`},
+		{name: "other unit get", path: "/bob/other-unit/get", body: `{"objectId":"01J00000000000000000000001"}`},
+		{name: "other unit save", path: "/bob/other-unit/save", body: `{"objectId":"01J00000000000000000000001","versionId":"01J00000000000000000000002","revision":1,"data":{}}`},
+		{name: "sales partner query", path: "/bob/sales-partner/query", body: `{"page":1,"pageSize":20,"filters":{},"sort":[]}`},
+		{name: "sales partner get", path: "/bob/sales-partner/get", body: `{"objectId":"01J00000000000000000000001"}`},
+		{name: "sales partner save", path: "/bob/sales-partner/save", body: `{"objectId":"01J00000000000000000000001","versionId":"01J00000000000000000000002","revision":1,"data":{"operatingEntityId":"01J00000000000000000000003","capabilities":[]}}`},
+		{name: "party merge preflight", path: "/bob/party/merge-preflight", body: `{"sourcePartyId":"01J00000000000000000000001","targetPartyId":"01J00000000000000000000002","sourceRevision":1,"targetRevision":1}`},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			router := newRouter(testConfig(), pingerStub{}, testLogger(), func(router *gin.Engine) {
+				router.POST(test.path, func(context *gin.Context) {
+					response.BusinessError(context, response.CodeUnauthenticated, "session expired", nil)
+				})
+			})
+			request := httptest.NewRequest(http.MethodPost, test.path, strings.NewReader(test.body))
+			request.Header.Set("Content-Type", "application/json")
+			responseRecorder := httptest.NewRecorder()
+			router.ServeHTTP(responseRecorder, request)
+
+			var envelope response.Envelope
+			if err := json.Unmarshal(responseRecorder.Body.Bytes(), &envelope); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if envelope.Code != response.CodeUnauthenticated || envelope.Message != "session expired" {
+				t.Fatalf("envelope = %#v", envelope)
+			}
+		})
+	}
+}
+
 func TestOpenAPIValidatorPreservesTechnicalNotFoundResponse(t *testing.T) {
 	router := newRouter(testConfig(), pingerStub{}, testLogger(), nil)
 	request := httptest.NewRequest(http.MethodGet, "/missing", nil)

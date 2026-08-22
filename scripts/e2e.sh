@@ -111,7 +111,7 @@ compose exec -T db psql -v ON_ERROR_STOP=1 \
 
 mkdir -p "${runtime_dir}/bin" "${runtime_dir}/attachments"
 go -C backend build -trimpath -o "${runtime_dir}/bin/zerp-server" ./cmd/server
-go -C backend build -trimpath -o "${runtime_dir}/bin/zerp-preview-web" ./cmd/preview-web
+go -C backend build -trimpath -o "${runtime_dir}/bin/zerp-e2e-web" ./cmd/e2e-web
 VITE_API_BASE_URL=/api/ pnpm --filter @zerp/frontend build
 
 export HTTP_ADDRESS="127.0.0.1:${API_PORT}"
@@ -120,7 +120,7 @@ export ATTACHMENT_STORAGE_ROOT="${runtime_dir}/attachments"
 api_pid=$!
 wait_for_url "E2E API" "http://127.0.0.1:${API_PORT}/readyz"
 
-"${runtime_dir}/bin/zerp-preview-web" \
+"${runtime_dir}/bin/zerp-e2e-web" \
   -listen "127.0.0.1:${WEB_PORT}" \
   -root "${repo_root}/frontend/dist" \
   -api "http://127.0.0.1:${API_PORT}" >"${runtime_dir}/web.log" 2>&1 &

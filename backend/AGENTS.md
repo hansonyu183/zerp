@@ -23,7 +23,7 @@
 - `make compose-up` 启动容器化 API 和 PostgreSQL，不得与占用同一 API 端口的 `make run` 同时使用。
 - `make test` 必须使用独立的 `zerp-api-test` Compose 项目和测试数据库；测试数据库名必须以 `_test` 结尾，且不得与主数据库或端口冲突。完整 E2E 必须使用根目录 `make e2e` 创建的隔离环境，不得连接生产或普通开发库。
 - 完整 E2E 固定拒绝生产环境、非隔离数据库、错误端口和启用 GitHub 反馈发布的配置；结束后必须清理一次性数据库容器和本机进程。
-- `make bootstrap-admin` 只能用于空用户库；`make seed-bob` 只允许在 `development` 或 `test` 环境运行。`make seed-preview` 只能写入受管预览实例的 `zerp_preview` 或 `zerp_preview_pr_<PR号>` 数据库，普通开发、测试和生产库必须在写入前拒绝；它必须保持幂等，只恢复自身中断的步骤，不覆盖测试人员已修改或推进的样本。
+- `make bootstrap-admin` 只能用于空用户库；`make seed-bob` 只允许在 `development` 或 `test` 环境运行。`make seed-test` 只能写入隔离 E2E 测试实例，普通开发和生产库必须在写入前拒绝；它必须保持幂等，只恢复自身中断的步骤，不覆盖测试人员已修改或推进的样本。
 
 ## 模块边界与公共复用
 
@@ -31,7 +31,7 @@
 - 领域包保留业务规则和自身模型。两个领域之间稳定、无业务决策的类型映射或引用解析放在 `internal/integrations/<purpose>/`，由适配器明确依赖方向；不得在 `httpserver`、seed 或多个领域包中复制同一转换逻辑。
 - `internal/platform/` 只接收确定为领域无关的基础能力。公共工具应具备稳定语义、清晰边界并至少被多个领域复用；金额精度、状态含义、默认值等领域决策不得为了消除少量重复而下沉成通用函数。
 - 固定形状、可命名的查询必须写入 `db/queries/` 并通过 sqlc 调用；只有确实需要动态组合条件、排序或结构的查询才可在实现中构造 SQL，并必须集中封装、参数化和测试。
-- 预览与 E2E seed 必须沿用当前 AUX → BOB → VOU/WFL → ACC 领域边界且保持幂等；生产演示数据不得反向决定运行时依赖或公共适配器设计。
+- 测试 seed 必须沿用当前 AUX → BOB → VOU/WFL → ACC 领域边界且保持幂等；生产数据初始化以后单独设计，不得由测试样本反向决定运行时依赖或公共适配器设计。
 
 ## 业务域文档
 

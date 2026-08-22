@@ -1,4 +1,4 @@
-package previewseed
+package testseed
 
 import (
 	"context"
@@ -18,78 +18,78 @@ type auxSample struct {
 func (s *Seeder) seedAuxiliary(ctx context.Context, counts *Counts) error {
 	samples := []auxSample{
 		{"payment-bank-transfer", auxdomain.EntityPaymentMethod, fixedAux(map[string]any{
-			"name": "银行转账", "defaultSalesSurcharge": "0.00", "description": "预览测试收款方式",
+			"name": "银行转账", "defaultSalesSurcharge": "0.00", "description": "测试收款方式",
 		}), true},
-		{"asset-category-preview", auxdomain.EntityAssetCategory, fixedAux(map[string]any{
+		{"asset-category-test", auxdomain.EntityAssetCategory, fixedAux(map[string]any{
 			"name": "通用固定资产", "defaultUsefulLifeMonths": 60,
-			"defaultResidualRate": "5.00", "description": "预览测试资产类别",
+			"defaultResidualRate": "5.00", "description": "测试资产类别",
 		}), true},
 		{"product-category-root", auxdomain.EntityProductCategory, fixedAux(map[string]any{
-			"name": "工业产品", "description": "预览测试产品分类",
+			"name": "工业产品", "description": "测试产品分类",
 		}), true},
-		{"product-type-raw", auxdomain.EntityProductType, fixedAux(map[string]any{"name": "预览原材料", "behaviorProfile": "RAW_MATERIAL"}), true},
-		{"product-type-finished", auxdomain.EntityProductType, fixedAux(map[string]any{"name": "预览自制成品", "behaviorProfile": "STANDARD_FINISHED"}), true},
-		{"product-type-custom", auxdomain.EntityProductType, fixedAux(map[string]any{"name": "预览定制成品", "behaviorProfile": "CUSTOM_FINISHED"}), true},
-		{"product-type-packaging", auxdomain.EntityProductType, fixedAux(map[string]any{"name": "预览包装物", "behaviorProfile": "PACKAGING"}), true},
+		{"product-type-raw", auxdomain.EntityProductType, fixedAux(map[string]any{"name": "测试原材料", "behaviorProfile": "RAW_MATERIAL"}), true},
+		{"product-type-finished", auxdomain.EntityProductType, fixedAux(map[string]any{"name": "测试自制成品", "behaviorProfile": "STANDARD_FINISHED"}), true},
+		{"product-type-custom", auxdomain.EntityProductType, fixedAux(map[string]any{"name": "测试定制成品", "behaviorProfile": "CUSTOM_FINISHED"}), true},
+		{"product-type-packaging", auxdomain.EntityProductType, fixedAux(map[string]any{"name": "测试包装物", "behaviorProfile": "PACKAGING"}), true},
 		{"product-category-parts", auxdomain.EntityProductCategory, func(refs map[string]auxdomain.ObjectView) map[string]any {
 			return map[string]any{
 				"name": "零部件", "parentId": refs["product-category-root"].ObjectID,
-				"description": "预览测试产品子分类",
+				"description": "测试产品子分类",
 			}
 		}, true},
 		{"department-root", auxdomain.EntityDepartment, fixedAux(map[string]any{
-			"name": "运营中心", "description": "预览测试部门",
+			"name": "运营中心", "description": "测试部门",
 		}), true},
 		{"department-sales", auxdomain.EntityDepartment, func(refs map[string]auxdomain.ObjectView) map[string]any {
 			return map[string]any{
 				"name": "销售组", "parentId": refs["department-root"].ObjectID,
-				"description": "预览测试子部门",
+				"description": "测试子部门",
 			}
 		}, true},
 		{"department-disabled", auxdomain.EntityDepartment, fixedAux(map[string]any{
 			"name": "停用部门", "description": "用于验证停用筛选",
 		}), false},
 		{"position-operator", auxdomain.EntityPosition, fixedAux(map[string]any{
-			"name": "业务专员", "description": "预览测试岗位",
+			"name": "业务专员", "description": "测试岗位",
 		}), true},
 		{"position-disabled", auxdomain.EntityPosition, fixedAux(map[string]any{
 			"name": "停用岗位", "description": "用于验证停用筛选",
 		}), false},
-		{"dictionary-preview", auxdomain.EntityDictionaryType, fixedAux(map[string]any{
-			"name": "预览状态", "description": "预览测试自定义字典",
+		{"dictionary-test", auxdomain.EntityDictionaryType, fixedAux(map[string]any{
+			"name": "测试状态", "description": "测试自定义字典",
 		}), true},
-		{"dictionary-preview-active", auxdomain.EntityDictionaryItem, func(refs map[string]auxdomain.ObjectView) map[string]any {
+		{"dictionary-test-active", auxdomain.EntityDictionaryItem, func(refs map[string]auxdomain.ObjectView) map[string]any {
 			return map[string]any{
-				"name": "正常", "dictionaryTypeCode": refs["dictionary-preview"].Code, "sortOrder": 10,
+				"name": "正常", "dictionaryTypeCode": refs["dictionary-test"].Code, "sortOrder": 10,
 			}
 		}, true},
-		{"dictionary-preview-disabled", auxdomain.EntityDictionaryItem, func(refs map[string]auxdomain.ObjectView) map[string]any {
+		{"dictionary-test-disabled", auxdomain.EntityDictionaryItem, func(refs map[string]auxdomain.ObjectView) map[string]any {
 			return map[string]any{
-				"name": "停用选项", "dictionaryTypeCode": refs["dictionary-preview"].Code, "sortOrder": 20,
+				"name": "停用选项", "dictionaryTypeCode": refs["dictionary-test"].Code, "sortOrder": 20,
 			}
 		}, false},
-		{"unit-preview-disabled", auxdomain.EntityMeasurementUnit, fixedAux(map[string]any{
+		{"unit-test-disabled", auxdomain.EntityMeasurementUnit, fixedAux(map[string]any{
 			"name": "箱（停用）", "symbol": "箱", "quantityScale": 0,
 		}), false},
-		{"unit-preview-pallet", auxdomain.EntityMeasurementUnit, fixedAux(map[string]any{
-			"name": "托盘（预览）", "symbol": "托", "quantityScale": 0,
+		{"unit-test-pallet", auxdomain.EntityMeasurementUnit, fixedAux(map[string]any{
+			"name": "托盘（测试）", "symbol": "托", "quantityScale": 0,
 		}), true},
 		{"income-root", auxdomain.EntityIncomeExpense, fixedAux(map[string]any{
-			"name": "经营收入", "direction": "INCOME", "description": "预览测试收入分类",
+			"name": "经营收入", "direction": "INCOME", "description": "测试收入分类",
 		}), true},
 		{"income-service", auxdomain.EntityIncomeExpense, func(refs map[string]auxdomain.ObjectView) map[string]any {
 			return map[string]any{
 				"name": "服务收入", "direction": "INCOME",
-				"parentId": refs["income-root"].ObjectID, "description": "预览测试可选收入叶子",
+				"parentId": refs["income-root"].ObjectID, "description": "测试可选收入叶子",
 			}
 		}, true},
 		{"expense-root", auxdomain.EntityIncomeExpense, fixedAux(map[string]any{
-			"name": "经营费用", "direction": "EXPENSE", "description": "预览测试费用分类",
+			"name": "经营费用", "direction": "EXPENSE", "description": "测试费用分类",
 		}), true},
 		{"expense-travel", auxdomain.EntityIncomeExpense, func(refs map[string]auxdomain.ObjectView) map[string]any {
 			return map[string]any{
 				"name": "差旅费", "direction": "EXPENSE",
-				"parentId": refs["expense-root"].ObjectID, "description": "预览测试可选费用叶子",
+				"parentId": refs["expense-root"].ObjectID, "description": "测试可选费用叶子",
 			}
 		}, true},
 	}

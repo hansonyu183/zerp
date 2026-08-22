@@ -19,6 +19,8 @@ fi
 
 postgres_password=$(openssl rand -hex 24)
 bootstrap_password="E2e!$(openssl rand -hex 16)Aa1"
+test_seed_admin_password="TestAdmin!$(openssl rand -hex 8)"
+test_seed_user_password="TestUser!$(openssl rand -hex 8)"
 temporary=$(mktemp "${repo_root}/.env.e2e.local.tmp.XXXXXX")
 trap 'rm -f "${temporary}"' EXIT HUP INT TERM
 
@@ -41,6 +43,14 @@ chmod 600 "${temporary}"
     'APP_BOOTSTRAP_USERNAME=e2e-admin' \
     'APP_BOOTSTRAP_DISPLAY_NAME=E2E-Administrator'
   printf 'APP_BOOTSTRAP_PASSWORD=%s\n' "${bootstrap_password}"
+  printf '%s\n' \
+    'TEST_SEED_ADMIN_USERNAME=admin' \
+    'TEST_SEED_ADMIN_DISPLAY_NAME=测试管理员'
+  printf 'TEST_SEED_ADMIN_PASSWORD=%s\n' "${test_seed_admin_password}"
+  printf '%s\n' \
+    'TEST_SEED_USER_USERNAME=tester' \
+    'TEST_SEED_USER_DISPLAY_NAME=测试用户'
+  printf 'TEST_SEED_USER_PASSWORD=%s\n' "${test_seed_user_password}"
   printf '%s\n' 'FEEDBACK_GITHUB_ENABLED=false'
 } >"${temporary}"
 
@@ -52,3 +62,4 @@ if [ "${rotate}" = "true" ]; then
 fi
 echo "${action} ${target} with mode 600"
 echo "administrator username: e2e-admin"
+echo "test seed usernames: admin, tester"

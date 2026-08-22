@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestPreviewHandlerServesSPAAssetsAndHealth(t *testing.T) {
+func TestE2EHandlerServesSPAAssetsAndHealth(t *testing.T) {
 	root := t.TempDir()
 	mustWrite(t, filepath.Join(root, "index.html"), "spa-index")
 	mustWrite(t, filepath.Join(root, "assets", "app.js"), "asset")
@@ -19,7 +19,7 @@ func TestPreviewHandlerServesSPAAssetsAndHealth(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	handler, err := newPreviewHandler(root, backend.URL)
+	handler, err := newE2EHandler(root, backend.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,8 +37,8 @@ func TestPreviewHandlerServesSPAAssetsAndHealth(t *testing.T) {
 	assertResponse(t, server.URL+"/files/attachment/1", http.StatusOK, "/files/attachment/1")
 }
 
-func TestPreviewHandlerRejectsMissingIndex(t *testing.T) {
-	if _, err := newPreviewHandler(t.TempDir(), "http://127.0.0.1:18082"); err == nil {
+func TestE2EHandlerRejectsMissingIndex(t *testing.T) {
+	if _, err := newE2EHandler(t.TempDir(), "http://127.0.0.1:18081"); err == nil {
 		t.Fatal("expected missing index error")
 	}
 }

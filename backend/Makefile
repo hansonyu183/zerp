@@ -14,7 +14,7 @@ include $(ENV_FILE)
 export
 endif
 
-.PHONY: run build test test-unit test-db-prepare test-db-clean test-migration-upgrade test-integration generate quality quality-core quality-fast quality-generated quality-format quality-format-fast quality-modules quality-compose quality-test quality-vet-build quality-race quality-staticcheck quality-vuln quality-image migrate-status migrate-up migrate-down bootstrap-admin seed-bob seed-preview cleanup-attachments cleanup-vou-attachments compose-up compose-down e2e-env-init e2e-env-rotate e2e-guard
+.PHONY: run build test test-unit test-db-prepare test-db-clean test-migration-upgrade test-integration generate quality quality-core quality-fast quality-generated quality-format quality-format-fast quality-modules quality-compose quality-test quality-vet-build quality-race quality-staticcheck quality-vuln quality-image migrate-status migrate-up migrate-down bootstrap-admin seed-bob seed-test cleanup-attachments cleanup-vou-attachments compose-up compose-down e2e-env-init e2e-env-rotate e2e-guard
 
 run:
 	go run ./cmd/server
@@ -174,8 +174,8 @@ bootstrap-admin:
 seed-bob:
 	@go run ./cmd/seed-bob
 
-seed-preview:
-	@go run ./cmd/seed-preview
+seed-test:
+	@go run ./cmd/seed-test
 
 cleanup-attachments:
 	@docker compose --env-file $(ENV_FILE) run --rm --no-deps \

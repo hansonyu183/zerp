@@ -18,12 +18,12 @@ import (
 )
 
 func main() {
-	listenAddress := flag.String("listen", "127.0.0.1:15176", "HTTP listen address")
+	listenAddress := flag.String("listen", "127.0.0.1:15174", "HTTP listen address")
 	root := flag.String("root", "", "built frontend directory")
-	apiAddress := flag.String("api", "http://127.0.0.1:18082", "preview API origin")
+	apiAddress := flag.String("api", "http://127.0.0.1:18081", "E2E API origin")
 	flag.Parse()
 
-	handler, err := newPreviewHandler(*root, *apiAddress)
+	handler, err := newE2EHandler(*root, *apiAddress)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -44,37 +44,37 @@ func main() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := server.Shutdown(shutdownCtx); err != nil {
-			log.Printf("preview web shutdown: %v", err)
+			log.Printf("E2E web shutdown: %v", err)
 		}
 	}()
 
-	log.Printf("preview web listening on %s", *listenAddress)
+	log.Printf("E2E web listening on %s", *listenAddress)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
 }
 
-func newPreviewHandler(root, apiAddress string) (http.Handler, error) {
+func newE2EHandler(root, apiAddress string) (http.Handler, error) {
 	if strings.TrimSpace(root) == "" {
-		return nil, errors.New("preview web root is required")
+		return nil, errors.New("E2E web root is required")
 	}
 	root, err := filepath.Abs(root)
 	if err != nil {
-		return nil, fmt.Errorf("resolve preview web root: %w", err)
+		return nil, fmt.Errorf("resolve E2E web root: %w", err)
 	}
 	indexPath := filepath.Join(root, "index.html")
 	if info, err := os.Stat(indexPath); err != nil || !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("preview web index is missing: %s", indexPath)
+		return nil, fmt.Errorf("E2E web index is missing: %s", indexPath)
 	}
 
 	apiOrigin, err := url.Parse(apiAddress)
 	if err != nil || apiOrigin.Scheme == "" || apiOrigin.Host == "" {
-		return nil, fmt.Errorf("invalid preview API origin: %q", apiAddress)
+		return nil, fmt.Errorf("invalid E2E API origin: %q", apiAddress)
 	}
 	proxy := httputil.NewSingleHostReverseProxy(apiOrigin)
 	proxy.ErrorHandler = func(writer http.ResponseWriter, request *http.Request, proxyErr error) {
-		log.Printf("preview API proxy %s: %v", request.URL.Path, proxyErr)
-		http.Error(writer, "preview API unavailable", http.StatusBadGateway)
+		log.Printf("E2E API proxy %s: %v", request.URL.Path, proxyErr)
+		http.Error(writer, "E2E API unavailable", http.StatusBadGateway)
 	}
 
 	static := &staticHandler{root: root, indexPath: indexPath}

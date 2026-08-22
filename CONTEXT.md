@@ -141,6 +141,51 @@ _Rules_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)、[VOU 居间�
 _Avoid_: 供应商业务员、`salespersonEmployeeId`、把供应商联系人引用为我方员工
 _Rules_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)、[VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
 
+**Product Type（产品类型）**:
+用于组织产品主数据的可扩展 AUX 分类；每个产品类型绑定一个系统内置行为模板，但不自行保存任意规则开关。
+_Avoid_: 固定四种产品类型、产品行为配置包、产品分类树
+_Rules_: [AUX 产品类型](docs/domains/aux.md#311-产品类型)、[BOB 业务字段](docs/domains/bob.md#21-业务字段)
+
+**Product Behavior Profile（产品行为模板）**:
+系统内置的产品规则组合，决定固定配方、订单配方、默认包装规格和包装物行为；业务用户可以扩展产品类型，但新增行为模板必须修改领域规则和系统实现。
+_Avoid_: 产品类型名称、管理员自定义行为开关、产品类型 ID 硬编码
+_Rules_: [AUX 产品类型](docs/domains/aux.md#311-产品类型)、[BOB 业务字段](docs/domains/bob.md#21-业务字段)
+
+**Delivery Specification（交付规格）**:
+销售订单行选择的实际交付形态，可以是桶装等有包装规格或散水规格；它属于订单事实，不是产品属性或产品可选规格集合。
+_Avoid_: 产品交付规格、库存单位、把槽车当作可换算单位
+_Rules_: [VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
+
+**Default Packaging Specification（默认包装规格）**:
+非包装产品版本内必须维护的正数，表示一标准包装件对应的基准数量；它没有独立身份、版本或生命周期，是桶装订单的标准计件口径。
+_Avoid_: 包装规格对象、包装规格版本、产品交付规格列表、客户包装要求
+_Rules_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)、[VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
+
+**Bulk Liquid（散水）**:
+不装入包装物、必须通过具备散水承运能力的槽车运输的液体交付规格；槽车只承担运输，不代表固定产品数量，居间标准计件另按每 1000 基准数量一标准件计算。
+_Avoid_: 无包装、一车、把槽车容量作为单位换算率
+_Rules_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)、[VOU 销售四单](docs/domains/vou.md#32-销售四单)
+
+**Standard Piece Quantity（标准计件数）**:
+用于居间收益的等价件数；桶装等有包装订单按产品版本内的默认包装规格折算，散水订单固定按每 1000 基准数量一标准件折算。结果允许小数，最多保留六位小数，不按整数件取整。
+_Avoid_: 实际桶数、订单包装件数、库存数量、`barrelQuantity`
+_Rules_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)、[VOU 居间计算单](docs/domains/vou.md#24-居间计算单)
+
+**Base Unit（基准单位）**:
+每个产品内部用于保存、汇总和比较数量的抽象尺度；它没有 AUX 对象、名称、符号或可管理 ID，产品类型也不改变该尺度。
+_Avoid_: 计量单位、默认录入单位、计价单位、基准单位下拉框
+_Rules_: [AUX 计量单位](docs/domains/aux.md#35-计量单位)、[BOB 业务字段](docs/domains/bob.md#21-业务字段)、[ACC 库存数量账与控制](docs/domains/acc.md#9-库存数量账与控制)
+
+**Unit Conversion（单位换算）**:
+产品页面为方便用户录入而维护的“计量单位数量到建议基准数量”换算工具；产品能够选择的默认录入单位、计价单位和其他录入单位都必须具有对应换算。它不产生权威业务事实，后端、配方和台账都不得依赖换算结果重新解释数量。
+_Avoid_: 权威换算、后端自动换算、历史重算依据、标准计件口径
+_Rules_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)
+
+**Base Quantity（基准数量）**:
+按产品抽象基准尺度表达的权威数量事实；业务单据同时留存录入数量和单位供审计，但配方、履约、库存和成本只消费这个无单位数值。
+_Avoid_: 换算结果、带单位库存数量、从当前单位换算反推历史基准数量
+_Rules_: [VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)、[ACC 库存数量账与控制](docs/domains/acc.md#9-库存数量账与控制)
+
 **Third-party Intermediary Cost（第三方居间成本）**:
 为不具名第三方居间预留的销售成本。
 _Avoid_: 要求客户资料绑定具名收款方、把 `fd_price` 解释为客户返点、把员工销售提成统称为第三方居间费

@@ -37,7 +37,7 @@ SET CONSTRAINTS ALL IMMEDIATE;
 
 ALTER TABLE aux_objects DROP CONSTRAINT aux_objects_entity_check;
 ALTER TABLE aux_objects ADD CONSTRAINT aux_objects_entity_check CHECK (entity IN (
-    'product-category','department','position','settlement-method','dictionary-type',
+    'product-category','product-type','department','position','settlement-method','dictionary-type',
     'dictionary-item','measurement-unit','income-expense-type','asset-category'
 ));
 

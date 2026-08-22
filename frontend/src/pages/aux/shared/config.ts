@@ -13,10 +13,24 @@ export interface AuxField {
   }
 }
 
+export interface AuxFilter {
+  key: string
+  label: string
+  options: readonly { title: string; value: string }[]
+}
+
+export interface AuxListField {
+  key: string
+  label: string
+  format?: (value: unknown) => string
+}
+
 export interface AuxEntityConfig {
   entity: AuxApiEntity
   title: string
   fields: readonly AuxField[]
+  filters?: readonly AuxFilter[]
+  listFields?: readonly AuxListField[]
   defaults: () => Record<string, unknown>
 }
 
@@ -27,6 +41,17 @@ const text = (
 ): AuxField => ({ key, label, type: 'text', ...options })
 
 const description = text('description', '说明', { type: 'textarea' })
+
+const productBehaviorProfileOptions = [
+  { title: '原材料', value: 'RAW_MATERIAL' },
+  { title: '标准成品', value: 'STANDARD_FINISHED' },
+  { title: '定制成品', value: 'CUSTOM_FINISHED' },
+  { title: '包装物', value: 'PACKAGING' },
+] as const
+
+const productBehaviorProfileLabel = (value: unknown): string =>
+  productBehaviorProfileOptions.find((option) => option.value === value)
+    ?.title ?? String(value)
 
 export const auxConfigs: Readonly<Record<AuxApiEntity, AuxEntityConfig>> = {
   'settlement-method': {
@@ -90,6 +115,40 @@ export const auxConfigs: Readonly<Record<AuxApiEntity, AuxEntityConfig>> = {
         reference: { entity: 'product-category', value: 'objectId' },
       },
       description,
+    ],
+  },
+  'product-type': {
+    entity: 'product-type',
+    title: '产品类型',
+    defaults: () => ({
+      name: '',
+      behaviorProfile: 'RAW_MATERIAL',
+      description: '',
+    }),
+    fields: [
+      text('name', '名称', { required: true }),
+      {
+        key: 'behaviorProfile',
+        label: '行为模板',
+        type: 'select',
+        required: true,
+        options: productBehaviorProfileOptions,
+      },
+      description,
+    ],
+    filters: [
+      {
+        key: 'behaviorProfile',
+        label: '行为模板',
+        options: productBehaviorProfileOptions,
+      },
+    ],
+    listFields: [
+      {
+        key: 'behaviorProfile',
+        label: '行为模板',
+        format: productBehaviorProfileLabel,
+      },
     ],
   },
   department: {

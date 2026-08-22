@@ -207,23 +207,18 @@ function summaryLabels(): string[] {
 function summaryValues(row: T): string[] {
   if (props.fulfillmentSummaryKind === 'sales' && row.salesSummary) {
     return [
-      row.salesSummary.orderedQuantity,
-      row.salesSummary.outboundQuantity,
-      row.salesSummary.netSignedQuantity,
+      row.salesSummary.orderedBaseQuantity,
+      row.salesSummary.outboundBaseQuantity,
+      row.salesSummary.netSignedBaseQuantity,
     ]
   }
   if (props.fulfillmentSummaryKind === 'purchase' && row.purchaseSummary) {
     return [
-      row.purchaseSummary.orderedQuantity,
-      row.purchaseSummary.netInboundQuantity,
+      row.purchaseSummary.orderedBaseQuantity,
+      row.purchaseSummary.netInboundBaseQuantity,
     ]
   }
   return ['—', '—', '—', '—']
-}
-
-function summaryNote(row: T): string | undefined {
-  const summary = row.salesSummary ?? row.purchaseSummary
-  return summary?.excludedPackaging ? '不含包装物' : undefined
 }
 </script>
 
@@ -396,8 +391,6 @@ function summaryNote(row: T): string | undefined {
               >
                 <FulfillmentSummary
                   :labels="summaryLabels()"
-                  :note="summaryNote(row)"
-                  unit="KG"
                   :values="summaryValues(row)"
                 />
               </td>

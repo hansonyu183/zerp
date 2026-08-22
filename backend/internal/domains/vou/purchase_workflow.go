@@ -386,13 +386,13 @@ func (s *Service) validateAndReserveInboundLines(
 			return nil, 0, domainError(ErrorValidation, "invalid sourceLineId", nil, nil)
 		}
 		seen[raw.SourceLineID] = true
-		qty, parseErr := quantityMicros(raw.Quantity, false)
+		qty, parseErr := quantityMicros(raw.BaseQuantity, false)
 		if parseErr != nil {
 			return nil, 0, domainError(ErrorValidation, "invalid inbound quantity", nil, parseErr)
 		}
 		var reserved int64
-		err = tx.QueryRow(ctx, `SELECT COALESCE(sum(l.quantity_micros),0) - COALESCE((
-				SELECT sum(r.quantity_micros) FROM vou_purchase_return_lines r
+		err = tx.QueryRow(ctx, `SELECT COALESCE(sum(l.base_quantity_micros),0) - COALESCE((
+				SELECT sum(r.base_quantity_micros) FROM vou_purchase_return_lines r
 				JOIN vou_documents d ON d.id=r.document_id
 				WHERE r.source_order_line_id=$2 AND d.status = 'APPROVED'
 			),0)
@@ -404,7 +404,7 @@ func (s *Service) validateAndReserveInboundLines(
 		if err != nil {
 			return nil, 0, err
 		}
-		if reserved > source.OrderedQtyMicros-qty {
+		if reserved > source.BaseQuantityMicros-qty {
 			return nil, 0, domainError(ErrorConflict,
 				"purchase inbound quantity exceeds remaining quantity",
 				map[string]any{"sourceLineId": source.ID}, nil)
@@ -429,8 +429,8 @@ func (s *Service) insertPurchaseInboundLines(
 			ID: newID(), DocumentID: documentID, SourceOrderLineID: line.source.ID,
 			LineNo: int32(index + 1), ProductObjectID: line.source.ProductObjectID,
 			ProductVersionID: line.source.ProductVersionID, ProductCode: line.source.ProductCode,
-			ProductName: line.source.ProductName, ProductUnit: line.source.ProductUnit,
-			QuantityMicros: line.qty, UnitPriceCents: line.source.UnitPriceCents,
+			ProductName: line.source.ProductName, EnteredUnitSymbol: line.source.EnteredUnitSymbol,
+			BaseQuantityMicros: line.qty, UnitPriceCents: line.source.UnitPriceCents,
 			LineAmountCents: line.amount, Remark: line.remark,
 		}); err != nil {
 			return s.writeError("insert purchase inbound line", err)
@@ -442,9 +442,9 @@ func (s *Service) insertPurchaseInboundLines(
 func (s *Service) setPurchaseOrderBalances(
 	ctx context.Context, orderID string, data *DocumentDataView,
 ) error {
-	rows, err := s.pool.Query(ctx, `SELECT order_line.id, order_line.ordered_qty_micros,
-		COALESCE(sum(inbound_line.quantity_micros), 0)::bigint - COALESCE((
-			SELECT sum(return_line.quantity_micros)
+	rows, err := s.pool.Query(ctx, `SELECT order_line.id, order_line.base_quantity_micros,
+		COALESCE(sum(inbound_line.base_quantity_micros), 0)::bigint - COALESCE((
+			SELECT sum(return_line.base_quantity_micros)
 			FROM vou_purchase_return_lines return_line
 			JOIN vou_documents return_doc ON return_doc.id=return_line.document_id
 			WHERE return_line.source_order_line_id=order_line.id
@@ -454,7 +454,7 @@ func (s *Service) setPurchaseOrderBalances(
 		LEFT JOIN vou_purchase_inbound_lines inbound_line
 			ON inbound_line.source_order_line_id = order_line.id
 		WHERE order_line.document_id = $1
-		GROUP BY order_line.id, order_line.ordered_qty_micros`, orderID)
+		GROUP BY order_line.id, order_line.base_quantity_micros`, orderID)
 	if err != nil {
 		return err
 	}
@@ -478,10 +478,10 @@ func (s *Service) setPurchaseOrderBalances(
 		return err
 	}
 	for index := range data.ProductLines {
-		data.ProductLines[index].AvailableQuantity =
+		data.ProductLines[index].AvailableBaseQuantity =
 			formatQuantity(available[data.ProductLines[index].LineID])
 	}
-	data.RemainingQuantity = formatQuantity(totalRemaining)
+	data.RemainingBaseQuantity = formatQuantity(totalRemaining)
 	return nil
 }
 
@@ -499,9 +499,9 @@ func (s *Service) refreshPurchaseOrderFulfillment(
 	var complete bool
 	err := tx.QueryRow(ctx, `SELECT NOT EXISTS (
 		SELECT 1 FROM vou_product_lines o
-		WHERE o.document_id=$1 AND o.ordered_qty_micros > COALESCE((
-			SELECT sum(i.quantity_micros) - COALESCE((
-				SELECT sum(r.quantity_micros)
+		WHERE o.document_id=$1 AND o.base_quantity_micros > COALESCE((
+			SELECT sum(i.base_quantity_micros) - COALESCE((
+				SELECT sum(r.base_quantity_micros)
 				FROM vou_purchase_return_lines r
 				JOIN vou_documents rd ON rd.id=r.document_id
 				WHERE r.source_order_line_id=o.id AND rd.status = 'APPROVED'

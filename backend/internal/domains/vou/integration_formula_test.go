@@ -17,31 +17,39 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 	suffix := newID()
 
 	standard := createApprovedBOB(t, bobService, bobdomain.EntityProduct, bobdomain.CreateDetailInput{
-		Code:        "VFS" + suffix,
-		Name:        "固定配方成品",
-		Unit:        "吨",
-		ProductKind: bobdomain.ProductKindStandardFinished,
+		Code: "VFS" + suffix, Name: "固定配方成品", ProductTypeID: "01JPTP00000000000000000003",
+		DefaultInputUnitID: integrationTonUnitID, PricingUnitID: integrationKGUnitID,
+		UnitConversions: []bobdomain.ProductUnitConversion{
+			{Unit: bobdomain.MeasurementUnitSnapshot{ObjectID: integrationKGUnitID}, Factor: "1"},
+			{Unit: bobdomain.MeasurementUnitSnapshot{ObjectID: integrationTonUnitID}, Factor: "1000"},
+		}, DefaultPackagingSpec: "1000",
 		Formula: &bobdomain.ProductFormula{
-			BaseOutputQuantity: "100",
+			Output: bobdomain.QuantitySnapshot{
+				EnteredQuantity: "100", EnteredUnit: bobdomain.MeasurementUnitSnapshot{ObjectID: integrationTonUnitID}, BaseQuantity: "100000",
+			},
 			Components: []bobdomain.ProductFormulaComponent{{
 				Material: bobdomain.FormulaMaterialReference{
 					ObjectID:  refs.product.ObjectID,
 					VersionID: refs.product.VersionID,
 				},
-				Quantity: "25.5",
+				Quantity: bobdomain.QuantitySnapshot{
+					EnteredQuantity: "25.5", EnteredUnit: bobdomain.MeasurementUnitSnapshot{ObjectID: integrationTonUnitID}, BaseQuantity: "25500",
+				}, ResolutionStatus: "CURRENT",
 			}},
 		},
 	})
 	custom := createApprovedBOB(t, bobService, bobdomain.EntityProduct, bobdomain.CreateDetailInput{
-		Code:        "VFC" + suffix,
-		Name:        "客户定制成品",
-		Unit:        "吨",
-		ProductKind: bobdomain.ProductKindCustomFinished,
+		Code: "VFC" + suffix, Name: "客户定制成品", ProductTypeID: "01JPTP00000000000000000005",
+		DefaultInputUnitID: integrationTonUnitID, PricingUnitID: integrationKGUnitID,
+		UnitConversions: []bobdomain.ProductUnitConversion{
+			{Unit: bobdomain.MeasurementUnitSnapshot{ObjectID: integrationKGUnitID}, Factor: "1"},
+			{Unit: bobdomain.MeasurementUnitSnapshot{ObjectID: integrationTonUnitID}, Factor: "1000"},
+		}, DefaultPackagingSpec: "1000",
 	})
 	service := newIntegrationService(t, pool)
 
 	rawDefault, err := service.FormulaDefault(t.Context(), FormulaDefaultInput{
-		Product: refs.product,
+		Product: ProductReferenceInput{ObjectID: refs.product.ObjectID},
 	})
 	if err != nil {
 		t.Fatalf("raw formula default: %v", err)
@@ -53,20 +61,20 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 	}
 
 	fixedDefault, err := service.FormulaDefault(t.Context(), FormulaDefaultInput{
-		Product: standard,
+		Product: ProductReferenceInput{ObjectID: standard.ObjectID},
 	})
 	if err != nil {
 		t.Fatalf("fixed formula default: %v", err)
 	}
 	if fixedDefault.SourceType != "PRODUCT_FIXED" || fixedDefault.Formula == nil ||
-		fixedDefault.Formula.BaseOutputQuantity != "100.0" ||
-		fixedDefault.Formula.Components[0].Quantity != "25.5" {
+		fixedDefault.Formula.Output.BaseQuantity != "100000" ||
+		fixedDefault.Formula.Components[0].Quantity.BaseQuantity != "25500" {
 		t.Fatalf("fixed default = %+v", fixedDefault)
 	}
 
 	manualDefault, err := service.FormulaDefault(t.Context(), FormulaDefaultInput{
 		Customer: &refs.customer,
-		Product:  custom,
+		Product:  ProductReferenceInput{ObjectID: custom.ObjectID},
 	})
 	if err != nil {
 		t.Fatalf("initial custom formula default: %v", err)
@@ -81,17 +89,18 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 		Customer:     &refs.customer,
 		Salesperson:  &refs.employee,
 		Warehouse:    &refs.warehouse,
-		ProductLines: []ProductLineInput{{
-			Product: custom, OrderedQuantity: "2", UnitPrice: "10.00",
-			Formula: &FormulaInput{
-				BaseOutputQuantity: "100",
-				SourceType:         "MANUAL",
+		ProductLines: []ProductLineInput{func() ProductLineInput {
+			line := integrationProductLine(t, custom, "2", "10.00")
+			line.Formula = &FormulaInput{
+				Output:     QuantitySnapshotInput{EnteredQuantity: "100", EnteredUnit: UnitReferenceInput{ObjectID: integrationTonUnitID}, BaseQuantity: "100000"},
+				SourceType: "MANUAL",
 				Components: []FormulaComponentInput{{
-					Material: refs.product,
-					Quantity: "30",
+					Material: ProductReferenceInput{ObjectID: refs.product.ObjectID},
+					Quantity: QuantitySnapshotInput{EnteredQuantity: "30", EnteredUnit: UnitReferenceInput{ObjectID: integrationTonUnitID}, BaseQuantity: "30000"},
 				}},
-			},
-		}},
+			}
+			return line
+		}()},
 	}}, integrationActorOne, "formula-custom-order-create")
 	if err != nil {
 		t.Fatalf("create custom formula order: %v", err)
@@ -102,7 +111,7 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 	}
 	snapshot := orderView.Data.ProductLines[0].Formula
 	if snapshot == nil || snapshot.SourceType != "MANUAL" ||
-		snapshot.Components[0].Quantity != "30.0" {
+		snapshot.Components[0].Quantity.BaseQuantity != "30000.0" {
 		t.Fatalf("custom order snapshot = %+v", snapshot)
 	}
 	if _, err = service.Check(t.Context(), EntitySaleOrder, DocumentRevisionInput{
@@ -114,7 +123,7 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 
 	latestDefault, err := service.FormulaDefault(t.Context(), FormulaDefaultInput{
 		Customer: &refs.customer,
-		Product:  custom,
+		Product:  ProductReferenceInput{ObjectID: custom.ObjectID},
 	})
 	if err != nil {
 		t.Fatalf("latest custom formula default: %v", err)
@@ -123,7 +132,7 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 		latestDefault.SourceDocumentID != order.DocumentID ||
 		latestDefault.SourceDocumentNo != order.DocumentNo ||
 		latestDefault.Formula == nil ||
-		latestDefault.Formula.Components[0].Quantity != "30.0" {
+		latestDefault.Formula.Components[0].Quantity.BaseQuantity != "30000.0" {
 		t.Fatalf("latest custom default = %+v", latestDefault)
 	}
 
@@ -133,17 +142,18 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 		Customer:     &refs.customer,
 		Salesperson:  &refs.employee,
 		Warehouse:    &refs.warehouse,
-		ProductLines: []ProductLineInput{{
-			Product: standard, OrderedQuantity: "1", UnitPrice: "12.00",
-			Formula: &FormulaInput{
-				BaseOutputQuantity: fixedDefault.Formula.BaseOutputQuantity,
-				SourceType:         fixedDefault.SourceType,
+		ProductLines: []ProductLineInput{func() ProductLineInput {
+			line := integrationProductLine(t, standard, "1", "12.00")
+			line.Formula = &FormulaInput{
+				Output:     QuantitySnapshotInput{EnteredQuantity: fixedDefault.Formula.Output.EnteredQuantity, EnteredUnit: UnitReferenceInput{ObjectID: fixedDefault.Formula.Output.EnteredUnit.ObjectID}, BaseQuantity: fixedDefault.Formula.Output.BaseQuantity},
+				SourceType: fixedDefault.SourceType,
 				Components: []FormulaComponentInput{{
-					Material: refs.product,
-					Quantity: fixedDefault.Formula.Components[0].Quantity,
+					Material: ProductReferenceInput{ObjectID: refs.product.ObjectID},
+					Quantity: QuantitySnapshotInput{EnteredQuantity: fixedDefault.Formula.Components[0].Quantity.EnteredQuantity, EnteredUnit: UnitReferenceInput{ObjectID: fixedDefault.Formula.Components[0].Quantity.EnteredUnit.ObjectID}, BaseQuantity: fixedDefault.Formula.Components[0].Quantity.BaseQuantity},
 				}},
-			},
-		}},
+			}
+			return line
+		}()},
 	}}, integrationActorOne, "formula-fixed-order-create")
 	if err != nil {
 		t.Fatalf("create fixed formula order: %v", err)
@@ -198,7 +208,7 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 	}
 
 	refreshedDefault, err := service.FormulaDefault(t.Context(), FormulaDefaultInput{
-		Product: standard,
+		Product: ProductReferenceInput{ObjectID: standard.ObjectID},
 	})
 	if err != nil {
 		t.Fatalf("fixed default after raw material update: %v", err)
@@ -212,16 +222,14 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 		MaterialWarehouse: &refs.warehouse,
 		FinishedWarehouse: &refs.warehouse,
 		ProductionLines: []ProductionOutputInput{{
-			Product:        &standard,
-			OutputQuantity: "100",
-			LossRate:       "0",
+			Product:         &ProductReferenceInput{ObjectID: standard.ObjectID},
+			EnteredQuantity: "100", EnteredUnit: UnitReferenceInput{ObjectID: integrationTonUnitID},
+			BaseQuantity: "100000", LossRate: "0",
 			Materials: []ProductionMaterialInput{{
-				FormulaLineNo: 1,
-				ActualMaterial: ReferenceInput{
-					ObjectID:  approvedRaw.ObjectID,
-					VersionID: approvedRaw.VersionID,
-				},
-				ActualQuantity: "25.5",
+				FormulaLineNo:         1,
+				ActualMaterial:        ProductReferenceInput{ObjectID: approvedRaw.ObjectID},
+				ActualEnteredQuantity: "25.5", ActualEnteredUnit: UnitReferenceInput{ObjectID: integrationTonUnitID},
+				ActualBaseQuantity: "25500",
 			}},
 		}},
 	}}, integrationActorOne, "formula-self-production-current-material"); err != nil {
@@ -229,7 +237,7 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 	}
 	refreshedCustomerDefault, err := service.FormulaDefault(t.Context(), FormulaDefaultInput{
 		Customer: &refs.customer,
-		Product:  custom,
+		Product:  ProductReferenceInput{ObjectID: custom.ObjectID},
 	})
 	if err != nil {
 		t.Fatalf("customer default after raw material update: %v", err)
@@ -245,17 +253,18 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 		Customer:     &refs.customer,
 		Salesperson:  &refs.employee,
 		Warehouse:    &refs.warehouse,
-		ProductLines: []ProductLineInput{{
-			Product: standard, OrderedQuantity: "1", UnitPrice: "12.00",
-			Formula: &FormulaInput{
-				BaseOutputQuantity: fixedDefault.Formula.BaseOutputQuantity,
-				SourceType:         fixedDefault.SourceType,
+		ProductLines: []ProductLineInput{func() ProductLineInput {
+			line := integrationProductLine(t, standard, "1", "12.00")
+			line.Formula = &FormulaInput{
+				Output:     QuantitySnapshotInput{EnteredQuantity: fixedDefault.Formula.Output.EnteredQuantity, EnteredUnit: UnitReferenceInput{ObjectID: fixedDefault.Formula.Output.EnteredUnit.ObjectID}, BaseQuantity: fixedDefault.Formula.Output.BaseQuantity},
+				SourceType: fixedDefault.SourceType,
 				Components: []FormulaComponentInput{{
-					Material: refs.product,
-					Quantity: fixedDefault.Formula.Components[0].Quantity,
+					Material: ProductReferenceInput{ObjectID: refs.product.ObjectID},
+					Quantity: QuantitySnapshotInput{EnteredQuantity: fixedDefault.Formula.Components[0].Quantity.EnteredQuantity, EnteredUnit: UnitReferenceInput{ObjectID: fixedDefault.Formula.Components[0].Quantity.EnteredUnit.ObjectID}, BaseQuantity: fixedDefault.Formula.Components[0].Quantity.BaseQuantity},
 				}},
-			},
-		}},
+			}
+			return line
+		}()},
 	}}, integrationActorOne, "formula-rebased-order-create")
 	if err != nil {
 		t.Fatalf("create order from stale formula material version: %v", err)

@@ -19,23 +19,15 @@ function deferred<T>() {
 
 describe('useProductReferenceSearch', () => {
   it('keeps selected references and ignores stale search responses', async () => {
-    const first = deferred<{
-      data: { items: never[]; total: number; page: number; pageSize: number }
-    }>()
+    const first = deferred<{ data: never[] }>()
     const second = deferred<{
-      data: {
-        items: Array<{
-          objectId: string
-          code: string
-          currentVersion: {
-            versionId: string
-            summary: { name: string; productKind: string }
-          }
-        }>
-        total: number
-        page: number
-        pageSize: number
-      }
+      data: Array<{
+        objectId: string
+        versionId: string
+        code: string
+        name: string
+        behaviorProfile: 'RAW_MATERIAL'
+      }>
     }>()
     mockedPost
       .mockReturnValueOnce(first.promise as ReturnType<typeof apiClient.post>)
@@ -56,24 +48,18 @@ describe('useProductReferenceSearch', () => {
     const staleRequest = search.search('old')
     const currentRequest = search.search('new')
     second.resolve({
-      data: {
-        items: [
-          {
-            objectId: 'NEW',
-            code: 'RM-002',
-            currentVersion: {
-              versionId: 'NEW-V1',
-              summary: { name: '新原料', productKind: 'RAW_MATERIAL' },
-            },
-          },
-        ],
-        total: 1,
-        page: 1,
-        pageSize: 100,
-      },
+      data: [
+        {
+          objectId: 'NEW',
+          versionId: 'NEW-V1',
+          code: 'RM-002',
+          name: '新原料',
+          behaviorProfile: 'RAW_MATERIAL',
+        },
+      ],
     })
     await currentRequest
-    first.resolve({ data: { items: [], total: 0, page: 1, pageSize: 100 } })
+    first.resolve({ data: [] })
     await staleRequest
 
     expect(search.options.value.map((item) => item.objectId)).toEqual([
@@ -81,9 +67,11 @@ describe('useProductReferenceSearch', () => {
       'NEW',
     ])
     expect(mockedPost).toHaveBeenLastCalledWith(
-      'bob/product/query',
+      'bob/reference/query',
       expect.objectContaining({
-        filters: expect.objectContaining({ keyword: 'new' }),
+        entity: 'product',
+        behaviorProfile: 'RAW_MATERIAL',
+        keyword: 'new',
       }),
     )
     scope.stop()

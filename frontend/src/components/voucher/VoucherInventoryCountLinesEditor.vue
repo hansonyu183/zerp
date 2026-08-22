@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import type { VoucherInventoryCountLineDraft, VoucherReference } from './types'
-import { isQuantity, parseFixed } from './decimal'
+import type {
+  VoucherInventoryCountLineDraft,
+  VoucherReference,
+  VoucherUnitSnapshot,
+} from './types'
+import { isQuantity, parseFixed, suggestedBaseQuantity } from './decimal'
 import VoucherReferenceAutocomplete from '@/components/common/ReferenceAutocomplete.vue'
 import CompactTableField from '@/components/common/CompactTableField.vue'
 import { formatReferenceLabel } from '@/utils/reference-label'
@@ -50,7 +54,9 @@ function addLine() {
     {
       key: crypto.randomUUID(),
       product: null,
-      actualQuantity: '',
+      enteredQuantity: '',
+      enteredUnit: null,
+      baseQuantity: '',
       remark: '',
     },
   ])
@@ -75,11 +81,65 @@ function formatMicros(value: bigint): string {
 }
 
 function previewDifference(line: VoucherInventoryCountLineDraft): string {
-  if (line.differenceQuantity !== undefined) return line.differenceQuantity
-  if (line.bookQuantity === undefined) return '—'
-  const actual = parseFixed(line.actualQuantity, 6, true)
-  const book = parseFixed(line.bookQuantity, 6, true)
+  if (line.differenceBaseQuantity !== undefined)
+    return line.differenceBaseQuantity
+  if (line.bookBaseQuantity === undefined) return '—'
+  const actual = parseFixed(line.baseQuantity, 6, true)
+  const book = parseFixed(line.bookBaseQuantity, 6, true)
   return actual === null || book === null ? '—' : formatMicros(actual - book)
+}
+
+function changeProduct(index: number, product: VoucherReference | null): void {
+  const enteredUnit =
+    product?.unitConversions?.find(
+      (conversion) => conversion.unit.objectId === product.defaultInputUnitId,
+    )?.unit ?? null
+  updateLine(index, {
+    product,
+    enteredUnit,
+    enteredQuantity: '',
+    baseQuantity: '',
+  })
+}
+
+function updateEnteredQuantity(index: number, enteredQuantity: string): void {
+  const line = props.modelValue[index]
+  updateLine(index, {
+    enteredQuantity,
+    baseQuantity: suggestion(
+      enteredQuantity,
+      line?.product ?? null,
+      line?.enteredUnit ?? null,
+    ),
+  })
+}
+
+function changeEnteredUnit(index: number, objectId: string | null): void {
+  const line = props.modelValue[index]
+  if (!line?.product) return
+  const enteredUnit =
+    line.product.unitConversions?.find(
+      (conversion) => conversion.unit.objectId === objectId,
+    )?.unit ?? null
+  updateLine(index, {
+    enteredUnit,
+    baseQuantity: suggestion(line.enteredQuantity, line.product, enteredUnit),
+  })
+}
+
+function suggestion(
+  enteredQuantity: string,
+  product: VoucherReference | null,
+  unit: VoucherUnitSnapshot | null,
+): string {
+  const factor = product?.unitConversions?.find(
+    (conversion) => conversion.unit.objectId === unit?.objectId,
+  )?.factor
+  return factor ? (suggestedBaseQuantity(enteredQuantity, factor) ?? '') : ''
+}
+
+function unitLabel(unit: VoucherUnitSnapshot): string {
+  return unit.symbol || unit.name || unit.code || unit.objectId
 }
 </script>
 
@@ -121,9 +181,10 @@ function previewDifference(line: VoucherInventoryCountLineDraft): string {
           <tr>
             <th>#</th>
             <th>产品</th>
-            <th>单位</th>
-            <th>账面数量</th>
-            <th>实盘数量</th>
+            <th>录入单位</th>
+            <th>账面 Base Quantity</th>
+            <th>录入数量</th>
+            <th>实际 Base Quantity</th>
             <th>差异</th>
             <th>备注</th>
             <th v-if="editable" />
@@ -143,29 +204,70 @@ function previewDifference(line: VoucherInventoryCountLineDraft): string {
                 required
                 table
                 @search="emit('product-search', $event)"
-                @update:model-value="updateLine(index, { product: $event })"
+                @update:model-value="changeProduct(index, $event)"
               />
               <span v-else>{{
                 line.product ? formatReferenceLabel(line.product) : '—'
               }}</span>
             </td>
-            <td data-label="单位">{{ line.product?.unit || '—' }}</td>
-            <td data-label="账面数量">{{ line.bookQuantity ?? '—' }}</td>
-            <td data-label="实盘数量">
+            <td data-label="录入单位">
+              <v-select
+                v-if="editable"
+                density="compact"
+                :disabled="!line.product"
+                hide-details
+                :items="line.product?.unitConversions ?? []"
+                item-value="unit.objectId"
+                :model-value="line.enteredUnit?.objectId ?? null"
+                variant="outlined"
+                @update:model-value="changeEnteredUnit(index, $event)"
+              >
+                <template #selection="{ item }">{{
+                  unitLabel(item.unit)
+                }}</template>
+                <template #item="{ props: itemProps, item }">
+                  <v-list-item
+                    v-bind="itemProps"
+                    :title="unitLabel(item.unit)"
+                  />
+                </template>
+              </v-select>
+              <span v-else>{{
+                line.enteredUnit ? unitLabel(line.enteredUnit) : '—'
+              }}</span>
+            </td>
+            <td data-label="账面 Base Quantity">
+              {{ line.bookBaseQuantity ?? '—' }}
+            </td>
+            <td data-label="录入数量">
               <CompactTableField
                 v-if="editable"
                 inputmode="decimal"
-                :model-value="line.actualQuantity"
+                :model-value="line.enteredQuantity"
                 :rules="[
                   (value: string) =>
                     isQuantity(value, true) ||
                     '请输入非负且最多六位小数的实盘数量。',
                 ]"
+                @update:model-value="updateEnteredQuantity(index, $event)"
+              />
+              <span v-else>{{ line.enteredQuantity }}</span>
+            </td>
+            <td data-label="实际 Base Quantity">
+              <CompactTableField
+                v-if="editable"
+                inputmode="decimal"
+                :model-value="line.baseQuantity"
+                :rules="[
+                  (value: string) =>
+                    isQuantity(value, true) ||
+                    '请输入非负且最多六位小数的实际 Base Quantity。',
+                ]"
                 @update:model-value="
-                  updateLine(index, { actualQuantity: $event })
+                  updateLine(index, { baseQuantity: $event })
                 "
               />
-              <span v-else>{{ line.actualQuantity }}</span>
+              <span v-else>{{ line.baseQuantity }}</span>
             </td>
             <td data-label="差异">{{ previewDifference(line) }}</td>
             <td data-label="备注">

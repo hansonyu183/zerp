@@ -14,13 +14,22 @@ func refInput() *ReferenceInput {
 	return &ReferenceInput{ObjectID: testObjectID, VersionID: testVersionID}
 }
 
+func productLineInput(quantity, price string) ProductLineInput {
+	return ProductLineInput{
+		Product:         ProductReferenceInput{ObjectID: testObjectID},
+		EnteredQuantity: quantity,
+		EnteredUnit:     UnitReferenceInput{ObjectID: testObjectID},
+		BaseQuantity:    quantity,
+		UnitPrice:       price,
+	}
+}
+
 func TestValidateDraftByEntity(t *testing.T) {
 	t.Parallel()
-	product := *refInput()
 	sale, err := validateDraft(EntitySaleOrder, DraftInput{
 		BusinessDate: "2026-07-24", Currency: "cny", Customer: refInput(),
 		Salesperson: refInput(), Warehouse: refInput(),
-		ProductLines: []ProductLineInput{{Product: product, OrderedQuantity: "2.5", UnitPrice: "10.00"}},
+		ProductLines: []ProductLineInput{productLineInput("2.5", "10.00")},
 	})
 	if err != nil {
 		t.Fatalf("validate sale: %v", err)
@@ -166,17 +175,13 @@ func TestEmployeeLoanEntitiesEnforceTheirFinancialShape(t *testing.T) {
 
 func TestValidateLineRemarkBoundaries(t *testing.T) {
 	t.Parallel()
-	product := *refInput()
-	if _, _, err := validateProductLines([]ProductLineInput{{
-		Product: product, OrderedQuantity: "1", UnitPrice: "1.00",
-		Remark: strings.Repeat("注", 1000),
-	}}, false, false); err != nil {
+	line := productLineInput("1", "1.00")
+	line.Remark = strings.Repeat("注", 1000)
+	if _, _, err := validateProductLines([]ProductLineInput{line}, false, false); err != nil {
 		t.Fatalf("1000-character product remark rejected: %v", err)
 	}
-	if _, _, err := validateProductLines([]ProductLineInput{{
-		Product: product, OrderedQuantity: "1", UnitPrice: "1.00",
-		Remark: strings.Repeat("注", 1001),
-	}}, false, false); err == nil {
+	line.Remark = strings.Repeat("注", 1001)
+	if _, _, err := validateProductLines([]ProductLineInput{line}, false, false); err == nil {
 		t.Fatalf("1001-character product remark error = %v", err)
 	}
 	if _, _, err := validateExpenseLines([]ExpenseLineInput{{
@@ -205,11 +210,10 @@ func TestValidateReverseRequiresReason(t *testing.T) {
 
 func TestValidateDraftRejectsCrossEntityAndDuplicateProduct(t *testing.T) {
 	t.Parallel()
-	product := *refInput()
 	_, err := validateDraft(EntitySaleOrder, DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", Customer: refInput(), FundAccount: refInput(),
 		Salesperson: refInput(), Warehouse: refInput(),
-		ProductLines: []ProductLineInput{{Product: product, OrderedQuantity: "1", UnitPrice: "1.00"}},
+		ProductLines: []ProductLineInput{productLineInput("1", "1.00")},
 	})
 	if err == nil {
 		t.Fatal("sale accepted fund account")
@@ -217,10 +221,7 @@ func TestValidateDraftRejectsCrossEntityAndDuplicateProduct(t *testing.T) {
 	_, err = validateDraft(EntityPurchaseOrder, DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", Supplier: refInput(),
 		Purchaser: refInput(), Warehouse: refInput(),
-		ProductLines: []ProductLineInput{
-			{Product: product, OrderedQuantity: "1", UnitPrice: "1.00"},
-			{Product: product, OrderedQuantity: "2", UnitPrice: "1.00"},
-		},
+		ProductLines: []ProductLineInput{productLineInput("1", "1.00"), productLineInput("2", "1.00")},
 	})
 	if err == nil {
 		t.Fatal("purchase accepted duplicate product")
@@ -230,13 +231,13 @@ func TestValidateDraftRejectsCrossEntityAndDuplicateProduct(t *testing.T) {
 func TestValidateFormulaRules(t *testing.T) {
 	t.Parallel()
 	formula := &FormulaInput{
-		BaseOutputQuantity: "100",
-		SourceType:         "customer_latest",
-		SourceDocumentID:   testObjectID,
-		SourceDocumentNo:   "SOR-20260728-0001",
+		Output:           QuantitySnapshotInput{EnteredQuantity: "100", EnteredUnit: UnitReferenceInput{ObjectID: testObjectID}, BaseQuantity: "100"},
+		SourceType:       "customer_latest",
+		SourceDocumentID: testObjectID,
+		SourceDocumentNo: "SOR-20260728-0001",
 		Components: []FormulaComponentInput{{
-			Material: *refInput(),
-			Quantity: "25.5",
+			Material: ProductReferenceInput{ObjectID: testObjectID},
+			Quantity: QuantitySnapshotInput{EnteredQuantity: "25.5", EnteredUnit: UnitReferenceInput{ObjectID: testObjectID}, BaseQuantity: "25.5"},
 		}},
 	}
 	validated, err := validateFormula(formula, true)
@@ -244,8 +245,8 @@ func TestValidateFormulaRules(t *testing.T) {
 		t.Fatalf("valid formula rejected: %v", err)
 	}
 	if validated.SourceType != "CUSTOMER_LATEST" ||
-		validated.BaseOutputQuantity != 100_000_000 ||
-		validated.Components[0].Quantity != 25_500_000 {
+		validated.Output.BaseQuantity != 100_000_000 ||
+		validated.Components[0].Quantity.BaseQuantity != 25_500_000 {
 		t.Fatalf("formula normalization = %+v", validated)
 	}
 	if _, err = validateFormula(formula, false); err == nil {
@@ -261,11 +262,8 @@ func TestValidateFormulaRules(t *testing.T) {
 		formula.Components...,
 	)
 	duplicate.Components = append(duplicate.Components, FormulaComponentInput{
-		Material: ReferenceInput{
-			ObjectID:  testObjectID,
-			VersionID: "01J00000000000000000000003",
-		},
-		Quantity: "1",
+		Material: ProductReferenceInput{ObjectID: testObjectID},
+		Quantity: QuantitySnapshotInput{EnteredQuantity: "1", EnteredUnit: UnitReferenceInput{ObjectID: testObjectID}, BaseQuantity: "1"},
 	})
 	if _, err = validateFormula(&duplicate, true); err == nil {
 		t.Fatal("duplicate formula material accepted")
@@ -295,29 +293,30 @@ func TestValidateAttachmentInitiate(t *testing.T) {
 func TestValidateInventoryCountDraft(t *testing.T) {
 	t.Parallel()
 	warehouse := *refInput()
-	product := ReferenceInput{
-		ObjectID: "01J00000000000000000000002", VersionID: "01J00000000000000000000003",
+	product := ProductReferenceInput{ObjectID: "01J00000000000000000000002"}
+	countLine := func(quantity string) InventoryCountLineInput {
+		return InventoryCountLineInput{
+			Product: product, EnteredQuantity: quantity,
+			EnteredUnit: UnitReferenceInput{ObjectID: testObjectID}, BaseQuantity: quantity,
+		}
 	}
 	draft, err := validateDraft(EntityInventoryCount, DraftInput{
 		BusinessDate: "2026-08-04", Currency: "CNY", Warehouse: &warehouse,
-		InventoryCountLines: []InventoryCountLineInput{{Product: product, ActualQuantity: "0"}},
+		InventoryCountLines: []InventoryCountLineInput{countLine("0")},
 	})
 	if err != nil || len(draft.InventoryCountLines) != 1 || draft.InventoryCountLines[0].ActualQuantity != 0 {
 		t.Fatalf("valid inventory count = %+v err=%v", draft, err)
 	}
 	_, err = validateDraft(EntityInventoryCount, DraftInput{
 		BusinessDate: "2026-08-04", Currency: "USD", Warehouse: &warehouse,
-		InventoryCountLines: []InventoryCountLineInput{{Product: product, ActualQuantity: "1"}},
+		InventoryCountLines: []InventoryCountLineInput{countLine("1")},
 	})
 	if err == nil {
 		t.Fatal("non-CNY inventory count was accepted")
 	}
 	_, err = validateDraft(EntityInventoryCount, DraftInput{
 		BusinessDate: "2026-08-04", Currency: "CNY", Warehouse: &warehouse,
-		InventoryCountLines: []InventoryCountLineInput{
-			{Product: product, ActualQuantity: "1"},
-			{Product: product, ActualQuantity: "2"},
-		},
+		InventoryCountLines: []InventoryCountLineInput{countLine("1"), countLine("2")},
 	})
 	if err == nil {
 		t.Fatal("duplicate inventory count product was accepted")

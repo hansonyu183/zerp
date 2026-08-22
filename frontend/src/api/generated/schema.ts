@@ -4080,13 +4080,16 @@ export interface components {
             feedbackId: string;
         };
         /** @enum {string} */
-        AuxEntity: "product-category" | "department" | "position" | "settlement-method" | "payment-method" | "dictionary-type" | "dictionary-item" | "measurement-unit" | "income-expense-type" | "asset-category";
+        AuxEntity: "product-category" | "product-type" | "department" | "position" | "settlement-method" | "payment-method" | "dictionary-type" | "dictionary-item" | "measurement-unit" | "income-expense-type" | "asset-category";
+        /** @enum {string} */
+        ProductBehaviorProfile: "RAW_MATERIAL" | "STANDARD_FINISHED" | "CUSTOM_FINISHED" | "PACKAGING";
         AuxQueryRequest: {
             page: number;
             pageSize: number;
             filters?: {
                 keyword?: string;
                 enabled?: boolean;
+                behaviorProfile?: components["schemas"]["ProductBehaviorProfile"];
                 parentId?: string;
                 rootOnly?: boolean;
                 dictionaryTypeCode?: string;
@@ -4105,6 +4108,8 @@ export interface components {
             versionId?: string;
         };
         AuxData: {
+            behaviorProfile?: components["schemas"]["ProductBehaviorProfile"];
+        } & {
             [key: string]: unknown;
         };
         AuxCreateData: components["schemas"]["AuxData"] & {
@@ -4881,12 +4886,30 @@ export interface components {
             entity: "customer-account" | "operating-entity" | "employee" | "other-unit" | "supplier" | "sales-partner" | "product";
             keyword?: string;
             sourceObjectId?: string;
+            /** @enum {string} */
+            behaviorProfile?: "RAW_MATERIAL" | "STANDARD_FINISHED" | "CUSTOM_FINISHED" | "PACKAGING";
+        };
+        BobMeasurementUnitSnapshot: {
+            objectId: string;
+            versionId: string;
+            code: string;
+            name: string;
+            symbol: string;
+        };
+        BobProductUnitConversionSnapshot: {
+            unit: components["schemas"]["BobMeasurementUnitSnapshot"];
+            factor: string;
         };
         ReferenceCandidate: {
             objectId: string;
             versionId: string;
             code: string;
             name: string;
+            /** @enum {string} */
+            behaviorProfile?: "RAW_MATERIAL" | "STANDARD_FINISHED" | "CUSTOM_FINISHED" | "PACKAGING";
+            defaultInputUnitId?: string;
+            pricingUnitId?: string;
+            unitConversions?: components["schemas"]["BobProductUnitConversionSnapshot"][];
         };
         ReferenceQueryResponse: {
             code: number;
@@ -5183,21 +5206,30 @@ export interface components {
             data: components["schemas"]["BobListPage"] | null;
             requestId: string;
         };
-        BobPackagingSpecInput: {
-            packagingProductObjectId: string;
-            packagingProductVersionId: string;
-            contentQuantity: string;
-            isDefault: boolean;
+        BobMeasurementUnitSnapshotInput: {
+            objectId: string;
+        };
+        BobProductUnitConversionInput: {
+            unit: components["schemas"]["BobMeasurementUnitSnapshotInput"];
+            factor: string;
+        };
+        BobQuantitySnapshotInput: {
+            enteredQuantity: string;
+            enteredUnit: components["schemas"]["BobMeasurementUnitSnapshotInput"];
+            baseQuantity: string;
         };
         BobProductFormulaComponentInput: {
             material: {
                 objectId: string;
                 versionId: string;
             };
-            quantity: string;
+            quantity: components["schemas"]["BobQuantitySnapshotInput"];
+            /** @enum {string|null} */
+            resolutionStatus?: "CURRENT" | "UNRESOLVED" | null;
+            requiresConfirmation?: boolean | null;
         };
         BobProductFormulaInput: {
-            baseOutputQuantity: string;
+            output: components["schemas"]["BobQuantitySnapshotInput"];
             components: components["schemas"]["BobProductFormulaComponentInput"][];
         };
         BobCreateRequest: {
@@ -5240,13 +5272,14 @@ export interface components {
                 salespersonEmployeeId?: string | null;
                 /** @description 仅客户适用；返点单价，单位为元/kg，省略按 0 处理 */
                 rebateUnitPrice?: string | null;
-                /** @enum {string|null} */
-                productKind?: "RAW_MATERIAL" | "STANDARD_FINISHED" | "CUSTOM_FINISHED" | "PACKAGING" | null;
+                productTypeId?: string | null;
+                defaultInputUnitId?: string | null;
                 inventoryUnitId?: string | null;
                 pricingUnitId?: string | null;
-                pricingQuantityPerInventoryUnit?: string | null;
+                unitConversions?: components["schemas"]["BobProductUnitConversionInput"][] | null;
                 returnable?: boolean | null;
-                packagingSpecs?: components["schemas"]["BobPackagingSpecInput"][] | null;
+                /** @description 仅非包装产品适用；一标准包装件对应的基准数量，必须大于零且最多六位小数 */
+                defaultPackagingSpec?: string | null;
                 formula?: components["schemas"]["BobProductFormulaInput"] | null;
             };
         };
@@ -5293,13 +5326,14 @@ export interface components {
                 defaultSalesSurcharge?: string | null;
                 salespersonEmployeeId?: string | null;
                 rebateUnitPrice?: string | null;
-                /** @enum {string|null} */
-                productKind?: "RAW_MATERIAL" | "STANDARD_FINISHED" | "CUSTOM_FINISHED" | "PACKAGING" | null;
+                productTypeId?: string | null;
+                defaultInputUnitId?: string | null;
                 inventoryUnitId?: string | null;
                 pricingUnitId?: string | null;
-                pricingQuantityPerInventoryUnit?: string | null;
+                unitConversions?: components["schemas"]["BobProductUnitConversionInput"][] | null;
                 returnable?: boolean | null;
-                packagingSpecs?: components["schemas"]["BobPackagingSpecInput"][] | null;
+                /** @description 仅非包装产品适用；一标准包装件对应的基准数量，必须大于零且最多六位小数 */
+                defaultPackagingSpec?: string | null;
                 formula?: components["schemas"]["BobProductFormulaInput"] | null;
             };
         };
@@ -5323,26 +5357,20 @@ export interface components {
                 order: "asc" | "desc";
             }[];
         };
-        VouSalesKgSummary: {
-            /** @enum {string} */
-            unit: "KG";
-            excludedPackaging: boolean;
+        VouSalesBaseQuantitySummary: {
             warehouseAvailable: boolean;
-            shortageQuantity?: string;
-            orderedQuantity: string;
-            outboundQuantity: string;
-            inTransitQuantity: string;
-            signedQuantity: string;
-            netSignedQuantity: string;
+            shortageBaseQuantity?: string;
+            orderedBaseQuantity: string;
+            outboundBaseQuantity: string;
+            inTransitBaseQuantity: string;
+            signedBaseQuantity: string;
+            netSignedBaseQuantity: string;
         };
-        VouPurchaseKgSummary: {
-            /** @enum {string} */
-            unit: "KG";
-            excludedPackaging: boolean;
-            orderedQuantity: string;
-            inboundQuantity: string;
-            returnProcessingQuantity: string;
-            netInboundQuantity: string;
+        VouPurchaseBaseQuantitySummary: {
+            orderedBaseQuantity: string;
+            inboundBaseQuantity: string;
+            returnProcessingBaseQuantity: string;
+            netInboundBaseQuantity: string;
         };
         VouListItem: {
             documentId: string;
@@ -5358,8 +5386,8 @@ export interface components {
             amount: string;
             /** Format: date-time */
             updatedAt: string;
-            salesSummary?: components["schemas"]["VouSalesKgSummary"];
-            purchaseSummary?: components["schemas"]["VouPurchaseKgSummary"];
+            salesSummary?: components["schemas"]["VouSalesBaseQuantitySummary"];
+            purchaseSummary?: components["schemas"]["VouPurchaseBaseQuantitySummary"];
         };
         VouListPage: {
             items: components["schemas"]["VouListItem"][];
@@ -5426,10 +5454,10 @@ export interface components {
             salesContract?: components["schemas"]["VouIntermediarySalesContractSnapshot"];
             intermediary?: components["schemas"]["VouIntermediaryReference"];
             product: components["schemas"]["VouIntermediaryReference"];
-            productKind: string;
-            signedQuantity: string;
+            behaviorProfile: string;
+            signedBaseQuantity: string;
             pricingQuantity: string;
-            barrelQuantity: string;
+            standardPieceQuantity: string;
             unitPrice: string;
             referenceUnitPrice: string;
             settlementSurcharge: string;
@@ -5588,7 +5616,6 @@ export interface components {
             };
             product: {
                 objectId: string;
-                versionId: string;
             };
         };
         VouPriceReferenceRequest: {
@@ -5625,7 +5652,7 @@ export interface components {
         VouIntermediaryResultLine: {
             sourceSignoffLineId: string;
             premiumUnitPrice: string;
-            barrelQuantity: string;
+            standardPieceQuantity: string;
             baseCommission: string;
             premiumCommission: string;
             lowPriceCommission: string;
@@ -5677,18 +5704,24 @@ export interface components {
             formulaLineNo: number;
             actualMaterial: {
                 objectId: string;
-                versionId: string;
             };
-            actualQuantity: string;
+            actualEnteredQuantity: string;
+            actualEnteredUnit: {
+                objectId: string;
+            };
+            actualBaseQuantity: string;
             adjustmentReason?: string;
         };
         VouProductionOutputInput: {
             sourceOrderLineId?: string;
             product?: {
                 objectId: string;
-                versionId: string;
             };
-            outputQuantity: string;
+            enteredQuantity: string;
+            enteredUnit: {
+                objectId: string;
+            };
+            baseQuantity: string;
             lossRate: string;
             remark?: string;
             materials: components["schemas"]["VouProductionMaterialInput"][];
@@ -5808,15 +5841,21 @@ export interface components {
             amount: string;
             remark?: string;
         };
+        VouQuantitySnapshotInput: {
+            enteredQuantity: string;
+            enteredUnit: {
+                objectId: string;
+            };
+            baseQuantity: string;
+        };
         VouFormulaComponentInput: {
             material: {
                 objectId: string;
-                versionId: string;
             };
-            quantity: string;
+            quantity: components["schemas"]["VouQuantitySnapshotInput"];
         };
         VouFormulaInput: {
-            baseOutputQuantity: string;
+            output: components["schemas"]["VouQuantitySnapshotInput"];
             /** @enum {string} */
             sourceType?: "RAW_SELF" | "PRODUCT_FIXED" | "CUSTOMER_LATEST" | "MANUAL";
             sourceDocumentId?: string;
@@ -5834,9 +5873,12 @@ export interface components {
         VouInventoryCountLineInput: {
             product: {
                 objectId: string;
-                versionId: string;
             };
-            actualQuantity: string;
+            enteredQuantity: string;
+            enteredUnit: {
+                objectId: string;
+            };
+            baseQuantity: string;
             remark?: string;
         };
         VouCreateRequest: {
@@ -5933,9 +5975,12 @@ export interface components {
                 productLines?: {
                     product: {
                         objectId: string;
-                        versionId: string;
                     };
-                    orderedQuantity: string;
+                    enteredQuantity: string;
+                    enteredUnit: {
+                        objectId: string;
+                    };
+                    baseQuantity: string;
                     unitPrice: string;
                     settlementSurcharge?: string | null;
                     purchaseUnitPrice?: string;
@@ -5954,18 +5999,18 @@ export interface components {
                 inventoryCountLines?: components["schemas"]["VouInventoryCountLineInput"][];
                 sourceLines?: {
                     sourceLineId: string;
-                    quantity: string;
+                    baseQuantity: string;
                     remark?: string;
                 }[];
                 signoffLines?: {
                     sourceLineId: string;
-                    signedQuantity: string;
-                    rejectedQuantity: string;
+                    signedBaseQuantity: string;
+                    rejectedBaseQuantity: string;
                     remark?: string;
                 }[];
                 returnLines?: {
                     sourceLineId: string;
-                    quantity: string;
+                    baseQuantity: string;
                     remark?: string;
                 }[];
             };
@@ -6065,9 +6110,12 @@ export interface components {
                 productLines?: {
                     product: {
                         objectId: string;
-                        versionId: string;
                     };
-                    orderedQuantity: string;
+                    enteredQuantity: string;
+                    enteredUnit: {
+                        objectId: string;
+                    };
+                    baseQuantity: string;
                     unitPrice: string;
                     settlementSurcharge?: string | null;
                     purchaseUnitPrice?: string;
@@ -6086,18 +6134,18 @@ export interface components {
                 inventoryCountLines?: components["schemas"]["VouInventoryCountLineInput"][];
                 sourceLines?: {
                     sourceLineId: string;
-                    quantity: string;
+                    baseQuantity: string;
                     remark?: string;
                 }[];
                 signoffLines?: {
                     sourceLineId: string;
-                    signedQuantity: string;
-                    rejectedQuantity: string;
+                    signedBaseQuantity: string;
+                    rejectedBaseQuantity: string;
                     remark?: string;
                 }[];
                 returnLines?: {
                     sourceLineId: string;
-                    quantity: string;
+                    baseQuantity: string;
                     remark?: string;
                 }[];
             };

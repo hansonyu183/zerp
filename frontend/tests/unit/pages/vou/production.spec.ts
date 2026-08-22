@@ -25,7 +25,14 @@ const product: VoucherReference = {
   entity: 'product',
   code: 'FG-001',
   name: '标准成品',
-  productKind: 'STANDARD_FINISHED',
+  behaviorProfile: 'STANDARD_FINISHED',
+  defaultInputUnitId: 'unit-kg',
+  unitConversions: [
+    {
+      unit: { objectId: 'unit-kg', code: 'UNT-KG', name: '千克', symbol: 'kg' },
+      factor: '1',
+    },
+  ],
 }
 const material: VoucherReference = {
   objectId: 'material-1',
@@ -33,7 +40,14 @@ const material: VoucherReference = {
   entity: 'product',
   code: 'RM-001',
   name: '原材料',
-  productKind: 'RAW_MATERIAL',
+  behaviorProfile: 'RAW_MATERIAL',
+  defaultInputUnitId: 'unit-kg',
+  unitConversions: [
+    {
+      unit: { objectId: 'unit-kg', code: 'UNT-KG', name: '千克', symbol: 'kg' },
+      factor: '1',
+    },
+  ],
 }
 const warehouse: VoucherReference = {
   objectId: 'warehouse-1',
@@ -56,15 +70,17 @@ describe('production voucher helpers', () => {
 
   it('keeps a manually adjusted quantity when loss rate changes', () => {
     const line = productionLineFromFormula(product, '', '10', {
-      baseOutputQuantity: '2',
-      components: [{ material, quantity: '3' }],
+      output: { baseQuantity: '2' },
+      components: [{ material, quantity: { baseQuantity: '3' } }],
     })
-    expect(line.materials[0]?.actualQuantity).toBe('15')
-    line.materials[0]!.actualQuantity = '14'
+    line.materials[0]!.actualEnteredQuantity = '15'
+    line.materials[0]!.actualEnteredUnit = material.unitConversions![0]!.unit
+    expect(line.materials[0]?.actualBaseQuantity).toBe('15')
+    line.materials[0]!.actualBaseQuantity = '14'
     line.lossRate = '10'
     recalculateProductionLine(line)
-    expect(line.materials[0]?.suggestedQuantity).toBe('16.5')
-    expect(line.materials[0]?.actualQuantity).toBe('14')
+    expect(line.materials[0]?.suggestedBaseQuantity).toBe('16.5')
+    expect(line.materials[0]?.actualBaseQuantity).toBe('14')
   })
 
   it('builds a non-monetary self-production payload', () => {
@@ -72,12 +88,13 @@ describe('production voucher helpers', () => {
     const form = emptyForm(config)
     form.materialWarehouse = warehouse
     form.finishedWarehouse = warehouse
-    form.productionLines = [
-      productionLineFromFormula(product, '', '10', {
-        baseOutputQuantity: '2',
-        components: [{ material, quantity: '3' }],
-      }),
-    ]
+    const line = productionLineFromFormula(product, '', '10', {
+      output: { baseQuantity: '2' },
+      components: [{ material, quantity: { baseQuantity: '3' } }],
+    })
+    line.materials[0]!.actualEnteredQuantity = '15'
+    line.materials[0]!.actualEnteredUnit = material.unitConversions![0]!.unit
+    form.productionLines = [line]
 
     expect(validateVoucherDraft(config, form)).toBeNull()
     expect(buildVoucherDraftPayload(config, form, false, new Set())).toEqual({
@@ -94,18 +111,20 @@ describe('production voucher helpers', () => {
         {
           product: {
             objectId: product.objectId,
-            versionId: product.versionId,
           },
-          outputQuantity: '10',
+          enteredQuantity: '10',
+          enteredUnit: { objectId: 'unit-kg' },
+          baseQuantity: '10',
           lossRate: '0',
           materials: [
             {
               formulaLineNo: 1,
               actualMaterial: {
                 objectId: material.objectId,
-                versionId: material.versionId,
               },
-              actualQuantity: '15',
+              actualEnteredQuantity: '15',
+              actualEnteredUnit: { objectId: 'unit-kg' },
+              actualBaseQuantity: '15',
             },
           ],
         },
@@ -119,10 +138,12 @@ describe('production voucher helpers', () => {
     form.materialWarehouse = warehouse
     form.finishedWarehouse = warehouse
     const line = productionLineFromFormula(product, '', '10', {
-      baseOutputQuantity: '2',
-      components: [{ material, quantity: '3' }],
+      output: { baseQuantity: '2' },
+      components: [{ material, quantity: { baseQuantity: '3' } }],
     })
-    line.materials[0]!.actualQuantity = '14'
+    line.materials[0]!.actualEnteredQuantity = '15'
+    line.materials[0]!.actualEnteredUnit = material.unitConversions![0]!.unit
+    line.materials[0]!.actualBaseQuantity = '14'
     form.productionLines = [line]
     expect(validateVoucherDraft(config, form)).toContain('必须说明原因')
   })
@@ -169,8 +190,8 @@ describe('production voucher helpers', () => {
     resolveNew({
       data: {
         formula: {
-          baseOutputQuantity: '1',
-          components: [{ material, quantity: '2' }],
+          output: { baseQuantity: '1' },
+          components: [{ material, quantity: { baseQuantity: '2' } }],
         },
       },
     })
@@ -179,7 +200,7 @@ describe('production voucher helpers', () => {
       product: newerProduct,
       formulaError: '',
       formulaLoading: false,
-      materials: [{ formulaQuantity: '2' }],
+      materials: [{ formulaBaseQuantity: '2' }],
     })
   })
 })

@@ -1,5 +1,5 @@
 import {
-  calculatePricedLineAmount,
+  calculateBaseQuantityLineAmount,
   addMoney,
   isMoney,
   isQuantity,
@@ -112,7 +112,7 @@ export function validateVoucherDraft(
     (config.entity === 'purchase-return' || value.returnKind !== 'REFUSAL') &&
     (value.salesChainLines.length === 0 ||
       value.salesChainLines.some(
-        (line) => !line.sourceLineId || !isQuantity(line.quantity),
+        (line) => !line.sourceLineId || !isQuantity(line.baseQuantity),
       ))
   ) {
     return '请选择有效的签收明细并填写退货数量。'
@@ -140,10 +140,12 @@ export function validateVoucherDraft(
       const lossRate = parseFixed(line.lossRate, 6, true)
       if (
         !line.product ||
-        !isQuantity(line.outputQuantity) ||
+        !isQuantity(line.enteredQuantity) ||
+        !line.enteredUnit ||
+        !isQuantity(line.baseQuantity) ||
         lossRate === null ||
         lossRate > 100_000_000n ||
-        !isQuantity(line.formulaBaseOutputQuantity) ||
+        !isQuantity(line.formulaBaseQuantity) ||
         line.materials.length < 1
       ) {
         return `第 ${index + 1} 行 · 生产明细：请填写有效的产品、产量、损耗比例和配方。`
@@ -163,10 +165,13 @@ export function validateVoucherDraft(
             material.formulaMaterial.objectId ||
           material.actualMaterial?.versionId !==
             material.formulaMaterial.versionId ||
-          material.actualQuantity.trim() !== material.suggestedQuantity.trim()
+          material.actualBaseQuantity.trim() !==
+            material.suggestedBaseQuantity.trim()
         if (
           !material.actualMaterial ||
-          !isQuantity(material.actualQuantity) ||
+          !material.actualEnteredUnit ||
+          !isQuantity(material.actualEnteredQuantity) ||
+          !isQuantity(material.actualBaseQuantity) ||
           (adjusted && !material.adjustmentReason.trim())
         ) {
           return `第 ${index + 1} 行 · 材料 ${materialIndex + 1}：请填写有效的实际材料、用量；发生替换或调整时必须说明原因。`
@@ -184,16 +189,22 @@ export function validateVoucherDraft(
     for (const [index, line] of value.productLines.entries()) {
       if (
         !line.product ||
-        !isQuantity(line.orderedQuantity) ||
+        !isQuantity(line.enteredQuantity) ||
+        !line.enteredUnit ||
+        !isQuantity(line.baseQuantity) ||
         !isMoney(line.unitPrice, true) ||
         ((line.settlementSurcharge ?? '') !== '' &&
           !isMoney(line.settlementSurcharge ?? '', true))
       )
         return `第 ${index + 1} 行 · 产品/数量/单价：请完整填写有效值。`
-      const lineAmount = calculatePricedLineAmount(
-        line.orderedQuantity,
+      const pricingFactor = line.product.unitConversions?.find(
+        (conversion) =>
+          conversion.unit.objectId === line.product!.pricingUnitId,
+      )?.factor
+      const lineAmount = calculateBaseQuantityLineAmount(
+        line.baseQuantity,
         addMoney(line.unitPrice, line.settlementSurcharge) ?? '',
-        line.product.pricingQuantityPerInventoryUnit ?? '1',
+        pricingFactor ?? '',
       )
       if (!lineAmount) return `第 ${index + 1} 行 · 金额：超出允许范围。`
       lineAmounts.push(lineAmount)
@@ -204,15 +215,20 @@ export function validateVoucherDraft(
       seen.add(key)
       if (
         config.entity === 'sale-order' &&
-        line.product.productKind !== 'PACKAGING'
+        line.product.behaviorProfile !== 'PACKAGING'
       ) {
         if (
           !line.formula ||
-          !isQuantity(line.formula.baseOutputQuantity) ||
+          !line.formula.output.enteredUnit ||
+          !isQuantity(line.formula.output.enteredQuantity) ||
+          !isQuantity(line.formula.output.baseQuantity) ||
           line.formula.components.length === 0 ||
           line.formula.components.some(
             (component) =>
-              !component.material || !isQuantity(component.quantity),
+              !component.material ||
+              !component.quantity.enteredUnit ||
+              !isQuantity(component.quantity.enteredQuantity) ||
+              !isQuantity(component.quantity.baseQuantity),
           )
         ) {
           return `第 ${index + 1} 行 · 配方：请完整填写基准产量和原材料用量。`
@@ -274,7 +290,12 @@ export function validateVoucherDraft(
     }
     const seen = new Set<string>()
     for (const [index, line] of value.inventoryCountLines.entries()) {
-      if (!line.product || !isQuantity(line.actualQuantity, true)) {
+      if (
+        !line.product ||
+        !line.enteredUnit ||
+        !isQuantity(line.enteredQuantity, true) ||
+        !isQuantity(line.baseQuantity, true)
+      ) {
         return `第 ${index + 1} 行 · 产品/实盘数量：请完整填写有效值。`
       }
       if (seen.has(line.product.objectId)) {

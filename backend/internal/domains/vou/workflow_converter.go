@@ -40,9 +40,9 @@ type WorkflowSaleSignoffInitial struct {
 }
 
 type WorkflowSignoffLineInput struct {
-	SourceLineID     string `json:"sourceLineId"`
-	SignedQuantity   string `json:"signedQuantity"`
-	RejectedQuantity string `json:"rejectedQuantity"`
+	SourceLineID         string `json:"sourceLineId"`
+	SignedBaseQuantity   string `json:"signedBaseQuantity"`
+	RejectedBaseQuantity string `json:"rejectedBaseQuantity"`
 }
 
 type WorkflowSaleReturnInitial struct {
@@ -112,8 +112,8 @@ func (s *Service) CreateWorkflowSaleSignoff(ctx context.Context, tx pgx.Tx, sour
 	lines := make([]SaleSignoffLineInput, 0, len(initial.Lines))
 	for _, line := range initial.Lines {
 		lines = append(lines, SaleSignoffLineInput{
-			SourceLineID: line.SourceLineID, SignedQuantity: line.SignedQuantity,
-			RejectedQuantity: line.RejectedQuantity,
+			SourceLineID: line.SourceLineID, SignedBaseQuantity: line.SignedBaseQuantity,
+			RejectedBaseQuantity: line.RejectedBaseQuantity,
 		})
 	}
 	return s.writeSaleSignoff(ctx, tx, "", DraftInput{

@@ -72,7 +72,7 @@ func (q *Queries) CheckVouDocument(ctx context.Context, arg CheckVouDocumentPara
 
 const clearVouInventoryCountResults = `-- name: ClearVouInventoryCountResults :exec
 UPDATE vou_inventory_count_lines
-SET book_quantity_micros=NULL,difference_quantity_micros=NULL
+SET book_base_quantity_micros=NULL,difference_base_quantity_micros=NULL
 WHERE document_id=$1
 `
 
@@ -83,8 +83,8 @@ func (q *Queries) ClearVouInventoryCountResults(ctx context.Context, documentID 
 
 const clearVouProductLineExecution = `-- name: ClearVouProductLineExecution :exec
 UPDATE vou_product_lines
-SET outbound_qty_micros = NULL, signed_qty_micros = NULL,
-    rejected_qty_micros = NULL, loss_qty_micros = NULL, inbound_qty_micros = NULL
+SET outbound_base_quantity_micros = NULL, signed_base_quantity_micros = NULL,
+    rejected_base_quantity_micros = NULL, loss_base_quantity_micros = NULL, inbound_base_quantity_micros = NULL
 WHERE document_id = $1
 `
 
@@ -612,7 +612,7 @@ func (q *Queries) DeleteVouSaleSignoffLines(ctx context.Context, documentID stri
 }
 
 const findLatestCustomerSaleOrderFormula = `-- name: FindLatestCustomerSaleOrderFormula :one
-SELECT formula.product_line_id, formula.base_output_quantity_micros,
+SELECT formula.product_line_id, formula.output_base_quantity_micros,
        document.id AS source_document_id, document.document_no AS source_document_no
 FROM vou_documents document
 JOIN vou_sale_order_details detail ON detail.document_id = document.id
@@ -633,7 +633,7 @@ type FindLatestCustomerSaleOrderFormulaParams struct {
 
 type FindLatestCustomerSaleOrderFormulaRow struct {
 	ProductLineID            string `db:"product_line_id" json:"product_line_id"`
-	BaseOutputQuantityMicros int64  `db:"base_output_quantity_micros" json:"base_output_quantity_micros"`
+	OutputBaseQuantityMicros int64  `db:"output_base_quantity_micros" json:"output_base_quantity_micros"`
 	SourceDocumentID         string `db:"source_document_id" json:"source_document_id"`
 	SourceDocumentNo         string `db:"source_document_no" json:"source_document_no"`
 }
@@ -643,7 +643,7 @@ func (q *Queries) FindLatestCustomerSaleOrderFormula(ctx context.Context, arg Fi
 	var i FindLatestCustomerSaleOrderFormulaRow
 	err := row.Scan(
 		&i.ProductLineID,
-		&i.BaseOutputQuantityMicros,
+		&i.OutputBaseQuantityMicros,
 		&i.SourceDocumentID,
 		&i.SourceDocumentNo,
 	)
@@ -1460,20 +1460,42 @@ func (q *Queries) GetVouSaleOrderDetail(ctx context.Context, documentID string) 
 
 const getVouSaleOrderFormula = `-- name: GetVouSaleOrderFormula :one
 SELECT product_line_id, source_type, source_document_id, source_document_no,
-       base_output_quantity_micros
+       output_entered_quantity_micros, output_entered_unit_object_id,
+       output_entered_unit_version_id, output_entered_unit_code,
+       output_entered_unit_name, output_entered_unit_symbol, output_base_quantity_micros
 FROM vou_sale_order_formulas
 WHERE product_line_id = $1
 `
 
-func (q *Queries) GetVouSaleOrderFormula(ctx context.Context, productLineID string) (VouSaleOrderFormula, error) {
+type GetVouSaleOrderFormulaRow struct {
+	ProductLineID               string  `db:"product_line_id" json:"product_line_id"`
+	SourceType                  string  `db:"source_type" json:"source_type"`
+	SourceDocumentID            *string `db:"source_document_id" json:"source_document_id"`
+	SourceDocumentNo            *string `db:"source_document_no" json:"source_document_no"`
+	OutputEnteredQuantityMicros int64   `db:"output_entered_quantity_micros" json:"output_entered_quantity_micros"`
+	OutputEnteredUnitObjectID   string  `db:"output_entered_unit_object_id" json:"output_entered_unit_object_id"`
+	OutputEnteredUnitVersionID  string  `db:"output_entered_unit_version_id" json:"output_entered_unit_version_id"`
+	OutputEnteredUnitCode       string  `db:"output_entered_unit_code" json:"output_entered_unit_code"`
+	OutputEnteredUnitName       string  `db:"output_entered_unit_name" json:"output_entered_unit_name"`
+	OutputEnteredUnitSymbol     string  `db:"output_entered_unit_symbol" json:"output_entered_unit_symbol"`
+	OutputBaseQuantityMicros    int64   `db:"output_base_quantity_micros" json:"output_base_quantity_micros"`
+}
+
+func (q *Queries) GetVouSaleOrderFormula(ctx context.Context, productLineID string) (GetVouSaleOrderFormulaRow, error) {
 	row := q.db.QueryRow(ctx, getVouSaleOrderFormula, productLineID)
-	var i VouSaleOrderFormula
+	var i GetVouSaleOrderFormulaRow
 	err := row.Scan(
 		&i.ProductLineID,
 		&i.SourceType,
 		&i.SourceDocumentID,
 		&i.SourceDocumentNo,
-		&i.BaseOutputQuantityMicros,
+		&i.OutputEnteredQuantityMicros,
+		&i.OutputEnteredUnitObjectID,
+		&i.OutputEnteredUnitVersionID,
+		&i.OutputEnteredUnitCode,
+		&i.OutputEnteredUnitName,
+		&i.OutputEnteredUnitSymbol,
+		&i.OutputBaseQuantityMicros,
 	)
 	return i, err
 }
@@ -2187,25 +2209,33 @@ func (q *Queries) InsertVouInventoryCountDetail(ctx context.Context, arg InsertV
 const insertVouInventoryCountLine = `-- name: InsertVouInventoryCountLine :exec
 INSERT INTO vou_inventory_count_lines(
     id,document_id,line_no,product_object_id,product_version_id,product_code,
-    product_name,product_unit,actual_quantity_micros,remark
+    product_name,entered_quantity_micros,entered_unit_object_id,entered_unit_version_id,
+    entered_unit_code,entered_unit_name,entered_unit_symbol,actual_base_quantity_micros,remark
 ) VALUES (
     $1,$2,$3,$4,
     $5,$6,$7,
-    $8,$9,$10
+    $8,$9,
+    $10,$11,$12,
+    $13,$14,$15
 )
 `
 
 type InsertVouInventoryCountLineParams struct {
-	ID                   string  `db:"id" json:"id"`
-	DocumentID           string  `db:"document_id" json:"document_id"`
-	LineNo               int32   `db:"line_no" json:"line_no"`
-	ProductObjectID      string  `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID     string  `db:"product_version_id" json:"product_version_id"`
-	ProductCode          string  `db:"product_code" json:"product_code"`
-	ProductName          string  `db:"product_name" json:"product_name"`
-	ProductUnit          string  `db:"product_unit" json:"product_unit"`
-	ActualQuantityMicros int64   `db:"actual_quantity_micros" json:"actual_quantity_micros"`
-	Remark               *string `db:"remark" json:"remark"`
+	ID                       string  `db:"id" json:"id"`
+	DocumentID               string  `db:"document_id" json:"document_id"`
+	LineNo                   int32   `db:"line_no" json:"line_no"`
+	ProductObjectID          string  `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID         string  `db:"product_version_id" json:"product_version_id"`
+	ProductCode              string  `db:"product_code" json:"product_code"`
+	ProductName              string  `db:"product_name" json:"product_name"`
+	EnteredQuantityMicros    int64   `db:"entered_quantity_micros" json:"entered_quantity_micros"`
+	EnteredUnitObjectID      string  `db:"entered_unit_object_id" json:"entered_unit_object_id"`
+	EnteredUnitVersionID     string  `db:"entered_unit_version_id" json:"entered_unit_version_id"`
+	EnteredUnitCode          string  `db:"entered_unit_code" json:"entered_unit_code"`
+	EnteredUnitName          string  `db:"entered_unit_name" json:"entered_unit_name"`
+	EnteredUnitSymbol        string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	ActualBaseQuantityMicros int64   `db:"actual_base_quantity_micros" json:"actual_base_quantity_micros"`
+	Remark                   *string `db:"remark" json:"remark"`
 }
 
 func (q *Queries) InsertVouInventoryCountLine(ctx context.Context, arg InsertVouInventoryCountLineParams) error {
@@ -2217,8 +2247,13 @@ func (q *Queries) InsertVouInventoryCountLine(ctx context.Context, arg InsertVou
 		arg.ProductVersionID,
 		arg.ProductCode,
 		arg.ProductName,
-		arg.ProductUnit,
-		arg.ActualQuantityMicros,
+		arg.EnteredQuantityMicros,
+		arg.EnteredUnitObjectID,
+		arg.EnteredUnitVersionID,
+		arg.EnteredUnitCode,
+		arg.EnteredUnitName,
+		arg.EnteredUnitSymbol,
+		arg.ActualBaseQuantityMicros,
 		arg.Remark,
 	)
 	return err
@@ -2341,30 +2376,36 @@ func (q *Queries) InsertVouPaymentDetail(ctx context.Context, arg InsertVouPayme
 const insertVouPriceLine = `-- name: InsertVouPriceLine :exec
 INSERT INTO vou_price_lines(
     id,document_id,document_entity,line_no,product_object_id,product_version_id,
-    product_code,product_name,product_unit,product_kind,
-    pricing_quantity_per_inventory_unit_micros,unit_price_cents,remark
+    product_code,product_name,default_input_unit_symbol,behavior_profile,
+    product_type_object_id,product_type_version_id,product_type_code,product_type_name,
+    unit_price_cents,remark
 ) VALUES (
     $1,$2,$3,$4,
     $5,$6,$7,
     $8,$9,$10,
-    $11,$12,$13
+    $11,$12,
+    $13,$14,
+    $15,$16
 )
 `
 
 type InsertVouPriceLineParams struct {
-	ID                                    string  `db:"id" json:"id"`
-	DocumentID                            string  `db:"document_id" json:"document_id"`
-	DocumentEntity                        string  `db:"document_entity" json:"document_entity"`
-	LineNo                                int32   `db:"line_no" json:"line_no"`
-	ProductObjectID                       string  `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID                      string  `db:"product_version_id" json:"product_version_id"`
-	ProductCode                           string  `db:"product_code" json:"product_code"`
-	ProductName                           string  `db:"product_name" json:"product_name"`
-	ProductUnit                           string  `db:"product_unit" json:"product_unit"`
-	ProductKind                           string  `db:"product_kind" json:"product_kind"`
-	PricingQuantityPerInventoryUnitMicros int64   `db:"pricing_quantity_per_inventory_unit_micros" json:"pricing_quantity_per_inventory_unit_micros"`
-	UnitPriceCents                        int64   `db:"unit_price_cents" json:"unit_price_cents"`
-	Remark                                *string `db:"remark" json:"remark"`
+	ID                     string  `db:"id" json:"id"`
+	DocumentID             string  `db:"document_id" json:"document_id"`
+	DocumentEntity         string  `db:"document_entity" json:"document_entity"`
+	LineNo                 int32   `db:"line_no" json:"line_no"`
+	ProductObjectID        string  `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID       string  `db:"product_version_id" json:"product_version_id"`
+	ProductCode            string  `db:"product_code" json:"product_code"`
+	ProductName            string  `db:"product_name" json:"product_name"`
+	DefaultInputUnitSymbol string  `db:"default_input_unit_symbol" json:"default_input_unit_symbol"`
+	BehaviorProfile        string  `db:"behavior_profile" json:"behavior_profile"`
+	ProductTypeObjectID    string  `db:"product_type_object_id" json:"product_type_object_id"`
+	ProductTypeVersionID   string  `db:"product_type_version_id" json:"product_type_version_id"`
+	ProductTypeCode        string  `db:"product_type_code" json:"product_type_code"`
+	ProductTypeName        string  `db:"product_type_name" json:"product_type_name"`
+	UnitPriceCents         int64   `db:"unit_price_cents" json:"unit_price_cents"`
+	Remark                 *string `db:"remark" json:"remark"`
 }
 
 func (q *Queries) InsertVouPriceLine(ctx context.Context, arg InsertVouPriceLineParams) error {
@@ -2377,9 +2418,12 @@ func (q *Queries) InsertVouPriceLine(ctx context.Context, arg InsertVouPriceLine
 		arg.ProductVersionID,
 		arg.ProductCode,
 		arg.ProductName,
-		arg.ProductUnit,
-		arg.ProductKind,
-		arg.PricingQuantityPerInventoryUnitMicros,
+		arg.DefaultInputUnitSymbol,
+		arg.BehaviorProfile,
+		arg.ProductTypeObjectID,
+		arg.ProductTypeVersionID,
+		arg.ProductTypeCode,
+		arg.ProductTypeName,
 		arg.UnitPriceCents,
 		arg.Remark,
 	)
@@ -2389,8 +2433,11 @@ func (q *Queries) InsertVouPriceLine(ctx context.Context, arg InsertVouPriceLine
 const insertVouProductLine = `-- name: InsertVouProductLine :exec
 INSERT INTO vou_product_lines (
     id, document_id, document_entity, line_no, product_object_id, product_version_id,
-    product_code, product_name, product_unit, ordered_qty_micros,
-    product_kind, pricing_quantity_per_inventory_unit_micros,
+    product_code, product_name, entered_quantity_micros,
+    entered_unit_object_id, entered_unit_version_id, entered_unit_code,
+    entered_unit_name, entered_unit_symbol, base_quantity_micros,
+    product_type_object_id, product_type_version_id, product_type_code,
+    product_type_name, behavior_profile, default_packaging_spec_micros,
     base_unit_price_cents, settlement_surcharge_cents, unit_price_cents,
     line_amount_cents, purchase_unit_price_cents, remark,
     reference_unit_price_cents, reference_document_id, reference_document_no,
@@ -2398,41 +2445,55 @@ INSERT INTO vou_product_lines (
 ) VALUES (
     $1, $2, $3, $4,
     $5, $6, $7,
-    $8, $9, $10,
-    $11, $12,
-    $13, $14,
-    $15, $16,
-    $17, $18,
-    $19, $20,
-    $21, $22,
-    $23
+    $8, $9,
+    $10, $11,
+    $12, $13,
+    $14, $15,
+    $16, $17,
+    $18, $19,
+    $20, $21,
+    $22, $23,
+    $24, $25,
+    $26, $27,
+    $28, $29,
+    $30, $31,
+    $32
 )
 `
 
 type InsertVouProductLineParams struct {
-	ID                                    string      `db:"id" json:"id"`
-	DocumentID                            string      `db:"document_id" json:"document_id"`
-	DocumentEntity                        string      `db:"document_entity" json:"document_entity"`
-	LineNo                                int32       `db:"line_no" json:"line_no"`
-	ProductObjectID                       string      `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID                      string      `db:"product_version_id" json:"product_version_id"`
-	ProductCode                           string      `db:"product_code" json:"product_code"`
-	ProductName                           string      `db:"product_name" json:"product_name"`
-	ProductUnit                           string      `db:"product_unit" json:"product_unit"`
-	OrderedQtyMicros                      int64       `db:"ordered_qty_micros" json:"ordered_qty_micros"`
-	ProductKind                           string      `db:"product_kind" json:"product_kind"`
-	PricingQuantityPerInventoryUnitMicros int64       `db:"pricing_quantity_per_inventory_unit_micros" json:"pricing_quantity_per_inventory_unit_micros"`
-	BaseUnitPriceCents                    int64       `db:"base_unit_price_cents" json:"base_unit_price_cents"`
-	SettlementSurchargeCents              int64       `db:"settlement_surcharge_cents" json:"settlement_surcharge_cents"`
-	UnitPriceCents                        int64       `db:"unit_price_cents" json:"unit_price_cents"`
-	LineAmountCents                       int64       `db:"line_amount_cents" json:"line_amount_cents"`
-	PurchaseUnitPriceCents                *int64      `db:"purchase_unit_price_cents" json:"purchase_unit_price_cents"`
-	Remark                                *string     `db:"remark" json:"remark"`
-	ReferenceUnitPriceCents               int64       `db:"reference_unit_price_cents" json:"reference_unit_price_cents"`
-	ReferenceDocumentID                   *string     `db:"reference_document_id" json:"reference_document_id"`
-	ReferenceDocumentNo                   *string     `db:"reference_document_no" json:"reference_document_no"`
-	ReferenceBusinessDate                 pgtype.Date `db:"reference_business_date" json:"reference_business_date"`
-	ReferenceLineID                       *string     `db:"reference_line_id" json:"reference_line_id"`
+	ID                         string      `db:"id" json:"id"`
+	DocumentID                 string      `db:"document_id" json:"document_id"`
+	DocumentEntity             string      `db:"document_entity" json:"document_entity"`
+	LineNo                     int32       `db:"line_no" json:"line_no"`
+	ProductObjectID            string      `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID           string      `db:"product_version_id" json:"product_version_id"`
+	ProductCode                string      `db:"product_code" json:"product_code"`
+	ProductName                string      `db:"product_name" json:"product_name"`
+	EnteredQuantityMicros      int64       `db:"entered_quantity_micros" json:"entered_quantity_micros"`
+	EnteredUnitObjectID        string      `db:"entered_unit_object_id" json:"entered_unit_object_id"`
+	EnteredUnitVersionID       string      `db:"entered_unit_version_id" json:"entered_unit_version_id"`
+	EnteredUnitCode            string      `db:"entered_unit_code" json:"entered_unit_code"`
+	EnteredUnitName            string      `db:"entered_unit_name" json:"entered_unit_name"`
+	EnteredUnitSymbol          string      `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BaseQuantityMicros         int64       `db:"base_quantity_micros" json:"base_quantity_micros"`
+	ProductTypeObjectID        string      `db:"product_type_object_id" json:"product_type_object_id"`
+	ProductTypeVersionID       string      `db:"product_type_version_id" json:"product_type_version_id"`
+	ProductTypeCode            string      `db:"product_type_code" json:"product_type_code"`
+	ProductTypeName            string      `db:"product_type_name" json:"product_type_name"`
+	BehaviorProfile            string      `db:"behavior_profile" json:"behavior_profile"`
+	DefaultPackagingSpecMicros *int64      `db:"default_packaging_spec_micros" json:"default_packaging_spec_micros"`
+	BaseUnitPriceCents         int64       `db:"base_unit_price_cents" json:"base_unit_price_cents"`
+	SettlementSurchargeCents   int64       `db:"settlement_surcharge_cents" json:"settlement_surcharge_cents"`
+	UnitPriceCents             int64       `db:"unit_price_cents" json:"unit_price_cents"`
+	LineAmountCents            int64       `db:"line_amount_cents" json:"line_amount_cents"`
+	PurchaseUnitPriceCents     *int64      `db:"purchase_unit_price_cents" json:"purchase_unit_price_cents"`
+	Remark                     *string     `db:"remark" json:"remark"`
+	ReferenceUnitPriceCents    int64       `db:"reference_unit_price_cents" json:"reference_unit_price_cents"`
+	ReferenceDocumentID        *string     `db:"reference_document_id" json:"reference_document_id"`
+	ReferenceDocumentNo        *string     `db:"reference_document_no" json:"reference_document_no"`
+	ReferenceBusinessDate      pgtype.Date `db:"reference_business_date" json:"reference_business_date"`
+	ReferenceLineID            *string     `db:"reference_line_id" json:"reference_line_id"`
 }
 
 func (q *Queries) InsertVouProductLine(ctx context.Context, arg InsertVouProductLineParams) error {
@@ -2445,10 +2506,19 @@ func (q *Queries) InsertVouProductLine(ctx context.Context, arg InsertVouProduct
 		arg.ProductVersionID,
 		arg.ProductCode,
 		arg.ProductName,
-		arg.ProductUnit,
-		arg.OrderedQtyMicros,
-		arg.ProductKind,
-		arg.PricingQuantityPerInventoryUnitMicros,
+		arg.EnteredQuantityMicros,
+		arg.EnteredUnitObjectID,
+		arg.EnteredUnitVersionID,
+		arg.EnteredUnitCode,
+		arg.EnteredUnitName,
+		arg.EnteredUnitSymbol,
+		arg.BaseQuantityMicros,
+		arg.ProductTypeObjectID,
+		arg.ProductTypeVersionID,
+		arg.ProductTypeCode,
+		arg.ProductTypeName,
+		arg.BehaviorProfile,
+		arg.DefaultPackagingSpecMicros,
 		arg.BaseUnitPriceCents,
 		arg.SettlementSurchargeCents,
 		arg.UnitPriceCents,
@@ -2510,8 +2580,8 @@ func (q *Queries) InsertVouPurchaseInboundDetail(ctx context.Context, arg Insert
 const insertVouPurchaseInboundLine = `-- name: InsertVouPurchaseInboundLine :exec
 INSERT INTO vou_purchase_inbound_lines (
     id, document_id, source_order_line_id, line_no,
-    product_object_id, product_version_id, product_code, product_name, product_unit,
-    quantity_micros, unit_price_cents, line_amount_cents, remark
+    product_object_id, product_version_id, product_code, product_name, entered_unit_symbol,
+    base_quantity_micros, unit_price_cents, line_amount_cents, remark
 ) VALUES (
     $1, $2, $3, $4,
     $5, $6,
@@ -2522,19 +2592,19 @@ INSERT INTO vou_purchase_inbound_lines (
 `
 
 type InsertVouPurchaseInboundLineParams struct {
-	ID                string  `db:"id" json:"id"`
-	DocumentID        string  `db:"document_id" json:"document_id"`
-	SourceOrderLineID string  `db:"source_order_line_id" json:"source_order_line_id"`
-	LineNo            int32   `db:"line_no" json:"line_no"`
-	ProductObjectID   string  `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID  string  `db:"product_version_id" json:"product_version_id"`
-	ProductCode       string  `db:"product_code" json:"product_code"`
-	ProductName       string  `db:"product_name" json:"product_name"`
-	ProductUnit       string  `db:"product_unit" json:"product_unit"`
-	QuantityMicros    int64   `db:"quantity_micros" json:"quantity_micros"`
-	UnitPriceCents    int64   `db:"unit_price_cents" json:"unit_price_cents"`
-	LineAmountCents   int64   `db:"line_amount_cents" json:"line_amount_cents"`
-	Remark            *string `db:"remark" json:"remark"`
+	ID                 string  `db:"id" json:"id"`
+	DocumentID         string  `db:"document_id" json:"document_id"`
+	SourceOrderLineID  string  `db:"source_order_line_id" json:"source_order_line_id"`
+	LineNo             int32   `db:"line_no" json:"line_no"`
+	ProductObjectID    string  `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID   string  `db:"product_version_id" json:"product_version_id"`
+	ProductCode        string  `db:"product_code" json:"product_code"`
+	ProductName        string  `db:"product_name" json:"product_name"`
+	EnteredUnitSymbol  string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BaseQuantityMicros int64   `db:"base_quantity_micros" json:"base_quantity_micros"`
+	UnitPriceCents     int64   `db:"unit_price_cents" json:"unit_price_cents"`
+	LineAmountCents    int64   `db:"line_amount_cents" json:"line_amount_cents"`
+	Remark             *string `db:"remark" json:"remark"`
 }
 
 func (q *Queries) InsertVouPurchaseInboundLine(ctx context.Context, arg InsertVouPurchaseInboundLineParams) error {
@@ -2547,8 +2617,8 @@ func (q *Queries) InsertVouPurchaseInboundLine(ctx context.Context, arg InsertVo
 		arg.ProductVersionID,
 		arg.ProductCode,
 		arg.ProductName,
-		arg.ProductUnit,
-		arg.QuantityMicros,
+		arg.EnteredUnitSymbol,
+		arg.BaseQuantityMicros,
 		arg.UnitPriceCents,
 		arg.LineAmountCents,
 		arg.Remark,
@@ -2854,20 +2924,31 @@ func (q *Queries) InsertVouSaleOrderDetail(ctx context.Context, arg InsertVouSal
 const insertVouSaleOrderFormula = `-- name: InsertVouSaleOrderFormula :exec
 INSERT INTO vou_sale_order_formulas (
     product_line_id, source_type, source_document_id, source_document_no,
-    base_output_quantity_micros
+    output_entered_quantity_micros, output_entered_unit_object_id,
+    output_entered_unit_version_id, output_entered_unit_code,
+    output_entered_unit_name, output_entered_unit_symbol, output_base_quantity_micros
 ) VALUES (
     $1, $2,
     $3, $4,
-    $5
+    $5, $6,
+    $7, $8,
+    $9, $10,
+    $11
 )
 `
 
 type InsertVouSaleOrderFormulaParams struct {
-	ProductLineID            string  `db:"product_line_id" json:"product_line_id"`
-	SourceType               string  `db:"source_type" json:"source_type"`
-	SourceDocumentID         *string `db:"source_document_id" json:"source_document_id"`
-	SourceDocumentNo         *string `db:"source_document_no" json:"source_document_no"`
-	BaseOutputQuantityMicros int64   `db:"base_output_quantity_micros" json:"base_output_quantity_micros"`
+	ProductLineID               string  `db:"product_line_id" json:"product_line_id"`
+	SourceType                  string  `db:"source_type" json:"source_type"`
+	SourceDocumentID            *string `db:"source_document_id" json:"source_document_id"`
+	SourceDocumentNo            *string `db:"source_document_no" json:"source_document_no"`
+	OutputEnteredQuantityMicros int64   `db:"output_entered_quantity_micros" json:"output_entered_quantity_micros"`
+	OutputEnteredUnitObjectID   string  `db:"output_entered_unit_object_id" json:"output_entered_unit_object_id"`
+	OutputEnteredUnitVersionID  string  `db:"output_entered_unit_version_id" json:"output_entered_unit_version_id"`
+	OutputEnteredUnitCode       string  `db:"output_entered_unit_code" json:"output_entered_unit_code"`
+	OutputEnteredUnitName       string  `db:"output_entered_unit_name" json:"output_entered_unit_name"`
+	OutputEnteredUnitSymbol     string  `db:"output_entered_unit_symbol" json:"output_entered_unit_symbol"`
+	OutputBaseQuantityMicros    int64   `db:"output_base_quantity_micros" json:"output_base_quantity_micros"`
 }
 
 func (q *Queries) InsertVouSaleOrderFormula(ctx context.Context, arg InsertVouSaleOrderFormulaParams) error {
@@ -2876,7 +2957,13 @@ func (q *Queries) InsertVouSaleOrderFormula(ctx context.Context, arg InsertVouSa
 		arg.SourceType,
 		arg.SourceDocumentID,
 		arg.SourceDocumentNo,
-		arg.BaseOutputQuantityMicros,
+		arg.OutputEnteredQuantityMicros,
+		arg.OutputEnteredUnitObjectID,
+		arg.OutputEnteredUnitVersionID,
+		arg.OutputEnteredUnitCode,
+		arg.OutputEnteredUnitName,
+		arg.OutputEnteredUnitSymbol,
+		arg.OutputBaseQuantityMicros,
 	)
 	return err
 }
@@ -2884,23 +2971,33 @@ func (q *Queries) InsertVouSaleOrderFormula(ctx context.Context, arg InsertVouSa
 const insertVouSaleOrderFormulaLine = `-- name: InsertVouSaleOrderFormulaLine :exec
 INSERT INTO vou_sale_order_formula_lines (
     product_line_id, line_no, material_object_id, material_version_id,
-    material_code, material_name, material_unit, quantity_micros
+    material_code, material_name, entered_quantity_micros,
+    entered_unit_object_id, entered_unit_version_id, entered_unit_code,
+    entered_unit_name, entered_unit_symbol, base_quantity_micros
 ) VALUES (
     $1, $2, $3,
     $4, $5,
-    $6, $7, $8
+    $6, $7,
+    $8, $9,
+    $10, $11,
+    $12, $13
 )
 `
 
 type InsertVouSaleOrderFormulaLineParams struct {
-	ProductLineID     string `db:"product_line_id" json:"product_line_id"`
-	LineNo            int32  `db:"line_no" json:"line_no"`
-	MaterialObjectID  string `db:"material_object_id" json:"material_object_id"`
-	MaterialVersionID string `db:"material_version_id" json:"material_version_id"`
-	MaterialCode      string `db:"material_code" json:"material_code"`
-	MaterialName      string `db:"material_name" json:"material_name"`
-	MaterialUnit      string `db:"material_unit" json:"material_unit"`
-	QuantityMicros    int64  `db:"quantity_micros" json:"quantity_micros"`
+	ProductLineID         string `db:"product_line_id" json:"product_line_id"`
+	LineNo                int32  `db:"line_no" json:"line_no"`
+	MaterialObjectID      string `db:"material_object_id" json:"material_object_id"`
+	MaterialVersionID     string `db:"material_version_id" json:"material_version_id"`
+	MaterialCode          string `db:"material_code" json:"material_code"`
+	MaterialName          string `db:"material_name" json:"material_name"`
+	EnteredQuantityMicros int64  `db:"entered_quantity_micros" json:"entered_quantity_micros"`
+	EnteredUnitObjectID   string `db:"entered_unit_object_id" json:"entered_unit_object_id"`
+	EnteredUnitVersionID  string `db:"entered_unit_version_id" json:"entered_unit_version_id"`
+	EnteredUnitCode       string `db:"entered_unit_code" json:"entered_unit_code"`
+	EnteredUnitName       string `db:"entered_unit_name" json:"entered_unit_name"`
+	EnteredUnitSymbol     string `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BaseQuantityMicros    int64  `db:"base_quantity_micros" json:"base_quantity_micros"`
 }
 
 func (q *Queries) InsertVouSaleOrderFormulaLine(ctx context.Context, arg InsertVouSaleOrderFormulaLineParams) error {
@@ -2911,8 +3008,13 @@ func (q *Queries) InsertVouSaleOrderFormulaLine(ctx context.Context, arg InsertV
 		arg.MaterialVersionID,
 		arg.MaterialCode,
 		arg.MaterialName,
-		arg.MaterialUnit,
-		arg.QuantityMicros,
+		arg.EnteredQuantityMicros,
+		arg.EnteredUnitObjectID,
+		arg.EnteredUnitVersionID,
+		arg.EnteredUnitCode,
+		arg.EnteredUnitName,
+		arg.EnteredUnitSymbol,
+		arg.BaseQuantityMicros,
 	)
 	return err
 }
@@ -2979,8 +3081,8 @@ func (q *Queries) InsertVouSaleReturnDetail(ctx context.Context, arg InsertVouSa
 const insertVouSaleReturnLine = `-- name: InsertVouSaleReturnLine :exec
 INSERT INTO vou_sale_return_lines(
     id,document_id,source_signoff_line_id,source_signoff_id,line_no,
-    product_object_id,product_version_id,product_code,product_name,product_unit,
-    quantity_micros,unit_price_cents,line_amount_cents,remark
+    product_object_id,product_version_id,product_code,product_name,entered_unit_symbol,
+    base_quantity_micros,unit_price_cents,line_amount_cents,remark
 ) VALUES(
     $1,$2,$3,
     $4,$5,$6,
@@ -3000,8 +3102,8 @@ type InsertVouSaleReturnLineParams struct {
 	ProductVersionID    string  `db:"product_version_id" json:"product_version_id"`
 	ProductCode         string  `db:"product_code" json:"product_code"`
 	ProductName         string  `db:"product_name" json:"product_name"`
-	ProductUnit         string  `db:"product_unit" json:"product_unit"`
-	QuantityMicros      int64   `db:"quantity_micros" json:"quantity_micros"`
+	EnteredUnitSymbol   string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BaseQuantityMicros  int64   `db:"base_quantity_micros" json:"base_quantity_micros"`
 	UnitPriceCents      int64   `db:"unit_price_cents" json:"unit_price_cents"`
 	LineAmountCents     int64   `db:"line_amount_cents" json:"line_amount_cents"`
 	Remark              *string `db:"remark" json:"remark"`
@@ -3018,8 +3120,8 @@ func (q *Queries) InsertVouSaleReturnLine(ctx context.Context, arg InsertVouSale
 		arg.ProductVersionID,
 		arg.ProductCode,
 		arg.ProductName,
-		arg.ProductUnit,
-		arg.QuantityMicros,
+		arg.EnteredUnitSymbol,
+		arg.BaseQuantityMicros,
 		arg.UnitPriceCents,
 		arg.LineAmountCents,
 		arg.Remark,
@@ -3060,7 +3162,7 @@ func (q *Queries) IsVouSaleDeliveryReady(ctx context.Context, documentID string)
 
 const isVouSaleOutboundReady = `-- name: IsVouSaleOutboundReady :one
 SELECT x.warehouse_object_id IS NOT NULL AND x.warehouse_version_id IS NOT NULL
-       AND EXISTS(SELECT 1 FROM vou_sale_outbound_lines l WHERE l.document_id=x.document_id AND l.quantity_micros>0)
+       AND EXISTS(SELECT 1 FROM vou_sale_outbound_lines l WHERE l.document_id=x.document_id AND l.base_quantity_micros>0)
 FROM vou_sale_outbound_details x WHERE x.document_id=$1
 `
 
@@ -3073,7 +3175,7 @@ func (q *Queries) IsVouSaleOutboundReady(ctx context.Context, documentID string)
 
 const isVouSaleSignoffReady = `-- name: IsVouSaleSignoffReady :one
 SELECT EXISTS(SELECT 1 FROM vou_sale_signoff_lines l WHERE l.document_id=$1
-              AND l.signed_qty_micros+l.rejected_qty_micros>=0)
+              AND l.signed_base_quantity_micros+l.rejected_base_quantity_micros>=0)
 `
 
 func (q *Queries) IsVouSaleSignoffReady(ctx context.Context, documentID string) (bool, error) {
@@ -3709,15 +3811,18 @@ SELECT entry.product_id AS product_object_id,
        object.effective_version_id AS product_version_id,
        object.code AS product_code,
        version.name AS product_name,
-       version.unit AS product_unit,
-       sum(entry.quantity_delta_micros)::bigint AS quantity_micros
+	   conversion.unit_symbol AS entered_unit_symbol,
+	   sum(entry.quantity_delta_micros)::bigint AS base_quantity_micros
 FROM acc_inventory_entries entry
 JOIN acc_books book ON book.id=entry.book_id AND book.control_book
 JOIN bob_objects object ON object.id=entry.product_id AND object.entity='product'
 JOIN bob_product_versions version ON version.version_id=object.effective_version_id
+JOIN bob_product_unit_conversions conversion
+  ON conversion.product_version_id=version.version_id
+ AND conversion.unit_object_id=version.default_input_unit_id
 WHERE entry.warehouse_id=$1
   AND entry.business_date <= $2
-GROUP BY entry.product_id,object.effective_version_id,object.code,version.name,version.unit
+GROUP BY entry.product_id,object.effective_version_id,object.code,version.name,conversion.unit_symbol
 HAVING sum(entry.quantity_delta_micros) <> 0
 ORDER BY object.code,entry.product_id
 LIMIT $4 OFFSET $3
@@ -3731,12 +3836,12 @@ type ListVouInventoryCountBookBalancesParams struct {
 }
 
 type ListVouInventoryCountBookBalancesRow struct {
-	ProductObjectID  string  `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID *string `db:"product_version_id" json:"product_version_id"`
-	ProductCode      string  `db:"product_code" json:"product_code"`
-	ProductName      string  `db:"product_name" json:"product_name"`
-	ProductUnit      string  `db:"product_unit" json:"product_unit"`
-	QuantityMicros   int64   `db:"quantity_micros" json:"quantity_micros"`
+	ProductObjectID    string  `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID   *string `db:"product_version_id" json:"product_version_id"`
+	ProductCode        string  `db:"product_code" json:"product_code"`
+	ProductName        string  `db:"product_name" json:"product_name"`
+	EnteredUnitSymbol  string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BaseQuantityMicros int64   `db:"base_quantity_micros" json:"base_quantity_micros"`
 }
 
 func (q *Queries) ListVouInventoryCountBookBalances(ctx context.Context, arg ListVouInventoryCountBookBalancesParams) ([]ListVouInventoryCountBookBalancesRow, error) {
@@ -3758,8 +3863,8 @@ func (q *Queries) ListVouInventoryCountBookBalances(ctx context.Context, arg Lis
 			&i.ProductVersionID,
 			&i.ProductCode,
 			&i.ProductName,
-			&i.ProductUnit,
-			&i.QuantityMicros,
+			&i.EnteredUnitSymbol,
+			&i.BaseQuantityMicros,
 		); err != nil {
 			return nil, err
 		}
@@ -3772,7 +3877,7 @@ func (q *Queries) ListVouInventoryCountBookBalances(ctx context.Context, arg Lis
 }
 
 const listVouInventoryCountLines = `-- name: ListVouInventoryCountLines :many
-SELECT id, document_id, line_no, product_object_id, product_version_id, product_code, product_name, product_unit, actual_quantity_micros, book_quantity_micros, difference_quantity_micros, remark FROM vou_inventory_count_lines
+SELECT id, document_id, line_no, product_object_id, product_version_id, product_code, product_name, entered_unit_symbol, actual_base_quantity_micros, book_base_quantity_micros, difference_base_quantity_micros, remark, entered_quantity_micros, entered_unit_object_id, entered_unit_version_id, entered_unit_code, entered_unit_name FROM vou_inventory_count_lines
 WHERE document_id=$1 ORDER BY line_no
 `
 
@@ -3793,11 +3898,16 @@ func (q *Queries) ListVouInventoryCountLines(ctx context.Context, documentID str
 			&i.ProductVersionID,
 			&i.ProductCode,
 			&i.ProductName,
-			&i.ProductUnit,
-			&i.ActualQuantityMicros,
-			&i.BookQuantityMicros,
-			&i.DifferenceQuantityMicros,
+			&i.EnteredUnitSymbol,
+			&i.ActualBaseQuantityMicros,
+			&i.BookBaseQuantityMicros,
+			&i.DifferenceBaseQuantityMicros,
 			&i.Remark,
+			&i.EnteredQuantityMicros,
+			&i.EnteredUnitObjectID,
+			&i.EnteredUnitVersionID,
+			&i.EnteredUnitCode,
+			&i.EnteredUnitName,
 		); err != nil {
 			return nil, err
 		}
@@ -3810,7 +3920,7 @@ func (q *Queries) ListVouInventoryCountLines(ctx context.Context, documentID str
 }
 
 const listVouPriceLines = `-- name: ListVouPriceLines :many
-SELECT id, document_id, document_entity, line_no, product_object_id, product_version_id, product_code, product_name, product_unit, product_kind, pricing_quantity_per_inventory_unit_micros, unit_price_cents, remark FROM vou_price_lines WHERE document_id=$1 ORDER BY line_no
+SELECT id, document_id, document_entity, line_no, product_object_id, product_version_id, product_code, product_name, default_input_unit_symbol, behavior_profile, unit_price_cents, remark, product_type_object_id, product_type_version_id, product_type_code, product_type_name FROM vou_price_lines WHERE document_id=$1 ORDER BY line_no
 `
 
 func (q *Queries) ListVouPriceLines(ctx context.Context, documentID string) ([]VouPriceLine, error) {
@@ -3831,11 +3941,14 @@ func (q *Queries) ListVouPriceLines(ctx context.Context, documentID string) ([]V
 			&i.ProductVersionID,
 			&i.ProductCode,
 			&i.ProductName,
-			&i.ProductUnit,
-			&i.ProductKind,
-			&i.PricingQuantityPerInventoryUnitMicros,
+			&i.DefaultInputUnitSymbol,
+			&i.BehaviorProfile,
 			&i.UnitPriceCents,
 			&i.Remark,
+			&i.ProductTypeObjectID,
+			&i.ProductTypeVersionID,
+			&i.ProductTypeCode,
+			&i.ProductTypeName,
 		); err != nil {
 			return nil, err
 		}
@@ -3848,7 +3961,7 @@ func (q *Queries) ListVouPriceLines(ctx context.Context, documentID string) ([]V
 }
 
 const listVouProductLines = `-- name: ListVouProductLines :many
-SELECT id, document_id, document_entity, line_no, product_object_id, product_version_id, product_code, product_name, product_unit, ordered_qty_micros, unit_price_cents, line_amount_cents, outbound_qty_micros, signed_qty_micros, rejected_qty_micros, loss_qty_micros, inbound_qty_micros, remark, purchase_unit_price_cents, base_unit_price_cents, settlement_surcharge_cents, product_kind, pricing_quantity_per_inventory_unit_micros, reference_unit_price_cents, reference_document_id, reference_document_no, reference_business_date, reference_line_id FROM vou_product_lines WHERE document_id = $1 ORDER BY line_no
+SELECT id, document_id, document_entity, line_no, product_object_id, product_version_id, product_code, product_name, entered_unit_symbol, base_quantity_micros, unit_price_cents, line_amount_cents, outbound_base_quantity_micros, signed_base_quantity_micros, rejected_base_quantity_micros, loss_base_quantity_micros, inbound_base_quantity_micros, remark, purchase_unit_price_cents, base_unit_price_cents, settlement_surcharge_cents, behavior_profile, reference_unit_price_cents, reference_document_id, reference_document_no, reference_business_date, reference_line_id, entered_quantity_micros, entered_unit_object_id, entered_unit_version_id, entered_unit_code, entered_unit_name, product_type_object_id, product_type_version_id, product_type_code, product_type_name, default_packaging_spec_micros FROM vou_product_lines WHERE document_id = $1 ORDER BY line_no
 `
 
 func (q *Queries) ListVouProductLines(ctx context.Context, documentID string) ([]VouProductLine, error) {
@@ -3869,26 +3982,35 @@ func (q *Queries) ListVouProductLines(ctx context.Context, documentID string) ([
 			&i.ProductVersionID,
 			&i.ProductCode,
 			&i.ProductName,
-			&i.ProductUnit,
-			&i.OrderedQtyMicros,
+			&i.EnteredUnitSymbol,
+			&i.BaseQuantityMicros,
 			&i.UnitPriceCents,
 			&i.LineAmountCents,
-			&i.OutboundQtyMicros,
-			&i.SignedQtyMicros,
-			&i.RejectedQtyMicros,
-			&i.LossQtyMicros,
-			&i.InboundQtyMicros,
+			&i.OutboundBaseQuantityMicros,
+			&i.SignedBaseQuantityMicros,
+			&i.RejectedBaseQuantityMicros,
+			&i.LossBaseQuantityMicros,
+			&i.InboundBaseQuantityMicros,
 			&i.Remark,
 			&i.PurchaseUnitPriceCents,
 			&i.BaseUnitPriceCents,
 			&i.SettlementSurchargeCents,
-			&i.ProductKind,
-			&i.PricingQuantityPerInventoryUnitMicros,
+			&i.BehaviorProfile,
 			&i.ReferenceUnitPriceCents,
 			&i.ReferenceDocumentID,
 			&i.ReferenceDocumentNo,
 			&i.ReferenceBusinessDate,
 			&i.ReferenceLineID,
+			&i.EnteredQuantityMicros,
+			&i.EnteredUnitObjectID,
+			&i.EnteredUnitVersionID,
+			&i.EnteredUnitCode,
+			&i.EnteredUnitName,
+			&i.ProductTypeObjectID,
+			&i.ProductTypeVersionID,
+			&i.ProductTypeCode,
+			&i.ProductTypeName,
+			&i.DefaultPackagingSpecMicros,
 		); err != nil {
 			return nil, err
 		}
@@ -3901,7 +4023,7 @@ func (q *Queries) ListVouProductLines(ctx context.Context, documentID string) ([
 }
 
 const listVouPurchaseInboundLines = `-- name: ListVouPurchaseInboundLines :many
-SELECT id, document_id, source_order_line_id, line_no, product_object_id, product_version_id, product_code, product_name, product_unit, quantity_micros, unit_price_cents, line_amount_cents, remark FROM vou_purchase_inbound_lines
+SELECT id, document_id, source_order_line_id, line_no, product_object_id, product_version_id, product_code, product_name, entered_unit_symbol, base_quantity_micros, unit_price_cents, line_amount_cents, remark FROM vou_purchase_inbound_lines
 WHERE document_id = $1
 ORDER BY line_no
 `
@@ -3924,8 +4046,8 @@ func (q *Queries) ListVouPurchaseInboundLines(ctx context.Context, documentID st
 			&i.ProductVersionID,
 			&i.ProductCode,
 			&i.ProductName,
-			&i.ProductUnit,
-			&i.QuantityMicros,
+			&i.EnteredUnitSymbol,
+			&i.BaseQuantityMicros,
 			&i.UnitPriceCents,
 			&i.LineAmountCents,
 			&i.Remark,
@@ -3941,23 +4063,23 @@ func (q *Queries) ListVouPurchaseInboundLines(ctx context.Context, documentID st
 }
 
 const listVouRefusalReturnSourceLines = `-- name: ListVouRefusalReturnSourceLines :many
-SELECT id,product_object_id,product_version_id,product_code,product_name,product_unit,
-       rejected_qty_micros,unit_price_cents,COALESCE(remark,'') AS remark
+SELECT id,product_object_id,product_version_id,product_code,product_name,entered_unit_symbol,
+       rejected_base_quantity_micros,unit_price_cents,COALESCE(remark,'') AS remark
 FROM vou_sale_signoff_lines
-WHERE document_id=$1 AND rejected_qty_micros>0
+WHERE document_id=$1 AND rejected_base_quantity_micros>0
 ORDER BY line_no
 `
 
 type ListVouRefusalReturnSourceLinesRow struct {
-	ID                string `db:"id" json:"id"`
-	ProductObjectID   string `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID  string `db:"product_version_id" json:"product_version_id"`
-	ProductCode       string `db:"product_code" json:"product_code"`
-	ProductName       string `db:"product_name" json:"product_name"`
-	ProductUnit       string `db:"product_unit" json:"product_unit"`
-	RejectedQtyMicros int64  `db:"rejected_qty_micros" json:"rejected_qty_micros"`
-	UnitPriceCents    int64  `db:"unit_price_cents" json:"unit_price_cents"`
-	Remark            string `db:"remark" json:"remark"`
+	ID                         string `db:"id" json:"id"`
+	ProductObjectID            string `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID           string `db:"product_version_id" json:"product_version_id"`
+	ProductCode                string `db:"product_code" json:"product_code"`
+	ProductName                string `db:"product_name" json:"product_name"`
+	EnteredUnitSymbol          string `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	RejectedBaseQuantityMicros int64  `db:"rejected_base_quantity_micros" json:"rejected_base_quantity_micros"`
+	UnitPriceCents             int64  `db:"unit_price_cents" json:"unit_price_cents"`
+	Remark                     string `db:"remark" json:"remark"`
 }
 
 func (q *Queries) ListVouRefusalReturnSourceLines(ctx context.Context, documentID string) ([]ListVouRefusalReturnSourceLinesRow, error) {
@@ -3975,8 +4097,8 @@ func (q *Queries) ListVouRefusalReturnSourceLines(ctx context.Context, documentI
 			&i.ProductVersionID,
 			&i.ProductCode,
 			&i.ProductName,
-			&i.ProductUnit,
-			&i.RejectedQtyMicros,
+			&i.EnteredUnitSymbol,
+			&i.RejectedBaseQuantityMicros,
 			&i.UnitPriceCents,
 			&i.Remark,
 		); err != nil {
@@ -3992,20 +4114,27 @@ func (q *Queries) ListVouRefusalReturnSourceLines(ctx context.Context, documentI
 
 const listVouSaleOrderFormulaLines = `-- name: ListVouSaleOrderFormulaLines :many
 SELECT line_no, material_object_id, material_version_id, material_code,
-       material_name, material_unit, quantity_micros
+       material_name, entered_quantity_micros, entered_unit_object_id,
+       entered_unit_version_id, entered_unit_code, entered_unit_name,
+       entered_unit_symbol, base_quantity_micros
 FROM vou_sale_order_formula_lines
 WHERE product_line_id = $1
 ORDER BY line_no
 `
 
 type ListVouSaleOrderFormulaLinesRow struct {
-	LineNo            int32  `db:"line_no" json:"line_no"`
-	MaterialObjectID  string `db:"material_object_id" json:"material_object_id"`
-	MaterialVersionID string `db:"material_version_id" json:"material_version_id"`
-	MaterialCode      string `db:"material_code" json:"material_code"`
-	MaterialName      string `db:"material_name" json:"material_name"`
-	MaterialUnit      string `db:"material_unit" json:"material_unit"`
-	QuantityMicros    int64  `db:"quantity_micros" json:"quantity_micros"`
+	LineNo                int32  `db:"line_no" json:"line_no"`
+	MaterialObjectID      string `db:"material_object_id" json:"material_object_id"`
+	MaterialVersionID     string `db:"material_version_id" json:"material_version_id"`
+	MaterialCode          string `db:"material_code" json:"material_code"`
+	MaterialName          string `db:"material_name" json:"material_name"`
+	EnteredQuantityMicros int64  `db:"entered_quantity_micros" json:"entered_quantity_micros"`
+	EnteredUnitObjectID   string `db:"entered_unit_object_id" json:"entered_unit_object_id"`
+	EnteredUnitVersionID  string `db:"entered_unit_version_id" json:"entered_unit_version_id"`
+	EnteredUnitCode       string `db:"entered_unit_code" json:"entered_unit_code"`
+	EnteredUnitName       string `db:"entered_unit_name" json:"entered_unit_name"`
+	EnteredUnitSymbol     string `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BaseQuantityMicros    int64  `db:"base_quantity_micros" json:"base_quantity_micros"`
 }
 
 func (q *Queries) ListVouSaleOrderFormulaLines(ctx context.Context, productLineID string) ([]ListVouSaleOrderFormulaLinesRow, error) {
@@ -4023,8 +4152,13 @@ func (q *Queries) ListVouSaleOrderFormulaLines(ctx context.Context, productLineI
 			&i.MaterialVersionID,
 			&i.MaterialCode,
 			&i.MaterialName,
-			&i.MaterialUnit,
-			&i.QuantityMicros,
+			&i.EnteredQuantityMicros,
+			&i.EnteredUnitObjectID,
+			&i.EnteredUnitVersionID,
+			&i.EnteredUnitCode,
+			&i.EnteredUnitName,
+			&i.EnteredUnitSymbol,
+			&i.BaseQuantityMicros,
 		); err != nil {
 			return nil, err
 		}
@@ -4474,22 +4608,22 @@ func (q *Queries) NextVouNumberCounter(ctx context.Context, arg NextVouNumberCou
 
 const setVouInventoryCountResult = `-- name: SetVouInventoryCountResult :execrows
 UPDATE vou_inventory_count_lines SET
-    book_quantity_micros=$1,
-    difference_quantity_micros=$2
+    book_base_quantity_micros=$1,
+    difference_base_quantity_micros=$2
 WHERE id=$3 AND document_id=$4
 `
 
 type SetVouInventoryCountResultParams struct {
-	BookQuantityMicros       *int64 `db:"book_quantity_micros" json:"book_quantity_micros"`
-	DifferenceQuantityMicros *int64 `db:"difference_quantity_micros" json:"difference_quantity_micros"`
-	ID                       string `db:"id" json:"id"`
-	DocumentID               string `db:"document_id" json:"document_id"`
+	BookBaseQuantityMicros       *int64 `db:"book_base_quantity_micros" json:"book_base_quantity_micros"`
+	DifferenceBaseQuantityMicros *int64 `db:"difference_base_quantity_micros" json:"difference_base_quantity_micros"`
+	ID                           string `db:"id" json:"id"`
+	DocumentID                   string `db:"document_id" json:"document_id"`
 }
 
 func (q *Queries) SetVouInventoryCountResult(ctx context.Context, arg SetVouInventoryCountResultParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setVouInventoryCountResult,
-		arg.BookQuantityMicros,
-		arg.DifferenceQuantityMicros,
+		arg.BookBaseQuantityMicros,
+		arg.DifferenceBaseQuantityMicros,
 		arg.ID,
 		arg.DocumentID,
 	)
@@ -4501,29 +4635,29 @@ func (q *Queries) SetVouInventoryCountResult(ctx context.Context, arg SetVouInve
 
 const setVouSaleLineExecution = `-- name: SetVouSaleLineExecution :execrows
 UPDATE vou_product_lines
-SET outbound_qty_micros = $1,
-    signed_qty_micros = $2,
-    rejected_qty_micros = $3,
-    loss_qty_micros = $4
+SET outbound_base_quantity_micros = $1,
+    signed_base_quantity_micros = $2,
+    rejected_base_quantity_micros = $3,
+    loss_base_quantity_micros = $4
 WHERE id = $5 AND document_id = $6
   AND document_entity = 'sale-order'
 `
 
 type SetVouSaleLineExecutionParams struct {
-	OutboundQtyMicros *int64 `db:"outbound_qty_micros" json:"outbound_qty_micros"`
-	SignedQtyMicros   *int64 `db:"signed_qty_micros" json:"signed_qty_micros"`
-	RejectedQtyMicros *int64 `db:"rejected_qty_micros" json:"rejected_qty_micros"`
-	LossQtyMicros     *int64 `db:"loss_qty_micros" json:"loss_qty_micros"`
-	ID                string `db:"id" json:"id"`
-	DocumentID        string `db:"document_id" json:"document_id"`
+	OutboundBaseQuantityMicros *int64 `db:"outbound_base_quantity_micros" json:"outbound_base_quantity_micros"`
+	SignedBaseQuantityMicros   *int64 `db:"signed_base_quantity_micros" json:"signed_base_quantity_micros"`
+	RejectedBaseQuantityMicros *int64 `db:"rejected_base_quantity_micros" json:"rejected_base_quantity_micros"`
+	LossBaseQuantityMicros     *int64 `db:"loss_base_quantity_micros" json:"loss_base_quantity_micros"`
+	ID                         string `db:"id" json:"id"`
+	DocumentID                 string `db:"document_id" json:"document_id"`
 }
 
 func (q *Queries) SetVouSaleLineExecution(ctx context.Context, arg SetVouSaleLineExecutionParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setVouSaleLineExecution,
-		arg.OutboundQtyMicros,
-		arg.SignedQtyMicros,
-		arg.RejectedQtyMicros,
-		arg.LossQtyMicros,
+		arg.OutboundBaseQuantityMicros,
+		arg.SignedBaseQuantityMicros,
+		arg.RejectedBaseQuantityMicros,
+		arg.LossBaseQuantityMicros,
 		arg.ID,
 		arg.DocumentID,
 	)

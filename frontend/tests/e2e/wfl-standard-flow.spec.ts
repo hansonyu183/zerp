@@ -10,7 +10,7 @@ workflow(code="purchase-fulfillment", name="采购履约", root=purchase, when=l
   edge(source=purchase, target=inbound, relation="inbound", action=purchase_inbound(initial=lambda source: {
     "warehouseObjectId": "${warehouseObjectId}",
     "businessDate": source["data"]["businessDate"],
-    "lines": [{"sourceLineId": line["lineId"], "quantity": line["orderedQuantity"]} for line in source["data"]["productLines"]],
+    "lines": [{"sourceLineId": line["lineId"], "baseQuantity": line["baseQuantity"]} for line in source["data"]["productLines"]],
   })),
 ])`
 }

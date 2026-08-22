@@ -22,6 +22,7 @@ import (
 const (
 	actorID      = systemidentity.UserID
 	businessDate = "2026-07-30"
+	inputUnitID  = "01JAVX00000000000000000013"
 )
 
 type Result struct {
@@ -38,6 +39,43 @@ type Seeder struct {
 
 type references struct {
 	customer, supplier, employee, warehouse, raw, standard, custom voudomain.ReferenceInput
+}
+
+func productLine(product voudomain.ReferenceInput, quantity, price string) voudomain.ProductLineInput {
+	return voudomain.ProductLineInput{
+		Product:         voudomain.ProductReferenceInput{ObjectID: product.ObjectID},
+		EnteredQuantity: quantity, EnteredUnit: voudomain.UnitReferenceInput{ObjectID: inputUnitID},
+		BaseQuantity: quantity, UnitPrice: price,
+	}
+}
+
+func formulaQuantity(quantity string) voudomain.QuantitySnapshotInput {
+	return voudomain.QuantitySnapshotInput{
+		EnteredQuantity: quantity,
+		EnteredUnit:     voudomain.UnitReferenceInput{ObjectID: inputUnitID},
+		BaseQuantity:    quantity,
+	}
+}
+
+func productionLine(
+	source string, product *voudomain.ReferenceInput, quantity, loss string,
+	material voudomain.ReferenceInput, actual string,
+) voudomain.ProductionOutputInput {
+	result := voudomain.ProductionOutputInput{
+		SourceOrderLineID: source, EnteredQuantity: quantity,
+		EnteredUnit:  voudomain.UnitReferenceInput{ObjectID: inputUnitID},
+		BaseQuantity: quantity, LossRate: loss,
+		Materials: []voudomain.ProductionMaterialInput{{
+			FormulaLineNo: 1, ActualMaterial: voudomain.ProductReferenceInput{ObjectID: material.ObjectID},
+			ActualEnteredQuantity: actual, ActualEnteredUnit: voudomain.UnitReferenceInput{ObjectID: inputUnitID},
+			ActualBaseQuantity: actual,
+		}},
+	}
+	if product != nil {
+		ref := voudomain.ProductReferenceInput{ObjectID: product.ObjectID}
+		result.Product = &ref
+	}
+	return result
 }
 
 func New(
@@ -164,9 +202,7 @@ func (s *Seeder) seedPurchaseStock(ctx context.Context, refs references) (seedOu
 				Supplier:     &refs.supplier,
 				Purchaser:    &refs.employee,
 				Warehouse:    &refs.warehouse,
-				ProductLines: []voudomain.ProductLineInput{{
-					Product: refs.raw, OrderedQuantity: "500", UnitPrice: "10.00",
-				}},
+				ProductLines: []voudomain.ProductLineInput{productLine(refs.raw, "500", "10.00")},
 			}}, actorID, requestID("purchase-order-create"))
 		},
 		voudomain.StatusApproved,
@@ -197,7 +233,7 @@ func (s *Seeder) seedPurchaseStock(ctx context.Context, refs references) (seedOu
 				Warehouse:        &refs.warehouse,
 				SourceLines: []voudomain.SourceQuantityLineInput{{
 					SourceLineID: orderView.Data.ProductLines[0].LineID,
-					Quantity:     "500",
+					BaseQuantity: "500",
 				}},
 			}}, actorID, requestID("purchase-inbound-create"))
 		},
@@ -223,19 +259,22 @@ func (s *Seeder) seedSaleOrder(ctx context.Context, refs references) (seedOutcom
 				Salesperson:  &refs.employee,
 				Warehouse:    &refs.warehouse,
 				ProductLines: []voudomain.ProductLineInput{
-					{
-						Product: refs.standard, OrderedQuantity: "100", UnitPrice: "80.00",
-						Formula: fixedFormula(refs.raw, "2"),
-					},
-					{
-						Product: refs.custom, OrderedQuantity: "60", UnitPrice: "120.00",
-						Formula: &voudomain.FormulaInput{
-							BaseOutputQuantity: "1", SourceType: "MANUAL",
+					func() voudomain.ProductLineInput {
+						line := productLine(refs.standard, "100", "80.00")
+						line.Formula = fixedFormula(refs.raw, "2")
+						return line
+					}(),
+					func() voudomain.ProductLineInput {
+						line := productLine(refs.custom, "60", "120.00")
+						line.Formula = &voudomain.FormulaInput{
+							Output: formulaQuantity("1"), SourceType: "MANUAL",
 							Components: []voudomain.FormulaComponentInput{{
-								Material: refs.raw, Quantity: "3",
+								Material: voudomain.ProductReferenceInput{ObjectID: refs.raw.ObjectID},
+								Quantity: formulaQuantity("3"),
 							}},
-						},
-					},
+						}
+						return line
+					}(),
 				},
 			}}, actorID, requestID("sale-order-create"))
 		},
@@ -306,20 +345,8 @@ func (s *Seeder) seedDraftOrderProduction(
 					MaterialWarehouse: &refs.warehouse,
 					FinishedWarehouse: &refs.warehouse,
 					ProductionLines: []voudomain.ProductionOutputInput{
-						{
-							SourceOrderLineID: order.Data.ProductLines[0].LineID,
-							OutputQuantity:    "30", LossRate: "2",
-							Materials: []voudomain.ProductionMaterialInput{{
-								FormulaLineNo: 1, ActualMaterial: refs.raw, ActualQuantity: "61.2",
-							}},
-						},
-						{
-							SourceOrderLineID: order.Data.ProductLines[1].LineID,
-							OutputQuantity:    "20", LossRate: "5",
-							Materials: []voudomain.ProductionMaterialInput{{
-								FormulaLineNo: 1, ActualMaterial: refs.raw, ActualQuantity: "63",
-							}},
-						},
+						productionLine(order.Data.ProductLines[0].LineID, nil, "30", "2", refs.raw, "61.2"),
+						productionLine(order.Data.ProductLines[1].LineID, nil, "20", "5", refs.raw, "63"),
 					},
 				},
 			}, actorID, requestID("order-production-draft-create"))
@@ -368,20 +395,18 @@ func productionDraft(
 		Remark:            remark,
 		MaterialWarehouse: &refs.warehouse,
 		FinishedWarehouse: &refs.warehouse,
-		ProductionLines: []voudomain.ProductionOutputInput{{
-			Product: &refs.standard, OutputQuantity: outputQuantity, LossRate: lossRate,
-			Materials: []voudomain.ProductionMaterialInput{{
-				FormulaLineNo: 1, ActualMaterial: refs.raw, ActualQuantity: actualQuantity,
-			}},
-		}},
+		ProductionLines: []voudomain.ProductionOutputInput{
+			productionLine("", &refs.standard, outputQuantity, lossRate, refs.raw, actualQuantity),
+		},
 	}
 }
 
 func fixedFormula(raw voudomain.ReferenceInput, materialQuantity string) *voudomain.FormulaInput {
 	return &voudomain.FormulaInput{
-		BaseOutputQuantity: "1", SourceType: "PRODUCT_FIXED",
+		Output: formulaQuantity("1"), SourceType: "PRODUCT_FIXED",
 		Components: []voudomain.FormulaComponentInput{{
-			Material: raw, Quantity: materialQuantity,
+			Material: voudomain.ProductReferenceInput{ObjectID: raw.ObjectID},
+			Quantity: formulaQuantity(materialQuantity),
 		}},
 	}
 }

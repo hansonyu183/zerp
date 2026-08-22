@@ -106,6 +106,10 @@ function setDraftValue(field: BusinessObjectField<T>, value: unknown): void {
   if (changes) Object.assign(draft.value, changes)
 }
 
+function setFieldValue(key: Extract<keyof T, string>, value: unknown): void {
+  draft.value[key] = value
+}
+
 function resolveFieldState(
   state:
     BusinessObjectField<T>['readonly'] | BusinessObjectField<T>['disabled'],
@@ -285,6 +289,7 @@ async function save(): Promise<void> {
             :disabled="isFieldDisabled(field)"
             :field="field"
             :record="record"
+            :set-field-value="setFieldValue"
             :set-value="(value: unknown) => setDraftValue(field, value)"
             :value="getDraftValue(field)"
           >

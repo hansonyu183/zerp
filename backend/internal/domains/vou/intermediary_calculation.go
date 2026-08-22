@@ -161,7 +161,7 @@ func (s *Service) intermediarySource(
 	documents := make([]*intermediaryDocument, 0)
 	byDocument := make(map[string]*intermediaryDocument)
 	for _, row := range rows {
-		if row.SignedQtyMicros < 0 || row.LineAmountCents < 0 {
+		if row.SignedBaseQuantityMicros < 0 || row.LineAmountCents < 0 {
 			return IntermediarySourceView{}, domainError(ErrorConflict,
 				"sale return exceeds its source signoff", map[string]any{"lineId": row.SourceSignoffLineID}, nil)
 		}
@@ -186,7 +186,7 @@ func (s *Service) intermediarySource(
 		}
 		document.amount = documentAmount
 		document.rows = append(document.rows, row)
-		if row.SignedQtyMicros > 0 {
+		if row.SignedBaseQuantityMicros > 0 {
 			document.hasRemainingQuantity = true
 		}
 	}
@@ -345,11 +345,14 @@ func (s *Service) intermediarySource(
 			continue
 		}
 		for _, row := range document.rows {
-			if row.SignedQtyMicros == 0 {
+			if row.SignedBaseQuantityMicros == 0 {
 				continue
 			}
-			pricingQuantity := new(big.Int).Mul(big.NewInt(row.SignedQtyMicros), big.NewInt(row.PricingQuantityPerInventoryUnitMicros))
-			pricingQuantity.Quo(pricingQuantity, big.NewInt(1_000_000))
+			if row.DefaultPackagingSpecMicros == nil || *row.DefaultPackagingSpecMicros <= 0 {
+				return IntermediarySourceView{}, domainError(ErrorConflict, "product standard piece specification is missing", nil, nil)
+			}
+			pricingQuantity := new(big.Int).Mul(big.NewInt(row.SignedBaseQuantityMicros), big.NewInt(1_000_000))
+			pricingQuantity.Quo(pricingQuantity, big.NewInt(*row.DefaultPackagingSpecMicros))
 			if !pricingQuantity.IsInt64() || pricingQuantity.Sign() <= 0 {
 				return IntermediarySourceView{}, domainError(ErrorConflict, "source pricing quantity is invalid", map[string]any{"lineId": row.SourceSignoffLineID}, nil)
 			}
@@ -374,9 +377,9 @@ func (s *Service) intermediarySource(
 				Customer:             intermediaryReference(row.CustomerObjectID, row.CustomerVersionID, bobdomain.EntityCustomerAccount, row.CustomerCode, row.CustomerName),
 				Salesperson:          intermediaryReference(row.SalesAttributionSubjectObjectID, row.SalesAttributionSubjectVersionID, attributionEntity, row.SalesAttributionSubjectCode, row.SalesAttributionSubjectName),
 				SalesAttributionType: row.SalesAttributionType, SalesContractStatus: contractStatus, SalesContract: contract,
-				Product:     intermediaryReference(row.ProductObjectID, row.ProductVersionID, "product", row.ProductCode, row.ProductName),
-				ProductKind: row.ProductKind, SignedQuantity: formatQuantity(row.SignedQtyMicros),
-				PricingQuantity: formatQuantity(pricingQuantity.Int64()), BarrelQuantity: formatQuantity(row.SignedQtyMicros),
+				Product:         intermediaryReference(row.ProductObjectID, row.ProductVersionID, "product", row.ProductCode, row.ProductName),
+				BehaviorProfile: row.BehaviorProfile, SignedBaseQuantity: formatQuantity(row.SignedBaseQuantityMicros),
+				PricingQuantity: formatQuantity(pricingQuantity.Int64()), StandardPieceQuantity: formatQuantity(pricingQuantity.Int64()),
 				UnitPrice: formatMoney(row.UnitPriceCents), ReferenceUnitPrice: formatMoney(row.ReferenceUnitPriceCents),
 				SettlementSurcharge: formatMoney(row.SettlementSurchargeCents), RebateUnitPrice: formatMoney(row.RebateUnitPriceCents),
 				LineAmount: formatMoney(row.LineAmountCents), SettlementTermCode: row.SettlementTermCode,
@@ -486,7 +489,7 @@ func (s *Service) appendIntermediaryReturnAdjustments(
 				return domainError(ErrorConflict, "original intermediary calculation source is incomplete",
 					map[string]any{"lineId": row.SourceSignoffLineID}, nil)
 			}
-			originalQuantity, parseErr := quantityMicros(originalLine.BarrelQuantity, false)
+			originalQuantity, parseErr := quantityMicros(originalLine.SignedBaseQuantity, false)
 			if parseErr != nil {
 				return domainError(ErrorConflict, "original intermediary calculation quantity is invalid",
 					map[string]any{"lineId": row.SourceSignoffLineID}, nil)
@@ -503,10 +506,10 @@ func (s *Service) appendIntermediaryReturnAdjustments(
 				map[string]any{"lineId": row.SourceSignoffLineID}, nil)
 		}
 		if row.ReturnDate.Time.Before(periodStart) {
-			group.returnedBefore += row.QuantityMicros
+			group.returnedBefore += row.BaseQuantityMicros
 			continue
 		}
-		group.returnedPeriod += row.QuantityMicros
+		group.returnedPeriod += row.BaseQuantityMicros
 		group.periodAmount += row.LineAmountCents
 		group.lastReturnDate = row.ReturnDate.Time
 		if !group.returnDocumentSet[row.ReturnDocumentNo] {
@@ -556,8 +559,8 @@ func (s *Service) appendIntermediaryReturnAdjustments(
 		line.SourceKind = intermediarySourceReturnAdjustment
 		line.CollectionDate = group.lastReturnDate.Format(dateLayout)
 		line.CollectionDelayDays = 0
-		line.SignedQuantity = formatQuantity(group.returnedPeriod)
-		line.BarrelQuantity = line.SignedQuantity
+		line.SignedBaseQuantity = formatQuantity(group.returnedPeriod)
+		line.StandardPieceQuantity = line.PricingQuantity
 		line.PricingQuantity = formatQuantity(adjustmentPricing)
 		line.LineAmount = formatMoney(group.periodAmount)
 		line.ReturnDocumentNos = group.returnDocumentNos
@@ -732,10 +735,10 @@ func (s *Service) prepareIntermediaryCalculation(
 		if _, parseErr := parseFixed(premium, 2, true); parseErr != nil {
 			return prepared, domainError(ErrorValidation, "calculation result contains an invalid premium price", nil, nil)
 		}
-		if _, parseErr := quantityMicros(line.BarrelQuantity, true); parseErr != nil {
+		if _, parseErr := quantityMicros(line.StandardPieceQuantity, true); parseErr != nil {
 			return prepared, domainError(ErrorValidation, "calculation result contains an invalid barrel quantity", nil, nil)
 		}
-		if !equalIntermediaryQuantity(line.BarrelQuantity, sourceLine.BarrelQuantity) {
+		if !equalIntermediaryQuantity(line.StandardPieceQuantity, sourceLine.StandardPieceQuantity) {
 			return prepared, domainError(ErrorValidation, "calculation result barrel quantity does not match its source", nil, nil)
 		}
 		if line.Note != nil && utf8.RuneCountInString(*line.Note) > 1000 {

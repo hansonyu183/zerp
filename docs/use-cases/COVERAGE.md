@@ -4,9 +4,9 @@
 
 数据来源：[`frontend/src/router/registry.ts`](../../frontend/src/router/registry.ts)、[`frontend/src/router/index.ts`](../../frontend/src/router/index.ts)，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。
 
-- 页面入口：75
-- 已覆盖入口：18
-- 已登记用例：17
+- 页面入口：76
+- 已覆盖入口：19
+- 已登记用例：18
 - 缺少用例：57
 - 孤儿用例：0
 
@@ -50,7 +50,7 @@
 | 其他单位   | `/bob/other-unit`       | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/other-unit.md)    |
 | 销售合作方 | `/bob/sales-partner`    | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/sales-partner.md) |
 | 员工       | `/bob/employee`         | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/employee.md)      |
-| 产品       | `/bob/product`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                         |
+| 产品       | `/bob/product`          | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](bob/product.md)       |
 | 服务       | `/bob/service`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                         |
 | 仓库       | `/bob/warehouse`        | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                         |
 | 车辆       | `/bob/vehicle`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例                         |
@@ -65,6 +65,7 @@
 | 收款方式 | `/aux/payment-method`      | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
 | 资产类别 | `/aux/asset-category`      | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
 | 产品分类 | `/aux/product-category`    | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
+| 产品类型 | `/aux/product-type`        | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
 | 部门     | `/aux/department`          | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
 | 岗位     | `/aux/position`            | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |
 | 计量单位 | `/aux/measurement-unit`    | [页面注册表](../../frontend/src/router/registry.ts) | 缺少用例 |

@@ -55,7 +55,7 @@ workflow(code="` + code + `", name="集成流程", root=root, edges=[
   edge(source=root, target=child, relation="inbound", action=purchase_inbound(initial={
     "warehouseObjectId": "01J00000000000000000000001",
     "businessDate": "2026-08-16",
-    "lines": [{"sourceLineId": "01J00000000000000000000003", "quantity": "1"}],
+    "lines": [{"sourceLineId": "01J00000000000000000000003", "baseQuantity": "1"}],
   })),
 ])`
 	created, err := service.DefinitionCreate(t.Context(), DefinitionCreateInput{Script: script}, "01J00000000000000000000000")

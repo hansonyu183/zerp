@@ -111,14 +111,14 @@ export function useVoucherReferences(
       return {
         entities: ['product'],
         ...(config.productionMode === 'self'
-          ? { filters: { productKind: 'STANDARD_FINISHED' } }
+          ? { filters: { behaviorProfile: 'STANDARD_FINISHED' } }
           : {}),
       }
     }
     if (key === 'actualMaterial') {
       return {
         entities: ['product'],
-        filters: { productKind: 'RAW_MATERIAL' },
+        filters: { behaviorProfile: 'RAW_MATERIAL' },
       }
     }
     if (key === 'platform') {
@@ -251,6 +251,7 @@ export function useVoucherReferences(
               return []
             }
             const summary = item.currentVersion.summary
+            const behaviorProfile = summary.behaviorProfile
             return [
               {
                 objectId: item.objectId,
@@ -270,13 +271,28 @@ export function useVoucherReferences(
                 ...(typeof summary.platformObjectId === 'string'
                   ? { platformObjectId: summary.platformObjectId }
                   : {}),
-                ...(typeof summary.productKind === 'string'
-                  ? { productKind: summary.productKind }
-                  : {}),
-                ...(typeof summary.pricingQuantityPerInventoryUnit === 'string'
+                ...(typeof behaviorProfile === 'string' &&
+                [
+                  'RAW_MATERIAL',
+                  'STANDARD_FINISHED',
+                  'CUSTOM_FINISHED',
+                  'PACKAGING',
+                ].includes(behaviorProfile)
                   ? {
-                      pricingQuantityPerInventoryUnit:
-                        summary.pricingQuantityPerInventoryUnit,
+                      behaviorProfile:
+                        behaviorProfile as VoucherReference['behaviorProfile'],
+                    }
+                  : {}),
+                ...(typeof summary.defaultInputUnitId === 'string'
+                  ? { defaultInputUnitId: summary.defaultInputUnitId }
+                  : {}),
+                ...(typeof summary.pricingUnitId === 'string'
+                  ? { pricingUnitId: summary.pricingUnitId }
+                  : {}),
+                ...(Array.isArray(summary.unitConversions)
+                  ? {
+                      unitConversions:
+                        summary.unitConversions as VoucherReference['unitConversions'],
                     }
                   : {}),
               },

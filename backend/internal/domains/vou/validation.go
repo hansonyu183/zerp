@@ -20,6 +20,8 @@ var currencyPattern = regexp.MustCompile(`^[A-Z]{3}$`)
 
 type fixedProductLine struct {
 	Product             ReferenceInput
+	EnteredQuantity     int64
+	EnteredUnitID       string
 	BaseUnitPrice       int64
 	SettlementSurcharge int64
 	SurchargeProvided   bool
@@ -45,16 +47,22 @@ type priceReference struct {
 }
 
 type fixedFormula struct {
-	BaseOutputQuantity int64
-	SourceType         string
-	SourceDocumentID   string
-	SourceDocumentNo   string
-	Components         []fixedFormulaComponent
+	Output           fixedQuantitySnapshot
+	SourceType       string
+	SourceDocumentID string
+	SourceDocumentNo string
+	Components       []fixedFormulaComponent
 }
 
 type fixedFormulaComponent struct {
 	Material ReferenceInput
-	Quantity int64
+	Quantity fixedQuantitySnapshot
+}
+
+type fixedQuantitySnapshot struct {
+	EnteredQuantity int64
+	EnteredUnitID   string
+	BaseQuantity    int64
 }
 
 type fixedExpenseLine struct {
@@ -64,9 +72,11 @@ type fixedExpenseLine struct {
 }
 
 type fixedInventoryCountLine struct {
-	Product        ReferenceInput
-	ActualQuantity int64
-	Remark         *string
+	Product         ReferenceInput
+	EnteredQuantity int64
+	EnteredUnitID   string
+	ActualQuantity  int64
+	Remark          *string
 }
 
 type validatedDraft struct {
@@ -153,6 +163,13 @@ func validateReference(ref *ReferenceInput, field string, required bool) error {
 	}
 	if !validID(ref.ObjectID) || !validID(ref.VersionID) {
 		return domainError(ErrorValidation, "invalid "+field, nil, nil)
+	}
+	return nil
+}
+
+func validateProductReference(ref ProductReferenceInput) error {
+	if !validID(ref.ObjectID) {
+		return domainError(ErrorValidation, "invalid product", nil, nil)
 	}
 	return nil
 }
@@ -395,22 +412,29 @@ func validateInventoryCountLines(lines []InventoryCountLineInput) ([]fixedInvent
 	result := make([]fixedInventoryCountLine, 0, len(lines))
 	seen := make(map[string]struct{}, len(lines))
 	for _, line := range lines {
-		if err := validateReference(&line.Product, "product", true); err != nil {
+		if err := validateProductReference(line.Product); err != nil {
 			return nil, err
 		}
 		if _, exists := seen[line.Product.ObjectID]; exists {
 			return nil, domainError(ErrorValidation, "duplicate inventory count product", nil, nil)
 		}
 		seen[line.Product.ObjectID] = struct{}{}
-		quantity, err := quantityMicros(line.ActualQuantity, true)
+		enteredQuantity, err := quantityMicros(line.EnteredQuantity, true)
 		if err != nil {
-			return nil, domainError(ErrorValidation, "invalid actualQuantity", nil, err)
+			return nil, domainError(ErrorValidation, "invalid enteredQuantity", nil, err)
+		}
+		quantity, err := quantityMicros(line.BaseQuantity, true)
+		if err != nil || !validID(line.EnteredUnit.ObjectID) {
+			return nil, domainError(ErrorValidation, "invalid inventory count quantity snapshot", nil, err)
 		}
 		remark, err := lineRemark(line.Remark)
 		if err != nil {
 			return nil, err
 		}
-		result = append(result, fixedInventoryCountLine{Product: line.Product, ActualQuantity: quantity, Remark: remark})
+		result = append(result, fixedInventoryCountLine{
+			Product: ReferenceInput{ObjectID: line.Product.ObjectID}, EnteredQuantity: enteredQuantity,
+			EnteredUnitID: line.EnteredUnit.ObjectID, ActualQuantity: quantity, Remark: remark,
+		})
 	}
 	return result, nil
 }
@@ -425,17 +449,21 @@ func validateProductLines(
 	seen := make(map[string]struct{}, len(lines))
 	var total int64
 	for _, line := range lines {
-		if err := validateReference(&line.Product, "product", true); err != nil {
+		if err := validateProductReference(line.Product); err != nil {
 			return nil, 0, err
 		}
-		key := line.Product.ObjectID + "/" + line.Product.VersionID
+		key := line.Product.ObjectID
 		if _, exists := seen[key]; exists {
 			return nil, 0, domainError(ErrorValidation, "duplicate product line", nil, nil)
 		}
 		seen[key] = struct{}{}
-		quantity, err := quantityMicros(line.OrderedQuantity, false)
+		enteredQuantity, err := quantityMicros(line.EnteredQuantity, false)
 		if err != nil {
 			return nil, 0, err
+		}
+		quantity, err := quantityMicros(line.BaseQuantity, false)
+		if err != nil || !validID(line.EnteredUnit.ObjectID) {
+			return nil, 0, domainError(ErrorValidation, "invalid product quantity snapshot", nil, err)
 		}
 		price, err := parseFixed(line.UnitPrice, 2, true)
 		if err != nil {
@@ -473,7 +501,8 @@ func validateProductLines(
 			return nil, 0, err
 		}
 		result = append(result, fixedProductLine{
-			Product: line.Product, Quantity: quantity, BaseUnitPrice: price,
+			Product: ReferenceInput{ObjectID: line.Product.ObjectID}, EnteredQuantity: enteredQuantity,
+			EnteredUnitID: line.EnteredUnit.ObjectID, Quantity: quantity, BaseUnitPrice: price,
 			SettlementSurcharge: surcharge, SurchargeProvided: surchargeProvided,
 			UnitPrice:         price + surcharge,
 			PurchaseUnitPrice: purchasePrice, LineAmount: amount, Remark: remark, Formula: formula,
@@ -489,7 +518,7 @@ func validatePriceLines(lines []PriceLineInput) ([]fixedPriceLine, error) {
 	result := make([]fixedPriceLine, 0, len(lines))
 	seen := make(map[string]struct{}, len(lines))
 	for _, line := range lines {
-		if err := validateReference(&line.Product, "product", true); err != nil {
+		if err := validateProductReference(line.Product); err != nil {
 			return nil, err
 		}
 		if _, ok := seen[line.Product.ObjectID]; ok {
@@ -504,7 +533,7 @@ func validatePriceLines(lines []PriceLineInput) ([]fixedPriceLine, error) {
 		if err != nil {
 			return nil, err
 		}
-		result = append(result, fixedPriceLine{Product: line.Product, UnitPrice: price, Remark: remark})
+		result = append(result, fixedPriceLine{Product: ReferenceInput{ObjectID: line.Product.ObjectID}, UnitPrice: price, Remark: remark})
 	}
 	return result, nil
 }
@@ -516,9 +545,9 @@ func validateFormula(input *FormulaInput, allowed bool) (*fixedFormula, error) {
 	if !allowed {
 		return nil, domainError(ErrorValidation, "formula only applies to sale order lines", nil, nil)
 	}
-	baseQuantity, err := quantityMicros(input.BaseOutputQuantity, false)
+	output, err := validateQuantitySnapshot(input.Output, "formula output")
 	if err != nil {
-		return nil, domainError(ErrorValidation, "invalid formula base output quantity", nil, err)
+		return nil, err
 	}
 	if len(input.Components) == 0 || len(input.Components) > 200 {
 		return nil, domainError(ErrorValidation, "formula must contain 1 to 200 components", nil, nil)
@@ -542,26 +571,38 @@ func validateFormula(input *FormulaInput, allowed bool) (*fixedFormula, error) {
 	seen := make(map[string]bool, len(input.Components))
 	components := make([]fixedFormulaComponent, 0, len(input.Components))
 	for _, component := range input.Components {
-		if err = validateReference(&component.Material, "formula material", true); err != nil {
-			return nil, err
+		if !validID(component.Material.ObjectID) {
+			return nil, domainError(ErrorValidation, "invalid formula material", nil, nil)
 		}
 		if seen[component.Material.ObjectID] {
 			return nil, domainError(ErrorValidation, "duplicate formula material", nil, nil)
 		}
 		seen[component.Material.ObjectID] = true
-		quantity, quantityErr := quantityMicros(component.Quantity, false)
+		quantity, quantityErr := validateQuantitySnapshot(component.Quantity, "formula material")
 		if quantityErr != nil {
-			return nil, domainError(ErrorValidation, "invalid formula material quantity", nil, quantityErr)
+			return nil, quantityErr
 		}
 		components = append(components, fixedFormulaComponent{
-			Material: component.Material, Quantity: quantity,
+			Material: ReferenceInput{ObjectID: component.Material.ObjectID}, Quantity: quantity,
 		})
 	}
 	return &fixedFormula{
-		BaseOutputQuantity: baseQuantity, SourceType: sourceType,
+		Output: output, SourceType: sourceType,
 		SourceDocumentID: sourceDocumentID, SourceDocumentNo: sourceDocumentNo,
 		Components: components,
 	}, nil
+}
+
+func validateQuantitySnapshot(input QuantitySnapshotInput, label string) (fixedQuantitySnapshot, error) {
+	entered, err := quantityMicros(input.EnteredQuantity, false)
+	if err != nil || !validID(input.EnteredUnit.ObjectID) {
+		return fixedQuantitySnapshot{}, domainError(ErrorValidation, "invalid "+label+" entered quantity or unit", nil, err)
+	}
+	base, err := quantityMicros(input.BaseQuantity, false)
+	if err != nil {
+		return fixedQuantitySnapshot{}, domainError(ErrorValidation, "invalid "+label+" base quantity", nil, err)
+	}
+	return fixedQuantitySnapshot{EnteredQuantity: entered, EnteredUnitID: input.EnteredUnit.ObjectID, BaseQuantity: base}, nil
 }
 
 func validateExpenseLines(lines []ExpenseLineInput) ([]fixedExpenseLine, int64, error) {

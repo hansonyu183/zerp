@@ -18,12 +18,12 @@ func TestVOUIntegrationSnapshotsSettlementGapsAndLegacyRows(t *testing.T) {
 	bobService := newBOBIntegrationService(pool)
 	customerService := bobdomain.NewService(pool)
 	customerService.SetAuxiliaryResolver(vouCustomerAuxiliaryResolver{})
+	saleLine := integrationProductLine(t, refs.product, "1", "10.00")
+	saleLine.Remark = "制单快照"
 	saleDraft := DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
 		Salesperson: &refs.employee, Warehouse: &refs.warehouse,
-		ProductLines: []ProductLineInput{{
-			Product: refs.product, OrderedQuantity: "1", UnitPrice: "10.00", Remark: "制单快照",
-		}},
+		ProductLines: []ProductLineInput{saleLine},
 	}
 	sale, err := service.Create(t.Context(), EntitySaleOrder, CreateInput{Data: saleDraft},
 		integrationActorOne, "snapshot-sale-create")
@@ -187,10 +187,8 @@ func TestVOUIntegrationPersonnelDefaultsOverridesAndSavePreservesSnapshot(t *tes
 	service := newIntegrationService(t, pool)
 	draft := DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
-		Warehouse: &refs.warehouse,
-		ProductLines: []ProductLineInput{{
-			Product: refs.product, OrderedQuantity: "1", UnitPrice: "10.00",
-		}},
+		Warehouse:    &refs.warehouse,
+		ProductLines: []ProductLineInput{integrationProductLine(t, refs.product, "1", "10.00")},
 	}
 	created, err := service.Create(t.Context(), EntitySaleOrder, CreateInput{Data: draft},
 		integrationActorOne, "personnel-default-create")
@@ -226,10 +224,8 @@ func TestVOUIntegrationPersonnelDefaultsOverridesAndSavePreservesSnapshot(t *tes
 
 	purchaseDraft := DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", Supplier: &refs.supplier,
-		Warehouse: &refs.warehouse,
-		ProductLines: []ProductLineInput{{
-			Product: refs.product, OrderedQuantity: "1", UnitPrice: "12.00",
-		}},
+		Warehouse:    &refs.warehouse,
+		ProductLines: []ProductLineInput{integrationProductLine(t, refs.product, "1", "12.00")},
 	}
 	purchase, err := service.Create(t.Context(), EntityPurchaseOrder, CreateInput{Data: purchaseDraft},
 		integrationActorOne, "purchase-default-create")
@@ -275,9 +271,7 @@ func TestVOUIntegrationRejectsInvalidReferencesAndDatabaseContracts(t *testing.T
 	_, err := service.Create(t.Context(), EntityPurchaseOrder, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", Supplier: &refs.platform,
 		Purchaser: &refs.employee, Warehouse: &refs.warehouse,
-		ProductLines: []ProductLineInput{{
-			Product: refs.product, OrderedQuantity: "1", UnitPrice: "1.00",
-		}},
+		ProductLines: []ProductLineInput{integrationProductLine(t, refs.product, "1", "1.00")},
 	}}, integrationActorOne, "logistics-as-supplier")
 	if err == nil {
 		t.Fatal("purchase accepted logistics platform as supplier")

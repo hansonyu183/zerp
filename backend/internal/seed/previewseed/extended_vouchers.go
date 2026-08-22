@@ -27,17 +27,20 @@ func (s *Seeder) seedExtendedVouchers(ctx context.Context, counts *Counts) error
 	}{
 		{"sale-pricing-approved", voudomain.EntitySalePricing, voudomain.StatusApproved, voudomain.DraftInput{
 			BusinessDate: "2026-07-01", Currency: "CNY", Remark: "预览销售价格来源",
-			PriceLines: []voudomain.PriceLineInput{{Product: finished, UnitPrice: "96.00"}},
+			PriceLines: []voudomain.PriceLineInput{{Product: productReference(finished), UnitPrice: "96.00"}},
 		}},
 		{"purchase-inquiry-approved", voudomain.EntityPurchaseInquiry, voudomain.StatusApproved, voudomain.DraftInput{
 			BusinessDate: "2026-07-01", Currency: "CNY", Supplier: &supplier,
 			Remark:     "预览采购询价来源",
-			PriceLines: []voudomain.PriceLineInput{{Product: raw, UnitPrice: "18.00"}},
+			PriceLines: []voudomain.PriceLineInput{{Product: productReference(raw), UnitPrice: "18.00"}},
 		}},
 		{"inventory-count-draft", voudomain.EntityInventoryCount, voudomain.StatusDraft, voudomain.DraftInput{
 			BusinessDate: businessDate, Currency: "CNY", Warehouse: &warehouse,
-			Remark:              "预览可操作草稿：库存盘点",
-			InventoryCountLines: []voudomain.InventoryCountLineInput{{Product: finished, ActualQuantity: "6"}},
+			Remark: "预览可操作草稿：库存盘点",
+			InventoryCountLines: []voudomain.InventoryCountLineInput{{
+				Product: productReference(finished), EnteredQuantity: "6",
+				EnteredUnit: voudomain.UnitReferenceInput{ObjectID: s.auxRefs["UNT-0002"].ObjectID}, BaseQuantity: "6",
+			}},
 		}},
 		{"purchase-refund-draft", voudomain.EntityPurchaseRefund, voudomain.StatusDraft, cashDraft(supplier, fund, employee, "200.00", "预览可操作草稿：采购退款")},
 		{"other-receipt-draft", voudomain.EntityOtherReceipt, voudomain.StatusDraft, otherCashDraft("other-unit", otherUnit, fund, employee, "160.00", "COMMISSION", "预览可操作草稿：其他收款")},

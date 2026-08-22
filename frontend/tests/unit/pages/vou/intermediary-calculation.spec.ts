@@ -53,10 +53,10 @@ const source: IntermediaryCalculationSource = {
         code: 'P-001',
         name: '产品一',
       },
-      productKind: 'STANDARD_FINISHED',
-      signedQuantity: '2',
+      behaviorProfile: 'STANDARD_FINISHED',
+      signedBaseQuantity: '2',
       pricingQuantity: '400',
-      barrelQuantity: '2',
+      standardPieceQuantity: '2',
       unitPrice: '5.00',
       referenceUnitPrice: '4.00',
       settlementSurcharge: '0.10',
@@ -75,7 +75,7 @@ const source: IntermediaryCalculationSource = {
 const resultLine: IntermediaryResultLine = {
   sourceSignoffLineId: 'signoff-line-1',
   premiumUnitPrice: '0.70',
-  barrelQuantity: '2',
+  standardPieceQuantity: '2',
   baseCommission: '16.00',
   premiumCommission: '70.00',
   lowPriceCommission: '0.00',
@@ -263,7 +263,7 @@ describe('intermediary calculation QuickJS sandbox', () => {
       `globalThis.calculate = (input) => ({
         lines: [{
           sourceSignoffLineId: input.lines[0].sourceSignoffLineId,
-          premiumUnitPrice: '0.70', barrelQuantity: '2',
+          premiumUnitPrice: '0.70', standardPieceQuantity: '2',
           baseCommission: '16.00', premiumCommission: '70.00',
           lowPriceCommission: '0.00', marketMaintenanceSubsidy: '4.00',
           marketDevelopmentSubsidy: '1800.00', billCost: '0.00',
@@ -285,13 +285,13 @@ describe('intermediary calculation QuickJS sandbox', () => {
 
   it('accepts numerically equal canonical quantity representations', () => {
     const canonicalSource = structuredClone(source)
-    canonicalSource.lines[0]!.barrelQuantity = '2.0'
+    canonicalSource.lines[0]!.standardPieceQuantity = '2.0'
 
     expect(
       validateIntermediaryResult(
         {
           ...result(),
-          lines: [{ ...resultLine, barrelQuantity: '2' }],
+          lines: [{ ...resultLine, standardPieceQuantity: '2' }],
         },
         canonicalSource,
       ),
@@ -376,11 +376,11 @@ describe('intermediary calculation QuickJS sandbox', () => {
       validateIntermediaryResult(
         {
           ...result(),
-          lines: [{ ...resultLine, barrelQuantity: '3' }],
+          lines: [{ ...resultLine, standardPieceQuantity: '3' }],
         },
         source,
       ),
-    ).toThrow('桶数')
+    ).toThrow('标准计件')
   })
 
   it('rejects a bill allocation that does not deduct a positive cost', () => {
@@ -498,9 +498,9 @@ describe('intermediary calculation QuickJS sandbox', () => {
     returnSource.lines[0] = {
       ...returnSource.lines[0],
       sourceKind: 'RETURN_ADJUSTMENT',
-      signedQuantity: '1',
+      signedBaseQuantity: '1',
       pricingQuantity: '200',
-      barrelQuantity: '1',
+      standardPieceQuantity: '1',
       lineAmount: '1000.00',
       returnDocumentNos: ['SRT-001'],
       adjustmentEmployeeAmount: '10.00',

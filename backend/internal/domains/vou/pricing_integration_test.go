@@ -30,15 +30,15 @@ func TestPricingReferencesAndZeroOrderIntegration(t *testing.T) {
 
 	salePricing := approvePricingDocument(t, service, EntitySalePricing, DraftInput{
 		BusinessDate: "2026-07-20", Currency: "CNY",
-		PriceLines: []PriceLineInput{{Product: refs.product, UnitPrice: "12.30"}},
+		PriceLines: []PriceLineInput{{Product: ProductReferenceInput{ObjectID: refs.product.ObjectID}, UnitPrice: "12.30"}},
 	})
 	zeroSalePricing := approvePricingDocument(t, service, EntitySalePricing, DraftInput{
 		BusinessDate: "2026-07-21", Currency: "CNY",
-		PriceLines: []PriceLineInput{{Product: refs.product, UnitPrice: "0.00"}},
+		PriceLines: []PriceLineInput{{Product: ProductReferenceInput{ObjectID: refs.product.ObjectID}, UnitPrice: "0.00"}},
 	})
 	purchaseInquiry := approvePricingDocument(t, service, EntityPurchaseInquiry, DraftInput{
 		BusinessDate: "2026-07-21", Currency: "CNY", Supplier: &refs.supplier,
-		PriceLines: []PriceLineInput{{Product: refs.product, UnitPrice: "8.60"}},
+		PriceLines: []PriceLineInput{{Product: ProductReferenceInput{ObjectID: refs.product.ObjectID}, UnitPrice: "8.60"}},
 	})
 
 	saleRef, err := service.PriceReference(t.Context(), EntitySaleOrder, PriceReferenceInput{
@@ -61,7 +61,7 @@ func TestPricingReferencesAndZeroOrderIntegration(t *testing.T) {
 	zeroOrder, err := service.Create(t.Context(), EntityPurchaseOrder, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-19", Currency: "CNY", Supplier: &refs.supplier,
 		Warehouse:    &refs.warehouse,
-		ProductLines: []ProductLineInput{{Product: refs.product, OrderedQuantity: "2", UnitPrice: "0.00"}},
+		ProductLines: []ProductLineInput{integrationProductLine(t, refs.product, "2", "0.00")},
 	}}, integrationActorOne, "zero-order-create")
 	if err != nil {
 		t.Fatalf("create zero-price order: %v", err)
@@ -85,7 +85,7 @@ func TestPricingReferencesAndZeroOrderIntegration(t *testing.T) {
 	}
 	inbound, err := service.CreatePurchaseInbound(t.Context(), CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-19", SourceDocumentID: zeroOrder.DocumentID, Warehouse: &refs.warehouse,
-		SourceLines: []SourceQuantityLineInput{{SourceLineID: view.Data.ProductLines[0].LineID, Quantity: "2"}},
+		SourceLines: []SourceQuantityLineInput{{SourceLineID: view.Data.ProductLines[0].LineID, BaseQuantity: "2"}},
 	}}, integrationActorOne, "zero-inbound-create")
 	if err != nil {
 		t.Fatalf("create zero-price inbound: %v", err)

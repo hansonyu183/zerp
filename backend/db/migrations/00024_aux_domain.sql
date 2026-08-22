@@ -3,7 +3,7 @@
 CREATE TABLE aux_objects (
     id varchar(26) PRIMARY KEY,
     entity varchar(32) NOT NULL CHECK (entity IN (
-        'product-category', 'department', 'position', 'settlement-method',
+        'product-category', 'product-type', 'department', 'position', 'settlement-method',
         'dictionary-type', 'dictionary-item', 'measurement-unit', 'income-expense-type',
         'account-subject'
     )),
@@ -296,7 +296,7 @@ WITH actions(action, description, ordinal) AS (
         ('position', '岗位', 3), ('settlement-method', '结算方式', 4),
         ('dictionary-type', '字典类型', 5), ('dictionary-item', '字典项', 6),
         ('measurement-unit', '计量单位', 7), ('income-expense-type', '收支类型', 8),
-        ('account-subject', '会计科目', 9)
+        ('account-subject', '会计科目', 9), ('product-type', '产品类型', 10)
 ), numbered AS (
     SELECT e.entity, e.description AS entity_description, a.action,
            a.description AS action_description,

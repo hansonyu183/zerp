@@ -43,7 +43,7 @@ func TestZZPeriodCostingUsesMovingAverageAndUnlockRollsBackIntegration(t *testin
 		t.Fatal(err)
 	}
 
-	templateID, quantityField := "sale-cost", "orderedQuantity"
+	templateID, quantityField := "sale-cost", "baseQuantity"
 	costSubjectID := cost.ID
 	mapping, err := service.CreateMapping(t.Context(), CreateMappingInput{BookID: book.ID, VouEntity: voudomain.EntitySaleOrder, DefaultResult: MappingResultPost, Definition: MappingDefinition{DefaultTemplateID: &templateID, Templates: []PostingTemplate{{ID: templateID, Collection: stringPointer("productLines"), Lines: []PostingLineTemplate{
 		{SubjectSource: "FIXED", SubjectValue: inventory.ID, Direction: BalanceDirectionCredit, AmountField: "amount", CurrencyField: "currency", QuantityField: &quantityField, Dimensions: map[string]string{DimensionProduct: "product.objectId", DimensionWarehouse: "warehouse.objectId"}, CostCounterpartSubjectID: &costSubjectID, CostCounterpartDimensions: map[string]string{DimensionProduct: "product.objectId"}},

@@ -8,17 +8,22 @@ import {
   bobCreateData,
   bobFormFromView,
   bobSaveData,
+  hasValue,
   normalizeBobForm,
 } from './form-data'
 import { useBobHistory } from './history'
 import {
-  bobActionAvailability,
   bobActionBlockedReason,
   bobLifecycleSuccessLabel,
   useBobLifecycleActions,
 } from './lifecycle'
 import { useBobReferences } from './references'
 import { useBobReferenceTransfer } from './reference-transfer'
+import {
+  bobEntityActionAvailability,
+  canLoadBobEditorReferences,
+  useBobProductApproval,
+} from './product-approval'
 import type {
   BobActionAvailability,
   BobEditContext,
@@ -27,23 +32,8 @@ import type {
   BobListItem,
   BobMutationResult,
   BobObjectView,
+  BobVersionRevisionRequest,
 } from './types'
-
-interface VersionRevisionRequest {
-  objectId: string
-  versionId: string
-  revision: number
-}
-
-function hasValue(value: unknown): boolean {
-  return !(
-    value === undefined ||
-    value === null ||
-    value === '' ||
-    (Array.isArray(value) && value.length === 0) ||
-    value === false
-  )
-}
 
 export function useBobEntityViewModel(config: BobEntityConfig) {
   const session = useSessionStore()
@@ -77,8 +67,16 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
   const editorResetKey = ref(0)
   const editContext = ref<BobEditContext | null>(null)
   const currentView = ref<BobObjectView | null>(null)
+  const effectiveView = ref<BobObjectView | null>(null)
 
-  const canCreate = computed(() => session.can(`/bob/${config.entity}/create`))
+  const canLoadEditorReferences = computed(() =>
+    canLoadBobEditorReferences(config.entity, (path) => session.can(path)),
+  )
+  const canCreate = computed(
+    () =>
+      session.can(`/bob/${config.entity}/create`) &&
+      canLoadEditorReferences.value,
+  )
   const editorTitle = computed(() => {
     if (editorMode.value === 'create') return `新增${config.title}`
     if (editorMode.value === 'edit') return `编辑${config.title}`
@@ -102,8 +100,12 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
   function actionAvailability(
     row: Readonly<BobListItem>,
   ): BobActionAvailability {
-    return bobActionAvailability(row, session.user?.id, (action) =>
-      session.can(permission(action)),
+    return bobEntityActionAvailability(
+      config.entity,
+      row,
+      session.user?.id,
+      (action) => session.can(permission(action)),
+      canLoadEditorReferences.value,
     )
   }
 
@@ -234,12 +236,28 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     return data
   }
 
+  async function loadEffectiveView(view: BobObjectView): Promise<void> {
+    effectiveView.value = null
+    if (
+      config.entity !== 'product' ||
+      !view.effectiveVersionId ||
+      view.effectiveVersionId === view.version.versionId
+    ) {
+      return
+    }
+    effectiveView.value = await getObject(
+      { objectId: view.objectId },
+      view.effectiveVersionId,
+    )
+  }
+
   function openCreate(): void {
     if (!canCreate.value) return
     editorMode.value = 'create'
     editorModel.value = config.emptyForm()
     editContext.value = null
     currentView.value = null
+    effectiveView.value = null
     editorErrorMessage.value = null
     editorResetKey.value += 1
     drawerOpen.value = true
@@ -254,6 +272,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     try {
       const view = await getObject(row, versionId)
       currentView.value = view
+      await loadEffectiveView(view)
       editorModel.value = bobFormFromView(config, view)
       editorResetKey.value += 1
       drawerOpen.value = true
@@ -261,6 +280,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     } catch (error) {
       drawerOpen.value = false
       currentView.value = null
+      effectiveView.value = null
       editorErrorMessage.value = getErrorMessage(error)
     } finally {
       editorLoading.value = false
@@ -276,6 +296,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
       const versionId = row.currentVersion.versionId
       const view = await getObject(row, versionId)
       currentView.value = view
+      await loadEffectiveView(view)
       editContext.value = {
         objectId: row.objectId,
         objectRevision: row.objectRevision,
@@ -291,6 +312,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
       drawerOpen.value = false
       editContext.value = null
       currentView.value = null
+      effectiveView.value = null
       editorErrorMessage.value = getErrorMessage(error)
     } finally {
       editorLoading.value = false
@@ -308,10 +330,14 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
       const view = await getObject({ objectId })
       const editable =
         requestedMode === 'edit' &&
-        view.version.status === 'DRAFT' &&
-        session.can(permission('save'))
+        (view.version.status === 'DRAFT' ||
+          (config.entity === 'product' &&
+            view.version.status === 'EFFECTIVE')) &&
+        session.can(permission('save')) &&
+        canLoadEditorReferences.value
       editorMode.value = editable ? 'edit' : 'view'
       currentView.value = view
+      await loadEffectiveView(view)
       editContext.value = editable
         ? {
             objectId: view.objectId,
@@ -329,6 +355,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
       drawerOpen.value = false
       editContext.value = null
       currentView.value = null
+      effectiveView.value = null
       editorErrorMessage.value = getErrorMessage(error)
     } finally {
       editorLoading.value = false
@@ -341,6 +368,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     editorErrorMessage.value = null
     editContext.value = null
     currentView.value = null
+    effectiveView.value = null
   }
 
   async function save(form: BobForm): Promise<boolean> {
@@ -371,7 +399,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
         if (!context) throw new Error(`未加载可编辑的${config.title}版本。`)
         const result = await apiClient.post<
           BobMutationResult,
-          VersionRevisionRequest & { data: Record<string, unknown> }
+          BobVersionRevisionRequest & { data: Record<string, unknown> }
         >(`bob/${config.entity}/save`, {
           objectId: context.objectId,
           versionId: context.versionId,
@@ -386,13 +414,21 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
           mutation.versionId,
         )
         const normalized = normalizeBobForm(config, form)
-        const missing = config.persistedKeys?.find(
-          (key) =>
+        const missing = config.persistedKeys?.find((key) => {
+          if (
+            config.entity === 'product' &&
+            key === 'formula' &&
+            normalized.formulaDirty !== true
+          ) {
+            return false
+          }
+          return (
             JSON.stringify(
               comparableProductValue(key, persisted.data[key], true),
             ) !==
-            JSON.stringify(comparableProductValue(key, normalized[key], false)),
-        )
+            JSON.stringify(comparableProductValue(key, normalized[key], false))
+          )
+        })
         if (missing) {
           const label =
             editorFields.value.find((field) => field.key === missing)?.label ??
@@ -439,7 +475,8 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
         })
         if (rows.value.length === 1 && page.value > 1) page.value -= 1
       } else {
-        await apiClient.post<BobMutationResult, VersionRevisionRequest>(
+        if (!(await checkProductCompleteness(row))) return false
+        await apiClient.post<BobMutationResult, BobVersionRevisionRequest>(
           `bob/${config.entity}/submit`,
           {
             objectId: row.objectId,
@@ -485,7 +522,11 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     handleReferenceTransferLifecycleError,
   } = useBobReferenceTransfer(config.entity, successMessage, query)
 
-  const { review, reverse, changeEnabled } = useBobLifecycleActions(
+  const {
+    review: runLifecycleReview,
+    reverse,
+    changeEnabled,
+  } = useBobLifecycleActions(
     config.entity,
     actionLoading,
     errorMessage,
@@ -496,6 +537,13 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
       successMessage.value = `${row.code} ${bobLifecycleSuccessLabel(action)}。`
     },
     handleReferenceTransferLifecycleError,
+  )
+
+  const { checkProductCompleteness, review } = useBobProductApproval(
+    config.entity,
+    errorMessage,
+    getObject,
+    runLifecycleReview,
   )
 
   return {
@@ -519,6 +567,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     editorModel,
     editorResetKey,
     currentView,
+    effectiveView,
     referenceTransferOpen,
     referenceTransferLoading,
     referenceTransferError,

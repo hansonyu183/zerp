@@ -59,6 +59,12 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 	if !validEntity(entity) || input.Page < 1 || input.PageSize < 1 || input.PageSize > 200 {
 		return Page[QueryItem]{}, domainError(ErrorValidation, "invalid query", nil, nil)
 	}
+	if input.Filters.BehaviorProfile != "" {
+		profile, valid := productBehaviorProfileValue(input.Filters.BehaviorProfile)
+		if entity != EntityProductType || !valid || !isProductBehaviorProfile(profile) {
+			return Page[QueryItem]{}, domainError(ErrorValidation, "invalid query", nil, nil)
+		}
+	}
 	sortField, sortOrder := "updated_at", "DESC"
 	if len(input.Sort) > 1 {
 		return Page[QueryItem]{}, domainError(ErrorValidation, "only one sort item is allowed", nil, nil)
@@ -119,6 +125,9 @@ func queryWhere(entity string, filters QueryFilters) (string, []any) {
 	}
 	if filters.Enabled != nil {
 		add("o.enabled=$%d", *filters.Enabled)
+	}
+	if filters.BehaviorProfile != "" {
+		add("v.data->>'behaviorProfile'=$%d", filters.BehaviorProfile)
 	}
 	if filters.ParentID != "" {
 		add("v.data->>'parentId'=$%d", filters.ParentID)
@@ -264,12 +273,12 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 		return MutationResult{}, domainError(ErrorConflict, "object changed before save", map[string]any{"objectRevision": object.revision}, nil)
 	}
 	var currentData map[string]any
-	if entity == EntitySettlementMethod {
+	if entity == EntitySettlementMethod || entity == EntityProductType {
 		rawCurrentData, queryErr := dbsqlc.New(tx).GetAuxVersionData(ctx, dbsqlc.GetAuxVersionDataParams{
 			VersionID: object.currentVersionID, ObjectID: input.ObjectID, Entity: entity,
 		})
 		if queryErr != nil {
-			return MutationResult{}, s.internal("read current settlement method", queryErr)
+			return MutationResult{}, s.internal("read current auxiliary data", queryErr)
 		}
 		if err = json.Unmarshal(rawCurrentData, &currentData); err != nil {
 			return MutationResult{}, s.internal("decode current settlement method", err)
@@ -282,6 +291,17 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 	if entity == EntitySettlementMethod {
 		if err = validateSettlementMethodUpdate(currentData, data); err != nil {
 			return MutationResult{}, domainError(ErrorValidation, "invalid save request", nil, err)
+		}
+	}
+	if entity == EntityProductType {
+		referenced, referenceErr := productTypeReferenced(ctx, tx, input.ObjectID)
+		if referenceErr != nil {
+			return MutationResult{}, s.internal("check product type references", referenceErr)
+		}
+		if referenced {
+			if err = validateReferencedProductTypeUpdate(currentData, data); err != nil {
+				return MutationResult{}, domainError(ErrorValidation, "invalid save request", nil, err)
+			}
 		}
 	}
 	versionID := ulid.Make().String()
@@ -316,7 +336,7 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 
 func objectPrefix(entity string) string {
 	return map[string]string{
-		EntityProductCategory: "PCT", EntityDepartment: "DEP", EntityPosition: "POS",
+		EntityProductCategory: "PCT", EntityProductType: "PTP", EntityDepartment: "DEP", EntityPosition: "POS",
 		EntitySettlementMethod: "STM", EntityPaymentMethod: "PAY", EntityDictionaryType: "DCT", EntityDictionaryItem: "DIT",
 		EntityMeasurementUnit: "UNT", EntityIncomeExpense: "IET", EntityAssetCategory: "ACT",
 	}[entity]
@@ -566,6 +586,19 @@ func (s *Service) validateData(ctx context.Context, q dbtx, entity, objectID str
 		if err := s.validateParent(ctx, q, entity, objectID, stringValue(data["parentId"])); err != nil {
 			return nil, err
 		}
+	case EntityProductType:
+		allow("behaviorProfile", "description")
+		if _, present := data["description"]; !present {
+			data["description"] = ""
+		}
+		profile, ok := productBehaviorProfileValue(data["behaviorProfile"])
+		if !ok {
+			return nil, errors.New("behaviorProfile is required")
+		}
+		if !isProductBehaviorProfile(profile) {
+			return nil, errors.New("behaviorProfile must be a supported product behavior profile")
+		}
+		data["behaviorProfile"] = profile
 	case EntityPosition, EntityDictionaryType:
 		allow("description")
 	case EntityAssetCategory:
@@ -638,6 +671,9 @@ func (s *Service) validateData(ctx context.Context, q dbtx, entity, objectID str
 		if value, ok := data[key]; ok {
 			data[key] = strings.TrimSpace(stringValue(value))
 		}
+	}
+	if description := stringValue(data["description"]); len([]rune(description)) > 1000 {
+		return nil, errors.New("description must contain at most 1000 characters")
 	}
 	return data, nil
 }
@@ -715,6 +751,9 @@ func objectReferenced(ctx context.Context, q dbtx, entity, objectID string) (boo
 	if entity == EntityPaymentMethod {
 		return dbsqlc.New(q).IsBobCustomerPaymentMethodReferenced(ctx, objectID)
 	}
+	if entity == EntityProductType {
+		return productTypeReferenced(ctx, q, objectID)
+	}
 	var referenced bool
 	err := q.QueryRow(ctx, `SELECT CASE $1
 		WHEN 'product-category' THEN EXISTS(
@@ -744,8 +783,8 @@ func objectReferenced(ctx context.Context, q dbtx, entity, objectID string) (boo
 			WHERE vehicle_type=(SELECT code FROM aux_objects WHERE id=$2)
 		)
 		WHEN 'measurement-unit' THEN EXISTS(
-			SELECT 1 FROM bob_product_versions
-			WHERE inventory_unit_id=$2 OR pricing_unit_id=$2
+			SELECT 1 FROM bob_product_unit_conversions
+			WHERE unit_object_id=$2
 			UNION ALL
 			SELECT 1 FROM bob_service_versions WHERE unit_id=$2
 		)
@@ -755,6 +794,37 @@ func objectReferenced(ctx context.Context, q dbtx, entity, objectID string) (boo
 		)
 	END`, entity, objectID).Scan(&referenced)
 	return referenced, err
+}
+
+func productTypeReferenced(ctx context.Context, q dbtx, objectID string) (bool, error) {
+	var referenced bool
+	err := q.QueryRow(ctx, `SELECT EXISTS(
+		SELECT 1 FROM bob_product_versions WHERE product_type_id=$1
+	)`, objectID).Scan(&referenced)
+	return referenced, err
+}
+
+func validateReferencedProductTypeUpdate(current, updated map[string]any) error {
+	if fmt.Sprint(current["behaviorProfile"]) != fmt.Sprint(updated["behaviorProfile"]) {
+		return errors.New("referenced product type behaviorProfile cannot be changed")
+	}
+	return nil
+}
+
+func productBehaviorProfileValue(value any) (ProductBehaviorProfile, bool) {
+	switch typed := value.(type) {
+	case string:
+		return ProductBehaviorProfile(typed), true
+	case ProductBehaviorProfile:
+		return typed, true
+	default:
+		return "", false
+	}
+}
+
+func isProductBehaviorProfile(profile ProductBehaviorProfile) bool {
+	_, ok := productBehaviorProfiles[profile]
+	return ok
 }
 
 func insertAudit(ctx context.Context, q dbtx, objectID, versionID, entity, event, actorID, requestID string, summary map[string]any) error {

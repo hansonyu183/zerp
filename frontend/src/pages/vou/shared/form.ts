@@ -7,115 +7,9 @@ import type {
   VoucherReferenceView,
 } from '@/components/voucher'
 import { localDate } from '@/utils/date'
-import { formulaFromPayload, type FormulaPayload } from '@/components/formula'
+import { formulaFromPayload } from '@/components/formula'
 import { emptyServiceDetails, serviceDetailsFromDocument } from './service-form'
-
-export interface DraftPayload {
-  businessDate: string
-  currency?: string
-  remark?: string
-  specialApproval?: boolean
-  intermediaryCalculation?: VoucherDraftForm['intermediaryCalculation']
-  serviceContract?: Partial<VoucherDraftForm['serviceContract']>
-  serviceAcceptance?: VoucherDraftForm['serviceAcceptance']
-  returnReason?: string
-  customer?: VoucherReferenceInput
-  supplier?: VoucherReferenceInput
-  counterpartyType?: string
-  counterparty?: VoucherReferenceInput
-  settlementMethod?: VoucherReferenceInput
-  otherCategory?: VoucherDraftForm['otherCategory']
-  employee?: VoucherReferenceInput
-  salesperson?: VoucherReferenceInput
-  purchaser?: VoucherReferenceInput
-  handler?: VoucherReferenceInput
-  warehouse?: VoucherReferenceInput
-  materialWarehouse?: VoucherReferenceInput
-  finishedWarehouse?: VoucherReferenceInput
-  platform?: VoucherReferenceInput
-  vehicle?: VoucherReferenceInput
-  fundAccount?: VoucherReferenceInput
-  sourceName?: string
-  amount?: string
-  productLines?: Array<{
-    product: VoucherReferenceInput
-    orderedQuantity: string
-    unitPrice: string
-    settlementSurcharge?: string
-    purchaseUnitPrice?: string
-    remark?: string
-    formula?: FormulaPayload
-  }>
-  priceLines?: Array<{
-    product: VoucherReferenceInput
-    unitPrice: string
-    remark?: string
-  }>
-  expenseLines?: Array<{
-    category: string
-    description: string
-    amount: string
-    remark?: string
-  }>
-  assetAcquisitionLines?: Array<{
-    assetName: string
-    specification?: string
-    category: VoucherReferenceInput
-    originalValue: string
-    usefulLifeMonths: number
-    residualRate: string
-    department: VoucherReferenceInput
-    custodian?: VoucherReferenceInput
-    location?: string
-    remark?: string
-  }>
-  assetSaleLines?: Array<{
-    assetId: string
-    saleAmount: string
-    remark?: string
-  }>
-  assetLiquidationLines?: Array<{
-    assetId: string
-    reason: string
-    salvageIncome: string
-    disposalExpense: string
-    remark?: string
-  }>
-  sourceLines?: Array<{
-    sourceLineId: string
-    quantity: string
-    remark?: string
-  }>
-  signoffLines?: Array<{
-    sourceLineId: string
-    signedQuantity: string
-    rejectedQuantity: string
-    remark?: string
-  }>
-  returnLines?: Array<{
-    sourceLineId: string
-    quantity: string
-    remark?: string
-  }>
-  productionLines?: Array<{
-    sourceOrderLineId?: string
-    product?: VoucherReferenceInput
-    outputQuantity: string
-    lossRate: string
-    remark?: string
-    materials: Array<{
-      formulaLineNo: number
-      actualMaterial: VoucherReferenceInput
-      actualQuantity: string
-      adjustmentReason?: string
-    }>
-  }>
-  inventoryCountLines?: Array<{
-    product: VoucherReferenceInput
-    actualQuantity: string
-    remark?: string
-  }>
-}
+export type { DraftPayload } from './draft-payload'
 
 export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
   return {
@@ -156,7 +50,9 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
             {
               key: crypto.randomUUID(),
               product: null,
-              orderedQuantity: '',
+              enteredQuantity: '',
+              enteredUnit: null,
+              baseQuantity: '',
               unitPrice: '',
               settlementSurcharge: '',
               purchaseUnitPrice: '',
@@ -201,7 +97,9 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
             {
               key: crypto.randomUUID(),
               product: null,
-              actualQuantity: '',
+              enteredQuantity: '',
+              enteredUnit: null,
+              baseQuantity: '',
               remark: '',
             },
           ]
@@ -240,6 +138,12 @@ export function inputReference(
   return reference
     ? { objectId: reference.objectId, versionId: reference.versionId }
     : undefined
+}
+
+export function inputProductReference(
+  reference: VoucherReference | VoucherReferenceView | null | undefined,
+): { objectId: string } | undefined {
+  return reference ? { objectId: reference.objectId } : undefined
 }
 
 function formReference(
@@ -302,7 +206,9 @@ export function formFromDocument(
       key: line.lineId,
       lineId: line.lineId,
       product: formReference(line.product),
-      orderedQuantity: line.orderedQuantity,
+      enteredQuantity: line.enteredQuantity,
+      enteredUnit: { ...line.enteredUnit },
+      baseQuantity: line.baseQuantity,
       unitPrice: line.baseUnitPrice ?? line.unitPrice,
       settlementSurcharge: line.settlementSurcharge ?? '',
       purchaseUnitPrice: line.purchaseUnitPrice ?? '',
@@ -363,13 +269,13 @@ export function formFromDocument(
             sourceLineId: line.sourceLineId,
             productCode: line.product.code,
             productName: line.product.name,
-            productUnit: line.product.unit ?? '',
-            availableQuantity: '',
-            outboundQuantity: line.outboundQuantity,
-            quantity: '',
-            signedQuantity: line.signedQuantity,
-            rejectedQuantity: line.rejectedQuantity,
-            lossQuantity: line.lossQuantity,
+            enteredUnitSymbol: line.enteredUnit.symbol ?? '',
+            availableBaseQuantity: '',
+            outboundBaseQuantity: line.outboundBaseQuantity,
+            baseQuantity: '',
+            signedBaseQuantity: line.signedBaseQuantity,
+            rejectedBaseQuantity: line.rejectedBaseQuantity,
+            lossBaseQuantity: line.lossBaseQuantity,
             remark: line.remark ?? '',
           }))
         : document.entity === 'sale-outbound'
@@ -378,13 +284,14 @@ export function formFromDocument(
               sourceLineId: line.sourceLineId ?? line.lineId,
               productCode: line.product.code,
               productName: line.product.name,
-              productUnit: line.product.unit ?? '',
-              availableQuantity: line.quantity ?? line.orderedQuantity,
-              outboundQuantity: '',
-              quantity: line.quantity ?? line.orderedQuantity,
-              signedQuantity: '',
-              rejectedQuantity: '',
-              lossQuantity: '',
+              enteredUnitSymbol: line.enteredUnit.symbol ?? '',
+              availableBaseQuantity:
+                line.availableBaseQuantity ?? line.baseQuantity,
+              outboundBaseQuantity: '',
+              baseQuantity: line.availableBaseQuantity ?? line.baseQuantity,
+              signedBaseQuantity: '',
+              rejectedBaseQuantity: '',
+              lossBaseQuantity: '',
               remark: line.remark ?? '',
             }))
           : document.entity === 'sale-return' ||
@@ -394,13 +301,13 @@ export function formFromDocument(
                 sourceLineId: line.sourceLineId ?? '',
                 productCode: line.product?.code ?? '',
                 productName: line.product?.name ?? '',
-                productUnit: line.product?.unit ?? '',
-                availableQuantity: '',
-                outboundQuantity: '',
-                quantity: line.quantity ?? '',
-                signedQuantity: '',
-                rejectedQuantity: '',
-                lossQuantity: '',
+                enteredUnitSymbol: line.enteredUnit?.symbol ?? '',
+                availableBaseQuantity: '',
+                outboundBaseQuantity: '',
+                baseQuantity: line.baseQuantity ?? '',
+                signedBaseQuantity: '',
+                rejectedBaseQuantity: '',
+                lossBaseQuantity: '',
                 remark: line.remark ?? '',
               }))
             : [],
@@ -409,19 +316,23 @@ export function formFromDocument(
       lineId: line.lineId,
       sourceOrderLineId: line.sourceOrderLineId ?? '',
       product: formReference(line.product),
-      outputQuantity: line.outputQuantity,
+      enteredQuantity: line.enteredQuantity,
+      enteredUnit: { ...line.enteredUnit },
+      baseQuantity: line.baseQuantity,
       lossRate: line.lossRate,
-      formulaBaseOutputQuantity: line.formulaBaseOutputQuantity,
+      formulaBaseQuantity: line.formulaBaseQuantity,
       remark: line.remark ?? '',
       materials: line.materials.map((material) => ({
         key: material.lineId,
         lineId: material.lineId,
         formulaLineNo: material.lineNo,
         formulaMaterial: { ...material.formulaMaterial },
-        formulaQuantity: material.formulaQuantity,
-        suggestedQuantity: material.suggestedQuantity,
+        formulaBaseQuantity: material.formulaBaseQuantity,
+        suggestedBaseQuantity: material.suggestedBaseQuantity,
         actualMaterial: formReference(material.actualMaterial),
-        actualQuantity: material.actualQuantity,
+        actualEnteredQuantity: material.actualEnteredQuantity,
+        actualEnteredUnit: { ...material.actualEnteredUnit },
+        actualBaseQuantity: material.actualBaseQuantity,
         adjustmentReason: material.adjustmentReason ?? '',
       })),
     })),
@@ -429,9 +340,11 @@ export function formFromDocument(
       key: line.lineId,
       lineId: line.lineId,
       product: formReference(line.product),
-      actualQuantity: line.actualQuantity,
-      bookQuantity: line.bookQuantity,
-      differenceQuantity: line.differenceQuantity,
+      enteredQuantity: line.enteredQuantity,
+      enteredUnit: { ...line.enteredUnit },
+      baseQuantity: line.baseQuantity,
+      bookBaseQuantity: line.bookBaseQuantity,
+      differenceBaseQuantity: line.differenceBaseQuantity,
       remark: line.remark ?? '',
     })),
   }

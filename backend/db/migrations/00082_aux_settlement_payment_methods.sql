@@ -2,9 +2,59 @@
 
 ALTER TABLE aux_objects DROP CONSTRAINT aux_objects_entity_check;
 ALTER TABLE aux_objects ADD CONSTRAINT aux_objects_entity_check CHECK (entity IN (
-    'product-category','department','position','settlement-method','payment-method',
+    'product-category','product-type','department','position','settlement-method','payment-method',
     'dictionary-type','dictionary-item','measurement-unit','income-expense-type','asset-category'
 ));
+
+-- The initial types preserve the four closed product behaviors while allowing
+-- users to add further business names bound to the same profiles.
+WITH types(ordinal, object_id, version_id, code, name, behavior_profile) AS (
+    VALUES
+        (1, '01JPTP00000000000000000001', '01JPTP00000000000000000002', 'PTP-0001', '原材料', 'RAW_MATERIAL'),
+        (2, '01JPTP00000000000000000003', '01JPTP00000000000000000004', 'PTP-0002', '标准成品', 'STANDARD_FINISHED'),
+        (3, '01JPTP00000000000000000005', '01JPTP00000000000000000006', 'PTP-0003', '定制成品', 'CUSTOM_FINISHED'),
+        (4, '01JPTP00000000000000000007', '01JPTP00000000000000000008', 'PTP-0004', '包装物', 'PACKAGING')
+)
+INSERT INTO aux_objects(id, entity, code, current_version_id, enabled, next_version_no, revision, created_by, updated_by)
+SELECT object_id, 'product-type', code, version_id, true, 2, 1,
+       '00000000000000000000000000', '00000000000000000000000000'
+FROM types
+ON CONFLICT (id) DO NOTHING;
+
+WITH types(ordinal, object_id, version_id, name, behavior_profile) AS (
+    VALUES
+        (1, '01JPTP00000000000000000001', '01JPTP00000000000000000002', '原材料', 'RAW_MATERIAL'),
+        (2, '01JPTP00000000000000000003', '01JPTP00000000000000000004', '标准成品', 'STANDARD_FINISHED'),
+        (3, '01JPTP00000000000000000005', '01JPTP00000000000000000006', '定制成品', 'CUSTOM_FINISHED'),
+        (4, '01JPTP00000000000000000007', '01JPTP00000000000000000008', '包装物', 'PACKAGING')
+)
+INSERT INTO aux_versions(id, object_id, entity, version_no, data, created_by)
+SELECT version_id, object_id, 'product-type', 1,
+       jsonb_build_object(
+           'name', name, 'behaviorProfile', behavior_profile,
+           'description', '系统初始产品类型'
+       ),
+       '00000000000000000000000000'
+FROM types
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO object_number_counters(domain, entity, last_value)
+VALUES ('aux', 'product-type', 4)
+ON CONFLICT (domain, entity) DO UPDATE SET last_value=GREATEST(object_number_counters.last_value, EXCLUDED.last_value);
+
+WITH types(ordinal, object_id, version_id, behavior_profile) AS (
+    VALUES
+        (1, '01JPTP00000000000000000001', '01JPTP00000000000000000002', 'RAW_MATERIAL'),
+        (2, '01JPTP00000000000000000003', '01JPTP00000000000000000004', 'STANDARD_FINISHED'),
+        (3, '01JPTP00000000000000000005', '01JPTP00000000000000000006', 'CUSTOM_FINISHED'),
+        (4, '01JPTP00000000000000000007', '01JPTP00000000000000000008', 'PACKAGING')
+)
+INSERT INTO aux_audit_events(id, object_id, version_id, entity, event_type, actor_id, request_id, summary)
+SELECT '01JPTPA' || lpad(ordinal::text, 19, '0'), object_id, version_id,
+       'product-type', 'CREATED', '00000000000000000000000000', 'migration-00082',
+       jsonb_build_object('behaviorProfile', behavior_profile, 'systemInitial', true)
+FROM types
+ON CONFLICT (id) DO NOTHING;
 
 -- Settlement methods are a closed, system-seeded AUX catalogue.  The IDs are
 -- deliberately stable so the target customer model can store their source ID.

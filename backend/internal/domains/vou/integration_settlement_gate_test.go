@@ -49,9 +49,7 @@ func createCheckedSettlementSale(
 	created, err := service.Create(t.Context(), EntitySaleOrder, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-08-04", Currency: "CNY", Customer: &customer,
 		Salesperson: &refs.employee, Warehouse: &refs.warehouse,
-		ProductLines: []ProductLineInput{{
-			Product: refs.product, OrderedQuantity: "1", UnitPrice: "10.00",
-		}},
+		ProductLines: []ProductLineInput{integrationProductLine(t, refs.product, "1", "10.00")},
 	}}, integrationActorOne, requestID+"-create")
 	if err != nil {
 		t.Fatalf("create settlement order: %v", err)
@@ -373,7 +371,7 @@ func TestPrepaidConcurrentSignoffConsumesCurrentBalanceAtomicallyIntegration(t *
 			BusinessDate: "2026-08-05", SourceDocumentID: approvedOrder.DocumentID,
 			Warehouse: &refs.warehouse,
 			SourceLines: []SourceQuantityLineInput{{
-				SourceLineID: orderView.Data.ProductLines[0].LineID, Quantity: "1",
+				SourceLineID: orderView.Data.ProductLines[0].LineID, BaseQuantity: "1",
 			}},
 		}, true)
 		delivery, deliveryView := advanceSalesDocument(t, service, EntitySaleDelivery, DraftInput{
@@ -383,8 +381,8 @@ func TestPrepaidConcurrentSignoffConsumesCurrentBalanceAtomicallyIntegration(t *
 		signoff, _ := advanceSalesDocument(t, service, EntitySaleSignoff, DraftInput{
 			BusinessDate: "2026-08-05", SourceDocumentID: delivery.DocumentID,
 			SignoffLines: []SaleSignoffLineInput{{
-				SourceLineID:   deliveryView.Data.ProductLines[0].LineID,
-				SignedQuantity: "1", RejectedQuantity: "0",
+				SourceLineID:       deliveryView.Data.ProductLines[0].LineID,
+				SignedBaseQuantity: "1", RejectedBaseQuantity: "0",
 			}},
 		}, false)
 		return signoff

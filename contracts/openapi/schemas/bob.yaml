@@ -258,28 +258,22 @@
                       'nullable': true,
                       'description': '仅客户适用；返点单价，单位为元/kg，省略按 0 处理',
                     },
-                  'productKind':
-                    {
-                      'type': 'string',
-                      'enum':
-                        [
-                          'RAW_MATERIAL',
-                          'STANDARD_FINISHED',
-                          'CUSTOM_FINISHED',
-                          'PACKAGING',
-                        ],
-                      'nullable': true,
-                    },
+                  'productTypeId': { 'type': 'string', 'nullable': true },
+                  'defaultInputUnitId': { 'type': 'string', 'nullable': true },
                   'inventoryUnitId': { 'type': 'string', 'nullable': true },
                   'pricingUnitId': { 'type': 'string', 'nullable': true },
-                  'pricingQuantityPerInventoryUnit':
-                    { 'type': 'string', 'nullable': true },
-                  'returnable': { 'type': 'boolean', 'nullable': true },
-                  'packagingSpecs':
+                  'unitConversions':
                     {
                       'type': 'array',
                       'nullable': true,
-                      'items': { '$ref': '#/BobPackagingSpecInput' },
+                      'items': { '$ref': '#/BobProductUnitConversionInput' },
+                    },
+                  'returnable': { 'type': 'boolean', 'nullable': true },
+                  'defaultPackagingSpec':
+                    {
+                      'type': 'string',
+                      'nullable': true,
+                      'description': '仅非包装产品适用；一标准包装件对应的基准数量，必须大于零且最多六位小数',
                     },
                   'formula':
                     {
@@ -357,28 +351,22 @@
                   'salespersonEmployeeId':
                     { 'type': 'string', 'nullable': true },
                   'rebateUnitPrice': { 'type': 'string', 'nullable': true },
-                  'productKind':
-                    {
-                      'type': 'string',
-                      'enum':
-                        [
-                          'RAW_MATERIAL',
-                          'STANDARD_FINISHED',
-                          'CUSTOM_FINISHED',
-                          'PACKAGING',
-                        ],
-                      'nullable': true,
-                    },
+                  'productTypeId': { 'type': 'string', 'nullable': true },
+                  'defaultInputUnitId': { 'type': 'string', 'nullable': true },
                   'inventoryUnitId': { 'type': 'string', 'nullable': true },
                   'pricingUnitId': { 'type': 'string', 'nullable': true },
-                  'pricingQuantityPerInventoryUnit':
-                    { 'type': 'string', 'nullable': true },
-                  'returnable': { 'type': 'boolean', 'nullable': true },
-                  'packagingSpecs':
+                  'unitConversions':
                     {
                       'type': 'array',
                       'nullable': true,
-                      'items': { '$ref': '#/BobPackagingSpecInput' },
+                      'items': { '$ref': '#/BobProductUnitConversionInput' },
+                    },
+                  'returnable': { 'type': 'boolean', 'nullable': true },
+                  'defaultPackagingSpec':
+                    {
+                      'type': 'string',
+                      'nullable': true,
+                      'description': '仅非包装产品适用；一标准包装件对应的基准数量，必须大于零且最多六位小数',
                     },
                   'formula':
                     {
@@ -390,33 +378,77 @@
             },
         },
     },
-  'BobPackagingSpecInput':
+  'BobMeasurementUnitSnapshotInput':
     {
       'type': 'object',
-      'required':
-        [
-          'packagingProductObjectId',
-          'packagingProductVersionId',
-          'contentQuantity',
-          'isDefault',
-        ],
+      'required': ['objectId'],
+      'additionalProperties': false,
+      'properties': { 'objectId': { 'type': 'string' } },
+    },
+  'BobProductUnitConversionInput':
+    {
+      'type': 'object',
+      'required': ['unit', 'factor'],
       'additionalProperties': false,
       'properties':
         {
-          'packagingProductObjectId': { 'type': 'string' },
-          'packagingProductVersionId': { 'type': 'string' },
-          'contentQuantity': { 'type': 'string' },
-          'isDefault': { 'type': 'boolean' },
+          'unit': { '$ref': '#/BobMeasurementUnitSnapshotInput' },
+          'factor':
+            {
+              'type': 'string',
+              'pattern': '^(?:0*[1-9][0-9]*|0*\.[0-9]*[1-9][0-9]*)$',
+            },
+        },
+    },
+  'BobMeasurementUnitSnapshot':
+    {
+      'type': 'object',
+      'required': ['objectId', 'versionId', 'code', 'name', 'symbol'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'versionId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'name': { 'type': 'string' },
+          'symbol': { 'type': 'string' },
+        },
+    },
+  'BobProductUnitConversionSnapshot':
+    {
+      'type': 'object',
+      'required': ['unit', 'factor'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'unit': { '$ref': '#/BobMeasurementUnitSnapshot' },
+          'factor':
+            {
+              'type': 'string',
+              'pattern': '^(?:0*[1-9][0-9]*|0*\.[0-9]*[1-9][0-9]*)$',
+            },
+        },
+    },
+  'BobQuantitySnapshotInput':
+    {
+      'type': 'object',
+      'required': ['enteredQuantity', 'enteredUnit', 'baseQuantity'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'enteredQuantity': { 'type': 'string' },
+          'enteredUnit': { '$ref': '#/BobMeasurementUnitSnapshotInput' },
+          'baseQuantity': { 'type': 'string' },
         },
     },
   'BobProductFormulaInput':
     {
       'type': 'object',
-      'required': ['baseOutputQuantity', 'components'],
+      'required': ['output', 'components'],
       'additionalProperties': false,
       'properties':
         {
-          'baseOutputQuantity': { 'type': 'string' },
+          'output': { '$ref': '#/BobQuantitySnapshotInput' },
           'components':
             {
               'type': 'array',
@@ -444,7 +476,14 @@
                   'versionId': { 'type': 'string' },
                 },
             },
-          'quantity': { 'type': 'string' },
+          'quantity': { '$ref': '#/BobQuantitySnapshotInput' },
+          'resolutionStatus':
+            {
+              'type': 'string',
+              'enum': ['CURRENT', 'UNRESOLVED'],
+              'nullable': true,
+            },
+          'requiresConfirmation': { 'type': 'boolean', 'nullable': true },
         },
     },
   'BobDeleteRequest':
@@ -1657,6 +1696,17 @@
             },
           'keyword': { 'type': 'string', 'maxLength': 100 },
           'sourceObjectId': { 'type': 'string', 'maxLength': 26 },
+          'behaviorProfile':
+            {
+              'type': 'string',
+              'enum':
+                [
+                  'RAW_MATERIAL',
+                  'STANDARD_FINISHED',
+                  'CUSTOM_FINISHED',
+                  'PACKAGING',
+                ],
+            },
         },
     },
   'ReferenceCandidate':
@@ -1670,6 +1720,24 @@
           'versionId': { 'type': 'string' },
           'code': { 'type': 'string' },
           'name': { 'type': 'string' },
+          'behaviorProfile':
+            {
+              'type': 'string',
+              'enum':
+                [
+                  'RAW_MATERIAL',
+                  'STANDARD_FINISHED',
+                  'CUSTOM_FINISHED',
+                  'PACKAGING',
+                ],
+            },
+          'defaultInputUnitId': { 'type': 'string' },
+          'pricingUnitId': { 'type': 'string' },
+          'unitConversions':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/BobProductUnitConversionSnapshot' },
+            },
         },
     },
   'ReferenceQueryResponse':

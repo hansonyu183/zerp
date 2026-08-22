@@ -22,6 +22,7 @@ export interface BusinessObjectFieldOption<TValue = unknown> {
   title: string
   value: TValue
   disabled?: boolean
+  metadata?: Readonly<Record<string, unknown>>
 }
 
 export interface BusinessObjectField<T extends object> {

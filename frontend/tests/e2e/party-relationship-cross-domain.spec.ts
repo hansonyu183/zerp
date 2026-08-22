@@ -564,8 +564,10 @@ async function createCollectedSale(
       warehouse: reference(warehouse),
       productLines: [
         {
-          product: reference(product),
-          orderedQuantity: '1',
+          product: { objectId: product.objectId },
+          enteredQuantity: '1',
+          enteredUnit: { objectId: '01JAVX00000000000000000011' },
+          baseQuantity: '1',
           unitPrice: '100.00',
         },
       ],
@@ -581,7 +583,7 @@ workflow(code="${processCode}", name="${processCode}", root=order, when=lambda s
   edge(source=order, target=outbound, relation="outbound", action=sale_outbound(initial=lambda source: {
     "warehouseObjectId": "${warehouse.objectId}",
     "businessDate": source["data"]["businessDate"],
-    "lines": [{"sourceLineId": line["lineId"], "quantity": line["orderedQuantity"]} for line in source["data"]["productLines"]],
+    "lines": [{"sourceLineId": line["lineId"], "baseQuantity": line["baseQuantity"]} for line in source["data"]["productLines"]],
   })),
   edge(source=outbound, target=delivery, relation="delivery", action=sale_delivery(initial=lambda source: {
     "platformObjectId": "${platform.objectId}",
@@ -590,7 +592,7 @@ workflow(code="${processCode}", name="${processCode}", root=order, when=lambda s
   })),
   edge(source=delivery, target=signoff, relation="signoff", action=sale_signoff(initial=lambda source: {
     "businessDate": source["data"]["businessDate"],
-    "lines": [{"sourceLineId": line["lineId"], "signedQuantity": line["quantity"], "rejectedQuantity": "0"} for line in source["data"]["productLines"]],
+    "lines": [{"sourceLineId": line["lineId"], "signedBaseQuantity": line["baseQuantity"], "rejectedBaseQuantity": "0"} for line in source["data"]["productLines"]],
   })),
 ])`
   await createEnabledWorkflow(operator, processCode, script, order.documentId)

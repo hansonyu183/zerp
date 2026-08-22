@@ -17,18 +17,22 @@ import (
 const productionPercentScale int64 = 100_000_000
 
 type fixedProductionMaterial struct {
-	FormulaLineNo     int32
-	FormulaMaterial   ReferenceView
-	FormulaQuantity   int64
-	SuggestedQuantity int64
-	ActualMaterial    bobdomain.EffectiveReference
-	ActualQuantity    int64
-	AdjustmentReason  *string
+	FormulaLineNo         int32
+	FormulaMaterial       ReferenceView
+	FormulaQuantity       int64
+	SuggestedQuantity     int64
+	ActualMaterial        bobdomain.EffectiveReference
+	ActualEnteredQuantity int64
+	ActualEnteredUnit     bobdomain.MeasurementUnitSnapshot
+	ActualQuantity        int64
+	AdjustmentReason      *string
 }
 
 type fixedProductionOutput struct {
 	SourceOrderLineID         *string
 	Product                   bobdomain.EffectiveReference
+	EnteredQuantity           int64
+	EnteredUnit               bobdomain.MeasurementUnitSnapshot
 	OutputQuantity            int64
 	LossRate                  int64
 	FormulaBaseOutputQuantity int64
@@ -337,7 +341,7 @@ func (s *Service) prepareProductionDraft(
 	if entity == EntityOrderProduction {
 		for _, output := range result.Outputs {
 			var reserved int64
-			err = tx.QueryRow(ctx, `SELECT COALESCE(sum(line.output_quantity_micros),0)::bigint
+			err = tx.QueryRow(ctx, `SELECT COALESCE(sum(line.base_quantity_micros),0)::bigint
 				FROM vou_production_output_lines line
 				JOIN vou_documents document ON document.id=line.document_id
 				WHERE line.source_order_line_id=$1
@@ -347,7 +351,7 @@ func (s *Service) prepareProductionDraft(
 				return fixedProductionDraft{}, s.internal("read reserved production quantity", err)
 			}
 			var ordered int64
-			if err = tx.QueryRow(ctx, `SELECT ordered_qty_micros FROM vou_product_lines
+			if err = tx.QueryRow(ctx, `SELECT base_quantity_micros FROM vou_product_lines
 				WHERE id=$1 AND document_id=$2`, *output.SourceOrderLineID, parentID).
 				Scan(&ordered); err != nil {
 				return fixedProductionDraft{}, s.internal("read production source quantity", err)
@@ -369,7 +373,13 @@ func (s *Service) prepareProductionOutput(
 	entity, parentID string,
 	input ProductionOutputInput,
 ) (fixedProductionOutput, error) {
-	outputQuantity, err := quantityMicros(input.OutputQuantity, false)
+	enteredQuantity, err := quantityMicros(input.EnteredQuantity, false)
+	if err != nil {
+		return fixedProductionOutput{}, domainError(
+			ErrorValidation, "invalid production entered quantity", nil, err,
+		)
+	}
+	outputQuantity, err := quantityMicros(input.BaseQuantity, false)
 	if err != nil {
 		return fixedProductionOutput{}, domainError(
 			ErrorValidation, "invalid production output quantity", nil, err,
@@ -398,20 +408,20 @@ func (s *Service) prepareProductionOutput(
 		sourceLineID = &source
 		product, formula, err = s.loadOrderProductionFormula(ctx, tx, parentID, source)
 	} else {
-		if strings.TrimSpace(input.SourceOrderLineID) != "" ||
-			validateReference(input.Product, "product", true) != nil {
+		if strings.TrimSpace(input.SourceOrderLineID) != "" || input.Product == nil ||
+			validateProductReference(*input.Product) != nil {
 			return fixedProductionOutput{}, domainError(
 				ErrorValidation, "self production requires product only", nil, nil,
 			)
 		}
-		productRef, resolveErr := s.resolveReference(
-			ctx, tx, bobdomain.EntityProduct, input.Product,
+		productRef, resolveErr := s.resolver.ResolveCurrentEffectiveReference(
+			ctx, tx, bobdomain.EntityProduct, input.Product.ObjectID,
 		)
 		if resolveErr != nil {
-			return fixedProductionOutput{}, resolveErr
+			return fixedProductionOutput{}, domainError(ErrorConflict, "product reference is not effective", nil, resolveErr)
 		}
-		product = *productRef
-		if product.Data.ProductKind != bobdomain.ProductKindStandardFinished ||
+		product = productRef
+		if product.Data.BehaviorProfile != bobdomain.ProductBehaviorStandardFinished ||
 			product.Data.Formula == nil {
 			return fixedProductionOutput{}, domainError(
 				ErrorConflict, "self production product must have a fixed formula", nil, nil,
@@ -422,6 +432,10 @@ func (s *Service) prepareProductionOutput(
 			err = s.refreshProductionFormulaMaterials(ctx, tx, &formula)
 		}
 	}
+	if err != nil {
+		return fixedProductionOutput{}, err
+	}
+	enteredUnit, err := productUnitSnapshot(product.Data, input.EnteredUnit.ObjectID)
 	if err != nil {
 		return fixedProductionOutput{}, err
 	}
@@ -442,31 +456,43 @@ func (s *Service) prepareProductionOutput(
 	}
 	output := fixedProductionOutput{
 		SourceOrderLineID: sourceLineID, Product: product,
+		EnteredQuantity: enteredQuantity, EnteredUnit: enteredUnit,
 		OutputQuantity: outputQuantity, LossRate: lossRate,
 		FormulaBaseOutputQuantity: formula.BaseOutputQuantity, Remark: remark,
 		Materials: make([]fixedProductionMaterial, 0, len(formula.Components)),
 	}
 	for index, component := range formula.Components {
 		materialInput := materialInputs[int32(index+1)]
-		if err = validateReference(&materialInput.ActualMaterial, "actualMaterial", true); err != nil {
+		if err = validateProductReference(materialInput.ActualMaterial); err != nil {
 			return fixedProductionOutput{}, err
 		}
-		actual, resolveErr := s.resolveReference(
-			ctx, tx, bobdomain.EntityProduct, &materialInput.ActualMaterial,
+		actualRef, resolveErr := s.resolver.ResolveCurrentEffectiveReference(
+			ctx, tx, bobdomain.EntityProduct, materialInput.ActualMaterial.ObjectID,
 		)
 		if resolveErr != nil {
-			return fixedProductionOutput{}, resolveErr
+			return fixedProductionOutput{}, domainError(ErrorConflict, "actual material is not effective", nil, resolveErr)
 		}
-		if actual.Data.ProductKind != bobdomain.ProductKindRawMaterial {
+		actual := &actualRef
+		if actual.Data.BehaviorProfile != bobdomain.ProductBehaviorRawMaterial {
 			return fixedProductionOutput{}, domainError(
 				ErrorConflict, "actual production material must be raw material", nil, nil,
 			)
 		}
-		actualQuantity, quantityErr := quantityMicros(materialInput.ActualQuantity, false)
+		actualEnteredQuantity, quantityErr := quantityMicros(materialInput.ActualEnteredQuantity, false)
+		if quantityErr != nil {
+			return fixedProductionOutput{}, domainError(
+				ErrorValidation, "invalid actual material entered quantity", nil, quantityErr,
+			)
+		}
+		actualQuantity, quantityErr := quantityMicros(materialInput.ActualBaseQuantity, false)
 		if quantityErr != nil {
 			return fixedProductionOutput{}, domainError(
 				ErrorValidation, "invalid actual material quantity", nil, quantityErr,
 			)
+		}
+		actualEnteredUnit, quantityErr := productUnitSnapshot(actual.Data, materialInput.ActualEnteredUnit.ObjectID)
+		if quantityErr != nil {
+			return fixedProductionOutput{}, quantityErr
 		}
 		suggested, calculationErr := productionSuggestedQuantity(
 			component.Quantity, formula.BaseOutputQuantity, outputQuantity, lossRate,
@@ -490,7 +516,8 @@ func (s *Service) prepareProductionOutput(
 		output.Materials = append(output.Materials, fixedProductionMaterial{
 			FormulaLineNo: int32(index + 1), FormulaMaterial: component.Material,
 			FormulaQuantity: component.Quantity, SuggestedQuantity: suggested,
-			ActualMaterial: *actual, ActualQuantity: actualQuantity, AdjustmentReason: reason,
+			ActualMaterial: *actual, ActualEnteredQuantity: actualEnteredQuantity,
+			ActualEnteredUnit: actualEnteredUnit, ActualQuantity: actualQuantity, AdjustmentReason: reason,
 		})
 	}
 	return output, nil
@@ -502,17 +529,20 @@ func (s *Service) loadOrderProductionFormula(
 	orderID, sourceLineID string,
 ) (bobdomain.EffectiveReference, productionFormula, error) {
 	var product bobdomain.EffectiveReference
-	var productKind string
+	var behaviorProfile string
 	var base int64
+	var sourceUnit bobdomain.MeasurementUnitSnapshot
 	err := tx.QueryRow(ctx, `SELECT line.product_object_id,line.product_version_id,
-		line.product_code,line.product_name,line.product_unit,line.product_kind,
-		formula.base_output_quantity_micros
+		line.product_code,line.product_name,line.entered_unit_symbol,line.behavior_profile,
+		line.entered_unit_object_id,line.entered_unit_version_id,line.entered_unit_code,line.entered_unit_name,
+		formula.output_base_quantity_micros
 		FROM vou_product_lines line
 		JOIN vou_sale_order_formulas formula ON formula.product_line_id=line.id
 		WHERE line.id=$1 AND line.document_id=$2`,
 		sourceLineID, orderID).Scan(
 		&product.ObjectID, &product.VersionID, &product.Code,
-		&product.Data.Name, &product.Data.Unit, &productKind, &base,
+		&product.Data.Name, &sourceUnit.Symbol, &behaviorProfile,
+		&sourceUnit.ObjectID, &sourceUnit.VersionID, &sourceUnit.Code, &sourceUnit.Name, &base,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return product, productionFormula{}, domainError(
@@ -522,16 +552,18 @@ func (s *Service) loadOrderProductionFormula(
 	if err != nil {
 		return product, productionFormula{}, s.internal("read sale order production formula", err)
 	}
-	if productKind != bobdomain.ProductKindStandardFinished &&
-		productKind != bobdomain.ProductKindCustomFinished {
+	if behaviorProfile != bobdomain.ProductBehaviorStandardFinished &&
+		behaviorProfile != bobdomain.ProductBehaviorCustomFinished {
 		return product, productionFormula{}, domainError(
 			ErrorConflict, "sale order line is not a producible finished product", nil, nil,
 		)
 	}
 	product.Entity = bobdomain.EntityProduct
-	product.Data.ProductKind = productKind
+	product.Data.Unit = sourceUnit.Symbol
+	product.Data.BehaviorProfile = behaviorProfile
+	product.Data.UnitConversions = []bobdomain.ProductUnitConversion{{Unit: sourceUnit, Factor: "1"}}
 	rows, err := tx.Query(ctx, `SELECT material_object_id,material_version_id,
-		material_code,material_name,material_unit,quantity_micros
+		material_code,material_name,entered_unit_symbol,base_quantity_micros
 		FROM vou_sale_order_formula_lines
 		WHERE product_line_id=$1 ORDER BY line_no`, sourceLineID)
 	if err != nil {
@@ -549,7 +581,7 @@ func (s *Service) loadOrderProductionFormula(
 			return product, productionFormula{}, err
 		}
 		component.Material.Entity = bobdomain.EntityProduct
-		component.Material.ProductKind = bobdomain.ProductKindRawMaterial
+		component.Material.BehaviorProfile = bobdomain.ProductBehaviorRawMaterial
 		formula.Components = append(formula.Components, component)
 	}
 	if err = rows.Err(); err != nil {
@@ -564,7 +596,7 @@ func (s *Service) loadOrderProductionFormula(
 }
 
 func productProductionFormula(input *bobdomain.ProductFormula) (productionFormula, error) {
-	base, err := quantityMicros(input.BaseOutputQuantity, false)
+	base, err := quantityMicros(input.Output.BaseQuantity, false)
 	if err != nil {
 		return productionFormula{}, domainError(
 			ErrorConflict, "product formula base quantity is invalid", nil, err,
@@ -575,7 +607,7 @@ func productProductionFormula(input *bobdomain.ProductFormula) (productionFormul
 		Components:         make([]productionFormulaComponent, 0, len(input.Components)),
 	}
 	for _, item := range input.Components {
-		quantity, quantityErr := quantityMicros(item.Quantity, false)
+		quantity, quantityErr := quantityMicros(item.Quantity.BaseQuantity, false)
 		if quantityErr != nil {
 			return productionFormula{}, domainError(
 				ErrorConflict, "product formula material quantity is invalid", nil, quantityErr,
@@ -585,8 +617,8 @@ func productProductionFormula(input *bobdomain.ProductFormula) (productionFormul
 			Material: ReferenceView{
 				ObjectID: item.Material.ObjectID, VersionID: item.Material.VersionID,
 				Entity: bobdomain.EntityProduct, Code: item.Material.Code,
-				Name: item.Material.Name, Unit: item.Material.Unit,
-				ProductKind: bobdomain.ProductKindRawMaterial,
+				Name: item.Material.Name, Unit: item.Quantity.EnteredUnit.Symbol,
+				BehaviorProfile: bobdomain.ProductBehaviorRawMaterial,
 			},
 			Quantity: quantity,
 		})
@@ -617,7 +649,7 @@ func (s *Service) refreshProductionFormulaMaterials(
 				err,
 			)
 		}
-		if material.Data.ProductKind != bobdomain.ProductKindRawMaterial {
+		if material.Data.BehaviorProfile != bobdomain.ProductBehaviorRawMaterial {
 			return domainError(
 				ErrorConflict,
 				"formula component must reference a raw material",
@@ -631,12 +663,12 @@ func (s *Service) refreshProductionFormulaMaterials(
 }
 
 func productionSuggestedQuantity(
-	formulaQuantity, baseOutputQuantity, outputQuantity, lossRate int64,
+	formulaQuantity, formulaOutputBaseQuantity, outputQuantity, lossRate int64,
 ) (int64, error) {
 	numerator := new(big.Int).Mul(big.NewInt(formulaQuantity), big.NewInt(outputQuantity))
 	numerator.Mul(numerator, big.NewInt(productionPercentScale+lossRate))
 	denominator := new(big.Int).Mul(
-		big.NewInt(baseOutputQuantity), big.NewInt(productionPercentScale),
+		big.NewInt(formulaOutputBaseQuantity), big.NewInt(productionPercentScale),
 	)
 	numerator.Add(numerator, new(big.Int).Quo(denominator, big.NewInt(2)))
 	numerator.Quo(numerator, denominator)
@@ -684,13 +716,16 @@ func (s *Service) insertProductionLines(
 		_, err := tx.Exec(ctx, `INSERT INTO vou_production_output_lines(
 			id,document_id,line_no,source_order_line_id,
 			product_object_id,product_version_id,product_code,product_name,
-			product_unit,product_kind,output_quantity_micros,loss_rate_micros,
-			formula_base_output_quantity_micros,remark
-		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+			entered_unit_symbol,behavior_profile,entered_quantity_micros,
+			entered_unit_object_id,entered_unit_version_id,entered_unit_code,entered_unit_name,
+			base_quantity_micros,loss_rate_micros,formula_base_quantity_micros,remark
+		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
 			outputID, documentID, outputIndex+1, output.SourceOrderLineID,
 			output.Product.ObjectID, output.Product.VersionID, output.Product.Code,
-			output.Product.Data.Name, output.Product.Data.Unit, output.Product.Data.ProductKind,
-			output.OutputQuantity, output.LossRate, output.FormulaBaseOutputQuantity, output.Remark,
+			output.Product.Data.Name, output.EnteredUnit.Symbol, output.Product.Data.BehaviorProfile,
+			output.EnteredQuantity, output.EnteredUnit.ObjectID, output.EnteredUnit.VersionID,
+			output.EnteredUnit.Code, output.EnteredUnit.Name, output.OutputQuantity,
+			output.LossRate, output.FormulaBaseOutputQuantity, output.Remark,
 		)
 		if err != nil {
 			return s.writeError("insert production output", err)
@@ -699,19 +734,24 @@ func (s *Service) insertProductionLines(
 			_, err = tx.Exec(ctx, `INSERT INTO vou_production_material_lines(
 				id,output_line_id,line_no,
 				formula_material_object_id,formula_material_version_id,
-				formula_material_code,formula_material_name,formula_material_unit,
-				formula_quantity_micros,suggested_quantity_micros,
+				formula_material_code,formula_material_name,formula_entered_unit_symbol,
+				formula_base_quantity_micros,suggested_base_quantity_micros,
 				actual_material_object_id,actual_material_version_id,
-				actual_material_code,actual_material_name,actual_material_unit,
-				actual_quantity_micros,adjustment_reason
-			) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+				actual_material_code,actual_material_name,actual_entered_unit_symbol,
+				actual_entered_quantity_micros,actual_entered_unit_object_id,
+				actual_entered_unit_version_id,actual_entered_unit_code,actual_entered_unit_name,
+				actual_base_quantity_micros,adjustment_reason
+			) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
 				newID(), outputID, materialIndex+1,
 				material.FormulaMaterial.ObjectID, material.FormulaMaterial.VersionID,
 				material.FormulaMaterial.Code, material.FormulaMaterial.Name,
 				material.FormulaMaterial.Unit, material.FormulaQuantity, material.SuggestedQuantity,
 				material.ActualMaterial.ObjectID, material.ActualMaterial.VersionID,
 				material.ActualMaterial.Code, material.ActualMaterial.Data.Name,
-				material.ActualMaterial.Data.Unit, material.ActualQuantity, material.AdjustmentReason,
+				material.ActualEnteredUnit.Symbol, material.ActualEnteredQuantity,
+				material.ActualEnteredUnit.ObjectID, material.ActualEnteredUnit.VersionID,
+				material.ActualEnteredUnit.Code, material.ActualEnteredUnit.Name,
+				material.ActualQuantity, material.AdjustmentReason,
 			)
 			if err != nil {
 				return s.writeError("insert production material", err)
@@ -744,9 +784,10 @@ func (s *Service) loadProductionData(
 	data.MaterialWarehouse = &material
 	data.FinishedWarehouse = &finished
 	rows, err := s.pool.Query(ctx, `SELECT id,line_no,source_order_line_id,
-		product_object_id,product_version_id,product_code,product_name,product_unit,
-		product_kind,output_quantity_micros,loss_rate_micros,
-		formula_base_output_quantity_micros,remark
+		product_object_id,product_version_id,product_code,product_name,entered_unit_symbol,
+		behavior_profile,entered_quantity_micros,entered_unit_object_id,entered_unit_version_id,
+		entered_unit_code,entered_unit_name,base_quantity_micros,loss_rate_micros,
+		formula_base_quantity_micros,remark
 		FROM vou_production_output_lines WHERE document_id=$1 ORDER BY line_no`, document.ID)
 	if err != nil {
 		return data, err
@@ -755,31 +796,37 @@ func (s *Service) loadProductionData(
 	for rows.Next() {
 		var item ProductionOutputLineView
 		var sourceID *string
-		var quantity, lossRate, base int64
-		var productKind string
+		var enteredQuantity, quantity, lossRate, base int64
+		var behaviorProfile string
 		var remark *string
 		if err = rows.Scan(
 			&item.LineID, &item.LineNo, &sourceID,
 			&item.Product.ObjectID, &item.Product.VersionID,
 			&item.Product.Code, &item.Product.Name, &item.Product.Unit,
-			&productKind, &quantity, &lossRate, &base, &remark,
+			&behaviorProfile, &enteredQuantity, &item.EnteredUnit.ObjectID,
+			&item.EnteredUnit.VersionID, &item.EnteredUnit.Code, &item.EnteredUnit.Name,
+			&quantity, &lossRate, &base, &remark,
 		); err != nil {
 			return data, err
 		}
 		item.SourceOrderLineID = deref(sourceID)
 		item.Product.Entity = bobdomain.EntityProduct
-		item.Product.ProductKind = productKind
-		item.OutputQuantity = formatQuantity(quantity)
+		item.Product.BehaviorProfile = behaviorProfile
+		item.EnteredUnit.Symbol = item.Product.Unit
+		item.EnteredQuantity = formatQuantity(enteredQuantity)
+		item.BaseQuantity = formatQuantity(quantity)
 		item.LossRate = formatQuantity(lossRate)
-		item.FormulaBaseOutputQuantity = formatQuantity(base)
+		item.FormulaBaseQuantity = formatQuantity(base)
 		item.Remark = deref(remark)
 		materialRows, materialErr := s.pool.Query(ctx, `SELECT id,line_no,
 			formula_material_object_id,formula_material_version_id,
-			formula_material_code,formula_material_name,formula_material_unit,
-			formula_quantity_micros,suggested_quantity_micros,
+			formula_material_code,formula_material_name,formula_entered_unit_symbol,
+			formula_base_quantity_micros,suggested_base_quantity_micros,
 			actual_material_object_id,actual_material_version_id,
-			actual_material_code,actual_material_name,actual_material_unit,
-			actual_quantity_micros,adjustment_reason
+			actual_material_code,actual_material_name,actual_entered_unit_symbol,
+			actual_entered_quantity_micros,actual_entered_unit_object_id,
+			actual_entered_unit_version_id,actual_entered_unit_code,actual_entered_unit_name,
+			actual_base_quantity_micros,adjustment_reason
 			FROM vou_production_material_lines
 			WHERE output_line_id=$1 ORDER BY line_no`, item.LineID)
 		if materialErr != nil {
@@ -787,7 +834,7 @@ func (s *Service) loadProductionData(
 		}
 		for materialRows.Next() {
 			var line ProductionMaterialLineView
-			var formulaQuantity, suggested, actualQuantity int64
+			var formulaQuantity, suggested, actualEnteredQuantity, actualQuantity int64
 			var adjustment *string
 			if materialErr = materialRows.Scan(
 				&line.LineID, &line.LineNo,
@@ -796,18 +843,23 @@ func (s *Service) loadProductionData(
 				&line.FormulaMaterial.Unit, &formulaQuantity, &suggested,
 				&line.ActualMaterial.ObjectID, &line.ActualMaterial.VersionID,
 				&line.ActualMaterial.Code, &line.ActualMaterial.Name,
-				&line.ActualMaterial.Unit, &actualQuantity, &adjustment,
+				&line.ActualMaterial.Unit, &actualEnteredQuantity,
+				&line.ActualEnteredUnit.ObjectID, &line.ActualEnteredUnit.VersionID,
+				&line.ActualEnteredUnit.Code, &line.ActualEnteredUnit.Name,
+				&actualQuantity, &adjustment,
 			); materialErr != nil {
 				materialRows.Close()
 				return data, materialErr
 			}
 			line.FormulaMaterial.Entity = bobdomain.EntityProduct
-			line.FormulaMaterial.ProductKind = bobdomain.ProductKindRawMaterial
+			line.FormulaMaterial.BehaviorProfile = bobdomain.ProductBehaviorRawMaterial
 			line.ActualMaterial.Entity = bobdomain.EntityProduct
-			line.ActualMaterial.ProductKind = bobdomain.ProductKindRawMaterial
-			line.FormulaQuantity = formatQuantity(formulaQuantity)
-			line.SuggestedQuantity = formatQuantity(suggested)
-			line.ActualQuantity = formatQuantity(actualQuantity)
+			line.ActualMaterial.BehaviorProfile = bobdomain.ProductBehaviorRawMaterial
+			line.ActualEnteredUnit.Symbol = line.ActualMaterial.Unit
+			line.FormulaBaseQuantity = formatQuantity(formulaQuantity)
+			line.SuggestedBaseQuantity = formatQuantity(suggested)
+			line.ActualEnteredQuantity = formatQuantity(actualEnteredQuantity)
+			line.ActualBaseQuantity = formatQuantity(actualQuantity)
 			line.AdjustmentReason = deref(adjustment)
 			item.Materials = append(item.Materials, line)
 		}

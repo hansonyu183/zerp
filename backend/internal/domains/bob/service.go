@@ -83,9 +83,9 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 		CustomerType:  filters.CustomerType,
 		CategoryID:    filters.CategoryID, DepartmentID: filters.DepartmentID,
 		PositionID: filters.PositionID, SalespersonEmployeeID: filters.SalespersonEmployeeID,
-		Currency:     filters.Currency,
-		ProductKind:  filters.ProductKind,
-		TargetEntity: filters.TargetEntity, ParentID: filters.ParentID, RootOnly: filters.RootOnly,
+		Currency:      filters.Currency,
+		ProductTypeID: filters.ProductTypeID,
+		TargetEntity:  filters.TargetEntity, ParentID: filters.ParentID, RootOnly: filters.RootOnly,
 	}
 	total, err := s.queries.CountBobObjects(ctx, countParams)
 	if err != nil {
@@ -97,9 +97,9 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 		CustomerType:  filters.CustomerType,
 		CategoryID:    filters.CategoryID, DepartmentID: filters.DepartmentID,
 		PositionID: filters.PositionID, SalespersonEmployeeID: filters.SalespersonEmployeeID,
-		Currency:     filters.Currency,
-		ProductKind:  filters.ProductKind,
-		TargetEntity: filters.TargetEntity, ParentID: filters.ParentID, RootOnly: filters.RootOnly,
+		Currency:      filters.Currency,
+		ProductTypeID: filters.ProductTypeID,
+		TargetEntity:  filters.TargetEntity, ParentID: filters.ParentID, RootOnly: filters.RootOnly,
 		PageOffset: offset, PageSize: int32(input.PageSize),
 	})
 	if err != nil {
@@ -129,6 +129,16 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 			}
 			item.Relationship = employmentRelationshipIdentity(identity)
 			item.CurrentVersion.Summary.Name = identity.PartyDisplayName
+		}
+		if entity == EntityProduct {
+			item.CurrentVersion.Summary.UnitConversions, err = loadProductUnitConversions(ctx, s.queries, row.VersionID)
+			if err != nil {
+				return Page[QueryItem]{}, s.internal("read product unit conversions", err)
+			}
+			item.CurrentVersion.Summary.Formula, err = loadProductFormula(ctx, s.queries, row.VersionID)
+			if err != nil {
+				return Page[QueryItem]{}, s.internal("read product formula", err)
+			}
 		}
 		items = append(items, item)
 	}
@@ -172,6 +182,10 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Objec
 		}
 	}
 	if entity == EntityProduct {
+		result.Data.UnitConversions, err = loadProductUnitConversions(ctx, s.queries, row.VersionID)
+		if err != nil {
+			return ObjectView{}, s.internal("read product unit conversions", err)
+		}
 		result.Data.Formula, err = loadProductFormula(ctx, s.queries, row.VersionID)
 		if err != nil {
 			return ObjectView{}, s.internal("read product formula", err)
@@ -222,6 +236,12 @@ func (s *Service) Create(ctx context.Context, entity string, input CreateInput, 
 	code := fmt.Sprintf("%s-%04d", objectPrefix(entity), counter)
 	if entity == EntityFundAccount {
 		data, err = s.resolveFundAccountOperating(ctx, tx, data)
+		if err != nil {
+			return MutationResult{}, err
+		}
+	}
+	if entity == EntityProduct {
+		data, err = s.resolveProductReferences(ctx, tx, data, true)
 		if err != nil {
 			return MutationResult{}, err
 		}
@@ -296,6 +316,9 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 	}
 	if !validWriteInput(entity, input.ObjectID, input.VersionID, input.Revision, actorID, requestID) {
 		return MutationResult{}, domainError(ErrorValidation, "invalid save request", nil, nil)
+	}
+	if entity == EntityProduct {
+		return s.saveProduct(ctx, input, actorID, requestID)
 	}
 	if err := validateDetailInputFields(entity, input.Data); err != nil {
 		return MutationResult{}, domainError(ErrorValidation, "invalid save request", nil, err)
@@ -390,6 +413,113 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 		return MutationResult{}, s.writeError("commit save", err)
 	}
 	return mutation(object, version, version.Status, input.Revision+1), nil
+}
+
+func (s *Service) saveProduct(ctx context.Context, input SaveInput, actorID, requestID string) (MutationResult, error) {
+	if err := validateDetailInputFields(EntityProduct, input.Data); err != nil {
+		return MutationResult{}, domainError(ErrorValidation, "invalid save request", nil, err)
+	}
+	tx, qtx, object, version, err := s.lockTarget(ctx, EntityProduct, input.ObjectID, input.VersionID)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	if object.CurrentVersionID != input.VersionID || version.Revision != input.Revision || version.Status != StatusDraft && version.Status != StatusEffective {
+		return MutationResult{}, conflict(object, version, "version changed before save")
+	}
+	if version.Status == StatusEffective && (object.EffectiveVersionID == nil || *object.EffectiveVersionID != input.VersionID) {
+		return MutationResult{}, conflict(object, version, "product effective version changed before save")
+	}
+	row, err := qtx.GetBobVersionView(ctx, dbsqlc.GetBobVersionViewParams{ObjectID: input.ObjectID, Entity: EntityProduct, VersionID: input.VersionID})
+	if err != nil {
+		return MutationResult{}, s.internal("read current product detail", err)
+	}
+	current := detailView(row)
+	current.UnitConversions, err = loadProductUnitConversions(ctx, qtx, input.VersionID)
+	if err != nil {
+		return MutationResult{}, s.internal("read current product units", err)
+	}
+	current.Formula, err = loadProductFormula(ctx, qtx, input.VersionID)
+	if err != nil {
+		return MutationResult{}, s.internal("read current product formula", err)
+	}
+	data, err := validateDetailData(EntityProduct, mergeDetailInput(current, input.Data))
+	if err != nil {
+		return MutationResult{}, domainError(ErrorValidation, "invalid save request", nil, err)
+	}
+	if data.BehaviorProfile != ProductBehaviorStandardFinished {
+		data.Formula = nil
+	}
+	data, err = s.resolveProductReferences(ctx, tx, data, input.Data.Formula != nil)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	validationData := data
+	if input.Data.Formula == nil {
+		// Omitted formula data means the caller did not edit the formula. Preserve
+		// stored snapshots without requiring their references to remain current;
+		// candidate creation refreshes them below, while submit/approve still run
+		// complete stored-detail validation.
+		validationData.Formula = nil
+	}
+	if err = s.validateDetailReferences(ctx, tx, qtx, EntityProduct, input.ObjectID, validationData); err != nil {
+		return MutationResult{}, err
+	}
+	if version.Status == StatusEffective {
+		candidateID := newID()
+		if err = qtx.InsertBobVersion(ctx, dbsqlc.InsertBobVersionParams{ID: candidateID, ObjectID: input.ObjectID, Entity: EntityProduct, VersionNo: object.NextVersionNo, ActorID: actorID}); err != nil {
+			return MutationResult{}, s.writeError("insert product candidate", err)
+		}
+		if err = copyDetail(ctx, qtx, EntityProduct, candidateID, version.ID); err != nil {
+			return MutationResult{}, s.writeError("copy product candidate", err)
+		}
+		if err = updateDetail(ctx, qtx, EntityProduct, candidateID, data); err != nil {
+			return MutationResult{}, s.writeError("update product candidate", err)
+		}
+		if data.BehaviorProfile == ProductBehaviorStandardFinished {
+			if err = qtx.RefreshBobProductCandidateFormulaMaterials(ctx, candidateID); err != nil {
+				return MutationResult{}, s.writeError("refresh candidate formula materials", err)
+			}
+			if err = qtx.MarkUnresolvedBobProductCandidateFormulaMaterials(ctx, candidateID); err != nil {
+				return MutationResult{}, s.writeError("mark unresolved candidate formula materials", err)
+			}
+		}
+		rows, advanceErr := qtx.AdvanceBobProductCandidate(ctx, dbsqlc.AdvanceBobProductCandidateParams{NewVersionID: candidateID, ActorID: actorID, ObjectID: input.ObjectID, EffectiveVersionID: version.ID, Revision: object.Revision})
+		if advanceErr != nil {
+			return MutationResult{}, s.writeError("advance product candidate", advanceErr)
+		}
+		if rows != 1 {
+			return MutationResult{}, conflict(object, version, "product changed before candidate save")
+		}
+		if err = insertAudit(ctx, qtx, auditInput{ObjectID: input.ObjectID, VersionID: candidateID, Entity: EntityProduct, Event: "SAVED", To: StatusDraft, ActorID: actorID, RequestID: requestID, Summary: map[string]any{"sourceVersionId": version.ID, "fields": detailFields(EntityProduct)}}); err != nil {
+			return MutationResult{}, s.writeError("audit product candidate save", err)
+		}
+		if err = tx.Commit(ctx); err != nil {
+			return MutationResult{}, s.writeError("commit product candidate save", err)
+		}
+		return MutationResult{ObjectID: input.ObjectID, ObjectRevision: object.Revision + 1, Enabled: object.Enabled, VersionID: candidateID, Version: object.NextVersionNo, Status: StatusDraft, Revision: 1}, nil
+	}
+	if err = updateDetail(ctx, qtx, EntityProduct, input.VersionID, data); err != nil {
+		return MutationResult{}, s.writeError("update product detail", err)
+	}
+	rows, err := qtx.MarkBobVersionSaved(ctx, dbsqlc.MarkBobVersionSavedParams{ActorID: actorID, ID: input.VersionID, ObjectID: input.ObjectID, Entity: EntityProduct, Revision: input.Revision})
+	if err != nil {
+		return MutationResult{}, s.writeError("mark product version saved", err)
+	}
+	if rows != 1 {
+		return MutationResult{}, conflict(object, version, "product version changed before save")
+	}
+	if err = qtx.TouchBobObject(ctx, dbsqlc.TouchBobObjectParams{ActorID: actorID, ID: input.ObjectID, Entity: EntityProduct}); err != nil {
+		return MutationResult{}, s.writeError("touch product", err)
+	}
+	from := version.Status
+	if err = insertAudit(ctx, qtx, auditInput{ObjectID: input.ObjectID, VersionID: input.VersionID, Entity: EntityProduct, Event: "SAVED", From: &from, To: StatusDraft, ActorID: actorID, RequestID: requestID, Summary: map[string]any{"fields": detailFields(EntityProduct)}}); err != nil {
+		return MutationResult{}, s.writeError("audit product save", err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return MutationResult{}, s.writeError("commit product save", err)
+	}
+	return mutation(object, version, StatusDraft, input.Revision+1), nil
 }
 
 func (s *Service) Delete(ctx context.Context, entity string, input DeleteInput) error {
@@ -622,6 +752,9 @@ func (s *Service) deleteEffectiveCandidate(
 	} else if entity == EntitySalesPartner {
 		rows, err = qtx.RestoreBobSalesPartnerEffectiveVersion(ctx, dbsqlc.RestoreBobSalesPartnerEffectiveVersionParams{ObjectID: input.ObjectID,
 			Revision: input.ObjectRevision, VersionID: input.VersionID, EffectiveVersionID: object.EffectiveVersionID})
+	} else if entity == EntityProduct {
+		rows, err = qtx.RestoreBobProductEffectiveVersion(ctx, dbsqlc.RestoreBobProductEffectiveVersionParams{ObjectID: input.ObjectID,
+			Revision: input.ObjectRevision, VersionID: input.VersionID, EffectiveVersionID: object.EffectiveVersionID, ActorID: systemidentity.UserID})
 	} else {
 		rows, err = qtx.RestoreBobSupplierEffectiveVersion(ctx, dbsqlc.RestoreBobSupplierEffectiveVersionParams{ObjectID: input.ObjectID,
 			Revision: input.ObjectRevision, VersionID: input.VersionID, EffectiveVersionID: object.EffectiveVersionID})
@@ -644,6 +777,10 @@ func (s *Service) deleteEffectiveCandidate(
 		rows, err = qtx.DeleteBobServiceRelationshipDetail(ctx, input.VersionID)
 	} else if entity == EntitySalesPartner {
 		rows, err = qtx.DeleteBobSalesPartnerDetail(ctx, input.VersionID)
+	} else if entity == EntityProduct {
+		if err = qtx.DeleteBobProductFormula(ctx, input.VersionID); err == nil {
+			rows, err = qtx.DeleteBobProductDetail(ctx, input.VersionID)
+		}
 	} else {
 		rows, err = qtx.DeleteBobSupplierDetail(ctx, input.VersionID)
 	}
@@ -656,6 +793,8 @@ func (s *Service) deleteEffectiveCandidate(
 		rows, err = qtx.DeleteBobOtherUnitVersion(ctx, dbsqlc.DeleteBobOtherUnitVersionParams{VersionID: input.VersionID, ObjectID: input.ObjectID})
 	} else if entity == EntitySalesPartner {
 		rows, err = qtx.DeleteBobSalesPartnerVersion(ctx, dbsqlc.DeleteBobSalesPartnerVersionParams{VersionID: input.VersionID, ObjectID: input.ObjectID})
+	} else if entity == EntityProduct {
+		rows, err = qtx.DeleteBobVersion(ctx, dbsqlc.DeleteBobVersionParams{ID: input.VersionID, ObjectID: input.ObjectID, Entity: entity})
 	} else {
 		rows, err = qtx.DeleteBobSupplierVersion(ctx, dbsqlc.DeleteBobSupplierVersionParams{VersionID: input.VersionID, ObjectID: input.ObjectID})
 	}
@@ -866,7 +1005,7 @@ func (s *Service) Unsubmit(ctx context.Context, entity string, input ReverseInpu
 }
 
 func hasEffectiveCandidate(entity string, object dbsqlc.LockBobObjectRow) bool {
-	return (entity == EntityCustomerAccount || entity == EntitySupplier || entity == EntityOtherUnit || entity == EntitySalesPartner) && object.EffectiveVersionID != nil &&
+	return (entity == EntityCustomerAccount || entity == EntitySupplier || entity == EntityOtherUnit || entity == EntitySalesPartner || entity == EntityProduct) && object.EffectiveVersionID != nil &&
 		object.CurrentVersionID != *object.EffectiveVersionID
 }
 
@@ -1255,6 +1394,14 @@ func (s *Service) ResolveEffectiveReference(ctx context.Context, tx pgx.Tx, enti
 		}
 	}
 	if entity == EntityProduct {
+		data.UnitConversions, err = loadProductUnitConversions(
+			ctx,
+			s.queries.WithTx(tx),
+			row.VersionID,
+		)
+		if err != nil {
+			return EffectiveReference{}, s.internal("read effective product unit conversions", err)
+		}
 		data.Formula, err = loadProductFormula(ctx, s.queries.WithTx(tx), row.VersionID)
 		if err != nil {
 			return EffectiveReference{}, s.internal("read effective product formula", err)
@@ -1366,6 +1513,14 @@ func (s *Service) ResolveCurrentEffectiveReference(
 		}
 	}
 	if entity == EntityProduct {
+		data.UnitConversions, err = loadProductUnitConversions(
+			ctx,
+			s.queries.WithTx(tx),
+			row.VersionID,
+		)
+		if err != nil {
+			return EffectiveReference{}, s.internal("read current effective product unit conversions", err)
+		}
 		data.Formula, err = loadProductFormula(ctx, s.queries.WithTx(tx), row.VersionID)
 		if err != nil {
 			return EffectiveReference{}, s.internal("read current effective product formula", err)
@@ -1458,6 +1613,10 @@ func (s *Service) validateStoredDetail(ctx context.Context, tx pgx.Tx, q *dbsqlc
 		}
 	}
 	if entity == EntityProduct {
+		data.UnitConversions, err = loadProductUnitConversions(ctx, q, versionID)
+		if err != nil {
+			return s.internal("read stored product unit conversions", err)
+		}
 		data.Formula, err = loadProductFormula(ctx, q, versionID)
 		if err != nil {
 			return s.internal("read stored product formula", err)
@@ -1466,6 +1625,11 @@ func (s *Service) validateStoredDetail(ctx context.Context, tx pgx.Tx, q *dbsqlc
 	data, err = validateDetailData(entity, data)
 	if err != nil {
 		return err
+	}
+	if entity == EntityProduct {
+		if err = validateProductComplete(data); err != nil {
+			return err
+		}
 	}
 	return s.validateDetailReferences(ctx, tx, q, entity, objectID, data)
 }
@@ -1587,46 +1751,27 @@ func (s *Service) validateDetailReferences(
 			if referenceErr != nil {
 				return referenceErr
 			}
-			if material.Data.ProductKind != ProductKindRawMaterial {
+			if material.Data.BehaviorProfile != ProductBehaviorRawMaterial {
 				return domainError(ErrorConflict, "formula component must reference a raw material", nil, nil)
+			}
+			unitFound := false
+			for _, conversion := range material.Data.UnitConversions {
+				if conversion.Unit.ObjectID == component.Quantity.EnteredUnit.ObjectID {
+					unitFound = true
+					break
+				}
+			}
+			if !unitFound {
+				return domainError(ErrorValidation, "formula material unit is not configured for product", nil, nil)
 			}
 		}
 	}
-	if (entity == EntityProduct || entity == EntityService) && s.auxiliaryResolver != nil {
-		inventoryUnit, err := s.resolveNamedAuxiliaryReference(
+	if entity == EntityService && s.auxiliaryResolver != nil {
+		_, err := s.resolveNamedAuxiliaryReference(
 			ctx, tx, "measurement-unit", data.InventoryUnitID, "",
 		)
 		if err != nil {
 			return err
-		}
-		if entity == EntityProduct {
-			pricingUnit, resolveErr := s.resolveNamedAuxiliaryReference(
-				ctx, tx, "measurement-unit", data.PricingUnitID, "",
-			)
-			if resolveErr != nil {
-				return resolveErr
-			}
-			if data.ProductKind != ProductKindPackaging && pricingUnit.Code != kilogramMeasurementUnitCode {
-				return domainError(ErrorConflict, "goods pricing unit must be KG", nil, nil)
-			}
-			if data.ProductKind == ProductKindPackaging && pricingUnit.ObjectID != inventoryUnit.ObjectID {
-				return domainError(ErrorConflict, "packaging pricing unit must match inventory unit", nil, nil)
-			}
-			for _, spec := range data.PackagingSpecs {
-				if spec.PackagingProductObjectID == objectID {
-					return domainError(ErrorValidation, "product cannot package itself", nil, nil)
-				}
-				packaging, referenceErr := s.ResolveEffectiveReference(
-					ctx, tx, EntityProduct,
-					spec.PackagingProductObjectID, spec.PackagingProductVersionID,
-				)
-				if referenceErr != nil {
-					return referenceErr
-				}
-				if packaging.Data.ProductKind != ProductKindPackaging {
-					return domainError(ErrorConflict, "packaging specification must reference a packaging product", nil, nil)
-				}
-			}
 		}
 	}
 	type reference struct {
@@ -1676,6 +1821,62 @@ func (s *Service) validateDetailReferences(
 		}
 	}
 	return nil
+}
+
+func (s *Service) resolveProductReferences(ctx context.Context, tx pgx.Tx, data DetailView, resolveFormula bool) (DetailView, error) {
+	if data.ProductTypeID != "" {
+		typeRef, err := s.resolveNamedAuxiliaryReference(ctx, tx, "product-type", data.ProductTypeID, "")
+		if err != nil {
+			return DetailView{}, err
+		}
+		data.ProductTypeVersionID, data.ProductTypeCode = typeRef.VersionID, typeRef.Code
+		data.ProductTypeName = mapString(typeRef.Data, "name")
+		data.BehaviorProfile = mapString(typeRef.Data, "behaviorProfile")
+		if !validProductBehavior(data.BehaviorProfile) {
+			return DetailView{}, domainError(ErrorConflict, "product type behavior profile is unavailable", nil, nil)
+		}
+	}
+	resolveUnit := func(snapshot *MeasurementUnitSnapshot) error {
+		unit, err := s.resolveNamedAuxiliaryReference(ctx, tx, "measurement-unit", snapshot.ObjectID, "")
+		if err != nil {
+			return err
+		}
+		snapshot.VersionID, snapshot.Code = unit.VersionID, unit.Code
+		snapshot.Name, snapshot.Symbol = mapString(unit.Data, "name"), mapString(unit.Data, "symbol")
+		return nil
+	}
+	for index := range data.UnitConversions {
+		if err := resolveUnit(&data.UnitConversions[index].Unit); err != nil {
+			return DetailView{}, err
+		}
+	}
+	if !resolveFormula || data.Formula == nil {
+		return data, nil
+	}
+	if err := resolveUnit(&data.Formula.Output.EnteredUnit); err != nil {
+		return DetailView{}, err
+	}
+	for index := range data.Formula.Components {
+		component := &data.Formula.Components[index]
+		if err := resolveUnit(&component.Quantity.EnteredUnit); err != nil {
+			return DetailView{}, err
+		}
+		material, err := s.ResolveCurrentEffectiveReference(
+			ctx,
+			tx,
+			EntityProduct,
+			component.Material.ObjectID,
+		)
+		if err != nil {
+			return DetailView{}, err
+		}
+		component.Material.VersionID, component.Material.Code = material.VersionID, material.Code
+		component.Material.Name = material.Data.Name
+		component.Material.BehaviorProfile = material.Data.BehaviorProfile
+		component.ResolutionStatus = "CURRENT"
+		component.RequiresConfirmation = false
+	}
+	return data, nil
 }
 
 func loadFundAccountOperating(ctx context.Context, q *dbsqlc.Queries, versionID string, data *DetailView) error {

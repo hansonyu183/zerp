@@ -1,6 +1,71 @@
 package aux
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
+
+func TestProductTypeDataUsesClosedBehaviorProfiles(t *testing.T) {
+	t.Parallel()
+	service := &Service{}
+	valid := map[string]any{
+		"name":            "溶剂原料",
+		"behaviorProfile": ProductBehaviorRawMaterial,
+		"description":     "使用原材料行为模板",
+	}
+
+	data, err := service.validateData(t.Context(), nil, EntityProductType, "", valid)
+	if err != nil {
+		t.Fatalf("validate product type: %v", err)
+	}
+	if data["behaviorProfile"] != ProductBehaviorRawMaterial {
+		t.Fatalf("behaviorProfile = %#v", data["behaviorProfile"])
+	}
+
+	unknown := cloneData(valid)
+	unknown["behaviorProfile"] = "CONFIGURABLE"
+	if _, err = service.validateData(t.Context(), nil, EntityProductType, "", unknown); err == nil {
+		t.Fatal("unknown product behavior profile was accepted")
+	}
+
+	unexpected := cloneData(valid)
+	unexpected["allowFormula"] = true
+	if _, err = service.validateData(t.Context(), nil, EntityProductType, "", unexpected); err == nil {
+		t.Fatal("arbitrary product behavior switch was accepted")
+	}
+}
+
+func TestProductTypeQueryRejectsUnknownBehaviorProfile(t *testing.T) {
+	t.Parallel()
+	service := &Service{}
+	_, err := service.Query(t.Context(), EntityProductType, QueryInput{
+		Page: 1, PageSize: 20, Filters: QueryFilters{BehaviorProfile: "CONFIGURABLE"},
+	})
+	var domainErr *DomainError
+	if !errors.As(err, &domainErr) || domainErr.Kind != ErrorValidation {
+		t.Fatalf("unknown behavior profile query error = %v", err)
+	}
+}
+
+func TestReferencedProductTypeKeepsBehaviorProfile(t *testing.T) {
+	t.Parallel()
+	current := map[string]any{
+		"name": "溶剂原料", "behaviorProfile": ProductBehaviorRawMaterial,
+		"description": "旧说明",
+	}
+	renamed := cloneData(current)
+	renamed["name"] = "液体原料"
+	renamed["description"] = "新说明"
+	if err := validateReferencedProductTypeUpdate(current, renamed); err != nil {
+		t.Fatalf("allow name and description update: %v", err)
+	}
+
+	reprofiled := cloneData(renamed)
+	reprofiled["behaviorProfile"] = ProductBehaviorPackaging
+	if err := validateReferencedProductTypeUpdate(current, reprofiled); err == nil {
+		t.Fatal("referenced product type behavior profile changed")
+	}
+}
 
 func TestSettlementMethodDataIsClosedAndFixed(t *testing.T) {
 	t.Parallel()

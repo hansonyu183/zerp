@@ -176,6 +176,16 @@ type queryLookup struct {
 }
 
 func (l queryLookup) Find(ctx context.Context, entity, code string) (string, bool, error) {
+	if auxiliaryEntity, ok := auxiliarySeedEntity(entity); ok {
+		var id string
+		err := l.pool.QueryRow(ctx, `SELECT object_id FROM aux_audit_events
+			WHERE entity=$1 AND request_id=$2
+			ORDER BY occurred_at,id LIMIT 1`, auxiliaryEntity, requestID(code, "create")).Scan(&id)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", false, nil
+		}
+		return id, err == nil, err
+	}
 	if entity == bob.EntitySettlementMethod {
 		var id string
 		err := l.pool.QueryRow(ctx, `SELECT object.id FROM aux_objects object
@@ -198,19 +208,36 @@ func (l queryLookup) Find(ctx context.Context, entity, code string) (string, boo
 }
 
 type Seeder struct {
-	service lifecycleService
-	lookup  objectLookup
+	service   lifecycleService
+	lookup    objectLookup
+	pool      *pgxpool.Pool
+	auxiliary *auxdomain.Service
 }
 
 func New(pool *pgxpool.Pool) *Seeder {
 	service := bob.NewService(pool)
 	auxiliary := auxdomain.NewService(pool)
+	service.SetAuxiliaryResolver(auxiliaryrefs.New(auxiliary))
 	supplier := bob.NewService(pool)
 	supplier.SetAuxiliaryResolver(auxiliaryrefs.New(auxiliary))
 	return &Seeder{
 		service: relationshipAwareLifecycleService{lifecycleService: service, relationships: service,
 			settlementRelationships: supplier, auxiliary: auxiliary, pool: pool},
-		lookup: queryLookup{queries: dbsqlc.New(pool), pool: pool},
+		lookup: queryLookup{queries: dbsqlc.New(pool), pool: pool}, pool: pool,
+		auxiliary: auxiliary,
+	}
+}
+
+func auxiliarySeedEntity(entity string) (string, bool) {
+	switch entity {
+	case bob.EntityCategory:
+		return auxdomain.EntityProductCategory, true
+	case bob.EntityDepartment:
+		return auxdomain.EntityDepartment, true
+	case bob.EntityPosition:
+		return auxdomain.EntityPosition, true
+	default:
+		return "", false
 	}
 }
 
@@ -288,21 +315,25 @@ var samples = [...]sample{
 	}, status: bob.StatusPending, salespersonEmployeeCode: "DEMO-EMP-001", settlementMethodCode: bob.SettlementTermMonthlyCurrent, operatingEntityCode: "DEMO-OPE-001"},
 	{entity: bob.EntityProduct, data: bob.CreateDetailInput{
 		Code: "DEMO-PROD-001", Name: "标准零件 A", Unit: "件",
-		Specification: "M20", Model: "A-20", Barcode: "DEMO-BARCODE-001", Remark: "演示标准产品",
+		DefaultPackagingSpec: "1",
+		Specification:        "M20", Model: "A-20", Barcode: "DEMO-BARCODE-001", Remark: "演示标准产品",
 	}, status: bob.StatusEffective, categoryCode: "DEMO-CAT-002"},
 	{entity: bob.EntityProduct, data: bob.CreateDetailInput{
 		Code: "DEMO-PROD-002", Name: "试制零件 B", Unit: "件",
-		Specification: "M30", Model: "B-30", Barcode: "DEMO-BARCODE-002",
+		DefaultPackagingSpec: "1",
+		Specification:        "M30", Model: "B-30", Barcode: "DEMO-BARCODE-002",
 	}, status: bob.StatusDraft, categoryCode: "DEMO-CAT-002"},
 	{entity: bob.EntityProduct, data: bob.CreateDetailInput{
 		Code: "DEMO-FG-001", Name: "标准自制品 A", Unit: "件",
-		Specification: "FG-A", Model: "A-100", ProductKind: bob.ProductKindStandardFinished,
+		DefaultPackagingSpec: "1",
+		Specification:        "FG-A", Model: "A-100",
 		Remark: "生产单固定测试成品",
 	}, status: bob.StatusEffective, categoryCode: "DEMO-CAT-002",
-		formulaMaterialCode: "DEMO-PROD-001", formulaBaseQuantity: "1.0", formulaMaterialQuantity: "2.0"},
+		formulaMaterialCode: "DEMO-PROD-001", formulaBaseQuantity: "1", formulaMaterialQuantity: "2"},
 	{entity: bob.EntityProduct, data: bob.CreateDetailInput{
 		Code: "DEMO-FG-002", Name: "客户定制品 B", Unit: "件",
-		Specification: "FG-B", Model: "B-200", ProductKind: bob.ProductKindCustomFinished,
+		DefaultPackagingSpec: "1",
+		Specification:        "FG-B", Model: "B-200",
 		Remark: "生产配货固定测试成品",
 	}, status: bob.StatusEffective, categoryCode: "DEMO-CAT-002"},
 	{entity: bob.EntityService, data: bob.CreateDetailInput{
@@ -368,6 +399,11 @@ const (
 )
 
 func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) {
+	if s.auxiliary != nil {
+		if entity, ok := auxiliarySeedEntity(item.entity); ok {
+			return s.seedAuxiliaryOne(ctx, entity, item)
+		}
+	}
 	resolve := func(entity, code, label string) (string, error) {
 		if code == "" {
 			return "", nil
@@ -421,6 +457,40 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 			return 0, err
 		}
 	}
+	if item.entity == bob.EntityProduct {
+		profile := "RAW_MATERIAL"
+		if item.data.Code == "DEMO-FG-001" {
+			profile = "STANDARD_FINISHED"
+		}
+		if item.data.Code == "DEMO-FG-002" {
+			profile = "CUSTOM_FINISHED"
+		}
+		if s.pool == nil {
+			item.data.ProductTypeID = demoProductTypeID(profile)
+		} else if err := s.pool.QueryRow(ctx, `
+			SELECT object.id FROM aux_objects object JOIN aux_versions version ON version.id=object.current_version_id
+			WHERE object.entity='product-type' AND object.enabled AND version.data->>'behaviorProfile'=$1
+			ORDER BY object.code LIMIT 1`, profile).Scan(&item.data.ProductTypeID); err != nil {
+			return 0, fmt.Errorf("resolve demo product type: %w", err)
+		}
+		if s.pool != nil {
+			item.data.Unit = ""
+		}
+		item.data.DefaultInputUnitID = "01JAVX00000000000000000013"
+		item.data.PricingUnitID = "01JAVX00000000000000000011"
+		item.data.UnitConversions = []bob.ProductUnitConversion{
+			{Unit: bob.MeasurementUnitSnapshot{ObjectID: "01JAVX00000000000000000013"}, Factor: "1"},
+			{Unit: bob.MeasurementUnitSnapshot{ObjectID: "01JAVX00000000000000000011"}, Factor: "1"},
+		}
+	}
+	if item.entity == bob.EntityService && s.pool != nil {
+		switch item.data.Unit {
+		case "年":
+			item.data.InventoryUnitID = "01JAVX00000000000000000015"
+		default:
+			item.data.InventoryUnitID = "01JAVX00000000000000000017"
+		}
+	}
 	if item.formulaMaterialCode != "" {
 		materialObjectID, resolveErr := resolve(
 			bob.EntityProduct,
@@ -442,13 +512,13 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 			return 0, fmt.Errorf("formula material %s is not effective", item.formulaMaterialCode)
 		}
 		item.data.Formula = &bob.ProductFormula{
-			BaseOutputQuantity: item.formulaBaseQuantity,
+			Output: bob.QuantitySnapshot{EnteredQuantity: item.formulaBaseQuantity, EnteredUnit: bob.MeasurementUnitSnapshot{ObjectID: "01JAVX00000000000000000013"}, BaseQuantity: item.formulaBaseQuantity},
 			Components: []bob.ProductFormulaComponent{{
 				Material: bob.FormulaMaterialReference{
 					ObjectID:  material.ObjectID,
 					VersionID: material.Version.VersionID,
 				},
-				Quantity: item.formulaMaterialQuantity,
+				Quantity: bob.QuantitySnapshot{EnteredQuantity: item.formulaMaterialQuantity, EnteredUnit: bob.MeasurementUnitSnapshot{ObjectID: "01JAVX00000000000000000013"}, BaseQuantity: item.formulaMaterialQuantity}, ResolutionStatus: "CURRENT",
 			}},
 		}
 	}
@@ -533,6 +603,56 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 	return outcome, nil
 }
 
+func (s *Seeder) seedAuxiliaryOne(
+	ctx context.Context,
+	entity string,
+	item sample,
+) (seedOutcome, error) {
+	if _, found, err := s.lookup.Find(ctx, item.entity, item.data.Code); err != nil {
+		return 0, fmt.Errorf("find existing auxiliary object: %w", err)
+	} else if found {
+		return outcomeSkipped, nil
+	}
+
+	data := map[string]any{
+		"name":        item.data.Name,
+		"description": item.data.Description,
+	}
+	if item.parentCode != "" {
+		parentID, found, err := s.lookup.Find(ctx, item.entity, item.parentCode)
+		if err != nil {
+			return 0, fmt.Errorf("find auxiliary parent: %w", err)
+		}
+		if !found {
+			return 0, fmt.Errorf("parent %s is missing", item.parentCode)
+		}
+		data["parentId"] = parentID
+	}
+	if _, err := s.auxiliary.Create(
+		ctx,
+		entity,
+		auxdomain.CreateInput{Data: auxdomain.CreateData{Data: data}},
+		submitterID,
+		requestID(item.data.Code, "create"),
+	); err != nil {
+		return 0, err
+	}
+	return outcomeCreated, nil
+}
+
+func demoProductTypeID(profile string) string {
+	switch profile {
+	case "STANDARD_FINISHED":
+		return "01JPTP00000000000000000003"
+	case "CUSTOM_FINISHED":
+		return "01JPTP00000000000000000005"
+	case "PACKAGING":
+		return "01JPTP00000000000000000007"
+	default:
+		return "01JPTP00000000000000000001"
+	}
+}
+
 func matches(item sample, view bob.ObjectView) bool {
 	expectedCustomerType := deref(item.data.CustomerType)
 	if item.entity == bob.EntityCustomerAccount && expectedCustomerType == "" {
@@ -581,15 +701,7 @@ func matches(item sample, view bob.ObjectView) bool {
 		view.Data.MonthOffset == item.data.MonthOffset &&
 		equalInt32Pointer(view.Data.DayOfMonth, item.data.DayOfMonth) &&
 		view.Data.DayOffset == item.data.DayOffset &&
-		view.Data.ProductKind == expectedProductKind(item) &&
 		formulaMatches(view.Data.Formula, item.data.Formula)
-}
-
-func expectedProductKind(item sample) string {
-	if item.entity == bob.EntityProduct && item.data.ProductKind == "" {
-		return bob.ProductKindRawMaterial
-	}
-	return item.data.ProductKind
 }
 
 func expectedMonthlyClosingDay(item sample) int32 {
@@ -603,7 +715,7 @@ func formulaMatches(actual, expected *bob.ProductFormula) bool {
 	if actual == nil || expected == nil {
 		return actual == nil && expected == nil
 	}
-	if actual.BaseOutputQuantity != expected.BaseOutputQuantity ||
+	if actual.Output.BaseQuantity != expected.Output.BaseQuantity ||
 		len(actual.Components) != len(expected.Components) {
 		return false
 	}
@@ -612,7 +724,7 @@ func formulaMatches(actual, expected *bob.ProductFormula) bool {
 		expectedComponent := expected.Components[index]
 		if actualComponent.Material.ObjectID != expectedComponent.Material.ObjectID ||
 			actualComponent.Material.VersionID != expectedComponent.Material.VersionID ||
-			actualComponent.Quantity != expectedComponent.Quantity {
+			actualComponent.Quantity.BaseQuantity != expectedComponent.Quantity.BaseQuantity {
 			return false
 		}
 	}
@@ -729,9 +841,13 @@ func detailInput(entity string, input bob.CreateDetailInput) bob.DetailInput {
 		result.Model = bob.Optional(input.Model)
 		result.Barcode = bob.Optional(input.Barcode)
 		result.Remark = bob.Optional(input.Remark)
-		if input.ProductKind != "" {
-			result.ProductKind = stringPointer(input.ProductKind)
+		result.ProductTypeID = bob.Optional(input.ProductTypeID)
+		result.DefaultInputUnitID = bob.Optional(input.DefaultInputUnitID)
+		result.PricingUnitID = bob.Optional(input.PricingUnitID)
+		if input.UnitConversions != nil {
+			result.UnitConversions = &input.UnitConversions
 		}
+		result.DefaultPackagingSpec = bob.Optional(input.DefaultPackagingSpec)
 		result.Formula = input.Formula
 	case bob.EntityService:
 		result.CategoryID = bob.Optional(input.CategoryID)

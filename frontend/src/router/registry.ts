@@ -269,6 +269,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/aux/product-category/ProductCategory.vue'),
   }),
   registerPage('aux', {
+    entity: 'product-type',
+    entityTitle: '产品类型',
+    icon: 'mdi-tag-outline',
+    order: 15,
+    component: () => import('@/pages/aux/product-type/ProductType.vue'),
+  }),
+  registerPage('aux', {
     entity: 'department',
     entityTitle: '部门',
     icon: 'mdi-office-building-outline',

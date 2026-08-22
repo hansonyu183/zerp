@@ -6,6 +6,7 @@ import {
   type VoucherDraftForm,
   type VoucherEntityConfig,
   type VoucherProductLineView,
+  type ProductBehaviorProfile,
   type VoucherProductionOutputDraft,
   type VoucherReference,
   type VoucherReferenceView,
@@ -14,10 +15,10 @@ import type { FormulaMaterialReference } from '@/components/formula'
 import { inputReference } from './form'
 
 interface FormulaView {
-  baseOutputQuantity: string
+  output: { baseQuantity: string }
   components: Array<{
     material: FormulaMaterialReference
-    quantity: string
+    quantity: { baseQuantity: string }
   }>
 }
 
@@ -34,14 +35,14 @@ function formatMicros(value: bigint): string {
 }
 
 export function productionSuggestedQuantity(
-  formulaQuantity: string,
-  baseOutputQuantity: string,
-  outputQuantity: string,
+  formulaBaseQuantity: string,
+  formulaOutputBaseQuantity: string,
+  outputBaseQuantity: string,
   lossRate: string,
 ): string | null {
-  const formula = parseFixed(formulaQuantity, 6)
-  const base = parseFixed(baseOutputQuantity, 6)
-  const output = parseFixed(outputQuantity, 6)
+  const formula = parseFixed(formulaBaseQuantity, 6)
+  const base = parseFixed(formulaOutputBaseQuantity, 6)
+  const output = parseFixed(outputBaseQuantity, 6)
   const loss = parseFixed(lossRate, 6, true)
   if (
     formula === null ||
@@ -62,34 +63,81 @@ export function productionSuggestedQuantity(
 function reference(
   value: FormulaMaterialReference | VoucherReferenceView,
 ): VoucherReference {
+  const { behaviorProfile: rawBehaviorProfile, ...referenceValue } = value
+  const behaviorProfile = productBehaviorProfile(rawBehaviorProfile)
   return {
-    ...value,
+    ...referenceValue,
     entity: value.entity ?? 'product',
+    ...(behaviorProfile ? { behaviorProfile } : {}),
   }
+}
+
+function productBehaviorProfile(
+  value: string | undefined,
+): ProductBehaviorProfile | undefined {
+  return value === 'RAW_MATERIAL' ||
+    value === 'STANDARD_FINISHED' ||
+    value === 'CUSTOM_FINISHED' ||
+    value === 'PACKAGING'
+    ? value
+    : undefined
+}
+
+function resolvedFormula(
+  formula: VoucherProductLineView['formula'],
+): FormulaView | null {
+  if (!formula || formula.components.some((component) => !component.material)) {
+    return null
+  }
+  return {
+    output: formula.output,
+    components: formula.components.map((component) => ({
+      material: component.material!,
+      quantity: component.quantity,
+    })),
+  }
+}
+
+function defaultInputUnit(
+  product: VoucherReference,
+): VoucherProductionOutputDraft['enteredUnit'] {
+  return (
+    product.unitConversions?.find(
+      (conversion) => conversion.unit.objectId === product.defaultInputUnitId,
+    )?.unit ?? null
+  )
 }
 
 export function productionLineFromFormula(
   product: VoucherReference,
   sourceOrderLineId: string,
-  outputQuantity: string,
+  baseQuantity: string,
   formula: FormulaView,
+  entryAudit?: Pick<
+    VoucherProductionOutputDraft,
+    'enteredQuantity' | 'enteredUnit'
+  >,
 ): VoucherProductionOutputDraft {
   const line: VoucherProductionOutputDraft = {
     key: crypto.randomUUID(),
     sourceOrderLineId,
     product,
-    outputQuantity,
+    enteredQuantity: entryAudit?.enteredQuantity ?? baseQuantity,
+    enteredUnit: entryAudit?.enteredUnit ?? defaultInputUnit(product),
+    baseQuantity,
     lossRate: '0',
-    formulaBaseOutputQuantity: formula.baseOutputQuantity,
+    formulaBaseQuantity: formula.output.baseQuantity,
     remark: '',
     materials: formula.components.map((component, index) => ({
       key: crypto.randomUUID(),
       formulaLineNo: index + 1,
       formulaMaterial: reference(component.material),
-      formulaQuantity: component.quantity,
-      suggestedQuantity: '',
+      formulaBaseQuantity: component.quantity.baseQuantity,
+      suggestedBaseQuantity: '',
       actualMaterial: reference(component.material),
-      actualQuantity: '',
+      actualEnteredQuantity: '',
+      actualEnteredUnit: null,
+      actualBaseQuantity: '',
       adjustmentReason: '',
     })),
   }
@@ -100,19 +148,19 @@ export function productionLineFromFormula(
 export function productionLineFromOrderLine(
   line: VoucherProductLineView,
 ): VoucherProductionOutputDraft | null {
-  if (
-    !line.formula ||
-    !['STANDARD_FINISHED', 'CUSTOM_FINISHED'].includes(
-      line.product.productKind ?? '',
-    )
-  ) {
+  const formula = resolvedFormula(line.formula)
+  if (!formula || line.product.behaviorProfile !== 'STANDARD_FINISHED') {
     return null
   }
   return productionLineFromFormula(
     reference(line.product),
     line.lineId,
-    line.orderedQuantity,
-    line.formula,
+    line.baseQuantity,
+    formula,
+    {
+      enteredQuantity: line.enteredQuantity,
+      enteredUnit: line.enteredUnit,
+    },
   )
 }
 
@@ -121,9 +169,11 @@ export function emptyProductionLine(): VoucherProductionOutputDraft {
     key: crypto.randomUUID(),
     sourceOrderLineId: '',
     product: null,
-    outputQuantity: '',
+    enteredQuantity: '',
+    enteredUnit: null,
+    baseQuantity: '',
     lossRate: '0',
-    formulaBaseOutputQuantity: '',
+    formulaBaseQuantity: '',
     remark: '',
     materials: [],
   }
@@ -133,17 +183,20 @@ export function recalculateProductionLine(
   line: VoucherProductionOutputDraft,
 ): void {
   for (const material of line.materials) {
-    const previous = material.suggestedQuantity
+    const previous = material.suggestedBaseQuantity
     const suggested =
       productionSuggestedQuantity(
-        material.formulaQuantity,
-        line.formulaBaseOutputQuantity,
-        line.outputQuantity,
+        material.formulaBaseQuantity,
+        line.formulaBaseQuantity,
+        line.baseQuantity,
         line.lossRate,
       ) ?? ''
-    material.suggestedQuantity = suggested
-    if (!material.actualQuantity || material.actualQuantity === previous) {
-      material.actualQuantity = suggested
+    material.suggestedBaseQuantity = suggested
+    if (
+      !material.actualBaseQuantity ||
+      material.actualBaseQuantity === previous
+    ) {
+      material.actualBaseQuantity = suggested
     }
   }
 }
@@ -165,7 +218,8 @@ export function useVoucherProduction(
     requestVersions.set(current.key, version)
     Object.assign(current, {
       product,
-      formulaBaseOutputQuantity: '',
+      enteredUnit: product ? defaultInputUnit(product) : null,
+      formulaBaseQuantity: '',
       materials: [],
       formulaError: '',
       formulaLoading: Boolean(product),
@@ -174,7 +228,7 @@ export function useVoucherProduction(
     try {
       const { data } = await apiClient.post<
         FormulaDefaultView,
-        { product: { objectId: string; versionId: string } }
+        { product: { objectId: string } }
       >('vou/self-production/formula-default', {
         product: inputReference(product)!,
       })
@@ -193,10 +247,10 @@ export function useVoucherProduction(
       const replacement = productionLineFromFormula(
         product,
         '',
-        line.outputQuantity,
+        line.baseQuantity,
         data.formula,
       )
-      line.formulaBaseOutputQuantity = replacement.formulaBaseOutputQuantity
+      line.formulaBaseQuantity = replacement.formulaBaseQuantity
       line.materials = replacement.materials
     } catch (error) {
       const line = form.value.productionLines[index]

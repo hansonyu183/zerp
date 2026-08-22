@@ -372,7 +372,7 @@ WITH trade AS (
       AND voucher.business_date<=$1
 ), precutover_return_baseline AS (
     SELECT return_line.source_signoff_line_id,
-           sum(return_line.quantity_micros)::bigint AS returned_quantity_micros,
+		   sum(return_line.base_quantity_micros)::bigint AS returned_quantity_micros,
            sum(return_line.line_amount_cents)::bigint AS returned_amount_cents
     FROM vou_sale_return_lines return_line
     JOIN vou_sale_return_details return_detail
@@ -388,10 +388,10 @@ WITH trade AS (
     SELECT
         return_detail.customer_object_id AS counterparty_object_id,
         signoff_line.id AS source_signoff_line_id,
-        signoff_line.signed_qty_micros AS original_quantity_micros,
+		signoff_line.signed_base_quantity_micros AS original_quantity_micros,
         signoff_line.line_amount_cents AS original_amount_cents,
         return_document.business_date AS return_date,
-        sum(return_line.quantity_micros)::bigint AS returned_quantity_micros
+		sum(return_line.base_quantity_micros)::bigint AS returned_quantity_micros
     FROM vou_sale_return_lines return_line
     JOIN vou_sale_return_details return_detail
       ON return_detail.document_id=return_line.document_id
@@ -411,7 +411,7 @@ WITH trade AS (
       AND return_document.business_date >= $2
       AND return_document.business_date <= $1
     GROUP BY return_detail.customer_object_id,signoff_line.id,
-             signoff_line.signed_qty_micros,signoff_line.line_amount_cents,
+			 signoff_line.signed_base_quantity_micros,signoff_line.line_amount_cents,
              return_document.business_date
 ), precutover_cumulative_return AS (
     SELECT precutover_daily_return.counterparty_object_id, precutover_daily_return.source_signoff_line_id, precutover_daily_return.original_quantity_micros, precutover_daily_return.original_amount_cents, precutover_daily_return.return_date, precutover_daily_return.returned_quantity_micros,
@@ -523,7 +523,7 @@ const listIntermediaryReturnAdjustmentRows = `-- name: ListIntermediaryReturnAdj
 SELECT
     return_line.id AS return_line_id,
     return_line.source_signoff_line_id,
-    return_line.quantity_micros,
+	return_line.base_quantity_micros,
     return_line.line_amount_cents,
     return_document.id AS return_document_id,
     return_document.document_no AS return_document_no,
@@ -574,7 +574,7 @@ type ListIntermediaryReturnAdjustmentRowsParams struct {
 type ListIntermediaryReturnAdjustmentRowsRow struct {
 	ReturnLineID          string      `db:"return_line_id" json:"return_line_id"`
 	SourceSignoffLineID   string      `db:"source_signoff_line_id" json:"source_signoff_line_id"`
-	QuantityMicros        int64       `db:"quantity_micros" json:"quantity_micros"`
+	BaseQuantityMicros    int64       `db:"base_quantity_micros" json:"base_quantity_micros"`
 	LineAmountCents       int64       `db:"line_amount_cents" json:"line_amount_cents"`
 	ReturnDocumentID      string      `db:"return_document_id" json:"return_document_id"`
 	ReturnDocumentNo      string      `db:"return_document_no" json:"return_document_no"`
@@ -597,7 +597,7 @@ func (q *Queries) ListIntermediaryReturnAdjustmentRows(ctx context.Context, arg 
 		if err := rows.Scan(
 			&i.ReturnLineID,
 			&i.SourceSignoffLineID,
-			&i.QuantityMicros,
+			&i.BaseQuantityMicros,
 			&i.LineAmountCents,
 			&i.ReturnDocumentID,
 			&i.ReturnDocumentNo,
@@ -623,10 +623,10 @@ WITH daily_return AS (
         signoff.id AS signoff_document_id,
         signoff_detail.customer_object_id,
         signoff_line.id AS source_signoff_line_id,
-        signoff_line.signed_qty_micros AS original_quantity_micros,
+		signoff_line.signed_base_quantity_micros AS original_quantity_micros,
         signoff_line.line_amount_cents AS original_amount_cents,
         return_document.business_date AS return_date,
-        sum(return_line.quantity_micros)::bigint AS returned_quantity_micros
+		sum(return_line.base_quantity_micros)::bigint AS returned_quantity_micros
     FROM vou_sale_return_lines return_line
     JOIN vou_sale_return_details return_detail
       ON return_detail.document_id=return_line.document_id
@@ -648,7 +648,7 @@ WITH daily_return AS (
       AND signoff.currency='CNY'
       AND return_document.business_date <= $2
     GROUP BY signoff.id,signoff_detail.customer_object_id,signoff_line.id,
-             signoff_line.signed_qty_micros,signoff_line.line_amount_cents,
+			 signoff_line.signed_base_quantity_micros,signoff_line.line_amount_cents,
              return_document.business_date
 ), cumulative_return AS (
     SELECT daily_return.signoff_document_id, daily_return.customer_object_id, daily_return.source_signoff_line_id, daily_return.original_quantity_micros, daily_return.original_amount_cents, daily_return.return_date, daily_return.returned_quantity_micros,
@@ -718,7 +718,7 @@ func (q *Queries) ListIntermediarySignoffReturnTimelineRows(ctx context.Context,
 const listIntermediarySignoffSourceRows = `-- name: ListIntermediarySignoffSourceRows :many
 WITH returned AS (
     SELECT return_line.source_signoff_line_id,
-           sum(return_line.quantity_micros)::bigint AS quantity_micros
+		   sum(return_line.base_quantity_micros)::bigint AS quantity_micros
     FROM vou_sale_return_lines return_line
     JOIN vou_sale_return_details return_detail
       ON return_detail.document_id=return_line.document_id
@@ -752,17 +752,17 @@ SELECT
     line.product_version_id,
     line.product_code,
     line.product_name,
-    line.product_unit,
-    order_line.product_kind,
-    (line.signed_qty_micros-COALESCE(returned.quantity_micros,0))::bigint AS signed_qty_micros,
-    order_line.pricing_quantity_per_inventory_unit_micros,
+	line.entered_unit_symbol,
+    order_line.behavior_profile,
+	(line.signed_base_quantity_micros-COALESCE(returned.quantity_micros,0))::bigint AS signed_base_quantity_micros,
+    order_line.default_packaging_spec_micros,
     line.unit_price_cents,
     order_line.reference_unit_price_cents,
     order_line.settlement_surcharge_cents,
     customer_version.rebate_unit_price_cents,
     (line.line_amount_cents-COALESCE(round(
         line.line_amount_cents::numeric*returned.quantity_micros::numeric/
-        NULLIF(line.signed_qty_micros,0)
+		NULLIF(line.signed_base_quantity_micros,0)
     )::bigint,0))::bigint AS line_amount_cents,
     order_detail.settlement_term_code,
     order_detail.special_approval,
@@ -789,39 +789,39 @@ type ListIntermediarySignoffSourceRowsParams struct {
 }
 
 type ListIntermediarySignoffSourceRowsRow struct {
-	SourceSignoffLineID                   string      `db:"source_signoff_line_id" json:"source_signoff_line_id"`
-	SignoffDocumentID                     string      `db:"signoff_document_id" json:"signoff_document_id"`
-	SignoffDocumentNo                     string      `db:"signoff_document_no" json:"signoff_document_no"`
-	SignoffDate                           pgtype.Date `db:"signoff_date" json:"signoff_date"`
-	DueDate                               pgtype.Date `db:"due_date" json:"due_date"`
-	OrderDocumentID                       string      `db:"order_document_id" json:"order_document_id"`
-	OrderDocumentNo                       string      `db:"order_document_no" json:"order_document_no"`
-	OrderDate                             pgtype.Date `db:"order_date" json:"order_date"`
-	CustomerObjectID                      string      `db:"customer_object_id" json:"customer_object_id"`
-	CustomerVersionID                     string      `db:"customer_version_id" json:"customer_version_id"`
-	CustomerCode                          string      `db:"customer_code" json:"customer_code"`
-	CustomerName                          string      `db:"customer_name" json:"customer_name"`
-	SalesAttributionType                  string      `db:"sales_attribution_type" json:"sales_attribution_type"`
-	SalesAttributionSubjectObjectID       string      `db:"sales_attribution_subject_object_id" json:"sales_attribution_subject_object_id"`
-	SalesAttributionSubjectVersionID      string      `db:"sales_attribution_subject_version_id" json:"sales_attribution_subject_version_id"`
-	SalesAttributionSubjectCode           string      `db:"sales_attribution_subject_code" json:"sales_attribution_subject_code"`
-	SalesAttributionSubjectName           string      `db:"sales_attribution_subject_name" json:"sales_attribution_subject_name"`
-	ProductObjectID                       string      `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID                      string      `db:"product_version_id" json:"product_version_id"`
-	ProductCode                           string      `db:"product_code" json:"product_code"`
-	ProductName                           string      `db:"product_name" json:"product_name"`
-	ProductUnit                           string      `db:"product_unit" json:"product_unit"`
-	ProductKind                           string      `db:"product_kind" json:"product_kind"`
-	SignedQtyMicros                       int64       `db:"signed_qty_micros" json:"signed_qty_micros"`
-	PricingQuantityPerInventoryUnitMicros int64       `db:"pricing_quantity_per_inventory_unit_micros" json:"pricing_quantity_per_inventory_unit_micros"`
-	UnitPriceCents                        int64       `db:"unit_price_cents" json:"unit_price_cents"`
-	ReferenceUnitPriceCents               int64       `db:"reference_unit_price_cents" json:"reference_unit_price_cents"`
-	SettlementSurchargeCents              int64       `db:"settlement_surcharge_cents" json:"settlement_surcharge_cents"`
-	RebateUnitPriceCents                  int64       `db:"rebate_unit_price_cents" json:"rebate_unit_price_cents"`
-	LineAmountCents                       int64       `db:"line_amount_cents" json:"line_amount_cents"`
-	SettlementTermCode                    string      `db:"settlement_term_code" json:"settlement_term_code"`
-	SpecialApproval                       bool        `db:"special_approval" json:"special_approval"`
-	FifoLineAmountCents                   int64       `db:"fifo_line_amount_cents" json:"fifo_line_amount_cents"`
+	SourceSignoffLineID              string      `db:"source_signoff_line_id" json:"source_signoff_line_id"`
+	SignoffDocumentID                string      `db:"signoff_document_id" json:"signoff_document_id"`
+	SignoffDocumentNo                string      `db:"signoff_document_no" json:"signoff_document_no"`
+	SignoffDate                      pgtype.Date `db:"signoff_date" json:"signoff_date"`
+	DueDate                          pgtype.Date `db:"due_date" json:"due_date"`
+	OrderDocumentID                  string      `db:"order_document_id" json:"order_document_id"`
+	OrderDocumentNo                  string      `db:"order_document_no" json:"order_document_no"`
+	OrderDate                        pgtype.Date `db:"order_date" json:"order_date"`
+	CustomerObjectID                 string      `db:"customer_object_id" json:"customer_object_id"`
+	CustomerVersionID                string      `db:"customer_version_id" json:"customer_version_id"`
+	CustomerCode                     string      `db:"customer_code" json:"customer_code"`
+	CustomerName                     string      `db:"customer_name" json:"customer_name"`
+	SalesAttributionType             string      `db:"sales_attribution_type" json:"sales_attribution_type"`
+	SalesAttributionSubjectObjectID  string      `db:"sales_attribution_subject_object_id" json:"sales_attribution_subject_object_id"`
+	SalesAttributionSubjectVersionID string      `db:"sales_attribution_subject_version_id" json:"sales_attribution_subject_version_id"`
+	SalesAttributionSubjectCode      string      `db:"sales_attribution_subject_code" json:"sales_attribution_subject_code"`
+	SalesAttributionSubjectName      string      `db:"sales_attribution_subject_name" json:"sales_attribution_subject_name"`
+	ProductObjectID                  string      `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID                 string      `db:"product_version_id" json:"product_version_id"`
+	ProductCode                      string      `db:"product_code" json:"product_code"`
+	ProductName                      string      `db:"product_name" json:"product_name"`
+	EnteredUnitSymbol                string      `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BehaviorProfile                  string      `db:"behavior_profile" json:"behavior_profile"`
+	SignedBaseQuantityMicros         int64       `db:"signed_base_quantity_micros" json:"signed_base_quantity_micros"`
+	DefaultPackagingSpecMicros       *int64      `db:"default_packaging_spec_micros" json:"default_packaging_spec_micros"`
+	UnitPriceCents                   int64       `db:"unit_price_cents" json:"unit_price_cents"`
+	ReferenceUnitPriceCents          int64       `db:"reference_unit_price_cents" json:"reference_unit_price_cents"`
+	SettlementSurchargeCents         int64       `db:"settlement_surcharge_cents" json:"settlement_surcharge_cents"`
+	RebateUnitPriceCents             int64       `db:"rebate_unit_price_cents" json:"rebate_unit_price_cents"`
+	LineAmountCents                  int64       `db:"line_amount_cents" json:"line_amount_cents"`
+	SettlementTermCode               string      `db:"settlement_term_code" json:"settlement_term_code"`
+	SpecialApproval                  bool        `db:"special_approval" json:"special_approval"`
+	FifoLineAmountCents              int64       `db:"fifo_line_amount_cents" json:"fifo_line_amount_cents"`
 }
 
 func (q *Queries) ListIntermediarySignoffSourceRows(ctx context.Context, arg ListIntermediarySignoffSourceRowsParams) ([]ListIntermediarySignoffSourceRowsRow, error) {
@@ -855,10 +855,10 @@ func (q *Queries) ListIntermediarySignoffSourceRows(ctx context.Context, arg Lis
 			&i.ProductVersionID,
 			&i.ProductCode,
 			&i.ProductName,
-			&i.ProductUnit,
-			&i.ProductKind,
-			&i.SignedQtyMicros,
-			&i.PricingQuantityPerInventoryUnitMicros,
+			&i.EnteredUnitSymbol,
+			&i.BehaviorProfile,
+			&i.SignedBaseQuantityMicros,
+			&i.DefaultPackagingSpecMicros,
 			&i.UnitPriceCents,
 			&i.ReferenceUnitPriceCents,
 			&i.SettlementSurchargeCents,

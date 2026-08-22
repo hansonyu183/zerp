@@ -9,6 +9,7 @@ import (
 
 const (
 	EntityProductCategory  = "product-category"
+	EntityProductType      = "product-type"
 	EntityDepartment       = "department"
 	EntityPosition         = "position"
 	EntitySettlementMethod = "settlement-method"
@@ -22,6 +23,7 @@ const (
 
 var entities = [...]string{
 	EntityProductCategory,
+	EntityProductType,
 	EntityDepartment,
 	EntityPosition,
 	EntitySettlementMethod,
@@ -31,6 +33,22 @@ var entities = [...]string{
 	EntityMeasurementUnit,
 	EntityIncomeExpense,
 	EntityAssetCategory,
+}
+
+type ProductBehaviorProfile string
+
+const (
+	ProductBehaviorRawMaterial      ProductBehaviorProfile = "RAW_MATERIAL"
+	ProductBehaviorStandardFinished ProductBehaviorProfile = "STANDARD_FINISHED"
+	ProductBehaviorCustomFinished   ProductBehaviorProfile = "CUSTOM_FINISHED"
+	ProductBehaviorPackaging        ProductBehaviorProfile = "PACKAGING"
+)
+
+var productBehaviorProfiles = map[ProductBehaviorProfile]struct{}{
+	ProductBehaviorRawMaterial:      {},
+	ProductBehaviorStandardFinished: {},
+	ProductBehaviorCustomFinished:   {},
+	ProductBehaviorPackaging:        {},
 }
 
 type ErrorKind int
@@ -100,6 +118,7 @@ type DeleteInput = RevisionInput
 type QueryFilters struct {
 	Keyword            string `json:"keyword,omitempty"`
 	Enabled            *bool  `json:"enabled,omitempty"`
+	BehaviorProfile    string `json:"behaviorProfile,omitempty"`
 	ParentID           string `json:"parentId,omitempty"`
 	RootOnly           bool   `json:"rootOnly,omitempty"`
 	DictionaryTypeCode string `json:"dictionaryTypeCode,omitempty"`

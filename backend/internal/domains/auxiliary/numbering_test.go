@@ -6,6 +6,7 @@ func TestObjectPrefixes(t *testing.T) {
 	t.Parallel()
 	expected := map[string]string{
 		EntityProductCategory:  "PCT",
+		EntityProductType:      "PTP",
 		EntityDepartment:       "DEP",
 		EntityPosition:         "POS",
 		EntitySettlementMethod: "STM",

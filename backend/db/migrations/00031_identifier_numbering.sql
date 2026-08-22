@@ -93,6 +93,7 @@ SELECT
     code,
     CASE entity
         WHEN 'product-category' THEN 'PCT'
+        WHEN 'product-type' THEN 'PTP'
         WHEN 'department' THEN 'DEP'
         WHEN 'position' THEN 'POS'
         WHEN 'settlement-method' THEN 'STM'

@@ -10,9 +10,10 @@ import (
 
 func TestSystemIdentityMayApproveAutomaticBOBSeedIntegration(t *testing.T) {
 	service := NewService(integrationPool(t))
-	created, err := service.Create(t.Context(), EntityProduct, CreateInput{Data: CreateDetailInput{
-		Name: "System Generated Product", Unit: "unit",
-	}}, systemidentity.UserID, "system-bob-create")
+	systemData := CreateDetailInput{Name: "System Generated Product"}
+	completeRawProductIntegration(service, &systemData)
+	service.SetAuxiliaryResolver(integrationAuxiliaryResolver{})
+	created, err := service.Create(t.Context(), EntityProduct, CreateInput{Data: systemData}, systemidentity.UserID, "system-bob-create")
 	if err != nil {
 		t.Fatalf("create automatic BOB object: %v", err)
 	}
@@ -29,9 +30,9 @@ func TestSystemIdentityMayApproveAutomaticBOBSeedIntegration(t *testing.T) {
 		t.Fatalf("approve automatic BOB object: result=%+v err=%v", approved, err)
 	}
 
-	humanCreated, err := service.Create(t.Context(), EntityProduct, CreateInput{Data: CreateDetailInput{
-		Name: "Human Product", Unit: "unit",
-	}}, integrationActorOne, "human-bob-create")
+	humanData := CreateDetailInput{Name: "Human Product"}
+	completeRawProductIntegration(service, &humanData)
+	humanCreated, err := service.Create(t.Context(), EntityProduct, CreateInput{Data: humanData}, integrationActorOne, "human-bob-create")
 	if err != nil {
 		t.Fatalf("create human BOB object: %v", err)
 	}

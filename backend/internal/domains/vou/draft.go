@@ -165,7 +165,7 @@ func applySettlementTerms(entity string, draft *validatedDraft, refs resolvedDra
 	for index := range draft.ProductLines {
 		line := &draft.ProductLines[index]
 		product := refs.Products[index].Data
-		if entity != EntitySaleOrder || product.ProductKind == bobdomain.ProductKindPackaging {
+		if entity != EntitySaleOrder || product.BehaviorProfile == bobdomain.ProductBehaviorPackaging {
 			line.SettlementSurcharge = 0
 		} else if !line.SurchargeProvided {
 			line.SettlementSurcharge = defaultSurcharge
@@ -188,21 +188,70 @@ func applySettlementTerms(entity string, draft *validatedDraft, refs resolvedDra
 	return nil
 }
 
-func pricingQuantityMicros(inventoryQuantity int64, product bobdomain.DetailView) (int64, error) {
-	conversionValue := product.PricingQuantityPerInventoryUnit
+func pricingQuantityMicros(baseQuantity int64, product bobdomain.DetailView) (int64, error) {
+	conversionValue := productConversionFactor(product, product.PricingUnitID)
 	if conversionValue == "" {
-		conversionValue = "1"
+		return 0, domainError(ErrorConflict, "product pricing unit conversion is missing", nil, nil)
 	}
 	conversion, err := parseFixed(conversionValue, 6, false)
 	if err != nil {
 		return 0, domainError(ErrorConflict, "product pricing conversion is invalid", nil, err)
 	}
-	value := new(big.Int).Mul(big.NewInt(inventoryQuantity), big.NewInt(conversion))
-	value.Quo(value, big.NewInt(1_000_000))
+	value := new(big.Int).Mul(big.NewInt(baseQuantity), big.NewInt(1_000_000))
+	value.Quo(value, big.NewInt(conversion))
 	if !value.IsInt64() || value.Sign() <= 0 {
 		return 0, domainError(ErrorValidation, "pricing quantity is out of range", nil, nil)
 	}
 	return value.Int64(), nil
+}
+
+func productConversionFactor(product bobdomain.DetailView, unitID string) string {
+	for _, conversion := range product.UnitConversions {
+		if conversion.Unit.ObjectID == unitID {
+			return conversion.Factor
+		}
+	}
+	return ""
+}
+
+func defaultUnitSymbol(product bobdomain.DetailView) string {
+	for _, conversion := range product.UnitConversions {
+		if conversion.Unit.ObjectID != product.DefaultInputUnitID {
+			continue
+		}
+		if conversion.Unit.Symbol != "" {
+			return conversion.Unit.Symbol
+		}
+		if conversion.Unit.Name != "" {
+			return conversion.Unit.Name
+		}
+		return conversion.Unit.Code
+	}
+	return ""
+}
+
+func productUnitSnapshot(
+	product bobdomain.DetailView, unitID string,
+) (bobdomain.MeasurementUnitSnapshot, error) {
+	for _, conversion := range product.UnitConversions {
+		if conversion.Unit.ObjectID == unitID {
+			return conversion.Unit, nil
+		}
+	}
+	return bobdomain.MeasurementUnitSnapshot{}, domainError(
+		ErrorConflict, "entered unit is not configured for product", nil, nil,
+	)
+}
+
+func defaultPackagingSpecSnapshot(product bobdomain.DetailView) (*int64, error) {
+	if product.DefaultPackagingSpec == "" {
+		return nil, nil
+	}
+	value, err := parseFixed(product.DefaultPackagingSpec, 6, false)
+	if err != nil {
+		return nil, domainError(ErrorConflict, "product default packaging specification is invalid", nil, err)
+	}
+	return &value, nil
 }
 
 func calculateDueDate(
@@ -401,11 +450,18 @@ func (s *Service) replaceLines(
 		}
 		for index, line := range draft.InventoryCountLines {
 			ref := refs.Products[index]
+			unit, unitErr := productUnitSnapshot(ref.Data, line.EnteredUnitID)
+			if unitErr != nil {
+				return unitErr
+			}
 			if err := q.InsertVouInventoryCountLine(ctx, dbsqlc.InsertVouInventoryCountLineParams{
 				ID: newID(), DocumentID: documentID, LineNo: int32(index + 1),
 				ProductObjectID: ref.ObjectID, ProductVersionID: ref.VersionID,
-				ProductCode: ref.Code, ProductName: ref.Data.Name, ProductUnit: ref.Data.Unit,
-				ActualQuantityMicros: line.ActualQuantity, Remark: line.Remark,
+				ProductCode: ref.Code, ProductName: ref.Data.Name,
+				EnteredQuantityMicros: line.EnteredQuantity, EnteredUnitObjectID: unit.ObjectID,
+				EnteredUnitVersionID: unit.VersionID, EnteredUnitCode: unit.Code,
+				EnteredUnitName: unit.Name, EnteredUnitSymbol: unit.Symbol,
+				ActualBaseQuantityMicros: line.ActualQuantity, Remark: line.Remark,
 			}); err != nil {
 				return err
 			}
@@ -424,9 +480,11 @@ func (s *Service) replaceLines(
 			if err := q.InsertVouPriceLine(ctx, dbsqlc.InsertVouPriceLineParams{
 				ID: newID(), DocumentID: documentID, DocumentEntity: entity, LineNo: int32(index + 1),
 				ProductObjectID: ref.ObjectID, ProductVersionID: ref.VersionID, ProductCode: ref.Code,
-				ProductName: ref.Data.Name, ProductUnit: ref.Data.Unit, ProductKind: ref.Data.ProductKind,
-				PricingQuantityPerInventoryUnitMicros: fixedMicrosOrOne(ref.Data.PricingQuantityPerInventoryUnit),
-				UnitPriceCents:                        line.UnitPrice, Remark: line.Remark,
+				ProductName: ref.Data.Name, DefaultInputUnitSymbol: defaultUnitSymbol(ref.Data),
+				BehaviorProfile:     ref.Data.BehaviorProfile,
+				ProductTypeObjectID: ref.Data.ProductTypeID, ProductTypeVersionID: ref.Data.ProductTypeVersionID,
+				ProductTypeCode: ref.Data.ProductTypeCode, ProductTypeName: ref.Data.ProductTypeName,
+				UnitPriceCents: line.UnitPrice, Remark: line.Remark,
 			}); err != nil {
 				return err
 			}
@@ -440,13 +498,26 @@ func (s *Service) replaceLines(
 		for index, line := range draft.ProductLines {
 			ref := refs.Products[index]
 			lineID := newID()
+			unit, unitErr := productUnitSnapshot(ref.Data, line.EnteredUnitID)
+			if unitErr != nil {
+				return unitErr
+			}
+			defaultPackagingSpec, packagingErr := defaultPackagingSpecSnapshot(ref.Data)
+			if packagingErr != nil {
+				return packagingErr
+			}
 			if err := q.InsertVouProductLine(ctx, dbsqlc.InsertVouProductLineParams{
 				ID: lineID, DocumentID: documentID, DocumentEntity: entity, LineNo: int32(index + 1),
 				ProductObjectID: ref.ObjectID, ProductVersionID: ref.VersionID,
-				ProductCode: ref.Code, ProductName: ref.Data.Name, ProductUnit: ref.Data.Unit,
-				ProductKind:                           ref.Data.ProductKind,
-				PricingQuantityPerInventoryUnitMicros: fixedMicrosOrOne(ref.Data.PricingQuantityPerInventoryUnit),
-				OrderedQtyMicros:                      line.Quantity, BaseUnitPriceCents: line.BaseUnitPrice,
+				ProductCode: ref.Code, ProductName: ref.Data.Name,
+				EnteredQuantityMicros: line.EnteredQuantity, EnteredUnitObjectID: unit.ObjectID,
+				EnteredUnitVersionID: unit.VersionID, EnteredUnitCode: unit.Code,
+				EnteredUnitName: unit.Name, EnteredUnitSymbol: unit.Symbol,
+				BaseQuantityMicros:  line.Quantity,
+				ProductTypeObjectID: ref.Data.ProductTypeID, ProductTypeVersionID: ref.Data.ProductTypeVersionID,
+				ProductTypeCode: ref.Data.ProductTypeCode, ProductTypeName: ref.Data.ProductTypeName,
+				BehaviorProfile: ref.Data.BehaviorProfile, DefaultPackagingSpecMicros: defaultPackagingSpec,
+				BaseUnitPriceCents:       line.BaseUnitPrice,
 				SettlementSurchargeCents: line.SettlementSurcharge,
 				UnitPriceCents:           line.UnitPrice, LineAmountCents: line.LineAmount,
 				PurchaseUnitPriceCents: line.PurchaseUnitPrice, Remark: line.Remark,
@@ -459,22 +530,38 @@ func (s *Service) replaceLines(
 				return err
 			}
 			if entity == EntitySaleOrder && line.Formula != nil {
+				outputUnit, outputUnitErr := productUnitSnapshot(ref.Data, line.Formula.Output.EnteredUnitID)
+				if outputUnitErr != nil {
+					return outputUnitErr
+				}
 				if err := q.InsertVouSaleOrderFormula(ctx, dbsqlc.InsertVouSaleOrderFormulaParams{
 					ProductLineID: lineID, SourceType: line.Formula.SourceType,
-					SourceDocumentID:         stringPointer(line.Formula.SourceDocumentID),
-					SourceDocumentNo:         stringPointer(line.Formula.SourceDocumentNo),
-					BaseOutputQuantityMicros: line.Formula.BaseOutputQuantity,
+					SourceDocumentID:            stringPointer(line.Formula.SourceDocumentID),
+					SourceDocumentNo:            stringPointer(line.Formula.SourceDocumentNo),
+					OutputEnteredQuantityMicros: line.Formula.Output.EnteredQuantity,
+					OutputEnteredUnitObjectID:   outputUnit.ObjectID, OutputEnteredUnitVersionID: outputUnit.VersionID,
+					OutputEnteredUnitCode: outputUnit.Code, OutputEnteredUnitName: outputUnit.Name,
+					OutputEnteredUnitSymbol:  outputUnit.Symbol,
+					OutputBaseQuantityMicros: line.Formula.Output.BaseQuantity,
 				}); err != nil {
 					return err
 				}
 				for componentIndex, component := range line.Formula.Components {
 					material := refs.FormulaMaterials[index][componentIndex]
+					componentUnit, componentUnitErr := productUnitSnapshot(material.Data, component.Quantity.EnteredUnitID)
+					if componentUnitErr != nil {
+						return componentUnitErr
+					}
 					if err := q.InsertVouSaleOrderFormulaLine(
 						ctx, dbsqlc.InsertVouSaleOrderFormulaLineParams{
 							ProductLineID: lineID, LineNo: int32(componentIndex + 1),
 							MaterialObjectID: material.ObjectID, MaterialVersionID: material.VersionID,
 							MaterialCode: material.Code, MaterialName: material.Data.Name,
-							MaterialUnit: material.Data.Unit, QuantityMicros: component.Quantity,
+							EnteredQuantityMicros: component.Quantity.EnteredQuantity,
+							EnteredUnitObjectID:   componentUnit.ObjectID, EnteredUnitVersionID: componentUnit.VersionID,
+							EnteredUnitCode: componentUnit.Code, EnteredUnitName: componentUnit.Name,
+							EnteredUnitSymbol:  componentUnit.Symbol,
+							BaseQuantityMicros: component.Quantity.BaseQuantity,
 						},
 					); err != nil {
 						return err
@@ -505,14 +592,6 @@ func stringPointer(value string) *string {
 		return nil
 	}
 	return &value
-}
-
-func fixedMicrosOrOne(value string) int64 {
-	parsed, err := parseFixed(value, 6, false)
-	if err != nil {
-		return 1_000_000
-	}
-	return parsed
 }
 
 func (s *Service) validateStoredAttributes(

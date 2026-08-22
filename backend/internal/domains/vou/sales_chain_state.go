@@ -35,8 +35,8 @@ func (s *Service) loadSalesChainData(
 			data.Warehouse = &warehouse
 		}
 		rows, err := s.pool.Query(ctx, `SELECT id,source_order_line_id,line_no,
-			product_object_id,product_version_id,product_code,product_name,product_unit,
-			quantity_micros,unit_price_cents,line_amount_cents,remark
+			product_object_id,product_version_id,product_code,product_name,entered_unit_symbol,
+			base_quantity_micros,unit_price_cents,line_amount_cents,remark
 			FROM vou_sale_outbound_lines WHERE document_id=$1 ORDER BY line_no`, document.ID)
 		if err != nil {
 			return data, err
@@ -54,8 +54,9 @@ func (s *Service) loadSalesChainData(
 				return data, err
 			}
 			line.Product.Entity = "product"
-			line.Quantity = formatQuantity(quantity)
-			line.OrderedQuantity = line.Quantity
+			line.BaseQuantity = formatQuantity(quantity)
+			line.EnteredQuantity = line.BaseQuantity
+			line.EnteredUnit = UnitSnapshotView{Symbol: line.Product.Unit}
 			line.UnitPrice, line.LineAmount, line.Remark = formatMoney(price), formatMoney(amount), deref(remark)
 			data.ProductLines = append(data.ProductLines, line)
 		}
@@ -90,8 +91,8 @@ func (s *Service) loadSalesChainData(
 			data.Vehicle = &vehicle
 		}
 		rows, err := s.pool.Query(ctx, `SELECT id,source_order_line_id,line_no,
-			product_object_id,product_version_id,product_code,product_name,product_unit,
-			quantity_micros,unit_price_cents,line_amount_cents,remark
+			product_object_id,product_version_id,product_code,product_name,entered_unit_symbol,
+			base_quantity_micros,unit_price_cents,line_amount_cents,remark
 			FROM vou_sale_outbound_lines WHERE document_id=$1 ORDER BY line_no`, sourceID)
 		if err != nil {
 			return data, err
@@ -109,7 +110,9 @@ func (s *Service) loadSalesChainData(
 				return data, err
 			}
 			line.Product.Entity = "product"
-			line.Quantity, line.OrderedQuantity = formatQuantity(quantity), formatQuantity(quantity)
+			line.BaseQuantity = formatQuantity(quantity)
+			line.EnteredQuantity = line.BaseQuantity
+			line.EnteredUnit = UnitSnapshotView{Symbol: line.Product.Unit}
 			line.UnitPrice, line.LineAmount, line.Remark = formatMoney(price), formatMoney(amount), deref(remark)
 			data.ProductLines = append(data.ProductLines, line)
 		}
@@ -132,9 +135,9 @@ func (s *Service) loadSalesChainData(
 		customer.Entity, warehouse.Entity = bobdomain.EntityCustomerAccount, "warehouse"
 		data.Customer, data.Warehouse = &customer, &warehouse
 		rows, err := s.pool.Query(ctx, `SELECT id,source_outbound_line_id,line_no,
-			product_object_id,product_version_id,product_code,product_name,product_unit,
-			signed_qty_micros,rejected_qty_micros,loss_qty_micros,unit_price_cents,line_amount_cents,remark,
-			signed_qty_micros+rejected_qty_micros+loss_qty_micros
+			product_object_id,product_version_id,product_code,product_name,entered_unit_symbol,
+			signed_base_quantity_micros,rejected_base_quantity_micros,loss_base_quantity_micros,unit_price_cents,line_amount_cents,remark,
+			signed_base_quantity_micros+rejected_base_quantity_micros+loss_base_quantity_micros
 			FROM vou_sale_signoff_lines WHERE document_id=$1 ORDER BY line_no`, document.ID)
 		if err != nil {
 			return data, err
@@ -153,11 +156,13 @@ func (s *Service) loadSalesChainData(
 				return data, err
 			}
 			line.Product.Entity = "product"
-			line.OutboundQuantity, line.SignedQuantity = formatQuantity(outbound), formatQuantity(signed)
-			line.RejectedQuantity, line.LossQuantity = formatQuantity(rejected), formatQuantity(loss)
+			line.EnteredQuantity = formatQuantity(outbound)
+			line.EnteredUnit = UnitSnapshotView{Symbol: line.Product.Unit}
+			line.OutboundBaseQuantity, line.SignedBaseQuantity = formatQuantity(outbound), formatQuantity(signed)
+			line.RejectedBaseQuantity, line.LossBaseQuantity = formatQuantity(rejected), formatQuantity(loss)
 			line.UnitPrice, line.LineAmount, line.Remark = formatMoney(price), formatMoney(amount), deref(remark)
 			var returned int64
-			if err = s.pool.QueryRow(ctx, `SELECT COALESCE(sum(l.quantity_micros),0)
+			if err = s.pool.QueryRow(ctx, `SELECT COALESCE(sum(l.base_quantity_micros),0)
 				FROM vou_sale_return_lines l
 				JOIN vou_sale_return_details d ON d.document_id=l.document_id
 				WHERE l.source_signoff_line_id=$1 AND d.return_kind='AFTER_SALE'`, line.LineID).
@@ -168,7 +173,7 @@ func (s *Service) loadSalesChainData(
 			if returnable < 0 {
 				returnable = 0
 			}
-			line.ReturnableQuantity = formatQuantity(returnable)
+			line.ReturnableBaseQuantity = formatQuantity(returnable)
 			data.SignoffLines = append(data.SignoffLines, line)
 		}
 		return data, rows.Err()
@@ -180,16 +185,16 @@ func (s *Service) loadSalesChainData(
 func (s *Service) setSaleOrderBalances(
 	ctx context.Context, orderID string, data *DocumentDataView,
 ) error {
-	rows, err := s.pool.Query(ctx, `SELECT l.id,l.ordered_qty_micros,
-		COALESCE(sum(CASE WHEN sd.status = 'APPROVED' THEN sl.signed_qty_micros ELSE 0 END),0)::bigint,
+	rows, err := s.pool.Query(ctx, `SELECT l.id,l.base_quantity_micros,
+		COALESCE(sum(CASE WHEN sd.status = 'APPROVED' THEN sl.signed_base_quantity_micros ELSE 0 END),0)::bigint,
 		COALESCE(sum(CASE WHEN od.status = 'APPROVED' AND (sd.id IS NULL OR sd.status <> 'APPROVED')
-			THEN ol.quantity_micros ELSE 0 END),0)::bigint
+			THEN ol.base_quantity_micros ELSE 0 END),0)::bigint
 		FROM vou_product_lines l
 		LEFT JOIN vou_sale_outbound_lines ol ON ol.source_order_line_id=l.id
 		LEFT JOIN vou_documents od ON od.id=ol.document_id
 		LEFT JOIN vou_sale_signoff_lines sl ON sl.source_outbound_line_id=ol.id
 		LEFT JOIN vou_documents sd ON sd.id=sl.document_id
-		WHERE l.document_id=$1 GROUP BY l.id,l.ordered_qty_micros`, orderID)
+		WHERE l.document_id=$1 GROUP BY l.id,l.base_quantity_micros`, orderID)
 	if err != nil {
 		return err
 	}
@@ -216,13 +221,13 @@ func (s *Service) setSaleOrderBalances(
 	}
 	for index := range data.ProductLines {
 		balance := byID[data.ProductLines[index].LineID]
-		data.ProductLines[index].SignedQuantity = formatQuantity(balance[0])
-		data.ProductLines[index].OutboundQuantity = formatQuantity(balance[1])
-		data.ProductLines[index].AvailableQuantity = formatQuantity(balance[2])
+		data.ProductLines[index].SignedBaseQuantity = formatQuantity(balance[0])
+		data.ProductLines[index].OutboundBaseQuantity = formatQuantity(balance[1])
+		data.ProductLines[index].AvailableBaseQuantity = formatQuantity(balance[2])
 	}
-	data.SignedQuantity = formatQuantity(totalSigned)
-	data.InTransitQuantity = formatQuantity(totalTransit)
-	data.RemainingQuantity = formatQuantity(totalRemaining)
+	data.SignedBaseQuantity = formatQuantity(totalSigned)
+	data.InTransitBaseQuantity = formatQuantity(totalTransit)
+	data.RemainingBaseQuantity = formatQuantity(totalRemaining)
 	return nil
 }
 
@@ -284,11 +289,11 @@ func (s *Service) prepareSalesChainApproval(
 		if fulfillment == "FULFILLED" {
 			return nil, domainError(ErrorConflict, "sale order is closed", nil, nil)
 		}
-		rows, err := tx.Query(ctx, `SELECT ol.source_order_line_id,ol.quantity_micros,l.ordered_qty_micros,
-			COALESCE((SELECT sum(sl.signed_qty_micros) FROM vou_sale_signoff_lines sl
+		rows, err := tx.Query(ctx, `SELECT ol.source_order_line_id,ol.base_quantity_micros,l.base_quantity_micros,
+			COALESCE((SELECT sum(sl.signed_base_quantity_micros) FROM vou_sale_signoff_lines sl
 				JOIN vou_documents sd ON sd.id=sl.document_id AND sd.status = 'APPROVED'
 				WHERE sl.source_order_line_id=l.id),0)::bigint,
-			COALESCE((SELECT sum(other.quantity_micros) FROM vou_sale_outbound_lines other
+			COALESCE((SELECT sum(other.base_quantity_micros) FROM vou_sale_outbound_lines other
 				JOIN vou_documents od ON od.id=other.document_id AND od.status = 'APPROVED'
 				LEFT JOIN vou_sale_signoff_lines sl2 ON sl2.source_outbound_line_id=other.id
 				LEFT JOIN vou_documents sd2 ON sd2.id=sl2.document_id
@@ -337,8 +342,8 @@ func (s *Service) refreshSaleOrderFulfillment(
 		return err
 	}
 	var remaining int64
-	err := tx.QueryRow(ctx, `SELECT COALESCE(sum(GREATEST(l.ordered_qty_micros -
-		COALESCE((SELECT sum(sl.signed_qty_micros) FROM vou_sale_signoff_lines sl
+	err := tx.QueryRow(ctx, `SELECT COALESCE(sum(GREATEST(l.base_quantity_micros -
+		COALESCE((SELECT sum(sl.signed_base_quantity_micros) FROM vou_sale_signoff_lines sl
 			JOIN vou_documents sd ON sd.id=sl.document_id AND sd.status = 'APPROVED'
 			WHERE sl.source_order_line_id=l.id),0),0)),0)::bigint
 		FROM vou_product_lines l WHERE l.document_id=$1`, orderID).Scan(&remaining)

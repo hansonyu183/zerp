@@ -63,7 +63,7 @@ export const containerTypeOptions: readonly BusinessObjectFieldOption[] = [
   { title: '树脂桶', value: 'RESIN' },
 ]
 
-export const productKindOptions: readonly BusinessObjectFieldOption[] = [
+export const productBehaviorProfileOptions: readonly BusinessObjectFieldOption[] = [
   { title: '原材料（可销售）', value: 'RAW_MATERIAL' },
   { title: '自制成品（固定配方）', value: 'STANDARD_FINISHED' },
   { title: '定制成品（订单配方）', value: 'CUSTOM_FINISHED' },

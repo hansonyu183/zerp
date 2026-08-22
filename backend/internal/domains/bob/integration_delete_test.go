@@ -103,9 +103,10 @@ func TestDeleteFirstDraftRejectsLifecycleAndIdentityConflictsIntegration(t *test
 
 	newProduct := func(prefix string) MutationResult {
 		t.Helper()
-		created, err := service.Create(t.Context(), EntityProduct, CreateInput{Data: CreateDetailInput{
-			Name: prefix + " Product", Unit: "unit",
-		}}, integrationActorOne, prefix+"-create")
+		data := CreateDetailInput{Name: prefix + " Product"}
+		completeRawProductIntegration(service, &data)
+		service.SetAuxiliaryResolver(integrationAuxiliaryResolver{})
+		created, err := service.Create(t.Context(), EntityProduct, CreateInput{Data: data}, integrationActorOne, prefix+"-create")
 		if err != nil {
 			t.Fatalf("create %s product: %v", prefix, err)
 		}
@@ -186,7 +187,7 @@ func TestDeleteFirstDraftRejectsLifecycleAndIdentityConflictsIntegration(t *test
 	})
 	t.Run("effective version", func(t *testing.T) {
 		created, approved := createApprovedIntegration(t, service, EntityProduct, CreateDetailInput{
-			Name: "Effective Delete Product", Unit: "unit",
+			Name: "Effective Delete Product",
 		}, "delete-effective")
 		input := deleteInput(approved)
 		input.VersionID = created.VersionID
@@ -194,7 +195,7 @@ func TestDeleteFirstDraftRejectsLifecycleAndIdentityConflictsIntegration(t *test
 	})
 	t.Run("multiple versions and version two", func(t *testing.T) {
 		created, approved := createApprovedIntegration(t, service, EntityProduct, CreateDetailInput{
-			Name: "Multiple Version Product", Unit: "unit",
+			Name: "Multiple Version Product",
 		}, "delete-multiple")
 		edited, err := service.Edit(t.Context(), EntityProduct, ObjectRevisionInput{
 			ObjectID: created.ObjectID, ObjectRevision: approved.ObjectRevision,
@@ -210,7 +211,7 @@ func TestDeleteFirstDraftRollbackAfterPartialWorkIntegration(t *testing.T) {
 	pool := integrationPool(t)
 	service := NewService(pool)
 	created, err := service.Create(t.Context(), EntityProduct, CreateInput{Data: CreateDetailInput{
-		Name: "Rollback Delete Product", Unit: "unit",
+		Name: "Rollback Delete Product", DefaultPackagingSpec: "1",
 	}}, integrationActorOne, "delete-rollback-create")
 	if err != nil {
 		t.Fatalf("create rollback draft: %v", err)
@@ -260,7 +261,7 @@ func TestDeleteFirstDraftConcurrencyIntegration(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			created, err := service.Create(t.Context(), EntityProduct, CreateInput{Data: CreateDetailInput{
-				Name: "Concurrent Delete Product", Unit: "unit",
+				Name: "Concurrent Delete Product", DefaultPackagingSpec: "1",
 			}}, integrationActorOne, "delete-concurrent-create")
 			if err != nil {
 				t.Fatalf("create concurrent delete draft: %v", err)
@@ -318,9 +319,10 @@ func TestDeleteFirstDraftConcurrencyIntegration(t *testing.T) {
 func TestConcurrentEditAllowsOneWinnerIntegration(t *testing.T) {
 	pool := integrationPool(t)
 	service := NewService(pool)
-	created, err := service.Create(t.Context(), EntityProduct, CreateInput{Data: CreateDetailInput{
-		Name: "Concurrent Product", Unit: "piece",
-	}}, integrationActorOne, "concurrent-create")
+	data := CreateDetailInput{Name: "Concurrent Product"}
+	completeRawProductIntegration(service, &data)
+	service.SetAuxiliaryResolver(integrationAuxiliaryResolver{})
+	created, err := service.Create(t.Context(), EntityProduct, CreateInput{Data: data}, integrationActorOne, "concurrent-create")
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -369,9 +371,10 @@ func TestConcurrentEditAllowsOneWinnerIntegration(t *testing.T) {
 func TestEffectiveReferenceLockBlocksEditIntegration(t *testing.T) {
 	pool := integrationPool(t)
 	service := NewService(pool)
-	created, err := service.Create(t.Context(), EntityProduct, CreateInput{Data: CreateDetailInput{
-		Name: "Reference Lock Product", Unit: "piece",
-	}}, integrationActorOne, "lock-create")
+	data := CreateDetailInput{Name: "Reference Lock Product"}
+	completeRawProductIntegration(service, &data)
+	service.SetAuxiliaryResolver(integrationAuxiliaryResolver{})
+	created, err := service.Create(t.Context(), EntityProduct, CreateInput{Data: data}, integrationActorOne, "lock-create")
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -452,13 +455,13 @@ func TestCreateAllocatesDistinctObjectCodesIntegration(t *testing.T) {
 	pool := integrationPool(t)
 	service := NewService(pool)
 	first, err := service.Create(t.Context(), EntityProduct, CreateInput{Data: CreateDetailInput{
-		Name: "Original", Unit: "unit",
+		Name: "Original", DefaultPackagingSpec: "1",
 	}}, integrationActorOne, "duplicate-create-original")
 	if err != nil {
 		t.Fatalf("create original: %v", err)
 	}
 	second, err := service.Create(t.Context(), EntityProduct, CreateInput{Data: CreateDetailInput{
-		Name: "Second", Unit: "unit",
+		Name: "Second", DefaultPackagingSpec: "1",
 	}}, integrationActorOne, "duplicate-create-second")
 	if err != nil {
 		t.Fatalf("create second: %v", err)

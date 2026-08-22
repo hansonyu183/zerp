@@ -66,12 +66,23 @@ export function useVoucherInventoryCount(
         loadedProductIds.add(item.product.objectId)
         const current = existing.get(item.product.objectId)
         return current
-          ? { ...current, product: item.product, bookQuantity: item.quantity }
+          ? {
+              ...current,
+              product: item.product,
+              bookBaseQuantity: item.quantity,
+            }
           : {
               key: crypto.randomUUID(),
               product: item.product,
-              actualQuantity: '',
-              bookQuantity: item.quantity,
+              enteredQuantity: '',
+              enteredUnit:
+                item.product.unitConversions?.find(
+                  (conversion) =>
+                    conversion.unit.objectId ===
+                    item.product.defaultInputUnitId,
+                )?.unit ?? null,
+              baseQuantity: '',
+              bookBaseQuantity: item.quantity,
               remark: '',
             }
       })

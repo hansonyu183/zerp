@@ -95,10 +95,8 @@ func approvedSalesOrder(
 	t.Helper()
 	return advanceSalesDocument(t, service, EntitySaleOrder, DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
-		Warehouse: &refs.warehouse,
-		ProductLines: []ProductLineInput{{
-			Product: refs.product, OrderedQuantity: quantity, UnitPrice: "12.00",
-		}},
+		Warehouse:    &refs.warehouse,
+		ProductLines: []ProductLineInput{integrationProductLine(t, refs.product, quantity, "12.00")},
 	}, true)
 }
 
@@ -121,12 +119,12 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 	outboundOne, outboundView := advanceWorkflowSalesDraft(t, pool, service, EntitySaleOutbound, func(tx pgx.Tx) (MutationResult, error) {
 		return service.CreateWorkflowSaleOutbound(t.Context(), tx, order.DocumentID, WorkflowSaleOutboundInitial{
 			BusinessDate: "2026-07-25", WarehouseObjectID: refs.warehouse.ObjectID,
-			Lines: []SourceQuantityLineInput{{SourceLineID: orderLineID, Quantity: "6"}},
+			Lines: []SourceQuantityLineInput{{SourceLineID: orderLineID, BaseQuantity: "6"}},
 		}, "workflow-outbound")
 	})
 	if outboundView.DocumentNo[:3] != "SOB" ||
 		outboundView.ParentDocumentID != order.DocumentID ||
-		outboundView.Data.ProductLines[0].Quantity != "6.0" {
+		outboundView.Data.ProductLines[0].BaseQuantity != "6.0" {
 		t.Fatalf("outbound view = %+v", outboundView)
 	}
 
@@ -151,20 +149,20 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 		return service.CreateWorkflowSaleSignoff(t.Context(), tx, deliveryOne.DocumentID, WorkflowSaleSignoffInitial{
 			BusinessDate: "2026-07-27",
 			Lines: []WorkflowSignoffLineInput{{
-				SourceLineID:   deliveryView.Data.ProductLines[0].LineID,
-				SignedQuantity: "4", RejectedQuantity: "1",
+				SourceLineID:       deliveryView.Data.ProductLines[0].LineID,
+				SignedBaseQuantity: "4", RejectedBaseQuantity: "1",
 			}},
 		}, "workflow-signoff")
 	})
 	if signoffView.DocumentNo[:3] != "SSF" ||
-		signoffView.Data.SignoffLines[0].LossQuantity != "1.0" {
+		signoffView.Data.SignoffLines[0].LossBaseQuantity != "1.0" {
 		t.Fatalf("signoff view = %+v", signoffView)
 	}
 	if _, err := service.Create(t.Context(), EntitySaleSignoff, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-27", SourceDocumentID: deliveryOne.DocumentID,
 		SignoffLines: []SaleSignoffLineInput{{
-			SourceLineID:   deliveryView.Data.ProductLines[0].LineID,
-			SignedQuantity: "6", RejectedQuantity: "0",
+			SourceLineID:       deliveryView.Data.ProductLines[0].LineID,
+			SignedBaseQuantity: "6", RejectedBaseQuantity: "0",
 		}},
 	}}, integrationActorOne, "duplicate-signoff"); err == nil {
 		t.Fatal("second signoff for one delivery was accepted")
@@ -175,7 +173,7 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 	}
 	refusalDraft, err := service.CreateWorkflowSaleReturn(t.Context(), refusalTx, signoffOne.DocumentID, WorkflowSaleReturnInitial{
 		BusinessDate: "2026-07-27", Reason: "包装破损拒收",
-		Lines: []SourceQuantityLineInput{{SourceLineID: signoffView.Data.SignoffLines[0].LineID, Quantity: "1"}},
+		Lines: []SourceQuantityLineInput{{SourceLineID: signoffView.Data.SignoffLines[0].LineID, BaseQuantity: "1"}},
 	}, "workflow-refusal-return")
 	if err == nil {
 		err = refusalTx.Commit(t.Context())
@@ -230,7 +228,7 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 	}
 	_, err = service.CreateWorkflowSaleReturn(t.Context(), tx, signoffOne.DocumentID, WorkflowSaleReturnInitial{
 		BusinessDate: "2026-07-27", Reason: "包装破损拒收",
-		Lines: []SourceQuantityLineInput{{SourceLineID: signoffView.Data.SignoffLines[0].LineID, Quantity: "1"}},
+		Lines: []SourceQuantityLineInput{{SourceLineID: signoffView.Data.SignoffLines[0].LineID, BaseQuantity: "1"}},
 	}, "workflow-refusal-return-replay")
 	if err == nil {
 		err = tx.Commit(t.Context())
@@ -266,7 +264,7 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 	afterSale, err := service.Create(t.Context(), EntitySaleReturn, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-28", Warehouse: &refs.warehouse, ReturnReason: "客户退回",
 		ReturnLines: []ReturnLineInput{{
-			SourceLineID: signoffView.Data.SignoffLines[0].LineID, Quantity: "2",
+			SourceLineID: signoffView.Data.SignoffLines[0].LineID, BaseQuantity: "2",
 		}},
 	}}, integrationActorOne, "after-sale-return")
 	if err != nil {
@@ -275,7 +273,7 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 	if _, err = service.Create(t.Context(), EntitySaleReturn, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-28", Warehouse: &refs.warehouse, ReturnReason: "超量退货",
 		ReturnLines: []ReturnLineInput{{
-			SourceLineID: signoffView.Data.SignoffLines[0].LineID, Quantity: "3",
+			SourceLineID: signoffView.Data.SignoffLines[0].LineID, BaseQuantity: "3",
 		}},
 	}}, integrationActorOne, "over-return"); err == nil {
 		t.Fatal("cumulative after-sale over-return was accepted")
@@ -290,9 +288,9 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get order balances: %v", err)
 	}
-	if orderView.Data.SignedQuantity != "4.0" ||
-		orderView.Data.InTransitQuantity != "0.0" ||
-		orderView.Data.RemainingQuantity != "6.0" ||
+	if orderView.Data.SignedBaseQuantity != "4.0" ||
+		orderView.Data.InTransitBaseQuantity != "0.0" ||
+		orderView.Data.RemainingBaseQuantity != "6.0" ||
 		orderView.Data.FulfillmentStatus != "OPEN" {
 		t.Fatalf("order balances after first signoff = %+v", orderView.Data)
 	}
@@ -301,7 +299,7 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 		BusinessDate: "2026-07-28", SourceDocumentID: order.DocumentID,
 		Warehouse: &refs.warehouse,
 		SourceLines: []SourceQuantityLineInput{{
-			SourceLineID: orderLineID, Quantity: "6",
+			SourceLineID: orderLineID, BaseQuantity: "6",
 		}},
 	}, true)
 	deliveryTwo, deliveryTwoView := advanceSalesDocument(t, service, EntitySaleDelivery, DraftInput{
@@ -311,14 +309,14 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 	_, _ = advanceSalesDocument(t, service, EntitySaleSignoff, DraftInput{
 		BusinessDate: "2026-07-30", SourceDocumentID: deliveryTwo.DocumentID,
 		SignoffLines: []SaleSignoffLineInput{{
-			SourceLineID:   deliveryTwoView.Data.ProductLines[0].LineID,
-			SignedQuantity: "6", RejectedQuantity: "0",
+			SourceLineID:       deliveryTwoView.Data.ProductLines[0].LineID,
+			SignedBaseQuantity: "6", RejectedBaseQuantity: "0",
 		}},
 	}, true)
 	orderView, err = service.Get(t.Context(), EntitySaleOrder, GetInput{DocumentID: order.DocumentID})
 	if err != nil || orderView.Data.FulfillmentStatus != "FULFILLED" ||
-		orderView.Data.SignedQuantity != "10.0" ||
-		orderView.Data.RemainingQuantity != "0.0" {
+		orderView.Data.SignedBaseQuantity != "10.0" ||
+		orderView.Data.RemainingBaseQuantity != "0.0" {
 		t.Fatalf("fulfilled order = %+v err=%v", orderView.Data, err)
 	}
 	if signoffOne.Status != StatusApproved {
@@ -341,7 +339,7 @@ func TestVOUIntegrationConcurrentOutboundReservationAllowsOneWinner(t *testing.T
 			BusinessDate: "2026-07-25", SourceDocumentID: order.DocumentID,
 			Warehouse: &refs.warehouse,
 			SourceLines: []SourceQuantityLineInput{{
-				SourceLineID: sourceLineID, Quantity: "6",
+				SourceLineID: sourceLineID, BaseQuantity: "6",
 			}},
 		}, false)
 	}

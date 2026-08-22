@@ -75,9 +75,9 @@ export async function buildReturnDraftFromSources(
         .filter(
           (line) =>
             Number(
-              'signedQuantity' in line
-                ? (line.returnableQuantity ?? line.signedQuantity ?? '')
-                : (line.returnableQuantity ?? line.orderedQuantity),
+              'signedBaseQuantity' in line
+                ? (line.returnableBaseQuantity ?? line.signedBaseQuantity ?? '')
+                : (line.returnableBaseQuantity ?? line.baseQuantity),
             ) > 0,
         )
         .map((line) => ({
@@ -85,25 +85,25 @@ export async function buildReturnDraftFromSources(
           sourceLineId: line.lineId,
           productCode: line.product.code,
           productName: line.product.name,
-          productUnit: line.product.unit ?? '',
-          availableQuantity: String(
-            line.returnableQuantity ??
-              ('signedQuantity' in line
-                ? line.signedQuantity
-                : line.orderedQuantity) ??
+          enteredUnitSymbol: line.enteredUnit.symbol ?? '',
+          availableBaseQuantity: String(
+            line.returnableBaseQuantity ??
+              ('signedBaseQuantity' in line
+                ? line.signedBaseQuantity
+                : line.baseQuantity) ??
               '',
           ),
-          outboundQuantity: '',
-          quantity: String(
-            line.returnableQuantity ??
-              ('signedQuantity' in line
-                ? line.signedQuantity
-                : line.orderedQuantity) ??
+          outboundBaseQuantity: '',
+          baseQuantity: String(
+            line.returnableBaseQuantity ??
+              ('signedBaseQuantity' in line
+                ? line.signedBaseQuantity
+                : line.baseQuantity) ??
               '',
           ),
-          signedQuantity: '',
-          rejectedQuantity: '',
-          lossQuantity: '',
+          signedBaseQuantity: '',
+          rejectedBaseQuantity: '',
+          lossBaseQuantity: '',
           remark: '',
         })),
     ),

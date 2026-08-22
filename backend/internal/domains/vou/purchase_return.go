@@ -37,7 +37,7 @@ func (s *Service) resolvePurchaseReturnSource(
 		if !validID(input.SourceLineID) || seen[input.SourceLineID] {
 			return result, domainError(ErrorValidation, "invalid sourceLineId", nil, nil)
 		}
-		qty, err := quantityMicros(input.Quantity, false)
+		qty, err := quantityMicros(input.BaseQuantity, false)
 		if err != nil {
 			return result, domainError(ErrorValidation, "invalid return quantity", nil, err)
 		}
@@ -52,8 +52,8 @@ func (s *Service) resolvePurchaseReturnSource(
 		err = tx.QueryRow(ctx, `SELECT l.document_id,x.source_order_id,l.source_order_line_id,
 			d.status,d.business_date,o.status,od.fulfillment_status,o.currency,
 			x.supplier_object_id,x.supplier_version_id,x.supplier_code,x.supplier_name,
-			l.product_object_id,l.product_version_id,l.product_code,l.product_name,l.product_unit,
-			l.quantity_micros,l.unit_price_cents
+			l.product_object_id,l.product_version_id,l.product_code,l.product_name,l.entered_unit_symbol,
+			l.base_quantity_micros,l.unit_price_cents
 			FROM vou_purchase_inbound_lines l
 			JOIN vou_purchase_inbound_details x ON x.document_id=l.document_id
 			JOIN vou_documents d ON d.id=l.document_id
@@ -82,7 +82,7 @@ func (s *Service) resolvePurchaseReturnSource(
 			return result, domainError(ErrorValidation, "return lines must belong to one purchase fulfillment", nil, nil)
 		}
 		var occupied int64
-		if err = tx.QueryRow(ctx, `SELECT COALESCE(sum(quantity_micros),0)
+		if err = tx.QueryRow(ctx, `SELECT COALESCE(sum(base_quantity_micros),0)
 			FROM vou_purchase_return_lines
 			WHERE source_inbound_line_id=$1
 			  AND document_id<>COALESCE(NULLIF($2,''),'00000000000000000000000000')`,
@@ -90,7 +90,7 @@ func (s *Service) resolvePurchaseReturnSource(
 			return result, err
 		}
 		var inboundQty int64
-		if err = tx.QueryRow(ctx, `SELECT quantity_micros FROM vou_purchase_inbound_lines
+		if err = tx.QueryRow(ctx, `SELECT base_quantity_micros FROM vou_purchase_inbound_lines
 			WHERE id=$1`, input.SourceLineID).Scan(&inboundQty); err != nil {
 			return result, err
 		}
@@ -261,8 +261,8 @@ func (s *Service) insertPurchaseReturnLines(
 	for index, line := range lines {
 		if _, err := tx.Exec(ctx, `INSERT INTO vou_purchase_return_lines(
 			id,document_id,source_inbound_line_id,source_inbound_id,source_order_line_id,line_no,
-			product_object_id,product_version_id,product_code,product_name,product_unit,
-			quantity_micros,unit_price_cents,line_amount_cents,remark
+			product_object_id,product_version_id,product_code,product_name,entered_unit_symbol,
+			base_quantity_micros,unit_price_cents,line_amount_cents,remark
 		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
 			newID(), id, line.sourceLineID, line.inboundID, line.orderLineID, index+1,
 			line.productID, line.productVersion, line.productCode, line.productName, line.productUnit,
@@ -289,7 +289,7 @@ func (s *Service) loadPurchaseReturnData(
 	data.Warehouse = reference(warehouseID, warehouseVersion, "warehouse", warehouseCode, warehouseName, "", "", "")
 	rows, err := s.pool.Query(ctx, `SELECT l.id,l.source_inbound_line_id,l.source_inbound_id,
 		s.document_no,l.line_no,l.product_object_id,l.product_version_id,l.product_code,l.product_name,
-		l.product_unit,l.quantity_micros,l.unit_price_cents,l.line_amount_cents,COALESCE(l.remark,'')
+		l.entered_unit_symbol,l.base_quantity_micros,l.unit_price_cents,l.line_amount_cents,COALESCE(l.remark,'')
 		FROM vou_purchase_return_lines l JOIN vou_documents s ON s.id=l.source_inbound_id
 		WHERE l.document_id=$1 ORDER BY l.line_no`, document.ID)
 	if err != nil {
@@ -306,7 +306,9 @@ func (s *Service) loadPurchaseReturnData(
 			return data, err
 		}
 		line.Product = reference(productID, productVersion, "product", productCode, productName, productUnit, "", "")
-		line.Quantity, line.UnitPrice, line.LineAmount =
+		line.EnteredQuantity = formatQuantity(quantity)
+		line.EnteredUnit = &UnitSnapshotView{Symbol: productUnit}
+		line.BaseQuantity, line.UnitPrice, line.LineAmount =
 			formatQuantity(quantity), formatMoney(price), formatMoney(amount)
 		data.Lines = append(data.Lines, line)
 	}

@@ -1,8 +1,15 @@
-import {
-  productFormFields,
-  productPayload,
-} from './product-data'
+import { productFormFields, productPayload } from './product-data'
 import type { BobEntityConfig, BobForm, BobObjectView } from './types'
+
+export function hasValue(value: unknown): boolean {
+  return !(
+    value === undefined ||
+    value === null ||
+    value === '' ||
+    value === false ||
+    (Array.isArray(value) && value.length === 0)
+  )
+}
 
 export function normalizeBobForm(
   config: BobEntityConfig,
@@ -44,6 +51,7 @@ export function bobCreateData(
   }
   if (config.entity === 'product') {
     Object.assign(data, productPayload(normalized))
+    delete data.behaviorProfile
   }
   for (const [key, value] of Object.entries(data)) {
     if (value === undefined) delete data[key]
@@ -61,6 +69,8 @@ export function bobSaveData(
   )
   if (config.entity === 'product') {
     Object.assign(data, productPayload(normalized))
+    if (normalized.formulaDirty !== true) delete data.formula
+    delete data.behaviorProfile
   }
   return data
 }
@@ -76,6 +86,7 @@ export function bobFormFromView(
   }
   if (config.entity === 'product') {
     Object.assign(form, productFormFields(view.data))
+    form.formulaDirty = false
   }
   return form
 }

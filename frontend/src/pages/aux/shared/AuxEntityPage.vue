@@ -18,6 +18,12 @@ const columns: readonly BusinessObjectColumn<AuxListItem>[] = [
     label: '名称',
     value: (item) => item.currentVersion.data.name,
   },
+  ...(vm.config.listFields ?? []).map((field) => ({
+    key: field.key,
+    label: field.label,
+    value: (item: AuxListItem) => item.currentVersion.data[field.key],
+    format: field.format,
+  })),
   { key: 'enabled', label: '状态', value: (item) => item.enabled },
 ]
 
@@ -57,6 +63,18 @@ void vm.query()
       @update:sort="vm.changeSort({ field: 'code', order: $event.order })"
     >
       <template #filters>
+        <v-select
+          v-for="field in vm.config.filters ?? []"
+          :key="field.key"
+          v-model="vm.filterValues[field.key]"
+          clearable
+          density="comfortable"
+          item-title="title"
+          item-value="value"
+          :items="field.options"
+          :label="field.label"
+          variant="outlined"
+        />
         <v-select
           v-model="vm.enabled"
           clearable

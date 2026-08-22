@@ -77,24 +77,44 @@ const exactMessages: Readonly<Record<string, string>> = {
   'object cannot reference itself': '资料不能引用自身。',
   'object is not currently effective': '该资料当前未生效，请重新选择。',
   'only one sort item is allowed': '每次只能选择一个排序字段。',
-  'only one packaging specification can be default':
-    '只能设置一个默认包装规格。',
   'only packaging products can be returnable': '只有包装物料可以设置为可回收。',
-  'product cannot package itself': '产品不能把自身设置为包装物。',
+  'behaviorProfile must be a supported product behavior profile':
+    '请选择系统支持的产品行为模板。',
+  'unsupported product behavior profile': '当前产品行为模板不受支持。',
+  'description must contain at most 1000 characters':
+    '说明不能超过 1000 个字符。',
+  'default input unit must have a conversion':
+    '默认录入单位必须配置对应的单位换算。',
+  'pricing unit must have a conversion': '计价单位必须配置对应的单位换算。',
+  'entered unit is not configured for product':
+    '所选录入单位未配置在当前产品版本中，请重新选择。',
+  'formula output unit is not configured for product':
+    '配方产量的录入单位未配置在当前产品版本中。',
+  'formula material unit is not configured for product':
+    '配方原料的录入单位未配置在当前原料版本中。',
+  'formula must contain at most 200 components': '配方最多只能包含 200 行原料。',
+  'packaging product configuration is invalid': '包装物产品配置不符合行为模板要求。',
+  'product default packaging specification is invalid':
+    '产品默认包装规格无效，请填写大于零的数量。',
+  'product pricing unit conversion is missing':
+    '产品缺少计价单位换算，请先完善产品资料。',
+  'product standard piece specification is missing':
+    '产品缺少标准计件规格，无法计算居间标准件数。',
+  'unit conversion snapshot is incomplete':
+    '单位换算快照不完整，请重新选择有效单位。',
   'product formula cannot reference itself': '产品配方不能引用产品自身。',
   'packaging products cannot contain a formula': '包装物料不能设置生产配方。',
-  'packaging products cannot contain packaging specifications':
-    '包装物料不能继续设置包装规格。',
-  'packaging specification must reference a packaging product':
-    '包装规格必须引用包装物料。',
+  'default packaging specification is required': '请输入默认包装规格。',
+  'invalid default packaging specification':
+    '默认包装规格必须为大于零且最多六位小数的数量。',
+  'packaging products cannot contain default packaging specification':
+    '包装物料不能设置默认包装规格。',
   'packaging pricing unit must match inventory unit':
     '包装计价单位必须与库存单位一致。',
   'goods pricing unit must be KG': '货物计价单位必须为千克。',
   'formula component must reference a raw material': '配方明细必须引用原材料。',
   'formula material replacement must be a raw material':
     '配方原料的继任资料必须是原材料。',
-  'packaging product replacement must be a packaging product':
-    '包装物的继任资料必须是包装物料。',
   'customer attachment limit reached': '该范围最多只能保存 10 个客户附件。',
   'customer version is not a draft': '只有客户草稿版本可以修改附件。',
   'only the customer draft can change attachments':

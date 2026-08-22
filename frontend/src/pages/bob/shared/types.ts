@@ -84,6 +84,12 @@ export interface BobMutationResult {
   revision: number
 }
 
+export interface BobVersionRevisionRequest {
+  objectId: string
+  versionId: string
+  revision: number
+}
+
 export interface BobVersionHistoryItem extends BobVersionMeta {
   summary: BobDetail
 }
@@ -170,6 +176,7 @@ export interface AuxReferenceQueryItem {
   currentVersion: {
     data: {
       name: string
+      [key: string]: unknown
     }
   }
 }
@@ -180,6 +187,7 @@ export interface AuxReferenceObject {
   currentVersion: {
     data: {
       name: string
+      [key: string]: unknown
     }
   }
 }

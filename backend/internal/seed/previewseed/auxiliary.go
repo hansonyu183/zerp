@@ -27,6 +27,10 @@ func (s *Seeder) seedAuxiliary(ctx context.Context, counts *Counts) error {
 		{"product-category-root", auxdomain.EntityProductCategory, fixedAux(map[string]any{
 			"name": "工业产品", "description": "预览测试产品分类",
 		}), true},
+		{"product-type-raw", auxdomain.EntityProductType, fixedAux(map[string]any{"name": "预览原材料", "behaviorProfile": "RAW_MATERIAL"}), true},
+		{"product-type-finished", auxdomain.EntityProductType, fixedAux(map[string]any{"name": "预览自制成品", "behaviorProfile": "STANDARD_FINISHED"}), true},
+		{"product-type-custom", auxdomain.EntityProductType, fixedAux(map[string]any{"name": "预览定制成品", "behaviorProfile": "CUSTOM_FINISHED"}), true},
+		{"product-type-packaging", auxdomain.EntityProductType, fixedAux(map[string]any{"name": "预览包装物", "behaviorProfile": "PACKAGING"}), true},
 		{"product-category-parts", auxdomain.EntityProductCategory, func(refs map[string]auxdomain.ObjectView) map[string]any {
 			return map[string]any{
 				"name": "零部件", "parentId": refs["product-category-root"].ObjectID,

@@ -23,9 +23,7 @@ func TestFulfilledPurchaseOrderAllowsReturnDraftInOpenPeriodIntegration(t *testi
 	order, err := service.Create(t.Context(), EntityPurchaseOrder, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-28", Currency: "CNY",
 		Supplier: &refs.supplier, Purchaser: &refs.employee, Warehouse: &refs.warehouse,
-		ProductLines: []ProductLineInput{{
-			Product: refs.product, OrderedQuantity: "3", UnitPrice: "12.00",
-		}},
+		ProductLines: []ProductLineInput{integrationProductLine(t, refs.product, "3", "12.00")},
 	}}, integrationActorOne, "closed-purchase-create")
 	if err != nil {
 		t.Fatalf("create purchase order: %v", err)
@@ -50,7 +48,7 @@ func TestFulfilledPurchaseOrderAllowsReturnDraftInOpenPeriodIntegration(t *testi
 	inbound, err := service.CreatePurchaseInbound(t.Context(), CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-29", SourceDocumentID: order.DocumentID,
 		Warehouse:   &refs.warehouse,
-		SourceLines: []SourceQuantityLineInput{{SourceLineID: orderLineID, Quantity: "3"}},
+		SourceLines: []SourceQuantityLineInput{{SourceLineID: orderLineID, BaseQuantity: "3"}},
 	}}, integrationActorOne, "closed-purchase-inbound-create")
 	if err != nil {
 		t.Fatalf("create purchase inbound: %v", err)
@@ -81,7 +79,7 @@ func TestFulfilledPurchaseOrderAllowsReturnDraftInOpenPeriodIntegration(t *testi
 		BusinessDate: "2026-08-01", Warehouse: &refs.warehouse,
 		ReturnReason: "开放期间采购退货",
 		ReturnLines: []ReturnLineInput{{
-			SourceLineID: inboundView.Data.ProductLines[0].LineID, Quantity: "1",
+			SourceLineID: inboundView.Data.ProductLines[0].LineID, BaseQuantity: "1",
 		}},
 	}}, integrationActorOne, "fulfilled-purchase-return-create")
 	if err != nil || returnDraft.Status != StatusDraft {
@@ -118,8 +116,11 @@ func TestPurchaseFulfillmentQuantitiesIntegration(t *testing.T) {
 		t.Fatalf("find packaging measurement unit: %v", err)
 	}
 	refs.product = createApprovedBOB(t, newBOBIntegrationService(pool), bobdomain.EntityProduct, bobdomain.CreateDetailInput{
-		Code: "VPP" + newID(), Name: "VOU 预付采购包装物", Unit: "件",
-		ProductKind: bobdomain.ProductKindPackaging, InventoryUnitID: pieceUnitID, PricingUnitID: pieceUnitID,
+		Code: "VPP" + newID(), Name: "VOU 预付采购包装物", ProductTypeID: "01JPTP00000000000000000007",
+		DefaultInputUnitID: pieceUnitID, PricingUnitID: pieceUnitID,
+		UnitConversions: []bobdomain.ProductUnitConversion{{
+			Unit: bobdomain.MeasurementUnitSnapshot{ObjectID: pieceUnitID}, Factor: "1",
+		}},
 	})
 	activateSettlementLedgerForParty(
 		t, pool, "supplier", refs.supplier, 12000,
@@ -158,7 +159,8 @@ func TestPurchaseFulfillmentQuantitiesIntegration(t *testing.T) {
 		BusinessDate: "2026-07-28", Currency: "CNY",
 		Supplier: &refs.supplier, Purchaser: &refs.employee, Warehouse: &refs.warehouse,
 		ProductLines: []ProductLineInput{{
-			Product: refs.product, OrderedQuantity: "10", UnitPrice: "12.00",
+			Product: ProductReferenceInput{ObjectID: refs.product.ObjectID}, EnteredQuantity: "10",
+			EnteredUnit: UnitReferenceInput{ObjectID: pieceUnitID}, BaseQuantity: "10", UnitPrice: "12.00",
 		}},
 	}}, integrationActorOne, "purchase-create")
 	if err != nil {
@@ -204,7 +206,7 @@ func TestPurchaseFulfillmentQuantitiesIntegration(t *testing.T) {
 		result, createErr := service.CreateWorkflowPurchaseInbound(t.Context(), tx, order.DocumentID, WorkflowPurchaseInboundInitial{
 			BusinessDate: "2026-07-28", WarehouseObjectID: refs.warehouse.ObjectID,
 			Lines: []SourceQuantityLineInput{{
-				SourceLineID: sourceLineID, Quantity: quantity,
+				SourceLineID: sourceLineID, BaseQuantity: quantity,
 			}},
 		}, requestID)
 		if createErr == nil {
@@ -244,7 +246,7 @@ func TestPurchaseFulfillmentQuantitiesIntegration(t *testing.T) {
 		BusinessDate: "2026-07-28", SourceDocumentID: order.DocumentID,
 		Warehouse: &refs.warehouse,
 		SourceLines: []SourceQuantityLineInput{{
-			SourceLineID: sourceLineID, Quantity: "7",
+			SourceLineID: sourceLineID, BaseQuantity: "7",
 		}},
 	}}, integrationActorOne, "inbound-over"); err == nil {
 		t.Fatal("cumulative inbound overage was accepted")
@@ -260,7 +262,7 @@ func TestPurchaseFulfillmentQuantitiesIntegration(t *testing.T) {
 		BusinessDate: "2026-07-29", Warehouse: &refs.warehouse,
 		ReturnReason: "部分入库退货",
 		ReturnLines: []ReturnLineInput{{
-			SourceLineID: firstView.Data.ProductLines[0].LineID, Quantity: "1",
+			SourceLineID: firstView.Data.ProductLines[0].LineID, BaseQuantity: "1",
 		}},
 	}}, integrationActorOne, "partial-purchase-return-create")
 	if err != nil {
@@ -320,7 +322,7 @@ func TestPurchaseFulfillmentQuantitiesIntegration(t *testing.T) {
 		BusinessDate: "2026-07-29", Warehouse: &refs.warehouse,
 		ReturnReason: "临时采购退货",
 		ReturnLines: []ReturnLineInput{{
-			SourceLineID: firstView.Data.ProductLines[0].LineID, Quantity: "1",
+			SourceLineID: firstView.Data.ProductLines[0].LineID, BaseQuantity: "1",
 		}},
 	}}, integrationActorOne, "temporary-purchase-return-create")
 	if err != nil {
@@ -344,7 +346,7 @@ func TestPurchaseFulfillmentQuantitiesIntegration(t *testing.T) {
 		BusinessDate: "2026-07-29", Warehouse: &refs.warehouse,
 		ReturnReason: "供应商质量退货",
 		ReturnLines: []ReturnLineInput{{
-			SourceLineID: firstView.Data.ProductLines[0].LineID, Quantity: "2",
+			SourceLineID: firstView.Data.ProductLines[0].LineID, BaseQuantity: "2",
 		}},
 	}}, integrationActorOne, "purchase-return-create")
 	if err != nil {
@@ -422,9 +424,7 @@ func TestPurchaseFulfillmentConcurrentInboundCreationAllowsOneWinnerIntegration(
 	order, err := service.Create(t.Context(), EntityPurchaseOrder, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-28", Currency: "CNY",
 		Supplier: &refs.supplier, Purchaser: &refs.employee, Warehouse: &refs.warehouse,
-		ProductLines: []ProductLineInput{{
-			Product: refs.product, OrderedQuantity: "10", UnitPrice: "12.00",
-		}},
+		ProductLines: []ProductLineInput{integrationProductLine(t, refs.product, "10", "12.00")},
 	}}, integrationActorOne, "concurrent-purchase-create")
 	if err != nil {
 		t.Fatal(err)
@@ -460,7 +460,7 @@ func TestPurchaseFulfillmentConcurrentInboundCreationAllowsOneWinnerIntegration(
 				BusinessDate: "2026-07-28", SourceDocumentID: order.DocumentID,
 				Warehouse: &refs.warehouse,
 				SourceLines: []SourceQuantityLineInput{{
-					SourceLineID: sourceLineID, Quantity: "6",
+					SourceLineID: sourceLineID, BaseQuantity: "6",
 				}},
 			}}, integrationActorOne, requestID)
 			results <- createErr
@@ -484,7 +484,7 @@ func TestPurchaseFulfillmentConcurrentInboundCreationAllowsOneWinnerIntegration(
 	}
 	var reserved int64
 	if err = pool.QueryRow(t.Context(), `
-		SELECT COALESCE(sum(quantity_micros), 0)
+		SELECT COALESCE(sum(base_quantity_micros), 0)
 		FROM vou_purchase_inbound_lines
 		WHERE source_order_line_id = $1`, sourceLineID).Scan(&reserved); err != nil {
 		t.Fatal(err)

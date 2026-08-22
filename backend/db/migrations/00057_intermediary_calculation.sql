@@ -202,7 +202,7 @@ globalThis.calculate = function calculate(input) {
       return {
         sourceSignoffLineId: line.sourceSignoffLineId,
         premiumUnitPrice: '0.00',
-        barrelQuantity: line.barrelQuantity,
+        standardPieceQuantity: line.standardPieceQuantity,
         baseCommission: '0.00',
         premiumCommission: '0.00',
         lowPriceCommission: '0.00',
@@ -221,17 +221,17 @@ globalThis.calculate = function calculate(input) {
     const surcharge = number(line.settlementSurcharge);
     const rebatePrice = number(line.rebateUnitPrice);
     const pricingQuantity = number(line.pricingQuantity);
-    const barrels = number(line.barrelQuantity);
+	const standardPieces = number(line.standardPieceQuantity);
     const premium = unitPrice - referencePrice - surcharge - rebatePrice;
     const special = line.specialApproval === true;
     const lowPrice = special || premium < 0;
     const rates = delayedRates(line.settlementTermCode, Number(line.collectionDelayDays), lowPrice);
-    const base = barrels * rates.baseRate;
-    const low = barrels * rates.lowRate;
+	const base = standardPieces * rates.baseRate;
+	const low = standardPieces * rates.lowRate;
     const premiumCommission = !lowPrice && !line.intermediary && rates.premiumAllowed
-      ? barrels * Math.floor((premium + 0.000000001) / 0.05) * 2.5
+	  ? standardPieces * Math.floor((premium + 0.000000001) / 0.05) * 2.5
       : 0;
-    const maintenance = special ? 0 : barrels * 2;
+	const maintenance = special ? 0 : standardPieces * 2;
     const intermediary = line.intermediary && premium > 0 && rates.premiumAllowed
       ? premium * pricingQuantity / 1.13
       : 0;
@@ -240,7 +240,7 @@ globalThis.calculate = function calculate(input) {
     const row = {
       sourceSignoffLineId: line.sourceSignoffLineId,
       premiumUnitPrice: money(premium),
-      barrelQuantity: quantity(barrels),
+	  standardPieceQuantity: quantity(standardPieces),
       baseCommission: money(base),
       premiumCommission: money(premiumCommission),
       lowPriceCommission: money(low),
@@ -257,9 +257,9 @@ globalThis.calculate = function calculate(input) {
     };
     const item = { source: line, result: row };
     const employeeKey = line.salesperson.objectId;
-    const employeeGroup = byEmployee.get(employeeKey) || { lines: [], barrels: 0 };
+	const employeeGroup = byEmployee.get(employeeKey) || { lines: [], standardPieces: 0 };
     employeeGroup.lines.push(item);
-    if (!special) employeeGroup.barrels += barrels;
+	if (!special) employeeGroup.standardPieces += standardPieces;
     byEmployee.set(employeeKey, employeeGroup);
     const costKey = line.customer.objectId;
     const costGroup = byCustomer.get(costKey) || { lines: [], bills: [] };
@@ -280,7 +280,7 @@ globalThis.calculate = function calculate(input) {
   for (const group of byEmployee.values()) {
     const ordinary = group.lines.find((item) => item.source.specialApproval !== true);
     const development = ordinary
-      ? 1800 + Math.max(0, Math.floor((group.barrels - 300) / 100)) * 200
+	  ? 1800 + Math.max(0, Math.floor((group.standardPieces - 300) / 100)) * 200
       : 0;
     if (ordinary) {
       ordinary.result.marketDevelopmentSubsidy = money(development);

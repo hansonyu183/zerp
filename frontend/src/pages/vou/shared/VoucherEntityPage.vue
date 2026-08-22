@@ -236,10 +236,10 @@ function formatQuantityMicros(value: bigint): string {
 }
 
 function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
-  const outbound = parseFixed(line.outboundQuantity, 6, true)
-  const signed = parseFixed(line.signedQuantity, 6, true)
-  const rejected = parseFixed(line.rejectedQuantity, 6, true)
-  line.lossQuantity =
+  const outbound = parseFixed(line.outboundBaseQuantity, 6, true)
+  const signed = parseFixed(line.signedBaseQuantity, 6, true)
+  const rejected = parseFixed(line.rejectedBaseQuantity, 6, true)
+  line.lossBaseQuantity =
     outbound !== null &&
     signed !== null &&
     rejected !== null &&
@@ -892,12 +892,14 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                         name: line.productName,
                       })
                     }}
-                    {{ line.productUnit }}
+                    {{ line.enteredUnitSymbol }}
                   </td>
-                  <td data-label="可退">{{ line.availableQuantity || '—' }}</td>
+                  <td data-label="可退 Base Quantity">
+                    {{ line.availableBaseQuantity || '—' }}
+                  </td>
                   <td data-label="退货数量">
                     <CompactTableField
-                      v-model="line.quantity"
+                      v-model="line.baseQuantity"
                       :disabled="
                         !vm.editing || vm.form.returnKind === 'REFUSAL'
                       "
@@ -959,12 +961,14 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                         name: line.productName,
                       })
                     }}
-                    {{ line.productUnit }}
+                    {{ line.enteredUnitSymbol }}
                   </td>
-                  <td data-label="可出库">{{ line.availableQuantity }}</td>
+                  <td data-label="可出库 Base Quantity">
+                    {{ line.availableBaseQuantity }}
+                  </td>
                   <td data-label="本次出库">
                     <CompactTableField
-                      v-model="line.quantity"
+                      v-model="line.baseQuantity"
                       :disabled="!vm.editing"
                       inputmode="decimal"
                     />
@@ -1031,12 +1035,14 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                         name: line.productName,
                       })
                     }}
-                    {{ line.productUnit }}
+                    {{ line.enteredUnitSymbol }}
                   </td>
-                  <td data-label="配送">{{ line.outboundQuantity }}</td>
+                  <td data-label="配送 Base Quantity">
+                    {{ line.outboundBaseQuantity }}
+                  </td>
                   <td data-label="签收">
                     <CompactTableField
-                      v-model="line.signedQuantity"
+                      v-model="line.signedBaseQuantity"
                       :disabled="!vm.editing"
                       inputmode="decimal"
                       @update:model-value="updateSignoffLoss(line)"
@@ -1044,13 +1050,15 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                   </td>
                   <td data-label="拒收">
                     <CompactTableField
-                      v-model="line.rejectedQuantity"
+                      v-model="line.rejectedBaseQuantity"
                       :disabled="!vm.editing"
                       inputmode="decimal"
                       @update:model-value="updateSignoffLoss(line)"
                     />
                   </td>
-                  <td data-label="损耗">{{ line.lossQuantity || '—' }}</td>
+                  <td data-label="损耗 Base Quantity">
+                    {{ line.lossBaseQuantity || '—' }}
+                  </td>
                   <td data-label="备注">
                     <CompactTableField
                       v-model="line.remark"
@@ -1163,12 +1171,12 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                 <strong>履约状态</strong>
                 <span>{{ vm.documentView.data.fulfillmentStatus }}</span>
               </div>
-              <div v-if="vm.documentView.data.remainingQuantity">
-                <strong>已签 / 在途 / 可出库</strong>
+              <div v-if="vm.documentView.data.remainingBaseQuantity">
+                <strong>已签 / 在途 / 可出库 Base Quantity</strong>
                 <span>
-                  {{ vm.documentView.data.signedQuantity }} /
-                  {{ vm.documentView.data.inTransitQuantity }} /
-                  {{ vm.documentView.data.remainingQuantity }}
+                  {{ vm.documentView.data.signedBaseQuantity }} /
+                  {{ vm.documentView.data.inTransitBaseQuantity }} /
+                  {{ vm.documentView.data.remainingBaseQuantity }}
                 </span>
               </div>
             </div>

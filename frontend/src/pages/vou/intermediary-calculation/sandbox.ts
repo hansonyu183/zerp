@@ -49,8 +49,8 @@ function isResultLine(value: unknown): value is IntermediaryResultLine {
     typeof value.sourceSignoffLineId === 'string' &&
     typeof value.premiumUnitPrice === 'string' &&
     signedMoneyPattern.test(value.premiumUnitPrice) &&
-    typeof value.barrelQuantity === 'string' &&
-    quantityPattern.test(value.barrelQuantity) &&
+    typeof value.standardPieceQuantity === 'string' &&
+    quantityPattern.test(value.standardPieceQuantity) &&
     Array.isArray(value.billLineIds) &&
     value.billLineIds.every((item) => typeof item === 'string') &&
     new Set(value.billLineIds).size === value.billLineIds.length &&
@@ -142,11 +142,11 @@ export function validateIntermediaryResult(
     value.lines.some(
       (line) =>
         quantityMicros(
-          sourceById.get(line.sourceSignoffLineId)?.barrelQuantity ?? '',
-        ) !== quantityMicros(line.barrelQuantity),
+          sourceById.get(line.sourceSignoffLineId)?.standardPieceQuantity ?? '',
+        ) !== quantityMicros(line.standardPieceQuantity),
     )
   ) {
-    throw new Error('计算结果桶数必须与销售签收来源一致。')
+    throw new Error('计算结果标准计件必须与销售签收来源一致。')
   }
   const sourceBills = new Map(
     source.bills.map((bill) => [bill.billLineId, bill]),

@@ -79,12 +79,12 @@ var mappingCollectionFields = map[string][]string{
 	"billCashLines":                    {"lineId", "billLineId", "fundAccount.objectId", "direction", "amount"},
 	"billLines":                        {"lineId", "billId", "direction", "faceAmount", "interestAmount"},
 	"expenseLines":                     {"lineId", "category", "description", "amount"},
-	"inventoryCountLines":              {"lineId", "product.objectId", "actualQuantity", "bookQuantity", "differenceQuantity"},
-	"lines":                            {"lineId", "product.objectId", "quantity", "orderedQuantity", "signedQuantity", "rejectedQuantity", "unitPrice", "lineAmount"},
+	"inventoryCountLines":              {"lineId", "product.objectId", "baseQuantity", "bookBaseQuantity", "differenceBaseQuantity"},
+	"lines":                            {"lineId", "product.objectId", "baseQuantity", "orderedBaseQuantity", "signedBaseQuantity", "rejectedBaseQuantity", "unitPrice", "lineAmount"},
 	"priceLines":                       {"lineId", "product.objectId", "unitPrice"},
-	"productLines":                     {"lineId", "product.objectId", "quantity", "orderedQuantity", "signedQuantity", "rejectedQuantity", "unitPrice", "lineAmount"},
-	"productionLines":                  {"lineId", "product.objectId", "outputQuantity"},
-	"signoffLines":                     {"lineId", "product.objectId", "signedQuantity", "rejectedQuantity", "unitPrice", "lineAmount"},
+	"productLines":                     {"lineId", "product.objectId", "baseQuantity", "outboundBaseQuantity", "signedBaseQuantity", "rejectedBaseQuantity", "unitPrice", "lineAmount"},
+	"productionLines":                  {"lineId", "product.objectId", "baseQuantity"},
+	"signoffLines":                     {"lineId", "product.objectId", "signedBaseQuantity", "rejectedBaseQuantity", "unitPrice", "lineAmount"},
 }
 
 var mappingEntityCollections = map[string][]string{

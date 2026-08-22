@@ -4,17 +4,80 @@ package bob
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
-	integrationActorOne = "01J00000000000000000000000"
-	integrationActorTwo = "01J00000000000000000000001"
+	integrationActorOne         = "01J00000000000000000000000"
+	integrationActorTwo         = "01J00000000000000000000001"
+	integrationRawProductTypeID = "01JPTP00000000000000000001"
+	integrationKGUnitID         = "01JAVX00000000000000000011"
 )
+
+type integrationAuxiliaryResolver struct{}
+
+func (integrationAuxiliaryResolver) ResolveAuxiliaryReference(
+	ctx context.Context, tx pgx.Tx, entity, objectID, versionID string,
+) (AuxiliaryReference, error) {
+	query := `SELECT object.current_version_id,object.code,version.data
+		FROM aux_objects object JOIN aux_versions version ON version.id=object.current_version_id
+		WHERE object.id=$1 AND object.entity=$2 AND object.enabled`
+	args := []any{objectID, entity}
+	if versionID != "" {
+		query = `SELECT version.id,object.code,version.data
+			FROM aux_objects object JOIN aux_versions version ON version.object_id=object.id
+			WHERE object.id=$1 AND object.entity=$2 AND version.id=$3 AND object.enabled`
+		args = append(args, versionID)
+	}
+	var resolvedVersionID, code string
+	var raw []byte
+	if err := tx.QueryRow(ctx, query, args...).Scan(&resolvedVersionID, &code, &raw); err != nil {
+		return AuxiliaryReference{}, err
+	}
+	data := map[string]any{}
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return AuxiliaryReference{}, err
+	}
+	return AuxiliaryReference{
+		ObjectID: objectID, VersionID: resolvedVersionID, Entity: entity, Code: code, Data: data,
+	}, nil
+}
+
+func (integrationAuxiliaryResolver) ResolveAuxiliaryCode(
+	ctx context.Context, tx pgx.Tx, entity, code string,
+) (AuxiliaryReference, error) {
+	var objectID string
+	if err := tx.QueryRow(ctx, `SELECT id FROM aux_objects WHERE entity=$1 AND code=$2 AND enabled`, entity, code).Scan(&objectID); err != nil {
+		return AuxiliaryReference{}, err
+	}
+	return (integrationAuxiliaryResolver{}).ResolveAuxiliaryReference(ctx, tx, entity, objectID, "")
+}
+
+func completeRawProductIntegration(service *Service, data *CreateDetailInput) {
+	if data.ProductTypeID == "" {
+		data.ProductTypeID = integrationRawProductTypeID
+	}
+	if data.DefaultInputUnitID == "" {
+		data.DefaultInputUnitID = integrationKGUnitID
+	}
+	if data.PricingUnitID == "" {
+		data.PricingUnitID = integrationKGUnitID
+	}
+	if len(data.UnitConversions) == 0 {
+		data.UnitConversions = []ProductUnitConversion{{
+			Unit: MeasurementUnitSnapshot{ObjectID: integrationKGUnitID}, Factor: "1",
+		}}
+	}
+	if data.DefaultPackagingSpec == "" {
+		data.DefaultPackagingSpec = "1"
+	}
+}
 
 func integrationPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
@@ -62,7 +125,9 @@ func deleteIntegrationData(entity, platformObjectID, salespersonEmployeeID, oper
 		data.OperatingEntityID = operatingEntityID
 	case EntitySupplier:
 		data.DefaultPurchaserEmployeeID = salespersonEmployeeID
-	case EntityProduct, EntityService:
+	case EntityProduct:
+		data.DefaultPackagingSpec = "1"
+	case EntityService:
 		data.Unit = "unit"
 	case EntityFundAccount:
 		data.Currency = "CNY"
@@ -153,6 +218,12 @@ func createApprovedIntegration(
 	requestPrefix string,
 ) (MutationResult, MutationResult) {
 	t.Helper()
+	if entity == EntityProduct {
+		previousAuxiliaryResolver := service.auxiliaryResolver
+		service.SetAuxiliaryResolver(integrationAuxiliaryResolver{})
+		defer service.SetAuxiliaryResolver(previousAuxiliaryResolver)
+		completeRawProductIntegration(service, &data)
+	}
 	previousAuxiliaryResolver := service.auxiliaryResolver
 	if entity == EntitySupplier && previousAuxiliaryResolver == nil {
 		service.SetAuxiliaryResolver(customerAuxiliaryResolverStub{})

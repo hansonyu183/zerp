@@ -105,12 +105,42 @@ func TestCommonAttributeSchemaAndPermissionsIntegration(t *testing.T) {
 	}
 }
 
+func TestProductQueryIncludesVersionedUnitConversionsIntegration(t *testing.T) {
+	service := NewService(integrationPool(t))
+	productName := "单位换算查询产品 " + newID()
+	createApprovedIntegration(t, service, EntityProduct, CreateDetailInput{
+		Name: productName,
+	}, "product-query-units")
+
+	page, err := service.Query(t.Context(), EntityProduct, QueryInput{
+		Page: 1, PageSize: 20,
+		Filters: QueryFilters{Keyword: productName, Status: []string{StatusEffective}},
+		Sort:    []SortItem{{Field: "name", Order: "asc"}},
+	})
+	if err != nil {
+		t.Fatalf("query product: %v", err)
+	}
+	if len(page.Items) != 1 {
+		t.Fatalf("product query items = %d, want 1", len(page.Items))
+	}
+	data := page.Items[0].CurrentVersion.Summary
+	if data.DefaultInputUnitID != integrationKGUnitID || data.PricingUnitID != integrationKGUnitID {
+		t.Fatalf("product default units = %q/%q", data.DefaultInputUnitID, data.PricingUnitID)
+	}
+	if len(data.UnitConversions) != 1 || data.UnitConversions[0].Unit.ObjectID != integrationKGUnitID || data.UnitConversions[0].Factor != "1" {
+		t.Fatalf("product unit conversions = %#v", data.UnitConversions)
+	}
+}
+
 func TestCurrentIdentifierUniquenessAndHistoryReleaseIntegration(t *testing.T) {
 	service := NewService(integrationPool(t))
 
 	product, productApproved := createApprovedIntegration(t, service, EntityProduct, CreateDetailInput{
-		Code: "PU" + newID(), Name: "唯一条码产品", Unit: "件", Barcode: " barcode-" + newID(),
+		Code: "PU" + newID(), Name: "唯一条码产品", Barcode: " barcode-" + newID(),
 	}, "identifier-product")
+	previousAuxiliaryResolver := service.auxiliaryResolver
+	service.SetAuxiliaryResolver(integrationAuxiliaryResolver{})
+	t.Cleanup(func() { service.SetAuxiliaryResolver(previousAuxiliaryResolver) })
 	productView, err := service.Get(t.Context(), EntityProduct, GetInput{ObjectID: product.ObjectID})
 	if err != nil {
 		t.Fatalf("get identifier product: %v", err)
@@ -120,7 +150,7 @@ func TestCurrentIdentifierUniquenessAndHistoryReleaseIntegration(t *testing.T) {
 		t.Fatalf("barcode was not normalized: %q", originalBarcode)
 	}
 	if _, err = service.Create(t.Context(), EntityProduct, CreateInput{Data: CreateDetailInput{
-		Code: "PD" + newID(), Name: "重复条码产品", Unit: "件", Barcode: strings.ToLower(originalBarcode),
+		Code: "PD" + newID(), Name: "重复条码产品", Barcode: strings.ToLower(originalBarcode), DefaultPackagingSpec: "1",
 	}}, integrationActorOne, "duplicate-barcode"); !errorIsKind(err, ErrorConflict) {
 		t.Fatalf("duplicate barcode error = %v", err)
 	}
@@ -133,7 +163,7 @@ func TestCurrentIdentifierUniquenessAndHistoryReleaseIntegration(t *testing.T) {
 	productSaved, err := service.Save(t.Context(), EntityProduct, SaveInput{
 		ObjectID: product.ObjectID, VersionID: productEdit.VersionID, Revision: productEdit.Revision,
 		Data: DetailInput{
-			Name: "唯一条码产品", Unit: "件", Barcode: Optional("BARCODE-" + newID()),
+			Name: "唯一条码产品", Barcode: Optional("BARCODE-" + newID()),
 		},
 	}, integrationActorOne, "release-barcode-save")
 	if err != nil {
@@ -148,10 +178,11 @@ func TestCurrentIdentifierUniquenessAndHistoryReleaseIntegration(t *testing.T) {
 		t.Fatalf("approve replacement barcode: %v", err)
 	}
 	if _, err = service.Create(t.Context(), EntityProduct, CreateInput{Data: CreateDetailInput{
-		Code: "PR" + newID(), Name: "复用历史条码产品", Unit: "件", Barcode: originalBarcode,
+		Code: "PR" + newID(), Name: "复用历史条码产品", Barcode: originalBarcode, DefaultPackagingSpec: "1",
 	}}, integrationActorOne, "reuse-historical-barcode"); err != nil {
 		t.Fatalf("historical barcode was not released: %v", err)
 	}
+	service.SetAuxiliaryResolver(previousAuxiliaryResolver)
 
 	platform, _ := createApprovedIntegration(t, service, EntityOtherUnit, CreateDetailInput{
 		Name: "VIN 测试承运单位",

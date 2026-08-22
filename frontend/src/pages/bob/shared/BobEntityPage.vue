@@ -4,22 +4,22 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   BusinessObjectEditor,
   BusinessObjectList,
+  type BusinessObjectFieldOption,
 } from '@/components/business-object'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
 import { formatLocalDateTime } from '@/utils/date'
-import {
-  FormulaEditorDialog,
-  type ProductFormulaDraft,
-} from '@/components/formula'
-import {
-  PackagingSpecsEditorDialog,
-  type PackagingSpecDraft,
-} from '@/components/packaging'
 import { getStatusText } from './config'
 import type { BobEntityViewModel } from './vm'
 import type { BobListItem } from './types'
+import ProductUnitConversionsEditor from '../product/ProductUnitConversionsEditor.vue'
+import type { ProductUnitConversionDraft } from './product-data'
+import ProductFormulaEditorDialog from '../product/ProductFormulaEditorDialog.vue'
+import {
+  productFormulaFromPayload,
+  type ProductFormulaDraft,
+} from '../product/product-formula-data'
 
 const props = defineProps<{ model: BobEntityViewModel }>()
 const vm = reactive(props.model)
@@ -36,14 +36,16 @@ const formulaOpen = ref(false)
 const formulaModel = ref<ProductFormulaDraft | null>(null)
 const formulaEditable = ref(false)
 const formulaProductName = ref('')
-const formulaProductUnit = ref('')
+const formulaUnitConversions = ref<ProductUnitConversionDraft[]>([])
+const formulaDefaultInputUnitId = ref('')
+const productTypeInputReset = ref(0)
 let formulaSetter: ((value: ProductFormulaDraft) => void) | null = null
-const packagingOpen = ref(false)
-const packagingModel = ref<PackagingSpecDraft[]>([])
-const packagingEditable = ref(false)
-const packagingProductName = ref('')
-const packagingProductUnit = ref('')
-let packagingSetter: ((value: PackagingSpecDraft[]) => void) | null = null
+const pendingProductTypeChange = ref<{
+  value: string
+  behaviorProfile: string
+  clearedFields: string[]
+  setFieldValue: (key: string, value: unknown) => void
+} | null>(null)
 
 const versionsLength = computed(() =>
   Math.max(1, Math.ceil(vm.versionsTotal / vm.versionsPageSize)),
@@ -51,6 +53,10 @@ const versionsLength = computed(() =>
 const auditLength = computed(() =>
   Math.max(1, Math.ceil(vm.auditTotal / vm.auditPageSize)),
 )
+const effectiveProductUnitConversions = computed(() => {
+  const value = vm.effectiveView?.data.unitConversions
+  return Array.isArray(value) ? (value as ProductUnitConversionDraft[]) : []
+})
 
 void vm.query()
 
@@ -287,41 +293,107 @@ function openFormula(
   record: Readonly<Record<string, unknown>>,
   editable: boolean,
   setValue?: (value: unknown) => void,
+  setFieldValue?: (key: string, value: unknown) => void,
 ): void {
-  formulaModel.value = value
-    ? structuredClone(value as ProductFormulaDraft)
-    : null
+  formulaModel.value = productFormulaFromPayload(
+    value as ProductFormulaDraft | null,
+  )
   formulaEditable.value = editable
   formulaProductName.value = String(record.name ?? '自制成品')
-  formulaProductUnit.value = String(record.unit ?? '')
-  formulaSetter = setValue ? (formula) => setValue(formula) : null
+  const conversions = Array.isArray(record.unitConversions)
+    ? (record.unitConversions as ProductUnitConversionDraft[])
+    : []
+  formulaUnitConversions.value = conversions.map((conversion) => ({
+    ...conversion,
+    unit: { ...conversion.unit },
+  }))
+  formulaDefaultInputUnitId.value = String(record.defaultInputUnitId ?? '')
+  formulaSetter = setValue
+    ? (formula) => {
+        setValue(formula)
+        setFieldValue?.('formulaDirty', true)
+      }
+    : null
   formulaOpen.value = true
+}
+
+function behaviorProfileOf(option?: BusinessObjectFieldOption): string {
+  return typeof option?.metadata?.behaviorProfile === 'string'
+    ? option.metadata.behaviorProfile
+    : ''
+}
+
+function applyProductTypeChange(
+  value: string,
+  behaviorProfile: string,
+  setFieldValue: (key: string, value: unknown) => void,
+): void {
+  setFieldValue('productTypeId', value)
+  setFieldValue('behaviorProfile', behaviorProfile)
+  if (behaviorProfile !== 'STANDARD_FINISHED') {
+    setFieldValue('formula', null)
+    setFieldValue('formulaDirty', true)
+  }
+  if (behaviorProfile === 'PACKAGING') {
+    setFieldValue('defaultPackagingSpec', '')
+  } else {
+    setFieldValue('returnable', false)
+  }
+}
+
+function requestProductTypeChange(
+  value: unknown,
+  record: Readonly<Record<string, unknown>>,
+  options: readonly BusinessObjectFieldOption[],
+  setFieldValue: (key: string, value: unknown) => void,
+): void {
+  const nextValue = typeof value === 'string' ? value : ''
+  const behaviorProfile = behaviorProfileOf(
+    options.find((option) => option.value === nextValue),
+  )
+  const currentProfile = String(record.behaviorProfile ?? '')
+  if (currentProfile && behaviorProfile && currentProfile !== behaviorProfile) {
+    const clearedFields = [
+      ...(currentProfile === 'STANDARD_FINISHED' && record.formula
+        ? ['固定配方']
+        : []),
+      ...(behaviorProfile === 'PACKAGING' && record.defaultPackagingSpec
+        ? ['默认包装规格']
+        : []),
+      ...(behaviorProfile !== 'PACKAGING' && record.returnable
+        ? ['可回收周转']
+        : []),
+    ]
+    pendingProductTypeChange.value = {
+      value: nextValue,
+      behaviorProfile,
+      clearedFields,
+      setFieldValue,
+    }
+    return
+  }
+  applyProductTypeChange(nextValue, behaviorProfile, setFieldValue)
+}
+
+function confirmProductTypeChange(): void {
+  const pending = pendingProductTypeChange.value
+  if (!pending) return
+  applyProductTypeChange(
+    pending.value,
+    pending.behaviorProfile,
+    pending.setFieldValue,
+  )
+  pendingProductTypeChange.value = null
+}
+
+function cancelProductTypeChange(): void {
+  pendingProductTypeChange.value = null
+  productTypeInputReset.value += 1
 }
 
 function saveFormula(value: ProductFormulaDraft): void {
   formulaModel.value = value
   formulaSetter?.(value)
-}
-
-function openPackagingSpecs(
-  value: unknown,
-  record: Readonly<Record<string, unknown>>,
-  editable: boolean,
-  setValue?: (value: unknown) => void,
-): void {
-  packagingModel.value = Array.isArray(value)
-    ? structuredClone(value as PackagingSpecDraft[])
-    : []
-  packagingEditable.value = editable
-  packagingProductName.value = String(record.name ?? '产品')
-  packagingProductUnit.value = String(record.unit ?? '')
-  packagingSetter = setValue ? (specs) => setValue(specs) : null
-  packagingOpen.value = true
-}
-
-function savePackagingSpecs(value: PackagingSpecDraft[]): void {
-  packagingModel.value = value
-  packagingSetter?.(value)
 }
 </script>
 
@@ -417,6 +489,18 @@ function savePackagingSpecs(value: PackagingSpecDraft[]): void {
           >
             {{ row.enabled ? '启用' : '禁用' }}
           </v-chip>
+          <v-chip
+            v-if="
+              row.effectiveVersionId &&
+              row.effectiveVersionId !== row.currentVersion.versionId
+            "
+            color="warning"
+            density="comfortable"
+            size="small"
+            variant="tonal"
+          >
+            有候选版本
+          </v-chip>
         </div>
       </template>
 
@@ -440,6 +524,66 @@ function savePackagingSpecs(value: PackagingSpecDraft[]): void {
     width="720"
   >
     <div class="bob-entity-drawer__content">
+      <v-card
+        v-if="vm.effectiveView"
+        class="mb-4"
+        color="surface-variant"
+        rounded="lg"
+        variant="tonal"
+      >
+        <v-card-title class="text-subtitle-1">当前交易使用</v-card-title>
+        <v-card-text>
+          <div class="d-flex flex-wrap ga-4 mb-4">
+            <span>
+              版本 {{ vm.effectiveView.version.version }} ·
+              {{ vm.effectiveView.data.productTypeCode ?? '未设置类型' }}
+              {{ vm.effectiveView.data.productTypeName ?? '' }}
+            </span>
+            <span>
+              默认包装规格：{{
+                vm.effectiveView.data.defaultPackagingSpec || '—'
+              }}
+            </span>
+          </div>
+          <ProductUnitConversionsEditor
+            v-if="vm.config.entity === 'product'"
+            :behavior-profile="
+              String(vm.effectiveView.data.behaviorProfile ?? '')
+            "
+            :default-input-unit-id="
+              String(vm.effectiveView.data.defaultInputUnitId ?? '')
+            "
+            disabled
+            :model-value="effectiveProductUnitConversions"
+            :pricing-unit-id="String(vm.effectiveView.data.pricingUnitId ?? '')"
+            :unit-options="[]"
+          />
+          <div v-if="vm.effectiveView.data.formula" class="mt-4">
+            <div class="business-object-editor__label">固定配方</div>
+            <v-btn
+              prepend-icon="mdi-flask-outline"
+              variant="text"
+              @click="
+                openFormula(
+                  vm.effectiveView.data.formula,
+                  vm.effectiveView.data,
+                  false,
+                )
+              "
+            >
+              查看当前有效配方
+            </v-btn>
+          </div>
+        </v-card-text>
+      </v-card>
+      <v-alert
+        v-if="vm.effectiveView"
+        class="mb-4"
+        type="warning"
+        variant="tonal"
+      >
+        下方是正在变更的候选版本；新交易继续使用上方当前有效版本，直到候选审核通过。
+      </v-alert>
       <BusinessObjectEditor
         :editable="false"
         :editing="vm.editorMode !== 'view'"
@@ -477,12 +621,82 @@ function savePackagingSpecs(value: PackagingSpecDraft[]): void {
             </v-btn>
           </template>
         </template>
-        <template #input-formula="{ record, setValue, value }">
+        <template
+          #input-productTypeId="{
+            disabled,
+            field,
+            record,
+            setFieldValue,
+            value,
+          }"
+        >
+          <v-autocomplete
+            :key="`${String(value ?? '')}-${productTypeInputReset}`"
+            clearable
+            :disabled="disabled"
+            :hint="field.hint"
+            item-title="title"
+            item-value="value"
+            :items="field.options ?? []"
+            label="产品类型"
+            :loading="field.loading"
+            :model-value="value"
+            no-filter
+            persistent-hint
+            variant="outlined"
+            @update:model-value="
+              requestProductTypeChange(
+                $event,
+                record,
+                field.options ?? [],
+                setFieldValue,
+              )
+            "
+            @update:search="
+              vm.searchEditorReference('productTypeId', $event ?? '', record)
+            "
+          />
+        </template>
+        <template
+          #input-unitConversions="{
+            disabled,
+            field,
+            record,
+            setFieldValue,
+            setValue,
+            value,
+          }"
+        >
+          <ProductUnitConversionsEditor
+            :behavior-profile="String(record.behaviorProfile ?? '')"
+            :default-input-unit-id="String(record.defaultInputUnitId ?? '')"
+            :disabled="disabled"
+            :model-value="(value as ProductUnitConversionDraft[]) ?? []"
+            :pricing-unit-id="String(record.pricingUnitId ?? '')"
+            :unit-options="field.options ?? []"
+            @update:default-input-unit-id="
+              setFieldValue('defaultInputUnitId', $event)
+            "
+            @update:model-value="setValue($event)"
+            @update:pricing-unit-id="setFieldValue('pricingUnitId', $event)"
+          />
+        </template>
+        <template #display-unitConversions="{ record, value }">
+          <ProductUnitConversionsEditor
+            :behavior-profile="String(record.behaviorProfile ?? '')"
+            :default-input-unit-id="String(record.defaultInputUnitId ?? '')"
+            disabled
+            :model-value="(value as ProductUnitConversionDraft[]) ?? []"
+            :pricing-unit-id="String(record.pricingUnitId ?? '')"
+            :unit-options="[]"
+          />
+        </template>
+        <template #input-formula="{ record, setFieldValue, setValue, value }">
           <div class="business-object-editor__label">固定配方</div>
           <v-btn
             prepend-icon="mdi-flask-outline"
             variant="tonal"
-            @click="openFormula(value, record, true, setValue)"
+            @click="openFormula(value, record, true, setValue, setFieldValue)"
           >
             {{ value ? '编辑固定配方' : '维护固定配方' }}
           </v-btn>
@@ -497,62 +711,51 @@ function savePackagingSpecs(value: PackagingSpecDraft[]): void {
             查看固定配方
           </v-btn>
         </template>
-        <template #input-packagingSpecs="{ record, setValue, value }">
-          <div class="business-object-editor__label">包装规格</div>
-          <v-btn
-            prepend-icon="mdi-package-variant-closed"
-            variant="tonal"
-            @click="openPackagingSpecs(value, record, true, setValue)"
-          >
-            {{
-              Array.isArray(value) && value.length > 0
-                ? `编辑包装规格（${value.length}）`
-                : '维护包装规格'
-            }}
-          </v-btn>
-        </template>
-        <template #display-packagingSpecs="{ record, value }">
-          <div class="business-object-editor__label">包装规格</div>
-          <v-btn
-            prepend-icon="mdi-package-variant-closed"
-            variant="text"
-            @click="openPackagingSpecs(value, record, false)"
-          >
-            查看包装规格
-          </v-btn>
-        </template>
       </BusinessObjectEditor>
     </div>
   </v-navigation-drawer>
 
-  <FormulaEditorDialog
+  <ProductFormulaEditorDialog
     v-model:open="formulaOpen"
+    :default-input-unit-id="formulaDefaultInputUnitId"
     :editable="formulaEditable"
     :model-value="formulaModel"
     :product-name="formulaProductName"
-    :product-unit="formulaProductUnit"
-    source-type="PRODUCT_FIXED"
+    :unit-conversions="formulaUnitConversions"
     @save="saveFormula"
   />
 
-  <PackagingSpecsEditorDialog
-    v-model:open="packagingOpen"
-    :editable="packagingEditable"
-    :model-value="packagingModel"
-    :product-name="packagingProductName"
-    :product-unit="packagingProductUnit"
-    @save="savePackagingSpecs"
-  />
-
   <v-dialog
-    v-model="vm.referenceTransferOpen"
-    max-width="620"
+    :model-value="Boolean(pendingProductTypeChange)"
+    max-width="540"
     persistent
   >
+    <v-card rounded="xl" title="切换产品行为模板？">
+      <v-card-text>
+        新产品类型使用不同的行为模板。取消则保留当前类型和全部输入。
+        <template v-if="pendingProductTypeChange?.clearedFields.length">
+          确认后会清除：{{
+            pendingProductTypeChange.clearedFields.join('、')
+          }}。
+        </template>
+        <template v-else>当前没有已填写字段需要清除。</template>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn variant="text" @click="cancelProductTypeChange"> 取消 </v-btn>
+        <v-btn color="warning" @click="confirmProductTypeChange">
+          确认切换并清理
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <v-dialog v-model="vm.referenceTransferOpen" max-width="620" persistent>
     <v-card rounded="xl" title="选择接替资料并批量转移">
       <v-card-text>
         <v-alert class="mb-4" type="warning" variant="tonal">
-          {{ vm.referenceTransferSource?.code }} 仍被当前有效业务对象引用。转移会为受影响对象生成新的有效版本，并在同一事务中停用原资料。
+          {{ vm.referenceTransferSource?.code }}
+          仍被当前有效业务对象引用。转移会为受影响对象生成新的有效版本，并在同一事务中停用原资料。
         </v-alert>
         <v-alert
           v-if="vm.referenceTransferError"

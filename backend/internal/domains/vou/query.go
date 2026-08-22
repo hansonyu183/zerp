@@ -51,39 +51,37 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 			indexByID[items[index].DocumentID] = index
 		}
 		if entity == EntitySaleOrder {
-			summaries, summaryErr := s.queries.ListSalesOrderKgSummaries(ctx, orderIDs)
+			summaries, summaryErr := s.queries.ListSalesOrderBaseQuantitySummaries(ctx, orderIDs)
 			if summaryErr != nil {
 				return Page[ListItem]{}, s.internal("summarize sales order list", summaryErr)
 			}
 			for _, row := range summaries {
 				index := indexByID[row.OrderID]
-				summary := &SalesKgSummary{
-					Unit: "KG", ExcludedPackaging: row.ExcludedPackaging,
-					WarehouseAvailable: row.WarehouseAvailable,
-					OrderedQuantity:    compactQuantity(row.OrderedQuantityMicros),
-					OutboundQuantity:   compactQuantity(row.OutboundQuantityMicros),
-					InTransitQuantity:  compactQuantity(row.InTransitQuantityMicros),
-					SignedQuantity:     compactQuantity(row.SignedQuantityMicros),
-					NetSignedQuantity:  compactQuantity(row.NetSignedQuantityMicros),
+				summary := &SalesBaseQuantitySummary{
+					WarehouseAvailable:    row.WarehouseAvailable,
+					OrderedBaseQuantity:   compactQuantity(row.OrderedBaseQuantityMicros),
+					OutboundBaseQuantity:  compactQuantity(row.OutboundBaseQuantityMicros),
+					InTransitBaseQuantity: compactQuantity(row.InTransitBaseQuantityMicros),
+					SignedBaseQuantity:    compactQuantity(row.SignedBaseQuantityMicros),
+					NetSignedBaseQuantity: compactQuantity(row.NetSignedBaseQuantityMicros),
 				}
 				if row.WarehouseAvailable {
-					summary.ShortageQuantity = compactQuantity(row.ShortageQuantityMicros)
+					summary.ShortageBaseQuantity = compactQuantity(row.ShortageBaseQuantityMicros)
 				}
 				items[index].SalesSummary = summary
 			}
 		} else {
-			summaries, summaryErr := s.queries.ListPurchaseOrderKgSummaries(ctx, orderIDs)
+			summaries, summaryErr := s.queries.ListPurchaseOrderBaseQuantitySummaries(ctx, orderIDs)
 			if summaryErr != nil {
 				return Page[ListItem]{}, s.internal("summarize purchase order list", summaryErr)
 			}
 			for _, row := range summaries {
 				index := indexByID[row.OrderID]
-				items[index].PurchaseSummary = &PurchaseKgSummary{
-					Unit: "KG", ExcludedPackaging: row.ExcludedPackaging,
-					OrderedQuantity:          compactQuantity(row.OrderedQuantityMicros),
-					InboundQuantity:          compactQuantity(row.InboundQuantityMicros),
-					ReturnProcessingQuantity: compactQuantity(row.ReturnProcessingQuantityMicros),
-					NetInboundQuantity:       compactQuantity(row.NetInboundQuantityMicros),
+				items[index].PurchaseSummary = &PurchaseBaseQuantitySummary{
+					OrderedBaseQuantity:          compactQuantity(row.OrderedBaseQuantityMicros),
+					InboundBaseQuantity:          compactQuantity(row.InboundBaseQuantityMicros),
+					ReturnProcessingBaseQuantity: compactQuantity(row.ReturnProcessingBaseQuantityMicros),
+					NetInboundBaseQuantity:       compactQuantity(row.NetInboundBaseQuantityMicros),
 				}
 			}
 		}

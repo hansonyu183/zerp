@@ -24,16 +24,21 @@ type ReferenceTransferResult struct {
 }
 
 type ReferenceQueryInput struct {
-	Entity         string `json:"entity"`
-	Keyword        string `json:"keyword"`
-	SourceObjectID string `json:"sourceObjectId"`
+	Entity          string `json:"entity"`
+	Keyword         string `json:"keyword"`
+	SourceObjectID  string `json:"sourceObjectId"`
+	BehaviorProfile string `json:"behaviorProfile"`
 }
 
 type ReferenceCandidate struct {
-	ObjectID  string `json:"objectId"`
-	VersionID string `json:"versionId"`
-	Code      string `json:"code"`
-	Name      string `json:"name"`
+	ObjectID           string                  `json:"objectId"`
+	VersionID          string                  `json:"versionId"`
+	Code               string                  `json:"code"`
+	Name               string                  `json:"name"`
+	BehaviorProfile    string                  `json:"behaviorProfile,omitempty"`
+	DefaultInputUnitID string                  `json:"defaultInputUnitId,omitempty"`
+	PricingUnitID      string                  `json:"pricingUnitId,omitempty"`
+	UnitConversions    []ProductUnitConversion `json:"unitConversions,omitempty"`
 }
 
 func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQueryInput) ([]ReferenceCandidate, error) {
@@ -44,15 +49,27 @@ func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQ
 	if input.SourceObjectID != "" && !validID(input.SourceObjectID) {
 		return nil, domainError(ErrorValidation, "invalid BOB reference source", nil, nil)
 	}
+	if input.BehaviorProfile != "" && (input.Entity != EntityProduct || !validProductBehavior(input.BehaviorProfile)) {
+		return nil, domainError(ErrorValidation, "invalid product behavior profile", nil, nil)
+	}
 	rows, err := s.queries.QueryBobReferenceCandidates(ctx, dbsqlc.QueryBobReferenceCandidatesParams{
 		Entity: input.Entity, Keyword: input.Keyword, SourceObjectID: input.SourceObjectID,
+		BehaviorProfile: input.BehaviorProfile,
 	})
 	if err != nil {
 		return nil, s.internal("query BOB reference candidates", err)
 	}
 	result := make([]ReferenceCandidate, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, ReferenceCandidate{ObjectID: row.ObjectID, VersionID: deref(row.VersionID), Code: row.Code, Name: row.Name})
+		candidate := ReferenceCandidate{ObjectID: row.ObjectID, VersionID: deref(row.VersionID), Code: row.Code, Name: row.Name,
+			BehaviorProfile: row.BehaviorProfile, DefaultInputUnitID: row.DefaultInputUnitID, PricingUnitID: row.PricingUnitID}
+		if input.Entity == EntityProduct {
+			candidate.UnitConversions, err = loadProductUnitConversions(ctx, s.queries, candidate.VersionID)
+			if err != nil {
+				return nil, s.internal("read product reference unit conversions", err)
+			}
+		}
+		result = append(result, candidate)
 	}
 	return result, nil
 }
@@ -224,13 +241,6 @@ func listDirectReferenceUses(ctx context.Context, q *dbsqlc.Queries, entity, obj
 		for _, row := range rows {
 			uses = append(uses, directReferenceUse{row.ObjectID, row.Entity, row.Role})
 		}
-		rows2, err := q.ListPackagingProductReferences(ctx, objectID)
-		if err != nil {
-			return nil, err
-		}
-		for _, row := range rows2 {
-			uses = append(uses, directReferenceUse{row.ObjectID, row.Entity, row.Role})
-		}
 	}
 	sort.Slice(uses, func(left, right int) bool {
 		if uses[left].objectID != uses[right].objectID {
@@ -329,8 +339,6 @@ func (s *Service) replaceDirectReference(
 		err = qtx.ReplaceVehiclePlatformReference(ctx, dbsqlc.ReplaceVehiclePlatformReferenceParams{TargetObjectID: targetObjectID, VersionID: candidateID})
 	case "formula-material":
 		err = qtx.ReplaceFormulaMaterialReference(ctx, dbsqlc.ReplaceFormulaMaterialReferenceParams{TargetObjectID: targetObjectID, TargetVersionID: targetVersionID, ProductVersionID: candidateID, SourceObjectID: sourceObjectID})
-	case "packaging-product":
-		err = qtx.ReplacePackagingProductReference(ctx, dbsqlc.ReplacePackagingProductReferenceParams{TargetObjectID: targetObjectID, TargetVersionID: targetVersionID, ProductVersionID: candidateID, SourceObjectID: sourceObjectID})
 	}
 	if err != nil {
 		return s.writeError("replace direct reference", err)
@@ -340,16 +348,13 @@ func (s *Service) replaceDirectReference(
 
 func validateReferenceTransferTarget(ctx context.Context, q *dbsqlc.Queries, role, objectID, versionID string) error {
 	switch role {
-	case "formula-material", "packaging-product":
-		kind, err := q.GetReferenceTransferTargetProductKind(ctx, dbsqlc.GetReferenceTransferTargetProductKindParams{ObjectID: objectID, VersionID: &versionID})
+	case "formula-material":
+		behavior, err := q.GetReferenceTransferTargetProductBehavior(ctx, dbsqlc.GetReferenceTransferTargetProductBehaviorParams{ObjectID: objectID, VersionID: &versionID})
 		if err != nil {
 			return domainError(ErrorConflict, "reference transfer target is unavailable", nil, err)
 		}
-		if role == "formula-material" && kind != ProductKindRawMaterial {
+		if role == "formula-material" && deref(behavior) != ProductBehaviorRawMaterial {
 			return domainError(ErrorConflict, "formula material replacement must be a raw material", nil, nil)
-		}
-		if role == "packaging-product" && kind != ProductKindPackaging {
-			return domainError(ErrorConflict, "packaging product replacement must be a packaging product", nil, nil)
 		}
 	case "vehicle-platform":
 		eligible, err := q.ReferenceTransferTargetIsServiceRelationship(ctx, dbsqlc.ReferenceTransferTargetIsServiceRelationshipParams{ObjectID: objectID, VersionID: &versionID})

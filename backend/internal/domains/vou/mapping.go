@@ -174,12 +174,12 @@ func (s *Service) loadData(
 		}
 		for _, row := range rows {
 			var returned int64
-			if err = s.pool.QueryRow(ctx, `SELECT COALESCE(sum(quantity_micros),0)
+			if err = s.pool.QueryRow(ctx, `SELECT COALESCE(sum(base_quantity_micros),0)
 				FROM vou_purchase_return_lines WHERE source_inbound_line_id=$1`, row.ID).
 				Scan(&returned); err != nil {
 				return data, err
 			}
-			returnable := row.QuantityMicros - returned
+			returnable := row.BaseQuantityMicros - returned
 			if returnable < 0 {
 				returnable = 0
 			}
@@ -188,13 +188,15 @@ func (s *Service) loadData(
 				SourceLineID: row.SourceOrderLineID,
 				Product: *reference(
 					row.ProductObjectID, row.ProductVersionID, "product",
-					row.ProductCode, row.ProductName, row.ProductUnit, "", "",
+					row.ProductCode, row.ProductName, row.EnteredUnitSymbol, "", "",
 				),
-				OrderedQuantity:    formatQuantity(row.QuantityMicros),
-				UnitPrice:          formatMoney(row.UnitPriceCents),
-				LineAmount:         formatMoney(row.LineAmountCents),
-				Remark:             deref(row.Remark),
-				ReturnableQuantity: formatQuantity(returnable),
+				EnteredQuantity:        formatQuantity(row.BaseQuantityMicros),
+				EnteredUnit:            UnitSnapshotView{Symbol: row.EnteredUnitSymbol},
+				BaseQuantity:           formatQuantity(row.BaseQuantityMicros),
+				UnitPrice:              formatMoney(row.UnitPriceCents),
+				LineAmount:             formatMoney(row.LineAmountCents),
+				Remark:                 deref(row.Remark),
+				ReturnableBaseQuantity: formatQuantity(returnable),
 			})
 		}
 		return data, nil
@@ -215,16 +217,19 @@ func (s *Service) loadData(
 			item := InventoryCountLineView{
 				LineID: row.ID, LineNo: row.LineNo,
 				Product: *reference(row.ProductObjectID, row.ProductVersionID, "product",
-					row.ProductCode, row.ProductName, row.ProductUnit, "", ""),
-				ActualQuantity: formatQuantity(row.ActualQuantityMicros), Remark: deref(row.Remark),
+					row.ProductCode, row.ProductName, row.EnteredUnitSymbol, "", ""),
+				EnteredQuantity: formatQuantity(row.EnteredQuantityMicros),
+				EnteredUnit: UnitSnapshotView{ObjectID: row.EnteredUnitObjectID, VersionID: row.EnteredUnitVersionID,
+					Code: row.EnteredUnitCode, Name: row.EnteredUnitName, Symbol: row.EnteredUnitSymbol},
+				BaseQuantity: formatQuantity(row.ActualBaseQuantityMicros), Remark: deref(row.Remark),
 			}
-			if row.BookQuantityMicros != nil {
-				value := formatQuantity(*row.BookQuantityMicros)
-				item.BookQuantity = &value
+			if row.BookBaseQuantityMicros != nil {
+				value := formatQuantity(*row.BookBaseQuantityMicros)
+				item.BookBaseQuantity = &value
 			}
-			if row.DifferenceQuantityMicros != nil {
-				value := formatQuantity(*row.DifferenceQuantityMicros)
-				item.DifferenceQuantity = &value
+			if row.DifferenceBaseQuantityMicros != nil {
+				value := formatQuantity(*row.DifferenceBaseQuantityMicros)
+				item.DifferenceBaseQuantity = &value
 			}
 			data.InventoryCountLines = append(data.InventoryCountLines, item)
 		}
@@ -332,8 +337,11 @@ func loadProductLines(ctx context.Context, q *dbsqlc.Queries, documentID string)
 		item := ProductLineView{
 			LineID: row.ID, LineNo: row.LineNo,
 			Product: *reference(row.ProductObjectID, row.ProductVersionID, "product",
-				row.ProductCode, row.ProductName, row.ProductUnit, "", ""),
-			OrderedQuantity:       formatQuantity(row.OrderedQtyMicros),
+				row.ProductCode, row.ProductName, row.EnteredUnitSymbol, "", ""),
+			EnteredQuantity: formatQuantity(row.EnteredQuantityMicros),
+			EnteredUnit: UnitSnapshotView{ObjectID: row.EnteredUnitObjectID, VersionID: row.EnteredUnitVersionID,
+				Code: row.EnteredUnitCode, Name: row.EnteredUnitName, Symbol: row.EnteredUnitSymbol},
+			BaseQuantity:          formatQuantity(row.BaseQuantityMicros),
 			UnitPrice:             formatMoney(row.UnitPriceCents),
 			BaseUnitPrice:         formatMoney(row.BaseUnitPriceCents),
 			SettlementSurcharge:   formatMoney(row.SettlementSurchargeCents),
@@ -344,17 +352,19 @@ func loadProductLines(ctx context.Context, q *dbsqlc.Queries, documentID string)
 			ReferenceDocumentNo:   deref(row.ReferenceDocumentNo),
 			ReferenceBusinessDate: formatDate(row.ReferenceBusinessDate),
 		}
-		item.Product.ProductKind = row.ProductKind
-		item.Product.PricingQuantityPerInventoryUnit =
-			formatQuantity(row.PricingQuantityPerInventoryUnitMicros)
+		item.Product.BehaviorProfile = row.BehaviorProfile
+		item.Product.ProductTypeObjectID = row.ProductTypeObjectID
+		item.Product.ProductTypeVersionID = row.ProductTypeVersionID
+		item.Product.ProductTypeCode = row.ProductTypeCode
+		item.Product.ProductTypeName = row.ProductTypeName
 		if row.PurchaseUnitPriceCents != nil {
 			item.PurchaseUnitPrice = formatMoney(*row.PurchaseUnitPriceCents)
 		}
-		item.OutboundQuantity = formatOptionalQuantity(row.OutboundQtyMicros)
-		item.SignedQuantity = formatOptionalQuantity(row.SignedQtyMicros)
-		item.RejectedQuantity = formatOptionalQuantity(row.RejectedQtyMicros)
-		item.LossQuantity = formatOptionalQuantity(row.LossQtyMicros)
-		item.InboundQuantity = formatOptionalQuantity(row.InboundQtyMicros)
+		item.OutboundBaseQuantity = formatOptionalQuantity(row.OutboundBaseQuantityMicros)
+		item.SignedBaseQuantity = formatOptionalQuantity(row.SignedBaseQuantityMicros)
+		item.RejectedBaseQuantity = formatOptionalQuantity(row.RejectedBaseQuantityMicros)
+		item.LossBaseQuantity = formatOptionalQuantity(row.LossBaseQuantityMicros)
+		item.InboundBaseQuantity = formatOptionalQuantity(row.InboundBaseQuantityMicros)
 		item.Formula, err = loadSaleOrderFormula(ctx, q, row.ID)
 		if err != nil {
 			return nil, err
@@ -372,9 +382,12 @@ func loadPriceLines(ctx context.Context, q *dbsqlc.Queries, documentID string) (
 	items := make([]PriceLineView, 0, len(rows))
 	for _, row := range rows {
 		product := *reference(row.ProductObjectID, row.ProductVersionID, bobdomain.EntityProduct,
-			row.ProductCode, row.ProductName, row.ProductUnit, "", "")
-		product.ProductKind = row.ProductKind
-		product.PricingQuantityPerInventoryUnit = formatQuantity(row.PricingQuantityPerInventoryUnitMicros)
+			row.ProductCode, row.ProductName, row.DefaultInputUnitSymbol, "", "")
+		product.BehaviorProfile = row.BehaviorProfile
+		product.ProductTypeObjectID = row.ProductTypeObjectID
+		product.ProductTypeVersionID = row.ProductTypeVersionID
+		product.ProductTypeCode = row.ProductTypeCode
+		product.ProductTypeName = row.ProductTypeName
 		items = append(items, PriceLineView{LineID: row.ID, LineNo: row.LineNo, Product: product,
 			UnitPrice: formatMoney(row.UnitPriceCents), Remark: deref(row.Remark)})
 	}
@@ -396,19 +409,34 @@ func loadSaleOrderFormula(
 		return nil, err
 	}
 	result := &FormulaView{
-		BaseOutputQuantity: formatQuantity(header.BaseOutputQuantityMicros),
-		SourceType:         header.SourceType, SourceDocumentID: deref(header.SourceDocumentID),
+		Output: QuantitySnapshotView{
+			EnteredQuantity: formatQuantity(header.OutputEnteredQuantityMicros),
+			EnteredUnit: UnitSnapshotView{
+				ObjectID: header.OutputEnteredUnitObjectID, VersionID: header.OutputEnteredUnitVersionID,
+				Code: header.OutputEnteredUnitCode, Name: header.OutputEnteredUnitName, Symbol: header.OutputEnteredUnitSymbol,
+			},
+			BaseQuantity: formatQuantity(header.OutputBaseQuantityMicros),
+		},
+		SourceType: header.SourceType, SourceDocumentID: deref(header.SourceDocumentID),
 		SourceDocumentNo: deref(header.SourceDocumentNo),
 		Components:       make([]FormulaComponentView, 0, len(rows)),
 	}
 	for _, row := range rows {
 		material := *reference(
 			row.MaterialObjectID, row.MaterialVersionID, bobdomain.EntityProduct,
-			row.MaterialCode, row.MaterialName, row.MaterialUnit, "", "",
+			row.MaterialCode, row.MaterialName, row.EnteredUnitSymbol, "", "",
 		)
-		material.ProductKind = bobdomain.ProductKindRawMaterial
+		material.BehaviorProfile = bobdomain.ProductBehaviorRawMaterial
 		result.Components = append(result.Components, FormulaComponentView{
-			Material: material, Quantity: formatQuantity(row.QuantityMicros),
+			Material: material,
+			Quantity: QuantitySnapshotView{
+				EnteredQuantity: formatQuantity(row.EnteredQuantityMicros),
+				EnteredUnit: UnitSnapshotView{
+					ObjectID: row.EnteredUnitObjectID, VersionID: row.EnteredUnitVersionID,
+					Code: row.EnteredUnitCode, Name: row.EnteredUnitName, Symbol: row.EnteredUnitSymbol,
+				},
+				BaseQuantity: formatQuantity(row.BaseQuantityMicros),
+			},
 		})
 	}
 	return result, nil

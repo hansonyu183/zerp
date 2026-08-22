@@ -38,13 +38,16 @@ function row(status: BobStatus = 'DRAFT', enabled = true): BobListItem {
       submittedBy: null,
       summary: {
         name: '标准产品',
-        unit: '件',
-        productKind: 'RAW_MATERIAL',
-        inventoryUnitId: 'UNIT-PIECE',
+        productTypeId: 'TYPE-RAW',
+        behaviorProfile: 'RAW_MATERIAL',
+        defaultInputUnitId: 'UNIT-PIECE',
         pricingUnitId: 'UNIT-KG',
-        pricingQuantityPerInventoryUnit: '1',
+        unitConversions: [
+          { unit: { objectId: 'UNIT-PIECE' }, factor: '1' },
+          { unit: { objectId: 'UNIT-KG' }, factor: '1' },
+        ],
         returnable: false,
-        packagingSpecs: [],
+        defaultPackagingSpec: '1',
         categoryId: '',
         specification: '',
         model: 'M1',
@@ -73,13 +76,16 @@ function objectView(versionId = 'VER-1'): BobObjectView {
     },
     data: {
       name: '标准产品',
-      unit: '件',
-      productKind: 'RAW_MATERIAL',
-      inventoryUnitId: 'UNIT-PIECE',
+      productTypeId: 'TYPE-RAW',
+      behaviorProfile: 'RAW_MATERIAL',
+      defaultInputUnitId: 'UNIT-PIECE',
       pricingUnitId: 'UNIT-KG',
-      pricingQuantityPerInventoryUnit: '1',
+      unitConversions: [
+        { unit: { objectId: 'UNIT-PIECE' }, factor: '1' },
+        { unit: { objectId: 'UNIT-KG' }, factor: '1' },
+      ],
       returnable: false,
-      packagingSpecs: [],
+      defaultPackagingSpec: '1',
       categoryId: '',
       specification: '',
       model: 'M1',
@@ -106,9 +112,17 @@ function emptyPage() {
 }
 
 function grant(entity: string, ...actions: string[]) {
-  useSessionStore().permissions = actions.map(
-    (action) => `/bob/${entity}/${action}`,
-  )
+  useSessionStore().permissions = [
+    ...actions.map((action) => `/bob/${entity}/${action}`),
+    ...(entity === 'product'
+      ? [
+          '/bob/product/query',
+          '/aux/product-type/query',
+          '/aux/measurement-unit/query',
+          '/aux/product-category/query',
+        ]
+      : []),
+  ]
 }
 
 describe('shared BOB entity configuration and view model', () => {
@@ -145,10 +159,35 @@ describe('shared BOB entity configuration and view model', () => {
     expect(vm.editorErrorMessage.value).toBe('详情加载失败')
   })
 
+  it('产品编辑入口要求全部编辑器引用查询权限', async () => {
+    useSessionStore().permissions = [
+      '/bob/product/create',
+      '/bob/product/get',
+      '/bob/product/save',
+      '/aux/product-type/query',
+      '/aux/measurement-unit/query',
+    ]
+    const vm = useBobEntityViewModel(getBobEntityConfig('product'))
+
+    expect(vm.canCreate.value).toBe(false)
+    expect(vm.actionAvailability(row()).edit).toBe(false)
+
+    useSessionStore().permissions = [
+      ...useSessionStore().permissions,
+      '/aux/product-category/query',
+    ]
+    expect(vm.canCreate.value).toBe(false)
+    expect(vm.actionAvailability(row()).edit).toBe(false)
+
+    useSessionStore().permissions.push('/bob/product/query')
+    expect(vm.canCreate.value).toBe(true)
+    expect(vm.actionAvailability(row()).edit).toBe(true)
+  })
+
   it('定义仍使用通用工作区的七类业务对象和完整状态筛选', () => {
     const expectedColumns: Record<string, string[]> = {
       supplier: ['编码', '主体名称', '状态'],
-      product: ['编码', '名称', '类型', '库存单位', '型号', '状态'],
+      product: ['编码', '名称', '产品类型', '默认录入单位', '型号', '状态'],
       service: ['编码', '名称', '单位', '说明', '状态'],
       warehouse: ['编码', '名称', '地址', '联系人', '状态'],
       vehicle: ['编码', '名称', '车牌', '类型', '状态'],
@@ -176,7 +215,7 @@ describe('shared BOB entity configuration and view model', () => {
   })
 
   it('阻止提交人审核自己的待审核版本并说明原因', () => {
-    grant('product', 'approve', 'reject')
+    grant('product', 'get', 'approve', 'reject')
     const session = useSessionStore()
     session.user = {
       id: 'USER-1',
@@ -217,6 +256,18 @@ describe('shared BOB entity configuration and view model', () => {
       },
       sort: [{ field: 'code', order: 'asc' }],
     })
+  })
+
+  it('产品提交和批准入口要求详情读取权限', () => {
+    grant('product', 'submit', 'approve')
+    const vm = useBobEntityViewModel(getBobEntityConfig('product'))
+
+    expect(vm.actionAvailability(row()).submit).toBe(false)
+    expect(vm.actionAvailability(row('PENDING')).approve).toBe(false)
+
+    useSessionStore().permissions.push('/bob/product/get')
+    expect(vm.actionAvailability(row()).submit).toBe(true)
+    expect(vm.actionAvailability(row('PENDING')).approve).toBe(true)
   })
 
   it('分页变化时重新查询并保持固定页大小', async () => {
@@ -275,7 +326,7 @@ describe('shared BOB entity configuration and view model', () => {
       reject: true,
     })
     expect(vm.actionAvailability(row('EFFECTIVE'))).toMatchObject({
-      edit: false,
+      edit: true,
       delete: false,
       submit: false,
       unapprove: true,
@@ -285,23 +336,29 @@ describe('shared BOB entity configuration and view model', () => {
 
   it('创建时省略空可选字段，保存时显式发送清空值', async () => {
     grant('product', 'create', 'query', 'get', 'save')
-    mockedApiClient.post
-      .mockResolvedValueOnce({ data: mutation() })
-      .mockResolvedValueOnce({ data: objectView() })
-      .mockResolvedValueOnce(emptyPage())
+    mockedApiClient.post.mockImplementation(async (path) => {
+      if (path === 'bob/product/create' || path === 'bob/product/save') {
+        return { data: mutation() }
+      }
+      if (path === 'bob/product/get') return { data: objectView() }
+      return emptyPage()
+    })
 
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
     vm.openCreate()
     const savedCreated = await vm.save({
       code: ' prd-2 ',
       name: ' 新产品 ',
-      unit: ' 件 ',
-      productKind: 'RAW_MATERIAL',
-      inventoryUnitId: 'UNIT-PIECE',
+      productTypeId: 'TYPE-RAW',
+      behaviorProfile: 'RAW_MATERIAL',
+      defaultInputUnitId: 'UNIT-PIECE',
       pricingUnitId: 'UNIT-KG',
-      pricingQuantityPerInventoryUnit: '1',
+      unitConversions: [
+        { unit: { objectId: 'UNIT-PIECE' }, factor: '1' },
+        { unit: { objectId: 'UNIT-KG' }, factor: '1' },
+      ],
       returnable: false,
-      packagingSpecs: [],
+      defaultPackagingSpec: '1',
       categoryId: '',
       specification: '',
       model: '',
@@ -314,40 +371,36 @@ describe('shared BOB entity configuration and view model', () => {
       `${vm.editorErrorMessage.value ?? ''} ${JSON.stringify(mockedApiClient.post.mock.calls)}`,
     ).toBe(true)
 
-    expect(mockedApiClient.post).toHaveBeenNthCalledWith(
-      1,
-      'bob/product/create',
-      {
-        data: {
-          name: '新产品',
-          unit: '件',
-          productKind: 'RAW_MATERIAL',
-          inventoryUnitId: 'UNIT-PIECE',
-          pricingUnitId: 'UNIT-KG',
-          pricingQuantityPerInventoryUnit: '1',
-          returnable: false,
-          packagingSpecs: [],
-        },
+    expect(mockedApiClient.post).toHaveBeenCalledWith('bob/product/create', {
+      data: {
+        name: '新产品',
+        productTypeId: 'TYPE-RAW',
+        defaultInputUnitId: 'UNIT-PIECE',
+        pricingUnitId: 'UNIT-KG',
+        unitConversions: [
+          { unit: { objectId: 'UNIT-PIECE' }, factor: '1' },
+          { unit: { objectId: 'UNIT-KG' }, factor: '1' },
+        ],
+        returnable: false,
+        defaultPackagingSpec: '1',
       },
-    )
+    })
 
     vi.clearAllMocks()
-    mockedApiClient.post
-      .mockResolvedValueOnce({ data: objectView() })
-      .mockResolvedValueOnce({ data: mutation() })
-      .mockResolvedValueOnce({ data: objectView() })
-      .mockResolvedValueOnce(emptyPage())
     await vm.openEdit(row())
     const savedUpdate = await vm.save({
       code: 'PRD-1',
       name: '标准产品',
-      unit: '件',
-      productKind: 'RAW_MATERIAL',
-      inventoryUnitId: 'UNIT-PIECE',
+      productTypeId: 'TYPE-RAW',
+      behaviorProfile: 'RAW_MATERIAL',
+      defaultInputUnitId: 'UNIT-PIECE',
       pricingUnitId: 'UNIT-KG',
-      pricingQuantityPerInventoryUnit: '1',
+      unitConversions: [
+        { unit: { objectId: 'UNIT-PIECE' }, factor: '1' },
+        { unit: { objectId: 'UNIT-KG' }, factor: '1' },
+      ],
       returnable: false,
-      packagingSpecs: [],
+      defaultPackagingSpec: '1',
       categoryId: '',
       specification: '',
       model: '',
@@ -357,30 +410,28 @@ describe('shared BOB entity configuration and view model', () => {
 
     expect(savedUpdate, vm.editorErrorMessage.value ?? '').toBe(true)
 
-    expect(mockedApiClient.post).toHaveBeenNthCalledWith(
-      2,
-      'bob/product/save',
-      {
-        objectId: 'OBJ-1',
-        versionId: 'VER-1',
-        revision: 1,
-        data: {
-          name: '标准产品',
-          unit: '件',
-          productKind: 'RAW_MATERIAL',
-          inventoryUnitId: 'UNIT-PIECE',
-          pricingUnitId: 'UNIT-KG',
-          pricingQuantityPerInventoryUnit: '1',
-          returnable: false,
-          packagingSpecs: [],
-          categoryId: '',
-          specification: '',
-          model: '',
-          barcode: '',
-          remark: '',
-        },
+    expect(mockedApiClient.post).toHaveBeenCalledWith('bob/product/save', {
+      objectId: 'OBJ-1',
+      versionId: 'VER-1',
+      revision: 1,
+      data: {
+        name: '标准产品',
+        productTypeId: 'TYPE-RAW',
+        defaultInputUnitId: 'UNIT-PIECE',
+        pricingUnitId: 'UNIT-KG',
+        unitConversions: [
+          { unit: { objectId: 'UNIT-PIECE' }, factor: '1' },
+          { unit: { objectId: 'UNIT-KG' }, factor: '1' },
+        ],
+        returnable: false,
+        defaultPackagingSpec: '1',
+        categoryId: '',
+        specification: '',
+        model: '',
+        barcode: '',
+        remark: '',
       },
-    )
+    })
   })
 
   it('保存接口成功后立即反馈，不等待列表刷新', async () => {
@@ -414,19 +465,27 @@ describe('shared BOB entity configuration and view model', () => {
     await expect(saving).resolves.toBe(true)
   })
 
-  it('有效对象不能直接进入编辑', async () => {
+  it('有效产品直接进入候选版本编辑', async () => {
     grant('product', 'get', 'save', 'unapprove')
+    const effective = objectView()
+    effective.version.status = 'EFFECTIVE'
+    mockedApiClient.post.mockResolvedValueOnce({ data: effective })
 
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
     await vm.openEdit(row('EFFECTIVE'))
 
-    expect(mockedApiClient.post).not.toHaveBeenCalled()
+    expect(mockedApiClient.post).toHaveBeenCalledWith('bob/product/get', {
+      objectId: 'OBJ-1',
+      versionId: 'VER-1',
+    })
+    expect(vm.editorMode.value).toBe('edit')
   })
 
   it('提交、审核、反向和启停动作使用当前并发版本', async () => {
     grant(
       'product',
       'query',
+      'get',
       'submit',
       'unsubmit',
       'approve',
@@ -439,23 +498,25 @@ describe('shared BOB entity configuration and view model', () => {
     )
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
     mockedApiClient.post
+      .mockResolvedValueOnce({ data: objectView() })
       .mockResolvedValueOnce({ data: mutation('PENDING') })
       .mockResolvedValueOnce(emptyPage())
 
     await vm.submitObject(row())
     expect(mockedApiClient.post).toHaveBeenNthCalledWith(
-      1,
+      2,
       'bob/product/submit',
       { objectId: 'OBJ-1', versionId: 'VER-1', revision: 5 },
     )
 
     vi.clearAllMocks()
     mockedApiClient.post
+      .mockResolvedValueOnce({ data: objectView() })
       .mockResolvedValueOnce({ data: mutation('EFFECTIVE') })
       .mockResolvedValueOnce(emptyPage())
     await vm.review(row('PENDING'), 'approve', '不会提交的意见')
     expect(mockedApiClient.post).toHaveBeenNthCalledWith(
-      1,
+      2,
       'bob/product/approve',
       {
         objectId: 'OBJ-1',

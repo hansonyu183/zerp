@@ -177,10 +177,6 @@ func (s *fakeStore) Create(_ context.Context, entity string, input bob.CreateInp
 	if entity == bob.EntityCustomerAccount && monthlyClosingDay == 0 {
 		monthlyClosingDay = 31
 	}
-	productKind := input.Data.ProductKind
-	if entity == bob.EntityProduct && productKind == "" {
-		productKind = bob.ProductKindRawMaterial
-	}
 	view := bob.ObjectView{
 		ObjectID:       objectID,
 		Entity:         entity,
@@ -237,7 +233,10 @@ func (s *fakeStore) Create(_ context.Context, entity string, input bob.CreateInp
 			MonthOffset:                input.Data.MonthOffset,
 			DayOfMonth:                 input.Data.DayOfMonth,
 			DayOffset:                  input.Data.DayOffset,
-			ProductKind:                productKind,
+			ProductTypeID:              input.Data.ProductTypeID,
+			DefaultInputUnitID:         input.Data.DefaultInputUnitID,
+			PricingUnitID:              input.Data.PricingUnitID,
+			UnitConversions:            input.Data.UnitConversions,
 			Formula:                    input.Data.Formula,
 		},
 	}
@@ -315,8 +314,11 @@ func (s *fakeStore) Save(_ context.Context, _ string, input bob.SaveInput, _, _ 
 	view.Data.MonthOffset = input.Data.MonthOffset
 	view.Data.DayOfMonth = input.Data.DayOfMonth
 	view.Data.DayOffset = input.Data.DayOffset
-	if input.Data.ProductKind != nil {
-		view.Data.ProductKind = *input.Data.ProductKind
+	applyOptional(input.Data.ProductTypeID, &view.Data.ProductTypeID)
+	applyOptional(input.Data.DefaultInputUnitID, &view.Data.DefaultInputUnitID)
+	applyOptional(input.Data.PricingUnitID, &view.Data.PricingUnitID)
+	if input.Data.UnitConversions != nil {
+		view.Data.UnitConversions = *input.Data.UnitConversions
 	}
 	if input.Data.Formula != nil {
 		view.Data.Formula = input.Data.Formula

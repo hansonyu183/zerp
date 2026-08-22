@@ -59,6 +59,13 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 		if findErr != nil || !found {
 			t.Fatalf("find %s %s: found=%t err=%v", item.entity, item.data.Code, found, findErr)
 		}
+		if auxiliary, ok := auxiliarySeedEntity(item.entity); ok {
+			var enabled bool
+			if err = pool.QueryRow(t.Context(), `SELECT enabled FROM aux_objects WHERE entity=$1 AND id=$2`, auxiliary, objectID).Scan(&enabled); err != nil || !enabled {
+				t.Fatalf("query %s %s enabled=%t err=%v", auxiliary, item.data.Code, enabled, err)
+			}
+			continue
+		}
 		var status string
 		if err = pool.QueryRow(t.Context(), `
 			SELECT v.status
@@ -71,9 +78,9 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 		counts[status]++
 	}
 	expected := map[string]int{
-		bob.StatusEffective: 16,
-		bob.StatusDraft:     7,
-		bob.StatusPending:   3,
+		bob.StatusEffective: 12,
+		bob.StatusDraft:     6,
+		bob.StatusPending:   2,
 	}
 	if len(counts) != len(expected) {
 		t.Fatalf("status counts = %v", counts)

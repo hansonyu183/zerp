@@ -159,6 +159,176 @@ func TestLifecycleIntegration(t *testing.T) {
 	}
 }
 
+func TestProductEffectiveSaveCreatesApprovableCandidateIntegration(t *testing.T) {
+	pool := integrationPool(t)
+	service := NewService(pool)
+	service.SetAuxiliaryResolver(integrationAuxiliaryResolver{})
+	created, effective := createApprovedIntegration(t, service, EntityProduct, CreateDetailInput{
+		Name: "Candidate Product " + newID(), DefaultPackagingSpec: "25",
+	}, "product-candidate")
+	current, err := service.Get(t.Context(), EntityProduct, GetInput{ObjectID: created.ObjectID})
+	if err != nil {
+		t.Fatalf("get effective product: %v", err)
+	}
+	returnable := current.Data.Returnable
+	unitConversions := current.Data.UnitConversions
+
+	candidate, err := service.Save(t.Context(), EntityProduct, SaveInput{
+		ObjectID: created.ObjectID, VersionID: effective.VersionID, Revision: effective.Revision,
+		Data: DetailInput{
+			Name: current.Data.Name, ProductTypeID: Optional(current.Data.ProductTypeID),
+			DefaultInputUnitID: Optional(current.Data.DefaultInputUnitID), PricingUnitID: Optional(current.Data.PricingUnitID),
+			UnitConversions: &unitConversions, Returnable: &returnable, DefaultPackagingSpec: Optional("26"),
+		},
+	}, integrationActorOne, "product-candidate-save")
+	if err != nil {
+		t.Fatalf("save effective product: %v", err)
+	}
+	submitted, err := service.Submit(t.Context(), EntityProduct, VersionRevisionInput{
+		ObjectID: candidate.ObjectID, VersionID: candidate.VersionID, Revision: candidate.Revision,
+	}, integrationActorOne, "product-candidate-submit")
+	if err != nil {
+		t.Fatalf("submit product candidate: %v", err)
+	}
+	approved, err := service.Approve(t.Context(), EntityProduct, ReviewInput{
+		ObjectID: submitted.ObjectID, VersionID: submitted.VersionID, Revision: submitted.Revision,
+	}, integrationActorTwo, "product-candidate-approve")
+	if err != nil {
+		t.Fatalf("approve product candidate: %v", err)
+	}
+	if approved.Status != StatusEffective || approved.VersionID != candidate.VersionID {
+		t.Fatalf("approved product candidate = %+v", approved)
+	}
+
+	finishedData := CreateDetailInput{
+		Name: "Candidate Finished Product " + newID(), ProductTypeID: "01JPTP00000000000000000003",
+		DefaultInputUnitID: integrationKGUnitID, PricingUnitID: integrationKGUnitID,
+		UnitConversions:      []ProductUnitConversion{{Unit: MeasurementUnitSnapshot{ObjectID: integrationKGUnitID}, Factor: "1"}},
+		DefaultPackagingSpec: "20",
+		Formula: &ProductFormula{
+			Output: QuantitySnapshot{EnteredQuantity: "1", EnteredUnit: MeasurementUnitSnapshot{ObjectID: integrationKGUnitID}, BaseQuantity: "1"},
+			Components: []ProductFormulaComponent{{
+				Material:         FormulaMaterialReference{ObjectID: created.ObjectID, VersionID: approved.VersionID},
+				Quantity:         QuantitySnapshot{EnteredQuantity: "2", EnteredUnit: MeasurementUnitSnapshot{ObjectID: integrationKGUnitID}, BaseQuantity: "2"},
+				ResolutionStatus: "CURRENT",
+			}},
+		},
+	}
+	invalidMaterialUnit := finishedData
+	invalidMaterialUnit.Name = "Invalid Formula Material Unit " + newID()
+	invalidMaterialUnit.Formula = cloneProductFormula(finishedData.Formula)
+	invalidMaterialUnit.Formula.Components[0].Quantity.EnteredUnit.ObjectID = "01JAVX00000000000000000013"
+	if _, err = service.Create(t.Context(), EntityProduct, CreateInput{Data: invalidMaterialUnit}, integrationActorOne, "invalid-formula-material-unit"); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("formula material unit outside material conversions error = %v", err)
+	}
+	finishedCreated, finishedEffective := createApprovedIntegration(t, service, EntityProduct, finishedData, "finished-candidate")
+	explicitCreated, explicitEffective := createApprovedIntegration(t, service, EntityProduct, finishedData, "finished-explicit-formula-candidate")
+	explicitCurrent, err := service.Get(t.Context(), EntityProduct, GetInput{ObjectID: explicitCreated.ObjectID})
+	if err != nil {
+		t.Fatalf("get explicit formula product: %v", err)
+	}
+	explicitReturnable := explicitCurrent.Data.Returnable
+	explicitUnits := explicitCurrent.Data.UnitConversions
+	explicitFormula := cloneProductFormula(explicitCurrent.Data.Formula)
+	explicitCandidate, err := service.Save(t.Context(), EntityProduct, SaveInput{
+		ObjectID: explicitCreated.ObjectID, VersionID: explicitEffective.VersionID, Revision: explicitEffective.Revision,
+		Data: DetailInput{
+			Name: explicitCurrent.Data.Name, ProductTypeID: Optional(explicitCurrent.Data.ProductTypeID),
+			DefaultInputUnitID: Optional(explicitCurrent.Data.DefaultInputUnitID), PricingUnitID: Optional(explicitCurrent.Data.PricingUnitID),
+			UnitConversions: &explicitUnits, Returnable: &explicitReturnable, DefaultPackagingSpec: Optional("22"), Formula: explicitFormula,
+		},
+	}, integrationActorOne, "finished-explicit-formula-candidate-save")
+	if err != nil {
+		t.Fatalf("save candidate with explicit formula: %v", err)
+	}
+	explicitCandidateView, err := service.Get(t.Context(), EntityProduct, GetInput{ObjectID: explicitCreated.ObjectID, VersionID: explicitCandidate.VersionID})
+	if err != nil {
+		t.Fatalf("get candidate with explicit formula: %v", err)
+	}
+	if explicitCandidateView.Data.Formula == nil || !explicitCandidateView.Data.Formula.Components[0].RequiresConfirmation {
+		t.Fatalf("explicit candidate formula was not refreshed: %+v", explicitCandidateView.Data.Formula)
+	}
+
+	current, err = service.Get(t.Context(), EntityProduct, GetInput{ObjectID: created.ObjectID})
+	if err != nil {
+		t.Fatalf("get current raw product: %v", err)
+	}
+	returnable = false
+	unitConversions = current.Data.UnitConversions
+	packagingCandidate, err := service.Save(t.Context(), EntityProduct, SaveInput{
+		ObjectID: created.ObjectID, VersionID: approved.VersionID, Revision: approved.Revision,
+		Data: DetailInput{
+			Name: current.Data.Name, ProductTypeID: Optional("01JPTP00000000000000000007"),
+			DefaultInputUnitID: Optional(current.Data.DefaultInputUnitID), PricingUnitID: Optional(current.Data.PricingUnitID),
+			UnitConversions: &unitConversions, Returnable: &returnable, DefaultPackagingSpec: Optional(""),
+		},
+	}, integrationActorOne, "raw-packaging-candidate-save")
+	if err != nil {
+		t.Fatalf("save raw packaging candidate: %v", err)
+	}
+	packagingSubmitted, err := service.Submit(t.Context(), EntityProduct, VersionRevisionInput{
+		ObjectID: packagingCandidate.ObjectID, VersionID: packagingCandidate.VersionID, Revision: packagingCandidate.Revision,
+	}, integrationActorOne, "raw-packaging-candidate-submit")
+	if err != nil {
+		t.Fatalf("submit raw packaging candidate: %v", err)
+	}
+	if _, err = service.Approve(t.Context(), EntityProduct, ReviewInput{
+		ObjectID: packagingSubmitted.ObjectID, VersionID: packagingSubmitted.VersionID, Revision: packagingSubmitted.Revision,
+	}, integrationActorTwo, "raw-packaging-candidate-approve"); err != nil {
+		t.Fatalf("approve raw packaging candidate: %v", err)
+	}
+
+	finishedCurrent, err := service.Get(t.Context(), EntityProduct, GetInput{ObjectID: finishedCreated.ObjectID})
+	if err != nil {
+		t.Fatalf("get finished product: %v", err)
+	}
+	finishedReturnable := finishedCurrent.Data.Returnable
+	finishedUnits := finishedCurrent.Data.UnitConversions
+	refreshedCandidate, err := service.Save(t.Context(), EntityProduct, SaveInput{
+		ObjectID: finishedCreated.ObjectID, VersionID: finishedEffective.VersionID, Revision: finishedEffective.Revision,
+		Data: DetailInput{
+			Name: finishedCurrent.Data.Name, ProductTypeID: Optional(finishedCurrent.Data.ProductTypeID),
+			DefaultInputUnitID: Optional(finishedCurrent.Data.DefaultInputUnitID), PricingUnitID: Optional(finishedCurrent.Data.PricingUnitID),
+			UnitConversions: &finishedUnits, Returnable: &finishedReturnable, DefaultPackagingSpec: Optional("21"),
+		},
+	}, integrationActorOne, "finished-refresh-candidate-save")
+	if err != nil {
+		t.Fatalf("save finished refresh candidate: %v", err)
+	}
+	refreshedView, err := service.Get(t.Context(), EntityProduct, GetInput{
+		ObjectID: finishedCreated.ObjectID, VersionID: refreshedCandidate.VersionID,
+	})
+	if err != nil {
+		t.Fatalf("get refreshed candidate: %v", err)
+	}
+	if refreshedView.Data.Formula == nil || len(refreshedView.Data.Formula.Components) != 1 ||
+		refreshedView.Data.Formula.Components[0].ResolutionStatus != "UNRESOLVED" {
+		t.Fatalf("refreshed formula = %+v", refreshedView.Data.Formula)
+	}
+	refreshedCandidate, err = service.Save(t.Context(), EntityProduct, SaveInput{
+		ObjectID: refreshedCandidate.ObjectID, VersionID: refreshedCandidate.VersionID, Revision: refreshedCandidate.Revision,
+		Data: DetailInput{Name: finishedCurrent.Data.Name + " Draft"},
+	}, integrationActorOne, "finished-unresolved-candidate-save")
+	if err != nil {
+		t.Fatalf("save unresolved candidate without editing formula: %v", err)
+	}
+	refreshedView, err = service.Get(t.Context(), EntityProduct, GetInput{
+		ObjectID: finishedCreated.ObjectID, VersionID: refreshedCandidate.VersionID,
+	})
+	if err != nil {
+		t.Fatalf("get saved unresolved candidate: %v", err)
+	}
+	if refreshedView.Data.Name != finishedCurrent.Data.Name+" Draft" || refreshedView.Data.Formula == nil ||
+		refreshedView.Data.Formula.Components[0].ResolutionStatus != "UNRESOLVED" {
+		t.Fatalf("saved unresolved candidate = %+v", refreshedView.Data)
+	}
+	if _, err = service.Submit(t.Context(), EntityProduct, VersionRevisionInput{
+		ObjectID: refreshedCandidate.ObjectID, VersionID: refreshedCandidate.VersionID, Revision: refreshedCandidate.Revision,
+	}, integrationActorOne, "finished-unresolved-candidate-submit"); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("submit unresolved candidate error = %v", err)
+	}
+}
+
 func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 	pool := integrationPool(t)
 	service := NewService(pool)
@@ -173,7 +343,7 @@ func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 		data   CreateDetailInput
 	}{
 		{EntityOtherUnit, CreateDetailInput{Name: "Other Party"}},
-		{EntityProduct, CreateDetailInput{Name: "Product", Unit: "piece"}},
+		{EntityProduct, CreateDetailInput{Name: "Product"}},
 		{EntityService, CreateDetailInput{Name: "Service", Unit: "hour"}},
 		{EntityWarehouse, CreateDetailInput{Name: "主仓"}},
 		{EntityVehicle, CreateDetailInput{
@@ -188,6 +358,12 @@ func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.entity, func(t *testing.T) {
 			test.data.Code = "LC" + newID()
+			if test.entity == EntityProduct {
+				completeRawProductIntegration(service, &test.data)
+				previousAuxiliaryResolver := service.auxiliaryResolver
+				service.SetAuxiliaryResolver(integrationAuxiliaryResolver{})
+				defer service.SetAuxiliaryResolver(previousAuxiliaryResolver)
+			}
 			if test.entity == EntityOtherUnit {
 				test.data.OperatingEntityID = operating.ObjectID
 			}

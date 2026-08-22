@@ -91,7 +91,7 @@ func TestPreviewSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T
 		second.Vouchers.Resumed + second.Accounting.Resumed; resumed != 0 {
 		t.Fatalf("repeat seed resumed %d rows: %+v", resumed, second)
 	}
-	assertDistinctEntities(t, pool, "aux_objects", 10)
+	assertDistinctEntities(t, pool, "aux_objects", 11)
 	var businessEntities int
 	if err = pool.QueryRow(t.Context(), `
 		SELECT count(DISTINCT o.entity)

@@ -54,26 +54,23 @@ func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			HireDate: data.HireDate, Remark: nilIfEmpty(data.Remark),
 		})
 	case EntityProduct:
-		quantity, err := optionalContainerMicros(data)
-		if err != nil {
-			return err
-		}
-		conversion, err := fixedMicros(data.PricingQuantityPerInventoryUnit)
+		defaultPackagingSpec, err := defaultPackagingSpecMicros(data)
 		if err != nil {
 			return err
 		}
 		if err = q.InsertBobProductDetail(ctx, dbsqlc.InsertBobProductDetailParams{
-			VersionID: versionID, Name: data.Name, Unit: data.Unit, CategoryID: nilIfEmpty(data.CategoryID),
+			VersionID: versionID, Name: data.Name, CategoryID: nilIfEmpty(data.CategoryID),
 			Specification: nilIfEmpty(data.Specification), Model: nilIfEmpty(data.Model),
 			Barcode: nilIfEmpty(data.Barcode), Remark: nilIfEmpty(data.Remark),
-			ContainerType: data.ContainerType, QuantityPerContainerMicros: quantity,
-			ProductKind: data.ProductKind, InventoryUnitID: data.InventoryUnitID,
-			PricingUnitID:                         data.PricingUnitID,
-			PricingQuantityPerInventoryUnitMicros: conversion, Returnable: data.Returnable,
+			ProductTypeID: nilIfEmpty(data.ProductTypeID), ProductTypeVersionID: nilIfEmpty(data.ProductTypeVersionID),
+			ProductTypeCode: nilIfEmpty(data.ProductTypeCode), ProductTypeName: nilIfEmpty(data.ProductTypeName),
+			BehaviorProfile: nilIfEmpty(data.BehaviorProfile), DefaultInputUnitID: nilIfEmpty(data.DefaultInputUnitID),
+			PricingUnitID: nilIfEmpty(data.PricingUnitID), Returnable: data.Returnable,
+			DefaultPackagingSpecMicros: defaultPackagingSpec,
 		}); err != nil {
 			return err
 		}
-		if err = insertProductPackagingSpecs(ctx, q, versionID, data.PackagingSpecs); err != nil {
+		if err = replaceProductUnitConversions(ctx, q, versionID, data.UnitConversions); err != nil {
 			return err
 		}
 		return insertProductFormula(ctx, q, versionID, data.Formula)
@@ -183,26 +180,24 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			Remark: nilIfEmpty(data.Remark), VersionID: versionID,
 		})
 	case EntityProduct:
-		quantity, parseErr := optionalContainerMicros(data)
-		if parseErr != nil {
-			return parseErr
-		}
-		conversion, parseErr := fixedMicros(data.PricingQuantityPerInventoryUnit)
+		defaultPackagingSpec, parseErr := defaultPackagingSpecMicros(data)
 		if parseErr != nil {
 			return parseErr
 		}
 		rows, err = q.UpdateBobProductDetail(ctx, dbsqlc.UpdateBobProductDetailParams{
-			Name: data.Name, Unit: data.Unit, CategoryID: nilIfEmpty(data.CategoryID),
+			Name: data.Name, CategoryID: nilIfEmpty(data.CategoryID),
 			Specification: nilIfEmpty(data.Specification), Model: nilIfEmpty(data.Model),
 			Barcode: nilIfEmpty(data.Barcode), Remark: nilIfEmpty(data.Remark), VersionID: versionID,
-			ContainerType: data.ContainerType, QuantityPerContainerMicros: quantity,
-			ProductKind: data.ProductKind, InventoryUnitID: data.InventoryUnitID,
-			PricingUnitID:                         data.PricingUnitID,
-			PricingQuantityPerInventoryUnitMicros: conversion, Returnable: data.Returnable,
+			ProductTypeID: nilIfEmpty(data.ProductTypeID), ProductTypeVersionID: nilIfEmpty(data.ProductTypeVersionID),
+			ProductTypeCode: nilIfEmpty(data.ProductTypeCode), ProductTypeName: nilIfEmpty(data.ProductTypeName),
+			BehaviorProfile: nilIfEmpty(data.BehaviorProfile), DefaultInputUnitID: nilIfEmpty(data.DefaultInputUnitID),
+			PricingUnitID: nilIfEmpty(data.PricingUnitID), Returnable: data.Returnable,
+			DefaultPackagingSpecMicros: defaultPackagingSpec,
 		})
 		if err == nil && rows == 1 {
-			if err = q.DeleteBobProductPackagingSpecs(ctx, versionID); err == nil {
-				err = insertProductPackagingSpecs(ctx, q, versionID, data.PackagingSpecs)
+			err = q.DeleteBobProductUnitConversions(ctx, versionID)
+			if err == nil {
+				err = replaceProductUnitConversions(ctx, q, versionID, data.UnitConversions)
 			}
 			if err == nil {
 				err = q.DeleteBobProductFormula(ctx, versionID)
@@ -296,12 +291,12 @@ func copyDetail(ctx context.Context, q *dbsqlc.Queries, entity, newVersionID, so
 		if err := q.CopyBobProductDetail(ctx, dbsqlc.CopyBobProductDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID}); err != nil {
 			return err
 		}
-		if err := q.CopyBobProductPackagingSpecs(ctx, dbsqlc.CopyBobProductPackagingSpecsParams{
+		if err := q.CopyBobProductFormula(ctx, dbsqlc.CopyBobProductFormulaParams{
 			NewVersionID: newVersionID, SourceVersionID: sourceVersionID,
 		}); err != nil {
 			return err
 		}
-		if err := q.CopyBobProductFormula(ctx, dbsqlc.CopyBobProductFormulaParams{
+		if err := q.CopyBobProductUnitConversions(ctx, dbsqlc.CopyBobProductUnitConversionsParams{
 			NewVersionID: newVersionID, SourceVersionID: sourceVersionID,
 		}); err != nil {
 			return err
@@ -332,25 +327,15 @@ func copyDetail(ctx context.Context, q *dbsqlc.Queries, entity, newVersionID, so
 	}
 }
 
-func insertProductPackagingSpecs(
-	ctx context.Context, q *dbsqlc.Queries, versionID string, specs []PackagingSpecInput,
-) error {
-	for _, spec := range specs {
-		quantity, err := fixedMicros(spec.ContentQuantity)
-		if err != nil {
-			return err
-		}
-		if err = q.InsertBobProductPackagingSpec(ctx, dbsqlc.InsertBobProductPackagingSpecParams{
-			ProductVersionID:          versionID,
-			PackagingProductObjectID:  spec.PackagingProductObjectID,
-			PackagingProductVersionID: spec.PackagingProductVersionID,
-			ContentQuantityMicros:     quantity,
-			IsDefault:                 spec.IsDefault,
-		}); err != nil {
-			return err
-		}
+func defaultPackagingSpecMicros(data DetailView) (*int64, error) {
+	if data.BehaviorProfile == ProductBehaviorPackaging || data.DefaultPackagingSpec == "" {
+		return nil, nil
 	}
-	return nil
+	value, err := fixedMicros(data.DefaultPackagingSpec)
+	if err != nil {
+		return nil, err
+	}
+	return &value, nil
 }
 
 func insertProductFormula(
@@ -359,24 +344,38 @@ func insertProductFormula(
 	if formula == nil {
 		return nil
 	}
-	baseQuantity, err := fixedMicros(formula.BaseOutputQuantity)
+	outputEntered, err := fixedMicros(formula.Output.EnteredQuantity)
+	if err != nil {
+		return err
+	}
+	baseQuantity, err := fixedMicros(formula.Output.BaseQuantity)
 	if err != nil {
 		return err
 	}
 	if err = q.InsertBobProductFormula(ctx, dbsqlc.InsertBobProductFormulaParams{
-		ProductVersionID: versionID, BaseOutputQuantityMicros: baseQuantity,
+		ProductVersionID: versionID, OutputEnteredQuantityMicros: outputEntered,
+		OutputUnitObjectID: formula.Output.EnteredUnit.ObjectID, OutputUnitVersionID: formula.Output.EnteredUnit.VersionID,
+		OutputUnitCode: formula.Output.EnteredUnit.Code, OutputUnitName: formula.Output.EnteredUnit.Name,
+		OutputUnitSymbol: formula.Output.EnteredUnit.Symbol, OutputBaseQuantityMicros: baseQuantity,
 	}); err != nil {
 		return err
 	}
 	for index, component := range formula.Components {
-		quantity, quantityErr := fixedMicros(component.Quantity)
+		entered, quantityErr := fixedMicros(component.Quantity.EnteredQuantity)
+		if quantityErr != nil {
+			return quantityErr
+		}
+		quantity, quantityErr := fixedMicros(component.Quantity.BaseQuantity)
 		if quantityErr != nil {
 			return quantityErr
 		}
 		if err = q.InsertBobProductFormulaLine(ctx, dbsqlc.InsertBobProductFormulaLineParams{
 			ProductVersionID: versionID, LineNo: int32(index + 1),
 			MaterialObjectID: component.Material.ObjectID, MaterialVersionID: component.Material.VersionID,
-			QuantityMicros: quantity,
+			EnteredQuantityMicros: entered, EnteredUnitObjectID: component.Quantity.EnteredUnit.ObjectID,
+			EnteredUnitVersionID: component.Quantity.EnteredUnit.VersionID, EnteredUnitCode: component.Quantity.EnteredUnit.Code,
+			EnteredUnitName: component.Quantity.EnteredUnit.Name, EnteredUnitSymbol: component.Quantity.EnteredUnit.Symbol,
+			BaseQuantityMicros: quantity, ResolutionStatus: component.ResolutionStatus, RequiresConfirmation: component.RequiresConfirmation,
 		}); err != nil {
 			return err
 		}
@@ -387,7 +386,7 @@ func insertProductFormula(
 func loadProductFormula(
 	ctx context.Context, q *dbsqlc.Queries, versionID string,
 ) (*ProductFormula, error) {
-	baseQuantity, err := q.GetBobProductFormula(ctx, versionID)
+	formula, err := q.GetBobProductFormula(ctx, versionID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -399,18 +398,37 @@ func loadProductFormula(
 		return nil, err
 	}
 	result := &ProductFormula{
-		BaseOutputQuantity: formatMicros(baseQuantity),
-		Components:         make([]ProductFormulaComponent, 0, len(rows)),
+		Output: QuantitySnapshot{EnteredQuantity: formatMicros(formula.OutputEnteredQuantityMicros),
+			EnteredUnit:  MeasurementUnitSnapshot{ObjectID: formula.OutputUnitObjectID, VersionID: formula.OutputUnitVersionID, Code: formula.OutputUnitCode, Name: formula.OutputUnitName, Symbol: formula.OutputUnitSymbol},
+			BaseQuantity: formatMicros(formula.OutputBaseQuantityMicros)},
+		Components: make([]ProductFormulaComponent, 0, len(rows)),
 	}
 	for _, row := range rows {
 		result.Components = append(result.Components, ProductFormulaComponent{
 			Material: FormulaMaterialReference{
 				ObjectID: row.MaterialObjectID, VersionID: row.MaterialVersionID,
-				Code: row.MaterialCode, Name: row.MaterialName, Unit: row.MaterialUnit,
-				ProductKind: row.MaterialProductKind,
+				Code: row.MaterialCode, Name: row.MaterialName, BehaviorProfile: deref(row.MaterialBehaviorProfile),
 			},
-			Quantity: formatMicros(row.QuantityMicros),
+			Quantity: QuantitySnapshot{EnteredQuantity: formatMicros(row.EnteredQuantityMicros),
+				EnteredUnit:  MeasurementUnitSnapshot{ObjectID: row.EnteredUnitObjectID, VersionID: row.EnteredUnitVersionID, Code: row.EnteredUnitCode, Name: row.EnteredUnitName, Symbol: row.EnteredUnitSymbol},
+				BaseQuantity: formatMicros(row.BaseQuantityMicros)},
+			ResolutionStatus: row.ResolutionStatus, RequiresConfirmation: row.RequiresConfirmation,
 		})
+	}
+	return result, nil
+}
+
+func loadProductUnitConversions(ctx context.Context, q *dbsqlc.Queries, versionID string) ([]ProductUnitConversion, error) {
+	rows, err := q.ListBobProductUnitConversions(ctx, versionID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]ProductUnitConversion, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, ProductUnitConversion{Unit: MeasurementUnitSnapshot{
+			ObjectID: row.UnitObjectID, VersionID: row.UnitVersionID, Code: row.UnitCode,
+			Name: row.UnitName, Symbol: row.UnitSymbol,
+		}, Factor: formatMicros(row.FactorMicros)})
 	}
 	return result, nil
 }
@@ -428,9 +446,6 @@ func deleteDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 	case EntitySalesPartner:
 		return q.DeleteBobSalesPartnerDetail(ctx, versionID)
 	case EntityProduct:
-		if err := q.DeleteBobProductPackagingSpecs(ctx, versionID); err != nil {
-			return 0, err
-		}
 		if err := q.DeleteBobProductFormula(ctx, versionID); err != nil {
 			return 0, err
 		}
@@ -465,15 +480,20 @@ func nilIfEmpty(value string) *string {
 	return &value
 }
 
-func optionalContainerMicros(data DetailView) (*int64, error) {
-	if data.ContainerType == ContainerTypeNone {
-		return nil, nil
+func replaceProductUnitConversions(ctx context.Context, q *dbsqlc.Queries, versionID string, conversions []ProductUnitConversion) error {
+	for _, conversion := range conversions {
+		factor, err := fixedMicros(conversion.Factor)
+		if err != nil {
+			return err
+		}
+		if err = q.InsertBobProductUnitConversion(ctx, dbsqlc.InsertBobProductUnitConversionParams{
+			ProductVersionID: versionID, UnitObjectID: conversion.Unit.ObjectID, UnitVersionID: conversion.Unit.VersionID,
+			UnitCode: conversion.Unit.Code, UnitName: conversion.Unit.Name, UnitSymbol: conversion.Unit.Symbol, FactorMicros: factor,
+		}); err != nil {
+			return err
+		}
 	}
-	value, err := fixedMicros(data.QuantityPerContainer)
-	if err != nil {
-		return nil, err
-	}
-	return &value, nil
+	return nil
 }
 
 type auditInput struct {

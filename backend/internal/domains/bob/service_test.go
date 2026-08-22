@@ -125,7 +125,7 @@ func TestValidateCreateIgnoresInternalFixtureCodeAndNormalizesEntityFields(t *te
 			Code: "sup-01", Name: "Supplier", DefaultPurchaserEmployeeID: salespersonEmployeeID,
 		}},
 		{EntityEmployee, CreateDetailInput{Code: "emp_01", Name: "Employee"}},
-		{EntityProduct, CreateDetailInput{Code: "prd01", Name: "Product", Unit: "件"}},
+		{EntityProduct, CreateDetailInput{Code: "prd01", Name: "Product", DefaultPackagingSpec: "1"}},
 		{EntityService, CreateDetailInput{Code: "svc01", Name: "Service", Unit: "次"}},
 		{EntityWarehouse, CreateDetailInput{Code: "wh01", Name: "主仓"}},
 		{EntityVehicle, CreateDetailInput{
@@ -206,82 +206,67 @@ func TestValidateSettlementMethodRules(t *testing.T) {
 	}
 }
 
-func TestValidateProductContainerRules(t *testing.T) {
-	solvent := ContainerTypeSolvent
-	product, _, err := validateCreate(EntityProduct, CreateDetailInput{
-		Code: "P-SOLVENT", Name: "桶装溶剂", Unit: "kg",
-		ContainerType: solvent, QuantityPerContainer: "180.123456",
-	})
+func TestValidateProductDraftAllowsIncompleteConfiguration(t *testing.T) {
+	t.Parallel()
+	data, _, err := validateCreate(EntityProduct, CreateDetailInput{Name: "待完善产品"})
 	if err != nil {
-		t.Fatalf("valid container product rejected: %v", err)
+		t.Fatalf("incomplete product draft rejected: %v", err)
 	}
-	if product.ContainerType != ContainerTypeSolvent || product.QuantityPerContainer != "180.123456" {
-		t.Fatalf("container product normalized incorrectly: %+v", product)
+	if data.Name != "待完善产品" || data.ProductTypeID != "" || len(data.UnitConversions) != 0 {
+		t.Fatalf("unexpected draft normalization: %+v", data)
 	}
-	for name, input := range map[string]CreateDetailInput{
-		"none with quantity": {
-			Code: "P-NONE", Name: "散装", Unit: "kg",
-			QuantityPerContainer: "1",
-		},
-		"container without quantity": {
-			Code: "P-EMPTY", Name: "桶装", Unit: "kg", ContainerType: solvent,
-		},
-		"too many decimals": {
-			Code: "P-SCALE", Name: "桶装", Unit: "kg",
-			ContainerType: solvent, QuantityPerContainer: "1.0000001",
-		},
-		"zero quantity": {
-			Code: "P-ZERO", Name: "桶装", Unit: "kg",
-			ContainerType: solvent, QuantityPerContainer: "0",
-		},
-	} {
-		t.Run(name, func(t *testing.T) {
-			if _, _, validationErr := validateCreate(EntityProduct, input); !errorIsKind(validationErr, ErrorValidation) {
-				t.Fatalf("error = %v, want validation", validationErr)
-			}
-		})
+
+	invalid := CreateDetailInput{Name: "错误换算", UnitConversions: []ProductUnitConversion{{
+		Unit: MeasurementUnitSnapshot{ObjectID: "bad"}, Factor: "0",
+	}}}
+	if _, _, err = validateCreate(EntityProduct, invalid); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("malformed populated conversion error = %v", err)
 	}
 }
 
-func TestValidateStandardFinishedProductFormula(t *testing.T) {
+func TestValidateCompleteProductConfiguration(t *testing.T) {
 	t.Parallel()
-	valid := CreateDetailInput{
-		Code:                            "P-FINISHED",
-		Name:                            "固定配方成品",
-		Unit:                            "kg",
-		ProductKind:                     ProductKindStandardFinished,
-		InventoryUnitID:                 "01JAVX00000000000000000011",
-		PricingUnitID:                   "01JAVX00000000000000000011",
-		PricingQuantityPerInventoryUnit: "1",
+	unit := MeasurementUnitSnapshot{ObjectID: "01JAVX00000000000000000011", VersionID: "01JAVX00000000000000000012", Code: "UNT-0001", Name: "千克", Symbol: "kg"}
+	valid := DetailView{
+		Name: "固定配方成品", ProductTypeID: "01JPTY00000000000000000003",
+		ProductTypeVersionID: "01JPTY00000000000000000004", ProductTypeCode: "PTY-0002",
+		ProductTypeName: "标准成品", BehaviorProfile: ProductBehaviorStandardFinished,
+		DefaultInputUnitID: unit.ObjectID, PricingUnitID: unit.ObjectID,
+		UnitConversions:      []ProductUnitConversion{{Unit: unit, Factor: "1"}},
+		DefaultPackagingSpec: "10",
 		Formula: &ProductFormula{
-			BaseOutputQuantity: "100",
+			Output: QuantitySnapshot{EnteredQuantity: "100", EnteredUnit: unit, BaseQuantity: "100"},
 			Components: []ProductFormulaComponent{{
 				Material: FormulaMaterialReference{
-					ObjectID:  "01J00000000000000000000031",
-					VersionID: "01J00000000000000000000032",
+					ObjectID:        "01J00000000000000000000031",
+					VersionID:       "01J00000000000000000000032",
+					BehaviorProfile: ProductBehaviorRawMaterial,
 				},
-				Quantity: "25.5",
+				Quantity:         QuantitySnapshot{EnteredQuantity: "25.5", EnteredUnit: unit, BaseQuantity: "25.5"},
+				ResolutionStatus: "CURRENT",
 			}},
 		},
 	}
-	data, _, err := validateCreate(EntityProduct, valid)
-	if err != nil {
+	if err := validateProductComplete(valid); err != nil {
 		t.Fatalf("valid standard formula rejected: %v", err)
 	}
-	if data.Formula == nil || data.Formula.BaseOutputQuantity != "100" {
-		t.Fatalf("formula not preserved: %+v", data.Formula)
-	}
-
 	missing := valid
 	missing.Formula = nil
-	if _, _, err = validateCreate(EntityProduct, missing); !errorIsKind(err, ErrorValidation) {
+	if err := validateProductComplete(missing); !errorIsKind(err, ErrorValidation) {
 		t.Fatalf("missing standard formula error = %v", err)
 	}
 
-	rawWithFormula := valid
-	rawWithFormula.ProductKind = ProductKindRawMaterial
-	if _, _, err = validateCreate(EntityProduct, rawWithFormula); !errorIsKind(err, ErrorValidation) {
-		t.Fatalf("raw material formula error = %v", err)
+	missingPackaging := valid
+	missingPackaging.DefaultPackagingSpec = ""
+	if err := validateProductComplete(missingPackaging); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("missing packaging specification error = %v", err)
+	}
+
+	invalidOutputUnit := valid
+	invalidOutputUnit.Formula = cloneProductFormula(valid.Formula)
+	invalidOutputUnit.Formula.Output.EnteredUnit.ObjectID = "01JAVX00000000000000000013"
+	if err := validateProductComplete(invalidOutputUnit); !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("formula output unit outside product conversions error = %v", err)
 	}
 
 	duplicate := valid
@@ -293,10 +278,11 @@ func TestValidateStandardFinishedProductFormula(t *testing.T) {
 				ObjectID:  "01J00000000000000000000031",
 				VersionID: "01J00000000000000000000033",
 			},
-			Quantity: "1",
+			Quantity:         QuantitySnapshot{EnteredQuantity: "1", EnteredUnit: unit, BaseQuantity: "1"},
+			ResolutionStatus: "CURRENT",
 		},
 	)
-	if _, _, err = validateCreate(EntityProduct, duplicate); !errorIsKind(err, ErrorValidation) {
+	if err := validateProductComplete(duplicate); !errorIsKind(err, ErrorValidation) {
 		t.Fatalf("duplicate formula material error = %v", err)
 	}
 }
@@ -308,8 +294,8 @@ func TestValidateDetailRejectsCrossEntityFields(t *testing.T) {
 		data   DetailInput
 	}{
 		{"customer unit", EntityCustomer, DetailInput{Name: "Customer", Unit: "piece"}},
-		{"product missing unit", EntityProduct, DetailInput{Name: "Product"}},
-		{"product currency", EntityProduct, DetailInput{Name: "Product", Unit: "piece", Currency: "CNY"}},
+		{"product unit", EntityProduct, DetailInput{Name: "Product", Unit: "piece"}},
+		{"product currency", EntityProduct, DetailInput{Name: "Product", Currency: "CNY"}},
 		{"warehouse unit", EntityWarehouse, DetailInput{Name: "Warehouse", Unit: "piece"}},
 		{"warehouse currency", EntityWarehouse, DetailInput{Name: "Warehouse", Currency: "CNY"}},
 		{"supplier vehicle field", EntitySupplier, DetailInput{Name: "Supplier", PlateNumber: "沪A12345"}},
@@ -361,18 +347,16 @@ func TestValidateDetailCountsUnicodeCharacters(t *testing.T) {
 		t.Fatalf("201-character name error = %v", err)
 	}
 	if _, err := validateDetail(EntityProduct, DetailInput{
-		Name:            "产品",
-		Unit:            strings.Repeat("箱", 32),
-		InventoryUnitID: Optional("01JAVX00000000000000000013"),
+		Name:          "产品",
+		Specification: Optional(strings.Repeat("箱", 200)),
 	}); err != nil {
-		t.Fatalf("32-character unit rejected: %v", err)
+		t.Fatalf("200-character specification rejected: %v", err)
 	}
 	if _, err := validateDetail(EntityProduct, DetailInput{
-		Name:            "产品",
-		Unit:            strings.Repeat("箱", 33),
-		InventoryUnitID: Optional("01JAVX00000000000000000013"),
+		Name:          "产品",
+		Specification: Optional(strings.Repeat("箱", 201)),
 	}); !errorIsKind(err, ErrorValidation) {
-		t.Fatalf("33-character unit error = %v", err)
+		t.Fatalf("201-character specification error = %v", err)
 	}
 	if _, err := validateDetail(EntityVehicle, DetailInput{
 		Name: "车辆", PlateNumber: strings.Repeat("车", 32), VehicleType: strings.Repeat("型", 64),

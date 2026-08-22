@@ -184,10 +184,10 @@
           'salesAttributionType',
           'salesContractStatus',
           'product',
-          'productKind',
-          'signedQuantity',
+          'behaviorProfile',
+          'signedBaseQuantity',
           'pricingQuantity',
-          'barrelQuantity',
+          'standardPieceQuantity',
           'unitPrice',
           'referenceUnitPrice',
           'settlementSurcharge',
@@ -230,10 +230,10 @@
           'salesContract': { '$ref': '#/VouIntermediarySalesContractSnapshot' },
           'intermediary': { '$ref': '#/VouIntermediaryReference' },
           'product': { '$ref': '#/VouIntermediaryReference' },
-          'productKind': { 'type': 'string' },
-          'signedQuantity': { 'type': 'string' },
+          'behaviorProfile': { 'type': 'string' },
+          'signedBaseQuantity': { 'type': 'string' },
           'pricingQuantity': { 'type': 'string' },
-          'barrelQuantity': { 'type': 'string' },
+          'standardPieceQuantity': { 'type': 'string' },
           'unitPrice': { 'type': 'string' },
           'referenceUnitPrice': { 'type': 'string' },
           'settlementSurcharge': { 'type': 'string' },
@@ -317,7 +317,7 @@
         [
           'sourceSignoffLineId',
           'premiumUnitPrice',
-          'barrelQuantity',
+          'standardPieceQuantity',
           'baseCommission',
           'premiumCommission',
           'lowPriceCommission',
@@ -334,7 +334,7 @@
         {
           'sourceSignoffLineId': { 'type': 'string' },
           'premiumUnitPrice': { 'type': 'string' },
-          'barrelQuantity': { 'type': 'string' },
+          'standardPieceQuantity': { 'type': 'string' },
           'baseCommission': { 'type': 'string' },
           'premiumCommission': { 'type': 'string' },
           'lowPriceCommission': { 'type': 'string' },
@@ -597,13 +597,9 @@
           'supplier':
             {
               'type': 'object',
-              'required': ['objectId', 'versionId'],
+              'required': ['objectId'],
               'additionalProperties': false,
-              'properties':
-                {
-                  'objectId': { 'type': 'string' },
-                  'versionId': { 'type': 'string' },
-                },
+              'properties': { 'objectId': { 'type': 'string' } },
             },
           'interestMode':
             {
@@ -995,22 +991,26 @@
   'VouInventoryCountLineInput':
     {
       'type': 'object',
-      'required': ['product', 'actualQuantity'],
+      'required': ['product', 'enteredQuantity', 'enteredUnit', 'baseQuantity'],
       'additionalProperties': false,
       'properties':
         {
           'product':
             {
               'type': 'object',
-              'required': ['objectId', 'versionId'],
+              'required': ['objectId'],
               'additionalProperties': false,
-              'properties':
-                {
-                  'objectId': { 'type': 'string' },
-                  'versionId': { 'type': 'string' },
-                },
+              'properties': { 'objectId': { 'type': 'string' } },
             },
-          'actualQuantity': { 'type': 'string' },
+          'enteredQuantity': { 'type': 'string' },
+          'enteredUnit':
+            {
+              'type': 'object',
+              'required': ['objectId'],
+              'additionalProperties': false,
+              'properties': { 'objectId': { 'type': 'string' } },
+            },
+          'baseQuantity': { 'type': 'string' },
           'remark': { 'type': 'string', 'maxLength': 1000 },
         },
     },
@@ -1231,55 +1231,47 @@
             },
         },
     },
-  'VouSalesKgSummary':
+  'VouSalesBaseQuantitySummary':
     {
       'type': 'object',
       'required':
         [
-          'unit',
-          'excludedPackaging',
           'warehouseAvailable',
-          'orderedQuantity',
-          'outboundQuantity',
-          'inTransitQuantity',
-          'signedQuantity',
-          'netSignedQuantity',
+          'orderedBaseQuantity',
+          'outboundBaseQuantity',
+          'inTransitBaseQuantity',
+          'signedBaseQuantity',
+          'netSignedBaseQuantity',
         ],
       'additionalProperties': false,
       'properties':
         {
-          'unit': { 'type': 'string', 'enum': ['KG'] },
-          'excludedPackaging': { 'type': 'boolean' },
           'warehouseAvailable': { 'type': 'boolean' },
-          'shortageQuantity': { 'type': 'string' },
-          'orderedQuantity': { 'type': 'string' },
-          'outboundQuantity': { 'type': 'string' },
-          'inTransitQuantity': { 'type': 'string' },
-          'signedQuantity': { 'type': 'string' },
-          'netSignedQuantity': { 'type': 'string' },
+          'shortageBaseQuantity': { 'type': 'string' },
+          'orderedBaseQuantity': { 'type': 'string' },
+          'outboundBaseQuantity': { 'type': 'string' },
+          'inTransitBaseQuantity': { 'type': 'string' },
+          'signedBaseQuantity': { 'type': 'string' },
+          'netSignedBaseQuantity': { 'type': 'string' },
         },
     },
-  'VouPurchaseKgSummary':
+  'VouPurchaseBaseQuantitySummary':
     {
       'type': 'object',
       'required':
         [
-          'unit',
-          'excludedPackaging',
-          'orderedQuantity',
-          'inboundQuantity',
-          'returnProcessingQuantity',
-          'netInboundQuantity',
+          'orderedBaseQuantity',
+          'inboundBaseQuantity',
+          'returnProcessingBaseQuantity',
+          'netInboundBaseQuantity',
         ],
       'additionalProperties': false,
       'properties':
         {
-          'unit': { 'type': 'string', 'enum': ['KG'] },
-          'excludedPackaging': { 'type': 'boolean' },
-          'orderedQuantity': { 'type': 'string' },
-          'inboundQuantity': { 'type': 'string' },
-          'returnProcessingQuantity': { 'type': 'string' },
-          'netInboundQuantity': { 'type': 'string' },
+          'orderedBaseQuantity': { 'type': 'string' },
+          'inboundBaseQuantity': { 'type': 'string' },
+          'returnProcessingBaseQuantity': { 'type': 'string' },
+          'netInboundBaseQuantity': { 'type': 'string' },
         },
     },
   'VouListItem':
@@ -1310,8 +1302,8 @@
           'currency': { 'type': 'string' },
           'amount': { 'type': 'string' },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
-          'salesSummary': { '$ref': '#/VouSalesKgSummary' },
-          'purchaseSummary': { '$ref': '#/VouPurchaseKgSummary' },
+          'salesSummary': { '$ref': '#/VouSalesBaseQuantitySummary' },
+          'purchaseSummary': { '$ref': '#/VouPurchaseBaseQuantitySummary' },
         },
     },
   'VouListPage':
@@ -1624,22 +1616,34 @@
                         {
                           'type': 'object',
                           'required':
-                            ['product', 'orderedQuantity', 'unitPrice'],
+                            [
+                              'product',
+                              'enteredQuantity',
+                              'enteredUnit',
+                              'baseQuantity',
+                              'unitPrice',
+                            ],
                           'additionalProperties': false,
                           'properties':
                             {
                               'product':
                                 {
                                   'type': 'object',
-                                  'required': ['objectId', 'versionId'],
+                                  'required': ['objectId'],
                                   'additionalProperties': false,
                                   'properties':
-                                    {
-                                      'objectId': { 'type': 'string' },
-                                      'versionId': { 'type': 'string' },
-                                    },
+                                    { 'objectId': { 'type': 'string' } },
                                 },
-                              'orderedQuantity': { 'type': 'string' },
+                              'enteredQuantity': { 'type': 'string' },
+                              'enteredUnit':
+                                {
+                                  'type': 'object',
+                                  'required': ['objectId'],
+                                  'additionalProperties': false,
+                                  'properties':
+                                    { 'objectId': { 'type': 'string' } },
+                                },
+                              'baseQuantity': { 'type': 'string' },
                               'unitPrice': { 'type': 'string' },
                               'settlementSurcharge':
                                 { 'type': 'string', 'nullable': true },
@@ -1695,12 +1699,12 @@
                       'items':
                         {
                           'type': 'object',
-                          'required': ['sourceLineId', 'quantity'],
+                          'required': ['sourceLineId', 'baseQuantity'],
                           'additionalProperties': false,
                           'properties':
                             {
                               'sourceLineId': { 'type': 'string' },
-                              'quantity': { 'type': 'string' },
+                              'baseQuantity': { 'type': 'string' },
                               'remark': { 'type': 'string' },
                             },
                         },
@@ -1714,15 +1718,15 @@
                           'required':
                             [
                               'sourceLineId',
-                              'signedQuantity',
-                              'rejectedQuantity',
+                              'signedBaseQuantity',
+                              'rejectedBaseQuantity',
                             ],
                           'additionalProperties': false,
                           'properties':
                             {
                               'sourceLineId': { 'type': 'string' },
-                              'signedQuantity': { 'type': 'string' },
-                              'rejectedQuantity': { 'type': 'string' },
+                              'signedBaseQuantity': { 'type': 'string' },
+                              'rejectedBaseQuantity': { 'type': 'string' },
                               'remark': { 'type': 'string' },
                             },
                         },
@@ -1733,12 +1737,12 @@
                       'items':
                         {
                           'type': 'object',
-                          'required': ['sourceLineId', 'quantity'],
+                          'required': ['sourceLineId', 'baseQuantity'],
                           'additionalProperties': false,
                           'properties':
                             {
                               'sourceLineId': { 'type': 'string' },
-                              'quantity': { 'type': 'string' },
+                              'baseQuantity': { 'type': 'string' },
                               'remark': { 'type': 'string' },
                             },
                         },
@@ -2014,22 +2018,34 @@
                         {
                           'type': 'object',
                           'required':
-                            ['product', 'orderedQuantity', 'unitPrice'],
+                            [
+                              'product',
+                              'enteredQuantity',
+                              'enteredUnit',
+                              'baseQuantity',
+                              'unitPrice',
+                            ],
                           'additionalProperties': false,
                           'properties':
                             {
                               'product':
                                 {
                                   'type': 'object',
-                                  'required': ['objectId', 'versionId'],
+                                  'required': ['objectId'],
                                   'additionalProperties': false,
                                   'properties':
-                                    {
-                                      'objectId': { 'type': 'string' },
-                                      'versionId': { 'type': 'string' },
-                                    },
+                                    { 'objectId': { 'type': 'string' } },
                                 },
-                              'orderedQuantity': { 'type': 'string' },
+                              'enteredQuantity': { 'type': 'string' },
+                              'enteredUnit':
+                                {
+                                  'type': 'object',
+                                  'required': ['objectId'],
+                                  'additionalProperties': false,
+                                  'properties':
+                                    { 'objectId': { 'type': 'string' } },
+                                },
+                              'baseQuantity': { 'type': 'string' },
                               'unitPrice': { 'type': 'string' },
                               'settlementSurcharge':
                                 { 'type': 'string', 'nullable': true },
@@ -2085,12 +2101,12 @@
                       'items':
                         {
                           'type': 'object',
-                          'required': ['sourceLineId', 'quantity'],
+                          'required': ['sourceLineId', 'baseQuantity'],
                           'additionalProperties': false,
                           'properties':
                             {
                               'sourceLineId': { 'type': 'string' },
-                              'quantity': { 'type': 'string' },
+                              'baseQuantity': { 'type': 'string' },
                               'remark': { 'type': 'string' },
                             },
                         },
@@ -2104,15 +2120,15 @@
                           'required':
                             [
                               'sourceLineId',
-                              'signedQuantity',
-                              'rejectedQuantity',
+                              'signedBaseQuantity',
+                              'rejectedBaseQuantity',
                             ],
                           'additionalProperties': false,
                           'properties':
                             {
                               'sourceLineId': { 'type': 'string' },
-                              'signedQuantity': { 'type': 'string' },
-                              'rejectedQuantity': { 'type': 'string' },
+                              'signedBaseQuantity': { 'type': 'string' },
+                              'rejectedBaseQuantity': { 'type': 'string' },
                               'remark': { 'type': 'string' },
                             },
                         },
@@ -2123,12 +2139,12 @@
                       'items':
                         {
                           'type': 'object',
-                          'required': ['sourceLineId', 'quantity'],
+                          'required': ['sourceLineId', 'baseQuantity'],
                           'additionalProperties': false,
                           'properties':
                             {
                               'sourceLineId': { 'type': 'string' },
-                              'quantity': { 'type': 'string' },
+                              'baseQuantity': { 'type': 'string' },
                               'remark': { 'type': 'string' },
                             },
                         },
@@ -2242,7 +2258,14 @@
   'VouProductionOutputInput':
     {
       'type': 'object',
-      'required': ['outputQuantity', 'lossRate', 'materials'],
+      'required':
+        [
+          'enteredQuantity',
+          'enteredUnit',
+          'baseQuantity',
+          'lossRate',
+          'materials',
+        ],
       'additionalProperties': false,
       'properties':
         {
@@ -2250,15 +2273,19 @@
           'product':
             {
               'type': 'object',
-              'required': ['objectId', 'versionId'],
+              'required': ['objectId'],
               'additionalProperties': false,
-              'properties':
-                {
-                  'objectId': { 'type': 'string' },
-                  'versionId': { 'type': 'string' },
-                },
+              'properties': { 'objectId': { 'type': 'string' } },
             },
-          'outputQuantity': { 'type': 'string' },
+          'enteredQuantity': { 'type': 'string' },
+          'enteredUnit':
+            {
+              'type': 'object',
+              'required': ['objectId'],
+              'additionalProperties': false,
+              'properties': { 'objectId': { 'type': 'string' } },
+            },
+          'baseQuantity': { 'type': 'string' },
           'lossRate': { 'type': 'string' },
           'remark': { 'type': 'string' },
           'materials':
@@ -2335,7 +2362,14 @@
   'VouProductionMaterialInput':
     {
       'type': 'object',
-      'required': ['formulaLineNo', 'actualMaterial', 'actualQuantity'],
+      'required':
+        [
+          'formulaLineNo',
+          'actualMaterial',
+          'actualEnteredQuantity',
+          'actualEnteredUnit',
+          'actualBaseQuantity',
+        ],
       'additionalProperties': false,
       'properties':
         {
@@ -2343,26 +2377,30 @@
           'actualMaterial':
             {
               'type': 'object',
-              'required': ['objectId', 'versionId'],
+              'required': ['objectId'],
               'additionalProperties': false,
-              'properties':
-                {
-                  'objectId': { 'type': 'string' },
-                  'versionId': { 'type': 'string' },
-                },
+              'properties': { 'objectId': { 'type': 'string' } },
             },
-          'actualQuantity': { 'type': 'string' },
+          'actualEnteredQuantity': { 'type': 'string' },
+          'actualEnteredUnit':
+            {
+              'type': 'object',
+              'required': ['objectId'],
+              'additionalProperties': false,
+              'properties': { 'objectId': { 'type': 'string' } },
+            },
+          'actualBaseQuantity': { 'type': 'string' },
           'adjustmentReason': { 'type': 'string' },
         },
     },
   'VouFormulaInput':
     {
       'type': 'object',
-      'required': ['baseOutputQuantity', 'components'],
+      'required': ['output', 'components'],
       'additionalProperties': false,
       'properties':
         {
-          'baseOutputQuantity': { 'type': 'string' },
+          'output': { '$ref': '#/VouQuantitySnapshotInput' },
           'sourceType':
             {
               'type': 'string',
@@ -2390,15 +2428,29 @@
           'material':
             {
               'type': 'object',
-              'required': ['objectId', 'versionId'],
+              'required': ['objectId'],
               'additionalProperties': false,
-              'properties':
-                {
-                  'objectId': { 'type': 'string' },
-                  'versionId': { 'type': 'string' },
-                },
+              'properties': { 'objectId': { 'type': 'string' } },
             },
-          'quantity': { 'type': 'string' },
+          'quantity': { '$ref': '#/VouQuantitySnapshotInput' },
+        },
+    },
+  'VouQuantitySnapshotInput':
+    {
+      'type': 'object',
+      'required': ['enteredQuantity', 'enteredUnit', 'baseQuantity'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'enteredQuantity': { 'type': 'string' },
+          'enteredUnit':
+            {
+              'type': 'object',
+              'required': ['objectId'],
+              'additionalProperties': false,
+              'properties': { 'objectId': { 'type': 'string' } },
+            },
+          'baseQuantity': { 'type': 'string' },
         },
     },
   'VouFormulaDefaultRequest':
@@ -2422,13 +2474,9 @@
           'product':
             {
               'type': 'object',
-              'required': ['objectId', 'versionId'],
+              'required': ['objectId'],
               'additionalProperties': false,
-              'properties':
-                {
-                  'objectId': { 'type': 'string' },
-                  'versionId': { 'type': 'string' },
-                },
+              'properties': { 'objectId': { 'type': 'string' } },
             },
         },
     },

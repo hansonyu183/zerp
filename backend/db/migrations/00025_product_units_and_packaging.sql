@@ -7,11 +7,21 @@ ALTER TABLE bob_product_versions
     ADD COLUMN pricing_unit_id varchar(26),
     ADD COLUMN pricing_quantity_per_inventory_unit_micros bigint,
     ADD COLUMN returnable boolean NOT NULL DEFAULT false,
+    ADD COLUMN default_packaging_spec_micros bigint,
     ADD CONSTRAINT bob_product_pricing_conversion_ck
         CHECK (pricing_quantity_per_inventory_unit_micros IS NULL
             OR pricing_quantity_per_inventory_unit_micros > 0),
     ADD CONSTRAINT bob_product_packaging_returnable_ck
-        CHECK (product_kind = 'PACKAGING' OR NOT returnable);
+        CHECK (product_kind = 'PACKAGING' OR NOT returnable),
+    ADD CONSTRAINT bob_product_default_packaging_spec_ck
+        CHECK (
+            (product_kind = 'PACKAGING' AND default_packaging_spec_micros IS NULL)
+            OR (
+                product_kind <> 'PACKAGING'
+                AND default_packaging_spec_micros IS NOT NULL
+                AND default_packaging_spec_micros > 0
+            )
+        ) NOT VALID;
 
 ALTER TABLE bob_service_versions
     ADD COLUMN unit_id varchar(26);
@@ -32,7 +42,8 @@ SET inventory_unit_id = CASE lower(unit)
         WHEN 'ton' THEN 1000000000
         WHEN 't' THEN 1000000000
         ELSE 1000000
-    END;
+    END,
+    default_packaging_spec_micros = COALESCE(NULLIF(quantity_per_container_micros, 0), 1000000);
 
 UPDATE bob_service_versions
 SET unit_id = CASE lower(unit)
@@ -67,6 +78,8 @@ ALTER TABLE bob_product_versions
     ALTER COLUMN inventory_unit_id SET NOT NULL,
     ALTER COLUMN pricing_unit_id SET NOT NULL,
     ALTER COLUMN pricing_quantity_per_inventory_unit_micros SET NOT NULL;
+ALTER TABLE bob_product_versions
+    VALIDATE CONSTRAINT bob_product_default_packaging_spec_ck;
 ALTER TABLE bob_service_versions
     ALTER COLUMN unit_id SET NOT NULL;
 
@@ -81,117 +94,6 @@ ALTER TABLE bob_service_versions
     ADD CONSTRAINT bob_service_unit_aux_fk
     FOREIGN KEY (unit_id) REFERENCES aux_objects(id)
     ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
-
-CREATE TABLE bob_product_packaging_specs (
-    product_version_id varchar(26) NOT NULL REFERENCES bob_product_versions(version_id) ON DELETE RESTRICT,
-    packaging_product_object_id varchar(26) NOT NULL REFERENCES bob_objects(id) ON DELETE RESTRICT,
-    packaging_product_version_id varchar(26) NOT NULL REFERENCES bob_versions(id) ON DELETE RESTRICT,
-    content_quantity_micros bigint NOT NULL CHECK (content_quantity_micros > 0),
-    is_default boolean NOT NULL DEFAULT false,
-    PRIMARY KEY (product_version_id, packaging_product_object_id),
-    UNIQUE (product_version_id, packaging_product_version_id)
-);
-CREATE UNIQUE INDEX bob_product_packaging_specs_default_uq
-    ON bob_product_packaging_specs(product_version_id)
-    WHERE is_default;
-
--- The earlier integrity flush switches every existing deferrable constraint to
--- immediate mode. Restore deferred checks only for the object/version/detail
--- cycle while the migrated packaging products are inserted.
-SET CONSTRAINTS
-    bob_objects_current_version_fk,
-    bob_objects_effective_version_fk,
-    bob_versions_detail_ck
-    DEFERRED;
-
--- Old SOLVENT/RESIN values were returnable container-ledger dimensions, so the
--- generated packaging products are explicitly returnable.
-INSERT INTO bob_objects (
-    id, entity, code, current_version_id, effective_version_id,
-    next_version_no, revision, created_by, updated_by
-)
-SELECT
-    seed.object_id, 'product', seed.code, seed.version_id, seed.version_id,
-    2, 1, '00000000000000000000000000', '00000000000000000000000001'
-FROM (VALUES
-    ('SOLVENT', '01JAVX00000000000000000019', '01JAVX00000000000000000020', 'MIGRATED-PACKAGING-SOLVENT'),
-    ('RESIN',   '01JAVX00000000000000000021', '01JAVX00000000000000000022', 'MIGRATED-PACKAGING-RESIN')
-) AS seed(container_type, object_id, version_id, code)
-WHERE EXISTS (
-    SELECT 1 FROM bob_product_versions WHERE container_type = seed.container_type
-);
-
-INSERT INTO bob_versions (
-    id, object_id, entity, version_no, status, revision,
-    created_by, updated_by, submitted_at, submitted_by, reviewed_at, reviewed_by
-)
-SELECT
-    seed.version_id, seed.object_id, 'product', 1, 'EFFECTIVE', 1,
-    '00000000000000000000000000', '00000000000000000000000001',
-    now(), '00000000000000000000000000', now(), '00000000000000000000000001'
-FROM (VALUES
-    ('SOLVENT', '01JAVX00000000000000000019', '01JAVX00000000000000000020'),
-    ('RESIN',   '01JAVX00000000000000000021', '01JAVX00000000000000000022')
-) AS seed(container_type, object_id, version_id)
-WHERE EXISTS (
-    SELECT 1 FROM bob_product_versions WHERE container_type = seed.container_type
-);
-
-INSERT INTO bob_product_versions (
-    version_id, name, unit, container_type, quantity_per_container_micros,
-    category_id, specification, model, barcode, remark,
-    product_kind, inventory_unit_id, pricing_unit_id,
-    pricing_quantity_per_inventory_unit_micros, returnable
-)
-SELECT
-    seed.version_id, seed.name, '件', 'NONE', NULL,
-    NULL, NULL, NULL, NULL, '由旧桶型自动迁移',
-    'PACKAGING', '01JAVX00000000000000000013', '01JAVX00000000000000000013',
-    1000000, true
-FROM (VALUES
-    ('SOLVENT', '01JAVX00000000000000000020', '迁移溶剂桶'),
-    ('RESIN',   '01JAVX00000000000000000022', '迁移树脂桶')
-) AS seed(container_type, version_id, name)
-WHERE EXISTS (
-    SELECT 1 FROM bob_product_versions
-    WHERE container_type = seed.container_type AND version_id <> seed.version_id
-);
-
-INSERT INTO bob_audit_events (
-    id, object_id, version_id, entity, event_type, from_status, to_status,
-    actor_id, occurred_at, request_id, summary
-)
-SELECT
-    seed.audit_id, seed.object_id, seed.version_id, 'product', 'APPROVED',
-    'PENDING', 'EFFECTIVE', '00000000000000000000000001', now(),
-    'migration-00025', '{"source":"legacy-container-type"}'::jsonb
-FROM (VALUES
-    ('SOLVENT', '01JAVX00000000000000000023', '01JAVX00000000000000000019', '01JAVX00000000000000000020'),
-    ('RESIN',   '01JAVX00000000000000000024', '01JAVX00000000000000000021', '01JAVX00000000000000000022')
-) AS seed(container_type, audit_id, object_id, version_id)
-WHERE EXISTS (
-    SELECT 1 FROM bob_product_versions WHERE version_id = seed.version_id
-);
-
-INSERT INTO bob_product_packaging_specs (
-    product_version_id, packaging_product_object_id, packaging_product_version_id,
-    content_quantity_micros, is_default
-)
-SELECT
-    p.version_id,
-    CASE p.container_type
-        WHEN 'SOLVENT' THEN '01JAVX00000000000000000019'
-        ELSE '01JAVX00000000000000000021'
-    END,
-    CASE p.container_type
-        WHEN 'SOLVENT' THEN '01JAVX00000000000000000020'
-        ELSE '01JAVX00000000000000000022'
-    END,
-    p.quantity_per_container_micros,
-    true
-FROM bob_product_versions p
-WHERE p.container_type IN ('SOLVENT', 'RESIN')
-  AND p.product_kind <> 'PACKAGING';
 
 CREATE OR REPLACE VIEW bob_version_views AS
 SELECT
@@ -246,23 +148,7 @@ SELECT
     COALESCE(p.pricing_unit_id, '') AS pricing_unit_id,
     COALESCE(p.pricing_quantity_per_inventory_unit_micros, 0) AS pricing_quantity_per_inventory_unit_micros,
     COALESCE(p.returnable, false) AS returnable,
-    COALESCE((
-        SELECT jsonb_agg(jsonb_build_object(
-            'packagingProductObjectId', ps.packaging_product_object_id,
-            'packagingProductVersionId', ps.packaging_product_version_id,
-            'packagingProductCode', packaging_object.code,
-            'packagingProductName', packaging_detail.name,
-            'contentQuantityMicros', ps.content_quantity_micros,
-            'isDefault', ps.is_default
-        ) ORDER BY ps.is_default DESC, packaging_object.code)
-        FROM bob_product_packaging_specs ps
-        JOIN bob_objects packaging_object
-          ON packaging_object.id = ps.packaging_product_object_id
-         AND packaging_object.entity = 'product'
-        JOIN bob_product_versions packaging_detail
-          ON packaging_detail.version_id = ps.packaging_product_version_id
-        WHERE ps.product_version_id = v.id
-    ), '[]'::jsonb) AS packaging_specs
+    COALESCE(p.default_packaging_spec_micros, 0) AS default_packaging_spec_micros
 FROM bob_objects o
 JOIN bob_versions v ON v.object_id = o.id AND v.entity = o.entity
 LEFT JOIN bob_customer_versions c ON c.version_id = v.id
@@ -288,7 +174,6 @@ LEFT JOIN bob_settlement_method_versions sm ON sm.version_id = v.id;
 -- +goose Down
 
 DROP VIEW bob_version_views;
-DROP TABLE bob_product_packaging_specs;
 
 ALTER TABLE bob_product_versions
     DROP CONSTRAINT bob_product_inventory_unit_aux_fk,
@@ -296,21 +181,14 @@ ALTER TABLE bob_product_versions
 ALTER TABLE bob_service_versions
     DROP CONSTRAINT bob_service_unit_aux_fk;
 
-DELETE FROM bob_audit_events
-WHERE object_id IN ('01JAVX00000000000000000019', '01JAVX00000000000000000021');
-DELETE FROM bob_product_versions
-WHERE version_id IN ('01JAVX00000000000000000020', '01JAVX00000000000000000022');
-DELETE FROM bob_versions
-WHERE id IN ('01JAVX00000000000000000020', '01JAVX00000000000000000022');
-DELETE FROM bob_objects
-WHERE id IN ('01JAVX00000000000000000019', '01JAVX00000000000000000021');
-
 SET CONSTRAINTS ALL IMMEDIATE;
 
 ALTER TABLE bob_service_versions DROP COLUMN unit_id;
 ALTER TABLE bob_product_versions
     DROP CONSTRAINT bob_product_packaging_returnable_ck,
     DROP CONSTRAINT bob_product_pricing_conversion_ck,
+    DROP CONSTRAINT bob_product_default_packaging_spec_ck,
+    DROP COLUMN default_packaging_spec_micros,
     DROP COLUMN returnable,
     DROP COLUMN pricing_quantity_per_inventory_unit_micros,
     DROP COLUMN pricing_unit_id,

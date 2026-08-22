@@ -55,13 +55,27 @@ export function calculateLineAmount(
   return cents >= 0n && cents <= MAX_INT64 ? formatMoneyCents(cents) : null
 }
 
-export function calculatePricedLineAmount(
-  inventoryQuantity: string,
-  unitPrice: string,
-  pricingQuantityPerInventoryUnit = '1',
+export function suggestedBaseQuantity(
+  enteredQuantity: string,
+  conversionFactor: string,
 ): string | null {
-  const quantityMicros = parseFixed(inventoryQuantity, 6)
-  const conversionMicros = parseFixed(pricingQuantityPerInventoryUnit, 6)
+  const enteredMicros = parseFixed(enteredQuantity, 6)
+  const factorMicros = parseFixed(conversionFactor, 6)
+  if (enteredMicros === null || factorMicros === null) return null
+  const product = enteredMicros * factorMicros
+  let baseMicros = product / 1_000_000n
+  if ((product % 1_000_000n) * 2n >= 1_000_000n) baseMicros += 1n
+  if (baseMicros <= 0n || baseMicros >= MAX_INT64) return null
+  return formatQuantityMicros(baseMicros)
+}
+
+export function calculateBaseQuantityLineAmount(
+  baseQuantity: string,
+  unitPrice: string,
+  pricingUnitFactor: string,
+): string | null {
+  const quantityMicros = parseFixed(baseQuantity, 6)
+  const conversionMicros = parseFixed(pricingUnitFactor, 6)
   const priceCents = parseFixed(unitPrice, 2, true)
   if (
     quantityMicros === null ||
@@ -69,12 +83,20 @@ export function calculatePricedLineAmount(
     priceCents === null
   )
     return null
-  const pricingQuantityMicros = (quantityMicros * conversionMicros) / 1_000_000n
+  const pricingQuantityMicros = (quantityMicros * 1_000_000n) / conversionMicros
   const product = pricingQuantityMicros * priceCents
   const divisor = 1_000_000n
   let cents = product / divisor
   if ((product % divisor) * 2n >= divisor) cents += 1n
   return cents >= 0n && cents <= MAX_INT64 ? formatMoneyCents(cents) : null
+}
+
+export function formatQuantityMicros(value: bigint): string {
+  const whole = value / 1_000_000n
+  const fraction = String(value % 1_000_000n)
+    .padStart(6, '0')
+    .replace(/0+$/, '')
+  return fraction ? `${whole}.${fraction}` : String(whole)
 }
 
 export function addMoney(left: string, right?: string): string | null {

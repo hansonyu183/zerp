@@ -46,8 +46,8 @@ func TestApplySettlementSurchargeExcludesPackaging(t *testing.T) {
 			RuleType: "DUE_DAYS", DueDays: 10, DefaultSalesSurcharge: "1.50",
 		}},
 		Products: []bobdomain.EffectiveReference{
-			{Data: bobdomain.DetailView{ProductKind: bobdomain.ProductKindRawMaterial}},
-			{Data: bobdomain.DetailView{ProductKind: bobdomain.ProductKindPackaging}},
+			{Data: settlementTestProduct(bobdomain.ProductBehaviorRawMaterial)},
+			{Data: settlementTestProduct(bobdomain.ProductBehaviorPackaging)},
 		},
 	}
 	if err := applySettlementTerms(EntitySaleOrder, &draft, refs); err != nil {
@@ -61,6 +61,17 @@ func TestApplySettlementSurchargeExcludesPackaging(t *testing.T) {
 		draft.ProductLines[1].SettlementSurcharge != 0 ||
 		draft.TotalAmount != 2_800 {
 		t.Fatalf("draft after terms = %+v", draft)
+	}
+}
+
+func settlementTestProduct(behaviorProfile string) bobdomain.DetailView {
+	return bobdomain.DetailView{
+		BehaviorProfile: behaviorProfile,
+		PricingUnitID:   "UNIT-1",
+		UnitConversions: []bobdomain.ProductUnitConversion{{
+			Unit:   bobdomain.MeasurementUnitSnapshot{ObjectID: "UNIT-1"},
+			Factor: "1",
+		}},
 	}
 }
 

@@ -62,23 +62,7 @@ SELECT
     COALESCE(p.pricing_unit_id, '') AS pricing_unit_id,
     COALESCE(p.pricing_quantity_per_inventory_unit_micros, 0) AS pricing_quantity_per_inventory_unit_micros,
     COALESCE(p.returnable, false) AS returnable,
-    COALESCE((
-        SELECT jsonb_agg(jsonb_build_object(
-            'packagingProductObjectId', ps.packaging_product_object_id,
-            'packagingProductVersionId', ps.packaging_product_version_id,
-            'packagingProductCode', packaging_object.code,
-            'packagingProductName', packaging_detail.name,
-            'contentQuantityMicros', ps.content_quantity_micros,
-            'isDefault', ps.is_default
-        ) ORDER BY ps.is_default DESC, packaging_object.code)
-        FROM bob_product_packaging_specs ps
-        JOIN bob_objects packaging_object
-          ON packaging_object.id = ps.packaging_product_object_id
-         AND packaging_object.entity = 'product'
-        JOIN bob_product_versions packaging_detail
-          ON packaging_detail.version_id = ps.packaging_product_version_id
-        WHERE ps.product_version_id = v.id
-    ), '[]'::jsonb) AS packaging_specs,
+    COALESCE(p.default_packaging_spec_micros, 0) AS default_packaging_spec_micros,
     COALESCE(c.monthly_closing_day, 0) AS monthly_closing_day,
     COALESCE(settlement.term_code, '') AS settlement_term_code,
     COALESCE(settlement.default_sales_surcharge_cents, 0) AS settlement_default_sales_surcharge_cents,

@@ -18,6 +18,7 @@ FROM (VALUES
     ('bob', 'settlement-method', 90),
     ('aux', 'asset-category', 5),
     ('aux', 'product-category', 10),
+    ('aux', 'product-type', 15),
     ('aux', 'department', 20),
     ('aux', 'position', 30),
     ('aux', 'measurement-unit', 50),

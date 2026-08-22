@@ -60,7 +60,7 @@ func (s *Service) resolveReturnSource(
 		if !validID(input.SourceLineID) || seen[input.SourceLineID] {
 			return result, domainError(ErrorValidation, "invalid sourceLineId", nil, nil)
 		}
-		quantity, err := quantityMicros(input.Quantity, false)
+		quantity, err := quantityMicros(input.BaseQuantity, false)
 		if err != nil {
 			return result, domainError(ErrorValidation, "invalid return quantity", nil, err)
 		}
@@ -73,8 +73,8 @@ func (s *Service) resolveReturnSource(
 		var orderID, currency, customerID, customerVersion, customerCode, customerName, status string
 		err = tx.QueryRow(ctx, `SELECT sl.document_id,sd.source_order_id,d.status,d.business_date,
 			od.currency,sd.customer_object_id,sd.customer_version_id,sd.customer_code,sd.customer_name,
-			sl.product_object_id,sl.product_version_id,sl.product_code,sl.product_name,sl.product_unit,
-			sl.signed_qty_micros,sl.unit_price_cents
+			sl.product_object_id,sl.product_version_id,sl.product_code,sl.product_name,sl.entered_unit_symbol,
+			sl.signed_base_quantity_micros,sl.unit_price_cents
 			FROM vou_sale_signoff_lines sl
 			JOIN vou_sale_signoff_details sd ON sd.document_id=sl.document_id
 			JOIN vou_documents d ON d.id=sl.document_id
@@ -102,7 +102,7 @@ func (s *Service) resolveReturnSource(
 			return result, domainError(ErrorValidation, "return lines must belong to one sales fulfillment", nil, nil)
 		}
 		var occupied int64
-		if err = tx.QueryRow(ctx, `SELECT COALESCE(sum(rl.quantity_micros),0)
+		if err = tx.QueryRow(ctx, `SELECT COALESCE(sum(rl.base_quantity_micros),0)
 			FROM vou_sale_return_lines rl
 			JOIN vou_sale_return_details rd ON rd.document_id=rl.document_id
 			WHERE rl.source_signoff_line_id=$1 AND rd.return_kind='AFTER_SALE'
@@ -327,8 +327,8 @@ func (s *Service) insertSaleReturnLines(
 			ID: newID(), DocumentID: id, SourceSignoffLineID: line.sourceLineID,
 			SourceSignoffID: line.signoffID, LineNo: int32(index + 1),
 			ProductObjectID: line.productID, ProductVersionID: line.productVersion,
-			ProductCode: line.productCode, ProductName: line.productName, ProductUnit: line.productUnit,
-			QuantityMicros: line.quantity, UnitPriceCents: line.price, LineAmountCents: line.amount,
+			ProductCode: line.productCode, ProductName: line.productName, EnteredUnitSymbol: line.productUnit,
+			BaseQuantityMicros: line.quantity, UnitPriceCents: line.price, LineAmountCents: line.amount,
 			Remark: line.remark,
 		}); err != nil {
 			return err
@@ -354,7 +354,7 @@ func (s *Service) loadSaleReturnData(
 	data.Warehouse = reference(warehouseID, warehouseVersion, "warehouse", warehouseCode, warehouseName, "", "", "")
 	rows, err := s.pool.Query(ctx, `SELECT l.id,l.source_signoff_line_id,l.source_signoff_id,
 		s.document_no,l.line_no,l.product_object_id,l.product_version_id,l.product_code,
-		l.product_name,l.product_unit,l.quantity_micros,l.unit_price_cents,l.line_amount_cents,
+		l.product_name,l.entered_unit_symbol,l.base_quantity_micros,l.unit_price_cents,l.line_amount_cents,
 		COALESCE(l.remark,'') FROM vou_sale_return_lines l
 		JOIN vou_documents s ON s.id=l.source_signoff_id
 		WHERE l.document_id=$1 ORDER BY l.line_no`, document.ID)
@@ -372,7 +372,9 @@ func (s *Service) loadSaleReturnData(
 			return data, err
 		}
 		line.Product = reference(productID, productVersion, "product", productCode, productName, productUnit, "", "")
-		line.Quantity, line.UnitPrice, line.LineAmount, line.ReturnKind =
+		line.EnteredQuantity = formatQuantity(quantity)
+		line.EnteredUnit = &UnitSnapshotView{Symbol: productUnit}
+		line.BaseQuantity, line.UnitPrice, line.LineAmount, line.ReturnKind =
 			formatQuantity(quantity), formatMoney(price), formatMoney(amount), data.ReturnKind
 		data.Lines = append(data.Lines, line)
 	}
@@ -396,7 +398,7 @@ func (s *Service) ensureRefusalReturnDraft(
 		if !validID(input.SourceLineID) || requested[input.SourceLineID] != 0 {
 			return domainError(ErrorValidation, "invalid sourceLineId", nil, nil)
 		}
-		quantity, parseErr := quantityMicros(input.Quantity, false)
+		quantity, parseErr := quantityMicros(input.BaseQuantity, false)
 		if parseErr != nil {
 			return domainError(ErrorValidation, "invalid return quantity", nil, parseErr)
 		}
@@ -434,8 +436,8 @@ func (s *Service) ensureRefusalReturnDraft(
 	for _, row := range rows {
 		var line fixedReturnLine
 		line.sourceLineID, line.productID, line.productVersion = row.ID, row.ProductObjectID, row.ProductVersionID
-		line.productCode, line.productName, line.productUnit = row.ProductCode, row.ProductName, row.ProductUnit
-		line.quantity, line.price = row.RejectedQtyMicros, row.UnitPriceCents
+		line.productCode, line.productName, line.productUnit = row.ProductCode, row.ProductName, row.EnteredUnitSymbol
+		line.quantity, line.price = row.RejectedBaseQuantityMicros, row.UnitPriceCents
 		quantity, ok := requested[line.sourceLineID]
 		if !ok || quantity != line.quantity {
 			return domainError(ErrorValidation, "refusal return quantity must equal rejected quantity", nil, nil)

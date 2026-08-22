@@ -296,9 +296,17 @@ test('库存盘点加载账面库存并按批准时差异过账', async ({
   const workspace = page.locator('.voucher-workspace')
 
   await selectReference(page, '仓库', fixture.warehouse, workspace)
+  const balanceResponse = page.waitForResponse((response) =>
+    response.url().endsWith('/vou/inventory-count/book-balance'),
+  )
   await workspace
     .getByRole('button', { name: '加载非零库存', exact: true })
     .click()
+  const balancePayload = (await (await balanceResponse).json()) as {
+    code: number | string
+    message: string
+  }
+  expect(String(balancePayload.code), balancePayload.message).toBe('0')
   const countLine = workspace
     .locator('.inventory-count-lines__table tbody tr')
     .filter({ hasText: fixture.product })
@@ -306,13 +314,17 @@ test('库存盘点加载账面库存并按批准时差异过账', async ({
   await expect(countLine).toBeVisible()
   const bookQuantity = Number(
     (
-      await countLine.locator('td[data-label="账面数量"]').textContent()
+      await countLine
+        .locator('td[data-label="账面 Base Quantity"]')
+        .textContent()
     )?.trim(),
   )
   expect(Number.isFinite(bookQuantity)).toBe(true)
   await countLine
-    .locator('input')
-    .nth(1)
+    .locator('td[data-label="录入数量"] input')
+    .fill(String(bookQuantity + 1))
+  await countLine
+    .locator('td[data-label="实际 Base Quantity"] input')
     .fill(String(bookQuantity + 1))
   await expect(countLine.locator('td[data-label="差异"]')).toHaveText('1')
 
@@ -325,7 +337,9 @@ test('库存盘点加载账面库存并按批准时差异过账', async ({
   await expect
     .poll(async () =>
       Number(
-        await countLine.locator('td[data-label="账面数量"]').textContent(),
+        await countLine
+          .locator('td[data-label="账面 Base Quantity"]')
+          .textContent(),
       ),
     )
     .toBe(bookQuantity)
@@ -366,9 +380,8 @@ test('销售订单经动态流程生成出库草稿', async ({ page, workerState
       draftLine.evaluate((element) => element.getBoundingClientRect().height),
     )
     .toBe(originalLineHeight)
-  const draftInputs = draftLine.locator('input')
-  await draftInputs.nth(1).fill('2')
-  await draftInputs.nth(2).fill('12.50')
+  await draftLine.locator('td[data-label="录入数量"] input').fill('2')
+  await draftLine.locator('td[data-label="基础售价"] input').fill('12.50')
   await expect(draftLine).toContainText('25.00')
   await workspace.getByRole('button', { name: '保存', exact: true }).click()
   await expectDraftCreated(workspace, /^SOR-\d{8}-\d{4}$/)
@@ -376,11 +389,14 @@ test('销售订单经动态流程生成出库草稿', async ({ page, workerState
     await workspace.locator('.voucher-document-header__number').textContent()
   )?.trim()
   expect(orderNo).toBeTruthy()
-  await workspace.getByRole('button', { name: '取消编辑' }).click()
-  await workspace.getByRole('button', { name: '核对', exact: true }).click()
-  await expect(workspace.getByText('已核对', { exact: true })).toBeVisible()
-  await workspace.getByRole('button', { name: '批准', exact: true }).click()
-  await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
+  await workspace.getByLabel('关闭单据工作区').click()
+  await expect(workspace).not.toBeVisible()
+  let orderRow = page.locator('tbody tr').filter({ hasText: orderNo! })
+  await orderRow.getByLabel(`核对 ${orderNo}`).click()
+  await expect(orderRow).toContainText('已核对')
+  orderRow = page.locator('tbody tr').filter({ hasText: orderNo! })
+  await orderRow.getByLabel(`批准 ${orderNo}`).click()
+  await expect(orderRow).toContainText('已批准')
 
   await page.goto(`/wfl/${fixture.salesProcessCode}`)
   await page.getByRole('textbox', { name: '单号' }).fill(orderNo!)
@@ -481,12 +497,9 @@ test('采购订单经动态流程显示实例树', async ({ page, workerState })
   await selectReference(page, /采购员/, fixture.employee, workspace)
   await selectReference(page, '仓库', fixture.warehouse, workspace)
   await selectReference(page, '产品', fixture.product, workspace)
-  const draftInputs = workspace
-    .locator('.voucher-lines__table tbody tr')
-    .first()
-    .locator('input')
-  await draftInputs.nth(1).fill('3')
-  await draftInputs.nth(2).fill('10')
+  const draftLine = workspace.locator('.voucher-lines__table tbody tr').first()
+  await draftLine.locator('td[data-label="录入数量"] input').fill('3')
+  await draftLine.locator('td[data-label="单价"] input').fill('10')
   await workspace.getByRole('button', { name: '保存', exact: true }).click()
   await expectDraftCreated(workspace, /^POR-\d{8}-\d{4}$/)
   const orderNo = (

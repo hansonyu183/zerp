@@ -42,7 +42,7 @@ asset-category
 
 ```text
 product-category PCT         department DEP
-position POS
+position POS                 product-type PTP
 dictionary-type DCT          dictionary-item DIT
 measurement-unit UNT         income-expense-type IET
 asset-category ACT
@@ -53,6 +53,14 @@ payment-method PMT
 ### 3.1 产品分类
 
 `product-category` 只服务产品，不再使用含义宽泛的跨对象分类。字段为 `name`、`parentId`、`description`；`parentId` 形成单父多级树。
+
+#### 3.1.1 产品类型
+
+`product-type` 是可扩展的扁平辅助对象，字段为 `name`、`behaviorProfile` 和 `description`。业务用户可以创建多个产品类型，并为每个类型选择一个系统内置行为模板；产品类型不保存任意规则开关，也不替代用于层级归集的产品分类。
+
+当前系统内置行为模板为 `RAW_MATERIAL`、`STANDARD_FINISHED`、`CUSTOM_FINISHED` 和 `PACKAGING`。新增同类业务名称只创建新的产品类型并复用现有模板；出现现有模板无法表达的新业务行为时，必须先扩展领域规则和系统实现，不能由管理员拼装新的行为组合。
+
+产品类型一旦被任一产品版本引用，`behaviorProfile` 永久不可修改；需要另一种行为时新建产品类型，再通过产品候选版本改选。名称和说明仍可按 AUX 生命周期修改，停用只阻止新选择和新的产品候选版本提交或审核，不追溯改变已经生效的产品或历史 VOU。产品类型不建立父子关系，也不允许一个产品同时选择多个类型。
 
 ### 3.2 部门与岗位
 
@@ -76,7 +84,9 @@ payment-method PMT
 
 ### 3.5 计量单位
 
-`measurement-unit` 字段为 `name`、`symbol`、`quantityScale`。产品和服务通过对象 ID 引用计量单位。普通商品定价单位固定为 kg，产品通过 `pricingQuantityPerInventoryUnit` 描述每库存单位折合的 kg 数；包装物按自身库存单位定价。
+`measurement-unit` 字段仅为 `name`、`symbol` 和 `quantityScale`。单位名称和符号用于录入与显示，`quantityScale` 决定该单位允许录入和保存的小数位。AUX 不管理计量维度、基准单位、基准单位 ID 或通用换算比例；相同单位名称在不同产品中可以对应不同的实际换算。
+
+产品和服务通过对象 ID 引用计量单位。普通商品仍以 kg 计价，包装物按自身计价单位计价；计价单位和默认录入单位是用户可见语义，产品内部基准单位不是计量单位对象。所有产品单位换算都由 BOB 产品页面使用，不进入 AUX 或其他领域的业务规则。
 
 ### 3.6 字典
 

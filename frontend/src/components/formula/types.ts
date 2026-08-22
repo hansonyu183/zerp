@@ -1,3 +1,16 @@
+export interface FormulaUnitSnapshot {
+  objectId: string
+  versionId?: string
+  code?: string
+  name?: string
+  symbol?: string
+}
+
+export interface FormulaUnitConversion {
+  unit: FormulaUnitSnapshot
+  factor: string
+}
+
 export interface FormulaMaterialReference {
   objectId: string
   versionId: string
@@ -5,17 +18,25 @@ export interface FormulaMaterialReference {
   code: string
   name: string
   unit?: string
-  productKind?: string
+  behaviorProfile?: string
+  defaultInputUnitId?: string
+  unitConversions?: FormulaUnitConversion[]
+}
+
+export interface FormulaQuantitySnapshotDraft {
+  enteredQuantity: string
+  enteredUnit: FormulaUnitSnapshot | null
+  baseQuantity: string
 }
 
 export interface FormulaComponentDraft {
   key: string
   material: FormulaMaterialReference | null
-  quantity: string
+  quantity: FormulaQuantitySnapshotDraft
 }
 
 export interface ProductFormulaDraft {
-  baseOutputQuantity: string
+  output: FormulaQuantitySnapshotDraft
   sourceType?: string
   sourceDocumentId?: string
   sourceDocumentNo?: string
@@ -23,29 +44,34 @@ export interface ProductFormulaDraft {
 }
 
 export interface FormulaPayload {
-  baseOutputQuantity: string
+  output: {
+    enteredQuantity: string
+    enteredUnit: { objectId: string }
+    baseQuantity: string
+  }
   sourceType?: string
   sourceDocumentId?: string
   sourceDocumentNo?: string
   components: Array<{
-    material: {
-      objectId: string
-      versionId: string
+    material: { objectId: string }
+    quantity: {
+      enteredQuantity: string
+      enteredUnit: { objectId: string }
+      baseQuantity: string
     }
-    quantity: string
   }>
 }
 
 export function formulaFromPayload(
   formula:
     | {
-        baseOutputQuantity: string
+        output: FormulaQuantitySnapshotDraft
         sourceType?: string
         sourceDocumentId?: string
         sourceDocumentNo?: string
         components: Array<{
-          material: FormulaMaterialReference
-          quantity: string
+          material: FormulaMaterialReference | null
+          quantity: FormulaQuantitySnapshotDraft
         }>
       }
     | null
@@ -53,14 +79,14 @@ export function formulaFromPayload(
 ): ProductFormulaDraft | null {
   if (!formula) return null
   return {
-    baseOutputQuantity: formula.baseOutputQuantity,
+    output: structuredClone(formula.output),
     sourceType: formula.sourceType,
     sourceDocumentId: formula.sourceDocumentId,
     sourceDocumentNo: formula.sourceDocumentNo,
     components: formula.components.map((component) => ({
       key: crypto.randomUUID(),
-      material: { ...component.material },
-      quantity: component.quantity,
+      material: component.material ? { ...component.material } : null,
+      quantity: structuredClone(component.quantity),
     })),
   }
 }
@@ -68,9 +94,13 @@ export function formulaFromPayload(
 export function formulaPayload(
   formula: ProductFormulaDraft | null | undefined,
 ): FormulaPayload | undefined {
-  if (!formula) return undefined
+  if (!formula?.output.enteredUnit) return undefined
   return {
-    baseOutputQuantity: formula.baseOutputQuantity.trim(),
+    output: {
+      enteredQuantity: formula.output.enteredQuantity.trim(),
+      enteredUnit: { objectId: formula.output.enteredUnit.objectId },
+      baseQuantity: formula.output.baseQuantity.trim(),
+    },
     ...(formula.sourceType ? { sourceType: formula.sourceType } : {}),
     ...(formula.sourceDocumentId
       ? { sourceDocumentId: formula.sourceDocumentId }
@@ -79,11 +109,12 @@ export function formulaPayload(
       ? { sourceDocumentNo: formula.sourceDocumentNo }
       : {}),
     components: formula.components.map((component) => ({
-      material: {
-        objectId: component.material!.objectId,
-        versionId: component.material!.versionId,
+      material: { objectId: component.material!.objectId },
+      quantity: {
+        enteredQuantity: component.quantity.enteredQuantity.trim(),
+        enteredUnit: { objectId: component.quantity.enteredUnit!.objectId },
+        baseQuantity: component.quantity.baseQuantity.trim(),
       },
-      quantity: component.quantity.trim(),
     })),
   }
 }

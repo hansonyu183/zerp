@@ -43,17 +43,16 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 	t.Cleanup(func() { truncateVOU(t, pool) })
 	refs := prepareReferences(t, pool)
 	service := newIntegrationService(t, pool)
-	productLine := []ProductLineInput{{
-		Product: refs.product, OrderedQuantity: "10.5", UnitPrice: "12.34",
-		Remark: "商品明细备注",
-	}}
+	line := integrationProductLine(t, refs.product, "10.5", "12.34")
+	line.Remark = "商品明细备注"
+	productLine := []ProductLineInput{line}
 	tests := []struct {
 		entity string
 		draft  DraftInput
 	}{
 		{EntitySalePricing, DraftInput{
 			BusinessDate: "2026-07-24", Currency: "CNY",
-			PriceLines: []PriceLineInput{{Product: refs.product, UnitPrice: "11.20"}},
+			PriceLines: []PriceLineInput{{Product: ProductReferenceInput{ObjectID: refs.product.ObjectID}, UnitPrice: "11.20"}},
 		}},
 		{EntitySaleOrder, DraftInput{
 			BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
@@ -83,7 +82,7 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 		}},
 		{EntityPurchaseInquiry, DraftInput{
 			BusinessDate: "2026-07-24", Currency: "CNY", Supplier: &refs.supplier,
-			PriceLines: []PriceLineInput{{Product: refs.product, UnitPrice: "8.30"}},
+			PriceLines: []PriceLineInput{{Product: ProductReferenceInput{ObjectID: refs.product.ObjectID}, UnitPrice: "8.30"}},
 		}},
 	}
 
@@ -168,10 +167,10 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 			}
 			if test.entity == EntitySaleOrder {
 				if page.Items[0].SalesSummary == nil ||
-					page.Items[0].SalesSummary.ShortageQuantity != "10500" ||
-					page.Items[0].SalesSummary.OrderedQuantity != "10500" ||
-					page.Items[0].SalesSummary.OutboundQuantity != "0" ||
-					page.Items[0].SalesSummary.NetSignedQuantity != "0" {
+					page.Items[0].SalesSummary.ShortageBaseQuantity != "10.5" ||
+					page.Items[0].SalesSummary.OrderedBaseQuantity != "10.5" ||
+					page.Items[0].SalesSummary.OutboundBaseQuantity != "0" ||
+					page.Items[0].SalesSummary.NetSignedBaseQuantity != "0" {
 					t.Fatalf("sale order list summary = %+v", page.Items[0].SalesSummary)
 				}
 				unapproved, reverseErr := service.Unapprove(t.Context(), test.entity, ReverseInput{

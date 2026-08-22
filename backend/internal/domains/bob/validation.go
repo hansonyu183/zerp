@@ -40,7 +40,7 @@ func validateCreate(entity string, input CreateDetailInput) (DetailView, string,
 		rebateUnitPrice = "0"
 	}
 	data := DetailView{
-		Name: input.Name, Unit: input.Unit, Currency: input.Currency,
+		Name: input.Name, Unit: input.Unit, InventoryUnitID: input.InventoryUnitID, Currency: input.Currency,
 		CustomerType: deref(customerType),
 		PlateNumber:  input.PlateNumber, VehicleType: input.VehicleType,
 		PlatformObjectID: input.PlatformObjectID, TargetEntity: input.TargetEntity,
@@ -59,34 +59,11 @@ func validateCreate(entity string, input CreateDetailInput) (DetailView, string,
 		RebateUnitPrice:            rebateUnitPrice,
 		RuleType:                   input.RuleType,
 		MonthOffset:                input.MonthOffset, DayOfMonth: input.DayOfMonth, DayOffset: input.DayOffset,
-		ContainerType: input.ContainerType, QuantityPerContainer: input.QuantityPerContainer,
-		ProductKind: input.ProductKind, InventoryUnitID: input.InventoryUnitID,
-		PricingUnitID:                   input.PricingUnitID,
-		PricingQuantityPerInventoryUnit: input.PricingQuantityPerInventoryUnit,
-		Returnable:                      input.Returnable, PackagingSpecs: input.PackagingSpecs,
+		ProductTypeID: input.ProductTypeID, DefaultInputUnitID: input.DefaultInputUnitID,
+		PricingUnitID: input.PricingUnitID, UnitConversions: slices.Clone(input.UnitConversions),
+		Returnable: input.Returnable, DefaultPackagingSpec: input.DefaultPackagingSpec,
 		Formula: cloneProductFormula(input.Formula), TermCode: input.TermCode,
 		DefaultSalesSurcharge: input.DefaultSalesSurcharge,
-	}
-	if entity == EntityProduct && data.ContainerType == "" {
-		data.ContainerType = ContainerTypeNone
-	}
-	if entity == EntityProduct {
-		if data.ProductKind == "" {
-			data.ProductKind = ProductKindRawMaterial
-		}
-		if data.InventoryUnitID == "" {
-			data.InventoryUnitID = legacyUnitID(data.Unit)
-		}
-		if data.PricingUnitID == "" {
-			data.PricingUnitID = "01JAVX00000000000000000011"
-		}
-		if data.PricingQuantityPerInventoryUnit == "" {
-			if slices.Contains([]string{"吨", "ton", "t"}, strings.ToLower(strings.TrimSpace(data.Unit))) {
-				data.PricingQuantityPerInventoryUnit = "1000"
-			} else {
-				data.PricingQuantityPerInventoryUnit = "1"
-			}
-		}
 	}
 	if entity == EntityService && data.InventoryUnitID == "" {
 		data.InventoryUnitID = legacyUnitID(data.Unit)
@@ -107,23 +84,11 @@ func mergeDetailInput(current DetailView, input DetailInput) DetailView {
 	result.MonthOffset = input.MonthOffset
 	result.DayOfMonth = input.DayOfMonth
 	result.DayOffset = input.DayOffset
-	if input.ProductKind != nil {
-		result.ProductKind = *input.ProductKind
-	}
 	if input.Returnable != nil {
 		result.Returnable = *input.Returnable
 	}
-	if input.PackagingSpecs != nil {
-		result.PackagingSpecs = slices.Clone(*input.PackagingSpecs)
-	}
 	if input.Formula != nil {
 		result.Formula = cloneProductFormula(input.Formula)
-	}
-	if input.ProductKind != nil && *input.ProductKind != ProductKindStandardFinished && input.Formula == nil {
-		result.Formula = nil
-	}
-	if input.ContainerType != nil {
-		result.ContainerType = *input.ContainerType
 	}
 	if input.CustomerType != nil {
 		result.CustomerType = *input.CustomerType
@@ -136,6 +101,8 @@ func mergeDetailInput(current DetailView, input DetailInput) DetailView {
 			*target = optional.Value
 		}
 	}
+	mergeOptional(input.DefaultPackagingSpec, &result.DefaultPackagingSpec)
+	mergeOptional(input.InventoryUnitID, &result.InventoryUnitID)
 	mergeOptional(input.ShortName, &result.ShortName)
 	mergeOptional(input.CategoryID, &result.CategoryID)
 	mergeOptional(input.TaxNumber, &result.TaxNumber)
@@ -174,10 +141,12 @@ func mergeDetailInput(current DetailView, input DetailInput) DetailView {
 	}
 	mergeOptional(input.SalespersonEmployeeID, &result.SalespersonEmployeeID)
 	mergeOptional(input.DefaultPurchaserEmployeeID, &result.DefaultPurchaserEmployeeID)
-	mergeOptional(input.QuantityPerContainer, &result.QuantityPerContainer)
-	mergeOptional(input.InventoryUnitID, &result.InventoryUnitID)
+	mergeOptional(input.ProductTypeID, &result.ProductTypeID)
+	mergeOptional(input.DefaultInputUnitID, &result.DefaultInputUnitID)
 	mergeOptional(input.PricingUnitID, &result.PricingUnitID)
-	mergeOptional(input.PricingQuantityPerInventoryUnit, &result.PricingQuantityPerInventoryUnit)
+	if input.UnitConversions != nil {
+		result.UnitConversions = slices.Clone(*input.UnitConversions)
+	}
 	return result
 }
 
@@ -194,12 +163,6 @@ func validateDetail(entity string, input DetailInput) (DetailView, error) {
 	}
 	if entity == EntityCustomer {
 		current.RebateUnitPrice = "0"
-	}
-	if entity == EntityProduct {
-		current.ContainerType = ContainerTypeNone
-		current.ProductKind = ProductKindRawMaterial
-		current.PricingUnitID = "01JAVX00000000000000000011"
-		current.PricingQuantityPerInventoryUnit = "1"
 	}
 	return validateDetailData(entity, mergeDetailInput(current, input))
 }
@@ -221,9 +184,8 @@ func validateDetailInputFields(entity string, input DetailInput) error {
 	case EntityEmployee:
 		allow("departmentId", "positionId", "phone", "email", "hireDate", "remark")
 	case EntityProduct:
-		allow("categoryId", "specification", "model", "barcode", "remark", "quantityPerContainer",
-			"inventoryUnitId", "pricingUnitId", "pricingQuantityPerInventoryUnit",
-			"productKind", "returnable", "packagingSpecs", "formula")
+		allow("categoryId", "specification", "model", "barcode", "remark", "productTypeId",
+			"defaultInputUnitId", "pricingUnitId", "unitConversions", "returnable", "defaultPackagingSpec", "formula")
 	case EntityService:
 		allow("description", "remark", "inventoryUnitId")
 	case EntityWarehouse:
@@ -259,19 +221,18 @@ func validateDetailInputFields(entity string, input DetailInput) error {
 		"accountName": input.AccountName.Set, "bankName": input.BankName.Set,
 		"bankBranch": input.BankBranch.Set, "accountNumber": input.AccountNumber.Set,
 		"parentId": input.ParentID.Set, "settlementMethodId": input.SettlementMethodID.Set,
-		"monthlyClosingDay":               input.MonthlyClosingDay != nil,
-		"rebateUnitPrice":                 input.RebateUnitPrice != nil,
-		"defaultSalesSurcharge":           input.DefaultSalesSurcharge != nil,
-		"salespersonEmployeeId":           input.SalespersonEmployeeID.Set,
-		"defaultPurchaserEmployeeId":      input.DefaultPurchaserEmployeeID.Set,
-		"quantityPerContainer":            input.QuantityPerContainer.Set,
-		"inventoryUnitId":                 input.InventoryUnitID.Set,
-		"pricingUnitId":                   input.PricingUnitID.Set,
-		"pricingQuantityPerInventoryUnit": input.PricingQuantityPerInventoryUnit.Set,
-		"productKind":                     input.ProductKind != nil,
-		"returnable":                      input.Returnable != nil,
-		"packagingSpecs":                  input.PackagingSpecs != nil,
-		"formula":                         input.Formula != nil,
+		"monthlyClosingDay":          input.MonthlyClosingDay != nil,
+		"rebateUnitPrice":            input.RebateUnitPrice != nil,
+		"defaultSalesSurcharge":      input.DefaultSalesSurcharge != nil,
+		"salespersonEmployeeId":      input.SalespersonEmployeeID.Set,
+		"defaultPurchaserEmployeeId": input.DefaultPurchaserEmployeeID.Set,
+		"productTypeId":              input.ProductTypeID.Set,
+		"defaultInputUnitId":         input.DefaultInputUnitID.Set,
+		"pricingUnitId":              input.PricingUnitID.Set,
+		"unitConversions":            input.UnitConversions != nil,
+		"returnable":                 input.Returnable != nil,
+		"defaultPackagingSpec":       input.DefaultPackagingSpec.Set,
+		"formula":                    input.Formula != nil,
 	}
 	for field, present := range provided {
 		if present && !allowed[field] {
@@ -305,16 +266,18 @@ func normalizeDetail(input *DetailView) {
 		&input.Email, &input.Address, &input.Remark, &input.Phone, &input.HireDate,
 		&input.Specification, &input.Model, &input.Description, &input.EngineNumber,
 		&input.LoadCapacityKG, &input.AccountName, &input.BankName, &input.BankBranch,
-		&input.VehicleType,
-		&input.QuantityPerContainer, &input.PricingQuantityPerInventoryUnit,
-		&input.DefaultSalesSurcharge, &input.RebateUnitPrice,
+		&input.VehicleType, &input.ProductTypeID, &input.DefaultInputUnitID, &input.PricingUnitID,
+		&input.DefaultPackagingSpec, &input.DefaultSalesSurcharge, &input.RebateUnitPrice,
 	} {
 		trim(value)
+	}
+	for index := range input.UnitConversions {
+		input.UnitConversions[index].Unit.ObjectID = strings.TrimSpace(input.UnitConversions[index].Unit.ObjectID)
+		input.UnitConversions[index].Factor = strings.TrimSpace(input.UnitConversions[index].Factor)
 	}
 	for _, value := range []*string{
 		&input.Currency, &input.CustomerType, &input.PlateNumber, &input.VehicleType,
 		&input.TaxNumber, &input.Barcode, &input.VIN, &input.RuleType, &input.TermCode,
-		&input.ContainerType, &input.ProductKind,
 	} {
 		*value = strings.ToUpper(strings.TrimSpace(*value))
 	}
@@ -322,7 +285,7 @@ func normalizeDetail(input *DetailView) {
 		&input.PlatformObjectID, &input.CategoryID, &input.DepartmentID, &input.PositionID,
 		&input.ManagerEmployeeID, &input.ParentID, &input.SettlementMethodID, &input.SalespersonEmployeeID,
 		&input.DefaultPurchaserEmployeeID,
-		&input.InventoryUnitID, &input.PricingUnitID,
+		&input.InventoryUnitID, &input.ProductTypeID, &input.DefaultInputUnitID, &input.PricingUnitID,
 	} {
 		trim(value)
 	}
@@ -332,21 +295,22 @@ func normalizeDetail(input *DetailView) {
 	if input.LoadCapacityKG != "" {
 		input.LoadCapacityKG = normalizeLoadCapacity(input.LoadCapacityKG)
 	}
-	for index := range input.PackagingSpecs {
-		spec := &input.PackagingSpecs[index]
-		spec.PackagingProductObjectID = strings.TrimSpace(spec.PackagingProductObjectID)
-		spec.PackagingProductVersionID = strings.TrimSpace(spec.PackagingProductVersionID)
-		spec.ContentQuantity = strings.TrimSpace(spec.ContentQuantity)
-	}
 	if input.Formula != nil {
-		input.Formula.BaseOutputQuantity = strings.TrimSpace(input.Formula.BaseOutputQuantity)
+		normalizeQuantitySnapshot(&input.Formula.Output)
 		for index := range input.Formula.Components {
 			component := &input.Formula.Components[index]
 			component.Material.ObjectID = strings.TrimSpace(component.Material.ObjectID)
 			component.Material.VersionID = strings.TrimSpace(component.Material.VersionID)
-			component.Quantity = strings.TrimSpace(component.Quantity)
+			component.ResolutionStatus = strings.ToUpper(strings.TrimSpace(component.ResolutionStatus))
+			normalizeQuantitySnapshot(&component.Quantity)
 		}
 	}
+}
+
+func normalizeQuantitySnapshot(quantity *QuantitySnapshot) {
+	quantity.EnteredQuantity = strings.TrimSpace(quantity.EnteredQuantity)
+	quantity.EnteredUnit.ObjectID = strings.TrimSpace(quantity.EnteredUnit.ObjectID)
+	quantity.BaseQuantity = strings.TrimSpace(quantity.BaseQuantity)
 }
 
 func validateLengthsAndFormats(input DetailView) error {
@@ -436,15 +400,9 @@ func validateEntityFields(entity string, input DetailView) error {
 	case EntityEmployee:
 		allow("departmentId", "positionId", "phone", "email", "hireDate", "remark")
 	case EntityProduct:
-		allow("unit", "containerType", "quantityPerContainer", "categoryId", "specification", "model", "barcode", "remark",
-			"productKind", "inventoryUnitId", "pricingUnitId", "pricingQuantityPerInventoryUnit", "returnable", "packagingSpecs", "formula")
-		if !runeLengthBetween(input.Unit, 1, 32) {
-			return domainError(ErrorValidation, "invalid unit", nil, nil)
-		}
-		if err := validateProductContainer(input); err != nil {
-			return err
-		}
-		if err := validateProductModel(input); err != nil {
+		allow("productTypeId", "defaultInputUnitId", "pricingUnitId", "unitConversions", "categoryId", "specification", "model", "barcode", "remark",
+			"returnable", "defaultPackagingSpec", "formula")
+		if err := validateProductDraft(input); err != nil {
 			return err
 		}
 	case EntityService:
@@ -503,7 +461,7 @@ func validateEntityFields(entity string, input DetailView) error {
 	for _, id := range []string{
 		input.CategoryID, input.DepartmentID, input.PositionID, input.ManagerEmployeeID,
 		input.ParentID, input.SettlementMethodID, input.SalespersonEmployeeID,
-		input.InventoryUnitID, input.PricingUnitID,
+		input.InventoryUnitID, input.ProductTypeID, input.DefaultInputUnitID, input.PricingUnitID,
 	} {
 		if id != "" && !validID(id) {
 			return domainError(ErrorValidation, "invalid reference id", nil, nil)
@@ -536,11 +494,10 @@ func detailFieldValues(input DetailView) map[string]string {
 		"defaultSalesSurcharge": input.DefaultSalesSurcharge,
 		"monthOffset":           numericField(input.MonthOffset), "dayOfMonth": optionalNumericField(input.DayOfMonth),
 		"dayOffset":     numericField(input.DayOffset),
-		"containerType": input.ContainerType, "quantityPerContainer": input.QuantityPerContainer,
-		"productKind": input.ProductKind, "inventoryUnitId": input.InventoryUnitID,
-		"pricingUnitId":                   input.PricingUnitID,
-		"pricingQuantityPerInventoryUnit": input.PricingQuantityPerInventoryUnit,
-		"returnable":                      boolField(input.Returnable), "packagingSpecs": sliceField(len(input.PackagingSpecs)),
+		"productTypeId": input.ProductTypeID, "inventoryUnitId": input.InventoryUnitID,
+		"defaultInputUnitId": input.DefaultInputUnitID, "pricingUnitId": input.PricingUnitID,
+		"unitConversions": sliceField(len(input.UnitConversions)),
+		"returnable":      boolField(input.Returnable), "defaultPackagingSpec": input.DefaultPackagingSpec,
 		"formula": formulaField(input.Formula),
 	}
 }
@@ -566,88 +523,130 @@ func sliceField(length int) string {
 	return ""
 }
 
-func validateProductContainer(input DetailView) error {
-	switch input.ContainerType {
-	case ContainerTypeNone:
-		if input.QuantityPerContainer != "" {
-			return domainError(ErrorValidation, "quantity per container is not allowed for NONE", nil, nil)
+func validateProductDraft(input DetailView) error {
+	if input.ProductTypeID != "" && !validID(input.ProductTypeID) {
+		return domainError(ErrorValidation, "invalid product type reference", nil, nil)
+	}
+	seenUnits := make(map[string]bool, len(input.UnitConversions))
+	for index, conversion := range input.UnitConversions {
+		if !validID(conversion.Unit.ObjectID) {
+			return domainError(ErrorValidation, fmt.Sprintf("unitConversions[%d].unit is invalid", index), nil, nil)
 		}
-	case ContainerTypeSolvent, ContainerTypeResin:
-		if _, err := fixedMicros(input.QuantityPerContainer); err != nil {
-			return domainError(ErrorValidation, "invalid quantity per container", nil, err)
+		if seenUnits[conversion.Unit.ObjectID] {
+			return domainError(ErrorValidation, fmt.Sprintf("unitConversions[%d].unit is duplicated", index), nil, nil)
 		}
-	default:
-		return domainError(ErrorValidation, "invalid container type", nil, nil)
+		seenUnits[conversion.Unit.ObjectID] = true
+		if _, err := fixedMicros(conversion.Factor); err != nil {
+			return domainError(ErrorValidation, fmt.Sprintf("unitConversions[%d].factor is invalid", index), nil, err)
+		}
+	}
+	if input.DefaultInputUnitID != "" && !validID(input.DefaultInputUnitID) {
+		return domainError(ErrorValidation, "invalid default input unit reference", nil, nil)
+	}
+	if input.PricingUnitID != "" && !validID(input.PricingUnitID) {
+		return domainError(ErrorValidation, "invalid pricing unit reference", nil, nil)
+	}
+	if input.DefaultPackagingSpec != "" {
+		if _, err := fixedMicros(input.DefaultPackagingSpec); err != nil {
+			return domainError(ErrorValidation, "invalid default packaging specification", nil, err)
+		}
+	}
+	if input.Formula != nil {
+		if err := validateQuantitySnapshot(input.Formula.Output, "formula.output"); err != nil {
+			return err
+		}
+		if !seenUnits[input.Formula.Output.EnteredUnit.ObjectID] {
+			return domainError(ErrorValidation, "formula output unit is not configured for product", nil, nil)
+		}
+		if len(input.Formula.Components) > 200 {
+			return domainError(ErrorValidation, "formula must contain at most 200 components", nil, nil)
+		}
+		seenMaterials := make(map[string]bool, len(input.Formula.Components))
+		for index, component := range input.Formula.Components {
+			if !validID(component.Material.ObjectID) || (component.Material.VersionID != "" && !validID(component.Material.VersionID)) {
+				return domainError(ErrorValidation, fmt.Sprintf("formula.components[%d].material is invalid", index), nil, nil)
+			}
+			if seenMaterials[component.Material.ObjectID] {
+				return domainError(ErrorValidation, fmt.Sprintf("formula.components[%d].material is duplicated", index), nil, nil)
+			}
+			seenMaterials[component.Material.ObjectID] = true
+			if err := validateQuantitySnapshot(component.Quantity, fmt.Sprintf("formula.components[%d].quantity", index)); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
 
-func validateProductModel(input DetailView) error {
-	if !slices.Contains([]string{
-		ProductKindRawMaterial, ProductKindStandardFinished,
-		ProductKindCustomFinished, ProductKindPackaging,
-	}, input.ProductKind) {
-		return domainError(ErrorValidation, "invalid product kind", nil, nil)
+func validateProductComplete(input DetailView) error {
+	if err := validateProductDraft(input); err != nil {
+		return err
 	}
-	if !validID(input.InventoryUnitID) || !validID(input.PricingUnitID) {
-		return domainError(ErrorValidation, "invalid product unit reference", nil, nil)
+	if !validID(input.ProductTypeID) || !validID(input.ProductTypeVersionID) || input.ProductTypeCode == "" || input.ProductTypeName == "" || !validProductBehavior(input.BehaviorProfile) {
+		return domainError(ErrorValidation, "product type is required", nil, nil)
 	}
-	if _, err := fixedMicros(input.PricingQuantityPerInventoryUnit); err != nil {
-		return domainError(ErrorValidation, "invalid pricing conversion", nil, err)
+	if len(input.UnitConversions) == 0 || input.DefaultInputUnitID == "" || input.PricingUnitID == "" {
+		return domainError(ErrorValidation, "complete unit configuration is required", nil, nil)
 	}
-	if input.ProductKind != ProductKindPackaging && input.Returnable {
-		return domainError(ErrorValidation, "only packaging products can be returnable", nil, nil)
+	byUnit := make(map[string]ProductUnitConversion, len(input.UnitConversions))
+	for _, conversion := range input.UnitConversions {
+		if conversion.Unit.VersionID == "" || conversion.Unit.Code == "" || conversion.Unit.Name == "" || conversion.Unit.Symbol == "" {
+			return domainError(ErrorValidation, "unit conversion snapshot is incomplete", nil, nil)
+		}
+		byUnit[conversion.Unit.ObjectID] = conversion
 	}
-	if input.ProductKind == ProductKindPackaging && len(input.PackagingSpecs) > 0 {
-		return domainError(ErrorValidation, "packaging products cannot contain packaging specifications", nil, nil)
+	if _, ok := byUnit[input.DefaultInputUnitID]; !ok {
+		return domainError(ErrorValidation, "default input unit must have a conversion", nil, nil)
 	}
-	if input.ProductKind == ProductKindStandardFinished {
-		if input.Formula == nil {
+	pricing, ok := byUnit[input.PricingUnitID]
+	if !ok {
+		return domainError(ErrorValidation, "pricing unit must have a conversion", nil, nil)
+	}
+	if input.BehaviorProfile == ProductBehaviorPackaging {
+		if input.DefaultPackagingSpec != "" || input.PricingUnitID != input.DefaultInputUnitID || input.Formula != nil {
+			return domainError(ErrorValidation, "packaging product configuration is invalid", nil, nil)
+		}
+	} else {
+		if pricing.Unit.Code != kilogramMeasurementUnitCode {
+			return domainError(ErrorValidation, "goods pricing unit must be KG", nil, nil)
+		}
+		if input.Returnable {
+			return domainError(ErrorValidation, "only packaging products can be returnable", nil, nil)
+		}
+		if input.DefaultPackagingSpec == "" {
+			return domainError(ErrorValidation, "default packaging specification is required", nil, nil)
+		}
+	}
+	if input.BehaviorProfile == ProductBehaviorStandardFinished {
+		if input.Formula == nil || len(input.Formula.Components) == 0 {
 			return domainError(ErrorValidation, "standard finished product formula is required", nil, nil)
 		}
-		if _, err := fixedMicros(input.Formula.BaseOutputQuantity); err != nil {
-			return domainError(ErrorValidation, "invalid formula base output quantity", nil, err)
-		}
-		if len(input.Formula.Components) == 0 || len(input.Formula.Components) > 200 {
-			return domainError(ErrorValidation, "formula must contain 1 to 200 components", nil, nil)
-		}
-		seenMaterials := make(map[string]bool, len(input.Formula.Components))
-		for _, component := range input.Formula.Components {
-			if !validID(component.Material.ObjectID) || !validID(component.Material.VersionID) {
-				return domainError(ErrorValidation, "invalid formula material reference", nil, nil)
-			}
-			if seenMaterials[component.Material.ObjectID] {
-				return domainError(ErrorValidation, "duplicate formula material", nil, nil)
-			}
-			seenMaterials[component.Material.ObjectID] = true
-			if _, err := fixedMicros(component.Quantity); err != nil {
-				return domainError(ErrorValidation, "invalid formula material quantity", nil, err)
+		for index, component := range input.Formula.Components {
+			if component.ResolutionStatus != "CURRENT" || component.RequiresConfirmation || component.Material.VersionID == "" || component.Material.BehaviorProfile != ProductBehaviorRawMaterial {
+				return domainError(ErrorValidation, fmt.Sprintf("formula.components[%d] is unresolved", index), nil, nil)
 			}
 		}
 	} else if input.Formula != nil {
 		return domainError(ErrorValidation, "formula only applies to standard finished products", nil, nil)
 	}
-	seen := make(map[string]bool, len(input.PackagingSpecs))
-	defaults := 0
-	for _, spec := range input.PackagingSpecs {
-		if !validID(spec.PackagingProductObjectID) || !validID(spec.PackagingProductVersionID) {
-			return domainError(ErrorValidation, "invalid packaging product reference", nil, nil)
-		}
-		if seen[spec.PackagingProductObjectID] {
-			return domainError(ErrorValidation, "duplicate packaging product", nil, nil)
-		}
-		seen[spec.PackagingProductObjectID] = true
-		if _, err := fixedMicros(spec.ContentQuantity); err != nil {
-			return domainError(ErrorValidation, "invalid packaging content quantity", nil, err)
-		}
-		if spec.IsDefault {
-			defaults++
-		}
+	return nil
+}
+
+func validateQuantitySnapshot(quantity QuantitySnapshot, path string) error {
+	if _, err := fixedMicros(strings.TrimSpace(quantity.EnteredQuantity)); err != nil {
+		return domainError(ErrorValidation, path+".enteredQuantity is invalid", nil, err)
 	}
-	if defaults > 1 {
-		return domainError(ErrorValidation, "only one packaging specification can be default", nil, nil)
+	if !validID(quantity.EnteredUnit.ObjectID) {
+		return domainError(ErrorValidation, path+".enteredUnit is invalid", nil, nil)
+	}
+	if _, err := fixedMicros(strings.TrimSpace(quantity.BaseQuantity)); err != nil {
+		return domainError(ErrorValidation, path+".baseQuantity is invalid", nil, err)
 	}
 	return nil
+}
+
+func validProductBehavior(value string) bool {
+	return slices.Contains([]string{ProductBehaviorRawMaterial, ProductBehaviorStandardFinished, ProductBehaviorCustomFinished, ProductBehaviorPackaging}, value)
 }
 
 func cloneProductFormula(input *ProductFormula) *ProductFormula {
@@ -655,8 +654,8 @@ func cloneProductFormula(input *ProductFormula) *ProductFormula {
 		return nil
 	}
 	return &ProductFormula{
-		BaseOutputQuantity: input.BaseOutputQuantity,
-		Components:         slices.Clone(input.Components),
+		Output:     input.Output,
+		Components: slices.Clone(input.Components),
 	}
 }
 
@@ -798,7 +797,7 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 	input.PartyKind = strings.ToUpper(strings.TrimSpace(input.PartyKind))
 	input.CustomerType = strings.ToUpper(strings.TrimSpace(input.CustomerType))
 	input.Currency = strings.ToUpper(strings.TrimSpace(input.Currency))
-	input.ProductKind = strings.ToUpper(strings.TrimSpace(input.ProductKind))
+	input.ProductTypeID = strings.TrimSpace(input.ProductTypeID)
 	input.TargetEntity = strings.ToLower(strings.TrimSpace(input.TargetEntity))
 	input.CategoryID = strings.TrimSpace(input.CategoryID)
 	input.DepartmentID = strings.TrimSpace(input.DepartmentID)
@@ -811,10 +810,7 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 		(input.PartyKind != "" && input.PartyKind != PartyKindPerson && input.PartyKind != PartyKindOrganization) ||
 		(input.CustomerType != "" && !validCustomerType(input.CustomerType)) ||
 		(input.Currency != "" && !currencyPattern.MatchString(input.Currency)) ||
-		(input.ProductKind != "" && !slices.Contains([]string{
-			ProductKindRawMaterial, ProductKindStandardFinished,
-			ProductKindCustomFinished, ProductKindPackaging,
-		}, input.ProductKind)) ||
+		(input.ProductTypeID != "" && !validID(input.ProductTypeID)) ||
 		(input.TargetEntity != "" && !validCategoryTarget(input.TargetEntity)) ||
 		(input.ParentID != "" && input.RootOnly) {
 		return QueryFilters{}, domainError(ErrorValidation, "invalid query filters", nil, nil)
@@ -822,6 +818,7 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 	for _, id := range []string{
 		input.CategoryID, input.DepartmentID, input.PositionID,
 		input.SalespersonEmployeeID, input.DefaultPurchaserEmployeeID, input.OperatingEntityID, input.ParentID,
+		input.ProductTypeID,
 	} {
 		if id != "" && !validID(id) {
 			return QueryFilters{}, domainError(ErrorValidation, "invalid query reference filter", nil, nil)
@@ -844,11 +841,11 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 				input.provided["salespersonEmployeeId"],
 			"defaultPurchaserEmployeeId": input.DefaultPurchaserEmployeeID != "" ||
 				input.provided["defaultPurchaserEmployeeId"],
-			"currency":     input.Currency != "" || input.provided["currency"],
-			"productKind":  input.ProductKind != "" || input.provided["productKind"],
-			"targetEntity": input.TargetEntity != "" || input.provided["targetEntity"],
-			"parentId":     input.ParentID != "" || input.provided["parentId"],
-			"rootOnly":     input.RootOnly || input.provided["rootOnly"],
+			"currency":      input.Currency != "" || input.provided["currency"],
+			"productTypeId": input.ProductTypeID != "" || input.provided["productTypeId"],
+			"targetEntity":  input.TargetEntity != "" || input.provided["targetEntity"],
+			"parentId":      input.ParentID != "" || input.provided["parentId"],
+			"rootOnly":      input.RootOnly || input.provided["rootOnly"],
 		}
 		for field, present := range values {
 			if present && !accepted[field] {
@@ -870,7 +867,7 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 	case EntityEmployee:
 		unexpected = hasUnexpected("departmentId", "positionId")
 	case EntityProduct:
-		unexpected = hasUnexpected("categoryId", "productKind")
+		unexpected = hasUnexpected("categoryId", "productTypeId")
 	case EntityService, EntityWarehouse, EntityVehicle:
 		unexpected = hasUnexpected()
 	case EntityFundAccount:

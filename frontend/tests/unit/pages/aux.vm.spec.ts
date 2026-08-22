@@ -98,6 +98,33 @@ describe('AUX entity view model', () => {
     })
   })
 
+  it('产品类型按行为模板筛选并保留封闭选项', async () => {
+    useSessionStore().permissions = ['/aux/product-type/query']
+    mockedPost.mockResolvedValue({
+      data: { items: [], total: 0, page: 1, pageSize: 20 },
+    })
+    const vm = createAuxEntityViewModel(auxConfigs['product-type'])
+    vm.filterValues.behaviorProfile = 'STANDARD_FINISHED'
+
+    await vm.search()
+
+    expect(mockedPost).toHaveBeenLastCalledWith('aux/product-type/query', {
+      page: 1,
+      pageSize: 20,
+      filters: { behaviorProfile: 'STANDARD_FINISHED' },
+      sort: [{ field: 'code', order: 'asc' }],
+    })
+    expect(
+      vm.editorFields.value.find((field) => field.key === 'behaviorProfile')
+        ?.options,
+    ).toEqual([
+      { title: '原材料', value: 'RAW_MATERIAL' },
+      { title: '标准成品', value: 'STANDARD_FINISHED' },
+      { title: '定制成品', value: 'CUSTOM_FINISHED' },
+      { title: '包装物', value: 'PACKAGING' },
+    ])
+  })
+
   it('引用字段使用带关键字的远程查询，不再截断固定前 200 条', async () => {
     vi.useFakeTimers()
     try {

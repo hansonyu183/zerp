@@ -18,7 +18,7 @@ type BusinessObjectReference struct {
 
 type QuantityLineInitial struct {
 	SourceLineID string `json:"sourceLineId"`
-	Quantity     string `json:"quantity"`
+	BaseQuantity string `json:"baseQuantity"`
 }
 
 type ExpensePaymentInitial struct {
@@ -50,9 +50,9 @@ type SaleSignoffInitial struct {
 }
 
 type SaleSignoffLineInitial struct {
-	SourceLineID     string `json:"sourceLineId"`
-	SignedQuantity   string `json:"signedQuantity"`
-	RejectedQuantity string `json:"rejectedQuantity"`
+	SourceLineID         string `json:"sourceLineId"`
+	SignedBaseQuantity   string `json:"signedBaseQuantity"`
+	RejectedBaseQuantity string `json:"rejectedBaseQuantity"`
 }
 
 type SaleReturnInitial struct {
@@ -138,7 +138,7 @@ func (a *trialActions) CreateSaleSignoff(_ context.Context, _ pgx.Tx, input Work
 		return BusinessObjectReference{}, fmt.Errorf("sale_signoff requires businessDate and lines")
 	}
 	for _, line := range input.Initial.Lines {
-		if !validInitialID(line.SourceLineID) || !validInitialQuantity(line.SignedQuantity, true) || !validInitialQuantity(line.RejectedQuantity, true) {
+		if !validInitialID(line.SourceLineID) || !validInitialQuantity(line.SignedBaseQuantity, true) || !validInitialQuantity(line.RejectedBaseQuantity, true) {
 			return BusinessObjectReference{}, fmt.Errorf("sale_signoff line is invalid")
 		}
 	}
@@ -150,7 +150,7 @@ func (a *trialActions) CreateSaleReturn(_ context.Context, _ pgx.Tx, input Workf
 		return BusinessObjectReference{}, fmt.Errorf("sale_return requires businessDate, reason, and lines")
 	}
 	for _, line := range input.Initial.Lines {
-		if !validInitialID(line.SourceLineID) || !validInitialQuantity(line.Quantity, false) {
+		if !validInitialID(line.SourceLineID) || !validInitialQuantity(line.BaseQuantity, false) {
 			return BusinessObjectReference{}, fmt.Errorf("sale_return line is invalid")
 		}
 	}
@@ -162,7 +162,7 @@ func validateQuantityActionInitial(warehouseID, businessDate string, lines []Qua
 		return fmt.Errorf("warehouseObjectId, businessDate, and lines are required")
 	}
 	for _, line := range lines {
-		if !validInitialID(line.SourceLineID) || !validInitialQuantity(line.Quantity, false) {
+		if !validInitialID(line.SourceLineID) || !validInitialQuantity(line.BaseQuantity, false) {
 			return fmt.Errorf("quantity line is invalid")
 		}
 	}

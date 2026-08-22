@@ -2,6 +2,7 @@ AuxEntity:
   type: string
   enum:
     - product-category
+    - product-type
     - department
     - position
     - settlement-method
@@ -18,6 +19,28 @@ AuxEntity:
 AuxData:
   type: object
   additionalProperties: true
+  properties:
+    behaviorProfile:
+      $ref: '#/ProductBehaviorProfile'
+
+ProductBehaviorProfile:
+  type: string
+  enum: [RAW_MATERIAL, STANDARD_FINISHED, CUSTOM_FINISHED, PACKAGING]
+
+AuxProductTypeData:
+  type: object
+  additionalProperties: false
+  required: [name, behaviorProfile, description]
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 200
+    behaviorProfile:
+      $ref: '#/ProductBehaviorProfile'
+    description:
+      type: string
+      maxLength: 1000
 
 AuxSettlementMethodData:
   type: object
@@ -180,6 +203,8 @@ AuxQueryRequest:
       properties:
         keyword: { type: string }
         enabled: { type: boolean }
+        behaviorProfile:
+          $ref: '#/ProductBehaviorProfile'
         parentId: { type: string }
         rootOnly: { type: boolean }
         dictionaryTypeCode: { type: string }

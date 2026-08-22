@@ -48,17 +48,17 @@ func (s *Service) prepareUnapproval(
 		if err := tx.QueryRow(ctx, `SELECT EXISTS(
 			SELECT 1 FROM vou_product_lines o
 			WHERE o.document_id=$1 AND (
-				SELECT COALESCE(sum(i.quantity_micros),0)
+				SELECT COALESCE(sum(i.base_quantity_micros),0)
 				FROM vou_purchase_inbound_lines i
 				JOIN vou_purchase_inbound_details x ON x.document_id=i.document_id
 				WHERE x.source_order_id=$1 AND i.source_order_line_id=o.id
 			) - (
-				SELECT COALESCE(sum(r.quantity_micros),0)
+				SELECT COALESCE(sum(r.base_quantity_micros),0)
 				FROM vou_purchase_return_lines r
 				JOIN vou_documents d ON d.id=r.document_id
 				WHERE r.source_order_line_id=o.id
 				  AND d.status = 'APPROVED' AND r.document_id<>$2
-			) > o.ordered_qty_micros
+			) > o.base_quantity_micros
 		)`, deref(document.ParentDocumentID), document.ID).Scan(&overbooked); err != nil {
 			return err
 		}

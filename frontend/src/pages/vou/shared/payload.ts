@@ -2,7 +2,11 @@ import type {
   VoucherDraftForm,
   VoucherEntityConfig,
 } from '@/components/voucher'
-import { inputReference, type DraftPayload } from './form'
+import {
+  inputProductReference,
+  inputReference,
+  type DraftPayload,
+} from './form'
 import { appendSalesChainPayload } from './sales-chain'
 import { formulaPayload } from '@/components/formula'
 
@@ -103,14 +107,18 @@ export function buildVoucherDraftPayload(
     payload.productionLines = value.productionLines.map((line) => ({
       ...(config.productionMode === 'order'
         ? { sourceOrderLineId: line.sourceOrderLineId }
-        : { product: inputReference(line.product)! }),
-      outputQuantity: line.outputQuantity.trim(),
+        : { product: inputProductReference(line.product)! }),
+      enteredQuantity: line.enteredQuantity.trim(),
+      enteredUnit: { objectId: line.enteredUnit!.objectId },
+      baseQuantity: line.baseQuantity.trim(),
       lossRate: line.lossRate.trim(),
       ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),
       materials: line.materials.map((material) => ({
         formulaLineNo: material.formulaLineNo,
-        actualMaterial: inputReference(material.actualMaterial)!,
-        actualQuantity: material.actualQuantity.trim(),
+        actualMaterial: inputProductReference(material.actualMaterial)!,
+        actualEnteredQuantity: material.actualEnteredQuantity.trim(),
+        actualEnteredUnit: { objectId: material.actualEnteredUnit!.objectId },
+        actualBaseQuantity: material.actualBaseQuantity.trim(),
         ...(material.adjustmentReason.trim()
           ? { adjustmentReason: material.adjustmentReason.trim() }
           : {}),
@@ -130,7 +138,7 @@ export function buildVoucherDraftPayload(
     if (value.returnKind !== 'REFUSAL') {
       payload.returnLines = value.salesChainLines.map((line) => ({
         sourceLineId: line.sourceLineId,
-        quantity: line.quantity.trim(),
+        baseQuantity: line.baseQuantity.trim(),
         ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),
       }))
     }
@@ -140,8 +148,10 @@ export function buildVoucherDraftPayload(
   }
   if (config.lineKind === 'product') {
     payload.productLines = value.productLines.map((line) => ({
-      product: inputReference(line.product)!,
-      orderedQuantity: line.orderedQuantity.trim(),
+      product: inputProductReference(line.product)!,
+      enteredQuantity: line.enteredQuantity.trim(),
+      enteredUnit: { objectId: line.enteredUnit!.objectId },
+      baseQuantity: line.baseQuantity.trim(),
       unitPrice: line.unitPrice.trim(),
       ...(config.entity === 'sale-order' &&
       (line.settlementSurcharge ?? '').trim()
@@ -170,8 +180,10 @@ export function buildVoucherDraftPayload(
   }
   if (config.lineKind === 'inventory-count') {
     payload.inventoryCountLines = value.inventoryCountLines.map((line) => ({
-      product: inputReference(line.product)!,
-      actualQuantity: line.actualQuantity.trim(),
+      product: inputProductReference(line.product)!,
+      enteredQuantity: line.enteredQuantity.trim(),
+      enteredUnit: { objectId: line.enteredUnit!.objectId },
+      baseQuantity: line.baseQuantity.trim(),
       ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),
     }))
   }

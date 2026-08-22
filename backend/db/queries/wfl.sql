@@ -87,12 +87,12 @@ FROM wfl_definition_instances WHERE id=$1;
 
 -- These order summaries are VOU read models kept here because they are shared
 -- by the workflow-facing order list and the ordinary voucher list.
--- name: ListSalesOrderKgSummaries :many
+-- name: ListSalesOrderBaseQuantitySummaries :many
 WITH ordered AS (
   SELECT line.document_id AS order_id,
-         COALESCE(sum(round(line.ordered_qty_micros::numeric * line.pricing_quantity_per_inventory_unit_micros / 1000000)), 0)::bigint AS quantity_micros
+         COALESCE(sum(line.base_quantity_micros), 0)::bigint AS quantity_micros
   FROM vou_product_lines line
-  WHERE line.document_id = ANY(sqlc.arg(order_ids)::text[]) AND line.product_kind <> 'PACKAGING'
+  WHERE line.document_id = ANY(sqlc.arg(order_ids)::text[])
   GROUP BY line.document_id
 ), active_orders AS (
   SELECT d.id AS order_id,d.business_date,d.document_no,detail.warehouse_object_id,false AS hypothetical
@@ -109,16 +109,15 @@ WITH ordered AS (
   UNION ALL SELECT target.* FROM target_orders target
   WHERE NOT EXISTS (SELECT 1 FROM active_orders active WHERE active.order_id=target.order_id)
 ), approved_outbound AS (
-  SELECT line.source_order_line_id,sum(line.quantity_micros)::bigint AS quantity_micros
+	SELECT line.source_order_line_id,sum(line.base_quantity_micros)::bigint AS quantity_micros
   FROM vou_sale_outbound_lines line JOIN vou_documents doc ON doc.id=line.document_id AND doc.status='APPROVED'
   GROUP BY line.source_order_line_id
 ), demand_lines AS (
   SELECT orders.order_id,orders.business_date,orders.document_no,orders.warehouse_object_id,orders.hypothetical,
          line.id AS order_line_id,line.line_no,line.product_object_id,
-         line.pricing_quantity_per_inventory_unit_micros AS conversion_micros,
-         GREATEST(line.ordered_qty_micros-COALESCE(outbound.quantity_micros,0),0)::bigint AS demand_micros
+         GREATEST(line.base_quantity_micros-COALESCE(outbound.quantity_micros,0),0)::bigint AS demand_micros
   FROM demand_orders orders
-  JOIN vou_product_lines line ON line.document_id=orders.order_id AND line.product_kind<>'PACKAGING'
+  JOIN vou_product_lines line ON line.document_id=orders.order_id
   LEFT JOIN approved_outbound outbound ON outbound.source_order_line_id=line.id
 ), inventory AS (
   SELECT entry.warehouse_id AS warehouse_object_id,entry.product_id AS product_object_id,
@@ -134,82 +133,80 @@ WITH ordered AS (
          ),0)::bigint AS prior_demand_micros
   FROM demand_lines demand LEFT JOIN inventory USING (warehouse_object_id,product_object_id)
 ), shortage AS (
-  SELECT order_id,COALESCE(sum(round(
-    GREATEST(demand_micros-GREATEST(balance_micros-prior_demand_micros,0),0)::numeric * conversion_micros / 1000000
-  )),0)::bigint AS shortage_quantity_micros
+  SELECT order_id,COALESCE(sum(
+    GREATEST(demand_micros-GREATEST(balance_micros-prior_demand_micros,0),0)
+  ),0)::bigint AS shortage_quantity_micros
   FROM allocated WHERE order_id=ANY(sqlc.arg(order_ids)::text[]) GROUP BY order_id
 ), outbound AS (
   SELECT detail.source_order_id AS order_id,
-         COALESCE(sum(round(line.quantity_micros::numeric * source.pricing_quantity_per_inventory_unit_micros / 1000000)),0)::bigint AS quantity_micros
+		 COALESCE(sum(line.base_quantity_micros),0)::bigint AS quantity_micros
   FROM vou_sale_outbound_details detail
   JOIN vou_documents doc ON doc.id=detail.document_id AND doc.status='APPROVED'
   JOIN vou_sale_outbound_lines line ON line.document_id=detail.document_id
-  JOIN vou_product_lines source ON source.id=line.source_order_line_id AND source.product_kind<>'PACKAGING'
+  JOIN vou_product_lines source ON source.id=line.source_order_line_id
   WHERE detail.source_order_id=ANY(sqlc.arg(order_ids)::text[]) GROUP BY detail.source_order_id
 ), signoff AS (
   SELECT detail.source_order_id AS order_id,
-         COALESCE(sum(round(line.signed_qty_micros::numeric * source.pricing_quantity_per_inventory_unit_micros / 1000000)),0)::bigint AS signed_micros,
-         COALESCE(sum(round((line.signed_qty_micros+line.rejected_qty_micros+line.loss_qty_micros)::numeric * source.pricing_quantity_per_inventory_unit_micros / 1000000)),0)::bigint AS resolved_micros
+		 COALESCE(sum(line.signed_base_quantity_micros),0)::bigint AS signed_micros,
+		 COALESCE(sum(line.signed_base_quantity_micros+line.rejected_base_quantity_micros+line.loss_base_quantity_micros),0)::bigint AS resolved_micros
   FROM vou_sale_signoff_details detail
   JOIN vou_documents doc ON doc.id=detail.document_id AND doc.status='APPROVED'
   JOIN vou_sale_signoff_lines line ON line.document_id=detail.document_id
-  JOIN vou_product_lines source ON source.id=line.source_order_line_id AND source.product_kind<>'PACKAGING'
+  JOIN vou_product_lines source ON source.id=line.source_order_line_id
   WHERE detail.source_order_id=ANY(sqlc.arg(order_ids)::text[]) GROUP BY detail.source_order_id
 ), returns AS (
   SELECT detail.source_order_id AS order_id,
-         COALESCE(sum(round(line.quantity_micros::numeric * source.pricing_quantity_per_inventory_unit_micros / 1000000)),0)::bigint AS quantity_micros
+		 COALESCE(sum(line.base_quantity_micros),0)::bigint AS quantity_micros
   FROM vou_sale_return_details detail
   JOIN vou_documents doc ON doc.id=detail.document_id AND doc.status='APPROVED'
   JOIN vou_sale_return_lines line ON line.document_id=detail.document_id
   JOIN vou_sale_signoff_lines signoff_line ON signoff_line.id=line.source_signoff_line_id
-  JOIN vou_product_lines source ON source.id=signoff_line.source_order_line_id AND source.product_kind<>'PACKAGING'
+  JOIN vou_product_lines source ON source.id=signoff_line.source_order_line_id
   WHERE detail.source_order_id=ANY(sqlc.arg(order_ids)::text[]) AND detail.return_kind='AFTER_SALE'
   GROUP BY detail.source_order_id
 )
 SELECT d.id AS order_id,(detail.warehouse_object_id IS NOT NULL)::boolean AS warehouse_available,
-       EXISTS (SELECT 1 FROM vou_product_lines line WHERE line.document_id=d.id AND line.product_kind='PACKAGING') AS excluded_packaging,
-       COALESCE(shortage.shortage_quantity_micros,0)::bigint AS shortage_quantity_micros,
-       COALESCE(ordered.quantity_micros,0)::bigint AS ordered_quantity_micros,
-       COALESCE(outbound.quantity_micros,0)::bigint AS outbound_quantity_micros,
-       GREATEST(COALESCE(outbound.quantity_micros,0)-COALESCE(signoff.resolved_micros,0),0)::bigint AS in_transit_quantity_micros,
-       COALESCE(signoff.signed_micros,0)::bigint AS signed_quantity_micros,
-       GREATEST(COALESCE(signoff.signed_micros,0)-COALESCE(returns.quantity_micros,0),0)::bigint AS net_signed_quantity_micros
+       COALESCE(shortage.shortage_quantity_micros,0)::bigint AS shortage_base_quantity_micros,
+       COALESCE(ordered.quantity_micros,0)::bigint AS ordered_base_quantity_micros,
+       COALESCE(outbound.quantity_micros,0)::bigint AS outbound_base_quantity_micros,
+       GREATEST(COALESCE(outbound.quantity_micros,0)-COALESCE(signoff.resolved_micros,0),0)::bigint AS in_transit_base_quantity_micros,
+       COALESCE(signoff.signed_micros,0)::bigint AS signed_base_quantity_micros,
+       GREATEST(COALESCE(signoff.signed_micros,0)-COALESCE(returns.quantity_micros,0),0)::bigint AS net_signed_base_quantity_micros
 FROM vou_documents d JOIN vou_sale_order_details detail ON detail.document_id=d.id
 LEFT JOIN ordered ON ordered.order_id=d.id LEFT JOIN shortage ON shortage.order_id=d.id
 LEFT JOIN outbound ON outbound.order_id=d.id LEFT JOIN signoff ON signoff.order_id=d.id
 LEFT JOIN returns ON returns.order_id=d.id
 WHERE d.id=ANY(sqlc.arg(order_ids)::text[]) ORDER BY d.id;
 
--- name: ListPurchaseOrderKgSummaries :many
+-- name: ListPurchaseOrderBaseQuantitySummaries :many
 WITH ordered AS (
   SELECT line.document_id AS order_id,
-         COALESCE(sum(round(line.ordered_qty_micros::numeric * line.pricing_quantity_per_inventory_unit_micros / 1000000)),0)::bigint AS quantity_micros
+         COALESCE(sum(line.base_quantity_micros),0)::bigint AS quantity_micros
   FROM vou_product_lines line
-  WHERE line.document_id=ANY(sqlc.arg(order_ids)::text[]) AND line.product_kind<>'PACKAGING'
+  WHERE line.document_id=ANY(sqlc.arg(order_ids)::text[])
   GROUP BY line.document_id
 ), inbound AS (
   SELECT detail.source_order_id AS order_id,
-         COALESCE(sum(round(line.quantity_micros::numeric * source.pricing_quantity_per_inventory_unit_micros / 1000000)),0)::bigint AS quantity_micros
+		 COALESCE(sum(line.base_quantity_micros),0)::bigint AS quantity_micros
   FROM vou_purchase_inbound_details detail
   JOIN vou_documents doc ON doc.id=detail.document_id AND doc.status='APPROVED'
   JOIN vou_purchase_inbound_lines line ON line.document_id=detail.document_id
-  JOIN vou_product_lines source ON source.id=line.source_order_line_id AND source.product_kind<>'PACKAGING'
+  JOIN vou_product_lines source ON source.id=line.source_order_line_id
   WHERE detail.source_order_id=ANY(sqlc.arg(order_ids)::text[]) GROUP BY detail.source_order_id
 ), returns AS (
   SELECT detail.source_order_id AS order_id,
-         COALESCE(sum(round(line.quantity_micros::numeric * source.pricing_quantity_per_inventory_unit_micros / 1000000)) FILTER (WHERE doc.status<>'APPROVED'),0)::bigint AS processing_micros,
-         COALESCE(sum(round(line.quantity_micros::numeric * source.pricing_quantity_per_inventory_unit_micros / 1000000)) FILTER (WHERE doc.status='APPROVED'),0)::bigint AS approved_micros
+		 COALESCE(sum(line.base_quantity_micros) FILTER (WHERE doc.status<>'APPROVED'),0)::bigint AS processing_micros,
+		 COALESCE(sum(line.base_quantity_micros) FILTER (WHERE doc.status='APPROVED'),0)::bigint AS approved_micros
   FROM vou_purchase_return_details detail JOIN vou_documents doc ON doc.id=detail.document_id
   JOIN vou_purchase_return_lines line ON line.document_id=detail.document_id
-  JOIN vou_product_lines source ON source.id=line.source_order_line_id AND source.product_kind<>'PACKAGING'
+  JOIN vou_product_lines source ON source.id=line.source_order_line_id
   WHERE detail.source_order_id=ANY(sqlc.arg(order_ids)::text[]) GROUP BY detail.source_order_id
 )
 SELECT d.id AS order_id,
-       EXISTS (SELECT 1 FROM vou_product_lines line WHERE line.document_id=d.id AND line.product_kind='PACKAGING') AS excluded_packaging,
-       COALESCE(ordered.quantity_micros,0)::bigint AS ordered_quantity_micros,
-       COALESCE(inbound.quantity_micros,0)::bigint AS inbound_quantity_micros,
-       COALESCE(returns.processing_micros,0)::bigint AS return_processing_quantity_micros,
-       GREATEST(COALESCE(inbound.quantity_micros,0)-COALESCE(returns.approved_micros,0),0)::bigint AS net_inbound_quantity_micros
+       COALESCE(ordered.quantity_micros,0)::bigint AS ordered_base_quantity_micros,
+       COALESCE(inbound.quantity_micros,0)::bigint AS inbound_base_quantity_micros,
+       COALESCE(returns.processing_micros,0)::bigint AS return_processing_base_quantity_micros,
+       GREATEST(COALESCE(inbound.quantity_micros,0)-COALESCE(returns.approved_micros,0),0)::bigint AS net_inbound_base_quantity_micros
 FROM vou_documents d LEFT JOIN ordered ON ordered.order_id=d.id
 LEFT JOIN inbound ON inbound.order_id=d.id LEFT JOIN returns ON returns.order_id=d.id
 WHERE d.id=ANY(sqlc.arg(order_ids)::text[]) ORDER BY d.id;

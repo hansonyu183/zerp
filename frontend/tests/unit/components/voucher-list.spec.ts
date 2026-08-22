@@ -424,23 +424,20 @@ describe('VoucherList', () => {
           amount: '100.00',
           updatedAt: '2026-07-31T00:00:00Z',
           salesSummary: {
-            unit: 'KG',
-            excludedPackaging: true,
             warehouseAvailable: true,
             shortageQuantity: '10',
-            orderedQuantity: '30',
-            outboundQuantity: '20',
-            inTransitQuantity: '5',
-            signedQuantity: '15',
-            netSignedQuantity: '12',
+            orderedBaseQuantity: '30',
+            outboundBaseQuantity: '20',
+            inTransitBaseQuantity: '5',
+            signedBaseQuantity: '15',
+            netSignedBaseQuantity: '12',
           },
         },
       ],
     })
 
     expect(wrapper.text()).toContain('订购 / 出库 / 净签收')
-    expect(wrapper.text()).toContain('30 / 20 / 12KG')
-    expect(wrapper.text()).toContain('不含包装物')
+    expect(wrapper.text()).toContain('30 / 20 / 12')
   })
 
   it('按状态和权限把流程动作直接显示在操作列', async () => {

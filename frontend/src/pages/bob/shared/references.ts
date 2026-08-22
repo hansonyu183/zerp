@@ -148,6 +148,13 @@ export function useBobReferences(
               {
                 title: formatReferenceLabel({ code: item.code, name }),
                 value,
+                ...(domain === 'aux'
+                  ? {
+                      metadata: {
+                        ...(item as AuxReferenceQueryItem).currentVersion.data,
+                      },
+                    }
+                  : {}),
               },
             ]
             return
@@ -163,7 +170,17 @@ export function useBobReferences(
               : (data as BobObjectView).data.name
           state.options = [
             ...state.options.filter((option) => option.value !== value),
-            { title: formatReferenceLabel({ code: data.code, name }), value },
+            {
+              title: formatReferenceLabel({ code: data.code, name }),
+              value,
+              ...(domain === 'aux'
+                ? {
+                    metadata: {
+                      ...(data as AuxReferenceObject).currentVersion.data,
+                    },
+                  }
+                : {}),
+            },
           ]
         } catch {
           state.options = [...state.options, { title: value, value }]
@@ -225,16 +242,22 @@ export function useBobReferences(
       )
       state.options = [
         ...selected,
-        ...(data.items ?? []).map((item) => ({
-          title: formatReferenceLabel({
-            code: item.code,
-            name:
-              domain === 'aux'
-                ? (item as AuxReferenceQueryItem).currentVersion.data.name
-                : (item as ReferenceQueryItem).currentVersion.summary.name,
-          }),
-          value: reference.value === 'code' ? item.code : item.objectId,
-        })),
+        ...(data.items ?? []).map((item) => {
+          const auxData =
+            domain === 'aux'
+              ? (item as AuxReferenceQueryItem).currentVersion.data
+              : null
+          return {
+            title: formatReferenceLabel({
+              code: item.code,
+              name:
+                auxData?.name ??
+                (item as ReferenceQueryItem).currentVersion.summary.name,
+            }),
+            value: reference.value === 'code' ? item.code : item.objectId,
+            ...(auxData ? { metadata: { ...auxData } } : {}),
+          }
+        }),
       ].filter(
         (option, index, all) =>
           all.findIndex((candidate) => candidate.value === option.value) ===

@@ -74,20 +74,20 @@ export function useVoucherFormula(
     const requestVersion = nextRequestVersion(line.key)
     const lineKey = line.key
     const customer =
-      product.productKind === 'CUSTOM_FINISHED' ? form.value.customer : null
+      product.behaviorProfile === 'CUSTOM_FINISHED' ? form.value.customer : null
     const customerKey =
-      product.productKind === 'CUSTOM_FINISHED'
+      product.behaviorProfile === 'CUSTOM_FINISHED'
         ? customer
           ? `${customer.objectId}/${customer.versionId}`
           : ''
         : null
     const productKey = `${product.objectId}/${product.versionId}`
-    if (product.productKind === 'PACKAGING') {
+    if (product.behaviorProfile === 'PACKAGING') {
       line.formula = null
       line.formulaError = ''
       return
     }
-    if (product.productKind === 'CUSTOM_FINISHED' && !form.value.customer) {
+    if (product.behaviorProfile === 'CUSTOM_FINISHED' && !form.value.customer) {
       line.formula = null
       line.formulaError = '请先选择客户。'
       return
@@ -104,13 +104,11 @@ export function useVoucherFormula(
         },
         {
           customer?: { objectId: string; versionId: string }
-          product: { objectId: string; versionId: string }
+          product: { objectId: string }
         }
       >('vou/sale-order/formula-default', {
-        ...(customer
-          ? { customer: inputReference(customer) }
-          : {}),
-        product: inputReference(product)!,
+        ...(customer ? { customer: inputReference(customer) } : {}),
+        product: { objectId: product.objectId },
       })
       const current = currentRequestLine(
         index,
@@ -128,7 +126,7 @@ export function useVoucherFormula(
       }
       current.formula = formula
       current.formulaError =
-        formula || product.productKind === 'RAW_MATERIAL'
+        formula || product.behaviorProfile === 'RAW_MATERIAL'
           ? ''
           : '暂无历史配方，请手工维护。'
     } catch (error) {
@@ -159,13 +157,13 @@ export function useVoucherFormula(
     form.value.productLines = form.value.productLines.map((line) => ({
       ...line,
       settlementSurcharge: '',
-      ...(line.product?.productKind === 'CUSTOM_FINISHED'
+      ...(line.product?.behaviorProfile === 'CUSTOM_FINISHED'
         ? { formula: null, formulaError: '' }
         : {}),
     }))
     await Promise.all(
       form.value.productLines.map((line, index) =>
-        line.product?.productKind === 'CUSTOM_FINISHED'
+        line.product?.behaviorProfile === 'CUSTOM_FINISHED'
           ? resolveLineFormula(index)
           : Promise.resolve(),
       ),

@@ -27,7 +27,7 @@ func reference(entity string, result vou.MutationResult) wfl.BusinessObjectRefer
 func quantityLines(lines []wfl.QuantityLineInitial) []vou.SourceQuantityLineInput {
 	result := make([]vou.SourceQuantityLineInput, 0, len(lines))
 	for _, line := range lines {
-		result = append(result, vou.SourceQuantityLineInput{SourceLineID: line.SourceLineID, Quantity: line.Quantity})
+		result = append(result, vou.SourceQuantityLineInput{SourceLineID: line.SourceLineID, BaseQuantity: line.BaseQuantity})
 	}
 	return result
 }
@@ -67,8 +67,8 @@ func (a *Adapter) CreateSaleSignoff(ctx context.Context, tx pgx.Tx, input wfl.Wo
 	lines := make([]vou.WorkflowSignoffLineInput, 0, len(input.Initial.Lines))
 	for _, line := range input.Initial.Lines {
 		lines = append(lines, vou.WorkflowSignoffLineInput{
-			SourceLineID: line.SourceLineID, SignedQuantity: line.SignedQuantity,
-			RejectedQuantity: line.RejectedQuantity,
+			SourceLineID: line.SourceLineID, SignedBaseQuantity: line.SignedBaseQuantity,
+			RejectedBaseQuantity: line.RejectedBaseQuantity,
 		})
 	}
 	result, err := a.documents.CreateWorkflowSaleSignoff(ctx, tx, input.SourceDocumentID, vou.WorkflowSaleSignoffInitial{

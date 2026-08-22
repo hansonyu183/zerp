@@ -21,13 +21,26 @@ import (
 )
 
 const (
-	integrationActorOne = "01J00000000000000000000000"
-	integrationActorTwo = "01J00000000000000000000001"
+	integrationActorOne         = "01J00000000000000000000000"
+	integrationActorTwo         = "01J00000000000000000000001"
+	integrationRawProductTypeID = "01JPTP00000000000000000001"
+	integrationKGUnitID         = "01JAVX00000000000000000011"
+	integrationTonUnitID        = "01JAVX00000000000000000027"
 )
 
 type integrationReferences struct {
 	customer, supplier, employee, product, warehouse, fundAccount ReferenceInput
 	settlement, platform, vehicle                                 ReferenceInput
+}
+
+func integrationProductLine(t *testing.T, product ReferenceInput, quantity, price string) ProductLineInput {
+	t.Helper()
+	return ProductLineInput{
+		Product:         ProductReferenceInput{ObjectID: product.ObjectID},
+		EnteredQuantity: quantity,
+		EnteredUnit:     UnitReferenceInput{ObjectID: integrationKGUnitID},
+		BaseQuantity:    quantity, UnitPrice: price,
+	}
 }
 
 func vouIntegrationPool(t *testing.T) *pgxpool.Pool {
@@ -96,6 +109,9 @@ func createApprovedBOB(
 	t *testing.T, service *bobdomain.Service, entity string, data bobdomain.CreateDetailInput,
 ) ReferenceInput {
 	t.Helper()
+	if entity == bobdomain.EntityProduct && data.ProductTypeID != "01JPTP00000000000000000007" && data.DefaultPackagingSpec == "" {
+		data.DefaultPackagingSpec = "1"
+	}
 	if (entity == bobdomain.EntityFundAccount || entity == bobdomain.EntityEmployee ||
 		entity == bobdomain.EntitySupplier || entity == bobdomain.EntityOtherUnit) && data.OperatingEntityID == "" {
 		operating := createApprovedBOB(t, service, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{
@@ -316,7 +332,12 @@ func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {
 		}),
 		employee: employee,
 		product: createApprovedBOB(t, service, bobdomain.EntityProduct, bobdomain.CreateDetailInput{
-			Code: "VP" + suffix, Name: "VOU 产品", Unit: "吨",
+			Code: "VP" + suffix, Name: "VOU 产品", ProductTypeID: integrationRawProductTypeID,
+			DefaultInputUnitID: integrationTonUnitID, PricingUnitID: integrationKGUnitID,
+			UnitConversions: []bobdomain.ProductUnitConversion{
+				{Unit: bobdomain.MeasurementUnitSnapshot{ObjectID: integrationKGUnitID}, Factor: "1"},
+				{Unit: bobdomain.MeasurementUnitSnapshot{ObjectID: integrationTonUnitID}, Factor: "1000"},
+			}, DefaultPackagingSpec: "1000",
 		}),
 		warehouse: createApprovedBOB(t, service, bobdomain.EntityWarehouse, bobdomain.CreateDetailInput{
 			Code: "VW" + suffix, Name: "VOU 仓库",

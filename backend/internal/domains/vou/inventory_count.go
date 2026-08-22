@@ -7,6 +7,7 @@ import (
 	"time"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -21,19 +22,25 @@ func (s *Service) InventoryCountBookBalance(
 	if err != nil {
 		return Page[InventoryCountBalanceItem]{}, domainError(ErrorValidation, "invalid asOfDate", nil, err)
 	}
-	_, err = s.queries.GetAccountingControlBookForVou(ctx)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Page[InventoryCountBalanceItem]{}, s.internal("begin inventory count balance transaction", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.queries.WithTx(tx)
+	_, err = q.GetAccountingControlBookForVou(ctx)
 	if err != nil {
 		return Page[InventoryCountBalanceItem]{}, domainError(ErrorConflict, "accounting control book is not ready", nil, err)
 	}
 	date := pgtype.Date{Time: asOfDate, Valid: true}
-	total, err := s.queries.CountVouInventoryCountBookBalances(ctx,
+	total, err := q.CountVouInventoryCountBookBalances(ctx,
 		dbsqlc.CountVouInventoryCountBookBalancesParams{
 			WarehouseObjectID: input.WarehouseObjectID, AsOfDate: date,
 		})
 	if err != nil {
 		return Page[InventoryCountBalanceItem]{}, s.internal("count inventory count balances", err)
 	}
-	rows, err := s.queries.ListVouInventoryCountBookBalances(ctx,
+	rows, err := q.ListVouInventoryCountBookBalances(ctx,
 		dbsqlc.ListVouInventoryCountBookBalancesParams{
 			WarehouseObjectID: input.WarehouseObjectID, AsOfDate: date, PageSize: int32(input.PageSize),
 			PageOffset: int32((input.Page - 1) * input.PageSize),
@@ -43,11 +50,21 @@ func (s *Service) InventoryCountBookBalance(
 	}
 	items := make([]InventoryCountBalanceItem, 0, len(rows))
 	for _, row := range rows {
-		item := InventoryCountBalanceItem{Product: ReferenceView{
-			ObjectID: row.ProductObjectID, VersionID: deref(row.ProductVersionID), Entity: "product",
-			Code: row.ProductCode, Name: row.ProductName, Unit: row.ProductUnit,
-		}, Quantity: formatQuantity(row.QuantityMicros)}
+		product, resolveErr := s.resolver.ResolveCurrentEffectiveReference(
+			ctx, tx, bobdomain.EntityProduct, row.ProductObjectID,
+		)
+		if resolveErr != nil {
+			return Page[InventoryCountBalanceItem]{}, domainError(
+				ErrorConflict, "inventory count product is not currently effective", nil, resolveErr,
+			)
+		}
+		item := InventoryCountBalanceItem{
+			Product: referenceView(product), Quantity: formatQuantity(row.BaseQuantityMicros),
+		}
 		items = append(items, item)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return Page[InventoryCountBalanceItem]{}, s.internal("commit inventory count balance transaction", err)
 	}
 	return Page[InventoryCountBalanceItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
@@ -88,9 +105,9 @@ func (s *Service) prepareInventoryCountFinalization(
 		if bookErr != nil {
 			return nil, s.internal("read inventory count quantity", bookErr)
 		}
-		difference := line.ActualQuantityMicros - bookQuantity
+		difference := line.ActualBaseQuantityMicros - bookQuantity
 		updated, updateErr := q.SetVouInventoryCountResult(ctx, dbsqlc.SetVouInventoryCountResultParams{
-			BookQuantityMicros: &bookQuantity, DifferenceQuantityMicros: &difference,
+			BookBaseQuantityMicros: &bookQuantity, DifferenceBaseQuantityMicros: &difference,
 			ID: line.ID, DocumentID: document.ID,
 		})
 		if updateErr != nil {

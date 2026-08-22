@@ -540,7 +540,7 @@ workflow(code="${options.code}", name="${options.name}", root=root, when=lambda 
   edge(source=root, target=child, relation="fulfillment", action=${options.action}(initial=lambda source: {
     "warehouseObjectId": "${options.warehouseObjectId}",
     "businessDate": source["data"]["businessDate"],
-    "lines": [{"sourceLineId": line["lineId"], "quantity": line["orderedQuantity"]} for line in source["data"]["productLines"]],
+    "lines": [{"sourceLineId": line["lineId"], "baseQuantity": line["baseQuantity"]} for line in source["data"]["productLines"]],
   })),
 ])`
 }
@@ -628,8 +628,10 @@ async function createWorkflowTrialOrder(
     warehouse: reference(references.warehouse),
     productLines: [
       {
-        product: reference(references.product),
-        orderedQuantity: references.quantity ?? '1',
+        product: { objectId: references.product.objectId },
+        enteredQuantity: references.quantity ?? '1',
+        enteredUnit: { objectId: '01JAVX00000000000000000011' },
+        baseQuantity: references.quantity ?? '1',
         unitPrice: '1.00',
       },
     ],
@@ -869,7 +871,7 @@ async function ensureAccountingControlBook(
                 PRODUCT: 'product.objectId',
                 WAREHOUSE: 'warehouse.objectId',
               },
-              quantityField: 'orderedQuantity',
+              quantityField: 'baseQuantity',
               costCounterpartSubjectId: null,
               costCounterpartDimensions: {},
             },
@@ -1187,11 +1189,11 @@ export async function createWflWorkerState(options: {
       'product',
       {
         name: `WFL 溶剂桶产品 ${suffix}`,
-        unit: 'KG',
-        productKind: 'RAW_MATERIAL',
-        inventoryUnitId: '01JAVX00000000000000000011',
+        productTypeId: '01JPTP00000000000000000001',
+        defaultInputUnitId: '01JAVX00000000000000000011',
         pricingUnitId: '01JAVX00000000000000000011',
-        pricingQuantityPerInventoryUnit: '1',
+        unitConversions: [{ unit: { objectId: '01JAVX00000000000000000011' }, factor: '1' }],
+        defaultPackagingSpec: '1',
       },
     )
     const resinProduct = await createEffectiveBob(
@@ -1200,11 +1202,11 @@ export async function createWflWorkerState(options: {
       'product',
       {
         name: `WFL 树脂桶产品 ${suffix}`,
-        unit: 'KG',
-        productKind: 'RAW_MATERIAL',
-        inventoryUnitId: '01JAVX00000000000000000011',
+        productTypeId: '01JPTP00000000000000000001',
+        defaultInputUnitId: '01JAVX00000000000000000011',
         pricingUnitId: '01JAVX00000000000000000011',
-        pricingQuantityPerInventoryUnit: '1',
+        unitConversions: [{ unit: { objectId: '01JAVX00000000000000000011' }, factor: '1' }],
+        defaultPackagingSpec: '1',
       },
     )
     const vehicle = await createEffectiveBob(

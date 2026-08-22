@@ -50,7 +50,7 @@ func TestZZInventoryQuantityLedgerAndControlBookGateIntegration(t *testing.T) {
 			createApprovedZeroOpening(t, service, book)
 		}
 		templateID := "inventory-out"
-		quantityField := "orderedQuantity"
+		quantityField := "baseQuantity"
 		mapping, err := service.CreateMapping(t.Context(), CreateMappingInput{BookID: book.ID, VouEntity: voudomain.EntitySaleOrder, DefaultResult: MappingResultPost, Definition: MappingDefinition{
 			DefaultTemplateID: &templateID, Templates: []PostingTemplate{{ID: templateID, Collection: stringPointer("productLines"), Lines: []PostingLineTemplate{
 				{SubjectSource: "FIXED", SubjectValue: inventory.ID, Direction: BalanceDirectionCredit, AmountField: "totalAmount", CurrencyField: "currency", QuantityField: &quantityField, Dimensions: map[string]string{DimensionProduct: "product.objectId", DimensionWarehouse: "warehouse.objectId"}},
@@ -110,7 +110,7 @@ func inventoryApprovalEvent(productID, warehouseID, quantity string) voudomain.D
 	documentID := ulid.Make().String()
 	snapshot := voudomain.DocumentView{
 		DocumentID: documentID, Entity: voudomain.EntitySaleOrder, DocumentNo: "SO-TEST", Status: voudomain.StatusApproved, Revision: 3, Amount: "0",
-		Data: voudomain.DocumentDataView{BusinessDate: "2026-07-25", Currency: "CNY", Warehouse: &voudomain.ReferenceView{ObjectID: warehouseID}, ProductLines: []voudomain.ProductLineView{{LineID: ulid.Make().String(), Product: voudomain.ReferenceView{ObjectID: productID}, OrderedQuantity: quantity}}},
+		Data: voudomain.DocumentDataView{BusinessDate: "2026-07-25", Currency: "CNY", Warehouse: &voudomain.ReferenceView{ObjectID: warehouseID}, ProductLines: []voudomain.ProductLineView{{LineID: ulid.Make().String(), Product: voudomain.ReferenceView{ObjectID: productID}, BaseQuantity: quantity}}},
 	}
 	return voudomain.DocumentApprovedEvent{Entity: snapshot.Entity, DocumentID: documentID, DocumentNo: snapshot.DocumentNo, Revision: snapshot.Revision, Snapshot: snapshot}
 }

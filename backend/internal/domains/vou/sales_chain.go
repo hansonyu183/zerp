@@ -60,7 +60,7 @@ func validateSourceQuantityLines(lines []SourceQuantityLineInput) ([]fixedSource
 		if !validID(line.SourceLineID) || seen[line.SourceLineID] {
 			return nil, domainError(ErrorValidation, "invalid sourceLineId", nil, nil)
 		}
-		quantity, err := quantityMicros(line.Quantity, false)
+		quantity, err := quantityMicros(line.BaseQuantity, false)
 		if err != nil {
 			return nil, domainError(ErrorValidation, "invalid source quantity", nil, err)
 		}
@@ -86,13 +86,13 @@ func validateSignoffLines(lines []SaleSignoffLineInput) ([]fixedSignoffLine, err
 		if !validID(line.SourceLineID) || seen[line.SourceLineID] {
 			return nil, domainError(ErrorValidation, "invalid sourceLineId", nil, nil)
 		}
-		signed, err := quantityMicros(line.SignedQuantity, true)
+		signed, err := quantityMicros(line.SignedBaseQuantity, true)
 		if err != nil {
-			return nil, domainError(ErrorValidation, "invalid signedQuantity", nil, err)
+			return nil, domainError(ErrorValidation, "invalid signedBaseQuantity", nil, err)
 		}
-		rejected, err := quantityMicros(line.RejectedQuantity, true)
+		rejected, err := quantityMicros(line.RejectedBaseQuantity, true)
 		if err != nil || signed > math.MaxInt64-rejected {
-			return nil, domainError(ErrorValidation, "invalid rejectedQuantity", nil, err)
+			return nil, domainError(ErrorValidation, "invalid rejectedBaseQuantity", nil, err)
 		}
 		remark, err := lineRemark(line.Remark)
 		if err != nil {
@@ -388,7 +388,7 @@ func (s *Service) writeSaleOutbound(
 		item.fixedSourceQuantityLine, item.lineNo = line, int32(index+1)
 		var ordered int64
 		err = tx.QueryRow(ctx, `SELECT product_object_id,product_version_id,product_code,product_name,
-			product_unit,ordered_qty_micros,unit_price_cents FROM vou_product_lines
+			entered_unit_symbol,base_quantity_micros,unit_price_cents FROM vou_product_lines
 			WHERE id=$1 AND document_id=$2 AND document_entity='sale-order'`,
 			line.SourceLineID, source.ID).Scan(
 			&item.productObjectID, &item.productVersionID, &item.productCode, &item.productName,
@@ -437,7 +437,7 @@ func (s *Service) writeSaleOutbound(
 	for _, line := range resolved {
 		_, err = tx.Exec(ctx, `INSERT INTO vou_sale_outbound_lines(
 			id,document_id,source_order_line_id,line_no,product_object_id,product_version_id,
-			product_code,product_name,product_unit,quantity_micros,unit_price_cents,line_amount_cents,remark)
+			product_code,product_name,entered_unit_symbol,base_quantity_micros,unit_price_cents,line_amount_cents,remark)
 			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
 			newID(), id, line.SourceLineID, line.lineNo, line.productObjectID, line.productVersionID,
 			line.productCode, line.productName, line.productUnit, line.Quantity, line.price, line.amount, line.Remark)
@@ -592,7 +592,7 @@ func (s *Service) writeSaleSignoff(
 		var item signoffLine
 		item.fixedSignoffLine, item.lineNo = line, int32(index+1)
 		err = tx.QueryRow(ctx, `SELECT source_order_line_id,product_object_id,product_version_id,
-			product_code,product_name,product_unit,quantity_micros,unit_price_cents
+			product_code,product_name,entered_unit_symbol,base_quantity_micros,unit_price_cents
 			FROM vou_sale_outbound_lines WHERE id=$1 AND document_id=$2`,
 			line.SourceLineID, outboundID).Scan(
 			&item.orderLineID, &item.productObjectID, &item.productVersionID,
@@ -650,8 +650,8 @@ func (s *Service) writeSaleSignoff(
 	for _, line := range resolved {
 		_, err = tx.Exec(ctx, `INSERT INTO vou_sale_signoff_lines(
 			id,document_id,source_outbound_line_id,source_order_line_id,line_no,
-			product_object_id,product_version_id,product_code,product_name,product_unit,
-			signed_qty_micros,rejected_qty_micros,loss_qty_micros,unit_price_cents,line_amount_cents,remark)
+			product_object_id,product_version_id,product_code,product_name,entered_unit_symbol,
+			signed_base_quantity_micros,rejected_base_quantity_micros,loss_base_quantity_micros,unit_price_cents,line_amount_cents,remark)
 			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
 			newID(), id, line.SourceLineID, line.orderLineID, line.lineNo,
 			line.productObjectID, line.productVersionID, line.productCode, line.productName, line.productUnit,

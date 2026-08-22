@@ -1,11 +1,16 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { VoucherProductLineDraft, VoucherReference } from './types'
+import type {
+  VoucherProductLineDraft,
+  VoucherReference,
+  VoucherUnitSnapshot,
+} from './types'
 import {
-  calculatePricedLineAmount,
+  calculateBaseQuantityLineAmount,
   addMoney,
   isMoney,
   isQuantity,
+  suggestedBaseQuantity,
   sumMoney,
 } from './decimal'
 import VoucherReferenceAutocomplete from '@/components/common/ReferenceAutocomplete.vue'
@@ -63,8 +68,8 @@ const formulaEditable = computed(() =>
   Boolean(
     props.editable &&
     formulaLine.value?.product &&
-    (formulaLine.value.product.productKind === 'STANDARD_FINISHED' ||
-      formulaLine.value.product.productKind === 'CUSTOM_FINISHED'),
+    (formulaLine.value.product.behaviorProfile === 'STANDARD_FINISHED' ||
+      formulaLine.value.product.behaviorProfile === 'CUSTOM_FINISHED'),
   ),
 )
 
@@ -83,10 +88,10 @@ const total = computed(() =>
   sumMoney(
     props.modelValue.map(
       (line) =>
-        calculatePricedLineAmount(
-          line.orderedQuantity,
+        calculateBaseQuantityLineAmount(
+          line.baseQuantity,
           addMoney(line.unitPrice, line.settlementSurcharge) ?? '',
-          line.product?.pricingQuantityPerInventoryUnit ?? '1',
+          pricingFactor(line.product),
         ) ?? '',
     ),
   ),
@@ -111,7 +116,9 @@ function addLine(): void {
     {
       key: crypto.randomUUID(),
       product: null,
-      orderedQuantity: '',
+      enteredQuantity: '',
+      enteredUnit: null,
+      baseQuantity: '',
       unitPrice: '',
       settlementSurcharge: '',
       purchaseUnitPrice: '',
@@ -122,8 +129,15 @@ function addLine(): void {
 }
 
 function changeProduct(index: number, value: VoucherReference | null): void {
+  const enteredUnit =
+    value?.unitConversions?.find(
+      (conversion) => conversion.unit.objectId === value.defaultInputUnitId,
+    )?.unit ?? null
   updateLine(index, {
     product: value,
+    enteredUnit,
+    enteredQuantity: '',
+    baseQuantity: '',
     formula: null,
     formulaError: '',
     formulaLoading: false,
@@ -131,9 +145,58 @@ function changeProduct(index: number, value: VoucherReference | null): void {
   emit('product-change', index, value)
 }
 
+function pricingFactor(product: VoucherReference | null): string {
+  return (
+    product?.unitConversions?.find(
+      (conversion) => conversion.unit.objectId === product.pricingUnitId,
+    )?.factor ?? ''
+  )
+}
+
+function updateEnteredQuantity(index: number, value: string): void {
+  const line = props.modelValue[index]
+  if (!line) return
+  updateLine(index, {
+    enteredQuantity: value,
+    baseQuantity: suggestedQuantity(value, line.product, line.enteredUnit),
+  })
+}
+
+function changeEnteredUnit(index: number, objectId: string | null): void {
+  const line = props.modelValue[index]
+  if (!line?.product) return
+  const enteredUnit =
+    line.product.unitConversions?.find(
+      (conversion) => conversion.unit.objectId === objectId,
+    )?.unit ?? null
+  updateLine(index, {
+    enteredUnit,
+    baseQuantity: suggestedQuantity(
+      line.enteredQuantity,
+      line.product,
+      enteredUnit,
+    ),
+  })
+}
+
+function suggestedQuantity(
+  enteredQuantity: string,
+  product: VoucherReference | null,
+  unit: VoucherUnitSnapshot | null,
+): string {
+  const factor = product?.unitConversions?.find(
+    (conversion) => conversion.unit.objectId === unit?.objectId,
+  )?.factor
+  return factor ? (suggestedBaseQuantity(enteredQuantity, factor) ?? '') : ''
+}
+
+function unitLabel(unit: VoucherUnitSnapshot): string {
+  return unit.symbol || unit.name || unit.code || unit.objectId
+}
+
 function openFormula(index: number): void {
   const line = props.modelValue[index]
-  if (!line?.product || line.product.productKind === 'PACKAGING') return
+  if (!line?.product || line.product.behaviorProfile === 'PACKAGING') return
   formulaIndex.value = index
 }
 
@@ -186,7 +249,9 @@ function removeLine(index: number): void {
           <tr>
             <th>#</th>
             <th class="voucher-lines__reference">产品</th>
-            <th>数量</th>
+            <th>录入数量</th>
+            <th>录入单位</th>
+            <th>Base Quantity</th>
             <th>{{ settlementSurchargeEnabled ? '基础售价' : '单价' }}</th>
             <th v-if="settlementSurchargeEnabled">结算加价/kg</th>
             <th v-if="purchasePriceRequired">采购价</th>
@@ -216,20 +281,61 @@ function removeLine(index: number): void {
                 {{ line.product ? formatReferenceLabel(line.product) : '—' }}
               </span>
             </td>
-            <td data-label="数量">
+            <td data-label="录入数量">
               <CompactTableField
                 v-if="editable"
                 inputmode="decimal"
-                :model-value="line.orderedQuantity"
+                :model-value="line.enteredQuantity"
                 :rules="[
                   (v: string) =>
                     isQuantity(v) || '请输入大于零且最多六位小数的数量。',
                 ]"
+                @update:model-value="updateEnteredQuantity(index, $event)"
+              />
+              <span v-else>{{ line.enteredQuantity }}</span>
+            </td>
+            <td data-label="录入单位">
+              <v-select
+                v-if="editable"
+                density="compact"
+                :disabled="!line.product"
+                hide-details
+                :items="line.product?.unitConversions ?? []"
+                item-title="unit.name"
+                item-value="unit.objectId"
+                :model-value="line.enteredUnit?.objectId ?? null"
+                variant="outlined"
+                @update:model-value="changeEnteredUnit(index, $event)"
+              >
+                <template #selection="{ item }">
+                  {{ unitLabel(item.unit) }}
+                </template>
+                <template #item="{ props: itemProps, item }">
+                  <v-list-item
+                    v-bind="itemProps"
+                    :title="unitLabel(item.unit)"
+                  />
+                </template>
+              </v-select>
+              <span v-else>{{
+                line.enteredUnit ? unitLabel(line.enteredUnit) : '—'
+              }}</span>
+            </td>
+            <td data-label="Base Quantity">
+              <CompactTableField
+                v-if="editable"
+                inputmode="decimal"
+                :model-value="line.baseQuantity"
+                :rules="[
+                  (v: string) =>
+                    isQuantity(v) ||
+                    '请输入大于零且最多六位小数的 Base Quantity。',
+                ]"
                 @update:model-value="
-                  updateLine(index, { orderedQuantity: $event })
+                  updateLine(index, { baseQuantity: $event })
                 "
               />
-              <span v-else>{{ line.orderedQuantity }}</span>
+              <span v-else>{{ line.baseQuantity }}</span>
             </td>
             <td :data-label="settlementSurchargeEnabled ? '基础售价' : '单价'">
               <CompactTableField
@@ -291,10 +397,10 @@ function removeLine(index: number): void {
             </td>
             <td class="text-end" data-label="金额">
               {{
-                calculatePricedLineAmount(
-                  line.orderedQuantity,
+                calculateBaseQuantityLineAmount(
+                  line.baseQuantity,
                   addMoney(line.unitPrice, line.settlementSurcharge) ?? '',
-                  line.product?.pricingQuantityPerInventoryUnit ?? '1',
+                  pricingFactor(line.product),
                 ) ?? '—'
               }}
             </td>
@@ -313,7 +419,9 @@ function removeLine(index: number): void {
               <span v-else>{{ line.remark || '—' }}</span>
             </td>
             <td v-if="formulaEnabled" data-label="配方">
-              <span v-if="line.product?.productKind === 'PACKAGING'">—</span>
+              <span v-if="line.product?.behaviorProfile === 'PACKAGING'"
+                >—</span
+              >
               <v-btn
                 v-else-if="line.product"
                 :color="line.formulaError ? 'error' : undefined"
@@ -354,7 +462,7 @@ function removeLine(index: number): void {
           >
             <td
               :colspan="
-                6 +
+                8 +
                 (purchasePriceRequired ? 1 : 0) +
                 (settlementSurchargeEnabled ? 1 : 0) +
                 (formulaEnabled ? 1 : 0) +
@@ -370,7 +478,7 @@ function removeLine(index: number): void {
           <tr>
             <td
               :colspan="
-                4 +
+                6 +
                 (purchasePriceRequired ? 1 : 0) +
                 (settlementSurchargeEnabled ? 1 : 0)
               "
@@ -397,8 +505,7 @@ function removeLine(index: number): void {
     v-model:open="formulaOpen"
     :editable="formulaEditable"
     :model-value="formulaLine.formula"
-    :product-name="formulaLine.product.name"
-    :product-unit="formulaLine.product.unit"
+    :product="formulaLine.product"
     :source-document-no="formulaLine.formula?.sourceDocumentNo"
     :source-type="formulaLine.formula?.sourceType"
     @save="saveFormula"

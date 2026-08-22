@@ -435,7 +435,7 @@ async function confirmDelete(): Promise<void> {
                 <th>居间商</th>
                 <th>产品</th>
                 <th class="text-end">定价数量</th>
-                <th class="text-end">桶数</th>
+                <th class="text-end">标准计件</th>
                 <th class="text-end">销售价</th>
                 <th class="text-end">签收金额</th>
                 <th class="text-end">基准价</th>
@@ -511,8 +511,8 @@ async function confirmDelete(): Promise<void> {
                 <td class="text-end" data-label="定价数量">
                   {{ source.pricingQuantity }}
                 </td>
-                <td class="text-end" data-label="桶数">
-                  {{ source.barrelQuantity }}
+                <td class="text-end" data-label="标准计件">
+                  {{ source.standardPieceQuantity }}
                 </td>
                 <td class="text-end" data-label="销售价">
                   {{ source.unitPrice }}

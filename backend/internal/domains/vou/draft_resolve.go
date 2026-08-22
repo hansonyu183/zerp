@@ -205,38 +205,45 @@ func (s *Service) resolveDraftProducts(
 ) error {
 	q := s.queries.WithTx(tx)
 	for index := range draft.PriceLines {
-		product, err := s.resolveReference(ctx, tx, bobdomain.EntityProduct, &draft.PriceLines[index].Product)
+		product, err := s.resolveCurrentProduct(ctx, tx, draft.PriceLines[index].Product.ObjectID)
 		if err != nil {
 			return err
 		}
+		draft.PriceLines[index].Product.VersionID = product.VersionID
 		result.Products = append(result.Products, *product)
 	}
 	for index := range draft.ProductLines {
 		line := &draft.ProductLines[index]
-		product, err := s.resolveReference(ctx, tx, bobdomain.EntityProduct, &line.Product)
+		product, err := s.resolveCurrentProduct(ctx, tx, line.Product.ObjectID)
 		if err != nil {
 			return err
+		}
+		line.Product.VersionID = product.VersionID
+		if !productHasUnit(product.Data, line.EnteredUnitID) {
+			return domainError(ErrorConflict, "entered unit is not configured for product", nil, nil)
 		}
 		result.Products = append(result.Products, *product)
 		if entity != EntitySaleOrder {
 			result.FormulaMaterials = append(result.FormulaMaterials, nil)
 			continue
 		}
-		switch product.Data.ProductKind {
-		case bobdomain.ProductKindPackaging:
+		switch product.Data.BehaviorProfile {
+		case bobdomain.ProductBehaviorPackaging:
 			if line.Formula != nil {
 				return domainError(ErrorValidation, "packaging products cannot contain a formula", nil, nil)
 			}
 			result.FormulaMaterials = append(result.FormulaMaterials, nil)
 			continue
-		case bobdomain.ProductKindRawMaterial:
+		case bobdomain.ProductBehaviorRawMaterial:
+			defaultUnit := product.Data.DefaultInputUnitID
 			line.Formula = &fixedFormula{
-				BaseOutputQuantity: 1_000_000, SourceType: "RAW_SELF",
+				Output: fixedQuantitySnapshot{EnteredQuantity: 1_000_000, EnteredUnitID: defaultUnit, BaseQuantity: 1_000_000}, SourceType: "RAW_SELF",
 				Components: []fixedFormulaComponent{{
-					Material: line.Product, Quantity: 1_000_000,
+					Material: line.Product,
+					Quantity: fixedQuantitySnapshot{EnteredQuantity: 1_000_000, EnteredUnitID: defaultUnit, BaseQuantity: 1_000_000},
 				}},
 			}
-		case bobdomain.ProductKindStandardFinished:
+		case bobdomain.ProductBehaviorStandardFinished:
 			if product.Data.Formula == nil {
 				return domainError(
 					ErrorConflict, "standard finished product formula is not configured", nil, nil,
@@ -248,7 +255,7 @@ func (s *Service) resolveDraftProducts(
 			line.Formula.SourceType = "PRODUCT_FIXED"
 			line.Formula.SourceDocumentID = ""
 			line.Formula.SourceDocumentNo = ""
-		case bobdomain.ProductKindCustomFinished:
+		case bobdomain.ProductBehaviorCustomFinished:
 			if line.Formula == nil {
 				return domainError(ErrorValidation, "custom finished product formula is required", nil, nil)
 			}
@@ -273,7 +280,10 @@ func (s *Service) resolveDraftProducts(
 				}
 			}
 		default:
-			return domainError(ErrorConflict, "unsupported product kind", nil, nil)
+			return domainError(ErrorConflict, "unsupported product behavior profile", nil, nil)
+		}
+		if !productHasUnit(product.Data, line.Formula.Output.EnteredUnitID) {
+			return domainError(ErrorConflict, "formula output unit is not configured for product", nil, nil)
 		}
 		materials := make([]bobdomain.EffectiveReference, 0, len(line.Formula.Components))
 		for componentIndex := range line.Formula.Components {
@@ -292,8 +302,11 @@ func (s *Service) resolveDraftProducts(
 					materialErr,
 				)
 			}
-			if material.Data.ProductKind != bobdomain.ProductKindRawMaterial {
+			if material.Data.BehaviorProfile != bobdomain.ProductBehaviorRawMaterial {
 				return domainError(ErrorConflict, "formula component must reference a raw material", nil, nil)
+			}
+			if !productHasUnit(material.Data, component.Quantity.EnteredUnitID) {
+				return domainError(ErrorConflict, "formula material unit is not configured for product", nil, nil)
 			}
 			component.Material = ReferenceInput{
 				ObjectID:  material.ObjectID,
@@ -304,13 +317,37 @@ func (s *Service) resolveDraftProducts(
 		result.FormulaMaterials = append(result.FormulaMaterials, materials)
 	}
 	for index := range draft.InventoryCountLines {
-		product, err := s.resolveReference(
-			ctx, tx, bobdomain.EntityProduct, &draft.InventoryCountLines[index].Product,
-		)
+		line := &draft.InventoryCountLines[index]
+		product, err := s.resolveCurrentProduct(ctx, tx, line.Product.ObjectID)
 		if err != nil {
 			return err
+		}
+		line.Product.VersionID = product.VersionID
+		if !productHasUnit(product.Data, line.EnteredUnitID) {
+			return domainError(ErrorConflict, "entered unit is not configured for product", nil, nil)
 		}
 		result.Products = append(result.Products, *product)
 	}
 	return nil
+}
+
+func (s *Service) resolveCurrentProduct(
+	ctx context.Context, tx pgx.Tx, objectID string,
+) (*bobdomain.EffectiveReference, error) {
+	product, err := s.resolver.ResolveCurrentEffectiveReference(
+		ctx, tx, bobdomain.EntityProduct, objectID,
+	)
+	if err != nil {
+		return nil, domainError(ErrorConflict, "product is not currently effective", nil, err)
+	}
+	return &product, nil
+}
+
+func productHasUnit(product bobdomain.DetailView, unitID string) bool {
+	for _, conversion := range product.UnitConversions {
+		if conversion.Unit.ObjectID == unitID {
+			return true
+		}
+	}
+	return false
 }

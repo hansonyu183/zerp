@@ -12,8 +12,8 @@ import (
 func (s *Service) FormulaDefault(
 	ctx context.Context, input FormulaDefaultInput,
 ) (FormulaDefaultView, error) {
-	if err := validateReference(&input.Product, "product", true); err != nil {
-		return FormulaDefaultView{}, err
+	if !validID(input.Product.ObjectID) {
+		return FormulaDefaultView{}, domainError(ErrorValidation, "invalid product", nil, nil)
 	}
 	if err := validateReference(input.Customer, "customer", false); err != nil {
 		return FormulaDefaultView{}, err
@@ -24,24 +24,33 @@ func (s *Service) FormulaDefault(
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
-	product, err := s.resolveReference(ctx, tx, bobdomain.EntityProduct, &input.Product)
+	product, err := s.resolveCurrentProduct(ctx, tx, input.Product.ObjectID)
 	if err != nil {
 		return FormulaDefaultView{}, err
 	}
-	switch product.Data.ProductKind {
-	case bobdomain.ProductKindPackaging:
+	switch product.Data.BehaviorProfile {
+	case bobdomain.ProductBehaviorPackaging:
 		return FormulaDefaultView{SourceType: "NOT_APPLICABLE"}, nil
-	case bobdomain.ProductKindRawMaterial:
+	case bobdomain.ProductBehaviorRawMaterial:
 		material := referenceView(*product)
-		material.ProductKind = bobdomain.ProductKindRawMaterial
+		material.BehaviorProfile = bobdomain.ProductBehaviorRawMaterial
+		unit, unitErr := productUnitSnapshot(product.Data, product.Data.DefaultInputUnitID)
+		if unitErr != nil {
+			return FormulaDefaultView{}, unitErr
+		}
+		quantity := QuantitySnapshotView{
+			EnteredQuantity: "1.0",
+			EnteredUnit:     UnitSnapshotView{ObjectID: unit.ObjectID, VersionID: unit.VersionID, Code: unit.Code, Name: unit.Name, Symbol: unit.Symbol},
+			BaseQuantity:    "1.0",
+		}
 		formula := &FormulaView{
-			BaseOutputQuantity: "1.0", SourceType: "RAW_SELF",
+			Output: quantity, SourceType: "RAW_SELF",
 			Components: []FormulaComponentView{{
-				Material: material, Quantity: "1.0",
+				Material: material, Quantity: quantity,
 			}},
 		}
 		return FormulaDefaultView{SourceType: "RAW_SELF", Formula: formula}, nil
-	case bobdomain.ProductKindStandardFinished:
+	case bobdomain.ProductBehaviorStandardFinished:
 		if product.Data.Formula == nil {
 			return FormulaDefaultView{}, domainError(
 				ErrorConflict, "standard finished product formula is not configured", nil, nil,
@@ -52,7 +61,7 @@ func (s *Service) FormulaDefault(
 			return FormulaDefaultView{}, err
 		}
 		return FormulaDefaultView{SourceType: "PRODUCT_FIXED", Formula: formula}, nil
-	case bobdomain.ProductKindCustomFinished:
+	case bobdomain.ProductBehaviorCustomFinished:
 		if input.Customer == nil {
 			return FormulaDefaultView{}, domainError(
 				ErrorValidation, "customer is required for custom product formula", nil, nil,
@@ -88,7 +97,7 @@ func (s *Service) FormulaDefault(
 			SourceDocumentNo: latest.SourceDocumentNo, Formula: formula,
 		}, nil
 	default:
-		return FormulaDefaultView{}, domainError(ErrorConflict, "unsupported product kind", nil, nil)
+		return FormulaDefaultView{}, domainError(ErrorConflict, "unsupported product behavior profile", nil, nil)
 	}
 }
 
@@ -110,7 +119,7 @@ func (s *Service) refreshFormulaMaterials(
 				err,
 			)
 		}
-		if material.Data.ProductKind != bobdomain.ProductKindRawMaterial {
+		if material.Data.BehaviorProfile != bobdomain.ProductBehaviorRawMaterial {
 			return domainError(
 				ErrorConflict,
 				"formula component must reference a raw material",
@@ -125,18 +134,34 @@ func (s *Service) refreshFormulaMaterials(
 
 func formulaFromProduct(input *bobdomain.ProductFormula) *FormulaView {
 	result := &FormulaView{
-		BaseOutputQuantity: input.BaseOutputQuantity, SourceType: "PRODUCT_FIXED",
+		Output: QuantitySnapshotView{
+			EnteredQuantity: input.Output.EnteredQuantity,
+			EnteredUnit: UnitSnapshotView{
+				ObjectID: input.Output.EnteredUnit.ObjectID, VersionID: input.Output.EnteredUnit.VersionID,
+				Code: input.Output.EnteredUnit.Code, Name: input.Output.EnteredUnit.Name, Symbol: input.Output.EnteredUnit.Symbol,
+			},
+			BaseQuantity: input.Output.BaseQuantity,
+		}, SourceType: "PRODUCT_FIXED",
 		Components: make([]FormulaComponentView, 0, len(input.Components)),
 	}
 	for _, component := range input.Components {
 		material := ReferenceView{
 			ObjectID: component.Material.ObjectID, VersionID: component.Material.VersionID,
 			Entity: bobdomain.EntityProduct, Code: component.Material.Code,
-			Name: component.Material.Name, Unit: component.Material.Unit,
-			ProductKind: component.Material.ProductKind,
+			Name: component.Material.Name, Unit: component.Quantity.EnteredUnit.Symbol,
+			BehaviorProfile: component.Material.BehaviorProfile,
 		}
 		result.Components = append(result.Components, FormulaComponentView{
-			Material: material, Quantity: component.Quantity,
+			Material: material,
+			Quantity: QuantitySnapshotView{
+				EnteredQuantity: component.Quantity.EnteredQuantity,
+				EnteredUnit: UnitSnapshotView{
+					ObjectID: component.Quantity.EnteredUnit.ObjectID, VersionID: component.Quantity.EnteredUnit.VersionID,
+					Code: component.Quantity.EnteredUnit.Code, Name: component.Quantity.EnteredUnit.Name,
+					Symbol: component.Quantity.EnteredUnit.Symbol,
+				},
+				BaseQuantity: component.Quantity.BaseQuantity,
+			},
 		})
 	}
 	return result
@@ -145,7 +170,10 @@ func formulaFromProduct(input *bobdomain.ProductFormula) *FormulaView {
 func referenceView(input bobdomain.EffectiveReference) ReferenceView {
 	return ReferenceView{
 		ObjectID: input.ObjectID, VersionID: input.VersionID, Entity: input.Entity,
-		Code: input.Code, Name: input.Data.Name, Unit: input.Data.Unit,
-		ProductKind: input.Data.ProductKind,
+		Code: input.Code, Name: input.Data.Name, Unit: defaultUnitSymbol(input.Data),
+		BehaviorProfile:    input.Data.BehaviorProfile,
+		DefaultInputUnitID: input.Data.DefaultInputUnitID,
+		PricingUnitID:      input.Data.PricingUnitID,
+		UnitConversions:    input.Data.UnitConversions,
 	}
 }

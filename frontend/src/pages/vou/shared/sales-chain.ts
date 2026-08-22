@@ -84,7 +84,7 @@ export function useVoucherSalesChain(
           .filter(
             (line) =>
               parseFixed(
-                line.availableQuantity ?? line.orderedQuantity,
+                line.availableBaseQuantity ?? line.baseQuantity,
                 6,
                 true,
               ) !== 0n,
@@ -94,13 +94,14 @@ export function useVoucherSalesChain(
             sourceLineId: line.lineId,
             productCode: line.product.code,
             productName: line.product.name,
-            productUnit: line.product.unit ?? '',
-            availableQuantity: line.availableQuantity ?? line.orderedQuantity,
-            outboundQuantity: '',
-            quantity: line.availableQuantity ?? line.orderedQuantity,
-            signedQuantity: '',
-            rejectedQuantity: '',
-            lossQuantity: '',
+            enteredUnitSymbol: line.enteredUnit.symbol ?? '',
+            availableBaseQuantity:
+              line.availableBaseQuantity ?? line.baseQuantity,
+            outboundBaseQuantity: '',
+            baseQuantity: line.availableBaseQuantity ?? line.baseQuantity,
+            signedBaseQuantity: '',
+            rejectedBaseQuantity: '',
+            lossBaseQuantity: '',
             remark: '',
           }))
       }
@@ -111,13 +112,13 @@ export function useVoucherSalesChain(
             sourceLineId: line.lineId,
             productCode: line.product.code,
             productName: line.product.name,
-            productUnit: line.product.unit ?? '',
-            availableQuantity: '',
-            outboundQuantity: line.quantity ?? line.orderedQuantity,
-            quantity: '',
-            signedQuantity: line.quantity ?? line.orderedQuantity,
-            rejectedQuantity: '0',
-            lossQuantity: '0',
+            enteredUnitSymbol: line.enteredUnit.symbol ?? '',
+            availableBaseQuantity: '',
+            outboundBaseQuantity: line.baseQuantity,
+            baseQuantity: '',
+            signedBaseQuantity: line.baseQuantity,
+            rejectedBaseQuantity: '0',
+            lossBaseQuantity: '0',
             remark: '',
           }),
         )
@@ -153,8 +154,8 @@ export function validateSalesChainDraft(
   if (config.entity === 'sale-outbound') {
     if (value.salesChainLines.length < 1) return '请至少填写一行出库数量。'
     for (const line of value.salesChainLines) {
-      const quantity = parseFixed(line.quantity, 6)
-      const available = parseFixed(line.availableQuantity, 6, true)
+      const quantity = parseFixed(line.baseQuantity, 6)
+      const available = parseFixed(line.availableBaseQuantity, 6, true)
       if (quantity === null || available === null || quantity > available) {
         return '出库数量必须大于零且不能超过可出库数量。'
       }
@@ -163,9 +164,9 @@ export function validateSalesChainDraft(
   if (config.entity === 'sale-signoff') {
     if (value.salesChainLines.length < 1) return '签收单必须包含全部配送明细。'
     for (const line of value.salesChainLines) {
-      const outbound = parseFixed(line.outboundQuantity, 6)
-      const signed = parseFixed(line.signedQuantity, 6, true)
-      const rejected = parseFixed(line.rejectedQuantity, 6, true)
+      const outbound = parseFixed(line.outboundBaseQuantity, 6)
+      const signed = parseFixed(line.signedBaseQuantity, 6, true)
+      const rejected = parseFixed(line.rejectedBaseQuantity, 6, true)
       if (
         outbound === null ||
         signed === null ||
@@ -187,15 +188,15 @@ export function appendSalesChainPayload(
   if (config.entity === 'sale-outbound') {
     payload.sourceLines = value.salesChainLines.map((line) => ({
       sourceLineId: line.sourceLineId,
-      quantity: line.quantity.trim(),
+      baseQuantity: line.baseQuantity.trim(),
       ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),
     }))
   }
   if (config.entity === 'sale-signoff') {
     payload.signoffLines = value.salesChainLines.map((line) => ({
       sourceLineId: line.sourceLineId,
-      signedQuantity: line.signedQuantity.trim(),
-      rejectedQuantity: line.rejectedQuantity.trim(),
+      signedBaseQuantity: line.signedBaseQuantity.trim(),
+      rejectedBaseQuantity: line.rejectedBaseQuantity.trim(),
       ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),
     }))
   }

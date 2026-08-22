@@ -39,8 +39,8 @@ func detailFields(entity string) []string {
 	case EntityEmployee:
 		return []string{"name", "departmentId", "positionId", "phone", "email", "hireDate", "remark"}
 	case EntityProduct:
-		return []string{"name", "unit", "productKind", "inventoryUnitId", "pricingUnitId",
-			"pricingQuantityPerInventoryUnit", "returnable", "packagingSpecs", "formula",
+		return []string{"name", "productTypeId", "defaultInputUnitId", "pricingUnitId", "unitConversions",
+			"returnable", "defaultPackagingSpec", "formula",
 			"categoryId", "specification", "model", "barcode", "remark"}
 	case EntityService:
 		return []string{"name", "unit", "inventoryUnitId", "description", "remark"}
@@ -104,7 +104,8 @@ func objectView(row dbsqlc.BobVersionView, enabled bool) ObjectView {
 
 func detailView(row dbsqlc.BobVersionView) DetailView {
 	result := DetailView{
-		Name: row.Name, Unit: row.Unit, Currency: deref(row.Currency),
+		Name: row.Name, Unit: row.Unit, InventoryUnitID: row.InventoryUnitID,
+		Currency:    deref(row.Currency),
 		PlateNumber: deref(row.PlateNumber),
 		VehicleType: deref(row.VehicleType), PlatformObjectID: deref(row.PlatformObjectID),
 		CustomerType: row.CustomerType, ShortName: row.ShortName, CategoryID: row.CategoryID,
@@ -122,11 +123,10 @@ func detailView(row dbsqlc.BobVersionView) DetailView {
 		SettlementMethodVersionID: row.SettlementMethodVersionID,
 		RuleType:                  row.SettlementRuleType,
 		MonthOffset:               row.SettlementMonthOffset, DayOffset: row.SettlementDayOffset,
-		ContainerType: row.ContainerType,
-		ProductKind:   row.ProductKind, InventoryUnitID: row.InventoryUnitID,
-		PricingUnitID:                   row.PricingUnitID,
-		PricingQuantityPerInventoryUnit: formatMicros(row.PricingQuantityPerInventoryUnitMicros),
-		Returnable:                      row.Returnable,
+		ProductTypeID: row.ProductTypeID, ProductTypeVersionID: row.ProductTypeVersionID,
+		ProductTypeCode: row.ProductTypeCode, ProductTypeName: row.ProductTypeName,
+		BehaviorProfile: row.BehaviorProfile, DefaultInputUnitID: row.DefaultInputUnitID,
+		PricingUnitID: row.PricingUnitID, Returnable: row.Returnable,
 	}
 	if row.Entity == EntityCustomer {
 		result.MonthlyClosingDay = row.MonthlyClosingDay
@@ -140,46 +140,12 @@ func detailView(row dbsqlc.BobVersionView) DetailView {
 		result.TermCode = row.SettlementTermCode
 		result.DefaultSalesSurcharge = formatMoneyCents(row.SettlementDefaultSalesSurchargeCents)
 	}
-	result.PackagingSpecs = packagingSpecs(row.PackagingSpecs)
-	if row.ContainerType == ContainerTypeSolvent || row.ContainerType == ContainerTypeResin {
-		result.QuantityPerContainer = formatMicros(row.QuantityPerContainerMicros)
+	if row.Entity == EntityProduct && row.BehaviorProfile != ProductBehaviorPackaging {
+		result.DefaultPackagingSpec = formatMicros(row.DefaultPackagingSpecMicros)
 	}
 	if row.SettlementRuleType == SettlementRuleFixedDay {
 		day := row.SettlementDayOfMonth
 		result.DayOfMonth = &day
-	}
-	return result
-}
-
-func packagingSpecs(value any) []PackagingSpecInput {
-	if value == nil {
-		return []PackagingSpecInput{}
-	}
-	raw, err := json.Marshal(value)
-	if err != nil {
-		return []PackagingSpecInput{}
-	}
-	var stored []struct {
-		PackagingProductObjectID  string `json:"packagingProductObjectId"`
-		PackagingProductVersionID string `json:"packagingProductVersionId"`
-		PackagingProductCode      string `json:"packagingProductCode"`
-		PackagingProductName      string `json:"packagingProductName"`
-		ContentQuantityMicros     int64  `json:"contentQuantityMicros"`
-		IsDefault                 bool   `json:"isDefault"`
-	}
-	if err = json.Unmarshal(raw, &stored); err != nil {
-		return []PackagingSpecInput{}
-	}
-	result := make([]PackagingSpecInput, 0, len(stored))
-	for _, item := range stored {
-		result = append(result, PackagingSpecInput{
-			PackagingProductObjectID:  item.PackagingProductObjectID,
-			PackagingProductVersionID: item.PackagingProductVersionID,
-			PackagingProductCode:      item.PackagingProductCode,
-			PackagingProductName:      item.PackagingProductName,
-			ContentQuantity:           formatMicros(item.ContentQuantityMicros),
-			IsDefault:                 item.IsDefault,
-		})
 	}
 	return result
 }

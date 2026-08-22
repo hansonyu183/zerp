@@ -51,15 +51,35 @@ export interface VoucherReference extends VoucherReferenceInput {
   currency?: string
   plateNumber?: string
   platformObjectId?: string
-  productKind?: string
-  pricingQuantityPerInventoryUnit?: string
+  behaviorProfile?: ProductBehaviorProfile
+  defaultInputUnitId?: string
+  pricingUnitId?: string
+  unitConversions?: VoucherUnitConversion[]
+}
+
+export type ProductBehaviorProfile =
+  'RAW_MATERIAL' | 'STANDARD_FINISHED' | 'CUSTOM_FINISHED' | 'PACKAGING'
+
+export interface VoucherUnitSnapshot {
+  objectId: string
+  versionId?: string
+  code?: string
+  name?: string
+  symbol?: string
+}
+
+export interface VoucherUnitConversion {
+  unit: VoucherUnitSnapshot
+  factor: string
 }
 
 export interface VoucherProductLineDraft {
   key: string
   lineId?: string
   product: VoucherReference | null
-  orderedQuantity: string
+  enteredQuantity: string
+  enteredUnit: VoucherUnitSnapshot | null
+  baseQuantity: string
   unitPrice: string
   settlementSurcharge: string
   purchaseUnitPrice: string
@@ -95,9 +115,11 @@ export interface VoucherInventoryCountLineDraft {
   key: string
   lineId?: string
   product: VoucherReference | null
-  actualQuantity: string
-  bookQuantity?: string
-  differenceQuantity?: string
+  enteredQuantity: string
+  enteredUnit: VoucherUnitSnapshot | null
+  baseQuantity: string
+  bookBaseQuantity?: string
+  differenceBaseQuantity?: string
   remark: string
 }
 
@@ -129,13 +151,13 @@ export interface VoucherSalesChainLineDraft {
   sourceLineId: string
   productCode: string
   productName: string
-  productUnit: string
-  availableQuantity: string
-  outboundQuantity: string
-  quantity: string
-  signedQuantity: string
-  rejectedQuantity: string
-  lossQuantity: string
+  enteredUnitSymbol: string
+  availableBaseQuantity: string
+  outboundBaseQuantity: string
+  baseQuantity: string
+  signedBaseQuantity: string
+  rejectedBaseQuantity: string
+  lossBaseQuantity: string
   remark: string
 }
 
@@ -144,10 +166,12 @@ export interface VoucherProductionMaterialDraft {
   lineId?: string
   formulaLineNo: number
   formulaMaterial: VoucherReference
-  formulaQuantity: string
-  suggestedQuantity: string
+  formulaBaseQuantity: string
+  suggestedBaseQuantity: string
   actualMaterial: VoucherReference | null
-  actualQuantity: string
+  actualEnteredQuantity: string
+  actualEnteredUnit: VoucherUnitSnapshot | null
+  actualBaseQuantity: string
   adjustmentReason: string
 }
 
@@ -156,9 +180,11 @@ export interface VoucherProductionOutputDraft {
   lineId?: string
   sourceOrderLineId: string
   product: VoucherReference | null
-  outputQuantity: string
+  enteredQuantity: string
+  enteredUnit: VoucherUnitSnapshot | null
+  baseQuantity: string
   lossRate: string
-  formulaBaseOutputQuantity: string
+  formulaBaseQuantity: string
   remark: string
   materials: VoucherProductionMaterialDraft[]
   formulaLoading?: boolean
@@ -224,40 +250,35 @@ export interface VoucherReferenceView extends VoucherReferenceInput {
   unit?: string
   currency?: string
   plateNumber?: string
-  productKind?: string
-  pricingQuantityPerInventoryUnit?: string
+  behaviorProfile?: ProductBehaviorProfile
+  productTypeObjectId?: string
+  productTypeVersionId?: string
+  productTypeCode?: string
+  productTypeName?: string
 }
 
 export interface VoucherProductLineView {
   lineId: string
   lineNo: number
   product: VoucherReferenceView
-  orderedQuantity: string
+  enteredQuantity: string
+  enteredUnit: VoucherUnitSnapshot
+  baseQuantity: string
   unitPrice: string
   baseUnitPrice?: string
   settlementSurcharge?: string
   purchaseUnitPrice?: string
   lineAmount: string
   remark?: string
-  outboundQuantity?: string
-  signedQuantity?: string
-  rejectedQuantity?: string
-  lossQuantity?: string
-  inboundQuantity?: string
+  outboundBaseQuantity?: string
+  signedBaseQuantity?: string
+  rejectedBaseQuantity?: string
+  lossBaseQuantity?: string
+  inboundBaseQuantity?: string
   sourceLineId?: string
-  quantity?: string
-  availableQuantity?: string
-  returnableQuantity?: string
-  formula?: {
-    baseOutputQuantity: string
-    sourceType?: string
-    sourceDocumentId?: string
-    sourceDocumentNo?: string
-    components: Array<{
-      material: FormulaMaterialReference
-      quantity: string
-    }>
-  }
+  availableBaseQuantity?: string
+  returnableBaseQuantity?: string
+  formula?: ProductFormulaDraft
   referenceUnitPrice?: string
   referenceDocumentId?: string
   referenceDocumentNo?: string
@@ -277,14 +298,17 @@ export interface VoucherSaleSignoffLineView {
   lineNo: number
   sourceLineId: string
   product: VoucherReferenceView
-  outboundQuantity: string
-  signedQuantity: string
-  rejectedQuantity: string
-  lossQuantity: string
+  enteredQuantity: string
+  enteredUnit: VoucherUnitSnapshot
+  baseQuantity: string
+  outboundBaseQuantity: string
+  signedBaseQuantity: string
+  rejectedBaseQuantity: string
+  lossBaseQuantity: string
   unitPrice: string
   lineAmount: string
   remark?: string
-  returnableQuantity?: string
+  returnableBaseQuantity?: string
 }
 
 export interface VoucherExpenseLineView {
@@ -300,9 +324,11 @@ export interface VoucherInventoryCountLineView {
   lineId: string
   lineNo: number
   product: VoucherReferenceView
-  actualQuantity: string
-  bookQuantity?: string
-  differenceQuantity?: string
+  enteredQuantity: string
+  enteredUnit: VoucherUnitSnapshot
+  baseQuantity: string
+  bookBaseQuantity?: string
+  differenceBaseQuantity?: string
   remark?: string
 }
 
@@ -310,10 +336,12 @@ export interface VoucherProductionMaterialView {
   lineId: string
   lineNo: number
   formulaMaterial: VoucherReferenceView
-  formulaQuantity: string
-  suggestedQuantity: string
+  formulaBaseQuantity: string
+  suggestedBaseQuantity: string
   actualMaterial: VoucherReferenceView
-  actualQuantity: string
+  actualEnteredQuantity: string
+  actualEnteredUnit: VoucherUnitSnapshot
+  actualBaseQuantity: string
   adjustmentReason?: string
 }
 
@@ -322,9 +350,11 @@ export interface VoucherProductionOutputView {
   lineNo: number
   sourceOrderLineId?: string
   product: VoucherReferenceView
-  outputQuantity: string
+  enteredQuantity: string
+  enteredUnit: VoucherUnitSnapshot
+  baseQuantity: string
   lossRate: string
-  formulaBaseOutputQuantity: string
+  formulaBaseQuantity: string
   remark?: string
   materials: VoucherProductionMaterialView[]
 }
@@ -451,9 +481,9 @@ export interface VoucherDocumentData {
   differenceReason?: string
   signoffLines?: VoucherSaleSignoffLineView[]
   fulfillmentStatus?: 'OPEN' | 'FULFILLED'
-  signedQuantity?: string
-  inTransitQuantity?: string
-  remainingQuantity?: string
+  signedBaseQuantity?: string
+  inTransitBaseQuantity?: string
+  remainingBaseQuantity?: string
   lines?: VoucherManagedLineView[]
   productionLines?: VoucherProductionOutputView[]
   inventoryCountLines?: VoucherInventoryCountLineView[]
@@ -499,10 +529,10 @@ export interface IntermediarySourceLine {
   }
   intermediary?: IntermediaryReference
   product: IntermediaryReference
-  productKind: string
-  signedQuantity: string
+  behaviorProfile: ProductBehaviorProfile
+  signedBaseQuantity: string
   pricingQuantity: string
-  barrelQuantity: string
+  standardPieceQuantity: string
   unitPrice: string
   referenceUnitPrice: string
   settlementSurcharge: string
@@ -548,7 +578,7 @@ export interface IntermediaryScriptSnapshot {
 export interface IntermediaryResultLine {
   sourceSignoffLineId: string
   premiumUnitPrice: string
-  barrelQuantity: string
+  standardPieceQuantity: string
   baseCommission: string
   premiumCommission: string
   lowPriceCommission: string
@@ -615,15 +645,14 @@ export interface VoucherManagedLineView {
   sourceDocumentNo?: string
   returnKind?: 'REFUSAL' | 'AFTER_SALE'
   product?: VoucherReferenceView
-  quantity?: string
-  orderedQuantity?: string
-  signedQuantity?: string
-  rejectedQuantity?: string
-  lossQuantity?: string
+  enteredQuantity?: string
+  enteredUnit?: VoucherUnitSnapshot
+  baseQuantity?: string
+  signedBaseQuantity?: string
+  rejectedBaseQuantity?: string
+  lossBaseQuantity?: string
   unitPrice?: string
   lineAmount?: string
-  containerType?: 'NONE' | 'SOLVENT' | 'RESIN'
-  quantityPerContainer?: string
   remark?: string
 }
 
@@ -661,23 +690,19 @@ export interface VoucherListRow {
   amount: string
   updatedAt: string
   salesSummary?: {
-    unit: 'KG'
-    excludedPackaging: boolean
     warehouseAvailable: boolean
     shortageQuantity?: string
-    orderedQuantity: string
-    outboundQuantity: string
-    inTransitQuantity: string
-    signedQuantity: string
-    netSignedQuantity: string
+    orderedBaseQuantity: string
+    outboundBaseQuantity: string
+    inTransitBaseQuantity: string
+    signedBaseQuantity: string
+    netSignedBaseQuantity: string
   }
   purchaseSummary?: {
-    unit: 'KG'
-    excludedPackaging: boolean
-    orderedQuantity: string
-    inboundQuantity: string
-    returnProcessingQuantity: string
-    netInboundQuantity: string
+    orderedBaseQuantity: string
+    inboundBaseQuantity: string
+    returnProcessingBaseQuantity: string
+    netInboundBaseQuantity: string
   }
 }
 
@@ -776,6 +801,5 @@ export interface VoucherActionAvailability {
   attachmentRemove: boolean
 }
 import type {
-  FormulaMaterialReference,
   ProductFormulaDraft,
 } from '@/components/formula'

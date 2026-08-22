@@ -1,6 +1,6 @@
 import { onScopeDispose, ref, type Ref } from 'vue'
 import { apiClient } from '@/api/client'
-import { getErrorMessage, type PageResult } from '@/api/types'
+import { getErrorMessage } from '@/api/types'
 
 export interface ProductReference {
   objectId: string
@@ -8,25 +8,23 @@ export interface ProductReference {
   entity?: string
   code: string
   name: string
-  unit?: string
-  productKind?: string
-}
-
-interface ProductListItem {
-  objectId: string
-  code: string
-  currentVersion: {
-    versionId: string
-    summary: {
-      name: string
-      unit?: string
-      productKind?: string
+  behaviorProfile?: string
+  defaultInputUnitId?: string
+  pricingUnitId?: string
+  unitConversions?: Array<{
+    unit: {
+      objectId: string
+      versionId?: string
+      code?: string
+      name?: string
+      symbol?: string
     }
-  }
+    factor: string
+  }>
 }
 
 export function useProductReferenceSearch(
-  productKind: 'RAW_MATERIAL' | 'PACKAGING',
+  behaviorProfile: 'RAW_MATERIAL' | 'PACKAGING',
   selectedReferences: () => readonly ProductReference[],
 ): {
   options: Ref<ProductReference[]>
@@ -45,35 +43,22 @@ export function useProductReferenceSearch(
     loading.value = true
     errorMessage.value = null
     try {
-      const { data } = await apiClient.post<
-        PageResult<ProductListItem>,
-        {
-          page: number
-          pageSize: number
-          filters: Record<string, unknown>
-          sort: Array<{ field: string; order: 'asc' | 'desc' }>
-        }
-      >('bob/product/query', {
-        page: 1,
-        pageSize: 100,
-        filters: {
-          productKind,
-          status: ['EFFECTIVE'],
-          ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
-        },
-        sort: [{ field: 'name', order: 'asc' }],
+      const { data } = await apiClient.post<ProductReference[], {
+        entity: 'product'
+        keyword?: string
+        behaviorProfile: typeof behaviorProfile
+      }>('bob/reference/query', {
+        entity: 'product',
+        behaviorProfile,
+        ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
       })
       if (disposed || sequence !== requestSequence) return
 
       const selected = [...selectedReferences()]
-      const fetched: ProductReference[] = (data.items ?? []).map((item) => ({
-        objectId: item.objectId,
-        versionId: item.currentVersion.versionId,
+      const fetched: ProductReference[] = (data ?? []).map((item) => ({
+        ...item,
         entity: 'product',
-        code: item.code,
-        name: item.currentVersion.summary.name,
-        unit: item.currentVersion.summary.unit ?? '',
-        productKind: item.currentVersion.summary.productKind,
+        unitConversions: item.unitConversions ?? [],
       }))
       options.value = [
         ...selected,

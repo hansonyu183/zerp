@@ -108,7 +108,7 @@ WHERE document_id=sqlc.arg(document_id) ORDER BY line_no;
 -- name: ListIntermediarySignoffSourceRows :many
 WITH returned AS (
     SELECT return_line.source_signoff_line_id,
-           sum(return_line.quantity_micros)::bigint AS quantity_micros
+		   sum(return_line.base_quantity_micros)::bigint AS quantity_micros
     FROM vou_sale_return_lines return_line
     JOIN vou_sale_return_details return_detail
       ON return_detail.document_id=return_line.document_id
@@ -142,17 +142,17 @@ SELECT
     line.product_version_id,
     line.product_code,
     line.product_name,
-    line.product_unit,
-    order_line.product_kind,
-    (line.signed_qty_micros-COALESCE(returned.quantity_micros,0))::bigint AS signed_qty_micros,
-    order_line.pricing_quantity_per_inventory_unit_micros,
+	line.entered_unit_symbol,
+    order_line.behavior_profile,
+	(line.signed_base_quantity_micros-COALESCE(returned.quantity_micros,0))::bigint AS signed_base_quantity_micros,
+    order_line.default_packaging_spec_micros,
     line.unit_price_cents,
     order_line.reference_unit_price_cents,
     order_line.settlement_surcharge_cents,
     customer_version.rebate_unit_price_cents,
     (line.line_amount_cents-COALESCE(round(
         line.line_amount_cents::numeric*returned.quantity_micros::numeric/
-        NULLIF(line.signed_qty_micros,0)
+		NULLIF(line.signed_base_quantity_micros,0)
     )::bigint,0))::bigint AS line_amount_cents,
     order_detail.settlement_term_code,
     order_detail.special_approval,
@@ -178,10 +178,10 @@ WITH daily_return AS (
         signoff.id AS signoff_document_id,
         signoff_detail.customer_object_id,
         signoff_line.id AS source_signoff_line_id,
-        signoff_line.signed_qty_micros AS original_quantity_micros,
+		signoff_line.signed_base_quantity_micros AS original_quantity_micros,
         signoff_line.line_amount_cents AS original_amount_cents,
         return_document.business_date AS return_date,
-        sum(return_line.quantity_micros)::bigint AS returned_quantity_micros
+		sum(return_line.base_quantity_micros)::bigint AS returned_quantity_micros
     FROM vou_sale_return_lines return_line
     JOIN vou_sale_return_details return_detail
       ON return_detail.document_id=return_line.document_id
@@ -203,7 +203,7 @@ WITH daily_return AS (
       AND signoff.currency='CNY'
       AND return_document.business_date <= sqlc.arg(period_end)
     GROUP BY signoff.id,signoff_detail.customer_object_id,signoff_line.id,
-             signoff_line.signed_qty_micros,signoff_line.line_amount_cents,
+			 signoff_line.signed_base_quantity_micros,signoff_line.line_amount_cents,
              return_document.business_date
 ), cumulative_return AS (
     SELECT daily_return.*,
@@ -236,7 +236,7 @@ ORDER BY customer_object_id,return_date,signoff_document_id;
 SELECT
     return_line.id AS return_line_id,
     return_line.source_signoff_line_id,
-    return_line.quantity_micros,
+	return_line.base_quantity_micros,
     return_line.line_amount_cents,
     return_document.id AS return_document_id,
     return_document.document_no AS return_document_no,
@@ -296,7 +296,7 @@ WITH trade AS (
       AND voucher.business_date<=sqlc.arg(period_end)
 ), precutover_return_baseline AS (
     SELECT return_line.source_signoff_line_id,
-           sum(return_line.quantity_micros)::bigint AS returned_quantity_micros,
+		   sum(return_line.base_quantity_micros)::bigint AS returned_quantity_micros,
            sum(return_line.line_amount_cents)::bigint AS returned_amount_cents
     FROM vou_sale_return_lines return_line
     JOIN vou_sale_return_details return_detail
@@ -312,10 +312,10 @@ WITH trade AS (
     SELECT
         return_detail.customer_object_id AS counterparty_object_id,
         signoff_line.id AS source_signoff_line_id,
-        signoff_line.signed_qty_micros AS original_quantity_micros,
+		signoff_line.signed_base_quantity_micros AS original_quantity_micros,
         signoff_line.line_amount_cents AS original_amount_cents,
         return_document.business_date AS return_date,
-        sum(return_line.quantity_micros)::bigint AS returned_quantity_micros
+		sum(return_line.base_quantity_micros)::bigint AS returned_quantity_micros
     FROM vou_sale_return_lines return_line
     JOIN vou_sale_return_details return_detail
       ON return_detail.document_id=return_line.document_id
@@ -335,7 +335,7 @@ WITH trade AS (
       AND return_document.business_date >= sqlc.arg(cutover_date)
       AND return_document.business_date <= sqlc.arg(period_end)
     GROUP BY return_detail.customer_object_id,signoff_line.id,
-             signoff_line.signed_qty_micros,signoff_line.line_amount_cents,
+			 signoff_line.signed_base_quantity_micros,signoff_line.line_amount_cents,
              return_document.business_date
 ), precutover_cumulative_return AS (
     SELECT precutover_daily_return.*,

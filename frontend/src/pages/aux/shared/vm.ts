@@ -45,6 +45,7 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
   const pageSize = ref(20)
   const keyword = ref('')
   const enabled = ref<boolean | null>(null)
+  const filterValues = reactive<Record<string, string>>({})
   const sort = ref<{ field: 'code'; order: 'asc' | 'desc' }>({
     field: 'code',
     order: 'asc',
@@ -112,13 +113,17 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     loading.value = true
     errorMessage.value = null
     try {
-      const filters: Record<string, unknown> = {}
-      if (keyword.value.trim()) filters.keyword = keyword.value.trim()
-      if (enabled.value !== null) filters.enabled = enabled.value
+      const requestFilters: Record<string, unknown> = {}
+      if (keyword.value.trim()) requestFilters.keyword = keyword.value.trim()
+      if (enabled.value !== null) requestFilters.enabled = enabled.value
+      for (const field of config.filters ?? []) {
+        const value = filterValues[field.key]?.trim()
+        if (value) requestFilters[field.key] = value
+      }
       const result = await apiClient.post<AuxPage>(path('query'), {
         page: page.value,
         pageSize: pageSize.value,
-        filters,
+        filters: requestFilters,
         sort: [{ ...sort.value }],
       } as never)
       rows.value = result.data.items
@@ -138,6 +143,7 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
   async function resetFilters(): Promise<void> {
     keyword.value = ''
     enabled.value = null
+    for (const field of config.filters ?? []) filterValues[field.key] = ''
     sort.value = { field: 'code', order: 'asc' }
     await search()
   }
@@ -379,6 +385,7 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     pageSize,
     keyword,
     enabled,
+    filterValues,
     sort,
     loading,
     saving,

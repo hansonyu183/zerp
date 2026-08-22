@@ -943,44 +943,61 @@ type BobPositionVersion struct {
 }
 
 type BobProductFormula struct {
-	ProductVersionID         string `db:"product_version_id" json:"product_version_id"`
-	BaseOutputQuantityMicros int64  `db:"base_output_quantity_micros" json:"base_output_quantity_micros"`
+	ProductVersionID            string `db:"product_version_id" json:"product_version_id"`
+	OutputBaseQuantityMicros    int64  `db:"output_base_quantity_micros" json:"output_base_quantity_micros"`
+	OutputEnteredQuantityMicros int64  `db:"output_entered_quantity_micros" json:"output_entered_quantity_micros"`
+	OutputUnitObjectID          string `db:"output_unit_object_id" json:"output_unit_object_id"`
+	OutputUnitVersionID         string `db:"output_unit_version_id" json:"output_unit_version_id"`
+	OutputUnitCode              string `db:"output_unit_code" json:"output_unit_code"`
+	OutputUnitName              string `db:"output_unit_name" json:"output_unit_name"`
+	OutputUnitSymbol            string `db:"output_unit_symbol" json:"output_unit_symbol"`
 }
 
 type BobProductFormulaLine struct {
-	ProductVersionID  string `db:"product_version_id" json:"product_version_id"`
-	LineNo            int32  `db:"line_no" json:"line_no"`
-	MaterialObjectID  string `db:"material_object_id" json:"material_object_id"`
-	MaterialVersionID string `db:"material_version_id" json:"material_version_id"`
-	QuantityMicros    int64  `db:"quantity_micros" json:"quantity_micros"`
+	ProductVersionID      string `db:"product_version_id" json:"product_version_id"`
+	LineNo                int32  `db:"line_no" json:"line_no"`
+	MaterialObjectID      string `db:"material_object_id" json:"material_object_id"`
+	MaterialVersionID     string `db:"material_version_id" json:"material_version_id"`
+	BaseQuantityMicros    int64  `db:"base_quantity_micros" json:"base_quantity_micros"`
+	EnteredQuantityMicros int64  `db:"entered_quantity_micros" json:"entered_quantity_micros"`
+	EnteredUnitObjectID   string `db:"entered_unit_object_id" json:"entered_unit_object_id"`
+	EnteredUnitVersionID  string `db:"entered_unit_version_id" json:"entered_unit_version_id"`
+	EnteredUnitCode       string `db:"entered_unit_code" json:"entered_unit_code"`
+	EnteredUnitName       string `db:"entered_unit_name" json:"entered_unit_name"`
+	EnteredUnitSymbol     string `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	ResolutionStatus      string `db:"resolution_status" json:"resolution_status"`
+	RequiresConfirmation  bool   `db:"requires_confirmation" json:"requires_confirmation"`
 }
 
-type BobProductPackagingSpec struct {
-	ProductVersionID          string `db:"product_version_id" json:"product_version_id"`
-	PackagingProductObjectID  string `db:"packaging_product_object_id" json:"packaging_product_object_id"`
-	PackagingProductVersionID string `db:"packaging_product_version_id" json:"packaging_product_version_id"`
-	ContentQuantityMicros     int64  `db:"content_quantity_micros" json:"content_quantity_micros"`
-	IsDefault                 bool   `db:"is_default" json:"is_default"`
+type BobProductUnitConversion struct {
+	ProductVersionID string `db:"product_version_id" json:"product_version_id"`
+	UnitObjectID     string `db:"unit_object_id" json:"unit_object_id"`
+	UnitVersionID    string `db:"unit_version_id" json:"unit_version_id"`
+	UnitCode         string `db:"unit_code" json:"unit_code"`
+	UnitName         string `db:"unit_name" json:"unit_name"`
+	UnitSymbol       string `db:"unit_symbol" json:"unit_symbol"`
+	FactorMicros     int64  `db:"factor_micros" json:"factor_micros"`
 }
 
 type BobProductVersion struct {
-	VersionID                             string  `db:"version_id" json:"version_id"`
-	Entity                                string  `db:"entity" json:"entity"`
-	Name                                  string  `db:"name" json:"name"`
-	Unit                                  string  `db:"unit" json:"unit"`
-	CategoryID                            *string `db:"category_id" json:"category_id"`
-	CategoryEntity                        string  `db:"category_entity" json:"category_entity"`
-	Specification                         *string `db:"specification" json:"specification"`
-	Model                                 *string `db:"model" json:"model"`
-	Barcode                               *string `db:"barcode" json:"barcode"`
-	Remark                                *string `db:"remark" json:"remark"`
-	ContainerType                         string  `db:"container_type" json:"container_type"`
-	QuantityPerContainerMicros            *int64  `db:"quantity_per_container_micros" json:"quantity_per_container_micros"`
-	ProductKind                           string  `db:"product_kind" json:"product_kind"`
-	InventoryUnitID                       string  `db:"inventory_unit_id" json:"inventory_unit_id"`
-	PricingUnitID                         string  `db:"pricing_unit_id" json:"pricing_unit_id"`
-	PricingQuantityPerInventoryUnitMicros int64   `db:"pricing_quantity_per_inventory_unit_micros" json:"pricing_quantity_per_inventory_unit_micros"`
-	Returnable                            bool    `db:"returnable" json:"returnable"`
+	VersionID                  string  `db:"version_id" json:"version_id"`
+	Entity                     string  `db:"entity" json:"entity"`
+	Name                       string  `db:"name" json:"name"`
+	CategoryID                 *string `db:"category_id" json:"category_id"`
+	CategoryEntity             string  `db:"category_entity" json:"category_entity"`
+	Specification              *string `db:"specification" json:"specification"`
+	Model                      *string `db:"model" json:"model"`
+	Barcode                    *string `db:"barcode" json:"barcode"`
+	Remark                     *string `db:"remark" json:"remark"`
+	PricingUnitID              *string `db:"pricing_unit_id" json:"pricing_unit_id"`
+	Returnable                 bool    `db:"returnable" json:"returnable"`
+	DefaultPackagingSpecMicros *int64  `db:"default_packaging_spec_micros" json:"default_packaging_spec_micros"`
+	ProductTypeID              *string `db:"product_type_id" json:"product_type_id"`
+	ProductTypeVersionID       *string `db:"product_type_version_id" json:"product_type_version_id"`
+	ProductTypeCode            *string `db:"product_type_code" json:"product_type_code"`
+	ProductTypeName            *string `db:"product_type_name" json:"product_type_name"`
+	BehaviorProfile            *string `db:"behavior_profile" json:"behavior_profile"`
+	DefaultInputUnitID         *string `db:"default_input_unit_id" json:"default_input_unit_id"`
 }
 
 type BobSalesPartnerVersion struct {
@@ -1134,78 +1151,80 @@ type BobVersion struct {
 }
 
 type BobVersionView struct {
-	ObjectID                              string             `db:"object_id" json:"object_id"`
-	Entity                                string             `db:"entity" json:"entity"`
-	Code                                  string             `db:"code" json:"code"`
-	CurrentVersionID                      string             `db:"current_version_id" json:"current_version_id"`
-	EffectiveVersionID                    *string            `db:"effective_version_id" json:"effective_version_id"`
-	ObjectRevision                        int64              `db:"object_revision" json:"object_revision"`
-	ObjectUpdatedAt                       pgtype.Timestamptz `db:"object_updated_at" json:"object_updated_at"`
-	VersionID                             string             `db:"version_id" json:"version_id"`
-	VersionNo                             int32              `db:"version_no" json:"version_no"`
-	Status                                string             `db:"status" json:"status"`
-	VersionRevision                       int64              `db:"version_revision" json:"version_revision"`
-	CreatedAt                             pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy                             string             `db:"created_by" json:"created_by"`
-	UpdatedAt                             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy                             string             `db:"updated_by" json:"updated_by"`
-	SubmittedAt                           pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
-	SubmittedBy                           *string            `db:"submitted_by" json:"submitted_by"`
-	ReviewedAt                            pgtype.Timestamptz `db:"reviewed_at" json:"reviewed_at"`
-	ReviewedBy                            *string            `db:"reviewed_by" json:"reviewed_by"`
-	ReviewComment                         *string            `db:"review_comment" json:"review_comment"`
-	Name                                  string             `db:"name" json:"name"`
-	Unit                                  string             `db:"unit" json:"unit"`
-	Currency                              *string            `db:"currency" json:"currency"`
-	PlateNumber                           *string            `db:"plate_number" json:"plate_number"`
-	VehicleType                           *string            `db:"vehicle_type" json:"vehicle_type"`
-	PlatformObjectID                      *string            `db:"platform_object_id" json:"platform_object_id"`
-	CustomerType                          string             `db:"customer_type" json:"customer_type"`
-	ShortName                             string             `db:"short_name" json:"short_name"`
-	CategoryID                            string             `db:"category_id" json:"category_id"`
-	TaxNumber                             string             `db:"tax_number" json:"tax_number"`
-	ContactName                           string             `db:"contact_name" json:"contact_name"`
-	ContactPhone                          string             `db:"contact_phone" json:"contact_phone"`
-	Email                                 string             `db:"email" json:"email"`
-	Address                               string             `db:"address" json:"address"`
-	Remark                                string             `db:"remark" json:"remark"`
-	DepartmentID                          string             `db:"department_id" json:"department_id"`
-	PositionID                            string             `db:"position_id" json:"position_id"`
-	Phone                                 string             `db:"phone" json:"phone"`
-	HireDate                              string             `db:"hire_date" json:"hire_date"`
-	Specification                         string             `db:"specification" json:"specification"`
-	Model                                 string             `db:"model" json:"model"`
-	Barcode                               string             `db:"barcode" json:"barcode"`
-	Description                           string             `db:"description" json:"description"`
-	ManagerEmployeeID                     string             `db:"manager_employee_id" json:"manager_employee_id"`
-	Vin                                   string             `db:"vin" json:"vin"`
-	EngineNumber                          string             `db:"engine_number" json:"engine_number"`
-	LoadCapacityKg                        string             `db:"load_capacity_kg" json:"load_capacity_kg"`
-	AccountName                           string             `db:"account_name" json:"account_name"`
-	BankName                              string             `db:"bank_name" json:"bank_name"`
-	BankBranch                            string             `db:"bank_branch" json:"bank_branch"`
-	AccountNumber                         string             `db:"account_number" json:"account_number"`
-	TargetEntity                          string             `db:"target_entity" json:"target_entity"`
-	ParentID                              string             `db:"parent_id" json:"parent_id"`
-	SettlementMethodID                    string             `db:"settlement_method_id" json:"settlement_method_id"`
-	SalespersonEmployeeID                 string             `db:"salesperson_employee_id" json:"salesperson_employee_id"`
-	SettlementMethodVersionID             string             `db:"settlement_method_version_id" json:"settlement_method_version_id"`
-	SettlementRuleType                    string             `db:"settlement_rule_type" json:"settlement_rule_type"`
-	SettlementMonthOffset                 int32              `db:"settlement_month_offset" json:"settlement_month_offset"`
-	SettlementDayOfMonth                  int32              `db:"settlement_day_of_month" json:"settlement_day_of_month"`
-	SettlementDayOffset                   int32              `db:"settlement_day_offset" json:"settlement_day_offset"`
-	ContainerType                         string             `db:"container_type" json:"container_type"`
-	QuantityPerContainerMicros            int64              `db:"quantity_per_container_micros" json:"quantity_per_container_micros"`
-	ProductKind                           string             `db:"product_kind" json:"product_kind"`
-	InventoryUnitID                       string             `db:"inventory_unit_id" json:"inventory_unit_id"`
-	PricingUnitID                         string             `db:"pricing_unit_id" json:"pricing_unit_id"`
-	PricingQuantityPerInventoryUnitMicros int64              `db:"pricing_quantity_per_inventory_unit_micros" json:"pricing_quantity_per_inventory_unit_micros"`
-	Returnable                            bool               `db:"returnable" json:"returnable"`
-	PackagingSpecs                        interface{}        `db:"packaging_specs" json:"packaging_specs"`
-	MonthlyClosingDay                     int32              `db:"monthly_closing_day" json:"monthly_closing_day"`
-	SettlementTermCode                    string             `db:"settlement_term_code" json:"settlement_term_code"`
-	SettlementDefaultSalesSurchargeCents  int64              `db:"settlement_default_sales_surcharge_cents" json:"settlement_default_sales_surcharge_cents"`
-	RebateUnitPriceCents                  int64              `db:"rebate_unit_price_cents" json:"rebate_unit_price_cents"`
+	ObjectID                             string             `db:"object_id" json:"object_id"`
+	Entity                               string             `db:"entity" json:"entity"`
+	Code                                 string             `db:"code" json:"code"`
+	CurrentVersionID                     string             `db:"current_version_id" json:"current_version_id"`
+	EffectiveVersionID                   *string            `db:"effective_version_id" json:"effective_version_id"`
+	ObjectRevision                       int64              `db:"object_revision" json:"object_revision"`
+	ObjectUpdatedAt                      pgtype.Timestamptz `db:"object_updated_at" json:"object_updated_at"`
+	VersionID                            string             `db:"version_id" json:"version_id"`
+	VersionNo                            int32              `db:"version_no" json:"version_no"`
+	Status                               string             `db:"status" json:"status"`
+	VersionRevision                      int64              `db:"version_revision" json:"version_revision"`
+	CreatedAt                            pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy                            string             `db:"created_by" json:"created_by"`
+	UpdatedAt                            pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy                            string             `db:"updated_by" json:"updated_by"`
+	SubmittedAt                          pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
+	SubmittedBy                          *string            `db:"submitted_by" json:"submitted_by"`
+	ReviewedAt                           pgtype.Timestamptz `db:"reviewed_at" json:"reviewed_at"`
+	ReviewedBy                           *string            `db:"reviewed_by" json:"reviewed_by"`
+	ReviewComment                        *string            `db:"review_comment" json:"review_comment"`
+	Name                                 string             `db:"name" json:"name"`
+	Unit                                 string             `db:"unit" json:"unit"`
+	InventoryUnitID                      string             `db:"inventory_unit_id" json:"inventory_unit_id"`
+	Currency                             *string            `db:"currency" json:"currency"`
+	PlateNumber                          *string            `db:"plate_number" json:"plate_number"`
+	VehicleType                          *string            `db:"vehicle_type" json:"vehicle_type"`
+	PlatformObjectID                     *string            `db:"platform_object_id" json:"platform_object_id"`
+	CustomerType                         string             `db:"customer_type" json:"customer_type"`
+	ShortName                            string             `db:"short_name" json:"short_name"`
+	CategoryID                           string             `db:"category_id" json:"category_id"`
+	TaxNumber                            string             `db:"tax_number" json:"tax_number"`
+	ContactName                          string             `db:"contact_name" json:"contact_name"`
+	ContactPhone                         string             `db:"contact_phone" json:"contact_phone"`
+	Email                                string             `db:"email" json:"email"`
+	Address                              string             `db:"address" json:"address"`
+	Remark                               string             `db:"remark" json:"remark"`
+	DepartmentID                         string             `db:"department_id" json:"department_id"`
+	PositionID                           string             `db:"position_id" json:"position_id"`
+	Phone                                string             `db:"phone" json:"phone"`
+	HireDate                             string             `db:"hire_date" json:"hire_date"`
+	Specification                        string             `db:"specification" json:"specification"`
+	Model                                string             `db:"model" json:"model"`
+	Barcode                              string             `db:"barcode" json:"barcode"`
+	Description                          string             `db:"description" json:"description"`
+	ManagerEmployeeID                    string             `db:"manager_employee_id" json:"manager_employee_id"`
+	Vin                                  string             `db:"vin" json:"vin"`
+	EngineNumber                         string             `db:"engine_number" json:"engine_number"`
+	LoadCapacityKg                       string             `db:"load_capacity_kg" json:"load_capacity_kg"`
+	AccountName                          string             `db:"account_name" json:"account_name"`
+	BankName                             string             `db:"bank_name" json:"bank_name"`
+	BankBranch                           string             `db:"bank_branch" json:"bank_branch"`
+	AccountNumber                        string             `db:"account_number" json:"account_number"`
+	TargetEntity                         string             `db:"target_entity" json:"target_entity"`
+	ParentID                             string             `db:"parent_id" json:"parent_id"`
+	SettlementMethodID                   string             `db:"settlement_method_id" json:"settlement_method_id"`
+	SalespersonEmployeeID                string             `db:"salesperson_employee_id" json:"salesperson_employee_id"`
+	SettlementMethodVersionID            string             `db:"settlement_method_version_id" json:"settlement_method_version_id"`
+	SettlementRuleType                   string             `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset                int32              `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth                 int32              `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset                  int32              `db:"settlement_day_offset" json:"settlement_day_offset"`
+	ProductTypeID                        string             `db:"product_type_id" json:"product_type_id"`
+	ProductTypeVersionID                 string             `db:"product_type_version_id" json:"product_type_version_id"`
+	ProductTypeCode                      string             `db:"product_type_code" json:"product_type_code"`
+	ProductTypeName                      string             `db:"product_type_name" json:"product_type_name"`
+	BehaviorProfile                      string             `db:"behavior_profile" json:"behavior_profile"`
+	DefaultInputUnitID                   string             `db:"default_input_unit_id" json:"default_input_unit_id"`
+	PricingUnitID                        string             `db:"pricing_unit_id" json:"pricing_unit_id"`
+	Returnable                           bool               `db:"returnable" json:"returnable"`
+	DefaultPackagingSpecMicros           int64              `db:"default_packaging_spec_micros" json:"default_packaging_spec_micros"`
+	MonthlyClosingDay                    int32              `db:"monthly_closing_day" json:"monthly_closing_day"`
+	SettlementTermCode                   string             `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementDefaultSalesSurchargeCents int64              `db:"settlement_default_sales_surcharge_cents" json:"settlement_default_sales_surcharge_cents"`
+	RebateUnitPriceCents                 int64              `db:"rebate_unit_price_cents" json:"rebate_unit_price_cents"`
 }
 
 type BobWarehouseVersion struct {
@@ -1636,18 +1655,23 @@ type VouInventoryCountDetail struct {
 }
 
 type VouInventoryCountLine struct {
-	ID                       string  `db:"id" json:"id"`
-	DocumentID               string  `db:"document_id" json:"document_id"`
-	LineNo                   int32   `db:"line_no" json:"line_no"`
-	ProductObjectID          string  `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID         string  `db:"product_version_id" json:"product_version_id"`
-	ProductCode              string  `db:"product_code" json:"product_code"`
-	ProductName              string  `db:"product_name" json:"product_name"`
-	ProductUnit              string  `db:"product_unit" json:"product_unit"`
-	ActualQuantityMicros     int64   `db:"actual_quantity_micros" json:"actual_quantity_micros"`
-	BookQuantityMicros       *int64  `db:"book_quantity_micros" json:"book_quantity_micros"`
-	DifferenceQuantityMicros *int64  `db:"difference_quantity_micros" json:"difference_quantity_micros"`
-	Remark                   *string `db:"remark" json:"remark"`
+	ID                           string  `db:"id" json:"id"`
+	DocumentID                   string  `db:"document_id" json:"document_id"`
+	LineNo                       int32   `db:"line_no" json:"line_no"`
+	ProductObjectID              string  `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID             string  `db:"product_version_id" json:"product_version_id"`
+	ProductCode                  string  `db:"product_code" json:"product_code"`
+	ProductName                  string  `db:"product_name" json:"product_name"`
+	EnteredUnitSymbol            string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	ActualBaseQuantityMicros     int64   `db:"actual_base_quantity_micros" json:"actual_base_quantity_micros"`
+	BookBaseQuantityMicros       *int64  `db:"book_base_quantity_micros" json:"book_base_quantity_micros"`
+	DifferenceBaseQuantityMicros *int64  `db:"difference_base_quantity_micros" json:"difference_base_quantity_micros"`
+	Remark                       *string `db:"remark" json:"remark"`
+	EnteredQuantityMicros        int64   `db:"entered_quantity_micros" json:"entered_quantity_micros"`
+	EnteredUnitObjectID          string  `db:"entered_unit_object_id" json:"entered_unit_object_id"`
+	EnteredUnitVersionID         string  `db:"entered_unit_version_id" json:"entered_unit_version_id"`
+	EnteredUnitCode              string  `db:"entered_unit_code" json:"entered_unit_code"`
+	EnteredUnitName              string  `db:"entered_unit_name" json:"entered_unit_name"`
 }
 
 type VouNumberCounter struct {
@@ -1695,50 +1719,62 @@ type VouPaymentDetail struct {
 }
 
 type VouPriceLine struct {
-	ID                                    string  `db:"id" json:"id"`
-	DocumentID                            string  `db:"document_id" json:"document_id"`
-	DocumentEntity                        string  `db:"document_entity" json:"document_entity"`
-	LineNo                                int32   `db:"line_no" json:"line_no"`
-	ProductObjectID                       string  `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID                      string  `db:"product_version_id" json:"product_version_id"`
-	ProductCode                           string  `db:"product_code" json:"product_code"`
-	ProductName                           string  `db:"product_name" json:"product_name"`
-	ProductUnit                           string  `db:"product_unit" json:"product_unit"`
-	ProductKind                           string  `db:"product_kind" json:"product_kind"`
-	PricingQuantityPerInventoryUnitMicros int64   `db:"pricing_quantity_per_inventory_unit_micros" json:"pricing_quantity_per_inventory_unit_micros"`
-	UnitPriceCents                        int64   `db:"unit_price_cents" json:"unit_price_cents"`
-	Remark                                *string `db:"remark" json:"remark"`
+	ID                     string  `db:"id" json:"id"`
+	DocumentID             string  `db:"document_id" json:"document_id"`
+	DocumentEntity         string  `db:"document_entity" json:"document_entity"`
+	LineNo                 int32   `db:"line_no" json:"line_no"`
+	ProductObjectID        string  `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID       string  `db:"product_version_id" json:"product_version_id"`
+	ProductCode            string  `db:"product_code" json:"product_code"`
+	ProductName            string  `db:"product_name" json:"product_name"`
+	DefaultInputUnitSymbol string  `db:"default_input_unit_symbol" json:"default_input_unit_symbol"`
+	BehaviorProfile        string  `db:"behavior_profile" json:"behavior_profile"`
+	UnitPriceCents         int64   `db:"unit_price_cents" json:"unit_price_cents"`
+	Remark                 *string `db:"remark" json:"remark"`
+	ProductTypeObjectID    string  `db:"product_type_object_id" json:"product_type_object_id"`
+	ProductTypeVersionID   string  `db:"product_type_version_id" json:"product_type_version_id"`
+	ProductTypeCode        string  `db:"product_type_code" json:"product_type_code"`
+	ProductTypeName        string  `db:"product_type_name" json:"product_type_name"`
 }
 
 type VouProductLine struct {
-	ID                                    string      `db:"id" json:"id"`
-	DocumentID                            string      `db:"document_id" json:"document_id"`
-	DocumentEntity                        string      `db:"document_entity" json:"document_entity"`
-	LineNo                                int32       `db:"line_no" json:"line_no"`
-	ProductObjectID                       string      `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID                      string      `db:"product_version_id" json:"product_version_id"`
-	ProductCode                           string      `db:"product_code" json:"product_code"`
-	ProductName                           string      `db:"product_name" json:"product_name"`
-	ProductUnit                           string      `db:"product_unit" json:"product_unit"`
-	OrderedQtyMicros                      int64       `db:"ordered_qty_micros" json:"ordered_qty_micros"`
-	UnitPriceCents                        int64       `db:"unit_price_cents" json:"unit_price_cents"`
-	LineAmountCents                       int64       `db:"line_amount_cents" json:"line_amount_cents"`
-	OutboundQtyMicros                     *int64      `db:"outbound_qty_micros" json:"outbound_qty_micros"`
-	SignedQtyMicros                       *int64      `db:"signed_qty_micros" json:"signed_qty_micros"`
-	RejectedQtyMicros                     *int64      `db:"rejected_qty_micros" json:"rejected_qty_micros"`
-	LossQtyMicros                         *int64      `db:"loss_qty_micros" json:"loss_qty_micros"`
-	InboundQtyMicros                      *int64      `db:"inbound_qty_micros" json:"inbound_qty_micros"`
-	Remark                                *string     `db:"remark" json:"remark"`
-	PurchaseUnitPriceCents                *int64      `db:"purchase_unit_price_cents" json:"purchase_unit_price_cents"`
-	BaseUnitPriceCents                    int64       `db:"base_unit_price_cents" json:"base_unit_price_cents"`
-	SettlementSurchargeCents              int64       `db:"settlement_surcharge_cents" json:"settlement_surcharge_cents"`
-	ProductKind                           string      `db:"product_kind" json:"product_kind"`
-	PricingQuantityPerInventoryUnitMicros int64       `db:"pricing_quantity_per_inventory_unit_micros" json:"pricing_quantity_per_inventory_unit_micros"`
-	ReferenceUnitPriceCents               int64       `db:"reference_unit_price_cents" json:"reference_unit_price_cents"`
-	ReferenceDocumentID                   *string     `db:"reference_document_id" json:"reference_document_id"`
-	ReferenceDocumentNo                   *string     `db:"reference_document_no" json:"reference_document_no"`
-	ReferenceBusinessDate                 pgtype.Date `db:"reference_business_date" json:"reference_business_date"`
-	ReferenceLineID                       *string     `db:"reference_line_id" json:"reference_line_id"`
+	ID                         string      `db:"id" json:"id"`
+	DocumentID                 string      `db:"document_id" json:"document_id"`
+	DocumentEntity             string      `db:"document_entity" json:"document_entity"`
+	LineNo                     int32       `db:"line_no" json:"line_no"`
+	ProductObjectID            string      `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID           string      `db:"product_version_id" json:"product_version_id"`
+	ProductCode                string      `db:"product_code" json:"product_code"`
+	ProductName                string      `db:"product_name" json:"product_name"`
+	EnteredUnitSymbol          string      `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BaseQuantityMicros         int64       `db:"base_quantity_micros" json:"base_quantity_micros"`
+	UnitPriceCents             int64       `db:"unit_price_cents" json:"unit_price_cents"`
+	LineAmountCents            int64       `db:"line_amount_cents" json:"line_amount_cents"`
+	OutboundBaseQuantityMicros *int64      `db:"outbound_base_quantity_micros" json:"outbound_base_quantity_micros"`
+	SignedBaseQuantityMicros   *int64      `db:"signed_base_quantity_micros" json:"signed_base_quantity_micros"`
+	RejectedBaseQuantityMicros *int64      `db:"rejected_base_quantity_micros" json:"rejected_base_quantity_micros"`
+	LossBaseQuantityMicros     *int64      `db:"loss_base_quantity_micros" json:"loss_base_quantity_micros"`
+	InboundBaseQuantityMicros  *int64      `db:"inbound_base_quantity_micros" json:"inbound_base_quantity_micros"`
+	Remark                     *string     `db:"remark" json:"remark"`
+	PurchaseUnitPriceCents     *int64      `db:"purchase_unit_price_cents" json:"purchase_unit_price_cents"`
+	BaseUnitPriceCents         int64       `db:"base_unit_price_cents" json:"base_unit_price_cents"`
+	SettlementSurchargeCents   int64       `db:"settlement_surcharge_cents" json:"settlement_surcharge_cents"`
+	BehaviorProfile            string      `db:"behavior_profile" json:"behavior_profile"`
+	ReferenceUnitPriceCents    int64       `db:"reference_unit_price_cents" json:"reference_unit_price_cents"`
+	ReferenceDocumentID        *string     `db:"reference_document_id" json:"reference_document_id"`
+	ReferenceDocumentNo        *string     `db:"reference_document_no" json:"reference_document_no"`
+	ReferenceBusinessDate      pgtype.Date `db:"reference_business_date" json:"reference_business_date"`
+	ReferenceLineID            *string     `db:"reference_line_id" json:"reference_line_id"`
+	EnteredQuantityMicros      int64       `db:"entered_quantity_micros" json:"entered_quantity_micros"`
+	EnteredUnitObjectID        string      `db:"entered_unit_object_id" json:"entered_unit_object_id"`
+	EnteredUnitVersionID       string      `db:"entered_unit_version_id" json:"entered_unit_version_id"`
+	EnteredUnitCode            string      `db:"entered_unit_code" json:"entered_unit_code"`
+	EnteredUnitName            string      `db:"entered_unit_name" json:"entered_unit_name"`
+	ProductTypeObjectID        string      `db:"product_type_object_id" json:"product_type_object_id"`
+	ProductTypeVersionID       string      `db:"product_type_version_id" json:"product_type_version_id"`
+	ProductTypeCode            string      `db:"product_type_code" json:"product_type_code"`
+	ProductTypeName            string      `db:"product_type_name" json:"product_type_name"`
+	DefaultPackagingSpecMicros *int64      `db:"default_packaging_spec_micros" json:"default_packaging_spec_micros"`
 }
 
 type VouProductionDetail struct {
@@ -1755,40 +1791,50 @@ type VouProductionDetail struct {
 }
 
 type VouProductionMaterialLine struct {
-	ID                       string  `db:"id" json:"id"`
-	OutputLineID             string  `db:"output_line_id" json:"output_line_id"`
-	LineNo                   int32   `db:"line_no" json:"line_no"`
-	FormulaMaterialObjectID  string  `db:"formula_material_object_id" json:"formula_material_object_id"`
-	FormulaMaterialVersionID string  `db:"formula_material_version_id" json:"formula_material_version_id"`
-	FormulaMaterialCode      string  `db:"formula_material_code" json:"formula_material_code"`
-	FormulaMaterialName      string  `db:"formula_material_name" json:"formula_material_name"`
-	FormulaMaterialUnit      string  `db:"formula_material_unit" json:"formula_material_unit"`
-	FormulaQuantityMicros    int64   `db:"formula_quantity_micros" json:"formula_quantity_micros"`
-	SuggestedQuantityMicros  int64   `db:"suggested_quantity_micros" json:"suggested_quantity_micros"`
-	ActualMaterialObjectID   string  `db:"actual_material_object_id" json:"actual_material_object_id"`
-	ActualMaterialVersionID  string  `db:"actual_material_version_id" json:"actual_material_version_id"`
-	ActualMaterialCode       string  `db:"actual_material_code" json:"actual_material_code"`
-	ActualMaterialName       string  `db:"actual_material_name" json:"actual_material_name"`
-	ActualMaterialUnit       string  `db:"actual_material_unit" json:"actual_material_unit"`
-	ActualQuantityMicros     int64   `db:"actual_quantity_micros" json:"actual_quantity_micros"`
-	AdjustmentReason         *string `db:"adjustment_reason" json:"adjustment_reason"`
+	ID                          string  `db:"id" json:"id"`
+	OutputLineID                string  `db:"output_line_id" json:"output_line_id"`
+	LineNo                      int32   `db:"line_no" json:"line_no"`
+	FormulaMaterialObjectID     string  `db:"formula_material_object_id" json:"formula_material_object_id"`
+	FormulaMaterialVersionID    string  `db:"formula_material_version_id" json:"formula_material_version_id"`
+	FormulaMaterialCode         string  `db:"formula_material_code" json:"formula_material_code"`
+	FormulaMaterialName         string  `db:"formula_material_name" json:"formula_material_name"`
+	FormulaEnteredUnitSymbol    string  `db:"formula_entered_unit_symbol" json:"formula_entered_unit_symbol"`
+	FormulaBaseQuantityMicros   int64   `db:"formula_base_quantity_micros" json:"formula_base_quantity_micros"`
+	SuggestedBaseQuantityMicros int64   `db:"suggested_base_quantity_micros" json:"suggested_base_quantity_micros"`
+	ActualMaterialObjectID      string  `db:"actual_material_object_id" json:"actual_material_object_id"`
+	ActualMaterialVersionID     string  `db:"actual_material_version_id" json:"actual_material_version_id"`
+	ActualMaterialCode          string  `db:"actual_material_code" json:"actual_material_code"`
+	ActualMaterialName          string  `db:"actual_material_name" json:"actual_material_name"`
+	ActualEnteredUnitSymbol     string  `db:"actual_entered_unit_symbol" json:"actual_entered_unit_symbol"`
+	ActualBaseQuantityMicros    int64   `db:"actual_base_quantity_micros" json:"actual_base_quantity_micros"`
+	AdjustmentReason            *string `db:"adjustment_reason" json:"adjustment_reason"`
+	ActualEnteredQuantityMicros int64   `db:"actual_entered_quantity_micros" json:"actual_entered_quantity_micros"`
+	ActualEnteredUnitObjectID   string  `db:"actual_entered_unit_object_id" json:"actual_entered_unit_object_id"`
+	ActualEnteredUnitVersionID  string  `db:"actual_entered_unit_version_id" json:"actual_entered_unit_version_id"`
+	ActualEnteredUnitCode       string  `db:"actual_entered_unit_code" json:"actual_entered_unit_code"`
+	ActualEnteredUnitName       string  `db:"actual_entered_unit_name" json:"actual_entered_unit_name"`
 }
 
 type VouProductionOutputLine struct {
-	ID                              string  `db:"id" json:"id"`
-	DocumentID                      string  `db:"document_id" json:"document_id"`
-	LineNo                          int32   `db:"line_no" json:"line_no"`
-	SourceOrderLineID               *string `db:"source_order_line_id" json:"source_order_line_id"`
-	ProductObjectID                 string  `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID                string  `db:"product_version_id" json:"product_version_id"`
-	ProductCode                     string  `db:"product_code" json:"product_code"`
-	ProductName                     string  `db:"product_name" json:"product_name"`
-	ProductUnit                     string  `db:"product_unit" json:"product_unit"`
-	ProductKind                     string  `db:"product_kind" json:"product_kind"`
-	OutputQuantityMicros            int64   `db:"output_quantity_micros" json:"output_quantity_micros"`
-	LossRateMicros                  int64   `db:"loss_rate_micros" json:"loss_rate_micros"`
-	FormulaBaseOutputQuantityMicros int64   `db:"formula_base_output_quantity_micros" json:"formula_base_output_quantity_micros"`
-	Remark                          *string `db:"remark" json:"remark"`
+	ID                        string  `db:"id" json:"id"`
+	DocumentID                string  `db:"document_id" json:"document_id"`
+	LineNo                    int32   `db:"line_no" json:"line_no"`
+	SourceOrderLineID         *string `db:"source_order_line_id" json:"source_order_line_id"`
+	ProductObjectID           string  `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID          string  `db:"product_version_id" json:"product_version_id"`
+	ProductCode               string  `db:"product_code" json:"product_code"`
+	ProductName               string  `db:"product_name" json:"product_name"`
+	EnteredUnitSymbol         string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BehaviorProfile           string  `db:"behavior_profile" json:"behavior_profile"`
+	BaseQuantityMicros        int64   `db:"base_quantity_micros" json:"base_quantity_micros"`
+	LossRateMicros            int64   `db:"loss_rate_micros" json:"loss_rate_micros"`
+	FormulaBaseQuantityMicros int64   `db:"formula_base_quantity_micros" json:"formula_base_quantity_micros"`
+	Remark                    *string `db:"remark" json:"remark"`
+	EnteredQuantityMicros     int64   `db:"entered_quantity_micros" json:"entered_quantity_micros"`
+	EnteredUnitObjectID       string  `db:"entered_unit_object_id" json:"entered_unit_object_id"`
+	EnteredUnitVersionID      string  `db:"entered_unit_version_id" json:"entered_unit_version_id"`
+	EnteredUnitCode           string  `db:"entered_unit_code" json:"entered_unit_code"`
+	EnteredUnitName           string  `db:"entered_unit_name" json:"entered_unit_name"`
 }
 
 type VouPurchaseInboundDetail struct {
@@ -1806,19 +1852,19 @@ type VouPurchaseInboundDetail struct {
 }
 
 type VouPurchaseInboundLine struct {
-	ID                string  `db:"id" json:"id"`
-	DocumentID        string  `db:"document_id" json:"document_id"`
-	SourceOrderLineID string  `db:"source_order_line_id" json:"source_order_line_id"`
-	LineNo            int32   `db:"line_no" json:"line_no"`
-	ProductObjectID   string  `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID  string  `db:"product_version_id" json:"product_version_id"`
-	ProductCode       string  `db:"product_code" json:"product_code"`
-	ProductName       string  `db:"product_name" json:"product_name"`
-	ProductUnit       string  `db:"product_unit" json:"product_unit"`
-	QuantityMicros    int64   `db:"quantity_micros" json:"quantity_micros"`
-	UnitPriceCents    int64   `db:"unit_price_cents" json:"unit_price_cents"`
-	LineAmountCents   int64   `db:"line_amount_cents" json:"line_amount_cents"`
-	Remark            *string `db:"remark" json:"remark"`
+	ID                 string  `db:"id" json:"id"`
+	DocumentID         string  `db:"document_id" json:"document_id"`
+	SourceOrderLineID  string  `db:"source_order_line_id" json:"source_order_line_id"`
+	LineNo             int32   `db:"line_no" json:"line_no"`
+	ProductObjectID    string  `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID   string  `db:"product_version_id" json:"product_version_id"`
+	ProductCode        string  `db:"product_code" json:"product_code"`
+	ProductName        string  `db:"product_name" json:"product_name"`
+	EnteredUnitSymbol  string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BaseQuantityMicros int64   `db:"base_quantity_micros" json:"base_quantity_micros"`
+	UnitPriceCents     int64   `db:"unit_price_cents" json:"unit_price_cents"`
+	LineAmountCents    int64   `db:"line_amount_cents" json:"line_amount_cents"`
+	Remark             *string `db:"remark" json:"remark"`
 }
 
 type VouPurchaseInquiryDetail struct {
@@ -1889,8 +1935,8 @@ type VouPurchaseReturnLine struct {
 	ProductVersionID    string  `db:"product_version_id" json:"product_version_id"`
 	ProductCode         string  `db:"product_code" json:"product_code"`
 	ProductName         string  `db:"product_name" json:"product_name"`
-	ProductUnit         string  `db:"product_unit" json:"product_unit"`
-	QuantityMicros      int64   `db:"quantity_micros" json:"quantity_micros"`
+	EnteredUnitSymbol   string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BaseQuantityMicros  int64   `db:"base_quantity_micros" json:"base_quantity_micros"`
 	UnitPriceCents      int64   `db:"unit_price_cents" json:"unit_price_cents"`
 	LineAmountCents     int64   `db:"line_amount_cents" json:"line_amount_cents"`
 	Remark              *string `db:"remark" json:"remark"`
@@ -1975,22 +2021,33 @@ type VouSaleOrderDetail struct {
 }
 
 type VouSaleOrderFormula struct {
-	ProductLineID            string  `db:"product_line_id" json:"product_line_id"`
-	SourceType               string  `db:"source_type" json:"source_type"`
-	SourceDocumentID         *string `db:"source_document_id" json:"source_document_id"`
-	SourceDocumentNo         *string `db:"source_document_no" json:"source_document_no"`
-	BaseOutputQuantityMicros int64   `db:"base_output_quantity_micros" json:"base_output_quantity_micros"`
+	ProductLineID               string  `db:"product_line_id" json:"product_line_id"`
+	SourceType                  string  `db:"source_type" json:"source_type"`
+	SourceDocumentID            *string `db:"source_document_id" json:"source_document_id"`
+	SourceDocumentNo            *string `db:"source_document_no" json:"source_document_no"`
+	OutputBaseQuantityMicros    int64   `db:"output_base_quantity_micros" json:"output_base_quantity_micros"`
+	OutputEnteredQuantityMicros int64   `db:"output_entered_quantity_micros" json:"output_entered_quantity_micros"`
+	OutputEnteredUnitObjectID   string  `db:"output_entered_unit_object_id" json:"output_entered_unit_object_id"`
+	OutputEnteredUnitVersionID  string  `db:"output_entered_unit_version_id" json:"output_entered_unit_version_id"`
+	OutputEnteredUnitCode       string  `db:"output_entered_unit_code" json:"output_entered_unit_code"`
+	OutputEnteredUnitName       string  `db:"output_entered_unit_name" json:"output_entered_unit_name"`
+	OutputEnteredUnitSymbol     string  `db:"output_entered_unit_symbol" json:"output_entered_unit_symbol"`
 }
 
 type VouSaleOrderFormulaLine struct {
-	ProductLineID     string `db:"product_line_id" json:"product_line_id"`
-	LineNo            int32  `db:"line_no" json:"line_no"`
-	MaterialObjectID  string `db:"material_object_id" json:"material_object_id"`
-	MaterialVersionID string `db:"material_version_id" json:"material_version_id"`
-	MaterialCode      string `db:"material_code" json:"material_code"`
-	MaterialName      string `db:"material_name" json:"material_name"`
-	MaterialUnit      string `db:"material_unit" json:"material_unit"`
-	QuantityMicros    int64  `db:"quantity_micros" json:"quantity_micros"`
+	ProductLineID         string `db:"product_line_id" json:"product_line_id"`
+	LineNo                int32  `db:"line_no" json:"line_no"`
+	MaterialObjectID      string `db:"material_object_id" json:"material_object_id"`
+	MaterialVersionID     string `db:"material_version_id" json:"material_version_id"`
+	MaterialCode          string `db:"material_code" json:"material_code"`
+	MaterialName          string `db:"material_name" json:"material_name"`
+	EnteredUnitSymbol     string `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BaseQuantityMicros    int64  `db:"base_quantity_micros" json:"base_quantity_micros"`
+	EnteredQuantityMicros int64  `db:"entered_quantity_micros" json:"entered_quantity_micros"`
+	EnteredUnitObjectID   string `db:"entered_unit_object_id" json:"entered_unit_object_id"`
+	EnteredUnitVersionID  string `db:"entered_unit_version_id" json:"entered_unit_version_id"`
+	EnteredUnitCode       string `db:"entered_unit_code" json:"entered_unit_code"`
+	EnteredUnitName       string `db:"entered_unit_name" json:"entered_unit_name"`
 }
 
 type VouSaleOutboundDetail struct {
@@ -2008,19 +2065,19 @@ type VouSaleOutboundDetail struct {
 }
 
 type VouSaleOutboundLine struct {
-	ID                string  `db:"id" json:"id"`
-	DocumentID        string  `db:"document_id" json:"document_id"`
-	SourceOrderLineID string  `db:"source_order_line_id" json:"source_order_line_id"`
-	LineNo            int32   `db:"line_no" json:"line_no"`
-	ProductObjectID   string  `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID  string  `db:"product_version_id" json:"product_version_id"`
-	ProductCode       string  `db:"product_code" json:"product_code"`
-	ProductName       string  `db:"product_name" json:"product_name"`
-	ProductUnit       string  `db:"product_unit" json:"product_unit"`
-	QuantityMicros    int64   `db:"quantity_micros" json:"quantity_micros"`
-	UnitPriceCents    int64   `db:"unit_price_cents" json:"unit_price_cents"`
-	LineAmountCents   int64   `db:"line_amount_cents" json:"line_amount_cents"`
-	Remark            *string `db:"remark" json:"remark"`
+	ID                 string  `db:"id" json:"id"`
+	DocumentID         string  `db:"document_id" json:"document_id"`
+	SourceOrderLineID  string  `db:"source_order_line_id" json:"source_order_line_id"`
+	LineNo             int32   `db:"line_no" json:"line_no"`
+	ProductObjectID    string  `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID   string  `db:"product_version_id" json:"product_version_id"`
+	ProductCode        string  `db:"product_code" json:"product_code"`
+	ProductName        string  `db:"product_name" json:"product_name"`
+	EnteredUnitSymbol  string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BaseQuantityMicros int64   `db:"base_quantity_micros" json:"base_quantity_micros"`
+	UnitPriceCents     int64   `db:"unit_price_cents" json:"unit_price_cents"`
+	LineAmountCents    int64   `db:"line_amount_cents" json:"line_amount_cents"`
+	Remark             *string `db:"remark" json:"remark"`
 }
 
 type VouSalePricingDetail struct {
@@ -2055,8 +2112,8 @@ type VouSaleReturnLine struct {
 	ProductVersionID    string  `db:"product_version_id" json:"product_version_id"`
 	ProductCode         string  `db:"product_code" json:"product_code"`
 	ProductName         string  `db:"product_name" json:"product_name"`
-	ProductUnit         string  `db:"product_unit" json:"product_unit"`
-	QuantityMicros      int64   `db:"quantity_micros" json:"quantity_micros"`
+	EnteredUnitSymbol   string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BaseQuantityMicros  int64   `db:"base_quantity_micros" json:"base_quantity_micros"`
 	UnitPriceCents      int64   `db:"unit_price_cents" json:"unit_price_cents"`
 	LineAmountCents     int64   `db:"line_amount_cents" json:"line_amount_cents"`
 	Remark              *string `db:"remark" json:"remark"`
@@ -2079,22 +2136,22 @@ type VouSaleSignoffDetail struct {
 }
 
 type VouSaleSignoffLine struct {
-	ID                   string  `db:"id" json:"id"`
-	DocumentID           string  `db:"document_id" json:"document_id"`
-	SourceOutboundLineID string  `db:"source_outbound_line_id" json:"source_outbound_line_id"`
-	SourceOrderLineID    string  `db:"source_order_line_id" json:"source_order_line_id"`
-	LineNo               int32   `db:"line_no" json:"line_no"`
-	ProductObjectID      string  `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID     string  `db:"product_version_id" json:"product_version_id"`
-	ProductCode          string  `db:"product_code" json:"product_code"`
-	ProductName          string  `db:"product_name" json:"product_name"`
-	ProductUnit          string  `db:"product_unit" json:"product_unit"`
-	SignedQtyMicros      int64   `db:"signed_qty_micros" json:"signed_qty_micros"`
-	RejectedQtyMicros    int64   `db:"rejected_qty_micros" json:"rejected_qty_micros"`
-	LossQtyMicros        int64   `db:"loss_qty_micros" json:"loss_qty_micros"`
-	UnitPriceCents       int64   `db:"unit_price_cents" json:"unit_price_cents"`
-	LineAmountCents      int64   `db:"line_amount_cents" json:"line_amount_cents"`
-	Remark               *string `db:"remark" json:"remark"`
+	ID                         string  `db:"id" json:"id"`
+	DocumentID                 string  `db:"document_id" json:"document_id"`
+	SourceOutboundLineID       string  `db:"source_outbound_line_id" json:"source_outbound_line_id"`
+	SourceOrderLineID          string  `db:"source_order_line_id" json:"source_order_line_id"`
+	LineNo                     int32   `db:"line_no" json:"line_no"`
+	ProductObjectID            string  `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID           string  `db:"product_version_id" json:"product_version_id"`
+	ProductCode                string  `db:"product_code" json:"product_code"`
+	ProductName                string  `db:"product_name" json:"product_name"`
+	EnteredUnitSymbol          string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	SignedBaseQuantityMicros   int64   `db:"signed_base_quantity_micros" json:"signed_base_quantity_micros"`
+	RejectedBaseQuantityMicros int64   `db:"rejected_base_quantity_micros" json:"rejected_base_quantity_micros"`
+	LossBaseQuantityMicros     int64   `db:"loss_base_quantity_micros" json:"loss_base_quantity_micros"`
+	UnitPriceCents             int64   `db:"unit_price_cents" json:"unit_price_cents"`
+	LineAmountCents            int64   `db:"line_amount_cents" json:"line_amount_cents"`
+	Remark                     *string `db:"remark" json:"remark"`
 }
 
 type VouServiceAcceptanceDetail struct {

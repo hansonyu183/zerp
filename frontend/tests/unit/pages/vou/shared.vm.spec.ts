@@ -38,6 +38,24 @@ const reference = (
   code,
   name: `${entity} name`,
   ...(entity === 'fund-account' ? { currency: 'CNY' } : {}),
+  ...(entity === 'product'
+    ? {
+        behaviorProfile: 'RAW_MATERIAL' as const,
+        defaultInputUnitId: 'unit-kg',
+        pricingUnitId: 'unit-kg',
+        unitConversions: [
+          {
+            unit: {
+              objectId: 'unit-kg',
+              code: 'UNT-0001',
+              name: '千克',
+              symbol: 'kg',
+            },
+            factor: '1',
+          },
+        ],
+      }
+    : {}),
 })
 
 function documentView(
@@ -75,7 +93,9 @@ function documentView(
         lineId: `LINE-${index}`,
         lineNo: index + 1,
         product: line.product!,
-        orderedQuantity: line.orderedQuantity,
+        enteredQuantity: line.enteredQuantity,
+        enteredUnit: line.enteredUnit!,
+        baseQuantity: line.baseQuantity,
         unitPrice: line.unitPrice,
         ...(line.purchaseUnitPrice
           ? { purchaseUnitPrice: line.purchaseUnitPrice }
@@ -127,18 +147,22 @@ function documentView(
         lineNo: index + 1,
         sourceOrderLineId: line.sourceOrderLineId,
         product: line.product!,
-        outputQuantity: line.outputQuantity,
+        enteredQuantity: line.enteredQuantity,
+        enteredUnit: line.enteredUnit!,
+        baseQuantity: line.baseQuantity,
         lossRate: line.lossRate,
-        formulaBaseOutputQuantity: line.formulaBaseOutputQuantity,
+        formulaBaseQuantity: line.formulaBaseQuantity,
         remark: line.remark,
         materials: line.materials.map((material, materialIndex) => ({
           lineId: `MATERIAL-${materialIndex}`,
           lineNo: material.formulaLineNo,
           formulaMaterial: material.formulaMaterial,
-          formulaQuantity: material.formulaQuantity,
-          suggestedQuantity: material.suggestedQuantity,
+          formulaBaseQuantity: material.formulaBaseQuantity,
+          suggestedBaseQuantity: material.suggestedBaseQuantity,
           actualMaterial: material.actualMaterial!,
-          actualQuantity: material.actualQuantity,
+          actualEnteredQuantity: material.actualEnteredQuantity,
+          actualEnteredUnit: material.actualEnteredUnit!,
+          actualBaseQuantity: material.actualBaseQuantity,
           adjustmentReason: material.adjustmentReason,
         })),
       })),
@@ -146,9 +170,11 @@ function documentView(
         lineId: `COUNT-${index}`,
         lineNo: index + 1,
         product: line.product!,
-        actualQuantity: line.actualQuantity,
-        bookQuantity: line.bookQuantity,
-        differenceQuantity: line.differenceQuantity,
+        enteredQuantity: line.enteredQuantity,
+        enteredUnit: line.enteredUnit!,
+        baseQuantity: line.baseQuantity,
+        bookBaseQuantity: line.bookBaseQuantity,
+        differenceBaseQuantity: line.differenceBaseQuantity,
         remark: line.remark,
       })),
     },
@@ -207,11 +233,11 @@ function populate(config: VoucherEntityConfig, form: VoucherDraftForm): void {
     const warehouse = reference('warehouse')
     const product = {
       ...reference('product', 'FG-001'),
-      productKind: 'STANDARD_FINISHED',
+      behaviorProfile: 'STANDARD_FINISHED',
     }
     const material = {
       ...reference('product', 'RM-001'),
-      productKind: 'RAW_MATERIAL',
+      behaviorProfile: 'RAW_MATERIAL',
     }
     form.materialWarehouse = warehouse
     form.finishedWarehouse = warehouse
@@ -220,19 +246,33 @@ function populate(config: VoucherEntityConfig, form: VoucherDraftForm): void {
         key: 'production-line',
         sourceOrderLineId: '',
         product,
-        outputQuantity: '10',
+        enteredQuantity: '10',
+        enteredUnit: {
+          objectId: 'unit-kg',
+          code: 'UNT-0001',
+          name: '千克',
+          symbol: 'kg',
+        },
+        baseQuantity: '10',
         lossRate: '0',
-        formulaBaseOutputQuantity: '1',
+        formulaBaseQuantity: '1',
         remark: '',
         materials: [
           {
             key: 'material-line',
             formulaLineNo: 1,
             formulaMaterial: material,
-            formulaQuantity: '2',
-            suggestedQuantity: '20',
+            formulaBaseQuantity: '2',
+            suggestedBaseQuantity: '20',
             actualMaterial: material,
-            actualQuantity: '20',
+            actualEnteredQuantity: '20',
+            actualEnteredUnit: {
+              objectId: 'unit-kg',
+              code: 'UNT-0001',
+              name: '千克',
+              symbol: 'kg',
+            },
+            actualBaseQuantity: '20',
             adjustmentReason: '',
           },
         ],
@@ -242,27 +282,41 @@ function populate(config: VoucherEntityConfig, form: VoucherDraftForm): void {
   if (config.lineKind === 'product') {
     const product = {
       ...reference('product'),
-      productKind: 'RAW_MATERIAL',
-      unit: 'kg',
+      behaviorProfile: 'RAW_MATERIAL',
     }
     form.productLines = [
       {
         key: 'line',
         product,
-        orderedQuantity: '2.5',
+        enteredQuantity: '2.5',
+        enteredUnit: {
+          objectId: 'unit-kg',
+          code: 'UNT-0001',
+          name: '千克',
+          symbol: 'kg',
+        },
+        baseQuantity: '2.5',
         unitPrice: '4.00',
         purchaseUnitPrice: '',
         remark: '',
         ...(config.entity === 'sale-order'
           ? {
               formula: {
-                baseOutputQuantity: '1',
+                output: {
+                  enteredQuantity: '1',
+                  enteredUnit: { objectId: 'unit-kg', code: 'UNT-0001', name: '千克', symbol: 'kg' },
+                  baseQuantity: '1',
+                },
                 sourceType: 'RAW_SELF',
                 components: [
                   {
                     key: 'formula-line',
                     material: product,
-                    quantity: '1',
+                    quantity: {
+                      enteredQuantity: '1',
+                      enteredUnit: { objectId: 'unit-kg', code: 'UNT-0001', name: '千克', symbol: 'kg' },
+                      baseQuantity: '1',
+                    },
                   },
                 ],
               },
@@ -296,9 +350,16 @@ function populate(config: VoucherEntityConfig, form: VoucherDraftForm): void {
     form.inventoryCountLines = [
       {
         key: 'inventory-count',
-        product: { ...reference('product'), unit: 'kg' },
-        actualQuantity: '2.5',
-        bookQuantity: '2',
+        product: reference('product'),
+        enteredQuantity: '2.5',
+        enteredUnit: {
+          objectId: 'unit-kg',
+          code: 'UNT-0001',
+          name: '千克',
+          symbol: 'kg',
+        },
+        baseQuantity: '2.5',
+        bookBaseQuantity: '2',
         remark: '',
       },
     ]
@@ -374,9 +435,19 @@ describe('shared VOU entity view model', () => {
             signoffLines: [
               {
                 lineId: 'SIGNOFF-LINE-1',
-                product: { ...reference('product'), unit: '件' },
-                signedQuantity: '3',
-                returnableQuantity: '2',
+                product: reference('product'),
+                enteredQuantity: '3',
+                enteredUnit: {
+                  objectId: 'unit-kg',
+                  code: 'UNT-0001',
+                  name: '千克',
+                  symbol: 'kg',
+                },
+                baseQuantity: '3',
+                signedBaseQuantity: '3',
+                rejectedBaseQuantity: '0',
+                lossBaseQuantity: '0',
+                returnableBaseQuantity: '2',
               },
             ],
           },
@@ -397,8 +468,8 @@ describe('shared VOU entity view model', () => {
         {
           sourceLineId: 'SIGNOFF-LINE-1',
           productCode: 'PRODUCT',
-          availableQuantity: '2',
-          quantity: '2',
+          availableBaseQuantity: '2',
+          baseQuantity: '2',
         },
       ],
     })
@@ -461,7 +532,8 @@ describe('shared VOU entity view model', () => {
     const vm = useVoucherEntityViewModel(config)
     vm.openCreate()
     populate(config, vm.form.value)
-    vm.form.value.inventoryCountLines[0]!.actualQuantity = '3'
+    vm.form.value.inventoryCountLines[0]!.enteredQuantity = '3'
+    vm.form.value.inventoryCountLines[0]!.baseQuantity = '3'
     vm.form.value.inventoryCountLines.push({
       key: 'manual-zero-stock',
       product: {
@@ -469,15 +541,22 @@ describe('shared VOU entity view model', () => {
         objectId: 'manual-product-object',
         versionId: 'manual-product-version',
       },
-      actualQuantity: '1',
-      bookQuantity: '',
+      enteredQuantity: '1',
+      enteredUnit: {
+        objectId: 'unit-kg',
+        code: 'UNT-0001',
+        name: '千克',
+        symbol: 'kg',
+      },
+      baseQuantity: '1',
+      bookBaseQuantity: '',
       remark: '手工零库存商品',
     })
     mockedPost.mockResolvedValueOnce({
       data: {
         items: [
           {
-            product: { ...reference('product'), unit: 'kg' },
+            product: reference('product'),
             quantity: '2',
           },
         ],
@@ -499,13 +578,14 @@ describe('shared VOU entity view model', () => {
       },
     )
     expect(vm.form.value.inventoryCountLines[0]).toMatchObject({
-      actualQuantity: '3',
-      bookQuantity: '2',
+      enteredQuantity: '3',
+      baseQuantity: '3',
+      bookBaseQuantity: '2',
     })
     expect(vm.form.value.inventoryCountLines[1]).toMatchObject({
       key: 'manual-zero-stock',
-      actualQuantity: '1',
-      bookQuantity: '',
+      enteredQuantity: '1',
+      bookBaseQuantity: '',
       remark: '手工零库存商品',
     })
   })
@@ -570,15 +650,22 @@ describe('shared VOU entity view model', () => {
         expect(productLine).not.toHaveProperty('purchaseUnitPrice')
         if (config.entity === 'sale-order') {
           expect(productLine.formula).toEqual({
-            baseOutputQuantity: '1',
+            output: {
+              enteredQuantity: '1',
+              enteredUnit: { objectId: 'unit-kg' },
+              baseQuantity: '1',
+            },
             sourceType: 'RAW_SELF',
             components: [
               {
                 material: {
                   objectId: 'product-object',
-                  versionId: 'product-version',
                 },
-                quantity: '1',
+                quantity: {
+                  enteredQuantity: '1',
+                  enteredUnit: { objectId: 'unit-kg' },
+                  baseQuantity: '1',
+                },
               },
             ],
           })
@@ -646,13 +733,13 @@ describe('shared VOU entity view model', () => {
         sourceLineId: 'SIGNOFF-LINE-1',
         productCode: 'P-1',
         productName: '产品一',
-        productUnit: '件',
-        availableQuantity: '3',
-        outboundQuantity: '',
-        quantity: '2',
-        signedQuantity: '',
-        rejectedQuantity: '',
-        lossQuantity: '',
+        enteredUnitSymbol: '件',
+        availableBaseQuantity: '3',
+        outboundBaseQuantity: '',
+        baseQuantity: '2',
+        signedBaseQuantity: '',
+        rejectedBaseQuantity: '',
+        lossBaseQuantity: '',
         remark: '包装完整',
       },
       {
@@ -660,13 +747,13 @@ describe('shared VOU entity view model', () => {
         sourceLineId: 'SIGNOFF-LINE-2',
         productCode: 'P-2',
         productName: '产品二',
-        productUnit: '件',
-        availableQuantity: '1',
-        outboundQuantity: '',
-        quantity: '1',
-        signedQuantity: '',
-        rejectedQuantity: '',
-        lossQuantity: '',
+        enteredUnitSymbol: '件',
+        availableBaseQuantity: '1',
+        outboundBaseQuantity: '',
+        baseQuantity: '1',
+        signedBaseQuantity: '',
+        rejectedBaseQuantity: '',
+        lossBaseQuantity: '',
         remark: '',
       },
     ]
@@ -682,12 +769,12 @@ describe('shared VOU entity view model', () => {
       returnLines: [
         {
           sourceLineId: 'SIGNOFF-LINE-1',
-          quantity: '2',
+          baseQuantity: '2',
           remark: '包装完整',
         },
         {
           sourceLineId: 'SIGNOFF-LINE-2',
-          quantity: '1',
+          baseQuantity: '1',
         },
       ],
     })
@@ -708,7 +795,7 @@ describe('shared VOU entity view model', () => {
     order.documentId = 'ORDER-1'
     order.documentNo = 'SOR-20260724-0001'
     order.status = 'APPROVED'
-    order.data.productLines![0].availableQuantity = '6.0'
+    order.data.productLines![0].availableBaseQuantity = '6.0'
 
     useSessionStore().permissions = ['/vou/sale-outbound/create']
     const vm = useVoucherEntityViewModel(config)
@@ -760,13 +847,13 @@ describe('shared VOU entity view model', () => {
     expect(vm.form.value.salesChainLines).toHaveLength(1)
     expect(vm.form.value.salesChainLines[0]).toMatchObject({
       sourceLineId: 'LINE-0',
-      availableQuantity: '6.0',
-      quantity: '6.0',
+      availableBaseQuantity: '6.0',
+      baseQuantity: '6.0',
     })
 
     vm.form.value.businessDate = '2026-07-25'
     vm.form.value.warehouse = reference('warehouse')
-    vm.form.value.salesChainLines[0].quantity = '4'
+    vm.form.value.salesChainLines[0].baseQuantity = '4'
     expect(await vm.save()).toBe(true)
     expect(captured).toEqual({
       parentEntity: 'sale-order',
@@ -781,7 +868,7 @@ describe('shared VOU entity view model', () => {
         sourceLines: [
           {
             sourceLineId: 'LINE-0',
-            quantity: '4',
+            baseQuantity: '4',
           },
         ],
       },

@@ -1,7 +1,13 @@
 <script setup lang="ts">
-import type { VoucherProductionOutputDraft, VoucherReference } from './types'
+import type {
+  VoucherProductionMaterialDraft,
+  VoucherProductionOutputDraft,
+  VoucherReference,
+  VoucherUnitSnapshot,
+} from './types'
 import CompactTableField from '@/components/common/CompactTableField.vue'
 import VoucherReferenceAutocomplete from '@/components/common/ReferenceAutocomplete.vue'
+import { suggestedBaseQuantity as calculateSuggestedBaseQuantity } from './decimal'
 import { formatReferenceLabel } from '@/utils/reference-label'
 
 defineOptions({ name: 'VoucherProductionLinesEditor' })
@@ -42,12 +48,88 @@ function removeLine(index: number): void {
   )
 }
 
-function updateOutputQuantity(
+function conversionFactor(
+  product: VoucherReference | null,
+  unit: VoucherUnitSnapshot | null,
+): string | null {
+  if (!product || !unit) return null
+  return (
+    product.unitConversions?.find(
+      (conversion) => conversion.unit.objectId === unit.objectId,
+    )?.factor ?? null
+  )
+}
+
+function suggestBaseQuantityFromEntry(
+  product: VoucherReference | null,
+  enteredQuantity: string,
+  enteredUnit: VoucherUnitSnapshot | null,
+): string | null {
+  const factor = conversionFactor(product, enteredUnit)
+  return factor ? calculateSuggestedBaseQuantity(enteredQuantity, factor) : null
+}
+
+function updateOutputEnteredQuantity(
   line: VoucherProductionOutputDraft,
   value: string | null,
 ): void {
-  line.outputQuantity = value ?? ''
+  line.enteredQuantity = value ?? ''
+  line.baseQuantity =
+    suggestBaseQuantityFromEntry(
+      line.product,
+      line.enteredQuantity,
+      line.enteredUnit,
+    ) ?? line.baseQuantity
   emit('recalculate', line)
+}
+
+function updateOutputEnteredUnit(
+  line: VoucherProductionOutputDraft,
+  value: VoucherUnitSnapshot | null,
+): void {
+  line.enteredUnit = value
+  line.baseQuantity =
+    suggestBaseQuantityFromEntry(line.product, line.enteredQuantity, value) ??
+    line.baseQuantity
+  emit('recalculate', line)
+}
+
+function updateActualMaterial(
+  material: VoucherProductionMaterialDraft,
+  product: VoucherReference | null,
+): void {
+  material.actualMaterial = product
+  material.actualEnteredUnit =
+    product?.unitConversions?.find(
+      (conversion) => conversion.unit.objectId === product.defaultInputUnitId,
+    )?.unit ?? null
+  material.actualEnteredQuantity = ''
+}
+
+function updateActualEnteredQuantity(
+  material: VoucherProductionMaterialDraft,
+  value: string | null,
+): void {
+  material.actualEnteredQuantity = value ?? ''
+  material.actualBaseQuantity =
+    suggestBaseQuantityFromEntry(
+      material.actualMaterial,
+      material.actualEnteredQuantity,
+      material.actualEnteredUnit,
+    ) ?? material.actualBaseQuantity
+}
+
+function updateActualEnteredUnit(
+  material: VoucherProductionMaterialDraft,
+  value: VoucherUnitSnapshot | null,
+): void {
+  material.actualEnteredUnit = value
+  material.actualBaseQuantity =
+    suggestBaseQuantityFromEntry(
+      material.actualMaterial,
+      material.actualEnteredQuantity,
+      value,
+    ) ?? material.actualBaseQuantity
 }
 
 function updateLossRate(
@@ -118,10 +200,46 @@ function updateLossRate(
           <v-text-field
             :disabled="!editable"
             inputmode="decimal"
-            label="入库数量"
-            :model-value="line.outputQuantity"
+            label="录入数量"
+            :model-value="line.enteredQuantity"
             variant="outlined"
-            @update:model-value="updateOutputQuantity(line, $event)"
+            @update:model-value="updateOutputEnteredQuantity(line, $event)"
+          />
+          <v-select
+            :disabled="!editable || !line.product"
+            item-title="unit.name"
+            :items="line.product?.unitConversions ?? []"
+            label="录入单位"
+            :model-value="
+              line.product?.unitConversions?.find(
+                (conversion) =>
+                  conversion.unit.objectId === line.enteredUnit?.objectId,
+              ) ?? null
+            "
+            return-object
+            variant="outlined"
+            @update:model-value="
+              updateOutputEnteredUnit(line, $event?.unit ?? null)
+            "
+          >
+            <template #selection="{ item }">
+              {{ item.unit.name
+              }}{{ item.unit.symbol ? ` (${item.unit.symbol})` : '' }}
+            </template>
+            <template #item="{ item, props: itemProps }">
+              <v-list-item
+                v-bind="itemProps"
+                :subtitle="`换算系数：${item.factor}`"
+                :title="item.unit.name"
+              />
+            </template>
+          </v-select>
+          <v-text-field
+            v-model="line.baseQuantity"
+            :disabled="!editable"
+            inputmode="decimal"
+            label="入库 Base Quantity"
+            variant="outlined"
           />
           <v-text-field
             :disabled="!editable"
@@ -133,8 +251,8 @@ function updateLossRate(
             @update:model-value="updateLossRate(line, $event)"
           />
           <v-text-field
-            :model-value="line.formulaBaseOutputQuantity"
-            label="配方基准产量"
+            :model-value="line.formulaBaseQuantity"
+            label="配方 Base Quantity"
             readonly
             variant="outlined"
           />
@@ -154,10 +272,12 @@ function updateLossRate(
           <thead>
             <tr>
               <th>配方材料</th>
-              <th>配方用量</th>
-              <th>建议领料</th>
+              <th>配方 Base Quantity</th>
+              <th>建议领料 Base Quantity</th>
               <th>实际材料</th>
-              <th>实际领料</th>
+              <th>实际录入数量</th>
+              <th>实际录入单位</th>
+              <th>实际领料 Base Quantity</th>
               <th>调整原因</th>
             </tr>
           </thead>
@@ -166,9 +286,11 @@ function updateLossRate(
               <td data-label="配方材料">
                 {{ formatReferenceLabel(material.formulaMaterial) }}
               </td>
-              <td data-label="配方用量">{{ material.formulaQuantity }}</td>
-              <td data-label="建议领料">
-                {{ material.suggestedQuantity || '—' }}
+              <td data-label="配方 Base Quantity">
+                {{ material.formulaBaseQuantity }}
+              </td>
+              <td data-label="建议领料 Base Quantity">
+                {{ material.suggestedBaseQuantity || '—' }}
               </td>
               <td
                 class="production-lines__material-reference"
@@ -184,15 +306,58 @@ function updateLossRate(
                   required
                   table
                   @search="emit('material-search', $event)"
-                  @update:model-value="material.actualMaterial = $event"
+                  @update:model-value="updateActualMaterial(material, $event)"
                 />
               </td>
-              <td data-label="实际领料">
+              <td data-label="实际录入数量">
                 <CompactTableField
-                  v-model="material.actualQuantity"
                   :disabled="!editable"
                   inputmode="decimal"
-                  label="实际领料"
+                  label="实际录入数量"
+                  :model-value="material.actualEnteredQuantity"
+                  @update:model-value="
+                    updateActualEnteredQuantity(material, $event)
+                  "
+                />
+              </td>
+              <td data-label="实际录入单位">
+                <v-select
+                  :disabled="!editable || !material.actualMaterial"
+                  item-title="unit.name"
+                  :items="material.actualMaterial?.unitConversions ?? []"
+                  label="实际录入单位"
+                  :model-value="
+                    material.actualMaterial?.unitConversions?.find(
+                      (conversion) =>
+                        conversion.unit.objectId ===
+                        material.actualEnteredUnit?.objectId,
+                    ) ?? null
+                  "
+                  return-object
+                  variant="outlined"
+                  @update:model-value="
+                    updateActualEnteredUnit(material, $event?.unit ?? null)
+                  "
+                >
+                  <template #selection="{ item }">
+                    {{ item.unit.name
+                    }}{{ item.unit.symbol ? ` (${item.unit.symbol})` : '' }}
+                  </template>
+                  <template #item="{ item, props: itemProps }">
+                    <v-list-item
+                      v-bind="itemProps"
+                      :subtitle="`换算系数：${item.factor}`"
+                      :title="item.unit.name"
+                    />
+                  </template>
+                </v-select>
+              </td>
+              <td data-label="实际领料 Base Quantity">
+                <CompactTableField
+                  v-model="material.actualBaseQuantity"
+                  :disabled="!editable"
+                  inputmode="decimal"
+                  label="实际领料 Base Quantity"
                 />
               </td>
               <td data-label="调整原因">

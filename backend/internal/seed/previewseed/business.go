@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/jackc/pgx/v5"
 )
@@ -12,6 +13,21 @@ import (
 type bobSample struct {
 	key, entity, status string
 	data                func(*Seeder) bobdomain.CreateDetailInput
+}
+
+func unitSnapshot(view auxdomain.ObjectView) bobdomain.MeasurementUnitSnapshot {
+	data := view.CurrentVersion.Data
+	name, _ := data["name"].(string)
+	symbol, _ := data["symbol"].(string)
+	return bobdomain.MeasurementUnitSnapshot{ObjectID: view.ObjectID, VersionID: view.CurrentVersion.VersionID, Code: view.Code, Name: name, Symbol: symbol}
+}
+
+func productUnits(input, pricing auxdomain.ObjectView, pricingFactor string) []bobdomain.ProductUnitConversion {
+	return []bobdomain.ProductUnitConversion{{Unit: unitSnapshot(input), Factor: "1"}, {Unit: unitSnapshot(pricing), Factor: pricingFactor}}
+}
+
+func quantitySnapshot(unit auxdomain.ObjectView, quantity string) bobdomain.QuantitySnapshot {
+	return bobdomain.QuantitySnapshot{EnteredQuantity: quantity, EnteredUnit: unitSnapshot(unit), BaseQuantity: quantity}
 }
 
 func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
@@ -142,11 +158,9 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 		}},
 		{"packaging-effective", bobdomain.EntityProduct, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name: "可回收包装桶（预览）", Unit: "件",
-				ProductKind:                     bobdomain.ProductKindPackaging,
-				InventoryUnitID:                 s.auxRefs["UNT-0002"].ObjectID,
-				PricingUnitID:                   s.auxRefs["UNT-0002"].ObjectID,
-				PricingQuantityPerInventoryUnit: "1", Returnable: true,
+				Name: "可回收包装桶（预览）", ProductTypeID: s.auxRefs["product-type-packaging"].ObjectID,
+				DefaultInputUnitID: s.auxRefs["UNT-0002"].ObjectID, PricingUnitID: s.auxRefs["UNT-0002"].ObjectID,
+				UnitConversions: []bobdomain.ProductUnitConversion{{Unit: unitSnapshot(s.auxRefs["UNT-0002"]), Factor: "1"}}, Returnable: true,
 				CategoryID:    s.auxRefs["product-category-parts"].ObjectID,
 				Specification: "20L", Model: "PK-20", Barcode: "PREVIEW-PACK-001",
 				Remark: "预览测试可回收包装物",
@@ -154,39 +168,31 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 		}},
 		{"raw-effective", bobdomain.EntityProduct, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name: "标准原料 A（预览）", Unit: "件",
-				ProductKind:                     bobdomain.ProductKindRawMaterial,
-				InventoryUnitID:                 s.auxRefs["UNT-0002"].ObjectID,
-				PricingUnitID:                   s.auxRefs["UNT-0001"].ObjectID,
-				PricingQuantityPerInventoryUnit: "2.5",
-				CategoryID:                      s.auxRefs["product-category-parts"].ObjectID,
-				Specification:                   "M20", Model: "RM-A", Barcode: "PREVIEW-RAW-001",
+				Name: "标准原料 A（预览）", ProductTypeID: s.auxRefs["product-type-raw"].ObjectID,
+				DefaultInputUnitID: s.auxRefs["UNT-0002"].ObjectID, PricingUnitID: s.auxRefs["UNT-0001"].ObjectID,
+				UnitConversions:      productUnits(s.auxRefs["UNT-0002"], s.auxRefs["UNT-0001"], "2.5"),
+				DefaultPackagingSpec: "10",
+				CategoryID:           s.auxRefs["product-category-parts"].ObjectID,
+				Specification:        "M20", Model: "RM-A", Barcode: "PREVIEW-RAW-001",
 				Remark: "预览测试原材料",
 			}
 		}},
 		{"finished-effective", bobdomain.EntityProduct, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
-			packaging := s.bobRefs["packaging-effective"]
 			raw := s.bobRefs["raw-effective"]
 			return bobdomain.CreateDetailInput{
-				Name: "标准自制品 A（预览）", Unit: "件",
-				ProductKind:                     bobdomain.ProductKindStandardFinished,
-				InventoryUnitID:                 s.auxRefs["UNT-0002"].ObjectID,
-				PricingUnitID:                   s.auxRefs["UNT-0001"].ObjectID,
-				PricingQuantityPerInventoryUnit: "3.0",
-				CategoryID:                      s.auxRefs["product-category-parts"].ObjectID,
-				Specification:                   "FG-A", Model: "FG-100", Barcode: "PREVIEW-FG-001",
-				PackagingSpecs: []bobdomain.PackagingSpecInput{{
-					PackagingProductObjectID:  packaging.ObjectID,
-					PackagingProductVersionID: packaging.Version.VersionID,
-					ContentQuantity:           "10", IsDefault: true,
-				}},
+				Name: "标准自制品 A（预览）", ProductTypeID: s.auxRefs["product-type-finished"].ObjectID,
+				DefaultInputUnitID: s.auxRefs["UNT-0002"].ObjectID, PricingUnitID: s.auxRefs["UNT-0001"].ObjectID,
+				UnitConversions:      productUnits(s.auxRefs["UNT-0002"], s.auxRefs["UNT-0001"], "3"),
+				DefaultPackagingSpec: "10",
+				CategoryID:           s.auxRefs["product-category-parts"].ObjectID,
+				Specification:        "FG-A", Model: "FG-100", Barcode: "PREVIEW-FG-001",
 				Formula: &bobdomain.ProductFormula{
-					BaseOutputQuantity: "1",
+					Output: quantitySnapshot(s.auxRefs["UNT-0002"], "1"),
 					Components: []bobdomain.ProductFormulaComponent{{
 						Material: bobdomain.FormulaMaterialReference{
 							ObjectID: raw.ObjectID, VersionID: raw.Version.VersionID,
 						},
-						Quantity: "2",
+						Quantity: quantitySnapshot(s.auxRefs["UNT-0002"], "2"), ResolutionStatus: "CURRENT",
 					}},
 				},
 				Remark: "预览测试标准自制品",
@@ -194,25 +200,23 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 		}},
 		{"custom-effective", bobdomain.EntityProduct, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name: "客户定制品 B（预览）", Unit: "件",
-				ProductKind:                     bobdomain.ProductKindCustomFinished,
-				InventoryUnitID:                 s.auxRefs["UNT-0002"].ObjectID,
-				PricingUnitID:                   s.auxRefs["UNT-0001"].ObjectID,
-				PricingQuantityPerInventoryUnit: "4.0",
-				CategoryID:                      s.auxRefs["product-category-parts"].ObjectID,
-				Specification:                   "FG-B", Model: "FG-200", Barcode: "PREVIEW-FG-002",
+				Name: "客户定制品 B（预览）", ProductTypeID: s.auxRefs["product-type-custom"].ObjectID,
+				DefaultInputUnitID: s.auxRefs["UNT-0002"].ObjectID, PricingUnitID: s.auxRefs["UNT-0001"].ObjectID,
+				UnitConversions:      productUnits(s.auxRefs["UNT-0002"], s.auxRefs["UNT-0001"], "4"),
+				DefaultPackagingSpec: "10",
+				CategoryID:           s.auxRefs["product-category-parts"].ObjectID,
+				Specification:        "FG-B", Model: "FG-200", Barcode: "PREVIEW-FG-002",
 				Remark: "预览测试客户定制品",
 			}
 		}},
 		{"product-draft", bobdomain.EntityProduct, bobdomain.StatusDraft, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name: "试制原料（预览草稿）", Unit: "件",
-				ProductKind:                     bobdomain.ProductKindRawMaterial,
-				InventoryUnitID:                 s.auxRefs["UNT-0002"].ObjectID,
-				PricingUnitID:                   s.auxRefs["UNT-0001"].ObjectID,
-				PricingQuantityPerInventoryUnit: "1.0",
-				CategoryID:                      s.auxRefs["product-category-parts"].ObjectID,
-				Specification:                   "TEST", Model: "DRAFT", Barcode: "PREVIEW-DRAFT-001",
+				Name: "试制原料（预览草稿）", ProductTypeID: s.auxRefs["product-type-raw"].ObjectID,
+				DefaultInputUnitID: s.auxRefs["UNT-0002"].ObjectID, PricingUnitID: s.auxRefs["UNT-0001"].ObjectID,
+				UnitConversions:      productUnits(s.auxRefs["UNT-0002"], s.auxRefs["UNT-0001"], "1"),
+				DefaultPackagingSpec: "10",
+				CategoryID:           s.auxRefs["product-category-parts"].ObjectID,
+				Specification:        "TEST", Model: "DRAFT", Barcode: "PREVIEW-DRAFT-001",
 				Remark: "预览测试草稿产品",
 			}
 		}},

@@ -557,16 +557,15 @@ INSERT INTO bob_employee_versions (
 
 -- name: InsertBobProductDetail :exec
 INSERT INTO bob_product_versions (
-    version_id, name, unit, container_type, quantity_per_container_micros,
-    category_id, specification, model, barcode, remark, product_kind,
-    inventory_unit_id, pricing_unit_id, pricing_quantity_per_inventory_unit_micros,
-    returnable
+    version_id,name,category_id,specification,model,barcode,remark,
+    product_type_id,product_type_version_id,product_type_code,product_type_name,
+    behavior_profile,default_input_unit_id,pricing_unit_id,returnable,default_packaging_spec_micros
 ) VALUES (
-    sqlc.arg(version_id), sqlc.arg(name), sqlc.arg(unit), sqlc.arg(container_type),
-    sqlc.narg(quantity_per_container_micros), sqlc.narg(category_id),
-    sqlc.narg(specification), sqlc.narg(model), sqlc.narg(barcode), sqlc.narg(remark),
-    sqlc.arg(product_kind), sqlc.arg(inventory_unit_id), sqlc.arg(pricing_unit_id),
-    sqlc.arg(pricing_quantity_per_inventory_unit_micros), sqlc.arg(returnable)
+    sqlc.arg(version_id),sqlc.arg(name),sqlc.narg(category_id),sqlc.narg(specification),
+    sqlc.narg(model),sqlc.narg(barcode),sqlc.narg(remark),sqlc.narg(product_type_id),
+    sqlc.narg(product_type_version_id),sqlc.narg(product_type_code),sqlc.narg(product_type_name),
+    sqlc.narg(behavior_profile),sqlc.narg(default_input_unit_id),sqlc.narg(pricing_unit_id),
+    sqlc.arg(returnable),sqlc.narg(default_packaging_spec_micros)
 );
 
 -- name: InsertBobServiceDetail :exec
@@ -688,15 +687,13 @@ FROM bob_employee_versions d WHERE d.version_id = sqlc.arg(source_version_id);
 
 -- name: CopyBobProductDetail :exec
 INSERT INTO bob_product_versions (
-    version_id, name, unit, container_type, quantity_per_container_micros,
-    category_id, specification, model, barcode, remark, product_kind,
-    inventory_unit_id, pricing_unit_id, pricing_quantity_per_inventory_unit_micros,
-    returnable
+    version_id,name,category_id,specification,model,barcode,remark,product_type_id,
+    product_type_version_id,product_type_code,product_type_name,behavior_profile,
+    default_input_unit_id,pricing_unit_id,returnable,default_packaging_spec_micros
 )
-SELECT sqlc.arg(new_version_id), d.name, d.unit, d.container_type, d.quantity_per_container_micros,
-       d.category_id, d.specification,
-       d.model, d.barcode, d.remark, d.product_kind, d.inventory_unit_id,
-       d.pricing_unit_id, d.pricing_quantity_per_inventory_unit_micros, d.returnable
+SELECT sqlc.arg(new_version_id),d.name,d.category_id,d.specification,d.model,d.barcode,d.remark,
+       d.product_type_id,d.product_type_version_id,d.product_type_code,d.product_type_name,
+       d.behavior_profile,d.default_input_unit_id,d.pricing_unit_id,d.returnable,d.default_packaging_spec_micros
 FROM bob_product_versions d WHERE d.version_id = sqlc.arg(source_version_id);
 
 -- name: CopyBobServiceDetail :exec
@@ -783,16 +780,13 @@ WHERE version_id = sqlc.arg(version_id);
 
 -- name: UpdateBobProductDetail :execrows
 UPDATE bob_product_versions
-SET name = sqlc.arg(name), unit = sqlc.arg(unit), container_type = sqlc.arg(container_type),
-    quantity_per_container_micros = sqlc.narg(quantity_per_container_micros),
-    category_id = sqlc.narg(category_id),
-    specification = sqlc.narg(specification), model = sqlc.narg(model),
-    barcode = sqlc.narg(barcode), remark = sqlc.narg(remark),
-    product_kind = sqlc.arg(product_kind),
-    inventory_unit_id = sqlc.arg(inventory_unit_id),
-    pricing_unit_id = sqlc.arg(pricing_unit_id),
-    pricing_quantity_per_inventory_unit_micros = sqlc.arg(pricing_quantity_per_inventory_unit_micros),
-    returnable = sqlc.arg(returnable)
+SET name=sqlc.arg(name),category_id=sqlc.narg(category_id),specification=sqlc.narg(specification),
+    model=sqlc.narg(model),barcode=sqlc.narg(barcode),remark=sqlc.narg(remark),
+    product_type_id=sqlc.narg(product_type_id),product_type_version_id=sqlc.narg(product_type_version_id),
+    product_type_code=sqlc.narg(product_type_code),product_type_name=sqlc.narg(product_type_name),
+    behavior_profile=sqlc.narg(behavior_profile),default_input_unit_id=sqlc.narg(default_input_unit_id),
+    pricing_unit_id=sqlc.narg(pricing_unit_id),returnable=sqlc.arg(returnable),
+    default_packaging_spec_micros=sqlc.narg(default_packaging_spec_micros)
 WHERE version_id = sqlc.arg(version_id);
 
 -- name: UpdateBobServiceDetail :execrows
@@ -855,79 +849,114 @@ SET name = sqlc.arg(name), term_code = sqlc.arg(term_code), rule_type = sqlc.arg
     description = sqlc.narg(description)
 WHERE version_id = sqlc.arg(version_id);
 
--- name: DeleteBobProductPackagingSpecs :exec
-DELETE FROM bob_product_packaging_specs
-WHERE product_version_id = sqlc.arg(product_version_id);
-
--- name: InsertBobProductPackagingSpec :exec
-INSERT INTO bob_product_packaging_specs (
-    product_version_id, packaging_product_object_id, packaging_product_version_id,
-    content_quantity_micros, is_default
-) VALUES (
-    sqlc.arg(product_version_id), sqlc.arg(packaging_product_object_id),
-    sqlc.arg(packaging_product_version_id), sqlc.arg(content_quantity_micros),
-    sqlc.arg(is_default)
-);
-
--- name: CopyBobProductPackagingSpecs :exec
-INSERT INTO bob_product_packaging_specs (
-    product_version_id, packaging_product_object_id, packaging_product_version_id,
-    content_quantity_micros, is_default
-)
-SELECT sqlc.arg(new_version_id), source.packaging_product_object_id,
-       source.packaging_product_version_id, source.content_quantity_micros, source.is_default
-FROM bob_product_packaging_specs source
-WHERE source.product_version_id = sqlc.arg(source_version_id);
-
 -- name: DeleteBobProductFormula :exec
 DELETE FROM bob_product_formulas
 WHERE product_version_id = sqlc.arg(product_version_id);
 
+-- name: DeleteBobProductUnitConversions :exec
+DELETE FROM bob_product_unit_conversions WHERE product_version_id = sqlc.arg(product_version_id);
+
+-- name: InsertBobProductUnitConversion :exec
+INSERT INTO bob_product_unit_conversions (
+    product_version_id,unit_object_id,unit_version_id,unit_code,unit_name,unit_symbol,factor_micros
+) VALUES (
+    sqlc.arg(product_version_id),sqlc.arg(unit_object_id),sqlc.arg(unit_version_id),sqlc.arg(unit_code),
+    sqlc.arg(unit_name),sqlc.arg(unit_symbol),sqlc.arg(factor_micros)
+);
+
+-- name: CopyBobProductUnitConversions :exec
+INSERT INTO bob_product_unit_conversions (
+    product_version_id,unit_object_id,unit_version_id,unit_code,unit_name,unit_symbol,factor_micros
+)
+SELECT sqlc.arg(new_version_id),source.unit_object_id,source.unit_version_id,source.unit_code,source.unit_name,source.unit_symbol,source.factor_micros
+FROM bob_product_unit_conversions source WHERE source.product_version_id=sqlc.arg(source_version_id);
+
+-- name: ListBobProductUnitConversions :many
+SELECT unit_object_id,unit_version_id,unit_code,unit_name,unit_symbol,factor_micros
+FROM bob_product_unit_conversions WHERE product_version_id=sqlc.arg(product_version_id)
+ORDER BY unit_code;
+
+-- name: RefreshBobProductCandidateFormulaMaterials :exec
+UPDATE bob_product_formula_lines line
+SET material_version_id=material.effective_version_id,
+    entered_quantity_micros=ROUND(line.base_quantity_micros::numeric * 1000000 / conversion.factor_micros)::bigint,
+    entered_unit_object_id=conversion.unit_object_id,entered_unit_version_id=conversion.unit_version_id,
+    entered_unit_code=conversion.unit_code,entered_unit_name=conversion.unit_name,entered_unit_symbol=conversion.unit_symbol,
+    resolution_status='CURRENT',requires_confirmation=true
+FROM bob_objects material
+JOIN bob_product_versions detail ON detail.version_id=material.effective_version_id
+JOIN bob_product_unit_conversions conversion ON conversion.product_version_id=detail.version_id AND conversion.unit_object_id=detail.default_input_unit_id
+WHERE line.product_version_id=sqlc.arg(product_version_id) AND material.id=line.material_object_id
+  AND material.entity='product' AND material.enabled AND material.effective_version_id IS NOT NULL
+  AND detail.behavior_profile='RAW_MATERIAL';
+
+-- name: MarkUnresolvedBobProductCandidateFormulaMaterials :exec
+UPDATE bob_product_formula_lines line SET resolution_status='UNRESOLVED',requires_confirmation=true
+WHERE line.product_version_id=sqlc.arg(product_version_id) AND NOT EXISTS (
+  SELECT 1 FROM bob_objects material JOIN bob_product_versions detail ON detail.version_id=material.effective_version_id
+  JOIN bob_product_unit_conversions conversion ON conversion.product_version_id=detail.version_id AND conversion.unit_object_id=detail.default_input_unit_id
+  WHERE material.id=line.material_object_id AND material.entity='product' AND material.enabled
+    AND material.effective_version_id IS NOT NULL AND detail.behavior_profile='RAW_MATERIAL'
+);
+
 -- name: InsertBobProductFormula :exec
 INSERT INTO bob_product_formulas (
-    product_version_id, base_output_quantity_micros
+    product_version_id,output_entered_quantity_micros,output_unit_object_id,output_unit_version_id,
+    output_unit_code,output_unit_name,output_unit_symbol,output_base_quantity_micros
 ) VALUES (
-    sqlc.arg(product_version_id), sqlc.arg(base_output_quantity_micros)
+    sqlc.arg(product_version_id),sqlc.arg(output_entered_quantity_micros),sqlc.arg(output_unit_object_id),
+    sqlc.arg(output_unit_version_id),sqlc.arg(output_unit_code),sqlc.arg(output_unit_name),
+    sqlc.arg(output_unit_symbol),sqlc.arg(output_base_quantity_micros)
 );
 
 -- name: InsertBobProductFormulaLine :exec
 INSERT INTO bob_product_formula_lines (
-    product_version_id, line_no, material_object_id, material_version_id,
-    quantity_micros
+    product_version_id,line_no,material_object_id,material_version_id,entered_quantity_micros,
+    entered_unit_object_id,entered_unit_version_id,entered_unit_code,entered_unit_name,
+    entered_unit_symbol,base_quantity_micros,resolution_status,requires_confirmation
 ) VALUES (
-    sqlc.arg(product_version_id), sqlc.arg(line_no),
-    sqlc.arg(material_object_id), sqlc.arg(material_version_id),
-    sqlc.arg(quantity_micros)
+    sqlc.arg(product_version_id),sqlc.arg(line_no),sqlc.arg(material_object_id),sqlc.arg(material_version_id),
+    sqlc.arg(entered_quantity_micros),sqlc.arg(entered_unit_object_id),sqlc.arg(entered_unit_version_id),
+    sqlc.arg(entered_unit_code),sqlc.arg(entered_unit_name),sqlc.arg(entered_unit_symbol),
+    sqlc.arg(base_quantity_micros),sqlc.arg(resolution_status),sqlc.arg(requires_confirmation)
 );
 
 -- name: CopyBobProductFormula :exec
 INSERT INTO bob_product_formulas (
-    product_version_id, base_output_quantity_micros
+    product_version_id,output_entered_quantity_micros,output_unit_object_id,output_unit_version_id,
+    output_unit_code,output_unit_name,output_unit_symbol,output_base_quantity_micros
 )
-SELECT sqlc.arg(new_version_id), source.base_output_quantity_micros
+SELECT sqlc.arg(new_version_id),source.output_entered_quantity_micros,source.output_unit_object_id,
+       source.output_unit_version_id,source.output_unit_code,source.output_unit_name,
+       source.output_unit_symbol,source.output_base_quantity_micros
 FROM bob_product_formulas source
 WHERE source.product_version_id = sqlc.arg(source_version_id);
 
 -- name: CopyBobProductFormulaLines :exec
 INSERT INTO bob_product_formula_lines (
-    product_version_id, line_no, material_object_id, material_version_id,
-    quantity_micros
+    product_version_id,line_no,material_object_id,material_version_id,entered_quantity_micros,
+    entered_unit_object_id,entered_unit_version_id,entered_unit_code,entered_unit_name,
+    entered_unit_symbol,base_quantity_micros,resolution_status,requires_confirmation
 )
-SELECT sqlc.arg(new_version_id), source.line_no, source.material_object_id,
-       source.material_version_id, source.quantity_micros
+SELECT sqlc.arg(new_version_id),source.line_no,source.material_object_id,source.material_version_id,
+       source.entered_quantity_micros,source.entered_unit_object_id,source.entered_unit_version_id,
+       source.entered_unit_code,source.entered_unit_name,source.entered_unit_symbol,
+       source.base_quantity_micros,source.resolution_status,source.requires_confirmation
 FROM bob_product_formula_lines source
 WHERE source.product_version_id = sqlc.arg(source_version_id);
 
 -- name: GetBobProductFormula :one
-SELECT base_output_quantity_micros
+SELECT output_entered_quantity_micros,output_unit_object_id,output_unit_version_id,output_unit_code,
+       output_unit_name,output_unit_symbol,output_base_quantity_micros
 FROM bob_product_formulas
 WHERE product_version_id = sqlc.arg(product_version_id);
 
 -- name: ListBobProductFormulaLines :many
 SELECT line.line_no, line.material_object_id, line.material_version_id,
-       object.code AS material_code, detail.name AS material_name,
-       detail.unit AS material_unit, detail.product_kind AS material_product_kind,
-       line.quantity_micros
+       object.code AS material_code,detail.name AS material_name,detail.behavior_profile AS material_behavior_profile,
+       line.entered_quantity_micros,line.entered_unit_object_id,line.entered_unit_version_id,
+       line.entered_unit_code,line.entered_unit_name,line.entered_unit_symbol,line.base_quantity_micros,
+       line.resolution_status,line.requires_confirmation
 FROM bob_product_formula_lines line
 JOIN bob_objects object
   ON object.id = line.material_object_id AND object.entity = 'product'
@@ -1227,6 +1256,10 @@ DELETE FROM bob_employee_versions WHERE version_id = sqlc.arg(version_id);
 -- name: DeleteBobProductDetail :execrows
 DELETE FROM bob_product_versions WHERE version_id = sqlc.arg(version_id);
 
+-- name: DeleteBobVersion :execrows
+DELETE FROM bob_versions
+WHERE id=sqlc.arg(id) AND object_id=sqlc.arg(object_id) AND entity=sqlc.arg(entity);
+
 -- name: DeleteBobServiceDetail :execrows
 DELETE FROM bob_service_versions WHERE version_id = sqlc.arg(version_id);
 
@@ -1365,6 +1398,18 @@ SET status = 'PENDING', revision = revision + 1,
 WHERE id = sqlc.arg(id) AND object_id = sqlc.arg(object_id) AND entity = sqlc.arg(entity)
   AND revision = 1 AND status = 'DRAFT';
 
+-- name: AdvanceBobProductCandidate :execrows
+UPDATE bob_objects
+SET current_version_id=sqlc.arg(new_version_id),next_version_no=next_version_no+1,
+    revision=revision+1,updated_at=now(),updated_by=sqlc.arg(actor_id)
+WHERE id=sqlc.arg(object_id) AND entity='product' AND revision=sqlc.arg(revision)
+  AND current_version_id=sqlc.arg(effective_version_id) AND effective_version_id=sqlc.arg(effective_version_id);
+
+-- name: RestoreBobProductEffectiveVersion :execrows
+UPDATE bob_objects SET current_version_id=effective_version_id,revision=revision+1,updated_at=now(),updated_by=sqlc.arg(actor_id)
+WHERE id=sqlc.arg(object_id) AND entity='product' AND revision=sqlc.arg(revision)
+  AND current_version_id=sqlc.arg(version_id) AND effective_version_id=sqlc.arg(effective_version_id);
+
 -- name: InvalidateBobVersion :execrows
 UPDATE bob_versions
 SET status = 'INVALID', revision = revision + 1, updated_at = now(), updated_by = sqlc.arg(actor_id)
@@ -1399,7 +1444,7 @@ UPDATE bob_objects
 SET effective_version_id = sqlc.arg(new_version_id), revision = revision + 1,
     updated_at = now(), updated_by = sqlc.arg(actor_id)
 WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity)
-  AND entity IN ('customer-account','supplier','other-unit','sales-partner')
+  AND entity IN ('customer-account','supplier','other-unit','sales-partner','product')
   AND current_version_id = sqlc.arg(new_version_id)
   AND effective_version_id = sqlc.arg(old_version_id)
   AND revision = sqlc.arg(revision);
@@ -1441,7 +1486,7 @@ WHERE view.entity = sqlc.arg(entity) AND view.version_id = view.current_version_
   AND (sqlc.arg(position_id)::text = '' OR position_id = sqlc.arg(position_id))
   AND (sqlc.arg(salesperson_employee_id)::text = '' OR salesperson_employee_id = sqlc.arg(salesperson_employee_id))
   AND (sqlc.arg(currency)::text = '' OR currency = sqlc.arg(currency))
-  AND (sqlc.arg(product_kind)::text = '' OR product_kind = sqlc.arg(product_kind))
+  AND (sqlc.arg(product_type_id)::text = '' OR product_type_id = sqlc.arg(product_type_id))
   AND (sqlc.arg(target_entity)::text = '' OR target_entity = sqlc.arg(target_entity))
   AND (sqlc.arg(parent_id)::text = '' OR parent_id = sqlc.arg(parent_id))
   AND (NOT sqlc.arg(root_only)::boolean OR parent_id = '')
@@ -1487,7 +1532,7 @@ WHERE view.entity = sqlc.arg(entity) AND view.version_id = view.current_version_
   AND (sqlc.arg(position_id)::text = '' OR position_id = sqlc.arg(position_id))
   AND (sqlc.arg(salesperson_employee_id)::text = '' OR salesperson_employee_id = sqlc.arg(salesperson_employee_id))
   AND (sqlc.arg(currency)::text = '' OR currency = sqlc.arg(currency))
-  AND (sqlc.arg(product_kind)::text = '' OR product_kind = sqlc.arg(product_kind))
+  AND (sqlc.arg(product_type_id)::text = '' OR product_type_id = sqlc.arg(product_type_id))
   AND (sqlc.arg(target_entity)::text = '' OR target_entity = sqlc.arg(target_entity))
   AND (sqlc.arg(parent_id)::text = '' OR parent_id = sqlc.arg(parent_id))
   AND (NOT sqlc.arg(root_only)::boolean OR parent_id = '')
@@ -1577,7 +1622,10 @@ SELECT o.id AS object_id,o.effective_version_id AS version_id,o.code,
     WHEN o.entity='supplier' THEN COALESCE(supplier_party.display_name,supplier_party.legal_name)
     WHEN o.entity='sales-partner' THEN COALESCE(sales_party.display_name,sales_party.legal_name)
     WHEN o.entity='product' THEN product.name
-  END)::text AS name
+  END)::text AS name,
+  COALESCE(product.behavior_profile,'')::text AS behavior_profile,
+  COALESCE(product.default_input_unit_id,'')::text AS default_input_unit_id,
+  COALESCE(product.pricing_unit_id,'')::text AS pricing_unit_id
 FROM bob_objects o
 LEFT JOIN bob_customer_versions customer_account ON customer_account.version_id=o.effective_version_id AND customer_account.entity='customer-account'
 LEFT JOIN bob_operating_entity_versions operating ON operating.version_id=o.effective_version_id
@@ -1594,7 +1642,8 @@ LEFT JOIN bob_objects source_object ON source_object.id=NULLIF(sqlc.arg(source_o
 LEFT JOIN bob_product_versions source_product ON source_product.version_id=source_object.effective_version_id
 WHERE o.entity=sqlc.arg(entity) AND o.enabled AND o.effective_version_id IS NOT NULL
   AND (btrim(sqlc.arg(source_object_id)::text)='' OR o.id<>sqlc.arg(source_object_id))
-  AND (o.entity<>'product' OR source_object.id IS NULL OR product.product_kind=source_product.product_kind)
+  AND (o.entity<>'product' OR source_object.id IS NULL OR product.behavior_profile=source_product.behavior_profile)
+  AND (btrim(sqlc.arg(behavior_profile)::text)='' OR product.behavior_profile=sqlc.arg(behavior_profile))
   AND (
     btrim(sqlc.arg(keyword)::text)=''
     OR o.code ILIKE '%'||btrim(sqlc.arg(keyword)::text)||'%'
@@ -1669,9 +1718,6 @@ SELECT object.id AS object_id,object.entity,'vehicle-platform'::text AS role FRO
 -- name: ListFormulaMaterialReferences :many
 SELECT object.id AS object_id,object.entity,'formula-material'::text AS role FROM bob_objects object JOIN bob_product_formula_lines formula_line ON formula_line.product_version_id=object.effective_version_id WHERE formula_line.material_object_id=sqlc.arg(source_object_id);
 
--- name: ListPackagingProductReferences :many
-SELECT object.id AS object_id,object.entity,'packaging-product'::text AS role FROM bob_objects object JOIN bob_product_packaging_specs packaging_spec ON packaging_spec.product_version_id=object.effective_version_id WHERE packaging_spec.packaging_product_object_id=sqlc.arg(source_object_id);
-
 -- name: DisableReferenceTransferSource :execrows
 UPDATE bob_objects SET enabled=false,revision=revision+1,updated_at=now(),updated_by=sqlc.arg(actor_id)
 WHERE id=sqlc.arg(object_id) AND entity=sqlc.arg(entity) AND revision=sqlc.arg(revision) AND enabled
@@ -1687,8 +1733,8 @@ WHERE id=sqlc.arg(version_id) AND object_id=sqlc.arg(object_id) AND entity=sqlc.
 UPDATE bob_objects SET current_version_id=sqlc.arg(new_version_id),effective_version_id=sqlc.arg(new_version_id),next_version_no=next_version_no+1,revision=revision+1,updated_at=now(),updated_by=sqlc.arg(actor_id)
 WHERE id=sqlc.arg(object_id) AND entity=sqlc.arg(entity) AND revision=sqlc.arg(revision) AND current_version_id=sqlc.arg(old_version_id) AND effective_version_id=sqlc.arg(old_version_id);
 
--- name: GetReferenceTransferTargetProductKind :one
-SELECT detail.product_kind FROM bob_objects object JOIN bob_product_versions detail ON detail.version_id=object.effective_version_id
+-- name: GetReferenceTransferTargetProductBehavior :one
+SELECT detail.behavior_profile FROM bob_objects object JOIN bob_product_versions detail ON detail.version_id=object.effective_version_id
 WHERE object.id=sqlc.arg(object_id) AND object.entity='product' AND object.enabled AND object.effective_version_id=sqlc.arg(version_id)
 FOR SHARE OF object;
 
@@ -1736,10 +1782,6 @@ UPDATE bob_vehicle_versions SET platform_object_id=sqlc.arg(target_object_id) WH
 -- name: ReplaceFormulaMaterialReference :exec
 UPDATE bob_product_formula_lines SET material_object_id=sqlc.arg(target_object_id),material_version_id=sqlc.arg(target_version_id)
 WHERE product_version_id=sqlc.arg(product_version_id) AND material_object_id=sqlc.arg(source_object_id);
-
--- name: ReplacePackagingProductReference :exec
-UPDATE bob_product_packaging_specs SET packaging_product_object_id=sqlc.arg(target_object_id),packaging_product_version_id=sqlc.arg(target_version_id)
-WHERE product_version_id=sqlc.arg(product_version_id) AND packaging_product_object_id=sqlc.arg(source_object_id);
 
 -- name: RestoreBobCustomerEffectiveVersion :execrows
 UPDATE bob_objects SET current_version_id=effective_version_id,revision=revision+1,updated_at=now()

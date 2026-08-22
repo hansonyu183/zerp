@@ -1,9 +1,6 @@
 import { ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type {
-  VoucherDraftForm,
-  VoucherReference,
-} from '@/components/voucher'
+import type { VoucherDraftForm, VoucherReference } from '@/components/voucher'
 import { useVoucherFormula } from '@/pages/vou/shared/formula'
 import { emptyForm } from '@/pages/vou/shared/form'
 import { voucherEntityConfigs } from '@/pages/vou/shared/config'
@@ -17,7 +14,7 @@ vi.mock('@/api/client', () => ({
 function reference(
   entity: string,
   suffix: string,
-  productKind?: string,
+  behaviorProfile?: VoucherReference['behaviorProfile'],
 ): VoucherReference {
   return {
     objectId: `${suffix}-object`,
@@ -26,7 +23,7 @@ function reference(
     code: suffix.toUpperCase(),
     name: suffix,
     unit: 'kg',
-    productKind,
+    behaviorProfile,
   }
 }
 
@@ -37,11 +34,15 @@ function formulaResponse(customer: string, quantity: string) {
       sourceDocumentId: `${customer}-document`,
       sourceDocumentNo: `${customer}-number`,
       formula: {
-        baseOutputQuantity: '1.0',
+        output: {
+          enteredQuantity: '1.0', enteredUnit: { objectId: 'unit-kg', symbol: 'kg' }, baseQuantity: '1.0',
+        },
         components: [
           {
             material: reference('product', 'raw', 'RAW_MATERIAL'),
-            quantity,
+            quantity: {
+              enteredQuantity: quantity, enteredUnit: { objectId: 'unit-kg', symbol: 'kg' }, baseQuantity: quantity,
+            },
           },
         ],
       },
@@ -92,7 +93,7 @@ describe('voucher formula requests', () => {
 
     expect(form.value.productLines[0]!.formula).toMatchObject({
       sourceDocumentId: 'customer-b-document',
-      components: [{ quantity: '2.0' }],
+      components: [{ quantity: { baseQuantity: '2.0' } }],
     })
     expect(form.value.productLines[0]!.formulaLoading).toBe(false)
   })

@@ -60,3 +60,43 @@ func TestProratedIntermediaryAmountUsesCumulativeRounding(t *testing.T) {
 		t.Fatalf("second returned half-cent = (%d, %t), want (0, true)", throughSecondHalf-firstHalf, ok)
 	}
 }
+
+func TestIntermediarySalesAttributionRequiresStoredSnapshot(t *testing.T) {
+	t.Parallel()
+	id := "01J00000000000000000000001"
+	if !validIntermediarySalesAttribution("EXTERNAL_PART_TIME", id, id, "SP-01", "外部销售") {
+		t.Fatal("valid external sales attribution snapshot was rejected")
+	}
+	if validIntermediarySalesAttribution("DEALER", id, id, "SP-01", "旧渠道") {
+		t.Fatal("legacy sales attribution was accepted")
+	}
+	if validIntermediarySalesAttribution("CHANNEL_PARTNER", id, "", "SP-01", "渠道") {
+		t.Fatal("attribution without a saved version was accepted")
+	}
+}
+
+func TestIntermediarySalesSummaryCategorySeparatesEmploymentAndSalesRelationships(t *testing.T) {
+	t.Parallel()
+	for attribution, want := range map[string]string{
+		"INTERNAL_EMPLOYEE":  "COMMISSION",
+		"EXTERNAL_PART_TIME": "EXTERNAL_PART_TIME",
+		"CHANNEL_PARTNER":    "CHANNEL_PARTNER",
+	} {
+		if got := intermediarySalesSummaryCategory(attribution); got != want {
+			t.Fatalf("category for %s = %s, want %s", attribution, got, want)
+		}
+	}
+}
+
+func TestEqualIntermediaryQuantityUsesFixedDecimalValue(t *testing.T) {
+	t.Parallel()
+	if !equalIntermediaryQuantity("1", "1.0") {
+		t.Fatal("equal fixed-decimal quantities were rejected")
+	}
+	if equalIntermediaryQuantity("1.000001", "1") {
+		t.Fatal("different fixed-decimal quantities were accepted")
+	}
+	if equalIntermediaryQuantity("invalid", "1") {
+		t.Fatal("invalid quantity was accepted")
+	}
+}

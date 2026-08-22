@@ -53,7 +53,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 	}
 
 	counts := make(map[string]int)
-	lookup := queryLookup{queries: dbsqlc.New(pool)}
+	lookup := queryLookup{queries: dbsqlc.New(pool), pool: pool}
 	for _, item := range samples {
 		objectID, found, findErr := lookup.Find(t.Context(), item.entity, item.data.Code)
 		if findErr != nil || !found {

@@ -145,10 +145,9 @@ describe('shared BOB entity configuration and view model', () => {
     expect(vm.editorErrorMessage.value).toBe('详情加载失败')
   })
 
-  it('定义仍使用通用工作区的八类业务对象和完整状态筛选', () => {
+  it('定义仍使用通用工作区的七类业务对象和完整状态筛选', () => {
     const expectedColumns: Record<string, string[]> = {
-      supplier: ['编码', '名称', '类型', '状态'],
-      employee: ['编码', '姓名', '电话', '入职', '状态'],
+      supplier: ['编码', '主体名称', '状态'],
       product: ['编码', '名称', '类型', '库存单位', '型号', '状态'],
       service: ['编码', '名称', '单位', '说明', '状态'],
       warehouse: ['编码', '名称', '地址', '联系人', '状态'],
@@ -170,8 +169,8 @@ describe('shared BOB entity configuration and view model', () => {
     expect(statusOptions).toHaveLength(4)
   })
 
-  it('迁出的辅助对象不再注册为 BOB 页面', () => {
-    for (const entity of ['category', 'department', 'position']) {
+  it('迁出的辅助对象和员工不再注册为通用 BOB 页面', () => {
+    for (const entity of ['category', 'department', 'position', 'employee']) {
       expect(() => getBobEntityConfig(entity)).toThrow()
     }
   })

@@ -125,7 +125,7 @@ func (s *Seeder) references(ctx context.Context) (references, error) {
 		entity string
 		code   string
 	}{
-		{&refs.customer, bobdomain.EntityCustomer, "DEMO-CUST-001"},
+		{&refs.customer, bobdomain.EntityCustomerAccount, "DEMO-CUST-001"},
 		{&refs.supplier, bobdomain.EntitySupplier, "DEMO-SUP-003"},
 		{&refs.employee, bobdomain.EntityEmployee, "DEMO-EMP-001"},
 		{&refs.warehouse, bobdomain.EntityWarehouse, "DEMO-WH-001"},

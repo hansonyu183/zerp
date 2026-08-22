@@ -30,6 +30,7 @@ var previewVouEntities = []string{
 	voudomain.EntityBillReceipt, voudomain.EntityBillPayment,
 	voudomain.EntityBillIssue, voudomain.EntityBillDiscount,
 	voudomain.EntityBillMaturity, voudomain.EntityIntermediaryCalculation,
+	voudomain.EntityServiceContract, voudomain.EntityServiceAcceptance,
 }
 
 func (s *Seeder) seedAccounting(ctx context.Context, counts *Counts) error {
@@ -57,6 +58,34 @@ func (s *Seeder) seedAccounting(ctx context.Context, counts *Counts) error {
 	if err != nil {
 		return err
 	}
+	serviceExpense, err := s.ensureAccountingSubjectWithConfiguration(
+		ctx, book.ID, accountingActor, "660901", "预览服务费用", accdomain.BalanceDirectionDebit,
+		[]string{}, accdomain.SettlementPurposeNone,
+	)
+	if err != nil {
+		return err
+	}
+	serviceIncome, err := s.ensureAccountingSubjectWithConfiguration(
+		ctx, book.ID, accountingActor, "605901", "预览服务收入", accdomain.BalanceDirectionCredit,
+		[]string{}, accdomain.SettlementPurposeNone,
+	)
+	if err != nil {
+		return err
+	}
+	serviceReceivable, err := s.ensureAccountingSubjectWithConfiguration(
+		ctx, book.ID, accountingActor, "122102", "预览服务往来应收", accdomain.BalanceDirectionDebit,
+		[]string{accdomain.DimensionServiceRelationship}, accdomain.SettlementPurposeOther,
+	)
+	if err != nil {
+		return err
+	}
+	servicePayable, err := s.ensureAccountingSubjectWithConfiguration(
+		ctx, book.ID, accountingActor, "224102", "预览服务往来应付", accdomain.BalanceDirectionCredit,
+		[]string{accdomain.DimensionServiceRelationship}, accdomain.SettlementPurposeOther,
+	)
+	if err != nil {
+		return err
+	}
 	for _, entity := range previewVouEntities {
 		definition := accdomain.MappingDefinition{
 			Rules: []accdomain.MappingRule{}, Templates: []accdomain.PostingTemplate{},
@@ -73,6 +102,24 @@ func (s *Seeder) seedAccounting(ctx context.Context, counts *Counts) error {
 				},
 			}}
 			result = accdomain.MappingResultPost
+		}
+		if entity == voudomain.EntityServiceAcceptance {
+			payableTemplateID, receivableTemplateID := "preview-service-acceptance-payable", "preview-service-acceptance-receivable"
+			definition.Rules = []accdomain.MappingRule{
+				{Conditions: []accdomain.MappingCondition{{Field: "serviceAcceptance.settlementDirection", Operator: "EQ", Values: []string{"PAYABLE"}}}, Result: accdomain.MappingResultPost, TemplateID: &payableTemplateID},
+				{Conditions: []accdomain.MappingCondition{{Field: "serviceAcceptance.settlementDirection", Operator: "EQ", Values: []string{"RECEIVABLE"}}}, Result: accdomain.MappingResultPost, TemplateID: &receivableTemplateID},
+			}
+			definition.Templates = []accdomain.PostingTemplate{
+				{ID: payableTemplateID, Lines: []accdomain.PostingLineTemplate{
+					{SubjectSource: "FIXED", SubjectValue: serviceExpense.ID, Direction: accdomain.BalanceDirectionDebit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{}},
+					{SubjectSource: "FIXED", SubjectValue: servicePayable.ID, Direction: accdomain.BalanceDirectionCredit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{accdomain.DimensionServiceRelationship: "counterparty.objectId"}},
+				}},
+				{ID: receivableTemplateID, Lines: []accdomain.PostingLineTemplate{
+					{SubjectSource: "FIXED", SubjectValue: serviceReceivable.ID, Direction: accdomain.BalanceDirectionDebit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{accdomain.DimensionServiceRelationship: "counterparty.objectId"}},
+					{SubjectSource: "FIXED", SubjectValue: serviceIncome.ID, Direction: accdomain.BalanceDirectionCredit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{}},
+				}},
+			}
+			result = accdomain.MappingResultUnpost
 		}
 		mappingOutcome, mappingErr := s.ensureAccountingMapping(
 			ctx, book.ID, accountingActor, entity, result, definition,
@@ -143,6 +190,17 @@ func (s *Seeder) ensureAccountingSubject(
 	ctx context.Context,
 	bookID, accountingActor, code, name, direction string,
 ) (accdomain.SubjectView, error) {
+	return s.ensureAccountingSubjectWithConfiguration(
+		ctx, bookID, accountingActor, code, name, direction, []string{}, accdomain.SettlementPurposeNone,
+	)
+}
+
+func (s *Seeder) ensureAccountingSubjectWithConfiguration(
+	ctx context.Context,
+	bookID, accountingActor, code, name, direction string,
+	requiredDimensions []string,
+	settlementPurpose string,
+) (accdomain.SubjectView, error) {
 	page, err := s.accounting.QuerySubjects(ctx, accdomain.QuerySubjectsInput{
 		BookID: bookID, Page: 1, PageSize: 200, Keyword: code,
 	}, accountingActor)
@@ -156,8 +214,8 @@ func (s *Seeder) ensureAccountingSubject(
 	}
 	return s.accounting.CreateSubject(ctx, accdomain.CreateSubjectInput{
 		BookID: bookID, Code: code, Name: name, BalanceDirection: direction,
-		Enabled: true, RequiredDimensions: []string{},
-		SettlementPurpose: accdomain.SettlementPurposeNone,
+		Enabled: true, RequiredDimensions: requiredDimensions,
+		SettlementPurpose: settlementPurpose,
 	}, accountingActor)
 }
 

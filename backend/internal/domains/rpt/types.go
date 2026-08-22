@@ -16,18 +16,19 @@ const (
 type ReferenceType string
 
 const (
-	ReferenceTypeAccountingBook ReferenceType = "ACCOUNTING_BOOK"
-	ReferenceTypeAccountSubject ReferenceType = "ACCOUNT_SUBJECT"
-	ReferenceTypeCustomer       ReferenceType = "CUSTOMER"
-	ReferenceTypeSupplier       ReferenceType = "SUPPLIER"
-	ReferenceTypeOtherParty     ReferenceType = "OTHER_PARTY"
-	ReferenceTypeEmployee       ReferenceType = "EMPLOYEE"
-	ReferenceTypeDepartment     ReferenceType = "DEPARTMENT"
-	ReferenceTypeProduct        ReferenceType = "PRODUCT"
-	ReferenceTypeWarehouse      ReferenceType = "WAREHOUSE"
-	ReferenceTypeFundAccount    ReferenceType = "FUND_ACCOUNT"
-	ReferenceTypeAsset          ReferenceType = "ASSET"
-	ReferenceTypeBill           ReferenceType = "BILL"
+	ReferenceTypeAccountingBook         ReferenceType = "ACCOUNTING_BOOK"
+	ReferenceTypeAccountSubject         ReferenceType = "ACCOUNT_SUBJECT"
+	ReferenceTypeCustomerAccount        ReferenceType = "CUSTOMER_ACCOUNT"
+	ReferenceTypeSupplierRelationship   ReferenceType = "SUPPLIER_RELATIONSHIP"
+	ReferenceTypeServiceRelationship    ReferenceType = "SERVICE_RELATIONSHIP"
+	ReferenceTypeEmploymentRelationship ReferenceType = "EMPLOYMENT_RELATIONSHIP"
+	ReferenceTypeSalesRelationship      ReferenceType = "SALES_RELATIONSHIP"
+	ReferenceTypeDepartment             ReferenceType = "DEPARTMENT"
+	ReferenceTypeProduct                ReferenceType = "PRODUCT"
+	ReferenceTypeWarehouse              ReferenceType = "WAREHOUSE"
+	ReferenceTypeFundAccount            ReferenceType = "FUND_ACCOUNT"
+	ReferenceTypeAsset                  ReferenceType = "ASSET"
+	ReferenceTypeBill                   ReferenceType = "BILL"
 )
 
 type ResultType string

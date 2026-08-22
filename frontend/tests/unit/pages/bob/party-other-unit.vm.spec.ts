@@ -23,6 +23,8 @@ describe('Party 与其他单位页面编排', () => {
       '/bob/party/get',
       '/bob/party/create',
       '/bob/party/save',
+      '/bob/party/merge-preflight',
+      '/bob/party/merge-confirm',
       '/bob/other-unit/query',
       '/bob/other-unit/get',
       '/bob/other-unit/create',
@@ -114,6 +116,117 @@ describe('Party 与其他单位页面编排', () => {
     )
     expect(vm.detail.value?.relationships).toHaveLength(1)
     expect(vm.impactMessage()).toContain('OTU-0001 · 经营主体一')
+  })
+
+  it('主体合并必须先预检并为每个关系冲突显式选择保留关系', async () => {
+    mocked.postContract
+      .mockResolvedValueOnce({
+        data: {
+          partyId: 'party-source',
+          kind: 'ORGANIZATION',
+          legalName: '重复主体',
+          displayName: '重复主体',
+          strongIdentifiers: [],
+          revision: 3,
+          relationships: [],
+          updatedAt: '2026-08-21T00:00:00Z',
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          items: [
+            {
+              partyId: 'party-target',
+              kind: 'ORGANIZATION',
+              legalName: '保留主体',
+              displayName: '保留主体',
+              revision: 5,
+              updatedAt: '2026-08-21T00:00:00Z',
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          preflightId: 'preflight-1',
+          canMerge: true,
+          sourcePartyId: 'party-source',
+          targetPartyId: 'party-target',
+          sourceRevision: 3,
+          targetRevision: 5,
+          blockReasons: [],
+          relationshipConflicts: [
+            {
+              relationshipType: 'supplier',
+              operatingEntityId: 'operating-1',
+              operatingEntityName: '经营主体一',
+              sourceObjectId: 'supplier-source',
+              sourceObjectCode: 'SUP-0001',
+              targetObjectId: 'supplier-target',
+              targetObjectCode: 'SUP-0002',
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          mergeEventId: 'merge-1',
+          sourcePartyId: 'party-source',
+          targetPartyId: 'party-target',
+          transferredRelationships: 0,
+          mergedRelationships: 1,
+        },
+      })
+      .mockResolvedValueOnce({
+        data: { items: [], total: 0, page: 1, pageSize: 20 },
+      })
+    const vm = usePartyViewModel()
+    await vm.open({
+      partyId: 'party-source',
+      kind: 'ORGANIZATION',
+      legalName: '重复主体',
+      displayName: '重复主体',
+      revision: 3,
+      updatedAt: '2026-08-21T00:00:00Z',
+    })
+
+    vm.openMerge()
+    vm.mergeTargetKeyword.value = ' 保留 '
+    await vm.searchMergeTargets()
+    vm.selectMergeTarget('party-target')
+    await expect(vm.preflightMerge()).resolves.toBe(true)
+    await expect(vm.confirmMerge()).resolves.toBe(false)
+
+    vm.mergeResolutions.value['supplier\u0000operating-1'] = 'supplier-source'
+    await expect(vm.confirmMerge()).resolves.toBe(true)
+
+    expect(mocked.postContract).toHaveBeenNthCalledWith(
+      3,
+      'bob/party/merge-preflight',
+      {
+        sourcePartyId: 'party-source',
+        targetPartyId: 'party-target',
+        sourceRevision: 3,
+        targetRevision: 5,
+      },
+    )
+    expect(mocked.postContract).toHaveBeenNthCalledWith(
+      4,
+      'bob/party/merge-confirm',
+      expect.objectContaining({
+        preflightId: 'preflight-1',
+        conflictResolutions: [
+          {
+            relationshipType: 'supplier',
+            operatingEntityId: 'operating-1',
+            retainObjectId: 'supplier-source',
+          },
+        ],
+      }),
+    )
   })
 
   it('创建其他单位时原样提交新主体强标识和关系专属字段', async () => {

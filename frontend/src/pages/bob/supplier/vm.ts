@@ -4,17 +4,16 @@ import { getErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
 import { supplierApi } from './api'
 import { createSupplierForm } from './form'
-import { supplierPayload } from './payload'
+import { supplierPayload, supplierSavePayload } from './payload'
 import type {
   SupplierDetail,
   SupplierForm,
   SupplierAuditEvent,
   SupplierListItem,
   SupplierListVersion,
+  SupplierPartyOption,
   SupplierReference,
   SupplierReferenceEntity,
-  SupplierTaxMatch,
-  SupplierType,
   SupplierVersion,
   SupplierVersionHistoryItem,
 } from './types'
@@ -25,7 +24,6 @@ export type SupplierLifecycleAction =
 interface SupplierFilters {
   status: string[]
   enabled: boolean | null
-  supplierType: SupplierType | ''
   defaultPurchaserEmployeeId: string
 }
 
@@ -33,7 +31,6 @@ function emptyFilters(): SupplierFilters {
   return {
     status: [],
     enabled: null,
-    supplierType: '',
     defaultPurchaserEmployeeId: '',
   }
 }
@@ -66,15 +63,13 @@ function listItem(
   const effective = listVersion(item.effective)
   const candidate = listVersion(item.candidate)
   const current = candidate ?? effective
-  const businessSummary = effective ?? candidate
   return {
     objectId: item.objectId,
     code: item.code,
     objectRevision: item.objectRevision,
     enabled: item.enabled,
     status: current?.status ?? '',
-    name: businessSummary?.name ?? '',
-    supplierType: businessSummary?.supplierType ?? 'GENERAL',
+    name: item.partyDisplayName,
     hasCandidate: candidate !== null,
     effective,
     candidate,
@@ -98,10 +93,14 @@ function versionFromWire(
     submittedBy: version.submittedBy ?? null,
     data: {
       code,
-      name: data.name,
-      supplierType: data.supplierType,
-      shortName: data.shortName ?? '',
-      taxNumber: data.taxNumber ?? '',
+      name: '',
+      partyMode: 'new',
+      selectedParty: null,
+      partyKind: 'ORGANIZATION',
+      taxNumber: '',
+      identifierType: 'UNIFIED_SOCIAL_CREDIT_CODE',
+      identifierValue: '',
+      operatingEntity: null,
       contactName: data.contactName ?? '',
       contactPhone: data.contactPhone ?? '',
       email: data.email ?? '',
@@ -153,26 +152,43 @@ export function useSupplierViewModel() {
   const auditPageSize = ref(20)
   const auditTotal = ref(0)
   const referenceOptions = ref<
-    Record<'settlementMethod' | 'defaultPurchaser', SupplierReference[]>
+    Record<
+      'settlementMethod' | 'defaultPurchaser' | 'operatingEntity',
+      SupplierReference[]
+    >
   >({
     settlementMethod: [],
     defaultPurchaser: [],
+    operatingEntity: [],
   })
-  const taxMatches = ref<SupplierTaxMatch[]>([])
-  const taxMatching = ref(false)
+  const partyOptions = ref<SupplierPartyOption[]>([])
   let querySequence = 0
+  let partySearchSequence = 0
   let savedFormSignature = ''
 
   const requiredReferencePermissions = [
     '/bob/employee/query',
+    '/bob/operating-entity/query',
     '/aux/settlement-method/query',
   ] as const
   const canQuery = computed(() => session.can('/bob/supplier/query'))
-  const canCreate = computed(
+  const canCreateBase = computed(
     () =>
       session.can('/bob/supplier/create') &&
       session.can('/bob/supplier/get') &&
       requiredReferencePermissions.every((path) => session.can(path)),
+  )
+  const canCreateWithNewParty = computed(
+    () => canCreateBase.value && session.can('/bob/party/create'),
+  )
+  const canCreateWithExistingParty = computed(
+    () =>
+      canCreateBase.value &&
+      session.can('/bob/party/query') &&
+      session.can('/bob/party/get'),
+  )
+  const canCreate = computed(
+    () => canCreateWithNewParty.value || canCreateWithExistingParty.value,
   )
   const canEdit = computed(
     () =>
@@ -189,7 +205,17 @@ export function useSupplierViewModel() {
   )
 
   const formErrors = computed(() => [
-    ...(form.value.name.trim() ? [] : ['请输入供应商名称。']),
+    ...(mode.value !== 'create' || form.value.partyMode === 'existing'
+      ? []
+      : form.value.name.trim()
+        ? []
+        : ['请输入主体名称。']),
+    ...(mode.value !== 'create' || form.value.partyMode === 'new'
+      ? []
+      : form.value.selectedParty
+        ? []
+        : ['请选择已有主体。']),
+    ...(form.value.operatingEntity ? [] : ['请选择经营主体。']),
   ])
   const isDirty = computed(
     () =>
@@ -222,13 +248,11 @@ export function useSupplierViewModel() {
   }
 
   function queryFilters(): components['schemas']['SupplierQueryRequest']['filters'] {
-    const { status, enabled, supplierType, defaultPurchaserEmployeeId } =
-      filters.value
+    const { status, enabled, defaultPurchaserEmployeeId } = filters.value
     return {
       ...(keyword.value.trim() ? { keyword: keyword.value.trim() } : {}),
       ...(status.length ? { status } : {}),
       ...(enabled === null ? {} : { enabled }),
-      ...(supplierType ? { supplierType } : {}),
       ...(defaultPurchaserEmployeeId ? { defaultPurchaserEmployeeId } : {}),
     }
   }
@@ -276,12 +300,16 @@ export function useSupplierViewModel() {
   }
 
   async function loadReferenceOptions(
-    key: 'settlementMethod' | 'defaultPurchaser',
+    key: 'settlementMethod' | 'defaultPurchaser' | 'operatingEntity',
     keyword = '',
   ): Promise<void> {
     try {
       const entity: SupplierReferenceEntity =
-        key === 'settlementMethod' ? 'settlement-method' : 'employee'
+        key === 'settlementMethod'
+          ? 'settlement-method'
+          : key === 'operatingEntity'
+            ? 'operating-entity'
+            : 'employee'
       const loaded =
         key === 'settlementMethod'
           ? (
@@ -298,16 +326,17 @@ export function useSupplierViewModel() {
             )
           : (
               await supplierApi.queryBobReferences({
-                entity: 'employee',
+                entity:
+                  key === 'operatingEntity' ? 'operating-entity' : 'employee',
                 keyword: keyword.trim(),
               })
             ).data.map(
-              (item) =>
-                ({ ...item, entity: 'employee' }) satisfies SupplierReference,
+              (item) => ({ ...item, entity }) satisfies SupplierReference,
             )
       const selected = [
         form.value.settlementMethod,
         form.value.defaultPurchaser,
+        form.value.operatingEntity,
         ...(key === 'defaultPurchaser'
           ? referenceOptions.value.defaultPurchaser.filter(
               (option) =>
@@ -338,13 +367,37 @@ export function useSupplierViewModel() {
     }
   }
 
+  async function searchParties(keyword = ''): Promise<void> {
+    if (!canCreateWithExistingParty.value) return
+    const sequence = ++partySearchSequence
+    try {
+      const result = await supplierApi.partyQuery({
+        page: 1,
+        pageSize: 20,
+        filters: keyword.trim() ? { keyword: keyword.trim() } : {},
+      })
+      if (sequence !== partySearchSequence) return
+      partyOptions.value = [form.value.selectedParty, ...result.data.items]
+        .filter((item): item is SupplierPartyOption => item !== null)
+        .filter(
+          (item, index, all) =>
+            all.findIndex((candidate) => candidate.partyId === item.partyId) ===
+            index,
+        )
+    } catch (error) {
+      if (sequence !== partySearchSequence) return
+      errorMessage.value = `主体加载失败：${getErrorMessage(error)}`
+    }
+  }
+
   function preloadReferences(): void {
     void loadReferenceOptions('settlementMethod')
     void loadReferenceOptions('defaultPurchaser')
+    void loadReferenceOptions('operatingEntity')
   }
 
   function keepSelectedReference(
-    key: 'settlementMethod' | 'defaultPurchaser',
+    key: 'settlementMethod' | 'defaultPurchaser' | 'operatingEntity',
     value: SupplierReference | null,
   ): void {
     if (!value) return
@@ -362,11 +415,13 @@ export function useSupplierViewModel() {
     detail.value = null
     historicalVersionId.value = ''
     form.value = createSupplierForm()
+    form.value.partyMode = canCreateWithNewParty.value ? 'new' : 'existing'
+    partyOptions.value = []
     savedFormSignature = JSON.stringify(form.value)
     errorMessage.value = null
-    taxMatches.value = []
     workspaceOpen.value = true
     preloadReferences()
+    if (form.value.partyMode === 'existing') void searchParties()
   }
 
   function applyDetail(
@@ -393,12 +448,31 @@ export function useSupplierViewModel() {
       code: raw.code,
       objectRevision: raw.objectRevision,
       enabled: raw.enabled,
+      partyId: raw.partyId,
+      partyKind: raw.partyKind,
+      partyDisplayName: raw.partyDisplayName,
+      operatingEntityId: raw.operatingEntityId,
+      operatingEntityCode: raw.operatingEntityCode,
+      operatingEntityName: raw.operatingEntityName,
       effective,
       candidate,
     }
-    taxMatches.value = []
     form.value = {
       ...selected.data,
+      name: raw.partyDisplayName,
+      partyMode: 'existing',
+      selectedParty: null,
+      partyKind: raw.partyKind,
+      taxNumber: '',
+      identifierType: 'UNIFIED_SOCIAL_CREDIT_CODE',
+      identifierValue: '',
+      operatingEntity: {
+        objectId: raw.operatingEntityId,
+        versionId: '',
+        code: raw.operatingEntityCode,
+        name: raw.operatingEntityName,
+        entity: 'operating-entity',
+      },
       settlementMethod: selected.data.settlementMethod && {
         ...selected.data.settlementMethod,
       },
@@ -410,6 +484,7 @@ export function useSupplierViewModel() {
     }
     keepSelectedReference('settlementMethod', form.value.settlementMethod)
     keepSelectedReference('defaultPurchaser', form.value.defaultPurchaser)
+    keepSelectedReference('operatingEntity', form.value.operatingEntity)
     if (nextMode === 'edit') preloadReferences()
     mode.value = nextMode
     historicalVersionId.value = versionId
@@ -567,7 +642,31 @@ export function useSupplierViewModel() {
       const data = supplierPayload(form.value)
       let objectId = detail.value?.objectId ?? ''
       if (mode.value === 'create') {
-        const result = await supplierApi.create({ data })
+        const result = await supplierApi.create(
+          form.value.partyMode === 'existing'
+            ? {
+                partyId: form.value.selectedParty!.partyId,
+                data,
+              }
+            : {
+                newParty: {
+                  kind: form.value.partyKind,
+                  legalName: form.value.name.trim(),
+                  displayName: form.value.name.trim(),
+                  taxNumber:
+                    form.value.taxNumber.trim().toUpperCase() || undefined,
+                  strongIdentifiers: form.value.identifierValue.trim()
+                    ? [
+                        {
+                          type: form.value.identifierType,
+                          value: form.value.identifierValue.trim(),
+                        },
+                      ]
+                    : [],
+                },
+                data,
+              },
+        )
         objectId = result.data.objectId
       } else if (detail.value) {
         const editable = detail.value.candidate ?? detail.value.effective
@@ -576,7 +675,7 @@ export function useSupplierViewModel() {
           objectId: detail.value.objectId,
           versionId: editable.versionId,
           revision: editable.revision,
-          data,
+          data: supplierSavePayload(form.value),
         })
         objectId = result.data.objectId
       }
@@ -592,35 +691,6 @@ export function useSupplierViewModel() {
     } finally {
       saving.value = false
     }
-  }
-
-  async function matchTaxNumber(): Promise<void> {
-    const taxNumber = form.value.taxNumber.trim()
-    if (!taxNumber || taxMatching.value || mode.value !== 'create') return
-    taxMatching.value = true
-    errorMessage.value = null
-    try {
-      const result = await supplierApi.taxMatch({ taxNumber })
-      taxMatches.value = result.data ?? []
-      if (!taxMatches.value.length)
-        successMessage.value = '未找到可读取的同税号资料。'
-    } catch (error) {
-      errorMessage.value = getErrorMessage(error)
-    } finally {
-      taxMatching.value = false
-    }
-  }
-
-  function applyTaxMatch(match: SupplierTaxMatch): void {
-    form.value.name = match.companyName
-    form.value.shortName = match.shortName
-    form.value.taxNumber = match.taxNumber
-    form.value.contactName = match.contactName
-    form.value.contactPhone = match.contactPhone
-    form.value.email = match.email
-    form.value.address = match.address
-    taxMatches.value = []
-    successMessage.value = `已从 ${match.code} 预填资料，保存后仍会创建独立供应商。`
   }
 
   async function runLifecycle(
@@ -721,10 +791,11 @@ export function useSupplierViewModel() {
     auditPageSize,
     auditTotal,
     referenceOptions,
-    taxMatches,
-    taxMatching,
+    partyOptions,
     canQuery,
     canCreate,
+    canCreateWithNewParty,
+    canCreateWithExistingParty,
     canEdit,
     canView,
     canOpenVersions,
@@ -737,6 +808,7 @@ export function useSupplierViewModel() {
     changePage,
     resetFilters,
     loadReferenceOptions,
+    searchParties,
     openCreate,
     openEdit,
     openView,
@@ -748,8 +820,6 @@ export function useSupplierViewModel() {
     changeAuditPage,
     closeWorkspace,
     save,
-    matchTaxNumber,
-    applyTaxMatch,
     runLifecycle,
   }
 }

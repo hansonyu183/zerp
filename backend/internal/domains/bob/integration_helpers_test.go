@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -146,60 +145,6 @@ func assertBobAggregatePresent(t *testing.T, pool *pgxpool.Pool, objectID, versi
 	}
 }
 
-func insertSaleOrderReferenceIntegration(t *testing.T, pool *pgxpool.Pool, target MutationResult) string {
-	t.Helper()
-	tx, err := pool.Begin(t.Context())
-	if err != nil {
-		t.Fatalf("begin VOU reference insert: %v", err)
-	}
-	defer tx.Rollback(t.Context()) //nolint:errcheck
-	documentID := newID()
-	if _, err = tx.Exec(t.Context(), `
-		INSERT INTO vou_documents (
-			id, entity, document_no, business_date, currency, total_amount_cents, created_by, updated_by
-		) VALUES (
-			$1, 'sale-order', 'SOR-' || to_char(current_date, 'YYYYMMDD') || '-9999',
-			current_date, 'CNY', 100, $2, $2
-		)
-	`, documentID, integrationActorOne); err != nil {
-		t.Fatalf("insert VOU reference document: %v", err)
-	}
-	if _, err = tx.Exec(t.Context(), `
-		INSERT INTO vou_sale_order_details (
-			document_id, customer_object_id, customer_version_id, customer_code, customer_name
-		) VALUES ($1, $2, $3, 'DRAFT-REFERENCE', 'Draft Reference')
-	`, documentID, target.ObjectID, target.VersionID); err != nil {
-		t.Fatalf("insert VOU reference detail: %v", err)
-	}
-	if err = tx.Commit(t.Context()); err != nil {
-		t.Fatalf("commit VOU reference insert: %v", err)
-	}
-	return documentID
-}
-
-func deleteVOUTestDocument(t *testing.T, pool *pgxpool.Pool, documentID string) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		t.Errorf("begin VOU test cleanup: %v", err)
-		return
-	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-	if _, err = tx.Exec(ctx, `DELETE FROM vou_sale_order_details WHERE document_id = $1`, documentID); err != nil {
-		t.Errorf("delete VOU reference detail: %v", err)
-		return
-	}
-	if _, err = tx.Exec(ctx, `DELETE FROM vou_documents WHERE id = $1`, documentID); err != nil {
-		t.Errorf("delete VOU reference document: %v", err)
-		return
-	}
-	if err = tx.Commit(ctx); err != nil {
-		t.Errorf("commit VOU test cleanup: %v", err)
-	}
-}
-
 func createApprovedIntegration(
 	t *testing.T,
 	service *Service,
@@ -213,6 +158,12 @@ func createApprovedIntegration(
 		service.SetAuxiliaryResolver(customerAuxiliaryResolverStub{})
 		defer service.SetAuxiliaryResolver(previousAuxiliaryResolver)
 	}
+	if entity == EntityEmployee && data.OperatingEntityID == "" {
+		_, operating := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{
+			Name: "Integration Employment Operating Entity", TaxNumber: "TAX" + newID()[3:],
+		}, requestPrefix+"-operating")
+		data.OperatingEntityID = operating.ObjectID
+	}
 	if entity == EntityCustomer && data.SalespersonEmployeeID == "" {
 		_, employee := createApprovedIntegration(t, service, EntityEmployee, CreateDetailInput{
 			Code: "AUTOEMP" + newID(), Name: "Integration Salesperson",
@@ -220,6 +171,12 @@ func createApprovedIntegration(
 		data.SalespersonEmployeeID = employee.ObjectID
 	}
 	if entity == EntitySupplier {
+		if data.OperatingEntityID == "" {
+			_, operating := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{
+				Name: "Integration Supplier Operating Entity", TaxNumber: "TAX" + newID()[3:],
+			}, requestPrefix+"-operating")
+			data.OperatingEntityID = operating.ObjectID
+		}
 		if data.DefaultPurchaserEmployeeID == "" {
 			_, employee := createApprovedIntegration(t, service, EntityEmployee, CreateDetailInput{
 				Code: "AUTOBUY" + newID(), Name: "Integration Purchaser",
@@ -247,6 +204,24 @@ func createApprovedIntegration(
 	var err error
 	if entity == EntityOtherUnit {
 		created = createOtherUnitDraftIntegration(t, service, data, requestPrefix)
+	} else if entity == EntitySupplier {
+		result, createErr := service.SupplierCreate(t.Context(), SupplierCreateInput{
+			NewParty: &PartyCreateData{Kind: PartyKindOrganization, LegalName: data.Name,
+				DisplayName: data.ShortName, TaxNumber: data.TaxNumber, Phone: data.Phone,
+				Email: data.Email, Address: data.Address},
+			Data: SupplierData{OperatingEntityID: data.OperatingEntityID, ContactName: data.ContactName,
+				ContactPhone: data.ContactPhone, Email: data.Email, Address: data.Address, Remark: data.Remark,
+				SettlementMethodID:         data.SettlementMethodID,
+				DefaultPurchaserEmployeeID: data.DefaultPurchaserEmployeeID},
+		}, integrationActorOne, requestPrefix+"-create", true)
+		created, err = result.MutationResult, createErr
+	} else if entity == EntityEmployee {
+		result, createErr := service.EmploymentCreate(t.Context(), EmploymentCreateInput{
+			NewParty: &PartyCreateData{Kind: PartyKindPerson, LegalName: data.Name,
+				DisplayName: data.ShortName, Phone: data.Phone, Email: data.Email, Address: data.Address},
+			Data: data,
+		}, integrationActorOne, requestPrefix+"-create", true)
+		created, err = result.MutationResult, createErr
 	} else {
 		created, err = service.Create(
 			t.Context(), entity, CreateInput{Data: data}, integrationActorOne, requestPrefix+"-create",

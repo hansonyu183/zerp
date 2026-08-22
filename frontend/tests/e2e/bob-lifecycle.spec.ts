@@ -21,7 +21,9 @@ async function signOut(page: Page): Promise<void> {
 
 async function openCustomer(page: Page): Promise<void> {
   await page.goto('/bob/customer')
-  await expect(page.getByRole('textbox', { name: '客户关键字' })).toBeVisible()
+  await expect(
+    page.getByRole('textbox', { name: '账户编码或名称' }),
+  ).toBeVisible()
 }
 
 async function openSupplier(page: Page): Promise<void> {
@@ -33,7 +35,7 @@ async function openSupplier(page: Page): Promise<void> {
 
 function customerRow(page: Page, code: string) {
   return page.locator('tbody tr').filter({
-    has: page.locator('td[data-label="编码"]').filter({ hasText: code }),
+    has: page.locator('td[data-label="账户编码"]').filter({ hasText: code }),
   })
 }
 
@@ -44,7 +46,7 @@ function supplierRow(page: Page, code: string) {
 }
 
 async function searchCustomer(page: Page, code: string): Promise<void> {
-  await page.getByRole('textbox', { name: '客户关键字' }).fill(code)
+  await page.getByRole('textbox', { name: '账户编码或名称' }).fill(code)
   await page.getByRole('button', { name: '查询', exact: true }).click()
   await expect(customerRow(page, code)).toBeVisible()
 }
@@ -117,6 +119,22 @@ async function confirmReason(
   await dialog.getByRole('button', { name: '确认', exact: true }).click()
 }
 
+async function clickAndExpectBusinessSuccess(
+  page: Page,
+  path: string,
+  click: () => Promise<void>,
+): Promise<void> {
+  const pending = page.waitForResponse((response) =>
+    response.url().endsWith(path),
+  )
+  await click()
+  const payload = (await (await pending).json()) as {
+    code: number | string
+    message: string
+  }
+  expect(String(payload.code), payload.message).toBe('0')
+}
+
 test(
   '原子创建 Party 与其他单位并从主体页查看关系卡片',
   { tag: '@mobile' },
@@ -157,7 +175,7 @@ test(
     const partyDialog = page
       .getByRole('dialog')
       .filter({ hasText: '主体共享身份' })
-    await expect(partyDialog).toContainText(`${code} · 其他单位`)
+    await expect(partyDialog).toContainText(`${code} · 服务关系`)
     await expect(partyDialog).toContainText('上海示例')
   },
 )
@@ -173,13 +191,12 @@ test(
     await openCustomer(page)
     await page.getByRole('button', { name: '新增', exact: true }).click()
     const editor = page.locator('.customer-workspace__drawer')
-    await editor.getByLabel('集团公司名称').fill(`${customerName}集团`)
-    await editor.getByLabel('客户名称').fill(customerName)
-    await selectAutocomplete(page, editor, '默认经营主体', '上海示例')
+    await editor.getByLabel('法定名称').fill(customerName)
+    await editor.getByLabel('显示名称').fill(`${customerName}简称`)
+    await editor.getByLabel('账户名称').fill(`${customerName}结算户`)
+    await selectAutocomplete(page, editor, '经营主体', '上海示例')
     await selectAutocomplete(page, editor, '结算方式', '当月结')
     await selectAutocomplete(page, editor, '收款方式', 'WFL 银行转账')
-    await editor.getByLabel('默认运输方式编码').fill('SELF_PICKUP')
-    await editor.getByLabel('默认运输方式名称').fill('客户自提')
     await selectAutocomplete(
       page,
       editor,
@@ -193,48 +210,62 @@ test(
       .filter({ hasText: customerName })
     await expect(createdRow).toHaveCount(1)
     const code = (
-      await createdRow.locator('td[data-label="编码"]').textContent()
+      await createdRow.locator('td[data-label="账户编码"]').textContent()
     )?.trim()
-    expect(code).toMatch(/^CUS-\d{4}$/)
+    expect(code).toMatch(/^CAC-\d{4}$/)
     await searchCustomer(page, code!)
     await expect(customerRow(page, code!)).toContainText('草稿')
 
-    await customerRow(page, code!).getByLabel('提交审核').click()
+    await clickAndExpectBusinessSuccess(
+      page,
+      '/bob/customer-account/submit',
+      () => customerRow(page, code!).getByLabel('提交审核').click(),
+    )
     await expect(customerRow(page, code!)).toContainText('待审核')
     await customerRow(page, code!).getByLabel('撤回提交').click()
-    await confirmReason(page, '撤回提交', 'E2E 验证撤回提交')
+    await confirmReason(page, '客户账户生命周期操作', 'E2E 验证撤回提交')
     await expect(customerRow(page, code!)).toContainText('草稿')
-    await customerRow(page, code!).getByLabel('提交审核').click()
+    await clickAndExpectBusinessSuccess(
+      page,
+      '/bob/customer-account/submit',
+      () => customerRow(page, code!).getByLabel('提交审核').click(),
+    )
+    await expect(customerRow(page, code!)).toContainText('待审核')
     await signOut(page)
 
     await signIn(page, workerState.reviewer)
     await openCustomer(page)
     await searchCustomer(page, code!)
     await customerRow(page, code!).getByLabel('审核驳回').click()
-    await confirmReason(page, '审核驳回', 'E2E 验证驳回后重提')
+    await confirmReason(page, '客户账户生命周期操作', 'E2E 验证驳回后重提')
     await expect(customerRow(page, code!)).toContainText('草稿')
     await signOut(page)
 
     await signIn(page, workerState.operator)
     await openCustomer(page)
     await searchCustomer(page, code!)
-    await customerRow(page, code!).getByLabel('查看 / 编辑').click()
-    await editor.getByLabel('业务联系人').fill('E2E 重提联系人')
-    await editor.getByRole('button', { name: '保存', exact: true }).click()
-    await searchCustomer(page, code!)
-    await customerRow(page, code!).getByLabel('提交审核').click()
+    await clickAndExpectBusinessSuccess(
+      page,
+      '/bob/customer-account/submit',
+      () => customerRow(page, code!).getByLabel('提交审核').click(),
+    )
+    await expect(customerRow(page, code!)).toContainText('待审核')
     await signOut(page)
 
     await signIn(page, workerState.reviewer)
     await openCustomer(page)
     await searchCustomer(page, code!)
     await customerRow(page, code!).getByLabel('审核通过').click()
-    let dialog = page.getByRole('dialog').filter({ hasText: '审核通过' })
+    let dialog = page
+      .getByRole('dialog')
+      .filter({ hasText: '客户账户生命周期操作' })
     await dialog.getByRole('button', { name: '确认', exact: true }).click()
     await expect(customerRow(page, code!)).toContainText('已生效')
 
     await customerRow(page, code!).getByLabel('禁用').click()
-    dialog = page.getByRole('dialog').filter({ hasText: '确认禁用客户' })
+    dialog = page
+      .getByRole('dialog')
+      .filter({ hasText: '客户账户生命周期操作' })
     await dialog.getByRole('button', { name: '确认', exact: true }).click()
     await expect(customerRow(page, code!).getByLabel('启用')).toBeVisible()
     await customerRow(page, code!).getByLabel('启用').click()
@@ -255,7 +286,8 @@ test(
     await openSupplier(page)
     await page.getByRole('button', { name: '新增', exact: true }).click()
     const editor = page.locator('.supplier-workspace__drawer')
-    await editor.getByLabel('供应商名称').fill(supplierName)
+    await editor.getByLabel('主体名称').fill(supplierName)
+    await selectAutocomplete(page, editor, '经营主体', '上海示例')
     await selectAutocomplete(page, editor, '结算方式', '当月结')
     await selectAutocomplete(
       page,

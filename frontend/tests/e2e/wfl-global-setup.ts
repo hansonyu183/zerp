@@ -73,6 +73,20 @@ interface BobMutation {
   code: string
 }
 
+interface CustomerCreateMutation extends BobMutation {
+  defaultAccount: {
+    objectId: string
+    objectRevision: number
+    code: string
+    candidate: {
+      version: {
+        versionId: string
+        revision: number
+      }
+    }
+  }
+}
+
 interface AuxQueryItem {
   objectId: string
   currentVersion: {
@@ -83,6 +97,45 @@ interface AuxQueryItem {
 interface BobReferenceQueryItem {
   objectId: string
 }
+
+const accMappingEntities = new Set([
+  'sale-pricing',
+  'sale-order',
+  'sale-outbound',
+  'sale-delivery',
+  'sale-signoff',
+  'sale-return',
+  'purchase-order',
+  'purchase-inbound',
+  'purchase-return',
+  'purchase-inquiry',
+  'order-production',
+  'self-production',
+  'inventory-count',
+  'sales-receipt',
+  'purchase-refund',
+  'other-receipt',
+  'sales-refund',
+  'purchase-payment',
+  'other-payment',
+  'employee-loan',
+  'employee-repayment',
+  'employee-loan-writeoff',
+  'expense-reimbursement',
+  'expense-payment',
+  'other-income',
+  'asset-acquisition',
+  'asset-sale',
+  'asset-liquidation',
+  'bill-receipt',
+  'bill-payment',
+  'bill-issue',
+  'bill-discount',
+  'bill-maturity',
+  'intermediary-calculation',
+  'service-contract',
+  'service-acceptance',
+])
 
 interface AuxMutation {
   objectId: string
@@ -240,9 +293,15 @@ const bobReviewerActions = new Set([
   '/bob/customer/disable',
   '/bob/customer/versions',
   '/bob/customer/audit-history',
+  '/bob/customer-account/approve',
+  '/bob/customer-account/reject',
+  '/bob/customer-account/enable',
+  '/bob/customer-account/disable',
   ...[
     'employee',
     'supplier',
+    'other-unit',
+    'sales-partner',
     'product',
     'vehicle',
     'warehouse',
@@ -279,6 +338,82 @@ async function createEffectiveBob(
   return { ...approved, code: view.code }
 }
 
+async function createEffectiveEmployment(
+  operator: RealApi,
+  reviewer: RealApi,
+  name: string,
+  operatingEntityId: string,
+): Promise<BobMutation> {
+  const created = await operator.post<BobMutation>('bob/employee/create', {
+    newParty: { kind: 'PERSON', legalName: name, strongIdentifiers: [] },
+    data: { operatingEntityId },
+  })
+  return approveBob(operator, reviewer, 'employee', created)
+}
+
+async function createEffectiveSupplier(
+  operator: RealApi,
+  reviewer: RealApi,
+  name: string,
+  operatingEntityId: string,
+  settlementMethodId: string,
+  purchaserObjectId: string,
+): Promise<BobMutation> {
+  const created = await operator.post<BobMutation>('bob/supplier/create', {
+    newParty: {
+      kind: 'ORGANIZATION',
+      legalName: name,
+      strongIdentifiers: [],
+    },
+    data: {
+      operatingEntityId,
+      settlementMethodId,
+      defaultPurchaserEmployeeId: purchaserObjectId,
+    },
+  })
+  return approveBob(operator, reviewer, 'supplier', created)
+}
+
+async function createEffectiveOtherUnit(
+  operator: RealApi,
+  reviewer: RealApi,
+  name: string,
+  operatingEntityId: string,
+  settlementMethodId: string,
+): Promise<BobMutation> {
+  const created = await operator.post<BobMutation>('bob/other-unit/create', {
+    newParty: {
+      kind: 'ORGANIZATION',
+      legalName: name,
+      strongIdentifiers: [],
+    },
+    data: { operatingEntityId, settlementMethodId },
+  })
+  return approveBob(operator, reviewer, 'other-unit', created)
+}
+
+async function approveBob(
+  operator: RealApi,
+  reviewer: RealApi,
+  entity: string,
+  created: BobMutation,
+): Promise<BobMutation> {
+  const submitted = await operator.post<BobMutation>(`bob/${entity}/submit`, {
+    objectId: created.objectId,
+    versionId: created.versionId,
+    revision: created.revision,
+  })
+  const approved = await reviewer.post<BobMutation>(`bob/${entity}/approve`, {
+    objectId: submitted.objectId,
+    versionId: submitted.versionId,
+    revision: submitted.revision,
+  })
+  const view = await operator.post<{ code: string }>(`bob/${entity}/get`, {
+    objectId: approved.objectId,
+  })
+  return { ...approved, code: view.code }
+}
+
 async function fixedSettlementMethod(
   operator: RealApi,
 ): Promise<Pick<BobMutation, 'objectId'>> {
@@ -292,8 +427,7 @@ async function fixedSettlementMethod(
     },
   )
   const item = page.items.find(
-    (candidate) =>
-      candidate.currentVersion.data.termCode === 'MONTHLY_CURRENT',
+    (candidate) => candidate.currentVersion.data.termCode === 'MONTHLY_CURRENT',
   )
   if (!item) throw new Error('WFL 预置未找到系统固定当月结结算方式。')
   return { objectId: item.objectId }
@@ -336,45 +470,56 @@ async function createEffectiveCustomer(
   settlementMethodId: string,
   paymentMethodId: string,
 ): Promise<BobMutation> {
-  const created = await operator.post<BobMutation>('bob/customer/create', {
-    group: { companyName: name, bankAccounts: [] },
-    data: {
-      name,
-      customerTypeCode: 'DIT-0001',
-      operatingEntityId,
-      settlementMethodId,
-      paymentMethodId,
-      defaultTransportMethodCode: 'SELF_PICKUP',
-      defaultTransportMethodName: '客户自提',
-      transportSurcharge: '0.00',
-      pricingPolicy: {
-        defaultPremiumUnitPrice: '0.00',
-        defaultDiscountUnitPrice: '0.00',
-        costItems: [],
-        thirdPartyIntermediaryFixedUnitCost: '0.00',
-        thirdPartyIntermediaryVariableUnitCost: '0.00',
+  const created = await operator.post<CustomerCreateMutation>(
+    'bob/customer/create',
+    {
+      newParty: {
+        kind: 'ORGANIZATION',
+        legalName: name,
+        strongIdentifiers: [],
       },
-      creditLimits: [],
-      primarySalesAttribution: {
-        type: 'INTERNAL_EMPLOYEE',
-        subjectObjectId: employeeObjectId,
+      data: {
+        name,
+        customerTypeCode: 'DIT-0001',
+        operatingEntityId,
+        settlementMethodId,
+        paymentMethodId,
+        defaultTransportMethodCode: 'SELF_PICKUP',
+        defaultTransportMethodName: '客户自提',
+        transportSurcharge: '0.00',
+        pricingPolicy: {
+          defaultPremiumUnitPrice: '0.00',
+          defaultDiscountUnitPrice: '0.00',
+          costItems: [],
+          thirdPartyIntermediaryFixedUnitCost: '0.00',
+          thirdPartyIntermediaryVariableUnitCost: '0.00',
+        },
+        creditLimits: [],
+        primarySalesAttribution: {
+          type: 'INTERNAL_EMPLOYEE',
+          subjectObjectId: employeeObjectId,
+        },
       },
     },
-  })
-  const submitted = await operator.post<BobMutation>('bob/customer/submit', {
-    objectId: created.objectId,
-    versionId: created.versionId,
-    revision: created.revision,
-  })
-  const approved = await reviewer.post<BobMutation>('bob/customer/approve', {
-    objectId: submitted.objectId,
-    versionId: submitted.versionId,
-    revision: submitted.revision,
-  })
-  const view = await operator.post<{ code: string }>('bob/customer/get', {
-    objectId: approved.objectId,
-  })
-  return { ...approved, code: view.code }
+  )
+  const account = created.defaultAccount
+  const submitted = await operator.post<BobMutation>(
+    'bob/customer-account/submit',
+    {
+      objectId: account.objectId,
+      versionId: account.candidate.version.versionId,
+      revision: account.candidate.version.revision,
+    },
+  )
+  const approved = await reviewer.post<BobMutation>(
+    'bob/customer-account/approve',
+    {
+      objectId: submitted.objectId,
+      versionId: submitted.versionId,
+      revision: submitted.revision,
+    },
+  )
+  return { ...approved, code: account.code }
 }
 
 function workflowScript(options: {
@@ -660,6 +805,37 @@ async function ensureAccountingControlBook(
   const subjectIdByCode = new Map(
     subjects.items.map((subject) => [subject.code, subject.subjectId]),
   )
+  for (const subject of [
+    {
+      code: '600199',
+      name: 'E2E 销售收入',
+      parentCode: '6001',
+      balanceDirection: 'CREDIT',
+    },
+    {
+      code: '660199',
+      name: 'E2E 居间销售费用',
+      parentCode: '6601',
+      balanceDirection: 'DEBIT',
+    },
+  ]) {
+    if (subjectIdByCode.has(subject.code)) continue
+    const created = await api.post<AccountingSubjectView>(
+      'acc/subject/create',
+      {
+        bookId: book.bookId,
+        code: subject.code,
+        name: subject.name,
+        parentSubjectId: subjectIdByCode.get(subject.parentCode),
+        balanceDirection: subject.balanceDirection,
+        enabled: true,
+        requiredDimensions: [],
+        inventoryQuantity: false,
+        settlementPurpose: 'NONE',
+      },
+    )
+    subjectIdByCode.set(created.code, created.subjectId)
+  }
 
   for (const vouEntity of vouEntities) {
     const mappings = await api.post<Page<AccountingMappingView>>(
@@ -703,7 +879,7 @@ async function ensureAccountingControlBook(
               direction: 'CREDIT',
               amountField: 'lineAmount',
               currencyField: 'currency',
-              dimensions: { SUPPLIER: 'supplier.objectId' },
+              dimensions: { SUPPLIER_RELATIONSHIP: 'supplier.objectId' },
               quantityField: null,
               costCounterpartSubjectId: null,
               costCounterpartDimensions: {},
@@ -712,11 +888,122 @@ async function ensureAccountingControlBook(
         },
       ],
     }
-    const defaultResult = vouEntity === 'purchase-inbound' ? 'POST' : 'UN_POST'
-    const definition =
-      vouEntity === 'purchase-inbound'
-        ? purchaseInboundTemplate
-        : { defaultTemplateId: null, rules: [], templates: [] }
+    const saleSignoffTemplate = {
+      defaultTemplateId: 'e2e-sale-signoff',
+      rules: [],
+      templates: [
+        {
+          templateId: 'e2e-sale-signoff',
+          collection: 'signoffLines',
+          lines: [
+            {
+              subjectSource: 'FIXED',
+              subjectValue: subjectIdByCode.get('1122'),
+              direction: 'DEBIT',
+              amountField: 'lineAmount',
+              currencyField: 'currency',
+              dimensions: { CUSTOMER_ACCOUNT: 'customer.objectId' },
+              quantityField: null,
+              costCounterpartSubjectId: null,
+              costCounterpartDimensions: {},
+            },
+            {
+              subjectSource: 'FIXED',
+              subjectValue: subjectIdByCode.get('600199'),
+              direction: 'CREDIT',
+              amountField: 'lineAmount',
+              currencyField: 'currency',
+              dimensions: {},
+              quantityField: null,
+              costCounterpartSubjectId: null,
+              costCounterpartDimensions: {},
+            },
+          ],
+        },
+      ],
+    }
+    const salesReceiptTemplate = {
+      defaultTemplateId: 'e2e-sales-receipt',
+      rules: [],
+      templates: [
+        {
+          templateId: 'e2e-sales-receipt',
+          collection: null,
+          lines: [
+            {
+              subjectSource: 'FIXED',
+              subjectValue: subjectIdByCode.get('1002'),
+              direction: 'DEBIT',
+              amountField: 'amount',
+              currencyField: 'currency',
+              dimensions: { FUND_ACCOUNT: 'fundAccount.objectId' },
+              quantityField: null,
+              costCounterpartSubjectId: null,
+              costCounterpartDimensions: {},
+            },
+            {
+              subjectSource: 'FIXED',
+              subjectValue: subjectIdByCode.get('1122'),
+              direction: 'CREDIT',
+              amountField: 'amount',
+              currencyField: 'currency',
+              dimensions: { CUSTOMER_ACCOUNT: 'counterparty.objectId' },
+              quantityField: null,
+              costCounterpartSubjectId: null,
+              costCounterpartDimensions: {},
+            },
+          ],
+        },
+      ],
+    }
+    const intermediaryTemplate = {
+      defaultTemplateId: 'e2e-intermediary-sales-partner-payable',
+      rules: [],
+      templates: [
+        {
+          templateId: 'e2e-intermediary-sales-partner-payable',
+          collection: 'intermediarySalesPartnerPayables',
+          lines: [
+            {
+              subjectSource: 'FIXED',
+              subjectValue: subjectIdByCode.get('660199'),
+              direction: 'DEBIT',
+              amountField: 'amount',
+              currencyField: 'currency',
+              dimensions: {},
+              quantityField: null,
+              costCounterpartSubjectId: null,
+              costCounterpartDimensions: {},
+            },
+            {
+              subjectSource: 'FIXED',
+              subjectValue: subjectIdByCode.get('2241'),
+              direction: 'CREDIT',
+              amountField: 'amount',
+              currencyField: 'currency',
+              dimensions: {
+                SALES_RELATIONSHIP: 'payee.objectId',
+              },
+              quantityField: null,
+              costCounterpartSubjectId: null,
+              costCounterpartDimensions: {},
+            },
+          ],
+        },
+      ],
+    }
+    const postDefinitions: Readonly<Record<string, unknown>> = {
+      'purchase-inbound': purchaseInboundTemplate,
+      'sale-signoff': saleSignoffTemplate,
+      'sales-receipt': salesReceiptTemplate,
+      'intermediary-calculation': intermediaryTemplate,
+    }
+    const definition = postDefinitions[vouEntity] ?? {
+      defaultTemplateId: null,
+      rules: [],
+      templates: [],
+    }
+    const defaultResult = vouEntity in postDefinitions ? 'POST' : 'UN_POST'
     const draft =
       mappings.items.find((item) => item.state === 'DRAFT') ??
       (await api.post<AccountingMappingView>('acc/mapping/create', {
@@ -847,14 +1134,25 @@ export async function createWflWorkerState(options: {
     )
     contexts.push(reviewerSession.context)
 
-    const employee = await createEffectiveBob(
-      operatorSession.api,
-      reviewerSession.api,
-      'employee',
-      { name: `WFL 员工 ${suffix}` },
-    )
     const settlement = await fixedSettlementMethod(operatorSession.api)
     const operatingEntityId = await fixedOperatingEntity(operatorSession.api)
+    const employee = await createEffectiveEmployment(
+      operatorSession.api,
+      reviewerSession.api,
+      `WFL 员工 ${suffix}`,
+      operatingEntityId,
+    )
+    const employeeReferences = await operatorSession.api.post<
+      BobReferenceQueryItem[]
+    >('bob/reference/query', {
+      entity: 'employee',
+      keyword: employee.code,
+    })
+    if (
+      !employeeReferences.some((item) => item.objectId === employee.objectId)
+    ) {
+      throw new Error(`WFL 预置员工 ${employee.code} 未进入雇佣关系引用候选。`)
+    }
     const paymentMethodId = await createPaymentMethod(
       operatorSession.api,
       `WFL 银行转账 ${suffix}`,
@@ -868,27 +1166,20 @@ export async function createWflWorkerState(options: {
       settlement.objectId,
       paymentMethodId,
     )
-    const supplier = await createEffectiveBob(
+    const supplier = await createEffectiveSupplier(
       operatorSession.api,
       reviewerSession.api,
-      'supplier',
-      {
-        name: `WFL 普通供应商 ${suffix}`,
-        supplierType: 'GENERAL',
-        defaultPurchaserEmployeeId: employee.objectId,
-        settlementMethodId: settlement.objectId,
-      },
+      `WFL 普通供应商 ${suffix}`,
+      operatingEntityId,
+      settlement.objectId,
+      employee.objectId,
     )
-    const platform = await createEffectiveBob(
+    const platform = await createEffectiveOtherUnit(
       operatorSession.api,
       reviewerSession.api,
-      'supplier',
-      {
-        name: `WFL 物流平台 ${suffix}`,
-        supplierType: 'LOGISTICS_PLATFORM',
-        defaultPurchaserEmployeeId: employee.objectId,
-        settlementMethodId: settlement.objectId,
-      },
+      `WFL 物流服务单位 ${suffix}`,
+      operatingEntityId,
+      settlement.objectId,
     )
     const solventProduct = await createEffectiveBob(
       operatorSession.api,
@@ -1017,7 +1308,10 @@ export async function createWflWorkerState(options: {
           (permission) =>
             /^\/vou\/([^/]+)\/approve$/.exec(permission.path)?.[1],
         )
-        .filter((entity): entity is string => Boolean(entity))
+        .filter(
+          (entity): entity is string =>
+            Boolean(entity) && accMappingEntities.has(entity ?? ''),
+        )
       await ensureAccountingControlBook(
         bootstrapSession.api,
         [operatorUser.id, reviewerUser.id],

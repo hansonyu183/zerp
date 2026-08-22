@@ -167,7 +167,7 @@ globalThis.calculate = function calculate(input) {
   const money = (value) => (Math.round((value + Number.EPSILON) * 100) / 100).toFixed(2);
   const quantity = (value) => (Math.round((value + Number.EPSILON) * 1000000) / 1000000).toString();
   const byEmployee = new Map();
-  const byCustomerEmployee = new Map();
+  const byCustomer = new Map();
   const delayedRates = (term, delay, lowPrice) => {
     let baseRate = lowPrice ? 0 : 8;
     let lowRate = lowPrice ? 3 : 0;
@@ -261,15 +261,15 @@ globalThis.calculate = function calculate(input) {
     employeeGroup.lines.push(item);
     if (!special) employeeGroup.barrels += barrels;
     byEmployee.set(employeeKey, employeeGroup);
-    const costKey = line.customer.objectId + ':' + line.salesperson.objectId;
-    const costGroup = byCustomerEmployee.get(costKey) || { lines: [], bills: [] };
+    const costKey = line.customer.objectId;
+    const costGroup = byCustomer.get(costKey) || { lines: [], bills: [] };
     costGroup.lines.push(item);
-    byCustomerEmployee.set(costKey, costGroup);
+    byCustomer.set(costKey, costGroup);
     return row;
   });
   for (const bill of input.bills) {
-    const key = bill.customer.objectId + ':' + bill.salesperson.objectId;
-    const group = byCustomerEmployee.get(key);
+    const key = bill.customer.objectId;
+    const group = byCustomer.get(key);
     if (group) {
       group.bills.push({
         billLineId: bill.billLineId,
@@ -287,7 +287,7 @@ globalThis.calculate = function calculate(input) {
       ordinary.result.employeeAmount = money(number(ordinary.result.employeeAmount) + development);
     }
   }
-  for (const group of byCustomerEmployee.values()) {
+  for (const group of byCustomer.values()) {
     let available = number(money(group.lines.reduce(
       (sum, item) => sum + number(item.result.employeeAmount), 0
     )));
@@ -319,7 +319,7 @@ globalThis.calculate = function calculate(input) {
   };
   rows.forEach((row, index) => {
     const source = input.lines[index];
-    add(source.salesperson, 'COMMISSION', row.employeeAmount);
+    add(source.salesperson, source.salesAttributionType === 'INTERNAL_EMPLOYEE' ? 'COMMISSION' : source.salesAttributionType, row.employeeAmount);
     add(source.intermediary, 'INTERMEDIARY', row.intermediaryAmount);
     add(source.customer, 'REBATE', row.rebateAmount);
   });

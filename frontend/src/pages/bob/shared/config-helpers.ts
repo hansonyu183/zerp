@@ -27,14 +27,8 @@ export const statusOptions: readonly BusinessObjectFieldOption[] = [
   { title: '已失效', value: 'INVALID' },
 ]
 
-export const supplierTypeOptions: readonly BusinessObjectFieldOption[] = [
-  { title: '普通供应商', value: 'GENERAL' },
-  { title: '物流平台', value: 'LOGISTICS_PLATFORM' },
-]
-
 export const customerTypeOptions: readonly BusinessObjectFieldOption[] = [
   { title: '终端客户', value: 'DIT-0001' },
-  { title: '经销商', value: 'DIT-0002' },
 ]
 
 export const settlementRuleOptions: readonly BusinessObjectFieldOption[] = [

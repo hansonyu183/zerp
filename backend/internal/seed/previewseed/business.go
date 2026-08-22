@@ -72,21 +72,20 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 				Remark:                "预览测试草稿其他单位",
 			}
 		}},
-		{"customer-effective", bobdomain.EntityCustomer, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
-			customerType := bobdomain.CustomerTypeDealer
+		{"customer-effective", bobdomain.EntityCustomerAccount, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
+			customerType := bobdomain.CustomerTypeEndUser
 			return bobdomain.CreateDetailInput{
 				Name: "星河制造有限公司（预览）", CustomerType: &customerType,
 				ShortName: "星河制造", TaxNumber: "91310000PREVIEW0101",
 				ContactName: "王经理", ContactPhone: "13800000103",
 				Email: "preview.customer@example.com", Address: "上海市浦东新区预览路 101 号",
-				SettlementMethodID:       s.bobRefs["settlement-month-end"].ObjectID,
-				MonthlyClosingDay:        15,
-				SalespersonEmployeeID:    s.bobRefs["employee-effective"].ObjectID,
-				IntermediaryOtherPartyID: s.bobRefs["other-unit-effective"].ObjectID,
-				Remark:                   "预览测试有效客户",
+				SettlementMethodID:    s.bobRefs["settlement-month-end"].ObjectID,
+				MonthlyClosingDay:     15,
+				SalespersonEmployeeID: s.bobRefs["employee-effective"].ObjectID,
+				Remark:                "预览测试有效客户",
 			}
 		}},
-		{"customer-draft", bobdomain.EntityCustomer, bobdomain.StatusDraft, func(s *Seeder) bobdomain.CreateDetailInput {
+		{"customer-draft", bobdomain.EntityCustomerAccount, bobdomain.StatusDraft, func(s *Seeder) bobdomain.CreateDetailInput {
 			customerType := bobdomain.CustomerTypeEndUser
 			return bobdomain.CreateDetailInput{
 				Name: "新客户（预览草稿）", CustomerType: &customerType,
@@ -96,21 +95,19 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 				Remark:                "预览测试草稿客户",
 			}
 		}},
-		{"supplier-platform", bobdomain.EntitySupplier, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
-			supplierType := bobdomain.SupplierTypeLogisticsPlatform
+		{"logistics-service", bobdomain.EntityOtherUnit, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
-				Name: "自营物流平台（预览）", SupplierType: &supplierType,
+				Name:      "自营物流服务单位（预览）",
 				ShortName: "预览物流", ContactName: "调度中心", ContactPhone: "021-60000101",
 				Address:                    "上海市嘉定区预览物流园",
 				SettlementMethodID:         s.bobRefs["settlement-due-days"].ObjectID,
 				DefaultPurchaserEmployeeID: s.bobRefs["employee-effective"].ObjectID,
-				Remark:                     "预览测试物流平台",
+				Remark:                     "预览测试物流服务单位",
 			}
 		}},
 		{"supplier-effective", bobdomain.EntitySupplier, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
-			supplierType := bobdomain.SupplierTypeGeneral
 			return bobdomain.CreateDetailInput{
-				Name: "通用原料供应商（预览）", SupplierType: &supplierType,
+				Name:      "通用原料供应商（预览）",
 				ShortName: "预览原料", TaxNumber: "91310000PREVIEW0102",
 				ContactName: "赵经理", ContactPhone: "13800000105",
 				Address:                    "江苏省苏州市预览工业园",
@@ -120,9 +117,8 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 			}
 		}},
 		{"supplier-pending", bobdomain.EntitySupplier, bobdomain.StatusPending, func(s *Seeder) bobdomain.CreateDetailInput {
-			supplierType := bobdomain.SupplierTypeGeneral
 			return bobdomain.CreateDetailInput{
-				Name: "候选供应商（预览待审核）", SupplierType: &supplierType,
+				Name:        "候选供应商（预览待审核）",
 				ContactName: "周经理", ContactPhone: "13800000106",
 				SettlementMethodID:         s.bobRefs["settlement-due-days"].ObjectID,
 				DefaultPurchaserEmployeeID: s.bobRefs["employee-effective"].ObjectID,
@@ -237,7 +233,7 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 		{"vehicle-effective", bobdomain.EntityVehicle, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
 				Name: "自营配送一号车（预览）", PlateNumber: "沪A10101",
-				VehicleType: "DIT-0003", PlatformObjectID: s.bobRefs["supplier-platform"].ObjectID,
+				VehicleType: "DIT-0003", PlatformObjectID: s.bobRefs["logistics-service"].ObjectID,
 				VIN: "LSVAA4187N2100101", EngineNumber: "ENG-PREVIEW-101",
 				LoadCapacityKG: "18000", Remark: "预览测试有效车辆",
 			}
@@ -245,7 +241,7 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 		{"vehicle-draft", bobdomain.EntityVehicle, bobdomain.StatusDraft, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
 				Name: "自营配送二号车（预览草稿）", PlateNumber: "沪A10102",
-				VehicleType: "DIT-0003", PlatformObjectID: s.bobRefs["supplier-platform"].ObjectID,
+				VehicleType: "DIT-0003", PlatformObjectID: s.bobRefs["logistics-service"].ObjectID,
 				VIN: "LSVAA4187N2100102", EngineNumber: "ENG-PREVIEW-102",
 				LoadCapacityKG: "12000", Remark: "预览测试草稿车辆",
 			}
@@ -372,13 +368,70 @@ func (s *Seeder) ensureBusiness(
 	`, requestID(sample.key, "create")).Scan(&objectID)
 	created := false
 	if errors.Is(err, pgx.ErrNoRows) {
-		result, createErr := s.business.Create(
-			ctx,
-			sample.entity,
-			bobdomain.CreateInput{Data: sample.data(s)},
-			actorID,
-			requestID(sample.key, "create"),
-		)
+		data := sample.data(s)
+		var result bobdomain.MutationResult
+		var createErr error
+		switch sample.entity {
+		case bobdomain.EntityEmployee:
+			createdEmployment, relationshipErr := s.business.EmploymentCreate(ctx, bobdomain.EmploymentCreateInput{
+				NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson,
+					LegalName: data.Name, Phone: data.Phone, Email: data.Email},
+				Data: bobdomain.CreateDetailInput{OperatingEntityID: s.bobRefs["operating-effective"].ObjectID,
+					DepartmentID: data.DepartmentID, PositionID: data.PositionID, HireDate: data.HireDate,
+					Remark: data.Remark},
+			}, actorID, requestID(sample.key, "create"), true)
+			result, createErr = createdEmployment.MutationResult, relationshipErr
+		case bobdomain.EntitySupplier:
+			createdSupplier, relationshipErr := s.business.SupplierCreate(ctx, bobdomain.SupplierCreateInput{
+				NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization,
+					LegalName: data.Name, DisplayName: data.ShortName, TaxNumber: data.TaxNumber,
+					Phone: data.ContactPhone, Email: data.Email, Address: data.Address},
+				Data: bobdomain.SupplierData{OperatingEntityID: s.bobRefs["operating-effective"].ObjectID,
+					Name: data.Name, ShortName: data.ShortName,
+					TaxNumber: data.TaxNumber, ContactName: data.ContactName, ContactPhone: data.ContactPhone,
+					Email: data.Email, Address: data.Address, Remark: data.Remark,
+					SettlementMethodID:         data.SettlementMethodID,
+					DefaultPurchaserEmployeeID: data.DefaultPurchaserEmployeeID},
+			}, actorID, requestID(sample.key, "create"), true)
+			result, createErr = createdSupplier.MutationResult, relationshipErr
+		case bobdomain.EntityCustomerAccount:
+			customerType := bobdomain.CustomerTypeEndUser
+			if data.CustomerType != nil {
+				customerType = *data.CustomerType
+			}
+			createdCustomer, relationshipErr := s.business.CustomerCreate(ctx, bobdomain.CustomerCreateInput{
+				NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization,
+					LegalName: data.Name, DisplayName: data.ShortName, TaxNumber: data.TaxNumber,
+					Phone: data.ContactPhone, Email: data.Email, Address: data.Address},
+				Data: bobdomain.CustomerAccountData{Name: data.Name, ShortName: data.ShortName,
+					CustomerTypeCode: customerType, ContactName: data.ContactName,
+					ContactPhone: data.ContactPhone, Email: data.Email, Address: data.Address,
+					OperatingEntityID:          s.bobRefs["operating-effective"].ObjectID,
+					SettlementMethodID:         data.SettlementMethodID,
+					PaymentMethodID:            s.auxRefs["payment-bank-transfer"].ObjectID,
+					DefaultTransportMethodCode: "DELIVERY", DefaultTransportMethodName: "送货",
+					PricingPolicy: bobdomain.PricingPolicy{DefaultPremiumUnitPrice: "0.00",
+						DefaultDiscountUnitPrice: "0.00", CostItems: []bobdomain.PricingCostItem{},
+						ThirdPartyIntermediaryFixedUnitCost:    "0.00",
+						ThirdPartyIntermediaryVariableUnitCost: "0.00"},
+					CreditLimits: []bobdomain.CustomerCreditLimit{},
+					PrimarySalesAttribution: bobdomain.CustomerSalesAttributionInput{
+						Type:            bobdomain.SalesAttributionInternalEmployee,
+						SubjectObjectID: data.SalespersonEmployeeID}, InternalReminder: data.Remark},
+			}, actorID, requestID(sample.key, "create"), true)
+			if relationshipErr == nil {
+				account := createdCustomer.DefaultAccount
+				version := account.Candidate.Version
+				result = bobdomain.MutationResult{ObjectID: account.ObjectID,
+					ObjectRevision: account.ObjectRevision, Enabled: account.Enabled,
+					VersionID: version.VersionID, Version: version.Version,
+					Status: version.Status, Revision: version.Revision}
+			}
+			createErr = relationshipErr
+		default:
+			result, createErr = s.business.Create(ctx, sample.entity,
+				bobdomain.CreateInput{Data: data}, actorID, requestID(sample.key, "create"))
+		}
 		if createErr != nil {
 			return bobdomain.ObjectView{}, 0, createErr
 		}

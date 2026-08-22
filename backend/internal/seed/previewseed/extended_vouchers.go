@@ -52,7 +52,7 @@ func (s *Seeder) seedExtendedVouchers(ctx context.Context, counts *Counts) error
 		}},
 		{"accounting-income-approved", voudomain.EntityOtherIncome, voudomain.StatusApproved, voudomain.DraftInput{
 			BusinessDate: "2026-07-13", Currency: "CNY",
-			CounterpartyType: bobdomain.EntityCustomer, Counterparty: &customer,
+			CounterpartyType: bobdomain.EntityCustomerAccount, Counterparty: &customer,
 			FundAccount: &fund, Handler: &employee, SourceName: "会计联动测试",
 			Amount: "88.00", Remark: "预览 ACC/RPT 过账样本",
 		}},
@@ -121,7 +121,7 @@ func (s *Seeder) seedAssetDocuments(ctx context.Context, counts *Counts, supplie
 		key, entity string
 		data        voudomain.DraftInput
 	}{
-		{"asset-sale-draft", voudomain.EntityAssetSale, voudomain.DraftInput{BusinessDate: businessDate, Currency: "CNY", CounterpartyType: bobdomain.EntityCustomer, Counterparty: &customer, Remark: "预览可操作草稿：资产出让", AssetSaleLines: []voudomain.AssetSaleLineInput{{AssetID: assetIDs[0], SaleAmount: "42000.00"}}}},
+		{"asset-sale-draft", voudomain.EntityAssetSale, voudomain.DraftInput{BusinessDate: businessDate, Currency: "CNY", CounterpartyType: bobdomain.EntityCustomerAccount, Counterparty: &customer, Remark: "预览可操作草稿：资产出让", AssetSaleLines: []voudomain.AssetSaleLineInput{{AssetID: assetIDs[0], SaleAmount: "42000.00"}}}},
 		{"asset-liquidation-draft", voudomain.EntityAssetLiquidation, voudomain.DraftInput{BusinessDate: businessDate, Currency: "CNY", Remark: "预览可操作草稿：资产清算", AssetLiquidationLines: []voudomain.AssetLiquidationLineInput{{AssetID: assetIDs[1], Reason: "设备更新", SalvageIncome: "3000.00", DisposalExpense: "500.00"}}}},
 	}
 	for _, sample := range assetSamples {

@@ -49,6 +49,8 @@ export const mappingEntities: readonly string[] = [
   'sale-signoff',
   'sales-receipt',
   'sales-refund',
+  'service-acceptance',
+  'service-contract',
   'self-production',
 ]
 

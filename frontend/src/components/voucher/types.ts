@@ -33,11 +33,10 @@ export type VoucherEntity =
   | 'asset-sale'
   | 'asset-liquidation'
   | 'intermediary-calculation'
+  | 'service-contract'
+  | 'service-acceptance'
 
-export type VoucherStatus =
-  | 'DRAFT'
-  | 'CHECKED'
-  | 'APPROVED'
+export type VoucherStatus = 'DRAFT' | 'CHECKED' | 'APPROVED'
 
 export interface VoucherReferenceInput {
   objectId: string
@@ -51,7 +50,6 @@ export interface VoucherReference extends VoucherReferenceInput {
   unit?: string
   currency?: string
   plateNumber?: string
-  supplierType?: string
   platformObjectId?: string
   productKind?: string
   pricingQuantityPerInventoryUnit?: string
@@ -177,8 +175,10 @@ export interface VoucherDraftForm {
   returnKind: '' | 'REFUSAL' | 'AFTER_SALE'
   customer: VoucherReference | null
   supplier: VoucherReference | null
-  counterpartyType: '' | 'customer' | 'supplier' | 'other-unit' | 'employee'
+  counterpartyType:
+    '' | 'customer' | 'supplier' | 'other-unit' | 'employee' | 'sales-partner'
   counterparty: VoucherReference | null
+  settlementMethod: VoucherReference | null
   otherCategory: '' | 'COMMISSION' | 'INTERMEDIARY' | 'REBATE'
   employee: VoucherReference | null
   salesperson: VoucherReference | null
@@ -192,6 +192,20 @@ export interface VoucherDraftForm {
   fundAccount: VoucherReference | null
   sourceName: string
   amount: string
+  serviceContract: {
+    capabilities: Array<'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER'>
+    applicableFrom: string
+    applicableTo: string
+    terms: string
+  }
+  serviceAcceptance: {
+    contractDocumentId: string
+    serviceDate: string
+    acceptanceDate: string
+    settlementDirection: '' | 'PAYABLE' | 'RECEIVABLE'
+    fulfillmentFact: string
+    acceptanceFact: string
+  }
   parentDocumentId: string
   parentDocumentNo: string
   productLines: VoucherProductLineDraft[]
@@ -384,6 +398,26 @@ export interface VoucherDocumentData {
   returnKind?: 'REFUSAL' | 'AFTER_SALE'
   specialApproval?: boolean
   intermediaryCalculation?: IntermediaryCalculationInput
+  serviceContract?: {
+    counterparty: VoucherReferenceView
+    partyId: string
+    partyName: string
+    operatingEntity: VoucherReferenceView
+    handler: VoucherReferenceView
+    settlementMethod?: SettlementMethodSnapshot
+    capabilities?: Array<'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER'>
+    applicableFrom?: string
+    applicableTo?: string
+    terms?: string
+  }
+  serviceAcceptance?: {
+    contractDocumentId: string
+    serviceDate: string
+    acceptanceDate: string
+    settlementDirection: 'PAYABLE' | 'RECEIVABLE'
+    fulfillmentFact?: string
+    acceptanceFact?: string
+  }
   customer?: VoucherReferenceView
   supplier?: VoucherReferenceView
   counterparty?: VoucherReferenceView
@@ -433,7 +467,8 @@ export interface VoucherDocumentData {
 export interface IntermediaryReference {
   objectId: string
   versionId: string
-  entity: 'customer' | 'employee' | 'other-unit' | 'product'
+  entity:
+    'customer-account' | 'employee' | 'sales-partner' | 'other-unit' | 'product'
   code: string
   name: string
 }
@@ -452,6 +487,16 @@ export interface IntermediarySourceLine {
   collectionDelayDays: number
   customer: IntermediaryReference
   salesperson: IntermediaryReference
+  salesAttributionType:
+    'INTERNAL_EMPLOYEE' | 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER'
+  salesContractStatus: 'NOT_REQUIRED' | 'MISSING' | 'APPLICABLE'
+  salesContract?: {
+    documentId: string
+    revision: number
+    applicableFrom: string
+    applicableTo?: string
+    terms: string
+  }
   intermediary?: IntermediaryReference
   product: IntermediaryReference
   productKind: string
@@ -477,7 +522,6 @@ export interface IntermediarySourceBill {
   receiptDocumentNo: string
   receiptDate: string
   customer: IntermediaryReference
-  salesperson: IntermediaryReference
   billType: 'BANK_ACCEPTANCE' | 'COMMERCIAL_ACCEPTANCE' | 'CHECK' | 'OTHER'
   faceAmount: string
   issueDate: string
@@ -520,7 +564,12 @@ export interface IntermediaryResultLine {
 
 export interface IntermediarySummary {
   payee: IntermediaryReference
-  category: 'COMMISSION' | 'INTERMEDIARY' | 'REBATE'
+  category:
+    | 'COMMISSION'
+    | 'EXTERNAL_PART_TIME'
+    | 'CHANNEL_PARTNER'
+    | 'INTERMEDIARY'
+    | 'REBATE'
   amount: string
 }
 
@@ -696,7 +745,8 @@ export interface VoucherEntityConfig {
   icon: string
   order: number
   partyMode: 'customer' | 'supplier' | 'dual' | 'counterparty' | 'none'
-  fixedCounterpartyType?: 'customer' | 'supplier' | 'other-unit' | 'employee'
+  fixedCounterpartyType?:
+    'customer' | 'supplier' | 'other-unit' | 'employee' | 'sales-partner'
   lineKind: VoucherLineKind
   lifecycleLabels?: Partial<VoucherLifecycleLabels>
   parentEntity?: VoucherEntity

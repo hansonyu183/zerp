@@ -16,8 +16,8 @@ import (
 var subjectCodePattern = regexp.MustCompile(`^[A-Z0-9][A-Z0-9.-]{0,31}$`)
 
 var validSubjectDimensions = map[string]struct{}{
-	DimensionCustomer: {}, DimensionSupplier: {}, DimensionOtherParty: {},
-	DimensionEmployee: {}, DimensionDepartment: {}, DimensionProduct: {},
+	DimensionCustomerAccount: {}, DimensionSupplierRelationship: {}, DimensionServiceRelationship: {},
+	DimensionEmploymentRelationship: {}, DimensionSalesRelationship: {}, DimensionDepartment: {}, DimensionProduct: {},
 	DimensionWarehouse: {}, DimensionFundAccount: {}, DimensionAsset: {}, DimensionBill: {},
 }
 
@@ -78,15 +78,15 @@ func validateSubjectAttributes(subject normalizedSubject) error {
 	switch subject.settlementPurpose {
 	case SettlementPurposeNone:
 	case SettlementPurposeReceivable, SettlementPurposeAdvanceReceipt:
-		if !has(DimensionCustomer) {
+		if !has(DimensionCustomerAccount) {
 			return domainError(ErrorValidation, "该往来用途必须要求客户辅助核算", nil)
 		}
 	case SettlementPurposePrepaid, SettlementPurposePayable:
-		if !has(DimensionSupplier) {
+		if !has(DimensionSupplierRelationship) {
 			return domainError(ErrorValidation, "该往来用途必须要求供应商辅助核算", nil)
 		}
 	case SettlementPurposeOther:
-		if !has(DimensionCustomer) && !has(DimensionSupplier) && !has(DimensionOtherParty) && !has(DimensionEmployee) {
+		if !has(DimensionCustomerAccount) && !has(DimensionSupplierRelationship) && !has(DimensionServiceRelationship) && !has(DimensionEmploymentRelationship) && !has(DimensionSalesRelationship) {
 			return domainError(ErrorValidation, "其他往来用途必须要求至少一个往来辅助核算", nil)
 		}
 	default:

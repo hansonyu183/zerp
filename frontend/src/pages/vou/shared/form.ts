@@ -8,6 +8,7 @@ import type {
 } from '@/components/voucher'
 import { localDate } from '@/utils/date'
 import { formulaFromPayload, type FormulaPayload } from '@/components/formula'
+import { emptyServiceDetails, serviceDetailsFromDocument } from './service-form'
 
 export interface DraftPayload {
   businessDate: string
@@ -15,11 +16,14 @@ export interface DraftPayload {
   remark?: string
   specialApproval?: boolean
   intermediaryCalculation?: VoucherDraftForm['intermediaryCalculation']
+  serviceContract?: Partial<VoucherDraftForm['serviceContract']>
+  serviceAcceptance?: VoucherDraftForm['serviceAcceptance']
   returnReason?: string
   customer?: VoucherReferenceInput
   supplier?: VoucherReferenceInput
   counterpartyType?: string
   counterparty?: VoucherReferenceInput
+  settlementMethod?: VoucherReferenceInput
   otherCategory?: VoucherDraftForm['otherCategory']
   employee?: VoucherReferenceInput
   salesperson?: VoucherReferenceInput
@@ -129,6 +133,7 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
         ? (config.fixedCounterpartyType ?? 'customer')
         : '',
     counterparty: null,
+    settlementMethod: null,
     otherCategory: '',
     employee: null,
     salesperson: null,
@@ -142,6 +147,7 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
     fundAccount: null,
     sourceName: '',
     amount: '',
+    ...emptyServiceDetails(),
     parentDocumentId: '',
     parentDocumentNo: '',
     productLines:
@@ -250,6 +256,7 @@ function formCounterpartyType(
     case 'supplier':
     case 'other-unit':
     case 'employee':
+    case 'sales-partner':
       return reference.entity
     default:
       return ''
@@ -272,6 +279,9 @@ export function formFromDocument(
     supplier: formReference(data.supplier),
     counterpartyType: formCounterpartyType(data.counterparty),
     counterparty: formReference(data.counterparty),
+    settlementMethod: data.settlementMethod
+      ? { ...data.settlementMethod, entity: 'settlement-method' }
+      : null,
     otherCategory: data.otherCategory ?? '',
     employee: formReference(data.employee),
     salesperson: formReference(data.salesperson),
@@ -285,6 +295,7 @@ export function formFromDocument(
     fundAccount: formReference(data.fundAccount),
     sourceName: data.sourceName ?? '',
     amount: document.amount,
+    ...serviceDetailsFromDocument(data),
     parentDocumentId: document.parentDocumentId ?? '',
     parentDocumentNo: document.parentDocumentNo ?? '',
     productLines: (data.productLines ?? []).map((line) => ({

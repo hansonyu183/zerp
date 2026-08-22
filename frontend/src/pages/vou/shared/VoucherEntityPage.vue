@@ -177,6 +177,7 @@ function changeCounterpartyType(value: string): void {
     'supplier',
     'other-unit',
     'employee',
+    'sales-partner',
   ].includes(value)
     ? (value as typeof vm.form.counterpartyType)
     : ''
@@ -443,23 +444,29 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     item-title="title"
                     item-value="value"
                     :items="
-                      vm.config.entity === 'asset-sale'
+                      vm.config.entity === 'service-contract'
                         ? [
-                            { title: '客户', value: 'customer' },
-                            { title: '其他单位', value: 'other-unit' },
+                            { title: '服务关系', value: 'other-unit' },
+                            { title: '销售合作关系', value: 'sales-partner' },
                           ]
-                        : vm.config.entity === 'other-receipt' ||
-                            vm.config.entity === 'other-payment'
+                        : vm.config.entity === 'asset-sale'
                           ? [
                               { title: '客户', value: 'customer' },
-                              { title: '供应商', value: 'supplier' },
                               { title: '其他单位', value: 'other-unit' },
-                              { title: '员工', value: 'employee' },
                             ]
-                          : [
-                              { title: '客户', value: 'customer' },
-                              { title: '供应商', value: 'supplier' },
-                            ]
+                          : vm.config.entity === 'other-receipt' ||
+                              vm.config.entity === 'other-payment'
+                            ? [
+                                { title: '客户', value: 'customer' },
+                                { title: '供应商', value: 'supplier' },
+                                { title: '其他单位', value: 'other-unit' },
+                                { title: '员工', value: 'employee' },
+                                { title: '销售合作方', value: 'sales-partner' },
+                              ]
+                            : [
+                                { title: '客户', value: 'customer' },
+                                { title: '供应商', value: 'supplier' },
+                              ]
                     "
                     label="往来方类型"
                     :model-value="vm.form.counterpartyType"
@@ -473,20 +480,37 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     :label="
                       vm.form.counterpartyType === 'supplier'
                         ? '供应商'
-                        : vm.form.counterpartyType === 'other-unit'
-                          ? '其他单位'
-                          : vm.form.counterpartyType === 'employee'
-                            ? vm.config.entity === 'other-receipt' ||
-                              vm.config.entity === 'other-payment'
-                              ? '员工'
-                              : '借款员工'
-                            : '客户'
+                        : vm.form.counterpartyType === 'sales-partner'
+                          ? '销售合作方'
+                          : vm.form.counterpartyType === 'other-unit'
+                            ? '其他单位'
+                            : vm.form.counterpartyType === 'employee'
+                              ? vm.config.entity === 'other-receipt' ||
+                                vm.config.entity === 'other-payment'
+                                ? '员工'
+                                : '借款员工'
+                              : '客户'
                     "
                     :model-value="vm.form.counterparty"
                     :required="vm.config.entity !== 'other-income'"
                     @search="search('counterparty', $event)"
                     @update:model-value="
                       updateReference('counterparty', $event)
+                    "
+                  />
+                  <VoucherReferenceAutocomplete
+                    v-if="
+                      vm.config.entity === 'service-contract' &&
+                      vm.form.counterpartyType === 'other-unit'
+                    "
+                    :disabled="!vm.editing"
+                    v-bind="referenceProps('settlementMethod')"
+                    hint="服务关系有有效默认值时可以留空自动带入"
+                    label="结算方式"
+                    :model-value="vm.form.settlementMethod"
+                    @search="search('settlementMethod', $event)"
+                    @update:model-value="
+                      updateReference('settlementMethod', $event)
                     "
                   />
 
@@ -641,6 +665,103 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                     label="金额"
                     variant="outlined"
                   />
+                  <template v-if="vm.config.entity === 'service-contract'">
+                    <v-select
+                      v-if="vm.form.counterpartyType === 'sales-partner'"
+                      v-model="vm.form.serviceContract.capabilities"
+                      chips
+                      :disabled="!vm.editing"
+                      item-title="title"
+                      item-value="value"
+                      :items="[
+                        { title: '外部兼职销售', value: 'EXTERNAL_PART_TIME' },
+                        { title: '渠道商', value: 'CHANNEL_PARTNER' },
+                      ]"
+                      label="覆盖能力"
+                      multiple
+                      required
+                      variant="outlined"
+                    />
+                    <v-text-field
+                      v-if="vm.form.counterpartyType === 'sales-partner'"
+                      v-model="vm.form.serviceContract.applicableFrom"
+                      :disabled="!vm.editing"
+                      label="适用开始日期"
+                      required
+                      type="date"
+                      variant="outlined"
+                    />
+                    <v-text-field
+                      v-if="vm.form.counterpartyType === 'sales-partner'"
+                      v-model="vm.form.serviceContract.applicableTo"
+                      :disabled="!vm.editing"
+                      label="适用结束日期（留空长期有效）"
+                      type="date"
+                      variant="outlined"
+                    />
+                    <v-textarea
+                      v-model="vm.form.serviceContract.terms"
+                      class="voucher-form__wide"
+                      counter="10000"
+                      :disabled="!vm.editing"
+                      label="合同条款"
+                      variant="outlined"
+                    />
+                  </template>
+                  <template v-if="vm.config.entity === 'service-acceptance'">
+                    <v-text-field
+                      v-model="vm.form.serviceAcceptance.contractDocumentId"
+                      :disabled="!vm.editing"
+                      label="已批准服务合同 ID"
+                      required
+                      variant="outlined"
+                    />
+                    <v-text-field
+                      v-model="vm.form.serviceAcceptance.serviceDate"
+                      :disabled="!vm.editing"
+                      label="履约日期"
+                      required
+                      type="date"
+                      variant="outlined"
+                    />
+                    <v-text-field
+                      v-model="vm.form.serviceAcceptance.acceptanceDate"
+                      :disabled="!vm.editing"
+                      label="验收日期"
+                      required
+                      type="date"
+                      variant="outlined"
+                    />
+                    <v-select
+                      v-model="vm.form.serviceAcceptance.settlementDirection"
+                      :disabled="!vm.editing"
+                      item-title="title"
+                      item-value="value"
+                      :items="[
+                        { title: '其他应付', value: 'PAYABLE' },
+                        { title: '其他应收', value: 'RECEIVABLE' },
+                      ]"
+                      label="结算方向"
+                      required
+                      variant="outlined"
+                    />
+                    <v-textarea
+                      v-model="vm.form.serviceAcceptance.fulfillmentFact"
+                      class="voucher-form__wide"
+                      counter="10000"
+                      :disabled="!vm.editing"
+                      label="履约事实"
+                      variant="outlined"
+                    />
+                    <v-textarea
+                      v-model="vm.form.serviceAcceptance.acceptanceFact"
+                      class="voucher-form__wide"
+                      counter="10000"
+                      :disabled="!vm.editing"
+                      label="验收事实"
+                      variant="outlined"
+                    />
+                  </template>
                   <v-textarea
                     v-if="
                       vm.config.entity === 'sale-return' ||

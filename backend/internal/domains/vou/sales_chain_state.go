@@ -4,6 +4,7 @@ import (
 	"context"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/jackc/pgx/v5"
 )
@@ -28,7 +29,7 @@ func (s *Service) loadSalesChainData(
 		if err != nil {
 			return data, err
 		}
-		customer.Entity, warehouse.Entity = "customer", "warehouse"
+		customer.Entity, warehouse.Entity = bobdomain.EntityCustomerAccount, "warehouse"
 		data.Customer = &customer
 		if warehouse.ObjectID != "" {
 			data.Warehouse = &warehouse
@@ -80,7 +81,7 @@ func (s *Service) loadSalesChainData(
 		if err != nil {
 			return data, err
 		}
-		customer.Entity, platform.Entity, vehicle.Entity = "customer", "supplier", "vehicle"
+		customer.Entity, platform.Entity, vehicle.Entity = bobdomain.EntityCustomerAccount, "other-unit", "vehicle"
 		data.Customer = &customer
 		if platform.ObjectID != "" {
 			data.Platform = &platform
@@ -128,7 +129,7 @@ func (s *Service) loadSalesChainData(
 		if err != nil {
 			return data, err
 		}
-		customer.Entity, warehouse.Entity = "customer", "warehouse"
+		customer.Entity, warehouse.Entity = bobdomain.EntityCustomerAccount, "warehouse"
 		data.Customer, data.Warehouse = &customer, &warehouse
 		rows, err := s.pool.Query(ctx, `SELECT id,source_outbound_line_id,line_no,
 			product_object_id,product_version_id,product_code,product_name,product_unit,
@@ -500,6 +501,10 @@ func (s *Service) Delete(
 		_, err = tx.Exec(ctx, `DELETE FROM vou_expense_payment_details WHERE document_id=$1`, input.DocumentID)
 	case EntityOtherIncome:
 		_, err = tx.Exec(ctx, `DELETE FROM vou_other_income_details WHERE document_id=$1`, input.DocumentID)
+	case EntityServiceContract:
+		_, err = tx.Exec(ctx, `DELETE FROM vou_service_contract_details WHERE document_id=$1`, input.DocumentID)
+	case EntityServiceAcceptance:
+		_, err = tx.Exec(ctx, `DELETE FROM vou_service_acceptance_details WHERE document_id=$1`, input.DocumentID)
 	case EntityAssetAcquisition:
 		_, err = tx.Exec(ctx, `DELETE FROM vou_asset_acquisition_lines WHERE document_id=$1;
 			DELETE FROM vou_asset_acquisition_details WHERE document_id=$1`, input.DocumentID)

@@ -85,7 +85,7 @@ func activateSettlementLedger(
 	amountCents int64,
 	effectiveDate string,
 ) {
-	activateSettlementLedgerForParty(t, pool, "customer", customer, amountCents, effectiveDate)
+	activateSettlementLedgerForParty(t, pool, bobdomain.EntityCustomerAccount, customer, amountCents, effectiveDate)
 }
 
 func activateSettlementLedgerForParty(
@@ -105,9 +105,9 @@ func activateSettlementLedgerForParty(
 		t.Fatalf("insert accounting control book: %v", err)
 	}
 	for index, definition := range []struct{ purpose, dimension, direction string }{
-		{"RECEIVABLE", "CUSTOMER", "DEBIT"}, {"ADVANCE_RECEIPT", "CUSTOMER", "CREDIT"},
-		{"PAYABLE", "SUPPLIER", "CREDIT"}, {"PREPAID", "SUPPLIER", "DEBIT"},
-		{"OTHER", "CUSTOMER", "DEBIT"},
+		{"RECEIVABLE", "CUSTOMER_ACCOUNT", "DEBIT"}, {"ADVANCE_RECEIPT", "CUSTOMER_ACCOUNT", "CREDIT"},
+		{"PAYABLE", "SUPPLIER_RELATIONSHIP", "CREDIT"}, {"PREPAID", "SUPPLIER_RELATIONSHIP", "DEBIT"},
+		{"OTHER", "CUSTOMER_ACCOUNT", "DEBIT"},
 	} {
 		subjectID := newID()
 		if _, err := pool.Exec(t.Context(), `INSERT INTO acc_subjects(
@@ -150,9 +150,9 @@ func insertAccountingPartyEntry(
 	ctx context.Context, executor accountingEntryExecutor, partyEntity, partyObjectID,
 	purpose string, naturalAmount int64, effectiveDate, sourceID string,
 ) error {
-	dimension := "CUSTOMER"
+	dimension := "CUSTOMER_ACCOUNT"
 	if partyEntity == "supplier" {
-		dimension = "SUPPLIER"
+		dimension = "SUPPLIER_RELATIONSHIP"
 	}
 	var bookID, subjectID, direction string
 	if err := executor.QueryRow(ctx, `SELECT subject.book_id,subject.id,subject.balance_direction

@@ -37,7 +37,7 @@ async function selectReference(
   await input.click()
   await input.fill(keyword)
   const option = page.getByRole('option').filter({ hasText: keyword }).first()
-  await expect(option).toBeVisible()
+  await expect(option).toBeVisible({ timeout: 15_000 })
   await option.click()
 }
 

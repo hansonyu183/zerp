@@ -162,12 +162,8 @@ func TestLifecycleIntegration(t *testing.T) {
 func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 	pool := integrationPool(t)
 	service := NewService(pool)
-	_, salesperson := createApprovedIntegration(t, service, EntityEmployee, CreateDetailInput{
-		Code: "LCE" + newID(), Name: "Contract Salesperson",
-	}, "contract-salesperson")
-	platform, _ := createApprovedIntegration(t, service, EntitySupplier, CreateDetailInput{
-		Code: "PL" + newID(), Name: "Lifecycle Platform",
-		SupplierType: stringIntegrationPointer(SupplierTypeLogisticsPlatform),
+	platform, _ := createApprovedIntegration(t, service, EntityOtherUnit, CreateDetailInput{
+		Name: "Lifecycle Carrier",
 	}, "contract-platform")
 	_, operating := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{
 		Name: "Lifecycle Operating Entity", TaxNumber: "TAX" + newID()[3:],
@@ -176,10 +172,7 @@ func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 		entity string
 		data   CreateDetailInput
 	}{
-		{EntityCustomer, CreateDetailInput{Name: "Customer"}},
-		{EntitySupplier, CreateDetailInput{Name: "Supplier"}},
 		{EntityOtherUnit, CreateDetailInput{Name: "Other Party"}},
-		{EntityEmployee, CreateDetailInput{Name: "Employee"}},
 		{EntityProduct, CreateDetailInput{Name: "Product", Unit: "piece"}},
 		{EntityService, CreateDetailInput{Name: "Service", Unit: "hour"}},
 		{EntityWarehouse, CreateDetailInput{Name: "主仓"}},
@@ -194,23 +187,9 @@ func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.entity, func(t *testing.T) {
-			previousAuxiliaryResolver := service.auxiliaryResolver
-			if test.entity == EntitySupplier {
-				service.SetAuxiliaryResolver(customerAuxiliaryResolverStub{})
-				defer service.SetAuxiliaryResolver(previousAuxiliaryResolver)
-			}
 			test.data.Code = "LC" + newID()
-			if test.entity == EntityCustomer {
-				test.data.SalespersonEmployeeID = salesperson.ObjectID
-			}
 			if test.entity == EntityOtherUnit {
 				test.data.OperatingEntityID = operating.ObjectID
-			}
-			if test.entity == EntitySupplier {
-				test.data.DefaultPurchaserEmployeeID = salesperson.ObjectID
-				if err := pool.QueryRow(t.Context(), `SELECT id FROM aux_objects WHERE entity='settlement-method' AND enabled ORDER BY code LIMIT 1`).Scan(&test.data.SettlementMethodID); err != nil {
-					t.Fatalf("find supplier settlement: %v", err)
-				}
 			}
 			if test.entity == EntityFundAccount {
 				test.data.OperatingEntityID = operating.ObjectID
@@ -256,7 +235,7 @@ func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 			if err = tx.Commit(t.Context()); err != nil {
 				t.Fatalf("commit resolve: %v", err)
 			}
-			if test.entity == EntityCustomer || test.entity == EntitySupplier || test.entity == EntityOtherUnit {
+			if test.entity == EntityOtherUnit {
 				return
 			}
 			edited, err := service.Edit(t.Context(), test.entity, ObjectRevisionInput{
@@ -286,9 +265,8 @@ func TestLogisticsPlatformAndVehicleLifecycleIntegration(t *testing.T) {
 		t.Fatalf("general supplier vehicle error = %v", err)
 	}
 
-	platformCreated, platformApproved := createApprovedIntegration(t, service, EntitySupplier, CreateDetailInput{
-		Code: "LP" + newID(), Name: "自营物流平台",
-		SupplierType: stringIntegrationPointer(SupplierTypeLogisticsPlatform),
+	platformCreated, _ := createApprovedIntegration(t, service, EntityOtherUnit, CreateDetailInput{
+		Name: "承运服务单位",
 	}, "logistics-platform")
 	vehiclePlate := "粤B" + newID()
 	vehicleCreated, _ := createApprovedIntegration(t, service, EntityVehicle, CreateDetailInput{
@@ -318,95 +296,13 @@ func TestLogisticsPlatformAndVehicleLifecycleIntegration(t *testing.T) {
 	if err = tx.Commit(t.Context()); err != nil {
 		t.Fatalf("commit vehicle reference: %v", err)
 	}
-	draftVehicleData := DetailInput{
-		Name: "待保存车辆", PlateNumber: "粤C" + newID(),
-		VehicleType: "厢式货车", PlatformObjectID: platformCreated.ObjectID,
-	}
-	draftVehicle, err := service.Create(t.Context(), EntityVehicle, CreateInput{Data: CreateDetailInput{
-		Code: "VD" + newID(), Name: draftVehicleData.Name, PlateNumber: draftVehicleData.PlateNumber,
-		VehicleType: draftVehicleData.VehicleType, PlatformObjectID: draftVehicleData.PlatformObjectID,
-	}}, integrationActorOne, "vehicle-draft-create")
-	if err != nil {
-		t.Fatalf("create draft vehicle: %v", err)
-	}
-
-	platformDetail, err := service.SupplierGet(t.Context(), GetInput{ObjectID: platformCreated.ObjectID})
-	if err != nil || platformDetail.Effective == nil {
-		t.Fatalf("get effective platform: detail=%+v err=%v", platformDetail, err)
-	}
-	updatedPlatformData := platformDetail.Effective.Data
-	updatedPlatformData.Name = "自营物流平台（更新）"
-	platformSaved, err := service.SupplierSave(t.Context(), SupplierSaveInput{
-		ObjectID: platformCreated.ObjectID, VersionID: platformApproved.VersionID,
-		Revision: platformApproved.Revision, Data: updatedPlatformData,
-	}, integrationActorOne, "platform-candidate-save")
-	if err != nil {
-		t.Fatalf("save platform candidate: %v", err)
-	}
-	tx, err = pool.Begin(t.Context())
-	if err != nil {
-		t.Fatalf("begin candidate vehicle reference: %v", err)
-	}
-	_, err = service.ResolveEffectiveReference(
-		t.Context(), tx, EntityVehicle, vehicleCreated.ObjectID, vehicleCreated.VersionID,
-	)
-	if err != nil {
-		_ = tx.Rollback(t.Context())
-		t.Fatalf("platform candidate blocked vehicle reference: %v", err)
-	}
-	_ = tx.Commit(t.Context())
-	if _, err = service.Save(t.Context(), EntityVehicle, SaveInput{
-		ObjectID: draftVehicle.ObjectID, VersionID: draftVehicle.VersionID, Revision: draftVehicle.Revision,
-		Data: draftVehicleData,
-	}, integrationActorOne, "vehicle-save-platform-candidate"); err != nil {
-		t.Fatalf("vehicle save while platform has candidate: %v", err)
-	}
-	platformSubmitted, err := service.Submit(t.Context(), EntitySupplier, VersionRevisionInput{
-		ObjectID: platformSaved.ObjectID, VersionID: platformSaved.VersionID, Revision: platformSaved.Revision,
-	}, integrationActorOne, "platform-submit")
-	if err != nil {
-		t.Fatalf("submit platform: %v", err)
-	}
-	platformReapproved, err := service.Approve(t.Context(), EntitySupplier, ReviewInput{
-		ObjectID: platformSubmitted.ObjectID, VersionID: platformSubmitted.VersionID, Revision: platformSubmitted.Revision,
-	}, integrationActorTwo, "platform-approve")
-	if err != nil {
-		t.Fatalf("approve platform: %v", err)
-	}
-	platformView, err := service.SupplierGet(t.Context(), GetInput{ObjectID: platformCreated.ObjectID})
-	if err != nil || platformView.Effective == nil || platformView.Effective.Data.SupplierType != SupplierTypeLogisticsPlatform {
-		t.Fatalf("platform type after compatible save: view=%+v err=%v", platformView, err)
-	}
-
-	tx, err = pool.Begin(t.Context())
-	if err != nil {
-		t.Fatalf("begin restored vehicle reference: %v", err)
-	}
-	if _, err = service.ResolveEffectiveReference(
-		t.Context(), tx, EntityVehicle, vehicleCreated.ObjectID, vehicleCreated.VersionID,
-	); err != nil {
-		t.Fatalf("resolve vehicle after platform approval: %v", err)
-	}
-	if err = tx.Commit(t.Context()); err != nil {
-		t.Fatalf("commit restored vehicle reference: %v", err)
-	}
-	downgradeData := platformView.Effective.Data
-	downgradeData.Name = "普通供应商"
-	downgradeData.SupplierType = SupplierTypeGeneral
-	if _, err = service.SupplierSave(t.Context(), SupplierSaveInput{
-		ObjectID: platformCreated.ObjectID, VersionID: platformReapproved.VersionID,
-		Revision: platformReapproved.Revision, Data: downgradeData,
-	}, integrationActorOne, "platform-downgrade-save"); !errorIsKind(err, ErrorConflict) {
-		t.Fatalf("platform downgrade error = %v", err)
-	}
 }
 
 func TestVehiclePlateUniquenessAndHistoryIntegration(t *testing.T) {
 	pool := integrationPool(t)
 	service := NewService(pool)
-	platform, _ := createApprovedIntegration(t, service, EntitySupplier, CreateDetailInput{
-		Code: "PU" + newID(), Name: "Plate Platform",
-		SupplierType: stringIntegrationPointer(SupplierTypeLogisticsPlatform),
+	platform, _ := createApprovedIntegration(t, service, EntityOtherUnit, CreateDetailInput{
+		Name: "Plate Carrier",
 	}, "plate-platform")
 
 	plate := "沪C" + newID()

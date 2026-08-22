@@ -184,6 +184,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/bob/other-unit/OtherUnit.vue'),
   }),
   registerPage('bob', {
+    entity: 'sales-partner',
+    entityTitle: '销售合作方',
+    icon: 'mdi-handshake-outline',
+    order: 27,
+    component: () => import('@/pages/bob/sales-partner/SalesPartner.vue'),
+  }),
+  registerPage('bob', {
     entity: 'employee',
     entityTitle: '员工',
     icon: 'mdi-badge-account-horizontal-outline',
@@ -388,6 +395,21 @@ export const pageRegistrations: readonly PageRegistration[] = [
     order: 45,
     component: () =>
       import('@/pages/vou/intermediary-calculation/IntermediaryCalculation.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'service-contract',
+    entityTitle: '服务合同',
+    icon: 'mdi-file-sign',
+    order: 46,
+    component: () => import('@/pages/vou/service-contract/ServiceContract.vue'),
+  }),
+  registerPage('vou', {
+    entity: 'service-acceptance',
+    entityTitle: '履约验收',
+    icon: 'mdi-file-check-outline',
+    order: 47,
+    component: () =>
+      import('@/pages/vou/service-acceptance/ServiceAcceptance.vue'),
   }),
   registerPage('vou', {
     entity: 'order-production',

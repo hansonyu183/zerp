@@ -36,9 +36,8 @@ export const vehicleConfig = defineBobEntityConfig({
       filters: { dictionaryTypeCode: 'DCT-0002' },
     },
     platformObjectId: {
-      entity: 'supplier',
+      entity: 'other-unit',
       label: '物流平台',
-      filters: { supplierType: 'LOGISTICS_PLATFORM' },
     },
   },
   fields: (context) => [

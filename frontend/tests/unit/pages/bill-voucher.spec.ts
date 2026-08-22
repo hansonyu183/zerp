@@ -971,7 +971,7 @@ describe('bill voucher view model behavior', () => {
     const cases = [
       {
         entity: 'bill-receipt' as const,
-        permissions: ['/bob/customer/query', '/bob/employee/query'],
+        permissions: ['/bob/customer-account/query', '/bob/employee/query'],
       },
       {
         entity: 'bill-payment' as const,

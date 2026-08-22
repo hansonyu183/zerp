@@ -18,15 +18,28 @@ func (s *Service) writeSaleDetail(
 	settlement := settlementSnapshot(
 		refs.CustomerSettlement, refs.Customer.Data.MonthlyClosingDay,
 	)
+	attribution, err := q.GetVouSalesAttributionSnapshot(ctx, refs.Customer.VersionID)
+	if err != nil {
+		return s.internal("read customer sales attribution snapshot", err)
+	}
+	if !validIntermediarySalesAttribution(deref(attribution.PrimarySalesAttributionType), deref(attribution.PrimarySalesSubjectID),
+		deref(attribution.PrimarySalesSubjectVersionID), deref(attribution.PrimarySalesSubjectCode), deref(attribution.PrimarySalesSubjectName)) {
+		return domainError(ErrorConflict, "customer sales attribution snapshot is incomplete", nil, nil)
+	}
 	params := dbsqlc.InsertVouSaleOrderDetailParams{
 		DocumentID: documentID, CustomerObjectID: refs.Customer.ObjectID,
 		CustomerVersionID: refs.Customer.VersionID, CustomerCode: refs.Customer.Code, CustomerName: refs.Customer.Data.Name,
 		SalespersonObjectID:  stringPtr(refs.Salesperson.ObjectID),
 		SalespersonVersionID: stringPtr(refs.Salesperson.VersionID),
 		SalespersonCode:      stringPtr(refs.Salesperson.Code), SalespersonName: stringPtr(refs.Salesperson.Data.Name),
-		WarehouseObjectID:  stringPtr(refs.Warehouse.ObjectID),
-		WarehouseVersionID: stringPtr(refs.Warehouse.VersionID),
-		WarehouseCode:      stringPtr(refs.Warehouse.Code), WarehouseName: stringPtr(refs.Warehouse.Data.Name),
+		SalesAttributionType:             deref(attribution.PrimarySalesAttributionType),
+		SalesAttributionSubjectObjectID:  deref(attribution.PrimarySalesSubjectID),
+		SalesAttributionSubjectVersionID: deref(attribution.PrimarySalesSubjectVersionID),
+		SalesAttributionSubjectCode:      deref(attribution.PrimarySalesSubjectCode),
+		SalesAttributionSubjectName:      deref(attribution.PrimarySalesSubjectName),
+		WarehouseObjectID:                stringPtr(refs.Warehouse.ObjectID),
+		WarehouseVersionID:               stringPtr(refs.Warehouse.VersionID),
+		WarehouseCode:                    stringPtr(refs.Warehouse.Code), WarehouseName: stringPtr(refs.Warehouse.Data.Name),
 		ContactName:              optionalText(refs.Customer.Data.ContactName),
 		ContactPhone:             optionalText(refs.Customer.Data.ContactPhone),
 		DeliveryAddress:          optionalText(refs.Customer.Data.Address),
@@ -46,7 +59,12 @@ func (s *Service) writeSaleDetail(
 			CustomerCode: params.CustomerCode, CustomerName: params.CustomerName,
 			SalespersonObjectID: params.SalespersonObjectID, SalespersonVersionID: params.SalespersonVersionID,
 			SalespersonCode: params.SalespersonCode, SalespersonName: params.SalespersonName,
-			WarehouseObjectID: params.WarehouseObjectID, WarehouseVersionID: params.WarehouseVersionID,
+			SalesAttributionType:             params.SalesAttributionType,
+			SalesAttributionSubjectObjectID:  params.SalesAttributionSubjectObjectID,
+			SalesAttributionSubjectVersionID: params.SalesAttributionSubjectVersionID,
+			SalesAttributionSubjectCode:      params.SalesAttributionSubjectCode,
+			SalesAttributionSubjectName:      params.SalesAttributionSubjectName,
+			WarehouseObjectID:                params.WarehouseObjectID, WarehouseVersionID: params.WarehouseVersionID,
 			WarehouseCode: params.WarehouseCode, WarehouseName: params.WarehouseName,
 			ContactName: params.ContactName, ContactPhone: params.ContactPhone,
 			DeliveryAddress:           params.DeliveryAddress,

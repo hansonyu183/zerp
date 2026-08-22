@@ -145,7 +145,7 @@ type BillMaturitySaveRequest = {
 const requiredCreateReferencePermissions: Readonly<
   Record<BillVoucherConfig['mode'], readonly string[]>
 > = {
-  receipt: ['/bob/customer/query', '/bob/employee/query'],
+  receipt: ['/bob/customer-account/query', '/bob/employee/query'],
   payment: ['/bob/supplier/query'],
   issue: ['/bob/supplier/query'],
   discount: ['/bob/other-unit/query'],
@@ -674,14 +674,20 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     value: string,
     signal: AbortSignal,
   ) {
-    if (entity === 'customer') {
+    if (entity === 'customer' || entity === 'supplier' || entity === 'employee') {
       try {
         const result = await apiClient.postContract(
           'bob/reference/query',
-          { entity, ...(value.trim() ? { keyword: value.trim() } : {}) },
+          {
+            entity: entity === 'customer' ? 'customer-account' : entity,
+            ...(value.trim() ? { keyword: value.trim() } : {}),
+          },
           { signal },
         )
-        return result.data.map((item) => ({ ...item, entity }))
+        return result.data.map((item) => ({
+          ...item,
+          entity: entity === 'customer' ? ('customer-account' as const) : entity,
+        }))
       } catch {
         return []
       }

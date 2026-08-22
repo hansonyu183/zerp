@@ -1,6 +1,5 @@
 import type { BobEntityConfig } from './types'
 import { supplierConfig } from '../supplier/config'
-import { employeeConfig } from '../employee/config'
 import { productConfig } from '../product/config'
 import { serviceConfig } from '../service/config'
 import { warehouseConfig } from '../warehouse/config'
@@ -12,7 +11,6 @@ export { getStatusText, statusOptions } from './config-helpers'
 
 export const bobEntityConfigs: Readonly<Record<string, BobEntityConfig>> = {
   supplier: supplierConfig,
-  employee: employeeConfig,
   product: productConfig,
   service: serviceConfig,
   warehouse: warehouseConfig,

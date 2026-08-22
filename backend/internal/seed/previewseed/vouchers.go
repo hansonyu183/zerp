@@ -360,7 +360,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 	customer := s.voucherReference("customer-effective")
 	employee := s.voucherReference("employee-effective")
 	warehouse := s.voucherReference("warehouse-effective")
-	platform := s.voucherReference("supplier-platform")
+	platform := s.voucherReference("logistics-service")
 	vehicle := s.voucherReference("vehicle-effective")
 	raw := s.voucherReference("raw-effective")
 	finished := s.voucherReference("finished-effective")
@@ -531,7 +531,7 @@ func (s *Seeder) seedFinancialDocuments(ctx context.Context, counts *Counts) err
 			"receipt-approved", voudomain.EntitySalesReceipt, voudomain.StatusApproved,
 			voudomain.DraftInput{
 				BusinessDate: "2026-07-11", Currency: "CNY",
-				CounterpartyType: "customer", Counterparty: &customer,
+				CounterpartyType: "customer-account", Counterparty: &customer,
 				FundAccount: &fund, Handler: &employee, Amount: "1200.00",
 				Remark: "预览往来收款：已批准",
 			},
@@ -540,7 +540,7 @@ func (s *Seeder) seedFinancialDocuments(ctx context.Context, counts *Counts) err
 			"receipt-draft", voudomain.EntitySalesReceipt, voudomain.StatusDraft,
 			voudomain.DraftInput{
 				BusinessDate: businessDate, Currency: "CNY",
-				CounterpartyType: "customer", Counterparty: &customer,
+				CounterpartyType: "customer-account", Counterparty: &customer,
 				FundAccount: &fund, Handler: &employee, Amount: "300.00",
 				Remark: "预览可操作草稿：往来收款",
 			},
@@ -590,7 +590,7 @@ func (s *Seeder) seedFinancialDocuments(ctx context.Context, counts *Counts) err
 			"income-approved", voudomain.EntityOtherIncome, voudomain.StatusApproved,
 			voudomain.DraftInput{
 				BusinessDate: "2026-07-12", Currency: "CNY",
-				CounterpartyType: "customer", Counterparty: &customer,
+				CounterpartyType: "customer-account", Counterparty: &customer,
 				FundAccount: &fund, Handler: &employee, SourceName: "废料处置",
 				Amount: "600.00", Remark: "预览其他收入：已批准",
 			},
@@ -599,7 +599,7 @@ func (s *Seeder) seedFinancialDocuments(ctx context.Context, counts *Counts) err
 			"income-draft", voudomain.EntityOtherIncome, voudomain.StatusDraft,
 			voudomain.DraftInput{
 				BusinessDate: businessDate, Currency: "CNY",
-				CounterpartyType: "customer", Counterparty: &customer,
+				CounterpartyType: "customer-account", Counterparty: &customer,
 				FundAccount: &fund, Handler: &employee, SourceName: "服务收入",
 				Amount: "180.00", Remark: "预览可操作草稿：其他收入",
 			},

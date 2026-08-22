@@ -1,87 +1,47 @@
 import { sortedCostItems } from './form'
 import type { components } from '@/api/generated/schema'
-import type { CustomerCreateRequest } from './api'
-import type {
-  CustomerAccountDraft,
-  CustomerForm,
-  CustomerGroupDraft,
-} from './types'
+import type { CustomerAccountDraft, CustomerForm } from './types'
 
 type CustomerAccountPayload = components['schemas']['CustomerAccountInput']
 
-function trimGroup(group: CustomerGroupDraft): CustomerGroupDraft {
-  return {
-    ...group,
-    companyName: group.companyName.trim(),
-    shortName: group.shortName.trim(),
-    taxNumber: group.taxNumber.trim().toUpperCase(),
-    invoiceTitle: group.invoiceTitle.trim(),
-    invoiceAddress: group.invoiceAddress.trim(),
-    invoicePhone: group.invoicePhone.trim(),
-    bankAccounts: group.bankAccounts.map((account) => ({
-      bankName: account.bankName.trim(),
-      bankBranch: account.bankBranch.trim(),
-      accountName: account.accountName.trim(),
-      accountNumber: account.accountNumber.trim(),
-    })),
-  }
-}
-
-export function customerAccountPayload(
-  account: CustomerAccountDraft,
-): CustomerAccountPayload {
+export function customerAccountPayload(account: CustomerAccountDraft): CustomerAccountPayload {
   const subject = account.primarySalesAttribution.subject
+  if (!account.operatingEntity || !subject) throw new Error('客户账户的经营主体和业务归属主体不能为空。')
   return {
-    name: account.name.trim(),
-    customerTypeCode: account.customerTypeCode,
-    shortName: account.shortName.trim(),
-    contactName: account.contactName.trim(),
-    contactPhone: account.contactPhone.trim(),
-    email: account.email.trim(),
-    address: account.address.trim(),
-    operatingEntityId: account.operatingEntity?.objectId ?? null,
+    name: account.name.trim(), customerTypeCode: account.customerTypeCode,
+    shortName: account.shortName.trim() || null, contactName: account.contactName.trim() || null,
+    contactPhone: account.contactPhone.trim() || null, email: account.email.trim() || null,
+    address: account.address.trim() || null, operatingEntityId: account.operatingEntity.objectId,
     settlementMethodId: account.settlementMethod?.objectId ?? null,
     paymentMethodId: account.paymentMethod?.objectId ?? null,
-    defaultTransportMethodCode:
-      account.defaultTransportMethodCode.trim() || null,
-    defaultTransportMethodName:
-      account.defaultTransportMethodName.trim() || null,
-    transportSurcharge: account.transportSurcharge.trim(),
-    primarySalesAttribution: {
-      type: account.primarySalesAttribution.type,
-      subjectObjectId: subject?.objectId ?? '',
-    },
+    defaultTransportMethodCode: account.defaultTransportMethodCode.trim() || null,
+    defaultTransportMethodName: account.defaultTransportMethodName.trim() || null,
+    transportSurcharge: account.transportSurcharge.trim() || null,
+    primarySalesAttribution: { type: account.primarySalesAttribution.type, subjectObjectId: subject.objectId },
     pricingPolicy: {
       ...account.pricingPolicy,
-      costItems: sortedCostItems(account.pricingPolicy.costItems).map((item) =>
-        item.basis === 'UNIT_PRICE'
-          ? {
-              name: item.name,
-              basis: item.basis,
-              unitPrice: item.unitPrice?.trim() ?? '',
-            }
-          : {
-              name: item.name,
-              basis: item.basis,
-              orderAmount: item.orderAmount?.trim() ?? '',
-            },
-      ),
+      costItems: sortedCostItems(account.pricingPolicy.costItems).map((item) => item.basis === 'UNIT_PRICE'
+        ? { name: item.name, basis: item.basis, unitPrice: item.unitPrice?.trim() ?? '' }
+        : { name: item.name, basis: item.basis, orderAmount: item.orderAmount?.trim() ?? '' }),
     },
-    creditLimits: account.creditLimits.map((limit) => ({
-      ...limit,
-      currency: 'CNY' as const,
-      amount: limit.amount.trim(),
-    })),
-    internalReminder: account.internalReminder.trim(),
-    defaultSalesOrderRemark: account.defaultSalesOrderRemark.trim(),
+    creditLimits: account.creditLimits.map((limit) => ({ currency: 'CNY' as const, amount: limit.amount.trim() })),
+    internalReminder: account.internalReminder.trim() || null,
+    defaultSalesOrderRemark: account.defaultSalesOrderRemark.trim() || null,
   }
 }
 
-export function customerCreatePayload(
-  form: CustomerForm,
-): CustomerCreateRequest {
+export function customerCreatePayload(form: CustomerForm): components['schemas']['CustomerCreateRequest'] {
+  const data = customerAccountPayload(form.account)
+  if (form.party.mode === 'EXISTING') return { partyId: form.party.partyId, data }
   return {
-    group: trimGroup(form.group),
-    data: customerAccountPayload(form.account),
+    newParty: {
+      kind: form.party.kind, legalName: form.party.legalName.trim(),
+      displayName: form.party.displayName.trim() || undefined,
+      taxNumber: form.party.taxNumber.trim() || undefined,
+      strongIdentifiers: form.party.identifierValue.trim()
+        ? [{ type: form.party.identifierType, value: form.party.identifierValue.trim() }]
+        : [],
+    },
+    data,
   }
 }

@@ -5,8 +5,11 @@
       'enum':
         [
           'customer',
+          'customer-account',
           'supplier',
           'employee',
+          'other-unit',
+          'sales-partner',
           'product',
           'service',
           'warehouse',
@@ -155,6 +158,48 @@
       'properties':
         { 'objectId': { 'type': 'string' }, 'versionId': { 'type': 'string' } },
     },
+  'EmploymentData':
+    {
+      'type': 'object',
+      'required': ['operatingEntityId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'operatingEntityId': { 'type': 'string' },
+          'departmentId': { 'type': 'string', 'nullable': true },
+          'positionId': { 'type': 'string', 'nullable': true },
+          'phone': { 'type': 'string', 'nullable': true },
+          'email': { 'type': 'string', 'nullable': true },
+          'hireDate': { 'type': 'string', 'nullable': true, 'format': 'date' },
+          'remark': { 'type': 'string', 'nullable': true },
+        },
+    },
+  'EmploymentCreateRequest':
+    {
+      'oneOf':
+        [
+          {
+            'type': 'object',
+            'required': ['partyId', 'data'],
+            'additionalProperties': false,
+            'properties':
+              {
+                'partyId': { 'type': 'string' },
+                'data': { '$ref': '#/EmploymentData' },
+              },
+          },
+          {
+            'type': 'object',
+            'required': ['newParty', 'data'],
+            'additionalProperties': false,
+            'properties':
+              {
+                'newParty': { '$ref': '#/PartyIdentityData' },
+                'data': { '$ref': '#/EmploymentData' },
+              },
+          },
+        ],
+    },
   'BobCreateRequest':
     {
       'type': 'object',
@@ -172,7 +217,6 @@
                   'name': { 'type': 'string', 'nullable': true },
                   'unit': { 'type': 'string', 'nullable': true },
                   'currency': { 'type': 'string', 'nullable': true },
-                  'supplierType': { 'type': 'string', 'nullable': true },
                   'customerType': { 'type': 'string', 'nullable': true },
                   'plateNumber': { 'type': 'string', 'nullable': true },
                   'vehicleType': { 'type': 'string', 'nullable': true },
@@ -201,7 +245,7 @@
                   'bankName': { 'type': 'string', 'nullable': true },
                   'bankBranch': { 'type': 'string', 'nullable': true },
                   'accountNumber': { 'type': 'string', 'nullable': true },
-                  'operatingEntityId': { 'type': 'string', 'nullable': true },
+                  'operatingEntityId': { 'type': 'string' },
                   'settlementMethodId': { 'type': 'string', 'nullable': true },
                   'termCode': { 'type': 'string', 'nullable': true },
                   'defaultSalesSurcharge':
@@ -213,12 +257,6 @@
                       'type': 'string',
                       'nullable': true,
                       'description': '仅客户适用；返点单价，单位为元/kg，省略按 0 处理',
-                    },
-                  'intermediaryOtherPartyId':
-                    {
-                      'type': 'string',
-                      'nullable': true,
-                      'description': '仅客户适用；引用其他单位中的居间商',
                     },
                   'productKind':
                     {
@@ -283,7 +321,6 @@
                   'name': { 'type': 'string', 'nullable': true },
                   'unit': { 'type': 'string', 'nullable': true },
                   'currency': { 'type': 'string', 'nullable': true },
-                  'supplierType': { 'type': 'string', 'nullable': true },
                   'customerType': { 'type': 'string', 'nullable': true },
                   'plateNumber': { 'type': 'string', 'nullable': true },
                   'vehicleType': { 'type': 'string', 'nullable': true },
@@ -312,7 +349,7 @@
                   'bankName': { 'type': 'string', 'nullable': true },
                   'bankBranch': { 'type': 'string', 'nullable': true },
                   'accountNumber': { 'type': 'string', 'nullable': true },
-                  'operatingEntityId': { 'type': 'string', 'nullable': true },
+                  'operatingEntityId': { 'type': 'string' },
                   'settlementMethodId': { 'type': 'string', 'nullable': true },
                   'termCode': { 'type': 'string', 'nullable': true },
                   'defaultSalesSurcharge':
@@ -320,8 +357,6 @@
                   'salespersonEmployeeId':
                     { 'type': 'string', 'nullable': true },
                   'rebateUnitPrice': { 'type': 'string', 'nullable': true },
-                  'intermediaryOtherPartyId':
-                    { 'type': 'string', 'nullable': true },
                   'productKind':
                     {
                       'type': 'string',
@@ -542,72 +577,6 @@
           'thirdPartyIntermediaryVariableUnitCost': { 'type': 'string' },
         },
     },
-  'CustomerGroupBankAccount':
-    {
-      'type': 'object',
-      'required': ['accountName', 'bankName', 'bankBranch', 'accountNumber'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'accountName': { 'type': 'string', 'maxLength': 200 },
-          'bankName': { 'type': 'string', 'maxLength': 200 },
-          'bankBranch': { 'type': 'string', 'maxLength': 200 },
-          'accountNumber': { 'type': 'string', 'maxLength': 100 },
-        },
-    },
-  'CustomerGroupData':
-    {
-      'type': 'object',
-      'required': ['companyName', 'bankAccounts'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'companyName': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
-          'shortName': { 'type': 'string', 'nullable': true, 'maxLength': 100 },
-          'taxNumber': { 'type': 'string', 'nullable': true, 'maxLength': 100 },
-          'invoiceTitle':
-            { 'type': 'string', 'nullable': true, 'maxLength': 200 },
-          'invoiceAddress':
-            { 'type': 'string', 'nullable': true, 'maxLength': 500 },
-          'invoicePhone':
-            { 'type': 'string', 'nullable': true, 'maxLength': 100 },
-          'bankAccounts':
-            {
-              'type': 'array',
-              'maxItems': 20,
-              'items': { '$ref': '#/CustomerGroupBankAccount' },
-            },
-        },
-    },
-  'CustomerGroupView':
-    {
-      'type': 'object',
-      'required':
-        [
-          'groupId',
-          'code',
-          'revision',
-          'data',
-          'attachments',
-          'updatedAt',
-          'updatedBy',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'groupId': { 'type': 'string' },
-          'code': { 'type': 'string' },
-          'revision': { 'type': 'integer', 'format': 'int64' },
-          'data': { '$ref': '#/CustomerGroupData' },
-          'attachments':
-            {
-              'type': 'array',
-              'items': { '$ref': '#/CustomerAttachmentView' },
-            },
-          'updatedAt': { 'type': 'string', 'format': 'date-time' },
-          'updatedBy': { 'type': 'string' },
-        },
-    },
   'CustomerSnapshot':
     {
       'type': 'object',
@@ -639,7 +608,8 @@
           'type':
             {
               'type': 'string',
-              'enum': ['INTERNAL_EMPLOYEE', 'EXTERNAL_PART_TIME', 'DEALER'],
+              'enum':
+                ['INTERNAL_EMPLOYEE', 'EXTERNAL_PART_TIME', 'CHANNEL_PARTNER'],
             },
           'subjectObjectId': { 'type': 'string' },
         },
@@ -661,7 +631,8 @@
           'type':
             {
               'type': 'string',
-              'enum': ['INTERNAL_EMPLOYEE', 'EXTERNAL_PART_TIME', 'DEALER'],
+              'enum':
+                ['INTERNAL_EMPLOYEE', 'EXTERNAL_PART_TIME', 'CHANNEL_PARTNER'],
             },
           'subjectObjectId': { 'type': 'string' },
           'subjectVersionId': { 'type': 'string' },
@@ -687,6 +658,7 @@
         [
           'name',
           'customerTypeCode',
+          'operatingEntityId',
           'pricingPolicy',
           'creditLimits',
           'primarySalesAttribution',
@@ -701,7 +673,7 @@
           'contactPhone': { 'type': 'string', 'nullable': true },
           'email': { 'type': 'string', 'nullable': true },
           'address': { 'type': 'string', 'nullable': true },
-          'operatingEntityId': { 'type': 'string', 'nullable': true },
+          'operatingEntityId': { 'type': 'string' },
           'settlementMethodId': { 'type': 'string', 'nullable': true },
           'paymentMethodId': { 'type': 'string', 'nullable': true },
           'defaultTransportMethodCode':
@@ -722,13 +694,14 @@
           'defaultSalesOrderRemark': { 'type': 'string', 'nullable': true },
         },
     },
-  'CustomerAccountView':
+  'CustomerAccountDataView':
     {
       'type': 'object',
       'required':
         [
           'name',
           'customerTypeCode',
+          'operatingEntityId',
           'pricingPolicy',
           'creditLimits',
           'operatingEntity',
@@ -746,7 +719,7 @@
           'contactPhone': { 'type': 'string', 'nullable': true },
           'email': { 'type': 'string', 'nullable': true },
           'address': { 'type': 'string', 'nullable': true },
-          'operatingEntityId': { 'type': 'string', 'nullable': true },
+          'operatingEntityId': { 'type': 'string' },
           'settlementMethodId': { 'type': 'string', 'nullable': true },
           'paymentMethodId': { 'type': 'string', 'nullable': true },
           'defaultTransportMethodCode':
@@ -793,7 +766,7 @@
       'properties':
         {
           'version': { '$ref': '#/CustomerVersionMeta' },
-          'data': { '$ref': '#/CustomerAccountView' },
+          'data': { '$ref': '#/CustomerAccountDataView' },
           'attachments':
             {
               'type': 'array',
@@ -801,7 +774,8 @@
             },
         },
     },
-  'CustomerAttachmentScope': { 'type': 'string', 'enum': ['GROUP', 'ACCOUNT'] },
+  'CustomerAttachmentScope':
+    { 'type': 'string', 'enum': ['RELATIONSHIP', 'ACCOUNT'] },
   'CustomerAttachmentView':
     {
       'type': 'object',
@@ -841,6 +815,21 @@
             { 'type': 'string', 'format': 'date-time', 'nullable': true },
           'createdAt': { 'type': 'string', 'format': 'date-time' },
           'createdBy': { 'type': 'string' },
+        },
+    },
+  'CustomerAccountView':
+    {
+      'type': 'object',
+      'required': ['objectId', 'code', 'objectRevision', 'enabled'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'effective': { '$ref': '#/CustomerVersionView', 'nullable': true },
+          'candidate': { '$ref': '#/CustomerVersionView', 'nullable': true },
         },
     },
   'CustomerAttachmentInitiateRequest':
@@ -1024,39 +1013,47 @@
         [
           {
             'type': 'object',
-            'required': ['group', 'data'],
+            'required': ['partyId', 'data'],
             'additionalProperties': false,
             'properties':
               {
-                'group': { '$ref': '#/CustomerGroupData' },
+                'partyId': { 'type': 'string' },
                 'data': { '$ref': '#/CustomerAccountInput' },
               },
           },
           {
             'type': 'object',
-            'required': ['groupId', 'data'],
+            'required': ['newParty', 'data'],
             'additionalProperties': false,
             'properties':
               {
-                'groupId': { 'type': 'string' },
+                'newParty': { '$ref': '#/PartyIdentityData' },
                 'data': { '$ref': '#/CustomerAccountInput' },
               },
           },
         ],
     },
+  'CustomerAccountAddRequest':
+    {
+      'type': 'object',
+      'required': ['customerRelationshipId', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'customerRelationshipId': { 'type': 'string' },
+          'data': { '$ref': '#/CustomerAccountInput' },
+        },
+    },
   'CustomerSaveRequest':
     {
       'type': 'object',
-      'required':
-        ['objectId', 'versionId', 'revision', 'groupRevision', 'group', 'data'],
+      'required': ['objectId', 'versionId', 'revision', 'data'],
       'additionalProperties': false,
       'properties':
         {
           'objectId': { 'type': 'string' },
           'versionId': { 'type': 'string' },
           'revision': { 'type': 'integer', 'format': 'int64' },
-          'groupRevision': { 'type': 'integer', 'format': 'int64' },
-          'group': { '$ref': '#/CustomerGroupData' },
           'data': { '$ref': '#/CustomerAccountInput' },
         },
     },
@@ -1084,7 +1081,11 @@
                     {
                       'type': 'string',
                       'enum':
-                        ['INTERNAL_EMPLOYEE', 'EXTERNAL_PART_TIME', 'DEALER'],
+                        [
+                          'INTERNAL_EMPLOYEE',
+                          'EXTERNAL_PART_TIME',
+                          'CHANNEL_PARTNER',
+                        ],
                     },
                   'salesAttributionSubjectId': { 'type': 'string' },
                 },
@@ -1202,9 +1203,14 @@
           'code',
           'objectRevision',
           'enabled',
-          'group',
-          'effective',
-          'candidate',
+          'partyId',
+          'partyKind',
+          'partyDisplayName',
+          'operatingEntityId',
+          'operatingEntityCode',
+          'operatingEntityName',
+          'accounts',
+          'attachments',
           'updatedAt',
         ],
       'additionalProperties': false,
@@ -1214,18 +1220,18 @@
           'code': { 'type': 'string' },
           'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
-          'group': { '$ref': '#/CustomerGroupView' },
-          'effective':
+          'partyId': { 'type': 'string' },
+          'partyKind': { 'type': 'string' },
+          'partyDisplayName': { 'type': 'string' },
+          'operatingEntityId': { 'type': 'string' },
+          'operatingEntityCode': { 'type': 'string' },
+          'operatingEntityName': { 'type': 'string' },
+          'accounts':
+            { 'type': 'array', 'items': { '$ref': '#/CustomerAccountView' } },
+          'attachments':
             {
-              'type': 'object',
-              'allOf': [{ '$ref': '#/CustomerVersionView' }],
-              'nullable': true,
-            },
-          'candidate':
-            {
-              'type': 'object',
-              'allOf': [{ '$ref': '#/CustomerVersionView' }],
-              'nullable': true,
+              'type': 'array',
+              'items': { '$ref': '#/CustomerAttachmentView' },
             },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
@@ -1248,19 +1254,14 @@
           'requestId': { 'type': 'string' },
         },
     },
-  'SupplierType':
-    { 'type': 'string', 'enum': ['GENERAL', 'LOGISTICS_PLATFORM'] },
   'SupplierInput':
     {
       'type': 'object',
-      'required': ['name', 'supplierType'],
+      'required': ['operatingEntityId'],
       'additionalProperties': false,
       'properties':
         {
-          'name': { 'type': 'string', 'minLength': 1, 'maxLength': 200 },
-          'supplierType': { '$ref': '#/SupplierType' },
-          'shortName': { 'type': 'string', 'nullable': true, 'maxLength': 100 },
-          'taxNumber': { 'type': 'string', 'nullable': true, 'maxLength': 100 },
+          'operatingEntityId': { 'type': 'string' },
           'contactName':
             { 'type': 'string', 'nullable': true, 'maxLength': 100 },
           'contactPhone':
@@ -1302,14 +1303,10 @@
   'SupplierView':
     {
       'type': 'object',
-      'required': ['name', 'supplierType', 'settlementMethod'],
+      'required': ['settlementMethod'],
       'additionalProperties': false,
       'properties':
         {
-          'name': { 'type': 'string' },
-          'supplierType': { '$ref': '#/SupplierType' },
-          'shortName': { 'type': 'string', 'nullable': true },
-          'taxNumber': { 'type': 'string', 'nullable': true },
           'contactName': { 'type': 'string', 'nullable': true },
           'contactPhone': { 'type': 'string', 'nullable': true },
           'email': { 'type': 'string', 'nullable': true },
@@ -1327,10 +1324,29 @@
     },
   'SupplierCreateRequest':
     {
-      'type': 'object',
-      'required': ['data'],
-      'additionalProperties': false,
-      'properties': { 'data': { '$ref': '#/SupplierInput' } },
+      'oneOf':
+        [
+          {
+            'type': 'object',
+            'required': ['partyId', 'data'],
+            'additionalProperties': false,
+            'properties':
+              {
+                'partyId': { 'type': 'string' },
+                'data': { '$ref': '#/SupplierInput' },
+              },
+          },
+          {
+            'type': 'object',
+            'required': ['newParty', 'data'],
+            'additionalProperties': false,
+            'properties':
+              {
+                'newParty': { '$ref': '#/PartyIdentityData' },
+                'data': { '$ref': '#/SupplierInput' },
+              },
+          },
+        ],
     },
   'SupplierSaveRequest':
     {
@@ -1342,7 +1358,22 @@
           'objectId': { 'type': 'string' },
           'versionId': { 'type': 'string' },
           'revision': { 'type': 'integer', 'format': 'int64' },
-          'data': { '$ref': '#/SupplierInput' },
+          'data':
+            {
+              'type': 'object',
+              'additionalProperties': false,
+              'properties':
+                {
+                  'contactName': { 'type': 'string', 'nullable': true },
+                  'contactPhone': { 'type': 'string', 'nullable': true },
+                  'email': { 'type': 'string', 'nullable': true },
+                  'address': { 'type': 'string', 'nullable': true },
+                  'remark': { 'type': 'string', 'nullable': true },
+                  'settlementMethodId': { 'type': 'string', 'nullable': true },
+                  'defaultPurchaserEmployeeId':
+                    { 'type': 'string', 'nullable': true },
+                },
+            },
         },
     },
   'SupplierVersionView':
@@ -1365,6 +1396,12 @@
           'code',
           'objectRevision',
           'enabled',
+          'partyId',
+          'partyKind',
+          'partyDisplayName',
+          'operatingEntityId',
+          'operatingEntityCode',
+          'operatingEntityName',
           'effective',
           'candidate',
           'updatedAt',
@@ -1376,6 +1413,12 @@
           'code': { 'type': 'string' },
           'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
+          'partyId': { 'type': 'string' },
+          'partyKind': { '$ref': '#/PartyKind' },
+          'partyDisplayName': { 'type': 'string' },
+          'operatingEntityId': { 'type': 'string' },
+          'operatingEntityCode': { 'type': 'string' },
+          'operatingEntityName': { 'type': 'string' },
           'effective':
             {
               'type': 'object',
@@ -1427,7 +1470,6 @@
                   'keyword': { 'type': 'string' },
                   'status': { 'type': 'array', 'items': { 'type': 'string' } },
                   'enabled': { 'type': 'boolean' },
-                  'supplierType': { '$ref': '#/SupplierType' },
                   'defaultPurchaserEmployeeId': { 'type': 'string' },
                 },
             },
@@ -1452,16 +1494,7 @@
   'SupplierListVersion':
     {
       'type': 'object',
-      'required':
-        [
-          'versionId',
-          'version',
-          'status',
-          'revision',
-          'name',
-          'supplierType',
-          'submittedBy',
-        ],
+      'required': ['versionId', 'version', 'status', 'revision', 'submittedBy'],
       'additionalProperties': false,
       'properties':
         {
@@ -1469,8 +1502,6 @@
           'version': { 'type': 'integer', 'format': 'int32' },
           'status': { 'type': 'string' },
           'revision': { 'type': 'integer', 'format': 'int64' },
-          'name': { 'type': 'string' },
-          'supplierType': { '$ref': '#/SupplierType' },
           'defaultPurchaserCode': { 'type': 'string' },
           'defaultPurchaserName': { 'type': 'string' },
           'submittedBy': { 'type': 'string', 'nullable': true },
@@ -1485,6 +1516,12 @@
           'code',
           'objectRevision',
           'enabled',
+          'partyId',
+          'partyKind',
+          'partyDisplayName',
+          'operatingEntityId',
+          'operatingEntityCode',
+          'operatingEntityName',
           'effective',
           'candidate',
           'updatedAt',
@@ -1496,6 +1533,12 @@
           'code': { 'type': 'string' },
           'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
+          'partyId': { 'type': 'string' },
+          'partyKind': { '$ref': '#/PartyKind' },
+          'partyDisplayName': { 'type': 'string' },
+          'operatingEntityId': { 'type': 'string' },
+          'operatingEntityCode': { 'type': 'string' },
+          'operatingEntityName': { 'type': 'string' },
           'effective':
             {
               'type': 'object',
@@ -1538,72 +1581,6 @@
                 },
             },
           'requestId': { 'type': 'string' },
-        },
-    },
-  'SupplierTaxMatchRequest':
-    {
-      'type': 'object',
-      'required': ['taxNumber'],
-      'additionalProperties': false,
-      'properties':
-        { 'taxNumber': { 'type': 'string', 'minLength': 1, 'maxLength': 50 } },
-    },
-  'SupplierTaxMatch':
-    {
-      'type': 'object',
-      'required':
-        [
-          'sourceEntity',
-          'objectId',
-          'code',
-          'companyName',
-          'shortName',
-          'taxNumber',
-          'contactName',
-          'contactPhone',
-          'email',
-          'address',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'sourceEntity':
-            { 'type': 'string', 'enum': ['customer-group', 'other-unit'] },
-          'objectId': { 'type': 'string' },
-          'code': { 'type': 'string' },
-          'companyName': { 'type': 'string' },
-          'shortName': { 'type': 'string' },
-          'taxNumber': { 'type': 'string' },
-          'contactName': { 'type': 'string' },
-          'contactPhone': { 'type': 'string' },
-          'email': { 'type': 'string' },
-          'address': { 'type': 'string' },
-        },
-    },
-  'SupplierTaxMatchResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer' },
-          'message': { 'type': 'string' },
-          'data':
-            { 'type': 'array', 'items': { '$ref': '#/SupplierTaxMatch' } },
-          'requestId': { 'type': 'string' },
-        },
-    },
-  'CustomerGroupSaveRequest':
-    {
-      'type': 'object',
-      'required': ['groupId', 'revision', 'data'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'groupId': { 'type': 'string' },
-          'revision': { 'type': 'integer', 'format': 'int64' },
-          'data': { '$ref': '#/CustomerGroupData' },
         },
     },
   'CustomerReferenceTransferRequest':
@@ -1669,17 +1646,17 @@
               'type': 'string',
               'enum':
                 [
-                  'customer',
+                  'customer-account',
                   'operating-entity',
                   'employee',
                   'other-unit',
                   'supplier',
+                  'sales-partner',
                   'product',
                 ],
             },
           'keyword': { 'type': 'string', 'maxLength': 100 },
           'sourceObjectId': { 'type': 'string', 'maxLength': 26 },
-          'supplierType': { '$ref': '#/SupplierType' },
         },
     },
   'ReferenceCandidate':
@@ -1706,61 +1683,6 @@
           'message': { 'type': 'string' },
           'data':
             { 'type': 'array', 'items': { '$ref': '#/ReferenceCandidate' } },
-          'requestId': { 'type': 'string' },
-        },
-    },
-  'CustomerTaxMatchRequest':
-    {
-      'type': 'object',
-      'required': ['taxNumber'],
-      'additionalProperties': false,
-      'properties':
-        { 'taxNumber': { 'type': 'string', 'minLength': 1, 'maxLength': 100 } },
-    },
-  'CustomerTaxMatch':
-    {
-      'type': 'object',
-      'required':
-        [
-          'sourceEntity',
-          'objectId',
-          'code',
-          'companyName',
-          'shortName',
-          'taxNumber',
-          'invoiceTitle',
-          'invoiceAddress',
-          'invoicePhone',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'sourceEntity':
-            {
-              'type': 'string',
-              'enum': ['customer-group', 'supplier', 'other-unit'],
-            },
-          'objectId': { 'type': 'string' },
-          'code': { 'type': 'string' },
-          'companyName': { 'type': 'string' },
-          'shortName': { 'type': 'string' },
-          'taxNumber': { 'type': 'string' },
-          'invoiceTitle': { 'type': 'string' },
-          'invoiceAddress': { 'type': 'string' },
-          'invoicePhone': { 'type': 'string' },
-        },
-    },
-  'CustomerTaxMatchResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer' },
-          'message': { 'type': 'string' },
-          'data':
-            { 'type': 'array', 'items': { '$ref': '#/CustomerTaxMatch' } },
           'requestId': { 'type': 'string' },
         },
     },
@@ -1813,6 +1735,11 @@
                 {
                   'keyword': { 'type': 'string', 'maxLength': 200 },
                   'kind': { '$ref': '#/PartyKind' },
+                  'merged':
+                    {
+                      'type': 'boolean',
+                      'description': '省略或 false 仅查询可用主体；true 仅查询已合并审计主体。',
+                    },
                 },
             },
         },
@@ -1874,7 +1801,18 @@
       'properties':
         {
           'objectId': { 'type': 'string' },
-          'entity': { 'type': 'string', 'enum': ['other-unit'] },
+          'entity':
+            {
+              'type': 'string',
+              'enum':
+                [
+                  'customer',
+                  'supplier',
+                  'employee',
+                  'other-unit',
+                  'sales-partner',
+                ],
+            },
           'code': { 'type': 'string' },
           'operatingEntityId': { 'type': 'string' },
           'operatingEntityCode': { 'type': 'string' },
@@ -1916,6 +1854,8 @@
           'email': { 'type': 'string' },
           'address': { 'type': 'string' },
           'revision': { 'type': 'integer', 'format': 'int64' },
+          'mergedIntoPartyId': { 'type': 'string' },
+          'mergedAt': { 'type': 'string', 'format': 'date-time' },
           'relationships':
             { 'type': 'array', 'items': { '$ref': '#/PartyRelationshipCard' } },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
@@ -1941,6 +1881,8 @@
           'legalName': { 'type': 'string' },
           'displayName': { 'type': 'string' },
           'revision': { 'type': 'integer', 'format': 'int64' },
+          'mergedIntoPartyId': { 'type': 'string' },
+          'mergedAt': { 'type': 'string', 'format': 'date-time' },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
     },
@@ -2219,6 +2161,528 @@
           'message': { 'type': 'string' },
           'data': { '$ref': '#/OtherUnitMutationResult', 'nullable': true },
           'requestId': { 'type': 'string' },
+        },
+    },
+  'SalesPartnerCapability':
+    { 'type': 'string', 'enum': ['EXTERNAL_PART_TIME', 'CHANNEL_PARTNER'] },
+  'SalesPartnerInput':
+    {
+      'type': 'object',
+      'required': ['operatingEntityId', 'capabilities'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'operatingEntityId': { 'type': 'string' },
+          'capabilities':
+            {
+              'type': 'array',
+              'uniqueItems': true,
+              'items': { '$ref': '#/SalesPartnerCapability' },
+            },
+          'contactName': { 'type': 'string', 'maxLength': 100 },
+          'contactPhone': { 'type': 'string', 'maxLength': 32 },
+          'email': { 'type': 'string', 'maxLength': 254 },
+          'address': { 'type': 'string', 'maxLength': 500 },
+          'remark': { 'type': 'string', 'maxLength': 1000 },
+        },
+    },
+  'SalesPartnerDataView':
+    {
+      'type': 'object',
+      'required': ['capabilities'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'capabilities':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/SalesPartnerCapability' },
+            },
+          'contactName': { 'type': 'string' },
+          'contactPhone': { 'type': 'string' },
+          'email': { 'type': 'string' },
+          'address': { 'type': 'string' },
+          'remark': { 'type': 'string' },
+        },
+    },
+  'SalesPartnerCreateRequest':
+    {
+      'oneOf':
+        [
+          {
+            'type': 'object',
+            'required': ['partyId', 'data'],
+            'additionalProperties': false,
+            'properties':
+              {
+                'partyId': { 'type': 'string' },
+                'data': { '$ref': '#/SalesPartnerInput' },
+              },
+          },
+          {
+            'type': 'object',
+            'required': ['newParty', 'data'],
+            'additionalProperties': false,
+            'properties':
+              {
+                'newParty': { '$ref': '#/PartyIdentityData' },
+                'data': { '$ref': '#/SalesPartnerInput' },
+              },
+          },
+        ],
+    },
+  'SalesPartnerSaveRequest':
+    {
+      'type': 'object',
+      'required': ['objectId', 'versionId', 'revision', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'versionId': { 'type': 'string' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'data': { '$ref': '#/SalesPartnerInput' },
+        },
+    },
+  'SalesPartnerQueryRequest':
+    {
+      'type': 'object',
+      'required': ['page', 'pageSize', 'filters', 'sort'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'enum': [20] },
+          'filters':
+            {
+              'type': 'object',
+              'additionalProperties': false,
+              'properties':
+                {
+                  'keyword': { 'type': 'string', 'maxLength': 200 },
+                  'status': { 'type': 'array', 'items': { 'type': 'string' } },
+                  'enabled': { 'type': 'boolean' },
+                  'operatingEntityId': { 'type': 'string' },
+                  'capability': { '$ref': '#/SalesPartnerCapability' },
+                },
+            },
+          'sort':
+            {
+              'type': 'array',
+              'maxItems': 1,
+              'items':
+                {
+                  'type': 'object',
+                  'required': ['field', 'order'],
+                  'additionalProperties': false,
+                  'properties':
+                    {
+                      'field': { 'type': 'string', 'enum': ['code'] },
+                      'order': { 'type': 'string', 'enum': ['asc'] },
+                    },
+                },
+            },
+        },
+    },
+  'SalesPartnerListVersion':
+    {
+      'type': 'object',
+      'required':
+        [
+          'versionId',
+          'version',
+          'status',
+          'revision',
+          'capabilities',
+          'submittedBy',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'versionId': { 'type': 'string' },
+          'version': { 'type': 'integer', 'format': 'int32' },
+          'status':
+            {
+              'type': 'string',
+              'enum': ['DRAFT', 'PENDING', 'EFFECTIVE', 'INVALID'],
+            },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'capabilities':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/SalesPartnerCapability' },
+            },
+          'submittedBy': { 'type': 'string', 'nullable': true },
+        },
+    },
+  'SalesPartnerListItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'code',
+          'objectRevision',
+          'enabled',
+          'partyId',
+          'partyKind',
+          'partyDisplayName',
+          'operatingEntityId',
+          'operatingEntityCode',
+          'operatingEntityName',
+          'effective',
+          'candidate',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'partyId': { 'type': 'string' },
+          'partyKind': { '$ref': '#/PartyKind' },
+          'partyDisplayName': { 'type': 'string' },
+          'operatingEntityId': { 'type': 'string' },
+          'operatingEntityCode': { 'type': 'string' },
+          'operatingEntityName': { 'type': 'string' },
+          'effective':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/SalesPartnerListVersion' }],
+              'nullable': true,
+            },
+          'candidate':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/SalesPartnerListVersion' }],
+              'nullable': true,
+            },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'SalesPartnerPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            { 'type': 'array', 'items': { '$ref': '#/SalesPartnerListItem' } },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer', 'enum': [20] },
+        },
+    },
+  'SalesPartnerVersionView':
+    {
+      'type': 'object',
+      'required': ['version', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'version': { '$ref': '#/CustomerVersionMeta' },
+          'data': { '$ref': '#/SalesPartnerDataView' },
+        },
+    },
+  'SalesPartnerDetailView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'code',
+          'objectRevision',
+          'enabled',
+          'partyId',
+          'partyKind',
+          'partyDisplayName',
+          'operatingEntityId',
+          'operatingEntityCode',
+          'operatingEntityName',
+          'effective',
+          'candidate',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'partyId': { 'type': 'string' },
+          'partyKind': { '$ref': '#/PartyKind' },
+          'partyDisplayName': { 'type': 'string' },
+          'operatingEntityId': { 'type': 'string' },
+          'operatingEntityCode': { 'type': 'string' },
+          'operatingEntityName': { 'type': 'string' },
+          'effective':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/SalesPartnerVersionView' }],
+              'nullable': true,
+            },
+          'candidate':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/SalesPartnerVersionView' }],
+              'nullable': true,
+            },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'SalesPartnerMutationResult':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'objectRevision',
+          'enabled',
+          'versionId',
+          'version',
+          'status',
+          'revision',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'versionId': { 'type': 'string' },
+          'version': { 'type': 'integer', 'format': 'int32' },
+          'status':
+            {
+              'type': 'string',
+              'enum': ['DRAFT', 'PENDING', 'EFFECTIVE', 'INVALID'],
+            },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'partyId': { 'type': 'string' },
+        },
+    },
+  'SalesPartnerQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/SalesPartnerPage', 'nullable': true },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'SalesPartnerGetResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/SalesPartnerDetailView', 'nullable': true },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'SalesPartnerMutationResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/SalesPartnerMutationResult', 'nullable': true },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'PartyMergePreflightRequest':
+    {
+      'type': 'object',
+      'required':
+        ['sourcePartyId', 'targetPartyId', 'sourceRevision', 'targetRevision'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'sourcePartyId': { 'type': 'string' },
+          'targetPartyId': { 'type': 'string' },
+          'sourceRevision': { 'type': 'integer', 'format': 'int64' },
+          'targetRevision': { 'type': 'integer', 'format': 'int64' },
+        },
+    },
+  'PartyMergeConflictResolution':
+    {
+      'type': 'object',
+      'required': ['relationshipType', 'operatingEntityId', 'retainObjectId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'relationshipType':
+            {
+              'type': 'string',
+              'enum':
+                [
+                  'customer',
+                  'supplier',
+                  'employee',
+                  'other-unit',
+                  'sales-partner',
+                ],
+            },
+          'operatingEntityId': { 'type': 'string' },
+          'retainObjectId': { 'type': 'string' },
+        },
+    },
+  'PartyMergeRelationshipConflict':
+    {
+      'type': 'object',
+      'required':
+        [
+          'relationshipType',
+          'operatingEntityId',
+          'operatingEntityName',
+          'sourceObjectId',
+          'sourceObjectCode',
+          'targetObjectId',
+          'targetObjectCode',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'relationshipType':
+            {
+              'type': 'string',
+              'enum':
+                [
+                  'customer',
+                  'supplier',
+                  'employee',
+                  'other-unit',
+                  'sales-partner',
+                ],
+            },
+          'operatingEntityId': { 'type': 'string' },
+          'operatingEntityName': { 'type': 'string' },
+          'sourceObjectId': { 'type': 'string' },
+          'sourceObjectCode': { 'type': 'string' },
+          'targetObjectId': { 'type': 'string' },
+          'targetObjectCode': { 'type': 'string' },
+        },
+    },
+  'PartyMergePreflightResult':
+    {
+      'type': 'object',
+      'required':
+        [
+          'canMerge',
+          'sourcePartyId',
+          'targetPartyId',
+          'sourceRevision',
+          'targetRevision',
+          'blockReasons',
+          'relationshipConflicts',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'preflightId': { 'type': 'string' },
+          'canMerge': { 'type': 'boolean' },
+          'sourcePartyId': { 'type': 'string' },
+          'targetPartyId': { 'type': 'string' },
+          'sourceRevision': { 'type': 'integer', 'format': 'int64' },
+          'targetRevision': { 'type': 'integer', 'format': 'int64' },
+          'blockReasons': { 'type': 'array', 'items': { 'type': 'string' } },
+          'relationshipConflicts':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/PartyMergeRelationshipConflict' },
+            },
+        },
+    },
+  'PartyMergeResult':
+    {
+      'type': 'object',
+      'required':
+        [
+          'mergeEventId',
+          'sourcePartyId',
+          'targetPartyId',
+          'transferredRelationships',
+          'mergedRelationships',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'mergeEventId': { 'type': 'string' },
+          'sourcePartyId': { 'type': 'string' },
+          'targetPartyId': { 'type': 'string' },
+          'transferredRelationships': { 'type': 'integer' },
+          'mergedRelationships': { 'type': 'integer' },
+        },
+    },
+  'PartyMergePreflightResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/PartyMergePreflightResult', 'nullable': true },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'PartyMergeConfirmResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/PartyMergeResult' }],
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'PartyMergeConfirmRequest':
+    {
+      'type': 'object',
+      'required':
+        [
+          'preflightId',
+          'sourcePartyId',
+          'targetPartyId',
+          'sourceRevision',
+          'targetRevision',
+          'conflictResolutions',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'preflightId': { 'type': 'string' },
+          'sourcePartyId': { 'type': 'string' },
+          'targetPartyId': { 'type': 'string' },
+          'sourceRevision': { 'type': 'integer', 'format': 'int64' },
+          'targetRevision': { 'type': 'integer', 'format': 'int64' },
+          'conflictResolutions':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/PartyMergeConflictResolution' },
+            },
         },
     },
 }

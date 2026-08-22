@@ -224,10 +224,13 @@ func (e BobCrudEntity) Valid() bool {
 // Defines values for BobEntity.
 const (
 	BobEntityCustomer        BobEntity = "customer"
+	BobEntityCustomerAccount BobEntity = "customer-account"
 	BobEntityEmployee        BobEntity = "employee"
 	BobEntityFundAccount     BobEntity = "fund-account"
 	BobEntityOperatingEntity BobEntity = "operating-entity"
+	BobEntityOtherUnit       BobEntity = "other-unit"
 	BobEntityProduct         BobEntity = "product"
+	BobEntitySalesPartner    BobEntity = "sales-partner"
 	BobEntityService         BobEntity = "service"
 	BobEntitySupplier        BobEntity = "supplier"
 	BobEntityVehicle         BobEntity = "vehicle"
@@ -239,13 +242,19 @@ func (e BobEntity) Valid() bool {
 	switch e {
 	case BobEntityCustomer:
 		return true
+	case BobEntityCustomerAccount:
+		return true
 	case BobEntityEmployee:
 		return true
 	case BobEntityFundAccount:
 		return true
 	case BobEntityOperatingEntity:
 		return true
+	case BobEntityOtherUnit:
+		return true
 	case BobEntityProduct:
+		return true
+	case BobEntitySalesPartner:
 		return true
 	case BobEntityService:
 		return true
@@ -280,18 +289,19 @@ func (e BobQueryRequestSortOrder) Valid() bool {
 
 // Defines values for BobReferenceQueryRequestEntity.
 const (
-	BobReferenceQueryRequestEntityCustomer        BobReferenceQueryRequestEntity = "customer"
+	BobReferenceQueryRequestEntityCustomerAccount BobReferenceQueryRequestEntity = "customer-account"
 	BobReferenceQueryRequestEntityEmployee        BobReferenceQueryRequestEntity = "employee"
 	BobReferenceQueryRequestEntityOperatingEntity BobReferenceQueryRequestEntity = "operating-entity"
 	BobReferenceQueryRequestEntityOtherUnit       BobReferenceQueryRequestEntity = "other-unit"
 	BobReferenceQueryRequestEntityProduct         BobReferenceQueryRequestEntity = "product"
+	BobReferenceQueryRequestEntitySalesPartner    BobReferenceQueryRequestEntity = "sales-partner"
 	BobReferenceQueryRequestEntitySupplier        BobReferenceQueryRequestEntity = "supplier"
 )
 
 // Valid indicates whether the value is a known member of the BobReferenceQueryRequestEntity enum.
 func (e BobReferenceQueryRequestEntity) Valid() bool {
 	switch e {
-	case BobReferenceQueryRequestEntityCustomer:
+	case BobReferenceQueryRequestEntityCustomerAccount:
 		return true
 	case BobReferenceQueryRequestEntityEmployee:
 		return true
@@ -300,6 +310,8 @@ func (e BobReferenceQueryRequestEntity) Valid() bool {
 	case BobReferenceQueryRequestEntityOtherUnit:
 		return true
 	case BobReferenceQueryRequestEntityProduct:
+		return true
+	case BobReferenceQueryRequestEntitySalesPartner:
 		return true
 	case BobReferenceQueryRequestEntitySupplier:
 		return true
@@ -382,16 +394,16 @@ func (e CustomerAttachmentInitiateRequestContentType) Valid() bool {
 
 // Defines values for CustomerAttachmentScope.
 const (
-	CustomerAttachmentScopeACCOUNT CustomerAttachmentScope = "ACCOUNT"
-	CustomerAttachmentScopeGROUP   CustomerAttachmentScope = "GROUP"
+	ACCOUNT      CustomerAttachmentScope = "ACCOUNT"
+	RELATIONSHIP CustomerAttachmentScope = "RELATIONSHIP"
 )
 
 // Valid indicates whether the value is a known member of the CustomerAttachmentScope enum.
 func (e CustomerAttachmentScope) Valid() bool {
 	switch e {
-	case CustomerAttachmentScopeACCOUNT:
+	case ACCOUNT:
 		return true
-	case CustomerAttachmentScopeGROUP:
+	case RELATIONSHIP:
 		return true
 	default:
 		return false
@@ -472,7 +484,7 @@ func (e CustomerPricingCostItemBasis) Valid() bool {
 
 // Defines values for CustomerQueryRequestFiltersSalesAttributionType.
 const (
-	CustomerQueryRequestFiltersSalesAttributionTypeDEALER           CustomerQueryRequestFiltersSalesAttributionType = "DEALER"
+	CustomerQueryRequestFiltersSalesAttributionTypeCHANNELPARTNER   CustomerQueryRequestFiltersSalesAttributionType = "CHANNEL_PARTNER"
 	CustomerQueryRequestFiltersSalesAttributionTypeEXTERNALPARTTIME CustomerQueryRequestFiltersSalesAttributionType = "EXTERNAL_PART_TIME"
 	CustomerQueryRequestFiltersSalesAttributionTypeINTERNALEMPLOYEE CustomerQueryRequestFiltersSalesAttributionType = "INTERNAL_EMPLOYEE"
 )
@@ -480,7 +492,7 @@ const (
 // Valid indicates whether the value is a known member of the CustomerQueryRequestFiltersSalesAttributionType enum.
 func (e CustomerQueryRequestFiltersSalesAttributionType) Valid() bool {
 	switch e {
-	case CustomerQueryRequestFiltersSalesAttributionTypeDEALER:
+	case CustomerQueryRequestFiltersSalesAttributionTypeCHANNELPARTNER:
 		return true
 	case CustomerQueryRequestFiltersSalesAttributionTypeEXTERNALPARTTIME:
 		return true
@@ -568,7 +580,7 @@ func (e CustomerReferenceTransferRequestEntity) Valid() bool {
 
 // Defines values for CustomerSalesAttributionInputType.
 const (
-	CustomerSalesAttributionInputTypeDEALER           CustomerSalesAttributionInputType = "DEALER"
+	CustomerSalesAttributionInputTypeCHANNELPARTNER   CustomerSalesAttributionInputType = "CHANNEL_PARTNER"
 	CustomerSalesAttributionInputTypeEXTERNALPARTTIME CustomerSalesAttributionInputType = "EXTERNAL_PART_TIME"
 	CustomerSalesAttributionInputTypeINTERNALEMPLOYEE CustomerSalesAttributionInputType = "INTERNAL_EMPLOYEE"
 )
@@ -576,7 +588,7 @@ const (
 // Valid indicates whether the value is a known member of the CustomerSalesAttributionInputType enum.
 func (e CustomerSalesAttributionInputType) Valid() bool {
 	switch e {
-	case CustomerSalesAttributionInputTypeDEALER:
+	case CustomerSalesAttributionInputTypeCHANNELPARTNER:
 		return true
 	case CustomerSalesAttributionInputTypeEXTERNALPARTTIME:
 		return true
@@ -589,7 +601,7 @@ func (e CustomerSalesAttributionInputType) Valid() bool {
 
 // Defines values for CustomerSalesAttributionViewType.
 const (
-	CustomerSalesAttributionViewTypeDEALER           CustomerSalesAttributionViewType = "DEALER"
+	CustomerSalesAttributionViewTypeCHANNELPARTNER   CustomerSalesAttributionViewType = "CHANNEL_PARTNER"
 	CustomerSalesAttributionViewTypeEXTERNALPARTTIME CustomerSalesAttributionViewType = "EXTERNAL_PART_TIME"
 	CustomerSalesAttributionViewTypeINTERNALEMPLOYEE CustomerSalesAttributionViewType = "INTERNAL_EMPLOYEE"
 )
@@ -597,32 +609,11 @@ const (
 // Valid indicates whether the value is a known member of the CustomerSalesAttributionViewType enum.
 func (e CustomerSalesAttributionViewType) Valid() bool {
 	switch e {
-	case CustomerSalesAttributionViewTypeDEALER:
+	case CustomerSalesAttributionViewTypeCHANNELPARTNER:
 		return true
 	case CustomerSalesAttributionViewTypeEXTERNALPARTTIME:
 		return true
 	case CustomerSalesAttributionViewTypeINTERNALEMPLOYEE:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for CustomerTaxMatchSourceEntity.
-const (
-	CustomerTaxMatchSourceEntityCustomerGroup CustomerTaxMatchSourceEntity = "customer-group"
-	CustomerTaxMatchSourceEntityOtherUnit     CustomerTaxMatchSourceEntity = "other-unit"
-	CustomerTaxMatchSourceEntitySupplier      CustomerTaxMatchSourceEntity = "supplier"
-)
-
-// Valid indicates whether the value is a known member of the CustomerTaxMatchSourceEntity enum.
-func (e CustomerTaxMatchSourceEntity) Valid() bool {
-	switch e {
-	case CustomerTaxMatchSourceEntityCustomerGroup:
-		return true
-	case CustomerTaxMatchSourceEntityOtherUnit:
-		return true
-	case CustomerTaxMatchSourceEntitySupplier:
 		return true
 	default:
 		return false
@@ -742,16 +733,16 @@ func (e MappingState) Valid() bool {
 
 // Defines values for MenuItemType.
 const (
-	MenuItemTypeGROUP MenuItemType = "GROUP"
-	MenuItemTypeROUTE MenuItemType = "ROUTE"
+	GROUP MenuItemType = "GROUP"
+	ROUTE MenuItemType = "ROUTE"
 )
 
 // Valid indicates whether the value is a known member of the MenuItemType enum.
 func (e MenuItemType) Valid() bool {
 	switch e {
-	case MenuItemTypeGROUP:
+	case GROUP:
 		return true
-	case MenuItemTypeROUTE:
+	case ROUTE:
 		return true
 	default:
 		return false
@@ -941,6 +932,60 @@ func (e PartyKind) Valid() bool {
 	}
 }
 
+// Defines values for PartyMergeConflictResolutionRelationshipType.
+const (
+	PartyMergeConflictResolutionRelationshipTypeCustomer     PartyMergeConflictResolutionRelationshipType = "customer"
+	PartyMergeConflictResolutionRelationshipTypeEmployee     PartyMergeConflictResolutionRelationshipType = "employee"
+	PartyMergeConflictResolutionRelationshipTypeOtherUnit    PartyMergeConflictResolutionRelationshipType = "other-unit"
+	PartyMergeConflictResolutionRelationshipTypeSalesPartner PartyMergeConflictResolutionRelationshipType = "sales-partner"
+	PartyMergeConflictResolutionRelationshipTypeSupplier     PartyMergeConflictResolutionRelationshipType = "supplier"
+)
+
+// Valid indicates whether the value is a known member of the PartyMergeConflictResolutionRelationshipType enum.
+func (e PartyMergeConflictResolutionRelationshipType) Valid() bool {
+	switch e {
+	case PartyMergeConflictResolutionRelationshipTypeCustomer:
+		return true
+	case PartyMergeConflictResolutionRelationshipTypeEmployee:
+		return true
+	case PartyMergeConflictResolutionRelationshipTypeOtherUnit:
+		return true
+	case PartyMergeConflictResolutionRelationshipTypeSalesPartner:
+		return true
+	case PartyMergeConflictResolutionRelationshipTypeSupplier:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PartyMergeRelationshipConflictRelationshipType.
+const (
+	PartyMergeRelationshipConflictRelationshipTypeCustomer     PartyMergeRelationshipConflictRelationshipType = "customer"
+	PartyMergeRelationshipConflictRelationshipTypeEmployee     PartyMergeRelationshipConflictRelationshipType = "employee"
+	PartyMergeRelationshipConflictRelationshipTypeOtherUnit    PartyMergeRelationshipConflictRelationshipType = "other-unit"
+	PartyMergeRelationshipConflictRelationshipTypeSalesPartner PartyMergeRelationshipConflictRelationshipType = "sales-partner"
+	PartyMergeRelationshipConflictRelationshipTypeSupplier     PartyMergeRelationshipConflictRelationshipType = "supplier"
+)
+
+// Valid indicates whether the value is a known member of the PartyMergeRelationshipConflictRelationshipType enum.
+func (e PartyMergeRelationshipConflictRelationshipType) Valid() bool {
+	switch e {
+	case PartyMergeRelationshipConflictRelationshipTypeCustomer:
+		return true
+	case PartyMergeRelationshipConflictRelationshipTypeEmployee:
+		return true
+	case PartyMergeRelationshipConflictRelationshipTypeOtherUnit:
+		return true
+	case PartyMergeRelationshipConflictRelationshipTypeSalesPartner:
+		return true
+	case PartyMergeRelationshipConflictRelationshipTypeSupplier:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PartyQueryRequestPageSize.
 const (
 	PartyQueryRequestPageSizeN20 PartyQueryRequestPageSize = 20
@@ -958,13 +1003,25 @@ func (e PartyQueryRequestPageSize) Valid() bool {
 
 // Defines values for PartyRelationshipCardEntity.
 const (
-	PartyRelationshipCardEntityOtherUnit PartyRelationshipCardEntity = "other-unit"
+	PartyRelationshipCardEntityCustomer     PartyRelationshipCardEntity = "customer"
+	PartyRelationshipCardEntityEmployee     PartyRelationshipCardEntity = "employee"
+	PartyRelationshipCardEntityOtherUnit    PartyRelationshipCardEntity = "other-unit"
+	PartyRelationshipCardEntitySalesPartner PartyRelationshipCardEntity = "sales-partner"
+	PartyRelationshipCardEntitySupplier     PartyRelationshipCardEntity = "supplier"
 )
 
 // Valid indicates whether the value is a known member of the PartyRelationshipCardEntity enum.
 func (e PartyRelationshipCardEntity) Valid() bool {
 	switch e {
+	case PartyRelationshipCardEntityCustomer:
+		return true
+	case PartyRelationshipCardEntityEmployee:
+		return true
 	case PartyRelationshipCardEntityOtherUnit:
+		return true
+	case PartyRelationshipCardEntitySalesPartner:
+		return true
+	case PartyRelationshipCardEntitySupplier:
 		return true
 	default:
 		return false
@@ -1237,18 +1294,19 @@ func (e RptParameterType) Valid() bool {
 
 // Defines values for RptReferenceType.
 const (
-	RptReferenceTypeACCOUNTINGBOOK RptReferenceType = "ACCOUNTING_BOOK"
-	RptReferenceTypeACCOUNTSUBJECT RptReferenceType = "ACCOUNT_SUBJECT"
-	RptReferenceTypeASSET          RptReferenceType = "ASSET"
-	RptReferenceTypeBILL           RptReferenceType = "BILL"
-	RptReferenceTypeCUSTOMER       RptReferenceType = "CUSTOMER"
-	RptReferenceTypeDEPARTMENT     RptReferenceType = "DEPARTMENT"
-	RptReferenceTypeEMPLOYEE       RptReferenceType = "EMPLOYEE"
-	RptReferenceTypeFUNDACCOUNT    RptReferenceType = "FUND_ACCOUNT"
-	RptReferenceTypeOTHERPARTY     RptReferenceType = "OTHER_PARTY"
-	RptReferenceTypePRODUCT        RptReferenceType = "PRODUCT"
-	RptReferenceTypeSUPPLIER       RptReferenceType = "SUPPLIER"
-	RptReferenceTypeWAREHOUSE      RptReferenceType = "WAREHOUSE"
+	RptReferenceTypeACCOUNTINGBOOK         RptReferenceType = "ACCOUNTING_BOOK"
+	RptReferenceTypeACCOUNTSUBJECT         RptReferenceType = "ACCOUNT_SUBJECT"
+	RptReferenceTypeASSET                  RptReferenceType = "ASSET"
+	RptReferenceTypeBILL                   RptReferenceType = "BILL"
+	RptReferenceTypeCUSTOMERACCOUNT        RptReferenceType = "CUSTOMER_ACCOUNT"
+	RptReferenceTypeDEPARTMENT             RptReferenceType = "DEPARTMENT"
+	RptReferenceTypeEMPLOYMENTRELATIONSHIP RptReferenceType = "EMPLOYMENT_RELATIONSHIP"
+	RptReferenceTypeFUNDACCOUNT            RptReferenceType = "FUND_ACCOUNT"
+	RptReferenceTypePRODUCT                RptReferenceType = "PRODUCT"
+	RptReferenceTypeSALESRELATIONSHIP      RptReferenceType = "SALES_RELATIONSHIP"
+	RptReferenceTypeSERVICERELATIONSHIP    RptReferenceType = "SERVICE_RELATIONSHIP"
+	RptReferenceTypeSUPPLIERRELATIONSHIP   RptReferenceType = "SUPPLIER_RELATIONSHIP"
+	RptReferenceTypeWAREHOUSE              RptReferenceType = "WAREHOUSE"
 )
 
 // Valid indicates whether the value is a known member of the RptReferenceType enum.
@@ -1262,19 +1320,21 @@ func (e RptReferenceType) Valid() bool {
 		return true
 	case RptReferenceTypeBILL:
 		return true
-	case RptReferenceTypeCUSTOMER:
+	case RptReferenceTypeCUSTOMERACCOUNT:
 		return true
 	case RptReferenceTypeDEPARTMENT:
 		return true
-	case RptReferenceTypeEMPLOYEE:
+	case RptReferenceTypeEMPLOYMENTRELATIONSHIP:
 		return true
 	case RptReferenceTypeFUNDACCOUNT:
 		return true
-	case RptReferenceTypeOTHERPARTY:
-		return true
 	case RptReferenceTypePRODUCT:
 		return true
-	case RptReferenceTypeSUPPLIER:
+	case RptReferenceTypeSALESRELATIONSHIP:
+		return true
+	case RptReferenceTypeSERVICERELATIONSHIP:
+		return true
+	case RptReferenceTypeSUPPLIERRELATIONSHIP:
 		return true
 	case RptReferenceTypeWAREHOUSE:
 		return true
@@ -1331,6 +1391,132 @@ func (e RptResultType) Valid() bool {
 	}
 }
 
+// Defines values for SalesPartnerCapability.
+const (
+	SalesPartnerCapabilityCHANNELPARTNER   SalesPartnerCapability = "CHANNEL_PARTNER"
+	SalesPartnerCapabilityEXTERNALPARTTIME SalesPartnerCapability = "EXTERNAL_PART_TIME"
+)
+
+// Valid indicates whether the value is a known member of the SalesPartnerCapability enum.
+func (e SalesPartnerCapability) Valid() bool {
+	switch e {
+	case SalesPartnerCapabilityCHANNELPARTNER:
+		return true
+	case SalesPartnerCapabilityEXTERNALPARTTIME:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SalesPartnerListVersionStatus.
+const (
+	SalesPartnerListVersionStatusDRAFT     SalesPartnerListVersionStatus = "DRAFT"
+	SalesPartnerListVersionStatusEFFECTIVE SalesPartnerListVersionStatus = "EFFECTIVE"
+	SalesPartnerListVersionStatusINVALID   SalesPartnerListVersionStatus = "INVALID"
+	SalesPartnerListVersionStatusPENDING   SalesPartnerListVersionStatus = "PENDING"
+)
+
+// Valid indicates whether the value is a known member of the SalesPartnerListVersionStatus enum.
+func (e SalesPartnerListVersionStatus) Valid() bool {
+	switch e {
+	case SalesPartnerListVersionStatusDRAFT:
+		return true
+	case SalesPartnerListVersionStatusEFFECTIVE:
+		return true
+	case SalesPartnerListVersionStatusINVALID:
+		return true
+	case SalesPartnerListVersionStatusPENDING:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SalesPartnerMutationResultStatus.
+const (
+	SalesPartnerMutationResultStatusDRAFT     SalesPartnerMutationResultStatus = "DRAFT"
+	SalesPartnerMutationResultStatusEFFECTIVE SalesPartnerMutationResultStatus = "EFFECTIVE"
+	SalesPartnerMutationResultStatusINVALID   SalesPartnerMutationResultStatus = "INVALID"
+	SalesPartnerMutationResultStatusPENDING   SalesPartnerMutationResultStatus = "PENDING"
+)
+
+// Valid indicates whether the value is a known member of the SalesPartnerMutationResultStatus enum.
+func (e SalesPartnerMutationResultStatus) Valid() bool {
+	switch e {
+	case SalesPartnerMutationResultStatusDRAFT:
+		return true
+	case SalesPartnerMutationResultStatusEFFECTIVE:
+		return true
+	case SalesPartnerMutationResultStatusINVALID:
+		return true
+	case SalesPartnerMutationResultStatusPENDING:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SalesPartnerPagePageSize.
+const (
+	SalesPartnerPagePageSizeN20 SalesPartnerPagePageSize = 20
+)
+
+// Valid indicates whether the value is a known member of the SalesPartnerPagePageSize enum.
+func (e SalesPartnerPagePageSize) Valid() bool {
+	switch e {
+	case SalesPartnerPagePageSizeN20:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SalesPartnerQueryRequestPageSize.
+const (
+	SalesPartnerQueryRequestPageSizeN20 SalesPartnerQueryRequestPageSize = 20
+)
+
+// Valid indicates whether the value is a known member of the SalesPartnerQueryRequestPageSize enum.
+func (e SalesPartnerQueryRequestPageSize) Valid() bool {
+	switch e {
+	case SalesPartnerQueryRequestPageSizeN20:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SalesPartnerQueryRequestSortField.
+const (
+	SalesPartnerQueryRequestSortFieldCode SalesPartnerQueryRequestSortField = "code"
+)
+
+// Valid indicates whether the value is a known member of the SalesPartnerQueryRequestSortField enum.
+func (e SalesPartnerQueryRequestSortField) Valid() bool {
+	switch e {
+	case SalesPartnerQueryRequestSortFieldCode:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SalesPartnerQueryRequestSortOrder.
+const (
+	SalesPartnerQueryRequestSortOrderAsc SalesPartnerQueryRequestSortOrder = "asc"
+)
+
+// Valid indicates whether the value is a known member of the SalesPartnerQueryRequestSortOrder enum.
+func (e SalesPartnerQueryRequestSortOrder) Valid() bool {
+	switch e {
+	case SalesPartnerQueryRequestSortOrderAsc:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SettlementPurpose.
 const (
 	SettlementPurposeADVANCERECEIPT SettlementPurpose = "ADVANCE_RECEIPT"
@@ -1363,16 +1549,17 @@ func (e SettlementPurpose) Valid() bool {
 
 // Defines values for SubjectDimension.
 const (
-	SubjectDimensionASSET       SubjectDimension = "ASSET"
-	SubjectDimensionBILL        SubjectDimension = "BILL"
-	SubjectDimensionCUSTOMER    SubjectDimension = "CUSTOMER"
-	SubjectDimensionDEPARTMENT  SubjectDimension = "DEPARTMENT"
-	SubjectDimensionEMPLOYEE    SubjectDimension = "EMPLOYEE"
-	SubjectDimensionFUNDACCOUNT SubjectDimension = "FUND_ACCOUNT"
-	SubjectDimensionOTHERPARTY  SubjectDimension = "OTHER_PARTY"
-	SubjectDimensionPRODUCT     SubjectDimension = "PRODUCT"
-	SubjectDimensionSUPPLIER    SubjectDimension = "SUPPLIER"
-	SubjectDimensionWAREHOUSE   SubjectDimension = "WAREHOUSE"
+	SubjectDimensionASSET                  SubjectDimension = "ASSET"
+	SubjectDimensionBILL                   SubjectDimension = "BILL"
+	SubjectDimensionCUSTOMERACCOUNT        SubjectDimension = "CUSTOMER_ACCOUNT"
+	SubjectDimensionDEPARTMENT             SubjectDimension = "DEPARTMENT"
+	SubjectDimensionEMPLOYMENTRELATIONSHIP SubjectDimension = "EMPLOYMENT_RELATIONSHIP"
+	SubjectDimensionFUNDACCOUNT            SubjectDimension = "FUND_ACCOUNT"
+	SubjectDimensionPRODUCT                SubjectDimension = "PRODUCT"
+	SubjectDimensionSALESRELATIONSHIP      SubjectDimension = "SALES_RELATIONSHIP"
+	SubjectDimensionSERVICERELATIONSHIP    SubjectDimension = "SERVICE_RELATIONSHIP"
+	SubjectDimensionSUPPLIERRELATIONSHIP   SubjectDimension = "SUPPLIER_RELATIONSHIP"
+	SubjectDimensionWAREHOUSE              SubjectDimension = "WAREHOUSE"
 )
 
 // Valid indicates whether the value is a known member of the SubjectDimension enum.
@@ -1382,19 +1569,21 @@ func (e SubjectDimension) Valid() bool {
 		return true
 	case SubjectDimensionBILL:
 		return true
-	case SubjectDimensionCUSTOMER:
+	case SubjectDimensionCUSTOMERACCOUNT:
 		return true
 	case SubjectDimensionDEPARTMENT:
 		return true
-	case SubjectDimensionEMPLOYEE:
+	case SubjectDimensionEMPLOYMENTRELATIONSHIP:
 		return true
 	case SubjectDimensionFUNDACCOUNT:
 		return true
-	case SubjectDimensionOTHERPARTY:
-		return true
 	case SubjectDimensionPRODUCT:
 		return true
-	case SubjectDimensionSUPPLIER:
+	case SubjectDimensionSALESRELATIONSHIP:
+		return true
+	case SubjectDimensionSERVICERELATIONSHIP:
+		return true
+	case SubjectDimensionSUPPLIERRELATIONSHIP:
 		return true
 	case SubjectDimensionWAREHOUSE:
 		return true
@@ -1463,42 +1652,6 @@ const (
 func (e SupplierQueryRequestSortOrder) Valid() bool {
 	switch e {
 	case SupplierQueryRequestSortOrderAsc:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for SupplierTaxMatchSourceEntity.
-const (
-	SupplierTaxMatchSourceEntityCustomerGroup SupplierTaxMatchSourceEntity = "customer-group"
-	SupplierTaxMatchSourceEntityOtherUnit     SupplierTaxMatchSourceEntity = "other-unit"
-)
-
-// Valid indicates whether the value is a known member of the SupplierTaxMatchSourceEntity enum.
-func (e SupplierTaxMatchSourceEntity) Valid() bool {
-	switch e {
-	case SupplierTaxMatchSourceEntityCustomerGroup:
-		return true
-	case SupplierTaxMatchSourceEntityOtherUnit:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for SupplierType.
-const (
-	GENERAL           SupplierType = "GENERAL"
-	LOGISTICSPLATFORM SupplierType = "LOGISTICS_PLATFORM"
-)
-
-// Valid indicates whether the value is a known member of the SupplierType enum.
-func (e SupplierType) Valid() bool {
-	switch e {
-	case GENERAL:
-		return true
-	case LOGISTICSPLATFORM:
 		return true
 	default:
 		return false
@@ -2080,6 +2233,8 @@ const (
 	VouCreatableEntitySalesReceipt            VouCreatableEntity = "sales-receipt"
 	VouCreatableEntitySalesRefund             VouCreatableEntity = "sales-refund"
 	VouCreatableEntitySelfProduction          VouCreatableEntity = "self-production"
+	VouCreatableEntityServiceAcceptance       VouCreatableEntity = "service-acceptance"
+	VouCreatableEntityServiceContract         VouCreatableEntity = "service-contract"
 )
 
 // Valid indicates whether the value is a known member of the VouCreatableEntity enum.
@@ -2144,6 +2299,37 @@ func (e VouCreatableEntity) Valid() bool {
 	case VouCreatableEntitySalesRefund:
 		return true
 	case VouCreatableEntitySelfProduction:
+		return true
+	case VouCreatableEntityServiceAcceptance:
+		return true
+	case VouCreatableEntityServiceContract:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VouCreateRequestDataCounterpartyType.
+const (
+	VouCreateRequestDataCounterpartyTypeCustomerAccount VouCreateRequestDataCounterpartyType = "customer-account"
+	VouCreateRequestDataCounterpartyTypeEmployee        VouCreateRequestDataCounterpartyType = "employee"
+	VouCreateRequestDataCounterpartyTypeOtherUnit       VouCreateRequestDataCounterpartyType = "other-unit"
+	VouCreateRequestDataCounterpartyTypeSalesPartner    VouCreateRequestDataCounterpartyType = "sales-partner"
+	VouCreateRequestDataCounterpartyTypeSupplier        VouCreateRequestDataCounterpartyType = "supplier"
+)
+
+// Valid indicates whether the value is a known member of the VouCreateRequestDataCounterpartyType enum.
+func (e VouCreateRequestDataCounterpartyType) Valid() bool {
+	switch e {
+	case VouCreateRequestDataCounterpartyTypeCustomerAccount:
+		return true
+	case VouCreateRequestDataCounterpartyTypeEmployee:
+		return true
+	case VouCreateRequestDataCounterpartyTypeOtherUnit:
+		return true
+	case VouCreateRequestDataCounterpartyTypeSalesPartner:
+		return true
+	case VouCreateRequestDataCounterpartyTypeSupplier:
 		return true
 	default:
 		return false
@@ -2243,6 +2429,8 @@ const (
 	VouEntitySalesReceipt            VouEntity = "sales-receipt"
 	VouEntitySalesRefund             VouEntity = "sales-refund"
 	VouEntitySelfProduction          VouEntity = "self-production"
+	VouEntityServiceAcceptance       VouEntity = "service-acceptance"
+	VouEntityServiceContract         VouEntity = "service-contract"
 )
 
 // Valid indicates whether the value is a known member of the VouEntity enum.
@@ -2316,6 +2504,10 @@ func (e VouEntity) Valid() bool {
 		return true
 	case VouEntitySelfProduction:
 		return true
+	case VouEntityServiceAcceptance:
+		return true
+	case VouEntityServiceContract:
+		return true
 	default:
 		return false
 	}
@@ -2362,22 +2554,25 @@ func (e VouIntermediaryCalculationSourceCurrency) Valid() bool {
 
 // Defines values for VouIntermediaryReferenceEntity.
 const (
-	VouIntermediaryReferenceEntityCustomer  VouIntermediaryReferenceEntity = "customer"
-	VouIntermediaryReferenceEntityEmployee  VouIntermediaryReferenceEntity = "employee"
-	VouIntermediaryReferenceEntityOtherUnit VouIntermediaryReferenceEntity = "other-unit"
-	VouIntermediaryReferenceEntityProduct   VouIntermediaryReferenceEntity = "product"
+	VouIntermediaryReferenceEntityCustomerAccount VouIntermediaryReferenceEntity = "customer-account"
+	VouIntermediaryReferenceEntityEmployee        VouIntermediaryReferenceEntity = "employee"
+	VouIntermediaryReferenceEntityOtherUnit       VouIntermediaryReferenceEntity = "other-unit"
+	VouIntermediaryReferenceEntityProduct         VouIntermediaryReferenceEntity = "product"
+	VouIntermediaryReferenceEntitySalesPartner    VouIntermediaryReferenceEntity = "sales-partner"
 )
 
 // Valid indicates whether the value is a known member of the VouIntermediaryReferenceEntity enum.
 func (e VouIntermediaryReferenceEntity) Valid() bool {
 	switch e {
-	case VouIntermediaryReferenceEntityCustomer:
+	case VouIntermediaryReferenceEntityCustomerAccount:
 		return true
 	case VouIntermediaryReferenceEntityEmployee:
 		return true
 	case VouIntermediaryReferenceEntityOtherUnit:
 		return true
 	case VouIntermediaryReferenceEntityProduct:
+		return true
+	case VouIntermediaryReferenceEntitySalesPartner:
 		return true
 	default:
 		return false
@@ -2408,6 +2603,48 @@ func (e VouIntermediarySourceBillBillType) Valid() bool {
 	}
 }
 
+// Defines values for VouIntermediarySourceLineSalesAttributionType.
+const (
+	VouIntermediarySourceLineSalesAttributionTypeCHANNELPARTNER   VouIntermediarySourceLineSalesAttributionType = "CHANNEL_PARTNER"
+	VouIntermediarySourceLineSalesAttributionTypeEXTERNALPARTTIME VouIntermediarySourceLineSalesAttributionType = "EXTERNAL_PART_TIME"
+	VouIntermediarySourceLineSalesAttributionTypeINTERNALEMPLOYEE VouIntermediarySourceLineSalesAttributionType = "INTERNAL_EMPLOYEE"
+)
+
+// Valid indicates whether the value is a known member of the VouIntermediarySourceLineSalesAttributionType enum.
+func (e VouIntermediarySourceLineSalesAttributionType) Valid() bool {
+	switch e {
+	case VouIntermediarySourceLineSalesAttributionTypeCHANNELPARTNER:
+		return true
+	case VouIntermediarySourceLineSalesAttributionTypeEXTERNALPARTTIME:
+		return true
+	case VouIntermediarySourceLineSalesAttributionTypeINTERNALEMPLOYEE:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VouIntermediarySourceLineSalesContractStatus.
+const (
+	APPLICABLE  VouIntermediarySourceLineSalesContractStatus = "APPLICABLE"
+	MISSING     VouIntermediarySourceLineSalesContractStatus = "MISSING"
+	NOTREQUIRED VouIntermediarySourceLineSalesContractStatus = "NOT_REQUIRED"
+)
+
+// Valid indicates whether the value is a known member of the VouIntermediarySourceLineSalesContractStatus enum.
+func (e VouIntermediarySourceLineSalesContractStatus) Valid() bool {
+	switch e {
+	case APPLICABLE:
+		return true
+	case MISSING:
+		return true
+	case NOTREQUIRED:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for VouIntermediarySourceLineSourceKind.
 const (
 	RETURNADJUSTMENT VouIntermediarySourceLineSourceKind = "RETURN_ADJUSTMENT"
@@ -2428,15 +2665,21 @@ func (e VouIntermediarySourceLineSourceKind) Valid() bool {
 
 // Defines values for VouIntermediarySummaryCategory.
 const (
-	VouIntermediarySummaryCategoryCOMMISSION   VouIntermediarySummaryCategory = "COMMISSION"
-	VouIntermediarySummaryCategoryINTERMEDIARY VouIntermediarySummaryCategory = "INTERMEDIARY"
-	VouIntermediarySummaryCategoryREBATE       VouIntermediarySummaryCategory = "REBATE"
+	VouIntermediarySummaryCategoryCHANNELPARTNER   VouIntermediarySummaryCategory = "CHANNEL_PARTNER"
+	VouIntermediarySummaryCategoryCOMMISSION       VouIntermediarySummaryCategory = "COMMISSION"
+	VouIntermediarySummaryCategoryEXTERNALPARTTIME VouIntermediarySummaryCategory = "EXTERNAL_PART_TIME"
+	VouIntermediarySummaryCategoryINTERMEDIARY     VouIntermediarySummaryCategory = "INTERMEDIARY"
+	VouIntermediarySummaryCategoryREBATE           VouIntermediarySummaryCategory = "REBATE"
 )
 
 // Valid indicates whether the value is a known member of the VouIntermediarySummaryCategory enum.
 func (e VouIntermediarySummaryCategory) Valid() bool {
 	switch e {
+	case VouIntermediarySummaryCategoryCHANNELPARTNER:
+		return true
 	case VouIntermediarySummaryCategoryCOMMISSION:
+		return true
+	case VouIntermediarySummaryCategoryEXTERNALPARTTIME:
 		return true
 	case VouIntermediarySummaryCategoryINTERMEDIARY:
 		return true
@@ -2495,6 +2738,33 @@ func (e VouSalesKgSummaryUnit) Valid() bool {
 	}
 }
 
+// Defines values for VouSaveRequestDataCounterpartyType.
+const (
+	VouSaveRequestDataCounterpartyTypeCustomerAccount VouSaveRequestDataCounterpartyType = "customer-account"
+	VouSaveRequestDataCounterpartyTypeEmployee        VouSaveRequestDataCounterpartyType = "employee"
+	VouSaveRequestDataCounterpartyTypeOtherUnit       VouSaveRequestDataCounterpartyType = "other-unit"
+	VouSaveRequestDataCounterpartyTypeSalesPartner    VouSaveRequestDataCounterpartyType = "sales-partner"
+	VouSaveRequestDataCounterpartyTypeSupplier        VouSaveRequestDataCounterpartyType = "supplier"
+)
+
+// Valid indicates whether the value is a known member of the VouSaveRequestDataCounterpartyType enum.
+func (e VouSaveRequestDataCounterpartyType) Valid() bool {
+	switch e {
+	case VouSaveRequestDataCounterpartyTypeCustomerAccount:
+		return true
+	case VouSaveRequestDataCounterpartyTypeEmployee:
+		return true
+	case VouSaveRequestDataCounterpartyTypeOtherUnit:
+		return true
+	case VouSaveRequestDataCounterpartyTypeSalesPartner:
+		return true
+	case VouSaveRequestDataCounterpartyTypeSupplier:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for VouSaveRequestDataInterestMode.
 const (
 	VouSaveRequestDataInterestModeBANKDEDUCTED      VouSaveRequestDataInterestMode = "BANK_DEDUCTED"
@@ -2546,6 +2816,42 @@ func (e VouSaveRequestDataOtherCategory) Valid() bool {
 	case VouSaveRequestDataOtherCategoryINTERMEDIARY:
 		return true
 	case VouSaveRequestDataOtherCategoryREBATE:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VouServiceAcceptanceInputSettlementDirection.
+const (
+	VouServiceAcceptanceInputSettlementDirectionPAYABLE    VouServiceAcceptanceInputSettlementDirection = "PAYABLE"
+	VouServiceAcceptanceInputSettlementDirectionRECEIVABLE VouServiceAcceptanceInputSettlementDirection = "RECEIVABLE"
+)
+
+// Valid indicates whether the value is a known member of the VouServiceAcceptanceInputSettlementDirection enum.
+func (e VouServiceAcceptanceInputSettlementDirection) Valid() bool {
+	switch e {
+	case VouServiceAcceptanceInputSettlementDirectionPAYABLE:
+		return true
+	case VouServiceAcceptanceInputSettlementDirectionRECEIVABLE:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VouServiceContractInputCapabilities.
+const (
+	VouServiceContractInputCapabilitiesCHANNELPARTNER   VouServiceContractInputCapabilities = "CHANNEL_PARTNER"
+	VouServiceContractInputCapabilitiesEXTERNALPARTTIME VouServiceContractInputCapabilities = "EXTERNAL_PART_TIME"
+)
+
+// Valid indicates whether the value is a known member of the VouServiceContractInputCapabilities enum.
+func (e VouServiceContractInputCapabilities) Valid() bool {
+	switch e {
+	case VouServiceContractInputCapabilitiesCHANNELPARTNER:
+		return true
+	case VouServiceContractInputCapabilitiesEXTERNALPARTTIME:
 		return true
 	default:
 		return false
@@ -2901,27 +3207,24 @@ type BalanceDirection string
 // BobCreateRequest defines model for BobCreateRequest.
 type BobCreateRequest struct {
 	Data struct {
-		AccountName           *string                 `json:"accountName,omitempty"`
-		AccountNumber         *string                 `json:"accountNumber,omitempty"`
-		Address               *string                 `json:"address,omitempty"`
-		BankBranch            *string                 `json:"bankBranch,omitempty"`
-		BankName              *string                 `json:"bankName,omitempty"`
-		Barcode               *string                 `json:"barcode,omitempty"`
-		CategoryId            *string                 `json:"categoryId,omitempty"`
-		ContactName           *string                 `json:"contactName,omitempty"`
-		ContactPhone          *string                 `json:"contactPhone,omitempty"`
-		Currency              *string                 `json:"currency,omitempty"`
-		CustomerType          *string                 `json:"customerType,omitempty"`
-		DefaultSalesSurcharge *string                 `json:"defaultSalesSurcharge,omitempty"`
-		DepartmentId          *string                 `json:"departmentId,omitempty"`
-		Description           *string                 `json:"description,omitempty"`
-		Email                 *string                 `json:"email,omitempty"`
-		EngineNumber          *string                 `json:"engineNumber,omitempty"`
-		Formula               *BobProductFormulaInput `json:"formula,omitempty"`
-		HireDate              *string                 `json:"hireDate,omitempty"`
-
-		// IntermediaryOtherPartyId 仅客户适用；引用其他单位中的居间商
-		IntermediaryOtherPartyId        *string                          `json:"intermediaryOtherPartyId,omitempty"`
+		AccountName                     *string                          `json:"accountName,omitempty"`
+		AccountNumber                   *string                          `json:"accountNumber,omitempty"`
+		Address                         *string                          `json:"address,omitempty"`
+		BankBranch                      *string                          `json:"bankBranch,omitempty"`
+		BankName                        *string                          `json:"bankName,omitempty"`
+		Barcode                         *string                          `json:"barcode,omitempty"`
+		CategoryId                      *string                          `json:"categoryId,omitempty"`
+		ContactName                     *string                          `json:"contactName,omitempty"`
+		ContactPhone                    *string                          `json:"contactPhone,omitempty"`
+		Currency                        *string                          `json:"currency,omitempty"`
+		CustomerType                    *string                          `json:"customerType,omitempty"`
+		DefaultSalesSurcharge           *string                          `json:"defaultSalesSurcharge,omitempty"`
+		DepartmentId                    *string                          `json:"departmentId,omitempty"`
+		Description                     *string                          `json:"description,omitempty"`
+		Email                           *string                          `json:"email,omitempty"`
+		EngineNumber                    *string                          `json:"engineNumber,omitempty"`
+		Formula                         *BobProductFormulaInput          `json:"formula,omitempty"`
+		HireDate                        *string                          `json:"hireDate,omitempty"`
 		InventoryUnitId                 *string                          `json:"inventoryUnitId,omitempty"`
 		LoadCapacityKg                  *string                          `json:"loadCapacityKg,omitempty"`
 		ManagerEmployeeId               *string                          `json:"managerEmployeeId,omitempty"`
@@ -2945,7 +3248,6 @@ type BobCreateRequest struct {
 		SettlementMethodId    *string `json:"settlementMethodId,omitempty"`
 		ShortName             *string `json:"shortName,omitempty"`
 		Specification         *string `json:"specification,omitempty"`
-		SupplierType          *string `json:"supplierType,omitempty"`
 		TaxNumber             *string `json:"taxNumber,omitempty"`
 		TermCode              *string `json:"termCode,omitempty"`
 		Unit                  *string `json:"unit,omitempty"`
@@ -3060,7 +3362,6 @@ type BobReferenceQueryRequest struct {
 	Entity         BobReferenceQueryRequestEntity `json:"entity"`
 	Keyword        *string                        `json:"keyword,omitempty"`
 	SourceObjectId *string                        `json:"sourceObjectId,omitempty"`
-	SupplierType   *SupplierType                  `json:"supplierType,omitempty"`
 }
 
 // BobReferenceQueryRequestEntity defines model for BobReferenceQueryRequest.Entity.
@@ -3104,7 +3405,6 @@ type BobSaveRequest struct {
 		EngineNumber                    *string                        `json:"engineNumber,omitempty"`
 		Formula                         *BobProductFormulaInput        `json:"formula,omitempty"`
 		HireDate                        *string                        `json:"hireDate,omitempty"`
-		IntermediaryOtherPartyId        *string                        `json:"intermediaryOtherPartyId,omitempty"`
 		InventoryUnitId                 *string                        `json:"inventoryUnitId,omitempty"`
 		LoadCapacityKg                  *string                        `json:"loadCapacityKg,omitempty"`
 		ManagerEmployeeId               *string                        `json:"managerEmployeeId,omitempty"`
@@ -3126,7 +3426,6 @@ type BobSaveRequest struct {
 		SettlementMethodId              *string                        `json:"settlementMethodId,omitempty"`
 		ShortName                       *string                        `json:"shortName,omitempty"`
 		Specification                   *string                        `json:"specification,omitempty"`
-		SupplierType                    *string                        `json:"supplierType,omitempty"`
 		TaxNumber                       *string                        `json:"taxNumber,omitempty"`
 		TermCode                        *string                        `json:"termCode,omitempty"`
 		Unit                            *string                        `json:"unit,omitempty"`
@@ -3271,6 +3570,37 @@ type CreateUserRequest struct {
 	Username    string   `json:"username"`
 }
 
+// CustomerAccountAddRequest defines model for CustomerAccountAddRequest.
+type CustomerAccountAddRequest struct {
+	CustomerRelationshipId string               `json:"customerRelationshipId"`
+	Data                   CustomerAccountInput `json:"data"`
+}
+
+// CustomerAccountDataView defines model for CustomerAccountDataView.
+type CustomerAccountDataView struct {
+	Address                    *string                      `json:"address,omitempty"`
+	ContactName                *string                      `json:"contactName,omitempty"`
+	ContactPhone               *string                      `json:"contactPhone,omitempty"`
+	CreditLimits               []CustomerCreditLimit        `json:"creditLimits"`
+	CustomerTypeCode           string                       `json:"customerTypeCode"`
+	DefaultSalesOrderRemark    *string                      `json:"defaultSalesOrderRemark,omitempty"`
+	DefaultTransportMethodCode *string                      `json:"defaultTransportMethodCode,omitempty"`
+	DefaultTransportMethodName *string                      `json:"defaultTransportMethodName,omitempty"`
+	Email                      *string                      `json:"email,omitempty"`
+	InternalReminder           *string                      `json:"internalReminder,omitempty"`
+	Name                       string                       `json:"name"`
+	OperatingEntity            *CustomerSnapshot            `json:"operatingEntity"`
+	OperatingEntityId          string                       `json:"operatingEntityId"`
+	PaymentMethod              *CustomerSnapshot            `json:"paymentMethod"`
+	PaymentMethodId            *string                      `json:"paymentMethodId,omitempty"`
+	PricingPolicy              CustomerPricingPolicy        `json:"pricingPolicy"`
+	PrimarySalesAttribution    CustomerSalesAttributionView `json:"primarySalesAttribution"`
+	SettlementMethod           *CustomerSnapshot            `json:"settlementMethod"`
+	SettlementMethodId         *string                      `json:"settlementMethodId,omitempty"`
+	ShortName                  *string                      `json:"shortName,omitempty"`
+	TransportSurcharge         *string                      `json:"transportSurcharge,omitempty"`
+}
+
 // CustomerAccountInput defines model for CustomerAccountInput.
 type CustomerAccountInput struct {
 	Address                    *string                       `json:"address,omitempty"`
@@ -3284,7 +3614,7 @@ type CustomerAccountInput struct {
 	Email                      *string                       `json:"email,omitempty"`
 	InternalReminder           *string                       `json:"internalReminder,omitempty"`
 	Name                       string                        `json:"name"`
-	OperatingEntityId          *string                       `json:"operatingEntityId,omitempty"`
+	OperatingEntityId          string                        `json:"operatingEntityId"`
 	PaymentMethodId            *string                       `json:"paymentMethodId,omitempty"`
 	PricingPolicy              CustomerPricingPolicy         `json:"pricingPolicy"`
 	PrimarySalesAttribution    CustomerSalesAttributionInput `json:"primarySalesAttribution"`
@@ -3295,27 +3625,12 @@ type CustomerAccountInput struct {
 
 // CustomerAccountView defines model for CustomerAccountView.
 type CustomerAccountView struct {
-	Address                    *string                      `json:"address,omitempty"`
-	ContactName                *string                      `json:"contactName,omitempty"`
-	ContactPhone               *string                      `json:"contactPhone,omitempty"`
-	CreditLimits               []CustomerCreditLimit        `json:"creditLimits"`
-	CustomerTypeCode           string                       `json:"customerTypeCode"`
-	DefaultSalesOrderRemark    *string                      `json:"defaultSalesOrderRemark,omitempty"`
-	DefaultTransportMethodCode *string                      `json:"defaultTransportMethodCode,omitempty"`
-	DefaultTransportMethodName *string                      `json:"defaultTransportMethodName,omitempty"`
-	Email                      *string                      `json:"email,omitempty"`
-	InternalReminder           *string                      `json:"internalReminder,omitempty"`
-	Name                       string                       `json:"name"`
-	OperatingEntity            *CustomerSnapshot            `json:"operatingEntity"`
-	OperatingEntityId          *string                      `json:"operatingEntityId,omitempty"`
-	PaymentMethod              *CustomerSnapshot            `json:"paymentMethod"`
-	PaymentMethodId            *string                      `json:"paymentMethodId,omitempty"`
-	PricingPolicy              CustomerPricingPolicy        `json:"pricingPolicy"`
-	PrimarySalesAttribution    CustomerSalesAttributionView `json:"primarySalesAttribution"`
-	SettlementMethod           *CustomerSnapshot            `json:"settlementMethod"`
-	SettlementMethodId         *string                      `json:"settlementMethodId,omitempty"`
-	ShortName                  *string                      `json:"shortName,omitempty"`
-	TransportSurcharge         *string                      `json:"transportSurcharge,omitempty"`
+	Candidate      *CustomerVersionView `json:"candidate,omitempty"`
+	Code           string               `json:"code"`
+	Effective      *CustomerVersionView `json:"effective,omitempty"`
+	Enabled        bool                 `json:"enabled"`
+	ObjectId       string               `json:"objectId"`
+	ObjectRevision int64                `json:"objectRevision"`
 }
 
 // CustomerAttachmentDownloadRequest defines model for CustomerAttachmentDownloadRequest.
@@ -3424,14 +3739,14 @@ type CustomerCreateRequest struct {
 
 // CustomerCreateRequest0 defines model for CustomerCreateRequest.0.
 type CustomerCreateRequest0 struct {
-	Data  CustomerAccountInput `json:"data"`
-	Group CustomerGroupData    `json:"group"`
+	Data    CustomerAccountInput `json:"data"`
+	PartyId string               `json:"partyId"`
 }
 
 // CustomerCreateRequest1 defines model for CustomerCreateRequest.1.
 type CustomerCreateRequest1 struct {
-	Data    CustomerAccountInput `json:"data"`
-	GroupId string               `json:"groupId"`
+	Data     CustomerAccountInput `json:"data"`
+	NewParty PartyIdentityData    `json:"newParty"`
 }
 
 // CustomerCreditLimit defines model for CustomerCreditLimit.
@@ -3445,14 +3760,19 @@ type CustomerCreditLimitCurrency string
 
 // CustomerDetailView defines model for CustomerDetailView.
 type CustomerDetailView struct {
-	Candidate      *CustomerVersionView `json:"candidate"`
-	Code           string               `json:"code"`
-	Effective      *CustomerVersionView `json:"effective"`
-	Enabled        bool                 `json:"enabled"`
-	Group          CustomerGroupView    `json:"group"`
-	ObjectId       string               `json:"objectId"`
-	ObjectRevision int64                `json:"objectRevision"`
-	UpdatedAt      time.Time            `json:"updatedAt"`
+	Accounts            []CustomerAccountView    `json:"accounts"`
+	Attachments         []CustomerAttachmentView `json:"attachments"`
+	Code                string                   `json:"code"`
+	Enabled             bool                     `json:"enabled"`
+	ObjectId            string                   `json:"objectId"`
+	ObjectRevision      int64                    `json:"objectRevision"`
+	OperatingEntityCode string                   `json:"operatingEntityCode"`
+	OperatingEntityId   string                   `json:"operatingEntityId"`
+	OperatingEntityName string                   `json:"operatingEntityName"`
+	PartyDisplayName    string                   `json:"partyDisplayName"`
+	PartyId             string                   `json:"partyId"`
+	PartyKind           string                   `json:"partyKind"`
+	UpdatedAt           time.Time                `json:"updatedAt"`
 }
 
 // CustomerGetResponse defines model for CustomerGetResponse.
@@ -3461,43 +3781,6 @@ type CustomerGetResponse struct {
 	Data      *CustomerDetailView `json:"data"`
 	Message   string              `json:"message"`
 	RequestId string              `json:"requestId"`
-}
-
-// CustomerGroupBankAccount defines model for CustomerGroupBankAccount.
-type CustomerGroupBankAccount struct {
-	AccountName   string `json:"accountName"`
-	AccountNumber string `json:"accountNumber"`
-	BankBranch    string `json:"bankBranch"`
-	BankName      string `json:"bankName"`
-}
-
-// CustomerGroupData defines model for CustomerGroupData.
-type CustomerGroupData struct {
-	BankAccounts   []CustomerGroupBankAccount `json:"bankAccounts"`
-	CompanyName    string                     `json:"companyName"`
-	InvoiceAddress *string                    `json:"invoiceAddress,omitempty"`
-	InvoicePhone   *string                    `json:"invoicePhone,omitempty"`
-	InvoiceTitle   *string                    `json:"invoiceTitle,omitempty"`
-	ShortName      *string                    `json:"shortName,omitempty"`
-	TaxNumber      *string                    `json:"taxNumber,omitempty"`
-}
-
-// CustomerGroupSaveRequest defines model for CustomerGroupSaveRequest.
-type CustomerGroupSaveRequest struct {
-	Data     CustomerGroupData `json:"data"`
-	GroupId  string            `json:"groupId"`
-	Revision int64             `json:"revision"`
-}
-
-// CustomerGroupView defines model for CustomerGroupView.
-type CustomerGroupView struct {
-	Attachments []CustomerAttachmentView `json:"attachments"`
-	Code        string                   `json:"code"`
-	Data        CustomerGroupData        `json:"data"`
-	GroupId     string                   `json:"groupId"`
-	Revision    int64                    `json:"revision"`
-	UpdatedAt   time.Time                `json:"updatedAt"`
-	UpdatedBy   string                   `json:"updatedBy"`
 }
 
 // CustomerListItem defines model for CustomerListItem.
@@ -3655,12 +3938,10 @@ type CustomerSalesAttributionViewType string
 
 // CustomerSaveRequest defines model for CustomerSaveRequest.
 type CustomerSaveRequest struct {
-	Data          CustomerAccountInput `json:"data"`
-	Group         CustomerGroupData    `json:"group"`
-	GroupRevision int64                `json:"groupRevision"`
-	ObjectId      string               `json:"objectId"`
-	Revision      int64                `json:"revision"`
-	VersionId     string               `json:"versionId"`
+	Data      CustomerAccountInput `json:"data"`
+	ObjectId  string               `json:"objectId"`
+	Revision  int64                `json:"revision"`
+	VersionId string               `json:"versionId"`
 }
 
 // CustomerSnapshot defines model for CustomerSnapshot.
@@ -3677,35 +3958,6 @@ type CustomerSnapshot struct {
 	SourceObjectId        string  `json:"sourceObjectId"`
 	TaxNumber             *string `json:"taxNumber,omitempty"`
 	TermCode              *string `json:"termCode,omitempty"`
-}
-
-// CustomerTaxMatch defines model for CustomerTaxMatch.
-type CustomerTaxMatch struct {
-	Code           string                       `json:"code"`
-	CompanyName    string                       `json:"companyName"`
-	InvoiceAddress string                       `json:"invoiceAddress"`
-	InvoicePhone   string                       `json:"invoicePhone"`
-	InvoiceTitle   string                       `json:"invoiceTitle"`
-	ObjectId       string                       `json:"objectId"`
-	ShortName      string                       `json:"shortName"`
-	SourceEntity   CustomerTaxMatchSourceEntity `json:"sourceEntity"`
-	TaxNumber      string                       `json:"taxNumber"`
-}
-
-// CustomerTaxMatchSourceEntity defines model for CustomerTaxMatch.SourceEntity.
-type CustomerTaxMatchSourceEntity string
-
-// CustomerTaxMatchRequest defines model for CustomerTaxMatchRequest.
-type CustomerTaxMatchRequest struct {
-	TaxNumber string `json:"taxNumber"`
-}
-
-// CustomerTaxMatchResponse defines model for CustomerTaxMatchResponse.
-type CustomerTaxMatchResponse struct {
-	Code      int                `json:"code"`
-	Data      []CustomerTaxMatch `json:"data"`
-	Message   string             `json:"message"`
-	RequestId string             `json:"requestId"`
 }
 
 // CustomerVersionMeta defines model for CustomerVersionMeta.
@@ -3731,8 +3983,36 @@ type CustomerVersionMetaStatus string
 // CustomerVersionView defines model for CustomerVersionView.
 type CustomerVersionView struct {
 	Attachments []CustomerAttachmentView `json:"attachments"`
-	Data        CustomerAccountView      `json:"data"`
+	Data        CustomerAccountDataView  `json:"data"`
 	Version     CustomerVersionMeta      `json:"version"`
+}
+
+// EmploymentCreateRequest defines model for EmploymentCreateRequest.
+type EmploymentCreateRequest struct {
+	union json.RawMessage
+}
+
+// EmploymentCreateRequest0 defines model for EmploymentCreateRequest.0.
+type EmploymentCreateRequest0 struct {
+	Data    EmploymentData `json:"data"`
+	PartyId string         `json:"partyId"`
+}
+
+// EmploymentCreateRequest1 defines model for EmploymentCreateRequest.1.
+type EmploymentCreateRequest1 struct {
+	Data     EmploymentData    `json:"data"`
+	NewParty PartyIdentityData `json:"newParty"`
+}
+
+// EmploymentData defines model for EmploymentData.
+type EmploymentData struct {
+	DepartmentId      *string             `json:"departmentId,omitempty"`
+	Email             *string             `json:"email,omitempty"`
+	HireDate          *openapi_types.Date `json:"hireDate,omitempty"`
+	OperatingEntityId string              `json:"operatingEntityId"`
+	Phone             *string             `json:"phone,omitempty"`
+	PositionId        *string             `json:"positionId,omitempty"`
+	Remark            *string             `json:"remark,omitempty"`
 }
 
 // EmptyObject defines model for EmptyObject.
@@ -4300,12 +4580,93 @@ type PartyKind string
 
 // PartyListItem defines model for PartyListItem.
 type PartyListItem struct {
-	DisplayName string    `json:"displayName"`
-	Kind        PartyKind `json:"kind"`
-	LegalName   string    `json:"legalName"`
-	PartyId     string    `json:"partyId"`
-	Revision    int64     `json:"revision"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	DisplayName       string     `json:"displayName"`
+	Kind              PartyKind  `json:"kind"`
+	LegalName         string     `json:"legalName"`
+	MergedAt          *time.Time `json:"mergedAt,omitempty"`
+	MergedIntoPartyId *string    `json:"mergedIntoPartyId,omitempty"`
+	PartyId           string     `json:"partyId"`
+	Revision          int64      `json:"revision"`
+	UpdatedAt         time.Time  `json:"updatedAt"`
+}
+
+// PartyMergeConfirmRequest defines model for PartyMergeConfirmRequest.
+type PartyMergeConfirmRequest struct {
+	ConflictResolutions []PartyMergeConflictResolution `json:"conflictResolutions"`
+	PreflightId         string                         `json:"preflightId"`
+	SourcePartyId       string                         `json:"sourcePartyId"`
+	SourceRevision      int64                          `json:"sourceRevision"`
+	TargetPartyId       string                         `json:"targetPartyId"`
+	TargetRevision      int64                          `json:"targetRevision"`
+}
+
+// PartyMergeConfirmResponse defines model for PartyMergeConfirmResponse.
+type PartyMergeConfirmResponse struct {
+	Code      int32             `json:"code"`
+	Data      *PartyMergeResult `json:"data"`
+	Message   string            `json:"message"`
+	RequestId string            `json:"requestId"`
+}
+
+// PartyMergeConflictResolution defines model for PartyMergeConflictResolution.
+type PartyMergeConflictResolution struct {
+	OperatingEntityId string                                       `json:"operatingEntityId"`
+	RelationshipType  PartyMergeConflictResolutionRelationshipType `json:"relationshipType"`
+	RetainObjectId    string                                       `json:"retainObjectId"`
+}
+
+// PartyMergeConflictResolutionRelationshipType defines model for PartyMergeConflictResolution.RelationshipType.
+type PartyMergeConflictResolutionRelationshipType string
+
+// PartyMergePreflightRequest defines model for PartyMergePreflightRequest.
+type PartyMergePreflightRequest struct {
+	SourcePartyId  string `json:"sourcePartyId"`
+	SourceRevision int64  `json:"sourceRevision"`
+	TargetPartyId  string `json:"targetPartyId"`
+	TargetRevision int64  `json:"targetRevision"`
+}
+
+// PartyMergePreflightResponse defines model for PartyMergePreflightResponse.
+type PartyMergePreflightResponse struct {
+	Code      int32                     `json:"code"`
+	Data      PartyMergePreflightResult `json:"data"`
+	Message   string                    `json:"message"`
+	RequestId string                    `json:"requestId"`
+}
+
+// PartyMergePreflightResult defines model for PartyMergePreflightResult.
+type PartyMergePreflightResult struct {
+	BlockReasons          []string                         `json:"blockReasons"`
+	CanMerge              bool                             `json:"canMerge"`
+	PreflightId           *string                          `json:"preflightId,omitempty"`
+	RelationshipConflicts []PartyMergeRelationshipConflict `json:"relationshipConflicts"`
+	SourcePartyId         string                           `json:"sourcePartyId"`
+	SourceRevision        int64                            `json:"sourceRevision"`
+	TargetPartyId         string                           `json:"targetPartyId"`
+	TargetRevision        int64                            `json:"targetRevision"`
+}
+
+// PartyMergeRelationshipConflict defines model for PartyMergeRelationshipConflict.
+type PartyMergeRelationshipConflict struct {
+	OperatingEntityId   string                                         `json:"operatingEntityId"`
+	OperatingEntityName string                                         `json:"operatingEntityName"`
+	RelationshipType    PartyMergeRelationshipConflictRelationshipType `json:"relationshipType"`
+	SourceObjectCode    string                                         `json:"sourceObjectCode"`
+	SourceObjectId      string                                         `json:"sourceObjectId"`
+	TargetObjectCode    string                                         `json:"targetObjectCode"`
+	TargetObjectId      string                                         `json:"targetObjectId"`
+}
+
+// PartyMergeRelationshipConflictRelationshipType defines model for PartyMergeRelationshipConflict.RelationshipType.
+type PartyMergeRelationshipConflictRelationshipType string
+
+// PartyMergeResult defines model for PartyMergeResult.
+type PartyMergeResult struct {
+	MergeEventId             string `json:"mergeEventId"`
+	MergedRelationships      int    `json:"mergedRelationships"`
+	SourcePartyId            string `json:"sourcePartyId"`
+	TargetPartyId            string `json:"targetPartyId"`
+	TransferredRelationships int    `json:"transferredRelationships"`
 }
 
 // PartyQueryRequest defines model for PartyQueryRequest.
@@ -4313,6 +4674,9 @@ type PartyQueryRequest struct {
 	Filters *struct {
 		Keyword *string    `json:"keyword,omitempty"`
 		Kind    *PartyKind `json:"kind,omitempty"`
+
+		// Merged 省略或 false 仅查询可用主体；true 仅查询已合并审计主体。
+		Merged *bool `json:"merged,omitempty"`
 	} `json:"filters,omitempty"`
 	Page     int                       `json:"page"`
 	PageSize PartyQueryRequestPageSize `json:"pageSize"`
@@ -4376,6 +4740,8 @@ type PartyView struct {
 	Email             *string                 `json:"email,omitempty"`
 	Kind              PartyKind               `json:"kind"`
 	LegalName         string                  `json:"legalName"`
+	MergedAt          *time.Time              `json:"mergedAt,omitempty"`
+	MergedIntoPartyId *string                 `json:"mergedIntoPartyId,omitempty"`
 	PartyId           string                  `json:"partyId"`
 	Phone             *string                 `json:"phone,omitempty"`
 	Relationships     []PartyRelationshipCard `json:"relationships"`
@@ -4804,6 +5170,184 @@ type RptVersionSaveRequest struct {
 	VersionId   string         `json:"versionId"`
 }
 
+// SalesPartnerCapability defines model for SalesPartnerCapability.
+type SalesPartnerCapability string
+
+// SalesPartnerCreateRequest defines model for SalesPartnerCreateRequest.
+type SalesPartnerCreateRequest struct {
+	union json.RawMessage
+}
+
+// SalesPartnerCreateRequest0 defines model for SalesPartnerCreateRequest.0.
+type SalesPartnerCreateRequest0 struct {
+	Data    SalesPartnerInput `json:"data"`
+	PartyId string            `json:"partyId"`
+}
+
+// SalesPartnerCreateRequest1 defines model for SalesPartnerCreateRequest.1.
+type SalesPartnerCreateRequest1 struct {
+	Data     SalesPartnerInput `json:"data"`
+	NewParty PartyIdentityData `json:"newParty"`
+}
+
+// SalesPartnerDataView defines model for SalesPartnerDataView.
+type SalesPartnerDataView struct {
+	Address      *string                  `json:"address,omitempty"`
+	Capabilities []SalesPartnerCapability `json:"capabilities"`
+	ContactName  *string                  `json:"contactName,omitempty"`
+	ContactPhone *string                  `json:"contactPhone,omitempty"`
+	Email        *string                  `json:"email,omitempty"`
+	Remark       *string                  `json:"remark,omitempty"`
+}
+
+// SalesPartnerDetailView defines model for SalesPartnerDetailView.
+type SalesPartnerDetailView struct {
+	Candidate           *SalesPartnerVersionView `json:"candidate"`
+	Code                string                   `json:"code"`
+	Effective           *SalesPartnerVersionView `json:"effective"`
+	Enabled             bool                     `json:"enabled"`
+	ObjectId            string                   `json:"objectId"`
+	ObjectRevision      int64                    `json:"objectRevision"`
+	OperatingEntityCode string                   `json:"operatingEntityCode"`
+	OperatingEntityId   string                   `json:"operatingEntityId"`
+	OperatingEntityName string                   `json:"operatingEntityName"`
+	PartyDisplayName    string                   `json:"partyDisplayName"`
+	PartyId             string                   `json:"partyId"`
+	PartyKind           PartyKind                `json:"partyKind"`
+	UpdatedAt           time.Time                `json:"updatedAt"`
+}
+
+// SalesPartnerGetResponse defines model for SalesPartnerGetResponse.
+type SalesPartnerGetResponse struct {
+	Code      int32                  `json:"code"`
+	Data      SalesPartnerDetailView `json:"data"`
+	Message   string                 `json:"message"`
+	RequestId string                 `json:"requestId"`
+}
+
+// SalesPartnerInput defines model for SalesPartnerInput.
+type SalesPartnerInput struct {
+	Address           *string                  `json:"address,omitempty"`
+	Capabilities      []SalesPartnerCapability `json:"capabilities"`
+	ContactName       *string                  `json:"contactName,omitempty"`
+	ContactPhone      *string                  `json:"contactPhone,omitempty"`
+	Email             *string                  `json:"email,omitempty"`
+	OperatingEntityId string                   `json:"operatingEntityId"`
+	Remark            *string                  `json:"remark,omitempty"`
+}
+
+// SalesPartnerListItem defines model for SalesPartnerListItem.
+type SalesPartnerListItem struct {
+	Candidate           *SalesPartnerListVersion `json:"candidate"`
+	Code                string                   `json:"code"`
+	Effective           *SalesPartnerListVersion `json:"effective"`
+	Enabled             bool                     `json:"enabled"`
+	ObjectId            string                   `json:"objectId"`
+	ObjectRevision      int64                    `json:"objectRevision"`
+	OperatingEntityCode string                   `json:"operatingEntityCode"`
+	OperatingEntityId   string                   `json:"operatingEntityId"`
+	OperatingEntityName string                   `json:"operatingEntityName"`
+	PartyDisplayName    string                   `json:"partyDisplayName"`
+	PartyId             string                   `json:"partyId"`
+	PartyKind           PartyKind                `json:"partyKind"`
+	UpdatedAt           time.Time                `json:"updatedAt"`
+}
+
+// SalesPartnerListVersion defines model for SalesPartnerListVersion.
+type SalesPartnerListVersion struct {
+	Capabilities []SalesPartnerCapability      `json:"capabilities"`
+	Revision     int64                         `json:"revision"`
+	Status       SalesPartnerListVersionStatus `json:"status"`
+	SubmittedBy  *string                       `json:"submittedBy"`
+	Version      int32                         `json:"version"`
+	VersionId    string                        `json:"versionId"`
+}
+
+// SalesPartnerListVersionStatus defines model for SalesPartnerListVersion.Status.
+type SalesPartnerListVersionStatus string
+
+// SalesPartnerMutationResponse defines model for SalesPartnerMutationResponse.
+type SalesPartnerMutationResponse struct {
+	Code      int32                      `json:"code"`
+	Data      SalesPartnerMutationResult `json:"data"`
+	Message   string                     `json:"message"`
+	RequestId string                     `json:"requestId"`
+}
+
+// SalesPartnerMutationResult defines model for SalesPartnerMutationResult.
+type SalesPartnerMutationResult struct {
+	Enabled        bool                             `json:"enabled"`
+	ObjectId       string                           `json:"objectId"`
+	ObjectRevision int64                            `json:"objectRevision"`
+	PartyId        *string                          `json:"partyId,omitempty"`
+	Revision       int64                            `json:"revision"`
+	Status         SalesPartnerMutationResultStatus `json:"status"`
+	Version        int32                            `json:"version"`
+	VersionId      string                           `json:"versionId"`
+}
+
+// SalesPartnerMutationResultStatus defines model for SalesPartnerMutationResult.Status.
+type SalesPartnerMutationResultStatus string
+
+// SalesPartnerPage defines model for SalesPartnerPage.
+type SalesPartnerPage struct {
+	Items    []SalesPartnerListItem   `json:"items"`
+	Page     int                      `json:"page"`
+	PageSize SalesPartnerPagePageSize `json:"pageSize"`
+	Total    int64                    `json:"total"`
+}
+
+// SalesPartnerPagePageSize defines model for SalesPartnerPage.PageSize.
+type SalesPartnerPagePageSize int
+
+// SalesPartnerQueryRequest defines model for SalesPartnerQueryRequest.
+type SalesPartnerQueryRequest struct {
+	Filters struct {
+		Capability        *SalesPartnerCapability `json:"capability,omitempty"`
+		Enabled           *bool                   `json:"enabled,omitempty"`
+		Keyword           *string                 `json:"keyword,omitempty"`
+		OperatingEntityId *string                 `json:"operatingEntityId,omitempty"`
+		Status            *[]string               `json:"status,omitempty"`
+	} `json:"filters"`
+	Page     int                              `json:"page"`
+	PageSize SalesPartnerQueryRequestPageSize `json:"pageSize"`
+	Sort     []struct {
+		Field SalesPartnerQueryRequestSortField `json:"field"`
+		Order SalesPartnerQueryRequestSortOrder `json:"order"`
+	} `json:"sort"`
+}
+
+// SalesPartnerQueryRequestPageSize defines model for SalesPartnerQueryRequest.PageSize.
+type SalesPartnerQueryRequestPageSize int
+
+// SalesPartnerQueryRequestSortField defines model for SalesPartnerQueryRequest.Sort.Field.
+type SalesPartnerQueryRequestSortField string
+
+// SalesPartnerQueryRequestSortOrder defines model for SalesPartnerQueryRequest.Sort.Order.
+type SalesPartnerQueryRequestSortOrder string
+
+// SalesPartnerQueryResponse defines model for SalesPartnerQueryResponse.
+type SalesPartnerQueryResponse struct {
+	Code      int32            `json:"code"`
+	Data      SalesPartnerPage `json:"data"`
+	Message   string           `json:"message"`
+	RequestId string           `json:"requestId"`
+}
+
+// SalesPartnerSaveRequest defines model for SalesPartnerSaveRequest.
+type SalesPartnerSaveRequest struct {
+	Data      SalesPartnerInput `json:"data"`
+	ObjectId  string            `json:"objectId"`
+	Revision  int64             `json:"revision"`
+	VersionId string            `json:"versionId"`
+}
+
+// SalesPartnerVersionView defines model for SalesPartnerVersionView.
+type SalesPartnerVersionView struct {
+	Data    SalesPartnerDataView `json:"data"`
+	Version CustomerVersionMeta  `json:"version"`
+}
+
 // SaveBusinessMenuRequest defines model for SaveBusinessMenuRequest.
 type SaveBusinessMenuRequest struct {
 	CatalogRevision string         `json:"catalogRevision"`
@@ -4979,18 +5523,36 @@ type SubjectTemplate string
 
 // SupplierCreateRequest defines model for SupplierCreateRequest.
 type SupplierCreateRequest struct {
-	Data SupplierInput `json:"data"`
+	union json.RawMessage
+}
+
+// SupplierCreateRequest0 defines model for SupplierCreateRequest.0.
+type SupplierCreateRequest0 struct {
+	Data    SupplierInput `json:"data"`
+	PartyId string        `json:"partyId"`
+}
+
+// SupplierCreateRequest1 defines model for SupplierCreateRequest.1.
+type SupplierCreateRequest1 struct {
+	Data     SupplierInput     `json:"data"`
+	NewParty PartyIdentityData `json:"newParty"`
 }
 
 // SupplierDetailView defines model for SupplierDetailView.
 type SupplierDetailView struct {
-	Candidate      *SupplierVersionView `json:"candidate"`
-	Code           string               `json:"code"`
-	Effective      *SupplierVersionView `json:"effective"`
-	Enabled        bool                 `json:"enabled"`
-	ObjectId       string               `json:"objectId"`
-	ObjectRevision int64                `json:"objectRevision"`
-	UpdatedAt      time.Time            `json:"updatedAt"`
+	Candidate           *SupplierVersionView `json:"candidate"`
+	Code                string               `json:"code"`
+	Effective           *SupplierVersionView `json:"effective"`
+	Enabled             bool                 `json:"enabled"`
+	ObjectId            string               `json:"objectId"`
+	ObjectRevision      int64                `json:"objectRevision"`
+	OperatingEntityCode string               `json:"operatingEntityCode"`
+	OperatingEntityId   string               `json:"operatingEntityId"`
+	OperatingEntityName string               `json:"operatingEntityName"`
+	PartyDisplayName    string               `json:"partyDisplayName"`
+	PartyId             string               `json:"partyId"`
+	PartyKind           PartyKind            `json:"partyKind"`
+	UpdatedAt           time.Time            `json:"updatedAt"`
 }
 
 // SupplierGetResponse defines model for SupplierGetResponse.
@@ -5003,51 +5565,51 @@ type SupplierGetResponse struct {
 
 // SupplierInput defines model for SupplierInput.
 type SupplierInput struct {
-	Address                    *string      `json:"address,omitempty"`
-	ContactName                *string      `json:"contactName,omitempty"`
-	ContactPhone               *string      `json:"contactPhone,omitempty"`
-	DefaultPurchaserEmployeeId *string      `json:"defaultPurchaserEmployeeId,omitempty"`
-	Email                      *string      `json:"email,omitempty"`
-	Name                       string       `json:"name"`
-	Remark                     *string      `json:"remark,omitempty"`
-	SettlementMethodId         *string      `json:"settlementMethodId,omitempty"`
-	ShortName                  *string      `json:"shortName,omitempty"`
-	SupplierType               SupplierType `json:"supplierType"`
-	TaxNumber                  *string      `json:"taxNumber,omitempty"`
+	Address                    *string `json:"address,omitempty"`
+	ContactName                *string `json:"contactName,omitempty"`
+	ContactPhone               *string `json:"contactPhone,omitempty"`
+	DefaultPurchaserEmployeeId *string `json:"defaultPurchaserEmployeeId,omitempty"`
+	Email                      *string `json:"email,omitempty"`
+	OperatingEntityId          string  `json:"operatingEntityId"`
+	Remark                     *string `json:"remark,omitempty"`
+	SettlementMethodId         *string `json:"settlementMethodId,omitempty"`
 }
 
 // SupplierListItem defines model for SupplierListItem.
 type SupplierListItem struct {
-	Candidate      *SupplierListVersion `json:"candidate"`
-	Code           string               `json:"code"`
-	Effective      *SupplierListVersion `json:"effective"`
-	Enabled        bool                 `json:"enabled"`
-	ObjectId       string               `json:"objectId"`
-	ObjectRevision int64                `json:"objectRevision"`
-	UpdatedAt      time.Time            `json:"updatedAt"`
+	Candidate           *SupplierListVersion `json:"candidate"`
+	Code                string               `json:"code"`
+	Effective           *SupplierListVersion `json:"effective"`
+	Enabled             bool                 `json:"enabled"`
+	ObjectId            string               `json:"objectId"`
+	ObjectRevision      int64                `json:"objectRevision"`
+	OperatingEntityCode string               `json:"operatingEntityCode"`
+	OperatingEntityId   string               `json:"operatingEntityId"`
+	OperatingEntityName string               `json:"operatingEntityName"`
+	PartyDisplayName    string               `json:"partyDisplayName"`
+	PartyId             string               `json:"partyId"`
+	PartyKind           PartyKind            `json:"partyKind"`
+	UpdatedAt           time.Time            `json:"updatedAt"`
 }
 
 // SupplierListVersion defines model for SupplierListVersion.
 type SupplierListVersion struct {
-	DefaultPurchaserCode *string      `json:"defaultPurchaserCode,omitempty"`
-	DefaultPurchaserName *string      `json:"defaultPurchaserName,omitempty"`
-	Name                 string       `json:"name"`
-	Revision             int64        `json:"revision"`
-	Status               string       `json:"status"`
-	SubmittedBy          *string      `json:"submittedBy"`
-	SupplierType         SupplierType `json:"supplierType"`
-	Version              int32        `json:"version"`
-	VersionId            string       `json:"versionId"`
+	DefaultPurchaserCode *string `json:"defaultPurchaserCode,omitempty"`
+	DefaultPurchaserName *string `json:"defaultPurchaserName,omitempty"`
+	Revision             int64   `json:"revision"`
+	Status               string  `json:"status"`
+	SubmittedBy          *string `json:"submittedBy"`
+	Version              int32   `json:"version"`
+	VersionId            string  `json:"versionId"`
 }
 
 // SupplierQueryRequest defines model for SupplierQueryRequest.
 type SupplierQueryRequest struct {
 	Filters *struct {
-		DefaultPurchaserEmployeeId *string       `json:"defaultPurchaserEmployeeId,omitempty"`
-		Enabled                    *bool         `json:"enabled,omitempty"`
-		Keyword                    *string       `json:"keyword,omitempty"`
-		Status                     *[]string     `json:"status,omitempty"`
-		SupplierType               *SupplierType `json:"supplierType,omitempty"`
+		DefaultPurchaserEmployeeId *string   `json:"defaultPurchaserEmployeeId,omitempty"`
+		Enabled                    *bool     `json:"enabled,omitempty"`
+		Keyword                    *string   `json:"keyword,omitempty"`
+		Status                     *[]string `json:"status,omitempty"`
 	} `json:"filters,omitempty"`
 	Page     int                          `json:"page"`
 	PageSize SupplierQueryRequestPageSize `json:"pageSize"`
@@ -5081,10 +5643,18 @@ type SupplierQueryResponse struct {
 
 // SupplierSaveRequest defines model for SupplierSaveRequest.
 type SupplierSaveRequest struct {
-	Data      SupplierInput `json:"data"`
-	ObjectId  string        `json:"objectId"`
-	Revision  int64         `json:"revision"`
-	VersionId string        `json:"versionId"`
+	Data struct {
+		Address                    *string `json:"address,omitempty"`
+		ContactName                *string `json:"contactName,omitempty"`
+		ContactPhone               *string `json:"contactPhone,omitempty"`
+		DefaultPurchaserEmployeeId *string `json:"defaultPurchaserEmployeeId,omitempty"`
+		Email                      *string `json:"email,omitempty"`
+		Remark                     *string `json:"remark,omitempty"`
+		SettlementMethodId         *string `json:"settlementMethodId,omitempty"`
+	} `json:"data"`
+	ObjectId  string `json:"objectId"`
+	Revision  int64  `json:"revision"`
+	VersionId string `json:"versionId"`
 }
 
 // SupplierSettlementSnapshot defines model for SupplierSettlementSnapshot.
@@ -5099,39 +5669,6 @@ type SupplierSettlementSnapshot struct {
 	TermCode       string `json:"termCode"`
 }
 
-// SupplierTaxMatch defines model for SupplierTaxMatch.
-type SupplierTaxMatch struct {
-	Address      string                       `json:"address"`
-	Code         string                       `json:"code"`
-	CompanyName  string                       `json:"companyName"`
-	ContactName  string                       `json:"contactName"`
-	ContactPhone string                       `json:"contactPhone"`
-	Email        string                       `json:"email"`
-	ObjectId     string                       `json:"objectId"`
-	ShortName    string                       `json:"shortName"`
-	SourceEntity SupplierTaxMatchSourceEntity `json:"sourceEntity"`
-	TaxNumber    string                       `json:"taxNumber"`
-}
-
-// SupplierTaxMatchSourceEntity defines model for SupplierTaxMatch.SourceEntity.
-type SupplierTaxMatchSourceEntity string
-
-// SupplierTaxMatchRequest defines model for SupplierTaxMatchRequest.
-type SupplierTaxMatchRequest struct {
-	TaxNumber string `json:"taxNumber"`
-}
-
-// SupplierTaxMatchResponse defines model for SupplierTaxMatchResponse.
-type SupplierTaxMatchResponse struct {
-	Code      int                `json:"code"`
-	Data      []SupplierTaxMatch `json:"data"`
-	Message   string             `json:"message"`
-	RequestId string             `json:"requestId"`
-}
-
-// SupplierType defines model for SupplierType.
-type SupplierType string
-
 // SupplierVersionView defines model for SupplierVersionView.
 type SupplierVersionView struct {
 	Data    SupplierView        `json:"data"`
@@ -5145,13 +5682,9 @@ type SupplierView struct {
 	ContactPhone               *string                     `json:"contactPhone,omitempty"`
 	DefaultPurchaserEmployeeId *string                     `json:"defaultPurchaserEmployeeId,omitempty"`
 	Email                      *string                     `json:"email,omitempty"`
-	Name                       string                      `json:"name"`
 	Remark                     *string                     `json:"remark,omitempty"`
 	SettlementMethod           *SupplierSettlementSnapshot `json:"settlementMethod"`
 	SettlementMethodId         *string                     `json:"settlementMethodId,omitempty"`
-	ShortName                  *string                     `json:"shortName,omitempty"`
-	SupplierType               SupplierType                `json:"supplierType"`
-	TaxNumber                  *string                     `json:"taxNumber,omitempty"`
 }
 
 // SystemParameterConstraints defines model for SystemParameterConstraints.
@@ -5646,8 +6179,8 @@ type VouCreateRequest struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
 		} `json:"counterparty,omitempty"`
-		CounterpartyType *string `json:"counterpartyType,omitempty"`
-		Currency         *string `json:"currency,omitempty"`
+		CounterpartyType *VouCreateRequestDataCounterpartyType `json:"counterpartyType,omitempty"`
+		Currency         *string                               `json:"currency,omitempty"`
 		Customer         *struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
@@ -5723,6 +6256,12 @@ type VouCreateRequest struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
 		} `json:"salesperson,omitempty"`
+		ServiceAcceptance *VouServiceAcceptanceInput `json:"serviceAcceptance,omitempty"`
+		ServiceContract   *VouServiceContractInput   `json:"serviceContract,omitempty"`
+		SettlementMethod  *struct {
+			ObjectId  string `json:"objectId"`
+			VersionId string `json:"versionId"`
+		} `json:"settlementMethod,omitempty"`
 		SignoffLines *[]struct {
 			RejectedQuantity string  `json:"rejectedQuantity"`
 			Remark           *string `json:"remark,omitempty"`
@@ -5753,6 +6292,9 @@ type VouCreateRequest struct {
 	ParentDocumentId *string    `json:"parentDocumentId,omitempty"`
 	ParentEntity     *VouEntity `json:"parentEntity,omitempty"`
 }
+
+// VouCreateRequestDataCounterpartyType defines model for VouCreateRequest.Data.CounterpartyType.
+type VouCreateRequestDataCounterpartyType string
 
 // VouCreateRequestDataInterestMode defines model for VouCreateRequest.Data.InterestMode.
 type VouCreateRequestDataInterestMode string
@@ -5873,6 +6415,15 @@ type VouIntermediaryResultLine struct {
 	SourceSignoffLineId      string   `json:"sourceSignoffLineId"`
 }
 
+// VouIntermediarySalesContractSnapshot defines model for VouIntermediarySalesContractSnapshot.
+type VouIntermediarySalesContractSnapshot struct {
+	ApplicableFrom openapi_types.Date  `json:"applicableFrom"`
+	ApplicableTo   *openapi_types.Date `json:"applicableTo,omitempty"`
+	DocumentId     string              `json:"documentId"`
+	Revision       int64               `json:"revision"`
+	Terms          string              `json:"terms"`
+}
+
 // VouIntermediaryScriptGetResponse defines model for VouIntermediaryScriptGetResponse.
 type VouIntermediaryScriptGetResponse struct {
 	Code      int32                         `json:"code"`
@@ -5909,7 +6460,6 @@ type VouIntermediarySourceBill struct {
 	ReceiptDate       openapi_types.Date                `json:"receiptDate"`
 	ReceiptDocumentId string                            `json:"receiptDocumentId"`
 	ReceiptDocumentNo string                            `json:"receiptDocumentNo"`
-	Salesperson       VouIntermediaryReference          `json:"salesperson"`
 }
 
 // VouIntermediarySourceBillBillType defines model for VouIntermediarySourceBill.BillType.
@@ -5917,37 +6467,46 @@ type VouIntermediarySourceBillBillType string
 
 // VouIntermediarySourceLine defines model for VouIntermediarySourceLine.
 type VouIntermediarySourceLine struct {
-	AdjustmentEmployeeAmount     string                              `json:"adjustmentEmployeeAmount"`
-	AdjustmentIntermediaryAmount string                              `json:"adjustmentIntermediaryAmount"`
-	AdjustmentRebateAmount       string                              `json:"adjustmentRebateAmount"`
-	BarrelQuantity               string                              `json:"barrelQuantity"`
-	CollectionDate               openapi_types.Date                  `json:"collectionDate"`
-	CollectionDelayDays          int                                 `json:"collectionDelayDays"`
-	Customer                     VouIntermediaryReference            `json:"customer"`
-	DueDate                      openapi_types.Date                  `json:"dueDate"`
-	Intermediary                 *VouIntermediaryReference           `json:"intermediary,omitempty"`
-	LineAmount                   string                              `json:"lineAmount"`
-	OrderDate                    openapi_types.Date                  `json:"orderDate"`
-	OrderDocumentId              string                              `json:"orderDocumentId"`
-	OrderDocumentNo              string                              `json:"orderDocumentNo"`
-	PricingQuantity              string                              `json:"pricingQuantity"`
-	Product                      VouIntermediaryReference            `json:"product"`
-	ProductKind                  string                              `json:"productKind"`
-	RebateUnitPrice              string                              `json:"rebateUnitPrice"`
-	ReferenceUnitPrice           string                              `json:"referenceUnitPrice"`
-	ReturnDocumentNos            *[]string                           `json:"returnDocumentNos,omitempty"`
-	Salesperson                  VouIntermediaryReference            `json:"salesperson"`
-	SettlementSurcharge          string                              `json:"settlementSurcharge"`
-	SettlementTermCode           string                              `json:"settlementTermCode"`
-	SignedQuantity               string                              `json:"signedQuantity"`
-	SignoffDate                  openapi_types.Date                  `json:"signoffDate"`
-	SignoffDocumentId            string                              `json:"signoffDocumentId"`
-	SignoffDocumentNo            string                              `json:"signoffDocumentNo"`
-	SourceKind                   VouIntermediarySourceLineSourceKind `json:"sourceKind"`
-	SourceSignoffLineId          string                              `json:"sourceSignoffLineId"`
-	SpecialApproval              bool                                `json:"specialApproval"`
-	UnitPrice                    string                              `json:"unitPrice"`
+	AdjustmentEmployeeAmount     string                                        `json:"adjustmentEmployeeAmount"`
+	AdjustmentIntermediaryAmount string                                        `json:"adjustmentIntermediaryAmount"`
+	AdjustmentRebateAmount       string                                        `json:"adjustmentRebateAmount"`
+	BarrelQuantity               string                                        `json:"barrelQuantity"`
+	CollectionDate               openapi_types.Date                            `json:"collectionDate"`
+	CollectionDelayDays          int                                           `json:"collectionDelayDays"`
+	Customer                     VouIntermediaryReference                      `json:"customer"`
+	DueDate                      openapi_types.Date                            `json:"dueDate"`
+	Intermediary                 *VouIntermediaryReference                     `json:"intermediary,omitempty"`
+	LineAmount                   string                                        `json:"lineAmount"`
+	OrderDate                    openapi_types.Date                            `json:"orderDate"`
+	OrderDocumentId              string                                        `json:"orderDocumentId"`
+	OrderDocumentNo              string                                        `json:"orderDocumentNo"`
+	PricingQuantity              string                                        `json:"pricingQuantity"`
+	Product                      VouIntermediaryReference                      `json:"product"`
+	ProductKind                  string                                        `json:"productKind"`
+	RebateUnitPrice              string                                        `json:"rebateUnitPrice"`
+	ReferenceUnitPrice           string                                        `json:"referenceUnitPrice"`
+	ReturnDocumentNos            *[]string                                     `json:"returnDocumentNos,omitempty"`
+	SalesAttributionType         VouIntermediarySourceLineSalesAttributionType `json:"salesAttributionType"`
+	SalesContract                *VouIntermediarySalesContractSnapshot         `json:"salesContract,omitempty"`
+	SalesContractStatus          VouIntermediarySourceLineSalesContractStatus  `json:"salesContractStatus"`
+	Salesperson                  VouIntermediaryReference                      `json:"salesperson"`
+	SettlementSurcharge          string                                        `json:"settlementSurcharge"`
+	SettlementTermCode           string                                        `json:"settlementTermCode"`
+	SignedQuantity               string                                        `json:"signedQuantity"`
+	SignoffDate                  openapi_types.Date                            `json:"signoffDate"`
+	SignoffDocumentId            string                                        `json:"signoffDocumentId"`
+	SignoffDocumentNo            string                                        `json:"signoffDocumentNo"`
+	SourceKind                   VouIntermediarySourceLineSourceKind           `json:"sourceKind"`
+	SourceSignoffLineId          string                                        `json:"sourceSignoffLineId"`
+	SpecialApproval              bool                                          `json:"specialApproval"`
+	UnitPrice                    string                                        `json:"unitPrice"`
 }
+
+// VouIntermediarySourceLineSalesAttributionType defines model for VouIntermediarySourceLine.SalesAttributionType.
+type VouIntermediarySourceLineSalesAttributionType string
+
+// VouIntermediarySourceLineSalesContractStatus defines model for VouIntermediarySourceLine.SalesContractStatus.
+type VouIntermediarySourceLineSalesContractStatus string
 
 // VouIntermediarySourceLineSourceKind defines model for VouIntermediarySourceLine.SourceKind.
 type VouIntermediarySourceLineSourceKind string
@@ -6162,8 +6721,8 @@ type VouSaveRequest struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
 		} `json:"counterparty,omitempty"`
-		CounterpartyType *string `json:"counterpartyType,omitempty"`
-		Currency         *string `json:"currency,omitempty"`
+		CounterpartyType *VouSaveRequestDataCounterpartyType `json:"counterpartyType,omitempty"`
+		Currency         *string                             `json:"currency,omitempty"`
 		Customer         *struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
@@ -6239,6 +6798,12 @@ type VouSaveRequest struct {
 			ObjectId  string `json:"objectId"`
 			VersionId string `json:"versionId"`
 		} `json:"salesperson,omitempty"`
+		ServiceAcceptance *VouServiceAcceptanceInput `json:"serviceAcceptance,omitempty"`
+		ServiceContract   *VouServiceContractInput   `json:"serviceContract,omitempty"`
+		SettlementMethod  *struct {
+			ObjectId  string `json:"objectId"`
+			VersionId string `json:"versionId"`
+		} `json:"settlementMethod,omitempty"`
 		SignoffLines *[]struct {
 			RejectedQuantity string  `json:"rejectedQuantity"`
 			Remark           *string `json:"remark,omitempty"`
@@ -6270,6 +6835,9 @@ type VouSaveRequest struct {
 	Revision   int64  `json:"revision"`
 }
 
+// VouSaveRequestDataCounterpartyType defines model for VouSaveRequest.Data.CounterpartyType.
+type VouSaveRequestDataCounterpartyType string
+
 // VouSaveRequestDataInterestMode defines model for VouSaveRequest.Data.InterestMode.
 type VouSaveRequestDataInterestMode string
 
@@ -6278,6 +6846,30 @@ type VouSaveRequestDataMaturityType string
 
 // VouSaveRequestDataOtherCategory defines model for VouSaveRequest.Data.OtherCategory.
 type VouSaveRequestDataOtherCategory string
+
+// VouServiceAcceptanceInput defines model for VouServiceAcceptanceInput.
+type VouServiceAcceptanceInput struct {
+	AcceptanceDate      openapi_types.Date                           `json:"acceptanceDate"`
+	AcceptanceFact      *string                                      `json:"acceptanceFact,omitempty"`
+	ContractDocumentId  string                                       `json:"contractDocumentId"`
+	FulfillmentFact     *string                                      `json:"fulfillmentFact,omitempty"`
+	ServiceDate         openapi_types.Date                           `json:"serviceDate"`
+	SettlementDirection VouServiceAcceptanceInputSettlementDirection `json:"settlementDirection"`
+}
+
+// VouServiceAcceptanceInputSettlementDirection defines model for VouServiceAcceptanceInput.SettlementDirection.
+type VouServiceAcceptanceInputSettlementDirection string
+
+// VouServiceContractInput defines model for VouServiceContractInput.
+type VouServiceContractInput struct {
+	ApplicableFrom *openapi_types.Date                    `json:"applicableFrom,omitempty"`
+	ApplicableTo   *openapi_types.Date                    `json:"applicableTo,omitempty"`
+	Capabilities   *[]VouServiceContractInputCapabilities `json:"capabilities,omitempty"`
+	Terms          *string                                `json:"terms,omitempty"`
+}
+
+// VouServiceContractInputCapabilities defines model for VouServiceContractInput.Capabilities.
+type VouServiceContractInputCapabilities string
 
 // VouStatus defines model for VouStatus.
 type VouStatus string
@@ -6820,14 +7412,11 @@ type AuxsaveJSONRequestBody = AuxSaveRequest
 // AuxversionsJSONRequestBody defines body for Auxversions for application/json ContentType.
 type AuxversionsJSONRequestBody = AuxHistoryRequest
 
-// CustomerGroupAuditHistoryJSONRequestBody defines body for CustomerGroupAuditHistory for application/json ContentType.
-type CustomerGroupAuditHistoryJSONRequestBody = BobHistoryRequest
+// CustomerAccountAddJSONRequestBody defines body for CustomerAccountAdd for application/json ContentType.
+type CustomerAccountAddJSONRequestBody = CustomerAccountAddRequest
 
-// CustomerGroupGetJSONRequestBody defines body for CustomerGroupGet for application/json ContentType.
-type CustomerGroupGetJSONRequestBody = IdRequest
-
-// CustomerGroupSaveJSONRequestBody defines body for CustomerGroupSave for application/json ContentType.
-type CustomerGroupSaveJSONRequestBody = CustomerGroupSaveRequest
+// CustomerAccountDeleteJSONRequestBody defines body for CustomerAccountDelete for application/json ContentType.
+type CustomerAccountDeleteJSONRequestBody = BobDeleteRequest
 
 // CustomerAttachmentDownloadJSONRequestBody defines body for CustomerAttachmentDownload for application/json ContentType.
 type CustomerAttachmentDownloadJSONRequestBody = CustomerAttachmentDownloadRequest
@@ -6850,8 +7439,8 @@ type CustomerQueryJSONRequestBody = CustomerQueryRequest
 // CustomerSaveJSONRequestBody defines body for CustomerSave for application/json ContentType.
 type CustomerSaveJSONRequestBody = CustomerSaveRequest
 
-// CustomerTaxMatchJSONRequestBody defines body for CustomerTaxMatch for application/json ContentType.
-type CustomerTaxMatchJSONRequestBody = CustomerTaxMatchRequest
+// EmployeeCreateJSONRequestBody defines body for EmployeeCreate for application/json ContentType.
+type EmployeeCreateJSONRequestBody = EmploymentCreateRequest
 
 // OtherUnitApproveJSONRequestBody defines body for OtherUnitApprove for application/json ContentType.
 type OtherUnitApproveJSONRequestBody = BobVersionRevisionRequest
@@ -6895,6 +7484,12 @@ type OtherUnitVersionsJSONRequestBody = BobHistoryRequest
 // PartyGetJSONRequestBody defines body for PartyGet for application/json ContentType.
 type PartyGetJSONRequestBody = PartyGetRequest
 
+// PartyMergeConfirmJSONRequestBody defines body for PartyMergeConfirm for application/json ContentType.
+type PartyMergeConfirmJSONRequestBody = PartyMergeConfirmRequest
+
+// PartyMergePreflightJSONRequestBody defines body for PartyMergePreflight for application/json ContentType.
+type PartyMergePreflightJSONRequestBody = PartyMergePreflightRequest
+
 // PartyQueryJSONRequestBody defines body for PartyQuery for application/json ContentType.
 type PartyQueryJSONRequestBody = PartyQueryRequest
 
@@ -6907,6 +7502,18 @@ type BobReferenceQueryJSONRequestBody = BobReferenceQueryRequest
 // BobReferenceTransferJSONRequestBody defines body for BobReferenceTransfer for application/json ContentType.
 type BobReferenceTransferJSONRequestBody = CustomerReferenceTransferRequest
 
+// SalesPartnerCreateJSONRequestBody defines body for SalesPartnerCreate for application/json ContentType.
+type SalesPartnerCreateJSONRequestBody = SalesPartnerCreateRequest
+
+// SalesPartnerGetJSONRequestBody defines body for SalesPartnerGet for application/json ContentType.
+type SalesPartnerGetJSONRequestBody = BobGetRequest
+
+// SalesPartnerQueryJSONRequestBody defines body for SalesPartnerQuery for application/json ContentType.
+type SalesPartnerQueryJSONRequestBody = SalesPartnerQueryRequest
+
+// SalesPartnerSaveJSONRequestBody defines body for SalesPartnerSave for application/json ContentType.
+type SalesPartnerSaveJSONRequestBody = SalesPartnerSaveRequest
+
 // SupplierCreateJSONRequestBody defines body for SupplierCreate for application/json ContentType.
 type SupplierCreateJSONRequestBody = SupplierCreateRequest
 
@@ -6918,9 +7525,6 @@ type SupplierQueryJSONRequestBody = SupplierQueryRequest
 
 // SupplierSaveJSONRequestBody defines body for SupplierSave for application/json ContentType.
 type SupplierSaveJSONRequestBody = SupplierSaveRequest
-
-// SupplierTaxMatchJSONRequestBody defines body for SupplierTaxMatch for application/json ContentType.
-type SupplierTaxMatchJSONRequestBody = SupplierTaxMatchRequest
 
 // BobapproveJSONRequestBody defines body for Bobapprove for application/json ContentType.
 type BobapproveJSONRequestBody = BobVersionRevisionRequest
@@ -7379,6 +7983,68 @@ func (t *CustomerPricingCostItem) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsEmploymentCreateRequest0 returns the union data inside the EmploymentCreateRequest as a EmploymentCreateRequest0
+func (t EmploymentCreateRequest) AsEmploymentCreateRequest0() (EmploymentCreateRequest0, error) {
+	var body EmploymentCreateRequest0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEmploymentCreateRequest0 overwrites any union data inside the EmploymentCreateRequest as the provided EmploymentCreateRequest0
+func (t *EmploymentCreateRequest) FromEmploymentCreateRequest0(v EmploymentCreateRequest0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEmploymentCreateRequest0 performs a merge with any union data inside the EmploymentCreateRequest, using the provided EmploymentCreateRequest0
+func (t *EmploymentCreateRequest) MergeEmploymentCreateRequest0(v EmploymentCreateRequest0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsEmploymentCreateRequest1 returns the union data inside the EmploymentCreateRequest as a EmploymentCreateRequest1
+func (t EmploymentCreateRequest) AsEmploymentCreateRequest1() (EmploymentCreateRequest1, error) {
+	var body EmploymentCreateRequest1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEmploymentCreateRequest1 overwrites any union data inside the EmploymentCreateRequest as the provided EmploymentCreateRequest1
+func (t *EmploymentCreateRequest) FromEmploymentCreateRequest1(v EmploymentCreateRequest1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEmploymentCreateRequest1 performs a merge with any union data inside the EmploymentCreateRequest, using the provided EmploymentCreateRequest1
+func (t *EmploymentCreateRequest) MergeEmploymentCreateRequest1(v EmploymentCreateRequest1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t EmploymentCreateRequest) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *EmploymentCreateRequest) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsOtherUnitCreateWithExistingPartyRequest returns the union data inside the OtherUnitCreateRequest as a OtherUnitCreateWithExistingPartyRequest
 func (t OtherUnitCreateRequest) AsOtherUnitCreateWithExistingPartyRequest() (OtherUnitCreateWithExistingPartyRequest, error) {
 	var body OtherUnitCreateWithExistingPartyRequest
@@ -7437,6 +8103,130 @@ func (t OtherUnitCreateRequest) MarshalJSON() ([]byte, error) {
 }
 
 func (t *OtherUnitCreateRequest) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsSalesPartnerCreateRequest0 returns the union data inside the SalesPartnerCreateRequest as a SalesPartnerCreateRequest0
+func (t SalesPartnerCreateRequest) AsSalesPartnerCreateRequest0() (SalesPartnerCreateRequest0, error) {
+	var body SalesPartnerCreateRequest0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSalesPartnerCreateRequest0 overwrites any union data inside the SalesPartnerCreateRequest as the provided SalesPartnerCreateRequest0
+func (t *SalesPartnerCreateRequest) FromSalesPartnerCreateRequest0(v SalesPartnerCreateRequest0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSalesPartnerCreateRequest0 performs a merge with any union data inside the SalesPartnerCreateRequest, using the provided SalesPartnerCreateRequest0
+func (t *SalesPartnerCreateRequest) MergeSalesPartnerCreateRequest0(v SalesPartnerCreateRequest0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSalesPartnerCreateRequest1 returns the union data inside the SalesPartnerCreateRequest as a SalesPartnerCreateRequest1
+func (t SalesPartnerCreateRequest) AsSalesPartnerCreateRequest1() (SalesPartnerCreateRequest1, error) {
+	var body SalesPartnerCreateRequest1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSalesPartnerCreateRequest1 overwrites any union data inside the SalesPartnerCreateRequest as the provided SalesPartnerCreateRequest1
+func (t *SalesPartnerCreateRequest) FromSalesPartnerCreateRequest1(v SalesPartnerCreateRequest1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSalesPartnerCreateRequest1 performs a merge with any union data inside the SalesPartnerCreateRequest, using the provided SalesPartnerCreateRequest1
+func (t *SalesPartnerCreateRequest) MergeSalesPartnerCreateRequest1(v SalesPartnerCreateRequest1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t SalesPartnerCreateRequest) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *SalesPartnerCreateRequest) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsSupplierCreateRequest0 returns the union data inside the SupplierCreateRequest as a SupplierCreateRequest0
+func (t SupplierCreateRequest) AsSupplierCreateRequest0() (SupplierCreateRequest0, error) {
+	var body SupplierCreateRequest0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSupplierCreateRequest0 overwrites any union data inside the SupplierCreateRequest as the provided SupplierCreateRequest0
+func (t *SupplierCreateRequest) FromSupplierCreateRequest0(v SupplierCreateRequest0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSupplierCreateRequest0 performs a merge with any union data inside the SupplierCreateRequest, using the provided SupplierCreateRequest0
+func (t *SupplierCreateRequest) MergeSupplierCreateRequest0(v SupplierCreateRequest0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSupplierCreateRequest1 returns the union data inside the SupplierCreateRequest as a SupplierCreateRequest1
+func (t SupplierCreateRequest) AsSupplierCreateRequest1() (SupplierCreateRequest1, error) {
+	var body SupplierCreateRequest1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSupplierCreateRequest1 overwrites any union data inside the SupplierCreateRequest as the provided SupplierCreateRequest1
+func (t *SupplierCreateRequest) FromSupplierCreateRequest1(v SupplierCreateRequest1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSupplierCreateRequest1 performs a merge with any union data inside the SupplierCreateRequest, using the provided SupplierCreateRequest1
+func (t *SupplierCreateRequest) MergeSupplierCreateRequest1(v SupplierCreateRequest1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t SupplierCreateRequest) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *SupplierCreateRequest) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -7875,15 +8665,12 @@ type ServerInterface interface {
 	// Auxversions 查询辅助对象版本
 	// (POST /aux/{entity}/versions)
 	Auxversions(c *gin.Context, entity AuxEntity)
-	// CustomerGroupAuditHistory 查询客户集团追加审计
-	// (POST /bob/customer-group/audit-history)
-	CustomerGroupAuditHistory(c *gin.Context)
-	// CustomerGroupGet 读取客户集团当前资料
-	// (POST /bob/customer-group/get)
-	CustomerGroupGet(c *gin.Context)
-	// CustomerGroupSave 按 revision 保存客户集团当前资料
-	// (POST /bob/customer-group/save)
-	CustomerGroupSave(c *gin.Context)
+	// CustomerAccountAdd 向客户关系增加结算子账户
+	// (POST /bob/customer/account-add)
+	CustomerAccountAdd(c *gin.Context)
+	// CustomerAccountDelete 删除客户关系下非最后一个草稿结算子账户
+	// (POST /bob/customer/account-delete)
+	CustomerAccountDelete(c *gin.Context)
 	// CustomerAttachmentDownload 申请客户资料附件下载
 	// (POST /bob/customer/attachment-download)
 	CustomerAttachmentDownload(c *gin.Context)
@@ -7893,7 +8680,7 @@ type ServerInterface interface {
 	// CustomerAttachmentRemove 移除客户资料附件
 	// (POST /bob/customer/attachment-remove)
 	CustomerAttachmentRemove(c *gin.Context)
-	// CustomerCreate 原子创建客户集团与首个结算子账户
+	// CustomerCreate 原子创建客户关系与首个结算子账户
 	// (POST /bob/customer/create)
 	CustomerCreate(c *gin.Context)
 	// CustomerGet 读取客户集团、有效版本与候选版本
@@ -7905,9 +8692,9 @@ type ServerInterface interface {
 	// CustomerSave 保存客户结算子账户候选版本
 	// (POST /bob/customer/save)
 	CustomerSave(c *gin.Context)
-	// CustomerTaxMatch 按权限精确发现同税号资料
-	// (POST /bob/customer/tax-match)
-	CustomerTaxMatch(c *gin.Context)
+	// EmployeeCreate 原子创建雇佣关系及其主体
+	// (POST /bob/employee/create)
+	EmployeeCreate(c *gin.Context)
 	// OtherUnitApprove 审核通过其他单位
 	// (POST /bob/other-unit/approve)
 	OtherUnitApprove(c *gin.Context)
@@ -7950,6 +8737,12 @@ type ServerInterface interface {
 	// PartyGet 读取主体与授权关系卡片
 	// (POST /bob/party/get)
 	PartyGet(c *gin.Context)
+	// PartyMergeConfirm 确认主体合并
+	// (POST /bob/party/merge-confirm)
+	PartyMergeConfirm(c *gin.Context)
+	// PartyMergePreflight 预检主体合并
+	// (POST /bob/party/merge-preflight)
+	PartyMergePreflight(c *gin.Context)
 	// PartyQuery 查询主体
 	// (POST /bob/party/query)
 	PartyQuery(c *gin.Context)
@@ -7962,6 +8755,18 @@ type ServerInterface interface {
 	// BobReferenceTransfer 原子批量转移当前 BOB 直接引用
 	// (POST /bob/reference/transfer)
 	BobReferenceTransfer(c *gin.Context)
+	// SalesPartnerCreate 原子创建销售合作关系
+	// (POST /bob/sales-partner/create)
+	SalesPartnerCreate(c *gin.Context)
+	// SalesPartnerGet 读取销售合作关系
+	// (POST /bob/sales-partner/get)
+	SalesPartnerGet(c *gin.Context)
+	// SalesPartnerQuery 查询销售合作关系
+	// (POST /bob/sales-partner/query)
+	SalesPartnerQuery(c *gin.Context)
+	// SalesPartnerSave 保存销售合作候选版本
+	// (POST /bob/sales-partner/save)
+	SalesPartnerSave(c *gin.Context)
 	// SupplierCreate 创建供应商草稿
 	// (POST /bob/supplier/create)
 	SupplierCreate(c *gin.Context)
@@ -7974,9 +8779,6 @@ type ServerInterface interface {
 	// SupplierSave 保存供应商草稿或候选版本
 	// (POST /bob/supplier/save)
 	SupplierSave(c *gin.Context)
-	// SupplierTaxMatch 按权限精确发现同税号客户集团或其他单位
-	// (POST /bob/supplier/tax-match)
-	SupplierTaxMatch(c *gin.Context)
 	// Bobapprove 批准业务对象
 	// (POST /bob/{entity}/approve)
 	Bobapprove(c *gin.Context, entity BobEntity)
@@ -9196,8 +9998,8 @@ func (siw *ServerInterfaceWrapper) Auxversions(c *gin.Context) {
 	siw.Handler.Auxversions(c, entity)
 }
 
-// CustomerGroupAuditHistory operation middleware
-func (siw *ServerInterfaceWrapper) CustomerGroupAuditHistory(c *gin.Context) {
+// CustomerAccountAdd operation middleware
+func (siw *ServerInterfaceWrapper) CustomerAccountAdd(c *gin.Context) {
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -9206,11 +10008,11 @@ func (siw *ServerInterfaceWrapper) CustomerGroupAuditHistory(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.CustomerGroupAuditHistory(c)
+	siw.Handler.CustomerAccountAdd(c)
 }
 
-// CustomerGroupGet operation middleware
-func (siw *ServerInterfaceWrapper) CustomerGroupGet(c *gin.Context) {
+// CustomerAccountDelete operation middleware
+func (siw *ServerInterfaceWrapper) CustomerAccountDelete(c *gin.Context) {
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -9219,20 +10021,7 @@ func (siw *ServerInterfaceWrapper) CustomerGroupGet(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.CustomerGroupGet(c)
-}
-
-// CustomerGroupSave operation middleware
-func (siw *ServerInterfaceWrapper) CustomerGroupSave(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.CustomerGroupSave(c)
+	siw.Handler.CustomerAccountDelete(c)
 }
 
 // CustomerAttachmentDownload operation middleware
@@ -9326,8 +10115,8 @@ func (siw *ServerInterfaceWrapper) CustomerSave(c *gin.Context) {
 	siw.Handler.CustomerSave(c)
 }
 
-// CustomerTaxMatch operation middleware
-func (siw *ServerInterfaceWrapper) CustomerTaxMatch(c *gin.Context) {
+// EmployeeCreate operation middleware
+func (siw *ServerInterfaceWrapper) EmployeeCreate(c *gin.Context) {
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -9336,7 +10125,7 @@ func (siw *ServerInterfaceWrapper) CustomerTaxMatch(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.CustomerTaxMatch(c)
+	siw.Handler.EmployeeCreate(c)
 }
 
 // OtherUnitApprove operation middleware
@@ -9521,6 +10310,32 @@ func (siw *ServerInterfaceWrapper) PartyGet(c *gin.Context) {
 	siw.Handler.PartyGet(c)
 }
 
+// PartyMergeConfirm operation middleware
+func (siw *ServerInterfaceWrapper) PartyMergeConfirm(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.PartyMergeConfirm(c)
+}
+
+// PartyMergePreflight operation middleware
+func (siw *ServerInterfaceWrapper) PartyMergePreflight(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.PartyMergePreflight(c)
+}
+
 // PartyQuery operation middleware
 func (siw *ServerInterfaceWrapper) PartyQuery(c *gin.Context) {
 
@@ -9573,6 +10388,58 @@ func (siw *ServerInterfaceWrapper) BobReferenceTransfer(c *gin.Context) {
 	siw.Handler.BobReferenceTransfer(c)
 }
 
+// SalesPartnerCreate operation middleware
+func (siw *ServerInterfaceWrapper) SalesPartnerCreate(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SalesPartnerCreate(c)
+}
+
+// SalesPartnerGet operation middleware
+func (siw *ServerInterfaceWrapper) SalesPartnerGet(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SalesPartnerGet(c)
+}
+
+// SalesPartnerQuery operation middleware
+func (siw *ServerInterfaceWrapper) SalesPartnerQuery(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SalesPartnerQuery(c)
+}
+
+// SalesPartnerSave operation middleware
+func (siw *ServerInterfaceWrapper) SalesPartnerSave(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SalesPartnerSave(c)
+}
+
 // SupplierCreate operation middleware
 func (siw *ServerInterfaceWrapper) SupplierCreate(c *gin.Context) {
 
@@ -9623,19 +10490,6 @@ func (siw *ServerInterfaceWrapper) SupplierSave(c *gin.Context) {
 	}
 
 	siw.Handler.SupplierSave(c)
-}
-
-// SupplierTaxMatch operation middleware
-func (siw *ServerInterfaceWrapper) SupplierTaxMatch(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.SupplierTaxMatch(c)
 }
 
 // Bobapprove operation middleware
@@ -11251,7 +12105,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/bob/customer/query", wrapper.CustomerQuery)
 	router.POST(options.BaseURL+"/bob/customer/get", wrapper.CustomerGet)
 	router.POST(options.BaseURL+"/bob/customer/create", wrapper.CustomerCreate)
-	router.POST(options.BaseURL+"/bob/customer/tax-match", wrapper.CustomerTaxMatch)
+	router.POST(options.BaseURL+"/bob/customer/account-add", wrapper.CustomerAccountAdd)
+	router.POST(options.BaseURL+"/bob/customer/account-delete", wrapper.CustomerAccountDelete)
 	router.POST(options.BaseURL+"/bob/customer/save", wrapper.CustomerSave)
 	router.POST(options.BaseURL+"/bob/customer/attachment-initiate", wrapper.CustomerAttachmentInitiate)
 	router.POST(options.BaseURL+"/bob/customer/attachment-download", wrapper.CustomerAttachmentDownload)
@@ -11260,13 +12115,16 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/bob/supplier/get", wrapper.SupplierGet)
 	router.POST(options.BaseURL+"/bob/supplier/create", wrapper.SupplierCreate)
 	router.POST(options.BaseURL+"/bob/supplier/save", wrapper.SupplierSave)
-	router.POST(options.BaseURL+"/bob/supplier/tax-match", wrapper.SupplierTaxMatch)
-	router.POST(options.BaseURL+"/bob/customer-group/get", wrapper.CustomerGroupGet)
-	router.POST(options.BaseURL+"/bob/customer-group/save", wrapper.CustomerGroupSave)
-	router.POST(options.BaseURL+"/bob/customer-group/audit-history", wrapper.CustomerGroupAuditHistory)
 	router.POST(options.BaseURL+"/bob/reference/transfer", wrapper.BobReferenceTransfer)
 	router.POST(options.BaseURL+"/bob/reference/query", wrapper.BobReferenceQuery)
 	router.POST(options.BaseURL+"/aux/reference/query", wrapper.AuxReferenceQuery)
+	router.POST(options.BaseURL+"/bob/sales-partner/query", wrapper.SalesPartnerQuery)
+	router.POST(options.BaseURL+"/bob/sales-partner/get", wrapper.SalesPartnerGet)
+	router.POST(options.BaseURL+"/bob/sales-partner/create", wrapper.SalesPartnerCreate)
+	router.POST(options.BaseURL+"/bob/sales-partner/save", wrapper.SalesPartnerSave)
+	router.POST(options.BaseURL+"/bob/party/merge-preflight", wrapper.PartyMergePreflight)
+	router.POST(options.BaseURL+"/bob/party/merge-confirm", wrapper.PartyMergeConfirm)
+	router.POST(options.BaseURL+"/bob/employee/create", wrapper.EmployeeCreate)
 	router.POST(options.BaseURL+"/bob/:entity/query", wrapper.Bobquery)
 	router.POST(options.BaseURL+"/bob/:entity/get", wrapper.Bobget)
 	router.POST(options.BaseURL+"/bob/:entity/create", wrapper.Bobcreate)
@@ -12852,17 +13710,17 @@ func (response Auxversions200JSONResponse) VisitAuxversionsResponse(w http.Respo
 	return err
 }
 
-type CustomerGroupAuditHistoryRequestObject struct {
-	Body *CustomerGroupAuditHistoryJSONRequestBody
+type CustomerAccountAddRequestObject struct {
+	Body *CustomerAccountAddJSONRequestBody
 }
 
-type CustomerGroupAuditHistoryResponseObject interface {
-	VisitCustomerGroupAuditHistoryResponse(w http.ResponseWriter) error
+type CustomerAccountAddResponseObject interface {
+	VisitCustomerAccountAddResponse(w http.ResponseWriter) error
 }
 
-type CustomerGroupAuditHistory200JSONResponse struct{ BusinessJSONResponse }
+type CustomerAccountAdd200JSONResponse struct{ BusinessJSONResponse }
 
-func (response CustomerGroupAuditHistory200JSONResponse) VisitCustomerGroupAuditHistoryResponse(w http.ResponseWriter) error {
+func (response CustomerAccountAdd200JSONResponse) VisitCustomerAccountAddResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -12874,39 +13732,17 @@ func (response CustomerGroupAuditHistory200JSONResponse) VisitCustomerGroupAudit
 	return err
 }
 
-type CustomerGroupGetRequestObject struct {
-	Body *CustomerGroupGetJSONRequestBody
+type CustomerAccountDeleteRequestObject struct {
+	Body *CustomerAccountDeleteJSONRequestBody
 }
 
-type CustomerGroupGetResponseObject interface {
-	VisitCustomerGroupGetResponse(w http.ResponseWriter) error
+type CustomerAccountDeleteResponseObject interface {
+	VisitCustomerAccountDeleteResponse(w http.ResponseWriter) error
 }
 
-type CustomerGroupGet200JSONResponse struct{ BusinessJSONResponse }
+type CustomerAccountDelete200JSONResponse struct{ BusinessJSONResponse }
 
-func (response CustomerGroupGet200JSONResponse) VisitCustomerGroupGetResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type CustomerGroupSaveRequestObject struct {
-	Body *CustomerGroupSaveJSONRequestBody
-}
-
-type CustomerGroupSaveResponseObject interface {
-	VisitCustomerGroupSaveResponse(w http.ResponseWriter) error
-}
-
-type CustomerGroupSave200JSONResponse struct{ BusinessJSONResponse }
-
-func (response CustomerGroupSave200JSONResponse) VisitCustomerGroupSaveResponse(w http.ResponseWriter) error {
+func (response CustomerAccountDelete200JSONResponse) VisitCustomerAccountDeleteResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -13072,17 +13908,17 @@ func (response CustomerSave200JSONResponse) VisitCustomerSaveResponse(w http.Res
 	return err
 }
 
-type CustomerTaxMatchRequestObject struct {
-	Body *CustomerTaxMatchJSONRequestBody
+type EmployeeCreateRequestObject struct {
+	Body *EmployeeCreateJSONRequestBody
 }
 
-type CustomerTaxMatchResponseObject interface {
-	VisitCustomerTaxMatchResponse(w http.ResponseWriter) error
+type EmployeeCreateResponseObject interface {
+	VisitEmployeeCreateResponse(w http.ResponseWriter) error
 }
 
-type CustomerTaxMatch200JSONResponse CustomerTaxMatchResponse
+type EmployeeCreate200JSONResponse struct{ BusinessJSONResponse }
 
-func (response CustomerTaxMatch200JSONResponse) VisitCustomerTaxMatchResponse(w http.ResponseWriter) error {
+func (response EmployeeCreate200JSONResponse) VisitEmployeeCreateResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -13402,6 +14238,50 @@ func (response PartyGet200JSONResponse) VisitPartyGetResponse(w http.ResponseWri
 	return err
 }
 
+type PartyMergeConfirmRequestObject struct {
+	Body *PartyMergeConfirmJSONRequestBody
+}
+
+type PartyMergeConfirmResponseObject interface {
+	VisitPartyMergeConfirmResponse(w http.ResponseWriter) error
+}
+
+type PartyMergeConfirm200JSONResponse PartyMergeConfirmResponse
+
+func (response PartyMergeConfirm200JSONResponse) VisitPartyMergeConfirmResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PartyMergePreflightRequestObject struct {
+	Body *PartyMergePreflightJSONRequestBody
+}
+
+type PartyMergePreflightResponseObject interface {
+	VisitPartyMergePreflightResponse(w http.ResponseWriter) error
+}
+
+type PartyMergePreflight200JSONResponse PartyMergePreflightResponse
+
+func (response PartyMergePreflight200JSONResponse) VisitPartyMergePreflightResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PartyQueryRequestObject struct {
 	Body *PartyQueryJSONRequestBody
 }
@@ -13490,6 +14370,94 @@ func (response BobReferenceTransfer200JSONResponse) VisitBobReferenceTransferRes
 	return err
 }
 
+type SalesPartnerCreateRequestObject struct {
+	Body *SalesPartnerCreateJSONRequestBody
+}
+
+type SalesPartnerCreateResponseObject interface {
+	VisitSalesPartnerCreateResponse(w http.ResponseWriter) error
+}
+
+type SalesPartnerCreate200JSONResponse SalesPartnerMutationResponse
+
+func (response SalesPartnerCreate200JSONResponse) VisitSalesPartnerCreateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SalesPartnerGetRequestObject struct {
+	Body *SalesPartnerGetJSONRequestBody
+}
+
+type SalesPartnerGetResponseObject interface {
+	VisitSalesPartnerGetResponse(w http.ResponseWriter) error
+}
+
+type SalesPartnerGet200JSONResponse SalesPartnerGetResponse
+
+func (response SalesPartnerGet200JSONResponse) VisitSalesPartnerGetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SalesPartnerQueryRequestObject struct {
+	Body *SalesPartnerQueryJSONRequestBody
+}
+
+type SalesPartnerQueryResponseObject interface {
+	VisitSalesPartnerQueryResponse(w http.ResponseWriter) error
+}
+
+type SalesPartnerQuery200JSONResponse SalesPartnerQueryResponse
+
+func (response SalesPartnerQuery200JSONResponse) VisitSalesPartnerQueryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SalesPartnerSaveRequestObject struct {
+	Body *SalesPartnerSaveJSONRequestBody
+}
+
+type SalesPartnerSaveResponseObject interface {
+	VisitSalesPartnerSaveResponse(w http.ResponseWriter) error
+}
+
+type SalesPartnerSave200JSONResponse SalesPartnerMutationResponse
+
+func (response SalesPartnerSave200JSONResponse) VisitSalesPartnerSaveResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type SupplierCreateRequestObject struct {
 	Body *SupplierCreateJSONRequestBody
 }
@@ -13567,28 +14535,6 @@ type SupplierSaveResponseObject interface {
 type SupplierSave200JSONResponse struct{ BusinessJSONResponse }
 
 func (response SupplierSave200JSONResponse) VisitSupplierSaveResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type SupplierTaxMatchRequestObject struct {
-	Body *SupplierTaxMatchJSONRequestBody
-}
-
-type SupplierTaxMatchResponseObject interface {
-	VisitSupplierTaxMatchResponse(w http.ResponseWriter) error
-}
-
-type SupplierTaxMatch200JSONResponse SupplierTaxMatchResponse
-
-func (response SupplierTaxMatch200JSONResponse) VisitSupplierTaxMatchResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -15560,15 +16506,12 @@ type StrictServerInterface interface {
 	// Auxversions 查询辅助对象版本
 	// (POST /aux/{entity}/versions)
 	Auxversions(ctx context.Context, request AuxversionsRequestObject) (AuxversionsResponseObject, error)
-	// CustomerGroupAuditHistory 查询客户集团追加审计
-	// (POST /bob/customer-group/audit-history)
-	CustomerGroupAuditHistory(ctx context.Context, request CustomerGroupAuditHistoryRequestObject) (CustomerGroupAuditHistoryResponseObject, error)
-	// CustomerGroupGet 读取客户集团当前资料
-	// (POST /bob/customer-group/get)
-	CustomerGroupGet(ctx context.Context, request CustomerGroupGetRequestObject) (CustomerGroupGetResponseObject, error)
-	// CustomerGroupSave 按 revision 保存客户集团当前资料
-	// (POST /bob/customer-group/save)
-	CustomerGroupSave(ctx context.Context, request CustomerGroupSaveRequestObject) (CustomerGroupSaveResponseObject, error)
+	// CustomerAccountAdd 向客户关系增加结算子账户
+	// (POST /bob/customer/account-add)
+	CustomerAccountAdd(ctx context.Context, request CustomerAccountAddRequestObject) (CustomerAccountAddResponseObject, error)
+	// CustomerAccountDelete 删除客户关系下非最后一个草稿结算子账户
+	// (POST /bob/customer/account-delete)
+	CustomerAccountDelete(ctx context.Context, request CustomerAccountDeleteRequestObject) (CustomerAccountDeleteResponseObject, error)
 	// CustomerAttachmentDownload 申请客户资料附件下载
 	// (POST /bob/customer/attachment-download)
 	CustomerAttachmentDownload(ctx context.Context, request CustomerAttachmentDownloadRequestObject) (CustomerAttachmentDownloadResponseObject, error)
@@ -15578,7 +16521,7 @@ type StrictServerInterface interface {
 	// CustomerAttachmentRemove 移除客户资料附件
 	// (POST /bob/customer/attachment-remove)
 	CustomerAttachmentRemove(ctx context.Context, request CustomerAttachmentRemoveRequestObject) (CustomerAttachmentRemoveResponseObject, error)
-	// CustomerCreate 原子创建客户集团与首个结算子账户
+	// CustomerCreate 原子创建客户关系与首个结算子账户
 	// (POST /bob/customer/create)
 	CustomerCreate(ctx context.Context, request CustomerCreateRequestObject) (CustomerCreateResponseObject, error)
 	// CustomerGet 读取客户集团、有效版本与候选版本
@@ -15590,9 +16533,9 @@ type StrictServerInterface interface {
 	// CustomerSave 保存客户结算子账户候选版本
 	// (POST /bob/customer/save)
 	CustomerSave(ctx context.Context, request CustomerSaveRequestObject) (CustomerSaveResponseObject, error)
-	// CustomerTaxMatch 按权限精确发现同税号资料
-	// (POST /bob/customer/tax-match)
-	CustomerTaxMatch(ctx context.Context, request CustomerTaxMatchRequestObject) (CustomerTaxMatchResponseObject, error)
+	// EmployeeCreate 原子创建雇佣关系及其主体
+	// (POST /bob/employee/create)
+	EmployeeCreate(ctx context.Context, request EmployeeCreateRequestObject) (EmployeeCreateResponseObject, error)
 	// OtherUnitApprove 审核通过其他单位
 	// (POST /bob/other-unit/approve)
 	OtherUnitApprove(ctx context.Context, request OtherUnitApproveRequestObject) (OtherUnitApproveResponseObject, error)
@@ -15635,6 +16578,12 @@ type StrictServerInterface interface {
 	// PartyGet 读取主体与授权关系卡片
 	// (POST /bob/party/get)
 	PartyGet(ctx context.Context, request PartyGetRequestObject) (PartyGetResponseObject, error)
+	// PartyMergeConfirm 确认主体合并
+	// (POST /bob/party/merge-confirm)
+	PartyMergeConfirm(ctx context.Context, request PartyMergeConfirmRequestObject) (PartyMergeConfirmResponseObject, error)
+	// PartyMergePreflight 预检主体合并
+	// (POST /bob/party/merge-preflight)
+	PartyMergePreflight(ctx context.Context, request PartyMergePreflightRequestObject) (PartyMergePreflightResponseObject, error)
 	// PartyQuery 查询主体
 	// (POST /bob/party/query)
 	PartyQuery(ctx context.Context, request PartyQueryRequestObject) (PartyQueryResponseObject, error)
@@ -15647,6 +16596,18 @@ type StrictServerInterface interface {
 	// BobReferenceTransfer 原子批量转移当前 BOB 直接引用
 	// (POST /bob/reference/transfer)
 	BobReferenceTransfer(ctx context.Context, request BobReferenceTransferRequestObject) (BobReferenceTransferResponseObject, error)
+	// SalesPartnerCreate 原子创建销售合作关系
+	// (POST /bob/sales-partner/create)
+	SalesPartnerCreate(ctx context.Context, request SalesPartnerCreateRequestObject) (SalesPartnerCreateResponseObject, error)
+	// SalesPartnerGet 读取销售合作关系
+	// (POST /bob/sales-partner/get)
+	SalesPartnerGet(ctx context.Context, request SalesPartnerGetRequestObject) (SalesPartnerGetResponseObject, error)
+	// SalesPartnerQuery 查询销售合作关系
+	// (POST /bob/sales-partner/query)
+	SalesPartnerQuery(ctx context.Context, request SalesPartnerQueryRequestObject) (SalesPartnerQueryResponseObject, error)
+	// SalesPartnerSave 保存销售合作候选版本
+	// (POST /bob/sales-partner/save)
+	SalesPartnerSave(ctx context.Context, request SalesPartnerSaveRequestObject) (SalesPartnerSaveResponseObject, error)
 	// SupplierCreate 创建供应商草稿
 	// (POST /bob/supplier/create)
 	SupplierCreate(ctx context.Context, request SupplierCreateRequestObject) (SupplierCreateResponseObject, error)
@@ -15659,9 +16620,6 @@ type StrictServerInterface interface {
 	// SupplierSave 保存供应商草稿或候选版本
 	// (POST /bob/supplier/save)
 	SupplierSave(ctx context.Context, request SupplierSaveRequestObject) (SupplierSaveResponseObject, error)
-	// SupplierTaxMatch 按权限精确发现同税号客户集团或其他单位
-	// (POST /bob/supplier/tax-match)
-	SupplierTaxMatch(ctx context.Context, request SupplierTaxMatchRequestObject) (SupplierTaxMatchResponseObject, error)
 	// Bobapprove 批准业务对象
 	// (POST /bob/{entity}/approve)
 	Bobapprove(ctx context.Context, request BobapproveRequestObject) (BobapproveResponseObject, error)
@@ -18063,11 +19021,11 @@ func (sh *strictHandler) Auxversions(ctx *gin.Context, entity AuxEntity) {
 	}
 }
 
-// CustomerGroupAuditHistory operation middleware
-func (sh *strictHandler) CustomerGroupAuditHistory(ctx *gin.Context) {
-	var request CustomerGroupAuditHistoryRequestObject
+// CustomerAccountAdd operation middleware
+func (sh *strictHandler) CustomerAccountAdd(ctx *gin.Context) {
+	var request CustomerAccountAddRequestObject
 
-	var body CustomerGroupAuditHistoryJSONRequestBody
+	var body CustomerAccountAddJSONRequestBody
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		sh.options.RequestErrorHandlerFunc(ctx, err)
 		return
@@ -18075,18 +19033,18 @@ func (sh *strictHandler) CustomerGroupAuditHistory(ctx *gin.Context) {
 	request.Body = &body
 
 	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.CustomerGroupAuditHistory(ctx, request.(CustomerGroupAuditHistoryRequestObject))
+		return sh.ssi.CustomerAccountAdd(ctx, request.(CustomerAccountAddRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "CustomerGroupAuditHistory")
+		handler = middleware(handler, "CustomerAccountAdd")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(CustomerGroupAuditHistoryResponseObject); ok {
-		if err := validResponse.VisitCustomerGroupAuditHistoryResponse(ctx.Writer); err != nil {
+	} else if validResponse, ok := response.(CustomerAccountAddResponseObject); ok {
+		if err := validResponse.VisitCustomerAccountAddResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -18094,11 +19052,11 @@ func (sh *strictHandler) CustomerGroupAuditHistory(ctx *gin.Context) {
 	}
 }
 
-// CustomerGroupGet operation middleware
-func (sh *strictHandler) CustomerGroupGet(ctx *gin.Context) {
-	var request CustomerGroupGetRequestObject
+// CustomerAccountDelete operation middleware
+func (sh *strictHandler) CustomerAccountDelete(ctx *gin.Context) {
+	var request CustomerAccountDeleteRequestObject
 
-	var body CustomerGroupGetJSONRequestBody
+	var body CustomerAccountDeleteJSONRequestBody
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		sh.options.RequestErrorHandlerFunc(ctx, err)
 		return
@@ -18106,49 +19064,18 @@ func (sh *strictHandler) CustomerGroupGet(ctx *gin.Context) {
 	request.Body = &body
 
 	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.CustomerGroupGet(ctx, request.(CustomerGroupGetRequestObject))
+		return sh.ssi.CustomerAccountDelete(ctx, request.(CustomerAccountDeleteRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "CustomerGroupGet")
+		handler = middleware(handler, "CustomerAccountDelete")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(CustomerGroupGetResponseObject); ok {
-		if err := validResponse.VisitCustomerGroupGetResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// CustomerGroupSave operation middleware
-func (sh *strictHandler) CustomerGroupSave(ctx *gin.Context) {
-	var request CustomerGroupSaveRequestObject
-
-	var body CustomerGroupSaveJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.CustomerGroupSave(ctx, request.(CustomerGroupSaveRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "CustomerGroupSave")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(CustomerGroupSaveResponseObject); ok {
-		if err := validResponse.VisitCustomerGroupSaveResponse(ctx.Writer); err != nil {
+	} else if validResponse, ok := response.(CustomerAccountDeleteResponseObject); ok {
+		if err := validResponse.VisitCustomerAccountDeleteResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -18373,11 +19300,11 @@ func (sh *strictHandler) CustomerSave(ctx *gin.Context) {
 	}
 }
 
-// CustomerTaxMatch operation middleware
-func (sh *strictHandler) CustomerTaxMatch(ctx *gin.Context) {
-	var request CustomerTaxMatchRequestObject
+// EmployeeCreate operation middleware
+func (sh *strictHandler) EmployeeCreate(ctx *gin.Context) {
+	var request EmployeeCreateRequestObject
 
-	var body CustomerTaxMatchJSONRequestBody
+	var body EmployeeCreateJSONRequestBody
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		sh.options.RequestErrorHandlerFunc(ctx, err)
 		return
@@ -18385,18 +19312,18 @@ func (sh *strictHandler) CustomerTaxMatch(ctx *gin.Context) {
 	request.Body = &body
 
 	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.CustomerTaxMatch(ctx, request.(CustomerTaxMatchRequestObject))
+		return sh.ssi.EmployeeCreate(ctx, request.(EmployeeCreateRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "CustomerTaxMatch")
+		handler = middleware(handler, "EmployeeCreate")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(CustomerTaxMatchResponseObject); ok {
-		if err := validResponse.VisitCustomerTaxMatchResponse(ctx.Writer); err != nil {
+	} else if validResponse, ok := response.(EmployeeCreateResponseObject); ok {
+		if err := validResponse.VisitEmployeeCreateResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -18838,6 +19765,68 @@ func (sh *strictHandler) PartyGet(ctx *gin.Context) {
 	}
 }
 
+// PartyMergeConfirm operation middleware
+func (sh *strictHandler) PartyMergeConfirm(ctx *gin.Context) {
+	var request PartyMergeConfirmRequestObject
+
+	var body PartyMergeConfirmJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.PartyMergeConfirm(ctx, request.(PartyMergeConfirmRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PartyMergeConfirm")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(PartyMergeConfirmResponseObject); ok {
+		if err := validResponse.VisitPartyMergeConfirmResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PartyMergePreflight operation middleware
+func (sh *strictHandler) PartyMergePreflight(ctx *gin.Context) {
+	var request PartyMergePreflightRequestObject
+
+	var body PartyMergePreflightJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.PartyMergePreflight(ctx, request.(PartyMergePreflightRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PartyMergePreflight")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(PartyMergePreflightResponseObject); ok {
+		if err := validResponse.VisitPartyMergePreflightResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // PartyQuery operation middleware
 func (sh *strictHandler) PartyQuery(ctx *gin.Context) {
 	var request PartyQueryRequestObject
@@ -18962,6 +19951,130 @@ func (sh *strictHandler) BobReferenceTransfer(ctx *gin.Context) {
 	}
 }
 
+// SalesPartnerCreate operation middleware
+func (sh *strictHandler) SalesPartnerCreate(ctx *gin.Context) {
+	var request SalesPartnerCreateRequestObject
+
+	var body SalesPartnerCreateJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.SalesPartnerCreate(ctx, request.(SalesPartnerCreateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SalesPartnerCreate")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(SalesPartnerCreateResponseObject); ok {
+		if err := validResponse.VisitSalesPartnerCreateResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SalesPartnerGet operation middleware
+func (sh *strictHandler) SalesPartnerGet(ctx *gin.Context) {
+	var request SalesPartnerGetRequestObject
+
+	var body SalesPartnerGetJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.SalesPartnerGet(ctx, request.(SalesPartnerGetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SalesPartnerGet")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(SalesPartnerGetResponseObject); ok {
+		if err := validResponse.VisitSalesPartnerGetResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SalesPartnerQuery operation middleware
+func (sh *strictHandler) SalesPartnerQuery(ctx *gin.Context) {
+	var request SalesPartnerQueryRequestObject
+
+	var body SalesPartnerQueryJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.SalesPartnerQuery(ctx, request.(SalesPartnerQueryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SalesPartnerQuery")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(SalesPartnerQueryResponseObject); ok {
+		if err := validResponse.VisitSalesPartnerQueryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SalesPartnerSave operation middleware
+func (sh *strictHandler) SalesPartnerSave(ctx *gin.Context) {
+	var request SalesPartnerSaveRequestObject
+
+	var body SalesPartnerSaveJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.SalesPartnerSave(ctx, request.(SalesPartnerSaveRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SalesPartnerSave")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(SalesPartnerSaveResponseObject); ok {
+		if err := validResponse.VisitSalesPartnerSaveResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // SupplierCreate operation middleware
 func (sh *strictHandler) SupplierCreate(ctx *gin.Context) {
 	var request SupplierCreateRequestObject
@@ -19079,37 +20192,6 @@ func (sh *strictHandler) SupplierSave(ctx *gin.Context) {
 		sh.options.HandlerErrorFunc(ctx, err)
 	} else if validResponse, ok := response.(SupplierSaveResponseObject); ok {
 		if err := validResponse.VisitSupplierSaveResponse(ctx.Writer); err != nil {
-			sh.options.ResponseErrorHandlerFunc(ctx, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// SupplierTaxMatch operation middleware
-func (sh *strictHandler) SupplierTaxMatch(ctx *gin.Context) {
-	var request SupplierTaxMatchRequestObject
-
-	var body SupplierTaxMatchJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.SupplierTaxMatch(ctx, request.(SupplierTaxMatchRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "SupplierTaxMatch")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(SupplierTaxMatchResponseObject); ok {
-		if err := validResponse.VisitSupplierTaxMatchResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -21408,387 +22490,403 @@ func (sh *strictHandler) WflDynamicProcessQuery(ctx *gin.Context, processName st
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"YHFuDEjsSjewKX14DFJJen1u/f8GAAD//w==",
+	"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",
+	"DVZJ+tzJc/83AAD//w==",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

@@ -37,6 +37,7 @@ const payeeEntityLabels: Readonly<Record<string, string>> = {
   customer: '客户',
   employee: '员工',
   'other-unit': '居间商',
+  'sales-partner': '销售合作方',
 }
 
 function payeeEntityLabel(entity: string): string {
@@ -394,7 +395,11 @@ async function confirmDelete(): Promise<void> {
   <v-dialog v-model="detailOpen" fullscreen>
     <v-card v-if="vm.calculationInput()" class="intermediary-detail">
       <v-toolbar color="surface">
-        <v-btn icon="mdi-close" @click="detailOpen = false" />
+        <v-btn
+          aria-label="关闭详情"
+          icon="mdi-close"
+          @click="detailOpen = false"
+        />
         <v-toolbar-title>居间计算稿详情</v-toolbar-title>
         <v-chip class="mr-4" variant="tonal">
           {{ vm.calculationInput()!.source.periodStart }} 至
@@ -425,6 +430,8 @@ async function confirmDelete(): Promise<void> {
                 <th>特批</th>
                 <th>客户</th>
                 <th>业务员</th>
+                <th>归属类型</th>
+                <th>销售合作合同</th>
                 <th>居间商</th>
                 <th>产品</th>
                 <th class="text-end">定价数量</th>
@@ -441,7 +448,7 @@ async function confirmDelete(): Promise<void> {
                 <th class="text-end">维护补贴</th>
                 <th class="text-end">开发补贴</th>
                 <th class="text-end">票据成本</th>
-                <th class="text-end">员工金额</th>
+                <th class="text-end">归属收益</th>
                 <th class="text-end">居间金额</th>
                 <th class="text-end">返点金额</th>
                 <th>说明</th>
@@ -473,12 +480,34 @@ async function confirmDelete(): Promise<void> {
                 <td data-label="特批">
                   {{ source.specialApproval ? '是' : '否' }}
                 </td>
-                <td data-label="客户">{{ formatReferenceLabel(source.customer) }}</td>
-                <td data-label="业务员">{{ formatReferenceLabel(source.salesperson) }}</td>
-                <td data-label="居间商">
-                  {{ source.intermediary ? formatReferenceLabel(source.intermediary) : '—' }}
+                <td data-label="客户">
+                  {{ formatReferenceLabel(source.customer) }}
                 </td>
-                <td data-label="产品">{{ formatReferenceLabel(source.product) }}</td>
+                <td data-label="业务员">
+                  {{ formatReferenceLabel(source.salesperson) }}
+                </td>
+                <td data-label="归属类型">
+                  {{ vm.categoryLabel(source.salesAttributionType) }}
+                </td>
+                <td data-label="销售合作合同">
+                  {{
+                    source.salesContractStatus === 'NOT_REQUIRED'
+                      ? '不适用'
+                      : source.salesContractStatus === 'MISSING'
+                        ? '缺少合同'
+                        : (source.salesContract?.documentId ?? '—')
+                  }}
+                </td>
+                <td data-label="居间商">
+                  {{
+                    source.intermediary
+                      ? formatReferenceLabel(source.intermediary)
+                      : '—'
+                  }}
+                </td>
+                <td data-label="产品">
+                  {{ formatReferenceLabel(source.product) }}
+                </td>
                 <td class="text-end" data-label="定价数量">
                   {{ source.pricingQuantity }}
                 </td>
@@ -536,7 +565,7 @@ async function confirmDelete(): Promise<void> {
                 <td class="text-end" data-label="票据成本">
                   {{ vm.lineResult(source.sourceSignoffLineId)?.billCost }}
                 </td>
-                <td class="text-end" data-label="员工金额">
+                <td class="text-end" data-label="归属收益">
                   {{
                     vm.lineResult(source.sourceSignoffLineId)?.employeeAmount
                   }}
@@ -566,7 +595,6 @@ async function confirmDelete(): Promise<void> {
                 <th>票据收入单</th>
                 <th>类型</th>
                 <th>客户</th>
-                <th>业务员</th>
                 <th class="text-end">票面金额</th>
                 <th>收票日</th>
                 <th>票面到期日</th>
@@ -581,8 +609,9 @@ async function confirmDelete(): Promise<void> {
               >
                 <td data-label="票据收入单">{{ bill.receiptDocumentNo }}</td>
                 <td data-label="类型">{{ formatBillType(bill.billType) }}</td>
-                <td data-label="客户">{{ formatReferenceLabel(bill.customer) }}</td>
-                <td data-label="业务员">{{ formatReferenceLabel(bill.salesperson) }}</td>
+                <td data-label="客户">
+                  {{ formatReferenceLabel(bill.customer) }}
+                </td>
                 <td class="text-end" data-label="票面金额">
                   {{ bill.faceAmount }}
                 </td>
@@ -607,7 +636,7 @@ async function confirmDelete(): Promise<void> {
                 v-if="vm.calculationInput()!.source.bills.length === 0"
                 class="responsive-table__empty-row"
               >
-                <td class="text-center" colspan="9">本期无票据成本来源</td>
+                <td class="text-center" colspan="8">本期无票据成本来源</td>
               </tr>
             </tbody>
           </v-table>

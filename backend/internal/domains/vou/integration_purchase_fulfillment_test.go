@@ -108,10 +108,9 @@ func TestPurchaseFulfillmentQuantitiesIntegration(t *testing.T) {
 	truncateVOU(t, pool)
 	t.Cleanup(func() { truncateVOU(t, pool) })
 	refs := prepareReferences(t, pool)
-	general := bobdomain.SupplierTypeGeneral
 	prepaid := fixedSettlementReference(t, pool, bobdomain.SettlementTermPrepaid)
 	refs.supplier = createApprovedBOB(t, newBOBIntegrationService(pool), bobdomain.EntitySupplier, bobdomain.CreateDetailInput{
-		Code: "VSP" + newID(), Name: "VOU 预付供应商", SupplierType: &general,
+		Code: "VSP" + newID(), Name: "VOU 预付供应商",
 		SettlementMethodID: prepaid.ObjectID, DefaultPurchaserEmployeeID: refs.employee.ObjectID,
 	})
 	var pieceUnitID string
@@ -180,7 +179,7 @@ func TestPurchaseFulfillmentQuantitiesIntegration(t *testing.T) {
 		LEFT JOIN acc_books book ON book.control_book
 		LEFT JOIN acc_subjects subject ON subject.book_id=book.id AND subject.settlement_purpose='PREPAID'
 		LEFT JOIN acc_voucher_lines line ON line.book_id=book.id AND line.subject_id=subject.id
-		 AND line.dimensions->>'SUPPLIER'=detail.supplier_object_id AND line.currency=document.currency
+		 AND line.dimensions->>'SUPPLIER_RELATIONSHIP'=detail.supplier_object_id AND line.currency=document.currency
 		WHERE document.id=$1 GROUP BY document.total_amount_cents`, order.DocumentID).
 		Scan(&orderAmount, &prepaidBalance); err != nil || orderAmount != 12000 || prepaidBalance != 12000 {
 		t.Fatalf("prepaid purchase setup = amount:%d balance:%d err=%v", orderAmount, prepaidBalance, err)

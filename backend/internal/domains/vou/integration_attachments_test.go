@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
+	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 )
 
 func TestVOUIntegrationAttachmentRoundTrip(t *testing.T) {
@@ -22,7 +23,7 @@ func TestVOUIntegrationAttachmentRoundTrip(t *testing.T) {
 	refs := prepareReferences(t, pool)
 	service := newIntegrationService(t, pool)
 	created, err := service.Create(t.Context(), EntitySalesReceipt, CreateInput{Data: DraftInput{
-		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
+		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: bobdomain.EntityCustomerAccount,
 		Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
 		Handler: &refs.employee, Amount: "10.00",
 	}}, integrationActorOne, "attachment-create")

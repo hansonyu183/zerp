@@ -16,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/hansonyu183/zerp/backend/internal/platform/fixeddecimal"
 	"github.com/jackc/pgx/v5"
 )
@@ -72,6 +73,12 @@ func validateIntermediaryBusinessDate(value string) (time.Time, time.Time, error
 func intermediaryHash(value []byte) string {
 	digest := sha256.Sum256(value)
 	return hex.EncodeToString(digest[:])
+}
+
+func equalIntermediaryQuantity(left, right string) bool {
+	leftMicros, leftErr := quantityMicros(left, true)
+	rightMicros, rightErr := quantityMicros(right, true)
+	return leftErr == nil && rightErr == nil && leftMicros == rightMicros
 }
 
 func addIntermediaryAmount(total, amount int64) (int64, bool) {
@@ -158,10 +165,10 @@ func (s *Service) intermediarySource(
 			return IntermediarySourceView{}, domainError(ErrorConflict,
 				"sale return exceeds its source signoff", map[string]any{"lineId": row.SourceSignoffLineID}, nil)
 		}
-		if row.SalespersonObjectID == nil || row.SalespersonVersionID == nil ||
-			row.SalespersonCode == nil || row.SalespersonName == nil {
+		if !validIntermediarySalesAttribution(row.SalesAttributionType, row.SalesAttributionSubjectObjectID,
+			row.SalesAttributionSubjectVersionID, row.SalesAttributionSubjectCode, row.SalesAttributionSubjectName) {
 			return IntermediarySourceView{}, domainError(ErrorConflict,
-				"sale signoff is missing its order salesperson snapshot", map[string]any{"documentNo": row.SignoffDocumentNo}, nil)
+				"sale signoff is missing its order sales attribution snapshot", map[string]any{"documentNo": row.SignoffDocumentNo}, nil)
 		}
 		document := byDocument[row.SignoffDocumentID]
 		if document == nil {
@@ -346,6 +353,15 @@ func (s *Service) intermediarySource(
 			if !pricingQuantity.IsInt64() || pricingQuantity.Sign() <= 0 {
 				return IntermediarySourceView{}, domainError(ErrorConflict, "source pricing quantity is invalid", map[string]any{"lineId": row.SourceSignoffLineID}, nil)
 			}
+			attributionEntity := "employee"
+			if row.SalesAttributionType != "INTERNAL_EMPLOYEE" {
+				attributionEntity = "sales-partner"
+			}
+			contractStatus, contract, contractErr := s.intermediarySalesContract(ctx, q, row.SalesAttributionType,
+				row.SalesAttributionSubjectObjectID, row.SignoffDate.Time)
+			if contractErr != nil {
+				return IntermediarySourceView{}, contractErr
+			}
 			line := IntermediarySourceLine{
 				SourceSignoffLineID: row.SourceSignoffLineID,
 				SourceKind:          intermediarySourceSale,
@@ -354,9 +370,10 @@ func (s *Service) intermediarySource(
 				CollectionDate:      document.collectionDate.Format(dateLayout),
 				CollectionDelayDays: max(int(document.collectionDate.Sub(row.DueDate.Time).Hours()/24), 0),
 				OrderDocumentID:     row.OrderDocumentID, OrderDocumentNo: row.OrderDocumentNo,
-				OrderDate:   formatDate(row.OrderDate),
-				Customer:    intermediaryReference(row.CustomerObjectID, row.CustomerVersionID, "customer", row.CustomerCode, row.CustomerName),
-				Salesperson: intermediaryReference(*row.SalespersonObjectID, *row.SalespersonVersionID, "employee", *row.SalespersonCode, *row.SalespersonName),
+				OrderDate:            formatDate(row.OrderDate),
+				Customer:             intermediaryReference(row.CustomerObjectID, row.CustomerVersionID, bobdomain.EntityCustomerAccount, row.CustomerCode, row.CustomerName),
+				Salesperson:          intermediaryReference(row.SalesAttributionSubjectObjectID, row.SalesAttributionSubjectVersionID, attributionEntity, row.SalesAttributionSubjectCode, row.SalesAttributionSubjectName),
+				SalesAttributionType: row.SalesAttributionType, SalesContractStatus: contractStatus, SalesContract: contract,
 				Product:     intermediaryReference(row.ProductObjectID, row.ProductVersionID, "product", row.ProductCode, row.ProductName),
 				ProductKind: row.ProductKind, SignedQuantity: formatQuantity(row.SignedQtyMicros),
 				PricingQuantity: formatQuantity(pricingQuantity.Int64()), BarrelQuantity: formatQuantity(row.SignedQtyMicros),
@@ -365,13 +382,6 @@ func (s *Service) intermediarySource(
 				LineAmount: formatMoney(row.LineAmountCents), SettlementTermCode: row.SettlementTermCode,
 				SpecialApproval: row.SpecialApproval, AdjustmentEmployeeAmount: "0.00",
 				AdjustmentIntermediaryAmount: "0.00", AdjustmentRebateAmount: "0.00",
-			}
-			if row.IntermediaryOtherPartyID != nil {
-				if row.IntermediaryVersionID == nil || row.IntermediaryCode == nil || row.IntermediaryName == nil {
-					return IntermediarySourceView{}, domainError(ErrorConflict, "customer intermediary is not effective", map[string]any{"customerCode": row.CustomerCode}, nil)
-				}
-				ref := intermediaryReference(*row.IntermediaryOtherPartyID, *row.IntermediaryVersionID, "other-unit", *row.IntermediaryCode, *row.IntermediaryName)
-				line.Intermediary = &ref
 			}
 			source.Lines = append(source.Lines, line)
 		}
@@ -389,16 +399,14 @@ func (s *Service) intermediarySource(
 		return IntermediarySourceView{}, s.internal("read intermediary source bills", err)
 	}
 	for _, bill := range bills {
-		if bill.CustomerObjectID == nil || bill.CustomerVersionID == nil || bill.CustomerCode == nil || bill.CustomerName == nil ||
-			bill.SalespersonObjectID == nil || bill.SalespersonVersionID == nil || bill.SalespersonCode == nil || bill.SalespersonName == nil {
-			return IntermediarySourceView{}, domainError(ErrorConflict, "bill receipt is missing customer salesperson", map[string]any{"documentNo": bill.ReceiptDocumentNo}, nil)
+		if bill.CustomerObjectID == nil || bill.CustomerVersionID == nil || bill.CustomerCode == nil || bill.CustomerName == nil {
+			return IntermediarySourceView{}, domainError(ErrorConflict, "bill receipt is missing customer snapshot", map[string]any{"documentNo": bill.ReceiptDocumentNo}, nil)
 		}
 		costDays := max(int(bill.MaturityDate.Time.Sub(bill.ReceiptDate.Time).Hours()/24), 0)
 		source.Bills = append(source.Bills, IntermediarySourceBill{
 			BillLineID: bill.BillLineID, ReceiptDocumentID: bill.ReceiptDocumentID, ReceiptDocumentNo: bill.ReceiptDocumentNo,
 			ReceiptDate: formatDate(bill.ReceiptDate),
-			Customer:    intermediaryReference(*bill.CustomerObjectID, *bill.CustomerVersionID, "customer", *bill.CustomerCode, *bill.CustomerName),
-			Salesperson: intermediaryReference(*bill.SalespersonObjectID, *bill.SalespersonVersionID, "employee", *bill.SalespersonCode, *bill.SalespersonName),
+			Customer:    intermediaryReference(*bill.CustomerObjectID, *bill.CustomerVersionID, bobdomain.EntityCustomerAccount, *bill.CustomerCode, *bill.CustomerName),
 			BillType:    bill.BillType, FaceAmount: formatMoney(bill.FaceAmountCents),
 			IssueDate: formatDate(bill.IssueDate), MaturityDate: formatDate(bill.MaturityDate), CostDays: costDays,
 		})
@@ -408,6 +416,27 @@ func (s *Service) intermediarySource(
 		return IntermediarySourceView{}, s.internal("encode intermediary source", err)
 	}
 	return IntermediarySourceView{Source: source, SourceHash: intermediaryHash(encoded)}, nil
+}
+
+func validIntermediarySalesAttribution(kind, objectID, versionID, code, name string) bool {
+	if kind != "INTERNAL_EMPLOYEE" && kind != "EXTERNAL_PART_TIME" && kind != "CHANNEL_PARTNER" {
+		return false
+	}
+	return validID(objectID) && validID(versionID) && strings.TrimSpace(code) != "" && strings.TrimSpace(name) != ""
+}
+
+func (s *Service) intermediarySalesContract(ctx context.Context, q *dbsqlc.Queries, attributionType, partnerID string, signoffDate time.Time) (string, *IntermediarySalesContractSnapshot, error) {
+	if attributionType == "INTERNAL_EMPLOYEE" {
+		return "NOT_REQUIRED", nil, nil
+	}
+	contract, found, err := s.SelectLatestSalesContractSnapshot(ctx, q, partnerID, attributionType, signoffDate)
+	if err != nil {
+		return "", nil, err
+	}
+	if !found {
+		return "MISSING", nil, nil
+	}
+	return "APPLICABLE", contract, nil
 }
 
 type intermediaryReturnAdjustment struct {
@@ -706,7 +735,7 @@ func (s *Service) prepareIntermediaryCalculation(
 		if _, parseErr := quantityMicros(line.BarrelQuantity, true); parseErr != nil {
 			return prepared, domainError(ErrorValidation, "calculation result contains an invalid barrel quantity", nil, nil)
 		}
-		if line.BarrelQuantity != sourceLine.BarrelQuantity {
+		if !equalIntermediaryQuantity(line.BarrelQuantity, sourceLine.BarrelQuantity) {
 			return prepared, domainError(ErrorValidation, "calculation result barrel quantity does not match its source", nil, nil)
 		}
 		if line.Note != nil && utf8.RuneCountInString(*line.Note) > 1000 {
@@ -716,7 +745,8 @@ func (s *Service) prepareIntermediaryCalculation(
 		intermediaryAmount := parsedAmounts[7]
 		rebateAmount := parsedAmounts[8]
 		if employeeAmount != 0 {
-			key := summaryKey{"COMMISSION", sourceLine.Salesperson.Entity, sourceLine.Salesperson.ObjectID}
+			category := intermediarySalesSummaryCategory(sourceLine.SalesAttributionType)
+			key := summaryKey{category, sourceLine.Salesperson.Entity, sourceLine.Salesperson.ObjectID}
 			if err := addExpected(key, sourceLine.Salesperson, employeeAmount); err != nil {
 				return prepared, err
 			}
@@ -752,17 +782,16 @@ func (s *Service) prepareIntermediaryCalculation(
 		for _, billLineID := range line.BillLineIDs {
 			bill, exists := billSources[billLineID]
 			if !exists || allocatedBills[billLineID] || sourceLine.SourceKind != intermediarySourceSale ||
-				bill.Customer.ObjectID != sourceLine.Customer.ObjectID ||
-				bill.Salesperson.ObjectID != sourceLine.Salesperson.ObjectID {
+				bill.Customer.ObjectID != sourceLine.Customer.ObjectID {
 				return prepared, domainError(ErrorValidation, "calculation bill allocation does not match its source", nil, nil)
 			}
 			allocatedBills[billLineID] = true
 		}
 		if parsedAmounts[5] > 0 {
-			billCostGroups[sourceLine.Customer.ObjectID+":"+sourceLine.Salesperson.ObjectID] = true
+			billCostGroups[sourceLine.Customer.ObjectID] = true
 		}
 		if len(line.BillLineIDs) != 0 {
-			billAllocationGroups[sourceLine.Customer.ObjectID+":"+sourceLine.Salesperson.ObjectID] = true
+			billAllocationGroups[sourceLine.Customer.ObjectID] = true
 		}
 		prepared.lineBillIDs = append(prepared.lineBillIDs, append([]string(nil), line.BillLineIDs...))
 	}
@@ -785,7 +814,8 @@ func (s *Service) prepareIntermediaryCalculation(
 	seenSummaries := make(map[summaryKey]bool)
 	for _, summary := range calculation.Result.Summaries {
 		category := strings.TrimSpace(summary.Category)
-		if category != "COMMISSION" && category != "INTERMEDIARY" && category != "REBATE" {
+		if category != "COMMISSION" && category != "EXTERNAL_PART_TIME" && category != "CHANNEL_PARTNER" &&
+			category != "INTERMEDIARY" && category != "REBATE" {
 			return prepared, domainError(ErrorValidation, "calculation summary category is invalid", nil, nil)
 		}
 		key := summaryKey{category, summary.Payee.Entity, summary.Payee.ObjectID}
@@ -812,6 +842,13 @@ func (s *Service) prepareIntermediaryCalculation(
 	prepared.date, prepared.periodStart = date, periodStart
 	prepared.sourceJSON, prepared.resultJSON = sourceJSON, resultJSON
 	return prepared, nil
+}
+
+func intermediarySalesSummaryCategory(attributionType string) string {
+	if attributionType == "EXTERNAL_PART_TIME" || attributionType == "CHANNEL_PARTNER" {
+		return attributionType
+	}
+	return "COMMISSION"
 }
 
 func (s *Service) validateStoredIntermediaryCalculation(
@@ -864,13 +901,34 @@ func (s *Service) validateStoredIntermediaryCalculation(
 	return nil
 }
 
+func (s *Service) validateIntermediarySalesContracts(ctx context.Context, q *dbsqlc.Queries, documentID string) error {
+	detail, err := q.GetVouIntermediaryCalculationDetail(ctx, documentID)
+	if err != nil {
+		return s.internal("read intermediary calculation contract source", err)
+	}
+	current, err := s.intermediarySource(ctx, q, detail.PeriodStart.Time, detail.PeriodEnd.Time)
+	if err != nil {
+		return err
+	}
+	for _, line := range current.Source.Lines {
+		if line.SourceKind == intermediarySourceSale && line.SalesContractStatus == "MISSING" {
+			return domainError(ErrorConflict, "missing applicable sales contract", map[string]any{"signoffDocumentId": line.SignoffDocumentID}, nil)
+		}
+	}
+	return nil
+}
+
 func (s *Service) ValidateIntermediaryCalculation(
 	ctx context.Context, tx pgx.Tx, documentID string,
 ) error {
 	if tx == nil {
 		return domainError(ErrorValidation, "intermediary calculation validation transaction is required", nil, nil)
 	}
-	return s.validateStoredIntermediaryCalculation(ctx, s.queries.WithTx(tx), documentID)
+	q := s.queries.WithTx(tx)
+	if err := s.validateStoredIntermediaryCalculation(ctx, q, documentID); err != nil {
+		return err
+	}
+	return s.validateIntermediarySalesContracts(ctx, q, documentID)
 }
 
 func (s *Service) writeIntermediaryCalculation(

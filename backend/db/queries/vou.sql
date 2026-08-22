@@ -513,6 +513,8 @@ LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 INSERT INTO vou_sale_order_details (
     document_id, customer_object_id, customer_version_id, customer_code, customer_name,
     salesperson_object_id, salesperson_version_id, salesperson_code, salesperson_name,
+    sales_attribution_type, sales_attribution_subject_object_id, sales_attribution_subject_version_id,
+    sales_attribution_subject_code, sales_attribution_subject_name,
     warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name,
     contact_name, contact_phone, delivery_address,
     settlement_method_object_id, settlement_method_version_id,
@@ -526,6 +528,9 @@ INSERT INTO vou_sale_order_details (
     sqlc.arg(customer_code), sqlc.arg(customer_name),
     sqlc.arg(salesperson_object_id), sqlc.arg(salesperson_version_id),
     sqlc.arg(salesperson_code), sqlc.arg(salesperson_name),
+    sqlc.arg(sales_attribution_type), sqlc.arg(sales_attribution_subject_object_id),
+    sqlc.arg(sales_attribution_subject_version_id), sqlc.arg(sales_attribution_subject_code),
+    sqlc.arg(sales_attribution_subject_name),
     sqlc.arg(warehouse_object_id), sqlc.arg(warehouse_version_id),
     sqlc.arg(warehouse_code), sqlc.arg(warehouse_name),
     sqlc.narg(contact_name), sqlc.narg(contact_phone), sqlc.narg(delivery_address),
@@ -545,6 +550,11 @@ SET customer_object_id = sqlc.arg(customer_object_id), customer_version_id = sql
     salesperson_object_id = sqlc.arg(salesperson_object_id),
     salesperson_version_id = sqlc.arg(salesperson_version_id),
     salesperson_code = sqlc.arg(salesperson_code), salesperson_name = sqlc.arg(salesperson_name),
+    sales_attribution_type = sqlc.arg(sales_attribution_type),
+    sales_attribution_subject_object_id = sqlc.arg(sales_attribution_subject_object_id),
+    sales_attribution_subject_version_id = sqlc.arg(sales_attribution_subject_version_id),
+    sales_attribution_subject_code = sqlc.arg(sales_attribution_subject_code),
+    sales_attribution_subject_name = sqlc.arg(sales_attribution_subject_name),
     warehouse_object_id = sqlc.arg(warehouse_object_id),
     warehouse_version_id = sqlc.arg(warehouse_version_id),
     warehouse_code = sqlc.arg(warehouse_code), warehouse_name = sqlc.arg(warehouse_name),
@@ -1226,3 +1236,9 @@ SELECT detail.settlement_term_code,COALESCE(detail.settlement_method_name,'') AS
        detail.supplier_object_id,COALESCE(document.currency,'') AS currency,document.total_amount_cents
 FROM vou_documents document JOIN vou_purchase_order_details detail ON detail.document_id=document.id
 WHERE document.id=sqlc.arg(order_id);
+
+-- name: GetVouSalesAttributionSnapshot :one
+SELECT primary_sales_attribution_type,primary_sales_subject_id,
+       primary_sales_subject_version_id,primary_sales_subject_code,primary_sales_subject_name
+FROM bob_customer_versions
+WHERE version_id=sqlc.arg(customer_version_id);

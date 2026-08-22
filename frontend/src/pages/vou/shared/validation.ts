@@ -27,6 +27,55 @@ export function validateVoucherDraft(
       return '计算稿期间与业务日期不一致，请重新计算。'
     }
   }
+  if (config.entity === 'service-contract') {
+    if (!value.counterparty || !value.handler) {
+      return '请选择合同相对方和经办人。'
+    }
+    if (
+      value.counterpartyType !== 'other-unit' &&
+      value.counterpartyType !== 'sales-partner'
+    ) {
+      return '请选择服务关系或销售合作关系。'
+    }
+    if (value.counterpartyType === 'sales-partner') {
+      if (
+        value.serviceContract.capabilities.length === 0 ||
+        !value.serviceContract.applicableFrom
+      ) {
+        return '销售合作合同必须选择能力和适用开始日期。'
+      }
+      if (
+        value.serviceContract.applicableTo &&
+        value.serviceContract.applicableTo <
+          value.serviceContract.applicableFrom
+      ) {
+        return '适用结束日期不能早于开始日期。'
+      }
+    }
+    if (Array.from(value.serviceContract.terms).length > 10000) {
+      return '合同条款不能超过 10000 字。'
+    }
+  }
+  if (config.entity === 'service-acceptance') {
+    const detail = value.serviceAcceptance
+    if (
+      !detail.contractDocumentId.trim() ||
+      !detail.serviceDate ||
+      !detail.acceptanceDate ||
+      !detail.settlementDirection
+    ) {
+      return '请完整填写合同、履约日期、验收日期和结算方向。'
+    }
+    if (detail.acceptanceDate < detail.serviceDate) {
+      return '验收日期不能早于履约日期。'
+    }
+    if (
+      Array.from(detail.fulfillmentFact).length > 10000 ||
+      Array.from(detail.acceptanceFact).length > 10000
+    ) {
+      return '履约或验收事实不能超过 10000 字。'
+    }
+  }
   if (config.partyMode === 'customer' && !value.customer) return '请选择客户。'
   if (config.partyMode === 'supplier' && !value.supplier)
     return '请选择供应商。'

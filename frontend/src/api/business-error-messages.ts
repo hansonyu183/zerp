@@ -95,8 +95,6 @@ const exactMessages: Readonly<Record<string, string>> = {
     '配方原料的继任资料必须是原材料。',
   'packaging product replacement must be a packaging product':
     '包装物的继任资料必须是包装物料。',
-  'vehicle platform replacement must be a logistics platform supplier':
-    '车辆平台的继任资料必须是物流平台供应商。',
   'customer attachment limit reached': '该范围最多只能保存 10 个客户附件。',
   'customer version is not a draft': '只有客户草稿版本可以修改附件。',
   'only the customer draft can change attachments':
@@ -123,6 +121,8 @@ const exactMessages: Readonly<Record<string, string>> = {
     '结算方式由系统固定维护，不能新增或删除。',
   'other-units must be created with a Party relationship':
     '其他单位必须通过主体关系入口创建。',
+  'customers must be created with a Party relationship and account':
+    '客户必须通过主体关系入口创建，并同时建立首个客户结算账户。',
   'settlement rule does not match fixed term':
     '结算规则与系统固定期限不一致，请刷新后重试。',
   'settlement method facts do not match fixed term':
@@ -135,8 +135,7 @@ const exactMessages: Readonly<Record<string, string>> = {
     '客户交易默认资料不完整，请补全经营主体、结算、收款和运输方式。',
   'supplier transaction defaults are incomplete':
     '供应商交易默认资料不完整，请补全结算方式和默认采购员。',
-  'settlementMethod is read-only':
-    '结算方式快照由系统生成，不能直接修改。',
+  'settlementMethod is read-only': '结算方式快照由系统生成，不能直接修改。',
   'continuous-effective objects are edited through candidate save':
     '该资料采用连续生效模式，请直接保存候选版本。',
   'only CNY credit limits are supported': '当前信用额度仅支持人民币。',
@@ -155,6 +154,8 @@ const exactMessages: Readonly<Record<string, string>> = {
   'settlement ledger is not active': '业务账簿尚未启用，无法校验结算资金。',
   'insufficient prepaid funds': '预付款余额不足，无法批准订单。',
   'counterparty has outstanding debt': '往来单位仍有欠款，不能批准现结订单。',
+  'counterpartyType must be customer-account or other-unit':
+    '相对方必须选择客户结算账户或其他单位。',
   'accounting settlement balance is unavailable':
     '结算余额暂时不可用，请稍后重试。',
   'ENUM parameter requires values': '枚举参数必须配置可选值。',
@@ -538,8 +539,6 @@ const exactMessages: Readonly<Record<string, string>> = {
     '系统已有用户，不能再次初始化管理员。',
   'category is only supported for products': '分类只适用于产品资料。',
   'code already exists': '编码已存在，请使用其他编码。',
-  'counterpartyType must be customer or other-unit':
-    '往来对象类型必须是客户或其他单位。',
   'counterpartyType requires counterparty':
     '选择往来对象类型后必须填写往来对象。',
   'csrf validation failed': '页面安全凭证已失效，请刷新页面后重试。',
@@ -765,6 +764,58 @@ const exactMessages: Readonly<Record<string, string>> = {
   'symbol and quantityScale 0-6 are required':
     '必须填写单位符号，数量精度必须为 0 至 6。',
   'unknown condition operator': '条件运算符不受支持。',
+  'bill receipt is missing customer snapshot':
+    '票据收款缺少客户账户快照，请重新选择客户账户。',
+  'carrier is not an effective Service Relationship':
+    '承运方不是当前生效的服务关系，请重新选择。',
+  'contract capability is not effective on sales relationship':
+    '合同适用能力未在销售合作关系中生效，请先维护关系能力。',
+  'customer account operating entity must match relationship':
+    '客户账户的经营主体必须与客户关系一致。',
+  'customer cannot attribute sales to itself': '客户不能将销售归属设置为自身。',
+  'customer relationship must retain at least one account':
+    '客户关系必须至少保留一个结算账户。',
+  'customer sales attribution snapshot is incomplete':
+    '客户账户的销售归属快照不完整，请重新保存。',
+  'employees must be created with a Party relationship':
+    '员工必须通过主体与雇佣关系创建。',
+  'fields do not match service contract': '提交内容与服务合同类型不匹配。',
+  'missing applicable sales contract': '缺少适用的销售合作合同，请先补充合同。',
+  'sale signoff is missing its order sales attribution snapshot':
+    '销售签收缺少订单销售归属快照，请检查来源订单。',
+  'sales contract does not accept settlementMethod':
+    '销售合作合同不能填写结算方式。',
+  'sales contract requires capabilities':
+    '销售合作合同必须选择至少一项适用能力。',
+  'sales partners must be created with a Party relationship':
+    '销售合作方必须通过主体与销售合作关系创建。',
+  'sales relationship requires at least one capability':
+    '销售合作关系必须至少具备一项能力。',
+  'sales relationship replacement lacks the required capability':
+    '接任销售合作关系缺少当前引用所需能力，请重新选择。',
+  'service acceptance amount must be positive': '履约验收金额必须大于零。',
+  'service acceptance attributes are missing':
+    '履约验收缺少必要属性，请补全后重试。',
+  'service acceptance detail is invalid': '履约验收明细无效，请检查后重试。',
+  'service acceptance requires an approved service contract':
+    '履约验收必须引用已批准的服务合同。',
+  'service acceptance requires an approved service relationship contract':
+    '只有已批准的服务关系合同可以履约验收。',
+  'service contract attributes are missing': '合同缺少必要属性，请补全后重试。',
+  'service contract counterparty, handler, and detail are required':
+    '合同必须填写关系相对方、经办人和合同明细。',
+  'service contract does not accept sales applicability':
+    '服务关系合同不能填写销售能力适用范围。',
+  'service contract needs an effective settlement method':
+    '服务关系合同必须使用当前生效的结算方式。',
+  'service contract requires a typed service or sales relationship':
+    '合同必须引用服务关系或销售合作关系。',
+  'suppliers must be created with a Party relationship':
+    '供应商必须通过主体与供应关系创建。',
+  'vehicle platform replacement must be an effective service relationship':
+    '车辆承运平台必须替换为当前生效的服务关系。',
+  'typed relationships must use their dedicated save operation':
+    '该关系资料必须通过对应的专用保存入口提交。',
 }
 
 const phraseLabels: Readonly<Record<string, string>> = {

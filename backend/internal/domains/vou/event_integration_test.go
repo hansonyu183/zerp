@@ -66,7 +66,7 @@ func createCheckedReceipt(
 	t.Helper()
 	created, err := service.Create(t.Context(), EntitySalesReceipt, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY",
-		CounterpartyType: bobdomain.EntityCustomer, Counterparty: &refs.customer,
+		CounterpartyType: bobdomain.EntityCustomerAccount, Counterparty: &refs.customer,
 		FundAccount: &refs.fundAccount, Handler: &refs.employee, Amount: "100.00",
 	}}, integrationActorOne, "event-receipt-create")
 	if err != nil {
@@ -306,7 +306,7 @@ func TestVOUUnapprovedSubscriberFailureRestoresDocumentIntegration(t *testing.T)
 	service := integrationServiceWithEvents(t, pool, txevent.NewBus())
 
 	created, err := service.Create(t.Context(), EntitySalesReceipt, CreateInput{Data: DraftInput{
-		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: "customer",
+		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: bobdomain.EntityCustomerAccount,
 		Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
 		Handler: &refs.employee, Amount: "100.00",
 	}}, integrationActorOne, "event-purchase-create")

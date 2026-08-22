@@ -3036,7 +3036,7 @@
           'post':
             {
               'tags': ['bob'],
-              'summary': '原子创建客户集团与首个结算子账户',
+              'summary': '原子创建客户关系与首个结算子账户',
               'operationId': 'customerCreate',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3057,13 +3057,13 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/bob/customer/tax-match':
+      '/bob/customer/account-add':
         {
           'post':
             {
               'tags': ['bob'],
-              'summary': '按权限精确发现同税号资料',
-              'operationId': 'customerTaxMatch',
+              'summary': '向客户关系增加结算子账户',
+              'operationId': 'customerAccountAdd',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {
@@ -3074,28 +3074,37 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/bob.yaml#/CustomerTaxMatchRequest',
+                              '$ref': './schemas/bob.yaml#/CustomerAccountAddRequest',
                             },
                         },
                     },
                 },
               'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
+            },
+        },
+      '/bob/customer/account-delete':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '删除客户关系下非最后一个草稿结算子账户',
+              'operationId': 'customerAccountDelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
                 {
-                  '200':
+                  'required': true,
+                  'content':
                     {
-                      'description': '当前用户可读的同税号资料。',
-                      'content':
+                      'application/json':
                         {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/CustomerTaxMatchResponse',
-                                },
-                            },
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobDeleteRequest' },
                         },
                     },
                 },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
       '/bob/customer/save':
@@ -3379,121 +3388,6 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/bob/supplier/tax-match':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '按权限精确发现同税号客户集团或其他单位',
-              'operationId': 'supplierTaxMatch',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/SupplierTaxMatchRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '当前用户可读的同税号资料。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/SupplierTaxMatchResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/bob/customer-group/get':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '读取客户集团当前资料',
-              'operationId': 'customerGroupGet',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/common.yaml#/IdRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/bob/customer-group/save':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '按 revision 保存客户集团当前资料',
-              'operationId': 'customerGroupSave',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/CustomerGroupSaveRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/bob/customer-group/audit-history':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '查询客户集团追加审计',
-              'operationId': 'customerGroupAuditHistory',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            { '$ref': './schemas/bob.yaml#/BobHistoryRequest' },
-                        },
-                    },
-                },
-              'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
       '/bob/reference/transfer':
         {
           'post':
@@ -3615,6 +3509,276 @@
                         },
                     },
                 },
+            },
+        },
+      '/bob/sales-partner/query':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '查询销售合作关系',
+              'operationId': 'salesPartnerQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/SalesPartnerQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '销售合作关系列表。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/SalesPartnerQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/bob/sales-partner/get':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '读取销售合作关系',
+              'operationId': 'salesPartnerGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/bob.yaml#/BobGetRequest' },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '销售合作关系详情。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/SalesPartnerGetResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/bob/sales-partner/create':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '原子创建销售合作关系',
+              'operationId': 'salesPartnerCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/SalesPartnerCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '销售合作关系变更结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/SalesPartnerMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/bob/sales-partner/save':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '保存销售合作候选版本',
+              'operationId': 'salesPartnerSave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/SalesPartnerSaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '销售合作关系变更结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/SalesPartnerMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/bob/party/merge-preflight':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '预检主体合并',
+              'operationId': 'partyMergePreflight',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/PartyMergePreflightRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体合并预检结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/PartyMergePreflightResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/bob/party/merge-confirm':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '确认主体合并',
+              'operationId': 'partyMergeConfirm',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/PartyMergeConfirmRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '主体合并执行结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/PartyMergeConfirmResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/bob/employee/create':
+        {
+          'post':
+            {
+              'tags': ['bob'],
+              'summary': '原子创建雇佣关系及其主体',
+              'operationId': 'employeeCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/bob.yaml#/EmploymentCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
       '/bob/{entity}/query':

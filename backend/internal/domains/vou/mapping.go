@@ -20,6 +20,32 @@ func (s *Service) loadData(
 		DueDate: formatDate(document.DueDate),
 	}
 	switch document.Entity {
+	case EntityServiceContract:
+		detail, err := q.GetVouServiceContractDetail(ctx, document.ID)
+		if err != nil {
+			return data, err
+		}
+		data.ServiceContract = contractDetailView(detail)
+		data.Counterparty = data.ServiceContract.Counterparty
+		data.Handler = data.ServiceContract.Handler
+		data.SettlementMethod = data.ServiceContract.SettlementMethod
+		return data, nil
+	case EntityServiceAcceptance:
+		detail, err := q.GetVouServiceAcceptanceDetail(ctx, document.ID)
+		if err != nil {
+			return data, err
+		}
+		contract := &ServiceContractView{}
+		if err = json.Unmarshal(detail.ContractSnapshot, contract); err != nil {
+			return data, err
+		}
+		data.ServiceAcceptance = &ServiceAcceptanceView{
+			ContractDocumentID: detail.ContractDocumentID, ServiceDate: formatDate(detail.ServiceDate),
+			AcceptanceDate: formatDate(detail.AcceptanceDate), SettlementDirection: detail.SettlementDirection,
+			FulfillmentFact: detail.FulfillmentFact, AcceptanceFact: detail.AcceptanceFact, Contract: contract,
+		}
+		data.Counterparty = contract.Counterparty
+		return data, nil
 	case EntityIntermediaryCalculation:
 		detail, err := q.GetVouIntermediaryCalculationDetail(ctx, document.ID)
 		if err != nil {
@@ -64,7 +90,7 @@ func (s *Service) loadData(
 		if err != nil {
 			return data, err
 		}
-		data.Customer = reference(detail.CustomerObjectID, detail.CustomerVersionID, "customer", detail.CustomerCode, detail.CustomerName, "", "", "")
+		data.Customer = reference(detail.CustomerObjectID, detail.CustomerVersionID, bobdomain.EntityCustomerAccount, detail.CustomerCode, detail.CustomerName, "", "", "")
 		data.Salesperson = optionalReference(
 			detail.SalespersonObjectID, detail.SalespersonVersionID, "employee",
 			detail.SalespersonCode, detail.SalespersonName,

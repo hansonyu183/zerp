@@ -19,10 +19,11 @@ export const dimensionOptions: readonly {
   title: string
   value: SubjectDimension
 }[] = [
-  { title: '客户', value: 'CUSTOMER' },
-  { title: '供应商', value: 'SUPPLIER' },
-  { title: '其他单位', value: 'OTHER_PARTY' },
-  { title: '员工', value: 'EMPLOYEE' },
+  { title: '客户结算账户', value: 'CUSTOMER_ACCOUNT' },
+  { title: '供应关系', value: 'SUPPLIER_RELATIONSHIP' },
+  { title: '服务关系', value: 'SERVICE_RELATIONSHIP' },
+  { title: '雇佣关系', value: 'EMPLOYMENT_RELATIONSHIP' },
+  { title: '销售合作关系', value: 'SALES_RELATIONSHIP' },
   { title: '部门', value: 'DEPARTMENT' },
   { title: '商品', value: 'PRODUCT' },
   { title: '仓库', value: 'WAREHOUSE' },
@@ -119,13 +120,13 @@ export function createAccountingSubjectViewModel() {
     }
     if (
       ['RECEIVABLE', 'ADVANCE_RECEIPT'].includes(form.settlementPurpose) &&
-      !dimensions.has('CUSTOMER')
+      !dimensions.has('CUSTOMER_ACCOUNT')
     ) {
       return '该往来用途必须选择客户辅助核算。'
     }
     if (
       ['PREPAID', 'PAYABLE'].includes(form.settlementPurpose) &&
-      !dimensions.has('SUPPLIER')
+      !dimensions.has('SUPPLIER_RELATIONSHIP')
     ) {
       return '该往来用途必须选择供应商辅助核算。'
     }

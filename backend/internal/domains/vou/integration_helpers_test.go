@@ -79,6 +79,7 @@ func truncateVOU(t *testing.T, pool *pgxpool.Pool) {
 			vou_expense_lines, vou_sale_order_formula_lines, vou_sale_order_formulas,
 			vou_product_lines, vou_other_income_details,
 			vou_employee_loan_writeoff_details, vou_expense_payment_details, vou_expense_reimbursement_details, vou_payment_details, vou_receipt_details,
+			vou_service_acceptance_details, vou_service_contract_details,
 			vou_purchase_order_details,
 			vou_sale_order_details, vou_documents, vou_number_counters;
 		INSERT INTO app_users(id,username,display_name,password_hash,status,password_changed_at,created_by,updated_by)
@@ -95,14 +96,43 @@ func createApprovedBOB(
 	t *testing.T, service *bobdomain.Service, entity string, data bobdomain.CreateDetailInput,
 ) ReferenceInput {
 	t.Helper()
-	if entity == bobdomain.EntityFundAccount && data.OperatingEntityID == "" {
+	if (entity == bobdomain.EntityFundAccount || entity == bobdomain.EntityEmployee ||
+		entity == bobdomain.EntitySupplier || entity == bobdomain.EntityOtherUnit) && data.OperatingEntityID == "" {
 		operating := createApprovedBOB(t, service, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{
 			Name: "VOU 自动经营主体", TaxNumber: "TAX" + newID()[3:],
 		})
 		data.OperatingEntityID = operating.ObjectID
 	}
-	created, err := service.Create(t.Context(), entity, bobdomain.CreateInput{Data: data},
-		integrationActorOne, "vou-ref-create")
+	var created bobdomain.MutationResult
+	var err error
+	switch entity {
+	case bobdomain.EntityEmployee:
+		result, createErr := service.EmploymentCreate(t.Context(), bobdomain.EmploymentCreateInput{
+			NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: data.Name},
+			Data:     data,
+		}, integrationActorOne, "vou-ref-create", true)
+		created, err = result.MutationResult, createErr
+	case bobdomain.EntitySupplier:
+		result, createErr := service.SupplierCreate(t.Context(), bobdomain.SupplierCreateInput{
+			NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: data.Name},
+			Data: bobdomain.SupplierData{OperatingEntityID: data.OperatingEntityID,
+				ContactName: data.ContactName, ContactPhone: data.ContactPhone,
+				SettlementMethodID:         data.SettlementMethodID,
+				DefaultPurchaserEmployeeID: data.DefaultPurchaserEmployeeID},
+		}, integrationActorOne, "vou-ref-create", true)
+		created, err = result.MutationResult, createErr
+	case bobdomain.EntityOtherUnit:
+		result, createErr := service.OtherUnitCreate(t.Context(), bobdomain.OtherUnitCreateInput{
+			NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: data.Name},
+			Data: bobdomain.OtherUnitData{OperatingEntityID: data.OperatingEntityID,
+				ContactName: data.ContactName, ContactPhone: data.ContactPhone,
+				SettlementMethodID: data.SettlementMethodID},
+		}, integrationActorOne, "vou-ref-create", true)
+		created, err = result.MutationResult, createErr
+	default:
+		created, err = service.Create(t.Context(), entity, bobdomain.CreateInput{Data: data},
+			integrationActorOne, "vou-ref-create")
+	}
 	if err != nil {
 		t.Fatalf("create %s reference: %v (cause: %v)", entity, err, errors.Unwrap(err))
 	}
@@ -212,7 +242,7 @@ func createApprovedCustomer(
 		data.SettlementMethodID = "01JSMT00000000000000000017"
 	}
 	created, err := service.CustomerCreate(t.Context(), bobdomain.CustomerCreateInput{
-		Group: bobdomain.CustomerGroupData{CompanyName: data.Name + "集团" + newID()[20:], BankAccounts: []bobdomain.CustomerGroupBankAccount{}},
+		NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: data.Name + "主体" + newID()[20:]},
 		Data: bobdomain.CustomerAccountData{
 			Name: data.Name, CustomerTypeCode: bobdomain.CustomerTypeEndUser,
 			ContactName: data.ContactName, ContactPhone: data.ContactPhone, Address: data.Address,
@@ -226,7 +256,7 @@ func createApprovedCustomer(
 				Type: bobdomain.SalesAttributionInternalEmployee, SubjectObjectID: data.SalespersonEmployeeID,
 			},
 		},
-	}, integrationActorOne, "vou-customer-create")
+	}, integrationActorOne, "vou-customer-create", true)
 	if err != nil {
 		t.Fatalf("create customer reference: %v", err)
 	}
@@ -236,28 +266,37 @@ func createApprovedCustomer(
 	if err != nil {
 		t.Fatalf("submit customer reference: %v", err)
 	}
-	approved, err := service.Approve(t.Context(), bobdomain.EntityCustomer, bobdomain.ReviewInput{
+	if _, err = service.Approve(t.Context(), bobdomain.EntityCustomer, bobdomain.ReviewInput{
 		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: submitted.Revision,
-	}, integrationActorTwo, "vou-customer-approve")
-	if err != nil {
-		t.Fatalf("approve customer reference: %v", err)
+	}, integrationActorTwo, "vou-customer-approve"); err != nil {
+		t.Fatalf("approve customer relationship: %v", err)
 	}
-	return ReferenceInput{ObjectID: approved.ObjectID, VersionID: approved.VersionID}
+	accountSubmitted, err := service.Submit(t.Context(), bobdomain.EntityCustomerAccount, bobdomain.VersionRevisionInput{
+		ObjectID: created.DefaultAccount.ObjectID, VersionID: created.DefaultAccount.Candidate.Version.VersionID,
+		Revision: created.DefaultAccount.Candidate.Version.Revision,
+	}, integrationActorOne, "vou-customer-account-submit")
+	if err != nil {
+		t.Fatalf("submit customer account: %v", err)
+	}
+	accountApproved, err := service.Approve(t.Context(), bobdomain.EntityCustomerAccount, bobdomain.ReviewInput{
+		ObjectID: created.DefaultAccount.ObjectID, VersionID: accountSubmitted.VersionID, Revision: accountSubmitted.Revision,
+	}, integrationActorTwo, "vou-customer-account-approve")
+	if err != nil {
+		t.Fatalf("approve customer account: %v", err)
+	}
+	return ReferenceInput{ObjectID: accountApproved.ObjectID, VersionID: accountApproved.VersionID}
 }
 
 func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {
 	t.Helper()
 	service := newBOBIntegrationService(pool)
 	suffix := newID()
-	general := bobdomain.SupplierTypeGeneral
-	logistics := bobdomain.SupplierTypeLogisticsPlatform
 	settlement := fixedSettlementReference(t, pool, bobdomain.SettlementTermMonthly30)
 	employee := createApprovedBOB(t, service, bobdomain.EntityEmployee, bobdomain.CreateDetailInput{
 		Code: "VE" + suffix, Name: "VOU 员工",
 	})
-	platform := createApprovedBOB(t, service, bobdomain.EntitySupplier, bobdomain.CreateDetailInput{
-		Code: "VLP" + suffix, Name: "VOU 物流平台", SupplierType: &logistics,
-		SettlementMethodID: settlement.ObjectID, DefaultPurchaserEmployeeID: employee.ObjectID,
+	platform := createApprovedBOB(t, service, bobdomain.EntityOtherUnit, bobdomain.CreateDetailInput{
+		Name: "VOU 承运服务单位", SettlementMethodID: settlement.ObjectID,
 	})
 	operating := createApprovedBOB(t, service, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{
 		Name: "VOU 经营主体", TaxNumber: "TAX" + suffix[3:],
@@ -270,7 +309,7 @@ func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {
 			SalespersonEmployeeID: employee.ObjectID,
 		}),
 		supplier: createApprovedBOB(t, service, bobdomain.EntitySupplier, bobdomain.CreateDetailInput{
-			Code: "VS" + suffix, Name: "VOU 供应商", SupplierType: &general,
+			Code: "VS" + suffix, Name: "VOU 供应商",
 			ContactName: "供应商联系人", ContactPhone: "13900000000",
 			SettlementMethodID:         settlement.ObjectID,
 			DefaultPurchaserEmployeeID: employee.ObjectID,

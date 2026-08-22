@@ -2,14 +2,14 @@ import { expect, test, type Page, type WflWorkerState } from './fixtures'
 
 test.use({ storageState: { cookies: [], origins: [] } })
 const bobPages = [
-  { entity: 'customer', title: '客户' },
-  { entity: 'supplier', title: '供应商' },
-  { entity: 'employee', title: '员工' },
-  { entity: 'product', title: '产品' },
-  { entity: 'service', title: '服务' },
-  { entity: 'warehouse', title: '仓库' },
-  { entity: 'vehicle', title: '车辆' },
-  { entity: 'fund-account', title: '资金账户' },
+  { entity: 'customer', title: '客户', searchLabel: '账户编码或名称' },
+  { entity: 'supplier', title: '供应商', searchLabel: '供应商关键字' },
+  { entity: 'employee', title: '员工', searchLabel: '员工编码或主体名称' },
+  { entity: 'product', title: '产品', searchLabel: '产品关键字' },
+  { entity: 'service', title: '服务', searchLabel: '服务关键字' },
+  { entity: 'warehouse', title: '仓库', searchLabel: '仓库关键字' },
+  { entity: 'vehicle', title: '车辆', searchLabel: '车辆关键字' },
+  { entity: 'fund-account', title: '资金账户', searchLabel: '资金账户关键字' },
 ] as const
 
 async function signIn(page: Page, workerState: WflWorkerState): Promise<void> {
@@ -69,7 +69,7 @@ test('未登录访问完整深链后登录返回原路径', async ({ page, worke
   await submitCredentials(page, workerState.operator)
 
   await expect(page).toHaveURL(/\/bob\/customer\?tab=history#version-2$/)
-  await expect(page.getByRole('textbox', { name: '客户关键字' })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: '账户编码或名称' })).toBeVisible()
 })
 
 test('登录后对已知但无权限的深链显示无权访问', async ({
@@ -147,7 +147,7 @@ test(
       )
       await expect(
         page.getByRole('textbox', {
-          name: `${item.title}关键字`,
+          name: item.searchLabel,
           exact: true,
         }),
       ).toBeVisible()
@@ -212,7 +212,7 @@ test('登录后进入客户业务页面并在退出后退时保护旧页面', as
 
   await page.goBack()
   await expect(page).toHaveURL(/\/signin/)
-  await expect(page.getByLabel('客户关键字')).not.toBeVisible()
+  await expect(page.getByLabel('账户编码或名称')).not.toBeVisible()
 })
 
 test('辅助对象菜单使用中文并导航到真实页面', async ({

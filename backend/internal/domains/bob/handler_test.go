@@ -108,10 +108,16 @@ func (s *serviceStub) CustomerGet(_ context.Context, _ GetInput) (CustomerDetail
 	return CustomerDetailView{}, nil
 }
 
-func (s *serviceStub) CustomerCreate(_ context.Context, _ CustomerCreateInput, _, _ string) (CustomerCreateResult, error) {
+func (s *serviceStub) CustomerCreate(_ context.Context, _ CustomerCreateInput, _, _ string, _ bool) (CustomerCreateResult, error) {
 	s.record("create", EntityCustomer)
 	return CustomerCreateResult{}, nil
 }
+
+func (s *serviceStub) CustomerAccountAdd(_ context.Context, _ CustomerAccountAddInput, _, _ string) (CustomerAccountView, error) {
+	return CustomerAccountView{}, nil
+}
+
+func (s *serviceStub) CustomerAccountDelete(_ context.Context, _ DeleteInput) error { return nil }
 
 func (s *serviceStub) CustomerSave(_ context.Context, _ CustomerSaveInput, _, _ string) (MutationResult, error) {
 	s.record("save", EntityCustomer)
@@ -128,9 +134,9 @@ func (s *serviceStub) SupplierGet(_ context.Context, _ GetInput) (SupplierDetail
 	return SupplierDetailView{}, nil
 }
 
-func (s *serviceStub) SupplierCreate(_ context.Context, _ SupplierCreateInput, _, _ string) (MutationResult, error) {
+func (s *serviceStub) SupplierCreate(_ context.Context, _ SupplierCreateInput, _, _ string, _ bool) (SupplierCreateResult, error) {
 	s.record("create", EntitySupplier)
-	return MutationResult{}, nil
+	return SupplierCreateResult{}, nil
 }
 
 func (s *serviceStub) SupplierSave(_ context.Context, _ SupplierSaveInput, _, _ string) (MutationResult, error) {
@@ -138,19 +144,29 @@ func (s *serviceStub) SupplierSave(_ context.Context, _ SupplierSaveInput, _, _ 
 	return MutationResult{}, nil
 }
 
-func (s *serviceStub) CustomerGroupGet(_ context.Context, _ string) (CustomerGroupView, error) {
-	s.record("get", "customer-group")
-	return CustomerGroupView{}, nil
+func (s *serviceStub) EmploymentCreate(_ context.Context, _ EmploymentCreateInput, _, _ string, _ bool) (EmploymentCreateResult, error) {
+	s.record("create", EntityEmployee)
+	return EmploymentCreateResult{}, nil
 }
 
-func (s *serviceStub) CustomerGroupSave(_ context.Context, _ CustomerGroupSaveInput, _, _ string) (CustomerGroupView, error) {
-	s.record("save", "customer-group")
-	return CustomerGroupView{}, nil
+func (s *serviceStub) SalesPartnerQuery(_ context.Context, input QueryInput) (Page[SalesPartnerListItem], error) {
+	s.record("query", EntitySalesPartner)
+	return Page[SalesPartnerListItem]{Items: []SalesPartnerListItem{}, Page: input.Page, PageSize: input.PageSize}, nil
 }
 
-func (s *serviceStub) CustomerGroupAuditHistory(_ context.Context, _ HistoryInput) (Page[AuditEventView], error) {
-	s.record("audit-history", "customer-group")
-	return Page[AuditEventView]{Items: []AuditEventView{}}, nil
+func (s *serviceStub) SalesPartnerGet(_ context.Context, _ GetInput) (SalesPartnerDetailView, error) {
+	s.record("get", EntitySalesPartner)
+	return SalesPartnerDetailView{}, nil
+}
+
+func (s *serviceStub) SalesPartnerCreate(_ context.Context, _ SalesPartnerCreateInput, _, _ string, _ bool) (SalesPartnerCreateResult, error) {
+	s.record("create", EntitySalesPartner)
+	return SalesPartnerCreateResult{}, nil
+}
+
+func (s *serviceStub) SalesPartnerSave(_ context.Context, _ SalesPartnerSaveInput, _, _ string) (MutationResult, error) {
+	s.record("save", EntitySalesPartner)
+	return MutationResult{}, nil
 }
 
 func (s *serviceStub) TransferReferences(_ context.Context, _ ReferenceTransferInput, _, _ string) (ReferenceTransferResult, error) {
@@ -161,16 +177,6 @@ func (s *serviceStub) TransferReferences(_ context.Context, _ ReferenceTransferI
 func (s *serviceStub) QueryReferenceCandidates(_ context.Context, _ ReferenceQueryInput) ([]ReferenceCandidate, error) {
 	s.record("query", "reference")
 	return []ReferenceCandidate{}, nil
-}
-
-func (s *serviceStub) CustomerTaxMatches(_ context.Context, _ CustomerTaxMatchInput) ([]CustomerTaxMatch, error) {
-	s.record("tax-match", EntityCustomer)
-	return []CustomerTaxMatch{}, nil
-}
-
-func (s *serviceStub) SupplierTaxMatches(_ context.Context, _ SupplierTaxMatchInput) ([]SupplierTaxMatch, error) {
-	s.record("tax-match", EntitySupplier)
-	return []SupplierTaxMatch{}, nil
 }
 
 func (s *serviceStub) PartyQuery(_ context.Context, input QueryInput) (Page[PartyListItem], error) {
@@ -186,6 +192,16 @@ func (s *serviceStub) PartyGet(_ context.Context, _ PartyGetInput, _ PartyRelati
 func (s *serviceStub) PartySave(_ context.Context, _ PartySaveInput, _, _ string) (PartyView, error) {
 	s.record("save", "party")
 	return PartyView{}, nil
+}
+
+func (s *serviceStub) PartyMergePreflight(_ context.Context, _ PartyMergePreflightInput, _ PartyRelationshipVisibility, _, _ string) (PartyMergePreflightResult, error) {
+	s.record("merge-preflight", "party")
+	return PartyMergePreflightResult{}, nil
+}
+
+func (s *serviceStub) PartyMergeConfirm(_ context.Context, _ PartyMergeConfirmInput, _ PartyRelationshipVisibility, _, _ string) (PartyMergeResult, error) {
+	s.record("merge-confirm", "party")
+	return PartyMergeResult{}, nil
 }
 
 func (s *serviceStub) OtherUnitQuery(_ context.Context, input QueryInput) (Page[OtherUnitView], error) {
@@ -229,7 +245,7 @@ func TestHandlerRegistersEveryEntityAction(t *testing.T) {
 	router := newBOBTestRouter(&serviceStub{}, authorization.FailClosed{})
 	routes := router.Routes()
 	expectedEntities := []string{
-		"customer", "supplier", "employee", "product", "service", "warehouse",
+		"customer", "supplier", "employee", "sales-partner", "product", "service", "warehouse",
 		"vehicle", "fund-account", "operating-entity",
 	}
 	expectedActions := []string{
@@ -248,6 +264,10 @@ func TestHandlerRegistersEveryEntityAction(t *testing.T) {
 		"/bob/other-unit/delete", "/bob/other-unit/submit", "/bob/other-unit/unsubmit",
 		"/bob/other-unit/approve", "/bob/other-unit/reject", "/bob/other-unit/enable",
 		"/bob/other-unit/disable", "/bob/other-unit/versions", "/bob/other-unit/audit-history",
+		"/bob/customer-account/submit", "/bob/customer-account/unsubmit",
+		"/bob/customer-account/approve", "/bob/customer-account/reject",
+		"/bob/customer-account/enable", "/bob/customer-account/disable",
+		"/bob/customer-account/versions", "/bob/customer-account/audit-history",
 	} {
 		wanted[path] = false
 	}
@@ -264,9 +284,18 @@ func TestHandlerRegistersEveryEntityAction(t *testing.T) {
 			t.Errorf("route %s is not registered", path)
 		}
 	}
-	const entitySpecificRoutes = 12
+	const entitySpecificRoutes = 11
 	if len(routes) != len(wanted)+entitySpecificRoutes {
 		t.Fatalf("registered route count = %d, want %d", len(routes), len(wanted)+entitySpecificRoutes)
+	}
+}
+
+func TestHandlerDoesNotRegisterLegacyTaxMatchRoutes(t *testing.T) {
+	router := newBOBTestRouter(&serviceStub{}, authorization.FailClosed{})
+	for _, route := range router.Routes() {
+		if route.Path == "/bob/customer/tax-match" || route.Path == "/bob/supplier/tax-match" {
+			t.Fatalf("legacy route remains reachable: %s", route.Path)
+		}
 	}
 }
 

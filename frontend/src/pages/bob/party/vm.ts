@@ -8,6 +8,8 @@ type PartyListItem = components['schemas']['PartyListItem']
 type PartyView = components['schemas']['PartyView']
 type PartyKind = components['schemas']['PartyKind']
 type PartyIdentifier = components['schemas']['PartyIdentifier']
+type PartyMergePreflightResult =
+  components['schemas']['PartyMergePreflightResult']
 
 export interface PartyForm {
   kind: PartyKind
@@ -42,17 +44,32 @@ export function usePartyViewModel() {
   const page = ref(1)
   const keywordDraft = ref('')
   const kindDraft = ref<PartyKind | ''>('')
+  const mergedDraft = ref(false)
   const keyword = ref('')
   const kind = ref<PartyKind | ''>('')
+  const merged = ref(false)
   const detail = ref<PartyView | null>(null)
   const form = ref<PartyForm>(emptyForm())
   const editorOpen = ref(false)
+  const mergeOpen = ref(false)
+  const mergeTargetKeyword = ref('')
+  const mergeTargetRows = ref<PartyListItem[]>([])
+  const mergeTarget = ref<PartyListItem | null>(null)
+  const mergePreflight = ref<PartyMergePreflightResult | null>(null)
+  const mergeResolutions = ref<Record<string, string>>({})
   let savedSignature = ''
 
   const canQuery = computed(() => session.can('/bob/party/query'))
   const canGet = computed(() => session.can('/bob/party/get'))
   const canSave = computed(() => session.can('/bob/party/save'))
-  const canOtherUnitGet = computed(() => session.can('/bob/other-unit/get'))
+  const canModify = computed(
+    () => canSave.value && !detail.value?.mergedIntoPartyId,
+  )
+  const canMerge = computed(
+    () =>
+      session.can('/bob/party/merge-preflight') &&
+      session.can('/bob/party/merge-confirm'),
+  )
   const isDirty = computed(
     () => editorOpen.value && JSON.stringify(form.value) !== savedSignature,
   )
@@ -68,6 +85,7 @@ export function usePartyViewModel() {
         filters: {
           ...(keyword.value ? { keyword: keyword.value } : {}),
           ...(kind.value ? { kind: kind.value } : {}),
+          ...(merged.value ? { merged: true } : {}),
         },
       })
       rows.value = result.data.items
@@ -85,6 +103,7 @@ export function usePartyViewModel() {
   async function submitFilters(): Promise<void> {
     keyword.value = keywordDraft.value.trim()
     kind.value = kindDraft.value
+    merged.value = mergedDraft.value
     page.value = 1
     await query()
   }
@@ -92,6 +111,7 @@ export function usePartyViewModel() {
   async function resetFilters(): Promise<void> {
     keywordDraft.value = ''
     kindDraft.value = ''
+    mergedDraft.value = false
     await submitFilters()
   }
 
@@ -132,7 +152,7 @@ export function usePartyViewModel() {
   }
 
   async function save(): Promise<boolean> {
-    if (!detail.value || !canSave.value || !form.value.legalName.trim())
+    if (!detail.value || !canModify.value || !form.value.legalName.trim())
       return false
     saving.value = true
     errorMessage.value = null
@@ -178,7 +198,14 @@ export function usePartyViewModel() {
     return true
   }
 
+  function canOpenRelationship(
+    entity: components['schemas']['PartyRelationshipCard']['entity'],
+  ): boolean {
+    return session.can(`/bob/${entity}/get`)
+  }
+
   function addIdentifier(): void {
+    if (!canModify.value) return
     form.value.strongIdentifiers.push({
       type:
         form.value.kind === 'PERSON'
@@ -189,7 +216,144 @@ export function usePartyViewModel() {
   }
 
   function removeIdentifier(index: number): void {
+    if (!canModify.value) return
     form.value.strongIdentifiers.splice(index, 1)
+  }
+
+  function resetMergePreflight(): void {
+    mergePreflight.value = null
+    mergeResolutions.value = {}
+  }
+
+  function openMerge(): void {
+    if (!detail.value || detail.value.mergedIntoPartyId || !canMerge.value)
+      return
+    mergeTargetKeyword.value = ''
+    mergeTargetRows.value = []
+    mergeTarget.value = null
+    resetMergePreflight()
+    mergeOpen.value = true
+  }
+
+  function closeMerge(): void {
+    mergeOpen.value = false
+    mergeTarget.value = null
+    resetMergePreflight()
+  }
+
+  async function searchMergeTargets(): Promise<void> {
+    if (!detail.value || !canQuery.value) return
+    loading.value = true
+    errorMessage.value = null
+    try {
+      const result = await partyApi.query({
+        page: 1,
+        pageSize: 20,
+        filters: {
+          ...(mergeTargetKeyword.value.trim()
+            ? { keyword: mergeTargetKeyword.value.trim() }
+            : {}),
+          kind: detail.value.kind,
+        },
+      })
+      mergeTargetRows.value = result.data.items.filter(
+        (item) => item.partyId !== detail.value?.partyId,
+      )
+      if (
+        mergeTarget.value &&
+        !mergeTargetRows.value.some(
+          (item) => item.partyId === mergeTarget.value?.partyId,
+        )
+      ) {
+        mergeTarget.value = null
+        resetMergePreflight()
+      }
+    } catch (error) {
+      mergeTargetRows.value = []
+      errorMessage.value = getErrorMessage(error)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  function selectMergeTarget(partyId: string | null): void {
+    mergeTarget.value =
+      mergeTargetRows.value.find((item) => item.partyId === partyId) ?? null
+    resetMergePreflight()
+  }
+
+  async function preflightMerge(): Promise<boolean> {
+    if (!detail.value || !mergeTarget.value || !canMerge.value) return false
+    saving.value = true
+    errorMessage.value = null
+    try {
+      const result = await partyApi.mergePreflight({
+        sourcePartyId: detail.value.partyId,
+        targetPartyId: mergeTarget.value.partyId,
+        sourceRevision: detail.value.revision,
+        targetRevision: mergeTarget.value.revision,
+      })
+      mergePreflight.value = result.data
+      mergeResolutions.value = {}
+      return result.data.canMerge
+    } catch (error) {
+      resetMergePreflight()
+      errorMessage.value = getErrorMessage(error)
+      return false
+    } finally {
+      saving.value = false
+    }
+  }
+
+  async function confirmMerge(): Promise<boolean> {
+    const source = detail.value
+    const target = mergeTarget.value
+    const preflight = mergePreflight.value
+    if (
+      !source ||
+      !target ||
+      !preflight?.canMerge ||
+      !preflight.preflightId ||
+      !canMerge.value
+    )
+      return false
+    const conflictResolutions = preflight.relationshipConflicts.map(
+      (conflict) => ({
+        relationshipType: conflict.relationshipType,
+        operatingEntityId: conflict.operatingEntityId,
+        retainObjectId:
+          mergeResolutions.value[
+            `${conflict.relationshipType}\u0000${conflict.operatingEntityId}`
+          ] ?? '',
+      }),
+    )
+    if (conflictResolutions.some((resolution) => !resolution.retainObjectId)) {
+      errorMessage.value = '请为每个关系冲突明确选择保留关系。'
+      return false
+    }
+    saving.value = true
+    errorMessage.value = null
+    try {
+      const result = await partyApi.mergeConfirm({
+        preflightId: preflight.preflightId,
+        sourcePartyId: preflight.sourcePartyId,
+        targetPartyId: preflight.targetPartyId,
+        sourceRevision: preflight.sourceRevision,
+        targetRevision: preflight.targetRevision,
+        conflictResolutions,
+      })
+      successMessage.value = `主体已合并，转移 ${result.data.transferredRelationships} 条关系，合并 ${result.data.mergedRelationships} 条冲突关系。`
+      mergeOpen.value = false
+      editorOpen.value = false
+      detail.value = null
+      await query()
+      return true
+    } catch (error) {
+      errorMessage.value = getErrorMessage(error)
+      return false
+    } finally {
+      saving.value = false
+    }
   }
 
   return {
@@ -202,13 +366,15 @@ export function usePartyViewModel() {
     page,
     keywordDraft,
     kindDraft,
+    mergedDraft,
     detail,
     form,
     editorOpen,
     canQuery,
     canGet,
     canSave,
-    canOtherUnitGet,
+    canModify,
+    canMerge,
     isDirty,
     query,
     submitFilters,
@@ -216,9 +382,22 @@ export function usePartyViewModel() {
     open,
     save,
     close,
+    canOpenRelationship,
     impactMessage,
     addIdentifier,
     removeIdentifier,
+    mergeOpen,
+    mergeTargetKeyword,
+    mergeTargetRows,
+    mergeTarget,
+    mergePreflight,
+    mergeResolutions,
+    openMerge,
+    closeMerge,
+    searchMergeTargets,
+    selectMergeTarget,
+    preflightMerge,
+    confirmMerge,
   }
 }
 

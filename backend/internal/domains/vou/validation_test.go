@@ -43,8 +43,8 @@ func TestValidateDraftByEntity(t *testing.T) {
 func TestCashEntitiesFixOrAcceptCounterpartyType(t *testing.T) {
 	t.Parallel()
 	for _, test := range []struct{ entity, want string }{
-		{EntitySalesReceipt, "customer"}, {EntityPurchaseRefund, "supplier"},
-		{EntitySalesRefund, "customer"}, {EntityPurchasePayment, "supplier"},
+		{EntitySalesReceipt, "customer-account"}, {EntityPurchaseRefund, "supplier"},
+		{EntitySalesRefund, "customer-account"}, {EntityPurchasePayment, "supplier"},
 		{EntityEmployeeLoan, "employee"}, {EntityEmployeeRepayment, "employee"},
 	} {
 		draft, err := validateDraft(test.entity, DraftInput{
@@ -62,7 +62,7 @@ func TestCashEntitiesFixOrAcceptCounterpartyType(t *testing.T) {
 		t.Fatal("customer receipt accepted supplier counterparty type")
 	}
 	for _, entity := range []string{EntityOtherReceipt, EntityOtherPayment} {
-		for _, counterpartyType := range []string{"customer", "supplier", "other-unit", "employee"} {
+		for _, counterpartyType := range []string{"customer-account", "supplier", "other-unit", "employee", "sales-partner"} {
 			draft, err := validateDraft(entity, DraftInput{
 				BusinessDate: "2026-08-03", Currency: "CNY", CounterpartyType: counterpartyType,
 				Counterparty: refInput(), FundAccount: refInput(), Handler: refInput(), Amount: "10.00",
@@ -133,7 +133,7 @@ func TestEmployeeLoanEntitiesEnforceTheirFinancialShape(t *testing.T) {
 	}{
 		{
 			name: "loan rejects a non-employee counterparty type", entity: EntityEmployeeLoan,
-			mutate: func(input *DraftInput) { input.CounterpartyType = "customer" },
+			mutate: func(input *DraftInput) { input.CounterpartyType = "customer-account" },
 		},
 		{
 			name: "repayment requires an employee counterparty", entity: EntityEmployeeRepayment,

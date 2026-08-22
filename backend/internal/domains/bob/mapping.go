@@ -31,11 +31,11 @@ func conflictData(object dbsqlc.LockBobObjectRow, version dbsqlc.LockBobVersionR
 func detailFields(entity string) []string {
 	switch entity {
 	case EntityCustomer:
-		return []string{"name", "customerType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "monthlyClosingDay", "salespersonEmployeeId", "rebateUnitPrice", "intermediaryOtherPartyId"}
+		return []string{"name", "customerType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "monthlyClosingDay", "salespersonEmployeeId", "rebateUnitPrice"}
 	case EntityOtherUnit:
 		return []string{"contactName", "contactPhone", "email", "address", "remark", "settlementMethodId"}
 	case EntitySupplier:
-		return []string{"name", "supplierType", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "defaultPurchaserEmployeeId"}
+		return []string{"name", "shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "defaultPurchaserEmployeeId"}
 	case EntityEmployee:
 		return []string{"name", "departmentId", "positionId", "phone", "email", "hireDate", "remark"}
 	case EntityProduct:
@@ -105,7 +105,7 @@ func objectView(row dbsqlc.BobVersionView, enabled bool) ObjectView {
 func detailView(row dbsqlc.BobVersionView) DetailView {
 	result := DetailView{
 		Name: row.Name, Unit: row.Unit, Currency: deref(row.Currency),
-		SupplierType: deref(row.SupplierType), PlateNumber: deref(row.PlateNumber),
+		PlateNumber: deref(row.PlateNumber),
 		VehicleType: deref(row.VehicleType), PlatformObjectID: deref(row.PlatformObjectID),
 		CustomerType: row.CustomerType, ShortName: row.ShortName, CategoryID: row.CategoryID,
 		TaxNumber: row.TaxNumber, ContactName: row.ContactName, ContactPhone: row.ContactPhone,
@@ -131,7 +131,6 @@ func detailView(row dbsqlc.BobVersionView) DetailView {
 	if row.Entity == EntityCustomer {
 		result.MonthlyClosingDay = row.MonthlyClosingDay
 		result.RebateUnitPrice = formatMoneyCents(row.RebateUnitPriceCents)
-		result.IntermediaryOtherPartyID = row.IntermediaryOtherPartyID
 	}
 	if row.Entity == EntitySupplier {
 		result.DefaultPurchaserEmployeeID = row.SalespersonEmployeeID

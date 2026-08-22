@@ -13,7 +13,7 @@ import (
 
 func (s *Service) queryOperatingEntities(ctx context.Context, input QueryInput) (Page[QueryItem], error) {
 	offset, validPage := pageOffset(input.Page, input.PageSize)
-	if !validPage || len(input.Sort) > 1 || input.Filters.CustomerType != "" || input.Filters.SupplierType != "" {
+	if !validPage || len(input.Sort) > 1 || input.Filters.CustomerType != "" {
 		return Page[QueryItem]{}, domainError(ErrorValidation, "invalid operating entity query", nil, nil)
 	}
 	statuses := uniqueStrings(input.Filters.Status)

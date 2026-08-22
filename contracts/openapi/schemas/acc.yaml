@@ -124,10 +124,11 @@
       'type': 'string',
       'enum':
         [
-          'CUSTOMER',
-          'SUPPLIER',
-          'OTHER_PARTY',
-          'EMPLOYEE',
+          'CUSTOMER_ACCOUNT',
+          'SUPPLIER_RELATIONSHIP',
+          'SERVICE_RELATIONSHIP',
+          'EMPLOYMENT_RELATIONSHIP',
+          'SALES_RELATIONSHIP',
           'DEPARTMENT',
           'PRODUCT',
           'WAREHOUSE',

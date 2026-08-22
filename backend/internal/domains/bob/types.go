@@ -10,9 +10,11 @@ import (
 
 const (
 	EntityCustomer         = "customer"
+	EntityCustomerAccount  = "customer-account"
 	EntitySupplier         = "supplier"
 	EntityOtherUnit        = "other-unit"
 	EntityEmployee         = "employee"
+	EntitySalesPartner     = "sales-partner"
 	EntityProduct          = "product"
 	EntityService          = "service"
 	EntityWarehouse        = "warehouse"
@@ -24,43 +26,45 @@ const (
 	EntityPosition         = "position"
 	EntitySettlementMethod = "settlement-method"
 
-	SupplierTypeGeneral           = "GENERAL"
-	SupplierTypeLogisticsPlatform = "LOGISTICS_PLATFORM"
-	CustomerTypeEndUser           = "DIT-0001"
-	CustomerTypeDealer            = "DIT-0002"
-	SettlementRuleRelativeDays    = "RELATIVE_DAYS"
-	SettlementRuleMonthEnd        = "MONTH_END"
-	SettlementRuleFixedDay        = "FIXED_DAY"
-	SettlementTermPrepaid         = "PREPAID"
-	SettlementTermCashOnDelivery  = "CASH_ON_DELIVERY"
-	SettlementTermArrival3        = "ARRIVAL_3"
-	SettlementTermArrival5        = "ARRIVAL_5"
-	SettlementTermArrival7        = "ARRIVAL_7"
-	SettlementTermArrival15       = "ARRIVAL_15"
-	SettlementTermArrival30       = "ARRIVAL_30"
-	SettlementTermMonthlyCurrent  = "MONTHLY_CURRENT"
-	SettlementTermMonthly30       = "MONTHLY_30"
-	SettlementTermMonthly60       = "MONTHLY_60"
-	SettlementTermMonthly90       = "MONTHLY_90"
-	ContainerTypeNone             = "NONE"
-	ContainerTypeSolvent          = "SOLVENT"
-	ContainerTypeResin            = "RESIN"
-	ProductKindRawMaterial        = "RAW_MATERIAL"
-	ProductKindStandardFinished   = "STANDARD_FINISHED"
-	ProductKindCustomFinished     = "CUSTOM_FINISHED"
-	ProductKindPackaging          = "PACKAGING"
+	CustomerTypeEndUser          = "DIT-0001"
+	SettlementRuleRelativeDays   = "RELATIVE_DAYS"
+	SettlementRuleMonthEnd       = "MONTH_END"
+	SettlementRuleFixedDay       = "FIXED_DAY"
+	SettlementTermPrepaid        = "PREPAID"
+	SettlementTermCashOnDelivery = "CASH_ON_DELIVERY"
+	SettlementTermArrival3       = "ARRIVAL_3"
+	SettlementTermArrival5       = "ARRIVAL_5"
+	SettlementTermArrival7       = "ARRIVAL_7"
+	SettlementTermArrival15      = "ARRIVAL_15"
+	SettlementTermArrival30      = "ARRIVAL_30"
+	SettlementTermMonthlyCurrent = "MONTHLY_CURRENT"
+	SettlementTermMonthly30      = "MONTHLY_30"
+	SettlementTermMonthly60      = "MONTHLY_60"
+	SettlementTermMonthly90      = "MONTHLY_90"
+	ContainerTypeNone            = "NONE"
+	ContainerTypeSolvent         = "SOLVENT"
+	ContainerTypeResin           = "RESIN"
+	ProductKindRawMaterial       = "RAW_MATERIAL"
+	ProductKindStandardFinished  = "STANDARD_FINISHED"
+	ProductKindCustomFinished    = "CUSTOM_FINISHED"
+	ProductKindPackaging         = "PACKAGING"
 
 	StatusDraft     = "DRAFT"
 	StatusPending   = "PENDING"
 	StatusEffective = "EFFECTIVE"
 	StatusInvalid   = "INVALID"
+
+	SalesCapabilityExternalPartTime = "EXTERNAL_PART_TIME"
+	SalesCapabilityChannelPartner   = "CHANNEL_PARTNER"
 )
 
 var entities = [...]string{
 	EntityCustomer,
+	EntityCustomerAccount,
 	EntitySupplier,
 	EntityOtherUnit,
 	EntityEmployee,
+	EntitySalesPartner,
 	EntityProduct,
 	EntityService,
 	EntityWarehouse,
@@ -77,6 +81,7 @@ var publicEntities = [...]string{
 	EntityCustomer,
 	EntitySupplier,
 	EntityEmployee,
+	EntitySalesPartner,
 	EntityProduct,
 	EntityService,
 	EntityWarehouse,
@@ -111,7 +116,6 @@ type DetailInput struct {
 	Name                            string                `json:"name"`
 	Unit                            string                `json:"unit,omitempty"`
 	Currency                        string                `json:"currency,omitempty"`
-	SupplierType                    *string               `json:"supplierType,omitempty"`
 	CustomerType                    *string               `json:"customerType,omitempty"`
 	PlateNumber                     string                `json:"plateNumber,omitempty"`
 	VehicleType                     string                `json:"vehicleType,omitempty"`
@@ -148,7 +152,6 @@ type DetailInput struct {
 	SalespersonEmployeeID           OptionalString        `json:"salespersonEmployeeId,omitempty"`
 	DefaultPurchaserEmployeeID      OptionalString        `json:"defaultPurchaserEmployeeId,omitempty"`
 	RebateUnitPrice                 *string               `json:"rebateUnitPrice,omitempty"`
-	IntermediaryOtherPartyID        OptionalString        `json:"intermediaryOtherPartyId,omitempty"`
 	RuleType                        string                `json:"ruleType,omitempty"`
 	MonthOffset                     int32                 `json:"monthOffset,omitempty"`
 	DayOfMonth                      *int32                `json:"dayOfMonth,omitempty"`
@@ -172,7 +175,6 @@ type CreateDetailInput struct {
 	Name                            string               `json:"name"`
 	Unit                            string               `json:"unit,omitempty"`
 	Currency                        string               `json:"currency,omitempty"`
-	SupplierType                    *string              `json:"supplierType,omitempty"`
 	CustomerType                    *string              `json:"customerType,omitempty"`
 	PlateNumber                     string               `json:"plateNumber,omitempty"`
 	VehicleType                     string               `json:"vehicleType,omitempty"`
@@ -212,7 +214,6 @@ type CreateDetailInput struct {
 	SalespersonEmployeeID           string               `json:"salespersonEmployeeId,omitempty"`
 	DefaultPurchaserEmployeeID      string               `json:"defaultPurchaserEmployeeId,omitempty"`
 	RebateUnitPrice                 string               `json:"rebateUnitPrice,omitempty"`
-	IntermediaryOtherPartyID        string               `json:"intermediaryOtherPartyId,omitempty"`
 	RuleType                        string               `json:"ruleType,omitempty"`
 	MonthOffset                     int32                `json:"monthOffset,omitempty"`
 	DayOfMonth                      *int32               `json:"dayOfMonth,omitempty"`
@@ -333,13 +334,14 @@ type GetInput struct {
 type QueryFilters struct {
 	Keyword                    string   `json:"keyword,omitempty"`
 	PartyKind                  string   `json:"kind,omitempty"`
+	Merged                     *bool    `json:"merged,omitempty"`
 	Status                     []string `json:"status,omitempty"`
 	Enabled                    *bool    `json:"enabled,omitempty"`
 	CustomerType               string   `json:"customerType,omitempty"`
 	OperatingEntityID          string   `json:"operatingEntityId,omitempty"`
+	Capability                 string   `json:"capability,omitempty"`
 	SalesAttributionType       string   `json:"salesAttributionType,omitempty"`
 	SalesAttributionSubjectID  string   `json:"salesAttributionSubjectId,omitempty"`
-	SupplierType               string   `json:"supplierType,omitempty"`
 	CategoryID                 string   `json:"categoryId,omitempty"`
 	DepartmentID               string   `json:"departmentId,omitempty"`
 	PositionID                 string   `json:"positionId,omitempty"`
@@ -399,9 +401,9 @@ type HistoryInput struct {
 
 type DetailView struct {
 	Name                            string               `json:"name"`
+	SalesCapabilities               []string             `json:"salesCapabilities,omitempty"`
 	Unit                            string               `json:"unit,omitempty"`
 	Currency                        string               `json:"currency,omitempty"`
-	SupplierType                    string               `json:"supplierType,omitempty"`
 	CustomerType                    string               `json:"customerType,omitempty"`
 	PlateNumber                     string               `json:"plateNumber,omitempty"`
 	VehicleType                     string               `json:"vehicleType,omitempty"`
@@ -441,7 +443,6 @@ type DetailView struct {
 	SalespersonEmployeeID           string               `json:"salespersonEmployeeId,omitempty"`
 	DefaultPurchaserEmployeeID      string               `json:"defaultPurchaserEmployeeId,omitempty"`
 	RebateUnitPrice                 string               `json:"rebateUnitPrice,omitempty"`
-	IntermediaryOtherPartyID        string               `json:"intermediaryOtherPartyId,omitempty"`
 	SettlementMethodVersionID       string               `json:"-"`
 	SettlementMethodCode            string               `json:"-"`
 	SettlementMethodName            string               `json:"-"`
@@ -491,16 +492,26 @@ type VersionMeta struct {
 }
 
 type ObjectView struct {
-	ObjectID           string      `json:"objectId"`
-	Entity             string      `json:"entity"`
-	Code               string      `json:"code"`
-	ObjectRevision     int64       `json:"objectRevision"`
-	Enabled            bool        `json:"enabled"`
-	CurrentVersionID   string      `json:"currentVersionId"`
-	EffectiveVersionID *string     `json:"effectiveVersionId"`
-	UpdatedAt          time.Time   `json:"updatedAt"`
-	Version            VersionMeta `json:"version"`
-	Data               DetailView  `json:"data"`
+	ObjectID           string                    `json:"objectId"`
+	Entity             string                    `json:"entity"`
+	Code               string                    `json:"code"`
+	ObjectRevision     int64                     `json:"objectRevision"`
+	Enabled            bool                      `json:"enabled"`
+	CurrentVersionID   string                    `json:"currentVersionId"`
+	EffectiveVersionID *string                   `json:"effectiveVersionId"`
+	UpdatedAt          time.Time                 `json:"updatedAt"`
+	Version            VersionMeta               `json:"version"`
+	Data               DetailView                `json:"data"`
+	Relationship       *RelationshipIdentityView `json:"relationship,omitempty"`
+}
+
+type RelationshipIdentityView struct {
+	PartyID             string `json:"partyId"`
+	PartyKind           string `json:"partyKind"`
+	PartyDisplayName    string `json:"partyDisplayName"`
+	OperatingEntityID   string `json:"operatingEntityId"`
+	OperatingEntityCode string `json:"operatingEntityCode"`
+	OperatingEntityName string `json:"operatingEntityName"`
 }
 
 type VersionSummary struct {
@@ -530,14 +541,15 @@ type VersionHistoryItem struct {
 }
 
 type QueryItem struct {
-	ObjectID           string         `json:"objectId"`
-	Entity             string         `json:"entity"`
-	Code               string         `json:"code"`
-	ObjectRevision     int64          `json:"objectRevision"`
-	Enabled            bool           `json:"enabled"`
-	CurrentVersion     VersionSummary `json:"currentVersion"`
-	EffectiveVersionID *string        `json:"effectiveVersionId"`
-	UpdatedAt          time.Time      `json:"updatedAt"`
+	ObjectID           string                    `json:"objectId"`
+	Entity             string                    `json:"entity"`
+	Code               string                    `json:"code"`
+	ObjectRevision     int64                     `json:"objectRevision"`
+	Enabled            bool                      `json:"enabled"`
+	CurrentVersion     VersionSummary            `json:"currentVersion"`
+	EffectiveVersionID *string                   `json:"effectiveVersionId"`
+	UpdatedAt          time.Time                 `json:"updatedAt"`
+	Relationship       *RelationshipIdentityView `json:"relationship,omitempty"`
 }
 
 type Page[T any] struct {

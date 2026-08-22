@@ -490,10 +490,10 @@ func (s *Service) writeSaleDelivery(
 		return MutationResult{}, domainError(ErrorConflict, "outbound already has a delivery", nil, nil)
 	}
 	platform, err := s.resolver.ResolveEffectiveReference(
-		ctx, tx, bobdomain.EntitySupplier, data.Platform.ObjectID, data.Platform.VersionID,
+		ctx, tx, bobdomain.EntityOtherUnit, data.Platform.ObjectID, data.Platform.VersionID,
 	)
-	if err != nil || platform.Data.SupplierType != bobdomain.SupplierTypeLogisticsPlatform {
-		return MutationResult{}, domainError(ErrorConflict, "platform is not an effective logistics platform", nil, err)
+	if err != nil {
+		return MutationResult{}, domainError(ErrorConflict, "carrier is not an effective Service Relationship", nil, err)
 	}
 	vehicle, err := s.resolver.ResolveEffectiveReference(
 		ctx, tx, bobdomain.EntityVehicle, data.Vehicle.ObjectID, data.Vehicle.VersionID,

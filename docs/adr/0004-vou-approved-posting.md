@@ -1,4 +1,6 @@
 ---
+id: ADR-0004
+date: 2026-08-09
 status: accepted
 ---
 

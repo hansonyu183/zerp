@@ -1,3 +1,9 @@
+---
+id: ADR-0003
+date: 2026-08-09
+status: accepted
+---
+
 # Use Starlark as the workflow definition source
 
 ## Decision

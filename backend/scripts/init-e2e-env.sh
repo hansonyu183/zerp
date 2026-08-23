@@ -44,7 +44,7 @@ chmod 600 "${temporary}"
     'APP_BOOTSTRAP_DISPLAY_NAME=E2E-Administrator'
   printf 'APP_BOOTSTRAP_PASSWORD=%s\n' "${bootstrap_password}"
   printf '%s\n' \
-    'TEST_SEED_ADMIN_USERNAME=admin' \
+    'TEST_SEED_ADMIN_USERNAME=test-admin' \
     'TEST_SEED_ADMIN_DISPLAY_NAME=测试管理员'
   printf 'TEST_SEED_ADMIN_PASSWORD=%s\n' "${test_seed_admin_password}"
   printf '%s\n' \
@@ -62,4 +62,4 @@ if [ "${rotate}" = "true" ]; then
 fi
 echo "${action} ${target} with mode 600"
 echo "administrator username: e2e-admin"
-echo "test seed usernames: admin, tester"
+echo "test seed usernames: test-admin, tester"

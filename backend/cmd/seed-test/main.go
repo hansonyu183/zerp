@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"log/slog"
 	"net/netip"
@@ -15,15 +16,23 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/seed/testseed"
 )
 
+const (
+	seedTargetTest        = "test"
+	seedTargetDevelopment = "development"
+)
+
 func main() {
+	target := flag.String("target", seedTargetTest, "seed target: test or development")
+	flag.Parse()
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	cfg, err := config.Load()
 	if err != nil {
 		logger.Error("load configuration", "error", err)
 		os.Exit(1)
 	}
-	if cfg.Environment != config.EnvironmentTest {
-		logger.Error("test data requires the test runtime")
+	allowDevelopment := os.Getenv("TEST_SEED_ALLOW_DEVELOPMENT_DATABASE") == "true"
+	if !canSeedTarget(*target, cfg.Environment, allowDevelopment) {
+		logger.Error("test data is not allowed for this runtime", "target", *target)
 		os.Exit(2)
 	}
 	ctx := context.Background()
@@ -40,9 +49,10 @@ func main() {
 		logger.Error("identify test database", "error", err)
 		os.Exit(1)
 	}
-	if !isManagedTestDatabase(databaseName, databaseUser, cfg.DatabaseURL) {
+	if !isManagedSeedDatabase(*target, databaseName, databaseUser, cfg.DatabaseURL) {
 		logger.Error(
-			"refusing to seed a non-test database",
+			"refusing to seed an unmanaged database",
+			"target", *target,
 			"database", databaseName,
 			"databaseUser", databaseUser,
 		)
@@ -79,19 +89,44 @@ func main() {
 	)
 }
 
-func isManagedTestDatabase(database, user, databaseURL string) bool {
+func canSeedTarget(target, environment string, allowDevelopment bool) bool {
+	switch target {
+	case seedTargetTest:
+		return environment == config.EnvironmentTest
+	case seedTargetDevelopment:
+		return allowDevelopment && environment == config.EnvironmentDevelopment
+	default:
+		return false
+	}
+}
+
+func isManagedSeedDatabase(target, database, user, databaseURL string) bool {
 	parsed, err := url.Parse(databaseURL)
 	if err != nil || (parsed.Scheme != "postgres" && parsed.Scheme != "postgresql") {
 		return false
 	}
 	port, err := strconv.Atoi(parsed.Port())
-	return err == nil &&
-		database == "zerp_e2e" &&
-		user == "zerp_e2e" &&
-		parsed.User != nil && parsed.User.Username() == "zerp_e2e" &&
-		parsed.EscapedPath() == "/zerp_e2e" &&
-		isTestDatabaseHost(parsed.Hostname()) &&
-		port == 55435
+	if err != nil || parsed.User == nil {
+		return false
+	}
+	switch target {
+	case seedTargetTest:
+		return database == "zerp_e2e" &&
+			user == "zerp_e2e" &&
+			parsed.User.Username() == "zerp_e2e" &&
+			parsed.EscapedPath() == "/zerp_e2e" &&
+			isTestDatabaseHost(parsed.Hostname()) &&
+			port == 55435
+	case seedTargetDevelopment:
+		return database == "zerp" &&
+			user == "zerp" &&
+			parsed.User.Username() == "zerp" &&
+			parsed.EscapedPath() == "/zerp" &&
+			parsed.Hostname() == "localhost" &&
+			port == 55432
+	default:
+		return false
+	}
 }
 
 func isTestDatabaseHost(host string) bool {

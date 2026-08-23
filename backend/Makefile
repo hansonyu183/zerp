@@ -57,11 +57,25 @@ test-migration-upgrade: test-db-prepare
 		latest_version="$$(printf '%s' "$$prefix" | sed 's/^0*//')"; \
 		previous_version="$$((latest_version - 1))"; \
 		before_fixture="db/migration-tests/$${prefix}_before.sql"; \
+		reject_fixture="db/migration-tests/$${prefix}_reject.sql"; \
+		recover_fixture="db/migration-tests/$${prefix}_recover.sql"; \
 		after_fixture="db/migration-tests/$${prefix}_after.sql"; \
 		test -f "$$before_fixture" || { echo "missing migration upgrade fixture: $$before_fixture" >&2; exit 1; }; \
 		test -f "$$after_fixture" || { echo "missing migration upgrade fixture: $$after_fixture" >&2; exit 1; }; \
 		go -C tools tool goose -dir ../db/migrations postgres "$(TEST_DATABASE_URL_EFFECTIVE)" up-to "$$previous_version"; \
 		$(TEST_COMPOSE) exec -T db psql -v ON_ERROR_STOP=1 -U "$(POSTGRES_USER)" -d "$(TEST_POSTGRES_DB)" < "$$before_fixture"; \
+		if test -f "$$reject_fixture"; then \
+			test -f "$$recover_fixture" || { echo "missing migration recovery fixture: $$recover_fixture" >&2; exit 1; }; \
+			$(TEST_COMPOSE) exec -T db psql -v ON_ERROR_STOP=1 -U "$(POSTGRES_USER)" -d "$(TEST_POSTGRES_DB)" < "$$reject_fixture"; \
+			if go -C tools tool goose -dir ../db/migrations postgres "$(TEST_DATABASE_URL_EFFECTIVE)" up; then \
+				echo "expected migration $$prefix to reject the negative fixture" >&2; \
+				exit 1; \
+			fi; \
+			$(TEST_COMPOSE) exec -T db psql -v ON_ERROR_STOP=1 -U "$(POSTGRES_USER)" -d "$(TEST_POSTGRES_DB)" < "$$recover_fixture"; \
+		elif test -f "$$recover_fixture"; then \
+			echo "migration recovery fixture has no matching rejection fixture: $$recover_fixture" >&2; \
+			exit 1; \
+		fi; \
 		go -C tools tool goose -dir ../db/migrations postgres "$(TEST_DATABASE_URL_EFFECTIVE)" up; \
 		$(TEST_COMPOSE) exec -T db psql -v ON_ERROR_STOP=1 -U "$(POSTGRES_USER)" -d "$(TEST_POSTGRES_DB)" < "$$after_fixture"
 

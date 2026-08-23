@@ -11,15 +11,13 @@ const isMain =
   path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 const failures = []
 const writeUseCaseCoverage = process.argv.includes('--write-use-case-coverage')
+const writeAdrIndex = process.argv.includes('--write-adr-index')
 const ADR_STATUSES = new Set(['accepted', 'superseded', 'rejected'])
 const DOCUMENTED_SKILL_ALLOWLIST = new Set(['code-review', 'tdd'])
-const OWNERSHIP_USE_CASES = new Set([
-  'docs/use-cases/bob/customer.md',
-  'docs/use-cases/bob/supplier.md',
-  'docs/use-cases/bob/other-unit.md',
-])
 const LEGACY_EXCEPTION_MARKER =
-  /<!-- docs-check: legacy-exception=([a-z0-9-]+) -->/u
+  /<!-- docs-check: legacy-exception=([a-z0-9-]+) ref=(ADR-\d{4}|migration-\d{5}) -->/u
+const LEGACY_EXCEPTION_MARKER_CANDIDATE =
+  /<!-- docs-check: legacy-exception=([^\s>]+)(?:\s+ref=([^\s>]+))? -->/u
 const LEGACY_EXCEPTION_REASONS = new Set([
   'contract-cutover',
   'historical-read',
@@ -90,6 +88,15 @@ export function validateAdrDocuments(documents) {
     }
     if (!/^ADR-\d{4}$/u.test(metadata.id ?? '')) {
       adrFailures.push(`${label} 的 id 必须为 ADR-0000 形式`)
+    } else {
+      const filenameNumber = path.posix
+        .basename(label)
+        .match(/^(\d{4})-.+\.md$/u)?.[1]
+      if (filenameNumber && metadata.id !== `ADR-${filenameNumber}`) {
+        adrFailures.push(
+          `${label} 文件编号 ${filenameNumber} 必须与 id ${metadata.id} 一致`,
+        )
+      }
     }
     if (!/^\d{4}-\d{2}-\d{2}$/u.test(metadata.date ?? '')) {
       adrFailures.push(`${label} 的 date 必须为 YYYY-MM-DD`)
@@ -130,8 +137,28 @@ export function validateAdrDocuments(documents) {
       }
     }
 
-    if (metadata.superseded_by) {
-      const target = knownIds.get(metadata.superseded_by)
+    for (const targetId of adrReferences(metadata.supersedes ?? '')) {
+      const target = knownIds.get(targetId)
+      if (!target) continue
+
+      if (target.metadata.status !== 'superseded') {
+        adrFailures.push(
+          `${target.file} 被 ${file} 取代时 status 必须是 superseded`,
+        )
+      }
+      if (
+        !adrReferences(target.metadata.superseded_by ?? '').includes(
+          metadata.id,
+        )
+      ) {
+        adrFailures.push(
+          `${target.file} 被 ${file} 取代时 superseded_by 必须包含 ${metadata.id}`,
+        )
+      }
+    }
+
+    for (const targetId of adrReferences(metadata.superseded_by ?? '')) {
+      const target = knownIds.get(targetId)
       if (
         target &&
         !adrReferences(target.metadata.supersedes ?? '').includes(metadata.id)
@@ -158,14 +185,21 @@ export function validateUseCaseOwnership(documents) {
 
   for (const { file, source } of documents) {
     const normalizedFile = file.replaceAll('\\', '/')
-    if (!OWNERSHIP_USE_CASES.has(normalizedFile)) continue
-    if (!source.includes('](../../domains/bob.md)')) {
-      ownershipFailures.push(`${normalizedFile} 缺少 BOB 领域规则链接`)
+    const match = normalizedFile.match(
+      /^docs\/use-cases\/([a-z][a-z0-9-]*)\/[^/]+\.md$/u,
+    )
+    if (!match) continue
+
+    const domain = match[1]
+    if (!source.includes('](../../domains/' + domain + '.md')) {
+      ownershipFailures.push(
+        normalizedFile + ' 缺少 ' + domain.toUpperCase() + ' 领域规则链接',
+      )
     }
     for (const [label, pattern] of copiedRulePatterns) {
       if (pattern.test(source)) {
         ownershipFailures.push(
-          `${normalizedFile} 复制了${label}；请改为链接 docs/domains/bob.md`,
+          `${normalizedFile} 复制了${label}；请改为链接 docs/domains/${domain}.md`,
         )
       }
     }
@@ -173,46 +207,103 @@ export function validateUseCaseOwnership(documents) {
   return ownershipFailures
 }
 
-export function validateAdrIndex(source, documents) {
-  const indexFailures = []
-  const sections = new Map()
+function adrTitle(source) {
+  return source.match(/^#\s+(.+?)\s*$/mu)?.[1]?.trim() ?? ''
+}
 
-  const headings = [
-    ...source.matchAll(/^## (Accepted|Superseded|Rejected)\s*$/gmu),
+function adrLink(record) {
+  return (
+    '[' + record.metadata.id + '](' + path.posix.basename(record.file) + ')'
+  )
+}
+
+function adrTableCell(value) {
+  return value.replaceAll('|', '\\|')
+}
+
+export function generateAdrIndex(documents) {
+  const records = documents
+    .map(({ file, source }) => {
+      const normalizedFile = file.replaceAll('\\', '/')
+      const { metadata } = parseAdrFrontmatter(source, normalizedFile)
+      return metadata && ADR_STATUSES.has(metadata.status)
+        ? { file: normalizedFile, metadata, title: adrTitle(source) }
+        : null
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.metadata.id.localeCompare(right.metadata.id))
+  const recordsById = new Map(
+    records.map((record) => [record.metadata.id, record]),
+  )
+  const sections = [
+    ['accepted', 'Accepted'],
+    ['superseded', 'Superseded'],
+    ['rejected', 'Rejected'],
   ]
-  for (const [index, match] of headings.entries()) {
-    const sectionStart = match.index + match[0].length
-    const sectionEnd = headings[index + 1]?.index ?? source.length
-    sections.set(match[1].toLowerCase(), source.slice(sectionStart, sectionEnd))
-  }
+  const lines = [
+    '# Architecture Decision Records',
+    '',
+    '<!-- 此文件由 pnpm docs:adr-index 生成，请勿手工编辑。 -->',
+    '',
+    '每份 ADR 的 frontmatter 与标题是此索引的唯一来源；现行领域规则和 HTTP 契约仍分别以 docs/domains/ 与 contracts/openapi/ 为准。',
+    '',
+  ]
 
-  for (const { file, source: adrSource } of documents) {
-    const normalizedFile = file.replaceAll('\\', '/')
-    const filename = path.posix.basename(normalizedFile)
-    const { metadata } = parseAdrFrontmatter(adrSource, normalizedFile)
-    if (!metadata || !ADR_STATUSES.has(metadata.status)) continue
-
-    const expectedSection = sections.get(metadata.status)
-    if (!expectedSection) {
-      indexFailures.push(`docs/adr/README.md 缺少 ${metadata.status} 状态分区`)
+  for (const [status, heading] of sections) {
+    const sectionRecords = records.filter(
+      (record) => record.metadata.status === status,
+    )
+    lines.push('## ' + heading, '')
+    if (sectionRecords.length === 0) {
+      lines.push('当前没有 ' + status + ' ADR。', '')
       continue
     }
 
-    const indexEntryPattern = new RegExp(
-      `^\\| \\[ADR-\\d{4}\\]\\(${filename.replaceAll('.', '\\.')}\\)`,
-      'gmu',
-    )
-    const allOccurrences = [...source.matchAll(indexEntryPattern)]
-    if (allOccurrences.length !== 1) {
-      indexFailures.push(`docs/adr/README.md 必须且只能索引一次 ${filename}`)
-    } else if (!expectedSection.includes(`(${filename})`)) {
-      indexFailures.push(
-        `docs/adr/README.md 将 ${filename} 放在了错误的状态分区`,
-      )
+    if (status === 'superseded') {
+      lines.push('| ADR | 日期 | 决定 | 取代者 |', '| --- | --- | --- | --- |')
+      for (const record of sectionRecords) {
+        const targets = adrReferences(record.metadata.superseded_by ?? '').map(
+          (id) => (recordsById.has(id) ? adrLink(recordsById.get(id)) : id),
+        )
+        lines.push(
+          '| ' +
+            adrLink(record) +
+            ' | ' +
+            record.metadata.date +
+            ' | ' +
+            adrTableCell(record.title) +
+            ' | ' +
+            targets.join('、') +
+            ' |',
+        )
+      }
+    } else {
+      lines.push('| ADR | 日期 | 决定 |', '| --- | --- | --- |')
+      for (const record of sectionRecords) {
+        lines.push(
+          '| ' +
+            adrLink(record) +
+            ' | ' +
+            record.metadata.date +
+            ' | ' +
+            adrTableCell(record.title) +
+            ' |',
+        )
+      }
     }
+    lines.push('')
   }
 
-  return [...new Set(indexFailures)]
+  return lines.join('\n').trimEnd() + '\n'
+}
+
+export async function validateAdrIndex(source, documents) {
+  const expected = await prettier.format(generateAdrIndex(documents), {
+    parser: 'markdown',
+  })
+  return source === expected
+    ? []
+    : ['docs/adr/README.md 已漂移；请运行 pnpm docs:adr-index']
 }
 
 export function validateSkillReferences(documents) {
@@ -233,15 +324,35 @@ export function validateSkillReferences(documents) {
   return skillFailures
 }
 
-export function validateLegacyLanguage(documents) {
+export function validateLegacyLanguage(documents, knownReferences = new Set()) {
   const legacyFailures = []
   for (const { file, source } of documents) {
     const normalizedFile = file.replaceAll('\\', '/')
     for (const [index, line] of source.split('\n').entries()) {
       const marker = line.match(LEGACY_EXCEPTION_MARKER)
+      const markerCandidate = line.match(LEGACY_EXCEPTION_MARKER_CANDIDATE)
+      if (markerCandidate && !marker) {
+        legacyFailures.push(
+          normalizedFile +
+            ':' +
+            (index + 1) +
+            (markerCandidate[2]
+              ? ' legacy 例外标记格式必须包含 ADR-NNNN 或 migration-NNNNN ref'
+              : ' legacy 例外必须声明 ref'),
+        )
+      }
       if (marker && !LEGACY_EXCEPTION_REASONS.has(marker[1])) {
         legacyFailures.push(
           `${normalizedFile}:${index + 1} 使用了未允许的 legacy 例外理由：${marker[1]}`,
+        )
+      }
+      if (marker && !knownReferences.has(marker[2])) {
+        legacyFailures.push(
+          normalizedFile +
+            ':' +
+            (index + 1) +
+            ' legacy 例外引用不存在：' +
+            marker[2],
         )
       }
       if (LEGACY_LANGUAGE.test(line) && !marker) {
@@ -450,6 +561,18 @@ const documentationSources = documentationFiles.map((file) => ({
   file: relative(file),
   source: fs.readFileSync(file, 'utf8'),
 }))
+const legacyReferences = new Set(
+  documentationSources
+    .filter(({ file }) => /^docs\/adr\/\d{4}-.+\.md$/u.test(file))
+    .map(({ source }) => parseAdrFrontmatter(source).metadata?.id)
+    .filter(Boolean),
+)
+for (const filename of fs.readdirSync(
+  path.join(root, 'backend', 'db', 'migrations'),
+)) {
+  const migrationNumber = filename.match(/^(\d{5})_.+\.sql$/u)?.[1]
+  if (migrationNumber) legacyReferences.add('migration-' + migrationNumber)
+}
 
 failures.push(...validateSkillReferences(documentationSources))
 failures.push(
@@ -457,6 +580,7 @@ failures.push(
     documentationSources.filter(({ file }) =>
       /^(docs\/domains|docs\/use-cases)\//u.test(file),
     ),
+    legacyReferences,
   ),
 )
 
@@ -505,24 +629,28 @@ const operationFiles = markdownFiles(path.join(root, 'docs', 'operations'))
 const adrFiles = markdownFiles(path.join(root, 'docs', 'adr')).filter((file) =>
   /^\d{4}-.+\.md$/u.test(path.basename(file)),
 )
+const adrDocuments = adrFiles.map((file) => ({
+  file: relative(file),
+  source: fs.readFileSync(file, 'utf8'),
+}))
 
-failures.push(
-  ...validateAdrDocuments(
-    adrFiles.map((file) => ({
-      file: relative(file),
-      source: fs.readFileSync(file, 'utf8'),
-    })),
-  ),
-)
-failures.push(
-  ...validateAdrIndex(
-    fs.readFileSync(path.join(root, 'docs', 'adr', 'README.md'), 'utf8'),
-    adrFiles.map((file) => ({
-      file: relative(file),
-      source: fs.readFileSync(file, 'utf8'),
-    })),
-  ),
-)
+failures.push(...validateAdrDocuments(adrDocuments))
+const adrIndexFile = path.join(root, 'docs', 'adr', 'README.md')
+if (writeAdrIndex) {
+  fs.writeFileSync(
+    adrIndexFile,
+    await prettier.format(generateAdrIndex(adrDocuments), {
+      parser: 'markdown',
+    }),
+  )
+} else {
+  failures.push(
+    ...(await validateAdrIndex(
+      fs.readFileSync(adrIndexFile, 'utf8'),
+      adrDocuments,
+    )),
+  )
+}
 
 for (const file of [...domainFiles, ...operationFiles]) {
   const target = relative(file)
@@ -673,10 +801,9 @@ const documentedUseCases = new Set(
 
 failures.push(
   ...validateUseCaseOwnership(
-    [...OWNERSHIP_USE_CASES].map((file) => ({
-      file,
-      source: fs.readFileSync(path.join(root, file), 'utf8'),
-    })),
+    documentationSources.filter(({ file }) =>
+      /^docs\/use-cases\/[a-z][a-z0-9-]*\/[^/]+\.md$/u.test(file),
+    ),
   ),
 )
 

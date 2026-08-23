@@ -84,7 +84,7 @@ DRAFT ⇄ CHECKED ⇄ APPROVED
 
 - `create` 创建草稿；`save` 只允许修改草稿。
 - `check`、`approve` 由用户逐级前进；`APPROVED` 即为已审批并已入账。
-- “批准时入账”语义通过不可逆结构 migration 删除旧字段和约束；发现旧生命周期数据时迁移直接失败，要求先清理环境。预览和演示数据按当前模型重建；不提供历史回填、兼容层、双写路径或旧入账时点。 <!-- docs-check: legacy-exception=release-cutover -->
+- “批准时入账”语义通过不可逆结构 migration 删除旧字段和约束；发现旧生命周期数据时迁移直接失败，要求先清理环境。预览和演示数据按当前模型重建；不提供历史回填、兼容层、双写路径或旧入账时点。 <!-- docs-check: legacy-exception=release-cutover ref=migration-00061 -->
 - `APPROVED` 是唯一终态，不另设完成状态，也不提供完成、重开或短结动作。
 - `unapprove`、`uncheck` 由用户逆向处理；`unapprove` 要求原因，`uncheck` 不要求原因。有后续单据时必须先逆向处理后续单据。
 - 不提供提交、作废或更正单。草稿可携带原因删除，但有附件或下级单据时拒绝删除。
@@ -313,7 +313,7 @@ WFL 流程或 ACC 流水。
 
 日期仅校验字段先后关系，允许历史补录和未来计划日期。
 
-新增人员、仓库和结算快照列允许整体为空，以兼容迁移前的历史单据。历史单据可正常读取；缺少当前必填属性时，`check` 和 `approve` 均拒绝继续正向流转，必须逐级反向回到草稿并通过 `save` 补齐。所有新增人员和仓库仍必须由客户端传 `objectId + versionId`。 <!-- docs-check: legacy-exception=historical-read -->
+新增人员、仓库和结算快照列允许整体为空，以兼容迁移前的历史单据。历史单据可正常读取；缺少当前必填属性时，`check` 和 `approve` 均拒绝继续正向流转，必须逐级反向回到草稿并通过 `save` 补齐。所有新增人员和仓库仍必须由客户端传 `objectId + versionId`。 <!-- docs-check: legacy-exception=historical-read ref=migration-00011 -->
 
 ### 3.11 库存盘点
 
@@ -391,7 +391,7 @@ WFL 只编排服务合同与履约验收的审批过程，不拥有合同、验�
 
 创建、保存、状态变化、入账结果、反向动作和附件关联都在文档锁及 revision 校验下完成。编号计数器按实体和业务日期加锁，允许业务上出现号码间隙但禁止重复。
 
-审计事件追加保存事件类型、前后状态、操作者、发生时间、适用时的反向原因、请求 ID 和必要的变更摘要。反向动作清理当前态字段，但不得删除历史事件；切换至本模型前必须先清理或重建含旧生命周期事件的环境，迁移不会改写或删除审计历史。 <!-- docs-check: legacy-exception=release-cutover -->
+审计事件追加保存事件类型、前后状态、操作者、发生时间、适用时的反向原因、请求 ID 和必要的变更摘要。反向动作清理当前态字段，但不得删除历史事件；切换至本模型前必须先清理或重建含旧生命周期事件的环境，迁移不会改写或删除审计历史。 <!-- docs-check: legacy-exception=release-cutover ref=ADR-0004 -->
 
 单据 `approve` 和 `unapprove` 在写入 VOU 当前态及审计记录后、提交事务前，分别发布
 `DocumentApprovedEvent` 和 `DocumentUnapprovedEvent`。主题同时包含生命周期动作和单据实体，

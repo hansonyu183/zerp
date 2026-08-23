@@ -2,14 +2,256 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 import prettier from 'prettier'
 
 const root = path.resolve(import.meta.dirname, '..')
+const isMain =
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 const failures = []
 const writeUseCaseCoverage = process.argv.includes('--write-use-case-coverage')
+const ADR_STATUSES = new Set(['accepted', 'superseded', 'rejected'])
+const DOCUMENTED_SKILL_ALLOWLIST = new Set(['code-review', 'tdd'])
+const OWNERSHIP_USE_CASES = new Set([
+  'docs/use-cases/bob/customer.md',
+  'docs/use-cases/bob/supplier.md',
+  'docs/use-cases/bob/other-unit.md',
+])
+const LEGACY_EXCEPTION_MARKER =
+  /<!-- docs-check: legacy-exception=([a-z0-9-]+) -->/u
+const LEGACY_EXCEPTION_REASONS = new Set([
+  'contract-cutover',
+  'historical-read',
+  'release-cutover',
+  'release-gate',
+  'request-contract',
+  'version-history',
+])
+const LEGACY_LANGUAGE =
+  /\blegacy\b|\bdeprecated\b|\bfallback\b|(?<!不)兼容(?:层|字段|视图|路径|客户端|数据|迁移)?|旧(?:\s*`?[^`\s]+`?)?(?:字段|实体|路径|聚合|生命周期|OIT)|已删除的?\s*(?:实体|路径|聚合|接口)/iu
 
 function relative(file) {
   return path.relative(root, file)
+}
+
+export function parseAdrFrontmatter(source, label = 'ADR') {
+  const match = source.match(/^---\n([\s\S]*?)\n---\n/u)
+  if (!match)
+    return { metadata: null, failures: [`${label} 缺少 YAML frontmatter`] }
+
+  const metadata = {}
+  const parseFailures = []
+  for (const line of match[1].split('\n')) {
+    const entry = line.match(/^([a-z_]+):\s*(.*?)\s*$/u)
+    if (!entry) {
+      parseFailures.push(`${label} frontmatter 不可解析：${line}`)
+      continue
+    }
+    const [, key, value] = entry
+    if (Object.hasOwn(metadata, key)) {
+      parseFailures.push(`${label} frontmatter 重复字段：${key}`)
+      continue
+    }
+    metadata[key] = value
+  }
+  return { metadata, failures: parseFailures }
+}
+
+function adrReferences(value) {
+  return value
+    .split(',')
+    .map((reference) => reference.trim())
+    .filter(Boolean)
+}
+
+export function validateAdrDocuments(documents) {
+  const adrFailures = []
+  const records = []
+  const knownIds = new Map()
+
+  for (const { file, source } of documents) {
+    const label = file.replaceAll('\\', '/')
+    const { metadata, failures: parseFailures } = parseAdrFrontmatter(
+      source,
+      label,
+    )
+    adrFailures.push(...parseFailures)
+    if (!metadata) continue
+
+    const unexpectedKeys = Object.keys(metadata).filter(
+      (key) =>
+        !['id', 'date', 'status', 'supersedes', 'superseded_by'].includes(key),
+    )
+    if (unexpectedKeys.length > 0) {
+      adrFailures.push(
+        `${label} frontmatter 包含未支持字段：${unexpectedKeys.join('、')}`,
+      )
+    }
+    if (!/^ADR-\d{4}$/u.test(metadata.id ?? '')) {
+      adrFailures.push(`${label} 的 id 必须为 ADR-0000 形式`)
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/u.test(metadata.date ?? '')) {
+      adrFailures.push(`${label} 的 date 必须为 YYYY-MM-DD`)
+    }
+    if (!ADR_STATUSES.has(metadata.status)) {
+      adrFailures.push(
+        `${label} 的 status 必须是 accepted、superseded 或 rejected`,
+      )
+    }
+    if (metadata.status === 'superseded' && !metadata.superseded_by) {
+      adrFailures.push(`${label} 为 superseded 时必须声明 superseded_by`)
+    }
+    if (metadata.status !== 'superseded' && metadata.superseded_by) {
+      adrFailures.push(`${label} 只有 superseded ADR 可以声明 superseded_by`)
+    }
+    if (metadata.id) {
+      if (knownIds.has(metadata.id)) {
+        adrFailures.push(
+          `${label} 与 ${knownIds.get(metadata.id).file} 使用重复 ADR id ${metadata.id}`,
+        )
+      } else {
+        knownIds.set(metadata.id, { file: label, metadata })
+      }
+    }
+    records.push({ file: label, metadata })
+  }
+
+  for (const { file, metadata } of records) {
+    const targets = [
+      ...adrReferences(metadata.superseded_by ?? ''),
+      ...adrReferences(metadata.supersedes ?? ''),
+    ]
+    for (const target of targets) {
+      if (!/^ADR-\d{4}$/u.test(target)) {
+        adrFailures.push(`${file} 的 supersession 引用不可解析：${target}`)
+      } else if (!knownIds.has(target)) {
+        adrFailures.push(`${file} 的 supersession 目标不存在：${target}`)
+      }
+    }
+
+    if (metadata.superseded_by) {
+      const target = knownIds.get(metadata.superseded_by)
+      if (
+        target &&
+        !adrReferences(target.metadata.supersedes ?? '').includes(metadata.id)
+      ) {
+        adrFailures.push(
+          `${file} 与 ${target.file} 的 supersession 元数据不互相对应`,
+        )
+      }
+    }
+  }
+
+  return adrFailures
+}
+
+export function validateUseCaseOwnership(documents) {
+  const ownershipFailures = []
+  const copiedRulePatterns = [
+    ['领域状态机', /\b(?:DRAFT|PENDING|EFFECTIVE|INVALID)\b\s*(?:→|⇄|->)/u],
+    ['领域唯一性', /同一[^\n]{0,80}(?:只能存在|必须且只能|唯一)/u],
+    ['领域事务边界', /(?:同一|一个)事务/u],
+    ['领域引用规范', /引用(?:对象)?[^\n]{0,80}(?:必须|只能|当前有效|版本)/u],
+    ['领域快照规范', /快照[^\n]{0,80}(?:必须|保存|解析|不变)/u],
+  ]
+
+  for (const { file, source } of documents) {
+    const normalizedFile = file.replaceAll('\\', '/')
+    if (!OWNERSHIP_USE_CASES.has(normalizedFile)) continue
+    if (!source.includes('](../../domains/bob.md)')) {
+      ownershipFailures.push(`${normalizedFile} 缺少 BOB 领域规则链接`)
+    }
+    for (const [label, pattern] of copiedRulePatterns) {
+      if (pattern.test(source)) {
+        ownershipFailures.push(
+          `${normalizedFile} 复制了${label}；请改为链接 docs/domains/bob.md`,
+        )
+      }
+    }
+  }
+  return ownershipFailures
+}
+
+export function validateAdrIndex(source, documents) {
+  const indexFailures = []
+  const sections = new Map()
+
+  const headings = [
+    ...source.matchAll(/^## (Accepted|Superseded|Rejected)\s*$/gmu),
+  ]
+  for (const [index, match] of headings.entries()) {
+    const sectionStart = match.index + match[0].length
+    const sectionEnd = headings[index + 1]?.index ?? source.length
+    sections.set(match[1].toLowerCase(), source.slice(sectionStart, sectionEnd))
+  }
+
+  for (const { file, source: adrSource } of documents) {
+    const normalizedFile = file.replaceAll('\\', '/')
+    const filename = path.posix.basename(normalizedFile)
+    const { metadata } = parseAdrFrontmatter(adrSource, normalizedFile)
+    if (!metadata || !ADR_STATUSES.has(metadata.status)) continue
+
+    const expectedSection = sections.get(metadata.status)
+    if (!expectedSection) {
+      indexFailures.push(`docs/adr/README.md 缺少 ${metadata.status} 状态分区`)
+      continue
+    }
+
+    const indexEntryPattern = new RegExp(
+      `^\\| \\[ADR-\\d{4}\\]\\(${filename.replaceAll('.', '\\.')}\\)`,
+      'gmu',
+    )
+    const allOccurrences = [...source.matchAll(indexEntryPattern)]
+    if (allOccurrences.length !== 1) {
+      indexFailures.push(`docs/adr/README.md 必须且只能索引一次 ${filename}`)
+    } else if (!expectedSection.includes(`(${filename})`)) {
+      indexFailures.push(
+        `docs/adr/README.md 将 ${filename} 放在了错误的状态分区`,
+      )
+    }
+  }
+
+  return [...new Set(indexFailures)]
+}
+
+export function validateSkillReferences(documents) {
+  const skillFailures = []
+  for (const { file, source } of documents) {
+    const normalizedFile = file.replaceAll('\\', '/')
+    for (const match of source.matchAll(
+      /(?:\b(?:use|invoke|for)\s+|(?:使用|调用)\s*)`?\/([a-z][a-z0-9]*(?:-[a-z0-9]+)+)`?(?:\s+(?:skill|技能)\b)?/giu,
+    )) {
+      const skill = match[1]
+      if (!DOCUMENTED_SKILL_ALLOWLIST.has(skill)) {
+        skillFailures.push(
+          `${normalizedFile} 引用了未列入 allowlist 的 skill：/${skill}`,
+        )
+      }
+    }
+  }
+  return skillFailures
+}
+
+export function validateLegacyLanguage(documents) {
+  const legacyFailures = []
+  for (const { file, source } of documents) {
+    const normalizedFile = file.replaceAll('\\', '/')
+    for (const [index, line] of source.split('\n').entries()) {
+      const marker = line.match(LEGACY_EXCEPTION_MARKER)
+      if (marker && !LEGACY_EXCEPTION_REASONS.has(marker[1])) {
+        legacyFailures.push(
+          `${normalizedFile}:${index + 1} 使用了未允许的 legacy 例外理由：${marker[1]}`,
+        )
+      }
+      if (LEGACY_LANGUAGE.test(line) && !marker) {
+        legacyFailures.push(
+          `${normalizedFile}:${index + 1} 使用 legacy/旧/兼容语义时必须标注严格例外`,
+        )
+      }
+    }
+  }
+  return legacyFailures
 }
 
 function trackedMarkdownFiles() {
@@ -204,6 +446,19 @@ function useCaseCoverage(pages, documentedKeys, orphanKeys) {
 }
 
 const documentationFiles = trackedMarkdownFiles()
+const documentationSources = documentationFiles.map((file) => ({
+  file: relative(file),
+  source: fs.readFileSync(file, 'utf8'),
+}))
+
+failures.push(...validateSkillReferences(documentationSources))
+failures.push(
+  ...validateLegacyLanguage(
+    documentationSources.filter(({ file }) =>
+      /^(docs\/domains|docs\/use-cases)\//u.test(file),
+    ),
+  ),
+)
 
 for (const file of documentationFiles) {
   if (writeUseCaseCoverage && relative(file) === 'docs/use-cases/COVERAGE.md') {
@@ -247,6 +502,27 @@ for (const file of forbiddenDomainCopies) {
 const rootReadme = fs.readFileSync(path.join(root, 'README.md'), 'utf8')
 const domainFiles = markdownFiles(path.join(root, 'docs', 'domains'))
 const operationFiles = markdownFiles(path.join(root, 'docs', 'operations'))
+const adrFiles = markdownFiles(path.join(root, 'docs', 'adr')).filter((file) =>
+  /^\d{4}-.+\.md$/u.test(path.basename(file)),
+)
+
+failures.push(
+  ...validateAdrDocuments(
+    adrFiles.map((file) => ({
+      file: relative(file),
+      source: fs.readFileSync(file, 'utf8'),
+    })),
+  ),
+)
+failures.push(
+  ...validateAdrIndex(
+    fs.readFileSync(path.join(root, 'docs', 'adr', 'README.md'), 'utf8'),
+    adrFiles.map((file) => ({
+      file: relative(file),
+      source: fs.readFileSync(file, 'utf8'),
+    })),
+  ),
+)
 
 for (const file of [...domainFiles, ...operationFiles]) {
   const target = relative(file)
@@ -395,6 +671,15 @@ const documentedUseCases = new Set(
     ),
 )
 
+failures.push(
+  ...validateUseCaseOwnership(
+    [...OWNERSHIP_USE_CASES].map((file) => ({
+      file,
+      source: fs.readFileSync(path.join(root, file), 'utf8'),
+    })),
+  ),
+)
+
 const STATIC_ROUTE_USE_CASES = new Map([
   ['signin', 'app/signin'],
   // 强制改密没有独立页面用例：它是登录用例的受限会话分支。
@@ -514,13 +799,15 @@ if (writeUseCaseCoverage) {
   failures.push('docs/use-cases/COVERAGE.md 已漂移；请运行 pnpm docs:coverage')
 }
 
-if (failures.length > 0) {
-  process.stderr.write(
-    `${failures.map((failure) => `- ${failure}`).join('\n')}\n`,
-  )
-  process.exitCode = 1
-} else {
-  process.stdout.write(
-    `文档检查通过：${documentationFiles.length} 个纳入检查的 Markdown，${documentedDomains.size} 个领域，${operationFiles.length} 份运行手册，${expectedUseCasePages.length} 个页面入口。\n`,
-  )
+if (isMain) {
+  if (failures.length > 0) {
+    process.stderr.write(
+      `${failures.map((failure) => `- ${failure}`).join('\n')}\n`,
+    )
+    process.exitCode = 1
+  } else {
+    process.stdout.write(
+      `文档检查通过：${documentationFiles.length} 个纳入检查的 Markdown，${documentedDomains.size} 个领域，${operationFiles.length} 份运行手册，${expectedUseCasePages.length} 个页面入口。\n`,
+    )
+  }
 }

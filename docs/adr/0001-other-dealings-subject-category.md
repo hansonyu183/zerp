@@ -1,5 +1,8 @@
 ---
-status: accepted
+id: ADR-0001
+date: 2026-08-09
+status: superseded
+superseded_by: ADR-0030
 ---
 
 # 其他往来台账采用主体与类别两个维度

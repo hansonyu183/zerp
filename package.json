@@ -14,7 +14,7 @@
     "check:web": "pnpm --filter @zerp/frontend check",
     "test:web": "pnpm --filter @zerp/frontend test:unit",
     "docs:coverage": "node scripts/check-docs.mjs --write-use-case-coverage",
-    "docs:check": "node scripts/check-docs.mjs",
+    "docs:check": "node scripts/check-docs.mjs && node --test scripts/check-docs.test.mjs",
     "contracts:lint": "redocly lint contracts/openapi/openapi.yaml --config contracts/openapi/redocly.yaml",
     "contracts:bundle": "redocly bundle contracts/openapi/openapi.yaml --config contracts/openapi/redocly.yaml --output contracts/openapi/dist/openapi.yaml --ext yaml",
     "generate:go": "go -C backend/tools tool oapi-codegen --config ../oapi-codegen.yaml ../../contracts/openapi/dist/openapi.yaml",

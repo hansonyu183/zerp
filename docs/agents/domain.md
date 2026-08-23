@@ -10,7 +10,7 @@ How the engineering skills should consume this repo's domain documentation when 
 - **`docs/adr/`** for architectural decisions that touch the area being changed.
 - **`contracts/openapi/`** when the task involves the HTTP wire contract.
 
-If any of these files don't exist, **proceed silently**. Don't flag their absence or suggest creating them upfront. The `/domain-modeling` skill creates `CONTEXT.md` and ADRs lazily when terms or decisions are resolved.
+If a source is absent, proceed with the sources that exist. Create or amend shared vocabulary and ADRs only when the task scope includes the corresponding decision.
 
 Do not introduce per-module `CONTEXT.md` files or duplicate domain documentation under `frontend/` or `backend/`.
 
@@ -18,7 +18,7 @@ Do not introduce per-module `CONTEXT.md` files or duplicate domain documentation
 
 When output names a domain concept—in an issue title, refactor proposal, hypothesis, or test name—use the term defined in `CONTEXT.md`. Don't drift to synonyms the glossary explicitly avoids.
 
-If a needed concept isn't in the glossary, reconsider whether the term belongs to the project. If the gap is real, note it for `/domain-modeling`.
+If a needed concept isn't in the glossary, reconsider whether the term belongs to the project. If the gap is real, surface it in the task before adding it to the shared vocabulary.
 
 ## Respect authoritative sources
 
@@ -26,6 +26,6 @@ If a needed concept isn't in the glossary, reconsider whether the term belongs t
 
 ## Flag ADR conflicts
 
-If output contradicts an existing ADR, surface it explicitly rather than silently overriding:
+If output contradicts an existing ADR, surface the actual ADR identifier and title rather than silently overriding it:
 
-> _Contradicts ADR-0007 (event-sourced orders)—but worth reopening because…_
+> _Contradicts ADR-0030 (Party 与强类型业务关系)—but worth reopening because…_

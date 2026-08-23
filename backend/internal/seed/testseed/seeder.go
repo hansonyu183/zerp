@@ -171,12 +171,7 @@ func (s *Seeder) Seed(ctx context.Context) (Result, error) {
 func (s *Seeder) seedAccounts(ctx context.Context, counts *Counts) error {
 	admin, err := s.queries.GetAppUserByUsername(ctx, s.accounts.AdminUsername)
 	if errors.Is(err, pgx.ErrNoRows) {
-		created, createErr := s.app.BootstrapAdmin(
-			ctx,
-			s.accounts.AdminUsername,
-			s.accounts.AdminDisplayName,
-			s.accounts.AdminPassword,
-		)
+		created, createErr := s.createTestAdministrator(ctx)
 		if createErr != nil {
 			return fmt.Errorf("create test administrator: %w", createErr)
 		}
@@ -252,6 +247,50 @@ func (s *Seeder) seedAccounts(ctx context.Context, counts *Counts) error {
 	}
 	counts.Created++
 	return nil
+}
+
+func (s *Seeder) createTestAdministrator(ctx context.Context) (dbsqlc.AppUser, error) {
+	var actorID, roleID string
+	err := s.pool.QueryRow(ctx, `
+		SELECT u.id,r.id
+		FROM app_users u
+		JOIN app_user_roles ur ON ur.user_id=u.id
+		JOIN app_roles r ON r.id=ur.role_id
+		WHERE u.status='ENABLED' AND r.status='ENABLED' AND r.code='superadmin'
+		ORDER BY u.created_at,u.id
+		LIMIT 1
+	`).Scan(&actorID, &roleID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		created, createErr := s.app.BootstrapAdmin(
+			ctx,
+			s.accounts.AdminUsername,
+			s.accounts.AdminDisplayName,
+			s.accounts.AdminPassword,
+		)
+		if createErr != nil {
+			return dbsqlc.AppUser{}, createErr
+		}
+		return s.queries.GetAppUserByID(ctx, created.ID)
+	}
+	if err != nil {
+		return dbsqlc.AppUser{}, fmt.Errorf("find existing superadministrator: %w", err)
+	}
+	created, err := s.app.CreateUser(
+		ctx,
+		appdomain.CreateUserInput{
+			Username: s.accounts.AdminUsername, DisplayName: s.accounts.AdminDisplayName,
+			Password: s.accounts.AdminPassword, RoleIDs: []string{roleID},
+		},
+		appdomain.Principal{User: appdomain.UserSummary{ID: actorID}},
+		requestID("test-admin", "create"),
+	)
+	if err != nil {
+		return dbsqlc.AppUser{}, err
+	}
+	if err = s.activateTestUserPassword(ctx, created.ID); err != nil {
+		return dbsqlc.AppUser{}, err
+	}
+	return s.queries.GetAppUserByID(ctx, created.ID)
 }
 
 func (s *Seeder) activateTestUserPassword(ctx context.Context, userID string) error {

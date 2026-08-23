@@ -23,7 +23,7 @@
 - `make compose-up` 启动容器化 API 和 PostgreSQL，不得与占用同一 API 端口的 `make run` 同时使用。
 - `make test` 必须使用独立的 `zerp-api-test` Compose 项目和测试数据库；测试数据库名必须以 `_test` 结尾，且不得与主数据库或端口冲突。完整 E2E 必须使用根目录 `make e2e` 创建的隔离环境，不得连接生产或普通开发库。
 - 完整 E2E 固定拒绝生产环境、非隔离数据库、错误端口和启用 GitHub 反馈发布的配置；结束后必须清理一次性数据库容器和本机进程。
-- `make bootstrap-admin` 只能用于空用户库；`make seed-bob` 只允许在 `development` 或 `test` 环境运行。`make seed-test` 只能写入隔离 E2E 测试实例，普通开发和生产库必须在写入前拒绝；它必须保持幂等，只恢复自身中断的步骤，不覆盖测试人员已修改或推进的样本。
+- `make bootstrap-admin` 只能用于空用户库；`make seed-bob` 只允许在 `development` 或 `test` 环境运行。`make seed-test` 默认只能写入隔离 E2E 测试实例；当前公网开发库只有在显式选择 `SEED_TARGET=development`、开启本地受控开关且数据库身份精确匹配时才允许写入，正式生产环境启用前必须移除该入口和开关。测试 seed 必须保持幂等，只恢复自身中断的步骤，不覆盖测试人员已修改或推进的样本。
 
 ## 模块边界与公共复用
 

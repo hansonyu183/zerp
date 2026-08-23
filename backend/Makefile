@@ -1,4 +1,5 @@
 ENV_FILE ?= .env.local
+SEED_TARGET ?= test
 QUALITY_IMAGE_TAG ?= zerp-api:quality
 STATICCHECK_VERSION ?= v0.7.0
 GOVULNCHECK_VERSION ?= v1.6.0
@@ -175,7 +176,7 @@ seed-bob:
 	@go run ./cmd/seed-bob
 
 seed-test:
-	@go run ./cmd/seed-test
+	@go run ./cmd/seed-test -target "$(SEED_TARGET)"
 
 cleanup-attachments:
 	@docker compose --env-file $(ENV_FILE) run --rm --no-deps \

@@ -44,6 +44,11 @@ func TestSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new test seeder: %v", err)
 	}
+	if _, err = seeder.app.BootstrapAdmin(
+		t.Context(), "existing-admin", "Existing Administrator", "Existing-password-1!",
+	); err != nil {
+		t.Fatalf("bootstrap existing administrator: %v", err)
+	}
 	var setup Counts
 	if err = seeder.seedAuxiliary(t.Context(), &setup); err != nil {
 		t.Fatalf("seed legacy test auxiliary data: %v", err)

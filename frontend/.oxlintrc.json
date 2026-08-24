@@ -1,0 +1,78 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "vue"],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    "no-console": ["error", { "allow": ["error", "warn"] }]
+  },
+  "overrides": [
+    {
+      "files": ["src/**/*.{ts,vue}"],
+      "rules": {
+        "no-restricted-globals": [
+          "error",
+          {
+            "name": "fetch",
+            "message": "业务请求必须统一通过 src/api/client.ts。"
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/api/client.ts"],
+      "rules": {
+        "no-restricted-globals": "off"
+      }
+    },
+    {
+      "files": ["src/pages/vou/shared/vm.ts"],
+      "rules": {
+        "max-lines": [
+          "error",
+          { "max": 650, "skipBlankLines": true, "skipComments": true }
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/pages/bob/**/config.ts",
+        "src/pages/bob/shared/config-helpers.ts"
+      ],
+      "rules": {
+        "max-lines": [
+          "error",
+          { "max": 300, "skipBlankLines": true, "skipComments": true }
+        ]
+      }
+    },
+    {
+      "files": ["src/pages/bob/shared/vm.ts"],
+      "rules": {
+        "max-lines": [
+          "error",
+          { "max": 600, "skipBlankLines": true, "skipComments": true }
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/pages/bob/shared/history.ts",
+        "src/pages/bob/shared/references.ts",
+        "src/pages/vou/shared/artifacts.ts",
+        "src/pages/vou/shared/form.ts",
+        "src/pages/vou/shared/references.ts"
+      ],
+      "rules": {
+        "max-lines": [
+          "error",
+          { "max": 450, "skipBlankLines": true, "skipComments": true }
+        ]
+      }
+    }
+  ],
+  "env": {
+    "builtin": true
+  }
+}

@@ -9,13 +9,13 @@ override TEST_PROJECT := zerp-api-test
 TEST_POSTGRES_PORT ?= 55434
 TEST_INTEGRATION_JOBS ?= 3
 TEST_DATABASE_URL_EFFECTIVE = postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@127.0.0.1:$(TEST_POSTGRES_PORT)/$(TEST_POSTGRES_DB)?sslmode=disable
-TEST_COMPOSE = POSTGRES_PORT=$(TEST_POSTGRES_PORT) docker compose -p $(TEST_PROJECT) --env-file $(ENV_FILE)
+TEST_COMPOSE = POSTGRES_PORT=$(TEST_POSTGRES_PORT) docker compose -p $(TEST_PROJECT) --env-file $(ENV_FILE) -f ../compose.yaml -f ../compose.dev.yaml
 ifneq (,$(wildcard ./$(ENV_FILE)))
 include $(ENV_FILE)
 export
 endif
 
-.PHONY: run build test test-unit test-db-prepare test-db-clean test-integration generate quality quality-core quality-fast quality-generated quality-format quality-format-fast quality-modules quality-compose quality-test quality-vet-build quality-race quality-staticcheck quality-vuln quality-image migrate-status migrate-up migrate-down bootstrap-admin seed-bob seed-test cleanup-attachments cleanup-vou-attachments compose-up compose-down e2e-env-init e2e-env-rotate e2e-guard
+.PHONY: run build test test-unit test-db-prepare test-db-clean test-integration generate quality quality-core quality-fast quality-generated quality-format quality-format-fast quality-modules quality-compose quality-test quality-vet-build quality-race quality-staticcheck quality-vuln quality-image migrate-status migrate-up migrate-down bootstrap-admin seed-bob seed-test cleanup-attachments e2e-env-init e2e-env-rotate e2e-guard
 
 run:
 	go run ./cmd/server
@@ -99,7 +99,7 @@ quality-modules:
 	go -C tools mod verify
 
 quality-compose:
-	docker compose --env-file $(ENV_FILE) config --quiet
+	docker compose --env-file $(ENV_FILE) -f ../compose.yaml config --quiet
 
 quality-test:
 	@cleanup() { \
@@ -164,16 +164,8 @@ seed-test:
 	@go run ./cmd/seed-test -target "$(SEED_TARGET)"
 
 cleanup-attachments:
-	@docker compose --env-file $(ENV_FILE) run --rm --no-deps \
-		--entrypoint /usr/local/bin/zerp-cleanup-vou-attachments api
-
-cleanup-vou-attachments: cleanup-attachments
-
-compose-up:
-	docker compose --env-file $(ENV_FILE) up --build -d
-
-compose-down:
-	docker compose --env-file $(ENV_FILE) down
+	@docker compose --env-file $(ENV_FILE) -f ../compose.yaml run --rm --no-deps \
+		--entrypoint /usr/local/bin/zerp-cleanup-attachments api
 
 e2e-env-init:
 	@./scripts/init-e2e-env.sh

@@ -4,7 +4,7 @@ import console from 'node:console'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import ts from 'typescript'
+import { parseSync, Visitor } from 'oxc-parser'
 
 const interactiveRoles = new Set(['button', 'combobox', 'option', 'textbox'])
 const sourceExtensions = new Set([
@@ -18,115 +18,108 @@ const sourceExtensions = new Set([
   '.cjs',
 ])
 
-function propertyName(node, sourceFile) {
-  return node.name?.getText(sourceFile).replace(/^['"]|['"]$/g, '')
+function propertyName(property) {
+  if (property.key?.type === 'Identifier') return property.key.name
+  if (property.key?.type === 'Literal') return String(property.key.value)
+  return undefined
 }
 
-function hasProperty(object, name, sourceFile) {
+function hasProperty(object, name) {
   return (
     object &&
-    ts.isObjectLiteralExpression(object) &&
+    object.type === 'ObjectExpression' &&
     object.properties.some(
       (property) =>
-        ts.isPropertyAssignment(property) &&
-        propertyName(property, sourceFile) === name,
+        property.type === 'Property' && propertyName(property) === name,
     )
   )
 }
 
-function hasExactTrue(object, sourceFile) {
+function hasTrueProperty(object, name) {
   return (
     object &&
-    ts.isObjectLiteralExpression(object) &&
+    object.type === 'ObjectExpression' &&
     object.properties.some(
       (property) =>
-        ts.isPropertyAssignment(property) &&
-        propertyName(property, sourceFile) === 'exact' &&
-        property.initializer.kind === ts.SyntaxKind.TrueKeyword,
+        property.type === 'Property' &&
+        propertyName(property) === name &&
+        property.value.type === 'Literal' &&
+        property.value.value === true,
     )
   )
 }
 
-function violation(sourceFile, node, message) {
-  const line = sourceFile.getLineAndCharacterOfPosition(
-    node.getStart(sourceFile),
-  )
-  return `${sourceFile.fileName}:${line.line + 1}: @system-serial ${message}`
+function violation(fileName, source, node, message) {
+  const line = source.slice(0, node.start).split('\n').length
+  return `${fileName}:${line}: @system-serial ${message}`
 }
 
-function inspectStrictLocators(sourceFile, violations) {
-  if (!sourceFile.text.includes('@system-serial')) {
-    return
-  }
+function inspectStrictLocators(fileName, source, program, violations) {
+  if (!source.includes('@system-serial')) return
 
-  function visit(node) {
-    if (
-      !ts.isCallExpression(node) ||
-      !ts.isPropertyAccessExpression(node.expression)
-    ) {
-      ts.forEachChild(node, visit)
-      return
-    }
+  new Visitor({
+    CallExpression(node) {
+      if (
+        node.callee.type !== 'MemberExpression' ||
+        node.callee.property.type !== 'Identifier'
+      ) {
+        return
+      }
 
-    const method = node.expression.name.text
-    const [target, options] = node.arguments
-    if (
-      method === 'getByLabel' &&
-      ts.isStringLiteralLike(target) &&
-      !hasExactTrue(options, sourceFile)
-    ) {
-      violations.push(
-        violation(sourceFile, node, 'getByLabel requires { exact: true }'),
-      )
-    }
+      const method = node.callee.property.name
+      const [target, options] = node.arguments
+      if (
+        method === 'getByLabel' &&
+        target?.type === 'Literal' &&
+        typeof target.value === 'string' &&
+        !hasTrueProperty(options, 'exact')
+      ) {
+        violations.push(
+          violation(
+            fileName,
+            source,
+            node,
+            'getByLabel requires { exact: true }',
+          ),
+        )
+      }
 
-    if (
-      method === 'getByRole' &&
-      ts.isStringLiteralLike(target) &&
-      interactiveRoles.has(target.text) &&
-      (!hasProperty(options, 'name', sourceFile) ||
-        !hasExactTrue(options, sourceFile))
-    ) {
-      violations.push(
-        violation(sourceFile, node, 'getByRole requires name and exact: true'),
-      )
-    }
+      if (
+        method === 'getByRole' &&
+        target?.type === 'Literal' &&
+        typeof target.value === 'string' &&
+        interactiveRoles.has(target.value) &&
+        (!hasProperty(options, 'name') || !hasTrueProperty(options, 'exact'))
+      ) {
+        violations.push(
+          violation(
+            fileName,
+            source,
+            node,
+            'getByRole requires name and exact: true',
+          ),
+        )
+      }
 
-    if (
-      node.arguments.some(
-        (argument) =>
-          ts.isObjectLiteralExpression(argument) &&
-          hasExactForce(argument, sourceFile),
-      )
-    ) {
-      violations.push(
-        violation(sourceFile, node, 'tests cannot use force: true'),
-      )
-    }
-    ts.forEachChild(node, visit)
-  }
-  visit(sourceFile)
-}
-
-function hasExactForce(object, sourceFile) {
-  return object.properties.some(
-    (property) =>
-      ts.isPropertyAssignment(property) &&
-      propertyName(property, sourceFile) === 'force' &&
-      property.initializer.kind === ts.SyntaxKind.TrueKeyword,
-  )
+      if (
+        node.arguments.some((argument) => hasTrueProperty(argument, 'force'))
+      ) {
+        violations.push(
+          violation(fileName, source, node, 'tests cannot use force: true'),
+        )
+      }
+    },
+  }).visit(program)
 }
 
 export function validateE2EConstraintSources({ testSources }) {
   const violations = []
   for (const [fileName, source] of Object.entries(testSources)) {
-    const sourceFile = ts.createSourceFile(
-      fileName,
-      source,
-      ts.ScriptTarget.Latest,
-      true,
-    )
-    inspectStrictLocators(sourceFile, violations)
+    const parsed = parseSync(fileName, source)
+    if (parsed.errors.length > 0) {
+      throw new Error(`${fileName}: ${parsed.errors[0].message}`)
+    }
+    inspectStrictLocators(fileName, source, parsed.program, violations)
   }
   return violations
 }

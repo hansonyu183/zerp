@@ -22,30 +22,29 @@ import (
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/workflowactions"
+	"github.com/hansonyu183/zerp/backend/internal/platform/attachmentstore"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgxpool"
 	oapigin "github.com/oapi-codegen/gin-middleware"
 )
-
-const maxFileRequestBodyBytes int64 = 10 << 20
 
 type databasePinger interface {
 	Ping(context.Context) error
 }
 
 func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine, error) {
-	bobService := bobdomain.NewService(db)
+	auxService := auxdomain.NewService(db)
+	auxiliaryResolver := auxiliaryrefs.New(auxService)
+	bobService := bobdomain.NewService(db, auxiliaryResolver)
 	bobAttachmentService, err := bobdomain.NewCustomerAttachmentService(db, bobdomain.CustomerAttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
 	})
 	if err != nil {
 		return nil, err
 	}
-	auxService := auxdomain.NewService(db)
-	bobService.SetAuxiliaryResolver(auxiliaryrefs.New(auxService))
 	eventBus := txevent.NewBus()
 	accService := accdomain.NewService(db)
-	vouService, err := voudomain.NewService(db, bobService, auxiliaryrefs.New(auxService), eventBus, voudomain.AttachmentOptions{
+	vouService, err := voudomain.NewService(db, bobService, auxiliaryResolver, eventBus, voudomain.AttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
 	}, logger, voudomain.WithAccountingControl(accService))
 	if err != nil {
@@ -96,7 +95,6 @@ func newRouter(
 	router.Use(
 		middleware.RequestID(),
 		middleware.RequestLogger(logger),
-		validateOpenAPIResponses(swagger, logger),
 		middleware.Recovery(logger),
 		middleware.CORS(cfg.CORSAllowedOrigins),
 		limitRequestBody(),
@@ -131,7 +129,7 @@ func limitRequestBody() gin.HandlerFunc {
 		if c.Request.Body != nil && c.Request.Body != http.NoBody {
 			limit := requestbody.MaxJSONBodyBytes
 			if isFileEndpoint(c.Request.URL.Path) {
-				limit = maxFileRequestBodyBytes
+				limit = attachmentstore.MaxFileBytes
 			}
 			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, limit)
 		}

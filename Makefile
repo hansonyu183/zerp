@@ -50,8 +50,7 @@ check-frontend: check-e2e-constraints
 check-frontend-fast: check-e2e-constraints
 	pnpm --filter @zerp/frontend lint
 	pnpm --filter @zerp/frontend format:check
-	pnpm typecheck:native
-	pnpm --filter @zerp/frontend exec vue-tsc -b
+	pnpm --filter @zerp/frontend typecheck
 
 check-e2e-constraints:
 	pnpm --dir frontend exec node --test scripts/check-e2e-constraints.test.mjs

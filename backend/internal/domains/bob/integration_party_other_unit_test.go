@@ -11,7 +11,7 @@ import (
 
 func TestOtherUnitCreateAtomicallyCreatesOrReusesPartyIntegration(t *testing.T) {
 	pool := integrationPool(t)
-	service := NewService(pool)
+	service := newIntegrationService(pool)
 	_, operatingOne := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{
 		Name: "Party integration operating one",
 	}, "party-operating-one")
@@ -119,7 +119,7 @@ func TestOtherUnitCreateAtomicallyCreatesOrReusesPartyIntegration(t *testing.T) 
 
 func TestConcurrentOtherUnitCreateReusesStrongIdentifierIntegration(t *testing.T) {
 	pool := integrationPool(t)
-	service := NewService(pool)
+	service := newIntegrationService(pool)
 	_, operatingOne := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{
 		Name: "Concurrent Party operating one",
 	}, "concurrent-party-operating-one")
@@ -169,7 +169,7 @@ func TestConcurrentOtherUnitCreateReusesStrongIdentifierIntegration(t *testing.T
 
 func TestPartySaveAndFirstOtherUnitDeleteIntegration(t *testing.T) {
 	pool := integrationPool(t)
-	service := NewService(pool)
+	service := newIntegrationService(pool)
 	_, operating := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{
 		Name: "Party delete operating",
 	}, "party-delete-operating")
@@ -241,7 +241,7 @@ func TestPartySaveAndFirstOtherUnitDeleteIntegration(t *testing.T) {
 
 func TestOtherUnitLifecycleKeepsEffectiveVersionWhileEditingIntegration(t *testing.T) {
 	pool := integrationPool(t)
-	service := NewService(pool)
+	service := newIntegrationService(pool)
 	_, operating := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{
 		Name: "Other Unit lifecycle operating",
 	}, "other-unit-lifecycle-operating")

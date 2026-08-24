@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { MAX_ATTACHMENT_BYTES } from '@/constants/attachments'
 import type { CustomerAttachment } from './types'
 
 const props = defineProps<{
@@ -30,7 +31,7 @@ function selectFiles(event: Event): void {
   localError.value = ''
   const allowed = new Set(['application/pdf', 'image/jpeg', 'image/png'])
   const invalid = files.find(
-    (file) => !allowed.has(file.type) || file.size < 1 || file.size > 10 << 20,
+    (file) => !allowed.has(file.type) || file.size < 1 || file.size > MAX_ATTACHMENT_BYTES,
   )
   if (props.attachments.length + files.length > 10) {
     localError.value = '每个资料范围最多 10 个附件。'

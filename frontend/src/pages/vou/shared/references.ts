@@ -233,8 +233,8 @@ export function useVoucherReferences(
               pageSize: 20,
               filters: {
                 status: ['EFFECTIVE'],
-                ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
-                ...(definition.filters ?? {}),
+                ...(keyword.trim() && { keyword: keyword.trim() }),
+                ...definition.filters,
               },
               sort: [{ field: 'name', order: 'asc' }],
             },

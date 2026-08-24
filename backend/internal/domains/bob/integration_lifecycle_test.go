@@ -11,7 +11,7 @@ import (
 
 func TestLifecycleIntegration(t *testing.T) {
 	pool := integrationPool(t)
-	service := NewService(pool)
+	service := newIntegrationService(pool)
 	const lifecycleEntity = EntityWarehouse
 	created, err := service.Create(t.Context(), lifecycleEntity, CreateInput{Data: CreateDetailInput{
 		Name: "Integration Warehouse",
@@ -169,8 +169,7 @@ func TestLifecycleIntegration(t *testing.T) {
 
 func TestProductEffectiveSaveCreatesApprovableCandidateIntegration(t *testing.T) {
 	pool := integrationPool(t)
-	service := NewService(pool)
-	service.SetAuxiliaryResolver(integrationAuxiliaryResolver{})
+	service := newIntegrationService(pool)
 	created, effective := createApprovedIntegration(t, service, EntityProduct, CreateDetailInput{
 		Name: "Candidate Product " + newID(), DefaultPackagingSpec: "25",
 	}, "product-candidate")
@@ -358,7 +357,7 @@ func TestProductEffectiveSaveCreatesApprovableCandidateIntegration(t *testing.T)
 
 func TestContinuousEffectiveEntitiesKeepLastEffectiveVersionIntegration(t *testing.T) {
 	pool := integrationPool(t)
-	service := NewService(pool)
+	service := newIntegrationService(pool)
 	fundOperating, _ := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{
 		Name: "Continuous Fund Operating " + newID(), TaxNumber: "TAX" + newID()[3:],
 	}, "continuous-fund-operating")
@@ -477,7 +476,7 @@ func TestContinuousEffectiveEntitiesKeepLastEffectiveVersionIntegration(t *testi
 
 func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 	pool := integrationPool(t)
-	service := NewService(pool)
+	service := newIntegrationService(pool)
 	platform, _ := createApprovedIntegration(t, service, EntityOtherUnit, CreateDetailInput{
 		Name: "Lifecycle Carrier",
 	}, "contract-platform")
@@ -492,7 +491,7 @@ func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 		{EntityProduct, CreateDetailInput{Name: "Product"}},
 		{EntityWarehouse, CreateDetailInput{Name: "主仓"}},
 		{EntityVehicle, CreateDetailInput{
-			Name: "Vehicle", PlateNumber: "沪A" + newID(), VehicleType: "Truck",
+			Name: "Vehicle", PlateNumber: "沪A" + newID(), VehicleType: "DIT-0003",
 			CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platform.ObjectID},
 		}},
 		{EntityFundAccount, CreateDetailInput{Name: "Cash", Currency: "CNY"}},
@@ -505,9 +504,6 @@ func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 			test.data.Code = "LC" + newID()
 			if test.entity == EntityProduct {
 				completeRawProductIntegration(service, &test.data)
-				previousAuxiliaryResolver := service.auxiliaryResolver
-				service.SetAuxiliaryResolver(integrationAuxiliaryResolver{})
-				defer service.SetAuxiliaryResolver(previousAuxiliaryResolver)
 			}
 			if test.entity == EntityOtherUnit {
 				test.data.OperatingEntityID = operating.ObjectID
@@ -610,12 +606,12 @@ func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 
 func TestVehicleCarrierAffiliationLifecycleIntegration(t *testing.T) {
 	pool := integrationPool(t)
-	service := NewService(pool)
+	service := newIntegrationService(pool)
 	operating, _ := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{
 		Name: "自有车经营主体", TaxNumber: "TAX" + newID()[3:],
 	}, "internal-carrier")
 	internalVehicle, _ := createApprovedIntegration(t, service, EntityVehicle, CreateDetailInput{
-		Code: "IV" + newID(), Name: "自有配送车", PlateNumber: "粤I" + newID(), VehicleType: "厢式货车",
+		Code: "IV" + newID(), Name: "自有配送车", PlateNumber: "粤I" + newID(), VehicleType: "DIT-0003",
 		CarrierAffiliation: &CarrierAffiliation{Type: "INTERNAL", OperatingEntityID: operating.ObjectID},
 	}, "internal-vehicle")
 	internalView, err := service.Get(t.Context(), EntityVehicle, GetInput{ObjectID: internalVehicle.ObjectID})
@@ -627,7 +623,7 @@ func TestVehicleCarrierAffiliationLifecycleIntegration(t *testing.T) {
 	}, "general-supplier")
 	if _, err := service.Create(t.Context(), EntityVehicle, CreateInput{Data: CreateDetailInput{
 		Code: "GV" + newID(), Name: "错误归属车辆", PlateNumber: "粤A" + newID(),
-		VehicleType: "厢式货车", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: generalSupplier.ObjectID},
+		VehicleType: "DIT-0003", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: generalSupplier.ObjectID},
 	}}, integrationActorOne, "general-supplier-vehicle"); !errorIsKind(err, ErrorConflict) {
 		t.Fatalf("general supplier vehicle error = %v", err)
 	}
@@ -638,7 +634,7 @@ func TestVehicleCarrierAffiliationLifecycleIntegration(t *testing.T) {
 	vehiclePlate := "粤B" + newID()
 	vehicleCreated, _ := createApprovedIntegration(t, service, EntityVehicle, CreateDetailInput{
 		Code: "VH" + newID(), Name: "配送车", PlateNumber: vehiclePlate,
-		VehicleType: "厢式货车", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platformCreated.ObjectID},
+		VehicleType: "DIT-0003", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platformCreated.ObjectID},
 		BulkLiquidCapable: true,
 	}, "logistics-vehicle")
 	vehiclePage, err := service.Query(t.Context(), EntityVehicle, QueryInput{
@@ -658,7 +654,7 @@ func TestVehicleCarrierAffiliationLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve vehicle: %v", err)
 	}
-	if reference.Data.CarrierAffiliation == nil || reference.Data.CarrierAffiliation.ServiceRelationshipObjectID != platformCreated.ObjectID || reference.Data.VehicleType != "厢式货车" || !reference.Data.BulkLiquidCapable {
+	if reference.Data.CarrierAffiliation == nil || reference.Data.CarrierAffiliation.ServiceRelationshipObjectID != platformCreated.ObjectID || reference.Data.VehicleType != "DIT-0003" || !reference.Data.BulkLiquidCapable {
 		t.Fatalf("vehicle reference = %+v", reference)
 	}
 	if err = tx.Commit(t.Context()); err != nil {
@@ -668,7 +664,7 @@ func TestVehicleCarrierAffiliationLifecycleIntegration(t *testing.T) {
 
 func TestVehiclePlateUniquenessAndHistoryIntegration(t *testing.T) {
 	pool := integrationPool(t)
-	service := NewService(pool)
+	service := newIntegrationService(pool)
 	platform, _ := createApprovedIntegration(t, service, EntityOtherUnit, CreateDetailInput{
 		Name: "Plate Carrier",
 	}, "plate-platform")
@@ -681,7 +677,7 @@ func TestVehiclePlateUniquenessAndHistoryIntegration(t *testing.T) {
 			<-start
 			_, createErr := service.Create(context.Background(), EntityVehicle, CreateInput{Data: CreateDetailInput{
 				Code: "PC" + fmt.Sprint(index) + newID(), Name: "Concurrent Vehicle",
-				PlateNumber: strings.ToLower(plate), VehicleType: "Truck", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platform.ObjectID},
+				PlateNumber: strings.ToLower(plate), VehicleType: "DIT-0003", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platform.ObjectID},
 			}}, integrationActorOne, fmt.Sprintf("plate-concurrent-%d", index))
 			results <- createErr
 		}(index)
@@ -704,7 +700,7 @@ func TestVehiclePlateUniquenessAndHistoryIntegration(t *testing.T) {
 
 	original, approved := createApprovedIntegration(t, service, EntityVehicle, CreateDetailInput{
 		Code: "PR" + newID(), Name: "Reusable Plate Vehicle", PlateNumber: "沪D" + newID(),
-		VehicleType: "Truck", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platform.ObjectID},
+		VehicleType: "DIT-0003", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platform.ObjectID},
 	}, "plate-release")
 	originalView, err := service.Get(t.Context(), EntityVehicle, GetInput{ObjectID: original.ObjectID})
 	if err != nil {
@@ -720,7 +716,7 @@ func TestVehiclePlateUniquenessAndHistoryIntegration(t *testing.T) {
 		ObjectID: edited.ObjectID, VersionID: edited.VersionID, Revision: edited.Revision,
 		Data: DetailInput{
 			Name: "Reusable Plate Vehicle", PlateNumber: "沪E" + newID(),
-			VehicleType: "Truck", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platform.ObjectID},
+			VehicleType: "DIT-0003", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platform.ObjectID},
 		},
 	}, integrationActorOne, "plate-release-save")
 	if err != nil {
@@ -744,7 +740,7 @@ func TestVehiclePlateUniquenessAndHistoryIntegration(t *testing.T) {
 	}
 	if _, err = service.Create(t.Context(), EntityVehicle, CreateInput{Data: CreateDetailInput{
 		Code: "PN" + newID(), Name: "Reused Plate Vehicle", PlateNumber: originalView.Data.PlateNumber,
-		VehicleType: "Truck", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platform.ObjectID},
+		VehicleType: "DIT-0003", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platform.ObjectID},
 	}}, integrationActorOne, "plate-reuse-before-approval"); !errorIsKind(err, ErrorConflict) {
 		t.Fatalf("reuse effective candidate plate error = %v, want conflict", err)
 	}
@@ -761,7 +757,7 @@ func TestVehiclePlateUniquenessAndHistoryIntegration(t *testing.T) {
 	}
 	if _, err = service.Create(t.Context(), EntityVehicle, CreateInput{Data: CreateDetailInput{
 		Code: "PN" + newID(), Name: "Reused Plate Vehicle", PlateNumber: originalView.Data.PlateNumber,
-		VehicleType: "Truck", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platform.ObjectID},
+		VehicleType: "DIT-0003", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platform.ObjectID},
 	}}, integrationActorOne, "plate-reuse-after-approval"); err != nil {
 		t.Fatalf("reuse historical plate after candidate approval: %v", err)
 	}

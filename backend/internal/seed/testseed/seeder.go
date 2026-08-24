@@ -113,14 +113,14 @@ func New(
 	}
 	cfg.AttachmentStorageRoot = attachmentRoot
 	auxiliary := auxdomain.NewService(pool)
-	business := bobdomain.NewService(pool)
-	business.SetAuxiliaryResolver(auxiliaryrefs.New(auxiliary))
+	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
+	business := bobdomain.NewService(pool, auxiliaryResolver)
 	events := txevent.NewBus()
 	accounting := accdomain.NewService(pool)
 	vouchers, err := voudomain.NewService(
 		pool,
 		business,
-		auxiliaryrefs.New(auxiliary),
+		auxiliaryResolver,
 		events,
 		voudomain.AttachmentOptions{Root: attachmentRoot},
 		logger,

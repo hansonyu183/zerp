@@ -16,8 +16,7 @@ func TestVOUIntegrationSnapshotsSettlementGapsAndLegacyRows(t *testing.T) {
 	refs := prepareReferences(t, pool)
 	service := newIntegrationService(t, pool)
 	bobService := newBOBIntegrationService(pool)
-	customerService := bobdomain.NewService(pool)
-	customerService.SetAuxiliaryResolver(vouCustomerAuxiliaryResolver{})
+	customerService := bobdomain.NewService(pool, vouCustomerAuxiliaryResolver{})
 	saleLine := integrationProductLine(t, refs.product, "1", "10.00")
 	saleLine.Remark = "制单快照"
 	saleDraft := DraftInput{

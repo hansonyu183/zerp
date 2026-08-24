@@ -6,7 +6,7 @@ import "testing"
 
 func TestEmploymentAppearsInTypedQueriesIntegration(t *testing.T) {
 	pool := integrationPool(t)
-	service := NewService(pool)
+	service := newIntegrationService(pool)
 	_, operatingEntity := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{
 		Name: "Employment Query Operating Entity", TaxNumber: "TAX" + newID()[3:],
 	}, "employment-query-operating")

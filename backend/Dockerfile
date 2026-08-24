@@ -12,7 +12,7 @@ RUN go mod download \
 
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-server ./cmd/server
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-cleanup-vou-attachments ./cmd/cleanup-vou-attachments
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-cleanup-attachments ./cmd/cleanup-attachments
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-bootstrap-admin ./cmd/bootstrap-admin
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-seed-bob ./cmd/seed-bob
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/zerp-seed-production-demo ./cmd/seed-production-demo
@@ -28,7 +28,7 @@ RUN apk add --no-cache ca-certificates \
     && chown -R zerp:zerp /var/lib/zerp
 
 COPY --from=build /out/zerp-server /usr/local/bin/zerp-server
-COPY --from=build /out/zerp-cleanup-vou-attachments /usr/local/bin/zerp-cleanup-vou-attachments
+COPY --from=build /out/zerp-cleanup-attachments /usr/local/bin/zerp-cleanup-attachments
 COPY --from=build /out/zerp-bootstrap-admin /usr/local/bin/zerp-bootstrap-admin
 COPY --from=build /out/zerp-seed-bob /usr/local/bin/zerp-seed-bob
 COPY --from=build /out/zerp-seed-production-demo /usr/local/bin/zerp-seed-production-demo

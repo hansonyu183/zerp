@@ -130,7 +130,7 @@ func validateCustomerAttachmentInitiate(input CustomerAttachmentInitiateInput) (
 	if input.Scope != CustomerAttachmentScopeRelationship && input.Scope != CustomerAttachmentScopeAccount ||
 		!validID(input.OwnerID) || input.Revision < 1 || !validID(input.CategoryObjectID) ||
 		name == "" || len(name) > 255 || filepath.Base(name) != name || strings.ContainsAny(name, "/\\") ||
-		!validType || input.Size < 1 || input.Size > 10<<20 || !validHash {
+		!validType || input.Size < 1 || input.Size > attachmentstore.MaxFileBytes || !validHash {
 		return "", domainError(ErrorValidation, "invalid customer attachment", nil, nil)
 	}
 	if _, err := hex.DecodeString(input.SHA256); err != nil {

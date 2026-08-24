@@ -22,7 +22,7 @@ make dev
 
 ```bash
 cd backend
-docker compose --env-file .env.local up -d --wait db
+docker compose --env-file .env.local -f ../compose.yaml -f ../compose.dev.yaml up -d --wait db
 make migrate-up
 make run
 ```
@@ -50,8 +50,8 @@ curl http://localhost:8080/readyz
 | `make migrate-status`   | 查看迁移状态                   |
 | `make migrate-up`       | 应用全部迁移                   |
 | `make migrate-down`     | 回滚一个迁移版本               |
-| `make compose-up`       | 启动后端 API 与 PostgreSQL     |
-| `make compose-down`     | 停止后端 Compose               |
+
+容器编排统一由仓库根目录的 `compose.yaml` 及其 dev、e2e、production override 管理；启动和停止完整容器环境使用根目录 `make compose-up`、`make compose-down`。
 
 ## 文档导航
 

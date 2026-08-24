@@ -90,7 +90,8 @@ func TestExpenseWorkflowRunsThroughRealVOUAdapterInOneApproval(t *testing.T) {
 	actorID := ulid.Make().String()
 	submitterID := ulid.Make().String()
 	suffix := strings.ToLower(ulid.Make().String()[:10])
-	bobService := bobdomain.NewService(pool)
+	auxiliaryResolver := auxiliaryrefs.New(auxdomain.NewService(pool))
+	bobService := bobdomain.NewService(pool, auxiliaryResolver)
 	operating := approveWorkflowReference(t, bobService, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{
 		Name: "流程经营主体", TaxNumber: "TAX" + suffix,
 	}, submitterID, actorID)
@@ -118,7 +119,7 @@ func TestExpenseWorkflowRunsThroughRealVOUAdapterInOneApproval(t *testing.T) {
 		Code: "WF" + suffix, Name: "流程资金账户", Currency: "CNY", OperatingEntityID: operating.ObjectID,
 	}, submitterID, actorID)
 	bus := txevent.NewBus()
-	vouService, err := voudomain.NewService(pool, bobService, auxiliaryrefs.New(auxdomain.NewService(pool)), bus,
+	vouService, err := voudomain.NewService(pool, bobService, auxiliaryResolver, bus,
 		voudomain.AttachmentOptions{Root: t.TempDir()}, logger)
 	if err != nil {
 		t.Fatalf("create VOU service: %v", err)

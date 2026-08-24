@@ -76,7 +76,7 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 	if err = accounting.RegisterSubscriptions(bus); err != nil {
 		t.Fatalf("register accounting subscriptions: %v", err)
 	}
-	business := bobdomain.NewService(pool)
+	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxdomain.NewService(pool)))
 	operating := createApprovedAccountingReference(t, business, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{Name: "自动记账经营主体"})
 	employment, err := business.EmploymentCreate(t.Context(), bobdomain.EmploymentCreateInput{
 		NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: "自动记账经办人"},
@@ -302,8 +302,7 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 	if err = accounting.RegisterSubscriptions(bus); err != nil {
 		t.Fatalf("register accounting subscriptions: %v", err)
 	}
-	business := bobdomain.NewService(pool)
-	business.SetAuxiliaryResolver(auxiliaryrefs.New(auxdomain.NewService(pool)))
+	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxdomain.NewService(pool)))
 	operating := createApprovedAccountingReference(t, business, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{Name: "服务验收经营主体"})
 	employment, err := business.EmploymentCreate(t.Context(), bobdomain.EmploymentCreateInput{
 		NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: "服务验收经办人"},

@@ -470,9 +470,6 @@ func (s *Service) SupplierGet(ctx context.Context, input GetInput) (SupplierDeta
 
 func (s *Service) resolveSupplierReferences(ctx context.Context, tx pgx.Tx, data SupplierData) (SupplierData, error) {
 	if data.SettlementMethodID != "" && data.SettlementMethod == nil {
-		if s.auxiliaryResolver == nil {
-			return SupplierData{}, domainError(ErrorInternal, "internal server error", nil, errors.New("auxiliary resolver is not configured"))
-		}
 		reference, err := s.auxiliaryResolver.ResolveAuxiliaryReference(ctx, tx, "settlement-method", data.SettlementMethodID, "")
 		if err != nil {
 			return SupplierData{}, domainError(ErrorConflict, "settlement-method reference is unavailable", nil, err)

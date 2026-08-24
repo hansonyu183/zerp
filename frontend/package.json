@@ -9,12 +9,12 @@
   },
   "scripts": {
     "dev": "vite",
-    "typecheck:native": "pnpm --filter @zerp/typescript-native --fail-if-no-match exec tsc -b --force ../../frontend/tsconfig.json",
-    "build": "pnpm typecheck:native && vue-tsc -b && vite build",
+    "typecheck": "tsc -b --force",
+    "build": "pnpm typecheck && vite build",
     "preview": "vite preview",
-    "lint": "eslint . --max-warnings 0",
-    "format": "prettier --write eslint.config.mjs package.json vite.config.ts vitest.config.ts playwright.config.ts \"scripts/**/*.mjs\" \"README.md\"",
-    "format:check": "prettier --check eslint.config.mjs package.json vite.config.ts vitest.config.ts playwright.config.ts \"scripts/**/*.mjs\" \"README.md\"",
+    "lint": "oxlint --quiet .",
+    "format": "prettier --write .oxlintrc.json package.json vite.config.ts vitest.config.ts playwright.config.ts \"scripts/**/*.mjs\" \"README.md\"",
+    "format:check": "prettier --check .oxlintrc.json package.json vite.config.ts vitest.config.ts playwright.config.ts \"scripts/**/*.mjs\" \"README.md\"",
     "check:deployment-config": "node scripts/check-deployment-config.mjs",
     "docs:check": "pnpm --dir .. docs:check",
     "check:whitespace": "git diff --check",
@@ -36,25 +36,21 @@
     "vuetify": "^4.1.5"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.61.1",
     "@types/node": "^26.1.1",
     "@vitejs/plugin-vue": "^6.0.8",
     "@vitest/coverage-v8": "^4.1.10",
     "@vue/test-utils": "^2.4.11",
     "@vue/tsconfig": "^0.9.1",
-    "eslint": "^10.8.0",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-vue": "^10.10.0",
     "jsdom": "^29.1.1",
     "msw": "^2.15.0",
+    "oxlint": "^1.80.0",
+    "oxc-parser": "^0.147.0",
     "prettier": "^3.9.6",
     "sass-embedded": "^1.100.0",
-    "typescript": "~6.0.3",
-    "typescript-eslint": "^8.65.0",
+    "typescript": "~7.0.2",
     "vite": "^8.1.5",
     "vite-plugin-vuetify": "^2.1.3",
-    "vitest": "^4.1.10",
-    "vue-tsc": "^3.3.7"
+    "vitest": "^4.1.10"
   }
 }

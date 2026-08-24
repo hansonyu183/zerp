@@ -207,9 +207,7 @@ func fixedSettlementReference(t *testing.T, pool *pgxpool.Pool, termCode string)
 }
 
 func newBOBIntegrationService(pool *pgxpool.Pool) *bobdomain.Service {
-	service := bobdomain.NewService(pool)
-	service.SetAuxiliaryResolver(auxiliaryrefs.New(auxdomain.NewService(pool)))
-	return service
+	return bobdomain.NewService(pool, auxiliaryrefs.New(auxdomain.NewService(pool)))
 }
 
 type vouCustomerAuxiliaryResolver struct{}
@@ -249,8 +247,7 @@ func createApprovedCustomer(
 	t *testing.T, pool *pgxpool.Pool, data bobdomain.CreateDetailInput,
 ) ReferenceInput {
 	t.Helper()
-	service := bobdomain.NewService(pool)
-	service.SetAuxiliaryResolver(vouCustomerAuxiliaryResolver{})
+	service := bobdomain.NewService(pool, vouCustomerAuxiliaryResolver{})
 	operating := createApprovedBOB(t, service, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{
 		Name: "VOU 客户经营主体", TaxNumber: "TAX" + newID()[3:],
 	})

@@ -242,21 +242,21 @@ func auxiliarySeedEntity(entity string) (string, bool) {
 }
 
 type sample struct {
-	entity                  string
-	data                    bob.CreateDetailInput
-	status                  string
-	platformCode            string
-	categoryCode            string
-	departmentCode          string
-	positionCode            string
-	parentCode              string
-	managerEmployeeCode     string
-	salespersonEmployeeCode string
-	settlementMethodCode    string
-	operatingEntityCode     string
-	formulaMaterialCode     string
-	formulaBaseQuantity     string
-	formulaMaterialQuantity string
+	entity                         string
+	data                           bob.CreateDetailInput
+	status                         string
+	carrierServiceRelationshipCode string
+	categoryCode                   string
+	departmentCode                 string
+	positionCode                   string
+	parentCode                     string
+	managerEmployeeCode            string
+	salespersonEmployeeCode        string
+	settlementMethodCode           string
+	operatingEntityCode            string
+	formulaMaterialCode            string
+	formulaBaseQuantity            string
+	formulaMaterialQuantity        string
 }
 
 var samples = [...]sample{
@@ -336,13 +336,6 @@ var samples = [...]sample{
 		Specification:        "FG-B", Model: "B-200",
 		Remark: "生产配货固定测试成品",
 	}, status: bob.StatusEffective, categoryCode: "DEMO-CAT-002"},
-	{entity: bob.EntityService, data: bob.CreateDetailInput{
-		Code: "DEMO-SVC-001", Name: "设备巡检服务", Unit: "次",
-		Description: "现场设备巡检与报告", Remark: "演示服务",
-	}, status: bob.StatusEffective},
-	{entity: bob.EntityService, data: bob.CreateDetailInput{
-		Code: "DEMO-SVC-002", Name: "年度维保服务", Unit: "年", Description: "年度维保方案",
-	}, status: bob.StatusPending},
 	{entity: bob.EntityWarehouse, data: bob.CreateDetailInput{
 		Code: "DEMO-WH-001", Name: "华东主仓", Address: "上海市嘉定区仓储路1号",
 		ContactName: "张伟", ContactPhone: "13800000004", Remark: "演示主仓",
@@ -354,11 +347,11 @@ var samples = [...]sample{
 		Code: "DEMO-VEH-001", Name: "自营配送一号车", PlateNumber: "沪A10001", VehicleType: "DIT-0003",
 		VIN: "LSVAA4187N2000001", EngineNumber: "ENG-DEMO-001", LoadCapacityKG: "18000.000",
 		Remark: "演示有效车辆",
-	}, status: bob.StatusEffective, platformCode: "DEMO-OTU-001"},
+	}, status: bob.StatusEffective, carrierServiceRelationshipCode: "DEMO-OTU-001"},
 	{entity: bob.EntityVehicle, data: bob.CreateDetailInput{
 		Code: "DEMO-VEH-002", Name: "自营配送二号车", PlateNumber: "沪A10002", VehicleType: "DIT-0003",
 		VIN: "LSVAA4187N2000002", EngineNumber: "ENG-DEMO-002", LoadCapacityKG: "12000.000",
-	}, status: bob.StatusDraft, platformCode: "DEMO-OTU-001"},
+	}, status: bob.StatusDraft, carrierServiceRelationshipCode: "DEMO-OTU-001"},
 	{entity: bob.EntityFundAccount, data: bob.CreateDetailInput{
 		Code: "DEMO-FA-001", Name: "人民币基本账户", Currency: "CNY",
 		AccountName: "上海示例科技有限公司", BankName: "示例银行",
@@ -418,8 +411,18 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 		return objectID, nil
 	}
 	var err error
-	if item.data.PlatformObjectID, err = resolve(bob.EntityOtherUnit, item.platformCode, "logistics platform"); err != nil {
-		return 0, err
+	if item.carrierServiceRelationshipCode != "" {
+		carrierObjectID, resolveErr := resolve(
+			bob.EntityOtherUnit,
+			item.carrierServiceRelationshipCode,
+			"carrier service relationship",
+		)
+		if resolveErr != nil {
+			return 0, resolveErr
+		}
+		item.data.CarrierAffiliation = &bob.CarrierAffiliation{
+			Type: "EXTERNAL", ServiceRelationshipObjectID: carrierObjectID,
+		}
 	}
 	if item.data.CategoryID, err = resolve(bob.EntityCategory, item.categoryCode, "category"); err != nil {
 		return 0, err
@@ -481,14 +484,6 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 		item.data.UnitConversions = []bob.ProductUnitConversion{
 			{Unit: bob.MeasurementUnitSnapshot{ObjectID: "01JAVX00000000000000000013"}, Factor: "1"},
 			{Unit: bob.MeasurementUnitSnapshot{ObjectID: "01JAVX00000000000000000011"}, Factor: "1"},
-		}
-	}
-	if item.entity == bob.EntityService && s.pool != nil {
-		switch item.data.Unit {
-		case "年":
-			item.data.InventoryUnitID = "01JAVX00000000000000000015"
-		default:
-			item.data.InventoryUnitID = "01JAVX00000000000000000017"
 		}
 	}
 	if item.formulaMaterialCode != "" {
@@ -665,7 +660,7 @@ func matches(item sample, view bob.ObjectView) bool {
 		view.Data.CustomerType == expectedCustomerType &&
 		view.Data.PlateNumber == item.data.PlateNumber &&
 		view.Data.VehicleType == item.data.VehicleType &&
-		view.Data.PlatformObjectID == item.data.PlatformObjectID &&
+		equalCarrierAffiliation(view.Data.CarrierAffiliation, item.data.CarrierAffiliation) &&
 		view.Data.TargetEntity == item.data.TargetEntity &&
 		view.Data.ShortName == item.data.ShortName &&
 		view.Data.CategoryID == item.data.CategoryID &&
@@ -741,7 +736,7 @@ func matchesLegacyShape(item sample, view bob.ObjectView) bool {
 		view.Data.Currency == item.data.Currency &&
 		view.Data.PlateNumber == item.data.PlateNumber &&
 		view.Data.VehicleType == item.data.VehicleType &&
-		view.Data.PlatformObjectID == item.data.PlatformObjectID
+		equalCarrierAffiliation(view.Data.CarrierAffiliation, item.data.CarrierAffiliation)
 }
 
 func requestID(code, action string) string {
@@ -804,7 +799,7 @@ func detailInput(entity string, input bob.CreateDetailInput) bob.DetailInput {
 		Name: input.Name, Unit: input.Unit, Currency: input.Currency,
 		PlateNumber:  input.PlateNumber,
 		CustomerType: input.CustomerType, VehicleType: input.VehicleType,
-		PlatformObjectID: input.PlatformObjectID, TargetEntity: stringPointer(input.TargetEntity),
+		CarrierAffiliation: input.CarrierAffiliation, TargetEntity: stringPointer(input.TargetEntity),
 		RuleType: input.RuleType, MonthOffset: input.MonthOffset,
 		DayOfMonth: input.DayOfMonth, DayOffset: input.DayOffset,
 	}
@@ -849,10 +844,6 @@ func detailInput(entity string, input bob.CreateDetailInput) bob.DetailInput {
 		}
 		result.DefaultPackagingSpec = bob.Optional(input.DefaultPackagingSpec)
 		result.Formula = input.Formula
-	case bob.EntityService:
-		result.CategoryID = bob.Optional(input.CategoryID)
-		result.Description = bob.Optional(input.Description)
-		result.Remark = bob.Optional(input.Remark)
 	case bob.EntityWarehouse:
 		result.CategoryID = bob.Optional(input.CategoryID)
 		result.Address = bob.Optional(input.Address)
@@ -888,6 +879,15 @@ func detailInput(entity string, input bob.CreateDetailInput) bob.DetailInput {
 		result.Description = bob.Optional(input.Description)
 	}
 	return result
+}
+
+func equalCarrierAffiliation(actual, expected *bob.CarrierAffiliation) bool {
+	if actual == nil || expected == nil {
+		return actual == nil && expected == nil
+	}
+	return actual.Type == expected.Type &&
+		actual.OperatingEntityID == expected.OperatingEntityID &&
+		actual.ServiceRelationshipObjectID == expected.ServiceRelationshipObjectID
 }
 
 func stringPointer(value string) *string {

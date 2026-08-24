@@ -420,7 +420,7 @@ describe('Party 与其他单位页面编排', () => {
           {
             objectId: 'operating-new',
             code: 'OPE-0002',
-            currentVersion: {
+            effective: {
               versionId: 'version-new',
               summary: { name: '新结果' },
             },
@@ -435,7 +435,7 @@ describe('Party 与其他单位页面编排', () => {
           {
             objectId: 'operating-old',
             code: 'OPE-0003',
-            currentVersion: {
+            effective: {
               versionId: 'version-old',
               summary: { name: '旧结果' },
             },

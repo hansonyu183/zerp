@@ -187,7 +187,7 @@ User ──< UserRole >── Role ──< RolePermission >── Permission
 
 菜单模式的 wire value 以 [OpenAPI APP Schema](../../contracts/openapi/schemas/app.yaml) 为准。业务上只区分只读的项目默认菜单和由草稿独立发布的业务模板快照。
 
-业务模板由彼此独立的**草稿**和**已发布快照**组成。两者各自保存完整菜单树、路由墓碑和独立 `revision`；树项至少包含 `id`、`parent_id`、`GROUP/ROUTE` 类型、层级、排序号、显示名称、图标、启用状态、路由项的 `route_key` 与 `permission_code`、更新时间和更新人。草稿是管理员编辑对象，已发布快照才是 `BUSINESS_TEMPLATE` 导航的唯一来源；`DEFAULT` 始终只读。初始系统必须同时有有效草稿和有效已发布初始模板，避免切换后没有可用模板。
+业务模板由彼此独立的**草稿**和**已发布快照**组成。两者各自保存完整菜单树、路由墓碑和独立 `revision`；树项至少包含 `id`、`parent_id`、`GROUP/ROUTE` 类型、层级、排序号、显示名称、图标、启用状态、路由项的 `route_key` 与 `permission_code`、更新时间和更新人。草稿是管理员编辑对象，已发布快照才是 `BUSINESS_TEMPLATE` 导航的唯一来源；草稿变更期间最后已发布快照继续生效，发布成功后一次切换。`DEFAULT` 始终只读。初始系统必须同时有有效草稿和有效已发布初始模板，避免切换后没有可用模板。
 
 用户、角色、权限、系统参数和菜单均属于 APP 领域；“管理”只描述职责，不构成独立领域。菜单目录由服务端代码或迁移受控注册；目录变更必须原子更新草稿和已发布快照中的路由与墓碑，保留分组、排序、启停和删除意图并提升相应 `revision`。目录变化使 `catalogRevision` 改变，使用旧目录加载的写入必须冲突并刷新。
 

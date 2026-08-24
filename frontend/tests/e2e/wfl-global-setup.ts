@@ -179,7 +179,7 @@ export interface WflFixtures {
   employee: string
   solventProduct: string
   resinProduct: string
-  platform: string
+  carrier: string
   vehicle: string
   warehouse: string
   fundAccount: string
@@ -306,6 +306,7 @@ const bobReviewerActions = new Set([
     'vehicle',
     'warehouse',
     'fund-account',
+    'operating-entity',
   ].flatMap((entity) => [
     `/bob/${entity}/query`,
     `/bob/${entity}/get`,
@@ -1176,7 +1177,7 @@ export async function createWflWorkerState(options: {
       settlement.objectId,
       employee.objectId,
     )
-    const platform = await createEffectiveOtherUnit(
+    const carrier = await createEffectiveOtherUnit(
       operatorSession.api,
       reviewerSession.api,
       `WFL 物流服务单位 ${suffix}`,
@@ -1192,7 +1193,9 @@ export async function createWflWorkerState(options: {
         productTypeId: '01JPTP00000000000000000001',
         defaultInputUnitId: '01JAVX00000000000000000011',
         pricingUnitId: '01JAVX00000000000000000011',
-        unitConversions: [{ unit: { objectId: '01JAVX00000000000000000011' }, factor: '1' }],
+        unitConversions: [
+          { unit: { objectId: '01JAVX00000000000000000011' }, factor: '1' },
+        ],
         defaultPackagingSpec: '1',
       },
     )
@@ -1205,7 +1208,9 @@ export async function createWflWorkerState(options: {
         productTypeId: '01JPTP00000000000000000001',
         defaultInputUnitId: '01JAVX00000000000000000011',
         pricingUnitId: '01JAVX00000000000000000011',
-        unitConversions: [{ unit: { objectId: '01JAVX00000000000000000011' }, factor: '1' }],
+        unitConversions: [
+          { unit: { objectId: '01JAVX00000000000000000011' }, factor: '1' },
+        ],
         defaultPackagingSpec: '1',
       },
     )
@@ -1217,7 +1222,10 @@ export async function createWflWorkerState(options: {
         name: `WFL 测试车辆 ${suffix}`,
         plateNumber: `E2E-${suffix.slice(-8)}`,
         vehicleType: 'DIT-0003',
-        platformObjectId: platform.objectId,
+        carrierAffiliation: {
+          type: 'EXTERNAL',
+          serviceRelationshipObjectId: carrier.objectId,
+        },
       },
     )
     const warehouse = await createEffectiveBob(
@@ -1345,7 +1353,7 @@ export async function createWflWorkerState(options: {
         employee: employee.code,
         solventProduct: solventProduct.code,
         resinProduct: resinProduct.code,
-        platform: platform.code,
+        carrier: carrier.code,
         vehicle: vehicle.code,
         warehouse: warehouse.code,
         fundAccount: fundAccount.code,

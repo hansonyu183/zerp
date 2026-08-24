@@ -148,17 +148,18 @@ type QuantitySnapshotInput struct {
 }
 
 type ProductLineInput struct {
-	Product              ProductReferenceInput `json:"product"`
-	EnteredQuantity      string                `json:"enteredQuantity"`
-	EnteredUnit          UnitReferenceInput    `json:"enteredUnit"`
-	BaseQuantity         string                `json:"baseQuantity"`
-	UnitPrice            string                `json:"unitPrice"`
-	SettlementSurcharge  *string               `json:"settlementSurcharge,omitempty"`
-	PurchaseUnitPrice    string                `json:"purchaseUnitPrice,omitempty"`
-	Remark               string                `json:"remark,omitempty"`
-	ContainerType        *string               `json:"containerType,omitempty"`
-	QuantityPerContainer *string               `json:"quantityPerContainer,omitempty"`
-	Formula              *FormulaInput         `json:"formula,omitempty"`
+	Product                   ProductReferenceInput `json:"product"`
+	EnteredQuantity           string                `json:"enteredQuantity"`
+	EnteredUnit               UnitReferenceInput    `json:"enteredUnit"`
+	BaseQuantity              string                `json:"baseQuantity"`
+	UnitPrice                 string                `json:"unitPrice"`
+	SettlementSurcharge       *string               `json:"settlementSurcharge,omitempty"`
+	PurchaseUnitPrice         string                `json:"purchaseUnitPrice,omitempty"`
+	Remark                    string                `json:"remark,omitempty"`
+	ContainerType             *string               `json:"containerType,omitempty"`
+	QuantityPerContainer      *string               `json:"quantityPerContainer,omitempty"`
+	Formula                   *FormulaInput         `json:"formula,omitempty"`
+	DeliverySpecificationType string                `json:"deliverySpecificationType,omitempty"`
 }
 
 type PriceLineInput struct {
@@ -332,7 +333,7 @@ type DraftInput struct {
 	Warehouse               *ReferenceInput               `json:"warehouse,omitempty"`
 	MaterialWarehouse       *ReferenceInput               `json:"materialWarehouse,omitempty"`
 	FinishedWarehouse       *ReferenceInput               `json:"finishedWarehouse,omitempty"`
-	Platform                *ReferenceInput               `json:"platform,omitempty"`
+	Carrier                 *ReferenceInput               `json:"carrier,omitempty"`
 	Vehicle                 *ReferenceInput               `json:"vehicle,omitempty"`
 	FundAccount             *ReferenceInput               `json:"fundAccount,omitempty"`
 	SettlementMethod        *ReferenceInput               `json:"settlementMethod,omitempty"`
@@ -616,33 +617,34 @@ type UnitSnapshotView struct {
 }
 
 type ProductLineView struct {
-	LineID                 string           `json:"lineId"`
-	LineNo                 int32            `json:"lineNo"`
-	Product                ReferenceView    `json:"product"`
-	EnteredQuantity        string           `json:"enteredQuantity"`
-	EnteredUnit            UnitSnapshotView `json:"enteredUnit"`
-	BaseQuantity           string           `json:"baseQuantity"`
-	UnitPrice              string           `json:"unitPrice"`
-	BaseUnitPrice          string           `json:"baseUnitPrice"`
-	SettlementSurcharge    string           `json:"settlementSurcharge"`
-	PurchaseUnitPrice      string           `json:"purchaseUnitPrice,omitempty"`
-	LineAmount             string           `json:"lineAmount"`
-	Remark                 string           `json:"remark,omitempty"`
-	OutboundBaseQuantity   string           `json:"outboundBaseQuantity,omitempty"`
-	SignedBaseQuantity     string           `json:"signedBaseQuantity,omitempty"`
-	RejectedBaseQuantity   string           `json:"rejectedBaseQuantity,omitempty"`
-	LossBaseQuantity       string           `json:"lossBaseQuantity,omitempty"`
-	InboundBaseQuantity    string           `json:"inboundBaseQuantity,omitempty"`
-	ContainerType          string           `json:"containerType,omitempty"`
-	QuantityPerContainer   string           `json:"quantityPerContainer,omitempty"`
-	SourceLineID           string           `json:"sourceLineId,omitempty"`
-	AvailableBaseQuantity  string           `json:"availableBaseQuantity,omitempty"`
-	ReturnableBaseQuantity string           `json:"returnableBaseQuantity,omitempty"`
-	Formula                *FormulaView     `json:"formula,omitempty"`
-	ReferenceUnitPrice     string           `json:"referenceUnitPrice"`
-	ReferenceDocumentID    string           `json:"referenceDocumentId,omitempty"`
-	ReferenceDocumentNo    string           `json:"referenceDocumentNo,omitempty"`
-	ReferenceBusinessDate  string           `json:"referenceBusinessDate,omitempty"`
+	LineID                    string           `json:"lineId"`
+	LineNo                    int32            `json:"lineNo"`
+	Product                   ReferenceView    `json:"product"`
+	EnteredQuantity           string           `json:"enteredQuantity"`
+	EnteredUnit               UnitSnapshotView `json:"enteredUnit"`
+	BaseQuantity              string           `json:"baseQuantity"`
+	UnitPrice                 string           `json:"unitPrice"`
+	BaseUnitPrice             string           `json:"baseUnitPrice"`
+	SettlementSurcharge       string           `json:"settlementSurcharge"`
+	PurchaseUnitPrice         string           `json:"purchaseUnitPrice,omitempty"`
+	LineAmount                string           `json:"lineAmount"`
+	Remark                    string           `json:"remark,omitempty"`
+	OutboundBaseQuantity      string           `json:"outboundBaseQuantity,omitempty"`
+	SignedBaseQuantity        string           `json:"signedBaseQuantity,omitempty"`
+	RejectedBaseQuantity      string           `json:"rejectedBaseQuantity,omitempty"`
+	LossBaseQuantity          string           `json:"lossBaseQuantity,omitempty"`
+	InboundBaseQuantity       string           `json:"inboundBaseQuantity,omitempty"`
+	ContainerType             string           `json:"containerType,omitempty"`
+	QuantityPerContainer      string           `json:"quantityPerContainer,omitempty"`
+	SourceLineID              string           `json:"sourceLineId,omitempty"`
+	AvailableBaseQuantity     string           `json:"availableBaseQuantity,omitempty"`
+	ReturnableBaseQuantity    string           `json:"returnableBaseQuantity,omitempty"`
+	Formula                   *FormulaView     `json:"formula,omitempty"`
+	ReferenceUnitPrice        string           `json:"referenceUnitPrice"`
+	ReferenceDocumentID       string           `json:"referenceDocumentId,omitempty"`
+	ReferenceDocumentNo       string           `json:"referenceDocumentNo,omitempty"`
+	ReferenceBusinessDate     string           `json:"referenceBusinessDate,omitempty"`
+	DeliverySpecificationType string           `json:"deliverySpecificationType"`
 }
 
 type PriceLineView struct {
@@ -951,8 +953,11 @@ type DocumentDataView struct {
 	OutboundDate              string                        `json:"outboundDate,omitempty"`
 	SignoffDate               string                        `json:"signoffDate,omitempty"`
 	InboundDate               string                        `json:"inboundDate,omitempty"`
-	Platform                  *ReferenceView                `json:"platform,omitempty"`
+	CarrierType               string                        `json:"carrierType,omitempty"`
+	CarrierOperatingEntity    *ReferenceView                `json:"carrierOperatingEntity,omitempty"`
+	Carrier                   *ReferenceView                `json:"carrier,omitempty"`
 	Vehicle                   *ReferenceView                `json:"vehicle,omitempty"`
+	VehicleBulkLiquidCapable  bool                          `json:"vehicleBulkLiquidCapable,omitempty"`
 	DifferenceReason          string                        `json:"differenceReason,omitempty"`
 	SignoffLines              []SaleSignoffLineView         `json:"signoffLines,omitempty"`
 	FulfillmentStatus         string                        `json:"fulfillmentStatus,omitempty"`

@@ -33,6 +33,7 @@ const props = withDefaults(
     productError?: string | null
     purchasePriceRequired?: boolean
     settlementSurchargeEnabled?: boolean
+    deliverySpecificationEnabled?: boolean
     formulaEnabled?: boolean
   }>(),
   {
@@ -42,6 +43,7 @@ const props = withDefaults(
     productError: null,
     purchasePriceRequired: false,
     settlementSurchargeEnabled: false,
+    deliverySpecificationEnabled: false,
     formulaEnabled: false,
   },
 )
@@ -122,6 +124,7 @@ function addLine(): void {
       unitPrice: '',
       settlementSurcharge: '',
       purchaseUnitPrice: '',
+      deliverySpecificationType: 'PACKAGED',
       remark: '',
       formula: null,
     },
@@ -249,6 +252,7 @@ function removeLine(index: number): void {
           <tr>
             <th>#</th>
             <th class="voucher-lines__reference">产品</th>
+            <th v-if="deliverySpecificationEnabled">交付规格</th>
             <th>录入数量</th>
             <th>录入单位</th>
             <th>Base Quantity</th>
@@ -280,6 +284,27 @@ function removeLine(index: number): void {
               <span v-else>
                 {{ line.product ? formatReferenceLabel(line.product) : '—' }}
               </span>
+            </td>
+            <td v-if="deliverySpecificationEnabled" data-label="交付规格">
+              <v-select
+                v-if="editable"
+                density="compact"
+                hide-details
+                :items="[
+                  { title: '包装交付', value: 'PACKAGED' },
+                  { title: '散装液体', value: 'BULK_LIQUID' },
+                ]"
+                :model-value="line.deliverySpecificationType"
+                variant="outlined"
+                @update:model-value="
+                  updateLine(index, { deliverySpecificationType: $event })
+                "
+              />
+              <span v-else>{{
+                line.deliverySpecificationType === 'BULK_LIQUID'
+                  ? '散装液体'
+                  : '包装交付'
+              }}</span>
             </td>
             <td data-label="录入数量">
               <CompactTableField
@@ -465,6 +490,7 @@ function removeLine(index: number): void {
                 8 +
                 (purchasePriceRequired ? 1 : 0) +
                 (settlementSurchargeEnabled ? 1 : 0) +
+                (deliverySpecificationEnabled ? 1 : 0) +
                 (formulaEnabled ? 1 : 0) +
                 (editable ? 1 : 0)
               "
@@ -480,7 +506,8 @@ function removeLine(index: number): void {
               :colspan="
                 6 +
                 (purchasePriceRequired ? 1 : 0) +
-                (settlementSurchargeEnabled ? 1 : 0)
+                (settlementSurchargeEnabled ? 1 : 0) +
+                (deliverySpecificationEnabled ? 1 : 0)
               "
               class="text-end font-weight-bold"
               data-label=""

@@ -28,10 +28,10 @@ type WorkflowSaleOutboundInitial struct {
 }
 
 type WorkflowSaleDeliveryInitial struct {
-	PlatformObjectID string                    `json:"platformObjectId"`
-	VehicleObjectID  string                    `json:"vehicleObjectId"`
-	BusinessDate     string                    `json:"businessDate,omitempty"`
-	Lines            []SourceQuantityLineInput `json:"lines,omitempty"`
+	CarrierServiceRelationshipObjectID string                    `json:"carrierServiceRelationshipObjectId,omitempty"`
+	VehicleObjectID                    string                    `json:"vehicleObjectId"`
+	BusinessDate                       string                    `json:"businessDate,omitempty"`
+	Lines                              []SourceQuantityLineInput `json:"lines,omitempty"`
 }
 
 type WorkflowSaleSignoffInitial struct {
@@ -86,19 +86,22 @@ func (s *Service) CreateWorkflowSaleDelivery(ctx context.Context, tx pgx.Tx, sou
 	if err != nil {
 		return MutationResult{}, err
 	}
-	platform, err := s.resolveWorkflowDefault(ctx, tx, bobdomain.EntityOtherUnit, initial.PlatformObjectID, "platform")
-	if err != nil {
-		return MutationResult{}, err
-	}
 	vehicle, err := s.resolveWorkflowDefault(ctx, tx, bobdomain.EntityVehicle, initial.VehicleObjectID, "vehicle")
 	if err != nil {
 		return MutationResult{}, err
 	}
-	return s.writeSaleDelivery(ctx, tx, "", DraftInput{
+	data := DraftInput{
 		SourceDocumentID: sourceDocumentID,
-		Platform:         &ReferenceInput{ObjectID: platform.ObjectID, VersionID: platform.VersionID},
 		Vehicle:          &ReferenceInput{ObjectID: vehicle.ObjectID, VersionID: vehicle.VersionID},
-	}, date, nil, systemidentity.UserID, requestID)
+	}
+	if initial.CarrierServiceRelationshipObjectID != "" {
+		carrier, resolveErr := s.resolveWorkflowDefault(ctx, tx, bobdomain.EntityOtherUnit, initial.CarrierServiceRelationshipObjectID, "carrier")
+		if resolveErr != nil {
+			return MutationResult{}, resolveErr
+		}
+		data.Carrier = &ReferenceInput{ObjectID: carrier.ObjectID, VersionID: carrier.VersionID}
+	}
+	return s.writeSaleDelivery(ctx, tx, "", data, date, nil, systemidentity.UserID, requestID)
 }
 
 func (s *Service) CreateWorkflowSaleSignoff(ctx context.Context, tx pgx.Tx, sourceDocumentID string, initial WorkflowSaleSignoffInitial, requestID string) (MutationResult, error) {

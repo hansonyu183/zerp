@@ -16,7 +16,6 @@ const (
 	EntityEmployee         = "employee"
 	EntitySalesPartner     = "sales-partner"
 	EntityProduct          = "product"
-	EntityService          = "service"
 	EntityWarehouse        = "warehouse"
 	EntityVehicle          = "vehicle"
 	EntityFundAccount      = "fund-account"
@@ -63,7 +62,6 @@ var entities = [...]string{
 	EntityEmployee,
 	EntitySalesPartner,
 	EntityProduct,
-	EntityService,
 	EntityWarehouse,
 	EntityVehicle,
 	EntityFundAccount,
@@ -80,7 +78,6 @@ var publicEntities = [...]string{
 	EntityEmployee,
 	EntitySalesPartner,
 	EntityProduct,
-	EntityService,
 	EntityWarehouse,
 	EntityVehicle,
 	EntityFundAccount,
@@ -117,7 +114,8 @@ type DetailInput struct {
 	CustomerType               *string                  `json:"customerType,omitempty"`
 	PlateNumber                string                   `json:"plateNumber,omitempty"`
 	VehicleType                string                   `json:"vehicleType,omitempty"`
-	PlatformObjectID           string                   `json:"platformObjectId,omitempty"`
+	CarrierAffiliation         *CarrierAffiliation      `json:"carrierAffiliation,omitempty"`
+	BulkLiquidCapable          bool                     `json:"bulkLiquidCapable,omitempty"`
 	TargetEntity               *string                  `json:"targetEntity,omitempty"`
 	ShortName                  OptionalString           `json:"shortName,omitempty"`
 	CategoryID                 OptionalString           `json:"categoryId,omitempty"`
@@ -175,7 +173,8 @@ type CreateDetailInput struct {
 	CustomerType               *string                 `json:"customerType,omitempty"`
 	PlateNumber                string                  `json:"plateNumber,omitempty"`
 	VehicleType                string                  `json:"vehicleType,omitempty"`
-	PlatformObjectID           string                  `json:"platformObjectId,omitempty"`
+	CarrierAffiliation         *CarrierAffiliation     `json:"carrierAffiliation,omitempty"`
+	BulkLiquidCapable          bool                    `json:"bulkLiquidCapable,omitempty"`
 	TargetEntity               string                  `json:"targetEntity,omitempty"`
 	ShortName                  string                  `json:"shortName,omitempty"`
 	CategoryID                 string                  `json:"categoryId,omitempty"`
@@ -263,6 +262,12 @@ type QuantitySnapshot struct {
 	EnteredQuantity string                  `json:"enteredQuantity"`
 	EnteredUnit     MeasurementUnitSnapshot `json:"enteredUnit"`
 	BaseQuantity    string                  `json:"baseQuantity"`
+}
+
+type CarrierAffiliation struct {
+	Type                        string `json:"type"`
+	OperatingEntityID           string `json:"operatingEntityId,omitempty"`
+	ServiceRelationshipObjectID string `json:"serviceRelationshipObjectId,omitempty"`
 }
 
 // OptionalString distinguishes an omitted field from an explicit null or
@@ -414,7 +419,8 @@ type DetailView struct {
 	CustomerType               string                  `json:"customerType,omitempty"`
 	PlateNumber                string                  `json:"plateNumber,omitempty"`
 	VehicleType                string                  `json:"vehicleType,omitempty"`
-	PlatformObjectID           string                  `json:"platformObjectId,omitempty"`
+	CarrierAffiliation         *CarrierAffiliation     `json:"carrierAffiliation,omitempty"`
+	BulkLiquidCapable          bool                    `json:"bulkLiquidCapable"`
 	TargetEntity               string                  `json:"targetEntity,omitempty"`
 	ShortName                  string                  `json:"shortName,omitempty"`
 	CategoryID                 string                  `json:"categoryId,omitempty"`
@@ -550,15 +556,15 @@ type VersionHistoryItem struct {
 }
 
 type QueryItem struct {
-	ObjectID           string                    `json:"objectId"`
-	Entity             string                    `json:"entity"`
-	Code               string                    `json:"code"`
-	ObjectRevision     int64                     `json:"objectRevision"`
-	Enabled            bool                      `json:"enabled"`
-	CurrentVersion     VersionSummary            `json:"currentVersion"`
-	EffectiveVersionID *string                   `json:"effectiveVersionId"`
-	UpdatedAt          time.Time                 `json:"updatedAt"`
-	Relationship       *RelationshipIdentityView `json:"relationship,omitempty"`
+	ObjectID       string                    `json:"objectId"`
+	Entity         string                    `json:"entity"`
+	Code           string                    `json:"code"`
+	ObjectRevision int64                     `json:"objectRevision"`
+	Enabled        bool                      `json:"enabled"`
+	Effective      *VersionSummary           `json:"effective"`
+	Candidate      *VersionSummary           `json:"candidate"`
+	UpdatedAt      time.Time                 `json:"updatedAt"`
+	Relationship   *RelationshipIdentityView `json:"relationship,omitempty"`
 }
 
 type Page[T any] struct {

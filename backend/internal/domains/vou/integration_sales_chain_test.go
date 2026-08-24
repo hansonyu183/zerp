@@ -3,9 +3,11 @@
 package vou
 
 import (
+	"errors"
 	"sync"
 	"testing"
 
+	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -26,7 +28,7 @@ func advanceWorkflowSalesDraft(
 	defer tx.Rollback(t.Context()) //nolint:errcheck
 	created, err := create(tx)
 	if err != nil {
-		t.Fatalf("create workflow %s: %v", entity, err)
+		t.Fatalf("create workflow %s: %v (cause: %v)", entity, err, errors.Unwrap(err))
 	}
 	if err = tx.Commit(t.Context()); err != nil {
 		t.Fatalf("commit workflow %s: %v", entity, err)
@@ -130,7 +132,7 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 
 	deliveryOne, deliveryView := advanceWorkflowSalesDraft(t, pool, service, EntitySaleDelivery, func(tx pgx.Tx) (MutationResult, error) {
 		return service.CreateWorkflowSaleDelivery(t.Context(), tx, outboundOne.DocumentID, WorkflowSaleDeliveryInitial{
-			BusinessDate: "2026-07-26", PlatformObjectID: refs.platform.ObjectID,
+			BusinessDate: "2026-07-26", CarrierServiceRelationshipObjectID: refs.carrier.ObjectID,
 			VehicleObjectID: refs.vehicle.ObjectID,
 		}, "workflow-delivery")
 	})
@@ -140,7 +142,7 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 	}
 	if _, err := service.Create(t.Context(), EntitySaleDelivery, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-26", SourceDocumentID: outboundOne.DocumentID,
-		Platform: &refs.platform, Vehicle: &refs.vehicle,
+		Carrier: &refs.carrier, Vehicle: &refs.vehicle,
 	}}, integrationActorOne, "duplicate-delivery"); err == nil {
 		t.Fatal("second delivery for one outbound was accepted")
 	}
@@ -304,7 +306,7 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 	}, true)
 	deliveryTwo, deliveryTwoView := advanceSalesDocument(t, service, EntitySaleDelivery, DraftInput{
 		BusinessDate: "2026-07-29", SourceDocumentID: outboundTwo.DocumentID,
-		Platform: &refs.platform, Vehicle: &refs.vehicle,
+		Carrier: &refs.carrier, Vehicle: &refs.vehicle,
 	}, true)
 	_, _ = advanceSalesDocument(t, service, EntitySaleSignoff, DraftInput{
 		BusinessDate: "2026-07-30", SourceDocumentID: deliveryTwo.DocumentID,
@@ -321,6 +323,163 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 	}
 	if signoffOne.Status != StatusApproved {
 		t.Fatalf("first signoff status = %s", signoffOne.Status)
+	}
+}
+
+func TestSaleDeliveryCarrierAffiliationAndApprovalRecheckIntegration(t *testing.T) {
+	pool := vouIntegrationPool(t)
+	truncateVOU(t, pool)
+	t.Cleanup(func() { truncateVOU(t, pool) })
+	refs := prepareReferences(t, pool)
+	service := newIntegrationService(t, pool)
+	bobService := newBOBIntegrationService(pool)
+	order, orderView := approvedSalesOrder(t, service, refs, "20")
+	orderLineID := orderView.Data.ProductLines[0].LineID
+
+	var orderOperatingEntityID string
+	if err := pool.QueryRow(t.Context(), `SELECT relationship.operating_entity_id
+		FROM bob_customer_accounts account
+		JOIN bob_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id
+		WHERE account.object_id=$1`, refs.customer.ObjectID).Scan(&orderOperatingEntityID); err != nil {
+		t.Fatalf("read sale order operating entity: %v", err)
+	}
+	internalVehicle := createApprovedBOB(t, bobService, bobdomain.EntityVehicle, bobdomain.CreateDetailInput{
+		Name: "VOU 自有配送车辆", PlateNumber: "粤I" + newID()[20:], VehicleType: "DIT-0003",
+		CarrierAffiliation: &bobdomain.CarrierAffiliation{Type: "INTERNAL", OperatingEntityID: orderOperatingEntityID},
+	})
+	otherOperating := createApprovedBOB(t, bobService, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{
+		Name: "VOU 其它经营主体", TaxNumber: "TAX" + newID()[3:],
+	})
+	wrongInternalVehicle := createApprovedBOB(t, bobService, bobdomain.EntityVehicle, bobdomain.CreateDetailInput{
+		Name: "VOU 错误自有车辆", PlateNumber: "粤W" + newID()[20:], VehicleType: "DIT-0003",
+		CarrierAffiliation: &bobdomain.CarrierAffiliation{Type: "INTERNAL", OperatingEntityID: otherOperating.ObjectID},
+	})
+	otherCarrier := createApprovedBOB(t, bobService, bobdomain.EntityOtherUnit, bobdomain.CreateDetailInput{
+		Name: "VOU 其它承运服务关系", SettlementMethodID: refs.settlement.ObjectID,
+	})
+
+	createOutbound := func(quantity string) MutationResult {
+		t.Helper()
+		outbound, _ := advanceSalesDocument(t, service, EntitySaleOutbound, DraftInput{
+			BusinessDate: "2026-07-25", SourceDocumentID: order.DocumentID, Warehouse: &refs.warehouse,
+			SourceLines: []SourceQuantityLineInput{{SourceLineID: orderLineID, BaseQuantity: quantity}},
+		}, true)
+		return outbound
+	}
+
+	for name, data := range map[string]DraftInput{
+		"external carrier missing": {
+			BusinessDate: "2026-07-26", SourceDocumentID: createOutbound("1").DocumentID, Vehicle: &refs.vehicle,
+		},
+		"external carrier mismatch": {
+			BusinessDate: "2026-07-26", SourceDocumentID: createOutbound("1").DocumentID,
+			Carrier: &otherCarrier, Vehicle: &refs.vehicle,
+		},
+		"internal carrier supplied": {
+			BusinessDate: "2026-07-26", SourceDocumentID: createOutbound("1").DocumentID,
+			Carrier: &refs.carrier, Vehicle: &internalVehicle,
+		},
+		"internal operating entity mismatch": {
+			BusinessDate: "2026-07-26", SourceDocumentID: createOutbound("1").DocumentID, Vehicle: &wrongInternalVehicle,
+		},
+	} {
+		if _, err := service.Create(t.Context(), EntitySaleDelivery, CreateInput{Data: data}, integrationActorOne, "carrier-negative-"+name); err == nil {
+			t.Fatalf("%s was accepted", name)
+		}
+	}
+
+	bulkLine := integrationProductLine(t, refs.product, "2", "12.00")
+	bulkLine.DeliverySpecificationType = "BULK_LIQUID"
+	bulkOrder, bulkOrderView := advanceSalesDocument(t, service, EntitySaleOrder, DraftInput{
+		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
+		Warehouse: &refs.warehouse, ProductLines: []ProductLineInput{bulkLine},
+	}, true)
+	bulkOutbound, _ := advanceSalesDocument(t, service, EntitySaleOutbound, DraftInput{
+		BusinessDate: "2026-07-25", SourceDocumentID: bulkOrder.DocumentID, Warehouse: &refs.warehouse,
+		SourceLines: []SourceQuantityLineInput{{SourceLineID: bulkOrderView.Data.ProductLines[0].LineID, BaseQuantity: "2"}},
+	}, true)
+	if _, err := service.Create(t.Context(), EntitySaleDelivery, CreateInput{Data: DraftInput{
+		BusinessDate: "2026-07-26", SourceDocumentID: bulkOutbound.DocumentID,
+		Carrier: &refs.carrier, Vehicle: &refs.vehicle,
+	}}, integrationActorOne, "bulk-liquid-incapable-vehicle"); err == nil {
+		t.Fatal("bulk-liquid delivery accepted a vehicle without bulk-liquid capability")
+	}
+	bulkVehicle := createApprovedBOB(t, bobService, bobdomain.EntityVehicle, bobdomain.CreateDetailInput{
+		Name: "VOU 散装液体车辆", PlateNumber: "粤B" + newID()[20:], VehicleType: "DIT-0003",
+		BulkLiquidCapable: true,
+		CarrierAffiliation: &bobdomain.CarrierAffiliation{
+			Type: "EXTERNAL", ServiceRelationshipObjectID: refs.carrier.ObjectID,
+		},
+	})
+	_, bulkDeliveryView := advanceSalesDocument(t, service, EntitySaleDelivery, DraftInput{
+		BusinessDate: "2026-07-26", SourceDocumentID: bulkOutbound.DocumentID,
+		Carrier: &refs.carrier, Vehicle: &bulkVehicle,
+	}, true)
+	if !bulkDeliveryView.Data.VehicleBulkLiquidCapable {
+		t.Fatalf("bulk-liquid vehicle capability snapshot = %+v", bulkDeliveryView.Data)
+	}
+
+	internalDelivery, internalView := advanceSalesDocument(t, service, EntitySaleDelivery, DraftInput{
+		BusinessDate: "2026-07-26", SourceDocumentID: createOutbound("1").DocumentID, Vehicle: &internalVehicle,
+	}, true)
+	if internalView.Data.CarrierType != "INTERNAL" || internalView.Data.Carrier != nil ||
+		internalView.Data.CarrierOperatingEntity == nil || internalView.Data.CarrierOperatingEntity.ObjectID != orderOperatingEntityID {
+		t.Fatalf("internal delivery snapshot = %+v", internalView.Data)
+	}
+
+	recheckVehicle := createApprovedBOB(t, bobService, bobdomain.EntityVehicle, bobdomain.CreateDetailInput{
+		Name: "VOU 审批复检车辆", PlateNumber: "粤R" + newID()[20:], VehicleType: "DIT-0003",
+		CarrierAffiliation: &bobdomain.CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: refs.carrier.ObjectID},
+	})
+	checkedDelivery, _ := advanceSalesDocument(t, service, EntitySaleDelivery, DraftInput{
+		BusinessDate: "2026-07-26", SourceDocumentID: createOutbound("1").DocumentID,
+		Carrier: &refs.carrier, Vehicle: &recheckVehicle,
+	}, false)
+	vehicleView, err := bobService.Get(t.Context(), bobdomain.EntityVehicle, bobdomain.GetInput{ObjectID: recheckVehicle.ObjectID})
+	if err != nil {
+		t.Fatalf("get approval recheck vehicle: %v", err)
+	}
+	if _, err = bobService.Disable(t.Context(), bobdomain.EntityVehicle, bobdomain.ObjectRevisionInput{
+		ObjectID: recheckVehicle.ObjectID, ObjectRevision: vehicleView.ObjectRevision,
+	}, integrationActorOne, "disable-before-delivery-approve"); err != nil {
+		t.Fatalf("disable approval recheck vehicle: %v", err)
+	}
+	if _, err = service.Approve(t.Context(), EntitySaleDelivery, DocumentRevisionInput{
+		DocumentID: checkedDelivery.DocumentID, Revision: checkedDelivery.Revision,
+	}, integrationActorOne, "delivery-approve-after-vehicle-disable"); err == nil {
+		t.Fatal("delivery approval accepted a disabled vehicle")
+	}
+
+	checkVehicle := createApprovedBOB(t, bobService, bobdomain.EntityVehicle, bobdomain.CreateDetailInput{
+		Name: "VOU 核对复检车辆", PlateNumber: "粤C" + newID()[20:], VehicleType: "DIT-0003",
+		CarrierAffiliation: &bobdomain.CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: refs.carrier.ObjectID},
+	})
+	draftDelivery, err := service.Create(t.Context(), EntitySaleDelivery, CreateInput{Data: DraftInput{
+		BusinessDate: "2026-07-26", SourceDocumentID: createOutbound("1").DocumentID,
+		Carrier: &refs.carrier, Vehicle: &checkVehicle,
+	}}, integrationActorOne, "delivery-create-before-vehicle-disable")
+	if err != nil {
+		t.Fatalf("create delivery before check revalidation: %v", err)
+	}
+	checkVehicleView, err := bobService.Get(t.Context(), bobdomain.EntityVehicle, bobdomain.GetInput{ObjectID: checkVehicle.ObjectID})
+	if err != nil {
+		t.Fatalf("get check revalidation vehicle: %v", err)
+	}
+	if _, err = bobService.Disable(t.Context(), bobdomain.EntityVehicle, bobdomain.ObjectRevisionInput{
+		ObjectID: checkVehicle.ObjectID, ObjectRevision: checkVehicleView.ObjectRevision,
+	}, integrationActorOne, "disable-before-delivery-check"); err != nil {
+		t.Fatalf("disable check revalidation vehicle: %v", err)
+	}
+	if _, err = service.Check(t.Context(), EntitySaleDelivery, DocumentRevisionInput{
+		DocumentID: draftDelivery.DocumentID, Revision: draftDelivery.Revision,
+	}, integrationActorOne, "delivery-check-after-vehicle-disable"); err == nil {
+		t.Fatal("delivery check accepted a disabled vehicle")
+	}
+
+	stored, err := service.Get(t.Context(), EntitySaleDelivery, GetInput{DocumentID: internalDelivery.DocumentID})
+	if err != nil || stored.Data.CarrierType != "INTERNAL" || stored.Data.Vehicle == nil ||
+		stored.Data.Vehicle.VersionID != internalVehicle.VersionID {
+		t.Fatalf("historical internal delivery snapshot changed: %+v err=%v", stored.Data, err)
 	}
 }
 
@@ -368,5 +527,90 @@ func TestVOUIntegrationConcurrentOutboundReservationAllowsOneWinner(t *testing.T
 	}
 	if successes != 1 || conflicts != 1 {
 		t.Fatalf("concurrent outbound results successes=%d conflicts=%d", successes, conflicts)
+	}
+}
+
+func TestWarehouseDisablePrecheckTracksSalesLifecycleIntegration(t *testing.T) {
+	pool := vouIntegrationPool(t)
+	truncateVOU(t, pool)
+	t.Cleanup(func() { truncateVOU(t, pool) })
+	refs := prepareReferences(t, pool)
+	service := newIntegrationService(t, pool)
+	bobService := newBOBIntegrationService(pool)
+
+	draft, err := service.Create(t.Context(), EntitySaleOrder, CreateInput{Data: DraftInput{
+		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
+		Warehouse:    &refs.warehouse,
+		ProductLines: []ProductLineInput{integrationProductLine(t, refs.product, "2", "12.00")},
+	}}, integrationActorOne, "warehouse-precheck-draft")
+	if err != nil {
+		t.Fatalf("create warehouse-blocking sale order: %v", err)
+	}
+	precheck, err := bobService.WarehouseDisablePrecheck(t.Context(), bobdomain.WarehouseDisablePrecheckInput{ObjectID: refs.warehouse.ObjectID})
+	if err != nil || len(precheck.InProgressDocuments) != 1 || precheck.InProgressDocuments[0].DocumentID != draft.DocumentID {
+		t.Fatalf("draft warehouse blockers = %+v err=%v", precheck, err)
+	}
+	if _, err = service.Delete(t.Context(), EntitySaleOrder, DeleteInput{
+		DocumentID: draft.DocumentID, Revision: draft.Revision, Reason: "repair warehouse disable blocker",
+	}, integrationActorOne, "warehouse-precheck-delete-draft"); err != nil {
+		t.Fatalf("delete warehouse-blocking sale order: %v", err)
+	}
+	precheck, err = bobService.WarehouseDisablePrecheck(t.Context(), bobdomain.WarehouseDisablePrecheckInput{ObjectID: refs.warehouse.ObjectID})
+	if err != nil || precheck.HasConflicts() {
+		t.Fatalf("deleted draft still blocks warehouse = %+v err=%v", precheck, err)
+	}
+	draft, err = service.Create(t.Context(), EntitySaleOrder, CreateInput{Data: DraftInput{
+		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
+		Warehouse:    &refs.warehouse,
+		ProductLines: []ProductLineInput{integrationProductLine(t, refs.product, "2", "12.00")},
+	}}, integrationActorOne, "warehouse-precheck-recreated-draft")
+	if err != nil {
+		t.Fatalf("recreate warehouse-blocking sale order: %v", err)
+	}
+
+	checked, err := service.Check(t.Context(), EntitySaleOrder, DocumentRevisionInput{
+		DocumentID: draft.DocumentID, Revision: draft.Revision,
+	}, integrationActorOne, "warehouse-precheck-check")
+	if err != nil {
+		t.Fatalf("check warehouse-blocking sale order: %v", err)
+	}
+	approved, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
+		DocumentID: checked.DocumentID, Revision: checked.Revision,
+	}, integrationActorOne, "warehouse-precheck-approve")
+	if err != nil {
+		t.Fatalf("approve warehouse-blocking sale order: %v", err)
+	}
+	precheck, err = bobService.WarehouseDisablePrecheck(t.Context(), bobdomain.WarehouseDisablePrecheckInput{ObjectID: refs.warehouse.ObjectID})
+	if err != nil || len(precheck.ExecutableSources) != 1 || precheck.ExecutableSources[0].DocumentID != approved.DocumentID {
+		t.Fatalf("approved source warehouse blockers = %+v err=%v", precheck, err)
+	}
+
+	orderView, err := service.Get(t.Context(), EntitySaleOrder, GetInput{DocumentID: approved.DocumentID})
+	if err != nil {
+		t.Fatalf("get warehouse-blocking sale order: %v", err)
+	}
+	advanceSalesDocument(t, service, EntitySaleOutbound, DraftInput{
+		BusinessDate: "2026-07-25", SourceDocumentID: approved.DocumentID, Warehouse: &refs.warehouse,
+		SourceLines: []SourceQuantityLineInput{{SourceLineID: orderView.Data.ProductLines[0].LineID, BaseQuantity: "2"}},
+	}, true)
+	precheck, err = bobService.WarehouseDisablePrecheck(t.Context(), bobdomain.WarehouseDisablePrecheckInput{ObjectID: refs.warehouse.ObjectID})
+	if err != nil || precheck.HasConflicts() {
+		t.Fatalf("fulfilled order still blocks warehouse = %+v err=%v", precheck, err)
+	}
+	warehouseView, err := bobService.Get(t.Context(), bobdomain.EntityWarehouse, bobdomain.GetInput{ObjectID: refs.warehouse.ObjectID})
+	if err != nil {
+		t.Fatalf("get warehouse before disable: %v", err)
+	}
+	if _, err = bobService.Disable(t.Context(), bobdomain.EntityWarehouse, bobdomain.ObjectRevisionInput{
+		ObjectID: refs.warehouse.ObjectID, ObjectRevision: warehouseView.ObjectRevision,
+	}, integrationActorOne, "warehouse-disable-after-fulfillment"); err != nil {
+		t.Fatalf("disable warehouse after fulfillment: %v", err)
+	}
+	if _, err = service.Create(t.Context(), EntitySaleOrder, CreateInput{Data: DraftInput{
+		BusinessDate: "2026-07-26", Currency: "CNY", Customer: &refs.customer,
+		Warehouse:    &refs.warehouse,
+		ProductLines: []ProductLineInput{integrationProductLine(t, refs.product, "1", "12.00")},
+	}}, integrationActorOne, "warehouse-reference-after-disable"); err == nil {
+		t.Fatal("new sale order accepted a disabled warehouse")
 	}
 }

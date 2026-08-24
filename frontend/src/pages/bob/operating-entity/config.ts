@@ -9,6 +9,7 @@ import {
   text,
   textarea,
 } from '../shared/config-helpers'
+import { bobListActiveVersion } from '../shared/types'
 
 export const operatingEntityConfig = defineBobEntityConfig({
   entity: 'operating-entity',
@@ -40,7 +41,7 @@ export const operatingEntityConfig = defineBobEntityConfig({
     {
       key: 'taxNumber',
       label: '税号',
-      value: (row) => row.currentVersion.summary.taxNumber,
+      value: (row) => bobListActiveVersion(row).summary.taxNumber,
     },
   ]),
   filters: baseFilters(),

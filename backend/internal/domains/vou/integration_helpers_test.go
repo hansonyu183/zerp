@@ -30,7 +30,7 @@ const (
 
 type integrationReferences struct {
 	customer, supplier, employee, product, warehouse, fundAccount ReferenceInput
-	settlement, platform, vehicle                                 ReferenceInput
+	settlement, carrier, vehicle                                  ReferenceInput
 }
 
 func integrationProductLine(t *testing.T, product ReferenceInput, quantity, price string) ProductLineInput {
@@ -311,7 +311,7 @@ func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {
 	employee := createApprovedBOB(t, service, bobdomain.EntityEmployee, bobdomain.CreateDetailInput{
 		Code: "VE" + suffix, Name: "VOU 员工",
 	})
-	platform := createApprovedBOB(t, service, bobdomain.EntityOtherUnit, bobdomain.CreateDetailInput{
+	carrier := createApprovedBOB(t, service, bobdomain.EntityOtherUnit, bobdomain.CreateDetailInput{
 		Name: "VOU 承运服务单位", SettlementMethodID: settlement.ObjectID,
 	})
 	operating := createApprovedBOB(t, service, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{
@@ -345,10 +345,12 @@ func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {
 		fundAccount: createApprovedBOB(t, service, bobdomain.EntityFundAccount, bobdomain.CreateDetailInput{
 			Code: "VF" + suffix, Name: "VOU 资金账户", Currency: "CNY", OperatingEntityID: operating.ObjectID,
 		}),
-		settlement: settlement, platform: platform,
+		settlement: settlement, carrier: carrier,
 		vehicle: createApprovedBOB(t, service, bobdomain.EntityVehicle, bobdomain.CreateDetailInput{
 			Code: "VV" + suffix, Name: "VOU 车辆", PlateNumber: "粤V" + suffix[len(suffix)-6:],
-			VehicleType: "DIT-0003", PlatformObjectID: platform.ObjectID,
+			VehicleType: "DIT-0003", CarrierAffiliation: &bobdomain.CarrierAffiliation{
+				Type: "EXTERNAL", ServiceRelationshipObjectID: carrier.ObjectID,
+			},
 		}),
 	}
 }

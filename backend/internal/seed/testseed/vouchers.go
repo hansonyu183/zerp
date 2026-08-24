@@ -382,7 +382,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 	customer := s.voucherReference("customer-effective")
 	employee := s.voucherReference("employee-effective")
 	warehouse := s.voucherReference("warehouse-effective")
-	platform := s.voucherReference("logistics-service")
+	carrier := s.voucherReference("external-carrier")
 	vehicle := s.voucherReference("vehicle-effective")
 	raw := s.voucherReference("raw-effective")
 	finished := s.voucherReference("finished-effective")
@@ -438,7 +438,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.Create(ctx, voudomain.EntitySaleDelivery, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-07", SourceDocumentID: outbound.DocumentID,
-				Platform: &platform, Vehicle: &vehicle, Remark: "测试完整销售履约链：配送中",
+				Carrier: &carrier, Vehicle: &vehicle, Remark: "测试完整销售履约链：配送中",
 			}}, actorID, requestID("sales-complete-delivery", "create"))
 		},
 	)

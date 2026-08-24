@@ -521,11 +521,12 @@ func (s *Service) replaceLines(
 				SettlementSurchargeCents: line.SettlementSurcharge,
 				UnitPriceCents:           line.UnitPrice, LineAmountCents: line.LineAmount,
 				PurchaseUnitPriceCents: line.PurchaseUnitPrice, Remark: line.Remark,
-				ReferenceUnitPriceCents: line.Reference.UnitPrice,
-				ReferenceDocumentID:     nullableString(line.Reference.DocumentID),
-				ReferenceDocumentNo:     nullableString(line.Reference.DocumentNo),
-				ReferenceBusinessDate:   optionalDate(line.Reference.BusinessDate),
-				ReferenceLineID:         nullableString(line.Reference.LineID),
+				ReferenceUnitPriceCents:   line.Reference.UnitPrice,
+				ReferenceDocumentID:       nullableString(line.Reference.DocumentID),
+				ReferenceDocumentNo:       nullableString(line.Reference.DocumentNo),
+				ReferenceBusinessDate:     optionalDate(line.Reference.BusinessDate),
+				ReferenceLineID:           nullableString(line.Reference.LineID),
+				DeliverySpecificationType: line.DeliverySpecificationType,
 			}); err != nil {
 				return err
 			}

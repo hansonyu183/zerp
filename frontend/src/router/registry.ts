@@ -205,13 +205,6 @@ export const pageRegistrations: readonly PageRegistration[] = [
     component: () => import('@/pages/bob/product/Product.vue'),
   }),
   registerPage('bob', {
-    entity: 'service',
-    entityTitle: '服务',
-    icon: 'mdi-hand-heart-outline',
-    order: 50,
-    component: () => import('@/pages/bob/service/Service.vue'),
-  }),
-  registerPage('bob', {
     entity: 'warehouse',
     entityTitle: '仓库',
     icon: 'mdi-warehouse',

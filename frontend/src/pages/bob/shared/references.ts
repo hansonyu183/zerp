@@ -16,9 +16,9 @@ import type {
   BobForm,
   BobObjectView,
   BobReferenceConfig,
+  BobListItem,
   AuxReferenceObject,
   AuxReferenceQueryItem,
-  ReferenceQueryItem,
 } from './types'
 
 interface ReferenceState {
@@ -118,7 +118,7 @@ export function useBobReferences(
         try {
           if (reference.value === 'code') {
             const { data } = await apiClient.post<
-              PageResult<ReferenceQueryItem | AuxReferenceQueryItem>,
+              PageResult<BobListItem | AuxReferenceQueryItem>,
               PageRequest
             >(`${domain}/${reference.entity}/query` as never, {
               page: 1,
@@ -142,7 +142,7 @@ export function useBobReferences(
             const name =
               domain === 'aux'
                 ? (item as AuxReferenceQueryItem).currentVersion.data.name
-                : (item as ReferenceQueryItem).currentVersion.summary.name
+                : (item as BobListItem).effective?.summary.name ?? ''
             state.options = [
               ...state.options.filter((option) => option.value !== value),
               {
@@ -222,7 +222,7 @@ export function useBobReferences(
     try {
       const keywordFilter = keywordValue.trim()
       const { data } = await apiClient.post<
-        PageResult<ReferenceQueryItem | AuxReferenceQueryItem>,
+        PageResult<BobListItem | AuxReferenceQueryItem>,
         PageRequest
       >(`${domain}/${reference.entity}/query` as never, {
         page: 1,
@@ -252,7 +252,7 @@ export function useBobReferences(
               code: item.code,
               name:
                 auxData?.name ??
-                (item as ReferenceQueryItem).currentVersion.summary.name,
+                (item as BobListItem).effective?.summary.name ?? '',
             }),
             value: reference.value === 'code' ? item.code : item.objectId,
             ...(auxData ? { metadata: { ...auxData } } : {}),

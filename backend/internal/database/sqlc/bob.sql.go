@@ -6872,7 +6872,7 @@ SET enabled = $1, revision = revision + 1,
     updated_at = now(), updated_by = $2
 WHERE id = $3 AND entity = $4
   AND revision = $5
-  AND (current_version_id = effective_version_id OR entity IN ('customer-account','supplier','other-unit','sales-partner','product','employee','fund-account','operating-entity','warehouse','vehicle','category','department','position','settlement-method'))
+  AND (current_version_id = effective_version_id OR entity IN ('customer-account','supplier','other-unit','sales-partner','product','employee','fund-account','operating-entity','warehouse','vehicle'))
   AND effective_version_id IS NOT NULL
   AND enabled <> $1
 `
@@ -6934,7 +6934,7 @@ UPDATE bob_objects
 SET effective_version_id = $1, revision = revision + 1,
     updated_at = now(), updated_by = $2
 WHERE id = $3 AND entity = $4
-  AND entity IN ('customer-account','supplier','other-unit','sales-partner','product','employee','fund-account','operating-entity','warehouse','vehicle','category','department','position','settlement-method')
+  AND entity IN ('customer-account','supplier','other-unit','sales-partner','product','employee','fund-account','operating-entity','warehouse','vehicle')
   AND current_version_id = $1
   AND effective_version_id = $5
   AND revision = $6

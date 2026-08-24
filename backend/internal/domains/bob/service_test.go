@@ -31,14 +31,6 @@ func TestObjectPrefixes(t *testing.T) {
 	}
 }
 
-func TestAuxiliaryShapedBOBEntitiesStillUseContinuousEffectiveness(t *testing.T) {
-	for _, entity := range []string{EntityCategory, EntityDepartment, EntityPosition, EntitySettlementMethod} {
-		if !continuousEffectiveEntity(entity) {
-			t.Errorf("%s does not use continuous effectiveness", entity)
-		}
-	}
-}
-
 func TestSalesPartnerCapabilitiesAreClosedAndRequiredForSubmission(t *testing.T) {
 	valid, err := normalizeSalesPartnerCapabilities([]string{
 		SalesCapabilityChannelPartner,

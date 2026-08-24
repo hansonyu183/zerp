@@ -2,24 +2,25 @@ import { ref, type Ref } from 'vue'
 import { apiClient } from '@/api/client'
 import type { components } from '@/api/generated/schema'
 import { getErrorMessage } from '@/api/types'
-import type { VoucherEntity, VoucherStatus } from '@/components/voucher'
 import { voucherStatusLabels } from '@/components/voucher/status'
 import { voucherEntityConfigs } from '@/pages/vou/shared/config'
 import type { BobListItem } from '../shared/types'
 
 type WarehouseDisablePrecheck =
   components['schemas']['WarehouseDisablePrecheckResult']
+type WarehouseDocumentConflict =
+  components['schemas']['WarehouseDocumentConflict']
 
-export function warehouseDocumentEntityLabel(entity: string): string {
-  return Object.hasOwn(voucherEntityConfigs, entity)
-    ? voucherEntityConfigs[entity as VoucherEntity].title
-    : '未知单据'
+export function warehouseDocumentEntityLabel(
+  entity: WarehouseDocumentConflict['entity'],
+): string {
+  return voucherEntityConfigs[entity].title
 }
 
-export function warehouseDocumentStatusLabel(status?: string | null): string {
-  return status && Object.hasOwn(voucherStatusLabels, status)
-    ? voucherStatusLabels[status as VoucherStatus]
-    : '未知状态'
+export function warehouseDocumentStatusLabel(
+  status?: WarehouseDocumentConflict['status'],
+): string {
+  return status ? voucherStatusLabels[status] : '未知状态'
 }
 
 export function useWarehouseDisable(

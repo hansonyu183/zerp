@@ -5382,11 +5382,13 @@ export interface components {
             productName: string;
             quantity: string;
         };
+        /** @enum {string} */
+        VouStatus: "DRAFT" | "CHECKED" | "APPROVED";
         WarehouseDocumentConflict: {
             documentId: string;
-            entity: string;
+            entity: components["schemas"]["VouEntity"];
             documentNo: string;
-            status?: string | null;
+            status?: components["schemas"]["VouStatus"];
         };
         WarehouseDisablePrecheckResult: {
             inventory: components["schemas"]["WarehouseInventoryConflict"][];
@@ -5400,8 +5402,6 @@ export interface components {
             data: components["schemas"]["WarehouseDisablePrecheckResult"];
             requestId: string;
         };
-        /** @enum {string} */
-        VouStatus: "DRAFT" | "CHECKED" | "APPROVED";
         VouQueryRequest: {
             page: number;
             pageSize: number;

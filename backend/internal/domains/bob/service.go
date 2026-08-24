@@ -460,8 +460,7 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 func continuousEffectiveEntity(entity string) bool {
 	switch entity {
 	case EntityCustomerAccount, EntitySupplier, EntityOtherUnit, EntitySalesPartner, EntityProduct,
-		EntityEmployee, EntityFundAccount, EntityOperatingEntity, EntityWarehouse, EntityVehicle,
-		EntityCategory, EntityDepartment, EntityPosition, EntitySettlementMethod:
+		EntityEmployee, EntityFundAccount, EntityOperatingEntity, EntityWarehouse, EntityVehicle:
 		return true
 	default:
 		return false
@@ -837,7 +836,8 @@ func (s *Service) deleteEffectiveCandidate(
 		return conflict(object, version, entity+" candidate changed before delete")
 	}
 	qtx := s.queries.WithTx(tx)
-	if entity == EntityEmployee || entity == EntityFundAccount || entity == EntityOperatingEntity || entity == EntityWarehouse {
+	if entity == EntityEmployee || entity == EntityFundAccount || entity == EntityOperatingEntity ||
+		entity == EntityWarehouse || entity == EntityVehicle {
 		return s.deleteGenericEffectiveCandidate(ctx, tx, qtx, entity, object, version, input)
 	}
 	var rows int64

@@ -2872,9 +2872,9 @@
       'properties':
         {
           'documentId': { 'type': 'string' },
-          'entity': { 'type': 'string' },
+          'entity': { '$ref': './vou.yaml#/VouEntity' },
           'documentNo': { 'type': 'string' },
-          'status': { 'type': 'string', 'nullable': true },
+          'status': { '$ref': './vou.yaml#/VouStatus' },
         },
     },
   'WarehouseDisablePrecheckResult':

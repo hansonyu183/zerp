@@ -634,84 +634,25 @@ describe('shared BOB entity configuration and view model', () => {
     await vi.waitFor(() => expect(vm.loading.value).toBe(false))
   })
 
-  it('停用被引用资料时加载同类接替项并原子批量转移', async () => {
+  it('停用被引用资料时显示冲突且不请求接任候选', async () => {
     grant('product', 'query', 'disable')
-    useSessionStore().permissions.push('/bob/reference/transfer')
     mockedApiClient.post.mockRejectedValueOnce(
       new ApiError('business', 'object has active direct references', {
         code: 3001,
+        details: {
+          references: [
+            { entity: 'product', field: 'formula-material', count: 2 },
+          ],
+        },
       }),
     )
-    mockedApiClient.postContract.mockResolvedValueOnce({
-      data: [
-        {
-          objectId: 'OBJ-2',
-          versionId: 'VER-2',
-          code: 'PRD-2',
-          name: '接替原料',
-        },
-      ],
-    })
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
 
     await expect(vm.changeEnabled(row('EFFECTIVE'))).resolves.toBe(false)
 
-    expect(mockedApiClient.postContract).toHaveBeenCalledWith(
-      'bob/reference/query',
-      {
-        entity: 'product',
-        keyword: '',
-        sourceObjectId: 'OBJ-1',
-      },
-    )
-    expect(vm.referenceTransferOpen.value).toBe(true)
-    expect(vm.referenceTransferOptions.value).toEqual([
-      { title: 'PRD-2 · 接替原料', value: 'OBJ-2' },
-    ])
-    expect(vm.errorMessage.value).toBeNull()
-
-    mockedApiClient.postContract.mockResolvedValueOnce({
-      data: {
-        sourceObjectId: 'OBJ-1',
-        targetObjectId: 'OBJ-2',
-        affectedObjects: 3,
-      },
-    })
-    mockedApiClient.post.mockResolvedValueOnce(emptyPage())
-    vm.referenceTransferTargetId.value = 'OBJ-2'
-
-    await expect(vm.confirmReferenceTransfer()).resolves.toBe(true)
-
-    expect(mockedApiClient.postContract).toHaveBeenLastCalledWith(
-      'bob/reference/transfer',
-      {
-        entity: 'product',
-        sourceObjectId: 'OBJ-1',
-        targetObjectId: 'OBJ-2',
-        sourceObjectRevision: 3,
-      },
-    )
-    expect(vm.referenceTransferOpen.value).toBe(false)
-    expect(vm.successMessage.value).toBe(
-      'PRD-1 已停用，并完成 3 个业务对象的引用转移。',
-    )
-  })
-
-  it('缺少批量转移权限时只显示停用冲突且不打开入口', async () => {
-    grant('product', 'query', 'disable')
-    mockedApiClient.post.mockRejectedValueOnce(
-      new ApiError('business', 'object has active direct references', {
-        code: 3001,
-      }),
-    )
-    const vm = useBobEntityViewModel(getBobEntityConfig('product'))
-
-    await vm.changeEnabled(row('EFFECTIVE'))
-
-    expect(vm.referenceTransferOpen.value).toBe(false)
     expect(mockedApiClient.postContract).not.toHaveBeenCalled()
     expect(vm.errorMessage.value).toBe(
-      '该资料仍被当前有效业务对象引用，请先选择接替资料并批量转移。',
+      '该资料仍被当前有效业务对象引用，请先修改引用方资料并完成审核后再停用。',
     )
   })
 

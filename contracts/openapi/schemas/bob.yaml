@@ -1673,57 +1673,6 @@
           'requestId': { 'type': 'string' },
         },
     },
-  'CustomerReferenceTransferRequest':
-    {
-      'type': 'object',
-      'required':
-        ['entity', 'sourceObjectId', 'targetObjectId', 'sourceObjectRevision'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'entity':
-            {
-              'type': 'string',
-              'enum':
-                [
-                  'customer',
-                  'operating-entity',
-                  'employee',
-                  'other-unit',
-                  'supplier',
-                  'product',
-                ],
-            },
-          'sourceObjectId': { 'type': 'string' },
-          'targetObjectId': { 'type': 'string' },
-          'sourceObjectRevision': { 'type': 'integer', 'format': 'int64' },
-        },
-    },
-  'CustomerReferenceTransferResult':
-    {
-      'type': 'object',
-      'required': ['sourceObjectId', 'targetObjectId', 'affectedObjects'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'sourceObjectId': { 'type': 'string' },
-          'targetObjectId': { 'type': 'string' },
-          'affectedObjects': { 'type': 'integer' },
-        },
-    },
-  'CustomerReferenceTransferResponse':
-    {
-      'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'code': { 'type': 'integer' },
-          'message': { 'type': 'string' },
-          'data': { '$ref': '#/CustomerReferenceTransferResult' },
-          'requestId': { 'type': 'string' },
-        },
-    },
   'BobReferenceQueryRequest':
     {
       'type': 'object',

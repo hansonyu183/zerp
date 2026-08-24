@@ -48,7 +48,6 @@ type applicationService interface {
 	SalesPartnerGet(context.Context, GetInput) (SalesPartnerDetailView, error)
 	SalesPartnerCreate(context.Context, SalesPartnerCreateInput, string, string, bool) (SalesPartnerCreateResult, error)
 	SalesPartnerSave(context.Context, SalesPartnerSaveInput, string, string) (MutationResult, error)
-	TransferReferences(context.Context, ReferenceTransferInput, string, string) (ReferenceTransferResult, error)
 	QueryReferenceCandidates(context.Context, ReferenceQueryInput) ([]ReferenceCandidate, error)
 }
 
@@ -172,7 +171,6 @@ func (h *Handler) Register(router *gin.Engine) {
 	customerGroup.POST("/attachment-remove", h.authorize("/bob/customer/attachment-remove"), h.customerAttachmentRemove)
 	referenceGroup := group.Group("/reference")
 	referenceGroup.POST("/query", h.referenceQuery)
-	referenceGroup.POST("/transfer", h.authorize("/bob/reference/transfer"), h.referenceTransfer)
 	router.PUT("/files/customer-attachments/upload/:token", h.customerAttachmentUpload)
 	router.GET("/files/customer-attachments/download/:token", h.customerAttachmentFileDownload)
 }
@@ -510,21 +508,6 @@ func (h *Handler) customerAccountAdd(c *gin.Context) {
 		result, err := h.service.CustomerAccountAdd(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
 		h.result(c, result, err)
 	}
-}
-
-func (h *Handler) referenceTransfer(c *gin.Context) {
-	var input ReferenceTransferInput
-	if !h.bind(c, &input) {
-		return
-	}
-	if _, err := h.authorizer.Authorize(
-		c.Request.Context(), c.Request, "/bob/"+input.Entity+"/disable", response.RequestID(c),
-	); err != nil {
-		h.writeAuthorizationError(c, err)
-		return
-	}
-	result, err := h.service.TransferReferences(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
-	h.result(c, result, err)
 }
 
 func (h *Handler) save(c *gin.Context, entity string) {

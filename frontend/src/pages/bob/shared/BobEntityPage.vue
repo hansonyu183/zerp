@@ -763,55 +763,6 @@ function saveFormula(value: ProductFormulaDraft): void {
     </v-card>
   </v-dialog>
 
-  <v-dialog v-model="vm.referenceTransferOpen" max-width="620" persistent>
-    <v-card rounded="xl" title="选择接替资料并批量转移">
-      <v-card-text>
-        <v-alert class="mb-4" type="warning" variant="tonal">
-          {{ vm.referenceTransferSource?.code }}
-          仍被当前有效业务对象引用。转移会为受影响对象生成新的有效版本，并在同一事务中停用原资料。
-        </v-alert>
-        <v-alert
-          v-if="vm.referenceTransferError"
-          class="mb-4"
-          type="error"
-          variant="tonal"
-        >
-          {{ vm.referenceTransferError }}
-        </v-alert>
-        <v-autocomplete
-          v-model="vm.referenceTransferTargetId"
-          clearable
-          item-title="title"
-          item-value="value"
-          :items="vm.referenceTransferOptions"
-          label="接替资料"
-          :loading="vm.referenceTransferLoading"
-          no-data-text="没有可用的同类接替资料"
-          variant="outlined"
-          @update:search="vm.searchReferenceTransfer($event ?? '')"
-        />
-      </v-card-text>
-      <v-card-actions class="px-6 pb-5">
-        <v-spacer />
-        <v-btn
-          :disabled="vm.referenceTransferLoading"
-          variant="text"
-          @click="vm.closeReferenceTransfer"
-        >
-          取消
-        </v-btn>
-        <v-btn
-          color="warning"
-          :disabled="!vm.referenceTransferTargetId"
-          :loading="vm.referenceTransferLoading"
-          @click="vm.confirmReferenceTransfer"
-        >
-          转移并停用
-        </v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
-
   <v-dialog
     :model-value="Boolean(deleteTarget)"
     max-width="540"

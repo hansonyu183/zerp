@@ -164,11 +164,7 @@ const exactMessages: Readonly<Record<string, string>> = {
   'referencing object already has a candidate version':
     '被引用资料已有候选版本，请先处理该候选版本。',
   'object has active direct references':
-    '该资料仍被当前有效业务对象引用，请先选择接替资料并批量转移。',
-  'source object changed before transfer':
-    '待停用资料已被修改，请刷新引用清单后重试。',
-  'target object is not a current effective object of the same type':
-    '接任资料类型不一致、未启用或尚未生效，请重新选择。',
+    '该资料仍被当前有效业务对象引用，请先修改引用方资料并完成审核后再停用。',
   'multiple JSON values': '定价资料格式无效，请重新填写。',
   'unsupported settlement term': '当前订单的结算方式不受支持，请重新选择。',
   'order currency is required for settlement approval':
@@ -829,8 +825,6 @@ const exactMessages: Readonly<Record<string, string>> = {
     '销售合作方必须通过主体与销售合作关系创建。',
   'sales relationship requires at least one capability':
     '销售合作关系必须至少具备一项能力。',
-  'sales relationship replacement lacks the required capability':
-    '接任销售合作关系缺少当前引用所需能力，请重新选择。',
   'service acceptance amount must be positive': '履约验收金额必须大于零。',
   'service acceptance attributes are missing':
     '履约验收缺少必要属性，请补全后重试。',

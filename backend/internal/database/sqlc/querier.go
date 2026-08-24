@@ -352,6 +352,7 @@ type Querier interface {
 	GetVouPurchaseInquiryDetail(ctx context.Context, documentID string) (VouPurchaseInquiryDetail, error)
 	GetVouPurchaseOrderDetail(ctx context.Context, documentID string) (VouPurchaseOrderDetail, error)
 	GetVouReceiptDetail(ctx context.Context, documentID string) (VouReceiptDetail, error)
+	GetVouSaleDeliveryView(ctx context.Context, documentID string) (GetVouSaleDeliveryViewRow, error)
 	GetVouSaleOrderDetail(ctx context.Context, documentID string) (VouSaleOrderDetail, error)
 	GetVouSaleOrderFormula(ctx context.Context, productLineID string) (GetVouSaleOrderFormulaRow, error)
 	GetVouSalesAttributionSnapshot(ctx context.Context, customerVersionID string) (GetVouSalesAttributionSnapshotRow, error)
@@ -459,6 +460,7 @@ type Querier interface {
 	InsertVouPurchaseInquiryDetail(ctx context.Context, arg InsertVouPurchaseInquiryDetailParams) error
 	InsertVouPurchaseOrderDetail(ctx context.Context, arg InsertVouPurchaseOrderDetailParams) error
 	InsertVouReceiptDetail(ctx context.Context, arg InsertVouReceiptDetailParams) error
+	InsertVouSaleDeliveryDetail(ctx context.Context, arg InsertVouSaleDeliveryDetailParams) error
 	InsertVouSaleOrderDetail(ctx context.Context, arg InsertVouSaleOrderDetailParams) error
 	InsertVouSaleOrderFormula(ctx context.Context, arg InsertVouSaleOrderFormulaParams) error
 	InsertVouSaleOrderFormulaLine(ctx context.Context, arg InsertVouSaleOrderFormulaLineParams) error
@@ -611,6 +613,7 @@ type Querier interface {
 	LockVouIntermediaryScript(ctx context.Context) (VouIntermediaryScript, error)
 	LockVouRefusalReturnSource(ctx context.Context, documentID string) (LockVouRefusalReturnSourceRow, error)
 	LockVouSaleDeliveryCarrierSnapshot(ctx context.Context, documentID string) (LockVouSaleDeliveryCarrierSnapshotRow, error)
+	LockVouSaleOutboundSource(ctx context.Context, documentID string) (LockVouSaleOutboundSourceRow, error)
 	LockVouServiceAcceptanceContract(ctx context.Context, contractDocumentID string) (LockVouServiceAcceptanceContractRow, error)
 	LockVouServiceContractDetail(ctx context.Context, documentID string) (VouServiceContractDetail, error)
 	LockVouSettlementBalance(ctx context.Context, lockKey string) error
@@ -796,6 +799,7 @@ type Querier interface {
 	UpdateVouPurchaseInquiryDetail(ctx context.Context, arg UpdateVouPurchaseInquiryDetailParams) (int64, error)
 	UpdateVouPurchaseOrderDetail(ctx context.Context, arg UpdateVouPurchaseOrderDetailParams) (int64, error)
 	UpdateVouReceiptDetail(ctx context.Context, arg UpdateVouReceiptDetailParams) (int64, error)
+	UpdateVouSaleDeliveryCarrierSnapshot(ctx context.Context, arg UpdateVouSaleDeliveryCarrierSnapshotParams) (int64, error)
 	UpdateVouSaleOrderDetail(ctx context.Context, arg UpdateVouSaleOrderDetailParams) (int64, error)
 	UpdateVouServiceAcceptanceDetail(ctx context.Context, arg UpdateVouServiceAcceptanceDetailParams) (int64, error)
 	UpdateVouServiceContractDetail(ctx context.Context, arg UpdateVouServiceContractDetailParams) (int64, error)

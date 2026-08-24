@@ -62,39 +62,28 @@ func (s *Service) loadSalesChainData(
 		}
 		return data, rows.Err()
 	case EntitySaleDelivery:
-		var sourceID, sourceNo string
-		var customer ReferenceView
-		var carrierType string
-		var operatingEntity ReferenceView
-		var carrier ReferenceView
-		var vehicle ReferenceView
-		var vehicleBulkLiquidCapable bool
-		err := s.pool.QueryRow(ctx, `SELECT x.source_outbound_id,p.document_no,
-			x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name,
-			x.carrier_type,
-			COALESCE(x.carrier_operating_entity_object_id,''),COALESCE(x.carrier_operating_entity_version_id,''),
-			COALESCE(x.carrier_operating_entity_code,''),COALESCE(x.carrier_operating_entity_name,''),
-			COALESCE(x.carrier_service_relationship_object_id,''),COALESCE(x.carrier_service_relationship_version_id,''),
-			COALESCE(x.carrier_service_relationship_code,''),COALESCE(x.carrier_service_relationship_name,''),
-			COALESCE(x.vehicle_object_id,''),COALESCE(x.vehicle_version_id,''),
-			COALESCE(x.vehicle_code,''),COALESCE(x.vehicle_name,''),
-			COALESCE(x.vehicle_plate_number,''),x.vehicle_bulk_liquid_capable
-			FROM vou_sale_delivery_details x JOIN vou_documents p ON p.id=x.source_outbound_id
-			WHERE x.document_id=$1`, document.ID).Scan(
-			&sourceID, &sourceNo,
-			&customer.ObjectID, &customer.VersionID, &customer.Code, &customer.Name,
-			&carrierType,
-			&operatingEntity.ObjectID, &operatingEntity.VersionID, &operatingEntity.Code, &operatingEntity.Name,
-			&carrier.ObjectID, &carrier.VersionID, &carrier.Code, &carrier.Name,
-			&vehicle.ObjectID, &vehicle.VersionID, &vehicle.Code, &vehicle.Name, &vehicle.PlateNumber,
-			&vehicleBulkLiquidCapable)
+		row, err := s.queries.GetVouSaleDeliveryView(ctx, document.ID)
 		if err != nil {
 			return data, err
 		}
+		var customer ReferenceView
+		var operatingEntity ReferenceView
+		var carrier ReferenceView
+		var vehicle ReferenceView
+		customer.ObjectID, customer.VersionID, customer.Code, customer.Name =
+			row.CustomerObjectID, row.CustomerVersionID, row.CustomerCode, row.CustomerName
+		operatingEntity.ObjectID, operatingEntity.VersionID =
+			row.CarrierOperatingEntityObjectID, row.CarrierOperatingEntityVersionID
+		operatingEntity.Code, operatingEntity.Name = row.CarrierOperatingEntityCode, row.CarrierOperatingEntityName
+		carrier.ObjectID, carrier.VersionID =
+			row.CarrierServiceRelationshipObjectID, row.CarrierServiceRelationshipVersionID
+		carrier.Code, carrier.Name = row.CarrierServiceRelationshipCode, row.CarrierServiceRelationshipName
+		vehicle.ObjectID, vehicle.VersionID, vehicle.Code, vehicle.Name, vehicle.PlateNumber =
+			row.VehicleObjectID, row.VehicleVersionID, row.VehicleCode, row.VehicleName, row.VehiclePlateNumber
 		customer.Entity, operatingEntity.Entity, carrier.Entity, vehicle.Entity =
 			bobdomain.EntityCustomerAccount, bobdomain.EntityOperatingEntity, bobdomain.EntityOtherUnit, bobdomain.EntityVehicle
 		data.Customer = &customer
-		data.CarrierType = carrierType
+		data.CarrierType = row.CarrierType
 		if operatingEntity.ObjectID != "" {
 			data.CarrierOperatingEntity = &operatingEntity
 		}
@@ -103,12 +92,12 @@ func (s *Service) loadSalesChainData(
 		}
 		if vehicle.ObjectID != "" {
 			data.Vehicle = &vehicle
-			data.VehicleBulkLiquidCapable = vehicleBulkLiquidCapable
+			data.VehicleBulkLiquidCapable = row.VehicleBulkLiquidCapable
 		}
 		rows, err := s.pool.Query(ctx, `SELECT id,source_order_line_id,line_no,
 			product_object_id,product_version_id,product_code,product_name,entered_unit_symbol,
 			base_quantity_micros,unit_price_cents,line_amount_cents,remark
-			FROM vou_sale_outbound_lines WHERE document_id=$1 ORDER BY line_no`, sourceID)
+			FROM vou_sale_outbound_lines WHERE document_id=$1 ORDER BY line_no`, row.SourceOutboundID)
 		if err != nil {
 			return data, err
 		}

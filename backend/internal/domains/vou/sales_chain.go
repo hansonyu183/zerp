@@ -228,6 +228,7 @@ func (s *Service) lockSalesSource(
 	source.ID, source.Entity = id, entity
 	var date time.Time
 	var err error
+	qtx := s.queries.WithTx(tx)
 	switch entity {
 	case EntitySaleOrder:
 		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.business_date,d.currency,d.total_amount_cents,
@@ -240,18 +241,17 @@ func (s *Service) lockSalesSource(
 				&source.CustomerObjectID, &source.CustomerVersionID, &source.CustomerCode, &source.CustomerName,
 				&source.WarehouseObjectID, &source.WarehouseVersionID, &source.WarehouseCode, &source.WarehouseName)
 	case EntitySaleOutbound:
-		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.business_date,d.currency,d.total_amount_cents,
-			x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name,
-			x.warehouse_object_id,x.warehouse_version_id,x.warehouse_code,x.warehouse_name,
-			relationship.operating_entity_id
-			FROM vou_documents d JOIN vou_sale_outbound_details x ON x.document_id=d.id
-			JOIN bob_customer_accounts account ON account.object_id=x.customer_object_id
-			JOIN bob_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id
-			WHERE d.id=$1 AND d.entity='sale-outbound' FOR UPDATE`, id).
-			Scan(&source.Number, &source.Status, &date, &source.Currency, &source.Total,
-				&source.CustomerObjectID, &source.CustomerVersionID, &source.CustomerCode, &source.CustomerName,
-				&source.WarehouseObjectID, &source.WarehouseVersionID, &source.WarehouseCode, &source.WarehouseName,
-				&source.OperatingEntityObjectID)
+		var row dbsqlc.LockVouSaleOutboundSourceRow
+		row, err = qtx.LockVouSaleOutboundSource(ctx, id)
+		if err == nil {
+			source.Number, source.Status, date, source.Currency, source.Total =
+				row.DocumentNo, row.Status, row.BusinessDate.Time, row.Currency, row.TotalAmountCents
+			source.CustomerObjectID, source.CustomerVersionID = row.CustomerObjectID, row.CustomerVersionID
+			source.CustomerCode, source.CustomerName = row.CustomerCode, row.CustomerName
+			source.WarehouseObjectID, source.WarehouseVersionID = deref(row.WarehouseObjectID), deref(row.WarehouseVersionID)
+			source.WarehouseCode, source.WarehouseName = deref(row.WarehouseCode), deref(row.WarehouseName)
+			source.OperatingEntityObjectID = row.OperatingEntityID
+		}
 	case EntitySaleDelivery:
 		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.business_date,d.currency,d.total_amount_cents,
 			x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name,
@@ -613,25 +613,33 @@ func (s *Service) writeSaleDelivery(
 	if err != nil {
 		return MutationResult{}, err
 	}
+	qtx := s.queries.WithTx(tx)
+	detail := dbsqlc.InsertVouSaleDeliveryDetailParams{
+		SourceOutboundID: source.ID,
+		CustomerObjectID: source.CustomerObjectID, CustomerVersionID: source.CustomerVersionID,
+		CustomerCode: source.CustomerCode, CustomerName: source.CustomerName,
+		CarrierType:                         transport.carrierType,
+		CarrierOperatingEntityObjectID:      transport.operating.objectID,
+		CarrierOperatingEntityVersionID:     transport.operating.versionID,
+		CarrierOperatingEntityCode:          transport.operating.code,
+		CarrierOperatingEntityName:          transport.operating.name,
+		CarrierServiceRelationshipObjectID:  transport.service.objectID,
+		CarrierServiceRelationshipVersionID: transport.service.versionID,
+		CarrierServiceRelationshipCode:      transport.service.code,
+		CarrierServiceRelationshipName:      transport.service.name,
+		VehicleObjectID:                     stringPtr(transport.vehicle.ObjectID), VehicleVersionID: stringPtr(transport.vehicle.VersionID),
+		VehicleCode: stringPtr(transport.vehicle.Code), VehicleName: stringPtr(transport.vehicle.Data.Name),
+		VehiclePlateNumber:       stringPtr(transport.vehicle.Data.PlateNumber),
+		VehicleBulkLiquidCapable: transport.vehicle.Data.BulkLiquidCapable,
+	}
 	id, number, revision := replacingID, "", int64(1)
 	if replacingID == "" {
 		id, number, err = s.insertChainDocument(
 			ctx, tx, EntitySaleDelivery, source.ID, date, source.Currency, source.Total, remark, actorID,
 		)
 		if err == nil {
-			_, err = tx.Exec(ctx, `INSERT INTO vou_sale_delivery_details(
-				document_id,source_outbound_id,customer_object_id,customer_version_id,customer_code,customer_name,
-				carrier_type,
-				carrier_operating_entity_object_id,carrier_operating_entity_version_id,carrier_operating_entity_code,carrier_operating_entity_name,
-				carrier_service_relationship_object_id,carrier_service_relationship_version_id,carrier_service_relationship_code,carrier_service_relationship_name,
-				vehicle_object_id,vehicle_version_id,vehicle_code,vehicle_name,vehicle_plate_number,vehicle_bulk_liquid_capable)
-				VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
-				id, source.ID, source.CustomerObjectID, source.CustomerVersionID, source.CustomerCode, source.CustomerName,
-				transport.carrierType,
-				transport.operating.objectID, transport.operating.versionID, transport.operating.code, transport.operating.name,
-				transport.service.objectID, transport.service.versionID, transport.service.code, transport.service.name,
-				transport.vehicle.ObjectID, transport.vehicle.VersionID, transport.vehicle.Code, transport.vehicle.Data.Name,
-				transport.vehicle.Data.PlateNumber, transport.vehicle.Data.BulkLiquidCapable)
+			detail.DocumentID = id
+			err = qtx.InsertVouSaleDeliveryDetail(ctx, detail)
 		}
 	} else {
 		err = tx.QueryRow(ctx, `SELECT document_no FROM vou_documents WHERE id=$1`, id).Scan(&number)
@@ -639,16 +647,22 @@ func (s *Service) writeSaleDelivery(
 			revision, err = s.updateChainDocument(ctx, tx, id, EntitySaleDelivery, date, source.Currency, source.Total, remark, actorID)
 		}
 		if err == nil {
-			_, err = tx.Exec(ctx, `UPDATE vou_sale_delivery_details SET
-				carrier_type=$1,
-				carrier_operating_entity_object_id=$2,carrier_operating_entity_version_id=$3,carrier_operating_entity_code=$4,carrier_operating_entity_name=$5,
-				carrier_service_relationship_object_id=$6,carrier_service_relationship_version_id=$7,carrier_service_relationship_code=$8,carrier_service_relationship_name=$9,
-				vehicle_object_id=$10,vehicle_version_id=$11,vehicle_code=$12,vehicle_name=$13,vehicle_plate_number=$14,vehicle_bulk_liquid_capable=$15
-				WHERE document_id=$16`, transport.carrierType,
-				transport.operating.objectID, transport.operating.versionID, transport.operating.code, transport.operating.name,
-				transport.service.objectID, transport.service.versionID, transport.service.code, transport.service.name,
-				transport.vehicle.ObjectID, transport.vehicle.VersionID, transport.vehicle.Code, transport.vehicle.Data.Name,
-				transport.vehicle.Data.PlateNumber, transport.vehicle.Data.BulkLiquidCapable, id)
+			_, err = qtx.UpdateVouSaleDeliveryCarrierSnapshot(ctx, dbsqlc.UpdateVouSaleDeliveryCarrierSnapshotParams{
+				CarrierType:                         detail.CarrierType,
+				CarrierOperatingEntityObjectID:      detail.CarrierOperatingEntityObjectID,
+				CarrierOperatingEntityVersionID:     detail.CarrierOperatingEntityVersionID,
+				CarrierOperatingEntityCode:          detail.CarrierOperatingEntityCode,
+				CarrierOperatingEntityName:          detail.CarrierOperatingEntityName,
+				CarrierServiceRelationshipObjectID:  detail.CarrierServiceRelationshipObjectID,
+				CarrierServiceRelationshipVersionID: detail.CarrierServiceRelationshipVersionID,
+				CarrierServiceRelationshipCode:      detail.CarrierServiceRelationshipCode,
+				CarrierServiceRelationshipName:      detail.CarrierServiceRelationshipName,
+				VehicleObjectID:                     detail.VehicleObjectID, VehicleVersionID: detail.VehicleVersionID,
+				VehicleCode: detail.VehicleCode, VehicleName: detail.VehicleName,
+				VehiclePlateNumber:       detail.VehiclePlateNumber,
+				VehicleBulkLiquidCapable: detail.VehicleBulkLiquidCapable,
+				DocumentID:               id,
+			})
 		}
 	}
 	if err != nil {

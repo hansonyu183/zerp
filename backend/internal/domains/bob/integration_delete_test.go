@@ -246,6 +246,58 @@ func TestDeleteFirstDraftRejectsLifecycleAndIdentityConflictsIntegration(t *test
 			t.Fatalf("vehicle after candidate delete = %+v, err=%v", view.Version, err)
 		}
 	})
+	t.Run("generic continuous candidates restore effective versions", func(t *testing.T) {
+		cases := []struct {
+			entity string
+			data   CreateDetailInput
+			seeded bool
+		}{
+			{entity: EntityCategory, data: CreateDetailInput{Name: "Delete Candidate Category " + newID(), TargetEntity: EntityProduct}},
+			{entity: EntityDepartment, data: CreateDetailInput{Name: "Delete Candidate Department " + newID()}},
+			{entity: EntityPosition, data: CreateDetailInput{Name: "Delete Candidate Position " + newID()}},
+			{entity: EntitySettlementMethod, seeded: true},
+		}
+		for _, test := range cases {
+			t.Run(test.entity, func(t *testing.T) {
+				candidateService := NewService(pool)
+				var effective MutationResult
+				if test.seeded {
+					enabled := true
+					page, err := candidateService.Query(t.Context(), test.entity, QueryInput{
+						Page: 1, PageSize: 1, Filters: QueryFilters{Status: []string{StatusEffective}, Enabled: &enabled},
+					})
+					if err != nil || len(page.Items) != 1 || page.Items[0].Effective == nil {
+						t.Fatalf("query seeded effective version: page=%+v err=%v", page, err)
+					}
+					version := page.Items[0].Effective
+					effective = MutationResult{ObjectID: page.Items[0].ObjectID, ObjectRevision: page.Items[0].ObjectRevision,
+						VersionID: version.VersionID, Version: version.Version, Status: version.Status, Revision: version.Revision}
+					if err = candidateService.Delete(t.Context(), test.entity, DeleteInput{
+						ObjectID: effective.ObjectID, ObjectRevision: effective.ObjectRevision,
+						VersionID: effective.VersionID, Revision: effective.Revision,
+					}); !errorIsKind(err, ErrorConflict) {
+						t.Fatalf("delete system settlement first version error = %v, want conflict", err)
+					}
+				} else {
+					_, effective = createApprovedIntegration(t, candidateService, test.entity, test.data, "delete-generic-"+test.entity)
+				}
+
+				candidate, err := candidateService.Edit(t.Context(), test.entity, ObjectRevisionInput{
+					ObjectID: effective.ObjectID, ObjectRevision: effective.ObjectRevision,
+				}, integrationActorOne, "delete-generic-"+test.entity+"-edit")
+				if err != nil {
+					t.Fatalf("edit %s candidate: %v", test.entity, err)
+				}
+				if err = candidateService.Delete(t.Context(), test.entity, deleteInput(candidate)); err != nil {
+					t.Fatalf("delete %s candidate: %v", test.entity, err)
+				}
+				view, err := candidateService.Get(t.Context(), test.entity, GetInput{ObjectID: effective.ObjectID})
+				if err != nil || view.Version.VersionID != effective.VersionID || view.Version.Status != StatusEffective {
+					t.Fatalf("%s after candidate delete = %+v, err=%v", test.entity, view.Version, err)
+				}
+			})
+		}
+	})
 }
 
 func TestDeleteFirstDraftRollbackAfterPartialWorkIntegration(t *testing.T) {

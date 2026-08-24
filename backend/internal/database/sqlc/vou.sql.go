@@ -1417,6 +1417,82 @@ func (q *Queries) GetVouReceiptDetail(ctx context.Context, documentID string) (V
 	return i, err
 }
 
+const getVouSaleDeliveryView = `-- name: GetVouSaleDeliveryView :one
+SELECT delivery.source_outbound_id,source.document_no AS source_document_no,
+       delivery.customer_object_id,delivery.customer_version_id,
+       delivery.customer_code,delivery.customer_name,delivery.carrier_type,
+       COALESCE(delivery.carrier_operating_entity_object_id,'') AS carrier_operating_entity_object_id,
+       COALESCE(delivery.carrier_operating_entity_version_id,'') AS carrier_operating_entity_version_id,
+       COALESCE(delivery.carrier_operating_entity_code,'') AS carrier_operating_entity_code,
+       COALESCE(delivery.carrier_operating_entity_name,'') AS carrier_operating_entity_name,
+       COALESCE(delivery.carrier_service_relationship_object_id,'') AS carrier_service_relationship_object_id,
+       COALESCE(delivery.carrier_service_relationship_version_id,'') AS carrier_service_relationship_version_id,
+       COALESCE(delivery.carrier_service_relationship_code,'') AS carrier_service_relationship_code,
+       COALESCE(delivery.carrier_service_relationship_name,'') AS carrier_service_relationship_name,
+       COALESCE(delivery.vehicle_object_id,'') AS vehicle_object_id,
+       COALESCE(delivery.vehicle_version_id,'') AS vehicle_version_id,
+       COALESCE(delivery.vehicle_code,'') AS vehicle_code,
+       COALESCE(delivery.vehicle_name,'') AS vehicle_name,
+       COALESCE(delivery.vehicle_plate_number,'') AS vehicle_plate_number,
+       delivery.vehicle_bulk_liquid_capable
+FROM vou_sale_delivery_details AS delivery
+JOIN vou_documents AS source ON source.id=delivery.source_outbound_id
+WHERE delivery.document_id=$1
+`
+
+type GetVouSaleDeliveryViewRow struct {
+	SourceOutboundID                    string `db:"source_outbound_id" json:"source_outbound_id"`
+	SourceDocumentNo                    string `db:"source_document_no" json:"source_document_no"`
+	CustomerObjectID                    string `db:"customer_object_id" json:"customer_object_id"`
+	CustomerVersionID                   string `db:"customer_version_id" json:"customer_version_id"`
+	CustomerCode                        string `db:"customer_code" json:"customer_code"`
+	CustomerName                        string `db:"customer_name" json:"customer_name"`
+	CarrierType                         string `db:"carrier_type" json:"carrier_type"`
+	CarrierOperatingEntityObjectID      string `db:"carrier_operating_entity_object_id" json:"carrier_operating_entity_object_id"`
+	CarrierOperatingEntityVersionID     string `db:"carrier_operating_entity_version_id" json:"carrier_operating_entity_version_id"`
+	CarrierOperatingEntityCode          string `db:"carrier_operating_entity_code" json:"carrier_operating_entity_code"`
+	CarrierOperatingEntityName          string `db:"carrier_operating_entity_name" json:"carrier_operating_entity_name"`
+	CarrierServiceRelationshipObjectID  string `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
+	CarrierServiceRelationshipVersionID string `db:"carrier_service_relationship_version_id" json:"carrier_service_relationship_version_id"`
+	CarrierServiceRelationshipCode      string `db:"carrier_service_relationship_code" json:"carrier_service_relationship_code"`
+	CarrierServiceRelationshipName      string `db:"carrier_service_relationship_name" json:"carrier_service_relationship_name"`
+	VehicleObjectID                     string `db:"vehicle_object_id" json:"vehicle_object_id"`
+	VehicleVersionID                    string `db:"vehicle_version_id" json:"vehicle_version_id"`
+	VehicleCode                         string `db:"vehicle_code" json:"vehicle_code"`
+	VehicleName                         string `db:"vehicle_name" json:"vehicle_name"`
+	VehiclePlateNumber                  string `db:"vehicle_plate_number" json:"vehicle_plate_number"`
+	VehicleBulkLiquidCapable            bool   `db:"vehicle_bulk_liquid_capable" json:"vehicle_bulk_liquid_capable"`
+}
+
+func (q *Queries) GetVouSaleDeliveryView(ctx context.Context, documentID string) (GetVouSaleDeliveryViewRow, error) {
+	row := q.db.QueryRow(ctx, getVouSaleDeliveryView, documentID)
+	var i GetVouSaleDeliveryViewRow
+	err := row.Scan(
+		&i.SourceOutboundID,
+		&i.SourceDocumentNo,
+		&i.CustomerObjectID,
+		&i.CustomerVersionID,
+		&i.CustomerCode,
+		&i.CustomerName,
+		&i.CarrierType,
+		&i.CarrierOperatingEntityObjectID,
+		&i.CarrierOperatingEntityVersionID,
+		&i.CarrierOperatingEntityCode,
+		&i.CarrierOperatingEntityName,
+		&i.CarrierServiceRelationshipObjectID,
+		&i.CarrierServiceRelationshipVersionID,
+		&i.CarrierServiceRelationshipCode,
+		&i.CarrierServiceRelationshipName,
+		&i.VehicleObjectID,
+		&i.VehicleVersionID,
+		&i.VehicleCode,
+		&i.VehicleName,
+		&i.VehiclePlateNumber,
+		&i.VehicleBulkLiquidCapable,
+	)
+	return i, err
+}
+
 const getVouSaleOrderDetail = `-- name: GetVouSaleOrderDetail :one
 SELECT document_id, entity, customer_object_id, customer_version_id, customer_code, customer_name, salesperson_object_id, salesperson_version_id, salesperson_code, salesperson_name, contact_name, contact_phone, delivery_address, settlement_method_object_id, settlement_method_version_id, settlement_method_code, settlement_method_name, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, settlement_description, fulfillment_status, settlement_due_days, settlement_cutoff_day, settlement_default_sales_surcharge_cents, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, settlement_term_code, special_approval, sales_attribution_type, sales_attribution_subject_object_id, sales_attribution_subject_version_id, sales_attribution_subject_code, sales_attribution_subject_name FROM vou_sale_order_details WHERE document_id = $1
 `
@@ -2813,6 +2889,80 @@ func (q *Queries) InsertVouReceiptDetail(ctx context.Context, arg InsertVouRecei
 		arg.HandlerVersionID,
 		arg.HandlerCode,
 		arg.HandlerName,
+	)
+	return err
+}
+
+const insertVouSaleDeliveryDetail = `-- name: InsertVouSaleDeliveryDetail :exec
+INSERT INTO vou_sale_delivery_details(
+    document_id,source_outbound_id,customer_object_id,customer_version_id,customer_code,customer_name,
+    carrier_type,
+    carrier_operating_entity_object_id,carrier_operating_entity_version_id,
+    carrier_operating_entity_code,carrier_operating_entity_name,
+    carrier_service_relationship_object_id,carrier_service_relationship_version_id,
+    carrier_service_relationship_code,carrier_service_relationship_name,
+    vehicle_object_id,vehicle_version_id,vehicle_code,vehicle_name,
+    vehicle_plate_number,vehicle_bulk_liquid_capable
+) VALUES(
+    $1,$2,$3,
+    $4,$5,$6,
+    $7,$8,
+    $9,$10,
+    $11,$12,
+    $13,$14,
+    $15,$16,
+    $17,$18,$19,
+    $20,$21
+)
+`
+
+type InsertVouSaleDeliveryDetailParams struct {
+	DocumentID                          string  `db:"document_id" json:"document_id"`
+	SourceOutboundID                    string  `db:"source_outbound_id" json:"source_outbound_id"`
+	CustomerObjectID                    string  `db:"customer_object_id" json:"customer_object_id"`
+	CustomerVersionID                   string  `db:"customer_version_id" json:"customer_version_id"`
+	CustomerCode                        string  `db:"customer_code" json:"customer_code"`
+	CustomerName                        string  `db:"customer_name" json:"customer_name"`
+	CarrierType                         string  `db:"carrier_type" json:"carrier_type"`
+	CarrierOperatingEntityObjectID      *string `db:"carrier_operating_entity_object_id" json:"carrier_operating_entity_object_id"`
+	CarrierOperatingEntityVersionID     *string `db:"carrier_operating_entity_version_id" json:"carrier_operating_entity_version_id"`
+	CarrierOperatingEntityCode          *string `db:"carrier_operating_entity_code" json:"carrier_operating_entity_code"`
+	CarrierOperatingEntityName          *string `db:"carrier_operating_entity_name" json:"carrier_operating_entity_name"`
+	CarrierServiceRelationshipObjectID  *string `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
+	CarrierServiceRelationshipVersionID *string `db:"carrier_service_relationship_version_id" json:"carrier_service_relationship_version_id"`
+	CarrierServiceRelationshipCode      *string `db:"carrier_service_relationship_code" json:"carrier_service_relationship_code"`
+	CarrierServiceRelationshipName      *string `db:"carrier_service_relationship_name" json:"carrier_service_relationship_name"`
+	VehicleObjectID                     *string `db:"vehicle_object_id" json:"vehicle_object_id"`
+	VehicleVersionID                    *string `db:"vehicle_version_id" json:"vehicle_version_id"`
+	VehicleCode                         *string `db:"vehicle_code" json:"vehicle_code"`
+	VehicleName                         *string `db:"vehicle_name" json:"vehicle_name"`
+	VehiclePlateNumber                  *string `db:"vehicle_plate_number" json:"vehicle_plate_number"`
+	VehicleBulkLiquidCapable            bool    `db:"vehicle_bulk_liquid_capable" json:"vehicle_bulk_liquid_capable"`
+}
+
+func (q *Queries) InsertVouSaleDeliveryDetail(ctx context.Context, arg InsertVouSaleDeliveryDetailParams) error {
+	_, err := q.db.Exec(ctx, insertVouSaleDeliveryDetail,
+		arg.DocumentID,
+		arg.SourceOutboundID,
+		arg.CustomerObjectID,
+		arg.CustomerVersionID,
+		arg.CustomerCode,
+		arg.CustomerName,
+		arg.CarrierType,
+		arg.CarrierOperatingEntityObjectID,
+		arg.CarrierOperatingEntityVersionID,
+		arg.CarrierOperatingEntityCode,
+		arg.CarrierOperatingEntityName,
+		arg.CarrierServiceRelationshipObjectID,
+		arg.CarrierServiceRelationshipVersionID,
+		arg.CarrierServiceRelationshipCode,
+		arg.CarrierServiceRelationshipName,
+		arg.VehicleObjectID,
+		arg.VehicleVersionID,
+		arg.VehicleCode,
+		arg.VehicleName,
+		arg.VehiclePlateNumber,
+		arg.VehicleBulkLiquidCapable,
 	)
 	return err
 }
@@ -4552,6 +4702,61 @@ func (q *Queries) LockVouSaleDeliveryCarrierSnapshot(ctx context.Context, docume
 	return i, err
 }
 
+const lockVouSaleOutboundSource = `-- name: LockVouSaleOutboundSource :one
+SELECT document.document_no,document.status,document.business_date,
+       COALESCE(document.currency,'') AS currency,document.total_amount_cents,
+       outbound.customer_object_id,outbound.customer_version_id,
+       outbound.customer_code,outbound.customer_name,
+       outbound.warehouse_object_id,outbound.warehouse_version_id,
+       outbound.warehouse_code,outbound.warehouse_name,
+       relationship.operating_entity_id
+FROM vou_documents AS document
+JOIN vou_sale_outbound_details AS outbound ON outbound.document_id=document.id
+JOIN bob_customer_accounts AS account ON account.object_id=outbound.customer_object_id
+JOIN bob_customer_relationships AS relationship ON relationship.object_id=account.customer_relationship_id
+WHERE document.id=$1 AND document.entity='sale-outbound'
+FOR UPDATE OF document,outbound
+`
+
+type LockVouSaleOutboundSourceRow struct {
+	DocumentNo         string      `db:"document_no" json:"document_no"`
+	Status             string      `db:"status" json:"status"`
+	BusinessDate       pgtype.Date `db:"business_date" json:"business_date"`
+	Currency           string      `db:"currency" json:"currency"`
+	TotalAmountCents   int64       `db:"total_amount_cents" json:"total_amount_cents"`
+	CustomerObjectID   string      `db:"customer_object_id" json:"customer_object_id"`
+	CustomerVersionID  string      `db:"customer_version_id" json:"customer_version_id"`
+	CustomerCode       string      `db:"customer_code" json:"customer_code"`
+	CustomerName       string      `db:"customer_name" json:"customer_name"`
+	WarehouseObjectID  *string     `db:"warehouse_object_id" json:"warehouse_object_id"`
+	WarehouseVersionID *string     `db:"warehouse_version_id" json:"warehouse_version_id"`
+	WarehouseCode      *string     `db:"warehouse_code" json:"warehouse_code"`
+	WarehouseName      *string     `db:"warehouse_name" json:"warehouse_name"`
+	OperatingEntityID  string      `db:"operating_entity_id" json:"operating_entity_id"`
+}
+
+func (q *Queries) LockVouSaleOutboundSource(ctx context.Context, documentID string) (LockVouSaleOutboundSourceRow, error) {
+	row := q.db.QueryRow(ctx, lockVouSaleOutboundSource, documentID)
+	var i LockVouSaleOutboundSourceRow
+	err := row.Scan(
+		&i.DocumentNo,
+		&i.Status,
+		&i.BusinessDate,
+		&i.Currency,
+		&i.TotalAmountCents,
+		&i.CustomerObjectID,
+		&i.CustomerVersionID,
+		&i.CustomerCode,
+		&i.CustomerName,
+		&i.WarehouseObjectID,
+		&i.WarehouseVersionID,
+		&i.WarehouseCode,
+		&i.WarehouseName,
+		&i.OperatingEntityID,
+	)
+	return i, err
+}
+
 const lockVouSettlementBalance = `-- name: LockVouSettlementBalance :exec
 SELECT pg_advisory_xact_lock(hashtextextended($1,0))
 `
@@ -5349,6 +5554,68 @@ func (q *Queries) UpdateVouReceiptDetail(ctx context.Context, arg UpdateVouRecei
 		arg.HandlerVersionID,
 		arg.HandlerCode,
 		arg.HandlerName,
+		arg.DocumentID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateVouSaleDeliveryCarrierSnapshot = `-- name: UpdateVouSaleDeliveryCarrierSnapshot :execrows
+UPDATE vou_sale_delivery_details SET
+    carrier_type=$1,
+    carrier_operating_entity_object_id=$2,
+    carrier_operating_entity_version_id=$3,
+    carrier_operating_entity_code=$4,
+    carrier_operating_entity_name=$5,
+    carrier_service_relationship_object_id=$6,
+    carrier_service_relationship_version_id=$7,
+    carrier_service_relationship_code=$8,
+    carrier_service_relationship_name=$9,
+    vehicle_object_id=$10,vehicle_version_id=$11,
+    vehicle_code=$12,vehicle_name=$13,
+    vehicle_plate_number=$14,
+    vehicle_bulk_liquid_capable=$15
+WHERE document_id=$16
+`
+
+type UpdateVouSaleDeliveryCarrierSnapshotParams struct {
+	CarrierType                         string  `db:"carrier_type" json:"carrier_type"`
+	CarrierOperatingEntityObjectID      *string `db:"carrier_operating_entity_object_id" json:"carrier_operating_entity_object_id"`
+	CarrierOperatingEntityVersionID     *string `db:"carrier_operating_entity_version_id" json:"carrier_operating_entity_version_id"`
+	CarrierOperatingEntityCode          *string `db:"carrier_operating_entity_code" json:"carrier_operating_entity_code"`
+	CarrierOperatingEntityName          *string `db:"carrier_operating_entity_name" json:"carrier_operating_entity_name"`
+	CarrierServiceRelationshipObjectID  *string `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
+	CarrierServiceRelationshipVersionID *string `db:"carrier_service_relationship_version_id" json:"carrier_service_relationship_version_id"`
+	CarrierServiceRelationshipCode      *string `db:"carrier_service_relationship_code" json:"carrier_service_relationship_code"`
+	CarrierServiceRelationshipName      *string `db:"carrier_service_relationship_name" json:"carrier_service_relationship_name"`
+	VehicleObjectID                     *string `db:"vehicle_object_id" json:"vehicle_object_id"`
+	VehicleVersionID                    *string `db:"vehicle_version_id" json:"vehicle_version_id"`
+	VehicleCode                         *string `db:"vehicle_code" json:"vehicle_code"`
+	VehicleName                         *string `db:"vehicle_name" json:"vehicle_name"`
+	VehiclePlateNumber                  *string `db:"vehicle_plate_number" json:"vehicle_plate_number"`
+	VehicleBulkLiquidCapable            bool    `db:"vehicle_bulk_liquid_capable" json:"vehicle_bulk_liquid_capable"`
+	DocumentID                          string  `db:"document_id" json:"document_id"`
+}
+
+func (q *Queries) UpdateVouSaleDeliveryCarrierSnapshot(ctx context.Context, arg UpdateVouSaleDeliveryCarrierSnapshotParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateVouSaleDeliveryCarrierSnapshot,
+		arg.CarrierType,
+		arg.CarrierOperatingEntityObjectID,
+		arg.CarrierOperatingEntityVersionID,
+		arg.CarrierOperatingEntityCode,
+		arg.CarrierOperatingEntityName,
+		arg.CarrierServiceRelationshipObjectID,
+		arg.CarrierServiceRelationshipVersionID,
+		arg.CarrierServiceRelationshipCode,
+		arg.CarrierServiceRelationshipName,
+		arg.VehicleObjectID,
+		arg.VehicleVersionID,
+		arg.VehicleCode,
+		arg.VehicleName,
+		arg.VehiclePlateNumber,
+		arg.VehicleBulkLiquidCapable,
 		arg.DocumentID,
 	)
 	if err != nil {

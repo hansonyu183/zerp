@@ -1192,6 +1192,82 @@ FROM vou_sale_delivery_details
 WHERE document_id=sqlc.arg(document_id)
 FOR UPDATE;
 
+-- name: LockVouSaleOutboundSource :one
+SELECT document.document_no,document.status,document.business_date,
+       COALESCE(document.currency,'') AS currency,document.total_amount_cents,
+       outbound.customer_object_id,outbound.customer_version_id,
+       outbound.customer_code,outbound.customer_name,
+       outbound.warehouse_object_id,outbound.warehouse_version_id,
+       outbound.warehouse_code,outbound.warehouse_name,
+       relationship.operating_entity_id
+FROM vou_documents AS document
+JOIN vou_sale_outbound_details AS outbound ON outbound.document_id=document.id
+JOIN bob_customer_accounts AS account ON account.object_id=outbound.customer_object_id
+JOIN bob_customer_relationships AS relationship ON relationship.object_id=account.customer_relationship_id
+WHERE document.id=sqlc.arg(document_id) AND document.entity='sale-outbound'
+FOR UPDATE OF document,outbound;
+
+-- name: InsertVouSaleDeliveryDetail :exec
+INSERT INTO vou_sale_delivery_details(
+    document_id,source_outbound_id,customer_object_id,customer_version_id,customer_code,customer_name,
+    carrier_type,
+    carrier_operating_entity_object_id,carrier_operating_entity_version_id,
+    carrier_operating_entity_code,carrier_operating_entity_name,
+    carrier_service_relationship_object_id,carrier_service_relationship_version_id,
+    carrier_service_relationship_code,carrier_service_relationship_name,
+    vehicle_object_id,vehicle_version_id,vehicle_code,vehicle_name,
+    vehicle_plate_number,vehicle_bulk_liquid_capable
+) VALUES(
+    sqlc.arg(document_id),sqlc.arg(source_outbound_id),sqlc.arg(customer_object_id),
+    sqlc.arg(customer_version_id),sqlc.arg(customer_code),sqlc.arg(customer_name),
+    sqlc.arg(carrier_type),sqlc.narg(carrier_operating_entity_object_id),
+    sqlc.narg(carrier_operating_entity_version_id),sqlc.narg(carrier_operating_entity_code),
+    sqlc.narg(carrier_operating_entity_name),sqlc.narg(carrier_service_relationship_object_id),
+    sqlc.narg(carrier_service_relationship_version_id),sqlc.narg(carrier_service_relationship_code),
+    sqlc.narg(carrier_service_relationship_name),sqlc.arg(vehicle_object_id),
+    sqlc.arg(vehicle_version_id),sqlc.arg(vehicle_code),sqlc.arg(vehicle_name),
+    sqlc.arg(vehicle_plate_number),sqlc.arg(vehicle_bulk_liquid_capable)
+);
+
+-- name: UpdateVouSaleDeliveryCarrierSnapshot :execrows
+UPDATE vou_sale_delivery_details SET
+    carrier_type=sqlc.arg(carrier_type),
+    carrier_operating_entity_object_id=sqlc.narg(carrier_operating_entity_object_id),
+    carrier_operating_entity_version_id=sqlc.narg(carrier_operating_entity_version_id),
+    carrier_operating_entity_code=sqlc.narg(carrier_operating_entity_code),
+    carrier_operating_entity_name=sqlc.narg(carrier_operating_entity_name),
+    carrier_service_relationship_object_id=sqlc.narg(carrier_service_relationship_object_id),
+    carrier_service_relationship_version_id=sqlc.narg(carrier_service_relationship_version_id),
+    carrier_service_relationship_code=sqlc.narg(carrier_service_relationship_code),
+    carrier_service_relationship_name=sqlc.narg(carrier_service_relationship_name),
+    vehicle_object_id=sqlc.arg(vehicle_object_id),vehicle_version_id=sqlc.arg(vehicle_version_id),
+    vehicle_code=sqlc.arg(vehicle_code),vehicle_name=sqlc.arg(vehicle_name),
+    vehicle_plate_number=sqlc.arg(vehicle_plate_number),
+    vehicle_bulk_liquid_capable=sqlc.arg(vehicle_bulk_liquid_capable)
+WHERE document_id=sqlc.arg(document_id);
+
+-- name: GetVouSaleDeliveryView :one
+SELECT delivery.source_outbound_id,source.document_no AS source_document_no,
+       delivery.customer_object_id,delivery.customer_version_id,
+       delivery.customer_code,delivery.customer_name,delivery.carrier_type,
+       COALESCE(delivery.carrier_operating_entity_object_id,'') AS carrier_operating_entity_object_id,
+       COALESCE(delivery.carrier_operating_entity_version_id,'') AS carrier_operating_entity_version_id,
+       COALESCE(delivery.carrier_operating_entity_code,'') AS carrier_operating_entity_code,
+       COALESCE(delivery.carrier_operating_entity_name,'') AS carrier_operating_entity_name,
+       COALESCE(delivery.carrier_service_relationship_object_id,'') AS carrier_service_relationship_object_id,
+       COALESCE(delivery.carrier_service_relationship_version_id,'') AS carrier_service_relationship_version_id,
+       COALESCE(delivery.carrier_service_relationship_code,'') AS carrier_service_relationship_code,
+       COALESCE(delivery.carrier_service_relationship_name,'') AS carrier_service_relationship_name,
+       COALESCE(delivery.vehicle_object_id,'') AS vehicle_object_id,
+       COALESCE(delivery.vehicle_version_id,'') AS vehicle_version_id,
+       COALESCE(delivery.vehicle_code,'') AS vehicle_code,
+       COALESCE(delivery.vehicle_name,'') AS vehicle_name,
+       COALESCE(delivery.vehicle_plate_number,'') AS vehicle_plate_number,
+       delivery.vehicle_bulk_liquid_capable
+FROM vou_sale_delivery_details AS delivery
+JOIN vou_documents AS source ON source.id=delivery.source_outbound_id
+WHERE delivery.document_id=sqlc.arg(document_id);
+
 -- name: FindVouRefusalReturnDocument :one
 SELECT document_id
 FROM vou_sale_return_details

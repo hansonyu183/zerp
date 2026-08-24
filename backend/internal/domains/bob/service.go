@@ -619,9 +619,6 @@ func (s *Service) saveProduct(ctx context.Context, input SaveInput, actorID, req
 }
 
 func (s *Service) Delete(ctx context.Context, entity string, input DeleteInput) error {
-	if entity == EntitySettlementMethod {
-		return domainError(ErrorValidation, "settlement methods are system-defined", nil, nil)
-	}
 	if !validDeleteInput(entity, input) {
 		return domainError(ErrorValidation, "invalid delete request", nil, nil)
 	}
@@ -838,7 +835,8 @@ func (s *Service) deleteEffectiveCandidate(
 	}
 	qtx := s.queries.WithTx(tx)
 	if entity == EntityEmployee || entity == EntityFundAccount || entity == EntityOperatingEntity ||
-		entity == EntityWarehouse || entity == EntityVehicle {
+		entity == EntityWarehouse || entity == EntityVehicle || entity == EntityCategory ||
+		entity == EntityDepartment || entity == EntityPosition || entity == EntitySettlementMethod {
 		return s.deleteGenericEffectiveCandidate(ctx, tx, qtx, entity, object, version, input)
 	}
 	var rows int64

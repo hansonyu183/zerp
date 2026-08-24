@@ -51,7 +51,6 @@ chmod 600 "${temporary}"
     'TEST_SEED_USER_USERNAME=tester' \
     'TEST_SEED_USER_DISPLAY_NAME=测试用户'
   printf 'TEST_SEED_USER_PASSWORD=%s\n' "${test_seed_user_password}"
-  printf '%s\n' 'FEEDBACK_GITHUB_ENABLED=false'
 } >"${temporary}"
 
 mv "${temporary}" "${target}"

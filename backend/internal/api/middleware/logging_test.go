@@ -49,14 +49,14 @@ func TestRequestLoggerUsesRouteTemplateForSecretPathParameters(t *testing.T) {
 	var output bytes.Buffer
 	router := gin.New()
 	router.Use(RequestID(), RequestLogger(slog.New(slog.NewJSONHandler(&output, nil))))
-	router.PUT("/files/feedback/attachments/upload/:token", func(c *gin.Context) {
+	router.PUT("/files/attachments/upload/:token", func(c *gin.Context) {
 		c.Status(http.StatusNoContent)
 	})
 
 	const token = "secret-upload-token"
 	router.ServeHTTP(
 		httptest.NewRecorder(),
-		httptest.NewRequest(http.MethodPut, "/files/feedback/attachments/upload/"+token, nil),
+		httptest.NewRequest(http.MethodPut, "/files/attachments/upload/"+token, nil),
 	)
 	if bytes.Contains(output.Bytes(), []byte(token)) {
 		t.Fatalf("request log exposed upload token: %s", output.String())
@@ -65,7 +65,7 @@ func TestRequestLoggerUsesRouteTemplateForSecretPathParameters(t *testing.T) {
 	if err := json.Unmarshal(output.Bytes(), &entry); err != nil {
 		t.Fatalf("decode log entry: %v", err)
 	}
-	if entry["path"] != "/files/feedback/attachments/upload/:token" {
+	if entry["path"] != "/files/attachments/upload/:token" {
 		t.Fatalf("logged path = %v", entry["path"])
 	}
 }

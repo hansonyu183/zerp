@@ -12,7 +12,7 @@ func TestRemoveNamespaceOrphansStaysWithinOwnedNamespace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new store: %v", err)
 	}
-	for _, key := range []string{"customer/keep", "customer/remove", "feedback/keep"} {
+	for _, key := range []string{"customer/keep", "customer/remove", "supplier/keep"} {
 		path, pathErr := store.path(key)
 		if pathErr != nil {
 			t.Fatalf("path %s: %v", key, pathErr)
@@ -28,7 +28,7 @@ func TestRemoveNamespaceOrphansStaysWithinOwnedNamespace(t *testing.T) {
 	if err != nil || removed != 1 {
 		t.Fatalf("removed=%d err=%v", removed, err)
 	}
-	for _, key := range []string{"customer/keep", "feedback/keep"} {
+	for _, key := range []string{"customer/keep", "supplier/keep"} {
 		path, _ := store.path(key)
 		if _, err = os.Stat(path); err != nil {
 			t.Fatalf("kept file %s: %v", key, err)

@@ -363,20 +363,6 @@ export class ApiClient {
     )
   }
 
-  async uploadFeedbackAttachment(
-    uploadUrl: string,
-    file: File,
-    options: FileRequestOptions = {},
-  ): Promise<void> {
-    await this.uploadFile(
-      uploadUrl,
-      '/files/feedback/attachments/upload/',
-      file,
-      options,
-      true,
-    )
-  }
-
   private async uploadFile(
     uploadUrl: string,
     requiredPrefix: string,

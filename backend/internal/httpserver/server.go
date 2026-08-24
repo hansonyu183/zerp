@@ -2,7 +2,6 @@ package httpserver
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -22,7 +21,6 @@ import (
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
-	"github.com/hansonyu183/zerp/backend/internal/integrations/githubissues"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/workflowactions"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -35,16 +33,13 @@ type databasePinger interface {
 	Ping(context.Context) error
 }
 
-func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine, *appdomain.FeedbackPublisher, error) {
-	if err := validateFeedbackRuntimeConfig(cfg); err != nil {
-		return nil, nil, err
-	}
+func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine, error) {
 	bobService := bobdomain.NewService(db)
 	bobAttachmentService, err := bobdomain.NewCustomerAttachmentService(db, bobdomain.CustomerAttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	auxService := auxdomain.NewService(db)
 	bobService.SetAuxiliaryResolver(auxiliaryrefs.New(auxService))
@@ -54,27 +49,19 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
 	}, logger, voudomain.WithAccountingControl(accService))
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	wflService, err := wfldomain.NewService(db, eventBus, workflowactions.New(vouService), logger)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	appService := appdomain.NewService(db, cfg, logger)
 	if err = accService.RegisterSubscriptions(eventBus); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	rptService, err := rptdomain.NewService(db)
 	if err != nil {
-		return nil, nil, err
-	}
-	var publisher *appdomain.FeedbackPublisher
-	if cfg.FeedbackGitHubEnabled {
-		issueClient, clientErr := githubissues.New(cfg.FeedbackGitHubRepository, cfg.FeedbackGitHubToken)
-		if clientErr != nil {
-			return nil, nil, clientErr
-		}
-		publisher = appdomain.NewFeedbackPublisher(db, issueClient, logger)
+		return nil, err
 	}
 	router := newRouter(cfg, db, logger, func(router *gin.Engine) {
 		appdomain.NewHandler(appService, cfg, logger).Register(router)
@@ -86,14 +73,7 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 		wfldomain.NewHandler(wflService, authorizer, logger).Register(router)
 		rptdomain.NewHandler(rptService, authorizer, logger).Register(router)
 	})
-	return router, publisher, nil
-}
-
-func validateFeedbackRuntimeConfig(cfg config.Config) error {
-	if cfg.Environment == config.EnvironmentProduction && !cfg.FeedbackGitHubEnabled {
-		return errors.New("FEEDBACK_GITHUB_ENABLED must be true in production")
-	}
-	return nil
+	return router, nil
 }
 
 func newRouter(

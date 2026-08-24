@@ -1025,68 +1025,6 @@
       'properties':
         { 'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 } },
     },
-  'FeedbackAttachmentInitiateRequest':
-    {
-      'type': 'object',
-      'required': ['fileName', 'contentType', 'size', 'sha256'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'fileName': { 'type': 'string' },
-          'contentType': { 'type': 'string' },
-          'size': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
-          'sha256': { 'type': 'string' },
-        },
-    },
-  'FeedbackAttachmentRemoveRequest':
-    {
-      'type': 'object',
-      'required': ['fileId'],
-      'additionalProperties': false,
-      'properties': { 'fileId': { 'type': 'string' } },
-    },
-  'FeedbackCreateRequest':
-    {
-      'type': 'object',
-      'required':
-        [
-          'submissionKey',
-          'category',
-          'title',
-          'content',
-          'pagePath',
-          'clientVersion',
-          'relatedRequestId',
-          'attachmentIds',
-        ],
-      'additionalProperties': false,
-      'properties':
-        {
-          'submissionKey':
-            {
-              'type': 'string',
-              'minLength': 16,
-              'maxLength': 64,
-              'pattern': '^[A-Za-z0-9_-]+$',
-              'description': '客户端为一次反馈草稿生成并在重试时复用的幂等键。',
-            },
-          'category':
-            { 'type': 'string', 'enum': ['BUG', 'SUGGESTION', 'OTHER'] },
-          'title': { 'type': 'string' },
-          'content': { 'type': 'string' },
-          'pagePath': { 'type': 'string' },
-          'clientVersion': { 'type': 'string' },
-          'relatedRequestId': { 'type': 'string' },
-          'attachmentIds': { 'type': 'array', 'items': { 'type': 'string' } },
-        },
-    },
-  'FeedbackGetRequest':
-    {
-      'type': 'object',
-      'required': ['feedbackId'],
-      'additionalProperties': false,
-      'properties': { 'feedbackId': { 'type': 'string' } },
-    },
   'WorkbenchCategory': { 'type': 'string', 'enum': ['BOB', 'VOU'] },
   'WorkbenchPendingStage': { 'type': 'string', 'enum': ['CHECK', 'APPROVE'] },
   'WorkbenchAction':

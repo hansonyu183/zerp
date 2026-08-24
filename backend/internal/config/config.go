@@ -16,45 +16,39 @@ const (
 )
 
 type Config struct {
-	Environment                 string
-	HTTPAddress                 string
-	DatabaseURL                 string
-	CORSAllowedOrigins          []string
-	DatabaseConnectTimeout      time.Duration
-	DatabaseHealthTimeout       time.Duration
-	ReadHeaderTimeout           time.Duration
-	ReadTimeout                 time.Duration
-	WriteTimeout                time.Duration
-	IdleTimeout                 time.Duration
-	ShutdownTimeout             time.Duration
-	SessionCookieName           string
-	SessionCookieSecure         bool
-	SessionCookieSameSite       string
-	SessionIdleTimeout          time.Duration
-	SessionAbsoluteTimeout      time.Duration
-	SigninLockThreshold         int
-	SigninLockDuration          time.Duration
-	PasswordMinLength           int
-	AttachmentStorageRoot       string
-	AttachmentUploadTTL         time.Duration
-	AttachmentDownloadTTL       time.Duration
-	FeedbackAttachmentOrphanTTL time.Duration
-	FeedbackGitHubEnabled       bool
-	FeedbackGitHubRepository    string
-	FeedbackGitHubToken         string
+	Environment            string
+	HTTPAddress            string
+	DatabaseURL            string
+	CORSAllowedOrigins     []string
+	DatabaseConnectTimeout time.Duration
+	DatabaseHealthTimeout  time.Duration
+	ReadHeaderTimeout      time.Duration
+	ReadTimeout            time.Duration
+	WriteTimeout           time.Duration
+	IdleTimeout            time.Duration
+	ShutdownTimeout        time.Duration
+	SessionCookieName      string
+	SessionCookieSecure    bool
+	SessionCookieSameSite  string
+	SessionIdleTimeout     time.Duration
+	SessionAbsoluteTimeout time.Duration
+	SigninLockThreshold    int
+	SigninLockDuration     time.Duration
+	PasswordMinLength      int
+	AttachmentStorageRoot  string
+	AttachmentUploadTTL    time.Duration
+	AttachmentDownloadTTL  time.Duration
 }
 
 func Load() (Config, error) {
 	cfg := Config{
-		Environment:              valueOrDefault("APP_ENV", EnvironmentDevelopment),
-		HTTPAddress:              valueOrDefault("HTTP_ADDRESS", ":8080"),
-		DatabaseURL:              strings.TrimSpace(os.Getenv("DATABASE_URL")),
-		CORSAllowedOrigins:       splitAndTrim(os.Getenv("CORS_ALLOWED_ORIGINS")),
-		SessionCookieName:        valueOrDefault("APP_SESSION_COOKIE_NAME", "zerp_session"),
-		SessionCookieSameSite:    strings.ToLower(valueOrDefault("APP_SESSION_COOKIE_SAME_SITE", "lax")),
-		AttachmentStorageRoot:    strings.TrimSpace(os.Getenv("ATTACHMENT_STORAGE_ROOT")),
-		FeedbackGitHubRepository: valueOrDefault("FEEDBACK_GITHUB_REPOSITORY", "hansonyu183/zerp"),
-		FeedbackGitHubToken:      strings.TrimSpace(os.Getenv("FEEDBACK_GITHUB_TOKEN")),
+		Environment:           valueOrDefault("APP_ENV", EnvironmentDevelopment),
+		HTTPAddress:           valueOrDefault("HTTP_ADDRESS", ":8080"),
+		DatabaseURL:           strings.TrimSpace(os.Getenv("DATABASE_URL")),
+		CORSAllowedOrigins:    splitAndTrim(os.Getenv("CORS_ALLOWED_ORIGINS")),
+		SessionCookieName:     valueOrDefault("APP_SESSION_COOKIE_NAME", "zerp_session"),
+		SessionCookieSameSite: strings.ToLower(valueOrDefault("APP_SESSION_COOKIE_SAME_SITE", "lax")),
+		AttachmentStorageRoot: strings.TrimSpace(os.Getenv("ATTACHMENT_STORAGE_ROOT")),
 	}
 
 	if cfg.DatabaseURL == "" {
@@ -135,41 +129,8 @@ func Load() (Config, error) {
 	if cfg.AttachmentDownloadTTL, err = durationOrDefault("ATTACHMENT_DOWNLOAD_TOKEN_TTL", 5*time.Minute); err != nil {
 		return Config{}, err
 	}
-	if cfg.FeedbackAttachmentOrphanTTL, err = durationOrDefault("FEEDBACK_ATTACHMENT_ORPHAN_TTL", 24*time.Hour); err != nil {
-		return Config{}, err
-	}
-	if cfg.FeedbackGitHubEnabled, err = boolOrDefault("FEEDBACK_GITHUB_ENABLED", false); err != nil {
-		return Config{}, err
-	}
-	if cfg.Environment == EnvironmentProduction && !cfg.FeedbackGitHubEnabled {
-		return Config{}, errors.New("FEEDBACK_GITHUB_ENABLED must be true in production")
-	}
-	if !validGitHubRepository(cfg.FeedbackGitHubRepository) {
-		return Config{}, errors.New("FEEDBACK_GITHUB_REPOSITORY must use owner/repository format")
-	}
-	if cfg.FeedbackGitHubEnabled && cfg.FeedbackGitHubToken == "" {
-		return Config{}, errors.New("FEEDBACK_GITHUB_TOKEN is required when feedback publishing is enabled")
-	}
 
 	return cfg, nil
-}
-
-func validGitHubRepository(value string) bool {
-	parts := strings.Split(value, "/")
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" || len(value) > 200 {
-		return false
-	}
-	for _, part := range parts {
-		for _, character := range part {
-			if (character < 'a' || character > 'z') &&
-				(character < 'A' || character > 'Z') &&
-				(character < '0' || character > '9') &&
-				character != '-' && character != '_' && character != '.' {
-				return false
-			}
-		}
-	}
-	return true
 }
 
 func validCookieName(value string) bool {

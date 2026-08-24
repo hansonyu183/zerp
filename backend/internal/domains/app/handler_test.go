@@ -31,11 +31,7 @@ type handlerServiceStub struct {
 	resetPassword         ResetPasswordInput
 	resetPasswordResult   ResetPasswordResult
 	queryUsersResult      Page[UserListItem]
-	createdFeedback       CreateFeedbackInput
 	workbenchInput        WorkbenchQueryInput
-	uploadCalls           int
-	uploadToken           string
-	uploadActorID         string
 }
 
 func (stub *handlerServiceStub) AuthorizeSession(_ context.Context, _, _, path, _ string) (Principal, error) {
@@ -103,18 +99,6 @@ func (stub *handlerServiceStub) ChangePassword(_ context.Context, _ Principal, i
 	return nil
 }
 
-func (stub *handlerServiceStub) CreateFeedback(_ context.Context, input CreateFeedbackInput, _ string) (FeedbackCreatedView, error) {
-	stub.createdFeedback = input
-	return FeedbackCreatedView{FeedbackID: "01JAPPFEEDBACK00000000000", Status: FeedbackStatusPending}, nil
-}
-
-func (stub *handlerServiceStub) UploadFeedbackAttachment(_ context.Context, token, actorID string, _ io.Reader, _ int64, _ string) error {
-	stub.uploadCalls++
-	stub.uploadToken = token
-	stub.uploadActorID = actorID
-	return nil
-}
-
 func testRouter(stub *handlerServiceStub) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -136,8 +120,6 @@ func TestHandlerRegistersCompleteAPIRouteSet(t *testing.T) {
 		"/app/menu/get", "/app/menu/save-business",
 		"/app/menu/activate", "/app/menu/reset-business",
 		"/app/workbench/query",
-		"/app/feedback/attachment-initiate", "/app/feedback/attachment-remove",
-		"/app/feedback/create", "/app/feedback/get",
 	}
 	found := make(map[string]bool, len(expected))
 	for _, path := range expected {
@@ -155,17 +137,8 @@ func TestHandlerRegistersCompleteAPIRouteSet(t *testing.T) {
 			t.Errorf("route %s is not registered", path)
 		}
 	}
-	uploadRegistered := false
-	for _, route := range router.Routes() {
-		if route.Method == http.MethodPut && route.Path == "/files/feedback/attachments/upload/:token" {
-			uploadRegistered = true
-		}
-	}
-	if !uploadRegistered {
-		t.Error("feedback attachment upload route is not registered")
-	}
-	if len(router.Routes()) != len(expected)+1 {
-		t.Fatalf("route count = %d, want %d", len(router.Routes()), len(expected)+1)
+	if len(router.Routes()) != len(expected) {
+		t.Fatalf("route count = %d, want %d", len(router.Routes()), len(expected))
 	}
 }
 
@@ -217,92 +190,6 @@ func TestMenuReadUsesSessionAuthorizationWithoutPathPermission(t *testing.T) {
 	}
 	if envelope.Code != response.CodeOK {
 		t.Fatalf("code = %d, want 0", envelope.Code)
-	}
-}
-
-func TestFeedbackUsesSessionAuthorizationWithoutPathPermission(t *testing.T) {
-	stub := &handlerServiceStub{authorizeResult: Principal{User: UserSummary{ID: "user-1"}}}
-	request := httptest.NewRequest(http.MethodPost, "/app/feedback/create", strings.NewReader(
-		`{"submissionKey":"feedback-submission-0001","category":"BUG","title":"页面异常","content":"保存失败"}`,
-	))
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("X-CSRF-Token", "csrf")
-	request.AddCookie(&http.Cookie{Name: "zerp_session", Value: "session"})
-	recorder := httptest.NewRecorder()
-	testRouter(stub).ServeHTTP(recorder, request)
-
-	if stub.sessionAuthorizedPath != "/app/feedback/create" {
-		t.Fatalf("session authorized path = %q", stub.sessionAuthorizedPath)
-	}
-	if stub.authorizedPath != "" {
-		t.Fatalf("permission authorizer was called for feedback path %q", stub.authorizedPath)
-	}
-	if stub.createdFeedback.Title != "页面异常" {
-		t.Fatalf("feedback input = %#v", stub.createdFeedback)
-	}
-	var envelope response.Envelope
-	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
-		t.Fatalf("decode envelope: %v", err)
-	}
-	if envelope.Code != response.CodeOK {
-		t.Fatalf("code = %d, want 0", envelope.Code)
-	}
-}
-
-func TestFeedbackAttachmentUploadRejectsRestrictedSession(t *testing.T) {
-	stub := &handlerServiceStub{authorizeError: domainError(ErrorForbidden, "password change is required", nil)}
-	request := httptest.NewRequest(
-		http.MethodPut,
-		"/files/feedback/attachments/upload/preissued-token",
-		strings.NewReader("image bytes"),
-	)
-	request.Header.Set("Content-Type", "image/png")
-	request.Header.Set("X-CSRF-Token", "csrf")
-	request.AddCookie(&http.Cookie{Name: "zerp_session", Value: "restricted-session"})
-	recorder := httptest.NewRecorder()
-
-	testRouter(stub).ServeHTTP(recorder, request)
-
-	if stub.sessionAuthorizedPath != feedbackAttachmentUploadPath {
-		t.Fatalf("session authorized path = %q", stub.sessionAuthorizedPath)
-	}
-	if stub.uploadCalls != 0 {
-		t.Fatalf("upload calls = %d, want 0", stub.uploadCalls)
-	}
-	var envelope response.Envelope
-	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
-		t.Fatalf("decode envelope: %v", err)
-	}
-	if envelope.Code != response.CodeForbidden || envelope.Message != "password change is required" {
-		t.Fatalf("envelope = %#v", envelope)
-	}
-}
-
-func TestFeedbackAttachmentUploadUsesSessionAuthorizationAndUploadToken(t *testing.T) {
-	stub := &handlerServiceStub{authorizeResult: Principal{User: UserSummary{ID: "user-1"}}}
-	request := httptest.NewRequest(
-		http.MethodPut,
-		"/files/feedback/attachments/upload/preissued-token",
-		strings.NewReader("image bytes"),
-	)
-	request.Header.Set("Content-Type", "image/png")
-	request.Header.Set("X-CSRF-Token", "csrf")
-	request.AddCookie(&http.Cookie{Name: "zerp_session", Value: "session"})
-	recorder := httptest.NewRecorder()
-
-	testRouter(stub).ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusNoContent {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNoContent)
-	}
-	if stub.sessionAuthorizedPath != feedbackAttachmentUploadPath {
-		t.Fatalf("session authorized path = %q", stub.sessionAuthorizedPath)
-	}
-	if stub.uploadCalls != 1 || stub.uploadToken != "preissued-token" {
-		t.Fatalf("upload calls = %d, token = %q", stub.uploadCalls, stub.uploadToken)
-	}
-	if stub.uploadActorID != "user-1" {
-		t.Fatalf("upload actor = %q, want user-1", stub.uploadActorID)
 	}
 }
 

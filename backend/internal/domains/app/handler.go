@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 
 	"github.com/gin-gonic/gin"
@@ -13,8 +12,6 @@ import (
 )
 
 const principalContextKey = "appPrincipal"
-
-const feedbackAttachmentUploadPath = "/files/feedback/attachments/upload/:token"
 
 type applicationService interface {
 	Signin(context.Context, string, string, string) (SessionResult, error)
@@ -47,11 +44,6 @@ type applicationService interface {
 	ActivateMenu(context.Context, ActivateMenuInput, Principal, string) (MenuGetData, error)
 	ResetBusinessMenu(context.Context, ResetBusinessMenuInput, Principal, string) (MenuGetData, error)
 	QueryWorkbench(context.Context, Principal, WorkbenchQueryInput) (Page[WorkbenchItem], error)
-	CreateFeedback(context.Context, CreateFeedbackInput, string) (FeedbackCreatedView, error)
-	GetFeedback(context.Context, string, string) (FeedbackView, error)
-	InitiateFeedbackAttachment(context.Context, FeedbackAttachmentInitiateInput, string) (FeedbackAttachmentInitiateResult, error)
-	UploadFeedbackAttachment(context.Context, string, string, io.Reader, int64, string) error
-	RemoveFeedbackAttachment(context.Context, string, string) error
 }
 
 type Handler struct {
@@ -119,14 +111,6 @@ func (h *Handler) Register(router *gin.Engine) {
 	workbench.Use(h.authorizeSession())
 	workbench.POST("/query", h.queryWorkbench)
 
-	feedback := appGroup.Group("/feedback")
-	feedback.Use(h.authorizeSession())
-	feedback.POST("/attachment-initiate", h.initiateFeedbackAttachment)
-	feedback.POST("/attachment-remove", h.removeFeedbackAttachment)
-	feedback.POST("/create", h.createFeedback)
-	feedback.POST("/get", h.getFeedback)
-
-	router.PUT(feedbackAttachmentUploadPath, h.authorizeSessionAt(feedbackAttachmentUploadPath), h.uploadFeedbackAttachment)
 }
 
 func (h *Handler) authorize() gin.HandlerFunc {

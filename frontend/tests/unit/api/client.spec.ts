@@ -25,7 +25,7 @@ describe('ApiClient', () => {
       ),
     )
 
-    const client = new ApiClient({ baseUrl: 'https://api.test/' })
+    const client = new ApiClient({ baseUrl: 'https://api.test' })
     const result = await client.postContract('app/workbench/query', {
       category: 'BOB',
       page: 1,
@@ -299,32 +299,6 @@ describe('ApiClient', () => {
     expect(uploaded).toBe(true)
   })
 
-  it('通过反馈专用技术端点上传截图', async () => {
-    let uploadedType: string | null = null
-    let csrfToken: string | null = null
-    mockServer.use(
-      http.put(
-        'https://api.test/files/feedback/attachments/upload/feedback-token',
-        async ({ request }) => {
-          uploadedType = request.headers.get('Content-Type')
-          csrfToken = request.headers.get('X-CSRF-Token')
-          await request.arrayBuffer()
-          return new HttpResponse(null, { status: 204 })
-        },
-      ),
-    )
-
-    const client = new ApiClient({ baseUrl: 'https://api.test/' })
-    client.setCsrfToken('csrf-feedback')
-    await client.uploadFeedbackAttachment(
-      '/files/feedback/attachments/upload/feedback-token',
-      new File(['jpeg-content'], 'screen.jpg', { type: 'image/jpeg' }),
-    )
-
-    expect(uploadedType).toBe('image/jpeg')
-    expect(csrfToken).toBe('csrf-feedback')
-  })
-
   it('拒绝跨源或错误前缀的附件令牌地址', async () => {
     const client = new ApiClient({ baseUrl: 'https://api.test/' })
     const file = new File(['x'], 'x.png', { type: 'image/png' })
@@ -337,9 +311,6 @@ describe('ApiClient', () => {
     ).rejects.toMatchObject<ApiError>({ kind: 'configuration' })
     await expect(
       client.fetchAttachment('/files/attachments/upload/x'),
-    ).rejects.toMatchObject<ApiError>({ kind: 'configuration' })
-    await expect(
-      client.uploadFeedbackAttachment('/files/attachments/upload/x', file),
     ).rejects.toMatchObject<ApiError>({ kind: 'configuration' })
   })
 

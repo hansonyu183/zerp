@@ -46,7 +46,6 @@ type Querier interface {
 	BobObjectIsCustomerAccount(ctx context.Context, objectID string) (bool, error)
 	BuildAccountingPeriodBalances(ctx context.Context, arg BuildAccountingPeriodBalancesParams) error
 	CheckVouDocument(ctx context.Context, arg CheckVouDocumentParams) (int64, error)
-	ClaimAppFeedbackForPublishing(ctx context.Context) (AppFeedback, error)
 	ClearVouInventoryCountResults(ctx context.Context, documentID string) error
 	ClearVouProductLineExecution(ctx context.Context, documentID string) error
 	ClearWorkflowNodeDocument(ctx context.Context, documentID *string) error
@@ -70,7 +69,6 @@ type Querier interface {
 	CopyBobVehicleDetail(ctx context.Context, arg CopyBobVehicleDetailParams) error
 	CopyBobWarehouseDetail(ctx context.Context, arg CopyBobWarehouseDetailParams) error
 	CopyCustomerVersionAttachments(ctx context.Context, arg CopyCustomerVersionAttachmentsParams) error
-	CountActiveUnsubmittedAppFeedbackFiles(ctx context.Context, userID string) (int64, error)
 	CountAppPermissions(ctx context.Context, arg CountAppPermissionsParams) (int64, error)
 	CountAppRoles(ctx context.Context, arg CountAppRolesParams) (int64, error)
 	CountAppRolesUsingPermission(ctx context.Context, permissionID string) (int64, error)
@@ -98,8 +96,6 @@ type Querier interface {
 	CountEnabledUsersWithPermissionExcludingRole(ctx context.Context, arg CountEnabledUsersWithPermissionExcludingRoleParams) (int64, error)
 	CountOtherEnabledUsersWithPermission(ctx context.Context, arg CountOtherEnabledUsersWithPermissionParams) (int64, error)
 	CountPendingVouAttachments(ctx context.Context, documentID string) (int64, error)
-	CountRecentAppFeedback(ctx context.Context, userID string) (int64, error)
-	CountRecentAppFeedbackFiles(ctx context.Context, userID string) (int64, error)
 	CountVouAttachments(ctx context.Context, documentID string) (int64, error)
 	CountVouAuditEvents(ctx context.Context, arg CountVouAuditEventsParams) (int64, error)
 	CountVouDocuments(ctx context.Context, arg CountVouDocumentsParams) (int64, error)
@@ -157,7 +153,6 @@ type Querier interface {
 	DeleteAccountingVoucher(ctx context.Context, arg DeleteAccountingVoucherParams) error
 	DeleteActiveAccountingAssetsBySource(ctx context.Context, documentID string) error
 	DeleteAppBusinessMenuItems(ctx context.Context) error
-	DeleteAppFeedbackFile(ctx context.Context, id string) (int64, error)
 	DeleteAppRolePermissions(ctx context.Context, roleID string) error
 	DeleteAppUserProfileAvatar(ctx context.Context, userID string) error
 	DeleteAppUserRoles(ctx context.Context, userID string) error
@@ -265,7 +260,6 @@ type Querier interface {
 	GetAccountingSubjectParent(ctx context.Context, arg GetAccountingSubjectParentParams) (*string, error)
 	GetAccountingSubjectStateForUpdate(ctx context.Context, arg GetAccountingSubjectStateForUpdateParams) (GetAccountingSubjectStateForUpdateRow, error)
 	GetActiveAccountingAssetForVou(ctx context.Context, assetID string) (GetActiveAccountingAssetForVouRow, error)
-	GetAppFeedbackByOwner(ctx context.Context, arg GetAppFeedbackByOwnerParams) (AppFeedback, error)
 	GetAppMenuSettings(ctx context.Context) (AppMenuSetting, error)
 	GetAppMenuSettingsForUpdate(ctx context.Context) (AppMenuSetting, error)
 	GetAppPermissionByID(ctx context.Context, id string) (AppPermission, error)
@@ -377,9 +371,6 @@ type Querier interface {
 	InsertAccountingVoucherLine(ctx context.Context, arg InsertAccountingVoucherLineParams) error
 	InsertAppBootstrapUser(ctx context.Context, arg InsertAppBootstrapUserParams) error
 	InsertAppBusinessMenuItem(ctx context.Context, arg InsertAppBusinessMenuItemParams) error
-	InsertAppFeedback(ctx context.Context, arg InsertAppFeedbackParams) error
-	InsertAppFeedbackAttachment(ctx context.Context, arg InsertAppFeedbackAttachmentParams) error
-	InsertAppFeedbackFile(ctx context.Context, arg InsertAppFeedbackFileParams) error
 	InsertAppRole(ctx context.Context, arg InsertAppRoleParams) error
 	InsertAppRolePermission(ctx context.Context, arg InsertAppRolePermissionParams) error
 	InsertAppUser(ctx context.Context, arg InsertAppUserParams) error
@@ -493,7 +484,6 @@ type Querier interface {
 	ListAllEnabledAppPermissionIDs(ctx context.Context) ([]string, error)
 	ListAllVouStorageKeys(ctx context.Context) ([]string, error)
 	ListAppBusinessMenuItems(ctx context.Context) ([]AppBusinessMenuItem, error)
-	ListAppFeedbackAttachments(ctx context.Context, feedbackID string) ([]AppFeedbackAttachment, error)
 	ListAppMenuPermissionRoutes(ctx context.Context) ([]ListAppMenuPermissionRoutesRow, error)
 	ListAppPermissionPathsByIDs(ctx context.Context, ids []string) ([]string, error)
 	ListAppPermissions(ctx context.Context, arg ListAppPermissionsParams) ([]AppPermission, error)
@@ -538,11 +528,9 @@ type Querier interface {
 	ListIntermediarySignoffSourceRows(ctx context.Context, arg ListIntermediarySignoffSourceRowsParams) ([]ListIntermediarySignoffSourceRowsRow, error)
 	ListPartyMergeRelationships(ctx context.Context, partyID string) ([]ListPartyMergeRelationshipsRow, error)
 	ListPurchaseOrderBaseQuantitySummaries(ctx context.Context, orderIds []string) ([]ListPurchaseOrderBaseQuantitySummariesRow, error)
-	ListReadyAppFeedbackFilesForCreate(ctx context.Context, arg ListReadyAppFeedbackFilesForCreateParams) ([]AppFeedbackFile, error)
 	// These order summaries are VOU read models kept here because they are shared
 	// by the workflow-facing order list and the ordinary voucher list.
 	ListSalesOrderBaseQuantitySummaries(ctx context.Context, orderIds []string) ([]ListSalesOrderBaseQuantitySummariesRow, error)
-	ListStaleAppFeedbackFiles(ctx context.Context, arg ListStaleAppFeedbackFilesParams) ([]AppFeedbackFile, error)
 	ListSupplierPurchaserReferencesForEmployee(ctx context.Context, sourceObjectID *string) ([]ListSupplierPurchaserReferencesForEmployeeRow, error)
 	ListVehicleCarrierOperatingReferences(ctx context.Context, sourceObjectID *string) ([]ListVehicleCarrierOperatingReferencesRow, error)
 	ListVehicleCarrierServiceReferences(ctx context.Context, sourceObjectID *string) ([]ListVehicleCarrierServiceReferencesRow, error)
@@ -581,8 +569,6 @@ type Querier interface {
 	LockAccountingControlBookForVou(ctx context.Context) (LockAccountingControlBookForVouRow, error)
 	LockAccountingInventory(ctx context.Context, lockKey string) error
 	LockAccountingPeriodRow(ctx context.Context, arg LockAccountingPeriodRowParams) (LockAccountingPeriodRowRow, error)
-	LockAppFeedbackFileRateLimit(ctx context.Context, userID string) error
-	LockAppFeedbackRateLimit(ctx context.Context, userID string) error
 	LockBobCustomerAccountRelationship(ctx context.Context, objectID string) (string, error)
 	LockBobObject(ctx context.Context, arg LockBobObjectParams) (LockBobObjectRow, error)
 	LockBobParty(ctx context.Context, partyID string) (BobParty, error)
@@ -596,10 +582,8 @@ type Querier interface {
 	LockPartyMergeObjects(ctx context.Context, objectIds []string) ([]LockPartyMergeObjectsRow, error)
 	LockPartyMergeParty(ctx context.Context, partyID string) (LockPartyMergePartyRow, error)
 	LockPartyMergePreflight(ctx context.Context, id string) (BobPartyMergePreflight, error)
-	LockPendingAppFeedbackUpload(ctx context.Context, arg LockPendingAppFeedbackUploadParams) (AppFeedbackFile, error)
 	LockPendingCustomerUpload(ctx context.Context, tokenHash string) (LockPendingCustomerUploadRow, error)
 	LockPendingVouUpload(ctx context.Context, uploadTokenHash string) (LockPendingVouUploadRow, error)
-	LockUnsubmittedAppFeedbackFile(ctx context.Context, arg LockUnsubmittedAppFeedbackFileParams) (AppFeedbackFile, error)
 	LockVouAttachmentForRemoval(ctx context.Context, arg LockVouAttachmentForRemovalParams) (LockVouAttachmentForRemovalRow, error)
 	LockVouDocument(ctx context.Context, arg LockVouDocumentParams) (VouDocument, error)
 	LockVouDocumentStatusForShare(ctx context.Context, documentID string) (string, error)
@@ -620,9 +604,6 @@ type Querier interface {
 	LockWorkflowNodeByProcessAndDocument(ctx context.Context, arg LockWorkflowNodeByProcessAndDocumentParams) (LockWorkflowNodeByProcessAndDocumentRow, error)
 	LockWorkflowNodesForDocument(ctx context.Context, documentID *string) ([]LockWorkflowNodesForDocumentRow, error)
 	LockWorkflowRootInstance(ctx context.Context, arg LockWorkflowRootInstanceParams) (LockWorkflowRootInstanceRow, error)
-	MarkAppFeedbackFileDeleted(ctx context.Context, id string) (int64, error)
-	MarkAppFeedbackFileReady(ctx context.Context, id string) (int64, error)
-	MarkAppFeedbackPublished(ctx context.Context, arg MarkAppFeedbackPublishedParams) (int64, error)
 	MarkBobVersionPendingCopy(ctx context.Context, arg MarkBobVersionPendingCopyParams) (int64, error)
 	MarkBobVersionSaved(ctx context.Context, arg MarkBobVersionSavedParams) (int64, error)
 	MarkCustomerFileReady(ctx context.Context, fileID string) (int64, error)
@@ -659,7 +640,6 @@ type Querier interface {
 	RegisterAccountingGlobalEvent(ctx context.Context, arg RegisterAccountingGlobalEventParams) (bool, error)
 	RegisterAccountingSubjectUsage(ctx context.Context, arg RegisterAccountingSubjectUsageParams) error
 	RejectBobVersion(ctx context.Context, arg RejectBobVersionParams) (int64, error)
-	RescheduleAppFeedback(ctx context.Context, arg RescheduleAppFeedbackParams) (int64, error)
 	ResetAppSystemParameterValue(ctx context.Context, arg ResetAppSystemParameterValueParams) (AppSystemParameter, error)
 	ResetAppUserPassword(ctx context.Context, arg ResetAppUserPasswordParams) (int64, error)
 	ResetSigninFailures(ctx context.Context, id string) error

@@ -3,14 +3,10 @@
 package app
 
 import (
-	"context"
-	"errors"
 	"io"
 	"log/slog"
 	"os"
-	"slices"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -58,7 +54,7 @@ func resetAPPIntegrationData(t *testing.T, pool *pgxpool.Pool) {
 			acc_periods, acc_inventory_entries, acc_voucher_lines, acc_opening_lines, acc_openings, acc_vouchers, acc_mapping_versions,
 			acc_subject_usages, acc_subject_dimensions, acc_subjects,
 			acc_book_user_scopes, acc_books, vou_intermediary_scripts,
-			app_business_menu_items, app_menu_settings, app_system_parameters, app_feedback_attachments, app_feedback_files, app_feedback, app_audit_events, app_sessions,
+			app_business_menu_items, app_menu_settings, app_system_parameters, app_audit_events, app_sessions,
 			app_user_profiles,
 			app_user_roles, app_role_permissions, app_roles, app_users,
 			app_role_code_counters CASCADE;
@@ -73,15 +69,13 @@ func resetAPPIntegrationData(t *testing.T, pool *pgxpool.Pool) {
 func appIntegrationConfig(t *testing.T) config.Config {
 	t.Helper()
 	return config.Config{
-		SessionIdleTimeout:          30 * time.Minute,
-		SessionAbsoluteTimeout:      12 * time.Hour,
-		SigninLockThreshold:         2,
-		SigninLockDuration:          15 * time.Minute,
-		PasswordMinLength:           12,
-		FeedbackGitHubEnabled:       true,
-		AttachmentStorageRoot:       t.TempDir(),
-		AttachmentUploadTTL:         15 * time.Minute,
-		FeedbackAttachmentOrphanTTL: 24 * time.Hour,
+		SessionIdleTimeout:     30 * time.Minute,
+		SessionAbsoluteTimeout: 12 * time.Hour,
+		SigninLockThreshold:    2,
+		SigninLockDuration:     15 * time.Minute,
+		PasswordMinLength:      12,
+		AttachmentStorageRoot:  t.TempDir(),
+		AttachmentUploadTTL:    15 * time.Minute,
 	}
 }
 
@@ -202,62 +196,4 @@ func permissionIDsByPath(t *testing.T, pool *pgxpool.Pool, paths ...string) []st
 		result = append(result, id)
 	}
 	return result
-}
-
-type integrationIssueClient struct {
-	mu     sync.Mutex
-	title  string
-	body   string
-	labels []string
-}
-
-type integrationExistingIssueClient struct {
-	createCalls int
-}
-
-func (*integrationExistingIssueClient) FindByMarker(context.Context, string) (FeedbackIssue, bool, error) {
-	return FeedbackIssue{Number: 18, URL: "https://github.com/hansonyu183/zerp/issues/18"}, true, nil
-}
-
-func (client *integrationExistingIssueClient) Create(
-	context.Context, string, string, []string,
-) (FeedbackIssue, error) {
-	client.createCalls++
-	return FeedbackIssue{}, errors.New("create must not be called after marker reconciliation")
-}
-
-type integrationPublishFailure struct {
-	retryable bool
-}
-
-func (failure integrationPublishFailure) Error() string             { return "publish failed" }
-func (failure integrationPublishFailure) Retryable() bool           { return failure.retryable }
-func (failure integrationPublishFailure) RetryAfter() time.Duration { return 0 }
-func (failure integrationPublishFailure) ErrorCode() string         { return "test_failure" }
-
-type integrationFailingIssueClient struct {
-	err error
-}
-
-func (client integrationFailingIssueClient) FindByMarker(context.Context, string) (FeedbackIssue, bool, error) {
-	return FeedbackIssue{}, false, client.err
-}
-
-func (client integrationFailingIssueClient) Create(
-	context.Context, string, string, []string,
-) (FeedbackIssue, error) {
-	return FeedbackIssue{}, client.err
-}
-
-func (*integrationIssueClient) FindByMarker(context.Context, string) (FeedbackIssue, bool, error) {
-	return FeedbackIssue{}, false, nil
-}
-
-func (client *integrationIssueClient) Create(
-	_ context.Context, title, body string, labels []string,
-) (FeedbackIssue, error) {
-	client.mu.Lock()
-	defer client.mu.Unlock()
-	client.title, client.body, client.labels = title, body, slices.Clone(labels)
-	return FeedbackIssue{Number: 17, URL: "https://github.com/hansonyu183/zerp/issues/17"}, nil
 }

@@ -41,12 +41,6 @@ export default defineConfig({
           branches: 78,
           functions: 100,
         },
-        'src/components/feedback/vm.ts': {
-          lines: 80,
-          statements: 78,
-          branches: 70,
-          functions: 80,
-        },
         'src/pages/vou/shared/vm.ts': {
           lines: 55.9,
           statements: 51,

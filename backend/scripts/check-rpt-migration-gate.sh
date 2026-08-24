@@ -2,15 +2,9 @@
 set -eu
 
 migration_dir=${1:-db/migrations}
-gate_version=73
 failed=0
 
 for migration in "${migration_dir}"/[0-9]*_*.sql; do
-  name=${migration##*/}
-  version=${name%%_*}
-  version=$(printf '%s' "${version}" | sed 's/^0*//')
-  [ -n "${version}" ] || version=0
-  [ "${version}" -ge "${gate_version}" ] || continue
   final_up_statement=$(awk '
     /^--[[:space:]]*\+goose[[:space:]]+Down/ { exit }
     /^[[:space:]]*--/ { next }

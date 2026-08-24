@@ -1729,13 +1729,6 @@ FROM (
     WHERE audit.entity = $1
       AND audit.request_id = 'seed-bob-' || $2::text || '-create'
     UNION ALL
-    SELECT object.id, 1 AS priority, object.created_at
-    FROM identifier_object_renumber_history history
-    JOIN bob_objects object ON object.id = history.object_id AND object.entity = history.entity
-    WHERE history.domain = 'bob'
-      AND history.entity = $1
-      AND history.old_code = $2
-    UNION ALL
     SELECT object.id, 0 AS priority, object.created_at
     FROM bob_objects object
     JOIN bob_settlement_method_versions method ON method.version_id=object.effective_version_id

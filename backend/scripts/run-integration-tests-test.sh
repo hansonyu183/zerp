@@ -7,16 +7,13 @@ cleanup() { rm -rf "${tmp}"; }
 trap cleanup EXIT HUP INT TERM
 
 fixture="${tmp}/backend"
-mkdir -p "${fixture}/db/migrations" "${fixture}/db/migration-tests" \
+mkdir -p "${fixture}/db/migrations" \
   "${fixture}/tools" "${tmp}/bin"
 for package in a b c d; do
   mkdir -p "${fixture}/internal/${package}"
   printf '//go:build integration\n' >"${fixture}/internal/${package}/${package}_test.go"
 done
-printf '%s\n' '-- migration' >"${fixture}/db/migrations/000001_initial.sql"
-printf '%s\n' '-- migration' >"${fixture}/db/migrations/000002_latest.sql"
-printf '%s\n' '-- before' >"${fixture}/db/migration-tests/000002_before.sql"
-printf '%s\n' '-- after' >"${fixture}/db/migration-tests/000002_after.sql"
+printf '%s\n' '-- migration' >"${fixture}/db/migrations/000001_baseline.sql"
 git -C "${fixture}" init -b main >/dev/null
 git -C "${fixture}" add .
 

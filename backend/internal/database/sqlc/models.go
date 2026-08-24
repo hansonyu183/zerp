@@ -542,18 +542,6 @@ type AuxAuditEvent struct {
 	Summary    []byte             `db:"summary" json:"summary"`
 }
 
-type AuxMigration00024CategoryRef struct {
-	DetailTable string `db:"detail_table" json:"detail_table"`
-	VersionID   string `db:"version_id" json:"version_id"`
-	CategoryID  string `db:"category_id" json:"category_id"`
-}
-
-type AuxMigration00045SettlementTerm struct {
-	VersionID   string `db:"version_id" json:"version_id"`
-	CutoffDay   *int32 `db:"cutoff_day" json:"cutoff_day"`
-	MonthOffset *int32 `db:"month_offset" json:"month_offset"`
-}
-
 type AuxObject struct {
 	ID               string             `db:"id" json:"id"`
 	Entity           string             `db:"entity" json:"entity"`
@@ -786,45 +774,6 @@ type BobFundAccountVersion struct {
 	OperatingEntityVersionID *string `db:"operating_entity_version_id" json:"operating_entity_version_id"`
 	OperatingEntityCode      *string `db:"operating_entity_code" json:"operating_entity_code"`
 	OperatingEntityName      *string `db:"operating_entity_name" json:"operating_entity_name"`
-}
-
-type BobMigration00046AuxMap struct {
-	AuxObjectID    string `db:"aux_object_id" json:"aux_object_id"`
-	TargetObjectID string `db:"target_object_id" json:"target_object_id"`
-}
-
-type BobMigration00046Counter struct {
-	PreviousLastValue int32 `db:"previous_last_value" json:"previous_last_value"`
-}
-
-type BobMigration00046FixedMethod struct {
-	Ordinal                    int32  `db:"ordinal" json:"ordinal"`
-	ObjectID                   string `db:"object_id" json:"object_id"`
-	VersionID                  string `db:"version_id" json:"version_id"`
-	TermCode                   string `db:"term_code" json:"term_code"`
-	Name                       string `db:"name" json:"name"`
-	RuleType                   string `db:"rule_type" json:"rule_type"`
-	MonthOffset                int32  `db:"month_offset" json:"month_offset"`
-	DayOffset                  int32  `db:"day_offset" json:"day_offset"`
-	DefaultSalesSurchargeCents int64  `db:"default_sales_surcharge_cents" json:"default_sales_surcharge_cents"`
-}
-
-type BobMigration00046PartyRef struct {
-	DetailTable           string `db:"detail_table" json:"detail_table"`
-	VersionID             string `db:"version_id" json:"version_id"`
-	OldSettlementMethodID string `db:"old_settlement_method_id" json:"old_settlement_method_id"`
-}
-
-type BobMigration00046RetiredObject struct {
-	SourceDomain string `db:"source_domain" json:"source_domain"`
-	ObjectID     string `db:"object_id" json:"object_id"`
-	Enabled      bool   `db:"enabled" json:"enabled"`
-}
-
-type BobMigration00046RolePermission struct {
-	RoleID    string  `db:"role_id" json:"role_id"`
-	OldAction string  `db:"old_action" json:"old_action"`
-	CreatedBy *string `db:"created_by" json:"created_by"`
 }
 
 type BobObject struct {
@@ -1234,44 +1183,10 @@ type BobWarehouseVersion struct {
 	Remark                *string `db:"remark" json:"remark"`
 }
 
-type IdentifierCounterRenumberHistory struct {
-	Entity       string      `db:"entity" json:"entity"`
-	BusinessDate pgtype.Date `db:"business_date" json:"business_date"`
-	LastValue    int32       `db:"last_value" json:"last_value"`
-}
-
-type IdentifierDocumentRenumberHistory struct {
-	DocumentID   string      `db:"document_id" json:"document_id"`
-	Entity       string      `db:"entity" json:"entity"`
-	BusinessDate pgtype.Date `db:"business_date" json:"business_date"`
-	OldNumber    string      `db:"old_number" json:"old_number"`
-	NewNumber    string      `db:"new_number" json:"new_number"`
-}
-
-type IdentifierObjectRenumberHistory struct {
-	Domain   string `db:"domain" json:"domain"`
-	ObjectID string `db:"object_id" json:"object_id"`
-	Entity   string `db:"entity" json:"entity"`
-	OldCode  string `db:"old_code" json:"old_code"`
-	NewCode  string `db:"new_code" json:"new_code"`
-}
-
-type MigrationWflRolePermission struct {
-	RoleID    string  `db:"role_id" json:"role_id"`
-	Entity    string  `db:"entity" json:"entity"`
-	Action    string  `db:"action" json:"action"`
-	CreatedBy *string `db:"created_by" json:"created_by"`
-}
-
 type ObjectNumberCounter struct {
 	Domain    string `db:"domain" json:"domain"`
 	Entity    string `db:"entity" json:"entity"`
 	LastValue int32  `db:"last_value" json:"last_value"`
-}
-
-type RemovedIntermediaryFile struct {
-	ID         string `db:"id" json:"id"`
-	StorageKey string `db:"storage_key" json:"storage_key"`
 }
 
 type RptAuditEvent struct {

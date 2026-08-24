@@ -102,7 +102,7 @@ func (s *Service) SaveSystemParameter(ctx context.Context, input SaveSystemParam
 	if err != nil {
 		return SystemParameterView{}, s.internal("lock system parameter", err)
 	}
-	if !parameter.Editable || parameter.ParameterKey == MenuModeParameterKey {
+	if !parameter.Editable {
 		return SystemParameterView{}, domainError(ErrorForbidden, "system parameter is managed by its owning service", nil)
 	}
 	if parameter.Revision != input.Revision {
@@ -161,7 +161,7 @@ func (s *Service) ResetSystemParameter(ctx context.Context, input ResetSystemPar
 	if err != nil {
 		return SystemParameterView{}, s.internal("lock system parameter", err)
 	}
-	if !parameter.Editable || parameter.ParameterKey == MenuModeParameterKey {
+	if !parameter.Editable {
 		return SystemParameterView{}, domainError(ErrorForbidden, "system parameter is managed by its owning service", nil)
 	}
 	if parameter.Revision != input.Revision {
@@ -510,7 +510,7 @@ func systemParameterView(parameter dbsqlc.AppSystemParameter) (SystemParameterVi
 	return SystemParameterView{
 		Key: parameter.ParameterKey, Name: parameter.Name, Description: parameter.Description,
 		ValueType: parameter.ValueType, ConfiguredValue: parameter.ConfiguredValue, DefaultValue: parameter.DefaultValue,
-		Editable:    parameter.Editable && constraints != nil && parameter.ParameterKey != MenuModeParameterKey,
+		Editable:    parameter.Editable && constraints != nil,
 		Constraints: constraints, EffectMode: parameter.EffectMode, RunningValue: &runningValue,
 		RestartPending: parameter.RestartPending, Revision: parameter.Revision, UpdatedAt: parameter.UpdatedAt.Time,
 		UpdatedBy: parameter.UpdatedBy,

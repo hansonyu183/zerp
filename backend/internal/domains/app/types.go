@@ -271,7 +271,6 @@ const (
 	EffectModeImmediate    = "IMMEDIATE"
 	EffectModeNextRequest  = "NEXT_REQUEST"
 	EffectModeRestart      = "RESTART_REQUIRED"
-	MenuModeParameterKey   = "app.menu.mode"
 )
 
 type SystemParameterConstraints struct {
@@ -312,10 +311,10 @@ type ResetSystemParameterInput struct {
 }
 
 const (
-	MenuModeDefault          = "DEFAULT"
-	MenuModeBusinessTemplate = "BUSINESS_TEMPLATE"
-	MenuItemGroup            = "GROUP"
-	MenuItemRoute            = "ROUTE"
+	MenuModeDefault  = "DEFAULT"
+	MenuModeBusiness = "BUSINESS"
+	MenuItemGroup    = "GROUP"
+	MenuItemRoute    = "ROUTE"
 )
 
 type MenuItemView struct {
@@ -333,8 +332,7 @@ type MenuItemView struct {
 }
 
 type MenuTree struct {
-	Revision int64          `json:"revision"`
-	Items    []MenuItemView `json:"items"`
+	Items []MenuItemView `json:"items"`
 }
 
 type MenuRouteOption struct {
@@ -346,11 +344,9 @@ type MenuRouteOption struct {
 
 type MenuGetData struct {
 	Mode            string            `json:"mode"`
-	ModeRevision    int64             `json:"modeRevision"`
-	CatalogRevision string            `json:"catalogRevision"`
+	Revision        int64             `json:"revision"`
 	DefaultMenu     MenuTree          `json:"defaultMenu"`
-	Draft           MenuTree          `json:"draft"`
-	Published       MenuTree          `json:"published"`
+	BusinessMenu    MenuTree          `json:"businessMenu"`
 	Navigation      MenuTree          `json:"navigation"`
 	AvailableRoutes []MenuRouteOption `json:"availableRoutes"`
 }
@@ -367,25 +363,17 @@ type SaveMenuItemInput struct {
 }
 
 type SaveBusinessMenuInput struct {
-	Revision        int64               `json:"revision"`
-	CatalogRevision string              `json:"catalogRevision"`
-	Items           []SaveMenuItemInput `json:"items"`
+	Revision int64               `json:"revision"`
+	Items    []SaveMenuItemInput `json:"items"`
 }
 
 type ActivateMenuInput struct {
-	Mode            string `json:"mode"`
-	Revision        int64  `json:"revision"`
-	CatalogRevision string `json:"catalogRevision"`
-}
-
-type PublishBusinessMenuInput struct {
-	Revision        int64  `json:"revision"`
-	CatalogRevision string `json:"catalogRevision"`
+	Mode     string `json:"mode"`
+	Revision int64  `json:"revision"`
 }
 
 type ResetBusinessMenuInput struct {
-	Revision        int64  `json:"revision"`
-	CatalogRevision string `json:"catalogRevision"`
+	Revision int64 `json:"revision"`
 }
 
 type RoleType string

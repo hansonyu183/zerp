@@ -1,7 +1,6 @@
 import {
   activateMenu,
   getMenu,
-  publishBusinessMenu,
   resetBusinessMenu,
   saveBusinessMenu,
   type MenuData,
@@ -15,7 +14,6 @@ import { getErrorMessage } from '@/api/types'
 interface MenuDependencies {
   load: typeof getMenu
   save: typeof saveBusinessMenu
-  publish: typeof publishBusinessMenu
   activate: typeof activateMenu
   reset: typeof resetBusinessMenu
   apply: (data: MenuData) => void
@@ -50,29 +48,25 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
     data: null as MenuData | null,
     selectedMode: 'DEFAULT' as MenuMode,
     editableItems: [] as SaveMenuItem[],
-    draftBaseline: '[]',
+    businessBaseline: '[]',
     newRouteByGroup: {} as Record<string, string | null>,
-    publishConfirmationOpen: false,
     activationConfirmationOpen: false,
     resetConfirmationOpen: false,
     discardConfirmationOpen: false,
-    pendingAfterDiscard: null as 'publish' | 'activate' | 'reset' | null,
+    pendingAfterDiscard: null as 'activate' | 'reset' | null,
     draggedID: null as string | null,
 
     get canSave(): boolean {
-      return dependencies.can('/app/menu/save-business-template')
+      return dependencies.can('/app/menu/save-business')
     },
     get canActivate(): boolean {
       return dependencies.can('/app/menu/activate')
     },
-    get canPublish(): boolean {
-      return dependencies.can('/app/menu/publish-business-template')
-    },
     get canReset(): boolean {
-      return dependencies.can('/app/menu/reset-business-template')
+      return dependencies.can('/app/menu/reset-business')
     },
     get dirty(): boolean {
-      return JSON.stringify(this.editableItems) !== this.draftBaseline
+      return JSON.stringify(this.editableItems) !== this.businessBaseline
     },
     get groups(): SaveMenuItem[] {
       return this.editableItems
@@ -88,8 +82,14 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
       )
     },
     get availableRoutes(): MenuRouteOption[] {
+      const used = new Set(
+        this.editableItems.flatMap((item) =>
+          item.routeKey ? [item.routeKey] : [],
+        ),
+      )
       return (this.data?.availableRoutes ?? []).filter(
-        (item) => item.routeKey !== 'home/dashboard',
+        (item) =>
+          item.routeKey !== 'home/dashboard' && !used.has(item.routeKey),
       )
     },
     children(groupID: string): SaveMenuItem[] {
@@ -115,8 +115,8 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
     applyData(data: MenuData, applyNavigation: boolean): void {
       this.data = data
       this.selectedMode = data.mode
-      this.editableItems = cloneEditable(data.draft.items)
-      this.draftBaseline = JSON.stringify(this.editableItems)
+      this.editableItems = cloneEditable(data.businessMenu.items)
+      this.businessBaseline = JSON.stringify(this.editableItems)
       if (applyNavigation) dependencies.apply(data)
     },
     addGroup(): void {
@@ -264,43 +264,15 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
       try {
         this.normalizeOrders()
         const { data } = await dependencies.save({
-          revision: this.data.draft.revision,
-          catalogRevision: this.data.catalogRevision,
+          revision: this.data.revision,
           items: this.editableItems.map((item) => ({
             ...item,
             displayName: item.displayName.trim(),
             icon: item.icon?.trim() || null,
           })),
         })
-        this.applyData(data, false)
-        this.successMessage = '草稿已保存，尚未发布。'
-      } catch (error) {
-        this.errorMessage = getErrorMessage(error)
-      } finally {
-        this.saving = false
-      }
-    },
-    requestPublish(): void {
-      if (!this.canPublish || !this.data) return
-      if (this.dirty) {
-        this.pendingAfterDiscard = 'publish'
-        this.discardConfirmationOpen = true
-        return
-      }
-      this.publishConfirmationOpen = true
-    },
-    async confirmPublish(): Promise<void> {
-      if (!this.canPublish || !this.data || this.dirty) return
-      this.saving = true
-      this.errorMessage = null
-      try {
-        const { data } = await dependencies.publish({
-          revision: this.data.draft.revision,
-          catalogRevision: this.data.catalogRevision,
-        })
         this.applyData(data, true)
-        this.publishConfirmationOpen = false
-        this.successMessage = '草稿已发布；当前菜单方式保持不变。'
+        this.successMessage = '业务菜单已保存并生效。'
       } catch (error) {
         this.errorMessage = getErrorMessage(error)
       } finally {
@@ -328,8 +300,7 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
       try {
         const { data } = await dependencies.activate({
           mode: this.selectedMode,
-          revision: this.data.modeRevision,
-          catalogRevision: this.data.catalogRevision,
+          revision: this.data.revision,
         })
         this.applyData(data, true)
         this.activationConfirmationOpen = false
@@ -352,11 +323,10 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
     confirmDiscard(): void {
       if (!this.data) return
       const pending = this.pendingAfterDiscard
-      this.editableItems = cloneEditable(this.data.draft.items)
-      this.draftBaseline = JSON.stringify(this.editableItems)
+      this.editableItems = cloneEditable(this.data.businessMenu.items)
+      this.businessBaseline = JSON.stringify(this.editableItems)
       this.discardConfirmationOpen = false
       this.pendingAfterDiscard = null
-      if (pending === 'publish') this.publishConfirmationOpen = true
       if (pending === 'activate') this.activationConfirmationOpen = true
       if (pending === 'reset') this.resetConfirmationOpen = true
     },
@@ -370,12 +340,11 @@ export function createMenuViewModel(dependencies: MenuDependencies) {
       this.errorMessage = null
       try {
         const { data } = await dependencies.reset({
-          revision: this.data.draft.revision,
-          catalogRevision: this.data.catalogRevision,
+          revision: this.data.revision,
         })
-        this.applyData(data, false)
+        this.applyData(data, true)
         this.resetConfirmationOpen = false
-        this.successMessage = '草稿已恢复，尚未发布。'
+        this.successMessage = '业务菜单已恢复并生效。'
       } catch (error) {
         this.errorMessage = getErrorMessage(error)
       } finally {

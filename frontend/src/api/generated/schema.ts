@@ -854,7 +854,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/app/menu/save-business-template": {
+    "/app/menu/save-business": {
         parameters: {
             query?: never;
             header?: never;
@@ -864,24 +864,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** 保存整棵业务菜单模板 */
-        post: operations["appMenuSaveBusinessTemplate"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/app/menu/publish-business-template": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 发布业务菜单草稿 */
-        post: operations["appMenuPublishBusinessTemplate"];
+        post: operations["appMenuSaveBusiness"];
         delete?: never;
         options?: never;
         head?: never;
@@ -905,7 +888,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/app/menu/reset-business-template": {
+    "/app/menu/reset-business": {
         parameters: {
             query?: never;
             header?: never;
@@ -915,7 +898,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** 恢复初始业务菜单模板 */
-        post: operations["appMenuResetBusinessTemplate"];
+        post: operations["appMenuResetBusiness"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3960,7 +3943,7 @@ export interface components {
             revision: number;
         };
         /** @enum {string} */
-        MenuMode: "DEFAULT" | "BUSINESS_TEMPLATE";
+        MenuMode: "DEFAULT" | "BUSINESS";
         /** @enum {string} */
         MenuItemType: "GROUP" | "ROUTE";
         MenuItemView: {
@@ -3977,8 +3960,6 @@ export interface components {
             permissionCode: string | null;
         };
         MenuTree: {
-            /** Format: int64 */
-            revision: number;
             items: components["schemas"]["MenuItemView"][];
         };
         MenuRouteOption: {
@@ -3990,11 +3971,9 @@ export interface components {
         MenuGetData: {
             mode: components["schemas"]["MenuMode"];
             /** Format: int64 */
-            modeRevision: number;
-            catalogRevision: string;
+            revision: number;
             defaultMenu: components["schemas"]["MenuTree"];
-            draft: components["schemas"]["MenuTree"];
-            published: components["schemas"]["MenuTree"];
+            businessMenu: components["schemas"]["MenuTree"];
             navigation: components["schemas"]["MenuTree"];
             availableRoutes: components["schemas"]["MenuRouteOption"][];
         };
@@ -4018,24 +3997,16 @@ export interface components {
         SaveBusinessMenuRequest: {
             /** Format: int64 */
             revision: number;
-            catalogRevision: string;
             items: components["schemas"]["SaveMenuItem"][];
-        };
-        PublishBusinessMenuRequest: {
-            /** Format: int64 */
-            revision: number;
-            catalogRevision: string;
         };
         ActivateMenuRequest: {
             mode: components["schemas"]["MenuMode"];
             /** Format: int64 */
             revision: number;
-            catalogRevision: string;
         };
         ResetBusinessMenuRequest: {
             /** Format: int64 */
             revision: number;
-            catalogRevision: string;
         };
         FeedbackAttachmentInitiateRequest: {
             fileName: string;
@@ -7717,7 +7688,7 @@ export interface operations {
             };
         };
     };
-    appMenuSaveBusinessTemplate: {
+    appMenuSaveBusiness: {
         parameters: {
             query?: never;
             header?: never;
@@ -7731,30 +7702,6 @@ export interface operations {
         };
         responses: {
             /** @description 保存后的菜单配置。 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MenuGetResponse"];
-                };
-            };
-        };
-    };
-    appMenuPublishBusinessTemplate: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PublishBusinessMenuRequest"];
-            };
-        };
-        responses: {
-            /** @description 发布后的菜单配置。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -7789,7 +7736,7 @@ export interface operations {
             };
         };
     };
-    appMenuResetBusinessTemplate: {
+    appMenuResetBusiness: {
         parameters: {
             query?: never;
             header?: never;

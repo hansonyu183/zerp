@@ -167,10 +167,9 @@ describe('Dashboard workbench', () => {
     }
     session.applyMenuData({
       mode: 'DEFAULT',
-      modeRevision: 1,
-      catalogRevision: 'catalog-revision',
+      revision: 1,
       defaultMenu: navigation,
-      businessTemplate: navigation,
+      businessMenu: navigation,
       navigation,
       availableRoutes: [],
     })
@@ -245,10 +244,9 @@ describe('Dashboard workbench', () => {
     ])
     session.applyMenuData({
       mode: 'DEFAULT',
-      modeRevision: 2,
-      catalogRevision: 'catalog-revision',
+      revision: 2,
       defaultMenu: { ...navigation, items: [] },
-      businessTemplate: { ...navigation, items: [] },
+      businessMenu: { ...navigation, items: [] },
       navigation: { ...navigation, items: [] },
       availableRoutes: [],
     })

@@ -439,32 +439,33 @@ WHERE parameter_key = sqlc.arg(parameter_key)
   AND deployment_scope = sqlc.arg(deployment_scope)
   AND instance_id = ANY(sqlc.arg(expected_instance_ids)::text[]);
 
--- name: AcquireAppMenuLock :exec
-SELECT pg_advisory_xact_lock(74155002);
+-- name: GetAppMenuSettings :one
+SELECT *
+FROM app_menu_settings
+WHERE id = 1;
+
+-- name: GetAppMenuSettingsForUpdate :one
+SELECT *
+FROM app_menu_settings
+WHERE id = 1
+FOR UPDATE;
 
 -- name: ListAppBusinessMenuItems :many
 SELECT *
 FROM app_business_menu_items
-WHERE snapshot_type = sqlc.arg(snapshot_type)
 ORDER BY item_level, sort_order, id;
 
--- name: GetAppBusinessMenuRevision :one
-SELECT COALESCE(max(revision), 1)::bigint
-FROM app_business_menu_items
-WHERE snapshot_type = sqlc.arg(snapshot_type);
-
 -- name: DeleteAppBusinessMenuItems :exec
-DELETE FROM app_business_menu_items
-WHERE snapshot_type = sqlc.arg(snapshot_type);
+DELETE FROM app_business_menu_items;
 
 -- name: InsertAppBusinessMenuItem :exec
 INSERT INTO app_business_menu_items (
-  snapshot_type, id, parent_id, item_type, item_level, sort_order, display_name, icon,
-  enabled, route_key, permission_code, revision, created_by, updated_by
+  id, parent_id, item_type, item_level, sort_order, display_name, icon,
+  enabled, route_key, permission_code, created_by, updated_by
 ) VALUES (
-  sqlc.arg(snapshot_type), sqlc.arg(id), sqlc.narg(parent_id), sqlc.arg(item_type), sqlc.arg(item_level),
+  sqlc.arg(id), sqlc.narg(parent_id), sqlc.arg(item_type), sqlc.arg(item_level),
   sqlc.arg(sort_order), sqlc.arg(display_name), sqlc.narg(icon), sqlc.arg(enabled),
-  sqlc.narg(route_key), sqlc.narg(permission_code), sqlc.arg(revision),
+  sqlc.narg(route_key), sqlc.narg(permission_code),
   sqlc.narg(actor_id), sqlc.narg(actor_id)
 );
 
@@ -486,15 +487,21 @@ GROUP BY domain, entity
 ORDER BY domain, min(menu_order) FILTER (WHERE action = 'query') NULLS LAST, entity;
 
 -- name: UpdateAppMenuMode :one
-UPDATE app_system_parameters
-SET configured_value = sqlc.arg(mode),
-    running_value = sqlc.arg(mode),
-    running_revision = revision + 1,
-    restart_pending = false,
+UPDATE app_menu_settings
+SET menu_mode = sqlc.arg(mode),
     revision = revision + 1,
     updated_at = now(),
     updated_by = sqlc.arg(actor_id)
-WHERE parameter_key = 'app.menu.mode'
+WHERE id = 1
+  AND revision = sqlc.arg(revision)
+RETURNING *;
+
+-- name: AdvanceAppMenuRevision :one
+UPDATE app_menu_settings
+SET revision = revision + 1,
+    updated_at = now(),
+    updated_by = sqlc.narg(actor_id)
+WHERE id = 1
   AND revision = sqlc.arg(revision)
 RETURNING *;
 

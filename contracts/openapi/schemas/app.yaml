@@ -878,7 +878,7 @@
           'requestId': { 'type': 'string' },
         },
     },
-  'MenuMode': { 'type': 'string', 'enum': ['DEFAULT', 'BUSINESS_TEMPLATE'] },
+  'MenuMode': { 'type': 'string', 'enum': ['DEFAULT', 'BUSINESS'] },
   'MenuItemType': { 'type': 'string', 'enum': ['GROUP', 'ROUTE'] },
   'MenuItemView':
     {
@@ -917,13 +917,10 @@
   'MenuTree':
     {
       'type': 'object',
-      'required': ['revision', 'items'],
+      'required': ['items'],
       'additionalProperties': false,
       'properties':
-        {
-          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
-          'items': { 'type': 'array', 'items': { '$ref': '#/MenuItemView' } },
-        },
+        { 'items': { 'type': 'array', 'items': { '$ref': '#/MenuItemView' } } },
     },
   'MenuRouteOption':
     {
@@ -944,11 +941,9 @@
       'required':
         [
           'mode',
-          'modeRevision',
-          'catalogRevision',
+          'revision',
           'defaultMenu',
-          'draft',
-          'published',
+          'businessMenu',
           'navigation',
           'availableRoutes',
         ],
@@ -956,13 +951,9 @@
       'properties':
         {
           'mode': { '$ref': '#/MenuMode' },
-          'modeRevision':
-            { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
-          'catalogRevision':
-            { 'type': 'string', 'minLength': 1, 'maxLength': 64 },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
           'defaultMenu': { '$ref': '#/MenuTree' },
-          'draft': { '$ref': '#/MenuTree' },
-          'published': { '$ref': '#/MenuTree' },
+          'businessMenu': { '$ref': '#/MenuTree' },
           'navigation': { '$ref': '#/MenuTree' },
           'availableRoutes':
             { 'type': 'array', 'items': { '$ref': '#/MenuRouteOption' } },
@@ -1016,13 +1007,11 @@
   'SaveBusinessMenuRequest':
     {
       'type': 'object',
-      'required': ['revision', 'catalogRevision', 'items'],
+      'required': ['revision', 'items'],
       'additionalProperties': false,
       'properties':
         {
           'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
-          'catalogRevision':
-            { 'type': 'string', 'minLength': 1, 'maxLength': 64 },
           'items':
             {
               'type': 'array',
@@ -1035,39 +1024,21 @@
   'ActivateMenuRequest':
     {
       'type': 'object',
-      'required': ['mode', 'revision', 'catalogRevision'],
+      'required': ['mode', 'revision'],
       'additionalProperties': false,
       'properties':
         {
           'mode': { '$ref': '#/MenuMode' },
           'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
-          'catalogRevision':
-            { 'type': 'string', 'minLength': 1, 'maxLength': 64 },
-        },
-    },
-  'PublishBusinessMenuRequest':
-    {
-      'type': 'object',
-      'required': ['revision', 'catalogRevision'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
-          'catalogRevision':
-            { 'type': 'string', 'minLength': 1, 'maxLength': 64 },
         },
     },
   'ResetBusinessMenuRequest':
     {
       'type': 'object',
-      'required': ['revision', 'catalogRevision'],
+      'required': ['revision'],
       'additionalProperties': false,
       'properties':
-        {
-          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
-          'catalogRevision':
-            { 'type': 'string', 'minLength': 1, 'maxLength': 64 },
-        },
+        { 'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 } },
     },
   'FeedbackAttachmentInitiateRequest':
     {

@@ -46,10 +46,9 @@ function applyNavigation(
   }
   session.applyMenuData({
     mode: 'DEFAULT',
-    modeRevision: 1,
-    catalogRevision: 'catalog-revision',
+    revision: 1,
     defaultMenu: tree,
-    businessTemplate: tree,
+    businessMenu: tree,
     navigation: tree,
     availableRoutes: routes.map((route) => ({
       routeKey: route.key,
@@ -104,10 +103,9 @@ function createTestRouter(): Router {
             meta: {
               requiresAuth: true,
               requiredAnyPermissions: [
-                '/app/menu/save-business-template',
-                '/app/menu/publish-business-template',
+                '/app/menu/save-business',
                 '/app/menu/activate',
-                '/app/menu/reset-business-template',
+                '/app/menu/reset-business',
               ],
             },
           },
@@ -250,7 +248,7 @@ describe('session menu route synchronization', () => {
     await router.push('/app/menu')
     expect(router.currentRoute.value.name).toBe('page:app/menu')
 
-    session.permissions = ['/app/menu/publish-business-template']
+    session.permissions = ['/app/menu/reset-business']
     await router.push('/app/menu')
     expect(router.currentRoute.value.name).toBe('page:app/menu')
   })

@@ -23,38 +23,39 @@ vi.mock('@/api/client', () => ({
 const mockedApiClient = vi.mocked(apiClient)
 
 function row(status: BobStatus = 'DRAFT', enabled = true): BobListItem {
+  const version = {
+    versionId: 'VER-1',
+    version: status === 'EFFECTIVE' ? 2 : 1,
+    status,
+    revision: 5,
+    submittedBy: null,
+    summary: {
+      name: '标准产品',
+      productTypeId: 'TYPE-RAW',
+      behaviorProfile: 'RAW_MATERIAL',
+      defaultInputUnitId: 'UNIT-PIECE',
+      pricingUnitId: 'UNIT-KG',
+      unitConversions: [
+        { unit: { objectId: 'UNIT-PIECE' }, factor: '1' },
+        { unit: { objectId: 'UNIT-KG' }, factor: '1' },
+      ],
+      returnable: false,
+      defaultPackagingSpec: '1',
+      categoryId: '',
+      specification: '',
+      model: 'M1',
+      barcode: '',
+      remark: '',
+    },
+  } satisfies NonNullable<BobListItem['effective']>
   return {
     objectId: 'OBJ-1',
     entity: 'product',
     code: 'PRD-1',
     objectRevision: 3,
     enabled,
-    effectiveVersionId: status === 'EFFECTIVE' ? 'VER-1' : null,
-    currentVersion: {
-      versionId: 'VER-1',
-      version: status === 'EFFECTIVE' ? 2 : 1,
-      status,
-      revision: 5,
-      submittedBy: null,
-      summary: {
-        name: '标准产品',
-        productTypeId: 'TYPE-RAW',
-        behaviorProfile: 'RAW_MATERIAL',
-        defaultInputUnitId: 'UNIT-PIECE',
-        pricingUnitId: 'UNIT-KG',
-        unitConversions: [
-          { unit: { objectId: 'UNIT-PIECE' }, factor: '1' },
-          { unit: { objectId: 'UNIT-KG' }, factor: '1' },
-        ],
-        returnable: false,
-        defaultPackagingSpec: '1',
-        categoryId: '',
-        specification: '',
-        model: 'M1',
-        barcode: '',
-        remark: '',
-      },
-    },
+    effective: status === 'EFFECTIVE' ? version : null,
+    candidate: status === 'EFFECTIVE' ? null : version,
     updatedAt: '2026-07-24T10:00:00Z',
   }
 }
@@ -184,12 +185,11 @@ describe('shared BOB entity configuration and view model', () => {
     expect(vm.actionAvailability(row()).edit).toBe(true)
   })
 
-  it('定义仍使用通用工作区的七类业务对象和完整状态筛选', () => {
+  it('定义仍使用通用工作区的六类业务对象和完整状态筛选', () => {
     const expectedColumns: Record<string, string[]> = {
       supplier: ['编码', '主体名称', '状态'],
       product: ['编码', '名称', '产品类型', '默认录入单位', '型号', '状态'],
-      service: ['编码', '名称', '单位', '说明', '状态'],
-      warehouse: ['编码', '名称', '地址', '联系人', '状态'],
+      warehouse: ['编码', '名称', '仓库负责人', '地址', '联系人', '状态'],
       vehicle: ['编码', '名称', '车牌', '类型', '状态'],
       'fund-account': ['编码', '名称', '银行', '状态'],
       'operating-entity': ['编码', '法定公司名称', '税号', '状态'],
@@ -223,7 +223,7 @@ describe('shared BOB entity configuration and view model', () => {
       displayName: '审核人',
     }
     const pending = row('PENDING')
-    pending.currentVersion.submittedBy = 'USER-1'
+    pending.candidate!.submittedBy = 'USER-1'
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
 
     expect(vm.actionAvailability(pending).approve).toBe(false)
@@ -232,7 +232,7 @@ describe('shared BOB entity configuration and view model', () => {
       '提交人不能审核自己提交的版本，请由其他审核人处理。',
     )
 
-    pending.currentVersion.submittedBy = 'USER-2'
+    pending.candidate!.submittedBy = 'USER-2'
     expect(vm.actionAvailability(pending).approve).toBe(true)
   })
 
@@ -336,11 +336,22 @@ describe('shared BOB entity configuration and view model', () => {
 
   it('创建时省略空可选字段，保存时显式发送清空值', async () => {
     grant('product', 'create', 'query', 'get', 'save')
+    let persistedName = '标准产品'
     mockedApiClient.post.mockImplementation(async (path) => {
-      if (path === 'bob/product/create' || path === 'bob/product/save') {
+      if (path === 'bob/product/create') {
+        persistedName = '新产品'
         return { data: mutation() }
       }
-      if (path === 'bob/product/get') return { data: objectView() }
+      if (path === 'bob/product/save') {
+        persistedName = '标准产品'
+        return { data: mutation() }
+      }
+      if (path === 'bob/product/get') {
+        const view = objectView()
+        view.data.model = ''
+        view.data.name = persistedName
+        return { data: view }
+      }
       return emptyPage()
     })
 

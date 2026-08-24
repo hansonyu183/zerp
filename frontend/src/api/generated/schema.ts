@@ -2010,6 +2010,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/bob/warehouse/disable-precheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 预检仓库停用阻断 */
+        post: operations["bobWarehouseDisablePrecheck"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/bob/{entity}/versions": {
         parameters: {
             query?: never;
@@ -3554,7 +3571,7 @@ export interface components {
             pageSize: 20;
         };
         /** @enum {string} */
-        BobEntity: "customer" | "customer-account" | "supplier" | "employee" | "other-unit" | "sales-partner" | "product" | "service" | "warehouse" | "vehicle" | "fund-account" | "operating-entity";
+        BobEntity: "customer" | "customer-account" | "supplier" | "employee" | "other-unit" | "sales-partner" | "product" | "warehouse" | "vehicle" | "fund-account" | "operating-entity";
         /** @enum {string} */
         WorkbenchAction: "view" | "edit" | "submit" | "unsubmit" | "approve" | "reject" | "check" | "uncheck";
         WorkbenchObjectItem: {
@@ -5154,7 +5171,7 @@ export interface components {
          * @description 仍使用通用 CRUD 契约的 BOB 实体；客户和供应商使用各自的封闭契约。
          * @enum {string}
          */
-        BobCrudEntity: "employee" | "product" | "service" | "warehouse" | "vehicle" | "fund-account" | "operating-entity";
+        BobCrudEntity: "employee" | "product" | "warehouse" | "vehicle" | "fund-account" | "operating-entity";
         BobQueryRequest: {
             page: number;
             pageSize: number;
@@ -5187,8 +5204,8 @@ export interface components {
             /** Format: int64 */
             objectRevision: number;
             enabled: boolean;
-            currentVersion: components["schemas"]["BobVersionSummary"];
-            effectiveVersionId: string | null;
+            effective: components["schemas"]["BobVersionSummary"] | null;
+            candidate: components["schemas"]["BobVersionSummary"] | null;
             /** Format: date-time */
             updatedAt: string;
         };
@@ -5206,6 +5223,23 @@ export interface components {
             data: components["schemas"]["BobListPage"] | null;
             requestId: string;
         };
+        VehicleInternalCarrierAffiliation: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "INTERNAL";
+            operatingEntityId: string;
+        };
+        VehicleExternalCarrierAffiliation: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "EXTERNAL";
+            serviceRelationshipObjectId: string;
+        };
+        VehicleCarrierAffiliation: components["schemas"]["VehicleInternalCarrierAffiliation"] | components["schemas"]["VehicleExternalCarrierAffiliation"];
         BobMeasurementUnitSnapshotInput: {
             objectId: string;
         };
@@ -5240,7 +5274,8 @@ export interface components {
                 customerType?: string | null;
                 plateNumber?: string | null;
                 vehicleType?: string | null;
-                platformObjectId?: string | null;
+                carrierAffiliation?: components["schemas"]["VehicleCarrierAffiliation"];
+                bulkLiquidCapable?: boolean | null;
                 shortName?: string | null;
                 categoryId?: string | null;
                 taxNumber?: string | null;
@@ -5295,7 +5330,8 @@ export interface components {
                 customerType?: string | null;
                 plateNumber?: string | null;
                 vehicleType?: string | null;
-                platformObjectId?: string | null;
+                carrierAffiliation?: components["schemas"]["VehicleCarrierAffiliation"];
+                bulkLiquidCapable?: boolean | null;
                 shortName?: string | null;
                 categoryId?: string | null;
                 taxNumber?: string | null;
@@ -5336,6 +5372,33 @@ export interface components {
                 defaultPackagingSpec?: string | null;
                 formula?: components["schemas"]["BobProductFormulaInput"] | null;
             };
+        };
+        WarehouseDisablePrecheckRequest: {
+            objectId: string;
+        };
+        WarehouseInventoryConflict: {
+            productObjectId: string;
+            productCode: string;
+            productName: string;
+            quantity: string;
+        };
+        WarehouseDocumentConflict: {
+            documentId: string;
+            entity: string;
+            documentNo: string;
+            status?: string | null;
+        };
+        WarehouseDisablePrecheckResult: {
+            inventory: components["schemas"]["WarehouseInventoryConflict"][];
+            inProgressDocuments: components["schemas"]["WarehouseDocumentConflict"][];
+            executableSources: components["schemas"]["WarehouseDocumentConflict"][];
+        };
+        WarehouseDisablePrecheckResponse: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            data: components["schemas"]["WarehouseDisablePrecheckResult"];
+            requestId: string;
         };
         /** @enum {string} */
         VouStatus: "DRAFT" | "CHECKED" | "APPROVED";
@@ -5946,7 +6009,7 @@ export interface components {
                 assetAcquisitionLines?: components["schemas"]["VouAssetAcquisitionLineInput"][];
                 assetSaleLines?: components["schemas"]["VouAssetSaleLineInput"][];
                 assetLiquidationLines?: components["schemas"]["VouAssetLiquidationLineInput"][];
-                platform?: {
+                carrier?: {
                     objectId: string;
                     versionId: string;
                 };
@@ -5985,6 +6048,8 @@ export interface components {
                     settlementSurcharge?: string | null;
                     purchaseUnitPrice?: string;
                     remark?: string;
+                    /** @enum {string} */
+                    deliverySpecificationType?: "PACKAGED" | "BULK_LIQUID";
                     containerType?: string | null;
                     quantityPerContainer?: string | null;
                     formula?: components["schemas"]["VouFormulaInput"] | null;
@@ -6081,7 +6146,7 @@ export interface components {
                 assetAcquisitionLines?: components["schemas"]["VouAssetAcquisitionLineInput"][];
                 assetSaleLines?: components["schemas"]["VouAssetSaleLineInput"][];
                 assetLiquidationLines?: components["schemas"]["VouAssetLiquidationLineInput"][];
-                platform?: {
+                carrier?: {
                     objectId: string;
                     versionId: string;
                 };
@@ -6120,6 +6185,8 @@ export interface components {
                     settlementSurcharge?: string | null;
                     purchaseUnitPrice?: string;
                     remark?: string;
+                    /** @enum {string} */
+                    deliverySpecificationType?: "PACKAGED" | "BULK_LIQUID";
                     containerType?: string | null;
                     quantityPerContainer?: string | null;
                     formula?: components["schemas"]["VouFormulaInput"] | null;
@@ -9049,6 +9116,30 @@ export interface operations {
         };
         responses: {
             200: components["responses"]["Business"];
+        };
+    };
+    bobWarehouseDisablePrecheck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WarehouseDisablePrecheckRequest"];
+            };
+        };
+        responses: {
+            /** @description 仓库当前停用阻断摘要。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WarehouseDisablePrecheckResponse"];
+                };
+            };
         };
     };
     bobversions: {

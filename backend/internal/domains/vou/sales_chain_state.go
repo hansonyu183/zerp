@@ -64,31 +64,46 @@ func (s *Service) loadSalesChainData(
 	case EntitySaleDelivery:
 		var sourceID, sourceNo string
 		var customer ReferenceView
-		var platform ReferenceView
+		var carrierType string
+		var operatingEntity ReferenceView
+		var carrier ReferenceView
 		var vehicle ReferenceView
+		var vehicleBulkLiquidCapable bool
 		err := s.pool.QueryRow(ctx, `SELECT x.source_outbound_id,p.document_no,
 			x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name,
-			COALESCE(x.platform_object_id,''),COALESCE(x.platform_version_id,''),
-			COALESCE(x.platform_code,''),COALESCE(x.platform_name,''),
+			x.carrier_type,
+			COALESCE(x.carrier_operating_entity_object_id,''),COALESCE(x.carrier_operating_entity_version_id,''),
+			COALESCE(x.carrier_operating_entity_code,''),COALESCE(x.carrier_operating_entity_name,''),
+			COALESCE(x.carrier_service_relationship_object_id,''),COALESCE(x.carrier_service_relationship_version_id,''),
+			COALESCE(x.carrier_service_relationship_code,''),COALESCE(x.carrier_service_relationship_name,''),
 			COALESCE(x.vehicle_object_id,''),COALESCE(x.vehicle_version_id,''),
 			COALESCE(x.vehicle_code,''),COALESCE(x.vehicle_name,''),
-			COALESCE(x.vehicle_plate_number,'')
+			COALESCE(x.vehicle_plate_number,''),x.vehicle_bulk_liquid_capable
 			FROM vou_sale_delivery_details x JOIN vou_documents p ON p.id=x.source_outbound_id
 			WHERE x.document_id=$1`, document.ID).Scan(
 			&sourceID, &sourceNo,
 			&customer.ObjectID, &customer.VersionID, &customer.Code, &customer.Name,
-			&platform.ObjectID, &platform.VersionID, &platform.Code, &platform.Name,
-			&vehicle.ObjectID, &vehicle.VersionID, &vehicle.Code, &vehicle.Name, &vehicle.PlateNumber)
+			&carrierType,
+			&operatingEntity.ObjectID, &operatingEntity.VersionID, &operatingEntity.Code, &operatingEntity.Name,
+			&carrier.ObjectID, &carrier.VersionID, &carrier.Code, &carrier.Name,
+			&vehicle.ObjectID, &vehicle.VersionID, &vehicle.Code, &vehicle.Name, &vehicle.PlateNumber,
+			&vehicleBulkLiquidCapable)
 		if err != nil {
 			return data, err
 		}
-		customer.Entity, platform.Entity, vehicle.Entity = bobdomain.EntityCustomerAccount, "other-unit", "vehicle"
+		customer.Entity, operatingEntity.Entity, carrier.Entity, vehicle.Entity =
+			bobdomain.EntityCustomerAccount, bobdomain.EntityOperatingEntity, bobdomain.EntityOtherUnit, bobdomain.EntityVehicle
 		data.Customer = &customer
-		if platform.ObjectID != "" {
-			data.Platform = &platform
+		data.CarrierType = carrierType
+		if operatingEntity.ObjectID != "" {
+			data.CarrierOperatingEntity = &operatingEntity
+		}
+		if carrier.ObjectID != "" {
+			data.Carrier = &carrier
 		}
 		if vehicle.ObjectID != "" {
 			data.Vehicle = &vehicle
+			data.VehicleBulkLiquidCapable = vehicleBulkLiquidCapable
 		}
 		rows, err := s.pool.Query(ctx, `SELECT id,source_order_line_id,line_no,
 			product_object_id,product_version_id,product_code,product_name,entered_unit_symbol,
@@ -250,7 +265,7 @@ func (s *Service) validateSalesChainStored(
 		}
 	case EntitySaleDelivery:
 		err := s.pool.QueryRow(ctx, `SELECT p.status,1,
-			x.platform_object_id IS NOT NULL AND x.vehicle_object_id IS NOT NULL
+			x.carrier_type IS NOT NULL AND x.vehicle_object_id IS NOT NULL
 			FROM vou_sale_delivery_details x
 			JOIN vou_documents p ON p.id=x.source_outbound_id WHERE x.document_id=$1`,
 			documentID).Scan(&sourceStatus, &lineCount, &complete)
@@ -467,8 +482,10 @@ func (s *Service) Delete(
 				input.DocumentID)
 		}
 	case EntitySaleOrder:
-		_, err = tx.Exec(ctx, `DELETE FROM vou_product_lines WHERE document_id=$1;
-			DELETE FROM vou_sale_order_details WHERE document_id=$1`, input.DocumentID)
+		_, err = tx.Exec(ctx, `DELETE FROM vou_product_lines WHERE document_id=$1`, input.DocumentID)
+		if err == nil {
+			_, err = tx.Exec(ctx, `DELETE FROM vou_sale_order_details WHERE document_id=$1`, input.DocumentID)
+		}
 	case EntitySaleOutbound:
 		_, err = tx.Exec(ctx, `DELETE FROM vou_sale_outbound_lines WHERE document_id=$1;
 			DELETE FROM vou_sale_outbound_details WHERE document_id=$1`, input.DocumentID)

@@ -297,14 +297,22 @@ function populate(config: VoucherEntityConfig, form: VoucherDraftForm): void {
         },
         baseQuantity: '2.5',
         unitPrice: '4.00',
+        settlementSurcharge: '',
         purchaseUnitPrice: '',
+        deliverySpecificationType:
+          config.entity === 'sale-order' ? 'BULK_LIQUID' : 'PACKAGED',
         remark: '',
         ...(config.entity === 'sale-order'
           ? {
               formula: {
                 output: {
                   enteredQuantity: '1',
-                  enteredUnit: { objectId: 'unit-kg', code: 'UNT-0001', name: '千克', symbol: 'kg' },
+                  enteredUnit: {
+                    objectId: 'unit-kg',
+                    code: 'UNT-0001',
+                    name: '千克',
+                    symbol: 'kg',
+                  },
                   baseQuantity: '1',
                 },
                 sourceType: 'RAW_SELF',
@@ -314,7 +322,12 @@ function populate(config: VoucherEntityConfig, form: VoucherDraftForm): void {
                     material: product,
                     quantity: {
                       enteredQuantity: '1',
-                      enteredUnit: { objectId: 'unit-kg', code: 'UNT-0001', name: '千克', symbol: 'kg' },
+                      enteredUnit: {
+                        objectId: 'unit-kg',
+                        code: 'UNT-0001',
+                        name: '千克',
+                        symbol: 'kg',
+                      },
                       baseQuantity: '1',
                     },
                   },
@@ -395,6 +408,37 @@ describe('shared VOU entity view model', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+  })
+
+  it('only sends an explicit carrier for externally affiliated delivery vehicles', () => {
+    const config = voucherEntityConfigs['sale-delivery']
+    const vm = useVoucherEntityViewModel(config)
+    vm.openCreate()
+    const form = vm.form.value
+    populate(config, form)
+    form.carrier = reference('other-unit')
+    form.vehicle = {
+      ...reference('vehicle'),
+      carrierAffiliation: {
+        type: 'EXTERNAL',
+        serviceRelationshipObjectId: form.carrier.objectId,
+      },
+    }
+
+    expect(
+      buildVoucherDraftPayload(config, form, false, new Set()).carrier,
+    ).toEqual({
+      objectId: form.carrier.objectId,
+      versionId: form.carrier.versionId,
+    })
+
+    form.vehicle.carrierAffiliation = {
+      type: 'INTERNAL',
+      operatingEntityId: 'OPERATING-ENTITY',
+    }
+    expect(
+      buildVoucherDraftPayload(config, form, false, new Set()),
+    ).not.toHaveProperty('carrier')
   })
 
   it('通过单据深链接标识打开现有工作区并按保存权限进入编辑态', async () => {
@@ -649,6 +693,7 @@ describe('shared VOU entity view model', () => {
         )[0]
         expect(productLine).not.toHaveProperty('purchaseUnitPrice')
         if (config.entity === 'sale-order') {
+          expect(productLine.deliverySpecificationType).toBe('BULK_LIQUID')
           expect(productLine.formula).toEqual({
             output: {
               enteredQuantity: '1',
@@ -670,6 +715,7 @@ describe('shared VOU entity view model', () => {
             ],
           })
         } else {
+          expect(productLine).not.toHaveProperty('deliverySpecificationType')
           expect(productLine).not.toHaveProperty('formula')
         }
       }
@@ -1032,40 +1078,69 @@ describe('shared VOU entity view model', () => {
     expect(captured?.data?.serviceContract).toEqual({ terms: '服务条款' })
   })
 
-  it('filters delivery vehicles by the selected platform without an unsupported BOB filter', async () => {
+  it('loads typed delivery vehicles and filters the external carrier to the selected affiliation', async () => {
     vi.useFakeTimers()
-    useSessionStore().permissions = ['/bob/vehicle/query']
+    useSessionStore().permissions = [
+      '/bob/vehicle/query',
+      '/bob/other-unit/query',
+    ]
     const vm = useVoucherEntityViewModel(voucherEntityConfigs['sale-delivery'])
-    vm.form.value.platform = reference('supplier')
     const requests: Array<Record<string, unknown>> = []
-    mockedPost.mockImplementation(async (_path, body) => {
+    mockedPost.mockImplementation(async (path, body) => {
       requests.push(body as Record<string, unknown>)
+      if (
+        path === 'bob/reference/query' &&
+        (body as { entity?: string }).entity === 'other-unit'
+      ) {
+        return {
+          data: [
+            {
+              objectId: 'CARRIER',
+              code: 'CAR-1',
+              versionId: 'CAR-VER',
+              name: '外部承运方',
+            },
+            {
+              objectId: 'OTHER-CARRIER',
+              code: 'CAR-2',
+              versionId: 'OTHER-VER',
+              name: '其它承运方',
+            },
+          ],
+        }
+      }
       return {
         data: {
           items: [
             {
               objectId: 'MATCHING',
               code: 'VEH-1',
-              effectiveVersionId: 'VER-1',
-              currentVersion: {
+              effective: {
                 versionId: 'VER-1',
                 status: 'EFFECTIVE',
                 summary: {
                   name: '匹配车辆',
-                  platformObjectId: 'supplier-object',
+                  carrierAffiliation: {
+                    type: 'EXTERNAL',
+                    serviceRelationshipObjectId: 'CARRIER',
+                  },
+                  bulkLiquidCapable: true,
                 },
               },
             },
             {
               objectId: 'OTHER',
               code: 'VEH-2',
-              effectiveVersionId: 'VER-2',
-              currentVersion: {
+              effective: {
                 versionId: 'VER-2',
                 status: 'EFFECTIVE',
                 summary: {
                   name: '其它车辆',
-                  platformObjectId: 'other-platform',
+                  carrierAffiliation: {
+                    type: 'INTERNAL',
+                    operatingEntityId: 'OPERATING',
+                  },
+                  bulkLiquidCapable: false,
                 },
               },
             },
@@ -1080,19 +1155,14 @@ describe('shared VOU entity view model', () => {
     vm.searchReference('vehicle', 'VEH')
     await vi.advanceTimersByTimeAsync(250)
 
-    expect(requests[0].filters as Record<string, unknown>).not.toHaveProperty(
-      'platformObjectId',
+    expect(vm.referenceOptions('vehicle')).toHaveLength(2)
+    vm.form.value.vehicle = vm.referenceOptions('vehicle')[0]!
+    vm.markReferenceChanged('vehicle')
+    vm.searchReference('carrier', '承运')
+    await vi.advanceTimersByTimeAsync(250)
+    expect(vm.referenceOptions('carrier').map((item) => item.objectId)).toEqual(
+      ['CARRIER'],
     )
-    expect(vm.referenceOptions('vehicle')).toEqual([
-      {
-        objectId: 'MATCHING',
-        versionId: 'VER-1',
-        entity: 'vehicle',
-        code: 'VEH-1',
-        name: '匹配车辆',
-        platformObjectId: 'supplier-object',
-      },
-    ])
     vi.useRealTimers()
   })
 

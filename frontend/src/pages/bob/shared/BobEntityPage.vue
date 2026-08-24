@@ -11,8 +11,9 @@ import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
 import { formatLocalDateTime } from '@/utils/date'
 import { getStatusText } from './config'
+import { bobFormFromView } from './form-data'
 import type { BobEntityViewModel } from './vm'
-import type { BobListItem } from './types'
+import { bobListActiveVersion, type BobListItem } from './types'
 import ProductUnitConversionsEditor from '../product/ProductUnitConversionsEditor.vue'
 import type { ProductUnitConversionDraft } from './product-data'
 import ProductFormulaEditorDialog from '../product/ProductFormulaEditorDialog.vue'
@@ -57,6 +58,11 @@ const effectiveProductUnitConversions = computed(() => {
   const value = vm.effectiveView?.data.unitConversions
   return Array.isArray(value) ? (value as ProductUnitConversionDraft[]) : []
 })
+const effectiveEditorModel = computed(() =>
+  vm.effectiveView
+    ? bobFormFromView(vm.config, vm.effectiveView)
+    : vm.config.emptyForm(),
+)
 
 void vm.query()
 
@@ -249,7 +255,7 @@ function selectRowAction(action: string, row: BobListItem): void {
   else if (action === 'approve') void vm.review(row, 'approve', '')
   else if (action === 'unapprove') requestReverse(row, 'unapprove')
   else if (action === 'reject') requestReject(row)
-  else if (action === 'toggle-enabled') void vm.changeEnabled(row)
+  else if (action === 'toggle-enabled') void vm.requestChangeEnabled(row)
   else if (action === 'versions') void vm.openVersions(row)
   else if (action === 'audit') void vm.openAudit(row)
   else if (action === 'delete') deleteTarget.value = row
@@ -478,10 +484,10 @@ function saveFormula(value: ProductFormulaDraft): void {
       <template #cell-status="{ row }">
         <div class="bob-status-chips">
           <v-chip density="comfortable" size="small" variant="tonal">
-            {{ getStatusText(row.currentVersion.status) }}
+            {{ getStatusText(bobListActiveVersion(row).status) }}
           </v-chip>
           <v-chip
-            v-if="row.currentVersion.status === 'EFFECTIVE'"
+            v-if="row.effective !== null"
             :color="row.enabled ? 'success' : 'default'"
             density="comfortable"
             size="small"
@@ -490,10 +496,7 @@ function saveFormula(value: ProductFormulaDraft): void {
             {{ row.enabled ? '启用' : '禁用' }}
           </v-chip>
           <v-chip
-            v-if="
-              row.effectiveVersionId &&
-              row.effectiveVersionId !== row.currentVersion.versionId
-            "
+            v-if="row.candidate !== null"
             color="warning"
             density="comfortable"
             size="small"
@@ -525,7 +528,7 @@ function saveFormula(value: ProductFormulaDraft): void {
   >
     <div class="bob-entity-drawer__content">
       <v-card
-        v-if="vm.effectiveView"
+        v-if="vm.effectiveView && vm.config.entity === 'product'"
         class="mb-4"
         color="surface-variant"
         rounded="lg"
@@ -576,6 +579,16 @@ function saveFormula(value: ProductFormulaDraft): void {
           </div>
         </v-card-text>
       </v-card>
+      <BusinessObjectEditor
+        v-else-if="vm.effectiveView"
+        :editable="false"
+        :editing="false"
+        :fields="vm.editorFields"
+        :model-value="effectiveEditorModel"
+        title="当前交易使用"
+      >
+        <template #actions />
+      </BusinessObjectEditor>
       <v-alert
         v-if="vm.effectiveView"
         class="mb-4"
@@ -821,6 +834,91 @@ function saveFormula(value: ProductFormulaDraft): void {
           @click="confirmDelete"
         >
           删除草稿
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <v-dialog
+    :model-value="Boolean(vm.warehouseDisableTarget)"
+    max-width="620"
+    persistent
+  >
+    <v-card rounded="xl" title="仓库停用预检">
+      <v-card-text>
+        <v-alert
+          v-if="
+            (vm.warehouseDisablePrecheck?.inventory.length ?? 0) === 0 &&
+            (vm.warehouseDisablePrecheck?.inProgressDocuments.length ?? 0) ===
+              0 &&
+            (vm.warehouseDisablePrecheck?.executableSources.length ?? 0) === 0
+          "
+          type="success"
+          variant="tonal"
+        >
+          当前仓库库存为零，且没有处理中或仍可执行库存动作的单据。确认后仍会在事务内重新校验。
+        </v-alert>
+        <template v-else>
+          <v-alert class="mb-4" type="warning" variant="tonal">
+            请先处理以下阻断项；仓库将保持启用。
+          </v-alert>
+          <div
+            v-if="vm.warehouseDisablePrecheck?.inventory.length"
+            class="mb-4"
+          >
+            <div class="text-subtitle-2 mb-1">非零库存</div>
+            <div
+              v-for="item in vm.warehouseDisablePrecheck.inventory"
+              :key="item.productObjectId"
+            >
+              {{ item.productCode }} · {{ item.productName }}：{{
+                item.quantity
+              }}
+            </div>
+          </div>
+          <div
+            v-if="vm.warehouseDisablePrecheck?.inProgressDocuments.length"
+            class="mb-4"
+          >
+            <div class="text-subtitle-2 mb-1">处理中单据</div>
+            <div
+              v-for="item in vm.warehouseDisablePrecheck.inProgressDocuments"
+              :key="item.documentId"
+            >
+              {{ item.documentNo }} · {{ item.entity }} · {{ item.status }}
+            </div>
+          </div>
+          <div v-if="vm.warehouseDisablePrecheck?.executableSources.length">
+            <div class="text-subtitle-2 mb-1">仍可执行的来源单据</div>
+            <div
+              v-for="item in vm.warehouseDisablePrecheck.executableSources"
+              :key="item.documentId"
+            >
+              {{ item.documentNo }} · {{ item.entity }}
+            </div>
+          </div>
+        </template>
+      </v-card-text>
+      <v-card-actions class="px-6 pb-5">
+        <v-spacer />
+        <v-btn variant="text" @click="vm.closeWarehouseDisablePrecheck"
+          >关闭</v-btn
+        >
+        <v-btn
+          v-if="
+            (vm.warehouseDisablePrecheck?.inventory.length ?? 0) === 0 &&
+            (vm.warehouseDisablePrecheck?.inProgressDocuments.length ?? 0) ===
+              0 &&
+            (vm.warehouseDisablePrecheck?.executableSources.length ?? 0) === 0
+          "
+          color="warning"
+          :loading="
+            vm.actionLoading ===
+            `disable:${vm.warehouseDisableTarget?.objectId}`
+          "
+          @click="vm.confirmWarehouseDisable"
+        >
+          确认停用
         </v-btn>
       </v-card-actions>
     </v-card>

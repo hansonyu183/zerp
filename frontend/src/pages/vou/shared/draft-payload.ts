@@ -26,7 +26,7 @@ export interface DraftPayload {
   warehouse?: VoucherReferenceInput
   materialWarehouse?: VoucherReferenceInput
   finishedWarehouse?: VoucherReferenceInput
-  platform?: VoucherReferenceInput
+  carrier?: VoucherReferenceInput
   vehicle?: VoucherReferenceInput
   fundAccount?: VoucherReferenceInput
   sourceName?: string
@@ -39,6 +39,7 @@ export interface DraftPayload {
     unitPrice: string
     settlementSurcharge?: string
     purchaseUnitPrice?: string
+    deliverySpecificationType?: 'PACKAGED' | 'BULK_LIQUID'
     remark?: string
     formula?: FormulaPayload
   }>
@@ -65,7 +66,11 @@ export interface DraftPayload {
     location?: string
     remark?: string
   }>
-  assetSaleLines?: Array<{ assetId: string; saleAmount: string; remark?: string }>
+  assetSaleLines?: Array<{
+    assetId: string
+    saleAmount: string
+    remark?: string
+  }>
   assetLiquidationLines?: Array<{
     assetId: string
     reason: string
@@ -73,14 +78,22 @@ export interface DraftPayload {
     disposalExpense: string
     remark?: string
   }>
-  sourceLines?: Array<{ sourceLineId: string; baseQuantity: string; remark?: string }>
+  sourceLines?: Array<{
+    sourceLineId: string
+    baseQuantity: string
+    remark?: string
+  }>
   signoffLines?: Array<{
     sourceLineId: string
     signedBaseQuantity: string
     rejectedBaseQuantity: string
     remark?: string
   }>
-  returnLines?: Array<{ sourceLineId: string; baseQuantity: string; remark?: string }>
+  returnLines?: Array<{
+    sourceLineId: string
+    baseQuantity: string
+    remark?: string
+  }>
   productionLines?: Array<{
     sourceOrderLineId?: string
     product?: { objectId: string }

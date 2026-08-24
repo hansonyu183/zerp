@@ -57,8 +57,9 @@ func (a *Adapter) CreateSaleOutbound(ctx context.Context, tx pgx.Tx, input wfl.W
 
 func (a *Adapter) CreateSaleDelivery(ctx context.Context, tx pgx.Tx, input wfl.WorkflowActionInput[wfl.SaleDeliveryInitial]) (wfl.BusinessObjectReference, error) {
 	result, err := a.documents.CreateWorkflowSaleDelivery(ctx, tx, input.SourceDocumentID, vou.WorkflowSaleDeliveryInitial{
-		PlatformObjectID: input.Initial.PlatformObjectID, VehicleObjectID: input.Initial.VehicleObjectID,
-		BusinessDate: input.Initial.BusinessDate, Lines: quantityLines(input.Initial.Lines),
+		CarrierServiceRelationshipObjectID: input.Initial.CarrierServiceRelationshipObjectID,
+		VehicleObjectID:                    input.Initial.VehicleObjectID,
+		BusinessDate:                       input.Initial.BusinessDate, Lines: quantityLines(input.Initial.Lines),
 	}, input.RequestID)
 	return reference(vou.EntitySaleDelivery, result), err
 }

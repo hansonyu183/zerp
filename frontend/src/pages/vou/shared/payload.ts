@@ -126,7 +126,9 @@ export function buildVoucherDraftPayload(
     }))
   }
   if (config.entity === 'sale-delivery') {
-    payload.platform = inputReference(value.platform)
+    if (value.vehicle?.carrierAffiliation?.type === 'EXTERNAL') {
+      payload.carrier = inputReference(value.carrier)
+    }
     payload.vehicle = inputReference(value.vehicle)
   }
   if (config.usesFundAccount) {
@@ -156,6 +158,9 @@ export function buildVoucherDraftPayload(
       ...(config.entity === 'sale-order' &&
       (line.settlementSurcharge ?? '').trim()
         ? { settlementSurcharge: (line.settlementSurcharge ?? '').trim() }
+        : {}),
+      ...(config.entity === 'sale-order'
+        ? { deliverySpecificationType: line.deliverySpecificationType }
         : {}),
       ...(line.remark.trim() ? { remark: line.remark.trim() } : {}),
       ...(config.entity === 'sale-order' && line.formula

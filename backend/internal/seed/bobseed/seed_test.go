@@ -22,7 +22,6 @@ func TestSamplesCoverEveryEntityAndLifecycleState(t *testing.T) {
 		bob.EntityOtherUnit:       1,
 		bob.EntityEmployee:        2,
 		bob.EntityProduct:         4,
-		bob.EntityService:         2,
 		bob.EntityWarehouse:       2,
 		bob.EntityVehicle:         2,
 		bob.EntityFundAccount:     2,
@@ -54,7 +53,7 @@ func TestSeedCreatesLifecycleDataAndIsIdempotent(t *testing.T) {
 	if first != (Result{Created: len(samples)}) {
 		t.Fatalf("first result = %+v", first)
 	}
-	if store.createCalls != 26 || store.submitCalls != 19 || store.approveCalls != 16 || store.rejectCalls != 0 {
+	if store.createCalls != 24 || store.submitCalls != 17 || store.approveCalls != 15 || store.rejectCalls != 0 {
 		t.Fatalf(
 			"calls create=%d submit=%d approve=%d reject=%d",
 			store.createCalls,
@@ -71,7 +70,7 @@ func TestSeedCreatesLifecycleDataAndIsIdempotent(t *testing.T) {
 	if second != (Result{Skipped: len(samples)}) {
 		t.Fatalf("second result = %+v", second)
 	}
-	if store.createCalls != 26 || store.submitCalls != 19 || store.approveCalls != 16 || store.rejectCalls != 0 {
+	if store.createCalls != 24 || store.submitCalls != 17 || store.approveCalls != 15 || store.rejectCalls != 0 {
 		t.Fatal("idempotent seed performed extra lifecycle mutations")
 	}
 }
@@ -197,7 +196,7 @@ func (s *fakeStore) Create(_ context.Context, entity string, input bob.CreateInp
 			CustomerType:               customerType,
 			PlateNumber:                input.Data.PlateNumber,
 			VehicleType:                input.Data.VehicleType,
-			PlatformObjectID:           input.Data.PlatformObjectID,
+			CarrierAffiliation:         input.Data.CarrierAffiliation,
 			TargetEntity:               input.Data.TargetEntity,
 			ShortName:                  input.Data.ShortName,
 			CategoryID:                 input.Data.CategoryID,
@@ -272,7 +271,7 @@ func (s *fakeStore) Save(_ context.Context, _ string, input bob.SaveInput, _, _ 
 	view.Data.Name, view.Data.Unit, view.Data.Currency = input.Data.Name, input.Data.Unit, input.Data.Currency
 	view.Data.CustomerType = customerType
 	view.Data.PlateNumber, view.Data.VehicleType = input.Data.PlateNumber, input.Data.VehicleType
-	view.Data.PlatformObjectID, view.Data.TargetEntity = input.Data.PlatformObjectID, targetEntity
+	view.Data.CarrierAffiliation, view.Data.TargetEntity = input.Data.CarrierAffiliation, targetEntity
 	applyOptional := func(value bob.OptionalString, target *string) {
 		if value.Set {
 			*target = value.Value

@@ -42,12 +42,10 @@ func detailFields(entity string) []string {
 		return []string{"name", "productTypeId", "defaultInputUnitId", "pricingUnitId", "unitConversions",
 			"returnable", "defaultPackagingSpec", "formula",
 			"categoryId", "specification", "model", "barcode", "remark"}
-	case EntityService:
-		return []string{"name", "unit", "inventoryUnitId", "description", "remark"}
 	case EntityWarehouse:
 		return []string{"name", "address", "contactName", "contactPhone", "managerEmployeeId", "remark"}
 	case EntityVehicle:
-		return []string{"name", "plateNumber", "vehicleType", "platformObjectId", "vin", "engineNumber", "loadCapacityKg", "remark"}
+		return []string{"name", "plateNumber", "vehicleType", "carrierAffiliation", "bulkLiquidCapable", "vin", "engineNumber", "loadCapacityKg", "remark"}
 	case EntityFundAccount:
 		return []string{"name", "currency", "accountName", "bankName", "bankBranch", "accountNumber", "remark"}
 	case EntityCategory:
@@ -65,17 +63,18 @@ func detailFields(entity string) []string {
 	}
 }
 
-func queryItem(row dbsqlc.BobVersionView, enabled bool) QueryItem {
+func versionSummary(row dbsqlc.BobVersionView) VersionSummary {
 	summary := detailView(row)
 	summary.AccountNumber = ""
-	return QueryItem{
-		ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ObjectRevision: row.ObjectRevision, Enabled: enabled,
-		CurrentVersion: VersionSummary{
-			VersionID: row.VersionID, Version: row.VersionNo, Status: row.Status,
-			Revision: row.VersionRevision, SubmittedBy: row.SubmittedBy, Summary: summary,
-		},
-		EffectiveVersionID: row.EffectiveVersionID, UpdatedAt: row.ObjectUpdatedAt.Time,
+	return VersionSummary{
+		VersionID: row.VersionID, Version: row.VersionNo, Status: row.Status,
+		Revision: row.VersionRevision, SubmittedBy: row.SubmittedBy, Summary: summary,
 	}
+}
+
+func queryItem(row dbsqlc.BobVersionView, enabled bool) QueryItem {
+	return QueryItem{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code,
+		ObjectRevision: row.ObjectRevision, Enabled: enabled, UpdatedAt: row.ObjectUpdatedAt.Time}
 }
 
 func versionHistoryItem(row dbsqlc.BobVersionView) VersionHistoryItem {
@@ -107,7 +106,7 @@ func detailView(row dbsqlc.BobVersionView) DetailView {
 		Name: row.Name, Unit: row.Unit, InventoryUnitID: row.InventoryUnitID,
 		Currency:    deref(row.Currency),
 		PlateNumber: deref(row.PlateNumber),
-		VehicleType: deref(row.VehicleType), PlatformObjectID: deref(row.PlatformObjectID),
+		VehicleType: deref(row.VehicleType), BulkLiquidCapable: derefBool(row.BulkLiquidCapable),
 		CustomerType: row.CustomerType, ShortName: row.ShortName, CategoryID: row.CategoryID,
 		TaxNumber: row.TaxNumber, ContactName: row.ContactName, ContactPhone: row.ContactPhone,
 		Email: row.Email, Address: row.Address, Remark: row.Remark,
@@ -147,6 +146,11 @@ func detailView(row dbsqlc.BobVersionView) DetailView {
 		day := row.SettlementDayOfMonth
 		result.DayOfMonth = &day
 	}
+	if row.Entity == EntityVehicle {
+		result.CarrierAffiliation = &CarrierAffiliation{Type: deref(row.CarrierAffiliationType),
+			OperatingEntityID:           deref(row.CarrierOperatingEntityID),
+			ServiceRelationshipObjectID: deref(row.CarrierServiceRelationshipObjectID)}
+	}
 	return result
 }
 
@@ -171,4 +175,8 @@ func deref(value *string) string {
 		return ""
 	}
 	return *value
+}
+
+func derefBool(value *bool) bool {
+	return value != nil && *value
 }

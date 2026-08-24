@@ -1165,20 +1165,24 @@ test(
         product,
         sale.businessDate,
       )
-      const blockedWarehouse = await session.api.ok<{
+      const blockedWarehouse = await session.api.post<{
         inventory: unknown[]
-        inProgressDocuments: Array<{ documentId: string }>
-        executableSources: unknown[]
-      }>('bob/warehouse/disable-precheck', {
+        documents: Array<{ documentId: string }>
+        sources: unknown[]
+        references: unknown[]
+      }>('bob/warehouse/disable', {
         objectId: managedWarehouse.objectId,
+        objectRevision: updatedWarehouse.objectRevision,
       })
+      expect(String(blockedWarehouse.code)).toBe('3001')
       expect(
-        new Set(
-          blockedWarehouse.inProgressDocuments.map((item) => item.documentId),
-        ),
+        new Set(blockedWarehouse.data.documents.map((item) => item.documentId)),
       ).toEqual(
         new Set([firstEntityDraft.documentId, secondEntityDraft.documentId]),
       )
+      expect(blockedWarehouse.data.inventory).toEqual([])
+      expect(blockedWarehouse.data.sources).toEqual([])
+      expect(blockedWarehouse.data.references).toEqual([])
       for (const draft of [firstEntityDraft, secondEntityDraft]) {
         await session.api.ok<VoucherMutation>('vou/sale-order/delete', {
           documentId: draft.documentId,
@@ -1186,16 +1190,6 @@ test(
           reason: 'E2E 修复仓库停用阻断',
         })
       }
-      const clearWarehouse = await session.api.ok<{
-        inventory: unknown[]
-        inProgressDocuments: unknown[]
-        executableSources: unknown[]
-      }>('bob/warehouse/disable-precheck', {
-        objectId: managedWarehouse.objectId,
-      })
-      expect(clearWarehouse.inventory).toEqual([])
-      expect(clearWarehouse.inProgressDocuments).toEqual([])
-      expect(clearWarehouse.executableSources).toEqual([])
       const disabledWarehouse = await session.api.ok<BobObjectMutation>(
         'bob/warehouse/disable',
         {

@@ -1,13 +1,12 @@
 import { ref, type Ref } from 'vue'
-import { apiClient } from '@/api/client'
 import type { components } from '@/api/generated/schema'
-import { getErrorMessage } from '@/api/types'
+import { ApiError } from '@/api/types'
 import { voucherStatusLabels } from '@/components/voucher/status'
 import { voucherEntityConfigs } from '@/pages/vou/shared/config'
 import type { BobListItem } from '../shared/types'
 
-type WarehouseDisablePrecheck =
-  components['schemas']['WarehouseDisablePrecheckResult']
+type WarehouseDisableBlockers =
+  components['schemas']['WarehouseDisableBlockers']
 type WarehouseDocumentConflict =
   components['schemas']['WarehouseDocumentConflict']
 
@@ -23,18 +22,43 @@ export function warehouseDocumentStatusLabel(
   return status ? voucherStatusLabels[status] : '未知状态'
 }
 
+export function warehouseDisableBlockersFromError(
+  error: unknown,
+): WarehouseDisableBlockers | null {
+  if (!(error instanceof ApiError) || error.kind !== 'business') return null
+  const details = error.details
+  if (
+    typeof details !== 'object' ||
+    details === null ||
+    !('inventory' in details) ||
+    !Array.isArray(details.inventory) ||
+    !('documents' in details) ||
+    !Array.isArray(details.documents) ||
+    !('sources' in details) ||
+    !Array.isArray(details.sources) ||
+    !('references' in details) ||
+    !Array.isArray(details.references)
+  ) {
+    return null
+  }
+  return details as WarehouseDisableBlockers
+}
+
 export function useWarehouseDisable(
   actionLoading: Ref<string | null>,
   errorMessage: Ref<string | null>,
   canDisable: (row: Readonly<BobListItem>) => boolean,
-  changeEnabled: (row: BobListItem) => Promise<boolean>,
+  changeEnabled: (
+    row: BobListItem,
+    handleError?: (error: unknown) => boolean,
+  ) => Promise<boolean>,
 ) {
   const warehouseDisableTarget = ref<BobListItem | null>(null)
-  const warehouseDisablePrecheck = ref<WarehouseDisablePrecheck | null>(null)
+  const warehouseDisableBlockers = ref<WarehouseDisableBlockers | null>(null)
 
-  function closeWarehouseDisablePrecheck(): void {
+  function closeWarehouseDisableDialog(): void {
     warehouseDisableTarget.value = null
-    warehouseDisablePrecheck.value = null
+    warehouseDisableBlockers.value = null
   }
 
   async function requestChangeEnabled(row: BobListItem): Promise<boolean> {
@@ -42,45 +66,30 @@ export function useWarehouseDisable(
       return changeEnabled(row)
     }
     if (!canDisable(row) || actionLoading.value) return false
-    actionLoading.value = `disable-precheck:${row.objectId}`
     errorMessage.value = null
-    try {
-      const response = await apiClient.post<
-        WarehouseDisablePrecheck,
-        { objectId: string }
-      >('bob/warehouse/disable-precheck', { objectId: row.objectId })
-      warehouseDisableTarget.value = row
-      warehouseDisablePrecheck.value = response.data
-      return false
-    } catch (error) {
-      errorMessage.value = getErrorMessage(error)
-      return false
-    } finally {
-      actionLoading.value = null
-    }
+    warehouseDisableTarget.value = row
+    warehouseDisableBlockers.value = null
+    return false
   }
 
   async function confirmWarehouseDisable(): Promise<boolean> {
     const target = warehouseDisableTarget.value
-    const precheck = warehouseDisablePrecheck.value
-    if (!target || !precheck) return false
-    if (
-      precheck.inventory.length > 0 ||
-      precheck.inProgressDocuments.length > 0 ||
-      precheck.executableSources.length > 0
-    ) {
-      return false
-    }
-    const completed = await changeEnabled(target)
-    if (completed) closeWarehouseDisablePrecheck()
+    if (!target || warehouseDisableBlockers.value) return false
+    const completed = await changeEnabled(target, (error) => {
+      const blockers = warehouseDisableBlockersFromError(error)
+      if (!blockers) return false
+      warehouseDisableBlockers.value = blockers
+      return true
+    })
+    if (completed) closeWarehouseDisableDialog()
     return completed
   }
 
   return {
     warehouseDisableTarget,
-    warehouseDisablePrecheck,
+    warehouseDisableBlockers,
     requestChangeEnabled,
     confirmWarehouseDisable,
-    closeWarehouseDisablePrecheck,
+    closeWarehouseDisableDialog,
   }
 }

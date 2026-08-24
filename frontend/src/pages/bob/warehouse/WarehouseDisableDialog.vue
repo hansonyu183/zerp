@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive } from 'vue'
+import { reactive } from 'vue'
 import {
   warehouseDocumentEntityLabel,
   warehouseDocumentStatusLabel,
@@ -8,12 +8,6 @@ import type { WarehouseViewModel } from './vm'
 
 const props = defineProps<{ model: WarehouseViewModel }>()
 const vm = reactive(props.model)
-const clear = computed(
-  () =>
-    (vm.warehouseDisablePrecheck?.inventory.length ?? 0) === 0 &&
-    (vm.warehouseDisablePrecheck?.inProgressDocuments.length ?? 0) === 0 &&
-    (vm.warehouseDisablePrecheck?.executableSources.length ?? 0) === 0,
-)
 </script>
 
 <template>
@@ -22,22 +16,26 @@ const clear = computed(
     max-width="620"
     persistent
   >
-    <v-card rounded="xl" title="仓库停用预检">
+    <v-card
+      rounded="xl"
+      :title="vm.warehouseDisableBlockers ? '仓库不能停用' : '确认停用仓库'"
+    >
       <v-card-text>
-        <v-alert v-if="clear" type="success" variant="tonal">
-          当前仓库库存为零，且没有处理中或仍可执行库存动作的单据。确认后仍会在事务内重新校验。
+        <v-alert
+          v-if="!vm.warehouseDisableBlockers"
+          type="warning"
+          variant="tonal"
+        >
+          停用后该仓库不能用于新的业务。确认后系统会检查库存、业务单据和当前引用。
         </v-alert>
         <template v-else>
           <v-alert class="mb-4" type="warning" variant="tonal">
             请先处理以下阻断项；仓库将保持启用。
           </v-alert>
-          <div
-            v-if="vm.warehouseDisablePrecheck?.inventory.length"
-            class="mb-4"
-          >
+          <div v-if="vm.warehouseDisableBlockers.inventory.length" class="mb-4">
             <div class="text-subtitle-2 mb-1">非零库存</div>
             <div
-              v-for="item in vm.warehouseDisablePrecheck.inventory"
+              v-for="item in vm.warehouseDisableBlockers.inventory"
               :key="item.productObjectId"
             >
               {{ item.productCode }} · {{ item.productName }}：{{
@@ -45,13 +43,10 @@ const clear = computed(
               }}
             </div>
           </div>
-          <div
-            v-if="vm.warehouseDisablePrecheck?.inProgressDocuments.length"
-            class="mb-4"
-          >
+          <div v-if="vm.warehouseDisableBlockers.documents.length" class="mb-4">
             <div class="text-subtitle-2 mb-1">处理中单据</div>
             <div
-              v-for="item in vm.warehouseDisablePrecheck.inProgressDocuments"
+              v-for="item in vm.warehouseDisableBlockers.documents"
               :key="item.documentId"
             >
               {{ item.documentNo }} ·
@@ -59,25 +54,34 @@ const clear = computed(
               {{ warehouseDocumentStatusLabel(item.status) }}
             </div>
           </div>
-          <div v-if="vm.warehouseDisablePrecheck?.executableSources.length">
+          <div v-if="vm.warehouseDisableBlockers.sources.length" class="mb-4">
             <div class="text-subtitle-2 mb-1">仍可执行的来源单据</div>
             <div
-              v-for="item in vm.warehouseDisablePrecheck.executableSources"
+              v-for="item in vm.warehouseDisableBlockers.sources"
               :key="item.documentId"
             >
               {{ item.documentNo }} ·
               {{ warehouseDocumentEntityLabel(item.entity) }}
             </div>
           </div>
+          <div v-if="vm.warehouseDisableBlockers.references.length">
+            <div class="text-subtitle-2 mb-1">当前业务对象引用</div>
+            <div
+              v-for="item in vm.warehouseDisableBlockers.references"
+              :key="`${item.entity}:${item.field}`"
+            >
+              {{ item.entity }} · {{ item.field }}：{{ item.count }} 项
+            </div>
+          </div>
         </template>
       </v-card-text>
       <v-card-actions class="px-6 pb-5">
         <v-spacer />
-        <v-btn variant="text" @click="vm.closeWarehouseDisablePrecheck">
-          关闭
+        <v-btn variant="text" @click="vm.closeWarehouseDisableDialog">
+          {{ vm.warehouseDisableBlockers ? '关闭' : '取消' }}
         </v-btn>
         <v-btn
-          v-if="clear"
+          v-if="!vm.warehouseDisableBlockers"
           color="warning"
           :loading="
             vm.actionLoading ===

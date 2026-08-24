@@ -530,13 +530,32 @@ func TestVOUIntegrationConcurrentOutboundReservationAllowsOneWinner(t *testing.T
 	}
 }
 
-func TestWarehouseDisablePrecheckTracksSalesLifecycleIntegration(t *testing.T) {
+func TestWarehouseDisableTracksSalesLifecycleIntegration(t *testing.T) {
 	pool := vouIntegrationPool(t)
 	truncateVOU(t, pool)
 	t.Cleanup(func() { truncateVOU(t, pool) })
 	refs := prepareReferences(t, pool)
 	service := newIntegrationService(t, pool)
 	bobService := newBOBIntegrationService(pool)
+	warehouseView, err := bobService.Get(t.Context(), bobdomain.EntityWarehouse, bobdomain.GetInput{ObjectID: refs.warehouse.ObjectID})
+	if err != nil {
+		t.Fatalf("get warehouse before blocker checks: %v", err)
+	}
+	disableBlockers := func() bobdomain.WarehouseDisableBlockers {
+		t.Helper()
+		_, disableErr := bobService.Disable(t.Context(), bobdomain.EntityWarehouse, bobdomain.ObjectRevisionInput{
+			ObjectID: refs.warehouse.ObjectID, ObjectRevision: warehouseView.ObjectRevision,
+		}, integrationActorOne, "warehouse-disable-blocked")
+		var domainErr *bobdomain.DomainError
+		if !errors.As(disableErr, &domainErr) || domainErr.Kind != bobdomain.ErrorConflict {
+			t.Fatalf("warehouse disable error = %v, want conflict", disableErr)
+		}
+		blockers, ok := domainErr.Data.(bobdomain.WarehouseDisableBlockers)
+		if !ok {
+			t.Fatalf("warehouse disable blockers = %#v", domainErr.Data)
+		}
+		return blockers
+	}
 
 	draft, err := service.Create(t.Context(), EntitySaleOrder, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
@@ -546,18 +565,14 @@ func TestWarehouseDisablePrecheckTracksSalesLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create warehouse-blocking sale order: %v", err)
 	}
-	precheck, err := bobService.WarehouseDisablePrecheck(t.Context(), bobdomain.WarehouseDisablePrecheckInput{ObjectID: refs.warehouse.ObjectID})
-	if err != nil || len(precheck.InProgressDocuments) != 1 || precheck.InProgressDocuments[0].DocumentID != draft.DocumentID {
-		t.Fatalf("draft warehouse blockers = %+v err=%v", precheck, err)
+	blockers := disableBlockers()
+	if len(blockers.Documents) != 1 || blockers.Documents[0].DocumentID != draft.DocumentID {
+		t.Fatalf("draft warehouse blockers = %+v", blockers)
 	}
 	if _, err = service.Delete(t.Context(), EntitySaleOrder, DeleteInput{
 		DocumentID: draft.DocumentID, Revision: draft.Revision, Reason: "repair warehouse disable blocker",
 	}, integrationActorOne, "warehouse-precheck-delete-draft"); err != nil {
 		t.Fatalf("delete warehouse-blocking sale order: %v", err)
-	}
-	precheck, err = bobService.WarehouseDisablePrecheck(t.Context(), bobdomain.WarehouseDisablePrecheckInput{ObjectID: refs.warehouse.ObjectID})
-	if err != nil || precheck.HasConflicts() {
-		t.Fatalf("deleted draft still blocks warehouse = %+v err=%v", precheck, err)
 	}
 	draft, err = service.Create(t.Context(), EntitySaleOrder, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
@@ -580,9 +595,9 @@ func TestWarehouseDisablePrecheckTracksSalesLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("approve warehouse-blocking sale order: %v", err)
 	}
-	precheck, err = bobService.WarehouseDisablePrecheck(t.Context(), bobdomain.WarehouseDisablePrecheckInput{ObjectID: refs.warehouse.ObjectID})
-	if err != nil || len(precheck.ExecutableSources) != 1 || precheck.ExecutableSources[0].DocumentID != approved.DocumentID {
-		t.Fatalf("approved source warehouse blockers = %+v err=%v", precheck, err)
+	blockers = disableBlockers()
+	if len(blockers.Sources) != 1 || blockers.Sources[0].DocumentID != approved.DocumentID {
+		t.Fatalf("approved source warehouse blockers = %+v", blockers)
 	}
 
 	orderView, err := service.Get(t.Context(), EntitySaleOrder, GetInput{DocumentID: approved.DocumentID})
@@ -593,14 +608,6 @@ func TestWarehouseDisablePrecheckTracksSalesLifecycleIntegration(t *testing.T) {
 		BusinessDate: "2026-07-25", SourceDocumentID: approved.DocumentID, Warehouse: &refs.warehouse,
 		SourceLines: []SourceQuantityLineInput{{SourceLineID: orderView.Data.ProductLines[0].LineID, BaseQuantity: "2"}},
 	}, true)
-	precheck, err = bobService.WarehouseDisablePrecheck(t.Context(), bobdomain.WarehouseDisablePrecheckInput{ObjectID: refs.warehouse.ObjectID})
-	if err != nil || precheck.HasConflicts() {
-		t.Fatalf("fulfilled order still blocks warehouse = %+v err=%v", precheck, err)
-	}
-	warehouseView, err := bobService.Get(t.Context(), bobdomain.EntityWarehouse, bobdomain.GetInput{ObjectID: refs.warehouse.ObjectID})
-	if err != nil {
-		t.Fatalf("get warehouse before disable: %v", err)
-	}
 	if _, err = bobService.Disable(t.Context(), bobdomain.EntityWarehouse, bobdomain.ObjectRevisionInput{
 		ObjectID: refs.warehouse.ObjectID, ObjectRevision: warehouseView.ObjectRevision,
 	}, integrationActorOne, "warehouse-disable-after-fulfillment"); err != nil {

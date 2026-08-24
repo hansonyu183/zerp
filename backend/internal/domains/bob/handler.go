@@ -30,7 +30,6 @@ type applicationService interface {
 	Reject(context.Context, string, ReviewInput, string, string) (MutationResult, error)
 	Enable(context.Context, string, ObjectRevisionInput, string, string) (MutationResult, error)
 	Disable(context.Context, string, ObjectRevisionInput, string, string) (MutationResult, error)
-	WarehouseDisablePrecheck(context.Context, WarehouseDisablePrecheckInput) (WarehouseDisablePrecheckResult, error)
 	Versions(context.Context, string, HistoryInput) (Page[VersionHistoryItem], error)
 	AuditHistory(context.Context, string, HistoryInput) (Page[AuditEventView], error)
 	CustomerQuery(context.Context, QueryInput) (Page[CustomerListItem], error)
@@ -128,7 +127,6 @@ func (h *Handler) Register(router *gin.Engine) {
 			})
 		}
 	}
-	group.POST("/warehouse/disable-precheck", h.authorize("/bob/warehouse/disable-precheck"), h.warehouseDisablePrecheck)
 	partyGroup := group.Group("/party")
 	partyGroup.POST("/query", h.authorize("/bob/party/query"), h.partyQuery)
 	partyGroup.POST("/get", h.authorize("/bob/party/get"), h.partyGet)
@@ -602,14 +600,6 @@ func (h *Handler) disable(c *gin.Context, entity string) {
 	var input ObjectRevisionInput
 	if h.bind(c, &input) {
 		result, err := h.service.Disable(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
-		h.result(c, result, err)
-	}
-}
-
-func (h *Handler) warehouseDisablePrecheck(c *gin.Context) {
-	var input WarehouseDisablePrecheckInput
-	if h.bind(c, &input) {
-		result, err := h.service.WarehouseDisablePrecheck(c.Request.Context(), input)
 		h.result(c, result, err)
 	}
 }

@@ -2793,13 +2793,6 @@
             },
         },
     },
-  'WarehouseDisablePrecheckRequest':
-    {
-      'type': 'object',
-      'required': ['objectId'],
-      'additionalProperties': false,
-      'properties': { 'objectId': { 'type': 'string' } },
-    },
   'WarehouseInventoryConflict':
     {
       'type': 'object',
@@ -2826,10 +2819,22 @@
           'status': { '$ref': './vou.yaml#/VouStatus' },
         },
     },
-  'WarehouseDisablePrecheckResult':
+  'BobActiveReferenceCount':
     {
       'type': 'object',
-      'required': ['inventory', 'inProgressDocuments', 'executableSources'],
+      'required': ['entity', 'field', 'count'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'entity': { 'type': 'string' },
+          'field': { 'type': 'string' },
+          'count': { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
+        },
+    },
+  'WarehouseDisableBlockers':
+    {
+      'type': 'object',
+      'required': ['inventory', 'documents', 'sources', 'references'],
       'additionalProperties': false,
       'properties':
         {
@@ -2838,19 +2843,24 @@
               'type': 'array',
               'items': { '$ref': '#/WarehouseInventoryConflict' },
             },
-          'inProgressDocuments':
+          'documents':
             {
               'type': 'array',
               'items': { '$ref': '#/WarehouseDocumentConflict' },
             },
-          'executableSources':
+          'sources':
             {
               'type': 'array',
               'items': { '$ref': '#/WarehouseDocumentConflict' },
+            },
+          'references':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/BobActiveReferenceCount' },
             },
         },
     },
-  'WarehouseDisablePrecheckResponse':
+  'BobDisableResponse':
     {
       'type': 'object',
       'required': ['code', 'message', 'data', 'requestId'],
@@ -2859,7 +2869,16 @@
         {
           'code': { 'type': 'integer', 'format': 'int32' },
           'message': { 'type': 'string' },
-          'data': { '$ref': '#/WarehouseDisablePrecheckResult' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'anyOf':
+                [
+                  { '$ref': '#/WarehouseDisableBlockers' },
+                  { 'type': 'object', 'additionalProperties': true },
+                ],
+            },
           'requestId': { 'type': 'string' },
         },
     },

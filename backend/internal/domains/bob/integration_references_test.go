@@ -223,21 +223,20 @@ func TestWarehouseSchemaAndPermissionsIntegration(t *testing.T) {
 	}
 
 	expectedSequence := map[string]int{
-		"approve":          61,
-		"audit-history":    62,
-		"create":           63,
-		"delete":           86,
-		"disable":          156,
-		"enable":           155,
-		"get":              65,
-		"query":            66,
-		"reject":           67,
-		"save":             68,
-		"submit":           69,
-		"unapprove":        154,
-		"unsubmit":         153,
-		"versions":         70,
-		"disable-precheck": 0,
+		"approve":       61,
+		"audit-history": 62,
+		"create":        63,
+		"delete":        86,
+		"disable":       156,
+		"enable":        155,
+		"get":           65,
+		"query":         66,
+		"reject":        67,
+		"save":          68,
+		"submit":        69,
+		"unapprove":     154,
+		"unsubmit":      153,
+		"versions":      70,
 	}
 	rows, err := pool.Query(t.Context(), `
 		SELECT id, path, action, status

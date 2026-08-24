@@ -4064,43 +4064,17 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
-            },
-        },
-      '/bob/warehouse/disable-precheck':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '预检仓库停用阻断',
-              'operationId': 'bobWarehouseDisablePrecheck',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/WarehouseDisablePrecheckRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
                 {
                   '200':
                     {
-                      'description': '仓库当前停用阻断摘要。',
+                      'description': '停用结果；仓库停用冲突在 data 中返回结构化阻断。',
                       'content':
                         {
                           'application/json':
                             {
                               'schema':
                                 {
-                                  '$ref': './schemas/bob.yaml#/WarehouseDisablePrecheckResponse',
+                                  '$ref': './schemas/bob.yaml#/BobDisableResponse',
                                 },
                             },
                         },

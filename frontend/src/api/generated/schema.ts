@@ -1993,23 +1993,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/bob/warehouse/disable-precheck": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 预检仓库停用阻断 */
-        post: operations["bobWarehouseDisablePrecheck"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/bob/{entity}/versions": {
         parameters: {
             query?: never;
@@ -5337,9 +5320,6 @@ export interface components {
                 formula?: components["schemas"]["BobProductFormulaInput"] | null;
             };
         };
-        WarehouseDisablePrecheckRequest: {
-            objectId: string;
-        };
         WarehouseInventoryConflict: {
             productObjectId: string;
             productCode: string;
@@ -5354,16 +5334,25 @@ export interface components {
             documentNo: string;
             status?: components["schemas"]["VouStatus"];
         };
-        WarehouseDisablePrecheckResult: {
-            inventory: components["schemas"]["WarehouseInventoryConflict"][];
-            inProgressDocuments: components["schemas"]["WarehouseDocumentConflict"][];
-            executableSources: components["schemas"]["WarehouseDocumentConflict"][];
+        BobActiveReferenceCount: {
+            entity: string;
+            field: string;
+            /** Format: int32 */
+            count: number;
         };
-        WarehouseDisablePrecheckResponse: {
+        WarehouseDisableBlockers: {
+            inventory: components["schemas"]["WarehouseInventoryConflict"][];
+            documents: components["schemas"]["WarehouseDocumentConflict"][];
+            sources: components["schemas"]["WarehouseDocumentConflict"][];
+            references: components["schemas"]["BobActiveReferenceCount"][];
+        };
+        BobDisableResponse: {
             /** Format: int32 */
             code: number;
             message: string;
-            data: components["schemas"]["WarehouseDisablePrecheckResult"];
+            data: (components["schemas"]["WarehouseDisableBlockers"] | {
+                [key: string]: unknown;
+            }) | null;
             requestId: string;
         };
         VouQueryRequest: {
@@ -9055,29 +9044,13 @@ export interface operations {
             };
         };
         responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    bobWarehouseDisablePrecheck: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WarehouseDisablePrecheckRequest"];
-            };
-        };
-        responses: {
-            /** @description 仓库当前停用阻断摘要。 */
+            /** @description 停用结果；仓库停用冲突在 data 中返回结构化阻断。 */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WarehouseDisablePrecheckResponse"];
+                    "application/json": components["schemas"]["BobDisableResponse"];
                 };
             };
         };

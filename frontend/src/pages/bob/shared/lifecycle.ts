@@ -182,7 +182,10 @@ export function useBobLifecycleActions(
     }
   }
 
-  async function changeEnabled(row: BobListItem): Promise<boolean> {
+  async function changeEnabled(
+    row: BobListItem,
+    handleError?: (error: unknown) => boolean,
+  ): Promise<boolean> {
     const action = row.enabled ? 'disable' : 'enable'
     if (!actionAvailability(row)[action] || actionLoading.value) return false
     actionLoading.value = `${action}:${row.objectId}`
@@ -199,7 +202,7 @@ export function useBobLifecycleActions(
       onSuccess(row, action)
       return true
     } catch (error) {
-      errorMessage.value = getErrorMessage(error)
+      if (!handleError?.(error)) errorMessage.value = getErrorMessage(error)
       return false
     } finally {
       actionLoading.value = null

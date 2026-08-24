@@ -36,16 +36,6 @@ interface MenuTree {
   }>
 }
 
-interface SystemParameterData {
-  key: string
-  configuredValue: string
-  defaultValue: string
-  effectMode: 'IMMEDIATE' | 'NEXT_REQUEST' | 'RESTART_REQUIRED'
-  runningValue: string | null
-  restartPending: boolean
-  revision: number
-}
-
 async function signIn(page: Page): Promise<void> {
   await page.goto('/signin')
   await page.getByLabel('用户名', { exact: true }).fill(username)
@@ -67,22 +57,6 @@ async function menuRequest(
   expect(response.ok()).toBe(true)
   const envelope = (await response.json()) as Envelope<MenuData>
   expect([0, '0']).toContain(envelope.code)
-  return envelope.data
-}
-
-async function systemParameterRequest(
-  api: APIRequestContext,
-  action: 'get' | 'save' | 'reset',
-  data: unknown,
-  csrfToken: string,
-): Promise<SystemParameterData> {
-  const response = await api.post(`app/system-parameter/${action}`, {
-    data,
-    headers: { 'X-CSRF-Token': csrfToken },
-  })
-  expect(response.ok()).toBe(true)
-  const envelope = (await response.json()) as Envelope<SystemParameterData>
-  expect([0, '0'], envelope.message).toContain(envelope.code)
   return envelope.data
 }
 
@@ -201,71 +175,15 @@ test(
         .click()
       await page.getByRole('button', { name: '保存', exact: true }).click()
       await expect(
-        page.getByText('保存成功，立即生效。', { exact: true }),
+        page.getByText('系统参数已保存。', { exact: true }),
       ).toBeVisible()
       await page
         .getByRole('button', { name: '恢复默认值', exact: true })
         .click()
       await page.getByRole('button', { name: '确认恢复', exact: true }).click()
       await expect(
-        page.getByText('恢复默认值成功，立即生效。', { exact: true }),
+        page.getByText('系统参数已恢复默认值。', { exact: true }),
       ).toBeVisible()
-
-      const nextRequest = await systemParameterRequest(
-        api,
-        'get',
-        { key: 'e2e.next-request-mode' },
-        csrfToken,
-      )
-      const nextRequestSaved = await systemParameterRequest(
-        api,
-        'save',
-        {
-          key: nextRequest.key,
-          configuredValue: 'COMFORTABLE',
-          revision: nextRequest.revision,
-        },
-        csrfToken,
-      )
-      expect(nextRequestSaved.effectMode).toBe('NEXT_REQUEST')
-      expect(nextRequestSaved.runningValue).toBe('COMFORTABLE')
-      expect(nextRequestSaved.restartPending).toBe(false)
-      await systemParameterRequest(
-        api,
-        'reset',
-        { key: nextRequestSaved.key, revision: nextRequestSaved.revision },
-        csrfToken,
-      )
-
-      const restartRequired = await systemParameterRequest(
-        api,
-        'get',
-        { key: 'e2e.restart-mode' },
-        csrfToken,
-      )
-      const restartSaved = await systemParameterRequest(
-        api,
-        'save',
-        {
-          key: restartRequired.key,
-          configuredValue: '2',
-          revision: restartRequired.revision,
-        },
-        csrfToken,
-      )
-      expect(restartSaved.effectMode).toBe('RESTART_REQUIRED')
-      expect(restartSaved.configuredValue).toBe('2')
-      expect(restartSaved.runningValue).toBe('1')
-      expect(restartSaved.restartPending).toBe(true)
-      const restartReset = await systemParameterRequest(
-        api,
-        'reset',
-        { key: restartSaved.key, revision: restartSaved.revision },
-        csrfToken,
-      )
-      expect(restartReset.configuredValue).toBe('1')
-      expect(restartReset.runningValue).toBe('1')
-      expect(restartReset.restartPending).toBe(true)
 
       for (const path of [
         '/admin/user',

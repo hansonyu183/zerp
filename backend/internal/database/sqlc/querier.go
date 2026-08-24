@@ -50,7 +50,6 @@ type Querier interface {
 	ClearVouInventoryCountResults(ctx context.Context, documentID string) error
 	ClearVouProductLineExecution(ctx context.Context, documentID string) error
 	ClearWorkflowNodeDocument(ctx context.Context, documentID *string) error
-	ConfirmAppSystemParameterAdoption(ctx context.Context, arg ConfirmAppSystemParameterAdoptionParams) (AppSystemParameter, error)
 	ConsumeCustomerDownloadToken(ctx context.Context, tokenHash string) (ConsumeCustomerDownloadTokenRow, error)
 	ConsumePartyMergePreflight(ctx context.Context, arg ConsumePartyMergePreflightParams) (int64, error)
 	ConsumeVouDownloadToken(ctx context.Context, tokenHash string) (ConsumeVouDownloadTokenRow, error)
@@ -97,7 +96,6 @@ type Querier interface {
 	CountEnabledAppRolesByIDs(ctx context.Context, ids []string) (int64, error)
 	CountEnabledUsersWithPermission(ctx context.Context, path string) (int64, error)
 	CountEnabledUsersWithPermissionExcludingRole(ctx context.Context, arg CountEnabledUsersWithPermissionExcludingRoleParams) (int64, error)
-	CountExpectedAppSystemParameterRuntimeAdoptions(ctx context.Context, arg CountExpectedAppSystemParameterRuntimeAdoptionsParams) (int64, error)
 	CountOtherEnabledUsersWithPermission(ctx context.Context, arg CountOtherEnabledUsersWithPermissionParams) (int64, error)
 	CountPendingVouAttachments(ctx context.Context, documentID string) (int64, error)
 	CountRecentAppFeedback(ctx context.Context, userID string) (int64, error)
@@ -279,7 +277,6 @@ type Querier interface {
 	GetAppSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetAppSessionByTokenHashRow, error)
 	GetAppSystemParameter(ctx context.Context, parameterKey string) (AppSystemParameter, error)
 	GetAppSystemParameterForUpdate(ctx context.Context, parameterKey string) (AppSystemParameter, error)
-	GetAppSystemParameterRuntimeScopeForUpdate(ctx context.Context, arg GetAppSystemParameterRuntimeScopeForUpdateParams) ([]string, error)
 	GetAppUserAvatarURL(ctx context.Context, userID string) (*string, error)
 	GetAppUserByID(ctx context.Context, id string) (AppUser, error)
 	GetAppUserByIDForUpdate(ctx context.Context, id string) (AppUser, error)
@@ -542,7 +539,6 @@ type Querier interface {
 	ListPartyMergeRelationships(ctx context.Context, partyID string) ([]ListPartyMergeRelationshipsRow, error)
 	ListPurchaseOrderBaseQuantitySummaries(ctx context.Context, orderIds []string) ([]ListPurchaseOrderBaseQuantitySummariesRow, error)
 	ListReadyAppFeedbackFilesForCreate(ctx context.Context, arg ListReadyAppFeedbackFilesForCreateParams) ([]AppFeedbackFile, error)
-	ListRestartRequiredAppSystemParametersForUpdate(ctx context.Context) ([]AppSystemParameter, error)
 	// These order summaries are VOU read models kept here because they are shared
 	// by the workflow-facing order list and the ordinary voucher list.
 	ListSalesOrderBaseQuantitySummaries(ctx context.Context, orderIds []string) ([]ListSalesOrderBaseQuantitySummariesRow, error)
@@ -662,9 +658,7 @@ type Querier interface {
 	RefreshBobProductCandidateFormulaMaterials(ctx context.Context, productVersionID string) error
 	RegisterAccountingGlobalEvent(ctx context.Context, arg RegisterAccountingGlobalEventParams) (bool, error)
 	RegisterAccountingSubjectUsage(ctx context.Context, arg RegisterAccountingSubjectUsageParams) error
-	RegisterAppSystemParameterRuntimeScope(ctx context.Context, arg RegisterAppSystemParameterRuntimeScopeParams) error
 	RejectBobVersion(ctx context.Context, arg RejectBobVersionParams) (int64, error)
-	ReportAppSystemParameterRuntimeAdoption(ctx context.Context, arg ReportAppSystemParameterRuntimeAdoptionParams) error
 	RescheduleAppFeedback(ctx context.Context, arg RescheduleAppFeedbackParams) (int64, error)
 	ResetAppSystemParameterValue(ctx context.Context, arg ResetAppSystemParameterValueParams) (AppSystemParameter, error)
 	ResetAppUserPassword(ctx context.Context, arg ResetAppUserPasswordParams) (int64, error)

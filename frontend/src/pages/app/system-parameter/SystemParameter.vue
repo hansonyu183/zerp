@@ -9,7 +9,6 @@ import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { SystemParameter } from '../shared/api'
 import {
-  formatSystemParameterEffectMode,
   formatSystemParameterValueType,
   systemParameterValueTypeOptions,
 } from '../shared/system-parameter-labels'
@@ -37,33 +36,8 @@ const columns: readonly BusinessObjectColumn<SystemParameter>[] = [
     value: (item) => item.configuredValue,
   },
   { key: 'defaultValue', label: '默认值', value: (item) => item.defaultValue },
-  {
-    key: 'effectMode',
-    label: '生效方式',
-    value: (item) => formatSystemParameterEffectMode(item.effectMode),
-  },
-  {
-    key: 'runningValue',
-    label: '运行值',
-    value: (item) =>
-      item.effectMode === 'RESTART_REQUIRED' ? item.runningValue : null,
-  },
-  {
-    key: 'restartPending',
-    label: '待重启',
-    value: (item) =>
-      item.effectMode === 'RESTART_REQUIRED'
-        ? item.restartPending
-          ? '待重启'
-          : '已采用'
-        : null,
-  },
   { key: 'editable', label: '可编辑', value: (item) => item.editable },
 ]
-
-function formatTime(value: string): string {
-  return new Date(value).toLocaleString('zh-CN')
-}
 
 async function confirmDiscard(): Promise<void> {
   vm.confirmDiscard()
@@ -96,7 +70,7 @@ void vm.query()
       @dismiss="vm.successMessage = null"
     />
     <v-alert class="mb-4" type="info" variant="tonal">
-      参数键、类型、约束和生效方式由代码或迁移注册。密码、密钥、Token
+      参数键、类型和约束由代码或 baseline 注册。密码、密钥、Token
       和连接信息不在此维护。
     </v-alert>
     <BusinessObjectList
@@ -148,17 +122,6 @@ void vm.query()
         >
           {{ row.editable ? '可编辑' : '只读' }}
         </v-chip>
-      </template>
-      <template #cell-restartPending="{ row }">
-        <v-chip
-          v-if="row.effectMode === 'RESTART_REQUIRED'"
-          :color="row.restartPending ? 'warning' : 'success'"
-          size="small"
-          variant="tonal"
-        >
-          {{ row.restartPending ? '待重启' : '已采用' }}
-        </v-chip>
-        <span v-else>—</span>
       </template>
       <template #actions="{ row }">
         <ListRowActions
@@ -224,26 +187,7 @@ void vm.query()
           <v-list-item title="默认值" :subtitle="vm.editing.defaultValue" />
           <v-list-item title="配置值" :subtitle="vm.editing.configuredValue" />
           <v-list-item title="编辑约束" :subtitle="vm.constraintHint || '无'" />
-          <v-list-item
-            title="生效方式"
-            :subtitle="formatSystemParameterEffectMode(vm.editing.effectMode)"
-          />
-          <v-list-item
-            v-if="vm.editing.effectMode === 'RESTART_REQUIRED'"
-            title="运行值"
-            :subtitle="vm.editing.runningValue || '—'"
-          />
-          <v-list-item
-            v-if="vm.editing.effectMode === 'RESTART_REQUIRED'"
-            title="待重启"
-            :subtitle="vm.editing.restartPending ? '是' : '否'"
-          />
           <v-list-item title="版本" :subtitle="String(vm.editing.revision)" />
-          <v-list-item
-            title="更新时间"
-            :subtitle="formatTime(vm.editing.updatedAt)"
-          />
-          <v-list-item title="更新人" :subtitle="vm.editing.updatedBy || '—'" />
         </v-list>
         <v-select
           v-if="vm.canEditParameter(vm.editing) && vm.inputOptions.length > 0"
@@ -295,11 +239,7 @@ void vm.query()
       <v-card-text>
         确认将“{{ vm.resetTarget?.name }}”恢复为默认值“{{
           vm.resetTarget?.defaultValue
-        }}”吗？该参数{{
-          vm.resetTarget
-            ? formatSystemParameterEffectMode(vm.resetTarget.effectMode)
-            : ''
-        }}。
+        }}”吗？
       </v-card-text>
       <v-card-actions class="px-6 pb-5">
         <v-spacer />

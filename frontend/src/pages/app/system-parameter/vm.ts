@@ -1,7 +1,6 @@
 import { computed, ref } from 'vue'
 import { getErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
-import { formatSystemParameterEffectMode } from '../shared/system-parameter-labels'
 import {
   getSystemParameter,
   querySystemParameters,
@@ -172,16 +171,6 @@ export function createSystemParameterViewModel() {
     return canReset.value && isGenericEditable(parameter)
   }
 
-  function formatSaveSuccess(
-    parameter: SystemParameter,
-    action: '保存' | '恢复默认值',
-  ) {
-    const effectMode = formatSystemParameterEffectMode(parameter.effectMode)
-    return parameter.effectMode === 'RESTART_REQUIRED'
-      ? `${action}成功，配置值将在${effectMode}，运行值保持不变。`
-      : `${action}成功，${effectMode}。`
-  }
-
   async function query(): Promise<void> {
     const sequence = ++querySequence
     loading.value = true
@@ -298,12 +287,12 @@ export function createSystemParameterViewModel() {
     errorMessage.value = null
     const parameter = editing.value
     try {
-      const result = await saveSystemParameter({
+      await saveSystemParameter({
         key: parameter.key,
         configuredValue: inputValue.value,
         revision: parameter.revision,
       })
-      successMessage.value = formatSaveSuccess(result.data, '保存')
+      successMessage.value = '系统参数已保存。'
       closeEditor(true)
       await query()
     } catch (error) {
@@ -334,11 +323,11 @@ export function createSystemParameterViewModel() {
     saving.value = true
     errorMessage.value = null
     try {
-      const result = await resetSystemParameter({
+      await resetSystemParameter({
         key: target.key,
         revision: target.revision,
       })
-      successMessage.value = formatSaveSuccess(result.data, '恢复默认值')
+      successMessage.value = '系统参数已恢复默认值。'
       resetTarget.value = null
       await query()
     } catch (error) {
@@ -389,7 +378,5 @@ export function createSystemParameterViewModel() {
     requestReset,
     cancelReset,
     confirmReset,
-    formatSaveSuccess,
-    formatSystemParameterEffectMode,
   }
 }

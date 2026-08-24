@@ -1392,34 +1392,6 @@ CREATE TABLE public.app_sessions (
 
 
 --
--- Name: app_system_parameter_runtime_adoptions; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.app_system_parameter_runtime_adoptions (
-    parameter_key character varying(128) NOT NULL,
-    revision bigint NOT NULL,
-    deployment_scope character varying(128) CONSTRAINT app_system_parameter_runtime_adoption_deployment_scope_not_null NOT NULL,
-    instance_id character varying(128) NOT NULL,
-    adopted_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
--- Name: app_system_parameter_runtime_scopes; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.app_system_parameter_runtime_scopes (
-    parameter_key character varying(128) NOT NULL,
-    revision bigint NOT NULL,
-    deployment_scope character varying(128) NOT NULL,
-    expected_instance_ids text[] CONSTRAINT app_system_parameter_runtime_sco_expected_instance_ids_not_null NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT app_system_parameter_runtime_scopes_expected_instance_ids_check CHECK ((cardinality(expected_instance_ids) > 0)),
-    CONSTRAINT app_system_parameter_runtime_scopes_revision_check CHECK ((revision >= 1))
-);
-
-
---
 -- Name: app_system_parameters; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1432,21 +1404,10 @@ CREATE TABLE public.app_system_parameters (
     default_value text NOT NULL,
     editable boolean DEFAULT true NOT NULL,
     revision bigint DEFAULT 1 NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_by character varying(26),
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_by character varying(26),
-    safe_to_expose boolean DEFAULT false NOT NULL,
     constraints jsonb,
-    effect_mode character varying(24) NOT NULL,
-    running_value text NOT NULL,
-    running_revision bigint NOT NULL,
-    restart_pending boolean DEFAULT false NOT NULL,
     CONSTRAINT app_system_parameters_constraints_shape CHECK (((constraints IS NULL) OR (jsonb_typeof(constraints) = 'object'::text))),
     CONSTRAINT app_system_parameters_editable_constraints CHECK (((NOT editable) OR (constraints IS NOT NULL))),
-    CONSTRAINT app_system_parameters_effect_mode CHECK (((effect_mode)::text = ANY ((ARRAY['IMMEDIATE'::character varying, 'NEXT_REQUEST'::character varying, 'RESTART_REQUIRED'::character varying])::text[]))),
     CONSTRAINT app_system_parameters_key_format CHECK (((parameter_key)::text ~ '^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$'::text)),
-    CONSTRAINT app_system_parameters_restart_state CHECK ((((effect_mode)::text = 'RESTART_REQUIRED'::text) OR ((restart_pending = false) AND (running_value = configured_value) AND (running_revision = revision)))),
     CONSTRAINT app_system_parameters_revision_check CHECK ((revision > 0)),
     CONSTRAINT app_system_parameters_value_type CHECK (((value_type)::text = ANY ((ARRAY['STRING'::character varying, 'INTEGER'::character varying, 'DECIMAL'::character varying, 'BOOLEAN'::character varying])::text[])))
 );
@@ -5147,18 +5108,6 @@ INSERT INTO public.app_roles VALUES ('01JAPPSYST3MR0X30000000000', 'system', 'ç³
 
 
 --
--- Data for Name: app_system_parameter_runtime_adoptions; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: app_system_parameter_runtime_scopes; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
 -- Data for Name: app_system_parameters; Type: TABLE DATA; Schema: public; Owner: -
 --
 
@@ -6890,22 +6839,6 @@ ALTER TABLE ONLY public.app_sessions
 
 ALTER TABLE ONLY public.app_sessions
     ADD CONSTRAINT app_sessions_token_hash_key UNIQUE (token_hash);
-
-
---
--- Name: app_system_parameter_runtime_adoptions app_system_parameter_runtime_adoptions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.app_system_parameter_runtime_adoptions
-    ADD CONSTRAINT app_system_parameter_runtime_adoptions_pkey PRIMARY KEY (parameter_key, revision, deployment_scope, instance_id);
-
-
---
--- Name: app_system_parameter_runtime_scopes app_system_parameter_runtime_scopes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.app_system_parameter_runtime_scopes
-    ADD CONSTRAINT app_system_parameter_runtime_scopes_pkey PRIMARY KEY (parameter_key, revision, deployment_scope);
 
 
 --
@@ -9850,38 +9783,6 @@ ALTER TABLE ONLY public.app_role_permissions
 
 ALTER TABLE ONLY public.app_sessions
     ADD CONSTRAINT app_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_users(id) ON DELETE CASCADE;
-
-
---
--- Name: app_system_parameter_runtime_adoptions app_system_parameter_runtime__parameter_key_revision_deplo_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.app_system_parameter_runtime_adoptions
-    ADD CONSTRAINT app_system_parameter_runtime__parameter_key_revision_deplo_fkey FOREIGN KEY (parameter_key, revision, deployment_scope) REFERENCES public.app_system_parameter_runtime_scopes(parameter_key, revision, deployment_scope) ON DELETE CASCADE;
-
-
---
--- Name: app_system_parameter_runtime_scopes app_system_parameter_runtime_scopes_parameter_key_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.app_system_parameter_runtime_scopes
-    ADD CONSTRAINT app_system_parameter_runtime_scopes_parameter_key_fkey FOREIGN KEY (parameter_key) REFERENCES public.app_system_parameters(parameter_key) ON DELETE CASCADE;
-
-
---
--- Name: app_system_parameters app_system_parameters_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.app_system_parameters
-    ADD CONSTRAINT app_system_parameters_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.app_users(id) ON DELETE RESTRICT;
-
-
---
--- Name: app_system_parameters app_system_parameters_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.app_system_parameters
-    ADD CONSTRAINT app_system_parameters_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.app_users(id) ON DELETE RESTRICT;
 
 
 --

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 )
@@ -36,9 +35,6 @@ type Config struct {
 	SigninLockThreshold         int
 	SigninLockDuration          time.Duration
 	PasswordMinLength           int
-	RuntimeDeploymentScope      string
-	RuntimeInstanceID           string
-	RuntimeExpectedInstanceIDs  []string
 	AttachmentStorageRoot       string
 	AttachmentUploadTTL         time.Duration
 	AttachmentDownloadTTL       time.Duration
@@ -50,18 +46,15 @@ type Config struct {
 
 func Load() (Config, error) {
 	cfg := Config{
-		Environment:                valueOrDefault("APP_ENV", EnvironmentDevelopment),
-		HTTPAddress:                valueOrDefault("HTTP_ADDRESS", ":8080"),
-		DatabaseURL:                strings.TrimSpace(os.Getenv("DATABASE_URL")),
-		CORSAllowedOrigins:         splitAndTrim(os.Getenv("CORS_ALLOWED_ORIGINS")),
-		SessionCookieName:          valueOrDefault("APP_SESSION_COOKIE_NAME", "zerp_session"),
-		SessionCookieSameSite:      strings.ToLower(valueOrDefault("APP_SESSION_COOKIE_SAME_SITE", "lax")),
-		RuntimeDeploymentScope:     strings.TrimSpace(os.Getenv("APP_RUNTIME_DEPLOYMENT_SCOPE")),
-		RuntimeInstanceID:          strings.TrimSpace(os.Getenv("APP_RUNTIME_INSTANCE_ID")),
-		RuntimeExpectedInstanceIDs: splitAndTrim(os.Getenv("APP_RUNTIME_EXPECTED_INSTANCES")),
-		AttachmentStorageRoot:      strings.TrimSpace(os.Getenv("ATTACHMENT_STORAGE_ROOT")),
-		FeedbackGitHubRepository:   valueOrDefault("FEEDBACK_GITHUB_REPOSITORY", "hansonyu183/zerp"),
-		FeedbackGitHubToken:        strings.TrimSpace(os.Getenv("FEEDBACK_GITHUB_TOKEN")),
+		Environment:              valueOrDefault("APP_ENV", EnvironmentDevelopment),
+		HTTPAddress:              valueOrDefault("HTTP_ADDRESS", ":8080"),
+		DatabaseURL:              strings.TrimSpace(os.Getenv("DATABASE_URL")),
+		CORSAllowedOrigins:       splitAndTrim(os.Getenv("CORS_ALLOWED_ORIGINS")),
+		SessionCookieName:        valueOrDefault("APP_SESSION_COOKIE_NAME", "zerp_session"),
+		SessionCookieSameSite:    strings.ToLower(valueOrDefault("APP_SESSION_COOKIE_SAME_SITE", "lax")),
+		AttachmentStorageRoot:    strings.TrimSpace(os.Getenv("ATTACHMENT_STORAGE_ROOT")),
+		FeedbackGitHubRepository: valueOrDefault("FEEDBACK_GITHUB_REPOSITORY", "hansonyu183/zerp"),
+		FeedbackGitHubToken:      strings.TrimSpace(os.Getenv("FEEDBACK_GITHUB_TOKEN")),
 	}
 
 	if cfg.DatabaseURL == "" {
@@ -74,15 +67,6 @@ func Load() (Config, error) {
 	if cfg.Environment != EnvironmentDevelopment && cfg.Environment != EnvironmentTest && cfg.Environment != EnvironmentProduction {
 		return Config{}, fmt.Errorf("APP_ENV must be one of %q, %q, or %q", EnvironmentDevelopment, EnvironmentTest, EnvironmentProduction)
 	}
-	if cfg.Environment != EnvironmentProduction && cfg.RuntimeDeploymentScope == "" && cfg.RuntimeInstanceID == "" && len(cfg.RuntimeExpectedInstanceIDs) == 0 {
-		cfg.RuntimeDeploymentScope = cfg.Environment
-		cfg.RuntimeInstanceID = "api"
-		cfg.RuntimeExpectedInstanceIDs = []string{"api"}
-	}
-	if err := validateRuntimeIdentity(cfg.RuntimeDeploymentScope, cfg.RuntimeInstanceID, cfg.RuntimeExpectedInstanceIDs); err != nil {
-		return Config{}, err
-	}
-	sort.Strings(cfg.RuntimeExpectedInstanceIDs)
 	if cfg.AttachmentStorageRoot == "" {
 		if cfg.Environment == EnvironmentProduction {
 			return Config{}, errors.New("ATTACHMENT_STORAGE_ROOT is required in production")
@@ -168,43 +152,6 @@ func Load() (Config, error) {
 	}
 
 	return cfg, nil
-}
-
-func validateRuntimeIdentity(scope, instanceID string, expected []string) error {
-	if !validRuntimeIdentifier(scope) {
-		return errors.New("APP_RUNTIME_DEPLOYMENT_SCOPE must be a non-empty runtime identifier")
-	}
-	if !validRuntimeIdentifier(instanceID) {
-		return errors.New("APP_RUNTIME_INSTANCE_ID must be a non-empty runtime identifier")
-	}
-	if len(expected) == 0 {
-		return errors.New("APP_RUNTIME_EXPECTED_INSTANCES must contain at least one runtime instance")
-	}
-	foundCurrent := false
-	for _, expectedID := range expected {
-		if !validRuntimeIdentifier(expectedID) {
-			return errors.New("APP_RUNTIME_EXPECTED_INSTANCES contains an invalid runtime identifier")
-		}
-		foundCurrent = foundCurrent || expectedID == instanceID
-	}
-	if !foundCurrent {
-		return errors.New("APP_RUNTIME_INSTANCE_ID must be included in APP_RUNTIME_EXPECTED_INSTANCES")
-	}
-	return nil
-}
-
-func validRuntimeIdentifier(value string) bool {
-	if value == "" || len(value) > 128 {
-		return false
-	}
-	for index, character := range value {
-		letter := character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z'
-		digit := character >= '0' && character <= '9'
-		if !letter && !digit && (index == 0 || character != '-' && character != '_' && character != '.') {
-			return false
-		}
-	}
-	return true
 }
 
 func validGitHubRepository(value string) bool {

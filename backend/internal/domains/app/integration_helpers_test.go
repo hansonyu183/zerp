@@ -58,7 +58,6 @@ func resetAPPIntegrationData(t *testing.T, pool *pgxpool.Pool) {
 			acc_periods, acc_inventory_entries, acc_voucher_lines, acc_opening_lines, acc_openings, acc_vouchers, acc_mapping_versions,
 			acc_subject_usages, acc_subject_dimensions, acc_subjects,
 			acc_book_user_scopes, acc_books, vou_intermediary_scripts,
-			app_system_parameter_runtime_adoptions, app_system_parameter_runtime_scopes,
 			app_business_menu_items, app_menu_settings, app_system_parameters, app_feedback_attachments, app_feedback_files, app_feedback, app_audit_events, app_sessions,
 			app_user_profiles,
 			app_user_roles, app_role_permissions, app_roles, app_users,

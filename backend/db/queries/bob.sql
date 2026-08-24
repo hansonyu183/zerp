@@ -203,6 +203,9 @@ WHERE identifier.identifier_type=sqlc.arg(identifier_type)
 -- name: AcquireBobPartyIdentifierLock :exec
 SELECT pg_advisory_xact_lock(hashtextextended(sqlc.arg(lock_key),0));
 
+-- name: AcquireBobHierarchyLock :exec
+SELECT pg_advisory_xact_lock(hashtextextended('bob.hierarchy:' || sqlc.arg(entity)::text,0));
+
 -- name: GetBobParty :one
 SELECT id,kind,legal_name,display_name,tax_number,phone,email,address,
        revision,created_at,created_by,updated_at,updated_by,merged_into_party_id,merged_at
@@ -1357,6 +1360,55 @@ WHERE o.id = sqlc.arg(target_category_id)
   AND o.current_version_id = o.effective_version_id
   AND v.status = 'EFFECTIVE'
 FOR SHARE OF o;
+
+-- name: ListBobCategoryAncestorIDs :many
+WITH RECURSIVE ancestors AS (
+    SELECT parent_object.id AS ancestor_object_id, parent_detail.parent_id AS ancestor_parent_id
+    FROM bob_objects parent_object
+    JOIN bob_versions parent_version
+      ON parent_version.id = parent_object.effective_version_id
+     AND parent_version.object_id = parent_object.id
+     AND parent_version.entity = parent_object.entity
+    JOIN bob_category_versions parent_detail ON parent_detail.version_id = parent_version.id
+    WHERE parent_object.id = sqlc.arg(input_parent_id)
+      AND parent_object.entity = 'category'
+      AND parent_object.enabled
+      AND parent_object.current_version_id = parent_object.effective_version_id
+      AND parent_version.status = 'EFFECTIVE'
+      AND parent_detail.target_entity = sqlc.arg(target_entity)
+    UNION
+    SELECT parent_object.id AS ancestor_object_id, parent_detail.parent_id AS ancestor_parent_id
+    FROM ancestors child
+    JOIN bob_objects parent_object
+      ON parent_object.id = child.ancestor_parent_id
+     AND parent_object.entity = 'category'
+    JOIN bob_category_versions parent_detail ON parent_detail.version_id = parent_object.current_version_id
+)
+SELECT ancestor_object_id FROM ancestors;
+
+-- name: ListBobDepartmentAncestorIDs :many
+WITH RECURSIVE ancestors AS (
+    SELECT parent_object.id AS ancestor_object_id, parent_detail.parent_id AS ancestor_parent_id
+    FROM bob_objects parent_object
+    JOIN bob_versions parent_version
+      ON parent_version.id = parent_object.effective_version_id
+     AND parent_version.object_id = parent_object.id
+     AND parent_version.entity = parent_object.entity
+    JOIN bob_department_versions parent_detail ON parent_detail.version_id = parent_version.id
+    WHERE parent_object.id = sqlc.arg(input_parent_id)
+      AND parent_object.entity = 'department'
+      AND parent_object.enabled
+      AND parent_object.current_version_id = parent_object.effective_version_id
+      AND parent_version.status = 'EFFECTIVE'
+    UNION
+    SELECT parent_object.id AS ancestor_object_id, parent_detail.parent_id AS ancestor_parent_id
+    FROM ancestors child
+    JOIN bob_objects parent_object
+      ON parent_object.id = child.ancestor_parent_id
+     AND parent_object.entity = 'department'
+    JOIN bob_department_versions parent_detail ON parent_detail.version_id = parent_object.current_version_id
+)
+SELECT ancestor_object_id FROM ancestors;
 
 -- name: MarkBobVersionSaved :execrows
 UPDATE bob_versions

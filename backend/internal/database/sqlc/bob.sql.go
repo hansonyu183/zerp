@@ -11,6 +11,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const acquireBobHierarchyLock = `-- name: AcquireBobHierarchyLock :exec
+SELECT pg_advisory_xact_lock(hashtextextended('bob.hierarchy:' || $1::text,0))
+`
+
+func (q *Queries) AcquireBobHierarchyLock(ctx context.Context, entity string) error {
+	_, err := q.db.Exec(ctx, acquireBobHierarchyLock, entity)
+	return err
+}
+
 const acquireBobPartyIdentifierLock = `-- name: AcquireBobPartyIdentifierLock :exec
 SELECT pg_advisory_xact_lock(hashtextextended($1,0))
 `
@@ -3821,6 +3830,57 @@ func (q *Queries) ListBobAuditEvents(ctx context.Context, arg ListBobAuditEvents
 	return items, nil
 }
 
+const listBobCategoryAncestorIDs = `-- name: ListBobCategoryAncestorIDs :many
+WITH RECURSIVE ancestors AS (
+    SELECT parent_object.id AS ancestor_object_id, parent_detail.parent_id AS ancestor_parent_id
+    FROM bob_objects parent_object
+    JOIN bob_versions parent_version
+      ON parent_version.id = parent_object.effective_version_id
+     AND parent_version.object_id = parent_object.id
+     AND parent_version.entity = parent_object.entity
+    JOIN bob_category_versions parent_detail ON parent_detail.version_id = parent_version.id
+    WHERE parent_object.id = $1
+      AND parent_object.entity = 'category'
+      AND parent_object.enabled
+      AND parent_object.current_version_id = parent_object.effective_version_id
+      AND parent_version.status = 'EFFECTIVE'
+      AND parent_detail.target_entity = $2
+    UNION
+    SELECT parent_object.id AS ancestor_object_id, parent_detail.parent_id AS ancestor_parent_id
+    FROM ancestors child
+    JOIN bob_objects parent_object
+      ON parent_object.id = child.ancestor_parent_id
+     AND parent_object.entity = 'category'
+    JOIN bob_category_versions parent_detail ON parent_detail.version_id = parent_object.current_version_id
+)
+SELECT ancestor_object_id FROM ancestors
+`
+
+type ListBobCategoryAncestorIDsParams struct {
+	InputParentID string `db:"input_parent_id" json:"input_parent_id"`
+	TargetEntity  string `db:"target_entity" json:"target_entity"`
+}
+
+func (q *Queries) ListBobCategoryAncestorIDs(ctx context.Context, arg ListBobCategoryAncestorIDsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listBobCategoryAncestorIDs, arg.InputParentID, arg.TargetEntity)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var ancestor_object_id string
+		if err := rows.Scan(&ancestor_object_id); err != nil {
+			return nil, err
+		}
+		items = append(items, ancestor_object_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listBobCustomerAccounts = `-- name: ListBobCustomerAccounts :many
 SELECT o.id,o.code,o.revision,o.enabled,o.effective_version_id,o.current_version_id,o.updated_at
 FROM bob_customer_accounts account JOIN bob_objects o ON o.id=account.object_id
@@ -4045,6 +4105,51 @@ func (q *Queries) ListBobCustomers(ctx context.Context, arg ListBobCustomersPara
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBobDepartmentAncestorIDs = `-- name: ListBobDepartmentAncestorIDs :many
+WITH RECURSIVE ancestors AS (
+    SELECT parent_object.id AS ancestor_object_id, parent_detail.parent_id AS ancestor_parent_id
+    FROM bob_objects parent_object
+    JOIN bob_versions parent_version
+      ON parent_version.id = parent_object.effective_version_id
+     AND parent_version.object_id = parent_object.id
+     AND parent_version.entity = parent_object.entity
+    JOIN bob_department_versions parent_detail ON parent_detail.version_id = parent_version.id
+    WHERE parent_object.id = $1
+      AND parent_object.entity = 'department'
+      AND parent_object.enabled
+      AND parent_object.current_version_id = parent_object.effective_version_id
+      AND parent_version.status = 'EFFECTIVE'
+    UNION
+    SELECT parent_object.id AS ancestor_object_id, parent_detail.parent_id AS ancestor_parent_id
+    FROM ancestors child
+    JOIN bob_objects parent_object
+      ON parent_object.id = child.ancestor_parent_id
+     AND parent_object.entity = 'department'
+    JOIN bob_department_versions parent_detail ON parent_detail.version_id = parent_object.current_version_id
+)
+SELECT ancestor_object_id FROM ancestors
+`
+
+func (q *Queries) ListBobDepartmentAncestorIDs(ctx context.Context, inputParentID string) ([]string, error) {
+	rows, err := q.db.Query(ctx, listBobDepartmentAncestorIDs, inputParentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var ancestor_object_id string
+		if err := rows.Scan(&ancestor_object_id); err != nil {
+			return nil, err
+		}
+		items = append(items, ancestor_object_id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

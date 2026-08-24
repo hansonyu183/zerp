@@ -8,13 +8,15 @@ import (
 	"testing"
 	"time"
 
+	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/oklog/ulid/v2"
 )
 
 func TestWorkbenchQueryIntegration(t *testing.T) {
 	service, pool, admin := appIntegrationService(t)
-	bobService := bobdomain.NewService(pool)
+	bobService := bobdomain.NewService(pool, auxiliaryrefs.New(auxdomain.NewService(pool)))
 	suffix := ulid.Make().String()[20:]
 	draftName := "工作台草稿-" + suffix
 	pendingName := "工作台待批准-" + suffix

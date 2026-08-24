@@ -34,7 +34,7 @@ if [[ -n "$TEST_INTEGRATION_RESULT_FILE" ]]; then
 	rm -f "$TEST_INTEGRATION_RESULT_FILE" "${TEST_INTEGRATION_RESULT_FILE}.new"
 fi
 
-compose=(env "POSTGRES_PORT=$TEST_POSTGRES_PORT" docker compose -p "$TEST_PROJECT" --env-file "$ENV_FILE")
+compose=(env "POSTGRES_PORT=$TEST_POSTGRES_PORT" docker compose -p "$TEST_PROJECT" --env-file "$ENV_FILE" -f ../compose.yaml -f ../compose.dev.yaml)
 base_database="$TEST_POSTGRES_DB"
 database_stem="${base_database%_test}"
 run_id="$$"

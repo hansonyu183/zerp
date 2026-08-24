@@ -86,13 +86,14 @@ func New(
 	if pool == nil {
 		return nil, errors.New("production demo seed pool is required")
 	}
-	bobService := bobdomain.NewService(pool)
 	auxiliary := auxdomain.NewService(pool)
+	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
+	bobService := bobdomain.NewService(pool, auxiliaryResolver)
 	events := txevent.NewBus()
 	vouchers, err := voudomain.NewService(
 		pool,
 		bobService,
-		auxiliaryrefs.New(auxiliary),
+		auxiliaryResolver,
 		events,
 		voudomain.AttachmentOptions{Root: attachmentRoot},
 		logger,

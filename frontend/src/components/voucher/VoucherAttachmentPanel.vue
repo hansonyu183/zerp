@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
+import { MAX_ATTACHMENT_BYTES } from '@/constants/attachments'
 import type { VoucherAttachment } from './types'
 
 defineOptions({ name: 'VoucherAttachmentPanel' })
@@ -52,7 +53,7 @@ function selectFiles(event: Event): void {
   }
   const allowed = new Set(['application/pdf', 'image/jpeg', 'image/png'])
   const invalid = files.find(
-    (file) => !allowed.has(file.type) || file.size < 1 || file.size > 10 << 20,
+    (file) => !allowed.has(file.type) || file.size < 1 || file.size > MAX_ATTACHMENT_BYTES,
   )
   if (invalid) {
     localError.value = `${invalid.name} 不是有效的 PDF、JPEG 或 PNG，或大小超过 10 MiB。`

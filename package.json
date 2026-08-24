@@ -8,8 +8,7 @@
   },
   "scripts": {
     "dev:web": "pnpm --filter @zerp/frontend dev",
-    "typecheck:native": "pnpm --filter @zerp/typescript-native --fail-if-no-match exec tsc -b --force ../../frontend/tsconfig.json",
-    "build": "pnpm typecheck:native && pnpm --filter @zerp/frontend exec vue-tsc -b && pnpm --filter @zerp/frontend exec vite build --outDir ../dist --emptyOutDir",
+    "build": "pnpm --filter @zerp/frontend build",
     "build:web": "pnpm --filter @zerp/frontend build",
     "check:web": "pnpm --filter @zerp/frontend check",
     "test:web": "pnpm --filter @zerp/frontend test:unit",
@@ -17,9 +16,9 @@
     "docs:adr-index": "node scripts/check-docs.mjs --write-adr-index",
     "docs:check": "node scripts/check-docs.mjs && node --test scripts/check-docs.test.mjs",
     "contracts:lint": "redocly lint contracts/openapi/openapi.yaml --config contracts/openapi/redocly.yaml",
-    "contracts:bundle": "redocly bundle contracts/openapi/openapi.yaml --config contracts/openapi/redocly.yaml --output contracts/openapi/dist/openapi.yaml --ext yaml",
-    "generate:go": "go -C backend/tools tool oapi-codegen --config ../oapi-codegen.yaml ../../contracts/openapi/dist/openapi.yaml",
-    "generate:ts": "openapi-typescript contracts/openapi/dist/openapi.yaml --output frontend/src/api/generated/schema.ts",
+    "contracts:bundle": "redocly bundle contracts/openapi/openapi.yaml --config contracts/openapi/redocly.yaml --output contracts/openapi/dist/openapi.json --ext json",
+    "generate:go": "go -C backend/tools tool oapi-codegen --config ../oapi-codegen.yaml ../../contracts/openapi/dist/openapi.json",
+    "generate:ts": "node scripts/prepare-openapi-models.mjs contracts/openapi/dist/openapi.json contracts/openapi/dist/openapi-models.json && openapi --input contracts/openapi/dist/openapi-models.json --output frontend/src/api/generated --useUnionTypes --exportCore false --exportServices false --exportModels true --indent 2 && node scripts/generate-openapi-path-types.mjs contracts/openapi/dist/openapi.json frontend/src/api/generated/schema.ts",
     "generate:api": "pnpm contracts:lint && pnpm contracts:bundle && pnpm generate:go && pnpm generate:ts",
     "format": "prettier --write \"*.json\" \"*.yaml\" \"*.md\" \"contracts/**/*.yaml\" \"docs/**/*.md\" \"frontend/*.md\" \"backend/*.md\" \"scripts/**/*.mjs\"",
     "format:check": "prettier --check \"*.json\" \"*.yaml\" \"*.md\" \"contracts/**/*.yaml\" \"docs/**/*.md\" \"frontend/*.md\" \"backend/*.md\" \"scripts/**/*.mjs\""
@@ -27,8 +26,8 @@
   "devDependencies": {
     "@redocly/cli": "^2.12.3",
     "concurrently": "^9.2.1",
-    "openapi-typescript": "^7.10.1",
+    "openapi-typescript-codegen": "^0.31.0",
     "prettier": "^3.9.6",
-    "typescript": "~6.0.3"
+    "typescript": "~7.0.2"
   }
 }

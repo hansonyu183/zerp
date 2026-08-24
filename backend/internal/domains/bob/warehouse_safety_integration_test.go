@@ -8,7 +8,7 @@ import (
 )
 
 func TestWarehouseDisableWithoutBlockersIntegration(t *testing.T) {
-	service := NewService(integrationPool(t))
+	service := newIntegrationService(integrationPool(t))
 	warehouse, approved := createApprovedIntegration(t, service, EntityWarehouse, CreateDetailInput{
 		Name: "可停用仓库 " + newID(),
 	}, "warehouse-disable")
@@ -25,7 +25,7 @@ func TestWarehouseDisableWithoutBlockersIntegration(t *testing.T) {
 }
 
 func TestEmployeeDisableReturnsWarehouseManagerBlockerIntegration(t *testing.T) {
-	service := NewService(integrationPool(t))
+	service := newIntegrationService(integrationPool(t))
 	_, employee := createApprovedIntegration(t, service, EntityEmployee, CreateDetailInput{
 		Name: "仓库负责人 " + newID(),
 	}, "warehouse-manager")

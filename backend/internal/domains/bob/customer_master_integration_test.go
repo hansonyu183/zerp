@@ -43,8 +43,7 @@ func (customerAuxiliaryResolverStub) ResolveAuxiliaryCode(
 
 func TestCustomerCreateAtomicallyCreatesRelationshipAndFirstAccountIntegration(t *testing.T) {
 	pool := integrationPool(t)
-	service := NewService(pool)
-	service.SetAuxiliaryResolver(customerAuxiliaryResolverStub{})
+	service := NewService(pool, customerAuxiliaryResolverStub{})
 	_, employee := createApprovedIntegration(t, service, EntityEmployee, CreateDetailInput{Name: "客户归属员工"}, "customer-master-employee")
 	_, operating := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{Name: "客户经营主体"}, "customer-master-operating")
 	created, err := service.CustomerCreate(t.Context(), CustomerCreateInput{
@@ -86,8 +85,7 @@ func TestCustomerCreateAtomicallyCreatesRelationshipAndFirstAccountIntegration(t
 
 func TestCustomerAccountSubmitValidatesSalesRelationshipAttributionIntegration(t *testing.T) {
 	pool := integrationPool(t)
-	service := NewService(pool)
-	service.SetAuxiliaryResolver(customerAuxiliaryResolverStub{})
+	service := NewService(pool, customerAuxiliaryResolverStub{})
 	_, operating := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{Name: "外部归属经营主体"}, "customer-sales-operating")
 	partner, err := service.SalesPartnerCreate(t.Context(), SalesPartnerCreateInput{
 		NewParty: &PartyCreateData{Kind: PartyKindPerson, LegalName: "外部兼职销售"},

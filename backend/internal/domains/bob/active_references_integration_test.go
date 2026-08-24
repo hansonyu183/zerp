@@ -9,7 +9,7 @@ import (
 
 func TestDisableReturnsActiveReferenceBlockerWithoutChangingObjectsIntegration(t *testing.T) {
 	pool := integrationPool(t)
-	service := NewService(pool)
+	service := newIntegrationService(pool)
 	suffix := newID()[16:]
 	_, employee := createApprovedIntegration(t, service, EntityEmployee, CreateDetailInput{
 		Code: "ES" + suffix, Name: "被引用采购员",

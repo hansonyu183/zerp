@@ -28,12 +28,11 @@ type AuxiliaryResolver interface {
 	ResolveAuxiliaryCode(context.Context, pgx.Tx, string, string) (AuxiliaryReference, error)
 }
 
-func NewService(pool *pgxpool.Pool) *Service {
-	return &Service{pool: pool, queries: dbsqlc.New(pool)}
-}
-
-func (s *Service) SetAuxiliaryResolver(resolver AuxiliaryResolver) {
-	s.auxiliaryResolver = resolver
+func NewService(pool *pgxpool.Pool, auxiliaryResolver AuxiliaryResolver) *Service {
+	if auxiliaryResolver == nil {
+		panic("bob: auxiliary resolver is required")
+	}
+	return &Service{pool: pool, queries: dbsqlc.New(pool), auxiliaryResolver: auxiliaryResolver}
 }
 
 func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (Page[QueryItem], error) {
@@ -1315,9 +1314,6 @@ func (s *Service) ResolveEffectiveReference(ctx context.Context, tx pgx.Tx, enti
 	if !validEntity(entity) || !validID(objectID) || !validID(versionID) {
 		return EffectiveReference{}, domainError(ErrorValidation, "invalid effective reference", nil, nil)
 	}
-	if auxiliaryEntity(entity) && s.auxiliaryResolver != nil {
-		return s.resolveAuxiliaryReference(ctx, tx, entity, objectID, versionID)
-	}
 	if entity == EntitySalesPartner {
 		row, salesErr := s.queries.WithTx(tx).ResolveBobEffectiveSalesPartnerReference(ctx,
 			dbsqlc.ResolveBobEffectiveSalesPartnerReferenceParams{ObjectID: objectID, VersionID: versionID})
@@ -1435,11 +1431,6 @@ func (s *Service) ResolveEffectiveReference(ctx context.Context, tx pgx.Tx, enti
 func (s *Service) validateDictionaryCode(
 	ctx context.Context, tx pgx.Tx, code, dictionaryTypeCode string,
 ) error {
-	if s.auxiliaryResolver == nil {
-		// Legacy/internal callers can construct BOB in isolation. The HTTP
-		// server always configures AUX and therefore enforces dictionary codes.
-		return nil
-	}
 	reference, err := s.auxiliaryResolver.ResolveAuxiliaryCode(ctx, tx, "dictionary-item", code)
 	if err != nil || mapString(reference.Data, "dictionaryTypeCode") != dictionaryTypeCode {
 		return domainError(ErrorConflict, "dictionary item is unavailable", nil, err)
@@ -1454,9 +1445,6 @@ func (s *Service) ResolveCurrentEffectiveReference(
 ) (EffectiveReference, error) {
 	if !validEntity(entity) || !validID(objectID) {
 		return EffectiveReference{}, domainError(ErrorValidation, "invalid current effective reference", nil, nil)
-	}
-	if auxiliaryEntity(entity) {
-		return s.resolveAuxiliaryReference(ctx, tx, entity, objectID, "")
 	}
 	if entity == EntitySalesPartner {
 		row, salesErr := s.queries.WithTx(tx).ResolveCurrentBobEffectiveSalesPartnerReference(ctx, objectID)
@@ -1754,14 +1742,8 @@ func (s *Service) validateDetailReferences(
 		if entity != EntityProduct {
 			return domainError(ErrorValidation, "category is only supported for products", nil, nil)
 		}
-		if s.auxiliaryResolver != nil {
-			if _, err := s.resolveAuxiliaryReference(ctx, tx, EntityCategory, data.CategoryID, ""); err != nil {
-				return err
-			}
-		} else if _, err := q.LockEffectiveBobReference(ctx, dbsqlc.LockEffectiveBobReferenceParams{
-			ObjectID: data.CategoryID, Entity: EntityCategory,
-		}); err != nil {
-			return domainError(ErrorConflict, "category reference is unavailable", nil, err)
+		if _, err := s.resolveAuxiliaryReference(ctx, tx, EntityCategory, data.CategoryID, ""); err != nil {
+			return err
 		}
 	}
 	if entity == EntityProduct && data.Formula != nil {
@@ -1818,13 +1800,11 @@ func (s *Service) validateDetailReferences(
 		if target.id == objectID {
 			return domainError(ErrorValidation, "object cannot reference itself", nil, nil)
 		}
-		if auxiliaryEntity(target.entity) {
-			if s.auxiliaryResolver != nil {
-				if _, err := s.resolveAuxiliaryReference(ctx, tx, target.entity, target.id, ""); err != nil {
-					return err
-				}
-				continue
+		if auxiliaryReferenceEntity(target.entity) {
+			if _, err := s.resolveAuxiliaryReference(ctx, tx, target.entity, target.id, ""); err != nil {
+				return err
 			}
+			continue
 		}
 		if _, err := q.LockEffectiveBobReference(ctx, dbsqlc.LockEffectiveBobReferenceParams{
 			ObjectID: target.id, Entity: target.entity,
@@ -1915,31 +1895,9 @@ func (s *Service) resolveSettlementSnapshot(
 	if data.SettlementMethodID == "" {
 		return data, nil
 	}
-	var reference EffectiveReference
-	var err error
-	if s.auxiliaryResolver != nil {
-		reference, err = s.resolveAuxiliaryReference(
-			ctx, tx, EntitySettlementMethod, data.SettlementMethodID, "",
-		)
-	} else {
-		var row dbsqlc.BobVersionView
-		row, err = s.queries.WithTx(tx).ResolveCurrentBobEffectiveReference(
-			ctx,
-			dbsqlc.ResolveCurrentBobEffectiveReferenceParams{
-				ObjectID: data.SettlementMethodID,
-				Entity:   EntitySettlementMethod,
-			},
-		)
-		if err == nil {
-			reference = EffectiveReference{
-				ObjectID:  row.ObjectID,
-				VersionID: row.VersionID,
-				Entity:    row.Entity,
-				Code:      row.Code,
-				Data:      effectiveReferenceDetail(row),
-			}
-		}
-	}
+	reference, err := s.resolveAuxiliaryReference(
+		ctx, tx, EntitySettlementMethod, data.SettlementMethodID, "",
+	)
 	if err != nil {
 		return DetailView{}, domainError(ErrorConflict, "settlement-method reference is unavailable", nil, err)
 	}
@@ -1956,10 +1914,6 @@ func (s *Service) resolveSettlementSnapshot(
 	return data, nil
 }
 
-func auxiliaryEntity(entity string) bool {
-	return slices.Contains([]string{EntityCategory, EntityDepartment, EntityPosition, EntitySettlementMethod}, entity)
-}
-
 func auxiliaryEntityName(entity string) string {
 	if entity == EntityCategory {
 		return "product-category"
@@ -1967,12 +1921,13 @@ func auxiliaryEntityName(entity string) string {
 	return entity
 }
 
+func auxiliaryReferenceEntity(entity string) bool {
+	return slices.Contains([]string{EntityCategory, EntityDepartment, EntityPosition, EntitySettlementMethod}, entity)
+}
+
 func (s *Service) resolveAuxiliaryReference(
 	ctx context.Context, tx pgx.Tx, entity, objectID, versionID string,
 ) (EffectiveReference, error) {
-	if s.auxiliaryResolver == nil {
-		return EffectiveReference{}, domainError(ErrorInternal, "internal server error", nil, errors.New("auxiliary resolver is not configured"))
-	}
 	reference, err := s.auxiliaryResolver.ResolveAuxiliaryReference(
 		ctx, tx, auxiliaryEntityName(entity), objectID, versionID,
 	)
@@ -2009,9 +1964,6 @@ func (s *Service) resolveAuxiliaryReference(
 func (s *Service) resolveNamedAuxiliaryReference(
 	ctx context.Context, tx pgx.Tx, entity, objectID, versionID string,
 ) (AuxiliaryReference, error) {
-	if s.auxiliaryResolver == nil {
-		return AuxiliaryReference{}, domainError(ErrorInternal, "internal server error", nil, errors.New("auxiliary resolver is not configured"))
-	}
 	reference, err := s.auxiliaryResolver.ResolveAuxiliaryReference(ctx, tx, entity, objectID, versionID)
 	if err != nil {
 		return AuxiliaryReference{}, domainError(ErrorConflict, entity+" reference is unavailable", nil, err)

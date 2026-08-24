@@ -6,8 +6,7 @@ import "testing"
 
 func TestSupplierDraftSnapshotAndContinuousCandidateIntegration(t *testing.T) {
 	pool := integrationPool(t)
-	service := NewService(pool)
-	service.SetAuxiliaryResolver(customerAuxiliaryResolverStub{})
+	service := NewService(pool, customerAuxiliaryResolverStub{})
 	_, purchaser := createApprovedIntegration(t, service, EntityEmployee, CreateDetailInput{
 		Name: "默认采购员",
 	}, "supplier-master-purchaser")

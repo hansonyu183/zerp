@@ -34,7 +34,7 @@ make dev
 
 `make dev` 会启动 PostgreSQL 容器、执行迁移，并以前台热更新方式运行 Go API 和 Vite。浏览器访问 `http://127.0.0.1:5173`；Vite 将 `/api/*` 代理到 API 并去掉 `/api` 前缀，将 `/files/*` 直接代理到附件端点。
 
-TypeScript 7 原生编译器由 `tools/typescript-native/` 独立锁定并参与前端构建。TypeScript 7.0 暂不提供 JavaScript API，因此 Vue 模板检查、ESLint 和 OpenAPI 类型生成继续使用兼容的 TypeScript 6 工具链；`pnpm typecheck:native` 会用 7.0.2 检查项目 TypeScript 源码。
+前端构建、类型检查及相关工具统一使用 TypeScript 7.0.2，不维护第二套 TypeScript 兼容工具链。
 
 停止前台进程后数据库卷会保留；需要停止容器时运行：
 
@@ -71,7 +71,7 @@ make generate
 - `frontend/src/api/generated/schema.ts`
 - `backend/internal/database/sqlc/`
 
-`make generate` 还会在 `contracts/openapi/dist/openapi.yaml` 生成被 Git 忽略的临时 bundle，供后续生成步骤使用；该文件不提交。
+`make generate` 还会在 `contracts/openapi/dist/openapi.json` 生成被 Git 忽略的临时 bundle，供后续生成步骤使用；该文件不提交。前端模型由不依赖 TypeScript 编译器 API 的 OpenAPI 生成器产生，并由仓库脚本补充 `openapi-fetch` 所需的路径类型，因此工具链只安装 TypeScript 7。
 
 业务代码不得手改生成物。前端页面只依赖生成 DTO 或 UI 自有模型；后端在 Handler 边界把生成 DTO 映射到领域类型。
 

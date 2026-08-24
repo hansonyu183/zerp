@@ -22,6 +22,10 @@ const (
 
 type integrationAuxiliaryResolver struct{}
 
+func newIntegrationService(pool *pgxpool.Pool) *Service {
+	return NewService(pool, integrationAuxiliaryResolver{})
+}
+
 func (integrationAuxiliaryResolver) ResolveAuxiliaryReference(
 	ctx context.Context, tx pgx.Tx, entity, objectID, versionID string,
 ) (AuxiliaryReference, error) {
@@ -132,7 +136,7 @@ func deleteIntegrationData(entity, platformObjectID, salespersonEmployeeID, oper
 		data.OperatingEntityID = operatingEntityID
 	case EntityVehicle:
 		data.PlateNumber = "沪D" + newID()
-		data.VehicleType = "Truck"
+		data.VehicleType = "DIT-0003"
 		data.CarrierAffiliation = &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platformObjectID}
 	case EntityCategory:
 		data.TargetEntity = EntityProduct
@@ -215,15 +219,7 @@ func createApprovedIntegration(
 ) (MutationResult, MutationResult) {
 	t.Helper()
 	if entity == EntityProduct {
-		previousAuxiliaryResolver := service.auxiliaryResolver
-		service.SetAuxiliaryResolver(integrationAuxiliaryResolver{})
-		defer service.SetAuxiliaryResolver(previousAuxiliaryResolver)
 		completeRawProductIntegration(service, &data)
-	}
-	previousAuxiliaryResolver := service.auxiliaryResolver
-	if entity == EntitySupplier && previousAuxiliaryResolver == nil {
-		service.SetAuxiliaryResolver(customerAuxiliaryResolverStub{})
-		defer service.SetAuxiliaryResolver(previousAuxiliaryResolver)
 	}
 	if entity == EntityEmployee && data.OperatingEntityID == "" {
 		_, operating := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{

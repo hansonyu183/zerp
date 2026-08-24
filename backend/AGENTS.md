@@ -21,7 +21,7 @@
 - `cmd/` 放服务和运维命令入口；`db/migrations/` 放 Goose 迁移，`db/queries/` 放 sqlc 查询；`internal/api/` 放生成协议类型、中间件和统一响应适配；`internal/config/` 解析和校验环境变量；`internal/database/` 放 pgx 与 sqlc 生成代码；`internal/domains/` 放领域服务、Handler 和类型；`internal/httpserver/` 放路由和健康检查；`internal/seed/` 放非生产数据初始化。
 - 应用只读取环境变量。Make 和 Compose 默认使用 `.env.local`，也可通过 `ENV_FILE` 指定受控环境文件；模板为 `.env.example`。凭证只能进入受控环境变量或密钥系统，不得写入仓库、命令行参数或日志。
 - 生产必须显式配置数据库、附件目录、Cookie、Origin 和反馈发布凭证。生产迁移必须作为明确部署步骤执行；本地持久附件目录只支持单实例 API，且必须与数据库共同备份和恢复。
-- `make compose-up` 启动容器化 API 和 PostgreSQL，不得与占用同一 API 端口的 `make run` 同时使用。
+- 容器化 API 和 PostgreSQL 统一从仓库根目录用 `make compose-up` 启动，不得在 `backend/` 维护第二套 Compose；容器化 API 不得与占用同一端口的 `make run` 同时使用。
 - `make test` 必须使用独立的 `zerp-api-test` Compose 项目和测试数据库；测试数据库名必须以 `_test` 结尾，且不得与主数据库或端口冲突。完整 E2E 必须使用根目录 `make e2e` 创建的隔离环境，不得连接生产或普通开发库。
 - 完整 E2E 固定拒绝生产环境、非隔离数据库、错误端口和启用 GitHub 反馈发布的配置；结束后必须清理一次性数据库容器和本机进程。
 - `make bootstrap-admin` 只能用于空用户库；`make seed-bob` 只允许在 `development` 或 `test` 环境运行。`make seed-test` 默认只能写入隔离 E2E 测试实例；当前公网开发库只有在显式选择 `SEED_TARGET=development`、开启本地受控开关且数据库身份精确匹配时才允许写入，正式生产环境启用前必须移除该入口和开关。测试 seed 必须保持幂等，只恢复自身中断的步骤，不覆盖测试人员已修改或推进的样本。

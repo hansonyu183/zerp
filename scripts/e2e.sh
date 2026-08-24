@@ -44,7 +44,7 @@ api_pid=
 web_pid=
 compose() {
   docker compose --env-file "${e2e_env_file}" \
-    -p zerp-fullstack-e2e -f backend/compose.e2e.yaml "$@"
+    -p zerp-fullstack-e2e -f compose.yaml -f compose.e2e.yaml "$@"
 }
 
 cleanup() {

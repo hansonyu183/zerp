@@ -9,10 +9,9 @@ import (
 )
 
 func TestSystemIdentityMayApproveAutomaticBOBSeedIntegration(t *testing.T) {
-	service := NewService(integrationPool(t))
+	service := newIntegrationService(integrationPool(t))
 	systemData := CreateDetailInput{Name: "System Generated Product"}
 	completeRawProductIntegration(service, &systemData)
-	service.SetAuxiliaryResolver(integrationAuxiliaryResolver{})
 	created, err := service.Create(t.Context(), EntityProduct, CreateInput{Data: systemData}, systemidentity.UserID, "system-bob-create")
 	if err != nil {
 		t.Fatalf("create automatic BOB object: %v", err)

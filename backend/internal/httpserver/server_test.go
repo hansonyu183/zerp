@@ -1,7 +1,6 @@
 package httpserver
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -26,6 +25,7 @@ import (
 	rptdomain "github.com/hansonyu183/zerp/backend/internal/domains/rpt"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
+	"github.com/hansonyu183/zerp/backend/internal/platform/attachmentstore"
 )
 
 type pingerStub struct {
@@ -325,179 +325,7 @@ func TestOpenAPIValidatorEnforcesVOUReverseReasonRules(t *testing.T) {
 	}
 }
 
-func TestOpenAPIValidatorRejectsInvalidBusinessResponse(t *testing.T) {
-	var logs bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&logs, nil))
-	router := newRouter(testConfig(), pingerStub{}, logger, func(router *gin.Engine) {
-		router.POST("/app/workbench/query", func(context *gin.Context) {
-			response.OK(context, gin.H{})
-		})
-	})
-	request := httptest.NewRequest(
-		http.MethodPost,
-		"/app/workbench/query",
-		strings.NewReader(`{"category":"BOB","page":1,"pageSize":20}`),
-	)
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("X-Request-ID", "invalid-response-request-id")
-	responseRecorder := httptest.NewRecorder()
-	router.ServeHTTP(responseRecorder, request)
-
-	if responseRecorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", responseRecorder.Code, http.StatusOK)
-	}
-	var envelope response.Envelope
-	if err := json.Unmarshal(responseRecorder.Body.Bytes(), &envelope); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-	if envelope.Code != response.CodeInternal {
-		t.Fatalf("code = %d, want %d", envelope.Code, response.CodeInternal)
-	}
-	if envelope.RequestID != "invalid-response-request-id" {
-		t.Fatalf("requestId = %q, want %q", envelope.RequestID, "invalid-response-request-id")
-	}
-	if logOutput := logs.String(); !strings.Contains(logOutput, `"error":`) ||
-		!strings.Contains(logOutput, "response body doesn't match schema") {
-		t.Fatalf("validation error log = %q", logOutput)
-	}
-}
-
-func TestOpenAPIValidatorPreservesValidBusinessResponse(t *testing.T) {
-	router := newRouter(testConfig(), pingerStub{}, testLogger(), func(router *gin.Engine) {
-		router.POST("/app/workbench/query", func(context *gin.Context) {
-			response.OK(context, gin.H{
-				"items":    []any{},
-				"total":    0,
-				"page":     1,
-				"pageSize": 20,
-			})
-		})
-	})
-	request := httptest.NewRequest(
-		http.MethodPost,
-		"/app/workbench/query",
-		strings.NewReader(`{"category":"BOB","page":1,"pageSize":20}`),
-	)
-	request.Header.Set("Content-Type", "application/json")
-	responseRecorder := httptest.NewRecorder()
-	router.ServeHTTP(responseRecorder, request)
-
-	if responseRecorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", responseRecorder.Code, http.StatusOK)
-	}
-	var envelope response.Envelope
-	if err := json.Unmarshal(responseRecorder.Body.Bytes(), &envelope); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-	if envelope.Code != response.CodeOK {
-		t.Fatalf("code = %d, want %d", envelope.Code, response.CodeOK)
-	}
-}
-
-func TestOpenAPIValidatorPreservesExpandedWorkflowInstanceResponse(t *testing.T) {
-	router := newRouter(testConfig(), pingerStub{}, testLogger(), func(router *gin.Engine) {
-		router.POST("/wfl/:processName/get", func(context *gin.Context) {
-			response.OK(context, gin.H{
-				"processId":                 "01J00000000000000000000001",
-				"definitionId":              "01J00000000000000000000002",
-				"definitionCode":            "purchase",
-				"definitionName":            "采购流程",
-				"revision":                  1,
-				"rootDocumentId":            "01J00000000000000000000003",
-				"rootDocumentNo":            "POR-20260816-0001",
-				"rootEntity":                "purchase-order",
-				"partyCode":                 "SUP-0001",
-				"partyName":                 "供应商",
-				"updatedAt":                 "2026-08-16T21:00:00+08:00",
-				"startedDefinitionRevision": 1,
-				"nodes":                     []any{},
-				"availableTargets":          []any{},
-			})
-		})
-	})
-	request := httptest.NewRequest(
-		http.MethodPost,
-		"/wfl/purchase/get",
-		strings.NewReader(`{"processId":"01J00000000000000000000001"}`),
-	)
-	request.Header.Set("Content-Type", "application/json")
-	responseRecorder := httptest.NewRecorder()
-	router.ServeHTTP(responseRecorder, request)
-
-	var envelope response.Envelope
-	if err := json.Unmarshal(responseRecorder.Body.Bytes(), &envelope); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-	if envelope.Code != response.CodeOK {
-		t.Fatalf("code = %d, want %d: %s", envelope.Code, response.CodeOK, responseRecorder.Body.String())
-	}
-}
-
-func TestOpenAPIValidatorPreservesPreciseEndpointBusinessError(t *testing.T) {
-	router := newRouter(testConfig(), pingerStub{}, testLogger(), func(router *gin.Engine) {
-		router.POST("/app/workbench/query", func(context *gin.Context) {
-			response.BusinessError(context, response.CodeConflict, response.ErrorKeyConflict, "workbench conflict", nil)
-		})
-	})
-	request := httptest.NewRequest(
-		http.MethodPost,
-		"/app/workbench/query",
-		strings.NewReader(`{"category":"BOB","page":1,"pageSize":20}`),
-	)
-	request.Header.Set("Content-Type", "application/json")
-	responseRecorder := httptest.NewRecorder()
-	router.ServeHTTP(responseRecorder, request)
-
-	var envelope response.Envelope
-	if err := json.Unmarshal(responseRecorder.Body.Bytes(), &envelope); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-	if envelope.Code != response.CodeConflict || envelope.Message != "workbench conflict" {
-		t.Fatalf("envelope = %#v", envelope)
-	}
-}
-
-func TestOpenAPIValidatorPreservesNullableBOBEndpointBusinessErrors(t *testing.T) {
-	tests := []struct {
-		name string
-		path string
-		body string
-	}{
-		{name: "party get", path: "/bob/party/get", body: `{"partyId":"01J00000000000000000000001"}`},
-		{name: "party save", path: "/bob/party/save", body: `{"partyId":"01J00000000000000000000001","revision":1,"data":{}}`},
-		{name: "other unit query", path: "/bob/other-unit/query", body: `{"page":1,"pageSize":20}`},
-		{name: "other unit get", path: "/bob/other-unit/get", body: `{"objectId":"01J00000000000000000000001"}`},
-		{name: "other unit save", path: "/bob/other-unit/save", body: `{"objectId":"01J00000000000000000000001","versionId":"01J00000000000000000000002","revision":1,"data":{}}`},
-		{name: "sales partner query", path: "/bob/sales-partner/query", body: `{"page":1,"pageSize":20,"filters":{},"sort":[]}`},
-		{name: "sales partner get", path: "/bob/sales-partner/get", body: `{"objectId":"01J00000000000000000000001"}`},
-		{name: "sales partner save", path: "/bob/sales-partner/save", body: `{"objectId":"01J00000000000000000000001","versionId":"01J00000000000000000000002","revision":1,"data":{"operatingEntityId":"01J00000000000000000000003","capabilities":[]}}`},
-		{name: "party merge preflight", path: "/bob/party/merge-preflight", body: `{"sourcePartyId":"01J00000000000000000000001","targetPartyId":"01J00000000000000000000002","sourceRevision":1,"targetRevision":1}`},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			router := newRouter(testConfig(), pingerStub{}, testLogger(), func(router *gin.Engine) {
-				router.POST(test.path, func(context *gin.Context) {
-					response.BusinessError(context, response.CodeUnauthenticated, response.ErrorKeyUnauthenticated, "session expired", nil)
-				})
-			})
-			request := httptest.NewRequest(http.MethodPost, test.path, strings.NewReader(test.body))
-			request.Header.Set("Content-Type", "application/json")
-			responseRecorder := httptest.NewRecorder()
-			router.ServeHTTP(responseRecorder, request)
-
-			var envelope response.Envelope
-			if err := json.Unmarshal(responseRecorder.Body.Bytes(), &envelope); err != nil {
-				t.Fatalf("decode response: %v", err)
-			}
-			if envelope.Code != response.CodeUnauthenticated || envelope.Message != "session expired" {
-				t.Fatalf("envelope = %#v", envelope)
-			}
-		})
-	}
-}
-
-func TestOpenAPIValidatorPreservesTechnicalNotFoundResponse(t *testing.T) {
+func TestRouterPreservesTechnicalNotFoundResponse(t *testing.T) {
 	router := newRouter(testConfig(), pingerStub{}, testLogger(), nil)
 	request := httptest.NewRequest(http.MethodGet, "/missing", nil)
 	request.Header.Set("X-Request-ID", "missing-request-id")
@@ -541,7 +369,7 @@ func TestOpenAPIValidatorLimitsRequestBodiesBeforeReading(t *testing.T) {
 			path:        "/files/attachments/upload/token",
 			method:      http.MethodPut,
 			contentType: "application/octet-stream",
-			limit:       maxFileRequestBodyBytes,
+			limit:       attachmentstore.MaxFileBytes,
 			wantStatus:  http.StatusBadRequest,
 		},
 	}

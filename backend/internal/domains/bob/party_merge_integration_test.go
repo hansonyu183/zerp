@@ -12,7 +12,7 @@ var partyMergeAllRelationshipsVisible = PartyRelationshipVisibility{
 
 func TestPartyMergeTransfersNonConflictingRelationshipAndRetiresSourceIntegration(t *testing.T) {
 	pool := integrationPool(t)
-	service := NewService(pool)
+	service := newIntegrationService(pool)
 	_, sourceOperating := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{Name: "合并来源经营主体"}, "party-merge-source-operating")
 	_, targetOperating := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{Name: "合并目标经营主体"}, "party-merge-target-operating")
 
@@ -56,7 +56,7 @@ func TestPartyMergeTransfersNonConflictingRelationshipAndRetiresSourceIntegratio
 }
 
 func TestPartyMergeConfirmRejectsStalePreflightIntegration(t *testing.T) {
-	service := NewService(integrationPool(t))
+	service := newIntegrationService(integrationPool(t))
 	_, operatingOne := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{Name: "预检来源经营主体"}, "party-merge-stale-operating-one")
 	_, operatingTwo := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{Name: "预检目标经营主体"}, "party-merge-stale-operating-two")
 	source := createApprovedOtherUnitForPartyMerge(t, service, operatingOne.ObjectID, "预检来源主体", "party-merge-stale-source")
@@ -83,7 +83,7 @@ func TestPartyMergeConfirmRejectsStalePreflightIntegration(t *testing.T) {
 
 func TestPartyMergeCanRetainSourceRelationshipDuringConflictIntegration(t *testing.T) {
 	pool := integrationPool(t)
-	service := NewService(pool)
+	service := newIntegrationService(pool)
 	_, operating := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{Name: "冲突经营主体"}, "party-merge-conflict-operating")
 	source := createApprovedOtherUnitForPartyMerge(t, service, operating.ObjectID, "冲突来源主体", "party-merge-conflict-source")
 	target := createApprovedOtherUnitForPartyMerge(t, service, operating.ObjectID, "冲突保留主体", "party-merge-conflict-target")
@@ -121,7 +121,7 @@ func TestPartyMergeCanRetainSourceRelationshipDuringConflictIntegration(t *testi
 
 func TestPartyMergeTransfersServiceRelationshipWhileMergingSalesRelationshipIntegration(t *testing.T) {
 	pool := integrationPool(t)
-	service := NewService(pool)
+	service := newIntegrationService(pool)
 	_, operating := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{Name: "多关系合并经营主体"}, "party-merge-multi-operating")
 	sourceService := createApprovedOtherUnitForPartyMerge(t, service, operating.ObjectID, "多关系合并来源", "party-merge-multi-source")
 	sourceSales := createApprovedSalesPartnerForPartyMerge(t, service, sourceService.PartyID, operating.ObjectID, "party-merge-multi-source-sales")
@@ -154,8 +154,7 @@ func TestPartyMergeTransfersServiceRelationshipWhileMergingSalesRelationshipInte
 
 func TestPartyMergeCustomerConflictMovesEveryAccountToRetainedRelationshipIntegration(t *testing.T) {
 	pool := integrationPool(t)
-	service := NewService(pool)
-	service.SetAuxiliaryResolver(customerAuxiliaryResolverStub{})
+	service := NewService(pool, customerAuxiliaryResolverStub{})
 	_, operating := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{Name: "客户合并经营主体"}, "party-merge-customer-operating")
 	_, employee := createApprovedIntegration(t, service, EntityEmployee, CreateDetailInput{Name: "客户合并归属员工"}, "party-merge-customer-employee")
 	source := createApprovedCustomerRelationshipForPartyMerge(t, service, operating.ObjectID, employee.ObjectID, "客户合并来源", "party-merge-customer-source")

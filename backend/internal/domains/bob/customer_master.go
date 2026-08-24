@@ -616,9 +616,6 @@ func (s *Service) resolveCustomerSnapshots(ctx context.Context, tx pgx.Tx, data 
 }
 
 func (s *Service) resolveCustomerAuxSnapshot(ctx context.Context, tx pgx.Tx, entity, objectID string) (CustomerSnapshot, error) {
-	if s.auxiliaryResolver == nil {
-		return CustomerSnapshot{}, domainError(ErrorInternal, "internal server error", nil, errors.New("auxiliary resolver is not configured"))
-	}
 	reference, err := s.auxiliaryResolver.ResolveAuxiliaryReference(ctx, tx, entity, objectID, "")
 	if err != nil {
 		return CustomerSnapshot{}, domainError(ErrorConflict, entity+" reference is unavailable", nil, err)

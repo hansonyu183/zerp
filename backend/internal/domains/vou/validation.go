@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/platform/attachmentstore"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -741,7 +742,7 @@ func validateAttachmentInitiate(input AttachmentInitiateInput) (string, error) {
 		utf8.RuneCountInString(name) > 255 || strings.ContainsAny(rawName, "/\\\x00") {
 		return "", domainError(ErrorValidation, "invalid fileName", nil, nil)
 	}
-	if input.Size < 1 || input.Size > 10<<20 {
+	if input.Size < 1 || input.Size > attachmentstore.MaxFileBytes {
 		return "", domainError(ErrorValidation, "invalid file size", nil, nil)
 	}
 	allowed := map[string]bool{"application/pdf": true, "image/jpeg": true, "image/png": true}

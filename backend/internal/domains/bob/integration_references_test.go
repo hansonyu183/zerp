@@ -11,7 +11,7 @@ import (
 
 func TestCategoryAndDepartmentHierarchyCycleIntegration(t *testing.T) {
 	pool := integrationPool(t)
-	service := NewService(pool)
+	service := newIntegrationService(pool)
 
 	categoryRoot, categoryRootApproved := createApprovedIntegration(t, service, EntityCategory, CreateDetailInput{
 		Code: "CR" + newID(), Name: "分类根", TargetEntity: EntityProduct,
@@ -106,7 +106,7 @@ func TestCommonAttributeSchemaAndPermissionsIntegration(t *testing.T) {
 }
 
 func TestProductQueryIncludesVersionedUnitConversionsIntegration(t *testing.T) {
-	service := NewService(integrationPool(t))
+	service := newIntegrationService(integrationPool(t))
 	productName := "单位换算查询产品 " + newID()
 	createApprovedIntegration(t, service, EntityProduct, CreateDetailInput{
 		Name: productName,
@@ -136,14 +136,11 @@ func TestProductQueryIncludesVersionedUnitConversionsIntegration(t *testing.T) {
 }
 
 func TestCurrentIdentifierUniquenessAndHistoryReleaseIntegration(t *testing.T) {
-	service := NewService(integrationPool(t))
+	service := newIntegrationService(integrationPool(t))
 
 	product, productApproved := createApprovedIntegration(t, service, EntityProduct, CreateDetailInput{
 		Code: "PU" + newID(), Name: "唯一条码产品", Barcode: " barcode-" + newID(),
 	}, "identifier-product")
-	previousAuxiliaryResolver := service.auxiliaryResolver
-	service.SetAuxiliaryResolver(integrationAuxiliaryResolver{})
-	t.Cleanup(func() { service.SetAuxiliaryResolver(previousAuxiliaryResolver) })
 	productView, err := service.Get(t.Context(), EntityProduct, GetInput{ObjectID: product.ObjectID})
 	if err != nil {
 		t.Fatalf("get identifier product: %v", err)
@@ -185,8 +182,6 @@ func TestCurrentIdentifierUniquenessAndHistoryReleaseIntegration(t *testing.T) {
 	}}, integrationActorOne, "reuse-historical-barcode"); err != nil {
 		t.Fatalf("historical barcode was not released: %v", err)
 	}
-	service.SetAuxiliaryResolver(previousAuxiliaryResolver)
-
 	platform, _ := createApprovedIntegration(t, service, EntityOtherUnit, CreateDetailInput{
 		Name: "VIN 测试承运单位",
 	}, "identifier-platform")
@@ -194,7 +189,7 @@ func TestCurrentIdentifierUniquenessAndHistoryReleaseIntegration(t *testing.T) {
 	vin := "LSVAA4187N2" + vinSuffix
 	vehicle, err := service.Create(t.Context(), EntityVehicle, CreateInput{Data: CreateDetailInput{
 		Code: "VU" + newID(), Name: "唯一 VIN 车辆", PlateNumber: "沪B" + newID()[20:],
-		VehicleType: "货车", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platform.ObjectID}, VIN: strings.ToLower(vin),
+		VehicleType: "DIT-0003", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platform.ObjectID}, VIN: strings.ToLower(vin),
 	}}, integrationActorOne, "identifier-vehicle")
 	if err != nil {
 		t.Fatalf("create unique VIN vehicle: %v cause=%v vin=%q", err, errors.Unwrap(err), vin)
@@ -205,7 +200,7 @@ func TestCurrentIdentifierUniquenessAndHistoryReleaseIntegration(t *testing.T) {
 	}
 	if _, err = service.Create(t.Context(), EntityVehicle, CreateInput{Data: CreateDetailInput{
 		Code: "VD" + newID(), Name: "重复 VIN 车辆", PlateNumber: "沪C" + newID()[20:],
-		VehicleType: "货车", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platform.ObjectID}, VIN: vin,
+		VehicleType: "DIT-0003", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platform.ObjectID}, VIN: vin,
 	}}, integrationActorOne, "duplicate-vin"); !errorIsKind(err, ErrorConflict) {
 		t.Fatalf("duplicate VIN error = %v", err)
 	}

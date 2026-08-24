@@ -215,11 +215,10 @@ type Seeder struct {
 }
 
 func New(pool *pgxpool.Pool) *Seeder {
-	service := bob.NewService(pool)
 	auxiliary := auxdomain.NewService(pool)
-	service.SetAuxiliaryResolver(auxiliaryrefs.New(auxiliary))
-	supplier := bob.NewService(pool)
-	supplier.SetAuxiliaryResolver(auxiliaryrefs.New(auxiliary))
+	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
+	service := bob.NewService(pool, auxiliaryResolver)
+	supplier := bob.NewService(pool, auxiliaryResolver)
 	return &Seeder{
 		service: relationshipAwareLifecycleService{lifecycleService: service, relationships: service,
 			settlementRelationships: supplier, auxiliary: auxiliary, pool: pool},

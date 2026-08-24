@@ -37,6 +37,17 @@ func (s *Service) SetAuxiliaryResolver(resolver AuxiliaryResolver) {
 }
 
 func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (Page[QueryItem], error) {
+	switch entity {
+	case EntityEmployee:
+		return s.queryEmploymentRelationships(ctx, input)
+	case EntityProduct:
+		return s.queryProducts(ctx, input)
+	default:
+		return s.queryObjects(ctx, entity, input)
+	}
+}
+
+func (s *Service) queryObjects(ctx context.Context, entity string, input QueryInput) (Page[QueryItem], error) {
 	offset, validPage := pageOffset(input.Page, input.PageSize)
 	if !validEntity(entity) || !validPage {
 		return Page[QueryItem]{}, domainError(ErrorValidation, "invalid query", nil, nil)
@@ -134,35 +145,6 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 				item.Effective = &effective
 			}
 		}
-		if entity == EntityEmployee {
-			identity, identityErr := s.queries.GetBobEmploymentRelationshipIdentity(ctx, row.ObjectID)
-			if identityErr != nil {
-				return Page[QueryItem]{}, s.internal("read Employment Relationship identity", identityErr)
-			}
-			item.Relationship = employmentRelationshipIdentity(identity)
-			if item.Effective != nil {
-				item.Effective.Summary.Name = identity.PartyDisplayName
-			}
-			if item.Candidate != nil {
-				item.Candidate.Summary.Name = identity.PartyDisplayName
-			}
-		}
-		if entity == EntityProduct {
-			current.Summary.UnitConversions, err = loadProductUnitConversions(ctx, s.queries, row.VersionID)
-			if err != nil {
-				return Page[QueryItem]{}, s.internal("read product unit conversions", err)
-			}
-			current.Summary.Formula, err = loadProductFormula(ctx, s.queries, row.VersionID)
-			if err != nil {
-				return Page[QueryItem]{}, s.internal("read product formula", err)
-			}
-			if item.Effective != nil && item.Effective.VersionID == current.VersionID {
-				item.Effective = &current
-			}
-			if item.Candidate != nil && item.Candidate.VersionID == current.VersionID {
-				item.Candidate = &current
-			}
-		}
 		items = append(items, item)
 	}
 	return Page[QueryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
@@ -172,9 +154,21 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Objec
 	if !validEntity(entity) || !validID(input.ObjectID) || (input.VersionID != "" && !validID(input.VersionID)) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid object or version", nil, nil)
 	}
-	if entity == EntityOperatingEntity {
+	switch entity {
+	case EntityOperatingEntity:
 		return s.getOperatingEntity(ctx, input)
+	case EntityEmployee:
+		return s.getEmploymentRelationship(ctx, input)
+	case EntityFundAccount:
+		return s.getFundAccount(ctx, input)
+	case EntityProduct:
+		return s.getProduct(ctx, input)
+	default:
+		return s.getObject(ctx, entity, input)
 	}
+}
+
+func (s *Service) getObject(ctx context.Context, entity string, input GetInput) (ObjectView, error) {
 	row, err := s.queries.GetBobVersionView(ctx, dbsqlc.GetBobVersionViewParams{
 		ObjectID: input.ObjectID, Entity: entity, VersionID: input.VersionID,
 	})
@@ -190,31 +184,7 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Objec
 	if err != nil {
 		return ObjectView{}, s.internal("read object availability", err)
 	}
-	result := objectView(row, enabled)
-	if entity == EntityEmployee {
-		identity, identityErr := s.queries.GetBobEmploymentRelationshipIdentity(ctx, input.ObjectID)
-		if identityErr != nil {
-			return ObjectView{}, s.internal("read Employment Relationship identity", identityErr)
-		}
-		result.Relationship = employmentRelationshipIdentity(identity)
-		result.Data.Name = identity.PartyDisplayName
-	}
-	if entity == EntityFundAccount {
-		if err = loadFundAccountOperating(ctx, s.queries, row.VersionID, &result.Data); err != nil {
-			return ObjectView{}, s.internal("read fund account operating entity", err)
-		}
-	}
-	if entity == EntityProduct {
-		result.Data.UnitConversions, err = loadProductUnitConversions(ctx, s.queries, row.VersionID)
-		if err != nil {
-			return ObjectView{}, s.internal("read product unit conversions", err)
-		}
-		result.Data.Formula, err = loadProductFormula(ctx, s.queries, row.VersionID)
-		if err != nil {
-			return ObjectView{}, s.internal("read product formula", err)
-		}
-	}
-	return result, nil
+	return objectView(row, enabled), nil
 }
 
 func (s *Service) Create(ctx context.Context, entity string, input CreateInput, actorID, requestID string) (MutationResult, error) {
@@ -272,12 +242,6 @@ func (s *Service) Create(ctx context.Context, entity string, input CreateInput, 
 	if err = s.validateDetailReferences(ctx, tx, qtx, entity, objectID, data); err != nil {
 		return MutationResult{}, err
 	}
-	if entity == EntityCustomer {
-		data, err = s.resolveGenericCustomerSettlement(ctx, tx, data)
-		if err != nil {
-			return MutationResult{}, err
-		}
-	}
 	if err = qtx.InsertBobObject(ctx, dbsqlc.InsertBobObjectParams{
 		ID: objectID, Entity: entity, Code: code, CurrentVersionID: versionID, ActorID: actorID,
 	}); err != nil {
@@ -314,28 +278,9 @@ func objectPrefix(entity string) string {
 }
 
 func (s *Service) Save(ctx context.Context, entity string, input SaveInput, actorID, requestID string) (MutationResult, error) {
-	if entity == EntityCustomer || entity == EntityCustomerAccount || entity == EntityOtherUnit || entity == EntitySalesPartner {
+	if entity == EntityCustomer || entity == EntityCustomerAccount || entity == EntitySupplier ||
+		entity == EntityOtherUnit || entity == EntitySalesPartner {
 		return MutationResult{}, domainError(ErrorValidation, "typed relationships must use their dedicated save operation", nil, nil)
-	}
-	if entity == EntitySupplier {
-		data := SupplierData{Name: input.Data.Name, provided: map[string]bool{"name": true}}
-		copyOptional := func(key string, value OptionalString, target *string) {
-			if value.Set {
-				data.provided[key] = true
-				*target = value.Value
-			}
-		}
-		copyOptional("shortName", input.Data.ShortName, &data.ShortName)
-		copyOptional("taxNumber", input.Data.TaxNumber, &data.TaxNumber)
-		copyOptional("contactName", input.Data.ContactName, &data.ContactName)
-		copyOptional("contactPhone", input.Data.ContactPhone, &data.ContactPhone)
-		copyOptional("email", input.Data.Email, &data.Email)
-		copyOptional("address", input.Data.Address, &data.Address)
-		copyOptional("remark", input.Data.Remark, &data.Remark)
-		copyOptional("settlementMethodId", input.Data.SettlementMethodID, &data.SettlementMethodID)
-		copyOptional("defaultPurchaserEmployeeId", input.Data.DefaultPurchaserEmployeeID, &data.DefaultPurchaserEmployeeID)
-		return s.SupplierSave(ctx, SupplierSaveInput{ObjectID: input.ObjectID, VersionID: input.VersionID,
-			Revision: input.Revision, Data: data}, actorID, requestID)
 	}
 	if !validWriteInput(entity, input.ObjectID, input.VersionID, input.Revision, actorID, requestID) {
 		return MutationResult{}, domainError(ErrorValidation, "invalid save request", nil, nil)
@@ -382,12 +327,6 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 			return MutationResult{}, s.internal("read fund account operating entity", err)
 		}
 	}
-	if entity == EntityProduct {
-		current.Formula, err = loadProductFormula(ctx, qtx, input.VersionID)
-		if err != nil {
-			return MutationResult{}, s.internal("read current product formula", err)
-		}
-	}
 	merged := mergeDetailInput(current, input.Data)
 	if entity == EntitySettlementMethod {
 		merged = current
@@ -418,12 +357,6 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 	}
 	if err = s.validateDetailReferences(ctx, tx, qtx, entity, input.ObjectID, data); err != nil {
 		return MutationResult{}, err
-	}
-	if entity == EntityCustomer {
-		data, err = s.resolveGenericCustomerSettlement(ctx, tx, data)
-		if err != nil {
-			return MutationResult{}, err
-		}
 	}
 	if editingEffective {
 		return s.saveEffectiveCandidate(ctx, tx, qtx, entity, object, version, data, actorID, requestID)
@@ -508,113 +441,6 @@ func (s *Service) saveEffectiveCandidate(
 	}
 	return MutationResult{ObjectID: object.ID, ObjectRevision: object.Revision + 1, Enabled: object.Enabled,
 		VersionID: candidateID, Version: object.NextVersionNo, Status: StatusDraft, Revision: 1}, nil
-}
-
-func (s *Service) saveProduct(ctx context.Context, input SaveInput, actorID, requestID string) (MutationResult, error) {
-	if err := validateDetailInputFields(EntityProduct, input.Data); err != nil {
-		return MutationResult{}, domainError(ErrorValidation, "invalid save request", nil, err)
-	}
-	tx, qtx, object, version, err := s.lockTarget(ctx, EntityProduct, input.ObjectID, input.VersionID)
-	if err != nil {
-		return MutationResult{}, err
-	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-	if object.CurrentVersionID != input.VersionID || version.Revision != input.Revision || version.Status != StatusDraft && version.Status != StatusEffective {
-		return MutationResult{}, conflict(object, version, "version changed before save")
-	}
-	if version.Status == StatusEffective && (object.EffectiveVersionID == nil || *object.EffectiveVersionID != input.VersionID) {
-		return MutationResult{}, conflict(object, version, "product effective version changed before save")
-	}
-	row, err := qtx.GetBobVersionView(ctx, dbsqlc.GetBobVersionViewParams{ObjectID: input.ObjectID, Entity: EntityProduct, VersionID: input.VersionID})
-	if err != nil {
-		return MutationResult{}, s.internal("read current product detail", err)
-	}
-	current := detailView(row)
-	current.UnitConversions, err = loadProductUnitConversions(ctx, qtx, input.VersionID)
-	if err != nil {
-		return MutationResult{}, s.internal("read current product units", err)
-	}
-	current.Formula, err = loadProductFormula(ctx, qtx, input.VersionID)
-	if err != nil {
-		return MutationResult{}, s.internal("read current product formula", err)
-	}
-	data, err := validateDetailData(EntityProduct, mergeDetailInput(current, input.Data))
-	if err != nil {
-		return MutationResult{}, domainError(ErrorValidation, "invalid save request", nil, err)
-	}
-	if data.BehaviorProfile != ProductBehaviorStandardFinished {
-		data.Formula = nil
-	}
-	data, err = s.resolveProductReferences(ctx, tx, data, input.Data.Formula != nil)
-	if err != nil {
-		return MutationResult{}, err
-	}
-	validationData := data
-	if input.Data.Formula == nil {
-		// Omitted formula data means the caller did not edit the formula. Preserve
-		// stored snapshots without requiring their references to remain current;
-		// candidate creation refreshes them below, while submit/approve still run
-		// complete stored-detail validation.
-		validationData.Formula = nil
-	}
-	if err = s.validateDetailReferences(ctx, tx, qtx, EntityProduct, input.ObjectID, validationData); err != nil {
-		return MutationResult{}, err
-	}
-	if version.Status == StatusEffective {
-		candidateID := newID()
-		if err = qtx.InsertBobVersion(ctx, dbsqlc.InsertBobVersionParams{ID: candidateID, ObjectID: input.ObjectID, Entity: EntityProduct, VersionNo: object.NextVersionNo, ActorID: actorID}); err != nil {
-			return MutationResult{}, s.writeError("insert product candidate", err)
-		}
-		if err = copyDetail(ctx, qtx, EntityProduct, candidateID, version.ID); err != nil {
-			return MutationResult{}, s.writeError("copy product candidate", err)
-		}
-		if err = updateDetail(ctx, qtx, EntityProduct, candidateID, data); err != nil {
-			return MutationResult{}, s.writeError("update product candidate", err)
-		}
-		if data.BehaviorProfile == ProductBehaviorStandardFinished {
-			if err = qtx.RefreshBobProductCandidateFormulaMaterials(ctx, candidateID); err != nil {
-				return MutationResult{}, s.writeError("refresh candidate formula materials", err)
-			}
-			if err = qtx.MarkUnresolvedBobProductCandidateFormulaMaterials(ctx, candidateID); err != nil {
-				return MutationResult{}, s.writeError("mark unresolved candidate formula materials", err)
-			}
-		}
-		rows, advanceErr := qtx.AdvanceBobProductCandidate(ctx, dbsqlc.AdvanceBobProductCandidateParams{NewVersionID: candidateID, ActorID: actorID, ObjectID: input.ObjectID, EffectiveVersionID: version.ID, Revision: object.Revision})
-		if advanceErr != nil {
-			return MutationResult{}, s.writeError("advance product candidate", advanceErr)
-		}
-		if rows != 1 {
-			return MutationResult{}, conflict(object, version, "product changed before candidate save")
-		}
-		if err = insertAudit(ctx, qtx, auditInput{ObjectID: input.ObjectID, VersionID: candidateID, Entity: EntityProduct, Event: "SAVED", To: StatusDraft, ActorID: actorID, RequestID: requestID, Summary: map[string]any{"sourceVersionId": version.ID, "fields": detailFields(EntityProduct)}}); err != nil {
-			return MutationResult{}, s.writeError("audit product candidate save", err)
-		}
-		if err = tx.Commit(ctx); err != nil {
-			return MutationResult{}, s.writeError("commit product candidate save", err)
-		}
-		return MutationResult{ObjectID: input.ObjectID, ObjectRevision: object.Revision + 1, Enabled: object.Enabled, VersionID: candidateID, Version: object.NextVersionNo, Status: StatusDraft, Revision: 1}, nil
-	}
-	if err = updateDetail(ctx, qtx, EntityProduct, input.VersionID, data); err != nil {
-		return MutationResult{}, s.writeError("update product detail", err)
-	}
-	rows, err := qtx.MarkBobVersionSaved(ctx, dbsqlc.MarkBobVersionSavedParams{ActorID: actorID, ID: input.VersionID, ObjectID: input.ObjectID, Entity: EntityProduct, Revision: input.Revision})
-	if err != nil {
-		return MutationResult{}, s.writeError("mark product version saved", err)
-	}
-	if rows != 1 {
-		return MutationResult{}, conflict(object, version, "product version changed before save")
-	}
-	if err = qtx.TouchBobObject(ctx, dbsqlc.TouchBobObjectParams{ActorID: actorID, ID: input.ObjectID, Entity: EntityProduct}); err != nil {
-		return MutationResult{}, s.writeError("touch product", err)
-	}
-	from := version.Status
-	if err = insertAudit(ctx, qtx, auditInput{ObjectID: input.ObjectID, VersionID: input.VersionID, Entity: EntityProduct, Event: "SAVED", From: &from, To: StatusDraft, ActorID: actorID, RequestID: requestID, Summary: map[string]any{"fields": detailFields(EntityProduct)}}); err != nil {
-		return MutationResult{}, s.writeError("audit product save", err)
-	}
-	if err = tx.Commit(ctx); err != nil {
-		return MutationResult{}, s.writeError("commit product save", err)
-	}
-	return mutation(object, version, StatusDraft, input.Revision+1), nil
 }
 
 func (s *Service) Delete(ctx context.Context, entity string, input DeleteInput) error {
@@ -2007,71 +1833,6 @@ func (s *Service) validateDetailReferences(
 	return nil
 }
 
-func (s *Service) resolveProductReferences(ctx context.Context, tx pgx.Tx, data DetailView, resolveFormula bool) (DetailView, error) {
-	if data.ProductTypeID != "" {
-		typeRef, err := s.resolveNamedAuxiliaryReference(ctx, tx, "product-type", data.ProductTypeID, "")
-		if err != nil {
-			return DetailView{}, err
-		}
-		data.ProductTypeVersionID, data.ProductTypeCode = typeRef.VersionID, typeRef.Code
-		data.ProductTypeName = mapString(typeRef.Data, "name")
-		data.BehaviorProfile = mapString(typeRef.Data, "behaviorProfile")
-		if !validProductBehavior(data.BehaviorProfile) {
-			return DetailView{}, domainError(ErrorConflict, "product type behavior profile is unavailable", nil, nil)
-		}
-	}
-	resolveUnit := func(snapshot *MeasurementUnitSnapshot) error {
-		unit, err := s.resolveNamedAuxiliaryReference(ctx, tx, "measurement-unit", snapshot.ObjectID, "")
-		if err != nil {
-			return err
-		}
-		snapshot.VersionID, snapshot.Code = unit.VersionID, unit.Code
-		snapshot.Name, snapshot.Symbol = mapString(unit.Data, "name"), mapString(unit.Data, "symbol")
-		return nil
-	}
-	for index := range data.UnitConversions {
-		if err := resolveUnit(&data.UnitConversions[index].Unit); err != nil {
-			return DetailView{}, err
-		}
-	}
-	if !resolveFormula || data.Formula == nil {
-		return data, nil
-	}
-	if err := resolveUnit(&data.Formula.Output.EnteredUnit); err != nil {
-		return DetailView{}, err
-	}
-	for index := range data.Formula.Components {
-		component := &data.Formula.Components[index]
-		if err := resolveUnit(&component.Quantity.EnteredUnit); err != nil {
-			return DetailView{}, err
-		}
-		material, err := s.ResolveCurrentEffectiveReference(
-			ctx,
-			tx,
-			EntityProduct,
-			component.Material.ObjectID,
-		)
-		if err != nil {
-			return DetailView{}, err
-		}
-		component.Material.VersionID, component.Material.Code = material.VersionID, material.Code
-		component.Material.Name = material.Data.Name
-		component.Material.BehaviorProfile = material.Data.BehaviorProfile
-		component.ResolutionStatus = "CURRENT"
-		component.RequiresConfirmation = false
-	}
-	return data, nil
-}
-
-func loadFundAccountOperating(ctx context.Context, q *dbsqlc.Queries, versionID string, data *DetailView) error {
-	row, err := q.GetFundAccountOperatingDetail(ctx, versionID)
-	if err != nil {
-		return err
-	}
-	data.OperatingEntityID, data.OperatingEntityVersionID, data.OperatingEntityCode, data.OperatingEntityName = row.OperatingEntityID, row.OperatingEntityVersionID, row.OperatingEntityCode, row.OperatingEntityName
-	return nil
-}
-
 func loadStoredCustomerSettlement(ctx context.Context, q *dbsqlc.Queries, objectID, versionID string, data *DetailView) error {
 	row, err := q.GetStoredCustomerSettlement(ctx, dbsqlc.GetStoredCustomerSettlementParams{ObjectID: objectID, VersionID: versionID})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -2093,7 +1854,7 @@ func loadStoredCustomerSettlement(ctx context.Context, q *dbsqlc.Queries, object
 	return nil
 }
 
-func (s *Service) resolveGenericCustomerSettlement(
+func (s *Service) resolveSettlementSnapshot(
 	ctx context.Context, tx pgx.Tx, data DetailView,
 ) (DetailView, error) {
 	if data.SettlementMethodID == "" {
@@ -2137,20 +1898,6 @@ func (s *Service) resolveGenericCustomerSettlement(
 	data.DueDays = reference.Data.DueDays
 	data.CutoffDay = reference.Data.CutoffDay
 	data.DefaultSalesSurcharge = reference.Data.DefaultSalesSurcharge
-	return data, nil
-}
-
-func (s *Service) resolveFundAccountOperating(
-	ctx context.Context, tx pgx.Tx, data DetailView,
-) (DetailView, error) {
-	row, err := s.queries.WithTx(tx).ResolveFundAccountOperatingEntity(ctx, data.OperatingEntityID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return DetailView{}, domainError(ErrorConflict, "operating-entity reference is unavailable", nil, nil)
-	}
-	if err != nil {
-		return DetailView{}, s.internal("resolve fund account operating entity", err)
-	}
-	data.OperatingEntityID, data.OperatingEntityVersionID, data.OperatingEntityCode, data.OperatingEntityName = row.ID, row.ID_2, row.Code, row.LegalName
 	return data, nil
 }
 

@@ -1429,7 +1429,7 @@ SET enabled = sqlc.arg(enabled), revision = revision + 1,
     updated_at = now(), updated_by = sqlc.arg(actor_id)
 WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity)
   AND revision = sqlc.arg(revision)
-  AND (current_version_id = effective_version_id OR entity IN ('customer-account','supplier','other-unit','sales-partner','product','employee','fund-account','operating-entity','warehouse','vehicle'))
+  AND (current_version_id = effective_version_id OR entity IN ('customer-account','supplier','other-unit','sales-partner','product','employee','fund-account','operating-entity','warehouse','vehicle','category','department','position','settlement-method'))
   AND effective_version_id IS NOT NULL
   AND enabled <> sqlc.arg(enabled);
 
@@ -1444,7 +1444,7 @@ UPDATE bob_objects
 SET effective_version_id = sqlc.arg(new_version_id), revision = revision + 1,
     updated_at = now(), updated_by = sqlc.arg(actor_id)
 WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity)
-  AND entity IN ('customer-account','supplier','other-unit','sales-partner','product','employee','fund-account','operating-entity','warehouse','vehicle')
+  AND entity IN ('customer-account','supplier','other-unit','sales-partner','product','employee','fund-account','operating-entity','warehouse','vehicle','category','department','position','settlement-method')
   AND current_version_id = sqlc.arg(new_version_id)
   AND effective_version_id = sqlc.arg(old_version_id)
   AND revision = sqlc.arg(revision);

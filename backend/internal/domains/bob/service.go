@@ -460,7 +460,8 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 func continuousEffectiveEntity(entity string) bool {
 	switch entity {
 	case EntityCustomerAccount, EntitySupplier, EntityOtherUnit, EntitySalesPartner, EntityProduct,
-		EntityEmployee, EntityFundAccount, EntityOperatingEntity, EntityWarehouse, EntityVehicle:
+		EntityEmployee, EntityFundAccount, EntityOperatingEntity, EntityWarehouse, EntityVehicle,
+		EntityCategory, EntityDepartment, EntityPosition, EntitySettlementMethod:
 		return true
 	default:
 		return false

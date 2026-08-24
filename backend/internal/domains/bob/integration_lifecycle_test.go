@@ -337,37 +337,71 @@ func TestProductEffectiveSaveCreatesApprovableCandidateIntegration(t *testing.T)
 	}
 }
 
-func TestContinuousEffectiveCoreEntitiesKeepLastEffectiveVersionIntegration(t *testing.T) {
+func TestContinuousEffectiveEntitiesKeepLastEffectiveVersionIntegration(t *testing.T) {
 	pool := integrationPool(t)
 	service := NewService(pool)
 	fundOperating, _ := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{
 		Name: "Continuous Fund Operating " + newID(), TaxNumber: "TAX" + newID()[3:],
 	}, "continuous-fund-operating")
 	cases := []struct {
-		entity string
-		data   CreateDetailInput
+		entity    string
+		data      CreateDetailInput
+		saveInput func(DetailView) DetailInput
+		seeded    bool
 	}{
-		{EntityOperatingEntity, CreateDetailInput{Name: "Continuous Operating " + newID(), TaxNumber: "TAX" + newID()[3:]}},
-		{EntityEmployee, CreateDetailInput{Name: "Continuous Employee " + newID()}},
-		{EntityFundAccount, CreateDetailInput{Name: "Continuous Fund " + newID(), Currency: "CNY", OperatingEntityID: fundOperating.ObjectID}},
+		{entity: EntityOperatingEntity, data: CreateDetailInput{Name: "Continuous Operating " + newID(), TaxNumber: "TAX" + newID()[3:]}},
+		{entity: EntityEmployee, data: CreateDetailInput{Name: "Continuous Employee " + newID()}},
+		{entity: EntityFundAccount, data: CreateDetailInput{Name: "Continuous Fund " + newID(), Currency: "CNY", OperatingEntityID: fundOperating.ObjectID}},
+		{entity: EntityCategory, data: CreateDetailInput{Name: "Continuous Category " + newID(), TargetEntity: EntityProduct}},
+		{entity: EntityDepartment, data: CreateDetailInput{Name: "Continuous Department " + newID()}},
+		{entity: EntityPosition, data: CreateDetailInput{Name: "Continuous Position " + newID()}},
+		{entity: EntitySettlementMethod, data: CreateDetailInput{}, saveInput: func(current DetailView) DetailInput {
+			surcharge := "0.01"
+			return DetailInput{DefaultSalesSurcharge: &surcharge}
+		}, seeded: true},
 	}
 
 	for _, test := range cases {
 		t.Run(test.entity, func(t *testing.T) {
-			_, effective := createApprovedIntegration(t, service, test.entity, test.data, "continuous-"+test.entity)
+			var effective MutationResult
+			if test.seeded {
+				enabled := true
+				page, queryErr := service.Query(t.Context(), test.entity, QueryInput{
+					Page: 1, PageSize: 1, Filters: QueryFilters{Status: []string{StatusEffective}, Enabled: &enabled},
+				})
+				if queryErr != nil || len(page.Items) != 1 || page.Items[0].Effective == nil {
+					t.Fatalf("query seeded effective version: page=%+v err=%v", page, queryErr)
+				}
+				version := page.Items[0].Effective
+				effective = MutationResult{ObjectID: page.Items[0].ObjectID, ObjectRevision: page.Items[0].ObjectRevision,
+					Enabled: page.Items[0].Enabled, VersionID: version.VersionID, Version: version.Version,
+					Status: version.Status, Revision: version.Revision}
+			} else {
+				_, effective = createApprovedIntegration(t, service, test.entity, test.data, "continuous-"+test.entity)
+			}
 			current, err := service.Get(t.Context(), test.entity, GetInput{ObjectID: effective.ObjectID})
 			if err != nil {
 				t.Fatalf("get effective: %v", err)
 			}
+			saveInput := DetailInput{Name: current.Data.Name + " candidate", Currency: current.Data.Currency}
+			if test.saveInput != nil {
+				saveInput = test.saveInput(current.Data)
+			}
 			candidate, err := service.Save(t.Context(), test.entity, SaveInput{
 				ObjectID: effective.ObjectID, VersionID: effective.VersionID, Revision: effective.Revision,
-				Data: DetailInput{Name: current.Data.Name + " candidate", Currency: current.Data.Currency},
+				Data: saveInput,
 			}, integrationActorOne, "continuous-"+test.entity+"-save")
 			if err != nil {
 				t.Fatalf("save effective version: %v", err)
 			}
 			if candidate.VersionID == effective.VersionID || candidate.Status != StatusDraft {
 				t.Fatalf("candidate = %+v, effective = %+v", candidate, effective)
+			}
+			retained, err := service.Get(t.Context(), test.entity, GetInput{
+				ObjectID: effective.ObjectID, VersionID: effective.VersionID,
+			})
+			if err != nil || retained.Version.Status != StatusEffective {
+				t.Fatalf("effective version during candidate = %+v, err=%v", retained, err)
 			}
 
 			tx, err := pool.Begin(t.Context())

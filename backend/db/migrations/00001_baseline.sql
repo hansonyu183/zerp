@@ -59,6 +59,9 @@ $$;
 --
 
 -- +goose StatementBegin
+-- Relationship creation and Party merge run in separate service transactions.
+-- This guard closes the race in which a relationship is inserted after merge has
+-- locked and inspected the Party but before the source Party becomes read-only.
 CREATE FUNCTION public.bob_reject_merged_party_relationship() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -77,6 +80,9 @@ $$;
 --
 
 -- +goose StatementBegin
+-- A vehicle's effective version and candidate version both reserve their plates.
+-- Concurrent changes to different objects must serialize on the normalized plate;
+-- an ordinary UNIQUE constraint cannot follow both version pointers while allowing history reuse.
 CREATE FUNCTION public.bob_validate_active_vehicle_plate() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -130,80 +136,13 @@ $$;
 
 
 --
--- Name: bob_validate_category_tree(); Type: FUNCTION; Schema: public; Owner: -
---
-
--- +goose StatementBegin
-CREATE FUNCTION public.bob_validate_category_tree() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-    category_object_id varchar(26);
-    is_current boolean;
-BEGIN
-    SELECT v.object_id, o.current_version_id = v.id
-    INTO category_object_id, is_current
-    FROM bob_versions v
-    JOIN bob_objects o ON o.id = v.object_id AND o.entity = v.entity
-    WHERE v.id = NEW.version_id AND v.entity = 'category';
-    IF NOT FOUND OR NOT is_current THEN RETURN NEW; END IF;
-
-    PERFORM pg_advisory_xact_lock(hashtextextended('bob.category.tree', 0));
-    IF TG_OP = 'UPDATE' AND OLD.target_entity <> NEW.target_entity AND EXISTS (
-        SELECT 1 FROM bob_customer_versions x WHERE x.category_id = category_object_id
-        UNION ALL SELECT 1 FROM bob_supplier_versions x WHERE x.category_id = category_object_id
-        UNION ALL SELECT 1 FROM bob_employee_versions x WHERE x.category_id = category_object_id
-        UNION ALL SELECT 1 FROM bob_product_versions x WHERE x.category_id = category_object_id
-        UNION ALL SELECT 1 FROM bob_warehouse_versions x WHERE x.category_id = category_object_id
-        UNION ALL SELECT 1 FROM bob_vehicle_versions x WHERE x.category_id = category_object_id
-        UNION ALL SELECT 1 FROM bob_fund_account_versions x WHERE x.category_id = category_object_id
-        UNION ALL SELECT 1 FROM bob_department_versions x WHERE x.category_id = category_object_id
-        UNION ALL SELECT 1 FROM bob_position_versions x WHERE x.category_id = category_object_id
-        UNION ALL SELECT 1 FROM bob_category_versions x WHERE x.parent_id = category_object_id
-    ) THEN
-        RAISE EXCEPTION 'referenced category target cannot change' USING ERRCODE = '23505';
-    END IF;
-    IF NEW.parent_id = category_object_id THEN
-        RAISE EXCEPTION 'category cannot be its own parent' USING ERRCODE = '23514';
-    END IF;
-    IF NEW.parent_id IS NOT NULL AND NOT EXISTS (
-        SELECT 1
-        FROM bob_objects parent_object
-        JOIN bob_category_versions parent_detail ON parent_detail.version_id = parent_object.effective_version_id
-        JOIN bob_versions parent_version ON parent_version.id = parent_object.effective_version_id
-        WHERE parent_object.id = NEW.parent_id
-          AND parent_object.entity = 'category'
-          AND parent_object.current_version_id = parent_object.effective_version_id
-          AND parent_version.status = 'EFFECTIVE'
-          AND parent_detail.target_entity = NEW.target_entity
-    ) THEN
-        RAISE EXCEPTION 'category parent must be effective and have the same target entity' USING ERRCODE = '23514';
-    END IF;
-    IF NEW.parent_id IS NOT NULL AND EXISTS (
-        WITH RECURSIVE ancestors(id) AS (
-            SELECT NEW.parent_id
-            UNION ALL
-            SELECT detail.parent_id
-            FROM ancestors
-            JOIN bob_objects parent_object ON parent_object.id = ancestors.id AND parent_object.entity = 'category'
-            JOIN bob_category_versions detail ON detail.version_id = parent_object.current_version_id
-            WHERE detail.parent_id IS NOT NULL
-        )
-        SELECT 1 FROM ancestors WHERE id = category_object_id
-    ) THEN
-        RAISE EXCEPTION 'category hierarchy contains a cycle' USING ERRCODE = '23514';
-    END IF;
-    RETURN NEW;
-END;
-$$;
--- +goose StatementEnd
-
-
---
 -- Name: bob_validate_current_detail_unique(); Type: FUNCTION; Schema: public; Owner: -
 --
 
 -- +goose StatementBegin
+-- These identifiers are unique only across each object's current version. Historical
+-- values must remain reusable, while concurrent pointer/detail changes still need a
+-- keyed lock; an ordinary UNIQUE constraint would incorrectly include all history.
 CREATE FUNCTION public.bob_validate_current_detail_unique() RETURNS trigger
     LANGUAGE plpgsql
     AS $_$
@@ -242,154 +181,6 @@ BEGIN
     RETURN NEW;
 END;
 $_$;
--- +goose StatementEnd
-
-
---
--- Name: bob_validate_current_vehicle_plate(); Type: FUNCTION; Schema: public; Owner: -
---
-
--- +goose StatementBegin
-CREATE FUNCTION public.bob_validate_current_vehicle_plate() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-    vehicle_object_id varchar(26);
-    is_current boolean;
-BEGIN
-    SELECT v.object_id, o.current_version_id = v.id
-    INTO vehicle_object_id, is_current
-    FROM bob_versions v
-    JOIN bob_objects o ON o.id = v.object_id AND o.entity = v.entity
-    WHERE v.id = NEW.version_id AND v.entity = 'vehicle';
-
-    IF NOT FOUND OR NOT is_current THEN
-        RETURN NEW;
-    END IF;
-
-    PERFORM pg_advisory_xact_lock(
-        hashtextextended('bob.vehicle.plate:' || upper(btrim(NEW.plate_number)), 0)
-    );
-
-    IF EXISTS (
-        SELECT 1
-        FROM bob_objects other_object
-        JOIN bob_versions other_version
-          ON other_version.id = other_object.current_version_id
-         AND other_version.object_id = other_object.id
-         AND other_version.entity = other_object.entity
-        JOIN bob_vehicle_versions other_detail ON other_detail.version_id = other_version.id
-        WHERE other_object.entity = 'vehicle'
-          AND other_object.id <> vehicle_object_id
-          AND upper(btrim(other_detail.plate_number)) = upper(btrim(NEW.plate_number))
-    ) THEN
-        RAISE EXCEPTION 'current vehicle plate number must be unique' USING ERRCODE = '23505';
-    END IF;
-    RETURN NEW;
-END;
-$$;
--- +goose StatementEnd
-
-
---
--- Name: bob_validate_department_tree(); Type: FUNCTION; Schema: public; Owner: -
---
-
--- +goose StatementBegin
-CREATE FUNCTION public.bob_validate_department_tree() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-    department_object_id varchar(26);
-    is_current boolean;
-BEGIN
-    SELECT v.object_id, o.current_version_id = v.id
-    INTO department_object_id, is_current
-    FROM bob_versions v
-    JOIN bob_objects o ON o.id = v.object_id AND o.entity = v.entity
-    WHERE v.id = NEW.version_id AND v.entity = 'department';
-    IF NOT FOUND OR NOT is_current THEN RETURN NEW; END IF;
-
-    PERFORM pg_advisory_xact_lock(hashtextextended('bob.department.tree', 0));
-    IF NEW.parent_id = department_object_id THEN
-        RAISE EXCEPTION 'department cannot be its own parent' USING ERRCODE = '23514';
-    END IF;
-    IF NEW.parent_id IS NOT NULL AND NOT EXISTS (
-        SELECT 1
-        FROM bob_objects parent_object
-        JOIN bob_versions parent_version ON parent_version.id = parent_object.effective_version_id
-        WHERE parent_object.id = NEW.parent_id
-          AND parent_object.entity = 'department'
-          AND parent_object.current_version_id = parent_object.effective_version_id
-          AND parent_version.status = 'EFFECTIVE'
-    ) THEN
-        RAISE EXCEPTION 'department parent must be effective' USING ERRCODE = '23514';
-    END IF;
-    IF NEW.parent_id IS NOT NULL AND EXISTS (
-        WITH RECURSIVE ancestors(id) AS (
-            SELECT NEW.parent_id
-            UNION ALL
-            SELECT detail.parent_id
-            FROM ancestors
-            JOIN bob_objects parent_object ON parent_object.id = ancestors.id AND parent_object.entity = 'department'
-            JOIN bob_department_versions detail ON detail.version_id = parent_object.current_version_id
-            WHERE detail.parent_id IS NOT NULL
-        )
-        SELECT 1 FROM ancestors WHERE id = department_object_id
-    ) THEN
-        RAISE EXCEPTION 'department hierarchy contains a cycle' USING ERRCODE = '23514';
-    END IF;
-    RETURN NEW;
-END;
-$$;
--- +goose StatementEnd
-
-
---
--- Name: bob_validate_version_detail(); Type: FUNCTION; Schema: public; Owner: -
---
-
--- +goose StatementBegin
-CREATE FUNCTION public.bob_validate_version_detail() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-    target_id varchar(26);
-    detail_count integer;
-BEGIN
-    IF TG_TABLE_NAME='bob_versions' THEN
-        IF TG_OP='DELETE' THEN target_id:=OLD.id; ELSE target_id:=NEW.id; END IF;
-    ELSE
-        IF TG_OP='DELETE' THEN target_id:=OLD.version_id; ELSE target_id:=NEW.version_id; END IF;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM bob_versions WHERE id=target_id) THEN
-        IF TG_OP='DELETE' THEN RETURN OLD; END IF;
-        RETURN NEW;
-    END IF;
-    SELECT
-        (SELECT count(*) FROM bob_customer_relationship_versions WHERE version_id=target_id)+
-        (SELECT count(*) FROM bob_customer_versions WHERE version_id=target_id)+
-        (SELECT count(*) FROM bob_supplier_versions WHERE version_id=target_id)+
-        (SELECT count(*) FROM bob_employee_versions WHERE version_id=target_id)+
-        (SELECT count(*) FROM bob_product_versions WHERE version_id=target_id)+
-        (SELECT count(*) FROM bob_warehouse_versions WHERE version_id=target_id)+
-        (SELECT count(*) FROM bob_vehicle_versions WHERE version_id=target_id)+
-        (SELECT count(*) FROM bob_fund_account_versions WHERE version_id=target_id)+
-        (SELECT count(*) FROM bob_category_versions WHERE version_id=target_id)+
-        (SELECT count(*) FROM bob_department_versions WHERE version_id=target_id)+
-        (SELECT count(*) FROM bob_position_versions WHERE version_id=target_id)+
-        (SELECT count(*) FROM bob_settlement_method_versions WHERE version_id=target_id)+
-        (SELECT count(*) FROM bob_operating_entity_versions WHERE version_id=target_id)+
-        (SELECT count(*) FROM bob_service_relationship_versions WHERE version_id=target_id)+
-        (SELECT count(*) FROM bob_sales_partner_versions WHERE version_id=target_id)
-    INTO detail_count;
-    IF detail_count<>1 THEN
-        RAISE EXCEPTION 'BOB version must have exactly one detail row' USING ERRCODE='23514';
-    END IF;
-    IF TG_OP='DELETE' THEN RETURN OLD; END IF;
-    RETURN NEW;
-END;
-$$;
 -- +goose StatementEnd
 
 
@@ -8706,31 +8497,10 @@ CREATE INDEX wfl_runtime_audit_history_idx ON public.wfl_runtime_audit_events US
 
 
 --
--- Name: bob_category_versions bob_category_versions_detail_ck; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_category_versions_detail_ck AFTER INSERT OR DELETE OR UPDATE ON public.bob_category_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_version_detail();
-
-
---
--- Name: bob_category_versions bob_category_versions_tree_ck; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_category_versions_tree_ck AFTER INSERT OR UPDATE OF target_entity, parent_id ON public.bob_category_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_category_tree();
-
-
---
 -- Name: bob_customer_relationships bob_customer_relationship_merged_party_ck; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER bob_customer_relationship_merged_party_ck BEFORE INSERT OR UPDATE OF party_id ON public.bob_customer_relationships FOR EACH ROW EXECUTE FUNCTION public.bob_reject_merged_party_relationship();
-
-
---
--- Name: bob_customer_relationship_versions bob_customer_relationship_versions_detail_ck; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_customer_relationship_versions_detail_ck AFTER INSERT OR DELETE OR UPDATE ON public.bob_customer_relationship_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_version_detail();
 
 
 --
@@ -8741,38 +8511,10 @@ CREATE TRIGGER bob_customer_version_attachment_orphan_cleanup AFTER DELETE ON pu
 
 
 --
--- Name: bob_customer_versions bob_customer_versions_detail_ck; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_customer_versions_detail_ck AFTER INSERT OR DELETE OR UPDATE ON public.bob_customer_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_version_detail();
-
-
---
 -- Name: bob_customer_versions bob_customer_versions_tax_uq; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE CONSTRAINT TRIGGER bob_customer_versions_tax_uq AFTER INSERT OR UPDATE OF tax_number ON public.bob_customer_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_current_detail_unique('tax_number');
-
-
---
--- Name: bob_department_versions bob_department_versions_detail_ck; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_department_versions_detail_ck AFTER INSERT OR DELETE OR UPDATE ON public.bob_department_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_version_detail();
-
-
---
--- Name: bob_department_versions bob_department_versions_tree_ck; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_department_versions_tree_ck AFTER INSERT OR UPDATE OF parent_id ON public.bob_department_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_department_tree();
-
-
---
--- Name: bob_employee_versions bob_employee_versions_detail_ck; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_employee_versions_detail_ck AFTER INSERT OR DELETE OR UPDATE ON public.bob_employee_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_version_detail();
 
 
 --
@@ -8790,13 +8532,6 @@ CREATE CONSTRAINT TRIGGER bob_fund_account_versions_account_uq AFTER INSERT OR U
 
 
 --
--- Name: bob_fund_account_versions bob_fund_account_versions_detail_ck; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_fund_account_versions_detail_ck AFTER INSERT OR DELETE OR UPDATE ON public.bob_fund_account_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_version_detail();
-
-
---
 -- Name: bob_objects bob_objects_active_vehicle_plate_uq; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -8804,38 +8539,10 @@ CREATE CONSTRAINT TRIGGER bob_objects_active_vehicle_plate_uq AFTER INSERT OR UP
 
 
 --
--- Name: bob_operating_entity_versions bob_operating_entity_versions_detail_ck; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_operating_entity_versions_detail_ck AFTER INSERT OR DELETE OR UPDATE ON public.bob_operating_entity_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_version_detail();
-
-
---
--- Name: bob_position_versions bob_position_versions_detail_ck; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_position_versions_detail_ck AFTER INSERT OR DELETE OR UPDATE ON public.bob_position_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_version_detail();
-
-
---
 -- Name: bob_product_versions bob_product_versions_barcode_uq; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE CONSTRAINT TRIGGER bob_product_versions_barcode_uq AFTER INSERT OR UPDATE OF barcode ON public.bob_product_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_current_detail_unique('barcode');
-
-
---
--- Name: bob_product_versions bob_product_versions_detail_ck; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_product_versions_detail_ck AFTER INSERT OR DELETE OR UPDATE ON public.bob_product_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_version_detail();
-
-
---
--- Name: bob_sales_partner_versions bob_sales_partner_versions_detail_ck; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_sales_partner_versions_detail_ck AFTER INSERT OR DELETE OR UPDATE ON public.bob_sales_partner_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_version_detail();
 
 
 --
@@ -8853,31 +8560,10 @@ CREATE TRIGGER bob_service_relationship_merged_party_ck BEFORE INSERT OR UPDATE 
 
 
 --
--- Name: bob_service_relationship_versions bob_service_relationship_versions_detail_ck; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_service_relationship_versions_detail_ck AFTER INSERT OR DELETE OR UPDATE ON public.bob_service_relationship_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_version_detail();
-
-
---
--- Name: bob_settlement_method_versions bob_settlement_method_versions_detail_ck; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_settlement_method_versions_detail_ck AFTER INSERT OR DELETE OR UPDATE ON public.bob_settlement_method_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_version_detail();
-
-
---
 -- Name: bob_supplier_relationships bob_supplier_relationship_merged_party_ck; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER bob_supplier_relationship_merged_party_ck BEFORE INSERT OR UPDATE OF party_id ON public.bob_supplier_relationships FOR EACH ROW EXECUTE FUNCTION public.bob_reject_merged_party_relationship();
-
-
---
--- Name: bob_supplier_versions bob_supplier_versions_detail_ck; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_supplier_versions_detail_ck AFTER INSERT OR DELETE OR UPDATE ON public.bob_supplier_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_version_detail();
 
 
 --
@@ -8895,38 +8581,10 @@ CREATE CONSTRAINT TRIGGER bob_vehicle_versions_active_plate_uq AFTER INSERT OR U
 
 
 --
--- Name: bob_vehicle_versions bob_vehicle_versions_detail_ck; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_vehicle_versions_detail_ck AFTER INSERT OR DELETE OR UPDATE ON public.bob_vehicle_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_version_detail();
-
-
---
--- Name: bob_vehicle_versions bob_vehicle_versions_plate_uq; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_vehicle_versions_plate_uq AFTER INSERT OR UPDATE OF plate_number ON public.bob_vehicle_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_current_vehicle_plate();
-
-
---
 -- Name: bob_vehicle_versions bob_vehicle_versions_vin_uq; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE CONSTRAINT TRIGGER bob_vehicle_versions_vin_uq AFTER INSERT OR UPDATE OF vin ON public.bob_vehicle_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_current_detail_unique('vin');
-
-
---
--- Name: bob_versions bob_versions_detail_ck; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_versions_detail_ck AFTER INSERT OR UPDATE ON public.bob_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_version_detail();
-
-
---
--- Name: bob_warehouse_versions bob_warehouse_versions_detail_ck; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_warehouse_versions_detail_ck AFTER INSERT OR DELETE OR UPDATE ON public.bob_warehouse_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_version_detail();
 
 
 --

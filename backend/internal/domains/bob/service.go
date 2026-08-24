@@ -1732,6 +1732,9 @@ func (s *Service) validateDetailReferences(
 	objectID string,
 	data DetailView,
 ) error {
+	if err := s.validateHierarchyReference(ctx, q, entity, objectID, data); err != nil {
+		return err
+	}
 	if entity == EntityVehicle {
 		if err := s.validateCarrierAffiliation(ctx, q, data.CarrierAffiliation); err != nil {
 			return err
@@ -1805,9 +1808,6 @@ func (s *Service) validateDetailReferences(
 	add(EntitySettlementMethod, data.SettlementMethodID)
 	add(EntityEmployee, data.SalespersonEmployeeID)
 	add(EntityEmployee, data.DefaultPurchaserEmployeeID)
-	if entity == EntityDepartment {
-		add(EntityDepartment, data.ParentID)
-	}
 	slices.SortFunc(references, func(left, right reference) int {
 		if compared := strings.Compare(left.id, right.id); compared != 0 {
 			return compared
@@ -1832,6 +1832,57 @@ func (s *Service) validateDetailReferences(
 			return domainError(ErrorConflict, target.entity+" reference is not currently effective", nil, nil)
 		} else if err != nil {
 			return s.internal("lock "+target.entity+" reference", err)
+		}
+	}
+	return nil
+}
+
+func (s *Service) validateHierarchyReference(
+	ctx context.Context,
+	q *dbsqlc.Queries,
+	entity string,
+	objectID string,
+	data DetailView,
+) error {
+	if entity != EntityCategory && entity != EntityDepartment {
+		return nil
+	}
+	if err := q.AcquireBobHierarchyLock(ctx, entity); err != nil {
+		return s.internal("lock "+entity+" hierarchy", err)
+	}
+	if data.ParentID == "" {
+		return nil
+	}
+	if data.ParentID == objectID {
+		return domainError(ErrorValidation, "object cannot reference itself", nil, nil)
+	}
+	if entity == EntityCategory {
+		ancestors, err := q.ListBobCategoryAncestorIDs(ctx, dbsqlc.ListBobCategoryAncestorIDsParams{
+			InputParentID: data.ParentID, TargetEntity: data.TargetEntity,
+		})
+		if err != nil {
+			return s.internal("validate category hierarchy", err)
+		}
+		if len(ancestors) == 0 {
+			return domainError(ErrorConflict, "category parent must be effective and have the same target entity", nil, nil)
+		}
+		for _, ancestorID := range ancestors {
+			if ancestorID == objectID {
+				return domainError(ErrorConflict, "category hierarchy contains a cycle", nil, nil)
+			}
+		}
+		return nil
+	}
+	ancestors, err := q.ListBobDepartmentAncestorIDs(ctx, data.ParentID)
+	if err != nil {
+		return s.internal("validate department hierarchy", err)
+	}
+	if len(ancestors) == 0 {
+		return domainError(ErrorConflict, "department parent must be effective", nil, nil)
+	}
+	for _, ancestorID := range ancestors {
+		if ancestorID == objectID {
+			return domainError(ErrorConflict, "department hierarchy contains a cycle", nil, nil)
 		}
 	}
 	return nil

@@ -8,9 +8,7 @@ import (
 	"testing"
 	"time"
 
-	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func TestDeletePermissionCatalogIntegration(t *testing.T) {
@@ -516,31 +514,6 @@ func TestEffectiveReferenceLockBlocksEditIntegration(t *testing.T) {
 		}
 	case <-editContext.Done():
 		t.Fatalf("edit remained blocked after reference commit: %v", editContext.Err())
-	}
-}
-
-func TestDatabaseRejectsVersionWithoutTypedDetail(t *testing.T) {
-	pool := integrationPool(t)
-	tx, err := pool.Begin(t.Context())
-	if err != nil {
-		t.Fatalf("begin: %v", err)
-	}
-	queries := dbsqlc.New(pool).WithTx(tx)
-	objectID, versionID := newID(), newID()
-	if err = queries.InsertBobObject(t.Context(), dbsqlc.InsertBobObjectParams{
-		ID: objectID, Entity: EntityCustomer, Code: "CUS-9999", CurrentVersionID: versionID, ActorID: integrationActorOne,
-	}); err != nil {
-		t.Fatalf("insert object: %v", err)
-	}
-	if err = queries.InsertBobVersion(t.Context(), dbsqlc.InsertBobVersionParams{
-		ID: versionID, ObjectID: objectID, Entity: EntityCustomer, VersionNo: 1, ActorID: integrationActorOne,
-	}); err != nil {
-		t.Fatalf("insert version: %v", err)
-	}
-	err = tx.Commit(t.Context())
-	var pgErr *pgconn.PgError
-	if !errors.As(err, &pgErr) || pgErr.Code != "23514" {
-		t.Fatalf("commit error = %v, want check violation", err)
 	}
 }
 

@@ -23,6 +23,7 @@ type Querier interface {
 	AccountingPeriodHasUnfinishedVOU(ctx context.Context, arg AccountingPeriodHasUnfinishedVOUParams) (bool, error)
 	AccountingTrialBalanceFails(ctx context.Context, arg AccountingTrialBalanceFailsParams) (bool, error)
 	AcquireAppAuthorizationLock(ctx context.Context) error
+	AcquireBobHierarchyLock(ctx context.Context, entity string) error
 	AcquireBobPartyIdentifierLock(ctx context.Context, lockKey string) error
 	AcquireWorkflowCreateChildLock(ctx context.Context, hashtextextended string) error
 	ActorHasEnabledSuperadminRole(ctx context.Context, userID string) (bool, error)
@@ -492,9 +493,11 @@ type Querier interface {
 	ListAppUserRoleSummaries(ctx context.Context, userID string) ([]ListAppUserRoleSummariesRow, error)
 	ListAppUsers(ctx context.Context, arg ListAppUsersParams) ([]ListAppUsersRow, error)
 	ListBobAuditEvents(ctx context.Context, arg ListBobAuditEventsParams) ([]BobAuditEvent, error)
+	ListBobCategoryAncestorIDs(ctx context.Context, arg ListBobCategoryAncestorIDsParams) ([]string, error)
 	ListBobCustomerAccounts(ctx context.Context, customerRelationshipID string) ([]ListBobCustomerAccountsRow, error)
 	ListBobCustomerCreditLimits(ctx context.Context, versionID string) ([]ListBobCustomerCreditLimitsRow, error)
 	ListBobCustomers(ctx context.Context, arg ListBobCustomersParams) ([]ListBobCustomersRow, error)
+	ListBobDepartmentAncestorIDs(ctx context.Context, inputParentID string) ([]string, error)
 	ListBobEffectiveVersionsForObjects(ctx context.Context, arg ListBobEffectiveVersionsForObjectsParams) ([]BobVersionView, error)
 	ListBobEmploymentRelationshipIdentities(ctx context.Context, objectIds []string) ([]ListBobEmploymentRelationshipIdentitiesRow, error)
 	ListBobObjects(ctx context.Context, arg ListBobObjectsParams) ([]ListBobObjectsRow, error)

@@ -696,18 +696,10 @@ const exactMessages: Readonly<Record<string, string>> = {
     '“工作台”名称仅可用于一级入口，请使用其他名称。',
   'system parameter is managed by its owning service':
     '该系统参数只能由对应功能修改。',
-  'system parameter is not registered for generic exposure':
-    '该系统参数未登记为可在通用管理页面展示。',
   'editable system parameter requires registered constraints':
     '可编辑系统参数必须先登记完整约束。',
-  'runtime adoption evidence is incomplete':
-    '运行实例采用证明不完整，请等待全部实例上报。',
-  'runtime adoption evidence is incomplete or stale':
-    '运行实例采用证明不完整或已过期，请重新收集最新证明。',
   'system parameter does not have registered editing constraints':
     '该系统参数没有完整编辑约束，不能修改。',
-  'system parameter does not require restart adoption':
-    '该系统参数无需登记重启采用结果。',
   'system parameter must be a decimal': '系统参数必须填写为小数。',
   'system parameter must be an integer': '系统参数必须填写为整数。',
   'system parameter must be true or false': '系统参数必须选择是或否。',

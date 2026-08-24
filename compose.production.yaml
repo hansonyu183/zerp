@@ -16,9 +16,6 @@ services:
       APP_SESSION_COOKIE_NAME: ${APP_SESSION_COOKIE_NAME:-zerp_session}
       APP_SESSION_COOKIE_SECURE: 'true'
       APP_SESSION_COOKIE_SAME_SITE: lax
-      APP_RUNTIME_DEPLOYMENT_SCOPE: production
-      APP_RUNTIME_INSTANCE_ID: api
-      APP_RUNTIME_EXPECTED_INSTANCES: api
     ports:
       - '127.0.0.1:${API_PORT:-8080}:8080'
     labels:

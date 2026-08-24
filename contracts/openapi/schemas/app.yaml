@@ -687,11 +687,6 @@
     },
   'SystemParameterValueType':
     { 'type': 'string', 'enum': ['STRING', 'INTEGER', 'DECIMAL', 'BOOLEAN'] },
-  'SystemParameterEffectMode':
-    {
-      'type': 'string',
-      'enum': ['IMMEDIATE', 'NEXT_REQUEST', 'RESTART_REQUIRED'],
-    },
   'SystemParameterConstraints':
     {
       'type': 'object',
@@ -728,12 +723,7 @@
           'defaultValue',
           'editable',
           'constraints',
-          'effectMode',
-          'runningValue',
-          'restartPending',
           'revision',
-          'updatedAt',
-          'updatedBy',
         ],
       'additionalProperties': false,
       'properties':
@@ -751,12 +741,7 @@
               'nullable': true,
               'allOf': [{ '$ref': '#/SystemParameterConstraints' }],
             },
-          'effectMode': { '$ref': '#/SystemParameterEffectMode' },
-          'runningValue': { 'type': 'string', 'nullable': true },
-          'restartPending': { 'type': 'boolean' },
           'revision': { 'type': 'integer', 'format': 'int64' },
-          'updatedAt': { 'type': 'string', 'format': 'date-time' },
-          'updatedBy': { 'type': 'string', 'nullable': true },
         },
     },
   'SystemParameterQueryRequest':

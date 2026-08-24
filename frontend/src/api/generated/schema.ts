@@ -3887,8 +3887,6 @@ export interface components {
             maximum: string | null;
             allowedValues: string[];
         };
-        /** @enum {string} */
-        SystemParameterEffectMode: "IMMEDIATE" | "NEXT_REQUEST" | "RESTART_REQUIRED";
         SystemParameterView: {
             key: string;
             name: string;
@@ -3898,14 +3896,8 @@ export interface components {
             defaultValue: string;
             editable: boolean;
             constraints: components["schemas"]["SystemParameterConstraints"] | null;
-            effectMode: components["schemas"]["SystemParameterEffectMode"];
-            runningValue: string | null;
-            restartPending: boolean;
             /** Format: int64 */
             revision: number;
-            /** Format: date-time */
-            updatedAt: string;
-            updatedBy: string | null;
         };
         SystemParameterPage: {
             items: components["schemas"]["SystemParameterView"][];

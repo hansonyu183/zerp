@@ -32,34 +32,15 @@ const integerParameter = {
     maximum: '6',
     allowedValues: [],
   },
-  effectMode: 'IMMEDIATE' as const,
-  runningValue: null,
-  restartPending: false,
   revision: 4,
-  updatedAt: '2026-08-05T00:00:00Z',
-  updatedBy: 'USER-1',
 }
-const restartParameter = {
+const alternateParameter = {
   ...integerParameter,
   key: 'report.cache.ttl',
   name: '报表缓存时长',
   configuredValue: '120',
   defaultValue: '60',
-  effectMode: 'RESTART_REQUIRED' as const,
-  runningValue: '60',
-  restartPending: true,
   revision: 6,
-}
-const menuMode = {
-  ...integerParameter,
-  key: 'app.menu.mode',
-  name: '当前菜单方式',
-  valueType: 'STRING' as const,
-  configuredValue: 'DEFAULT',
-  defaultValue: 'DEFAULT',
-  constraints: null,
-  effectMode: 'NEXT_REQUEST' as const,
-  revision: 1,
 }
 const incompleteConstraintParameter = {
   ...integerParameter,
@@ -110,7 +91,7 @@ describe('system parameter view model', () => {
     ]
     vi.mocked(querySystemParameters).mockResolvedValue({
       data: {
-        items: [integerParameter, restartParameter, menuMode],
+        items: [integerParameter, alternateParameter, readOnlyParameter],
         total: 3,
         page: 1,
         pageSize: 20,
@@ -190,20 +171,20 @@ describe('system parameter view model', () => {
 
   it('忽略乱序的旧参数编辑详情响应', async () => {
     const first = deferred<{ data: typeof integerParameter }>()
-    const second = deferred<{ data: typeof restartParameter }>()
+    const second = deferred<{ data: typeof alternateParameter }>()
     vi.mocked(getSystemParameter)
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise)
     const vm = createSystemParameterViewModel()
 
     const firstLoad = vm.openEdit(integerParameter)
-    const secondLoad = vm.openEdit(restartParameter)
-    second.resolve({ data: restartParameter })
+    const secondLoad = vm.openEdit(alternateParameter)
+    second.resolve({ data: alternateParameter })
     await secondLoad
     first.resolve({ data: integerParameter })
     await firstLoad
 
-    expect(vm.editing.value).toEqual(restartParameter)
+    expect(vm.editing.value).toEqual(alternateParameter)
     expect(vm.inputValue.value).toBe('120')
     expect(vm.loading.value).toBe(false)
   })
@@ -237,15 +218,13 @@ describe('system parameter view model', () => {
     ])
   })
 
-  it('菜单模式、不可编辑参数和约束缺失参数均保持只读', async () => {
+  it('不可编辑参数和约束缺失参数均保持只读', async () => {
     const vm = createSystemParameterViewModel()
 
-    expect(vm.canEditParameter(menuMode)).toBe(false)
-    expect(vm.canResetParameter(menuMode)).toBe(false)
     expect(vm.canEditParameter(readOnlyParameter)).toBe(false)
     expect(vm.canResetParameter(readOnlyParameter)).toBe(false)
     expect(vm.canEditParameter(incompleteConstraintParameter)).toBe(false)
-    await vm.openEdit(menuMode)
+    await vm.openEdit(readOnlyParameter)
     await vm.requestReset(incompleteConstraintParameter)
 
     expect(getSystemParameter).not.toHaveBeenCalled()
@@ -270,22 +249,24 @@ describe('system parameter view model', () => {
   })
 
   it('恢复默认值先 fresh get，再以该 revision 二次确认提交', async () => {
-    vi.mocked(getSystemParameter).mockResolvedValue({ data: restartParameter })
+    vi.mocked(getSystemParameter).mockResolvedValue({
+      data: alternateParameter,
+    })
     vi.mocked(resetSystemParameter).mockResolvedValue({
-      data: { ...restartParameter, configuredValue: '60', revision: 7 },
+      data: { ...alternateParameter, configuredValue: '60', revision: 7 },
     })
     const vm = createSystemParameterViewModel()
 
     await vm.requestReset(integerParameter)
     expect(getSystemParameter).toHaveBeenCalledWith(integerParameter.key)
-    expect(vm.resetTarget.value).toEqual(restartParameter)
+    expect(vm.resetTarget.value).toEqual(alternateParameter)
 
     await vm.confirmReset()
     expect(resetSystemParameter).toHaveBeenCalledWith({
-      key: restartParameter.key,
+      key: alternateParameter.key,
       revision: 6,
     })
-    expect(vm.successMessage.value).toContain('重启后生效')
+    expect(vm.successMessage.value).toBe('系统参数已恢复默认值。')
   })
 
   it('关闭有修改的编辑器必须先确认放弃', async () => {

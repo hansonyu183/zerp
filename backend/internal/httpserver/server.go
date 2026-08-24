@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/gin-gonic/gin"
@@ -62,11 +61,6 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 		return nil, nil, err
 	}
 	appService := appdomain.NewService(db, cfg, logger)
-	runtimeContext, cancelRuntimeInitialization := runtimeInitializationContext(cfg)
-	defer cancelRuntimeInitialization()
-	if err = appService.InitializeRuntimeSystemParameters(runtimeContext); err != nil {
-		return nil, nil, err
-	}
 	if err = accService.RegisterSubscriptions(eventBus); err != nil {
 		return nil, nil, err
 	}
@@ -93,14 +87,6 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 		rptdomain.NewHandler(rptService, authorizer, logger).Register(router)
 	})
 	return router, publisher, nil
-}
-
-func runtimeInitializationContext(cfg config.Config) (context.Context, context.CancelFunc) {
-	timeout := cfg.DatabaseConnectTimeout
-	if timeout <= 0 {
-		timeout = 5 * time.Second
-	}
-	return context.WithTimeout(context.Background(), timeout)
 }
 
 func validateFeedbackRuntimeConfig(cfg config.Config) error {

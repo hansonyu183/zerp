@@ -268,9 +268,6 @@ const (
 	SystemParameterInteger = "INTEGER"
 	SystemParameterDecimal = "DECIMAL"
 	SystemParameterBoolean = "BOOLEAN"
-	EffectModeImmediate    = "IMMEDIATE"
-	EffectModeNextRequest  = "NEXT_REQUEST"
-	EffectModeRestart      = "RESTART_REQUIRED"
 )
 
 type SystemParameterConstraints struct {
@@ -291,12 +288,7 @@ type SystemParameterView struct {
 	DefaultValue    string                      `json:"defaultValue"`
 	Editable        bool                        `json:"editable"`
 	Constraints     *SystemParameterConstraints `json:"constraints"`
-	EffectMode      string                      `json:"effectMode"`
-	RunningValue    *string                     `json:"runningValue"`
-	RestartPending  bool                        `json:"restartPending"`
 	Revision        int64                       `json:"revision"`
-	UpdatedAt       time.Time                   `json:"updatedAt"`
-	UpdatedBy       *string                     `json:"updatedBy"`
 }
 
 type SaveSystemParameterInput struct {

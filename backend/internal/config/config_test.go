@@ -27,9 +27,6 @@ func TestLoadDefaults(t *testing.T) {
 		"APP_SIGNIN_LOCK_THRESHOLD",
 		"APP_SIGNIN_LOCK_DURATION",
 		"APP_PASSWORD_MIN_LENGTH",
-		"APP_RUNTIME_DEPLOYMENT_SCOPE",
-		"APP_RUNTIME_INSTANCE_ID",
-		"APP_RUNTIME_EXPECTED_INSTANCES",
 		"ATTACHMENT_STORAGE_ROOT",
 		"ATTACHMENT_UPLOAD_TOKEN_TTL",
 		"ATTACHMENT_DOWNLOAD_TOKEN_TTL",
@@ -48,11 +45,6 @@ func TestLoadDefaults(t *testing.T) {
 
 	if cfg.Environment != EnvironmentDevelopment {
 		t.Fatalf("Environment = %q, want %q", cfg.Environment, EnvironmentDevelopment)
-	}
-	if cfg.RuntimeDeploymentScope != EnvironmentDevelopment || cfg.RuntimeInstanceID != "api" ||
-		!reflect.DeepEqual(cfg.RuntimeExpectedInstanceIDs, []string{"api"}) {
-		t.Fatalf("runtime identity = %q/%q/%#v",
-			cfg.RuntimeDeploymentScope, cfg.RuntimeInstanceID, cfg.RuntimeExpectedInstanceIDs)
 	}
 	if cfg.HTTPAddress != ":8080" {
 		t.Fatalf("HTTPAddress = %q, want %q", cfg.HTTPAddress, ":8080")
@@ -94,7 +86,6 @@ func TestLoadRequiresAbsoluteAttachmentRootInProduction(t *testing.T) {
 	t.Setenv("FEEDBACK_GITHUB_ENABLED", "true")
 	t.Setenv("FEEDBACK_GITHUB_TOKEN", "test-token")
 	t.Setenv("ATTACHMENT_STORAGE_ROOT", "")
-	setProductionRuntimeIdentity(t)
 	if _, err := Load(); err == nil {
 		t.Fatal("Load() accepted missing production attachment root")
 	}
@@ -106,45 +97,6 @@ func TestLoadRequiresAbsoluteAttachmentRootInProduction(t *testing.T) {
 	if _, err := Load(); err != nil {
 		t.Fatalf("Load() rejected absolute production attachment root: %v", err)
 	}
-}
-
-func TestLoadRequiresDeploymentRuntimeIdentityInProduction(t *testing.T) {
-	t.Setenv("DATABASE_URL", "postgres://example")
-	t.Setenv("APP_ENV", EnvironmentProduction)
-	t.Setenv("APP_SESSION_COOKIE_SECURE", "true")
-	t.Setenv("FEEDBACK_GITHUB_ENABLED", "true")
-	t.Setenv("FEEDBACK_GITHUB_TOKEN", "test-token")
-	t.Setenv("ATTACHMENT_STORAGE_ROOT", "/var/lib/zerp/attachments")
-	t.Setenv("APP_RUNTIME_DEPLOYMENT_SCOPE", "")
-	t.Setenv("APP_RUNTIME_INSTANCE_ID", "")
-	t.Setenv("APP_RUNTIME_EXPECTED_INSTANCES", "")
-	if _, err := Load(); err == nil {
-		t.Fatal("Load() accepted missing production runtime identity")
-	}
-
-	t.Setenv("APP_RUNTIME_DEPLOYMENT_SCOPE", "production")
-	t.Setenv("APP_RUNTIME_INSTANCE_ID", "api-2")
-	t.Setenv("APP_RUNTIME_EXPECTED_INSTANCES", "api-1")
-	if _, err := Load(); err == nil {
-		t.Fatal("Load() accepted runtime instance outside deployment inventory")
-	}
-
-	t.Setenv("APP_RUNTIME_EXPECTED_INSTANCES", "api-2, api-1")
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("Load() rejected deployment runtime identity: %v", err)
-	}
-	want := []string{"api-1", "api-2"}
-	if !reflect.DeepEqual(cfg.RuntimeExpectedInstanceIDs, want) {
-		t.Fatalf("RuntimeExpectedInstanceIDs = %#v, want %#v", cfg.RuntimeExpectedInstanceIDs, want)
-	}
-}
-
-func setProductionRuntimeIdentity(t *testing.T) {
-	t.Helper()
-	t.Setenv("APP_RUNTIME_DEPLOYMENT_SCOPE", "production")
-	t.Setenv("APP_RUNTIME_INSTANCE_ID", "api")
-	t.Setenv("APP_RUNTIME_EXPECTED_INSTANCES", "api")
 }
 
 func TestLoadRequiresFeedbackTokenWhenEnabled(t *testing.T) {

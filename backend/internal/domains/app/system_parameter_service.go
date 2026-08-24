@@ -4,11 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"math/big"
 	"regexp"
-	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -50,7 +47,6 @@ func (s *Service) QuerySystemParameters(ctx context.Context, request PageRequest
 	}
 	rows, err := s.queries.ListAppSystemParameters(ctx, dbsqlc.ListAppSystemParametersParams{
 		ValueType: valueType, Editable: editable, Search: search,
-		SortField: spec.SortField, SortOrder: spec.SortOrder,
 		PageOffset: spec.Offset, PageSize: int32(spec.PageSize),
 	})
 	if err != nil {
@@ -124,7 +120,7 @@ func (s *Service) SaveSystemParameter(ctx context.Context, input SaveSystemParam
 		return view, viewErr
 	}
 	updated, err := qtx.UpdateAppSystemParameterValue(ctx, dbsqlc.UpdateAppSystemParameterValueParams{
-		ParameterKey: input.Key, ConfiguredValue: value, Revision: input.Revision, ActorID: &actorID,
+		ParameterKey: input.Key, ConfiguredValue: value, Revision: input.Revision,
 	})
 	if err != nil {
 		return SystemParameterView{}, s.systemParameterWriteError("save system parameter", err)
@@ -179,7 +175,7 @@ func (s *Service) ResetSystemParameter(ctx context.Context, input ResetSystemPar
 		return view, viewErr
 	}
 	updated, err := qtx.ResetAppSystemParameterValue(ctx, dbsqlc.ResetAppSystemParameterValueParams{
-		ParameterKey: input.Key, Revision: input.Revision, ActorID: &actorID,
+		ParameterKey: input.Key, Revision: input.Revision,
 	})
 	if err != nil {
 		return SystemParameterView{}, s.systemParameterWriteError("reset system parameter", err)
@@ -197,128 +193,6 @@ func (s *Service) ResetSystemParameter(ctx context.Context, input ResetSystemPar
 		return SystemParameterView{}, s.internal("map reset system parameter", err)
 	}
 	return view, nil
-}
-
-func (s *Service) InitializeRuntimeSystemParameters(ctx context.Context) error {
-	expectedInstanceIDs, err := validateRuntimeInstanceIdentity(
-		s.cfg.RuntimeDeploymentScope,
-		s.cfg.RuntimeInstanceID,
-		s.cfg.RuntimeExpectedInstanceIDs,
-	)
-	if err != nil {
-		return err
-	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return s.internal("begin runtime system parameter initialization", err)
-	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-	qtx := s.queries.WithTx(tx)
-	parameters, err := qtx.ListRestartRequiredAppSystemParametersForUpdate(ctx)
-	if err != nil {
-		return s.internal("load restart-required system parameters", err)
-	}
-	loaded := make(map[string]runtimeSystemParameterSnapshot, len(parameters))
-	for _, parameter := range parameters {
-		loaded[parameter.ParameterKey] = runtimeSystemParameterSnapshot{
-			value: parameter.ConfiguredValue, revision: parameter.Revision,
-		}
-		if !parameter.RestartPending {
-			continue
-		}
-		params := dbsqlc.RegisterAppSystemParameterRuntimeScopeParams{
-			ParameterKey:        parameter.ParameterKey,
-			Revision:            parameter.Revision,
-			DeploymentScope:     s.cfg.RuntimeDeploymentScope,
-			ExpectedInstanceIds: expectedInstanceIDs,
-		}
-		if err = qtx.RegisterAppSystemParameterRuntimeScope(ctx, params); err != nil {
-			return s.internal("register system parameter runtime scope", err)
-		}
-		registeredExpected, scopeErr := qtx.GetAppSystemParameterRuntimeScopeForUpdate(ctx, dbsqlc.GetAppSystemParameterRuntimeScopeForUpdateParams{
-			ParameterKey:    parameter.ParameterKey,
-			Revision:        parameter.Revision,
-			DeploymentScope: s.cfg.RuntimeDeploymentScope,
-		})
-		if scopeErr != nil {
-			return s.internal("lock system parameter runtime scope", scopeErr)
-		}
-		if !slices.Equal(registeredExpected, expectedInstanceIDs) {
-			return fmt.Errorf("runtime deployment inventory does not match existing adoption scope")
-		}
-		if err = qtx.ReportAppSystemParameterRuntimeAdoption(ctx, dbsqlc.ReportAppSystemParameterRuntimeAdoptionParams{
-			ParameterKey:    parameter.ParameterKey,
-			Revision:        parameter.Revision,
-			DeploymentScope: s.cfg.RuntimeDeploymentScope,
-			InstanceID:      s.cfg.RuntimeInstanceID,
-		}); err != nil {
-			return s.internal("report system parameter runtime adoption", err)
-		}
-		adoptionCount, countErr := qtx.CountExpectedAppSystemParameterRuntimeAdoptions(ctx, dbsqlc.CountExpectedAppSystemParameterRuntimeAdoptionsParams{
-			ParameterKey:        parameter.ParameterKey,
-			Revision:            parameter.Revision,
-			DeploymentScope:     s.cfg.RuntimeDeploymentScope,
-			ExpectedInstanceIds: expectedInstanceIDs,
-		})
-		if countErr != nil {
-			return s.internal("count system parameter runtime adoptions", countErr)
-		}
-		if adoptionCount != int64(len(expectedInstanceIDs)) {
-			continue
-		}
-		if _, err = qtx.ConfirmAppSystemParameterAdoption(ctx, dbsqlc.ConfirmAppSystemParameterAdoptionParams{
-			ActorID: nil, ParameterKey: parameter.ParameterKey, Revision: parameter.Revision,
-		}); err != nil {
-			return s.systemParameterWriteError("confirm system parameter adoption", err)
-		}
-		requestID := "runtime-startup:" + s.cfg.RuntimeDeploymentScope + ":" + s.cfg.RuntimeInstanceID
-		if err = s.audit(ctx, qtx, "SYSTEM_PARAMETER_ADOPTION_CONFIRM", nil, "system-parameter", &parameter.ParameterKey, "SUCCESS", requestID, map[string]any{
-			"key": parameter.ParameterKey, "revision": parameter.Revision,
-			"deploymentScope": s.cfg.RuntimeDeploymentScope, "instanceCount": len(expectedInstanceIDs),
-		}); err != nil {
-			return s.internal("audit system parameter adoption", err)
-		}
-	}
-	if err = tx.Commit(ctx); err != nil {
-		return s.internal("commit runtime system parameter initialization", err)
-	}
-	s.runtimeMu.Lock()
-	s.runtimeSystemParameters = loaded
-	s.runtimeMu.Unlock()
-	return nil
-}
-
-func validateRuntimeInstanceIdentity(scope, instanceID string, expectedInstanceIDs []string) ([]string, error) {
-	if !validRuntimeIdentifier(scope) || !validRuntimeIdentifier(instanceID) || len(expectedInstanceIDs) == 0 {
-		return nil, fmt.Errorf("invalid runtime instance identity")
-	}
-	expected := append([]string(nil), expectedInstanceIDs...)
-	sort.Strings(expected)
-	currentFound := false
-	for index, expectedID := range expected {
-		if !validRuntimeIdentifier(expectedID) || index > 0 && expected[index-1] == expectedID {
-			return nil, fmt.Errorf("invalid expected runtime instance set")
-		}
-		currentFound = currentFound || expectedID == instanceID
-	}
-	if !currentFound {
-		return nil, fmt.Errorf("runtime instance is not part of deployment inventory")
-	}
-	return expected, nil
-}
-
-func validRuntimeIdentifier(value string) bool {
-	if value == "" || len(value) > 128 {
-		return false
-	}
-	for index, character := range value {
-		letter := character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z'
-		digit := character >= '0' && character <= '9'
-		if !letter && !digit && (index == 0 || character != '-' && character != '_' && character != '.') {
-			return false
-		}
-	}
-	return true
 }
 
 func (s *Service) systemParameterWriteError(operation string, err error) error {
@@ -490,29 +364,17 @@ func decodeSystemParameterConstraints(raw []byte) (*SystemParameterConstraints, 
 }
 
 func systemParameterView(parameter dbsqlc.AppSystemParameter) (SystemParameterView, error) {
-	if !parameter.SafeToExpose {
-		return SystemParameterView{}, errors.New("system parameter is not registered for generic exposure")
-	}
 	constraints, err := decodeSystemParameterConstraints(parameter.Constraints)
 	if err != nil {
 		return SystemParameterView{}, err
 	}
-	if parameter.EffectMode != EffectModeImmediate && parameter.EffectMode != EffectModeNextRequest && parameter.EffectMode != EffectModeRestart {
-		return SystemParameterView{}, errors.New("invalid registered system parameter effect mode")
-	}
 	if err = validateSystemParameterDefinition(parameter.ValueType, parameter.ConfiguredValue, parameter.DefaultValue, parameter.Editable, constraints); err != nil {
 		return SystemParameterView{}, err
 	}
-	if parameter.EffectMode != EffectModeRestart && (parameter.RestartPending || parameter.RunningValue != parameter.ConfiguredValue || parameter.RunningRevision != parameter.Revision) {
-		return SystemParameterView{}, errors.New("invalid non-restart system parameter running state")
-	}
-	runningValue := parameter.RunningValue
 	return SystemParameterView{
 		Key: parameter.ParameterKey, Name: parameter.Name, Description: parameter.Description,
 		ValueType: parameter.ValueType, ConfiguredValue: parameter.ConfiguredValue, DefaultValue: parameter.DefaultValue,
-		Editable:    parameter.Editable && constraints != nil,
-		Constraints: constraints, EffectMode: parameter.EffectMode, RunningValue: &runningValue,
-		RestartPending: parameter.RestartPending, Revision: parameter.Revision, UpdatedAt: parameter.UpdatedAt.Time,
-		UpdatedBy: parameter.UpdatedBy,
+		Editable: parameter.Editable && constraints != nil, Constraints: constraints,
+		Revision: parameter.Revision,
 	}, nil
 }

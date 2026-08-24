@@ -14,8 +14,6 @@ export type AdminPermissionDetail = components['schemas']['PermissionDetail']
 
 export type SystemParameterValueType =
   components['schemas']['SystemParameterValueType']
-export type SystemParameterEffectMode =
-  components['schemas']['SystemParameterEffectMode']
 export type SystemParameterConstraints =
   components['schemas']['SystemParameterConstraints']
 export type SystemParameter = components['schemas']['SystemParameterView']

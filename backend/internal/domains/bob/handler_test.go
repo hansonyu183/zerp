@@ -16,6 +16,21 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/response"
 )
 
+type splitAuthorizationStub struct {
+	authenticate func(context.Context, *http.Request, string, string) (authorization.Principal, error)
+	permission   func(context.Context, authorization.Principal, string, string) error
+}
+
+func (s splitAuthorizationStub) AuthenticateSession(ctx context.Context, request *http.Request, path, requestID string) (authorization.Principal, error) {
+	return s.authenticate(ctx, request, path, requestID)
+}
+
+func (s splitAuthorizationStub) RequirePermission(ctx context.Context, principal authorization.Principal, path, requestID string) error {
+	return s.permission(ctx, principal, path, requestID)
+}
+
+func (splitAuthorizationStub) ClearSessionCookie(http.ResponseWriter) {}
+
 type serviceStub struct {
 	queryCalls int
 	entity     string
@@ -317,13 +332,19 @@ func TestOtherUnitCreateRequiresMatchingPartyPermission(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var paths []string
-			authorizer := authorization.Func(func(_ context.Context, _ *http.Request, path, _ string) (authorization.Principal, error) {
-				paths = append(paths, path)
-				return authorization.Principal{
-					ActorID:     "01J00000000000000000000000",
-					Permissions: []string{"/bob/party/get", "/bob/other-unit/get"},
-				}, nil
-			})
+			authorizer := splitAuthorizationStub{
+				authenticate: func(_ context.Context, _ *http.Request, path, _ string) (authorization.Principal, error) {
+					paths = append(paths, path)
+					return authorization.Principal{
+						ActorID:     "01J00000000000000000000000",
+						Permissions: []string{"/bob/party/get", "/bob/other-unit/get"},
+					}, nil
+				},
+				permission: func(_ context.Context, _ authorization.Principal, path, _ string) error {
+					paths = append(paths, path)
+					return nil
+				},
+			}
 			service := &serviceStub{}
 			router := newBOBTestRouter(service, authorizer)
 			request := httptest.NewRequest(http.MethodPost, "/bob/other-unit/create", strings.NewReader(test.body))
@@ -335,7 +356,7 @@ func TestOtherUnitCreateRequiresMatchingPartyPermission(t *testing.T) {
 			if recorder.Code != http.StatusOK {
 				t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
 			}
-			if len(paths) != 2 || paths[0] != "/bob/other-unit/create" || paths[1] != test.partyPathWant {
+			if len(paths) != 3 || paths[0] != "/bob/other-unit/create" || paths[1] != "/bob/other-unit/create" || paths[2] != test.partyPathWant {
 				t.Fatalf("authorization paths = %v", paths)
 			}
 		})

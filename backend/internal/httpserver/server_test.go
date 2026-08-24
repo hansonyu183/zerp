@@ -153,7 +153,7 @@ func TestRecoveryUsesBusinessEnvelope(t *testing.T) {
 
 func TestOpenAPIContractCoversEveryRegisteredRoute(t *testing.T) {
 	router := newRouter(testConfig(), pingerStub{}, testLogger(), func(router *gin.Engine) {
-		appdomain.NewHandler(nil, testConfig(), testLogger()).Register(router)
+		appdomain.NewHandler(nil, nil, testConfig(), testLogger()).Register(router)
 		accdomain.NewHandler(nil, nil, testLogger()).Register(router)
 		auxdomain.NewHandler(nil, nil, testLogger()).Register(router)
 		bobdomain.NewHandler(nil, nil, nil, testLogger()).Register(router)
@@ -201,9 +201,9 @@ func TestOpenAPISecurityMatchesBusinessBoundary(t *testing.T) {
 		t.Fatalf("load OpenAPI contract: %v", err)
 	}
 	public := map[string]bool{
-		"POST /app/user/signin":  true,
-		"POST /app/user/session": true,
+		"POST /app/user/signin": true,
 	}
+	cookieOnly := map[string]bool{"POST /app/user/session": true}
 	for contractPath, pathItem := range swagger.Paths.Map() {
 		if !strings.HasPrefix(contractPath, "/app/") &&
 			!strings.HasPrefix(contractPath, "/acc/") &&
@@ -222,6 +222,17 @@ func TestOpenAPISecurityMatchesBusinessBoundary(t *testing.T) {
 				}
 				continue
 			}
+			if cookieOnly[key] {
+				if operation.Security == nil || len(*operation.Security) != 1 {
+					t.Errorf("%s must require only the session cookie", key)
+					continue
+				}
+				requirement := (*operation.Security)[0]
+				if _, ok := requirement["cookieAuth"]; !ok || len(requirement) != 1 {
+					t.Errorf("%s security = %v, want cookieAuth only", key, requirement)
+				}
+				continue
+			}
 			if operation.Security == nil || len(*operation.Security) == 0 {
 				t.Errorf("%s must require session and CSRF security", key)
 			}
@@ -231,7 +242,7 @@ func TestOpenAPISecurityMatchesBusinessBoundary(t *testing.T) {
 
 func TestOpenAPIValidatorRejectsInvalidBusinessRequest(t *testing.T) {
 	router := newRouter(testConfig(), pingerStub{}, testLogger(), func(router *gin.Engine) {
-		appdomain.NewHandler(nil, testConfig(), testLogger()).Register(router)
+		appdomain.NewHandler(nil, nil, testConfig(), testLogger()).Register(router)
 	})
 	request := httptest.NewRequest(
 		http.MethodPost,

@@ -64,8 +64,8 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 		return nil, err
 	}
 	router := newRouter(cfg, db, logger, func(router *gin.Engine) {
-		appdomain.NewHandler(appService, cfg, logger).Register(router)
 		authorizer := appAuthorizer{service: appService, cfg: cfg}
+		appdomain.NewHandler(appService, authorizer, cfg, logger).Register(router)
 		accdomain.NewHandler(accService, authorizer, logger).Register(router)
 		bobdomain.NewHandler(bobService, bobAttachmentService, authorizer, logger).Register(router)
 		auxdomain.NewHandler(auxService, authorizer, logger).Register(router)

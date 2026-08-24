@@ -4,11 +4,20 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 )
 
 type Principal struct {
-	ActorID     string
-	Permissions []string
+	SessionID              string
+	ActorID                string
+	Username               string
+	DisplayName            string
+	AvatarURL              *string
+	CSRFHash               []byte
+	Permissions            []string
+	PasswordChangeRequired bool
+	IdleExpires            time.Time
+	AbsoluteEnds           time.Time
 }
 
 type ErrorKind int
@@ -38,17 +47,32 @@ func IsKind(err error, kind ErrorKind) bool {
 }
 
 type Authorizer interface {
-	Authorize(context.Context, *http.Request, string, string) (Principal, error)
+	AuthenticateSession(context.Context, *http.Request, string, string) (Principal, error)
+	RequirePermission(context.Context, Principal, string, string) error
+	ClearSessionCookie(http.ResponseWriter)
 }
 
 type FailClosed struct{}
 
-func (FailClosed) Authorize(context.Context, *http.Request, string, string) (Principal, error) {
+func (FailClosed) AuthenticateSession(context.Context, *http.Request, string, string) (Principal, error) {
 	return Principal{}, NewError(ErrorUnauthenticated, "session expired", nil)
 }
 
+func (FailClosed) RequirePermission(context.Context, Principal, string, string) error {
+	return NewError(ErrorUnauthenticated, "session expired", nil)
+}
+
+func (FailClosed) ClearSessionCookie(http.ResponseWriter) {}
+
 type Func func(context.Context, *http.Request, string, string) (Principal, error)
 
-func (fn Func) Authorize(ctx context.Context, request *http.Request, path, requestID string) (Principal, error) {
+func (fn Func) AuthenticateSession(ctx context.Context, request *http.Request, path, requestID string) (Principal, error) {
+	if fn == nil {
+		return Principal{}, NewError(ErrorUnauthenticated, "session expired", nil)
+	}
 	return fn(ctx, request, path, requestID)
 }
+
+func (Func) RequirePermission(context.Context, Principal, string, string) error { return nil }
+
+func (Func) ClearSessionCookie(http.ResponseWriter) {}

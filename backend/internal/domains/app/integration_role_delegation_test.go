@@ -141,24 +141,24 @@ func TestBoundedRoleDelegationIntegration(t *testing.T) {
 		t.Fatalf("signin narrow user: %v", err)
 	}
 	childSession := completeRequiredPasswordChange(t, service, initialSession, integrationUserPassword, "Changed-password-3!")
-	if _, err = service.Authorize(t.Context(), childSession.SessionToken, childSession.Data.CSRFToken, "/app/user/query", "before-disable"); err != nil {
+	if _, err = authorizeForTest(service, t.Context(), childSession.SessionToken, childSession.Data.CSRFToken, "/app/user/query", "before-disable"); err != nil {
 		t.Fatalf("authorize before role disable: %v", err)
 	}
 	disabledRole, err := service.SetRoleStatus(t.Context(), narrowRole.ID, narrowRole.Revision, StatusDisabled, limitedPrincipal, "disable-narrow-role")
 	if err != nil {
 		t.Fatalf("disable narrow role: %v", err)
 	}
-	if _, err = service.Authorize(t.Context(), childSession.SessionToken, childSession.Data.CSRFToken, "/app/user/query", "after-disable"); !errorIsKind(err, ErrorForbidden) {
+	if _, err = authorizeForTest(service, t.Context(), childSession.SessionToken, childSession.Data.CSRFToken, "/app/user/query", "after-disable"); !errorIsKind(err, ErrorForbidden) {
 		t.Fatalf("authorization after role disable = %v", err)
 	}
-	restored, err := service.RestoreSession(t.Context(), childSession.SessionToken)
+	restored, err := restoreSessionForTest(service, t.Context(), childSession.SessionToken)
 	if err != nil {
 		t.Fatalf("role disable revoked the existing session: %v", err)
 	}
 	if _, err = service.SetRoleStatus(t.Context(), narrowRole.ID, disabledRole.Revision, StatusEnabled, limitedPrincipal, "enable-narrow-role"); err != nil {
 		t.Fatalf("enable narrow role: %v", err)
 	}
-	if _, err = service.Authorize(t.Context(), childSession.SessionToken, restored.Data.CSRFToken, "/app/user/query", "after-enable"); err != nil {
+	if _, err = authorizeForTest(service, t.Context(), childSession.SessionToken, restored.Data.CSRFToken, "/app/user/query", "after-enable"); err != nil {
 		t.Fatalf("authorization after role enable: %v", err)
 	}
 }

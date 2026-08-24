@@ -191,7 +191,7 @@ func TestQueryAndPermissionCatalogIntegration(t *testing.T) {
 		"/app/role/create", "/app/role/disable", "/app/role/enable", "/app/role/get", "/app/role/query", "/app/role/save",
 		"/app/system-parameter/get", "/app/system-parameter/query", "/app/system-parameter/reset", "/app/system-parameter/save",
 		"/app/user/create", "/app/user/disable", "/app/user/enable", "/app/user/get",
-		"/app/user/profile", "/app/user/query", "/app/user/reset-password", "/app/user/save",
+		"/app/user/query", "/app/user/reset-password", "/app/user/save",
 	}
 	rows, err := pool.Query(t.Context(), `SELECT path FROM app_permissions WHERE domain = 'app' ORDER BY path`)
 	if err != nil {
@@ -268,7 +268,7 @@ func TestUserManagementSecurityIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("disable managed user: %v", err)
 	}
-	if _, err = service.RestoreSession(t.Context(), signin.SessionToken); !errorIsKind(err, ErrorUnauthenticated) {
+	if _, err = restoreSessionForTest(service, t.Context(), signin.SessionToken); !errorIsKind(err, ErrorUnauthenticated) {
 		t.Fatalf("disabled session remains valid: %v", err)
 	}
 	if _, err = service.ResetUserPassword(t.Context(), ResetPasswordInput{ID: user.ID, Revision: disabled.Revision}, integrationPrincipal(admin.ID), "reset-disabled"); !errorIsKind(err, ErrorConflict) {
@@ -282,7 +282,7 @@ func TestUserManagementSecurityIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("enable managed user: %v", err)
 	}
-	if _, err = service.RestoreSession(t.Context(), signin.SessionToken); !errorIsKind(err, ErrorUnauthenticated) {
+	if _, err = restoreSessionForTest(service, t.Context(), signin.SessionToken); !errorIsKind(err, ErrorUnauthenticated) {
 		t.Fatalf("enabled user revived an old session: %v", err)
 	}
 	if _, err = service.ResetUserPassword(t.Context(), ResetPasswordInput{ID: admin.ID, Revision: admin.Revision}, integrationPrincipal(admin.ID), "reset-self"); !errorIsKind(err, ErrorForbidden) {
@@ -302,7 +302,7 @@ func TestUserManagementSecurityIntegration(t *testing.T) {
 	if err != nil || validatePassword(reset.TemporaryPassword, service.cfg.PasswordMinLength) != nil {
 		t.Fatalf("reset result invalid: %v", err)
 	}
-	if _, err = service.RestoreSession(t.Context(), beforeReset.SessionToken); !errorIsKind(err, ErrorUnauthenticated) {
+	if _, err = restoreSessionForTest(service, t.Context(), beforeReset.SessionToken); !errorIsKind(err, ErrorUnauthenticated) {
 		t.Fatalf("reset session remains valid: %v", err)
 	}
 	if _, err = service.Signin(t.Context(), user.Username, integrationUserPassword, "old-password-after-reset"); !errorIsKind(err, ErrorUnauthenticated) {

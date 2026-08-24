@@ -6,18 +6,16 @@ import (
 	"log/slog"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hansonyu183/zerp/backend/internal/api/authmiddleware"
+	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	"github.com/hansonyu183/zerp/backend/internal/api/requestbody"
 	"github.com/hansonyu183/zerp/backend/internal/api/response"
 	"github.com/hansonyu183/zerp/backend/internal/config"
 )
 
-const principalContextKey = "appPrincipal"
-
 type applicationService interface {
 	Signin(context.Context, string, string, string) (SessionResult, error)
-	RestoreSession(context.Context, string) (SessionResult, error)
-	Authorize(context.Context, string, string, string, string) (Principal, error)
-	AuthorizeSession(context.Context, string, string, string, string) (Principal, error)
+	RestoreSession(context.Context, Principal) (SessionResult, error)
 	Signout(context.Context, Principal, string) error
 	GetProfile(context.Context, string) (ProfileView, error)
 	SaveProfile(context.Context, string, SaveProfileInput, string) (ProfileView, error)
@@ -47,37 +45,38 @@ type applicationService interface {
 }
 
 type Handler struct {
-	service applicationService
-	cfg     config.Config
-	logger  *slog.Logger
-	limiter *signinLimiter
+	service    applicationService
+	cfg        config.Config
+	logger     *slog.Logger
+	limiter    *signinLimiter
+	authorizer authorization.Authorizer
 }
 
-func NewHandler(service applicationService, cfg config.Config, logger *slog.Logger) *Handler {
-	return &Handler{service: service, cfg: cfg, logger: logger, limiter: newSigninLimiter()}
+func NewHandler(service applicationService, authorizer authorization.Authorizer, cfg config.Config, logger *slog.Logger) *Handler {
+	if authorizer == nil {
+		authorizer = authorization.FailClosed{}
+	}
+	return &Handler{service: service, authorizer: authorizer, cfg: cfg, logger: logger, limiter: newSigninLimiter()}
 }
 
 func (h *Handler) Register(router *gin.Engine) {
 	appGroup := router.Group("/app")
 	user := appGroup.Group("/user")
 	user.POST("/signin", h.signin)
-	user.POST("/session", h.session)
-	user.POST("/signout", h.signout)
-
-	protectedUser := user.Group("")
-	protectedUser.Use(h.authorize())
-	protectedUser.POST("/query", h.queryUsers)
-	protectedUser.POST("/profile", h.profile)
-	protectedUser.POST("/change-password", h.changePassword)
-	protectedUser.POST("/get", h.getUser)
-	protectedUser.POST("/create", h.createUser)
-	protectedUser.POST("/save", h.saveUser)
-	protectedUser.POST("/enable", h.setUserStatus(StatusEnabled))
-	protectedUser.POST("/disable", h.setUserStatus(StatusDisabled))
-	protectedUser.POST("/reset-password", h.resetUserPassword)
+	user.POST("/session", h.requireSession("/app/user/session"), h.session)
+	user.POST("/signout", h.requireSession(signoutPath), h.signout)
+	user.POST("/profile", h.requireSession("/app/user/profile"), h.profile)
+	user.POST("/change-password", h.requireSession(changePasswordPath), h.changePassword)
+	user.POST("/query", h.requirePermission("/app/user/query"), h.queryUsers)
+	user.POST("/get", h.requirePermission("/app/user/get"), h.getUser)
+	user.POST("/create", h.requirePermission("/app/user/create"), h.createUser)
+	user.POST("/save", h.requirePermission("/app/user/save"), h.saveUser)
+	user.POST("/enable", h.requirePermission("/app/user/enable"), h.setUserStatus(StatusEnabled))
+	user.POST("/disable", h.requirePermission("/app/user/disable"), h.setUserStatus(StatusDisabled))
+	user.POST("/reset-password", h.requirePermission("/app/user/reset-password"), h.resetUserPassword)
 
 	role := appGroup.Group("/role")
-	role.Use(h.authorize())
+	role.Use(h.requirePermission(""))
 	role.POST("/query", h.queryRoles)
 	role.POST("/get", h.getRole)
 	role.POST("/create", h.createRole)
@@ -86,76 +85,39 @@ func (h *Handler) Register(router *gin.Engine) {
 	role.POST("/disable", h.setRoleStatus(StatusDisabled))
 
 	permission := appGroup.Group("/permission")
-	permission.Use(h.authorize())
+	permission.Use(h.requirePermission(""))
 	permission.POST("/query", h.queryPermissions)
 	permission.POST("/get", h.getPermission)
 
 	systemParameter := appGroup.Group("/system-parameter")
-	systemParameter.Use(h.authorize())
+	systemParameter.Use(h.requirePermission(""))
 	systemParameter.POST("/query", h.querySystemParameters)
 	systemParameter.POST("/get", h.getSystemParameter)
 	systemParameter.POST("/save", h.saveSystemParameter)
 	systemParameter.POST("/reset", h.resetSystemParameter)
 
 	menuRead := appGroup.Group("/menu")
-	menuRead.Use(h.authorizeSession())
+	menuRead.Use(h.requireSession(""))
 	menuRead.POST("/get", h.getMenu)
 
 	menuWrite := appGroup.Group("/menu")
-	menuWrite.Use(h.authorize())
+	menuWrite.Use(h.requirePermission(""))
 	menuWrite.POST("/save-business", h.saveBusinessMenu)
 	menuWrite.POST("/activate", h.activateMenu)
 	menuWrite.POST("/reset-business", h.resetBusinessMenu)
 
 	workbench := appGroup.Group("/workbench")
-	workbench.Use(h.authorizeSession())
+	workbench.Use(h.requireSession(""))
 	workbench.POST("/query", h.queryWorkbench)
 
 }
 
-func (h *Handler) authorize() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		rawToken, _ := c.Cookie(h.cfg.SessionCookieName)
-		principal, err := h.service.Authorize(c.Request.Context(), rawToken, c.GetHeader("X-CSRF-Token"), c.Request.URL.Path, response.RequestID(c))
-		if err != nil {
-			if errorIsKind(err, ErrorUnauthenticated) {
-				h.clearSessionCookie(c)
-			}
-			h.writeError(c, err)
-			c.Abort()
-			return
-		}
-		c.Set(principalContextKey, principal)
-		c.Next()
-	}
+func (h *Handler) requireSession(path string) gin.HandlerFunc {
+	return authmiddleware.RequireSession(h.authorizer, path, h.writeError)
 }
 
-func (h *Handler) authorizeSession() gin.HandlerFunc {
-	return h.authorizeSessionAt("")
-}
-
-func (h *Handler) authorizeSessionAt(authorizationPath string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		path := authorizationPath
-		if path == "" {
-			path = c.Request.URL.Path
-		}
-		rawToken, _ := c.Cookie(h.cfg.SessionCookieName)
-		principal, err := h.service.AuthorizeSession(
-			c.Request.Context(), rawToken, c.GetHeader("X-CSRF-Token"),
-			path, response.RequestID(c),
-		)
-		if err != nil {
-			if errorIsKind(err, ErrorUnauthenticated) {
-				h.clearSessionCookie(c)
-			}
-			h.writeError(c, err)
-			c.Abort()
-			return
-		}
-		c.Set(principalContextKey, principal)
-		c.Next()
-	}
+func (h *Handler) requirePermission(path string) gin.HandlerFunc {
+	return authmiddleware.RequirePermission(h.authorizer, path, h.writeError)
 }
 
 type idInput struct {
@@ -184,6 +146,21 @@ func (h *Handler) result(c *gin.Context, data any, err error) {
 }
 
 func (h *Handler) writeError(c *gin.Context, err error) {
+	var authorizationErr *authorization.Error
+	if errors.As(err, &authorizationErr) {
+		code := response.CodeInternal
+		switch authorizationErr.Kind {
+		case authorization.ErrorUnauthenticated:
+			code = response.CodeUnauthenticated
+		case authorization.ErrorForbidden:
+			code = response.CodeForbidden
+		}
+		if authorizationErr.Kind == authorization.ErrorInternal {
+			h.logger.Error("app authorization failure", "requestId", response.RequestID(c), "path", c.Request.URL.Path, "error", authorizationErr.Cause)
+		}
+		response.BusinessError(c, code, authorizationErr.Message, nil)
+		return
+	}
 	var domainErr *DomainError
 	if !errors.As(err, &domainErr) {
 		domainErr = &DomainError{Kind: ErrorInternal, Message: "internal server error", Cause: err}
@@ -210,13 +187,12 @@ func actorID(c *gin.Context) string {
 }
 
 func currentPrincipal(c *gin.Context) Principal {
-	value, exists := c.Get(principalContextKey)
-	if !exists {
-		return Principal{}
+	principal := authmiddleware.Principal(c)
+	return Principal{
+		SessionID: principal.SessionID,
+		User:      UserSummary{ID: principal.ActorID, Username: principal.Username, DisplayName: principal.DisplayName, AvatarURL: principal.AvatarURL},
+		CSRFHash:  principal.CSRFHash, Permissions: principal.Permissions,
+		PasswordChangeRequired: principal.PasswordChangeRequired,
+		IdleExpires:            principal.IdleExpires, AbsoluteEnds: principal.AbsoluteEnds,
 	}
-	principal, ok := value.(Principal)
-	if !ok {
-		return Principal{}
-	}
-	return principal
 }

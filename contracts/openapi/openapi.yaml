@@ -10,7 +10,7 @@
   'servers': [{ 'url': '/api', 'description': '同源 Web 网关' }],
   'tags':
     [
-      { 'name': 'app', 'description': '访问、会话、权限和反馈' },
+      { 'name': 'app', 'description': '访问、会话和权限' },
       { 'name': 'bob', 'description': '业务对象' },
       { 'name': 'aux', 'description': '辅助对象' },
       { 'name': 'vou', 'description': '业务单据' },
@@ -1002,7 +1002,7 @@
               'tags': ['app'],
               'summary': '恢复当前会话',
               'operationId': 'appUserSession',
-              'security': [],
+              'security': [{ 'cookieAuth': [] }],
               'requestBody':
                 {
                   'required': true,

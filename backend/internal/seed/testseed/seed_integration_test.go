@@ -100,7 +100,7 @@ func TestSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign in test user before password change: %v", err)
 	}
-	principal, err := seeder.app.Authorize(
+	principal, err := seeder.app.AuthenticateSession(
 		t.Context(), userSignin.SessionToken, userSignin.Data.CSRFToken,
 		"/app/user/change-password", "authorize-test-user-password-change",
 	)

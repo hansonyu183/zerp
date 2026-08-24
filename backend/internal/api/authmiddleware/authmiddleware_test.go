@@ -11,7 +11,32 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 )
 
-func TestRequire(t *testing.T) {
+type recordingAuthorizer struct {
+	authenticateCalls int
+	permissionCalls   int
+	clearCalls        int
+	authenticateErr   error
+	permissionErr     error
+}
+
+func (a *recordingAuthorizer) AuthenticateSession(context.Context, *http.Request, string, string) (authorization.Principal, error) {
+	a.authenticateCalls++
+	if a.authenticateErr != nil {
+		return authorization.Principal{}, a.authenticateErr
+	}
+	return authorization.Principal{ActorID: "actor-1"}, nil
+}
+
+func (a *recordingAuthorizer) RequirePermission(context.Context, authorization.Principal, string, string) error {
+	a.permissionCalls++
+	return a.permissionErr
+}
+
+func (a *recordingAuthorizer) ClearSessionCookie(http.ResponseWriter) {
+	a.clearCalls++
+}
+
+func TestRequirePermission(t *testing.T) {
 	tests := []struct {
 		name          string
 		authorizer    authorization.Authorizer
@@ -99,16 +124,12 @@ func TestRequire(t *testing.T) {
 			})
 			router.POST(
 				"/test/path",
-				Require(test.authorizer, "/test/path", "principal", func(_ *gin.Context, err error) {
+				RequirePermission(test.authorizer, "/test/path", func(_ *gin.Context, err error) {
 					gotError = err
 				}),
 				func(c *gin.Context) {
 					called = true
-					principal, ok := c.MustGet("principal").(authorization.Principal)
-					if !ok {
-						t.Fatal("principal has unexpected type")
-					}
-					gotActor = principal.ActorID
+					gotActor = Principal(c).ActorID
 				},
 			)
 
@@ -132,5 +153,31 @@ func TestRequire(t *testing.T) {
 				t.Fatalf("error = %v, want kind %d", gotError, test.wantErrorKind)
 			}
 		})
+	}
+}
+
+func TestRequirePermissionAuthenticatesOnceThenChecksPermission(t *testing.T) {
+	authorizer := &recordingAuthorizer{}
+	router := gin.New()
+	router.POST("/test/path", RequirePermission(authorizer, "/test/path", func(*gin.Context, error) {}), func(c *gin.Context) {
+		if Principal(c).ActorID != "actor-1" {
+			t.Fatalf("principal = %+v", Principal(c))
+		}
+	})
+	router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/test/path", nil))
+	if authorizer.authenticateCalls != 1 || authorizer.permissionCalls != 1 {
+		t.Fatalf("calls: authenticate=%d permission=%d", authorizer.authenticateCalls, authorizer.permissionCalls)
+	}
+}
+
+func TestRequireSessionClearsInvalidSessionCookie(t *testing.T) {
+	authorizer := &recordingAuthorizer{authenticateErr: authorization.NewError(authorization.ErrorUnauthenticated, "session expired", nil)}
+	router := gin.New()
+	router.POST("/test/path", RequireSession(authorizer, "/test/path", func(*gin.Context, error) {}), func(*gin.Context) {
+		t.Fatal("handler must not run")
+	})
+	router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/test/path", nil))
+	if authorizer.authenticateCalls != 1 || authorizer.permissionCalls != 0 || authorizer.clearCalls != 1 {
+		t.Fatalf("calls: authenticate=%d permission=%d clear=%d", authorizer.authenticateCalls, authorizer.permissionCalls, authorizer.clearCalls)
 	}
 }

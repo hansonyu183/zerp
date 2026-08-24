@@ -115,11 +115,7 @@ func (s *Service) Signin(ctx context.Context, username, password, requestID stri
 	}, nil
 }
 
-func (s *Service) RestoreSession(ctx context.Context, rawToken string) (SessionResult, error) {
-	principal, err := s.loadPrincipal(ctx, rawToken)
-	if err != nil {
-		return SessionResult{}, err
-	}
+func (s *Service) RestoreSession(ctx context.Context, principal Principal) (SessionResult, error) {
 	csrfToken, err := newRawToken()
 	if err != nil {
 		return SessionResult{}, s.internal("generate csrf token", err)
@@ -138,51 +134,33 @@ func (s *Service) RestoreSession(ctx context.Context, rawToken string) (SessionR
 		PasswordChangeRequired: principal.PasswordChangeRequired, PasswordMinLength: s.cfg.PasswordMinLength}, ExpiresAt: principal.AbsoluteEnds}, nil
 }
 
-func (s *Service) Authorize(ctx context.Context, rawToken, csrfToken, path, requestID string) (Principal, error) {
+func (s *Service) AuthenticateSession(ctx context.Context, rawToken, csrfToken, path, requestID string) (Principal, error) {
 	principal, err := s.loadPrincipal(ctx, rawToken)
 	if err != nil {
 		return Principal{}, err
 	}
-	if csrfToken == "" || !constantTimeHashEqual(principal.CSRFHash, csrfToken) {
+	if path != "/app/user/session" && (csrfToken == "" || !constantTimeHashEqual(principal.CSRFHash, csrfToken)) {
 		s.auditAuthorizationDenied(ctx, principal, path, requestID, "csrf")
 		return Principal{}, domainError(ErrorForbidden, "csrf validation failed", nil)
 	}
 	if err = s.enforceRestrictedSessionPath(ctx, principal, path, requestID); err != nil {
 		return Principal{}, err
 	}
-	if !isSessionSelfServicePath(path) && !permissionAllowsPath(principal.Permissions, path) {
-		s.auditAuthorizationDenied(ctx, principal, path, requestID, "permission")
-		return Principal{}, domainError(ErrorForbidden, "permission denied", nil)
-	}
-	idleEnds := time.Now().UTC().Add(s.cfg.SessionIdleTimeout)
-	if err = s.queries.TouchAppSession(ctx, dbsqlc.TouchAppSessionParams{ID: principal.SessionID, IdleExpiresAt: timestamptz(idleEnds)}); err != nil {
-		return Principal{}, s.internal("touch session", err)
+	if path != "/app/user/session" {
+		idleEnds := time.Now().UTC().Add(s.cfg.SessionIdleTimeout)
+		if err = s.queries.TouchAppSession(ctx, dbsqlc.TouchAppSessionParams{ID: principal.SessionID, IdleExpiresAt: timestamptz(idleEnds)}); err != nil {
+			return Principal{}, s.internal("touch session", err)
+		}
 	}
 	return principal, nil
 }
 
-func (s *Service) AuthorizeSession(
-	ctx context.Context,
-	rawToken, csrfToken, path, requestID string,
-) (Principal, error) {
-	principal, err := s.loadPrincipal(ctx, rawToken)
-	if err != nil {
-		return Principal{}, err
+func (s *Service) RequirePermission(ctx context.Context, principal Principal, path, requestID string) error {
+	if permissionAllowsPath(principal.Permissions, path) {
+		return nil
 	}
-	if csrfToken == "" || !constantTimeHashEqual(principal.CSRFHash, csrfToken) {
-		s.auditAuthorizationDenied(ctx, principal, path, requestID, "csrf")
-		return Principal{}, domainError(ErrorForbidden, "csrf validation failed", nil)
-	}
-	if err = s.enforceRestrictedSessionPath(ctx, principal, path, requestID); err != nil {
-		return Principal{}, err
-	}
-	idleEnds := time.Now().UTC().Add(s.cfg.SessionIdleTimeout)
-	if err = s.queries.TouchAppSession(ctx, dbsqlc.TouchAppSessionParams{
-		ID: principal.SessionID, IdleExpiresAt: timestamptz(idleEnds),
-	}); err != nil {
-		return Principal{}, s.internal("touch session", err)
-	}
-	return principal, nil
+	s.auditAuthorizationDenied(ctx, principal, path, requestID, "permission")
+	return domainError(ErrorForbidden, "permission denied", nil)
 }
 
 func passwordChangeSessionAllows(path string) bool {

@@ -19,8 +19,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const principalContextKey = "rptPrincipal"
-
 type Handler struct {
 	service    *Service
 	authorizer authorization.Authorizer
@@ -108,10 +106,10 @@ func (h *Handler) Register(router *gin.Engine) {
 	management := map[string]gin.HandlerFunc{"query": h.definitionQuery, "get": h.definitionGet, "create": h.definitionCreate, "create-version": h.createVersion, "save": h.saveVersion, "approve": h.approve, "unapprove": h.unapprove, "enable": h.enable, "disable": h.disable, "delete": h.delete}
 	for action, handle := range management {
 		path := "/rpt/definition/" + action
-		router.POST(path, authmiddleware.Require(h.authorizer, path, principalContextKey, h.writeAuthorizationError), handle)
+		router.POST(path, authmiddleware.RequirePermission(h.authorizer, path, h.writeAuthorizationError), handle)
 	}
 	directoryPath := "/rpt/directory/query"
-	router.POST(directoryPath, authmiddleware.Require(h.authorizer, directoryPath, principalContextKey, h.writeAuthorizationError), h.directoryQuery)
+	router.POST(directoryPath, authmiddleware.RequirePermission(h.authorizer, directoryPath, h.writeAuthorizationError), h.directoryQuery)
 	for _, route := range []struct {
 		action string
 		handle gin.HandlerFunc
@@ -119,14 +117,14 @@ func (h *Handler) Register(router *gin.Engine) {
 		router.POST("/rpt/:report/"+route.action, func(action string, handle gin.HandlerFunc) gin.HandlerFunc {
 			return func(c *gin.Context) {
 				path := permissionPath(c.Param("report"), action)
-				authmiddleware.Require(h.authorizer, path, principalContextKey, h.writeAuthorizationError)(c)
+				authmiddleware.RequirePermission(h.authorizer, path, h.writeAuthorizationError)(c)
 				if !c.IsAborted() {
 					handle(c)
 				}
 			}
 		}(route.action, route.handle))
 	}
-	router.POST("/rpt/:report/reference-query", h.requireReportAccess(h.referenceQuery))
+	router.POST("/rpt/:report/reference-query", authmiddleware.RequireSession(h.authorizer, "", h.writeAuthorizationError), h.requireReportAccess(h.referenceQuery))
 }
 
 func (h *Handler) directoryQuery(c *gin.Context) {
@@ -142,14 +140,14 @@ func (h *Handler) requireReportAccess(next gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var lastErr error
 		for _, action := range []string{"query", "export"} {
-			principal, err := h.authorizer.Authorize(c.Request.Context(), c.Request, permissionPath(c.Param("report"), action), response.RequestID(c))
-			if err == nil && principal.ActorID != "" {
-				c.Set(principalContextKey, principal)
+			path := permissionPath(c.Param("report"), action)
+			err := h.authorizer.RequirePermission(c.Request.Context(), authmiddleware.Principal(c), path, response.RequestID(c))
+			if err == nil {
 				next(c)
 				return
 			}
 			lastErr = err
-			if err == nil || !authorization.IsKind(err, authorization.ErrorForbidden) {
+			if !authorization.IsKind(err, authorization.ErrorForbidden) {
 				break
 			}
 		}
@@ -158,9 +156,7 @@ func (h *Handler) requireReportAccess(next gin.HandlerFunc) gin.HandlerFunc {
 	}
 }
 func (h *Handler) principal(c *gin.Context) authorization.Principal {
-	value, _ := c.Get(principalContextKey)
-	principal, _ := value.(authorization.Principal)
-	return principal
+	return authmiddleware.Principal(c)
 }
 func (h *Handler) bind(c *gin.Context, target any) bool {
 	if err := requestbody.DecodeJSON(c, target); err != nil {

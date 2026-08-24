@@ -3,6 +3,7 @@
 package app
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"os"
@@ -149,7 +150,8 @@ func completeRequiredPasswordChange(
 	newPassword string,
 ) SessionResult {
 	t.Helper()
-	principal, err := service.Authorize(
+	principal, err := authorizeForTest(
+		service,
 		t.Context(), signin.SessionToken, signin.Data.CSRFToken,
 		changePasswordPath, "integration-required-password-change",
 	)
@@ -170,6 +172,28 @@ func completeRequiredPasswordChange(
 		t.Fatal("password change remained required")
 	}
 	return changed
+}
+
+func authorizeForTest(service *Service, ctx context.Context, rawToken, csrfToken, path, requestID string) (Principal, error) {
+	principal, err := service.AuthenticateSession(ctx, rawToken, csrfToken, path, requestID)
+	if err != nil {
+		return Principal{}, err
+	}
+	if path == "/app/user/profile" || isSessionSelfServicePath(path) {
+		return principal, nil
+	}
+	if err = service.RequirePermission(ctx, principal, path, requestID); err != nil {
+		return Principal{}, err
+	}
+	return principal, nil
+}
+
+func restoreSessionForTest(service *Service, ctx context.Context, rawToken string) (SessionResult, error) {
+	principal, err := service.AuthenticateSession(ctx, rawToken, "", "/app/user/session", "integration-restore-session")
+	if err != nil {
+		return SessionResult{}, err
+	}
+	return service.RestoreSession(ctx, principal)
 }
 
 func permissionIDsByPath(t *testing.T, pool *pgxpool.Pool, paths ...string) []string {

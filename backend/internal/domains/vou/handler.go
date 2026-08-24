@@ -15,8 +15,6 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/response"
 )
 
-const principalContextKey = "vouPrincipal"
-
 type applicationService interface {
 	Query(context.Context, string, QueryInput) (Page[ListItem], error)
 	Get(context.Context, string, GetInput) (DocumentView, error)
@@ -221,7 +219,7 @@ func (h *Handler) formulaDefault(c *gin.Context, entity string) {
 }
 
 func (h *Handler) authorize(path string) gin.HandlerFunc {
-	return authmiddleware.Require(h.authorizer, path, principalContextKey, h.writeAuthorizationError)
+	return authmiddleware.RequirePermission(h.authorizer, path, h.writeAuthorizationError)
 }
 
 func (h *Handler) query(c *gin.Context, entity string) {
@@ -377,8 +375,7 @@ func (h *Handler) actorID(c *gin.Context) string {
 }
 
 func (h *Handler) principal(c *gin.Context) authorization.Principal {
-	principal, _ := c.Get(principalContextKey)
-	return principal.(authorization.Principal)
+	return authmiddleware.Principal(c)
 }
 
 func (h *Handler) result(c *gin.Context, data any, err error) {

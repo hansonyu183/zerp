@@ -15,8 +15,6 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/response"
 )
 
-const principalContextKey = "bobPrincipal"
-
 type applicationService interface {
 	Query(context.Context, string, QueryInput) (Page[QueryItem], error)
 	Get(context.Context, string, GetInput) (ObjectView, error)
@@ -168,7 +166,7 @@ func (h *Handler) Register(router *gin.Engine) {
 	customerGroup.POST("/attachment-download", h.authorize("/bob/customer/attachment-download"), h.customerAttachmentDownload)
 	customerGroup.POST("/attachment-remove", h.authorize("/bob/customer/attachment-remove"), h.customerAttachmentRemove)
 	referenceGroup := group.Group("/reference")
-	referenceGroup.POST("/query", h.referenceQuery)
+	referenceGroup.POST("/query", authmiddleware.RequireSession(h.authorizer, "/bob/reference/query", h.writeAuthorizationError), h.referenceQuery)
 	router.PUT("/files/customer-attachments/upload/:token", h.customerAttachmentUpload)
 	router.GET("/files/customer-attachments/download/:token", h.customerAttachmentFileDownload)
 }
@@ -263,8 +261,7 @@ func (h *Handler) otherUnitCreate(c *gin.Context) {
 	if input.NewParty != nil {
 		requiredPartyPath = "/bob/party/create"
 	}
-	if _, err := h.authorizer.Authorize(c.Request.Context(), c.Request, requiredPartyPath, response.RequestID(c)); err != nil {
-		h.writeAuthorizationError(c, err)
+	if !authmiddleware.CheckPermission(c, h.authorizer, requiredPartyPath, h.writeAuthorizationError) {
 		return
 	}
 	result, err := h.partyOtherUnitService().OtherUnitCreate(c.Request.Context(), input, h.actorID(c), response.RequestID(c),
@@ -290,8 +287,7 @@ func hasPermission(principal authorization.Principal, path string) bool {
 }
 
 func (h *Handler) principal(c *gin.Context) authorization.Principal {
-	principal, _ := c.Get(principalContextKey)
-	return principal.(authorization.Principal)
+	return authmiddleware.Principal(c)
 }
 
 func (h *Handler) partyOtherUnitService() partyOtherUnitApplicationService {
@@ -303,8 +299,7 @@ func (h *Handler) referenceQuery(c *gin.Context) {
 	if !h.bind(c, &input) {
 		return
 	}
-	if _, err := h.authorizer.Authorize(c.Request.Context(), c.Request, "/bob/"+input.Entity+"/query", response.RequestID(c)); err != nil {
-		h.writeAuthorizationError(c, err)
+	if !authmiddleware.CheckPermission(c, h.authorizer, "/bob/"+input.Entity+"/query", h.writeAuthorizationError) {
 		return
 	}
 	result, err := h.service.QueryReferenceCandidates(c.Request.Context(), input)
@@ -312,7 +307,7 @@ func (h *Handler) referenceQuery(c *gin.Context) {
 }
 
 func (h *Handler) authorize(path string) gin.HandlerFunc {
-	return authmiddleware.Require(h.authorizer, path, principalContextKey, h.writeAuthorizationError)
+	return authmiddleware.RequirePermission(h.authorizer, path, h.writeAuthorizationError)
 }
 
 func (h *Handler) query(c *gin.Context, entity string) {
@@ -424,8 +419,7 @@ func (h *Handler) create(c *gin.Context, entity string) {
 		if input.NewParty != nil {
 			requiredPartyPath = "/bob/party/create"
 		}
-		if _, err := h.authorizer.Authorize(c.Request.Context(), c.Request, requiredPartyPath, response.RequestID(c)); err != nil {
-			h.writeAuthorizationError(c, err)
+		if !authmiddleware.CheckPermission(c, h.authorizer, requiredPartyPath, h.writeAuthorizationError) {
 			return
 		}
 		result, err := h.service.CustomerCreate(c.Request.Context(), input, h.actorID(c), response.RequestID(c), hasPermission(h.principal(c), "/bob/party/get"))
@@ -441,8 +435,7 @@ func (h *Handler) create(c *gin.Context, entity string) {
 		if input.NewParty != nil {
 			requiredPartyPath = "/bob/party/create"
 		}
-		if _, err := h.authorizer.Authorize(c.Request.Context(), c.Request, requiredPartyPath, response.RequestID(c)); err != nil {
-			h.writeAuthorizationError(c, err)
+		if !authmiddleware.CheckPermission(c, h.authorizer, requiredPartyPath, h.writeAuthorizationError) {
 			return
 		}
 		result, err := h.service.SupplierCreate(c.Request.Context(), input, h.actorID(c), response.RequestID(c),
@@ -459,8 +452,7 @@ func (h *Handler) create(c *gin.Context, entity string) {
 		if input.NewParty != nil {
 			requiredPartyPath = "/bob/party/create"
 		}
-		if _, err := h.authorizer.Authorize(c.Request.Context(), c.Request, requiredPartyPath, response.RequestID(c)); err != nil {
-			h.writeAuthorizationError(c, err)
+		if !authmiddleware.CheckPermission(c, h.authorizer, requiredPartyPath, h.writeAuthorizationError) {
 			return
 		}
 		result, err := h.service.EmploymentCreate(c.Request.Context(), input, h.actorID(c), response.RequestID(c),
@@ -477,8 +469,7 @@ func (h *Handler) create(c *gin.Context, entity string) {
 		if input.NewParty != nil {
 			requiredPartyPath = "/bob/party/create"
 		}
-		if _, err := h.authorizer.Authorize(c.Request.Context(), c.Request, requiredPartyPath, response.RequestID(c)); err != nil {
-			h.writeAuthorizationError(c, err)
+		if !authmiddleware.CheckPermission(c, h.authorizer, requiredPartyPath, h.writeAuthorizationError) {
 			return
 		}
 		result, err := h.service.SalesPartnerCreate(c.Request.Context(), input, h.actorID(c), response.RequestID(c),
@@ -629,8 +620,7 @@ func (h *Handler) bind(c *gin.Context, target any) bool {
 }
 
 func (h *Handler) actorID(c *gin.Context) string {
-	principal, _ := c.Get(principalContextKey)
-	return principal.(authorization.Principal).ActorID
+	return authmiddleware.Principal(c).ActorID
 }
 
 func (h *Handler) result(c *gin.Context, data any, err error) {

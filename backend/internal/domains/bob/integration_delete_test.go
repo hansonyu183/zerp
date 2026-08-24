@@ -224,23 +224,24 @@ func TestDeleteFirstDraftRejectsLifecycleAndIdentityConflictsIntegration(t *test
 		}
 	})
 	t.Run("vehicle candidate restores the effective version", func(t *testing.T) {
-		operating, _ := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{
+		vehicleService := NewService(pool)
+		operating, _ := createApprovedIntegration(t, vehicleService, EntityOperatingEntity, CreateDetailInput{
 			Name: "Vehicle Delete Operating", TaxNumber: "TAX" + newID()[3:],
 		}, "delete-vehicle-operating")
-		created, approved := createApprovedIntegration(t, service, EntityVehicle, CreateDetailInput{
+		created, approved := createApprovedIntegration(t, vehicleService, EntityVehicle, CreateDetailInput{
 			Name: "Candidate Delete Vehicle", PlateNumber: "粤D" + newID(), VehicleType: "厢式货车",
 			CarrierAffiliation: &CarrierAffiliation{Type: "INTERNAL", OperatingEntityID: operating.ObjectID},
 		}, "delete-vehicle")
-		edited, err := service.Edit(t.Context(), EntityVehicle, ObjectRevisionInput{
+		edited, err := vehicleService.Edit(t.Context(), EntityVehicle, ObjectRevisionInput{
 			ObjectID: created.ObjectID, ObjectRevision: approved.ObjectRevision,
 		}, integrationActorOne, "delete-vehicle-edit")
 		if err != nil {
 			t.Fatalf("edit vehicle candidate: %v", err)
 		}
-		if err = service.Delete(t.Context(), EntityVehicle, deleteInput(edited)); err != nil {
+		if err = vehicleService.Delete(t.Context(), EntityVehicle, deleteInput(edited)); err != nil {
 			t.Fatalf("delete vehicle candidate: %v", err)
 		}
-		view, err := service.Get(t.Context(), EntityVehicle, GetInput{ObjectID: created.ObjectID})
+		view, err := vehicleService.Get(t.Context(), EntityVehicle, GetInput{ObjectID: created.ObjectID})
 		if err != nil || view.Version.VersionID != approved.VersionID || view.Version.Status != StatusEffective {
 			t.Fatalf("vehicle after candidate delete = %+v, err=%v", view.Version, err)
 		}

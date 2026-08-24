@@ -112,34 +112,38 @@ func (s *Service) queryObjects(ctx context.Context, entity string, input QueryIn
 	if err != nil {
 		return Page[QueryItem]{}, s.internal("list objects", err)
 	}
-	ids := make([]string, 0, len(rows))
+	candidateObjectIDs := make([]string, 0, len(rows))
 	for _, row := range rows {
-		ids = append(ids, row.ObjectID)
-	}
-	enabledByID := make(map[string]bool, len(rows))
-	if len(ids) > 0 {
-		enabledRows, enabledErr := s.queries.ListBobObjectsEnabled(ctx, ids)
-		if enabledErr != nil {
-			return Page[QueryItem]{}, s.internal("read object availability", enabledErr)
+		view := row.BobVersionView
+		if view.EffectiveVersionID != nil && *view.EffectiveVersionID != view.VersionID {
+			candidateObjectIDs = append(candidateObjectIDs, view.ObjectID)
 		}
-		for _, enabledRow := range enabledRows {
-			enabledByID[enabledRow.ID] = enabledRow.Enabled
+	}
+	effectiveByObjectID := make(map[string]dbsqlc.BobVersionView, len(candidateObjectIDs))
+	if len(candidateObjectIDs) > 0 {
+		effectiveRows, effectiveErr := s.queries.ListBobEffectiveVersionsForObjects(ctx, dbsqlc.ListBobEffectiveVersionsForObjectsParams{
+			Entity: entity, ObjectIds: candidateObjectIDs,
+		})
+		if effectiveErr != nil {
+			return Page[QueryItem]{}, s.internal("read effective list versions", effectiveErr)
+		}
+		for _, effectiveRow := range effectiveRows {
+			effectiveByObjectID[effectiveRow.ObjectID] = effectiveRow
 		}
 	}
 	items := make([]QueryItem, 0, len(rows))
 	for _, row := range rows {
-		item := queryItem(row, enabledByID[row.ObjectID])
-		current := versionSummary(row)
-		if row.EffectiveVersionID != nil && *row.EffectiveVersionID == row.VersionID {
+		view := row.BobVersionView
+		item := queryItem(view, row.Enabled)
+		current := versionSummary(view)
+		if view.EffectiveVersionID != nil && *view.EffectiveVersionID == view.VersionID {
 			item.Effective = &current
 		} else {
 			item.Candidate = &current
-			if row.EffectiveVersionID != nil {
-				effectiveRow, effectiveErr := s.queries.GetBobVersionView(ctx, dbsqlc.GetBobVersionViewParams{
-					ObjectID: row.ObjectID, Entity: entity, VersionID: *row.EffectiveVersionID,
-				})
-				if effectiveErr != nil {
-					return Page[QueryItem]{}, s.internal("read effective list version", effectiveErr)
+			if view.EffectiveVersionID != nil {
+				effectiveRow, ok := effectiveByObjectID[view.ObjectID]
+				if !ok {
+					return Page[QueryItem]{}, s.internal("read effective list versions", errors.New("effective version projection is missing"))
 				}
 				effective := versionSummary(effectiveRow)
 				item.Effective = &effective

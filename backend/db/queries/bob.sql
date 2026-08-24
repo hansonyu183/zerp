@@ -318,6 +318,17 @@ JOIN bob_operating_entity_versions operating_detail ON operating_detail.version_
 WHERE relation.object_id=sqlc.arg(object_id) AND relation.merged_into_object_id IS NULL
   AND party.merged_into_party_id IS NULL;
 
+-- name: ListBobEmploymentRelationshipIdentities :many
+SELECT relation.object_id,relation.party_id,party.kind AS party_kind,party.display_name AS party_display_name,
+       relation.operating_entity_id,operating.code AS operating_entity_code,
+       operating_detail.legal_name AS operating_entity_name
+FROM bob_employment_relationships relation
+JOIN bob_parties party ON party.id=relation.party_id
+JOIN bob_objects operating ON operating.id=relation.operating_entity_id AND operating.entity='operating-entity'
+JOIN bob_operating_entity_versions operating_detail ON operating_detail.version_id=operating.current_version_id
+WHERE relation.object_id=ANY(sqlc.arg(object_ids)::text[]) AND relation.merged_into_object_id IS NULL
+  AND party.merged_into_party_id IS NULL;
+
 -- name: GetBobSupplierRelationshipIdentity :one
 SELECT relation.party_id,party.kind AS party_kind,party.display_name AS party_display_name,
        relation.operating_entity_id,operating.code AS operating_entity_code,
@@ -868,6 +879,12 @@ SELECT unit_object_id,unit_version_id,unit_code,unit_name,unit_symbol,factor_mic
 FROM bob_product_unit_conversions WHERE product_version_id=sqlc.arg(product_version_id)
 ORDER BY unit_code;
 
+-- name: ListBobProductUnitConversionsByVersionIDs :many
+SELECT product_version_id,unit_object_id,unit_version_id,unit_code,unit_name,unit_symbol,factor_micros
+FROM bob_product_unit_conversions
+WHERE product_version_id=ANY(sqlc.arg(product_version_ids)::text[])
+ORDER BY product_version_id,unit_code;
+
 -- name: RefreshBobProductCandidateFormulaMaterials :exec
 UPDATE bob_product_formula_lines line
 SET material_version_id=material.effective_version_id,
@@ -957,6 +974,23 @@ JOIN bob_product_versions detail
 WHERE line.product_version_id = sqlc.arg(product_version_id)
 ORDER BY line.line_no;
 
+-- name: ListBobProductFormulasByVersionIDs :many
+SELECT formula.product_version_id,
+       formula.output_entered_quantity_micros,formula.output_unit_object_id,formula.output_unit_version_id,
+       formula.output_unit_code,formula.output_unit_name,formula.output_unit_symbol,formula.output_base_quantity_micros,
+       line.line_no,line.material_object_id,line.material_version_id,
+       material.code AS material_code,material_detail.name AS material_name,
+       material_detail.behavior_profile AS material_behavior_profile,
+       line.entered_quantity_micros,line.entered_unit_object_id,line.entered_unit_version_id,
+       line.entered_unit_code,line.entered_unit_name,line.entered_unit_symbol,line.base_quantity_micros,
+       line.resolution_status,line.requires_confirmation
+FROM bob_product_formulas formula
+LEFT JOIN bob_product_formula_lines line ON line.product_version_id=formula.product_version_id
+LEFT JOIN bob_objects material ON material.id=line.material_object_id AND material.entity='product'
+LEFT JOIN bob_product_versions material_detail ON material_detail.version_id=line.material_version_id
+WHERE formula.product_version_id=ANY(sqlc.arg(product_version_ids)::text[])
+ORDER BY formula.product_version_id,line.line_no;
+
 -- name: LockBobObject :one
 SELECT id, entity, code, current_version_id, effective_version_id, enabled, next_version_no, revision, updated_at
 FROM bob_objects
@@ -966,10 +1000,6 @@ FOR UPDATE;
 -- name: GetBobObjectEnabled :one
 SELECT enabled FROM bob_objects
 WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity);
-
--- name: ListBobObjectsEnabled :many
-SELECT id, enabled FROM bob_objects
-WHERE id = ANY(sqlc.arg(ids)::text[]);
 
 -- name: FindBobObjectIDByCode :one
 SELECT id
@@ -1459,6 +1489,13 @@ SELECT * FROM bob_version_views
 WHERE object_id = sqlc.arg(object_id) AND entity = sqlc.arg(entity)
   AND version_id = COALESCE(NULLIF(sqlc.arg(version_id)::text, ''), current_version_id);
 
+-- name: ListBobEffectiveVersionsForObjects :many
+SELECT view.*
+FROM bob_version_views view
+JOIN bob_objects object ON object.id=view.object_id AND object.entity=view.entity
+  AND object.effective_version_id=view.version_id
+WHERE view.entity=sqlc.arg(entity) AND view.object_id=ANY(sqlc.arg(object_ids)::text[]);
+
 -- name: CountBobObjects :one
 SELECT count(*)
 FROM bob_version_views view
@@ -1506,18 +1543,15 @@ WHERE view.entity = sqlc.arg(entity) AND view.version_id = view.current_version_
   );
 
 -- name: ListBobObjects :many
-SELECT view.*
+SELECT sqlc.embed(view),object.enabled
 FROM bob_version_views view
+JOIN (SELECT id,enabled FROM bob_objects) object ON object.id=view.object_id
 WHERE view.entity = sqlc.arg(entity) AND view.version_id = view.current_version_id
   AND (view.entity <> 'settlement-method' OR view.settlement_term_code <> 'LEGACY')
   AND (cardinality(sqlc.arg(statuses)::text[]) = 0 OR view.status = ANY(sqlc.arg(statuses)::text[]) OR ('EFFECTIVE' = ANY(sqlc.arg(statuses)::text[]) AND view.effective_version_id IS NOT NULL))
   AND (
     sqlc.arg(enabled_filter)::integer = -1
-    OR EXISTS (
-      SELECT 1 FROM bob_objects filter_object
-      WHERE filter_object.id = view.object_id
-        AND filter_object.enabled = (sqlc.arg(enabled_filter)::integer = 1)
-    )
+    OR object.enabled = (sqlc.arg(enabled_filter)::integer = 1)
   )
   AND (sqlc.arg(customer_type)::text = '' OR customer_type = sqlc.arg(customer_type))
   AND (sqlc.arg(category_id)::text = '' OR category_id = sqlc.arg(category_id))

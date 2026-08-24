@@ -25,13 +25,28 @@ func (s *Service) queryEmploymentRelationships(ctx context.Context, input QueryI
 	if err != nil {
 		return Page[QueryItem]{}, err
 	}
+	if len(page.Items) == 0 {
+		return page, nil
+	}
+	objectIDs := make([]string, 0, len(page.Items))
+	for _, item := range page.Items {
+		objectIDs = append(objectIDs, item.ObjectID)
+	}
+	rows, err := s.queries.ListBobEmploymentRelationshipIdentities(ctx, objectIDs)
+	if err != nil {
+		return Page[QueryItem]{}, s.internal("read Employment Relationship identities", err)
+	}
+	identityByObjectID := make(map[string]*RelationshipIdentityView, len(rows))
+	for _, row := range rows {
+		identityByObjectID[row.ObjectID] = employmentRelationshipListIdentity(row)
+	}
 	for index := range page.Items {
 		item := &page.Items[index]
-		identity, identityErr := s.queries.GetBobEmploymentRelationshipIdentity(ctx, item.ObjectID)
-		if identityErr != nil {
-			return Page[QueryItem]{}, s.internal("read Employment Relationship identity", identityErr)
+		identity, ok := identityByObjectID[item.ObjectID]
+		if !ok {
+			return Page[QueryItem]{}, s.internal("read Employment Relationship identities", errors.New("relationship identity is missing"))
 		}
-		item.Relationship = employmentRelationshipIdentity(identity)
+		item.Relationship = identity
 		if item.Effective != nil {
 			item.Effective.Summary.Name = identity.PartyDisplayName
 		}
@@ -131,6 +146,12 @@ func (s *Service) EmploymentCreate(
 }
 
 func employmentRelationshipIdentity(row dbsqlc.GetBobEmploymentRelationshipIdentityRow) *RelationshipIdentityView {
+	return &RelationshipIdentityView{PartyID: row.PartyID, PartyKind: row.PartyKind,
+		PartyDisplayName: row.PartyDisplayName, OperatingEntityID: row.OperatingEntityID,
+		OperatingEntityCode: row.OperatingEntityCode, OperatingEntityName: row.OperatingEntityName}
+}
+
+func employmentRelationshipListIdentity(row dbsqlc.ListBobEmploymentRelationshipIdentitiesRow) *RelationshipIdentityView {
 	return &RelationshipIdentityView{PartyID: row.PartyID, PartyKind: row.PartyKind,
 		PartyDisplayName: row.PartyDisplayName, OperatingEntityID: row.OperatingEntityID,
 		OperatingEntityCode: row.OperatingEntityCode, OperatingEntityName: row.OperatingEntityName}

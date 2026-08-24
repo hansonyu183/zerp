@@ -20,35 +20,6 @@ func (q *Queries) AcquireBobPartyIdentifierLock(ctx context.Context, lockKey str
 	return err
 }
 
-const activateSystemManagedVersion = `-- name: ActivateSystemManagedVersion :execrows
-UPDATE bob_versions SET status='EFFECTIVE',revision=revision+1,
-  submitted_at=now(),submitted_by=$1,reviewed_at=now(),reviewed_by=$2,
-  updated_at=now(),updated_by=$2
-WHERE id=$3 AND object_id=$4 AND entity=$5 AND status='DRAFT' AND revision=1
-`
-
-type ActivateSystemManagedVersionParams struct {
-	SubmittedBy *string `db:"submitted_by" json:"submitted_by"`
-	ActorID     *string `db:"actor_id" json:"actor_id"`
-	VersionID   string  `db:"version_id" json:"version_id"`
-	ObjectID    string  `db:"object_id" json:"object_id"`
-	Entity      string  `db:"entity" json:"entity"`
-}
-
-func (q *Queries) ActivateSystemManagedVersion(ctx context.Context, arg ActivateSystemManagedVersionParams) (int64, error) {
-	result, err := q.db.Exec(ctx, activateSystemManagedVersion,
-		arg.SubmittedBy,
-		arg.ActorID,
-		arg.VersionID,
-		arg.ObjectID,
-		arg.Entity,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const advanceBobCustomerAccountCandidate = `-- name: AdvanceBobCustomerAccountCandidate :execrows
 UPDATE bob_objects SET current_version_id=$1,next_version_no=next_version_no+1,
  revision=revision+1,updated_at=now(),updated_by=$2
@@ -528,15 +499,6 @@ func (q *Queries) BobObjectIsCustomerAccount(ctx context.Context, objectID strin
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
-}
-
-const clearWarehouseManagerReference = `-- name: ClearWarehouseManagerReference :exec
-UPDATE bob_warehouse_versions SET manager_employee_id=NULL WHERE version_id=$1
-`
-
-func (q *Queries) ClearWarehouseManagerReference(ctx context.Context, versionID string) error {
-	_, err := q.db.Exec(ctx, clearWarehouseManagerReference, versionID)
-	return err
 }
 
 const copyBobCategoryDetail = `-- name: CopyBobCategoryDetail :exec
@@ -6661,35 +6623,6 @@ func (q *Queries) SwitchBobEffectiveCandidate(ctx context.Context, arg SwitchBob
 		arg.Entity,
 		arg.OldVersionID,
 		arg.Revision,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const switchSystemManagedObjectVersion = `-- name: SwitchSystemManagedObjectVersion :execrows
-UPDATE bob_objects SET current_version_id=$1,effective_version_id=$1,next_version_no=next_version_no+1,revision=revision+1,updated_at=now(),updated_by=$2
-WHERE id=$3 AND entity=$4 AND revision=$5 AND current_version_id=$6 AND effective_version_id=$6
-`
-
-type SwitchSystemManagedObjectVersionParams struct {
-	NewVersionID string `db:"new_version_id" json:"new_version_id"`
-	ActorID      string `db:"actor_id" json:"actor_id"`
-	ObjectID     string `db:"object_id" json:"object_id"`
-	Entity       string `db:"entity" json:"entity"`
-	Revision     int64  `db:"revision" json:"revision"`
-	OldVersionID string `db:"old_version_id" json:"old_version_id"`
-}
-
-func (q *Queries) SwitchSystemManagedObjectVersion(ctx context.Context, arg SwitchSystemManagedObjectVersionParams) (int64, error) {
-	result, err := q.db.Exec(ctx, switchSystemManagedObjectVersion,
-		arg.NewVersionID,
-		arg.ActorID,
-		arg.ObjectID,
-		arg.Entity,
-		arg.Revision,
-		arg.OldVersionID,
 	)
 	if err != nil {
 		return 0, err

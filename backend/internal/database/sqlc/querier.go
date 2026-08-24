@@ -26,7 +26,6 @@ type Querier interface {
 	AcquireAppMenuLock(ctx context.Context) error
 	AcquireBobPartyIdentifierLock(ctx context.Context, lockKey string) error
 	AcquireWorkflowCreateChildLock(ctx context.Context, hashtextextended string) error
-	ActivateSystemManagedVersion(ctx context.Context, arg ActivateSystemManagedVersionParams) (int64, error)
 	ActorHasEnabledSuperadminRole(ctx context.Context, userID string) (bool, error)
 	ActorHoldsAppRole(ctx context.Context, arg ActorHoldsAppRoleParams) (bool, error)
 	AddAccountingAssetDepreciation(ctx context.Context, arg AddAccountingAssetDepreciationParams) error
@@ -50,7 +49,6 @@ type Querier interface {
 	ClaimAppFeedbackForPublishing(ctx context.Context) (AppFeedback, error)
 	ClearVouInventoryCountResults(ctx context.Context, documentID string) error
 	ClearVouProductLineExecution(ctx context.Context, documentID string) error
-	ClearWarehouseManagerReference(ctx context.Context, versionID string) error
 	ClearWorkflowNodeDocument(ctx context.Context, documentID *string) error
 	ConfirmAppSystemParameterAdoption(ctx context.Context, arg ConfirmAppSystemParameterAdoptionParams) (AppSystemParameter, error)
 	ConsumeCustomerDownloadToken(ctx context.Context, tokenHash string) (ConsumeCustomerDownloadTokenRow, error)
@@ -735,7 +733,6 @@ type Querier interface {
 	SubmitBobVersion(ctx context.Context, arg SubmitBobVersionParams) (int64, error)
 	SumVouBillLineFaceAmounts(ctx context.Context, documentID string) (int64, error)
 	SwitchBobEffectiveCandidate(ctx context.Context, arg SwitchBobEffectiveCandidateParams) (int64, error)
-	SwitchSystemManagedObjectVersion(ctx context.Context, arg SwitchSystemManagedObjectVersionParams) (int64, error)
 	TouchAccountingOpeningDraft(ctx context.Context, arg TouchAccountingOpeningDraftParams) (int64, error)
 	TouchAppSession(ctx context.Context, arg TouchAppSessionParams) error
 	TouchBobObject(ctx context.Context, arg TouchBobObjectParams) error

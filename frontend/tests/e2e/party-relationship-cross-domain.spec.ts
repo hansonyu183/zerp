@@ -1062,13 +1062,52 @@ test(
         warehouseCandidate.versionId,
       )
       expect(warehouseRow?.candidate?.status).toBe('DRAFT')
-      await approve(
+      const approvedWarehouseCandidate = await approve(
         session.api,
         reviewerSession.api,
         'warehouse',
         warehouseCandidate,
       )
 
+      const blockedManagerDisable = await session.api.post<{
+        references: Array<{ entity: string; field: string; count: number }>
+      }>('bob/employee/disable', {
+        objectId: manager.objectId,
+        objectRevision: manager.objectRevision,
+      })
+      expect(String(blockedManagerDisable.code)).not.toBe('0')
+      expect(blockedManagerDisable.data.references).toEqual([
+        { entity: 'warehouse', field: 'warehouse-manager', count: 1 },
+      ])
+      const warehouseAfterBlockedManagerDisable = await session.api.ok<BobView>(
+        'bob/warehouse/get',
+        { objectId: managedWarehouse.objectId },
+      )
+      expect(warehouseAfterBlockedManagerDisable.version.versionId).toBe(
+        approvedWarehouseCandidate.versionId,
+      )
+      expect(warehouseAfterBlockedManagerDisable.data.managerEmployeeId).toBe(
+        manager.objectId,
+      )
+
+      const managerRemovalCandidate = await session.api.ok<Mutation>(
+        'bob/warehouse/save',
+        {
+          objectId: managedWarehouse.objectId,
+          versionId: approvedWarehouseCandidate.versionId,
+          revision: approvedWarehouseCandidate.revision,
+          data: {
+            name: `E2E 全局仓库候选 ${suffix}`,
+            managerEmployeeId: null,
+          },
+        },
+      )
+      await approve(
+        session.api,
+        reviewerSession.api,
+        'warehouse',
+        managerRemovalCandidate,
+      )
       const disabledManager = await session.api.ok<BobObjectMutation>(
         'bob/employee/disable',
         {
@@ -1077,11 +1116,11 @@ test(
         },
       )
       expect(disabledManager.enabled).toBe(false)
-      const cleanedWarehouse = await session.api.ok<BobView>(
+      const updatedWarehouse = await session.api.ok<BobView>(
         'bob/warehouse/get',
         { objectId: managedWarehouse.objectId },
       )
-      expect(cleanedWarehouse.data.managerEmployeeId ?? null).toBeNull()
+      expect(updatedWarehouse.data.managerEmployeeId ?? null).toBeNull()
 
       const secondOperatingEntity = await createApprovedBob(
         session.api,
@@ -1107,9 +1146,9 @@ test(
         secondEmployee.objectId,
       )
       const sharedWarehouse = {
-        objectId: cleanedWarehouse.objectId,
-        versionId: cleanedWarehouse.version.versionId,
-        code: cleanedWarehouse.code,
+        objectId: updatedWarehouse.objectId,
+        versionId: updatedWarehouse.version.versionId,
+        code: updatedWarehouse.code,
       }
       const firstEntityDraft = await createSaleOrderDraft(
         session.api,
@@ -1161,7 +1200,7 @@ test(
         'bob/warehouse/disable',
         {
           objectId: managedWarehouse.objectId,
-          objectRevision: cleanedWarehouse.objectRevision,
+          objectRevision: updatedWarehouse.objectRevision,
         },
       )
       expect(disabledWarehouse.enabled).toBe(false)

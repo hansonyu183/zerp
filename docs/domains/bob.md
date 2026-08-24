@@ -351,12 +351,11 @@ reject:  PENDING   → DRAFT
 edit: EFFECTIVE → EFFECTIVE + DRAFT(candidate)
 unapprove: EFFECTIVE → EFFECTIVE + PENDING(candidate)
 approve candidate: EFFECTIVE(old) + PENDING(candidate) → INVALID(old) + EFFECTIVE(candidate)
-disable employee with warehouse-manager references: warehouse EFFECTIVE → INVALID + new EFFECTIVE without manager
 ```
 
 除上述转换外全部拒绝。尤其禁止：
 
-- 除员工停用时清空仓库负责人的系统流程外，直接创建 `EFFECTIVE` 版本；
+- 直接创建 `EFFECTIVE` 版本；
 - 修改 `PENDING`、`EFFECTIVE` 或 `INVALID` 的业务字段；
 - 通过普通保存接口修改状态或审计字段。
 
@@ -442,7 +441,7 @@ disable employee with warehouse-manager references: warehouse EFFECTIVE → INVA
 
 对象只要仍有最后有效版本，就可以在候选并存期间启停；动作不修改候选版本。成功后对象 revision 增加；重复启用或重复禁用按数据冲突处理。
 
-任一 BOB 对象失效前必须在同一事务扫描所有当前有效 BOB 关联，并按来源实体和字段返回引用数量。存在任何当前引用时，`disable` 返回结构化 blocker 且不修改任何对象；用户必须进入引用方对象，通过正常编辑、提交和审核流程解除引用后再重试。当前唯一例外是员工停用时的仓库负责人引用：服务会复制仓库最后有效版本、清空负责人并直接切换新有效版本；已有候选版本时整个事务失败。除该明确流程外，禁用动作不得自动清空字段、迁移引用、创建替代版本或修改历史快照。
+任一 BOB 对象失效前必须在同一事务扫描所有当前有效 BOB 关联，并按来源实体和字段返回引用数量。存在任何当前引用时，`disable` 返回结构化 blocker 且不修改任何对象；用户必须进入引用方对象，通过正常编辑、提交和审核流程解除引用后再重试。禁用动作不得自动清空字段、迁移引用、创建替代版本或修改历史快照。
 
 ### 6.5 保存草稿
 
@@ -600,7 +599,7 @@ AUX 产品分类、部门、岗位，以及 BOB 经营主体、负责人、主�
 26. 资金账号只在详情和版本历史返回，查询、关键字搜索、有效引用、审计和日志不暴露完整账号；
 27. 全部公开实体的路由与权限精确匹配，且不自动授予普通角色；
 28. 启停只影响新引用，历史引用与快照保持有效；
-29. 任一 BOB 对象失效时扫描全部当前有效 BOB 关联并按来源实体、字段和数量返回结构化 blocker；除员工停用时清空仓库负责人外，存在引用时不修改引用方或目标对象；
+29. 任一 BOB 对象失效时扫描全部当前有效 BOB 关联并按来源实体、字段和数量返回结构化 blocker；存在引用时不修改引用方或目标对象；
 30. 撤销批准冻结原版本并复制新版本，原版本业务字段永久不再修改。
 31. 每个非包装产品提交和审核时必须具有大于零的 `defaultPackagingSpec`；该数值随产品版本整体管理，产品不维护独立包装规格、交付规格选项或散水规格。
 32. 车辆散水承运能力由 `bulkLiquidCapable` 明确保存，车型字典、核载量和历史装载量都不得替代该能力或产生单位换算。

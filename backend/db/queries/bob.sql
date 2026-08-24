@@ -1705,19 +1705,6 @@ SELECT object.id AS object_id,object.entity,'vehicle-carrier-service'::text AS r
 -- name: ListFormulaMaterialReferences :many
 SELECT object.id AS object_id,object.entity,'formula-material'::text AS role FROM bob_objects object JOIN bob_product_formula_lines formula_line ON formula_line.product_version_id=object.effective_version_id WHERE formula_line.material_object_id=sqlc.arg(source_object_id);
 
--- name: ActivateSystemManagedVersion :execrows
-UPDATE bob_versions SET status='EFFECTIVE',revision=revision+1,
-  submitted_at=now(),submitted_by=sqlc.arg(submitted_by),reviewed_at=now(),reviewed_by=sqlc.arg(actor_id),
-  updated_at=now(),updated_by=sqlc.arg(actor_id)
-WHERE id=sqlc.arg(version_id) AND object_id=sqlc.arg(object_id) AND entity=sqlc.arg(entity) AND status='DRAFT' AND revision=1;
-
--- name: SwitchSystemManagedObjectVersion :execrows
-UPDATE bob_objects SET current_version_id=sqlc.arg(new_version_id),effective_version_id=sqlc.arg(new_version_id),next_version_no=next_version_no+1,revision=revision+1,updated_at=now(),updated_by=sqlc.arg(actor_id)
-WHERE id=sqlc.arg(object_id) AND entity=sqlc.arg(entity) AND revision=sqlc.arg(revision) AND current_version_id=sqlc.arg(old_version_id) AND effective_version_id=sqlc.arg(old_version_id);
-
--- name: ClearWarehouseManagerReference :exec
-UPDATE bob_warehouse_versions SET manager_employee_id=NULL WHERE version_id=sqlc.arg(version_id);
-
 -- name: ListWarehouseDisableInventory :many
 SELECT entry.product_id, object.code AS product_code, product.name AS product_name,
        sum(entry.quantity_delta_micros)::bigint AS quantity_micros

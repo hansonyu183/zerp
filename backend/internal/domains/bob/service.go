@@ -1378,11 +1378,6 @@ func (s *Service) SetEnabled(
 		return MutationResult{}, conflict(object, version, "object is not effective")
 	}
 	if !enabled {
-		if entity == EntityEmployee {
-			if err = s.clearWarehouseManagersForDisabledEmployee(ctx, qtx, input.ObjectID, actorID, requestID); err != nil {
-				return MutationResult{}, err
-			}
-		}
 		uses, scanErr := listDirectReferenceUses(ctx, qtx, entity, input.ObjectID)
 		if scanErr != nil {
 			return MutationResult{}, s.internal("scan direct references before disable", scanErr)

@@ -2,6 +2,7 @@ package bob
 
 import (
 	"context"
+	"errors"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/jackc/pgx/v5"
@@ -12,25 +13,95 @@ func (s *Service) queryProducts(ctx context.Context, input QueryInput) (Page[Que
 	if err != nil {
 		return Page[QueryItem]{}, err
 	}
+	versionIDs := make([]string, 0, len(page.Items)*2)
+	seenVersionIDs := make(map[string]struct{}, len(page.Items)*2)
+	for _, item := range page.Items {
+		for _, version := range []*VersionSummary{item.Effective, item.Candidate} {
+			if version == nil {
+				continue
+			}
+			if _, seen := seenVersionIDs[version.VersionID]; !seen {
+				seenVersionIDs[version.VersionID] = struct{}{}
+				versionIDs = append(versionIDs, version.VersionID)
+			}
+		}
+	}
+	if len(versionIDs) == 0 {
+		return page, nil
+	}
+	unitConversions, formulas, err := s.loadProductListEnrichments(ctx, versionIDs)
+	if err != nil {
+		return Page[QueryItem]{}, err
+	}
 	for index := range page.Items {
 		item := &page.Items[index]
-		current := item.Candidate
-		if current == nil {
-			current = item.Effective
-		}
-		if current == nil {
-			continue
-		}
-		current.Summary.UnitConversions, err = loadProductUnitConversions(ctx, s.queries, current.VersionID)
-		if err != nil {
-			return Page[QueryItem]{}, s.internal("read product unit conversions", err)
-		}
-		current.Summary.Formula, err = loadProductFormula(ctx, s.queries, current.VersionID)
-		if err != nil {
-			return Page[QueryItem]{}, s.internal("read product formula", err)
+		for _, version := range []*VersionSummary{item.Effective, item.Candidate} {
+			if version == nil {
+				continue
+			}
+			version.Summary.UnitConversions = unitConversions[version.VersionID]
+			version.Summary.Formula = formulas[version.VersionID]
 		}
 	}
 	return page, nil
+}
+
+func (s *Service) loadProductListEnrichments(
+	ctx context.Context, versionIDs []string,
+) (map[string][]ProductUnitConversion, map[string]*ProductFormula, error) {
+	unitConversions := make(map[string][]ProductUnitConversion, len(versionIDs))
+	for _, versionID := range versionIDs {
+		unitConversions[versionID] = []ProductUnitConversion{}
+	}
+	unitRows, err := s.queries.ListBobProductUnitConversionsByVersionIDs(ctx, versionIDs)
+	if err != nil {
+		return nil, nil, s.internal("read product unit conversions", err)
+	}
+	for _, row := range unitRows {
+		unitConversions[row.ProductVersionID] = append(unitConversions[row.ProductVersionID], ProductUnitConversion{
+			Unit: MeasurementUnitSnapshot{ObjectID: row.UnitObjectID, VersionID: row.UnitVersionID,
+				Code: row.UnitCode, Name: row.UnitName, Symbol: row.UnitSymbol},
+			Factor: formatMicros(row.FactorMicros),
+		})
+	}
+	formulaRows, err := s.queries.ListBobProductFormulasByVersionIDs(ctx, versionIDs)
+	if err != nil {
+		return nil, nil, s.internal("read product formulas", err)
+	}
+	formulas := make(map[string]*ProductFormula, len(formulaRows))
+	for _, row := range formulaRows {
+		formula := formulas[row.ProductVersionID]
+		if formula == nil {
+			formula = &ProductFormula{
+				Output: QuantitySnapshot{EnteredQuantity: formatMicros(row.OutputEnteredQuantityMicros),
+					EnteredUnit: MeasurementUnitSnapshot{ObjectID: row.OutputUnitObjectID, VersionID: row.OutputUnitVersionID,
+						Code: row.OutputUnitCode, Name: row.OutputUnitName, Symbol: row.OutputUnitSymbol},
+					BaseQuantity: formatMicros(row.OutputBaseQuantityMicros)},
+				Components: []ProductFormulaComponent{},
+			}
+			formulas[row.ProductVersionID] = formula
+		}
+		if row.LineNo == nil {
+			continue
+		}
+		if row.MaterialObjectID == nil || row.MaterialVersionID == nil || row.MaterialCode == nil ||
+			row.MaterialName == nil || row.EnteredQuantityMicros == nil || row.EnteredUnitObjectID == nil ||
+			row.EnteredUnitVersionID == nil || row.EnteredUnitCode == nil || row.EnteredUnitName == nil ||
+			row.EnteredUnitSymbol == nil || row.BaseQuantityMicros == nil || row.ResolutionStatus == nil ||
+			row.RequiresConfirmation == nil {
+			return nil, nil, s.internal("read product formulas", errors.New("formula line projection is incomplete"))
+		}
+		formula.Components = append(formula.Components, ProductFormulaComponent{
+			Material: FormulaMaterialReference{ObjectID: *row.MaterialObjectID, VersionID: *row.MaterialVersionID,
+				Code: *row.MaterialCode, Name: *row.MaterialName, BehaviorProfile: deref(row.MaterialBehaviorProfile)},
+			Quantity: QuantitySnapshot{EnteredQuantity: formatMicros(*row.EnteredQuantityMicros),
+				EnteredUnit: MeasurementUnitSnapshot{ObjectID: *row.EnteredUnitObjectID, VersionID: *row.EnteredUnitVersionID,
+					Code: *row.EnteredUnitCode, Name: *row.EnteredUnitName, Symbol: *row.EnteredUnitSymbol},
+				BaseQuantity: formatMicros(*row.BaseQuantityMicros)},
+			ResolutionStatus: *row.ResolutionStatus, RequiresConfirmation: *row.RequiresConfirmation,
+		})
+	}
+	return unitConversions, formulas, nil
 }
 
 func (s *Service) getProduct(ctx context.Context, input GetInput) (ObjectView, error) {

@@ -4052,108 +4052,21 @@ func (q *Queries) ListBobCustomers(ctx context.Context, arg ListBobCustomersPara
 	return items, nil
 }
 
-const listBobObjects = `-- name: ListBobObjects :many
+const listBobEffectiveVersionsForObjects = `-- name: ListBobEffectiveVersionsForObjects :many
 SELECT view.object_id, view.entity, view.code, view.current_version_id, view.effective_version_id, view.object_revision, view.object_updated_at, view.version_id, view.version_no, view.status, view.version_revision, view.created_at, view.created_by, view.updated_at, view.updated_by, view.submitted_at, view.submitted_by, view.reviewed_at, view.reviewed_by, view.review_comment, view.name, view.unit, view.inventory_unit_id, view.currency, view.plate_number, view.vehicle_type, view.carrier_affiliation_type, view.carrier_operating_entity_id, view.carrier_service_relationship_object_id, view.bulk_liquid_capable, view.customer_type, view.short_name, view.category_id, view.tax_number, view.contact_name, view.contact_phone, view.email, view.address, view.remark, view.department_id, view.position_id, view.phone, view.hire_date, view.specification, view.model, view.barcode, view.description, view.manager_employee_id, view.vin, view.engine_number, view.load_capacity_kg, view.account_name, view.bank_name, view.bank_branch, view.account_number, view.target_entity, view.parent_id, view.settlement_method_id, view.salesperson_employee_id, view.settlement_method_version_id, view.settlement_rule_type, view.settlement_month_offset, view.settlement_day_of_month, view.settlement_day_offset, view.product_type_id, view.product_type_version_id, view.product_type_code, view.product_type_name, view.behavior_profile, view.default_input_unit_id, view.pricing_unit_id, view.returnable, view.default_packaging_spec_micros, view.monthly_closing_day, view.settlement_term_code, view.settlement_default_sales_surcharge_cents, view.rebate_unit_price_cents
 FROM bob_version_views view
-WHERE view.entity = $1 AND view.version_id = view.current_version_id
-  AND (view.entity <> 'settlement-method' OR view.settlement_term_code <> 'LEGACY')
-  AND (cardinality($2::text[]) = 0 OR view.status = ANY($2::text[]) OR ('EFFECTIVE' = ANY($2::text[]) AND view.effective_version_id IS NOT NULL))
-  AND (
-    $3::integer = -1
-    OR EXISTS (
-      SELECT 1 FROM bob_objects filter_object
-      WHERE filter_object.id = view.object_id
-        AND filter_object.enabled = ($3::integer = 1)
-    )
-  )
-  AND ($4::text = '' OR customer_type = $4)
-  AND ($5::text = '' OR category_id = $5)
-  AND ($6::text = '' OR department_id = $6)
-  AND ($7::text = '' OR position_id = $7)
-  AND ($8::text = '' OR salesperson_employee_id = $8)
-  AND ($9::text = '' OR currency = $9)
-  AND ($10::text = '' OR product_type_id = $10)
-  AND ($11::text = '' OR target_entity = $11)
-  AND ($12::text = '' OR parent_id = $12)
-  AND (NOT $13::boolean OR parent_id = '')
-  AND (
-      $14::text = ''
-      OR code ILIKE '%' || $14 || '%'
-      OR name ILIKE '%' || $14 || '%'
-      OR (entity = 'vehicle' AND plate_number ILIKE '%' || $14 || '%')
-      OR short_name ILIKE '%' || $14 || '%'
-      OR tax_number ILIKE '%' || $14 || '%'
-      OR contact_name ILIKE '%' || $14 || '%'
-      OR contact_phone ILIKE '%' || $14 || '%'
-      OR email ILIKE '%' || $14 || '%'
-      OR address ILIKE '%' || $14 || '%'
-      OR phone ILIKE '%' || $14 || '%'
-      OR specification ILIKE '%' || $14 || '%'
-      OR model ILIKE '%' || $14 || '%'
-      OR barcode ILIKE '%' || $14 || '%'
-      OR vin ILIKE '%' || $14 || '%'
-      OR engine_number ILIKE '%' || $14 || '%'
-      OR account_name ILIKE '%' || $14 || '%'
-      OR bank_name ILIKE '%' || $14 || '%'
-      OR bank_branch ILIKE '%' || $14 || '%'
-  )
-ORDER BY
-  CASE WHEN $15::text = 'updatedAt' AND $16::text = 'asc' THEN object_updated_at END ASC,
-  CASE WHEN $15::text = 'updatedAt' AND $16::text = 'desc' THEN object_updated_at END DESC,
-  CASE WHEN $15::text = 'code' AND $16::text = 'asc' THEN code END ASC,
-  CASE WHEN $15::text = 'code' AND $16::text = 'desc' THEN code END DESC,
-  CASE WHEN $15::text = 'name' AND $16::text = 'asc' THEN name END ASC,
-  CASE WHEN $15::text = 'name' AND $16::text = 'desc' THEN name END DESC,
-  CASE WHEN $15::text = 'status' AND $16::text = 'asc' THEN status END ASC,
-  CASE WHEN $15::text = 'status' AND $16::text = 'desc' THEN status END DESC,
-  CASE WHEN $15::text = 'version' AND $16::text = 'asc' THEN version_no END ASC,
-  CASE WHEN $15::text = 'version' AND $16::text = 'desc' THEN version_no END DESC,
-  object_id DESC
-LIMIT $18 OFFSET $17
+JOIN bob_objects object ON object.id=view.object_id AND object.entity=view.entity
+  AND object.effective_version_id=view.version_id
+WHERE view.entity=$1 AND view.object_id=ANY($2::text[])
 `
 
-type ListBobObjectsParams struct {
-	Entity                string   `db:"entity" json:"entity"`
-	Statuses              []string `db:"statuses" json:"statuses"`
-	EnabledFilter         int32    `db:"enabled_filter" json:"enabled_filter"`
-	CustomerType          string   `db:"customer_type" json:"customer_type"`
-	CategoryID            string   `db:"category_id" json:"category_id"`
-	DepartmentID          string   `db:"department_id" json:"department_id"`
-	PositionID            string   `db:"position_id" json:"position_id"`
-	SalespersonEmployeeID string   `db:"salesperson_employee_id" json:"salesperson_employee_id"`
-	Currency              string   `db:"currency" json:"currency"`
-	ProductTypeID         string   `db:"product_type_id" json:"product_type_id"`
-	TargetEntity          string   `db:"target_entity" json:"target_entity"`
-	ParentID              string   `db:"parent_id" json:"parent_id"`
-	RootOnly              bool     `db:"root_only" json:"root_only"`
-	Keyword               string   `db:"keyword" json:"keyword"`
-	SortField             string   `db:"sort_field" json:"sort_field"`
-	SortOrder             string   `db:"sort_order" json:"sort_order"`
-	PageOffset            int32    `db:"page_offset" json:"page_offset"`
-	PageSize              int32    `db:"page_size" json:"page_size"`
+type ListBobEffectiveVersionsForObjectsParams struct {
+	Entity    string   `db:"entity" json:"entity"`
+	ObjectIds []string `db:"object_ids" json:"object_ids"`
 }
 
-func (q *Queries) ListBobObjects(ctx context.Context, arg ListBobObjectsParams) ([]BobVersionView, error) {
-	rows, err := q.db.Query(ctx, listBobObjects,
-		arg.Entity,
-		arg.Statuses,
-		arg.EnabledFilter,
-		arg.CustomerType,
-		arg.CategoryID,
-		arg.DepartmentID,
-		arg.PositionID,
-		arg.SalespersonEmployeeID,
-		arg.Currency,
-		arg.ProductTypeID,
-		arg.TargetEntity,
-		arg.ParentID,
-		arg.RootOnly,
-		arg.Keyword,
-		arg.SortField,
-		arg.SortOrder,
-		arg.PageOffset,
-		arg.PageSize,
-	)
+func (q *Queries) ListBobEffectiveVersionsForObjects(ctx context.Context, arg ListBobEffectiveVersionsForObjectsParams) ([]BobVersionView, error) {
+	rows, err := q.db.Query(ctx, listBobEffectiveVersionsForObjects, arg.Entity, arg.ObjectIds)
 	if err != nil {
 		return nil, err
 	}
@@ -4250,26 +4163,247 @@ func (q *Queries) ListBobObjects(ctx context.Context, arg ListBobObjectsParams) 
 	return items, nil
 }
 
-const listBobObjectsEnabled = `-- name: ListBobObjectsEnabled :many
-SELECT id, enabled FROM bob_objects
-WHERE id = ANY($1::text[])
+const listBobEmploymentRelationshipIdentities = `-- name: ListBobEmploymentRelationshipIdentities :many
+SELECT relation.object_id,relation.party_id,party.kind AS party_kind,party.display_name AS party_display_name,
+       relation.operating_entity_id,operating.code AS operating_entity_code,
+       operating_detail.legal_name AS operating_entity_name
+FROM bob_employment_relationships relation
+JOIN bob_parties party ON party.id=relation.party_id
+JOIN bob_objects operating ON operating.id=relation.operating_entity_id AND operating.entity='operating-entity'
+JOIN bob_operating_entity_versions operating_detail ON operating_detail.version_id=operating.current_version_id
+WHERE relation.object_id=ANY($1::text[]) AND relation.merged_into_object_id IS NULL
+  AND party.merged_into_party_id IS NULL
 `
 
-type ListBobObjectsEnabledRow struct {
-	ID      string `db:"id" json:"id"`
-	Enabled bool   `db:"enabled" json:"enabled"`
+type ListBobEmploymentRelationshipIdentitiesRow struct {
+	ObjectID            string `db:"object_id" json:"object_id"`
+	PartyID             string `db:"party_id" json:"party_id"`
+	PartyKind           string `db:"party_kind" json:"party_kind"`
+	PartyDisplayName    string `db:"party_display_name" json:"party_display_name"`
+	OperatingEntityID   string `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityCode string `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName string `db:"operating_entity_name" json:"operating_entity_name"`
 }
 
-func (q *Queries) ListBobObjectsEnabled(ctx context.Context, ids []string) ([]ListBobObjectsEnabledRow, error) {
-	rows, err := q.db.Query(ctx, listBobObjectsEnabled, ids)
+func (q *Queries) ListBobEmploymentRelationshipIdentities(ctx context.Context, objectIds []string) ([]ListBobEmploymentRelationshipIdentitiesRow, error) {
+	rows, err := q.db.Query(ctx, listBobEmploymentRelationshipIdentities, objectIds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListBobObjectsEnabledRow{}
+	items := []ListBobEmploymentRelationshipIdentitiesRow{}
 	for rows.Next() {
-		var i ListBobObjectsEnabledRow
-		if err := rows.Scan(&i.ID, &i.Enabled); err != nil {
+		var i ListBobEmploymentRelationshipIdentitiesRow
+		if err := rows.Scan(
+			&i.ObjectID,
+			&i.PartyID,
+			&i.PartyKind,
+			&i.PartyDisplayName,
+			&i.OperatingEntityID,
+			&i.OperatingEntityCode,
+			&i.OperatingEntityName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBobObjects = `-- name: ListBobObjects :many
+SELECT view.object_id, view.entity, view.code, view.current_version_id, view.effective_version_id, view.object_revision, view.object_updated_at, view.version_id, view.version_no, view.status, view.version_revision, view.created_at, view.created_by, view.updated_at, view.updated_by, view.submitted_at, view.submitted_by, view.reviewed_at, view.reviewed_by, view.review_comment, view.name, view.unit, view.inventory_unit_id, view.currency, view.plate_number, view.vehicle_type, view.carrier_affiliation_type, view.carrier_operating_entity_id, view.carrier_service_relationship_object_id, view.bulk_liquid_capable, view.customer_type, view.short_name, view.category_id, view.tax_number, view.contact_name, view.contact_phone, view.email, view.address, view.remark, view.department_id, view.position_id, view.phone, view.hire_date, view.specification, view.model, view.barcode, view.description, view.manager_employee_id, view.vin, view.engine_number, view.load_capacity_kg, view.account_name, view.bank_name, view.bank_branch, view.account_number, view.target_entity, view.parent_id, view.settlement_method_id, view.salesperson_employee_id, view.settlement_method_version_id, view.settlement_rule_type, view.settlement_month_offset, view.settlement_day_of_month, view.settlement_day_offset, view.product_type_id, view.product_type_version_id, view.product_type_code, view.product_type_name, view.behavior_profile, view.default_input_unit_id, view.pricing_unit_id, view.returnable, view.default_packaging_spec_micros, view.monthly_closing_day, view.settlement_term_code, view.settlement_default_sales_surcharge_cents, view.rebate_unit_price_cents,object.enabled
+FROM bob_version_views view
+JOIN (SELECT id,enabled FROM bob_objects) object ON object.id=view.object_id
+WHERE view.entity = $1 AND view.version_id = view.current_version_id
+  AND (view.entity <> 'settlement-method' OR view.settlement_term_code <> 'LEGACY')
+  AND (cardinality($2::text[]) = 0 OR view.status = ANY($2::text[]) OR ('EFFECTIVE' = ANY($2::text[]) AND view.effective_version_id IS NOT NULL))
+  AND (
+    $3::integer = -1
+    OR object.enabled = ($3::integer = 1)
+  )
+  AND ($4::text = '' OR customer_type = $4)
+  AND ($5::text = '' OR category_id = $5)
+  AND ($6::text = '' OR department_id = $6)
+  AND ($7::text = '' OR position_id = $7)
+  AND ($8::text = '' OR salesperson_employee_id = $8)
+  AND ($9::text = '' OR currency = $9)
+  AND ($10::text = '' OR product_type_id = $10)
+  AND ($11::text = '' OR target_entity = $11)
+  AND ($12::text = '' OR parent_id = $12)
+  AND (NOT $13::boolean OR parent_id = '')
+  AND (
+      $14::text = ''
+      OR code ILIKE '%' || $14 || '%'
+      OR name ILIKE '%' || $14 || '%'
+      OR (entity = 'vehicle' AND plate_number ILIKE '%' || $14 || '%')
+      OR short_name ILIKE '%' || $14 || '%'
+      OR tax_number ILIKE '%' || $14 || '%'
+      OR contact_name ILIKE '%' || $14 || '%'
+      OR contact_phone ILIKE '%' || $14 || '%'
+      OR email ILIKE '%' || $14 || '%'
+      OR address ILIKE '%' || $14 || '%'
+      OR phone ILIKE '%' || $14 || '%'
+      OR specification ILIKE '%' || $14 || '%'
+      OR model ILIKE '%' || $14 || '%'
+      OR barcode ILIKE '%' || $14 || '%'
+      OR vin ILIKE '%' || $14 || '%'
+      OR engine_number ILIKE '%' || $14 || '%'
+      OR account_name ILIKE '%' || $14 || '%'
+      OR bank_name ILIKE '%' || $14 || '%'
+      OR bank_branch ILIKE '%' || $14 || '%'
+  )
+ORDER BY
+  CASE WHEN $15::text = 'updatedAt' AND $16::text = 'asc' THEN object_updated_at END ASC,
+  CASE WHEN $15::text = 'updatedAt' AND $16::text = 'desc' THEN object_updated_at END DESC,
+  CASE WHEN $15::text = 'code' AND $16::text = 'asc' THEN code END ASC,
+  CASE WHEN $15::text = 'code' AND $16::text = 'desc' THEN code END DESC,
+  CASE WHEN $15::text = 'name' AND $16::text = 'asc' THEN name END ASC,
+  CASE WHEN $15::text = 'name' AND $16::text = 'desc' THEN name END DESC,
+  CASE WHEN $15::text = 'status' AND $16::text = 'asc' THEN status END ASC,
+  CASE WHEN $15::text = 'status' AND $16::text = 'desc' THEN status END DESC,
+  CASE WHEN $15::text = 'version' AND $16::text = 'asc' THEN version_no END ASC,
+  CASE WHEN $15::text = 'version' AND $16::text = 'desc' THEN version_no END DESC,
+  object_id DESC
+LIMIT $18 OFFSET $17
+`
+
+type ListBobObjectsParams struct {
+	Entity                string   `db:"entity" json:"entity"`
+	Statuses              []string `db:"statuses" json:"statuses"`
+	EnabledFilter         int32    `db:"enabled_filter" json:"enabled_filter"`
+	CustomerType          string   `db:"customer_type" json:"customer_type"`
+	CategoryID            string   `db:"category_id" json:"category_id"`
+	DepartmentID          string   `db:"department_id" json:"department_id"`
+	PositionID            string   `db:"position_id" json:"position_id"`
+	SalespersonEmployeeID string   `db:"salesperson_employee_id" json:"salesperson_employee_id"`
+	Currency              string   `db:"currency" json:"currency"`
+	ProductTypeID         string   `db:"product_type_id" json:"product_type_id"`
+	TargetEntity          string   `db:"target_entity" json:"target_entity"`
+	ParentID              string   `db:"parent_id" json:"parent_id"`
+	RootOnly              bool     `db:"root_only" json:"root_only"`
+	Keyword               string   `db:"keyword" json:"keyword"`
+	SortField             string   `db:"sort_field" json:"sort_field"`
+	SortOrder             string   `db:"sort_order" json:"sort_order"`
+	PageOffset            int32    `db:"page_offset" json:"page_offset"`
+	PageSize              int32    `db:"page_size" json:"page_size"`
+}
+
+type ListBobObjectsRow struct {
+	BobVersionView BobVersionView `db:"bob_version_view" json:"bob_version_view"`
+	Enabled        bool           `db:"enabled" json:"enabled"`
+}
+
+func (q *Queries) ListBobObjects(ctx context.Context, arg ListBobObjectsParams) ([]ListBobObjectsRow, error) {
+	rows, err := q.db.Query(ctx, listBobObjects,
+		arg.Entity,
+		arg.Statuses,
+		arg.EnabledFilter,
+		arg.CustomerType,
+		arg.CategoryID,
+		arg.DepartmentID,
+		arg.PositionID,
+		arg.SalespersonEmployeeID,
+		arg.Currency,
+		arg.ProductTypeID,
+		arg.TargetEntity,
+		arg.ParentID,
+		arg.RootOnly,
+		arg.Keyword,
+		arg.SortField,
+		arg.SortOrder,
+		arg.PageOffset,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListBobObjectsRow{}
+	for rows.Next() {
+		var i ListBobObjectsRow
+		if err := rows.Scan(
+			&i.BobVersionView.ObjectID,
+			&i.BobVersionView.Entity,
+			&i.BobVersionView.Code,
+			&i.BobVersionView.CurrentVersionID,
+			&i.BobVersionView.EffectiveVersionID,
+			&i.BobVersionView.ObjectRevision,
+			&i.BobVersionView.ObjectUpdatedAt,
+			&i.BobVersionView.VersionID,
+			&i.BobVersionView.VersionNo,
+			&i.BobVersionView.Status,
+			&i.BobVersionView.VersionRevision,
+			&i.BobVersionView.CreatedAt,
+			&i.BobVersionView.CreatedBy,
+			&i.BobVersionView.UpdatedAt,
+			&i.BobVersionView.UpdatedBy,
+			&i.BobVersionView.SubmittedAt,
+			&i.BobVersionView.SubmittedBy,
+			&i.BobVersionView.ReviewedAt,
+			&i.BobVersionView.ReviewedBy,
+			&i.BobVersionView.ReviewComment,
+			&i.BobVersionView.Name,
+			&i.BobVersionView.Unit,
+			&i.BobVersionView.InventoryUnitID,
+			&i.BobVersionView.Currency,
+			&i.BobVersionView.PlateNumber,
+			&i.BobVersionView.VehicleType,
+			&i.BobVersionView.CarrierAffiliationType,
+			&i.BobVersionView.CarrierOperatingEntityID,
+			&i.BobVersionView.CarrierServiceRelationshipObjectID,
+			&i.BobVersionView.BulkLiquidCapable,
+			&i.BobVersionView.CustomerType,
+			&i.BobVersionView.ShortName,
+			&i.BobVersionView.CategoryID,
+			&i.BobVersionView.TaxNumber,
+			&i.BobVersionView.ContactName,
+			&i.BobVersionView.ContactPhone,
+			&i.BobVersionView.Email,
+			&i.BobVersionView.Address,
+			&i.BobVersionView.Remark,
+			&i.BobVersionView.DepartmentID,
+			&i.BobVersionView.PositionID,
+			&i.BobVersionView.Phone,
+			&i.BobVersionView.HireDate,
+			&i.BobVersionView.Specification,
+			&i.BobVersionView.Model,
+			&i.BobVersionView.Barcode,
+			&i.BobVersionView.Description,
+			&i.BobVersionView.ManagerEmployeeID,
+			&i.BobVersionView.Vin,
+			&i.BobVersionView.EngineNumber,
+			&i.BobVersionView.LoadCapacityKg,
+			&i.BobVersionView.AccountName,
+			&i.BobVersionView.BankName,
+			&i.BobVersionView.BankBranch,
+			&i.BobVersionView.AccountNumber,
+			&i.BobVersionView.TargetEntity,
+			&i.BobVersionView.ParentID,
+			&i.BobVersionView.SettlementMethodID,
+			&i.BobVersionView.SalespersonEmployeeID,
+			&i.BobVersionView.SettlementMethodVersionID,
+			&i.BobVersionView.SettlementRuleType,
+			&i.BobVersionView.SettlementMonthOffset,
+			&i.BobVersionView.SettlementDayOfMonth,
+			&i.BobVersionView.SettlementDayOffset,
+			&i.BobVersionView.ProductTypeID,
+			&i.BobVersionView.ProductTypeVersionID,
+			&i.BobVersionView.ProductTypeCode,
+			&i.BobVersionView.ProductTypeName,
+			&i.BobVersionView.BehaviorProfile,
+			&i.BobVersionView.DefaultInputUnitID,
+			&i.BobVersionView.PricingUnitID,
+			&i.BobVersionView.Returnable,
+			&i.BobVersionView.DefaultPackagingSpecMicros,
+			&i.BobVersionView.MonthlyClosingDay,
+			&i.BobVersionView.SettlementTermCode,
+			&i.BobVersionView.SettlementDefaultSalesSurchargeCents,
+			&i.BobVersionView.RebateUnitPriceCents,
+			&i.Enabled,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -4732,6 +4866,94 @@ func (q *Queries) ListBobProductFormulaLines(ctx context.Context, productVersion
 	return items, nil
 }
 
+const listBobProductFormulasByVersionIDs = `-- name: ListBobProductFormulasByVersionIDs :many
+SELECT formula.product_version_id,
+       formula.output_entered_quantity_micros,formula.output_unit_object_id,formula.output_unit_version_id,
+       formula.output_unit_code,formula.output_unit_name,formula.output_unit_symbol,formula.output_base_quantity_micros,
+       line.line_no,line.material_object_id,line.material_version_id,
+       material.code AS material_code,material_detail.name AS material_name,
+       material_detail.behavior_profile AS material_behavior_profile,
+       line.entered_quantity_micros,line.entered_unit_object_id,line.entered_unit_version_id,
+       line.entered_unit_code,line.entered_unit_name,line.entered_unit_symbol,line.base_quantity_micros,
+       line.resolution_status,line.requires_confirmation
+FROM bob_product_formulas formula
+LEFT JOIN bob_product_formula_lines line ON line.product_version_id=formula.product_version_id
+LEFT JOIN bob_objects material ON material.id=line.material_object_id AND material.entity='product'
+LEFT JOIN bob_product_versions material_detail ON material_detail.version_id=line.material_version_id
+WHERE formula.product_version_id=ANY($1::text[])
+ORDER BY formula.product_version_id,line.line_no
+`
+
+type ListBobProductFormulasByVersionIDsRow struct {
+	ProductVersionID            string  `db:"product_version_id" json:"product_version_id"`
+	OutputEnteredQuantityMicros int64   `db:"output_entered_quantity_micros" json:"output_entered_quantity_micros"`
+	OutputUnitObjectID          string  `db:"output_unit_object_id" json:"output_unit_object_id"`
+	OutputUnitVersionID         string  `db:"output_unit_version_id" json:"output_unit_version_id"`
+	OutputUnitCode              string  `db:"output_unit_code" json:"output_unit_code"`
+	OutputUnitName              string  `db:"output_unit_name" json:"output_unit_name"`
+	OutputUnitSymbol            string  `db:"output_unit_symbol" json:"output_unit_symbol"`
+	OutputBaseQuantityMicros    int64   `db:"output_base_quantity_micros" json:"output_base_quantity_micros"`
+	LineNo                      *int32  `db:"line_no" json:"line_no"`
+	MaterialObjectID            *string `db:"material_object_id" json:"material_object_id"`
+	MaterialVersionID           *string `db:"material_version_id" json:"material_version_id"`
+	MaterialCode                *string `db:"material_code" json:"material_code"`
+	MaterialName                *string `db:"material_name" json:"material_name"`
+	MaterialBehaviorProfile     *string `db:"material_behavior_profile" json:"material_behavior_profile"`
+	EnteredQuantityMicros       *int64  `db:"entered_quantity_micros" json:"entered_quantity_micros"`
+	EnteredUnitObjectID         *string `db:"entered_unit_object_id" json:"entered_unit_object_id"`
+	EnteredUnitVersionID        *string `db:"entered_unit_version_id" json:"entered_unit_version_id"`
+	EnteredUnitCode             *string `db:"entered_unit_code" json:"entered_unit_code"`
+	EnteredUnitName             *string `db:"entered_unit_name" json:"entered_unit_name"`
+	EnteredUnitSymbol           *string `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BaseQuantityMicros          *int64  `db:"base_quantity_micros" json:"base_quantity_micros"`
+	ResolutionStatus            *string `db:"resolution_status" json:"resolution_status"`
+	RequiresConfirmation        *bool   `db:"requires_confirmation" json:"requires_confirmation"`
+}
+
+func (q *Queries) ListBobProductFormulasByVersionIDs(ctx context.Context, productVersionIds []string) ([]ListBobProductFormulasByVersionIDsRow, error) {
+	rows, err := q.db.Query(ctx, listBobProductFormulasByVersionIDs, productVersionIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListBobProductFormulasByVersionIDsRow{}
+	for rows.Next() {
+		var i ListBobProductFormulasByVersionIDsRow
+		if err := rows.Scan(
+			&i.ProductVersionID,
+			&i.OutputEnteredQuantityMicros,
+			&i.OutputUnitObjectID,
+			&i.OutputUnitVersionID,
+			&i.OutputUnitCode,
+			&i.OutputUnitName,
+			&i.OutputUnitSymbol,
+			&i.OutputBaseQuantityMicros,
+			&i.LineNo,
+			&i.MaterialObjectID,
+			&i.MaterialVersionID,
+			&i.MaterialCode,
+			&i.MaterialName,
+			&i.MaterialBehaviorProfile,
+			&i.EnteredQuantityMicros,
+			&i.EnteredUnitObjectID,
+			&i.EnteredUnitVersionID,
+			&i.EnteredUnitCode,
+			&i.EnteredUnitName,
+			&i.EnteredUnitSymbol,
+			&i.BaseQuantityMicros,
+			&i.ResolutionStatus,
+			&i.RequiresConfirmation,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listBobProductUnitConversions = `-- name: ListBobProductUnitConversions :many
 SELECT unit_object_id,unit_version_id,unit_code,unit_name,unit_symbol,factor_micros
 FROM bob_product_unit_conversions WHERE product_version_id=$1
@@ -4757,6 +4979,41 @@ func (q *Queries) ListBobProductUnitConversions(ctx context.Context, productVers
 	for rows.Next() {
 		var i ListBobProductUnitConversionsRow
 		if err := rows.Scan(
+			&i.UnitObjectID,
+			&i.UnitVersionID,
+			&i.UnitCode,
+			&i.UnitName,
+			&i.UnitSymbol,
+			&i.FactorMicros,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBobProductUnitConversionsByVersionIDs = `-- name: ListBobProductUnitConversionsByVersionIDs :many
+SELECT product_version_id,unit_object_id,unit_version_id,unit_code,unit_name,unit_symbol,factor_micros
+FROM bob_product_unit_conversions
+WHERE product_version_id=ANY($1::text[])
+ORDER BY product_version_id,unit_code
+`
+
+func (q *Queries) ListBobProductUnitConversionsByVersionIDs(ctx context.Context, productVersionIds []string) ([]BobProductUnitConversion, error) {
+	rows, err := q.db.Query(ctx, listBobProductUnitConversionsByVersionIDs, productVersionIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []BobProductUnitConversion{}
+	for rows.Next() {
+		var i BobProductUnitConversion
+		if err := rows.Scan(
+			&i.ProductVersionID,
 			&i.UnitObjectID,
 			&i.UnitVersionID,
 			&i.UnitCode,

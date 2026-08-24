@@ -256,6 +256,25 @@ func TestProductEffectiveSaveCreatesApprovableCandidateIntegration(t *testing.T)
 	if explicitCandidateView.Data.Formula == nil || !explicitCandidateView.Data.Formula.Components[0].RequiresConfirmation {
 		t.Fatalf("explicit candidate formula was not refreshed: %+v", explicitCandidateView.Data.Formula)
 	}
+	productPage, err := service.Query(t.Context(), EntityProduct, QueryInput{
+		Page: 1, PageSize: 20, Filters: QueryFilters{Keyword: explicitCurrent.Code},
+		Sort: []SortItem{{Field: "code", Order: "asc"}},
+	})
+	if err != nil {
+		t.Fatalf("query product with effective and candidate summaries: %v", err)
+	}
+	if len(productPage.Items) != 1 || productPage.Items[0].Effective == nil || productPage.Items[0].Candidate == nil {
+		t.Fatalf("product list summaries = %+v", productPage.Items)
+	}
+	for label, summary := range map[string]*VersionSummary{
+		"effective": productPage.Items[0].Effective,
+		"candidate": productPage.Items[0].Candidate,
+	} {
+		if len(summary.Summary.UnitConversions) != 1 || summary.Summary.Formula == nil ||
+			len(summary.Summary.Formula.Components) != 1 {
+			t.Fatalf("%s product list enrichment = %+v", label, summary.Summary)
+		}
+	}
 
 	current, err = service.Get(t.Context(), EntityProduct, GetInput{ObjectID: created.ObjectID})
 	if err != nil {

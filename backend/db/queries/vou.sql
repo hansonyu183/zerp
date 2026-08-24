@@ -1151,6 +1151,8 @@ DELETE FROM vou_audit_events WHERE document_id=sqlc.arg(document_id);
 DELETE FROM vou_sale_outbound_lines WHERE document_id=sqlc.arg(document_id);
 -- name: DeleteVouSaleOutboundDetails :exec
 DELETE FROM vou_sale_outbound_details WHERE document_id=sqlc.arg(document_id);
+-- name: DeleteVouSaleOrderDetails :exec
+DELETE FROM vou_sale_order_details WHERE document_id=sqlc.arg(document_id);
 -- name: DeleteVouSaleDeliveryDetails :exec
 DELETE FROM vou_sale_delivery_details WHERE document_id=sqlc.arg(document_id);
 -- name: DeleteVouSaleSignoffLines :exec
@@ -1171,6 +1173,24 @@ DELETE FROM vou_payment_details WHERE document_id=sqlc.arg(document_id);
 DELETE FROM vou_sale_return_lines WHERE document_id=sqlc.arg(document_id);
 -- name: DeleteVouSaleReturnDetails :exec
 DELETE FROM vou_sale_return_details WHERE document_id=sqlc.arg(document_id);
+
+-- name: VouSaleOutboundRequiresBulkLiquidVehicle :one
+SELECT EXISTS(
+    SELECT 1
+    FROM vou_sale_outbound_lines AS outbound_line
+    JOIN vou_product_lines AS order_line ON order_line.id=outbound_line.source_order_line_id
+    WHERE outbound_line.document_id=sqlc.arg(document_id)
+      AND order_line.delivery_specification_type='BULK_LIQUID'
+);
+
+-- name: LockVouSaleDeliveryCarrierSnapshot :one
+SELECT source_outbound_id,carrier_type,
+       carrier_operating_entity_object_id,carrier_operating_entity_version_id,
+       carrier_service_relationship_object_id,carrier_service_relationship_version_id,
+       vehicle_object_id,vehicle_version_id
+FROM vou_sale_delivery_details
+WHERE document_id=sqlc.arg(document_id)
+FOR UPDATE;
 
 -- name: FindVouRefusalReturnDocument :one
 SELECT document_id

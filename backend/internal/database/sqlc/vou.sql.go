@@ -557,6 +557,15 @@ func (q *Queries) DeleteVouSaleDeliveryDetails(ctx context.Context, documentID s
 	return err
 }
 
+const deleteVouSaleOrderDetails = `-- name: DeleteVouSaleOrderDetails :exec
+DELETE FROM vou_sale_order_details WHERE document_id=$1
+`
+
+func (q *Queries) DeleteVouSaleOrderDetails(ctx context.Context, documentID string) error {
+	_, err := q.db.Exec(ctx, deleteVouSaleOrderDetails, documentID)
+	return err
+}
+
 const deleteVouSaleOutboundDetails = `-- name: DeleteVouSaleOutboundDetails :exec
 DELETE FROM vou_sale_outbound_details WHERE document_id=$1
 `
@@ -4506,6 +4515,43 @@ func (q *Queries) LockVouRefusalReturnSource(ctx context.Context, documentID str
 	return i, err
 }
 
+const lockVouSaleDeliveryCarrierSnapshot = `-- name: LockVouSaleDeliveryCarrierSnapshot :one
+SELECT source_outbound_id,carrier_type,
+       carrier_operating_entity_object_id,carrier_operating_entity_version_id,
+       carrier_service_relationship_object_id,carrier_service_relationship_version_id,
+       vehicle_object_id,vehicle_version_id
+FROM vou_sale_delivery_details
+WHERE document_id=$1
+FOR UPDATE
+`
+
+type LockVouSaleDeliveryCarrierSnapshotRow struct {
+	SourceOutboundID                    string  `db:"source_outbound_id" json:"source_outbound_id"`
+	CarrierType                         string  `db:"carrier_type" json:"carrier_type"`
+	CarrierOperatingEntityObjectID      *string `db:"carrier_operating_entity_object_id" json:"carrier_operating_entity_object_id"`
+	CarrierOperatingEntityVersionID     *string `db:"carrier_operating_entity_version_id" json:"carrier_operating_entity_version_id"`
+	CarrierServiceRelationshipObjectID  *string `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
+	CarrierServiceRelationshipVersionID *string `db:"carrier_service_relationship_version_id" json:"carrier_service_relationship_version_id"`
+	VehicleObjectID                     *string `db:"vehicle_object_id" json:"vehicle_object_id"`
+	VehicleVersionID                    *string `db:"vehicle_version_id" json:"vehicle_version_id"`
+}
+
+func (q *Queries) LockVouSaleDeliveryCarrierSnapshot(ctx context.Context, documentID string) (LockVouSaleDeliveryCarrierSnapshotRow, error) {
+	row := q.db.QueryRow(ctx, lockVouSaleDeliveryCarrierSnapshot, documentID)
+	var i LockVouSaleDeliveryCarrierSnapshotRow
+	err := row.Scan(
+		&i.SourceOutboundID,
+		&i.CarrierType,
+		&i.CarrierOperatingEntityObjectID,
+		&i.CarrierOperatingEntityVersionID,
+		&i.CarrierServiceRelationshipObjectID,
+		&i.CarrierServiceRelationshipVersionID,
+		&i.VehicleObjectID,
+		&i.VehicleVersionID,
+	)
+	return i, err
+}
+
 const lockVouSettlementBalance = `-- name: LockVouSettlementBalance :exec
 SELECT pg_advisory_xact_lock(hashtextextended($1,0))
 `
@@ -5443,6 +5489,23 @@ type VouEntityExistsOnBusinessDateParams struct {
 
 func (q *Queries) VouEntityExistsOnBusinessDate(ctx context.Context, arg VouEntityExistsOnBusinessDateParams) (bool, error) {
 	row := q.db.QueryRow(ctx, vouEntityExistsOnBusinessDate, arg.Entity, arg.BusinessDate)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const vouSaleOutboundRequiresBulkLiquidVehicle = `-- name: VouSaleOutboundRequiresBulkLiquidVehicle :one
+SELECT EXISTS(
+    SELECT 1
+    FROM vou_sale_outbound_lines AS outbound_line
+    JOIN vou_product_lines AS order_line ON order_line.id=outbound_line.source_order_line_id
+    WHERE outbound_line.document_id=$1
+      AND order_line.delivery_specification_type='BULK_LIQUID'
+)
+`
+
+func (q *Queries) VouSaleOutboundRequiresBulkLiquidVehicle(ctx context.Context, documentID string) (bool, error) {
+	row := q.db.QueryRow(ctx, vouSaleOutboundRequiresBulkLiquidVehicle, documentID)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err

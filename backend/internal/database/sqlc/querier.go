@@ -229,6 +229,7 @@ type Querier interface {
 	DeleteVouPurchaseInboundLines(ctx context.Context, documentID string) error
 	DeleteVouReceiptDetails(ctx context.Context, documentID string) error
 	DeleteVouSaleDeliveryDetails(ctx context.Context, documentID string) error
+	DeleteVouSaleOrderDetails(ctx context.Context, documentID string) error
 	DeleteVouSaleOutboundDetails(ctx context.Context, documentID string) error
 	DeleteVouSaleOutboundLines(ctx context.Context, documentID string) error
 	DeleteVouSaleReturnDetails(ctx context.Context, documentID string) error
@@ -609,6 +610,7 @@ type Querier interface {
 	LockVouDocumentStatusForShare(ctx context.Context, documentID string) (string, error)
 	LockVouIntermediaryScript(ctx context.Context) (VouIntermediaryScript, error)
 	LockVouRefusalReturnSource(ctx context.Context, documentID string) (LockVouRefusalReturnSourceRow, error)
+	LockVouSaleDeliveryCarrierSnapshot(ctx context.Context, documentID string) (LockVouSaleDeliveryCarrierSnapshotRow, error)
 	LockVouServiceAcceptanceContract(ctx context.Context, contractDocumentID string) (LockVouServiceAcceptanceContractRow, error)
 	LockVouServiceContractDetail(ctx context.Context, documentID string) (VouServiceContractDetail, error)
 	LockVouSettlementBalance(ctx context.Context, lockKey string) error
@@ -801,6 +803,7 @@ type Querier interface {
 	UpsertWorkflowDefinitionPermission(ctx context.Context, arg UpsertWorkflowDefinitionPermissionParams) error
 	UserHoldsSuperadminRole(ctx context.Context, userID string) (bool, error)
 	VouEntityExistsOnBusinessDate(ctx context.Context, arg VouEntityExistsOnBusinessDateParams) (bool, error)
+	VouSaleOutboundRequiresBulkLiquidVehicle(ctx context.Context, documentID string) (bool, error)
 	WorkflowDefinitionHasInstances(ctx context.Context, definitionID string) (bool, error)
 	WorkflowDocumentHasRootInstance(ctx context.Context, documentID *string) (bool, error)
 }

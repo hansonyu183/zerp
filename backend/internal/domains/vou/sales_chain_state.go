@@ -401,6 +401,7 @@ func (s *Service) Delete(
 		return MutationResult{}, s.internal("begin delete draft", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+	qtx := s.queries.WithTx(tx)
 	var number, status string
 	var parentID *string
 	var revision int64
@@ -421,8 +422,7 @@ func (s *Service) Delete(
 		}
 	}
 	if entity == EntityIntermediaryCalculation {
-		q := s.queries.WithTx(tx)
-		if err = s.requireNoIntermediaryCalculationDependents(ctx, q, input.DocumentID); err != nil {
+		if err = s.requireNoIntermediaryCalculationDependents(ctx, qtx, input.DocumentID); err != nil {
 			return MutationResult{}, err
 		}
 	}
@@ -482,18 +482,22 @@ func (s *Service) Delete(
 				input.DocumentID)
 		}
 	case EntitySaleOrder:
-		_, err = tx.Exec(ctx, `DELETE FROM vou_product_lines WHERE document_id=$1`, input.DocumentID)
+		err = qtx.DeleteVouProductLines(ctx, input.DocumentID)
 		if err == nil {
-			_, err = tx.Exec(ctx, `DELETE FROM vou_sale_order_details WHERE document_id=$1`, input.DocumentID)
+			err = qtx.DeleteVouSaleOrderDetails(ctx, input.DocumentID)
 		}
 	case EntitySaleOutbound:
-		_, err = tx.Exec(ctx, `DELETE FROM vou_sale_outbound_lines WHERE document_id=$1;
-			DELETE FROM vou_sale_outbound_details WHERE document_id=$1`, input.DocumentID)
+		err = qtx.DeleteVouSaleOutboundLines(ctx, input.DocumentID)
+		if err == nil {
+			err = qtx.DeleteVouSaleOutboundDetails(ctx, input.DocumentID)
+		}
 	case EntitySaleDelivery:
-		_, err = tx.Exec(ctx, `DELETE FROM vou_sale_delivery_details WHERE document_id=$1`, input.DocumentID)
+		err = qtx.DeleteVouSaleDeliveryDetails(ctx, input.DocumentID)
 	case EntitySaleSignoff:
-		_, err = tx.Exec(ctx, `DELETE FROM vou_sale_signoff_lines WHERE document_id=$1;
-			DELETE FROM vou_sale_signoff_details WHERE document_id=$1`, input.DocumentID)
+		err = qtx.DeleteVouSaleSignoffLines(ctx, input.DocumentID)
+		if err == nil {
+			err = qtx.DeleteVouSaleSignoffDetails(ctx, input.DocumentID)
+		}
 	case EntitySaleReturn:
 		if _, err = tx.Exec(ctx, `DELETE FROM vou_sale_return_lines WHERE document_id=$1`,
 			input.DocumentID); err == nil {

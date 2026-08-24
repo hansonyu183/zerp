@@ -466,50 +466,28 @@ func (s *Service) writeSaleOutbound(
 
 type saleDeliveryTransport struct {
 	carrierType string
-	operating   *bobdomain.EffectiveReference
-	service     *bobdomain.EffectiveReference
+	operating   nullableReferenceSnapshot
+	service     nullableReferenceSnapshot
 	vehicle     bobdomain.EffectiveReference
 }
 
-func referenceSnapshotField(reference *bobdomain.EffectiveReference, field string) any {
-	if reference == nil {
-		return nil
-	}
-	switch field {
-	case "object":
-		return reference.ObjectID
-	case "version":
-		return reference.VersionID
-	case "code":
-		return reference.Code
-	default:
-		return reference.Data.Name
-	}
+type nullableReferenceSnapshot struct {
+	objectID  *string
+	versionID *string
+	code      *string
+	name      *string
 }
 
-func (value saleDeliveryTransport) operatingObjectID() any {
-	return referenceSnapshotField(value.operating, "object")
-}
-func (value saleDeliveryTransport) operatingVersionID() any {
-	return referenceSnapshotField(value.operating, "version")
-}
-func (value saleDeliveryTransport) operatingCode() any {
-	return referenceSnapshotField(value.operating, "code")
-}
-func (value saleDeliveryTransport) operatingName() any {
-	return referenceSnapshotField(value.operating, "name")
-}
-func (value saleDeliveryTransport) serviceObjectID() any {
-	return referenceSnapshotField(value.service, "object")
-}
-func (value saleDeliveryTransport) serviceVersionID() any {
-	return referenceSnapshotField(value.service, "version")
-}
-func (value saleDeliveryTransport) serviceCode() any {
-	return referenceSnapshotField(value.service, "code")
-}
-func (value saleDeliveryTransport) serviceName() any {
-	return referenceSnapshotField(value.service, "name")
+func newNullableReferenceSnapshot(reference *bobdomain.EffectiveReference) nullableReferenceSnapshot {
+	if reference == nil {
+		return nullableReferenceSnapshot{}
+	}
+	return nullableReferenceSnapshot{
+		objectID:  &reference.ObjectID,
+		versionID: &reference.VersionID,
+		code:      &reference.Code,
+		name:      &reference.Data.Name,
+	}
 }
 
 func (s *Service) resolveSaleDeliveryTransport(
@@ -526,13 +504,8 @@ func (s *Service) resolveSaleDeliveryTransport(
 		return saleDeliveryTransport{}, domainError(ErrorConflict, "vehicle is not currently effective", nil, err)
 	}
 	var requiresBulkLiquidCapability bool
-	if err = tx.QueryRow(ctx, `SELECT EXISTS(
-		SELECT 1
-		FROM vou_sale_outbound_lines AS outbound_line
-		JOIN vou_product_lines AS order_line ON order_line.id = outbound_line.source_order_line_id
-		WHERE outbound_line.document_id = $1
-		  AND order_line.delivery_specification_type = 'BULK_LIQUID'
-	)`, source.ID).Scan(&requiresBulkLiquidCapability); err != nil {
+	qtx := s.queries.WithTx(tx)
+	if requiresBulkLiquidCapability, err = qtx.VouSaleOutboundRequiresBulkLiquidVehicle(ctx, source.ID); err != nil {
 		return saleDeliveryTransport{}, s.internal("check sale delivery vehicle capability", err)
 	}
 	if requiresBulkLiquidCapability && !vehicle.Data.BulkLiquidCapable {
@@ -551,7 +524,7 @@ func (s *Service) resolveSaleDeliveryTransport(
 		if resolveErr != nil {
 			return saleDeliveryTransport{}, domainError(ErrorConflict, "vehicle Operating Entity is not currently effective", nil, resolveErr)
 		}
-		result.operating = &operating
+		result.operating = newNullableReferenceSnapshot(&operating)
 	case "EXTERNAL":
 		if err = validateReference(carrier, "carrier", true); err != nil {
 			return saleDeliveryTransport{}, err
@@ -565,7 +538,7 @@ func (s *Service) resolveSaleDeliveryTransport(
 		if affiliation.ServiceRelationshipObjectID != service.ObjectID {
 			return saleDeliveryTransport{}, domainError(ErrorConflict, "external vehicle does not belong to the selected carrier", nil, nil)
 		}
-		result.service = &service
+		result.service = newNullableReferenceSnapshot(&service)
 	default:
 		return saleDeliveryTransport{}, domainError(ErrorConflict, "vehicle carrier affiliation is invalid", nil, nil)
 	}
@@ -573,39 +546,36 @@ func (s *Service) resolveSaleDeliveryTransport(
 }
 
 func (s *Service) validateSaleDeliveryTransportCurrent(ctx context.Context, tx pgx.Tx, documentID string) error {
-	var sourceOutboundID, carrierType, vehicleObjectID, vehicleVersionID string
-	var operatingObjectID, operatingVersionID, serviceObjectID, serviceVersionID *string
-	err := tx.QueryRow(ctx, `SELECT source_outbound_id,carrier_type,
-		carrier_operating_entity_object_id,carrier_operating_entity_version_id,
-		carrier_service_relationship_object_id,carrier_service_relationship_version_id,
-		vehicle_object_id,vehicle_version_id
-		FROM vou_sale_delivery_details WHERE document_id=$1 FOR UPDATE`, documentID).Scan(
-		&sourceOutboundID, &carrierType, &operatingObjectID, &operatingVersionID,
-		&serviceObjectID, &serviceVersionID, &vehicleObjectID, &vehicleVersionID,
-	)
+	qtx := s.queries.WithTx(tx)
+	snapshot, err := qtx.LockVouSaleDeliveryCarrierSnapshot(ctx, documentID)
 	if err != nil {
 		return s.internal("read sale delivery carrier snapshot", err)
 	}
-	source, err := s.lockSalesSource(ctx, tx, sourceOutboundID, EntitySaleOutbound)
+	source, err := s.lockSalesSource(ctx, tx, snapshot.SourceOutboundID, EntitySaleOutbound)
 	if err != nil {
 		return err
 	}
 	var carrier *ReferenceInput
-	if serviceObjectID != nil && serviceVersionID != nil {
-		carrier = &ReferenceInput{ObjectID: *serviceObjectID, VersionID: *serviceVersionID}
+	if snapshot.CarrierServiceRelationshipObjectID != nil && snapshot.CarrierServiceRelationshipVersionID != nil {
+		carrier = &ReferenceInput{ObjectID: *snapshot.CarrierServiceRelationshipObjectID, VersionID: *snapshot.CarrierServiceRelationshipVersionID}
+	}
+	if snapshot.VehicleObjectID == nil || snapshot.VehicleVersionID == nil {
+		return domainError(ErrorConflict, "sales-chain source is not ready", nil, nil)
 	}
 	transport, err := s.resolveSaleDeliveryTransport(ctx, tx, source, carrier, ReferenceInput{
-		ObjectID: vehicleObjectID, VersionID: vehicleVersionID,
+		ObjectID: *snapshot.VehicleObjectID, VersionID: *snapshot.VehicleVersionID,
 	})
 	if err != nil {
 		return err
 	}
-	if transport.carrierType != carrierType {
+	if transport.carrierType != snapshot.CarrierType {
 		return domainError(ErrorConflict, "saved carrier type is no longer current", nil, nil)
 	}
-	if carrierType == "INTERNAL" {
-		if operatingObjectID == nil || operatingVersionID == nil || transport.operating == nil ||
-			transport.operating.ObjectID != *operatingObjectID || transport.operating.VersionID != *operatingVersionID {
+	if snapshot.CarrierType == "INTERNAL" {
+		if snapshot.CarrierOperatingEntityObjectID == nil || snapshot.CarrierOperatingEntityVersionID == nil ||
+			transport.operating.objectID == nil || transport.operating.versionID == nil ||
+			*transport.operating.objectID != *snapshot.CarrierOperatingEntityObjectID ||
+			*transport.operating.versionID != *snapshot.CarrierOperatingEntityVersionID {
 			return domainError(ErrorConflict, "saved Operating Entity version is no longer current", nil, nil)
 		}
 	}
@@ -658,8 +628,8 @@ func (s *Service) writeSaleDelivery(
 				VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
 				id, source.ID, source.CustomerObjectID, source.CustomerVersionID, source.CustomerCode, source.CustomerName,
 				transport.carrierType,
-				transport.operatingObjectID(), transport.operatingVersionID(), transport.operatingCode(), transport.operatingName(),
-				transport.serviceObjectID(), transport.serviceVersionID(), transport.serviceCode(), transport.serviceName(),
+				transport.operating.objectID, transport.operating.versionID, transport.operating.code, transport.operating.name,
+				transport.service.objectID, transport.service.versionID, transport.service.code, transport.service.name,
 				transport.vehicle.ObjectID, transport.vehicle.VersionID, transport.vehicle.Code, transport.vehicle.Data.Name,
 				transport.vehicle.Data.PlateNumber, transport.vehicle.Data.BulkLiquidCapable)
 		}
@@ -675,8 +645,8 @@ func (s *Service) writeSaleDelivery(
 				carrier_service_relationship_object_id=$6,carrier_service_relationship_version_id=$7,carrier_service_relationship_code=$8,carrier_service_relationship_name=$9,
 				vehicle_object_id=$10,vehicle_version_id=$11,vehicle_code=$12,vehicle_name=$13,vehicle_plate_number=$14,vehicle_bulk_liquid_capable=$15
 				WHERE document_id=$16`, transport.carrierType,
-				transport.operatingObjectID(), transport.operatingVersionID(), transport.operatingCode(), transport.operatingName(),
-				transport.serviceObjectID(), transport.serviceVersionID(), transport.serviceCode(), transport.serviceName(),
+				transport.operating.objectID, transport.operating.versionID, transport.operating.code, transport.operating.name,
+				transport.service.objectID, transport.service.versionID, transport.service.code, transport.service.name,
 				transport.vehicle.ObjectID, transport.vehicle.VersionID, transport.vehicle.Code, transport.vehicle.Data.Name,
 				transport.vehicle.Data.PlateNumber, transport.vehicle.Data.BulkLiquidCapable, id)
 		}

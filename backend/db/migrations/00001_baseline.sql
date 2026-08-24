@@ -1566,7 +1566,7 @@ CREATE TABLE public.bob_audit_events (
     comment character varying(1000),
     request_id character varying(128) NOT NULL,
     summary jsonb DEFAULT '{}'::jsonb NOT NULL,
-    CONSTRAINT bob_audit_events_event_type_check CHECK (((event_type)::text = ANY ((ARRAY['CREATED'::character varying, 'EDIT_STARTED'::character varying, 'SAVED'::character varying, 'SUBMITTED'::character varying, 'UNSUBMITTED'::character varying, 'APPROVED'::character varying, 'UNAPPROVED'::character varying, 'REJECTED'::character varying, 'INVALIDATED'::character varying, 'ENABLED'::character varying, 'DISABLED'::character varying, 'WAREHOUSE_MANAGER_CLEARED'::character varying])::text[]))),
+    CONSTRAINT bob_audit_events_event_type_check CHECK (((event_type)::text = ANY ((ARRAY['CREATED'::character varying, 'EDIT_STARTED'::character varying, 'SAVED'::character varying, 'SUBMITTED'::character varying, 'UNSUBMITTED'::character varying, 'APPROVED'::character varying, 'UNAPPROVED'::character varying, 'REJECTED'::character varying, 'INVALIDATED'::character varying, 'ENABLED'::character varying, 'DISABLED'::character varying])::text[]))),
     CONSTRAINT bob_audit_events_from_status_check CHECK (((from_status IS NULL) OR ((from_status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PENDING'::character varying, 'REJECTED'::character varying, 'EFFECTIVE'::character varying, 'INVALID'::character varying])::text[])))),
     CONSTRAINT bob_audit_events_to_status_check CHECK (((to_status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PENDING'::character varying, 'REJECTED'::character varying, 'EFFECTIVE'::character varying, 'INVALID'::character varying])::text[])))
 );

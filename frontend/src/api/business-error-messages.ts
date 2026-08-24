@@ -758,8 +758,6 @@ const exactMessages: Readonly<Record<string, string>> = {
   'vehicle service carrier replacement must be an effective service relationship':
     '车辆的外部承运方接替项必须是当前有效服务关系。',
   'warehouse cannot be disabled': '仓库仍有库存或业务单据，暂时不能停用。',
-  'warehouse manager cleanup conflicts with an existing candidate':
-    '仓库已有待处理变更，不能自动清理负责人。',
   'VOU pool, BOB/AUX resolvers, and event publisher are required':
     '单据服务配置不完整，请联系管理员。',
   'WFL pool, event bus, and runtime are required':

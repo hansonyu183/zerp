@@ -63,7 +63,7 @@ func TestGenericCreateRejectsOtherUnitWithoutPartyRelationship(t *testing.T) {
 func TestGenericSaveRejectsTypedRelationshipEntities(t *testing.T) {
 	t.Parallel()
 	service := &Service{}
-	for _, entity := range []string{EntityCustomer, EntityCustomerAccount, EntityOtherUnit, EntitySalesPartner} {
+	for _, entity := range []string{EntityCustomer, EntityCustomerAccount, EntitySupplier, EntityOtherUnit, EntitySalesPartner} {
 		if _, err := service.Save(t.Context(), entity, SaveInput{}, "", ""); !errorIsKind(err, ErrorValidation) {
 			t.Fatalf("Save(%s) error = %v, want dedicated-operation validation", entity, err)
 		}

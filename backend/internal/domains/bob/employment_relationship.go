@@ -20,6 +20,42 @@ type EmploymentCreateResult struct {
 	PartyID string `json:"partyId"`
 }
 
+func (s *Service) queryEmploymentRelationships(ctx context.Context, input QueryInput) (Page[QueryItem], error) {
+	page, err := s.queryObjects(ctx, EntityEmployee, input)
+	if err != nil {
+		return Page[QueryItem]{}, err
+	}
+	for index := range page.Items {
+		item := &page.Items[index]
+		identity, identityErr := s.queries.GetBobEmploymentRelationshipIdentity(ctx, item.ObjectID)
+		if identityErr != nil {
+			return Page[QueryItem]{}, s.internal("read Employment Relationship identity", identityErr)
+		}
+		item.Relationship = employmentRelationshipIdentity(identity)
+		if item.Effective != nil {
+			item.Effective.Summary.Name = identity.PartyDisplayName
+		}
+		if item.Candidate != nil {
+			item.Candidate.Summary.Name = identity.PartyDisplayName
+		}
+	}
+	return page, nil
+}
+
+func (s *Service) getEmploymentRelationship(ctx context.Context, input GetInput) (ObjectView, error) {
+	result, err := s.getObject(ctx, EntityEmployee, input)
+	if err != nil {
+		return ObjectView{}, err
+	}
+	identity, err := s.queries.GetBobEmploymentRelationshipIdentity(ctx, input.ObjectID)
+	if err != nil {
+		return ObjectView{}, s.internal("read Employment Relationship identity", err)
+	}
+	result.Relationship = employmentRelationshipIdentity(identity)
+	result.Data.Name = identity.PartyDisplayName
+	return result, nil
+}
+
 func (s *Service) EmploymentCreate(
 	ctx context.Context,
 	input EmploymentCreateInput,

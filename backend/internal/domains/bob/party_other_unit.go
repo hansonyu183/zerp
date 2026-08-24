@@ -587,7 +587,7 @@ func (s *Service) OtherUnitCreate(
 
 	data := DetailView{SettlementMethodID: strings.TrimSpace(input.Data.SettlementMethodID)}
 	if data.SettlementMethodID != "" {
-		data, err = s.resolveGenericCustomerSettlement(ctx, tx, data)
+		data, err = s.resolveSettlementSnapshot(ctx, tx, data)
 		if err != nil {
 			return OtherUnitCreateResult{}, err
 		}
@@ -733,7 +733,7 @@ func (s *Service) OtherUnitSave(
 		data.SettlementMethodCode, data.SettlementMethodName, data.TermCode, data.RuleType = "", "", "", ""
 		data.MonthOffset, data.DayOffset, data.DayOfMonth = 0, 0, nil
 		if data.SettlementMethodID != "" {
-			data, err = s.resolveGenericCustomerSettlement(ctx, tx, data)
+			data, err = s.resolveSettlementSnapshot(ctx, tx, data)
 			if err != nil {
 				return MutationResult{}, err
 			}

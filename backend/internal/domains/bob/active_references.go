@@ -99,3 +99,29 @@ func listDirectReferenceUses(ctx context.Context, q *dbsqlc.Queries, entity, obj
 	})
 	return uses, nil
 }
+
+func listActiveReferenceCounts(ctx context.Context, q *dbsqlc.Queries, entity, objectID string) ([]ActiveReferenceCount, error) {
+	uses, err := listDirectReferenceUses(ctx, q, entity, objectID)
+	if err != nil {
+		return nil, err
+	}
+	grouped := make(map[string]*ActiveReferenceCount)
+	for _, use := range uses {
+		key := use.entity + "\x00" + use.role
+		if grouped[key] == nil {
+			grouped[key] = &ActiveReferenceCount{Entity: use.entity, Field: use.role}
+		}
+		grouped[key].Count++
+	}
+	counts := make([]ActiveReferenceCount, 0, len(grouped))
+	for _, count := range grouped {
+		counts = append(counts, *count)
+	}
+	sort.Slice(counts, func(left, right int) bool {
+		if counts[left].Entity != counts[right].Entity {
+			return counts[left].Entity < counts[right].Entity
+		}
+		return counts[left].Field < counts[right].Field
+	})
+	return counts, nil
+}

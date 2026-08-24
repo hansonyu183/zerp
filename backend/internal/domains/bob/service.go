@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
@@ -1378,29 +1377,11 @@ func (s *Service) SetEnabled(
 		return MutationResult{}, conflict(object, version, "object is not effective")
 	}
 	if !enabled {
-		uses, scanErr := listDirectReferenceUses(ctx, qtx, entity, input.ObjectID)
+		counts, scanErr := listActiveReferenceCounts(ctx, qtx, entity, input.ObjectID)
 		if scanErr != nil {
 			return MutationResult{}, s.internal("scan direct references before disable", scanErr)
 		}
-		if len(uses) > 0 {
-			grouped := make(map[string]*ActiveReferenceCount)
-			for _, use := range uses {
-				key := use.entity + "\x00" + use.role
-				if grouped[key] == nil {
-					grouped[key] = &ActiveReferenceCount{Entity: use.entity, Field: use.role}
-				}
-				grouped[key].Count++
-			}
-			counts := make([]ActiveReferenceCount, 0, len(grouped))
-			for _, count := range grouped {
-				counts = append(counts, *count)
-			}
-			sort.Slice(counts, func(left, right int) bool {
-				if counts[left].Entity != counts[right].Entity {
-					return counts[left].Entity < counts[right].Entity
-				}
-				return counts[left].Field < counts[right].Field
-			})
+		if len(counts) > 0 {
 			return MutationResult{}, domainError(ErrorConflict, "object has active direct references", map[string]any{
 				"references": counts,
 			}, nil)

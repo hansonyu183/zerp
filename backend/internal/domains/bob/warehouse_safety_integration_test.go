@@ -7,21 +7,11 @@ import (
 	"testing"
 )
 
-func TestWarehouseDisablePrecheckAndDisableIntegration(t *testing.T) {
+func TestWarehouseDisableWithoutBlockersIntegration(t *testing.T) {
 	service := NewService(integrationPool(t))
 	warehouse, approved := createApprovedIntegration(t, service, EntityWarehouse, CreateDetailInput{
 		Name: "可停用仓库 " + newID(),
 	}, "warehouse-disable")
-
-	precheck, err := service.WarehouseDisablePrecheck(t.Context(), WarehouseDisablePrecheckInput{
-		ObjectID: warehouse.ObjectID,
-	})
-	if err != nil {
-		t.Fatalf("warehouse disable precheck: %v", err)
-	}
-	if precheck.HasConflicts() {
-		t.Fatalf("empty warehouse precheck has conflicts: %+v", precheck)
-	}
 
 	disabled, err := service.Disable(t.Context(), EntityWarehouse, ObjectRevisionInput{
 		ObjectID: warehouse.ObjectID, ObjectRevision: approved.ObjectRevision,

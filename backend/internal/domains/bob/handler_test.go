@@ -88,11 +88,6 @@ func (s *serviceStub) Disable(_ context.Context, entity string, _ ObjectRevision
 	return MutationResult{}, nil
 }
 
-func (s *serviceStub) WarehouseDisablePrecheck(_ context.Context, _ WarehouseDisablePrecheckInput) (WarehouseDisablePrecheckResult, error) {
-	s.record("disable-precheck", EntityWarehouse)
-	return WarehouseDisablePrecheckResult{}, nil
-}
-
 func (s *serviceStub) Versions(_ context.Context, entity string, _ HistoryInput) (Page[VersionHistoryItem], error) {
 	s.record("versions", entity)
 	return Page[VersionHistoryItem]{Items: []VersionHistoryItem{}}, nil
@@ -259,7 +254,6 @@ func TestHandlerRegistersEveryEntityAction(t *testing.T) {
 		}
 	}
 	for _, path := range []string{
-		"/bob/warehouse/disable-precheck",
 		"/bob/party/query", "/bob/party/get", "/bob/party/save",
 		"/bob/other-unit/query", "/bob/other-unit/get", "/bob/other-unit/create", "/bob/other-unit/save",
 		"/bob/other-unit/delete", "/bob/other-unit/submit", "/bob/other-unit/unsubmit",

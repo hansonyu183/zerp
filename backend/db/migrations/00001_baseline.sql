@@ -5253,7 +5253,6 @@ INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000010', '/bob/c
 INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000011', '/bob/customer-account/disable', 'bob', 'customer-account', 'disable', '停用客户账户', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000012', '/bob/customer-account/versions', 'bob', 'customer-account', 'versions', '查看客户账户版本', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000013', '/bob/customer-account/audit-history', 'bob', 'customer-account', 'audit-history', '查看客户账户审计', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JWHS00000000000000000001', '/bob/warehouse/disable-precheck', 'bob', 'warehouse', 'disable-precheck', '预检仓库停用阻断', 'ENABLED', '2026-08-24 15:23:50.833229+00', NULL, '2026-08-24 15:23:50.833229+00', NULL, 1, NULL);
 
 
 --

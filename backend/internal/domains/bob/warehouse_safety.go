@@ -8,10 +8,6 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-type WarehouseDisablePrecheckInput struct {
-	ObjectID string `json:"objectId"`
-}
-
 type WarehouseInventoryConflict struct {
 	ProductObjectID string `json:"productObjectId"`
 	ProductCode     string `json:"productCode"`
@@ -26,42 +22,20 @@ type WarehouseDocumentConflict struct {
 	Status     string `json:"status,omitempty"`
 }
 
-type WarehouseDisablePrecheckResult struct {
-	Inventory           []WarehouseInventoryConflict `json:"inventory"`
-	InProgressDocuments []WarehouseDocumentConflict  `json:"inProgressDocuments"`
-	ExecutableSources   []WarehouseDocumentConflict  `json:"executableSources"`
+type WarehouseDisableBlockers struct {
+	Inventory  []WarehouseInventoryConflict `json:"inventory"`
+	Documents  []WarehouseDocumentConflict  `json:"documents"`
+	Sources    []WarehouseDocumentConflict  `json:"sources"`
+	References []ActiveReferenceCount       `json:"references"`
 }
 
-func (result WarehouseDisablePrecheckResult) HasConflicts() bool {
-	return len(result.Inventory) != 0 || len(result.InProgressDocuments) != 0 || len(result.ExecutableSources) != 0
+func (result WarehouseDisableBlockers) HasConflicts() bool {
+	return len(result.Inventory) != 0 || len(result.Documents) != 0 || len(result.Sources) != 0 || len(result.References) != 0
 }
 
-func (s *Service) WarehouseDisablePrecheck(ctx context.Context, input WarehouseDisablePrecheckInput) (WarehouseDisablePrecheckResult, error) {
-	if !validID(input.ObjectID) {
-		return WarehouseDisablePrecheckResult{}, domainError(ErrorValidation, "invalid warehouse disable precheck", nil, nil)
-	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return WarehouseDisablePrecheckResult{}, s.internal("begin warehouse disable precheck", err)
-	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-	qtx := s.queries.WithTx(tx)
-	object, err := qtx.LockBobObject(ctx, dbsqlc.LockBobObjectParams{ID: input.ObjectID, Entity: EntityWarehouse})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return WarehouseDisablePrecheckResult{}, domainError(ErrorValidation, "warehouse not found", nil, nil)
-	}
-	if err != nil {
-		return WarehouseDisablePrecheckResult{}, s.internal("read warehouse for disable precheck", err)
-	}
-	if !object.Enabled || object.EffectiveVersionID == nil {
-		return WarehouseDisablePrecheckResult{}, domainError(ErrorConflict, "warehouse availability changed", nil, nil)
-	}
-	return s.warehouseDisableConflicts(ctx, qtx, input.ObjectID)
-}
-
-func (s *Service) warehouseDisableConflicts(ctx context.Context, q *dbsqlc.Queries, warehouseID string) (WarehouseDisablePrecheckResult, error) {
-	result := WarehouseDisablePrecheckResult{
-		Inventory: []WarehouseInventoryConflict{}, InProgressDocuments: []WarehouseDocumentConflict{}, ExecutableSources: []WarehouseDocumentConflict{},
+func (s *Service) warehouseDisableBlockers(ctx context.Context, q *dbsqlc.Queries, warehouseID string) (WarehouseDisableBlockers, error) {
+	result := WarehouseDisableBlockers{
+		Inventory: []WarehouseInventoryConflict{}, Documents: []WarehouseDocumentConflict{}, Sources: []WarehouseDocumentConflict{}, References: []ActiveReferenceCount{},
 	}
 	inventory, err := q.ListWarehouseDisableInventory(ctx, warehouseID)
 	if err != nil {
@@ -76,7 +50,7 @@ func (s *Service) warehouseDisableConflicts(ctx context.Context, q *dbsqlc.Queri
 		return result, s.internal("list warehouse in-progress blockers", err)
 	}
 	for _, row := range inProgress {
-		result.InProgressDocuments = append(result.InProgressDocuments, WarehouseDocumentConflict{DocumentID: row.DocumentID,
+		result.Documents = append(result.Documents, WarehouseDocumentConflict{DocumentID: row.DocumentID,
 			Entity: row.Entity, DocumentNo: row.DocumentNo, Status: row.Status})
 	}
 	sources, err := q.ListWarehouseDisableExecutableSources(ctx, warehouseID)
@@ -84,8 +58,12 @@ func (s *Service) warehouseDisableConflicts(ctx context.Context, q *dbsqlc.Queri
 		return result, s.internal("list warehouse executable source blockers", err)
 	}
 	for _, row := range sources {
-		result.ExecutableSources = append(result.ExecutableSources, WarehouseDocumentConflict{DocumentID: row.DocumentID,
+		result.Sources = append(result.Sources, WarehouseDocumentConflict{DocumentID: row.DocumentID,
 			Entity: row.Entity, DocumentNo: row.DocumentNo})
+	}
+	result.References, err = listActiveReferenceCounts(ctx, q, EntityWarehouse, warehouseID)
+	if err != nil {
+		return result, s.internal("scan direct references before warehouse disable", err)
 	}
 	return result, nil
 }
@@ -117,7 +95,7 @@ func (s *Service) disableWarehouse(ctx context.Context, input ObjectRevisionInpu
 	if err = qtx.LockWarehouseDisableDocuments(ctx, input.ObjectID); err != nil {
 		return MutationResult{}, s.writeError("lock warehouse documents", err)
 	}
-	conflicts, err := s.warehouseDisableConflicts(ctx, qtx, input.ObjectID)
+	conflicts, err := s.warehouseDisableBlockers(ctx, qtx, input.ObjectID)
 	if err != nil {
 		return MutationResult{}, err
 	}

@@ -13,8 +13,6 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/response"
 )
 
-const principalContextKey = "accPrincipal"
-
 type bookApplicationService interface {
 	QueryBooks(context.Context, QueryBooksInput, string) (BookPage, error)
 	GetBook(context.Context, string, string) (BookView, error)
@@ -94,12 +92,11 @@ func (h *Handler) Register(router *gin.Engine) {
 }
 
 func (h *Handler) authorize(path string) gin.HandlerFunc {
-	return authmiddleware.Require(h.authorizer, path, principalContextKey, h.writeAuthorizationError)
+	return authmiddleware.RequirePermission(h.authorizer, path, h.writeAuthorizationError)
 }
 
 func (h *Handler) actorID(c *gin.Context) string {
-	principal, _ := c.Get(principalContextKey)
-	return principal.(authorization.Principal).ActorID
+	return authmiddleware.Principal(c).ActorID
 }
 
 func optionalString(value *string) string {

@@ -18,24 +18,24 @@ func TestAuthenticationAndSessionIntegration(t *testing.T) {
 	if signin.SessionToken == "" || signin.Data.CSRFToken == "" {
 		t.Fatalf("signin result = %+v", signin)
 	}
-	restored, err := service.RestoreSession(t.Context(), signin.SessionToken)
+	restored, err := restoreSessionForTest(service, t.Context(), signin.SessionToken)
 	if err != nil {
 		t.Fatalf("restore: %v", err)
 	}
 	if restored.Data.CSRFToken == signin.Data.CSRFToken {
 		t.Fatal("session restore did not rotate CSRF")
 	}
-	if _, err = service.Authorize(t.Context(), signin.SessionToken, signin.Data.CSRFToken, "/app/user/profile", "old-csrf"); !errorIsKind(err, ErrorForbidden) {
+	if _, err = authorizeForTest(service, t.Context(), signin.SessionToken, signin.Data.CSRFToken, "/app/user/profile", "old-csrf"); !errorIsKind(err, ErrorForbidden) {
 		t.Fatalf("old CSRF error = %v", err)
 	}
-	principal, err := service.Authorize(t.Context(), signin.SessionToken, restored.Data.CSRFToken, signoutPath, "signout-authorize")
+	principal, err := authorizeForTest(service, t.Context(), signin.SessionToken, restored.Data.CSRFToken, signoutPath, "signout-authorize")
 	if err != nil {
 		t.Fatalf("authorize signout: %v", err)
 	}
 	if err = service.Signout(t.Context(), principal, "signout"); err != nil {
 		t.Fatalf("signout: %v", err)
 	}
-	if _, err = service.RestoreSession(t.Context(), signin.SessionToken); !errorIsKind(err, ErrorUnauthenticated) {
+	if _, err = restoreSessionForTest(service, t.Context(), signin.SessionToken); !errorIsKind(err, ErrorUnauthenticated) {
 		t.Fatalf("revoked session error = %v", err)
 	}
 	expiring, err := service.Signin(t.Context(), "admin", integrationAdminPassword, "expiring-session")
@@ -48,7 +48,7 @@ func TestAuthenticationAndSessionIntegration(t *testing.T) {
 	`, tokenHash(expiring.SessionToken)); err != nil {
 		t.Fatalf("expire session: %v", err)
 	}
-	if _, err = service.RestoreSession(t.Context(), expiring.SessionToken); !errorIsKind(err, ErrorUnauthenticated) {
+	if _, err = restoreSessionForTest(service, t.Context(), expiring.SessionToken); !errorIsKind(err, ErrorUnauthenticated) {
 		t.Fatalf("expired session error = %v", err)
 	}
 	var path, reason, requestID string
@@ -78,17 +78,17 @@ func TestPasswordChangeRequiredSessionIntegration(t *testing.T) {
 	if err != nil || !signin.Data.PasswordChangeRequired {
 		t.Fatalf("restricted signin=%+v err=%v", signin.Data, err)
 	}
-	if _, err = service.Authorize(t.Context(), signin.SessionToken, signin.Data.CSRFToken, "/bob/customer/query", "restricted-business"); !errorIsKind(err, ErrorForbidden) {
+	if _, err = authorizeForTest(service, t.Context(), signin.SessionToken, signin.Data.CSRFToken, "/bob/customer/query", "restricted-business"); !errorIsKind(err, ErrorForbidden) {
 		t.Fatalf("restricted business authorization error = %v", err)
 	}
-	principal, err := service.Authorize(t.Context(), signin.SessionToken, signin.Data.CSRFToken, changePasswordPath, "restricted-change-password")
+	principal, err := authorizeForTest(service, t.Context(), signin.SessionToken, signin.Data.CSRFToken, changePasswordPath, "restricted-change-password")
 	if err != nil {
 		t.Fatalf("restricted change password authorization: %v", err)
 	}
 	if err = service.ChangePassword(t.Context(), principal, ChangePasswordInput{CurrentPassword: integrationUserPassword, NewPassword: "Changed-password-3!"}, "restricted-change"); err != nil {
 		t.Fatalf("change restricted password: %v", err)
 	}
-	if _, err = service.RestoreSession(t.Context(), signin.SessionToken); !errorIsKind(err, ErrorUnauthenticated) {
+	if _, err = restoreSessionForTest(service, t.Context(), signin.SessionToken); !errorIsKind(err, ErrorUnauthenticated) {
 		t.Fatalf("changed restricted session must be revoked: %v", err)
 	}
 	newSignin, err := service.Signin(t.Context(), user.Username, "Changed-password-3!", "restricted-new-signin")
@@ -149,14 +149,14 @@ func TestSuperadminWildcardIntegration(t *testing.T) {
 		_, _ = pool.Exec(context.Background(), `DELETE FROM app_permissions WHERE id = $1`, dynamicPermissionID)
 	})
 
-	restored, err := service.RestoreSession(t.Context(), signin.SessionToken)
+	restored, err := restoreSessionForTest(service, t.Context(), signin.SessionToken)
 	if err != nil {
 		t.Fatalf("restore superadmin after permission insert: %v", err)
 	}
 	if !slices.Contains(restored.Data.Permissions, dynamicPermissionPath) {
 		t.Fatalf("superadmin permissions do not include new catalog path: %v", restored.Data.Permissions)
 	}
-	if _, err = service.Authorize(t.Context(), signin.SessionToken, restored.Data.CSRFToken, dynamicPermissionPath, "wildcard-authorize"); err != nil {
+	if _, err = authorizeForTest(service, t.Context(), signin.SessionToken, restored.Data.CSRFToken, dynamicPermissionPath, "wildcard-authorize"); err != nil {
 		t.Fatalf("authorize dynamic permission: %v", err)
 	}
 
@@ -190,14 +190,14 @@ func TestSuperadminWildcardIntegration(t *testing.T) {
 	`, dynamicPermissionID); err != nil {
 		t.Fatalf("disable dynamic permission: %v", err)
 	}
-	refreshed, err := service.RestoreSession(t.Context(), signin.SessionToken)
+	refreshed, err := restoreSessionForTest(service, t.Context(), signin.SessionToken)
 	if err != nil {
 		t.Fatalf("restore superadmin after permission disable: %v", err)
 	}
 	if slices.Contains(refreshed.Data.Permissions, dynamicPermissionPath) {
 		t.Fatalf("disabled permission remained in superadmin permissions: %v", refreshed.Data.Permissions)
 	}
-	if _, err = service.Authorize(t.Context(), signin.SessionToken, refreshed.Data.CSRFToken, dynamicPermissionPath, "disabled-wildcard"); !errorIsKind(err, ErrorForbidden) {
+	if _, err = authorizeForTest(service, t.Context(), signin.SessionToken, refreshed.Data.CSRFToken, dynamicPermissionPath, "disabled-wildcard"); !errorIsKind(err, ErrorForbidden) {
 		t.Fatalf("disabled permission authorization error = %v", err)
 	}
 
@@ -251,7 +251,7 @@ func TestSigninLockAndPasswordRevocationIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second signin: %v", err)
 	}
-	principal, err := service.Authorize(t.Context(), first.SessionToken, first.Data.CSRFToken, "/app/user/change-password", "password-authorize")
+	principal, err := authorizeForTest(service, t.Context(), first.SessionToken, first.Data.CSRFToken, "/app/user/change-password", "password-authorize")
 	if err != nil {
 		t.Fatalf("authorize password change: %v", err)
 	}
@@ -262,7 +262,7 @@ func TestSigninLockAndPasswordRevocationIntegration(t *testing.T) {
 		t.Fatalf("change password: %v", err)
 	}
 	for _, token := range []string{first.SessionToken, second.SessionToken} {
-		if _, err = service.RestoreSession(t.Context(), token); !errorIsKind(err, ErrorUnauthenticated) {
+		if _, err = restoreSessionForTest(service, t.Context(), token); !errorIsKind(err, ErrorUnauthenticated) {
 			t.Fatalf("old session remained valid: %v", err)
 		}
 	}
@@ -310,16 +310,16 @@ func TestAuthorizationChangesAreImmediateIntegration(t *testing.T) {
 	if _, err = service.SetRoleStatus(t.Context(), roleA.ID, roleA.Revision, StatusDisabled, integrationPrincipal(admin.ID), "disable-role-a"); err != nil {
 		t.Fatalf("disable role A: %v", err)
 	}
-	if _, err = service.Authorize(t.Context(), signin.SessionToken, signin.Data.CSRFToken, "/bob/customer/query", "revoked-permission"); !errorIsKind(err, ErrorForbidden) {
+	if _, err = authorizeForTest(service, t.Context(), signin.SessionToken, signin.Data.CSRFToken, "/bob/customer/query", "revoked-permission"); !errorIsKind(err, ErrorForbidden) {
 		t.Fatalf("revoked permission error = %v", err)
 	}
-	if _, err = service.Authorize(t.Context(), signin.SessionToken, signin.Data.CSRFToken, "/bob/supplier/query", "retained-permission"); err != nil {
+	if _, err = authorizeForTest(service, t.Context(), signin.SessionToken, signin.Data.CSRFToken, "/bob/supplier/query", "retained-permission"); err != nil {
 		t.Fatalf("retained permission: %v", err)
 	}
 	if _, err = service.SetUserStatus(t.Context(), user.ID, user.Revision, StatusDisabled, integrationPrincipal(admin.ID), "disable-reader"); err != nil {
 		t.Fatalf("disable reader: %v", err)
 	}
-	if _, err = service.RestoreSession(t.Context(), signin.SessionToken); !errorIsKind(err, ErrorUnauthenticated) {
+	if _, err = restoreSessionForTest(service, t.Context(), signin.SessionToken); !errorIsKind(err, ErrorUnauthenticated) {
 		t.Fatalf("disabled user session error = %v", err)
 	}
 }

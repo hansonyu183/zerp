@@ -13,8 +13,6 @@ import (
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 )
 
-const principalContextKey = "wflPrincipal"
-
 type applicationService interface{}
 
 type genericApplicationService interface {
@@ -224,27 +222,12 @@ func (h *Handler) registerDynamicWorkflow(router *gin.Engine) {
 	})
 }
 
-func (h *Handler) authorizeDynamicWorkflow(action string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		path := "/wfl/" + c.Param("processName") + "/" + action
-		principal, err := h.authorizer.Authorize(c.Request.Context(), c.Request, path, response.RequestID(c))
-		if err != nil {
-			h.writeAuthorizationError(c, err)
-			c.Abort()
-			return
-		}
-		if principal.ActorID == "" {
-			h.writeAuthorizationError(c, authorization.NewError(authorization.ErrorUnauthenticated, "session expired", nil))
-			c.Abort()
-			return
-		}
-		c.Set(principalContextKey, principal)
-		c.Next()
-	}
+func (h *Handler) authorizeDynamicWorkflow(_ string) gin.HandlerFunc {
+	return authmiddleware.RequirePermission(h.authorizer, "", h.writeAuthorizationError)
 }
 
 func (h *Handler) authorize(path string) gin.HandlerFunc {
-	return authmiddleware.Require(h.authorizer, path, principalContextKey, h.writeAuthorizationError)
+	return authmiddleware.RequirePermission(h.authorizer, path, h.writeAuthorizationError)
 }
 
 func (h *Handler) bind(c *gin.Context, target any) bool {
@@ -256,8 +239,7 @@ func (h *Handler) bind(c *gin.Context, target any) bool {
 }
 
 func (h *Handler) principal(c *gin.Context) authorization.Principal {
-	value, _ := c.Get(principalContextKey)
-	return value.(authorization.Principal)
+	return authmiddleware.Principal(c)
 }
 
 func (h *Handler) result(c *gin.Context, data any, err error) {

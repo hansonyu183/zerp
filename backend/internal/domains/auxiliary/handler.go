@@ -12,8 +12,6 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/response"
 )
 
-const principalContextKey = "auxPrincipal"
-
 type applicationService interface {
 	Query(context.Context, string, QueryInput) (Page[QueryItem], error)
 	Get(context.Context, string, GetInput) (ObjectView, error)
@@ -59,7 +57,7 @@ func NewHandler(service applicationService, authorizer authorization.Authorizer,
 
 func (h *Handler) Register(router *gin.Engine) {
 	group := router.Group("/aux")
-	group.POST("/reference/query", h.referenceQuery)
+	group.POST("/reference/query", authmiddleware.RequireSession(h.authorizer, "/aux/reference/query", h.writeAuthorizationError), h.referenceQuery)
 	for _, registeredEntity := range entities {
 		entity := registeredEntity
 		entityGroup := group.Group("/" + entity)
@@ -78,8 +76,7 @@ func (h *Handler) referenceQuery(c *gin.Context) {
 	if !h.bind(c, &input) {
 		return
 	}
-	if _, err := h.authorizer.Authorize(c.Request.Context(), c.Request, "/aux/"+input.Entity+"/query", response.RequestID(c)); err != nil {
-		h.writeAuthorizationError(c, err)
+	if !authmiddleware.CheckPermission(c, h.authorizer, "/aux/"+input.Entity+"/query", h.writeAuthorizationError) {
 		return
 	}
 	result, err := h.service.QueryReferenceCandidates(c.Request.Context(), input)
@@ -87,7 +84,7 @@ func (h *Handler) referenceQuery(c *gin.Context) {
 }
 
 func (h *Handler) authorize(path string) gin.HandlerFunc {
-	return authmiddleware.Require(h.authorizer, path, principalContextKey, h.writeAuthorizationError)
+	return authmiddleware.RequirePermission(h.authorizer, path, h.writeAuthorizationError)
 }
 
 func (h *Handler) query(c *gin.Context, entity string) {
@@ -170,8 +167,7 @@ func (h *Handler) bind(c *gin.Context, target any) bool {
 }
 
 func (h *Handler) actorID(c *gin.Context) string {
-	principal, _ := c.Get(principalContextKey)
-	return principal.(authorization.Principal).ActorID
+	return authmiddleware.Principal(c).ActorID
 }
 
 func (h *Handler) result(c *gin.Context, data any, err error) {

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	"github.com/hansonyu183/zerp/backend/internal/api/middleware"
 	"github.com/hansonyu183/zerp/backend/internal/api/response"
 	"github.com/hansonyu183/zerp/backend/internal/config"
@@ -20,6 +21,8 @@ import (
 type handlerServiceStub struct {
 	applicationService
 	signinResult          SessionResult
+	restoreResult         SessionResult
+	restoredPrincipal     Principal
 	authorizeResult       Principal
 	authorizeError        error
 	authorizedPath        string
@@ -34,19 +37,42 @@ type handlerServiceStub struct {
 	workbenchInput        WorkbenchQueryInput
 }
 
-func (stub *handlerServiceStub) AuthorizeSession(_ context.Context, _, _, path, _ string) (Principal, error) {
-	stub.sessionAuthorizedPath = path
-	return stub.authorizeResult, stub.authorizeError
-}
-
 func (stub *handlerServiceStub) Signin(context.Context, string, string, string) (SessionResult, error) {
 	return stub.signinResult, nil
 }
 
-func (stub *handlerServiceStub) Authorize(_ context.Context, _, _, path, _ string) (Principal, error) {
-	stub.authorizedPath = path
-	return stub.authorizeResult, stub.authorizeError
+func (stub *handlerServiceStub) RestoreSession(_ context.Context, principal Principal) (SessionResult, error) {
+	stub.restoredPrincipal = principal
+	return stub.restoreResult, nil
 }
+
+type handlerAuthorizer struct{ stub *handlerServiceStub }
+
+func (a handlerAuthorizer) AuthenticateSession(_ context.Context, _ *http.Request, path, _ string) (authorization.Principal, error) {
+	a.stub.sessionAuthorizedPath = path
+	if errorIsKind(a.stub.authorizeError, ErrorUnauthenticated) ||
+		(errorIsKind(a.stub.authorizeError, ErrorForbidden) && (path == "/app/user/profile" || path == changePasswordPath || path == signoutPath)) {
+		return authorization.Principal{}, a.stub.authorizeError
+	}
+	principal := a.stub.authorizeResult
+	if principal.User.ID == "" {
+		principal.User.ID = "actor-1"
+	}
+	return authorization.Principal{
+		SessionID: principal.SessionID, ActorID: principal.User.ID,
+		Username: principal.User.Username, DisplayName: principal.User.DisplayName, AvatarURL: principal.User.AvatarURL,
+		CSRFHash: principal.CSRFHash, Permissions: principal.Permissions,
+		PasswordChangeRequired: principal.PasswordChangeRequired,
+		IdleExpires:            principal.IdleExpires, AbsoluteEnds: principal.AbsoluteEnds,
+	}, nil
+}
+
+func (a handlerAuthorizer) RequirePermission(_ context.Context, _ authorization.Principal, path, _ string) error {
+	a.stub.authorizedPath = path
+	return a.stub.authorizeError
+}
+
+func (handlerAuthorizer) ClearSessionCookie(http.ResponseWriter) {}
 
 func (stub *handlerServiceStub) QueryUsers(context.Context, PageRequest, Principal) (Page[UserListItem], error) {
 	if stub.queryUsersResult.Items != nil {
@@ -103,7 +129,7 @@ func testRouter(stub *handlerServiceStub) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(middleware.RequestID())
-	NewHandler(stub, config.Config{SessionCookieName: "zerp_session", SessionCookieSecure: true}, slog.New(slog.NewTextHandler(io.Discard, nil))).Register(router)
+	NewHandler(stub, handlerAuthorizer{stub: stub}, config.Config{SessionCookieName: "zerp_session", SessionCookieSecure: true}, slog.New(slog.NewTextHandler(io.Discard, nil))).Register(router)
 	return router
 }
 
@@ -219,6 +245,22 @@ func TestSigninSetsHardenedCookieAndEnvelope(t *testing.T) {
 	}
 }
 
+func TestSessionRestoreUsesAuthenticatedPrincipalWithoutPermissionCheck(t *testing.T) {
+	stub := &handlerServiceStub{
+		authorizeResult: Principal{SessionID: "session-1", User: UserSummary{ID: "user-1"}},
+		restoreResult:   SessionResult{Data: SessionData{User: UserSummary{ID: "user-1"}, CSRFToken: "new-csrf"}},
+	}
+	request := httptest.NewRequest(http.MethodPost, "/app/user/session", strings.NewReader(`{}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.AddCookie(&http.Cookie{Name: "zerp_session", Value: "session"})
+	recorder := httptest.NewRecorder()
+	testRouter(stub).ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || stub.sessionAuthorizedPath != "/app/user/session" || stub.authorizedPath != "" ||
+		stub.restoredPrincipal.SessionID != "session-1" || stub.restoredPrincipal.User.ID != "user-1" {
+		t.Fatalf("status=%d sessionPath=%q permissionPath=%q principal=%+v body=%s", recorder.Code, stub.sessionAuthorizedPath, stub.authorizedPath, stub.restoredPrincipal, recorder.Body.String())
+	}
+}
+
 func TestProtectedRouteAuthorizesExactPath(t *testing.T) {
 	stub := &handlerServiceStub{authorizeResult: Principal{User: UserSummary{ID: "user-1"}}}
 	request := httptest.NewRequest(http.MethodPost, "/app/user/query", strings.NewReader(`{"page":1,"pageSize":20}`))
@@ -311,7 +353,7 @@ func TestRequestRejectsUnknownFields(t *testing.T) {
 	}
 }
 
-func TestProfileUsesCurrentPrincipalAndExactPermission(t *testing.T) {
+func TestProfileUsesCurrentSessionPrincipal(t *testing.T) {
 	stub := &handlerServiceStub{
 		authorizeResult: Principal{User: UserSummary{ID: "user-1"}},
 		profileResult:   ProfileView{ID: "user-1", Username: "alice", DisplayName: "Alice"},
@@ -323,8 +365,8 @@ func TestProfileUsesCurrentPrincipalAndExactPermission(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	testRouter(stub).ServeHTTP(recorder, request)
 
-	if stub.authorizedPath != "/app/user/profile" {
-		t.Fatalf("authorized path = %q", stub.authorizedPath)
+	if stub.sessionAuthorizedPath != "/app/user/profile" || stub.authorizedPath != "" {
+		t.Fatalf("authorization paths: session=%q permission=%q", stub.sessionAuthorizedPath, stub.authorizedPath)
 	}
 	var envelope response.Envelope
 	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
@@ -335,7 +377,7 @@ func TestProfileUsesCurrentPrincipalAndExactPermission(t *testing.T) {
 	}
 }
 
-func TestProfileSaveUsesCurrentPrincipalAndExistingPermission(t *testing.T) {
+func TestProfileSaveUsesCurrentSessionPrincipal(t *testing.T) {
 	avatarURL := "https://images.example.com/alice.png"
 	stub := &handlerServiceStub{
 		authorizeResult: Principal{User: UserSummary{ID: "user-1"}},
@@ -354,12 +396,12 @@ func TestProfileSaveUsesCurrentPrincipalAndExistingPermission(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	testRouter(stub).ServeHTTP(recorder, request)
 
-	if stub.authorizedPath != "/app/user/profile" || stub.savedProfileUserID != "user-1" ||
+	if stub.sessionAuthorizedPath != "/app/user/profile" || stub.authorizedPath != "" || stub.savedProfileUserID != "user-1" ||
 		stub.savedProfile.DisplayName != "新名称" || stub.savedProfile.AvatarURL == nil ||
 		*stub.savedProfile.AvatarURL != avatarURL {
 		t.Fatalf(
 			"profile save dispatch path=%q user=%q input=%#v",
-			stub.authorizedPath, stub.savedProfileUserID, stub.savedProfile,
+			stub.sessionAuthorizedPath, stub.savedProfileUserID, stub.savedProfile,
 		)
 	}
 	var envelope response.Envelope
@@ -446,8 +488,8 @@ func TestChangePasswordClearsSessionCookie(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	testRouter(stub).ServeHTTP(recorder, request)
 
-	if stub.authorizedPath != "/app/user/change-password" || stub.changedPassword.NewPassword != "New-password-2!" {
-		t.Fatalf("change password was not dispatched correctly: path=%q input=%#v", stub.authorizedPath, stub.changedPassword)
+	if stub.sessionAuthorizedPath != "/app/user/change-password" || stub.authorizedPath != "" || stub.changedPassword.NewPassword != "New-password-2!" {
+		t.Fatalf("change password was not dispatched correctly: session=%q permission=%q input=%#v", stub.sessionAuthorizedPath, stub.authorizedPath, stub.changedPassword)
 	}
 	cookies := recorder.Result().Cookies()
 	if len(cookies) != 1 || cookies[0].MaxAge >= 0 {
@@ -461,7 +503,7 @@ func TestSigninSupportsSameSiteNone(t *testing.T) {
 	}}
 	router := gin.New()
 	router.Use(middleware.RequestID())
-	NewHandler(stub, config.Config{SessionCookieName: "zerp_session", SessionCookieSecure: true, SessionCookieSameSite: "none"}, slog.New(slog.NewTextHandler(io.Discard, nil))).Register(router)
+	NewHandler(stub, authorization.FailClosed{}, config.Config{SessionCookieName: "zerp_session", SessionCookieSecure: true, SessionCookieSameSite: "none"}, slog.New(slog.NewTextHandler(io.Discard, nil))).Register(router)
 	request := httptest.NewRequest(http.MethodPost, "/app/user/signin", strings.NewReader(`{"username":"alice","password":"Strong-password-1!"}`))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()

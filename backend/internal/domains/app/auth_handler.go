@@ -38,8 +38,7 @@ func (h *Handler) session(c *gin.Context) {
 		h.writeError(c, domainError(ErrorValidation, "request body must be an empty object", err))
 		return
 	}
-	rawToken, _ := c.Cookie(h.cfg.SessionCookieName)
-	result, err := h.service.RestoreSession(c.Request.Context(), rawToken)
+	result, err := h.service.RestoreSession(c.Request.Context(), currentPrincipal(c))
 	if err != nil {
 		if errorIsKind(err, ErrorUnauthenticated) {
 			h.clearSessionCookie(c)
@@ -55,23 +54,7 @@ func (h *Handler) signout(c *gin.Context) {
 		h.writeError(c, domainError(ErrorValidation, "request body must be an empty object", err))
 		return
 	}
-	rawToken, _ := c.Cookie(h.cfg.SessionCookieName)
-	if rawToken == "" {
-		h.clearSessionCookie(c)
-		response.OK(c, map[string]any{})
-		return
-	}
-	principal, err := h.service.Authorize(c.Request.Context(), rawToken, c.GetHeader("X-CSRF-Token"), signoutPath, response.RequestID(c))
-	if err != nil {
-		if errorIsKind(err, ErrorUnauthenticated) {
-			h.clearSessionCookie(c)
-			response.OK(c, map[string]any{})
-			return
-		}
-		h.writeError(c, err)
-		return
-	}
-	if err = h.service.Signout(c.Request.Context(), principal, response.RequestID(c)); err != nil {
+	if err := h.service.Signout(c.Request.Context(), currentPrincipal(c), response.RequestID(c)); err != nil {
 		h.writeError(c, err)
 		return
 	}

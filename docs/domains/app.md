@@ -223,9 +223,11 @@ User ──< UserRole >── Role ──< RolePermission >── Permission
 
 允许使用权限缓存，但必须具有可靠的版本号或失效机制，保证用户、角色、权限停用以及关联撤销能及时生效。不能只信任登录时写入会话或返回给前端的权限快照。
 
-`/app/user/signin` 和 `/app/user/session` 是认证入口，不要求已有 API 权限；`signin` 不要求已有 CSRF Token。`session` 只能恢复已有 Cookie 会话并签发或返回当前 CSRF Token。
+`/app/user/signin` 是公开认证入口，不要求已有会话、API 权限或 CSRF Token。`/app/user/session` 只恢复已有 Cookie 会话并签发新的 CSRF Token，因此要求有效 Cookie 会话，但不要求客户端先持有旧 CSRF Token。
 
-`/app/user/change-password` 和 `/app/user/signout` 是每个有效会话固有的本人自助能力，只要求有效会话和 CSRF，不进入 `app_permissions`，也不参与角色逐项授权。它们只能修改当前主体的密码或撤销当前会话，不能接受其他用户作为操作目标。
+`/app/user/profile`、`/app/user/change-password` 和 `/app/user/signout` 是每个有效会话固有的本人自助能力，只要求有效会话和 CSRF，不进入 `app_permissions`，也不参与角色逐项授权。它们只能读取或修改当前主体、修改当前主体的密码或撤销当前会话，不能接受其他用户作为操作目标。
+
+所有受保护路由只使用一套 HTTP 鉴权管线。`RequireSession()` 统一读取会话 Cookie、校验会话和用户状态、执行适用的 CSRF 与强制改密限制、续期空闲时间、注入当前主体，并在未认证时清除失效 Cookie；`RequirePermission(path)` 在同一次 `RequireSession()` 结果上追加精确路径权限检查。APP、BOB、VOU、ACC、AUX、WFL 和 RPT 不得各自读取 Cookie、重复实现会话校验或再建第二套完整鉴权。
 
 `password_change_required` 为真时，会话进入强制改密限制：除 `/app/user/session`、`/app/user/change-password` 和 `/app/user/signout` 外，后端拒绝该会话调用任何接口，包括通常允许登录用户使用的其他自助接口。前端权限数组、菜单或路由状态不能放宽该限制。
 
@@ -262,7 +264,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 
 ### 5.3 退出登录
 
-该动作是有效会话固有的本人自助能力，不要求角色授予精确 API 权限；有效会话通过 CSRF 校验后撤销当前会话并清除 Cookie。对已注销、不存在或已自然到期且不再能引发服务端状态变更的会话，可清除 Cookie 并返回成功，以保证客户端清理流程幂等；有效会话的 CSRF 失败不能伪装为成功。
+该动作是有效会话固有的本人自助能力，不要求角色授予精确 API 权限；有效会话通过 CSRF 校验后撤销当前会话并清除 Cookie。已注销、不存在或已自然到期的会话按未认证处理并清除 Cookie；有效会话的 CSRF 失败不能伪装为成功。
 
 ### 5.4 当前用户自助接口
 
@@ -280,7 +282,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 
 后端必须重新校验当前密码，新密码不得与当前密码相同。修改密码、清除 `password_change_required`、撤销该用户全部会话及成功审计事件必须在同一事务中完成；成功后清除当前 Cookie，客户端必须重新登录。该接口不接受用户 ID、密码摘要、`revision` 或任何管理员代改目标。
 
-`profile` 要求有效会话、CSRF Token 和 `/app/user/profile` 精确权限。`change-password` 是每个有效会话固有的本人自助能力，只要求有效会话和 CSRF，不进入角色权限；强制改密受限会话仍可调用该动作。
+`profile` 和 `change-password` 都是每个有效会话固有的本人自助能力，只要求有效会话和 CSRF，不进入角色权限；强制改密受限会话只能使用 `session`、`change-password` 和 `signout`，不能使用 `profile`。
 
 ### 5.5 用户管理
 

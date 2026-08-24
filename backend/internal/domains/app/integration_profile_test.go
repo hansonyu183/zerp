@@ -27,7 +27,8 @@ func TestProfileSelfSaveIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("signin: %v", err)
 	}
-	principal, err := service.Authorize(
+	principal, err := authorizeForTest(
+		service,
 		t.Context(),
 		signin.SessionToken,
 		signin.Data.CSRFToken,
@@ -50,7 +51,7 @@ func TestProfileSelfSaveIntegration(t *testing.T) {
 		t.Fatalf("saved profile = %#v", saved)
 	}
 
-	restored, err := service.RestoreSession(t.Context(), signin.SessionToken)
+	restored, err := restoreSessionForTest(service, t.Context(), signin.SessionToken)
 	if err != nil {
 		t.Fatalf("restore updated profile session: %v", err)
 	}

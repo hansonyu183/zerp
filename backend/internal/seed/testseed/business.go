@@ -111,7 +111,7 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 				Remark:                "测试草稿客户",
 			}
 		}},
-		{"logistics-service", bobdomain.EntityOtherUnit, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
+		{"external-carrier", bobdomain.EntityOtherUnit, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
 				Name:      "自营物流服务单位（测试）",
 				ShortName: "测试物流", ContactName: "调度中心", ContactPhone: "021-60000101",
@@ -220,24 +220,12 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 				Remark: "测试草稿产品",
 			}
 		}},
-		{"service-effective", bobdomain.EntityService, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
-			return bobdomain.CreateDetailInput{
-				Name: "设备巡检服务（测试）", Unit: "次",
-				InventoryUnitID: s.auxRefs["UNT-0004"].ObjectID,
-				Description:     "现场设备巡检与报告", Remark: "测试有效服务",
-			}
-		}},
-		{"service-pending", bobdomain.EntityService, bobdomain.StatusPending, func(s *Seeder) bobdomain.CreateDetailInput {
-			return bobdomain.CreateDetailInput{
-				Name: "年度维保服务（测试待审核）", Unit: "年",
-				InventoryUnitID: s.auxRefs["UNT-0003"].ObjectID,
-				Description:     "年度维保方案", Remark: "测试待审核服务",
-			}
-		}},
 		{"vehicle-effective", bobdomain.EntityVehicle, bobdomain.StatusEffective, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
 				Name: "自营配送一号车（测试）", PlateNumber: "沪A10101",
-				VehicleType: "DIT-0003", PlatformObjectID: s.bobRefs["logistics-service"].ObjectID,
+				VehicleType: "DIT-0003", CarrierAffiliation: &bobdomain.CarrierAffiliation{
+					Type: "EXTERNAL", ServiceRelationshipObjectID: s.bobRefs["external-carrier"].ObjectID,
+				},
 				VIN: "LSVAA4187N2100101", EngineNumber: "ENG-TEST-101",
 				LoadCapacityKG: "18000", Remark: "测试有效车辆",
 			}
@@ -245,7 +233,9 @@ func (s *Seeder) seedBusiness(ctx context.Context, counts *Counts) error {
 		{"vehicle-draft", bobdomain.EntityVehicle, bobdomain.StatusDraft, func(s *Seeder) bobdomain.CreateDetailInput {
 			return bobdomain.CreateDetailInput{
 				Name: "自营配送二号车（测试草稿）", PlateNumber: "沪A10102",
-				VehicleType: "DIT-0003", PlatformObjectID: s.bobRefs["logistics-service"].ObjectID,
+				VehicleType: "DIT-0003", CarrierAffiliation: &bobdomain.CarrierAffiliation{
+					Type: "EXTERNAL", ServiceRelationshipObjectID: s.bobRefs["external-carrier"].ObjectID,
+				},
 				VIN: "LSVAA4187N2100102", EngineNumber: "ENG-TEST-102",
 				LoadCapacityKG: "12000", Remark: "测试草稿车辆",
 			}

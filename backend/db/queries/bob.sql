@@ -23,6 +23,7 @@ WHERE o.entity = 'customer-account'
   AND (
       cardinality(sqlc.arg(statuses)::text[]) = 0
       OR current_version.status = ANY(sqlc.arg(statuses)::text[])
+      OR ('EFFECTIVE' = ANY(sqlc.arg(statuses)::text[]) AND o.effective_version_id IS NOT NULL)
   )
   AND (
       sqlc.arg(enabled_filter)::integer = -1
@@ -87,6 +88,7 @@ WHERE o.entity = 'customer-account'
   AND (
       cardinality(sqlc.arg(statuses)::text[]) = 0
       OR current_version.status = ANY(sqlc.arg(statuses)::text[])
+      OR ('EFFECTIVE' = ANY(sqlc.arg(statuses)::text[]) AND o.effective_version_id IS NOT NULL)
   )
   AND (
       sqlc.arg(enabled_filter)::integer = -1
@@ -123,7 +125,7 @@ LEFT JOIN bob_supplier_versions effective_detail ON effective_detail.version_id=
 WHERE o.entity='supplier'
   AND (sqlc.arg(keyword)::text='' OR o.code ILIKE '%'||sqlc.arg(keyword)::text||'%'
        OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
-  AND (cardinality(sqlc.arg(statuses)::text[])=0 OR current_version.status=ANY(sqlc.arg(statuses)::text[]))
+  AND (cardinality(sqlc.arg(statuses)::text[])=0 OR current_version.status=ANY(sqlc.arg(statuses)::text[]) OR ('EFFECTIVE'=ANY(sqlc.arg(statuses)::text[]) AND o.effective_version_id IS NOT NULL))
   AND (sqlc.arg(enabled_filter)::integer=-1 OR o.enabled=(sqlc.arg(enabled_filter)::integer=1))
   AND (sqlc.arg(default_purchaser_employee_id)::text='' OR COALESCE(effective_detail.default_purchaser_employee_id,current_detail.default_purchaser_employee_id)=sqlc.arg(default_purchaser_employee_id)::text);
 
@@ -163,7 +165,7 @@ LEFT JOIN bob_employee_versions candidate_purchaser_detail ON candidate_purchase
 WHERE o.entity='supplier'
   AND (sqlc.arg(keyword)::text='' OR o.code ILIKE '%'||sqlc.arg(keyword)::text||'%'
        OR party.display_name ILIKE '%'||sqlc.arg(keyword)::text||'%')
-  AND (cardinality(sqlc.arg(statuses)::text[])=0 OR current_version.status=ANY(sqlc.arg(statuses)::text[]))
+  AND (cardinality(sqlc.arg(statuses)::text[])=0 OR current_version.status=ANY(sqlc.arg(statuses)::text[]) OR ('EFFECTIVE'=ANY(sqlc.arg(statuses)::text[]) AND o.effective_version_id IS NOT NULL))
   AND (sqlc.arg(enabled_filter)::integer=-1 OR o.enabled=(sqlc.arg(enabled_filter)::integer=1))
   AND (sqlc.arg(default_purchaser_employee_id)::text='' OR COALESCE(effective_detail.default_purchaser_employee_id,current_detail.default_purchaser_employee_id)=sqlc.arg(default_purchaser_employee_id)::text)
 ORDER BY o.code ASC
@@ -468,7 +470,8 @@ WHERE object.entity='other-unit'
   AND (sqlc.arg(operating_entity_id)::text=''
        OR relation.operating_entity_id=sqlc.arg(operating_entity_id)::text)
   AND (cardinality(sqlc.arg(statuses)::text[])=0
-       OR current_version.status=ANY(sqlc.arg(statuses)::text[]));
+       OR current_version.status=ANY(sqlc.arg(statuses)::text[])
+       OR ('EFFECTIVE'=ANY(sqlc.arg(statuses)::text[]) AND object.effective_version_id IS NOT NULL));
 
 -- name: ListBobOtherUnits :many
 SELECT object.id AS object_id,object.code,object.revision AS object_revision,object.enabled,
@@ -497,7 +500,8 @@ WHERE object.entity='other-unit'
   AND (sqlc.arg(operating_entity_id)::text=''
        OR relation.operating_entity_id=sqlc.arg(operating_entity_id)::text)
   AND (cardinality(sqlc.arg(statuses)::text[])=0
-       OR current_version.status=ANY(sqlc.arg(statuses)::text[]))
+       OR current_version.status=ANY(sqlc.arg(statuses)::text[])
+       OR ('EFFECTIVE'=ANY(sqlc.arg(statuses)::text[]) AND object.effective_version_id IS NOT NULL))
 ORDER BY object.code ASC
 LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 
@@ -568,13 +572,6 @@ INSERT INTO bob_product_versions (
     sqlc.arg(returnable),sqlc.narg(default_packaging_spec_micros)
 );
 
--- name: InsertBobServiceDetail :exec
-INSERT INTO bob_service_versions (version_id, name, unit, unit_id, category_id, description, remark)
-VALUES (
-    sqlc.arg(version_id), sqlc.arg(name), sqlc.arg(unit), sqlc.arg(unit_id), sqlc.narg(category_id),
-    sqlc.narg(description), sqlc.narg(remark)
-);
-
 -- name: InsertBobWarehouseDetail :exec
 INSERT INTO bob_warehouse_versions (
     version_id, name, category_id, address, contact_name, contact_phone, manager_employee_id, remark
@@ -585,12 +582,14 @@ INSERT INTO bob_warehouse_versions (
 
 -- name: InsertBobVehicleDetail :exec
 INSERT INTO bob_vehicle_versions (
-    version_id, name, plate_number, vehicle_type, platform_object_id,
+    version_id, name, plate_number, vehicle_type, carrier_affiliation_type,
+    carrier_operating_entity_id, carrier_service_relationship_object_id, bulk_liquid_capable,
     category_id, vin, engine_number, load_capacity_kg, remark
 )
 VALUES (
     sqlc.arg(version_id), sqlc.arg(name), sqlc.arg(plate_number),
-    sqlc.arg(vehicle_type), sqlc.arg(platform_object_id), sqlc.narg(category_id),
+    sqlc.arg(vehicle_type), sqlc.arg(carrier_affiliation_type),
+    sqlc.narg(carrier_operating_entity_id), sqlc.narg(carrier_service_relationship_object_id), sqlc.arg(bulk_liquid_capable), sqlc.narg(category_id),
     sqlc.narg(vin), sqlc.narg(engine_number),
     NULLIF(sqlc.arg(load_capacity_kg)::text, '')::numeric(12,3), sqlc.narg(remark)
 );
@@ -696,11 +695,6 @@ SELECT sqlc.arg(new_version_id),d.name,d.category_id,d.specification,d.model,d.b
        d.behavior_profile,d.default_input_unit_id,d.pricing_unit_id,d.returnable,d.default_packaging_spec_micros
 FROM bob_product_versions d WHERE d.version_id = sqlc.arg(source_version_id);
 
--- name: CopyBobServiceDetail :exec
-INSERT INTO bob_service_versions (version_id, name, unit, unit_id, category_id, description, remark)
-SELECT sqlc.arg(new_version_id), d.name, d.unit, d.unit_id, d.category_id, d.description, d.remark
-FROM bob_service_versions d WHERE d.version_id = sqlc.arg(source_version_id);
-
 -- name: CopyBobWarehouseDetail :exec
 INSERT INTO bob_warehouse_versions (
     version_id, name, category_id, address, contact_name, contact_phone, manager_employee_id, remark
@@ -711,10 +705,12 @@ FROM bob_warehouse_versions d WHERE d.version_id = sqlc.arg(source_version_id);
 
 -- name: CopyBobVehicleDetail :exec
 INSERT INTO bob_vehicle_versions (
-    version_id, name, plate_number, vehicle_type, platform_object_id,
+    version_id, name, plate_number, vehicle_type, carrier_affiliation_type,
+    carrier_operating_entity_id, carrier_service_relationship_object_id, bulk_liquid_capable,
     category_id, vin, engine_number, load_capacity_kg, remark
 )
-SELECT sqlc.arg(new_version_id), d.name, d.plate_number, d.vehicle_type, d.platform_object_id,
+SELECT sqlc.arg(new_version_id), d.name, d.plate_number, d.vehicle_type, d.carrier_affiliation_type,
+       d.carrier_operating_entity_id, d.carrier_service_relationship_object_id, d.bulk_liquid_capable,
        d.category_id, d.vin, d.engine_number, d.load_capacity_kg, d.remark
 FROM bob_vehicle_versions d WHERE d.version_id = sqlc.arg(source_version_id);
 
@@ -789,13 +785,6 @@ SET name=sqlc.arg(name),category_id=sqlc.narg(category_id),specification=sqlc.na
     default_packaging_spec_micros=sqlc.narg(default_packaging_spec_micros)
 WHERE version_id = sqlc.arg(version_id);
 
--- name: UpdateBobServiceDetail :execrows
-UPDATE bob_service_versions
-SET name = sqlc.arg(name), unit = sqlc.arg(unit), unit_id = sqlc.arg(unit_id),
-    category_id = sqlc.narg(category_id),
-    description = sqlc.narg(description), remark = sqlc.narg(remark)
-WHERE version_id = sqlc.arg(version_id);
-
 -- name: UpdateBobWarehouseDetail :execrows
 UPDATE bob_warehouse_versions
 SET name = sqlc.arg(name), category_id = sqlc.narg(category_id), address = sqlc.narg(address),
@@ -806,7 +795,10 @@ WHERE version_id = sqlc.arg(version_id);
 -- name: UpdateBobVehicleDetail :execrows
 UPDATE bob_vehicle_versions
 SET name = sqlc.arg(name), plate_number = sqlc.arg(plate_number),
-    vehicle_type = sqlc.arg(vehicle_type), platform_object_id = sqlc.arg(platform_object_id),
+    vehicle_type = sqlc.arg(vehicle_type), carrier_affiliation_type = sqlc.arg(carrier_affiliation_type),
+    carrier_operating_entity_id = sqlc.narg(carrier_operating_entity_id),
+    carrier_service_relationship_object_id = sqlc.narg(carrier_service_relationship_object_id),
+    bulk_liquid_capable = sqlc.arg(bulk_liquid_capable),
     category_id = sqlc.narg(category_id), vin = sqlc.narg(vin),
     engine_number = sqlc.narg(engine_number),
     load_capacity_kg = NULLIF(sqlc.arg(load_capacity_kg)::text, '')::numeric(12,3),
@@ -1031,7 +1023,8 @@ WHERE object_id = sqlc.arg(object_id)
 SELECT EXISTS (
     SELECT 1
     FROM bob_vehicle_versions vehicle
-    WHERE vehicle.platform_object_id = sqlc.arg(target_object_id)
+    WHERE vehicle.carrier_operating_entity_id = sqlc.arg(target_object_id)
+       OR vehicle.carrier_service_relationship_object_id = sqlc.arg(target_object_id)
        OR vehicle.category_id = sqlc.arg(target_object_id)
 
     UNION ALL
@@ -1058,11 +1051,6 @@ SELECT EXISTS (
     UNION ALL
 
     SELECT 1 FROM bob_product_versions
-    WHERE category_id = sqlc.arg(target_object_id)
-
-    UNION ALL
-
-    SELECT 1 FROM bob_service_versions
     WHERE category_id = sqlc.arg(target_object_id)
 
     UNION ALL
@@ -1118,8 +1106,10 @@ SELECT EXISTS (
     FROM vou_sale_delivery_details delivery
     WHERE delivery.customer_object_id = sqlc.arg(target_object_id)
        OR delivery.customer_version_id = sqlc.arg(target_version_id)
-       OR delivery.platform_object_id = sqlc.arg(target_object_id)
-       OR delivery.platform_version_id = sqlc.arg(target_version_id)
+       OR delivery.carrier_operating_entity_object_id = sqlc.arg(target_object_id)
+       OR delivery.carrier_operating_entity_version_id = sqlc.arg(target_version_id)
+       OR delivery.carrier_service_relationship_object_id = sqlc.arg(target_object_id)
+       OR delivery.carrier_service_relationship_version_id = sqlc.arg(target_version_id)
        OR delivery.vehicle_object_id = sqlc.arg(target_object_id)
        OR delivery.vehicle_version_id = sqlc.arg(target_version_id)
 
@@ -1260,9 +1250,6 @@ DELETE FROM bob_product_versions WHERE version_id = sqlc.arg(version_id);
 DELETE FROM bob_versions
 WHERE id=sqlc.arg(id) AND object_id=sqlc.arg(object_id) AND entity=sqlc.arg(entity);
 
--- name: DeleteBobServiceDetail :execrows
-DELETE FROM bob_service_versions WHERE version_id = sqlc.arg(version_id);
-
 -- name: DeleteBobWarehouseDetail :execrows
 DELETE FROM bob_warehouse_versions WHERE version_id = sqlc.arg(version_id);
 
@@ -1314,7 +1301,7 @@ JOIN bob_versions v
  AND v.object_id = o.id
  AND v.entity = o.entity
 JOIN bob_service_relationships relation ON relation.object_id=o.id AND relation.merged_into_object_id IS NULL
-WHERE o.id = sqlc.arg(platform_object_id)
+WHERE o.id = sqlc.arg(service_relationship_object_id)
   AND o.entity = 'other-unit'
   AND o.enabled
   AND v.status = 'EFFECTIVE'
@@ -1405,9 +1392,22 @@ SET current_version_id=sqlc.arg(new_version_id),next_version_no=next_version_no+
 WHERE id=sqlc.arg(object_id) AND entity='product' AND revision=sqlc.arg(revision)
   AND current_version_id=sqlc.arg(effective_version_id) AND effective_version_id=sqlc.arg(effective_version_id);
 
+-- name: AdvanceBobEffectiveCandidate :execrows
+UPDATE bob_objects
+SET current_version_id=sqlc.arg(new_version_id),next_version_no=next_version_no+1,
+    revision=revision+1,updated_at=now(),updated_by=sqlc.arg(actor_id)
+WHERE id=sqlc.arg(object_id) AND entity=sqlc.arg(entity) AND revision=sqlc.arg(revision)
+  AND current_version_id=sqlc.arg(effective_version_id) AND effective_version_id=sqlc.arg(effective_version_id);
+
 -- name: RestoreBobProductEffectiveVersion :execrows
 UPDATE bob_objects SET current_version_id=effective_version_id,revision=revision+1,updated_at=now(),updated_by=sqlc.arg(actor_id)
 WHERE id=sqlc.arg(object_id) AND entity='product' AND revision=sqlc.arg(revision)
+  AND current_version_id=sqlc.arg(version_id) AND effective_version_id=sqlc.arg(effective_version_id);
+
+-- name: RestoreBobEffectiveVersion :execrows
+UPDATE bob_objects
+SET current_version_id=effective_version_id,revision=revision+1,updated_at=now(),updated_by=sqlc.arg(actor_id)
+WHERE id=sqlc.arg(object_id) AND entity=sqlc.arg(entity) AND revision=sqlc.arg(revision)
   AND current_version_id=sqlc.arg(version_id) AND effective_version_id=sqlc.arg(effective_version_id);
 
 -- name: InvalidateBobVersion :execrows
@@ -1429,7 +1429,7 @@ SET enabled = sqlc.arg(enabled), revision = revision + 1,
     updated_at = now(), updated_by = sqlc.arg(actor_id)
 WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity)
   AND revision = sqlc.arg(revision)
-  AND (current_version_id = effective_version_id OR entity IN ('customer','supplier','other-unit','sales-partner'))
+  AND (current_version_id = effective_version_id OR entity IN ('customer-account','supplier','other-unit','sales-partner','product','employee','fund-account','operating-entity','warehouse','vehicle','category','department','position','settlement-method'))
   AND effective_version_id IS NOT NULL
   AND enabled <> sqlc.arg(enabled);
 
@@ -1444,7 +1444,7 @@ UPDATE bob_objects
 SET effective_version_id = sqlc.arg(new_version_id), revision = revision + 1,
     updated_at = now(), updated_by = sqlc.arg(actor_id)
 WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity)
-  AND entity IN ('customer-account','supplier','other-unit','sales-partner','product')
+  AND entity IN ('customer-account','supplier','other-unit','sales-partner','product','employee','fund-account','operating-entity','warehouse','vehicle','category','department','position','settlement-method')
   AND current_version_id = sqlc.arg(new_version_id)
   AND effective_version_id = sqlc.arg(old_version_id)
   AND revision = sqlc.arg(revision);
@@ -1471,7 +1471,7 @@ SELECT count(*)
 FROM bob_version_views view
 WHERE view.entity = sqlc.arg(entity) AND view.version_id = view.current_version_id
   AND (view.entity <> 'settlement-method' OR view.settlement_term_code <> 'LEGACY')
-  AND (cardinality(sqlc.arg(statuses)::text[]) = 0 OR view.status = ANY(sqlc.arg(statuses)::text[]))
+  AND (cardinality(sqlc.arg(statuses)::text[]) = 0 OR view.status = ANY(sqlc.arg(statuses)::text[]) OR ('EFFECTIVE' = ANY(sqlc.arg(statuses)::text[]) AND view.effective_version_id IS NOT NULL))
   AND (
     sqlc.arg(enabled_filter)::integer = -1
     OR EXISTS (
@@ -1517,7 +1517,7 @@ SELECT view.*
 FROM bob_version_views view
 WHERE view.entity = sqlc.arg(entity) AND view.version_id = view.current_version_id
   AND (view.entity <> 'settlement-method' OR view.settlement_term_code <> 'LEGACY')
-  AND (cardinality(sqlc.arg(statuses)::text[]) = 0 OR view.status = ANY(sqlc.arg(statuses)::text[]))
+  AND (cardinality(sqlc.arg(statuses)::text[]) = 0 OR view.status = ANY(sqlc.arg(statuses)::text[]) OR ('EFFECTIVE' = ANY(sqlc.arg(statuses)::text[]) AND view.effective_version_id IS NOT NULL))
   AND (
     sqlc.arg(enabled_filter)::integer = -1
     OR EXISTS (
@@ -1712,8 +1712,11 @@ SELECT object.id AS object_id,object.entity,'customer-operating'::text AS role F
 -- name: ListFundOperatingReferences :many
 SELECT object.id AS object_id,object.entity,'fund-operating'::text AS role FROM bob_objects object JOIN bob_fund_account_versions fund_detail ON fund_detail.version_id=object.effective_version_id WHERE fund_detail.operating_entity_id=sqlc.arg(source_object_id);
 
--- name: ListVehiclePlatformReferences :many
-SELECT object.id AS object_id,object.entity,'vehicle-platform'::text AS role FROM bob_objects object JOIN bob_vehicle_versions vehicle_detail ON vehicle_detail.version_id=object.effective_version_id WHERE vehicle_detail.platform_object_id=sqlc.arg(source_object_id);
+-- name: ListVehicleCarrierOperatingReferences :many
+SELECT object.id AS object_id,object.entity,'vehicle-carrier-operating'::text AS role FROM bob_objects object JOIN bob_vehicle_versions vehicle_detail ON vehicle_detail.version_id=object.effective_version_id WHERE vehicle_detail.carrier_operating_entity_id=sqlc.arg(source_object_id);
+
+-- name: ListVehicleCarrierServiceReferences :many
+SELECT object.id AS object_id,object.entity,'vehicle-carrier-service'::text AS role FROM bob_objects object JOIN bob_vehicle_versions vehicle_detail ON vehicle_detail.version_id=object.effective_version_id WHERE vehicle_detail.carrier_service_relationship_object_id=sqlc.arg(source_object_id);
 
 -- name: ListFormulaMaterialReferences :many
 SELECT object.id AS object_id,object.entity,'formula-material'::text AS role FROM bob_objects object JOIN bob_product_formula_lines formula_line ON formula_line.product_version_id=object.effective_version_id WHERE formula_line.material_object_id=sqlc.arg(source_object_id);
@@ -1776,8 +1779,119 @@ UPDATE bob_supplier_versions SET default_purchaser_employee_id=sqlc.arg(target_o
 -- name: ReplaceWarehouseManagerReference :exec
 UPDATE bob_warehouse_versions SET manager_employee_id=sqlc.arg(target_object_id) WHERE version_id=sqlc.arg(version_id);
 
--- name: ReplaceVehiclePlatformReference :exec
-UPDATE bob_vehicle_versions SET platform_object_id=sqlc.arg(target_object_id) WHERE version_id=sqlc.arg(version_id);
+-- name: ClearWarehouseManagerReference :exec
+UPDATE bob_warehouse_versions SET manager_employee_id=NULL WHERE version_id=sqlc.arg(version_id);
+
+-- name: ListWarehouseDisableInventory :many
+SELECT entry.product_id, object.code AS product_code, product.name AS product_name,
+       sum(entry.quantity_delta_micros)::bigint AS quantity_micros
+FROM acc_inventory_entries entry
+JOIN acc_books book ON book.id=entry.book_id AND book.control_book
+JOIN bob_objects object ON object.id=entry.product_id AND object.entity='product'
+JOIN bob_product_versions product ON product.version_id=object.effective_version_id
+WHERE entry.warehouse_id=sqlc.arg(warehouse_object_id)
+GROUP BY entry.product_id,object.code,product.name
+HAVING sum(entry.quantity_delta_micros)<>0
+ORDER BY object.code,entry.product_id;
+
+-- name: LockWarehouseDisableInventory :exec
+SELECT id FROM acc_inventory_entries WHERE warehouse_id=sqlc.arg(warehouse_object_id) FOR UPDATE;
+
+-- name: ListWarehouseDisableInProgressDocuments :many
+SELECT DISTINCT document.id AS document_id,document.entity,document.document_no,document.status
+FROM vou_documents document
+WHERE document.status IN ('DRAFT','CHECKED') AND (
+  EXISTS(SELECT 1 FROM vou_sale_order_details x WHERE x.document_id=document.id AND x.warehouse_object_id=sqlc.arg(warehouse_object_id)) OR
+  EXISTS(SELECT 1 FROM vou_purchase_order_details x WHERE x.document_id=document.id AND x.warehouse_object_id=sqlc.arg(warehouse_object_id)) OR
+  EXISTS(SELECT 1 FROM vou_sale_outbound_details x WHERE x.document_id=document.id AND x.warehouse_object_id=sqlc.arg(warehouse_object_id)) OR
+  EXISTS(SELECT 1 FROM vou_purchase_inbound_details x WHERE x.document_id=document.id AND x.warehouse_object_id=sqlc.arg(warehouse_object_id)) OR
+  EXISTS(SELECT 1 FROM vou_sale_signoff_details x WHERE x.document_id=document.id AND x.warehouse_object_id=sqlc.arg(warehouse_object_id)) OR
+  EXISTS(SELECT 1 FROM vou_sale_return_details x WHERE x.document_id=document.id AND x.warehouse_object_id=sqlc.arg(warehouse_object_id)) OR
+  EXISTS(SELECT 1 FROM vou_purchase_return_details x WHERE x.document_id=document.id AND x.warehouse_object_id=sqlc.arg(warehouse_object_id)) OR
+  EXISTS(SELECT 1 FROM vou_production_details x WHERE x.document_id=document.id AND (x.material_warehouse_object_id=sqlc.arg(warehouse_object_id) OR x.finished_warehouse_object_id=sqlc.arg(warehouse_object_id))) OR
+  EXISTS(SELECT 1 FROM vou_inventory_count_details x WHERE x.document_id=document.id AND x.warehouse_object_id=sqlc.arg(warehouse_object_id))
+)
+ORDER BY document.entity,document.document_no,document.id;
+
+-- name: LockWarehouseDisableDocuments :exec
+SELECT document.id FROM vou_documents document WHERE (
+  EXISTS(SELECT 1 FROM vou_sale_order_details x WHERE x.document_id=document.id AND x.warehouse_object_id=sqlc.arg(warehouse_object_id)) OR
+  EXISTS(SELECT 1 FROM vou_purchase_order_details x WHERE x.document_id=document.id AND x.warehouse_object_id=sqlc.arg(warehouse_object_id)) OR
+  EXISTS(SELECT 1 FROM vou_sale_outbound_details x WHERE x.document_id=document.id AND x.warehouse_object_id=sqlc.arg(warehouse_object_id)) OR
+  EXISTS(SELECT 1 FROM vou_purchase_inbound_details x WHERE x.document_id=document.id AND x.warehouse_object_id=sqlc.arg(warehouse_object_id)) OR
+  EXISTS(SELECT 1 FROM vou_sale_signoff_details x WHERE x.document_id=document.id AND x.warehouse_object_id=sqlc.arg(warehouse_object_id)) OR
+  EXISTS(SELECT 1 FROM vou_sale_return_details x WHERE x.document_id=document.id AND x.warehouse_object_id=sqlc.arg(warehouse_object_id)) OR
+  EXISTS(SELECT 1 FROM vou_purchase_return_details x WHERE x.document_id=document.id AND x.warehouse_object_id=sqlc.arg(warehouse_object_id)) OR
+  EXISTS(SELECT 1 FROM vou_production_details x WHERE x.document_id=document.id AND (x.material_warehouse_object_id=sqlc.arg(warehouse_object_id) OR x.finished_warehouse_object_id=sqlc.arg(warehouse_object_id))) OR
+  EXISTS(SELECT 1 FROM vou_inventory_count_details x WHERE x.document_id=document.id AND x.warehouse_object_id=sqlc.arg(warehouse_object_id))
+) FOR UPDATE;
+
+-- name: ListWarehouseDisableExecutableSources :many
+SELECT document.id AS document_id,document.entity,document.document_no
+FROM vou_documents document
+JOIN vou_sale_order_details detail ON detail.document_id=document.id
+WHERE document.status='APPROVED' AND detail.warehouse_object_id=sqlc.arg(warehouse_object_id)
+  AND EXISTS (
+    SELECT 1
+    FROM vou_product_lines order_line
+    WHERE order_line.document_id=document.id
+      AND order_line.base_quantity_micros >
+        COALESCE((
+          SELECT sum(signoff_line.signed_base_quantity_micros)
+          FROM vou_sale_signoff_lines signoff_line
+          JOIN vou_documents signoff_document
+            ON signoff_document.id=signoff_line.document_id
+           AND signoff_document.status='APPROVED'
+          WHERE signoff_line.source_order_line_id=order_line.id
+        ),0)
+        + COALESCE((
+          SELECT sum(outbound_line.base_quantity_micros)
+          FROM vou_sale_outbound_lines outbound_line
+          JOIN vou_documents outbound_document
+            ON outbound_document.id=outbound_line.document_id
+           AND outbound_document.status='APPROVED'
+          WHERE outbound_line.source_order_line_id=order_line.id
+            AND NOT EXISTS (
+              SELECT 1
+              FROM vou_sale_signoff_lines signoff_line
+              JOIN vou_documents signoff_document
+                ON signoff_document.id=signoff_line.document_id
+               AND signoff_document.status='APPROVED'
+              WHERE signoff_line.source_outbound_line_id=outbound_line.id
+            )
+        ),0)
+  )
+UNION ALL
+SELECT document.id AS document_id,document.entity,document.document_no
+FROM vou_documents document
+JOIN vou_purchase_order_details detail ON detail.document_id=document.id
+WHERE document.status='APPROVED' AND detail.warehouse_object_id=sqlc.arg(warehouse_object_id)
+  AND detail.fulfillment_status='OPEN'
+UNION ALL
+SELECT document.id AS document_id,document.entity,document.document_no
+FROM vou_documents document
+JOIN vou_sale_signoff_details detail ON detail.document_id=document.id
+JOIN vou_sale_signoff_lines line ON line.document_id=document.id
+WHERE document.status='APPROVED' AND detail.warehouse_object_id=sqlc.arg(warehouse_object_id)
+GROUP BY document.id,document.entity,document.document_no
+HAVING EXISTS(SELECT 1 FROM vou_sale_signoff_lines source_line
+  WHERE source_line.document_id=document.id AND source_line.signed_base_quantity_micros > COALESCE((SELECT sum(return_line.base_quantity_micros) FROM vou_sale_return_lines return_line JOIN vou_sale_return_details return_detail ON return_detail.document_id=return_line.document_id WHERE return_detail.return_kind='AFTER_SALE' AND return_line.source_signoff_line_id=source_line.id),0))
+UNION ALL
+SELECT document.id AS document_id,document.entity,document.document_no
+FROM vou_documents document
+JOIN vou_purchase_inbound_details detail ON detail.document_id=document.id
+JOIN vou_purchase_inbound_lines line ON line.document_id=document.id
+WHERE document.status='APPROVED' AND detail.warehouse_object_id=sqlc.arg(warehouse_object_id)
+GROUP BY document.id,document.entity,document.document_no
+HAVING EXISTS(SELECT 1 FROM vou_purchase_inbound_lines source_line
+  WHERE source_line.document_id=document.id AND source_line.base_quantity_micros > COALESCE((SELECT sum(return_line.base_quantity_micros) FROM vou_purchase_return_lines return_line WHERE return_line.source_inbound_line_id=source_line.id),0))
+ORDER BY entity,document_no,document_id;
+
+-- name: ReplaceVehicleCarrierOperatingReference :exec
+UPDATE bob_vehicle_versions SET carrier_operating_entity_id=sqlc.arg(target_object_id) WHERE version_id=sqlc.arg(version_id);
+
+-- name: ReplaceVehicleCarrierServiceReference :exec
+UPDATE bob_vehicle_versions SET carrier_service_relationship_object_id=sqlc.arg(target_object_id) WHERE version_id=sqlc.arg(version_id);
 
 -- name: ReplaceFormulaMaterialReference :exec
 UPDATE bob_product_formula_lines SET material_object_id=sqlc.arg(target_object_id),material_version_id=sqlc.arg(target_version_id)

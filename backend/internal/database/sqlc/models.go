@@ -1051,18 +1051,6 @@ type BobServiceRelationshipVersion struct {
 	Remark                *string `db:"remark" json:"remark"`
 }
 
-type BobServiceVersion struct {
-	VersionID      string  `db:"version_id" json:"version_id"`
-	Entity         string  `db:"entity" json:"entity"`
-	Name           string  `db:"name" json:"name"`
-	Unit           string  `db:"unit" json:"unit"`
-	CategoryID     *string `db:"category_id" json:"category_id"`
-	CategoryEntity string  `db:"category_entity" json:"category_entity"`
-	Description    *string `db:"description" json:"description"`
-	Remark         *string `db:"remark" json:"remark"`
-	UnitID         string  `db:"unit_id" json:"unit_id"`
-}
-
 type BobSettlementMethodVersion struct {
 	VersionID                  string  `db:"version_id" json:"version_id"`
 	Entity                     string  `db:"entity" json:"entity"`
@@ -1115,19 +1103,23 @@ type BobSupplierVersion struct {
 }
 
 type BobVehicleVersion struct {
-	VersionID        string         `db:"version_id" json:"version_id"`
-	Entity           string         `db:"entity" json:"entity"`
-	Name             string         `db:"name" json:"name"`
-	PlateNumber      string         `db:"plate_number" json:"plate_number"`
-	VehicleType      string         `db:"vehicle_type" json:"vehicle_type"`
-	PlatformObjectID string         `db:"platform_object_id" json:"platform_object_id"`
-	PlatformEntity   string         `db:"platform_entity" json:"platform_entity"`
-	CategoryID       *string        `db:"category_id" json:"category_id"`
-	CategoryEntity   string         `db:"category_entity" json:"category_entity"`
-	Vin              *string        `db:"vin" json:"vin"`
-	EngineNumber     *string        `db:"engine_number" json:"engine_number"`
-	LoadCapacityKg   pgtype.Numeric `db:"load_capacity_kg" json:"load_capacity_kg"`
-	Remark           *string        `db:"remark" json:"remark"`
+	VersionID                          string         `db:"version_id" json:"version_id"`
+	Entity                             string         `db:"entity" json:"entity"`
+	Name                               string         `db:"name" json:"name"`
+	PlateNumber                        string         `db:"plate_number" json:"plate_number"`
+	VehicleType                        string         `db:"vehicle_type" json:"vehicle_type"`
+	CategoryID                         *string        `db:"category_id" json:"category_id"`
+	CategoryEntity                     string         `db:"category_entity" json:"category_entity"`
+	Vin                                *string        `db:"vin" json:"vin"`
+	EngineNumber                       *string        `db:"engine_number" json:"engine_number"`
+	LoadCapacityKg                     pgtype.Numeric `db:"load_capacity_kg" json:"load_capacity_kg"`
+	Remark                             *string        `db:"remark" json:"remark"`
+	CarrierAffiliationType             string         `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
+	CarrierOperatingEntityID           *string        `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
+	CarrierOperatingEntity             string         `db:"carrier_operating_entity" json:"carrier_operating_entity"`
+	CarrierServiceRelationshipObjectID *string        `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
+	CarrierServiceRelationshipEntity   string         `db:"carrier_service_relationship_entity" json:"carrier_service_relationship_entity"`
+	BulkLiquidCapable                  bool           `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
 }
 
 type BobVersion struct {
@@ -1175,7 +1167,10 @@ type BobVersionView struct {
 	Currency                             *string            `db:"currency" json:"currency"`
 	PlateNumber                          *string            `db:"plate_number" json:"plate_number"`
 	VehicleType                          *string            `db:"vehicle_type" json:"vehicle_type"`
-	PlatformObjectID                     *string            `db:"platform_object_id" json:"platform_object_id"`
+	CarrierAffiliationType               *string            `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
+	CarrierOperatingEntityID             *string            `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
+	CarrierServiceRelationshipObjectID   *string            `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
+	BulkLiquidCapable                    *bool              `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
 	CustomerType                         string             `db:"customer_type" json:"customer_type"`
 	ShortName                            string             `db:"short_name" json:"short_name"`
 	CategoryID                           string             `db:"category_id" json:"category_id"`
@@ -1772,6 +1767,7 @@ type VouProductLine struct {
 	ProductTypeCode            string      `db:"product_type_code" json:"product_type_code"`
 	ProductTypeName            string      `db:"product_type_name" json:"product_type_name"`
 	DefaultPackagingSpecMicros *int64      `db:"default_packaging_spec_micros" json:"default_packaging_spec_micros"`
+	DeliverySpecificationType  string      `db:"delivery_specification_type" json:"delivery_specification_type"`
 }
 
 type VouProductionDetail struct {
@@ -1959,22 +1955,28 @@ type VouReceiptDetail struct {
 }
 
 type VouSaleDeliveryDetail struct {
-	DocumentID         string  `db:"document_id" json:"document_id"`
-	Entity             string  `db:"entity" json:"entity"`
-	SourceOutboundID   string  `db:"source_outbound_id" json:"source_outbound_id"`
-	CustomerObjectID   string  `db:"customer_object_id" json:"customer_object_id"`
-	CustomerVersionID  string  `db:"customer_version_id" json:"customer_version_id"`
-	CustomerCode       string  `db:"customer_code" json:"customer_code"`
-	CustomerName       string  `db:"customer_name" json:"customer_name"`
-	PlatformObjectID   *string `db:"platform_object_id" json:"platform_object_id"`
-	PlatformVersionID  *string `db:"platform_version_id" json:"platform_version_id"`
-	PlatformCode       *string `db:"platform_code" json:"platform_code"`
-	PlatformName       *string `db:"platform_name" json:"platform_name"`
-	VehicleObjectID    *string `db:"vehicle_object_id" json:"vehicle_object_id"`
-	VehicleVersionID   *string `db:"vehicle_version_id" json:"vehicle_version_id"`
-	VehicleCode        *string `db:"vehicle_code" json:"vehicle_code"`
-	VehicleName        *string `db:"vehicle_name" json:"vehicle_name"`
-	VehiclePlateNumber *string `db:"vehicle_plate_number" json:"vehicle_plate_number"`
+	DocumentID                          string  `db:"document_id" json:"document_id"`
+	Entity                              string  `db:"entity" json:"entity"`
+	SourceOutboundID                    string  `db:"source_outbound_id" json:"source_outbound_id"`
+	CustomerObjectID                    string  `db:"customer_object_id" json:"customer_object_id"`
+	CustomerVersionID                   string  `db:"customer_version_id" json:"customer_version_id"`
+	CustomerCode                        string  `db:"customer_code" json:"customer_code"`
+	CustomerName                        string  `db:"customer_name" json:"customer_name"`
+	CarrierServiceRelationshipObjectID  *string `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
+	CarrierServiceRelationshipVersionID *string `db:"carrier_service_relationship_version_id" json:"carrier_service_relationship_version_id"`
+	CarrierServiceRelationshipCode      *string `db:"carrier_service_relationship_code" json:"carrier_service_relationship_code"`
+	CarrierServiceRelationshipName      *string `db:"carrier_service_relationship_name" json:"carrier_service_relationship_name"`
+	VehicleObjectID                     *string `db:"vehicle_object_id" json:"vehicle_object_id"`
+	VehicleVersionID                    *string `db:"vehicle_version_id" json:"vehicle_version_id"`
+	VehicleCode                         *string `db:"vehicle_code" json:"vehicle_code"`
+	VehicleName                         *string `db:"vehicle_name" json:"vehicle_name"`
+	VehiclePlateNumber                  *string `db:"vehicle_plate_number" json:"vehicle_plate_number"`
+	CarrierType                         string  `db:"carrier_type" json:"carrier_type"`
+	CarrierOperatingEntityObjectID      *string `db:"carrier_operating_entity_object_id" json:"carrier_operating_entity_object_id"`
+	CarrierOperatingEntityVersionID     *string `db:"carrier_operating_entity_version_id" json:"carrier_operating_entity_version_id"`
+	CarrierOperatingEntityCode          *string `db:"carrier_operating_entity_code" json:"carrier_operating_entity_code"`
+	CarrierOperatingEntityName          *string `db:"carrier_operating_entity_name" json:"carrier_operating_entity_name"`
+	VehicleBulkLiquidCapable            bool    `db:"vehicle_bulk_liquid_capable" json:"vehicle_bulk_liquid_capable"`
 }
 
 type VouSaleOrderDetail struct {

@@ -62,61 +62,57 @@ func (s *Service) loadSalesChainData(
 		}
 		return data, rows.Err()
 	case EntitySaleDelivery:
-		var sourceID, sourceNo string
-		var customer ReferenceView
-		var platform ReferenceView
-		var vehicle ReferenceView
-		err := s.pool.QueryRow(ctx, `SELECT x.source_outbound_id,p.document_no,
-			x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name,
-			COALESCE(x.platform_object_id,''),COALESCE(x.platform_version_id,''),
-			COALESCE(x.platform_code,''),COALESCE(x.platform_name,''),
-			COALESCE(x.vehicle_object_id,''),COALESCE(x.vehicle_version_id,''),
-			COALESCE(x.vehicle_code,''),COALESCE(x.vehicle_name,''),
-			COALESCE(x.vehicle_plate_number,'')
-			FROM vou_sale_delivery_details x JOIN vou_documents p ON p.id=x.source_outbound_id
-			WHERE x.document_id=$1`, document.ID).Scan(
-			&sourceID, &sourceNo,
-			&customer.ObjectID, &customer.VersionID, &customer.Code, &customer.Name,
-			&platform.ObjectID, &platform.VersionID, &platform.Code, &platform.Name,
-			&vehicle.ObjectID, &vehicle.VersionID, &vehicle.Code, &vehicle.Name, &vehicle.PlateNumber)
+		row, err := s.queries.GetVouSaleDeliveryView(ctx, document.ID)
 		if err != nil {
 			return data, err
 		}
-		customer.Entity, platform.Entity, vehicle.Entity = bobdomain.EntityCustomerAccount, "other-unit", "vehicle"
+		var customer ReferenceView
+		var operatingEntity ReferenceView
+		var carrier ReferenceView
+		var vehicle ReferenceView
+		customer.ObjectID, customer.VersionID, customer.Code, customer.Name =
+			row.CustomerObjectID, row.CustomerVersionID, row.CustomerCode, row.CustomerName
+		operatingEntity.ObjectID, operatingEntity.VersionID =
+			row.CarrierOperatingEntityObjectID, row.CarrierOperatingEntityVersionID
+		operatingEntity.Code, operatingEntity.Name = row.CarrierOperatingEntityCode, row.CarrierOperatingEntityName
+		carrier.ObjectID, carrier.VersionID =
+			row.CarrierServiceRelationshipObjectID, row.CarrierServiceRelationshipVersionID
+		carrier.Code, carrier.Name = row.CarrierServiceRelationshipCode, row.CarrierServiceRelationshipName
+		vehicle.ObjectID, vehicle.VersionID, vehicle.Code, vehicle.Name, vehicle.PlateNumber =
+			row.VehicleObjectID, row.VehicleVersionID, row.VehicleCode, row.VehicleName, row.VehiclePlateNumber
+		customer.Entity, operatingEntity.Entity, carrier.Entity, vehicle.Entity =
+			bobdomain.EntityCustomerAccount, bobdomain.EntityOperatingEntity, bobdomain.EntityOtherUnit, bobdomain.EntityVehicle
 		data.Customer = &customer
-		if platform.ObjectID != "" {
-			data.Platform = &platform
+		data.CarrierType = row.CarrierType
+		if operatingEntity.ObjectID != "" {
+			data.CarrierOperatingEntity = &operatingEntity
+		}
+		if carrier.ObjectID != "" {
+			data.Carrier = &carrier
 		}
 		if vehicle.ObjectID != "" {
 			data.Vehicle = &vehicle
+			data.VehicleBulkLiquidCapable = row.VehicleBulkLiquidCapable
 		}
-		rows, err := s.pool.Query(ctx, `SELECT id,source_order_line_id,line_no,
-			product_object_id,product_version_id,product_code,product_name,entered_unit_symbol,
-			base_quantity_micros,unit_price_cents,line_amount_cents,remark
-			FROM vou_sale_outbound_lines WHERE document_id=$1 ORDER BY line_no`, sourceID)
+		lines, err := s.queries.ListVouSaleOutboundStateLines(ctx, row.SourceOutboundID)
 		if err != nil {
 			return data, err
 		}
-		defer rows.Close()
-		for rows.Next() {
+		for _, stored := range lines {
 			var line ProductLineView
-			var quantity, price, amount int64
-			var remark *string
-			if err = rows.Scan(
-				&line.LineID, &line.SourceLineID, &line.LineNo,
-				&line.Product.ObjectID, &line.Product.VersionID, &line.Product.Code,
-				&line.Product.Name, &line.Product.Unit, &quantity, &price, &amount, &remark,
-			); err != nil {
-				return data, err
-			}
+			line.LineID, line.SourceLineID, line.LineNo = stored.ID, stored.SourceOrderLineID, stored.LineNo
+			line.Product.ObjectID, line.Product.VersionID = stored.ProductObjectID, stored.ProductVersionID
+			line.Product.Code, line.Product.Name, line.Product.Unit =
+				stored.ProductCode, stored.ProductName, stored.EnteredUnitSymbol
 			line.Product.Entity = "product"
-			line.BaseQuantity = formatQuantity(quantity)
+			line.BaseQuantity = formatQuantity(stored.BaseQuantityMicros)
 			line.EnteredQuantity = line.BaseQuantity
 			line.EnteredUnit = UnitSnapshotView{Symbol: line.Product.Unit}
-			line.UnitPrice, line.LineAmount, line.Remark = formatMoney(price), formatMoney(amount), deref(remark)
+			line.UnitPrice, line.LineAmount, line.Remark =
+				formatMoney(stored.UnitPriceCents), formatMoney(stored.LineAmountCents), deref(stored.Remark)
 			data.ProductLines = append(data.ProductLines, line)
 		}
-		return data, rows.Err()
+		return data, nil
 	case EntitySaleSignoff:
 		var sourceID, sourceNo string
 		var customer ReferenceView
@@ -249,14 +245,12 @@ func (s *Service) validateSalesChainStored(
 			return s.internal("validate sale outbound", err)
 		}
 	case EntitySaleDelivery:
-		err := s.pool.QueryRow(ctx, `SELECT p.status,1,
-			x.platform_object_id IS NOT NULL AND x.vehicle_object_id IS NOT NULL
-			FROM vou_sale_delivery_details x
-			JOIN vou_documents p ON p.id=x.source_outbound_id WHERE x.document_id=$1`,
-			documentID).Scan(&sourceStatus, &lineCount, &complete)
+		row, err := s.queries.GetVouSaleDeliveryStoredState(ctx, documentID)
 		if err != nil {
 			return s.internal("validate sale delivery", err)
 		}
+		sourceStatus, lineCount = row.SourceStatus, row.LineCount
+		complete = row.Complete != nil && *row.Complete
 	case EntitySaleSignoff:
 		err := s.pool.QueryRow(ctx, `SELECT p.status,
 			(SELECT count(*) FROM vou_sale_signoff_lines WHERE document_id=x.document_id),true
@@ -386,6 +380,7 @@ func (s *Service) Delete(
 		return MutationResult{}, s.internal("begin delete draft", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+	qtx := s.queries.WithTx(tx)
 	var number, status string
 	var parentID *string
 	var revision int64
@@ -406,8 +401,7 @@ func (s *Service) Delete(
 		}
 	}
 	if entity == EntityIntermediaryCalculation {
-		q := s.queries.WithTx(tx)
-		if err = s.requireNoIntermediaryCalculationDependents(ctx, q, input.DocumentID); err != nil {
+		if err = s.requireNoIntermediaryCalculationDependents(ctx, qtx, input.DocumentID); err != nil {
 			return MutationResult{}, err
 		}
 	}
@@ -467,16 +461,22 @@ func (s *Service) Delete(
 				input.DocumentID)
 		}
 	case EntitySaleOrder:
-		_, err = tx.Exec(ctx, `DELETE FROM vou_product_lines WHERE document_id=$1;
-			DELETE FROM vou_sale_order_details WHERE document_id=$1`, input.DocumentID)
+		err = qtx.DeleteVouProductLines(ctx, input.DocumentID)
+		if err == nil {
+			err = qtx.DeleteVouSaleOrderDetails(ctx, input.DocumentID)
+		}
 	case EntitySaleOutbound:
-		_, err = tx.Exec(ctx, `DELETE FROM vou_sale_outbound_lines WHERE document_id=$1;
-			DELETE FROM vou_sale_outbound_details WHERE document_id=$1`, input.DocumentID)
+		err = qtx.DeleteVouSaleOutboundLines(ctx, input.DocumentID)
+		if err == nil {
+			err = qtx.DeleteVouSaleOutboundDetails(ctx, input.DocumentID)
+		}
 	case EntitySaleDelivery:
-		_, err = tx.Exec(ctx, `DELETE FROM vou_sale_delivery_details WHERE document_id=$1`, input.DocumentID)
+		err = qtx.DeleteVouSaleDeliveryDetails(ctx, input.DocumentID)
 	case EntitySaleSignoff:
-		_, err = tx.Exec(ctx, `DELETE FROM vou_sale_signoff_lines WHERE document_id=$1;
-			DELETE FROM vou_sale_signoff_details WHERE document_id=$1`, input.DocumentID)
+		err = qtx.DeleteVouSaleSignoffLines(ctx, input.DocumentID)
+		if err == nil {
+			err = qtx.DeleteVouSaleSignoffDetails(ctx, input.DocumentID)
+		}
 	case EntitySaleReturn:
 		if _, err = tx.Exec(ctx, `DELETE FROM vou_sale_return_lines WHERE document_id=$1`,
 			input.DocumentID); err == nil {

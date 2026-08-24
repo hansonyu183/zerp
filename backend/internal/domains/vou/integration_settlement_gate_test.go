@@ -376,7 +376,7 @@ func TestPrepaidConcurrentSignoffConsumesCurrentBalanceAtomicallyIntegration(t *
 		}, true)
 		delivery, deliveryView := advanceSalesDocument(t, service, EntitySaleDelivery, DraftInput{
 			BusinessDate: "2026-08-05", SourceDocumentID: outbound.DocumentID,
-			Platform: &refs.platform, Vehicle: &refs.vehicle,
+			Carrier: &refs.carrier, Vehicle: &refs.vehicle,
 		}, true)
 		signoff, _ := advanceSalesDocument(t, service, EntitySaleSignoff, DraftInput{
 			BusinessDate: "2026-08-05", SourceDocumentID: delivery.DocumentID,

@@ -33,6 +33,7 @@ type salesSource struct {
 	CustomerCode, CustomerName            string
 	WarehouseObjectID, WarehouseVersionID string
 	WarehouseCode, WarehouseName          string
+	OperatingEntityObjectID               string
 }
 
 func validateChainHeader(data DraftInput) (time.Time, *string, error) {
@@ -115,17 +116,17 @@ func validateChainShape(entity string, data DraftInput) error {
 	}
 	switch entity {
 	case EntitySaleOutbound:
-		if data.Warehouse == nil || data.Platform != nil || data.Vehicle != nil ||
+		if data.Warehouse == nil || data.Carrier != nil || data.Vehicle != nil ||
 			len(data.SourceLines) == 0 || len(data.SignoffLines) != 0 {
 			return domainError(ErrorValidation, "fields do not match sale-outbound", nil, nil)
 		}
 	case EntitySaleDelivery:
-		if data.Warehouse != nil || data.Platform == nil || data.Vehicle == nil ||
+		if data.Warehouse != nil || data.Vehicle == nil ||
 			len(data.SourceLines) != 0 || len(data.SignoffLines) != 0 {
 			return domainError(ErrorValidation, "fields do not match sale-delivery", nil, nil)
 		}
 	case EntitySaleSignoff:
-		if data.Warehouse != nil || data.Platform != nil || data.Vehicle != nil ||
+		if data.Warehouse != nil || data.Carrier != nil || data.Vehicle != nil ||
 			len(data.SourceLines) != 0 || len(data.SignoffLines) == 0 {
 			return domainError(ErrorValidation, "fields do not match sale-signoff", nil, nil)
 		}
@@ -227,6 +228,7 @@ func (s *Service) lockSalesSource(
 	source.ID, source.Entity = id, entity
 	var date time.Time
 	var err error
+	qtx := s.queries.WithTx(tx)
 	switch entity {
 	case EntitySaleOrder:
 		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.business_date,d.currency,d.total_amount_cents,
@@ -239,14 +241,17 @@ func (s *Service) lockSalesSource(
 				&source.CustomerObjectID, &source.CustomerVersionID, &source.CustomerCode, &source.CustomerName,
 				&source.WarehouseObjectID, &source.WarehouseVersionID, &source.WarehouseCode, &source.WarehouseName)
 	case EntitySaleOutbound:
-		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.business_date,d.currency,d.total_amount_cents,
-			x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name,
-			x.warehouse_object_id,x.warehouse_version_id,x.warehouse_code,x.warehouse_name
-			FROM vou_documents d JOIN vou_sale_outbound_details x ON x.document_id=d.id
-			WHERE d.id=$1 AND d.entity='sale-outbound' FOR UPDATE`, id).
-			Scan(&source.Number, &source.Status, &date, &source.Currency, &source.Total,
-				&source.CustomerObjectID, &source.CustomerVersionID, &source.CustomerCode, &source.CustomerName,
-				&source.WarehouseObjectID, &source.WarehouseVersionID, &source.WarehouseCode, &source.WarehouseName)
+		var row dbsqlc.LockVouSaleOutboundSourceRow
+		row, err = qtx.LockVouSaleOutboundSource(ctx, id)
+		if err == nil {
+			source.Number, source.Status, date, source.Currency, source.Total =
+				row.DocumentNo, row.Status, row.BusinessDate.Time, row.Currency, row.TotalAmountCents
+			source.CustomerObjectID, source.CustomerVersionID = row.CustomerObjectID, row.CustomerVersionID
+			source.CustomerCode, source.CustomerName = row.CustomerCode, row.CustomerName
+			source.WarehouseObjectID, source.WarehouseVersionID = deref(row.WarehouseObjectID), deref(row.WarehouseVersionID)
+			source.WarehouseCode, source.WarehouseName = deref(row.WarehouseCode), deref(row.WarehouseName)
+			source.OperatingEntityObjectID = row.OperatingEntityID
+		}
 	case EntitySaleDelivery:
 		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.business_date,d.currency,d.total_amount_cents,
 			x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name,
@@ -459,6 +464,124 @@ func (s *Service) writeSaleOutbound(
 	return MutationResult{DocumentID: id, DocumentNo: number, Status: StatusDraft, Revision: revision}, nil
 }
 
+type saleDeliveryTransport struct {
+	carrierType string
+	operating   nullableReferenceSnapshot
+	service     nullableReferenceSnapshot
+	vehicle     bobdomain.EffectiveReference
+}
+
+type nullableReferenceSnapshot struct {
+	objectID  *string
+	versionID *string
+	code      *string
+	name      *string
+}
+
+func newNullableReferenceSnapshot(reference *bobdomain.EffectiveReference) nullableReferenceSnapshot {
+	if reference == nil {
+		return nullableReferenceSnapshot{}
+	}
+	return nullableReferenceSnapshot{
+		objectID:  &reference.ObjectID,
+		versionID: &reference.VersionID,
+		code:      &reference.Code,
+		name:      &reference.Data.Name,
+	}
+}
+
+func (s *Service) resolveSaleDeliveryTransport(
+	ctx context.Context,
+	tx pgx.Tx,
+	source salesSource,
+	carrier *ReferenceInput,
+	vehicleInput ReferenceInput,
+) (saleDeliveryTransport, error) {
+	vehicle, err := s.resolver.ResolveEffectiveReference(
+		ctx, tx, bobdomain.EntityVehicle, vehicleInput.ObjectID, vehicleInput.VersionID,
+	)
+	if err != nil || vehicle.Data.CarrierAffiliation == nil {
+		return saleDeliveryTransport{}, domainError(ErrorConflict, "vehicle is not currently effective", nil, err)
+	}
+	var requiresBulkLiquidCapability bool
+	qtx := s.queries.WithTx(tx)
+	if requiresBulkLiquidCapability, err = qtx.VouSaleOutboundRequiresBulkLiquidVehicle(ctx, source.ID); err != nil {
+		return saleDeliveryTransport{}, s.internal("check sale delivery vehicle capability", err)
+	}
+	if requiresBulkLiquidCapability && !vehicle.Data.BulkLiquidCapable {
+		return saleDeliveryTransport{}, domainError(ErrorConflict, "bulk-liquid delivery requires a capable vehicle", nil, nil)
+	}
+	affiliation := vehicle.Data.CarrierAffiliation
+	result := saleDeliveryTransport{carrierType: affiliation.Type, vehicle: vehicle}
+	switch affiliation.Type {
+	case "INTERNAL":
+		if carrier != nil || affiliation.OperatingEntityID != source.OperatingEntityObjectID {
+			return saleDeliveryTransport{}, domainError(ErrorConflict, "internal vehicle must belong to the sale order Operating Entity", nil, nil)
+		}
+		operating, resolveErr := s.resolver.ResolveCurrentEffectiveReference(
+			ctx, tx, bobdomain.EntityOperatingEntity, affiliation.OperatingEntityID,
+		)
+		if resolveErr != nil {
+			return saleDeliveryTransport{}, domainError(ErrorConflict, "vehicle Operating Entity is not currently effective", nil, resolveErr)
+		}
+		result.operating = newNullableReferenceSnapshot(&operating)
+	case "EXTERNAL":
+		if err = validateReference(carrier, "carrier", true); err != nil {
+			return saleDeliveryTransport{}, err
+		}
+		service, resolveErr := s.resolver.ResolveEffectiveReference(
+			ctx, tx, bobdomain.EntityOtherUnit, carrier.ObjectID, carrier.VersionID,
+		)
+		if resolveErr != nil {
+			return saleDeliveryTransport{}, domainError(ErrorConflict, "carrier is not a current Service Relationship", nil, resolveErr)
+		}
+		if affiliation.ServiceRelationshipObjectID != service.ObjectID {
+			return saleDeliveryTransport{}, domainError(ErrorConflict, "external vehicle does not belong to the selected carrier", nil, nil)
+		}
+		result.service = newNullableReferenceSnapshot(&service)
+	default:
+		return saleDeliveryTransport{}, domainError(ErrorConflict, "vehicle carrier affiliation is invalid", nil, nil)
+	}
+	return result, nil
+}
+
+func (s *Service) validateSaleDeliveryTransportCurrent(ctx context.Context, tx pgx.Tx, documentID string) error {
+	qtx := s.queries.WithTx(tx)
+	snapshot, err := qtx.LockVouSaleDeliveryCarrierSnapshot(ctx, documentID)
+	if err != nil {
+		return s.internal("read sale delivery carrier snapshot", err)
+	}
+	source, err := s.lockSalesSource(ctx, tx, snapshot.SourceOutboundID, EntitySaleOutbound)
+	if err != nil {
+		return err
+	}
+	var carrier *ReferenceInput
+	if snapshot.CarrierServiceRelationshipObjectID != nil && snapshot.CarrierServiceRelationshipVersionID != nil {
+		carrier = &ReferenceInput{ObjectID: *snapshot.CarrierServiceRelationshipObjectID, VersionID: *snapshot.CarrierServiceRelationshipVersionID}
+	}
+	if snapshot.VehicleObjectID == nil || snapshot.VehicleVersionID == nil {
+		return domainError(ErrorConflict, "sales-chain source is not ready", nil, nil)
+	}
+	transport, err := s.resolveSaleDeliveryTransport(ctx, tx, source, carrier, ReferenceInput{
+		ObjectID: *snapshot.VehicleObjectID, VersionID: *snapshot.VehicleVersionID,
+	})
+	if err != nil {
+		return err
+	}
+	if transport.carrierType != snapshot.CarrierType {
+		return domainError(ErrorConflict, "saved carrier type is no longer current", nil, nil)
+	}
+	if snapshot.CarrierType == "INTERNAL" {
+		if snapshot.CarrierOperatingEntityObjectID == nil || snapshot.CarrierOperatingEntityVersionID == nil ||
+			transport.operating.objectID == nil || transport.operating.versionID == nil ||
+			*transport.operating.objectID != *snapshot.CarrierOperatingEntityObjectID ||
+			*transport.operating.versionID != *snapshot.CarrierOperatingEntityVersionID {
+			return domainError(ErrorConflict, "saved Operating Entity version is no longer current", nil, nil)
+		}
+	}
+	return nil
+}
+
 func (s *Service) writeSaleDelivery(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -468,9 +591,6 @@ func (s *Service) writeSaleDelivery(
 	remark *string,
 	actorID, requestID string,
 ) (MutationResult, error) {
-	if err := validateReference(data.Platform, "platform", true); err != nil {
-		return MutationResult{}, err
-	}
 	if err := validateReference(data.Vehicle, "vehicle", true); err != nil {
 		return MutationResult{}, err
 	}
@@ -489,17 +609,28 @@ func (s *Service) writeSaleDelivery(
 	if existing != 0 {
 		return MutationResult{}, domainError(ErrorConflict, "outbound already has a delivery", nil, nil)
 	}
-	platform, err := s.resolver.ResolveEffectiveReference(
-		ctx, tx, bobdomain.EntityOtherUnit, data.Platform.ObjectID, data.Platform.VersionID,
-	)
+	transport, err := s.resolveSaleDeliveryTransport(ctx, tx, source, data.Carrier, *data.Vehicle)
 	if err != nil {
-		return MutationResult{}, domainError(ErrorConflict, "carrier is not an effective Service Relationship", nil, err)
+		return MutationResult{}, err
 	}
-	vehicle, err := s.resolver.ResolveEffectiveReference(
-		ctx, tx, bobdomain.EntityVehicle, data.Vehicle.ObjectID, data.Vehicle.VersionID,
-	)
-	if err != nil || vehicle.Data.PlatformObjectID != platform.ObjectID {
-		return MutationResult{}, domainError(ErrorConflict, "vehicle does not belong to platform", nil, err)
+	qtx := s.queries.WithTx(tx)
+	detail := dbsqlc.InsertVouSaleDeliveryDetailParams{
+		SourceOutboundID: source.ID,
+		CustomerObjectID: source.CustomerObjectID, CustomerVersionID: source.CustomerVersionID,
+		CustomerCode: source.CustomerCode, CustomerName: source.CustomerName,
+		CarrierType:                         transport.carrierType,
+		CarrierOperatingEntityObjectID:      transport.operating.objectID,
+		CarrierOperatingEntityVersionID:     transport.operating.versionID,
+		CarrierOperatingEntityCode:          transport.operating.code,
+		CarrierOperatingEntityName:          transport.operating.name,
+		CarrierServiceRelationshipObjectID:  transport.service.objectID,
+		CarrierServiceRelationshipVersionID: transport.service.versionID,
+		CarrierServiceRelationshipCode:      transport.service.code,
+		CarrierServiceRelationshipName:      transport.service.name,
+		VehicleObjectID:                     stringPtr(transport.vehicle.ObjectID), VehicleVersionID: stringPtr(transport.vehicle.VersionID),
+		VehicleCode: stringPtr(transport.vehicle.Code), VehicleName: stringPtr(transport.vehicle.Data.Name),
+		VehiclePlateNumber:       stringPtr(transport.vehicle.Data.PlateNumber),
+		VehicleBulkLiquidCapable: transport.vehicle.Data.BulkLiquidCapable,
 	}
 	id, number, revision := replacingID, "", int64(1)
 	if replacingID == "" {
@@ -507,14 +638,8 @@ func (s *Service) writeSaleDelivery(
 			ctx, tx, EntitySaleDelivery, source.ID, date, source.Currency, source.Total, remark, actorID,
 		)
 		if err == nil {
-			_, err = tx.Exec(ctx, `INSERT INTO vou_sale_delivery_details(
-				document_id,source_outbound_id,customer_object_id,customer_version_id,customer_code,customer_name,
-				platform_object_id,platform_version_id,platform_code,platform_name,
-				vehicle_object_id,vehicle_version_id,vehicle_code,vehicle_name,vehicle_plate_number)
-				VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
-				id, source.ID, source.CustomerObjectID, source.CustomerVersionID, source.CustomerCode, source.CustomerName,
-				platform.ObjectID, platform.VersionID, platform.Code, platform.Data.Name,
-				vehicle.ObjectID, vehicle.VersionID, vehicle.Code, vehicle.Data.Name, vehicle.Data.PlateNumber)
+			detail.DocumentID = id
+			err = qtx.InsertVouSaleDeliveryDetail(ctx, detail)
 		}
 	} else {
 		err = tx.QueryRow(ctx, `SELECT document_no FROM vou_documents WHERE id=$1`, id).Scan(&number)
@@ -522,11 +647,22 @@ func (s *Service) writeSaleDelivery(
 			revision, err = s.updateChainDocument(ctx, tx, id, EntitySaleDelivery, date, source.Currency, source.Total, remark, actorID)
 		}
 		if err == nil {
-			_, err = tx.Exec(ctx, `UPDATE vou_sale_delivery_details SET
-				platform_object_id=$1,platform_version_id=$2,platform_code=$3,platform_name=$4,
-				vehicle_object_id=$5,vehicle_version_id=$6,vehicle_code=$7,vehicle_name=$8,vehicle_plate_number=$9
-				WHERE document_id=$10`, platform.ObjectID, platform.VersionID, platform.Code, platform.Data.Name,
-				vehicle.ObjectID, vehicle.VersionID, vehicle.Code, vehicle.Data.Name, vehicle.Data.PlateNumber, id)
+			_, err = qtx.UpdateVouSaleDeliveryCarrierSnapshot(ctx, dbsqlc.UpdateVouSaleDeliveryCarrierSnapshotParams{
+				CarrierType:                         detail.CarrierType,
+				CarrierOperatingEntityObjectID:      detail.CarrierOperatingEntityObjectID,
+				CarrierOperatingEntityVersionID:     detail.CarrierOperatingEntityVersionID,
+				CarrierOperatingEntityCode:          detail.CarrierOperatingEntityCode,
+				CarrierOperatingEntityName:          detail.CarrierOperatingEntityName,
+				CarrierServiceRelationshipObjectID:  detail.CarrierServiceRelationshipObjectID,
+				CarrierServiceRelationshipVersionID: detail.CarrierServiceRelationshipVersionID,
+				CarrierServiceRelationshipCode:      detail.CarrierServiceRelationshipCode,
+				CarrierServiceRelationshipName:      detail.CarrierServiceRelationshipName,
+				VehicleObjectID:                     detail.VehicleObjectID, VehicleVersionID: detail.VehicleVersionID,
+				VehicleCode: detail.VehicleCode, VehicleName: detail.VehicleName,
+				VehiclePlateNumber:       detail.VehiclePlateNumber,
+				VehicleBulkLiquidCapable: detail.VehicleBulkLiquidCapable,
+				DocumentID:               id,
+			})
 		}
 	}
 	if err != nil {

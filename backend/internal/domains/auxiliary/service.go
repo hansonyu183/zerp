@@ -785,8 +785,6 @@ func objectReferenced(ctx context.Context, q dbtx, entity, objectID string) (boo
 		WHEN 'measurement-unit' THEN EXISTS(
 			SELECT 1 FROM bob_product_unit_conversions
 			WHERE unit_object_id=$2
-			UNION ALL
-			SELECT 1 FROM bob_service_versions WHERE unit_id=$2
 		)
 		ELSE EXISTS(
 			SELECT 1 FROM aux_versions

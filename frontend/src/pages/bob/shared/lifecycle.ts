@@ -7,6 +7,7 @@ import type {
   BobListItem,
   BobMutationResult,
 } from './types'
+import { bobListActiveVersion } from './types'
 
 interface VersionRevisionRequest {
   objectId: string
@@ -29,8 +30,8 @@ export function bobSelfReviewBlocked(
 ): boolean {
   return (
     currentUserId !== undefined &&
-    row.currentVersion.status === 'PENDING' &&
-    row.currentVersion.submittedBy === currentUserId
+    bobListActiveVersion(row).status === 'PENDING' &&
+    bobListActiveVersion(row).submittedBy === currentUserId
   )
 }
 
@@ -49,20 +50,21 @@ export function bobActionAvailability(
   currentUserId: string | undefined,
   can: (action: string) => boolean,
 ): BobActionAvailability {
-  const status = row.currentVersion.status
+  const version = bobListActiveVersion(row)
+  const status = version.status
   const selfReview = bobSelfReviewBlocked(row, currentUserId)
   return {
     view: can('get'),
     edit:
       (status === 'DRAFT' ||
-        (row.entity === 'product' && status === 'EFFECTIVE')) &&
+        (row.effective !== null && status === 'EFFECTIVE')) &&
       can('get') &&
       can('save'),
     delete:
       can('delete') &&
       status === 'DRAFT' &&
-      row.currentVersion.version === 1 &&
-      row.effectiveVersionId === null,
+      version.version === 1 &&
+      row.effective === null,
     submit: can('submit') && status === 'DRAFT',
     unsubmit: can('unsubmit') && status === 'PENDING',
     approve: can('approve') && status === 'PENDING' && !selfReview,
@@ -128,8 +130,8 @@ export function useBobLifecycleActions(
     try {
       const request: VersionRevisionRequest | ReviewRequest = {
         objectId: row.objectId,
-        versionId: row.currentVersion.versionId,
-        revision: row.currentVersion.revision,
+        versionId: bobListActiveVersion(row).versionId,
+        revision: bobListActiveVersion(row).revision,
         ...(action === 'reject' ? { comment: normalizedComment } : {}),
       }
       await apiClient.post<BobMutationResult, typeof request>(
@@ -172,8 +174,8 @@ export function useBobLifecycleActions(
         {
           objectId: row.objectId,
           objectRevision: row.objectRevision,
-          versionId: row.currentVersion.versionId,
-          revision: row.currentVersion.revision,
+          versionId: bobListActiveVersion(row).versionId,
+          revision: bobListActiveVersion(row).revision,
           reason: normalizedReason,
         },
       )

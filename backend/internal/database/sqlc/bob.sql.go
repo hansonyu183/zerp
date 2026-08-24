@@ -78,6 +78,38 @@ func (q *Queries) AdvanceBobCustomerAccountCandidate(ctx context.Context, arg Ad
 	return result.RowsAffected(), nil
 }
 
+const advanceBobEffectiveCandidate = `-- name: AdvanceBobEffectiveCandidate :execrows
+UPDATE bob_objects
+SET current_version_id=$1,next_version_no=next_version_no+1,
+    revision=revision+1,updated_at=now(),updated_by=$2
+WHERE id=$3 AND entity=$4 AND revision=$5
+  AND current_version_id=$6 AND effective_version_id=$6
+`
+
+type AdvanceBobEffectiveCandidateParams struct {
+	NewVersionID       string `db:"new_version_id" json:"new_version_id"`
+	ActorID            string `db:"actor_id" json:"actor_id"`
+	ObjectID           string `db:"object_id" json:"object_id"`
+	Entity             string `db:"entity" json:"entity"`
+	Revision           int64  `db:"revision" json:"revision"`
+	EffectiveVersionID string `db:"effective_version_id" json:"effective_version_id"`
+}
+
+func (q *Queries) AdvanceBobEffectiveCandidate(ctx context.Context, arg AdvanceBobEffectiveCandidateParams) (int64, error) {
+	result, err := q.db.Exec(ctx, advanceBobEffectiveCandidate,
+		arg.NewVersionID,
+		arg.ActorID,
+		arg.ObjectID,
+		arg.Entity,
+		arg.Revision,
+		arg.EffectiveVersionID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const advanceBobObjectForUnapprove = `-- name: AdvanceBobObjectForUnapprove :execrows
 UPDATE bob_objects
 SET current_version_id = $1, effective_version_id = NULL,
@@ -270,7 +302,8 @@ const bobObjectHasExternalReferences = `-- name: BobObjectHasExternalReferences 
 SELECT EXISTS (
     SELECT 1
     FROM bob_vehicle_versions vehicle
-    WHERE vehicle.platform_object_id = $1
+    WHERE vehicle.carrier_operating_entity_id = $1
+       OR vehicle.carrier_service_relationship_object_id = $1
        OR vehicle.category_id = $1
 
     UNION ALL
@@ -297,11 +330,6 @@ SELECT EXISTS (
     UNION ALL
 
     SELECT 1 FROM bob_product_versions
-    WHERE category_id = $1
-
-    UNION ALL
-
-    SELECT 1 FROM bob_service_versions
     WHERE category_id = $1
 
     UNION ALL
@@ -357,8 +385,10 @@ SELECT EXISTS (
     FROM vou_sale_delivery_details delivery
     WHERE delivery.customer_object_id = $1
        OR delivery.customer_version_id = $2
-       OR delivery.platform_object_id = $1
-       OR delivery.platform_version_id = $2
+       OR delivery.carrier_operating_entity_object_id = $1
+       OR delivery.carrier_operating_entity_version_id = $2
+       OR delivery.carrier_service_relationship_object_id = $1
+       OR delivery.carrier_service_relationship_version_id = $2
        OR delivery.vehicle_object_id = $1
        OR delivery.vehicle_version_id = $2
 
@@ -478,8 +508,8 @@ SELECT EXISTS (
 `
 
 type BobObjectHasExternalReferencesParams struct {
-	TargetObjectID  string `db:"target_object_id" json:"target_object_id"`
-	TargetVersionID string `db:"target_version_id" json:"target_version_id"`
+	TargetObjectID  *string `db:"target_object_id" json:"target_object_id"`
+	TargetVersionID string  `db:"target_version_id" json:"target_version_id"`
 }
 
 func (q *Queries) BobObjectHasExternalReferences(ctx context.Context, arg BobObjectHasExternalReferencesParams) (bool, error) {
@@ -498,6 +528,15 @@ func (q *Queries) BobObjectIsCustomerAccount(ctx context.Context, objectID strin
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const clearWarehouseManagerReference = `-- name: ClearWarehouseManagerReference :exec
+UPDATE bob_warehouse_versions SET manager_employee_id=NULL WHERE version_id=$1
+`
+
+func (q *Queries) ClearWarehouseManagerReference(ctx context.Context, versionID string) error {
+	_, err := q.db.Exec(ctx, clearWarehouseManagerReference, versionID)
+	return err
 }
 
 const copyBobCategoryDetail = `-- name: CopyBobCategoryDetail :exec
@@ -694,22 +733,6 @@ func (q *Queries) CopyBobProductUnitConversions(ctx context.Context, arg CopyBob
 	return err
 }
 
-const copyBobServiceDetail = `-- name: CopyBobServiceDetail :exec
-INSERT INTO bob_service_versions (version_id, name, unit, unit_id, category_id, description, remark)
-SELECT $1, d.name, d.unit, d.unit_id, d.category_id, d.description, d.remark
-FROM bob_service_versions d WHERE d.version_id = $2
-`
-
-type CopyBobServiceDetailParams struct {
-	NewVersionID    string `db:"new_version_id" json:"new_version_id"`
-	SourceVersionID string `db:"source_version_id" json:"source_version_id"`
-}
-
-func (q *Queries) CopyBobServiceDetail(ctx context.Context, arg CopyBobServiceDetailParams) error {
-	_, err := q.db.Exec(ctx, copyBobServiceDetail, arg.NewVersionID, arg.SourceVersionID)
-	return err
-}
-
 const copyBobServiceRelationshipDetail = `-- name: CopyBobServiceRelationshipDetail :exec
 INSERT INTO bob_service_relationship_versions(
     version_id,contact_name,contact_phone,email,address,settlement_method_id,
@@ -783,10 +806,12 @@ func (q *Queries) CopyBobSupplierDetail(ctx context.Context, arg CopyBobSupplier
 
 const copyBobVehicleDetail = `-- name: CopyBobVehicleDetail :exec
 INSERT INTO bob_vehicle_versions (
-    version_id, name, plate_number, vehicle_type, platform_object_id,
+    version_id, name, plate_number, vehicle_type, carrier_affiliation_type,
+    carrier_operating_entity_id, carrier_service_relationship_object_id, bulk_liquid_capable,
     category_id, vin, engine_number, load_capacity_kg, remark
 )
-SELECT $1, d.name, d.plate_number, d.vehicle_type, d.platform_object_id,
+SELECT $1, d.name, d.plate_number, d.vehicle_type, d.carrier_affiliation_type,
+       d.carrier_operating_entity_id, d.carrier_service_relationship_object_id, d.bulk_liquid_capable,
        d.category_id, d.vin, d.engine_number, d.load_capacity_kg, d.remark
 FROM bob_vehicle_versions d WHERE d.version_id = $2
 `
@@ -864,6 +889,7 @@ WHERE o.entity = 'customer-account'
   AND (
       cardinality($2::text[]) = 0
       OR current_version.status = ANY($2::text[])
+      OR ('EFFECTIVE' = ANY($2::text[]) AND o.effective_version_id IS NOT NULL)
   )
   AND (
       $3::integer = -1
@@ -917,7 +943,7 @@ SELECT count(*)
 FROM bob_version_views view
 WHERE view.entity = $1 AND view.version_id = view.current_version_id
   AND (view.entity <> 'settlement-method' OR view.settlement_term_code <> 'LEGACY')
-  AND (cardinality($2::text[]) = 0 OR view.status = ANY($2::text[]))
+  AND (cardinality($2::text[]) = 0 OR view.status = ANY($2::text[]) OR ('EFFECTIVE' = ANY($2::text[]) AND view.effective_version_id IS NOT NULL))
   AND (
     $3::integer = -1
     OR EXISTS (
@@ -1032,7 +1058,8 @@ WHERE object.entity='other-unit'
   AND ($2::text=''
        OR relation.operating_entity_id=$2::text)
   AND (cardinality($3::text[])=0
-       OR current_version.status=ANY($3::text[]))
+       OR current_version.status=ANY($3::text[])
+       OR ('EFFECTIVE'=ANY($3::text[]) AND object.effective_version_id IS NOT NULL))
 `
 
 type CountBobOtherUnitsParams struct {
@@ -1111,7 +1138,7 @@ LEFT JOIN bob_supplier_versions effective_detail ON effective_detail.version_id=
 WHERE o.entity='supplier'
   AND ($1::text='' OR o.code ILIKE '%'||$1::text||'%'
        OR party.display_name ILIKE '%'||$1::text||'%')
-  AND (cardinality($2::text[])=0 OR current_version.status=ANY($2::text[]))
+  AND (cardinality($2::text[])=0 OR current_version.status=ANY($2::text[]) OR ('EFFECTIVE'=ANY($2::text[]) AND o.effective_version_id IS NOT NULL))
   AND ($3::integer=-1 OR o.enabled=($3::integer=1))
   AND ($4::text='' OR COALESCE(effective_detail.default_purchaser_employee_id,current_detail.default_purchaser_employee_id)=$4::text)
 `
@@ -1477,18 +1504,6 @@ DELETE FROM bob_product_unit_conversions WHERE product_version_id = $1
 func (q *Queries) DeleteBobProductUnitConversions(ctx context.Context, productVersionID string) error {
 	_, err := q.db.Exec(ctx, deleteBobProductUnitConversions, productVersionID)
 	return err
-}
-
-const deleteBobServiceDetail = `-- name: DeleteBobServiceDetail :execrows
-DELETE FROM bob_service_versions WHERE version_id = $1
-`
-
-func (q *Queries) DeleteBobServiceDetail(ctx context.Context, versionID string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteBobServiceDetail, versionID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
 }
 
 const deleteBobServiceRelationship = `-- name: DeleteBobServiceRelationship :execrows
@@ -2451,7 +2466,7 @@ func (q *Queries) GetBobSupplierVersion(ctx context.Context, arg GetBobSupplierV
 }
 
 const getBobVersionView = `-- name: GetBobVersionView :one
-SELECT object_id, entity, code, current_version_id, effective_version_id, object_revision, object_updated_at, version_id, version_no, status, version_revision, created_at, created_by, updated_at, updated_by, submitted_at, submitted_by, reviewed_at, reviewed_by, review_comment, name, unit, inventory_unit_id, currency, plate_number, vehicle_type, platform_object_id, customer_type, short_name, category_id, tax_number, contact_name, contact_phone, email, address, remark, department_id, position_id, phone, hire_date, specification, model, barcode, description, manager_employee_id, vin, engine_number, load_capacity_kg, account_name, bank_name, bank_branch, account_number, target_entity, parent_id, settlement_method_id, salesperson_employee_id, settlement_method_version_id, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, product_type_id, product_type_version_id, product_type_code, product_type_name, behavior_profile, default_input_unit_id, pricing_unit_id, returnable, default_packaging_spec_micros, monthly_closing_day, settlement_term_code, settlement_default_sales_surcharge_cents, rebate_unit_price_cents FROM bob_version_views
+SELECT object_id, entity, code, current_version_id, effective_version_id, object_revision, object_updated_at, version_id, version_no, status, version_revision, created_at, created_by, updated_at, updated_by, submitted_at, submitted_by, reviewed_at, reviewed_by, review_comment, name, unit, inventory_unit_id, currency, plate_number, vehicle_type, carrier_affiliation_type, carrier_operating_entity_id, carrier_service_relationship_object_id, bulk_liquid_capable, customer_type, short_name, category_id, tax_number, contact_name, contact_phone, email, address, remark, department_id, position_id, phone, hire_date, specification, model, barcode, description, manager_employee_id, vin, engine_number, load_capacity_kg, account_name, bank_name, bank_branch, account_number, target_entity, parent_id, settlement_method_id, salesperson_employee_id, settlement_method_version_id, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, product_type_id, product_type_version_id, product_type_code, product_type_name, behavior_profile, default_input_unit_id, pricing_unit_id, returnable, default_packaging_spec_micros, monthly_closing_day, settlement_term_code, settlement_default_sales_surcharge_cents, rebate_unit_price_cents FROM bob_version_views
 WHERE object_id = $1 AND entity = $2
   AND version_id = COALESCE(NULLIF($3::text, ''), current_version_id)
 `
@@ -2492,7 +2507,10 @@ func (q *Queries) GetBobVersionView(ctx context.Context, arg GetBobVersionViewPa
 		&i.Currency,
 		&i.PlateNumber,
 		&i.VehicleType,
-		&i.PlatformObjectID,
+		&i.CarrierAffiliationType,
+		&i.CarrierOperatingEntityID,
+		&i.CarrierServiceRelationshipObjectID,
+		&i.BulkLiquidCapable,
 		&i.CustomerType,
 		&i.ShortName,
 		&i.CategoryID,
@@ -3496,37 +3514,6 @@ func (q *Queries) InsertBobProductUnitConversion(ctx context.Context, arg Insert
 	return err
 }
 
-const insertBobServiceDetail = `-- name: InsertBobServiceDetail :exec
-INSERT INTO bob_service_versions (version_id, name, unit, unit_id, category_id, description, remark)
-VALUES (
-    $1, $2, $3, $4, $5,
-    $6, $7
-)
-`
-
-type InsertBobServiceDetailParams struct {
-	VersionID   string  `db:"version_id" json:"version_id"`
-	Name        string  `db:"name" json:"name"`
-	Unit        string  `db:"unit" json:"unit"`
-	UnitID      string  `db:"unit_id" json:"unit_id"`
-	CategoryID  *string `db:"category_id" json:"category_id"`
-	Description *string `db:"description" json:"description"`
-	Remark      *string `db:"remark" json:"remark"`
-}
-
-func (q *Queries) InsertBobServiceDetail(ctx context.Context, arg InsertBobServiceDetailParams) error {
-	_, err := q.db.Exec(ctx, insertBobServiceDetail,
-		arg.VersionID,
-		arg.Name,
-		arg.Unit,
-		arg.UnitID,
-		arg.CategoryID,
-		arg.Description,
-		arg.Remark,
-	)
-	return err
-}
-
 const insertBobServiceRelationship = `-- name: InsertBobServiceRelationship :exec
 INSERT INTO bob_service_relationships(
     object_id,party_id,operating_entity_id,created_by
@@ -3731,28 +3718,33 @@ func (q *Queries) InsertBobSupplierRelationship(ctx context.Context, arg InsertB
 
 const insertBobVehicleDetail = `-- name: InsertBobVehicleDetail :exec
 INSERT INTO bob_vehicle_versions (
-    version_id, name, plate_number, vehicle_type, platform_object_id,
+    version_id, name, plate_number, vehicle_type, carrier_affiliation_type,
+    carrier_operating_entity_id, carrier_service_relationship_object_id, bulk_liquid_capable,
     category_id, vin, engine_number, load_capacity_kg, remark
 )
 VALUES (
     $1, $2, $3,
-    $4, $5, $6,
-    $7, $8,
-    NULLIF($9::text, '')::numeric(12,3), $10
+    $4, $5,
+    $6, $7, $8, $9,
+    $10, $11,
+    NULLIF($12::text, '')::numeric(12,3), $13
 )
 `
 
 type InsertBobVehicleDetailParams struct {
-	VersionID        string  `db:"version_id" json:"version_id"`
-	Name             string  `db:"name" json:"name"`
-	PlateNumber      string  `db:"plate_number" json:"plate_number"`
-	VehicleType      string  `db:"vehicle_type" json:"vehicle_type"`
-	PlatformObjectID string  `db:"platform_object_id" json:"platform_object_id"`
-	CategoryID       *string `db:"category_id" json:"category_id"`
-	Vin              *string `db:"vin" json:"vin"`
-	EngineNumber     *string `db:"engine_number" json:"engine_number"`
-	LoadCapacityKg   string  `db:"load_capacity_kg" json:"load_capacity_kg"`
-	Remark           *string `db:"remark" json:"remark"`
+	VersionID                          string  `db:"version_id" json:"version_id"`
+	Name                               string  `db:"name" json:"name"`
+	PlateNumber                        string  `db:"plate_number" json:"plate_number"`
+	VehicleType                        string  `db:"vehicle_type" json:"vehicle_type"`
+	CarrierAffiliationType             string  `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
+	CarrierOperatingEntityID           *string `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
+	CarrierServiceRelationshipObjectID *string `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
+	BulkLiquidCapable                  bool    `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
+	CategoryID                         *string `db:"category_id" json:"category_id"`
+	Vin                                *string `db:"vin" json:"vin"`
+	EngineNumber                       *string `db:"engine_number" json:"engine_number"`
+	LoadCapacityKg                     string  `db:"load_capacity_kg" json:"load_capacity_kg"`
+	Remark                             *string `db:"remark" json:"remark"`
 }
 
 func (q *Queries) InsertBobVehicleDetail(ctx context.Context, arg InsertBobVehicleDetailParams) error {
@@ -3761,7 +3753,10 @@ func (q *Queries) InsertBobVehicleDetail(ctx context.Context, arg InsertBobVehic
 		arg.Name,
 		arg.PlateNumber,
 		arg.VehicleType,
-		arg.PlatformObjectID,
+		arg.CarrierAffiliationType,
+		arg.CarrierOperatingEntityID,
+		arg.CarrierServiceRelationshipObjectID,
+		arg.BulkLiquidCapable,
 		arg.CategoryID,
 		arg.Vin,
 		arg.EngineNumber,
@@ -4031,6 +4026,7 @@ WHERE o.entity = 'customer-account'
   AND (
       cardinality($2::text[]) = 0
       OR current_version.status = ANY($2::text[])
+      OR ('EFFECTIVE' = ANY($2::text[]) AND o.effective_version_id IS NOT NULL)
   )
   AND (
       $3::integer = -1
@@ -4146,11 +4142,11 @@ func (q *Queries) ListBobCustomers(ctx context.Context, arg ListBobCustomersPara
 }
 
 const listBobObjects = `-- name: ListBobObjects :many
-SELECT view.object_id, view.entity, view.code, view.current_version_id, view.effective_version_id, view.object_revision, view.object_updated_at, view.version_id, view.version_no, view.status, view.version_revision, view.created_at, view.created_by, view.updated_at, view.updated_by, view.submitted_at, view.submitted_by, view.reviewed_at, view.reviewed_by, view.review_comment, view.name, view.unit, view.inventory_unit_id, view.currency, view.plate_number, view.vehicle_type, view.platform_object_id, view.customer_type, view.short_name, view.category_id, view.tax_number, view.contact_name, view.contact_phone, view.email, view.address, view.remark, view.department_id, view.position_id, view.phone, view.hire_date, view.specification, view.model, view.barcode, view.description, view.manager_employee_id, view.vin, view.engine_number, view.load_capacity_kg, view.account_name, view.bank_name, view.bank_branch, view.account_number, view.target_entity, view.parent_id, view.settlement_method_id, view.salesperson_employee_id, view.settlement_method_version_id, view.settlement_rule_type, view.settlement_month_offset, view.settlement_day_of_month, view.settlement_day_offset, view.product_type_id, view.product_type_version_id, view.product_type_code, view.product_type_name, view.behavior_profile, view.default_input_unit_id, view.pricing_unit_id, view.returnable, view.default_packaging_spec_micros, view.monthly_closing_day, view.settlement_term_code, view.settlement_default_sales_surcharge_cents, view.rebate_unit_price_cents
+SELECT view.object_id, view.entity, view.code, view.current_version_id, view.effective_version_id, view.object_revision, view.object_updated_at, view.version_id, view.version_no, view.status, view.version_revision, view.created_at, view.created_by, view.updated_at, view.updated_by, view.submitted_at, view.submitted_by, view.reviewed_at, view.reviewed_by, view.review_comment, view.name, view.unit, view.inventory_unit_id, view.currency, view.plate_number, view.vehicle_type, view.carrier_affiliation_type, view.carrier_operating_entity_id, view.carrier_service_relationship_object_id, view.bulk_liquid_capable, view.customer_type, view.short_name, view.category_id, view.tax_number, view.contact_name, view.contact_phone, view.email, view.address, view.remark, view.department_id, view.position_id, view.phone, view.hire_date, view.specification, view.model, view.barcode, view.description, view.manager_employee_id, view.vin, view.engine_number, view.load_capacity_kg, view.account_name, view.bank_name, view.bank_branch, view.account_number, view.target_entity, view.parent_id, view.settlement_method_id, view.salesperson_employee_id, view.settlement_method_version_id, view.settlement_rule_type, view.settlement_month_offset, view.settlement_day_of_month, view.settlement_day_offset, view.product_type_id, view.product_type_version_id, view.product_type_code, view.product_type_name, view.behavior_profile, view.default_input_unit_id, view.pricing_unit_id, view.returnable, view.default_packaging_spec_micros, view.monthly_closing_day, view.settlement_term_code, view.settlement_default_sales_surcharge_cents, view.rebate_unit_price_cents
 FROM bob_version_views view
 WHERE view.entity = $1 AND view.version_id = view.current_version_id
   AND (view.entity <> 'settlement-method' OR view.settlement_term_code <> 'LEGACY')
-  AND (cardinality($2::text[]) = 0 OR view.status = ANY($2::text[]))
+  AND (cardinality($2::text[]) = 0 OR view.status = ANY($2::text[]) OR ('EFFECTIVE' = ANY($2::text[]) AND view.effective_version_id IS NOT NULL))
   AND (
     $3::integer = -1
     OR EXISTS (
@@ -4281,7 +4277,10 @@ func (q *Queries) ListBobObjects(ctx context.Context, arg ListBobObjectsParams) 
 			&i.Currency,
 			&i.PlateNumber,
 			&i.VehicleType,
-			&i.PlatformObjectID,
+			&i.CarrierAffiliationType,
+			&i.CarrierOperatingEntityID,
+			&i.CarrierServiceRelationshipObjectID,
+			&i.BulkLiquidCapable,
 			&i.CustomerType,
 			&i.ShortName,
 			&i.CategoryID,
@@ -4494,7 +4493,8 @@ WHERE object.entity='other-unit'
   AND ($2::text=''
        OR relation.operating_entity_id=$2::text)
   AND (cardinality($3::text[])=0
-       OR current_version.status=ANY($3::text[]))
+       OR current_version.status=ANY($3::text[])
+       OR ('EFFECTIVE'=ANY($3::text[]) AND object.effective_version_id IS NOT NULL))
 ORDER BY object.code ASC
 LIMIT $5 OFFSET $4
 `
@@ -4899,7 +4899,7 @@ LEFT JOIN bob_employee_versions candidate_purchaser_detail ON candidate_purchase
 WHERE o.entity='supplier'
   AND ($1::text='' OR o.code ILIKE '%'||$1::text||'%'
        OR party.display_name ILIKE '%'||$1::text||'%')
-  AND (cardinality($2::text[])=0 OR current_version.status=ANY($2::text[]))
+  AND (cardinality($2::text[])=0 OR current_version.status=ANY($2::text[]) OR ('EFFECTIVE'=ANY($2::text[]) AND o.effective_version_id IS NOT NULL))
   AND ($3::integer=-1 OR o.enabled=($3::integer=1))
   AND ($4::text='' OR COALESCE(effective_detail.default_purchaser_employee_id,current_detail.default_purchaser_employee_id)=$4::text)
 ORDER BY o.code ASC
@@ -5001,7 +5001,7 @@ func (q *Queries) ListBobSuppliers(ctx context.Context, arg ListBobSuppliersPara
 }
 
 const listBobVersions = `-- name: ListBobVersions :many
-SELECT object_id, entity, code, current_version_id, effective_version_id, object_revision, object_updated_at, version_id, version_no, status, version_revision, created_at, created_by, updated_at, updated_by, submitted_at, submitted_by, reviewed_at, reviewed_by, review_comment, name, unit, inventory_unit_id, currency, plate_number, vehicle_type, platform_object_id, customer_type, short_name, category_id, tax_number, contact_name, contact_phone, email, address, remark, department_id, position_id, phone, hire_date, specification, model, barcode, description, manager_employee_id, vin, engine_number, load_capacity_kg, account_name, bank_name, bank_branch, account_number, target_entity, parent_id, settlement_method_id, salesperson_employee_id, settlement_method_version_id, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, product_type_id, product_type_version_id, product_type_code, product_type_name, behavior_profile, default_input_unit_id, pricing_unit_id, returnable, default_packaging_spec_micros, monthly_closing_day, settlement_term_code, settlement_default_sales_surcharge_cents, rebate_unit_price_cents FROM bob_version_views
+SELECT object_id, entity, code, current_version_id, effective_version_id, object_revision, object_updated_at, version_id, version_no, status, version_revision, created_at, created_by, updated_at, updated_by, submitted_at, submitted_by, reviewed_at, reviewed_by, review_comment, name, unit, inventory_unit_id, currency, plate_number, vehicle_type, carrier_affiliation_type, carrier_operating_entity_id, carrier_service_relationship_object_id, bulk_liquid_capable, customer_type, short_name, category_id, tax_number, contact_name, contact_phone, email, address, remark, department_id, position_id, phone, hire_date, specification, model, barcode, description, manager_employee_id, vin, engine_number, load_capacity_kg, account_name, bank_name, bank_branch, account_number, target_entity, parent_id, settlement_method_id, salesperson_employee_id, settlement_method_version_id, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, product_type_id, product_type_version_id, product_type_code, product_type_name, behavior_profile, default_input_unit_id, pricing_unit_id, returnable, default_packaging_spec_micros, monthly_closing_day, settlement_term_code, settlement_default_sales_surcharge_cents, rebate_unit_price_cents FROM bob_version_views
 WHERE object_id = $1 AND entity = $2
 ORDER BY version_no DESC
 LIMIT $4 OFFSET $3
@@ -5055,7 +5055,10 @@ func (q *Queries) ListBobVersions(ctx context.Context, arg ListBobVersionsParams
 			&i.Currency,
 			&i.PlateNumber,
 			&i.VehicleType,
-			&i.PlatformObjectID,
+			&i.CarrierAffiliationType,
+			&i.CarrierOperatingEntityID,
+			&i.CarrierServiceRelationshipObjectID,
+			&i.BulkLiquidCapable,
 			&i.CustomerType,
 			&i.ShortName,
 			&i.CategoryID,
@@ -5302,26 +5305,238 @@ func (q *Queries) ListSupplierPurchaserReferencesForEmployee(ctx context.Context
 	return items, nil
 }
 
-const listVehiclePlatformReferences = `-- name: ListVehiclePlatformReferences :many
-SELECT object.id AS object_id,object.entity,'vehicle-platform'::text AS role FROM bob_objects object JOIN bob_vehicle_versions vehicle_detail ON vehicle_detail.version_id=object.effective_version_id WHERE vehicle_detail.platform_object_id=$1
+const listVehicleCarrierOperatingReferences = `-- name: ListVehicleCarrierOperatingReferences :many
+SELECT object.id AS object_id,object.entity,'vehicle-carrier-operating'::text AS role FROM bob_objects object JOIN bob_vehicle_versions vehicle_detail ON vehicle_detail.version_id=object.effective_version_id WHERE vehicle_detail.carrier_operating_entity_id=$1
 `
 
-type ListVehiclePlatformReferencesRow struct {
+type ListVehicleCarrierOperatingReferencesRow struct {
 	ObjectID string `db:"object_id" json:"object_id"`
 	Entity   string `db:"entity" json:"entity"`
 	Role     string `db:"role" json:"role"`
 }
 
-func (q *Queries) ListVehiclePlatformReferences(ctx context.Context, sourceObjectID string) ([]ListVehiclePlatformReferencesRow, error) {
-	rows, err := q.db.Query(ctx, listVehiclePlatformReferences, sourceObjectID)
+func (q *Queries) ListVehicleCarrierOperatingReferences(ctx context.Context, sourceObjectID *string) ([]ListVehicleCarrierOperatingReferencesRow, error) {
+	rows, err := q.db.Query(ctx, listVehicleCarrierOperatingReferences, sourceObjectID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListVehiclePlatformReferencesRow{}
+	items := []ListVehicleCarrierOperatingReferencesRow{}
 	for rows.Next() {
-		var i ListVehiclePlatformReferencesRow
+		var i ListVehicleCarrierOperatingReferencesRow
 		if err := rows.Scan(&i.ObjectID, &i.Entity, &i.Role); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listVehicleCarrierServiceReferences = `-- name: ListVehicleCarrierServiceReferences :many
+SELECT object.id AS object_id,object.entity,'vehicle-carrier-service'::text AS role FROM bob_objects object JOIN bob_vehicle_versions vehicle_detail ON vehicle_detail.version_id=object.effective_version_id WHERE vehicle_detail.carrier_service_relationship_object_id=$1
+`
+
+type ListVehicleCarrierServiceReferencesRow struct {
+	ObjectID string `db:"object_id" json:"object_id"`
+	Entity   string `db:"entity" json:"entity"`
+	Role     string `db:"role" json:"role"`
+}
+
+func (q *Queries) ListVehicleCarrierServiceReferences(ctx context.Context, sourceObjectID *string) ([]ListVehicleCarrierServiceReferencesRow, error) {
+	rows, err := q.db.Query(ctx, listVehicleCarrierServiceReferences, sourceObjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListVehicleCarrierServiceReferencesRow{}
+	for rows.Next() {
+		var i ListVehicleCarrierServiceReferencesRow
+		if err := rows.Scan(&i.ObjectID, &i.Entity, &i.Role); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWarehouseDisableExecutableSources = `-- name: ListWarehouseDisableExecutableSources :many
+SELECT document.id AS document_id,document.entity,document.document_no
+FROM vou_documents document
+JOIN vou_sale_order_details detail ON detail.document_id=document.id
+WHERE document.status='APPROVED' AND detail.warehouse_object_id=$1
+  AND EXISTS (
+    SELECT 1
+    FROM vou_product_lines order_line
+    WHERE order_line.document_id=document.id
+      AND order_line.base_quantity_micros >
+        COALESCE((
+          SELECT sum(signoff_line.signed_base_quantity_micros)
+          FROM vou_sale_signoff_lines signoff_line
+          JOIN vou_documents signoff_document
+            ON signoff_document.id=signoff_line.document_id
+           AND signoff_document.status='APPROVED'
+          WHERE signoff_line.source_order_line_id=order_line.id
+        ),0)
+        + COALESCE((
+          SELECT sum(outbound_line.base_quantity_micros)
+          FROM vou_sale_outbound_lines outbound_line
+          JOIN vou_documents outbound_document
+            ON outbound_document.id=outbound_line.document_id
+           AND outbound_document.status='APPROVED'
+          WHERE outbound_line.source_order_line_id=order_line.id
+            AND NOT EXISTS (
+              SELECT 1
+              FROM vou_sale_signoff_lines signoff_line
+              JOIN vou_documents signoff_document
+                ON signoff_document.id=signoff_line.document_id
+               AND signoff_document.status='APPROVED'
+              WHERE signoff_line.source_outbound_line_id=outbound_line.id
+            )
+        ),0)
+  )
+UNION ALL
+SELECT document.id AS document_id,document.entity,document.document_no
+FROM vou_documents document
+JOIN vou_purchase_order_details detail ON detail.document_id=document.id
+WHERE document.status='APPROVED' AND detail.warehouse_object_id=$1
+  AND detail.fulfillment_status='OPEN'
+UNION ALL
+SELECT document.id AS document_id,document.entity,document.document_no
+FROM vou_documents document
+JOIN vou_sale_signoff_details detail ON detail.document_id=document.id
+JOIN vou_sale_signoff_lines line ON line.document_id=document.id
+WHERE document.status='APPROVED' AND detail.warehouse_object_id=$1
+GROUP BY document.id,document.entity,document.document_no
+HAVING EXISTS(SELECT 1 FROM vou_sale_signoff_lines source_line
+  WHERE source_line.document_id=document.id AND source_line.signed_base_quantity_micros > COALESCE((SELECT sum(return_line.base_quantity_micros) FROM vou_sale_return_lines return_line JOIN vou_sale_return_details return_detail ON return_detail.document_id=return_line.document_id WHERE return_detail.return_kind='AFTER_SALE' AND return_line.source_signoff_line_id=source_line.id),0))
+UNION ALL
+SELECT document.id AS document_id,document.entity,document.document_no
+FROM vou_documents document
+JOIN vou_purchase_inbound_details detail ON detail.document_id=document.id
+JOIN vou_purchase_inbound_lines line ON line.document_id=document.id
+WHERE document.status='APPROVED' AND detail.warehouse_object_id=$1
+GROUP BY document.id,document.entity,document.document_no
+HAVING EXISTS(SELECT 1 FROM vou_purchase_inbound_lines source_line
+  WHERE source_line.document_id=document.id AND source_line.base_quantity_micros > COALESCE((SELECT sum(return_line.base_quantity_micros) FROM vou_purchase_return_lines return_line WHERE return_line.source_inbound_line_id=source_line.id),0))
+ORDER BY entity,document_no,document_id
+`
+
+type ListWarehouseDisableExecutableSourcesRow struct {
+	DocumentID string `db:"document_id" json:"document_id"`
+	Entity     string `db:"entity" json:"entity"`
+	DocumentNo string `db:"document_no" json:"document_no"`
+}
+
+func (q *Queries) ListWarehouseDisableExecutableSources(ctx context.Context, warehouseObjectID string) ([]ListWarehouseDisableExecutableSourcesRow, error) {
+	rows, err := q.db.Query(ctx, listWarehouseDisableExecutableSources, warehouseObjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWarehouseDisableExecutableSourcesRow{}
+	for rows.Next() {
+		var i ListWarehouseDisableExecutableSourcesRow
+		if err := rows.Scan(&i.DocumentID, &i.Entity, &i.DocumentNo); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWarehouseDisableInProgressDocuments = `-- name: ListWarehouseDisableInProgressDocuments :many
+SELECT DISTINCT document.id AS document_id,document.entity,document.document_no,document.status
+FROM vou_documents document
+WHERE document.status IN ('DRAFT','CHECKED') AND (
+  EXISTS(SELECT 1 FROM vou_sale_order_details x WHERE x.document_id=document.id AND x.warehouse_object_id=$1) OR
+  EXISTS(SELECT 1 FROM vou_purchase_order_details x WHERE x.document_id=document.id AND x.warehouse_object_id=$1) OR
+  EXISTS(SELECT 1 FROM vou_sale_outbound_details x WHERE x.document_id=document.id AND x.warehouse_object_id=$1) OR
+  EXISTS(SELECT 1 FROM vou_purchase_inbound_details x WHERE x.document_id=document.id AND x.warehouse_object_id=$1) OR
+  EXISTS(SELECT 1 FROM vou_sale_signoff_details x WHERE x.document_id=document.id AND x.warehouse_object_id=$1) OR
+  EXISTS(SELECT 1 FROM vou_sale_return_details x WHERE x.document_id=document.id AND x.warehouse_object_id=$1) OR
+  EXISTS(SELECT 1 FROM vou_purchase_return_details x WHERE x.document_id=document.id AND x.warehouse_object_id=$1) OR
+  EXISTS(SELECT 1 FROM vou_production_details x WHERE x.document_id=document.id AND (x.material_warehouse_object_id=$1 OR x.finished_warehouse_object_id=$1)) OR
+  EXISTS(SELECT 1 FROM vou_inventory_count_details x WHERE x.document_id=document.id AND x.warehouse_object_id=$1)
+)
+ORDER BY document.entity,document.document_no,document.id
+`
+
+type ListWarehouseDisableInProgressDocumentsRow struct {
+	DocumentID string `db:"document_id" json:"document_id"`
+	Entity     string `db:"entity" json:"entity"`
+	DocumentNo string `db:"document_no" json:"document_no"`
+	Status     string `db:"status" json:"status"`
+}
+
+func (q *Queries) ListWarehouseDisableInProgressDocuments(ctx context.Context, warehouseObjectID string) ([]ListWarehouseDisableInProgressDocumentsRow, error) {
+	rows, err := q.db.Query(ctx, listWarehouseDisableInProgressDocuments, warehouseObjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWarehouseDisableInProgressDocumentsRow{}
+	for rows.Next() {
+		var i ListWarehouseDisableInProgressDocumentsRow
+		if err := rows.Scan(
+			&i.DocumentID,
+			&i.Entity,
+			&i.DocumentNo,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWarehouseDisableInventory = `-- name: ListWarehouseDisableInventory :many
+SELECT entry.product_id, object.code AS product_code, product.name AS product_name,
+       sum(entry.quantity_delta_micros)::bigint AS quantity_micros
+FROM acc_inventory_entries entry
+JOIN acc_books book ON book.id=entry.book_id AND book.control_book
+JOIN bob_objects object ON object.id=entry.product_id AND object.entity='product'
+JOIN bob_product_versions product ON product.version_id=object.effective_version_id
+WHERE entry.warehouse_id=$1
+GROUP BY entry.product_id,object.code,product.name
+HAVING sum(entry.quantity_delta_micros)<>0
+ORDER BY object.code,entry.product_id
+`
+
+type ListWarehouseDisableInventoryRow struct {
+	ProductID      string `db:"product_id" json:"product_id"`
+	ProductCode    string `db:"product_code" json:"product_code"`
+	ProductName    string `db:"product_name" json:"product_name"`
+	QuantityMicros int64  `db:"quantity_micros" json:"quantity_micros"`
+}
+
+func (q *Queries) ListWarehouseDisableInventory(ctx context.Context, warehouseObjectID string) ([]ListWarehouseDisableInventoryRow, error) {
+	rows, err := q.db.Query(ctx, listWarehouseDisableInventory, warehouseObjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWarehouseDisableInventoryRow{}
+	for rows.Next() {
+		var i ListWarehouseDisableInventoryRow
+		if err := rows.Scan(
+			&i.ProductID,
+			&i.ProductCode,
+			&i.ProductName,
+			&i.QuantityMicros,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -5556,8 +5771,8 @@ WHERE o.id = $1
 FOR SHARE OF o
 `
 
-func (q *Queries) LockEffectiveServiceRelationship(ctx context.Context, platformObjectID string) (string, error) {
-	row := q.db.QueryRow(ctx, lockEffectiveServiceRelationship, platformObjectID)
+func (q *Queries) LockEffectiveServiceRelationship(ctx context.Context, serviceRelationshipObjectID string) (string, error) {
+	row := q.db.QueryRow(ctx, lockEffectiveServiceRelationship, serviceRelationshipObjectID)
 	var id string
 	err := row.Scan(&id)
 	return id, err
@@ -5605,6 +5820,34 @@ func (q *Queries) LockReferenceTransferTarget(ctx context.Context, arg LockRefer
 	var effective_version_id *string
 	err := row.Scan(&effective_version_id)
 	return effective_version_id, err
+}
+
+const lockWarehouseDisableDocuments = `-- name: LockWarehouseDisableDocuments :exec
+SELECT document.id FROM vou_documents document WHERE (
+  EXISTS(SELECT 1 FROM vou_sale_order_details x WHERE x.document_id=document.id AND x.warehouse_object_id=$1) OR
+  EXISTS(SELECT 1 FROM vou_purchase_order_details x WHERE x.document_id=document.id AND x.warehouse_object_id=$1) OR
+  EXISTS(SELECT 1 FROM vou_sale_outbound_details x WHERE x.document_id=document.id AND x.warehouse_object_id=$1) OR
+  EXISTS(SELECT 1 FROM vou_purchase_inbound_details x WHERE x.document_id=document.id AND x.warehouse_object_id=$1) OR
+  EXISTS(SELECT 1 FROM vou_sale_signoff_details x WHERE x.document_id=document.id AND x.warehouse_object_id=$1) OR
+  EXISTS(SELECT 1 FROM vou_sale_return_details x WHERE x.document_id=document.id AND x.warehouse_object_id=$1) OR
+  EXISTS(SELECT 1 FROM vou_purchase_return_details x WHERE x.document_id=document.id AND x.warehouse_object_id=$1) OR
+  EXISTS(SELECT 1 FROM vou_production_details x WHERE x.document_id=document.id AND (x.material_warehouse_object_id=$1 OR x.finished_warehouse_object_id=$1)) OR
+  EXISTS(SELECT 1 FROM vou_inventory_count_details x WHERE x.document_id=document.id AND x.warehouse_object_id=$1)
+) FOR UPDATE
+`
+
+func (q *Queries) LockWarehouseDisableDocuments(ctx context.Context, warehouseObjectID string) error {
+	_, err := q.db.Exec(ctx, lockWarehouseDisableDocuments, warehouseObjectID)
+	return err
+}
+
+const lockWarehouseDisableInventory = `-- name: LockWarehouseDisableInventory :exec
+SELECT id FROM acc_inventory_entries WHERE warehouse_id=$1 FOR UPDATE
+`
+
+func (q *Queries) LockWarehouseDisableInventory(ctx context.Context, warehouseObjectID string) error {
+	_, err := q.db.Exec(ctx, lockWarehouseDisableInventory, warehouseObjectID)
+	return err
 }
 
 const markBobVersionPendingCopy = `-- name: MarkBobVersionPendingCopy :execrows
@@ -6017,17 +6260,31 @@ func (q *Queries) ReplaceSupplierPurchaserReference(ctx context.Context, arg Rep
 	return err
 }
 
-const replaceVehiclePlatformReference = `-- name: ReplaceVehiclePlatformReference :exec
-UPDATE bob_vehicle_versions SET platform_object_id=$1 WHERE version_id=$2
+const replaceVehicleCarrierOperatingReference = `-- name: ReplaceVehicleCarrierOperatingReference :exec
+UPDATE bob_vehicle_versions SET carrier_operating_entity_id=$1 WHERE version_id=$2
 `
 
-type ReplaceVehiclePlatformReferenceParams struct {
-	TargetObjectID string `db:"target_object_id" json:"target_object_id"`
-	VersionID      string `db:"version_id" json:"version_id"`
+type ReplaceVehicleCarrierOperatingReferenceParams struct {
+	TargetObjectID *string `db:"target_object_id" json:"target_object_id"`
+	VersionID      string  `db:"version_id" json:"version_id"`
 }
 
-func (q *Queries) ReplaceVehiclePlatformReference(ctx context.Context, arg ReplaceVehiclePlatformReferenceParams) error {
-	_, err := q.db.Exec(ctx, replaceVehiclePlatformReference, arg.TargetObjectID, arg.VersionID)
+func (q *Queries) ReplaceVehicleCarrierOperatingReference(ctx context.Context, arg ReplaceVehicleCarrierOperatingReferenceParams) error {
+	_, err := q.db.Exec(ctx, replaceVehicleCarrierOperatingReference, arg.TargetObjectID, arg.VersionID)
+	return err
+}
+
+const replaceVehicleCarrierServiceReference = `-- name: ReplaceVehicleCarrierServiceReference :exec
+UPDATE bob_vehicle_versions SET carrier_service_relationship_object_id=$1 WHERE version_id=$2
+`
+
+type ReplaceVehicleCarrierServiceReferenceParams struct {
+	TargetObjectID *string `db:"target_object_id" json:"target_object_id"`
+	VersionID      string  `db:"version_id" json:"version_id"`
+}
+
+func (q *Queries) ReplaceVehicleCarrierServiceReference(ctx context.Context, arg ReplaceVehicleCarrierServiceReferenceParams) error {
+	_, err := q.db.Exec(ctx, replaceVehicleCarrierServiceReference, arg.TargetObjectID, arg.VersionID)
 	return err
 }
 
@@ -6117,7 +6374,7 @@ func (q *Queries) ResolveBobEffectiveOtherUnitReference(ctx context.Context, arg
 }
 
 const resolveBobEffectiveReference = `-- name: ResolveBobEffectiveReference :one
-SELECT view.object_id, view.entity, view.code, view.current_version_id, view.effective_version_id, view.object_revision, view.object_updated_at, view.version_id, view.version_no, view.status, view.version_revision, view.created_at, view.created_by, view.updated_at, view.updated_by, view.submitted_at, view.submitted_by, view.reviewed_at, view.reviewed_by, view.review_comment, view.name, view.unit, view.inventory_unit_id, view.currency, view.plate_number, view.vehicle_type, view.platform_object_id, view.customer_type, view.short_name, view.category_id, view.tax_number, view.contact_name, view.contact_phone, view.email, view.address, view.remark, view.department_id, view.position_id, view.phone, view.hire_date, view.specification, view.model, view.barcode, view.description, view.manager_employee_id, view.vin, view.engine_number, view.load_capacity_kg, view.account_name, view.bank_name, view.bank_branch, view.account_number, view.target_entity, view.parent_id, view.settlement_method_id, view.salesperson_employee_id, view.settlement_method_version_id, view.settlement_rule_type, view.settlement_month_offset, view.settlement_day_of_month, view.settlement_day_offset, view.product_type_id, view.product_type_version_id, view.product_type_code, view.product_type_name, view.behavior_profile, view.default_input_unit_id, view.pricing_unit_id, view.returnable, view.default_packaging_spec_micros, view.monthly_closing_day, view.settlement_term_code, view.settlement_default_sales_surcharge_cents, view.rebate_unit_price_cents
+SELECT view.object_id, view.entity, view.code, view.current_version_id, view.effective_version_id, view.object_revision, view.object_updated_at, view.version_id, view.version_no, view.status, view.version_revision, view.created_at, view.created_by, view.updated_at, view.updated_by, view.submitted_at, view.submitted_by, view.reviewed_at, view.reviewed_by, view.review_comment, view.name, view.unit, view.inventory_unit_id, view.currency, view.plate_number, view.vehicle_type, view.carrier_affiliation_type, view.carrier_operating_entity_id, view.carrier_service_relationship_object_id, view.bulk_liquid_capable, view.customer_type, view.short_name, view.category_id, view.tax_number, view.contact_name, view.contact_phone, view.email, view.address, view.remark, view.department_id, view.position_id, view.phone, view.hire_date, view.specification, view.model, view.barcode, view.description, view.manager_employee_id, view.vin, view.engine_number, view.load_capacity_kg, view.account_name, view.bank_name, view.bank_branch, view.account_number, view.target_entity, view.parent_id, view.settlement_method_id, view.salesperson_employee_id, view.settlement_method_version_id, view.settlement_rule_type, view.settlement_month_offset, view.settlement_day_of_month, view.settlement_day_offset, view.product_type_id, view.product_type_version_id, view.product_type_code, view.product_type_name, view.behavior_profile, view.default_input_unit_id, view.pricing_unit_id, view.returnable, view.default_packaging_spec_micros, view.monthly_closing_day, view.settlement_term_code, view.settlement_default_sales_surcharge_cents, view.rebate_unit_price_cents
 FROM bob_version_views view
 JOIN bob_objects o ON o.id = view.object_id AND o.entity = view.entity
 WHERE view.object_id = $1 AND view.entity = $2
@@ -6164,7 +6421,10 @@ func (q *Queries) ResolveBobEffectiveReference(ctx context.Context, arg ResolveB
 		&i.Currency,
 		&i.PlateNumber,
 		&i.VehicleType,
-		&i.PlatformObjectID,
+		&i.CarrierAffiliationType,
+		&i.CarrierOperatingEntityID,
+		&i.CarrierServiceRelationshipObjectID,
+		&i.BulkLiquidCapable,
 		&i.CustomerType,
 		&i.ShortName,
 		&i.CategoryID,
@@ -6282,7 +6542,7 @@ func (q *Queries) ResolveCurrentBobEffectiveOtherUnitReference(ctx context.Conte
 }
 
 const resolveCurrentBobEffectiveReference = `-- name: ResolveCurrentBobEffectiveReference :one
-SELECT view.object_id, view.entity, view.code, view.current_version_id, view.effective_version_id, view.object_revision, view.object_updated_at, view.version_id, view.version_no, view.status, view.version_revision, view.created_at, view.created_by, view.updated_at, view.updated_by, view.submitted_at, view.submitted_by, view.reviewed_at, view.reviewed_by, view.review_comment, view.name, view.unit, view.inventory_unit_id, view.currency, view.plate_number, view.vehicle_type, view.platform_object_id, view.customer_type, view.short_name, view.category_id, view.tax_number, view.contact_name, view.contact_phone, view.email, view.address, view.remark, view.department_id, view.position_id, view.phone, view.hire_date, view.specification, view.model, view.barcode, view.description, view.manager_employee_id, view.vin, view.engine_number, view.load_capacity_kg, view.account_name, view.bank_name, view.bank_branch, view.account_number, view.target_entity, view.parent_id, view.settlement_method_id, view.salesperson_employee_id, view.settlement_method_version_id, view.settlement_rule_type, view.settlement_month_offset, view.settlement_day_of_month, view.settlement_day_offset, view.product_type_id, view.product_type_version_id, view.product_type_code, view.product_type_name, view.behavior_profile, view.default_input_unit_id, view.pricing_unit_id, view.returnable, view.default_packaging_spec_micros, view.monthly_closing_day, view.settlement_term_code, view.settlement_default_sales_surcharge_cents, view.rebate_unit_price_cents
+SELECT view.object_id, view.entity, view.code, view.current_version_id, view.effective_version_id, view.object_revision, view.object_updated_at, view.version_id, view.version_no, view.status, view.version_revision, view.created_at, view.created_by, view.updated_at, view.updated_by, view.submitted_at, view.submitted_by, view.reviewed_at, view.reviewed_by, view.review_comment, view.name, view.unit, view.inventory_unit_id, view.currency, view.plate_number, view.vehicle_type, view.carrier_affiliation_type, view.carrier_operating_entity_id, view.carrier_service_relationship_object_id, view.bulk_liquid_capable, view.customer_type, view.short_name, view.category_id, view.tax_number, view.contact_name, view.contact_phone, view.email, view.address, view.remark, view.department_id, view.position_id, view.phone, view.hire_date, view.specification, view.model, view.barcode, view.description, view.manager_employee_id, view.vin, view.engine_number, view.load_capacity_kg, view.account_name, view.bank_name, view.bank_branch, view.account_number, view.target_entity, view.parent_id, view.settlement_method_id, view.salesperson_employee_id, view.settlement_method_version_id, view.settlement_rule_type, view.settlement_month_offset, view.settlement_day_of_month, view.settlement_day_offset, view.product_type_id, view.product_type_version_id, view.product_type_code, view.product_type_name, view.behavior_profile, view.default_input_unit_id, view.pricing_unit_id, view.returnable, view.default_packaging_spec_micros, view.monthly_closing_day, view.settlement_term_code, view.settlement_default_sales_surcharge_cents, view.rebate_unit_price_cents
 FROM bob_version_views view
 JOIN bob_objects o ON o.id = view.object_id AND o.entity = view.entity
 WHERE view.object_id = $1 AND view.entity = $2
@@ -6327,7 +6587,10 @@ func (q *Queries) ResolveCurrentBobEffectiveReference(ctx context.Context, arg R
 		&i.Currency,
 		&i.PlateNumber,
 		&i.VehicleType,
-		&i.PlatformObjectID,
+		&i.CarrierAffiliationType,
+		&i.CarrierOperatingEntityID,
+		&i.CarrierServiceRelationshipObjectID,
+		&i.BulkLiquidCapable,
 		&i.CustomerType,
 		&i.ShortName,
 		&i.CategoryID,
@@ -6463,6 +6726,37 @@ func (q *Queries) RestoreBobCustomerEffectiveVersion(ctx context.Context, arg Re
 	return result.RowsAffected(), nil
 }
 
+const restoreBobEffectiveVersion = `-- name: RestoreBobEffectiveVersion :execrows
+UPDATE bob_objects
+SET current_version_id=effective_version_id,revision=revision+1,updated_at=now(),updated_by=$1
+WHERE id=$2 AND entity=$3 AND revision=$4
+  AND current_version_id=$5 AND effective_version_id=$6
+`
+
+type RestoreBobEffectiveVersionParams struct {
+	ActorID            string  `db:"actor_id" json:"actor_id"`
+	ObjectID           string  `db:"object_id" json:"object_id"`
+	Entity             string  `db:"entity" json:"entity"`
+	Revision           int64   `db:"revision" json:"revision"`
+	VersionID          string  `db:"version_id" json:"version_id"`
+	EffectiveVersionID *string `db:"effective_version_id" json:"effective_version_id"`
+}
+
+func (q *Queries) RestoreBobEffectiveVersion(ctx context.Context, arg RestoreBobEffectiveVersionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, restoreBobEffectiveVersion,
+		arg.ActorID,
+		arg.ObjectID,
+		arg.Entity,
+		arg.Revision,
+		arg.VersionID,
+		arg.EffectiveVersionID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const restoreBobOtherUnitEffectiveVersion = `-- name: RestoreBobOtherUnitEffectiveVersion :execrows
 UPDATE bob_objects SET current_version_id=effective_version_id,revision=revision+1,updated_at=now()
 WHERE id=$1 AND entity='other-unit' AND revision=$2
@@ -6578,7 +6872,7 @@ SET enabled = $1, revision = revision + 1,
     updated_at = now(), updated_by = $2
 WHERE id = $3 AND entity = $4
   AND revision = $5
-  AND (current_version_id = effective_version_id OR entity IN ('customer','supplier','other-unit','sales-partner'))
+  AND (current_version_id = effective_version_id OR entity IN ('customer-account','supplier','other-unit','sales-partner','product','employee','fund-account','operating-entity','warehouse','vehicle','category','department','position','settlement-method'))
   AND effective_version_id IS NOT NULL
   AND enabled <> $1
 `
@@ -6640,7 +6934,7 @@ UPDATE bob_objects
 SET effective_version_id = $1, revision = revision + 1,
     updated_at = now(), updated_by = $2
 WHERE id = $3 AND entity = $4
-  AND entity IN ('customer-account','supplier','other-unit','sales-partner','product')
+  AND entity IN ('customer-account','supplier','other-unit','sales-partner','product','employee','fund-account','operating-entity','warehouse','vehicle','category','department','position','settlement-method')
   AND current_version_id = $1
   AND effective_version_id = $5
   AND revision = $6
@@ -7049,40 +7343,6 @@ func (q *Queries) UpdateBobProductDetail(ctx context.Context, arg UpdateBobProdu
 	return result.RowsAffected(), nil
 }
 
-const updateBobServiceDetail = `-- name: UpdateBobServiceDetail :execrows
-UPDATE bob_service_versions
-SET name = $1, unit = $2, unit_id = $3,
-    category_id = $4,
-    description = $5, remark = $6
-WHERE version_id = $7
-`
-
-type UpdateBobServiceDetailParams struct {
-	Name        string  `db:"name" json:"name"`
-	Unit        string  `db:"unit" json:"unit"`
-	UnitID      string  `db:"unit_id" json:"unit_id"`
-	CategoryID  *string `db:"category_id" json:"category_id"`
-	Description *string `db:"description" json:"description"`
-	Remark      *string `db:"remark" json:"remark"`
-	VersionID   string  `db:"version_id" json:"version_id"`
-}
-
-func (q *Queries) UpdateBobServiceDetail(ctx context.Context, arg UpdateBobServiceDetailParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateBobServiceDetail,
-		arg.Name,
-		arg.Unit,
-		arg.UnitID,
-		arg.CategoryID,
-		arg.Description,
-		arg.Remark,
-		arg.VersionID,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const updateBobServiceRelationshipDetail = `-- name: UpdateBobServiceRelationshipDetail :execrows
 UPDATE bob_service_relationship_versions SET
     contact_name=$1,contact_phone=$2,
@@ -7250,25 +7510,31 @@ func (q *Queries) UpdateBobSupplierDetail(ctx context.Context, arg UpdateBobSupp
 const updateBobVehicleDetail = `-- name: UpdateBobVehicleDetail :execrows
 UPDATE bob_vehicle_versions
 SET name = $1, plate_number = $2,
-    vehicle_type = $3, platform_object_id = $4,
-    category_id = $5, vin = $6,
-    engine_number = $7,
-    load_capacity_kg = NULLIF($8::text, '')::numeric(12,3),
-    remark = $9
-WHERE version_id = $10
+    vehicle_type = $3, carrier_affiliation_type = $4,
+    carrier_operating_entity_id = $5,
+    carrier_service_relationship_object_id = $6,
+    bulk_liquid_capable = $7,
+    category_id = $8, vin = $9,
+    engine_number = $10,
+    load_capacity_kg = NULLIF($11::text, '')::numeric(12,3),
+    remark = $12
+WHERE version_id = $13
 `
 
 type UpdateBobVehicleDetailParams struct {
-	Name             string  `db:"name" json:"name"`
-	PlateNumber      string  `db:"plate_number" json:"plate_number"`
-	VehicleType      string  `db:"vehicle_type" json:"vehicle_type"`
-	PlatformObjectID string  `db:"platform_object_id" json:"platform_object_id"`
-	CategoryID       *string `db:"category_id" json:"category_id"`
-	Vin              *string `db:"vin" json:"vin"`
-	EngineNumber     *string `db:"engine_number" json:"engine_number"`
-	LoadCapacityKg   string  `db:"load_capacity_kg" json:"load_capacity_kg"`
-	Remark           *string `db:"remark" json:"remark"`
-	VersionID        string  `db:"version_id" json:"version_id"`
+	Name                               string  `db:"name" json:"name"`
+	PlateNumber                        string  `db:"plate_number" json:"plate_number"`
+	VehicleType                        string  `db:"vehicle_type" json:"vehicle_type"`
+	CarrierAffiliationType             string  `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
+	CarrierOperatingEntityID           *string `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
+	CarrierServiceRelationshipObjectID *string `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
+	BulkLiquidCapable                  bool    `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
+	CategoryID                         *string `db:"category_id" json:"category_id"`
+	Vin                                *string `db:"vin" json:"vin"`
+	EngineNumber                       *string `db:"engine_number" json:"engine_number"`
+	LoadCapacityKg                     string  `db:"load_capacity_kg" json:"load_capacity_kg"`
+	Remark                             *string `db:"remark" json:"remark"`
+	VersionID                          string  `db:"version_id" json:"version_id"`
 }
 
 func (q *Queries) UpdateBobVehicleDetail(ctx context.Context, arg UpdateBobVehicleDetailParams) (int64, error) {
@@ -7276,7 +7542,10 @@ func (q *Queries) UpdateBobVehicleDetail(ctx context.Context, arg UpdateBobVehic
 		arg.Name,
 		arg.PlateNumber,
 		arg.VehicleType,
-		arg.PlatformObjectID,
+		arg.CarrierAffiliationType,
+		arg.CarrierOperatingEntityID,
+		arg.CarrierServiceRelationshipObjectID,
+		arg.BulkLiquidCapable,
 		arg.CategoryID,
 		arg.Vin,
 		arg.EngineNumber,

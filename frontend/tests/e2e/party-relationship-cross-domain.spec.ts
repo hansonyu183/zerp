@@ -18,9 +18,15 @@ interface Envelope<T> {
 
 interface Mutation {
   objectId: string
+  objectRevision: number
   versionId: string
   revision: number
   code?: string
+}
+
+interface BobObjectMutation extends Mutation {
+  objectRevision: number
+  enabled: boolean
 }
 
 interface Party {
@@ -33,6 +39,52 @@ interface VoucherMutation {
   documentId: string
   documentNo?: string
   revision: number
+}
+
+interface BobView {
+  objectId: string
+  code: string
+  objectRevision: number
+  enabled: boolean
+  version: {
+    versionId: string
+    revision: number
+    status: string
+  }
+  data: Record<string, unknown> & {
+    name?: string
+    managerEmployeeId?: string
+  }
+}
+
+interface BobListItem {
+  objectId: string
+  code: string
+  objectRevision: number
+  enabled: boolean
+  effective: {
+    versionId: string
+    status: string
+    summary: Record<string, unknown>
+  } | null
+  candidate: {
+    versionId: string
+    status: string
+    revision: number
+    summary: Record<string, unknown>
+  } | null
+}
+
+interface VoucherView extends VoucherMutation {
+  status: string
+  data: Record<string, unknown> & {
+    productLines?: Array<{ lineId: string; baseQuantity: string }>
+    carrierType?: string
+    carrier?: ReferenceMutation
+    carrierOperatingEntity?: ReferenceMutation
+    vehicle?: ReferenceMutation & { name?: string }
+    vehicleBulkLiquidCapable?: boolean
+  }
 }
 
 interface CustomerCreateMutation {
@@ -357,8 +409,7 @@ async function referenceByCode(
       items: Array<{
         objectId: string
         code: string
-        effectiveVersionId: string | null
-        currentVersion: { versionId: string; status: string }
+        effective: { versionId: string; status: string } | null
       }>
     }>(`bob/${entity}/query`, {
       page: 1,
@@ -368,14 +419,12 @@ async function referenceByCode(
     })
     const item = page.items.find(
       (candidate) =>
-        candidate.code === code &&
-        candidate.currentVersion.status === 'EFFECTIVE' &&
-        candidate.effectiveVersionId === candidate.currentVersion.versionId,
+        candidate.code === code && candidate.effective?.status === 'EFFECTIVE',
     )
     expect(item, `${entity} ${code} reference`).toBeTruthy()
     return {
       objectId: item!.objectId,
-      versionId: item!.effectiveVersionId!,
+      versionId: item!.effective!.versionId,
       code: item!.code,
     }
   }
@@ -523,7 +572,11 @@ async function createCollectedSale(
   workerState: WflWorkerState,
   customer: ReferenceMutation,
   suffix: string,
-): Promise<{ signoffDocumentId: string; businessDate: string }> {
+): Promise<{
+  deliveryDocumentId: string
+  signoffDocumentId: string
+  businessDate: string
+}> {
   const businessDate = new Date().toISOString().slice(0, 10)
   const employee = await referenceByCode(
     operator,
@@ -540,10 +593,10 @@ async function createCollectedSale(
     'warehouse',
     workerState.fixtures.warehouse,
   )
-  const platform = await referenceByCode(
+  const carrier = await referenceByCode(
     operator,
     'other-unit',
-    workerState.fixtures.platform,
+    workerState.fixtures.carrier,
   )
   const vehicle = await referenceByCode(
     operator,
@@ -586,7 +639,7 @@ workflow(code="${processCode}", name="${processCode}", root=order, when=lambda s
     "lines": [{"sourceLineId": line["lineId"], "baseQuantity": line["baseQuantity"]} for line in source["data"]["productLines"]],
   })),
   edge(source=outbound, target=delivery, relation="delivery", action=sale_delivery(initial=lambda source: {
-    "platformObjectId": "${platform.objectId}",
+    "carrierServiceRelationshipObjectId": "${carrier.objectId}",
     "vehicleObjectId": "${vehicle.objectId}",
     "businessDate": source["data"]["businessDate"],
   })),
@@ -615,7 +668,7 @@ workflow(code="${processCode}", name="${processCode}", root=order, when=lambda s
     process!.processId,
     'sale-outbound',
   )
-  await approveWorkflowNode(
+  const delivery = await approveWorkflowNode(
     operator,
     processCode,
     process!.processId,
@@ -642,7 +695,202 @@ workflow(code="${processCode}", name="${processCode}", root=order, when=lambda s
     },
   )
   await approveVou(operator, 'sales-receipt', receipt)
-  return { signoffDocumentId: signoff.documentId, businessDate }
+  return {
+    deliveryDocumentId: delivery.documentId,
+    signoffDocumentId: signoff.documentId,
+    businessDate,
+  }
+}
+
+async function createApprovedBob(
+  operator: Api,
+  reviewer: Api,
+  entity: string,
+  data: Record<string, unknown>,
+): Promise<BobView> {
+  const created = await operator.ok<Mutation>(`bob/${entity}/create`, { data })
+  const approved = await approve(operator, reviewer, entity, created)
+  return operator.ok<BobView>(`bob/${entity}/get`, {
+    objectId: approved.objectId,
+  })
+}
+
+async function createApprovedEmployee(
+  operator: Api,
+  reviewer: Api,
+  name: string,
+  operatingEntityId: string,
+): Promise<BobView> {
+  const created = await operator.ok<Mutation>('bob/employee/create', {
+    newParty: { kind: 'PERSON', legalName: name, strongIdentifiers: [] },
+    data: { operatingEntityId },
+  })
+  const approved = await approve(operator, reviewer, 'employee', created)
+  return operator.ok<BobView>('bob/employee/get', {
+    objectId: approved.objectId,
+  })
+}
+
+async function createEmployeeAttributedCustomer(
+  operator: Api,
+  reviewer: Api,
+  name: string,
+  operatingEntityId: string,
+  settlementMethodId: string,
+  employeeObjectId: string,
+): Promise<ReferenceMutation> {
+  const paymentMethod = await operator.ok<{ objectId: string }>(
+    'aux/payment-method/create',
+    {
+      data: {
+        name: `${name}付款方式`,
+        defaultSalesSurcharge: '0.00',
+        description: '连续生效跨主体 E2E',
+      },
+    },
+  )
+  const created = await operator.ok<CustomerCreateMutation>(
+    'bob/customer/create',
+    {
+      newParty: {
+        kind: 'ORGANIZATION',
+        legalName: name,
+        strongIdentifiers: [],
+      },
+      data: {
+        name,
+        customerTypeCode: 'DIT-0001',
+        operatingEntityId,
+        settlementMethodId,
+        paymentMethodId: paymentMethod.objectId,
+        defaultTransportMethodCode: 'SELF_PICKUP',
+        defaultTransportMethodName: '客户自提',
+        transportSurcharge: '0.00',
+        pricingPolicy: {
+          defaultPremiumUnitPrice: '0.00',
+          defaultDiscountUnitPrice: '0.00',
+          costItems: [],
+          thirdPartyIntermediaryFixedUnitCost: '0.00',
+          thirdPartyIntermediaryVariableUnitCost: '0.00',
+        },
+        creditLimits: [],
+        primarySalesAttribution: {
+          type: 'INTERNAL_EMPLOYEE',
+          subjectObjectId: employeeObjectId,
+        },
+      },
+    },
+  )
+  const candidate = created.defaultAccount.candidate.version
+  const approved = await approve(operator, reviewer, 'customer-account', {
+    objectId: created.defaultAccount.objectId,
+    versionId: candidate.versionId,
+    revision: candidate.revision,
+  })
+  return { ...approved, code: created.defaultAccount.code }
+}
+
+async function createSaleOrderDraft(
+  api: Api,
+  customer: ReferenceMutation,
+  warehouse: ReferenceMutation,
+  product: ReferenceMutation,
+  businessDate: string,
+  salesperson?: ReferenceMutation,
+): Promise<VoucherMutation> {
+  return api.ok<VoucherMutation>('vou/sale-order/create', {
+    data: {
+      businessDate,
+      currency: 'CNY',
+      customer: reference(customer),
+      ...(salesperson ? { salesperson: reference(salesperson) } : {}),
+      warehouse: reference(warehouse),
+      productLines: [
+        {
+          product: { objectId: product.objectId },
+          enteredQuantity: '1',
+          enteredUnit: { objectId: '01JAVX00000000000000000011' },
+          baseQuantity: '1',
+          unitPrice: '100.00',
+          deliverySpecificationType: 'PACKAGED',
+        },
+      ],
+    },
+  })
+}
+
+async function createApprovedDirectDelivery(
+  api: Api,
+  workerState: WflWorkerState,
+  suffix: string,
+  input: {
+    customer: ReferenceMutation
+    warehouse: ReferenceMutation
+    product: ReferenceMutation
+    salesperson: ReferenceMutation
+    vehicle: ReferenceMutation
+    businessDate: string
+  },
+): Promise<VoucherView> {
+  const order = await createSaleOrderDraft(
+    api,
+    input.customer,
+    input.warehouse,
+    input.product,
+    input.businessDate,
+    input.salesperson,
+  )
+  const orderView = await api.ok<VoucherView>('vou/sale-order/get', {
+    documentId: order.documentId,
+  })
+  const line = orderView.data.productLines?.[0]
+  expect(line, 'sale order product line').toBeTruthy()
+  expect(line!.lineId, 'sale order line id').toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/)
+  expect(line!.baseQuantity, 'sale order line base quantity').toBe('1.0')
+  const processCode = `e2e-internal-delivery-${suffix}`.toLowerCase()
+  const script = `order = node(key="order", name="自有车辆销售订单", entity="sale-order")
+outbound = node(key="outbound", name="自有车辆销售出库", entity="sale-outbound")
+delivery = node(key="delivery", name="自有车辆销售送货", entity="sale-delivery")
+workflow(code="${processCode}", name="${processCode}", root=order, when=lambda source: source["data"]["customer"]["objectId"] == "${input.customer.objectId}", edges=[
+  edge(source=order, target=outbound, relation="outbound", action=sale_outbound(initial=lambda source: {
+    "warehouseObjectId": "${input.warehouse.objectId}",
+    "businessDate": source["data"]["businessDate"],
+    "lines": [{"sourceLineId": line["lineId"], "baseQuantity": line["baseQuantity"]} for line in source["data"]["productLines"]],
+  })),
+  edge(source=outbound, target=delivery, relation="delivery", action=sale_delivery(initial=lambda source: {
+    "vehicleObjectId": "${input.vehicle.objectId}",
+    "businessDate": source["data"]["businessDate"],
+  })),
+])`
+  await createEnabledWorkflow(api, processCode, script, order.documentId)
+  await workerState.grantWorkflowPermissions([processCode])
+  await approveVou(api, 'sale-order', order)
+  const processPage = await api.ok<{
+    items: Array<{ processId: string; rootDocumentId: string }>
+  }>(`wfl/${processCode}/query`, {
+    page: 1,
+    pageSize: 20,
+    keyword: order.documentNo,
+  })
+  const process = processPage.items.find(
+    (item) => item.rootDocumentId === order.documentId,
+  )
+  expect(process, 'internal delivery workflow instance').toBeTruthy()
+  await approveWorkflowNode(
+    api,
+    processCode,
+    process!.processId,
+    'sale-outbound',
+  )
+  const delivery = await approveWorkflowNode(
+    api,
+    processCode,
+    process!.processId,
+    'sale-delivery',
+  )
+  return api.ok<VoucherView>('vou/sale-delivery/get', {
+    documentId: delivery.documentId,
+  })
 }
 
 function monthRange(businessDate: string): {
@@ -695,7 +943,7 @@ test(
   'Party 复用跨关系、合同验收及合并历史引用均走真实后端',
   { tag: '@system-serial' },
   async ({ page, workerState }, testInfo) => {
-    test.setTimeout(300_000)
+    test.setTimeout(600_000)
     const suffix =
       `${testInfo.parallelIndex}${Date.now().toString(36)}`.toUpperCase()
     const session = await operatorApi(workerState.operator)
@@ -754,6 +1002,312 @@ test(
         customer,
         suffix,
       )
+
+      // One real-backend journey now proves the final BOB/Warehouse/Vehicle
+      // model as a whole. No application request is mocked or intercepted.
+      const product = await referenceByCode(
+        session.api,
+        'product',
+        workerState.fixtures.solventProduct,
+      )
+      const salesperson = await referenceByCode(
+        session.api,
+        'employee',
+        workerState.fixtures.employee,
+      )
+      const deliveryWarehouse = await referenceByCode(
+        session.api,
+        'warehouse',
+        workerState.fixtures.warehouse,
+      )
+      const manager = await createApprovedEmployee(
+        session.api,
+        reviewerSession.api,
+        `E2E 仓库负责人 ${suffix}`,
+        facts.operatingEntityId,
+      )
+      const managedWarehouse = await createApprovedBob(
+        session.api,
+        reviewerSession.api,
+        'warehouse',
+        {
+          name: `E2E 全局仓库 ${suffix}`,
+          managerEmployeeId: manager.objectId,
+        },
+      )
+      const warehouseCandidate = await session.api.ok<Mutation>(
+        'bob/warehouse/save',
+        {
+          objectId: managedWarehouse.objectId,
+          versionId: managedWarehouse.version.versionId,
+          revision: managedWarehouse.version.revision,
+          data: { name: `E2E 全局仓库候选 ${suffix}` },
+        },
+      )
+      const warehousePage = await session.api.ok<{
+        items: BobListItem[]
+      }>('bob/warehouse/query', {
+        page: 1,
+        pageSize: 20,
+        filters: { keyword: managedWarehouse.code },
+        sort: [{ field: 'code', order: 'asc' }],
+      })
+      const warehouseRow = warehousePage.items.find(
+        (item) => item.objectId === managedWarehouse.objectId,
+      )
+      expect(warehouseRow?.effective?.versionId).toBe(
+        managedWarehouse.version.versionId,
+      )
+      expect(warehouseRow?.candidate?.versionId).toBe(
+        warehouseCandidate.versionId,
+      )
+      expect(warehouseRow?.candidate?.status).toBe('DRAFT')
+      await approve(
+        session.api,
+        reviewerSession.api,
+        'warehouse',
+        warehouseCandidate,
+      )
+
+      const disabledManager = await session.api.ok<BobObjectMutation>(
+        'bob/employee/disable',
+        {
+          objectId: manager.objectId,
+          objectRevision: manager.objectRevision,
+        },
+      )
+      expect(disabledManager.enabled).toBe(false)
+      const cleanedWarehouse = await session.api.ok<BobView>(
+        'bob/warehouse/get',
+        { objectId: managedWarehouse.objectId },
+      )
+      expect(cleanedWarehouse.data.managerEmployeeId ?? null).toBeNull()
+
+      const secondOperatingEntity = await createApprovedBob(
+        session.api,
+        reviewerSession.api,
+        'operating-entity',
+        {
+          name: `E2E 第二经营主体 ${suffix}`,
+          taxNumber: `TAX-${suffix}`,
+        },
+      )
+      const secondEmployee = await createApprovedEmployee(
+        session.api,
+        reviewerSession.api,
+        `E2E 第二主体员工 ${suffix}`,
+        secondOperatingEntity.objectId,
+      )
+      const secondCustomer = await createEmployeeAttributedCustomer(
+        session.api,
+        reviewerSession.api,
+        `E2E 第二主体客户 ${suffix}`,
+        secondOperatingEntity.objectId,
+        facts.settlementMethodId,
+        secondEmployee.objectId,
+      )
+      const sharedWarehouse = {
+        objectId: cleanedWarehouse.objectId,
+        versionId: cleanedWarehouse.version.versionId,
+        code: cleanedWarehouse.code,
+      }
+      const firstEntityDraft = await createSaleOrderDraft(
+        session.api,
+        customer,
+        sharedWarehouse,
+        product,
+        sale.businessDate,
+        salesperson,
+      )
+      const secondEntityDraft = await createSaleOrderDraft(
+        session.api,
+        secondCustomer,
+        sharedWarehouse,
+        product,
+        sale.businessDate,
+      )
+      const blockedWarehouse = await session.api.ok<{
+        inventory: unknown[]
+        inProgressDocuments: Array<{ documentId: string }>
+        executableSources: unknown[]
+      }>('bob/warehouse/disable-precheck', {
+        objectId: managedWarehouse.objectId,
+      })
+      expect(
+        new Set(
+          blockedWarehouse.inProgressDocuments.map((item) => item.documentId),
+        ),
+      ).toEqual(
+        new Set([firstEntityDraft.documentId, secondEntityDraft.documentId]),
+      )
+      for (const draft of [firstEntityDraft, secondEntityDraft]) {
+        await session.api.ok<VoucherMutation>('vou/sale-order/delete', {
+          documentId: draft.documentId,
+          revision: draft.revision,
+          reason: 'E2E 修复仓库停用阻断',
+        })
+      }
+      const clearWarehouse = await session.api.ok<{
+        inventory: unknown[]
+        inProgressDocuments: unknown[]
+        executableSources: unknown[]
+      }>('bob/warehouse/disable-precheck', {
+        objectId: managedWarehouse.objectId,
+      })
+      expect(clearWarehouse.inventory).toEqual([])
+      expect(clearWarehouse.inProgressDocuments).toEqual([])
+      expect(clearWarehouse.executableSources).toEqual([])
+      const disabledWarehouse = await session.api.ok<BobObjectMutation>(
+        'bob/warehouse/disable',
+        {
+          objectId: managedWarehouse.objectId,
+          objectRevision: cleanedWarehouse.objectRevision,
+        },
+      )
+      expect(disabledWarehouse.enabled).toBe(false)
+      const disabledWarehouseOrder = await session.api.post<VoucherMutation>(
+        'vou/sale-order/create',
+        {
+          data: {
+            businessDate: sale.businessDate,
+            currency: 'CNY',
+            customer: reference(customer),
+            salesperson: reference(salesperson),
+            warehouse: reference(sharedWarehouse),
+            productLines: [
+              {
+                product: { objectId: product.objectId },
+                enteredQuantity: '1',
+                enteredUnit: { objectId: '01JAVX00000000000000000011' },
+                baseQuantity: '1',
+                unitPrice: '100.00',
+                deliverySpecificationType: 'PACKAGED',
+              },
+            ],
+          },
+        },
+      )
+      expect(String(disabledWarehouseOrder.code)).not.toBe('0')
+
+      const internalVehicle = await createApprovedBob(
+        session.api,
+        reviewerSession.api,
+        'vehicle',
+        {
+          name: `E2E 自有车辆 ${suffix}`,
+          plateNumber: `E2E-I-${suffix.slice(-8)}`,
+          vehicleType: 'DIT-0003',
+          carrierAffiliation: {
+            type: 'INTERNAL',
+            operatingEntityId: facts.operatingEntityId,
+          },
+          bulkLiquidCapable: false,
+        },
+      )
+      const internalCustomer = await createEmployeeAttributedCustomer(
+        session.api,
+        reviewerSession.api,
+        `E2E 自有配送客户 ${suffix}`,
+        facts.operatingEntityId,
+        facts.settlementMethodId,
+        salesperson.objectId,
+      )
+      const internalDelivery = await createApprovedDirectDelivery(
+        session.api,
+        workerState,
+        suffix,
+        {
+          customer: internalCustomer,
+          warehouse: deliveryWarehouse,
+          product,
+          salesperson,
+          vehicle: internalVehicle,
+          businessDate: sale.businessDate,
+        },
+      )
+      expect(internalDelivery.data.carrierType).toBe('INTERNAL')
+      expect(internalDelivery.data.carrier).toBeUndefined()
+      expect(internalDelivery.data.carrierOperatingEntity?.objectId).toBe(
+        facts.operatingEntityId,
+      )
+      expect(internalDelivery.data.vehicle?.versionId).toBe(
+        internalVehicle.version.versionId,
+      )
+      const internalVehicleSnapshot = {
+        versionId: internalDelivery.data.vehicle?.versionId,
+        name: internalDelivery.data.vehicle?.name,
+      }
+
+      const externalDelivery = await session.api.ok<VoucherView>(
+        'vou/sale-delivery/get',
+        { documentId: sale.deliveryDocumentId },
+      )
+      expect(externalDelivery.data.carrierType).toBe('EXTERNAL')
+      expect(externalDelivery.data.carrier?.objectId).toBeTruthy()
+      expect(externalDelivery.data.vehicle?.objectId).toBeTruthy()
+
+      const vehicleCandidate = await session.api.ok<Mutation>(
+        'bob/vehicle/save',
+        {
+          objectId: internalVehicle.objectId,
+          versionId: internalVehicle.version.versionId,
+          revision: internalVehicle.version.revision,
+          data: {
+            name: `E2E 自有车辆候选 ${suffix}`,
+            plateNumber: internalVehicle.data.plateNumber,
+            vehicleType: internalVehicle.data.vehicleType,
+            carrierAffiliation: internalVehicle.data.carrierAffiliation,
+            bulkLiquidCapable: internalVehicle.data.bulkLiquidCapable,
+          },
+        },
+      )
+      const vehicleDisabled = await session.api.ok<BobObjectMutation>(
+        'bob/vehicle/disable',
+        {
+          objectId: internalVehicle.objectId,
+          objectRevision: vehicleCandidate.objectRevision,
+        },
+      )
+      const vehicleEnabled = await session.api.ok<BobObjectMutation>(
+        'bob/vehicle/enable',
+        {
+          objectId: internalVehicle.objectId,
+          objectRevision: vehicleDisabled.objectRevision,
+        },
+      )
+      expect(vehicleEnabled.enabled).toBe(true)
+      const vehiclePage = await session.api.ok<{ items: BobListItem[] }>(
+        'bob/vehicle/query',
+        {
+          page: 1,
+          pageSize: 20,
+          filters: { keyword: internalVehicle.code },
+          sort: [{ field: 'code', order: 'asc' }],
+        },
+      )
+      const vehicleRow = vehiclePage.items.find(
+        (item) => item.objectId === internalVehicle.objectId,
+      )
+      expect(vehicleRow?.enabled).toBe(true)
+      expect(vehicleRow?.effective?.versionId).toBe(
+        internalVehicle.version.versionId,
+      )
+      expect(vehicleRow?.candidate?.versionId).toBe(vehicleCandidate.versionId)
+      await approve(
+        session.api,
+        reviewerSession.api,
+        'vehicle',
+        vehicleCandidate,
+      )
+      const stableInternalDelivery = await session.api.ok<VoucherView>(
+        'vou/sale-delivery/get',
+        { documentId: internalDelivery.documentId },
+      )
+      expect({
+        versionId: stableInternalDelivery.data.vehicle?.versionId,
+        name: stableInternalDelivery.data.vehicle?.name,
+      }).toEqual(internalVehicleSnapshot)
+
       const period = monthRange(sale.businessDate)
       const sourceProbe = await session.api.ok<{
         source: {
@@ -845,10 +1399,9 @@ test(
           revision: calculationCreated.revision,
         },
       )
-      expect(
-        String(calculationChecked.code),
-        calculationChecked.message,
-      ).toBe('0')
+      expect(String(calculationChecked.code), calculationChecked.message).toBe(
+        '0',
+      )
       const checkedCalculation = calculationChecked.data as VoucherMutation
       const missingContract = await session.api.post(
         'vou/intermediary-calculation/approve',

@@ -139,7 +139,11 @@ func TestLifecycleIntegration(t *testing.T) {
 		t.Fatalf("unsubmit: result=%+v err=%v", edited, err)
 	}
 	oldView, err := service.Get(t.Context(), lifecycleEntity, GetInput{ObjectID: created.ObjectID, VersionID: created.VersionID})
-	if err != nil || oldView.Version.Status != StatusInvalid {
+	wantOldStatus := StatusInvalid
+	if continuousEffectiveEntity(lifecycleEntity) {
+		wantOldStatus = StatusEffective
+	}
+	if err != nil || oldView.Version.Status != wantOldStatus {
 		t.Fatalf("old version after edit: view=%+v err=%v", oldView, err)
 	}
 	tx, err = pool.Begin(t.Context())
@@ -148,7 +152,11 @@ func TestLifecycleIntegration(t *testing.T) {
 	}
 	_, err = service.ResolveEffectiveReference(t.Context(), tx, lifecycleEntity, created.ObjectID, created.VersionID)
 	_ = tx.Rollback(t.Context())
-	if !errorIsKind(err, ErrorConflict) {
+	if continuousEffectiveEntity(lifecycleEntity) {
+		if err != nil {
+			t.Fatalf("effective reference during candidate edit error = %v", err)
+		}
+	} else if !errorIsKind(err, ErrorConflict) {
 		t.Fatalf("invalidated reference error = %v", err)
 	}
 	if _, err = service.Unapprove(t.Context(), lifecycleEntity, ReverseInput{
@@ -329,6 +337,125 @@ func TestProductEffectiveSaveCreatesApprovableCandidateIntegration(t *testing.T)
 	}
 }
 
+func TestContinuousEffectiveEntitiesKeepLastEffectiveVersionIntegration(t *testing.T) {
+	pool := integrationPool(t)
+	service := NewService(pool)
+	fundOperating, _ := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{
+		Name: "Continuous Fund Operating " + newID(), TaxNumber: "TAX" + newID()[3:],
+	}, "continuous-fund-operating")
+	cases := []struct {
+		entity    string
+		data      CreateDetailInput
+		saveInput func(DetailView) DetailInput
+		seeded    bool
+	}{
+		{entity: EntityOperatingEntity, data: CreateDetailInput{Name: "Continuous Operating " + newID(), TaxNumber: "TAX" + newID()[3:]}},
+		{entity: EntityEmployee, data: CreateDetailInput{Name: "Continuous Employee " + newID()}},
+		{entity: EntityFundAccount, data: CreateDetailInput{Name: "Continuous Fund " + newID(), Currency: "CNY", OperatingEntityID: fundOperating.ObjectID}},
+		{entity: EntityCategory, data: CreateDetailInput{Name: "Continuous Category " + newID(), TargetEntity: EntityProduct}},
+		{entity: EntityDepartment, data: CreateDetailInput{Name: "Continuous Department " + newID()}},
+		{entity: EntityPosition, data: CreateDetailInput{Name: "Continuous Position " + newID()}},
+		{entity: EntitySettlementMethod, data: CreateDetailInput{}, saveInput: func(current DetailView) DetailInput {
+			surcharge := "0.01"
+			return DetailInput{DefaultSalesSurcharge: &surcharge}
+		}, seeded: true},
+	}
+
+	for _, test := range cases {
+		t.Run(test.entity, func(t *testing.T) {
+			var effective MutationResult
+			if test.seeded {
+				enabled := true
+				page, queryErr := service.Query(t.Context(), test.entity, QueryInput{
+					Page: 1, PageSize: 1, Filters: QueryFilters{Status: []string{StatusEffective}, Enabled: &enabled},
+				})
+				if queryErr != nil || len(page.Items) != 1 || page.Items[0].Effective == nil {
+					t.Fatalf("query seeded effective version: page=%+v err=%v", page, queryErr)
+				}
+				version := page.Items[0].Effective
+				effective = MutationResult{ObjectID: page.Items[0].ObjectID, ObjectRevision: page.Items[0].ObjectRevision,
+					Enabled: page.Items[0].Enabled, VersionID: version.VersionID, Version: version.Version,
+					Status: version.Status, Revision: version.Revision}
+			} else {
+				_, effective = createApprovedIntegration(t, service, test.entity, test.data, "continuous-"+test.entity)
+			}
+			current, err := service.Get(t.Context(), test.entity, GetInput{ObjectID: effective.ObjectID})
+			if err != nil {
+				t.Fatalf("get effective: %v", err)
+			}
+			saveInput := DetailInput{Name: current.Data.Name + " candidate", Currency: current.Data.Currency}
+			if test.saveInput != nil {
+				saveInput = test.saveInput(current.Data)
+			}
+			candidate, err := service.Save(t.Context(), test.entity, SaveInput{
+				ObjectID: effective.ObjectID, VersionID: effective.VersionID, Revision: effective.Revision,
+				Data: saveInput,
+			}, integrationActorOne, "continuous-"+test.entity+"-save")
+			if err != nil {
+				t.Fatalf("save effective version: %v", err)
+			}
+			if candidate.VersionID == effective.VersionID || candidate.Status != StatusDraft {
+				t.Fatalf("candidate = %+v, effective = %+v", candidate, effective)
+			}
+			retained, err := service.Get(t.Context(), test.entity, GetInput{
+				ObjectID: effective.ObjectID, VersionID: effective.VersionID,
+			})
+			if err != nil || retained.Version.Status != StatusEffective {
+				t.Fatalf("effective version during candidate = %+v, err=%v", retained, err)
+			}
+
+			tx, err := pool.Begin(t.Context())
+			if err != nil {
+				t.Fatalf("begin effective reference: %v", err)
+			}
+			reference, err := service.ResolveEffectiveReference(t.Context(), tx, test.entity, effective.ObjectID, effective.VersionID)
+			if err != nil {
+				_ = tx.Rollback(t.Context())
+				t.Fatalf("resolve last effective during candidate: %v", err)
+			}
+			if reference.Data.Name != current.Data.Name {
+				_ = tx.Rollback(t.Context())
+				t.Fatalf("reference data = %+v, want last effective name %q", reference.Data, current.Data.Name)
+			}
+			if err = tx.Commit(t.Context()); err != nil {
+				t.Fatalf("commit effective reference: %v", err)
+			}
+			if test.entity == EntityOperatingEntity {
+				enabled := true
+				page, queryErr := service.Query(t.Context(), test.entity, QueryInput{
+					Page: 1, PageSize: 20,
+					Filters: QueryFilters{Status: []string{StatusEffective}, Enabled: &enabled},
+					Sort:    []SortItem{{Field: "code", Order: "asc"}},
+				})
+				if queryErr != nil || len(page.Items) == 0 || page.Items[0].Effective == nil {
+					t.Fatalf("query operating entity during candidate: page=%+v err=%v", page, queryErr)
+				}
+			}
+
+			submitted, err := service.Submit(t.Context(), test.entity, VersionRevisionInput{
+				ObjectID: candidate.ObjectID, VersionID: candidate.VersionID, Revision: candidate.Revision,
+			}, integrationActorOne, "continuous-"+test.entity+"-submit")
+			if err != nil {
+				t.Fatalf("submit candidate: %v", err)
+			}
+			approved, err := service.Approve(t.Context(), test.entity, ReviewInput{
+				ObjectID: submitted.ObjectID, VersionID: submitted.VersionID, Revision: submitted.Revision,
+			}, integrationActorTwo, "continuous-"+test.entity+"-approve")
+			if err != nil {
+				t.Fatalf("approve candidate: %v", err)
+			}
+			if approved.VersionID != candidate.VersionID || approved.Status != StatusEffective {
+				t.Fatalf("approved candidate = %+v", approved)
+			}
+
+			old, err := service.Get(t.Context(), test.entity, GetInput{ObjectID: effective.ObjectID, VersionID: effective.VersionID})
+			if err != nil || old.Version.Status != StatusInvalid {
+				t.Fatalf("old effective after switch = %+v, err=%v", old, err)
+			}
+		})
+	}
+}
+
 func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 	pool := integrationPool(t)
 	service := NewService(pool)
@@ -344,11 +471,10 @@ func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 	}{
 		{EntityOtherUnit, CreateDetailInput{Name: "Other Party"}},
 		{EntityProduct, CreateDetailInput{Name: "Product"}},
-		{EntityService, CreateDetailInput{Name: "Service", Unit: "hour"}},
 		{EntityWarehouse, CreateDetailInput{Name: "主仓"}},
 		{EntityVehicle, CreateDetailInput{
 			Name: "Vehicle", PlateNumber: "沪A" + newID(), VehicleType: "Truck",
-			PlatformObjectID: platform.ObjectID,
+			CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platform.ObjectID},
 		}},
 		{EntityFundAccount, CreateDetailInput{Name: "Cash", Currency: "CNY"}},
 		{EntityCategory, CreateDetailInput{Name: "Product Category", TargetEntity: EntityProduct}},
@@ -421,22 +547,68 @@ func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 				t.Fatalf("edit: result=%+v err=%v", edited, err)
 			}
 			oldVersion, err := service.Get(t.Context(), test.entity, GetInput{ObjectID: created.ObjectID, VersionID: created.VersionID})
-			if err != nil || oldVersion.Version.Status != StatusInvalid {
-				t.Fatalf("invalidated version: view=%+v err=%v", oldVersion, err)
+			if err != nil {
+				t.Fatalf("get prior version: %v", err)
+			}
+			if continuousEffectiveEntity(test.entity) {
+				if oldVersion.Version.Status != StatusEffective {
+					t.Fatalf("continuous effective version status = %s, want %s", oldVersion.Version.Status, StatusEffective)
+				}
+				tx, err := pool.Begin(t.Context())
+				if err != nil {
+					t.Fatalf("begin prior reference resolve: %v", err)
+				}
+				if _, err = service.ResolveEffectiveReference(t.Context(), tx, test.entity, created.ObjectID, created.VersionID); err != nil {
+					t.Fatalf("resolve retained effective reference: %v", err)
+				}
+				if err = tx.Commit(t.Context()); err != nil {
+					t.Fatalf("commit prior reference resolve: %v", err)
+				}
+				submittedCandidate, err := service.Submit(t.Context(), test.entity, VersionRevisionInput{
+					ObjectID: edited.ObjectID, VersionID: edited.VersionID, Revision: edited.Revision,
+				}, integrationActorOne, "contract-candidate-submit")
+				if err != nil {
+					t.Fatalf("submit candidate: %v", err)
+				}
+				approvedCandidate, err := service.Approve(t.Context(), test.entity, ReviewInput{
+					ObjectID: edited.ObjectID, VersionID: edited.VersionID, Revision: submittedCandidate.Revision,
+				}, integrationActorTwo, "contract-candidate-approve")
+				if err != nil || approvedCandidate.Status != StatusEffective {
+					t.Fatalf("approve candidate: result=%+v err=%v", approvedCandidate, err)
+				}
+				oldVersion, err = service.Get(t.Context(), test.entity, GetInput{
+					ObjectID: created.ObjectID, VersionID: created.VersionID,
+				})
+				if err != nil || oldVersion.Version.Status != StatusInvalid {
+					t.Fatalf("replaced effective version: view=%+v err=%v", oldVersion, err)
+				}
+			} else if oldVersion.Version.Status != StatusInvalid {
+				t.Fatalf("invalidated version: view=%+v", oldVersion)
 			}
 		})
 	}
 }
 
-func TestLogisticsPlatformAndVehicleLifecycleIntegration(t *testing.T) {
+func TestVehicleCarrierAffiliationLifecycleIntegration(t *testing.T) {
 	pool := integrationPool(t)
 	service := NewService(pool)
+	operating, _ := createApprovedIntegration(t, service, EntityOperatingEntity, CreateDetailInput{
+		Name: "自有车经营主体", TaxNumber: "TAX" + newID()[3:],
+	}, "internal-carrier")
+	internalVehicle, _ := createApprovedIntegration(t, service, EntityVehicle, CreateDetailInput{
+		Code: "IV" + newID(), Name: "自有配送车", PlateNumber: "粤I" + newID(), VehicleType: "厢式货车",
+		CarrierAffiliation: &CarrierAffiliation{Type: "INTERNAL", OperatingEntityID: operating.ObjectID},
+	}, "internal-vehicle")
+	internalView, err := service.Get(t.Context(), EntityVehicle, GetInput{ObjectID: internalVehicle.ObjectID})
+	if err != nil || internalView.Data.CarrierAffiliation == nil || internalView.Data.CarrierAffiliation.Type != "INTERNAL" || internalView.Data.CarrierAffiliation.OperatingEntityID != operating.ObjectID || internalView.Data.BulkLiquidCapable {
+		t.Fatalf("internal vehicle affiliation: view=%+v err=%v", internalView, err)
+	}
 	generalSupplier, _ := createApprovedIntegration(t, service, EntitySupplier, CreateDetailInput{
 		Code: "GS" + newID(), Name: "普通供应商",
 	}, "general-supplier")
 	if _, err := service.Create(t.Context(), EntityVehicle, CreateInput{Data: CreateDetailInput{
 		Code: "GV" + newID(), Name: "错误归属车辆", PlateNumber: "粤A" + newID(),
-		VehicleType: "厢式货车", PlatformObjectID: generalSupplier.ObjectID,
+		VehicleType: "厢式货车", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: generalSupplier.ObjectID},
 	}}, integrationActorOne, "general-supplier-vehicle"); !errorIsKind(err, ErrorConflict) {
 		t.Fatalf("general supplier vehicle error = %v", err)
 	}
@@ -447,7 +619,8 @@ func TestLogisticsPlatformAndVehicleLifecycleIntegration(t *testing.T) {
 	vehiclePlate := "粤B" + newID()
 	vehicleCreated, _ := createApprovedIntegration(t, service, EntityVehicle, CreateDetailInput{
 		Code: "VH" + newID(), Name: "配送车", PlateNumber: vehiclePlate,
-		VehicleType: "厢式货车", PlatformObjectID: platformCreated.ObjectID,
+		VehicleType: "厢式货车", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platformCreated.ObjectID},
+		BulkLiquidCapable: true,
 	}, "logistics-vehicle")
 	vehiclePage, err := service.Query(t.Context(), EntityVehicle, QueryInput{
 		Page: 1, PageSize: 20, Filters: QueryFilters{Keyword: strings.ToLower(vehiclePlate)},
@@ -466,7 +639,7 @@ func TestLogisticsPlatformAndVehicleLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve vehicle: %v", err)
 	}
-	if reference.Data.PlatformObjectID != platformCreated.ObjectID || reference.Data.VehicleType != "厢式货车" {
+	if reference.Data.CarrierAffiliation == nil || reference.Data.CarrierAffiliation.ServiceRelationshipObjectID != platformCreated.ObjectID || reference.Data.VehicleType != "厢式货车" || !reference.Data.BulkLiquidCapable {
 		t.Fatalf("vehicle reference = %+v", reference)
 	}
 	if err = tx.Commit(t.Context()); err != nil {
@@ -489,7 +662,7 @@ func TestVehiclePlateUniquenessAndHistoryIntegration(t *testing.T) {
 			<-start
 			_, createErr := service.Create(context.Background(), EntityVehicle, CreateInput{Data: CreateDetailInput{
 				Code: "PC" + fmt.Sprint(index) + newID(), Name: "Concurrent Vehicle",
-				PlateNumber: strings.ToLower(plate), VehicleType: "Truck", PlatformObjectID: platform.ObjectID,
+				PlateNumber: strings.ToLower(plate), VehicleType: "Truck", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platform.ObjectID},
 			}}, integrationActorOne, fmt.Sprintf("plate-concurrent-%d", index))
 			results <- createErr
 		}(index)
@@ -512,7 +685,7 @@ func TestVehiclePlateUniquenessAndHistoryIntegration(t *testing.T) {
 
 	original, approved := createApprovedIntegration(t, service, EntityVehicle, CreateDetailInput{
 		Code: "PR" + newID(), Name: "Reusable Plate Vehicle", PlateNumber: "沪D" + newID(),
-		VehicleType: "Truck", PlatformObjectID: platform.ObjectID,
+		VehicleType: "Truck", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platform.ObjectID},
 	}, "plate-release")
 	originalView, err := service.Get(t.Context(), EntityVehicle, GetInput{ObjectID: original.ObjectID})
 	if err != nil {
@@ -524,19 +697,53 @@ func TestVehiclePlateUniquenessAndHistoryIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("edit original vehicle: %v", err)
 	}
-	if _, err = service.Save(t.Context(), EntityVehicle, SaveInput{
+	candidate, err := service.Save(t.Context(), EntityVehicle, SaveInput{
 		ObjectID: edited.ObjectID, VersionID: edited.VersionID, Revision: edited.Revision,
 		Data: DetailInput{
 			Name: "Reusable Plate Vehicle", PlateNumber: "沪E" + newID(),
-			VehicleType: "Truck", PlatformObjectID: platform.ObjectID,
+			VehicleType: "Truck", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platform.ObjectID},
 		},
-	}, integrationActorOne, "plate-release-save"); err != nil {
+	}, integrationActorOne, "plate-release-save")
+	if err != nil {
 		t.Fatalf("save replacement plate: %v", err)
+	}
+	tx, err := pool.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("begin retained vehicle reference: %v", err)
+	}
+	retained, err := service.ResolveEffectiveReference(t.Context(), tx, EntityVehicle, original.ObjectID, original.VersionID)
+	if err != nil {
+		_ = tx.Rollback(t.Context())
+		t.Fatalf("resolve retained vehicle reference: %v", err)
+	}
+	if retained.Data.PlateNumber != originalView.Data.PlateNumber {
+		_ = tx.Rollback(t.Context())
+		t.Fatalf("candidate changed effective vehicle plate: got %q want %q", retained.Data.PlateNumber, originalView.Data.PlateNumber)
+	}
+	if err = tx.Commit(t.Context()); err != nil {
+		t.Fatalf("commit retained vehicle reference: %v", err)
 	}
 	if _, err = service.Create(t.Context(), EntityVehicle, CreateInput{Data: CreateDetailInput{
 		Code: "PN" + newID(), Name: "Reused Plate Vehicle", PlateNumber: originalView.Data.PlateNumber,
-		VehicleType: "Truck", PlatformObjectID: platform.ObjectID,
-	}}, integrationActorOne, "plate-reuse-create"); err != nil {
-		t.Fatalf("reuse historical plate: %v", err)
+		VehicleType: "Truck", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platform.ObjectID},
+	}}, integrationActorOne, "plate-reuse-before-approval"); !errorIsKind(err, ErrorConflict) {
+		t.Fatalf("reuse effective candidate plate error = %v, want conflict", err)
+	}
+	submitted, err := service.Submit(t.Context(), EntityVehicle, VersionRevisionInput{
+		ObjectID: candidate.ObjectID, VersionID: candidate.VersionID, Revision: candidate.Revision,
+	}, integrationActorOne, "plate-release-submit")
+	if err != nil {
+		t.Fatalf("submit replacement plate candidate: %v", err)
+	}
+	if _, err = service.Approve(t.Context(), EntityVehicle, ReviewInput{
+		ObjectID: submitted.ObjectID, VersionID: submitted.VersionID, Revision: submitted.Revision,
+	}, integrationActorTwo, "plate-release-approve"); err != nil {
+		t.Fatalf("approve replacement plate candidate: %v", err)
+	}
+	if _, err = service.Create(t.Context(), EntityVehicle, CreateInput{Data: CreateDetailInput{
+		Code: "PN" + newID(), Name: "Reused Plate Vehicle", PlateNumber: originalView.Data.PlateNumber,
+		VehicleType: "Truck", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platform.ObjectID},
+	}}, integrationActorOne, "plate-reuse-after-approval"); err != nil {
+		t.Fatalf("reuse historical plate after candidate approval: %v", err)
 	}
 }

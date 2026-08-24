@@ -29,7 +29,7 @@ func TestDeletePermissionCatalogIntegration(t *testing.T) {
 	expected := map[string]bool{
 		EntityCustomer: true, EntityCustomerAccount: true, EntitySupplier: true,
 		EntityEmployee: true, EntitySalesPartner: true, EntityProduct: true,
-		EntityService: true, EntityWarehouse: true, EntityVehicle: true,
+		EntityWarehouse: true, EntityVehicle: true,
 		EntityFundAccount: true, EntityOperatingEntity: true, EntityOtherUnit: true,
 	}
 	seen := make(map[string]bool, len(expected))
@@ -203,7 +203,48 @@ func TestDeleteFirstDraftRejectsLifecycleAndIdentityConflictsIntegration(t *test
 		if err != nil {
 			t.Fatalf("edit multiple-version delete case: %v", err)
 		}
-		assertConflict("multiple versions", EntityProduct, deleteInput(edited))
+		if err = service.Delete(t.Context(), EntityProduct, deleteInput(edited)); err != nil {
+			t.Fatalf("delete effective candidate: %v", err)
+		}
+		view, getErr := service.Get(t.Context(), EntityProduct, GetInput{ObjectID: created.ObjectID})
+		if getErr != nil {
+			t.Fatalf("get product after candidate delete: %v", getErr)
+		}
+		if view.Version.VersionID != approved.VersionID || view.Version.Status != StatusEffective {
+			t.Fatalf("product after candidate delete = %+v, want effective version %+v", view.Version, approved)
+		}
+		reedited, editErr := service.Edit(t.Context(), EntityProduct, ObjectRevisionInput{
+			ObjectID: created.ObjectID, ObjectRevision: view.ObjectRevision,
+		}, integrationActorOne, "delete-multiple-reedit")
+		if editErr != nil {
+			t.Fatalf("edit after candidate delete: %v", editErr)
+		}
+		if reedited.Version <= edited.Version {
+			t.Fatalf("version number was reused after candidate delete: deleted=%d new=%d", edited.Version, reedited.Version)
+		}
+	})
+	t.Run("vehicle candidate restores the effective version", func(t *testing.T) {
+		vehicleService := NewService(pool)
+		operating, _ := createApprovedIntegration(t, vehicleService, EntityOperatingEntity, CreateDetailInput{
+			Name: "Vehicle Delete Operating", TaxNumber: "TAX" + newID()[3:],
+		}, "delete-vehicle-operating")
+		created, approved := createApprovedIntegration(t, vehicleService, EntityVehicle, CreateDetailInput{
+			Name: "Candidate Delete Vehicle", PlateNumber: "粤D" + newID(), VehicleType: "厢式货车",
+			CarrierAffiliation: &CarrierAffiliation{Type: "INTERNAL", OperatingEntityID: operating.ObjectID},
+		}, "delete-vehicle")
+		edited, err := vehicleService.Edit(t.Context(), EntityVehicle, ObjectRevisionInput{
+			ObjectID: created.ObjectID, ObjectRevision: approved.ObjectRevision,
+		}, integrationActorOne, "delete-vehicle-edit")
+		if err != nil {
+			t.Fatalf("edit vehicle candidate: %v", err)
+		}
+		if err = vehicleService.Delete(t.Context(), EntityVehicle, deleteInput(edited)); err != nil {
+			t.Fatalf("delete vehicle candidate: %v", err)
+		}
+		view, err := vehicleService.Get(t.Context(), EntityVehicle, GetInput{ObjectID: created.ObjectID})
+		if err != nil || view.Version.VersionID != approved.VersionID || view.Version.Status != StatusEffective {
+			t.Fatalf("vehicle after candidate delete = %+v, err=%v", view.Version, err)
+		}
 	})
 }
 
@@ -487,7 +528,7 @@ func TestCreateRejectsExhaustedObjectNumberIntegration(t *testing.T) {
 	err := pool.QueryRow(t.Context(), `
 		SELECT last_value FROM object_number_counters
 		WHERE domain = 'bob' AND entity = $1
-	`, EntityService).Scan(&previous)
+	`, EntityWarehouse).Scan(&previous)
 	existed := err == nil
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatalf("read object counter: %v", err)
@@ -496,7 +537,7 @@ func TestCreateRejectsExhaustedObjectNumberIntegration(t *testing.T) {
 		INSERT INTO object_number_counters(domain, entity, last_value)
 		VALUES ('bob', $1, 9999)
 		ON CONFLICT(domain, entity) DO UPDATE SET last_value = 9999
-	`, EntityService); err != nil {
+	`, EntityWarehouse); err != nil {
 		t.Fatalf("exhaust object counter: %v", err)
 	}
 	t.Cleanup(func() {
@@ -505,19 +546,19 @@ func TestCreateRejectsExhaustedObjectNumberIntegration(t *testing.T) {
 			_, cleanupErr = pool.Exec(context.Background(), `
 				UPDATE object_number_counters SET last_value = $1
 				WHERE domain = 'bob' AND entity = $2
-			`, previous, EntityService)
+			`, previous, EntityWarehouse)
 		} else {
 			_, cleanupErr = pool.Exec(context.Background(), `
 				DELETE FROM object_number_counters WHERE domain = 'bob' AND entity = $1
-			`, EntityService)
+			`, EntityWarehouse)
 		}
 		if cleanupErr != nil {
 			t.Errorf("restore object counter: %v", cleanupErr)
 		}
 	})
 
-	_, err = NewService(pool).Create(t.Context(), EntityService, CreateInput{
-		Data: CreateDetailInput{Name: "编号溢出服务", Unit: "次"},
+	_, err = NewService(pool).Create(t.Context(), EntityWarehouse, CreateInput{
+		Data: CreateDetailInput{Name: "编号溢出仓库"},
 	}, integrationActorOne, "object-number-exhausted")
 	if !errorIsKind(err, ErrorConflict) {
 		t.Fatalf("exhausted object counter error = %v", err)

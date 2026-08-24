@@ -11,7 +11,6 @@
           'other-unit',
           'sales-partner',
           'product',
-          'service',
           'warehouse',
           'vehicle',
           'fund-account',
@@ -25,7 +24,6 @@
         [
           'employee',
           'product',
-          'service',
           'warehouse',
           'vehicle',
           'fund-account',
@@ -92,6 +90,45 @@
           'summary': { 'type': 'object', 'additionalProperties': true },
         },
     },
+  'VehicleCarrierAffiliation':
+    {
+      'oneOf':
+        [
+          { '$ref': '#/VehicleInternalCarrierAffiliation' },
+          { '$ref': '#/VehicleExternalCarrierAffiliation' },
+        ],
+      'discriminator':
+        {
+          'propertyName': 'type',
+          'mapping':
+            {
+              'INTERNAL': '#/VehicleInternalCarrierAffiliation',
+              'EXTERNAL': '#/VehicleExternalCarrierAffiliation',
+            },
+        },
+    },
+  'VehicleInternalCarrierAffiliation':
+    {
+      'type': 'object',
+      'required': ['type', 'operatingEntityId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'type': { 'type': 'string', 'enum': ['INTERNAL'] },
+          'operatingEntityId': { 'type': 'string' },
+        },
+    },
+  'VehicleExternalCarrierAffiliation':
+    {
+      'type': 'object',
+      'required': ['type', 'serviceRelationshipObjectId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'type': { 'type': 'string', 'enum': ['EXTERNAL'] },
+          'serviceRelationshipObjectId': { 'type': 'string' },
+        },
+    },
   'BobListItem':
     {
       'type': 'object',
@@ -102,8 +139,8 @@
           'code',
           'objectRevision',
           'enabled',
-          'currentVersion',
-          'effectiveVersionId',
+          'effective',
+          'candidate',
           'updatedAt',
         ],
       'additionalProperties': false,
@@ -114,8 +151,18 @@
           'code': { 'type': 'string' },
           'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
-          'currentVersion': { '$ref': '#/BobVersionSummary' },
-          'effectiveVersionId': { 'type': 'string', 'nullable': true },
+          'effective':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/BobVersionSummary' }],
+              'nullable': true,
+            },
+          'candidate':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/BobVersionSummary' }],
+              'nullable': true,
+            },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
         },
     },
@@ -220,7 +267,9 @@
                   'customerType': { 'type': 'string', 'nullable': true },
                   'plateNumber': { 'type': 'string', 'nullable': true },
                   'vehicleType': { 'type': 'string', 'nullable': true },
-                  'platformObjectId': { 'type': 'string', 'nullable': true },
+                  'carrierAffiliation':
+                    { '$ref': '#/VehicleCarrierAffiliation', 'nullable': true },
+                  'bulkLiquidCapable': { 'type': 'boolean', 'nullable': true },
                   'shortName': { 'type': 'string', 'nullable': true },
                   'categoryId': { 'type': 'string', 'nullable': true },
                   'taxNumber': { 'type': 'string', 'nullable': true },
@@ -318,7 +367,9 @@
                   'customerType': { 'type': 'string', 'nullable': true },
                   'plateNumber': { 'type': 'string', 'nullable': true },
                   'vehicleType': { 'type': 'string', 'nullable': true },
-                  'platformObjectId': { 'type': 'string', 'nullable': true },
+                  'carrierAffiliation':
+                    { '$ref': '#/VehicleCarrierAffiliation', 'nullable': true },
+                  'bulkLiquidCapable': { 'type': 'boolean', 'nullable': true },
                   'shortName': { 'type': 'string', 'nullable': true },
                   'categoryId': { 'type': 'string', 'nullable': true },
                   'taxNumber': { 'type': 'string', 'nullable': true },
@@ -2791,6 +2842,76 @@
               'type': 'array',
               'items': { '$ref': '#/PartyMergeConflictResolution' },
             },
+        },
+    },
+  'WarehouseDisablePrecheckRequest':
+    {
+      'type': 'object',
+      'required': ['objectId'],
+      'additionalProperties': false,
+      'properties': { 'objectId': { 'type': 'string' } },
+    },
+  'WarehouseInventoryConflict':
+    {
+      'type': 'object',
+      'required': ['productObjectId', 'productCode', 'productName', 'quantity'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'productObjectId': { 'type': 'string' },
+          'productCode': { 'type': 'string' },
+          'productName': { 'type': 'string' },
+          'quantity': { 'type': 'string' },
+        },
+    },
+  'WarehouseDocumentConflict':
+    {
+      'type': 'object',
+      'required': ['documentId', 'entity', 'documentNo'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'documentId': { 'type': 'string' },
+          'entity': { '$ref': './vou.yaml#/VouEntity' },
+          'documentNo': { 'type': 'string' },
+          'status': { '$ref': './vou.yaml#/VouStatus' },
+        },
+    },
+  'WarehouseDisablePrecheckResult':
+    {
+      'type': 'object',
+      'required': ['inventory', 'inProgressDocuments', 'executableSources'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'inventory':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/WarehouseInventoryConflict' },
+            },
+          'inProgressDocuments':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/WarehouseDocumentConflict' },
+            },
+          'executableSources':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/WarehouseDocumentConflict' },
+            },
+        },
+    },
+  'WarehouseDisablePrecheckResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/WarehouseDisablePrecheckResult' },
+          'requestId': { 'type': 'string' },
         },
     },
 }

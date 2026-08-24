@@ -856,7 +856,7 @@ INSERT INTO vou_product_lines (
     base_unit_price_cents, settlement_surcharge_cents, unit_price_cents,
     line_amount_cents, purchase_unit_price_cents, remark,
     reference_unit_price_cents, reference_document_id, reference_document_no,
-    reference_business_date, reference_line_id
+    reference_business_date, reference_line_id, delivery_specification_type
 ) VALUES (
     sqlc.arg(id), sqlc.arg(document_id), sqlc.arg(document_entity), sqlc.arg(line_no),
     sqlc.arg(product_object_id), sqlc.arg(product_version_id), sqlc.arg(product_code),
@@ -872,7 +872,7 @@ INSERT INTO vou_product_lines (
     sqlc.narg(purchase_unit_price_cents), sqlc.narg(remark),
     sqlc.arg(reference_unit_price_cents), sqlc.narg(reference_document_id),
     sqlc.narg(reference_document_no), sqlc.narg(reference_business_date),
-    sqlc.narg(reference_line_id)
+    sqlc.narg(reference_line_id), sqlc.arg(delivery_specification_type)
 );
 
 -- name: ListVouProductLines :many
@@ -1251,7 +1251,7 @@ SELECT x.warehouse_object_id IS NOT NULL AND x.warehouse_version_id IS NOT NULL
        AND EXISTS(SELECT 1 FROM vou_sale_outbound_lines l WHERE l.document_id=x.document_id AND l.base_quantity_micros>0)
 FROM vou_sale_outbound_details x WHERE x.document_id=sqlc.arg(document_id);
 -- name: IsVouSaleDeliveryReady :one
-SELECT x.platform_object_id IS NOT NULL AND x.platform_version_id IS NOT NULL
+SELECT x.carrier_type IN ('INTERNAL','EXTERNAL')
        AND x.vehicle_object_id IS NOT NULL AND x.vehicle_version_id IS NOT NULL
 FROM vou_sale_delivery_details x WHERE x.document_id=sqlc.arg(document_id);
 -- name: IsVouSaleSignoffReady :one

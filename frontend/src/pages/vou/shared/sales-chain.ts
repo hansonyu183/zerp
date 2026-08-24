@@ -145,11 +145,17 @@ export function validateSalesChainDraft(
   value: VoucherDraftForm,
 ): string | null {
   if (config.parentEntity && !value.parentDocumentId) return '请选择来源单据。'
+  if (config.entity === 'sale-delivery' && !value.vehicle) {
+    return '请选择配送车辆。'
+  }
   if (
     config.entity === 'sale-delivery' &&
-    (!value.platform || !value.vehicle)
+    value.vehicle?.carrierAffiliation?.type === 'EXTERNAL' &&
+    (!value.carrier ||
+      value.carrier.objectId !==
+        value.vehicle.carrierAffiliation.serviceRelationshipObjectId)
   ) {
-    return '请选择物流平台和车辆。'
+    return '请选择与配送车辆一致的外部承运方。'
   }
   if (config.entity === 'sale-outbound') {
     if (value.salesChainLines.length < 1) return '请至少填写一行出库数量。'

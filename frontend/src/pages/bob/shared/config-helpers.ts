@@ -11,6 +11,7 @@ import type {
   BobListItem,
   BobStatus,
 } from './types'
+import { bobListActiveVersion } from './types'
 
 export const statusText: Record<BobStatus, string> = {
   DRAFT: '草稿',
@@ -42,7 +43,6 @@ export const targetEntityOptions: readonly BusinessObjectFieldOption[] = [
   { title: '供应商', value: 'supplier' },
   { title: '员工', value: 'employee' },
   { title: '产品', value: 'product' },
-  { title: '服务', value: 'service' },
   { title: '仓库', value: 'warehouse' },
   { title: '车辆', value: 'vehicle' },
   { title: '资金账户', value: 'fund-account' },
@@ -202,14 +202,14 @@ export function baseColumns(
     {
       key: 'name',
       label: nameLabel,
-      value: (row) => row.currentVersion.summary.name,
+      value: (row) => bobListActiveVersion(row).summary.name,
       sizing: 'fluid',
     },
     ...extra,
     {
       key: 'status',
       label: '状态',
-      value: (row) => row.currentVersion.status,
+      value: (row) => bobListActiveVersion(row).status,
       format: (value) => statusText[value as BobStatus] ?? String(value),
       sizing: 'compact',
     },

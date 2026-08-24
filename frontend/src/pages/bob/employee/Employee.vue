@@ -3,14 +3,15 @@ import { onMounted, reactive } from 'vue'
 import { BusinessObjectList, type BusinessObjectColumn } from '@/components/business-object'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import { useEmployeeViewModel } from './vm'
+import { employeeStatusLabel } from './status'
 
 const vm = reactive(useEmployeeViewModel())
 const columns: readonly BusinessObjectColumn<(typeof vm.rows)[number]>[] = [
   { key: 'code', label: '编码', value: (row) => row.code, sizing: 'compact' },
-  { key: 'name', label: '主体', value: (row) => String(row.currentVersion.summary.name ?? ''), sizing: 'fluid' },
-  { key: 'department', label: '部门', value: (row) => String(row.currentVersion.summary.departmentName ?? '—') },
-  { key: 'position', label: '岗位', value: (row) => String(row.currentVersion.summary.positionName ?? '—') },
-  { key: 'status', label: '状态', value: (row) => row.currentVersion.status, sizing: 'compact' },
+  { key: 'name', label: '主体', value: (row) => String((row.candidate ?? row.effective)?.summary.name ?? ''), sizing: 'fluid' },
+  { key: 'department', label: '部门', value: (row) => String((row.candidate ?? row.effective)?.summary.departmentName ?? '—') },
+  { key: 'position', label: '岗位', value: (row) => String((row.candidate ?? row.effective)?.summary.positionName ?? '—') },
+  { key: 'status', label: '状态', value: (row) => (row.candidate ?? row.effective)?.status ?? '', format: employeeStatusLabel, sizing: 'compact' },
 ]
 onMounted(() => void vm.query())
 </script>

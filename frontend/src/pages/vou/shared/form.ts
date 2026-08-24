@@ -36,7 +36,7 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
     warehouse: null,
     materialWarehouse: null,
     finishedWarehouse: null,
-    platform: null,
+    carrier: null,
     vehicle: null,
     fundAccount: null,
     sourceName: '',
@@ -56,6 +56,7 @@ export function emptyForm(config: VoucherEntityConfig): VoucherDraftForm {
               unitPrice: '',
               settlementSurcharge: '',
               purchaseUnitPrice: '',
+              deliverySpecificationType: 'PACKAGED',
               remark: '',
               formula: null,
             },
@@ -194,8 +195,28 @@ export function formFromDocument(
     warehouse: formReference(data.warehouse),
     materialWarehouse: formReference(data.materialWarehouse),
     finishedWarehouse: formReference(data.finishedWarehouse),
-    platform: formReference(data.platform),
-    vehicle: formReference(data.vehicle),
+    carrier: formReference(data.carrier),
+    vehicle: data.vehicle
+      ? {
+          ...formReference(data.vehicle)!,
+          ...(data.carrierType
+            ? {
+                carrierAffiliation:
+                  data.carrierType === 'INTERNAL'
+                    ? {
+                        type: 'INTERNAL' as const,
+                        operatingEntityId:
+                          data.carrierOperatingEntity?.objectId,
+                      }
+                    : {
+                        type: 'EXTERNAL' as const,
+                        serviceRelationshipObjectId: data.carrier?.objectId,
+                      },
+              }
+            : {}),
+          bulkLiquidCapable: data.vehicleBulkLiquidCapable ?? false,
+        }
+      : null,
     fundAccount: formReference(data.fundAccount),
     sourceName: data.sourceName ?? '',
     amount: document.amount,
@@ -212,6 +233,7 @@ export function formFromDocument(
       unitPrice: line.baseUnitPrice ?? line.unitPrice,
       settlementSurcharge: line.settlementSurcharge ?? '',
       purchaseUnitPrice: line.purchaseUnitPrice ?? '',
+      deliverySpecificationType: line.deliverySpecificationType ?? 'PACKAGED',
       remark: line.remark ?? '',
       formula: formulaFromPayload(line.formula),
       referenceUnitPrice: line.referenceUnitPrice ?? '0.00',

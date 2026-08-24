@@ -182,12 +182,12 @@ func (s *Service) clearWarehouseManagersForDisabledEmployee(ctx context.Context,
 			return s.writeError("freeze previous warehouse manager version", err)
 		}
 		systemActor := systemidentity.UserID
-		rows, err = qtx.ActivateReferenceTransferVersion(ctx, dbsqlc.ActivateReferenceTransferVersionParams{SubmittedBy: &systemActor,
+		rows, err = qtx.ActivateSystemManagedVersion(ctx, dbsqlc.ActivateSystemManagedVersionParams{SubmittedBy: &systemActor,
 			ActorID: &actorID, VersionID: candidateID, ObjectID: reference.ObjectID, Entity: EntityWarehouse})
 		if err != nil || rows != 1 {
 			return s.writeError("activate warehouse manager cleanup version", err)
 		}
-		rows, err = qtx.SwitchReferenceTransferObject(ctx, dbsqlc.SwitchReferenceTransferObjectParams{NewVersionID: candidateID,
+		rows, err = qtx.SwitchSystemManagedObjectVersion(ctx, dbsqlc.SwitchSystemManagedObjectVersionParams{NewVersionID: candidateID,
 			ActorID: actorID, ObjectID: reference.ObjectID, Entity: EntityWarehouse, Revision: warehouse.Revision, OldVersionID: current.ID})
 		if err != nil || rows != 1 {
 			return s.writeError("switch warehouse manager cleanup version", err)

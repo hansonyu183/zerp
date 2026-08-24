@@ -174,11 +174,6 @@ func (s *serviceStub) SalesPartnerSave(_ context.Context, _ SalesPartnerSaveInpu
 	return MutationResult{}, nil
 }
 
-func (s *serviceStub) TransferReferences(_ context.Context, _ ReferenceTransferInput, _, _ string) (ReferenceTransferResult, error) {
-	s.record("transfer", "reference")
-	return ReferenceTransferResult{}, nil
-}
-
 func (s *serviceStub) QueryReferenceCandidates(_ context.Context, _ ReferenceQueryInput) ([]ReferenceCandidate, error) {
 	s.record("query", "reference")
 	return []ReferenceCandidate{}, nil
@@ -293,7 +288,7 @@ func TestHandlerRegistersEveryEntityAction(t *testing.T) {
 			t.Errorf("route %s is not registered", path)
 		}
 	}
-	const entitySpecificRoutes = 11
+	const entitySpecificRoutes = 10
 	if len(routes) != len(wanted)+entitySpecificRoutes {
 		t.Fatalf("registered route count = %d, want %d", len(routes), len(wanted)+entitySpecificRoutes)
 	}
@@ -492,44 +487,6 @@ func TestHandlerUsesExactPermissionPathAndPrincipal(t *testing.T) {
 	}
 	if len(service.actions) != 1 || service.actions[0] != "delete" || service.entity != EntityVehicle {
 		t.Fatalf("actions = %v, entity = %q", service.actions, service.entity)
-	}
-}
-
-func TestReferenceTransferRequiresBothTransferAndSourceDisablePermissions(t *testing.T) {
-	service := &serviceStub{}
-	paths := []string{}
-	authorizer := authorization.Func(func(
-		_ context.Context, _ *http.Request, path, _ string,
-	) (authorization.Principal, error) {
-		paths = append(paths, path)
-		if path == "/bob/employee/disable" {
-			return authorization.Principal{}, authorization.NewError(
-				authorization.ErrorForbidden, "permission denied", nil,
-			)
-		}
-		return authorization.Principal{ActorID: "01J00000000000000000000000"}, nil
-	})
-	router := newBOBTestRouter(service, authorizer)
-	request := httptest.NewRequest(http.MethodPost, "/bob/reference/transfer", strings.NewReader(
-		`{"entity":"employee","sourceObjectId":"01J00000000000000000000010","targetObjectId":"01J00000000000000000000011","sourceObjectRevision":1}`,
-	))
-	request.Header.Set("Content-Type", "application/json")
-	recorder := httptest.NewRecorder()
-	router.ServeHTTP(recorder, request)
-
-	var envelope response.Envelope
-	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-	if envelope.Code != response.CodeForbidden {
-		t.Fatalf("code = %d, want %d", envelope.Code, response.CodeForbidden)
-	}
-	want := []string{"/bob/reference/transfer", "/bob/employee/disable"}
-	if len(paths) != len(want) || paths[0] != want[0] || paths[1] != want[1] {
-		t.Fatalf("permission paths = %v, want %v", paths, want)
-	}
-	if len(service.actions) != 0 {
-		t.Fatalf("service calls = %v", service.actions)
 	}
 }
 

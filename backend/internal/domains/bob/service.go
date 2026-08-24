@@ -1388,20 +1388,15 @@ func (s *Service) SetEnabled(
 			return MutationResult{}, s.internal("scan direct references before disable", scanErr)
 		}
 		if len(uses) > 0 {
-			type referenceCount struct {
-				Entity string `json:"entity"`
-				Field  string `json:"field"`
-				Count  int    `json:"count"`
-			}
-			grouped := make(map[string]*referenceCount)
+			grouped := make(map[string]*ActiveReferenceCount)
 			for _, use := range uses {
 				key := use.entity + "\x00" + use.role
 				if grouped[key] == nil {
-					grouped[key] = &referenceCount{Entity: use.entity, Field: use.role}
+					grouped[key] = &ActiveReferenceCount{Entity: use.entity, Field: use.role}
 				}
 				grouped[key].Count++
 			}
-			counts := make([]referenceCount, 0, len(grouped))
+			counts := make([]ActiveReferenceCount, 0, len(grouped))
 			for _, count := range grouped {
 				counts = append(counts, *count)
 			}

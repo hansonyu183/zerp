@@ -1670,15 +1670,6 @@ FROM bob_objects o JOIN bob_versions v ON v.object_id=o.id AND v.id=COALESCE(NUL
 JOIN bob_operating_entity_versions d ON d.version_id=v.id
 WHERE o.id=sqlc.arg(object_id) AND o.entity='operating-entity';
 
--- name: LockReferenceTransferSource :one
-SELECT entity,revision,enabled,current_version_id,effective_version_id
-FROM bob_objects WHERE id=sqlc.arg(object_id) FOR UPDATE;
-
--- name: LockReferenceTransferTarget :one
-SELECT effective_version_id FROM bob_objects
-WHERE id=sqlc.arg(object_id) AND entity=sqlc.arg(entity) AND enabled AND effective_version_id IS NOT NULL
-FOR SHARE;
-
 -- name: ListCustomerSalesReferencesForEmployee :many
 SELECT object.id AS object_id,object.entity,'customer-sales'::text AS role FROM bob_objects object JOIN bob_customer_versions customer_detail ON customer_detail.version_id=object.effective_version_id WHERE customer_detail.primary_sales_subject_id=sqlc.arg(source_object_id) AND customer_detail.primary_sales_attribution_type='INTERNAL_EMPLOYEE';
 
@@ -1714,63 +1705,15 @@ SELECT object.id AS object_id,object.entity,'vehicle-carrier-service'::text AS r
 -- name: ListFormulaMaterialReferences :many
 SELECT object.id AS object_id,object.entity,'formula-material'::text AS role FROM bob_objects object JOIN bob_product_formula_lines formula_line ON formula_line.product_version_id=object.effective_version_id WHERE formula_line.material_object_id=sqlc.arg(source_object_id);
 
--- name: DisableReferenceTransferSource :execrows
-UPDATE bob_objects SET enabled=false,revision=revision+1,updated_at=now(),updated_by=sqlc.arg(actor_id)
-WHERE id=sqlc.arg(object_id) AND entity=sqlc.arg(entity) AND revision=sqlc.arg(revision) AND enabled
-  AND (current_version_id=effective_version_id OR (entity IN ('supplier','other-unit','sales-partner') AND effective_version_id IS NOT NULL));
-
--- name: ActivateReferenceTransferVersion :execrows
+-- name: ActivateSystemManagedVersion :execrows
 UPDATE bob_versions SET status='EFFECTIVE',revision=revision+1,
   submitted_at=now(),submitted_by=sqlc.arg(submitted_by),reviewed_at=now(),reviewed_by=sqlc.arg(actor_id),
   updated_at=now(),updated_by=sqlc.arg(actor_id)
 WHERE id=sqlc.arg(version_id) AND object_id=sqlc.arg(object_id) AND entity=sqlc.arg(entity) AND status='DRAFT' AND revision=1;
 
--- name: SwitchReferenceTransferObject :execrows
+-- name: SwitchSystemManagedObjectVersion :execrows
 UPDATE bob_objects SET current_version_id=sqlc.arg(new_version_id),effective_version_id=sqlc.arg(new_version_id),next_version_no=next_version_no+1,revision=revision+1,updated_at=now(),updated_by=sqlc.arg(actor_id)
 WHERE id=sqlc.arg(object_id) AND entity=sqlc.arg(entity) AND revision=sqlc.arg(revision) AND current_version_id=sqlc.arg(old_version_id) AND effective_version_id=sqlc.arg(old_version_id);
-
--- name: GetReferenceTransferTargetProductBehavior :one
-SELECT detail.behavior_profile FROM bob_objects object JOIN bob_product_versions detail ON detail.version_id=object.effective_version_id
-WHERE object.id=sqlc.arg(object_id) AND object.entity='product' AND object.enabled AND object.effective_version_id=sqlc.arg(version_id)
-FOR SHARE OF object;
-
--- name: ReferenceTransferTargetIsServiceRelationship :one
-SELECT EXISTS(
-  SELECT 1
-  FROM bob_objects object
-  JOIN bob_service_relationships relationship ON relationship.object_id=object.id
-  WHERE object.id=sqlc.arg(object_id) AND object.entity='other-unit' AND object.enabled
-    AND object.effective_version_id=sqlc.arg(version_id) AND relationship.merged_into_object_id IS NULL
-) AS eligible;
-
--- name: ReferenceTransferTargetHasSalesCapability :one
-SELECT EXISTS(
-  SELECT 1
-  FROM bob_objects object
-  JOIN bob_sales_relationships relationship ON relationship.object_id=object.id
-  JOIN bob_sales_partner_versions detail ON detail.version_id=object.effective_version_id
-  WHERE object.id=sqlc.arg(object_id) AND object.entity='sales-partner' AND object.enabled
-    AND object.effective_version_id=sqlc.arg(version_id) AND relationship.merged_into_object_id IS NULL
-    AND sqlc.arg(capability)::text=ANY(detail.capabilities)
-) AS eligible;
-
--- name: ReplaceCustomerOperatingEntityReference :exec
-UPDATE bob_customer_versions SET operating_entity_id=sqlc.arg(target_object_id),operating_entity_code=sqlc.arg(code),operating_entity_name=sqlc.arg(name),operating_entity_tax_number=sqlc.arg(tax_number),operating_entity_address=sqlc.arg(address),operating_entity_phone=sqlc.arg(phone)
-WHERE version_id=sqlc.arg(version_id);
-
--- name: ReplaceFundOperatingEntityReference :exec
-UPDATE bob_fund_account_versions SET operating_entity_id=sqlc.arg(target_object_id),operating_entity_version_id=sqlc.arg(target_version_id),operating_entity_code=sqlc.arg(code),operating_entity_name=sqlc.arg(name)
-WHERE version_id=sqlc.arg(version_id);
-
--- name: ReplaceCustomerSalesReference :exec
-UPDATE bob_customer_versions SET primary_sales_subject_id=sqlc.arg(target_object_id),primary_sales_subject_version_id=sqlc.arg(target_version_id),primary_sales_subject_code=sqlc.arg(code),primary_sales_subject_name=sqlc.arg(name),salesperson_employee_id=CASE WHEN primary_sales_attribution_type='INTERNAL_EMPLOYEE' THEN sqlc.arg(target_object_id) ELSE salesperson_employee_id END
-WHERE version_id=sqlc.arg(version_id);
-
--- name: ReplaceSupplierPurchaserReference :exec
-UPDATE bob_supplier_versions SET default_purchaser_employee_id=sqlc.arg(target_object_id) WHERE version_id=sqlc.arg(version_id);
-
--- name: ReplaceWarehouseManagerReference :exec
-UPDATE bob_warehouse_versions SET manager_employee_id=sqlc.arg(target_object_id) WHERE version_id=sqlc.arg(version_id);
 
 -- name: ClearWarehouseManagerReference :exec
 UPDATE bob_warehouse_versions SET manager_employee_id=NULL WHERE version_id=sqlc.arg(version_id);
@@ -1879,16 +1822,6 @@ GROUP BY document.id,document.entity,document.document_no
 HAVING EXISTS(SELECT 1 FROM vou_purchase_inbound_lines source_line
   WHERE source_line.document_id=document.id AND source_line.base_quantity_micros > COALESCE((SELECT sum(return_line.base_quantity_micros) FROM vou_purchase_return_lines return_line WHERE return_line.source_inbound_line_id=source_line.id),0))
 ORDER BY entity,document_no,document_id;
-
--- name: ReplaceVehicleCarrierOperatingReference :exec
-UPDATE bob_vehicle_versions SET carrier_operating_entity_id=sqlc.arg(target_object_id) WHERE version_id=sqlc.arg(version_id);
-
--- name: ReplaceVehicleCarrierServiceReference :exec
-UPDATE bob_vehicle_versions SET carrier_service_relationship_object_id=sqlc.arg(target_object_id) WHERE version_id=sqlc.arg(version_id);
-
--- name: ReplaceFormulaMaterialReference :exec
-UPDATE bob_product_formula_lines SET material_object_id=sqlc.arg(target_object_id),material_version_id=sqlc.arg(target_version_id)
-WHERE product_version_id=sqlc.arg(product_version_id) AND material_object_id=sqlc.arg(source_object_id);
 
 -- name: RestoreBobCustomerEffectiveVersion :execrows
 UPDATE bob_objects SET current_version_id=effective_version_id,revision=revision+1,updated_at=now()

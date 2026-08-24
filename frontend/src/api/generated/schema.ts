@@ -1636,23 +1636,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/bob/reference/transfer": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 原子批量转移当前 BOB 直接引用 */
-        post: operations["bobReferenceTransfer"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/bob/reference/query": {
         parameters: {
             query?: never;
@@ -4878,25 +4861,6 @@ export interface components {
                 settlementMethodId?: string | null;
                 defaultPurchaserEmployeeId?: string | null;
             };
-        };
-        CustomerReferenceTransferRequest: {
-            /** @enum {string} */
-            entity: "customer" | "operating-entity" | "employee" | "other-unit" | "supplier" | "product";
-            sourceObjectId: string;
-            targetObjectId: string;
-            /** Format: int64 */
-            sourceObjectRevision: number;
-        };
-        CustomerReferenceTransferResult: {
-            sourceObjectId: string;
-            targetObjectId: string;
-            affectedObjects: number;
-        };
-        CustomerReferenceTransferResponse: {
-            code: number;
-            message: string;
-            data: components["schemas"]["CustomerReferenceTransferResult"];
-            requestId: string;
         };
         BobReferenceQueryRequest: {
             /** @enum {string} */
@@ -8660,30 +8624,6 @@ export interface operations {
         };
         responses: {
             200: components["responses"]["Business"];
-        };
-    };
-    bobReferenceTransfer: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CustomerReferenceTransferRequest"];
-            };
-        };
-        responses: {
-            /** @description 批量转移结果。 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CustomerReferenceTransferResponse"];
-                };
-            };
         };
     };
     bobReferenceQuery: {

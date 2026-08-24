@@ -3388,47 +3388,6 @@
                 { '200': { '$ref': '#/components/responses/Business' } },
             },
         },
-      '/bob/reference/transfer':
-        {
-          'post':
-            {
-              'tags': ['bob'],
-              'summary': '原子批量转移当前 BOB 直接引用',
-              'operationId': 'bobReferenceTransfer',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/bob.yaml#/CustomerReferenceTransferRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '批量转移结果。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/bob.yaml#/CustomerReferenceTransferResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
       '/bob/reference/query':
         {
           'post':

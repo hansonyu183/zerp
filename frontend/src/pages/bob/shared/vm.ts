@@ -14,7 +14,6 @@ import {
 import { useBobHistory } from './history'
 import { bobLifecycleSuccessLabel, useBobLifecycleActions } from './lifecycle'
 import { useBobReferences } from './references'
-import { useBobReferenceTransfer } from './reference-transfer'
 import {
   canLoadBobEditorReferences,
   useBobProductApproval,
@@ -481,20 +480,6 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
   }
 
   const {
-    referenceTransferOpen,
-    referenceTransferLoading,
-    referenceTransferError,
-    referenceTransferSource,
-    referenceTransferTargetId,
-    referenceTransferCandidates,
-    referenceTransferOptions,
-    closeReferenceTransfer,
-    confirmReferenceTransfer,
-    searchReferenceTransfer,
-    handleReferenceTransferLifecycleError,
-  } = useBobReferenceTransfer(config.entity, successMessage, query)
-
-  const {
     review: runLifecycleReview,
     reverse,
     changeEnabled,
@@ -508,7 +493,6 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
       if (currentView.value?.objectId === row.objectId) closeEditor()
       successMessage.value = `${row.code} ${bobLifecycleSuccessLabel(action)}。`
     },
-    handleReferenceTransferLifecycleError,
   )
 
   const { checkProductCompleteness, review } = useBobProductApproval(
@@ -540,13 +524,6 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     editorResetKey,
     currentView,
     effectiveView,
-    referenceTransferOpen,
-    referenceTransferLoading,
-    referenceTransferError,
-    referenceTransferSource,
-    referenceTransferTargetId,
-    referenceTransferCandidates,
-    referenceTransferOptions,
     canCreate,
     editorTitle,
     editorFields,
@@ -583,9 +560,6 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     reverse,
     changeEnabled,
     requestChangeEnabled: changeEnabled,
-    closeReferenceTransfer,
-    confirmReferenceTransfer,
-    searchReferenceTransfer,
     searchEditorReference,
     searchFilterReference,
     filterReferenceOptions,

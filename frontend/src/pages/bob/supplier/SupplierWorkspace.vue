@@ -41,7 +41,6 @@ const eventLabels: Readonly<Record<string, string>> = {
   ENABLED: '启用',
   DISABLED: '禁用',
   DELETED: '删除候选版本',
-  REFERENCES_TRANSFERRED: '引用转移',
 }
 const eventLabel = (value: string) => eventLabels[value] ?? '其他变更'
 const purchaserLabel = (version: SupplierListItem['effective']) =>

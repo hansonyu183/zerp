@@ -20,14 +20,14 @@ func (q *Queries) AcquireBobPartyIdentifierLock(ctx context.Context, lockKey str
 	return err
 }
 
-const activateReferenceTransferVersion = `-- name: ActivateReferenceTransferVersion :execrows
+const activateSystemManagedVersion = `-- name: ActivateSystemManagedVersion :execrows
 UPDATE bob_versions SET status='EFFECTIVE',revision=revision+1,
   submitted_at=now(),submitted_by=$1,reviewed_at=now(),reviewed_by=$2,
   updated_at=now(),updated_by=$2
 WHERE id=$3 AND object_id=$4 AND entity=$5 AND status='DRAFT' AND revision=1
 `
 
-type ActivateReferenceTransferVersionParams struct {
+type ActivateSystemManagedVersionParams struct {
 	SubmittedBy *string `db:"submitted_by" json:"submitted_by"`
 	ActorID     *string `db:"actor_id" json:"actor_id"`
 	VersionID   string  `db:"version_id" json:"version_id"`
@@ -35,8 +35,8 @@ type ActivateReferenceTransferVersionParams struct {
 	Entity      string  `db:"entity" json:"entity"`
 }
 
-func (q *Queries) ActivateReferenceTransferVersion(ctx context.Context, arg ActivateReferenceTransferVersionParams) (int64, error) {
-	result, err := q.db.Exec(ctx, activateReferenceTransferVersion,
+func (q *Queries) ActivateSystemManagedVersion(ctx context.Context, arg ActivateSystemManagedVersionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, activateSystemManagedVersion,
 		arg.SubmittedBy,
 		arg.ActorID,
 		arg.VersionID,
@@ -1637,32 +1637,6 @@ func (q *Queries) DeleteBobWarehouseDetail(ctx context.Context, versionID string
 	return result.RowsAffected(), nil
 }
 
-const disableReferenceTransferSource = `-- name: DisableReferenceTransferSource :execrows
-UPDATE bob_objects SET enabled=false,revision=revision+1,updated_at=now(),updated_by=$1
-WHERE id=$2 AND entity=$3 AND revision=$4 AND enabled
-  AND (current_version_id=effective_version_id OR (entity IN ('supplier','other-unit','sales-partner') AND effective_version_id IS NOT NULL))
-`
-
-type DisableReferenceTransferSourceParams struct {
-	ActorID  string `db:"actor_id" json:"actor_id"`
-	ObjectID string `db:"object_id" json:"object_id"`
-	Entity   string `db:"entity" json:"entity"`
-	Revision int64  `db:"revision" json:"revision"`
-}
-
-func (q *Queries) DisableReferenceTransferSource(ctx context.Context, arg DisableReferenceTransferSourceParams) (int64, error) {
-	result, err := q.db.Exec(ctx, disableReferenceTransferSource,
-		arg.ActorID,
-		arg.ObjectID,
-		arg.Entity,
-		arg.Revision,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const findBobObjectIDByCode = `-- name: FindBobObjectIDByCode :one
 SELECT id
 FROM bob_objects
@@ -2577,24 +2551,6 @@ func (q *Queries) GetFundAccountOperatingDetail(ctx context.Context, versionID s
 		&i.OperatingEntityName,
 	)
 	return i, err
-}
-
-const getReferenceTransferTargetProductBehavior = `-- name: GetReferenceTransferTargetProductBehavior :one
-SELECT detail.behavior_profile FROM bob_objects object JOIN bob_product_versions detail ON detail.version_id=object.effective_version_id
-WHERE object.id=$1 AND object.entity='product' AND object.enabled AND object.effective_version_id=$2
-FOR SHARE OF object
-`
-
-type GetReferenceTransferTargetProductBehaviorParams struct {
-	ObjectID  string  `db:"object_id" json:"object_id"`
-	VersionID *string `db:"version_id" json:"version_id"`
-}
-
-func (q *Queries) GetReferenceTransferTargetProductBehavior(ctx context.Context, arg GetReferenceTransferTargetProductBehaviorParams) (*string, error) {
-	row := q.db.QueryRow(ctx, getReferenceTransferTargetProductBehavior, arg.ObjectID, arg.VersionID)
-	var behavior_profile *string
-	err := row.Scan(&behavior_profile)
-	return behavior_profile, err
 }
 
 const getStoredBobCustomerValidationData = `-- name: GetStoredBobCustomerValidationData :one
@@ -5771,50 +5727,6 @@ func (q *Queries) LockEffectiveServiceRelationship(ctx context.Context, serviceR
 	return id, err
 }
 
-const lockReferenceTransferSource = `-- name: LockReferenceTransferSource :one
-SELECT entity,revision,enabled,current_version_id,effective_version_id
-FROM bob_objects WHERE id=$1 FOR UPDATE
-`
-
-type LockReferenceTransferSourceRow struct {
-	Entity             string  `db:"entity" json:"entity"`
-	Revision           int64   `db:"revision" json:"revision"`
-	Enabled            bool    `db:"enabled" json:"enabled"`
-	CurrentVersionID   string  `db:"current_version_id" json:"current_version_id"`
-	EffectiveVersionID *string `db:"effective_version_id" json:"effective_version_id"`
-}
-
-func (q *Queries) LockReferenceTransferSource(ctx context.Context, objectID string) (LockReferenceTransferSourceRow, error) {
-	row := q.db.QueryRow(ctx, lockReferenceTransferSource, objectID)
-	var i LockReferenceTransferSourceRow
-	err := row.Scan(
-		&i.Entity,
-		&i.Revision,
-		&i.Enabled,
-		&i.CurrentVersionID,
-		&i.EffectiveVersionID,
-	)
-	return i, err
-}
-
-const lockReferenceTransferTarget = `-- name: LockReferenceTransferTarget :one
-SELECT effective_version_id FROM bob_objects
-WHERE id=$1 AND entity=$2 AND enabled AND effective_version_id IS NOT NULL
-FOR SHARE
-`
-
-type LockReferenceTransferTargetParams struct {
-	ObjectID string `db:"object_id" json:"object_id"`
-	Entity   string `db:"entity" json:"entity"`
-}
-
-func (q *Queries) LockReferenceTransferTarget(ctx context.Context, arg LockReferenceTransferTargetParams) (*string, error) {
-	row := q.db.QueryRow(ctx, lockReferenceTransferTarget, arg.ObjectID, arg.Entity)
-	var effective_version_id *string
-	err := row.Scan(&effective_version_id)
-	return effective_version_id, err
-}
-
 const lockWarehouseDisableDocuments = `-- name: LockWarehouseDisableDocuments :exec
 SELECT document.id FROM vou_documents document WHERE (
   EXISTS(SELECT 1 FROM vou_sale_order_details x WHERE x.document_id=document.id AND x.warehouse_object_id=$1) OR
@@ -6040,53 +5952,6 @@ func (q *Queries) QueryBobReferenceCandidates(ctx context.Context, arg QueryBobR
 	return items, nil
 }
 
-const referenceTransferTargetHasSalesCapability = `-- name: ReferenceTransferTargetHasSalesCapability :one
-SELECT EXISTS(
-  SELECT 1
-  FROM bob_objects object
-  JOIN bob_sales_relationships relationship ON relationship.object_id=object.id
-  JOIN bob_sales_partner_versions detail ON detail.version_id=object.effective_version_id
-  WHERE object.id=$1 AND object.entity='sales-partner' AND object.enabled
-    AND object.effective_version_id=$2 AND relationship.merged_into_object_id IS NULL
-    AND $3::text=ANY(detail.capabilities)
-) AS eligible
-`
-
-type ReferenceTransferTargetHasSalesCapabilityParams struct {
-	ObjectID   string  `db:"object_id" json:"object_id"`
-	VersionID  *string `db:"version_id" json:"version_id"`
-	Capability string  `db:"capability" json:"capability"`
-}
-
-func (q *Queries) ReferenceTransferTargetHasSalesCapability(ctx context.Context, arg ReferenceTransferTargetHasSalesCapabilityParams) (bool, error) {
-	row := q.db.QueryRow(ctx, referenceTransferTargetHasSalesCapability, arg.ObjectID, arg.VersionID, arg.Capability)
-	var eligible bool
-	err := row.Scan(&eligible)
-	return eligible, err
-}
-
-const referenceTransferTargetIsServiceRelationship = `-- name: ReferenceTransferTargetIsServiceRelationship :one
-SELECT EXISTS(
-  SELECT 1
-  FROM bob_objects object
-  JOIN bob_service_relationships relationship ON relationship.object_id=object.id
-  WHERE object.id=$1 AND object.entity='other-unit' AND object.enabled
-    AND object.effective_version_id=$2 AND relationship.merged_into_object_id IS NULL
-) AS eligible
-`
-
-type ReferenceTransferTargetIsServiceRelationshipParams struct {
-	ObjectID  string  `db:"object_id" json:"object_id"`
-	VersionID *string `db:"version_id" json:"version_id"`
-}
-
-func (q *Queries) ReferenceTransferTargetIsServiceRelationship(ctx context.Context, arg ReferenceTransferTargetIsServiceRelationshipParams) (bool, error) {
-	row := q.db.QueryRow(ctx, referenceTransferTargetIsServiceRelationship, arg.ObjectID, arg.VersionID)
-	var eligible bool
-	err := row.Scan(&eligible)
-	return eligible, err
-}
-
 const refreshBobProductCandidateFormulaMaterials = `-- name: RefreshBobProductCandidateFormulaMaterials :exec
 UPDATE bob_product_formula_lines line
 SET material_version_id=material.effective_version_id,
@@ -6139,160 +6004,6 @@ func (q *Queries) RejectBobVersion(ctx context.Context, arg RejectBobVersionPara
 		return 0, err
 	}
 	return result.RowsAffected(), nil
-}
-
-const replaceCustomerOperatingEntityReference = `-- name: ReplaceCustomerOperatingEntityReference :exec
-UPDATE bob_customer_versions SET operating_entity_id=$1,operating_entity_code=$2,operating_entity_name=$3,operating_entity_tax_number=$4,operating_entity_address=$5,operating_entity_phone=$6
-WHERE version_id=$7
-`
-
-type ReplaceCustomerOperatingEntityReferenceParams struct {
-	TargetObjectID *string `db:"target_object_id" json:"target_object_id"`
-	Code           *string `db:"code" json:"code"`
-	Name           *string `db:"name" json:"name"`
-	TaxNumber      *string `db:"tax_number" json:"tax_number"`
-	Address        *string `db:"address" json:"address"`
-	Phone          *string `db:"phone" json:"phone"`
-	VersionID      string  `db:"version_id" json:"version_id"`
-}
-
-func (q *Queries) ReplaceCustomerOperatingEntityReference(ctx context.Context, arg ReplaceCustomerOperatingEntityReferenceParams) error {
-	_, err := q.db.Exec(ctx, replaceCustomerOperatingEntityReference,
-		arg.TargetObjectID,
-		arg.Code,
-		arg.Name,
-		arg.TaxNumber,
-		arg.Address,
-		arg.Phone,
-		arg.VersionID,
-	)
-	return err
-}
-
-const replaceCustomerSalesReference = `-- name: ReplaceCustomerSalesReference :exec
-UPDATE bob_customer_versions SET primary_sales_subject_id=$1,primary_sales_subject_version_id=$2,primary_sales_subject_code=$3,primary_sales_subject_name=$4,salesperson_employee_id=CASE WHEN primary_sales_attribution_type='INTERNAL_EMPLOYEE' THEN $1 ELSE salesperson_employee_id END
-WHERE version_id=$5
-`
-
-type ReplaceCustomerSalesReferenceParams struct {
-	TargetObjectID  *string `db:"target_object_id" json:"target_object_id"`
-	TargetVersionID *string `db:"target_version_id" json:"target_version_id"`
-	Code            *string `db:"code" json:"code"`
-	Name            *string `db:"name" json:"name"`
-	VersionID       string  `db:"version_id" json:"version_id"`
-}
-
-func (q *Queries) ReplaceCustomerSalesReference(ctx context.Context, arg ReplaceCustomerSalesReferenceParams) error {
-	_, err := q.db.Exec(ctx, replaceCustomerSalesReference,
-		arg.TargetObjectID,
-		arg.TargetVersionID,
-		arg.Code,
-		arg.Name,
-		arg.VersionID,
-	)
-	return err
-}
-
-const replaceFormulaMaterialReference = `-- name: ReplaceFormulaMaterialReference :exec
-UPDATE bob_product_formula_lines SET material_object_id=$1,material_version_id=$2
-WHERE product_version_id=$3 AND material_object_id=$4
-`
-
-type ReplaceFormulaMaterialReferenceParams struct {
-	TargetObjectID   string `db:"target_object_id" json:"target_object_id"`
-	TargetVersionID  string `db:"target_version_id" json:"target_version_id"`
-	ProductVersionID string `db:"product_version_id" json:"product_version_id"`
-	SourceObjectID   string `db:"source_object_id" json:"source_object_id"`
-}
-
-func (q *Queries) ReplaceFormulaMaterialReference(ctx context.Context, arg ReplaceFormulaMaterialReferenceParams) error {
-	_, err := q.db.Exec(ctx, replaceFormulaMaterialReference,
-		arg.TargetObjectID,
-		arg.TargetVersionID,
-		arg.ProductVersionID,
-		arg.SourceObjectID,
-	)
-	return err
-}
-
-const replaceFundOperatingEntityReference = `-- name: ReplaceFundOperatingEntityReference :exec
-UPDATE bob_fund_account_versions SET operating_entity_id=$1,operating_entity_version_id=$2,operating_entity_code=$3,operating_entity_name=$4
-WHERE version_id=$5
-`
-
-type ReplaceFundOperatingEntityReferenceParams struct {
-	TargetObjectID  *string `db:"target_object_id" json:"target_object_id"`
-	TargetVersionID *string `db:"target_version_id" json:"target_version_id"`
-	Code            *string `db:"code" json:"code"`
-	Name            *string `db:"name" json:"name"`
-	VersionID       string  `db:"version_id" json:"version_id"`
-}
-
-func (q *Queries) ReplaceFundOperatingEntityReference(ctx context.Context, arg ReplaceFundOperatingEntityReferenceParams) error {
-	_, err := q.db.Exec(ctx, replaceFundOperatingEntityReference,
-		arg.TargetObjectID,
-		arg.TargetVersionID,
-		arg.Code,
-		arg.Name,
-		arg.VersionID,
-	)
-	return err
-}
-
-const replaceSupplierPurchaserReference = `-- name: ReplaceSupplierPurchaserReference :exec
-UPDATE bob_supplier_versions SET default_purchaser_employee_id=$1 WHERE version_id=$2
-`
-
-type ReplaceSupplierPurchaserReferenceParams struct {
-	TargetObjectID *string `db:"target_object_id" json:"target_object_id"`
-	VersionID      string  `db:"version_id" json:"version_id"`
-}
-
-func (q *Queries) ReplaceSupplierPurchaserReference(ctx context.Context, arg ReplaceSupplierPurchaserReferenceParams) error {
-	_, err := q.db.Exec(ctx, replaceSupplierPurchaserReference, arg.TargetObjectID, arg.VersionID)
-	return err
-}
-
-const replaceVehicleCarrierOperatingReference = `-- name: ReplaceVehicleCarrierOperatingReference :exec
-UPDATE bob_vehicle_versions SET carrier_operating_entity_id=$1 WHERE version_id=$2
-`
-
-type ReplaceVehicleCarrierOperatingReferenceParams struct {
-	TargetObjectID *string `db:"target_object_id" json:"target_object_id"`
-	VersionID      string  `db:"version_id" json:"version_id"`
-}
-
-func (q *Queries) ReplaceVehicleCarrierOperatingReference(ctx context.Context, arg ReplaceVehicleCarrierOperatingReferenceParams) error {
-	_, err := q.db.Exec(ctx, replaceVehicleCarrierOperatingReference, arg.TargetObjectID, arg.VersionID)
-	return err
-}
-
-const replaceVehicleCarrierServiceReference = `-- name: ReplaceVehicleCarrierServiceReference :exec
-UPDATE bob_vehicle_versions SET carrier_service_relationship_object_id=$1 WHERE version_id=$2
-`
-
-type ReplaceVehicleCarrierServiceReferenceParams struct {
-	TargetObjectID *string `db:"target_object_id" json:"target_object_id"`
-	VersionID      string  `db:"version_id" json:"version_id"`
-}
-
-func (q *Queries) ReplaceVehicleCarrierServiceReference(ctx context.Context, arg ReplaceVehicleCarrierServiceReferenceParams) error {
-	_, err := q.db.Exec(ctx, replaceVehicleCarrierServiceReference, arg.TargetObjectID, arg.VersionID)
-	return err
-}
-
-const replaceWarehouseManagerReference = `-- name: ReplaceWarehouseManagerReference :exec
-UPDATE bob_warehouse_versions SET manager_employee_id=$1 WHERE version_id=$2
-`
-
-type ReplaceWarehouseManagerReferenceParams struct {
-	TargetObjectID *string `db:"target_object_id" json:"target_object_id"`
-	VersionID      string  `db:"version_id" json:"version_id"`
-}
-
-func (q *Queries) ReplaceWarehouseManagerReference(ctx context.Context, arg ReplaceWarehouseManagerReferenceParams) error {
-	_, err := q.db.Exec(ctx, replaceWarehouseManagerReference, arg.TargetObjectID, arg.VersionID)
-	return err
 }
 
 const resolveBobEffectiveOtherUnitReference = `-- name: ResolveBobEffectiveOtherUnitReference :one
@@ -6957,12 +6668,12 @@ func (q *Queries) SwitchBobEffectiveCandidate(ctx context.Context, arg SwitchBob
 	return result.RowsAffected(), nil
 }
 
-const switchReferenceTransferObject = `-- name: SwitchReferenceTransferObject :execrows
+const switchSystemManagedObjectVersion = `-- name: SwitchSystemManagedObjectVersion :execrows
 UPDATE bob_objects SET current_version_id=$1,effective_version_id=$1,next_version_no=next_version_no+1,revision=revision+1,updated_at=now(),updated_by=$2
 WHERE id=$3 AND entity=$4 AND revision=$5 AND current_version_id=$6 AND effective_version_id=$6
 `
 
-type SwitchReferenceTransferObjectParams struct {
+type SwitchSystemManagedObjectVersionParams struct {
 	NewVersionID string `db:"new_version_id" json:"new_version_id"`
 	ActorID      string `db:"actor_id" json:"actor_id"`
 	ObjectID     string `db:"object_id" json:"object_id"`
@@ -6971,8 +6682,8 @@ type SwitchReferenceTransferObjectParams struct {
 	OldVersionID string `db:"old_version_id" json:"old_version_id"`
 }
 
-func (q *Queries) SwitchReferenceTransferObject(ctx context.Context, arg SwitchReferenceTransferObjectParams) (int64, error) {
-	result, err := q.db.Exec(ctx, switchReferenceTransferObject,
+func (q *Queries) SwitchSystemManagedObjectVersion(ctx context.Context, arg SwitchSystemManagedObjectVersionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, switchSystemManagedObjectVersion,
 		arg.NewVersionID,
 		arg.ActorID,
 		arg.ObjectID,

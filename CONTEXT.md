@@ -216,11 +216,6 @@ _Rules_: [BOB 业务字段](docs/domains/bob.md#21-业务字段)
 _Avoid_: 客户内部提醒、订单保存后继续回查客户当前值
 _Rules_: [VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
 
-**Transferable BOB Reference（可转移 BOB 关联）**:
-当前有效 BOB 版本中直接引用另一个当前 BOB 对象的业务字段。
-_Avoid_: 只处理客户业务员、按页面硬编码关联白名单、改写历史操作者或交易快照
-_Rules_: [BOB 关联批量转移](docs/domains/bob.md#422-bob-关联批量转移)
-
 ## Navigation
 
 **APP Page Route（APP 页面路由）**:

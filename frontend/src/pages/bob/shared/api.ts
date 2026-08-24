@@ -4,9 +4,6 @@ import type { components } from '@/api/generated/schema'
 export type BobReferenceCandidate = components['schemas']['ReferenceCandidate']
 
 export const bobSharedApi = {
-  queryReferenceCandidates: (
-    input: ApiPostRequest<'bob/reference/query'>,
-  ) => apiClient.postContract('bob/reference/query', input),
-  transferReferences: (input: ApiPostRequest<'bob/reference/transfer'>) =>
-    apiClient.postContract('bob/reference/transfer', input),
+  queryReferenceCandidates: (input: ApiPostRequest<'bob/reference/query'>) =>
+    apiClient.postContract('bob/reference/query', input),
 }

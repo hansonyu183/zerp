@@ -24,7 +24,7 @@ type PendingAction = {
 const isRevisionConflict = (error: unknown) =>
   error instanceof ApiError &&
   error.kind === 'business' &&
-  [3001, '3001'].includes(error.code ?? '')
+  error.errorKey === 'user_changed'
 const runeLength = (value: string) => Array.from(value).length
 
 export function createUserManagementViewModel() {

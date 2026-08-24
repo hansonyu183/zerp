@@ -432,11 +432,12 @@
   'VouIntermediarySourceResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -456,11 +457,12 @@
   'VouIntermediaryScriptGetResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data': { '$ref': '#/VouIntermediaryScriptSnapshot' },
           'requestId': { 'type': 'string' },
@@ -1077,11 +1079,12 @@
   'VouAvailableAssetQueryResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -1160,11 +1163,12 @@
   'VouAvailableBillQueryResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -1322,11 +1326,12 @@
   'VouQueryResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -2227,11 +2232,12 @@
   'VouPriceReferenceResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'requestId': { 'type': 'string' },
           'data':

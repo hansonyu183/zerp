@@ -199,11 +199,12 @@
 'WflDefinitionViewResponse':
   {
     'type': 'object',
-    'required': ['code', 'message', 'data', 'requestId'],
+    'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
     'additionalProperties': false,
     'properties':
       {
         'code': { 'type': 'integer', 'format': 'int32' },
+        'errorKey': { 'type': 'string' },
         'message': { 'type': 'string' },
         'data':
           {
@@ -217,11 +218,12 @@
 'WflDefinitionTrialResponse':
   {
     'type': 'object',
-    'required': ['code', 'message', 'data', 'requestId'],
+    'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
     'additionalProperties': false,
     'properties':
       {
         'code': { 'type': 'integer', 'format': 'int32' },
+        'errorKey': { 'type': 'string' },
         'message': { 'type': 'string' },
         'data':
           {
@@ -296,11 +298,12 @@
 'WflInstanceQueryResponse':
   {
     'type': 'object',
-    'required': ['code', 'message', 'data', 'requestId'],
+    'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
     'additionalProperties': false,
     'properties':
       {
         'code': { 'type': 'integer', 'format': 'int32' },
+        'errorKey': { 'type': 'string' },
         'message': { 'type': 'string' },
         'data':
           {
@@ -419,11 +422,12 @@
 'WflInstanceViewResponse':
   {
     'type': 'object',
-    'required': ['code', 'message', 'data', 'requestId'],
+    'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
     'additionalProperties': false,
     'properties':
       {
         'code': { 'type': 'integer', 'format': 'int32' },
+        'errorKey': { 'type': 'string' },
         'message': { 'type': 'string' },
         'data':
           {

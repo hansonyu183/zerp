@@ -18,7 +18,7 @@ func (s *Service) Signin(ctx context.Context, username, password, requestID stri
 	username = normalizeUsername(username)
 	if !runeLengthBetween(username, 3, 64) || password == "" || len(password) > 1024 {
 		_ = verifyPassword(s.dummyPassword, password)
-		return SessionResult{}, domainError(ErrorUnauthenticated, "用户名或密码错误。", nil)
+		return SessionResult{}, domainErrorWithKey(ErrorUnauthenticated, "invalid_credentials", "用户名或密码错误。", nil)
 	}
 
 	user, err := s.queries.GetAppUserByUsername(ctx, username)
@@ -40,10 +40,13 @@ func (s *Service) Signin(ctx context.Context, username, password, requestID stri
 	locked := user.LockedUntil.Valid && user.LockedUntil.Time.After(now)
 	if !passwordOK || user.Status != StatusEnabled || locked {
 		message := "用户名或密码错误。"
+		errorKey := "invalid_credentials"
 		if user.Status != StatusEnabled {
 			message = "账号已停用，请联系管理员。"
+			errorKey = "account_disabled"
 		} else if locked {
 			message = "账号已临时锁定，请稍后重试。"
+			errorKey = "account_locked"
 		}
 		tx, beginErr := s.pool.Begin(ctx)
 		if beginErr == nil {
@@ -58,6 +61,7 @@ func (s *Service) Signin(ctx context.Context, username, password, requestID stri
 					message = fmt.Sprintf("密码错误，剩余重试次数 %d。", remaining)
 					if remaining == 0 {
 						message += "账号已临时锁定，请稍后重试。"
+						errorKey = "account_locked"
 					}
 				}
 			}
@@ -65,7 +69,7 @@ func (s *Service) Signin(ctx context.Context, username, password, requestID stri
 				_ = tx.Commit(ctx)
 			}
 		}
-		return SessionResult{}, domainError(ErrorUnauthenticated, message, nil)
+		return SessionResult{}, domainErrorWithKey(ErrorUnauthenticated, errorKey, message, nil)
 	}
 
 	sessionToken, err := newRawToken()
@@ -330,7 +334,7 @@ func (s *Service) SaveProfile(
 
 func (s *Service) ChangePassword(ctx context.Context, principal Principal, input ChangePasswordInput, requestID string) error {
 	if input.CurrentPassword == "" || len(input.CurrentPassword) > 1024 {
-		return domainError(ErrorValidation, "current password is incorrect", nil)
+		return domainErrorWithKey(ErrorValidation, "invalid_current_password", "current password is incorrect", nil)
 	}
 	if err := validatePassword(input.NewPassword, s.cfg.PasswordMinLength); err != nil {
 		return domainError(ErrorValidation, err.Error(), nil)
@@ -345,7 +349,7 @@ func (s *Service) ChangePassword(ctx context.Context, principal Principal, input
 	}
 	if !verifyPassword(current.PasswordHash, input.CurrentPassword) {
 		_ = s.audit(ctx, s.queries, "USER_CHANGE_PASSWORD", &current.ID, "user", &current.ID, "FAILURE", requestID, map[string]any{"reason": "invalid_current_password"})
-		return domainError(ErrorValidation, "current password is incorrect", nil)
+		return domainErrorWithKey(ErrorValidation, "invalid_current_password", "current password is incorrect", nil)
 	}
 	if verifyPassword(current.PasswordHash, input.NewPassword) {
 		return domainError(ErrorValidation, "new password must differ from current password", nil)
@@ -369,7 +373,7 @@ func (s *Service) ChangePassword(ctx context.Context, principal Principal, input
 		return s.internal("lock password user", err)
 	}
 	if locked.Revision != current.Revision || locked.PasswordHash != current.PasswordHash {
-		return domainError(ErrorConflict, "user changed concurrently; retry with the current password", nil)
+		return domainErrorWithKey(ErrorConflict, "user_changed", "user changed concurrently; retry with the current password", nil)
 	}
 	rows, err := qtx.UpdateAppUserPassword(ctx, dbsqlc.UpdateAppUserPasswordParams{
 		ID: locked.ID, Revision: locked.Revision, PasswordHash: newHash, ActorID: &locked.ID,
@@ -378,7 +382,7 @@ func (s *Service) ChangePassword(ctx context.Context, principal Principal, input
 		return s.writeError("update password", err)
 	}
 	if rows != 1 {
-		return domainError(ErrorConflict, "user changed concurrently", nil)
+		return domainErrorWithKey(ErrorConflict, "user_changed", "user changed concurrently", nil)
 	}
 	if err = qtx.RevokeAppUserSessions(ctx, dbsqlc.RevokeAppUserSessionsParams{UserID: locked.ID, Reason: stringPointer("password_changed")}); err != nil {
 		return s.internal("revoke sessions after password change", err)

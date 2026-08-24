@@ -779,7 +779,10 @@ describe('user management protected actions', () => {
 
   it('状态冲突刷新列表后仍保留重新决策提示', async () => {
     vi.mocked(setAdminUserEnabled).mockRejectedValueOnce(
-      new ApiError('business', 'user revision conflict', { code: 3001 }),
+      new ApiError('business', 'user revision conflict', {
+        code: 3001,
+        errorKey: 'user_changed',
+      }),
     )
     const vm = createUserManagementViewModel()
 

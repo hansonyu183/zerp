@@ -25,7 +25,12 @@ export function warehouseDocumentStatusLabel(
 export function warehouseDisableBlockersFromError(
   error: unknown,
 ): WarehouseDisableBlockers | null {
-  if (!(error instanceof ApiError) || error.kind !== 'business') return null
+  if (
+    !(error instanceof ApiError) ||
+    error.kind !== 'business' ||
+    error.errorKey !== 'warehouse_disable_blocked'
+  )
+    return null
   const details = error.details
   if (
     typeof details !== 'object' ||

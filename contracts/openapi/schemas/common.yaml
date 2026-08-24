@@ -2,15 +2,21 @@
   'BusinessEnvelope':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey':
+            {
+              'type': 'string',
+              'pattern': '^[a-z][a-z0-9_]*$|^$',
+              'description': '稳定业务错误语义；成功时为空字符串。前端按此字段映射提示或选择业务分支。',
+            },
           'message':
             {
               'type': 'string',
-              'description': '面向用户的结果说明。业务失败应说明可行动原因；内部失败只返回通用文案，不得包含 SQL、调用栈、内部组件名或原始异常。',
+              'description': '用于诊断和未知 errorKey 的默认可读说明。前端不得比较、匹配或推断此字段；内部失败不得包含 SQL、调用栈、内部组件名或原始异常。',
             },
           'data':
             {

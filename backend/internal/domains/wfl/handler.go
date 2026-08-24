@@ -260,7 +260,7 @@ func (h *Handler) writeAuthorizationError(c *gin.Context, err error) {
 	default:
 		h.logger.Error("wfl authorization failure", "requestId", response.RequestID(c), "path", c.Request.URL.Path, "error", err)
 	}
-	response.BusinessError(c, code, message, nil)
+	response.BusinessError(c, code, response.ErrorKeyForCode(code), message, nil)
 }
 
 func (h *Handler) writeError(c *gin.Context, err error) {
@@ -276,7 +276,7 @@ func (h *Handler) writeError(c *gin.Context, err error) {
 				kind = ErrorConflict
 			}
 			domainErr = &DomainError{
-				Kind: kind, Message: vouErr.Message, Data: vouErr.Data, Cause: vouErr,
+				Kind: kind, ErrorKey: vouErr.ErrorKey, Message: vouErr.Message, Data: vouErr.Data, Cause: vouErr,
 			}
 		} else {
 			domainErr = &DomainError{Kind: ErrorInternal, Message: "internal server error", Cause: err}
@@ -292,5 +292,9 @@ func (h *Handler) writeError(c *gin.Context, err error) {
 	if domainErr.Kind == ErrorInternal {
 		h.logger.Error("wfl handler failure", "requestId", response.RequestID(c), "path", c.Request.URL.Path, "error", domainErr.Cause)
 	}
-	response.BusinessError(c, code, domainErr.Message, domainErr.Data)
+	errorKey := domainErr.ErrorKey
+	if errorKey == "" {
+		errorKey = response.ErrorKeyForCode(code)
+	}
+	response.BusinessError(c, code, errorKey, domainErr.Message, domainErr.Data)
 }

@@ -393,7 +393,7 @@ func (h *Handler) writeAuthorizationError(c *gin.Context, err error) {
 	} else {
 		h.logger.Error("rpt authorization failure", "requestId", response.RequestID(c), "error", err)
 	}
-	response.BusinessError(c, code, message, nil)
+	response.BusinessError(c, code, response.ErrorKeyForCode(code), message, nil)
 }
 func (h *Handler) writeError(c *gin.Context, err error) {
 	var target *DomainError
@@ -412,5 +412,9 @@ func (h *Handler) writeError(c *gin.Context, err error) {
 	if target.Kind == ErrorInternal {
 		h.logger.Error("rpt handler failure", "requestId", response.RequestID(c), "path", c.Request.URL.Path, "error", target.Cause)
 	}
-	response.BusinessError(c, code, target.Message, target.Data)
+	errorKey := target.ErrorKey
+	if errorKey == "" {
+		errorKey = response.ErrorKeyForCode(code)
+	}
+	response.BusinessError(c, code, errorKey, target.Message, target.Data)
 }

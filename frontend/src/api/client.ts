@@ -108,6 +108,7 @@ function isApiResponse(value: unknown): value is ApiResponse<unknown> {
   const response = value as Record<string, unknown>
   return (
     (typeof response.code === 'number' || typeof response.code === 'string') &&
+    typeof response.errorKey === 'string' &&
     typeof response.message === 'string' &&
     'data' in response &&
     (response.requestId === undefined || typeof response.requestId === 'string')
@@ -248,6 +249,7 @@ export class ApiClient {
       if (payload.code !== 0 && payload.code !== '0') {
         throw new ApiError('business', payload.message || '业务操作失败。', {
           code: payload.code,
+          errorKey: payload.errorKey,
           requestId: payload.requestId,
           details: payload.data,
         })
@@ -469,6 +471,7 @@ export class ApiClient {
       }
       throw new ApiError('business', payload.message || '业务操作失败。', {
         code: payload.code,
+        errorKey: payload.errorKey,
         requestId: payload.requestId ?? requestId,
         details: payload.data,
       })
@@ -591,6 +594,7 @@ export class ApiClient {
         payload.message || message,
         {
           code: payload.code,
+          errorKey: payload.errorKey,
           requestId: payload.requestId ?? requestId,
           details: payload.data,
         },

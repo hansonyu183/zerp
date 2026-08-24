@@ -109,7 +109,7 @@ func (s *Service) validateSettlementAmount(
 	if gate.TermCode == bobSettlementPrepaid {
 		available := maxInt64(balance, 0)
 		if available < amount {
-			return domainError(ErrorConflict, "insufficient prepaid funds", map[string]any{
+			return domainErrorWithKey(ErrorConflict, "funds_insufficient", "insufficient prepaid funds", map[string]any{
 				"currency": gate.Currency, "orderAmount": formatMoney(amount),
 				"availableBalance": formatMoney(available),
 			}, nil)

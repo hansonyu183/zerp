@@ -182,11 +182,12 @@
   'BobQueryResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -975,11 +976,12 @@
   'CustomerAttachmentInitiateResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data': { '$ref': '#/CustomerAttachmentInitiateResult' },
           'requestId': { 'type': 'string' },
@@ -1011,11 +1013,12 @@
   'CustomerAttachmentDownloadResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data': { '$ref': '#/CustomerAttachmentDownloadResult' },
           'requestId': { 'type': 'string' },
@@ -1044,11 +1047,12 @@
   'CustomerAttachmentRemoveResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data': { '$ref': '#/CustomerAttachmentMutationResult' },
           'requestId': { 'type': 'string' },
@@ -1258,11 +1262,12 @@
   'CustomerQueryResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -1329,11 +1334,12 @@
   'CustomerGetResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -1527,11 +1533,12 @@
   'SupplierGetResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -1647,11 +1654,12 @@
   'SupplierQueryResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -1743,11 +1751,12 @@
   'ReferenceQueryResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             { 'type': 'array', 'items': { '$ref': '#/ReferenceCandidate' } },
@@ -1957,11 +1966,12 @@
   'PartyGetResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -1975,11 +1985,12 @@
   'PartyQueryResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -2200,11 +2211,12 @@
   'OtherUnitGetResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -2218,11 +2230,12 @@
   'OtherUnitQueryResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -2236,11 +2249,12 @@
   'OtherUnitMutationResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -2555,11 +2569,12 @@
   'SalesPartnerQueryResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -2573,11 +2588,12 @@
   'SalesPartnerGetResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -2591,11 +2607,12 @@
   'SalesPartnerMutationResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -2733,11 +2750,12 @@
   'PartyMergePreflightResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -2751,11 +2769,12 @@
   'PartyMergeConfirmResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -2863,11 +2882,12 @@
   'BobDisableResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {

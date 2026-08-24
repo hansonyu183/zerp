@@ -158,7 +158,7 @@ func (h *Handler) writeError(c *gin.Context, err error) {
 		if authorizationErr.Kind == authorization.ErrorInternal {
 			h.logger.Error("app authorization failure", "requestId", response.RequestID(c), "path", c.Request.URL.Path, "error", authorizationErr.Cause)
 		}
-		response.BusinessError(c, code, authorizationErr.Message, nil)
+		response.BusinessError(c, code, authorizationErr.ErrorKey, authorizationErr.Message, nil)
 		return
 	}
 	var domainErr *DomainError
@@ -179,7 +179,11 @@ func (h *Handler) writeError(c *gin.Context, err error) {
 	if domainErr.Kind == ErrorInternal {
 		h.logger.Error("app handler failure", "requestId", response.RequestID(c), "path", c.Request.URL.Path, "error", domainErr.Cause)
 	}
-	response.BusinessError(c, code, domainErr.Message, nil)
+	errorKey := domainErr.ErrorKey
+	if errorKey == "" {
+		errorKey = response.ErrorKeyForCode(code)
+	}
+	response.BusinessError(c, code, errorKey, domainErr.Message, nil)
 }
 
 func actorID(c *gin.Context) string {

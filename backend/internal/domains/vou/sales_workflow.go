@@ -92,7 +92,7 @@ func (s *Service) validateManagedSalesReady(ctx context.Context, tx pgx.Tx, docu
 		return s.internal("validate generated sales draft", err)
 	}
 	if !ready {
-		return domainError(ErrorValidation, "generated sales draft is missing required business data", map[string]any{
+		return domainErrorWithKey(ErrorValidation, "document_data_incomplete", "generated sales draft is missing required business data", map[string]any{
 			"documentId": document.ID, "entity": document.Entity,
 		}, nil)
 	}

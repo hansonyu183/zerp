@@ -39,13 +39,13 @@ func NewService(
 func newID() string { return ulid.Make().String() }
 
 func validation(message string, data any) error {
-	return &DomainError{Kind: ErrorValidation, Message: message, Data: data}
+	return &DomainError{Kind: ErrorValidation, ErrorKey: "validation_failed", Message: message, Data: data}
 }
 
 func conflict(message string, data any) error {
-	return &DomainError{Kind: ErrorConflict, Message: message, Data: data}
+	return &DomainError{Kind: ErrorConflict, ErrorKey: "conflict", Message: message, Data: data}
 }
 
 func internal(message string, err error) error {
-	return &DomainError{Kind: ErrorInternal, Message: message, Cause: err}
+	return &DomainError{Kind: ErrorInternal, ErrorKey: "internal_error", Message: message, Cause: err}
 }

@@ -1018,7 +1018,7 @@ func (s *Service) Approve(ctx context.Context, entity string, input ReviewInput,
 		return MutationResult{}, conflict(object, version, "version changed before approval")
 	}
 	if version.SubmittedBy == nil || (*version.SubmittedBy == actorID && !systemidentity.IsUser(actorID)) {
-		return MutationResult{}, domainError(ErrorConflict, "submitter cannot review the same version", conflictData(object, version), nil)
+		return MutationResult{}, domainErrorWithKey(ErrorConflict, "submitter_cannot_review", "submitter cannot review the same version", conflictData(object, version), nil)
 	}
 	if err = s.validateStoredDetail(ctx, tx, qtx, entity, input.ObjectID, input.VersionID); err != nil {
 		return MutationResult{}, err
@@ -1070,7 +1070,7 @@ func (s *Service) Reject(ctx context.Context, entity string, input ReviewInput, 
 		return MutationResult{}, conflict(object, version, "version changed before rejection")
 	}
 	if version.SubmittedBy == nil || (*version.SubmittedBy == actorID && !systemidentity.IsUser(actorID)) {
-		return MutationResult{}, domainError(ErrorConflict, "submitter cannot review the same version", conflictData(object, version), nil)
+		return MutationResult{}, domainErrorWithKey(ErrorConflict, "submitter_cannot_review", "submitter cannot review the same version", conflictData(object, version), nil)
 	}
 	rows, err := qtx.RejectBobVersion(ctx, dbsqlc.RejectBobVersionParams{
 		ActorID: actorID, ID: input.VersionID, ObjectID: input.ObjectID, Entity: entity, Revision: input.Revision,
@@ -1150,7 +1150,7 @@ func (s *Service) approveEffectiveCandidate(
 		return MutationResult{}, conflict(object, version, entity+" candidate changed before approval")
 	}
 	if version.SubmittedBy == nil || (*version.SubmittedBy == actorID && !systemidentity.IsUser(actorID)) {
-		return MutationResult{}, domainError(ErrorConflict, "submitter cannot review the same version", conflictData(object, version), nil)
+		return MutationResult{}, domainErrorWithKey(ErrorConflict, "submitter_cannot_review", "submitter cannot review the same version", conflictData(object, version), nil)
 	}
 	if err := s.validateStoredDetail(ctx, tx, qtx, entity, input.ObjectID, input.VersionID); err != nil {
 		return MutationResult{}, err
@@ -1382,7 +1382,7 @@ func (s *Service) SetEnabled(
 			return MutationResult{}, s.internal("scan direct references before disable", scanErr)
 		}
 		if len(counts) > 0 {
-			return MutationResult{}, domainError(ErrorConflict, "object has active direct references", map[string]any{
+			return MutationResult{}, domainErrorWithKey(ErrorConflict, "object_has_active_references", "object has active direct references", map[string]any{
 				"references": counts,
 			}, nil)
 		}

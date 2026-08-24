@@ -74,12 +74,12 @@ func classifyUserWriteMiss(ctx context.Context, q *dbsqlc.Queries, id string, re
 		return domainError(ErrorInternal, "internal server error", err)
 	}
 	if user.Revision != revision {
-		return domainError(ErrorConflict, "user revision conflict", nil)
+		return domainErrorWithKey(ErrorConflict, "user_changed", "user revision conflict", nil)
 	}
 	if desiredStatus != "" && user.Status == desiredStatus {
 		return domainError(ErrorConflict, "user status unchanged", nil)
 	}
-	return domainError(ErrorConflict, "user changed concurrently", nil)
+	return domainErrorWithKey(ErrorConflict, "user_changed", "user changed concurrently", nil)
 }
 
 func classifyRoleWriteMiss(ctx context.Context, q *dbsqlc.Queries, id string, revision int64, desiredStatus string) error {
@@ -91,10 +91,10 @@ func classifyRoleWriteMiss(ctx context.Context, q *dbsqlc.Queries, id string, re
 		return domainError(ErrorInternal, "internal server error", err)
 	}
 	if role.Revision != revision {
-		return domainError(ErrorConflict, "role revision conflict", nil)
+		return domainErrorWithKey(ErrorConflict, "role_changed", "role revision conflict", nil)
 	}
 	if desiredStatus != "" && role.Status == desiredStatus {
 		return domainError(ErrorConflict, "role status unchanged", nil)
 	}
-	return domainError(ErrorConflict, "role changed concurrently", nil)
+	return domainErrorWithKey(ErrorConflict, "role_changed", "role changed concurrently", nil)
 }

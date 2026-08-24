@@ -443,7 +443,7 @@ func (h *Handler) writeAuthorizationError(c *gin.Context, err error) {
 	default:
 		h.logger.Error("ACC authorization failure", "requestId", response.RequestID(c), "path", c.Request.URL.Path, "error", err)
 	}
-	response.BusinessError(c, code, message, nil)
+	response.BusinessError(c, code, response.ErrorKeyForCode(code), message, nil)
 }
 
 func (h *Handler) writeError(c *gin.Context, err error) {
@@ -463,5 +463,9 @@ func (h *Handler) writeError(c *gin.Context, err error) {
 	if domainErr.Kind == ErrorInternal {
 		h.logger.Error("ACC handler failure", "requestId", response.RequestID(c), "path", c.Request.URL.Path, "error", domainErr.Cause)
 	}
-	response.BusinessError(c, code, domainErr.Message, nil)
+	errorKey := domainErr.ErrorKey
+	if errorKey == "" {
+		errorKey = response.ErrorKeyForCode(code)
+	}
+	response.BusinessError(c, code, errorKey, domainErr.Message, nil)
 }

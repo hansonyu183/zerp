@@ -190,7 +190,7 @@ func (s *Service) postSnapshotToBook(ctx context.Context, tx pgx.Tx, q *dbsqlc.Q
 			return databaseError("read accounting inventory balance", balanceErr)
 		}
 		if balance < 0 {
-			return domainError(ErrorConflict, "insufficient control book inventory", nil)
+			return domainErrorWithKey(ErrorConflict, "inventory_insufficient", "insufficient control book inventory", nil)
 		}
 	}
 	if controlBook {
@@ -223,7 +223,7 @@ func validateControlBookFunds(ctx context.Context, _ pgx.Tx, q *dbsqlc.Queries, 
 			return databaseError("read control book fund balance", err)
 		}
 		if minimum < 0 {
-			return domainError(ErrorConflict, "insufficient control book funds", nil)
+			return domainErrorWithKey(ErrorConflict, "funds_insufficient", "insufficient control book funds", nil)
 		}
 	}
 	return nil

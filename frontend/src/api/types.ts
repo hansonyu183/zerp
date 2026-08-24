@@ -1,9 +1,10 @@
-import { translateBusinessMessage } from '@/api/business-error-messages'
+import { businessErrorMessage } from '@/api/business-error-messages'
 
 export type BusinessCode = number | string
 
 export interface ApiResponse<T> {
   code: BusinessCode
+  errorKey: string
   message: string
   data: T
   requestId?: string
@@ -37,6 +38,7 @@ export type ApiErrorKind =
 export class ApiError extends Error {
   readonly kind: ApiErrorKind
   readonly code?: BusinessCode
+  readonly errorKey?: string
   readonly requestId?: string
   readonly details?: unknown
   readonly causeValue?: unknown
@@ -46,6 +48,7 @@ export class ApiError extends Error {
     message: string,
     options: {
       code?: BusinessCode
+      errorKey?: string
       requestId?: string
       details?: unknown
       cause?: unknown
@@ -55,6 +58,7 @@ export class ApiError extends Error {
     this.name = 'ApiError'
     this.kind = kind
     this.code = options.code
+    this.errorKey = options.errorKey
     this.requestId = options.requestId
     this.details = options.details
     this.causeValue = options.cause
@@ -69,7 +73,6 @@ function normalizedCode(code: BusinessCode | undefined): number | undefined {
 
 export function getErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
-    const message = sanitizeUserMessage(error.message)
     if (error.kind !== 'business') {
       return {
         configuration: '系统配置异常，请联系管理员。',
@@ -80,12 +83,9 @@ export function getErrorMessage(error: unknown): string {
       }[error.kind]
     }
 
-    const code = normalizedCode(error.code)
-    if (code === 5000) return '系统暂时无法完成操作，请稍后重试。'
-    if (containsChineseText(message)) return message
-
-    const translated = translateBusinessMessage(message)
+    const translated = businessErrorMessage(error.errorKey)
     if (translated) return translated
+    const code = normalizedCode(error.code)
     if (code === 1001) return '登录失败，请检查账号和密码后重试。'
     if (code === 1002) return '没有权限执行此操作，请联系管理员。'
     if (code === 2001)
@@ -108,6 +108,7 @@ export function getDiagnosticErrorMessage(error: unknown): string {
 
   const diagnostics = [
     error.code === undefined ? '' : `错误码：${String(error.code)}`,
+    error.errorKey ? `错误标识：${error.errorKey}` : '',
     error.requestId ? `请求标识：${error.requestId}` : '',
   ].filter(Boolean)
   return diagnostics.length

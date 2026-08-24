@@ -2344,18 +2344,40 @@ CREATE TABLE public.bob_warehouse_versions (
 
 
 --
--- Name: bob_version_views; Type: VIEW; Schema: public; Owner: -
+-- Name: bob_version_summaries; Type: VIEW; Schema: public; Owner: -
 --
 
 SET search_path = public, pg_catalog;
-CREATE VIEW bob_version_views AS
+CREATE VIEW bob_version_summaries AS
 SELECT
     o.id AS object_id, o.entity, o.code, o.current_version_id, o.effective_version_id,
     o.revision AS object_revision, o.updated_at AS object_updated_at,
     v.id AS version_id, v.version_no, v.status, v.revision AS version_revision,
     v.created_at, v.created_by, v.updated_at, v.updated_by, v.submitted_at, v.submitted_by,
     v.reviewed_at, v.reviewed_by, v.review_comment,
-    COALESCE(c.name,s.name,e.name,p.name,w.name,vh.name,f.name,ca.name,d.name,po.name,sm.name,oe.legal_name) AS name,
+    COALESCE(c.name,s.name,e.name,p.name,w.name,vh.name,f.name,ca.name,d.name,po.name,sm.name,oe.legal_name) AS name
+FROM bob_objects o JOIN bob_versions v ON v.object_id=o.id AND v.entity=o.entity
+LEFT JOIN bob_customer_versions c ON c.version_id=v.id LEFT JOIN bob_supplier_versions s ON s.version_id=v.id
+LEFT JOIN bob_employee_versions e ON e.version_id=v.id LEFT JOIN bob_product_versions p ON p.version_id=v.id
+LEFT JOIN bob_warehouse_versions w ON w.version_id=v.id
+LEFT JOIN bob_vehicle_versions vh ON vh.version_id=v.id LEFT JOIN bob_fund_account_versions f ON f.version_id=v.id
+LEFT JOIN bob_category_versions ca ON ca.version_id=v.id LEFT JOIN bob_department_versions d ON d.version_id=v.id
+LEFT JOIN bob_position_versions po ON po.version_id=v.id
+LEFT JOIN bob_operating_entity_versions oe ON oe.version_id=v.id
+LEFT JOIN bob_settlement_method_versions sm ON sm.version_id=v.id;
+
+
+--
+-- Name: bob_version_views; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW bob_version_views AS
+SELECT
+    summary.object_id, summary.entity, summary.code, summary.current_version_id, summary.effective_version_id,
+    summary.object_revision, summary.object_updated_at,
+    summary.version_id, summary.version_no, summary.status, summary.version_revision,
+    summary.created_at, summary.created_by, summary.updated_at, summary.updated_by, summary.submitted_at, summary.submitted_by,
+    summary.reviewed_at, summary.reviewed_by, summary.review_comment, summary.name,
     ''::varchar AS unit, ''::varchar AS inventory_unit_id,
     f.currency, vh.plate_number, vh.vehicle_type, vh.carrier_affiliation_type,
     vh.carrier_operating_entity_id, vh.carrier_service_relationship_object_id, vh.bulk_liquid_capable,
@@ -2382,16 +2404,18 @@ SELECT
     COALESCE(p.default_packaging_spec_micros,0) AS default_packaging_spec_micros, COALESCE(c.monthly_closing_day,0) AS monthly_closing_day,
     COALESCE(settlement.term_code,'') AS settlement_term_code, COALESCE(settlement.default_sales_surcharge_cents,0) AS settlement_default_sales_surcharge_cents,
     COALESCE(c.rebate_unit_price_cents,0) AS rebate_unit_price_cents
-FROM bob_objects o JOIN bob_versions v ON v.object_id=o.id AND v.entity=o.entity
-LEFT JOIN bob_customer_versions c ON c.version_id=v.id LEFT JOIN bob_supplier_versions s ON s.version_id=v.id
-LEFT JOIN bob_employee_versions e ON e.version_id=v.id LEFT JOIN bob_product_versions p ON p.version_id=v.id
-LEFT JOIN bob_warehouse_versions w ON w.version_id=v.id
-LEFT JOIN bob_vehicle_versions vh ON vh.version_id=v.id LEFT JOIN bob_fund_account_versions f ON f.version_id=v.id
-LEFT JOIN bob_category_versions ca ON ca.version_id=v.id LEFT JOIN bob_department_versions d ON d.version_id=v.id
-LEFT JOIN bob_position_versions po ON po.version_id=v.id LEFT JOIN bob_objects linked_sm ON linked_sm.id=COALESCE(c.settlement_method_id,s.settlement_method_id) AND linked_sm.entity='settlement-method'
- LEFT JOIN bob_operating_entity_versions oe ON oe.version_id=v.id
+FROM bob_version_summaries summary
+LEFT JOIN bob_customer_versions c ON c.version_id=summary.version_id LEFT JOIN bob_supplier_versions s ON s.version_id=summary.version_id
+LEFT JOIN bob_employee_versions e ON e.version_id=summary.version_id LEFT JOIN bob_product_versions p ON p.version_id=summary.version_id
+LEFT JOIN bob_warehouse_versions w ON w.version_id=summary.version_id
+LEFT JOIN bob_vehicle_versions vh ON vh.version_id=summary.version_id LEFT JOIN bob_fund_account_versions f ON f.version_id=summary.version_id
+LEFT JOIN bob_category_versions ca ON ca.version_id=summary.version_id LEFT JOIN bob_department_versions d ON d.version_id=summary.version_id
+LEFT JOIN bob_position_versions po ON po.version_id=summary.version_id
+LEFT JOIN bob_operating_entity_versions oe ON oe.version_id=summary.version_id
+LEFT JOIN bob_objects linked_sm ON linked_sm.id=COALESCE(c.settlement_method_id,s.settlement_method_id) AND linked_sm.entity='settlement-method'
 LEFT JOIN aux_objects linked_aux_sm ON linked_aux_sm.id=COALESCE(c.settlement_method_id,s.settlement_method_id) AND linked_aux_sm.entity='settlement-method' AND linked_aux_sm.enabled
-LEFT JOIN bob_settlement_method_versions sm ON sm.version_id=v.id LEFT JOIN bob_settlement_method_versions settlement ON settlement.version_id=v.id;
+LEFT JOIN bob_settlement_method_versions sm ON sm.version_id=summary.version_id
+LEFT JOIN bob_settlement_method_versions settlement ON settlement.version_id=summary.version_id;
 
 
 
@@ -5579,7 +5603,7 @@ INSERT INTO public.rpt_versions VALUES ('RPV43189400de7a6fe5d7978ed', 'RPD431894
       (x.net_minor::numeric/100) AS net_amount,(abs(x.net_minor)::numeric/100) AS unsettled_amount,
       greatest(($4::date-x.oldest_due_date)::bigint,0::bigint) AS oldest_age_days
     FROM balances x JOIN acc_books b ON b.id=x.book_id
-    LEFT JOIN bob_version_views p ON p.object_id=x.party_id AND p.entity=''customer-account'' AND p.version_id=p.effective_version_id
+    LEFT JOIN bob_version_summaries p ON p.object_id=x.party_id AND p.entity=''customer-account'' AND p.version_id=p.effective_version_id
     WHERE greatest(($4::date-x.oldest_due_date)::bigint,0::bigint)>=$5::bigint
     ORDER BY b.code,customer_code,x.currency
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "customerId", "name": "客户", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "CUSTOMER_ACCOUNT"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}, {"key": "minAgeDays", "name": "最小账龄天数", "type": "INTEGER", "required": false, "defaultValue": 0}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "客户ID", "type": "ID", "alias": "customer_id", "order": 2, "width": 180, "visible": false}, {"name": "客户编码", "type": "TEXT", "alias": "customer_code", "order": 3, "width": 120, "visible": true}, {"name": "客户名称", "type": "TEXT", "alias": "customer_name", "order": 4, "width": 180, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "应收原额", "type": "DECIMAL", "alias": "receivable_amount", "order": 6, "width": 130, "format": "money", "visible": true}, {"name": "预收原额", "type": "DECIMAL", "alias": "advance_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "净额", "type": "DECIMAL", "alias": "net_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 9, "width": 130, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 10, "width": 120, "visible": true}]', 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', NULL, NULL, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
@@ -5625,7 +5649,7 @@ INSERT INTO public.rpt_versions VALUES ('RPV24d57c02d870b62329517d0', 'RPD24d57c
       (x.net_minor::numeric/100) AS net_amount,(abs(x.net_minor)::numeric/100) AS unsettled_amount,
       greatest(($4::date-x.oldest_due_date)::bigint,0::bigint) AS oldest_age_days
     FROM balances x JOIN acc_books b ON b.id=x.book_id
-    LEFT JOIN bob_version_views p ON p.object_id=x.party_id AND p.entity=''supplier'' AND p.version_id=p.effective_version_id
+    LEFT JOIN bob_version_summaries p ON p.object_id=x.party_id AND p.entity=''supplier'' AND p.version_id=p.effective_version_id
     WHERE greatest(($4::date-x.oldest_due_date)::bigint,0::bigint)>=$5::bigint
     ORDER BY b.code,supplier_code,x.currency
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "supplierId", "name": "供应商", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "SUPPLIER_RELATIONSHIP"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}, {"key": "minAgeDays", "name": "最小账龄天数", "type": "INTEGER", "required": false, "defaultValue": 0}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "供应商ID", "type": "ID", "alias": "supplier_id", "order": 2, "width": 180, "visible": false}, {"name": "供应商编码", "type": "TEXT", "alias": "supplier_code", "order": 3, "width": 120, "visible": true}, {"name": "供应商名称", "type": "TEXT", "alias": "supplier_name", "order": 4, "width": 180, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "应付原额", "type": "DECIMAL", "alias": "payable_amount", "order": 6, "width": 130, "format": "money", "visible": true}, {"name": "预付原额", "type": "DECIMAL", "alias": "advance_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "净额", "type": "DECIMAL", "alias": "net_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 9, "width": 130, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 10, "width": 120, "visible": true}]', 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', NULL, NULL, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
@@ -5663,7 +5687,7 @@ INSERT INTO public.rpt_versions VALUES ('RPV57bcbf1d2df6010d41816c0', 'RPD57bcbf
       m.returned_quantity::numeric AS returned_quantity,m.adjusted_quantity::numeric AS adjusted_quantity,
       m.balance_quantity::numeric AS balance_quantity,NULL::numeric AS amount
     FROM movements m
-    LEFT JOIN bob_version_views customer ON customer.object_id=m.customer_id AND customer.entity=''customer-account''
+    LEFT JOIN bob_version_summaries customer ON customer.object_id=m.customer_id AND customer.entity=''customer-account''
       AND customer.version_id=customer.effective_version_id
     ORDER BY m.code,customer_code,m.container_type
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "customerId", "name": "客户", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "CUSTOMER_ACCOUNT"}, {"key": "containerType", "name": "桶型", "type": "ENUM", "required": false, "enumValues": ["", "SOLVENT", "RESIN"], "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "客户ID", "type": "ID", "alias": "customer_id", "order": 2, "width": 180, "visible": false}, {"name": "客户编码", "type": "TEXT", "alias": "customer_code", "order": 3, "width": 120, "visible": true}, {"name": "客户名称", "type": "TEXT", "alias": "customer_name", "order": 4, "width": 180, "visible": true}, {"name": "桶型", "type": "TEXT", "alias": "container_type", "order": 5, "width": 100, "visible": true}, {"name": "期初", "type": "DECIMAL", "alias": "opening_quantity", "order": 6, "width": 110, "format": "quantity", "visible": true}, {"name": "发出", "type": "DECIMAL", "alias": "issued_quantity", "order": 7, "width": 110, "format": "quantity", "visible": true}, {"name": "收回", "type": "DECIMAL", "alias": "returned_quantity", "order": 8, "width": 110, "format": "quantity", "visible": true}, {"name": "调整", "type": "DECIMAL", "alias": "adjusted_quantity", "order": 9, "width": 110, "format": "quantity", "visible": true}, {"name": "欠桶余额", "type": "DECIMAL", "alias": "balance_quantity", "order": 10, "width": 120, "format": "quantity", "visible": true}, {"name": "核算金额", "type": "DECIMAL", "alias": "amount", "order": 11, "width": 130, "format": "money", "visible": true}]', 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', NULL, NULL, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
@@ -5708,7 +5732,7 @@ INSERT INTO public.rpt_versions VALUES ('RPV517f80b4080608d1ef8ce23', 'RPD517f80
       (abs(x.balance_minor)::numeric/100) AS unsettled_amount,greatest(($4::date-x.oldest_date)::bigint,0::bigint) AS oldest_age_days,
       (CASE WHEN x.balance_minor<0 THEN ''PAYABLE_TO_EMPLOYEE'' ELSE ''RECEIVABLE_FROM_EMPLOYEE'' END)::text AS balance_meaning
     FROM balances x JOIN acc_books b ON b.id=x.book_id
-    LEFT JOIN bob_version_views p ON p.object_id=x.employee_id AND p.entity=''employee'' AND p.version_id=p.effective_version_id
+    LEFT JOIN bob_version_summaries p ON p.object_id=x.employee_id AND p.entity=''employee'' AND p.version_id=p.effective_version_id
     ORDER BY b.code,employee_code,x.currency
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "employeeId", "name": "员工", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "EMPLOYMENT_RELATIONSHIP"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "员工ID", "type": "ID", "alias": "employee_id", "order": 2, "width": 180, "visible": false}, {"name": "员工编码", "type": "TEXT", "alias": "employee_code", "order": 3, "width": 120, "visible": true}, {"name": "员工姓名", "type": "TEXT", "alias": "employee_name", "order": 4, "width": 150, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "借款", "type": "DECIMAL", "alias": "loan_amount", "order": 6, "width": 120, "format": "money", "visible": true}, {"name": "还款", "type": "DECIMAL", "alias": "repayment_amount", "order": 7, "width": 120, "format": "money", "visible": true}, {"name": "费用核销", "type": "DECIMAL", "alias": "writeoff_amount", "order": 8, "width": 120, "format": "money", "visible": true}, {"name": "余额", "type": "DECIMAL", "alias": "balance", "order": 9, "width": 120, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 10, "width": 120, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 11, "width": 120, "visible": true}, {"name": "余额含义", "type": "TEXT", "alias": "balance_meaning", "order": 12, "width": 170, "visible": true}]', 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', NULL, NULL, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
 

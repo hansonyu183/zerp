@@ -24,7 +24,7 @@ ORDER BY (id = sqlc.arg(selected_id) AND sqlc.arg(selected_id)::text <> '') DESC
 
 -- name: RptListBOBReferences :many
 SELECT object_id AS id, code, name, count(*) OVER() AS total
-FROM bob_version_views
+FROM bob_version_summaries
 WHERE entity = sqlc.arg(entity) AND version_id = effective_version_id
   AND (sqlc.arg(selected_id)::text = '' OR object_id = sqlc.arg(selected_id) OR code ILIKE '%' || sqlc.arg(keyword) || '%' OR name ILIKE '%' || sqlc.arg(keyword) || '%')
 ORDER BY (object_id = sqlc.arg(selected_id) AND sqlc.arg(selected_id)::text <> '') DESC, code OFFSET sqlc.arg(row_offset) LIMIT sqlc.arg(row_limit);

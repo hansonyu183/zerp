@@ -365,7 +365,7 @@ func (q *Queries) RptListAssetReferences(ctx context.Context, arg RptListAssetRe
 
 const rptListBOBReferences = `-- name: RptListBOBReferences :many
 SELECT object_id AS id, code, name, count(*) OVER() AS total
-FROM bob_version_views
+FROM bob_version_summaries
 WHERE entity = $1 AND version_id = effective_version_id
   AND ($2::text = '' OR object_id = $2 OR code ILIKE '%' || $3 || '%' OR name ILIKE '%' || $3 || '%')
 ORDER BY (object_id = $2 AND $2::text <> '') DESC, code OFFSET $4 LIMIT $5

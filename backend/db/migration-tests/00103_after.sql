@@ -23,4 +23,15 @@ BEGIN
     ) THEN
         RAISE EXCEPTION 'sale delivery carrier snapshot constraint is absent';
     END IF;
+    IF NOT EXISTS (
+        SELECT 1
+        FROM vou_sale_delivery_details
+        WHERE document_id='01J0000000000000000000302'
+          AND carrier_type='EXTERNAL'
+          AND vehicle_object_id IS NULL
+          AND carrier_operating_entity_object_id IS NULL
+          AND carrier_service_relationship_object_id IS NULL
+    ) THEN
+        RAISE EXCEPTION 'unconfigured sale delivery draft was not preserved';
+    END IF;
 END $$;

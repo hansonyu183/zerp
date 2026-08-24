@@ -37,12 +37,29 @@ ALTER TABLE vou_sale_delivery_details
     ADD CONSTRAINT vou_sale_delivery_carrier_type_ck
         CHECK (carrier_type IN ('INTERNAL', 'EXTERNAL')),
     ADD CONSTRAINT vou_sale_delivery_transport_snapshot_ck CHECK (
-        vehicle_object_id IS NOT NULL
-        AND vehicle_version_id IS NOT NULL
-        AND vehicle_code IS NOT NULL
-        AND vehicle_name IS NOT NULL
-        AND vehicle_plate_number IS NOT NULL
-        AND (
+        (
+            vehicle_object_id IS NULL
+            AND vehicle_version_id IS NULL
+            AND vehicle_code IS NULL
+            AND vehicle_name IS NULL
+            AND vehicle_plate_number IS NULL
+            AND carrier_operating_entity_object_id IS NULL
+            AND carrier_operating_entity_version_id IS NULL
+            AND carrier_operating_entity_code IS NULL
+            AND carrier_operating_entity_name IS NULL
+            AND carrier_service_relationship_object_id IS NULL
+            AND carrier_service_relationship_version_id IS NULL
+            AND carrier_service_relationship_code IS NULL
+            AND carrier_service_relationship_name IS NULL
+        )
+        OR
+        (
+            vehicle_object_id IS NOT NULL
+            AND vehicle_version_id IS NOT NULL
+            AND vehicle_code IS NOT NULL
+            AND vehicle_name IS NOT NULL
+            AND vehicle_plate_number IS NOT NULL
+            AND (
             carrier_type = 'INTERNAL'
             AND carrier_operating_entity_object_id IS NOT NULL
             AND carrier_operating_entity_version_id IS NOT NULL
@@ -62,6 +79,7 @@ ALTER TABLE vou_sale_delivery_details
             AND carrier_service_relationship_version_id IS NOT NULL
             AND carrier_service_relationship_code IS NOT NULL
             AND carrier_service_relationship_name IS NOT NULL
+            )
         )
     );
 

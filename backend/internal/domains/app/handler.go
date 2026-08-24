@@ -44,7 +44,6 @@ type applicationService interface {
 	ResetSystemParameter(context.Context, ResetSystemParameterInput, string, string) (SystemParameterView, error)
 	GetMenu(context.Context, Principal) (MenuGetData, error)
 	SaveBusinessMenu(context.Context, SaveBusinessMenuInput, Principal, string) (MenuGetData, error)
-	PublishBusinessMenu(context.Context, PublishBusinessMenuInput, Principal, string) (MenuGetData, error)
 	ActivateMenu(context.Context, ActivateMenuInput, Principal, string) (MenuGetData, error)
 	ResetBusinessMenu(context.Context, ResetBusinessMenuInput, Principal, string) (MenuGetData, error)
 	QueryWorkbench(context.Context, Principal, WorkbenchQueryInput) (Page[WorkbenchItem], error)
@@ -112,10 +111,9 @@ func (h *Handler) Register(router *gin.Engine) {
 
 	menuWrite := appGroup.Group("/menu")
 	menuWrite.Use(h.authorize())
-	menuWrite.POST("/save-business-template", h.saveBusinessMenu)
-	menuWrite.POST("/publish-business-template", h.publishBusinessMenu)
+	menuWrite.POST("/save-business", h.saveBusinessMenu)
 	menuWrite.POST("/activate", h.activateMenu)
-	menuWrite.POST("/reset-business-template", h.resetBusinessMenu)
+	menuWrite.POST("/reset-business", h.resetBusinessMenu)
 
 	workbench := appGroup.Group("/workbench")
 	workbench.Use(h.authorizeSession())

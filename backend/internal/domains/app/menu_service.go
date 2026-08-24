@@ -30,8 +30,6 @@ type initialMenuGroup struct {
 	Order int32
 }
 
-const menuRouteTombstoneGroupID = "menu-group-route-tombstones"
-
 var businessMenuGroups = []initialMenuGroup{
 	{ID: "menu-group-sales", Name: "销售", Icon: "mdi-cart-arrow-up", Order: 20},
 	{ID: "menu-group-purchase", Name: "采购", Icon: "mdi-cart-arrow-down", Order: 30},
@@ -49,77 +47,65 @@ var businessMenuGroups = []initialMenuGroup{
 	{ID: "menu-group-other", Name: "其他/待归类", Icon: "mdi-folder-question-outline", Order: 150},
 }
 
-const (
-	menuSnapshotDraft     = "DRAFT"
-	menuSnapshotPublished = "PUBLISHED"
-)
-
 func (s *Service) GetMenu(ctx context.Context, principal Principal) (MenuGetData, error) {
-	mode, err := s.queries.GetAppSystemParameter(ctx, MenuModeParameterKey)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return MenuGetData{}, s.internal("begin get menu", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	qtx := s.queries.WithTx(tx)
+	settings, err := qtx.GetAppMenuSettingsForUpdate(ctx)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return MenuGetData{}, domainError(ErrorInternal, "menu mode is not registered", err)
+		return MenuGetData{}, domainError(ErrorInternal, "menu settings are not registered", err)
 	}
 	if err != nil {
-		return MenuGetData{}, s.internal("get menu mode", err)
+		return MenuGetData{}, s.internal("lock menu settings", err)
 	}
-	catalog, err := s.menuCatalog(ctx, s.queries)
-	if err != nil {
-		return MenuGetData{}, err
-	}
-	draft, err := s.menuSnapshot(ctx, s.queries, menuSnapshotDraft, catalog, true)
+	catalog, err := s.menuCatalog(ctx, qtx)
 	if err != nil {
 		return MenuGetData{}, err
 	}
-	published, err := s.menuSnapshot(ctx, s.queries, menuSnapshotPublished, catalog, false)
+	rows, err := qtx.ListAppBusinessMenuItems(ctx)
 	if err != nil {
-		return MenuGetData{}, err
+		return MenuGetData{}, s.internal("list business menu items", err)
 	}
-	defaultMenu := buildDefaultMenu(catalog)
-	selected := defaultMenu
-	if mode.ConfiguredValue == MenuModeBusinessTemplate {
-		selected = published
-	} else if mode.ConfiguredValue != MenuModeDefault {
-		return MenuGetData{}, domainError(ErrorInternal, "invalid registered menu mode", nil)
+	businessMenu := buildInitialBusinessMenu(catalog)
+	if len(rows) > 0 {
+		businessMenu = appendUnclassifiedRoutes(editableMenuTreeFromRows(rows, catalog), catalog)
 	}
-	return MenuGetData{
-		Mode: mode.ConfiguredValue, ModeRevision: mode.Revision, CatalogRevision: menuCatalogRevision(catalog),
-		DefaultMenu: defaultMenu, Draft: draft, Published: published,
-		Navigation:      filterMenuForPrincipal(selected, catalog, principal),
-		AvailableRoutes: menuRouteOptions(catalog),
-	}, nil
-}
-
-func (s *Service) menuSnapshot(ctx context.Context, q *dbsqlc.Queries, snapshotType string, catalog []registeredMenuRoute, appendRoutes bool) (MenuTree, error) {
-	rows, err := q.ListAppBusinessMenuItems(ctx, snapshotType)
-	if err != nil {
-		return MenuTree{}, s.internal("list business menu items", err)
-	}
-	revision, err := businessMenuRevision(rows)
-	if err != nil {
-		return MenuTree{}, s.internal("read business menu revision", err)
-	}
-	tree := editableMenuTreeFromRows(rows, revision, catalog)
-	if appendRoutes {
-		tree = appendUnclassifiedRoutes(tree, catalog, menuRouteTombstones(rows))
-	}
-	return tree, nil
-}
-
-func businessMenuRevision(rows []dbsqlc.AppBusinessMenuItem) (int64, error) {
-	if len(rows) == 0 {
-		return 1, nil
-	}
-	revision := rows[0].Revision
-	for _, row := range rows[1:] {
-		if row.Revision != revision {
-			return 0, errors.ErrUnsupported
+	if !menuRowsMatchTree(rows, businessMenu.Items) {
+		if err = replaceBusinessMenu(ctx, qtx, menuViewToInput(businessMenu.Items), catalog, nil); err != nil {
+			return MenuGetData{}, s.internal("synchronize business menu", err)
+		}
+		settings, err = qtx.AdvanceAppMenuRevision(ctx, dbsqlc.AdvanceAppMenuRevisionParams{Revision: settings.Revision})
+		if err != nil {
+			return MenuGetData{}, s.internal("advance synchronized menu revision", err)
 		}
 	}
-	return revision, nil
+	if err = tx.Commit(ctx); err != nil {
+		return MenuGetData{}, s.internal("commit get menu", err)
+	}
+	return menuData(settings.MenuMode, settings.Revision, businessMenu, catalog, principal), nil
+}
+
+func menuRowsMatchTree(rows []dbsqlc.AppBusinessMenuItem, items []MenuItemView) bool {
+	if len(rows) != len(items) {
+		return false
+	}
+	ids := make(map[string]bool, len(rows))
+	for _, row := range rows {
+		ids[row.ID] = true
+	}
+	for _, item := range items {
+		if !ids[item.ID] {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Service) SaveBusinessMenu(ctx context.Context, input SaveBusinessMenuInput, principal Principal, requestID string) (MenuGetData, error) {
-	if input.Revision < 1 || input.CatalogRevision == "" || len(input.Items) == 0 || len(input.Items) > 1000 {
+	if input.Revision < 1 || len(input.Items) == 0 || len(input.Items) > 1000 {
 		return MenuGetData{}, domainError(ErrorValidation, "invalid business menu request", nil)
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -128,33 +114,30 @@ func (s *Service) SaveBusinessMenu(ctx context.Context, input SaveBusinessMenuIn
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.queries.WithTx(tx)
-	if err = qtx.AcquireAppMenuLock(ctx); err != nil {
-		return MenuGetData{}, s.internal("lock business menu", err)
+	settings, err := qtx.GetAppMenuSettingsForUpdate(ctx)
+	if err != nil {
+		return MenuGetData{}, s.internal("lock menu settings", err)
+	}
+	if settings.Revision != input.Revision {
+		return MenuGetData{}, domainError(ErrorConflict, "menu revision conflict", nil)
 	}
 	catalog, err := s.menuCatalog(ctx, qtx)
 	if err != nil {
 		return MenuGetData{}, err
 	}
-	if input.CatalogRevision != menuCatalogRevision(catalog) {
-		return MenuGetData{}, domainError(ErrorConflict, "menu catalog revision conflict", nil)
-	}
-	revision, err := qtx.GetAppBusinessMenuRevision(ctx, menuSnapshotDraft)
-	if err != nil {
-		return MenuGetData{}, s.internal("get draft menu revision", err)
-	}
-	if revision != input.Revision {
-		return MenuGetData{}, domainError(ErrorConflict, "draft menu revision conflict", nil)
-	}
 	items, err := validateBusinessMenu(input.Items, catalog)
 	if err != nil {
 		return MenuGetData{}, err
 	}
-	newRevision := revision + 1
-	if err = replaceBusinessMenu(ctx, qtx, menuSnapshotDraft, items, catalog, newRevision, principal.User.ID); err != nil {
-		return MenuGetData{}, s.internal("replace draft business menu", err)
+	if err = replaceBusinessMenu(ctx, qtx, items, catalog, &principal.User.ID); err != nil {
+		return MenuGetData{}, s.internal("replace business menu", err)
+	}
+	updated, err := qtx.AdvanceAppMenuRevision(ctx, dbsqlc.AdvanceAppMenuRevisionParams{Revision: input.Revision, ActorID: &principal.User.ID})
+	if err != nil {
+		return MenuGetData{}, s.internal("advance business menu revision", err)
 	}
 	groups, routes := menuItemCounts(items)
-	if err = s.audit(ctx, qtx, "MENU_BUSINESS_TEMPLATE_SAVE", &principal.User.ID, "menu", nil, "SUCCESS", requestID, map[string]any{"revision": newRevision, "groups": groups, "routes": routes}); err != nil {
+	if err = s.audit(ctx, qtx, "MENU_BUSINESS_SAVE", &principal.User.ID, "menu", nil, "SUCCESS", requestID, map[string]any{"revision": updated.Revision, "groups": groups, "routes": routes}); err != nil {
 		return MenuGetData{}, s.internal("audit business menu save", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -163,66 +146,8 @@ func (s *Service) SaveBusinessMenu(ctx context.Context, input SaveBusinessMenuIn
 	return s.GetMenu(ctx, principal)
 }
 
-func (s *Service) PublishBusinessMenu(ctx context.Context, input PublishBusinessMenuInput, principal Principal, requestID string) (MenuGetData, error) {
-	if input.Revision < 1 || input.CatalogRevision == "" {
-		return MenuGetData{}, domainError(ErrorValidation, "invalid business menu publish request", nil)
-	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return MenuGetData{}, s.internal("begin publish business menu", err)
-	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-	qtx := s.queries.WithTx(tx)
-	if err = qtx.AcquireAppMenuLock(ctx); err != nil {
-		return MenuGetData{}, s.internal("lock business menu", err)
-	}
-	catalog, err := s.menuCatalog(ctx, qtx)
-	if err != nil {
-		return MenuGetData{}, err
-	}
-	if input.CatalogRevision != menuCatalogRevision(catalog) {
-		return MenuGetData{}, domainError(ErrorConflict, "menu catalog revision conflict", nil)
-	}
-	draftRows, err := qtx.ListAppBusinessMenuItems(ctx, menuSnapshotDraft)
-	if err != nil {
-		return MenuGetData{}, s.internal("list draft menu", err)
-	}
-	draftRevision, err := businessMenuRevision(draftRows)
-	if err != nil {
-		return MenuGetData{}, s.internal("read draft menu revision", err)
-	}
-	if draftRevision != input.Revision {
-		return MenuGetData{}, domainError(ErrorConflict, "draft menu revision conflict", nil)
-	}
-	// Publishing revalidates the persisted draft against the catalog locked by
-	// catalogRevision. A route can retire after the last draft save, and such a
-	// normal route must not be copied into a newly published snapshot. Stored
-	// tombstones remain intentionally outside the editable tree and are copied.
-	if _, err = validateBusinessMenu(
-		menuViewToInput(menuTreeFromRows(draftRows, draftRevision, catalog).Items),
-		catalog,
-	); err != nil {
-		return MenuGetData{}, err
-	}
-	publishedRevision, err := qtx.GetAppBusinessMenuRevision(ctx, menuSnapshotPublished)
-	if err != nil {
-		return MenuGetData{}, s.internal("get published menu revision", err)
-	}
-	newPublishedRevision := publishedRevision + 1
-	if err = replaceBusinessMenuRows(ctx, qtx, menuSnapshotPublished, draftRows, newPublishedRevision, principal.User.ID); err != nil {
-		return MenuGetData{}, s.internal("replace published business menu", err)
-	}
-	if err = s.audit(ctx, qtx, "MENU_BUSINESS_TEMPLATE_PUBLISH", &principal.User.ID, "menu", nil, "SUCCESS", requestID, map[string]any{"draftRevision": draftRevision, "publishedRevision": newPublishedRevision}); err != nil {
-		return MenuGetData{}, s.internal("audit business menu publish", err)
-	}
-	if err = tx.Commit(ctx); err != nil {
-		return MenuGetData{}, s.internal("commit publish business menu", err)
-	}
-	return s.GetMenu(ctx, principal)
-}
-
 func (s *Service) ActivateMenu(ctx context.Context, input ActivateMenuInput, principal Principal, requestID string) (MenuGetData, error) {
-	if input.Revision < 1 || input.CatalogRevision == "" || (input.Mode != MenuModeDefault && input.Mode != MenuModeBusinessTemplate) {
+	if input.Revision < 1 || (input.Mode != MenuModeDefault && input.Mode != MenuModeBusiness) {
 		return MenuGetData{}, domainError(ErrorValidation, "invalid menu mode", nil)
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -231,24 +156,14 @@ func (s *Service) ActivateMenu(ctx context.Context, input ActivateMenuInput, pri
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.queries.WithTx(tx)
-	if err = qtx.AcquireAppMenuLock(ctx); err != nil {
-		return MenuGetData{}, s.internal("lock business menu", err)
-	}
-	catalog, err := s.menuCatalog(ctx, qtx)
+	settings, err := qtx.GetAppMenuSettingsForUpdate(ctx)
 	if err != nil {
-		return MenuGetData{}, err
+		return MenuGetData{}, s.internal("lock menu settings", err)
 	}
-	if input.CatalogRevision != menuCatalogRevision(catalog) {
-		return MenuGetData{}, domainError(ErrorConflict, "menu catalog revision conflict", nil)
+	if settings.Revision != input.Revision {
+		return MenuGetData{}, domainError(ErrorConflict, "menu revision conflict", nil)
 	}
-	parameter, err := qtx.GetAppSystemParameterForUpdate(ctx, MenuModeParameterKey)
-	if err != nil {
-		return MenuGetData{}, s.internal("lock menu mode", err)
-	}
-	if parameter.Revision != input.Revision {
-		return MenuGetData{}, domainError(ErrorConflict, "menu mode revision conflict", nil)
-	}
-	if parameter.ConfiguredValue == input.Mode {
+	if settings.MenuMode == input.Mode {
 		if err = tx.Commit(ctx); err != nil {
 			return MenuGetData{}, s.internal("commit unchanged menu mode", err)
 		}
@@ -261,7 +176,7 @@ func (s *Service) ActivateMenu(ctx context.Context, input ActivateMenuInput, pri
 	if err != nil {
 		return MenuGetData{}, s.internal("activate menu", err)
 	}
-	if err = s.audit(ctx, qtx, "MENU_MODE_ACTIVATE", &principal.User.ID, "system-parameter", stringPointer(MenuModeParameterKey), "SUCCESS", requestID, map[string]any{"from": parameter.ConfiguredValue, "to": input.Mode, "revision": updated.Revision}); err != nil {
+	if err = s.audit(ctx, qtx, "MENU_MODE_ACTIVATE", &principal.User.ID, "menu", nil, "SUCCESS", requestID, map[string]any{"from": settings.MenuMode, "to": input.Mode, "revision": updated.Revision}); err != nil {
 		return MenuGetData{}, s.internal("audit menu activation", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -271,7 +186,7 @@ func (s *Service) ActivateMenu(ctx context.Context, input ActivateMenuInput, pri
 }
 
 func (s *Service) ResetBusinessMenu(ctx context.Context, input ResetBusinessMenuInput, principal Principal, requestID string) (MenuGetData, error) {
-	if input.Revision < 1 || input.CatalogRevision == "" {
+	if input.Revision < 1 {
 		return MenuGetData{}, domainError(ErrorValidation, "invalid business menu revision", nil)
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -280,28 +195,25 @@ func (s *Service) ResetBusinessMenu(ctx context.Context, input ResetBusinessMenu
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.queries.WithTx(tx)
-	if err = qtx.AcquireAppMenuLock(ctx); err != nil {
-		return MenuGetData{}, s.internal("lock business menu", err)
+	settings, err := qtx.GetAppMenuSettingsForUpdate(ctx)
+	if err != nil {
+		return MenuGetData{}, s.internal("lock menu settings", err)
+	}
+	if settings.Revision != input.Revision {
+		return MenuGetData{}, domainError(ErrorConflict, "menu revision conflict", nil)
 	}
 	catalog, err := s.menuCatalog(ctx, qtx)
 	if err != nil {
 		return MenuGetData{}, err
 	}
-	if input.CatalogRevision != menuCatalogRevision(catalog) {
-		return MenuGetData{}, domainError(ErrorConflict, "menu catalog revision conflict", nil)
+	if err = replaceBusinessMenu(ctx, qtx, menuViewToInput(buildInitialBusinessMenu(catalog).Items), catalog, &principal.User.ID); err != nil {
+		return MenuGetData{}, s.internal("reset business menu", err)
 	}
-	revision, err := qtx.GetAppBusinessMenuRevision(ctx, menuSnapshotDraft)
+	updated, err := qtx.AdvanceAppMenuRevision(ctx, dbsqlc.AdvanceAppMenuRevisionParams{Revision: input.Revision, ActorID: &principal.User.ID})
 	if err != nil {
-		return MenuGetData{}, s.internal("get draft menu revision", err)
+		return MenuGetData{}, s.internal("advance reset menu revision", err)
 	}
-	if revision != input.Revision {
-		return MenuGetData{}, domainError(ErrorConflict, "draft menu revision conflict", nil)
-	}
-	newRevision := revision + 1
-	if err = replaceBusinessMenu(ctx, qtx, menuSnapshotDraft, menuViewToInput(buildInitialBusinessMenu(catalog, newRevision).Items), catalog, newRevision, principal.User.ID); err != nil {
-		return MenuGetData{}, s.internal("reset draft business menu", err)
-	}
-	if err = s.audit(ctx, qtx, "MENU_BUSINESS_TEMPLATE_RESET", &principal.User.ID, "menu", nil, "SUCCESS", requestID, map[string]any{"revision": newRevision}); err != nil {
+	if err = s.audit(ctx, qtx, "MENU_BUSINESS_RESET", &principal.User.ID, "menu", nil, "SUCCESS", requestID, map[string]any{"revision": updated.Revision}); err != nil {
 		return MenuGetData{}, s.internal("audit business menu reset", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -321,7 +233,7 @@ func (s *Service) menuCatalog(ctx context.Context, q *dbsqlc.Queries) ([]registe
 		{RouteKey: "app/role", RoutePath: "/app/role", DisplayName: "角色管理", PermissionCode: "/app/role/query", Order: 20},
 		{RouteKey: "app/permission", RoutePath: "/app/permission", DisplayName: "权限管理", PermissionCode: "/app/permission/query", Order: 30},
 		{RouteKey: "app/system-parameter", RoutePath: "/app/system-parameter", DisplayName: "系统参数", PermissionCode: "/app/system-parameter/query", Order: 40},
-		{RouteKey: "app/menu", RoutePath: "/app/menu", DisplayName: "菜单管理", PermissionCode: "/app/menu/save-business-template", PermissionRoot: "/app/menu/", Order: 50},
+		{RouteKey: "app/menu", RoutePath: "/app/menu", DisplayName: "菜单管理", PermissionCode: "/app/menu/save-business", PermissionRoot: "/app/menu/", Order: 50},
 	}
 	for _, row := range rows {
 		// RPT directory is a session-only metadata endpoint, not a navigable entity.
@@ -342,14 +254,6 @@ func (s *Service) menuCatalog(ctx context.Context, q *dbsqlc.Queries) ([]registe
 	return routes, nil
 }
 
-func menuCatalogRevision(catalog []registeredMenuRoute) string {
-	hash := sha256.New()
-	for _, route := range catalog {
-		fmt.Fprintf(hash, "%d:%s|%d:%s|%d:%s|%d:%s|%d:%s|%t|%d;", len(route.RouteKey), route.RouteKey, len(route.RoutePath), route.RoutePath, len(route.DisplayName), route.DisplayName, len(route.PermissionCode), route.PermissionCode, len(route.PermissionRoot), route.PermissionRoot, route.Always, route.Order)
-	}
-	return fmt.Sprintf("%x", hash.Sum(nil))
-}
-
 func validateBusinessMenu(input []SaveMenuItemInput, catalog []registeredMenuRoute) ([]SaveMenuItemInput, error) {
 	knownRoutes := make(map[string]registeredMenuRoute, len(catalog))
 	for _, route := range catalog {
@@ -368,9 +272,6 @@ func validateBusinessMenu(input []SaveMenuItemInput, catalog []registeredMenuRou
 		}
 		if len(item.ID) > 64 || item.Order < 0 || item.DisplayName == "" || utf8.RuneCountInString(item.DisplayName) > 128 {
 			return nil, domainError(ErrorValidation, "invalid menu item", nil)
-		}
-		if item.ID == menuRouteTombstoneGroupID {
-			return nil, domainError(ErrorValidation, "reserved menu item id", nil)
 		}
 		if _, exists := ids[item.ID]; exists {
 			return nil, domainError(ErrorValidation, "duplicate menu item id", nil)
@@ -396,6 +297,7 @@ func validateBusinessMenu(input []SaveMenuItemInput, catalog []registeredMenuRou
 		ids[item.ID] = *item
 	}
 	hasMenuManagement := false
+	usedRoutes := make(map[string]bool, len(catalog))
 	for index := range items {
 		item := &items[index]
 		if item.Type != MenuItemRoute {
@@ -408,6 +310,10 @@ func validateBusinessMenu(input []SaveMenuItemInput, catalog []registeredMenuRou
 		if _, exists := knownRoutes[key]; !exists {
 			return nil, domainError(ErrorValidation, "menu route is not registered", nil)
 		}
+		if usedRoutes[key] {
+			return nil, domainError(ErrorValidation, "menu route must appear exactly once", nil)
+		}
+		usedRoutes[key] = true
 		if key == "home/dashboard" {
 			if item.ParentID != nil || item.DisplayName != "工作台" || !item.Enabled {
 				return nil, domainError(ErrorValidation, "workbench must be the enabled direct entry", nil)
@@ -443,12 +349,8 @@ func validateBusinessMenu(input []SaveMenuItemInput, catalog []registeredMenuRou
 	return items, nil
 }
 
-func replaceBusinessMenu(ctx context.Context, q *dbsqlc.Queries, snapshotType string, items []SaveMenuItemInput, catalog []registeredMenuRoute, revision int64, actorID string) error {
-	previousRows, err := q.ListAppBusinessMenuItems(ctx, snapshotType)
-	if err != nil {
-		return err
-	}
-	if err := q.DeleteAppBusinessMenuItems(ctx, snapshotType); err != nil {
+func replaceBusinessMenu(ctx context.Context, q *dbsqlc.Queries, items []SaveMenuItemInput, catalog []registeredMenuRoute, actorID *string) error {
+	if err := q.DeleteAppBusinessMenuItems(ctx); err != nil {
 		return err
 	}
 	permissions := make(map[string]string, len(catalog))
@@ -467,68 +369,9 @@ func replaceBusinessMenu(ctx context.Context, q *dbsqlc.Queries, snapshotType st
 			permission = stringPointer(permissions[*item.RouteKey])
 		}
 		if err := q.InsertAppBusinessMenuItem(ctx, dbsqlc.InsertAppBusinessMenuItemParams{
-			SnapshotType: snapshotType, ID: item.ID, ParentID: item.ParentID, ItemType: item.Type, ItemLevel: level,
+			ID: item.ID, ParentID: item.ParentID, ItemType: item.Type, ItemLevel: level,
 			SortOrder: item.Order, DisplayName: item.DisplayName, Icon: item.Icon, Enabled: item.Enabled,
-			RouteKey: item.RouteKey, PermissionCode: permission, Revision: revision, ActorID: &actorID,
-		}); err != nil {
-			return err
-		}
-	}
-	configuredRoutes := make(map[string]bool, len(items))
-	for _, item := range items {
-		if item.Type == MenuItemRoute && item.RouteKey != nil {
-			configuredRoutes[*item.RouteKey] = true
-		}
-	}
-	previousRoutes := menuRouteTombstonePermissions(previousRows)
-	// Save receives the complete current template, including routes appended at read time.
-	// An omitted catalog route is therefore an administrator deletion even when it
-	// has not yet been persisted as a normal menu item.
-	for _, route := range catalog {
-		if _, exists := previousRoutes[route.RouteKey]; !exists {
-			previousRoutes[route.RouteKey] = route.PermissionCode
-		}
-	}
-	deletedRoutes := make([]string, 0, len(previousRoutes))
-	for routeKey := range previousRoutes {
-		if !configuredRoutes[routeKey] {
-			deletedRoutes = append(deletedRoutes, routeKey)
-		}
-	}
-	if len(deletedRoutes) == 0 {
-		return nil
-	}
-	sort.Strings(deletedRoutes)
-	if err := q.InsertAppBusinessMenuItem(ctx, dbsqlc.InsertAppBusinessMenuItemParams{
-		SnapshotType: snapshotType, ID: menuRouteTombstoneGroupID, ItemType: MenuItemGroup, ItemLevel: 1,
-		SortOrder: 1_000_000, DisplayName: "已删除菜单路由", Enabled: false,
-		Revision: revision, ActorID: &actorID,
-	}); err != nil {
-		return err
-	}
-	for _, routeKey := range deletedRoutes {
-		permissionCode := previousRoutes[routeKey]
-		if err := q.InsertAppBusinessMenuItem(ctx, dbsqlc.InsertAppBusinessMenuItemParams{
-			SnapshotType: snapshotType, ID: stableRouteID("tombstone", routeKey), ParentID: stringPointer(menuRouteTombstoneGroupID),
-			ItemType: MenuItemRoute, ItemLevel: 2, SortOrder: 0, DisplayName: routeKey, Enabled: false,
-			RouteKey: stringPointer(routeKey), PermissionCode: stringPointer(permissionCode), Revision: revision, ActorID: &actorID,
-		}); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func replaceBusinessMenuRows(ctx context.Context, q *dbsqlc.Queries, snapshotType string, rows []dbsqlc.AppBusinessMenuItem, revision int64, actorID string) error {
-	if err := q.DeleteAppBusinessMenuItems(ctx, snapshotType); err != nil {
-		return err
-	}
-	for _, row := range rows {
-		if err := q.InsertAppBusinessMenuItem(ctx, dbsqlc.InsertAppBusinessMenuItemParams{
-			SnapshotType: snapshotType, ID: row.ID, ParentID: row.ParentID, ItemType: row.ItemType,
-			ItemLevel: row.ItemLevel, SortOrder: row.SortOrder, DisplayName: row.DisplayName,
-			Icon: row.Icon, Enabled: row.Enabled, RouteKey: row.RouteKey, PermissionCode: row.PermissionCode,
-			Revision: revision, ActorID: &actorID,
+			RouteKey: item.RouteKey, PermissionCode: permission, ActorID: actorID,
 		}); err != nil {
 			return err
 		}
@@ -568,10 +411,10 @@ func buildDefaultMenu(catalog []registeredMenuRoute) MenuTree {
 		orders[parent] += 10
 		items = append(items, routeView(route, parent, orders[parent], stableRouteID("default", route.RouteKey)))
 	}
-	return MenuTree{Revision: 1, Items: items}
+	return MenuTree{Items: items}
 }
 
-func buildInitialBusinessMenu(catalog []registeredMenuRoute, revision int64) MenuTree {
+func buildInitialBusinessMenu(catalog []registeredMenuRoute) MenuTree {
 	items := groupViews(businessMenuGroups)
 	orders := map[string]int32{}
 	for _, route := range catalog {
@@ -583,7 +426,7 @@ func buildInitialBusinessMenu(catalog []registeredMenuRoute, revision int64) Men
 		orders[parent] += 10
 		items = append(items, routeView(route, parent, orders[parent], stableRouteID("business", route.RouteKey)))
 	}
-	return MenuTree{Revision: revision, Items: items}
+	return MenuTree{Items: items}
 }
 
 func classifyBusinessRoute(key string) string {
@@ -634,16 +477,13 @@ func classifyBusinessRoute(key string) string {
 	return "menu-group-other"
 }
 
-func menuTreeFromRows(rows []dbsqlc.AppBusinessMenuItem, revision int64, catalog []registeredMenuRoute) MenuTree {
+func menuTreeFromRows(rows []dbsqlc.AppBusinessMenuItem, catalog []registeredMenuRoute) MenuTree {
 	byKey := make(map[string]registeredMenuRoute, len(catalog))
 	for _, route := range catalog {
 		byKey[route.RouteKey] = route
 	}
 	items := make([]MenuItemView, 0, len(rows))
 	for _, row := range rows {
-		if row.ID == menuRouteTombstoneGroupID || isMenuRouteTombstone(row) {
-			continue
-		}
 		view := MenuItemView{ID: row.ID, ParentID: row.ParentID, Type: row.ItemType, Level: int32(row.ItemLevel), Order: row.SortOrder, DisplayName: row.DisplayName, Icon: row.Icon, Enabled: row.Enabled, RouteKey: row.RouteKey, PermissionCode: row.PermissionCode}
 		if row.RouteKey != nil {
 			path := "/" + *row.RouteKey
@@ -655,10 +495,10 @@ func menuTreeFromRows(rows []dbsqlc.AppBusinessMenuItem, revision int64, catalog
 		}
 		items = append(items, view)
 	}
-	return MenuTree{Revision: revision, Items: items}
+	return MenuTree{Items: items}
 }
 
-func editableMenuTreeFromRows(rows []dbsqlc.AppBusinessMenuItem, revision int64, catalog []registeredMenuRoute) MenuTree {
+func editableMenuTreeFromRows(rows []dbsqlc.AppBusinessMenuItem, catalog []registeredMenuRoute) MenuTree {
 	registered := make(map[string]bool, len(catalog))
 	for _, route := range catalog {
 		registered[route.RouteKey] = true
@@ -670,35 +510,10 @@ func editableMenuTreeFromRows(rows []dbsqlc.AppBusinessMenuItem, revision int64,
 		}
 		currentRows = append(currentRows, row)
 	}
-	return menuTreeFromRows(currentRows, revision, catalog)
+	return menuTreeFromRows(currentRows, catalog)
 }
 
-func isMenuRouteTombstone(row dbsqlc.AppBusinessMenuItem) bool {
-	return row.ItemType == MenuItemRoute && row.ParentID != nil && *row.ParentID == menuRouteTombstoneGroupID
-}
-
-func menuRouteTombstones(rows []dbsqlc.AppBusinessMenuItem) map[string]bool {
-	tombstones := make(map[string]bool, len(rows))
-	for _, row := range rows {
-		if isMenuRouteTombstone(row) && row.RouteKey != nil {
-			tombstones[*row.RouteKey] = true
-		}
-	}
-	return tombstones
-}
-
-func menuRouteTombstonePermissions(rows []dbsqlc.AppBusinessMenuItem) map[string]string {
-	routes := make(map[string]string)
-	for _, row := range rows {
-		if row.ItemType != MenuItemRoute || row.RouteKey == nil || row.PermissionCode == nil {
-			continue
-		}
-		routes[*row.RouteKey] = *row.PermissionCode
-	}
-	return routes
-}
-
-func appendUnclassifiedRoutes(tree MenuTree, catalog []registeredMenuRoute, tombstones map[string]bool) MenuTree {
+func appendUnclassifiedRoutes(tree MenuTree, catalog []registeredMenuRoute) MenuTree {
 	present := map[string]bool{}
 	otherID := ""
 	maxOrder := int32(0)
@@ -706,7 +521,7 @@ func appendUnclassifiedRoutes(tree MenuTree, catalog []registeredMenuRoute, tomb
 		if item.RouteKey != nil {
 			present[*item.RouteKey] = true
 		}
-		if item.Type == MenuItemGroup && item.DisplayName == "其他/待归类" {
+		if item.Type == MenuItemGroup && (item.ID == "menu-group-other" || item.DisplayName == "其他/待归类") {
 			otherID = item.ID
 		}
 		if item.ParentID != nil && item.Order > maxOrder {
@@ -721,13 +536,25 @@ func appendUnclassifiedRoutes(tree MenuTree, catalog []registeredMenuRoute, tomb
 		if route.RouteKey == "home/dashboard" {
 			continue
 		}
-		if present[route.RouteKey] || tombstones[route.RouteKey] {
+		if present[route.RouteKey] {
 			continue
 		}
 		maxOrder += 10
 		tree.Items = append(tree.Items, routeView(route, otherID, maxOrder, stableRouteID("pending", route.RouteKey)))
 	}
 	return tree
+}
+
+func menuData(mode string, revision int64, businessMenu MenuTree, catalog []registeredMenuRoute, principal Principal) MenuGetData {
+	defaultMenu := buildDefaultMenu(catalog)
+	selected := defaultMenu
+	if mode == MenuModeBusiness {
+		selected = businessMenu
+	}
+	return MenuGetData{
+		Mode: mode, Revision: revision, DefaultMenu: defaultMenu, BusinessMenu: businessMenu,
+		Navigation: filterMenuForPrincipal(selected, catalog, principal), AvailableRoutes: menuRouteOptions(catalog),
+	}
 }
 
 func filterMenuForPrincipal(tree MenuTree, catalog []registeredMenuRoute, principal Principal) MenuTree {
@@ -768,7 +595,7 @@ func filterMenuForPrincipal(tree MenuTree, catalog []registeredMenuRoute, princi
 			}
 		}
 	}
-	return MenuTree{Revision: tree.Revision, Items: result}
+	return MenuTree{Items: result}
 }
 
 func routeAllowed(route registeredMenuRoute, permissions []string) bool {

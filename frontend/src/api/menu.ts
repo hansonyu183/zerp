@@ -16,13 +16,7 @@ export function getMenu() {
 export function saveBusinessMenu(
   input: components['schemas']['SaveBusinessMenuRequest'],
 ) {
-  return apiClient.postContract('app/menu/save-business-template', input)
-}
-
-export function publishBusinessMenu(
-  input: components['schemas']['PublishBusinessMenuRequest'],
-) {
-  return apiClient.postContract('app/menu/publish-business-template', input)
+  return apiClient.postContract('app/menu/save-business', input)
 }
 
 export function activateMenu(
@@ -34,5 +28,5 @@ export function activateMenu(
 export function resetBusinessMenu(
   input: components['schemas']['ResetBusinessMenuRequest'],
 ) {
-  return apiClient.postContract('app/menu/reset-business-template', input)
+  return apiClient.postContract('app/menu/reset-business', input)
 }

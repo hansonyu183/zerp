@@ -82,13 +82,12 @@ describe('AppLayout account interactions', () => {
       routePath: '/home/dashboard',
       permissionCode: '/app/workbench/query',
     }
-    const navigation = { revision: 1, items: [workbenchRoute] }
+    const navigation = { items: [workbenchRoute] }
     session.applyMenuData({
       mode: 'DEFAULT',
-      modeRevision: 1,
-      catalogRevision: 'catalog',
+      revision: 1,
       defaultMenu: navigation,
-      businessTemplate: navigation,
+      businessMenu: navigation,
       navigation,
       availableRoutes: [],
     })
@@ -100,7 +99,8 @@ describe('AppLayout account interactions', () => {
           RouterView: true,
           VListGroup: {
             props: ['value'],
-            template: '<section class="menu-group"><slot name="activator" :props="{}" /><slot /></section>',
+            template:
+              '<section class="menu-group"><slot name="activator" :props="{}" /><slot /></section>',
           },
           VListItem: {
             props: ['title', 'to'],

@@ -150,16 +150,6 @@ func TestSystemParameterManagementIntegration(t *testing.T) {
 	if err != nil || adopted.RunningValue == nil || *adopted.RunningValue != "1.25" || adopted.RestartPending {
 		t.Fatalf("complete adoption = %+v, %v", adopted, err)
 	}
-	menuMode, err := service.GetSystemParameter(t.Context(), MenuModeParameterKey)
-	if err != nil {
-		t.Fatalf("get menu mode: %v", err)
-	}
-	if _, err = service.SaveSystemParameter(t.Context(), SaveSystemParameterInput{
-		Key: menuMode.Key, ConfiguredValue: "BUSINESS_TEMPLATE", Revision: menuMode.Revision,
-	}, admin.ID, "forbidden-menu-mode-save"); !errorIsKind(err, ErrorForbidden) {
-		t.Fatalf("menu mode save error = %v", err)
-	}
-
 	var summaries []string
 	rows, err := pool.Query(t.Context(), `
 		SELECT summary::text FROM app_audit_events

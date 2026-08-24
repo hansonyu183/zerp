@@ -17,16 +17,13 @@ interface Envelope<T> {
 }
 
 interface MenuData {
-  mode: 'DEFAULT' | 'BUSINESS_TEMPLATE'
-  modeRevision: number
-  catalogRevision: string
-  draft: MenuTree
-  published: MenuTree
+  mode: 'DEFAULT' | 'BUSINESS'
+  revision: number
+  businessMenu: MenuTree
   navigation: MenuTree
 }
 
 interface MenuTree {
-  revision: number
   items: Array<{
     id: string
     parentId: string | null
@@ -287,78 +284,55 @@ test(
       if (originalMenu.mode !== 'DEFAULT') {
         await selectMode(page, '系统默认')
       }
-      const observerBeforePublish = await menuRequest(
+      const observerBeforeSave = await menuRequest(
         observer.api,
         'app/menu/get',
         {},
         observer.csrfToken,
       )
-      expect(observerBeforePublish.mode).toBe('DEFAULT')
+      expect(observerBeforeSave.mode).toBe('DEFAULT')
       const beforeSave = await menuRequest(api, 'app/menu/get', {}, csrfToken)
       await page.getByRole('button', { name: '新增分组', exact: true }).click()
       await page
         .getByLabel('分组名称', { exact: true })
         .last()
-        .fill('E2E 未发布草稿')
+        .fill('E2E 业务菜单')
       const saveResponse = page.waitForResponse(
         (response) =>
           response.request().method() === 'POST' &&
-          response.url().includes('/app/menu/save-business-template'),
+          response.url().includes('/app/menu/save-business'),
       )
-      await page.getByRole('button', { name: '保存草稿', exact: true }).click()
+      await page
+        .getByRole('button', { name: '保存并生效', exact: true })
+        .click()
       const savedEnvelope = (await (
         await saveResponse
       ).json()) as Envelope<MenuData>
       expect([0, '0'], savedEnvelope.message).toContain(savedEnvelope.code)
       await expect(
-        page.getByText('草稿已保存，尚未发布。', { exact: true }),
+        page.getByText('业务菜单已保存并生效。', { exact: true }),
       ).toBeVisible()
 
       const afterSave = await menuRequest(api, 'app/menu/get', {}, csrfToken)
-      expect(afterSave.draft.revision).toBe(beforeSave.draft.revision + 1)
+      expect(afterSave.revision).toBe(beforeSave.revision + 1)
       expect(
-        afterSave.draft.items.some(
-          (item) => item.displayName === 'E2E 未发布草稿',
+        afterSave.businessMenu.items.some(
+          (item) => item.displayName === 'E2E 业务菜单',
         ),
       ).toBe(true)
-      expect(afterSave.published).toEqual(beforeSave.published)
       expect(afterSave.navigation).toEqual(beforeSave.navigation)
-
-      const publishResponse = page.waitForResponse(
-        (response) =>
-          response.request().method() === 'POST' &&
-          response.url().includes('/app/menu/publish-business-template'),
-      )
-      await page.getByRole('button', { name: '发布草稿', exact: true }).click()
-      await page.getByRole('button', { name: '确认发布', exact: true }).click()
-      const publishedEnvelope = (await (
-        await publishResponse
-      ).json()) as Envelope<MenuData>
-      expect([0, '0'], publishedEnvelope.message).toContain(
-        publishedEnvelope.code,
-      )
-      const afterPublish = await menuRequest(api, 'app/menu/get', {}, csrfToken)
-      expect(afterPublish.published.revision).toBe(
-        beforeSave.published.revision + 1,
-      )
-      expect(
-        afterPublish.published.items.some(
-          (item) => item.displayName === 'E2E 未发布草稿',
-        ),
-      ).toBe(true)
-      expect(afterPublish.mode).toBe(beforeSave.mode)
-      const observerAfterPublish = await menuRequest(
+      const observerAfterSave = await menuRequest(
         observer.api,
         'app/menu/get',
         {},
         observer.csrfToken,
       )
-      expect(observerAfterPublish.mode).toBe('DEFAULT')
-      expect(observerAfterPublish.navigation).toEqual(
-        observerBeforePublish.navigation,
+      expect(observerAfterSave.mode).toBe('DEFAULT')
+      expect(observerAfterSave.navigation).toEqual(
+        observerBeforeSave.navigation,
       )
 
-      await selectMode(page, '业务归类模板')
+      await selectMode(page, '业务归类菜单')
       await expectNavigationGroup(page, '基础资料')
       const observerAfterActivation = await menuRequest(
         observer.api,
@@ -366,10 +340,8 @@ test(
         {},
         observer.csrfToken,
       )
-      expect(observerAfterActivation.mode).toBe('BUSINESS_TEMPLATE')
-      expect(observerAfterActivation.navigation.revision).toBe(
-        afterPublish.published.revision,
-      )
+      expect(observerAfterActivation.mode).toBe('BUSINESS')
+      expect(observerAfterActivation.revision).toBe(afterSave.revision + 1)
     } finally {
       try {
         const currentMenu = await menuRequest(
@@ -384,8 +356,7 @@ test(
             'app/menu/activate',
             {
               mode: originalMenu.mode,
-              revision: currentMenu.modeRevision,
-              catalogRevision: currentMenu.catalogRevision,
+              revision: currentMenu.revision,
             },
             csrfToken,
           )

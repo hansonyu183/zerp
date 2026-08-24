@@ -677,21 +677,16 @@ const exactMessages: Readonly<Record<string, string>> = {
   'request body must be an empty object': '该操作不接受额外输入内容。',
   'role revision conflict': '角色已被其他操作修改，请刷新后重试。',
   'role status unchanged': '角色已经是目标状态，无需重复操作。',
-  'business menu revision conflict':
-    '业务菜单已被其他管理员修改，请刷新后重试。',
-  'draft menu revision conflict':
-    '业务菜单草稿已被其他管理员修改，请刷新后重试。',
-  'menu catalog revision conflict': '菜单目录已更新，请刷新后重试。',
+  'menu revision conflict': '菜单已被其他管理员修改，请刷新后重试。',
   'menu depth exceeds two levels or parent is invalid':
     '菜单最多支持两级，请检查分组与路由的父子关系。',
   'menu groups must be top level': '菜单分组必须位于第一层。',
   'menu management entry must remain enabled': '必须保留已启用的菜单管理入口。',
-  'menu mode is not registered': '菜单方式尚未完成系统注册，请联系管理员。',
-  'menu mode revision conflict': '菜单方式已被其他管理员修改，请刷新后重试。',
+  'menu route must appear exactly once': '同一路由在业务菜单中只能出现一次。',
   'menu route is not registered': '所选菜单路由未在系统中注册。',
   'menu routes require a parent': '业务菜单页面必须归属一个菜单分组。',
   'menu routes require a route key': '业务菜单页面缺少路由标识，请刷新后重试。',
-  'reserved menu item id': '该菜单项标识由系统保留，请重新添加菜单项。',
+  'menu settings are not registered': '菜单设置尚未完成系统初始化。',
   'workbench entry must appear exactly once':
     '业务菜单必须且只能保留一个工作台入口。',
   'workbench must be a direct route': '工作台必须作为一级菜单入口。',

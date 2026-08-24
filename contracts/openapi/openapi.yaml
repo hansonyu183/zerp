@@ -1949,13 +1949,13 @@
                 },
             },
         },
-      '/app/menu/save-business-template':
+      '/app/menu/save-business':
         {
           'post':
             {
               'tags': ['app'],
               'summary': '保存整棵业务菜单模板',
-              'operationId': 'appMenuSaveBusinessTemplate',
+              'operationId': 'appMenuSaveBusiness',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {
@@ -1976,47 +1976,6 @@
                   '200':
                     {
                       'description': '保存后的菜单配置。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/app.yaml#/MenuGetResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/app/menu/publish-business-template':
-        {
-          'post':
-            {
-              'tags': ['app'],
-              'summary': '发布业务菜单草稿',
-              'operationId': 'appMenuPublishBusinessTemplate',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/app.yaml#/PublishBusinessMenuRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '发布后的菜单配置。',
                       'content':
                         {
                           'application/json':
@@ -2072,13 +2031,13 @@
                 },
             },
         },
-      '/app/menu/reset-business-template':
+      '/app/menu/reset-business':
         {
           'post':
             {
               'tags': ['app'],
               'summary': '恢复初始业务菜单模板',
-              'operationId': 'appMenuResetBusinessTemplate',
+              'operationId': 'appMenuResetBusiness',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {

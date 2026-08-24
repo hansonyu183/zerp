@@ -89,10 +89,9 @@ export const router = createRouter({
           meta: {
             requiresAuth: true,
             requiredAnyPermissions: [
-              '/app/menu/save-business-template',
-              '/app/menu/publish-business-template',
+              '/app/menu/save-business',
               '/app/menu/activate',
-              '/app/menu/reset-business-template',
+              '/app/menu/reset-business',
             ],
             title: '菜单管理',
           },

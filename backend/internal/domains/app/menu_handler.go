@@ -23,15 +23,6 @@ func (h *Handler) saveBusinessMenu(c *gin.Context) {
 	h.result(c, result, err)
 }
 
-func (h *Handler) publishBusinessMenu(c *gin.Context) {
-	var input PublishBusinessMenuInput
-	if !h.bind(c, &input) {
-		return
-	}
-	result, err := h.service.PublishBusinessMenu(c.Request.Context(), input, currentPrincipal(c), response.RequestID(c))
-	h.result(c, result, err)
-}
-
 func (h *Handler) activateMenu(c *gin.Context) {
 	var input ActivateMenuInput
 	if !h.bind(c, &input) {

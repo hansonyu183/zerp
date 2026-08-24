@@ -55,15 +55,13 @@ function menuResponse(
       permissionCode: `/${route.routeKey}/query`,
     })),
   ]
-  const tree = { revision: 1, items }
+  const tree = { items }
   return {
     data: {
       mode: 'DEFAULT',
-      modeRevision: 1,
-      catalogRevision: 'catalog-revision',
+      revision: 1,
       defaultMenu: tree,
-      draft: tree,
-      published: tree,
+      businessMenu: tree,
       navigation: tree,
       availableRoutes: [],
     },

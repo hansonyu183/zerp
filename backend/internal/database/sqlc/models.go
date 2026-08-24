@@ -351,12 +351,10 @@ type AppBusinessMenuItem struct {
 	Enabled        bool               `db:"enabled" json:"enabled"`
 	RouteKey       *string            `db:"route_key" json:"route_key"`
 	PermissionCode *string            `db:"permission_code" json:"permission_code"`
-	Revision       int64              `db:"revision" json:"revision"`
 	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	CreatedBy      *string            `db:"created_by" json:"created_by"`
 	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	UpdatedBy      *string            `db:"updated_by" json:"updated_by"`
-	SnapshotType   string             `db:"snapshot_type" json:"snapshot_type"`
 }
 
 type AppFeedback struct {
@@ -405,6 +403,14 @@ type AppFeedbackFile struct {
 	RemovedAt       pgtype.Timestamptz `db:"removed_at" json:"removed_at"`
 	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	CreatedBy       string             `db:"created_by" json:"created_by"`
+}
+
+type AppMenuSetting struct {
+	ID        int16              `db:"id" json:"id"`
+	MenuMode  string             `db:"menu_mode" json:"menu_mode"`
+	Revision  int64              `db:"revision" json:"revision"`
+	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy *string            `db:"updated_by" json:"updated_by"`
 }
 
 type AppPermission struct {

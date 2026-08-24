@@ -23,12 +23,12 @@ type Querier interface {
 	AccountingPeriodHasUnfinishedVOU(ctx context.Context, arg AccountingPeriodHasUnfinishedVOUParams) (bool, error)
 	AccountingTrialBalanceFails(ctx context.Context, arg AccountingTrialBalanceFailsParams) (bool, error)
 	AcquireAppAuthorizationLock(ctx context.Context) error
-	AcquireAppMenuLock(ctx context.Context) error
 	AcquireBobPartyIdentifierLock(ctx context.Context, lockKey string) error
 	AcquireWorkflowCreateChildLock(ctx context.Context, hashtextextended string) error
 	ActorHasEnabledSuperadminRole(ctx context.Context, userID string) (bool, error)
 	ActorHoldsAppRole(ctx context.Context, arg ActorHoldsAppRoleParams) (bool, error)
 	AddAccountingAssetDepreciation(ctx context.Context, arg AddAccountingAssetDepreciationParams) error
+	AdvanceAppMenuRevision(ctx context.Context, arg AdvanceAppMenuRevisionParams) (AppMenuSetting, error)
 	AdvanceBobCustomerAccountCandidate(ctx context.Context, arg AdvanceBobCustomerAccountCandidateParams) (int64, error)
 	AdvanceBobEffectiveCandidate(ctx context.Context, arg AdvanceBobEffectiveCandidateParams) (int64, error)
 	AdvanceBobObjectForUnapprove(ctx context.Context, arg AdvanceBobObjectForUnapproveParams) (int64, error)
@@ -158,7 +158,7 @@ type Querier interface {
 	DeleteAccountingSubjectUsages(ctx context.Context, arg DeleteAccountingSubjectUsagesParams) error
 	DeleteAccountingVoucher(ctx context.Context, arg DeleteAccountingVoucherParams) error
 	DeleteActiveAccountingAssetsBySource(ctx context.Context, documentID string) error
-	DeleteAppBusinessMenuItems(ctx context.Context, snapshotType string) error
+	DeleteAppBusinessMenuItems(ctx context.Context) error
 	DeleteAppFeedbackFile(ctx context.Context, id string) (int64, error)
 	DeleteAppRolePermissions(ctx context.Context, roleID string) error
 	DeleteAppUserProfileAvatar(ctx context.Context, userID string) error
@@ -267,8 +267,9 @@ type Querier interface {
 	GetAccountingSubjectParent(ctx context.Context, arg GetAccountingSubjectParentParams) (*string, error)
 	GetAccountingSubjectStateForUpdate(ctx context.Context, arg GetAccountingSubjectStateForUpdateParams) (GetAccountingSubjectStateForUpdateRow, error)
 	GetActiveAccountingAssetForVou(ctx context.Context, assetID string) (GetActiveAccountingAssetForVouRow, error)
-	GetAppBusinessMenuRevision(ctx context.Context, snapshotType string) (int64, error)
 	GetAppFeedbackByOwner(ctx context.Context, arg GetAppFeedbackByOwnerParams) (AppFeedback, error)
+	GetAppMenuSettings(ctx context.Context) (AppMenuSetting, error)
+	GetAppMenuSettingsForUpdate(ctx context.Context) (AppMenuSetting, error)
 	GetAppPermissionByID(ctx context.Context, id string) (AppPermission, error)
 	GetAppRoleByID(ctx context.Context, id string) (AppRole, error)
 	GetAppRoleByIDForUpdate(ctx context.Context, id string) (AppRole, error)
@@ -494,7 +495,7 @@ type Querier interface {
 	ListAllEnabledAppPermissionDetails(ctx context.Context) ([]ListAllEnabledAppPermissionDetailsRow, error)
 	ListAllEnabledAppPermissionIDs(ctx context.Context) ([]string, error)
 	ListAllVouStorageKeys(ctx context.Context) ([]string, error)
-	ListAppBusinessMenuItems(ctx context.Context, snapshotType string) ([]AppBusinessMenuItem, error)
+	ListAppBusinessMenuItems(ctx context.Context) ([]AppBusinessMenuItem, error)
 	ListAppFeedbackAttachments(ctx context.Context, feedbackID string) ([]AppFeedbackAttachment, error)
 	ListAppMenuPermissionRoutes(ctx context.Context) ([]ListAppMenuPermissionRoutesRow, error)
 	ListAppPermissionPathsByIDs(ctx context.Context, ids []string) ([]string, error)
@@ -748,7 +749,7 @@ type Querier interface {
 	UpdateAccountingBook(ctx context.Context, arg UpdateAccountingBookParams) (int64, error)
 	UpdateAccountingMappingDraft(ctx context.Context, arg UpdateAccountingMappingDraftParams) (int64, error)
 	UpdateAccountingSubject(ctx context.Context, arg UpdateAccountingSubjectParams) (int64, error)
-	UpdateAppMenuMode(ctx context.Context, arg UpdateAppMenuModeParams) (AppSystemParameter, error)
+	UpdateAppMenuMode(ctx context.Context, arg UpdateAppMenuModeParams) (AppMenuSetting, error)
 	UpdateAppRole(ctx context.Context, arg UpdateAppRoleParams) (int64, error)
 	UpdateAppSystemParameterValue(ctx context.Context, arg UpdateAppSystemParameterValueParams) (AppSystemParameter, error)
 	UpdateAppUser(ctx context.Context, arg UpdateAppUserParams) (int64, error)

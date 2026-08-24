@@ -20,15 +20,6 @@ func (q *Queries) AcquireAppAuthorizationLock(ctx context.Context) error {
 	return err
 }
 
-const acquireAppMenuLock = `-- name: AcquireAppMenuLock :exec
-SELECT pg_advisory_xact_lock(74155002)
-`
-
-func (q *Queries) AcquireAppMenuLock(ctx context.Context) error {
-	_, err := q.db.Exec(ctx, acquireAppMenuLock)
-	return err
-}
-
 const actorHasEnabledSuperadminRole = `-- name: ActorHasEnabledSuperadminRole :one
 SELECT EXISTS (
   SELECT 1
@@ -64,6 +55,34 @@ func (q *Queries) ActorHoldsAppRole(ctx context.Context, arg ActorHoldsAppRolePa
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const advanceAppMenuRevision = `-- name: AdvanceAppMenuRevision :one
+UPDATE app_menu_settings
+SET revision = revision + 1,
+    updated_at = now(),
+    updated_by = $1
+WHERE id = 1
+  AND revision = $2
+RETURNING id, menu_mode, revision, updated_at, updated_by
+`
+
+type AdvanceAppMenuRevisionParams struct {
+	ActorID  *string `db:"actor_id" json:"actor_id"`
+	Revision int64   `db:"revision" json:"revision"`
+}
+
+func (q *Queries) AdvanceAppMenuRevision(ctx context.Context, arg AdvanceAppMenuRevisionParams) (AppMenuSetting, error) {
+	row := q.db.QueryRow(ctx, advanceAppMenuRevision, arg.ActorID, arg.Revision)
+	var i AppMenuSetting
+	err := row.Scan(
+		&i.ID,
+		&i.MenuMode,
+		&i.Revision,
+		&i.UpdatedAt,
+		&i.UpdatedBy,
+	)
+	return i, err
 }
 
 const confirmAppSystemParameterAdoption = `-- name: ConfirmAppSystemParameterAdoption :one
@@ -439,11 +458,10 @@ func (q *Queries) CreateAppSession(ctx context.Context, arg CreateAppSessionPara
 
 const deleteAppBusinessMenuItems = `-- name: DeleteAppBusinessMenuItems :exec
 DELETE FROM app_business_menu_items
-WHERE snapshot_type = $1
 `
 
-func (q *Queries) DeleteAppBusinessMenuItems(ctx context.Context, snapshotType string) error {
-	_, err := q.db.Exec(ctx, deleteAppBusinessMenuItems, snapshotType)
+func (q *Queries) DeleteAppBusinessMenuItems(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteAppBusinessMenuItems)
 	return err
 }
 
@@ -509,17 +527,43 @@ func (q *Queries) FindEnabledAppUserIDExcludingID(ctx context.Context, excludedU
 	return id, err
 }
 
-const getAppBusinessMenuRevision = `-- name: GetAppBusinessMenuRevision :one
-SELECT COALESCE(max(revision), 1)::bigint
-FROM app_business_menu_items
-WHERE snapshot_type = $1
+const getAppMenuSettings = `-- name: GetAppMenuSettings :one
+SELECT id, menu_mode, revision, updated_at, updated_by
+FROM app_menu_settings
+WHERE id = 1
 `
 
-func (q *Queries) GetAppBusinessMenuRevision(ctx context.Context, snapshotType string) (int64, error) {
-	row := q.db.QueryRow(ctx, getAppBusinessMenuRevision, snapshotType)
-	var column_1 int64
-	err := row.Scan(&column_1)
-	return column_1, err
+func (q *Queries) GetAppMenuSettings(ctx context.Context) (AppMenuSetting, error) {
+	row := q.db.QueryRow(ctx, getAppMenuSettings)
+	var i AppMenuSetting
+	err := row.Scan(
+		&i.ID,
+		&i.MenuMode,
+		&i.Revision,
+		&i.UpdatedAt,
+		&i.UpdatedBy,
+	)
+	return i, err
+}
+
+const getAppMenuSettingsForUpdate = `-- name: GetAppMenuSettingsForUpdate :one
+SELECT id, menu_mode, revision, updated_at, updated_by
+FROM app_menu_settings
+WHERE id = 1
+FOR UPDATE
+`
+
+func (q *Queries) GetAppMenuSettingsForUpdate(ctx context.Context) (AppMenuSetting, error) {
+	row := q.db.QueryRow(ctx, getAppMenuSettingsForUpdate)
+	var i AppMenuSetting
+	err := row.Scan(
+		&i.ID,
+		&i.MenuMode,
+		&i.Revision,
+		&i.UpdatedAt,
+		&i.UpdatedBy,
+	)
+	return i, err
 }
 
 const getAppPermissionByID = `-- name: GetAppPermissionByID :one
@@ -1017,18 +1061,17 @@ func (q *Queries) InsertAppBootstrapUser(ctx context.Context, arg InsertAppBoots
 
 const insertAppBusinessMenuItem = `-- name: InsertAppBusinessMenuItem :exec
 INSERT INTO app_business_menu_items (
-  snapshot_type, id, parent_id, item_type, item_level, sort_order, display_name, icon,
-  enabled, route_key, permission_code, revision, created_by, updated_by
+  id, parent_id, item_type, item_level, sort_order, display_name, icon,
+  enabled, route_key, permission_code, created_by, updated_by
 ) VALUES (
-  $1, $2, $3, $4, $5,
-  $6, $7, $8, $9,
-  $10, $11, $12,
-  $13, $13
+  $1, $2, $3, $4,
+  $5, $6, $7, $8,
+  $9, $10,
+  $11, $11
 )
 `
 
 type InsertAppBusinessMenuItemParams struct {
-	SnapshotType   string  `db:"snapshot_type" json:"snapshot_type"`
 	ID             string  `db:"id" json:"id"`
 	ParentID       *string `db:"parent_id" json:"parent_id"`
 	ItemType       string  `db:"item_type" json:"item_type"`
@@ -1039,13 +1082,11 @@ type InsertAppBusinessMenuItemParams struct {
 	Enabled        bool    `db:"enabled" json:"enabled"`
 	RouteKey       *string `db:"route_key" json:"route_key"`
 	PermissionCode *string `db:"permission_code" json:"permission_code"`
-	Revision       int64   `db:"revision" json:"revision"`
 	ActorID        *string `db:"actor_id" json:"actor_id"`
 }
 
 func (q *Queries) InsertAppBusinessMenuItem(ctx context.Context, arg InsertAppBusinessMenuItemParams) error {
 	_, err := q.db.Exec(ctx, insertAppBusinessMenuItem,
-		arg.SnapshotType,
 		arg.ID,
 		arg.ParentID,
 		arg.ItemType,
@@ -1056,7 +1097,6 @@ func (q *Queries) InsertAppBusinessMenuItem(ctx context.Context, arg InsertAppBu
 		arg.Enabled,
 		arg.RouteKey,
 		arg.PermissionCode,
-		arg.Revision,
 		arg.ActorID,
 	)
 	return err
@@ -1212,14 +1252,13 @@ func (q *Queries) ListAllEnabledAppPermissionIDs(ctx context.Context) ([]string,
 }
 
 const listAppBusinessMenuItems = `-- name: ListAppBusinessMenuItems :many
-SELECT id, parent_id, item_type, item_level, sort_order, display_name, icon, enabled, route_key, permission_code, revision, created_at, created_by, updated_at, updated_by, snapshot_type
+SELECT id, parent_id, item_type, item_level, sort_order, display_name, icon, enabled, route_key, permission_code, created_at, created_by, updated_at, updated_by
 FROM app_business_menu_items
-WHERE snapshot_type = $1
 ORDER BY item_level, sort_order, id
 `
 
-func (q *Queries) ListAppBusinessMenuItems(ctx context.Context, snapshotType string) ([]AppBusinessMenuItem, error) {
-	rows, err := q.db.Query(ctx, listAppBusinessMenuItems, snapshotType)
+func (q *Queries) ListAppBusinessMenuItems(ctx context.Context) ([]AppBusinessMenuItem, error) {
+	rows, err := q.db.Query(ctx, listAppBusinessMenuItems)
 	if err != nil {
 		return nil, err
 	}
@@ -1238,12 +1277,10 @@ func (q *Queries) ListAppBusinessMenuItems(ctx context.Context, snapshotType str
 			&i.Enabled,
 			&i.RouteKey,
 			&i.PermissionCode,
-			&i.Revision,
 			&i.CreatedAt,
 			&i.CreatedBy,
 			&i.UpdatedAt,
 			&i.UpdatedBy,
-			&i.SnapshotType,
 		); err != nil {
 			return nil, err
 		}
@@ -2083,17 +2120,14 @@ func (q *Queries) TouchAppSession(ctx context.Context, arg TouchAppSessionParams
 }
 
 const updateAppMenuMode = `-- name: UpdateAppMenuMode :one
-UPDATE app_system_parameters
-SET configured_value = $1,
-    running_value = $1,
-    running_revision = revision + 1,
-    restart_pending = false,
+UPDATE app_menu_settings
+SET menu_mode = $1,
     revision = revision + 1,
     updated_at = now(),
     updated_by = $2
-WHERE parameter_key = 'app.menu.mode'
+WHERE id = 1
   AND revision = $3
-RETURNING parameter_key, name, description, value_type, configured_value, default_value, editable, revision, created_at, created_by, updated_at, updated_by, safe_to_expose, constraints, effect_mode, running_value, running_revision, restart_pending
+RETURNING id, menu_mode, revision, updated_at, updated_by
 `
 
 type UpdateAppMenuModeParams struct {
@@ -2102,28 +2136,15 @@ type UpdateAppMenuModeParams struct {
 	Revision int64   `db:"revision" json:"revision"`
 }
 
-func (q *Queries) UpdateAppMenuMode(ctx context.Context, arg UpdateAppMenuModeParams) (AppSystemParameter, error) {
+func (q *Queries) UpdateAppMenuMode(ctx context.Context, arg UpdateAppMenuModeParams) (AppMenuSetting, error) {
 	row := q.db.QueryRow(ctx, updateAppMenuMode, arg.Mode, arg.ActorID, arg.Revision)
-	var i AppSystemParameter
+	var i AppMenuSetting
 	err := row.Scan(
-		&i.ParameterKey,
-		&i.Name,
-		&i.Description,
-		&i.ValueType,
-		&i.ConfiguredValue,
-		&i.DefaultValue,
-		&i.Editable,
+		&i.ID,
+		&i.MenuMode,
 		&i.Revision,
-		&i.CreatedAt,
-		&i.CreatedBy,
 		&i.UpdatedAt,
 		&i.UpdatedBy,
-		&i.SafeToExpose,
-		&i.Constraints,
-		&i.EffectMode,
-		&i.RunningValue,
-		&i.RunningRevision,
-		&i.RestartPending,
 	)
 	return i, err
 }

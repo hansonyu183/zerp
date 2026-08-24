@@ -16,6 +16,11 @@ DELETE FROM bob_versions WHERE entity='service';
 DELETE FROM bob_objects WHERE entity='service';
 DELETE FROM object_number_counters WHERE domain='bob' AND entity='service';
 
+-- Deleting the legacy detail/version/object graph queues deferred BOB and
+-- foreign-key trigger events. Flush them before changing bob_objects or
+-- dropping the detail table in this Goose transaction.
+SET CONSTRAINTS ALL IMMEDIATE;
+
 ALTER TABLE bob_objects DROP CONSTRAINT bob_objects_entity_check;
 ALTER TABLE bob_objects ADD CONSTRAINT bob_objects_entity_check CHECK (entity IN (
     'customer','customer-account','supplier','other-unit','employee','sales-partner','product','warehouse',

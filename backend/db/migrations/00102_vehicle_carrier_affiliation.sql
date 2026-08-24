@@ -11,6 +11,10 @@ UPDATE bob_vehicle_versions
 SET carrier_affiliation_type = 'EXTERNAL',
     carrier_service_relationship_object_id = platform_object_id;
 
+-- Updating legacy vehicle details queues deferred detail and uniqueness
+-- triggers. Flush them before altering the same table in this transaction.
+SET CONSTRAINTS ALL IMMEDIATE;
+
 DROP VIEW bob_version_views;
 DROP INDEX bob_vehicle_versions_platform_idx;
 

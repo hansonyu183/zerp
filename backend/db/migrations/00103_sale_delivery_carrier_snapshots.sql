@@ -28,6 +28,10 @@ SET vehicle_bulk_liquid_capable = vehicle.bulk_liquid_capable
 FROM bob_vehicle_versions vehicle
 WHERE vehicle.version_id = delivery.vehicle_version_id;
 
+-- This update queues the deferred document-detail trigger. Flush it before
+-- changing the same delivery-detail table in this Goose transaction.
+SET CONSTRAINTS ALL IMMEDIATE;
+
 ALTER TABLE vou_sale_delivery_details
     ALTER COLUMN carrier_type DROP DEFAULT,
     ADD CONSTRAINT vou_sale_delivery_carrier_type_ck

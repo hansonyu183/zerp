@@ -75,6 +75,7 @@ describe('warehouse disable conflict labels', () => {
       warehouseDisableBlockersFromError(
         new ApiError('business', 'warehouse cannot be disabled', {
           code: 3001,
+          errorKey: 'warehouse_disable_blocked',
           details: blockers,
         }),
       ),
@@ -83,6 +84,7 @@ describe('warehouse disable conflict labels', () => {
       warehouseDisableBlockersFromError(
         new ApiError('business', 'warehouse availability changed', {
           code: 3001,
+          errorKey: 'conflict',
           details: { objectRevision: 2 },
         }),
       ),
@@ -106,6 +108,7 @@ describe('warehouse disable conflict labels', () => {
         handleError?.(
           new ApiError('business', 'warehouse cannot be disabled', {
             code: 3001,
+            errorKey: 'warehouse_disable_blocked',
             details: blockers,
           }),
         )

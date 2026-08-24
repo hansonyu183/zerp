@@ -639,6 +639,7 @@ describe('shared BOB entity configuration and view model', () => {
     mockedApiClient.post.mockRejectedValueOnce(
       new ApiError('business', 'object has active direct references', {
         code: 3001,
+        errorKey: 'object_has_active_references',
         details: {
           references: [
             { entity: 'product', field: 'formula-material', count: 2 },

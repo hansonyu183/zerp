@@ -12,14 +12,11 @@ import {
   type MenuEntity,
 } from '@/router/registry'
 
-const UNAUTHENTICATED_CODE = 1001
-
 function isUnauthenticatedError(error: unknown): boolean {
   return (
     error instanceof ApiError &&
     error.kind === 'business' &&
-    (error.code === UNAUTHENTICATED_CODE ||
-      error.code === String(UNAUTHENTICATED_CODE))
+    error.errorKey === 'unauthenticated'
   )
 }
 

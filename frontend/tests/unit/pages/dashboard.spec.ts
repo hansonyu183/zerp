@@ -603,6 +603,7 @@ describe('Dashboard workbench', () => {
       .mockRejectedValueOnce(
         new ApiError('business', 'submitter cannot review the same version', {
           code: 3001,
+          errorKey: 'submitter_cannot_review',
         }),
       )
       .mockResolvedValueOnce(page([pending]))
@@ -612,7 +613,7 @@ describe('Dashboard workbench', () => {
 
     expect(success).toBe(false)
     expect(vm.states.BOB.errorMessage).toBe(
-      '提交人与审核人不能为同一人，请由其他有审批权限的用户处理。（错误码：3001）',
+      '提交人与审核人不能为同一人，请由其他有审批权限的用户处理。（错误码：3001；错误标识：submitter_cannot_review）',
     )
   })
 
@@ -627,7 +628,7 @@ describe('Dashboard workbench', () => {
         new ApiError(
           'business',
           'generated sales draft is missing required business data',
-          { code: 2001 },
+          { code: 2001, errorKey: 'document_data_incomplete' },
         ),
       )
       .mockResolvedValueOnce(page([delivery]))
@@ -638,7 +639,7 @@ describe('Dashboard workbench', () => {
     expect(success).toBe(false)
     expect(delivery.availableActions).toContain('check')
     expect(vm.states.VOU.errorMessage).toBe(
-      '自动生成的销售单据缺少必填业务资料，请先编辑补全并保存后再核对。（错误码：2001）',
+      '自动生成的单据缺少必填业务资料，请先编辑补全并保存后再核对。（错误码：2001；错误标识：document_data_incomplete）',
     )
   })
 })

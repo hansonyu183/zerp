@@ -100,7 +100,7 @@ func (s *Service) disableWarehouse(ctx context.Context, input ObjectRevisionInpu
 		return MutationResult{}, err
 	}
 	if conflicts.HasConflicts() {
-		return MutationResult{}, domainError(ErrorConflict, "warehouse cannot be disabled", conflicts, nil)
+		return MutationResult{}, domainErrorWithKey(ErrorConflict, "warehouse_disable_blocked", "warehouse cannot be disabled", conflicts, nil)
 	}
 	rows, err := qtx.SetBobObjectEnabled(ctx, dbsqlc.SetBobObjectEnabledParams{Enabled: false, ActorID: actorID,
 		ID: input.ObjectID, Entity: EntityWarehouse, Revision: input.ObjectRevision})

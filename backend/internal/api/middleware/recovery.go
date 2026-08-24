@@ -17,7 +17,7 @@ func Recovery(logger *slog.Logger) gin.HandlerFunc {
 					"panic", recovered,
 				)
 				c.Abort()
-				response.BusinessError(c, response.CodeInternal, "internal server error", nil)
+				response.BusinessError(c, response.CodeInternal, response.ErrorKeyInternal, "internal server error", nil)
 			}
 		}()
 		c.Next()

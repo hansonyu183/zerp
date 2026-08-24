@@ -151,7 +151,7 @@ func writeOpenAPIError(c *gin.Context, statusCode int) {
 		})
 		return
 	}
-	response.BusinessError(c, response.CodeValidation, "invalid request", nil)
+	response.BusinessError(c, response.CodeValidation, response.ErrorKeyValidation, "invalid request", nil)
 }
 
 func writeRouteNotFound(c *gin.Context) {

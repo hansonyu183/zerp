@@ -450,14 +450,14 @@ func (s *Service) ResetUserPassword(ctx context.Context, input ResetPasswordInpu
 		return ResetPasswordResult{}, domainError(ErrorConflict, "user is not enabled", nil)
 	}
 	if locked.Revision != input.Revision {
-		return ResetPasswordResult{}, domainError(ErrorConflict, "user revision conflict", nil)
+		return ResetPasswordResult{}, domainErrorWithKey(ErrorConflict, "user_changed", "user revision conflict", nil)
 	}
 	rows, err := qtx.ResetAppUserPassword(ctx, dbsqlc.ResetAppUserPasswordParams{ID: input.ID, Revision: input.Revision, PasswordHash: passwordHash, ActorID: &actor.id})
 	if err != nil {
 		return ResetPasswordResult{}, s.writeError("reset user password", err)
 	}
 	if rows != 1 {
-		return ResetPasswordResult{}, domainError(ErrorConflict, "user changed concurrently", nil)
+		return ResetPasswordResult{}, domainErrorWithKey(ErrorConflict, "user_changed", "user changed concurrently", nil)
 	}
 	if err = qtx.RevokeAppUserSessions(ctx, dbsqlc.RevokeAppUserSessionsParams{UserID: input.ID, Reason: stringPointer("password_reset")}); err != nil {
 		return ResetPasswordResult{}, s.internal("revoke reset user sessions", err)

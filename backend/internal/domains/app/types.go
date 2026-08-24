@@ -25,16 +25,38 @@ const (
 )
 
 type DomainError struct {
-	Kind    ErrorKind
-	Message string
-	Cause   error
+	Kind     ErrorKind
+	ErrorKey string
+	Message  string
+	Cause    error
 }
 
 func (e *DomainError) Error() string { return e.Message }
 func (e *DomainError) Unwrap() error { return e.Cause }
 
 func domainError(kind ErrorKind, message string, cause error) error {
-	return &DomainError{Kind: kind, Message: message, Cause: cause}
+	return domainErrorWithKey(kind, defaultErrorKey(kind), message, cause)
+}
+
+func domainErrorWithKey(kind ErrorKind, errorKey, message string, cause error) error {
+	return &DomainError{Kind: kind, ErrorKey: errorKey, Message: message, Cause: cause}
+}
+
+func defaultErrorKey(kind ErrorKind) string {
+	switch kind {
+	case ErrorValidation:
+		return "validation_failed"
+	case ErrorUnauthenticated:
+		return "unauthenticated"
+	case ErrorForbidden:
+		return "forbidden"
+	case ErrorConflict:
+		return "conflict"
+	case ErrorNotFound:
+		return "not_found"
+	default:
+		return "internal_error"
+	}
 }
 
 func errorIsKind(err error, kind ErrorKind) bool {

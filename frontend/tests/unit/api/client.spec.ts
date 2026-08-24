@@ -18,6 +18,7 @@ describe('ApiClient', () => {
       http.post('https://api.test/app/workbench/query', () =>
         HttpResponse.json({
           code: 0,
+          errorKey: '',
           message: 'ok',
           data: { items: [], total: 0, page: 1, pageSize: 20 },
           requestId: 'req-contract',
@@ -43,6 +44,7 @@ describe('ApiClient', () => {
       http.post('https://api.test/app/workbench/query', () =>
         HttpResponse.json({
           code: 0,
+          errorKey: '',
           message: 'ok',
           data: null,
           requestId: 'req-empty-contract',
@@ -70,6 +72,7 @@ describe('ApiClient', () => {
         csrfToken = request.headers.get('X-CSRF-Token')
         return HttpResponse.json({
           code: 0,
+          errorKey: '',
           message: 'ok',
           data: { user: { id: '1' } },
           requestId: 'req-1',
@@ -96,6 +99,7 @@ describe('ApiClient', () => {
       http.post('https://api.test/vou/sale-order/save', () =>
         HttpResponse.json({
           code: 42201,
+          errorKey: 'validation_failed',
           message: '订单字段校验失败',
           data: { diagnostic: 'workflow.star:7:13: invalid edge' },
           requestId: 'req-2',
@@ -113,6 +117,7 @@ describe('ApiClient', () => {
     await expect(request).rejects.toMatchObject<ApiError>({
       kind: 'business',
       code: 42201,
+      errorKey: 'validation_failed',
       requestId: 'req-2',
       details: { diagnostic: 'workflow.star:7:13: invalid edge' },
     })
@@ -135,6 +140,7 @@ describe('ApiClient', () => {
         requestedPath = new URL(request.url).pathname
         return HttpResponse.json({
           code: 0,
+          errorKey: '',
           message: 'ok',
           data: { items: [], total: 0, page: 1, pageSize: 20 },
           requestId: 'req-bob',
@@ -162,6 +168,7 @@ describe('ApiClient', () => {
           requestedPath = new URL(request.url).pathname
           return HttpResponse.json({
             code: 0,
+            errorKey: '',
             message: 'ok',
             data: { items: [], total: 0, page: 1, pageSize: 20 },
             requestId: 'req-wfl',
@@ -224,6 +231,7 @@ describe('ApiClient', () => {
       http.post('https://api.test/rpt/account-balance/export', () =>
         HttpResponse.json({
           code: 40301,
+          errorKey: 'forbidden',
           message: 'permission denied',
           data: null,
           requestId: 'rpt-denied',
@@ -236,6 +244,7 @@ describe('ApiClient', () => {
     ).rejects.toMatchObject<ApiError>({
       kind: 'business',
       code: 40301,
+      errorKey: 'forbidden',
       requestId: 'rpt-denied',
     })
   })

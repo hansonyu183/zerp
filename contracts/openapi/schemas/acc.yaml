@@ -322,11 +322,12 @@
   'SubjectEnvelope':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -340,11 +341,12 @@
   'SubjectPageEnvelope':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -635,11 +637,12 @@
   'OpeningEnvelope':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -924,11 +927,12 @@
   'MappingEnvelope':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -942,11 +946,12 @@
   'MappingPageEnvelope':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -960,11 +965,12 @@
   'MappingCatalogEnvelope':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -1016,11 +1022,12 @@
   'PeriodEnvelope':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -1034,11 +1041,12 @@
   'PeriodListEnvelope':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -1065,11 +1073,12 @@
   'BookEnvelope':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -1083,11 +1092,12 @@
   'BookPageEnvelope':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {

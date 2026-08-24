@@ -18,7 +18,7 @@
 
 - 新增或修改接口时先修改 OpenAPI 和领域文档，再运行 `make generate`。
 - `frontend/src/api/generated/`、`backend/internal/api/generated/`、`contracts/openapi/dist/` 均为生成物，禁止手工编辑。
-- 业务接口继续使用 `POST application/json` 和 `/{domain}/{entity}/{action}`，响应包络为 `{code, message, data, requestId}`。
+- 业务接口继续使用 `POST application/json` 和 `/{domain}/{entity}/{action}`，响应包络为 `{code, errorKey, message, data, requestId}`；失败响应使用稳定 `errorKey` 表达业务语义，前端只按 `errorKey` 分支或映射用户提示，`message` 仅用于诊断和默认说明。
 - 前端业务代码只能通过 `src/api/client.ts` 及其领域封装调用生成客户端，不得直接使用 `fetch` 或拼接任意 API 路径。
 - 新增或修改用户可见的状态、枚举、类型、实体标识或后端业务错误前，先列出完整 wire value 集合并确定最小共享范围的中文映射；选择项从同一映射派生，已知值不得回退显示协议原码。
 - 后端 Handler 只做协议适配、权限、校验和领域模型映射；事务及业务规则继续位于领域 Service。

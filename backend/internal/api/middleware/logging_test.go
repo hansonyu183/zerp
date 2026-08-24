@@ -20,7 +20,7 @@ func TestRequestLoggerIncludesBusinessCode(t *testing.T) {
 	router := gin.New()
 	router.Use(RequestID(), RequestLogger(logger))
 	router.POST("/app/test", func(c *gin.Context) {
-		response.BusinessError(c, response.CodeForbidden, "forbidden", nil)
+		response.BusinessError(c, response.CodeForbidden, response.ErrorKeyForbidden, "forbidden", nil)
 	})
 
 	request := httptest.NewRequest(http.MethodPost, "/app/test", nil)

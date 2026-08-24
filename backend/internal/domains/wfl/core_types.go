@@ -9,10 +9,11 @@ const (
 )
 
 type DomainError struct {
-	Kind    ErrorKind
-	Message string
-	Data    any
-	Cause   error
+	Kind     ErrorKind
+	ErrorKey string
+	Message  string
+	Data     any
+	Cause    error
 }
 
 func (e *DomainError) Error() string { return e.Message }

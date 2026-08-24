@@ -2946,6 +2946,7 @@ export interface components {
         BookPageEnvelope: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["BookPage"] | null;
             requestId: string;
@@ -2956,6 +2957,7 @@ export interface components {
         BookEnvelope: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["Book"] | null;
             requestId: string;
@@ -2987,7 +2989,9 @@ export interface components {
         BusinessEnvelope: {
             /** Format: int32 */
             code: number;
-            /** @description 面向用户的结果说明。业务失败应说明可行动原因；内部失败只返回通用文案，不得包含 SQL、调用栈、内部组件名或原始异常。 */
+            /** @description 稳定业务错误语义；成功时为空字符串。前端按此字段映射提示或选择业务分支。 */
+            errorKey: string;
+            /** @description 用于诊断和未知 errorKey 的默认可读说明。前端不得比较、匹配或推断此字段；内部失败不得包含 SQL、调用栈、内部组件名或原始异常。 */
             message: string;
             data: {
                 [key: string]: unknown;
@@ -3032,6 +3036,7 @@ export interface components {
         SubjectPageEnvelope: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["SubjectPage"] | null;
             requestId: string;
@@ -3043,6 +3048,7 @@ export interface components {
         SubjectEnvelope: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["Subject"] | null;
             requestId: string;
@@ -3159,6 +3165,7 @@ export interface components {
         OpeningEnvelope: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["Opening"] | null;
             requestId: string;
@@ -3310,6 +3317,7 @@ export interface components {
         MappingPageEnvelope: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["MappingPage"] | null;
             requestId: string;
@@ -3321,6 +3329,7 @@ export interface components {
         MappingEnvelope: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["Mapping"] | null;
             requestId: string;
@@ -3358,6 +3367,7 @@ export interface components {
         MappingCatalogEnvelope: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["MappingCatalog"] | null;
             requestId: string;
@@ -3379,6 +3389,7 @@ export interface components {
         PeriodListEnvelope: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["Period"][] | null;
             requestId: string;
@@ -3392,6 +3403,7 @@ export interface components {
         PeriodEnvelope: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["Period"] | null;
             requestId: string;
@@ -3416,6 +3428,7 @@ export interface components {
         SessionResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["SessionData"] | null;
             requestId: string;
@@ -3490,6 +3503,7 @@ export interface components {
         WorkbenchQueryResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["WorkbenchPage"] | null;
             requestId: string;
@@ -3536,6 +3550,7 @@ export interface components {
         UserPageResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["UserPage"] | null;
             requestId: string;
@@ -3582,6 +3597,7 @@ export interface components {
         UserDetailResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["UserDetail"] | null;
             requestId: string;
@@ -3615,6 +3631,7 @@ export interface components {
         ResetPasswordResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["ResetPasswordResult"] | null;
             requestId: string;
@@ -3663,6 +3680,7 @@ export interface components {
         RolePageResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["RolePage"] | null;
             requestId: string;
@@ -3696,6 +3714,7 @@ export interface components {
         RoleDetailResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["RoleDetail"] | null;
             requestId: string;
@@ -3754,6 +3773,7 @@ export interface components {
         PermissionPageResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["PermissionPage"] | null;
             requestId: string;
@@ -3771,6 +3791,7 @@ export interface components {
         PermissionDetailResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["PermissionDetail"] | null;
             requestId: string;
@@ -3824,6 +3845,7 @@ export interface components {
         SystemParameterQueryResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["SystemParameterPage"] | null;
             requestId: string;
@@ -3834,6 +3856,7 @@ export interface components {
         SystemParameterResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["SystemParameterView"] | null;
             requestId: string;
@@ -3887,6 +3910,7 @@ export interface components {
         MenuGetResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["MenuGetData"] | null;
             requestId: string;
@@ -3999,6 +4023,7 @@ export interface components {
         PartyQueryResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: {
                 items: components["schemas"]["PartyListItem"][];
@@ -4054,6 +4079,7 @@ export interface components {
         PartyGetResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["PartyView"] | null;
             requestId: string;
@@ -4129,6 +4155,7 @@ export interface components {
         OtherUnitQueryResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["OtherUnitPage"] | null;
             requestId: string;
@@ -4140,6 +4167,7 @@ export interface components {
         OtherUnitGetResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["OtherUnitView"] | null;
             requestId: string;
@@ -4180,6 +4208,7 @@ export interface components {
         OtherUnitMutationResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["OtherUnitMutationResult"] | null;
             requestId: string;
@@ -4292,6 +4321,7 @@ export interface components {
         };
         CustomerQueryResponse: {
             code: number;
+            errorKey: string;
             message: string;
             data: {
                 items: components["schemas"]["CustomerListItem"][];
@@ -4450,6 +4480,7 @@ export interface components {
         };
         CustomerGetResponse: {
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["CustomerDetailView"] | null;
             requestId: string;
@@ -4522,6 +4553,7 @@ export interface components {
         };
         CustomerAttachmentInitiateResponse: {
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["CustomerAttachmentInitiateResult"];
             requestId: string;
@@ -4538,6 +4570,7 @@ export interface components {
         };
         CustomerAttachmentDownloadResponse: {
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["CustomerAttachmentDownloadResult"];
             requestId: string;
@@ -4555,6 +4588,7 @@ export interface components {
         };
         CustomerAttachmentRemoveResponse: {
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["CustomerAttachmentMutationResult"];
             requestId: string;
@@ -4606,6 +4640,7 @@ export interface components {
         };
         SupplierQueryResponse: {
             code: number;
+            errorKey: string;
             message: string;
             data: {
                 items: components["schemas"]["SupplierListItem"][];
@@ -4662,6 +4697,7 @@ export interface components {
         };
         SupplierGetResponse: {
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["SupplierDetailView"] | null;
             requestId: string;
@@ -4730,6 +4766,7 @@ export interface components {
         };
         ReferenceQueryResponse: {
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["ReferenceCandidate"][];
             requestId: string;
@@ -4799,6 +4836,7 @@ export interface components {
         SalesPartnerQueryResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["SalesPartnerPage"] | null;
             requestId: string;
@@ -4835,6 +4873,7 @@ export interface components {
         SalesPartnerGetResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["SalesPartnerDetailView"] | null;
             requestId: string;
@@ -4872,6 +4911,7 @@ export interface components {
         SalesPartnerMutationResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["SalesPartnerMutationResult"] | null;
             requestId: string;
@@ -4916,6 +4956,7 @@ export interface components {
         PartyMergePreflightResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["PartyMergePreflightResult"] | null;
             requestId: string;
@@ -4946,6 +4987,7 @@ export interface components {
         PartyMergeConfirmResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["PartyMergeResult"] | null;
             requestId: string;
@@ -5019,6 +5061,7 @@ export interface components {
         BobQueryResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["BobListPage"] | null;
             requestId: string;
@@ -5202,6 +5245,7 @@ export interface components {
         BobDisableResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: (components["schemas"]["WarehouseDisableBlockers"] | {
                 [key: string]: unknown;
@@ -5268,6 +5312,7 @@ export interface components {
         VouQueryResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["VouListPage"] | null;
             requestId: string;
@@ -5368,6 +5413,7 @@ export interface components {
         VouIntermediarySourceResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: {
                 source: components["schemas"]["VouIntermediaryCalculationSource"];
@@ -5386,6 +5432,7 @@ export interface components {
         VouIntermediaryScriptGetResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["VouIntermediaryScriptSnapshot"];
             requestId: string;
@@ -5446,6 +5493,7 @@ export interface components {
         };
         VouAvailableBillQueryResponse: {
             code: number;
+            errorKey: string;
             message: string;
             data: {
                 items: components["schemas"]["VouAvailableBillItem"][];
@@ -5469,6 +5517,7 @@ export interface components {
         };
         VouAvailableAssetQueryResponse: {
             code: number;
+            errorKey: string;
             message: string;
             data: {
                 items: components["schemas"]["VouAvailableAssetItem"][];
@@ -5503,6 +5552,7 @@ export interface components {
         VouPriceReferenceResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             requestId: string;
             data: {
@@ -6111,6 +6161,7 @@ export interface components {
         WflDefinitionViewResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["WflDefinitionView"] | null;
             requestId: string;
@@ -6150,6 +6201,7 @@ export interface components {
         WflDefinitionTrialResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["WflDefinitionTrialResult"] | null;
             requestId: string;
@@ -6191,6 +6243,7 @@ export interface components {
         WflInstanceQueryResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["WflInstancePage"] | null;
             requestId: string;
@@ -6247,6 +6300,7 @@ export interface components {
         WflInstanceViewResponse: {
             /** Format: int32 */
             code: number;
+            errorKey: string;
             message: string;
             data: components["schemas"]["WflInstanceView"] | null;
             requestId: string;

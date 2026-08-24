@@ -70,11 +70,12 @@
   'SessionResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -223,11 +224,12 @@
   'UserPageResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -241,11 +243,12 @@
   'UserDetailResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -277,11 +280,12 @@
   'ResetPasswordResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -508,11 +512,12 @@
   'RolePageResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -526,11 +531,12 @@
   'RoleDetailResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -627,11 +633,12 @@
   'PermissionPageResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -645,11 +652,12 @@
   'PermissionDetailResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -830,11 +838,12 @@
   'SystemParameterResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -848,11 +857,12 @@
   'SystemParameterQueryResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -947,11 +957,12 @@
   'MenuGetResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {
@@ -1176,11 +1187,12 @@
   'WorkbenchQueryResponse':
     {
       'type': 'object',
-      'required': ['code', 'message', 'data', 'requestId'],
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
       'additionalProperties': false,
       'properties':
         {
           'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
           'data':
             {

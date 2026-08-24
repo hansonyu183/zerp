@@ -436,7 +436,7 @@ func TestOpenAPIValidatorPreservesExpandedWorkflowInstanceResponse(t *testing.T)
 func TestOpenAPIValidatorPreservesPreciseEndpointBusinessError(t *testing.T) {
 	router := newRouter(testConfig(), pingerStub{}, testLogger(), func(router *gin.Engine) {
 		router.POST("/app/workbench/query", func(context *gin.Context) {
-			response.BusinessError(context, response.CodeConflict, "workbench conflict", nil)
+			response.BusinessError(context, response.CodeConflict, response.ErrorKeyConflict, "workbench conflict", nil)
 		})
 	})
 	request := httptest.NewRequest(
@@ -478,7 +478,7 @@ func TestOpenAPIValidatorPreservesNullableBOBEndpointBusinessErrors(t *testing.T
 		t.Run(test.name, func(t *testing.T) {
 			router := newRouter(testConfig(), pingerStub{}, testLogger(), func(router *gin.Engine) {
 				router.POST(test.path, func(context *gin.Context) {
-					response.BusinessError(context, response.CodeUnauthenticated, "session expired", nil)
+					response.BusinessError(context, response.CodeUnauthenticated, response.ErrorKeyUnauthenticated, "session expired", nil)
 				})
 			})
 			request := httptest.NewRequest(http.MethodPost, test.path, strings.NewReader(test.body))

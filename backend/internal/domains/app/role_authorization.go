@@ -212,5 +212,5 @@ func ensureRoleNameUnique(ctx context.Context, q *dbsqlc.Queries, name, excluded
 	if err != nil {
 		return domainError(ErrorInternal, "internal server error", err)
 	}
-	return domainError(ErrorConflict, "role name already exists", nil)
+	return domainErrorWithKey(ErrorConflict, "role_name_exists", "role name already exists", nil)
 }

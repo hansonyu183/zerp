@@ -25,6 +25,9 @@ func TestDisableReturnsActiveReferenceBlockerWithoutChangingObjectsIntegration(t
 	if !errors.As(err, &domainErr) || domainErr.Kind != ErrorConflict {
 		t.Fatalf("disable referenced employee error = %v, want conflict", err)
 	}
+	if domainErr.ErrorKey != "object_has_active_references" {
+		t.Fatalf("disable referenced employee errorKey = %q", domainErr.ErrorKey)
+	}
 	data, ok := domainErr.Data.(map[string]any)
 	if !ok {
 		t.Fatalf("blocker data = %#v, want object", domainErr.Data)

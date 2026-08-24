@@ -279,24 +279,22 @@ describe('useSessionStore.restore errors', () => {
     vi.restoreAllMocks()
   })
 
-  it.each([1001, '1001'])(
-    '将未登录业务码 %p 视为正常状态且不展示错误',
-    async (code) => {
-      vi.spyOn(apiClient, 'post').mockRejectedValue(
-        new ApiError('business', 'session expired', {
-          code,
-          requestId: 'req-session',
-        }),
-      )
-      const session = useSessionStore()
+  it('将未登录 errorKey 视为正常状态且不展示错误', async () => {
+    vi.spyOn(apiClient, 'post').mockRejectedValue(
+      new ApiError('business', 'session expired', {
+        code: 1001,
+        errorKey: 'unauthenticated',
+        requestId: 'req-session',
+      }),
+    )
+    const session = useSessionStore()
 
-      await expect(session.restore()).resolves.toBe(false)
+    await expect(session.restore()).resolves.toBe(false)
 
-      expect(session.initialized).toBe(true)
-      expect(session.authenticated).toBe(false)
-      expect(session.errorMessage).toBeNull()
-    },
-  )
+    expect(session.initialized).toBe(true)
+    expect(session.authenticated).toBe(false)
+    expect(session.errorMessage).toBeNull()
+  })
 
   it('保留真实网络错误供登录页展示', async () => {
     vi.spyOn(apiClient, 'post').mockRejectedValue(
@@ -354,7 +352,10 @@ describe('useSessionStore.restore errors', () => {
           },
         })
         .mockRejectedValueOnce(
-          new ApiError('business', '登录状态已失效', { code: 1001 }),
+          new ApiError('business', '登录状态已失效', {
+            code: 1001,
+            errorKey: 'unauthenticated',
+          }),
         )
       const session = useSessionStore()
 
@@ -375,10 +376,11 @@ describe('useSessionStore.restore errors', () => {
     },
   )
 
-  it('登录密码错误时显示后端返回的剩余重试次数', async () => {
+  it('登录失败时按稳定 errorKey 显示提示', async () => {
     mockedApiClient.post.mockRejectedValue(
       new ApiError('business', '密码错误，剩余重试次数 4。', {
         code: 1001,
+        errorKey: 'invalid_credentials',
       }),
     )
     const session = useSessionStore()
@@ -387,7 +389,7 @@ describe('useSessionStore.restore errors', () => {
       session.signIn({ username: 'preview-admin', password: 'wrong' }),
     ).rejects.toThrow('密码错误，剩余重试次数 4。')
 
-    expect(session.errorMessage).toBe('密码错误，剩余重试次数 4。')
+    expect(session.errorMessage).toBe('用户名或密码错误，请检查后重试。')
     expect(session.user).toBeNull()
   })
 
@@ -431,7 +433,10 @@ describe('useSessionStore.restore errors', () => {
     await expect(session.restore()).resolves.toBe(true)
 
     mockedApiClient.post.mockRejectedValueOnce(
-      new ApiError('business', '登录状态已失效', { code: 1001 }),
+      new ApiError('business', '登录状态已失效', {
+        code: 1001,
+        errorKey: 'unauthenticated',
+      }),
     )
 
     await expect(session.retryMenu()).rejects.toThrow('登录状态已失效')
@@ -527,7 +532,10 @@ describe('useSessionStore account actions', () => {
 
   it('资料保存失败时保留当前资料且不提交 revision', async () => {
     mockedApiClient.post.mockRejectedValue(
-      new ApiError('business', '资料保存失败。'),
+      new ApiError('business', 'profile save failed', {
+        code: 2001,
+        errorKey: 'validation_failed',
+      }),
     )
     const session = useSessionStore()
     session.user = {
@@ -542,10 +550,12 @@ describe('useSessionStore account actions', () => {
         displayName: '新名称',
         avatarUrl: 'https://example.com/avatar.png',
       }),
-    ).rejects.toThrow('资料保存失败。')
+    ).rejects.toThrow('profile save failed')
 
     expect(session.user?.displayName).toBe('原名称')
-    expect(session.errorMessage).toBe('资料保存失败。')
+    expect(session.errorMessage).toBe(
+      '输入内容不符合要求，请检查必填项、格式和取值范围。',
+    )
     expect(mockedApiClient.post).toHaveBeenCalledWith('app/user/profile', {
       displayName: '新名称',
       avatarUrl: 'https://example.com/avatar.png',
@@ -554,7 +564,10 @@ describe('useSessionStore account actions', () => {
 
   it('改密失败时保留当前会话并暴露错误', async () => {
     mockedApiClient.post.mockRejectedValue(
-      new ApiError('business', '当前密码错误。'),
+      new ApiError('business', 'current password is incorrect', {
+        code: 2001,
+        errorKey: 'invalid_current_password',
+      }),
     )
     const session = useSessionStore()
     session.user = {
@@ -568,10 +581,10 @@ describe('useSessionStore account actions', () => {
         currentPassword: 'wrong',
         newPassword: 'New-password-2!',
       }),
-    ).rejects.toThrow('当前密码错误。')
+    ).rejects.toThrow('current password is incorrect')
 
     expect(session.user?.username).toBe('admin')
-    expect(session.errorMessage).toBe('当前密码错误。')
+    expect(session.errorMessage).toBe('当前密码错误，请重新输入。')
   })
 })
 

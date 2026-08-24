@@ -30,7 +30,6 @@ import type {
 } from './types'
 import { bobListActiveVersion } from './types'
 import { useBobActionAvailability } from './action-availability'
-import { useWarehouseDisable } from './warehouse-disable'
 
 export function useBobEntityViewModel(config: BobEntityConfig) {
   const session = useSessionStore()
@@ -512,20 +511,6 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     handleReferenceTransferLifecycleError,
   )
 
-  const {
-    warehouseDisableTarget,
-    warehouseDisablePrecheck,
-    requestChangeEnabled,
-    confirmWarehouseDisable,
-    closeWarehouseDisablePrecheck,
-  } = useWarehouseDisable(
-    config.entity,
-    actionLoading,
-    errorMessage,
-    (row) => actionAvailability(row).disable,
-    changeEnabled,
-  )
-
   const { checkProductCompleteness, review } = useBobProductApproval(
     config.entity,
     errorMessage,
@@ -555,8 +540,6 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     editorResetKey,
     currentView,
     effectiveView,
-    warehouseDisableTarget,
-    warehouseDisablePrecheck,
     referenceTransferOpen,
     referenceTransferLoading,
     referenceTransferError,
@@ -599,9 +582,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     review,
     reverse,
     changeEnabled,
-    requestChangeEnabled,
-    confirmWarehouseDisable,
-    closeWarehouseDisablePrecheck,
+    requestChangeEnabled: changeEnabled,
     closeReferenceTransfer,
     confirmReferenceTransfer,
     searchReferenceTransfer,

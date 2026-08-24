@@ -530,6 +530,24 @@ func TestEveryEntityUsesTheLifecycleContractIntegration(t *testing.T) {
 				if err = tx.Commit(t.Context()); err != nil {
 					t.Fatalf("commit prior reference resolve: %v", err)
 				}
+				submittedCandidate, err := service.Submit(t.Context(), test.entity, VersionRevisionInput{
+					ObjectID: edited.ObjectID, VersionID: edited.VersionID, Revision: edited.Revision,
+				}, integrationActorOne, "contract-candidate-submit")
+				if err != nil {
+					t.Fatalf("submit candidate: %v", err)
+				}
+				approvedCandidate, err := service.Approve(t.Context(), test.entity, ReviewInput{
+					ObjectID: edited.ObjectID, VersionID: edited.VersionID, Revision: submittedCandidate.Revision,
+				}, integrationActorTwo, "contract-candidate-approve")
+				if err != nil || approvedCandidate.Status != StatusEffective {
+					t.Fatalf("approve candidate: result=%+v err=%v", approvedCandidate, err)
+				}
+				oldVersion, err = service.Get(t.Context(), test.entity, GetInput{
+					ObjectID: created.ObjectID, VersionID: created.VersionID,
+				})
+				if err != nil || oldVersion.Version.Status != StatusInvalid {
+					t.Fatalf("replaced effective version: view=%+v err=%v", oldVersion, err)
+				}
 			} else if oldVersion.Version.Status != StatusInvalid {
 				t.Fatalf("invalidated version: view=%+v", oldVersion)
 			}

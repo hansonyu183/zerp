@@ -2,13 +2,27 @@ import { ref, type Ref } from 'vue'
 import { apiClient } from '@/api/client'
 import type { components } from '@/api/generated/schema'
 import { getErrorMessage } from '@/api/types'
-import type { BobListItem } from './types'
+import type { VoucherEntity, VoucherStatus } from '@/components/voucher'
+import { voucherStatusLabels } from '@/components/voucher/status'
+import { voucherEntityConfigs } from '@/pages/vou/shared/config'
+import type { BobListItem } from '../shared/types'
 
 type WarehouseDisablePrecheck =
   components['schemas']['WarehouseDisablePrecheckResult']
 
+export function warehouseDocumentEntityLabel(entity: string): string {
+  return Object.hasOwn(voucherEntityConfigs, entity)
+    ? voucherEntityConfigs[entity as VoucherEntity].title
+    : '未知单据'
+}
+
+export function warehouseDocumentStatusLabel(status?: string | null): string {
+  return status && Object.hasOwn(voucherStatusLabels, status)
+    ? voucherStatusLabels[status as VoucherStatus]
+    : '未知状态'
+}
+
 export function useWarehouseDisable(
-  entity: string,
   actionLoading: Ref<string | null>,
   errorMessage: Ref<string | null>,
   canDisable: (row: Readonly<BobListItem>) => boolean,
@@ -22,12 +36,11 @@ export function useWarehouseDisable(
     warehouseDisablePrecheck.value = null
   }
 
-  async function requestChangeEnabled(row: BobListItem): Promise<void> {
-    if (entity !== 'warehouse' || !row.enabled) {
-      await changeEnabled(row)
-      return
+  async function requestChangeEnabled(row: BobListItem): Promise<boolean> {
+    if (!row.enabled) {
+      return changeEnabled(row)
     }
-    if (!canDisable(row) || actionLoading.value) return
+    if (!canDisable(row) || actionLoading.value) return false
     actionLoading.value = `disable-precheck:${row.objectId}`
     errorMessage.value = null
     try {
@@ -37,8 +50,10 @@ export function useWarehouseDisable(
       >('bob/warehouse/disable-precheck', { objectId: row.objectId })
       warehouseDisableTarget.value = row
       warehouseDisablePrecheck.value = response.data
+      return false
     } catch (error) {
       errorMessage.value = getErrorMessage(error)
+      return false
     } finally {
       actionLoading.value = null
     }

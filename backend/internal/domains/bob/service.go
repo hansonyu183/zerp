@@ -460,7 +460,8 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 func continuousEffectiveEntity(entity string) bool {
 	switch entity {
 	case EntityCustomerAccount, EntitySupplier, EntityOtherUnit, EntitySalesPartner, EntityProduct,
-		EntityEmployee, EntityFundAccount, EntityOperatingEntity, EntityWarehouse, EntityVehicle:
+		EntityEmployee, EntityFundAccount, EntityOperatingEntity, EntityWarehouse, EntityVehicle,
+		EntityCategory, EntityDepartment, EntityPosition, EntitySettlementMethod:
 		return true
 	default:
 		return false
@@ -1148,7 +1149,7 @@ func (s *Service) approveEffectiveCandidate(
 ) (MutationResult, error) {
 	if object.CurrentVersionID != input.VersionID || object.EffectiveVersionID == nil ||
 		version.Status != StatusPending || version.Revision != input.Revision {
-		return MutationResult{}, conflict(object, version, entity+" changed before approval")
+		return MutationResult{}, conflict(object, version, entity+" candidate changed before approval")
 	}
 	if version.SubmittedBy == nil || (*version.SubmittedBy == actorID && !systemidentity.IsUser(actorID)) {
 		return MutationResult{}, domainError(ErrorConflict, "submitter cannot review the same version", conflictData(object, version), nil)
@@ -1179,7 +1180,7 @@ func (s *Service) approveEffectiveCandidate(
 		return MutationResult{}, s.writeError("approve candidate", err)
 	}
 	if rows != 1 {
-		return MutationResult{}, conflict(object, version, entity+" changed before approval")
+		return MutationResult{}, conflict(object, version, entity+" candidate version changed before approval")
 	}
 	newVersionID, oldVersionID := input.VersionID, oldVersion.ID
 	rows, err = qtx.SwitchBobEffectiveCandidate(ctx, dbsqlc.SwitchBobEffectiveCandidateParams{
@@ -1190,7 +1191,7 @@ func (s *Service) approveEffectiveCandidate(
 		return MutationResult{}, s.writeError("switch effective version", err)
 	}
 	if rows != 1 {
-		return MutationResult{}, conflict(object, version, entity+" changed before approval")
+		return MutationResult{}, conflict(object, version, entity+" object changed before candidate approval")
 	}
 	fromEffective := StatusEffective
 	if err = insertAudit(ctx, qtx, auditInput{ObjectID: input.ObjectID, VersionID: oldVersion.ID,

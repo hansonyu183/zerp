@@ -15,7 +15,7 @@ include $(ENV_FILE)
 export
 endif
 
-.PHONY: run build test test-unit test-db-prepare test-db-clean test-migration-upgrade test-integration generate quality quality-core quality-fast quality-generated quality-format quality-format-fast quality-modules quality-compose quality-test quality-vet-build quality-race quality-staticcheck quality-vuln quality-image migrate-status migrate-up migrate-down bootstrap-admin seed-bob seed-test cleanup-attachments cleanup-vou-attachments compose-up compose-down e2e-env-init e2e-env-rotate e2e-guard
+.PHONY: run build test test-unit test-db-prepare test-db-clean test-integration generate quality quality-core quality-fast quality-generated quality-format quality-format-fast quality-modules quality-compose quality-test quality-vet-build quality-race quality-staticcheck quality-vuln quality-image migrate-status migrate-up migrate-down bootstrap-admin seed-bob seed-test cleanup-attachments cleanup-vou-attachments compose-up compose-down e2e-env-init e2e-env-rotate e2e-guard
 
 run:
 	go run ./cmd/server
@@ -49,35 +49,6 @@ test-db-prepare:
 test-db-clean:
 	@test "$(TEST_PROJECT)" = "zerp-api-test" || { echo "refusing to clean unexpected test project: $(TEST_PROJECT)" >&2; exit 1; }
 	@$(TEST_COMPOSE) down --volumes --remove-orphans
-
-test-migration-upgrade: test-db-prepare
-	@latest_file="$$(find db/migrations -maxdepth 1 -type f -name '[0-9]*_*.sql' | LC_ALL=C sort | tail -n 1)"; \
-		test -n "$$latest_file" || { echo "no migrations found" >&2; exit 1; }; \
-		prefix="$$(basename "$$latest_file")"; prefix="$${prefix%%_*}"; \
-		latest_version="$$(printf '%s' "$$prefix" | sed 's/^0*//')"; \
-		previous_version="$$((latest_version - 1))"; \
-		before_fixture="db/migration-tests/$${prefix}_before.sql"; \
-		reject_fixture="db/migration-tests/$${prefix}_reject.sql"; \
-		recover_fixture="db/migration-tests/$${prefix}_recover.sql"; \
-		after_fixture="db/migration-tests/$${prefix}_after.sql"; \
-		test -f "$$before_fixture" || { echo "missing migration upgrade fixture: $$before_fixture" >&2; exit 1; }; \
-		test -f "$$after_fixture" || { echo "missing migration upgrade fixture: $$after_fixture" >&2; exit 1; }; \
-		go -C tools tool goose -dir ../db/migrations postgres "$(TEST_DATABASE_URL_EFFECTIVE)" up-to "$$previous_version"; \
-		$(TEST_COMPOSE) exec -T db psql -v ON_ERROR_STOP=1 -U "$(POSTGRES_USER)" -d "$(TEST_POSTGRES_DB)" < "$$before_fixture"; \
-		if test -f "$$reject_fixture"; then \
-			test -f "$$recover_fixture" || { echo "missing migration recovery fixture: $$recover_fixture" >&2; exit 1; }; \
-			$(TEST_COMPOSE) exec -T db psql -v ON_ERROR_STOP=1 -U "$(POSTGRES_USER)" -d "$(TEST_POSTGRES_DB)" < "$$reject_fixture"; \
-			if go -C tools tool goose -dir ../db/migrations postgres "$(TEST_DATABASE_URL_EFFECTIVE)" up; then \
-				echo "expected migration $$prefix to reject the negative fixture" >&2; \
-				exit 1; \
-			fi; \
-			$(TEST_COMPOSE) exec -T db psql -v ON_ERROR_STOP=1 -U "$(POSTGRES_USER)" -d "$(TEST_POSTGRES_DB)" < "$$recover_fixture"; \
-		elif test -f "$$recover_fixture"; then \
-			echo "migration recovery fixture has no matching rejection fixture: $$recover_fixture" >&2; \
-			exit 1; \
-		fi; \
-		go -C tools tool goose -dir ../db/migrations postgres "$(TEST_DATABASE_URL_EFFECTIVE)" up; \
-		$(TEST_COMPOSE) exec -T db psql -v ON_ERROR_STOP=1 -U "$(POSTGRES_USER)" -d "$(TEST_POSTGRES_DB)" < "$$after_fixture"
 
 test-integration:
 	@ENV_FILE="$(ENV_FILE)" TEST_INTEGRATION_JOBS="$(TEST_INTEGRATION_JOBS)" \
@@ -170,7 +141,7 @@ quality-vuln:
 
 quality-image:
 	docker build --tag $(QUALITY_IMAGE_TAG) .
-	docker run --rm --entrypoint /bin/sh $(QUALITY_IMAGE_TAG) -c 'test -r /app/migrations/00001_initial.sql'
+	docker run --rm --entrypoint /bin/sh $(QUALITY_IMAGE_TAG) -c 'test -r /app/migrations/00001_baseline.sql'
 
 migrate-status:
 	@go -C tools tool goose -dir ../db/migrations postgres "$(DATABASE_URL)" status

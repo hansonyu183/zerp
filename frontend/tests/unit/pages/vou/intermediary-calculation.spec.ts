@@ -91,11 +91,15 @@ const resultLine: IntermediaryResultLine = {
 const migration = readFileSync(
   resolve(
     dirname(fileURLToPath(import.meta.url)),
-    '../../../../../backend/db/migrations/00057_intermediary_calculation.sql',
+    '../../../../../backend/db/migrations/00001_baseline.sql',
   ),
   'utf8',
 )
-const seededScript = migration.match(/\$script\$\n([\s\S]*?)\n\$script\$/u)?.[1]
+const seededScript = migration
+  .match(
+    /INSERT INTO public\.vou_intermediary_scripts VALUES \('[^']+', true, \d+, '(?:[^']|'')*', '((?:[^']|'')*)', '[0-9a-f]+'/u,
+  )?.[1]
+  ?.replaceAll("''", "'")
 if (!seededScript) throw new Error('默认居间计算脚本不存在')
 
 function result() {

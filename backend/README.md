@@ -38,21 +38,20 @@ curl http://localhost:8080/readyz
 
 在 `backend/` 目录运行：
 
-| 命令                          | 用途                           |
-| ----------------------------- | ------------------------------ |
-| `make run`                    | 启动本机 Go 服务               |
-| `make build`                  | 编译全部 Go 包                 |
-| `make test`                   | 执行单元测试和数据库集成测试   |
-| `make test-unit`              | 执行不依赖数据库的测试         |
-| `make test-migration-upgrade` | 验证带数据的迁移升级           |
-| `make test-integration`       | 在独立测试库运行领域数据库测试 |
-| `make generate`               | 生成 sqlc 代码                 |
-| `make quality`                | 运行后端完整质量检查           |
-| `make migrate-status`         | 查看迁移状态                   |
-| `make migrate-up`             | 应用全部迁移                   |
-| `make migrate-down`           | 回滚一个迁移版本               |
-| `make compose-up`             | 启动后端 API 与 PostgreSQL     |
-| `make compose-down`           | 停止后端 Compose               |
+| 命令                    | 用途                           |
+| ----------------------- | ------------------------------ |
+| `make run`              | 启动本机 Go 服务               |
+| `make build`            | 编译全部 Go 包                 |
+| `make test`             | 执行单元测试和数据库集成测试   |
+| `make test-unit`        | 执行不依赖数据库的测试         |
+| `make test-integration` | 在独立测试库运行领域数据库测试 |
+| `make generate`         | 生成 sqlc 代码                 |
+| `make quality`          | 运行后端完整质量检查           |
+| `make migrate-status`   | 查看迁移状态                   |
+| `make migrate-up`       | 应用全部迁移                   |
+| `make migrate-down`     | 回滚一个迁移版本               |
+| `make compose-up`       | 启动后端 API 与 PostgreSQL     |
+| `make compose-down`     | 停止后端 Compose               |
 
 ## 文档导航
 

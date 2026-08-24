@@ -168,26 +168,9 @@ trap 'exit 143' TERM
 mkdir -p "$work_root"
 "${compose[@]}" up -d --wait db
 
-# The latest upgrade fixture verifies the historical-to-current path exactly
-# once per invocation. The template itself deliberately uses a clean full
-# migration, so every package starts from the same current schema.
-latest_file="$(find db/migrations -maxdepth 1 -type f -name '[0-9]*_*.sql' | LC_ALL=C sort | tail -n 1)"
-[[ -n "$latest_file" ]] || fail "no migrations found"
-latest_prefix="${latest_file##*/}"
-latest_prefix="${latest_prefix%%_*}"
-latest_version="$(printf '%s' "$latest_prefix" | sed 's/^0*//')"
-previous_version="$((latest_version - 1))"
-before_fixture="db/migration-tests/${latest_prefix}_before.sql"
-after_fixture="db/migration-tests/${latest_prefix}_after.sql"
-[[ -f "$before_fixture" ]] || fail "missing migration upgrade fixture: $before_fixture"
-[[ -f "$after_fixture" ]] || fail "missing migration upgrade fixture: $after_fixture"
-
 recreate_database "$base_database"
 base_url="$(database_url "$base_database")"
-goose "$base_url" up-to "$previous_version"
-"${compose[@]}" exec -T db psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$base_database" < "$before_fixture"
 goose "$base_url" up
-"${compose[@]}" exec -T db psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$base_database" < "$after_fixture"
 
 recreate_database "$template_database"
 template_url="$(database_url "$template_database")"

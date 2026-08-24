@@ -21,16 +21,7 @@ export function createVoucherReferenceChangeHandler(
     if (key === 'fundAccount') {
       form.value.currency = form.value.fundAccount?.currency ?? ''
     }
-    if (key === 'vehicle') {
-      const affiliation = form.value.vehicle?.carrierAffiliation
-      if (affiliation?.type !== 'EXTERNAL') {
-        form.value.carrier = null
-      } else if (
-        form.value.carrier?.objectId !== affiliation.serviceRelationshipObjectId
-      ) {
-        form.value.carrier = null
-      }
-    }
+    if (key === 'platform') form.value.vehicle = null
     if (key === 'counterpartyType') form.value.counterparty = null
     if (key === 'supplier' && config.entity === 'purchase-order') {
       void refreshPriceReferences()

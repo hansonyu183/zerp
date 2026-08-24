@@ -7,7 +7,6 @@ import {
   text,
   textarea,
 } from '../shared/config-helpers'
-import { bobListActiveVersion } from '../shared/types'
 
 export const fundAccountConfig = defineBobEntityConfig({
   entity: 'fund-account',
@@ -44,7 +43,7 @@ export const fundAccountConfig = defineBobEntityConfig({
     {
       key: 'bankName',
       label: '银行',
-      value: (row) => bobListActiveVersion(row).summary.bankName,
+      value: (row) => row.currentVersion.summary.bankName,
     },
   ]),
   filters: baseFilters([

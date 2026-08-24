@@ -2,7 +2,6 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient, type ApiPostData } from '@/api/client'
 import { useEmployeeViewModel } from '@/pages/bob/employee/vm'
-import { employeeStatusLabel } from '@/pages/bob/employee/status'
 import { useSessionStore } from '@/stores/session'
 
 vi.mock('@/api/client', () => ({ apiClient: { postContract: vi.fn() } }))
@@ -22,13 +21,6 @@ describe('employment relationship view model', () => {
       '/aux/position/query',
     ]
     mocked.postContract.mockReset()
-  })
-
-  it('renders known lifecycle statuses in Chinese', () => {
-    expect(employeeStatusLabel('DRAFT')).toBe('草稿')
-    expect(employeeStatusLabel('PENDING')).toBe('待审核')
-    expect(employeeStatusLabel('EFFECTIVE')).toBe('有效')
-    expect(employeeStatusLabel('FUTURE_STATUS')).toBe('未知状态')
   })
 
   it('creates an employment relationship with an existing Party through the dedicated contract', async () => {

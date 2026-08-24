@@ -123,10 +123,7 @@ func TestProductQueryIncludesVersionedUnitConversionsIntegration(t *testing.T) {
 	if len(page.Items) != 1 {
 		t.Fatalf("product query items = %d, want 1", len(page.Items))
 	}
-	if page.Items[0].Effective == nil {
-		t.Fatal("product query has no effective summary")
-	}
-	data := page.Items[0].Effective.Summary
+	data := page.Items[0].CurrentVersion.Summary
 	if data.DefaultInputUnitID != integrationKGUnitID || data.PricingUnitID != integrationKGUnitID {
 		t.Fatalf("product default units = %q/%q", data.DefaultInputUnitID, data.PricingUnitID)
 	}
@@ -194,7 +191,7 @@ func TestCurrentIdentifierUniquenessAndHistoryReleaseIntegration(t *testing.T) {
 	vin := "LSVAA4187N2" + vinSuffix
 	vehicle, err := service.Create(t.Context(), EntityVehicle, CreateInput{Data: CreateDetailInput{
 		Code: "VU" + newID(), Name: "唯一 VIN 车辆", PlateNumber: "沪B" + newID()[20:],
-		VehicleType: "货车", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platform.ObjectID}, VIN: strings.ToLower(vin),
+		VehicleType: "货车", PlatformObjectID: platform.ObjectID, VIN: strings.ToLower(vin),
 	}}, integrationActorOne, "identifier-vehicle")
 	if err != nil {
 		t.Fatalf("create unique VIN vehicle: %v cause=%v vin=%q", err, errors.Unwrap(err), vin)
@@ -205,7 +202,7 @@ func TestCurrentIdentifierUniquenessAndHistoryReleaseIntegration(t *testing.T) {
 	}
 	if _, err = service.Create(t.Context(), EntityVehicle, CreateInput{Data: CreateDetailInput{
 		Code: "VD" + newID(), Name: "重复 VIN 车辆", PlateNumber: "沪C" + newID()[20:],
-		VehicleType: "货车", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platform.ObjectID}, VIN: vin,
+		VehicleType: "货车", PlatformObjectID: platform.ObjectID, VIN: vin,
 	}}, integrationActorOne, "duplicate-vin"); !errorIsKind(err, ErrorConflict) {
 		t.Fatalf("duplicate VIN error = %v", err)
 	}
@@ -223,21 +220,20 @@ func TestWarehouseSchemaAndPermissionsIntegration(t *testing.T) {
 	}
 
 	expectedSequence := map[string]int{
-		"approve":          61,
-		"audit-history":    62,
-		"create":           63,
-		"delete":           86,
-		"disable":          156,
-		"enable":           155,
-		"get":              65,
-		"query":            66,
-		"reject":           67,
-		"save":             68,
-		"submit":           69,
-		"unapprove":        154,
-		"unsubmit":         153,
-		"versions":         70,
-		"disable-precheck": 0,
+		"approve":       61,
+		"audit-history": 62,
+		"create":        63,
+		"delete":        86,
+		"disable":       156,
+		"enable":        155,
+		"get":           65,
+		"query":         66,
+		"reject":        67,
+		"save":          68,
+		"submit":        69,
+		"unapprove":     154,
+		"unsubmit":      153,
+		"versions":      70,
 	}
 	rows, err := pool.Query(t.Context(), `
 		SELECT id, path, action, status

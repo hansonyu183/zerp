@@ -12,14 +12,20 @@ import {
   normalizeBobForm,
 } from './form-data'
 import { useBobHistory } from './history'
-import { bobLifecycleSuccessLabel, useBobLifecycleActions } from './lifecycle'
+import {
+  bobActionBlockedReason,
+  bobLifecycleSuccessLabel,
+  useBobLifecycleActions,
+} from './lifecycle'
 import { useBobReferences } from './references'
 import { useBobReferenceTransfer } from './reference-transfer'
 import {
+  bobEntityActionAvailability,
   canLoadBobEditorReferences,
   useBobProductApproval,
 } from './product-approval'
 import type {
+  BobActionAvailability,
   BobEditContext,
   BobEntityConfig,
   BobForm,
@@ -28,8 +34,6 @@ import type {
   BobObjectView,
   BobVersionRevisionRequest,
 } from './types'
-import { bobListActiveVersion } from './types'
-import { useBobActionAvailability } from './action-availability'
 
 export function useBobEntityViewModel(config: BobEntityConfig) {
   const session = useSessionStore()
@@ -89,13 +93,36 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     filterReferenceError,
   } = useBobReferences(config, editorMode, filters)
 
-  const { permission, actionAvailability, actionBlockedReason, hasAnyAction } =
-    useBobActionAvailability(
+  function permission(action: string): string {
+    return `/bob/${config.entity}/${action}`
+  }
+
+  function actionAvailability(
+    row: Readonly<BobListItem>,
+  ): BobActionAvailability {
+    return bobEntityActionAvailability(
       config.entity,
-      () => session.user?.id,
-      (path) => session.can(path),
-      () => canLoadEditorReferences.value,
+      row,
+      session.user?.id,
+      (action) => session.can(permission(action)),
+      canLoadEditorReferences.value,
     )
+  }
+
+  function actionBlockedReason(
+    row: Readonly<BobListItem>,
+    action: 'approve' | 'reject',
+  ): string | null {
+    return bobActionBlockedReason(
+      row,
+      session.user?.id,
+      session.can(permission(action)),
+    )
+  }
+
+  function hasAnyAction(row: Readonly<BobListItem>): boolean {
+    return Object.values(actionAvailability(row)).some(Boolean)
+  }
 
   const {
     versionsOpen,
@@ -212,6 +239,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
   async function loadEffectiveView(view: BobObjectView): Promise<void> {
     effectiveView.value = null
     if (
+      config.entity !== 'product' ||
       !view.effectiveVersionId ||
       view.effectiveVersionId === view.version.versionId
     ) {
@@ -265,7 +293,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     editorLoading.value = true
     editorErrorMessage.value = null
     try {
-      const versionId = bobListActiveVersion(row).versionId
+      const versionId = row.currentVersion.versionId
       const view = await getObject(row, versionId)
       currentView.value = view
       await loadEffectiveView(view)
@@ -273,7 +301,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
         objectId: row.objectId,
         objectRevision: row.objectRevision,
         versionId,
-        revision: view.version.revision ?? bobListActiveVersion(row).revision,
+        revision: view.version.revision ?? row.currentVersion.revision,
       }
       editorModel.value = bobFormFromView(config, view)
       editorResetKey.value += 1
@@ -442,8 +470,8 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
         >(`bob/${config.entity}/delete`, {
           objectId: row.objectId,
           objectRevision: row.objectRevision,
-          versionId: bobListActiveVersion(row).versionId,
-          revision: bobListActiveVersion(row).revision,
+          versionId: row.currentVersion.versionId,
+          revision: row.currentVersion.revision,
         })
         if (rows.value.length === 1 && page.value > 1) page.value -= 1
       } else {
@@ -452,8 +480,8 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
           `bob/${config.entity}/submit`,
           {
             objectId: row.objectId,
-            versionId: bobListActiveVersion(row).versionId,
-            revision: bobListActiveVersion(row).revision,
+            versionId: row.currentVersion.versionId,
+            revision: row.currentVersion.revision,
           },
         )
       }
@@ -582,7 +610,6 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     review,
     reverse,
     changeEnabled,
-    requestChangeEnabled: changeEnabled,
     closeReferenceTransfer,
     confirmReferenceTransfer,
     searchReferenceTransfer,

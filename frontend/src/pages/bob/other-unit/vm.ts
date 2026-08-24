@@ -257,13 +257,11 @@ export function useOtherUnitViewModel() {
         sort: [{ field: 'code', order: 'asc' }],
       })
       if (!active || sequence !== operatingSearchSequence) return
-      const loaded = result.data.items.flatMap((item) => {
-        const version = item.effective
-        if (!version) return []
-        const name = String(version.summary.name ?? '')
+      const loaded = result.data.items.map((item) => {
+        const name = String(item.currentVersion.summary.name ?? '')
         return {
           objectId: item.objectId,
-          versionId: version.versionId,
+          versionId: item.currentVersion.versionId,
           code: item.code,
           name,
           title: `${item.code} · ${name}`,

@@ -11,6 +11,7 @@ export type BobEntity =
   | 'supplier'
   | 'employee'
   | 'product'
+  | 'service'
   | 'warehouse'
   | 'vehicle'
   | 'fund-account'
@@ -39,17 +40,9 @@ export interface BobListItem {
   code: string
   objectRevision: number
   enabled: boolean
-  effective: BobVersionSummary | null
-  candidate: BobVersionSummary | null
+  currentVersion: BobVersionSummary
+  effectiveVersionId: string | null
   updatedAt: string
-}
-
-export function bobListActiveVersion(
-  item: Pick<BobListItem, 'effective' | 'candidate'>,
-): BobVersionSummary {
-  const version = item.candidate ?? item.effective
-  if (!version) throw new Error('业务对象缺少有效版本和候选版本。')
-  return version
 }
 
 export interface BobVersionMeta {

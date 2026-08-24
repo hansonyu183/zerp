@@ -2440,7 +2440,7 @@ INSERT INTO vou_product_lines (
     base_unit_price_cents, settlement_surcharge_cents, unit_price_cents,
     line_amount_cents, purchase_unit_price_cents, remark,
     reference_unit_price_cents, reference_document_id, reference_document_no,
-    reference_business_date, reference_line_id, delivery_specification_type
+    reference_business_date, reference_line_id
 ) VALUES (
     $1, $2, $3, $4,
     $5, $6, $7,
@@ -2456,7 +2456,7 @@ INSERT INTO vou_product_lines (
     $26, $27,
     $28, $29,
     $30, $31,
-    $32, $33
+    $32
 )
 `
 
@@ -2493,7 +2493,6 @@ type InsertVouProductLineParams struct {
 	ReferenceDocumentNo        *string     `db:"reference_document_no" json:"reference_document_no"`
 	ReferenceBusinessDate      pgtype.Date `db:"reference_business_date" json:"reference_business_date"`
 	ReferenceLineID            *string     `db:"reference_line_id" json:"reference_line_id"`
-	DeliverySpecificationType  string      `db:"delivery_specification_type" json:"delivery_specification_type"`
 }
 
 func (q *Queries) InsertVouProductLine(ctx context.Context, arg InsertVouProductLineParams) error {
@@ -2530,7 +2529,6 @@ func (q *Queries) InsertVouProductLine(ctx context.Context, arg InsertVouProduct
 		arg.ReferenceDocumentNo,
 		arg.ReferenceBusinessDate,
 		arg.ReferenceLineID,
-		arg.DeliverySpecificationType,
 	)
 	return err
 }
@@ -3149,7 +3147,7 @@ func (q *Queries) IsVouDocumentInClosedPeriod(ctx context.Context, id string) (b
 }
 
 const isVouSaleDeliveryReady = `-- name: IsVouSaleDeliveryReady :one
-SELECT x.carrier_type IN ('INTERNAL','EXTERNAL')
+SELECT x.platform_object_id IS NOT NULL AND x.platform_version_id IS NOT NULL
        AND x.vehicle_object_id IS NOT NULL AND x.vehicle_version_id IS NOT NULL
 FROM vou_sale_delivery_details x WHERE x.document_id=$1
 `
@@ -3960,7 +3958,7 @@ func (q *Queries) ListVouPriceLines(ctx context.Context, documentID string) ([]V
 }
 
 const listVouProductLines = `-- name: ListVouProductLines :many
-SELECT id, document_id, document_entity, line_no, product_object_id, product_version_id, product_code, product_name, entered_unit_symbol, base_quantity_micros, unit_price_cents, line_amount_cents, outbound_base_quantity_micros, signed_base_quantity_micros, rejected_base_quantity_micros, loss_base_quantity_micros, inbound_base_quantity_micros, remark, purchase_unit_price_cents, base_unit_price_cents, settlement_surcharge_cents, behavior_profile, reference_unit_price_cents, reference_document_id, reference_document_no, reference_business_date, reference_line_id, entered_quantity_micros, entered_unit_object_id, entered_unit_version_id, entered_unit_code, entered_unit_name, product_type_object_id, product_type_version_id, product_type_code, product_type_name, default_packaging_spec_micros, delivery_specification_type FROM vou_product_lines WHERE document_id = $1 ORDER BY line_no
+SELECT id, document_id, document_entity, line_no, product_object_id, product_version_id, product_code, product_name, entered_unit_symbol, base_quantity_micros, unit_price_cents, line_amount_cents, outbound_base_quantity_micros, signed_base_quantity_micros, rejected_base_quantity_micros, loss_base_quantity_micros, inbound_base_quantity_micros, remark, purchase_unit_price_cents, base_unit_price_cents, settlement_surcharge_cents, behavior_profile, reference_unit_price_cents, reference_document_id, reference_document_no, reference_business_date, reference_line_id, entered_quantity_micros, entered_unit_object_id, entered_unit_version_id, entered_unit_code, entered_unit_name, product_type_object_id, product_type_version_id, product_type_code, product_type_name, default_packaging_spec_micros FROM vou_product_lines WHERE document_id = $1 ORDER BY line_no
 `
 
 func (q *Queries) ListVouProductLines(ctx context.Context, documentID string) ([]VouProductLine, error) {
@@ -4010,7 +4008,6 @@ func (q *Queries) ListVouProductLines(ctx context.Context, documentID string) ([
 			&i.ProductTypeCode,
 			&i.ProductTypeName,
 			&i.DefaultPackagingSpecMicros,
-			&i.DeliverySpecificationType,
 		); err != nil {
 			return nil, err
 		}

@@ -1540,7 +1540,7 @@
                       'maxItems': 200,
                       'items': { '$ref': '#/VouAssetLiquidationLineInput' },
                     },
-                  'carrier':
+                  'platform':
                     {
                       'type': 'object',
                       'required': ['objectId', 'versionId'],
@@ -1649,11 +1649,6 @@
                                 { 'type': 'string', 'nullable': true },
                               'purchaseUnitPrice': { 'type': 'string' },
                               'remark': { 'type': 'string' },
-                              'deliverySpecificationType':
-                                {
-                                  'type': 'string',
-                                  'enum': ['PACKAGED', 'BULK_LIQUID'],
-                                },
                               'containerType':
                                 { 'type': 'string', 'nullable': true },
                               'quantityPerContainer':
@@ -1947,7 +1942,7 @@
                       'maxItems': 200,
                       'items': { '$ref': '#/VouAssetLiquidationLineInput' },
                     },
-                  'carrier':
+                  'platform':
                     {
                       'type': 'object',
                       'required': ['objectId', 'versionId'],
@@ -2056,11 +2051,6 @@
                                 { 'type': 'string', 'nullable': true },
                               'purchaseUnitPrice': { 'type': 'string' },
                               'remark': { 'type': 'string' },
-                              'deliverySpecificationType':
-                                {
-                                  'type': 'string',
-                                  'enum': ['PACKAGED', 'BULK_LIQUID'],
-                                },
                               'containerType':
                                 { 'type': 'string', 'nullable': true },
                               'quantityPerContainer':

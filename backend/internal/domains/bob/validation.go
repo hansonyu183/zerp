@@ -43,7 +43,7 @@ func validateCreate(entity string, input CreateDetailInput) (DetailView, string,
 		Name: input.Name, Unit: input.Unit, InventoryUnitID: input.InventoryUnitID, Currency: input.Currency,
 		CustomerType: deref(customerType),
 		PlateNumber:  input.PlateNumber, VehicleType: input.VehicleType,
-		CarrierAffiliation: input.CarrierAffiliation, BulkLiquidCapable: input.BulkLiquidCapable, TargetEntity: input.TargetEntity,
+		PlatformObjectID: input.PlatformObjectID, TargetEntity: input.TargetEntity,
 		ShortName: input.ShortName, CategoryID: input.CategoryID, TaxNumber: input.TaxNumber,
 		ContactName: input.ContactName, ContactPhone: input.ContactPhone, Email: input.Email,
 		Address: input.Address, Remark: input.Remark, DepartmentID: input.DepartmentID,
@@ -65,6 +65,9 @@ func validateCreate(entity string, input CreateDetailInput) (DetailView, string,
 		Formula: cloneProductFormula(input.Formula), TermCode: input.TermCode,
 		DefaultSalesSurcharge: input.DefaultSalesSurcharge,
 	}
+	if entity == EntityService && data.InventoryUnitID == "" {
+		data.InventoryUnitID = legacyUnitID(data.Unit)
+	}
 	data, err := validateDetailData(entity, data)
 	return data, "", err
 }
@@ -76,8 +79,7 @@ func mergeDetailInput(current DetailView, input DetailInput) DetailView {
 	result.Currency = input.Currency
 	result.PlateNumber = input.PlateNumber
 	result.VehicleType = input.VehicleType
-	result.CarrierAffiliation = input.CarrierAffiliation
-	result.BulkLiquidCapable = input.BulkLiquidCapable
+	result.PlatformObjectID = input.PlatformObjectID
 	result.RuleType = input.RuleType
 	result.MonthOffset = input.MonthOffset
 	result.DayOfMonth = input.DayOfMonth
@@ -184,6 +186,8 @@ func validateDetailInputFields(entity string, input DetailInput) error {
 	case EntityProduct:
 		allow("categoryId", "specification", "model", "barcode", "remark", "productTypeId",
 			"defaultInputUnitId", "pricingUnitId", "unitConversions", "returnable", "defaultPackagingSpec", "formula")
+	case EntityService:
+		allow("description", "remark", "inventoryUnitId")
 	case EntityWarehouse:
 		allow("address", "contactName", "contactPhone", "managerEmployeeId", "remark")
 	case EntityVehicle:
@@ -278,7 +282,7 @@ func normalizeDetail(input *DetailView) {
 		*value = strings.ToUpper(strings.TrimSpace(*value))
 	}
 	for _, value := range []*string{
-		&input.CategoryID, &input.DepartmentID, &input.PositionID,
+		&input.PlatformObjectID, &input.CategoryID, &input.DepartmentID, &input.PositionID,
 		&input.ManagerEmployeeID, &input.ParentID, &input.SettlementMethodID, &input.SalespersonEmployeeID,
 		&input.DefaultPurchaserEmployeeID,
 		&input.InventoryUnitID, &input.ProductTypeID, &input.DefaultInputUnitID, &input.PricingUnitID,
@@ -301,32 +305,6 @@ func normalizeDetail(input *DetailView) {
 			normalizeQuantitySnapshot(&component.Quantity)
 		}
 	}
-	if input.CarrierAffiliation != nil {
-		input.CarrierAffiliation.Type = strings.ToUpper(strings.TrimSpace(input.CarrierAffiliation.Type))
-		input.CarrierAffiliation.OperatingEntityID = strings.TrimSpace(input.CarrierAffiliation.OperatingEntityID)
-		input.CarrierAffiliation.ServiceRelationshipObjectID = strings.TrimSpace(input.CarrierAffiliation.ServiceRelationshipObjectID)
-	}
-}
-
-func validCarrierAffiliation(value *CarrierAffiliation) bool {
-	if value == nil {
-		return false
-	}
-	switch value.Type {
-	case "INTERNAL":
-		return validID(value.OperatingEntityID) && value.ServiceRelationshipObjectID == ""
-	case "EXTERNAL":
-		return validID(value.ServiceRelationshipObjectID) && value.OperatingEntityID == ""
-	default:
-		return false
-	}
-}
-
-func carrierAffiliationField(value *CarrierAffiliation) string {
-	if value == nil {
-		return ""
-	}
-	return value.Type + value.OperatingEntityID + value.ServiceRelationshipObjectID
 }
 
 func normalizeQuantitySnapshot(quantity *QuantitySnapshot) {
@@ -427,13 +405,21 @@ func validateEntityFields(entity string, input DetailView) error {
 		if err := validateProductDraft(input); err != nil {
 			return err
 		}
+	case EntityService:
+		allow("unit", "inventoryUnitId", "description", "remark")
+		if !runeLengthBetween(input.Unit, 1, 32) {
+			return domainError(ErrorValidation, "invalid unit", nil, nil)
+		}
+		if !validID(input.InventoryUnitID) {
+			return domainError(ErrorValidation, "invalid service unit reference", nil, nil)
+		}
 	case EntityWarehouse:
 		allow("address", "contactName", "contactPhone", "managerEmployeeId", "remark")
 	case EntityVehicle:
-		allow("plateNumber", "vehicleType", "carrierAffiliation", "bulkLiquidCapable", "vin", "engineNumber", "loadCapacityKg", "remark")
+		allow("plateNumber", "vehicleType", "platformObjectId", "vin", "engineNumber", "loadCapacityKg", "remark")
 		if !runeLengthBetween(input.PlateNumber, 1, 32) ||
 			!runeLengthBetween(input.VehicleType, 1, 64) ||
-			!validCarrierAffiliation(input.CarrierAffiliation) {
+			!validID(input.PlatformObjectID) {
 			return domainError(ErrorValidation, "invalid vehicle fields", nil, nil)
 		}
 	case EntityFundAccount:
@@ -488,9 +474,8 @@ func detailFieldValues(input DetailView) map[string]string {
 	return map[string]string{
 		"unit": input.Unit, "currency": input.Currency,
 		"customerType": input.CustomerType, "plateNumber": input.PlateNumber,
-		"vehicleType": input.VehicleType, "carrierAffiliation": carrierAffiliationField(input.CarrierAffiliation),
-		"bulkLiquidCapable": boolField(input.BulkLiquidCapable),
-		"targetEntity":      input.TargetEntity, "shortName": input.ShortName, "categoryId": input.CategoryID,
+		"vehicleType": input.VehicleType, "platformObjectId": input.PlatformObjectID,
+		"targetEntity": input.TargetEntity, "shortName": input.ShortName, "categoryId": input.CategoryID,
 		"taxNumber": input.TaxNumber, "contactName": input.ContactName, "contactPhone": input.ContactPhone,
 		"email": input.Email, "address": input.Address, "remark": input.Remark,
 		"departmentId": input.DepartmentID, "positionId": input.PositionID, "phone": input.Phone,
@@ -671,6 +656,25 @@ func cloneProductFormula(input *ProductFormula) *ProductFormula {
 	return &ProductFormula{
 		Output:     input.Output,
 		Components: slices.Clone(input.Components),
+	}
+}
+
+func legacyUnitID(unit string) string {
+	switch strings.ToLower(strings.TrimSpace(unit)) {
+	case "kg":
+		return "01JAVX00000000000000000011"
+	case "件", "piece", "unit":
+		return "01JAVX00000000000000000013"
+	case "年":
+		return "01JAVX00000000000000000015"
+	case "次", "occurrence":
+		return "01JAVX00000000000000000017"
+	case "小时", "hour":
+		return "01JAVX00000000000000000025"
+	case "吨", "ton", "t":
+		return "01JAVX00000000000000000027"
+	default:
+		return ""
 	}
 }
 
@@ -864,7 +868,7 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 		unexpected = hasUnexpected("departmentId", "positionId")
 	case EntityProduct:
 		unexpected = hasUnexpected("categoryId", "productTypeId")
-	case EntityOperatingEntity, EntityWarehouse, EntityVehicle:
+	case EntityService, EntityWarehouse, EntityVehicle:
 		unexpected = hasUnexpected()
 	case EntityFundAccount:
 		unexpected = hasUnexpected("currency")

@@ -74,6 +74,12 @@ func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			return err
 		}
 		return insertProductFormula(ctx, q, versionID, data.Formula)
+	case EntityService:
+		return q.InsertBobServiceDetail(ctx, dbsqlc.InsertBobServiceDetailParams{
+			VersionID: versionID, Name: data.Name, Unit: data.Unit, UnitID: data.InventoryUnitID,
+			CategoryID:  nilIfEmpty(data.CategoryID),
+			Description: nilIfEmpty(data.Description), Remark: nilIfEmpty(data.Remark),
+		})
 	case EntityWarehouse:
 		return q.InsertBobWarehouseDetail(ctx, dbsqlc.InsertBobWarehouseDetailParams{
 			VersionID: versionID, Name: data.Name, CategoryID: nilIfEmpty(data.CategoryID),
@@ -84,11 +90,8 @@ func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 	case EntityVehicle:
 		return q.InsertBobVehicleDetail(ctx, dbsqlc.InsertBobVehicleDetailParams{
 			VersionID: versionID, Name: data.Name, PlateNumber: data.PlateNumber,
-			VehicleType: data.VehicleType, CarrierAffiliationType: data.CarrierAffiliation.Type,
-			CarrierOperatingEntityID:           nilIfEmpty(data.CarrierAffiliation.OperatingEntityID),
-			CarrierServiceRelationshipObjectID: nilIfEmpty(data.CarrierAffiliation.ServiceRelationshipObjectID),
-			BulkLiquidCapable:                  data.BulkLiquidCapable,
-			CategoryID:                         nilIfEmpty(data.CategoryID), Vin: nilIfEmpty(data.VIN),
+			VehicleType: data.VehicleType, PlatformObjectID: data.PlatformObjectID,
+			CategoryID: nilIfEmpty(data.CategoryID), Vin: nilIfEmpty(data.VIN),
 			EngineNumber: nilIfEmpty(data.EngineNumber), LoadCapacityKg: data.LoadCapacityKG,
 			Remark: nilIfEmpty(data.Remark),
 		})
@@ -203,6 +206,12 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 				err = insertProductFormula(ctx, q, versionID, data.Formula)
 			}
 		}
+	case EntityService:
+		rows, err = q.UpdateBobServiceDetail(ctx, dbsqlc.UpdateBobServiceDetailParams{
+			Name: data.Name, Unit: data.Unit, UnitID: data.InventoryUnitID,
+			CategoryID:  nilIfEmpty(data.CategoryID),
+			Description: nilIfEmpty(data.Description), Remark: nilIfEmpty(data.Remark), VersionID: versionID,
+		})
 	case EntityWarehouse:
 		rows, err = q.UpdateBobWarehouseDetail(ctx, dbsqlc.UpdateBobWarehouseDetailParams{
 			Name: data.Name, CategoryID: nilIfEmpty(data.CategoryID), Address: nilIfEmpty(data.Address),
@@ -213,10 +222,7 @@ func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 	case EntityVehicle:
 		rows, err = q.UpdateBobVehicleDetail(ctx, dbsqlc.UpdateBobVehicleDetailParams{
 			Name: data.Name, PlateNumber: data.PlateNumber, VehicleType: data.VehicleType,
-			CarrierAffiliationType:             data.CarrierAffiliation.Type,
-			CarrierOperatingEntityID:           nilIfEmpty(data.CarrierAffiliation.OperatingEntityID),
-			CarrierServiceRelationshipObjectID: nilIfEmpty(data.CarrierAffiliation.ServiceRelationshipObjectID),
-			BulkLiquidCapable:                  data.BulkLiquidCapable, VersionID: versionID,
+			PlatformObjectID: data.PlatformObjectID, VersionID: versionID,
 			CategoryID: nilIfEmpty(data.CategoryID), Vin: nilIfEmpty(data.VIN),
 			EngineNumber: nilIfEmpty(data.EngineNumber), LoadCapacityKg: data.LoadCapacityKG,
 			Remark: nilIfEmpty(data.Remark),
@@ -298,6 +304,8 @@ func copyDetail(ctx context.Context, q *dbsqlc.Queries, entity, newVersionID, so
 		return q.CopyBobProductFormulaLines(ctx, dbsqlc.CopyBobProductFormulaLinesParams{
 			NewVersionID: newVersionID, SourceVersionID: sourceVersionID,
 		})
+	case EntityService:
+		return q.CopyBobServiceDetail(ctx, dbsqlc.CopyBobServiceDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID})
 	case EntityWarehouse:
 		return q.CopyBobWarehouseDetail(ctx, dbsqlc.CopyBobWarehouseDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID})
 	case EntityVehicle:
@@ -442,6 +450,8 @@ func deleteDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID stri
 			return 0, err
 		}
 		return q.DeleteBobProductDetail(ctx, versionID)
+	case EntityService:
+		return q.DeleteBobServiceDetail(ctx, versionID)
 	case EntityWarehouse:
 		return q.DeleteBobWarehouseDetail(ctx, versionID)
 	case EntityVehicle:

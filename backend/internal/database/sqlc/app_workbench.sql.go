@@ -13,7 +13,7 @@ import (
 
 const countWorkbenchBobItems = `-- name: CountWorkbenchBobItems :one
 SELECT count(*)
-FROM bob_version_views view
+FROM bob_version_summaries view
 WHERE view.version_id = view.current_version_id
   AND (
     (view.status = 'DRAFT' AND view.entity = ANY($1::text[]))
@@ -109,7 +109,7 @@ SELECT view.object_id, view.entity, view.code, view.name, view.object_revision,
          WHEN view.submitted_by = $1::text THEN true
          ELSE false
        END AS is_submitted_by_actor
-FROM bob_version_views view
+FROM bob_version_summaries view
 WHERE view.version_id = view.current_version_id
   AND (
     (view.status = 'DRAFT' AND view.entity = ANY($2::text[]))

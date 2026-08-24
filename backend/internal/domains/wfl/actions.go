@@ -38,10 +38,10 @@ type SaleOutboundInitial struct {
 }
 
 type SaleDeliveryInitial struct {
-	CarrierServiceRelationshipObjectID string                `json:"carrierServiceRelationshipObjectId,omitempty"`
-	VehicleObjectID                    string                `json:"vehicleObjectId"`
-	BusinessDate                       string                `json:"businessDate,omitempty"`
-	Lines                              []QuantityLineInitial `json:"lines,omitempty"`
+	PlatformObjectID string                `json:"platformObjectId"`
+	VehicleObjectID  string                `json:"vehicleObjectId"`
+	BusinessDate     string                `json:"businessDate,omitempty"`
+	Lines            []QuantityLineInitial `json:"lines,omitempty"`
 }
 
 type SaleSignoffInitial struct {
@@ -127,10 +127,8 @@ func (a *trialActions) CreateSaleOutbound(_ context.Context, _ pgx.Tx, input Wor
 }
 
 func (a *trialActions) CreateSaleDelivery(_ context.Context, _ pgx.Tx, input WorkflowActionInput[SaleDeliveryInitial]) (BusinessObjectReference, error) {
-	carrierID := input.Initial.CarrierServiceRelationshipObjectID
-	if !validInitialID(input.Initial.VehicleObjectID) || !validInitialDate(input.Initial.BusinessDate) ||
-		(carrierID != "" && !validInitialID(carrierID)) {
-		return BusinessObjectReference{}, fmt.Errorf("sale_delivery requires vehicleObjectId and businessDate; carrierServiceRelationshipObjectId must be valid when present")
+	if !validInitialID(input.Initial.PlatformObjectID) || !validInitialID(input.Initial.VehicleObjectID) || !validInitialDate(input.Initial.BusinessDate) {
+		return BusinessObjectReference{}, fmt.Errorf("sale_delivery requires platformObjectId, vehicleObjectId, and businessDate")
 	}
 	return a.planned(ActionSaleDelivery, input.SourceDocumentID, input.Initial)
 }

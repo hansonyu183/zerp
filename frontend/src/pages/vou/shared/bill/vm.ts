@@ -728,16 +728,13 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         request,
         { signal },
       )
-      return result.data.items.flatMap((item) => {
-        const version = item.effective
-        return version ? [{
-          objectId: item.objectId,
-          versionId: version.versionId,
-          entity: item.entity,
-          code: item.code,
-          name: String(version.summary.name ?? item.code),
-        }] : []
-      })
+      return result.data.items.map((item) => ({
+        objectId: item.objectId,
+        versionId: item.currentVersion.versionId,
+        entity: item.entity,
+        code: item.code,
+        name: String(item.currentVersion.summary.name ?? item.code),
+      }))
     } catch {
       return []
     }

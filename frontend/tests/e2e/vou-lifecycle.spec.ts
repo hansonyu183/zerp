@@ -13,6 +13,7 @@ function vouFixture(workerState: WflWorkerState) {
     employee: workerState.fixtures.employee,
     warehouse: workerState.fixtures.warehouse,
     product: workerState.fixtures.solventProduct,
+    platform: workerState.fixtures.platform,
     vehicle: workerState.fixtures.vehicle,
     fundAccount: workerState.fixtures.fundAccount,
     purchaseProcessCode: workerState.fixtures.purchaseProcessCode,

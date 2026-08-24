@@ -21,7 +21,7 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 
 	serviceContract := approveServiceContractIntegration(t, service, DraftInput{
 		BusinessDate: "2026-08-01", Currency: "CNY", CounterpartyType: bobdomain.EntityOtherUnit,
-		Counterparty: &refs.carrier, Handler: &refs.employee,
+		Counterparty: &refs.platform, Handler: &refs.employee,
 		ServiceContract: &ServiceContractInput{Terms: "财税顾问服务，以履约验收确认结算事实"},
 	}, "service-contract")
 	acceptance, err := service.Create(t.Context(), EntityServiceAcceptance, CreateInput{Data: DraftInput{

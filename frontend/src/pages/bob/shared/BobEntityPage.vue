@@ -11,9 +11,8 @@ import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
 import { formatLocalDateTime } from '@/utils/date'
 import { getStatusText } from './config'
-import { bobFormFromView } from './form-data'
 import type { BobEntityViewModel } from './vm'
-import { bobListActiveVersion, type BobListItem } from './types'
+import type { BobListItem } from './types'
 import ProductUnitConversionsEditor from '../product/ProductUnitConversionsEditor.vue'
 import type { ProductUnitConversionDraft } from './product-data'
 import ProductFormulaEditorDialog from '../product/ProductFormulaEditorDialog.vue'
@@ -58,11 +57,6 @@ const effectiveProductUnitConversions = computed(() => {
   const value = vm.effectiveView?.data.unitConversions
   return Array.isArray(value) ? (value as ProductUnitConversionDraft[]) : []
 })
-const effectiveEditorModel = computed(() =>
-  vm.effectiveView
-    ? bobFormFromView(vm.config, vm.effectiveView)
-    : vm.config.emptyForm(),
-)
 
 void vm.query()
 
@@ -255,7 +249,7 @@ function selectRowAction(action: string, row: BobListItem): void {
   else if (action === 'approve') void vm.review(row, 'approve', '')
   else if (action === 'unapprove') requestReverse(row, 'unapprove')
   else if (action === 'reject') requestReject(row)
-  else if (action === 'toggle-enabled') void vm.requestChangeEnabled(row)
+  else if (action === 'toggle-enabled') void vm.changeEnabled(row)
   else if (action === 'versions') void vm.openVersions(row)
   else if (action === 'audit') void vm.openAudit(row)
   else if (action === 'delete') deleteTarget.value = row
@@ -484,10 +478,10 @@ function saveFormula(value: ProductFormulaDraft): void {
       <template #cell-status="{ row }">
         <div class="bob-status-chips">
           <v-chip density="comfortable" size="small" variant="tonal">
-            {{ getStatusText(bobListActiveVersion(row).status) }}
+            {{ getStatusText(row.currentVersion.status) }}
           </v-chip>
           <v-chip
-            v-if="row.effective !== null"
+            v-if="row.currentVersion.status === 'EFFECTIVE'"
             :color="row.enabled ? 'success' : 'default'"
             density="comfortable"
             size="small"
@@ -496,7 +490,10 @@ function saveFormula(value: ProductFormulaDraft): void {
             {{ row.enabled ? '启用' : '禁用' }}
           </v-chip>
           <v-chip
-            v-if="row.candidate !== null"
+            v-if="
+              row.effectiveVersionId &&
+              row.effectiveVersionId !== row.currentVersion.versionId
+            "
             color="warning"
             density="comfortable"
             size="small"
@@ -528,7 +525,7 @@ function saveFormula(value: ProductFormulaDraft): void {
   >
     <div class="bob-entity-drawer__content">
       <v-card
-        v-if="vm.effectiveView && vm.config.entity === 'product'"
+        v-if="vm.effectiveView"
         class="mb-4"
         color="surface-variant"
         rounded="lg"
@@ -579,16 +576,6 @@ function saveFormula(value: ProductFormulaDraft): void {
           </div>
         </v-card-text>
       </v-card>
-      <BusinessObjectEditor
-        v-else-if="vm.effectiveView"
-        :editable="false"
-        :editing="false"
-        :fields="vm.editorFields"
-        :model-value="effectiveEditorModel"
-        title="当前交易使用"
-      >
-        <template #actions />
-      </BusinessObjectEditor>
       <v-alert
         v-if="vm.effectiveView"
         class="mb-4"
@@ -1022,8 +1009,6 @@ function saveFormula(value: ProductFormulaDraft): void {
       </v-card-actions>
     </v-card>
   </v-dialog>
-
-  <slot />
 </template>
 
 <style scoped>

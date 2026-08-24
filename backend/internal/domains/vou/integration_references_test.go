@@ -269,7 +269,7 @@ func TestVOUIntegrationRejectsInvalidReferencesAndDatabaseContracts(t *testing.T
 	service := newIntegrationService(t, pool)
 
 	_, err := service.Create(t.Context(), EntityPurchaseOrder, CreateInput{Data: DraftInput{
-		BusinessDate: "2026-07-24", Currency: "CNY", Supplier: &refs.carrier,
+		BusinessDate: "2026-07-24", Currency: "CNY", Supplier: &refs.platform,
 		Purchaser: &refs.employee, Warehouse: &refs.warehouse,
 		ProductLines: []ProductLineInput{integrationProductLine(t, refs.product, "1", "1.00")},
 	}}, integrationActorOne, "logistics-as-supplier")

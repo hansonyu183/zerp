@@ -92,10 +92,8 @@ const exactMessages: Readonly<Record<string, string>> = {
     '配方产量的录入单位未配置在当前产品版本中。',
   'formula material unit is not configured for product':
     '配方原料的录入单位未配置在当前原料版本中。',
-  'formula must contain at most 200 components':
-    '配方最多只能包含 200 行原料。',
-  'packaging product configuration is invalid':
-    '包装物产品配置不符合行为模板要求。',
+  'formula must contain at most 200 components': '配方最多只能包含 200 行原料。',
+  'packaging product configuration is invalid': '包装物产品配置不符合行为模板要求。',
   'product default packaging specification is invalid':
     '产品默认包装规格无效，请填写大于零的数量。',
   'product pricing unit conversion is missing':
@@ -665,6 +663,8 @@ const exactMessages: Readonly<Record<string, string>> = {
   'unknown posting template collection': '凭证模板引用了未知的单据行集合。',
   'originalValue is invalid': '资产原值不正确，请检查后重试。',
   'permission catalog is empty': '权限目录为空，请联系管理员完成系统配置。',
+  'platform is not an effective logistics platform':
+    '所选平台不是当前有效的物流平台。',
   'product pricing conversion is invalid':
     '产品计价换算关系不正确，请检查单位配置。',
   'purchase inbound quantity exceeds remaining quantity':
@@ -745,25 +745,7 @@ const exactMessages: Readonly<Record<string, string>> = {
     '用户资料已被其他操作修改，请使用当前密码重新提交。',
   'user revision conflict': '用户资料已被其他操作修改，请刷新后重试。',
   'user status unchanged': '用户已经是目标状态，无需重复操作。',
-  'carrier is not a current Service Relationship':
-    '所选外部承运方当前不可用，请重新选择。',
-  'external vehicle does not belong to the selected carrier':
-    '车辆与所选外部承运方不一致，请重新选择。',
-  'bulk-liquid delivery requires a capable vehicle':
-    '散装液体交付必须选择具备散装液体运输能力的车辆。',
-  'internal vehicle must belong to the sale order Operating Entity':
-    '自有车辆必须属于销售订单对应的经营主体。',
-  'saved Operating Entity version is no longer current':
-    '送货单保存的经营主体版本已失效，请重新选择车辆。',
-  'saved carrier type is no longer current':
-    '车辆承运归属已经变化，请重新加载送货单。',
-  'vehicle carrier affiliation is invalid':
-    '车辆承运归属不完整，请先维护车辆资料。',
-  'vehicle service carrier replacement must be an effective service relationship':
-    '车辆的外部承运方接替项必须是当前有效服务关系。',
-  'warehouse cannot be disabled': '仓库仍有库存或业务单据，暂时不能停用。',
-  'warehouse manager cleanup conflicts with an existing candidate':
-    '仓库已有待处理变更，不能自动清理负责人。',
+  'vehicle does not belong to platform': '车辆不属于所选物流平台，请重新选择。',
   'VOU pool, BOB/AUX resolvers, and event publisher are required':
     '单据服务配置不完整，请联系管理员。',
   'WFL pool, event bus, and runtime are required':
@@ -882,9 +864,11 @@ const phraseLabels: Readonly<Record<string, string>> = {
   'fund account': '资金账户',
   'inventory count result': '盘点结果',
   line: '明细行',
+  'logistics platform': '物流平台',
   object: '资料',
   order: '订单',
   permission: '权限',
+  platform: '平台',
   price: '价格',
   product: '产品',
   'purchase order': '采购订单',

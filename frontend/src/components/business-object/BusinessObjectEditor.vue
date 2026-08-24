@@ -126,12 +126,7 @@ function isFieldDisabled(field: BusinessObjectField<T>): boolean {
 }
 
 function isFieldVisible(field: BusinessObjectField<T>): boolean {
-  return (
-    field.visible === undefined ||
-    (typeof field.visible === 'function'
-      ? field.visible(draft.value as unknown as Readonly<T>)
-      : Boolean(field.visible))
-  )
+  return field.visible === undefined || resolveFieldState(field.visible)
 }
 
 function isEmpty(value: unknown): boolean {

@@ -33,7 +33,6 @@ type salesSource struct {
 	CustomerCode, CustomerName            string
 	WarehouseObjectID, WarehouseVersionID string
 	WarehouseCode, WarehouseName          string
-	OperatingEntityObjectID               string
 }
 
 func validateChainHeader(data DraftInput) (time.Time, *string, error) {
@@ -116,17 +115,17 @@ func validateChainShape(entity string, data DraftInput) error {
 	}
 	switch entity {
 	case EntitySaleOutbound:
-		if data.Warehouse == nil || data.Carrier != nil || data.Vehicle != nil ||
+		if data.Warehouse == nil || data.Platform != nil || data.Vehicle != nil ||
 			len(data.SourceLines) == 0 || len(data.SignoffLines) != 0 {
 			return domainError(ErrorValidation, "fields do not match sale-outbound", nil, nil)
 		}
 	case EntitySaleDelivery:
-		if data.Warehouse != nil || data.Vehicle == nil ||
+		if data.Warehouse != nil || data.Platform == nil || data.Vehicle == nil ||
 			len(data.SourceLines) != 0 || len(data.SignoffLines) != 0 {
 			return domainError(ErrorValidation, "fields do not match sale-delivery", nil, nil)
 		}
 	case EntitySaleSignoff:
-		if data.Warehouse != nil || data.Carrier != nil || data.Vehicle != nil ||
+		if data.Warehouse != nil || data.Platform != nil || data.Vehicle != nil ||
 			len(data.SourceLines) != 0 || len(data.SignoffLines) == 0 {
 			return domainError(ErrorValidation, "fields do not match sale-signoff", nil, nil)
 		}
@@ -242,16 +241,12 @@ func (s *Service) lockSalesSource(
 	case EntitySaleOutbound:
 		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.business_date,d.currency,d.total_amount_cents,
 			x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name,
-			x.warehouse_object_id,x.warehouse_version_id,x.warehouse_code,x.warehouse_name,
-			relationship.operating_entity_id
+			x.warehouse_object_id,x.warehouse_version_id,x.warehouse_code,x.warehouse_name
 			FROM vou_documents d JOIN vou_sale_outbound_details x ON x.document_id=d.id
-			JOIN bob_customer_accounts account ON account.object_id=x.customer_object_id
-			JOIN bob_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id
 			WHERE d.id=$1 AND d.entity='sale-outbound' FOR UPDATE`, id).
 			Scan(&source.Number, &source.Status, &date, &source.Currency, &source.Total,
 				&source.CustomerObjectID, &source.CustomerVersionID, &source.CustomerCode, &source.CustomerName,
-				&source.WarehouseObjectID, &source.WarehouseVersionID, &source.WarehouseCode, &source.WarehouseName,
-				&source.OperatingEntityObjectID)
+				&source.WarehouseObjectID, &source.WarehouseVersionID, &source.WarehouseCode, &source.WarehouseName)
 	case EntitySaleDelivery:
 		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.business_date,d.currency,d.total_amount_cents,
 			x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name,
@@ -464,154 +459,6 @@ func (s *Service) writeSaleOutbound(
 	return MutationResult{DocumentID: id, DocumentNo: number, Status: StatusDraft, Revision: revision}, nil
 }
 
-type saleDeliveryTransport struct {
-	carrierType string
-	operating   *bobdomain.EffectiveReference
-	service     *bobdomain.EffectiveReference
-	vehicle     bobdomain.EffectiveReference
-}
-
-func referenceSnapshotField(reference *bobdomain.EffectiveReference, field string) any {
-	if reference == nil {
-		return nil
-	}
-	switch field {
-	case "object":
-		return reference.ObjectID
-	case "version":
-		return reference.VersionID
-	case "code":
-		return reference.Code
-	default:
-		return reference.Data.Name
-	}
-}
-
-func (value saleDeliveryTransport) operatingObjectID() any {
-	return referenceSnapshotField(value.operating, "object")
-}
-func (value saleDeliveryTransport) operatingVersionID() any {
-	return referenceSnapshotField(value.operating, "version")
-}
-func (value saleDeliveryTransport) operatingCode() any {
-	return referenceSnapshotField(value.operating, "code")
-}
-func (value saleDeliveryTransport) operatingName() any {
-	return referenceSnapshotField(value.operating, "name")
-}
-func (value saleDeliveryTransport) serviceObjectID() any {
-	return referenceSnapshotField(value.service, "object")
-}
-func (value saleDeliveryTransport) serviceVersionID() any {
-	return referenceSnapshotField(value.service, "version")
-}
-func (value saleDeliveryTransport) serviceCode() any {
-	return referenceSnapshotField(value.service, "code")
-}
-func (value saleDeliveryTransport) serviceName() any {
-	return referenceSnapshotField(value.service, "name")
-}
-
-func (s *Service) resolveSaleDeliveryTransport(
-	ctx context.Context,
-	tx pgx.Tx,
-	source salesSource,
-	carrier *ReferenceInput,
-	vehicleInput ReferenceInput,
-) (saleDeliveryTransport, error) {
-	vehicle, err := s.resolver.ResolveEffectiveReference(
-		ctx, tx, bobdomain.EntityVehicle, vehicleInput.ObjectID, vehicleInput.VersionID,
-	)
-	if err != nil || vehicle.Data.CarrierAffiliation == nil {
-		return saleDeliveryTransport{}, domainError(ErrorConflict, "vehicle is not currently effective", nil, err)
-	}
-	var requiresBulkLiquidCapability bool
-	if err = tx.QueryRow(ctx, `SELECT EXISTS(
-		SELECT 1
-		FROM vou_sale_outbound_lines AS outbound_line
-		JOIN vou_product_lines AS order_line ON order_line.id = outbound_line.source_order_line_id
-		WHERE outbound_line.document_id = $1
-		  AND order_line.delivery_specification_type = 'BULK_LIQUID'
-	)`, source.ID).Scan(&requiresBulkLiquidCapability); err != nil {
-		return saleDeliveryTransport{}, s.internal("check sale delivery vehicle capability", err)
-	}
-	if requiresBulkLiquidCapability && !vehicle.Data.BulkLiquidCapable {
-		return saleDeliveryTransport{}, domainError(ErrorConflict, "bulk-liquid delivery requires a capable vehicle", nil, nil)
-	}
-	affiliation := vehicle.Data.CarrierAffiliation
-	result := saleDeliveryTransport{carrierType: affiliation.Type, vehicle: vehicle}
-	switch affiliation.Type {
-	case "INTERNAL":
-		if carrier != nil || affiliation.OperatingEntityID != source.OperatingEntityObjectID {
-			return saleDeliveryTransport{}, domainError(ErrorConflict, "internal vehicle must belong to the sale order Operating Entity", nil, nil)
-		}
-		operating, resolveErr := s.resolver.ResolveCurrentEffectiveReference(
-			ctx, tx, bobdomain.EntityOperatingEntity, affiliation.OperatingEntityID,
-		)
-		if resolveErr != nil {
-			return saleDeliveryTransport{}, domainError(ErrorConflict, "vehicle Operating Entity is not currently effective", nil, resolveErr)
-		}
-		result.operating = &operating
-	case "EXTERNAL":
-		if err = validateReference(carrier, "carrier", true); err != nil {
-			return saleDeliveryTransport{}, err
-		}
-		service, resolveErr := s.resolver.ResolveEffectiveReference(
-			ctx, tx, bobdomain.EntityOtherUnit, carrier.ObjectID, carrier.VersionID,
-		)
-		if resolveErr != nil {
-			return saleDeliveryTransport{}, domainError(ErrorConflict, "carrier is not a current Service Relationship", nil, resolveErr)
-		}
-		if affiliation.ServiceRelationshipObjectID != service.ObjectID {
-			return saleDeliveryTransport{}, domainError(ErrorConflict, "external vehicle does not belong to the selected carrier", nil, nil)
-		}
-		result.service = &service
-	default:
-		return saleDeliveryTransport{}, domainError(ErrorConflict, "vehicle carrier affiliation is invalid", nil, nil)
-	}
-	return result, nil
-}
-
-func (s *Service) validateSaleDeliveryTransportCurrent(ctx context.Context, tx pgx.Tx, documentID string) error {
-	var sourceOutboundID, carrierType, vehicleObjectID, vehicleVersionID string
-	var operatingObjectID, operatingVersionID, serviceObjectID, serviceVersionID *string
-	err := tx.QueryRow(ctx, `SELECT source_outbound_id,carrier_type,
-		carrier_operating_entity_object_id,carrier_operating_entity_version_id,
-		carrier_service_relationship_object_id,carrier_service_relationship_version_id,
-		vehicle_object_id,vehicle_version_id
-		FROM vou_sale_delivery_details WHERE document_id=$1 FOR UPDATE`, documentID).Scan(
-		&sourceOutboundID, &carrierType, &operatingObjectID, &operatingVersionID,
-		&serviceObjectID, &serviceVersionID, &vehicleObjectID, &vehicleVersionID,
-	)
-	if err != nil {
-		return s.internal("read sale delivery carrier snapshot", err)
-	}
-	source, err := s.lockSalesSource(ctx, tx, sourceOutboundID, EntitySaleOutbound)
-	if err != nil {
-		return err
-	}
-	var carrier *ReferenceInput
-	if serviceObjectID != nil && serviceVersionID != nil {
-		carrier = &ReferenceInput{ObjectID: *serviceObjectID, VersionID: *serviceVersionID}
-	}
-	transport, err := s.resolveSaleDeliveryTransport(ctx, tx, source, carrier, ReferenceInput{
-		ObjectID: vehicleObjectID, VersionID: vehicleVersionID,
-	})
-	if err != nil {
-		return err
-	}
-	if transport.carrierType != carrierType {
-		return domainError(ErrorConflict, "saved carrier type is no longer current", nil, nil)
-	}
-	if carrierType == "INTERNAL" {
-		if operatingObjectID == nil || operatingVersionID == nil || transport.operating == nil ||
-			transport.operating.ObjectID != *operatingObjectID || transport.operating.VersionID != *operatingVersionID {
-			return domainError(ErrorConflict, "saved Operating Entity version is no longer current", nil, nil)
-		}
-	}
-	return nil
-}
-
 func (s *Service) writeSaleDelivery(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -621,6 +468,9 @@ func (s *Service) writeSaleDelivery(
 	remark *string,
 	actorID, requestID string,
 ) (MutationResult, error) {
+	if err := validateReference(data.Platform, "platform", true); err != nil {
+		return MutationResult{}, err
+	}
 	if err := validateReference(data.Vehicle, "vehicle", true); err != nil {
 		return MutationResult{}, err
 	}
@@ -639,9 +489,17 @@ func (s *Service) writeSaleDelivery(
 	if existing != 0 {
 		return MutationResult{}, domainError(ErrorConflict, "outbound already has a delivery", nil, nil)
 	}
-	transport, err := s.resolveSaleDeliveryTransport(ctx, tx, source, data.Carrier, *data.Vehicle)
+	platform, err := s.resolver.ResolveEffectiveReference(
+		ctx, tx, bobdomain.EntityOtherUnit, data.Platform.ObjectID, data.Platform.VersionID,
+	)
 	if err != nil {
-		return MutationResult{}, err
+		return MutationResult{}, domainError(ErrorConflict, "carrier is not an effective Service Relationship", nil, err)
+	}
+	vehicle, err := s.resolver.ResolveEffectiveReference(
+		ctx, tx, bobdomain.EntityVehicle, data.Vehicle.ObjectID, data.Vehicle.VersionID,
+	)
+	if err != nil || vehicle.Data.PlatformObjectID != platform.ObjectID {
+		return MutationResult{}, domainError(ErrorConflict, "vehicle does not belong to platform", nil, err)
 	}
 	id, number, revision := replacingID, "", int64(1)
 	if replacingID == "" {
@@ -651,17 +509,12 @@ func (s *Service) writeSaleDelivery(
 		if err == nil {
 			_, err = tx.Exec(ctx, `INSERT INTO vou_sale_delivery_details(
 				document_id,source_outbound_id,customer_object_id,customer_version_id,customer_code,customer_name,
-				carrier_type,
-				carrier_operating_entity_object_id,carrier_operating_entity_version_id,carrier_operating_entity_code,carrier_operating_entity_name,
-				carrier_service_relationship_object_id,carrier_service_relationship_version_id,carrier_service_relationship_code,carrier_service_relationship_name,
-				vehicle_object_id,vehicle_version_id,vehicle_code,vehicle_name,vehicle_plate_number,vehicle_bulk_liquid_capable)
-				VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
+				platform_object_id,platform_version_id,platform_code,platform_name,
+				vehicle_object_id,vehicle_version_id,vehicle_code,vehicle_name,vehicle_plate_number)
+				VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
 				id, source.ID, source.CustomerObjectID, source.CustomerVersionID, source.CustomerCode, source.CustomerName,
-				transport.carrierType,
-				transport.operatingObjectID(), transport.operatingVersionID(), transport.operatingCode(), transport.operatingName(),
-				transport.serviceObjectID(), transport.serviceVersionID(), transport.serviceCode(), transport.serviceName(),
-				transport.vehicle.ObjectID, transport.vehicle.VersionID, transport.vehicle.Code, transport.vehicle.Data.Name,
-				transport.vehicle.Data.PlateNumber, transport.vehicle.Data.BulkLiquidCapable)
+				platform.ObjectID, platform.VersionID, platform.Code, platform.Data.Name,
+				vehicle.ObjectID, vehicle.VersionID, vehicle.Code, vehicle.Data.Name, vehicle.Data.PlateNumber)
 		}
 	} else {
 		err = tx.QueryRow(ctx, `SELECT document_no FROM vou_documents WHERE id=$1`, id).Scan(&number)
@@ -670,15 +523,10 @@ func (s *Service) writeSaleDelivery(
 		}
 		if err == nil {
 			_, err = tx.Exec(ctx, `UPDATE vou_sale_delivery_details SET
-				carrier_type=$1,
-				carrier_operating_entity_object_id=$2,carrier_operating_entity_version_id=$3,carrier_operating_entity_code=$4,carrier_operating_entity_name=$5,
-				carrier_service_relationship_object_id=$6,carrier_service_relationship_version_id=$7,carrier_service_relationship_code=$8,carrier_service_relationship_name=$9,
-				vehicle_object_id=$10,vehicle_version_id=$11,vehicle_code=$12,vehicle_name=$13,vehicle_plate_number=$14,vehicle_bulk_liquid_capable=$15
-				WHERE document_id=$16`, transport.carrierType,
-				transport.operatingObjectID(), transport.operatingVersionID(), transport.operatingCode(), transport.operatingName(),
-				transport.serviceObjectID(), transport.serviceVersionID(), transport.serviceCode(), transport.serviceName(),
-				transport.vehicle.ObjectID, transport.vehicle.VersionID, transport.vehicle.Code, transport.vehicle.Data.Name,
-				transport.vehicle.Data.PlateNumber, transport.vehicle.Data.BulkLiquidCapable, id)
+				platform_object_id=$1,platform_version_id=$2,platform_code=$3,platform_name=$4,
+				vehicle_object_id=$5,vehicle_version_id=$6,vehicle_code=$7,vehicle_name=$8,vehicle_plate_number=$9
+				WHERE document_id=$10`, platform.ObjectID, platform.VersionID, platform.Code, platform.Data.Name,
+				vehicle.ObjectID, vehicle.VersionID, vehicle.Code, vehicle.Data.Name, vehicle.Data.PlateNumber, id)
 		}
 	}
 	if err != nil {

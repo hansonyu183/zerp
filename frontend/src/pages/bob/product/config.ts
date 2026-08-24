@@ -10,7 +10,6 @@ import {
   text,
   textarea,
 } from '../shared/config-helpers'
-import { bobListActiveVersion } from '../shared/types'
 
 export const productConfig = defineBobEntityConfig({
   entity: 'product',
@@ -35,7 +34,6 @@ export const productConfig = defineBobEntityConfig({
   // Draft products may be incomplete. Lifecycle actions run the complete check.
   requiredKeys: ['name'],
   persistedKeys: [
-    'name',
     'productTypeId',
     'defaultInputUnitId',
     'pricingUnitId',
@@ -43,11 +41,6 @@ export const productConfig = defineBobEntityConfig({
     'returnable',
     'defaultPackagingSpec',
     'formula',
-    'categoryId',
-    'specification',
-    'model',
-    'barcode',
-    'remark',
   ],
   uppercaseKeys: ['barcode'],
   references: {
@@ -158,17 +151,17 @@ export const productConfig = defineBobEntityConfig({
     {
       key: 'productTypeName',
       label: '产品类型',
-      value: (row) => bobListActiveVersion(row).summary.productTypeName,
+      value: (row) => row.currentVersion.summary.productTypeName,
     },
     {
       key: 'defaultInputUnit',
       label: '默认录入单位',
-      value: (row) => bobListActiveVersion(row).summary.defaultInputUnitName,
+      value: (row) => row.currentVersion.summary.defaultInputUnitName,
     },
     {
       key: 'model',
       label: '型号',
-      value: (row) => bobListActiveVersion(row).summary.model,
+      value: (row) => row.currentVersion.summary.model,
     },
   ]),
   filters: baseFilters([

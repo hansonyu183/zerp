@@ -13,11 +13,12 @@ import { useSessionStore } from '@/stores/session'
 interface ReferenceListItem {
   objectId: string
   code: string
-  effective: {
+  effectiveVersionId: string | null
+  currentVersion: {
     versionId: string
     status: string
     summary: Record<string, unknown> & { name?: string }
-  } | null
+  }
 }
 
 interface ReferenceState {
@@ -120,7 +121,7 @@ export function useVoucherReferences(
         filters: { behaviorProfile: 'RAW_MATERIAL' },
       }
     }
-    if (key === 'carrier') {
+    if (key === 'platform') {
       return { entities: ['other-unit'] }
     }
     if (key === 'vehicle') {
@@ -242,17 +243,19 @@ export function useVoucherReferences(
           )
           return (data.items ?? []).flatMap((item): VoucherReference[] => {
             if (
-              item.effective?.status !== 'EFFECTIVE' ||
-              !item.effective.summary.name
+              item.currentVersion.status !== 'EFFECTIVE' ||
+              !item.effectiveVersionId ||
+              item.effectiveVersionId !== item.currentVersion.versionId ||
+              !item.currentVersion.summary.name
             ) {
               return []
             }
-            const summary = item.effective.summary
+            const summary = item.currentVersion.summary
             const behaviorProfile = summary.behaviorProfile
             return [
               {
                 objectId: item.objectId,
-                versionId: item.effective.versionId,
+                versionId: item.effectiveVersionId,
                 entity,
                 code: item.code,
                 name: String(summary.name),
@@ -265,15 +268,8 @@ export function useVoucherReferences(
                 ...(typeof summary.plateNumber === 'string'
                   ? { plateNumber: summary.plateNumber }
                   : {}),
-                ...(summary.carrierAffiliation &&
-                typeof summary.carrierAffiliation === 'object'
-                  ? {
-                      carrierAffiliation:
-                        summary.carrierAffiliation as VoucherReference['carrierAffiliation'],
-                    }
-                  : {}),
-                ...(typeof summary.bulkLiquidCapable === 'boolean'
-                  ? { bulkLiquidCapable: summary.bulkLiquidCapable }
+                ...(typeof summary.platformObjectId === 'string'
+                  ? { platformObjectId: summary.platformObjectId }
                   : {}),
                 ...(typeof behaviorProfile === 'string' &&
                 [
@@ -305,18 +301,13 @@ export function useVoucherReferences(
         }),
       )
       if (sequence !== state.sequence) return
-      const serviceRelationshipObjectId =
-        key === 'carrier' &&
-        form.value.vehicle?.carrierAffiliation?.type === 'EXTERNAL'
-          ? form.value.vehicle.carrierAffiliation
-              .serviceRelationshipObjectId
-          : undefined
+      const platformObjectId =
+        key === 'vehicle' ? form.value.platform?.objectId : undefined
       state.options = [...selectedReferences(), ...pages.flat()]
         .filter(
           (item) =>
             definition.entities.includes(item.entity as ReferenceEntity) &&
-            (!serviceRelationshipObjectId ||
-              item.objectId === serviceRelationshipObjectId),
+            (!platformObjectId || item.platformObjectId === platformObjectId),
         )
         .filter(
           (item, index, all) =>

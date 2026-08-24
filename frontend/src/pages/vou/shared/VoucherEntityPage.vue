@@ -602,25 +602,22 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                   <VoucherReferenceAutocomplete
                     v-if="vm.config.entity === 'sale-delivery'"
                     :disabled="!vm.editing"
+                    v-bind="referenceProps('platform')"
+                    label="物流平台"
+                    :model-value="vm.form.platform"
+                    required
+                    @search="search('platform', $event)"
+                    @update:model-value="updateReference('platform', $event)"
+                  />
+                  <VoucherReferenceAutocomplete
+                    v-if="vm.config.entity === 'sale-delivery'"
+                    :disabled="!vm.editing || !vm.form.platform"
                     v-bind="referenceProps('vehicle')"
                     label="配送车辆"
                     :model-value="vm.form.vehicle"
                     required
                     @search="search('vehicle', $event)"
                     @update:model-value="updateReference('vehicle', $event)"
-                  />
-                  <VoucherReferenceAutocomplete
-                    v-if="
-                      vm.config.entity === 'sale-delivery' &&
-                      vm.form.vehicle?.carrierAffiliation?.type === 'EXTERNAL'
-                    "
-                    :disabled="!vm.editing"
-                    v-bind="referenceProps('carrier')"
-                    label="外部承运方"
-                    :model-value="vm.form.carrier"
-                    required
-                    @search="search('carrier', $event)"
-                    @update:model-value="updateReference('carrier', $event)"
                   />
                   <VoucherReferenceAutocomplete
                     v-if="vm.config.usesEmployee"
@@ -796,7 +793,6 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
             v-if="vm.config.lineKind === 'product'"
             v-model="vm.form.productLines"
             :editable="vm.editing"
-            :delivery-specification-enabled="vm.config.entity === 'sale-order'"
             :formula-enabled="vm.config.entity === 'sale-order'"
             :product-error="vm.referenceError('product')"
             :product-loading="vm.referenceLoading('product')"
@@ -1156,21 +1152,10 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
                 <strong>入库日期</strong
                 ><span>{{ vm.documentView.data.inboundDate }}</span>
               </div>
-              <div v-if="vm.documentView.data.vehicle">
-                <strong>承运归属/车辆</strong>
+              <div v-if="vm.documentView.data.platform">
+                <strong>物流平台/车辆</strong>
                 <span>
-                  {{
-                    vm.documentView.data.carrierType === 'INTERNAL'
-                      ? vm.documentView.data.carrierOperatingEntity
-                        ? formatReferenceLabel(
-                            vm.documentView.data.carrierOperatingEntity,
-                          )
-                        : '自有'
-                      : vm.documentView.data.carrier
-                        ? formatReferenceLabel(vm.documentView.data.carrier)
-                        : '外部'
-                  }}
-                  /
+                  {{ formatReferenceLabel(vm.documentView.data.platform) }} /
                   {{
                     vm.documentView.data.vehicle
                       ? formatReferenceLabel(vm.documentView.data.vehicle)

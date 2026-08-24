@@ -127,13 +127,15 @@ func deleteIntegrationData(entity, platformObjectID, salespersonEmployeeID, oper
 		data.DefaultPurchaserEmployeeID = salespersonEmployeeID
 	case EntityProduct:
 		data.DefaultPackagingSpec = "1"
+	case EntityService:
+		data.Unit = "unit"
 	case EntityFundAccount:
 		data.Currency = "CNY"
 		data.OperatingEntityID = operatingEntityID
 	case EntityVehicle:
 		data.PlateNumber = "沪D" + newID()
 		data.VehicleType = "Truck"
-		data.CarrierAffiliation = &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platformObjectID}
+		data.PlatformObjectID = platformObjectID
 	case EntityCategory:
 		data.TargetEntity = EntityProduct
 	case EntitySettlementMethod:
@@ -159,6 +161,7 @@ func assertBobAggregateCounts(
 			(SELECT count(*) FROM bob_supplier_versions WHERE version_id = $2) +
 			(SELECT count(*) FROM bob_employee_versions WHERE version_id = $2) +
 			(SELECT count(*) FROM bob_product_versions WHERE version_id = $2) +
+			(SELECT count(*) FROM bob_service_versions WHERE version_id = $2) +
 			(SELECT count(*) FROM bob_warehouse_versions WHERE version_id = $2) +
 			(SELECT count(*) FROM bob_vehicle_versions WHERE version_id = $2) +
 			(SELECT count(*) FROM bob_fund_account_versions WHERE version_id = $2) +
@@ -192,6 +195,7 @@ func assertBobAggregatePresent(t *testing.T, pool *pgxpool.Pool, objectID, versi
 			(SELECT count(*) FROM bob_supplier_versions WHERE version_id = $2) +
 			(SELECT count(*) FROM bob_employee_versions WHERE version_id = $2) +
 			(SELECT count(*) FROM bob_product_versions WHERE version_id = $2) +
+			(SELECT count(*) FROM bob_service_versions WHERE version_id = $2) +
 			(SELECT count(*) FROM bob_warehouse_versions WHERE version_id = $2) +
 			(SELECT count(*) FROM bob_vehicle_versions WHERE version_id = $2) +
 			(SELECT count(*) FROM bob_fund_account_versions WHERE version_id = $2) +

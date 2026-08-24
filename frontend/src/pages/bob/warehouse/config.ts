@@ -9,7 +9,6 @@ import {
   text,
   textarea,
 } from '../shared/config-helpers'
-import { bobListActiveVersion } from '../shared/types'
 
 export const warehouseConfig = defineBobEntityConfig({
   entity: 'warehouse',
@@ -25,11 +24,11 @@ export const warehouseConfig = defineBobEntityConfig({
   },
   requiredKeys: ['name'],
   references: {
-    managerEmployeeId: { entity: 'employee', label: '仓库负责人' },
+    managerEmployeeId: { entity: 'employee', label: '管理员工' },
   },
   fields: (context) => [
     ...commonFields(context, '仓库编码', '仓库名称'),
-    reference('managerEmployeeId', '仓库负责人', context),
+    reference('managerEmployeeId', '管理员工', context),
     textarea('address', '地址', 500),
     text('contactName', '联系人', 100),
     text('contactPhone', '联系电话', 32, {
@@ -39,20 +38,14 @@ export const warehouseConfig = defineBobEntityConfig({
   ],
   columns: baseColumns('编码', '名称', [
     {
-      key: 'managerEmployeeId',
-      label: '仓库负责人',
-      value: (row) =>
-        bobListActiveVersion(row).summary.managerEmployeeId || '—',
-    },
-    {
       key: 'address',
       label: '地址',
-      value: (row) => bobListActiveVersion(row).summary.address,
+      value: (row) => row.currentVersion.summary.address,
     },
     {
       key: 'contactName',
       label: '联系人',
-      value: (row) => bobListActiveVersion(row).summary.contactName,
+      value: (row) => row.currentVersion.summary.contactName,
     },
   ]),
   filters: baseFilters(),

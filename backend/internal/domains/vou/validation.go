@@ -19,20 +19,19 @@ const dateLayout = "2006-01-02"
 var currencyPattern = regexp.MustCompile(`^[A-Z]{3}$`)
 
 type fixedProductLine struct {
-	Product                   ReferenceInput
-	EnteredQuantity           int64
-	EnteredUnitID             string
-	BaseUnitPrice             int64
-	SettlementSurcharge       int64
-	SurchargeProvided         bool
-	Quantity                  int64
-	UnitPrice                 int64
-	PurchaseUnitPrice         *int64
-	LineAmount                int64
-	Remark                    *string
-	Formula                   *fixedFormula
-	Reference                 priceReference
-	DeliverySpecificationType string
+	Product             ReferenceInput
+	EnteredQuantity     int64
+	EnteredUnitID       string
+	BaseUnitPrice       int64
+	SettlementSurcharge int64
+	SurchargeProvided   bool
+	Quantity            int64
+	UnitPrice           int64
+	PurchaseUnitPrice   *int64
+	LineAmount          int64
+	Remark              *string
+	Formula             *fixedFormula
+	Reference           priceReference
 }
 
 type fixedPriceLine struct {
@@ -384,7 +383,7 @@ func requireOnlyDraftRefs(
 		(!purchaser && input.Purchaser != nil) || (!handler && input.Handler != nil) ||
 		(!warehouse && input.Warehouse != nil) || (!fundAccount && input.FundAccount != nil) ||
 		(!source && strings.TrimSpace(input.SourceName) != "") ||
-		strings.TrimSpace(input.SourceDocumentID) != "" || input.Carrier != nil || input.Vehicle != nil ||
+		strings.TrimSpace(input.SourceDocumentID) != "" || input.Platform != nil || input.Vehicle != nil ||
 		len(input.SourceLines) != 0 || len(input.SignoffLines) != 0 {
 		return domainError(ErrorValidation, "fields do not match entity", nil, nil)
 	}
@@ -501,21 +500,12 @@ func validateProductLines(
 		if err != nil {
 			return nil, 0, err
 		}
-		deliverySpecificationType := strings.TrimSpace(line.DeliverySpecificationType)
-		if deliverySpecificationType == "" {
-			deliverySpecificationType = "PACKAGED"
-		}
-		if (!allowFormula && line.DeliverySpecificationType != "") ||
-			(deliverySpecificationType != "PACKAGED" && deliverySpecificationType != "BULK_LIQUID") {
-			return nil, 0, domainError(ErrorValidation, "invalid deliverySpecificationType", nil, nil)
-		}
 		result = append(result, fixedProductLine{
 			Product: ReferenceInput{ObjectID: line.Product.ObjectID}, EnteredQuantity: enteredQuantity,
 			EnteredUnitID: line.EnteredUnit.ObjectID, Quantity: quantity, BaseUnitPrice: price,
 			SettlementSurcharge: surcharge, SurchargeProvided: surchargeProvided,
 			UnitPrice:         price + surcharge,
 			PurchaseUnitPrice: purchasePrice, LineAmount: amount, Remark: remark, Formula: formula,
-			DeliverySpecificationType: deliverySpecificationType,
 		})
 	}
 	return result, total, nil

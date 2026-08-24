@@ -325,6 +325,7 @@ describe('permission menu registry', () => {
       'other-unit',
       'employee',
       'product',
+      'service',
       'warehouse',
       'vehicle',
       'fund-account',
@@ -337,6 +338,7 @@ describe('permission menu registry', () => {
       '其他单位',
       '员工',
       '产品',
+      '服务',
       '仓库',
       '车辆',
       '资金账户',
@@ -356,7 +358,6 @@ describe('permission menu registry', () => {
       })
     }
     expect(hasRegisteredPage('bob', 'other-party')).toBe(false)
-    expect(hasRegisteredPage('bob', 'service')).toBe(false)
 
     registerMenuRoutes(router, [])
   })

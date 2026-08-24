@@ -250,7 +250,7 @@ func (s *Service) prepareProductionDraft(
 	if strings.TrimSpace(input.Currency) != "" || input.Customer != nil || input.Supplier != nil ||
 		input.Counterparty != nil || input.Employee != nil || input.Salesperson != nil ||
 		input.Purchaser != nil || input.Handler != nil || input.Warehouse != nil ||
-		input.Carrier != nil || input.Vehicle != nil || input.FundAccount != nil ||
+		input.Platform != nil || input.Vehicle != nil || input.FundAccount != nil ||
 		strings.TrimSpace(input.SourceName) != "" || strings.TrimSpace(input.Amount) != "" ||
 		len(input.ProductLines) != 0 || len(input.ExpenseLines) != 0 ||
 		len(input.SourceLines) != 0 || len(input.SignoffLines) != 0 || len(input.ReturnLines) != 0 {

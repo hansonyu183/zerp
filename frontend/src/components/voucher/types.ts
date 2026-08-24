@@ -50,12 +50,7 @@ export interface VoucherReference extends VoucherReferenceInput {
   unit?: string
   currency?: string
   plateNumber?: string
-  carrierAffiliation?: {
-    type: 'INTERNAL' | 'EXTERNAL'
-    operatingEntityId?: string
-    serviceRelationshipObjectId?: string
-  }
-  bulkLiquidCapable?: boolean
+  platformObjectId?: string
   behaviorProfile?: ProductBehaviorProfile
   defaultInputUnitId?: string
   pricingUnitId?: string
@@ -88,7 +83,6 @@ export interface VoucherProductLineDraft {
   unitPrice: string
   settlementSurcharge: string
   purchaseUnitPrice: string
-  deliverySpecificationType: 'PACKAGED' | 'BULK_LIQUID'
   remark: string
   formula: ProductFormulaDraft | null
   formulaLoading?: boolean
@@ -219,7 +213,7 @@ export interface VoucherDraftForm {
   warehouse: VoucherReference | null
   materialWarehouse: VoucherReference | null
   finishedWarehouse: VoucherReference | null
-  carrier: VoucherReference | null
+  platform: VoucherReference | null
   vehicle: VoucherReference | null
   fundAccount: VoucherReference | null
   sourceName: string
@@ -274,7 +268,6 @@ export interface VoucherProductLineView {
   baseUnitPrice?: string
   settlementSurcharge?: string
   purchaseUnitPrice?: string
-  deliverySpecificationType: 'PACKAGED' | 'BULK_LIQUID'
   lineAmount: string
   remark?: string
   outboundBaseQuantity?: string
@@ -483,11 +476,8 @@ export interface VoucherDocumentData {
   outboundDate?: string
   signoffDate?: string
   inboundDate?: string
-  carrierType?: 'INTERNAL' | 'EXTERNAL'
-  carrierOperatingEntity?: VoucherReferenceView
-  carrier?: VoucherReferenceView
+  platform?: VoucherReferenceView
   vehicle?: VoucherReferenceView
-  vehicleBulkLiquidCapable?: boolean
   differenceReason?: string
   signoffLines?: VoucherSaleSignoffLineView[]
   fulfillmentStatus?: 'OPEN' | 'FULFILLED'
@@ -810,4 +800,6 @@ export interface VoucherActionAvailability {
   attachmentDownload: boolean
   attachmentRemove: boolean
 }
-import type { ProductFormulaDraft } from '@/components/formula'
+import type {
+  ProductFormulaDraft,
+} from '@/components/formula'

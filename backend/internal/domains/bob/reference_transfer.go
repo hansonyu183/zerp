@@ -203,7 +203,7 @@ func listDirectReferenceUses(ctx context.Context, q *dbsqlc.Queries, entity, obj
 			uses = append(uses, directReferenceUse{row.ObjectID, row.Entity, row.Role})
 		}
 	case EntityOtherUnit:
-		rows, err := q.ListVehicleCarrierServiceReferences(ctx, &objectID)
+		rows, err := q.ListVehiclePlatformReferences(ctx, objectID)
 		if err != nil {
 			return nil, err
 		}
@@ -231,13 +231,6 @@ func listDirectReferenceUses(ctx context.Context, q *dbsqlc.Queries, entity, obj
 			return nil, err
 		}
 		for _, row := range rows2 {
-			uses = append(uses, directReferenceUse{row.ObjectID, row.Entity, row.Role})
-		}
-		rows3, err := q.ListVehicleCarrierOperatingReferences(ctx, &objectID)
-		if err != nil {
-			return nil, err
-		}
-		for _, row := range rows3 {
 			uses = append(uses, directReferenceUse{row.ObjectID, row.Entity, row.Role})
 		}
 	case EntityProduct:
@@ -322,8 +315,6 @@ func (s *Service) replaceDirectReference(
 			err = qtx.ReplaceCustomerOperatingEntityReference(ctx, dbsqlc.ReplaceCustomerOperatingEntityReferenceParams{TargetObjectID: &targetObjectID, Code: &snapshot.Code, Name: &snapshot.Name, TaxNumber: &snapshot.TaxNumber, Address: &snapshot.Address, Phone: &snapshot.Phone, VersionID: candidateID})
 		case "fund-operating":
 			err = qtx.ReplaceFundOperatingEntityReference(ctx, dbsqlc.ReplaceFundOperatingEntityReferenceParams{TargetObjectID: &targetObjectID, TargetVersionID: &targetVersionID, Code: &snapshot.Code, Name: &snapshot.Name, VersionID: candidateID})
-		case "vehicle-carrier-operating":
-			err = qtx.ReplaceVehicleCarrierOperatingReference(ctx, dbsqlc.ReplaceVehicleCarrierOperatingReferenceParams{TargetObjectID: &targetObjectID, VersionID: candidateID})
 		}
 		if err != nil {
 			return s.writeError("replace direct reference", err)
@@ -344,10 +335,8 @@ func (s *Service) replaceDirectReference(
 		err = qtx.ReplaceSupplierPurchaserReference(ctx, dbsqlc.ReplaceSupplierPurchaserReferenceParams{TargetObjectID: &targetObjectID, VersionID: candidateID})
 	case "warehouse-manager":
 		err = qtx.ReplaceWarehouseManagerReference(ctx, dbsqlc.ReplaceWarehouseManagerReferenceParams{TargetObjectID: &targetObjectID, VersionID: candidateID})
-	case "vehicle-carrier-operating":
-		err = qtx.ReplaceVehicleCarrierOperatingReference(ctx, dbsqlc.ReplaceVehicleCarrierOperatingReferenceParams{TargetObjectID: &targetObjectID, VersionID: candidateID})
-	case "vehicle-carrier-service":
-		err = qtx.ReplaceVehicleCarrierServiceReference(ctx, dbsqlc.ReplaceVehicleCarrierServiceReferenceParams{TargetObjectID: &targetObjectID, VersionID: candidateID})
+	case "vehicle-platform":
+		err = qtx.ReplaceVehiclePlatformReference(ctx, dbsqlc.ReplaceVehiclePlatformReferenceParams{TargetObjectID: targetObjectID, VersionID: candidateID})
 	case "formula-material":
 		err = qtx.ReplaceFormulaMaterialReference(ctx, dbsqlc.ReplaceFormulaMaterialReferenceParams{TargetObjectID: targetObjectID, TargetVersionID: targetVersionID, ProductVersionID: candidateID, SourceObjectID: sourceObjectID})
 	}
@@ -367,13 +356,13 @@ func validateReferenceTransferTarget(ctx context.Context, q *dbsqlc.Queries, rol
 		if role == "formula-material" && deref(behavior) != ProductBehaviorRawMaterial {
 			return domainError(ErrorConflict, "formula material replacement must be a raw material", nil, nil)
 		}
-	case "vehicle-carrier-service":
+	case "vehicle-platform":
 		eligible, err := q.ReferenceTransferTargetIsServiceRelationship(ctx, dbsqlc.ReferenceTransferTargetIsServiceRelationshipParams{ObjectID: objectID, VersionID: &versionID})
 		if err != nil {
-			return domainError(ErrorConflict, "vehicle service carrier replacement is unavailable", nil, err)
+			return domainError(ErrorConflict, "vehicle platform replacement is unavailable", nil, err)
 		}
 		if !eligible {
-			return domainError(ErrorConflict, "vehicle service carrier replacement must be an effective service relationship", nil, nil)
+			return domainError(ErrorConflict, "vehicle platform replacement must be an effective service relationship", nil, nil)
 		}
 	case "customer-sales-external-part-time", "customer-sales-channel-partner":
 		capability := SalesCapabilityExternalPartTime

@@ -161,6 +161,30 @@ func (s *Service) Authorize(ctx context.Context, rawToken, csrfToken, path, requ
 	return principal, nil
 }
 
+func (s *Service) AuthorizeSession(
+	ctx context.Context,
+	rawToken, csrfToken, path, requestID string,
+) (Principal, error) {
+	principal, err := s.loadPrincipal(ctx, rawToken)
+	if err != nil {
+		return Principal{}, err
+	}
+	if csrfToken == "" || !constantTimeHashEqual(principal.CSRFHash, csrfToken) {
+		s.auditAuthorizationDenied(ctx, principal, path, requestID, "csrf")
+		return Principal{}, domainError(ErrorForbidden, "csrf validation failed", nil)
+	}
+	if err = s.enforceRestrictedSessionPath(ctx, principal, path, requestID); err != nil {
+		return Principal{}, err
+	}
+	idleEnds := time.Now().UTC().Add(s.cfg.SessionIdleTimeout)
+	if err = s.queries.TouchAppSession(ctx, dbsqlc.TouchAppSessionParams{
+		ID: principal.SessionID, IdleExpiresAt: timestamptz(idleEnds),
+	}); err != nil {
+		return Principal{}, s.internal("touch session", err)
+	}
+	return principal, nil
+}
+
 func passwordChangeSessionAllows(path string) bool {
 	return path == "/app/user/session" || isSessionSelfServicePath(path)
 }

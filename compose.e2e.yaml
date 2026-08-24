@@ -8,7 +8,6 @@ services:
       APP_ENV: test
       APP_SESSION_COOKIE_SECURE: 'false'
       APP_SESSION_COOKIE_SAME_SITE: lax
-      FEEDBACK_GITHUB_ENABLED: 'false'
     ports:
       - '127.0.0.1:${API_PORT:-18081}:8080'
     depends_on:
@@ -37,7 +36,6 @@ services:
       APP_BOOTSTRAP_DISPLAY_NAME: ${APP_BOOTSTRAP_DISPLAY_NAME:?set APP_BOOTSTRAP_DISPLAY_NAME}
       APP_BOOTSTRAP_PASSWORD: ${APP_BOOTSTRAP_PASSWORD:?set APP_BOOTSTRAP_PASSWORD}
       ATTACHMENT_STORAGE_ROOT: /var/lib/zerp/attachments
-      FEEDBACK_GITHUB_ENABLED: 'false'
     volumes:
       - attachment-data:/var/lib/zerp/attachments
     depends_on:

@@ -33,7 +33,6 @@ test "${POSTGRES_PORT:-}" = "55435" || { echo "E2E POSTGRES_PORT must be 55435" 
 test "${API_PORT:-}" = "18081" || { echo "E2E API_PORT must be 18081" >&2; exit 1; }
 test "${WEB_PORT:-}" = "15174" || { echo "E2E WEB_PORT must be 15174" >&2; exit 1; }
 test "${APP_SESSION_COOKIE_NAME:-}" = "zerp_e2e_session" || { echo "E2E cookie name must be zerp_e2e_session" >&2; exit 1; }
-test "${FEEDBACK_GITHUB_ENABLED:-}" = "false" || { echo "E2E feedback publishing must be disabled" >&2; exit 1; }
 expected_database_url="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable"
 test "${DATABASE_URL:-}" = "${expected_database_url}" || {
   echo "E2E DATABASE_URL must target the validated disposable PostgreSQL instance" >&2

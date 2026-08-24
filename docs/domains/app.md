@@ -19,7 +19,6 @@ APP 负责：
 - 维护由代码或迁移注册的非敏感系统参数；
 - 维护系统默认与业务归类两种导航模式，以及可编辑业务菜单模板；
 - 记录认证、授权和管理操作审计事件。
-- 接收登录用户反馈，并可靠发布为待人工审核的 GitHub Issue。
 
 APP 不负责：
 
@@ -32,21 +31,18 @@ APP 不负责：
 
 ### 3.1 核心实体
 
-| 实体         | 建议表名                   | 说明                                                    |
-| ------------ | -------------------------- | ------------------------------------------------------- |
-| 用户         | `app_users`                | 可登录的身份主体，保存账号状态和密码摘要                |
-| 用户资料     | `app_user_profiles`        | 用户的一对一扩展资料，当前保存私有配置的 HTTPS 头像地址 |
-| 角色         | `app_roles`                | 可复用的权限集合                                        |
-| 权限         | `app_permissions`          | 后端可调用 API 的目录项，路径是业务唯一标识             |
-| 用户角色     | `app_user_roles`           | 用户与角色的多对多关联                                  |
-| 角色权限     | `app_role_permissions`     | 角色与权限的多对多关联                                  |
-| 会话         | `app_sessions`             | 服务端会话、到期和注销状态                              |
-| 审计事件     | `app_audit_events`         | 登录、退出及授权变更的追加式记录                        |
-| 用户反馈     | `app_feedback`             | 脱敏后的反馈内容、发布队列状态和 GitHub Issue 结果      |
-| 反馈截图文件 | `app_feedback_files`       | 反馈专用私有截图、上传状态、归属和过期时间              |
-| 反馈附件快照 | `app_feedback_attachments` | 已提交附件的非敏感元数据快照；保留历史 VOU 来源标记     |
-| 系统参数     | `app_system_parameters`    | 代码或迁移注册的非敏感运行参数及其配置值、默认值        |
-| 业务菜单项   | `app_business_menu_items`  | 业务归类模板中的分组、路由引用、顺序、显示和并发版本    |
+| 实体       | 建议表名                  | 说明                                                    |
+| ---------- | ------------------------- | ------------------------------------------------------- |
+| 用户       | `app_users`               | 可登录的身份主体，保存账号状态和密码摘要                |
+| 用户资料   | `app_user_profiles`       | 用户的一对一扩展资料，当前保存私有配置的 HTTPS 头像地址 |
+| 角色       | `app_roles`               | 可复用的权限集合                                        |
+| 权限       | `app_permissions`         | 后端可调用 API 的目录项，路径是业务唯一标识             |
+| 用户角色   | `app_user_roles`          | 用户与角色的多对多关联                                  |
+| 角色权限   | `app_role_permissions`    | 角色与权限的多对多关联                                  |
+| 会话       | `app_sessions`            | 服务端会话、到期和注销状态                              |
+| 审计事件   | `app_audit_events`        | 登录、退出及授权变更的追加式记录                        |
+| 系统参数   | `app_system_parameters`   | 代码或迁移注册的非敏感运行参数及其配置值、默认值        |
+| 业务菜单项 | `app_business_menu_items` | 业务归类模板中的分组、路由引用、顺序、显示和并发版本    |
 
 关系如下：
 
@@ -233,8 +229,6 @@ User ──< UserRole >── Role ──< RolePermission >── Permission
 
 `password_change_required` 为真时，会话进入强制改密限制：除 `/app/user/session`、`/app/user/change-password` 和 `/app/user/signout` 外，后端拒绝该会话调用任何接口，包括通常允许登录用户使用的其他自助接口。前端权限数组、菜单或路由状态不能放宽该限制。
 
-`/app/feedback/attachment-initiate`、`/app/feedback/attachment-remove`、`/app/feedback/create` 和 `/app/feedback/get` 是登录用户自助接口，只要求有效会话和 CSRF，不进入 `app_permissions`，也不参与角色逐项授权。该例外只允许操作当前主体的未提交附件、提交反馈和查询本人反馈，不能读取其他用户数据。
-
 会话接口只返回用户资料、CSRF Token、API 权限数组、`passwordChangeRequired` 和 `passwordMinLength`。菜单树通过会话级 `/app/menu/get` 单独读取；后端只返回已注册路由键、固定地址及展示元数据，不得指定可执行的前端组件路径。
 
 ## 5. 动作语义
@@ -288,25 +282,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 
 `profile` 要求有效会话、CSRF Token 和 `/app/user/profile` 精确权限。`change-password` 是每个有效会话固有的本人自助能力，只要求有效会话和 CSRF，不进入角色权限；强制改密受限会话仍可调用该动作。
 
-### 5.5 用户反馈
-
-`POST /app/feedback/attachment-initiate` 使用有效会话和 CSRF 创建反馈专用上传。
-
-成功返回 `fileId`、15 分钟有效的一次性 `uploadUrl` 和 `expiresAt`。客户端以声明的
-`Content-Type`、`Content-Length` 对 `uploadUrl` 执行 `PUT`，上传成功返回 204。
-只允许 PNG、JPEG，每张 1 字节至 10 MiB；后端同时校验长度、SHA-256 和文件魔数。
-每个用户最多保留 3 个未提交文件，滚动 24 小时最多初始化 60 次。
-`POST /app/feedback/attachment-remove` 请求 `{"fileId":"01J..."}`，只能删除当前用户尚未提交的文件。
-
-`submissionKey` 是客户端为一次反馈草稿生成的 16–64 位幂等键，同一用户重试时必须复用；相同键和相同内容返回首次提交结果，不重复创建反馈或占用限额，复用相同键提交不同内容则拒绝。`category` 只允许 `BUG`、`SUGGESTION`、`OTHER`；标题 1–120 个 Unicode 字符，正文 1–4000 个 Unicode 字符。`pagePath` 只能是不带查询串和 Fragment 的站内绝对路径；最多引用 3 个不重复的严格 ULID。附件必须来自上述反馈专用流程、归属当前用户且状态为 `READY`；VOU 附件 ID 不再接受。提交后保存文件和文件名、MIME、大小、SHA-256 快照，但不生成公开地址，也不把截图内容或地址写入 GitHub Issue。已上传但 24 小时内未提交的文件由清理任务删除；已提交截图私有长期保留，当前不提供 HTTP 查看或下载接口。
-
-后端在持久化前清除常见令牌、Cookie、CSRF、密码赋值、JWT 和私钥内容。每个用户滚动 24 小时最多提交 20 条。
-
-`POST /app/feedback/get` 请求 `{"feedbackId":"01J..."}`，只允许提交者查询，返回分类、标题、`PENDING | PUBLISHED | FAILED`、公开 Issue URL 和时间。内部 `PROCESSING` 对外仍显示 `PENDING`，他人查询与记录不存在使用相同错误。
-
-反馈提交与 GitHub 发布解耦：只要数据库可用就必须先持久化并返回 `PENDING`，不能因当前环境未启用发布器而拒绝提交。启用发布器的环境再由数据库租约队列异步发布到配置的 GitHub 仓库。Issue 必须原子附带 `automation:blocked`，正文不包含用户身份、IP、UA 或凭证；只有人工审核并移除阻塞标签后，自动 Issue 处理任务才能领取。暂时性错误指数退避，最多 10 次；永久 GitHub 4xx 或重试耗尽进入 `FAILED`。
-
-### 5.6 用户管理
+### 5.5 用户管理
 
 用户管理动作、路径与数据结构以 [OpenAPI APP Schema](../../contracts/openapi/schemas/app.yaml) 为准。
 
@@ -324,7 +300,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 
 管理员重置密码是独立安全动作，不得复用 `save` 或本人 `change-password`。该动作只允许以启用状态的普通非本人用户为目标；停用用户、系统内置用户和当前操作者本人必须拒绝，且重置不得隐式改变账号状态。后端生成满足密码策略的随机临时密码，并在同一事务中保存其摘要、设置 `password_change_required`、撤销目标用户全部会话、增加 `revision` 和记录审计。临时密码不设置独立时间期限，在用户完成强制改密或管理员再次重置前保持为当前有效密码。事务提交成功后仅在该次响应中返回一次临时明文密码，服务端不保存可恢复明文，也不提供再次读取接口；密码不得进入审计或日志。该动作实施前必须先加入 OpenAPI 和权限目录。
 
-### 5.7 角色管理
+### 5.6 角色管理
 
 角色管理动作、路径与数据结构以 [OpenAPI APP Schema](../../contracts/openapi/schemas/app.yaml) 为准。
 
@@ -340,7 +316,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 
 启用和停用使用稳定角色 ID 与 revision，分别要求精确动作权限，并在授权更新锁内重新验证目标可维护性、操作者关联、当前状态和最后有效授权管理员保护。停用只改变角色状态，不删除角色权限或用户角色关联，也不撤销现有会话；从关联用户下一次受保护请求开始，该角色不再贡献权限。重新启用后，从下一次请求开始只恢复仍启用权限的贡献。状态变更记录操作者、目标、结果、时间和 request ID，首版不保存原因。
 
-### 5.8 权限目录
+### 5.7 权限目录
 
 权限目录动作、路径与数据结构以 [OpenAPI APP Schema](../../contracts/openapi/schemas/app.yaml) 为准。
 
@@ -348,13 +324,13 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 
 权限详情中的“直接关联角色数”只统计 `app_role_permissions` 中对该权限的显式角色关联，且包含停用角色；不包含启用 `superadmin` 的动态通配结果。
 
-### 5.9 系统参数
+### 5.8 系统参数
 
 系统参数动作、路径与数据结构以 [OpenAPI APP Schema](../../contracts/openapi/schemas/app.yaml) 为准。
 
 每个动作独立校验有效会话、CSRF 和对应精确路径权限；`get` 返回新鲜详情。参数键、名称、说明、类型、默认值和约束均不得由普通接口创建、删除或修改。`save` 与 `reset` 不得把修改前后的参数值写入审计摘要。
 
-### 5.10 菜单管理
+### 5.9 菜单管理
 
 菜单管理动作、路径与数据结构以 [OpenAPI APP Schema](../../contracts/openapi/schemas/app.yaml) 为准。
 
@@ -379,7 +355,6 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 - 修改密码并撤销旧会话；
 - 管理员重置密码并撤销目标用户全部会话；
 - 创建、轮换或撤销会话与写入对应关键审计事件。
-- 创建反馈、附件元数据快照及滚动窗口限流判断。
 - 修改或恢复系统参数及写入对应审计事件。
 - 保存、恢复业务菜单树或切换菜单模式及写入对应审计事件。
 
@@ -412,8 +387,6 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 8. 权限独立授权，菜单准入不依赖 `query`，每项操作仍按精确路径控制；
 9. 所有管理接口均不返回或记录敏感字段；
 10. 未登录、无权限、参数错误、数据冲突和内部异常映射到稳定业务错误类别。
-11. 普通登录用户无需角色反馈权限即可提交和查询本人反馈，且不能查询他人反馈；
-12. 反馈限流、附件归属、敏感信息清洗、发布租约、重试终态和 `automation:blocked` 标签可验证。
 
 ## 10. 已配置策略与待决事项
 

@@ -102,7 +102,6 @@ make e2e
 | API 端口          | `18081`              |
 | Web 端口          | `15174`              |
 | Cookie            | `zerp_e2e_session`   |
-| GitHub 反馈发布   | 关闭                 |
 
 根级脚本会向 Playwright 注入正确的 API、Web 和账号变量。不要在前端环境文件中长期复制密码或端口；不得把 E2E 指向生产或日常联调数据库。
 

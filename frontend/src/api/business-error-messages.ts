@@ -565,16 +565,6 @@ const exactMessages: Readonly<Record<string, string>> = {
   'disposalExpense is invalid': '处置费用不正确，请检查后重试。',
   'document number exhausted': '单据编号已用尽，请联系管理员。',
   'download token is invalid or expired': '下载凭证无效或已过期，请重新获取。',
-  'feedback accepts at most 3 attachments': '每条反馈最多上传 3 个附件。',
-  'feedback attachment daily limit reached': '今日反馈附件上传次数已达到上限。',
-  'feedback attachment limit reached': '反馈附件数量已达到上限。',
-  'feedback content must be between 1 and 4000 characters':
-    '反馈内容必须为 1 至 4000 个字符。',
-  'feedback daily limit reached': '今日反馈提交次数已达到上限。',
-  'feedback submission key was already used':
-    '当前反馈草稿已发生变化，请刷新页面后重新填写。',
-  'feedback title must be between 1 and 120 characters':
-    '反馈标题必须为 1 至 120 个字符。',
   'fields do not match sale-delivery': '提交内容与销售配送单不匹配。',
   'fields do not match sale-outbound': '提交内容与销售出库单不匹配。',
   'fields do not match sale-signoff': '提交内容与销售签收单不匹配。',
@@ -583,7 +573,6 @@ const exactMessages: Readonly<Record<string, string>> = {
   'formula must contain 1 to 200 components':
     '配方必须包含 1 至 200 条材料明细。',
   invalid: '输入内容不正确，请检查后重试。',
-  'invalid feedback submission key': '反馈提交标识无效，请重新打开反馈窗口。',
   'ledger is not available': '业务台账不可用，请先完成台账配置。',
   'load parent document': '上级单据加载失败，请刷新后重试。',
   'object changed before delete': '资料已被其他操作修改，请刷新后再删除。',
@@ -758,7 +747,6 @@ const exactMessages: Readonly<Record<string, string>> = {
     '默认使用月数必须为 1 至 1200，默认残值率必须为 0 至 99.99。',
   'direction must be INCOME or EXPENSE': '收支方向必须为收入或支出。',
   'dueDays must be 0-3650': '账期天数必须为 0 至 3650。',
-  'feedback publication lease was lost': '反馈发布任务已失效，请稍后重试。',
   'inventory count gain cost was not prepared':
     '盘盈成本尚未准备完成，请先补充计价资料。',
   'inventory inbound cost source is unsupported': '当前入库成本来源不受支持。',

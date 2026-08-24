@@ -7,7 +7,6 @@ import (
 
 	"github.com/hansonyu183/zerp/backend/internal/config"
 	"github.com/hansonyu183/zerp/backend/internal/database"
-	appdomain "github.com/hansonyu183/zerp/backend/internal/domains/app"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
@@ -40,11 +39,6 @@ func main() {
 		logger.Error("cleanup VOU attachments", "error", err)
 		os.Exit(1)
 	}
-	appRemoved, err := appdomain.NewService(pool, cfg, logger).CleanupFeedbackAttachments(context.Background(), 500)
-	if err != nil {
-		logger.Error("cleanup APP feedback attachments", "error", err)
-		os.Exit(1)
-	}
 	customerAttachments, err := bobdomain.NewCustomerAttachmentService(pool, bobdomain.CustomerAttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
 	})
@@ -57,5 +51,5 @@ func main() {
 		logger.Error("cleanup BOB customer attachments", "error", err)
 		os.Exit(1)
 	}
-	logger.Info("attachment cleanup completed", "vouRemoved", removed, "feedbackRemoved", appRemoved, "customerRemoved", customerRemoved)
+	logger.Info("attachment cleanup completed", "vouRemoved", removed, "customerRemoved", customerRemoved)
 }

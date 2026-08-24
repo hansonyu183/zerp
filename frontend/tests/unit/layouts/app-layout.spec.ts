@@ -254,15 +254,11 @@ describe('AppLayout account interactions', () => {
     const updateButton = wrapper
       .findAll('button')
       .find((button) => button.text() === '更新密码')
-    const topbarButtons = wrapper.get('header').findAll('button')
-    const feedbackIndex = topbarButtons.findIndex(
-      (button) => button.attributes('aria-label') === '提交反馈',
-    )
-    const themeIndex = topbarButtons.findIndex(
-      (button) => button.attributes('aria-label') === '切换深色模式',
-    )
-    expect(feedbackIndex).toBeGreaterThanOrEqual(0)
-    expect(themeIndex).toBeGreaterThan(feedbackIndex)
+    const themeIndex = wrapper
+      .get('header')
+      .findAll('button')
+      .findIndex((button) => button.attributes('aria-label') === '切换深色模式')
+    expect(themeIndex).toBeGreaterThanOrEqual(0)
     expect(updateButton?.attributes('disabled')).toBeDefined()
     expect(
       wrapper.get('input[aria-label="当前密码"]').attributes('autocomplete'),

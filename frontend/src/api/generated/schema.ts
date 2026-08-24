@@ -905,74 +905,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/app/feedback/attachment-initiate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 初始化反馈附件 */
-        post: operations["appFeedbackattachmentinitiate"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/app/feedback/attachment-remove": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 移除反馈附件 */
-        post: operations["appFeedbackattachmentremove"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/app/feedback/create": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 提交用户反馈 */
-        post: operations["appFeedbackcreate"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/app/feedback/get": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 读取用户反馈 */
-        post: operations["appFeedbackget"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/aux/{entity}/query": {
         parameters: {
             query?: never;
@@ -2877,23 +2809,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/files/feedback/attachments/upload/{token}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** 上传用户反馈附件 */
-        put: operations["uploadFeedbackAttachment"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/files/customer-attachments/upload/{token}": {
         parameters: {
             query?: never;
@@ -3999,31 +3914,6 @@ export interface components {
         ResetBusinessMenuRequest: {
             /** Format: int64 */
             revision: number;
-        };
-        FeedbackAttachmentInitiateRequest: {
-            fileName: string;
-            contentType: string;
-            /** Format: int64 */
-            size: number;
-            sha256: string;
-        };
-        FeedbackAttachmentRemoveRequest: {
-            fileId: string;
-        };
-        FeedbackCreateRequest: {
-            /** @description 客户端为一次反馈草稿生成并在重试时复用的幂等键。 */
-            submissionKey: string;
-            /** @enum {string} */
-            category: "BUG" | "SUGGESTION" | "OTHER";
-            title: string;
-            content: string;
-            pagePath: string;
-            clientVersion: string;
-            relatedRequestId: string;
-            attachmentIds: string[];
-        };
-        FeedbackGetRequest: {
-            feedbackId: string;
         };
         /** @enum {string} */
         AuxEntity: "product-category" | "product-type" | "department" | "position" | "settlement-method" | "payment-method" | "dictionary-type" | "dictionary-item" | "measurement-unit" | "income-expense-type" | "asset-category";
@@ -7752,70 +7642,6 @@ export interface operations {
             };
         };
     };
-    appFeedbackattachmentinitiate: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FeedbackAttachmentInitiateRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    appFeedbackattachmentremove: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FeedbackAttachmentRemoveRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    appFeedbackcreate: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FeedbackCreateRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
-    appFeedbackget: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FeedbackGetRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Business"];
-        };
-    };
     auxquery: {
         parameters: {
             query?: never;
@@ -10054,31 +9880,6 @@ export interface operations {
         };
         responses: {
             200: components["responses"]["Business"];
-        };
-    };
-    uploadFeedbackAttachment: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                token: components["parameters"]["FileToken"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "*/*": string;
-            };
-        };
-        responses: {
-            /** @description Uploaded */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: components["responses"]["TechnicalError"];
         };
     };
     uploadCustomerAttachment: {

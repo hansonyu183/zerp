@@ -189,7 +189,6 @@ e2e-guard:
 		test "$$POSTGRES_PORT" = "55435" || (echo "E2E POSTGRES_PORT must be 55435" >&2; exit 1); \
 		test "$$API_PORT" = "18081" || (echo "E2E API_PORT must be 18081" >&2; exit 1); \
 		test "$$APP_SESSION_COOKIE_NAME" = "zerp_e2e_session" || (echo "E2E cookie name must be zerp_e2e_session" >&2; exit 1); \
-		test "$$FEEDBACK_GITHUB_ENABLED" = "false" || (echo "E2E feedback publishing must be disabled" >&2; exit 1); \
 		case "$$DATABASE_URL" in \
 			postgres://zerp_e2e:*@127.0.0.1:55435/zerp_e2e?sslmode=disable) ;; \
 			*) echo "E2E DATABASE_URL must target 127.0.0.1:55435/zerp_e2e" >&2; exit 1 ;; \

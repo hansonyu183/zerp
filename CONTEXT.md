@@ -7,7 +7,7 @@ ZERP uses shared business terms across its auxiliary-data, business-object, vouc
 **Delegation Ceiling（授权上限）**:
 管理员可以向他人授予的权限范围。
 _Avoid_: 角色管理权限等于全部权限、可授予未拥有权限
-_Rules_: [APP 最终权限计算](docs/domains/app.md#4-最终权限计算)、[APP 角色管理](docs/domains/app.md#57-角色管理)
+_Rules_: [APP 最终权限计算](docs/domains/app.md#4-最终权限计算)、[APP 角色管理](docs/domains/app.md#56-角色管理)
 
 ## Business Objects
 

@@ -553,15 +553,3 @@ func TestOpenAPIValidatorLimitsRequestBodiesBeforeReading(t *testing.T) {
 		})
 	}
 }
-
-func TestProductionServerRequiresFeedbackPublisher(t *testing.T) {
-	cfg := testConfig()
-	cfg.Environment = config.EnvironmentProduction
-	if err := validateFeedbackRuntimeConfig(cfg); err == nil {
-		t.Fatal("production runtime accepted disabled feedback publisher")
-	}
-	cfg.FeedbackGitHubEnabled = true
-	if err := validateFeedbackRuntimeConfig(cfg); err != nil {
-		t.Fatalf("production runtime rejected enabled feedback publisher: %v", err)
-	}
-}

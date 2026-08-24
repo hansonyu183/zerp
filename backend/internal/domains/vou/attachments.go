@@ -321,7 +321,7 @@ func (s *Service) CleanupAttachments(ctx context.Context, batchSize int) (int, e
 	for _, key := range keys {
 		known[key] = struct{}{}
 	}
-	orphaned, err := s.storage.RemoveOrphans(known, "feedback", "customer")
+	orphaned, err := s.storage.RemoveOrphans(known, "customer")
 	if err != nil {
 		return removed, s.internal("cleanup orphaned attachment files", err)
 	}

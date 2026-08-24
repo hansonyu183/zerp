@@ -1268,6 +1268,21 @@ FROM vou_sale_delivery_details AS delivery
 JOIN vou_documents AS source ON source.id=delivery.source_outbound_id
 WHERE delivery.document_id=sqlc.arg(document_id);
 
+-- name: ListVouSaleOutboundStateLines :many
+SELECT id,source_order_line_id,line_no,
+       product_object_id,product_version_id,product_code,product_name,entered_unit_symbol,
+       base_quantity_micros,unit_price_cents,line_amount_cents,remark
+FROM vou_sale_outbound_lines
+WHERE document_id=sqlc.arg(document_id)
+ORDER BY line_no;
+
+-- name: GetVouSaleDeliveryStoredState :one
+SELECT source.status AS source_status,1::bigint AS line_count,
+       delivery.carrier_type IS NOT NULL AND delivery.vehicle_object_id IS NOT NULL AS complete
+FROM vou_sale_delivery_details AS delivery
+JOIN vou_documents AS source ON source.id=delivery.source_outbound_id
+WHERE delivery.document_id=sqlc.arg(document_id);
+
 -- name: FindVouRefusalReturnDocument :one
 SELECT document_id
 FROM vou_sale_return_details

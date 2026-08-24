@@ -94,33 +94,25 @@ func (s *Service) loadSalesChainData(
 			data.Vehicle = &vehicle
 			data.VehicleBulkLiquidCapable = row.VehicleBulkLiquidCapable
 		}
-		rows, err := s.pool.Query(ctx, `SELECT id,source_order_line_id,line_no,
-			product_object_id,product_version_id,product_code,product_name,entered_unit_symbol,
-			base_quantity_micros,unit_price_cents,line_amount_cents,remark
-			FROM vou_sale_outbound_lines WHERE document_id=$1 ORDER BY line_no`, row.SourceOutboundID)
+		lines, err := s.queries.ListVouSaleOutboundStateLines(ctx, row.SourceOutboundID)
 		if err != nil {
 			return data, err
 		}
-		defer rows.Close()
-		for rows.Next() {
+		for _, stored := range lines {
 			var line ProductLineView
-			var quantity, price, amount int64
-			var remark *string
-			if err = rows.Scan(
-				&line.LineID, &line.SourceLineID, &line.LineNo,
-				&line.Product.ObjectID, &line.Product.VersionID, &line.Product.Code,
-				&line.Product.Name, &line.Product.Unit, &quantity, &price, &amount, &remark,
-			); err != nil {
-				return data, err
-			}
+			line.LineID, line.SourceLineID, line.LineNo = stored.ID, stored.SourceOrderLineID, stored.LineNo
+			line.Product.ObjectID, line.Product.VersionID = stored.ProductObjectID, stored.ProductVersionID
+			line.Product.Code, line.Product.Name, line.Product.Unit =
+				stored.ProductCode, stored.ProductName, stored.EnteredUnitSymbol
 			line.Product.Entity = "product"
-			line.BaseQuantity = formatQuantity(quantity)
+			line.BaseQuantity = formatQuantity(stored.BaseQuantityMicros)
 			line.EnteredQuantity = line.BaseQuantity
 			line.EnteredUnit = UnitSnapshotView{Symbol: line.Product.Unit}
-			line.UnitPrice, line.LineAmount, line.Remark = formatMoney(price), formatMoney(amount), deref(remark)
+			line.UnitPrice, line.LineAmount, line.Remark =
+				formatMoney(stored.UnitPriceCents), formatMoney(stored.LineAmountCents), deref(stored.Remark)
 			data.ProductLines = append(data.ProductLines, line)
 		}
-		return data, rows.Err()
+		return data, nil
 	case EntitySaleSignoff:
 		var sourceID, sourceNo string
 		var customer ReferenceView
@@ -253,14 +245,12 @@ func (s *Service) validateSalesChainStored(
 			return s.internal("validate sale outbound", err)
 		}
 	case EntitySaleDelivery:
-		err := s.pool.QueryRow(ctx, `SELECT p.status,1,
-			x.carrier_type IS NOT NULL AND x.vehicle_object_id IS NOT NULL
-			FROM vou_sale_delivery_details x
-			JOIN vou_documents p ON p.id=x.source_outbound_id WHERE x.document_id=$1`,
-			documentID).Scan(&sourceStatus, &lineCount, &complete)
+		row, err := s.queries.GetVouSaleDeliveryStoredState(ctx, documentID)
 		if err != nil {
 			return s.internal("validate sale delivery", err)
 		}
+		sourceStatus, lineCount = row.SourceStatus, row.LineCount
+		complete = row.Complete != nil && *row.Complete
 	case EntitySaleSignoff:
 		err := s.pool.QueryRow(ctx, `SELECT p.status,
 			(SELECT count(*) FROM vou_sale_signoff_lines WHERE document_id=x.document_id),true

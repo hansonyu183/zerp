@@ -1417,6 +1417,27 @@ func (q *Queries) GetVouReceiptDetail(ctx context.Context, documentID string) (V
 	return i, err
 }
 
+const getVouSaleDeliveryStoredState = `-- name: GetVouSaleDeliveryStoredState :one
+SELECT source.status AS source_status,1::bigint AS line_count,
+       delivery.carrier_type IS NOT NULL AND delivery.vehicle_object_id IS NOT NULL AS complete
+FROM vou_sale_delivery_details AS delivery
+JOIN vou_documents AS source ON source.id=delivery.source_outbound_id
+WHERE delivery.document_id=$1
+`
+
+type GetVouSaleDeliveryStoredStateRow struct {
+	SourceStatus string `db:"source_status" json:"source_status"`
+	LineCount    int64  `db:"line_count" json:"line_count"`
+	Complete     *bool  `db:"complete" json:"complete"`
+}
+
+func (q *Queries) GetVouSaleDeliveryStoredState(ctx context.Context, documentID string) (GetVouSaleDeliveryStoredStateRow, error) {
+	row := q.db.QueryRow(ctx, getVouSaleDeliveryStoredState, documentID)
+	var i GetVouSaleDeliveryStoredStateRow
+	err := row.Scan(&i.SourceStatus, &i.LineCount, &i.Complete)
+	return i, err
+}
+
 const getVouSaleDeliveryView = `-- name: GetVouSaleDeliveryView :one
 SELECT delivery.source_outbound_id,source.document_no AS source_document_no,
        delivery.customer_object_id,delivery.customer_version_id,
@@ -4318,6 +4339,63 @@ func (q *Queries) ListVouSaleOrderFormulaLines(ctx context.Context, productLineI
 			&i.EnteredUnitName,
 			&i.EnteredUnitSymbol,
 			&i.BaseQuantityMicros,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listVouSaleOutboundStateLines = `-- name: ListVouSaleOutboundStateLines :many
+SELECT id,source_order_line_id,line_no,
+       product_object_id,product_version_id,product_code,product_name,entered_unit_symbol,
+       base_quantity_micros,unit_price_cents,line_amount_cents,remark
+FROM vou_sale_outbound_lines
+WHERE document_id=$1
+ORDER BY line_no
+`
+
+type ListVouSaleOutboundStateLinesRow struct {
+	ID                 string  `db:"id" json:"id"`
+	SourceOrderLineID  string  `db:"source_order_line_id" json:"source_order_line_id"`
+	LineNo             int32   `db:"line_no" json:"line_no"`
+	ProductObjectID    string  `db:"product_object_id" json:"product_object_id"`
+	ProductVersionID   string  `db:"product_version_id" json:"product_version_id"`
+	ProductCode        string  `db:"product_code" json:"product_code"`
+	ProductName        string  `db:"product_name" json:"product_name"`
+	EnteredUnitSymbol  string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BaseQuantityMicros int64   `db:"base_quantity_micros" json:"base_quantity_micros"`
+	UnitPriceCents     int64   `db:"unit_price_cents" json:"unit_price_cents"`
+	LineAmountCents    int64   `db:"line_amount_cents" json:"line_amount_cents"`
+	Remark             *string `db:"remark" json:"remark"`
+}
+
+func (q *Queries) ListVouSaleOutboundStateLines(ctx context.Context, documentID string) ([]ListVouSaleOutboundStateLinesRow, error) {
+	rows, err := q.db.Query(ctx, listVouSaleOutboundStateLines, documentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListVouSaleOutboundStateLinesRow{}
+	for rows.Next() {
+		var i ListVouSaleOutboundStateLinesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SourceOrderLineID,
+			&i.LineNo,
+			&i.ProductObjectID,
+			&i.ProductVersionID,
+			&i.ProductCode,
+			&i.ProductName,
+			&i.EnteredUnitSymbol,
+			&i.BaseQuantityMicros,
+			&i.UnitPriceCents,
+			&i.LineAmountCents,
+			&i.Remark,
 		); err != nil {
 			return nil, err
 		}

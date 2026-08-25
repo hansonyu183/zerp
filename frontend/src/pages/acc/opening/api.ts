@@ -8,29 +8,23 @@ export type AccountingOpeningSaveInput =
   components['schemas']['OpeningSaveRequest']
 
 export function queryAccountingOpening(bookId: string) {
-  return apiClient.post<AccountingOpening, { bookId: string }>(
+  return apiClient.postContract(
     'acc/opening/query',
     { bookId },
   )
 }
 
 export function saveAccountingOpening(input: AccountingOpeningSaveInput) {
-  return apiClient.post<AccountingOpening, AccountingOpeningSaveInput>(
+  return apiClient.postContract(
     'acc/opening/save',
     input,
   )
 }
 
 export function approveAccountingOpening(bookId: string, revision: number) {
-  return apiClient.post<
-    AccountingOpening,
-    { bookId: string; revision: number }
-  >('acc/opening/approve', { bookId, revision })
+  return apiClient.postContract('acc/opening/approve', { bookId, revision })
 }
 
 export function unapproveAccountingOpening(bookId: string, revision: number) {
-  return apiClient.post<
-    AccountingOpening,
-    { bookId: string; revision: number }
-  >('acc/opening/unapprove', { bookId, revision })
+  return apiClient.postContract('acc/opening/unapprove', { bookId, revision })
 }

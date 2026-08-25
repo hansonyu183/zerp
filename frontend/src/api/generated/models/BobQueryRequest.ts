@@ -11,4 +11,3 @@ export type BobQueryRequest = {
     order: 'asc' | 'desc';
   }>;
 };
-

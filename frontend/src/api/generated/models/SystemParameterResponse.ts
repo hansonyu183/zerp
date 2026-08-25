@@ -10,4 +10,3 @@ export type SystemParameterResponse = {
   data: SystemParameterView | null;
   requestId: string;
 };
-

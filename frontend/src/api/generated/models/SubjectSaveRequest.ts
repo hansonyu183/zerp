@@ -18,4 +18,3 @@ export type SubjectSaveRequest = {
   settlementPurpose: SettlementPurpose;
   revision: number;
 };
-

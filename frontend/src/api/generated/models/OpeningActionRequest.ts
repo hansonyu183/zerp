@@ -6,4 +6,3 @@ export type OpeningActionRequest = {
   bookId: string;
   revision: number;
 };
-

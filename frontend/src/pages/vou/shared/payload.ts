@@ -23,14 +23,20 @@ export function buildVoucherDraftPayload(
       : { currency: value.currency.trim().toUpperCase() || 'CNY' }),
     ...(value.remark.trim() ? { remark: value.remark.trim() } : {}),
   }
+  const counterpartyType =
+    value.counterpartyType === 'customer'
+      ? 'customer-account'
+      : value.counterpartyType || undefined
   if (config.entity === 'sale-order') {
     payload.specialApproval = value.specialApproval
   }
   if (config.entity === 'intermediary-calculation') {
-    payload.intermediaryCalculation = value.intermediaryCalculation
+    if (value.intermediaryCalculation) {
+      payload.intermediaryCalculation = value.intermediaryCalculation
+    }
   }
   if (config.entity === 'service-contract') {
-    payload.counterpartyType = value.counterpartyType
+    payload.counterpartyType = counterpartyType
     payload.counterparty = inputReference(value.counterparty)
     payload.handler = inputReference(value.handler)
     payload.settlementMethod = inputReference(value.settlementMethod)
@@ -50,6 +56,9 @@ export function buildVoucherDraftPayload(
     }
   }
   if (config.entity === 'service-acceptance') {
+    if (!value.serviceAcceptance.settlementDirection) {
+      throw new Error('请选择结算方向。')
+    }
     payload.amount = value.amount.trim()
     payload.serviceAcceptance = {
       contractDocumentId: value.serviceAcceptance.contractDocumentId.trim(),
@@ -72,7 +81,7 @@ export function buildVoucherDraftPayload(
     value.counterparty
   ) {
     if (!config.fixedCounterpartyType) {
-      payload.counterpartyType = value.counterpartyType
+      payload.counterpartyType = counterpartyType
     }
     payload.counterparty = inputReference(value.counterparty)
   }

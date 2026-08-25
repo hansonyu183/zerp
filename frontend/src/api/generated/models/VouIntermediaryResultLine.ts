@@ -18,4 +18,3 @@ export type VouIntermediaryResultLine = {
   rebateAmount: string;
   note?: string;
 };
-

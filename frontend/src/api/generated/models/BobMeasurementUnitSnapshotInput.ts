@@ -5,4 +5,3 @@
 export type BobMeasurementUnitSnapshotInput = {
   objectId: string;
 };
-

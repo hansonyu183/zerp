@@ -8,4 +8,3 @@ export type MenuRouteOption = {
   displayName: string;
   permissionCode: string | null;
 };
-

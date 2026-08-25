@@ -9,4 +9,3 @@ export type MappingPage = {
   page: number;
   pageSize: number;
 };
-

@@ -9,4 +9,3 @@ export type VouFormulaComponentInput = {
   };
   quantity: VouQuantitySnapshotInput;
 };
-

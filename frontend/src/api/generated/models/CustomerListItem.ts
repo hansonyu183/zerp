@@ -29,4 +29,3 @@ export type CustomerListItem = {
   } | null;
   updatedAt: string;
 };
-

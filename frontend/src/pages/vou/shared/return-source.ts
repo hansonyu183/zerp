@@ -1,7 +1,6 @@
 import { apiClient } from '@/api/client'
 import { getErrorMessage } from '@/api/types'
 import type {
-  VoucherDocumentView,
   VoucherDraftForm,
   VoucherEntity,
 } from '@/components/voucher'
@@ -49,10 +48,7 @@ export async function buildReturnDraftFromSources(
 ): Promise<ReturnDraft> {
   const sources = await Promise.all(
     sourceDocumentIds.map(async (documentId) => {
-      const response = await apiClient.post<
-        VoucherDocumentView,
-        { documentId: string }
-      >(
+      const response = await apiClient.postContract(
         entity === 'sale-return'
           ? 'vou/sale-signoff/get'
           : 'vou/purchase-inbound/get',

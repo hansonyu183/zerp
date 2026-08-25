@@ -10,4 +10,3 @@ export type CustomerAttachmentDownloadResponse = {
   data: CustomerAttachmentDownloadResult;
   requestId: string;
 };
-

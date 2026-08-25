@@ -8,4 +8,3 @@ export type CustomerPricingCostItem = {
   unitPrice?: string;
   orderAmount?: string;
 };
-

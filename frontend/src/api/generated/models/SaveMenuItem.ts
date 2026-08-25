@@ -13,4 +13,3 @@ export type SaveMenuItem = {
   enabled: boolean;
   routeKey: string | null;
 };
-

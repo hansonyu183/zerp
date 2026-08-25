@@ -8,4 +8,3 @@ export type VouServiceContractInput = {
   applicableTo?: string;
   terms?: string;
 };
-

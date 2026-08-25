@@ -10,4 +10,3 @@ export type UserDetailResponse = {
   data: UserDetail | null;
   requestId: string;
 };
-

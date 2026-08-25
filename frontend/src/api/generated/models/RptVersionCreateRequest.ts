@@ -7,4 +7,3 @@ export type RptVersionCreateRequest = {
   code: string;
   data: RptVersionData;
 };
-

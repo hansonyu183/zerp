@@ -9,4 +9,3 @@ export type WflDefinitionQueryRequest = {
   keyword?: string;
   statuses?: Array<WflDefinitionStatus>;
 };
-

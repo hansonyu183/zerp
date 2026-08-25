@@ -16,4 +16,3 @@ export type OpeningAsset = {
   accumulatedDepreciation: string;
   createObject: boolean;
 };
-

@@ -11,4 +11,3 @@ export type CustomerAccountView = {
   effective?: CustomerVersionView | null;
   candidate?: CustomerVersionView | null;
 };
-

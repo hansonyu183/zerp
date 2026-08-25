@@ -9,4 +9,3 @@ export type SalesPartnerPage = {
   page: number;
   pageSize: 20;
 };
-

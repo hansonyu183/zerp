@@ -10,4 +10,3 @@ export type WflInstanceQueryResponse = {
   data: WflInstancePage | null;
   requestId: string;
 };
-

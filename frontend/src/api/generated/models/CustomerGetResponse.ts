@@ -10,4 +10,3 @@ export type CustomerGetResponse = {
   data: CustomerDetailView | null;
   requestId: string;
 };
-

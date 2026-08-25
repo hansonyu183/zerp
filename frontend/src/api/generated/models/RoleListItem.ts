@@ -18,4 +18,3 @@ export type RoleListItem = {
   updatedAt: string;
   revision: number;
 };
-

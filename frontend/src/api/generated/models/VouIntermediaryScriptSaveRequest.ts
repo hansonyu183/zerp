@@ -7,4 +7,3 @@ export type VouIntermediaryScriptSaveRequest = {
   name: string;
   source: string;
 };
-

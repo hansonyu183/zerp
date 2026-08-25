@@ -10,4 +10,3 @@ export type PeriodListEnvelope = {
   data: Array<Period> | null;
   requestId: string;
 };
-

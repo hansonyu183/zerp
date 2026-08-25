@@ -21,6 +21,48 @@
             { 'type': 'string', 'nullable': true, 'maxLength': 2048 },
         },
     },
+  'ProfileView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'id',
+          'username',
+          'displayName',
+          'avatarUrl',
+          'passwordChangedAt',
+          'revision',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'id': { 'type': 'string' },
+          'username': { 'type': 'string' },
+          'displayName': { 'type': 'string' },
+          'avatarUrl': { 'type': 'string', 'nullable': true },
+          'passwordChangedAt': { 'type': 'string', 'format': 'date-time' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+        },
+    },
+  'ProfileResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'allOf': [{ '$ref': '#/ProfileView' }],
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'ChangePasswordRequest':
     {
       'type': 'object',

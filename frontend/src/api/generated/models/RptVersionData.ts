@@ -9,4 +9,3 @@ export type RptVersionData = {
   parameters: Array<RptParameter>;
   columns: Array<RptResultColumn>;
 };
-

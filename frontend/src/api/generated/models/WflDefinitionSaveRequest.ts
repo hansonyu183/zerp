@@ -7,4 +7,3 @@ export type WflDefinitionSaveRequest = {
   revision: number;
   script: string;
 };
-

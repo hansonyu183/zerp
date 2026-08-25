@@ -72,16 +72,21 @@ function boolean(value: unknown): boolean {
   return value
 }
 
-function versionData(value: unknown): VersionData {
-  const data = object(value)
-  if (
-    typeof data.sql !== 'string' ||
-    !Array.isArray(data.parameters) ||
-    !Array.isArray(data.columns)
-  ) {
-    throw contractError()
+function isVersionData(value: unknown): value is VersionData {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return false
   }
-  return data as unknown as VersionData
+  const data = value as Record<string, unknown>
+  return (
+    typeof data.sql === 'string' &&
+    Array.isArray(data.parameters) &&
+    Array.isArray(data.columns)
+  )
+}
+
+function versionData(value: unknown): VersionData {
+  if (!isVersionData(value)) throw contractError()
+  return value
 }
 
 export function parseDefinitionPage(value: unknown): ReportDefinition[] {

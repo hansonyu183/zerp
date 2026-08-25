@@ -5,4 +5,3 @@
 import type { OtherUnitCreateWithExistingPartyRequest } from './OtherUnitCreateWithExistingPartyRequest';
 import type { OtherUnitCreateWithNewPartyRequest } from './OtherUnitCreateWithNewPartyRequest';
 export type OtherUnitCreateRequest = (OtherUnitCreateWithExistingPartyRequest | OtherUnitCreateWithNewPartyRequest);
-

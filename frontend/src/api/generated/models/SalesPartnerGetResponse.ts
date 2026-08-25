@@ -10,4 +10,3 @@ export type SalesPartnerGetResponse = {
   data: SalesPartnerDetailView | null;
   requestId: string;
 };
-

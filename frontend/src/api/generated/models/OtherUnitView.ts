@@ -24,4 +24,3 @@ export type OtherUnitView = {
   data: OtherUnitData;
   updatedAt: string;
 };
-

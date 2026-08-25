@@ -10,4 +10,3 @@ export type OpeningEnvelope = {
   data: Opening | null;
   requestId: string;
 };
-

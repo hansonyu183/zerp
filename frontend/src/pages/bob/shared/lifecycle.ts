@@ -5,7 +5,6 @@ import type {
   BobActionAvailability,
   BobEntity,
   BobListItem,
-  BobMutationResult,
 } from './types'
 import { bobListActiveVersion } from './types'
 
@@ -17,11 +16,6 @@ interface VersionRevisionRequest {
 
 interface ReviewRequest extends VersionRevisionRequest {
   comment: string
-}
-
-interface ReverseRequest extends VersionRevisionRequest {
-  objectRevision: number
-  reason: string
 }
 
 export function bobSelfReviewBlocked(
@@ -128,7 +122,7 @@ export function useBobLifecycleActions(
         revision: bobListActiveVersion(row).revision,
         ...(action === 'reject' ? { comment: normalizedComment } : {}),
       }
-      await apiClient.post<BobMutationResult, typeof request>(
+      await apiClient.postContract(
         `bob/${entity}/${action}`,
         request,
       )
@@ -161,7 +155,7 @@ export function useBobLifecycleActions(
     actionLoading.value = `${action}:${row.objectId}`
     errorMessage.value = null
     try {
-      await apiClient.post<BobMutationResult, ReverseRequest>(
+      await apiClient.postContract(
         `bob/${entity}/${action}`,
         {
           objectId: row.objectId,
@@ -191,10 +185,7 @@ export function useBobLifecycleActions(
     actionLoading.value = `${action}:${row.objectId}`
     errorMessage.value = null
     try {
-      await apiClient.post<
-        BobMutationResult,
-        { objectId: string; objectRevision: number }
-      >(`bob/${entity}/${action}`, {
+      await apiClient.postContract(`bob/${entity}/${action}`, {
         objectId: row.objectId,
         objectRevision: row.objectRevision,
       })

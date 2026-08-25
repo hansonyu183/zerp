@@ -1,7 +1,7 @@
 import { HttpResponse, http } from 'msw'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import type { components } from '@/api/generated/schema'
-import { ApiClient, type ApiPostPath, type ApiPostRequest } from '@/api/client'
+import { ApiClient, type ApiPostData, type ApiPostRequest } from '@/api/client'
 import { ApiError } from '@/api/types'
 import { mockServer } from '../../mocks/server'
 
@@ -62,6 +62,34 @@ describe('ApiClient', () => {
     ).rejects.toMatchObject<ApiError>({ kind: 'protocol' })
   })
 
+  it('接受精确 nullable 空删除响应', async () => {
+    mockServer.use(
+      http.post('https://api.test/bob/supplier/delete', () =>
+        HttpResponse.json({
+          code: 0,
+          errorKey: '',
+          message: 'ok',
+          data: null,
+          requestId: 'req-delete-contract',
+        }),
+      ),
+    )
+
+    const client = new ApiClient({ baseUrl: 'https://api.test/' })
+    const result = await client.postContract('bob/supplier/delete', {
+      objectId: '01J00000000000000000000010',
+      objectRevision: 2,
+      versionId: '01J00000000000000000000011',
+      revision: 1,
+    })
+
+    expectTypeOf<ApiPostData<'bob/supplier/delete'>>().toEqualTypeOf<
+      components['schemas']['EmptyObject'] | null
+    >()
+    expect(result.data).toBeNull()
+    expect(result.requestId).toBe('req-delete-contract')
+  })
+
   it('通过 POST、Cookie 凭证和 CSRF 调用三级真实 API 契约', async () => {
     let credentials: RequestCredentials | undefined
     let csrfToken: string | null = null
@@ -83,10 +111,7 @@ describe('ApiClient', () => {
     const client = new ApiClient({ baseUrl: 'https://api.test/' })
     client.setCsrfToken('csrf-test')
 
-    const result = await client.post<{ user: { id: string } }>(
-      'app/user/session',
-      {},
-    )
+    const result = await client.postContract('app/user/session', {})
 
     expect(result.data.user.id).toBe('1')
     expect(result.requestId).toBe('req-1')
@@ -108,7 +133,7 @@ describe('ApiClient', () => {
     )
 
     const client = new ApiClient({ baseUrl: 'https://api.test/' })
-    const request = client.post('vou/sale-order/save', {
+    const request = client.postContract('vou/sale-order/save', {
       documentId: 'SO-1',
       revision: 1,
       data: {},
@@ -127,7 +152,8 @@ describe('ApiClient', () => {
     const client = new ApiClient({ baseUrl: 'https://api.test/' })
 
     await expect(
-      client.post('saleorder/save' as ApiPostPath, {}),
+      // @ts-expect-error 非 OpenAPI path 必须同时在类型层与运行时被拒绝。
+      client.postContract('saleorder/save', {}),
     ).rejects.toMatchObject<ApiError>({
       kind: 'configuration',
     })
@@ -149,7 +175,7 @@ describe('ApiClient', () => {
     )
     const client = new ApiClient({ baseUrl: 'https://api.test/' })
 
-    await client.post('bob/customer/query', {
+    await client.postContract('bob/customer/query', {
       page: 1,
       pageSize: 20,
       filters: {},
@@ -178,7 +204,7 @@ describe('ApiClient', () => {
     )
     const client = new ApiClient({ baseUrl: 'https://api.test/' })
 
-    await client.post('wfl/customer-onboarding/query', {
+    await client.postContract('wfl/customer-onboarding/query', {
       page: 1,
       pageSize: 20,
     })
@@ -284,6 +310,32 @@ describe('ApiClient', () => {
     expect(uploadedType).toBe('image/png')
     expect(uploaded).toBe(true)
     expect(await downloaded.text()).toBe('pdf-content')
+  })
+
+  it('通过客户附件专用端点上传和下载文件', async () => {
+    mockServer.use(
+      http.put(
+        'https://api.test/files/customer-attachments/upload/customer-token',
+        () => new HttpResponse(null, { status: 204 }),
+      ),
+      http.get(
+        'https://api.test/files/customer-attachments/download/customer-token',
+        () => new HttpResponse('customer-file', { status: 200 }),
+      ),
+    )
+
+    const client = new ApiClient({ baseUrl: 'https://api.test/' })
+    await client.uploadCustomerAttachment(
+      '/files/customer-attachments/upload/customer-token',
+      new File(['customer-file'], 'customer.pdf', {
+        type: 'application/pdf',
+      }),
+    )
+    const downloaded = await client.fetchCustomerAttachment(
+      '/files/customer-attachments/download/customer-token',
+    )
+
+    expect(await downloaded.text()).toBe('customer-file')
   })
 
   it('在同源部署中从相对 API 基址解析附件地址', async () => {

@@ -14,7 +14,6 @@ import { useSessionStore } from '@/stores/session'
 
 vi.mock('@/api/client', () => ({
   apiClient: {
-    post: vi.fn(),
     postContract: vi.fn(),
     setCsrfToken: vi.fn(),
   },
@@ -135,12 +134,12 @@ describe('shared BOB entity configuration and view model', () => {
 
   it('通过对象深链接标识打开现有编辑抽屉并复用详情 revision', async () => {
     grant('product', 'get', 'save')
-    mockedApiClient.post.mockResolvedValueOnce({ data: objectView() })
+    mockedApiClient.postContract.mockResolvedValueOnce({ data: objectView() })
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
 
     await vm.openById('OBJ-1', 'edit')
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith('bob/product/get', {
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith('bob/product/get', {
       objectId: 'OBJ-1',
     })
     expect(vm.drawerOpen.value).toBe(true)
@@ -150,7 +149,7 @@ describe('shared BOB entity configuration and view model', () => {
 
   it('详情请求失败时不展示默认值空抽屉', async () => {
     grant('product', 'get')
-    mockedApiClient.post.mockRejectedValueOnce(new Error('详情加载失败'))
+    mockedApiClient.postContract.mockRejectedValueOnce(new Error('详情加载失败'))
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
 
     await vm.openView(row())
@@ -185,9 +184,8 @@ describe('shared BOB entity configuration and view model', () => {
     expect(vm.actionAvailability(row()).edit).toBe(true)
   })
 
-  it('定义仍使用通用工作区的六类业务对象和完整状态筛选', () => {
+  it('定义仍使用通用工作区的五类业务对象和完整状态筛选', () => {
     const expectedColumns: Record<string, string[]> = {
-      supplier: ['编码', '主体名称', '状态'],
       product: ['编码', '名称', '产品类型', '默认录入单位', '型号', '状态'],
       warehouse: ['编码', '名称', '仓库负责人', '地址', '联系人', '状态'],
       vehicle: ['编码', '名称', '车牌', '类型', '状态'],
@@ -208,8 +206,14 @@ describe('shared BOB entity configuration and view model', () => {
     expect(statusOptions).toHaveLength(4)
   })
 
-  it('迁出的辅助对象和员工不再注册为通用 BOB 页面', () => {
-    for (const entity of ['category', 'department', 'position', 'employee']) {
+  it('专用工作区、迁出的辅助对象和员工不再注册为通用 BOB 页面', () => {
+    for (const entity of [
+      'supplier',
+      'category',
+      'department',
+      'position',
+      'employee',
+    ]) {
       expect(() => getBobEntityConfig(entity)).toThrow()
     }
   })
@@ -238,7 +242,7 @@ describe('shared BOB entity configuration and view model', () => {
 
   it('只发送有值的完整查询筛选', async () => {
     grant('product', 'query')
-    mockedApiClient.post.mockResolvedValueOnce(emptyPage())
+    mockedApiClient.postContract.mockResolvedValueOnce(emptyPage())
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
     vm.keyword.value = '  标准  '
     vm.filters.value.status = ['DRAFT', 'EFFECTIVE']
@@ -246,7 +250,7 @@ describe('shared BOB entity configuration and view model', () => {
 
     await vm.query()
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith('bob/product/query', {
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith('bob/product/query', {
       page: 1,
       pageSize: 20,
       filters: {
@@ -272,14 +276,14 @@ describe('shared BOB entity configuration and view model', () => {
 
   it('分页变化时重新查询并保持固定页大小', async () => {
     grant('product', 'query')
-    mockedApiClient.post.mockResolvedValueOnce({
+    mockedApiClient.postContract.mockResolvedValueOnce({
       data: { items: [], total: 0, page: 2, pageSize: 20 },
     })
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
 
     await vm.changePage(2)
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith(
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith(
       'bob/product/query',
       expect.objectContaining({ page: 2, pageSize: 20 }),
     )
@@ -337,7 +341,7 @@ describe('shared BOB entity configuration and view model', () => {
   it('创建时省略空可选字段，保存时显式发送清空值', async () => {
     grant('product', 'create', 'query', 'get', 'save')
     let persistedName = '标准产品'
-    mockedApiClient.post.mockImplementation(async (path) => {
+    mockedApiClient.postContract.mockImplementation(async (path) => {
       if (path === 'bob/product/create') {
         persistedName = '新产品'
         return { data: mutation() }
@@ -379,10 +383,10 @@ describe('shared BOB entity configuration and view model', () => {
 
     expect(
       savedCreated,
-      `${vm.editorErrorMessage.value ?? ''} ${JSON.stringify(mockedApiClient.post.mock.calls)}`,
+      `${vm.editorErrorMessage.value ?? ''} ${JSON.stringify(mockedApiClient.postContract.mock.calls)}`,
     ).toBe(true)
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith('bob/product/create', {
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith('bob/product/create', {
       data: {
         name: '新产品',
         productTypeId: 'TYPE-RAW',
@@ -421,7 +425,7 @@ describe('shared BOB entity configuration and view model', () => {
 
     expect(savedUpdate, vm.editorErrorMessage.value ?? '').toBe(true)
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith('bob/product/save', {
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith('bob/product/save', {
       objectId: 'OBJ-1',
       versionId: 'VER-1',
       revision: 1,
@@ -453,7 +457,7 @@ describe('shared BOB entity configuration and view model', () => {
         resolveQuery = resolve
       },
     )
-    mockedApiClient.post
+    mockedApiClient.postContract
       .mockResolvedValueOnce({ data: mutation() })
       .mockReturnValueOnce(pendingQuery)
 
@@ -467,7 +471,7 @@ describe('shared BOB entity configuration and view model', () => {
     })
 
     await vi.waitFor(() => {
-      expect(mockedApiClient.post).toHaveBeenCalledTimes(2)
+      expect(mockedApiClient.postContract).toHaveBeenCalledTimes(2)
     })
     expect(vm.successMessage.value).toBe('资金账户已保存。')
     expect(vm.drawerOpen.value).toBe(false)
@@ -480,12 +484,12 @@ describe('shared BOB entity configuration and view model', () => {
     grant('product', 'get', 'save', 'unapprove')
     const effective = objectView()
     effective.version.status = 'EFFECTIVE'
-    mockedApiClient.post.mockResolvedValueOnce({ data: effective })
+    mockedApiClient.postContract.mockResolvedValueOnce({ data: effective })
 
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
     await vm.openEdit(row('EFFECTIVE'))
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith('bob/product/get', {
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith('bob/product/get', {
       objectId: 'OBJ-1',
       versionId: 'VER-1',
     })
@@ -508,25 +512,25 @@ describe('shared BOB entity configuration and view model', () => {
       'audit-history',
     )
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
-    mockedApiClient.post
+    mockedApiClient.postContract
       .mockResolvedValueOnce({ data: objectView() })
       .mockResolvedValueOnce({ data: mutation('PENDING') })
       .mockResolvedValueOnce(emptyPage())
 
     await vm.submitObject(row())
-    expect(mockedApiClient.post).toHaveBeenNthCalledWith(
+    expect(mockedApiClient.postContract).toHaveBeenNthCalledWith(
       2,
       'bob/product/submit',
       { objectId: 'OBJ-1', versionId: 'VER-1', revision: 5 },
     )
 
     vi.clearAllMocks()
-    mockedApiClient.post
+    mockedApiClient.postContract
       .mockResolvedValueOnce({ data: objectView() })
       .mockResolvedValueOnce({ data: mutation('EFFECTIVE') })
       .mockResolvedValueOnce(emptyPage())
     await vm.review(row('PENDING'), 'approve', '不会提交的意见')
-    expect(mockedApiClient.post).toHaveBeenNthCalledWith(
+    expect(mockedApiClient.postContract).toHaveBeenNthCalledWith(
       2,
       'bob/product/approve',
       {
@@ -537,11 +541,11 @@ describe('shared BOB entity configuration and view model', () => {
     )
 
     vi.clearAllMocks()
-    mockedApiClient.post
+    mockedApiClient.postContract
       .mockResolvedValueOnce({ data: mutation('DRAFT') })
       .mockResolvedValueOnce(emptyPage())
     await vm.review(row('PENDING'), 'reject', ' 资料不完整 ')
-    expect(mockedApiClient.post).toHaveBeenNthCalledWith(
+    expect(mockedApiClient.postContract).toHaveBeenNthCalledWith(
       1,
       'bob/product/reject',
       {
@@ -553,11 +557,11 @@ describe('shared BOB entity configuration and view model', () => {
     )
 
     vi.clearAllMocks()
-    mockedApiClient.post
+    mockedApiClient.postContract
       .mockResolvedValueOnce({ data: mutation('DRAFT') })
       .mockResolvedValueOnce(emptyPage())
     await vm.reverse(row('PENDING'), 'unsubmit', ' 退回修改 ')
-    expect(mockedApiClient.post).toHaveBeenNthCalledWith(
+    expect(mockedApiClient.postContract).toHaveBeenNthCalledWith(
       1,
       'bob/product/unsubmit',
       {
@@ -570,11 +574,11 @@ describe('shared BOB entity configuration and view model', () => {
     )
 
     vi.clearAllMocks()
-    mockedApiClient.post
+    mockedApiClient.postContract
       .mockResolvedValueOnce({ data: mutation('PENDING') })
       .mockResolvedValueOnce(emptyPage())
     await vm.reverse(row('EFFECTIVE'), 'unapprove', ' 重新维护 ')
-    expect(mockedApiClient.post).toHaveBeenNthCalledWith(
+    expect(mockedApiClient.postContract).toHaveBeenNthCalledWith(
       1,
       'bob/product/unapprove',
       {
@@ -587,22 +591,22 @@ describe('shared BOB entity configuration and view model', () => {
     )
 
     vi.clearAllMocks()
-    mockedApiClient.post
+    mockedApiClient.postContract
       .mockResolvedValueOnce({ data: mutation('EFFECTIVE') })
       .mockResolvedValueOnce(emptyPage())
     await vm.changeEnabled(row('EFFECTIVE'))
-    expect(mockedApiClient.post).toHaveBeenNthCalledWith(
+    expect(mockedApiClient.postContract).toHaveBeenNthCalledWith(
       1,
       'bob/product/disable',
       { objectId: 'OBJ-1', objectRevision: 3 },
     )
 
     vi.clearAllMocks()
-    mockedApiClient.post
+    mockedApiClient.postContract
       .mockResolvedValueOnce({ data: mutation('EFFECTIVE') })
       .mockResolvedValueOnce(emptyPage())
     await vm.changeEnabled(row('EFFECTIVE', false))
-    expect(mockedApiClient.post).toHaveBeenNthCalledWith(
+    expect(mockedApiClient.postContract).toHaveBeenNthCalledWith(
       1,
       'bob/product/enable',
       { objectId: 'OBJ-1', objectRevision: 3 },
@@ -617,7 +621,7 @@ describe('shared BOB entity configuration and view model', () => {
         resolveQuery = resolve
       },
     )
-    mockedApiClient.post
+    mockedApiClient.postContract
       .mockResolvedValueOnce({ data: mutation('DRAFT') })
       .mockReturnValueOnce(pendingQuery)
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
@@ -626,7 +630,7 @@ describe('shared BOB entity configuration and view model', () => {
       vm.reverse(row('PENDING'), 'unsubmit', '退回修改'),
     ).resolves.toBe(true)
 
-    expect(mockedApiClient.post).toHaveBeenCalledTimes(2)
+    expect(mockedApiClient.postContract).toHaveBeenCalledTimes(2)
     expect(vm.successMessage.value).toBe('PRD-1 已撤回提交。')
     expect(vm.actionLoading.value).toBeNull()
 
@@ -636,7 +640,7 @@ describe('shared BOB entity configuration and view model', () => {
 
   it('停用被引用资料时显示冲突且不请求接任候选', async () => {
     grant('product', 'query', 'disable')
-    mockedApiClient.post.mockRejectedValueOnce(
+    mockedApiClient.postContract.mockRejectedValueOnce(
       new ApiError('business', 'object has active direct references', {
         code: 3001,
         errorKey: 'object_has_active_references',
@@ -651,7 +655,10 @@ describe('shared BOB entity configuration and view model', () => {
 
     await expect(vm.changeEnabled(row('EFFECTIVE'))).resolves.toBe(false)
 
-    expect(mockedApiClient.postContract).not.toHaveBeenCalled()
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith(
+      'bob/product/disable',
+      { objectId: 'OBJ-1', objectRevision: 3 },
+    )
     expect(vm.errorMessage.value).toBe(
       '该资料仍被当前有效业务对象引用，请先修改引用方资料并完成审核后再停用。',
     )
@@ -660,7 +667,7 @@ describe('shared BOB entity configuration and view model', () => {
   it('关联对象搜索带有效状态和实体约束', async () => {
     vi.useFakeTimers()
     useSessionStore().permissions = ['/aux/product-category/query']
-    mockedApiClient.post.mockResolvedValueOnce({
+    mockedApiClient.postContract.mockResolvedValueOnce({
       data: {
         items: [
           {
@@ -683,7 +690,7 @@ describe('shared BOB entity configuration and view model', () => {
     })
     await vi.advanceTimersByTimeAsync(300)
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith(
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith(
       'aux/product-category/query',
       {
         page: 1,

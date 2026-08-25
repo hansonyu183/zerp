@@ -17,4 +17,3 @@ export type VouProductionOutputInput = {
   remark?: string;
   materials: Array<VouProductionMaterialInput>;
 };
-

@@ -8,4 +8,3 @@ export type MappingCondition = {
   operator: MappingConditionOperator;
   values: Array<string>;
 };
-

@@ -7,4 +7,3 @@ export type VouReverseRequest = {
   revision: number;
   reason: string;
 };
-

@@ -10,7 +10,7 @@ export function submitBusinessObject(
   entity: BobApiEntity,
   request: VersionRevisionRequest,
 ) {
-  return apiClient.post<unknown, VersionRevisionRequest>(
+  return apiClient.postContract(
     `bob/${entity}/submit`,
     request,
   )
@@ -20,7 +20,7 @@ export function unsubmitBusinessObject(
   entity: BobApiEntity,
   request: ReverseRequest,
 ) {
-  return apiClient.post<unknown, ReverseRequest>(
+  return apiClient.postContract(
     `bob/${entity}/unsubmit`,
     request,
   )
@@ -30,7 +30,7 @@ export function approveBusinessObject(
   entity: BobApiEntity,
   request: VersionRevisionRequest,
 ) {
-  return apiClient.post<unknown, VersionRevisionRequest>(
+  return apiClient.postContract(
     `bob/${entity}/approve`,
     request,
   )
@@ -40,7 +40,7 @@ export function rejectBusinessObject(
   entity: BobApiEntity,
   request: ReviewRequest,
 ) {
-  return apiClient.post<unknown, ReviewRequest>(
+  return apiClient.postContract(
     `bob/${entity}/reject`,
     request,
   )

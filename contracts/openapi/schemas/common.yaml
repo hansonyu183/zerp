@@ -29,6 +29,25 @@
     },
   'EmptyObject':
     { 'type': 'object', 'additionalProperties': false, 'properties': {} },
+  'EmptyResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/EmptyObject' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
   'GenericObject':
     { 'type': 'object', 'additionalProperties': true, 'properties': {} },
   'IdRequest':

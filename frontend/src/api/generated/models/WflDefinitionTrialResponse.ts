@@ -10,4 +10,3 @@ export type WflDefinitionTrialResponse = {
   data: WflDefinitionTrialResult | null;
   requestId: string;
 };
-

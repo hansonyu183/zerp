@@ -6,4 +6,3 @@ export type AuxRevisionRequest = {
   objectId: string;
   revision: number;
 };
-

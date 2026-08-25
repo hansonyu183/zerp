@@ -10,4 +10,3 @@ export type Period = {
   lockedAt?: string;
   lockedBy?: string;
 };
-

@@ -23,7 +23,7 @@ export type VouIntermediarySourceLine = {
   salesContract?: VouIntermediarySalesContractSnapshot;
   intermediary?: VouIntermediaryReference;
   product: VouIntermediaryReference;
-  behaviorProfile: string;
+  behaviorProfile: 'RAW_MATERIAL' | 'STANDARD_FINISHED' | 'CUSTOM_FINISHED' | 'PACKAGING';
   signedBaseQuantity: string;
   pricingQuantity: string;
   standardPieceQuantity: string;
@@ -39,4 +39,3 @@ export type VouIntermediarySourceLine = {
   adjustmentIntermediaryAmount: string;
   adjustmentRebateAmount: string;
 };
-

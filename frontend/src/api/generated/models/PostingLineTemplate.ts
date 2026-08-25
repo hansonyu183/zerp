@@ -14,4 +14,3 @@ export type PostingLineTemplate = {
   costCounterpartSubjectId: string | null;
   costCounterpartDimensions: Record<string, string>;
 };
-

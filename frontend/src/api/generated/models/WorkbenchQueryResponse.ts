@@ -10,4 +10,3 @@ export type WorkbenchQueryResponse = {
   data: WorkbenchPage | null;
   requestId: string;
 };
-

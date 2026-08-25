@@ -15,4 +15,3 @@ export type PartyQueryResponse = {
   } | null;
   requestId: string;
 };
-

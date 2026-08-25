@@ -10,4 +10,3 @@ export type VouQueryResponse = {
   data: VouListPage | null;
   requestId: string;
 };
-

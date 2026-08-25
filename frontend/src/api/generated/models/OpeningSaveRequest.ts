@@ -14,4 +14,3 @@ export type OpeningSaveRequest = {
   bills: Array<OpeningBillInput>;
   containers: Array<OpeningContainerInput>;
 };
-

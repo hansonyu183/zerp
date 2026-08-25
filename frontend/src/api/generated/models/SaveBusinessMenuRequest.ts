@@ -7,4 +7,3 @@ export type SaveBusinessMenuRequest = {
   revision: number;
   items: Array<SaveMenuItem>;
 };
-

@@ -15,4 +15,3 @@ export type PermissionView = {
   assignable: boolean;
   roleCount?: number | null;
 };
-

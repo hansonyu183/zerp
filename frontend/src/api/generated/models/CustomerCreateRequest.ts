@@ -11,4 +11,3 @@ export type CustomerCreateRequest = ({
   newParty: PartyIdentityData;
   data: CustomerAccountInput;
 });
-

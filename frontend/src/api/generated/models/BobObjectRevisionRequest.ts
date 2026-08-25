@@ -6,4 +6,3 @@ export type BobObjectRevisionRequest = {
   objectId: string;
   objectRevision: number;
 };
-

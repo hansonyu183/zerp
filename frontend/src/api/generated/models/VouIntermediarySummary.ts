@@ -8,4 +8,3 @@ export type VouIntermediarySummary = {
   category: 'COMMISSION' | 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER' | 'INTERMEDIARY' | 'REBATE';
   amount: string;
 };
-

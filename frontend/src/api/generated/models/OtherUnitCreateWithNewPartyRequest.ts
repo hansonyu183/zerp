@@ -8,4 +8,3 @@ export type OtherUnitCreateWithNewPartyRequest = {
   newParty: PartyIdentityData;
   data: OtherUnitData;
 };
-

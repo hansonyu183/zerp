@@ -8,4 +8,3 @@ export type BobReviewRequest = {
   revision: number;
   comment: string | null;
 };
-

@@ -11,4 +11,3 @@ export type EmploymentCreateRequest = ({
   newParty: PartyIdentityData;
   data: EmploymentData;
 });
-

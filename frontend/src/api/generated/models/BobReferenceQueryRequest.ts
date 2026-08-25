@@ -8,4 +8,3 @@ export type BobReferenceQueryRequest = {
   sourceObjectId?: string;
   behaviorProfile?: 'RAW_MATERIAL' | 'STANDARD_FINISHED' | 'CUSTOM_FINISHED' | 'PACKAGING';
 };
-

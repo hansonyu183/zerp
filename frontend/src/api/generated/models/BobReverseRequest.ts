@@ -9,4 +9,3 @@ export type BobReverseRequest = {
   revision: number;
   reason: string;
 };
-

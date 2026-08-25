@@ -7,4 +7,3 @@ export type WflInstanceHistoryRequest = {
   page: number;
   pageSize: number;
 };
-

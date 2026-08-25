@@ -19,4 +19,3 @@ export type SupplierDetailView = {
   candidate: SupplierVersionView | null;
   updatedAt: string;
 };
-

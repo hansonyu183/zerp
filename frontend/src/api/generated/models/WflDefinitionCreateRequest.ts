@@ -5,4 +5,3 @@
 export type WflDefinitionCreateRequest = {
   script: string;
 };
-

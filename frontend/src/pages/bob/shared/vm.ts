@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import type { BusinessObjectSort } from '@/components/business-object'
 import { apiClient } from '@/api/client'
-import { getErrorMessage, type PageRequest, type PageResult } from '@/api/types'
+import { getErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
 import { comparableProductValue } from './product-data'
 import {
@@ -25,7 +25,6 @@ import type {
   BobListItem,
   BobMutationResult,
   BobObjectView,
-  BobVersionRevisionRequest,
 } from './types'
 import { bobListActiveVersion } from './types'
 import { useBobActionAvailability } from './action-availability'
@@ -142,10 +141,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     loading.value = true
     errorMessage.value = null
     try {
-      const { data } = await apiClient.post<
-        PageResult<BobListItem>,
-        PageRequest
-      >(`bob/${config.entity}/query`, {
+      const { data } = await apiClient.postContract(`bob/${config.entity}/query`, {
         page: page.value,
         pageSize: pageSize.value,
         filters: buildQueryFilters(),
@@ -198,10 +194,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     row: Pick<BobListItem, 'objectId'>,
     versionId?: string,
   ): Promise<BobObjectView> {
-    const { data } = await apiClient.post<
-      BobObjectView,
-      { objectId: string; versionId?: string }
-    >(`bob/${config.entity}/get`, {
+    const { data } = await apiClient.postContract(`bob/${config.entity}/get`, {
       objectId: row.objectId,
       ...(versionId ? { versionId } : {}),
     })
@@ -360,18 +353,12 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     try {
       let mutation: BobMutationResult
       if (editorMode.value === 'create') {
-        const result = await apiClient.post<
-          BobMutationResult,
-          { data: Record<string, unknown> }
-        >(`bob/${config.entity}/create`, { data: bobCreateData(config, form) })
+        const result = await apiClient.postContract(`bob/${config.entity}/create`, { data: bobCreateData(config, form) })
         mutation = result.data
       } else {
         const context = editContext.value
         if (!context) throw new Error(`未加载可编辑的${config.title}版本。`)
-        const result = await apiClient.post<
-          BobMutationResult,
-          BobVersionRevisionRequest & { data: Record<string, unknown> }
-        >(`bob/${config.entity}/save`, {
+        const result = await apiClient.postContract(`bob/${config.entity}/save`, {
           objectId: context.objectId,
           versionId: context.versionId,
           revision: context.revision,
@@ -385,6 +372,9 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
           mutation.versionId,
         )
         const normalized = normalizeBobForm(config, form)
+        const persistedData = Object.fromEntries(
+          Object.entries(persisted.data),
+        )
         const missing = config.persistedKeys?.find((key) => {
           if (
             config.entity === 'product' &&
@@ -395,7 +385,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
           }
           return (
             JSON.stringify(
-              comparableProductValue(key, persisted.data[key], true),
+              comparableProductValue(key, persistedData[key], true),
             ) !==
             JSON.stringify(comparableProductValue(key, normalized[key], false))
           )
@@ -430,15 +420,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     errorMessage.value = null
     try {
       if (action === 'delete') {
-        await apiClient.post<
-          null,
-          {
-            objectId: string
-            objectRevision: number
-            versionId: string
-            revision: number
-          }
-        >(`bob/${config.entity}/delete`, {
+        await apiClient.postContract(`bob/${config.entity}/delete`, {
           objectId: row.objectId,
           objectRevision: row.objectRevision,
           versionId: bobListActiveVersion(row).versionId,
@@ -447,7 +429,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
         if (rows.value.length === 1 && page.value > 1) page.value -= 1
       } else {
         if (!(await checkProductCompleteness(row))) return false
-        await apiClient.post<BobMutationResult, BobVersionRevisionRequest>(
+        await apiClient.postContract(
           `bob/${config.entity}/submit`,
           {
             objectId: row.objectId,

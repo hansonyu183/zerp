@@ -13,4 +13,3 @@ export type VouIntermediarySourceResponse = {
   };
   requestId: string;
 };
-

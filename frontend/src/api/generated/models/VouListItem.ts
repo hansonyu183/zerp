@@ -20,4 +20,3 @@ export type VouListItem = {
   salesSummary?: VouSalesBaseQuantitySummary;
   purchaseSummary?: VouPurchaseBaseQuantitySummary;
 };
-

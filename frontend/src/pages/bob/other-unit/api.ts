@@ -1,5 +1,4 @@
 import { apiClient, type ApiPostRequest } from '@/api/client'
-import type { OtherUnitMutationResult } from './types'
 
 export const otherUnitApi = {
   query: (input: ApiPostRequest<'bob/other-unit/query'>) =>
@@ -11,34 +10,34 @@ export const otherUnitApi = {
   save: (input: ApiPostRequest<'bob/other-unit/save'>) =>
     apiClient.postContract('bob/other-unit/save', input),
   delete: (input: ApiPostRequest<'bob/other-unit/delete'>) =>
-    apiClient.post<null, typeof input>('bob/other-unit/delete', input),
+    apiClient.postContract('bob/other-unit/delete', input),
   submit: (input: ApiPostRequest<'bob/other-unit/submit'>) =>
-    apiClient.post<OtherUnitMutationResult, typeof input>(
+    apiClient.postContract(
       'bob/other-unit/submit',
       input,
     ),
   unsubmit: (input: ApiPostRequest<'bob/other-unit/unsubmit'>) =>
-    apiClient.post<OtherUnitMutationResult, typeof input>(
+    apiClient.postContract(
       'bob/other-unit/unsubmit',
       input,
     ),
   approve: (input: ApiPostRequest<'bob/other-unit/approve'>) =>
-    apiClient.post<OtherUnitMutationResult, typeof input>(
+    apiClient.postContract(
       'bob/other-unit/approve',
       input,
     ),
   reject: (input: ApiPostRequest<'bob/other-unit/reject'>) =>
-    apiClient.post<OtherUnitMutationResult, typeof input>(
+    apiClient.postContract(
       'bob/other-unit/reject',
       input,
     ),
   enable: (input: ApiPostRequest<'bob/other-unit/enable'>) =>
-    apiClient.post<OtherUnitMutationResult, typeof input>(
+    apiClient.postContract(
       'bob/other-unit/enable',
       input,
     ),
   disable: (input: ApiPostRequest<'bob/other-unit/disable'>) =>
-    apiClient.post<OtherUnitMutationResult, typeof input>(
+    apiClient.postContract(
       'bob/other-unit/disable',
       input,
     ),

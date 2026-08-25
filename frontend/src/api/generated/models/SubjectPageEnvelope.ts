@@ -10,4 +10,3 @@ export type SubjectPageEnvelope = {
   data: SubjectPage | null;
   requestId: string;
 };
-

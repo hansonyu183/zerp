@@ -9,4 +9,3 @@ export type VouAssetLiquidationLineInput = {
   disposalExpense: string;
   remark?: string;
 };
-

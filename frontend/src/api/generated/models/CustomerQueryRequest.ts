@@ -19,4 +19,3 @@ export type CustomerQueryRequest = {
     order: 'asc';
   }>;
 };
-

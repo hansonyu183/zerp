@@ -7,4 +7,3 @@ export type SubjectDeleteRequest = {
   subjectId: string;
   revision: number;
 };
-

@@ -4,18 +4,7 @@ import { getErrorMessage } from '@/api/types'
 import type {
   VoucherDraftForm,
   VoucherEntityConfig,
-  VoucherReference,
 } from '@/components/voucher'
-
-interface InventoryCountBalancePage {
-  items: Array<{
-    product: VoucherReference
-    quantity: string
-  }>
-  total: number
-  page: number
-  pageSize: number
-}
 
 export function useVoucherInventoryCount(
   config: VoucherEntityConfig,
@@ -36,15 +25,7 @@ export function useVoucherInventoryCount(
     loading.value = true
     setError(null)
     try {
-      const { data } = await apiClient.post<
-        InventoryCountBalancePage,
-        {
-          page: number
-          pageSize: number
-          warehouseObjectId: string
-          asOfDate: string
-        }
-      >('vou/inventory-count/book-balance', {
+      const { data } = await apiClient.postContract('vou/inventory-count/book-balance', {
         page: 1,
         pageSize: 200,
         warehouseObjectId: form.value.warehouse.objectId,

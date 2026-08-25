@@ -7,4 +7,3 @@ export type OtherUnitCreateWithExistingPartyRequest = {
   partyId: string;
   data: OtherUnitData;
 };
-

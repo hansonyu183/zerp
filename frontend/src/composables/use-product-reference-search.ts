@@ -43,11 +43,7 @@ export function useProductReferenceSearch(
     loading.value = true
     errorMessage.value = null
     try {
-      const { data } = await apiClient.post<ProductReference[], {
-        entity: 'product'
-        keyword?: string
-        behaviorProfile: typeof behaviorProfile
-      }>('bob/reference/query', {
+      const { data } = await apiClient.postContract('bob/reference/query', {
         entity: 'product',
         behaviorProfile,
         ...(keyword.trim() ? { keyword: keyword.trim() } : {}),

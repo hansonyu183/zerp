@@ -9,4 +9,3 @@ export type PartyMergeResult = {
   transferredRelationships: number;
   mergedRelationships: number;
 };
-

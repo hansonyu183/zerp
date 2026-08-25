@@ -10,4 +10,3 @@ export type ReferenceQueryResponse = {
   data: Array<ReferenceCandidate>;
   requestId: string;
 };
-

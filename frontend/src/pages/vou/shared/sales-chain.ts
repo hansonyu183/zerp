@@ -3,7 +3,6 @@ import { apiClient } from '@/api/client'
 import { getErrorMessage } from '@/api/types'
 import {
   parseFixed,
-  type VoucherDocumentView,
   type VoucherDraftForm,
   type VoucherEntityConfig,
   type VoucherListItem,
@@ -66,10 +65,7 @@ export function useVoucherSalesChain(
     sourceLoading.value = true
     sourceError.value = null
     try {
-      const { data } = await apiClient.post<
-        VoucherDocumentView,
-        { documentId: string }
-      >(`vou/${config.parentEntity}/get`, { documentId })
+      const { data } = await apiClient.postContract(`vou/${config.parentEntity}/get`, { documentId })
       form.value.currency = data.data.currency
       if (config.productionMode === 'order') {
         form.value.productionLines = (data.data.productLines ?? []).flatMap(

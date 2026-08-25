@@ -7,4 +7,3 @@ export type BookQueryRequest = {
   pageSize: number;
   keyword?: string;
 };
-

@@ -10,4 +10,3 @@ export type PermissionDetailResponse = {
   data: PermissionDetail | null;
   requestId: string;
 };
-

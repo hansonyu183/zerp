@@ -7,4 +7,3 @@ export type VouAssetSaleLineInput = {
   saleAmount: string;
   remark?: string;
 };
-

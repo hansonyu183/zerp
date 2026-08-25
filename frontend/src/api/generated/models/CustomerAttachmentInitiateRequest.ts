@@ -13,4 +13,3 @@ export type CustomerAttachmentInitiateRequest = {
   size: number;
   sha256: string;
 };
-

@@ -10,4 +10,3 @@ export type MappingPageEnvelope = {
   data: MappingPage | null;
   requestId: string;
 };
-

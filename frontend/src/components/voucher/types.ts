@@ -1,42 +1,8 @@
-export type VoucherEntity =
-  | 'bill-receipt'
-  | 'bill-payment'
-  | 'bill-issue'
-  | 'bill-discount'
-  | 'bill-maturity'
-  | 'sale-pricing'
-  | 'sale-order'
-  | 'sale-outbound'
-  | 'sale-delivery'
-  | 'sale-signoff'
-  | 'sale-return'
-  | 'order-production'
-  | 'self-production'
-  | 'inventory-count'
-  | 'purchase-order'
-  | 'purchase-inbound'
-  | 'purchase-return'
-  | 'purchase-inquiry'
-  | 'sales-receipt'
-  | 'purchase-refund'
-  | 'other-receipt'
-  | 'sales-refund'
-  | 'purchase-payment'
-  | 'other-payment'
-  | 'employee-loan'
-  | 'employee-repayment'
-  | 'employee-loan-writeoff'
-  | 'expense-reimbursement'
-  | 'expense-payment'
-  | 'other-income'
-  | 'asset-acquisition'
-  | 'asset-sale'
-  | 'asset-liquidation'
-  | 'intermediary-calculation'
-  | 'service-contract'
-  | 'service-acceptance'
+import type { components } from '@/api/generated/schema'
 
-export type VoucherStatus = 'DRAFT' | 'CHECKED' | 'APPROVED'
+export type VoucherEntity = components['schemas']['VouEntity']
+
+export type VoucherStatus = components['schemas']['VouStatus']
 
 export interface VoucherReferenceInput {
   objectId: string
@@ -249,48 +215,9 @@ export interface VoucherDraftForm {
   inventoryCountLines: VoucherInventoryCountLineDraft[]
 }
 
-export interface VoucherReferenceView extends VoucherReferenceInput {
-  entity: string
-  code: string
-  name: string
-  unit?: string
-  currency?: string
-  plateNumber?: string
-  behaviorProfile?: ProductBehaviorProfile
-  productTypeObjectId?: string
-  productTypeVersionId?: string
-  productTypeCode?: string
-  productTypeName?: string
-}
+export type VoucherReferenceView = components['schemas']['VouReferenceView']
 
-export interface VoucherProductLineView {
-  lineId: string
-  lineNo: number
-  product: VoucherReferenceView
-  enteredQuantity: string
-  enteredUnit: VoucherUnitSnapshot
-  baseQuantity: string
-  unitPrice: string
-  baseUnitPrice?: string
-  settlementSurcharge?: string
-  purchaseUnitPrice?: string
-  deliverySpecificationType: 'PACKAGED' | 'BULK_LIQUID'
-  lineAmount: string
-  remark?: string
-  outboundBaseQuantity?: string
-  signedBaseQuantity?: string
-  rejectedBaseQuantity?: string
-  lossBaseQuantity?: string
-  inboundBaseQuantity?: string
-  sourceLineId?: string
-  availableBaseQuantity?: string
-  returnableBaseQuantity?: string
-  formula?: ProductFormulaDraft
-  referenceUnitPrice?: string
-  referenceDocumentId?: string
-  referenceDocumentNo?: string
-  referenceBusinessDate?: string
-}
+export type VoucherProductLineView = components['schemas']['VouProductLineView']
 
 export interface VoucherPriceLineView {
   lineId: string
@@ -381,17 +308,7 @@ export interface SettlementMethodSnapshot {
   description?: string
 }
 
-export interface VoucherAttachment {
-  fileId: string
-  fileName: string
-  contentType: string
-  size: number
-  sha256: string
-  status: 'PENDING' | 'READY'
-  storedAt?: string
-  createdAt: string
-  createdBy: string
-}
+export type VoucherAttachment = components['schemas']['VouAttachmentView']
 
 export type VouAtomicEntity = VoucherEntity
 
@@ -666,27 +583,7 @@ export interface VoucherManagedLineView {
   remark?: string
 }
 
-export interface VoucherDocumentView {
-  documentId: string
-  entity: VoucherEntity
-  documentNo: string
-  status: VoucherStatus
-  revision: number
-  amount: string
-  data: VoucherDocumentData
-  attachments: VoucherAttachment[]
-  createdAt: string
-  createdBy: string
-  updatedAt: string
-  updatedBy: string
-  checkedAt?: string
-  checkedBy?: string
-  approvedAt?: string
-  approvedBy?: string
-  parentEntity?: VoucherEntity
-  parentDocumentId?: string
-  parentDocumentNo?: string
-}
+export type VoucherDocumentView = components['schemas']['VouDocumentView']
 
 export interface VoucherListRow {
   documentId: string
@@ -720,24 +617,9 @@ export interface VoucherListItem extends VoucherListRow {
   entity: VoucherEntity
 }
 
-export interface VoucherMutationResult {
-  documentId: string
-  documentNo: string
-  status: VoucherStatus
-  revision: number
-}
+export type VoucherMutationResult = components['schemas']['VouMutationResult']
 
-export interface VoucherAuditEvent {
-  id: string
-  eventType: string
-  fromStatus: VoucherStatus | null
-  toStatus: VoucherStatus
-  actorId: string
-  occurredAt: string
-  reason: string | null
-  requestId: string
-  summary: unknown
-}
+export type VoucherAuditEvent = components['schemas']['VouAuditEventView']
 
 export interface VoucherQueryFilters {
   keyword: string

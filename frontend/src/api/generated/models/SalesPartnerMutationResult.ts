@@ -12,4 +12,3 @@ export type SalesPartnerMutationResult = {
   revision: number;
   partyId?: string;
 };
-

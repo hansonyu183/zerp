@@ -14,4 +14,3 @@ export type PartyIdentityData = {
   email?: string;
   address?: string;
 };
-

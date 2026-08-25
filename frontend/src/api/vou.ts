@@ -8,7 +8,7 @@ export function checkVoucher(
   entity: VouApiEntity,
   request: DocumentRevisionRequest,
 ) {
-  return apiClient.post<unknown, DocumentRevisionRequest>(
+  return apiClient.postContract(
     `vou/${entity}/check`,
     request,
   )
@@ -18,7 +18,7 @@ export function uncheckVoucher(
   entity: VouApiEntity,
   request: DocumentRevisionRequest,
 ) {
-  return apiClient.post<unknown, DocumentRevisionRequest>(
+  return apiClient.postContract(
     `vou/${entity}/uncheck`,
     request,
   )
@@ -28,7 +28,7 @@ export function approveVoucher(
   entity: VouApiEntity,
   request: DocumentRevisionRequest,
 ) {
-  return apiClient.post<unknown, DocumentRevisionRequest>(
+  return apiClient.postContract(
     `vou/${entity}/approve`,
     request,
   )

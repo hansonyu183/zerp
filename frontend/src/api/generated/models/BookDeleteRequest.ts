@@ -6,4 +6,3 @@ export type BookDeleteRequest = {
   bookId: string;
   revision: number;
 };
-

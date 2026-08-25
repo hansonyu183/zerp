@@ -8,4 +8,3 @@ export type CustomerAttachmentInitiateResult = {
   expiresAt: string;
   revision: number;
 };
-

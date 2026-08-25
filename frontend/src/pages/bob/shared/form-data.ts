@@ -36,7 +36,7 @@ export function normalizeBobForm(
 export function bobCreateData(
   config: BobEntityConfig,
   form: BobForm,
-): Record<string, unknown> {
+) {
   const normalized = normalizeBobForm(config, form)
   const data: Record<string, unknown> = {}
   for (const key of config.persistedKeys ?? config.detailKeys) {
@@ -59,13 +59,13 @@ export function bobCreateData(
   for (const [key, value] of Object.entries(data)) {
     if (value === undefined) delete data[key]
   }
-  return data
+  return { ...data, name: normalized.name }
 }
 
 export function bobSaveData(
   config: BobEntityConfig,
   form: BobForm,
-): Record<string, unknown> {
+) {
   const normalized = normalizeBobForm(config, form)
   const data = Object.fromEntries(
     (config.persistedKeys ?? config.detailKeys).map((key) => [key, normalized[key]]),
@@ -87,8 +87,9 @@ export function bobFormFromView(
 ): BobForm {
   const form = config.emptyForm()
   form.code = view.code
+  const detail = Object.fromEntries(Object.entries(view.data))
   for (const key of config.detailKeys) {
-    form[key] = view.data[key] ?? form[key] ?? ''
+    form[key] = detail[key] ?? form[key] ?? ''
   }
   if (config.entity === 'product') {
     Object.assign(form, productFormFields(view.data))

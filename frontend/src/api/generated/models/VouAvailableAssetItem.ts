@@ -10,4 +10,3 @@ export type VouAvailableAssetItem = {
   accumulatedDepreciation: string;
   netValue: string;
 };
-

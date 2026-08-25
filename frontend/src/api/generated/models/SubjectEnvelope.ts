@@ -10,4 +10,3 @@ export type SubjectEnvelope = {
   data: Subject | null;
   requestId: string;
 };
-

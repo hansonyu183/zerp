@@ -14,8 +14,8 @@ import periodSource from '@/pages/acc/period/Period.vue?raw'
 import { createAccountingSubjectViewModel } from '@/pages/acc/subject/vm'
 import { useSessionStore } from '@/stores/session'
 
-vi.mock('@/api/client', () => ({ apiClient: { post: vi.fn() } }))
-const mockedPost = vi.mocked(apiClient.post)
+vi.mock('@/api/client', () => ({ apiClient: { postContract: vi.fn() } }))
+const mockedPost = vi.mocked(apiClient.postContract)
 
 describe('ACC mapping and period controls', () => {
   beforeEach(() => {
@@ -48,7 +48,7 @@ describe('ACC mapping and period controls', () => {
     mockedPost.mockReturnValue(
       new Promise((resolve) => {
         resolveQuery = resolve
-      }) as ReturnType<typeof apiClient.post>,
+      }) as ReturnType<typeof apiClient.postContract>,
     )
     const scope = effectScope()
     const vm = scope.run(() => createAccountingMappingViewModel())!

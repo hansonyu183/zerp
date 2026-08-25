@@ -7,4 +7,3 @@ export type PartyMergeConflictResolution = {
   operatingEntityId: string;
   retainObjectId: string;
 };
-

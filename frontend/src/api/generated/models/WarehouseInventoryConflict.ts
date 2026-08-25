@@ -8,4 +8,3 @@ export type WarehouseInventoryConflict = {
   productName: string;
   quantity: string;
 };
-

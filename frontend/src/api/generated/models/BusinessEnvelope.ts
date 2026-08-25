@@ -15,4 +15,3 @@ export type BusinessEnvelope = {
   data: Record<string, any> | null;
   requestId: string;
 };
-

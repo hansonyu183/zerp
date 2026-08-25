@@ -9,4 +9,3 @@ export type VouQuantitySnapshotInput = {
   };
   baseQuantity: string;
 };
-

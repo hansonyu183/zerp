@@ -16,4 +16,3 @@ export type SupplierSaveRequest = {
     defaultPurchaserEmployeeId?: string | null;
   };
 };
-

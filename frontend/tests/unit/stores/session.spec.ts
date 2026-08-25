@@ -5,11 +5,10 @@ import { ApiError } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
 
 vi.mock('@/api/client', () => {
-  const post = vi.fn()
+  const postContract = vi.fn()
   return {
     apiClient: {
-      post,
-      postContract: (...args: unknown[]) => post(...args),
+      postContract,
       setCsrfToken: vi.fn(),
     },
   }
@@ -75,7 +74,7 @@ describe('useSessionStore permissions', () => {
   })
 
   it('恢复权限并根据本地注册表生成 Home 菜单', async () => {
-    mockedApiClient.post
+    mockedApiClient.postContract
       .mockResolvedValueOnce({
         data: {
           user: { id: '1', username: 'admin', displayName: '管理员' },
@@ -121,7 +120,7 @@ describe('useSessionStore permissions', () => {
   })
 
   it('不兼容旧 menus 字段且缺少 permissions 时生成空菜单', async () => {
-    mockedApiClient.post
+    mockedApiClient.postContract
       .mockResolvedValueOnce({
         data: {
           user: { id: '1', username: 'admin', displayName: '管理员' },
@@ -160,7 +159,7 @@ describe('useSessionStore permissions', () => {
   })
 
   it('只用一次 session 返回的 API 权限生成动态流程菜单', async () => {
-    mockedApiClient.post
+    mockedApiClient.postContract
       .mockResolvedValueOnce({
         data: {
           user: { id: '1', username: 'admin', displayName: '管理员' },
@@ -213,13 +212,13 @@ describe('useSessionStore permissions', () => {
         ],
       },
     ])
-    expect(mockedApiClient.post).toHaveBeenCalledTimes(2)
-    expect(mockedApiClient.post).toHaveBeenCalledWith('app/user/session', {})
-    expect(mockedApiClient.post).toHaveBeenCalledWith('app/menu/get', {})
+    expect(mockedApiClient.postContract).toHaveBeenCalledTimes(2)
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith('app/user/session', {})
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith('app/menu/get', {})
   })
 
   it('支持强制恢复会话以处理 BFCache 恢复', async () => {
-    mockedApiClient.post.mockImplementation(async (path) =>
+    mockedApiClient.postContract.mockImplementation(async (path) =>
       path === 'app/menu/get'
         ? menuResponse()
         : {
@@ -236,11 +235,11 @@ describe('useSessionStore permissions', () => {
     await expect(session.restore()).resolves.toBe(true)
     await expect(session.restore({ force: true })).resolves.toBe(true)
 
-    expect(mockedApiClient.post).toHaveBeenCalledTimes(4)
+    expect(mockedApiClient.postContract).toHaveBeenCalledTimes(4)
   })
 
   it('退出时清空用户、权限、菜单和 CSRF', async () => {
-    mockedApiClient.post
+    mockedApiClient.postContract
       .mockResolvedValueOnce({
         data: {
           user: { id: '1', username: 'admin', displayName: '管理员' },
@@ -280,7 +279,7 @@ describe('useSessionStore.restore errors', () => {
   })
 
   it('将未登录 errorKey 视为正常状态且不展示错误', async () => {
-    vi.spyOn(apiClient, 'post').mockRejectedValue(
+    vi.spyOn(apiClient, 'postContract').mockRejectedValue(
       new ApiError('business', 'session expired', {
         code: 1001,
         errorKey: 'unauthenticated',
@@ -297,7 +296,7 @@ describe('useSessionStore.restore errors', () => {
   })
 
   it('保留真实网络错误供登录页展示', async () => {
-    vi.spyOn(apiClient, 'post').mockRejectedValue(
+    vi.spyOn(apiClient, 'postContract').mockRejectedValue(
       new ApiError('network', '无法连接真实后端 API。'),
     )
     const session = useSessionStore()
@@ -310,7 +309,7 @@ describe('useSessionStore.restore errors', () => {
   })
 
   it('菜单加载失败时保留已恢复的认证会话和权限', async () => {
-    mockedApiClient.post
+    mockedApiClient.postContract
       .mockResolvedValueOnce({
         data: {
           user: { id: '1', username: 'admin', displayName: '管理员' },
@@ -334,7 +333,7 @@ describe('useSessionStore.restore errors', () => {
     )
     expect(mockedApiClient.setCsrfToken).toHaveBeenLastCalledWith('csrf-1')
 
-    mockedApiClient.post.mockResolvedValueOnce(menuResponse())
+    mockedApiClient.postContract.mockResolvedValueOnce(menuResponse())
     await expect(session.retryMenu()).resolves.toBeUndefined()
     expect(session.errorMessage).toBeNull()
     expect(session.menuErrorMessage).toBeNull()
@@ -343,7 +342,7 @@ describe('useSessionStore.restore errors', () => {
   it.each(['restore', 'signIn'] as const)(
     '%s 成功后菜单返回未认证时清空会话',
     async (action) => {
-      mockedApiClient.post
+      mockedApiClient.postContract
         .mockResolvedValueOnce({
           data: {
             user: { id: '1', username: 'admin', displayName: '管理员' },
@@ -377,7 +376,7 @@ describe('useSessionStore.restore errors', () => {
   )
 
   it('登录失败时按稳定 errorKey 显示提示', async () => {
-    mockedApiClient.post.mockRejectedValue(
+    mockedApiClient.postContract.mockRejectedValue(
       new ApiError('business', '密码错误，剩余重试次数 4。', {
         code: 1001,
         errorKey: 'invalid_credentials',
@@ -394,7 +393,7 @@ describe('useSessionStore.restore errors', () => {
   })
 
   it('登录成功但菜单加载失败时不撤销认证结果', async () => {
-    mockedApiClient.post
+    mockedApiClient.postContract
       .mockResolvedValueOnce({
         data: {
           user: { id: '1', username: 'admin', displayName: '管理员' },
@@ -419,7 +418,7 @@ describe('useSessionStore.restore errors', () => {
   })
 
   it('重试菜单返回未认证时清空会话并向调用者报告失效', async () => {
-    mockedApiClient.post
+    mockedApiClient.postContract
       .mockResolvedValueOnce({
         data: {
           user: { id: '1', username: 'admin', displayName: '管理员' },
@@ -432,7 +431,7 @@ describe('useSessionStore.restore errors', () => {
     const session = useSessionStore()
     await expect(session.restore()).resolves.toBe(true)
 
-    mockedApiClient.post.mockRejectedValueOnce(
+    mockedApiClient.postContract.mockRejectedValueOnce(
       new ApiError('business', '登录状态已失效', {
         code: 1001,
         errorKey: 'unauthenticated',
@@ -455,7 +454,7 @@ describe('useSessionStore account actions', () => {
   })
 
   it('使用空对象读取当前资料', async () => {
-    mockedApiClient.post.mockResolvedValue({
+    mockedApiClient.postContract.mockResolvedValue({
       data: {
         id: '1',
         username: 'admin',
@@ -469,11 +468,11 @@ describe('useSessionStore account actions', () => {
       displayName: '管理员',
       avatarUrl: 'https://example.com/avatar.png',
     })
-    expect(mockedApiClient.post).toHaveBeenCalledWith('app/user/profile', {})
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith('app/user/profile', {})
   })
 
   it('保存名称和头像且不提交 revision', async () => {
-    mockedApiClient.post.mockResolvedValue({
+    mockedApiClient.postContract.mockResolvedValue({
       data: {
         id: '1',
         username: 'admin',
@@ -489,7 +488,7 @@ describe('useSessionStore account actions', () => {
       avatarUrl: null,
     })
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith('app/user/profile', {
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith('app/user/profile', {
       displayName: '新名称',
       avatarUrl: null,
     })
@@ -502,7 +501,7 @@ describe('useSessionStore account actions', () => {
   })
 
   it('改密成功后清理会话并使用正确路径', async () => {
-    mockedApiClient.post.mockResolvedValue({ data: null })
+    mockedApiClient.postContract.mockResolvedValue({ data: null })
     const session = useSessionStore()
     session.user = {
       id: '1',
@@ -517,7 +516,7 @@ describe('useSessionStore account actions', () => {
       newPassword: 'New-password-2!',
     })
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith(
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith(
       'app/user/change-password',
       {
         currentPassword: 'Current-password-1!',
@@ -531,7 +530,7 @@ describe('useSessionStore account actions', () => {
   })
 
   it('资料保存失败时保留当前资料且不提交 revision', async () => {
-    mockedApiClient.post.mockRejectedValue(
+    mockedApiClient.postContract.mockRejectedValue(
       new ApiError('business', 'profile save failed', {
         code: 2001,
         errorKey: 'validation_failed',
@@ -556,14 +555,14 @@ describe('useSessionStore account actions', () => {
     expect(session.errorMessage).toBe(
       '输入内容不符合要求，请检查必填项、格式和取值范围。',
     )
-    expect(mockedApiClient.post).toHaveBeenCalledWith('app/user/profile', {
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith('app/user/profile', {
       displayName: '新名称',
       avatarUrl: 'https://example.com/avatar.png',
     })
   })
 
   it('改密失败时保留当前会话并暴露错误', async () => {
-    mockedApiClient.post.mockRejectedValue(
+    mockedApiClient.postContract.mockRejectedValue(
       new ApiError('business', 'current password is incorrect', {
         code: 2001,
         errorKey: 'invalid_current_password',
@@ -590,7 +589,7 @@ describe('useSessionStore account actions', () => {
 
 it('受限会话不加载菜单并保留受限标记', async () => {
   setActivePinia(createPinia())
-  mockedApiClient.post.mockResolvedValueOnce({
+  mockedApiClient.postContract.mockResolvedValueOnce({
     data: {
       user: { id: '1', username: 'new-user', displayName: '新用户' },
       csrfToken: 'csrf-1',
@@ -604,5 +603,5 @@ it('受限会话不加载菜单并保留受限标记', async () => {
   expect(session.passwordChangeRequired).toBe(true)
   expect(session.passwordMinLength).toBe(10)
   expect(session.menus).toEqual([])
-  expect(mockedApiClient.post).not.toHaveBeenCalledWith('app/menu/get', {})
+  expect(mockedApiClient.postContract).not.toHaveBeenCalledWith('app/menu/get', {})
 })

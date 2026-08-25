@@ -10,4 +10,3 @@ export type SessionResponse = {
   data: SessionData | null;
   requestId: string;
 };
-

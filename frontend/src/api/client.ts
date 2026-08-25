@@ -1,4 +1,8 @@
 import createClient, { type Client } from 'openapi-fetch'
+import {
+  permitsNullSuccessData,
+  type NullSuccessContractPath,
+} from '@/api/generated/contract-meta'
 import type { components, paths } from '@/api/generated/schema'
 import { ApiError, type ApiResponse, type ApiResult } from '@/api/types'
 
@@ -47,29 +51,38 @@ type ContractPathFor<Path extends ApiPostPath> =
                 : never
               : never
 
-type ContractPostOperation<Path extends ApiPostPath> =
-  paths[ContractPathFor<Path> & keyof paths] extends {
-    post: infer Operation
-  }
+type ContractPostOperation<Path extends ApiPostPath> = Path extends ApiPostPath
+  ? paths[ContractPathFor<Path> & keyof paths] extends {
+      post: infer Operation
+    }
     ? Operation
     : never
+  : never
 
-export type ApiPostRequest<Path extends ApiPostPath> =
-  ContractPostOperation<Path> extends {
-    requestBody: { content: { 'application/json': infer Request } }
-  }
+export type ApiPostRequest<Path extends ApiPostPath> = Path extends ApiPostPath
+  ? ContractPostOperation<Path> extends {
+      requestBody: { content: { 'application/json': infer Request } }
+    }
     ? Request
     : never
+  : never
 
-type ApiPostResponse<Path extends ApiPostPath> =
-  ContractPostOperation<Path> extends {
-    responses: { 200: { content: { 'application/json': infer Response } } }
-  }
+type ApiPostResponse<Path extends ApiPostPath> = Path extends ApiPostPath
+  ? ContractPostOperation<Path> extends {
+      responses: { 200: { content: { 'application/json': infer Response } } }
+    }
     ? Response
     : never
+  : never
 
 export type ApiPostData<Path extends ApiPostPath> =
-  ApiPostResponse<Path> extends { data: infer Data } ? NonNullable<Data> : never
+  ApiPostResponse<Path> extends infer Response
+    ? Response extends { data: infer Data }
+      ? ContractPathFor<Path> extends NullSuccessContractPath
+        ? Data
+        : NonNullable<Data>
+      : never
+    : never
 
 interface ApiClientOptions {
   baseUrl?: string
@@ -90,12 +103,6 @@ export interface CsvDownload {
   blob: Blob
   filename: string
   requestId?: string
-}
-
-interface ContractPostResult {
-  data?: unknown
-  error?: unknown
-  response: Response
 }
 
 function normalizeBaseUrl(baseUrl: string): string {
@@ -138,11 +145,11 @@ export class ApiClient {
     this.csrfToken = token
   }
 
-  async post<TResponse, TRequest = Record<string, never>>(
-    path: ApiPostPath,
-    body: TRequest,
+  async postContract<Path extends ApiPostPath>(
+    path: Path,
+    body: ApiPostRequest<Path>,
     options: PostOptions = {},
-  ): Promise<ApiResult<TResponse>> {
+  ): Promise<ApiResult<ApiPostData<Path>>> {
     if (!this.baseUrl || !this.contractClient) {
       throw new ApiError(
         'configuration',
@@ -181,42 +188,17 @@ export class ApiClient {
       if (this.csrfToken) headers.set('X-CSRF-Token', this.csrfToken)
 
       const contractRequest = this.resolveContractPost(normalizedPath)
-      const post = this.contractClient.POST as unknown as (
-        path: ContractPostPath,
-        options: {
-          body: unknown
-          credentials: RequestCredentials
-          headers: Headers
-          params?: {
-            path: { entity?: string; processName?: string; report?: string }
-          }
-          parseAs: 'text'
-          signal: AbortSignal
-        },
-      ) => Promise<ContractPostResult>
-      const result = await post(contractRequest.path, {
+      const result = await this.contractClient.POST(contractRequest.path, {
         body,
         credentials: 'include',
         headers,
-        ...(contractRequest.entity ||
-        contractRequest.processName ||
-        contractRequest.report
-          ? {
-              params: {
-                path: {
-                  ...(contractRequest.entity
-                    ? { entity: contractRequest.entity }
-                    : {}),
-                  ...(contractRequest.processName
-                    ? { processName: contractRequest.processName }
-                    : {}),
-                  ...(contractRequest.report
-                    ? { report: contractRequest.report }
-                    : {}),
-                },
-              },
-            }
-          : {}),
+        params: {
+          path: {
+            entity: contractRequest.entity ?? '',
+            processName: contractRequest.processName ?? '',
+            report: contractRequest.report ?? '',
+          },
+        },
         parseAs: 'text',
         signal: controller.signal,
       })
@@ -255,8 +237,15 @@ export class ApiClient {
         })
       }
 
+      if (
+        payload.data === null &&
+        !permitsNullSuccessData(contractRequest.path)
+      ) {
+        throw new ApiError('protocol', '后端成功响应缺少契约数据。')
+      }
+
       return {
-        data: payload.data as TResponse,
+        data: payload.data as ApiPostData<Path>,
         requestId: payload.requestId,
       }
     } catch (error) {
@@ -277,21 +266,6 @@ export class ApiClient {
       clearTimeout(timeout)
       options.signal?.removeEventListener('abort', abortFromCaller)
     }
-  }
-
-  async postContract<Path extends ApiPostPath>(
-    path: Path,
-    body: ApiPostRequest<Path>,
-    options: PostOptions = {},
-  ): Promise<ApiResult<ApiPostData<Path>>> {
-    const result = await this.post<
-      ApiPostData<Path> | null,
-      ApiPostRequest<Path>
-    >(path, body, options)
-    if (result.data === null) {
-      throw new ApiError('protocol', '后端成功响应缺少契约数据。')
-    }
-    return { ...result, data: result.data }
   }
 
   private resolveContractPost(path: string): {

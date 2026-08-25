@@ -10,4 +10,3 @@ export type SystemParameterConstraints = {
   maximum: string | null;
   allowedValues: Array<string>;
 };
-

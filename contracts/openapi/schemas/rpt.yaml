@@ -69,6 +69,29 @@ RptVersionData:
       minItems: 1
       items: { $ref: '#/RptResultColumn' }
 
+RptMutationResult:
+  type: object
+  additionalProperties: false
+  required: [id, revision]
+  properties:
+    id: { type: string }
+    status: { type: string }
+    revision: { type: integer, format: int64 }
+
+RptMutationResponse:
+  type: object
+  additionalProperties: false
+  required: [code, errorKey, message, data, requestId]
+  properties:
+    code: { type: integer, format: int32 }
+    errorKey: { type: string }
+    message: { type: string }
+    data:
+      type: object
+      nullable: true
+      allOf: [{ $ref: '#/RptMutationResult' }]
+    requestId: { type: string }
+
 RptDefinitionCreateRequest:
   type: object
   additionalProperties: false
@@ -166,3 +189,154 @@ RptReferenceQueryRequest:
     selectedId: { type: string, maxLength: 64 }
     page: { type: integer, minimum: 1, default: 1 }
     pageSize: { type: integer, minimum: 1, maximum: 50, default: 20 }
+RptDefinitionViewData:
+  type: object
+  additionalProperties: false
+  required:
+    [
+      definitionId,
+      code,
+      name,
+      description,
+      enabled,
+      everApproved,
+      revision,
+      data,
+    ]
+  properties:
+    definitionId: { type: string }
+    code: { type: string }
+    name: { type: string }
+    description: { type: string }
+    enabled: { type: boolean }
+    everApproved: { type: boolean }
+    currentVersionId: { type: string }
+    revision: { type: integer, format: int64 }
+    versionId: { type: string }
+    versionNo: { type: integer, format: int32 }
+    status: { type: string }
+    validity: { type: string }
+    versionRevision: { type: integer, format: int64 }
+    data: { $ref: '#/RptVersionData' }
+RptReportMetadata:
+  type: object
+  additionalProperties: false
+  required: [code, name, description, parameters, columns, canQuery, canExport]
+  properties:
+    code: { type: string }
+    name: { type: string }
+    description: { type: string }
+    parameters:
+      type: array
+      items: { $ref: '#/RptParameter' }
+    columns:
+      type: array
+      items: { $ref: '#/RptResultColumn' }
+    canQuery: { type: boolean }
+    canExport: { type: boolean }
+RptDefinitionPageData:
+  type: object
+  additionalProperties: false
+  required: [items, total, page, pageSize]
+  properties:
+    items:
+      type: array
+      items: { $ref: '#/RptDefinitionViewData' }
+    total: { type: integer, format: int64 }
+    page: { type: integer }
+    pageSize: { type: integer }
+RptDirectoryPageData:
+  type: object
+  additionalProperties: false
+  required: [items, total, page, pageSize]
+  properties:
+    items:
+      type: array
+      items: { $ref: '#/RptReportMetadata' }
+    total: { type: integer, format: int64 }
+    page: { type: integer }
+    pageSize: { type: integer }
+RptQueryResult:
+  type: object
+  additionalProperties: false
+  required: [columns, items, total, page, pageSize]
+  properties:
+    columns:
+      type: array
+      items: { $ref: '#/RptResultColumn' }
+    items:
+      type: array
+      description: Dynamic row values are constrained by the selected report definition columns.
+      items: { type: object, additionalProperties: true }
+    total: { type: integer, format: int64 }
+    page: { type: integer }
+    pageSize: { type: integer }
+RptReferenceItem:
+  type: object
+  additionalProperties: false
+  required: [id, code, name]
+  properties:
+    id: { type: string }
+    code: { type: string }
+    name: { type: string }
+RptReferencePageData:
+  type: object
+  additionalProperties: false
+  required: [items, total, page, pageSize]
+  properties:
+    items:
+      type: array
+      items: { $ref: '#/RptReferenceItem' }
+    total: { type: integer, format: int64 }
+    page: { type: integer }
+    pageSize: { type: integer }
+RptDefinitionPageResponse:
+  type: object
+  additionalProperties: false
+  required: [code, errorKey, message, data, requestId]
+  properties:
+    code: { type: integer, format: int32 }
+    errorKey: { type: string }
+    message: { type: string }
+    data: { $ref: '#/RptDefinitionPageData', nullable: true }
+    requestId: { type: string }
+RptDefinitionViewResponse:
+  type: object
+  additionalProperties: false
+  required: [code, errorKey, message, data, requestId]
+  properties:
+    code: { type: integer, format: int32 }
+    errorKey: { type: string }
+    message: { type: string }
+    data: { $ref: '#/RptDefinitionViewData', nullable: true }
+    requestId: { type: string }
+RptDirectoryPageResponse:
+  type: object
+  additionalProperties: false
+  required: [code, errorKey, message, data, requestId]
+  properties:
+    code: { type: integer, format: int32 }
+    errorKey: { type: string }
+    message: { type: string }
+    data: { $ref: '#/RptDirectoryPageData', nullable: true }
+    requestId: { type: string }
+RptQueryResponse:
+  type: object
+  additionalProperties: false
+  required: [code, errorKey, message, data, requestId]
+  properties:
+    code: { type: integer, format: int32 }
+    errorKey: { type: string }
+    message: { type: string }
+    data: { $ref: '#/RptQueryResult', nullable: true }
+    requestId: { type: string }
+RptReferencePageResponse:
+  type: object
+  additionalProperties: false
+  required: [code, errorKey, message, data, requestId]
+  properties:
+    code: { type: integer, format: int32 }
+    errorKey: { type: string }
+    message: { type: string }
+    data: { $ref: '#/RptReferencePageData', nullable: true }
+    requestId: { type: string }

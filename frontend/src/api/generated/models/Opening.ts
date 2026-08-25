@@ -19,4 +19,3 @@ export type Opening = {
   bills: Array<OpeningBill>;
   containers: Array<OpeningContainerInput>;
 };
-

@@ -1,7 +1,7 @@
 import { computed, onScopeDispose, reactive, ref } from 'vue'
+import { apiClient, type ApiPostRequest } from '@/api/client'
 import type { components } from '@/api/generated/schema'
-import { apiClient, type ApiPostPath } from '@/api/client'
-import { getErrorMessage, type PageResult } from '@/api/types'
+import { getErrorMessage } from '@/api/types'
 import { localDate } from '@/utils/date'
 import { useSessionStore } from '@/stores/session'
 import {
@@ -17,7 +17,6 @@ import { useVoucherArtifacts } from '../artifacts'
 import { voucherEntityConfigs } from '../config'
 import type {
   VoucherActionAvailability,
-  VoucherDocumentData,
   VoucherDocumentView,
   VoucherStatus,
 } from '@/components/voucher'
@@ -93,54 +92,12 @@ export interface BillListItem {
   updatedAt: string
   partyName?: string
 }
-type BillDocumentResponse = Omit<VoucherDocumentView, 'data'> & {
-  data: VoucherDocumentData & BillVoucherForm
-}
-interface MutationResponse {
-  documentId: string
-  documentNo: string
-  status: string
-  revision: number
-}
-type VouQueryRequest = components['schemas']['VouQueryRequest']
-type VouGetRequest = components['schemas']['VouGetRequest']
-type VouCreateRequest = components['schemas']['VouCreateRequest']
-type VouSaveRequest = components['schemas']['VouSaveRequest']
-type VouRevisionRequest = components['schemas']['VouDocumentRevisionRequest']
-type VouReverseRequest = components['schemas']['VouReverseRequest']
-type BobQueryRequest = components['schemas']['BobQueryRequest']
-type BobListPage = components['schemas']['BobListPage']
-type AvailableBillQueryRequest =
-  components['schemas']['VouAvailableBillQueryRequest']
-type AvailableBillItem = components['schemas']['VouAvailableBillItem']
-type BillPaymentData = ReturnType<typeof buildBillPaymentPayload>
-type BillIssueData = ReturnType<typeof buildBillIssuePayload>
-type BillDiscountData = ReturnType<typeof buildBillDiscountPayload>
-type BillMaturityData = ReturnType<typeof buildBillMaturityPayload>
-type BillPaymentCreateRequest = { data: BillPaymentData }
-type BillPaymentSaveRequest = {
-  documentId: string
-  revision: number
-  data: BillPaymentData
-}
-type BillIssueCreateRequest = { data: BillIssueData }
-type BillIssueSaveRequest = {
-  documentId: string
-  revision: number
-  data: BillIssueData
-}
-type BillDiscountCreateRequest = { data: BillDiscountData }
-type BillDiscountSaveRequest = {
-  documentId: string
-  revision: number
-  data: BillDiscountData
-}
-type BillMaturityCreateRequest = { data: BillMaturityData }
-type BillMaturitySaveRequest = {
-  documentId: string
-  revision: number
-  data: BillMaturityData
-}
+type VouQueryRequest = ApiPostRequest<'vou/bill-receipt/query'>
+type VouGetRequest = ApiPostRequest<'vou/bill-receipt/get'>
+type VouRevisionRequest = ApiPostRequest<'vou/bill-receipt/check'>
+type VouReverseRequest = ApiPostRequest<'vou/bill-receipt/unapprove'>
+type BobQueryRequest = ApiPostRequest<'bob/customer-account/query'>
+type AvailableBillQueryRequest = ApiPostRequest<'vou/bill-payment/bill-source'>
 
 const requiredCreateReferencePermissions: Readonly<
   Record<BillVoucherConfig['mode'], readonly string[]>
@@ -298,10 +255,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         },
         sort: [{ field: 'documentNo', order: 'desc' }],
       }
-      const result = await apiClient.post<
-        components['schemas']['VouListPage'],
-        VouQueryRequest
-      >(`vou/${config.entity}/query` as ApiPostPath, request, {
+      const result = await apiClient.postContract(`vou/${config.entity}/query`, request, {
         signal: controller.signal,
       })
       if (current !== sequence) return
@@ -364,8 +318,8 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     const current = ++documentLoadSequence
     try {
       const request: VouGetRequest = { documentId: row.documentId }
-      const result = await apiClient.post<BillDocumentResponse, VouGetRequest>(
-        `vou/${config.entity}/get` as ApiPostPath,
+      const result = await apiClient.postContract(
+        `vou/${config.entity}/get`,
         request,
         { signal: requestController.signal },
       )
@@ -450,64 +404,16 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
                 ? buildBillMaturityPayload(form)
                 : buildBillReceiptPayload(form)
       if (documentId.value) {
-        const request =
-          config.mode === 'payment'
-            ? ({
-                documentId: documentId.value,
-                revision: revision.value,
-                data,
-              } as BillPaymentSaveRequest)
-            : config.mode === 'issue'
-              ? ({
-                  documentId: documentId.value,
-                  revision: revision.value,
-                  data,
-                } as BillIssueSaveRequest)
-              : config.mode === 'discount'
-                ? ({
-                    documentId: documentId.value,
-                    revision: revision.value,
-                    data,
-                  } as BillDiscountSaveRequest)
-                : config.mode === 'maturity'
-                  ? ({
-                      documentId: documentId.value,
-                      revision: revision.value,
-                      data,
-                    } as BillMaturitySaveRequest)
-                  : ({
-                      documentId: documentId.value,
-                      revision: revision.value,
-                      data,
-                    } as VouSaveRequest)
-        const result = await apiClient.post<
-          MutationResponse,
-          | VouSaveRequest
-          | BillPaymentSaveRequest
-          | BillIssueSaveRequest
-          | BillDiscountSaveRequest
-          | BillMaturitySaveRequest
-        >(`vou/${config.entity}/save` as ApiPostPath, request)
+        const request = {
+          documentId: documentId.value,
+          revision: revision.value,
+          data,
+        }
+        const result = await apiClient.postContract(`vou/${config.entity}/save`, request)
         revision.value = result.data.revision
       } else {
-        const request =
-          config.mode === 'payment'
-            ? ({ data } as BillPaymentCreateRequest)
-            : config.mode === 'issue'
-              ? ({ data } as BillIssueCreateRequest)
-              : config.mode === 'discount'
-                ? ({ data } as BillDiscountCreateRequest)
-                : config.mode === 'maturity'
-                  ? ({ data } as BillMaturityCreateRequest)
-                  : ({ data } as VouCreateRequest)
-        const result = await apiClient.post<
-          MutationResponse,
-          | VouCreateRequest
-          | BillPaymentCreateRequest
-          | BillIssueCreateRequest
-          | BillDiscountCreateRequest
-          | BillMaturityCreateRequest
-        >(`vou/${config.entity}/create` as ApiPostPath, request)
+        const request = { data }
+        const result = await apiClient.postContract(`vou/${config.entity}/create`, request)
         documentId.value = result.data.documentId
         documentNo.value = result.data.documentNo
         revision.value = result.data.revision
@@ -532,15 +438,15 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     if (!documentId.value) return
     actionLoading.value = action
     try {
-      let result: { data: MutationResponse }
+      let result
       if (action === 'unapprove') {
         const request: VouReverseRequest = {
           documentId: documentId.value,
           revision: revision.value,
           reason: reason ?? '',
         }
-        result = await apiClient.post<MutationResponse, VouReverseRequest>(
-          `vou/${config.entity}/${action}` as ApiPostPath,
+        result = await apiClient.postContract(
+          `vou/${config.entity}/${action}`,
           request,
         )
       } else {
@@ -548,8 +454,8 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
           documentId: documentId.value,
           revision: revision.value,
         }
-        result = await apiClient.post<MutationResponse, VouRevisionRequest>(
-          `vou/${config.entity}/${action}` as ApiPostPath,
+        result = await apiClient.postContract(
+          `vou/${config.entity}/${action}`,
           request,
         )
       }
@@ -574,8 +480,8 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         revision: revision.value,
         reason,
       }
-      await apiClient.post<MutationResponse, VouReverseRequest>(
-        `vou/${config.entity}/delete` as ApiPostPath,
+      await apiClient.postContract(
+        `vou/${config.entity}/delete`,
         request,
       )
       workspaceOpen.value = false
@@ -723,7 +629,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
       sort: [{ field: 'code', order: 'asc' }],
     }
     try {
-      const result = await apiClient.post<BobListPage, BobQueryRequest>(
+      const result = await apiClient.postContract(
         `bob/${entity}/query`,
         request,
         { signal },
@@ -761,10 +667,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
       ...(value ? { billNo: value } : {}),
     }
     try {
-      const result = await apiClient.post<
-        PageResult<AvailableBillItem>,
-        AvailableBillQueryRequest
-      >(`vou/${config.entity}/bill-source` as ApiPostPath, request, {
+      const result = await apiClient.postContract(`vou/${config.entity}/bill-source`, request, {
         signal: requestController.signal,
       })
       if (current !== heldSequence) return

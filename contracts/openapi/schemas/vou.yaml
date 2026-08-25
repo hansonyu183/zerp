@@ -230,7 +230,12 @@
           'salesContract': { '$ref': '#/VouIntermediarySalesContractSnapshot' },
           'intermediary': { '$ref': '#/VouIntermediaryReference' },
           'product': { '$ref': '#/VouIntermediaryReference' },
-          'behaviorProfile': { 'type': 'string' },
+          'behaviorProfile':
+            {
+              'type': 'string',
+              'enum':
+                [RAW_MATERIAL, STANDARD_FINISHED, CUSTOM_FINISHED, PACKAGING],
+            },
           'signedBaseQuantity': { 'type': 'string' },
           'pricingQuantity': { 'type': 'string' },
           'standardPieceQuantity': { 'type': 'string' },
@@ -1349,11 +1354,6 @@
       'additionalProperties': false,
       'properties': { 'documentId': { 'type': 'string' } },
     },
-  'VouDraftInput':
-    {
-      'title': 'VouDraftInput',
-      'allOf': [{ '$ref': '#/VouCreateRequest/properties/data' }],
-    },
   'VouCreateRequest':
     {
       'type': 'object',
@@ -1365,6 +1365,7 @@
           'parentDocumentId': { 'type': 'string' },
           'data':
             {
+              'title': 'VouDraftData',
               'type': 'object',
               'additionalProperties': false,
               'properties':
@@ -2572,5 +2573,800 @@
           'revision': { 'type': 'integer', 'format': 'int64' },
           'fileId': { 'type': 'string' },
         },
+    },
+  'VouReferenceView':
+    {
+      'type': 'object',
+      'required': ['objectId', 'versionId', 'entity', 'code', 'name'],
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'versionId': { 'type': 'string' },
+          'entity': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'name': { 'type': 'string' },
+          'unit': { 'type': 'string' },
+          'currency': { 'type': 'string' },
+          'plateNumber': { 'type': 'string' },
+          'behaviorProfile':
+            {
+              'type': 'string',
+              'enum':
+                [RAW_MATERIAL, STANDARD_FINISHED, CUSTOM_FINISHED, PACKAGING],
+            },
+          'productTypeObjectId': { 'type': 'string' },
+          'productTypeVersionId': { 'type': 'string' },
+          'productTypeCode': { 'type': 'string' },
+          'productTypeName': { 'type': 'string' },
+          'defaultInputUnitId': { 'type': 'string' },
+          'pricingUnitId': { 'type': 'string' },
+          'unitConversions':
+            {
+              'type': 'array',
+              'items':
+                {
+                  'type': 'object',
+                  'required': ['unit', 'factor'],
+                  'properties':
+                    {
+                      'unit': { '$ref': '#/VouUnitSnapshotView' },
+                      'factor': { 'type': 'string' },
+                    },
+                },
+            },
+        },
+    },
+  'VouUnitSnapshotView':
+    {
+      'type': 'object',
+      'required': ['objectId', 'versionId', 'code', 'name', 'symbol'],
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'versionId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'name': { 'type': 'string' },
+          'symbol': { 'type': 'string' },
+        },
+    },
+  'VouAttachmentView':
+    {
+      'type': 'object',
+      'required':
+        [
+          fileId,
+          fileName,
+          contentType,
+          size,
+          sha256,
+          status,
+          createdAt,
+          createdBy,
+        ],
+      'properties':
+        {
+          'fileId': { 'type': 'string' },
+          'fileName': { 'type': 'string' },
+          'contentType': { 'type': 'string' },
+          'size': { 'type': 'integer', 'format': 'int64' },
+          'sha256': { 'type': 'string' },
+          'status': { 'type': 'string', 'enum': ['PENDING', 'READY'] },
+          'storedAt': { 'type': 'string', 'format': 'date-time' },
+          'createdAt': { 'type': 'string', 'format': 'date-time' },
+          'createdBy': { 'type': 'string' },
+        },
+    },
+  'VouProductLineView':
+    {
+      'type': 'object',
+      'required':
+        [
+          lineId,
+          lineNo,
+          product,
+          enteredQuantity,
+          enteredUnit,
+          baseQuantity,
+          unitPrice,
+          lineAmount,
+          deliverySpecificationType,
+        ],
+      'properties':
+        {
+          'lineId': { 'type': 'string' },
+          'lineNo': { 'type': 'integer' },
+          'product': { '$ref': '#/VouReferenceView' },
+          'enteredQuantity': { 'type': 'string' },
+          'enteredUnit': { '$ref': '#/VouUnitSnapshotView' },
+          'baseQuantity': { 'type': 'string' },
+          'unitPrice': { 'type': 'string' },
+          'baseUnitPrice': { 'type': 'string' },
+          'settlementSurcharge': { 'type': 'string' },
+          'purchaseUnitPrice': { 'type': 'string' },
+          'deliverySpecificationType':
+            { 'type': 'string', 'enum': ['PACKAGED', 'BULK_LIQUID'] },
+          'lineAmount': { 'type': 'string' },
+          'remark': { 'type': 'string' },
+          'outboundBaseQuantity': { 'type': 'string' },
+          'signedBaseQuantity': { 'type': 'string' },
+          'rejectedBaseQuantity': { 'type': 'string' },
+          'lossBaseQuantity': { 'type': 'string' },
+          'inboundBaseQuantity': { 'type': 'string' },
+          'sourceLineId': { 'type': 'string' },
+          'availableBaseQuantity': { 'type': 'string' },
+          'returnableBaseQuantity': { 'type': 'string' },
+          'formula': { '$ref': '#/VouFormulaView' },
+          'referenceUnitPrice': { 'type': 'string' },
+          'referenceDocumentId': { 'type': 'string' },
+          'referenceDocumentNo': { 'type': 'string' },
+          'referenceBusinessDate': { 'type': 'string', 'format': 'date' },
+        },
+    },
+  'VouSaleSignoffLineView':
+    {
+      'type': 'object',
+      'required':
+        [
+          lineId,
+          lineNo,
+          sourceLineId,
+          product,
+          enteredQuantity,
+          enteredUnit,
+          baseQuantity,
+          outboundBaseQuantity,
+          signedBaseQuantity,
+          rejectedBaseQuantity,
+          lossBaseQuantity,
+          unitPrice,
+          lineAmount,
+        ],
+      'properties':
+        {
+          'lineId': { 'type': 'string' },
+          'lineNo': { 'type': 'integer' },
+          'sourceLineId': { 'type': 'string' },
+          'product': { '$ref': '#/VouReferenceView' },
+          'enteredQuantity': { 'type': 'string' },
+          'enteredUnit': { '$ref': '#/VouUnitSnapshotView' },
+          'baseQuantity': { 'type': 'string' },
+          'outboundBaseQuantity': { 'type': 'string' },
+          'signedBaseQuantity': { 'type': 'string' },
+          'rejectedBaseQuantity': { 'type': 'string' },
+          'lossBaseQuantity': { 'type': 'string' },
+          'unitPrice': { 'type': 'string' },
+          'lineAmount': { 'type': 'string' },
+          'remark': { 'type': 'string' },
+          'returnableBaseQuantity': { 'type': 'string' },
+        },
+    },
+  'VouPriceLineView':
+    {
+      'type': 'object',
+      'required': [lineId, lineNo, product, unitPrice],
+      'properties':
+        {
+          'lineId': { 'type': 'string' },
+          'lineNo': { 'type': 'integer' },
+          'product': { '$ref': '#/VouReferenceView' },
+          'unitPrice': { 'type': 'string' },
+          'remark': { 'type': 'string' },
+        },
+    },
+  'VouExpenseLineView':
+    {
+      'type': 'object',
+      'required': [lineId, lineNo, category, description, amount],
+      'properties':
+        {
+          'lineId': { 'type': 'string' },
+          'lineNo': { 'type': 'integer' },
+          'category': { 'type': 'string' },
+          'description': { 'type': 'string' },
+          'amount': { 'type': 'string' },
+          'remark': { 'type': 'string' },
+        },
+    },
+  'VouInventoryCountLineView':
+    {
+      'type': 'object',
+      'required':
+        [lineId, lineNo, product, enteredQuantity, enteredUnit, baseQuantity],
+      'properties':
+        {
+          'lineId': { 'type': 'string' },
+          'lineNo': { 'type': 'integer' },
+          'product': { '$ref': '#/VouReferenceView' },
+          'enteredQuantity': { 'type': 'string' },
+          'enteredUnit': { '$ref': '#/VouUnitSnapshotView' },
+          'baseQuantity': { 'type': 'string' },
+          'bookBaseQuantity': { 'type': 'string' },
+          'differenceBaseQuantity': { 'type': 'string' },
+          'remark': { 'type': 'string' },
+        },
+    },
+  'VouManagedLineView':
+    {
+      'type': 'object',
+      'required': ['lineId'],
+      'properties':
+        {
+          'lineId': { 'type': 'string' },
+          'lineNo': { 'type': 'integer' },
+          'sourceLineId': { 'type': 'string' },
+          'sourceDocumentId': { 'type': 'string' },
+          'sourceDocumentNo': { 'type': 'string' },
+          'returnKind': { 'type': 'string', 'enum': [REFUSAL, AFTER_SALE] },
+          'product': { '$ref': '#/VouReferenceView' },
+          'enteredQuantity': { 'type': 'string' },
+          'enteredUnit': { '$ref': '#/VouUnitSnapshotView' },
+          'baseQuantity': { 'type': 'string' },
+          'signedBaseQuantity': { 'type': 'string' },
+          'rejectedBaseQuantity': { 'type': 'string' },
+          'lossBaseQuantity': { 'type': 'string' },
+          'unitPrice': { 'type': 'string' },
+          'lineAmount': { 'type': 'string' },
+          'remark': { 'type': 'string' },
+        },
+    },
+  'VouProductionMaterialView':
+    {
+      'type': 'object',
+      'required':
+        [
+          lineId,
+          lineNo,
+          formulaMaterial,
+          formulaBaseQuantity,
+          suggestedBaseQuantity,
+          actualMaterial,
+          actualEnteredQuantity,
+          actualEnteredUnit,
+          actualBaseQuantity,
+        ],
+      'properties':
+        {
+          'lineId': { 'type': 'string' },
+          'lineNo': { 'type': 'integer' },
+          'formulaMaterial': { '$ref': '#/VouReferenceView' },
+          'formulaBaseQuantity': { 'type': 'string' },
+          'suggestedBaseQuantity': { 'type': 'string' },
+          'actualMaterial': { '$ref': '#/VouReferenceView' },
+          'actualEnteredQuantity': { 'type': 'string' },
+          'actualEnteredUnit': { '$ref': '#/VouUnitSnapshotView' },
+          'actualBaseQuantity': { 'type': 'string' },
+          'adjustmentReason': { 'type': 'string' },
+        },
+    },
+  'VouProductionOutputView':
+    {
+      'type': 'object',
+      'required':
+        [
+          lineId,
+          lineNo,
+          product,
+          enteredQuantity,
+          enteredUnit,
+          baseQuantity,
+          lossRate,
+          formulaBaseQuantity,
+          materials,
+        ],
+      'properties':
+        {
+          'lineId': { 'type': 'string' },
+          'lineNo': { 'type': 'integer' },
+          'sourceOrderLineId': { 'type': 'string' },
+          'product': { '$ref': '#/VouReferenceView' },
+          'enteredQuantity': { 'type': 'string' },
+          'enteredUnit': { '$ref': '#/VouUnitSnapshotView' },
+          'baseQuantity': { 'type': 'string' },
+          'lossRate': { 'type': 'string' },
+          'formulaBaseQuantity': { 'type': 'string' },
+          'remark': { 'type': 'string' },
+          'materials':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/VouProductionMaterialView' },
+            },
+        },
+    },
+  'VouAssetLineView':
+    {
+      'type': 'object',
+      'required': [lineId, assetName],
+      'properties':
+        {
+          'lineId': { 'type': 'string' },
+          'assetId': { 'type': 'string' },
+          'assetNo': { 'type': 'string' },
+          'assetName': { 'type': 'string' },
+          'specification': { 'type': 'string' },
+          'category': { '$ref': '#/VouReferenceView' },
+          'department': { '$ref': '#/VouReferenceView' },
+          'custodian': { '$ref': '#/VouReferenceView' },
+          'originalValue': { 'type': 'string' },
+          'usefulLifeMonths': { 'type': 'integer' },
+          'residualRate': { 'type': 'string' },
+          'location': { 'type': 'string' },
+          'accumulatedDepreciation': { 'type': 'string' },
+          'netValue': { 'type': 'string' },
+          'saleAmount': { 'type': 'string' },
+          'reason': { 'type': 'string' },
+          'salvageIncome': { 'type': 'string' },
+          'disposalExpense': { 'type': 'string' },
+          'remark': { 'type': 'string' },
+        },
+    },
+  'VouSettlementMethodSnapshotView':
+    {
+      'type': 'object',
+      'required':
+        [objectId, versionId, code, name, ruleType, monthOffset, dayOffset],
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'versionId': { 'type': 'string' },
+          'code': { 'type': 'string' },
+          'name': { 'type': 'string' },
+          'ruleType':
+            {
+              'type': 'string',
+              'enum': [DUE_DAYS, MONTH_END, RELATIVE_DAYS, FIXED_DAY],
+            },
+          'monthOffset': { 'type': 'integer' },
+          'dayOfMonth': { 'type': 'integer' },
+          'dayOffset': { 'type': 'integer' },
+          'dueDays': { 'type': 'integer' },
+          'cutoffDay': { 'type': 'integer' },
+          'defaultSalesSurcharge': { 'type': 'string' },
+          'description': { 'type': 'string' },
+        },
+    },
+  'VouServiceContractView':
+    {
+      'type': 'object',
+      'required': [counterparty, partyId, partyName, operatingEntity, handler],
+      'properties':
+        {
+          'counterparty': { '$ref': '#/VouReferenceView' },
+          'partyId': { 'type': 'string' },
+          'partyName': { 'type': 'string' },
+          'operatingEntity': { '$ref': '#/VouReferenceView' },
+          'handler': { '$ref': '#/VouReferenceView' },
+          'settlementMethod': { '$ref': '#/VouSettlementMethodSnapshotView' },
+          'capabilities':
+            {
+              'type': 'array',
+              'items':
+                {
+                  'type': 'string',
+                  'enum': [EXTERNAL_PART_TIME, CHANNEL_PARTNER],
+                },
+            },
+          'applicableFrom': { 'type': 'string', 'format': 'date' },
+          'applicableTo': { 'type': 'string', 'format': 'date' },
+          'terms': { 'type': 'string' },
+        },
+    },
+  'VouServiceAcceptanceView':
+    {
+      'type': 'object',
+      'required':
+        [contractDocumentId, serviceDate, acceptanceDate, settlementDirection],
+      'properties':
+        {
+          'contractDocumentId': { 'type': 'string' },
+          'contract': { '$ref': '#/VouServiceContractView' },
+          'serviceDate': { 'type': 'string', 'format': 'date' },
+          'acceptanceDate': { 'type': 'string', 'format': 'date' },
+          'settlementDirection':
+            { 'type': 'string', 'enum': [PAYABLE, RECEIVABLE] },
+          'fulfillmentFact': { 'type': 'string' },
+          'acceptanceFact': { 'type': 'string' },
+        },
+    },
+  'VouFormulaView':
+    {
+      'type': 'object',
+      'required': ['output', 'sourceType', 'components'],
+      'properties':
+        {
+          'output': { '$ref': '#/VouQuantitySnapshotView' },
+          'sourceType': { 'type': 'string' },
+          'sourceDocumentId': { 'type': 'string' },
+          'sourceDocumentNo': { 'type': 'string' },
+          'components':
+            {
+              'type': 'array',
+              'items':
+                {
+                  'type': 'object',
+                  'required': ['material', 'quantity'],
+                  'properties':
+                    {
+                      'material': { '$ref': '#/VouReferenceView' },
+                      'quantity': { '$ref': '#/VouQuantitySnapshotView' },
+                    },
+                },
+            },
+        },
+    },
+  'VouQuantitySnapshotView':
+    {
+      'type': 'object',
+      'required': ['enteredQuantity', 'enteredUnit', 'baseQuantity'],
+      'properties':
+        {
+          'enteredQuantity': { 'type': 'string' },
+          'enteredUnit': { '$ref': '#/VouUnitSnapshotView' },
+          'baseQuantity': { 'type': 'string' },
+        },
+    },
+  'VouDocumentDataView':
+    {
+      'type': 'object',
+      'required': ['businessDate', 'currency'],
+      'properties':
+        {
+          'businessDate': { 'type': 'string', 'format': 'date' },
+          'dueDate': { 'type': 'string', 'format': 'date' },
+          'currency': { 'type': 'string' },
+          'remark': { 'type': 'string' },
+          'contactName': { 'type': 'string' },
+          'contactPhone': { 'type': 'string' },
+          'deliveryAddress': { 'type': 'string' },
+          'returnReason': { 'type': 'string' },
+          'returnKind': { 'type': 'string', 'enum': ['REFUSAL', 'AFTER_SALE'] },
+          'specialApproval': { 'type': 'boolean' },
+          'customer': { '$ref': '#/VouReferenceView' },
+          'supplier': { '$ref': '#/VouReferenceView' },
+          'counterparty': { '$ref': '#/VouReferenceView' },
+          'employee': { '$ref': '#/VouReferenceView' },
+          'salesperson': { '$ref': '#/VouReferenceView' },
+          'purchaser': { '$ref': '#/VouReferenceView' },
+          'handler': { '$ref': '#/VouReferenceView' },
+          'warehouse': { '$ref': '#/VouReferenceView' },
+          'materialWarehouse': { '$ref': '#/VouReferenceView' },
+          'finishedWarehouse': { '$ref': '#/VouReferenceView' },
+          'fundAccount': { '$ref': '#/VouReferenceView' },
+          'carrierOperatingEntity': { '$ref': '#/VouReferenceView' },
+          'carrier': { '$ref': '#/VouReferenceView' },
+          'vehicle': { '$ref': '#/VouReferenceView' },
+          'interestParty': { '$ref': '#/VouReferenceView' },
+          'productLines':
+            { 'type': 'array', 'items': { '$ref': '#/VouProductLineView' } },
+          'priceLines':
+            { 'type': 'array', 'items': { '$ref': '#/VouPriceLineView' } },
+          'expenseLines':
+            { 'type': 'array', 'items': { '$ref': '#/VouExpenseLineView' } },
+          'lines':
+            { 'type': 'array', 'items': { '$ref': '#/VouManagedLineView' } },
+          'productionLines':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/VouProductionOutputView' },
+            },
+          'inventoryCountLines':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/VouInventoryCountLineView' },
+            },
+          'assetAcquisitionLines':
+            { 'type': 'array', 'items': { '$ref': '#/VouAssetLineView' } },
+          'assetSaleLines':
+            { 'type': 'array', 'items': { '$ref': '#/VouAssetLineView' } },
+          'assetLiquidationLines':
+            { 'type': 'array', 'items': { '$ref': '#/VouAssetLineView' } },
+          'intermediaryCalculation':
+            { '$ref': '#/VouIntermediaryCalculationInput' },
+          'settlementMethod': { '$ref': '#/VouSettlementMethodSnapshotView' },
+          'customerSettlementMethod':
+            { '$ref': '#/VouSettlementMethodSnapshotView' },
+          'supplierSettlementMethod':
+            { '$ref': '#/VouSettlementMethodSnapshotView' },
+          'otherCategory':
+            { 'type': 'string', 'enum': [COMMISSION, INTERMEDIARY, REBATE] },
+          'sourceName': { 'type': 'string' },
+          'serviceContract': { '$ref': '#/VouServiceContractView' },
+          'serviceAcceptance': { '$ref': '#/VouServiceAcceptanceView' },
+          'signoffLines':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/VouSaleSignoffLineView' },
+            },
+          'billLines':
+            { 'type': 'array', 'items': { '$ref': '#/VouBillLineView' } },
+          'billCashLines':
+            { 'type': 'array', 'items': { '$ref': '#/VouBillCashLineView' } },
+          'internalCostRateBps': { 'type': 'integer' },
+          'maturityType': { 'type': 'string', 'enum': [RECEIPT, PAYMENT] },
+          'interestMode':
+            { 'type': 'string', 'enum': [BANK_DEDUCTED, THIRD_PARTY_PAYABLE] },
+          'withRecourse': { 'type': 'boolean' },
+          'outboundDate': { 'type': 'string', 'format': 'date' },
+          'signoffDate': { 'type': 'string', 'format': 'date' },
+          'inboundDate': { 'type': 'string', 'format': 'date' },
+          'carrierType': { 'type': 'string', 'enum': ['INTERNAL', 'EXTERNAL'] },
+          'vehicleBulkLiquidCapable': { 'type': 'boolean' },
+          'differenceReason': { 'type': 'string' },
+          'fulfillmentStatus':
+            { 'type': 'string', 'enum': ['OPEN', 'FULFILLED'] },
+          'signedBaseQuantity': { 'type': 'string' },
+          'inTransitBaseQuantity': { 'type': 'string' },
+          'remainingBaseQuantity': { 'type': 'string' },
+          'expectedSolventContainers': { 'type': 'integer', 'format': 'int64' },
+          'expectedResinContainers': { 'type': 'integer', 'format': 'int64' },
+          'returnedSolventContainers': { 'type': 'integer', 'format': 'int64' },
+          'returnedResinContainers': { 'type': 'integer', 'format': 'int64' },
+          'containerDifferenceReason': { 'type': 'string' },
+        },
+    },
+  'VouDocumentView':
+    {
+      'type': 'object',
+      'required':
+        [
+          documentId,
+          entity,
+          documentNo,
+          status,
+          revision,
+          amount,
+          data,
+          attachments,
+          createdAt,
+          createdBy,
+          updatedAt,
+          updatedBy,
+        ],
+      'properties':
+        {
+          'documentId': { 'type': 'string' },
+          'entity': { '$ref': '#/VouEntity' },
+          'documentNo': { 'type': 'string' },
+          'status': { '$ref': '#/VouStatus' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'amount': { 'type': 'string' },
+          'data': { '$ref': '#/VouDocumentDataView' },
+          'attachments':
+            { 'type': 'array', 'items': { '$ref': '#/VouAttachmentView' } },
+          'createdAt': { 'type': 'string', 'format': 'date-time' },
+          'createdBy': { 'type': 'string' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+          'updatedBy': { 'type': 'string' },
+          'checkedAt': { 'type': 'string', 'format': 'date-time' },
+          'checkedBy': { 'type': 'string' },
+          'approvedAt': { 'type': 'string', 'format': 'date-time' },
+          'approvedBy': { 'type': 'string' },
+          'parentEntity': { '$ref': '#/VouEntity' },
+          'parentDocumentId': { 'type': 'string' },
+          'parentDocumentNo': { 'type': 'string' },
+        },
+    },
+  'VouMutationResult':
+    {
+      'type': 'object',
+      'required': ['documentId', 'documentNo', 'status', 'revision'],
+      'properties':
+        {
+          'documentId': { 'type': 'string' },
+          'documentNo': { 'type': 'string' },
+          'status': { '$ref': '#/VouStatus' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+        },
+    },
+  'VouAuditEventView':
+    {
+      'type': 'object',
+      'required':
+        [
+          id,
+          eventType,
+          fromStatus,
+          toStatus,
+          actorId,
+          occurredAt,
+          reason,
+          requestId,
+          summary,
+        ],
+      'properties':
+        {
+          'id': { 'type': 'string' },
+          'eventType': { 'type': 'string' },
+          'fromStatus':
+            {
+              'type': 'string',
+              'nullable': true,
+              'enum': [DRAFT, CHECKED, APPROVED],
+            },
+          'toStatus': { '$ref': '#/VouStatus' },
+          'actorId': { 'type': 'string' },
+          'occurredAt': { 'type': 'string', 'format': 'date-time' },
+          'reason': { 'type': 'string', 'nullable': true },
+          'requestId': { 'type': 'string' },
+          'summary': {},
+        },
+    },
+  'VouInventoryCountBalancePage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'properties':
+        {
+          'items':
+            {
+              'type': 'array',
+              'items':
+                {
+                  'type': 'object',
+                  'required': ['product', 'quantity'],
+                  'properties':
+                    {
+                      'product': { '$ref': '#/VouReferenceView' },
+                      'quantity': { 'type': 'string' },
+                    },
+                },
+            },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'VouFormulaDefaultView':
+    {
+      'type': 'object',
+      'required': ['sourceType'],
+      'properties':
+        {
+          'sourceType':
+            {
+              'type': 'string',
+              'enum': [RAW_SELF, PRODUCT_FIXED, CUSTOMER_LATEST, MANUAL],
+            },
+          'sourceDocumentId': { 'type': 'string' },
+          'sourceDocumentNo': { 'type': 'string' },
+          'formula': { '$ref': '#/VouFormulaView' },
+        },
+    },
+  'VouAttachmentInitiateResult':
+    {
+      'type': 'object',
+      'required': ['fileId', 'uploadUrl', 'expiresAt', 'revision'],
+      'properties':
+        {
+          'fileId': { 'type': 'string' },
+          'uploadUrl': { 'type': 'string' },
+          'expiresAt': { 'type': 'string', 'format': 'date-time' },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+        },
+    },
+  'VouAttachmentDownloadResult':
+    {
+      'type': 'object',
+      'required': ['downloadUrl', 'expiresAt'],
+      'properties':
+        {
+          'downloadUrl': { 'type': 'string' },
+          'expiresAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'VouDocumentResponse':
+    {
+      'allOf':
+        [
+          { '$ref': '../schemas/common.yaml#/BusinessEnvelope' },
+          {
+            'type': 'object',
+            'properties':
+              { 'data': { '$ref': '#/VouDocumentView', 'nullable': true } },
+          },
+        ],
+    },
+  'VouMutationResponse':
+    {
+      'allOf':
+        [
+          { '$ref': '../schemas/common.yaml#/BusinessEnvelope' },
+          {
+            'type': 'object',
+            'properties':
+              { 'data': { '$ref': '#/VouMutationResult', 'nullable': true } },
+          },
+        ],
+    },
+  'VouAuditHistoryResponse':
+    {
+      'allOf':
+        [
+          { '$ref': '../schemas/common.yaml#/BusinessEnvelope' },
+          {
+            'type': 'object',
+            'properties':
+              {
+                'data':
+                  {
+                    'type': 'object',
+                    'nullable': true,
+                    'required': ['items', 'total', 'page', 'pageSize'],
+                    'properties':
+                      {
+                        'items':
+                          {
+                            'type': 'array',
+                            'items': { '$ref': '#/VouAuditEventView' },
+                          },
+                        'total': { 'type': 'integer', 'format': 'int64' },
+                        'page': { 'type': 'integer' },
+                        'pageSize': { 'type': 'integer' },
+                      },
+                  },
+              },
+          },
+        ],
+    },
+  'VouInventoryCountBalanceResponse':
+    {
+      'allOf':
+        [
+          { '$ref': '../schemas/common.yaml#/BusinessEnvelope' },
+          {
+            'type': 'object',
+            'properties':
+              {
+                'data':
+                  {
+                    '$ref': '#/VouInventoryCountBalancePage',
+                    'nullable': true,
+                  },
+              },
+          },
+        ],
+    },
+  'VouFormulaDefaultResponse':
+    {
+      'allOf':
+        [
+          { '$ref': '../schemas/common.yaml#/BusinessEnvelope' },
+          {
+            'type': 'object',
+            'properties':
+              {
+                'data': { '$ref': '#/VouFormulaDefaultView', 'nullable': true },
+              },
+          },
+        ],
+    },
+  'VouAttachmentInitiateResponse':
+    {
+      'allOf':
+        [
+          { '$ref': '../schemas/common.yaml#/BusinessEnvelope' },
+          {
+            'type': 'object',
+            'properties':
+              {
+                'data':
+                  { '$ref': '#/VouAttachmentInitiateResult', 'nullable': true },
+              },
+          },
+        ],
+    },
+  'VouAttachmentDownloadResponse':
+    {
+      'allOf':
+        [
+          { '$ref': '../schemas/common.yaml#/BusinessEnvelope' },
+          {
+            'type': 'object',
+            'properties':
+              {
+                'data':
+                  { '$ref': '#/VouAttachmentDownloadResult', 'nullable': true },
+              },
+          },
+        ],
     },
 }

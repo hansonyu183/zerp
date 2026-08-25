@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { apiClient, type ApiPostPath } from '@/api/client'
-import { getErrorMessage, type PageResult } from '@/api/types'
+import { apiClient } from '@/api/client'
+import type { components } from '@/api/generated/schema'
+import { getErrorMessage } from '@/api/types'
 import { emptyAssetLine } from '@/pages/vou/shared/form'
 import type {
   VoucherAssetLineDraft,
@@ -9,38 +10,10 @@ import type {
   VoucherReference,
 } from './types'
 
-interface AssetRow {
-  assetId: string
-  assetNo: string
-  assetName: string
-  originalValue: string
-  accumulatedDepreciation: string
-  netValue: string
-}
+type AssetRow = components['schemas']['VouAvailableAssetItem']
 interface SelectReference extends VoucherReference {
   defaultUsefulLifeMonths?: number
   defaultResidualRate?: string
-}
-interface ReferenceRow {
-  objectId: string
-  entity: string
-  code: string
-  currentVersion: {
-    versionId: string
-    data?: Record<string, unknown>
-    summary?: Record<string, unknown>
-  }
-  effectiveVersionId?: string
-}
-interface PageRequest {
-  page: number
-  pageSize: number
-  filters: Record<string, unknown>
-  sort: Array<{ field: string; order: 'asc' | 'desc' }>
-}
-interface AssetQueryRequest {
-  page: number
-  pageSize: number
 }
 
 const props = defineProps<{
@@ -78,13 +51,13 @@ function removeLine(index: number) {
     props.modelValue.filter((_, i) => i !== index),
   )
 }
-function reference(value: unknown): SelectReference {
-  const row = value as ReferenceRow
-  const version = row.currentVersion
-  const data = version.data ?? version.summary ?? {}
+function auxReference(
+  row: components['schemas']['AuxObjectView'],
+): SelectReference {
+  const data = row.currentVersion.data
   return {
     objectId: row.objectId,
-    versionId: row.effectiveVersionId ?? version.versionId,
+    versionId: row.currentVersion.versionId,
     entity: row.entity,
     code: row.code,
     name: String(data.name ?? ''),
@@ -98,29 +71,56 @@ function reference(value: unknown): SelectReference {
         : undefined,
   }
 }
+function employeeReference(
+  row: components['schemas']['BobListItem'],
+): SelectReference | null {
+  const version = row.effective ?? row.candidate
+  if (!version) return null
+  return {
+    objectId: row.objectId,
+    versionId: version.versionId,
+    entity: row.entity,
+    code: row.code,
+    name: String(version.summary.name ?? ''),
+  }
+}
 async function loadReference(
   entity: 'asset-category' | 'department' | 'employee',
 ) {
-  const domain = entity === 'employee' ? 'bob' : 'aux'
-  const body: PageRequest = {
-    page: 1,
-    pageSize: 200,
-    filters:
-      entity === 'employee' ? { status: ['EFFECTIVE'] } : { enabled: true },
-    sort: [{ field: entity === 'employee' ? 'name' : 'code', order: 'asc' }],
+  if (entity === 'employee') {
+    const { data } = await apiClient.postContract('bob/employee/query', {
+      page: 1,
+      pageSize: 200,
+      filters: { status: ['EFFECTIVE'] },
+      sort: [{ field: 'name', order: 'asc' }],
+    })
+    return data.items.flatMap((row) => {
+      const item = employeeReference(row)
+      return item ? [item] : []
+    })
   }
-  const { data } = await apiClient.post<PageResult<ReferenceRow>, PageRequest>(
-    `${domain}/${entity}/query` as ApiPostPath,
-    body,
-  )
-  return data.items.map(reference)
+  const { data } =
+    entity === 'asset-category'
+      ? await apiClient.postContract('aux/asset-category/query', {
+          page: 1,
+          pageSize: 200,
+          filters: { enabled: true },
+          sort: [{ field: 'code', order: 'asc' }],
+        })
+      : await apiClient.postContract('aux/department/query', {
+          page: 1,
+          pageSize: 200,
+          filters: { enabled: true },
+          sort: [{ field: 'code', order: 'asc' }],
+        })
+  return data.items.map(auxReference)
 }
 async function loadAssets() {
   const items: AssetRow[] = []
   const pageSize = 200
   for (let page = 1; ; page += 1) {
-    const { data } = await apiClient.post<PageResult<AssetRow>, AssetQueryRequest>(
-      `vou/${props.kind}/asset-source` as ApiPostPath,
+    const { data } = await apiClient.postContract(
+      `vou/${props.kind}/asset-source`,
       {
       page,
       pageSize,

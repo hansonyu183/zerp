@@ -7,4 +7,3 @@ export type RptExecuteRequest = {
   page?: number;
   pageSize?: number;
 };
-

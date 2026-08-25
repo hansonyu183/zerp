@@ -10,4 +10,3 @@ export type WflDefinitionNode = {
   positionX: number;
   positionY: number;
 };
-

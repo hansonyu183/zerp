@@ -6,4 +6,3 @@ export type VouAvailableAssetQueryRequest = {
   page: number;
   pageSize: number;
 };
-

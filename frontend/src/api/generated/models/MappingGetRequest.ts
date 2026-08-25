@@ -6,4 +6,3 @@ export type MappingGetRequest = {
   bookId: string;
   mappingId: string;
 };
-

@@ -184,16 +184,108 @@
         'matched': { 'type': 'boolean' },
         'rootNodeKey': { 'type': 'string' },
         'trace':
-          {
-            'type': 'array',
-            'items': { 'type': 'object', 'additionalProperties': true },
-          },
+          { 'type': 'array', 'items': { '$ref': '#/WflExecutionTrace' } },
         'plannedActions':
-          {
-            'type': 'array',
-            'items': { 'type': 'object', 'additionalProperties': true },
-          },
+          { 'type': 'array', 'items': { '$ref': '#/WflPlannedAction' } },
         'uncoveredBranches': { 'type': 'array', 'items': { 'type': 'string' } },
+      },
+  }
+'WflBusinessObjectReference':
+  {
+    'type': 'object',
+    'required': ['entity', 'documentId', 'documentNo'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'entity': { '$ref': './vou.yaml#/VouEntity' },
+        'documentId': { 'type': 'string' },
+        'documentNo': { 'type': 'string' },
+      },
+  }
+'WflExecutionTrace':
+  {
+    'type': 'object',
+    'required': [sourceNodeKey, targetNodeKey, relation, action, result],
+    'additionalProperties': false,
+    'properties':
+      {
+        'sourceNodeKey': { 'type': 'string' },
+        'targetNodeKey': { 'type': 'string' },
+        'relation': { 'type': 'string' },
+        'action': { 'type': 'string' },
+        'result': { '$ref': '#/WflBusinessObjectReference' },
+      },
+  }
+'WflPlannedAction':
+  {
+    'type': 'object',
+    'required': [action, sourceDocumentId, initial, result],
+    'additionalProperties': false,
+    'properties':
+      {
+        'action': { 'type': 'string' },
+        'sourceDocumentId': { 'type': 'string' },
+        'initial': {},
+        'result': { '$ref': '#/WflBusinessObjectReference' },
+      },
+  }
+'WflDefinitionListItem':
+  {
+    'type': 'object',
+    'required':
+      [
+        definitionId,
+        code,
+        name,
+        status,
+        revision,
+        rootEntity,
+        nodeCount,
+        updatedAt,
+      ],
+    'additionalProperties': false,
+    'properties':
+      {
+        'definitionId': { 'type': 'string' },
+        'code': { 'type': 'string' },
+        'name': { 'type': 'string' },
+        'status': { '$ref': '#/WflDefinitionStatus' },
+        'revision': { 'type': 'integer', 'format': 'int64' },
+        'publishedRevision': { 'type': 'integer', 'format': 'int64' },
+        'rootEntity': { '$ref': './vou.yaml#/VouEntity' },
+        'nodeCount': { 'type': 'integer' },
+        'updatedAt': { 'type': 'string', 'format': 'date-time' },
+      },
+  }
+'WflDefinitionQueryResponse':
+  {
+    'type': 'object',
+    'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'code': { 'type': 'integer', 'format': 'int32' },
+        'errorKey': { 'type': 'string' },
+        'message': { 'type': 'string' },
+        'data':
+          {
+            'type': 'object',
+            'nullable': true,
+            'required': ['items', 'total', 'page', 'pageSize'],
+            'additionalProperties': false,
+            'properties':
+              {
+                'items':
+                  {
+                    'type': 'array',
+                    'items': { '$ref': '#/WflDefinitionListItem' },
+                  },
+                'total': { 'type': 'integer', 'format': 'int64' },
+                'page': { 'type': 'integer' },
+                'pageSize': { 'type': 'integer' },
+              },
+          },
+        'requestId': { 'type': 'string' },
       },
   }
 'WflDefinitionViewResponse':
@@ -230,6 +322,32 @@
             'type': 'object',
             'nullable': true,
             'allOf': [{ '$ref': '#/WflDefinitionTrialResult' }],
+          },
+        'requestId': { 'type': 'string' },
+      },
+  }
+'WflDefinitionDeleteResult':
+  {
+    'type': 'object',
+    'required': ['definitionId'],
+    'additionalProperties': false,
+    'properties': { 'definitionId': { 'type': 'string' } },
+  }
+'WflDefinitionDeleteResponse':
+  {
+    'type': 'object',
+    'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'code': { 'type': 'integer', 'format': 'int32' },
+        'errorKey': { 'type': 'string' },
+        'message': { 'type': 'string' },
+        'data':
+          {
+            'type': 'object',
+            'nullable': true,
+            'allOf': [{ '$ref': '#/WflDefinitionDeleteResult' }],
           },
         'requestId': { 'type': 'string' },
       },
@@ -462,5 +580,66 @@
         'parentNodeInstanceId': { 'type': 'string' },
         'targetNodeKey': { 'type': 'string' },
         'requestKey': { 'type': 'string', 'minLength': 16, 'maxLength': 64 },
+      },
+  }
+'WflRuntimeAuditView':
+  {
+    'type': 'object',
+    'required':
+      ['id', 'eventType', 'actorId', 'requestId', 'summary', 'occurredAt'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'id': { 'type': 'string' },
+        'eventType': { 'type': 'string' },
+        'nodeInstanceId': { 'type': 'string', 'nullable': true },
+        'documentId': { 'type': 'string', 'nullable': true },
+        'documentNo': { 'type': 'string', 'nullable': true },
+        'actorId': { 'type': 'string' },
+        'requestId': { 'type': 'string' },
+        'summary': { 'type': 'object', 'additionalProperties': true },
+        'occurredAt': { 'type': 'string', 'format': 'date-time' },
+      },
+  }
+'WflRuntimeAuditPage':
+  {
+    'type': 'object',
+    'required': ['items', 'total', 'page', 'pageSize'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'items':
+          { 'type': 'array', 'items': { '$ref': '#/WflRuntimeAuditView' } },
+        'total': { 'type': 'integer', 'format': 'int64' },
+        'page': { 'type': 'integer' },
+        'pageSize': { 'type': 'integer' },
+      },
+  }
+'WflInstanceHistoryResponse':
+  {
+    'type': 'object',
+    'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'code': { 'type': 'integer', 'format': 'int32' },
+        'errorKey': { 'type': 'string' },
+        'message': { 'type': 'string' },
+        'data': { '$ref': '#/WflRuntimeAuditPage', 'nullable': true },
+        'requestId': { 'type': 'string' },
+      },
+  }
+'WflCreateChildResponse':
+  {
+    'type': 'object',
+    'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'code': { 'type': 'integer', 'format': 'int32' },
+        'errorKey': { 'type': 'string' },
+        'message': { 'type': 'string' },
+        'data': { '$ref': '#/WflBusinessObjectReference', 'nullable': true },
+        'requestId': { 'type': 'string' },
       },
   }

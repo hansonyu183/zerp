@@ -6,4 +6,3 @@ export type ResetPasswordRequest = {
   id: string;
   revision: number;
 };
-

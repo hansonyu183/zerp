@@ -1,9 +1,10 @@
 import { readFile, writeFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
 
-const [inputPath, outputPath] = process.argv.slice(2)
-if (!inputPath || !outputPath) {
+const [inputPath, outputPath, metadataPath] = process.argv.slice(2)
+if (!inputPath || !outputPath || !metadataPath) {
   throw new Error(
-    'usage: generate-openapi-path-types.mjs <openapi.json> <schema.ts>',
+    'usage: generate-openapi-path-types.mjs <openapi.json> <schema.ts> <contract-meta.ts>',
   )
 }
 
@@ -66,6 +67,36 @@ function responseType(operation) {
   return schemaType(response.content?.['application/json']?.schema)
 }
 
+function responseSchema(operation) {
+  let response = operation.responses?.['200']
+  if (!response) return undefined
+  if (response.$ref) response = resolveReference(response.$ref)
+  return response.content?.['application/json']?.schema
+}
+
+function resolvedSchema(schema) {
+  return schema?.$ref ? resolveReference(schema.$ref) : schema
+}
+
+function isEmptyObjectSchema(schema) {
+  const resolved = resolvedSchema(schema)
+  return (
+    resolved?.type === 'object' &&
+    resolved.additionalProperties === false &&
+    Object.keys(resolved.properties ?? {}).length === 0
+  )
+}
+
+function isNullSuccessResponse(operation) {
+  const response = resolvedSchema(responseSchema(operation))
+  const data = response?.properties?.data
+  if (!data || !data.nullable) return false
+  if (data.type === 'null') return true
+  return (
+    (data.allOf ?? []).some(isEmptyObjectSchema) || isEmptyObjectSchema(data)
+  )
+}
+
 function operationType(pathItem, operation) {
   return `{
       parameters: { query?: never; header?: never; ${parametersFor(pathItem, operation)} cookie?: never };
@@ -112,3 +143,36 @@ ${schemaLines.join('\n')}
 `
 
 await writeFile(outputPath, output)
+
+const nullSuccessPaths = Object.entries(document.paths)
+  .flatMap(([path, pathItem]) =>
+    pathItem.post && isNullSuccessResponse(pathItem.post) ? [path] : [],
+  )
+  .sort()
+
+const metadata = [
+  '/**',
+  ' * This file was auto-generated from the bundled OpenAPI contract.',
+  ' * Do not make direct changes to the file.',
+  ' */',
+  '',
+  "export const contractMetaSourceHash = '" +
+    createHash('sha256').update(JSON.stringify(document)).digest('hex') +
+    "'",
+  '',
+  'export const nullSuccessContractPaths = ' +
+    JSON.stringify(nullSuccessPaths, null, 2) +
+    ' as const',
+  '',
+  'export type NullSuccessContractPath =',
+  '  (typeof nullSuccessContractPaths)[number]',
+  '',
+  'export function permitsNullSuccessData(',
+  '  path: string,',
+  '): path is NullSuccessContractPath {',
+  '  return nullSuccessContractPaths.includes(path as NullSuccessContractPath)',
+  '}',
+  '',
+].join('\n')
+
+await writeFile(metadataPath, metadata)

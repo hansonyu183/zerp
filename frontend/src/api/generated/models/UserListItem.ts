@@ -14,4 +14,3 @@ export type UserListItem = {
   revision: number;
   manageable: boolean;
 };
-

@@ -20,4 +20,3 @@ export type RoleDetail = {
   revision: number;
   permissions: Array<RolePermission>;
 };
-

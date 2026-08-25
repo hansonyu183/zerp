@@ -8,4 +8,3 @@ export type SubjectQueryRequest = {
   pageSize: number;
   keyword?: string;
 };
-

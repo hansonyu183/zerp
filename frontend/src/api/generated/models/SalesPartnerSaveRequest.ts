@@ -9,4 +9,3 @@ export type SalesPartnerSaveRequest = {
   revision: number;
   data: SalesPartnerInput;
 };
-

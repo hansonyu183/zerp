@@ -9,4 +9,3 @@ export type WflInstancePage = {
   page: number;
   pageSize: number;
 };
-

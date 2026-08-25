@@ -12,4 +12,3 @@ export type SalesPartnerInput = {
   address?: string;
   remark?: string;
 };
-

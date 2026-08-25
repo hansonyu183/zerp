@@ -5,4 +5,3 @@
 export type VouIntermediarySourceRequest = {
   businessDate: string;
 };
-

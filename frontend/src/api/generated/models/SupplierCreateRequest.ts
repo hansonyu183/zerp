@@ -11,4 +11,3 @@ export type SupplierCreateRequest = ({
   newParty: PartyIdentityData;
   data: SupplierInput;
 });
-

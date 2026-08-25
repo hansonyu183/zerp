@@ -6,4 +6,3 @@ export type VehicleExternalCarrierAffiliation = {
   type: 'EXTERNAL';
   serviceRelationshipObjectId: string;
 };
-

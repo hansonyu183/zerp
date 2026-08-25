@@ -1,6 +1,7 @@
 import { getCurrentScope, onScopeDispose, reactive, type Ref } from 'vue'
-import { apiClient, type BobApiEntity } from '@/api/client'
-import { getErrorMessage, type PageRequest, type PageResult } from '@/api/types'
+import { apiClient } from '@/api/client'
+import type { components } from '@/api/generated/schema'
+import { getErrorMessage } from '@/api/types'
 import type {
   VoucherDraftForm,
   VoucherEntityConfig,
@@ -10,16 +11,6 @@ import type {
 } from '@/components/voucher'
 import { useSessionStore } from '@/stores/session'
 
-interface ReferenceListItem {
-  objectId: string
-  code: string
-  effective: {
-    versionId: string
-    status: string
-    summary: Record<string, unknown> & { name?: string }
-  } | null
-}
-
 interface ReferenceState {
   options: VoucherReference[]
   loading: boolean
@@ -27,7 +18,19 @@ interface ReferenceState {
   sequence: number
 }
 
-type ReferenceEntity = BobApiEntity | 'other-unit' | 'sales-partner'
+type ReferenceEntity = components['schemas']['BobEntity']
+type BobCrudEntity = components['schemas']['BobCrudEntity']
+
+function isBobCrudEntity(entity: ReferenceEntity): entity is BobCrudEntity {
+  return [
+    'employee',
+    'product',
+    'warehouse',
+    'vehicle',
+    'fund-account',
+    'operating-entity',
+  ].includes(entity)
+}
 
 export function useVoucherReferences(
   config: VoucherEntityConfig,
@@ -223,10 +226,8 @@ export function useVoucherReferences(
               name: item.name,
             }))
           }
-          const { data } = await apiClient.post<
-            PageResult<ReferenceListItem>,
-            PageRequest
-          >(
+          if (!isBobCrudEntity(entity)) return []
+          const { data } = await apiClient.postContract(
             `bob/${entity}/query`,
             {
               page: 1,

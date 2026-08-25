@@ -11,4 +11,3 @@ export type SalesPartnerListVersion = {
   capabilities: Array<SalesPartnerCapability>;
   submittedBy: string | null;
 };
-

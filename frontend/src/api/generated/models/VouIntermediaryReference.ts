@@ -9,4 +9,3 @@ export type VouIntermediaryReference = {
   code: string;
   name: string;
 };
-

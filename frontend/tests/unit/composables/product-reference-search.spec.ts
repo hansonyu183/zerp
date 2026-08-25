@@ -4,10 +4,10 @@ import { apiClient } from '@/api/client'
 import { useProductReferenceSearch } from '@/composables/use-product-reference-search'
 
 vi.mock('@/api/client', () => ({
-  apiClient: { post: vi.fn() },
+  apiClient: { postContract: vi.fn() },
 }))
 
-const mockedPost = vi.mocked(apiClient.post)
+const mockedPost = vi.mocked(apiClient.postContract)
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -30,8 +30,8 @@ describe('useProductReferenceSearch', () => {
       }>
     }>()
     mockedPost
-      .mockReturnValueOnce(first.promise as ReturnType<typeof apiClient.post>)
-      .mockReturnValueOnce(second.promise as ReturnType<typeof apiClient.post>)
+      .mockReturnValueOnce(first.promise as ReturnType<typeof apiClient.postContract>)
+      .mockReturnValueOnce(second.promise as ReturnType<typeof apiClient.postContract>)
 
     const selected = {
       objectId: 'SELECTED',

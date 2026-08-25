@@ -14,4 +14,3 @@ export type VouPriceReferenceRequest = {
     versionId: string;
   }>;
 };
-

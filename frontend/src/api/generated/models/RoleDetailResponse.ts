@@ -10,4 +10,3 @@ export type RoleDetailResponse = {
   data: RoleDetail | null;
   requestId: string;
 };
-

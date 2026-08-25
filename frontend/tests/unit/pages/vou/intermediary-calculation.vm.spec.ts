@@ -16,7 +16,6 @@ import { useSessionStore } from '@/stores/session'
 
 vi.mock('@/api/client', () => ({
   apiClient: {
-    post: vi.fn(),
     postContract: vi.fn(),
     uploadAttachment: vi.fn(),
     fetchAttachment: vi.fn(),
@@ -29,7 +28,7 @@ vi.mock('@/pages/vou/intermediary-calculation/sandbox', () => ({
 }))
 
 const mockedPostContract = vi.mocked(apiClient.postContract)
-const mockedPost = vi.mocked(apiClient.post)
+const mockedPost = vi.mocked(apiClient.postContract)
 const mockedRunScript = vi.mocked(runIntermediaryScript)
 
 const source: IntermediaryCalculationSource = {

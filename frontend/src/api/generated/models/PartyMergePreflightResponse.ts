@@ -10,4 +10,3 @@ export type PartyMergePreflightResponse = {
   data: PartyMergePreflightResult | null;
   requestId: string;
 };
-

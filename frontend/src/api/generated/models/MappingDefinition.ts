@@ -11,4 +11,3 @@ export type MappingDefinition = {
   templates: Array<PostingTemplate>;
   assetConfiguration?: AssetAccountingConfiguration | null;
 };
-

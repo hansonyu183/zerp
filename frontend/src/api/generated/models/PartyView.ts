@@ -21,4 +21,3 @@ export type PartyView = {
   relationships: Array<PartyRelationshipCard>;
   updatedAt: string;
 };
-

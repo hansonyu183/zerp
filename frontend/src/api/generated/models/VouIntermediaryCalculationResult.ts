@@ -8,4 +8,3 @@ export type VouIntermediaryCalculationResult = {
   lines: Array<VouIntermediaryResultLine>;
   summaries: Array<VouIntermediarySummary>;
 };
-

@@ -24,4 +24,3 @@ export type VouAvailableBillItem = {
   sourceEntity: string;
   sourceDocumentNo: string;
 };
-

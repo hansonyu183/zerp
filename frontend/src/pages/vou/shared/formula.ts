@@ -95,18 +95,7 @@ export function useVoucherFormula(
     line.formulaLoading = true
     line.formulaError = ''
     try {
-      const { data } = await apiClient.post<
-        {
-          sourceType: string
-          sourceDocumentId?: string
-          sourceDocumentNo?: string
-          formula?: Parameters<typeof formulaFromPayload>[0]
-        },
-        {
-          customer?: { objectId: string; versionId: string }
-          product: { objectId: string }
-        }
-      >('vou/sale-order/formula-default', {
+      const { data } = await apiClient.postContract('vou/sale-order/formula-default', {
         ...(customer ? { customer: inputReference(customer) } : {}),
         product: { objectId: product.objectId },
       })

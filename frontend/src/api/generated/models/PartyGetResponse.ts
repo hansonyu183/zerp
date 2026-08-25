@@ -10,4 +10,3 @@ export type PartyGetResponse = {
   data: PartyView | null;
   requestId: string;
 };
-

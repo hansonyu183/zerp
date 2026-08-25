@@ -7,7 +7,7 @@ import { useSessionStore } from '@/stores/session'
 const mockedPost = vi.hoisted(() => vi.fn())
 
 vi.mock('@/api/client', () => ({
-  apiClient: { post: mockedPost },
+  apiClient: { postContract: mockedPost },
 }))
 
 describe('AUX entity view model', () => {

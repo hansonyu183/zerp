@@ -20,4 +20,3 @@ export type WorkbenchDocumentItem = {
   currency: string;
   amount: string;
 };
-

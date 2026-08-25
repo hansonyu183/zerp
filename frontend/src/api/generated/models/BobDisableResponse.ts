@@ -10,4 +10,3 @@ export type BobDisableResponse = {
   data: (WarehouseDisableBlockers | Record<string, any>) | null;
   requestId: string;
 };
-

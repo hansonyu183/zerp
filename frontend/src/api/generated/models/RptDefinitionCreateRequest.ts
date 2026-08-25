@@ -9,4 +9,3 @@ export type RptDefinitionCreateRequest = {
   description?: string;
   data: RptVersionData;
 };
-

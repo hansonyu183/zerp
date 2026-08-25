@@ -10,4 +10,3 @@ export type MappingEnvelope = {
   data: Mapping | null;
   requestId: string;
 };
-

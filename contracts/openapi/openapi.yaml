@@ -193,7 +193,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/Empty' } },
             },
         },
       '/acc/subject/query':
@@ -381,7 +381,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/Empty' } },
             },
         },
       '/acc/opening/query':
@@ -1055,7 +1055,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/Empty' } },
             },
         },
       '/app/workbench/query':
@@ -1159,7 +1159,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '当前用户资料。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/app.yaml#/ProfileResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/app/user/change-password':
@@ -1185,7 +1200,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/Empty' } },
             },
         },
       '/app/user/get':
@@ -2094,7 +2109,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '辅助对象分页响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/aux.yaml#/AuxQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/aux/{entity}/get':
@@ -2119,7 +2149,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '辅助对象详情响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/aux.yaml#/AuxObjectResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/aux/{entity}/create':
@@ -2144,7 +2189,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '辅助对象变更响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/aux.yaml#/AuxMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/aux/{entity}/save':
@@ -2169,7 +2229,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '辅助对象变更响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/aux.yaml#/AuxMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/aux/{entity}/enable':
@@ -2196,7 +2271,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '辅助对象变更响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/aux.yaml#/AuxMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/aux/{entity}/disable':
@@ -2223,7 +2313,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '辅助对象变更响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/aux.yaml#/AuxMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/aux/{entity}/delete':
@@ -2250,7 +2355,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/Empty' } },
             },
         },
       '/aux/{entity}/versions':
@@ -2275,7 +2380,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '辅助对象版本分页响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/aux.yaml#/AuxVersionPageResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/aux/{entity}/audit-history':
@@ -2300,7 +2420,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '辅助对象审计分页响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/aux.yaml#/AuxAuditEventPageResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/bob/party/query':
@@ -2603,7 +2738,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/Empty' } },
             },
         },
       '/bob/other-unit/submit':
@@ -2629,7 +2764,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200': { '$ref': '#/components/responses/OtherUnitMutation' },
+                },
             },
         },
       '/bob/other-unit/unsubmit':
@@ -2653,7 +2790,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200': { '$ref': '#/components/responses/OtherUnitMutation' },
+                },
             },
         },
       '/bob/other-unit/approve':
@@ -2679,7 +2818,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200': { '$ref': '#/components/responses/OtherUnitMutation' },
+                },
             },
         },
       '/bob/other-unit/reject':
@@ -2703,7 +2844,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200': { '$ref': '#/components/responses/OtherUnitMutation' },
+                },
             },
         },
       '/bob/other-unit/enable':
@@ -2729,7 +2872,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200': { '$ref': '#/components/responses/OtherUnitMutation' },
+                },
             },
         },
       '/bob/other-unit/disable':
@@ -2755,7 +2900,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200': { '$ref': '#/components/responses/OtherUnitMutation' },
+                },
             },
         },
       '/bob/other-unit/versions':
@@ -2779,7 +2926,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200': { '$ref': '#/components/responses/BobVersionHistory' },
+                },
             },
         },
       '/bob/other-unit/audit-history':
@@ -2803,7 +2952,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/BobAuditHistory' } },
             },
         },
       '/bob/customer/query':
@@ -2909,7 +3058,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '已创建的客户关系与默认结算账户。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/CustomerCreateResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/bob/customer/account-add':
@@ -2935,7 +3099,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '已创建的客户结算账户。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/CustomerAccountResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/bob/customer/account-delete':
@@ -2959,7 +3138,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/Empty' } },
             },
         },
       '/bob/customer/save':
@@ -2985,7 +3164,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/BobMutation' } },
             },
         },
       '/bob/customer/attachment-initiate':
@@ -3214,7 +3393,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '已创建的供应商关系。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/SupplierCreateResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/bob/supplier/save':
@@ -3240,7 +3434,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/BobMutation' } },
             },
         },
       '/bob/reference/query':
@@ -3592,7 +3786,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '已创建的员工版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/BobMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/bob/{entity}/query':
@@ -3659,7 +3868,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '业务对象详情响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/BobObjectResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/bob/{entity}/create':
@@ -3685,7 +3909,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '业务对象变更响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/BobMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/bob/{entity}/save':
@@ -3711,7 +3950,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '业务对象变更响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/BobMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/bob/{entity}/delete':
@@ -3736,7 +3990,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/Empty' } },
             },
         },
       '/bob/{entity}/submit':
@@ -3763,7 +4017,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '业务对象变更响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/BobMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/bob/{entity}/unsubmit':
@@ -3788,7 +4057,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '业务对象变更响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/BobMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/bob/{entity}/approve':
@@ -3815,7 +4099,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '业务对象变更响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/BobMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/bob/{entity}/reject':
@@ -3840,7 +4139,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '业务对象变更响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/BobMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/bob/{entity}/unapprove':
@@ -3865,7 +4179,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '业务对象变更响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/BobMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/bob/{entity}/enable':
@@ -3892,7 +4221,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '业务对象变更响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/BobMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/bob/{entity}/disable':
@@ -3959,7 +4303,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '业务对象版本分页响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/BobVersionHistoryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/bob/{entity}/audit-history':
@@ -3984,7 +4343,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '业务对象审计分页响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/BobAuditHistoryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/vou/{entity}/query':
@@ -4049,7 +4423,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '业务单据详情。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouDocumentResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/vou/{entity}/source':
@@ -4200,7 +4589,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '库存盘点账面数量。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouInventoryCountBalanceResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/vou/{entity}/bill-source':
@@ -4311,7 +4715,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '默认配方解析结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouFormulaDefaultResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/vou/{entity}/price-reference':
@@ -4379,7 +4798,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '单据创建结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/vou/{entity}/save':
@@ -4404,7 +4838,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '单据保存结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/vou/{entity}/delete':
@@ -4429,7 +4878,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '单据删除结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/vou/{entity}/check':
@@ -4456,7 +4920,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '单据核对结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/vou/{entity}/uncheck':
@@ -4483,7 +4962,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '单据反核对结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/vou/{entity}/approve':
@@ -4510,7 +5004,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '单据批准结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/vou/{entity}/unapprove':
@@ -4535,7 +5044,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '单据取消批准结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/vou/{entity}/audit-history':
@@ -4560,7 +5084,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '单据审计历史。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouAuditHistoryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/vou/{entity}/attachment-initiate':
@@ -4587,7 +5126,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '附件上传初始化结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouAttachmentInitiateResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/vou/{entity}/attachment-download':
@@ -4614,7 +5168,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '附件下载授权结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouAttachmentDownloadResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/vou/{entity}/attachment-remove':
@@ -4641,7 +5210,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '附件移除结果。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/vou.yaml#/VouMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/wfl/process-definition/query':
@@ -4667,7 +5251,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '流程定义分页。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflDefinitionQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/wfl/process-definition/get':
@@ -4980,7 +5579,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '已删除的流程定义。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflDefinitionDeleteResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/wfl/process-instance/query':
@@ -5156,7 +5770,10 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    { '$ref': '#/components/responses/WflInstanceHistory' },
+                },
             },
         },
       '/wfl/{processName}/create-child':
@@ -5191,7 +5808,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/WflCreateChild' } },
             },
         },
       '/wfl/process-instance/get':
@@ -5258,7 +5875,10 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    { '$ref': '#/components/responses/WflInstanceHistory' },
+                },
             },
         },
       '/rpt/definition/query':
@@ -5284,7 +5904,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200': { '$ref': '#/components/responses/RptDefinitionPage' },
+                },
             },
         },
       '/rpt/definition/get':
@@ -5310,7 +5932,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200': { '$ref': '#/components/responses/RptDefinitionView' },
+                },
             },
         },
       '/rpt/definition/create':
@@ -5336,7 +5960,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/RptMutation' } },
             },
         },
       '/rpt/definition/create-version':
@@ -5362,7 +5986,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/RptMutation' } },
             },
         },
       '/rpt/definition/save':
@@ -5388,7 +6012,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/RptMutation' } },
             },
         },
       '/rpt/definition/approve':
@@ -5414,7 +6038,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/RptMutation' } },
             },
         },
       '/rpt/definition/unapprove':
@@ -5440,7 +6064,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/RptMutation' } },
             },
         },
       '/rpt/definition/enable':
@@ -5466,7 +6090,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/RptMutation' } },
             },
         },
       '/rpt/definition/disable':
@@ -5492,7 +6116,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/RptMutation' } },
             },
         },
       '/rpt/definition/delete':
@@ -5518,7 +6142,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '已删除的报表定义。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/rpt.yaml#/RptMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/rpt/{report}/query':
@@ -5544,7 +6183,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/RptQuery' } },
             },
         },
       '/rpt/directory/query':
@@ -5570,7 +6209,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200': { '$ref': '#/components/responses/RptDirectoryPage' },
+                },
             },
         },
       '/rpt/{report}/export':
@@ -5644,7 +6285,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200': { '$ref': '#/components/responses/RptReferencePage' },
+                },
             },
         },
       '/files/customer-attachments/upload/{token}':
@@ -5863,15 +6506,177 @@
         },
       'responses':
         {
-          'Business':
+          'Empty':
             {
-              'description': '统一业务响应；业务错误仍使用 HTTP 200。',
+              'description': '成功且不返回业务数据。',
               'content':
                 {
                   'application/json':
                     {
                       'schema':
-                        { '$ref': './schemas/common.yaml#/BusinessEnvelope' },
+                        { '$ref': './schemas/common.yaml#/EmptyResponse' },
+                    },
+                },
+            },
+          'BobMutation':
+            {
+              'description': '精确 BOB 变更响应。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        { '$ref': './schemas/bob.yaml#/BobMutationResponse' },
+                    },
+                },
+            },
+          'OtherUnitMutation':
+            {
+              'description': '精确其他单位变更响应。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          '$ref': './schemas/bob.yaml#/OtherUnitMutationResponse',
+                        },
+                    },
+                },
+            },
+          'BobVersionHistory':
+            {
+              'description': '精确 BOB 版本历史响应。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          '$ref': './schemas/bob.yaml#/BobVersionHistoryResponse',
+                        },
+                    },
+                },
+            },
+          'BobAuditHistory':
+            {
+              'description': '精确 BOB 审计历史响应。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          '$ref': './schemas/bob.yaml#/BobAuditHistoryResponse',
+                        },
+                    },
+                },
+            },
+          'WflInstanceHistory':
+            {
+              'description': '精确工作流实例审计历史响应。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          '$ref': './schemas/wfl.yaml#/WflInstanceHistoryResponse',
+                        },
+                    },
+                },
+            },
+          'WflCreateChild':
+            {
+              'description': '精确工作流创建下级单据响应。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          '$ref': './schemas/wfl.yaml#/WflCreateChildResponse',
+                        },
+                    },
+                },
+            },
+          'RptDefinitionPage':
+            {
+              'description': '精确报表定义分页响应。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          '$ref': './schemas/rpt.yaml#/RptDefinitionPageResponse',
+                        },
+                    },
+                },
+            },
+          'RptDefinitionView':
+            {
+              'description': '精确报表定义响应。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          '$ref': './schemas/rpt.yaml#/RptDefinitionViewResponse',
+                        },
+                    },
+                },
+            },
+          'RptMutation':
+            {
+              'description': '精确报表变更响应。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        { '$ref': './schemas/rpt.yaml#/RptMutationResponse' },
+                    },
+                },
+            },
+          'RptDirectoryPage':
+            {
+              'description': '精确报表目录分页响应。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          '$ref': './schemas/rpt.yaml#/RptDirectoryPageResponse',
+                        },
+                    },
+                },
+            },
+          'RptQuery':
+            {
+              'description': '精确动态报表结果响应。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        { '$ref': './schemas/rpt.yaml#/RptQueryResponse' },
+                    },
+                },
+            },
+          'RptReferencePage':
+            {
+              'description': '精确报表引用候选分页响应。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          '$ref': './schemas/rpt.yaml#/RptReferencePageResponse',
+                        },
                     },
                 },
             },

@@ -22,10 +22,6 @@ interface FormulaView {
   }>
 }
 
-interface FormulaDefaultView {
-  formula?: FormulaView
-}
-
 function formatMicros(value: bigint): string {
   const whole = value / 1_000_000n
   const fraction = String(value % 1_000_000n)
@@ -226,10 +222,7 @@ export function useVoucherProduction(
     })
     if (!product) return
     try {
-      const { data } = await apiClient.post<
-        FormulaDefaultView,
-        { product: { objectId: string } }
-      >('vou/self-production/formula-default', {
+      const { data } = await apiClient.postContract('vou/self-production/formula-default', {
         product: inputReference(product)!,
       })
       const line = form.value.productionLines[index]

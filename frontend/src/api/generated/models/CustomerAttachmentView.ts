@@ -17,4 +17,3 @@ export type CustomerAttachmentView = {
   createdAt: string;
   createdBy: string;
 };
-

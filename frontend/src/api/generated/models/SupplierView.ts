@@ -13,4 +13,3 @@ export type SupplierView = {
   defaultPurchaserEmployeeId?: string | null;
   settlementMethod: SupplierSettlementSnapshot | null;
 };
-

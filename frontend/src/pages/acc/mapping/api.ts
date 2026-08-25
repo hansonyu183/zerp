@@ -1,6 +1,5 @@
 import { apiClient } from '@/api/client'
 import type { components } from '@/api/generated/schema'
-import type { PageResult } from '@/api/types'
 
 export type AccountingMapping = components['schemas']['Mapping']
 export type AccountingMappingDefinition =
@@ -16,28 +15,25 @@ export function queryAccountingMappings(input: {
   page: number
   pageSize: number
 }) {
-  return apiClient.post<PageResult<AccountingMapping>, typeof input>(
+  return apiClient.postContract(
     'acc/mapping/query',
     input,
   )
 }
 
 export function getAccountingMapping(bookId: string, mappingId: string) {
-  return apiClient.post<
-    AccountingMapping,
-    { bookId: string; mappingId: string }
-  >('acc/mapping/get', { bookId, mappingId })
+  return apiClient.postContract('acc/mapping/get', { bookId, mappingId })
 }
 
 export function createAccountingMapping(input: AccountingMappingCreate) {
-  return apiClient.post<AccountingMapping, AccountingMappingCreate>(
+  return apiClient.postContract(
     'acc/mapping/create',
     input,
   )
 }
 
 export function saveAccountingMapping(input: AccountingMappingSave) {
-  return apiClient.post<AccountingMapping, AccountingMappingSave>(
+  return apiClient.postContract(
     'acc/mapping/save',
     input,
   )
@@ -48,10 +44,7 @@ export function approveAccountingMapping(
   mappingId: string,
   revision: number,
 ) {
-  return apiClient.post<
-    AccountingMapping,
-    { bookId: string; mappingId: string; revision: number }
-  >('acc/mapping/approve', { bookId, mappingId, revision })
+  return apiClient.postContract('acc/mapping/approve', { bookId, mappingId, revision })
 }
 
 export function unapproveAccountingMapping(
@@ -59,14 +52,11 @@ export function unapproveAccountingMapping(
   mappingId: string,
   revision: number,
 ) {
-  return apiClient.post<
-    AccountingMapping,
-    { bookId: string; mappingId: string; revision: number }
-  >('acc/mapping/unapprove', { bookId, mappingId, revision })
+  return apiClient.postContract('acc/mapping/unapprove', { bookId, mappingId, revision })
 }
 
 export function getAccountingMappingCatalog(vouEntity: string) {
-  return apiClient.post<AccountingMappingCatalog, { vouEntity: string }>(
+  return apiClient.postContract(
     'acc/mapping/catalog',
     { vouEntity },
   )

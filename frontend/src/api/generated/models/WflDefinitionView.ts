@@ -23,4 +23,3 @@ export type WflDefinitionView = {
   nodes: Array<WflDefinitionNode>;
   edges: Array<WflDefinitionEdge>;
 };
-

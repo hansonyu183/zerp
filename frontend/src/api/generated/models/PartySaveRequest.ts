@@ -18,4 +18,3 @@ export type PartySaveRequest = {
     address?: string | null;
   };
 };
-

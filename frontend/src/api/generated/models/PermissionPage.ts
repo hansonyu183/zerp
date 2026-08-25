@@ -9,4 +9,3 @@ export type PermissionPage = {
   page: number;
   pageSize: 20;
 };
-

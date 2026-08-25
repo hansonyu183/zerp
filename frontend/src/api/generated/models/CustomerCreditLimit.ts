@@ -6,4 +6,3 @@ export type CustomerCreditLimit = {
   currency: 'CNY';
   amount: string;
 };
-

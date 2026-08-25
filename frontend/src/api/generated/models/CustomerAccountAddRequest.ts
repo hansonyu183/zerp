@@ -7,4 +7,3 @@ export type CustomerAccountAddRequest = {
   customerRelationshipId: string;
   data: CustomerAccountInput;
 };
-

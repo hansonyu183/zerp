@@ -10,4 +10,3 @@ export type SalesPartnerMutationResponse = {
   data: SalesPartnerMutationResult | null;
   requestId: string;
 };
-

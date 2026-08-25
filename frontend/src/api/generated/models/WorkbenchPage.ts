@@ -10,4 +10,3 @@ export type WorkbenchPage = {
   page: number;
   pageSize: number;
 };
-

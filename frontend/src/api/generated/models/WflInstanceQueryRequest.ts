@@ -9,4 +9,3 @@ export type WflInstanceQueryRequest = {
   definitionId?: string;
   partyObjectId?: string;
 };
-

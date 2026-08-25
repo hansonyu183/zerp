@@ -12,9 +12,9 @@ import {
 import { useSessionStore } from '@/stores/session'
 
 vi.mock('@/api/client', () => ({
-  apiClient: { post: vi.fn(), setCsrfToken: vi.fn() },
+  apiClient: { postContract: vi.fn(), setCsrfToken: vi.fn() },
 }))
-const mockedPost = vi.mocked(apiClient.post)
+const mockedPost = vi.mocked(apiClient.postContract)
 const listItem: DefinitionListItem = {
   definitionId: '01J00000000000000000000001',
   code: 'editor-flow',

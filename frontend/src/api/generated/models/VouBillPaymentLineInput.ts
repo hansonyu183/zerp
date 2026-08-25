@@ -7,4 +7,3 @@ export type VouBillPaymentLineInput = {
   purpose: 'PRIMARY';
   remark?: string;
 };
-

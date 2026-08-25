@@ -14,4 +14,3 @@ export type VouProductionMaterialInput = {
   actualBaseQuantity: string;
   adjustmentReason?: string;
 };
-

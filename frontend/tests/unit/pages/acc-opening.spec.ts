@@ -4,9 +4,9 @@ import { apiClient } from '@/api/client'
 import { createAccountingOpeningViewModel } from '@/pages/acc/opening/vm'
 import { useSessionStore } from '@/stores/session'
 
-vi.mock('@/api/client', () => ({ apiClient: { post: vi.fn() } }))
+vi.mock('@/api/client', () => ({ apiClient: { postContract: vi.fn() } }))
 
-const mockedPost = vi.mocked(apiClient.post)
+const mockedPost = vi.mocked(apiClient.postContract)
 const book = {
   bookId: '01JACC00000000000000000001',
   code: 'ACC-0001',

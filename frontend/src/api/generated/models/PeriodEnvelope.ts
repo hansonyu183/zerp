@@ -10,4 +10,3 @@ export type PeriodEnvelope = {
   data: Period | null;
   requestId: string;
 };
-

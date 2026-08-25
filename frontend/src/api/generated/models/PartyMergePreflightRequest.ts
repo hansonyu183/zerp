@@ -8,4 +8,3 @@ export type PartyMergePreflightRequest = {
   sourceRevision: number;
   targetRevision: number;
 };
-

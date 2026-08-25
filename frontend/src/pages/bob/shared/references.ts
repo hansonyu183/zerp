@@ -6,7 +6,7 @@ import {
   type Ref,
 } from 'vue'
 import { apiClient } from '@/api/client'
-import { getErrorMessage, type PageRequest, type PageResult } from '@/api/types'
+import { getErrorMessage } from '@/api/types'
 import type { BusinessObjectFieldOption } from '@/components/business-object'
 import { useSessionStore } from '@/stores/session'
 import { formatReferenceLabel } from '@/utils/reference-label'
@@ -14,11 +14,7 @@ import type {
   BobEntityConfig,
   BobFilterField,
   BobForm,
-  BobObjectView,
   BobReferenceConfig,
-  BobListItem,
-  AuxReferenceObject,
-  AuxReferenceQueryItem,
 } from './types'
 
 interface ReferenceState {
@@ -117,69 +113,127 @@ export function useBobReferences(
         }
         try {
           if (reference.value === 'code') {
-            const { data } = await apiClient.post<
-              PageResult<BobListItem | AuxReferenceQueryItem>,
-              PageRequest
-            >(`${domain}/${reference.entity}/query` as never, {
-              page: 1,
-              pageSize: 20,
-              filters: {
-                ...resolveReferenceFilters(reference, form),
-                keyword: value,
-                ...(domain === 'bob'
-                  ? { status: ['EFFECTIVE'], enabled: true }
-                  : { enabled: true }),
-              },
-              sort: [{ field: 'name', order: 'asc' }],
-            })
-            const item = (data.items ?? []).find(
+            if (reference.domain === 'aux') {
+              const { data } = await apiClient.postContract(
+                `aux/${reference.entity}/query`,
+                {
+                  page: 1,
+                  pageSize: 20,
+                  filters: {
+                    ...resolveReferenceFilters(reference, form),
+                    keyword: value,
+                    enabled: true,
+                  },
+                  sort: [{ field: 'name', order: 'asc' }],
+                },
+              )
+              const item = data.items.find(
+                (candidate) => candidate.code === value,
+              )
+              if (!item) {
+                state.options = [...state.options, { title: value, value }]
+                return
+              }
+              state.options = [
+                ...state.options.filter((option) => option.value !== value),
+                {
+                  title: formatReferenceLabel({
+                    code: item.code,
+                    name: item.currentVersion.data.name,
+                  }),
+                  value,
+                  metadata: { ...item.currentVersion.data },
+                },
+              ]
+              return
+            }
+
+            const { data } =
+              reference.entity === 'other-unit'
+                ? await apiClient.postContract('bob/other-unit/query', {
+                    page: 1,
+                    pageSize: 20,
+                    filters: {
+                      ...resolveReferenceFilters(reference, form),
+                      keyword: value,
+                      status: ['EFFECTIVE'],
+                    },
+                  })
+                : await apiClient.postContract(
+                    `bob/${reference.entity}/query`,
+                    {
+                page: 1,
+                pageSize: 20,
+                filters: {
+                  ...resolveReferenceFilters(reference, form),
+                  keyword: value,
+                  status: ['EFFECTIVE'],
+                  enabled: true,
+                },
+                sort: [{ field: 'name', order: 'asc' }],
+                    },
+                  )
+            const item = data.items.find(
               (candidate) => candidate.code === value,
             )
             if (!item) {
               state.options = [...state.options, { title: value, value }]
               return
             }
-            const name =
-              domain === 'aux'
-                ? (item as AuxReferenceQueryItem).currentVersion.data.name
-                : (item as BobListItem).effective?.summary.name ?? ''
             state.options = [
               ...state.options.filter((option) => option.value !== value),
               {
-                title: formatReferenceLabel({ code: item.code, name }),
+                title: formatReferenceLabel({
+                  code: item.code,
+                  name:
+                    'partyDisplayName' in item
+                      ? item.partyDisplayName
+                      : (item.effective?.summary.name ?? ''),
+                }),
                 value,
-                ...(domain === 'aux'
-                  ? {
-                      metadata: {
-                        ...(item as AuxReferenceQueryItem).currentVersion.data,
-                      },
-                    }
-                  : {}),
               },
             ]
             return
           }
 
-          const { data } = await apiClient.post<
-            BobObjectView | AuxReferenceObject,
-            { objectId: string }
-          >(`${domain}/${reference.entity}/get` as never, { objectId: value })
-          const name =
-            domain === 'aux'
-              ? (data as AuxReferenceObject).currentVersion.data.name
-              : (data as BobObjectView).data.name
+          if (reference.domain === 'aux') {
+            const { data } = await apiClient.postContract(
+              `aux/${reference.entity}/get`,
+              { objectId: value },
+            )
+            state.options = [
+              ...state.options.filter((option) => option.value !== value),
+              {
+                title: formatReferenceLabel({
+                  code: data.code,
+                  name: data.currentVersion.data.name,
+                }),
+                value,
+                metadata: { ...data.currentVersion.data },
+              },
+            ]
+            return
+          }
+
+          const { data } =
+            reference.entity === 'other-unit'
+              ? await apiClient.postContract('bob/other-unit/get', {
+                  objectId: value,
+                })
+              : await apiClient.postContract(`bob/${reference.entity}/get`, {
+                  objectId: value,
+                })
           state.options = [
             ...state.options.filter((option) => option.value !== value),
             {
-              title: formatReferenceLabel({ code: data.code, name }),
+              title: formatReferenceLabel({
+                code: data.code,
+                name:
+                  'partyDisplayName' in data
+                    ? data.partyDisplayName
+                    : data.data.name,
+              }),
               value,
-              ...(domain === 'aux'
-                ? {
-                    metadata: {
-                      ...(data as AuxReferenceObject).currentVersion.data,
-                    },
-                  }
-                : {}),
             },
           ]
         } catch {
@@ -221,43 +275,73 @@ export function useBobReferences(
     state.errorMessage = null
     try {
       const keywordFilter = keywordValue.trim()
-      const { data } = await apiClient.post<
-        PageResult<BobListItem | AuxReferenceQueryItem>,
-        PageRequest
-      >(`${domain}/${reference.entity}/query` as never, {
-        page: 1,
-        pageSize: 20,
-        filters: {
-          ...resolveReferenceFilters(reference, form),
-          ...(keywordFilter ? { keyword: keywordFilter } : {}),
-          ...(domain === 'bob'
-            ? { status: ['EFFECTIVE'], enabled: true }
-            : { enabled: true }),
-        },
-        sort: [{ field: 'name', order: 'asc' }],
-      })
+      let loaded: BusinessObjectFieldOption<string>[]
+      if (reference.domain === 'aux') {
+        loaded = (
+              await apiClient.postContract(`aux/${reference.entity}/query`, {
+                page: 1,
+                pageSize: 20,
+                filters: {
+                  ...resolveReferenceFilters(reference, form),
+                  ...(keywordFilter ? { keyword: keywordFilter } : {}),
+                  enabled: true,
+                },
+                sort: [{ field: 'name', order: 'asc' }],
+              })
+            ).data.items.map((item) => ({
+              title: formatReferenceLabel({
+                code: item.code,
+                name: item.currentVersion.data.name,
+              }),
+              value: reference.value === 'code' ? item.code : item.objectId,
+              metadata: { ...item.currentVersion.data },
+            }))
+      } else if (reference.entity === 'other-unit') {
+        loaded = (
+          await apiClient.postContract('bob/other-unit/query', {
+            page: 1,
+            pageSize: 20,
+            filters: {
+              ...resolveReferenceFilters(reference, form),
+              ...(keywordFilter ? { keyword: keywordFilter } : {}),
+              status: ['EFFECTIVE'],
+            },
+          })
+        ).data.items.map((item) => ({
+          title: formatReferenceLabel({
+            code: item.code,
+            name: item.partyDisplayName,
+          }),
+          value: reference.value === 'code' ? item.code : item.objectId,
+        }))
+      } else {
+        loaded = (
+              await apiClient.postContract(`bob/${reference.entity}/query`, {
+                page: 1,
+                pageSize: 20,
+                filters: {
+                  ...resolveReferenceFilters(reference, form),
+                  ...(keywordFilter ? { keyword: keywordFilter } : {}),
+                  status: ['EFFECTIVE'],
+                  enabled: true,
+                },
+                sort: [{ field: 'name', order: 'asc' }],
+              })
+            ).data.items.map((item) => ({
+              title: formatReferenceLabel({
+                code: item.code,
+                name: item.effective?.summary.name ?? '',
+              }),
+              value: reference.value === 'code' ? item.code : item.objectId,
+            }))
+      }
       if (state.requestSequence !== sequence) return
       const selected = state.options.filter((option) =>
         Object.values(form).includes(option.value),
       )
       state.options = [
         ...selected,
-        ...(data.items ?? []).map((item) => {
-          const auxData =
-            domain === 'aux'
-              ? (item as AuxReferenceQueryItem).currentVersion.data
-              : null
-          return {
-            title: formatReferenceLabel({
-              code: item.code,
-              name:
-                auxData?.name ??
-                (item as BobListItem).effective?.summary.name ?? '',
-            }),
-            value: reference.value === 'code' ? item.code : item.objectId,
-            ...(auxData ? { metadata: { ...auxData } } : {}),
-          }
-        }),
+        ...loaded,
       ].filter(
         (option, index, all) =>
           all.findIndex((candidate) => candidate.value === option.value) ===

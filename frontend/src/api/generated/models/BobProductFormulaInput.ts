@@ -8,4 +8,3 @@ export type BobProductFormulaInput = {
   output: BobQuantitySnapshotInput;
   components: Array<BobProductFormulaComponentInput>;
 };
-

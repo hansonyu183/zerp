@@ -7,4 +7,3 @@ export type WflDefinitionDiagnostic = {
   line?: number;
   column?: number;
 };
-

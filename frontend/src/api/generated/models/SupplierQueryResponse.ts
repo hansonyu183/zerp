@@ -15,4 +15,3 @@ export type SupplierQueryResponse = {
   };
   requestId: string;
 };
-

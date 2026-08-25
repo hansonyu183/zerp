@@ -9,4 +9,3 @@ export type SubjectPage = {
   page: number;
   pageSize: number;
 };
-

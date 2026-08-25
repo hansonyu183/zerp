@@ -9,4 +9,3 @@ export type SaveRoleRequest = {
   permissionIds: Array<string>;
   revision: number;
 };
-

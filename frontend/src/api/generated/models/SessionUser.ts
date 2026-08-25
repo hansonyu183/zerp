@@ -8,4 +8,3 @@ export type SessionUser = {
   displayName: string;
   avatarUrl: string | null;
 };
-

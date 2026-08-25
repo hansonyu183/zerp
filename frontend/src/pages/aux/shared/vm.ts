@@ -1,5 +1,5 @@
 import { computed, getCurrentScope, onScopeDispose, reactive, ref } from 'vue'
-import { apiClient, type ApiPostPath } from '@/api/client'
+import { apiClient, type AuxApiEntity } from '@/api/client'
 import { getErrorMessage } from '@/api/types'
 import type { BusinessObjectField } from '@/components/business-object'
 import { useSessionStore } from '@/stores/session'
@@ -23,13 +23,6 @@ export interface AuxListItem {
   currentVersion: AuxVersion
   updatedAt: string
   updatedBy: string
-}
-
-interface AuxPage {
-  items: AuxListItem[]
-  total: number
-  page: number
-  pageSize: number
 }
 
 interface ReferenceOption {
@@ -106,8 +99,17 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     })),
   ])
 
-  const path = (action: string) =>
-    `aux/${config.entity}/${action}` as ApiPostPath
+  const path = <
+    Action extends
+      | 'query'
+      | 'create'
+      | 'save'
+      | 'enable'
+      | 'disable'
+      | 'delete',
+  >(
+    action: Action,
+  ): `aux/${AuxApiEntity}/${Action}` => `aux/${config.entity}/${action}`
 
   async function query(): Promise<void> {
     loading.value = true
@@ -120,12 +122,12 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
         const value = filterValues[field.key]?.trim()
         if (value) requestFilters[field.key] = value
       }
-      const result = await apiClient.post<AuxPage>(path('query'), {
+      const result = await apiClient.postContract(path('query'), {
         page: page.value,
         pageSize: pageSize.value,
         filters: requestFilters,
         sort: [{ ...sort.value }],
-      } as never)
+      })
       rows.value = result.data.items
       total.value = result.data.total
     } catch (error) {
@@ -182,20 +184,20 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     const reference = field.reference
     if (!reference || !selectedValue) return null
     if (reference.value === 'objectId') {
-      const result = await apiClient.post<AuxListItem>(
-        `aux/${reference.entity}/get` as ApiPostPath,
-        { objectId: selectedValue } as never,
+      const result = await apiClient.postContract(
+        `aux/${reference.entity}/get`,
+        { objectId: selectedValue },
       )
       return referenceOption(result.data, reference.value)
     }
-    const result = await apiClient.post<AuxPage>(
-      `aux/${reference.entity}/query` as ApiPostPath,
+    const result = await apiClient.postContract(
+      `aux/${reference.entity}/query`,
       {
         page: 1,
         pageSize: 20,
         filters: { keyword: selectedValue },
         sort: [{ field: 'code', order: 'asc' }],
-      } as never,
+      },
     )
     const selected = result.data.items.find(
       (item) => item.code === selectedValue,
@@ -213,8 +215,8 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     referenceSequences.set(field.key, sequence)
     referenceLoading[field.key] = true
     try {
-      const result = await apiClient.post<AuxPage>(
-        `aux/${reference.entity}/query` as ApiPostPath,
+      const result = await apiClient.postContract(
+        `aux/${reference.entity}/query`,
         {
           page: 1,
           pageSize: 100,
@@ -223,7 +225,7 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
             ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
           },
           sort: [{ field: 'code', order: 'asc' }],
-        } as never,
+        },
       )
       const selectedValue = String(editorModel.value[field.key] ?? '')
       let selected = referenceOptions[field.key]?.find(
@@ -323,14 +325,14 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
         Object.entries(value).filter(([key]) => key !== 'code'),
       )
       if (editing.value) {
-        await apiClient.post(path('save'), {
+        await apiClient.postContract(path('save'), {
           objectId: editing.value.objectId,
           revision: editing.value.objectRevision,
           data,
         })
       } else {
-        await apiClient.post(path('create'), {
-          data,
+        await apiClient.postContract(path('create'), {
+          data: { ...data, name: String(value.name ?? '') },
         })
       }
       editorOpen.value = false
@@ -346,7 +348,7 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     if (row.enabled ? !canDisable.value : !canEnable.value) return
     errorMessage.value = null
     try {
-      await apiClient.post(path(row.enabled ? 'disable' : 'enable'), {
+      await apiClient.postContract(path(row.enabled ? 'disable' : 'enable'), {
         objectId: row.objectId,
         revision: row.objectRevision,
       })
@@ -360,7 +362,7 @@ export function createAuxEntityViewModel(config: AuxEntityConfig) {
     if (!canDelete.value) return
     errorMessage.value = null
     try {
-      await apiClient.post(path('delete'), {
+      await apiClient.postContract(path('delete'), {
         objectId: row.objectId,
         revision: row.objectRevision,
       })

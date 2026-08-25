@@ -7,4 +7,3 @@ export type SaveSystemParameterRequest = {
   configuredValue: string;
   revision: number;
 };
-

@@ -15,4 +15,3 @@ export type ApprovalMeta = {
   approvedBy: string | null;
   approvedAt: string | null;
 };
-

@@ -13,4 +13,3 @@ export type RptParameter = {
   enumValues?: Array<string>;
   referenceType?: RptReferenceType;
 };
-

@@ -12,4 +12,3 @@ export type BobProductFormulaComponentInput = {
   resolutionStatus?: 'CURRENT' | 'UNRESOLVED' | null;
   requiresConfirmation?: boolean | null;
 };
-

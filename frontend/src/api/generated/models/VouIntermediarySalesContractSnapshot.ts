@@ -9,4 +9,3 @@ export type VouIntermediarySalesContractSnapshot = {
   applicableTo?: string;
   terms: string;
 };
-

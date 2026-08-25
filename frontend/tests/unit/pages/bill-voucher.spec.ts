@@ -28,7 +28,6 @@ import BillMaturity from '@/pages/vou/bill-maturity/BillMaturity.vue'
 
 vi.mock('@/api/client', () => ({
   apiClient: {
-    post: vi.fn(),
     postContract: vi.fn(),
     setCsrfToken: vi.fn(),
     uploadAttachment: vi.fn(),
@@ -36,8 +35,7 @@ vi.mock('@/api/client', () => ({
   },
 }))
 
-const mockedPost = vi.mocked(apiClient.post)
-const mockedPostContract = vi.mocked(apiClient.postContract)
+const mockedPost = vi.mocked(apiClient.postContract)
 const availableBillPage = {
   data: {
     items: [
@@ -73,8 +71,7 @@ const availableBillPage = {
 beforeEach(() => {
   setActivePinia(createPinia())
   mockedPost.mockReset()
-  mockedPostContract.mockReset()
-  mockedPostContract.mockImplementation(async (path: string) => {
+  mockedPost.mockImplementation(async (path: string) => {
     if (path === 'bob/reference/query') {
       return {
         data: [
@@ -87,9 +84,6 @@ beforeEach(() => {
         ],
       } as never
     }
-    return availableBillPage as never
-  })
-  mockedPost.mockImplementation(async (path: string) => {
     if (path.endsWith('/bill-source')) return availableBillPage as never
     if (path.startsWith('bob/'))
       return {

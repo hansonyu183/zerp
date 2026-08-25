@@ -5,4 +5,3 @@
 export type ResetBusinessMenuRequest = {
   revision: number;
 };
-

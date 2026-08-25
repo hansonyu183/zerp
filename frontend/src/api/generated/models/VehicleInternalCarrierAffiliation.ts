@@ -6,4 +6,3 @@ export type VehicleInternalCarrierAffiliation = {
   type: 'INTERNAL';
   operatingEntityId: string;
 };
-

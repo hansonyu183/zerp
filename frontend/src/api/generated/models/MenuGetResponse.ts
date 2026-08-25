@@ -10,4 +10,3 @@ export type MenuGetResponse = {
   data: MenuGetData | null;
   requestId: string;
 };
-

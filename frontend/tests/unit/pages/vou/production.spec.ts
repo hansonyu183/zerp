@@ -16,7 +16,7 @@ import { voucherEntityConfigs } from '@/pages/vou/shared/config'
 const mockedPost = vi.hoisted(() => vi.fn())
 
 vi.mock('@/api/client', () => ({
-  apiClient: { post: mockedPost },
+  apiClient: { postContract: mockedPost },
 }))
 
 const product: VoucherReference = {

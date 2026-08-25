@@ -7,4 +7,3 @@ export type AuxHistoryRequest = {
   page: number;
   pageSize: number;
 };
-

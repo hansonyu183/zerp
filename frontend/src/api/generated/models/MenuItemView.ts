@@ -16,4 +16,3 @@ export type MenuItemView = {
   routePath: string | null;
   permissionCode: string | null;
 };
-

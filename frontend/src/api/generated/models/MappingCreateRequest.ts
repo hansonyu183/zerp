@@ -10,4 +10,3 @@ export type MappingCreateRequest = {
   defaultResult: MappingResult;
   definition: MappingDefinition;
 };
-

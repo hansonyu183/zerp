@@ -13,11 +13,11 @@ import {
 import { useSessionStore } from '@/stores/session'
 
 vi.mock('@/api/client', () => {
-  const post = vi.fn()
-  return { apiClient: { post, postContract: post } }
+  const postContract = vi.fn()
+  return { apiClient: { postContract } }
 })
 
-const mockedPost = vi.mocked(apiClient.post)
+const mockedPost = vi.mocked(apiClient.postContract)
 
 const objectItem: WorkbenchItem = {
   category: 'BOB',

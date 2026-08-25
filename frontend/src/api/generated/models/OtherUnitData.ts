@@ -13,4 +13,3 @@ export type OtherUnitData = {
   readonly settlementMethodName?: string;
   remark?: string;
 };
-

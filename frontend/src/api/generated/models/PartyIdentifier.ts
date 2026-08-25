@@ -7,4 +7,3 @@ export type PartyIdentifier = {
   type: PartyIdentifierType;
   value: string;
 };
-

@@ -1,13 +1,12 @@
 import { ref, type Ref } from 'vue'
 import { apiClient } from '@/api/client'
-import { getErrorMessage, type PageResult } from '@/api/types'
+import { getErrorMessage } from '@/api/types'
 import type {
   VoucherActionAvailability,
   VoucherAttachment,
   VoucherAuditEvent,
   VoucherDocumentView,
   VoucherEntityConfig,
-  VoucherMutationResult,
 } from '@/components/voucher'
 import { downloadBlob } from '@/utils/download'
 
@@ -44,10 +43,7 @@ export function useVoucherArtifacts(
     auditLoading.value = true
     auditError.value = null
     try {
-      const { data } = await apiClient.post<
-        PageResult<VoucherAuditEvent>,
-        Record<string, unknown>
-      >(`vou/${config.entity}/audit-history`, {
+      const { data } = await apiClient.postContract(`vou/${config.entity}/audit-history`, {
         documentId: current.documentId,
         page: nextPage,
         pageSize: auditPageSize.value,
@@ -77,15 +73,7 @@ export function useVoucherArtifacts(
     try {
       for (const file of files) {
         const hash = await sha256(file)
-        const initiated = await apiClient.post<
-          {
-            fileId: string
-            uploadUrl: string
-            expiresAt: string
-            revision: number
-          },
-          Record<string, unknown>
-        >(`vou/${config.entity}/attachment-initiate`, {
+        const initiated = await apiClient.postContract(`vou/${config.entity}/attachment-initiate`, {
           documentId: current.documentId,
           revision: documentView.value!.revision,
           fileName: file.name,
@@ -118,10 +106,7 @@ export function useVoucherArtifacts(
     attachmentLoading.value = true
     attachmentError.value = null
     try {
-      const { data } = await apiClient.post<
-        { downloadUrl: string; expiresAt: string },
-        Record<string, unknown>
-      >(`vou/${config.entity}/attachment-download`, {
+      const { data } = await apiClient.postContract(`vou/${config.entity}/attachment-download`, {
         documentId: current.documentId,
         fileId: attachment.fileId,
       })
@@ -142,7 +127,7 @@ export function useVoucherArtifacts(
     attachmentLoading.value = true
     attachmentError.value = null
     try {
-      await apiClient.post<VoucherMutationResult, Record<string, unknown>>(
+      await apiClient.postContract(
         `vou/${config.entity}/attachment-remove`,
         {
           documentId: current.documentId,

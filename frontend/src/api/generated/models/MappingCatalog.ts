@@ -7,4 +7,3 @@ export type MappingCatalog = {
   headerFields: Array<string>;
   collections: Record<string, Array<string>>;
 };
-

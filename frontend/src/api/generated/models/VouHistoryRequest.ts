@@ -7,4 +7,3 @@ export type VouHistoryRequest = {
   page: number;
   pageSize: number;
 };
-

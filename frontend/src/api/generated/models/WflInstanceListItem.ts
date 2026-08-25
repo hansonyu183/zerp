@@ -15,4 +15,3 @@ export type WflInstanceListItem = {
   partyName: string;
   updatedAt: string;
 };
-

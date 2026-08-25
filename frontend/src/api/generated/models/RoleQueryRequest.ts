@@ -15,4 +15,3 @@ export type RoleQueryRequest = {
     order: 'asc';
   }>;
 };
-

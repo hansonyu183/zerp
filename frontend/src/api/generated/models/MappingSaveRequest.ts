@@ -11,4 +11,3 @@ export type MappingSaveRequest = {
   definition: MappingDefinition;
   revision: number;
 };
-

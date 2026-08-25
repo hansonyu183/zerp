@@ -2902,4 +2902,389 @@
           'requestId': { 'type': 'string' },
         },
     },
+  'BobDetailView':
+    {
+      'allOf':
+        [
+          { '$ref': '#/BobSaveRequest/properties/data' },
+          {
+            'type': 'object',
+            'required': ['name'],
+            'properties':
+              {
+                'name': { 'type': 'string' },
+                'productTypeCode': { 'type': 'string' },
+                'productTypeName': { 'type': 'string' },
+                'behaviorProfile':
+                  {
+                    'type': 'string',
+                    'enum':
+                      [
+                        'RAW_MATERIAL',
+                        'STANDARD_FINISHED',
+                        'CUSTOM_FINISHED',
+                        'PACKAGING',
+                      ],
+                  },
+              },
+          },
+        ],
+    },
+  'BobVersionMeta':
+    {
+      'type': 'object',
+      'required':
+        [
+          'versionId',
+          'version',
+          'status',
+          'revision',
+          'createdAt',
+          'createdBy',
+          'updatedAt',
+          'updatedBy',
+          'submittedAt',
+          'submittedBy',
+          'reviewedAt',
+          'reviewedBy',
+          'reviewComment',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'versionId': { 'type': 'string' },
+          'version': { 'type': 'integer', 'format': 'int32' },
+          'status':
+            {
+              'type': 'string',
+              'enum': ['DRAFT', 'PENDING', 'REJECTED', 'EFFECTIVE', 'INVALID'],
+            },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+          'createdAt': { 'type': 'string', 'format': 'date-time' },
+          'createdBy': { 'type': 'string' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+          'updatedBy': { 'type': 'string' },
+          'submittedAt':
+            { 'type': 'string', 'format': 'date-time', 'nullable': true },
+          'submittedBy': { 'type': 'string', 'nullable': true },
+          'reviewedAt':
+            { 'type': 'string', 'format': 'date-time', 'nullable': true },
+          'reviewedBy': { 'type': 'string', 'nullable': true },
+          'reviewComment': { 'type': 'string', 'nullable': true },
+        },
+    },
+  'BobRelationshipIdentityView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'partyId',
+          'partyKind',
+          'partyDisplayName',
+          'operatingEntityId',
+          'operatingEntityCode',
+          'operatingEntityName',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'partyId': { 'type': 'string' },
+          'partyKind': { 'type': 'string' },
+          'partyDisplayName': { 'type': 'string' },
+          'operatingEntityId': { 'type': 'string' },
+          'operatingEntityCode': { 'type': 'string' },
+          'operatingEntityName': { 'type': 'string' },
+        },
+    },
+  'BobObjectView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'entity',
+          'code',
+          'objectRevision',
+          'enabled',
+          'currentVersionId',
+          'effectiveVersionId',
+          'updatedAt',
+          'version',
+          'data',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'entity': { '$ref': '#/BobEntity' },
+          'code': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'currentVersionId': { 'type': 'string' },
+          'effectiveVersionId': { 'type': 'string', 'nullable': true },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+          'version': { '$ref': '#/BobVersionMeta' },
+          'data': { '$ref': '#/BobDetailView' },
+          'relationship': { '$ref': '#/BobRelationshipIdentityView' },
+        },
+    },
+  'BobMutationResult':
+    {
+      'type': 'object',
+      'required':
+        [
+          objectId,
+          objectRevision,
+          enabled,
+          versionId,
+          version,
+          status,
+          revision,
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'versionId': { 'type': 'string' },
+          'version': { 'type': 'integer', 'format': 'int32' },
+          'status':
+            {
+              'type': 'string',
+              'enum': ['DRAFT', 'PENDING', 'REJECTED', 'EFFECTIVE', 'INVALID'],
+            },
+          'revision': { 'type': 'integer', 'format': 'int64' },
+        },
+    },
+  'BobVersionHistoryItem':
+    {
+      'allOf':
+        [
+          { '$ref': '#/BobVersionMeta' },
+          {
+            'type': 'object',
+            'required': ['summary'],
+            'properties':
+              { 'summary': { 'type': 'object', 'additionalProperties': true } },
+          },
+        ],
+    },
+  'BobVersionHistoryPage':
+    {
+      'type': 'object',
+      'required': [items, total, page, pageSize],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            { 'type': 'array', 'items': { '$ref': '#/BobVersionHistoryItem' } },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'BobAuditEvent':
+    {
+      'type': 'object',
+      'required':
+        [
+          id,
+          objectId,
+          versionId,
+          entity,
+          eventType,
+          fromStatus,
+          toStatus,
+          actorId,
+          occurredAt,
+          comment,
+          requestId,
+          summary,
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'id': { 'type': 'string' },
+          'objectId': { 'type': 'string' },
+          'versionId': { 'type': 'string' },
+          'entity': { '$ref': '#/BobEntity' },
+          'eventType': { 'type': 'string' },
+          'fromStatus':
+            {
+              'type': 'string',
+              'enum': ['DRAFT', 'PENDING', 'REJECTED', 'EFFECTIVE', 'INVALID'],
+              'nullable': true,
+            },
+          'toStatus':
+            {
+              'type': 'string',
+              'enum': ['DRAFT', 'PENDING', 'REJECTED', 'EFFECTIVE', 'INVALID'],
+            },
+          'actorId': { 'type': 'string' },
+          'occurredAt': { 'type': 'string', 'format': 'date-time' },
+          'comment': { 'type': 'string', 'nullable': true },
+          'requestId': { 'type': 'string' },
+          'summary': { 'type': 'object', 'additionalProperties': true },
+        },
+    },
+  'BobAuditEventPage':
+    {
+      'type': 'object',
+      'required': [items, total, page, pageSize],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items': { 'type': 'array', 'items': { '$ref': '#/BobAuditEvent' } },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'BobObjectResponse':
+    {
+      'type': 'object',
+      'required': [code, errorKey, message, data, requestId],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/BobObjectView' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'BobMutationResponse':
+    {
+      'type': 'object',
+      'required': [code, errorKey, message, data, requestId],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/BobMutationResult' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'BobVersionHistoryResponse':
+    {
+      'type': 'object',
+      'required': [code, errorKey, message, data, requestId],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/BobVersionHistoryPage' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'BobAuditHistoryResponse':
+    {
+      'type': 'object',
+      'required': [code, errorKey, message, data, requestId],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/BobAuditEventPage' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'CustomerCreateResult':
+    {
+      'allOf':
+        [
+          { '$ref': '#/BobMutationResult' },
+          {
+            'type': 'object',
+            'required': ['partyId', 'defaultAccount'],
+            'properties':
+              {
+                'partyId': { 'type': 'string' },
+                'defaultAccount': { '$ref': '#/CustomerAccountView' },
+              },
+          },
+        ],
+    },
+  'CustomerCreateResponse':
+    {
+      'type': 'object',
+      'required': [code, errorKey, message, data, requestId],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/CustomerCreateResult', 'nullable': true },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'CustomerAccountResponse':
+    {
+      'type': 'object',
+      'required': [code, errorKey, message, data, requestId],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/CustomerAccountView', 'nullable': true },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'SupplierCreateResult':
+    {
+      'allOf':
+        [
+          { '$ref': '#/BobMutationResult' },
+          {
+            'type': 'object',
+            'required': ['partyId'],
+            'properties': { 'partyId': { 'type': 'string' } },
+          },
+        ],
+    },
+  'SupplierCreateResponse':
+    {
+      'type': 'object',
+      'required': [code, errorKey, message, data, requestId],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/SupplierCreateResult', 'nullable': true },
+          'requestId': { 'type': 'string' },
+        },
+    },
 }

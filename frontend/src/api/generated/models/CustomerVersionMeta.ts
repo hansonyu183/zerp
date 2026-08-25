@@ -17,4 +17,3 @@ export type CustomerVersionMeta = {
   reviewedBy: string | null;
   reviewComment: string | null;
 };
-

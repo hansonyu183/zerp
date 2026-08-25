@@ -9,4 +9,3 @@ export type CustomerSalesAttributionView = {
   subjectCode: string;
   subjectName: string;
 };
-

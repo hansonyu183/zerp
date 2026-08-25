@@ -10,4 +10,3 @@ export type MappingCatalogEnvelope = {
   data: MappingCatalog | null;
   requestId: string;
 };
-

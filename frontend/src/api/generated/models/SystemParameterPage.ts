@@ -9,4 +9,3 @@ export type SystemParameterPage = {
   page: number;
   pageSize: number;
 };
-

@@ -20,4 +20,3 @@ export type AuxQueryRequest = {
     order: 'asc' | 'desc';
   }>;
 };
-

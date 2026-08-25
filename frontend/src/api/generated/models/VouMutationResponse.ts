@@ -7,4 +7,3 @@ import type { VouMutationResult } from './VouMutationResult';
 export type VouMutationResponse = (BusinessEnvelope & {
   data?: VouMutationResult | null;
 });
-

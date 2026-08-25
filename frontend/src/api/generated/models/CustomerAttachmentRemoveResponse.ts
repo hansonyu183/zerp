@@ -10,4 +10,3 @@ export type CustomerAttachmentRemoveResponse = {
   data: CustomerAttachmentMutationResult;
   requestId: string;
 };
-

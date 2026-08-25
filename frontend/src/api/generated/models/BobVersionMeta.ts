@@ -17,4 +17,3 @@ export type BobVersionMeta = {
   reviewedBy: string | null;
   reviewComment: string | null;
 };
-

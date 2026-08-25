@@ -7,4 +7,3 @@ export type BobHistoryRequest = {
   page: number;
   pageSize: number;
 };
-

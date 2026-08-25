@@ -7,4 +7,3 @@ import type { VouFormulaDefaultView } from './VouFormulaDefaultView';
 export type VouFormulaDefaultResponse = (BusinessEnvelope & {
   data?: VouFormulaDefaultView | null;
 });
-

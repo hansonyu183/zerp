@@ -25,4 +25,3 @@ export type CustomerAccountInput = {
   internalReminder?: string | null;
   defaultSalesOrderRemark?: string | null;
 };
-

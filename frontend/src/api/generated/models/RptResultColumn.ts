@@ -13,4 +13,3 @@ export type RptResultColumn = {
   format?: string;
   drilldownEntity?: 'VOU';
 };
-

@@ -7,4 +7,3 @@ export type BobVersionRevisionRequest = {
   versionId: string;
   revision: number;
 };
-

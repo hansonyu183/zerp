@@ -13,4 +13,3 @@ export type WflDefinitionTrialResult = {
   plannedActions: Array<WflPlannedAction>;
   uncoveredBranches: Array<string>;
 };
-

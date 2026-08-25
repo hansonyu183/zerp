@@ -8,4 +8,3 @@ export type VouQuantitySnapshotView = {
   enteredUnit: VouUnitSnapshotView;
   baseQuantity: string;
 };
-

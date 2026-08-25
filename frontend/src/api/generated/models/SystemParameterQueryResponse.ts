@@ -10,4 +10,3 @@ export type SystemParameterQueryResponse = {
   data: SystemParameterPage | null;
   requestId: string;
 };
-

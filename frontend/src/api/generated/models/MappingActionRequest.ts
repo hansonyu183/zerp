@@ -7,4 +7,3 @@ export type MappingActionRequest = {
   mappingId: string;
   revision: number;
 };
-

@@ -29,4 +29,3 @@ export type CustomerAccountDataView = {
   internalReminder?: string | null;
   defaultSalesOrderRemark?: string | null;
 };
-

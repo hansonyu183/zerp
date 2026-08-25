@@ -8,4 +8,3 @@ export type SaveUserRequest = {
   roleIds: Array<string>;
   revision: number;
 };
-

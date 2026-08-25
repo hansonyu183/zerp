@@ -11,4 +11,3 @@ export type BobMutationResult = {
   status: 'DRAFT' | 'PENDING' | 'REJECTED' | 'EFFECTIVE' | 'INVALID';
   revision: number;
 };
-

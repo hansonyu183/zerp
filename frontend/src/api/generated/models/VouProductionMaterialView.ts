@@ -16,4 +16,3 @@ export type VouProductionMaterialView = {
   actualBaseQuantity: string;
   adjustmentReason?: string;
 };
-

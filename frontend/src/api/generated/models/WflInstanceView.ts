@@ -20,4 +20,3 @@ export type WflInstanceView = {
   nodes: Array<WflNodeInstance>;
   availableTargets: Array<WflAvailableChildTarget>;
 };
-

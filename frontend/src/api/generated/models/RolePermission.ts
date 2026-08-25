@@ -12,4 +12,3 @@ export type RolePermission = {
   entity: string;
   action: string;
 };
-

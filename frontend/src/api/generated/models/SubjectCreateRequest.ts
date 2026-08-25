@@ -16,4 +16,3 @@ export type SubjectCreateRequest = {
   inventoryQuantity: boolean;
   settlementPurpose: SettlementPurpose;
 };
-

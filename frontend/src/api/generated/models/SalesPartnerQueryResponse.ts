@@ -10,4 +10,3 @@ export type SalesPartnerQueryResponse = {
   data: SalesPartnerPage | null;
   requestId: string;
 };
-

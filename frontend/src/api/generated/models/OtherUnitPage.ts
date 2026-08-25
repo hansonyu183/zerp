@@ -9,4 +9,3 @@ export type OtherUnitPage = {
   page: number;
   pageSize: number;
 };
-

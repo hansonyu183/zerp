@@ -116,6 +116,7 @@ export type { data } from './models/data';
 export type { EmploymentCreateRequest } from './models/EmploymentCreateRequest';
 export type { EmploymentData } from './models/EmploymentData';
 export type { EmptyObject } from './models/EmptyObject';
+export type { EmptyResponse } from './models/EmptyResponse';
 export type { HealthResponse } from './models/HealthResponse';
 export type { IdRequest } from './models/IdRequest';
 export type { Mapping } from './models/Mapping';
@@ -229,6 +230,8 @@ export type { RptDefinitionQueryRequest } from './models/RptDefinitionQueryReque
 export type { RptDefinitionRevisionRequest } from './models/RptDefinitionRevisionRequest';
 export type { RptDirectoryQueryRequest } from './models/RptDirectoryQueryRequest';
 export type { RptExecuteRequest } from './models/RptExecuteRequest';
+export type { RptMutationResponse } from './models/RptMutationResponse';
+export type { RptMutationResult } from './models/RptMutationResult';
 export type { RptParameter } from './models/RptParameter';
 export type { RptParameterType } from './models/RptParameterType';
 export type { RptReferenceQueryRequest } from './models/RptReferenceQueryRequest';
@@ -413,6 +416,8 @@ export type { WflBusinessObjectReference } from './models/WflBusinessObjectRefer
 export type { WflCreateChildRequest } from './models/WflCreateChildRequest';
 export type { WflDefinitionActionRequest } from './models/WflDefinitionActionRequest';
 export type { WflDefinitionCreateRequest } from './models/WflDefinitionCreateRequest';
+export type { WflDefinitionDeleteResponse } from './models/WflDefinitionDeleteResponse';
+export type { WflDefinitionDeleteResult } from './models/WflDefinitionDeleteResult';
 export type { WflDefinitionDiagnostic } from './models/WflDefinitionDiagnostic';
 export type { WflDefinitionEdge } from './models/WflDefinitionEdge';
 export type { WflDefinitionGetRequest } from './models/WflDefinitionGetRequest';

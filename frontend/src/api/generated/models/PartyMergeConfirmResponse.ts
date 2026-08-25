@@ -10,4 +10,3 @@ export type PartyMergeConfirmResponse = {
   data: PartyMergeResult | null;
   requestId: string;
 };
-

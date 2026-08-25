@@ -10,4 +10,3 @@ export type OpeningLineInput = {
   quantity?: string;
   dimensions: Record<string, string>;
 };
-

@@ -10,4 +10,3 @@ export type BobRelationshipIdentityView = {
   operatingEntityCode: string;
   operatingEntityName: string;
 };
-

@@ -11,4 +11,3 @@ export type OtherUnitQueryRequest = {
     operatingEntityId?: string;
   };
 };
-

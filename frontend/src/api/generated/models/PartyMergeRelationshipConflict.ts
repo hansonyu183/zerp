@@ -11,4 +11,3 @@ export type PartyMergeRelationshipConflict = {
   targetObjectId: string;
   targetObjectCode: string;
 };
-

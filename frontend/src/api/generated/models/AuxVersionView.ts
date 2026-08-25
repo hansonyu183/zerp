@@ -10,4 +10,3 @@ export type AuxVersionView = {
   createdAt: string;
   createdBy: string;
 };
-

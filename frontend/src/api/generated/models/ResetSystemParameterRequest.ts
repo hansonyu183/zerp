@@ -6,4 +6,3 @@ export type ResetSystemParameterRequest = {
   key: string;
   revision: number;
 };
-

@@ -12,4 +12,3 @@ export type SupplierSettlementSnapshot = {
   dayOfMonth: number;
   dayOffset: number;
 };
-

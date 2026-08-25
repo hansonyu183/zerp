@@ -19,4 +19,3 @@ export type SalesPartnerDetailView = {
   candidate: SalesPartnerVersionView | null;
   updatedAt: string;
 };
-

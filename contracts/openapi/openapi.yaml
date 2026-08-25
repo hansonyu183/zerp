@@ -193,7 +193,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/Empty' } },
             },
         },
       '/acc/subject/query':
@@ -381,7 +381,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/Empty' } },
             },
         },
       '/acc/opening/query':
@@ -1055,7 +1055,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/Empty' } },
             },
         },
       '/app/workbench/query':
@@ -1200,7 +1200,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/Empty' } },
             },
         },
       '/app/user/get':
@@ -2355,7 +2355,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/Empty' } },
             },
         },
       '/aux/{entity}/versions':
@@ -2738,7 +2738,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/Empty' } },
             },
         },
       '/bob/other-unit/submit':
@@ -3094,7 +3094,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/Empty' } },
             },
         },
       '/bob/customer/save':
@@ -3931,7 +3931,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/Empty' } },
             },
         },
       '/bob/{entity}/submit':
@@ -5520,7 +5520,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '已删除的流程定义。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflDefinitionDeleteResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/wfl/process-instance/query':
@@ -6058,7 +6073,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '已删除的报表定义。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/rpt.yaml#/RptMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/rpt/{report}/query':
@@ -6412,6 +6442,18 @@
                     {
                       'schema':
                         { '$ref': './schemas/common.yaml#/BusinessEnvelope' },
+                    },
+                },
+            },
+          'Empty':
+            {
+              'description': '成功且不返回业务数据。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        { '$ref': './schemas/common.yaml#/EmptyResponse' },
                     },
                 },
             },

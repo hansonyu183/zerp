@@ -12,4 +12,3 @@ export type UserRoleSummary = {
   type: RoleType;
   assignable: boolean;
 };
-

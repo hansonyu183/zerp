@@ -24,4 +24,3 @@ export type VouAssetLineView = {
   disposalExpense?: string;
   remark?: string;
 };
-

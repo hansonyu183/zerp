@@ -16,4 +16,3 @@ export type SupplierQueryRequest = {
     order: 'asc';
   }>;
 };
-

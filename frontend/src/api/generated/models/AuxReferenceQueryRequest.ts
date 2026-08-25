@@ -7,4 +7,3 @@ export type AuxReferenceQueryRequest = {
   keyword?: string;
   dictionaryTypeCode?: string;
 };
-

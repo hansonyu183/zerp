@@ -24,4 +24,3 @@ export type VouReferenceView = {
     factor: string;
   }>;
 };
-

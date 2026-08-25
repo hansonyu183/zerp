@@ -10,4 +10,3 @@ export type AuxMutationResponse = {
   data: AuxMutationResult | null;
   requestId: string;
 };
-

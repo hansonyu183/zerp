@@ -10,4 +10,3 @@ export type WflExecutionTrace = {
   action: string;
   result: WflBusinessObjectReference;
 };
-

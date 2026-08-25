@@ -11,4 +11,3 @@ export type WflDefinitionTrialRequest = {
     documentId: string;
   };
 };
-

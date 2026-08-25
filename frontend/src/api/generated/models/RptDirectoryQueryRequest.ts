@@ -6,4 +6,3 @@ export type RptDirectoryQueryRequest = {
   page: number;
   pageSize: number;
 };
-

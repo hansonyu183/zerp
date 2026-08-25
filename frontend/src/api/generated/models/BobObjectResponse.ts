@@ -10,4 +10,3 @@ export type BobObjectResponse = {
   data: BobObjectView | null;
   requestId: string;
 };
-

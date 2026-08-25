@@ -8,4 +8,3 @@ export type BobQuantitySnapshotInput = {
   enteredUnit: BobMeasurementUnitSnapshotInput;
   baseQuantity: string;
 };
-

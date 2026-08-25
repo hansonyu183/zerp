@@ -11,4 +11,3 @@ export type SupplierListVersion = {
   defaultPurchaserName?: string;
   submittedBy: string | null;
 };
-

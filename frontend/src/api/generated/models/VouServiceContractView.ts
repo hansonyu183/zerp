@@ -16,4 +16,3 @@ export type VouServiceContractView = {
   applicableTo?: string;
   terms?: string;
 };
-

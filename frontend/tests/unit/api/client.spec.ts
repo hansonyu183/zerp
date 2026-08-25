@@ -62,14 +62,14 @@ describe('ApiClient', () => {
     ).rejects.toMatchObject<ApiError>({ kind: 'protocol' })
   })
 
-  it('允许契约声明为空数据的删除成功响应', async () => {
+  it('接受精确空对象删除响应', async () => {
     mockServer.use(
       http.post('https://api.test/bob/supplier/delete', () =>
         HttpResponse.json({
           code: 0,
           errorKey: '',
           message: 'ok',
-          data: null,
+          data: {},
           requestId: 'req-delete-contract',
         }),
       ),
@@ -83,10 +83,7 @@ describe('ApiClient', () => {
       revision: 1,
     })
 
-    expectTypeOf(result.data).toEqualTypeOf<
-      components['schemas']['BusinessEnvelope']['data']
-    >()
-    expect(result.data).toBeNull()
+    expect(result.data).toEqual({})
     expect(result.requestId).toBe('req-delete-contract')
   })
 

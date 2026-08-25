@@ -23,4 +23,3 @@ export type OpeningBillInput = {
   valueAmount: string;
   originatingParty?: OpeningPartyInput;
 };
-

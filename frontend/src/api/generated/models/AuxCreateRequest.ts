@@ -6,4 +6,3 @@ import type { AuxCreateData } from './AuxCreateData';
 export type AuxCreateRequest = {
   data: AuxCreateData;
 };
-

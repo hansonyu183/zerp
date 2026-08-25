@@ -22,4 +22,3 @@ export type VouManagedLineView = {
   lineAmount?: string;
   remark?: string;
 };
-

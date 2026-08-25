@@ -8,4 +8,3 @@ export type PostingTemplate = {
   collection: string | null;
   lines: Array<PostingLineTemplate>;
 };
-

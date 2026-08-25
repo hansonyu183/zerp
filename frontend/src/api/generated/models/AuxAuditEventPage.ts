@@ -9,4 +9,3 @@ export type AuxAuditEventPage = {
   page: number;
   pageSize: number;
 };
-

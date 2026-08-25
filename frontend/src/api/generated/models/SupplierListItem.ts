@@ -19,4 +19,3 @@ export type SupplierListItem = {
   candidate: SupplierListVersion | null;
   updatedAt: string;
 };
-

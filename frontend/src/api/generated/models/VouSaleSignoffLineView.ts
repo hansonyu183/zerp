@@ -21,4 +21,3 @@ export type VouSaleSignoffLineView = {
   remark?: string;
   returnableBaseQuantity?: string;
 };
-

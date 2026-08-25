@@ -15,4 +15,3 @@ export type SystemParameterView = {
   constraints: SystemParameterConstraints | null;
   revision: number;
 };
-

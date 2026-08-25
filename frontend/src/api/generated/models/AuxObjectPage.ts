@@ -9,4 +9,3 @@ export type AuxObjectPage = {
   page: number;
   pageSize: number;
 };
-

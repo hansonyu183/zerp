@@ -9,4 +9,3 @@ export type BookPage = {
   page: number;
   pageSize: number;
 };
-

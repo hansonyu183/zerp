@@ -10,4 +10,3 @@ export type SupplierGetResponse = {
   data: SupplierDetailView | null;
   requestId: string;
 };
-

@@ -6,4 +6,3 @@ export type RevisionRequest = {
   id: string;
   revision: number;
 };
-

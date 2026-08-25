@@ -9,4 +9,3 @@ export type BobAuditEventPage = {
   page: number;
   pageSize: number;
 };
-

@@ -10,4 +10,3 @@ export type WflAvailableChildTarget = {
   targetEntity: VouEntity;
   relation: string;
 };
-

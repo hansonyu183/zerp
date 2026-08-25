@@ -56,4 +56,3 @@ export type data = {
   defaultPackagingSpec?: string | null;
   formula?: BobProductFormulaInput | null;
 };
-

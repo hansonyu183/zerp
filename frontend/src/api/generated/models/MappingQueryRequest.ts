@@ -8,4 +8,3 @@ export type MappingQueryRequest = {
   page: number;
   pageSize: number;
 };
-

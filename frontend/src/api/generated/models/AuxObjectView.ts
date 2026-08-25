@@ -14,4 +14,3 @@ export type AuxObjectView = {
   updatedAt: string;
   updatedBy: string;
 };
-

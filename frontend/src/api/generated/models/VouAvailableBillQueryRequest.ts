@@ -8,4 +8,3 @@ export type VouAvailableBillQueryRequest = {
   positionType: 'ASSET' | 'LIABILITY';
   billNo?: string;
 };
-

@@ -8,4 +8,3 @@ export type BobDeleteRequest = {
   versionId: string;
   revision: number;
 };
-

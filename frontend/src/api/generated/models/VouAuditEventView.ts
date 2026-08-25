@@ -14,4 +14,3 @@ export type VouAuditEventView = {
   requestId: string;
   summary: any;
 };
-

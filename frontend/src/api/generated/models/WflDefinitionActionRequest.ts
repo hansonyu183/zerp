@@ -6,4 +6,3 @@ export type WflDefinitionActionRequest = {
   definitionId: string;
   revision: number;
 };
-

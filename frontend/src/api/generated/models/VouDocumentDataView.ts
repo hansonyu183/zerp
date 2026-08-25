@@ -83,4 +83,3 @@ export type VouDocumentDataView = {
   returnedResinContainers?: number;
   containerDifferenceReason?: string;
 };
-

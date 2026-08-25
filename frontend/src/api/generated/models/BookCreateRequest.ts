@@ -12,4 +12,3 @@ export type BookCreateRequest = {
   queryUserIds?: Array<string>;
   operateUserIds?: Array<string>;
 };
-

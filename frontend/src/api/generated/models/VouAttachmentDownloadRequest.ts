@@ -6,4 +6,3 @@ export type VouAttachmentDownloadRequest = {
   documentId: string;
   fileId: string;
 };
-

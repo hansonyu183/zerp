@@ -10,4 +10,3 @@ export type AuxObjectResponse = {
   data: AuxObjectView | null;
   requestId: string;
 };
-

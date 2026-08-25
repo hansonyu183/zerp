@@ -10,4 +10,3 @@ export type BobAuditHistoryResponse = {
   data: BobAuditEventPage | null;
   requestId: string;
 };
-

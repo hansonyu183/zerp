@@ -12,4 +12,3 @@ export type SupplierInput = {
   settlementMethodId?: string | null;
   defaultPurchaserEmployeeId?: string | null;
 };
-

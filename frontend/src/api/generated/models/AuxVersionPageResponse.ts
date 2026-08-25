@@ -10,4 +10,3 @@ export type AuxVersionPageResponse = {
   data: AuxVersionPage | null;
   requestId: string;
 };
-

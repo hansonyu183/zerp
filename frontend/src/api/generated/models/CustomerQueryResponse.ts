@@ -15,4 +15,3 @@ export type CustomerQueryResponse = {
   };
   requestId: string;
 };
-

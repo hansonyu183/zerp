@@ -13,4 +13,3 @@ export type ReferenceCandidate = {
   pricingUnitId?: string;
   unitConversions?: Array<BobProductUnitConversionSnapshot>;
 };
-

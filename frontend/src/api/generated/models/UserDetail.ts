@@ -18,4 +18,3 @@ export type UserDetail = {
   manageable: boolean;
   roleAssignmentEditable: boolean;
 };
-

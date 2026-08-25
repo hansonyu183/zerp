@@ -10,4 +10,3 @@ export type VouExpenseLineView = {
   amount: string;
   remark?: string;
 };
-

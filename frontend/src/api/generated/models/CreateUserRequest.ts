@@ -8,4 +8,3 @@ export type CreateUserRequest = {
   password: string;
   roleIds: Array<string>;
 };
-

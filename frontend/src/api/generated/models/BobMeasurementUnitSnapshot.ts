@@ -9,4 +9,3 @@ export type BobMeasurementUnitSnapshot = {
   name: string;
   symbol: string;
 };
-

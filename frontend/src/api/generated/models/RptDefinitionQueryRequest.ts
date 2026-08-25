@@ -8,4 +8,3 @@ export type RptDefinitionQueryRequest = {
   keyword?: string;
   includeDisabled?: boolean;
 };
-

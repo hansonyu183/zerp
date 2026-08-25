@@ -12,4 +12,3 @@ export type VouServiceAcceptanceView = {
   fulfillmentFact?: string;
   acceptanceFact?: string;
 };
-

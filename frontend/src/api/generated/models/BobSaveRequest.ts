@@ -61,4 +61,3 @@ export type BobSaveRequest = {
     formula?: BobProductFormulaInput | null;
   };
 };
-

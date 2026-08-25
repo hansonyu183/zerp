@@ -7,4 +7,3 @@ export type PeriodActionRequest = {
   month: string;
   revision: number;
 };
-

@@ -19,4 +19,3 @@ export type VouBillIssueLineInput = {
   annualRateBps: number;
   remark?: string;
 };
-

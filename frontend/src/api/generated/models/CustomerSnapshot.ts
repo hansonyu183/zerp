@@ -16,4 +16,3 @@ export type CustomerSnapshot = {
   address?: string;
   phone?: string;
 };
-

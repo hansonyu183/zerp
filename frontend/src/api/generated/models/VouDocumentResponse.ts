@@ -7,4 +7,3 @@ import type { VouDocumentView } from './VouDocumentView';
 export type VouDocumentResponse = (BusinessEnvelope & {
   data?: VouDocumentView | null;
 });
-

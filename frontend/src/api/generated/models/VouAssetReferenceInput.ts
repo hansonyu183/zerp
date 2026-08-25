@@ -6,4 +6,3 @@ export type VouAssetReferenceInput = {
   objectId: string;
   versionId: string;
 };
-

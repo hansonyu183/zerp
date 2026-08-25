@@ -15,4 +15,3 @@ export type VouIntermediarySourceBill = {
   maturityDate: string;
   costDays: number;
 };
-

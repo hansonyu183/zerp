@@ -5,4 +5,3 @@
 export type VouGetRequest = {
   documentId: string;
 };
-

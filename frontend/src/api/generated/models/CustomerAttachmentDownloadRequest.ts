@@ -8,4 +8,3 @@ export type CustomerAttachmentDownloadRequest = {
   ownerId: string;
   fileId: string;
 };
-

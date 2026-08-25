@@ -21,4 +21,3 @@ export type WflNodeInstance = {
   action?: string;
   evaluatedAt?: string;
 };
-

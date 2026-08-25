@@ -13,4 +13,3 @@ export type VouInventoryCountLineInput = {
   baseQuantity: string;
   remark?: string;
 };
-

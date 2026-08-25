@@ -19,4 +19,3 @@ export type SalesPartnerListItem = {
   candidate: SalesPartnerListVersion | null;
   updatedAt: string;
 };
-

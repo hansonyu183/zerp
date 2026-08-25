@@ -10,4 +10,3 @@ export type ResetPasswordResponse = {
   data: ResetPasswordResult | null;
   requestId: string;
 };
-

@@ -7,4 +7,3 @@ export type CreateRoleRequest = {
   description: string | null;
   permissionIds: Array<string>;
 };
-

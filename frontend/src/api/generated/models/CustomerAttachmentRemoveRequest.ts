@@ -9,4 +9,3 @@ export type CustomerAttachmentRemoveRequest = {
   revision: number;
   fileId: string;
 };
-

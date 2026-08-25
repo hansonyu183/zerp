@@ -10,4 +10,3 @@ export type AuxQueryResponse = {
   data: AuxObjectPage | null;
   requestId: string;
 };
-

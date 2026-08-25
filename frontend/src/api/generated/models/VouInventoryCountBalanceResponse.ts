@@ -7,4 +7,3 @@ import type { VouInventoryCountBalancePage } from './VouInventoryCountBalancePag
 export type VouInventoryCountBalanceResponse = (BusinessEnvelope & {
   data?: VouInventoryCountBalancePage | null;
 });
-

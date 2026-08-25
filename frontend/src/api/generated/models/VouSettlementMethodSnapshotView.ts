@@ -16,4 +16,3 @@ export type VouSettlementMethodSnapshotView = {
   defaultSalesSurcharge?: string;
   description?: string;
 };
-

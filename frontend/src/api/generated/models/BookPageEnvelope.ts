@@ -10,4 +10,3 @@ export type BookPageEnvelope = {
   data: BookPage | null;
   requestId: string;
 };
-

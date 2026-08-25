@@ -6,4 +6,3 @@ import type { AuxData } from './AuxData';
 export type AuxCreateData = (AuxData & {
   name: string;
 });
-

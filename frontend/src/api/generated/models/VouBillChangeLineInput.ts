@@ -7,4 +7,3 @@ export type VouBillChangeLineInput = {
   purpose: 'CHANGE';
   remark?: string;
 };
-

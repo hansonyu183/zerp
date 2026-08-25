@@ -6,4 +6,3 @@ export type ProfileRequest = {
   displayName?: string;
   avatarUrl?: string | null;
 };
-

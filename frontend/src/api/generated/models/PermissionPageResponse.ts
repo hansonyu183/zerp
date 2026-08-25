@@ -10,4 +10,3 @@ export type PermissionPageResponse = {
   data: PermissionPage | null;
   requestId: string;
 };
-

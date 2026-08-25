@@ -7,4 +7,3 @@ export type BobProductUnitConversionInput = {
   unit: BobMeasurementUnitSnapshotInput;
   factor: string;
 };
-

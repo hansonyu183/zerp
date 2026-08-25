@@ -20,4 +20,3 @@ export type Subject = {
   referenced: boolean;
   revision: number;
 };
-

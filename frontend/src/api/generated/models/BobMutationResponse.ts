@@ -10,4 +10,3 @@ export type BobMutationResponse = {
   data: BobMutationResult | null;
   requestId: string;
 };
-

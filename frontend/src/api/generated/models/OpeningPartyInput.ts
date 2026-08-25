@@ -9,4 +9,3 @@ export type OpeningPartyInput = {
   code: string;
   name: string;
 };
-

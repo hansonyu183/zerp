@@ -17,4 +17,3 @@ export type Mapping = {
   approvedAt: string | null;
   approvedBy: string | null;
 };
-

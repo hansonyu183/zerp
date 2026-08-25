@@ -8,4 +8,3 @@ export type SalesPartnerVersionView = {
   version: CustomerVersionMeta;
   data: SalesPartnerDataView;
 };
-

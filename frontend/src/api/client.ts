@@ -8,17 +8,6 @@ type ContractPostPath = {
   [Path in keyof paths]: paths[Path] extends { post: unknown } ? Path : never
 }[keyof paths] &
   string
-const NULL_DATA_CONTRACT_PATHS = [
-  '/acc/book/delete',
-  '/acc/subject/delete',
-  '/aux/{entity}/delete',
-  '/bob/customer/account-delete',
-  '/bob/{entity}/delete',
-] as const satisfies readonly ContractPostPath[]
-type NullDataContractPath = (typeof NULL_DATA_CONTRACT_PATHS)[number]
-const nullDataContractPaths = new Set<ContractPostPath>(
-  NULL_DATA_CONTRACT_PATHS,
-)
 export type BobApiEntity = components['schemas']['BobEntity']
 export type AuxApiEntity = components['schemas']['AuxEntity']
 export type VouApiEntity = components['schemas']['VouEntity']
@@ -85,9 +74,7 @@ type ApiPostResponse<Path extends ApiPostPath> = Path extends ApiPostPath
 export type ApiPostData<Path extends ApiPostPath> =
   ApiPostResponse<Path> extends infer Response
     ? Response extends { data: infer Data }
-      ? ContractPathFor<Path> extends NullDataContractPath
-        ? Data
-        : NonNullable<Data>
+      ? NonNullable<Data>
       : never
     : never
 
@@ -244,10 +231,7 @@ export class ApiClient {
         })
       }
 
-      if (
-        payload.data === null &&
-        !nullDataContractPaths.has(contractRequest.path)
-      ) {
+      if (payload.data === null) {
         throw new ApiError('protocol', '后端成功响应缺少契约数据。')
       }
 

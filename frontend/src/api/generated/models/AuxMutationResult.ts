@@ -9,4 +9,3 @@ export type AuxMutationResult = {
   version: number;
   enabled: boolean;
 };
-

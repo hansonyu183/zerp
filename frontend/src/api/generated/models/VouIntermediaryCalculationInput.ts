@@ -11,4 +11,3 @@ export type VouIntermediaryCalculationInput = {
   script: VouIntermediaryScriptSnapshot;
   result: VouIntermediaryCalculationResult;
 };
-

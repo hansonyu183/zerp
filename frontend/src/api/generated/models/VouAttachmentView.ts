@@ -13,4 +13,3 @@ export type VouAttachmentView = {
   createdAt: string;
   createdBy: string;
 };
-

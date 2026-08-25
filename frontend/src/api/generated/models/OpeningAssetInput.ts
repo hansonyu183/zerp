@@ -15,4 +15,3 @@ export type OpeningAssetInput = {
   originalValue: string;
   accumulatedDepreciation: string;
 };
-

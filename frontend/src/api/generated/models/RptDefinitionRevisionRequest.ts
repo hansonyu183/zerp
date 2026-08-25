@@ -6,4 +6,3 @@ export type RptDefinitionRevisionRequest = {
   code: string;
   revision: number;
 };
-

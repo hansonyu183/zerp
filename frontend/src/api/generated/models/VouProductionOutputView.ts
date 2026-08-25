@@ -18,4 +18,3 @@ export type VouProductionOutputView = {
   remark?: string;
   materials: Array<VouProductionMaterialView>;
 };
-

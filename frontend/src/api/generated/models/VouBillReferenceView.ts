@@ -10,4 +10,3 @@ export type VouBillReferenceView = {
   name: string;
   currency?: string;
 };
-

@@ -11,4 +11,3 @@ export type SalesPartnerCreateRequest = ({
   newParty: PartyIdentityData;
   data: SalesPartnerInput;
 });
-

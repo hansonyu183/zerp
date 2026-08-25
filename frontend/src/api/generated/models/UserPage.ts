@@ -9,4 +9,3 @@ export type UserPage = {
   page: number;
   pageSize: 20;
 };
-

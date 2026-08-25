@@ -9,4 +9,3 @@ export type VouListPage = {
   page: number;
   pageSize: number;
 };
-

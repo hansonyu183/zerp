@@ -11,4 +11,3 @@ export type OpeningLine = {
   quantity: string | null;
   dimensions: Record<string, string>;
 };
-

@@ -1,15 +1,24 @@
-import { readFileSync } from 'node:fs'
-import { relative, resolve } from 'node:path'
-import { execFileSync } from 'node:child_process'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join, relative, resolve } from 'node:path'
 
 const frontendRoot = resolve(import.meta.dirname, '..')
 const sourceRoot = resolve(frontendRoot, 'src')
-const files = execFileSync('rg', ['--files', sourceRoot, '-g', '*.{ts,vue}'], {
-  encoding: 'utf8',
-})
-  .trim()
-  .split('\n')
-  .filter((file) => file && !file.includes('/api/generated/'))
+function sourceFiles(directory) {
+  const files = []
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) {
+      if (path !== join(sourceRoot, 'api', 'generated')) {
+        files.push(...sourceFiles(path))
+      }
+    } else if (entry.isFile() && /\.(?:ts|vue)$/.test(entry.name)) {
+      files.push(path)
+    }
+  }
+  return files
+}
+
+const files = sourceFiles(sourceRoot)
 
 const forbidden = [
   {

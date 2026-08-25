@@ -8,4 +8,3 @@ export type VouInventoryCountBalanceRequest = {
   warehouseObjectId: string;
   asOfDate: string;
 };
-

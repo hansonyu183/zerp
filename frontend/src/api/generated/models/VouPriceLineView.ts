@@ -10,4 +10,3 @@ export type VouPriceLineView = {
   unitPrice: string;
   remark?: string;
 };
-

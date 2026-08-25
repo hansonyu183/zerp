@@ -12,4 +12,3 @@ export type WorkbenchQueryRequest = {
   page: number;
   pageSize: 20;
 };
-

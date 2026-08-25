@@ -10,4 +10,3 @@ export type CustomerPricingPolicy = {
   thirdPartyIntermediaryFixedUnitCost: string;
   thirdPartyIntermediaryVariableUnitCost: string;
 };
-

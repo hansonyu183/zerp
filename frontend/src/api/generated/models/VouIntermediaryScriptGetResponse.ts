@@ -10,4 +10,3 @@ export type VouIntermediaryScriptGetResponse = {
   data: VouIntermediaryScriptSnapshot;
   requestId: string;
 };
-

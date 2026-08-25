@@ -11,4 +11,3 @@ export type VouFormulaInput = {
   sourceDocumentNo?: string;
   components: Array<VouFormulaComponentInput>;
 };
-

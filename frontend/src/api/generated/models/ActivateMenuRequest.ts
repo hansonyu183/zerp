@@ -7,4 +7,3 @@ export type ActivateMenuRequest = {
   mode: MenuMode;
   revision: number;
 };
-

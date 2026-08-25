@@ -10,4 +10,3 @@ export type ProfileResponse = {
   data: ProfileView | null;
   requestId: string;
 };
-

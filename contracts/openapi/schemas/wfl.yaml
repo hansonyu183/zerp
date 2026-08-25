@@ -326,6 +326,32 @@
         'requestId': { 'type': 'string' },
       },
   }
+'WflDefinitionDeleteResult':
+  {
+    'type': 'object',
+    'required': ['definitionId'],
+    'additionalProperties': false,
+    'properties': { 'definitionId': { 'type': 'string' } },
+  }
+'WflDefinitionDeleteResponse':
+  {
+    'type': 'object',
+    'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'code': { 'type': 'integer', 'format': 'int32' },
+        'errorKey': { 'type': 'string' },
+        'message': { 'type': 'string' },
+        'data':
+          {
+            'type': 'object',
+            'nullable': true,
+            'allOf': [{ '$ref': '#/WflDefinitionDeleteResult' }],
+          },
+        'requestId': { 'type': 'string' },
+      },
+  }
 'WflInstanceQueryRequest':
   {
     'type': 'object',

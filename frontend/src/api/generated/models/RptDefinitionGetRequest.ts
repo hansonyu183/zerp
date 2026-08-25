@@ -6,4 +6,3 @@ export type RptDefinitionGetRequest = {
   code: string;
   versionId?: string;
 };
-

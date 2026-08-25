@@ -15,4 +15,3 @@ export type UserQueryRequest = {
     order: 'asc';
   }>;
 };
-

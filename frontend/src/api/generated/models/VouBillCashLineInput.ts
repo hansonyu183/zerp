@@ -13,4 +13,3 @@ export type VouBillCashLineInput = {
   amount: string;
   remark?: string;
 };
-

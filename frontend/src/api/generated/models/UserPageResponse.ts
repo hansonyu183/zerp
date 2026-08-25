@@ -10,4 +10,3 @@ export type UserPageResponse = {
   data: UserPage | null;
   requestId: string;
 };
-

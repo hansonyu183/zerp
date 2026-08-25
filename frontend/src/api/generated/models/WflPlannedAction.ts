@@ -9,4 +9,3 @@ export type WflPlannedAction = {
   initial: any;
   result: WflBusinessObjectReference;
 };
-

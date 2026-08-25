@@ -10,4 +10,3 @@ export type BobVersionHistoryResponse = {
   data: BobVersionHistoryPage | null;
   requestId: string;
 };
-

@@ -10,4 +10,3 @@ export type CustomerVersionView = {
   data: CustomerAccountDataView;
   attachments: Array<CustomerAttachmentView>;
 };
-

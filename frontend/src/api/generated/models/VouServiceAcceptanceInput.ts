@@ -10,4 +10,3 @@ export type VouServiceAcceptanceInput = {
   fulfillmentFact?: string;
   acceptanceFact?: string;
 };
-

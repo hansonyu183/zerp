@@ -6,4 +6,3 @@ export type SubjectGetRequest = {
   bookId: string;
   subjectId: string;
 };
-

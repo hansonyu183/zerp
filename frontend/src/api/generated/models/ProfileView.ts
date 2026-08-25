@@ -10,4 +10,3 @@ export type ProfileView = {
   passwordChangedAt: string;
   revision: number;
 };
-

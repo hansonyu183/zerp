@@ -9,4 +9,3 @@ export type AuxVersionPage = {
   page: number;
   pageSize: number;
 };
-

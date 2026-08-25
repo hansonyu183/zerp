@@ -43,7 +43,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.BookDeleteRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
     };
   };
   "/acc/subject/query": {
@@ -83,7 +83,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.SubjectDeleteRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
     };
   };
   "/acc/opening/query": {
@@ -219,7 +219,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.EmptyObject } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
     };
   };
   "/app/workbench/query": {
@@ -251,7 +251,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.ChangePasswordRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
     };
   };
   "/app/user/get": {
@@ -483,7 +483,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path: { "entity": Models.AuxEntity; }; cookie?: never };
       requestBody: { content: { 'application/json': Models.AuxRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
     };
   };
   "/aux/{entity}/versions": {
@@ -563,7 +563,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobDeleteRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
     };
   };
   "/bob/other-unit/submit": {
@@ -667,7 +667,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobDeleteRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
     };
   };
   "/bob/customer/save": {
@@ -843,7 +843,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path: { "entity": Models.BobEntity; }; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobDeleteRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
     };
   };
   "/bob/{entity}/submit": {
@@ -1155,7 +1155,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.WflDefinitionActionRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.WflDefinitionDeleteResponse } } };
     };
   };
   "/wfl/process-instance/query": {
@@ -1291,7 +1291,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.RptDefinitionRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.RptMutationResponse } } };
     };
   };
   "/rpt/{report}/query": {
@@ -1366,7 +1366,8 @@ export interface components {
       "BookCreateRequest": Models.BookCreateRequest;
       "BookSaveRequest": Models.BookSaveRequest;
       "BookDeleteRequest": Models.BookDeleteRequest;
-      "BusinessEnvelope": Models.BusinessEnvelope;
+      "EmptyObject": Models.EmptyObject;
+      "EmptyResponse": Models.EmptyResponse;
       "SubjectQueryRequest": Models.SubjectQueryRequest;
       "BalanceDirection": Models.BalanceDirection;
       "SubjectDimension": Models.SubjectDimension;
@@ -1423,7 +1424,6 @@ export interface components {
       "SessionUser": Models.SessionUser;
       "SessionData": Models.SessionData;
       "SessionResponse": Models.SessionResponse;
-      "EmptyObject": Models.EmptyObject;
       "WorkbenchCategory": Models.WorkbenchCategory;
       "WorkbenchPendingStage": Models.WorkbenchPendingStage;
       "WorkbenchQueryRequest": Models.WorkbenchQueryRequest;
@@ -1540,6 +1540,7 @@ export interface components {
       "OtherUnitSaveRequest": Models.OtherUnitSaveRequest;
       "BobDeleteRequest": Models.BobDeleteRequest;
       "BobVersionRevisionRequest": Models.BobVersionRevisionRequest;
+      "BusinessEnvelope": Models.BusinessEnvelope;
       "BobReverseRequest": Models.BobReverseRequest;
       "BobReviewRequest": Models.BobReviewRequest;
       "BobObjectRevisionRequest": Models.BobObjectRevisionRequest;
@@ -1768,6 +1769,8 @@ export interface components {
       "WflDefinitionTrialResult": Models.WflDefinitionTrialResult;
       "WflDefinitionTrialResponse": Models.WflDefinitionTrialResponse;
       "WflDefinitionActionRequest": Models.WflDefinitionActionRequest;
+      "WflDefinitionDeleteResult": Models.WflDefinitionDeleteResult;
+      "WflDefinitionDeleteResponse": Models.WflDefinitionDeleteResponse;
       "WflInstanceQueryRequest": Models.WflInstanceQueryRequest;
       "WflInstanceListItem": Models.WflInstanceListItem;
       "WflInstancePage": Models.WflInstancePage;
@@ -1792,6 +1795,8 @@ export interface components {
       "RptVersionSaveRequest": Models.RptVersionSaveRequest;
       "RptVersionRevisionRequest": Models.RptVersionRevisionRequest;
       "RptDefinitionRevisionRequest": Models.RptDefinitionRevisionRequest;
+      "RptMutationResult": Models.RptMutationResult;
+      "RptMutationResponse": Models.RptMutationResponse;
       "RptExecuteRequest": Models.RptExecuteRequest;
       "RptDirectoryQueryRequest": Models.RptDirectoryQueryRequest;
       "RptReferenceQueryRequest": Models.RptReferenceQueryRequest;

@@ -10,4 +10,3 @@ export type AuxAuditEventPageResponse = {
   data: AuxAuditEventPage | null;
   requestId: string;
 };
-

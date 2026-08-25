@@ -15,4 +15,3 @@ export type WflDefinitionListItem = {
   nodeCount: number;
   updatedAt: string;
 };
-

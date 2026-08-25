@@ -13,4 +13,3 @@ export type PartyRelationshipCard = {
   status: 'DRAFT' | 'PENDING' | 'REJECTED' | 'EFFECTIVE' | 'INVALID';
   version: number;
 };
-

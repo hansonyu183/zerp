@@ -9,4 +9,3 @@ export type VouFormulaDefaultView = {
   sourceDocumentNo?: string;
   formula?: VouFormulaView;
 };
-

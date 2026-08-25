@@ -7,4 +7,3 @@ export type OpeningContainerInput = {
   containerType: 'SOLVENT' | 'RESIN';
   quantity: number;
 };
-

@@ -6,4 +6,3 @@ export type VouAttachmentDownloadResult = {
   downloadUrl: string;
   expiresAt: string;
 };
-

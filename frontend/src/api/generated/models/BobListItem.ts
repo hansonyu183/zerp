@@ -14,4 +14,3 @@ export type BobListItem = {
   candidate: BobVersionSummary | null;
   updatedAt: string;
 };
-

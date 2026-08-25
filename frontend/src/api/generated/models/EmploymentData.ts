@@ -11,4 +11,3 @@ export type EmploymentData = {
   hireDate?: string | null;
   remark?: string | null;
 };
-

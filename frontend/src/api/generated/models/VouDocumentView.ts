@@ -27,4 +27,3 @@ export type VouDocumentView = {
   parentDocumentId?: string;
   parentDocumentNo?: string;
 };
-

@@ -10,4 +10,3 @@ export type AssetAccountingConfiguration = {
   depreciationExpenseSubjectId: string;
   depreciationExpenseDimensions: Record<string, string>;
 };
-

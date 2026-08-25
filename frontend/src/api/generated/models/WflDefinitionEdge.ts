@@ -8,4 +8,3 @@ export type WflDefinitionEdge = {
   action: 'expense_payment' | 'purchase_inbound' | 'sale_outbound' | 'sale_delivery' | 'sale_signoff' | 'sale_return';
   relation: string;
 };
-

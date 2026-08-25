@@ -19,4 +19,3 @@ export type CustomerDetailView = {
   attachments: Array<CustomerAttachmentView>;
   updatedAt: string;
 };
-

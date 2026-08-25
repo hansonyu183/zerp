@@ -9,4 +9,3 @@ export type RolePage = {
   page: number;
   pageSize: 20;
 };
-

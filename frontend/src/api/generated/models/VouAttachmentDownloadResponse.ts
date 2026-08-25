@@ -7,4 +7,3 @@ import type { VouAttachmentDownloadResult } from './VouAttachmentDownloadResult'
 export type VouAttachmentDownloadResponse = (BusinessEnvelope & {
   data?: VouAttachmentDownloadResult | null;
 });
-

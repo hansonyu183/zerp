@@ -13,4 +13,3 @@ export type PartyListItem = {
   mergedAt?: string;
   updatedAt: string;
 };
-

@@ -6,4 +6,3 @@ import type { MenuItemView } from './MenuItemView';
 export type MenuTree = {
   items: Array<MenuItemView>;
 };
-

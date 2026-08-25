@@ -11,4 +11,3 @@ export type AuxAuditEventView = {
   requestId: string;
   summary: Record<string, any>;
 };
-

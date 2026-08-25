@@ -8,4 +8,3 @@ export type VouBillDiscountLineInput = {
   annualRateBps: number;
   remark?: string;
 };
-

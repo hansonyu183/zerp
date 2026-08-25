@@ -12,4 +12,3 @@ export type PermissionDetail = {
   status: UserStatus;
   roleCount: number;
 };
-

@@ -9,4 +9,3 @@ export type BobVersionHistoryPage = {
   page: number;
   pageSize: number;
 };
-

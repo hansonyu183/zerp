@@ -10,4 +10,3 @@ export type WflInstanceViewResponse = {
   data: WflInstanceView | null;
   requestId: string;
 };
-

@@ -13,4 +13,3 @@ export type PartyMergePreflightResult = {
   blockReasons: Array<string>;
   relationshipConflicts: Array<PartyMergeRelationshipConflict>;
 };
-

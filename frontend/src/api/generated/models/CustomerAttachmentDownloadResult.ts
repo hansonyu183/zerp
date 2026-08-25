@@ -6,4 +6,3 @@ export type CustomerAttachmentDownloadResult = {
   downloadUrl: string;
   expiresAt: string;
 };
-

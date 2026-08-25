@@ -10,4 +10,3 @@ export type BobVersionSummary = {
   submittedBy: string | null;
   summary: Record<string, any>;
 };
-

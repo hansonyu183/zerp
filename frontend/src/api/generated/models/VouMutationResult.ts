@@ -9,4 +9,3 @@ export type VouMutationResult = {
   status: VouStatus;
   revision: number;
 };
-

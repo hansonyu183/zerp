@@ -10,4 +10,3 @@ export type OtherUnitMutationResponse = {
   data: OtherUnitMutationResult | null;
   requestId: string;
 };
-

@@ -16,4 +16,3 @@ export type SystemParameterQueryRequest = {
     order: 'asc';
   }>;
 };
-

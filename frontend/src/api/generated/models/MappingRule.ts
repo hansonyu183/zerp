@@ -9,4 +9,3 @@ export type MappingRule = {
   result: MappingResult;
   templateId: string | null;
 };
-

@@ -10,4 +10,3 @@ export type OtherUnitQueryResponse = {
   data: OtherUnitPage | null;
   requestId: string;
 };
-

@@ -17,4 +17,3 @@ export type BobAuditEvent = {
   requestId: string;
   summary: Record<string, any>;
 };
-

@@ -12,4 +12,3 @@ export type VouInventoryCountBalancePage = {
   page: number;
   pageSize: number;
 };
-

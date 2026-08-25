@@ -9,4 +9,3 @@ export type BobDetailView = (data & {
   productTypeName?: string;
   behaviorProfile?: 'RAW_MATERIAL' | 'STANDARD_FINISHED' | 'CUSTOM_FINISHED' | 'PACKAGING';
 });
-

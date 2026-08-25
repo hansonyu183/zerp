@@ -15,4 +15,3 @@ export type PartyQueryRequest = {
     merged?: boolean;
   };
 };
-

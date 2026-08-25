@@ -9,4 +9,3 @@ import type { VouBillMaturityLineInput } from './VouBillMaturityLineInput';
 import type { VouBillPaymentLineInput } from './VouBillPaymentLineInput';
 import type { VouBillPrimaryLineInput } from './VouBillPrimaryLineInput';
 export type VouBillLineInput = (VouBillPrimaryLineInput | VouBillChangeLineInput | VouBillPaymentLineInput | VouBillIssueLineInput | VouBillDiscountLineInput | VouBillMaturityLineInput);
-

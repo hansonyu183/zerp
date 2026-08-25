@@ -9,4 +9,3 @@ export type VouIntermediaryScriptSnapshot = {
   source: string;
   hash: string;
 };
-

@@ -7,4 +7,3 @@ export type VouAttachmentRemoveRequest = {
   revision: number;
   fileId: string;
 };
-

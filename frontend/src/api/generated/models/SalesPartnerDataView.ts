@@ -11,4 +11,3 @@ export type SalesPartnerDataView = {
   address?: string;
   remark?: string;
 };
-

@@ -7,4 +7,3 @@ export type VouBillMaturityLineInput = {
   purpose: 'PRIMARY';
   remark?: string;
 };
-

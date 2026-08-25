@@ -12,4 +12,3 @@ export type OtherUnitMutationResult = {
   revision: number;
   partyId?: string;
 };
-

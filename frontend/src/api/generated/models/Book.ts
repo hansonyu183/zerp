@@ -16,4 +16,3 @@ export type Book = {
   queryUserIds: Array<string>;
   operateUserIds: Array<string>;
 };
-

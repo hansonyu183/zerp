@@ -7,4 +7,3 @@ import type { VouAttachmentInitiateResult } from './VouAttachmentInitiateResult'
 export type VouAttachmentInitiateResponse = (BusinessEnvelope & {
   data?: VouAttachmentInitiateResult | null;
 });
-

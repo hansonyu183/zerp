@@ -19,4 +19,3 @@ export type BobObjectView = {
   data: BobDetailView;
   relationship?: BobRelationshipIdentityView;
 };
-

@@ -6,4 +6,3 @@ export type CustomerSalesAttributionInput = {
   type: 'INTERNAL_EMPLOYEE' | 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER';
   subjectObjectId: string;
 };
-

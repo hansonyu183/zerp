@@ -8,4 +8,3 @@ export type AuxSaveRequest = {
   revision: number;
   data: AuxData;
 };
-

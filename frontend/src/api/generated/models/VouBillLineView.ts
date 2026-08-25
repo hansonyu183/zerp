@@ -25,4 +25,3 @@ export type VouBillLineView = {
   customerCostAmount: string;
   remark?: string;
 };
-

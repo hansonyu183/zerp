@@ -5,4 +5,3 @@
 import type { VehicleExternalCarrierAffiliation } from './VehicleExternalCarrierAffiliation';
 import type { VehicleInternalCarrierAffiliation } from './VehicleInternalCarrierAffiliation';
 export type VehicleCarrierAffiliation = (VehicleInternalCarrierAffiliation | VehicleExternalCarrierAffiliation);
-

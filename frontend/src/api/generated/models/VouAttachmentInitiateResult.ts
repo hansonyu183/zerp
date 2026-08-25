@@ -8,4 +8,3 @@ export type VouAttachmentInitiateResult = {
   expiresAt: string;
   revision: number;
 };
-

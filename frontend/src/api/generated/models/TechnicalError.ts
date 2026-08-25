@@ -6,4 +6,3 @@ export type TechnicalError = {
   error: string;
   requestId: string;
 };
-

@@ -484,7 +484,7 @@ func (h *Handler) create(c *gin.Context, entity string) {
 func (h *Handler) customerAccountDelete(c *gin.Context) {
 	var input DeleteInput
 	if h.bind(c, &input) {
-		h.result(c, nil, h.service.CustomerAccountDelete(c.Request.Context(), input))
+		h.result(c, struct{}{}, h.service.CustomerAccountDelete(c.Request.Context(), input))
 	}
 }
 
@@ -532,7 +532,7 @@ func (h *Handler) delete(c *gin.Context, entity string) {
 	var input DeleteInput
 	if h.bind(c, &input) {
 		err := h.service.Delete(c.Request.Context(), entity, input)
-		h.result(c, nil, err)
+		h.result(c, struct{}{}, err)
 	}
 }
 

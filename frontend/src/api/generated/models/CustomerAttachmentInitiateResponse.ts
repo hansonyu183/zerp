@@ -10,4 +10,3 @@ export type CustomerAttachmentInitiateResponse = {
   data: CustomerAttachmentInitiateResult;
   requestId: string;
 };
-

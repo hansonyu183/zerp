@@ -69,6 +69,29 @@ RptVersionData:
       minItems: 1
       items: { $ref: '#/RptResultColumn' }
 
+RptMutationResult:
+  type: object
+  additionalProperties: false
+  required: [id, revision]
+  properties:
+    id: { type: string }
+    status: { type: string }
+    revision: { type: integer, format: int64 }
+
+RptMutationResponse:
+  type: object
+  additionalProperties: false
+  required: [code, errorKey, message, data, requestId]
+  properties:
+    code: { type: integer, format: int32 }
+    errorKey: { type: string }
+    message: { type: string }
+    data:
+      type: object
+      nullable: true
+      allOf: [{ $ref: '#/RptMutationResult' }]
+    requestId: { type: string }
+
 RptDefinitionCreateRequest:
   type: object
   additionalProperties: false

@@ -10,4 +10,3 @@ export type RolePageResponse = {
   data: RolePage | null;
   requestId: string;
 };
-

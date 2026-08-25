@@ -39,4 +39,3 @@ export type VouIntermediarySourceLine = {
   adjustmentIntermediaryAmount: string;
   adjustmentRebateAmount: string;
 };
-

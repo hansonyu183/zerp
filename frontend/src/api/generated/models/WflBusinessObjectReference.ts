@@ -8,4 +8,3 @@ export type WflBusinessObjectReference = {
   documentId: string;
   documentNo: string;
 };
-

@@ -10,4 +10,3 @@ export type WflDefinitionViewResponse = {
   data: WflDefinitionView | null;
   requestId: string;
 };
-

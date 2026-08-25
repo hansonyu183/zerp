@@ -15,4 +15,3 @@ export type VouInventoryCountLineView = {
   differenceBaseQuantity?: string;
   remark?: string;
 };
-

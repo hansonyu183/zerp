@@ -10,4 +10,3 @@ export type BobQueryResponse = {
   data: BobListPage | null;
   requestId: string;
 };
-

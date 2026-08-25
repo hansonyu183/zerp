@@ -14,4 +14,3 @@ export type VouFormulaView = {
     quantity: VouQuantitySnapshotView;
   }>;
 };
-

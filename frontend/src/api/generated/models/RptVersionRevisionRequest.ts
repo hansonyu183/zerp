@@ -8,4 +8,3 @@ export type RptVersionRevisionRequest = {
   revision: number;
   validationParameters?: Record<string, any>;
 };
-

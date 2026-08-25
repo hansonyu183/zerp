@@ -10,4 +10,3 @@ export type SessionData = {
   passwordChangeRequired: boolean;
   passwordMinLength: number;
 };
-

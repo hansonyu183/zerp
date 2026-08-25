@@ -13,4 +13,3 @@ export type MenuGetData = {
   navigation: MenuTree;
   availableRoutes: Array<MenuRouteOption>;
 };
-

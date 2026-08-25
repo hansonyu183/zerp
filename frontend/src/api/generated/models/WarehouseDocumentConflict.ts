@@ -10,4 +10,3 @@ export type WarehouseDocumentConflict = {
   documentNo: string;
   status?: VouStatus;
 };
-

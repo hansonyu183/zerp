@@ -11,4 +11,3 @@ export type PartyMergeConfirmRequest = {
   targetRevision: number;
   conflictResolutions: Array<PartyMergeConflictResolution>;
 };
-

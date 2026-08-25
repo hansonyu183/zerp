@@ -10,4 +10,3 @@ export type VouAttachmentInitiateRequest = {
   size: number;
   sha256: string;
 };
-

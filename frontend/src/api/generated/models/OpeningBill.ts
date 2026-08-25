@@ -24,4 +24,3 @@ export type OpeningBill = {
   originatingParty?: OpeningPartyInput;
   createObject: boolean;
 };
-

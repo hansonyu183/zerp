@@ -9,4 +9,3 @@ export type BobListPage = {
   page: number;
   pageSize: number;
 };
-

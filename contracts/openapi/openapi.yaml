@@ -6430,6 +6430,8 @@
         {
           'ApprovalStatus': { '$ref': './schemas/common.yaml#/ApprovalStatus' },
           'ApprovalMeta': { '$ref': './schemas/common.yaml#/ApprovalMeta' },
+          'ApprovalVersionMeta':
+            { '$ref': './schemas/common.yaml#/ApprovalVersionMeta' },
         },
       'securitySchemes':
         {

@@ -31,7 +31,7 @@
 - 领域 Service 必须在构造完成时即可安全使用；确需替换、隔离或跨域协作的外部能力由构造函数显式注入。固定 SQL 直接通过 sqlc 查询使用；不为简单 CRUD 额外引入 Repository/Store 接口、后置 Setter、空占位接口或调用顺序依赖。
 - 领域包保留业务规则和自身模型。两个领域之间稳定、无业务决策的类型映射或引用解析放在 `internal/integrations/<purpose>/`，由适配器明确依赖方向；不得在 `httpserver`、seed 或多个领域包中复制同一转换逻辑。
 - `internal/platform/` 只接收确定为领域无关的基础能力。公共工具应具备稳定语义、清晰边界并至少被多个领域复用；金额精度、状态含义、默认值等领域决策不得为了消除少量重复而下沉成通用函数。
-- 中央 Approval 固定位于 `internal/platform/approval/`，直接接收调用方 `pgx.Tx` 并使用 APP Authorizer；Domain 不得提供 Approval Store Adapter、任意 permission path、callback/hook 或第二套审批持久化。
+- 中央 Approval 固定位于 `internal/platform/approval/`，直接接收调用方 `pgx.Tx` 并使用 APP Authorizer；审批版本号、开放候选约束与 latest approved 查询也归中央 Approval，Domain 不得提供 Approval Store Adapter、任意 permission path、callback/hook、版本指针或第二套审批与版本持久化。
 - 固定形状、可命名的查询必须写入 `db/queries/` 并通过 sqlc 调用；只有确实需要动态组合条件、排序或结构的查询才可在实现中构造 SQL，并必须集中封装、参数化和测试。
 - 测试 seed 必须沿用当前 AUX → BOB → VOU/WFL → ACC 领域边界且保持幂等；生产数据初始化以后单独设计，不得由测试样本反向决定运行时依赖或公共适配器设计。
 

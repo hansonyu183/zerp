@@ -88,20 +88,23 @@ func (a Actor) RequestID() string { return a.requestID }
 func (a Actor) Trusted() bool     { return a.trusted }
 
 type Event[T any] struct {
-	Entry        Entry
-	Action       Action
-	FromStatus   *Status
-	ToStatus     *Status
-	FromRevision *int64
-	ToRevision   *int64
-	ActorID      string
-	RequestID    string
-	Reason       *string
-	Payload      T
-	SubmittedBy  *string
-	SubmittedAt  *time.Time
-	ApprovedBy   *string
-	ApprovedAt   *time.Time
+	Entry                     Entry
+	VersionNo                 *int32
+	Action                    Action
+	FromStatus                *Status
+	ToStatus                  *Status
+	FromRevision              *int64
+	ToRevision                *int64
+	ActorID                   string
+	RequestID                 string
+	Reason                    *string
+	Payload                   T
+	SubmittedBy               *string
+	SubmittedAt               *time.Time
+	ApprovedBy                *string
+	ApprovedAt                *time.Time
+	PreviousApprovedVersionID *string
+	CurrentApprovedVersionID  *string
 }
 
 type Prepared struct {

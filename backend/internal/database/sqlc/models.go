@@ -464,10 +464,11 @@ type AppUserRole struct {
 }
 
 type ApprovalEntry struct {
-	ID          string             `db:"id" json:"id"`
-	Domain      string             `db:"domain" json:"domain"`
-	Entity      string             `db:"entity" json:"entity"`
-	SubjectID   string             `db:"subject_id" json:"subject_id"`
+	ID        string `db:"id" json:"id"`
+	Domain    string `db:"domain" json:"domain"`
+	Entity    string `db:"entity" json:"entity"`
+	SubjectID string `db:"subject_id" json:"subject_id"`
+	// NULL for Approval-only entries; positive and required for Approval Version entries.
 	VersionNo   *int32             `db:"version_no" json:"version_no"`
 	Status      string             `db:"status" json:"status"`
 	Revision    int64              `db:"revision" json:"revision"`

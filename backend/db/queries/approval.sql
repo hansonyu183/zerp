@@ -10,6 +10,24 @@ INSERT INTO approval_entries(
 )
 RETURNING *;
 
+-- name: CreateApprovalVersion :one
+INSERT INTO approval_entries(
+  id, domain, entity, subject_id, version_no, status, revision,
+  created_by, created_at, updated_by, updated_at,
+  submitted_by, submitted_at, approved_by, approved_at
+) VALUES (
+  sqlc.arg(id), sqlc.arg(domain), sqlc.arg(entity), sqlc.arg(subject_id), sqlc.arg(version_no), 'DRAFT', 1,
+  sqlc.arg(actor_id), sqlc.arg(occurred_at), sqlc.arg(actor_id), sqlc.arg(occurred_at),
+  NULL, NULL, NULL, NULL
+)
+RETURNING *;
+
+-- name: LockApprovalVersionSubject :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+  'approval.version:' || sqlc.arg(domain) || ':' || sqlc.arg(entity) || ':' || sqlc.arg(subject_id),
+  0
+));
+
 -- name: GetApprovalEntry :one
 SELECT *
 FROM approval_entries
@@ -20,6 +38,58 @@ SELECT *
 FROM approval_entries
 WHERE id = sqlc.arg(id) AND domain = sqlc.arg(domain) AND entity = sqlc.arg(entity)
 FOR UPDATE;
+
+-- name: GetLatestApprovedVersion :one
+SELECT *
+FROM approval_entries
+WHERE domain = sqlc.arg(domain)
+  AND entity = sqlc.arg(entity)
+  AND subject_id = sqlc.arg(subject_id)
+  AND version_no IS NOT NULL
+  AND status = 'APPROVED'
+ORDER BY version_no DESC
+LIMIT 1;
+
+-- name: LockLatestApprovedVersion :one
+SELECT *
+FROM approval_entries
+WHERE domain = sqlc.arg(domain)
+  AND entity = sqlc.arg(entity)
+  AND subject_id = sqlc.arg(subject_id)
+  AND version_no IS NOT NULL
+  AND status = 'APPROVED'
+ORDER BY version_no DESC
+LIMIT 1
+FOR UPDATE;
+
+-- name: GetOpenApprovalVersion :one
+SELECT *
+FROM approval_entries
+WHERE domain = sqlc.arg(domain)
+  AND entity = sqlc.arg(entity)
+  AND subject_id = sqlc.arg(subject_id)
+  AND version_no IS NOT NULL
+  AND status IN ('DRAFT', 'PENDING')
+LIMIT 1;
+
+-- name: ListApprovalVersions :many
+SELECT *
+FROM approval_entries
+WHERE domain = sqlc.arg(domain)
+  AND entity = sqlc.arg(entity)
+  AND subject_id = sqlc.arg(subject_id)
+  AND version_no IS NOT NULL
+ORDER BY version_no DESC;
+
+-- name: ApprovalVersionsExist :one
+SELECT EXISTS(
+  SELECT 1
+  FROM approval_entries
+  WHERE domain = sqlc.arg(domain)
+    AND entity = sqlc.arg(entity)
+    AND subject_id = sqlc.arg(subject_id)
+    AND version_no IS NOT NULL
+);
 
 -- name: UpdateApprovalEntry :one
 UPDATE approval_entries

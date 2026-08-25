@@ -10846,6 +10846,15 @@ CREATE INDEX approval_entries_latest_approved_idx
     ON public.approval_entries USING btree (domain, entity, subject_id, version_no DESC)
     WHERE ((version_no IS NOT NULL) AND ((status)::text = 'APPROVED'::text));
 
+COMMENT ON COLUMN public.approval_entries.version_no IS
+    'NULL for Approval-only entries; positive and required for Approval Version entries.';
+COMMENT ON INDEX public.approval_entries_version_unique IS
+    'One immutable version number per domain/entity/stable subject.';
+COMMENT ON INDEX public.approval_entries_open_version_unique IS
+    'At most one DRAFT or PENDING candidate per versioned stable subject.';
+COMMENT ON INDEX public.approval_entries_latest_approved_idx IS
+    'Supports highest approved version lookup without a current-version pointer.';
+
 CREATE TABLE public.approval_events (
     id character varying(26) NOT NULL,
     entry_id character varying(26) NOT NULL,

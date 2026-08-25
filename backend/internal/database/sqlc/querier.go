@@ -37,6 +37,7 @@ type Querier interface {
 	AdvanceBobProductCandidate(ctx context.Context, arg AdvanceBobProductCandidateParams) (int64, error)
 	AdvanceBobSalesPartnerCandidate(ctx context.Context, arg AdvanceBobSalesPartnerCandidateParams) (int64, error)
 	AdvanceBobSupplierCandidate(ctx context.Context, arg AdvanceBobSupplierCandidateParams) (int64, error)
+	ApprovalVersionsExist(ctx context.Context, arg ApprovalVersionsExistParams) (bool, error)
 	ApproveAccountingMapping(ctx context.Context, arg ApproveAccountingMappingParams) (int64, error)
 	ApproveAccountingOpening(ctx context.Context, arg ApproveAccountingOpeningParams) (int64, error)
 	ApproveBobVersion(ctx context.Context, arg ApproveBobVersionParams) (int64, error)
@@ -122,6 +123,7 @@ type Querier interface {
 	CreateAppAuditEvent(ctx context.Context, arg CreateAppAuditEventParams) error
 	CreateAppSession(ctx context.Context, arg CreateAppSessionParams) error
 	CreateApprovalEntry(ctx context.Context, arg CreateApprovalEntryParams) (ApprovalEntry, error)
+	CreateApprovalVersion(ctx context.Context, arg CreateApprovalVersionParams) (ApprovalEntry, error)
 	CreateApprovedZeroAccountingOpening(ctx context.Context, arg CreateApprovedZeroAccountingOpeningParams) error
 	CreateAutomaticAccountingVoucher(ctx context.Context, arg CreateAutomaticAccountingVoucherParams) error
 	CreateWorkflowActionExecution(ctx context.Context, arg CreateWorkflowActionExecutionParams) error
@@ -308,9 +310,11 @@ type Querier interface {
 	GetCustomerFileStorageKey(ctx context.Context, fileID string) (string, error)
 	GetDefinitionInstance(ctx context.Context, id string) (GetDefinitionInstanceRow, error)
 	GetFundAccountOperatingDetail(ctx context.Context, versionID string) (GetFundAccountOperatingDetailRow, error)
+	GetLatestApprovedVersion(ctx context.Context, arg GetLatestApprovedVersionParams) (ApprovalEntry, error)
 	GetLatestLockedAccountingPeriod(ctx context.Context, bookID string) (GetLatestLockedAccountingPeriodRow, error)
 	GetMinimumAccountingFundBalance(ctx context.Context, arg GetMinimumAccountingFundBalanceParams) (int64, error)
 	GetMinimumAccountingInventoryQuantity(ctx context.Context, arg GetMinimumAccountingInventoryQuantityParams) (int64, error)
+	GetOpenApprovalVersion(ctx context.Context, arg GetOpenApprovalVersionParams) (ApprovalEntry, error)
 	GetPublishedWorkflowDefinitionIDByCode(ctx context.Context, code string) (string, error)
 	GetPurchaseInboundSettlementSource(ctx context.Context, documentID string) (GetPurchaseInboundSettlementSourceRow, error)
 	GetPurchaseOrderSettlementGate(ctx context.Context, orderID string) (GetPurchaseOrderSettlementGateRow, error)
@@ -496,6 +500,7 @@ type Querier interface {
 	ListAppSystemParameters(ctx context.Context, arg ListAppSystemParametersParams) ([]AppSystemParameter, error)
 	ListAppUserRoleSummaries(ctx context.Context, userID string) ([]ListAppUserRoleSummariesRow, error)
 	ListAppUsers(ctx context.Context, arg ListAppUsersParams) ([]ListAppUsersRow, error)
+	ListApprovalVersions(ctx context.Context, arg ListApprovalVersionsParams) ([]ApprovalEntry, error)
 	ListBobAuditEvents(ctx context.Context, arg ListBobAuditEventsParams) ([]BobAuditEvent, error)
 	ListBobCategoryAncestorIDs(ctx context.Context, arg ListBobCategoryAncestorIDsParams) ([]string, error)
 	ListBobCustomerAccounts(ctx context.Context, customerRelationshipID string) ([]ListBobCustomerAccountsRow, error)
@@ -580,6 +585,7 @@ type Querier interface {
 	LockAccountingInventory(ctx context.Context, lockKey string) error
 	LockAccountingPeriodRow(ctx context.Context, arg LockAccountingPeriodRowParams) (LockAccountingPeriodRowRow, error)
 	LockApprovalEntry(ctx context.Context, arg LockApprovalEntryParams) (ApprovalEntry, error)
+	LockApprovalVersionSubject(ctx context.Context, arg LockApprovalVersionSubjectParams) error
 	LockBobCustomerAccountRelationship(ctx context.Context, objectID string) (string, error)
 	LockBobObject(ctx context.Context, arg LockBobObjectParams) (LockBobObjectRow, error)
 	LockBobParty(ctx context.Context, partyID string) (BobParty, error)
@@ -590,6 +596,7 @@ type Querier interface {
 	LockEffectiveCategoryReference(ctx context.Context, targetCategoryID string) (string, error)
 	LockEffectiveServiceRelationship(ctx context.Context, serviceRelationshipObjectID string) (string, error)
 	LockExpiredPendingVouFile(ctx context.Context, id string) (string, error)
+	LockLatestApprovedVersion(ctx context.Context, arg LockLatestApprovedVersionParams) (ApprovalEntry, error)
 	LockPartyMergeObjects(ctx context.Context, objectIds []string) ([]LockPartyMergeObjectsRow, error)
 	LockPartyMergeParty(ctx context.Context, partyID string) (LockPartyMergePartyRow, error)
 	LockPartyMergePreflight(ctx context.Context, id string) (BobPartyMergePreflight, error)

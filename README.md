@@ -83,7 +83,7 @@ ZERP 正式支持同源 Web 和 Cloudflare Pages 两种前端部署。拓扑、A
 
 ## 文档
 
-- [Approval：中央审批](docs/domains/approval.md)
+- [Approval：中央审批与版本](docs/domains/approval.md)
 - [APP：访问、会话与权限](docs/domains/app.md)
 - [BOB：业务对象](docs/domains/bob.md)
 - [AUX：辅助对象](docs/domains/aux.md)

@@ -107,6 +107,53 @@
             { 'type': 'string', 'format': 'date-time', 'nullable': true },
         },
     },
+  'ApprovalVersionMeta':
+    {
+      'type': 'object',
+      'required':
+        [
+          'approvalEntryId',
+          'versionNo',
+          'status',
+          'revision',
+          'createdBy',
+          'createdAt',
+          'updatedBy',
+          'updatedAt',
+          'submittedBy',
+          'submittedAt',
+          'approvedBy',
+          'approvedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'approvalEntryId':
+            {
+              'type': 'string',
+              'description': '中央 Approval entry 的稳定身份。',
+            },
+          'versionNo':
+            {
+              'type': 'integer',
+              'format': 'int32',
+              'minimum': 1,
+              'description': '同一 stable subject 内从 1 开始的版本号。',
+            },
+          'status': { '$ref': '#/ApprovalStatus' },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'createdBy': { 'type': 'string' },
+          'createdAt': { 'type': 'string', 'format': 'date-time' },
+          'updatedBy': { 'type': 'string' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+          'submittedBy': { 'type': 'string', 'nullable': true },
+          'submittedAt':
+            { 'type': 'string', 'format': 'date-time', 'nullable': true },
+          'approvedBy': { 'type': 'string', 'nullable': true },
+          'approvedAt':
+            { 'type': 'string', 'format': 'date-time', 'nullable': true },
+        },
+    },
   'PageRequest':
     {
       'type': 'object',

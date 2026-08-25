@@ -26,6 +26,7 @@ import (
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
 	"github.com/hansonyu183/zerp/backend/internal/platform/attachmentstore"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type pingerStub struct {
@@ -67,6 +68,20 @@ func testConfig() config.Config {
 
 func testLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
+func TestNewFailsWhenMenuRouteSynchronizationFails(t *testing.T) {
+	pool, err := pgxpool.New(t.Context(), "postgres://test:test@127.0.0.1:1/zerp_test?connect_timeout=1")
+	if err != nil {
+		t.Fatalf("create closed database pool: %v", err)
+	}
+	pool.Close()
+	cfg := testConfig()
+	cfg.AttachmentStorageRoot = t.TempDir()
+
+	if _, err = New(t.Context(), cfg, pool, testLogger()); err == nil || !strings.Contains(err.Error(), "synchronize menu routes") {
+		t.Fatalf("startup error = %v, want menu route synchronization failure", err)
+	}
 }
 
 func TestHealthAndReadiness(t *testing.T) {

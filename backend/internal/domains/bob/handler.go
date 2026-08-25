@@ -16,6 +16,7 @@ import (
 )
 
 type applicationService interface {
+	partyOtherUnitApplicationService
 	Query(context.Context, string, QueryInput) (Page[QueryItem], error)
 	Get(context.Context, string, GetInput) (ObjectView, error)
 	Create(context.Context, string, CreateInput, string, string) (MutationResult, error)
@@ -174,7 +175,7 @@ func (h *Handler) Register(router *gin.Engine) {
 func (h *Handler) otherUnitVersions(c *gin.Context) {
 	var input HistoryInput
 	if h.bind(c, &input) {
-		result, err := h.partyOtherUnitService().OtherUnitVersions(c.Request.Context(), input)
+		result, err := h.service.OtherUnitVersions(c.Request.Context(), input)
 		h.result(c, result, err)
 	}
 }
@@ -182,7 +183,7 @@ func (h *Handler) otherUnitVersions(c *gin.Context) {
 func (h *Handler) partyQuery(c *gin.Context) {
 	var input QueryInput
 	if h.bind(c, &input) {
-		result, err := h.partyOtherUnitService().PartyQuery(c.Request.Context(), input)
+		result, err := h.service.PartyQuery(c.Request.Context(), input)
 		h.result(c, result, err)
 	}
 }
@@ -193,7 +194,7 @@ func (h *Handler) partyGet(c *gin.Context) {
 		return
 	}
 	principal := h.principal(c)
-	result, err := h.partyOtherUnitService().PartyGet(c.Request.Context(), input, PartyRelationshipVisibility{
+	result, err := h.service.PartyGet(c.Request.Context(), input, PartyRelationshipVisibility{
 		Customer: hasPermission(principal, "/bob/customer/get"), Supplier: hasPermission(principal, "/bob/supplier/get"),
 		Employment: hasPermission(principal, "/bob/employee/get"), OtherUnit: hasPermission(principal, "/bob/other-unit/get"),
 		SalesPartner: hasPermission(principal, "/bob/sales-partner/get"),
@@ -204,7 +205,7 @@ func (h *Handler) partyGet(c *gin.Context) {
 func (h *Handler) partySave(c *gin.Context) {
 	var input PartySaveInput
 	if h.bind(c, &input) {
-		result, err := h.partyOtherUnitService().PartySave(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
+		result, err := h.service.PartySave(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
 		h.result(c, result, err)
 	}
 }
@@ -212,7 +213,7 @@ func (h *Handler) partySave(c *gin.Context) {
 func (h *Handler) partyMergePreflight(c *gin.Context) {
 	var input PartyMergePreflightInput
 	if h.bind(c, &input) {
-		result, err := h.partyOtherUnitService().PartyMergePreflight(c.Request.Context(), input,
+		result, err := h.service.PartyMergePreflight(c.Request.Context(), input,
 			h.partyRelationshipVisibility(c), h.actorID(c), response.RequestID(c))
 		h.result(c, result, err)
 	}
@@ -221,7 +222,7 @@ func (h *Handler) partyMergePreflight(c *gin.Context) {
 func (h *Handler) partyMergeConfirm(c *gin.Context) {
 	var input PartyMergeConfirmInput
 	if h.bind(c, &input) {
-		result, err := h.partyOtherUnitService().PartyMergeConfirm(c.Request.Context(), input,
+		result, err := h.service.PartyMergeConfirm(c.Request.Context(), input,
 			h.partyRelationshipVisibility(c), h.actorID(c), response.RequestID(c))
 		h.result(c, result, err)
 	}
@@ -239,7 +240,7 @@ func (h *Handler) partyRelationshipVisibility(c *gin.Context) PartyRelationshipV
 func (h *Handler) otherUnitQuery(c *gin.Context) {
 	var input QueryInput
 	if h.bind(c, &input) {
-		result, err := h.partyOtherUnitService().OtherUnitQuery(c.Request.Context(), input)
+		result, err := h.service.OtherUnitQuery(c.Request.Context(), input)
 		h.result(c, result, err)
 	}
 }
@@ -247,7 +248,7 @@ func (h *Handler) otherUnitQuery(c *gin.Context) {
 func (h *Handler) otherUnitGet(c *gin.Context) {
 	var input GetInput
 	if h.bind(c, &input) {
-		result, err := h.partyOtherUnitService().OtherUnitGet(c.Request.Context(), input)
+		result, err := h.service.OtherUnitGet(c.Request.Context(), input)
 		h.result(c, result, err)
 	}
 }
@@ -264,7 +265,7 @@ func (h *Handler) otherUnitCreate(c *gin.Context) {
 	if !authmiddleware.CheckPermission(c, h.authorizer, requiredPartyPath, h.writeAuthorizationError) {
 		return
 	}
-	result, err := h.partyOtherUnitService().OtherUnitCreate(c.Request.Context(), input, h.actorID(c), response.RequestID(c),
+	result, err := h.service.OtherUnitCreate(c.Request.Context(), input, h.actorID(c), response.RequestID(c),
 		hasPermission(h.principal(c), "/bob/party/get"))
 	h.result(c, result, err)
 }
@@ -272,7 +273,7 @@ func (h *Handler) otherUnitCreate(c *gin.Context) {
 func (h *Handler) otherUnitSave(c *gin.Context) {
 	var input OtherUnitSaveInput
 	if h.bind(c, &input) {
-		result, err := h.partyOtherUnitService().OtherUnitSave(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
+		result, err := h.service.OtherUnitSave(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
 		h.result(c, result, err)
 	}
 }
@@ -288,10 +289,6 @@ func hasPermission(principal authorization.Principal, path string) bool {
 
 func (h *Handler) principal(c *gin.Context) authorization.Principal {
 	return authmiddleware.Principal(c)
-}
-
-func (h *Handler) partyOtherUnitService() partyOtherUnitApplicationService {
-	return h.service.(partyOtherUnitApplicationService)
 }
 
 func (h *Handler) referenceQuery(c *gin.Context) {

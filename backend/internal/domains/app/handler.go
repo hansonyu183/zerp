@@ -48,7 +48,6 @@ type Handler struct {
 	service    applicationService
 	cfg        config.Config
 	logger     *slog.Logger
-	limiter    *signinLimiter
 	authorizer authorization.Authorizer
 }
 
@@ -56,7 +55,7 @@ func NewHandler(service applicationService, authorizer authorization.Authorizer,
 	if authorizer == nil {
 		authorizer = authorization.FailClosed{}
 	}
-	return &Handler{service: service, authorizer: authorizer, cfg: cfg, logger: logger, limiter: newSigninLimiter()}
+	return &Handler{service: service, authorizer: authorizer, cfg: cfg, logger: logger}
 }
 
 func (h *Handler) Register(router *gin.Engine) {

@@ -34,6 +34,8 @@ curl http://localhost:8080/healthz
 curl http://localhost:8080/readyz
 ```
 
+API 在开始监听前同步 APP 菜单路由目录与业务菜单。同步在单个数据库事务中执行，没有目录变化时保持幂等；数据库、菜单设置或同步写入失败都会令进程启动失败，不会退回到请求期同步。
+
 ## 常用命令
 
 在 `backend/` 目录运行：

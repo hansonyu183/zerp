@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -32,7 +33,11 @@ type databasePinger interface {
 	Ping(context.Context) error
 }
 
-func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine, error) {
+func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine, error) {
+	appService := appdomain.NewService(db, cfg, logger)
+	if err := appService.SynchronizeMenuRoutes(ctx); err != nil {
+		return nil, fmt.Errorf("synchronize menu routes: %w", err)
+	}
 	auxService := auxdomain.NewService(db)
 	auxiliaryResolver := auxiliaryrefs.New(auxService)
 	bobService := bobdomain.NewService(db, auxiliaryResolver)
@@ -54,7 +59,6 @@ func New(cfg config.Config, db *pgxpool.Pool, logger *slog.Logger) (*gin.Engine,
 	if err != nil {
 		return nil, err
 	}
-	appService := appdomain.NewService(db, cfg, logger)
 	if err = accService.RegisterSubscriptions(eventBus); err != nil {
 		return nil, err
 	}

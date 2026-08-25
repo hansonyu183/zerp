@@ -20,10 +20,6 @@ func (h *Handler) signin(c *gin.Context) {
 		h.writeError(c, domainError(ErrorValidation, "invalid request", err))
 		return
 	}
-	if !h.limiter.allow(input.Username) {
-		h.writeError(c, domainError(ErrorUnauthenticated, "authentication failed", nil))
-		return
-	}
 	result, err := h.service.Signin(c.Request.Context(), input.Username, input.Password, response.RequestID(c))
 	if err != nil {
 		h.writeError(c, err)

@@ -2,12 +2,9 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalVersionMeta } from './ApprovalVersionMeta';
 export type SupplierListVersion = {
-  versionId: string;
-  version: number;
-  status: string;
-  revision: number;
+  approval: ApprovalVersionMeta;
   defaultPurchaserCode?: string;
   defaultPurchaserName?: string;
-  submittedBy: string | null;
 };

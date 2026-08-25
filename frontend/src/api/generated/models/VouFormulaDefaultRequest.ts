@@ -5,7 +5,7 @@
 export type VouFormulaDefaultRequest = {
   customer?: {
     objectId: string;
-    versionId: string;
+    approvalEntryId: string;
   };
   product: {
     objectId: string;

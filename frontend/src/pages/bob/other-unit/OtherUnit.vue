@@ -17,9 +17,8 @@ const route = useRoute()
 const router = useRouter()
 const statusItems = [
   { title: '草稿', value: 'DRAFT' },
-  { title: '待审核', value: 'PENDING' },
-  { title: '有效', value: 'EFFECTIVE' },
-  { title: '已失效', value: 'INVALID' },
+  { title: '待批准', value: 'PENDING' },
+  { title: '已批准', value: 'APPROVED' },
 ]
 const partyKindItems = [
   { title: '个人', value: 'PERSON' },
@@ -30,6 +29,7 @@ const lifecycle = [
   { action: 'unsubmit', label: '撤回', icon: 'mdi-undo-variant' },
   { action: 'approve', label: '通过', icon: 'mdi-check-circle-outline' },
   { action: 'reject', label: '驳回', icon: 'mdi-close-circle-outline' },
+  { action: 'unapprove', label: '撤销批准', icon: 'mdi-undo' },
   { action: 'enable', label: '启用', icon: 'mdi-toggle-switch-outline' },
   { action: 'disable', label: '停用', icon: 'mdi-toggle-switch-off-outline' },
   { action: 'delete', label: '删除草稿', icon: 'mdi-delete-outline' },
@@ -49,7 +49,7 @@ const columns: readonly BusinessObjectColumn<OtherUnitView>[] = [
   {
     key: 'status',
     label: '状态',
-    value: (row) => row.status,
+    value: (row) => row.approval.status,
     sizing: 'compact',
   },
 ]
@@ -89,11 +89,11 @@ async function run(
   row: OtherUnitView,
   action: (typeof lifecycle)[number]['action'],
 ): Promise<void> {
-  const reason = ['unsubmit', 'reject'].includes(action)
+  const reason = ['unsubmit', 'reject', 'unapprove'].includes(action)
     ? (window.prompt('请输入原因') ?? '')
     : ''
   if (
-    ['delete', 'disable'].includes(action) &&
+    ['delete', 'disable', 'unapprove'].includes(action) &&
     !window.confirm('确认执行此操作？')
   )
     return
@@ -174,22 +174,9 @@ watch(
           </template>
           <template #cell-status="{ row: item }">
             <div class="d-flex flex-wrap ga-1">
-              <v-chip
-                v-if="
-                  item.effectiveVersionId &&
-                  item.effectiveVersionId !== item.versionId
-                "
-                size="small"
-                color="success"
-                >有效版本仍在使用</v-chip
-              >
               <v-chip size="small" variant="tonal">
-                {{
-                  item.effectiveVersionId &&
-                  item.effectiveVersionId !== item.versionId
-                    ? `候选 v${item.version} · ${statusText[item.status]}`
-                    : statusText[item.status]
-                }}
+                V{{ item.approval.versionNo }} ·
+                {{ statusText[item.approval.status] }}
               </v-chip>
             </div>
           </template>

@@ -34,11 +34,14 @@ export function useBobHistory(
     if (!row) return
     versionsLoading.value = true
     try {
-      const { data } = await apiClient.postContract(`bob/${config.entity}/versions`, {
-        objectId: row.objectId,
-        page: versionsPage.value,
-        pageSize: versionsPageSize.value,
-      })
+      const { data } = await apiClient.postContract(
+        `bob/${config.entity}/versions`,
+        {
+          objectId: row.objectId,
+          page: versionsPage.value,
+          pageSize: versionsPageSize.value,
+        },
+      )
       versions.value = data.items ?? []
       versionsTotal.value = data.total
       versionsPage.value = data.page
@@ -70,11 +73,14 @@ export function useBobHistory(
     if (!row) return
     auditLoading.value = true
     try {
-      const { data } = await apiClient.postContract(`bob/${config.entity}/audit-history`, {
-        objectId: row.objectId,
-        page: auditPage.value,
-        pageSize: auditPageSize.value,
-      })
+      const { data } = await apiClient.postContract(
+        `bob/${config.entity}/audit-history`,
+        {
+          objectId: row.objectId,
+          page: auditPage.value,
+          pageSize: auditPageSize.value,
+        },
+      )
       auditEvents.value = data.items ?? []
       auditTotal.value = data.total
       auditPage.value = data.page

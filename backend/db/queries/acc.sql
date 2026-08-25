@@ -274,7 +274,7 @@ INSERT INTO acc_bills (
   id,bill_no,bill_type,position_type,currency,medium,face_amount_minor,
   issue_date,maturity_date,drawer,acceptor,payee,annual_rate_bps,interest_days,
   interest_amount_minor,customer_cost_amount_minor,origin_party_entity,
-  origin_party_object_id,origin_party_version_id,origin_party_code,origin_party_name,
+  origin_party_object_id,origin_party_approval_entry_id,origin_party_code,origin_party_name,
   state,source_document_id,source_line_id
 ) VALUES (
   sqlc.arg(id),sqlc.arg(bill_no),sqlc.arg(bill_type),sqlc.arg(position_type),
@@ -282,7 +282,7 @@ INSERT INTO acc_bills (
   sqlc.arg(maturity_date),sqlc.arg(drawer),sqlc.arg(acceptor),sqlc.arg(payee),
   sqlc.arg(annual_rate_bps),sqlc.arg(interest_days),sqlc.arg(interest_amount_minor),
   sqlc.arg(customer_cost_amount_minor),sqlc.narg(origin_party_entity),
-  sqlc.narg(origin_party_object_id),sqlc.narg(origin_party_version_id),
+  sqlc.narg(origin_party_object_id),sqlc.narg(origin_party_approval_entry_id),
   sqlc.narg(origin_party_code),sqlc.narg(origin_party_name),'AVAILABLE',
   sqlc.arg(source_document_id),sqlc.arg(source_line_id)
 );
@@ -359,14 +359,14 @@ INSERT INTO acc_opening_bills(
   book_id,line_order,bill_id,create_object,bill_no,bill_type,position_type,medium,currency,
   face_amount_minor,issue_date,maturity_date,drawer,acceptor,payee,annual_rate_bps,
   interest_days,interest_amount_minor,customer_cost_amount_minor,origin_party_entity,
-  origin_party_object_id,origin_party_version_id,origin_party_code,origin_party_name,value_minor
+  origin_party_object_id,origin_party_approval_entry_id,origin_party_code,origin_party_name,value_minor
 ) VALUES (
   sqlc.arg(book_id),sqlc.arg(line_order),sqlc.arg(bill_id),sqlc.arg(create_object),
   sqlc.narg(bill_no),sqlc.narg(bill_type),sqlc.narg(position_type),sqlc.narg(medium),
   sqlc.arg(currency),sqlc.narg(face_amount_minor),sqlc.narg(issue_date),sqlc.narg(maturity_date),
   sqlc.narg(drawer),sqlc.narg(acceptor),sqlc.narg(payee),sqlc.narg(annual_rate_bps),
   sqlc.narg(interest_days),sqlc.narg(interest_amount_minor),sqlc.narg(customer_cost_amount_minor),
-  sqlc.narg(origin_party_entity),sqlc.narg(origin_party_object_id),sqlc.narg(origin_party_version_id),
+  sqlc.narg(origin_party_entity),sqlc.narg(origin_party_object_id),sqlc.narg(origin_party_approval_entry_id),
   sqlc.narg(origin_party_code),sqlc.narg(origin_party_name),sqlc.arg(value_minor)
 );
 
@@ -393,7 +393,7 @@ SELECT bill_id,create_object,COALESCE(bill_no,'') AS bill_no,COALESCE(bill_type,
   COALESCE(customer_cost_amount_minor,0)::bigint AS customer_cost_amount_minor,
   COALESCE(origin_party_entity,'') AS origin_party_entity,
   COALESCE(origin_party_object_id,'') AS origin_party_object_id,
-  COALESCE(origin_party_version_id,'') AS origin_party_version_id,
+  COALESCE(origin_party_approval_entry_id,'') AS origin_party_approval_entry_id,
   COALESCE(origin_party_code,'') AS origin_party_code,COALESCE(origin_party_name,'') AS origin_party_name,
   value_minor
 FROM acc_opening_bills WHERE book_id=sqlc.arg(book_id) ORDER BY line_order;
@@ -411,7 +411,7 @@ FROM acc_opening_assets WHERE book_id=sqlc.arg(book_id);
 SELECT bill_id,create_object,bill_no,bill_type,position_type,medium,currency,
   face_amount_minor,issue_date,maturity_date,drawer,acceptor,payee,annual_rate_bps,
   interest_days,interest_amount_minor,customer_cost_amount_minor,origin_party_entity,
-  origin_party_object_id,origin_party_version_id,origin_party_code,origin_party_name,value_minor
+  origin_party_object_id,origin_party_approval_entry_id,origin_party_code,origin_party_name,value_minor
 FROM acc_opening_bills WHERE book_id=sqlc.arg(book_id);
 
 -- name: CreateAccountingOpeningContainerBalances :exec

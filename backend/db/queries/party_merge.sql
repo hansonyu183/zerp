@@ -5,56 +5,37 @@ WHERE id=sqlc.arg(party_id)
 FOR UPDATE;
 
 -- name: ListPartyMergeRelationships :many
-SELECT 'customer'::text AS relationship_type,relation.object_id,object.code AS object_code,
-       relation.operating_entity_id,operating.legal_name AS operating_entity_name,
-       object.revision AS object_revision,object.enabled,object.current_version_id,
-       object.effective_version_id,current_version.status AS current_status,
-       current_version.revision AS current_revision,relation.merged_into_object_id
-FROM bob_customer_relationships relation
-JOIN bob_objects object ON object.id=relation.object_id AND object.entity='customer'
-JOIN bob_versions current_version ON current_version.id=object.current_version_id
-JOIN bob_operating_entity_versions operating ON operating.version_id=(SELECT effective_version_id FROM bob_objects WHERE id=relation.operating_entity_id AND entity='operating-entity')
+SELECT object.entity AS relationship_type, object.id AS object_id, object.code AS object_code,
+       relation.operating_entity_id, operating_detail.legal_name AS operating_entity_name,
+       object.revision AS object_revision, object.enabled,
+       COALESCE(open_entry.id,'')::text AS open_approval_entry_id,
+       approved.id AS latest_approved_entry_id,
+       COALESCE(open_entry.status,approved.status)::text AS visible_status,
+       COALESCE(open_entry.revision,approved.revision)::bigint AS visible_approval_revision,
+       relation.merged_into_object_id
+FROM bob_party_relationship_endpoints relation
+JOIN bob_objects object ON object.id=relation.object_id
+JOIN LATERAL (
+  SELECT id,status,revision FROM approval_entries
+  WHERE domain='bob' AND entity=object.entity AND subject_id=object.id AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) approved ON true
+LEFT JOIN LATERAL (
+  SELECT id,status,revision FROM approval_entries
+  WHERE domain='bob' AND entity=object.entity AND subject_id=object.id AND status IN ('DRAFT','PENDING')
+  ORDER BY version_no DESC LIMIT 1
+) open_entry ON true
+JOIN LATERAL (
+  SELECT id FROM approval_entries
+  WHERE domain='bob' AND entity='operating-entity' AND subject_id=relation.operating_entity_id AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) operating_entry ON true
+JOIN bob_operating_entity_versions operating_detail ON operating_detail.approval_entry_id=operating_entry.id
 WHERE relation.party_id=sqlc.arg(party_id)
-UNION ALL
-SELECT 'supplier'::text,relation.object_id,object.code,relation.operating_entity_id,operating.legal_name,
-       object.revision,object.enabled,object.current_version_id,object.effective_version_id,
-       current_version.status,current_version.revision,relation.merged_into_object_id
-FROM bob_supplier_relationships relation
-JOIN bob_objects object ON object.id=relation.object_id AND object.entity='supplier'
-JOIN bob_versions current_version ON current_version.id=object.current_version_id
-JOIN bob_operating_entity_versions operating ON operating.version_id=(SELECT effective_version_id FROM bob_objects WHERE id=relation.operating_entity_id AND entity='operating-entity')
-WHERE relation.party_id=sqlc.arg(party_id)
-UNION ALL
-SELECT 'employee'::text,relation.object_id,object.code,relation.operating_entity_id,operating.legal_name,
-       object.revision,object.enabled,object.current_version_id,object.effective_version_id,
-       current_version.status,current_version.revision,relation.merged_into_object_id
-FROM bob_employment_relationships relation
-JOIN bob_objects object ON object.id=relation.object_id AND object.entity='employee'
-JOIN bob_versions current_version ON current_version.id=object.current_version_id
-JOIN bob_operating_entity_versions operating ON operating.version_id=(SELECT effective_version_id FROM bob_objects WHERE id=relation.operating_entity_id AND entity='operating-entity')
-WHERE relation.party_id=sqlc.arg(party_id)
-UNION ALL
-SELECT 'other-unit'::text,relation.object_id,object.code,relation.operating_entity_id,operating.legal_name,
-       object.revision,object.enabled,object.current_version_id,object.effective_version_id,
-       current_version.status,current_version.revision,relation.merged_into_object_id
-FROM bob_service_relationships relation
-JOIN bob_objects object ON object.id=relation.object_id AND object.entity='other-unit'
-JOIN bob_versions current_version ON current_version.id=object.current_version_id
-JOIN bob_operating_entity_versions operating ON operating.version_id=(SELECT effective_version_id FROM bob_objects WHERE id=relation.operating_entity_id AND entity='operating-entity')
-WHERE relation.party_id=sqlc.arg(party_id)
-UNION ALL
-SELECT 'sales-partner'::text,relation.object_id,object.code,relation.operating_entity_id,operating.legal_name,
-       object.revision,object.enabled,object.current_version_id,object.effective_version_id,
-       current_version.status,current_version.revision,relation.merged_into_object_id
-FROM bob_sales_relationships relation
-JOIN bob_objects object ON object.id=relation.object_id AND object.entity='sales-partner'
-JOIN bob_versions current_version ON current_version.id=object.current_version_id
-JOIN bob_operating_entity_versions operating ON operating.version_id=(SELECT effective_version_id FROM bob_objects WHERE id=relation.operating_entity_id AND entity='operating-entity')
-WHERE relation.party_id=sqlc.arg(party_id)
-ORDER BY relationship_type,operating_entity_id,object_id;
+ORDER BY object.entity,relation.operating_entity_id,object.id;
 
 -- name: LockPartyMergeObjects :many
-SELECT id,entity,revision,enabled,current_version_id,effective_version_id
+SELECT id,entity,revision,enabled
 FROM bob_objects
 WHERE id=ANY(sqlc.arg(object_ids)::text[])
 ORDER BY id

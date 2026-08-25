@@ -37,14 +37,14 @@ describe('customer relationship form data', () => {
     form.account.name = ' 华东结算户 '
     form.account.operatingEntity = {
       objectId: 'ope-1',
-      versionId: 'v1',
+      approvalEntryId: 'v1',
       code: 'OPE-1',
       name: '华东',
       entity: 'operating-entity',
     }
     form.account.primarySalesAttribution.subject = {
       objectId: 'employee-1',
-      versionId: 'v1',
+      approvalEntryId: 'v1',
       code: 'EMP-1',
       name: '张三',
       entity: 'employee',
@@ -72,7 +72,7 @@ describe('customer relationship form data', () => {
     form.account.name = '客户'
     form.account.operatingEntity = {
       objectId: 'ope-1',
-      versionId: 'v1',
+      approvalEntryId: 'v1',
       code: 'OPE-1',
       name: '经营主体',
       entity: 'operating-entity',
@@ -81,7 +81,7 @@ describe('customer relationship form data', () => {
       type: 'CHANNEL_PARTNER',
       subject: {
         objectId: 'partner-1',
-        versionId: 'v1',
+        approvalEntryId: 'v1',
         code: 'SP-1',
         name: '渠道',
         entity: 'sales-partner',

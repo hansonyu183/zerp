@@ -23,29 +23,15 @@ type Querier interface {
 	AccountingPeriodHasUnfinishedVOU(ctx context.Context, arg AccountingPeriodHasUnfinishedVOUParams) (bool, error)
 	AccountingTrialBalanceFails(ctx context.Context, arg AccountingTrialBalanceFailsParams) (bool, error)
 	AcquireAppAuthorizationLock(ctx context.Context) error
-	AcquireBobHierarchyLock(ctx context.Context, entity string) error
-	AcquireBobPartyIdentifierLock(ctx context.Context, lockKey string) error
 	AcquireWorkflowCreateChildLock(ctx context.Context, hashtextextended string) error
 	ActorHasEnabledSuperadminRole(ctx context.Context, userID string) (bool, error)
 	ActorHoldsAppRole(ctx context.Context, arg ActorHoldsAppRoleParams) (bool, error)
 	AddAccountingAssetDepreciation(ctx context.Context, arg AddAccountingAssetDepreciationParams) error
 	AdvanceAppMenuRevision(ctx context.Context, arg AdvanceAppMenuRevisionParams) (AppMenuSetting, error)
-	AdvanceBobCustomerAccountCandidate(ctx context.Context, arg AdvanceBobCustomerAccountCandidateParams) (int64, error)
-	AdvanceBobEffectiveCandidate(ctx context.Context, arg AdvanceBobEffectiveCandidateParams) (int64, error)
-	AdvanceBobObjectForUnapprove(ctx context.Context, arg AdvanceBobObjectForUnapproveParams) (int64, error)
-	AdvanceBobOtherUnitCandidate(ctx context.Context, arg AdvanceBobOtherUnitCandidateParams) (int64, error)
-	AdvanceBobProductCandidate(ctx context.Context, arg AdvanceBobProductCandidateParams) (int64, error)
-	AdvanceBobSalesPartnerCandidate(ctx context.Context, arg AdvanceBobSalesPartnerCandidateParams) (int64, error)
-	AdvanceBobSupplierCandidate(ctx context.Context, arg AdvanceBobSupplierCandidateParams) (int64, error)
 	ApprovalVersionsExist(ctx context.Context, arg ApprovalVersionsExistParams) (bool, error)
 	ApproveAccountingMapping(ctx context.Context, arg ApproveAccountingMappingParams) (int64, error)
 	ApproveAccountingOpening(ctx context.Context, arg ApproveAccountingOpeningParams) (int64, error)
-	ApproveBobVersion(ctx context.Context, arg ApproveBobVersionParams) (int64, error)
 	ApproveVouDocument(ctx context.Context, arg ApproveVouDocumentParams) (int64, error)
-	BobCustomerRelationshipVersionExists(ctx context.Context, versionID string) (bool, error)
-	BobDraftAuditIsDeletable(ctx context.Context, arg BobDraftAuditIsDeletableParams) (*bool, error)
-	BobObjectHasExternalReferences(ctx context.Context, arg BobObjectHasExternalReferencesParams) (bool, error)
-	BobObjectIsCustomerAccount(ctx context.Context, objectID string) (bool, error)
 	BuildAccountingPeriodBalances(ctx context.Context, arg BuildAccountingPeriodBalancesParams) error
 	CheckVouDocument(ctx context.Context, arg CheckVouDocumentParams) (int64, error)
 	ClearVouInventoryCountResults(ctx context.Context, documentID string) error
@@ -54,22 +40,19 @@ type Querier interface {
 	ConsumeCustomerDownloadToken(ctx context.Context, tokenHash string) (ConsumeCustomerDownloadTokenRow, error)
 	ConsumePartyMergePreflight(ctx context.Context, arg ConsumePartyMergePreflightParams) (int64, error)
 	ConsumeVouDownloadToken(ctx context.Context, tokenHash string) (ConsumeVouDownloadTokenRow, error)
-	CopyBobCategoryDetail(ctx context.Context, arg CopyBobCategoryDetailParams) error
-	CopyBobDepartmentDetail(ctx context.Context, arg CopyBobDepartmentDetailParams) error
-	CopyBobEmployeeDetail(ctx context.Context, arg CopyBobEmployeeDetailParams) error
-	CopyBobFundAccountDetail(ctx context.Context, arg CopyBobFundAccountDetailParams) error
-	CopyBobOperatingEntityDetail(ctx context.Context, arg CopyBobOperatingEntityDetailParams) error
-	CopyBobPositionDetail(ctx context.Context, arg CopyBobPositionDetailParams) error
-	CopyBobProductDetail(ctx context.Context, arg CopyBobProductDetailParams) error
-	CopyBobProductFormula(ctx context.Context, arg CopyBobProductFormulaParams) error
-	CopyBobProductFormulaLines(ctx context.Context, arg CopyBobProductFormulaLinesParams) error
-	CopyBobProductUnitConversions(ctx context.Context, arg CopyBobProductUnitConversionsParams) error
-	CopyBobSalesPartnerDetail(ctx context.Context, arg CopyBobSalesPartnerDetailParams) error
-	CopyBobServiceRelationshipDetail(ctx context.Context, arg CopyBobServiceRelationshipDetailParams) error
-	CopyBobSettlementMethodDetail(ctx context.Context, arg CopyBobSettlementMethodDetailParams) error
-	CopyBobSupplierDetail(ctx context.Context, arg CopyBobSupplierDetailParams) error
-	CopyBobVehicleDetail(ctx context.Context, arg CopyBobVehicleDetailParams) error
-	CopyBobWarehouseDetail(ctx context.Context, arg CopyBobWarehouseDetailParams) error
+	CopyBobCustomerCreditLimits(ctx context.Context, arg CopyBobCustomerCreditLimitsParams) error
+	CopyBobCustomerPayload(ctx context.Context, arg CopyBobCustomerPayloadParams) error
+	CopyBobCustomerRelationshipPayload(ctx context.Context, arg CopyBobCustomerRelationshipPayloadParams) error
+	CopyBobCustomerVersionAttachments(ctx context.Context, arg CopyBobCustomerVersionAttachmentsParams) error
+	CopyBobEmployeePayload(ctx context.Context, arg CopyBobEmployeePayloadParams) error
+	CopyBobFundAccountPayload(ctx context.Context, arg CopyBobFundAccountPayloadParams) error
+	CopyBobOperatingEntityPayload(ctx context.Context, arg CopyBobOperatingEntityPayloadParams) error
+	CopyBobOtherUnitPayload(ctx context.Context, arg CopyBobOtherUnitPayloadParams) error
+	CopyBobProductPayload(ctx context.Context, arg CopyBobProductPayloadParams) error
+	CopyBobSalesPartnerPayload(ctx context.Context, arg CopyBobSalesPartnerPayloadParams) error
+	CopyBobSupplierPayload(ctx context.Context, arg CopyBobSupplierPayloadParams) error
+	CopyBobVehiclePayload(ctx context.Context, arg CopyBobVehiclePayloadParams) error
+	CopyBobWarehousePayload(ctx context.Context, arg CopyBobWarehousePayloadParams) error
 	CopyCustomerVersionAttachments(ctx context.Context, arg CopyCustomerVersionAttachmentsParams) error
 	CountAppPermissions(ctx context.Context, arg CountAppPermissionsParams) (int64, error)
 	CountAppRoles(ctx context.Context, arg CountAppRolesParams) (int64, error)
@@ -77,18 +60,8 @@ type Querier interface {
 	CountAppSystemParameters(ctx context.Context, arg CountAppSystemParametersParams) (int64, error)
 	CountAppUsers(ctx context.Context, arg CountAppUsersParams) (int64, error)
 	CountAppUsersExcept(ctx context.Context, excludedUserID string) (int64, error)
-	CountBobAuditEvents(ctx context.Context, arg CountBobAuditEventsParams) (int64, error)
-	CountBobCustomerRelationshipAccounts(ctx context.Context, customerRelationshipID string) (int64, error)
-	CountBobCustomers(ctx context.Context, arg CountBobCustomersParams) (int64, error)
+	CountBobApprovalEvents(ctx context.Context, arg CountBobApprovalEventsParams) (int64, error)
 	CountBobObjects(ctx context.Context, arg CountBobObjectsParams) (int64, error)
-	CountBobOperatingEntities(ctx context.Context, arg CountBobOperatingEntitiesParams) (int64, error)
-	CountBobOtherUnits(ctx context.Context, arg CountBobOtherUnitsParams) (int64, error)
-	CountBobParties(ctx context.Context, arg CountBobPartiesParams) (int64, error)
-	CountBobPartyAuditEvents(ctx context.Context, partyID string) (int64, error)
-	CountBobPartyRelationships(ctx context.Context, targetPartyID string) (int32, error)
-	CountBobSalesPartners(ctx context.Context, arg CountBobSalesPartnersParams) (int64, error)
-	CountBobSuppliers(ctx context.Context, arg CountBobSuppliersParams) (int64, error)
-	CountBobVersions(ctx context.Context, arg CountBobVersionsParams) (int64, error)
 	CountCustomerRelationshipAttachments(ctx context.Context, ownerID string) (int64, error)
 	CountCustomerVersionAttachments(ctx context.Context, ownerID string) (int64, error)
 	CountDefinitionInstances(ctx context.Context, arg CountDefinitionInstancesParams) (int64, error)
@@ -163,40 +136,23 @@ type Querier interface {
 	DeleteApprovalEntry(ctx context.Context, arg DeleteApprovalEntryParams) (ApprovalEntry, error)
 	DeleteAutomaticAccountingVoucher(ctx context.Context, arg DeleteAutomaticAccountingVoucherParams) ([]string, error)
 	DeleteAvailableAccountingBillsBySource(ctx context.Context, documentID string) error
-	DeleteBobAuditEventsForDraft(ctx context.Context, arg DeleteBobAuditEventsForDraftParams) (int64, error)
-	DeleteBobAuditEventsForVersion(ctx context.Context, arg DeleteBobAuditEventsForVersionParams) error
-	DeleteBobCategoryDetail(ctx context.Context, versionID string) (int64, error)
-	DeleteBobCustomerAccountRelationship(ctx context.Context, arg DeleteBobCustomerAccountRelationshipParams) (int64, error)
-	DeleteBobCustomerCreditLimits(ctx context.Context, versionID string) error
-	DeleteBobCustomerDetail(ctx context.Context, versionID string) (int64, error)
-	DeleteBobCustomerVersion(ctx context.Context, arg DeleteBobCustomerVersionParams) (int64, error)
-	DeleteBobDepartmentDetail(ctx context.Context, versionID string) (int64, error)
-	DeleteBobEmployeeDetail(ctx context.Context, versionID string) (int64, error)
-	DeleteBobEmploymentRelationship(ctx context.Context, arg DeleteBobEmploymentRelationshipParams) (int64, error)
-	DeleteBobFirstVersion(ctx context.Context, arg DeleteBobFirstVersionParams) (int64, error)
-	DeleteBobFundAccountDetail(ctx context.Context, versionID string) (int64, error)
+	DeleteBobCustomerCreditLimits(ctx context.Context, approvalEntryID string) error
+	DeleteBobCustomerPayload(ctx context.Context, approvalEntryID string) (int64, error)
+	DeleteBobCustomerRelationshipPayload(ctx context.Context, approvalEntryID string) (int64, error)
+	DeleteBobCustomerVersionAttachments(ctx context.Context, approvalEntryID string) error
+	DeleteBobEmployeePayload(ctx context.Context, approvalEntryID string) (int64, error)
+	DeleteBobFundAccountPayload(ctx context.Context, approvalEntryID string) (int64, error)
 	DeleteBobObject(ctx context.Context, arg DeleteBobObjectParams) (int64, error)
-	DeleteBobOperatingEntityDetail(ctx context.Context, versionID string) (int64, error)
-	DeleteBobOtherUnitVersion(ctx context.Context, arg DeleteBobOtherUnitVersionParams) (int64, error)
-	DeleteBobParty(ctx context.Context, arg DeleteBobPartyParams) (int64, error)
-	DeleteBobPartyAuditEvents(ctx context.Context, partyID string) error
-	DeleteBobPartyIdentifiers(ctx context.Context, partyID string) error
-	DeleteBobPositionDetail(ctx context.Context, versionID string) (int64, error)
-	DeleteBobProductDetail(ctx context.Context, versionID string) (int64, error)
-	DeleteBobProductFormula(ctx context.Context, productVersionID string) error
-	DeleteBobProductUnitConversions(ctx context.Context, productVersionID string) error
-	DeleteBobSalesPartnerDetail(ctx context.Context, versionID string) (int64, error)
-	DeleteBobSalesPartnerVersion(ctx context.Context, arg DeleteBobSalesPartnerVersionParams) (int64, error)
-	DeleteBobSalesRelationship(ctx context.Context, arg DeleteBobSalesRelationshipParams) (int64, error)
-	DeleteBobServiceRelationship(ctx context.Context, arg DeleteBobServiceRelationshipParams) (int64, error)
-	DeleteBobServiceRelationshipDetail(ctx context.Context, versionID string) (int64, error)
-	DeleteBobSettlementMethodDetail(ctx context.Context, versionID string) (int64, error)
-	DeleteBobSupplierDetail(ctx context.Context, versionID string) (int64, error)
-	DeleteBobSupplierRelationship(ctx context.Context, arg DeleteBobSupplierRelationshipParams) (int64, error)
-	DeleteBobSupplierVersion(ctx context.Context, arg DeleteBobSupplierVersionParams) (int64, error)
-	DeleteBobVehicleDetail(ctx context.Context, versionID string) (int64, error)
-	DeleteBobVersion(ctx context.Context, arg DeleteBobVersionParams) (int64, error)
-	DeleteBobWarehouseDetail(ctx context.Context, versionID string) (int64, error)
+	DeleteBobOperatingEntityPayload(ctx context.Context, approvalEntryID string) (int64, error)
+	DeleteBobOtherUnitPayload(ctx context.Context, approvalEntryID string) (int64, error)
+	DeleteBobProductFormula(ctx context.Context, productApprovalEntryID string) error
+	DeleteBobProductFormulaLines(ctx context.Context, productApprovalEntryID string) error
+	DeleteBobProductPayload(ctx context.Context, approvalEntryID string) (int64, error)
+	DeleteBobProductUnitConversions(ctx context.Context, productApprovalEntryID string) error
+	DeleteBobSalesPartnerPayload(ctx context.Context, approvalEntryID string) (int64, error)
+	DeleteBobSupplierPayload(ctx context.Context, approvalEntryID string) (int64, error)
+	DeleteBobVehiclePayload(ctx context.Context, approvalEntryID string) (int64, error)
+	DeleteBobWarehousePayload(ctx context.Context, approvalEntryID string) (int64, error)
 	DeleteCustomerRelationshipAttachment(ctx context.Context, arg DeleteCustomerRelationshipAttachmentParams) (int64, error)
 	DeleteCustomerVersionAttachment(ctx context.Context, arg DeleteCustomerVersionAttachmentParams) (int64, error)
 	DeleteExpiredVouDownloadTokens(ctx context.Context) error
@@ -238,8 +194,6 @@ type Querier interface {
 	FindAccountingBillIDBySourceDocument(ctx context.Context, sourceDocumentID string) (string, error)
 	FindAccountingBookIDByDescription(ctx context.Context, description string) (string, error)
 	FindAppRoleIDByNormalizedNameExcludingID(ctx context.Context, arg FindAppRoleIDByNormalizedNameExcludingIDParams) (string, error)
-	FindBobObjectIDByCode(ctx context.Context, arg FindBobObjectIDByCodeParams) (string, error)
-	FindBobPartyByIdentifier(ctx context.Context, arg FindBobPartyByIdentifierParams) (BobParty, error)
 	FindBobSeedObjectID(ctx context.Context, arg FindBobSeedObjectIDParams) (string, error)
 	FindEnabledAppUserIDExcludingID(ctx context.Context, excludedUserID string) (string, error)
 	FindLatestApplicableSalesContract(ctx context.Context, arg FindLatestApplicableSalesContractParams) (VouServiceContractDetail, error)
@@ -285,31 +239,54 @@ type Querier interface {
 	GetApprovalEntry(ctx context.Context, arg GetApprovalEntryParams) (ApprovalEntry, error)
 	GetAutomaticAccountingVoucher(ctx context.Context, arg GetAutomaticAccountingVoucherParams) (GetAutomaticAccountingVoucherRow, error)
 	GetAuxVersionData(ctx context.Context, arg GetAuxVersionDataParams) ([]byte, error)
-	GetBobCustomerAccountDetail(ctx context.Context, objectID string) (GetBobCustomerAccountDetailRow, error)
-	GetBobCustomerAccountRelationshipParty(ctx context.Context, objectID string) (GetBobCustomerAccountRelationshipPartyRow, error)
-	GetBobCustomerRelationshipDetail(ctx context.Context, objectID string) (GetBobCustomerRelationshipDetailRow, error)
-	GetBobCustomerVersion(ctx context.Context, arg GetBobCustomerVersionParams) (GetBobCustomerVersionRow, error)
+	GetBobCustomerAccountRelationship(ctx context.Context, objectID string) (BobCustomerAccount, error)
+	GetBobCustomerPayload(ctx context.Context, approvalEntryID string) (BobCustomerVersion, error)
+	// Direct party rows remain BOB-owned identity relationships, independent of
+	// approval payload state.
+	GetBobCustomerRelationship(ctx context.Context, objectID string) (BobCustomerRelationship, error)
+	// Typed payload reads deliberately require the supplied entry to remain the
+	// latest approved version of its Approval subject. Candidate editing is
+	// mediated by the coordinator and uses the write queries below.
+	GetBobCustomerRelationshipPayload(ctx context.Context, approvalEntryID string) (BobCustomerRelationshipVersion, error)
+	GetBobEmployeePayload(ctx context.Context, approvalEntryID string) (BobEmployeeVersion, error)
+	GetBobEmployeeRelationship(ctx context.Context, objectID string) (BobEmploymentRelationship, error)
+	GetBobEmploymentRelationship(ctx context.Context, objectID string) (GetBobEmploymentRelationshipRow, error)
 	GetBobEmploymentRelationshipIdentity(ctx context.Context, objectID string) (GetBobEmploymentRelationshipIdentityRow, error)
-	GetBobEmploymentRelationshipPartyID(ctx context.Context, objectID string) (string, error)
-	GetBobObjectEnabled(ctx context.Context, arg GetBobObjectEnabledParams) (bool, error)
-	GetBobOperatingEntity(ctx context.Context, arg GetBobOperatingEntityParams) (GetBobOperatingEntityRow, error)
-	GetBobOtherUnit(ctx context.Context, arg GetBobOtherUnitParams) (GetBobOtherUnitRow, error)
+	GetBobFundAccountPayload(ctx context.Context, approvalEntryID string) (BobFundAccountVersion, error)
+	GetBobLatestApprovedEntry(ctx context.Context, arg GetBobLatestApprovedEntryParams) (ApprovalEntry, error)
+	GetBobLatestApprovedEntryByID(ctx context.Context, approvalEntryID string) (ApprovalEntry, error)
+	GetBobObject(ctx context.Context, arg GetBobObjectParams) (GetBobObjectRow, error)
+	GetBobOpenCustomerPayload(ctx context.Context, approvalEntryID string) (BobCustomerVersion, error)
+	// Payload readers receive an exact Approval entry selected by the service.
+	// Reference resolution separately proves latest-APPROVED before loading it.
+	GetBobOpenCustomerRelationshipPayload(ctx context.Context, approvalEntryID string) (BobCustomerRelationshipVersion, error)
+	GetBobOpenEmployeePayload(ctx context.Context, approvalEntryID string) (BobEmployeeVersion, error)
+	GetBobOpenEntry(ctx context.Context, arg GetBobOpenEntryParams) (ApprovalEntry, error)
+	GetBobOpenFundAccountPayload(ctx context.Context, approvalEntryID string) (BobFundAccountVersion, error)
+	GetBobOpenOperatingEntityPayload(ctx context.Context, approvalEntryID string) (BobOperatingEntityVersion, error)
+	GetBobOpenOtherUnitPayload(ctx context.Context, approvalEntryID string) (BobServiceRelationshipVersion, error)
+	GetBobOpenProductPayload(ctx context.Context, approvalEntryID string) (BobProductVersion, error)
+	GetBobOpenSalesPartnerPayload(ctx context.Context, approvalEntryID string) (BobSalesPartnerVersion, error)
+	GetBobOpenSupplierPayload(ctx context.Context, approvalEntryID string) (BobSupplierVersion, error)
+	GetBobOpenVehiclePayload(ctx context.Context, approvalEntryID string) (BobVehicleVersion, error)
+	GetBobOpenWarehousePayload(ctx context.Context, approvalEntryID string) (BobWarehouseVersion, error)
+	GetBobOperatingEntityPayload(ctx context.Context, approvalEntryID string) (BobOperatingEntityVersion, error)
+	GetBobOtherUnitPayload(ctx context.Context, approvalEntryID string) (BobServiceRelationshipVersion, error)
+	GetBobOtherUnitRelationship(ctx context.Context, objectID string) (BobServiceRelationship, error)
 	GetBobParty(ctx context.Context, partyID string) (BobParty, error)
-	GetBobProductFormula(ctx context.Context, productVersionID string) (GetBobProductFormulaRow, error)
-	GetBobSalesPartner(ctx context.Context, objectID string) (GetBobSalesPartnerRow, error)
-	GetBobSalesPartnerIdentity(ctx context.Context, objectID string) (GetBobSalesPartnerIdentityRow, error)
-	GetBobSalesPartnerVersion(ctx context.Context, arg GetBobSalesPartnerVersionParams) (GetBobSalesPartnerVersionRow, error)
-	GetBobSalesRelationshipPartyID(ctx context.Context, objectID string) (string, error)
-	GetBobServiceRelationshipPartyID(ctx context.Context, objectID string) (string, error)
-	GetBobSupplierDetail(ctx context.Context, objectID string) (GetBobSupplierDetailRow, error)
-	GetBobSupplierRelationshipIdentity(ctx context.Context, objectID string) (GetBobSupplierRelationshipIdentityRow, error)
-	GetBobSupplierRelationshipPartyID(ctx context.Context, objectID string) (string, error)
-	GetBobSupplierVersion(ctx context.Context, arg GetBobSupplierVersionParams) (GetBobSupplierVersionRow, error)
-	GetBobVersionView(ctx context.Context, arg GetBobVersionViewParams) (BobVersionView, error)
+	// Product sub-payloads are keyed by the product Approval entry. Copying only
+	// accepts a source row the service has already resolved as latest approved.
+	GetBobProductFormula(ctx context.Context, productApprovalEntryID string) (BobProductFormula, error)
+	GetBobProductPayload(ctx context.Context, approvalEntryID string) (BobProductVersion, error)
+	GetBobSalesPartnerPayload(ctx context.Context, approvalEntryID string) (BobSalesPartnerVersion, error)
+	GetBobSalesPartnerRelationship(ctx context.Context, objectID string) (BobSalesRelationship, error)
+	GetBobSupplierPayload(ctx context.Context, approvalEntryID string) (BobSupplierVersion, error)
+	GetBobSupplierRelationship(ctx context.Context, objectID string) (BobSupplierRelationship, error)
+	GetBobVehiclePayload(ctx context.Context, approvalEntryID string) (BobVehicleVersion, error)
+	GetBobWarehousePayload(ctx context.Context, approvalEntryID string) (BobWarehouseVersion, error)
 	GetCurrentApprovedAccountingMapping(ctx context.Context, arg GetCurrentApprovedAccountingMappingParams) (GetCurrentApprovedAccountingMappingRow, error)
 	GetCustomerFileStorageKey(ctx context.Context, fileID string) (string, error)
 	GetDefinitionInstance(ctx context.Context, id string) (GetDefinitionInstanceRow, error)
-	GetFundAccountOperatingDetail(ctx context.Context, versionID string) (GetFundAccountOperatingDetailRow, error)
 	GetLatestApprovedVersion(ctx context.Context, arg GetLatestApprovedVersionParams) (ApprovalEntry, error)
 	GetLatestLockedAccountingPeriod(ctx context.Context, bookID string) (GetLatestLockedAccountingPeriodRow, error)
 	GetMinimumAccountingFundBalance(ctx context.Context, arg GetMinimumAccountingFundBalanceParams) (int64, error)
@@ -324,12 +301,6 @@ type Querier interface {
 	GetReadyVouAttachment(ctx context.Context, arg GetReadyVouAttachmentParams) (GetReadyVouAttachmentRow, error)
 	GetSaleOrderSettlementGate(ctx context.Context, orderID string) (GetSaleOrderSettlementGateRow, error)
 	GetSaleSignoffSettlementSource(ctx context.Context, documentID string) (GetSaleSignoffSettlementSourceRow, error)
-	GetStoredBobCustomerValidationData(ctx context.Context, versionID string) (GetStoredBobCustomerValidationDataRow, error)
-	GetStoredBobOperatingEntityDetail(ctx context.Context, versionID string) (GetStoredBobOperatingEntityDetailRow, error)
-	GetStoredBobSalesPartnerDetail(ctx context.Context, versionID string) (GetStoredBobSalesPartnerDetailRow, error)
-	GetStoredBobServiceRelationshipDetail(ctx context.Context, versionID string) (GetStoredBobServiceRelationshipDetailRow, error)
-	GetStoredBobSupplierValidationData(ctx context.Context, versionID string) (GetStoredBobSupplierValidationDataRow, error)
-	GetStoredCustomerSettlement(ctx context.Context, arg GetStoredCustomerSettlementParams) (GetStoredCustomerSettlementRow, error)
 	GetVouAssetAcquisitionDetail(ctx context.Context, documentID string) (VouAssetAcquisitionDetail, error)
 	GetVouAssetLiquidationDetail(ctx context.Context, documentID string) (VouAssetLiquidationDetail, error)
 	GetVouAssetSaleDetail(ctx context.Context, documentID string) (VouAssetSaleDetail, error)
@@ -352,7 +323,7 @@ type Querier interface {
 	GetVouSaleDeliveryView(ctx context.Context, documentID string) (GetVouSaleDeliveryViewRow, error)
 	GetVouSaleOrderDetail(ctx context.Context, documentID string) (VouSaleOrderDetail, error)
 	GetVouSaleOrderFormula(ctx context.Context, productLineID string) (GetVouSaleOrderFormulaRow, error)
-	GetVouSalesAttributionSnapshot(ctx context.Context, customerVersionID string) (GetVouSalesAttributionSnapshotRow, error)
+	GetVouSalesAttributionSnapshot(ctx context.Context, customerApprovalEntryID string) (GetVouSalesAttributionSnapshotRow, error)
 	GetVouServiceAcceptanceDetail(ctx context.Context, documentID string) (VouServiceAcceptanceDetail, error)
 	GetVouServiceContractDetail(ctx context.Context, documentID string) (VouServiceContractDetail, error)
 	GetWorkflowActionExecutionResult(ctx context.Context, arg GetWorkflowActionExecutionResultParams) (GetWorkflowActionExecutionResultRow, error)
@@ -384,37 +355,29 @@ type Querier interface {
 	InsertAppUser(ctx context.Context, arg InsertAppUserParams) error
 	InsertAppUserRole(ctx context.Context, arg InsertAppUserRoleParams) error
 	InsertApprovalEvent(ctx context.Context, arg InsertApprovalEventParams) error
-	InsertBobAuditEvent(ctx context.Context, arg InsertBobAuditEventParams) error
-	InsertBobCategoryDetail(ctx context.Context, arg InsertBobCategoryDetailParams) error
-	InsertBobCustomerAccountData(ctx context.Context, arg InsertBobCustomerAccountDataParams) error
 	InsertBobCustomerAccountRelationship(ctx context.Context, arg InsertBobCustomerAccountRelationshipParams) error
 	InsertBobCustomerCreditLimit(ctx context.Context, arg InsertBobCustomerCreditLimitParams) error
+	InsertBobCustomerPayload(ctx context.Context, arg InsertBobCustomerPayloadParams) error
 	InsertBobCustomerRelationship(ctx context.Context, arg InsertBobCustomerRelationshipParams) error
-	InsertBobCustomerRelationshipDetail(ctx context.Context, versionID string) error
-	InsertBobDepartmentDetail(ctx context.Context, arg InsertBobDepartmentDetailParams) error
-	InsertBobEmployeeDetail(ctx context.Context, arg InsertBobEmployeeDetailParams) error
+	InsertBobCustomerRelationshipPayload(ctx context.Context, approvalEntryID string) error
+	InsertBobEmployeePayload(ctx context.Context, arg InsertBobEmployeePayloadParams) error
+	InsertBobEmployeeRelationship(ctx context.Context, arg InsertBobEmployeeRelationshipParams) error
 	InsertBobEmploymentRelationship(ctx context.Context, arg InsertBobEmploymentRelationshipParams) error
-	InsertBobFundAccountDetail(ctx context.Context, arg InsertBobFundAccountDetailParams) error
+	InsertBobFundAccountPayload(ctx context.Context, arg InsertBobFundAccountPayloadParams) error
 	InsertBobObject(ctx context.Context, arg InsertBobObjectParams) error
-	InsertBobOperatingEntityDetail(ctx context.Context, arg InsertBobOperatingEntityDetailParams) error
-	InsertBobParty(ctx context.Context, arg InsertBobPartyParams) error
-	InsertBobPartyAuditEvent(ctx context.Context, arg InsertBobPartyAuditEventParams) error
-	InsertBobPartyIdentifier(ctx context.Context, arg InsertBobPartyIdentifierParams) error
-	InsertBobPositionDetail(ctx context.Context, arg InsertBobPositionDetailParams) error
-	InsertBobProductDetail(ctx context.Context, arg InsertBobProductDetailParams) error
+	InsertBobOperatingEntityPayload(ctx context.Context, arg InsertBobOperatingEntityPayloadParams) error
+	InsertBobOtherUnitPayload(ctx context.Context, approvalEntryID string) error
+	InsertBobOtherUnitRelationship(ctx context.Context, arg InsertBobOtherUnitRelationshipParams) error
 	InsertBobProductFormula(ctx context.Context, arg InsertBobProductFormulaParams) error
 	InsertBobProductFormulaLine(ctx context.Context, arg InsertBobProductFormulaLineParams) error
+	InsertBobProductPayload(ctx context.Context, arg InsertBobProductPayloadParams) error
 	InsertBobProductUnitConversion(ctx context.Context, arg InsertBobProductUnitConversionParams) error
-	InsertBobSalesPartnerDetail(ctx context.Context, arg InsertBobSalesPartnerDetailParams) error
-	InsertBobSalesRelationship(ctx context.Context, arg InsertBobSalesRelationshipParams) error
-	InsertBobServiceRelationship(ctx context.Context, arg InsertBobServiceRelationshipParams) error
-	InsertBobServiceRelationshipDetail(ctx context.Context, arg InsertBobServiceRelationshipDetailParams) error
-	InsertBobSettlementMethodDetail(ctx context.Context, arg InsertBobSettlementMethodDetailParams) error
-	InsertBobSupplierDetail(ctx context.Context, arg InsertBobSupplierDetailParams) error
+	InsertBobSalesPartnerPayload(ctx context.Context, approvalEntryID string) error
+	InsertBobSalesPartnerRelationship(ctx context.Context, arg InsertBobSalesPartnerRelationshipParams) error
+	InsertBobSupplierPayload(ctx context.Context, arg InsertBobSupplierPayloadParams) error
 	InsertBobSupplierRelationship(ctx context.Context, arg InsertBobSupplierRelationshipParams) error
-	InsertBobVehicleDetail(ctx context.Context, arg InsertBobVehicleDetailParams) error
-	InsertBobVersion(ctx context.Context, arg InsertBobVersionParams) error
-	InsertBobWarehouseDetail(ctx context.Context, arg InsertBobWarehouseDetailParams) error
+	InsertBobVehiclePayload(ctx context.Context, arg InsertBobVehiclePayloadParams) error
+	InsertBobWarehousePayload(ctx context.Context, arg InsertBobWarehousePayloadParams) error
 	InsertCustomerDownloadToken(ctx context.Context, arg InsertCustomerDownloadTokenParams) error
 	InsertCustomerFile(ctx context.Context, arg InsertCustomerFileParams) error
 	InsertCustomerRelationshipAttachment(ctx context.Context, arg InsertCustomerRelationshipAttachmentParams) error
@@ -464,8 +427,8 @@ type Querier interface {
 	InsertVouSaleReturnLine(ctx context.Context, arg InsertVouSaleReturnLineParams) error
 	InsertVouServiceAcceptanceDetail(ctx context.Context, arg InsertVouServiceAcceptanceDetailParams) error
 	InsertVouServiceContractDetail(ctx context.Context, arg InsertVouServiceContractDetailParams) error
-	InvalidateBobVersion(ctx context.Context, arg InvalidateBobVersionParams) (int64, error)
 	IsAccountingBookReadyForPosting(ctx context.Context, bookID string) (bool, error)
+	IsAuxApprovalEntryReferenced(ctx context.Context, approvalEntryID string) (bool, error)
 	IsBobCustomerPaymentMethodReferenced(ctx context.Context, objectID string) (bool, error)
 	IsVouDocumentInClosedPeriod(ctx context.Context, id string) (bool, error)
 	IsVouSaleDeliveryReady(ctx context.Context, documentID string) (*bool, error)
@@ -501,30 +464,20 @@ type Querier interface {
 	ListAppUserRoleSummaries(ctx context.Context, userID string) ([]ListAppUserRoleSummariesRow, error)
 	ListAppUsers(ctx context.Context, arg ListAppUsersParams) ([]ListAppUsersRow, error)
 	ListApprovalVersions(ctx context.Context, arg ListApprovalVersionsParams) ([]ApprovalEntry, error)
-	ListBobAuditEvents(ctx context.Context, arg ListBobAuditEventsParams) ([]BobAuditEvent, error)
-	ListBobCategoryAncestorIDs(ctx context.Context, arg ListBobCategoryAncestorIDsParams) ([]string, error)
-	ListBobCustomerAccounts(ctx context.Context, customerRelationshipID string) ([]ListBobCustomerAccountsRow, error)
-	ListBobCustomerCreditLimits(ctx context.Context, versionID string) ([]ListBobCustomerCreditLimitsRow, error)
-	ListBobCustomers(ctx context.Context, arg ListBobCustomersParams) ([]ListBobCustomersRow, error)
-	ListBobDepartmentAncestorIDs(ctx context.Context, inputParentID string) ([]string, error)
-	ListBobEffectiveVersionsForObjects(ctx context.Context, arg ListBobEffectiveVersionsForObjectsParams) ([]BobVersionView, error)
-	ListBobEmploymentRelationshipIdentities(ctx context.Context, objectIds []string) ([]ListBobEmploymentRelationshipIdentitiesRow, error)
+	ListBobApprovalEvents(ctx context.Context, arg ListBobApprovalEventsParams) ([]ApprovalEvent, error)
+	ListBobCustomerAccountObjects(ctx context.Context, customerRelationshipID string) ([]ListBobCustomerAccountObjectsRow, error)
+	ListBobCustomerCreditLimits(ctx context.Context, approvalEntryID string) ([]BobCustomerCreditLimit, error)
+	ListBobCustomerVersionAttachments(ctx context.Context, approvalEntryID string) ([]BobCustomerVersionAttachment, error)
 	ListBobObjects(ctx context.Context, arg ListBobObjectsParams) ([]ListBobObjectsRow, error)
-	ListBobOtherUnitVersions(ctx context.Context, arg ListBobOtherUnitVersionsParams) ([]ListBobOtherUnitVersionsRow, error)
-	ListBobOtherUnits(ctx context.Context, arg ListBobOtherUnitsParams) ([]ListBobOtherUnitsRow, error)
-	ListBobParties(ctx context.Context, arg ListBobPartiesParams) ([]BobParty, error)
 	ListBobPartyIdentifiers(ctx context.Context, partyID string) ([]ListBobPartyIdentifiersRow, error)
-	ListBobPartyRelationshipCards(ctx context.Context, targetPartyID string) ([]ListBobPartyRelationshipCardsRow, error)
-	ListBobProductFormulaLines(ctx context.Context, productVersionID string) ([]ListBobProductFormulaLinesRow, error)
-	ListBobProductFormulasByVersionIDs(ctx context.Context, productVersionIds []string) ([]ListBobProductFormulasByVersionIDsRow, error)
-	ListBobProductUnitConversions(ctx context.Context, productVersionID string) ([]ListBobProductUnitConversionsRow, error)
-	ListBobProductUnitConversionsByVersionIDs(ctx context.Context, productVersionIds []string) ([]BobProductUnitConversion, error)
-	ListBobSalesPartners(ctx context.Context, arg ListBobSalesPartnersParams) ([]ListBobSalesPartnersRow, error)
-	ListBobSuppliers(ctx context.Context, arg ListBobSuppliersParams) ([]ListBobSuppliersRow, error)
-	ListBobVersions(ctx context.Context, arg ListBobVersionsParams) ([]BobVersionView, error)
+	ListBobProductFormulaLines(ctx context.Context, productApprovalEntryID string) ([]BobProductFormulaLine, error)
+	ListBobProductUnitConversions(ctx context.Context, productApprovalEntryID string) ([]BobProductUnitConversion, error)
 	ListCompletedWorkflowActionTargets(ctx context.Context, processID string) ([]ListCompletedWorkflowActionTargetsRow, error)
 	ListCustomerOperatingReferences(ctx context.Context, sourceObjectID *string) ([]ListCustomerOperatingReferencesRow, error)
 	ListCustomerRelationshipAttachments(ctx context.Context, ownerID string) ([]ListCustomerRelationshipAttachmentsRow, error)
+	// Typed blocker projections always join the latest APPROVED Approval entry.
+	// Open drafts and historical payloads never block an unrelated lifecycle
+	// action, while a newly approved payload becomes visible atomically.
 	ListCustomerSalesReferencesForEmployee(ctx context.Context, sourceObjectID *string) ([]ListCustomerSalesReferencesForEmployeeRow, error)
 	ListCustomerSalesReferencesForSalesPartner(ctx context.Context, sourceObjectID *string) ([]ListCustomerSalesReferencesForSalesPartnerRow, error)
 	ListCustomerVersionAttachments(ctx context.Context, ownerID string) ([]ListCustomerVersionAttachmentsRow, error)
@@ -549,6 +502,9 @@ type Querier interface {
 	ListSupplierPurchaserReferencesForEmployee(ctx context.Context, sourceObjectID *string) ([]ListSupplierPurchaserReferencesForEmployeeRow, error)
 	ListVehicleCarrierOperatingReferences(ctx context.Context, sourceObjectID *string) ([]ListVehicleCarrierOperatingReferencesRow, error)
 	ListVehicleCarrierServiceReferences(ctx context.Context, sourceObjectID *string) ([]ListVehicleCarrierServiceReferencesRow, error)
+	// Fixed VOU blocker projection. Every typed VOU snapshot participates in all
+	// document states; physical deletion removes the corresponding blocker row.
+	ListVouApprovalEntryReferenceCounts(ctx context.Context, approvalEntryID string) ([]ListVouApprovalEntryReferenceCountsRow, error)
 	ListVouAssetAcquisitionLines(ctx context.Context, documentID string) ([]VouAssetAcquisitionLine, error)
 	ListVouAssetLiquidationLines(ctx context.Context, documentID string) ([]VouAssetLiquidationLine, error)
 	ListVouAssetSaleLines(ctx context.Context, documentID string) ([]VouAssetSaleLine, error)
@@ -586,15 +542,15 @@ type Querier interface {
 	LockAccountingPeriodRow(ctx context.Context, arg LockAccountingPeriodRowParams) (LockAccountingPeriodRowRow, error)
 	LockApprovalEntry(ctx context.Context, arg LockApprovalEntryParams) (ApprovalEntry, error)
 	LockApprovalVersionSubject(ctx context.Context, arg LockApprovalVersionSubjectParams) error
-	LockBobCustomerAccountRelationship(ctx context.Context, objectID string) (string, error)
+	LockBobCustomerAccountRelationship(ctx context.Context, objectID string) (BobCustomerAccount, error)
+	LockBobCustomerRelationship(ctx context.Context, objectID string) (BobCustomerRelationship, error)
+	LockBobEmployeeRelationship(ctx context.Context, objectID string) (BobEmploymentRelationship, error)
 	LockBobObject(ctx context.Context, arg LockBobObjectParams) (LockBobObjectRow, error)
-	LockBobParty(ctx context.Context, partyID string) (BobParty, error)
-	LockBobVersion(ctx context.Context, arg LockBobVersionParams) (LockBobVersionRow, error)
+	LockBobOtherUnitRelationship(ctx context.Context, objectID string) (BobServiceRelationship, error)
+	LockBobSalesPartnerRelationship(ctx context.Context, objectID string) (BobSalesRelationship, error)
+	LockBobSupplierRelationship(ctx context.Context, objectID string) (BobSupplierRelationship, error)
 	LockCustomerAttachmentRelationship(ctx context.Context, ownerID string) (LockCustomerAttachmentRelationshipRow, error)
 	LockCustomerAttachmentVersion(ctx context.Context, ownerID string) (LockCustomerAttachmentVersionRow, error)
-	LockEffectiveBobReference(ctx context.Context, arg LockEffectiveBobReferenceParams) (string, error)
-	LockEffectiveCategoryReference(ctx context.Context, targetCategoryID string) (string, error)
-	LockEffectiveServiceRelationship(ctx context.Context, serviceRelationshipObjectID string) (string, error)
 	LockExpiredPendingVouFile(ctx context.Context, id string) (string, error)
 	LockLatestApprovedVersion(ctx context.Context, arg LockLatestApprovedVersionParams) (ApprovalEntry, error)
 	LockPartyMergeObjects(ctx context.Context, objectIds []string) ([]LockPartyMergeObjectsRow, error)
@@ -622,8 +578,6 @@ type Querier interface {
 	LockWorkflowNodeByProcessAndDocument(ctx context.Context, arg LockWorkflowNodeByProcessAndDocumentParams) (LockWorkflowNodeByProcessAndDocumentRow, error)
 	LockWorkflowNodesForDocument(ctx context.Context, documentID *string) ([]LockWorkflowNodesForDocumentRow, error)
 	LockWorkflowRootInstance(ctx context.Context, arg LockWorkflowRootInstanceParams) (LockWorkflowRootInstanceRow, error)
-	MarkBobVersionPendingCopy(ctx context.Context, arg MarkBobVersionPendingCopyParams) (int64, error)
-	MarkBobVersionSaved(ctx context.Context, arg MarkBobVersionSavedParams) (int64, error)
 	MarkCustomerFileReady(ctx context.Context, fileID string) (int64, error)
 	MarkCustomerRelationshipMerged(ctx context.Context, arg MarkCustomerRelationshipMergedParams) (int64, error)
 	MarkEmploymentRelationshipMerged(ctx context.Context, arg MarkEmploymentRelationshipMergedParams) (int64, error)
@@ -631,7 +585,6 @@ type Querier interface {
 	MarkSalesRelationshipMerged(ctx context.Context, arg MarkSalesRelationshipMergedParams) (int64, error)
 	MarkServiceRelationshipMerged(ctx context.Context, arg MarkServiceRelationshipMergedParams) (int64, error)
 	MarkSupplierRelationshipMerged(ctx context.Context, arg MarkSupplierRelationshipMergedParams) (int64, error)
-	MarkUnresolvedBobProductCandidateFormulaMaterials(ctx context.Context, productVersionID string) error
 	MarkVouFileReady(ctx context.Context, id string) (int64, error)
 	MarkWorkflowNodeEvaluated(ctx context.Context, id string) error
 	MarkWorkflowRootDocumentDeleted(ctx context.Context, arg MarkWorkflowRootDocumentDeletedParams) error
@@ -644,6 +597,9 @@ type Querier interface {
 	NextAccountingBookNumber(ctx context.Context) (int32, error)
 	NextAccountingMappingVersion(ctx context.Context, arg NextAccountingMappingVersionParams) (int32, error)
 	NextAppRoleCode(ctx context.Context) (string, error)
+	// BOB owns stable identities and typed approval payloads.  Version state is
+	// exclusively stored in approval_entries; every resolver below selects the
+	// latest APPROVED entry and never falls back to an open candidate.
 	NextObjectNumberCounter(ctx context.Context, arg NextObjectNumberCounterParams) (int32, error)
 	NextVouNumberCounter(ctx context.Context, arg NextVouNumberCounterParams) (int32, error)
 	NextWorkflowPublishedRevision(ctx context.Context, definitionID string) (int64, error)
@@ -654,31 +610,17 @@ type Querier interface {
 	RecordSigninFailure(ctx context.Context, arg RecordSigninFailureParams) (AppUser, error)
 	RecordWorkflowDefinitionTrial(ctx context.Context, arg RecordWorkflowDefinitionTrialParams) (int64, error)
 	RecordWorkflowTrialAudit(ctx context.Context, arg RecordWorkflowTrialAuditParams) error
-	RefreshBobProductCandidateFormulaMaterials(ctx context.Context, productVersionID string) error
 	RegisterAccountingGlobalEvent(ctx context.Context, arg RegisterAccountingGlobalEventParams) (bool, error)
 	RegisterAccountingSubjectUsage(ctx context.Context, arg RegisterAccountingSubjectUsageParams) error
-	RejectBobVersion(ctx context.Context, arg RejectBobVersionParams) (int64, error)
 	ResetAppSystemParameterValue(ctx context.Context, arg ResetAppSystemParameterValueParams) (AppSystemParameter, error)
 	ResetAppUserPassword(ctx context.Context, arg ResetAppUserPasswordParams) (int64, error)
 	ResetSigninFailures(ctx context.Context, id string) error
-	ResolveBobEffectiveOtherUnitReference(ctx context.Context, arg ResolveBobEffectiveOtherUnitReferenceParams) (ResolveBobEffectiveOtherUnitReferenceRow, error)
-	ResolveBobEffectiveReference(ctx context.Context, arg ResolveBobEffectiveReferenceParams) (BobVersionView, error)
-	ResolveBobEffectiveSalesPartnerReference(ctx context.Context, arg ResolveBobEffectiveSalesPartnerReferenceParams) (ResolveBobEffectiveSalesPartnerReferenceRow, error)
-	ResolveCurrentBobEffectiveOtherUnitReference(ctx context.Context, objectID string) (ResolveCurrentBobEffectiveOtherUnitReferenceRow, error)
-	ResolveCurrentBobEffectiveReference(ctx context.Context, arg ResolveCurrentBobEffectiveReferenceParams) (BobVersionView, error)
-	ResolveCurrentBobEffectiveSalesPartnerReference(ctx context.Context, objectID string) (ResolveCurrentBobEffectiveSalesPartnerReferenceRow, error)
+	ResolveBobLatestApprovedReference(ctx context.Context, arg ResolveBobLatestApprovedReferenceParams) (ResolveBobLatestApprovedReferenceRow, error)
+	ResolveBobLatestApprovedReferenceByEntry(ctx context.Context, arg ResolveBobLatestApprovedReferenceByEntryParams) (ResolveBobLatestApprovedReferenceByEntryRow, error)
 	ResolveCustomerDocumentCategory(ctx context.Context, objectID string) (ResolveCustomerDocumentCategoryRow, error)
-	ResolveCustomerOperatingEntity(ctx context.Context, objectID string) (ResolveCustomerOperatingEntityRow, error)
-	ResolveFundAccountOperatingEntity(ctx context.Context, objectID string) (ResolveFundAccountOperatingEntityRow, error)
 	ResolveVouContractCounterparty(ctx context.Context, arg ResolveVouContractCounterpartyParams) (ResolveVouContractCounterpartyRow, error)
 	RestoreAccountingAssetsByDisposal(ctx context.Context, documentID *string) error
 	RestoreAccountingBillsBySettlement(ctx context.Context, documentID *string) error
-	RestoreBobCustomerEffectiveVersion(ctx context.Context, arg RestoreBobCustomerEffectiveVersionParams) (int64, error)
-	RestoreBobEffectiveVersion(ctx context.Context, arg RestoreBobEffectiveVersionParams) (int64, error)
-	RestoreBobOtherUnitEffectiveVersion(ctx context.Context, arg RestoreBobOtherUnitEffectiveVersionParams) (int64, error)
-	RestoreBobProductEffectiveVersion(ctx context.Context, arg RestoreBobProductEffectiveVersionParams) (int64, error)
-	RestoreBobSalesPartnerEffectiveVersion(ctx context.Context, arg RestoreBobSalesPartnerEffectiveVersionParams) (int64, error)
-	RestoreBobSupplierEffectiveVersion(ctx context.Context, arg RestoreBobSupplierEffectiveVersionParams) (int64, error)
 	RestoreWorkflowActionExecution(ctx context.Context, arg RestoreWorkflowActionExecutionParams) error
 	RestoreWorkflowNodeInstance(ctx context.Context, arg RestoreWorkflowNodeInstanceParams) error
 	ReverseAccountingAssetDepreciation(ctx context.Context, arg ReverseAccountingAssetDepreciationParams) error
@@ -715,7 +657,6 @@ type Querier interface {
 	SaveWorkflowDefinition(ctx context.Context, arg SaveWorkflowDefinitionParams) (int64, error)
 	SetAppRoleStatus(ctx context.Context, arg SetAppRoleStatusParams) (int64, error)
 	SetAppUserStatus(ctx context.Context, arg SetAppUserStatusParams) (int64, error)
-	SetBobObjectEffective(ctx context.Context, arg SetBobObjectEffectiveParams) (int64, error)
 	SetBobObjectEnabled(ctx context.Context, arg SetBobObjectEnabledParams) (int64, error)
 	SetVouInventoryCountResult(ctx context.Context, arg SetVouInventoryCountResultParams) (int64, error)
 	SetVouSaleLineExecution(ctx context.Context, arg SetVouSaleLineExecutionParams) (int64, error)
@@ -723,21 +664,17 @@ type Querier interface {
 	SetWorkflowDefinitionStatus(ctx context.Context, arg SetWorkflowDefinitionStatusParams) (int64, error)
 	SetWorkflowPublishedRevision(ctx context.Context, arg SetWorkflowPublishedRevisionParams) (int64, error)
 	SettleAccountingBill(ctx context.Context, arg SettleAccountingBillParams) (int64, error)
-	SubmitBobVersion(ctx context.Context, arg SubmitBobVersionParams) (int64, error)
 	SumVouBillLineFaceAmounts(ctx context.Context, documentID string) (int64, error)
-	SwitchBobEffectiveCandidate(ctx context.Context, arg SwitchBobEffectiveCandidateParams) (int64, error)
 	TouchAccountingOpeningDraft(ctx context.Context, arg TouchAccountingOpeningDraftParams) (int64, error)
 	TouchAppSession(ctx context.Context, arg TouchAppSessionParams) error
-	TouchBobObject(ctx context.Context, arg TouchBobObjectParams) error
+	TouchBobObject(ctx context.Context, arg TouchBobObjectParams) (TouchBobObjectRow, error)
 	TouchCustomerRelationshipAttachment(ctx context.Context, arg TouchCustomerRelationshipAttachmentParams) (int64, error)
-	TouchCustomerVersionAttachment(ctx context.Context, arg TouchCustomerVersionAttachmentParams) (int64, error)
 	TouchVouDraftAttachment(ctx context.Context, arg TouchVouDraftAttachmentParams) (int64, error)
 	UnapproveAccountingMapping(ctx context.Context, arg UnapproveAccountingMappingParams) (int64, error)
 	UnapproveAccountingOpening(ctx context.Context, arg UnapproveAccountingOpeningParams) (int64, error)
 	UnapproveVouDocument(ctx context.Context, arg UnapproveVouDocumentParams) (int64, error)
 	UncheckVouDocument(ctx context.Context, arg UncheckVouDocumentParams) (int64, error)
 	UnlockAccountingPeriodRow(ctx context.Context, arg UnlockAccountingPeriodRowParams) (int64, error)
-	UnsubmitBobVersion(ctx context.Context, arg UnsubmitBobVersionParams) (int64, error)
 	UpdateAccountingBook(ctx context.Context, arg UpdateAccountingBookParams) (int64, error)
 	UpdateAccountingMappingDraft(ctx context.Context, arg UpdateAccountingMappingDraftParams) (int64, error)
 	UpdateAccountingSubject(ctx context.Context, arg UpdateAccountingSubjectParams) (int64, error)
@@ -747,20 +684,16 @@ type Querier interface {
 	UpdateAppUser(ctx context.Context, arg UpdateAppUserParams) (int64, error)
 	UpdateAppUserPassword(ctx context.Context, arg UpdateAppUserPasswordParams) (int64, error)
 	UpdateApprovalEntry(ctx context.Context, arg UpdateApprovalEntryParams) (ApprovalEntry, error)
-	UpdateBobCategoryDetail(ctx context.Context, arg UpdateBobCategoryDetailParams) (int64, error)
-	UpdateBobDepartmentDetail(ctx context.Context, arg UpdateBobDepartmentDetailParams) (int64, error)
-	UpdateBobEmployeeDetail(ctx context.Context, arg UpdateBobEmployeeDetailParams) (int64, error)
-	UpdateBobFundAccountDetail(ctx context.Context, arg UpdateBobFundAccountDetailParams) (int64, error)
-	UpdateBobOperatingEntityDetail(ctx context.Context, arg UpdateBobOperatingEntityDetailParams) (int64, error)
-	UpdateBobParty(ctx context.Context, arg UpdateBobPartyParams) (int64, error)
-	UpdateBobPositionDetail(ctx context.Context, arg UpdateBobPositionDetailParams) (int64, error)
-	UpdateBobProductDetail(ctx context.Context, arg UpdateBobProductDetailParams) (int64, error)
-	UpdateBobSalesPartnerDetail(ctx context.Context, arg UpdateBobSalesPartnerDetailParams) (int64, error)
-	UpdateBobServiceRelationshipDetail(ctx context.Context, arg UpdateBobServiceRelationshipDetailParams) (int64, error)
-	UpdateBobSettlementMethodDetail(ctx context.Context, arg UpdateBobSettlementMethodDetailParams) (int64, error)
-	UpdateBobSupplierDetail(ctx context.Context, arg UpdateBobSupplierDetailParams) (int64, error)
-	UpdateBobVehicleDetail(ctx context.Context, arg UpdateBobVehicleDetailParams) (int64, error)
-	UpdateBobWarehouseDetail(ctx context.Context, arg UpdateBobWarehouseDetailParams) (int64, error)
+	UpdateBobCustomerPayload(ctx context.Context, arg UpdateBobCustomerPayloadParams) (int64, error)
+	UpdateBobEmployeePayload(ctx context.Context, arg UpdateBobEmployeePayloadParams) (int64, error)
+	UpdateBobFundAccountPayload(ctx context.Context, arg UpdateBobFundAccountPayloadParams) (int64, error)
+	UpdateBobOperatingEntityPayload(ctx context.Context, arg UpdateBobOperatingEntityPayloadParams) (int64, error)
+	UpdateBobOtherUnitPayload(ctx context.Context, arg UpdateBobOtherUnitPayloadParams) (int64, error)
+	UpdateBobProductPayload(ctx context.Context, arg UpdateBobProductPayloadParams) (int64, error)
+	UpdateBobSalesPartnerPayload(ctx context.Context, arg UpdateBobSalesPartnerPayloadParams) (int64, error)
+	UpdateBobSupplierPayload(ctx context.Context, arg UpdateBobSupplierPayloadParams) (int64, error)
+	UpdateBobVehiclePayload(ctx context.Context, arg UpdateBobVehiclePayloadParams) (int64, error)
+	UpdateBobWarehousePayload(ctx context.Context, arg UpdateBobWarehousePayloadParams) (int64, error)
 	UpdateCurrentAppUserProfile(ctx context.Context, arg UpdateCurrentAppUserProfileParams) (AppUser, error)
 	UpdateVouAssetAcquisitionDetail(ctx context.Context, arg UpdateVouAssetAcquisitionDetailParams) (int64, error)
 	UpdateVouAssetSaleDetail(ctx context.Context, arg UpdateVouAssetSaleDetailParams) (int64, error)

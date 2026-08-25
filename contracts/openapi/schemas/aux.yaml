@@ -144,29 +144,73 @@ AuxCreateRequest:
 AuxSaveRequest:
   type: object
   additionalProperties: false
-  required: [objectId, revision, data]
+  required: [objectId, approvalEntryId, approvalRevision, data]
   properties:
     objectId:
       type: string
       minLength: 26
       maxLength: 26
-    revision:
+    approvalEntryId:
+      type: string
+      minLength: 26
+      maxLength: 26
+    approvalRevision:
       type: integer
       format: int64
       minimum: 1
     data:
       $ref: '#/AuxData'
 
-AuxRevisionRequest:
+AuxApprovalRevisionRequest:
   type: object
   additionalProperties: false
-  required: [objectId, revision]
+  required: [objectId, approvalEntryId, approvalRevision]
   properties:
     objectId:
       type: string
       minLength: 26
       maxLength: 26
-    revision:
+    approvalEntryId:
+      type: string
+      minLength: 26
+      maxLength: 26
+    approvalRevision:
+      type: integer
+      format: int64
+      minimum: 1
+
+AuxReviewRequest:
+  type: object
+  additionalProperties: false
+  required: [objectId, approvalEntryId, approvalRevision, reason]
+  properties:
+    objectId:
+      type: string
+      minLength: 26
+      maxLength: 26
+    approvalEntryId:
+      type: string
+      minLength: 26
+      maxLength: 26
+    approvalRevision:
+      type: integer
+      format: int64
+      minimum: 1
+    reason:
+      type: string
+      nullable: true
+      maxLength: 1000
+
+AuxObjectRevisionRequest:
+  type: object
+  additionalProperties: false
+  required: [objectId, objectRevision]
+  properties:
+    objectId:
+      type: string
+      minLength: 26
+      maxLength: 26
+    objectRevision:
       type: integer
       format: int64
       minimum: 1
@@ -180,7 +224,7 @@ AuxGetRequest:
       type: string
       minLength: 26
       maxLength: 26
-    versionId:
+    approvalEntryId:
       type: string
       minLength: 26
       maxLength: 26
@@ -203,6 +247,10 @@ AuxQueryRequest:
       properties:
         keyword: { type: string }
         enabled: { type: boolean }
+        status:
+          type: array
+          items:
+            $ref: './common.yaml#/ApprovalStatus'
         behaviorProfile:
           $ref: '#/ProductBehaviorProfile'
         parentId: { type: string }
@@ -221,7 +269,7 @@ AuxQueryRequest:
         properties:
           field:
             type: string
-            enum: [updatedAt, code, name, version]
+            enum: [updatedAt, code, name, versionNo]
           order:
             type: string
             enum: [asc, desc]
@@ -261,14 +309,12 @@ AuxReferenceQueryRequest:
 AuxVersionView:
   type: object
   additionalProperties: false
-  required: [versionId, version, data, createdAt, createdBy]
+  required: [approval, data]
   properties:
-    versionId: { type: string }
-    version: { type: integer, format: int32 }
+    approval:
+      $ref: './common.yaml#/ApprovalVersionMeta'
     data:
       $ref: '#/AuxData'
-    createdAt: { type: string, format: date-time }
-    createdBy: { type: string }
 
 AuxObjectView:
   type: object
@@ -280,7 +326,8 @@ AuxObjectView:
       code,
       enabled,
       objectRevision,
-      currentVersion,
+      latestApproved,
+      openVersion,
       updatedAt,
       updatedBy,
     ]
@@ -291,8 +338,16 @@ AuxObjectView:
     code: { type: string }
     enabled: { type: boolean }
     objectRevision: { type: integer, format: int64 }
-    currentVersion:
-      $ref: '#/AuxVersionView'
+    latestApproved:
+      type: object
+      allOf:
+        - $ref: '#/AuxVersionView'
+      nullable: true
+    openVersion:
+      type: object
+      allOf:
+        - $ref: '#/AuxVersionView'
+      nullable: true
     updatedAt: { type: string, format: date-time }
     updatedBy: { type: string }
 
@@ -312,13 +367,13 @@ AuxObjectPage:
 AuxMutationResult:
   type: object
   additionalProperties: false
-  required: [objectId, objectRevision, versionId, version, enabled]
+  required: [objectId, objectRevision, enabled, approval]
   properties:
     objectId: { type: string }
     objectRevision: { type: integer, format: int64 }
-    versionId: { type: string }
-    version: { type: integer, format: int32 }
     enabled: { type: boolean }
+    approval:
+      $ref: './common.yaml#/ApprovalVersionMeta'
 
 AuxVersionPage:
   type: object
@@ -334,19 +389,7 @@ AuxVersionPage:
     pageSize: { type: integer }
 
 AuxAuditEventView:
-  type: object
-  additionalProperties: false
-  required: [id, eventType, versionId, actorId, occurredAt, requestId, summary]
-  properties:
-    id: { type: string }
-    eventType: { type: string }
-    versionId: { type: string }
-    actorId: { type: string }
-    occurredAt: { type: string, format: date-time }
-    requestId: { type: string }
-    summary:
-      type: object
-      additionalProperties: true
+  $ref: './common.yaml#/ApprovalEventView'
 
 AuxAuditEventPage:
   type: object

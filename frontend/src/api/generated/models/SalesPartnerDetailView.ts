@@ -15,7 +15,7 @@ export type SalesPartnerDetailView = {
   operatingEntityId: string;
   operatingEntityCode: string;
   operatingEntityName: string;
-  effective: SalesPartnerVersionView | null;
-  candidate: SalesPartnerVersionView | null;
+  latestApproved: SalesPartnerVersionView | null;
+  openVersion: SalesPartnerVersionView | null;
   updatedAt: string;
 };

@@ -139,10 +139,10 @@ export function useBobReferences(
                 {
                   title: formatReferenceLabel({
                     code: item.code,
-                    name: item.currentVersion.data.name,
+                    name: item.latestApproved?.data.name ?? '',
                   }),
                   value,
-                  metadata: { ...item.currentVersion.data },
+                  metadata: { ...item.latestApproved?.data },
                 },
               ]
               return
@@ -156,21 +156,21 @@ export function useBobReferences(
                     filters: {
                       ...resolveReferenceFilters(reference, form),
                       keyword: value,
-                      status: ['EFFECTIVE'],
+                      status: ['APPROVED'],
                     },
                   })
                 : await apiClient.postContract(
                     `bob/${reference.entity}/query`,
                     {
-                page: 1,
-                pageSize: 20,
-                filters: {
-                  ...resolveReferenceFilters(reference, form),
-                  keyword: value,
-                  status: ['EFFECTIVE'],
-                  enabled: true,
-                },
-                sort: [{ field: 'name', order: 'asc' }],
+                      page: 1,
+                      pageSize: 20,
+                      filters: {
+                        ...resolveReferenceFilters(reference, form),
+                        keyword: value,
+                        status: ['APPROVED'],
+                        enabled: true,
+                      },
+                      sort: [{ field: 'name', order: 'asc' }],
                     },
                   )
             const item = data.items.find(
@@ -188,7 +188,7 @@ export function useBobReferences(
                   name:
                     'partyDisplayName' in item
                       ? item.partyDisplayName
-                      : (item.effective?.summary.name ?? ''),
+                      : (item.latestApproved?.summary.name ?? ''),
                 }),
                 value,
               },
@@ -206,10 +206,10 @@ export function useBobReferences(
               {
                 title: formatReferenceLabel({
                   code: data.code,
-                  name: data.currentVersion.data.name,
+                  name: data.latestApproved?.data.name ?? '',
                 }),
                 value,
-                metadata: { ...data.currentVersion.data },
+                metadata: { ...data.latestApproved?.data },
               },
             ]
             return
@@ -278,24 +278,24 @@ export function useBobReferences(
       let loaded: BusinessObjectFieldOption<string>[]
       if (reference.domain === 'aux') {
         loaded = (
-              await apiClient.postContract(`aux/${reference.entity}/query`, {
-                page: 1,
-                pageSize: 20,
-                filters: {
-                  ...resolveReferenceFilters(reference, form),
-                  ...(keywordFilter ? { keyword: keywordFilter } : {}),
-                  enabled: true,
-                },
-                sort: [{ field: 'name', order: 'asc' }],
-              })
-            ).data.items.map((item) => ({
-              title: formatReferenceLabel({
-                code: item.code,
-                name: item.currentVersion.data.name,
-              }),
-              value: reference.value === 'code' ? item.code : item.objectId,
-              metadata: { ...item.currentVersion.data },
-            }))
+          await apiClient.postContract(`aux/${reference.entity}/query`, {
+            page: 1,
+            pageSize: 20,
+            filters: {
+              ...resolveReferenceFilters(reference, form),
+              ...(keywordFilter ? { keyword: keywordFilter } : {}),
+              enabled: true,
+            },
+            sort: [{ field: 'name', order: 'asc' }],
+          })
+        ).data.items.map((item) => ({
+          title: formatReferenceLabel({
+            code: item.code,
+            name: item.latestApproved?.data.name ?? '',
+          }),
+          value: reference.value === 'code' ? item.code : item.objectId,
+          metadata: { ...item.latestApproved?.data },
+        }))
       } else if (reference.entity === 'other-unit') {
         loaded = (
           await apiClient.postContract('bob/other-unit/query', {
@@ -304,7 +304,7 @@ export function useBobReferences(
             filters: {
               ...resolveReferenceFilters(reference, form),
               ...(keywordFilter ? { keyword: keywordFilter } : {}),
-              status: ['EFFECTIVE'],
+              status: ['APPROVED'],
             },
           })
         ).data.items.map((item) => ({
@@ -316,33 +316,30 @@ export function useBobReferences(
         }))
       } else {
         loaded = (
-              await apiClient.postContract(`bob/${reference.entity}/query`, {
-                page: 1,
-                pageSize: 20,
-                filters: {
-                  ...resolveReferenceFilters(reference, form),
-                  ...(keywordFilter ? { keyword: keywordFilter } : {}),
-                  status: ['EFFECTIVE'],
-                  enabled: true,
-                },
-                sort: [{ field: 'name', order: 'asc' }],
-              })
-            ).data.items.map((item) => ({
-              title: formatReferenceLabel({
-                code: item.code,
-                name: item.effective?.summary.name ?? '',
-              }),
-              value: reference.value === 'code' ? item.code : item.objectId,
-            }))
+          await apiClient.postContract(`bob/${reference.entity}/query`, {
+            page: 1,
+            pageSize: 20,
+            filters: {
+              ...resolveReferenceFilters(reference, form),
+              ...(keywordFilter ? { keyword: keywordFilter } : {}),
+              status: ['APPROVED'],
+              enabled: true,
+            },
+            sort: [{ field: 'name', order: 'asc' }],
+          })
+        ).data.items.map((item) => ({
+          title: formatReferenceLabel({
+            code: item.code,
+            name: item.latestApproved?.summary.name ?? '',
+          }),
+          value: reference.value === 'code' ? item.code : item.objectId,
+        }))
       }
       if (state.requestSequence !== sequence) return
       const selected = state.options.filter((option) =>
         Object.values(form).includes(option.value),
       )
-      state.options = [
-        ...selected,
-        ...loaded,
-      ].filter(
+      state.options = [...selected, ...loaded].filter(
         (option, index, all) =>
           all.findIndex((candidate) => candidate.value === option.value) ===
           index,

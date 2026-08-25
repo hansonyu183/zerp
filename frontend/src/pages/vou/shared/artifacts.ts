@@ -43,11 +43,14 @@ export function useVoucherArtifacts(
     auditLoading.value = true
     auditError.value = null
     try {
-      const { data } = await apiClient.postContract(`vou/${config.entity}/audit-history`, {
-        documentId: current.documentId,
-        page: nextPage,
-        pageSize: auditPageSize.value,
-      })
+      const { data } = await apiClient.postContract(
+        `vou/${config.entity}/audit-history`,
+        {
+          documentId: current.documentId,
+          page: nextPage,
+          pageSize: auditPageSize.value,
+        },
+      )
       if (
         sequence !== auditSequence ||
         documentView.value?.documentId !== current.documentId
@@ -73,14 +76,17 @@ export function useVoucherArtifacts(
     try {
       for (const file of files) {
         const hash = await sha256(file)
-        const initiated = await apiClient.postContract(`vou/${config.entity}/attachment-initiate`, {
-          documentId: current.documentId,
-          revision: documentView.value!.revision,
-          fileName: file.name,
-          contentType: file.type,
-          size: file.size,
-          sha256: hash,
-        })
+        const initiated = await apiClient.postContract(
+          `vou/${config.entity}/attachment-initiate`,
+          {
+            documentId: current.documentId,
+            revision: documentView.value!.revision,
+            fileName: file.name,
+            contentType: file.type,
+            size: file.size,
+            sha256: hash,
+          },
+        )
         documentView.value!.revision = initiated.data.revision
         try {
           await apiClient.uploadAttachment(initiated.data.uploadUrl, file)
@@ -106,10 +112,13 @@ export function useVoucherArtifacts(
     attachmentLoading.value = true
     attachmentError.value = null
     try {
-      const { data } = await apiClient.postContract(`vou/${config.entity}/attachment-download`, {
-        documentId: current.documentId,
-        fileId: attachment.fileId,
-      })
+      const { data } = await apiClient.postContract(
+        `vou/${config.entity}/attachment-download`,
+        {
+          documentId: current.documentId,
+          fileId: attachment.fileId,
+        },
+      )
       const blob = await apiClient.fetchAttachment(data.downloadUrl)
       downloadBlob(blob, attachment.fileName)
     } catch (error) {
@@ -127,14 +136,11 @@ export function useVoucherArtifacts(
     attachmentLoading.value = true
     attachmentError.value = null
     try {
-      await apiClient.postContract(
-        `vou/${config.entity}/attachment-remove`,
-        {
-          documentId: current.documentId,
-          revision: current.revision,
-          fileId: attachment.fileId,
-        },
-      )
+      await apiClient.postContract(`vou/${config.entity}/attachment-remove`, {
+        documentId: current.documentId,
+        revision: current.revision,
+        fileId: attachment.fileId,
+      })
       await Promise.all([loadDocument(current.documentId), loadAudit(1)])
     } catch (error) {
       attachmentError.value = getErrorMessage(error)

@@ -296,7 +296,7 @@ func TestOpenAPIValidatorAcceptsBillReceiptRequest(t *testing.T) {
 	request := httptest.NewRequest(
 		http.MethodPost,
 		"/vou/bill-receipt/create",
-		strings.NewReader(`{"data":{"businessDate":"2026-08-05","currency":"CNY","counterparty":{"objectId":"01J00000000000000000000001","versionId":"01J00000000000000000000002"},"handler":{"objectId":"01J00000000000000000000003","versionId":"01J00000000000000000000004"},"internalCostRateBps":0,"billLines":[{"positionType":"ASSET","direction":"IN","purpose":"PRIMARY","billType":"BANK_ACCEPTANCE","billNo":"E2E-1","medium":"ELECTRONIC","currency":"CNY","faceAmount":"100.00","issueDate":"2026-08-05","maturityDate":"2026-09-04","drawer":"出票人","acceptor":"承兑人","payee":"收款人","annualRateBps":365}],"billCashLines":[]}}`),
+		strings.NewReader(`{"data":{"businessDate":"2026-08-05","currency":"CNY","counterparty":{"objectId":"01J00000000000000000000001","approvalEntryId":"01J00000000000000000000002"},"handler":{"objectId":"01J00000000000000000000003","approvalEntryId":"01J00000000000000000000004"},"internalCostRateBps":0,"billLines":[{"positionType":"ASSET","direction":"IN","purpose":"PRIMARY","billType":"BANK_ACCEPTANCE","billNo":"E2E-1","medium":"ELECTRONIC","currency":"CNY","faceAmount":"100.00","issueDate":"2026-08-05","maturityDate":"2026-09-04","drawer":"出票人","acceptor":"承兑人","payee":"收款人","annualRateBps":365}],"billCashLines":[]}}`),
 	)
 	request.Header.Set("Content-Type", "application/json")
 	responseRecorder := httptest.NewRecorder()

@@ -6,30 +6,46 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 
+	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 )
 
+func trustedAccountingActor(t *testing.T, requestID string) approval.Actor {
+	t.Helper()
+	actorID := adminID
+	if strings.Contains(requestID, "approve") || strings.Contains(requestID, "reject") {
+		actorID = operatorID
+	}
+	actor, err := approval.UserActor(authorization.Principal{ActorID: actorID}, requestID)
+	if err != nil {
+		t.Fatalf("create accounting integration actor: %v", err)
+	}
+	return actor
+}
+
 func createApprovedAccountingReference(t *testing.T, service *bobdomain.Service, entity string, data bobdomain.CreateDetailInput) voudomain.ReferenceInput {
 	t.Helper()
-	created, err := service.Create(t.Context(), entity, bobdomain.CreateInput{Data: data}, adminID, "acc-posting-reference-create")
+	created, err := service.Create(t.Context(), entity, bobdomain.CreateInput{Data: data}, trustedAccountingActor(t, "acc-posting-reference-create"))
 	if err != nil {
 		t.Fatalf("create %s reference: %v", entity, err)
 	}
-	submitted, err := service.Submit(t.Context(), entity, bobdomain.VersionRevisionInput{ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: created.Revision}, adminID, "acc-posting-reference-submit")
+	submitted, err := service.Submit(t.Context(), entity, bobdomain.VersionRevisionInput{ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision}, trustedAccountingActor(t, "acc-posting-reference-submit"))
 	if err != nil {
 		t.Fatalf("submit %s reference: %v", entity, err)
 	}
-	approved, err := service.Approve(t.Context(), entity, bobdomain.ReviewInput{ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: submitted.Revision}, operatorID, "acc-posting-reference-approve")
+	approved, err := service.Approve(t.Context(), entity, bobdomain.ReviewInput{ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: submitted.Approval.Revision}, trustedAccountingActor(t, "acc-posting-reference-approve"))
 	if err != nil {
 		t.Fatalf("approve %s reference: %v", entity, err)
 	}
-	return voudomain.ReferenceInput{ObjectID: approved.ObjectID, VersionID: approved.VersionID}
+	return voudomain.ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
 }
 
 func createApprovedZeroOpening(t *testing.T, service *Service, book BookView) {
@@ -76,30 +92,31 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 	if err = accounting.RegisterSubscriptions(bus); err != nil {
 		t.Fatalf("register accounting subscriptions: %v", err)
 	}
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxdomain.NewService(pool)))
+	auxiliary := auxdomain.NewService(pool, authorization.Func(nil), bus)
+	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
 	operating := createApprovedAccountingReference(t, business, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{Name: "自动记账经营主体"})
 	employment, err := business.EmploymentCreate(t.Context(), bobdomain.EmploymentCreateInput{
 		NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: "自动记账经办人"},
 		Data:     bobdomain.CreateDetailInput{OperatingEntityID: operating.ObjectID},
-	}, adminID, "acc-posting-employee-create", true)
+	}, trustedAccountingActor(t, "acc-posting-employee-create"), true)
 	if err != nil {
 		t.Fatalf("create employee reference: %v", err)
 	}
 	submittedEmployment, err := business.Submit(t.Context(), bobdomain.EntityEmployee, bobdomain.VersionRevisionInput{
-		ObjectID: employment.ObjectID, VersionID: employment.VersionID, Revision: employment.Revision,
-	}, adminID, "acc-posting-employee-submit")
+		ObjectID: employment.ObjectID, ApprovalEntryID: employment.Approval.ApprovalEntryID, ApprovalRevision: employment.Approval.Revision,
+	}, trustedAccountingActor(t, "acc-posting-employee-submit"))
 	if err != nil {
 		t.Fatalf("submit employee reference: %v", err)
 	}
 	approvedEmployment, err := business.Approve(t.Context(), bobdomain.EntityEmployee, bobdomain.ReviewInput{
-		ObjectID: employment.ObjectID, VersionID: employment.VersionID, Revision: submittedEmployment.Revision,
-	}, operatorID, "acc-posting-employee-approve")
+		ObjectID: employment.ObjectID, ApprovalEntryID: employment.Approval.ApprovalEntryID, ApprovalRevision: submittedEmployment.Approval.Revision,
+	}, trustedAccountingActor(t, "acc-posting-employee-approve"))
 	if err != nil {
 		t.Fatalf("approve employee reference: %v", err)
 	}
-	handler := voudomain.ReferenceInput{ObjectID: approvedEmployment.ObjectID, VersionID: approvedEmployment.VersionID}
+	handler := voudomain.ReferenceInput{ObjectID: approvedEmployment.ObjectID, ApprovalEntryID: approvedEmployment.Approval.ApprovalEntryID}
 	fund := createApprovedAccountingReference(t, business, bobdomain.EntityFundAccount, bobdomain.CreateDetailInput{Name: "自动记账账户", Currency: "CNY", OperatingEntityID: operating.ObjectID})
-	vouchers, err := voudomain.NewService(pool, business, auxiliaryrefs.New(auxdomain.NewService(pool)), bus, voudomain.AttachmentOptions{Root: t.TempDir()}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	vouchers, err := voudomain.NewService(pool, business, auxiliaryrefs.New(auxiliary), bus, voudomain.AttachmentOptions{Root: t.TempDir()}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatalf("new VOU service: %v", err)
 	}
@@ -302,24 +319,25 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 	if err = accounting.RegisterSubscriptions(bus); err != nil {
 		t.Fatalf("register accounting subscriptions: %v", err)
 	}
-	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxdomain.NewService(pool)))
+	auxiliary := auxdomain.NewService(pool, authorization.Func(nil), bus)
+	business := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
 	operating := createApprovedAccountingReference(t, business, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{Name: "服务验收经营主体"})
 	employment, err := business.EmploymentCreate(t.Context(), bobdomain.EmploymentCreateInput{
 		NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: "服务验收经办人"},
 		Data:     bobdomain.CreateDetailInput{OperatingEntityID: operating.ObjectID},
-	}, adminID, "service-acceptance-employee-create", true)
+	}, trustedAccountingActor(t, "service-acceptance-employee-create"), true)
 	if err != nil {
 		t.Fatalf("create employee reference: %v", err)
 	}
 	submittedEmployment, err := business.Submit(t.Context(), bobdomain.EntityEmployee, bobdomain.VersionRevisionInput{
-		ObjectID: employment.ObjectID, VersionID: employment.VersionID, Revision: employment.Revision,
-	}, adminID, "service-acceptance-employee-submit")
+		ObjectID: employment.ObjectID, ApprovalEntryID: employment.Approval.ApprovalEntryID, ApprovalRevision: employment.Approval.Revision,
+	}, trustedAccountingActor(t, "service-acceptance-employee-submit"))
 	if err != nil {
 		t.Fatalf("submit employee reference: %v", err)
 	}
 	approvedEmployment, err := business.Approve(t.Context(), bobdomain.EntityEmployee, bobdomain.ReviewInput{
-		ObjectID: employment.ObjectID, VersionID: employment.VersionID, Revision: submittedEmployment.Revision,
-	}, operatorID, "service-acceptance-employee-approve")
+		ObjectID: employment.ObjectID, ApprovalEntryID: employment.Approval.ApprovalEntryID, ApprovalRevision: submittedEmployment.Approval.Revision,
+	}, trustedAccountingActor(t, "service-acceptance-employee-approve"))
 	if err != nil {
 		t.Fatalf("approve employee reference: %v", err)
 	}
@@ -327,36 +345,38 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 	if err = pool.QueryRow(t.Context(), `
 		SELECT object.id
 		FROM aux_objects object
-		JOIN aux_versions version ON version.id=object.current_version_id
-		WHERE object.entity='settlement-method' AND object.enabled AND version.data->>'termCode'=$1
+		JOIN approval_entries entry ON entry.domain='aux' AND entry.entity=object.entity AND entry.subject_id=object.id AND entry.status='APPROVED'
+		JOIN aux_version_payloads payload ON payload.approval_entry_id=entry.id
+		WHERE object.entity='settlement-method' AND object.enabled AND payload.data->>'termCode'=$1
+		ORDER BY entry.version_no DESC LIMIT 1
 	`, bobdomain.SettlementTermMonthly30).Scan(&settlementID); err != nil {
 		t.Fatalf("load monthly settlement method: %v", err)
 	}
 	serviceRelationship, err := business.OtherUnitCreate(t.Context(), bobdomain.OtherUnitCreateInput{
 		NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindOrganization, LegalName: "服务验收往来单位"},
 		Data:     bobdomain.OtherUnitData{OperatingEntityID: operating.ObjectID, SettlementMethodID: settlementID},
-	}, adminID, "service-acceptance-other-unit-create", true)
+	}, trustedAccountingActor(t, "service-acceptance-other-unit-create"), true)
 	if err != nil {
 		t.Fatalf("create service relationship: %v", err)
 	}
 	submittedRelationship, err := business.Submit(t.Context(), bobdomain.EntityOtherUnit, bobdomain.VersionRevisionInput{
-		ObjectID: serviceRelationship.ObjectID, VersionID: serviceRelationship.VersionID, Revision: serviceRelationship.Revision,
-	}, adminID, "service-acceptance-other-unit-submit")
+		ObjectID: serviceRelationship.ObjectID, ApprovalEntryID: serviceRelationship.Approval.ApprovalEntryID, ApprovalRevision: serviceRelationship.Approval.Revision,
+	}, trustedAccountingActor(t, "service-acceptance-other-unit-submit"))
 	if err != nil {
 		t.Fatalf("submit service relationship: %v", err)
 	}
 	approvedRelationship, err := business.Approve(t.Context(), bobdomain.EntityOtherUnit, bobdomain.ReviewInput{
-		ObjectID: serviceRelationship.ObjectID, VersionID: serviceRelationship.VersionID, Revision: submittedRelationship.Revision,
-	}, operatorID, "service-acceptance-other-unit-approve")
+		ObjectID: serviceRelationship.ObjectID, ApprovalEntryID: serviceRelationship.Approval.ApprovalEntryID, ApprovalRevision: submittedRelationship.Approval.Revision,
+	}, trustedAccountingActor(t, "service-acceptance-other-unit-approve"))
 	if err != nil {
 		t.Fatalf("approve service relationship: %v", err)
 	}
-	vouchers, err := voudomain.NewService(pool, business, auxiliaryrefs.New(auxdomain.NewService(pool)), bus, voudomain.AttachmentOptions{Root: t.TempDir()}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	vouchers, err := voudomain.NewService(pool, business, auxiliaryrefs.New(auxiliary), bus, voudomain.AttachmentOptions{Root: t.TempDir()}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatalf("new VOU service: %v", err)
 	}
-	handler := &voudomain.ReferenceInput{ObjectID: approvedEmployment.ObjectID, VersionID: approvedEmployment.VersionID}
-	counterparty := &voudomain.ReferenceInput{ObjectID: approvedRelationship.ObjectID, VersionID: approvedRelationship.VersionID}
+	handler := &voudomain.ReferenceInput{ObjectID: approvedEmployment.ObjectID, ApprovalEntryID: approvedEmployment.Approval.ApprovalEntryID}
+	counterparty := &voudomain.ReferenceInput{ObjectID: approvedRelationship.ObjectID, ApprovalEntryID: approvedRelationship.Approval.ApprovalEntryID}
 	contract, err := vouchers.Create(t.Context(), voudomain.EntityServiceContract, voudomain.CreateInput{Data: voudomain.DraftInput{
 		BusinessDate: "2026-07-01", Currency: "CNY", CounterpartyType: bobdomain.EntityOtherUnit,
 		Counterparty: counterparty, Handler: handler,

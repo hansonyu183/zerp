@@ -14,7 +14,8 @@ describe('VoucherAssetLinesEditor', () => {
 
   it('loads active disposal candidates with contract-compliant pagination', async () => {
     mockedPost.mockImplementation(async (path, body) => {
-      if (path !== 'vou/asset-sale/asset-source') return { data: { items: [] } } as never
+      if (path !== 'vou/asset-sale/asset-source')
+        return { data: { items: [] } } as never
       const page = (body as { page: number }).page
       return {
         data: {
@@ -42,14 +43,22 @@ describe('VoucherAssetLinesEditor', () => {
     })
     await flushPromises()
 
-    expect(mockedPost).toHaveBeenNthCalledWith(1, 'vou/asset-sale/asset-source', {
-      page: 1,
-      pageSize: 200,
-    })
-    expect(mockedPost).toHaveBeenNthCalledWith(2, 'vou/asset-sale/asset-source', {
-      page: 2,
-      pageSize: 200,
-    })
+    expect(mockedPost).toHaveBeenNthCalledWith(
+      1,
+      'vou/asset-sale/asset-source',
+      {
+        page: 1,
+        pageSize: 200,
+      },
+    )
+    expect(mockedPost).toHaveBeenNthCalledWith(
+      2,
+      'vou/asset-sale/asset-source',
+      {
+        page: 2,
+        pageSize: 200,
+      },
+    )
     expect(wrapper.find('.responsive-table-wrap').exists()).toBe(true)
   })
 })

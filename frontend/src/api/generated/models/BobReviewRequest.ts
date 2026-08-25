@@ -4,7 +4,7 @@
 /* eslint-disable */
 export type BobReviewRequest = {
   objectId: string;
-  versionId: string;
-  revision: number;
-  comment: string | null;
+  approvalEntryId: string;
+  approvalRevision: number;
+  reason: string | null;
 };

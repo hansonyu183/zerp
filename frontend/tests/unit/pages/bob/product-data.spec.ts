@@ -18,7 +18,7 @@ describe('product target data model', () => {
           {
             unit: {
               objectId: 'UNIT-KG',
-              versionId: 'VERSION-KG',
+              approvalEntryId: 'VERSION-KG',
               code: 'KG',
               name: '千克',
               symbol: 'kg',
@@ -40,7 +40,7 @@ describe('product target data model', () => {
         {
           unit: {
             objectId: 'UNIT-TON',
-            versionId: 'VERSION-TON',
+            approvalEntryId: 'VERSION-TON',
             code: 'TON',
             name: '吨',
             symbol: 't',
@@ -76,7 +76,7 @@ describe('product target data model', () => {
           key: 'LINE-1',
           material: {
             objectId: 'MAT-1',
-            versionId: 'MAT-V1',
+            approvalEntryId: 'MAT-V1',
             code: 'MAT-1',
             name: '原料',
           },

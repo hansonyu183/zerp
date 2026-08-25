@@ -15,7 +15,7 @@ export type SupplierDetailView = {
   operatingEntityId: string;
   operatingEntityCode: string;
   operatingEntityName: string;
-  effective: SupplierVersionView | null;
-  candidate: SupplierVersionView | null;
+  latestApproved: SupplierVersionView | null;
+  openVersion: SupplierVersionView | null;
   updatedAt: string;
 };

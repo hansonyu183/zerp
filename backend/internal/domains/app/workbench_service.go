@@ -217,8 +217,8 @@ func (s *Service) queryWorkbenchBob(
 		items = append(items, WorkbenchItem{
 			Category: WorkbenchCategoryBob, Entity: row.Entity, Status: row.Status,
 			PendingStage: pendingStage, AvailableActions: actions, UpdatedAt: row.ObjectUpdatedAt.Time,
-			ObjectID: row.ObjectID, ObjectRevision: row.ObjectRevision, VersionID: row.VersionID,
-			Revision: row.VersionRevision, Code: row.Code, Name: row.Name,
+			ObjectID: row.ObjectID, ObjectRevision: row.ObjectRevision, ApprovalEntryID: row.ApprovalEntryID,
+			Revision: row.ApprovalRevision, Code: row.Code, Name: row.Name,
 		})
 	}
 	return Page[WorkbenchItem]{Items: items, Total: total, Page: spec.Page, PageSize: spec.PageSize}, nil

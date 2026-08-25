@@ -2,12 +2,9 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalVersionMeta } from './ApprovalVersionMeta';
 import type { SalesPartnerCapability } from './SalesPartnerCapability';
 export type SalesPartnerListVersion = {
-  versionId: string;
-  version: number;
-  status: 'DRAFT' | 'PENDING' | 'EFFECTIVE' | 'INVALID';
-  revision: number;
+  approval: ApprovalVersionMeta;
   capabilities: Array<SalesPartnerCapability>;
-  submittedBy: string | null;
 };

@@ -6,7 +6,7 @@ export type VoucherStatus = components['schemas']['VouStatus']
 
 export interface VoucherReferenceInput {
   objectId: string
-  versionId: string
+  approvalEntryId: string
 }
 
 export interface VoucherReference extends VoucherReferenceInput {
@@ -33,7 +33,7 @@ export type ProductBehaviorProfile =
 
 export interface VoucherUnitSnapshot {
   objectId: string
-  versionId?: string
+  approvalEntryId?: string
   code?: string
   name?: string
   symbol?: string
@@ -295,7 +295,7 @@ export interface VoucherProductionOutputView {
 
 export interface SettlementMethodSnapshot {
   objectId: string
-  versionId: string
+  approvalEntryId: string
   code: string
   name: string
   ruleType: 'DUE_DAYS' | 'MONTH_END' | 'RELATIVE_DAYS' | 'FIXED_DAY'
@@ -423,7 +423,7 @@ export interface VoucherDocumentData {
 
 export interface IntermediaryReference {
   objectId: string
-  versionId: string
+  approvalEntryId: string
   entity:
     'customer-account' | 'employee' | 'sales-partner' | 'other-unit' | 'product'
   code: string

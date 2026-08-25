@@ -4,6 +4,6 @@
 /* eslint-disable */
 export type BobVersionRevisionRequest = {
   objectId: string;
-  versionId: string;
-  revision: number;
+  approvalEntryId: string;
+  approvalRevision: number;
 };

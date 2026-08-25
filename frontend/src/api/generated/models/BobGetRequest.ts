@@ -4,5 +4,5 @@
 /* eslint-disable */
 export type BobGetRequest = {
   objectId: string;
-  versionId?: string;
+  approvalEntryId?: string;
 };

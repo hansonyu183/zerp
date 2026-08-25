@@ -1,5 +1,10 @@
 export interface BillVoucherConfig {
-  entity: 'bill-receipt' | 'bill-payment' | 'bill-issue' | 'bill-discount' | 'bill-maturity'
+  entity:
+    | 'bill-receipt'
+    | 'bill-payment'
+    | 'bill-issue'
+    | 'bill-discount'
+    | 'bill-maturity'
   title: string
   mode: 'receipt' | 'payment' | 'issue' | 'discount' | 'maturity'
   maxBillLines: number

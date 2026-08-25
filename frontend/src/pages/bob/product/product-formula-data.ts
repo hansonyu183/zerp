@@ -1,6 +1,6 @@
 export interface FormulaUnitSnapshot {
   objectId: string
-  versionId?: string
+  approvalEntryId?: string
   code?: string
   name?: string
   symbol?: string
@@ -14,7 +14,7 @@ export interface FormulaQuantitySnapshotDraft {
 
 export interface FormulaMaterialReference {
   objectId: string
-  versionId: string
+  approvalEntryId: string
   code: string
   name: string
   behaviorProfile?: string
@@ -42,7 +42,7 @@ interface ProductFormulaPayload {
     baseQuantity: string
   }
   components: Array<{
-    material: { objectId: string; versionId: string }
+    material: { objectId: string; approvalEntryId: string }
     quantity: {
       enteredQuantity: string
       enteredUnit: { objectId: string }
@@ -103,7 +103,7 @@ export function productFormulaPayload(
     components: formula.components.map((component) => ({
       material: {
         objectId: component.material!.objectId,
-        versionId: component.material!.versionId,
+        approvalEntryId: component.material!.approvalEntryId,
       },
       quantity: quantityPayload(component.quantity),
       ...(component.resolutionStatus === 'UNRESOLVED'

@@ -23,19 +23,23 @@ describe('useProductReferenceSearch', () => {
     const second = deferred<{
       data: Array<{
         objectId: string
-        versionId: string
+        approvalEntryId: string
         code: string
         name: string
         behaviorProfile: 'RAW_MATERIAL'
       }>
     }>()
     mockedPost
-      .mockReturnValueOnce(first.promise as ReturnType<typeof apiClient.postContract>)
-      .mockReturnValueOnce(second.promise as ReturnType<typeof apiClient.postContract>)
+      .mockReturnValueOnce(
+        first.promise as ReturnType<typeof apiClient.postContract>,
+      )
+      .mockReturnValueOnce(
+        second.promise as ReturnType<typeof apiClient.postContract>,
+      )
 
     const selected = {
       objectId: 'SELECTED',
-      versionId: 'SELECTED-V1',
+      approvalEntryId: 'SELECTED-V1',
       entity: 'product',
       code: 'RM-001',
       name: '已选原料',
@@ -51,7 +55,7 @@ describe('useProductReferenceSearch', () => {
       data: [
         {
           objectId: 'NEW',
-          versionId: 'NEW-V1',
+          approvalEntryId: 'NEW-V1',
           code: 'RM-002',
           name: '新原料',
           behaviorProfile: 'RAW_MATERIAL',

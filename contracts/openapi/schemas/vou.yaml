@@ -127,12 +127,12 @@
   'VouIntermediaryReference':
     {
       'type': 'object',
-      'required': ['objectId', 'versionId', 'entity', 'code', 'name'],
+      'required': ['objectId', 'approvalEntryId', 'entity', 'code', 'name'],
       'additionalProperties': false,
       'properties':
         {
           'objectId': { 'type': 'string' },
-          'versionId': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
           'entity':
             {
               'type': 'string',
@@ -616,12 +616,12 @@
           'interestParty':
             {
               'type': 'object',
-              'required': ['objectId', 'versionId'],
+              'required': ['objectId', 'approvalEntryId'],
               'additionalProperties': false,
               'properties':
                 {
                   'objectId': { 'type': 'string' },
-                  'versionId': { 'type': 'string' },
+                  'approvalEntryId': { 'type': 'string' },
                 },
             },
           'billLines':
@@ -649,12 +649,12 @@
           'fundAccount':
             {
               'type': 'object',
-              'required': ['objectId', 'versionId'],
+              'required': ['objectId', 'approvalEntryId'],
               'additionalProperties': false,
               'properties':
                 {
                   'objectId': { 'type': 'string' },
-                  'versionId': { 'type': 'string' },
+                  'approvalEntryId': { 'type': 'string' },
                 },
             },
           'direction': { 'type': 'string', 'enum': ['IN', 'OUT'] },
@@ -692,12 +692,12 @@
           'supplier':
             {
               'type': 'object',
-              'required': ['objectId', 'versionId'],
+              'required': ['objectId', 'approvalEntryId'],
               'additionalProperties': false,
               'properties':
                 {
                   'objectId': { 'type': 'string' },
-                  'versionId': { 'type': 'string' },
+                  'approvalEntryId': { 'type': 'string' },
                 },
             },
           'billLines':
@@ -733,12 +733,12 @@
           'fundAccount':
             {
               'type': 'object',
-              'required': ['objectId', 'versionId'],
+              'required': ['objectId', 'approvalEntryId'],
               'additionalProperties': false,
               'properties':
                 {
                   'objectId': { 'type': 'string' },
-                  'versionId': { 'type': 'string' },
+                  'approvalEntryId': { 'type': 'string' },
                 },
             },
           'direction': { 'type': 'string', 'enum': ['IN', 'OUT'] },
@@ -773,12 +773,12 @@
           'counterparty':
             {
               'type': 'object',
-              'required': ['objectId', 'versionId'],
+              'required': ['objectId', 'approvalEntryId'],
               'additionalProperties': false,
               'properties':
                 {
                   'objectId': { 'type': 'string' },
-                  'versionId': { 'type': 'string' },
+                  'approvalEntryId': { 'type': 'string' },
                 },
             },
           'counterpartyType': { 'type': 'string', 'enum': ['other-unit'] },
@@ -790,12 +790,12 @@
           'interestParty':
             {
               'type': 'object',
-              'required': ['objectId', 'versionId'],
+              'required': ['objectId', 'approvalEntryId'],
               'additionalProperties': false,
               'properties':
                 {
                   'objectId': { 'type': 'string' },
-                  'versionId': { 'type': 'string' },
+                  'approvalEntryId': { 'type': 'string' },
                 },
             },
           'withRecourse': { 'type': 'boolean' },
@@ -876,12 +876,12 @@
           'fundAccount':
             {
               'type': 'object',
-              'required': ['objectId', 'versionId'],
+              'required': ['objectId', 'approvalEntryId'],
               'additionalProperties': false,
               'properties':
                 {
                   'objectId': { 'type': 'string' },
-                  'versionId': { 'type': 'string' },
+                  'approvalEntryId': { 'type': 'string' },
                 },
             },
           'direction': { 'type': 'string', 'enum': ['IN', 'OUT'] },
@@ -897,12 +897,12 @@
   'VouBillReferenceView':
     {
       'type': 'object',
-      'required': ['objectId', 'versionId', 'code', 'name'],
+      'required': ['objectId', 'approvalEntryId', 'code', 'name'],
       'additionalProperties': false,
       'properties':
         {
           'objectId': { 'type': 'string' },
-          'versionId': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
           'entity': { 'type': 'string' },
           'code': { 'type': 'string' },
           'name': { 'type': 'string' },
@@ -1383,23 +1383,23 @@
                   'customer':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'supplier':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'counterpartyType':
@@ -1422,100 +1422,100 @@
                   'counterparty':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'settlementMethod':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'employee':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'salesperson':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'purchaser':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'handler':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'warehouse':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'materialWarehouse':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'finishedWarehouse':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'productionLines':
@@ -1549,34 +1549,34 @@
                   'carrier':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'vehicle':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'fundAccount':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'sourceName': { 'type': 'string' },
@@ -1593,12 +1593,12 @@
                   'interestParty':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'withRecourse': { 'type': 'boolean' },
@@ -1790,23 +1790,23 @@
                   'customer':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'supplier':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'counterpartyType':
@@ -1829,100 +1829,100 @@
                   'counterparty':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'settlementMethod':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'employee':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'salesperson':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'purchaser':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'handler':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'warehouse':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'materialWarehouse':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'finishedWarehouse':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'productionLines':
@@ -1956,34 +1956,34 @@
                   'carrier':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'vehicle':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'fundAccount':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'sourceName': { 'type': 'string' },
@@ -2000,12 +2000,12 @@
                   'interestParty':
                     {
                       'type': 'object',
-                      'required': ['objectId', 'versionId'],
+                      'required': ['objectId', 'approvalEntryId'],
                       'additionalProperties': false,
                       'properties':
                         {
                           'objectId': { 'type': 'string' },
-                          'versionId': { 'type': 'string' },
+                          'approvalEntryId': { 'type': 'string' },
                         },
                     },
                   'withRecourse': { 'type': 'boolean' },
@@ -2179,12 +2179,12 @@
           'product':
             {
               'type': 'object',
-              'required': ['objectId', 'versionId'],
+              'required': ['objectId', 'approvalEntryId'],
               'additionalProperties': false,
               'properties':
                 {
                   'objectId': { 'type': 'string' },
-                  'versionId': { 'type': 'string' },
+                  'approvalEntryId': { 'type': 'string' },
                 },
             },
           'unitPrice': { 'type': 'string' },
@@ -2203,12 +2203,12 @@
           'supplier':
             {
               'type': 'object',
-              'required': ['objectId', 'versionId'],
+              'required': ['objectId', 'approvalEntryId'],
               'additionalProperties': false,
               'properties':
                 {
                   'objectId': { 'type': 'string' },
-                  'versionId': { 'type': 'string' },
+                  'approvalEntryId': { 'type': 'string' },
                 },
             },
           'products':
@@ -2219,12 +2219,12 @@
               'items':
                 {
                   'type': 'object',
-                  'required': ['objectId', 'versionId'],
+                  'required': ['objectId', 'approvalEntryId'],
                   'additionalProperties': false,
                   'properties':
                     {
                       'objectId': { 'type': 'string' },
-                      'versionId': { 'type': 'string' },
+                      'approvalEntryId': { 'type': 'string' },
                     },
                 },
             },
@@ -2317,10 +2317,13 @@
   'VouAssetReferenceInput':
     {
       'type': 'object',
-      'required': ['objectId', 'versionId'],
+      'required': ['objectId', 'approvalEntryId'],
       'additionalProperties': false,
       'properties':
-        { 'objectId': { 'type': 'string' }, 'versionId': { 'type': 'string' } },
+        {
+          'objectId': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
+        },
     },
   'VouAssetAcquisitionLineInput':
     {
@@ -2480,12 +2483,12 @@
           'customer':
             {
               'type': 'object',
-              'required': ['objectId', 'versionId'],
+              'required': ['objectId', 'approvalEntryId'],
               'additionalProperties': false,
               'properties':
                 {
                   'objectId': { 'type': 'string' },
-                  'versionId': { 'type': 'string' },
+                  'approvalEntryId': { 'type': 'string' },
                 },
             },
           'product':
@@ -2577,11 +2580,11 @@
   'VouReferenceView':
     {
       'type': 'object',
-      'required': ['objectId', 'versionId', 'entity', 'code', 'name'],
+      'required': ['objectId', 'approvalEntryId', 'entity', 'code', 'name'],
       'properties':
         {
           'objectId': { 'type': 'string' },
-          'versionId': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
           'entity': { 'type': 'string' },
           'code': { 'type': 'string' },
           'name': { 'type': 'string' },
@@ -2595,7 +2598,7 @@
                 [RAW_MATERIAL, STANDARD_FINISHED, CUSTOM_FINISHED, PACKAGING],
             },
           'productTypeObjectId': { 'type': 'string' },
-          'productTypeVersionId': { 'type': 'string' },
+          'productTypeApprovalEntryId': { 'type': 'string' },
           'productTypeCode': { 'type': 'string' },
           'productTypeName': { 'type': 'string' },
           'defaultInputUnitId': { 'type': 'string' },
@@ -2619,11 +2622,11 @@
   'VouUnitSnapshotView':
     {
       'type': 'object',
-      'required': ['objectId', 'versionId', 'code', 'name', 'symbol'],
+      'required': ['objectId', 'approvalEntryId', 'code', 'name', 'symbol'],
       'properties':
         {
           'objectId': { 'type': 'string' },
-          'versionId': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
           'code': { 'type': 'string' },
           'name': { 'type': 'string' },
           'symbol': { 'type': 'string' },
@@ -2903,11 +2906,19 @@
     {
       'type': 'object',
       'required':
-        [objectId, versionId, code, name, ruleType, monthOffset, dayOffset],
+        [
+          objectId,
+          approvalEntryId,
+          code,
+          name,
+          ruleType,
+          monthOffset,
+          dayOffset,
+        ],
       'properties':
         {
           'objectId': { 'type': 'string' },
-          'versionId': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
           'code': { 'type': 'string' },
           'name': { 'type': 'string' },
           'ruleType':

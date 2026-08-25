@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { apiClient } from '@/api/client'
 import type { components } from '@/api/generated/schema'
+import { auxListActiveVersion } from '@/pages/aux/shared/vm'
 import { getErrorMessage } from '@/api/types'
 import { emptyAssetLine } from '@/pages/vou/shared/form'
 import type {
@@ -54,10 +55,12 @@ function removeLine(index: number) {
 function auxReference(
   row: components['schemas']['AuxObjectView'],
 ): SelectReference {
-  const data = row.currentVersion.data
+  const version = auxListActiveVersion(row)
+  if (!version) throw new Error('辅助资料缺少开放版本或已批准版本。')
+  const { data } = version
   return {
     objectId: row.objectId,
-    versionId: row.currentVersion.versionId,
+    approvalEntryId: version.approval.approvalEntryId,
     entity: row.entity,
     code: row.code,
     name: String(data.name ?? ''),
@@ -74,11 +77,11 @@ function auxReference(
 function employeeReference(
   row: components['schemas']['BobListItem'],
 ): SelectReference | null {
-  const version = row.effective ?? row.candidate
+  const version = row.openVersion ?? row.latestApproved
   if (!version) return null
   return {
     objectId: row.objectId,
-    versionId: version.versionId,
+    approvalEntryId: version.approval.approvalEntryId,
     entity: row.entity,
     code: row.code,
     name: String(version.summary.name ?? ''),
@@ -91,7 +94,7 @@ async function loadReference(
     const { data } = await apiClient.postContract('bob/employee/query', {
       page: 1,
       pageSize: 200,
-      filters: { status: ['EFFECTIVE'] },
+      filters: { status: ['APPROVED'] },
       sort: [{ field: 'name', order: 'asc' }],
     })
     return data.items.flatMap((row) => {
@@ -122,8 +125,8 @@ async function loadAssets() {
     const { data } = await apiClient.postContract(
       `vou/${props.kind}/asset-source`,
       {
-      page,
-      pageSize,
+        page,
+        pageSize,
       },
     )
     items.push(...data.items)

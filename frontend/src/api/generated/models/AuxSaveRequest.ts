@@ -5,6 +5,7 @@
 import type { AuxData } from './AuxData';
 export type AuxSaveRequest = {
   objectId: string;
-  revision: number;
+  approvalEntryId: string;
+  approvalRevision: number;
   data: AuxData;
 };

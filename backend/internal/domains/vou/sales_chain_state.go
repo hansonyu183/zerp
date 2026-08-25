@@ -18,14 +18,14 @@ func (s *Service) loadSalesChainData(
 		var customer ReferenceView
 		var warehouse ReferenceView
 		err := s.pool.QueryRow(ctx, `SELECT x.source_order_id,p.document_no,
-			x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name,
-			COALESCE(x.warehouse_object_id,''),COALESCE(x.warehouse_version_id,''),
+			x.customer_object_id,x.customer_approval_entry_id,x.customer_code,x.customer_name,
+			COALESCE(x.warehouse_object_id,''),COALESCE(x.warehouse_approval_entry_id,''),
 			COALESCE(x.warehouse_code,''),COALESCE(x.warehouse_name,'')
 			FROM vou_sale_outbound_details x JOIN vou_documents p ON p.id=x.source_order_id
 			WHERE x.document_id=$1`, document.ID).Scan(
 			&sourceID, &sourceNo,
-			&customer.ObjectID, &customer.VersionID, &customer.Code, &customer.Name,
-			&warehouse.ObjectID, &warehouse.VersionID, &warehouse.Code, &warehouse.Name)
+			&customer.ObjectID, &customer.ApprovalEntryID, &customer.Code, &customer.Name,
+			&warehouse.ObjectID, &warehouse.ApprovalEntryID, &warehouse.Code, &warehouse.Name)
 		if err != nil {
 			return data, err
 		}
@@ -35,7 +35,7 @@ func (s *Service) loadSalesChainData(
 			data.Warehouse = &warehouse
 		}
 		rows, err := s.pool.Query(ctx, `SELECT id,source_order_line_id,line_no,
-			product_object_id,product_version_id,product_code,product_name,entered_unit_symbol,
+			product_object_id,product_approval_entry_id,product_code,product_name,entered_unit_symbol,
 			base_quantity_micros,unit_price_cents,line_amount_cents,remark
 			FROM vou_sale_outbound_lines WHERE document_id=$1 ORDER BY line_no`, document.ID)
 		if err != nil {
@@ -48,7 +48,7 @@ func (s *Service) loadSalesChainData(
 			var remark *string
 			if err = rows.Scan(
 				&line.LineID, &line.SourceLineID, &line.LineNo,
-				&line.Product.ObjectID, &line.Product.VersionID, &line.Product.Code,
+				&line.Product.ObjectID, &line.Product.ApprovalEntryID, &line.Product.Code,
 				&line.Product.Name, &line.Product.Unit, &quantity, &price, &amount, &remark,
 			); err != nil {
 				return data, err
@@ -70,16 +70,16 @@ func (s *Service) loadSalesChainData(
 		var operatingEntity ReferenceView
 		var carrier ReferenceView
 		var vehicle ReferenceView
-		customer.ObjectID, customer.VersionID, customer.Code, customer.Name =
-			row.CustomerObjectID, row.CustomerVersionID, row.CustomerCode, row.CustomerName
-		operatingEntity.ObjectID, operatingEntity.VersionID =
-			row.CarrierOperatingEntityObjectID, row.CarrierOperatingEntityVersionID
+		customer.ObjectID, customer.ApprovalEntryID, customer.Code, customer.Name =
+			row.CustomerObjectID, row.CustomerApprovalEntryID, row.CustomerCode, row.CustomerName
+		operatingEntity.ObjectID, operatingEntity.ApprovalEntryID =
+			row.CarrierOperatingEntityObjectID, row.CarrierOperatingEntityApprovalEntryID
 		operatingEntity.Code, operatingEntity.Name = row.CarrierOperatingEntityCode, row.CarrierOperatingEntityName
-		carrier.ObjectID, carrier.VersionID =
-			row.CarrierServiceRelationshipObjectID, row.CarrierServiceRelationshipVersionID
+		carrier.ObjectID, carrier.ApprovalEntryID =
+			row.CarrierServiceRelationshipObjectID, row.CarrierServiceRelationshipApprovalEntryID
 		carrier.Code, carrier.Name = row.CarrierServiceRelationshipCode, row.CarrierServiceRelationshipName
-		vehicle.ObjectID, vehicle.VersionID, vehicle.Code, vehicle.Name, vehicle.PlateNumber =
-			row.VehicleObjectID, row.VehicleVersionID, row.VehicleCode, row.VehicleName, row.VehiclePlateNumber
+		vehicle.ObjectID, vehicle.ApprovalEntryID, vehicle.Code, vehicle.Name, vehicle.PlateNumber =
+			row.VehicleObjectID, row.VehicleApprovalEntryID, row.VehicleCode, row.VehicleName, row.VehiclePlateNumber
 		customer.Entity, operatingEntity.Entity, carrier.Entity, vehicle.Entity =
 			bobdomain.EntityCustomerAccount, bobdomain.EntityOperatingEntity, bobdomain.EntityOtherUnit, bobdomain.EntityVehicle
 		data.Customer = &customer
@@ -101,7 +101,7 @@ func (s *Service) loadSalesChainData(
 		for _, stored := range lines {
 			var line ProductLineView
 			line.LineID, line.SourceLineID, line.LineNo = stored.ID, stored.SourceOrderLineID, stored.LineNo
-			line.Product.ObjectID, line.Product.VersionID = stored.ProductObjectID, stored.ProductVersionID
+			line.Product.ObjectID, line.Product.ApprovalEntryID = stored.ProductObjectID, stored.ProductApprovalEntryID
 			line.Product.Code, line.Product.Name, line.Product.Unit =
 				stored.ProductCode, stored.ProductName, stored.EnteredUnitSymbol
 			line.Product.Entity = "product"
@@ -118,20 +118,20 @@ func (s *Service) loadSalesChainData(
 		var customer ReferenceView
 		var warehouse ReferenceView
 		err := s.pool.QueryRow(ctx, `SELECT x.source_delivery_id,p.document_no,
-			x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name,
-			x.warehouse_object_id,x.warehouse_version_id,x.warehouse_code,x.warehouse_name
+			x.customer_object_id,x.customer_approval_entry_id,x.customer_code,x.customer_name,
+			x.warehouse_object_id,x.warehouse_approval_entry_id,x.warehouse_code,x.warehouse_name
 			FROM vou_sale_signoff_details x JOIN vou_documents p ON p.id=x.source_delivery_id
 			WHERE x.document_id=$1`, document.ID).Scan(
 			&sourceID, &sourceNo,
-			&customer.ObjectID, &customer.VersionID, &customer.Code, &customer.Name,
-			&warehouse.ObjectID, &warehouse.VersionID, &warehouse.Code, &warehouse.Name)
+			&customer.ObjectID, &customer.ApprovalEntryID, &customer.Code, &customer.Name,
+			&warehouse.ObjectID, &warehouse.ApprovalEntryID, &warehouse.Code, &warehouse.Name)
 		if err != nil {
 			return data, err
 		}
 		customer.Entity, warehouse.Entity = bobdomain.EntityCustomerAccount, "warehouse"
 		data.Customer, data.Warehouse = &customer, &warehouse
 		rows, err := s.pool.Query(ctx, `SELECT id,source_outbound_line_id,line_no,
-			product_object_id,product_version_id,product_code,product_name,entered_unit_symbol,
+			product_object_id,product_approval_entry_id,product_code,product_name,entered_unit_symbol,
 			signed_base_quantity_micros,rejected_base_quantity_micros,loss_base_quantity_micros,unit_price_cents,line_amount_cents,remark,
 			signed_base_quantity_micros+rejected_base_quantity_micros+loss_base_quantity_micros
 			FROM vou_sale_signoff_lines WHERE document_id=$1 ORDER BY line_no`, document.ID)
@@ -145,7 +145,7 @@ func (s *Service) loadSalesChainData(
 			var remark *string
 			if err = rows.Scan(
 				&line.LineID, &line.SourceLineID, &line.LineNo,
-				&line.Product.ObjectID, &line.Product.VersionID, &line.Product.Code,
+				&line.Product.ObjectID, &line.Product.ApprovalEntryID, &line.Product.Code,
 				&line.Product.Name, &line.Product.Unit, &signed, &rejected, &loss,
 				&price, &amount, &remark, &outbound,
 			); err != nil {

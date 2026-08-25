@@ -4,8 +4,8 @@
 /* eslint-disable */
 export type OtherUnitSaveRequest = {
   objectId: string;
-  versionId: string;
-  revision: number;
+  approvalEntryId: string;
+  approvalRevision: number;
   data: {
     contactName?: string | null;
     contactPhone?: string | null;

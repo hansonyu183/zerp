@@ -14,9 +14,11 @@ function requiredMaturityType(
   return value
 }
 
-function reference(value: { objectId: string; versionId: string } | null) {
+function reference(
+  value: { objectId: string; approvalEntryId: string } | null,
+) {
   return value
-    ? { objectId: value.objectId, versionId: value.versionId }
+    ? { objectId: value.objectId, approvalEntryId: value.approvalEntryId }
     : undefined
 }
 

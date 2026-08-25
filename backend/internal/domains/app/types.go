@@ -185,11 +185,11 @@ type WorkbenchItem struct {
 	AvailableActions []string  `json:"availableActions"`
 	UpdatedAt        time.Time `json:"updatedAt"`
 
-	ObjectID       string `json:"objectId,omitempty"`
-	ObjectRevision int64  `json:"objectRevision,omitempty"`
-	VersionID      string `json:"versionId,omitempty"`
-	Code           string `json:"code,omitempty"`
-	Name           string `json:"name,omitempty"`
+	ObjectID        string `json:"objectId,omitempty"`
+	ObjectRevision  int64  `json:"objectRevision,omitempty"`
+	ApprovalEntryID string `json:"approvalEntryId,omitempty"`
+	Code            string `json:"code,omitempty"`
+	Name            string `json:"name,omitempty"`
 
 	DocumentID   string  `json:"documentId,omitempty"`
 	DocumentNo   string  `json:"documentNo,omitempty"`

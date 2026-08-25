@@ -31,8 +31,18 @@ function discountDays(maturityDate: string): number {
     ? Math.max(0, Math.round((end - start) / 86_400_000))
     : 0
 }
-function discountInterest(line: { faceAmount: string; annualRateBps: number; maturityDate: string }): string {
-  return previewInterestAmount(line.faceAmount, line.annualRateBps, discountDays(line.maturityDate)) ?? '—'
+function discountInterest(line: {
+  faceAmount: string
+  annualRateBps: number
+  maturityDate: string
+}): string {
+  return (
+    previewInterestAmount(
+      line.faceAmount,
+      line.annualRateBps,
+      discountDays(line.maturityDate),
+    ) ?? '—'
+  )
 }
 
 async function confirmDelete(): Promise<void> {
@@ -87,7 +97,17 @@ onMounted(() => void vm.query())
           <tr>
             <th>单号</th>
             <th>日期</th>
-            <th>{{ vm.config.mode === 'payment' ? '供应商' : vm.config.mode === 'discount' ? '贴现方' : vm.config.mode === 'maturity' ? '—' : '客户' }}</th>
+            <th>
+              {{
+                vm.config.mode === 'payment'
+                  ? '供应商'
+                  : vm.config.mode === 'discount'
+                    ? '贴现方'
+                    : vm.config.mode === 'maturity'
+                      ? '—'
+                      : '客户'
+              }}
+            </th>
             <th>状态</th>
             <th>票面合计</th>
             <th>操作</th>
@@ -107,7 +127,9 @@ onMounted(() => void vm.query())
             </td>
           </tr>
           <tr v-if="!vm.loading.value && vm.rows.value.length === 0">
-            <td class="text-center py-8" colspan="6">暂无{{ vm.config.title }}</td>
+            <td class="text-center py-8" colspan="6">
+              暂无{{ vm.config.title }}
+            </td>
           </tr>
         </tbody>
       </v-table>
@@ -225,7 +247,17 @@ onMounted(() => void vm.query())
               @search="vm.searchOtherParty"
           /></v-col>
           <v-col v-if="vm.config.mode === 'maturity'" cols="12" md="3">
-            <v-select :model-value="vm.form.maturityType" :disabled="!vm.editing.value" label="到期处理方式" :items="[{ title: '到期收款', value: 'RECEIPT' }, { title: '到期付款', value: 'PAYMENT' }]" variant="outlined" @update:model-value="vm.changeMaturityType" />
+            <v-select
+              :model-value="vm.form.maturityType"
+              :disabled="!vm.editing.value"
+              label="到期处理方式"
+              :items="[
+                { title: '到期收款', value: 'RECEIPT' },
+                { title: '到期付款', value: 'PAYMENT' },
+              ]"
+              variant="outlined"
+              @update:model-value="vm.changeMaturityType"
+            />
           </v-col>
           <v-col v-if="vm.config.mode === 'receipt'" cols="12" md="3"
             ><VoucherReferenceAutocomplete
@@ -247,14 +279,46 @@ onMounted(() => void vm.query())
               type="number"
               variant="outlined"
           /></v-col>
-          <v-col v-if="vm.config.mode === 'issue' || vm.config.mode === 'discount'" cols="12" md="3">
-            <v-select v-model="vm.form.interestMode" :disabled="!vm.editing.value" label="利息承担方式" :items="[{ title: '银行扣息', value: 'BANK_DEDUCTED' }, { title: '第三方承担应付利息', value: 'THIRD_PARTY_PAYABLE' }]" variant="outlined" />
+          <v-col
+            v-if="vm.config.mode === 'issue' || vm.config.mode === 'discount'"
+            cols="12"
+            md="3"
+          >
+            <v-select
+              v-model="vm.form.interestMode"
+              :disabled="!vm.editing.value"
+              label="利息承担方式"
+              :items="[
+                { title: '银行扣息', value: 'BANK_DEDUCTED' },
+                { title: '第三方承担应付利息', value: 'THIRD_PARTY_PAYABLE' },
+              ]"
+              variant="outlined"
+            />
           </v-col>
-          <v-col v-if="(vm.config.mode === 'issue' || vm.config.mode === 'discount') && vm.form.interestMode === 'THIRD_PARTY_PAYABLE'" cols="12" md="3">
-            <VoucherReferenceAutocomplete v-model="vm.form.interestParty" :disabled="!vm.editing.value" label="利息承担方" required :options="vm.otherPartyOptions.value" @search="vm.searchOtherParty" />
+          <v-col
+            v-if="
+              (vm.config.mode === 'issue' || vm.config.mode === 'discount') &&
+              vm.form.interestMode === 'THIRD_PARTY_PAYABLE'
+            "
+            cols="12"
+            md="3"
+          >
+            <VoucherReferenceAutocomplete
+              v-model="vm.form.interestParty"
+              :disabled="!vm.editing.value"
+              label="利息承担方"
+              required
+              :options="vm.otherPartyOptions.value"
+              @search="vm.searchOtherParty"
+            />
           </v-col>
           <v-col v-if="vm.config.mode === 'discount'" cols="12" md="3">
-            <v-checkbox v-model="vm.form.withRecourse" :disabled="!vm.editing.value" label="有追索权" hide-details />
+            <v-checkbox
+              v-model="vm.form.withRecourse"
+              :disabled="!vm.editing.value"
+              label="有追索权"
+              hide-details
+            />
           </v-col>
           <v-col cols="12" md="9"
             ><v-textarea
@@ -266,8 +330,20 @@ onMounted(() => void vm.query())
               variant="outlined"
           /></v-col>
         </v-row>
-        <v-alert v-if="vm.config.mode === 'issue'" class="mb-3" type="info" variant="tonal">新开票据固定为负债、流入、主要票据；利息仅按选择的承担方式预览，不自动生成虚假资金行。</v-alert>
-        <v-alert v-if="vm.config.mode === 'discount'" class="mb-3" type="info" variant="tonal">仅可选择当前可用的资产类持有票据；贴现日、到期日和利息预览按业务日期计算。</v-alert>
+        <v-alert
+          v-if="vm.config.mode === 'issue'"
+          class="mb-3"
+          type="info"
+          variant="tonal"
+          >新开票据固定为负债、流入、主要票据；利息仅按选择的承担方式预览，不自动生成虚假资金行。</v-alert
+        >
+        <v-alert
+          v-if="vm.config.mode === 'discount'"
+          class="mb-3"
+          type="info"
+          variant="tonal"
+          >仅可选择当前可用的资产类持有票据；贴现日、到期日和利息预览按业务日期计算。</v-alert
+        >
         <VoucherBillLinesEditor
           v-if="vm.config.mode === 'receipt' || vm.config.mode === 'issue'"
           v-model="vm.form.billLines"
@@ -280,26 +356,120 @@ onMounted(() => void vm.query())
           :held-options="vm.heldBillOptions.value"
           @search-held="vm.searchHeldBills"
         />
-        <section v-else-if="vm.config.mode === 'discount'" class="bill-payment-lines">
-          <div class="d-flex align-center justify-space-between mb-3"><h3>贴现票据</h3><v-btn color="primary" :disabled="!vm.editing.value || vm.form.billLines.length >= vm.config.maxBillLines" @click="vm.openHeldDialog">选择持有票据</v-btn></div>
-          <v-alert v-if="vm.form.billLines.length === 0" type="info" variant="tonal">请选择当前可用的资产类持有票据。</v-alert>
-          <v-table v-else class="responsive-table"><thead><tr><th>票据号码</th><th>类型</th><th>币种</th><th>票面金额</th><th>年利率(bps)</th><th>贴现天数</th><th>预计利息</th><th>到期日</th><th>出票人</th><th>承兑人</th><th>收款人</th></tr></thead><tbody>
-            <tr v-for="line in vm.form.billLines" :key="line.key"><td data-label="票据号码">{{ line.billNo }}</td><td data-label="类型">{{ formatBillType(line.billType) }}</td><td data-label="币种">{{ line.currency }}</td><td data-label="票面金额">{{ line.faceAmount }}</td><td data-label="年利率（基点）"><v-text-field v-model.number="line.annualRateBps" :disabled="!vm.editing.value" type="number" min="0" max="100000" density="compact" hide-details /></td><td data-label="贴现天数">{{ discountDays(line.maturityDate) }}</td><td data-label="贴现利息">{{ discountInterest(line) }}</td><td data-label="到期日">{{ line.maturityDate }}</td><td data-label="出票人">{{ line.drawer }}</td><td data-label="承兑人">{{ line.acceptor }}</td><td data-label="收款人">{{ line.payee }}</td></tr>
-          </tbody></v-table>
+        <section
+          v-else-if="vm.config.mode === 'discount'"
+          class="bill-payment-lines"
+        >
+          <div class="d-flex align-center justify-space-between mb-3">
+            <h3>贴现票据</h3>
+            <v-btn
+              color="primary"
+              :disabled="
+                !vm.editing.value ||
+                vm.form.billLines.length >= vm.config.maxBillLines
+              "
+              @click="vm.openHeldDialog"
+              >选择持有票据</v-btn
+            >
+          </div>
+          <v-alert
+            v-if="vm.form.billLines.length === 0"
+            type="info"
+            variant="tonal"
+            >请选择当前可用的资产类持有票据。</v-alert
+          >
+          <v-table v-else class="responsive-table"
+            ><thead>
+              <tr>
+                <th>票据号码</th>
+                <th>类型</th>
+                <th>币种</th>
+                <th>票面金额</th>
+                <th>年利率(bps)</th>
+                <th>贴现天数</th>
+                <th>预计利息</th>
+                <th>到期日</th>
+                <th>出票人</th>
+                <th>承兑人</th>
+                <th>收款人</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="line in vm.form.billLines" :key="line.key">
+                <td data-label="票据号码">{{ line.billNo }}</td>
+                <td data-label="类型">{{ formatBillType(line.billType) }}</td>
+                <td data-label="币种">{{ line.currency }}</td>
+                <td data-label="票面金额">{{ line.faceAmount }}</td>
+                <td data-label="年利率（基点）">
+                  <v-text-field
+                    v-model.number="line.annualRateBps"
+                    :disabled="!vm.editing.value"
+                    type="number"
+                    min="0"
+                    max="100000"
+                    density="compact"
+                    hide-details
+                  />
+                </td>
+                <td data-label="贴现天数">
+                  {{ discountDays(line.maturityDate) }}
+                </td>
+                <td data-label="贴现利息">{{ discountInterest(line) }}</td>
+                <td data-label="到期日">{{ line.maturityDate }}</td>
+                <td data-label="出票人">{{ line.drawer }}</td>
+                <td data-label="承兑人">{{ line.acceptor }}</td>
+                <td data-label="收款人">{{ line.payee }}</td>
+              </tr>
+            </tbody></v-table
+          >
         </section>
         <section v-else class="bill-payment-lines">
           <div class="d-flex align-center justify-space-between mb-3">
-            <h3>{{ vm.config.mode === 'maturity' ? '到期票据' : '付出票据' }}</h3>
+            <h3>
+              {{ vm.config.mode === 'maturity' ? '到期票据' : '付出票据' }}
+            </h3>
             <v-btn
               color="primary"
-              :disabled="!vm.editing.value || vm.form.billLines.length >= vm.config.maxBillLines"
+              :disabled="
+                !vm.editing.value ||
+                vm.form.billLines.length >= vm.config.maxBillLines
+              "
               @click="vm.openHeldDialog"
-            >选择持有票据</v-btn>
+              >选择持有票据</v-btn
+            >
           </div>
-          <v-alert v-if="vm.form.billLines.length === 0" type="info" variant="tonal">请选择当前可用的资产类持有票据。</v-alert>
-          <v-table v-else class="responsive-table"><thead><tr><th>票据号码</th><th>类型</th><th>币种</th><th>票面金额</th><th>到期日</th><th>出票人</th><th>承兑人</th><th>收款人</th></tr></thead><tbody>
-            <tr v-for="line in vm.form.billLines" :key="line.key"><td data-label="票据号码">{{ line.billNo }}</td><td data-label="类型">{{ formatBillType(line.billType) }}</td><td data-label="币种">{{ line.currency }}</td><td data-label="票面金额">{{ line.faceAmount }}</td><td data-label="到期日">{{ line.maturityDate }}</td><td data-label="出票人">{{ line.drawer }}</td><td data-label="承兑人">{{ line.acceptor }}</td><td data-label="收款人">{{ line.payee }}</td></tr>
-          </tbody></v-table>
+          <v-alert
+            v-if="vm.form.billLines.length === 0"
+            type="info"
+            variant="tonal"
+            >请选择当前可用的资产类持有票据。</v-alert
+          >
+          <v-table v-else class="responsive-table"
+            ><thead>
+              <tr>
+                <th>票据号码</th>
+                <th>类型</th>
+                <th>币种</th>
+                <th>票面金额</th>
+                <th>到期日</th>
+                <th>出票人</th>
+                <th>承兑人</th>
+                <th>收款人</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="line in vm.form.billLines" :key="line.key">
+                <td data-label="票据号码">{{ line.billNo }}</td>
+                <td data-label="类型">{{ formatBillType(line.billType) }}</td>
+                <td data-label="币种">{{ line.currency }}</td>
+                <td data-label="票面金额">{{ line.faceAmount }}</td>
+                <td data-label="到期日">{{ line.maturityDate }}</td>
+                <td data-label="出票人">{{ line.drawer }}</td>
+                <td data-label="承兑人">{{ line.acceptor }}</td>
+                <td data-label="收款人">{{ line.payee }}</td>
+              </tr>
+            </tbody></v-table
+          >
         </section>
         <VoucherBillCashLinesEditor
           v-if="vm.config.mode !== 'payment'"
@@ -310,9 +480,15 @@ onMounted(() => void vm.query())
           :max-lines="vm.config.maxCashLines"
           @fund-search="vm.searchFundAccount"
         />
-        <v-sheet v-if="vm.config.mode !== 'payment'" class="bill-voucher-summary mt-5 pa-4" rounded="lg">
+        <v-sheet
+          v-if="vm.config.mode !== 'payment'"
+          class="bill-voucher-summary mt-5 pa-4"
+          rounded="lg"
+        >
           <div>
-            <span>{{ vm.config.mode === 'discount' ? '贴现票据' : '收入票据' }}</span>
+            <span>{{
+              vm.config.mode === 'discount' ? '贴现票据' : '收入票据'
+            }}</span>
             <strong>{{ vm.form.currency }} {{ summary.primary }}</strong>
           </div>
           <div>
@@ -320,19 +496,34 @@ onMounted(() => void vm.query())
             <strong>{{ vm.form.currency }} {{ summary.change }}</strong>
           </div>
           <div>
-            <span>{{ vm.config.mode === 'discount' ? '资金流入' : '现金补款' }}</span>
+            <span>{{
+              vm.config.mode === 'discount' ? '资金流入' : '现金补款'
+            }}</span>
             <strong>{{ vm.form.currency }} {{ summary.cashIn }}</strong>
           </div>
           <div>
-            <span>{{ vm.config.mode === 'discount' ? '资金流出' : '现金找零' }}</span>
+            <span>{{
+              vm.config.mode === 'discount' ? '资金流出' : '现金找零'
+            }}</span>
             <strong>{{ vm.form.currency }} {{ summary.cashOut }}</strong>
           </div>
           <div :class="{ 'text-error': !summary.valid }">
-            <span>{{ vm.config.mode === 'issue' ? '票据净现金流' : vm.config.mode === 'discount' ? '贴现净到账' : '客户净结算额' }}</span>
+            <span>{{
+              vm.config.mode === 'issue'
+                ? '票据净现金流'
+                : vm.config.mode === 'discount'
+                  ? '贴现净到账'
+                  : '客户净结算额'
+            }}</span>
             <strong>{{ vm.form.currency }} {{ summary.net }}</strong>
           </div>
         </v-sheet>
-        <v-sheet v-else class="bill-voucher-summary mt-5 pa-4" rounded="lg"><span>票面合计</span><strong>{{ vm.form.currency }} {{ summary.primary }}</strong></v-sheet>
+        <v-sheet v-else class="bill-voucher-summary mt-5 pa-4" rounded="lg"
+          ><span>票面合计</span
+          ><strong
+            >{{ vm.form.currency }} {{ summary.primary }}</strong
+          ></v-sheet
+        >
       </template>
 
       <template #attachments>
@@ -364,13 +555,69 @@ onMounted(() => void vm.query())
       </template>
     </VoucherWorkspace>
 
-    <v-dialog v-if="vm.config.mode === 'payment' || vm.config.mode === 'discount' || vm.config.mode === 'maturity'" v-model="vm.heldDialogOpen.value" max-width="1100">
-      <v-card><v-card-title>选择可用持有票据</v-card-title><v-card-text>
-        <v-text-field label="票据号码" variant="outlined" @update:model-value="vm.searchHeldBills" />
-        <v-table class="responsive-table"><thead><tr><th>选择</th><th>票据号码</th><th>类型</th><th>币种</th><th>票面金额</th><th>到期日</th><th>往来方</th></tr></thead><tbody>
-          <tr v-for="line in vm.heldBillOptions.value" :key="line.billId"><td data-label="选择"><v-checkbox v-model="vm.heldSelection.value" :value="line.billId" hide-details /></td><td data-label="票据号码">{{ line.billNo }}</td><td data-label="类型">{{ formatBillType(line.billType) }}</td><td data-label="币种">{{ line.currency }}</td><td data-label="票面金额">{{ line.faceAmount }}</td><td data-label="到期日">{{ line.maturityDate }}</td><td data-label="往来方">{{ line.originatingParty ? formatReferenceLabel(line.originatingParty) : '—' }}</td></tr>
-        </tbody></v-table>
-      </v-card-text><v-card-actions><v-spacer /><v-btn variant="text" @click="vm.heldDialogOpen.value = false">取消</v-btn><v-btn color="primary" @click="vm.applyHeldSelection">确定（最多20张）</v-btn></v-card-actions></v-card>
+    <v-dialog
+      v-if="
+        vm.config.mode === 'payment' ||
+        vm.config.mode === 'discount' ||
+        vm.config.mode === 'maturity'
+      "
+      v-model="vm.heldDialogOpen.value"
+      max-width="1100"
+    >
+      <v-card
+        ><v-card-title>选择可用持有票据</v-card-title
+        ><v-card-text>
+          <v-text-field
+            label="票据号码"
+            variant="outlined"
+            @update:model-value="vm.searchHeldBills"
+          />
+          <v-table class="responsive-table"
+            ><thead>
+              <tr>
+                <th>选择</th>
+                <th>票据号码</th>
+                <th>类型</th>
+                <th>币种</th>
+                <th>票面金额</th>
+                <th>到期日</th>
+                <th>往来方</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="line in vm.heldBillOptions.value" :key="line.billId">
+                <td data-label="选择">
+                  <v-checkbox
+                    v-model="vm.heldSelection.value"
+                    :value="line.billId"
+                    hide-details
+                  />
+                </td>
+                <td data-label="票据号码">{{ line.billNo }}</td>
+                <td data-label="类型">{{ formatBillType(line.billType) }}</td>
+                <td data-label="币种">{{ line.currency }}</td>
+                <td data-label="票面金额">{{ line.faceAmount }}</td>
+                <td data-label="到期日">{{ line.maturityDate }}</td>
+                <td data-label="往来方">
+                  {{
+                    line.originatingParty
+                      ? formatReferenceLabel(line.originatingParty)
+                      : '—'
+                  }}
+                </td>
+              </tr>
+            </tbody></v-table
+          > </v-card-text
+        ><v-card-actions
+          ><v-spacer /><v-btn
+            variant="text"
+            @click="vm.heldDialogOpen.value = false"
+            >取消</v-btn
+          ><v-btn color="primary" @click="vm.applyHeldSelection"
+            >确定（最多20张）</v-btn
+          ></v-card-actions
+        ></v-card
+      >
     </v-dialog>
 
     <VoucherReasonDialog

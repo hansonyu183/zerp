@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	"github.com/hansonyu183/zerp/backend/internal/config"
 	"github.com/hansonyu183/zerp/backend/internal/database"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
@@ -27,8 +28,10 @@ func main() {
 		os.Exit(1)
 	}
 	defer pool.Close()
-	auxiliaryResolver := auxiliaryrefs.New(auxdomain.NewService(pool))
-	service, err := voudomain.NewService(pool, bobdomain.NewService(pool, auxiliaryResolver), auxiliaryResolver, txevent.NewBus(), voudomain.AttachmentOptions{
+	events := txevent.NewBus()
+	auxiliaryResolver := auxiliaryrefs.New(auxdomain.NewService(pool, authorization.FailClosed{}, events))
+	bobService := bobdomain.NewService(pool, auxiliaryResolver, authorization.FailClosed{}, events)
+	service, err := voudomain.NewService(pool, bobService, auxiliaryResolver, events, voudomain.AttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
 	}, logger)
 	if err != nil {
@@ -42,7 +45,7 @@ func main() {
 	}
 	customerAttachments, err := bobdomain.NewCustomerAttachmentService(pool, bobdomain.CustomerAttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
-	})
+	}, bobService)
 	if err != nil {
 		logger.Error("initialize customer attachment storage", "error", err)
 		os.Exit(1)

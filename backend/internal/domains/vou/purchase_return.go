@@ -51,8 +51,8 @@ func (s *Service) resolvePurchaseReturnSource(
 		var inboundDate time.Time
 		err = tx.QueryRow(ctx, `SELECT l.document_id,x.source_order_id,l.source_order_line_id,
 			d.status,d.business_date,o.status,od.fulfillment_status,o.currency,
-			x.supplier_object_id,x.supplier_version_id,x.supplier_code,x.supplier_name,
-			l.product_object_id,l.product_version_id,l.product_code,l.product_name,l.entered_unit_symbol,
+			x.supplier_object_id,x.supplier_approval_entry_id,x.supplier_code,x.supplier_name,
+			l.product_object_id,l.product_approval_entry_id,l.product_code,l.product_name,l.entered_unit_symbol,
 			l.base_quantity_micros,l.unit_price_cents
 			FROM vou_purchase_inbound_lines l
 			JOIN vou_purchase_inbound_details x ON x.document_id=l.document_id
@@ -129,8 +129,8 @@ func (s *Service) CreatePurchaseReturn(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	warehouse, err := s.resolver.ResolveEffectiveReference(
-		ctx, tx, bobdomain.EntityWarehouse, input.Data.Warehouse.ObjectID, input.Data.Warehouse.VersionID,
+	warehouse, err := s.resolver.ResolveApprovedReference(
+		ctx, tx, bobdomain.EntityWarehouse, input.Data.Warehouse.ObjectID, input.Data.Warehouse.ApprovalEntryID,
 	)
 	if err != nil {
 		return MutationResult{}, err
@@ -204,8 +204,8 @@ func (s *Service) SavePurchaseReturn(
 	if document.ParentDocumentID == nil || source.orderID != *document.ParentDocumentID {
 		return MutationResult{}, domainError(ErrorConflict, "purchase fulfillment cannot be changed", nil, nil)
 	}
-	warehouse, err := s.resolver.ResolveEffectiveReference(
-		ctx, tx, bobdomain.EntityWarehouse, input.Data.Warehouse.ObjectID, input.Data.Warehouse.VersionID,
+	warehouse, err := s.resolver.ResolveApprovedReference(
+		ctx, tx, bobdomain.EntityWarehouse, input.Data.Warehouse.ObjectID, input.Data.Warehouse.ApprovalEntryID,
 	)
 	if err != nil {
 		return MutationResult{}, err
@@ -215,8 +215,8 @@ func (s *Service) SavePurchaseReturn(
 		return MutationResult{}, err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE vou_purchase_return_details SET return_reason=$1,
-		warehouse_object_id=$2,warehouse_version_id=$3,warehouse_code=$4,warehouse_name=$5
-		WHERE document_id=$6`, reason, warehouse.ObjectID, warehouse.VersionID, warehouse.Code,
+		warehouse_object_id=$2,warehouse_approval_entry_id=$3,warehouse_code=$4,warehouse_name=$5
+		WHERE document_id=$6`, reason, warehouse.ObjectID, warehouse.ApprovalEntryID, warehouse.Code,
 		warehouse.Data.Name, input.DocumentID); err != nil {
 		return MutationResult{}, err
 	}
@@ -247,11 +247,11 @@ func (s *Service) insertPurchaseReturnDetail(
 	warehouse bobdomain.EffectiveReference,
 ) error {
 	_, err := tx.Exec(ctx, `INSERT INTO vou_purchase_return_details(
-		document_id,source_order_id,return_reason,supplier_object_id,supplier_version_id,
-		supplier_code,supplier_name,warehouse_object_id,warehouse_version_id,warehouse_code,warehouse_name
+		document_id,source_order_id,return_reason,supplier_object_id,supplier_approval_entry_id,
+		supplier_code,supplier_name,warehouse_object_id,warehouse_approval_entry_id,warehouse_code,warehouse_name
 	) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, id, source.orderID, reason,
 		source.supplierID, source.supplierVersion, source.supplierCode, source.supplierName,
-		warehouse.ObjectID, warehouse.VersionID, warehouse.Code, warehouse.Data.Name)
+		warehouse.ObjectID, warehouse.ApprovalEntryID, warehouse.Code, warehouse.Data.Name)
 	return err
 }
 
@@ -261,7 +261,7 @@ func (s *Service) insertPurchaseReturnLines(
 	for index, line := range lines {
 		if _, err := tx.Exec(ctx, `INSERT INTO vou_purchase_return_lines(
 			id,document_id,source_inbound_line_id,source_inbound_id,source_order_line_id,line_no,
-			product_object_id,product_version_id,product_code,product_name,entered_unit_symbol,
+			product_object_id,product_approval_entry_id,product_code,product_name,entered_unit_symbol,
 			base_quantity_micros,unit_price_cents,line_amount_cents,remark
 		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
 			newID(), id, line.sourceLineID, line.inboundID, line.orderLineID, index+1,
@@ -278,8 +278,8 @@ func (s *Service) loadPurchaseReturnData(
 ) (DocumentDataView, error) {
 	var supplierID, supplierVersion, supplierCode, supplierName string
 	var warehouseID, warehouseVersion, warehouseCode, warehouseName string
-	if err := s.pool.QueryRow(ctx, `SELECT return_reason,supplier_object_id,supplier_version_id,
-		supplier_code,supplier_name,warehouse_object_id,warehouse_version_id,warehouse_code,warehouse_name
+	if err := s.pool.QueryRow(ctx, `SELECT return_reason,supplier_object_id,supplier_approval_entry_id,
+		supplier_code,supplier_name,warehouse_object_id,warehouse_approval_entry_id,warehouse_code,warehouse_name
 		FROM vou_purchase_return_details WHERE document_id=$1`, document.ID).Scan(
 		&data.ReturnReason, &supplierID, &supplierVersion, &supplierCode, &supplierName,
 		&warehouseID, &warehouseVersion, &warehouseCode, &warehouseName); err != nil {
@@ -288,7 +288,7 @@ func (s *Service) loadPurchaseReturnData(
 	data.Supplier = reference(supplierID, supplierVersion, "supplier", supplierCode, supplierName, "", "", "")
 	data.Warehouse = reference(warehouseID, warehouseVersion, "warehouse", warehouseCode, warehouseName, "", "", "")
 	rows, err := s.pool.Query(ctx, `SELECT l.id,l.source_inbound_line_id,l.source_inbound_id,
-		s.document_no,l.line_no,l.product_object_id,l.product_version_id,l.product_code,l.product_name,
+		s.document_no,l.line_no,l.product_object_id,l.product_approval_entry_id,l.product_code,l.product_name,
 		l.entered_unit_symbol,l.base_quantity_micros,l.unit_price_cents,l.line_amount_cents,COALESCE(l.remark,'')
 		FROM vou_purchase_return_lines l JOIN vou_documents s ON s.id=l.source_inbound_id
 		WHERE l.document_id=$1 ORDER BY l.line_no`, document.ID)

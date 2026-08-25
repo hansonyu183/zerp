@@ -6,7 +6,7 @@ import type { BobQuantitySnapshotInput } from './BobQuantitySnapshotInput';
 export type BobProductFormulaComponentInput = {
   material: {
     objectId: string;
-    versionId: string;
+    approvalEntryId: string;
   };
   quantity: BobQuantitySnapshotInput;
   resolutionStatus?: 'CURRENT' | 'UNRESOLVED' | null;

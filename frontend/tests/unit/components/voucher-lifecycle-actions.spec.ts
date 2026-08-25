@@ -153,8 +153,6 @@ describe('VoucherReasonDialog', () => {
       },
     })
 
-    expect(wrapper.text()).toContain(
-      '已有下游单据，请先反向处理下游单据。',
-    )
+    expect(wrapper.text()).toContain('已有下游单据，请先反向处理下游单据。')
   })
 })

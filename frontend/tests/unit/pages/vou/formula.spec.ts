@@ -18,7 +18,7 @@ function reference(
 ): VoucherReference {
   return {
     objectId: `${suffix}-object`,
-    versionId: `${suffix}-version`,
+    approvalEntryId: `${suffix}-version`,
     entity,
     code: suffix.toUpperCase(),
     name: suffix,
@@ -35,13 +35,17 @@ function formulaResponse(customer: string, quantity: string) {
       sourceDocumentNo: `${customer}-number`,
       formula: {
         output: {
-          enteredQuantity: '1.0', enteredUnit: { objectId: 'unit-kg', symbol: 'kg' }, baseQuantity: '1.0',
+          enteredQuantity: '1.0',
+          enteredUnit: { objectId: 'unit-kg', symbol: 'kg' },
+          baseQuantity: '1.0',
         },
         components: [
           {
             material: reference('product', 'raw', 'RAW_MATERIAL'),
             quantity: {
-              enteredQuantity: quantity, enteredUnit: { objectId: 'unit-kg', symbol: 'kg' }, baseQuantity: quantity,
+              enteredQuantity: quantity,
+              enteredUnit: { objectId: 'unit-kg', symbol: 'kg' },
+              baseQuantity: quantity,
             },
           },
         ],

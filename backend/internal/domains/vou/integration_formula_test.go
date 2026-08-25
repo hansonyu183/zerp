@@ -29,8 +29,8 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 			},
 			Components: []bobdomain.ProductFormulaComponent{{
 				Material: bobdomain.FormulaMaterialReference{
-					ObjectID:  refs.product.ObjectID,
-					VersionID: refs.product.VersionID,
+					ObjectID:        refs.product.ObjectID,
+					ApprovalEntryID: refs.product.ApprovalEntryID,
 				},
 				Quantity: bobdomain.QuantitySnapshot{
 					EnteredQuantity: "25.5", EnteredUnit: bobdomain.MeasurementUnitSnapshot{ObjectID: integrationTonUnitID}, BaseQuantity: "25500",
@@ -175,19 +175,34 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get raw material before edit: %v", err)
 	}
-	editedRaw := reverseApprovedBOBToDraft(
-		t, bobService, bobdomain.EntityProduct, rawView, "formula-raw-edit",
-	)
+	rawData := rawView.Data
+	editedRaw, err := bobService.Save(t.Context(), bobdomain.EntityProduct, bobdomain.SaveInput{
+		ObjectID:         rawView.ObjectID,
+		ApprovalEntryID:  rawView.Approval.ApprovalEntryID,
+		ApprovalRevision: rawView.Approval.Revision,
+		Data: bobdomain.DetailInput{
+			Name:                 rawData.Name,
+			ProductTypeID:        bobdomain.Optional(rawData.ProductTypeID),
+			DefaultInputUnitID:   bobdomain.Optional(rawData.DefaultInputUnitID),
+			PricingUnitID:        bobdomain.Optional(rawData.PricingUnitID),
+			UnitConversions:      &rawData.UnitConversions,
+			Returnable:           &rawData.Returnable,
+			DefaultPackagingSpec: bobdomain.Optional(rawData.DefaultPackagingSpec),
+			Formula:              rawData.Formula,
+		},
+	}, trustedIntegrationActor(t, "formula-raw-edit"))
+	if err != nil {
+		t.Fatalf("create raw material candidate: %v", err)
+	}
 	submittedRaw, err := bobService.Submit(
 		t.Context(),
 		bobdomain.EntityProduct,
 		bobdomain.VersionRevisionInput{
-			ObjectID:  editedRaw.ObjectID,
-			VersionID: editedRaw.VersionID,
-			Revision:  editedRaw.Revision,
+			ObjectID:         editedRaw.ObjectID,
+			ApprovalEntryID:  editedRaw.Approval.ApprovalEntryID,
+			ApprovalRevision: editedRaw.Approval.Revision,
 		},
-		integrationActorOne,
-		"formula-raw-submit",
+		trustedIntegrationActor(t, "formula-raw-submit"),
 	)
 	if err != nil {
 		t.Fatalf("submit raw material: %v", err)
@@ -196,12 +211,11 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 		t.Context(),
 		bobdomain.EntityProduct,
 		bobdomain.ReviewInput{
-			ObjectID:  submittedRaw.ObjectID,
-			VersionID: submittedRaw.VersionID,
-			Revision:  submittedRaw.Revision,
+			ObjectID:         submittedRaw.ObjectID,
+			ApprovalEntryID:  submittedRaw.Approval.ApprovalEntryID,
+			ApprovalRevision: submittedRaw.Approval.Revision,
 		},
-		integrationActorTwo,
-		"formula-raw-approve",
+		trustedIntegrationActor(t, "formula-raw-approve"),
 	)
 	if err != nil {
 		t.Fatalf("approve raw material: %v", err)
@@ -214,7 +228,7 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 		t.Fatalf("fixed default after raw material update: %v", err)
 	}
 	if refreshedDefault.Formula == nil ||
-		refreshedDefault.Formula.Components[0].Material.VersionID != approvedRaw.VersionID {
+		refreshedDefault.Formula.Components[0].Material.ApprovalEntryID != approvedRaw.Approval.ApprovalEntryID {
 		t.Fatalf("refreshed fixed default = %+v", refreshedDefault)
 	}
 	if _, err = service.Create(t.Context(), EntitySelfProduction, CreateInput{Data: DraftInput{
@@ -243,7 +257,7 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 		t.Fatalf("customer default after raw material update: %v", err)
 	}
 	if refreshedCustomerDefault.Formula == nil ||
-		refreshedCustomerDefault.Formula.Components[0].Material.VersionID != approvedRaw.VersionID {
+		refreshedCustomerDefault.Formula.Components[0].Material.ApprovalEntryID != approvedRaw.Approval.ApprovalEntryID {
 		t.Fatalf("refreshed customer default = %+v", refreshedCustomerDefault)
 	}
 
@@ -277,11 +291,11 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 	}
 	rebasedFormula := rebasedOrderView.Data.ProductLines[0].Formula
 	if rebasedFormula == nil ||
-		rebasedFormula.Components[0].Material.VersionID != approvedRaw.VersionID {
+		rebasedFormula.Components[0].Material.ApprovalEntryID != approvedRaw.Approval.ApprovalEntryID {
 		t.Fatalf("rebased order formula = %+v", rebasedFormula)
 	}
-	if fixedOrderView.Data.ProductLines[0].Formula.Components[0].Material.VersionID !=
-		refs.product.VersionID {
+	if fixedOrderView.Data.ProductLines[0].Formula.Components[0].Material.ApprovalEntryID !=
+		refs.product.ApprovalEntryID {
 		t.Fatalf("historical formula snapshot changed = %+v", fixedOrderView.Data.ProductLines[0].Formula)
 	}
 }

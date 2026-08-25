@@ -53,7 +53,10 @@ function selectFiles(event: Event): void {
   }
   const allowed = new Set(['application/pdf', 'image/jpeg', 'image/png'])
   const invalid = files.find(
-    (file) => !allowed.has(file.type) || file.size < 1 || file.size > MAX_ATTACHMENT_BYTES,
+    (file) =>
+      !allowed.has(file.type) ||
+      file.size < 1 ||
+      file.size > MAX_ATTACHMENT_BYTES,
   )
   if (invalid) {
     localError.value = `${invalid.name} 不是有效的 PDF、JPEG 或 PNG，或大小超过 10 MiB。`

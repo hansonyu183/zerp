@@ -8,7 +8,7 @@ import { parseFixed } from '@/components/voucher/decimal'
 export interface ProductUnitConversionDraft {
   unit: {
     objectId: string
-    versionId?: string
+    approvalEntryId?: string
     code?: string
     name?: string
     symbol?: string
@@ -22,9 +22,7 @@ function conversionPayload(value: unknown): ProductUnitConversionDraft[] {
     const conversion = item as Partial<ProductUnitConversionDraft>
     const objectId = conversion.unit?.objectId?.trim()
     const factor = conversion.factor?.trim()
-    return objectId && factor
-      ? [{ unit: { objectId }, factor }]
-      : []
+    return objectId && factor ? [{ unit: { objectId }, factor }] : []
   })
 }
 
@@ -48,10 +46,7 @@ function comparableMicros(value: string): string {
   return parsed === null ? value : formatMicros(parsed)
 }
 
-function comparableFormulaValue(
-  value: unknown,
-  fromServer: boolean,
-): unknown {
+function comparableFormulaValue(value: unknown, fromServer: boolean): unknown {
   const payload = productFormulaPayload(
     fromServer
       ? productFormulaFromPayload(
@@ -84,7 +79,9 @@ export function productPayload(
 ): Record<string, unknown> {
   return {
     unitConversions: conversionPayload(source.unitConversions),
-    formula: productFormulaPayload(source.formula as ProductFormulaDraft | null),
+    formula: productFormulaPayload(
+      source.formula as ProductFormulaDraft | null,
+    ),
   }
 }
 
@@ -146,7 +143,7 @@ export function validateProductConfiguration(
   const issues: string[] = []
   const behaviorProfile = stringValue(product.behaviorProfile)
   const conversions = conversionPayload(product.unitConversions)
-  const conversionIds = new Set(
+  const conapprovalEntryIds = new Set(
     conversions.map((conversion) => conversion.unit.objectId),
   )
   const defaultInputUnitId = stringValue(product.defaultInputUnitId)
@@ -156,10 +153,10 @@ export function validateProductConfiguration(
   if (!stringValue(product.productTypeId)) issues.push('请选择产品类型。')
   if (conversions.length === 0) issues.push('请至少维护一项单位换算。')
   if (!defaultInputUnitId) issues.push('请选择默认录入单位。')
-  else if (!conversionIds.has(defaultInputUnitId))
+  else if (!conapprovalEntryIds.has(defaultInputUnitId))
     issues.push('默认录入单位必须来自单位换算。')
   if (!pricingUnitId) issues.push('请选择计价单位。')
-  else if (!conversionIds.has(pricingUnitId))
+  else if (!conapprovalEntryIds.has(pricingUnitId))
     issues.push('计价单位必须来自单位换算。')
 
   if (behaviorProfile === 'PACKAGING') {

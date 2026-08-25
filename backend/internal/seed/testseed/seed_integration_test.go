@@ -142,8 +142,8 @@ func TestSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T) {
 		SELECT count(DISTINCT o.entity)
 		FROM bob_objects o
 		WHERE EXISTS(
-			SELECT 1 FROM bob_audit_events a
-			WHERE a.object_id=o.id AND a.request_id LIKE $1
+			SELECT 1 FROM approval_events event
+			WHERE event.domain='bob' AND event.subject_id=o.id AND event.request_id LIKE $1
 		)
 	`, seedPrefix+"%").Scan(&businessEntities); err != nil {
 		t.Fatalf("count test BOB entities: %v", err)

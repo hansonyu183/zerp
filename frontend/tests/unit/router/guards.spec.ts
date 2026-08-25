@@ -280,7 +280,7 @@ describe('session menu route synchronization', () => {
     ])
     router.beforeEach(createSessionNavigationGuard(router, session))
 
-    await router.push('/aux/product-category?status=EFFECTIVE#results')
+    await router.push('/aux/product-category?status=APPROVED#results')
 
     expect(router.currentRoute.value.name).toBe('forbidden')
   })

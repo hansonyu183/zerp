@@ -31,7 +31,7 @@ func TestVOUOrderProductionSnapshotsMultipleLinesAndReservesQuantityIntegration(
 				},
 				Components: []bobdomain.ProductFormulaComponent{{
 					Material: bobdomain.FormulaMaterialReference{
-						ObjectID: refs.product.ObjectID, VersionID: refs.product.VersionID,
+						ObjectID: refs.product.ObjectID, ApprovalEntryID: refs.product.ApprovalEntryID,
 					},
 					Quantity: bobdomain.QuantitySnapshot{
 						EnteredQuantity: formulaQuantity, EnteredUnit: bobdomain.MeasurementUnitSnapshot{ObjectID: integrationTonUnitID}, BaseQuantity: formulaQuantity,

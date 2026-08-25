@@ -188,15 +188,15 @@ func (s *Service) SaveProduction(
 		return MutationResult{}, s.writeError("replace production lines", err)
 	}
 	if _, err = tx.Exec(ctx, `UPDATE vou_production_details SET
-		material_warehouse_object_id=$2,material_warehouse_version_id=$3,
+		material_warehouse_object_id=$2,material_warehouse_approval_entry_id=$3,
 		material_warehouse_code=$4,material_warehouse_name=$5,
-		finished_warehouse_object_id=$6,finished_warehouse_version_id=$7,
+		finished_warehouse_object_id=$6,finished_warehouse_approval_entry_id=$7,
 		finished_warehouse_code=$8,finished_warehouse_name=$9
 		WHERE document_id=$1`,
 		input.DocumentID,
-		draft.MaterialWarehouse.ObjectID, draft.MaterialWarehouse.VersionID,
+		draft.MaterialWarehouse.ObjectID, draft.MaterialWarehouse.ApprovalEntryID,
 		draft.MaterialWarehouse.Code, draft.MaterialWarehouse.Data.Name,
-		draft.FinishedWarehouse.ObjectID, draft.FinishedWarehouse.VersionID,
+		draft.FinishedWarehouse.ObjectID, draft.FinishedWarehouse.ApprovalEntryID,
 		draft.FinishedWarehouse.Code, draft.FinishedWarehouse.Data.Name,
 	); err != nil {
 		return MutationResult{}, s.writeError("update production warehouses", err)
@@ -414,7 +414,7 @@ func (s *Service) prepareProductionOutput(
 				ErrorValidation, "self production requires product only", nil, nil,
 			)
 		}
-		productRef, resolveErr := s.resolver.ResolveCurrentEffectiveReference(
+		productRef, resolveErr := s.resolver.ResolveLatestApprovedReference(
 			ctx, tx, bobdomain.EntityProduct, input.Product.ObjectID,
 		)
 		if resolveErr != nil {
@@ -466,7 +466,7 @@ func (s *Service) prepareProductionOutput(
 		if err = validateProductReference(materialInput.ActualMaterial); err != nil {
 			return fixedProductionOutput{}, err
 		}
-		actualRef, resolveErr := s.resolver.ResolveCurrentEffectiveReference(
+		actualRef, resolveErr := s.resolver.ResolveLatestApprovedReference(
 			ctx, tx, bobdomain.EntityProduct, materialInput.ActualMaterial.ObjectID,
 		)
 		if resolveErr != nil {
@@ -502,7 +502,7 @@ func (s *Service) prepareProductionOutput(
 		}
 		reason := optionalText(materialInput.AdjustmentReason)
 		adjusted := actual.ObjectID != component.Material.ObjectID ||
-			actual.VersionID != component.Material.VersionID || actualQuantity != suggested
+			actual.ApprovalEntryID != component.Material.ApprovalEntryID || actualQuantity != suggested
 		if adjusted && reason == nil {
 			return fixedProductionOutput{}, domainError(
 				ErrorValidation, "adjustmentReason is required for changed material usage", nil, nil,
@@ -532,17 +532,17 @@ func (s *Service) loadOrderProductionFormula(
 	var behaviorProfile string
 	var base int64
 	var sourceUnit bobdomain.MeasurementUnitSnapshot
-	err := tx.QueryRow(ctx, `SELECT line.product_object_id,line.product_version_id,
+	err := tx.QueryRow(ctx, `SELECT line.product_object_id,line.product_approval_entry_id,
 		line.product_code,line.product_name,line.entered_unit_symbol,line.behavior_profile,
-		line.entered_unit_object_id,line.entered_unit_version_id,line.entered_unit_code,line.entered_unit_name,
+		line.entered_unit_object_id,line.entered_unit_approval_entry_id,line.entered_unit_code,line.entered_unit_name,
 		formula.output_base_quantity_micros
 		FROM vou_product_lines line
 		JOIN vou_sale_order_formulas formula ON formula.product_line_id=line.id
 		WHERE line.id=$1 AND line.document_id=$2`,
 		sourceLineID, orderID).Scan(
-		&product.ObjectID, &product.VersionID, &product.Code,
+		&product.ObjectID, &product.ApprovalEntryID, &product.Code,
 		&product.Data.Name, &sourceUnit.Symbol, &behaviorProfile,
-		&sourceUnit.ObjectID, &sourceUnit.VersionID, &sourceUnit.Code, &sourceUnit.Name, &base,
+		&sourceUnit.ObjectID, &sourceUnit.ApprovalEntryID, &sourceUnit.Code, &sourceUnit.Name, &base,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return product, productionFormula{}, domainError(
@@ -562,7 +562,7 @@ func (s *Service) loadOrderProductionFormula(
 	product.Data.Unit = sourceUnit.Symbol
 	product.Data.BehaviorProfile = behaviorProfile
 	product.Data.UnitConversions = []bobdomain.ProductUnitConversion{{Unit: sourceUnit, Factor: "1"}}
-	rows, err := tx.Query(ctx, `SELECT material_object_id,material_version_id,
+	rows, err := tx.Query(ctx, `SELECT material_object_id,material_approval_entry_id,
 		material_code,material_name,entered_unit_symbol,base_quantity_micros
 		FROM vou_sale_order_formula_lines
 		WHERE product_line_id=$1 ORDER BY line_no`, sourceLineID)
@@ -574,7 +574,7 @@ func (s *Service) loadOrderProductionFormula(
 	for rows.Next() {
 		var component productionFormulaComponent
 		if err = rows.Scan(
-			&component.Material.ObjectID, &component.Material.VersionID,
+			&component.Material.ObjectID, &component.Material.ApprovalEntryID,
 			&component.Material.Code, &component.Material.Name,
 			&component.Material.Unit, &component.Quantity,
 		); err != nil {
@@ -615,7 +615,7 @@ func productProductionFormula(input *bobdomain.ProductFormula) (productionFormul
 		}
 		result.Components = append(result.Components, productionFormulaComponent{
 			Material: ReferenceView{
-				ObjectID: item.Material.ObjectID, VersionID: item.Material.VersionID,
+				ObjectID: item.Material.ObjectID, ApprovalEntryID: item.Material.ApprovalEntryID,
 				Entity: bobdomain.EntityProduct, Code: item.Material.Code,
 				Name: item.Material.Name, Unit: item.Quantity.EnteredUnit.Symbol,
 				BehaviorProfile: bobdomain.ProductBehaviorRawMaterial,
@@ -635,7 +635,7 @@ func (s *Service) refreshProductionFormulaMaterials(
 	ctx context.Context, tx pgx.Tx, formula *productionFormula,
 ) error {
 	for index := range formula.Components {
-		material, err := s.resolver.ResolveCurrentEffectiveReference(
+		material, err := s.resolver.ResolveLatestApprovedReference(
 			ctx,
 			tx,
 			bobdomain.EntityProduct,
@@ -688,15 +688,15 @@ func (s *Service) insertProductionDraft(
 ) error {
 	_, err := tx.Exec(ctx, `INSERT INTO vou_production_details(
 		document_id,entity,
-		material_warehouse_object_id,material_warehouse_version_id,
+		material_warehouse_object_id,material_warehouse_approval_entry_id,
 		material_warehouse_code,material_warehouse_name,
-		finished_warehouse_object_id,finished_warehouse_version_id,
+		finished_warehouse_object_id,finished_warehouse_approval_entry_id,
 		finished_warehouse_code,finished_warehouse_name
 	) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
 		documentID, entity,
-		draft.MaterialWarehouse.ObjectID, draft.MaterialWarehouse.VersionID,
+		draft.MaterialWarehouse.ObjectID, draft.MaterialWarehouse.ApprovalEntryID,
 		draft.MaterialWarehouse.Code, draft.MaterialWarehouse.Data.Name,
-		draft.FinishedWarehouse.ObjectID, draft.FinishedWarehouse.VersionID,
+		draft.FinishedWarehouse.ObjectID, draft.FinishedWarehouse.ApprovalEntryID,
 		draft.FinishedWarehouse.Code, draft.FinishedWarehouse.Data.Name,
 	)
 	if err != nil {
@@ -715,15 +715,15 @@ func (s *Service) insertProductionLines(
 		outputID := newID()
 		_, err := tx.Exec(ctx, `INSERT INTO vou_production_output_lines(
 			id,document_id,line_no,source_order_line_id,
-			product_object_id,product_version_id,product_code,product_name,
+			product_object_id,product_approval_entry_id,product_code,product_name,
 			entered_unit_symbol,behavior_profile,entered_quantity_micros,
-			entered_unit_object_id,entered_unit_version_id,entered_unit_code,entered_unit_name,
+			entered_unit_object_id,entered_unit_approval_entry_id,entered_unit_code,entered_unit_name,
 			base_quantity_micros,loss_rate_micros,formula_base_quantity_micros,remark
 		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
 			outputID, documentID, outputIndex+1, output.SourceOrderLineID,
-			output.Product.ObjectID, output.Product.VersionID, output.Product.Code,
+			output.Product.ObjectID, output.Product.ApprovalEntryID, output.Product.Code,
 			output.Product.Data.Name, output.EnteredUnit.Symbol, output.Product.Data.BehaviorProfile,
-			output.EnteredQuantity, output.EnteredUnit.ObjectID, output.EnteredUnit.VersionID,
+			output.EnteredQuantity, output.EnteredUnit.ObjectID, output.EnteredUnit.ApprovalEntryID,
 			output.EnteredUnit.Code, output.EnteredUnit.Name, output.OutputQuantity,
 			output.LossRate, output.FormulaBaseOutputQuantity, output.Remark,
 		)
@@ -733,23 +733,23 @@ func (s *Service) insertProductionLines(
 		for materialIndex, material := range output.Materials {
 			_, err = tx.Exec(ctx, `INSERT INTO vou_production_material_lines(
 				id,output_line_id,line_no,
-				formula_material_object_id,formula_material_version_id,
+				formula_material_object_id,formula_material_approval_entry_id,
 				formula_material_code,formula_material_name,formula_entered_unit_symbol,
 				formula_base_quantity_micros,suggested_base_quantity_micros,
-				actual_material_object_id,actual_material_version_id,
+				actual_material_object_id,actual_material_approval_entry_id,
 				actual_material_code,actual_material_name,actual_entered_unit_symbol,
 				actual_entered_quantity_micros,actual_entered_unit_object_id,
-				actual_entered_unit_version_id,actual_entered_unit_code,actual_entered_unit_name,
+				actual_entered_unit_approval_entry_id,actual_entered_unit_code,actual_entered_unit_name,
 				actual_base_quantity_micros,adjustment_reason
 			) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
 				newID(), outputID, materialIndex+1,
-				material.FormulaMaterial.ObjectID, material.FormulaMaterial.VersionID,
+				material.FormulaMaterial.ObjectID, material.FormulaMaterial.ApprovalEntryID,
 				material.FormulaMaterial.Code, material.FormulaMaterial.Name,
 				material.FormulaMaterial.Unit, material.FormulaQuantity, material.SuggestedQuantity,
-				material.ActualMaterial.ObjectID, material.ActualMaterial.VersionID,
+				material.ActualMaterial.ObjectID, material.ActualMaterial.ApprovalEntryID,
 				material.ActualMaterial.Code, material.ActualMaterial.Data.Name,
 				material.ActualEnteredUnit.Symbol, material.ActualEnteredQuantity,
-				material.ActualEnteredUnit.ObjectID, material.ActualEnteredUnit.VersionID,
+				material.ActualEnteredUnit.ObjectID, material.ActualEnteredUnit.ApprovalEntryID,
 				material.ActualEnteredUnit.Code, material.ActualEnteredUnit.Name,
 				material.ActualQuantity, material.AdjustmentReason,
 			)
@@ -768,13 +768,13 @@ func (s *Service) loadProductionData(
 ) (DocumentDataView, error) {
 	var material, finished ReferenceView
 	err := s.pool.QueryRow(ctx, `SELECT
-		material_warehouse_object_id,material_warehouse_version_id,
+		material_warehouse_object_id,material_warehouse_approval_entry_id,
 		material_warehouse_code,material_warehouse_name,
-		finished_warehouse_object_id,finished_warehouse_version_id,
+		finished_warehouse_object_id,finished_warehouse_approval_entry_id,
 		finished_warehouse_code,finished_warehouse_name
 		FROM vou_production_details WHERE document_id=$1`, document.ID).Scan(
-		&material.ObjectID, &material.VersionID, &material.Code, &material.Name,
-		&finished.ObjectID, &finished.VersionID, &finished.Code, &finished.Name,
+		&material.ObjectID, &material.ApprovalEntryID, &material.Code, &material.Name,
+		&finished.ObjectID, &finished.ApprovalEntryID, &finished.Code, &finished.Name,
 	)
 	if err != nil {
 		return data, err
@@ -784,8 +784,8 @@ func (s *Service) loadProductionData(
 	data.MaterialWarehouse = &material
 	data.FinishedWarehouse = &finished
 	rows, err := s.pool.Query(ctx, `SELECT id,line_no,source_order_line_id,
-		product_object_id,product_version_id,product_code,product_name,entered_unit_symbol,
-		behavior_profile,entered_quantity_micros,entered_unit_object_id,entered_unit_version_id,
+		product_object_id,product_approval_entry_id,product_code,product_name,entered_unit_symbol,
+		behavior_profile,entered_quantity_micros,entered_unit_object_id,entered_unit_approval_entry_id,
 		entered_unit_code,entered_unit_name,base_quantity_micros,loss_rate_micros,
 		formula_base_quantity_micros,remark
 		FROM vou_production_output_lines WHERE document_id=$1 ORDER BY line_no`, document.ID)
@@ -801,10 +801,10 @@ func (s *Service) loadProductionData(
 		var remark *string
 		if err = rows.Scan(
 			&item.LineID, &item.LineNo, &sourceID,
-			&item.Product.ObjectID, &item.Product.VersionID,
+			&item.Product.ObjectID, &item.Product.ApprovalEntryID,
 			&item.Product.Code, &item.Product.Name, &item.Product.Unit,
 			&behaviorProfile, &enteredQuantity, &item.EnteredUnit.ObjectID,
-			&item.EnteredUnit.VersionID, &item.EnteredUnit.Code, &item.EnteredUnit.Name,
+			&item.EnteredUnit.ApprovalEntryID, &item.EnteredUnit.Code, &item.EnteredUnit.Name,
 			&quantity, &lossRate, &base, &remark,
 		); err != nil {
 			return data, err
@@ -819,13 +819,13 @@ func (s *Service) loadProductionData(
 		item.FormulaBaseQuantity = formatQuantity(base)
 		item.Remark = deref(remark)
 		materialRows, materialErr := s.pool.Query(ctx, `SELECT id,line_no,
-			formula_material_object_id,formula_material_version_id,
+			formula_material_object_id,formula_material_approval_entry_id,
 			formula_material_code,formula_material_name,formula_entered_unit_symbol,
 			formula_base_quantity_micros,suggested_base_quantity_micros,
-			actual_material_object_id,actual_material_version_id,
+			actual_material_object_id,actual_material_approval_entry_id,
 			actual_material_code,actual_material_name,actual_entered_unit_symbol,
 			actual_entered_quantity_micros,actual_entered_unit_object_id,
-			actual_entered_unit_version_id,actual_entered_unit_code,actual_entered_unit_name,
+			actual_entered_unit_approval_entry_id,actual_entered_unit_code,actual_entered_unit_name,
 			actual_base_quantity_micros,adjustment_reason
 			FROM vou_production_material_lines
 			WHERE output_line_id=$1 ORDER BY line_no`, item.LineID)
@@ -838,13 +838,13 @@ func (s *Service) loadProductionData(
 			var adjustment *string
 			if materialErr = materialRows.Scan(
 				&line.LineID, &line.LineNo,
-				&line.FormulaMaterial.ObjectID, &line.FormulaMaterial.VersionID,
+				&line.FormulaMaterial.ObjectID, &line.FormulaMaterial.ApprovalEntryID,
 				&line.FormulaMaterial.Code, &line.FormulaMaterial.Name,
 				&line.FormulaMaterial.Unit, &formulaQuantity, &suggested,
-				&line.ActualMaterial.ObjectID, &line.ActualMaterial.VersionID,
+				&line.ActualMaterial.ObjectID, &line.ActualMaterial.ApprovalEntryID,
 				&line.ActualMaterial.Code, &line.ActualMaterial.Name,
 				&line.ActualMaterial.Unit, &actualEnteredQuantity,
-				&line.ActualEnteredUnit.ObjectID, &line.ActualEnteredUnit.VersionID,
+				&line.ActualEnteredUnit.ObjectID, &line.ActualEnteredUnit.ApprovalEntryID,
 				&line.ActualEnteredUnit.Code, &line.ActualEnteredUnit.Name,
 				&actualQuantity, &adjustment,
 			); materialErr != nil {

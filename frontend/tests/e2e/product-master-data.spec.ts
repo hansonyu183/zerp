@@ -153,12 +153,12 @@ async function openProductCreate(page: Page): Promise<Locator> {
   expect(response.ok()).toBe(true)
   const envelope = (await response.json()) as {
     code: string | number
-    data: { items: Array<{ currentVersion: { data: { name?: string } } }> }
+    data: { items: Array<{ latestApproved: { data: { name?: string } } }> }
   }
   expect(String(envelope.code)).toBe('0')
   expect(
     envelope.data.items.some(
-      (item) => item.currentVersion.data.name === '千克',
+      (item) => item.latestApproved.data.name === '千克',
     ),
   ).toBe(true)
   return page.locator('.bob-entity-drawer')
@@ -355,18 +355,18 @@ function productSnapshotFromDocument(
 ): SavedProductSnapshot {
   const data = document.data as {
     productLines: Array<{
-      product: { versionId: string }
+      product: { approvalEntryId: string }
       enteredQuantity: string
-      enteredUnit: { versionId: string }
+      enteredUnit: { approvalEntryId: string }
       baseQuantity: string
     }>
   }
   const line = data.productLines[0]!
   return {
     documentNo: String(document.documentNo),
-    productVersionId: line.product.versionId,
+    productVersionId: line.product.approvalEntryId,
     enteredQuantity: line.enteredQuantity,
-    enteredUnitVersionId: line.enteredUnit.versionId,
+    enteredUnitVersionId: line.enteredUnit.approvalEntryId,
     baseQuantity: line.baseQuantity,
   }
 }

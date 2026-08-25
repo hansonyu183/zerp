@@ -13,39 +13,40 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	"github.com/hansonyu183/zerp/backend/internal/api/requestbody"
 	"github.com/hansonyu183/zerp/backend/internal/api/response"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 )
 
 type applicationService interface {
 	partyOtherUnitApplicationService
 	Query(context.Context, string, QueryInput) (Page[QueryItem], error)
 	Get(context.Context, string, GetInput) (ObjectView, error)
-	Create(context.Context, string, CreateInput, string, string) (MutationResult, error)
-	Save(context.Context, string, SaveInput, string, string) (MutationResult, error)
-	Delete(context.Context, string, DeleteInput) error
-	Submit(context.Context, string, VersionRevisionInput, string, string) (MutationResult, error)
-	Unsubmit(context.Context, string, ReverseInput, string, string) (MutationResult, error)
-	Approve(context.Context, string, ReviewInput, string, string) (MutationResult, error)
-	Unapprove(context.Context, string, ReverseInput, string, string) (MutationResult, error)
-	Reject(context.Context, string, ReviewInput, string, string) (MutationResult, error)
-	Enable(context.Context, string, ObjectRevisionInput, string, string) (MutationResult, error)
-	Disable(context.Context, string, ObjectRevisionInput, string, string) (MutationResult, error)
+	Create(context.Context, string, CreateInput, approval.Actor) (MutationResult, error)
+	Save(context.Context, string, SaveInput, approval.Actor) (MutationResult, error)
+	Delete(context.Context, string, DeleteInput, approval.Actor) error
+	Submit(context.Context, string, VersionRevisionInput, approval.Actor) (MutationResult, error)
+	Unsubmit(context.Context, string, ReverseInput, approval.Actor) (MutationResult, error)
+	Approve(context.Context, string, ReviewInput, approval.Actor) (MutationResult, error)
+	Unapprove(context.Context, string, ReverseInput, approval.Actor) (MutationResult, error)
+	Reject(context.Context, string, ReviewInput, approval.Actor) (MutationResult, error)
+	Enable(context.Context, string, ObjectRevisionInput, approval.Actor) (MutationResult, error)
+	Disable(context.Context, string, ObjectRevisionInput, approval.Actor) (MutationResult, error)
 	Versions(context.Context, string, HistoryInput) (Page[VersionHistoryItem], error)
 	AuditHistory(context.Context, string, HistoryInput) (Page[AuditEventView], error)
 	CustomerQuery(context.Context, QueryInput) (Page[CustomerListItem], error)
 	CustomerGet(context.Context, GetInput) (CustomerDetailView, error)
-	CustomerCreate(context.Context, CustomerCreateInput, string, string, bool) (CustomerCreateResult, error)
-	CustomerSave(context.Context, CustomerSaveInput, string, string) (MutationResult, error)
-	CustomerAccountAdd(context.Context, CustomerAccountAddInput, string, string) (CustomerAccountView, error)
-	CustomerAccountDelete(context.Context, DeleteInput) error
+	CustomerCreate(context.Context, CustomerCreateInput, approval.Actor, bool) (CustomerCreateResult, error)
+	CustomerSave(context.Context, CustomerSaveInput, approval.Actor) (MutationResult, error)
+	CustomerAccountAdd(context.Context, CustomerAccountAddInput, approval.Actor) (CustomerAccountView, error)
+	CustomerAccountDelete(context.Context, DeleteInput, approval.Actor) error
 	SupplierQuery(context.Context, QueryInput) (Page[SupplierListItem], error)
 	SupplierGet(context.Context, GetInput) (SupplierDetailView, error)
-	SupplierCreate(context.Context, SupplierCreateInput, string, string, bool) (SupplierCreateResult, error)
-	SupplierSave(context.Context, SupplierSaveInput, string, string) (MutationResult, error)
-	EmploymentCreate(context.Context, EmploymentCreateInput, string, string, bool) (EmploymentCreateResult, error)
+	SupplierCreate(context.Context, SupplierCreateInput, approval.Actor, bool) (SupplierCreateResult, error)
+	SupplierSave(context.Context, SupplierSaveInput, approval.Actor) (MutationResult, error)
+	EmploymentCreate(context.Context, EmploymentCreateInput, approval.Actor, bool) (EmploymentCreateResult, error)
 	SalesPartnerQuery(context.Context, QueryInput) (Page[SalesPartnerListItem], error)
 	SalesPartnerGet(context.Context, GetInput) (SalesPartnerDetailView, error)
-	SalesPartnerCreate(context.Context, SalesPartnerCreateInput, string, string, bool) (SalesPartnerCreateResult, error)
-	SalesPartnerSave(context.Context, SalesPartnerSaveInput, string, string) (MutationResult, error)
+	SalesPartnerCreate(context.Context, SalesPartnerCreateInput, approval.Actor, bool) (SalesPartnerCreateResult, error)
+	SalesPartnerSave(context.Context, SalesPartnerSaveInput, approval.Actor) (MutationResult, error)
 	QueryReferenceCandidates(context.Context, ReferenceQueryInput) ([]ReferenceCandidate, error)
 }
 
@@ -55,17 +56,17 @@ type partyOtherUnitApplicationService interface {
 	PartySave(context.Context, PartySaveInput, string, string) (PartyView, error)
 	OtherUnitQuery(context.Context, QueryInput) (Page[OtherUnitView], error)
 	OtherUnitGet(context.Context, GetInput) (OtherUnitView, error)
-	OtherUnitCreate(context.Context, OtherUnitCreateInput, string, string, bool) (OtherUnitCreateResult, error)
-	OtherUnitSave(context.Context, OtherUnitSaveInput, string, string) (MutationResult, error)
+	OtherUnitCreate(context.Context, OtherUnitCreateInput, approval.Actor, bool) (OtherUnitCreateResult, error)
+	OtherUnitSave(context.Context, OtherUnitSaveInput, approval.Actor) (MutationResult, error)
 	OtherUnitVersions(context.Context, HistoryInput) (Page[VersionHistoryItem], error)
 	PartyMergePreflight(context.Context, PartyMergePreflightInput, PartyRelationshipVisibility, string, string) (PartyMergePreflightResult, error)
 	PartyMergeConfirm(context.Context, PartyMergeConfirmInput, PartyRelationshipVisibility, string, string) (PartyMergeResult, error)
 }
 
 type customerAttachmentApplicationService interface {
-	Initiate(context.Context, CustomerAttachmentInitiateInput, string, string) (CustomerAttachmentInitiateResult, error)
+	Initiate(context.Context, CustomerAttachmentInitiateInput, approval.Actor) (CustomerAttachmentInitiateResult, error)
 	CreateDownload(context.Context, CustomerAttachmentDownloadInput, string) (CustomerAttachmentDownloadResult, error)
-	Remove(context.Context, CustomerAttachmentRemoveInput, string, string) (CustomerAttachmentMutationResult, error)
+	Remove(context.Context, CustomerAttachmentRemoveInput, approval.Actor) (CustomerAttachmentMutationResult, error)
 	Upload(context.Context, string, io.Reader, int64, string) error
 	OpenDownload(context.Context, string) (CustomerAttachmentDownloadFile, error)
 	EnrichDetail(context.Context, *CustomerDetailView) error
@@ -139,7 +140,7 @@ func (h *Handler) Register(router *gin.Engine) {
 	otherUnitGroup.POST("/save", h.authorize("/bob/other-unit/save"), h.otherUnitSave)
 	otherUnitGroup.POST("/versions", h.authorize("/bob/other-unit/versions"), h.otherUnitVersions)
 	for _, route := range actionRoutes {
-		if route.action == "query" || route.action == "get" || route.action == "create" || route.action == "save" || route.action == "versions" || route.action == "unapprove" {
+		if route.action == "query" || route.action == "get" || route.action == "create" || route.action == "save" || route.action == "versions" {
 			continue
 		}
 		action, handle := route.action, route.handle
@@ -153,7 +154,7 @@ func (h *Handler) Register(router *gin.Engine) {
 	customerAccountGroup := group.Group("/" + EntityCustomerAccount)
 	for _, route := range actionRoutes {
 		if route.action == "query" || route.action == "get" || route.action == "create" || route.action == "save" ||
-			route.action == "delete" || route.action == "unapprove" {
+			route.action == "delete" {
 			continue
 		}
 		action, handle := route.action, route.handle
@@ -265,7 +266,11 @@ func (h *Handler) otherUnitCreate(c *gin.Context) {
 	if !authmiddleware.CheckPermission(c, h.authorizer, requiredPartyPath, h.writeAuthorizationError) {
 		return
 	}
-	result, err := h.service.OtherUnitCreate(c.Request.Context(), input, h.actorID(c), response.RequestID(c),
+	actor, ok := h.approvalActor(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.OtherUnitCreate(c.Request.Context(), input, actor,
 		hasPermission(h.principal(c), "/bob/party/get"))
 	h.result(c, result, err)
 }
@@ -273,7 +278,11 @@ func (h *Handler) otherUnitCreate(c *gin.Context) {
 func (h *Handler) otherUnitSave(c *gin.Context) {
 	var input OtherUnitSaveInput
 	if h.bind(c, &input) {
-		result, err := h.service.OtherUnitSave(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
+		actor, ok := h.approvalActor(c)
+		if !ok {
+			return
+		}
+		result, err := h.service.OtherUnitSave(c.Request.Context(), input, actor)
 		h.result(c, result, err)
 	}
 }
@@ -289,6 +298,15 @@ func hasPermission(principal authorization.Principal, path string) bool {
 
 func (h *Handler) principal(c *gin.Context) authorization.Principal {
 	return authmiddleware.Principal(c)
+}
+
+func (h *Handler) approvalActor(c *gin.Context) (approval.Actor, bool) {
+	actor, err := approval.UserActor(h.principal(c), response.RequestID(c))
+	if err != nil {
+		h.result(c, nil, err)
+		return approval.Actor{}, false
+	}
+	return actor, true
 }
 
 func (h *Handler) referenceQuery(c *gin.Context) {
@@ -358,10 +376,15 @@ func (h *Handler) get(c *gin.Context, entity string) {
 
 func (h *Handler) customerAttachmentInitiate(c *gin.Context) {
 	var input CustomerAttachmentInitiateInput
-	if h.bind(c, &input) {
-		result, err := h.attachments.Initiate(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
-		h.result(c, result, err)
+	if !h.bind(c, &input) {
+		return
 	}
+	actor, ok := h.approvalActor(c)
+	if !ok {
+		return
+	}
+	result, err := h.attachments.Initiate(c.Request.Context(), input, actor)
+	h.result(c, result, err)
 }
 
 func (h *Handler) customerAttachmentDownload(c *gin.Context) {
@@ -374,10 +397,15 @@ func (h *Handler) customerAttachmentDownload(c *gin.Context) {
 
 func (h *Handler) customerAttachmentRemove(c *gin.Context) {
 	var input CustomerAttachmentRemoveInput
-	if h.bind(c, &input) {
-		result, err := h.attachments.Remove(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
-		h.result(c, result, err)
+	if !h.bind(c, &input) {
+		return
 	}
+	actor, ok := h.approvalActor(c)
+	if !ok {
+		return
+	}
+	result, err := h.attachments.Remove(c.Request.Context(), input, actor)
+	h.result(c, result, err)
 }
 
 func (h *Handler) customerAttachmentUpload(c *gin.Context) {
@@ -419,7 +447,11 @@ func (h *Handler) create(c *gin.Context, entity string) {
 		if !authmiddleware.CheckPermission(c, h.authorizer, requiredPartyPath, h.writeAuthorizationError) {
 			return
 		}
-		result, err := h.service.CustomerCreate(c.Request.Context(), input, h.actorID(c), response.RequestID(c), hasPermission(h.principal(c), "/bob/party/get"))
+		actor, ok := h.approvalActor(c)
+		if !ok {
+			return
+		}
+		result, err := h.service.CustomerCreate(c.Request.Context(), input, actor, hasPermission(h.principal(c), "/bob/party/get"))
 		h.result(c, result, err)
 		return
 	}
@@ -435,7 +467,11 @@ func (h *Handler) create(c *gin.Context, entity string) {
 		if !authmiddleware.CheckPermission(c, h.authorizer, requiredPartyPath, h.writeAuthorizationError) {
 			return
 		}
-		result, err := h.service.SupplierCreate(c.Request.Context(), input, h.actorID(c), response.RequestID(c),
+		actor, ok := h.approvalActor(c)
+		if !ok {
+			return
+		}
+		result, err := h.service.SupplierCreate(c.Request.Context(), input, actor,
 			hasPermission(h.principal(c), "/bob/party/get"))
 		h.result(c, result, err)
 		return
@@ -452,7 +488,11 @@ func (h *Handler) create(c *gin.Context, entity string) {
 		if !authmiddleware.CheckPermission(c, h.authorizer, requiredPartyPath, h.writeAuthorizationError) {
 			return
 		}
-		result, err := h.service.EmploymentCreate(c.Request.Context(), input, h.actorID(c), response.RequestID(c),
+		actor, ok := h.approvalActor(c)
+		if !ok {
+			return
+		}
+		result, err := h.service.EmploymentCreate(c.Request.Context(), input, actor,
 			hasPermission(h.principal(c), "/bob/party/get"))
 		h.result(c, result, err)
 		return
@@ -469,14 +509,22 @@ func (h *Handler) create(c *gin.Context, entity string) {
 		if !authmiddleware.CheckPermission(c, h.authorizer, requiredPartyPath, h.writeAuthorizationError) {
 			return
 		}
-		result, err := h.service.SalesPartnerCreate(c.Request.Context(), input, h.actorID(c), response.RequestID(c),
+		actor, ok := h.approvalActor(c)
+		if !ok {
+			return
+		}
+		result, err := h.service.SalesPartnerCreate(c.Request.Context(), input, actor,
 			hasPermission(h.principal(c), "/bob/party/get"))
 		h.result(c, result, err)
 		return
 	}
 	var input CreateInput
 	if h.bind(c, &input) {
-		result, err := h.service.Create(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
+		actor, ok := h.approvalActor(c)
+		if !ok {
+			return
+		}
+		result, err := h.service.Create(c.Request.Context(), entity, input, actor)
 		h.result(c, result, err)
 	}
 }
@@ -484,14 +532,22 @@ func (h *Handler) create(c *gin.Context, entity string) {
 func (h *Handler) customerAccountDelete(c *gin.Context) {
 	var input DeleteInput
 	if h.bind(c, &input) {
-		h.result(c, nil, h.service.CustomerAccountDelete(c.Request.Context(), input))
+		actor, ok := h.approvalActor(c)
+		if !ok {
+			return
+		}
+		h.result(c, nil, h.service.CustomerAccountDelete(c.Request.Context(), input, actor))
 	}
 }
 
 func (h *Handler) customerAccountAdd(c *gin.Context) {
 	var input CustomerAccountAddInput
 	if h.bind(c, &input) {
-		result, err := h.service.CustomerAccountAdd(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
+		actor, ok := h.approvalActor(c)
+		if !ok {
+			return
+		}
+		result, err := h.service.CustomerAccountAdd(c.Request.Context(), input, actor)
 		h.result(c, result, err)
 	}
 }
@@ -500,7 +556,11 @@ func (h *Handler) save(c *gin.Context, entity string) {
 	if entity == EntityCustomer {
 		var input CustomerSaveInput
 		if h.bind(c, &input) {
-			result, err := h.service.CustomerSave(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
+			actor, ok := h.approvalActor(c)
+			if !ok {
+				return
+			}
+			result, err := h.service.CustomerSave(c.Request.Context(), input, actor)
 			h.result(c, result, err)
 		}
 		return
@@ -508,7 +568,11 @@ func (h *Handler) save(c *gin.Context, entity string) {
 	if entity == EntitySupplier {
 		var input SupplierSaveInput
 		if h.bind(c, &input) {
-			result, err := h.service.SupplierSave(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
+			actor, ok := h.approvalActor(c)
+			if !ok {
+				return
+			}
+			result, err := h.service.SupplierSave(c.Request.Context(), input, actor)
 			h.result(c, result, err)
 		}
 		return
@@ -516,14 +580,22 @@ func (h *Handler) save(c *gin.Context, entity string) {
 	if entity == EntitySalesPartner {
 		var input SalesPartnerSaveInput
 		if h.bind(c, &input) {
-			result, err := h.service.SalesPartnerSave(c.Request.Context(), input, h.actorID(c), response.RequestID(c))
+			actor, ok := h.approvalActor(c)
+			if !ok {
+				return
+			}
+			result, err := h.service.SalesPartnerSave(c.Request.Context(), input, actor)
 			h.result(c, result, err)
 		}
 		return
 	}
 	var input SaveInput
 	if h.bind(c, &input) {
-		result, err := h.service.Save(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
+		actor, ok := h.approvalActor(c)
+		if !ok {
+			return
+		}
+		result, err := h.service.Save(c.Request.Context(), entity, input, actor)
 		h.result(c, result, err)
 	}
 }
@@ -531,7 +603,11 @@ func (h *Handler) save(c *gin.Context, entity string) {
 func (h *Handler) delete(c *gin.Context, entity string) {
 	var input DeleteInput
 	if h.bind(c, &input) {
-		err := h.service.Delete(c.Request.Context(), entity, input)
+		actor, ok := h.approvalActor(c)
+		if !ok {
+			return
+		}
+		err := h.service.Delete(c.Request.Context(), entity, input, actor)
 		h.result(c, nil, err)
 	}
 }
@@ -539,7 +615,11 @@ func (h *Handler) delete(c *gin.Context, entity string) {
 func (h *Handler) submit(c *gin.Context, entity string) {
 	var input VersionRevisionInput
 	if h.bind(c, &input) {
-		result, err := h.service.Submit(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
+		actor, ok := h.approvalActor(c)
+		if !ok {
+			return
+		}
+		result, err := h.service.Submit(c.Request.Context(), entity, input, actor)
 		h.result(c, result, err)
 	}
 }
@@ -547,7 +627,11 @@ func (h *Handler) submit(c *gin.Context, entity string) {
 func (h *Handler) unsubmit(c *gin.Context, entity string) {
 	var input ReverseInput
 	if h.bind(c, &input) {
-		result, err := h.service.Unsubmit(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
+		actor, ok := h.approvalActor(c)
+		if !ok {
+			return
+		}
+		result, err := h.service.Unsubmit(c.Request.Context(), entity, input, actor)
 		h.result(c, result, err)
 	}
 }
@@ -555,7 +639,11 @@ func (h *Handler) unsubmit(c *gin.Context, entity string) {
 func (h *Handler) approve(c *gin.Context, entity string) {
 	var input ReviewInput
 	if h.bind(c, &input) {
-		result, err := h.service.Approve(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
+		actor, ok := h.approvalActor(c)
+		if !ok {
+			return
+		}
+		result, err := h.service.Approve(c.Request.Context(), entity, input, actor)
 		h.result(c, result, err)
 	}
 }
@@ -563,7 +651,11 @@ func (h *Handler) approve(c *gin.Context, entity string) {
 func (h *Handler) unapprove(c *gin.Context, entity string) {
 	var input ReverseInput
 	if h.bind(c, &input) {
-		result, err := h.service.Unapprove(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
+		actor, ok := h.approvalActor(c)
+		if !ok {
+			return
+		}
+		result, err := h.service.Unapprove(c.Request.Context(), entity, input, actor)
 		h.result(c, result, err)
 	}
 }
@@ -571,7 +663,11 @@ func (h *Handler) unapprove(c *gin.Context, entity string) {
 func (h *Handler) reject(c *gin.Context, entity string) {
 	var input ReviewInput
 	if h.bind(c, &input) {
-		result, err := h.service.Reject(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
+		actor, ok := h.approvalActor(c)
+		if !ok {
+			return
+		}
+		result, err := h.service.Reject(c.Request.Context(), entity, input, actor)
 		h.result(c, result, err)
 	}
 }
@@ -579,7 +675,11 @@ func (h *Handler) reject(c *gin.Context, entity string) {
 func (h *Handler) enable(c *gin.Context, entity string) {
 	var input ObjectRevisionInput
 	if h.bind(c, &input) {
-		result, err := h.service.Enable(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
+		actor, ok := h.approvalActor(c)
+		if !ok {
+			return
+		}
+		result, err := h.service.Enable(c.Request.Context(), entity, input, actor)
 		h.result(c, result, err)
 	}
 }
@@ -587,7 +687,11 @@ func (h *Handler) enable(c *gin.Context, entity string) {
 func (h *Handler) disable(c *gin.Context, entity string) {
 	var input ObjectRevisionInput
 	if h.bind(c, &input) {
-		result, err := h.service.Disable(c.Request.Context(), entity, input, h.actorID(c), response.RequestID(c))
+		actor, ok := h.approvalActor(c)
+		if !ok {
+			return
+		}
+		result, err := h.service.Disable(c.Request.Context(), entity, input, actor)
 		h.result(c, result, err)
 	}
 }

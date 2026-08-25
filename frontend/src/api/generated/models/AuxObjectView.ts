@@ -10,7 +10,8 @@ export type AuxObjectView = {
   code: string;
   enabled: boolean;
   objectRevision: number;
-  currentVersion: AuxVersionView;
+  latestApproved: AuxVersionView | null;
+  openVersion: AuxVersionView | null;
   updatedAt: string;
   updatedBy: string;
 };

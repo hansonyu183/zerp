@@ -2,7 +2,8 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type AuxRevisionRequest = {
+export type AuxApprovalRevisionRequest = {
   objectId: string;
-  revision: number;
+  approvalEntryId: string;
+  approvalRevision: number;
 };

@@ -8,6 +8,7 @@ import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import CompactTableField from '@/components/common/CompactTableField.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
+import { approvalStatusPresentation } from '@/shared/approval'
 import CustomerAttachmentSection from './CustomerAttachmentSection.vue'
 import {
   salesAttributionLabels,
@@ -21,12 +22,9 @@ const vm = reactive(props.model)
 const lifecycleTarget = ref<CustomerListItem | null>(null)
 const lifecycleAction = ref<CustomerLifecycleAction | null>(null)
 const lifecycleReason = ref('')
-const customerStatusLabels: Readonly<Record<string, string>> = {
-  DRAFT: '草稿',
-  PENDING: '待审核',
-  EFFECTIVE: '已生效',
-  INVALID: '已失效',
-}
+const customerStatusItems = Object.entries(approvalStatusPresentation).map(
+  ([value, presentation]) => ({ value, title: presentation.label }),
+)
 const customerTypeItems = computed(() =>
   vm.referenceOptions.customerType.map((item) => ({
     value: item.code,
@@ -57,7 +55,10 @@ const columns: readonly BusinessObjectColumn<CustomerListItem>[] = [
   {
     key: 'status',
     label: '状态',
-    value: (row) => customerStatusLabels[row.status] ?? '未知状态',
+    value: (row) =>
+      approvalStatusPresentation[
+        row.status as keyof typeof approvalStatusPresentation
+      ]?.label ?? '未知状态',
     sizing: 'compact',
   },
 ]
@@ -66,6 +67,7 @@ const lifecycleItems = [
   { action: 'unsubmit', label: '撤回提交', icon: 'mdi-undo-variant' },
   { action: 'approve', label: '审核通过', icon: 'mdi-check-decagram-outline' },
   { action: 'reject', label: '审核驳回', icon: 'mdi-close-octagon-outline' },
+  { action: 'unapprove', label: '撤销批准', icon: 'mdi-undo' },
   { action: 'enable', label: '启用', icon: 'mdi-play-circle-outline' },
   { action: 'disable', label: '禁用', icon: 'mdi-pause-circle-outline' },
 ] as const
@@ -182,12 +184,7 @@ onMounted(() => {
       <template #filters>
         <v-select
           v-model="vm.filters.status"
-          :items="
-            Object.entries(customerStatusLabels).map(([value, title]) => ({
-              value,
-              title,
-            }))
-          "
+          :items="customerStatusItems"
           clearable
           density="comfortable"
           label="状态"
@@ -230,7 +227,9 @@ onMounted(() => {
     <v-card rounded="xl" title="客户账户生命周期操作"
       ><v-card-text
         ><v-textarea
-          v-if="['unsubmit', 'reject'].includes(lifecycleAction ?? '')"
+          v-if="
+            ['unsubmit', 'reject', 'unapprove'].includes(lifecycleAction ?? '')
+          "
           v-model="lifecycleReason"
           counter="1000"
           label="操作原因"
@@ -246,8 +245,9 @@ onMounted(() => {
         ><v-btn
           color="primary"
           :disabled="
-            ['unsubmit', 'reject'].includes(lifecycleAction ?? '') &&
-            !lifecycleReason.trim()
+            ['unsubmit', 'reject', 'unapprove'].includes(
+              lifecycleAction ?? '',
+            ) && !lifecycleReason.trim()
           "
           :loading="Boolean(vm.actionLoading)"
           @click="confirmLifecycle"
@@ -376,7 +376,11 @@ onMounted(() => {
             :key="account.objectId"
             :active="account.objectId === vm.selectedAccountId"
             :title="`${account.code} · ${account.data.name}`"
-            :subtitle="customerStatusLabels[account.status] ?? account.status"
+            :subtitle="
+              approvalStatusPresentation[
+                account.status as keyof typeof approvalStatusPresentation
+              ]?.label ?? account.status
+            "
             @click="vm.selectAccount(account.objectId)"
             ><template #append
               ><v-btn

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/attachmentstore"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -38,6 +39,7 @@ type CustomerAttachmentService struct {
 	storage     *attachmentstore.Store
 	uploadTTL   time.Duration
 	downloadTTL time.Duration
+	lifecycle   *Service
 }
 
 type CustomerAttachmentInitiateInput struct {
@@ -65,19 +67,19 @@ type CustomerAttachmentRemoveInput struct {
 }
 
 type CustomerAttachmentView struct {
-	FileID            string     `json:"fileId"`
-	FileName          string     `json:"fileName"`
-	ContentType       string     `json:"contentType"`
-	Size              int64      `json:"size"`
-	SHA256            string     `json:"sha256"`
-	Status            string     `json:"status"`
-	CategoryObjectID  string     `json:"categoryObjectId"`
-	CategoryVersionID string     `json:"categoryVersionId"`
-	CategoryCode      string     `json:"categoryCode"`
-	CategoryName      string     `json:"categoryName"`
-	StoredAt          *time.Time `json:"storedAt"`
-	CreatedAt         time.Time  `json:"createdAt"`
-	CreatedBy         string     `json:"createdBy"`
+	FileID                  string     `json:"fileId"`
+	FileName                string     `json:"fileName"`
+	ContentType             string     `json:"contentType"`
+	Size                    int64      `json:"size"`
+	SHA256                  string     `json:"sha256"`
+	Status                  string     `json:"status"`
+	CategoryObjectID        string     `json:"categoryObjectId"`
+	CategoryApprovalEntryID string     `json:"categoryApprovalEntryId"`
+	CategoryCode            string     `json:"categoryCode"`
+	CategoryName            string     `json:"categoryName"`
+	StoredAt                *time.Time `json:"storedAt"`
+	CreatedAt               time.Time  `json:"createdAt"`
+	CreatedBy               string     `json:"createdBy"`
 }
 
 type CustomerAttachmentInitiateResult struct {
@@ -103,9 +105,12 @@ type CustomerAttachmentDownloadFile struct {
 	Size        int64
 }
 
-func NewCustomerAttachmentService(pool *pgxpool.Pool, options CustomerAttachmentOptions) (*CustomerAttachmentService, error) {
+func NewCustomerAttachmentService(pool *pgxpool.Pool, options CustomerAttachmentOptions, lifecycle *Service) (*CustomerAttachmentService, error) {
 	if pool == nil {
 		return nil, errors.New("BOB customer attachment database is required")
+	}
+	if lifecycle == nil {
+		return nil, errors.New("BOB customer attachment lifecycle is required")
 	}
 	storage, err := attachmentstore.New(options.Root)
 	if err != nil {
@@ -119,7 +124,7 @@ func NewCustomerAttachmentService(pool *pgxpool.Pool, options CustomerAttachment
 	}
 	return &CustomerAttachmentService{
 		pool: pool, queries: dbsqlc.New(pool), storage: storage,
-		uploadTTL: options.UploadTTL, downloadTTL: options.DownloadTTL,
+		uploadTTL: options.UploadTTL, downloadTTL: options.DownloadTTL, lifecycle: lifecycle,
 	}, nil
 }
 
@@ -154,8 +159,9 @@ func customerAttachmentTokenHash(token string) string {
 }
 
 func (s *CustomerAttachmentService) Initiate(
-	ctx context.Context, input CustomerAttachmentInitiateInput, actorID, requestID string,
+	ctx context.Context, input CustomerAttachmentInitiateInput, actor approval.Actor,
 ) (CustomerAttachmentInitiateResult, error) {
+	actorID, requestID := actor.ID(), actor.RequestID()
 	fileName, err := validateCustomerAttachmentInitiate(input)
 	if err != nil || !validID(actorID) || strings.TrimSpace(requestID) == "" {
 		if err != nil {
@@ -202,7 +208,7 @@ func (s *CustomerAttachmentService) Initiate(
 	}
 	link := dbsqlc.InsertCustomerRelationshipAttachmentParams{
 		OwnerID: input.OwnerID, FileID: fileID, CategoryObjectID: category.ObjectID,
-		CategoryVersionID: category.VersionID, CategoryCode: category.Code, CategoryName: categoryName, ActorID: actorID,
+		CategoryApprovalEntryID: category.ApprovalEntryID, CategoryCode: category.Code, CategoryName: categoryName, ActorID: actorID,
 	}
 	if input.Scope == CustomerAttachmentScopeRelationship {
 		err = q.InsertCustomerRelationshipAttachment(ctx, link)
@@ -212,7 +218,7 @@ func (s *CustomerAttachmentService) Initiate(
 	if err != nil {
 		return CustomerAttachmentInitiateResult{}, domainError(ErrorInternal, "internal server error", nil, err)
 	}
-	revision, err := s.touchAndAudit(ctx, q, input.Scope, input.OwnerID, input.Revision, fileID, "ATTACHED", actorID, requestID)
+	revision, err := s.touchAndAudit(ctx, tx, q, input.Scope, input.OwnerID, input.Revision, actor)
 	if err != nil {
 		return CustomerAttachmentInitiateResult{}, err
 	}
@@ -257,12 +263,11 @@ func (s *CustomerAttachmentService) lockAndCount(
 }
 
 func (s *CustomerAttachmentService) touchAndAudit(
-	ctx context.Context, q *dbsqlc.Queries, scope, ownerID string, revision int64,
-	fileID, event, actorID, requestID string,
+	ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, scope, ownerID string, revision int64, actor approval.Actor,
 ) (int64, error) {
 	if scope == CustomerAttachmentScopeRelationship {
 		next, err := q.TouchCustomerRelationshipAttachment(ctx, dbsqlc.TouchCustomerRelationshipAttachmentParams{
-			ActorID: actorID, OwnerID: ownerID, Revision: revision,
+			ActorID: actor.ID(), OwnerID: ownerID, Revision: revision,
 		})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return 0, domainError(ErrorConflict, "customer group changed", nil, nil)
@@ -272,27 +277,22 @@ func (s *CustomerAttachmentService) touchAndAudit(
 		}
 		return next, nil
 	}
-	next, err := q.TouchCustomerVersionAttachment(ctx, dbsqlc.TouchCustomerVersionAttachmentParams{
-		ActorID: actorID, OwnerID: ownerID, Revision: revision,
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, domainError(ErrorConflict, "customer draft changed", nil, nil)
-	}
-	if err != nil {
-		return 0, domainError(ErrorInternal, "internal server error", nil, err)
-	}
 	owner, err := q.LockCustomerAttachmentVersion(ctx, ownerID)
 	if err != nil {
 		return 0, domainError(ErrorInternal, "internal server error", nil, err)
 	}
-	if err = insertAudit(ctx, q, auditInput{
-		ObjectID: owner.ObjectID, VersionID: ownerID, Entity: EntityCustomer, Event: event,
-		From: customerAttachmentStringPtr(StatusDraft), To: StatusDraft, ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"fileId": fileID},
-	}); err != nil {
+	object, err := q.LockBobObject(ctx, dbsqlc.LockBobObjectParams{ObjectID: owner.ObjectID, Entity: EntityCustomerAccount})
+	if err != nil {
 		return 0, domainError(ErrorInternal, "internal server error", nil, err)
 	}
-	return next, nil
+	entry, err := s.lifecycle.transitionApproval(ctx, tx, EntityCustomerAccount, owner.ObjectID, object.Code, object.Enabled, ownerID, revision, approval.ActionSaved, "", actor)
+	if err != nil {
+		return 0, translateApprovalError(err)
+	}
+	if _, err = q.TouchBobObject(ctx, dbsqlc.TouchBobObjectParams{ActorID: actor.ID(), ObjectID: owner.ObjectID, Entity: EntityCustomerAccount}); err != nil {
+		return 0, domainError(ErrorInternal, "internal server error", nil, err)
+	}
+	return entry.Revision, nil
 }
 
 func (s *CustomerAttachmentService) Upload(
@@ -404,8 +404,9 @@ func (s *CustomerAttachmentService) OpenDownload(ctx context.Context, token stri
 }
 
 func (s *CustomerAttachmentService) Remove(
-	ctx context.Context, input CustomerAttachmentRemoveInput, actorID, requestID string,
+	ctx context.Context, input CustomerAttachmentRemoveInput, actor approval.Actor,
 ) (CustomerAttachmentMutationResult, error) {
+	actorID, requestID := actor.ID(), actor.RequestID()
 	if (input.Scope != CustomerAttachmentScopeRelationship && input.Scope != CustomerAttachmentScopeAccount) ||
 		!validID(input.OwnerID) || !validID(input.FileID) || input.Revision < 1 || !validID(actorID) || strings.TrimSpace(requestID) == "" {
 		return CustomerAttachmentMutationResult{}, domainError(ErrorValidation, "invalid customer attachment", nil, nil)
@@ -442,7 +443,7 @@ func (s *CustomerAttachmentService) Remove(
 	if rows != 1 {
 		return CustomerAttachmentMutationResult{}, domainError(ErrorValidation, "customer attachment not found", nil, nil)
 	}
-	revision, err := s.touchAndAudit(ctx, q, input.Scope, input.OwnerID, input.Revision, input.FileID, "DETACHED", actorID, requestID)
+	revision, err := s.touchAndAudit(ctx, tx, q, input.Scope, input.OwnerID, input.Revision, actor)
 	if err != nil {
 		return CustomerAttachmentMutationResult{}, err
 	}
@@ -467,11 +468,11 @@ func (s *CustomerAttachmentService) EnrichDetail(ctx context.Context, detail *Cu
 		detail.Attachments = append(detail.Attachments, customerRelationshipAttachmentView(row))
 	}
 	for index := range detail.Accounts {
-		for _, version := range []*CustomerVersionView{detail.Accounts[index].Effective, detail.Accounts[index].Candidate} {
+		for _, version := range []*CustomerVersionView{detail.Accounts[index].LatestApproved, detail.Accounts[index].OpenVersion} {
 			if version == nil {
 				continue
 			}
-			rows, listErr := s.queries.ListCustomerVersionAttachments(ctx, version.Version.VersionID)
+			rows, listErr := s.queries.ListCustomerVersionAttachments(ctx, version.Approval.ApprovalEntryID)
 			if listErr != nil {
 				return domainError(ErrorInternal, "internal server error", nil, listErr)
 			}
@@ -504,7 +505,7 @@ func customerRelationshipAttachmentView(row dbsqlc.ListCustomerRelationshipAttac
 	return CustomerAttachmentView{
 		FileID: row.FileID, FileName: row.FileName, ContentType: row.ContentType, Size: row.DeclaredSize,
 		SHA256: row.Sha256Hex, Status: row.Status, StoredAt: nullableTime(row.StoredAt),
-		CategoryObjectID: row.CategoryObjectID, CategoryVersionID: row.CategoryVersionID,
+		CategoryObjectID: row.CategoryObjectID, CategoryApprovalEntryID: row.CategoryApprovalEntryID,
 		CategoryCode: row.CategoryCode, CategoryName: row.CategoryName,
 		CreatedAt: row.CreatedAt.Time, CreatedBy: row.CreatedBy,
 	}
@@ -514,7 +515,7 @@ func customerVersionAttachmentView(row dbsqlc.ListCustomerVersionAttachmentsRow)
 	return CustomerAttachmentView{
 		FileID: row.FileID, FileName: row.FileName, ContentType: row.ContentType, Size: row.DeclaredSize,
 		SHA256: row.Sha256Hex, Status: row.Status, StoredAt: nullableTime(row.StoredAt),
-		CategoryObjectID: row.CategoryObjectID, CategoryVersionID: row.CategoryVersionID,
+		CategoryObjectID: row.CategoryObjectID, CategoryApprovalEntryID: row.CategoryApprovalEntryID,
 		CategoryCode: row.CategoryCode, CategoryName: row.CategoryName,
 		CreatedAt: row.CreatedAt.Time, CreatedBy: row.CreatedBy,
 	}
@@ -527,5 +528,3 @@ func nullableTime(value pgtype.Timestamptz) *time.Time {
 	result := value.Time
 	return &result
 }
-
-func customerAttachmentStringPtr(value string) *string { return &value }

@@ -28,7 +28,7 @@ func (s *Service) writeServiceContractDetail(
 		}
 		return s.internal("resolve contract counterparty", err)
 	}
-	if identity.CounterpartyVersionID != refs.Counterparty.VersionID {
+	if identity.CounterpartyApprovalEntryID != refs.Counterparty.ApprovalEntryID {
 		return domainError(ErrorConflict, "contract counterparty version is not effective", nil, nil)
 	}
 	if draft.CounterpartyType == contractCounterpartySales {
@@ -40,12 +40,12 @@ func (s *Service) writeServiceContractDetail(
 	}
 	params := dbsqlc.InsertVouServiceContractDetailParams{
 		DocumentID: documentID, CounterpartyEntity: draft.CounterpartyType,
-		CounterpartyObjectID: refs.Counterparty.ObjectID, CounterpartyVersionID: refs.Counterparty.VersionID,
+		CounterpartyObjectID: refs.Counterparty.ObjectID, CounterpartyApprovalEntryID: refs.Counterparty.ApprovalEntryID,
 		CounterpartyCode: refs.Counterparty.Code, CounterpartyName: refs.Counterparty.Data.Name,
 		PartyID: identity.PartyID, PartyName: identity.PartyName,
-		OperatingEntityObjectID: identity.OperatingEntityObjectID, OperatingEntityVersionID: identity.OperatingEntityVersionID,
+		OperatingEntityObjectID: identity.OperatingEntityObjectID, OperatingEntityApprovalEntryID: identity.OperatingEntityApprovalEntryID,
 		OperatingEntityCode: identity.OperatingEntityCode, OperatingEntityName: identity.OperatingEntityName,
-		HandlerObjectID: refs.Handler.ObjectID, HandlerVersionID: refs.Handler.VersionID,
+		HandlerObjectID: refs.Handler.ObjectID, HandlerApprovalEntryID: refs.Handler.ApprovalEntryID,
 		HandlerCode: refs.Handler.Code, HandlerName: refs.Handler.Data.Name,
 		Capabilities: draft.ServiceContract.Capabilities, ApplicableFrom: optionalContractDate(draft.ServiceContract.ApplicableFrom),
 		ApplicableTo: optionalContractDate(draft.ServiceContract.ApplicableTo), ContractTerms: draft.ServiceContract.Terms,
@@ -53,7 +53,7 @@ func (s *Service) writeServiceContractDetail(
 	if draft.CounterpartyType == contractCounterpartyService {
 		if refs.Settlement != nil {
 			params.SettlementMethodObjectID = stringPtr(refs.Settlement.ObjectID)
-			params.SettlementMethodVersionID = stringPtr(refs.Settlement.VersionID)
+			params.SettlementMethodApprovalEntryID = stringPtr(refs.Settlement.ApprovalEntryID)
 			params.SettlementMethodCode = stringPtr(refs.Settlement.Code)
 			params.SettlementMethodName = stringPtr(refs.Settlement.Data.Name)
 			params.SettlementTermCode = stringPtr(refs.Settlement.Data.TermCode)
@@ -61,12 +61,12 @@ func (s *Service) writeServiceContractDetail(
 			params.SettlementMonthOffset = int32Ptr(refs.Settlement.Data.MonthOffset)
 			params.SettlementDayOfMonth = refs.Settlement.Data.DayOfMonth
 			params.SettlementDayOffset = int32Ptr(refs.Settlement.Data.DayOffset)
-		} else if identity.SettlementMethodID != nil && identity.DefaultSettlementVersionID != nil &&
+		} else if identity.SettlementMethodID != nil && identity.DefaultSettlementApprovalEntryID != nil &&
 			identity.SettlementMethodCode != nil && identity.SettlementMethodName != nil &&
 			identity.SettlementTermCode != nil && identity.SettlementRuleType != nil &&
 			identity.SettlementMonthOffset != nil && identity.SettlementDayOffset != nil {
 			params.SettlementMethodObjectID = identity.SettlementMethodID
-			params.SettlementMethodVersionID = identity.DefaultSettlementVersionID
+			params.SettlementMethodApprovalEntryID = identity.DefaultSettlementApprovalEntryID
 			params.SettlementMethodCode = identity.SettlementMethodCode
 			params.SettlementMethodName = identity.SettlementMethodName
 			params.SettlementTermCode = identity.SettlementTermCode
@@ -83,11 +83,11 @@ func (s *Service) writeServiceContractDetail(
 	}
 	return oneRow(q.UpdateVouServiceContractDetail(ctx, dbsqlc.UpdateVouServiceContractDetailParams{
 		DocumentID: params.DocumentID, CounterpartyEntity: params.CounterpartyEntity, CounterpartyObjectID: params.CounterpartyObjectID,
-		CounterpartyVersionID: params.CounterpartyVersionID, CounterpartyCode: params.CounterpartyCode, CounterpartyName: params.CounterpartyName,
+		CounterpartyApprovalEntryID: params.CounterpartyApprovalEntryID, CounterpartyCode: params.CounterpartyCode, CounterpartyName: params.CounterpartyName,
 		PartyID: params.PartyID, PartyName: params.PartyName, OperatingEntityObjectID: params.OperatingEntityObjectID,
-		OperatingEntityVersionID: params.OperatingEntityVersionID, OperatingEntityCode: params.OperatingEntityCode, OperatingEntityName: params.OperatingEntityName,
-		HandlerObjectID: params.HandlerObjectID, HandlerVersionID: params.HandlerVersionID, HandlerCode: params.HandlerCode, HandlerName: params.HandlerName,
-		SettlementMethodObjectID: params.SettlementMethodObjectID, SettlementMethodVersionID: params.SettlementMethodVersionID,
+		OperatingEntityApprovalEntryID: params.OperatingEntityApprovalEntryID, OperatingEntityCode: params.OperatingEntityCode, OperatingEntityName: params.OperatingEntityName,
+		HandlerObjectID: params.HandlerObjectID, HandlerApprovalEntryID: params.HandlerApprovalEntryID, HandlerCode: params.HandlerCode, HandlerName: params.HandlerName,
+		SettlementMethodObjectID: params.SettlementMethodObjectID, SettlementMethodApprovalEntryID: params.SettlementMethodApprovalEntryID,
 		SettlementMethodCode: params.SettlementMethodCode, SettlementMethodName: params.SettlementMethodName, SettlementTermCode: params.SettlementTermCode,
 		SettlementRuleType: params.SettlementRuleType, SettlementMonthOffset: params.SettlementMonthOffset, SettlementDayOfMonth: params.SettlementDayOfMonth,
 		SettlementDayOffset: params.SettlementDayOffset, Capabilities: params.Capabilities, ApplicableFrom: params.ApplicableFrom, ApplicableTo: params.ApplicableTo, ContractTerms: params.ContractTerms,
@@ -150,12 +150,12 @@ func parseContractDate(value string) (time.Time, error) { return time.Parse(date
 
 func contractDetailView(detail dbsqlc.VouServiceContractDetail) *ServiceContractView {
 	return &ServiceContractView{
-		Counterparty: reference(detail.CounterpartyObjectID, detail.CounterpartyVersionID, detail.CounterpartyEntity, detail.CounterpartyCode, detail.CounterpartyName, "", "", ""),
+		Counterparty: reference(detail.CounterpartyObjectID, detail.CounterpartyApprovalEntryID, detail.CounterpartyEntity, detail.CounterpartyCode, detail.CounterpartyName, "", "", ""),
 		PartyID:      detail.PartyID, PartyName: detail.PartyName,
-		OperatingEntity: reference(detail.OperatingEntityObjectID, detail.OperatingEntityVersionID, "operating-entity", detail.OperatingEntityCode, detail.OperatingEntityName, "", "", ""),
-		Handler:         reference(detail.HandlerObjectID, detail.HandlerVersionID, bobdomain.EntityEmployee, detail.HandlerCode, detail.HandlerName, "", "", ""),
+		OperatingEntity: reference(detail.OperatingEntityObjectID, detail.OperatingEntityApprovalEntryID, "operating-entity", detail.OperatingEntityCode, detail.OperatingEntityName, "", "", ""),
+		Handler:         reference(detail.HandlerObjectID, detail.HandlerApprovalEntryID, bobdomain.EntityEmployee, detail.HandlerCode, detail.HandlerName, "", "", ""),
 		SettlementMethod: settlementView(
-			detail.SettlementMethodObjectID, detail.SettlementMethodVersionID,
+			detail.SettlementMethodObjectID, detail.SettlementMethodApprovalEntryID,
 			detail.SettlementMethodCode, detail.SettlementMethodName, detail.SettlementRuleType,
 			detail.SettlementMonthOffset, detail.SettlementDayOfMonth, detail.SettlementDayOffset,
 			nil, nil, 0, nil, false,

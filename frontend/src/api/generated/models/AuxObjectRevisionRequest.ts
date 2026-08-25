@@ -2,10 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type BobReverseRequest = {
+export type AuxObjectRevisionRequest = {
   objectId: string;
   objectRevision: number;
-  versionId: string;
-  revision: number;
-  reason: string;
 };

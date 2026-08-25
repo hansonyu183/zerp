@@ -31,23 +31,27 @@ function page(name: string) {
           operatingEntityCode: 'OE-001',
           operatingEntityName: '测试经营主体',
           updatedAt: '2026-08-20T00:00:00Z',
-          effective: {
-            versionId: `${name}-effective`,
-            version: 1,
-            revision: 1,
-            status: 'EFFECTIVE',
+          latestApproved: {
+            approval: {
+              approvalEntryId: `${name}-approved`,
+              versionNo: 1,
+              revision: 1,
+              status: 'APPROVED',
+              submittedBy: 'reviewer',
+            },
             defaultPurchaserCode: 'EMP-1',
             defaultPurchaserName: '采购员',
-            submittedBy: 'reviewer',
           },
-          candidate: {
-            versionId: `${name}-candidate`,
-            version: 2,
-            revision: 2,
-            status: 'DRAFT',
+          openVersion: {
+            approval: {
+              approvalEntryId: `${name}-open`,
+              versionNo: 2,
+              revision: 2,
+              status: 'DRAFT',
+              submittedBy: null,
+            },
             defaultPurchaserCode: 'EMP-2',
             defaultPurchaserName: '候选采购员',
-            submittedBy: null,
           },
         },
       ],
@@ -99,7 +103,7 @@ describe('supplier workspace view model', () => {
     mockedApiClient.postContract.mockResolvedValue(page('新供应商'))
     const vm = useSupplierViewModel()
     vm.keyword.value = '供应商'
-    vm.filters.value.status = ['EFFECTIVE']
+    vm.filters.value.status = ['APPROVED']
     vm.filters.value.defaultPurchaserEmployeeId = 'employee-1'
 
     await vm.query()
@@ -111,7 +115,7 @@ describe('supplier workspace view model', () => {
         pageSize: 20,
         filters: {
           keyword: '供应商',
-          status: ['EFFECTIVE'],
+          status: ['APPROVED'],
           defaultPurchaserEmployeeId: 'employee-1',
         },
         sort: [{ field: 'code', order: 'asc' }],
@@ -132,7 +136,7 @@ describe('supplier workspace view model', () => {
         objectId: 'created-id',
         objectRevision: 1,
         enabled: true,
-        versionId: 'created-version',
+        approvalEntryId: 'created-version',
         version: 1,
         status: 'DRAFT',
         revision: 1,
@@ -146,7 +150,7 @@ describe('supplier workspace view model', () => {
             objectId: 'created-id',
             objectRevision: 1,
             enabled: true,
-            versionId: 'created-version',
+            approvalEntryId: 'created-version',
             version: 1,
             status: 'DRAFT',
             revision: 1,
@@ -166,11 +170,11 @@ describe('supplier workspace view model', () => {
             operatingEntityCode: 'OE-001',
             operatingEntityName: '测试经营主体',
             updatedAt: '2026-08-20T00:00:00Z',
-            effective: null,
-            candidate: {
-              version: {
-                versionId: 'created-version',
-                version: 1,
+            latestApproved: null,
+            openVersion: {
+              approval: {
+                approvalEntryId: 'created-entry',
+                versionNo: 1,
                 revision: 1,
                 status: 'DRAFT',
                 submittedBy: null,
@@ -196,7 +200,7 @@ describe('supplier workspace view model', () => {
     vm.form.value.identifierValue = '91310000TEST000001'
     vm.form.value.operatingEntity = {
       objectId: 'operating-1',
-      versionId: 'operating-version',
+      approvalEntryId: 'operating-version',
       code: 'OE-001',
       name: '测试经营主体',
       entity: 'operating-entity',
@@ -238,7 +242,7 @@ describe('supplier workspace view model', () => {
     }
     vm.form.value.operatingEntity = {
       objectId: 'operating-1',
-      versionId: 'operating-version',
+      approvalEntryId: 'operating-version',
       code: 'OE-001',
       name: '测试经营主体',
       entity: 'operating-entity',
@@ -269,12 +273,12 @@ describe('supplier workspace view model', () => {
         operatingEntityCode: 'OE-001',
         operatingEntityName: '测试经营主体',
         updatedAt: '2026-08-20T00:00:00Z',
-        effective: {
-          version: {
-            versionId: 'history-effective',
-            version: 1,
+        latestApproved: {
+          approval: {
+            approvalEntryId: 'history-approved',
+            versionNo: 1,
             revision: 1,
-            status: 'EFFECTIVE',
+            status: 'APPROVED',
             submittedBy: 'reviewer',
           },
           data: {
@@ -287,7 +291,7 @@ describe('supplier workspace view model', () => {
             defaultPurchaserEmployeeId: null,
           },
         },
-        candidate: null,
+        openVersion: null,
       },
     }
     mockedApiClient.postContract.mockImplementation(async (path) => {
@@ -298,9 +302,9 @@ describe('supplier workspace view model', () => {
           data: {
             items: [
               {
-                versionId: 'history-effective',
-                version: 1,
-                status: 'EFFECTIVE',
+                approvalEntryId: 'history-approved',
+                versionNo: 1,
+                status: 'APPROVED',
                 revision: 1,
                 summary: { name: '历史供应商' },
               },
@@ -325,9 +329,9 @@ describe('supplier workspace view model', () => {
     await vm.openHistoricalVersion(vm.versions.value[0]!)
     expect(mockedApiClient.postContract).toHaveBeenCalledWith(
       'bob/supplier/get',
-      { objectId: 'history-id', versionId: 'history-effective' },
+      { objectId: 'history-id', approvalEntryId: 'history-approved' },
     )
     expect(vm.mode.value).toBe('view')
-    expect(vm.historicalVersionId.value).toBe('history-effective')
+    expect(vm.historicalApprovalEntryId.value).toBe('history-approved')
   })
 })

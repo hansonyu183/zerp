@@ -185,23 +185,19 @@ export function useDashboardViewModel() {
       if (item.category === 'BOB') {
         const request = {
           objectId: item.objectId,
-          versionId: item.versionId,
-          revision: item.revision,
+          approvalEntryId: item.versionId,
+          approvalRevision: item.revision,
         }
         if (action === 'submit') {
           await submitBusinessObject(item.entity, request)
         } else if (action === 'unsubmit') {
-          await unsubmitBusinessObject(item.entity, {
-            ...request,
-            objectRevision: item.objectRevision,
-            reason: comment.trim(),
-          })
+          await unsubmitBusinessObject(item.entity, request)
         } else if (action === 'approve') {
           await approveBusinessObject(item.entity, request)
         } else if (action === 'reject') {
           await rejectBusinessObject(item.entity, {
             ...request,
-            comment: comment.trim(),
+            reason: comment.trim(),
           })
         }
       } else {

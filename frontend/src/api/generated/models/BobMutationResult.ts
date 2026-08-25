@@ -2,12 +2,10 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalVersionMeta } from './ApprovalVersionMeta';
 export type BobMutationResult = {
   objectId: string;
   objectRevision: number;
   enabled: boolean;
-  versionId: string;
-  version: number;
-  status: 'DRAFT' | 'PENDING' | 'REJECTED' | 'EFFECTIVE' | 'INVALID';
-  revision: number;
+  approval: ApprovalVersionMeta;
 };

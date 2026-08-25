@@ -121,7 +121,7 @@ func documentAmount(entity string, value int64) string {
 }
 
 func intermediaryReference(objectID, versionID, entity, code, name string) IntermediaryReference {
-	return IntermediaryReference{ObjectID: objectID, VersionID: versionID, Entity: entity, Code: code, Name: name}
+	return IntermediaryReference{ObjectID: objectID, ApprovalEntryID: versionID, Entity: entity, Code: code, Name: name}
 }
 
 func (s *Service) IntermediarySource(ctx context.Context, input IntermediarySourceInput) (IntermediarySourceView, error) {
@@ -166,7 +166,7 @@ func (s *Service) intermediarySource(
 				"sale return exceeds its source signoff", map[string]any{"lineId": row.SourceSignoffLineID}, nil)
 		}
 		if !validIntermediarySalesAttribution(row.SalesAttributionType, row.SalesAttributionSubjectObjectID,
-			row.SalesAttributionSubjectVersionID, row.SalesAttributionSubjectCode, row.SalesAttributionSubjectName) {
+			row.SalesAttributionSubjectApprovalEntryID, row.SalesAttributionSubjectCode, row.SalesAttributionSubjectName) {
 			return IntermediarySourceView{}, domainError(ErrorConflict,
 				"sale signoff is missing its order sales attribution snapshot", map[string]any{"documentNo": row.SignoffDocumentNo}, nil)
 		}
@@ -374,10 +374,10 @@ func (s *Service) intermediarySource(
 				CollectionDelayDays: max(int(document.collectionDate.Sub(row.DueDate.Time).Hours()/24), 0),
 				OrderDocumentID:     row.OrderDocumentID, OrderDocumentNo: row.OrderDocumentNo,
 				OrderDate:            formatDate(row.OrderDate),
-				Customer:             intermediaryReference(row.CustomerObjectID, row.CustomerVersionID, bobdomain.EntityCustomerAccount, row.CustomerCode, row.CustomerName),
-				Salesperson:          intermediaryReference(row.SalesAttributionSubjectObjectID, row.SalesAttributionSubjectVersionID, attributionEntity, row.SalesAttributionSubjectCode, row.SalesAttributionSubjectName),
+				Customer:             intermediaryReference(row.CustomerObjectID, row.CustomerApprovalEntryID, bobdomain.EntityCustomerAccount, row.CustomerCode, row.CustomerName),
+				Salesperson:          intermediaryReference(row.SalesAttributionSubjectObjectID, row.SalesAttributionSubjectApprovalEntryID, attributionEntity, row.SalesAttributionSubjectCode, row.SalesAttributionSubjectName),
 				SalesAttributionType: row.SalesAttributionType, SalesContractStatus: contractStatus, SalesContract: contract,
-				Product:         intermediaryReference(row.ProductObjectID, row.ProductVersionID, "product", row.ProductCode, row.ProductName),
+				Product:         intermediaryReference(row.ProductObjectID, row.ProductApprovalEntryID, "product", row.ProductCode, row.ProductName),
 				BehaviorProfile: row.BehaviorProfile, SignedBaseQuantity: formatQuantity(row.SignedBaseQuantityMicros),
 				PricingQuantity: formatQuantity(pricingQuantity.Int64()), StandardPieceQuantity: formatQuantity(pricingQuantity.Int64()),
 				UnitPrice: formatMoney(row.UnitPriceCents), ReferenceUnitPrice: formatMoney(row.ReferenceUnitPriceCents),
@@ -402,14 +402,14 @@ func (s *Service) intermediarySource(
 		return IntermediarySourceView{}, s.internal("read intermediary source bills", err)
 	}
 	for _, bill := range bills {
-		if bill.CustomerObjectID == nil || bill.CustomerVersionID == nil || bill.CustomerCode == nil || bill.CustomerName == nil {
+		if bill.CustomerObjectID == nil || bill.CustomerApprovalEntryID == nil || bill.CustomerCode == nil || bill.CustomerName == nil {
 			return IntermediarySourceView{}, domainError(ErrorConflict, "bill receipt is missing customer snapshot", map[string]any{"documentNo": bill.ReceiptDocumentNo}, nil)
 		}
 		costDays := max(int(bill.MaturityDate.Time.Sub(bill.ReceiptDate.Time).Hours()/24), 0)
 		source.Bills = append(source.Bills, IntermediarySourceBill{
 			BillLineID: bill.BillLineID, ReceiptDocumentID: bill.ReceiptDocumentID, ReceiptDocumentNo: bill.ReceiptDocumentNo,
 			ReceiptDate: formatDate(bill.ReceiptDate),
-			Customer:    intermediaryReference(*bill.CustomerObjectID, *bill.CustomerVersionID, bobdomain.EntityCustomerAccount, *bill.CustomerCode, *bill.CustomerName),
+			Customer:    intermediaryReference(*bill.CustomerObjectID, *bill.CustomerApprovalEntryID, bobdomain.EntityCustomerAccount, *bill.CustomerCode, *bill.CustomerName),
 			BillType:    bill.BillType, FaceAmount: formatMoney(bill.FaceAmountCents),
 			IssueDate: formatDate(bill.IssueDate), MaturityDate: formatDate(bill.MaturityDate), CostDays: costDays,
 		})
@@ -991,7 +991,7 @@ func (s *Service) writeIntermediaryCalculation(
 		if err := q.InsertVouIntermediaryCalculationSummary(ctx, dbsqlc.InsertVouIntermediaryCalculationSummaryParams{
 			ID: newID(), DocumentID: documentID, LineNo: int32(index + 1), Category: strings.ToUpper(summary.Category),
 			PayeeEntity: summary.Payee.Entity, PayeeObjectID: summary.Payee.ObjectID,
-			PayeeVersionID: summary.Payee.VersionID, PayeeCode: summary.Payee.Code, PayeeName: summary.Payee.Name,
+			PayeeApprovalEntryID: summary.Payee.ApprovalEntryID, PayeeCode: summary.Payee.Code, PayeeName: summary.Payee.Name,
 			AmountCents: prepared.summaryAmounts[index],
 		}); err != nil {
 			return err

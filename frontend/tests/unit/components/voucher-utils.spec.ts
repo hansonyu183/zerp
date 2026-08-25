@@ -47,7 +47,7 @@ describe('VOU decimal and settlement helpers', () => {
   it('calculates all settlement rule dates in local calendar semantics', () => {
     const base = {
       objectId: 'SM-1',
-      versionId: 'SMV-1',
+      approvalEntryId: 'SMV-1',
       code: 'NET',
       name: '结算',
       monthOffset: 0,

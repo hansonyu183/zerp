@@ -3,6 +3,8 @@ package aux
 import (
 	"errors"
 	"testing"
+
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 )
 
 func TestProductTypeDataUsesClosedBehaviorProfiles(t *testing.T) {
@@ -40,11 +42,20 @@ func TestProductTypeQueryRejectsUnknownBehaviorProfile(t *testing.T) {
 	service := &Service{}
 	_, err := service.Query(t.Context(), EntityProductType, QueryInput{
 		Page: 1, PageSize: 20, Filters: QueryFilters{BehaviorProfile: "CONFIGURABLE"},
-	})
+	}, trustedTestActor(t))
 	var domainErr *DomainError
 	if !errors.As(err, &domainErr) || domainErr.Kind != ErrorValidation {
 		t.Fatalf("unknown behavior profile query error = %v", err)
 	}
+}
+
+func trustedTestActor(t *testing.T) approval.Actor {
+	t.Helper()
+	actor, err := approval.TrustedSystemActor("test")
+	if err != nil {
+		t.Fatalf("create trusted test actor: %v", err)
+	}
+	return actor
 }
 
 func TestReferencedProductTypeKeepsBehaviorProfile(t *testing.T) {

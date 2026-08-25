@@ -7,8 +7,8 @@ import type { BobProductUnitConversionInput } from './BobProductUnitConversionIn
 import type { VehicleCarrierAffiliation } from './VehicleCarrierAffiliation';
 export type BobSaveRequest = {
   objectId: string;
-  versionId: string;
-  revision: number;
+  approvalEntryId: string;
+  approvalRevision: number;
   data: {
     name?: string | null;
     unit?: string | null;

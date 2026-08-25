@@ -25,9 +25,8 @@ const auditLength = computed(() =>
 
 const statusItems = [
   { value: 'DRAFT', title: '草稿' },
-  { value: 'PENDING', title: '待审核' },
-  { value: 'EFFECTIVE', title: '有效' },
-  { value: 'INVALID', title: '已失效' },
+  { value: 'PENDING', title: '待批准' },
+  { value: 'APPROVED', title: '已批准' },
 ] as const
 const statusLabel = (value: string) =>
   statusItems.find((item) => item.value === value)?.title ?? value
@@ -38,12 +37,13 @@ const eventLabels: Readonly<Record<string, string>> = {
   UNSUBMITTED: '撤回提交',
   APPROVED: '审核通过',
   REJECTED: '审核驳回',
+  UNAPPROVED: '撤销批准',
   ENABLED: '启用',
   DISABLED: '禁用',
   DELETED: '删除候选版本',
 }
 const eventLabel = (value: string) => eventLabels[value] ?? '其他变更'
-const purchaserLabel = (version: SupplierListItem['effective']) =>
+const purchaserLabel = (version: SupplierListItem['latestApproved']) =>
   version?.defaultPurchaserName
     ? `${version.defaultPurchaserCode ?? ''} · ${version.defaultPurchaserName}`
     : '—'
@@ -54,7 +54,7 @@ const columns: readonly BusinessObjectColumn<SupplierListItem>[] = [
   {
     key: 'defaultPurchaser',
     label: '默认采购员',
-    value: (row) => purchaserLabel(row.effective ?? row.candidate),
+    value: (row) => purchaserLabel(row.openVersion ?? row.latestApproved),
   },
   {
     key: 'status',
@@ -100,6 +100,12 @@ function rowActions(row: SupplierListItem): ListRowAction[] {
       label: '审核驳回',
       icon: 'mdi-close-octagon-outline',
       color: 'error',
+    },
+    {
+      action: 'unapprove',
+      label: '撤销批准',
+      icon: 'mdi-undo-variant',
+      color: 'warning',
     },
     {
       action: 'enable',
@@ -180,6 +186,7 @@ const lifecycleTitle = computed(() =>
           unsubmit: '撤回提交',
           approve: '审核通过',
           reject: '审核驳回',
+          unapprove: '撤销批准',
           disable: '确认禁用供应商',
           delete: '确认删除候选版本',
           submit: '提交审核',
@@ -189,7 +196,7 @@ const lifecycleTitle = computed(() =>
     : '',
 )
 const lifecycleRequiresReason = computed(() =>
-  ['unsubmit', 'reject'].includes(lifecycleAction.value ?? ''),
+  ['reject', 'unapprove'].includes(lifecycleAction.value ?? ''),
 )
 function closeLifecycleDialog(): void {
   if (vm.actionLoading) return
@@ -310,7 +317,7 @@ onMounted(() => {
         >
         <v-textarea
           v-if="
-            ['unsubmit', 'approve', 'reject'].includes(lifecycleAction ?? '')
+            ['approve', 'reject', 'unapprove'].includes(lifecycleAction ?? '')
           "
           v-model="lifecycleReason"
           counter="1000"
@@ -382,7 +389,7 @@ onMounted(() => {
         </div>
       </header>
       <v-alert
-        v-if="vm.historicalVersionId"
+        v-if="vm.historicalApprovalEntryId"
         class="mb-4"
         type="info"
         variant="tonal"
@@ -556,8 +563,8 @@ onMounted(() => {
         <div class="supplier-workspace__versions">
           <v-card
             v-for="(version, label) in {
-              有效版本: vm.detail.effective,
-              候选版本: vm.detail.candidate,
+              已批准版本: vm.detail.latestApproved,
+              当前开放版本: vm.detail.openVersion,
             }"
             :key="label"
             variant="outlined"
@@ -612,14 +619,14 @@ onMounted(() => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in vm.versions" :key="item.versionId">
-              <td data-label="版本">V{{ item.version }}</td>
+            <tr v-for="item in vm.versions" :key="item.approvalEntryId">
+              <td data-label="版本">V{{ item.versionNo }}</td>
               <td data-label="状态">{{ statusLabel(item.status) }}</td>
               <td data-label="名称">{{ item.summary.name }}</td>
               <td data-label="更新">
                 {{ formatLocalDateTime(item.updatedAt) }}
               </td>
-              <td data-label="意见">{{ item.reviewComment || '—' }}</td>
+              <td data-label="意见">—</td>
               <td class="text-end responsive-table__actions" data-label="操作">
                 <v-btn
                   v-if="vm.canView"
@@ -667,16 +674,16 @@ onMounted(() => {
           </thead>
           <tbody>
             <tr v-for="event in vm.auditEvents" :key="event.id">
-              <td data-label="事件">{{ eventLabel(event.eventType) }}</td>
+              <td data-label="事件">{{ eventLabel(event.action) }}</td>
               <td data-label="状态变化">
                 {{ event.fromStatus ? statusLabel(event.fromStatus) : '—' }}
-                → {{ statusLabel(event.toStatus) }}
+                → {{ event.toStatus ? statusLabel(event.toStatus) : '—' }}
               </td>
               <td data-label="操作人">{{ event.actorId }}</td>
               <td data-label="时间">
-                {{ formatLocalDateTime(event.occurredAt) }}
+                {{ formatLocalDateTime(event.createdAt) }}
               </td>
-              <td data-label="意见">{{ event.comment || '—' }}</td>
+              <td data-label="意见">{{ event.reason || '—' }}</td>
             </tr>
           </tbody>
         </v-table>

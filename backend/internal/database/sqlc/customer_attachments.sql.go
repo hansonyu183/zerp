@@ -41,21 +41,21 @@ func (q *Queries) ConsumeCustomerDownloadToken(ctx context.Context, tokenHash st
 
 const copyCustomerVersionAttachments = `-- name: CopyCustomerVersionAttachments :exec
 INSERT INTO bob_customer_version_attachments(
-    version_id,file_id,category_object_id,category_version_id,category_code,category_name,created_at,created_by
+    approval_entry_id,file_id,category_object_id,category_approval_entry_id,category_code,category_name,created_at,created_by
 )
-SELECT $1,source.file_id,source.category_object_id,source.category_version_id,
+SELECT $1,source.file_id,source.category_object_id,source.category_approval_entry_id,
        source.category_code,source.category_name,source.created_at,source.created_by
 FROM bob_customer_version_attachments source
-WHERE source.version_id=$2
+WHERE source.approval_entry_id=$2
 `
 
 type CopyCustomerVersionAttachmentsParams struct {
-	TargetVersionID string `db:"target_version_id" json:"target_version_id"`
-	SourceVersionID string `db:"source_version_id" json:"source_version_id"`
+	TargetApprovalEntryID string `db:"target_approval_entry_id" json:"target_approval_entry_id"`
+	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
 }
 
 func (q *Queries) CopyCustomerVersionAttachments(ctx context.Context, arg CopyCustomerVersionAttachmentsParams) error {
-	_, err := q.db.Exec(ctx, copyCustomerVersionAttachments, arg.TargetVersionID, arg.SourceVersionID)
+	_, err := q.db.Exec(ctx, copyCustomerVersionAttachments, arg.TargetApprovalEntryID, arg.SourceApprovalEntryID)
 	return err
 }
 
@@ -71,7 +71,7 @@ func (q *Queries) CountCustomerRelationshipAttachments(ctx context.Context, owne
 }
 
 const countCustomerVersionAttachments = `-- name: CountCustomerVersionAttachments :one
-SELECT count(*) FROM bob_customer_version_attachments WHERE version_id=$1
+SELECT count(*) FROM bob_customer_version_attachments WHERE approval_entry_id=$1
 `
 
 func (q *Queries) CountCustomerVersionAttachments(ctx context.Context, ownerID string) (int64, error) {
@@ -113,7 +113,7 @@ func (q *Queries) DeleteCustomerRelationshipAttachment(ctx context.Context, arg 
 
 const deleteCustomerVersionAttachment = `-- name: DeleteCustomerVersionAttachment :execrows
 DELETE FROM bob_customer_version_attachments
-WHERE version_id=$1 AND file_id=$2
+WHERE approval_entry_id=$1 AND file_id=$2
 `
 
 type DeleteCustomerVersionAttachmentParams struct {
@@ -177,7 +177,7 @@ const getReadyCustomerVersionAttachment = `-- name: GetReadyCustomerVersionAttac
 SELECT file.id,file.storage_key,file.original_name,file.content_type,file.declared_size
 FROM bob_customer_version_attachments relation
 JOIN bob_customer_files file ON file.id=relation.file_id
-WHERE relation.version_id=$1 AND file.id=$2 AND file.status='READY'
+WHERE relation.approval_entry_id=$1 AND file.id=$2 AND file.status='READY'
 `
 
 type GetReadyCustomerVersionAttachmentParams struct {
@@ -268,7 +268,7 @@ func (q *Queries) InsertCustomerFile(ctx context.Context, arg InsertCustomerFile
 
 const insertCustomerRelationshipAttachment = `-- name: InsertCustomerRelationshipAttachment :exec
 INSERT INTO bob_customer_relationship_attachments(
-    customer_relationship_id,file_id,category_object_id,category_version_id,category_code,category_name,created_by
+    customer_relationship_id,file_id,category_object_id,category_approval_entry_id,category_code,category_name,created_by
 ) VALUES (
     $1,$2,$3,$4,
     $5,$6,$7
@@ -276,13 +276,13 @@ INSERT INTO bob_customer_relationship_attachments(
 `
 
 type InsertCustomerRelationshipAttachmentParams struct {
-	OwnerID           string `db:"owner_id" json:"owner_id"`
-	FileID            string `db:"file_id" json:"file_id"`
-	CategoryObjectID  string `db:"category_object_id" json:"category_object_id"`
-	CategoryVersionID string `db:"category_version_id" json:"category_version_id"`
-	CategoryCode      string `db:"category_code" json:"category_code"`
-	CategoryName      string `db:"category_name" json:"category_name"`
-	ActorID           string `db:"actor_id" json:"actor_id"`
+	OwnerID                 string `db:"owner_id" json:"owner_id"`
+	FileID                  string `db:"file_id" json:"file_id"`
+	CategoryObjectID        string `db:"category_object_id" json:"category_object_id"`
+	CategoryApprovalEntryID string `db:"category_approval_entry_id" json:"category_approval_entry_id"`
+	CategoryCode            string `db:"category_code" json:"category_code"`
+	CategoryName            string `db:"category_name" json:"category_name"`
+	ActorID                 string `db:"actor_id" json:"actor_id"`
 }
 
 func (q *Queries) InsertCustomerRelationshipAttachment(ctx context.Context, arg InsertCustomerRelationshipAttachmentParams) error {
@@ -290,7 +290,7 @@ func (q *Queries) InsertCustomerRelationshipAttachment(ctx context.Context, arg 
 		arg.OwnerID,
 		arg.FileID,
 		arg.CategoryObjectID,
-		arg.CategoryVersionID,
+		arg.CategoryApprovalEntryID,
 		arg.CategoryCode,
 		arg.CategoryName,
 		arg.ActorID,
@@ -300,7 +300,7 @@ func (q *Queries) InsertCustomerRelationshipAttachment(ctx context.Context, arg 
 
 const insertCustomerVersionAttachment = `-- name: InsertCustomerVersionAttachment :exec
 INSERT INTO bob_customer_version_attachments(
-    version_id,file_id,category_object_id,category_version_id,category_code,category_name,created_by
+    approval_entry_id,file_id,category_object_id,category_approval_entry_id,category_code,category_name,created_by
 ) VALUES (
     $1,$2,$3,$4,
     $5,$6,$7
@@ -308,13 +308,13 @@ INSERT INTO bob_customer_version_attachments(
 `
 
 type InsertCustomerVersionAttachmentParams struct {
-	OwnerID           string `db:"owner_id" json:"owner_id"`
-	FileID            string `db:"file_id" json:"file_id"`
-	CategoryObjectID  string `db:"category_object_id" json:"category_object_id"`
-	CategoryVersionID string `db:"category_version_id" json:"category_version_id"`
-	CategoryCode      string `db:"category_code" json:"category_code"`
-	CategoryName      string `db:"category_name" json:"category_name"`
-	ActorID           string `db:"actor_id" json:"actor_id"`
+	OwnerID                 string `db:"owner_id" json:"owner_id"`
+	FileID                  string `db:"file_id" json:"file_id"`
+	CategoryObjectID        string `db:"category_object_id" json:"category_object_id"`
+	CategoryApprovalEntryID string `db:"category_approval_entry_id" json:"category_approval_entry_id"`
+	CategoryCode            string `db:"category_code" json:"category_code"`
+	CategoryName            string `db:"category_name" json:"category_name"`
+	ActorID                 string `db:"actor_id" json:"actor_id"`
 }
 
 func (q *Queries) InsertCustomerVersionAttachment(ctx context.Context, arg InsertCustomerVersionAttachmentParams) error {
@@ -322,7 +322,7 @@ func (q *Queries) InsertCustomerVersionAttachment(ctx context.Context, arg Inser
 		arg.OwnerID,
 		arg.FileID,
 		arg.CategoryObjectID,
-		arg.CategoryVersionID,
+		arg.CategoryApprovalEntryID,
 		arg.CategoryCode,
 		arg.CategoryName,
 		arg.ActorID,
@@ -357,7 +357,7 @@ func (q *Queries) ListAllCustomerStorageKeys(ctx context.Context) ([]string, err
 const listCustomerRelationshipAttachments = `-- name: ListCustomerRelationshipAttachments :many
 SELECT file.id AS file_id,file.original_name AS file_name,file.content_type,file.declared_size,
        file.sha256_hex,file.status,file.stored_at,relation.category_object_id,
-       relation.category_version_id,relation.category_code,relation.category_name,
+       relation.category_approval_entry_id,relation.category_code,relation.category_name,
        relation.created_at,relation.created_by
 FROM bob_customer_relationship_attachments relation
 JOIN bob_customer_files file ON file.id=relation.file_id
@@ -366,19 +366,19 @@ ORDER BY relation.created_at,relation.file_id
 `
 
 type ListCustomerRelationshipAttachmentsRow struct {
-	FileID            string             `db:"file_id" json:"file_id"`
-	FileName          string             `db:"file_name" json:"file_name"`
-	ContentType       string             `db:"content_type" json:"content_type"`
-	DeclaredSize      int64              `db:"declared_size" json:"declared_size"`
-	Sha256Hex         string             `db:"sha256_hex" json:"sha256_hex"`
-	Status            string             `db:"status" json:"status"`
-	StoredAt          pgtype.Timestamptz `db:"stored_at" json:"stored_at"`
-	CategoryObjectID  string             `db:"category_object_id" json:"category_object_id"`
-	CategoryVersionID string             `db:"category_version_id" json:"category_version_id"`
-	CategoryCode      string             `db:"category_code" json:"category_code"`
-	CategoryName      string             `db:"category_name" json:"category_name"`
-	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy         string             `db:"created_by" json:"created_by"`
+	FileID                  string             `db:"file_id" json:"file_id"`
+	FileName                string             `db:"file_name" json:"file_name"`
+	ContentType             string             `db:"content_type" json:"content_type"`
+	DeclaredSize            int64              `db:"declared_size" json:"declared_size"`
+	Sha256Hex               string             `db:"sha256_hex" json:"sha256_hex"`
+	Status                  string             `db:"status" json:"status"`
+	StoredAt                pgtype.Timestamptz `db:"stored_at" json:"stored_at"`
+	CategoryObjectID        string             `db:"category_object_id" json:"category_object_id"`
+	CategoryApprovalEntryID string             `db:"category_approval_entry_id" json:"category_approval_entry_id"`
+	CategoryCode            string             `db:"category_code" json:"category_code"`
+	CategoryName            string             `db:"category_name" json:"category_name"`
+	CreatedAt               pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy               string             `db:"created_by" json:"created_by"`
 }
 
 func (q *Queries) ListCustomerRelationshipAttachments(ctx context.Context, ownerID string) ([]ListCustomerRelationshipAttachmentsRow, error) {
@@ -399,7 +399,7 @@ func (q *Queries) ListCustomerRelationshipAttachments(ctx context.Context, owner
 			&i.Status,
 			&i.StoredAt,
 			&i.CategoryObjectID,
-			&i.CategoryVersionID,
+			&i.CategoryApprovalEntryID,
 			&i.CategoryCode,
 			&i.CategoryName,
 			&i.CreatedAt,
@@ -418,28 +418,28 @@ func (q *Queries) ListCustomerRelationshipAttachments(ctx context.Context, owner
 const listCustomerVersionAttachments = `-- name: ListCustomerVersionAttachments :many
 SELECT file.id AS file_id,file.original_name AS file_name,file.content_type,file.declared_size,
        file.sha256_hex,file.status,file.stored_at,relation.category_object_id,
-       relation.category_version_id,relation.category_code,relation.category_name,
+       relation.category_approval_entry_id,relation.category_code,relation.category_name,
        relation.created_at,relation.created_by
 FROM bob_customer_version_attachments relation
 JOIN bob_customer_files file ON file.id=relation.file_id
-WHERE relation.version_id=$1
+WHERE relation.approval_entry_id=$1
 ORDER BY relation.created_at,relation.file_id
 `
 
 type ListCustomerVersionAttachmentsRow struct {
-	FileID            string             `db:"file_id" json:"file_id"`
-	FileName          string             `db:"file_name" json:"file_name"`
-	ContentType       string             `db:"content_type" json:"content_type"`
-	DeclaredSize      int64              `db:"declared_size" json:"declared_size"`
-	Sha256Hex         string             `db:"sha256_hex" json:"sha256_hex"`
-	Status            string             `db:"status" json:"status"`
-	StoredAt          pgtype.Timestamptz `db:"stored_at" json:"stored_at"`
-	CategoryObjectID  string             `db:"category_object_id" json:"category_object_id"`
-	CategoryVersionID string             `db:"category_version_id" json:"category_version_id"`
-	CategoryCode      string             `db:"category_code" json:"category_code"`
-	CategoryName      string             `db:"category_name" json:"category_name"`
-	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy         string             `db:"created_by" json:"created_by"`
+	FileID                  string             `db:"file_id" json:"file_id"`
+	FileName                string             `db:"file_name" json:"file_name"`
+	ContentType             string             `db:"content_type" json:"content_type"`
+	DeclaredSize            int64              `db:"declared_size" json:"declared_size"`
+	Sha256Hex               string             `db:"sha256_hex" json:"sha256_hex"`
+	Status                  string             `db:"status" json:"status"`
+	StoredAt                pgtype.Timestamptz `db:"stored_at" json:"stored_at"`
+	CategoryObjectID        string             `db:"category_object_id" json:"category_object_id"`
+	CategoryApprovalEntryID string             `db:"category_approval_entry_id" json:"category_approval_entry_id"`
+	CategoryCode            string             `db:"category_code" json:"category_code"`
+	CategoryName            string             `db:"category_name" json:"category_name"`
+	CreatedAt               pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy               string             `db:"created_by" json:"created_by"`
 }
 
 func (q *Queries) ListCustomerVersionAttachments(ctx context.Context, ownerID string) ([]ListCustomerVersionAttachmentsRow, error) {
@@ -460,7 +460,7 @@ func (q *Queries) ListCustomerVersionAttachments(ctx context.Context, ownerID st
 			&i.Status,
 			&i.StoredAt,
 			&i.CategoryObjectID,
-			&i.CategoryVersionID,
+			&i.CategoryApprovalEntryID,
 			&i.CategoryCode,
 			&i.CategoryName,
 			&i.CreatedAt,
@@ -493,9 +493,9 @@ func (q *Queries) LockCustomerAttachmentRelationship(ctx context.Context, ownerI
 }
 
 const lockCustomerAttachmentVersion = `-- name: LockCustomerAttachmentVersion :one
-SELECT id,object_id,status,revision
-FROM bob_versions
-WHERE id=$1 AND entity='customer'
+SELECT id,subject_id AS object_id,status,revision
+FROM approval_entries
+WHERE id=$1 AND domain='bob' AND entity='customer-account'
 FOR UPDATE
 `
 
@@ -520,7 +520,7 @@ func (q *Queries) LockCustomerAttachmentVersion(ctx context.Context, ownerID str
 
 const lockPendingCustomerUpload = `-- name: LockPendingCustomerUpload :one
 SELECT file.id,file.storage_key,file.content_type,file.declared_size,file.sha256_hex,
-       COALESCE(relationship_relation.customer_relationship_id,version_relation.version_id) AS owner_id,
+       COALESCE(relationship_relation.customer_relationship_id,version_relation.approval_entry_id) AS owner_id,
        CASE WHEN relationship_relation.customer_relationship_id IS NOT NULL THEN 'RELATIONSHIP' ELSE 'ACCOUNT' END AS scope,
        relationship_owner.revision AS group_revision,version_owner.status AS version_status,
        version_owner.revision AS version_revision
@@ -528,7 +528,7 @@ FROM bob_customer_files file
 LEFT JOIN bob_customer_relationship_attachments relationship_relation ON relationship_relation.file_id=file.id
 LEFT JOIN bob_objects relationship_owner ON relationship_owner.id=relationship_relation.customer_relationship_id
 LEFT JOIN bob_customer_version_attachments version_relation ON version_relation.file_id=file.id
-LEFT JOIN bob_versions version_owner ON version_owner.id=version_relation.version_id
+LEFT JOIN approval_entries version_owner ON version_owner.id=version_relation.approval_entry_id AND version_owner.domain='bob'
 WHERE file.upload_token_hash=$1 AND file.status='PENDING'
   AND file.upload_expires_at>now()
 FOR UPDATE OF file
@@ -579,20 +579,27 @@ func (q *Queries) MarkCustomerFileReady(ctx context.Context, fileID string) (int
 }
 
 const resolveCustomerDocumentCategory = `-- name: ResolveCustomerDocumentCategory :one
-SELECT object.id AS object_id,version.id AS version_id,object.code,
-       CAST(version.data->>'name' AS text) AS name
+SELECT object.id AS object_id,entry.id AS approval_entry_id,object.code,
+       CAST(payload.data->>'name' AS text) AS name
 FROM aux_objects object
-JOIN aux_versions version ON version.id=object.current_version_id
+JOIN approval_entries entry ON entry.domain='aux' AND entry.entity='dictionary-item'
+    AND entry.subject_id=object.id AND entry.status='APPROVED'
+JOIN aux_version_payloads payload ON payload.approval_entry_id=entry.id
 WHERE object.id=$1 AND object.entity='dictionary-item'
   AND object.enabled=true
-  AND version.data->>'dictionaryTypeCode'='DCT-0003'
+  AND payload.data->>'dictionaryTypeCode'='DCT-0003'
+  AND NOT EXISTS (
+      SELECT 1 FROM approval_entries newer
+      WHERE newer.domain='aux' AND newer.entity=entry.entity AND newer.subject_id=entry.subject_id
+        AND newer.status='APPROVED' AND newer.version_no>entry.version_no
+  )
 `
 
 type ResolveCustomerDocumentCategoryRow struct {
-	ObjectID  string `db:"object_id" json:"object_id"`
-	VersionID string `db:"version_id" json:"version_id"`
-	Code      string `db:"code" json:"code"`
-	Name      string `db:"name" json:"name"`
+	ObjectID        string `db:"object_id" json:"object_id"`
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	Code            string `db:"code" json:"code"`
+	Name            string `db:"name" json:"name"`
 }
 
 func (q *Queries) ResolveCustomerDocumentCategory(ctx context.Context, objectID string) (ResolveCustomerDocumentCategoryRow, error) {
@@ -600,7 +607,7 @@ func (q *Queries) ResolveCustomerDocumentCategory(ctx context.Context, objectID 
 	var i ResolveCustomerDocumentCategoryRow
 	err := row.Scan(
 		&i.ObjectID,
-		&i.VersionID,
+		&i.ApprovalEntryID,
 		&i.Code,
 		&i.Name,
 	)
@@ -622,26 +629,6 @@ type TouchCustomerRelationshipAttachmentParams struct {
 
 func (q *Queries) TouchCustomerRelationshipAttachment(ctx context.Context, arg TouchCustomerRelationshipAttachmentParams) (int64, error) {
 	row := q.db.QueryRow(ctx, touchCustomerRelationshipAttachment, arg.ActorID, arg.OwnerID, arg.Revision)
-	var revision int64
-	err := row.Scan(&revision)
-	return revision, err
-}
-
-const touchCustomerVersionAttachment = `-- name: TouchCustomerVersionAttachment :one
-UPDATE bob_versions
-SET revision=revision+1,updated_at=now(),updated_by=$1
-WHERE id=$2 AND entity='customer-account' AND status='DRAFT' AND revision=$3
-RETURNING revision
-`
-
-type TouchCustomerVersionAttachmentParams struct {
-	ActorID  string `db:"actor_id" json:"actor_id"`
-	OwnerID  string `db:"owner_id" json:"owner_id"`
-	Revision int64  `db:"revision" json:"revision"`
-}
-
-func (q *Queries) TouchCustomerVersionAttachment(ctx context.Context, arg TouchCustomerVersionAttachmentParams) (int64, error) {
-	row := q.db.QueryRow(ctx, touchCustomerVersionAttachment, arg.ActorID, arg.OwnerID, arg.Revision)
 	var revision int64
 	err := row.Scan(&revision)
 	return revision, err

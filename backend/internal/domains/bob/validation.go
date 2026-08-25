@@ -10,6 +10,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -190,14 +191,6 @@ func validateDetailInputFields(entity string, input DetailInput) error {
 		allow("vin", "engineNumber", "loadCapacityKg", "remark")
 	case EntityFundAccount:
 		allow("accountName", "bankName", "bankBranch", "accountNumber", "operatingEntityId", "remark")
-	case EntityCategory:
-		allow("parentId", "description")
-	case EntityDepartment:
-		allow("categoryId", "parentId", "description")
-	case EntityPosition:
-		allow("categoryId", "description")
-	case EntitySettlementMethod:
-		allow("defaultSalesSurcharge")
 	case EntityOperatingEntity:
 		allow("shortName", "taxNumber", "address", "phone", "remark")
 	default:
@@ -296,7 +289,7 @@ func normalizeDetail(input *DetailView) {
 		for index := range input.Formula.Components {
 			component := &input.Formula.Components[index]
 			component.Material.ObjectID = strings.TrimSpace(component.Material.ObjectID)
-			component.Material.VersionID = strings.TrimSpace(component.Material.VersionID)
+			component.Material.ApprovalEntryID = strings.TrimSpace(component.Material.ApprovalEntryID)
 			component.ResolutionStatus = strings.ToUpper(strings.TrimSpace(component.ResolutionStatus))
 			normalizeQuantitySnapshot(&component.Quantity)
 		}
@@ -418,7 +411,13 @@ func validateEntityFields(entity string, input DetailView) error {
 			}
 		}
 	case EntitySupplier:
-		allow("contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "defaultPurchaserEmployeeId")
+		allow("shortName", "taxNumber", "contactName", "contactPhone", "email", "address", "remark", "settlementMethodId", "defaultPurchaserEmployeeId",
+			"termCode", "ruleType", "monthOffset", "dayOfMonth", "dayOffset")
+		if input.SettlementMethodID != "" {
+			if err := validateSettlementRule(input); err != nil {
+				return domainError(ErrorValidation, "invalid supplier settlement snapshot", nil, err)
+			}
+		}
 	case EntityEmployee:
 		allow("departmentId", "positionId", "phone", "email", "hireDate", "remark")
 	case EntityProduct:
@@ -440,26 +439,6 @@ func validateEntityFields(entity string, input DetailView) error {
 		allow("currency", "accountName", "bankName", "bankBranch", "accountNumber", "operatingEntityId", "remark")
 		if !currencyPattern.MatchString(input.Currency) || !validID(input.OperatingEntityID) {
 			return domainError(ErrorValidation, "invalid currency", nil, nil)
-		}
-	case EntityCategory:
-		allow("targetEntity", "parentId", "description")
-		if !validCategoryTarget(input.TargetEntity) {
-			return domainError(ErrorValidation, "invalid category target", nil, nil)
-		}
-	case EntityDepartment:
-		allow("categoryId", "parentId", "description")
-	case EntityPosition:
-		allow("categoryId", "description")
-	case EntitySettlementMethod:
-		allow("termCode", "ruleType", "monthOffset", "dayOfMonth", "dayOffset", "description", "defaultSalesSurcharge")
-		if !validSettlementTerm(input.TermCode) {
-			return domainError(ErrorValidation, "invalid settlement term", nil, nil)
-		}
-		if err := validateSettlementRule(input); err != nil {
-			return err
-		}
-		if _, err := moneyCents(input.DefaultSalesSurcharge); err != nil {
-			return domainError(ErrorValidation, "invalid default sales surcharge", nil, nil)
 		}
 	case EntityOperatingEntity:
 		allow("shortName", "taxNumber", "address", "phone", "remark")
@@ -578,7 +557,7 @@ func validateProductDraft(input DetailView) error {
 		}
 		seenMaterials := make(map[string]bool, len(input.Formula.Components))
 		for index, component := range input.Formula.Components {
-			if !validID(component.Material.ObjectID) || (component.Material.VersionID != "" && !validID(component.Material.VersionID)) {
+			if !validID(component.Material.ObjectID) || (component.Material.ApprovalEntryID != "" && !validID(component.Material.ApprovalEntryID)) {
 				return domainError(ErrorValidation, fmt.Sprintf("formula.components[%d].material is invalid", index), nil, nil)
 			}
 			if seenMaterials[component.Material.ObjectID] {
@@ -597,7 +576,7 @@ func validateProductComplete(input DetailView) error {
 	if err := validateProductDraft(input); err != nil {
 		return err
 	}
-	if !validID(input.ProductTypeID) || !validID(input.ProductTypeVersionID) || input.ProductTypeCode == "" || input.ProductTypeName == "" || !validProductBehavior(input.BehaviorProfile) {
+	if !validID(input.ProductTypeID) || !validID(input.ProductTypeApprovalEntryID) || input.ProductTypeCode == "" || input.ProductTypeName == "" || !validProductBehavior(input.BehaviorProfile) {
 		return domainError(ErrorValidation, "product type is required", nil, nil)
 	}
 	if len(input.UnitConversions) == 0 || input.DefaultInputUnitID == "" || input.PricingUnitID == "" {
@@ -605,7 +584,7 @@ func validateProductComplete(input DetailView) error {
 	}
 	byUnit := make(map[string]ProductUnitConversion, len(input.UnitConversions))
 	for _, conversion := range input.UnitConversions {
-		if conversion.Unit.VersionID == "" || conversion.Unit.Code == "" || conversion.Unit.Name == "" || conversion.Unit.Symbol == "" {
+		if conversion.Unit.ApprovalEntryID == "" || conversion.Unit.Code == "" || conversion.Unit.Name == "" || conversion.Unit.Symbol == "" {
 			return domainError(ErrorValidation, "unit conversion snapshot is incomplete", nil, nil)
 		}
 		byUnit[conversion.Unit.ObjectID] = conversion
@@ -637,7 +616,7 @@ func validateProductComplete(input DetailView) error {
 			return domainError(ErrorValidation, "standard finished product formula is required", nil, nil)
 		}
 		for index, component := range input.Formula.Components {
-			if component.ResolutionStatus != "CURRENT" || component.RequiresConfirmation || component.Material.VersionID == "" || component.Material.BehaviorProfile != ProductBehaviorRawMaterial {
+			if component.ResolutionStatus != "CURRENT" || component.RequiresConfirmation || component.Material.ApprovalEntryID == "" || component.Material.BehaviorProfile != ProductBehaviorRawMaterial {
 				return domainError(ErrorValidation, fmt.Sprintf("formula.components[%d] is unresolved", index), nil, nil)
 			}
 		}
@@ -736,10 +715,6 @@ func moneyCents(value string) (int64, error) {
 	return whole*100 + cents, nil
 }
 
-func formatMoneyCents(value int64) string {
-	return fmt.Sprintf("%d.%02d", value/100, value%100)
-}
-
 func numericField(value int32) string {
 	if value == 0 {
 		return ""
@@ -785,7 +760,7 @@ func validCustomerType(value string) bool {
 }
 
 func validCategoryTarget(value string) bool {
-	return value != EntityCategory && value != EntitySettlementMethod && slices.Contains(entities[:], value)
+	return slices.Contains(entities[:], value)
 }
 
 func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, error) {
@@ -868,14 +843,6 @@ func validateQueryFilters(entity string, input QueryFilters) (QueryFilters, erro
 		unexpected = hasUnexpected()
 	case EntityFundAccount:
 		unexpected = hasUnexpected("currency")
-	case EntityCategory:
-		unexpected = hasUnexpected("targetEntity", "parentId", "rootOnly")
-	case EntityDepartment:
-		unexpected = hasUnexpected("categoryId", "parentId", "rootOnly")
-	case EntityPosition:
-		unexpected = hasUnexpected("categoryId")
-	case EntitySettlementMethod:
-		unexpected = hasUnexpected()
 	default:
 		unexpected = true
 	}
@@ -892,18 +859,9 @@ func validWriteInput(entity, objectID, versionID string, revision int64, actorID
 func validDeleteInput(entity string, input DeleteInput) bool {
 	return validEntity(entity) &&
 		validID(input.ObjectID) &&
-		validID(input.VersionID) &&
+		validID(input.ApprovalEntryID) &&
 		input.ObjectRevision >= 1 &&
-		input.Revision >= 1
-}
-
-func validReverseInput(entity string, input ReverseInput, actorID, requestID string) bool {
-	return validEntity(entity) &&
-		validID(input.ObjectID) &&
-		validID(input.VersionID) &&
-		input.ObjectRevision >= 1 &&
-		input.Revision >= 1 &&
-		validActorAndRequest(actorID, requestID)
+		input.ApprovalRevision >= 1
 }
 
 func validActorAndRequest(actorID, requestID string) bool {
@@ -935,7 +893,7 @@ func mustPageOffset(page, pageSize int) int32 {
 func validEntity(entity string) bool { return slices.Contains(entities[:], entity) }
 
 func validStatus(status string) bool {
-	return slices.Contains([]string{StatusDraft, StatusPending, StatusEffective, StatusInvalid}, status)
+	return slices.Contains([]string{string(approval.StatusDraft), string(approval.StatusPending), string(approval.StatusApproved)}, status)
 }
 
 func validID(id string) bool {
@@ -973,15 +931,4 @@ func optionalComment(value *string) (*string, error) {
 func runeLengthBetween(value string, minimum, maximum int) bool {
 	length := utf8.RuneCountInString(value)
 	return length >= minimum && length <= maximum
-}
-
-func requiredComment(value *string) (*string, error) {
-	comment, err := optionalComment(value)
-	if err != nil {
-		return nil, err
-	}
-	if comment == nil {
-		return nil, domainError(ErrorValidation, "comment is required", nil, nil)
-	}
-	return comment, nil
 }

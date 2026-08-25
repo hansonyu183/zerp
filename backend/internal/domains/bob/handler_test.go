@@ -14,6 +14,7 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	"github.com/hansonyu183/zerp/backend/internal/api/middleware"
 	"github.com/hansonyu183/zerp/backend/internal/api/response"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 )
 
 type splitAuthorizationStub struct {
@@ -53,52 +54,52 @@ func (s *serviceStub) Get(_ context.Context, entity string, _ GetInput) (ObjectV
 	return ObjectView{}, nil
 }
 
-func (s *serviceStub) Create(_ context.Context, entity string, _ CreateInput, _, _ string) (MutationResult, error) {
+func (s *serviceStub) Create(_ context.Context, entity string, _ CreateInput, _ approval.Actor) (MutationResult, error) {
 	s.record("create", entity)
 	return MutationResult{}, nil
 }
 
-func (s *serviceStub) Unsubmit(_ context.Context, entity string, _ ReverseInput, _, _ string) (MutationResult, error) {
+func (s *serviceStub) Unsubmit(_ context.Context, entity string, _ ReverseInput, _ approval.Actor) (MutationResult, error) {
 	s.record("unsubmit", entity)
 	return MutationResult{}, nil
 }
 
-func (s *serviceStub) Save(_ context.Context, entity string, _ SaveInput, _, _ string) (MutationResult, error) {
+func (s *serviceStub) Save(_ context.Context, entity string, _ SaveInput, _ approval.Actor) (MutationResult, error) {
 	s.record("save", entity)
 	return MutationResult{}, nil
 }
 
-func (s *serviceStub) Delete(_ context.Context, entity string, _ DeleteInput) error {
+func (s *serviceStub) Delete(_ context.Context, entity string, _ DeleteInput, _ approval.Actor) error {
 	s.record("delete", entity)
 	return nil
 }
 
-func (s *serviceStub) Submit(_ context.Context, entity string, _ VersionRevisionInput, _, _ string) (MutationResult, error) {
+func (s *serviceStub) Submit(_ context.Context, entity string, _ VersionRevisionInput, _ approval.Actor) (MutationResult, error) {
 	s.record("submit", entity)
 	return MutationResult{}, nil
 }
 
-func (s *serviceStub) Approve(_ context.Context, entity string, _ ReviewInput, _, _ string) (MutationResult, error) {
+func (s *serviceStub) Approve(_ context.Context, entity string, _ ReviewInput, _ approval.Actor) (MutationResult, error) {
 	s.record("approve", entity)
 	return MutationResult{}, nil
 }
 
-func (s *serviceStub) Unapprove(_ context.Context, entity string, _ ReverseInput, _, _ string) (MutationResult, error) {
+func (s *serviceStub) Unapprove(_ context.Context, entity string, _ ReverseInput, _ approval.Actor) (MutationResult, error) {
 	s.record("unapprove", entity)
 	return MutationResult{}, nil
 }
 
-func (s *serviceStub) Reject(_ context.Context, entity string, _ ReviewInput, _, _ string) (MutationResult, error) {
+func (s *serviceStub) Reject(_ context.Context, entity string, _ ReviewInput, _ approval.Actor) (MutationResult, error) {
 	s.record("reject", entity)
 	return MutationResult{}, nil
 }
 
-func (s *serviceStub) Enable(_ context.Context, entity string, _ ObjectRevisionInput, _, _ string) (MutationResult, error) {
+func (s *serviceStub) Enable(_ context.Context, entity string, _ ObjectRevisionInput, _ approval.Actor) (MutationResult, error) {
 	s.record("enable", entity)
 	return MutationResult{}, nil
 }
 
-func (s *serviceStub) Disable(_ context.Context, entity string, _ ObjectRevisionInput, _, _ string) (MutationResult, error) {
+func (s *serviceStub) Disable(_ context.Context, entity string, _ ObjectRevisionInput, _ approval.Actor) (MutationResult, error) {
 	s.record("disable", entity)
 	return MutationResult{}, nil
 }
@@ -123,18 +124,20 @@ func (s *serviceStub) CustomerGet(_ context.Context, _ GetInput) (CustomerDetail
 	return CustomerDetailView{}, nil
 }
 
-func (s *serviceStub) CustomerCreate(_ context.Context, _ CustomerCreateInput, _, _ string, _ bool) (CustomerCreateResult, error) {
+func (s *serviceStub) CustomerCreate(_ context.Context, _ CustomerCreateInput, _ approval.Actor, _ bool) (CustomerCreateResult, error) {
 	s.record("create", EntityCustomer)
 	return CustomerCreateResult{}, nil
 }
 
-func (s *serviceStub) CustomerAccountAdd(_ context.Context, _ CustomerAccountAddInput, _, _ string) (CustomerAccountView, error) {
+func (s *serviceStub) CustomerAccountAdd(_ context.Context, _ CustomerAccountAddInput, _ approval.Actor) (CustomerAccountView, error) {
 	return CustomerAccountView{}, nil
 }
 
-func (s *serviceStub) CustomerAccountDelete(_ context.Context, _ DeleteInput) error { return nil }
+func (s *serviceStub) CustomerAccountDelete(_ context.Context, _ DeleteInput, _ approval.Actor) error {
+	return nil
+}
 
-func (s *serviceStub) CustomerSave(_ context.Context, _ CustomerSaveInput, _, _ string) (MutationResult, error) {
+func (s *serviceStub) CustomerSave(_ context.Context, _ CustomerSaveInput, _ approval.Actor) (MutationResult, error) {
 	s.record("save", EntityCustomer)
 	return MutationResult{}, nil
 }
@@ -149,17 +152,17 @@ func (s *serviceStub) SupplierGet(_ context.Context, _ GetInput) (SupplierDetail
 	return SupplierDetailView{}, nil
 }
 
-func (s *serviceStub) SupplierCreate(_ context.Context, _ SupplierCreateInput, _, _ string, _ bool) (SupplierCreateResult, error) {
+func (s *serviceStub) SupplierCreate(_ context.Context, _ SupplierCreateInput, _ approval.Actor, _ bool) (SupplierCreateResult, error) {
 	s.record("create", EntitySupplier)
 	return SupplierCreateResult{}, nil
 }
 
-func (s *serviceStub) SupplierSave(_ context.Context, _ SupplierSaveInput, _, _ string) (MutationResult, error) {
+func (s *serviceStub) SupplierSave(_ context.Context, _ SupplierSaveInput, _ approval.Actor) (MutationResult, error) {
 	s.record("save", EntitySupplier)
 	return MutationResult{}, nil
 }
 
-func (s *serviceStub) EmploymentCreate(_ context.Context, _ EmploymentCreateInput, _, _ string, _ bool) (EmploymentCreateResult, error) {
+func (s *serviceStub) EmploymentCreate(_ context.Context, _ EmploymentCreateInput, _ approval.Actor, _ bool) (EmploymentCreateResult, error) {
 	s.record("create", EntityEmployee)
 	return EmploymentCreateResult{}, nil
 }
@@ -174,12 +177,12 @@ func (s *serviceStub) SalesPartnerGet(_ context.Context, _ GetInput) (SalesPartn
 	return SalesPartnerDetailView{}, nil
 }
 
-func (s *serviceStub) SalesPartnerCreate(_ context.Context, _ SalesPartnerCreateInput, _, _ string, _ bool) (SalesPartnerCreateResult, error) {
+func (s *serviceStub) SalesPartnerCreate(_ context.Context, _ SalesPartnerCreateInput, _ approval.Actor, _ bool) (SalesPartnerCreateResult, error) {
 	s.record("create", EntitySalesPartner)
 	return SalesPartnerCreateResult{}, nil
 }
 
-func (s *serviceStub) SalesPartnerSave(_ context.Context, _ SalesPartnerSaveInput, _, _ string) (MutationResult, error) {
+func (s *serviceStub) SalesPartnerSave(_ context.Context, _ SalesPartnerSaveInput, _ approval.Actor) (MutationResult, error) {
 	s.record("save", EntitySalesPartner)
 	return MutationResult{}, nil
 }
@@ -224,12 +227,12 @@ func (s *serviceStub) OtherUnitGet(_ context.Context, _ GetInput) (OtherUnitView
 	return OtherUnitView{}, nil
 }
 
-func (s *serviceStub) OtherUnitCreate(_ context.Context, _ OtherUnitCreateInput, _, _ string, _ bool) (OtherUnitCreateResult, error) {
+func (s *serviceStub) OtherUnitCreate(_ context.Context, _ OtherUnitCreateInput, _ approval.Actor, _ bool) (OtherUnitCreateResult, error) {
 	s.record("create", EntityOtherUnit)
 	return OtherUnitCreateResult{}, nil
 }
 
-func (s *serviceStub) OtherUnitSave(_ context.Context, _ OtherUnitSaveInput, _, _ string) (MutationResult, error) {
+func (s *serviceStub) OtherUnitSave(_ context.Context, _ OtherUnitSaveInput, _ approval.Actor) (MutationResult, error) {
 	s.record("save", EntityOtherUnit)
 	return MutationResult{}, nil
 }
@@ -272,10 +275,10 @@ func TestHandlerRegistersEveryEntityAction(t *testing.T) {
 		"/bob/party/query", "/bob/party/get", "/bob/party/save",
 		"/bob/other-unit/query", "/bob/other-unit/get", "/bob/other-unit/create", "/bob/other-unit/save",
 		"/bob/other-unit/delete", "/bob/other-unit/submit", "/bob/other-unit/unsubmit",
-		"/bob/other-unit/approve", "/bob/other-unit/reject", "/bob/other-unit/enable",
+		"/bob/other-unit/approve", "/bob/other-unit/reject", "/bob/other-unit/unapprove", "/bob/other-unit/enable",
 		"/bob/other-unit/disable", "/bob/other-unit/versions", "/bob/other-unit/audit-history",
 		"/bob/customer-account/submit", "/bob/customer-account/unsubmit",
-		"/bob/customer-account/approve", "/bob/customer-account/reject",
+		"/bob/customer-account/approve", "/bob/customer-account/reject", "/bob/customer-account/unapprove",
 		"/bob/customer-account/enable", "/bob/customer-account/disable",
 		"/bob/customer-account/versions", "/bob/customer-account/audit-history",
 	} {
@@ -373,13 +376,13 @@ func TestHandlerDispatchesEveryAction(t *testing.T) {
 		{"query", `{"page":1,"pageSize":20,"filters":{},"sort":[]}`},
 		{"get", `{"objectId":"` + objectID + `"}`},
 		{"create", `{"data":{"name":"Customer"}}`},
-		{"save", `{"objectId":"` + objectID + `","versionId":"` + versionID + `","revision":1,"data":{"name":"Customer"}}`},
-		{"delete", `{"objectId":"` + objectID + `","objectRevision":1,"versionId":"` + versionID + `","revision":1}`},
-		{"submit", `{"objectId":"` + objectID + `","versionId":"` + versionID + `","revision":1}`},
-		{"unsubmit", `{"objectId":"` + objectID + `","objectRevision":1,"versionId":"` + versionID + `","revision":1,"reason":"fix"}`},
-		{"approve", `{"objectId":"` + objectID + `","versionId":"` + versionID + `","revision":1}`},
-		{"unapprove", `{"objectId":"` + objectID + `","objectRevision":1,"versionId":"` + versionID + `","revision":1,"reason":"fix"}`},
-		{"reject", `{"objectId":"` + objectID + `","versionId":"` + versionID + `","revision":1,"comment":"fix"}`},
+		{"save", `{"objectId":"` + objectID + `","approvalEntryId":"` + versionID + `","approvalRevision":1,"data":{"name":"Customer"}}`},
+		{"delete", `{"objectId":"` + objectID + `","objectRevision":1,"approvalEntryId":"` + versionID + `","approvalRevision":1}`},
+		{"submit", `{"objectId":"` + objectID + `","approvalEntryId":"` + versionID + `","approvalRevision":1}`},
+		{"unsubmit", `{"objectId":"` + objectID + `","approvalEntryId":"` + versionID + `","approvalRevision":1}`},
+		{"approve", `{"objectId":"` + objectID + `","approvalEntryId":"` + versionID + `","approvalRevision":1}`},
+		{"unapprove", `{"objectId":"` + objectID + `","approvalEntryId":"` + versionID + `","approvalRevision":1,"reason":"fix"}`},
+		{"reject", `{"objectId":"` + objectID + `","approvalEntryId":"` + versionID + `","approvalRevision":1,"reason":"fix"}`},
 		{"enable", `{"objectId":"` + objectID + `","objectRevision":1}`},
 		{"disable", `{"objectId":"` + objectID + `","objectRevision":1}`},
 		{"versions", `{"objectId":"` + objectID + `","page":1,"pageSize":20}`},
@@ -392,7 +395,7 @@ func TestHandlerDispatchesEveryAction(t *testing.T) {
 		t.Run(test.action, func(t *testing.T) {
 			service := &serviceStub{}
 			router := newBOBTestRouter(service, authorizer)
-			request := httptest.NewRequest(http.MethodPost, "/bob/customer/"+test.action, strings.NewReader(test.body))
+			request := httptest.NewRequest(http.MethodPost, "/bob/warehouse/"+test.action, strings.NewReader(test.body))
 			request.Header.Set("Content-Type", "application/json")
 			recorder := httptest.NewRecorder()
 			router.ServeHTTP(recorder, request)
@@ -400,7 +403,7 @@ func TestHandlerDispatchesEveryAction(t *testing.T) {
 			if recorder.Code != http.StatusOK {
 				t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
 			}
-			if len(service.actions) != 1 || service.actions[0] != test.action || service.entity != EntityCustomer {
+			if len(service.actions) != 1 || service.actions[0] != test.action || service.entity != EntityWarehouse {
 				t.Fatalf("calls = %v, entity = %q", service.actions, service.entity)
 			}
 			if test.action == "delete" {
@@ -488,7 +491,7 @@ func TestHandlerUsesExactPermissionPathAndPrincipal(t *testing.T) {
 	request := httptest.NewRequest(
 		http.MethodPost,
 		"/bob/vehicle/delete",
-		strings.NewReader(`{"objectId":"01J00000000000000000000010","objectRevision":1,"versionId":"01J00000000000000000000011","revision":1}`),
+		strings.NewReader(`{"objectId":"01J00000000000000000000010","objectRevision":1,"approvalEntryId":"01J00000000000000000000011","approvalRevision":1}`),
 	)
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
@@ -580,7 +583,7 @@ func TestDeleteAuthorizationFailuresDoNotCallService(t *testing.T) {
 			request := httptest.NewRequest(
 				http.MethodPost,
 				"/bob/customer/delete",
-				strings.NewReader(`{"objectId":"01J00000000000000000000010","objectRevision":1,"versionId":"01J00000000000000000000011","revision":1}`),
+				strings.NewReader(`{"objectId":"01J00000000000000000000010","objectRevision":1,"approvalEntryId":"01J00000000000000000000011","approvalRevision":1}`),
 			)
 			request.Header.Set("Content-Type", "application/json")
 			recorder := httptest.NewRecorder()
@@ -609,7 +612,7 @@ func TestDeleteRejectsUnknownJSONFields(t *testing.T) {
 	request := httptest.NewRequest(
 		http.MethodPost,
 		"/bob/customer/delete",
-		strings.NewReader(`{"objectId":"01J00000000000000000000010","objectRevision":1,"versionId":"01J00000000000000000000011","revision":1,"unknown":true}`),
+		strings.NewReader(`{"objectId":"01J00000000000000000000010","objectRevision":1,"approvalEntryId":"01J00000000000000000000011","approvalRevision":1,"unknown":true}`),
 	)
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()

@@ -14,11 +14,7 @@ import {
 } from '@/components/voucher'
 import { useSessionStore } from '@/stores/session'
 import { useVoucherArtifacts } from './artifacts'
-import {
-  emptyForm,
-  formFromDocument,
-  snapshot,
-} from './form'
+import { emptyForm, formFromDocument, snapshot } from './form'
 import { useVoucherReferences } from './references'
 import { buildVoucherDraftPayload } from './payload'
 import { useVoucherSalesChain } from './sales-chain'
@@ -428,22 +424,28 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
       )
       let result: VoucherMutationResult
       if (documentView.value) {
-        const response = await apiClient.postContract(`vou/${config.entity}/save`, {
-          documentId: documentView.value.documentId,
-          revision: documentView.value.revision,
-          data: payload,
-        })
+        const response = await apiClient.postContract(
+          `vou/${config.entity}/save`,
+          {
+            documentId: documentView.value.documentId,
+            revision: documentView.value.revision,
+            data: payload,
+          },
+        )
         result = response.data
       } else {
-        const response = await apiClient.postContract(`vou/${config.entity}/create`, {
-          ...(config.parentEntity && form.value.parentDocumentId
-            ? {
-                parentEntity: config.parentEntity,
-                parentDocumentId: form.value.parentDocumentId,
-              }
-            : {}),
-          data: payload,
-        })
+        const response = await apiClient.postContract(
+          `vou/${config.entity}/create`,
+          {
+            ...(config.parentEntity && form.value.parentDocumentId
+              ? {
+                  parentEntity: config.parentEntity,
+                  parentDocumentId: form.value.parentDocumentId,
+                }
+              : {}),
+            data: payload,
+          },
+        )
         result = response.data
       }
       await loadDocument(result.documentId)
@@ -513,14 +515,11 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     actionLoading.value = action
     workspaceError.value = null
     try {
-      await apiClient.postContract(
-        `vou/${config.entity}/delete`,
-        {
-          documentId: current.documentId,
-          revision: current.revision,
-          reason: reason ?? '',
-        },
-      )
+      await apiClient.postContract(`vou/${config.entity}/delete`, {
+        documentId: current.documentId,
+        revision: current.revision,
+        reason: reason ?? '',
+      })
       if (action === 'delete') {
         closeWorkspace()
       } else {

@@ -28,49 +28,49 @@ export type VouSaveRequest = {
     serviceAcceptance?: VouServiceAcceptanceInput;
     customer?: {
       objectId: string;
-      versionId: string;
+      approvalEntryId: string;
     };
     supplier?: {
       objectId: string;
-      versionId: string;
+      approvalEntryId: string;
     };
     counterpartyType?: 'customer-account' | 'supplier' | 'other-unit' | 'employee' | 'sales-partner';
     otherCategory?: 'COMMISSION' | 'INTERMEDIARY' | 'REBATE';
     counterparty?: {
       objectId: string;
-      versionId: string;
+      approvalEntryId: string;
     };
     settlementMethod?: {
       objectId: string;
-      versionId: string;
+      approvalEntryId: string;
     };
     employee?: {
       objectId: string;
-      versionId: string;
+      approvalEntryId: string;
     };
     salesperson?: {
       objectId: string;
-      versionId: string;
+      approvalEntryId: string;
     };
     purchaser?: {
       objectId: string;
-      versionId: string;
+      approvalEntryId: string;
     };
     handler?: {
       objectId: string;
-      versionId: string;
+      approvalEntryId: string;
     };
     warehouse?: {
       objectId: string;
-      versionId: string;
+      approvalEntryId: string;
     };
     materialWarehouse?: {
       objectId: string;
-      versionId: string;
+      approvalEntryId: string;
     };
     finishedWarehouse?: {
       objectId: string;
-      versionId: string;
+      approvalEntryId: string;
     };
     productionLines?: Array<VouProductionOutputInput>;
     assetAcquisitionLines?: Array<VouAssetAcquisitionLineInput>;
@@ -78,15 +78,15 @@ export type VouSaveRequest = {
     assetLiquidationLines?: Array<VouAssetLiquidationLineInput>;
     carrier?: {
       objectId: string;
-      versionId: string;
+      approvalEntryId: string;
     };
     vehicle?: {
       objectId: string;
-      versionId: string;
+      approvalEntryId: string;
     };
     fundAccount?: {
       objectId: string;
-      versionId: string;
+      approvalEntryId: string;
     };
     sourceName?: string;
     amount?: string;
@@ -95,7 +95,7 @@ export type VouSaveRequest = {
     maturityType?: 'RECEIPT' | 'PAYMENT';
     interestParty?: {
       objectId: string;
-      versionId: string;
+      approvalEntryId: string;
     };
     withRecourse?: boolean;
     billLines?: Array<VouBillLineInput>;

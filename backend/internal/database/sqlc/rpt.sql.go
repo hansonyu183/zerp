@@ -364,11 +364,16 @@ func (q *Queries) RptListAssetReferences(ctx context.Context, arg RptListAssetRe
 }
 
 const rptListBOBReferences = `-- name: RptListBOBReferences :many
-SELECT object_id AS id, code, name, count(*) OVER() AS total
-FROM bob_version_summaries
-WHERE entity = $1 AND version_id = effective_version_id
-  AND ($2::text = '' OR object_id = $2 OR code ILIKE '%' || $3 || '%' OR name ILIKE '%' || $3 || '%')
-ORDER BY (object_id = $2 AND $2::text <> '') DESC, code OFFSET $4 LIMIT $5
+SELECT object.id, object.code, object.code AS name, count(*) OVER() AS total
+FROM bob_objects object
+JOIN LATERAL (
+  SELECT id FROM approval_entries
+  WHERE domain='bob' AND entity=object.entity AND subject_id=object.id AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) approved ON true
+WHERE object.entity = $1
+  AND ($2::text = '' OR object.id = $2 OR object.code ILIKE '%' || $3 || '%')
+ORDER BY (object.id = $2 AND $2::text <> '') DESC, object.code OFFSET $4 LIMIT $5
 `
 
 type RptListBOBReferencesParams struct {

@@ -5,7 +5,7 @@
 export type OpeningPartyInput = {
   entity: string;
   objectId: string;
-  versionId: string;
+  approvalEntryId: string;
   code: string;
   name: string;
 };

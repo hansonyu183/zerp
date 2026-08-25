@@ -10,7 +10,7 @@ export type BobListItem = {
   code: string;
   objectRevision: number;
   enabled: boolean;
-  effective: BobVersionSummary | null;
-  candidate: BobVersionSummary | null;
+  latestApproved: BobVersionSummary | null;
+  openVersion: BobVersionSummary | null;
   updatedAt: string;
 };

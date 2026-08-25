@@ -4,8 +4,8 @@
 /* eslint-disable */
 export type SupplierSaveRequest = {
   objectId: string;
-  versionId: string;
-  revision: number;
+  approvalEntryId: string;
+  approvalRevision: number;
   data: {
     contactName?: string | null;
     contactPhone?: string | null;

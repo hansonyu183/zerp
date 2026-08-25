@@ -224,7 +224,7 @@ func (q *Queries) InsertVouIntermediaryCalculationLine(ctx context.Context, arg 
 const insertVouIntermediaryCalculationSummary = `-- name: InsertVouIntermediaryCalculationSummary :exec
 INSERT INTO vou_intermediary_calculation_summaries(
     id,document_id,line_no,category,payee_entity,payee_object_id,
-    payee_version_id,payee_code,payee_name,amount_cents
+    payee_approval_entry_id,payee_code,payee_name,amount_cents
 ) VALUES (
     $1,$2,$3,$4,
     $5,$6,$7,
@@ -233,16 +233,16 @@ INSERT INTO vou_intermediary_calculation_summaries(
 `
 
 type InsertVouIntermediaryCalculationSummaryParams struct {
-	ID             string `db:"id" json:"id"`
-	DocumentID     string `db:"document_id" json:"document_id"`
-	LineNo         int32  `db:"line_no" json:"line_no"`
-	Category       string `db:"category" json:"category"`
-	PayeeEntity    string `db:"payee_entity" json:"payee_entity"`
-	PayeeObjectID  string `db:"payee_object_id" json:"payee_object_id"`
-	PayeeVersionID string `db:"payee_version_id" json:"payee_version_id"`
-	PayeeCode      string `db:"payee_code" json:"payee_code"`
-	PayeeName      string `db:"payee_name" json:"payee_name"`
-	AmountCents    int64  `db:"amount_cents" json:"amount_cents"`
+	ID                   string `db:"id" json:"id"`
+	DocumentID           string `db:"document_id" json:"document_id"`
+	LineNo               int32  `db:"line_no" json:"line_no"`
+	Category             string `db:"category" json:"category"`
+	PayeeEntity          string `db:"payee_entity" json:"payee_entity"`
+	PayeeObjectID        string `db:"payee_object_id" json:"payee_object_id"`
+	PayeeApprovalEntryID string `db:"payee_approval_entry_id" json:"payee_approval_entry_id"`
+	PayeeCode            string `db:"payee_code" json:"payee_code"`
+	PayeeName            string `db:"payee_name" json:"payee_name"`
+	AmountCents          int64  `db:"amount_cents" json:"amount_cents"`
 }
 
 func (q *Queries) InsertVouIntermediaryCalculationSummary(ctx context.Context, arg InsertVouIntermediaryCalculationSummaryParams) error {
@@ -253,7 +253,7 @@ func (q *Queries) InsertVouIntermediaryCalculationSummary(ctx context.Context, a
 		arg.Category,
 		arg.PayeeEntity,
 		arg.PayeeObjectID,
-		arg.PayeeVersionID,
+		arg.PayeeApprovalEntryID,
 		arg.PayeeCode,
 		arg.PayeeName,
 		arg.AmountCents,
@@ -268,7 +268,7 @@ SELECT
     document.document_no AS receipt_document_no,
     document.business_date AS receipt_date,
     detail.counterparty_object_id AS customer_object_id,
-    detail.counterparty_version_id AS customer_version_id,
+    detail.counterparty_approval_entry_id AS customer_approval_entry_id,
     detail.counterparty_code AS customer_code,
     detail.counterparty_name AS customer_name,
     bill_line.bill_type,
@@ -307,18 +307,18 @@ type ListIntermediaryBillSourceRowsParams struct {
 }
 
 type ListIntermediaryBillSourceRowsRow struct {
-	BillLineID        string      `db:"bill_line_id" json:"bill_line_id"`
-	ReceiptDocumentID string      `db:"receipt_document_id" json:"receipt_document_id"`
-	ReceiptDocumentNo string      `db:"receipt_document_no" json:"receipt_document_no"`
-	ReceiptDate       pgtype.Date `db:"receipt_date" json:"receipt_date"`
-	CustomerObjectID  *string     `db:"customer_object_id" json:"customer_object_id"`
-	CustomerVersionID *string     `db:"customer_version_id" json:"customer_version_id"`
-	CustomerCode      *string     `db:"customer_code" json:"customer_code"`
-	CustomerName      *string     `db:"customer_name" json:"customer_name"`
-	BillType          string      `db:"bill_type" json:"bill_type"`
-	FaceAmountCents   int64       `db:"face_amount_cents" json:"face_amount_cents"`
-	IssueDate         pgtype.Date `db:"issue_date" json:"issue_date"`
-	MaturityDate      pgtype.Date `db:"maturity_date" json:"maturity_date"`
+	BillLineID              string      `db:"bill_line_id" json:"bill_line_id"`
+	ReceiptDocumentID       string      `db:"receipt_document_id" json:"receipt_document_id"`
+	ReceiptDocumentNo       string      `db:"receipt_document_no" json:"receipt_document_no"`
+	ReceiptDate             pgtype.Date `db:"receipt_date" json:"receipt_date"`
+	CustomerObjectID        *string     `db:"customer_object_id" json:"customer_object_id"`
+	CustomerApprovalEntryID *string     `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	CustomerCode            *string     `db:"customer_code" json:"customer_code"`
+	CustomerName            *string     `db:"customer_name" json:"customer_name"`
+	BillType                string      `db:"bill_type" json:"bill_type"`
+	FaceAmountCents         int64       `db:"face_amount_cents" json:"face_amount_cents"`
+	IssueDate               pgtype.Date `db:"issue_date" json:"issue_date"`
+	MaturityDate            pgtype.Date `db:"maturity_date" json:"maturity_date"`
 }
 
 func (q *Queries) ListIntermediaryBillSourceRows(ctx context.Context, arg ListIntermediaryBillSourceRowsParams) ([]ListIntermediaryBillSourceRowsRow, error) {
@@ -336,7 +336,7 @@ func (q *Queries) ListIntermediaryBillSourceRows(ctx context.Context, arg ListIn
 			&i.ReceiptDocumentNo,
 			&i.ReceiptDate,
 			&i.CustomerObjectID,
-			&i.CustomerVersionID,
+			&i.CustomerApprovalEntryID,
 			&i.CustomerCode,
 			&i.CustomerName,
 			&i.BillType,
@@ -740,16 +740,16 @@ SELECT
     order_document.document_no AS order_document_no,
     order_document.business_date AS order_date,
     detail.customer_object_id,
-    detail.customer_version_id,
+    detail.customer_approval_entry_id,
     detail.customer_code,
     detail.customer_name,
     order_detail.sales_attribution_type,
     order_detail.sales_attribution_subject_object_id,
-    order_detail.sales_attribution_subject_version_id,
+    order_detail.sales_attribution_subject_approval_entry_id,
     order_detail.sales_attribution_subject_code,
     order_detail.sales_attribution_subject_name,
     line.product_object_id,
-    line.product_version_id,
+    line.product_approval_entry_id,
     line.product_code,
     line.product_name,
 	line.entered_unit_symbol,
@@ -773,7 +773,7 @@ JOIN vou_sale_signoff_lines line ON line.document_id=signoff.id
 JOIN vou_documents order_document ON order_document.id=detail.source_order_id
 JOIN vou_sale_order_details order_detail ON order_detail.document_id=order_document.id
 JOIN vou_product_lines order_line ON order_line.id=line.source_order_line_id
-JOIN bob_customer_versions customer_version ON customer_version.version_id=detail.customer_version_id
+JOIN bob_customer_versions customer_version ON customer_version.approval_entry_id=detail.customer_approval_entry_id
 LEFT JOIN returned ON returned.source_signoff_line_id=line.id
 WHERE signoff.entity='sale-signoff'
   AND signoff.status = 'APPROVED'
@@ -789,39 +789,39 @@ type ListIntermediarySignoffSourceRowsParams struct {
 }
 
 type ListIntermediarySignoffSourceRowsRow struct {
-	SourceSignoffLineID              string      `db:"source_signoff_line_id" json:"source_signoff_line_id"`
-	SignoffDocumentID                string      `db:"signoff_document_id" json:"signoff_document_id"`
-	SignoffDocumentNo                string      `db:"signoff_document_no" json:"signoff_document_no"`
-	SignoffDate                      pgtype.Date `db:"signoff_date" json:"signoff_date"`
-	DueDate                          pgtype.Date `db:"due_date" json:"due_date"`
-	OrderDocumentID                  string      `db:"order_document_id" json:"order_document_id"`
-	OrderDocumentNo                  string      `db:"order_document_no" json:"order_document_no"`
-	OrderDate                        pgtype.Date `db:"order_date" json:"order_date"`
-	CustomerObjectID                 string      `db:"customer_object_id" json:"customer_object_id"`
-	CustomerVersionID                string      `db:"customer_version_id" json:"customer_version_id"`
-	CustomerCode                     string      `db:"customer_code" json:"customer_code"`
-	CustomerName                     string      `db:"customer_name" json:"customer_name"`
-	SalesAttributionType             string      `db:"sales_attribution_type" json:"sales_attribution_type"`
-	SalesAttributionSubjectObjectID  string      `db:"sales_attribution_subject_object_id" json:"sales_attribution_subject_object_id"`
-	SalesAttributionSubjectVersionID string      `db:"sales_attribution_subject_version_id" json:"sales_attribution_subject_version_id"`
-	SalesAttributionSubjectCode      string      `db:"sales_attribution_subject_code" json:"sales_attribution_subject_code"`
-	SalesAttributionSubjectName      string      `db:"sales_attribution_subject_name" json:"sales_attribution_subject_name"`
-	ProductObjectID                  string      `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID                 string      `db:"product_version_id" json:"product_version_id"`
-	ProductCode                      string      `db:"product_code" json:"product_code"`
-	ProductName                      string      `db:"product_name" json:"product_name"`
-	EnteredUnitSymbol                string      `db:"entered_unit_symbol" json:"entered_unit_symbol"`
-	BehaviorProfile                  string      `db:"behavior_profile" json:"behavior_profile"`
-	SignedBaseQuantityMicros         int64       `db:"signed_base_quantity_micros" json:"signed_base_quantity_micros"`
-	DefaultPackagingSpecMicros       *int64      `db:"default_packaging_spec_micros" json:"default_packaging_spec_micros"`
-	UnitPriceCents                   int64       `db:"unit_price_cents" json:"unit_price_cents"`
-	ReferenceUnitPriceCents          int64       `db:"reference_unit_price_cents" json:"reference_unit_price_cents"`
-	SettlementSurchargeCents         int64       `db:"settlement_surcharge_cents" json:"settlement_surcharge_cents"`
-	RebateUnitPriceCents             int64       `db:"rebate_unit_price_cents" json:"rebate_unit_price_cents"`
-	LineAmountCents                  int64       `db:"line_amount_cents" json:"line_amount_cents"`
-	SettlementTermCode               string      `db:"settlement_term_code" json:"settlement_term_code"`
-	SpecialApproval                  bool        `db:"special_approval" json:"special_approval"`
-	FifoLineAmountCents              int64       `db:"fifo_line_amount_cents" json:"fifo_line_amount_cents"`
+	SourceSignoffLineID                    string      `db:"source_signoff_line_id" json:"source_signoff_line_id"`
+	SignoffDocumentID                      string      `db:"signoff_document_id" json:"signoff_document_id"`
+	SignoffDocumentNo                      string      `db:"signoff_document_no" json:"signoff_document_no"`
+	SignoffDate                            pgtype.Date `db:"signoff_date" json:"signoff_date"`
+	DueDate                                pgtype.Date `db:"due_date" json:"due_date"`
+	OrderDocumentID                        string      `db:"order_document_id" json:"order_document_id"`
+	OrderDocumentNo                        string      `db:"order_document_no" json:"order_document_no"`
+	OrderDate                              pgtype.Date `db:"order_date" json:"order_date"`
+	CustomerObjectID                       string      `db:"customer_object_id" json:"customer_object_id"`
+	CustomerApprovalEntryID                string      `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	CustomerCode                           string      `db:"customer_code" json:"customer_code"`
+	CustomerName                           string      `db:"customer_name" json:"customer_name"`
+	SalesAttributionType                   string      `db:"sales_attribution_type" json:"sales_attribution_type"`
+	SalesAttributionSubjectObjectID        string      `db:"sales_attribution_subject_object_id" json:"sales_attribution_subject_object_id"`
+	SalesAttributionSubjectApprovalEntryID string      `db:"sales_attribution_subject_approval_entry_id" json:"sales_attribution_subject_approval_entry_id"`
+	SalesAttributionSubjectCode            string      `db:"sales_attribution_subject_code" json:"sales_attribution_subject_code"`
+	SalesAttributionSubjectName            string      `db:"sales_attribution_subject_name" json:"sales_attribution_subject_name"`
+	ProductObjectID                        string      `db:"product_object_id" json:"product_object_id"`
+	ProductApprovalEntryID                 string      `db:"product_approval_entry_id" json:"product_approval_entry_id"`
+	ProductCode                            string      `db:"product_code" json:"product_code"`
+	ProductName                            string      `db:"product_name" json:"product_name"`
+	EnteredUnitSymbol                      string      `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BehaviorProfile                        string      `db:"behavior_profile" json:"behavior_profile"`
+	SignedBaseQuantityMicros               int64       `db:"signed_base_quantity_micros" json:"signed_base_quantity_micros"`
+	DefaultPackagingSpecMicros             *int64      `db:"default_packaging_spec_micros" json:"default_packaging_spec_micros"`
+	UnitPriceCents                         int64       `db:"unit_price_cents" json:"unit_price_cents"`
+	ReferenceUnitPriceCents                int64       `db:"reference_unit_price_cents" json:"reference_unit_price_cents"`
+	SettlementSurchargeCents               int64       `db:"settlement_surcharge_cents" json:"settlement_surcharge_cents"`
+	RebateUnitPriceCents                   int64       `db:"rebate_unit_price_cents" json:"rebate_unit_price_cents"`
+	LineAmountCents                        int64       `db:"line_amount_cents" json:"line_amount_cents"`
+	SettlementTermCode                     string      `db:"settlement_term_code" json:"settlement_term_code"`
+	SpecialApproval                        bool        `db:"special_approval" json:"special_approval"`
+	FifoLineAmountCents                    int64       `db:"fifo_line_amount_cents" json:"fifo_line_amount_cents"`
 }
 
 func (q *Queries) ListIntermediarySignoffSourceRows(ctx context.Context, arg ListIntermediarySignoffSourceRowsParams) ([]ListIntermediarySignoffSourceRowsRow, error) {
@@ -843,16 +843,16 @@ func (q *Queries) ListIntermediarySignoffSourceRows(ctx context.Context, arg Lis
 			&i.OrderDocumentNo,
 			&i.OrderDate,
 			&i.CustomerObjectID,
-			&i.CustomerVersionID,
+			&i.CustomerApprovalEntryID,
 			&i.CustomerCode,
 			&i.CustomerName,
 			&i.SalesAttributionType,
 			&i.SalesAttributionSubjectObjectID,
-			&i.SalesAttributionSubjectVersionID,
+			&i.SalesAttributionSubjectApprovalEntryID,
 			&i.SalesAttributionSubjectCode,
 			&i.SalesAttributionSubjectName,
 			&i.ProductObjectID,
-			&i.ProductVersionID,
+			&i.ProductApprovalEntryID,
 			&i.ProductCode,
 			&i.ProductName,
 			&i.EnteredUnitSymbol,
@@ -914,7 +914,7 @@ func (q *Queries) ListVouIntermediaryCalculationLines(ctx context.Context, docum
 }
 
 const listVouIntermediaryCalculationSummaries = `-- name: ListVouIntermediaryCalculationSummaries :many
-SELECT id, document_id, line_no, category, payee_entity, payee_object_id, payee_version_id, payee_code, payee_name, amount_cents FROM vou_intermediary_calculation_summaries
+SELECT id, document_id, line_no, category, payee_entity, payee_object_id, payee_approval_entry_id, payee_code, payee_name, amount_cents FROM vou_intermediary_calculation_summaries
 WHERE document_id=$1 ORDER BY line_no
 `
 
@@ -934,7 +934,7 @@ func (q *Queries) ListVouIntermediaryCalculationSummaries(ctx context.Context, d
 			&i.Category,
 			&i.PayeeEntity,
 			&i.PayeeObjectID,
-			&i.PayeeVersionID,
+			&i.PayeeApprovalEntryID,
 			&i.PayeeCode,
 			&i.PayeeName,
 			&i.AmountCents,

@@ -19,6 +19,10 @@ type ActiveReferenceCount struct {
 	Count  int    `json:"count"`
 }
 
+type ActiveReferenceBlockers struct {
+	References []ActiveReferenceCount `json:"references"`
+}
+
 func listDirectReferenceUses(ctx context.Context, q *dbsqlc.Queries, entity, objectID string) ([]directReferenceUse, error) {
 	uses := []directReferenceUse{}
 	switch entity {
@@ -123,5 +127,17 @@ func listActiveReferenceCounts(ctx context.Context, q *dbsqlc.Queries, entity, o
 		}
 		return counts[left].Field < counts[right].Field
 	})
+	return counts, nil
+}
+
+func listVoucherApprovalEntryReferenceCounts(ctx context.Context, q *dbsqlc.Queries, entryID string) ([]ActiveReferenceCount, error) {
+	rows, err := q.ListVouApprovalEntryReferenceCounts(ctx, entryID)
+	if err != nil {
+		return nil, err
+	}
+	counts := make([]ActiveReferenceCount, 0, len(rows))
+	for _, row := range rows {
+		counts = append(counts, ActiveReferenceCount{Entity: row.Entity, Field: row.Field, Count: int(row.ReferenceCount)})
+	}
 	return counts, nil
 }

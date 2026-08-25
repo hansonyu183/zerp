@@ -44,7 +44,7 @@ func (s *Service) AvailableBills(ctx context.Context, input AvailableBillQueryIn
 	rows, err := s.pool.Query(ctx, `SELECT bill.id,bill.position_type,bill.bill_type,bill.bill_no,bill.medium,bill.currency,
 		bill.face_amount_minor,bill.issue_date,bill.maturity_date,bill.drawer,bill.acceptor,bill.payee,
 		bill.annual_rate_bps,bill.interest_days,bill.interest_amount_minor,bill.customer_cost_amount_minor,
-		bill.origin_party_object_id,bill.origin_party_version_id,bill.origin_party_entity,
+		bill.origin_party_object_id,bill.origin_party_approval_entry_id,bill.origin_party_entity,
 		bill.origin_party_code,bill.origin_party_name,
 		COALESCE(document.entity,'acc-opening'),COALESCE(document.document_no,'期初')
 		FROM acc_bills bill
@@ -62,19 +62,19 @@ func (s *Service) AvailableBills(ctx context.Context, input AvailableBillQueryIn
 		var item AvailableBillItem
 		var face, interest, customerCost int64
 		var issue, maturity time.Time
-		var partyObjectID, partyVersionID, partyEntity, partyCode, partyName *string
+		var partyObjectID, partyApprovalEntryID, partyEntity, partyCode, partyName *string
 		if err = rows.Scan(&item.BillID, &item.PositionType, &item.BillType, &item.BillNo, &item.Medium,
 			&item.Currency, &face, &issue, &maturity, &item.Drawer, &item.Acceptor, &item.Payee,
 			&item.AnnualRateBps, &item.InterestDays, &interest, &customerCost, &partyObjectID,
-			&partyVersionID, &partyEntity, &partyCode, &partyName, &item.SourceEntity, &item.SourceDocumentNo); err != nil {
+			&partyApprovalEntryID, &partyEntity, &partyCode, &partyName, &item.SourceEntity, &item.SourceDocumentNo); err != nil {
 			return Page[AvailableBillItem]{}, s.internal("scan available accounting bill", err)
 		}
-		if partyObjectID == nil || partyVersionID == nil || partyEntity == nil || partyCode == nil || partyName == nil {
+		if partyObjectID == nil || partyApprovalEntryID == nil || partyEntity == nil || partyCode == nil || partyName == nil {
 			return Page[AvailableBillItem]{}, domainError(ErrorConflict, "source bill has no originating party", map[string]any{"billId": item.BillID}, nil)
 		}
 		item.FaceAmount, item.InterestAmount, item.CustomerCostAmount = formatMoney(face), formatMoney(interest), formatMoney(customerCost)
 		item.IssueDate, item.MaturityDate = issue.Format(dateLayout), maturity.Format(dateLayout)
-		item.OriginatingParty = *reference(*partyObjectID, *partyVersionID, *partyEntity, *partyCode, *partyName, "", "", "")
+		item.OriginatingParty = *reference(*partyObjectID, *partyApprovalEntryID, *partyEntity, *partyCode, *partyName, "", "", "")
 		items = append(items, item)
 	}
 	if err = rows.Err(); err != nil {
@@ -593,16 +593,16 @@ func (s *Service) writeBillDetail(ctx context.Context, q *dbsqlc.Queries, entity
 		DocumentID: id, Entity: entity,
 		InternalCostRateBps: d.InternalCostRateBps, MaturityType: d.MaturityType, InterestMode: d.InterestMode,
 		InterestPartyEntity: optionalBillPartyEntity(r.InterestParty), InterestPartyObjectID: optionalBillPartyID(r.InterestParty, 0),
-		InterestPartyVersionID: optionalBillPartyID(r.InterestParty, 1), InterestPartyCode: optionalBillPartyCode(r.InterestParty),
+		InterestPartyApprovalEntryID: optionalBillPartyID(r.InterestParty, 1), InterestPartyCode: optionalBillPartyCode(r.InterestParty),
 		InterestPartyName: optionalBillPartyName(r.InterestParty), WithRecourse: d.WithRecourse,
 	}
 	if party != nil {
 		params.CounterpartyEntity = stringPtr(partyEntity)
-		params.CounterpartyObjectID, params.CounterpartyVersionID = stringPtr(party.ObjectID), stringPtr(party.VersionID)
+		params.CounterpartyObjectID, params.CounterpartyApprovalEntryID = stringPtr(party.ObjectID), stringPtr(party.ApprovalEntryID)
 		params.CounterpartyCode, params.CounterpartyName = stringPtr(party.Code), stringPtr(party.Data.Name)
 	}
 	if r.Handler != nil {
-		params.HandlerObjectID, params.HandlerVersionID = stringPtr(r.Handler.ObjectID), stringPtr(r.Handler.VersionID)
+		params.HandlerObjectID, params.HandlerApprovalEntryID = stringPtr(r.Handler.ObjectID), stringPtr(r.Handler.ApprovalEntryID)
 		params.HandlerCode, params.HandlerName = stringPtr(r.Handler.Code), stringPtr(r.Handler.Data.Name)
 	}
 	return q.InsertVouBillDetail(ctx, params)
@@ -696,7 +696,7 @@ func (s *Service) insertResolvedBillLines(ctx context.Context, q *dbsqlc.Queries
 	}
 	for i, l := range cashLines {
 		f := r.BillFunds[i]
-		if err := q.InsertVouBillCashLine(ctx, dbsqlc.InsertVouBillCashLineParams{ID: newID(), DocumentID: id, LineNo: int32(i + 1), BillLineID: nil, FundAccountObjectID: f.ObjectID, FundAccountVersionID: f.VersionID, FundAccountCode: f.Code, FundAccountName: f.Data.Name, Direction: l.Direction, AmountType: l.AmountType, AmountCents: l.Amount, Remark: l.Remark}); err != nil {
+		if err := q.InsertVouBillCashLine(ctx, dbsqlc.InsertVouBillCashLineParams{ID: newID(), DocumentID: id, LineNo: int32(i + 1), BillLineID: nil, FundAccountObjectID: f.ObjectID, FundAccountApprovalEntryID: f.ApprovalEntryID, FundAccountCode: f.Code, FundAccountName: f.Data.Name, Direction: l.Direction, AmountType: l.AmountType, AmountCents: l.Amount, Remark: l.Remark}); err != nil {
 			return err
 		}
 	}
@@ -708,19 +708,19 @@ func (s *Service) loadBillData(ctx context.Context, q *dbsqlc.Queries, document 
 	if err != nil {
 		return data, err
 	}
-	party := optionalReference(d.CounterpartyObjectID, d.CounterpartyVersionID, deref(d.CounterpartyEntity), d.CounterpartyCode, d.CounterpartyName)
+	party := optionalReference(d.CounterpartyObjectID, d.CounterpartyApprovalEntryID, deref(d.CounterpartyEntity), d.CounterpartyCode, d.CounterpartyName)
 	if document.Entity == EntityBillPayment || document.Entity == EntityBillIssue {
 		data.Supplier = party
 	} else if document.Entity != EntityBillMaturity {
 		data.Counterparty = party
-		data.Handler = optionalReference(d.HandlerObjectID, d.HandlerVersionID, "employee", d.HandlerCode, d.HandlerName)
+		data.Handler = optionalReference(d.HandlerObjectID, d.HandlerApprovalEntryID, "employee", d.HandlerCode, d.HandlerName)
 	}
 	data.InternalCostRateBps = d.InternalCostRateBps
 	data.MaturityType = d.MaturityType
 	data.InterestMode = d.InterestMode
 	data.InterestParty = optionalReference(
 		d.InterestPartyObjectID,
-		d.InterestPartyVersionID,
+		d.InterestPartyApprovalEntryID,
 		deref(d.InterestPartyEntity),
 		d.InterestPartyCode,
 		d.InterestPartyName,
@@ -738,7 +738,7 @@ func (s *Service) loadBillData(ctx context.Context, q *dbsqlc.Queries, document 
 		return data, err
 	}
 	for _, l := range cash {
-		data.BillCashLines = append(data.BillCashLines, BillCashLineView{LineID: l.ID, LineNo: l.LineNo, BillLineID: deref(l.BillLineID), FundAccount: *reference(l.FundAccountObjectID, l.FundAccountVersionID, "fund-account", l.FundAccountCode, l.FundAccountName, "", deref(document.Currency), ""), Direction: l.Direction, AmountType: l.AmountType, Amount: formatMoney(l.AmountCents), Remark: deref(l.Remark)})
+		data.BillCashLines = append(data.BillCashLines, BillCashLineView{LineID: l.ID, LineNo: l.LineNo, BillLineID: deref(l.BillLineID), FundAccount: *reference(l.FundAccountObjectID, l.FundAccountApprovalEntryID, "fund-account", l.FundAccountCode, l.FundAccountName, "", deref(document.Currency), ""), Direction: l.Direction, AmountType: l.AmountType, Amount: formatMoney(l.AmountCents), Remark: deref(l.Remark)})
 	}
 	return data, nil
 }
@@ -756,7 +756,7 @@ func optionalBillPartyID(ref *bobdomain.EffectiveReference, field int) *string {
 	if field == 0 {
 		return stringPtr(ref.ObjectID)
 	}
-	return stringPtr(ref.VersionID)
+	return stringPtr(ref.ApprovalEntryID)
 }
 func optionalBillPartyCode(ref *bobdomain.EffectiveReference) *string {
 	if ref == nil {

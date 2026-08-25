@@ -42,7 +42,7 @@ func (resolver Resolver) ResolveAuxiliaryCode(
 
 func mapReference(reference auxdomain.Reference) bobdomain.AuxiliaryReference {
 	return bobdomain.AuxiliaryReference{
-		ObjectID: reference.ObjectID, VersionID: reference.VersionID,
+		ObjectID: reference.ObjectID, ApprovalEntryID: reference.ApprovalEntryID,
 		Entity: reference.Entity, Code: reference.Code, Data: reference.Data,
 	}
 }

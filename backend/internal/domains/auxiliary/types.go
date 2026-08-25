@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"io"
 	"time"
+
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 )
 
 const (
@@ -56,6 +58,7 @@ type ErrorKind int
 const (
 	ErrorValidation ErrorKind = iota + 1
 	ErrorConflict
+	ErrorForbidden
 	ErrorInternal
 )
 
@@ -80,6 +83,8 @@ func defaultErrorKey(kind ErrorKind) string {
 		return "validation_failed"
 	case ErrorConflict:
 		return "conflict"
+	case ErrorForbidden:
+		return "forbidden"
 	default:
 		return "internal_error"
 	}
@@ -110,31 +115,44 @@ type CreateInput struct {
 }
 
 type SaveInput struct {
-	ObjectID string         `json:"objectId"`
-	Revision int64          `json:"revision"`
-	Data     map[string]any `json:"data"`
+	ObjectID         string         `json:"objectId"`
+	ApprovalEntryID  string         `json:"approvalEntryId"`
+	ApprovalRevision int64          `json:"approvalRevision"`
+	Data             map[string]any `json:"data"`
 }
 
-type RevisionInput struct {
-	ObjectID string `json:"objectId"`
-	Revision int64  `json:"revision"`
+type ApprovalRevisionInput struct {
+	ObjectID         string `json:"objectId"`
+	ApprovalEntryID  string `json:"approvalEntryId"`
+	ApprovalRevision int64  `json:"approvalRevision"`
+}
+
+type ReviewInput struct {
+	ApprovalRevisionInput
+	Reason *string `json:"reason"`
+}
+
+type ObjectRevisionInput struct {
+	ObjectID       string `json:"objectId"`
+	ObjectRevision int64  `json:"objectRevision"`
 }
 
 type GetInput struct {
-	ObjectID  string `json:"objectId"`
-	VersionID string `json:"versionId,omitempty"`
+	ObjectID        string `json:"objectId"`
+	ApprovalEntryID string `json:"approvalEntryId,omitempty"`
 }
 
-type DeleteInput = RevisionInput
+type DeleteInput = ApprovalRevisionInput
 
 type QueryFilters struct {
-	Keyword            string `json:"keyword,omitempty"`
-	Enabled            *bool  `json:"enabled,omitempty"`
-	BehaviorProfile    string `json:"behaviorProfile,omitempty"`
-	ParentID           string `json:"parentId,omitempty"`
-	RootOnly           bool   `json:"rootOnly,omitempty"`
-	DictionaryTypeCode string `json:"dictionaryTypeCode,omitempty"`
-	Direction          string `json:"direction,omitempty"`
+	Keyword            string            `json:"keyword,omitempty"`
+	Enabled            *bool             `json:"enabled,omitempty"`
+	BehaviorProfile    string            `json:"behaviorProfile,omitempty"`
+	ParentID           string            `json:"parentId,omitempty"`
+	RootOnly           bool              `json:"rootOnly,omitempty"`
+	DictionaryTypeCode string            `json:"dictionaryTypeCode,omitempty"`
+	Direction          string            `json:"direction,omitempty"`
+	Status             []approval.Status `json:"status,omitempty"`
 }
 
 type SortItem struct {
@@ -174,43 +192,32 @@ type HistoryInput struct {
 }
 
 type VersionView struct {
-	VersionID string         `json:"versionId"`
-	Version   int32          `json:"version"`
-	Data      map[string]any `json:"data"`
-	CreatedAt time.Time      `json:"createdAt"`
-	CreatedBy string         `json:"createdBy"`
+	Approval approval.VersionMeta `json:"approval"`
+	Data     map[string]any       `json:"data"`
 }
 
 type ObjectView struct {
-	ObjectID       string      `json:"objectId"`
-	Entity         string      `json:"entity"`
-	Code           string      `json:"code"`
-	Enabled        bool        `json:"enabled"`
-	ObjectRevision int64       `json:"objectRevision"`
-	CurrentVersion VersionView `json:"currentVersion"`
-	UpdatedAt      time.Time   `json:"updatedAt"`
-	UpdatedBy      string      `json:"updatedBy"`
+	ObjectID       string       `json:"objectId"`
+	Entity         string       `json:"entity"`
+	Code           string       `json:"code"`
+	Enabled        bool         `json:"enabled"`
+	ObjectRevision int64        `json:"objectRevision"`
+	LatestApproved *VersionView `json:"latestApproved"`
+	OpenVersion    *VersionView `json:"openVersion"`
+	UpdatedAt      time.Time    `json:"updatedAt"`
+	UpdatedBy      string       `json:"updatedBy"`
 }
 
 type QueryItem = ObjectView
 
 type MutationResult struct {
-	ObjectID       string `json:"objectId"`
-	ObjectRevision int64  `json:"objectRevision"`
-	VersionID      string `json:"versionId"`
-	Version        int32  `json:"version"`
-	Enabled        bool   `json:"enabled"`
+	ObjectID       string               `json:"objectId"`
+	ObjectRevision int64                `json:"objectRevision"`
+	Enabled        bool                 `json:"enabled"`
+	Approval       approval.VersionMeta `json:"approval"`
 }
 
-type AuditEventView struct {
-	ID         string         `json:"id"`
-	EventType  string         `json:"eventType"`
-	VersionID  string         `json:"versionId"`
-	ActorID    string         `json:"actorId"`
-	OccurredAt time.Time      `json:"occurredAt"`
-	RequestID  string         `json:"requestId"`
-	Summary    map[string]any `json:"summary"`
-}
+type AuditEventView = approval.EventView
 
 type Page[T any] struct {
 	Items    []T   `json:"items"`
@@ -220,11 +227,11 @@ type Page[T any] struct {
 }
 
 type Reference struct {
-	ObjectID  string
-	VersionID string
-	Entity    string
-	Code      string
-	Data      map[string]any
+	ObjectID        string
+	ApprovalEntryID string
+	Entity          string
+	Code            string
+	Data            map[string]any
 }
 
 type ReferenceQueryInput struct {
@@ -234,10 +241,10 @@ type ReferenceQueryInput struct {
 }
 
 type ReferenceCandidate struct {
-	ObjectID  string `json:"objectId"`
-	VersionID string `json:"versionId"`
-	Code      string `json:"code"`
-	Name      string `json:"name"`
+	ObjectID        string `json:"objectId"`
+	ApprovalEntryID string `json:"approvalEntryId"`
+	Code            string `json:"code"`
+	Name            string `json:"name"`
 }
 
 func cloneData(source map[string]any) map[string]any {

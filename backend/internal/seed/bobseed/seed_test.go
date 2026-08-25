@@ -6,7 +6,9 @@ import (
 	"testing"
 	"time"
 
+	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	"github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 )
 
 func TestSamplesCoverEveryEntityAndLifecycleState(t *testing.T) {
@@ -17,25 +19,25 @@ func TestSamplesCoverEveryEntityAndLifecycleState(t *testing.T) {
 		statusCounts[item.status]++
 	}
 	expectedEntityCounts := map[string]int{
-		bob.EntityCustomerAccount: 2,
-		bob.EntitySupplier:        2,
-		bob.EntityOtherUnit:       1,
-		bob.EntityEmployee:        2,
-		bob.EntityProduct:         4,
-		bob.EntityWarehouse:       2,
-		bob.EntityVehicle:         2,
-		bob.EntityFundAccount:     2,
-		bob.EntityOperatingEntity: 1,
-		bob.EntityCategory:        2,
-		bob.EntityDepartment:      2,
-		bob.EntityPosition:        2,
+		bob.EntityCustomerAccount:       2,
+		bob.EntitySupplier:              2,
+		bob.EntityOtherUnit:             1,
+		bob.EntityEmployee:              2,
+		bob.EntityProduct:               4,
+		bob.EntityWarehouse:             2,
+		bob.EntityVehicle:               2,
+		bob.EntityFundAccount:           2,
+		bob.EntityOperatingEntity:       1,
+		auxdomain.EntityProductCategory: 2,
+		auxdomain.EntityDepartment:      2,
+		auxdomain.EntityPosition:        2,
 	}
 	for entity, expected := range expectedEntityCounts {
 		if entityCounts[entity] != expected {
 			t.Errorf("%s sample count = %d, want %d", entity, entityCounts[entity], expected)
 		}
 	}
-	for _, status := range []string{bob.StatusEffective, bob.StatusDraft, bob.StatusPending} {
+	for _, status := range []string{approvedStatus, string(approval.StatusDraft), string(approval.StatusPending)} {
 		if statusCounts[status] == 0 {
 			t.Errorf("missing %s sample", status)
 		}
@@ -78,12 +80,12 @@ func TestSeedCreatesLifecycleDataAndIsIdempotent(t *testing.T) {
 func TestSeedResumesPartialLifecycle(t *testing.T) {
 	store := newFakeStore()
 	item := samples[0]
-	created, err := store.Create(t.Context(), item.entity, bob.CreateInput{Data: item.data}, submitterID, "partial")
+	created, err := store.Create(t.Context(), item.entity, bob.CreateInput{Data: item.data}, mustSeedActor("partial"))
 	if err != nil {
 		t.Fatalf("create partial sample: %v", err)
 	}
-	if created.Status != bob.StatusDraft {
-		t.Fatalf("partial status = %s", created.Status)
+	if created.Approval.Status != approval.StatusDraft {
+		t.Fatalf("partial status = %s", created.Approval.Status)
 	}
 
 	result, err := (&Seeder{service: store, lookup: store}).Seed(t.Context())
@@ -94,8 +96,8 @@ func TestSeedResumesPartialLifecycle(t *testing.T) {
 		t.Fatalf("result = %+v", result)
 	}
 	view := store.byKey[key(item.entity, item.data.Code)]
-	if view.Version.Status != bob.StatusEffective {
-		t.Fatalf("resumed status = %s", view.Version.Status)
+	if string(view.Approval.Status) != approvedStatus {
+		t.Fatalf("resumed status = %s", view.Approval.Status)
 	}
 }
 
@@ -104,7 +106,7 @@ func TestSeedRejectsOccupiedDemoCode(t *testing.T) {
 	item := samples[0]
 	changed := item.data
 	changed.Name = "其他客户"
-	if _, err := store.Create(t.Context(), item.entity, bob.CreateInput{Data: changed}, submitterID, "occupied"); err != nil {
+	if _, err := store.Create(t.Context(), item.entity, bob.CreateInput{Data: changed}, mustSeedActor("occupied")); err != nil {
 		t.Fatalf("create occupied sample: %v", err)
 	}
 
@@ -124,7 +126,7 @@ func TestDetailInputOnlySetsFieldsAllowedForEntity(t *testing.T) {
 		customer.DepartmentID.Set || customer.Description.Set {
 		t.Fatalf("customer detail input over-posted fields: %+v", customer)
 	}
-	settlement := detailInput(bob.EntitySettlementMethod, input)
+	settlement := detailInput(auxdomain.EntitySettlementMethod, input)
 	if !settlement.Description.Set || settlement.Remark.Set ||
 		settlement.SettlementMethodID.Set || settlement.DepartmentID.Set {
 		t.Fatalf("settlement detail input over-posted fields: %+v", settlement)
@@ -156,18 +158,18 @@ func key(entity, code string) string {
 }
 
 func (s *fakeStore) Find(_ context.Context, entity, code string) (string, bool, error) {
-	if entity == bob.EntitySettlementMethod && code == bob.SettlementTermMonthlyCurrent {
+	if entity == auxdomain.EntitySettlementMethod && code == bob.SettlementTermMonthlyCurrent {
 		return "fixed-monthly-current", true, nil
 	}
 	view, found := s.byKey[key(entity, code)]
 	return view.ObjectID, found, nil
 }
 
-func (s *fakeStore) Create(_ context.Context, entity string, input bob.CreateInput, _, _ string) (bob.MutationResult, error) {
+func (s *fakeStore) Create(_ context.Context, entity string, input bob.CreateInput, _ approval.Actor) (bob.MutationResult, error) {
 	s.createCalls++
 	s.nextID++
 	objectID := fmt.Sprintf("object-%d", s.nextID)
-	versionID := fmt.Sprintf("version-%d", s.nextID)
+	approvalEntryID := fmt.Sprintf("approval-%d", s.nextID)
 	customerType := deref(input.Data.CustomerType)
 	if entity == bob.EntityCustomerAccount && customerType == "" {
 		customerType = bob.CustomerTypeEndUser
@@ -181,13 +183,13 @@ func (s *fakeStore) Create(_ context.Context, entity string, input bob.CreateInp
 		Entity:         entity,
 		Code:           input.Data.Code,
 		ObjectRevision: 1,
-		Version: bob.VersionMeta{
-			VersionID: versionID,
-			Version:   1,
-			Status:    bob.StatusDraft,
-			Revision:  1,
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
+		Approval: bob.VersionMeta{
+			ApprovalEntryID: approvalEntryID,
+			VersionNo:       1,
+			Status:          approval.StatusDraft,
+			Revision:        1,
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
 		},
 		Data: bob.DetailView{
 			Name:                       input.Data.Name,
@@ -253,7 +255,7 @@ func (s *fakeStore) Get(_ context.Context, _ string, input bob.GetInput) (bob.Ob
 	return s.byKey[recordKey], nil
 }
 
-func (s *fakeStore) Save(_ context.Context, _ string, input bob.SaveInput, _, _ string) (bob.MutationResult, error) {
+func (s *fakeStore) Save(_ context.Context, _ string, input bob.SaveInput, _ approval.Actor) (bob.MutationResult, error) {
 	s.saveCalls++
 	recordKey, found := s.byID[input.ObjectID]
 	if !found {
@@ -322,51 +324,47 @@ func (s *fakeStore) Save(_ context.Context, _ string, input bob.SaveInput, _, _ 
 	if input.Data.Formula != nil {
 		view.Data.Formula = input.Data.Formula
 	}
-	view.Version.Revision++
+	view.Approval.Revision++
 	s.byKey[recordKey] = view
 	return mutation(view), nil
 }
 
-func (s *fakeStore) Submit(_ context.Context, _ string, input bob.VersionRevisionInput, _, _ string) (bob.MutationResult, error) {
+func (s *fakeStore) Submit(_ context.Context, _ string, input bob.VersionRevisionInput, _ approval.Actor) (bob.MutationResult, error) {
 	s.submitCalls++
-	return s.transition(input.ObjectID, bob.StatusPending), nil
+	return s.transition(input.ObjectID, approval.StatusPending), nil
 }
 
-func (s *fakeStore) Unsubmit(_ context.Context, _ string, input bob.ReverseInput, _, _ string) (bob.MutationResult, error) {
+func (s *fakeStore) Unsubmit(_ context.Context, _ string, input bob.ReverseInput, _ approval.Actor) (bob.MutationResult, error) {
 	s.unsubmitCalls++
-	return s.transition(input.ObjectID, bob.StatusDraft), nil
+	return s.transition(input.ObjectID, approval.StatusDraft), nil
 }
 
-func (s *fakeStore) Approve(_ context.Context, _ string, input bob.ReviewInput, _, _ string) (bob.MutationResult, error) {
+func (s *fakeStore) Approve(_ context.Context, _ string, input bob.ReviewInput, _ approval.Actor) (bob.MutationResult, error) {
 	s.approveCalls++
-	return s.transition(input.ObjectID, bob.StatusEffective), nil
+	return s.transition(input.ObjectID, approval.StatusApproved), nil
 }
 
-func (s *fakeStore) Unapprove(_ context.Context, _ string, input bob.ReverseInput, _, _ string) (bob.MutationResult, error) {
+func (s *fakeStore) Unapprove(_ context.Context, _ string, input bob.ReverseInput, _ approval.Actor) (bob.MutationResult, error) {
 	s.unapproveCalls++
-	return s.transition(input.ObjectID, bob.StatusPending), nil
+	return s.transition(input.ObjectID, approval.StatusPending), nil
 }
 
-func (s *fakeStore) Reject(_ context.Context, _ string, input bob.ReviewInput, _, _ string) (bob.MutationResult, error) {
+func (s *fakeStore) Reject(_ context.Context, _ string, input bob.ReviewInput, _ approval.Actor) (bob.MutationResult, error) {
 	s.rejectCalls++
-	return s.transition(input.ObjectID, bob.StatusDraft), nil
+	return s.transition(input.ObjectID, approval.StatusDraft), nil
 }
 
-func (s *fakeStore) transition(objectID, status string) bob.MutationResult {
+func (s *fakeStore) transition(objectID string, status approval.Status) bob.MutationResult {
 	recordKey := s.byID[objectID]
 	view := s.byKey[recordKey]
-	view.Version.Status = status
-	view.Version.Revision++
+	view.Approval.Status = status
+	view.Approval.Revision++
 	s.byKey[recordKey] = view
 	return mutation(view)
 }
 
 func mutation(view bob.ObjectView) bob.MutationResult {
 	return bob.MutationResult{
-		ObjectID:  view.ObjectID,
-		VersionID: view.Version.VersionID,
-		Version:   view.Version.Version,
-		Status:    view.Version.Status,
-		Revision:  view.Version.Revision,
+		ObjectID: view.ObjectID, ObjectRevision: view.ObjectRevision, Approval: view.Approval,
 	}
 }

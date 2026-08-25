@@ -4,7 +4,7 @@ import { formatReferenceLabel } from '@/utils/reference-label'
 
 export interface ReferenceOption {
   objectId: string
-  versionId: string
+  approvalEntryId: string
   entity?: string
   code: string
   name: string
@@ -44,7 +44,7 @@ const items = computed(() => {
   const selected = props.options.some(
     (item) =>
       item.objectId === props.modelValue?.objectId &&
-      item.versionId === props.modelValue?.versionId,
+      item.approvalEntryId === props.modelValue?.approvalEntryId,
   )
   return selected ? props.options : [props.modelValue, ...props.options]
 })

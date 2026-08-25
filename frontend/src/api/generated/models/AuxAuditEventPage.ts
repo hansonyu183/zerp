@@ -2,9 +2,9 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { AuxAuditEventView } from './AuxAuditEventView';
+import type { ApprovalEventView } from './ApprovalEventView';
 export type AuxAuditEventPage = {
-  items: Array<AuxAuditEventView>;
+  items: Array<ApprovalEventView>;
   total: number;
   page: number;
   pageSize: number;

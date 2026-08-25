@@ -2,7 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { BobVersionMeta } from './BobVersionMeta';
-export type BobVersionHistoryItem = (BobVersionMeta & {
+import type { ApprovalVersionMeta } from './ApprovalVersionMeta';
+export type BobVersionHistoryItem = (ApprovalVersionMeta & {
   summary: Record<string, any>;
 });

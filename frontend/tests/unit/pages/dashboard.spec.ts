@@ -470,10 +470,8 @@ describe('Dashboard workbench', () => {
 
     expect(mockedPost).toHaveBeenNthCalledWith(1, 'bob/customer/unsubmit', {
       objectId: 'object-1',
-      objectRevision: 3,
-      versionId: 'version-1',
-      revision: 5,
-      reason: '资料有误',
+      approvalEntryId: 'version-1',
+      approvalRevision: 5,
     })
     expect(mockedPost).toHaveBeenNthCalledWith(3, 'vou/sale-order/uncheck', {
       documentId: 'document-1',
@@ -503,10 +501,8 @@ describe('Dashboard workbench', () => {
 
     expect(mockedPost).toHaveBeenNthCalledWith(1, 'bob/customer/unsubmit', {
       objectId: 'object-1',
-      objectRevision: 3,
-      versionId: 'version-1',
-      revision: 5,
-      reason: '资料有误',
+      approvalEntryId: 'version-1',
+      approvalRevision: 5,
     })
     expect(vm.confirmationTarget.value).toBeNull()
     expect(vm.confirmationAction.value).toBeNull()
@@ -566,8 +562,8 @@ describe('Dashboard workbench', () => {
     expect(success).toBe(true)
     expect(mockedPost).toHaveBeenNthCalledWith(2, 'bob/customer/submit', {
       objectId: 'object-1',
-      versionId: 'version-1',
-      revision: 5,
+      approvalEntryId: 'version-1',
+      approvalRevision: 5,
     })
     expect(vm.states.BOB.rows).toEqual([])
   })
@@ -586,9 +582,9 @@ describe('Dashboard workbench', () => {
 
     expect(mockedPost).toHaveBeenNthCalledWith(1, 'bob/customer/reject', {
       objectId: 'object-1',
-      versionId: 'version-1',
-      revision: 5,
-      comment: '信息不完整',
+      approvalEntryId: 'version-1',
+      approvalRevision: 5,
+      reason: '信息不完整',
     })
   })
 

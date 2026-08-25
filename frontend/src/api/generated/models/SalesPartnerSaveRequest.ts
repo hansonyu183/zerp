@@ -5,7 +5,7 @@
 import type { SalesPartnerInput } from './SalesPartnerInput';
 export type SalesPartnerSaveRequest = {
   objectId: string;
-  versionId: string;
-  revision: number;
+  approvalEntryId: string;
+  approvalRevision: number;
   data: SalesPartnerInput;
 };

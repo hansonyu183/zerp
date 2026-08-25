@@ -14,7 +14,7 @@ export type SupplierReferenceEntity =
 
 export interface SupplierReference {
   objectId: string
-  versionId: string
+  approvalEntryId: string
   code: string
   name: string
   entity: SupplierReferenceEntity
@@ -40,9 +40,9 @@ export interface SupplierForm {
 }
 
 export interface SupplierVersion {
-  versionId: string
-  version: number
-  revision: number
+  approvalEntryId: string
+  versionNo: number
+  approvalRevision: number
   status: string
   submittedBy: string | null
   defaultPurchaserCode?: string
@@ -50,15 +50,7 @@ export interface SupplierVersion {
   data: SupplierForm
 }
 
-export interface SupplierListVersion {
-  versionId: string
-  version: number
-  revision: number
-  status: string
-  defaultPurchaserCode?: string
-  defaultPurchaserName?: string
-  submittedBy: string | null
-}
+export type SupplierListVersion = components['schemas']['SupplierListVersion']
 
 export interface SupplierListItem {
   objectId: string
@@ -68,10 +60,10 @@ export interface SupplierListItem {
   status: string
   name: string
   hasCandidate: boolean
-  effective: SupplierListVersion | null
-  candidate: SupplierListVersion | null
-  versionId: string
-  revision: number
+  latestApproved: SupplierListVersion | null
+  openVersion: SupplierListVersion | null
+  approvalEntryId: string
+  approvalRevision: number
   submittedBy: string | null
 }
 
@@ -86,6 +78,6 @@ export interface SupplierDetail {
   operatingEntityId: string
   operatingEntityCode: string
   operatingEntityName: string
-  effective: SupplierVersion | null
-  candidate: SupplierVersion | null
+  latestApproved: SupplierVersion | null
+  openVersion: SupplierVersion | null
 }

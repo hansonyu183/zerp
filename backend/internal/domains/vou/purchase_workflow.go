@@ -114,9 +114,9 @@ func (s *Service) CreatePurchaseInbound(
 	q := s.queries.WithTx(tx)
 	if err = q.InsertVouPurchaseInboundDetail(ctx, dbsqlc.InsertVouPurchaseInboundDetailParams{
 		DocumentID: id, SourceOrderID: order.ID,
-		SupplierObjectID: detail.SupplierObjectID, SupplierVersionID: detail.SupplierVersionID,
+		SupplierObjectID: detail.SupplierObjectID, SupplierApprovalEntryID: detail.SupplierApprovalEntryID,
 		SupplierCode: detail.SupplierCode, SupplierName: detail.SupplierName,
-		WarehouseObjectID: warehouse.ObjectID, WarehouseVersionID: warehouse.VersionID,
+		WarehouseObjectID: warehouse.ObjectID, WarehouseApprovalEntryID: warehouse.ApprovalEntryID,
 		WarehouseCode: warehouse.Code, WarehouseName: warehouse.Data.Name,
 	}); err != nil {
 		return MutationResult{}, s.writeError("insert purchase inbound detail", err)
@@ -199,7 +199,7 @@ func (s *Service) SavePurchaseInbound(
 		return MutationResult{}, s.writeError("update purchase inbound", err)
 	}
 	rows, err := q.UpdateVouPurchaseInboundWarehouse(ctx, dbsqlc.UpdateVouPurchaseInboundWarehouseParams{
-		WarehouseObjectID: warehouse.ObjectID, WarehouseVersionID: warehouse.VersionID,
+		WarehouseObjectID: warehouse.ObjectID, WarehouseApprovalEntryID: warehouse.ApprovalEntryID,
 		WarehouseCode: warehouse.Code, WarehouseName: warehouse.Data.Name,
 		DocumentID: input.DocumentID,
 	})
@@ -345,14 +345,14 @@ func (s *Service) resolveInboundWarehouse(
 ) (bobdomain.EffectiveReference, error) {
 	if input == nil {
 		input = &ReferenceInput{
-			ObjectID: deref(detail.WarehouseObjectID), VersionID: deref(detail.WarehouseVersionID),
+			ObjectID: deref(detail.WarehouseObjectID), ApprovalEntryID: deref(detail.WarehouseApprovalEntryID),
 		}
 	}
 	if err := validateReference(input, "warehouse", true); err != nil {
 		return bobdomain.EffectiveReference{}, err
 	}
-	ref, err := s.resolver.ResolveEffectiveReference(
-		ctx, tx, bobdomain.EntityWarehouse, input.ObjectID, input.VersionID,
+	ref, err := s.resolver.ResolveApprovedReference(
+		ctx, tx, bobdomain.EntityWarehouse, input.ObjectID, input.ApprovalEntryID,
 	)
 	if err != nil {
 		return ref, domainError(ErrorConflict, "warehouse is not effective", nil, err)
@@ -428,7 +428,7 @@ func (s *Service) insertPurchaseInboundLines(
 		if err := q.InsertVouPurchaseInboundLine(ctx, dbsqlc.InsertVouPurchaseInboundLineParams{
 			ID: newID(), DocumentID: documentID, SourceOrderLineID: line.source.ID,
 			LineNo: int32(index + 1), ProductObjectID: line.source.ProductObjectID,
-			ProductVersionID: line.source.ProductVersionID, ProductCode: line.source.ProductCode,
+			ProductApprovalEntryID: line.source.ProductApprovalEntryID, ProductCode: line.source.ProductCode,
 			ProductName: line.source.ProductName, EnteredUnitSymbol: line.source.EnteredUnitSymbol,
 			BaseQuantityMicros: line.qty, UnitPriceCents: line.source.UnitPriceCents,
 			LineAmountCents: line.amount, Remark: line.remark,

@@ -2,13 +2,11 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalVersionMeta } from './ApprovalVersionMeta';
 export type SalesPartnerMutationResult = {
   objectId: string;
   objectRevision: number;
   enabled: boolean;
-  versionId: string;
-  version: number;
-  status: 'DRAFT' | 'PENDING' | 'EFFECTIVE' | 'INVALID';
-  revision: number;
+  approval: ApprovalVersionMeta;
   partyId?: string;
 };

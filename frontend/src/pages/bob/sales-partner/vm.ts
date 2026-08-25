@@ -9,7 +9,14 @@ export type SalesPartnerListItem = components['schemas']['SalesPartnerListItem']
 export type SalesPartnerDetail = components['schemas']['SalesPartnerDetailView']
 export type SalesPartnerReference = components['schemas']['ReferenceCandidate']
 export type SalesPartnerLifecycleAction =
-  'submit' | 'approve' | 'enable' | 'disable'
+  | 'submit'
+  | 'unsubmit'
+  | 'approve'
+  | 'reject'
+  | 'unapprove'
+  | 'enable'
+  | 'disable'
+  | 'delete'
 
 type PartyMode = 'new' | 'existing'
 type PartyKind = components['schemas']['PartyKind']
@@ -47,7 +54,7 @@ function emptyNewParty(): NewPartyForm {
 function selectedVersion(
   detail: SalesPartnerDetail,
 ): components['schemas']['SalesPartnerVersionView'] | null {
-  return detail.candidate ?? detail.effective
+  return detail.openVersion ?? detail.latestApproved
 }
 
 export function useSalesPartnerViewModel() {
@@ -262,7 +269,7 @@ export function useSalesPartnerViewModel() {
       }
       operatingEntity.value = {
         objectId: result.data.operatingEntityId,
-        versionId: '',
+        approvalEntryId: '',
         code: result.data.operatingEntityCode,
         name: result.data.operatingEntityName,
       }
@@ -315,8 +322,8 @@ export function useSalesPartnerViewModel() {
         if (!version) return false
         await salesPartnerApi.save({
           objectId: detail.value.objectId,
-          versionId: version.version.versionId,
-          revision: version.version.revision,
+          approvalEntryId: version.approval.approvalEntryId,
+          approvalRevision: version.approval.revision,
           data: formData(),
         })
       }
@@ -336,7 +343,7 @@ export function useSalesPartnerViewModel() {
   }
 
   function rowVersion(row: SalesPartnerListItem) {
-    return row.candidate ?? row.effective
+    return row.openVersion ?? row.latestApproved
   }
 
   function canRun(
@@ -346,21 +353,28 @@ export function useSalesPartnerViewModel() {
     if (!session.can(`/bob/sales-partner/${action}`)) return false
     const version = rowVersion(row)
     if (!version) return false
-    if (action === 'submit') return version.status === 'DRAFT'
-    if (action === 'approve')
+    if (action === 'submit') return version.approval.status === 'DRAFT'
+    if (action === 'unsubmit') return version.approval.status === 'PENDING'
+    if (action === 'approve' || action === 'reject')
       return (
-        version.status === 'PENDING' && version.submittedBy !== session.user?.id
+        version.approval.status === 'PENDING' &&
+        version.approval.submittedBy !== session.user?.id
       )
-    if (action === 'enable') return row.effective !== null && !row.enabled
-    return row.effective !== null && row.enabled
+    if (action === 'unapprove')
+      return row.openVersion === null && row.latestApproved !== null
+    if (action === 'delete') return version.approval.status === 'DRAFT'
+    if (action === 'enable') return row.latestApproved !== null && !row.enabled
+    return row.latestApproved !== null && row.enabled
   }
 
   async function runLifecycle(
     row: SalesPartnerListItem,
     action: SalesPartnerLifecycleAction,
+    reason = '',
   ): Promise<void> {
     if (!canRun(row, action)) return
-    const version = rowVersion(row)
+    const version =
+      action === 'unapprove' ? row.latestApproved : rowVersion(row)
     if (!version) return
     actionLoading.value = action
     errorMessage.value = null
@@ -368,8 +382,28 @@ export function useSalesPartnerViewModel() {
       if (action === 'submit' || action === 'approve') {
         await salesPartnerApi[action]({
           objectId: row.objectId,
-          versionId: version.versionId,
-          revision: version.revision,
+          approvalEntryId: version.approval.approvalEntryId,
+          approvalRevision: version.approval.revision,
+        })
+      } else if (action === 'unsubmit') {
+        await salesPartnerApi.unsubmit({
+          objectId: row.objectId,
+          approvalEntryId: version.approval.approvalEntryId,
+          approvalRevision: version.approval.revision,
+        })
+      } else if (action === 'reject' || action === 'unapprove') {
+        await salesPartnerApi[action]({
+          objectId: row.objectId,
+          approvalEntryId: version.approval.approvalEntryId,
+          approvalRevision: version.approval.revision,
+          reason: reason.trim(),
+        })
+      } else if (action === 'delete') {
+        await salesPartnerApi.delete({
+          objectId: row.objectId,
+          objectRevision: row.objectRevision,
+          approvalEntryId: version.approval.approvalEntryId,
+          approvalRevision: version.approval.revision,
         })
       } else {
         await salesPartnerApi[action]({

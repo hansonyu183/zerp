@@ -26,8 +26,8 @@ describe('employment relationship view model', () => {
 
   it('renders known lifecycle statuses in Chinese', () => {
     expect(employeeStatusLabel('DRAFT')).toBe('草稿')
-    expect(employeeStatusLabel('PENDING')).toBe('待审核')
-    expect(employeeStatusLabel('EFFECTIVE')).toBe('有效')
+    expect(employeeStatusLabel('PENDING')).toBe('待批准')
+    expect(employeeStatusLabel('APPROVED')).toBe('已批准')
     expect(employeeStatusLabel('FUTURE_STATUS')).toBe('未知状态')
   })
 
@@ -70,13 +70,15 @@ describe('employment relationship view model', () => {
             objectId: 'old',
             code: 'EMP-old',
             enabled: true,
-            currentVersion: {
-              versionId: 'v',
+            objectRevision: 1,
+            latestApproved: null,
+            openVersion: {
+              approvalEntryId: 'v',
               version: 1,
               revision: 1,
               status: 'DRAFT',
               submittedBy: null,
-              summary: { name: '旧员工' },
+              name: '旧员工',
             },
           },
         ],

@@ -13,7 +13,7 @@ func TestCustomerListItemAlwaysSerializesVersionSlots(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal customer list item: %v", err)
 	}
-	for _, field := range []string{`"effective":null`, `"candidate":null`} {
+	for _, field := range []string{`"latestApproved":null`, `"openVersion":null`} {
 		if !strings.Contains(string(raw), field) {
 			t.Fatalf("customer list item JSON %s is missing %s", raw, field)
 		}

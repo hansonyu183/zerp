@@ -23,7 +23,7 @@ import type {
 
 export interface BillReference {
   objectId: string
-  versionId: string
+  approvalEntryId: string
   code: string
   name: string
   entity?: string
@@ -255,9 +255,13 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         },
         sort: [{ field: 'documentNo', order: 'desc' }],
       }
-      const result = await apiClient.postContract(`vou/${config.entity}/query`, request, {
-        signal: controller.signal,
-      })
+      const result = await apiClient.postContract(
+        `vou/${config.entity}/query`,
+        request,
+        {
+          signal: controller.signal,
+        },
+      )
       if (current !== sequence) return
       const pageResult = result.data
       rows.value = pageResult.items
@@ -409,11 +413,17 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
           revision: revision.value,
           data,
         }
-        const result = await apiClient.postContract(`vou/${config.entity}/save`, request)
+        const result = await apiClient.postContract(
+          `vou/${config.entity}/save`,
+          request,
+        )
         revision.value = result.data.revision
       } else {
         const request = { data }
-        const result = await apiClient.postContract(`vou/${config.entity}/create`, request)
+        const result = await apiClient.postContract(
+          `vou/${config.entity}/create`,
+          request,
+        )
         documentId.value = result.data.documentId
         documentNo.value = result.data.documentNo
         revision.value = result.data.revision
@@ -480,10 +490,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         revision: revision.value,
         reason,
       }
-      await apiClient.postContract(
-        `vou/${config.entity}/delete`,
-        request,
-      )
+      await apiClient.postContract(`vou/${config.entity}/delete`, request)
       workspaceOpen.value = false
       documentView.value = null
       await query()
@@ -580,7 +587,11 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     value: string,
     signal: AbortSignal,
   ) {
-    if (entity === 'customer' || entity === 'supplier' || entity === 'employee') {
+    if (
+      entity === 'customer' ||
+      entity === 'supplier' ||
+      entity === 'employee'
+    ) {
       try {
         const result = await apiClient.postContract(
           'bob/reference/query',
@@ -592,7 +603,9 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         )
         return result.data.map((item) => ({
           ...item,
-          entity: entity === 'customer' ? ('customer-account' as const) : entity,
+          approvalEntryId: item.approvalEntryId,
+          entity:
+            entity === 'customer' ? ('customer-account' as const) : entity,
         }))
       } catch {
         return []
@@ -610,10 +623,10 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
           { signal },
         )
         return result.data.items
-          .filter((item) => item.effectiveVersionId && item.enabled)
+          .filter((item) => item.approval.status === 'APPROVED' && item.enabled)
           .map((item) => ({
             objectId: item.objectId,
-            versionId: item.effectiveVersionId!,
+            approvalEntryId: item.approval.approvalEntryId,
             entity,
             code: item.code,
             name: item.partyDisplayName,
@@ -635,14 +648,18 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         { signal },
       )
       return result.data.items.flatMap((item) => {
-        const version = item.effective
-        return version ? [{
-          objectId: item.objectId,
-          versionId: version.versionId,
-          entity: item.entity,
-          code: item.code,
-          name: String(version.summary.name ?? item.code),
-        }] : []
+        const version = item.latestApproved
+        return version
+          ? [
+              {
+                objectId: item.objectId,
+                approvalEntryId: version.approval.approvalEntryId,
+                entity: item.entity,
+                code: item.code,
+                name: String(version.summary.name ?? item.code),
+              },
+            ]
+          : []
       })
     } catch {
       return []
@@ -667,9 +684,13 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
       ...(value ? { billNo: value } : {}),
     }
     try {
-      const result = await apiClient.postContract(`vou/${config.entity}/bill-source`, request, {
-        signal: requestController.signal,
-      })
+      const result = await apiClient.postContract(
+        `vou/${config.entity}/bill-source`,
+        request,
+        {
+          signal: requestController.signal,
+        },
+      )
       if (current !== heldSequence) return
       const refreshed: BillLineDraft[] = result.data.items.map((row) => ({
         key: row.billId,

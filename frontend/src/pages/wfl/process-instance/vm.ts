@@ -185,7 +185,7 @@ export function useProcessInstanceViewModel() {
             )
             return data.map((item): VoucherReference => ({
               objectId: item.objectId,
-              versionId: item.versionId,
+              approvalEntryId: item.approvalEntryId,
               entity,
               code: item.code,
               name: item.name,
@@ -201,7 +201,11 @@ export function useProcessInstanceViewModel() {
                   : {}),
               },
             )
-            return data.map((item): VoucherReference => ({ ...item, entity }))
+            return data.map((item): VoucherReference => ({
+              ...item,
+              approvalEntryId: item.approvalEntryId,
+              entity,
+            }))
           }
           return []
         }),

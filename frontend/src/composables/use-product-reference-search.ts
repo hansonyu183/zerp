@@ -4,7 +4,7 @@ import { getErrorMessage } from '@/api/types'
 
 export interface ProductReference {
   objectId: string
-  versionId: string
+  approvalEntryId: string
   entity?: string
   code: string
   name: string
@@ -14,7 +14,7 @@ export interface ProductReference {
   unitConversions?: Array<{
     unit: {
       objectId: string
-      versionId?: string
+      approvalEntryId?: string
       code?: string
       name?: string
       symbol?: string
@@ -53,6 +53,9 @@ export function useProductReferenceSearch(
       const selected = [...selectedReferences()]
       const fetched: ProductReference[] = (data ?? []).map((item) => ({
         ...item,
+        // VOU's current wire name remains approvalEntryId; the value is the BOB
+        // Approval entry identity selected from latest APPROVED.
+        approvalEntryId: item.approvalEntryId,
         entity: 'product',
         unitConversions: item.unitConversions ?? [],
       }))

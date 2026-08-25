@@ -72,8 +72,8 @@ function changeUnit(index: number, objectId: string | null): void {
     ...next[index],
     unit: {
       objectId: objectId ?? '',
-      ...(typeof option?.metadata?.versionId === 'string'
-        ? { versionId: option.metadata.versionId }
+      ...(typeof option?.metadata?.approvalEntryId === 'string'
+        ? { approvalEntryId: option.metadata.approvalEntryId }
         : {}),
       ...(typeof option?.metadata?.code === 'string'
         ? { code: option.metadata.code }

@@ -484,10 +484,10 @@ function saveFormula(value: ProductFormulaDraft): void {
       <template #cell-status="{ row }">
         <div class="bob-status-chips">
           <v-chip density="comfortable" size="small" variant="tonal">
-            {{ getStatusText(bobListActiveVersion(row).status) }}
+            {{ getStatusText(bobListActiveVersion(row).approval.status) }}
           </v-chip>
           <v-chip
-            v-if="row.effective !== null"
+            v-if="row.latestApproved !== null"
             :color="row.enabled ? 'success' : 'default'"
             density="comfortable"
             size="small"
@@ -496,7 +496,7 @@ function saveFormula(value: ProductFormulaDraft): void {
             {{ row.enabled ? '启用' : '禁用' }}
           </v-chip>
           <v-chip
-            v-if="row.candidate !== null"
+            v-if="row.openVersion !== null"
             color="warning"
             density="comfortable"
             size="small"
@@ -538,7 +538,7 @@ function saveFormula(value: ProductFormulaDraft): void {
         <v-card-text>
           <div class="d-flex flex-wrap ga-4 mb-4">
             <span>
-              版本 {{ vm.effectiveView.version.version }} ·
+              版本 {{ vm.effectiveView.approval.versionNo }} ·
               {{ vm.effectiveView.data.productTypeCode ?? '未设置类型' }}
               {{ vm.effectiveView.data.productTypeName ?? '' }}
             </span>
@@ -885,14 +885,14 @@ function saveFormula(value: ProductFormulaDraft): void {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in vm.versions" :key="item.versionId">
-              <td data-label="版本">V{{ item.version }}</td>
+            <tr v-for="item in vm.versions" :key="item.approvalEntryId">
+              <td data-label="版本">V{{ item.versionNo }}</td>
               <td data-label="状态">{{ getStatusText(item.status) }}</td>
               <td data-label="名称">{{ item.summary.name }}</td>
               <td data-label="更新">
                 {{ formatLocalDateTime(item.updatedAt) }}
               </td>
-              <td data-label="意见">{{ item.reviewComment || '—' }}</td>
+              <td data-label="意见">—</td>
               <td class="text-end responsive-table__actions" data-label="操作">
                 <v-btn
                   v-if="
@@ -903,7 +903,7 @@ function saveFormula(value: ProductFormulaDraft): void {
                   variant="text"
                   @click="
                     vm.historyObject &&
-                    vm.openView(vm.historyObject, item.versionId)
+                    vm.openView(vm.historyObject, item.approvalEntryId)
                   "
                 >
                   查看
@@ -946,17 +946,17 @@ function saveFormula(value: ProductFormulaDraft): void {
           </thead>
           <tbody>
             <tr v-for="event in vm.auditEvents" :key="event.id">
-              <td data-label="事件">{{ event.eventType }}</td>
+              <td data-label="事件">{{ event.action }}</td>
               <td data-label="变化">
                 {{ event.fromStatus ? getStatusText(event.fromStatus) : '—' }}
                 →
-                {{ getStatusText(event.toStatus) }}
+                {{ event.toStatus ? getStatusText(event.toStatus) : '—' }}
               </td>
               <td data-label="操作人">{{ event.actorId }}</td>
               <td data-label="时间">
-                {{ formatLocalDateTime(event.occurredAt) }}
+                {{ formatLocalDateTime(event.createdAt) }}
               </td>
-              <td data-label="意见">{{ event.comment || '—' }}</td>
+              <td data-label="意见">{{ event.reason || '—' }}</td>
             </tr>
           </tbody>
         </v-table>

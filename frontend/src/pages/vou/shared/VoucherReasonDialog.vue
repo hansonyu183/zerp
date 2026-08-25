@@ -29,12 +29,7 @@ const emit = defineEmits<{
   >
     <v-card rounded="xl" :title="title">
       <v-card-text>
-        <v-alert
-          v-if="errorMessage"
-          class="mb-3"
-          type="error"
-          variant="tonal"
-        >
+        <v-alert v-if="errorMessage" class="mb-3" type="error" variant="tonal">
           {{ errorMessage }}
         </v-alert>
         <v-textarea

@@ -2,30 +2,23 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalVersionMeta } from './ApprovalVersionMeta';
 export type CustomerListItem = {
   objectId: string;
   code: string;
   objectRevision: number;
   enabled: boolean;
-  effective: {
-    versionId?: string;
-    version?: number;
-    status?: string;
-    revision?: number;
+  latestApproved: {
+    approval: ApprovalVersionMeta;
     name?: string;
     customerTypeCode?: string;
     operatingEntityName?: string;
     salesAttributionName?: string;
-    submittedBy?: string | null;
   } | null;
-  candidate: {
-    versionId?: string;
-    version?: number;
-    status?: string;
-    revision?: number;
+  openVersion: {
+    approval: ApprovalVersionMeta;
     name?: string;
     customerTypeCode?: string;
-    submittedBy?: string | null;
   } | null;
   updatedAt: string;
 };

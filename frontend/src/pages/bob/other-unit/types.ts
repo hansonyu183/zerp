@@ -1,9 +1,6 @@
 import type { components } from '@/api/generated/schema'
 
-export type OtherUnitStatus = Exclude<
-  components['schemas']['OtherUnitView']['status'],
-  'REJECTED'
->
+export type OtherUnitStatus = components['schemas']['ApprovalStatus']
 
 export interface OtherUnitData {
   operatingEntityId: string

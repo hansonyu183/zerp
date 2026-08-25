@@ -137,7 +137,10 @@ export function inputReference(
   reference: VoucherReference | VoucherReferenceView | null | undefined,
 ): VoucherReferenceInput | undefined {
   return reference
-    ? { objectId: reference.objectId, versionId: reference.versionId }
+    ? {
+        objectId: reference.objectId,
+        approvalEntryId: reference.approvalEntryId,
+      }
     : undefined
 }
 

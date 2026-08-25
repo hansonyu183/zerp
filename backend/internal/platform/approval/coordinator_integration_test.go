@@ -72,7 +72,7 @@ func resetApprovalIntegrationData(t *testing.T, pool *pgxpool.Pool) {
 			subject_id varchar(128) NOT NULL,
 			action varchar(16) NOT NULL
 		);
-		TRUNCATE approval_fixture_effects, approval_fixture_subjects, approval_events, approval_entries;
+		TRUNCATE approval_fixture_effects, approval_fixture_subjects, approval_events, approval_entries CASCADE;
 	`)
 	if err != nil {
 		t.Fatalf("reset approval integration data: %v", err)

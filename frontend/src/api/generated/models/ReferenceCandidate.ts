@@ -5,7 +5,7 @@
 import type { BobProductUnitConversionSnapshot } from './BobProductUnitConversionSnapshot';
 export type ReferenceCandidate = {
   objectId: string;
-  versionId: string;
+  approvalEntryId: string;
   code: string;
   name: string;
   behaviorProfile?: 'RAW_MATERIAL' | 'STANDARD_FINISHED' | 'CUSTOM_FINISHED' | 'PACKAGING';

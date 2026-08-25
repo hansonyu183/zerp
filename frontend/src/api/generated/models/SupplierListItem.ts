@@ -15,7 +15,7 @@ export type SupplierListItem = {
   operatingEntityId: string;
   operatingEntityCode: string;
   operatingEntityName: string;
-  effective: SupplierListVersion | null;
-  candidate: SupplierListVersion | null;
+  latestApproved: SupplierListVersion | null;
+  openVersion: SupplierListVersion | null;
   updatedAt: string;
 };

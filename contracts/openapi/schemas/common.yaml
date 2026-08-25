@@ -154,6 +154,55 @@
             { 'type': 'string', 'format': 'date-time', 'nullable': true },
         },
     },
+  'ApprovalEventView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'id',
+          'approvalEntryId',
+          'action',
+          'fromStatus',
+          'toStatus',
+          'fromRevision',
+          'toRevision',
+          'actorId',
+          'reason',
+          'requestId',
+          'createdAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'id': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
+          'action':
+            {
+              'type': 'string',
+              'enum':
+                [
+                  'CREATED',
+                  'SAVED',
+                  'SUBMITTED',
+                  'UNSUBMITTED',
+                  'REJECTED',
+                  'APPROVED',
+                  'UNAPPROVED',
+                  'DELETED',
+                ],
+            },
+          'fromStatus': { '$ref': '#/ApprovalStatus', 'nullable': true },
+          'toStatus': { '$ref': '#/ApprovalStatus', 'nullable': true },
+          'fromRevision':
+            { 'type': 'integer', 'format': 'int64', 'nullable': true },
+          'toRevision':
+            { 'type': 'integer', 'format': 'int64', 'nullable': true },
+          'actorId': { 'type': 'string' },
+          'reason': { 'type': 'string', 'nullable': true },
+          'requestId': { 'type': 'string' },
+          'createdAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
   'PageRequest':
     {
       'type': 'object',

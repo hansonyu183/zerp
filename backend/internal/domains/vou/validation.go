@@ -163,7 +163,7 @@ func validateReference(ref *ReferenceInput, field string, required bool) error {
 		}
 		return nil
 	}
-	if !validID(ref.ObjectID) || !validID(ref.VersionID) {
+	if !validID(ref.ObjectID) || !validID(ref.ApprovalEntryID) {
 		return domainError(ErrorValidation, "invalid "+field, nil, nil)
 	}
 	return nil

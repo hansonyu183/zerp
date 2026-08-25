@@ -21,7 +21,7 @@ const changeBill: BillLineDraft = {
   payee: '收款企业',
   originatingParty: {
     objectId: 'customer-1',
-    versionId: 'customer-v1',
+    approvalEntryId: 'customer-v1',
     code: 'CUS-001',
     name: '客户一',
     entity: 'customer',

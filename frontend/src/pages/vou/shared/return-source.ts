@@ -1,9 +1,6 @@
 import { apiClient } from '@/api/client'
 import { getErrorMessage } from '@/api/types'
-import type {
-  VoucherDraftForm,
-  VoucherEntity,
-} from '@/components/voucher'
+import type { VoucherDraftForm, VoucherEntity } from '@/components/voucher'
 
 type ReturnEntity = Extract<VoucherEntity, 'sale-return' | 'purchase-return'>
 type ReturnDraft = Pick<

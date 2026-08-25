@@ -2,9 +2,9 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { BobAuditEvent } from './BobAuditEvent';
+import type { ApprovalEventView } from './ApprovalEventView';
 export type BobAuditEventPage = {
-  items: Array<BobAuditEvent>;
+  items: Array<ApprovalEventView>;
   total: number;
   page: number;
   pageSize: number;

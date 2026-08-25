@@ -169,7 +169,7 @@ func TestAccountingOpeningCreatesAndAssociatesGlobalRegistersIntegration(t *test
 		if createObjects {
 			assets[0].AssetNo, assets[0].Name, assets[0].CategoryID, assets[0].DepartmentID = "FA-OPEN-001", "期初设备", ulid.Make().String(), ulid.Make().String()
 			assets[0].UsefulLifeMonths, assets[0].ResidualRate, assets[0].AcquiredOn = 60, "0.05", "2026-08-01"
-			bills[0] = OpeningBillInput{BillID: billID, BillNo: "BILL-OPEN-001", BillType: "BANK_ACCEPTANCE", PositionType: "ASSET", Medium: "ELECTRONIC", Currency: "CNY", FaceAmount: "50.00", IssueDate: "2026-08-01", MaturityDate: "2026-12-01", Drawer: "出票人", Acceptor: "承兑人", Payee: "收款人", InterestAmount: "0.00", CustomerCostAmount: "0.00", ValueAmount: billValue, OriginatingParty: OpeningPartyInput{Entity: "CUSTOMER", ObjectID: partyID, VersionID: partyVersionID, Code: "C001", Name: "期初客户"}}
+			bills[0] = OpeningBillInput{BillID: billID, BillNo: "BILL-OPEN-001", BillType: "BANK_ACCEPTANCE", PositionType: "ASSET", Medium: "ELECTRONIC", Currency: "CNY", FaceAmount: "50.00", IssueDate: "2026-08-01", MaturityDate: "2026-12-01", Drawer: "出票人", Acceptor: "承兑人", Payee: "收款人", InterestAmount: "0.00", CustomerCostAmount: "0.00", ValueAmount: billValue, OriginatingParty: OpeningPartyInput{Entity: "CUSTOMER", ObjectID: partyID, ApprovalEntryID: partyVersionID, Code: "C001", Name: "期初客户"}}
 			containers = []OpeningContainerInput{{CustomerID: customerID, ContainerType: "SOLVENT", Quantity: 8}}
 		}
 		assetMinor, _ := fixeddecimal.ParsePositive(assetValue, 2, false)

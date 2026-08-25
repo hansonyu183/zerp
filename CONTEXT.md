@@ -9,6 +9,23 @@ ZERP uses shared business terms across its auxiliary-data, business-object, vouc
 _Avoid_: 角色管理权限等于全部权限、可授予未拥有权限
 _Rules_: [APP 最终权限计算](docs/domains/app.md#4-最终权限计算)、[APP 角色管理](docs/domains/app.md#56-角色管理)
 
+## Approval
+
+**Approval Entry（审批条目）**:
+一个稳定业务主体的中央审批身份，统一持有状态、revision、审批元数据和审计事件。
+_Avoid_: Domain 审批行、审批 Store Adapter、审批主体注册表
+_Rules_: [Approval 领域](docs/domains/approval.md#2-审批条目与主体边界)
+
+**Approval Lifecycle（审批生命周期）**:
+审批条目在 `DRAFT`、`PENDING`和 `APPROVED` 之间进行的唯一状态流转。
+_Avoid_: 审批语义下的 `CHECKED`、`EFFECTIVE`、`published`、领域自定义审批状态机
+_Rules_: [Approval 生命周期](docs/domains/approval.md#3-生命周期)
+
+**Trusted System Actor（受信系统操作者）**:
+只能由系统身份显式建立的审批操作者，可免普通用户权限但仍受完整状态机、revision、业务校验和事务不变量约束。
+_Avoid_: 跳过授权开关、绕过审批、任意受信用户
+_Rules_: [Approval 授权](docs/domains/approval.md#4-授权与事务边界)
+
 ## Business Objects
 
 **Continuous Effectiveness（连续生效）**:

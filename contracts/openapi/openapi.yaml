@@ -5783,6 +5783,11 @@
     },
   'components':
     {
+      'schemas':
+        {
+          'ApprovalStatus': { '$ref': './schemas/common.yaml#/ApprovalStatus' },
+          'ApprovalMeta': { '$ref': './schemas/common.yaml#/ApprovalMeta' },
+        },
       'securitySchemes':
         {
           'cookieAuth':

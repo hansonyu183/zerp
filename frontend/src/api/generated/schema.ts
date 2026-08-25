@@ -1354,6 +1354,8 @@ export interface paths {
 
 export interface components {
   schemas: {
+      "ApprovalStatus": Models.ApprovalStatus;
+      "ApprovalMeta": Models.ApprovalMeta;
       "BookQueryRequest": Models.BookQueryRequest;
       "SubjectTemplate": Models.SubjectTemplate;
       "Book": Models.Book;

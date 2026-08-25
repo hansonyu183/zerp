@@ -13,6 +13,7 @@
 - `src/api/` 放统一客户端、生成类型和通用结果类型；`src/layouts/` 放应用布局；`src/router/` 放路由、页面注册表和守卫；`src/stores/` 放跨页面共享状态；`src/pages/auth/`、`home/` 和 `system/` 分别放公开认证页、登录后首页及占位/错误页。
 - 页面组件负责模板、样式和交互装配；业务状态与动作放在同目录的 `vm.ts`。只有当前用户、会话、CSRF、动态菜单、动作权限、多页面共享且必须保持一致的数据及应用级 UI 状态进入 Pinia。
 - 模块按最小有效共享范围归属：跨领域且无业务语义、无 API 调用的 UI 原语放入 `src/components/common/`；跨页面复用的领域或业务能力组件放入 `src/components/{feature}/`；只服务同一领域页面的工作区、ViewModel、配置和业务辅助逻辑放入 `src/pages/{domain}/shared/`；实体专属实现保留在 `src/pages/{domain}/{entity}/`。
+- 跨 Domain 的审批状态、badge、动作文案与可见性原语统一放在 `src/shared/approval/`，只依赖 generated OpenAPI types；Domain ViewModel 继续负责页面编排，不建立 Generic Approval VM。
 - 可复用的有状态行为放入 `src/composables/`，纯映射、状态文案、权限计算和数据转换使用独立模块。页面不得直接请求 API 或解析响应；`vm.ts` 是页面状态和动作的编排入口，可调用同目录模块和 composable。
 - 公共抽取应已有两个及以上实际调用点，或存在已经确认的跨页面一致性需求。不得为改名创建薄包装，也不得复制公共实现后只做轻微分叉；同类 CRUD 页面优先通过配置和插槽复用现有列表、编辑器及交互壳层。
 - 页面中的独立工具栏、弹窗、权限判断和数据转换应按职责拆分，避免页面模板同时承担请求、业务转换和动作编排。差异化组件必须由明确业务语义驱动，而不是由页面路径驱动。

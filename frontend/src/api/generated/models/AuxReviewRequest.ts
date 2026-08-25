@@ -2,9 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type BobReviewRequest = {
-  objectId: string;
-  approvalEntryId: string;
-  approvalRevision: number;
+import type { AuxApprovalRevisionRequest } from './AuxApprovalRevisionRequest';
+export type AuxReviewRequest = (AuxApprovalRevisionRequest & {
   reason: string | null;
-};
+});

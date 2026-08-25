@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalVersionMeta } from './ApprovalVersionMeta';
 import type { OtherUnitData } from './OtherUnitData';
 import type { PartyKind } from './PartyKind';
 export type OtherUnitView = {
@@ -9,12 +10,7 @@ export type OtherUnitView = {
   code: string;
   objectRevision: number;
   enabled: boolean;
-  versionId: string;
-  version: number;
-  status: 'DRAFT' | 'PENDING' | 'REJECTED' | 'EFFECTIVE' | 'INVALID';
-  revision: number;
-  submittedBy: string | null;
-  effectiveVersionId: string | null;
+  approval: ApprovalVersionMeta;
   partyId: string;
   partyKind: PartyKind;
   partyDisplayName: string;

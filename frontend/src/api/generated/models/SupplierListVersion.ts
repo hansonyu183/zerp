@@ -3,7 +3,7 @@
 /* tslint:disable */
 /* eslint-disable */
 export type SupplierListVersion = {
-  versionId: string;
+  approvalEntryId: string;
   version: number;
   status: string;
   revision: number;

@@ -7,7 +7,7 @@ export type OtherUnitQueryRequest = {
   pageSize: 20;
   filters?: {
     keyword?: string;
-    status?: Array<'DRAFT' | 'PENDING' | 'EFFECTIVE' | 'INVALID'>;
+    status?: Array<'DRAFT' | 'PENDING' | 'APPROVED'>;
     operatingEntityId?: string;
   };
 };

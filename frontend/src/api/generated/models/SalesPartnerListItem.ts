@@ -15,7 +15,7 @@ export type SalesPartnerListItem = {
   operatingEntityId: string;
   operatingEntityCode: string;
   operatingEntityName: string;
-  effective: SalesPartnerListVersion | null;
-  candidate: SalesPartnerListVersion | null;
+  latestApproved: SalesPartnerListVersion | null;
+  openVersion: SalesPartnerListVersion | null;
   updatedAt: string;
 };

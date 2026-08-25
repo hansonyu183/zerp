@@ -4,9 +4,9 @@
 /* eslint-disable */
 import type { SalesPartnerCapability } from './SalesPartnerCapability';
 export type SalesPartnerListVersion = {
-  versionId: string;
+  approvalEntryId: string;
   version: number;
-  status: 'DRAFT' | 'PENDING' | 'EFFECTIVE' | 'INVALID';
+  status: 'DRAFT' | 'PENDING' | 'APPROVED';
   revision: number;
   capabilities: Array<SalesPartnerCapability>;
   submittedBy: string | null;

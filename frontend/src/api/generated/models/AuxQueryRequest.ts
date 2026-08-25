@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalStatus } from './ApprovalStatus';
 import type { ProductBehaviorProfile } from './ProductBehaviorProfile';
 export type AuxQueryRequest = {
   page: number;
@@ -9,6 +10,7 @@ export type AuxQueryRequest = {
   filters?: {
     keyword?: string;
     enabled?: boolean;
+    status?: Array<ApprovalStatus>;
     behaviorProfile?: ProductBehaviorProfile;
     parentId?: string;
     rootOnly?: boolean;
@@ -16,7 +18,7 @@ export type AuxQueryRequest = {
     direction?: 'INCOME' | 'EXPENSE';
   };
   sort?: Array<{
-    field: 'updatedAt' | 'code' | 'name' | 'version';
+    field: 'updatedAt' | 'code' | 'name' | 'versionNo';
     order: 'asc' | 'desc';
   }>;
 };

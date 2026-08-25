@@ -2,9 +2,9 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { CustomerVersionMeta } from './CustomerVersionMeta';
+import type { ApprovalVersionMeta } from './ApprovalVersionMeta';
 import type { SupplierView } from './SupplierView';
 export type SupplierVersionView = {
-  version: CustomerVersionMeta;
+  approval: ApprovalVersionMeta;
   data: SupplierView;
 };

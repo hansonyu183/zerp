@@ -7,8 +7,8 @@ export type CustomerListItem = {
   code: string;
   objectRevision: number;
   enabled: boolean;
-  effective: {
-    versionId?: string;
+  latestApproved: {
+    approvalEntryId?: string;
     version?: number;
     status?: string;
     revision?: number;
@@ -18,8 +18,8 @@ export type CustomerListItem = {
     salesAttributionName?: string;
     submittedBy?: string | null;
   } | null;
-  candidate: {
-    versionId?: string;
+  openVersion: {
+    approvalEntryId?: string;
     version?: number;
     status?: string;
     revision?: number;

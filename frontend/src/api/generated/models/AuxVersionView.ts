@@ -2,11 +2,9 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalVersionMeta } from './ApprovalVersionMeta';
 import type { AuxData } from './AuxData';
 export type AuxVersionView = {
-  versionId: string;
-  version: number;
+  approval: ApprovalVersionMeta;
   data: AuxData;
-  createdAt: string;
-  createdBy: string;
 };

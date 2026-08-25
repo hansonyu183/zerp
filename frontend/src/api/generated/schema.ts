@@ -462,11 +462,51 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.AuxMutationResponse } } };
     };
   };
+  "/aux/{entity}/submit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path: { "entity": Models.AuxEntity; }; cookie?: never };
+      requestBody: { content: { 'application/json': Models.AuxApprovalRevisionRequest } };
+      responses: { 200: { content: { 'application/json': Models.AuxMutationResponse } } };
+    };
+  };
+  "/aux/{entity}/unsubmit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path: { "entity": Models.AuxEntity; }; cookie?: never };
+      requestBody: { content: { 'application/json': Models.AuxApprovalRevisionRequest } };
+      responses: { 200: { content: { 'application/json': Models.AuxMutationResponse } } };
+    };
+  };
+  "/aux/{entity}/approve": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path: { "entity": Models.AuxEntity; }; cookie?: never };
+      requestBody: { content: { 'application/json': Models.AuxReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.AuxMutationResponse } } };
+    };
+  };
+  "/aux/{entity}/reject": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path: { "entity": Models.AuxEntity; }; cookie?: never };
+      requestBody: { content: { 'application/json': Models.AuxReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.AuxMutationResponse } } };
+    };
+  };
+  "/aux/{entity}/unapprove": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path: { "entity": Models.AuxEntity; }; cookie?: never };
+      requestBody: { content: { 'application/json': Models.AuxReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.AuxMutationResponse } } };
+    };
+  };
   "/aux/{entity}/enable": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path: { "entity": Models.AuxEntity; }; cookie?: never };
-      requestBody: { content: { 'application/json': Models.AuxRevisionRequest } };
+      requestBody: { content: { 'application/json': Models.AuxObjectRevisionRequest } };
       responses: { 200: { content: { 'application/json': Models.AuxMutationResponse } } };
     };
   };
@@ -474,7 +514,7 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path: { "entity": Models.AuxEntity; }; cookie?: never };
-      requestBody: { content: { 'application/json': Models.AuxRevisionRequest } };
+      requestBody: { content: { 'application/json': Models.AuxObjectRevisionRequest } };
       responses: { 200: { content: { 'application/json': Models.AuxMutationResponse } } };
     };
   };
@@ -482,7 +522,7 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path: { "entity": Models.AuxEntity; }; cookie?: never };
-      requestBody: { content: { 'application/json': Models.AuxRevisionRequest } };
+      requestBody: { content: { 'application/json': Models.AuxApprovalRevisionRequest } };
       responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
     };
   };
@@ -578,7 +618,7 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobReverseRequest } };
+      requestBody: { content: { 'application/json': Models.BobVersionRevisionRequest } };
       responses: { 200: { content: { 'application/json': Models.OtherUnitMutationResponse } } };
     };
   };
@@ -858,7 +898,7 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path: { "entity": Models.BobEntity; }; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobReverseRequest } };
+      requestBody: { content: { 'application/json': Models.BobVersionRevisionRequest } };
       responses: { 200: { content: { 'application/json': Models.BobMutationResponse } } };
     };
   };
@@ -882,7 +922,7 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path: { "entity": Models.BobEntity; }; cookie?: never };
-      requestBody: { content: { 'application/json': Models.BobReverseRequest } };
+      requestBody: { content: { 'application/json': Models.BobReviewRequest } };
       responses: { 200: { content: { 'application/json': Models.BobMutationResponse } } };
     };
   };
@@ -1507,11 +1547,13 @@ export interface components {
       "AuxMutationResult": Models.AuxMutationResult;
       "AuxMutationResponse": Models.AuxMutationResponse;
       "AuxSaveRequest": Models.AuxSaveRequest;
-      "AuxRevisionRequest": Models.AuxRevisionRequest;
+      "AuxApprovalRevisionRequest": Models.AuxApprovalRevisionRequest;
+      "AuxReviewRequest": Models.AuxReviewRequest;
+      "AuxObjectRevisionRequest": Models.AuxObjectRevisionRequest;
       "AuxHistoryRequest": Models.AuxHistoryRequest;
       "AuxVersionPage": Models.AuxVersionPage;
       "AuxVersionPageResponse": Models.AuxVersionPageResponse;
-      "AuxAuditEventView": Models.AuxAuditEventView;
+      "ApprovalEventView": Models.ApprovalEventView;
       "AuxAuditEventPage": Models.AuxAuditEventPage;
       "AuxAuditEventPageResponse": Models.AuxAuditEventPageResponse;
       "PartyKind": Models.PartyKind;
@@ -1541,21 +1583,17 @@ export interface components {
       "OtherUnitSaveRequest": Models.OtherUnitSaveRequest;
       "BobDeleteRequest": Models.BobDeleteRequest;
       "BobVersionRevisionRequest": Models.BobVersionRevisionRequest;
-      "BobReverseRequest": Models.BobReverseRequest;
       "BobReviewRequest": Models.BobReviewRequest;
       "BobObjectRevisionRequest": Models.BobObjectRevisionRequest;
       "BobHistoryRequest": Models.BobHistoryRequest;
-      "BobVersionMeta": Models.BobVersionMeta;
       "BobVersionHistoryItem": Models.BobVersionHistoryItem;
       "BobVersionHistoryPage": Models.BobVersionHistoryPage;
       "BobVersionHistoryResponse": Models.BobVersionHistoryResponse;
-      "BobAuditEvent": Models.BobAuditEvent;
       "BobAuditEventPage": Models.BobAuditEventPage;
       "BobAuditHistoryResponse": Models.BobAuditHistoryResponse;
       "CustomerQueryRequest": Models.CustomerQueryRequest;
       "CustomerListItem": Models.CustomerListItem;
       "CustomerQueryResponse": Models.CustomerQueryResponse;
-      "CustomerVersionMeta": Models.CustomerVersionMeta;
       "CustomerPricingCostItem": Models.CustomerPricingCostItem;
       "CustomerPricingPolicy": Models.CustomerPricingPolicy;
       "CustomerCreditLimit": Models.CustomerCreditLimit;

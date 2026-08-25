@@ -5,6 +5,6 @@
 export type BobDeleteRequest = {
   objectId: string;
   objectRevision: number;
-  versionId: string;
-  revision: number;
+  approvalEntryId: string;
+  approvalRevision: number;
 };

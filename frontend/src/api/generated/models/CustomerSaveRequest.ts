@@ -5,7 +5,7 @@
 import type { CustomerAccountInput } from './CustomerAccountInput';
 export type CustomerSaveRequest = {
   objectId: string;
-  versionId: string;
+  approvalEntryId: string;
   revision: number;
   data: CustomerAccountInput;
 };

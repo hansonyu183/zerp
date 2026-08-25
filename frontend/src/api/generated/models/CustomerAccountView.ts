@@ -8,6 +8,6 @@ export type CustomerAccountView = {
   code: string;
   objectRevision: number;
   enabled: boolean;
-  effective?: CustomerVersionView | null;
-  candidate?: CustomerVersionView | null;
+  latestApproved?: CustomerVersionView | null;
+  openVersion?: CustomerVersionView | null;
 };

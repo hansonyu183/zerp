@@ -2172,7 +2172,7 @@
           'post':
             {
               'tags': ['aux'],
-              'summary': '创建并立即启用辅助对象',
+              'summary': '创建辅助对象 V1 草稿',
               'operationId': 'auxcreate',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
@@ -2212,7 +2212,7 @@
           'post':
             {
               'tags': ['aux'],
-              'summary': '保存辅助对象新版本并立即生效',
+              'summary': '保存辅助对象草稿；编辑已批准版本时创建连续生效候选',
               'operationId': 'auxsave',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
@@ -2247,6 +2247,88 @@
                 },
             },
         },
+      '/aux/{entity}/submit':
+        {
+          'post':
+            {
+              'tags': ['aux'],
+              'summary': '提交辅助对象候选版本',
+              'operationId': 'auxsubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        { 'schema': { '$ref': './schemas/aux.yaml#/AuxApprovalRevisionRequest' } },
+                    },
+                },
+              'responses':
+                { '200': { 'description': '辅助对象审批变更响应。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/aux.yaml#/AuxMutationResponse' } } } } },
+            },
+        },
+      '/aux/{entity}/unsubmit':
+        {
+          'post':
+            {
+              'tags': ['aux'],
+              'summary': '撤回辅助对象候选版本提交',
+              'operationId': 'auxunsubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
+              'requestBody':
+                { 'required': true, 'content': { 'application/json': { 'schema': { '$ref': './schemas/aux.yaml#/AuxApprovalRevisionRequest' } } } },
+              'responses':
+                { '200': { 'description': '辅助对象审批变更响应。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/aux.yaml#/AuxMutationResponse' } } } } },
+            },
+        },
+      '/aux/{entity}/approve':
+        {
+          'post':
+            {
+              'tags': ['aux'],
+              'summary': '批准辅助对象候选版本',
+              'operationId': 'auxapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
+              'requestBody':
+                { 'required': true, 'content': { 'application/json': { 'schema': { '$ref': './schemas/aux.yaml#/AuxReviewRequest' } } } },
+              'responses':
+                { '200': { 'description': '辅助对象审批变更响应。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/aux.yaml#/AuxMutationResponse' } } } } },
+            },
+        },
+      '/aux/{entity}/reject':
+        {
+          'post':
+            {
+              'tags': ['aux'],
+              'summary': '驳回辅助对象候选版本',
+              'operationId': 'auxreject',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
+              'requestBody':
+                { 'required': true, 'content': { 'application/json': { 'schema': { '$ref': './schemas/aux.yaml#/AuxReviewRequest' } } } },
+              'responses':
+                { '200': { 'description': '辅助对象审批变更响应。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/aux.yaml#/AuxMutationResponse' } } } } },
+            },
+        },
+      '/aux/{entity}/unapprove':
+        {
+          'post':
+            {
+              'tags': ['aux'],
+              'summary': '反批辅助对象最新批准版本',
+              'operationId': 'auxunapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
+              'requestBody':
+                { 'required': true, 'content': { 'application/json': { 'schema': { '$ref': './schemas/aux.yaml#/AuxReviewRequest' } } } },
+              'responses':
+                { '200': { 'description': '辅助对象审批变更响应。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/aux.yaml#/AuxMutationResponse' } } } } },
+            },
+        },
       '/aux/{entity}/enable':
         {
           'post':
@@ -2265,7 +2347,7 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/aux.yaml#/AuxRevisionRequest',
+                              '$ref': './schemas/aux.yaml#/AuxObjectRevisionRequest',
                             },
                         },
                     },
@@ -2307,7 +2389,7 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/aux.yaml#/AuxRevisionRequest',
+                              '$ref': './schemas/aux.yaml#/AuxObjectRevisionRequest',
                             },
                         },
                     },
@@ -2349,7 +2431,7 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/aux.yaml#/AuxRevisionRequest',
+                              '$ref': './schemas/aux.yaml#/AuxApprovalRevisionRequest',
                             },
                         },
                     },
@@ -2785,7 +2867,7 @@
                       'application/json':
                         {
                           'schema':
-                            { '$ref': './schemas/bob.yaml#/BobReverseRequest' },
+                            { '$ref': './schemas/bob.yaml#/BobVersionRevisionRequest' },
                         },
                     },
                 },
@@ -4052,7 +4134,7 @@
                       'application/json':
                         {
                           'schema':
-                            { '$ref': './schemas/bob.yaml#/BobReverseRequest' },
+                            { '$ref': './schemas/bob.yaml#/BobVersionRevisionRequest' },
                         },
                     },
                 },
@@ -4174,7 +4256,7 @@
                       'application/json':
                         {
                           'schema':
-                            { '$ref': './schemas/bob.yaml#/BobReverseRequest' },
+                            { '$ref': './schemas/bob.yaml#/BobReviewRequest' },
                         },
                     },
                 },

@@ -140,6 +140,26 @@ func mutateEntry(
 	return entry, err
 }
 
+func waitForAdvisoryLockWaiter(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		var waiters int64
+		if err := pool.QueryRow(t.Context(), `
+			SELECT count(*)
+			FROM pg_locks
+			WHERE locktype='advisory' AND NOT granted
+		`).Scan(&waiters); err != nil {
+			t.Fatalf("count advisory lock waiters: %v", err)
+		}
+		if waiters > 0 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("expected an approval version subject-lock waiter")
+}
+
 func TestApprovalPersistenceLifecycleIntegration(t *testing.T) {
 	pool := approvalIntegrationPool(t)
 	resetApprovalIntegrationData(t, pool)
@@ -856,6 +876,231 @@ func TestApprovalPersistenceLifecycleIntegration(t *testing.T) {
 		}
 		if orphans != 0 {
 			t.Fatalf("version approval orphan count = %d", orphans)
+		}
+	})
+
+	t.Run("subject lock serializes latest reads with version deletion and V1 reuse", func(t *testing.T) {
+		subjectID := ulid.Make().String()
+		payload := fixturePayload{SubjectID: subjectID, Name: "Subject lock reuse"}
+		versionBus := txevent.NewBus()
+		versionTopic := MustTopic[fixturePayload]("approval.subject-lock-reuse.lifecycle")
+		versionCoordinator, coordinatorErr := NewCoordinator("fixture", "subject-lock-reuse", allowAuthorizer{}, versionBus, versionTopic)
+		if coordinatorErr != nil {
+			t.Fatalf("new subject-lock reuse coordinator: %v", coordinatorErr)
+		}
+
+		var v1 Entry
+		if createErr := inTransaction(t, pool, func(tx pgx.Tx) error {
+			if _, insertErr := tx.Exec(t.Context(), `INSERT INTO approval_fixture_subjects(id, name) VALUES($1, $2)`, subjectID, payload.Name); insertErr != nil {
+				return insertErr
+			}
+			var versionErr error
+			v1, versionErr = versionCoordinator.CreateFirstVersion(t.Context(), tx, subjectID, actorOne("subject-lock-create-v1"), payload)
+			return versionErr
+		}); createErr != nil {
+			t.Fatalf("create V1: %v", createErr)
+		}
+		v1, err = mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
+			return versionCoordinator.Submit(t.Context(), tx, v1.ID, v1.Revision, actorOne("subject-lock-submit-v1"), payload)
+		})
+		if err != nil {
+			t.Fatalf("submit V1: %v", err)
+		}
+		v1, err = mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
+			return versionCoordinator.Approve(t.Context(), tx, v1.ID, v1.Revision, actorTwo("subject-lock-approve-v1"), payload)
+		})
+		if err != nil {
+			t.Fatalf("approve V1: %v", err)
+		}
+
+		latestRead := make(chan struct{})
+		releaseLatest := make(chan struct{})
+		latestResult := make(chan error, 1)
+		go func() {
+			tx, beginErr := pool.Begin(context.Background())
+			if beginErr != nil {
+				latestResult <- beginErr
+				return
+			}
+			defer func() { _ = tx.Rollback(context.Background()) }()
+			latest, getErr := versionCoordinator.GetLatestApproved(context.Background(), tx, subjectID, actorOne("subject-lock-read-latest"))
+			if getErr != nil {
+				latestResult <- getErr
+				return
+			}
+			if latest.ID != v1.ID {
+				latestResult <- fmt.Errorf("latest version = %s, want %s", latest.ID, v1.ID)
+				return
+			}
+			close(latestRead)
+			<-releaseLatest
+			latestResult <- tx.Commit(context.Background())
+		}()
+		<-latestRead
+
+		deleteStarted := make(chan struct{})
+		deleteResult := make(chan error, 1)
+		go func() {
+			tx, beginErr := pool.Begin(context.Background())
+			if beginErr != nil {
+				deleteResult <- beginErr
+				return
+			}
+			defer func() { _ = tx.Rollback(context.Background()) }()
+			close(deleteStarted)
+			entry, operationErr := versionCoordinator.Unapprove(context.Background(), tx, v1.ID, v1.Revision, actorTwo("subject-lock-unapprove-v1"), "remove first version", payload)
+			if operationErr == nil {
+				entry, operationErr = versionCoordinator.Unsubmit(context.Background(), tx, entry.ID, entry.Revision, actorOne("subject-lock-unsubmit-v1"), payload)
+			}
+			if operationErr == nil {
+				operationErr = versionCoordinator.DeleteDraftVersion(context.Background(), tx, entry.ID, entry.Revision, actorOne("subject-lock-delete-v1"), payload)
+			}
+			if operationErr == nil {
+				operationErr = tx.Commit(context.Background())
+			}
+			deleteResult <- operationErr
+		}()
+		<-deleteStarted
+		waitForAdvisoryLockWaiter(t, pool)
+		close(releaseLatest)
+		if getErr := <-latestResult; getErr != nil {
+			t.Fatalf("commit latest reader: %v", getErr)
+		}
+		if deleteErr := <-deleteResult; deleteErr != nil {
+			t.Fatalf("unapprove, unsubmit, and delete V1: %v", deleteErr)
+		}
+
+		var reused Entry
+		if createErr := inTransaction(t, pool, func(tx pgx.Tx) error {
+			var versionErr error
+			reused, versionErr = versionCoordinator.CreateFirstVersion(t.Context(), tx, subjectID, actorOne("subject-lock-reuse-v1"), payload)
+			return versionErr
+		}); createErr != nil || reused.VersionNo == nil || *reused.VersionNo != 1 {
+			t.Fatalf("reuse V1 = %+v, err = %v", reused, createErr)
+		}
+	})
+
+	t.Run("subject lock prevents stale unapproval while the next version is approved", func(t *testing.T) {
+		subjectID := ulid.Make().String()
+		payload := fixturePayload{SubjectID: subjectID, Name: "Subject lock approval race"}
+		versionBus := txevent.NewBus()
+		versionTopic := MustTopic[fixturePayload]("approval.subject-lock-approval-race.lifecycle")
+		versionCoordinator, coordinatorErr := NewCoordinator("fixture", "subject-lock-approval-race", allowAuthorizer{}, versionBus, versionTopic)
+		if coordinatorErr != nil {
+			t.Fatalf("new subject-lock approval-race coordinator: %v", coordinatorErr)
+		}
+
+		var v1 Entry
+		if createErr := inTransaction(t, pool, func(tx pgx.Tx) error {
+			if _, insertErr := tx.Exec(t.Context(), `INSERT INTO approval_fixture_subjects(id, name) VALUES($1, $2)`, subjectID, payload.Name); insertErr != nil {
+				return insertErr
+			}
+			var versionErr error
+			v1, versionErr = versionCoordinator.CreateFirstVersion(t.Context(), tx, subjectID, actorOne("race-create-v1"), payload)
+			return versionErr
+		}); createErr != nil {
+			t.Fatalf("create race V1: %v", createErr)
+		}
+		v1, err = mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
+			return versionCoordinator.Submit(t.Context(), tx, v1.ID, v1.Revision, actorOne("race-submit-v1"), payload)
+		})
+		if err != nil {
+			t.Fatalf("submit race V1: %v", err)
+		}
+		v1, err = mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
+			return versionCoordinator.Approve(t.Context(), tx, v1.ID, v1.Revision, actorTwo("race-approve-v1"), payload)
+		})
+		if err != nil {
+			t.Fatalf("approve race V1: %v", err)
+		}
+		v2, createErr := mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
+			return versionCoordinator.CreateNextVersion(t.Context(), tx, subjectID, actorOne("race-create-v2"), payload)
+		})
+		if createErr != nil {
+			t.Fatalf("create race V2: %v", createErr)
+		}
+		v2, err = mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
+			return versionCoordinator.Submit(t.Context(), tx, v2.ID, v2.Revision, actorOne("race-submit-v2"), payload)
+		})
+		if err != nil {
+			t.Fatalf("submit race V2: %v", err)
+		}
+		v2, err = mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
+			return versionCoordinator.Approve(t.Context(), tx, v2.ID, v2.Revision, actorTwo("race-approve-v2"), payload)
+		})
+		if err != nil {
+			t.Fatalf("approve race V2: %v", err)
+		}
+		v3, createErr := mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
+			return versionCoordinator.CreateNextVersion(t.Context(), tx, subjectID, actorOne("race-create-v3"), payload)
+		})
+		if createErr != nil {
+			t.Fatalf("create race V3: %v", createErr)
+		}
+		v3, err = mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
+			return versionCoordinator.Submit(t.Context(), tx, v3.ID, v3.Revision, actorOne("race-submit-v3"), payload)
+		})
+		if err != nil {
+			t.Fatalf("submit race V3: %v", err)
+		}
+
+		unapprovePrepared := make(chan struct{})
+		releaseUnapprove := make(chan struct{})
+		unapproveResult := make(chan error, 1)
+		go func() {
+			tx, beginErr := pool.Begin(context.Background())
+			if beginErr != nil {
+				unapproveResult <- beginErr
+				return
+			}
+			defer func() { _ = tx.Rollback(context.Background()) }()
+			prepared, prepareErr := versionCoordinator.Prepare(context.Background(), tx, ActionUnapproved, v2.ID, v2.Revision, actorOne("race-unapprove-v2"), "superseded")
+			if prepareErr != nil {
+				unapproveResult <- prepareErr
+				return
+			}
+			close(unapprovePrepared)
+			<-releaseUnapprove
+			_, commitErr := versionCoordinator.Commit(context.Background(), tx, prepared, payload)
+			if commitErr == nil {
+				commitErr = tx.Commit(context.Background())
+			}
+			unapproveResult <- commitErr
+		}()
+		<-unapprovePrepared
+
+		approveResult := make(chan error, 1)
+		go func() {
+			tx, beginErr := pool.Begin(context.Background())
+			if beginErr != nil {
+				approveResult <- beginErr
+				return
+			}
+			defer func() { _ = tx.Rollback(context.Background()) }()
+			_, approveErr := versionCoordinator.Approve(context.Background(), tx, v3.ID, v3.Revision, actorTwo("race-approve-v3"), payload)
+			if approveErr == nil {
+				approveErr = tx.Commit(context.Background())
+			}
+			approveResult <- approveErr
+		}()
+		waitForAdvisoryLockWaiter(t, pool)
+		close(releaseUnapprove)
+		if unapproveErr := <-unapproveResult; !IsKey(unapproveErr, "approval_open_version_exists") {
+			t.Fatalf("stale V2 unapprove error = %v", unapproveErr)
+		}
+		if approveErr := <-approveResult; approveErr != nil {
+			t.Fatalf("approve V3 after stale unapprove: %v", approveErr)
+		}
+
+		var v2Status, v3Status string
+		if queryErr := pool.QueryRow(t.Context(), `SELECT status FROM approval_entries WHERE id=$1`, v2.ID).Scan(&v2Status); queryErr != nil {
+			t.Fatalf("read V2 status: %v", queryErr)
+		}
+		if queryErr := pool.QueryRow(t.Context(), `SELECT status FROM approval_entries WHERE id=$1`, v3.ID).Scan(&v3Status); queryErr != nil {
+			t.Fatalf("read V3 status: %v", queryErr)
+		}
+		if v2Status != string(StatusApproved) || v3Status != string(StatusApproved) {
+			t.Fatalf("stale unapprove race left V2=%s V3=%s", v2Status, v3Status)
 		}
 	})
 }

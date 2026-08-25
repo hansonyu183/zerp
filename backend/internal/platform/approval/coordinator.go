@@ -79,14 +79,24 @@ func (c *Coordinator[T]) Lock(ctx context.Context, tx pgx.Tx, entryID string, ex
 		}
 		return Entry{}, newError(ErrorValidation, "approval_invalid_revision", "invalid approval revision", nil)
 	}
-	row, err := dbsqlc.New(tx).LockApprovalEntry(ctx, dbsqlc.LockApprovalEntryParams{ID: entryID, Domain: c.domain, Entity: c.entity})
+	queries := dbsqlc.New(tx)
+	entry, err := c.entryForVersionLock(ctx, queries, entryID)
+	if err != nil {
+		return Entry{}, err
+	}
+	if entry.VersionNo != nil {
+		if err := c.lockVersionSubject(ctx, tx, entry.SubjectID); err != nil {
+			return Entry{}, err
+		}
+	}
+	row, err := queries.LockApprovalEntry(ctx, dbsqlc.LockApprovalEntryParams{ID: entryID, Domain: c.domain, Entity: c.entity})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Entry{}, newError(ErrorNotFound, "approval_not_found", "approval entry not found", err)
 	}
 	if err != nil {
 		return Entry{}, c.databaseError("lock approval entry", err)
 	}
-	entry := entryFromRow(row)
+	entry = entryFromRow(row)
 	if entry.Revision != expectedRevision {
 		return Entry{}, newError(ErrorConflict, "approval_stale_revision", "approval entry changed", nil)
 	}
@@ -135,7 +145,11 @@ func (c *Coordinator[T]) CreateFirstVersion(ctx context.Context, tx pgx.Tx, subj
 		}
 		return Entry{}, err
 	}
-	exists, err := dbsqlc.New(tx).ApprovalVersionsExist(ctx, dbsqlc.ApprovalVersionsExistParams{
+	if err := c.lockVersionSubject(ctx, tx, subjectID); err != nil {
+		return Entry{}, err
+	}
+	queries := dbsqlc.New(tx)
+	exists, err := queries.ApprovalVersionsExist(ctx, dbsqlc.ApprovalVersionsExistParams{
 		Domain: c.domain, Entity: c.entity, SubjectID: subjectID,
 	})
 	if err != nil {
@@ -145,7 +159,7 @@ func (c *Coordinator[T]) CreateFirstVersion(ctx context.Context, tx pgx.Tx, subj
 		return Entry{}, newError(ErrorConflict, "approval_version_history_exists", "approval version history already exists", nil)
 	}
 	when := c.timestamp()
-	row, err := dbsqlc.New(tx).CreateApprovalVersion(ctx, dbsqlc.CreateApprovalVersionParams{
+	row, err := queries.CreateApprovalVersion(ctx, dbsqlc.CreateApprovalVersionParams{
 		ID: c.newID(), Domain: c.domain, Entity: c.entity, SubjectID: subjectID, VersionNo: int32Pointer(1),
 		ActorID: actor.ID(), OccurredAt: timestamp(when),
 	})
@@ -173,6 +187,9 @@ func (c *Coordinator[T]) CreateNextVersion(ctx context.Context, tx pgx.Tx, subje
 		if err == nil {
 			err = newError(ErrorValidation, "approval_invalid_request", "invalid approval request", nil)
 		}
+		return Entry{}, err
+	}
+	if err := c.lockVersionSubject(ctx, tx, subjectID); err != nil {
 		return Entry{}, err
 	}
 	queries := dbsqlc.New(tx)
@@ -227,6 +244,9 @@ func (c *Coordinator[T]) GetLatestApproved(ctx context.Context, tx pgx.Tx, subje
 		}
 		return Entry{}, err
 	}
+	if err := c.lockVersionSubject(ctx, tx, subjectID); err != nil {
+		return Entry{}, err
+	}
 	row, err := dbsqlc.New(tx).GetLatestApprovedVersion(ctx, dbsqlc.GetLatestApprovedVersionParams{
 		Domain: c.domain, Entity: c.entity, SubjectID: subjectID,
 	})
@@ -250,6 +270,9 @@ func (c *Coordinator[T]) GetOpenVersion(ctx context.Context, tx pgx.Tx, subjectI
 		}
 		return Entry{}, err
 	}
+	if err := c.lockVersionSubject(ctx, tx, subjectID); err != nil {
+		return Entry{}, err
+	}
 	row, err := dbsqlc.New(tx).GetOpenApprovalVersion(ctx, dbsqlc.GetOpenApprovalVersionParams{
 		Domain: c.domain, Entity: c.entity, SubjectID: subjectID,
 	})
@@ -271,6 +294,9 @@ func (c *Coordinator[T]) ListVersions(ctx context.Context, tx pgx.Tx, subjectID 
 		if err == nil {
 			err = newError(ErrorValidation, "approval_invalid_request", "invalid approval request", nil)
 		}
+		return nil, err
+	}
+	if err := c.lockVersionSubject(ctx, tx, subjectID); err != nil {
 		return nil, err
 	}
 	rows, err := dbsqlc.New(tx).ListApprovalVersions(ctx, dbsqlc.ListApprovalVersionsParams{
@@ -305,14 +331,8 @@ func (c *Coordinator[T]) Prepare(ctx context.Context, tx pgx.Tx, action Action, 
 		return Prepared{}, newError(ErrorForbidden, "approval_self_approval_forbidden", "submitter cannot approve the same entry", nil)
 	}
 	if action == ActionUnapproved && entry.VersionNo != nil {
-		latest, latestErr := dbsqlc.New(tx).LockLatestApprovedVersion(ctx, dbsqlc.LockLatestApprovedVersionParams{
-			Domain: c.domain, Entity: c.entity, SubjectID: entry.SubjectID,
-		})
-		if errors.Is(latestErr, pgx.ErrNoRows) || (latestErr == nil && latest.ID != entry.ID) {
-			return Prepared{}, newError(ErrorConflict, "approval_not_latest_approved", "only the latest approved version can be unapproved", nil)
-		}
-		if latestErr != nil {
-			return Prepared{}, c.databaseError("lock latest approved version", latestErr)
+		if err := c.requireLatestApprovedVersion(ctx, tx, entry); err != nil {
+			return Prepared{}, err
 		}
 	}
 	prepared := Prepared{domain: c.domain, entity: c.entity, entry: entry, action: action, actor: actor}
@@ -325,6 +345,30 @@ func (c *Coordinator[T]) Prepare(ctx context.Context, tx pgx.Tx, action Action, 
 func (c *Coordinator[T]) Commit(ctx context.Context, tx pgx.Tx, prepared Prepared, payload T) (Entry, error) {
 	if tx == nil || prepared.domain != c.domain || prepared.entity != c.entity || prepared.entry.ID == "" {
 		return Entry{}, newError(ErrorValidation, "approval_invalid_preparation", "invalid prepared approval action", nil)
+	}
+	expectedRevision := prepared.entry.Revision
+	if prepared.entry.VersionNo != nil {
+		if err := c.lockVersionSubject(ctx, tx, prepared.entry.SubjectID); err != nil {
+			return Entry{}, err
+		}
+	}
+	locked, err := dbsqlc.New(tx).LockApprovalEntry(ctx, dbsqlc.LockApprovalEntryParams{
+		ID: prepared.entry.ID, Domain: c.domain, Entity: c.entity,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Entry{}, newError(ErrorNotFound, "approval_not_found", "approval entry not found", err)
+	}
+	if err != nil {
+		return Entry{}, c.databaseError("lock prepared approval entry", err)
+	}
+	prepared.entry = entryFromRow(locked)
+	if prepared.entry.Revision != expectedRevision {
+		return Entry{}, newError(ErrorConflict, "approval_stale_revision", "approval entry changed", nil)
+	}
+	if prepared.action == ActionUnapproved && prepared.entry.VersionNo != nil {
+		if err := c.requireLatestApprovedVersion(ctx, tx, prepared.entry); err != nil {
+			return Entry{}, err
+		}
 	}
 	previousApprovedVersionID, err := c.latestApprovedVersionID(ctx, tx, prepared.entry)
 	if err != nil {
@@ -380,6 +424,39 @@ func (c *Coordinator[T]) latestApprovedVersionID(ctx context.Context, tx pgx.Tx,
 		return nil, c.databaseError("get latest approved version", err)
 	}
 	return stringPointer(row.ID), nil
+}
+
+func (c *Coordinator[T]) entryForVersionLock(ctx context.Context, queries *dbsqlc.Queries, entryID string) (Entry, error) {
+	row, err := queries.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: entryID, Domain: c.domain, Entity: c.entity})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Entry{}, newError(ErrorNotFound, "approval_not_found", "approval entry not found", err)
+	}
+	if err != nil {
+		return Entry{}, c.databaseError("get approval entry for version lock", err)
+	}
+	return entryFromRow(row), nil
+}
+
+func (c *Coordinator[T]) lockVersionSubject(ctx context.Context, tx pgx.Tx, subjectID string) error {
+	if err := dbsqlc.New(tx).LockApprovalVersionSubject(ctx, dbsqlc.LockApprovalVersionSubjectParams{
+		Domain: stringPointer(c.domain), Entity: stringPointer(c.entity), SubjectID: stringPointer(subjectID),
+	}); err != nil {
+		return c.databaseError("lock approval version subject", err)
+	}
+	return nil
+}
+
+func (c *Coordinator[T]) requireLatestApprovedVersion(ctx context.Context, tx pgx.Tx, entry Entry) error {
+	latest, err := dbsqlc.New(tx).LockLatestApprovedVersion(ctx, dbsqlc.LockLatestApprovedVersionParams{
+		Domain: c.domain, Entity: c.entity, SubjectID: entry.SubjectID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && latest.ID != entry.ID) {
+		return newError(ErrorConflict, "approval_not_latest_approved", "only the latest approved version can be unapproved", nil)
+	}
+	if err != nil {
+		return c.databaseError("lock latest approved version", err)
+	}
+	return nil
 }
 
 func (c *Coordinator[T]) SaveDraft(ctx context.Context, tx pgx.Tx, entryID string, expectedRevision int64, actor Actor, payload T) (Entry, error) {

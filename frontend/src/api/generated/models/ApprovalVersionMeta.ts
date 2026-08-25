@@ -23,4 +23,3 @@ export type ApprovalVersionMeta = {
   approvedBy: string | null;
   approvedAt: string | null;
 };
-

@@ -585,6 +585,7 @@ type Querier interface {
 	LockAccountingInventory(ctx context.Context, lockKey string) error
 	LockAccountingPeriodRow(ctx context.Context, arg LockAccountingPeriodRowParams) (LockAccountingPeriodRowRow, error)
 	LockApprovalEntry(ctx context.Context, arg LockApprovalEntryParams) (ApprovalEntry, error)
+	LockApprovalVersionSubject(ctx context.Context, arg LockApprovalVersionSubjectParams) error
 	LockBobCustomerAccountRelationship(ctx context.Context, objectID string) (string, error)
 	LockBobObject(ctx context.Context, arg LockBobObjectParams) (LockBobObjectRow, error)
 	LockBobParty(ctx context.Context, partyID string) (BobParty, error)

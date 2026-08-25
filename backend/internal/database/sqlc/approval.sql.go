@@ -441,6 +441,24 @@ func (q *Queries) LockApprovalEntry(ctx context.Context, arg LockApprovalEntryPa
 	return i, err
 }
 
+const lockApprovalVersionSubject = `-- name: LockApprovalVersionSubject :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+  'approval.version:' || $1 || ':' || $2 || ':' || $3,
+  0
+))
+`
+
+type LockApprovalVersionSubjectParams struct {
+	Domain    *string `db:"domain" json:"domain"`
+	Entity    *string `db:"entity" json:"entity"`
+	SubjectID *string `db:"subject_id" json:"subject_id"`
+}
+
+func (q *Queries) LockApprovalVersionSubject(ctx context.Context, arg LockApprovalVersionSubjectParams) error {
+	_, err := q.db.Exec(ctx, lockApprovalVersionSubject, arg.Domain, arg.Entity, arg.SubjectID)
+	return err
+}
+
 const lockLatestApprovedVersion = `-- name: LockLatestApprovedVersion :one
 SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at
 FROM approval_entries

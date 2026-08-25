@@ -22,6 +22,12 @@ INSERT INTO approval_entries(
 )
 RETURNING *;
 
+-- name: LockApprovalVersionSubject :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+  'approval.version:' || sqlc.arg(domain) || ':' || sqlc.arg(entity) || ':' || sqlc.arg(subject_id),
+  0
+));
+
 -- name: GetApprovalEntry :one
 SELECT *
 FROM approval_entries

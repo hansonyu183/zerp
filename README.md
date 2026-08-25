@@ -57,7 +57,7 @@ make dev-down
 | `make compose-up`     | 启动生产形态 Compose                   |
 | `make compose-down`   | 停止生产形态 Compose                   |
 
-`pnpm --filter @zerp/frontend typecheck` 是唯一前端类型门禁；它运行 `vue-tsc`，并包含一个故意错误的隔离 fixture 自检，确保 `.vue` template 诊断没有从门禁中失效。
+`pnpm --filter @zerp/frontend typecheck` 是唯一生产前端类型门禁，只运行一次 `vue-tsc -b --force`。`pnpm --filter @zerp/frontend test:vue-template-typecheck` 是独立工具链回归测试：它要求同一 checker 拒绝故意错误的隔离 Vue template fixture，并由 `make check` 自动运行；该 canary 不属于生产 `typecheck` 命令。
 
 ## 契约开发
 

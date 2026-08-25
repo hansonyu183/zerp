@@ -8,7 +8,7 @@
 ## 工程约定
 
 - 技术栈为 Vue 3、TypeScript、Vite、Vuetify 和 Pinia；使用根目录锁定的 Node.js 与 pnpm 版本。
-- 仓库只使用根目录锁定的 TypeScript 7/tsgo checker，通过 TypeScript native bridge 为 `vue-tsc` 提供维护方支持的经典编译器 API；唯一 `typecheck` 门禁同时检查 TypeScript 与 Vue SFC template。Lint、契约生成和源码检查不得依赖另一版 TypeScript，不得引入兼容工作区或重复类型检查链路。
+- 仓库只使用根目录锁定的 TypeScript 7/tsgo checker，通过 TypeScript native bridge 为 `vue-tsc` 提供维护方支持的经典编译器 API；唯一生产 `typecheck` 门禁以一次 `vue-tsc -b --force` 同时检查 TypeScript 与 Vue SFC template。故意无效的 Vue template canary 是由 `check` 单独运行的工具链回归测试，不属于 `typecheck` 命令。Lint、契约生成、源码检查和 canary 不得依赖另一版 TypeScript，不得引入兼容工作区或重复生产类型检查链路。
 - `src/api/generated/` 是 OpenAPI 生成类型，禁止手工修改；业务页面只消费生成 DTO 或 UI 自有模型，不维护手写 DTO 副本。
 - `src/api/` 放统一客户端、生成类型和通用结果类型；`src/layouts/` 放应用布局；`src/router/` 放路由、页面注册表和守卫；`src/stores/` 放跨页面共享状态；`src/pages/auth/`、`home/` 和 `system/` 分别放公开认证页、登录后首页及占位/错误页。
 - 页面组件负责模板、样式和交互装配；业务状态与动作放在同目录的 `vm.ts`。只有当前用户、会话、CSRF、动态菜单、动作权限、多页面共享且必须保持一致的数据及应用级 UI 状态进入 Pinia。

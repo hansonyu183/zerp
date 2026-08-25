@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "typecheck": "vue-tsc -b --force && node scripts/check-vue-template-typecheck.mjs",
+    "typecheck": "vue-tsc -b --force",
     "build": "pnpm typecheck && vite build",
     "preview": "vite preview",
     "lint": "oxlint --quiet .",
@@ -19,10 +19,11 @@
     "docs:check": "pnpm --dir .. docs:check",
     "check:whitespace": "git diff --check",
     "check": "pnpm check:core && pnpm docs:check && pnpm check:whitespace",
-    "check:core": "pnpm lint && pnpm format:check && pnpm check:deployment-config && pnpm test:coverage && pnpm build",
+    "check:core": "pnpm lint && pnpm format:check && pnpm check:deployment-config && pnpm test:vue-template-typecheck && pnpm test:coverage && pnpm build",
     "test": "pnpm test:unit && pnpm test:e2e",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
+    "test:vue-template-typecheck": "node --test scripts/vue-template-typecheck.test.mjs",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test"
   },

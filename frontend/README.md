@@ -30,11 +30,12 @@ pnpm typecheck
 pnpm lint
 pnpm format:check
 pnpm test:unit
+pnpm test:vue-template-typecheck
 pnpm test:coverage
 pnpm check
 ```
 
-`pnpm typecheck` 是唯一类型门禁：通过 `vue-tsc` 与 TypeScript native bridge 使用 TypeScript 7/tsgo checker，一次检查 `.ts`、`.tsx` 和 `.vue` template，并运行隔离 fixture 自检来证明 template 诊断有效。
+`pnpm typecheck` 是唯一生产类型门禁：通过 `vue-tsc` 与 TypeScript native bridge 使用 TypeScript 7/tsgo checker，以一次 `vue-tsc -b --force` 检查 `.ts`、`.tsx` 和 `.vue` template。`pnpm test:vue-template-typecheck` 是独立工具链回归测试，要求同一 checker 拒绝故意错误的隔离 Vue template fixture；`pnpm check` 会自动运行它，但它不是 `typecheck` 命令的一部分。
 
 真实全栈 Playwright 从仓库根目录运行：
 

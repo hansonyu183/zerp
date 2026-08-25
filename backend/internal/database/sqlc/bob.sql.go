@@ -225,21 +225,101 @@ func (q *Queries) CountBobApprovalEvents(ctx context.Context, arg CountBobApprov
 const countBobObjects = `-- name: CountBobObjects :one
 SELECT count(*)
 FROM bob_objects o
+LEFT JOIN LATERAL (
+    SELECT id, status
+    FROM approval_entries
+    WHERE domain='bob' AND entity=o.entity AND subject_id=o.id AND status='APPROVED'
+    ORDER BY version_no DESC LIMIT 1
+) approved ON true
+LEFT JOIN LATERAL (
+    SELECT id, status
+    FROM approval_entries
+    WHERE domain='bob' AND entity=o.entity AND subject_id=o.id AND status IN ('DRAFT','PENDING')
+    ORDER BY version_no DESC LIMIT 1
+) open_entry ON true
+LEFT JOIN bob_employee_versions approved_employee ON approved_employee.approval_entry_id=approved.id
+LEFT JOIN bob_employee_versions open_employee ON open_employee.approval_entry_id=open_entry.id
+LEFT JOIN bob_product_versions approved_product ON approved_product.approval_entry_id=approved.id
+LEFT JOIN bob_product_versions open_product ON open_product.approval_entry_id=open_entry.id
+LEFT JOIN bob_warehouse_versions approved_warehouse ON approved_warehouse.approval_entry_id=approved.id
+LEFT JOIN bob_warehouse_versions open_warehouse ON open_warehouse.approval_entry_id=open_entry.id
+LEFT JOIN bob_vehicle_versions approved_vehicle ON approved_vehicle.approval_entry_id=approved.id
+LEFT JOIN bob_vehicle_versions open_vehicle ON open_vehicle.approval_entry_id=open_entry.id
+LEFT JOIN bob_fund_account_versions approved_fund ON approved_fund.approval_entry_id=approved.id
+LEFT JOIN bob_fund_account_versions open_fund ON open_fund.approval_entry_id=open_entry.id
+LEFT JOIN bob_operating_entity_versions approved_operating ON approved_operating.approval_entry_id=approved.id
+LEFT JOIN bob_operating_entity_versions open_operating ON open_operating.approval_entry_id=open_entry.id
+LEFT JOIN bob_supplier_versions approved_supplier ON approved_supplier.approval_entry_id=approved.id
+LEFT JOIN bob_supplier_versions open_supplier ON open_supplier.approval_entry_id=open_entry.id
+LEFT JOIN bob_sales_partner_versions approved_sales ON approved_sales.approval_entry_id=approved.id
+LEFT JOIN bob_sales_partner_versions open_sales ON open_sales.approval_entry_id=open_entry.id
+LEFT JOIN bob_customer_relationships customer_relation ON customer_relation.object_id=o.id AND o.entity='customer'
+LEFT JOIN bob_supplier_relationships supplier_relation ON supplier_relation.object_id=o.id AND o.entity='supplier'
+LEFT JOIN bob_sales_relationships sales_relation ON sales_relation.object_id=o.id AND o.entity='sales-partner'
+LEFT JOIN bob_service_relationships service_relation ON service_relation.object_id=o.id AND o.entity='other-unit'
+LEFT JOIN bob_parties relationship_party ON relationship_party.id=COALESCE(customer_relation.party_id,supplier_relation.party_id,sales_relation.party_id,service_relation.party_id)
 WHERE o.entity = $1
-  AND ($2::text = '' OR o.code ILIKE '%' || $2::text || '%')
+  AND ($2::text = ''
+       OR o.code ILIKE '%' || $2::text || '%'
+       OR COALESCE(approved_employee.name, open_employee.name, approved_product.name, open_product.name,
+                   approved_warehouse.name, open_warehouse.name, approved_vehicle.name, open_vehicle.name,
+                   approved_fund.name, open_fund.name, approved_operating.legal_name, open_operating.legal_name,
+                   approved_supplier.name, open_supplier.name, relationship_party.display_name, '')
+          ILIKE '%' || $2::text || '%'
+       OR EXISTS (
+           SELECT 1
+           FROM bob_customer_accounts account
+           JOIN bob_objects account_object ON account_object.id=account.object_id AND account_object.entity='customer-account'
+           LEFT JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='bob' AND entity='customer-account' AND subject_id=account.object_id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) account_approved_entry ON true
+           LEFT JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='bob' AND entity='customer-account' AND subject_id=account.object_id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) account_open_entry ON true
+           LEFT JOIN bob_customer_versions account_approved ON account_approved.approval_entry_id=account_approved_entry.id
+           LEFT JOIN bob_customer_versions account_open ON account_open.approval_entry_id=account_open_entry.id
+           WHERE account.customer_relationship_id=o.id
+             AND (account_object.code ILIKE '%' || $2::text || '%'
+                  OR COALESCE(account_approved.name,account_open.name,'') ILIKE '%' || $2::text || '%')
+       ))
   AND ($3::integer = -1 OR o.enabled = ($3::integer = 1))
-  AND (cardinality($4::text[]) = 0 OR EXISTS (
-      SELECT 1 FROM approval_entries filtered
-      WHERE filtered.domain='bob' AND filtered.entity=o.entity AND filtered.subject_id=o.id
-        AND filtered.status = ANY($4::text[])
+  AND (cardinality($4::text[]) = 0
+       OR approved.status = ANY($4::text[])
+       OR open_entry.status = ANY($4::text[]))
+  AND ($5::text='' OR approved_product.category_id=$5::text OR open_product.category_id=$5::text)
+  AND ($6::text='' OR approved_employee.department_id=$6::text OR open_employee.department_id=$6::text)
+  AND ($7::text='' OR approved_employee.position_id=$7::text OR open_employee.position_id=$7::text)
+  AND ($8::text='' OR approved_fund.currency=$8::text OR open_fund.currency=$8::text)
+  AND ($9::text='' OR approved_product.product_type_id=$9::text OR open_product.product_type_id=$9::text)
+  AND ($10::text='' OR customer_relation.operating_entity_id=$10::text OR sales_relation.operating_entity_id=$10::text OR service_relation.operating_entity_id=$10::text)
+  AND ($11::text='' OR approved_supplier.default_purchaser_employee_id=$11::text OR open_supplier.default_purchaser_employee_id=$11::text)
+  AND ($12::text='' OR $12::text=ANY(approved_sales.capabilities) OR $12::text=ANY(open_sales.capabilities))
+  AND (($13::text='' AND $14::text='' AND $15::text='') OR EXISTS (
+      SELECT 1
+      FROM bob_customer_accounts account
+      LEFT JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='bob' AND entity='customer-account' AND subject_id=account.object_id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) account_approved_entry ON true
+      LEFT JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='bob' AND entity='customer-account' AND subject_id=account.object_id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) account_open_entry ON true
+      LEFT JOIN bob_customer_versions account_approved ON account_approved.approval_entry_id=account_approved_entry.id
+      LEFT JOIN bob_customer_versions account_open ON account_open.approval_entry_id=account_open_entry.id
+      WHERE account.customer_relationship_id=o.id
+        AND ($13::text='' OR account_approved.customer_type=$13::text OR account_open.customer_type=$13::text)
+        AND ($14::text='' OR account_approved.primary_sales_attribution_type=$14::text OR account_open.primary_sales_attribution_type=$14::text)
+        AND ($15::text='' OR account_approved.primary_sales_subject_id=$15::text OR account_open.primary_sales_subject_id=$15::text)
   ))
 `
 
 type CountBobObjectsParams struct {
-	Entity        string   `db:"entity" json:"entity"`
-	Keyword       string   `db:"keyword" json:"keyword"`
-	EnabledFilter int32    `db:"enabled_filter" json:"enabled_filter"`
-	StatusFilter  []string `db:"status_filter" json:"status_filter"`
+	Entity                     string   `db:"entity" json:"entity"`
+	Keyword                    string   `db:"keyword" json:"keyword"`
+	EnabledFilter              int32    `db:"enabled_filter" json:"enabled_filter"`
+	StatusFilter               []string `db:"status_filter" json:"status_filter"`
+	CategoryID                 string   `db:"category_id" json:"category_id"`
+	DepartmentID               string   `db:"department_id" json:"department_id"`
+	PositionID                 string   `db:"position_id" json:"position_id"`
+	Currency                   string   `db:"currency" json:"currency"`
+	ProductTypeID              string   `db:"product_type_id" json:"product_type_id"`
+	OperatingEntityID          string   `db:"operating_entity_id" json:"operating_entity_id"`
+	DefaultPurchaserEmployeeID string   `db:"default_purchaser_employee_id" json:"default_purchaser_employee_id"`
+	Capability                 string   `db:"capability" json:"capability"`
+	CustomerType               string   `db:"customer_type" json:"customer_type"`
+	SalesAttributionType       string   `db:"sales_attribution_type" json:"sales_attribution_type"`
+	SalesAttributionSubjectID  string   `db:"sales_attribution_subject_id" json:"sales_attribution_subject_id"`
 }
 
 func (q *Queries) CountBobObjects(ctx context.Context, arg CountBobObjectsParams) (int64, error) {
@@ -248,6 +328,17 @@ func (q *Queries) CountBobObjects(ctx context.Context, arg CountBobObjectsParams
 		arg.Keyword,
 		arg.EnabledFilter,
 		arg.StatusFilter,
+		arg.CategoryID,
+		arg.DepartmentID,
+		arg.PositionID,
+		arg.Currency,
+		arg.ProductTypeID,
+		arg.OperatingEntityID,
+		arg.DefaultPurchaserEmployeeID,
+		arg.Capability,
+		arg.CustomerType,
+		arg.SalesAttributionType,
+		arg.SalesAttributionSubjectID,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -643,6 +734,25 @@ func (q *Queries) GetBobEmployeeRelationship(ctx context.Context, objectID strin
 		&i.CreatedAt,
 		&i.CreatedBy,
 	)
+	return i, err
+}
+
+const getBobEmploymentRelationship = `-- name: GetBobEmploymentRelationship :one
+SELECT object_id,party_id,operating_entity_id
+FROM bob_employment_relationships
+WHERE object_id=$1
+`
+
+type GetBobEmploymentRelationshipRow struct {
+	ObjectID          string `db:"object_id" json:"object_id"`
+	PartyID           string `db:"party_id" json:"party_id"`
+	OperatingEntityID string `db:"operating_entity_id" json:"operating_entity_id"`
+}
+
+func (q *Queries) GetBobEmploymentRelationship(ctx context.Context, objectID string) (GetBobEmploymentRelationshipRow, error) {
+	row := q.db.QueryRow(ctx, getBobEmploymentRelationship, objectID)
+	var i GetBobEmploymentRelationshipRow
+	err := row.Scan(&i.ObjectID, &i.PartyID, &i.OperatingEntityID)
 	return i, err
 }
 
@@ -2135,7 +2245,7 @@ SELECT o.id AS object_id, o.entity, o.code, o.revision AS object_revision, o.ena
 	   COALESCE(open_entry.revision, 0)::bigint AS open_revision
 FROM bob_objects o
 LEFT JOIN LATERAL (
-    SELECT id, version_no, revision
+    SELECT id, version_no, status, revision
     FROM approval_entries
     WHERE domain = 'bob' AND entity = o.entity AND subject_id = o.id AND status = 'APPROVED'
     ORDER BY version_no DESC LIMIT 1
@@ -2146,25 +2256,106 @@ LEFT JOIN LATERAL (
     WHERE domain = 'bob' AND entity = o.entity AND subject_id = o.id AND status IN ('DRAFT', 'PENDING')
     ORDER BY version_no DESC LIMIT 1
 ) open_entry ON true
+LEFT JOIN bob_employee_versions approved_employee ON approved_employee.approval_entry_id=approved.id
+LEFT JOIN bob_employee_versions open_employee ON open_employee.approval_entry_id=open_entry.id
+LEFT JOIN bob_product_versions approved_product ON approved_product.approval_entry_id=approved.id
+LEFT JOIN bob_product_versions open_product ON open_product.approval_entry_id=open_entry.id
+LEFT JOIN bob_warehouse_versions approved_warehouse ON approved_warehouse.approval_entry_id=approved.id
+LEFT JOIN bob_warehouse_versions open_warehouse ON open_warehouse.approval_entry_id=open_entry.id
+LEFT JOIN bob_vehicle_versions approved_vehicle ON approved_vehicle.approval_entry_id=approved.id
+LEFT JOIN bob_vehicle_versions open_vehicle ON open_vehicle.approval_entry_id=open_entry.id
+LEFT JOIN bob_fund_account_versions approved_fund ON approved_fund.approval_entry_id=approved.id
+LEFT JOIN bob_fund_account_versions open_fund ON open_fund.approval_entry_id=open_entry.id
+LEFT JOIN bob_operating_entity_versions approved_operating ON approved_operating.approval_entry_id=approved.id
+LEFT JOIN bob_operating_entity_versions open_operating ON open_operating.approval_entry_id=open_entry.id
+LEFT JOIN bob_supplier_versions approved_supplier ON approved_supplier.approval_entry_id=approved.id
+LEFT JOIN bob_supplier_versions open_supplier ON open_supplier.approval_entry_id=open_entry.id
+LEFT JOIN bob_sales_partner_versions approved_sales ON approved_sales.approval_entry_id=approved.id
+LEFT JOIN bob_sales_partner_versions open_sales ON open_sales.approval_entry_id=open_entry.id
+LEFT JOIN bob_customer_relationships customer_relation ON customer_relation.object_id=o.id AND o.entity='customer'
+LEFT JOIN bob_supplier_relationships supplier_relation ON supplier_relation.object_id=o.id AND o.entity='supplier'
+LEFT JOIN bob_sales_relationships sales_relation ON sales_relation.object_id=o.id AND o.entity='sales-partner'
+LEFT JOIN bob_service_relationships service_relation ON service_relation.object_id=o.id AND o.entity='other-unit'
+LEFT JOIN bob_parties relationship_party ON relationship_party.id=COALESCE(customer_relation.party_id,supplier_relation.party_id,sales_relation.party_id,service_relation.party_id)
 WHERE o.entity = $1
-  AND ($2::text = '' OR o.code ILIKE '%' || $2::text || '%')
+  AND ($2::text = ''
+       OR o.code ILIKE '%' || $2::text || '%'
+       OR COALESCE(approved_employee.name, open_employee.name, approved_product.name, open_product.name,
+                   approved_warehouse.name, open_warehouse.name, approved_vehicle.name, open_vehicle.name,
+                   approved_fund.name, open_fund.name, approved_operating.legal_name, open_operating.legal_name,
+                   approved_supplier.name, open_supplier.name, relationship_party.display_name, '')
+          ILIKE '%' || $2::text || '%'
+       OR EXISTS (
+           SELECT 1
+           FROM bob_customer_accounts account
+           JOIN bob_objects account_object ON account_object.id=account.object_id AND account_object.entity='customer-account'
+           LEFT JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='bob' AND entity='customer-account' AND subject_id=account.object_id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) account_approved_entry ON true
+           LEFT JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='bob' AND entity='customer-account' AND subject_id=account.object_id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) account_open_entry ON true
+           LEFT JOIN bob_customer_versions account_approved ON account_approved.approval_entry_id=account_approved_entry.id
+           LEFT JOIN bob_customer_versions account_open ON account_open.approval_entry_id=account_open_entry.id
+           WHERE account.customer_relationship_id=o.id
+             AND (account_object.code ILIKE '%' || $2::text || '%'
+                  OR COALESCE(account_approved.name,account_open.name,'') ILIKE '%' || $2::text || '%')
+       ))
   AND ($3::integer = -1 OR o.enabled = ($3::integer = 1))
-  AND (cardinality($4::text[]) = 0 OR EXISTS (
-      SELECT 1 FROM approval_entries filtered
-      WHERE filtered.domain='bob' AND filtered.entity=o.entity AND filtered.subject_id=o.id
-        AND filtered.status = ANY($4::text[])
+  AND (cardinality($4::text[]) = 0
+       OR approved.status = ANY($4::text[])
+       OR open_entry.status = ANY($4::text[]))
+  AND ($5::text='' OR approved_product.category_id=$5::text OR open_product.category_id=$5::text)
+  AND ($6::text='' OR approved_employee.department_id=$6::text OR open_employee.department_id=$6::text)
+  AND ($7::text='' OR approved_employee.position_id=$7::text OR open_employee.position_id=$7::text)
+  AND ($8::text='' OR approved_fund.currency=$8::text OR open_fund.currency=$8::text)
+  AND ($9::text='' OR approved_product.product_type_id=$9::text OR open_product.product_type_id=$9::text)
+  AND ($10::text='' OR customer_relation.operating_entity_id=$10::text OR sales_relation.operating_entity_id=$10::text OR service_relation.operating_entity_id=$10::text)
+  AND ($11::text='' OR approved_supplier.default_purchaser_employee_id=$11::text OR open_supplier.default_purchaser_employee_id=$11::text)
+  AND ($12::text='' OR $12::text=ANY(approved_sales.capabilities) OR $12::text=ANY(open_sales.capabilities))
+  AND (($13::text='' AND $14::text='' AND $15::text='') OR EXISTS (
+      SELECT 1
+      FROM bob_customer_accounts account
+      LEFT JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='bob' AND entity='customer-account' AND subject_id=account.object_id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) account_approved_entry ON true
+      LEFT JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='bob' AND entity='customer-account' AND subject_id=account.object_id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) account_open_entry ON true
+      LEFT JOIN bob_customer_versions account_approved ON account_approved.approval_entry_id=account_approved_entry.id
+      LEFT JOIN bob_customer_versions account_open ON account_open.approval_entry_id=account_open_entry.id
+      WHERE account.customer_relationship_id=o.id
+        AND ($13::text='' OR account_approved.customer_type=$13::text OR account_open.customer_type=$13::text)
+        AND ($14::text='' OR account_approved.primary_sales_attribution_type=$14::text OR account_open.primary_sales_attribution_type=$14::text)
+        AND ($15::text='' OR account_approved.primary_sales_subject_id=$15::text OR account_open.primary_sales_subject_id=$15::text)
   ))
-ORDER BY o.code
-LIMIT $6 OFFSET $5
+ORDER BY
+  CASE WHEN $16::text='updatedAt' AND $17::text='asc' THEN o.updated_at END ASC,
+  CASE WHEN $16::text='updatedAt' AND $17::text='desc' THEN o.updated_at END DESC,
+  CASE WHEN $16::text='code' AND $17::text='asc' THEN o.code END ASC,
+  CASE WHEN $16::text='code' AND $17::text='desc' THEN o.code END DESC,
+  CASE WHEN $16::text='name' AND $17::text='asc' THEN COALESCE(open_employee.name,approved_employee.name,open_product.name,approved_product.name,open_warehouse.name,approved_warehouse.name,open_vehicle.name,approved_vehicle.name,open_fund.name,approved_fund.name,open_operating.legal_name,approved_operating.legal_name,open_supplier.name,approved_supplier.name,relationship_party.display_name,'') END ASC,
+  CASE WHEN $16::text='name' AND $17::text='desc' THEN COALESCE(open_employee.name,approved_employee.name,open_product.name,approved_product.name,open_warehouse.name,approved_warehouse.name,open_vehicle.name,approved_vehicle.name,open_fund.name,approved_fund.name,open_operating.legal_name,approved_operating.legal_name,open_supplier.name,approved_supplier.name,relationship_party.display_name,'') END DESC,
+  CASE WHEN $16::text='status' AND $17::text='asc' THEN COALESCE(open_entry.status,approved.status,'') END ASC,
+  CASE WHEN $16::text='status' AND $17::text='desc' THEN COALESCE(open_entry.status,approved.status,'') END DESC,
+  CASE WHEN $16::text='version' AND $17::text='asc' THEN COALESCE(open_entry.version_no,approved.version_no,0) END ASC,
+  CASE WHEN $16::text='version' AND $17::text='desc' THEN COALESCE(open_entry.version_no,approved.version_no,0) END DESC,
+  o.id DESC
+LIMIT $19 OFFSET $18
 `
 
 type ListBobObjectsParams struct {
-	Entity        string   `db:"entity" json:"entity"`
-	Keyword       string   `db:"keyword" json:"keyword"`
-	EnabledFilter int32    `db:"enabled_filter" json:"enabled_filter"`
-	StatusFilter  []string `db:"status_filter" json:"status_filter"`
-	RowOffset     int32    `db:"row_offset" json:"row_offset"`
-	RowLimit      int32    `db:"row_limit" json:"row_limit"`
+	Entity                     string   `db:"entity" json:"entity"`
+	Keyword                    string   `db:"keyword" json:"keyword"`
+	EnabledFilter              int32    `db:"enabled_filter" json:"enabled_filter"`
+	StatusFilter               []string `db:"status_filter" json:"status_filter"`
+	CategoryID                 string   `db:"category_id" json:"category_id"`
+	DepartmentID               string   `db:"department_id" json:"department_id"`
+	PositionID                 string   `db:"position_id" json:"position_id"`
+	Currency                   string   `db:"currency" json:"currency"`
+	ProductTypeID              string   `db:"product_type_id" json:"product_type_id"`
+	OperatingEntityID          string   `db:"operating_entity_id" json:"operating_entity_id"`
+	DefaultPurchaserEmployeeID string   `db:"default_purchaser_employee_id" json:"default_purchaser_employee_id"`
+	Capability                 string   `db:"capability" json:"capability"`
+	CustomerType               string   `db:"customer_type" json:"customer_type"`
+	SalesAttributionType       string   `db:"sales_attribution_type" json:"sales_attribution_type"`
+	SalesAttributionSubjectID  string   `db:"sales_attribution_subject_id" json:"sales_attribution_subject_id"`
+	SortField                  string   `db:"sort_field" json:"sort_field"`
+	SortOrder                  string   `db:"sort_order" json:"sort_order"`
+	RowOffset                  int32    `db:"row_offset" json:"row_offset"`
+	RowLimit                   int32    `db:"row_limit" json:"row_limit"`
 }
 
 type ListBobObjectsRow struct {
@@ -2189,6 +2380,19 @@ func (q *Queries) ListBobObjects(ctx context.Context, arg ListBobObjectsParams) 
 		arg.Keyword,
 		arg.EnabledFilter,
 		arg.StatusFilter,
+		arg.CategoryID,
+		arg.DepartmentID,
+		arg.PositionID,
+		arg.Currency,
+		arg.ProductTypeID,
+		arg.OperatingEntityID,
+		arg.DefaultPurchaserEmployeeID,
+		arg.Capability,
+		arg.CustomerType,
+		arg.SalesAttributionType,
+		arg.SalesAttributionSubjectID,
+		arg.SortField,
+		arg.SortOrder,
 		arg.RowOffset,
 		arg.RowLimit,
 	)

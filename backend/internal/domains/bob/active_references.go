@@ -5,7 +5,6 @@ import (
 	"sort"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
-	"github.com/jackc/pgx/v5"
 )
 
 type directReferenceUse struct {
@@ -131,47 +130,14 @@ func listActiveReferenceCounts(ctx context.Context, q *dbsqlc.Queries, entity, o
 	return counts, nil
 }
 
-// listVoucherApprovalEntryReferenceCounts inspects the concrete VOU snapshot
-// columns in the live schema. VOU keeps references in its typed detail tables,
-// and every such column has the *_approval_entry_id suffix. This deliberately
-// counts rows in every document status while excluding audit/history text.
-func listVoucherApprovalEntryReferenceCounts(ctx context.Context, tx pgx.Tx, entryID string) ([]ActiveReferenceCount, error) {
-	rows, err := tx.Query(ctx, `
-		SELECT table_schema, table_name, column_name
-		FROM information_schema.columns
-		WHERE table_schema = current_schema()
-		  AND table_name LIKE 'vou\_%' ESCAPE '\'
-		  AND column_name LIKE '%\_approval\_entry\_id' ESCAPE '\'
-		ORDER BY table_name, column_name`)
+func listVoucherApprovalEntryReferenceCounts(ctx context.Context, q *dbsqlc.Queries, entryID string) ([]ActiveReferenceCount, error) {
+	rows, err := q.ListVouApprovalEntryReferenceCounts(ctx, entryID)
 	if err != nil {
 		return nil, err
 	}
-	type referenceColumn struct{ schema, table, column string }
-	columns := []referenceColumn{}
-	for rows.Next() {
-		var column referenceColumn
-		if err = rows.Scan(&column.schema, &column.table, &column.column); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		columns = append(columns, column)
-	}
-	if err = rows.Err(); err != nil {
-		rows.Close()
-		return nil, err
-	}
-	rows.Close()
-	counts := []ActiveReferenceCount{}
-	for _, column := range columns {
-		statement := "SELECT count(*) FROM " + pgx.Identifier{column.schema, column.table}.Sanitize() +
-			" WHERE " + pgx.Identifier{column.column}.Sanitize() + " = $1"
-		var count int
-		if err = tx.QueryRow(ctx, statement, entryID).Scan(&count); err != nil {
-			return nil, err
-		}
-		if count != 0 {
-			counts = append(counts, ActiveReferenceCount{Entity: column.table, Field: column.column, Count: count})
-		}
+	counts := make([]ActiveReferenceCount, 0, len(rows))
+	for _, row := range rows {
+		counts = append(counts, ActiveReferenceCount{Entity: row.Entity, Field: row.Field, Count: int(row.ReferenceCount)})
 	}
 	return counts, nil
 }

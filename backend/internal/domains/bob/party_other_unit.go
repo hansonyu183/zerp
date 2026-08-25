@@ -881,11 +881,12 @@ func (s *Service) OtherUnitQuery(ctx context.Context, input QueryInput) (Page[Ot
 			enabledFilter = 0
 		}
 	}
-	total, err := s.queries.CountBobObjects(ctx, dbsqlc.CountBobObjectsParams{Entity: EntityOtherUnit, Keyword: filters.Keyword, EnabledFilter: enabledFilter, StatusFilter: statuses})
+	params := bobListParams(EntityOtherUnit, filters, enabledFilter, statuses, "code", "asc", offset, int32(input.PageSize))
+	total, err := s.queries.CountBobObjects(ctx, bobCountParams(params))
 	if err != nil {
 		return Page[OtherUnitView]{}, s.internal("count other-units", err)
 	}
-	rows, err := s.queries.ListBobObjects(ctx, dbsqlc.ListBobObjectsParams{Entity: EntityOtherUnit, Keyword: filters.Keyword, EnabledFilter: enabledFilter, StatusFilter: statuses, RowLimit: int32(input.PageSize), RowOffset: offset})
+	rows, err := s.queries.ListBobObjects(ctx, params)
 	if err != nil {
 		return Page[OtherUnitView]{}, s.internal("list other-units", err)
 	}
@@ -899,9 +900,6 @@ func (s *Service) OtherUnitQuery(ctx context.Context, input QueryInput) (Page[Ot
 		}()})
 		if getErr != nil {
 			return Page[OtherUnitView]{}, getErr
-		}
-		if filters.OperatingEntityID != "" && view.OperatingEntityID != filters.OperatingEntityID {
-			continue
 		}
 		if len(statuses) != 0 && !slices.Contains(statuses, string(view.Approval.Status)) {
 			continue

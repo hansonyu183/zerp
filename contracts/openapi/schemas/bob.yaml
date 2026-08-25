@@ -1302,6 +1302,7 @@
       'required':
         [
           'sourceObjectId',
+          'approvalEntryId',
           'code',
           'name',
           'termCode',
@@ -1314,6 +1315,7 @@
       'properties':
         {
           'sourceObjectId': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
           'code': { 'type': 'string' },
           'name': { 'type': 'string' },
           'termCode': { 'type': 'string' },

@@ -262,6 +262,9 @@ func (s *Service) SalesPartnerQuery(ctx context.Context, input QueryInput) (Page
 		}
 	}
 	capability := strings.TrimSpace(input.Filters.Capability)
+	if input.Filters.OperatingEntityID != "" && !validID(strings.TrimSpace(input.Filters.OperatingEntityID)) {
+		return Page[SalesPartnerListItem]{}, domainError(ErrorValidation, "invalid operating entity filter", nil, nil)
+	}
 	if capability != "" {
 		if _, err := normalizeSalesPartnerCapabilities([]string{capability}); err != nil {
 			return Page[SalesPartnerListItem]{}, err
@@ -275,12 +278,12 @@ func (s *Service) SalesPartnerQuery(ctx context.Context, input QueryInput) (Page
 			enabledFilter = 0
 		}
 	}
-	params := dbsqlc.CountBobObjectsParams{Entity: EntitySalesPartner, Keyword: strings.TrimSpace(input.Filters.Keyword), EnabledFilter: enabledFilter, StatusFilter: statuses}
-	total, err := s.queries.CountBobObjects(ctx, params)
+	params := bobListParams(EntitySalesPartner, input.Filters, enabledFilter, statuses, "code", "asc", int32((input.Page-1)*input.PageSize), int32(input.PageSize))
+	total, err := s.queries.CountBobObjects(ctx, bobCountParams(params))
 	if err != nil {
 		return Page[SalesPartnerListItem]{}, s.internal("count sales relationships", err)
 	}
-	rows, err := s.queries.ListBobObjects(ctx, dbsqlc.ListBobObjectsParams{Entity: EntitySalesPartner, Keyword: params.Keyword, EnabledFilter: enabledFilter, StatusFilter: statuses, RowOffset: int32((input.Page - 1) * input.PageSize), RowLimit: int32(input.PageSize)})
+	rows, err := s.queries.ListBobObjects(ctx, params)
 	if err != nil {
 		return Page[SalesPartnerListItem]{}, s.internal("list sales relationships", err)
 	}
@@ -300,9 +303,6 @@ func (s *Service) SalesPartnerQuery(ctx context.Context, input QueryInput) (Page
 		if identityErr != nil {
 			return Page[SalesPartnerListItem]{}, s.internal("get sales relationship operating entity", identityErr)
 		}
-		if input.Filters.OperatingEntityID != "" && item.OperatingEntityID != input.Filters.OperatingEntityID {
-			continue
-		}
 		if row.ApprovalEntryID != "" {
 			version, entryErr := s.loadSalesPartnerVersion(ctx, s.queries, row.ObjectID, row.ApprovalEntryID)
 			if entryErr != nil {
@@ -316,9 +316,6 @@ func (s *Service) SalesPartnerQuery(ctx context.Context, input QueryInput) (Page
 				return Page[SalesPartnerListItem]{}, entryErr
 			}
 			item.OpenVersion = &SalesPartnerListVersion{Approval: version.Approval, Capabilities: version.Data.Capabilities}
-		}
-		if capability != "" && (item.LatestApproved == nil || !slices.Contains(item.LatestApproved.Capabilities, capability)) && (item.OpenVersion == nil || !slices.Contains(item.OpenVersion.Capabilities, capability)) {
-			continue
 		}
 		if len(statuses) > 0 && (item.OpenVersion == nil || !slices.Contains(statuses, string(item.OpenVersion.Approval.Status))) && (item.LatestApproved == nil || !slices.Contains(statuses, string(item.LatestApproved.Approval.Status))) {
 			continue

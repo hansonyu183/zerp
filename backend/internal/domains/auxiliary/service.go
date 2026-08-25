@@ -531,7 +531,7 @@ func (s *Service) transition(
 		}
 	}
 	if action == approval.ActionUnapproved {
-		referenced, referenceErr := approvedAuxVersionReferenced(ctx, tx, entity, input.ObjectID, input.ApprovalEntryID)
+		referenced, referenceErr := dbsqlc.New(tx).IsAuxApprovalEntryReferenced(ctx, input.ApprovalEntryID)
 		if referenceErr != nil {
 			return MutationResult{}, s.internal("check approved auxiliary references", referenceErr)
 		}
@@ -737,49 +737,6 @@ func mapApprovalError(err error) error {
 		kind = ErrorForbidden
 	}
 	return &DomainError{Kind: kind, ErrorKey: approvalErr.ErrorKey, Message: approvalErr.Message, Cause: err}
-}
-
-func approvedAuxVersionReferenced(ctx context.Context, q dbtx, entity, objectID, approvalEntryID string) (bool, error) {
-	_ = entity
-	_ = objectID
-	rows, err := q.Query(ctx, `
-		SELECT table_schema, table_name, column_name
-		FROM information_schema.columns
-		WHERE table_schema=current_schema()
-		  AND (table_name LIKE 'bob\_%' ESCAPE '\' OR table_name LIKE 'vou\_%' ESCAPE '\')
-		  AND column_name LIKE '%\_approval\_entry\_id' ESCAPE '\'
-		  AND column_name <> 'approval_entry_id'
-		ORDER BY table_name,column_name`)
-	if err != nil {
-		return false, err
-	}
-	type referenceColumn struct{ schema, table, column string }
-	columns := []referenceColumn{}
-	for rows.Next() {
-		var column referenceColumn
-		if err = rows.Scan(&column.schema, &column.table, &column.column); err != nil {
-			rows.Close()
-			return false, err
-		}
-		columns = append(columns, column)
-	}
-	if err = rows.Err(); err != nil {
-		rows.Close()
-		return false, err
-	}
-	rows.Close()
-	for _, column := range columns {
-		statement := "SELECT EXISTS(SELECT 1 FROM " + pgx.Identifier{column.schema, column.table}.Sanitize() +
-			" WHERE " + pgx.Identifier{column.column}.Sanitize() + " = $1)"
-		var referenced bool
-		if err = q.QueryRow(ctx, statement, approvalEntryID).Scan(&referenced); err != nil {
-			return false, err
-		}
-		if referenced {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 func (s *Service) Versions(ctx context.Context, entity string, input HistoryInput, actor approval.Actor) (Page[VersionView], error) {

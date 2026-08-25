@@ -250,6 +250,7 @@ type Querier interface {
 	GetBobCustomerRelationshipPayload(ctx context.Context, approvalEntryID string) (BobCustomerRelationshipVersion, error)
 	GetBobEmployeePayload(ctx context.Context, approvalEntryID string) (BobEmployeeVersion, error)
 	GetBobEmployeeRelationship(ctx context.Context, objectID string) (BobEmploymentRelationship, error)
+	GetBobEmploymentRelationship(ctx context.Context, objectID string) (GetBobEmploymentRelationshipRow, error)
 	GetBobEmploymentRelationshipIdentity(ctx context.Context, objectID string) (GetBobEmploymentRelationshipIdentityRow, error)
 	GetBobFundAccountPayload(ctx context.Context, approvalEntryID string) (BobFundAccountVersion, error)
 	GetBobLatestApprovedEntry(ctx context.Context, arg GetBobLatestApprovedEntryParams) (ApprovalEntry, error)
@@ -427,6 +428,7 @@ type Querier interface {
 	InsertVouServiceAcceptanceDetail(ctx context.Context, arg InsertVouServiceAcceptanceDetailParams) error
 	InsertVouServiceContractDetail(ctx context.Context, arg InsertVouServiceContractDetailParams) error
 	IsAccountingBookReadyForPosting(ctx context.Context, bookID string) (bool, error)
+	IsAuxApprovalEntryReferenced(ctx context.Context, approvalEntryID string) (bool, error)
 	IsBobCustomerPaymentMethodReferenced(ctx context.Context, objectID string) (bool, error)
 	IsVouDocumentInClosedPeriod(ctx context.Context, id string) (bool, error)
 	IsVouSaleDeliveryReady(ctx context.Context, documentID string) (*bool, error)
@@ -500,6 +502,9 @@ type Querier interface {
 	ListSupplierPurchaserReferencesForEmployee(ctx context.Context, sourceObjectID *string) ([]ListSupplierPurchaserReferencesForEmployeeRow, error)
 	ListVehicleCarrierOperatingReferences(ctx context.Context, sourceObjectID *string) ([]ListVehicleCarrierOperatingReferencesRow, error)
 	ListVehicleCarrierServiceReferences(ctx context.Context, sourceObjectID *string) ([]ListVehicleCarrierServiceReferencesRow, error)
+	// Fixed VOU blocker projection. Every typed VOU snapshot participates in all
+	// document states; physical deletion removes the corresponding blocker row.
+	ListVouApprovalEntryReferenceCounts(ctx context.Context, approvalEntryID string) ([]ListVouApprovalEntryReferenceCountsRow, error)
 	ListVouAssetAcquisitionLines(ctx context.Context, documentID string) ([]VouAssetAcquisitionLine, error)
 	ListVouAssetLiquidationLines(ctx context.Context, documentID string) ([]VouAssetLiquidationLine, error)
 	ListVouAssetSaleLines(ctx context.Context, documentID string) ([]VouAssetSaleLine, error)

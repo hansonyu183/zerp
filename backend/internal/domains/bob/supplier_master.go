@@ -17,14 +17,15 @@ import (
 )
 
 type SupplierSettlementSnapshot struct {
-	SourceObjectID string `json:"sourceObjectId"`
-	Code           string `json:"code"`
-	Name           string `json:"name"`
-	TermCode       string `json:"termCode"`
-	RuleType       string `json:"ruleType"`
-	MonthOffset    int32  `json:"monthOffset"`
-	DayOfMonth     int32  `json:"dayOfMonth"`
-	DayOffset      int32  `json:"dayOffset"`
+	SourceObjectID  string `json:"sourceObjectId"`
+	ApprovalEntryID string `json:"approvalEntryId"`
+	Code            string `json:"code"`
+	Name            string `json:"name"`
+	TermCode        string `json:"termCode"`
+	RuleType        string `json:"ruleType"`
+	MonthOffset     int32  `json:"monthOffset"`
+	DayOfMonth      int32  `json:"dayOfMonth"`
+	DayOffset       int32  `json:"dayOffset"`
 }
 
 type SupplierData struct {
@@ -39,6 +40,7 @@ type SupplierData struct {
 	Remark                     string                      `json:"remark,omitempty"`
 	SettlementMethodID         string                      `json:"settlementMethodId,omitempty"`
 	DefaultPurchaserEmployeeID string                      `json:"defaultPurchaserEmployeeId,omitempty"`
+	DefaultPurchaserApprovalID string                      `json:"-"`
 	SettlementMethod           *SupplierSettlementSnapshot `json:"settlementMethod"`
 	provided                   map[string]bool
 }
@@ -230,12 +232,12 @@ func (s *Service) SupplierQuery(ctx context.Context, input QueryInput) (Page[Sup
 			enabledFilter = 0
 		}
 	}
-	params := dbsqlc.CountBobObjectsParams{Entity: EntitySupplier, Keyword: strings.TrimSpace(input.Filters.Keyword), EnabledFilter: enabledFilter, StatusFilter: statuses}
-	total, err := s.queries.CountBobObjects(ctx, params)
+	params := bobListParams(EntitySupplier, input.Filters, enabledFilter, statuses, "code", "asc", int32((input.Page-1)*input.PageSize), int32(input.PageSize))
+	total, err := s.queries.CountBobObjects(ctx, bobCountParams(params))
 	if err != nil {
 		return Page[SupplierListItem]{}, s.internal("count suppliers", err)
 	}
-	rows, err := s.queries.ListBobObjects(ctx, dbsqlc.ListBobObjectsParams{Entity: EntitySupplier, Keyword: params.Keyword, EnabledFilter: enabledFilter, StatusFilter: statuses, RowOffset: int32((input.Page - 1) * input.PageSize), RowLimit: int32(input.PageSize)})
+	rows, err := s.queries.ListBobObjects(ctx, params)
 	if err != nil {
 		return Page[SupplierListItem]{}, s.internal("list suppliers", err)
 	}
@@ -450,20 +452,22 @@ func (s *Service) SupplierGet(ctx context.Context, input GetInput) (SupplierDeta
 }
 
 func (s *Service) resolveSupplierReferences(ctx context.Context, tx pgx.Tx, data SupplierData) (SupplierData, error) {
-	if data.SettlementMethodID != "" && data.SettlementMethod == nil {
+	if data.SettlementMethodID != "" {
 		reference, err := s.auxiliaryResolver.ResolveAuxiliaryReference(ctx, tx, "settlement-method", data.SettlementMethodID, "")
 		if err != nil {
 			return SupplierData{}, domainError(ErrorConflict, "settlement-method reference is unavailable", nil, err)
 		}
-		data.SettlementMethod = &SupplierSettlementSnapshot{SourceObjectID: reference.ObjectID, Code: reference.Code,
+		data.SettlementMethod = &SupplierSettlementSnapshot{SourceObjectID: reference.ObjectID, ApprovalEntryID: reference.ApprovalEntryID, Code: reference.Code,
 			Name: mapString(reference.Data, "name"), TermCode: mapString(reference.Data, "termCode"),
 			RuleType: mapString(reference.Data, "ruleType"), MonthOffset: int32(mapInt(reference.Data, "monthOffset")),
 			DayOfMonth: int32(mapInt(reference.Data, "dayOfMonth")), DayOffset: int32(mapInt(reference.Data, "dayOffset"))}
 	}
 	if data.DefaultPurchaserEmployeeID != "" {
-		if _, err := s.ResolveLatestApprovedReference(ctx, tx, EntityEmployee, data.DefaultPurchaserEmployeeID); err != nil {
+		reference, err := s.ResolveLatestApprovedReference(ctx, tx, EntityEmployee, data.DefaultPurchaserEmployeeID)
+		if err != nil {
 			return SupplierData{}, domainError(ErrorConflict, "default purchaser reference is unavailable", nil, err)
 		}
+		data.DefaultPurchaserApprovalID = reference.ApprovalEntryID
 	}
 	return data, nil
 }
@@ -491,9 +495,9 @@ func loadSupplierVersionWithQueries(ctx context.Context, q *dbsqlc.Queries, entr
 	data := SupplierData{Name: detail.Name, ShortName: detail.ShortName,
 		TaxNumber: detail.TaxNumber, ContactName: detail.ContactName, ContactPhone: detail.ContactPhone, Email: detail.Email,
 		Address: detail.Address, Remark: detail.Remark, SettlementMethodID: detail.SettlementMethodID,
-		DefaultPurchaserEmployeeID: detail.DefaultPurchaserEmployeeID}
+		DefaultPurchaserEmployeeID: detail.DefaultPurchaserEmployeeID, DefaultPurchaserApprovalID: detail.DefaultPurchaserApprovalEntryID}
 	if detail.SettlementMethodID != "" {
-		data.SettlementMethod = &SupplierSettlementSnapshot{SourceObjectID: detail.SettlementMethodID,
+		data.SettlementMethod = &SupplierSettlementSnapshot{SourceObjectID: detail.SettlementMethodID, ApprovalEntryID: detail.SettlementMethodApprovalEntryID,
 			Code: detail.SettlementMethodCode, Name: detail.SettlementMethodName, TermCode: detail.TermCode,
 			RuleType: detail.RuleType, MonthOffset: detail.MonthOffset,
 			DayOfMonth: derefInt32(detail.DayOfMonth), DayOffset: detail.DayOffset}
@@ -502,8 +506,9 @@ func loadSupplierVersionWithQueries(ctx context.Context, q *dbsqlc.Queries, entr
 }
 
 func supplierDetail(data SupplierData) DetailView {
-	result := DetailView{Name: data.Name, ShortName: data.ShortName, TaxNumber: data.TaxNumber, ContactName: data.ContactName, ContactPhone: data.ContactPhone, Email: data.Email, Address: data.Address, Remark: data.Remark, SettlementMethodID: data.SettlementMethodID, DefaultPurchaserEmployeeID: data.DefaultPurchaserEmployeeID}
+	result := DetailView{Name: data.Name, ShortName: data.ShortName, TaxNumber: data.TaxNumber, ContactName: data.ContactName, ContactPhone: data.ContactPhone, Email: data.Email, Address: data.Address, Remark: data.Remark, SettlementMethodID: data.SettlementMethodID, DefaultPurchaserEmployeeID: data.DefaultPurchaserEmployeeID, DefaultPurchaserApprovalEntryID: data.DefaultPurchaserApprovalID}
 	if data.SettlementMethod != nil {
+		result.SettlementMethodApprovalEntryID = data.SettlementMethod.ApprovalEntryID
 		result.SettlementMethodCode, result.SettlementMethodName, result.TermCode, result.RuleType, result.MonthOffset, result.DayOffset = data.SettlementMethod.Code, data.SettlementMethod.Name, data.SettlementMethod.TermCode, data.SettlementMethod.RuleType, data.SettlementMethod.MonthOffset, data.SettlementMethod.DayOffset
 		result.DayOfMonth = &data.SettlementMethod.DayOfMonth
 	}

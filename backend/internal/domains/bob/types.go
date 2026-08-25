@@ -292,6 +292,8 @@ type CarrierAffiliation struct {
 	Type                        string `json:"type"`
 	OperatingEntityID           string `json:"operatingEntityId,omitempty"`
 	ServiceRelationshipObjectID string `json:"serviceRelationshipObjectId,omitempty"`
+	OperatingApprovalEntryID    string `json:"-"`
+	ServiceApprovalEntryID      string `json:"-"`
 }
 
 // OptionalString distinguishes an omitted field from an explicit null or
@@ -447,6 +449,7 @@ type DetailView struct {
 	TargetEntity                    string                  `json:"targetEntity,omitempty"`
 	ShortName                       string                  `json:"shortName,omitempty"`
 	CategoryID                      string                  `json:"categoryId,omitempty"`
+	CategoryApprovalEntryID         string                  `json:"-"`
 	TaxNumber                       string                  `json:"taxNumber,omitempty"`
 	ContactName                     string                  `json:"contactName,omitempty"`
 	ContactPhone                    string                  `json:"contactPhone,omitempty"`
@@ -454,7 +457,9 @@ type DetailView struct {
 	Address                         string                  `json:"address,omitempty"`
 	Remark                          string                  `json:"remark,omitempty"`
 	DepartmentID                    string                  `json:"departmentId,omitempty"`
+	DepartmentApprovalEntryID       string                  `json:"-"`
 	PositionID                      string                  `json:"positionId,omitempty"`
+	PositionApprovalEntryID         string                  `json:"-"`
 	Phone                           string                  `json:"phone,omitempty"`
 	HireDate                        string                  `json:"hireDate,omitempty"`
 	Specification                   string                  `json:"specification,omitempty"`
@@ -462,6 +467,7 @@ type DetailView struct {
 	Barcode                         string                  `json:"barcode,omitempty"`
 	Description                     string                  `json:"description,omitempty"`
 	ManagerEmployeeID               string                  `json:"managerEmployeeId,omitempty"`
+	ManagerEmployeeApprovalEntryID  string                  `json:"-"`
 	VIN                             string                  `json:"vin,omitempty"`
 	EngineNumber                    string                  `json:"engineNumber,omitempty"`
 	LoadCapacityKG                  string                  `json:"loadCapacityKg,omitempty"`
@@ -478,6 +484,7 @@ type DetailView struct {
 	MonthlyClosingDay               int32                   `json:"monthlyClosingDay,omitempty"`
 	SalespersonEmployeeID           string                  `json:"salespersonEmployeeId,omitempty"`
 	DefaultPurchaserEmployeeID      string                  `json:"defaultPurchaserEmployeeId,omitempty"`
+	DefaultPurchaserApprovalEntryID string                  `json:"-"`
 	RebateUnitPrice                 string                  `json:"rebateUnitPrice,omitempty"`
 	SettlementMethodApprovalEntryID string                  `json:"-"`
 	SettlementMethodCode            string                  `json:"-"`
@@ -496,7 +503,9 @@ type DetailView struct {
 	ProductTypeName                 string                  `json:"productTypeName,omitempty"`
 	BehaviorProfile                 string                  `json:"behaviorProfile,omitempty"`
 	DefaultInputUnitID              string                  `json:"defaultInputUnitId,omitempty"`
+	DefaultInputUnitApprovalEntryID string                  `json:"-"`
 	PricingUnitID                   string                  `json:"pricingUnitId,omitempty"`
+	PricingUnitApprovalEntryID      string                  `json:"-"`
 	UnitConversions                 []ProductUnitConversion `json:"unitConversions,omitempty"`
 	Returnable                      bool                    `json:"returnable"`
 	DefaultPackagingSpec            string                  `json:"defaultPackagingSpec,omitempty"`

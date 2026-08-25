@@ -6,6 +6,7 @@ AUX（Auxiliary Object）管理会被业务规则或其他对象引用、但不�
 
 ```text
 product-category
+product-type
 department
 position
 settlement-method

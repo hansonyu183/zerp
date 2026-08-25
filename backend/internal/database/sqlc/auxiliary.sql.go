@@ -30,12 +30,64 @@ func (q *Queries) GetAuxVersionData(ctx context.Context, arg GetAuxVersionDataPa
 	return data, err
 }
 
+const isAuxApprovalEntryReferenced = `-- name: IsAuxApprovalEntryReferenced :one
+WITH current_bob_entries AS (
+    SELECT entry.id
+    FROM approval_entries entry
+    WHERE entry.domain='bob' AND entry.status='APPROVED'
+      AND NOT EXISTS (
+          SELECT 1 FROM approval_entries newer
+          WHERE newer.domain=entry.domain AND newer.entity=entry.entity
+            AND newer.subject_id=entry.subject_id AND newer.status='APPROVED'
+            AND newer.version_no>entry.version_no
+      )
+), bob_refs AS (
+    SELECT category_approval_entry_id AS entry_id FROM bob_customer_relationship_attachments
+    UNION ALL SELECT attachment.category_approval_entry_id FROM bob_customer_version_attachments attachment JOIN current_bob_entries current_entry ON current_entry.id=attachment.approval_entry_id
+    UNION ALL SELECT reference.entry_id FROM bob_customer_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id CROSS JOIN LATERAL unnest(ARRAY[payload.category_approval_entry_id,payload.settlement_method_approval_entry_id,payload.payment_method_approval_entry_id]) reference(entry_id)
+    UNION ALL SELECT reference.entry_id FROM bob_employee_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id CROSS JOIN LATERAL unnest(ARRAY[payload.category_approval_entry_id,payload.department_approval_entry_id,payload.position_approval_entry_id]) reference(entry_id)
+    UNION ALL SELECT payload.category_approval_entry_id FROM bob_fund_account_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id
+    UNION ALL SELECT payload.entered_unit_approval_entry_id FROM bob_product_formula_lines payload JOIN current_bob_entries current_entry ON current_entry.id=payload.product_approval_entry_id
+    UNION ALL SELECT payload.output_unit_approval_entry_id FROM bob_product_formulas payload JOIN current_bob_entries current_entry ON current_entry.id=payload.product_approval_entry_id
+    UNION ALL SELECT payload.unit_approval_entry_id FROM bob_product_unit_conversions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.product_approval_entry_id
+    UNION ALL SELECT reference.entry_id FROM bob_product_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id CROSS JOIN LATERAL unnest(ARRAY[payload.category_approval_entry_id,payload.pricing_unit_approval_entry_id,payload.product_type_approval_entry_id,payload.default_input_unit_approval_entry_id]) reference(entry_id)
+    UNION ALL SELECT payload.settlement_method_approval_entry_id FROM bob_service_relationship_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id
+    UNION ALL SELECT reference.entry_id FROM bob_supplier_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id CROSS JOIN LATERAL unnest(ARRAY[payload.category_approval_entry_id,payload.settlement_method_approval_entry_id]) reference(entry_id)
+    UNION ALL SELECT payload.category_approval_entry_id FROM bob_vehicle_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id
+    UNION ALL SELECT payload.category_approval_entry_id FROM bob_warehouse_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id
+), vou_refs AS (
+    SELECT reference.entry_id FROM vou_asset_acquisition_lines payload CROSS JOIN LATERAL unnest(ARRAY[payload.category_approval_entry_id,payload.department_approval_entry_id]) reference(entry_id)
+    UNION ALL SELECT payload.entered_unit_approval_entry_id FROM vou_inventory_count_lines payload
+    UNION ALL SELECT payload.product_type_approval_entry_id FROM vou_price_lines payload
+    UNION ALL SELECT reference.entry_id FROM vou_product_lines payload CROSS JOIN LATERAL unnest(ARRAY[payload.entered_unit_approval_entry_id,payload.product_type_approval_entry_id]) reference(entry_id)
+    UNION ALL SELECT payload.actual_entered_unit_approval_entry_id FROM vou_production_material_lines payload
+    UNION ALL SELECT payload.entered_unit_approval_entry_id FROM vou_production_output_lines payload
+    UNION ALL SELECT payload.settlement_method_approval_entry_id FROM vou_purchase_order_details payload
+    UNION ALL SELECT payload.settlement_method_approval_entry_id FROM vou_sale_order_details payload
+    UNION ALL SELECT payload.entered_unit_approval_entry_id FROM vou_sale_order_formula_lines payload
+    UNION ALL SELECT payload.output_entered_unit_approval_entry_id FROM vou_sale_order_formulas payload
+    UNION ALL SELECT payload.settlement_method_approval_entry_id FROM vou_service_contract_details payload
+)
+SELECT EXISTS(
+    SELECT 1 FROM bob_refs WHERE entry_id=$1::text
+    UNION ALL
+    SELECT 1 FROM vou_refs WHERE entry_id=$1::text
+)
+`
+
+func (q *Queries) IsAuxApprovalEntryReferenced(ctx context.Context, approvalEntryID string) (bool, error) {
+	row := q.db.QueryRow(ctx, isAuxApprovalEntryReferenced, approvalEntryID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const isBobCustomerPaymentMethodReferenced = `-- name: IsBobCustomerPaymentMethodReferenced :one
 SELECT EXISTS(
     SELECT 1
-    FROM bob_customer_versions customer
+FROM bob_customer_versions customer
     JOIN approval_entries entry
-      ON entry.id = customer.version_id
+      ON entry.id = customer.approval_entry_id
      AND entry.domain = 'bob'
      AND entry.entity = 'customer-account'
      AND entry.status = 'APPROVED'

@@ -106,7 +106,7 @@ BOB 实体使用类型化版本明细，不使用无约束 JSONB 保存正式业
 
 产品草稿允许暂缺默认包装规格、单位配置和自制成品固定配方；创建和保存只校验已经填写的数据是否合法，不要求草稿完整。提交和审核必须通过同一套完整性规则，保证 `APPROVED` 产品满足其产品类型、默认包装规格、单位换算和固定配方约束。产品页面在提交前通过统一的前端检查模块执行对应检查并给出字段级提示，后端仍重复执行同一业务不变量，前端检查结果不能代替后端校验。
 
-客户和供应商都通过 `settlementMethodId` 选择当前启用的结算方式辅助对象。选择时必须把交易使用的结算方式名称、术语和到期计算参数复制进引用方版本，`settlementMethodId` 只保留来源追踪，不形成运行时版本依赖；客户快照另保存销售加价，供应商采购不使用该销售加价。客户和供应商草稿都可以暂不维护结算方式，但提交和审核时必须具有一套完整且内部一致的结算快照，保证任何 `APPROVED` 客户或供应商都可用于贸易制单。委托配制制造费等采购加价不属于供应商主数据，由对应专门采购单据维护并保存自身事实。交易单据的到期日和加价规则见 VOU 文档。
+客户和供应商都通过 `settlementMethodId` 选择当前启用的结算方式辅助对象。选择时必须把来源 `approvalEntryId` 以及交易使用的结算方式名称、术语和到期计算参数复制进引用方版本。已有历史版本和单据快照不会随来源变更被改写；但 BOB 候选在提交和审核时必须重新确认所存 entry 仍是该来源对象的 latest approved。客户快照另保存销售加价，供应商采购不使用该销售加价。客户和供应商草稿都可以暂不维护结算方式，但提交和审核时必须具有一套完整且内部一致的结算快照，保证任何 `APPROVED` 客户或供应商都可用于贸易制单。委托配制制造费等采购加价不属于供应商主数据，由对应专门采购单据维护并保存自身事实。交易单据的到期日和加价规则见 VOU 文档。
 
 服务关系可以通过 `settlementMethodId` 保存服务合同使用的可选结算默认快照；草稿、提交、审核和批准均不要求该默认值。新服务合同存在默认快照时带入并允许改选，不存在时由合同自行选择。服务关系不维护服务范围或默认内部经办员工；每份服务合同必须自行选择经办雇佣关系并保存快照，不能从服务关系读取或回退默认员工。
 
@@ -132,7 +132,7 @@ BOB 实体使用类型化版本明细，不使用无约束 JSONB 保存正式业
 
 客户版本保存默认运输政策：`defaultTransportMethodCode`、`defaultTransportMethodName` 和 `defaultTransportSurcharge`。运输方式和客户约定运输加价是两个独立事实，不使用 OIT/KY 的混合字段名；加价为非负、最多两位小数的元/kg 定点字符串。客户草稿可以暂缺，提交和审核时必须完整。新销售订单默认带入，允许按单修改，并保存最终运输方式和加价快照。
 
-客户通过 `paymentMethodId` 选择当前启用的 AUX 收款方式。客户版本直接保存 `paymentMethodId`、`paymentMethodCode`、`paymentMethodName` 和 `paymentMethodSalesSurcharge`，不保存来源版本 ID。收款方式回答“使用什么付款媒介”，结算方式回答“何时应付款”；两组快照独立保存、独立影响销售价格，不得合并。客户草稿可以暂缺收款方式，提交和审核时必须完整。
+客户通过 `paymentMethodId` 选择当前启用的 AUX 收款方式。客户版本直接保存 `paymentMethodId`、来源 `approvalEntryId`、`paymentMethodCode`、`paymentMethodName` 和 `paymentMethodSalesSurcharge`。收款方式回答“使用什么付款媒介”，结算方式回答“何时应付款”；两组快照独立保存、独立影响销售价格，不得合并。客户草稿可以暂缺收款方式，提交和审核时必须完整，且所存 entry 必须仍是来源对象的 latest approved。
 
 客户价格政策把偏离基础报价的金额严格分为销售成本组成、销售溢价和销售优惠。`pricingPolicy.defaultPremiumUnitPrice` 和 `pricingPolicy.defaultDiscountUnitPrice` 是策略内两个互相独立的顶层字段；两者均为非负、最多两位小数的单位价格并默认 `0.00`，允许同时为正数。两项都进入自动价格并由新销售订单分别带入：前者自动增加默认溢价，后者自动给出默认优惠。`defaultDiscountUnitPrice` 同时就是该客户免批优惠单价，不另设审批阈值字段；订单最终优惠单价超过它时必须特殊批准，等于时不触发。整单优惠总额、成本和溢价均不触发该优惠审批。成本组成必须以具名来源单独保存，不进入溢价或优惠字段。
 
@@ -160,9 +160,9 @@ OIT/KY 销售单据中的“品牌”并非商品品牌，其真实业务含义�
 
 ### 2.2 客户与供应商结算方式快照
 
-结算方式辅助对象及 11 种固定规则由 [AUX 领域](aux.md#33-结算方式)维护。客户选择当前启用的 AUX 结算方式时，客户版本直接保存 `settlementMethodId`、`settlementMethodCode`、`settlementMethodName`、`settlementTermCode`、`settlementRuleType`、`settlementMonthOffset`、`settlementDayOfMonth`、`settlementDayOffset` 和 `settlementSalesSurcharge`，不保存结算方式版本 ID。供应商保存相同的来源、名称、术语和到期参数，但不保存或使用客户销售加价。
+结算方式辅助对象及 11 种固定规则由 [AUX 领域](aux.md#33-结算方式)维护。客户选择当前启用的 AUX 结算方式时，客户版本直接保存 `settlementMethodId`、来源 `approvalEntryId`、`settlementMethodCode`、`settlementMethodName`、`settlementTermCode`、`settlementRuleType`、`settlementMonthOffset`、`settlementDayOfMonth`、`settlementDayOffset` 和 `settlementSalesSurcharge`。供应商保存相同的来源、名称、术语和到期参数，但不保存或使用客户销售加价。
 
-上述字段作为一组由后端原子复制和校验的结算快照，客户端不能分别拼装或覆盖其中参数。客户、供应或服务关系显式重新选择结算方式时才整体替换；AUX 来源后续改名、调价、停用或产生新版本均不追溯改变既有版本。提交和审核只校验引用方已经保存的快照内部完整且参数组合合法，不递归解析来源对象或版本；服务关系没有默认快照时不执行完整性校验。
+上述字段作为一组由后端原子复制和校验的结算快照，客户端不能分别拼装或覆盖其中参数。客户、供应或服务关系显式重新选择结算方式时才整体替换；AUX 来源后续改名、调价、停用或产生新版本均不追溯改变既有版本。引用方提交和审核时既校验快照内部完整与参数组合，也按已存 `approvalEntryId` 确认来源对象仍当前启用且该 entry 仍是 latest approved；服务关系没有默认快照时不执行完整性校验。
 
 客户的 `primarySalesAttribution` 必填并按本章 2.1 节引用当前启用且存在 latest approved 版本的雇佣关系或销售合作关系；创建时必须传入完整的类型、关系和 `approvalEntryId`，保存时省略表示保持，显式 `null` 或空字符串无效。供应关系使用 `defaultPurchaserEmployeeId` 引用任意当前启用且存在 latest approved 版本的雇佣关系且不附加岗位限制；草稿可以暂缺，提交和审核时必填。该字段只表示我方默认采购员，不表示供应方联系人。
 
@@ -212,7 +212,7 @@ BOB 使用单级审核，不实现多级审核、委托审核、数据范围或�
 
 车辆版本必须保存完整的 `carrierAffiliation` 封闭对象，`type` 的完整 wire value 集合为 `INTERNAL`（自有）和 `EXTERNAL`（外部承运）。`INTERNAL` 必须且只能引用一个当前启用且存在 latest approved 版本的经营主体；`EXTERNAL` 必须且只能引用一条当前启用且存在 latest approved 版本的“其他单位”服务关系。每辆车只能有一种承运归属，不允许为空，不为自有车辆虚构其他单位，也不允许送货时临时改成另一承运方。线协议只接受 `carrierAffiliation`，不接受 `platformObjectId`、双读或双写。
 
-车辆不保存承运归属的版本 ID；创建、保存、提交、审核及业务引用时按稳定对象重新解析其 latest approved 版本。外部服务关系编辑期间旧 latest approved 版本继续可被相关车辆引用，候选审核通过后自动成为新的 latest approved；经营主体或服务关系仍被当前车辆引用时拒绝禁用，用户必须先通过车辆正常编辑、提交和审核流程修改承运归属。已有历史单据引用不被改写。
+车辆保存承运归属的稳定对象和 `approvalEntryId` 快照；创建和保存时解析 latest approved，提交和审核时确认已存 entry 仍是 latest approved。外部服务关系编辑期间旧 latest approved 版本继续可被相关车辆引用，候选审核通过后旧快照不会自动改写，必须编辑车辆候选才能选用新版本；经营主体或服务关系仍被当前车辆引用时拒绝禁用，用户必须先通过车辆正常编辑、提交和审核流程修改承运归属。已有历史单据引用不被改写。
 
 车辆使用明确的 `bulkLiquidCapable` 布尔能力表示能否作为槽车承运散水，默认 `false`。`vehicleType` 仍只是 AUX 字典分类，VOU 不得根据车型编码或名称猜测散水承运能力；车辆容量、核载量或历史装载量也不形成每车产品数量换算。
 
@@ -220,7 +220,7 @@ BOB 使用单级审核，不实现多级审核、委托审核、数据范围或�
 
 ### 2.5 辅助对象与业务对象引用
 
-`productTypeId`、`categoryId`、`departmentId` 和 `positionId` 分别引用 AUX 的产品类型、产品分类、部门和岗位；`managerEmployeeId` 和供应关系 `defaultPurchaserEmployeeId` 引用 BOB 雇佣关系；客户、供应、雇佣、服务和销售合作关系以及资金账户均引用一个 BOB 经营主体。创建、保存、提交和审核时，这些被引用对象必须存在、处于可引用状态且类型匹配。关系的经营主体在创建后不可转移。`settlementMethodId` 只记录结算方式辅助对象的选择来源：选择或更换时来源必须当前启用并把关键值复制进引用方版本，此后提交、审核和制单只校验引用方自己的结算快照，不递归校验来源版本。
+`productTypeId`、`categoryId`、`departmentId` 和 `positionId` 分别引用 AUX 的产品类型、产品分类、部门和岗位；`managerEmployeeId` 和供应关系 `defaultPurchaserEmployeeId` 引用 BOB 雇佣关系；客户、供应、雇佣、服务和销售合作关系以及资金账户均引用一个 BOB 经营主体。创建、保存、提交和审核时，这些被引用对象必须存在、处于可引用状态且类型匹配。关系的经营主体在创建后不可转移。`settlementMethodId` 记录结算方式辅助对象的稳定对象和来源 `approvalEntryId`：选择或更换时来源必须当前启用并把关键值复制进引用方版本，提交和审核时必须重新确认已存 entry 仍是 latest approved；已有正式版本和交易单据继续使用自身快照，不追溯改写。
 
 产品分类只允许用于产品，不再为客户、供应商、员工、服务、仓库、车辆、资金账户等对象提供含义宽泛的通用分类。AUX 对象停用或修改后不会追溯改变已经生效的 BOB 版本；新的草稿和审核操作必须按当时状态重新校验。车辆与承运归属对象的严格递归有效性规则仍按 2.4 节执行。
 
@@ -348,7 +348,7 @@ unsubmit: PENDING  → DRAFT
 approve: PENDING   → APPROVED
 reject:  PENDING   → DRAFT
 edit: latest APPROVED → latest APPROVED + DRAFT(candidate)
-unapprove: latest APPROVED → DRAFT；前一个 APPROVED 自动回落为 latest
+unapprove: latest APPROVED → PENDING；前一个 APPROVED 自动回落为 latest
 ```
 
 除上述转换外全部拒绝。尤其禁止：

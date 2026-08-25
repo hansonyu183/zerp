@@ -58,7 +58,7 @@ func (s *Service) EmploymentCreate(
 	if err != nil {
 		return EmploymentCreateResult{}, domainError(ErrorValidation, "invalid employment create", nil, err)
 	}
-	if err = s.validateDetailReferences(ctx, tx, qtx, EntityEmployee, "", data); err != nil {
+	if data, err = s.resolveDetailReferenceSnapshots(ctx, tx, EntityEmployee, "", data, false); err != nil {
 		return EmploymentCreateResult{}, err
 	}
 	counter, err := qtx.NextObjectNumberCounter(ctx, dbsqlc.NextObjectNumberCounterParams{Domain: "bob", Entity: EntityEmployee})

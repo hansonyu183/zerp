@@ -215,6 +215,15 @@ func (s *Service) CustomerQuery(ctx context.Context, input QueryInput) (Page[Cus
 	if input.Page < 1 || input.PageSize != 20 || len(input.Sort) > 1 {
 		return Page[CustomerListItem]{}, domainError(ErrorValidation, "invalid customer query", nil, nil)
 	}
+	if len(input.Sort) == 1 && (input.Sort[0].Field != "code" || strings.ToLower(input.Sort[0].Order) != "asc") {
+		return Page[CustomerListItem]{}, domainError(ErrorValidation, "invalid customer sort", nil, nil)
+	}
+	if (input.Filters.CustomerType != "" && !objectCodePattern.MatchString(strings.TrimSpace(input.Filters.CustomerType))) ||
+		(input.Filters.OperatingEntityID != "" && !validID(strings.TrimSpace(input.Filters.OperatingEntityID))) ||
+		(input.Filters.SalesAttributionSubjectID != "" && !validID(strings.TrimSpace(input.Filters.SalesAttributionSubjectID))) ||
+		(input.Filters.SalesAttributionType != "" && !slices.Contains([]string{SalesAttributionInternalEmployee, SalesAttributionExternalPartTime, SalesAttributionDealer}, strings.TrimSpace(input.Filters.SalesAttributionType))) {
+		return Page[CustomerListItem]{}, domainError(ErrorValidation, "invalid customer filters", nil, nil)
+	}
 	statuses := uniqueStrings(input.Filters.Status)
 	if statuses == nil {
 		statuses = []string{}
@@ -232,12 +241,12 @@ func (s *Service) CustomerQuery(ctx context.Context, input QueryInput) (Page[Cus
 			enabled = 0
 		}
 	}
-	params := dbsqlc.CountBobObjectsParams{Entity: EntityCustomer, Keyword: strings.TrimSpace(input.Filters.Keyword), EnabledFilter: enabled, StatusFilter: statuses}
-	total, err := s.queries.CountBobObjects(ctx, params)
+	params := bobListParams(EntityCustomer, input.Filters, enabled, statuses, "code", "asc", int32((input.Page-1)*input.PageSize), int32(input.PageSize))
+	total, err := s.queries.CountBobObjects(ctx, bobCountParams(params))
 	if err != nil {
 		return Page[CustomerListItem]{}, s.internal("count customer accounts", err)
 	}
-	rows, err := s.queries.ListBobObjects(ctx, dbsqlc.ListBobObjectsParams{Entity: EntityCustomer, Keyword: params.Keyword, EnabledFilter: enabled, StatusFilter: statuses, RowOffset: int32((input.Page - 1) * input.PageSize), RowLimit: int32(input.PageSize)})
+	rows, err := s.queries.ListBobObjects(ctx, params)
 	if err != nil {
 		return Page[CustomerListItem]{}, s.internal("list customer accounts", err)
 	}

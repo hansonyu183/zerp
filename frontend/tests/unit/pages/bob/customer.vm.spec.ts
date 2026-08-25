@@ -5,7 +5,7 @@ import { createCustomerForm } from '@/pages/bob/customer/form'
 import { useCustomerViewModel } from '@/pages/bob/customer/vm'
 import { useSessionStore } from '@/stores/session'
 
-vi.mock('@/api/client', () => ({ apiClient: { postContract: vi.fn(), post: vi.fn(), uploadCustomerAttachment: vi.fn(), fetchCustomerAttachment: vi.fn() } }))
+vi.mock('@/api/client', () => ({ apiClient: { postContract: vi.fn(), uploadCustomerAttachment: vi.fn(), fetchCustomerAttachment: vi.fn() } }))
 const mockedApiClient = vi.mocked(apiClient)
 
 function listPage(name: string) {
@@ -23,7 +23,7 @@ describe('customer relationship view model', () => {
       '/aux/payment-method/query', '/aux/dictionary-item/query',
     ]
     mockedApiClient.postContract.mockReset()
-    mockedApiClient.post.mockReset()
+    mockedApiClient.postContract.mockReset()
   })
 
   it('keeps query pagination fixed at 20 and rejects stale account results', async () => {

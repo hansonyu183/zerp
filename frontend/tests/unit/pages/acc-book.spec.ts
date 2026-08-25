@@ -6,10 +6,10 @@ import { useSessionStore } from '@/stores/session'
 import { createAccountingBookViewModel } from '@/pages/acc/book/vm'
 
 vi.mock('@/api/client', () => ({
-  apiClient: { post: vi.fn() },
+  apiClient: { postContract: vi.fn() },
 }))
 
-const mockedPost = vi.mocked(apiClient.post)
+const mockedPost = vi.mocked(apiClient.postContract)
 
 const controlBook = {
   bookId: '01JACC00000000000000000001',
@@ -145,7 +145,7 @@ describe('ACC accounting book view model', () => {
     mockedPost.mockReturnValue(
       new Promise((resolve) => {
         resolveQuery = resolve
-      }) as ReturnType<typeof apiClient.post>,
+      }) as ReturnType<typeof apiClient.postContract>,
     )
     const scope = effectScope()
     const vm = scope.run(() => createAccountingBookViewModel())!

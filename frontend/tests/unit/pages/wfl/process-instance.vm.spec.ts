@@ -16,9 +16,9 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({ push }),
 }))
 vi.mock('@/api/client', () => ({
-  apiClient: { post: vi.fn(), postContract: vi.fn(), setCsrfToken: vi.fn() },
+  apiClient: { postContract: vi.fn(), setCsrfToken: vi.fn() },
 }))
-const mockedPost = vi.mocked(apiClient.post)
+const mockedPost = vi.mocked(apiClient.postContract)
 const mockedPostContract = vi.mocked(apiClient.postContract)
 const item: InstanceListItem = {
   processId: '01J00000000000000000000001',

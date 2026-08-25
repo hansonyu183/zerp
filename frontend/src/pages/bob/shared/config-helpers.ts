@@ -220,17 +220,6 @@ export function emptyForm(values: Record<string, unknown>): BobForm {
   return { code: '', name: '', ...values }
 }
 
-export const categoryFilter = (entity: string): BobFilterField => ({
-  key: 'categoryId',
-  label: '分类',
-  type: 'autocomplete',
-  reference: {
-    entity: 'category',
-    label: '分类',
-    filters: { targetEntity: entity },
-  },
-})
-
 export interface BobEntityDefinition extends Omit<
   BobEntityConfig,
   'emptyForm' | 'detailKeys'

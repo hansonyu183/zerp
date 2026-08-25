@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import Customer from '@/pages/bob/customer/Customer.vue'
 
 vi.mock('@/api/client', () => ({
-  apiClient: { post: vi.fn() },
+  apiClient: { postContract: vi.fn() },
 }))
 
 describe('Customer', () => {

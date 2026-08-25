@@ -1,77 +1,19 @@
 import { computed, onMounted, ref } from 'vue'
 import { apiClient } from '@/api/client'
+import type { components } from '@/api/generated/schema'
 import { ApiError, getErrorMessage } from '@/api/types'
 import { documentEntityText } from '@/components/wfl/config'
 import { useSessionStore } from '@/stores/session'
 
-export interface DefinitionNode {
-  key: string
-  name: string
-  documentEntity: string
-  positionX: number
-  positionY: number
-}
-
-export interface DefinitionEdge {
-  sourceNodeKey: string
-  targetNodeKey: string
-  action: string
-  relation: string
-}
-
-export interface DefinitionView {
-  definitionId: string
-  code: string
-  name: string
-  status: 'DRAFT' | 'ENABLED' | 'DISABLED'
-  revision: number
-  publishedRevision?: number
-  script: string
-  diagnostic?: ScriptDiagnostic
-  rootNodeKey: string
-  nodes: DefinitionNode[]
-  edges: DefinitionEdge[]
-  updatedAt: string
-}
-
-export interface DefinitionListItem {
-  definitionId: string
-  code: string
-  name: string
-  status: DefinitionView['status']
-  revision: number
-  publishedRevision?: number
-  rootEntity: string
-  nodeCount: number
-  updatedAt: string
-}
-
-export interface DefinitionTrialResult {
-  definitionId?: string
-  revision?: number
-  matched: boolean
-  rootNodeKey?: string
-  trace: Array<{
-    sourceNodeKey: string
-    targetNodeKey: string
-    relation: string
-    action: string
-    result: { entity: string; documentId: string }
-  }>
-  plannedActions?: Array<{
-    action: string
-    sourceDocumentId: string
-    initial: unknown
-    result: { entity: string; documentId: string }
-  }>
-  uncoveredBranches?: string[]
-}
-
-export interface ScriptDiagnostic {
-  line?: number
-  column?: number
-  message: string
-}
+export type DefinitionNode = components['schemas']['WflDefinitionNode']
+export type DefinitionEdge = components['schemas']['WflDefinitionEdge']
+export type DefinitionView = components['schemas']['WflDefinitionView']
+export type DefinitionListItem =
+  components['schemas']['WflDefinitionListItem']
+export type DefinitionTrialResult =
+  components['schemas']['WflDefinitionTrialResult']
+export type ScriptDiagnostic =
+  components['schemas']['WflDefinitionDiagnostic']
 
 const DEFAULT_STARLARK_SCRIPT = `root = node(
     key = "root",
@@ -142,7 +84,7 @@ export function useProcessDefinitionViewModel() {
   const errorMessage = ref<string | null>(null)
   const scriptDiagnostic = ref<ScriptDiagnostic | null>(null)
   const scriptText = ref(DEFAULT_STARLARK_SCRIPT)
-  const trialEntity = ref('')
+  const trialEntity = ref<components['schemas']['VouEntity'] | ''>('')
   const trialEntityText = computed(() => documentEntityText(trialEntity.value))
   const trialDocumentId = ref('')
   const trialResult = ref<DefinitionTrialResult | null>(null)
@@ -159,15 +101,7 @@ export function useProcessDefinitionViewModel() {
     loading.value = true
     errorMessage.value = null
     try {
-      const { data } = await apiClient.post<
-        { items: DefinitionListItem[] },
-        {
-          page: number
-          pageSize: number
-          keyword?: string
-          statuses?: DefinitionView['status'][]
-        }
-      >('wfl/process-definition/query', {
+      const { data } = await apiClient.postContract('wfl/process-definition/query', {
         page: 1,
         pageSize: 100,
         ...(keyword.value.trim() ? { keyword: keyword.value.trim() } : {}),
@@ -203,10 +137,7 @@ export function useProcessDefinitionViewModel() {
     loading.value = true
     errorMessage.value = null
     try {
-      const { data } = await apiClient.post<
-        DefinitionView,
-        { definitionId: string }
-      >('wfl/process-definition/get', { definitionId: item.definitionId })
+      const { data } = await apiClient.postContract('wfl/process-definition/get', { definitionId: item.definitionId })
       setSelected(data)
       editorOpen.value = true
     } catch (error) {
@@ -223,6 +154,8 @@ export function useProcessDefinitionViewModel() {
       name: '',
       status: 'DRAFT',
       revision: 0,
+      rootEntity: 'sale-order',
+      nodeCount: 0,
       script: DEFAULT_STARLARK_SCRIPT,
       rootNodeKey: '',
       nodes: [],
@@ -248,15 +181,12 @@ export function useProcessDefinitionViewModel() {
     trialResult.value = null
     try {
       const { data } = definition.definitionId
-        ? await apiClient.post<
-            DefinitionView,
-            { definitionId: string; revision: number; script: string }
-          >('wfl/process-definition/save', {
+        ? await apiClient.postContract('wfl/process-definition/save', {
             definitionId: definition.definitionId,
             revision: definition.revision,
             script: scriptText.value,
           })
-        : await apiClient.post<DefinitionView, { script: string }>(
+        : await apiClient.postContract(
             'wfl/process-definition/create',
             { script: scriptText.value },
           )
@@ -273,7 +203,8 @@ export function useProcessDefinitionViewModel() {
   async function trial(): Promise<void> {
     const definition = selected.value
     if (!definition?.definitionId || !can('save')) return
-    if (!trialEntity.value.trim() || !trialDocumentId.value.trim()) {
+    const entity = trialEntity.value
+    if (!entity || !trialDocumentId.value.trim()) {
       errorMessage.value = '请选择源单据类型并填写已有单据 ID。'
       return
     }
@@ -281,18 +212,11 @@ export function useProcessDefinitionViewModel() {
     errorMessage.value = null
     trialResult.value = null
     try {
-      const { data } = await apiClient.post<
-        DefinitionTrialResult,
-        {
-          definitionId: string
-          revision: number
-          source: { entity: string; documentId: string }
-        }
-      >('wfl/process-definition/trial', {
+      const { data } = await apiClient.postContract('wfl/process-definition/trial', {
         definitionId: definition.definitionId,
         revision: definition.revision,
         source: {
-          entity: trialEntity.value,
+          entity,
           documentId: trialDocumentId.value,
         },
       })
@@ -312,20 +236,23 @@ export function useProcessDefinitionViewModel() {
     saving.value = true
     errorMessage.value = null
     try {
-      const { data } = await apiClient.post<
-        DefinitionView,
-        { definitionId: string; revision: number }
-      >(`wfl/process-definition/${actionName}`, {
+      if (actionName === 'delete') {
+        await apiClient.postContract('wfl/process-definition/delete', {
+          definitionId: definition.definitionId,
+          revision: definition.revision,
+        })
+        await session.restore({ force: true })
+        editorOpen.value = false
+        selected.value = null
+        await query()
+        return
+      }
+      const { data } = await apiClient.postContract(`wfl/process-definition/${actionName}`, {
         definitionId: definition.definitionId,
         revision: definition.revision,
       })
       await session.restore({ force: true })
-      if (actionName === 'delete') {
-        editorOpen.value = false
-        selected.value = null
-      } else {
-        setSelected(data)
-      }
+      setSelected(data)
       await query()
     } catch (error) {
       errorMessage.value = getErrorMessage(error)

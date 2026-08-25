@@ -1,5 +1,19 @@
 import type { BillCashLineDraft, BillLineDraft, BillVoucherForm } from './vm'
 
+function requiredInterestMode(
+  value: BillVoucherForm['interestMode'],
+): 'BANK_DEDUCTED' | 'THIRD_PARTY_PAYABLE' {
+  if (!value) throw new Error('请选择利息处理方式。')
+  return value
+}
+
+function requiredMaturityType(
+  value: BillVoucherForm['maturityType'],
+): 'RECEIPT' | 'PAYMENT' {
+  if (!value) throw new Error('请选择到期处理类型。')
+  return value
+}
+
 function reference(value: { objectId: string; versionId: string } | null) {
   return value
     ? { objectId: value.objectId, versionId: value.versionId }
@@ -70,7 +84,7 @@ export function buildBillIssuePayload(form: BillVoucherForm) {
     currency: form.currency,
     remark: form.remark || undefined,
     supplier: reference(form.supplier),
-    interestMode: form.interestMode,
+    interestMode: requiredInterestMode(form.interestMode),
     ...(form.interestMode === 'THIRD_PARTY_PAYABLE'
       ? { interestParty: reference(form.interestParty) }
       : {}),
@@ -108,7 +122,7 @@ export function buildBillDiscountPayload(form: BillVoucherForm) {
     remark: form.remark || undefined,
     counterparty: reference(form.counterparty),
     counterpartyType: 'other-unit' as const,
-    interestMode: form.interestMode,
+    interestMode: requiredInterestMode(form.interestMode),
     ...(form.interestMode === 'THIRD_PARTY_PAYABLE'
       ? { interestParty: reference(form.interestParty) }
       : {}),
@@ -134,7 +148,7 @@ export function buildBillMaturityPayload(form: BillVoucherForm) {
     businessDate: form.businessDate,
     currency: form.currency,
     remark: form.remark || undefined,
-    maturityType: form.maturityType,
+    maturityType: requiredMaturityType(form.maturityType),
     billLines: form.billLines.map((line: BillLineDraft) => ({
       billId: line.billId!,
       purpose: 'PRIMARY' as const,

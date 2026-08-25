@@ -2,6 +2,8 @@
 
 ZERP 前端是单仓中的 Vue SPA，负责页面交互、会话状态、动态菜单和业务 ViewModel。HTTP 线协议以根目录 OpenAPI 为准，业务规则以根目录领域文档为准。
 
+普通 JSON 业务请求统一通过 `src/api/client.ts` 的 `postContract` 或其领域封装发起，path、request 与 response 均从生成 OpenAPI 类型推导。文件上传、下载和 CSV 导出使用客户端的专用方法。
+
 ## 环境与启动
 
 - Node.js 与 pnpm 版本以根目录 `.nvmrc`、`package.json` 和锁文件为准

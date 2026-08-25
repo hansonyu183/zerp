@@ -37,29 +37,23 @@ export interface FormulaComponentDraft {
 
 export interface ProductFormulaDraft {
   output: FormulaQuantitySnapshotDraft
-  sourceType?: string
+  sourceType?: components['schemas']['VouFormulaInput']['sourceType'] | ''
   sourceDocumentId?: string
   sourceDocumentNo?: string
   components: FormulaComponentDraft[]
 }
 
-export interface FormulaPayload {
-  output: {
-    enteredQuantity: string
-    enteredUnit: { objectId: string }
-    baseQuantity: string
-  }
-  sourceType?: string
-  sourceDocumentId?: string
-  sourceDocumentNo?: string
-  components: Array<{
-    material: { objectId: string }
-    quantity: {
-      enteredQuantity: string
-      enteredUnit: { objectId: string }
-      baseQuantity: string
-    }
-  }>
+export type FormulaPayload = components['schemas']['VouFormulaInput']
+
+function formulaSourceType(
+  value: string | undefined,
+): FormulaPayload['sourceType'] {
+  return value === 'RAW_SELF' ||
+    value === 'PRODUCT_FIXED' ||
+    value === 'CUSTOMER_LATEST' ||
+    value === 'MANUAL'
+    ? value
+    : undefined
 }
 
 export function formulaFromPayload(
@@ -80,7 +74,7 @@ export function formulaFromPayload(
   if (!formula) return null
   return {
     output: structuredClone(formula.output),
-    sourceType: formula.sourceType,
+    sourceType: formulaSourceType(formula.sourceType),
     sourceDocumentId: formula.sourceDocumentId,
     sourceDocumentNo: formula.sourceDocumentNo,
     components: formula.components.map((component) => ({
@@ -101,7 +95,9 @@ export function formulaPayload(
       enteredUnit: { objectId: formula.output.enteredUnit.objectId },
       baseQuantity: formula.output.baseQuantity.trim(),
     },
-    ...(formula.sourceType ? { sourceType: formula.sourceType } : {}),
+    ...(formulaSourceType(formula.sourceType)
+      ? { sourceType: formulaSourceType(formula.sourceType) }
+      : {}),
     ...(formula.sourceDocumentId
       ? { sourceDocumentId: formula.sourceDocumentId }
       : {}),
@@ -118,3 +114,4 @@ export function formulaPayload(
     })),
   }
 }
+import type { components } from '@/api/generated/schema'

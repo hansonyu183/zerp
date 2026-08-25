@@ -10,7 +10,7 @@ import { useSupplierViewModel } from '@/pages/bob/supplier/vm'
 import { useSessionStore } from '@/stores/session'
 
 vi.mock('@/api/client', () => ({
-  apiClient: { post: vi.fn(), postContract: vi.fn() },
+  apiClient: { postContract: vi.fn() },
 }))
 
 const mockedApiClient = vi.mocked(apiClient)
@@ -76,7 +76,7 @@ describe('supplier workspace view model', () => {
       '/aux/settlement-method/query',
     ]
     mockedApiClient.postContract.mockReset()
-    mockedApiClient.post.mockReset()
+    mockedApiClient.postContract.mockReset()
   })
 
   it('keeps settlement method and default purchaser optional in a draft payload', () => {
@@ -127,7 +127,7 @@ describe('supplier workspace view model', () => {
   })
 
   it('rereads the authoritative detail after create and keeps it open', async () => {
-    mockedApiClient.post.mockResolvedValue({
+    mockedApiClient.postContract.mockResolvedValue({
       data: {
         objectId: 'created-id',
         objectRevision: 1,
@@ -140,6 +140,18 @@ describe('supplier workspace view model', () => {
     })
     mockedApiClient.postContract.mockImplementation(async (path) => {
       if (path === 'bob/supplier/query') return page('created')
+      if (path === 'bob/supplier/create')
+        return {
+          data: {
+            objectId: 'created-id',
+            objectRevision: 1,
+            enabled: true,
+            versionId: 'created-version',
+            version: 1,
+            status: 'DRAFT',
+            revision: 1,
+          },
+        }
       if (path === 'bob/supplier/get')
         return {
           data: {
@@ -192,7 +204,7 @@ describe('supplier workspace view model', () => {
 
     expect(await vm.save()).toBe(true)
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith(
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith(
       'bob/supplier/create',
       expect.objectContaining({
         newParty: expect.objectContaining({
@@ -233,7 +245,7 @@ describe('supplier workspace view model', () => {
     }
 
     expect(await vm.save()).toBe(true)
-    expect(mockedApiClient.post).toHaveBeenLastCalledWith(
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith(
       'bob/supplier/create',
       expect.objectContaining({
         partyId: 'existing-party',
@@ -281,23 +293,24 @@ describe('supplier workspace view model', () => {
     mockedApiClient.postContract.mockImplementation(async (path) => {
       if (path === 'bob/supplier/query') return current
       if (path === 'bob/supplier/get') return detail
-      return { data: [] }
-    })
-    mockedApiClient.post.mockResolvedValue({
-      data: {
-        items: [
-          {
-            versionId: 'history-effective',
-            version: 1,
-            status: 'EFFECTIVE',
-            revision: 1,
-            summary: { name: '历史供应商' },
+      if (path === 'bob/supplier/versions')
+        return {
+          data: {
+            items: [
+              {
+                versionId: 'history-effective',
+                version: 1,
+                status: 'EFFECTIVE',
+                revision: 1,
+                summary: { name: '历史供应商' },
+              },
+            ],
+            total: 1,
+            page: 1,
+            pageSize: 20,
           },
-        ],
-        total: 1,
-        page: 1,
-        pageSize: 20,
-      },
+        }
+      return { data: [] }
     })
     const vm = useSupplierViewModel()
     await vm.query()

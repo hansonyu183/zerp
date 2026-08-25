@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { apiClient } from '@/api/client'
+import { apiClient, type ApiPostRequest } from '@/api/client'
+import type { components } from '@/api/generated/schema'
 import { getMenu, type MenuData } from '@/api/menu'
 import { ApiError, getErrorMessage } from '@/api/types'
 import {
@@ -22,35 +23,13 @@ function isUnauthenticatedError(error: unknown): boolean {
 
 export type { MenuDomain, MenuEntity }
 
-export interface UserProfile {
-  id: string
-  username: string
-  displayName: string
-  avatarUrl?: string | null
-}
-
-export interface ProfileView extends UserProfile {
-  passwordChangedAt?: string
-  revision?: number
-}
-
-export interface SaveProfileRequest {
-  displayName: string
-  avatarUrl: string | null
-}
-
-export interface SessionData {
-  user: UserProfile
-  csrfToken: string
-  permissions?: unknown
-  passwordChangeRequired: boolean
-  passwordMinLength: number
-}
-
-export interface SignInRequest {
-  username: string
-  password: string
-}
+export type UserProfile = components['schemas']['SessionUser']
+export type ProfileView = components['schemas']['ProfileView']
+export type SaveProfileRequest = Required<
+  ApiPostRequest<'app/user/profile'>
+>
+export type SessionData = components['schemas']['SessionData']
+export type SignInRequest = ApiPostRequest<'app/user/signin'>
 
 export const useSessionStore = defineStore('session', () => {
   const initialized = ref(false)
@@ -163,7 +142,7 @@ export const useSessionStore = defineStore('session', () => {
     loading.value = true
     errorMessage.value = null
     try {
-      const { data } = await apiClient.post<SessionData>('app/user/session', {})
+      const { data } = await apiClient.postContract('app/user/session', {})
       applySession(data)
       if (!passwordChangeRequired.value) await retryMenu()
       return true
@@ -183,7 +162,7 @@ export const useSessionStore = defineStore('session', () => {
     loading.value = true
     errorMessage.value = null
     try {
-      const { data } = await apiClient.post<SessionData, SignInRequest>(
+      const { data } = await apiClient.postContract(
         'app/user/signin',
         credentials,
       )
@@ -201,7 +180,7 @@ export const useSessionStore = defineStore('session', () => {
   async function signOut(): Promise<void> {
     loading.value = true
     try {
-      await apiClient.post<null>('app/user/signout', {})
+      await apiClient.postContract('app/user/signout', {})
     } finally {
       clearSession()
       initialized.value = true
@@ -212,7 +191,7 @@ export const useSessionStore = defineStore('session', () => {
   async function getProfile(): Promise<ProfileView> {
     errorMessage.value = null
     try {
-      const { data } = await apiClient.post<ProfileView>('app/user/profile', {})
+      const { data } = await apiClient.postContract('app/user/profile', {})
       return data
     } catch (error) {
       errorMessage.value = getErrorMessage(error)
@@ -225,7 +204,7 @@ export const useSessionStore = defineStore('session', () => {
   ): Promise<ProfileView> {
     errorMessage.value = null
     try {
-      const { data } = await apiClient.post<ProfileView, SaveProfileRequest>(
+      const { data } = await apiClient.postContract(
         'app/user/profile',
         profile,
       )
@@ -248,7 +227,7 @@ export const useSessionStore = defineStore('session', () => {
   }): Promise<void> {
     errorMessage.value = null
     try {
-      await apiClient.post<null, typeof passwords>(
+      await apiClient.postContract(
         'app/user/change-password',
         passwords,
       )

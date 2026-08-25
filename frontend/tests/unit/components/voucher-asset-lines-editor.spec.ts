@@ -4,10 +4,10 @@ import { apiClient } from '@/api/client'
 import VoucherAssetLinesEditor from '@/components/voucher/VoucherAssetLinesEditor.vue'
 
 vi.mock('@/api/client', () => ({
-  apiClient: { post: vi.fn() },
+  apiClient: { postContract: vi.fn() },
 }))
 
-const mockedPost = vi.mocked(apiClient.post)
+const mockedPost = vi.mocked(apiClient.postContract)
 
 describe('VoucherAssetLinesEditor', () => {
   beforeEach(() => mockedPost.mockReset())

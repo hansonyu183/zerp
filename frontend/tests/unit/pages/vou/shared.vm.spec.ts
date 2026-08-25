@@ -14,11 +14,10 @@ import { useVoucherEntityViewModel } from '@/pages/vou/shared/vm'
 import { useSessionStore } from '@/stores/session'
 
 vi.mock('@/api/client', () => {
-  const post = vi.fn()
+  const postContract = vi.fn()
   return {
     apiClient: {
-      post,
-      postContract: post,
+      postContract,
       uploadAttachment: vi.fn(),
       fetchAttachment: vi.fn(),
       setCsrfToken: vi.fn(),
@@ -26,7 +25,7 @@ vi.mock('@/api/client', () => {
   }
 })
 
-const mockedPost = vi.mocked(apiClient.post)
+const mockedPost = vi.mocked(apiClient.postContract)
 
 const reference = (
   entity: string,
@@ -1215,6 +1214,16 @@ describe('shared VOU entity view model', () => {
       counterpartyType: 'employee',
       counterparty: { entity: 'employee' },
     })
+  })
+
+  it('rejects service acceptance payloads without a settlement direction', () => {
+    const config = voucherEntityConfigs['service-acceptance']
+    const form = useVoucherEntityViewModel(config).form.value
+    form.serviceAcceptance.settlementDirection = ''
+
+    expect(() => buildVoucherDraftPayload(config, form)).toThrow(
+      '请选择结算方向。',
+    )
   })
 
   it('executes permitted lifecycle actions directly from list rows', async () => {

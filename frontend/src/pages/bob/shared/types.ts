@@ -3,18 +3,11 @@ import type {
   BusinessObjectField,
   BusinessObjectFieldOption,
 } from '@/components/business-object'
+import type { components } from '@/api/generated/schema'
 
-export type BobStatus =
-  'DRAFT' | 'PENDING' | 'REJECTED' | 'EFFECTIVE' | 'INVALID'
+export type BobStatus = components['schemas']['BobVersionMeta']['status']
 
-export type BobEntity =
-  | 'supplier'
-  | 'employee'
-  | 'product'
-  | 'warehouse'
-  | 'vehicle'
-  | 'fund-account'
-  | 'operating-entity'
+export type BobEntity = components['schemas']['BobCrudEntity']
 
 export type BobForm = {
   code: string
@@ -22,27 +15,9 @@ export type BobForm = {
   [key: string]: unknown
 }
 
-export type BobDetail = Record<string, unknown> & { name: string }
-
-export interface BobVersionSummary {
-  versionId: string
-  version: number
-  status: BobStatus
-  revision: number
-  submittedBy: string | null
-  summary: BobDetail
-}
-
-export interface BobListItem {
-  objectId: string
-  entity: BobEntity
-  code: string
-  objectRevision: number
-  enabled: boolean
-  effective: BobVersionSummary | null
-  candidate: BobVersionSummary | null
-  updatedAt: string
-}
+export type BobDetail = components['schemas']['BobDetailView']
+export type BobVersionSummary = components['schemas']['BobVersionSummary']
+export type BobListItem = components['schemas']['BobListItem']
 
 export function bobListActiveVersion(
   item: Pick<BobListItem, 'effective' | 'candidate'>,
@@ -52,69 +27,14 @@ export function bobListActiveVersion(
   return version
 }
 
-export interface BobVersionMeta {
-  versionId: string
-  version: number
-  status: BobStatus
-  revision: number
-  createdAt?: string
-  createdBy?: string
-  updatedAt?: string
-  updatedBy?: string
-  submittedAt?: string | null
-  submittedBy?: string | null
-  reviewedAt?: string | null
-  reviewedBy?: string | null
-  reviewComment?: string | null
-}
-
-export interface BobObjectView {
-  objectId: string
-  entity: BobEntity
-  code: string
-  objectRevision: number
-  enabled: boolean
-  currentVersionId: string
-  effectiveVersionId: string | null
-  updatedAt?: string
-  version: BobVersionMeta
-  data: BobDetail
-}
-
-export interface BobMutationResult {
-  objectId: string
-  objectRevision: number
-  enabled: boolean
-  versionId: string
-  version: number
-  status: BobStatus
-  revision: number
-}
-
-export interface BobVersionRevisionRequest {
-  objectId: string
-  versionId: string
-  revision: number
-}
-
-export interface BobVersionHistoryItem extends BobVersionMeta {
-  summary: BobDetail
-}
-
-export interface BobAuditEvent {
-  id: string
-  objectId: string
-  versionId: string
-  entity: BobEntity
-  eventType: string
-  fromStatus: BobStatus | null
-  toStatus: BobStatus
-  actorId: string
-  occurredAt: string
-  comment: string | null
-  requestId: string
-  summary: unknown
-}
+export type BobVersionMeta = components['schemas']['BobVersionMeta']
+export type BobObjectView = components['schemas']['BobObjectView']
+export type BobMutationResult = components['schemas']['BobMutationResult']
+export type BobVersionRevisionRequest =
+  components['schemas']['BobVersionRevisionRequest']
+export type BobVersionHistoryItem =
+  components['schemas']['BobVersionHistoryItem']
+export type BobAuditEvent = components['schemas']['BobAuditEvent']
 
 export interface BobEditContext {
   objectId: string
@@ -123,15 +43,23 @@ export interface BobEditContext {
   revision: number
 }
 
-export interface BobReferenceConfig {
-  domain?: 'bob' | 'aux'
+interface ReferenceConfigBase {
   value?: 'objectId' | 'code'
-  entity: string
   label: string
   filters?:
     | Record<string, unknown>
     | ((form: Readonly<BobForm>) => Record<string, unknown>)
 }
+
+export type BobReferenceConfig =
+  | (ReferenceConfigBase & {
+      domain?: 'bob'
+      entity: components['schemas']['BobCrudEntity'] | 'other-unit'
+    })
+  | (ReferenceConfigBase & {
+      domain: 'aux'
+      entity: components['schemas']['AuxEntity']
+    })
 
 export interface BobFilterField {
   key: string
@@ -167,37 +95,8 @@ export interface BobFieldContext {
   referenceErrors: Readonly<Record<string, string | null>>
 }
 
-export interface ReferenceQueryItem {
-  objectId: string
-  code: string
-  currentVersion: {
-    summary: {
-      name: string
-    }
-  }
-}
-
-export interface AuxReferenceQueryItem {
-  objectId: string
-  code: string
-  currentVersion: {
-    data: {
-      name: string
-      [key: string]: unknown
-    }
-  }
-}
-
-export interface AuxReferenceObject {
-  objectId: string
-  code: string
-  currentVersion: {
-    data: {
-      name: string
-      [key: string]: unknown
-    }
-  }
-}
+export type AuxReferenceQueryItem = components['schemas']['AuxObjectView']
+export type AuxReferenceObject = components['schemas']['AuxObjectView']
 
 export interface BobActionAvailability {
   view: boolean

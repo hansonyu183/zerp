@@ -1,19 +1,7 @@
 import { apiClient, type ApiPostRequest } from '@/api/client'
-import type { PageResult } from '@/api/types'
-import type {
-  SupplierAuditEvent,
-  SupplierMutationResult,
-  SupplierVersionHistoryItem,
-} from './types'
 
 export type SupplierCreateRequest = ApiPostRequest<'bob/supplier/create'>
 export type SupplierSaveRequest = ApiPostRequest<'bob/supplier/save'>
-interface SupplierHistoryRequest {
-  objectId: string
-  page: number
-  pageSize: number
-}
-
 export const supplierApi = {
   query: (input: ApiPostRequest<'bob/supplier/query'>) =>
     apiClient.postContract('bob/supplier/query', input),
@@ -22,12 +10,12 @@ export const supplierApi = {
   partyQuery: (input: ApiPostRequest<'bob/party/query'>) =>
     apiClient.postContract('bob/party/query', input),
   create: (input: SupplierCreateRequest) =>
-    apiClient.post<SupplierMutationResult, SupplierCreateRequest>(
+    apiClient.postContract(
       'bob/supplier/create',
       input,
     ),
   save: (input: SupplierSaveRequest) =>
-    apiClient.post<SupplierMutationResult, SupplierSaveRequest>(
+    apiClient.postContract(
       'bob/supplier/save',
       input,
     ),
@@ -48,17 +36,14 @@ export const supplierApi = {
   disable: (input: ApiPostRequest<'bob/supplier/disable'>) =>
     apiClient.postContract('bob/supplier/disable', input),
   delete: (input: ApiPostRequest<'bob/supplier/delete'>) =>
-    apiClient.post<null, ApiPostRequest<'bob/supplier/delete'>>(
+    apiClient.postContract(
       'bob/supplier/delete',
       input,
     ),
-  versions: (input: SupplierHistoryRequest) =>
-    apiClient.post<
-      PageResult<SupplierVersionHistoryItem>,
-      SupplierHistoryRequest
-    >('bob/supplier/versions', input),
-  auditHistory: (input: SupplierHistoryRequest) =>
-    apiClient.post<PageResult<SupplierAuditEvent>, SupplierHistoryRequest>(
+  versions: (input: ApiPostRequest<'bob/supplier/versions'>) =>
+    apiClient.postContract('bob/supplier/versions', input),
+  auditHistory: (input: ApiPostRequest<'bob/supplier/audit-history'>) =>
+    apiClient.postContract(
       'bob/supplier/audit-history',
       input,
     ),

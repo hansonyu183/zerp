@@ -12,7 +12,7 @@ import { downloadBlob } from '@/utils/download'
 
 vi.mock('@/api/client', () => ({
   apiClient: {
-    post: vi.fn(),
+    postContract: vi.fn(),
     uploadAttachment: vi.fn(),
     fetchAttachment: vi.fn(),
   },
@@ -22,7 +22,7 @@ vi.mock('@/utils/download', () => ({
   downloadBlob: vi.fn(),
 }))
 
-const mockedPost = vi.mocked(apiClient.post)
+const mockedPost = vi.mocked(apiClient.postContract)
 const mockedUpload = vi.mocked(apiClient.uploadAttachment)
 const mockedFetch = vi.mocked(apiClient.fetchAttachment)
 const mockedDownload = vi.mocked(downloadBlob)

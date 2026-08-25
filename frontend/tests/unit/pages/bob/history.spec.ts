@@ -7,11 +7,11 @@ import type { BobListItem } from '@/pages/bob/shared/types'
 
 vi.mock('@/api/client', () => ({
   apiClient: {
-    post: vi.fn(),
+    postContract: vi.fn(),
   },
 }))
 
-const mockedPost = vi.mocked(apiClient.post)
+const mockedPost = vi.mocked(apiClient.postContract)
 
 const row: BobListItem = {
   objectId: 'OBJECT-1',

@@ -257,3 +257,181 @@ AuxReferenceQueryRequest:
     dictionaryTypeCode:
       type: string
       maxLength: 32
+
+AuxVersionView:
+  type: object
+  additionalProperties: false
+  required: [versionId, version, data, createdAt, createdBy]
+  properties:
+    versionId: { type: string }
+    version: { type: integer, format: int32 }
+    data:
+      $ref: '#/AuxData'
+    createdAt: { type: string, format: date-time }
+    createdBy: { type: string }
+
+AuxObjectView:
+  type: object
+  additionalProperties: false
+  required:
+    [
+      objectId,
+      entity,
+      code,
+      enabled,
+      objectRevision,
+      currentVersion,
+      updatedAt,
+      updatedBy,
+    ]
+  properties:
+    objectId: { type: string }
+    entity:
+      $ref: '#/AuxEntity'
+    code: { type: string }
+    enabled: { type: boolean }
+    objectRevision: { type: integer, format: int64 }
+    currentVersion:
+      $ref: '#/AuxVersionView'
+    updatedAt: { type: string, format: date-time }
+    updatedBy: { type: string }
+
+AuxObjectPage:
+  type: object
+  additionalProperties: false
+  required: [items, total, page, pageSize]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/AuxObjectView'
+    total: { type: integer, format: int64 }
+    page: { type: integer }
+    pageSize: { type: integer }
+
+AuxMutationResult:
+  type: object
+  additionalProperties: false
+  required: [objectId, objectRevision, versionId, version, enabled]
+  properties:
+    objectId: { type: string }
+    objectRevision: { type: integer, format: int64 }
+    versionId: { type: string }
+    version: { type: integer, format: int32 }
+    enabled: { type: boolean }
+
+AuxVersionPage:
+  type: object
+  additionalProperties: false
+  required: [items, total, page, pageSize]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/AuxVersionView'
+    total: { type: integer, format: int64 }
+    page: { type: integer }
+    pageSize: { type: integer }
+
+AuxAuditEventView:
+  type: object
+  additionalProperties: false
+  required: [id, eventType, versionId, actorId, occurredAt, requestId, summary]
+  properties:
+    id: { type: string }
+    eventType: { type: string }
+    versionId: { type: string }
+    actorId: { type: string }
+    occurredAt: { type: string, format: date-time }
+    requestId: { type: string }
+    summary:
+      type: object
+      additionalProperties: true
+
+AuxAuditEventPage:
+  type: object
+  additionalProperties: false
+  required: [items, total, page, pageSize]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/AuxAuditEventView'
+    total: { type: integer, format: int64 }
+    page: { type: integer }
+    pageSize: { type: integer }
+
+AuxQueryResponse:
+  type: object
+  additionalProperties: false
+  required: [code, errorKey, message, data, requestId]
+  properties:
+    code: { type: integer, format: int32 }
+    errorKey: { type: string }
+    message: { type: string }
+    data:
+      type: object
+      allOf:
+        - $ref: '#/AuxObjectPage'
+      nullable: true
+    requestId: { type: string }
+
+AuxObjectResponse:
+  type: object
+  additionalProperties: false
+  required: [code, errorKey, message, data, requestId]
+  properties:
+    code: { type: integer, format: int32 }
+    errorKey: { type: string }
+    message: { type: string }
+    data:
+      type: object
+      allOf:
+        - $ref: '#/AuxObjectView'
+      nullable: true
+    requestId: { type: string }
+
+AuxMutationResponse:
+  type: object
+  additionalProperties: false
+  required: [code, errorKey, message, data, requestId]
+  properties:
+    code: { type: integer, format: int32 }
+    errorKey: { type: string }
+    message: { type: string }
+    data:
+      type: object
+      allOf:
+        - $ref: '#/AuxMutationResult'
+      nullable: true
+    requestId: { type: string }
+
+AuxVersionPageResponse:
+  type: object
+  additionalProperties: false
+  required: [code, errorKey, message, data, requestId]
+  properties:
+    code: { type: integer, format: int32 }
+    errorKey: { type: string }
+    message: { type: string }
+    data:
+      type: object
+      allOf:
+        - $ref: '#/AuxVersionPage'
+      nullable: true
+    requestId: { type: string }
+
+AuxAuditEventPageResponse:
+  type: object
+  additionalProperties: false
+  required: [code, errorKey, message, data, requestId]
+  properties:
+    code: { type: integer, format: int32 }
+    errorKey: { type: string }
+    message: { type: string }
+    data:
+      type: object
+      allOf:
+        - $ref: '#/AuxAuditEventPage'
+      nullable: true
+    requestId: { type: string }

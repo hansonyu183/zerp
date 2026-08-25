@@ -8,7 +8,6 @@ import { useSessionStore } from '@/stores/session'
 
 vi.mock('@/api/client', () => ({
   apiClient: {
-    post: vi.fn(),
     postContract: vi.fn(),
   },
 }))
@@ -33,7 +32,7 @@ describe('Party 与其他单位页面编排', () => {
       '/bob/operating-entity/query',
       '/aux/settlement-method/query',
     ]
-    mocked.post.mockReset()
+    mocked.postContract.mockReset()
     mocked.postContract.mockReset()
   })
 

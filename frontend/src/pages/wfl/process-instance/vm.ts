@@ -1,7 +1,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { apiClient, type BobApiEntity } from '@/api/client'
-import { getErrorMessage, type PageRequest, type PageResult } from '@/api/types'
+import { apiClient } from '@/api/client'
+import { getErrorMessage } from '@/api/types'
 import type { VoucherReference } from '@/components/voucher'
 import { useSessionStore } from '@/stores/session'
 
@@ -26,17 +26,6 @@ export interface InstanceListItem {
   partyCode: string
   partyName: string
   updatedAt: string
-}
-
-interface ReferenceListItem {
-  objectId: string
-  code: string
-  effectiveVersionId: string | null
-  currentVersion: {
-    versionId: string
-    status: string
-    summary: Record<string, unknown> & { name?: string }
-  }
 }
 
 export interface NodeInstance extends DocumentNodeReference {
@@ -170,9 +159,9 @@ export function useProcessInstanceViewModel() {
   }
 
   async function loadPartyOptions(keywordValue: string): Promise<void> {
-    const entities = (
-      ['customer-account', 'supplier'] as BobApiEntity[]
-    ).filter((entity) => session.can(`/bob/${entity}/query`))
+    const entities = (['customer-account', 'supplier'] as const).filter(
+      (entity) => session.can(`/bob/${entity}/query`),
+    )
     if (entities.length === 0) {
       partyOptions.value = []
       partyError.value = '缺少客户或供应商查询权限。'
@@ -214,38 +203,7 @@ export function useProcessInstanceViewModel() {
             )
             return data.map((item): VoucherReference => ({ ...item, entity }))
           }
-          const { data } = await apiClient.post<
-            PageResult<ReferenceListItem>,
-            PageRequest
-          >(`bob/${entity}/query`, {
-            page: 1,
-            pageSize: 20,
-            filters: {
-              status: ['EFFECTIVE'],
-              ...(keywordValue.trim() ? { keyword: keywordValue.trim() } : {}),
-            },
-            sort: [{ field: 'name', order: 'asc' }],
-          })
-          return (data.items ?? []).flatMap((item): VoucherReference[] => {
-            const name = item.currentVersion.summary.name
-            if (
-              item.currentVersion.status !== 'EFFECTIVE' ||
-              !item.effectiveVersionId ||
-              item.effectiveVersionId !== item.currentVersion.versionId ||
-              typeof name !== 'string'
-            ) {
-              return []
-            }
-            return [
-              {
-                objectId: item.objectId,
-                versionId: item.effectiveVersionId,
-                entity,
-                code: item.code,
-                name,
-              },
-            ]
-          })
+          return []
         }),
       )
       if (sequence === partySearchSequence) {
@@ -281,15 +239,12 @@ export function useProcessInstanceViewModel() {
     errorMessage.value = null
     try {
       const [detail, audit] = await Promise.all([
-        apiClient.post<InstanceView, { processId: string }>(
+        apiClient.postContract(
           `wfl/${processName.value}/get`,
           { processId: item.processId },
         ),
         can('audit-history')
-          ? apiClient.post<
-              { items: AuditEvent[] },
-              { processId: string; page: number; pageSize: number }
-            >(`wfl/${processName.value}/audit-history`, {
+          ? apiClient.postContract(`wfl/${processName.value}/audit-history`, {
               processId: item.processId,
               page: 1,
               pageSize: 100,
@@ -337,7 +292,7 @@ export function useProcessInstanceViewModel() {
     creatingChild.value = true
     errorMessage.value = null
     try {
-      await apiClient.post(`wfl/${processName.value}/create-child`, {
+      await apiClient.postContract(`wfl/${processName.value}/create-child`, {
         processId: process.processId,
         parentNodeInstanceId: target.parentNodeInstanceId,
         targetNodeKey: target.targetNodeKey,

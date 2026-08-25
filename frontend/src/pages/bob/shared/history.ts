@@ -1,18 +1,12 @@
 import { ref, type Ref } from 'vue'
 import { apiClient } from '@/api/client'
-import { getErrorMessage, type PageResult } from '@/api/types'
+import { getErrorMessage } from '@/api/types'
 import type {
   BobAuditEvent,
   BobEntityConfig,
   BobListItem,
   BobVersionHistoryItem,
 } from './types'
-
-interface HistoryRequest {
-  objectId: string
-  page: number
-  pageSize: number
-}
 
 export function useBobHistory(
   config: BobEntityConfig,
@@ -40,10 +34,7 @@ export function useBobHistory(
     if (!row) return
     versionsLoading.value = true
     try {
-      const { data } = await apiClient.post<
-        PageResult<BobVersionHistoryItem>,
-        HistoryRequest
-      >(`bob/${config.entity}/versions`, {
+      const { data } = await apiClient.postContract(`bob/${config.entity}/versions`, {
         objectId: row.objectId,
         page: versionsPage.value,
         pageSize: versionsPageSize.value,
@@ -79,10 +70,7 @@ export function useBobHistory(
     if (!row) return
     auditLoading.value = true
     try {
-      const { data } = await apiClient.post<
-        PageResult<BobAuditEvent>,
-        HistoryRequest
-      >(`bob/${config.entity}/audit-history`, {
+      const { data } = await apiClient.postContract(`bob/${config.entity}/audit-history`, {
         objectId: row.objectId,
         page: auditPage.value,
         pageSize: auditPageSize.value,

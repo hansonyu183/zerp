@@ -35,14 +35,18 @@ export async function postVoucherLifecycleAction(
   revision: number,
   reason?: string,
 ): Promise<VoucherMutationResult> {
-  const { data } = await apiClient.post<
-    VoucherMutationResult,
-    Record<string, unknown>
-  >(`vou/${config.entity}/${action}`, {
-    documentId,
-    revision,
-    ...(reason ? { reason } : {}),
-  })
+  const response =
+    action === 'unapprove'
+      ? await apiClient.postContract(`vou/${config.entity}/unapprove`, {
+          documentId,
+          revision,
+          reason: reason ?? '',
+        })
+      : await apiClient.postContract(`vou/${config.entity}/${action}`, {
+          documentId,
+          revision,
+        })
+  const { data } = response
   return data
 }
 

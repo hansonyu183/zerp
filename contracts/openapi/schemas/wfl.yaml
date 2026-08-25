@@ -184,16 +184,108 @@
         'matched': { 'type': 'boolean' },
         'rootNodeKey': { 'type': 'string' },
         'trace':
-          {
-            'type': 'array',
-            'items': { 'type': 'object', 'additionalProperties': true },
-          },
+          { 'type': 'array', 'items': { '$ref': '#/WflExecutionTrace' } },
         'plannedActions':
-          {
-            'type': 'array',
-            'items': { 'type': 'object', 'additionalProperties': true },
-          },
+          { 'type': 'array', 'items': { '$ref': '#/WflPlannedAction' } },
         'uncoveredBranches': { 'type': 'array', 'items': { 'type': 'string' } },
+      },
+  }
+'WflBusinessObjectReference':
+  {
+    'type': 'object',
+    'required': ['entity', 'documentId', 'documentNo'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'entity': { '$ref': './vou.yaml#/VouEntity' },
+        'documentId': { 'type': 'string' },
+        'documentNo': { 'type': 'string' },
+      },
+  }
+'WflExecutionTrace':
+  {
+    'type': 'object',
+    'required': [sourceNodeKey, targetNodeKey, relation, action, result],
+    'additionalProperties': false,
+    'properties':
+      {
+        'sourceNodeKey': { 'type': 'string' },
+        'targetNodeKey': { 'type': 'string' },
+        'relation': { 'type': 'string' },
+        'action': { 'type': 'string' },
+        'result': { '$ref': '#/WflBusinessObjectReference' },
+      },
+  }
+'WflPlannedAction':
+  {
+    'type': 'object',
+    'required': [action, sourceDocumentId, initial, result],
+    'additionalProperties': false,
+    'properties':
+      {
+        'action': { 'type': 'string' },
+        'sourceDocumentId': { 'type': 'string' },
+        'initial': {},
+        'result': { '$ref': '#/WflBusinessObjectReference' },
+      },
+  }
+'WflDefinitionListItem':
+  {
+    'type': 'object',
+    'required':
+      [
+        definitionId,
+        code,
+        name,
+        status,
+        revision,
+        rootEntity,
+        nodeCount,
+        updatedAt,
+      ],
+    'additionalProperties': false,
+    'properties':
+      {
+        'definitionId': { 'type': 'string' },
+        'code': { 'type': 'string' },
+        'name': { 'type': 'string' },
+        'status': { '$ref': '#/WflDefinitionStatus' },
+        'revision': { 'type': 'integer', 'format': 'int64' },
+        'publishedRevision': { 'type': 'integer', 'format': 'int64' },
+        'rootEntity': { '$ref': './vou.yaml#/VouEntity' },
+        'nodeCount': { 'type': 'integer' },
+        'updatedAt': { 'type': 'string', 'format': 'date-time' },
+      },
+  }
+'WflDefinitionQueryResponse':
+  {
+    'type': 'object',
+    'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'code': { 'type': 'integer', 'format': 'int32' },
+        'errorKey': { 'type': 'string' },
+        'message': { 'type': 'string' },
+        'data':
+          {
+            'type': 'object',
+            'nullable': true,
+            'required': ['items', 'total', 'page', 'pageSize'],
+            'additionalProperties': false,
+            'properties':
+              {
+                'items':
+                  {
+                    'type': 'array',
+                    'items': { '$ref': '#/WflDefinitionListItem' },
+                  },
+                'total': { 'type': 'integer', 'format': 'int64' },
+                'page': { 'type': 'integer' },
+                'pageSize': { 'type': 'integer' },
+              },
+          },
+        'requestId': { 'type': 'string' },
       },
   }
 'WflDefinitionViewResponse':

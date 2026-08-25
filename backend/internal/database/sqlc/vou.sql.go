@@ -1026,7 +1026,7 @@ func (q *Queries) GetSaleSignoffSettlementSource(ctx context.Context, documentID
 }
 
 const getVouAssetAcquisitionDetail = `-- name: GetVouAssetAcquisitionDetail :one
-SELECT document_id, entity, supplier_object_id, supplier_version_id, supplier_code, supplier_name, party_account_type FROM vou_asset_acquisition_details WHERE document_id=$1
+SELECT document_id, entity, supplier_object_id, supplier_approval_entry_id, supplier_code, supplier_name, party_account_type FROM vou_asset_acquisition_details WHERE document_id=$1
 `
 
 func (q *Queries) GetVouAssetAcquisitionDetail(ctx context.Context, documentID string) (VouAssetAcquisitionDetail, error) {
@@ -1036,7 +1036,7 @@ func (q *Queries) GetVouAssetAcquisitionDetail(ctx context.Context, documentID s
 		&i.DocumentID,
 		&i.Entity,
 		&i.SupplierObjectID,
-		&i.SupplierVersionID,
+		&i.SupplierApprovalEntryID,
 		&i.SupplierCode,
 		&i.SupplierName,
 		&i.PartyAccountType,
@@ -1056,7 +1056,7 @@ func (q *Queries) GetVouAssetLiquidationDetail(ctx context.Context, documentID s
 }
 
 const getVouAssetSaleDetail = `-- name: GetVouAssetSaleDetail :one
-SELECT document_id, entity, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, party_account_type FROM vou_asset_sale_details WHERE document_id=$1
+SELECT document_id, entity, counterparty_entity, counterparty_object_id, counterparty_approval_entry_id, counterparty_code, counterparty_name, party_account_type FROM vou_asset_sale_details WHERE document_id=$1
 `
 
 func (q *Queries) GetVouAssetSaleDetail(ctx context.Context, documentID string) (VouAssetSaleDetail, error) {
@@ -1067,7 +1067,7 @@ func (q *Queries) GetVouAssetSaleDetail(ctx context.Context, documentID string) 
 		&i.Entity,
 		&i.CounterpartyEntity,
 		&i.CounterpartyObjectID,
-		&i.CounterpartyVersionID,
+		&i.CounterpartyApprovalEntryID,
 		&i.CounterpartyCode,
 		&i.CounterpartyName,
 		&i.PartyAccountType,
@@ -1076,7 +1076,7 @@ func (q *Queries) GetVouAssetSaleDetail(ctx context.Context, documentID string) 
 }
 
 const getVouBillDetail = `-- name: GetVouBillDetail :one
-SELECT document_id, entity, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, handler_object_id, handler_version_id, handler_code, handler_name, internal_cost_rate_bps, maturity_type, interest_mode, interest_party_entity, interest_party_object_id, interest_party_version_id, interest_party_code, interest_party_name, with_recourse FROM vou_bill_details WHERE document_id=$1
+SELECT document_id, entity, counterparty_entity, counterparty_object_id, counterparty_approval_entry_id, counterparty_code, counterparty_name, handler_object_id, handler_approval_entry_id, handler_code, handler_name, internal_cost_rate_bps, maturity_type, interest_mode, interest_party_entity, interest_party_object_id, interest_party_approval_entry_id, interest_party_code, interest_party_name, with_recourse FROM vou_bill_details WHERE document_id=$1
 `
 
 func (q *Queries) GetVouBillDetail(ctx context.Context, documentID string) (VouBillDetail, error) {
@@ -1087,11 +1087,11 @@ func (q *Queries) GetVouBillDetail(ctx context.Context, documentID string) (VouB
 		&i.Entity,
 		&i.CounterpartyEntity,
 		&i.CounterpartyObjectID,
-		&i.CounterpartyVersionID,
+		&i.CounterpartyApprovalEntryID,
 		&i.CounterpartyCode,
 		&i.CounterpartyName,
 		&i.HandlerObjectID,
-		&i.HandlerVersionID,
+		&i.HandlerApprovalEntryID,
 		&i.HandlerCode,
 		&i.HandlerName,
 		&i.InternalCostRateBps,
@@ -1099,7 +1099,7 @@ func (q *Queries) GetVouBillDetail(ctx context.Context, documentID string) (VouB
 		&i.InterestMode,
 		&i.InterestPartyEntity,
 		&i.InterestPartyObjectID,
-		&i.InterestPartyVersionID,
+		&i.InterestPartyApprovalEntryID,
 		&i.InterestPartyCode,
 		&i.InterestPartyName,
 		&i.WithRecourse,
@@ -1151,7 +1151,7 @@ func (q *Queries) GetVouDocument(ctx context.Context, arg GetVouDocumentParams) 
 }
 
 const getVouEmployeeLoanWriteoffDetail = `-- name: GetVouEmployeeLoanWriteoffDetail :one
-SELECT document_id, entity, employee_object_id, employee_version_id, employee_code, employee_name FROM vou_employee_loan_writeoff_details WHERE document_id=$1
+SELECT document_id, entity, employee_object_id, employee_approval_entry_id, employee_code, employee_name FROM vou_employee_loan_writeoff_details WHERE document_id=$1
 `
 
 func (q *Queries) GetVouEmployeeLoanWriteoffDetail(ctx context.Context, documentID string) (VouEmployeeLoanWriteoffDetail, error) {
@@ -1161,7 +1161,7 @@ func (q *Queries) GetVouEmployeeLoanWriteoffDetail(ctx context.Context, document
 		&i.DocumentID,
 		&i.Entity,
 		&i.EmployeeObjectID,
-		&i.EmployeeVersionID,
+		&i.EmployeeApprovalEntryID,
 		&i.EmployeeCode,
 		&i.EmployeeName,
 	)
@@ -1169,7 +1169,7 @@ func (q *Queries) GetVouEmployeeLoanWriteoffDetail(ctx context.Context, document
 }
 
 const getVouExpensePaymentDetail = `-- name: GetVouExpensePaymentDetail :one
-SELECT document_id, entity, source_reimbursement_id, employee_object_id, employee_version_id, employee_code, employee_name, fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name FROM vou_expense_payment_details WHERE document_id=$1
+SELECT document_id, entity, source_reimbursement_id, employee_object_id, employee_approval_entry_id, employee_code, employee_name, fund_account_object_id, fund_account_approval_entry_id, fund_account_code, fund_account_name FROM vou_expense_payment_details WHERE document_id=$1
 `
 
 func (q *Queries) GetVouExpensePaymentDetail(ctx context.Context, documentID string) (VouExpensePaymentDetail, error) {
@@ -1180,11 +1180,11 @@ func (q *Queries) GetVouExpensePaymentDetail(ctx context.Context, documentID str
 		&i.Entity,
 		&i.SourceReimbursementID,
 		&i.EmployeeObjectID,
-		&i.EmployeeVersionID,
+		&i.EmployeeApprovalEntryID,
 		&i.EmployeeCode,
 		&i.EmployeeName,
 		&i.FundAccountObjectID,
-		&i.FundAccountVersionID,
+		&i.FundAccountApprovalEntryID,
 		&i.FundAccountCode,
 		&i.FundAccountName,
 	)
@@ -1192,7 +1192,7 @@ func (q *Queries) GetVouExpensePaymentDetail(ctx context.Context, documentID str
 }
 
 const getVouExpenseReimbursementDetail = `-- name: GetVouExpenseReimbursementDetail :one
-SELECT document_id, entity, employee_object_id, employee_version_id, employee_code, employee_name FROM vou_expense_reimbursement_details WHERE document_id = $1
+SELECT document_id, entity, employee_object_id, employee_approval_entry_id, employee_code, employee_name FROM vou_expense_reimbursement_details WHERE document_id = $1
 `
 
 func (q *Queries) GetVouExpenseReimbursementDetail(ctx context.Context, documentID string) (VouExpenseReimbursementDetail, error) {
@@ -1202,7 +1202,7 @@ func (q *Queries) GetVouExpenseReimbursementDetail(ctx context.Context, document
 		&i.DocumentID,
 		&i.Entity,
 		&i.EmployeeObjectID,
-		&i.EmployeeVersionID,
+		&i.EmployeeApprovalEntryID,
 		&i.EmployeeCode,
 		&i.EmployeeName,
 	)
@@ -1232,7 +1232,7 @@ func (q *Queries) GetVouInventoryCountBookQuantity(ctx context.Context, arg GetV
 }
 
 const getVouInventoryCountDetail = `-- name: GetVouInventoryCountDetail :one
-SELECT document_id, entity, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name FROM vou_inventory_count_details WHERE document_id=$1
+SELECT document_id, entity, warehouse_object_id, warehouse_approval_entry_id, warehouse_code, warehouse_name FROM vou_inventory_count_details WHERE document_id=$1
 `
 
 func (q *Queries) GetVouInventoryCountDetail(ctx context.Context, documentID string) (VouInventoryCountDetail, error) {
@@ -1242,7 +1242,7 @@ func (q *Queries) GetVouInventoryCountDetail(ctx context.Context, documentID str
 		&i.DocumentID,
 		&i.Entity,
 		&i.WarehouseObjectID,
-		&i.WarehouseVersionID,
+		&i.WarehouseApprovalEntryID,
 		&i.WarehouseCode,
 		&i.WarehouseName,
 	)
@@ -1250,7 +1250,7 @@ func (q *Queries) GetVouInventoryCountDetail(ctx context.Context, documentID str
 }
 
 const getVouOtherIncomeDetail = `-- name: GetVouOtherIncomeDetail :one
-SELECT document_id, entity, source_name, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name, handler_object_id, handler_version_id, handler_code, handler_name FROM vou_other_income_details WHERE document_id = $1
+SELECT document_id, entity, source_name, counterparty_entity, counterparty_object_id, counterparty_approval_entry_id, counterparty_code, counterparty_name, fund_account_object_id, fund_account_approval_entry_id, fund_account_code, fund_account_name, handler_object_id, handler_approval_entry_id, handler_code, handler_name FROM vou_other_income_details WHERE document_id = $1
 `
 
 func (q *Queries) GetVouOtherIncomeDetail(ctx context.Context, documentID string) (VouOtherIncomeDetail, error) {
@@ -1262,15 +1262,15 @@ func (q *Queries) GetVouOtherIncomeDetail(ctx context.Context, documentID string
 		&i.SourceName,
 		&i.CounterpartyEntity,
 		&i.CounterpartyObjectID,
-		&i.CounterpartyVersionID,
+		&i.CounterpartyApprovalEntryID,
 		&i.CounterpartyCode,
 		&i.CounterpartyName,
 		&i.FundAccountObjectID,
-		&i.FundAccountVersionID,
+		&i.FundAccountApprovalEntryID,
 		&i.FundAccountCode,
 		&i.FundAccountName,
 		&i.HandlerObjectID,
-		&i.HandlerVersionID,
+		&i.HandlerApprovalEntryID,
 		&i.HandlerCode,
 		&i.HandlerName,
 	)
@@ -1278,7 +1278,7 @@ func (q *Queries) GetVouOtherIncomeDetail(ctx context.Context, documentID string
 }
 
 const getVouPaymentDetail = `-- name: GetVouPaymentDetail :one
-SELECT document_id, entity, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name, handler_object_id, handler_version_id, handler_code, handler_name, other_category FROM vou_payment_details WHERE document_id = $1
+SELECT document_id, entity, counterparty_entity, counterparty_object_id, counterparty_approval_entry_id, counterparty_code, counterparty_name, fund_account_object_id, fund_account_approval_entry_id, fund_account_code, fund_account_name, handler_object_id, handler_approval_entry_id, handler_code, handler_name, other_category FROM vou_payment_details WHERE document_id = $1
 `
 
 func (q *Queries) GetVouPaymentDetail(ctx context.Context, documentID string) (VouPaymentDetail, error) {
@@ -1289,15 +1289,15 @@ func (q *Queries) GetVouPaymentDetail(ctx context.Context, documentID string) (V
 		&i.Entity,
 		&i.CounterpartyEntity,
 		&i.CounterpartyObjectID,
-		&i.CounterpartyVersionID,
+		&i.CounterpartyApprovalEntryID,
 		&i.CounterpartyCode,
 		&i.CounterpartyName,
 		&i.FundAccountObjectID,
-		&i.FundAccountVersionID,
+		&i.FundAccountApprovalEntryID,
 		&i.FundAccountCode,
 		&i.FundAccountName,
 		&i.HandlerObjectID,
-		&i.HandlerVersionID,
+		&i.HandlerApprovalEntryID,
 		&i.HandlerCode,
 		&i.HandlerName,
 		&i.OtherCategory,
@@ -1306,7 +1306,7 @@ func (q *Queries) GetVouPaymentDetail(ctx context.Context, documentID string) (V
 }
 
 const getVouPurchaseInboundDetail = `-- name: GetVouPurchaseInboundDetail :one
-SELECT document_id, entity, source_order_id, supplier_object_id, supplier_version_id, supplier_code, supplier_name, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name FROM vou_purchase_inbound_details
+SELECT document_id, entity, source_order_id, supplier_object_id, supplier_approval_entry_id, supplier_code, supplier_name, warehouse_object_id, warehouse_approval_entry_id, warehouse_code, warehouse_name FROM vou_purchase_inbound_details
 WHERE document_id = $1
 `
 
@@ -1318,11 +1318,11 @@ func (q *Queries) GetVouPurchaseInboundDetail(ctx context.Context, documentID st
 		&i.Entity,
 		&i.SourceOrderID,
 		&i.SupplierObjectID,
-		&i.SupplierVersionID,
+		&i.SupplierApprovalEntryID,
 		&i.SupplierCode,
 		&i.SupplierName,
 		&i.WarehouseObjectID,
-		&i.WarehouseVersionID,
+		&i.WarehouseApprovalEntryID,
 		&i.WarehouseCode,
 		&i.WarehouseName,
 	)
@@ -1330,7 +1330,7 @@ func (q *Queries) GetVouPurchaseInboundDetail(ctx context.Context, documentID st
 }
 
 const getVouPurchaseInquiryDetail = `-- name: GetVouPurchaseInquiryDetail :one
-SELECT document_id, entity, supplier_object_id, supplier_version_id, supplier_code, supplier_name FROM vou_purchase_inquiry_details WHERE document_id=$1
+SELECT document_id, entity, supplier_object_id, supplier_approval_entry_id, supplier_code, supplier_name FROM vou_purchase_inquiry_details WHERE document_id=$1
 `
 
 func (q *Queries) GetVouPurchaseInquiryDetail(ctx context.Context, documentID string) (VouPurchaseInquiryDetail, error) {
@@ -1340,7 +1340,7 @@ func (q *Queries) GetVouPurchaseInquiryDetail(ctx context.Context, documentID st
 		&i.DocumentID,
 		&i.Entity,
 		&i.SupplierObjectID,
-		&i.SupplierVersionID,
+		&i.SupplierApprovalEntryID,
 		&i.SupplierCode,
 		&i.SupplierName,
 	)
@@ -1348,7 +1348,7 @@ func (q *Queries) GetVouPurchaseInquiryDetail(ctx context.Context, documentID st
 }
 
 const getVouPurchaseOrderDetail = `-- name: GetVouPurchaseOrderDetail :one
-SELECT document_id, entity, supplier_object_id, supplier_version_id, supplier_code, supplier_name, purchaser_object_id, purchaser_version_id, purchaser_code, purchaser_name, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, contact_name, contact_phone, settlement_method_object_id, settlement_method_version_id, settlement_method_code, settlement_method_name, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, settlement_description, fulfillment_status, settlement_due_days, settlement_cutoff_day, settlement_default_sales_surcharge_cents, settlement_term_code FROM vou_purchase_order_details WHERE document_id = $1
+SELECT document_id, entity, supplier_object_id, supplier_approval_entry_id, supplier_code, supplier_name, purchaser_object_id, purchaser_approval_entry_id, purchaser_code, purchaser_name, warehouse_object_id, warehouse_approval_entry_id, warehouse_code, warehouse_name, contact_name, contact_phone, settlement_method_object_id, settlement_method_approval_entry_id, settlement_method_code, settlement_method_name, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, settlement_description, fulfillment_status, settlement_due_days, settlement_cutoff_day, settlement_default_sales_surcharge_cents, settlement_term_code FROM vou_purchase_order_details WHERE document_id = $1
 `
 
 func (q *Queries) GetVouPurchaseOrderDetail(ctx context.Context, documentID string) (VouPurchaseOrderDetail, error) {
@@ -1358,21 +1358,21 @@ func (q *Queries) GetVouPurchaseOrderDetail(ctx context.Context, documentID stri
 		&i.DocumentID,
 		&i.Entity,
 		&i.SupplierObjectID,
-		&i.SupplierVersionID,
+		&i.SupplierApprovalEntryID,
 		&i.SupplierCode,
 		&i.SupplierName,
 		&i.PurchaserObjectID,
-		&i.PurchaserVersionID,
+		&i.PurchaserApprovalEntryID,
 		&i.PurchaserCode,
 		&i.PurchaserName,
 		&i.WarehouseObjectID,
-		&i.WarehouseVersionID,
+		&i.WarehouseApprovalEntryID,
 		&i.WarehouseCode,
 		&i.WarehouseName,
 		&i.ContactName,
 		&i.ContactPhone,
 		&i.SettlementMethodObjectID,
-		&i.SettlementMethodVersionID,
+		&i.SettlementMethodApprovalEntryID,
 		&i.SettlementMethodCode,
 		&i.SettlementMethodName,
 		&i.SettlementRuleType,
@@ -1390,7 +1390,7 @@ func (q *Queries) GetVouPurchaseOrderDetail(ctx context.Context, documentID stri
 }
 
 const getVouReceiptDetail = `-- name: GetVouReceiptDetail :one
-SELECT document_id, entity, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name, handler_object_id, handler_version_id, handler_code, handler_name, other_category FROM vou_receipt_details WHERE document_id = $1
+SELECT document_id, entity, counterparty_entity, counterparty_object_id, counterparty_approval_entry_id, counterparty_code, counterparty_name, fund_account_object_id, fund_account_approval_entry_id, fund_account_code, fund_account_name, handler_object_id, handler_approval_entry_id, handler_code, handler_name, other_category FROM vou_receipt_details WHERE document_id = $1
 `
 
 func (q *Queries) GetVouReceiptDetail(ctx context.Context, documentID string) (VouReceiptDetail, error) {
@@ -1401,15 +1401,15 @@ func (q *Queries) GetVouReceiptDetail(ctx context.Context, documentID string) (V
 		&i.Entity,
 		&i.CounterpartyEntity,
 		&i.CounterpartyObjectID,
-		&i.CounterpartyVersionID,
+		&i.CounterpartyApprovalEntryID,
 		&i.CounterpartyCode,
 		&i.CounterpartyName,
 		&i.FundAccountObjectID,
-		&i.FundAccountVersionID,
+		&i.FundAccountApprovalEntryID,
 		&i.FundAccountCode,
 		&i.FundAccountName,
 		&i.HandlerObjectID,
-		&i.HandlerVersionID,
+		&i.HandlerApprovalEntryID,
 		&i.HandlerCode,
 		&i.HandlerName,
 		&i.OtherCategory,
@@ -1440,18 +1440,18 @@ func (q *Queries) GetVouSaleDeliveryStoredState(ctx context.Context, documentID 
 
 const getVouSaleDeliveryView = `-- name: GetVouSaleDeliveryView :one
 SELECT delivery.source_outbound_id,source.document_no AS source_document_no,
-       delivery.customer_object_id,delivery.customer_version_id,
+       delivery.customer_object_id,delivery.customer_approval_entry_id,
        delivery.customer_code,delivery.customer_name,delivery.carrier_type,
        COALESCE(delivery.carrier_operating_entity_object_id,'') AS carrier_operating_entity_object_id,
-       COALESCE(delivery.carrier_operating_entity_version_id,'') AS carrier_operating_entity_version_id,
+       COALESCE(delivery.carrier_operating_entity_approval_entry_id,'') AS carrier_operating_entity_approval_entry_id,
        COALESCE(delivery.carrier_operating_entity_code,'') AS carrier_operating_entity_code,
        COALESCE(delivery.carrier_operating_entity_name,'') AS carrier_operating_entity_name,
        COALESCE(delivery.carrier_service_relationship_object_id,'') AS carrier_service_relationship_object_id,
-       COALESCE(delivery.carrier_service_relationship_version_id,'') AS carrier_service_relationship_version_id,
+       COALESCE(delivery.carrier_service_relationship_approval_entry_id,'') AS carrier_service_relationship_approval_entry_id,
        COALESCE(delivery.carrier_service_relationship_code,'') AS carrier_service_relationship_code,
        COALESCE(delivery.carrier_service_relationship_name,'') AS carrier_service_relationship_name,
        COALESCE(delivery.vehicle_object_id,'') AS vehicle_object_id,
-       COALESCE(delivery.vehicle_version_id,'') AS vehicle_version_id,
+       COALESCE(delivery.vehicle_approval_entry_id,'') AS vehicle_approval_entry_id,
        COALESCE(delivery.vehicle_code,'') AS vehicle_code,
        COALESCE(delivery.vehicle_name,'') AS vehicle_name,
        COALESCE(delivery.vehicle_plate_number,'') AS vehicle_plate_number,
@@ -1462,27 +1462,27 @@ WHERE delivery.document_id=$1
 `
 
 type GetVouSaleDeliveryViewRow struct {
-	SourceOutboundID                    string `db:"source_outbound_id" json:"source_outbound_id"`
-	SourceDocumentNo                    string `db:"source_document_no" json:"source_document_no"`
-	CustomerObjectID                    string `db:"customer_object_id" json:"customer_object_id"`
-	CustomerVersionID                   string `db:"customer_version_id" json:"customer_version_id"`
-	CustomerCode                        string `db:"customer_code" json:"customer_code"`
-	CustomerName                        string `db:"customer_name" json:"customer_name"`
-	CarrierType                         string `db:"carrier_type" json:"carrier_type"`
-	CarrierOperatingEntityObjectID      string `db:"carrier_operating_entity_object_id" json:"carrier_operating_entity_object_id"`
-	CarrierOperatingEntityVersionID     string `db:"carrier_operating_entity_version_id" json:"carrier_operating_entity_version_id"`
-	CarrierOperatingEntityCode          string `db:"carrier_operating_entity_code" json:"carrier_operating_entity_code"`
-	CarrierOperatingEntityName          string `db:"carrier_operating_entity_name" json:"carrier_operating_entity_name"`
-	CarrierServiceRelationshipObjectID  string `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
-	CarrierServiceRelationshipVersionID string `db:"carrier_service_relationship_version_id" json:"carrier_service_relationship_version_id"`
-	CarrierServiceRelationshipCode      string `db:"carrier_service_relationship_code" json:"carrier_service_relationship_code"`
-	CarrierServiceRelationshipName      string `db:"carrier_service_relationship_name" json:"carrier_service_relationship_name"`
-	VehicleObjectID                     string `db:"vehicle_object_id" json:"vehicle_object_id"`
-	VehicleVersionID                    string `db:"vehicle_version_id" json:"vehicle_version_id"`
-	VehicleCode                         string `db:"vehicle_code" json:"vehicle_code"`
-	VehicleName                         string `db:"vehicle_name" json:"vehicle_name"`
-	VehiclePlateNumber                  string `db:"vehicle_plate_number" json:"vehicle_plate_number"`
-	VehicleBulkLiquidCapable            bool   `db:"vehicle_bulk_liquid_capable" json:"vehicle_bulk_liquid_capable"`
+	SourceOutboundID                          string `db:"source_outbound_id" json:"source_outbound_id"`
+	SourceDocumentNo                          string `db:"source_document_no" json:"source_document_no"`
+	CustomerObjectID                          string `db:"customer_object_id" json:"customer_object_id"`
+	CustomerApprovalEntryID                   string `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	CustomerCode                              string `db:"customer_code" json:"customer_code"`
+	CustomerName                              string `db:"customer_name" json:"customer_name"`
+	CarrierType                               string `db:"carrier_type" json:"carrier_type"`
+	CarrierOperatingEntityObjectID            string `db:"carrier_operating_entity_object_id" json:"carrier_operating_entity_object_id"`
+	CarrierOperatingEntityApprovalEntryID     string `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
+	CarrierOperatingEntityCode                string `db:"carrier_operating_entity_code" json:"carrier_operating_entity_code"`
+	CarrierOperatingEntityName                string `db:"carrier_operating_entity_name" json:"carrier_operating_entity_name"`
+	CarrierServiceRelationshipObjectID        string `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
+	CarrierServiceRelationshipApprovalEntryID string `db:"carrier_service_relationship_approval_entry_id" json:"carrier_service_relationship_approval_entry_id"`
+	CarrierServiceRelationshipCode            string `db:"carrier_service_relationship_code" json:"carrier_service_relationship_code"`
+	CarrierServiceRelationshipName            string `db:"carrier_service_relationship_name" json:"carrier_service_relationship_name"`
+	VehicleObjectID                           string `db:"vehicle_object_id" json:"vehicle_object_id"`
+	VehicleApprovalEntryID                    string `db:"vehicle_approval_entry_id" json:"vehicle_approval_entry_id"`
+	VehicleCode                               string `db:"vehicle_code" json:"vehicle_code"`
+	VehicleName                               string `db:"vehicle_name" json:"vehicle_name"`
+	VehiclePlateNumber                        string `db:"vehicle_plate_number" json:"vehicle_plate_number"`
+	VehicleBulkLiquidCapable                  bool   `db:"vehicle_bulk_liquid_capable" json:"vehicle_bulk_liquid_capable"`
 }
 
 func (q *Queries) GetVouSaleDeliveryView(ctx context.Context, documentID string) (GetVouSaleDeliveryViewRow, error) {
@@ -1492,20 +1492,20 @@ func (q *Queries) GetVouSaleDeliveryView(ctx context.Context, documentID string)
 		&i.SourceOutboundID,
 		&i.SourceDocumentNo,
 		&i.CustomerObjectID,
-		&i.CustomerVersionID,
+		&i.CustomerApprovalEntryID,
 		&i.CustomerCode,
 		&i.CustomerName,
 		&i.CarrierType,
 		&i.CarrierOperatingEntityObjectID,
-		&i.CarrierOperatingEntityVersionID,
+		&i.CarrierOperatingEntityApprovalEntryID,
 		&i.CarrierOperatingEntityCode,
 		&i.CarrierOperatingEntityName,
 		&i.CarrierServiceRelationshipObjectID,
-		&i.CarrierServiceRelationshipVersionID,
+		&i.CarrierServiceRelationshipApprovalEntryID,
 		&i.CarrierServiceRelationshipCode,
 		&i.CarrierServiceRelationshipName,
 		&i.VehicleObjectID,
-		&i.VehicleVersionID,
+		&i.VehicleApprovalEntryID,
 		&i.VehicleCode,
 		&i.VehicleName,
 		&i.VehiclePlateNumber,
@@ -1515,7 +1515,7 @@ func (q *Queries) GetVouSaleDeliveryView(ctx context.Context, documentID string)
 }
 
 const getVouSaleOrderDetail = `-- name: GetVouSaleOrderDetail :one
-SELECT document_id, entity, customer_object_id, customer_version_id, customer_code, customer_name, salesperson_object_id, salesperson_version_id, salesperson_code, salesperson_name, contact_name, contact_phone, delivery_address, settlement_method_object_id, settlement_method_version_id, settlement_method_code, settlement_method_name, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, settlement_description, fulfillment_status, settlement_due_days, settlement_cutoff_day, settlement_default_sales_surcharge_cents, warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name, settlement_term_code, special_approval, sales_attribution_type, sales_attribution_subject_object_id, sales_attribution_subject_version_id, sales_attribution_subject_code, sales_attribution_subject_name FROM vou_sale_order_details WHERE document_id = $1
+SELECT document_id, entity, customer_object_id, customer_approval_entry_id, customer_code, customer_name, salesperson_object_id, salesperson_approval_entry_id, salesperson_code, salesperson_name, contact_name, contact_phone, delivery_address, settlement_method_object_id, settlement_method_approval_entry_id, settlement_method_code, settlement_method_name, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, settlement_description, fulfillment_status, settlement_due_days, settlement_cutoff_day, settlement_default_sales_surcharge_cents, warehouse_object_id, warehouse_approval_entry_id, warehouse_code, warehouse_name, settlement_term_code, special_approval, sales_attribution_type, sales_attribution_subject_object_id, sales_attribution_subject_approval_entry_id, sales_attribution_subject_code, sales_attribution_subject_name FROM vou_sale_order_details WHERE document_id = $1
 `
 
 func (q *Queries) GetVouSaleOrderDetail(ctx context.Context, documentID string) (VouSaleOrderDetail, error) {
@@ -1525,18 +1525,18 @@ func (q *Queries) GetVouSaleOrderDetail(ctx context.Context, documentID string) 
 		&i.DocumentID,
 		&i.Entity,
 		&i.CustomerObjectID,
-		&i.CustomerVersionID,
+		&i.CustomerApprovalEntryID,
 		&i.CustomerCode,
 		&i.CustomerName,
 		&i.SalespersonObjectID,
-		&i.SalespersonVersionID,
+		&i.SalespersonApprovalEntryID,
 		&i.SalespersonCode,
 		&i.SalespersonName,
 		&i.ContactName,
 		&i.ContactPhone,
 		&i.DeliveryAddress,
 		&i.SettlementMethodObjectID,
-		&i.SettlementMethodVersionID,
+		&i.SettlementMethodApprovalEntryID,
 		&i.SettlementMethodCode,
 		&i.SettlementMethodName,
 		&i.SettlementRuleType,
@@ -1549,14 +1549,14 @@ func (q *Queries) GetVouSaleOrderDetail(ctx context.Context, documentID string) 
 		&i.SettlementCutoffDay,
 		&i.SettlementDefaultSalesSurchargeCents,
 		&i.WarehouseObjectID,
-		&i.WarehouseVersionID,
+		&i.WarehouseApprovalEntryID,
 		&i.WarehouseCode,
 		&i.WarehouseName,
 		&i.SettlementTermCode,
 		&i.SpecialApproval,
 		&i.SalesAttributionType,
 		&i.SalesAttributionSubjectObjectID,
-		&i.SalesAttributionSubjectVersionID,
+		&i.SalesAttributionSubjectApprovalEntryID,
 		&i.SalesAttributionSubjectCode,
 		&i.SalesAttributionSubjectName,
 	)
@@ -1566,24 +1566,24 @@ func (q *Queries) GetVouSaleOrderDetail(ctx context.Context, documentID string) 
 const getVouSaleOrderFormula = `-- name: GetVouSaleOrderFormula :one
 SELECT product_line_id, source_type, source_document_id, source_document_no,
        output_entered_quantity_micros, output_entered_unit_object_id,
-       output_entered_unit_version_id, output_entered_unit_code,
+       output_entered_unit_approval_entry_id, output_entered_unit_code,
        output_entered_unit_name, output_entered_unit_symbol, output_base_quantity_micros
 FROM vou_sale_order_formulas
 WHERE product_line_id = $1
 `
 
 type GetVouSaleOrderFormulaRow struct {
-	ProductLineID               string  `db:"product_line_id" json:"product_line_id"`
-	SourceType                  string  `db:"source_type" json:"source_type"`
-	SourceDocumentID            *string `db:"source_document_id" json:"source_document_id"`
-	SourceDocumentNo            *string `db:"source_document_no" json:"source_document_no"`
-	OutputEnteredQuantityMicros int64   `db:"output_entered_quantity_micros" json:"output_entered_quantity_micros"`
-	OutputEnteredUnitObjectID   string  `db:"output_entered_unit_object_id" json:"output_entered_unit_object_id"`
-	OutputEnteredUnitVersionID  string  `db:"output_entered_unit_version_id" json:"output_entered_unit_version_id"`
-	OutputEnteredUnitCode       string  `db:"output_entered_unit_code" json:"output_entered_unit_code"`
-	OutputEnteredUnitName       string  `db:"output_entered_unit_name" json:"output_entered_unit_name"`
-	OutputEnteredUnitSymbol     string  `db:"output_entered_unit_symbol" json:"output_entered_unit_symbol"`
-	OutputBaseQuantityMicros    int64   `db:"output_base_quantity_micros" json:"output_base_quantity_micros"`
+	ProductLineID                    string  `db:"product_line_id" json:"product_line_id"`
+	SourceType                       string  `db:"source_type" json:"source_type"`
+	SourceDocumentID                 *string `db:"source_document_id" json:"source_document_id"`
+	SourceDocumentNo                 *string `db:"source_document_no" json:"source_document_no"`
+	OutputEnteredQuantityMicros      int64   `db:"output_entered_quantity_micros" json:"output_entered_quantity_micros"`
+	OutputEnteredUnitObjectID        string  `db:"output_entered_unit_object_id" json:"output_entered_unit_object_id"`
+	OutputEnteredUnitApprovalEntryID string  `db:"output_entered_unit_approval_entry_id" json:"output_entered_unit_approval_entry_id"`
+	OutputEnteredUnitCode            string  `db:"output_entered_unit_code" json:"output_entered_unit_code"`
+	OutputEnteredUnitName            string  `db:"output_entered_unit_name" json:"output_entered_unit_name"`
+	OutputEnteredUnitSymbol          string  `db:"output_entered_unit_symbol" json:"output_entered_unit_symbol"`
+	OutputBaseQuantityMicros         int64   `db:"output_base_quantity_micros" json:"output_base_quantity_micros"`
 }
 
 func (q *Queries) GetVouSaleOrderFormula(ctx context.Context, productLineID string) (GetVouSaleOrderFormulaRow, error) {
@@ -1596,7 +1596,7 @@ func (q *Queries) GetVouSaleOrderFormula(ctx context.Context, productLineID stri
 		&i.SourceDocumentNo,
 		&i.OutputEnteredQuantityMicros,
 		&i.OutputEnteredUnitObjectID,
-		&i.OutputEnteredUnitVersionID,
+		&i.OutputEnteredUnitApprovalEntryID,
 		&i.OutputEnteredUnitCode,
 		&i.OutputEnteredUnitName,
 		&i.OutputEnteredUnitSymbol,
@@ -1607,26 +1607,29 @@ func (q *Queries) GetVouSaleOrderFormula(ctx context.Context, productLineID stri
 
 const getVouSalesAttributionSnapshot = `-- name: GetVouSalesAttributionSnapshot :one
 SELECT primary_sales_attribution_type,primary_sales_subject_id,
-       primary_sales_subject_version_id,primary_sales_subject_code,primary_sales_subject_name
+       primary_sales_subject_approval_entry_id,primary_sales_subject_code,primary_sales_subject_name
 FROM bob_customer_versions
-WHERE version_id=$1
+JOIN approval_entries entry ON entry.id=bob_customer_versions.approval_entry_id
+WHERE bob_customer_versions.approval_entry_id=$1
+  AND entry.domain='bob' AND entry.entity='customer-account' AND entry.status='APPROVED'
+  AND entry.id=(SELECT latest.id FROM approval_entries latest WHERE latest.domain='bob' AND latest.entity=entry.entity AND latest.subject_id=entry.subject_id AND latest.status='APPROVED' ORDER BY latest.version_no DESC LIMIT 1)
 `
 
 type GetVouSalesAttributionSnapshotRow struct {
-	PrimarySalesAttributionType  *string `db:"primary_sales_attribution_type" json:"primary_sales_attribution_type"`
-	PrimarySalesSubjectID        *string `db:"primary_sales_subject_id" json:"primary_sales_subject_id"`
-	PrimarySalesSubjectVersionID *string `db:"primary_sales_subject_version_id" json:"primary_sales_subject_version_id"`
-	PrimarySalesSubjectCode      *string `db:"primary_sales_subject_code" json:"primary_sales_subject_code"`
-	PrimarySalesSubjectName      *string `db:"primary_sales_subject_name" json:"primary_sales_subject_name"`
+	PrimarySalesAttributionType        *string `db:"primary_sales_attribution_type" json:"primary_sales_attribution_type"`
+	PrimarySalesSubjectID              *string `db:"primary_sales_subject_id" json:"primary_sales_subject_id"`
+	PrimarySalesSubjectApprovalEntryID *string `db:"primary_sales_subject_approval_entry_id" json:"primary_sales_subject_approval_entry_id"`
+	PrimarySalesSubjectCode            *string `db:"primary_sales_subject_code" json:"primary_sales_subject_code"`
+	PrimarySalesSubjectName            *string `db:"primary_sales_subject_name" json:"primary_sales_subject_name"`
 }
 
-func (q *Queries) GetVouSalesAttributionSnapshot(ctx context.Context, customerVersionID string) (GetVouSalesAttributionSnapshotRow, error) {
-	row := q.db.QueryRow(ctx, getVouSalesAttributionSnapshot, customerVersionID)
+func (q *Queries) GetVouSalesAttributionSnapshot(ctx context.Context, customerApprovalEntryID string) (GetVouSalesAttributionSnapshotRow, error) {
+	row := q.db.QueryRow(ctx, getVouSalesAttributionSnapshot, customerApprovalEntryID)
 	var i GetVouSalesAttributionSnapshotRow
 	err := row.Scan(
 		&i.PrimarySalesAttributionType,
 		&i.PrimarySalesSubjectID,
-		&i.PrimarySalesSubjectVersionID,
+		&i.PrimarySalesSubjectApprovalEntryID,
 		&i.PrimarySalesSubjectCode,
 		&i.PrimarySalesSubjectName,
 	)
@@ -1656,23 +1659,23 @@ func (q *Queries) HasVouPurchaseReturnLines(ctx context.Context, documentID stri
 }
 
 const insertVouAssetAcquisitionDetail = `-- name: InsertVouAssetAcquisitionDetail :exec
-INSERT INTO vou_asset_acquisition_details(document_id,entity,supplier_object_id,supplier_version_id,supplier_code,supplier_name)
+INSERT INTO vou_asset_acquisition_details(document_id,entity,supplier_object_id,supplier_approval_entry_id,supplier_code,supplier_name)
 VALUES($1,'asset-acquisition',$2,$3,$4,$5)
 `
 
 type InsertVouAssetAcquisitionDetailParams struct {
-	DocumentID        string `db:"document_id" json:"document_id"`
-	SupplierObjectID  string `db:"supplier_object_id" json:"supplier_object_id"`
-	SupplierVersionID string `db:"supplier_version_id" json:"supplier_version_id"`
-	SupplierCode      string `db:"supplier_code" json:"supplier_code"`
-	SupplierName      string `db:"supplier_name" json:"supplier_name"`
+	DocumentID              string `db:"document_id" json:"document_id"`
+	SupplierObjectID        string `db:"supplier_object_id" json:"supplier_object_id"`
+	SupplierApprovalEntryID string `db:"supplier_approval_entry_id" json:"supplier_approval_entry_id"`
+	SupplierCode            string `db:"supplier_code" json:"supplier_code"`
+	SupplierName            string `db:"supplier_name" json:"supplier_name"`
 }
 
 func (q *Queries) InsertVouAssetAcquisitionDetail(ctx context.Context, arg InsertVouAssetAcquisitionDetailParams) error {
 	_, err := q.db.Exec(ctx, insertVouAssetAcquisitionDetail,
 		arg.DocumentID,
 		arg.SupplierObjectID,
-		arg.SupplierVersionID,
+		arg.SupplierApprovalEntryID,
 		arg.SupplierCode,
 		arg.SupplierName,
 	)
@@ -1681,9 +1684,9 @@ func (q *Queries) InsertVouAssetAcquisitionDetail(ctx context.Context, arg Inser
 
 const insertVouAssetAcquisitionLine = `-- name: InsertVouAssetAcquisitionLine :exec
 INSERT INTO vou_asset_acquisition_lines(id,document_id,line_no,asset_name,specification,
- category_object_id,category_version_id,category_code,category_name,original_value_cents,useful_life_months,residual_rate_bps,
- department_object_id,department_version_id,department_code,department_name,
- custodian_object_id,custodian_version_id,custodian_code,custodian_name,location,remark)
+ category_object_id,category_approval_entry_id,category_code,category_name,original_value_cents,useful_life_months,residual_rate_bps,
+ department_object_id,department_approval_entry_id,department_code,department_name,
+ custodian_object_id,custodian_approval_entry_id,custodian_code,custodian_name,location,remark)
 VALUES($1,$2,$3,$4,$5,
  $6,$7,$8,$9,$10,$11,$12,
  $13,$14,$15,$16,
@@ -1691,28 +1694,28 @@ VALUES($1,$2,$3,$4,$5,
 `
 
 type InsertVouAssetAcquisitionLineParams struct {
-	ID                  string  `db:"id" json:"id"`
-	DocumentID          string  `db:"document_id" json:"document_id"`
-	LineNo              int32   `db:"line_no" json:"line_no"`
-	AssetName           string  `db:"asset_name" json:"asset_name"`
-	Specification       string  `db:"specification" json:"specification"`
-	CategoryObjectID    string  `db:"category_object_id" json:"category_object_id"`
-	CategoryVersionID   string  `db:"category_version_id" json:"category_version_id"`
-	CategoryCode        string  `db:"category_code" json:"category_code"`
-	CategoryName        string  `db:"category_name" json:"category_name"`
-	OriginalValueCents  int64   `db:"original_value_cents" json:"original_value_cents"`
-	UsefulLifeMonths    int32   `db:"useful_life_months" json:"useful_life_months"`
-	ResidualRateBps     int32   `db:"residual_rate_bps" json:"residual_rate_bps"`
-	DepartmentObjectID  string  `db:"department_object_id" json:"department_object_id"`
-	DepartmentVersionID string  `db:"department_version_id" json:"department_version_id"`
-	DepartmentCode      string  `db:"department_code" json:"department_code"`
-	DepartmentName      string  `db:"department_name" json:"department_name"`
-	CustodianObjectID   *string `db:"custodian_object_id" json:"custodian_object_id"`
-	CustodianVersionID  *string `db:"custodian_version_id" json:"custodian_version_id"`
-	CustodianCode       *string `db:"custodian_code" json:"custodian_code"`
-	CustodianName       *string `db:"custodian_name" json:"custodian_name"`
-	Location            string  `db:"location" json:"location"`
-	Remark              *string `db:"remark" json:"remark"`
+	ID                        string  `db:"id" json:"id"`
+	DocumentID                string  `db:"document_id" json:"document_id"`
+	LineNo                    int32   `db:"line_no" json:"line_no"`
+	AssetName                 string  `db:"asset_name" json:"asset_name"`
+	Specification             string  `db:"specification" json:"specification"`
+	CategoryObjectID          string  `db:"category_object_id" json:"category_object_id"`
+	CategoryApprovalEntryID   string  `db:"category_approval_entry_id" json:"category_approval_entry_id"`
+	CategoryCode              string  `db:"category_code" json:"category_code"`
+	CategoryName              string  `db:"category_name" json:"category_name"`
+	OriginalValueCents        int64   `db:"original_value_cents" json:"original_value_cents"`
+	UsefulLifeMonths          int32   `db:"useful_life_months" json:"useful_life_months"`
+	ResidualRateBps           int32   `db:"residual_rate_bps" json:"residual_rate_bps"`
+	DepartmentObjectID        string  `db:"department_object_id" json:"department_object_id"`
+	DepartmentApprovalEntryID string  `db:"department_approval_entry_id" json:"department_approval_entry_id"`
+	DepartmentCode            string  `db:"department_code" json:"department_code"`
+	DepartmentName            string  `db:"department_name" json:"department_name"`
+	CustodianObjectID         *string `db:"custodian_object_id" json:"custodian_object_id"`
+	CustodianApprovalEntryID  *string `db:"custodian_approval_entry_id" json:"custodian_approval_entry_id"`
+	CustodianCode             *string `db:"custodian_code" json:"custodian_code"`
+	CustodianName             *string `db:"custodian_name" json:"custodian_name"`
+	Location                  string  `db:"location" json:"location"`
+	Remark                    *string `db:"remark" json:"remark"`
 }
 
 func (q *Queries) InsertVouAssetAcquisitionLine(ctx context.Context, arg InsertVouAssetAcquisitionLineParams) error {
@@ -1723,18 +1726,18 @@ func (q *Queries) InsertVouAssetAcquisitionLine(ctx context.Context, arg InsertV
 		arg.AssetName,
 		arg.Specification,
 		arg.CategoryObjectID,
-		arg.CategoryVersionID,
+		arg.CategoryApprovalEntryID,
 		arg.CategoryCode,
 		arg.CategoryName,
 		arg.OriginalValueCents,
 		arg.UsefulLifeMonths,
 		arg.ResidualRateBps,
 		arg.DepartmentObjectID,
-		arg.DepartmentVersionID,
+		arg.DepartmentApprovalEntryID,
 		arg.DepartmentCode,
 		arg.DepartmentName,
 		arg.CustodianObjectID,
-		arg.CustodianVersionID,
+		arg.CustodianApprovalEntryID,
 		arg.CustodianCode,
 		arg.CustodianName,
 		arg.Location,
@@ -1787,17 +1790,17 @@ func (q *Queries) InsertVouAssetLiquidationLine(ctx context.Context, arg InsertV
 }
 
 const insertVouAssetSaleDetail = `-- name: InsertVouAssetSaleDetail :exec
-INSERT INTO vou_asset_sale_details(document_id,entity,counterparty_entity,counterparty_object_id,counterparty_version_id,counterparty_code,counterparty_name)
+INSERT INTO vou_asset_sale_details(document_id,entity,counterparty_entity,counterparty_object_id,counterparty_approval_entry_id,counterparty_code,counterparty_name)
 VALUES($1,'asset-sale',$2,$3,$4,$5,$6)
 `
 
 type InsertVouAssetSaleDetailParams struct {
-	DocumentID            string `db:"document_id" json:"document_id"`
-	CounterpartyEntity    string `db:"counterparty_entity" json:"counterparty_entity"`
-	CounterpartyObjectID  string `db:"counterparty_object_id" json:"counterparty_object_id"`
-	CounterpartyVersionID string `db:"counterparty_version_id" json:"counterparty_version_id"`
-	CounterpartyCode      string `db:"counterparty_code" json:"counterparty_code"`
-	CounterpartyName      string `db:"counterparty_name" json:"counterparty_name"`
+	DocumentID                  string `db:"document_id" json:"document_id"`
+	CounterpartyEntity          string `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID        string `db:"counterparty_object_id" json:"counterparty_object_id"`
+	CounterpartyApprovalEntryID string `db:"counterparty_approval_entry_id" json:"counterparty_approval_entry_id"`
+	CounterpartyCode            string `db:"counterparty_code" json:"counterparty_code"`
+	CounterpartyName            string `db:"counterparty_name" json:"counterparty_name"`
 }
 
 func (q *Queries) InsertVouAssetSaleDetail(ctx context.Context, arg InsertVouAssetSaleDetailParams) error {
@@ -1805,7 +1808,7 @@ func (q *Queries) InsertVouAssetSaleDetail(ctx context.Context, arg InsertVouAss
 		arg.DocumentID,
 		arg.CounterpartyEntity,
 		arg.CounterpartyObjectID,
-		arg.CounterpartyVersionID,
+		arg.CounterpartyApprovalEntryID,
 		arg.CounterpartyCode,
 		arg.CounterpartyName,
 	)
@@ -1882,23 +1885,23 @@ func (q *Queries) InsertVouAuditEvent(ctx context.Context, arg InsertVouAuditEve
 }
 
 const insertVouBillCashLine = `-- name: InsertVouBillCashLine :exec
-INSERT INTO vou_bill_cash_lines(id,document_id,line_no,bill_line_id,fund_account_object_id,fund_account_version_id,fund_account_code,fund_account_name,direction,amount_type,amount_cents,remark)
+INSERT INTO vou_bill_cash_lines(id,document_id,line_no,bill_line_id,fund_account_object_id,fund_account_approval_entry_id,fund_account_code,fund_account_name,direction,amount_type,amount_cents,remark)
 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
 `
 
 type InsertVouBillCashLineParams struct {
-	ID                   string  `db:"id" json:"id"`
-	DocumentID           string  `db:"document_id" json:"document_id"`
-	LineNo               int32   `db:"line_no" json:"line_no"`
-	BillLineID           *string `db:"bill_line_id" json:"bill_line_id"`
-	FundAccountObjectID  string  `db:"fund_account_object_id" json:"fund_account_object_id"`
-	FundAccountVersionID string  `db:"fund_account_version_id" json:"fund_account_version_id"`
-	FundAccountCode      string  `db:"fund_account_code" json:"fund_account_code"`
-	FundAccountName      string  `db:"fund_account_name" json:"fund_account_name"`
-	Direction            string  `db:"direction" json:"direction"`
-	AmountType           string  `db:"amount_type" json:"amount_type"`
-	AmountCents          int64   `db:"amount_cents" json:"amount_cents"`
-	Remark               *string `db:"remark" json:"remark"`
+	ID                         string  `db:"id" json:"id"`
+	DocumentID                 string  `db:"document_id" json:"document_id"`
+	LineNo                     int32   `db:"line_no" json:"line_no"`
+	BillLineID                 *string `db:"bill_line_id" json:"bill_line_id"`
+	FundAccountObjectID        string  `db:"fund_account_object_id" json:"fund_account_object_id"`
+	FundAccountApprovalEntryID string  `db:"fund_account_approval_entry_id" json:"fund_account_approval_entry_id"`
+	FundAccountCode            string  `db:"fund_account_code" json:"fund_account_code"`
+	FundAccountName            string  `db:"fund_account_name" json:"fund_account_name"`
+	Direction                  string  `db:"direction" json:"direction"`
+	AmountType                 string  `db:"amount_type" json:"amount_type"`
+	AmountCents                int64   `db:"amount_cents" json:"amount_cents"`
+	Remark                     *string `db:"remark" json:"remark"`
 }
 
 func (q *Queries) InsertVouBillCashLine(ctx context.Context, arg InsertVouBillCashLineParams) error {
@@ -1908,7 +1911,7 @@ func (q *Queries) InsertVouBillCashLine(ctx context.Context, arg InsertVouBillCa
 		arg.LineNo,
 		arg.BillLineID,
 		arg.FundAccountObjectID,
-		arg.FundAccountVersionID,
+		arg.FundAccountApprovalEntryID,
 		arg.FundAccountCode,
 		arg.FundAccountName,
 		arg.Direction,
@@ -1920,31 +1923,31 @@ func (q *Queries) InsertVouBillCashLine(ctx context.Context, arg InsertVouBillCa
 }
 
 const insertVouBillDetail = `-- name: InsertVouBillDetail :exec
-INSERT INTO vou_bill_details(document_id,entity,counterparty_entity,counterparty_object_id,counterparty_version_id,counterparty_code,counterparty_name,handler_object_id,handler_version_id,handler_code,handler_name,internal_cost_rate_bps,maturity_type,interest_mode,interest_party_entity,interest_party_object_id,interest_party_version_id,interest_party_code,interest_party_name,with_recourse)
+INSERT INTO vou_bill_details(document_id,entity,counterparty_entity,counterparty_object_id,counterparty_approval_entry_id,counterparty_code,counterparty_name,handler_object_id,handler_approval_entry_id,handler_code,handler_name,internal_cost_rate_bps,maturity_type,interest_mode,interest_party_entity,interest_party_object_id,interest_party_approval_entry_id,interest_party_code,interest_party_name,with_recourse)
 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
 `
 
 type InsertVouBillDetailParams struct {
-	DocumentID             string  `db:"document_id" json:"document_id"`
-	Entity                 string  `db:"entity" json:"entity"`
-	CounterpartyEntity     *string `db:"counterparty_entity" json:"counterparty_entity"`
-	CounterpartyObjectID   *string `db:"counterparty_object_id" json:"counterparty_object_id"`
-	CounterpartyVersionID  *string `db:"counterparty_version_id" json:"counterparty_version_id"`
-	CounterpartyCode       *string `db:"counterparty_code" json:"counterparty_code"`
-	CounterpartyName       *string `db:"counterparty_name" json:"counterparty_name"`
-	HandlerObjectID        *string `db:"handler_object_id" json:"handler_object_id"`
-	HandlerVersionID       *string `db:"handler_version_id" json:"handler_version_id"`
-	HandlerCode            *string `db:"handler_code" json:"handler_code"`
-	HandlerName            *string `db:"handler_name" json:"handler_name"`
-	InternalCostRateBps    int32   `db:"internal_cost_rate_bps" json:"internal_cost_rate_bps"`
-	MaturityType           string  `db:"maturity_type" json:"maturity_type"`
-	InterestMode           string  `db:"interest_mode" json:"interest_mode"`
-	InterestPartyEntity    *string `db:"interest_party_entity" json:"interest_party_entity"`
-	InterestPartyObjectID  *string `db:"interest_party_object_id" json:"interest_party_object_id"`
-	InterestPartyVersionID *string `db:"interest_party_version_id" json:"interest_party_version_id"`
-	InterestPartyCode      *string `db:"interest_party_code" json:"interest_party_code"`
-	InterestPartyName      *string `db:"interest_party_name" json:"interest_party_name"`
-	WithRecourse           bool    `db:"with_recourse" json:"with_recourse"`
+	DocumentID                   string  `db:"document_id" json:"document_id"`
+	Entity                       string  `db:"entity" json:"entity"`
+	CounterpartyEntity           *string `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID         *string `db:"counterparty_object_id" json:"counterparty_object_id"`
+	CounterpartyApprovalEntryID  *string `db:"counterparty_approval_entry_id" json:"counterparty_approval_entry_id"`
+	CounterpartyCode             *string `db:"counterparty_code" json:"counterparty_code"`
+	CounterpartyName             *string `db:"counterparty_name" json:"counterparty_name"`
+	HandlerObjectID              *string `db:"handler_object_id" json:"handler_object_id"`
+	HandlerApprovalEntryID       *string `db:"handler_approval_entry_id" json:"handler_approval_entry_id"`
+	HandlerCode                  *string `db:"handler_code" json:"handler_code"`
+	HandlerName                  *string `db:"handler_name" json:"handler_name"`
+	InternalCostRateBps          int32   `db:"internal_cost_rate_bps" json:"internal_cost_rate_bps"`
+	MaturityType                 string  `db:"maturity_type" json:"maturity_type"`
+	InterestMode                 string  `db:"interest_mode" json:"interest_mode"`
+	InterestPartyEntity          *string `db:"interest_party_entity" json:"interest_party_entity"`
+	InterestPartyObjectID        *string `db:"interest_party_object_id" json:"interest_party_object_id"`
+	InterestPartyApprovalEntryID *string `db:"interest_party_approval_entry_id" json:"interest_party_approval_entry_id"`
+	InterestPartyCode            *string `db:"interest_party_code" json:"interest_party_code"`
+	InterestPartyName            *string `db:"interest_party_name" json:"interest_party_name"`
+	WithRecourse                 bool    `db:"with_recourse" json:"with_recourse"`
 }
 
 func (q *Queries) InsertVouBillDetail(ctx context.Context, arg InsertVouBillDetailParams) error {
@@ -1953,11 +1956,11 @@ func (q *Queries) InsertVouBillDetail(ctx context.Context, arg InsertVouBillDeta
 		arg.Entity,
 		arg.CounterpartyEntity,
 		arg.CounterpartyObjectID,
-		arg.CounterpartyVersionID,
+		arg.CounterpartyApprovalEntryID,
 		arg.CounterpartyCode,
 		arg.CounterpartyName,
 		arg.HandlerObjectID,
-		arg.HandlerVersionID,
+		arg.HandlerApprovalEntryID,
 		arg.HandlerCode,
 		arg.HandlerName,
 		arg.InternalCostRateBps,
@@ -1965,7 +1968,7 @@ func (q *Queries) InsertVouBillDetail(ctx context.Context, arg InsertVouBillDeta
 		arg.InterestMode,
 		arg.InterestPartyEntity,
 		arg.InterestPartyObjectID,
-		arg.InterestPartyVersionID,
+		arg.InterestPartyApprovalEntryID,
 		arg.InterestPartyCode,
 		arg.InterestPartyName,
 		arg.WithRecourse,
@@ -2114,7 +2117,7 @@ func (q *Queries) InsertVouDownloadToken(ctx context.Context, arg InsertVouDownl
 
 const insertVouEmployeeLoanWriteoffDetail = `-- name: InsertVouEmployeeLoanWriteoffDetail :exec
 INSERT INTO vou_employee_loan_writeoff_details (
-    document_id, employee_object_id, employee_version_id, employee_code, employee_name
+    document_id, employee_object_id, employee_approval_entry_id, employee_code, employee_name
 ) VALUES (
     $1, $2, $3,
     $4, $5
@@ -2122,18 +2125,18 @@ INSERT INTO vou_employee_loan_writeoff_details (
 `
 
 type InsertVouEmployeeLoanWriteoffDetailParams struct {
-	DocumentID        string `db:"document_id" json:"document_id"`
-	EmployeeObjectID  string `db:"employee_object_id" json:"employee_object_id"`
-	EmployeeVersionID string `db:"employee_version_id" json:"employee_version_id"`
-	EmployeeCode      string `db:"employee_code" json:"employee_code"`
-	EmployeeName      string `db:"employee_name" json:"employee_name"`
+	DocumentID              string `db:"document_id" json:"document_id"`
+	EmployeeObjectID        string `db:"employee_object_id" json:"employee_object_id"`
+	EmployeeApprovalEntryID string `db:"employee_approval_entry_id" json:"employee_approval_entry_id"`
+	EmployeeCode            string `db:"employee_code" json:"employee_code"`
+	EmployeeName            string `db:"employee_name" json:"employee_name"`
 }
 
 func (q *Queries) InsertVouEmployeeLoanWriteoffDetail(ctx context.Context, arg InsertVouEmployeeLoanWriteoffDetailParams) error {
 	_, err := q.db.Exec(ctx, insertVouEmployeeLoanWriteoffDetail,
 		arg.DocumentID,
 		arg.EmployeeObjectID,
-		arg.EmployeeVersionID,
+		arg.EmployeeApprovalEntryID,
 		arg.EmployeeCode,
 		arg.EmployeeName,
 	)
@@ -2177,8 +2180,8 @@ func (q *Queries) InsertVouExpenseLine(ctx context.Context, arg InsertVouExpense
 const insertVouExpensePaymentDetail = `-- name: InsertVouExpensePaymentDetail :exec
 INSERT INTO vou_expense_payment_details (
     document_id, source_reimbursement_id,
-    employee_object_id, employee_version_id, employee_code, employee_name,
-    fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name
+    employee_object_id, employee_approval_entry_id, employee_code, employee_name,
+    fund_account_object_id, fund_account_approval_entry_id, fund_account_code, fund_account_name
 ) VALUES (
     $1, $2,
     $3, $4,
@@ -2189,16 +2192,16 @@ INSERT INTO vou_expense_payment_details (
 `
 
 type InsertVouExpensePaymentDetailParams struct {
-	DocumentID            string `db:"document_id" json:"document_id"`
-	SourceReimbursementID string `db:"source_reimbursement_id" json:"source_reimbursement_id"`
-	EmployeeObjectID      string `db:"employee_object_id" json:"employee_object_id"`
-	EmployeeVersionID     string `db:"employee_version_id" json:"employee_version_id"`
-	EmployeeCode          string `db:"employee_code" json:"employee_code"`
-	EmployeeName          string `db:"employee_name" json:"employee_name"`
-	FundAccountObjectID   string `db:"fund_account_object_id" json:"fund_account_object_id"`
-	FundAccountVersionID  string `db:"fund_account_version_id" json:"fund_account_version_id"`
-	FundAccountCode       string `db:"fund_account_code" json:"fund_account_code"`
-	FundAccountName       string `db:"fund_account_name" json:"fund_account_name"`
+	DocumentID                 string `db:"document_id" json:"document_id"`
+	SourceReimbursementID      string `db:"source_reimbursement_id" json:"source_reimbursement_id"`
+	EmployeeObjectID           string `db:"employee_object_id" json:"employee_object_id"`
+	EmployeeApprovalEntryID    string `db:"employee_approval_entry_id" json:"employee_approval_entry_id"`
+	EmployeeCode               string `db:"employee_code" json:"employee_code"`
+	EmployeeName               string `db:"employee_name" json:"employee_name"`
+	FundAccountObjectID        string `db:"fund_account_object_id" json:"fund_account_object_id"`
+	FundAccountApprovalEntryID string `db:"fund_account_approval_entry_id" json:"fund_account_approval_entry_id"`
+	FundAccountCode            string `db:"fund_account_code" json:"fund_account_code"`
+	FundAccountName            string `db:"fund_account_name" json:"fund_account_name"`
 }
 
 func (q *Queries) InsertVouExpensePaymentDetail(ctx context.Context, arg InsertVouExpensePaymentDetailParams) error {
@@ -2206,11 +2209,11 @@ func (q *Queries) InsertVouExpensePaymentDetail(ctx context.Context, arg InsertV
 		arg.DocumentID,
 		arg.SourceReimbursementID,
 		arg.EmployeeObjectID,
-		arg.EmployeeVersionID,
+		arg.EmployeeApprovalEntryID,
 		arg.EmployeeCode,
 		arg.EmployeeName,
 		arg.FundAccountObjectID,
-		arg.FundAccountVersionID,
+		arg.FundAccountApprovalEntryID,
 		arg.FundAccountCode,
 		arg.FundAccountName,
 	)
@@ -2219,7 +2222,7 @@ func (q *Queries) InsertVouExpensePaymentDetail(ctx context.Context, arg InsertV
 
 const insertVouExpenseReimbursementDetail = `-- name: InsertVouExpenseReimbursementDetail :exec
 INSERT INTO vou_expense_reimbursement_details (
-    document_id, employee_object_id, employee_version_id, employee_code, employee_name
+    document_id, employee_object_id, employee_approval_entry_id, employee_code, employee_name
 ) VALUES (
     $1, $2, $3,
     $4, $5
@@ -2227,18 +2230,18 @@ INSERT INTO vou_expense_reimbursement_details (
 `
 
 type InsertVouExpenseReimbursementDetailParams struct {
-	DocumentID        string `db:"document_id" json:"document_id"`
-	EmployeeObjectID  string `db:"employee_object_id" json:"employee_object_id"`
-	EmployeeVersionID string `db:"employee_version_id" json:"employee_version_id"`
-	EmployeeCode      string `db:"employee_code" json:"employee_code"`
-	EmployeeName      string `db:"employee_name" json:"employee_name"`
+	DocumentID              string `db:"document_id" json:"document_id"`
+	EmployeeObjectID        string `db:"employee_object_id" json:"employee_object_id"`
+	EmployeeApprovalEntryID string `db:"employee_approval_entry_id" json:"employee_approval_entry_id"`
+	EmployeeCode            string `db:"employee_code" json:"employee_code"`
+	EmployeeName            string `db:"employee_name" json:"employee_name"`
 }
 
 func (q *Queries) InsertVouExpenseReimbursementDetail(ctx context.Context, arg InsertVouExpenseReimbursementDetailParams) error {
 	_, err := q.db.Exec(ctx, insertVouExpenseReimbursementDetail,
 		arg.DocumentID,
 		arg.EmployeeObjectID,
-		arg.EmployeeVersionID,
+		arg.EmployeeApprovalEntryID,
 		arg.EmployeeCode,
 		arg.EmployeeName,
 	)
@@ -2285,7 +2288,7 @@ func (q *Queries) InsertVouFile(ctx context.Context, arg InsertVouFileParams) er
 
 const insertVouInventoryCountDetail = `-- name: InsertVouInventoryCountDetail :exec
 INSERT INTO vou_inventory_count_details(
-    document_id,entity,warehouse_object_id,warehouse_version_id,warehouse_code,warehouse_name
+    document_id,entity,warehouse_object_id,warehouse_approval_entry_id,warehouse_code,warehouse_name
 ) VALUES (
     $1,'inventory-count',$2,
     $3,$4,$5
@@ -2293,18 +2296,18 @@ INSERT INTO vou_inventory_count_details(
 `
 
 type InsertVouInventoryCountDetailParams struct {
-	DocumentID         string `db:"document_id" json:"document_id"`
-	WarehouseObjectID  string `db:"warehouse_object_id" json:"warehouse_object_id"`
-	WarehouseVersionID string `db:"warehouse_version_id" json:"warehouse_version_id"`
-	WarehouseCode      string `db:"warehouse_code" json:"warehouse_code"`
-	WarehouseName      string `db:"warehouse_name" json:"warehouse_name"`
+	DocumentID               string `db:"document_id" json:"document_id"`
+	WarehouseObjectID        string `db:"warehouse_object_id" json:"warehouse_object_id"`
+	WarehouseApprovalEntryID string `db:"warehouse_approval_entry_id" json:"warehouse_approval_entry_id"`
+	WarehouseCode            string `db:"warehouse_code" json:"warehouse_code"`
+	WarehouseName            string `db:"warehouse_name" json:"warehouse_name"`
 }
 
 func (q *Queries) InsertVouInventoryCountDetail(ctx context.Context, arg InsertVouInventoryCountDetailParams) error {
 	_, err := q.db.Exec(ctx, insertVouInventoryCountDetail,
 		arg.DocumentID,
 		arg.WarehouseObjectID,
-		arg.WarehouseVersionID,
+		arg.WarehouseApprovalEntryID,
 		arg.WarehouseCode,
 		arg.WarehouseName,
 	)
@@ -2313,8 +2316,8 @@ func (q *Queries) InsertVouInventoryCountDetail(ctx context.Context, arg InsertV
 
 const insertVouInventoryCountLine = `-- name: InsertVouInventoryCountLine :exec
 INSERT INTO vou_inventory_count_lines(
-    id,document_id,line_no,product_object_id,product_version_id,product_code,
-    product_name,entered_quantity_micros,entered_unit_object_id,entered_unit_version_id,
+    id,document_id,line_no,product_object_id,product_approval_entry_id,product_code,
+    product_name,entered_quantity_micros,entered_unit_object_id,entered_unit_approval_entry_id,
     entered_unit_code,entered_unit_name,entered_unit_symbol,actual_base_quantity_micros,remark
 ) VALUES (
     $1,$2,$3,$4,
@@ -2326,21 +2329,21 @@ INSERT INTO vou_inventory_count_lines(
 `
 
 type InsertVouInventoryCountLineParams struct {
-	ID                       string  `db:"id" json:"id"`
-	DocumentID               string  `db:"document_id" json:"document_id"`
-	LineNo                   int32   `db:"line_no" json:"line_no"`
-	ProductObjectID          string  `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID         string  `db:"product_version_id" json:"product_version_id"`
-	ProductCode              string  `db:"product_code" json:"product_code"`
-	ProductName              string  `db:"product_name" json:"product_name"`
-	EnteredQuantityMicros    int64   `db:"entered_quantity_micros" json:"entered_quantity_micros"`
-	EnteredUnitObjectID      string  `db:"entered_unit_object_id" json:"entered_unit_object_id"`
-	EnteredUnitVersionID     string  `db:"entered_unit_version_id" json:"entered_unit_version_id"`
-	EnteredUnitCode          string  `db:"entered_unit_code" json:"entered_unit_code"`
-	EnteredUnitName          string  `db:"entered_unit_name" json:"entered_unit_name"`
-	EnteredUnitSymbol        string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
-	ActualBaseQuantityMicros int64   `db:"actual_base_quantity_micros" json:"actual_base_quantity_micros"`
-	Remark                   *string `db:"remark" json:"remark"`
+	ID                         string  `db:"id" json:"id"`
+	DocumentID                 string  `db:"document_id" json:"document_id"`
+	LineNo                     int32   `db:"line_no" json:"line_no"`
+	ProductObjectID            string  `db:"product_object_id" json:"product_object_id"`
+	ProductApprovalEntryID     string  `db:"product_approval_entry_id" json:"product_approval_entry_id"`
+	ProductCode                string  `db:"product_code" json:"product_code"`
+	ProductName                string  `db:"product_name" json:"product_name"`
+	EnteredQuantityMicros      int64   `db:"entered_quantity_micros" json:"entered_quantity_micros"`
+	EnteredUnitObjectID        string  `db:"entered_unit_object_id" json:"entered_unit_object_id"`
+	EnteredUnitApprovalEntryID string  `db:"entered_unit_approval_entry_id" json:"entered_unit_approval_entry_id"`
+	EnteredUnitCode            string  `db:"entered_unit_code" json:"entered_unit_code"`
+	EnteredUnitName            string  `db:"entered_unit_name" json:"entered_unit_name"`
+	EnteredUnitSymbol          string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	ActualBaseQuantityMicros   int64   `db:"actual_base_quantity_micros" json:"actual_base_quantity_micros"`
+	Remark                     *string `db:"remark" json:"remark"`
 }
 
 func (q *Queries) InsertVouInventoryCountLine(ctx context.Context, arg InsertVouInventoryCountLineParams) error {
@@ -2349,12 +2352,12 @@ func (q *Queries) InsertVouInventoryCountLine(ctx context.Context, arg InsertVou
 		arg.DocumentID,
 		arg.LineNo,
 		arg.ProductObjectID,
-		arg.ProductVersionID,
+		arg.ProductApprovalEntryID,
 		arg.ProductCode,
 		arg.ProductName,
 		arg.EnteredQuantityMicros,
 		arg.EnteredUnitObjectID,
-		arg.EnteredUnitVersionID,
+		arg.EnteredUnitApprovalEntryID,
 		arg.EnteredUnitCode,
 		arg.EnteredUnitName,
 		arg.EnteredUnitSymbol,
@@ -2366,10 +2369,10 @@ func (q *Queries) InsertVouInventoryCountLine(ctx context.Context, arg InsertVou
 
 const insertVouOtherIncomeDetail = `-- name: InsertVouOtherIncomeDetail :exec
 INSERT INTO vou_other_income_details (
-    document_id, source_name, counterparty_entity, counterparty_object_id, counterparty_version_id,
-    counterparty_code, counterparty_name, fund_account_object_id, fund_account_version_id,
+    document_id, source_name, counterparty_entity, counterparty_object_id, counterparty_approval_entry_id,
+    counterparty_code, counterparty_name, fund_account_object_id, fund_account_approval_entry_id,
     fund_account_code, fund_account_name,
-    handler_object_id, handler_version_id, handler_code, handler_name
+    handler_object_id, handler_approval_entry_id, handler_code, handler_name
 ) VALUES (
     $1, $2, $3,
     $4, $5,
@@ -2382,21 +2385,21 @@ INSERT INTO vou_other_income_details (
 `
 
 type InsertVouOtherIncomeDetailParams struct {
-	DocumentID            string  `db:"document_id" json:"document_id"`
-	SourceName            string  `db:"source_name" json:"source_name"`
-	CounterpartyEntity    *string `db:"counterparty_entity" json:"counterparty_entity"`
-	CounterpartyObjectID  *string `db:"counterparty_object_id" json:"counterparty_object_id"`
-	CounterpartyVersionID *string `db:"counterparty_version_id" json:"counterparty_version_id"`
-	CounterpartyCode      *string `db:"counterparty_code" json:"counterparty_code"`
-	CounterpartyName      *string `db:"counterparty_name" json:"counterparty_name"`
-	FundAccountObjectID   string  `db:"fund_account_object_id" json:"fund_account_object_id"`
-	FundAccountVersionID  string  `db:"fund_account_version_id" json:"fund_account_version_id"`
-	FundAccountCode       string  `db:"fund_account_code" json:"fund_account_code"`
-	FundAccountName       string  `db:"fund_account_name" json:"fund_account_name"`
-	HandlerObjectID       *string `db:"handler_object_id" json:"handler_object_id"`
-	HandlerVersionID      *string `db:"handler_version_id" json:"handler_version_id"`
-	HandlerCode           *string `db:"handler_code" json:"handler_code"`
-	HandlerName           *string `db:"handler_name" json:"handler_name"`
+	DocumentID                  string  `db:"document_id" json:"document_id"`
+	SourceName                  string  `db:"source_name" json:"source_name"`
+	CounterpartyEntity          *string `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID        *string `db:"counterparty_object_id" json:"counterparty_object_id"`
+	CounterpartyApprovalEntryID *string `db:"counterparty_approval_entry_id" json:"counterparty_approval_entry_id"`
+	CounterpartyCode            *string `db:"counterparty_code" json:"counterparty_code"`
+	CounterpartyName            *string `db:"counterparty_name" json:"counterparty_name"`
+	FundAccountObjectID         string  `db:"fund_account_object_id" json:"fund_account_object_id"`
+	FundAccountApprovalEntryID  string  `db:"fund_account_approval_entry_id" json:"fund_account_approval_entry_id"`
+	FundAccountCode             string  `db:"fund_account_code" json:"fund_account_code"`
+	FundAccountName             string  `db:"fund_account_name" json:"fund_account_name"`
+	HandlerObjectID             *string `db:"handler_object_id" json:"handler_object_id"`
+	HandlerApprovalEntryID      *string `db:"handler_approval_entry_id" json:"handler_approval_entry_id"`
+	HandlerCode                 *string `db:"handler_code" json:"handler_code"`
+	HandlerName                 *string `db:"handler_name" json:"handler_name"`
 }
 
 func (q *Queries) InsertVouOtherIncomeDetail(ctx context.Context, arg InsertVouOtherIncomeDetailParams) error {
@@ -2405,15 +2408,15 @@ func (q *Queries) InsertVouOtherIncomeDetail(ctx context.Context, arg InsertVouO
 		arg.SourceName,
 		arg.CounterpartyEntity,
 		arg.CounterpartyObjectID,
-		arg.CounterpartyVersionID,
+		arg.CounterpartyApprovalEntryID,
 		arg.CounterpartyCode,
 		arg.CounterpartyName,
 		arg.FundAccountObjectID,
-		arg.FundAccountVersionID,
+		arg.FundAccountApprovalEntryID,
 		arg.FundAccountCode,
 		arg.FundAccountName,
 		arg.HandlerObjectID,
-		arg.HandlerVersionID,
+		arg.HandlerApprovalEntryID,
 		arg.HandlerCode,
 		arg.HandlerName,
 	)
@@ -2422,10 +2425,10 @@ func (q *Queries) InsertVouOtherIncomeDetail(ctx context.Context, arg InsertVouO
 
 const insertVouPaymentDetail = `-- name: InsertVouPaymentDetail :exec
 INSERT INTO vou_payment_details (
-    document_id, entity, counterparty_entity, counterparty_object_id, counterparty_version_id,
-    counterparty_code, counterparty_name, fund_account_object_id, fund_account_version_id,
+    document_id, entity, counterparty_entity, counterparty_object_id, counterparty_approval_entry_id,
+    counterparty_code, counterparty_name, fund_account_object_id, fund_account_approval_entry_id,
     fund_account_code, fund_account_name, other_category,
-    handler_object_id, handler_version_id, handler_code, handler_name
+    handler_object_id, handler_approval_entry_id, handler_code, handler_name
 ) VALUES (
     $1, $2,
     $3, $4,
@@ -2438,22 +2441,22 @@ INSERT INTO vou_payment_details (
 `
 
 type InsertVouPaymentDetailParams struct {
-	DocumentID            string  `db:"document_id" json:"document_id"`
-	Entity                string  `db:"entity" json:"entity"`
-	CounterpartyEntity    string  `db:"counterparty_entity" json:"counterparty_entity"`
-	CounterpartyObjectID  string  `db:"counterparty_object_id" json:"counterparty_object_id"`
-	CounterpartyVersionID string  `db:"counterparty_version_id" json:"counterparty_version_id"`
-	CounterpartyCode      string  `db:"counterparty_code" json:"counterparty_code"`
-	CounterpartyName      string  `db:"counterparty_name" json:"counterparty_name"`
-	FundAccountObjectID   string  `db:"fund_account_object_id" json:"fund_account_object_id"`
-	FundAccountVersionID  string  `db:"fund_account_version_id" json:"fund_account_version_id"`
-	FundAccountCode       string  `db:"fund_account_code" json:"fund_account_code"`
-	FundAccountName       string  `db:"fund_account_name" json:"fund_account_name"`
-	OtherCategory         *string `db:"other_category" json:"other_category"`
-	HandlerObjectID       *string `db:"handler_object_id" json:"handler_object_id"`
-	HandlerVersionID      *string `db:"handler_version_id" json:"handler_version_id"`
-	HandlerCode           *string `db:"handler_code" json:"handler_code"`
-	HandlerName           *string `db:"handler_name" json:"handler_name"`
+	DocumentID                  string  `db:"document_id" json:"document_id"`
+	Entity                      string  `db:"entity" json:"entity"`
+	CounterpartyEntity          string  `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID        string  `db:"counterparty_object_id" json:"counterparty_object_id"`
+	CounterpartyApprovalEntryID string  `db:"counterparty_approval_entry_id" json:"counterparty_approval_entry_id"`
+	CounterpartyCode            string  `db:"counterparty_code" json:"counterparty_code"`
+	CounterpartyName            string  `db:"counterparty_name" json:"counterparty_name"`
+	FundAccountObjectID         string  `db:"fund_account_object_id" json:"fund_account_object_id"`
+	FundAccountApprovalEntryID  string  `db:"fund_account_approval_entry_id" json:"fund_account_approval_entry_id"`
+	FundAccountCode             string  `db:"fund_account_code" json:"fund_account_code"`
+	FundAccountName             string  `db:"fund_account_name" json:"fund_account_name"`
+	OtherCategory               *string `db:"other_category" json:"other_category"`
+	HandlerObjectID             *string `db:"handler_object_id" json:"handler_object_id"`
+	HandlerApprovalEntryID      *string `db:"handler_approval_entry_id" json:"handler_approval_entry_id"`
+	HandlerCode                 *string `db:"handler_code" json:"handler_code"`
+	HandlerName                 *string `db:"handler_name" json:"handler_name"`
 }
 
 func (q *Queries) InsertVouPaymentDetail(ctx context.Context, arg InsertVouPaymentDetailParams) error {
@@ -2462,16 +2465,16 @@ func (q *Queries) InsertVouPaymentDetail(ctx context.Context, arg InsertVouPayme
 		arg.Entity,
 		arg.CounterpartyEntity,
 		arg.CounterpartyObjectID,
-		arg.CounterpartyVersionID,
+		arg.CounterpartyApprovalEntryID,
 		arg.CounterpartyCode,
 		arg.CounterpartyName,
 		arg.FundAccountObjectID,
-		arg.FundAccountVersionID,
+		arg.FundAccountApprovalEntryID,
 		arg.FundAccountCode,
 		arg.FundAccountName,
 		arg.OtherCategory,
 		arg.HandlerObjectID,
-		arg.HandlerVersionID,
+		arg.HandlerApprovalEntryID,
 		arg.HandlerCode,
 		arg.HandlerName,
 	)
@@ -2480,9 +2483,9 @@ func (q *Queries) InsertVouPaymentDetail(ctx context.Context, arg InsertVouPayme
 
 const insertVouPriceLine = `-- name: InsertVouPriceLine :exec
 INSERT INTO vou_price_lines(
-    id,document_id,document_entity,line_no,product_object_id,product_version_id,
+    id,document_id,document_entity,line_no,product_object_id,product_approval_entry_id,
     product_code,product_name,default_input_unit_symbol,behavior_profile,
-    product_type_object_id,product_type_version_id,product_type_code,product_type_name,
+    product_type_object_id,product_type_approval_entry_id,product_type_code,product_type_name,
     unit_price_cents,remark
 ) VALUES (
     $1,$2,$3,$4,
@@ -2495,22 +2498,22 @@ INSERT INTO vou_price_lines(
 `
 
 type InsertVouPriceLineParams struct {
-	ID                     string  `db:"id" json:"id"`
-	DocumentID             string  `db:"document_id" json:"document_id"`
-	DocumentEntity         string  `db:"document_entity" json:"document_entity"`
-	LineNo                 int32   `db:"line_no" json:"line_no"`
-	ProductObjectID        string  `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID       string  `db:"product_version_id" json:"product_version_id"`
-	ProductCode            string  `db:"product_code" json:"product_code"`
-	ProductName            string  `db:"product_name" json:"product_name"`
-	DefaultInputUnitSymbol string  `db:"default_input_unit_symbol" json:"default_input_unit_symbol"`
-	BehaviorProfile        string  `db:"behavior_profile" json:"behavior_profile"`
-	ProductTypeObjectID    string  `db:"product_type_object_id" json:"product_type_object_id"`
-	ProductTypeVersionID   string  `db:"product_type_version_id" json:"product_type_version_id"`
-	ProductTypeCode        string  `db:"product_type_code" json:"product_type_code"`
-	ProductTypeName        string  `db:"product_type_name" json:"product_type_name"`
-	UnitPriceCents         int64   `db:"unit_price_cents" json:"unit_price_cents"`
-	Remark                 *string `db:"remark" json:"remark"`
+	ID                         string  `db:"id" json:"id"`
+	DocumentID                 string  `db:"document_id" json:"document_id"`
+	DocumentEntity             string  `db:"document_entity" json:"document_entity"`
+	LineNo                     int32   `db:"line_no" json:"line_no"`
+	ProductObjectID            string  `db:"product_object_id" json:"product_object_id"`
+	ProductApprovalEntryID     string  `db:"product_approval_entry_id" json:"product_approval_entry_id"`
+	ProductCode                string  `db:"product_code" json:"product_code"`
+	ProductName                string  `db:"product_name" json:"product_name"`
+	DefaultInputUnitSymbol     string  `db:"default_input_unit_symbol" json:"default_input_unit_symbol"`
+	BehaviorProfile            string  `db:"behavior_profile" json:"behavior_profile"`
+	ProductTypeObjectID        string  `db:"product_type_object_id" json:"product_type_object_id"`
+	ProductTypeApprovalEntryID string  `db:"product_type_approval_entry_id" json:"product_type_approval_entry_id"`
+	ProductTypeCode            string  `db:"product_type_code" json:"product_type_code"`
+	ProductTypeName            string  `db:"product_type_name" json:"product_type_name"`
+	UnitPriceCents             int64   `db:"unit_price_cents" json:"unit_price_cents"`
+	Remark                     *string `db:"remark" json:"remark"`
 }
 
 func (q *Queries) InsertVouPriceLine(ctx context.Context, arg InsertVouPriceLineParams) error {
@@ -2520,13 +2523,13 @@ func (q *Queries) InsertVouPriceLine(ctx context.Context, arg InsertVouPriceLine
 		arg.DocumentEntity,
 		arg.LineNo,
 		arg.ProductObjectID,
-		arg.ProductVersionID,
+		arg.ProductApprovalEntryID,
 		arg.ProductCode,
 		arg.ProductName,
 		arg.DefaultInputUnitSymbol,
 		arg.BehaviorProfile,
 		arg.ProductTypeObjectID,
-		arg.ProductTypeVersionID,
+		arg.ProductTypeApprovalEntryID,
 		arg.ProductTypeCode,
 		arg.ProductTypeName,
 		arg.UnitPriceCents,
@@ -2537,11 +2540,11 @@ func (q *Queries) InsertVouPriceLine(ctx context.Context, arg InsertVouPriceLine
 
 const insertVouProductLine = `-- name: InsertVouProductLine :exec
 INSERT INTO vou_product_lines (
-    id, document_id, document_entity, line_no, product_object_id, product_version_id,
+    id, document_id, document_entity, line_no, product_object_id, product_approval_entry_id,
     product_code, product_name, entered_quantity_micros,
-    entered_unit_object_id, entered_unit_version_id, entered_unit_code,
+    entered_unit_object_id, entered_unit_approval_entry_id, entered_unit_code,
     entered_unit_name, entered_unit_symbol, base_quantity_micros,
-    product_type_object_id, product_type_version_id, product_type_code,
+    product_type_object_id, product_type_approval_entry_id, product_type_code,
     product_type_name, behavior_profile, default_packaging_spec_micros,
     base_unit_price_cents, settlement_surcharge_cents, unit_price_cents,
     line_amount_cents, purchase_unit_price_cents, remark,
@@ -2572,18 +2575,18 @@ type InsertVouProductLineParams struct {
 	DocumentEntity             string      `db:"document_entity" json:"document_entity"`
 	LineNo                     int32       `db:"line_no" json:"line_no"`
 	ProductObjectID            string      `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID           string      `db:"product_version_id" json:"product_version_id"`
+	ProductApprovalEntryID     string      `db:"product_approval_entry_id" json:"product_approval_entry_id"`
 	ProductCode                string      `db:"product_code" json:"product_code"`
 	ProductName                string      `db:"product_name" json:"product_name"`
 	EnteredQuantityMicros      int64       `db:"entered_quantity_micros" json:"entered_quantity_micros"`
 	EnteredUnitObjectID        string      `db:"entered_unit_object_id" json:"entered_unit_object_id"`
-	EnteredUnitVersionID       string      `db:"entered_unit_version_id" json:"entered_unit_version_id"`
+	EnteredUnitApprovalEntryID string      `db:"entered_unit_approval_entry_id" json:"entered_unit_approval_entry_id"`
 	EnteredUnitCode            string      `db:"entered_unit_code" json:"entered_unit_code"`
 	EnteredUnitName            string      `db:"entered_unit_name" json:"entered_unit_name"`
 	EnteredUnitSymbol          string      `db:"entered_unit_symbol" json:"entered_unit_symbol"`
 	BaseQuantityMicros         int64       `db:"base_quantity_micros" json:"base_quantity_micros"`
 	ProductTypeObjectID        string      `db:"product_type_object_id" json:"product_type_object_id"`
-	ProductTypeVersionID       string      `db:"product_type_version_id" json:"product_type_version_id"`
+	ProductTypeApprovalEntryID string      `db:"product_type_approval_entry_id" json:"product_type_approval_entry_id"`
 	ProductTypeCode            string      `db:"product_type_code" json:"product_type_code"`
 	ProductTypeName            string      `db:"product_type_name" json:"product_type_name"`
 	BehaviorProfile            string      `db:"behavior_profile" json:"behavior_profile"`
@@ -2609,18 +2612,18 @@ func (q *Queries) InsertVouProductLine(ctx context.Context, arg InsertVouProduct
 		arg.DocumentEntity,
 		arg.LineNo,
 		arg.ProductObjectID,
-		arg.ProductVersionID,
+		arg.ProductApprovalEntryID,
 		arg.ProductCode,
 		arg.ProductName,
 		arg.EnteredQuantityMicros,
 		arg.EnteredUnitObjectID,
-		arg.EnteredUnitVersionID,
+		arg.EnteredUnitApprovalEntryID,
 		arg.EnteredUnitCode,
 		arg.EnteredUnitName,
 		arg.EnteredUnitSymbol,
 		arg.BaseQuantityMicros,
 		arg.ProductTypeObjectID,
-		arg.ProductTypeVersionID,
+		arg.ProductTypeApprovalEntryID,
 		arg.ProductTypeCode,
 		arg.ProductTypeName,
 		arg.BehaviorProfile,
@@ -2644,8 +2647,8 @@ func (q *Queries) InsertVouProductLine(ctx context.Context, arg InsertVouProduct
 const insertVouPurchaseInboundDetail = `-- name: InsertVouPurchaseInboundDetail :exec
 INSERT INTO vou_purchase_inbound_details (
     document_id, source_order_id,
-    supplier_object_id, supplier_version_id, supplier_code, supplier_name,
-    warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name
+    supplier_object_id, supplier_approval_entry_id, supplier_code, supplier_name,
+    warehouse_object_id, warehouse_approval_entry_id, warehouse_code, warehouse_name
 ) VALUES (
     $1, $2,
     $3, $4,
@@ -2656,16 +2659,16 @@ INSERT INTO vou_purchase_inbound_details (
 `
 
 type InsertVouPurchaseInboundDetailParams struct {
-	DocumentID         string `db:"document_id" json:"document_id"`
-	SourceOrderID      string `db:"source_order_id" json:"source_order_id"`
-	SupplierObjectID   string `db:"supplier_object_id" json:"supplier_object_id"`
-	SupplierVersionID  string `db:"supplier_version_id" json:"supplier_version_id"`
-	SupplierCode       string `db:"supplier_code" json:"supplier_code"`
-	SupplierName       string `db:"supplier_name" json:"supplier_name"`
-	WarehouseObjectID  string `db:"warehouse_object_id" json:"warehouse_object_id"`
-	WarehouseVersionID string `db:"warehouse_version_id" json:"warehouse_version_id"`
-	WarehouseCode      string `db:"warehouse_code" json:"warehouse_code"`
-	WarehouseName      string `db:"warehouse_name" json:"warehouse_name"`
+	DocumentID               string `db:"document_id" json:"document_id"`
+	SourceOrderID            string `db:"source_order_id" json:"source_order_id"`
+	SupplierObjectID         string `db:"supplier_object_id" json:"supplier_object_id"`
+	SupplierApprovalEntryID  string `db:"supplier_approval_entry_id" json:"supplier_approval_entry_id"`
+	SupplierCode             string `db:"supplier_code" json:"supplier_code"`
+	SupplierName             string `db:"supplier_name" json:"supplier_name"`
+	WarehouseObjectID        string `db:"warehouse_object_id" json:"warehouse_object_id"`
+	WarehouseApprovalEntryID string `db:"warehouse_approval_entry_id" json:"warehouse_approval_entry_id"`
+	WarehouseCode            string `db:"warehouse_code" json:"warehouse_code"`
+	WarehouseName            string `db:"warehouse_name" json:"warehouse_name"`
 }
 
 func (q *Queries) InsertVouPurchaseInboundDetail(ctx context.Context, arg InsertVouPurchaseInboundDetailParams) error {
@@ -2673,11 +2676,11 @@ func (q *Queries) InsertVouPurchaseInboundDetail(ctx context.Context, arg Insert
 		arg.DocumentID,
 		arg.SourceOrderID,
 		arg.SupplierObjectID,
-		arg.SupplierVersionID,
+		arg.SupplierApprovalEntryID,
 		arg.SupplierCode,
 		arg.SupplierName,
 		arg.WarehouseObjectID,
-		arg.WarehouseVersionID,
+		arg.WarehouseApprovalEntryID,
 		arg.WarehouseCode,
 		arg.WarehouseName,
 	)
@@ -2687,7 +2690,7 @@ func (q *Queries) InsertVouPurchaseInboundDetail(ctx context.Context, arg Insert
 const insertVouPurchaseInboundLine = `-- name: InsertVouPurchaseInboundLine :exec
 INSERT INTO vou_purchase_inbound_lines (
     id, document_id, source_order_line_id, line_no,
-    product_object_id, product_version_id, product_code, product_name, entered_unit_symbol,
+    product_object_id, product_approval_entry_id, product_code, product_name, entered_unit_symbol,
     base_quantity_micros, unit_price_cents, line_amount_cents, remark
 ) VALUES (
     $1, $2, $3, $4,
@@ -2699,19 +2702,19 @@ INSERT INTO vou_purchase_inbound_lines (
 `
 
 type InsertVouPurchaseInboundLineParams struct {
-	ID                 string  `db:"id" json:"id"`
-	DocumentID         string  `db:"document_id" json:"document_id"`
-	SourceOrderLineID  string  `db:"source_order_line_id" json:"source_order_line_id"`
-	LineNo             int32   `db:"line_no" json:"line_no"`
-	ProductObjectID    string  `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID   string  `db:"product_version_id" json:"product_version_id"`
-	ProductCode        string  `db:"product_code" json:"product_code"`
-	ProductName        string  `db:"product_name" json:"product_name"`
-	EnteredUnitSymbol  string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
-	BaseQuantityMicros int64   `db:"base_quantity_micros" json:"base_quantity_micros"`
-	UnitPriceCents     int64   `db:"unit_price_cents" json:"unit_price_cents"`
-	LineAmountCents    int64   `db:"line_amount_cents" json:"line_amount_cents"`
-	Remark             *string `db:"remark" json:"remark"`
+	ID                     string  `db:"id" json:"id"`
+	DocumentID             string  `db:"document_id" json:"document_id"`
+	SourceOrderLineID      string  `db:"source_order_line_id" json:"source_order_line_id"`
+	LineNo                 int32   `db:"line_no" json:"line_no"`
+	ProductObjectID        string  `db:"product_object_id" json:"product_object_id"`
+	ProductApprovalEntryID string  `db:"product_approval_entry_id" json:"product_approval_entry_id"`
+	ProductCode            string  `db:"product_code" json:"product_code"`
+	ProductName            string  `db:"product_name" json:"product_name"`
+	EnteredUnitSymbol      string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BaseQuantityMicros     int64   `db:"base_quantity_micros" json:"base_quantity_micros"`
+	UnitPriceCents         int64   `db:"unit_price_cents" json:"unit_price_cents"`
+	LineAmountCents        int64   `db:"line_amount_cents" json:"line_amount_cents"`
+	Remark                 *string `db:"remark" json:"remark"`
 }
 
 func (q *Queries) InsertVouPurchaseInboundLine(ctx context.Context, arg InsertVouPurchaseInboundLineParams) error {
@@ -2721,7 +2724,7 @@ func (q *Queries) InsertVouPurchaseInboundLine(ctx context.Context, arg InsertVo
 		arg.SourceOrderLineID,
 		arg.LineNo,
 		arg.ProductObjectID,
-		arg.ProductVersionID,
+		arg.ProductApprovalEntryID,
 		arg.ProductCode,
 		arg.ProductName,
 		arg.EnteredUnitSymbol,
@@ -2735,7 +2738,7 @@ func (q *Queries) InsertVouPurchaseInboundLine(ctx context.Context, arg InsertVo
 
 const insertVouPurchaseInquiryDetail = `-- name: InsertVouPurchaseInquiryDetail :exec
 INSERT INTO vou_purchase_inquiry_details(
-    document_id, entity, supplier_object_id, supplier_version_id, supplier_code, supplier_name
+    document_id, entity, supplier_object_id, supplier_approval_entry_id, supplier_code, supplier_name
 ) VALUES (
     $1, 'purchase-inquiry', $2,
     $3, $4, $5
@@ -2743,18 +2746,18 @@ INSERT INTO vou_purchase_inquiry_details(
 `
 
 type InsertVouPurchaseInquiryDetailParams struct {
-	DocumentID        string `db:"document_id" json:"document_id"`
-	SupplierObjectID  string `db:"supplier_object_id" json:"supplier_object_id"`
-	SupplierVersionID string `db:"supplier_version_id" json:"supplier_version_id"`
-	SupplierCode      string `db:"supplier_code" json:"supplier_code"`
-	SupplierName      string `db:"supplier_name" json:"supplier_name"`
+	DocumentID              string `db:"document_id" json:"document_id"`
+	SupplierObjectID        string `db:"supplier_object_id" json:"supplier_object_id"`
+	SupplierApprovalEntryID string `db:"supplier_approval_entry_id" json:"supplier_approval_entry_id"`
+	SupplierCode            string `db:"supplier_code" json:"supplier_code"`
+	SupplierName            string `db:"supplier_name" json:"supplier_name"`
 }
 
 func (q *Queries) InsertVouPurchaseInquiryDetail(ctx context.Context, arg InsertVouPurchaseInquiryDetailParams) error {
 	_, err := q.db.Exec(ctx, insertVouPurchaseInquiryDetail,
 		arg.DocumentID,
 		arg.SupplierObjectID,
-		arg.SupplierVersionID,
+		arg.SupplierApprovalEntryID,
 		arg.SupplierCode,
 		arg.SupplierName,
 	)
@@ -2763,11 +2766,11 @@ func (q *Queries) InsertVouPurchaseInquiryDetail(ctx context.Context, arg Insert
 
 const insertVouPurchaseOrderDetail = `-- name: InsertVouPurchaseOrderDetail :exec
 INSERT INTO vou_purchase_order_details (
-    document_id, supplier_object_id, supplier_version_id, supplier_code, supplier_name,
-    purchaser_object_id, purchaser_version_id, purchaser_code, purchaser_name,
-    warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name,
+    document_id, supplier_object_id, supplier_approval_entry_id, supplier_code, supplier_name,
+    purchaser_object_id, purchaser_approval_entry_id, purchaser_code, purchaser_name,
+    warehouse_object_id, warehouse_approval_entry_id, warehouse_code, warehouse_name,
     contact_name, contact_phone,
-    settlement_method_object_id, settlement_method_version_id,
+    settlement_method_object_id, settlement_method_approval_entry_id,
     settlement_method_code, settlement_method_name, settlement_rule_type,
     settlement_month_offset, settlement_day_of_month, settlement_day_offset,
     settlement_due_days, settlement_cutoff_day,
@@ -2794,21 +2797,21 @@ INSERT INTO vou_purchase_order_details (
 type InsertVouPurchaseOrderDetailParams struct {
 	DocumentID                           string  `db:"document_id" json:"document_id"`
 	SupplierObjectID                     string  `db:"supplier_object_id" json:"supplier_object_id"`
-	SupplierVersionID                    string  `db:"supplier_version_id" json:"supplier_version_id"`
+	SupplierApprovalEntryID              string  `db:"supplier_approval_entry_id" json:"supplier_approval_entry_id"`
 	SupplierCode                         string  `db:"supplier_code" json:"supplier_code"`
 	SupplierName                         string  `db:"supplier_name" json:"supplier_name"`
 	PurchaserObjectID                    *string `db:"purchaser_object_id" json:"purchaser_object_id"`
-	PurchaserVersionID                   *string `db:"purchaser_version_id" json:"purchaser_version_id"`
+	PurchaserApprovalEntryID             *string `db:"purchaser_approval_entry_id" json:"purchaser_approval_entry_id"`
 	PurchaserCode                        *string `db:"purchaser_code" json:"purchaser_code"`
 	PurchaserName                        *string `db:"purchaser_name" json:"purchaser_name"`
 	WarehouseObjectID                    *string `db:"warehouse_object_id" json:"warehouse_object_id"`
-	WarehouseVersionID                   *string `db:"warehouse_version_id" json:"warehouse_version_id"`
+	WarehouseApprovalEntryID             *string `db:"warehouse_approval_entry_id" json:"warehouse_approval_entry_id"`
 	WarehouseCode                        *string `db:"warehouse_code" json:"warehouse_code"`
 	WarehouseName                        *string `db:"warehouse_name" json:"warehouse_name"`
 	ContactName                          *string `db:"contact_name" json:"contact_name"`
 	ContactPhone                         *string `db:"contact_phone" json:"contact_phone"`
 	SettlementMethodObjectID             *string `db:"settlement_method_object_id" json:"settlement_method_object_id"`
-	SettlementMethodVersionID            *string `db:"settlement_method_version_id" json:"settlement_method_version_id"`
+	SettlementMethodApprovalEntryID      *string `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
 	SettlementMethodCode                 *string `db:"settlement_method_code" json:"settlement_method_code"`
 	SettlementMethodName                 *string `db:"settlement_method_name" json:"settlement_method_name"`
 	SettlementRuleType                   *string `db:"settlement_rule_type" json:"settlement_rule_type"`
@@ -2826,21 +2829,21 @@ func (q *Queries) InsertVouPurchaseOrderDetail(ctx context.Context, arg InsertVo
 	_, err := q.db.Exec(ctx, insertVouPurchaseOrderDetail,
 		arg.DocumentID,
 		arg.SupplierObjectID,
-		arg.SupplierVersionID,
+		arg.SupplierApprovalEntryID,
 		arg.SupplierCode,
 		arg.SupplierName,
 		arg.PurchaserObjectID,
-		arg.PurchaserVersionID,
+		arg.PurchaserApprovalEntryID,
 		arg.PurchaserCode,
 		arg.PurchaserName,
 		arg.WarehouseObjectID,
-		arg.WarehouseVersionID,
+		arg.WarehouseApprovalEntryID,
 		arg.WarehouseCode,
 		arg.WarehouseName,
 		arg.ContactName,
 		arg.ContactPhone,
 		arg.SettlementMethodObjectID,
-		arg.SettlementMethodVersionID,
+		arg.SettlementMethodApprovalEntryID,
 		arg.SettlementMethodCode,
 		arg.SettlementMethodName,
 		arg.SettlementRuleType,
@@ -2858,10 +2861,10 @@ func (q *Queries) InsertVouPurchaseOrderDetail(ctx context.Context, arg InsertVo
 
 const insertVouReceiptDetail = `-- name: InsertVouReceiptDetail :exec
 INSERT INTO vou_receipt_details (
-    document_id, entity, counterparty_entity, counterparty_object_id, counterparty_version_id,
-    counterparty_code, counterparty_name, fund_account_object_id, fund_account_version_id,
+    document_id, entity, counterparty_entity, counterparty_object_id, counterparty_approval_entry_id,
+    counterparty_code, counterparty_name, fund_account_object_id, fund_account_approval_entry_id,
     fund_account_code, fund_account_name, other_category,
-    handler_object_id, handler_version_id, handler_code, handler_name
+    handler_object_id, handler_approval_entry_id, handler_code, handler_name
 ) VALUES (
     $1, $2,
     $3, $4,
@@ -2874,22 +2877,22 @@ INSERT INTO vou_receipt_details (
 `
 
 type InsertVouReceiptDetailParams struct {
-	DocumentID            string  `db:"document_id" json:"document_id"`
-	Entity                string  `db:"entity" json:"entity"`
-	CounterpartyEntity    string  `db:"counterparty_entity" json:"counterparty_entity"`
-	CounterpartyObjectID  string  `db:"counterparty_object_id" json:"counterparty_object_id"`
-	CounterpartyVersionID string  `db:"counterparty_version_id" json:"counterparty_version_id"`
-	CounterpartyCode      string  `db:"counterparty_code" json:"counterparty_code"`
-	CounterpartyName      string  `db:"counterparty_name" json:"counterparty_name"`
-	FundAccountObjectID   string  `db:"fund_account_object_id" json:"fund_account_object_id"`
-	FundAccountVersionID  string  `db:"fund_account_version_id" json:"fund_account_version_id"`
-	FundAccountCode       string  `db:"fund_account_code" json:"fund_account_code"`
-	FundAccountName       string  `db:"fund_account_name" json:"fund_account_name"`
-	OtherCategory         *string `db:"other_category" json:"other_category"`
-	HandlerObjectID       *string `db:"handler_object_id" json:"handler_object_id"`
-	HandlerVersionID      *string `db:"handler_version_id" json:"handler_version_id"`
-	HandlerCode           *string `db:"handler_code" json:"handler_code"`
-	HandlerName           *string `db:"handler_name" json:"handler_name"`
+	DocumentID                  string  `db:"document_id" json:"document_id"`
+	Entity                      string  `db:"entity" json:"entity"`
+	CounterpartyEntity          string  `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID        string  `db:"counterparty_object_id" json:"counterparty_object_id"`
+	CounterpartyApprovalEntryID string  `db:"counterparty_approval_entry_id" json:"counterparty_approval_entry_id"`
+	CounterpartyCode            string  `db:"counterparty_code" json:"counterparty_code"`
+	CounterpartyName            string  `db:"counterparty_name" json:"counterparty_name"`
+	FundAccountObjectID         string  `db:"fund_account_object_id" json:"fund_account_object_id"`
+	FundAccountApprovalEntryID  string  `db:"fund_account_approval_entry_id" json:"fund_account_approval_entry_id"`
+	FundAccountCode             string  `db:"fund_account_code" json:"fund_account_code"`
+	FundAccountName             string  `db:"fund_account_name" json:"fund_account_name"`
+	OtherCategory               *string `db:"other_category" json:"other_category"`
+	HandlerObjectID             *string `db:"handler_object_id" json:"handler_object_id"`
+	HandlerApprovalEntryID      *string `db:"handler_approval_entry_id" json:"handler_approval_entry_id"`
+	HandlerCode                 *string `db:"handler_code" json:"handler_code"`
+	HandlerName                 *string `db:"handler_name" json:"handler_name"`
 }
 
 func (q *Queries) InsertVouReceiptDetail(ctx context.Context, arg InsertVouReceiptDetailParams) error {
@@ -2898,16 +2901,16 @@ func (q *Queries) InsertVouReceiptDetail(ctx context.Context, arg InsertVouRecei
 		arg.Entity,
 		arg.CounterpartyEntity,
 		arg.CounterpartyObjectID,
-		arg.CounterpartyVersionID,
+		arg.CounterpartyApprovalEntryID,
 		arg.CounterpartyCode,
 		arg.CounterpartyName,
 		arg.FundAccountObjectID,
-		arg.FundAccountVersionID,
+		arg.FundAccountApprovalEntryID,
 		arg.FundAccountCode,
 		arg.FundAccountName,
 		arg.OtherCategory,
 		arg.HandlerObjectID,
-		arg.HandlerVersionID,
+		arg.HandlerApprovalEntryID,
 		arg.HandlerCode,
 		arg.HandlerName,
 	)
@@ -2916,13 +2919,13 @@ func (q *Queries) InsertVouReceiptDetail(ctx context.Context, arg InsertVouRecei
 
 const insertVouSaleDeliveryDetail = `-- name: InsertVouSaleDeliveryDetail :exec
 INSERT INTO vou_sale_delivery_details(
-    document_id,source_outbound_id,customer_object_id,customer_version_id,customer_code,customer_name,
+    document_id,source_outbound_id,customer_object_id,customer_approval_entry_id,customer_code,customer_name,
     carrier_type,
-    carrier_operating_entity_object_id,carrier_operating_entity_version_id,
+    carrier_operating_entity_object_id,carrier_operating_entity_approval_entry_id,
     carrier_operating_entity_code,carrier_operating_entity_name,
-    carrier_service_relationship_object_id,carrier_service_relationship_version_id,
+    carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,
     carrier_service_relationship_code,carrier_service_relationship_name,
-    vehicle_object_id,vehicle_version_id,vehicle_code,vehicle_name,
+    vehicle_object_id,vehicle_approval_entry_id,vehicle_code,vehicle_name,
     vehicle_plate_number,vehicle_bulk_liquid_capable
 ) VALUES(
     $1,$2,$3,
@@ -2938,27 +2941,27 @@ INSERT INTO vou_sale_delivery_details(
 `
 
 type InsertVouSaleDeliveryDetailParams struct {
-	DocumentID                          string  `db:"document_id" json:"document_id"`
-	SourceOutboundID                    string  `db:"source_outbound_id" json:"source_outbound_id"`
-	CustomerObjectID                    string  `db:"customer_object_id" json:"customer_object_id"`
-	CustomerVersionID                   string  `db:"customer_version_id" json:"customer_version_id"`
-	CustomerCode                        string  `db:"customer_code" json:"customer_code"`
-	CustomerName                        string  `db:"customer_name" json:"customer_name"`
-	CarrierType                         string  `db:"carrier_type" json:"carrier_type"`
-	CarrierOperatingEntityObjectID      *string `db:"carrier_operating_entity_object_id" json:"carrier_operating_entity_object_id"`
-	CarrierOperatingEntityVersionID     *string `db:"carrier_operating_entity_version_id" json:"carrier_operating_entity_version_id"`
-	CarrierOperatingEntityCode          *string `db:"carrier_operating_entity_code" json:"carrier_operating_entity_code"`
-	CarrierOperatingEntityName          *string `db:"carrier_operating_entity_name" json:"carrier_operating_entity_name"`
-	CarrierServiceRelationshipObjectID  *string `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
-	CarrierServiceRelationshipVersionID *string `db:"carrier_service_relationship_version_id" json:"carrier_service_relationship_version_id"`
-	CarrierServiceRelationshipCode      *string `db:"carrier_service_relationship_code" json:"carrier_service_relationship_code"`
-	CarrierServiceRelationshipName      *string `db:"carrier_service_relationship_name" json:"carrier_service_relationship_name"`
-	VehicleObjectID                     *string `db:"vehicle_object_id" json:"vehicle_object_id"`
-	VehicleVersionID                    *string `db:"vehicle_version_id" json:"vehicle_version_id"`
-	VehicleCode                         *string `db:"vehicle_code" json:"vehicle_code"`
-	VehicleName                         *string `db:"vehicle_name" json:"vehicle_name"`
-	VehiclePlateNumber                  *string `db:"vehicle_plate_number" json:"vehicle_plate_number"`
-	VehicleBulkLiquidCapable            bool    `db:"vehicle_bulk_liquid_capable" json:"vehicle_bulk_liquid_capable"`
+	DocumentID                                string  `db:"document_id" json:"document_id"`
+	SourceOutboundID                          string  `db:"source_outbound_id" json:"source_outbound_id"`
+	CustomerObjectID                          string  `db:"customer_object_id" json:"customer_object_id"`
+	CustomerApprovalEntryID                   string  `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	CustomerCode                              string  `db:"customer_code" json:"customer_code"`
+	CustomerName                              string  `db:"customer_name" json:"customer_name"`
+	CarrierType                               string  `db:"carrier_type" json:"carrier_type"`
+	CarrierOperatingEntityObjectID            *string `db:"carrier_operating_entity_object_id" json:"carrier_operating_entity_object_id"`
+	CarrierOperatingEntityApprovalEntryID     *string `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
+	CarrierOperatingEntityCode                *string `db:"carrier_operating_entity_code" json:"carrier_operating_entity_code"`
+	CarrierOperatingEntityName                *string `db:"carrier_operating_entity_name" json:"carrier_operating_entity_name"`
+	CarrierServiceRelationshipObjectID        *string `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
+	CarrierServiceRelationshipApprovalEntryID *string `db:"carrier_service_relationship_approval_entry_id" json:"carrier_service_relationship_approval_entry_id"`
+	CarrierServiceRelationshipCode            *string `db:"carrier_service_relationship_code" json:"carrier_service_relationship_code"`
+	CarrierServiceRelationshipName            *string `db:"carrier_service_relationship_name" json:"carrier_service_relationship_name"`
+	VehicleObjectID                           *string `db:"vehicle_object_id" json:"vehicle_object_id"`
+	VehicleApprovalEntryID                    *string `db:"vehicle_approval_entry_id" json:"vehicle_approval_entry_id"`
+	VehicleCode                               *string `db:"vehicle_code" json:"vehicle_code"`
+	VehicleName                               *string `db:"vehicle_name" json:"vehicle_name"`
+	VehiclePlateNumber                        *string `db:"vehicle_plate_number" json:"vehicle_plate_number"`
+	VehicleBulkLiquidCapable                  bool    `db:"vehicle_bulk_liquid_capable" json:"vehicle_bulk_liquid_capable"`
 }
 
 func (q *Queries) InsertVouSaleDeliveryDetail(ctx context.Context, arg InsertVouSaleDeliveryDetailParams) error {
@@ -2966,20 +2969,20 @@ func (q *Queries) InsertVouSaleDeliveryDetail(ctx context.Context, arg InsertVou
 		arg.DocumentID,
 		arg.SourceOutboundID,
 		arg.CustomerObjectID,
-		arg.CustomerVersionID,
+		arg.CustomerApprovalEntryID,
 		arg.CustomerCode,
 		arg.CustomerName,
 		arg.CarrierType,
 		arg.CarrierOperatingEntityObjectID,
-		arg.CarrierOperatingEntityVersionID,
+		arg.CarrierOperatingEntityApprovalEntryID,
 		arg.CarrierOperatingEntityCode,
 		arg.CarrierOperatingEntityName,
 		arg.CarrierServiceRelationshipObjectID,
-		arg.CarrierServiceRelationshipVersionID,
+		arg.CarrierServiceRelationshipApprovalEntryID,
 		arg.CarrierServiceRelationshipCode,
 		arg.CarrierServiceRelationshipName,
 		arg.VehicleObjectID,
-		arg.VehicleVersionID,
+		arg.VehicleApprovalEntryID,
 		arg.VehicleCode,
 		arg.VehicleName,
 		arg.VehiclePlateNumber,
@@ -2990,13 +2993,13 @@ func (q *Queries) InsertVouSaleDeliveryDetail(ctx context.Context, arg InsertVou
 
 const insertVouSaleOrderDetail = `-- name: InsertVouSaleOrderDetail :exec
 INSERT INTO vou_sale_order_details (
-    document_id, customer_object_id, customer_version_id, customer_code, customer_name,
-    salesperson_object_id, salesperson_version_id, salesperson_code, salesperson_name,
-    sales_attribution_type, sales_attribution_subject_object_id, sales_attribution_subject_version_id,
+    document_id, customer_object_id, customer_approval_entry_id, customer_code, customer_name,
+    salesperson_object_id, salesperson_approval_entry_id, salesperson_code, salesperson_name,
+    sales_attribution_type, sales_attribution_subject_object_id, sales_attribution_subject_approval_entry_id,
     sales_attribution_subject_code, sales_attribution_subject_name,
-    warehouse_object_id, warehouse_version_id, warehouse_code, warehouse_name,
+    warehouse_object_id, warehouse_approval_entry_id, warehouse_code, warehouse_name,
     contact_name, contact_phone, delivery_address,
-    settlement_method_object_id, settlement_method_version_id,
+    settlement_method_object_id, settlement_method_approval_entry_id,
     settlement_method_code, settlement_method_name, settlement_rule_type,
     settlement_month_offset, settlement_day_of_month, settlement_day_offset,
     settlement_due_days, settlement_cutoff_day,
@@ -3024,68 +3027,68 @@ INSERT INTO vou_sale_order_details (
 `
 
 type InsertVouSaleOrderDetailParams struct {
-	DocumentID                           string  `db:"document_id" json:"document_id"`
-	CustomerObjectID                     string  `db:"customer_object_id" json:"customer_object_id"`
-	CustomerVersionID                    string  `db:"customer_version_id" json:"customer_version_id"`
-	CustomerCode                         string  `db:"customer_code" json:"customer_code"`
-	CustomerName                         string  `db:"customer_name" json:"customer_name"`
-	SalespersonObjectID                  *string `db:"salesperson_object_id" json:"salesperson_object_id"`
-	SalespersonVersionID                 *string `db:"salesperson_version_id" json:"salesperson_version_id"`
-	SalespersonCode                      *string `db:"salesperson_code" json:"salesperson_code"`
-	SalespersonName                      *string `db:"salesperson_name" json:"salesperson_name"`
-	SalesAttributionType                 string  `db:"sales_attribution_type" json:"sales_attribution_type"`
-	SalesAttributionSubjectObjectID      string  `db:"sales_attribution_subject_object_id" json:"sales_attribution_subject_object_id"`
-	SalesAttributionSubjectVersionID     string  `db:"sales_attribution_subject_version_id" json:"sales_attribution_subject_version_id"`
-	SalesAttributionSubjectCode          string  `db:"sales_attribution_subject_code" json:"sales_attribution_subject_code"`
-	SalesAttributionSubjectName          string  `db:"sales_attribution_subject_name" json:"sales_attribution_subject_name"`
-	WarehouseObjectID                    *string `db:"warehouse_object_id" json:"warehouse_object_id"`
-	WarehouseVersionID                   *string `db:"warehouse_version_id" json:"warehouse_version_id"`
-	WarehouseCode                        *string `db:"warehouse_code" json:"warehouse_code"`
-	WarehouseName                        *string `db:"warehouse_name" json:"warehouse_name"`
-	ContactName                          *string `db:"contact_name" json:"contact_name"`
-	ContactPhone                         *string `db:"contact_phone" json:"contact_phone"`
-	DeliveryAddress                      *string `db:"delivery_address" json:"delivery_address"`
-	SettlementMethodObjectID             *string `db:"settlement_method_object_id" json:"settlement_method_object_id"`
-	SettlementMethodVersionID            *string `db:"settlement_method_version_id" json:"settlement_method_version_id"`
-	SettlementMethodCode                 *string `db:"settlement_method_code" json:"settlement_method_code"`
-	SettlementMethodName                 *string `db:"settlement_method_name" json:"settlement_method_name"`
-	SettlementRuleType                   *string `db:"settlement_rule_type" json:"settlement_rule_type"`
-	SettlementMonthOffset                *int32  `db:"settlement_month_offset" json:"settlement_month_offset"`
-	SettlementDayOfMonth                 *int32  `db:"settlement_day_of_month" json:"settlement_day_of_month"`
-	SettlementDayOffset                  *int32  `db:"settlement_day_offset" json:"settlement_day_offset"`
-	SettlementDueDays                    *int32  `db:"settlement_due_days" json:"settlement_due_days"`
-	SettlementCutoffDay                  *int32  `db:"settlement_cutoff_day" json:"settlement_cutoff_day"`
-	SettlementDefaultSalesSurchargeCents int64   `db:"settlement_default_sales_surcharge_cents" json:"settlement_default_sales_surcharge_cents"`
-	SettlementTermCode                   string  `db:"settlement_term_code" json:"settlement_term_code"`
-	SettlementDescription                *string `db:"settlement_description" json:"settlement_description"`
-	SpecialApproval                      bool    `db:"special_approval" json:"special_approval"`
+	DocumentID                             string  `db:"document_id" json:"document_id"`
+	CustomerObjectID                       string  `db:"customer_object_id" json:"customer_object_id"`
+	CustomerApprovalEntryID                string  `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	CustomerCode                           string  `db:"customer_code" json:"customer_code"`
+	CustomerName                           string  `db:"customer_name" json:"customer_name"`
+	SalespersonObjectID                    *string `db:"salesperson_object_id" json:"salesperson_object_id"`
+	SalespersonApprovalEntryID             *string `db:"salesperson_approval_entry_id" json:"salesperson_approval_entry_id"`
+	SalespersonCode                        *string `db:"salesperson_code" json:"salesperson_code"`
+	SalespersonName                        *string `db:"salesperson_name" json:"salesperson_name"`
+	SalesAttributionType                   string  `db:"sales_attribution_type" json:"sales_attribution_type"`
+	SalesAttributionSubjectObjectID        string  `db:"sales_attribution_subject_object_id" json:"sales_attribution_subject_object_id"`
+	SalesAttributionSubjectApprovalEntryID string  `db:"sales_attribution_subject_approval_entry_id" json:"sales_attribution_subject_approval_entry_id"`
+	SalesAttributionSubjectCode            string  `db:"sales_attribution_subject_code" json:"sales_attribution_subject_code"`
+	SalesAttributionSubjectName            string  `db:"sales_attribution_subject_name" json:"sales_attribution_subject_name"`
+	WarehouseObjectID                      *string `db:"warehouse_object_id" json:"warehouse_object_id"`
+	WarehouseApprovalEntryID               *string `db:"warehouse_approval_entry_id" json:"warehouse_approval_entry_id"`
+	WarehouseCode                          *string `db:"warehouse_code" json:"warehouse_code"`
+	WarehouseName                          *string `db:"warehouse_name" json:"warehouse_name"`
+	ContactName                            *string `db:"contact_name" json:"contact_name"`
+	ContactPhone                           *string `db:"contact_phone" json:"contact_phone"`
+	DeliveryAddress                        *string `db:"delivery_address" json:"delivery_address"`
+	SettlementMethodObjectID               *string `db:"settlement_method_object_id" json:"settlement_method_object_id"`
+	SettlementMethodApprovalEntryID        *string `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
+	SettlementMethodCode                   *string `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName                   *string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementRuleType                     *string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset                  *int32  `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth                   *int32  `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset                    *int32  `db:"settlement_day_offset" json:"settlement_day_offset"`
+	SettlementDueDays                      *int32  `db:"settlement_due_days" json:"settlement_due_days"`
+	SettlementCutoffDay                    *int32  `db:"settlement_cutoff_day" json:"settlement_cutoff_day"`
+	SettlementDefaultSalesSurchargeCents   int64   `db:"settlement_default_sales_surcharge_cents" json:"settlement_default_sales_surcharge_cents"`
+	SettlementTermCode                     string  `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementDescription                  *string `db:"settlement_description" json:"settlement_description"`
+	SpecialApproval                        bool    `db:"special_approval" json:"special_approval"`
 }
 
 func (q *Queries) InsertVouSaleOrderDetail(ctx context.Context, arg InsertVouSaleOrderDetailParams) error {
 	_, err := q.db.Exec(ctx, insertVouSaleOrderDetail,
 		arg.DocumentID,
 		arg.CustomerObjectID,
-		arg.CustomerVersionID,
+		arg.CustomerApprovalEntryID,
 		arg.CustomerCode,
 		arg.CustomerName,
 		arg.SalespersonObjectID,
-		arg.SalespersonVersionID,
+		arg.SalespersonApprovalEntryID,
 		arg.SalespersonCode,
 		arg.SalespersonName,
 		arg.SalesAttributionType,
 		arg.SalesAttributionSubjectObjectID,
-		arg.SalesAttributionSubjectVersionID,
+		arg.SalesAttributionSubjectApprovalEntryID,
 		arg.SalesAttributionSubjectCode,
 		arg.SalesAttributionSubjectName,
 		arg.WarehouseObjectID,
-		arg.WarehouseVersionID,
+		arg.WarehouseApprovalEntryID,
 		arg.WarehouseCode,
 		arg.WarehouseName,
 		arg.ContactName,
 		arg.ContactPhone,
 		arg.DeliveryAddress,
 		arg.SettlementMethodObjectID,
-		arg.SettlementMethodVersionID,
+		arg.SettlementMethodApprovalEntryID,
 		arg.SettlementMethodCode,
 		arg.SettlementMethodName,
 		arg.SettlementRuleType,
@@ -3106,7 +3109,7 @@ const insertVouSaleOrderFormula = `-- name: InsertVouSaleOrderFormula :exec
 INSERT INTO vou_sale_order_formulas (
     product_line_id, source_type, source_document_id, source_document_no,
     output_entered_quantity_micros, output_entered_unit_object_id,
-    output_entered_unit_version_id, output_entered_unit_code,
+    output_entered_unit_approval_entry_id, output_entered_unit_code,
     output_entered_unit_name, output_entered_unit_symbol, output_base_quantity_micros
 ) VALUES (
     $1, $2,
@@ -3119,17 +3122,17 @@ INSERT INTO vou_sale_order_formulas (
 `
 
 type InsertVouSaleOrderFormulaParams struct {
-	ProductLineID               string  `db:"product_line_id" json:"product_line_id"`
-	SourceType                  string  `db:"source_type" json:"source_type"`
-	SourceDocumentID            *string `db:"source_document_id" json:"source_document_id"`
-	SourceDocumentNo            *string `db:"source_document_no" json:"source_document_no"`
-	OutputEnteredQuantityMicros int64   `db:"output_entered_quantity_micros" json:"output_entered_quantity_micros"`
-	OutputEnteredUnitObjectID   string  `db:"output_entered_unit_object_id" json:"output_entered_unit_object_id"`
-	OutputEnteredUnitVersionID  string  `db:"output_entered_unit_version_id" json:"output_entered_unit_version_id"`
-	OutputEnteredUnitCode       string  `db:"output_entered_unit_code" json:"output_entered_unit_code"`
-	OutputEnteredUnitName       string  `db:"output_entered_unit_name" json:"output_entered_unit_name"`
-	OutputEnteredUnitSymbol     string  `db:"output_entered_unit_symbol" json:"output_entered_unit_symbol"`
-	OutputBaseQuantityMicros    int64   `db:"output_base_quantity_micros" json:"output_base_quantity_micros"`
+	ProductLineID                    string  `db:"product_line_id" json:"product_line_id"`
+	SourceType                       string  `db:"source_type" json:"source_type"`
+	SourceDocumentID                 *string `db:"source_document_id" json:"source_document_id"`
+	SourceDocumentNo                 *string `db:"source_document_no" json:"source_document_no"`
+	OutputEnteredQuantityMicros      int64   `db:"output_entered_quantity_micros" json:"output_entered_quantity_micros"`
+	OutputEnteredUnitObjectID        string  `db:"output_entered_unit_object_id" json:"output_entered_unit_object_id"`
+	OutputEnteredUnitApprovalEntryID string  `db:"output_entered_unit_approval_entry_id" json:"output_entered_unit_approval_entry_id"`
+	OutputEnteredUnitCode            string  `db:"output_entered_unit_code" json:"output_entered_unit_code"`
+	OutputEnteredUnitName            string  `db:"output_entered_unit_name" json:"output_entered_unit_name"`
+	OutputEnteredUnitSymbol          string  `db:"output_entered_unit_symbol" json:"output_entered_unit_symbol"`
+	OutputBaseQuantityMicros         int64   `db:"output_base_quantity_micros" json:"output_base_quantity_micros"`
 }
 
 func (q *Queries) InsertVouSaleOrderFormula(ctx context.Context, arg InsertVouSaleOrderFormulaParams) error {
@@ -3140,7 +3143,7 @@ func (q *Queries) InsertVouSaleOrderFormula(ctx context.Context, arg InsertVouSa
 		arg.SourceDocumentNo,
 		arg.OutputEnteredQuantityMicros,
 		arg.OutputEnteredUnitObjectID,
-		arg.OutputEnteredUnitVersionID,
+		arg.OutputEnteredUnitApprovalEntryID,
 		arg.OutputEnteredUnitCode,
 		arg.OutputEnteredUnitName,
 		arg.OutputEnteredUnitSymbol,
@@ -3151,9 +3154,9 @@ func (q *Queries) InsertVouSaleOrderFormula(ctx context.Context, arg InsertVouSa
 
 const insertVouSaleOrderFormulaLine = `-- name: InsertVouSaleOrderFormulaLine :exec
 INSERT INTO vou_sale_order_formula_lines (
-    product_line_id, line_no, material_object_id, material_version_id,
+    product_line_id, line_no, material_object_id, material_approval_entry_id,
     material_code, material_name, entered_quantity_micros,
-    entered_unit_object_id, entered_unit_version_id, entered_unit_code,
+    entered_unit_object_id, entered_unit_approval_entry_id, entered_unit_code,
     entered_unit_name, entered_unit_symbol, base_quantity_micros
 ) VALUES (
     $1, $2, $3,
@@ -3166,19 +3169,19 @@ INSERT INTO vou_sale_order_formula_lines (
 `
 
 type InsertVouSaleOrderFormulaLineParams struct {
-	ProductLineID         string `db:"product_line_id" json:"product_line_id"`
-	LineNo                int32  `db:"line_no" json:"line_no"`
-	MaterialObjectID      string `db:"material_object_id" json:"material_object_id"`
-	MaterialVersionID     string `db:"material_version_id" json:"material_version_id"`
-	MaterialCode          string `db:"material_code" json:"material_code"`
-	MaterialName          string `db:"material_name" json:"material_name"`
-	EnteredQuantityMicros int64  `db:"entered_quantity_micros" json:"entered_quantity_micros"`
-	EnteredUnitObjectID   string `db:"entered_unit_object_id" json:"entered_unit_object_id"`
-	EnteredUnitVersionID  string `db:"entered_unit_version_id" json:"entered_unit_version_id"`
-	EnteredUnitCode       string `db:"entered_unit_code" json:"entered_unit_code"`
-	EnteredUnitName       string `db:"entered_unit_name" json:"entered_unit_name"`
-	EnteredUnitSymbol     string `db:"entered_unit_symbol" json:"entered_unit_symbol"`
-	BaseQuantityMicros    int64  `db:"base_quantity_micros" json:"base_quantity_micros"`
+	ProductLineID              string `db:"product_line_id" json:"product_line_id"`
+	LineNo                     int32  `db:"line_no" json:"line_no"`
+	MaterialObjectID           string `db:"material_object_id" json:"material_object_id"`
+	MaterialApprovalEntryID    string `db:"material_approval_entry_id" json:"material_approval_entry_id"`
+	MaterialCode               string `db:"material_code" json:"material_code"`
+	MaterialName               string `db:"material_name" json:"material_name"`
+	EnteredQuantityMicros      int64  `db:"entered_quantity_micros" json:"entered_quantity_micros"`
+	EnteredUnitObjectID        string `db:"entered_unit_object_id" json:"entered_unit_object_id"`
+	EnteredUnitApprovalEntryID string `db:"entered_unit_approval_entry_id" json:"entered_unit_approval_entry_id"`
+	EnteredUnitCode            string `db:"entered_unit_code" json:"entered_unit_code"`
+	EnteredUnitName            string `db:"entered_unit_name" json:"entered_unit_name"`
+	EnteredUnitSymbol          string `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BaseQuantityMicros         int64  `db:"base_quantity_micros" json:"base_quantity_micros"`
 }
 
 func (q *Queries) InsertVouSaleOrderFormulaLine(ctx context.Context, arg InsertVouSaleOrderFormulaLineParams) error {
@@ -3186,12 +3189,12 @@ func (q *Queries) InsertVouSaleOrderFormulaLine(ctx context.Context, arg InsertV
 		arg.ProductLineID,
 		arg.LineNo,
 		arg.MaterialObjectID,
-		arg.MaterialVersionID,
+		arg.MaterialApprovalEntryID,
 		arg.MaterialCode,
 		arg.MaterialName,
 		arg.EnteredQuantityMicros,
 		arg.EnteredUnitObjectID,
-		arg.EnteredUnitVersionID,
+		arg.EnteredUnitApprovalEntryID,
 		arg.EnteredUnitCode,
 		arg.EnteredUnitName,
 		arg.EnteredUnitSymbol,
@@ -3213,8 +3216,8 @@ func (q *Queries) InsertVouSalePricingDetail(ctx context.Context, documentID str
 const insertVouSaleReturnDetail = `-- name: InsertVouSaleReturnDetail :exec
 INSERT INTO vou_sale_return_details(
     document_id,source_order_id,source_signoff_id,return_kind,return_reason,
-    customer_object_id,customer_version_id,customer_code,customer_name,
-    warehouse_object_id,warehouse_version_id,warehouse_code,warehouse_name
+    customer_object_id,customer_approval_entry_id,customer_code,customer_name,
+    warehouse_object_id,warehouse_approval_entry_id,warehouse_code,warehouse_name
 ) VALUES(
     $1,$2,$3,
     $4,$5,$6,
@@ -3225,19 +3228,19 @@ INSERT INTO vou_sale_return_details(
 `
 
 type InsertVouSaleReturnDetailParams struct {
-	DocumentID         string  `db:"document_id" json:"document_id"`
-	SourceOrderID      string  `db:"source_order_id" json:"source_order_id"`
-	SourceSignoffID    *string `db:"source_signoff_id" json:"source_signoff_id"`
-	ReturnKind         string  `db:"return_kind" json:"return_kind"`
-	ReturnReason       string  `db:"return_reason" json:"return_reason"`
-	CustomerObjectID   string  `db:"customer_object_id" json:"customer_object_id"`
-	CustomerVersionID  string  `db:"customer_version_id" json:"customer_version_id"`
-	CustomerCode       string  `db:"customer_code" json:"customer_code"`
-	CustomerName       string  `db:"customer_name" json:"customer_name"`
-	WarehouseObjectID  string  `db:"warehouse_object_id" json:"warehouse_object_id"`
-	WarehouseVersionID string  `db:"warehouse_version_id" json:"warehouse_version_id"`
-	WarehouseCode      string  `db:"warehouse_code" json:"warehouse_code"`
-	WarehouseName      string  `db:"warehouse_name" json:"warehouse_name"`
+	DocumentID               string  `db:"document_id" json:"document_id"`
+	SourceOrderID            string  `db:"source_order_id" json:"source_order_id"`
+	SourceSignoffID          *string `db:"source_signoff_id" json:"source_signoff_id"`
+	ReturnKind               string  `db:"return_kind" json:"return_kind"`
+	ReturnReason             string  `db:"return_reason" json:"return_reason"`
+	CustomerObjectID         string  `db:"customer_object_id" json:"customer_object_id"`
+	CustomerApprovalEntryID  string  `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	CustomerCode             string  `db:"customer_code" json:"customer_code"`
+	CustomerName             string  `db:"customer_name" json:"customer_name"`
+	WarehouseObjectID        string  `db:"warehouse_object_id" json:"warehouse_object_id"`
+	WarehouseApprovalEntryID string  `db:"warehouse_approval_entry_id" json:"warehouse_approval_entry_id"`
+	WarehouseCode            string  `db:"warehouse_code" json:"warehouse_code"`
+	WarehouseName            string  `db:"warehouse_name" json:"warehouse_name"`
 }
 
 func (q *Queries) InsertVouSaleReturnDetail(ctx context.Context, arg InsertVouSaleReturnDetailParams) error {
@@ -3248,11 +3251,11 @@ func (q *Queries) InsertVouSaleReturnDetail(ctx context.Context, arg InsertVouSa
 		arg.ReturnKind,
 		arg.ReturnReason,
 		arg.CustomerObjectID,
-		arg.CustomerVersionID,
+		arg.CustomerApprovalEntryID,
 		arg.CustomerCode,
 		arg.CustomerName,
 		arg.WarehouseObjectID,
-		arg.WarehouseVersionID,
+		arg.WarehouseApprovalEntryID,
 		arg.WarehouseCode,
 		arg.WarehouseName,
 	)
@@ -3262,7 +3265,7 @@ func (q *Queries) InsertVouSaleReturnDetail(ctx context.Context, arg InsertVouSa
 const insertVouSaleReturnLine = `-- name: InsertVouSaleReturnLine :exec
 INSERT INTO vou_sale_return_lines(
     id,document_id,source_signoff_line_id,source_signoff_id,line_no,
-    product_object_id,product_version_id,product_code,product_name,entered_unit_symbol,
+    product_object_id,product_approval_entry_id,product_code,product_name,entered_unit_symbol,
     base_quantity_micros,unit_price_cents,line_amount_cents,remark
 ) VALUES(
     $1,$2,$3,
@@ -3274,20 +3277,20 @@ INSERT INTO vou_sale_return_lines(
 `
 
 type InsertVouSaleReturnLineParams struct {
-	ID                  string  `db:"id" json:"id"`
-	DocumentID          string  `db:"document_id" json:"document_id"`
-	SourceSignoffLineID string  `db:"source_signoff_line_id" json:"source_signoff_line_id"`
-	SourceSignoffID     string  `db:"source_signoff_id" json:"source_signoff_id"`
-	LineNo              int32   `db:"line_no" json:"line_no"`
-	ProductObjectID     string  `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID    string  `db:"product_version_id" json:"product_version_id"`
-	ProductCode         string  `db:"product_code" json:"product_code"`
-	ProductName         string  `db:"product_name" json:"product_name"`
-	EnteredUnitSymbol   string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
-	BaseQuantityMicros  int64   `db:"base_quantity_micros" json:"base_quantity_micros"`
-	UnitPriceCents      int64   `db:"unit_price_cents" json:"unit_price_cents"`
-	LineAmountCents     int64   `db:"line_amount_cents" json:"line_amount_cents"`
-	Remark              *string `db:"remark" json:"remark"`
+	ID                     string  `db:"id" json:"id"`
+	DocumentID             string  `db:"document_id" json:"document_id"`
+	SourceSignoffLineID    string  `db:"source_signoff_line_id" json:"source_signoff_line_id"`
+	SourceSignoffID        string  `db:"source_signoff_id" json:"source_signoff_id"`
+	LineNo                 int32   `db:"line_no" json:"line_no"`
+	ProductObjectID        string  `db:"product_object_id" json:"product_object_id"`
+	ProductApprovalEntryID string  `db:"product_approval_entry_id" json:"product_approval_entry_id"`
+	ProductCode            string  `db:"product_code" json:"product_code"`
+	ProductName            string  `db:"product_name" json:"product_name"`
+	EnteredUnitSymbol      string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BaseQuantityMicros     int64   `db:"base_quantity_micros" json:"base_quantity_micros"`
+	UnitPriceCents         int64   `db:"unit_price_cents" json:"unit_price_cents"`
+	LineAmountCents        int64   `db:"line_amount_cents" json:"line_amount_cents"`
+	Remark                 *string `db:"remark" json:"remark"`
 }
 
 func (q *Queries) InsertVouSaleReturnLine(ctx context.Context, arg InsertVouSaleReturnLineParams) error {
@@ -3298,7 +3301,7 @@ func (q *Queries) InsertVouSaleReturnLine(ctx context.Context, arg InsertVouSale
 		arg.SourceSignoffID,
 		arg.LineNo,
 		arg.ProductObjectID,
-		arg.ProductVersionID,
+		arg.ProductApprovalEntryID,
 		arg.ProductCode,
 		arg.ProductName,
 		arg.EnteredUnitSymbol,
@@ -3330,7 +3333,7 @@ func (q *Queries) IsVouDocumentInClosedPeriod(ctx context.Context, id string) (b
 
 const isVouSaleDeliveryReady = `-- name: IsVouSaleDeliveryReady :one
 SELECT x.carrier_type IN ('INTERNAL','EXTERNAL')
-       AND x.vehicle_object_id IS NOT NULL AND x.vehicle_version_id IS NOT NULL
+       AND x.vehicle_object_id IS NOT NULL AND x.vehicle_approval_entry_id IS NOT NULL
 FROM vou_sale_delivery_details x WHERE x.document_id=$1
 `
 
@@ -3342,7 +3345,7 @@ func (q *Queries) IsVouSaleDeliveryReady(ctx context.Context, documentID string)
 }
 
 const isVouSaleOutboundReady = `-- name: IsVouSaleOutboundReady :one
-SELECT x.warehouse_object_id IS NOT NULL AND x.warehouse_version_id IS NOT NULL
+SELECT x.warehouse_object_id IS NOT NULL AND x.warehouse_approval_entry_id IS NOT NULL
        AND EXISTS(SELECT 1 FROM vou_sale_outbound_lines l WHERE l.document_id=x.document_id AND l.base_quantity_micros>0)
 FROM vou_sale_outbound_details x WHERE x.document_id=$1
 `
@@ -3466,7 +3469,7 @@ func (q *Queries) ListGeneratedWorkflowChildrenForUpdate(ctx context.Context, pa
 }
 
 const listVouAssetAcquisitionLines = `-- name: ListVouAssetAcquisitionLines :many
-SELECT id, document_id, line_no, asset_name, specification, category_object_id, category_version_id, category_code, category_name, original_value_cents, useful_life_months, residual_rate_bps, department_object_id, department_version_id, department_code, department_name, custodian_object_id, custodian_version_id, custodian_code, custodian_name, location, remark FROM vou_asset_acquisition_lines WHERE document_id=$1 ORDER BY line_no
+SELECT id, document_id, line_no, asset_name, specification, category_object_id, category_approval_entry_id, category_code, category_name, original_value_cents, useful_life_months, residual_rate_bps, department_object_id, department_approval_entry_id, department_code, department_name, custodian_object_id, custodian_approval_entry_id, custodian_code, custodian_name, location, remark FROM vou_asset_acquisition_lines WHERE document_id=$1 ORDER BY line_no
 `
 
 func (q *Queries) ListVouAssetAcquisitionLines(ctx context.Context, documentID string) ([]VouAssetAcquisitionLine, error) {
@@ -3485,18 +3488,18 @@ func (q *Queries) ListVouAssetAcquisitionLines(ctx context.Context, documentID s
 			&i.AssetName,
 			&i.Specification,
 			&i.CategoryObjectID,
-			&i.CategoryVersionID,
+			&i.CategoryApprovalEntryID,
 			&i.CategoryCode,
 			&i.CategoryName,
 			&i.OriginalValueCents,
 			&i.UsefulLifeMonths,
 			&i.ResidualRateBps,
 			&i.DepartmentObjectID,
-			&i.DepartmentVersionID,
+			&i.DepartmentApprovalEntryID,
 			&i.DepartmentCode,
 			&i.DepartmentName,
 			&i.CustodianObjectID,
-			&i.CustodianVersionID,
+			&i.CustodianApprovalEntryID,
 			&i.CustodianCode,
 			&i.CustodianName,
 			&i.Location,
@@ -3688,7 +3691,7 @@ func (q *Queries) ListVouAuditEvents(ctx context.Context, arg ListVouAuditEvents
 }
 
 const listVouBillCashLines = `-- name: ListVouBillCashLines :many
-SELECT id, document_id, line_no, bill_line_id, fund_account_object_id, fund_account_version_id, fund_account_code, fund_account_name, direction, amount_type, amount_cents, remark FROM vou_bill_cash_lines WHERE document_id=$1 ORDER BY line_no
+SELECT id, document_id, line_no, bill_line_id, fund_account_object_id, fund_account_approval_entry_id, fund_account_code, fund_account_name, direction, amount_type, amount_cents, remark FROM vou_bill_cash_lines WHERE document_id=$1 ORDER BY line_no
 `
 
 func (q *Queries) ListVouBillCashLines(ctx context.Context, documentID string) ([]VouBillCashLine, error) {
@@ -3706,7 +3709,7 @@ func (q *Queries) ListVouBillCashLines(ctx context.Context, documentID string) (
 			&i.LineNo,
 			&i.BillLineID,
 			&i.FundAccountObjectID,
-			&i.FundAccountVersionID,
+			&i.FundAccountApprovalEntryID,
 			&i.FundAccountCode,
 			&i.FundAccountName,
 			&i.Direction,
@@ -3987,7 +3990,7 @@ func (q *Queries) ListVouExpenseLines(ctx context.Context, documentID string) ([
 
 const listVouInventoryCountBookBalances = `-- name: ListVouInventoryCountBookBalances :many
 SELECT entry.product_id AS product_object_id,
-       object.effective_version_id AS product_version_id,
+       product_entry.id AS product_approval_entry_id,
        object.code AS product_code,
        version.name AS product_name,
 	   conversion.unit_symbol AS entered_unit_symbol,
@@ -3995,13 +3998,18 @@ SELECT entry.product_id AS product_object_id,
 FROM acc_inventory_entries entry
 JOIN acc_books book ON book.id=entry.book_id AND book.control_book
 JOIN bob_objects object ON object.id=entry.product_id AND object.entity='product'
-JOIN bob_product_versions version ON version.version_id=object.effective_version_id
+JOIN LATERAL (
+  SELECT id FROM approval_entries
+  WHERE domain='bob' AND entity='product' AND subject_id=object.id AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) product_entry ON true
+JOIN bob_product_versions version ON version.approval_entry_id=product_entry.id
 JOIN bob_product_unit_conversions conversion
-  ON conversion.product_version_id=version.version_id
+  ON conversion.product_approval_entry_id=version.approval_entry_id
  AND conversion.unit_object_id=version.default_input_unit_id
 WHERE entry.warehouse_id=$1
   AND entry.business_date <= $2
-GROUP BY entry.product_id,object.effective_version_id,object.code,version.name,conversion.unit_symbol
+GROUP BY entry.product_id,product_entry.id,object.code,version.name,conversion.unit_symbol
 HAVING sum(entry.quantity_delta_micros) <> 0
 ORDER BY object.code,entry.product_id
 LIMIT $4 OFFSET $3
@@ -4015,12 +4023,12 @@ type ListVouInventoryCountBookBalancesParams struct {
 }
 
 type ListVouInventoryCountBookBalancesRow struct {
-	ProductObjectID    string  `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID   *string `db:"product_version_id" json:"product_version_id"`
-	ProductCode        string  `db:"product_code" json:"product_code"`
-	ProductName        string  `db:"product_name" json:"product_name"`
-	EnteredUnitSymbol  string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
-	BaseQuantityMicros int64   `db:"base_quantity_micros" json:"base_quantity_micros"`
+	ProductObjectID        string `db:"product_object_id" json:"product_object_id"`
+	ProductApprovalEntryID string `db:"product_approval_entry_id" json:"product_approval_entry_id"`
+	ProductCode            string `db:"product_code" json:"product_code"`
+	ProductName            string `db:"product_name" json:"product_name"`
+	EnteredUnitSymbol      string `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BaseQuantityMicros     int64  `db:"base_quantity_micros" json:"base_quantity_micros"`
 }
 
 func (q *Queries) ListVouInventoryCountBookBalances(ctx context.Context, arg ListVouInventoryCountBookBalancesParams) ([]ListVouInventoryCountBookBalancesRow, error) {
@@ -4039,7 +4047,7 @@ func (q *Queries) ListVouInventoryCountBookBalances(ctx context.Context, arg Lis
 		var i ListVouInventoryCountBookBalancesRow
 		if err := rows.Scan(
 			&i.ProductObjectID,
-			&i.ProductVersionID,
+			&i.ProductApprovalEntryID,
 			&i.ProductCode,
 			&i.ProductName,
 			&i.EnteredUnitSymbol,
@@ -4056,7 +4064,7 @@ func (q *Queries) ListVouInventoryCountBookBalances(ctx context.Context, arg Lis
 }
 
 const listVouInventoryCountLines = `-- name: ListVouInventoryCountLines :many
-SELECT id, document_id, line_no, product_object_id, product_version_id, product_code, product_name, entered_unit_symbol, actual_base_quantity_micros, book_base_quantity_micros, difference_base_quantity_micros, remark, entered_quantity_micros, entered_unit_object_id, entered_unit_version_id, entered_unit_code, entered_unit_name FROM vou_inventory_count_lines
+SELECT id, document_id, line_no, product_object_id, product_approval_entry_id, product_code, product_name, entered_unit_symbol, actual_base_quantity_micros, book_base_quantity_micros, difference_base_quantity_micros, remark, entered_quantity_micros, entered_unit_object_id, entered_unit_approval_entry_id, entered_unit_code, entered_unit_name FROM vou_inventory_count_lines
 WHERE document_id=$1 ORDER BY line_no
 `
 
@@ -4074,7 +4082,7 @@ func (q *Queries) ListVouInventoryCountLines(ctx context.Context, documentID str
 			&i.DocumentID,
 			&i.LineNo,
 			&i.ProductObjectID,
-			&i.ProductVersionID,
+			&i.ProductApprovalEntryID,
 			&i.ProductCode,
 			&i.ProductName,
 			&i.EnteredUnitSymbol,
@@ -4084,7 +4092,7 @@ func (q *Queries) ListVouInventoryCountLines(ctx context.Context, documentID str
 			&i.Remark,
 			&i.EnteredQuantityMicros,
 			&i.EnteredUnitObjectID,
-			&i.EnteredUnitVersionID,
+			&i.EnteredUnitApprovalEntryID,
 			&i.EnteredUnitCode,
 			&i.EnteredUnitName,
 		); err != nil {
@@ -4099,7 +4107,7 @@ func (q *Queries) ListVouInventoryCountLines(ctx context.Context, documentID str
 }
 
 const listVouPriceLines = `-- name: ListVouPriceLines :many
-SELECT id, document_id, document_entity, line_no, product_object_id, product_version_id, product_code, product_name, default_input_unit_symbol, behavior_profile, unit_price_cents, remark, product_type_object_id, product_type_version_id, product_type_code, product_type_name FROM vou_price_lines WHERE document_id=$1 ORDER BY line_no
+SELECT id, document_id, document_entity, line_no, product_object_id, product_approval_entry_id, product_code, product_name, default_input_unit_symbol, behavior_profile, unit_price_cents, remark, product_type_object_id, product_type_approval_entry_id, product_type_code, product_type_name FROM vou_price_lines WHERE document_id=$1 ORDER BY line_no
 `
 
 func (q *Queries) ListVouPriceLines(ctx context.Context, documentID string) ([]VouPriceLine, error) {
@@ -4117,7 +4125,7 @@ func (q *Queries) ListVouPriceLines(ctx context.Context, documentID string) ([]V
 			&i.DocumentEntity,
 			&i.LineNo,
 			&i.ProductObjectID,
-			&i.ProductVersionID,
+			&i.ProductApprovalEntryID,
 			&i.ProductCode,
 			&i.ProductName,
 			&i.DefaultInputUnitSymbol,
@@ -4125,7 +4133,7 @@ func (q *Queries) ListVouPriceLines(ctx context.Context, documentID string) ([]V
 			&i.UnitPriceCents,
 			&i.Remark,
 			&i.ProductTypeObjectID,
-			&i.ProductTypeVersionID,
+			&i.ProductTypeApprovalEntryID,
 			&i.ProductTypeCode,
 			&i.ProductTypeName,
 		); err != nil {
@@ -4140,7 +4148,7 @@ func (q *Queries) ListVouPriceLines(ctx context.Context, documentID string) ([]V
 }
 
 const listVouProductLines = `-- name: ListVouProductLines :many
-SELECT id, document_id, document_entity, line_no, product_object_id, product_version_id, product_code, product_name, entered_unit_symbol, base_quantity_micros, unit_price_cents, line_amount_cents, outbound_base_quantity_micros, signed_base_quantity_micros, rejected_base_quantity_micros, loss_base_quantity_micros, inbound_base_quantity_micros, remark, purchase_unit_price_cents, base_unit_price_cents, settlement_surcharge_cents, behavior_profile, reference_unit_price_cents, reference_document_id, reference_document_no, reference_business_date, reference_line_id, entered_quantity_micros, entered_unit_object_id, entered_unit_version_id, entered_unit_code, entered_unit_name, product_type_object_id, product_type_version_id, product_type_code, product_type_name, default_packaging_spec_micros, delivery_specification_type FROM vou_product_lines WHERE document_id = $1 ORDER BY line_no
+SELECT id, document_id, document_entity, line_no, product_object_id, product_approval_entry_id, product_code, product_name, entered_unit_symbol, base_quantity_micros, unit_price_cents, line_amount_cents, outbound_base_quantity_micros, signed_base_quantity_micros, rejected_base_quantity_micros, loss_base_quantity_micros, inbound_base_quantity_micros, remark, purchase_unit_price_cents, base_unit_price_cents, settlement_surcharge_cents, behavior_profile, reference_unit_price_cents, reference_document_id, reference_document_no, reference_business_date, reference_line_id, entered_quantity_micros, entered_unit_object_id, entered_unit_approval_entry_id, entered_unit_code, entered_unit_name, product_type_object_id, product_type_approval_entry_id, product_type_code, product_type_name, default_packaging_spec_micros, delivery_specification_type FROM vou_product_lines WHERE document_id = $1 ORDER BY line_no
 `
 
 func (q *Queries) ListVouProductLines(ctx context.Context, documentID string) ([]VouProductLine, error) {
@@ -4158,7 +4166,7 @@ func (q *Queries) ListVouProductLines(ctx context.Context, documentID string) ([
 			&i.DocumentEntity,
 			&i.LineNo,
 			&i.ProductObjectID,
-			&i.ProductVersionID,
+			&i.ProductApprovalEntryID,
 			&i.ProductCode,
 			&i.ProductName,
 			&i.EnteredUnitSymbol,
@@ -4182,11 +4190,11 @@ func (q *Queries) ListVouProductLines(ctx context.Context, documentID string) ([
 			&i.ReferenceLineID,
 			&i.EnteredQuantityMicros,
 			&i.EnteredUnitObjectID,
-			&i.EnteredUnitVersionID,
+			&i.EnteredUnitApprovalEntryID,
 			&i.EnteredUnitCode,
 			&i.EnteredUnitName,
 			&i.ProductTypeObjectID,
-			&i.ProductTypeVersionID,
+			&i.ProductTypeApprovalEntryID,
 			&i.ProductTypeCode,
 			&i.ProductTypeName,
 			&i.DefaultPackagingSpecMicros,
@@ -4203,7 +4211,7 @@ func (q *Queries) ListVouProductLines(ctx context.Context, documentID string) ([
 }
 
 const listVouPurchaseInboundLines = `-- name: ListVouPurchaseInboundLines :many
-SELECT id, document_id, source_order_line_id, line_no, product_object_id, product_version_id, product_code, product_name, entered_unit_symbol, base_quantity_micros, unit_price_cents, line_amount_cents, remark FROM vou_purchase_inbound_lines
+SELECT id, document_id, source_order_line_id, line_no, product_object_id, product_approval_entry_id, product_code, product_name, entered_unit_symbol, base_quantity_micros, unit_price_cents, line_amount_cents, remark FROM vou_purchase_inbound_lines
 WHERE document_id = $1
 ORDER BY line_no
 `
@@ -4223,7 +4231,7 @@ func (q *Queries) ListVouPurchaseInboundLines(ctx context.Context, documentID st
 			&i.SourceOrderLineID,
 			&i.LineNo,
 			&i.ProductObjectID,
-			&i.ProductVersionID,
+			&i.ProductApprovalEntryID,
 			&i.ProductCode,
 			&i.ProductName,
 			&i.EnteredUnitSymbol,
@@ -4243,7 +4251,7 @@ func (q *Queries) ListVouPurchaseInboundLines(ctx context.Context, documentID st
 }
 
 const listVouRefusalReturnSourceLines = `-- name: ListVouRefusalReturnSourceLines :many
-SELECT id,product_object_id,product_version_id,product_code,product_name,entered_unit_symbol,
+SELECT id,product_object_id,product_approval_entry_id,product_code,product_name,entered_unit_symbol,
        rejected_base_quantity_micros,unit_price_cents,COALESCE(remark,'') AS remark
 FROM vou_sale_signoff_lines
 WHERE document_id=$1 AND rejected_base_quantity_micros>0
@@ -4253,7 +4261,7 @@ ORDER BY line_no
 type ListVouRefusalReturnSourceLinesRow struct {
 	ID                         string `db:"id" json:"id"`
 	ProductObjectID            string `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID           string `db:"product_version_id" json:"product_version_id"`
+	ProductApprovalEntryID     string `db:"product_approval_entry_id" json:"product_approval_entry_id"`
 	ProductCode                string `db:"product_code" json:"product_code"`
 	ProductName                string `db:"product_name" json:"product_name"`
 	EnteredUnitSymbol          string `db:"entered_unit_symbol" json:"entered_unit_symbol"`
@@ -4274,7 +4282,7 @@ func (q *Queries) ListVouRefusalReturnSourceLines(ctx context.Context, documentI
 		if err := rows.Scan(
 			&i.ID,
 			&i.ProductObjectID,
-			&i.ProductVersionID,
+			&i.ProductApprovalEntryID,
 			&i.ProductCode,
 			&i.ProductName,
 			&i.EnteredUnitSymbol,
@@ -4293,9 +4301,9 @@ func (q *Queries) ListVouRefusalReturnSourceLines(ctx context.Context, documentI
 }
 
 const listVouSaleOrderFormulaLines = `-- name: ListVouSaleOrderFormulaLines :many
-SELECT line_no, material_object_id, material_version_id, material_code,
+SELECT line_no, material_object_id, material_approval_entry_id, material_code,
        material_name, entered_quantity_micros, entered_unit_object_id,
-       entered_unit_version_id, entered_unit_code, entered_unit_name,
+       entered_unit_approval_entry_id, entered_unit_code, entered_unit_name,
        entered_unit_symbol, base_quantity_micros
 FROM vou_sale_order_formula_lines
 WHERE product_line_id = $1
@@ -4303,18 +4311,18 @@ ORDER BY line_no
 `
 
 type ListVouSaleOrderFormulaLinesRow struct {
-	LineNo                int32  `db:"line_no" json:"line_no"`
-	MaterialObjectID      string `db:"material_object_id" json:"material_object_id"`
-	MaterialVersionID     string `db:"material_version_id" json:"material_version_id"`
-	MaterialCode          string `db:"material_code" json:"material_code"`
-	MaterialName          string `db:"material_name" json:"material_name"`
-	EnteredQuantityMicros int64  `db:"entered_quantity_micros" json:"entered_quantity_micros"`
-	EnteredUnitObjectID   string `db:"entered_unit_object_id" json:"entered_unit_object_id"`
-	EnteredUnitVersionID  string `db:"entered_unit_version_id" json:"entered_unit_version_id"`
-	EnteredUnitCode       string `db:"entered_unit_code" json:"entered_unit_code"`
-	EnteredUnitName       string `db:"entered_unit_name" json:"entered_unit_name"`
-	EnteredUnitSymbol     string `db:"entered_unit_symbol" json:"entered_unit_symbol"`
-	BaseQuantityMicros    int64  `db:"base_quantity_micros" json:"base_quantity_micros"`
+	LineNo                     int32  `db:"line_no" json:"line_no"`
+	MaterialObjectID           string `db:"material_object_id" json:"material_object_id"`
+	MaterialApprovalEntryID    string `db:"material_approval_entry_id" json:"material_approval_entry_id"`
+	MaterialCode               string `db:"material_code" json:"material_code"`
+	MaterialName               string `db:"material_name" json:"material_name"`
+	EnteredQuantityMicros      int64  `db:"entered_quantity_micros" json:"entered_quantity_micros"`
+	EnteredUnitObjectID        string `db:"entered_unit_object_id" json:"entered_unit_object_id"`
+	EnteredUnitApprovalEntryID string `db:"entered_unit_approval_entry_id" json:"entered_unit_approval_entry_id"`
+	EnteredUnitCode            string `db:"entered_unit_code" json:"entered_unit_code"`
+	EnteredUnitName            string `db:"entered_unit_name" json:"entered_unit_name"`
+	EnteredUnitSymbol          string `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BaseQuantityMicros         int64  `db:"base_quantity_micros" json:"base_quantity_micros"`
 }
 
 func (q *Queries) ListVouSaleOrderFormulaLines(ctx context.Context, productLineID string) ([]ListVouSaleOrderFormulaLinesRow, error) {
@@ -4329,12 +4337,12 @@ func (q *Queries) ListVouSaleOrderFormulaLines(ctx context.Context, productLineI
 		if err := rows.Scan(
 			&i.LineNo,
 			&i.MaterialObjectID,
-			&i.MaterialVersionID,
+			&i.MaterialApprovalEntryID,
 			&i.MaterialCode,
 			&i.MaterialName,
 			&i.EnteredQuantityMicros,
 			&i.EnteredUnitObjectID,
-			&i.EnteredUnitVersionID,
+			&i.EnteredUnitApprovalEntryID,
 			&i.EnteredUnitCode,
 			&i.EnteredUnitName,
 			&i.EnteredUnitSymbol,
@@ -4352,7 +4360,7 @@ func (q *Queries) ListVouSaleOrderFormulaLines(ctx context.Context, productLineI
 
 const listVouSaleOutboundStateLines = `-- name: ListVouSaleOutboundStateLines :many
 SELECT id,source_order_line_id,line_no,
-       product_object_id,product_version_id,product_code,product_name,entered_unit_symbol,
+       product_object_id,product_approval_entry_id,product_code,product_name,entered_unit_symbol,
        base_quantity_micros,unit_price_cents,line_amount_cents,remark
 FROM vou_sale_outbound_lines
 WHERE document_id=$1
@@ -4360,18 +4368,18 @@ ORDER BY line_no
 `
 
 type ListVouSaleOutboundStateLinesRow struct {
-	ID                 string  `db:"id" json:"id"`
-	SourceOrderLineID  string  `db:"source_order_line_id" json:"source_order_line_id"`
-	LineNo             int32   `db:"line_no" json:"line_no"`
-	ProductObjectID    string  `db:"product_object_id" json:"product_object_id"`
-	ProductVersionID   string  `db:"product_version_id" json:"product_version_id"`
-	ProductCode        string  `db:"product_code" json:"product_code"`
-	ProductName        string  `db:"product_name" json:"product_name"`
-	EnteredUnitSymbol  string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
-	BaseQuantityMicros int64   `db:"base_quantity_micros" json:"base_quantity_micros"`
-	UnitPriceCents     int64   `db:"unit_price_cents" json:"unit_price_cents"`
-	LineAmountCents    int64   `db:"line_amount_cents" json:"line_amount_cents"`
-	Remark             *string `db:"remark" json:"remark"`
+	ID                     string  `db:"id" json:"id"`
+	SourceOrderLineID      string  `db:"source_order_line_id" json:"source_order_line_id"`
+	LineNo                 int32   `db:"line_no" json:"line_no"`
+	ProductObjectID        string  `db:"product_object_id" json:"product_object_id"`
+	ProductApprovalEntryID string  `db:"product_approval_entry_id" json:"product_approval_entry_id"`
+	ProductCode            string  `db:"product_code" json:"product_code"`
+	ProductName            string  `db:"product_name" json:"product_name"`
+	EnteredUnitSymbol      string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	BaseQuantityMicros     int64   `db:"base_quantity_micros" json:"base_quantity_micros"`
+	UnitPriceCents         int64   `db:"unit_price_cents" json:"unit_price_cents"`
+	LineAmountCents        int64   `db:"line_amount_cents" json:"line_amount_cents"`
+	Remark                 *string `db:"remark" json:"remark"`
 }
 
 func (q *Queries) ListVouSaleOutboundStateLines(ctx context.Context, documentID string) ([]ListVouSaleOutboundStateLinesRow, error) {
@@ -4388,7 +4396,7 @@ func (q *Queries) ListVouSaleOutboundStateLines(ctx context.Context, documentID 
 			&i.SourceOrderLineID,
 			&i.LineNo,
 			&i.ProductObjectID,
-			&i.ProductVersionID,
+			&i.ProductApprovalEntryID,
 			&i.ProductCode,
 			&i.ProductName,
 			&i.EnteredUnitSymbol,
@@ -4700,8 +4708,8 @@ func (q *Queries) LockVouDocumentStatusForShare(ctx context.Context, documentID 
 
 const lockVouRefusalReturnSource = `-- name: LockVouRefusalReturnSource :one
 SELECT detail.source_order_id,document.business_date,document.status,document.currency,
-       detail.customer_object_id,detail.customer_version_id,detail.customer_code,detail.customer_name,
-       detail.warehouse_object_id,detail.warehouse_version_id,detail.warehouse_code,detail.warehouse_name
+       detail.customer_object_id,detail.customer_approval_entry_id,detail.customer_code,detail.customer_name,
+       detail.warehouse_object_id,detail.warehouse_approval_entry_id,detail.warehouse_code,detail.warehouse_name
 FROM vou_sale_signoff_details detail
 JOIN vou_documents document ON document.id=detail.document_id
 WHERE detail.document_id=$1
@@ -4709,18 +4717,18 @@ FOR UPDATE OF document
 `
 
 type LockVouRefusalReturnSourceRow struct {
-	SourceOrderID      string      `db:"source_order_id" json:"source_order_id"`
-	BusinessDate       pgtype.Date `db:"business_date" json:"business_date"`
-	Status             string      `db:"status" json:"status"`
-	Currency           *string     `db:"currency" json:"currency"`
-	CustomerObjectID   string      `db:"customer_object_id" json:"customer_object_id"`
-	CustomerVersionID  string      `db:"customer_version_id" json:"customer_version_id"`
-	CustomerCode       string      `db:"customer_code" json:"customer_code"`
-	CustomerName       string      `db:"customer_name" json:"customer_name"`
-	WarehouseObjectID  string      `db:"warehouse_object_id" json:"warehouse_object_id"`
-	WarehouseVersionID string      `db:"warehouse_version_id" json:"warehouse_version_id"`
-	WarehouseCode      string      `db:"warehouse_code" json:"warehouse_code"`
-	WarehouseName      string      `db:"warehouse_name" json:"warehouse_name"`
+	SourceOrderID            string      `db:"source_order_id" json:"source_order_id"`
+	BusinessDate             pgtype.Date `db:"business_date" json:"business_date"`
+	Status                   string      `db:"status" json:"status"`
+	Currency                 *string     `db:"currency" json:"currency"`
+	CustomerObjectID         string      `db:"customer_object_id" json:"customer_object_id"`
+	CustomerApprovalEntryID  string      `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	CustomerCode             string      `db:"customer_code" json:"customer_code"`
+	CustomerName             string      `db:"customer_name" json:"customer_name"`
+	WarehouseObjectID        string      `db:"warehouse_object_id" json:"warehouse_object_id"`
+	WarehouseApprovalEntryID string      `db:"warehouse_approval_entry_id" json:"warehouse_approval_entry_id"`
+	WarehouseCode            string      `db:"warehouse_code" json:"warehouse_code"`
+	WarehouseName            string      `db:"warehouse_name" json:"warehouse_name"`
 }
 
 func (q *Queries) LockVouRefusalReturnSource(ctx context.Context, documentID string) (LockVouRefusalReturnSourceRow, error) {
@@ -4732,11 +4740,11 @@ func (q *Queries) LockVouRefusalReturnSource(ctx context.Context, documentID str
 		&i.Status,
 		&i.Currency,
 		&i.CustomerObjectID,
-		&i.CustomerVersionID,
+		&i.CustomerApprovalEntryID,
 		&i.CustomerCode,
 		&i.CustomerName,
 		&i.WarehouseObjectID,
-		&i.WarehouseVersionID,
+		&i.WarehouseApprovalEntryID,
 		&i.WarehouseCode,
 		&i.WarehouseName,
 	)
@@ -4745,23 +4753,23 @@ func (q *Queries) LockVouRefusalReturnSource(ctx context.Context, documentID str
 
 const lockVouSaleDeliveryCarrierSnapshot = `-- name: LockVouSaleDeliveryCarrierSnapshot :one
 SELECT source_outbound_id,carrier_type,
-       carrier_operating_entity_object_id,carrier_operating_entity_version_id,
-       carrier_service_relationship_object_id,carrier_service_relationship_version_id,
-       vehicle_object_id,vehicle_version_id
+       carrier_operating_entity_object_id,carrier_operating_entity_approval_entry_id,
+       carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,
+       vehicle_object_id,vehicle_approval_entry_id
 FROM vou_sale_delivery_details
 WHERE document_id=$1
 FOR UPDATE
 `
 
 type LockVouSaleDeliveryCarrierSnapshotRow struct {
-	SourceOutboundID                    string  `db:"source_outbound_id" json:"source_outbound_id"`
-	CarrierType                         string  `db:"carrier_type" json:"carrier_type"`
-	CarrierOperatingEntityObjectID      *string `db:"carrier_operating_entity_object_id" json:"carrier_operating_entity_object_id"`
-	CarrierOperatingEntityVersionID     *string `db:"carrier_operating_entity_version_id" json:"carrier_operating_entity_version_id"`
-	CarrierServiceRelationshipObjectID  *string `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
-	CarrierServiceRelationshipVersionID *string `db:"carrier_service_relationship_version_id" json:"carrier_service_relationship_version_id"`
-	VehicleObjectID                     *string `db:"vehicle_object_id" json:"vehicle_object_id"`
-	VehicleVersionID                    *string `db:"vehicle_version_id" json:"vehicle_version_id"`
+	SourceOutboundID                          string  `db:"source_outbound_id" json:"source_outbound_id"`
+	CarrierType                               string  `db:"carrier_type" json:"carrier_type"`
+	CarrierOperatingEntityObjectID            *string `db:"carrier_operating_entity_object_id" json:"carrier_operating_entity_object_id"`
+	CarrierOperatingEntityApprovalEntryID     *string `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
+	CarrierServiceRelationshipObjectID        *string `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
+	CarrierServiceRelationshipApprovalEntryID *string `db:"carrier_service_relationship_approval_entry_id" json:"carrier_service_relationship_approval_entry_id"`
+	VehicleObjectID                           *string `db:"vehicle_object_id" json:"vehicle_object_id"`
+	VehicleApprovalEntryID                    *string `db:"vehicle_approval_entry_id" json:"vehicle_approval_entry_id"`
 }
 
 func (q *Queries) LockVouSaleDeliveryCarrierSnapshot(ctx context.Context, documentID string) (LockVouSaleDeliveryCarrierSnapshotRow, error) {
@@ -4771,11 +4779,11 @@ func (q *Queries) LockVouSaleDeliveryCarrierSnapshot(ctx context.Context, docume
 		&i.SourceOutboundID,
 		&i.CarrierType,
 		&i.CarrierOperatingEntityObjectID,
-		&i.CarrierOperatingEntityVersionID,
+		&i.CarrierOperatingEntityApprovalEntryID,
 		&i.CarrierServiceRelationshipObjectID,
-		&i.CarrierServiceRelationshipVersionID,
+		&i.CarrierServiceRelationshipApprovalEntryID,
 		&i.VehicleObjectID,
-		&i.VehicleVersionID,
+		&i.VehicleApprovalEntryID,
 	)
 	return i, err
 }
@@ -4783,9 +4791,9 @@ func (q *Queries) LockVouSaleDeliveryCarrierSnapshot(ctx context.Context, docume
 const lockVouSaleOutboundSource = `-- name: LockVouSaleOutboundSource :one
 SELECT document.document_no,document.status,document.business_date,
        COALESCE(document.currency,'') AS currency,document.total_amount_cents,
-       outbound.customer_object_id,outbound.customer_version_id,
+       outbound.customer_object_id,outbound.customer_approval_entry_id,
        outbound.customer_code,outbound.customer_name,
-       outbound.warehouse_object_id,outbound.warehouse_version_id,
+       outbound.warehouse_object_id,outbound.warehouse_approval_entry_id,
        outbound.warehouse_code,outbound.warehouse_name,
        relationship.operating_entity_id
 FROM vou_documents AS document
@@ -4797,20 +4805,20 @@ FOR UPDATE OF document,outbound
 `
 
 type LockVouSaleOutboundSourceRow struct {
-	DocumentNo         string      `db:"document_no" json:"document_no"`
-	Status             string      `db:"status" json:"status"`
-	BusinessDate       pgtype.Date `db:"business_date" json:"business_date"`
-	Currency           string      `db:"currency" json:"currency"`
-	TotalAmountCents   int64       `db:"total_amount_cents" json:"total_amount_cents"`
-	CustomerObjectID   string      `db:"customer_object_id" json:"customer_object_id"`
-	CustomerVersionID  string      `db:"customer_version_id" json:"customer_version_id"`
-	CustomerCode       string      `db:"customer_code" json:"customer_code"`
-	CustomerName       string      `db:"customer_name" json:"customer_name"`
-	WarehouseObjectID  *string     `db:"warehouse_object_id" json:"warehouse_object_id"`
-	WarehouseVersionID *string     `db:"warehouse_version_id" json:"warehouse_version_id"`
-	WarehouseCode      *string     `db:"warehouse_code" json:"warehouse_code"`
-	WarehouseName      *string     `db:"warehouse_name" json:"warehouse_name"`
-	OperatingEntityID  string      `db:"operating_entity_id" json:"operating_entity_id"`
+	DocumentNo               string      `db:"document_no" json:"document_no"`
+	Status                   string      `db:"status" json:"status"`
+	BusinessDate             pgtype.Date `db:"business_date" json:"business_date"`
+	Currency                 string      `db:"currency" json:"currency"`
+	TotalAmountCents         int64       `db:"total_amount_cents" json:"total_amount_cents"`
+	CustomerObjectID         string      `db:"customer_object_id" json:"customer_object_id"`
+	CustomerApprovalEntryID  string      `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	CustomerCode             string      `db:"customer_code" json:"customer_code"`
+	CustomerName             string      `db:"customer_name" json:"customer_name"`
+	WarehouseObjectID        *string     `db:"warehouse_object_id" json:"warehouse_object_id"`
+	WarehouseApprovalEntryID *string     `db:"warehouse_approval_entry_id" json:"warehouse_approval_entry_id"`
+	WarehouseCode            *string     `db:"warehouse_code" json:"warehouse_code"`
+	WarehouseName            *string     `db:"warehouse_name" json:"warehouse_name"`
+	OperatingEntityID        string      `db:"operating_entity_id" json:"operating_entity_id"`
 }
 
 func (q *Queries) LockVouSaleOutboundSource(ctx context.Context, documentID string) (LockVouSaleOutboundSourceRow, error) {
@@ -4823,11 +4831,11 @@ func (q *Queries) LockVouSaleOutboundSource(ctx context.Context, documentID stri
 		&i.Currency,
 		&i.TotalAmountCents,
 		&i.CustomerObjectID,
-		&i.CustomerVersionID,
+		&i.CustomerApprovalEntryID,
 		&i.CustomerCode,
 		&i.CustomerName,
 		&i.WarehouseObjectID,
-		&i.WarehouseVersionID,
+		&i.WarehouseApprovalEntryID,
 		&i.WarehouseCode,
 		&i.WarehouseName,
 		&i.OperatingEntityID,
@@ -4847,7 +4855,7 @@ func (q *Queries) LockVouSettlementBalance(ctx context.Context, lockKey string) 
 const lockWorkflowExpenseReimbursement = `-- name: LockWorkflowExpenseReimbursement :one
 SELECT d.id,d.entity,d.document_no,d.status,d.revision,d.business_date,d.currency,
        d.total_amount_cents,d.remark,d.created_at,d.created_by,d.updated_at,d.updated_by,
-       x.employee_object_id,x.employee_version_id,x.employee_code,x.employee_name
+       x.employee_object_id,x.employee_approval_entry_id,x.employee_code,x.employee_name
 FROM vou_documents d
 JOIN vou_expense_reimbursement_details x ON x.document_id=d.id
 WHERE d.id=$1
@@ -4855,23 +4863,23 @@ FOR UPDATE OF d
 `
 
 type LockWorkflowExpenseReimbursementRow struct {
-	ID                string             `db:"id" json:"id"`
-	Entity            string             `db:"entity" json:"entity"`
-	DocumentNo        string             `db:"document_no" json:"document_no"`
-	Status            string             `db:"status" json:"status"`
-	Revision          int64              `db:"revision" json:"revision"`
-	BusinessDate      pgtype.Date        `db:"business_date" json:"business_date"`
-	Currency          *string            `db:"currency" json:"currency"`
-	TotalAmountCents  int64              `db:"total_amount_cents" json:"total_amount_cents"`
-	Remark            *string            `db:"remark" json:"remark"`
-	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy         string             `db:"created_by" json:"created_by"`
-	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy         string             `db:"updated_by" json:"updated_by"`
-	EmployeeObjectID  string             `db:"employee_object_id" json:"employee_object_id"`
-	EmployeeVersionID string             `db:"employee_version_id" json:"employee_version_id"`
-	EmployeeCode      string             `db:"employee_code" json:"employee_code"`
-	EmployeeName      string             `db:"employee_name" json:"employee_name"`
+	ID                      string             `db:"id" json:"id"`
+	Entity                  string             `db:"entity" json:"entity"`
+	DocumentNo              string             `db:"document_no" json:"document_no"`
+	Status                  string             `db:"status" json:"status"`
+	Revision                int64              `db:"revision" json:"revision"`
+	BusinessDate            pgtype.Date        `db:"business_date" json:"business_date"`
+	Currency                *string            `db:"currency" json:"currency"`
+	TotalAmountCents        int64              `db:"total_amount_cents" json:"total_amount_cents"`
+	Remark                  *string            `db:"remark" json:"remark"`
+	CreatedAt               pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy               string             `db:"created_by" json:"created_by"`
+	UpdatedAt               pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy               string             `db:"updated_by" json:"updated_by"`
+	EmployeeObjectID        string             `db:"employee_object_id" json:"employee_object_id"`
+	EmployeeApprovalEntryID string             `db:"employee_approval_entry_id" json:"employee_approval_entry_id"`
+	EmployeeCode            string             `db:"employee_code" json:"employee_code"`
+	EmployeeName            string             `db:"employee_name" json:"employee_name"`
 }
 
 func (q *Queries) LockWorkflowExpenseReimbursement(ctx context.Context, reimbursementID string) (LockWorkflowExpenseReimbursementRow, error) {
@@ -4892,7 +4900,7 @@ func (q *Queries) LockWorkflowExpenseReimbursement(ctx context.Context, reimburs
 		&i.UpdatedAt,
 		&i.UpdatedBy,
 		&i.EmployeeObjectID,
-		&i.EmployeeVersionID,
+		&i.EmployeeApprovalEntryID,
 		&i.EmployeeCode,
 		&i.EmployeeName,
 	)
@@ -5093,22 +5101,22 @@ func (q *Queries) UncheckVouDocument(ctx context.Context, arg UncheckVouDocument
 }
 
 const updateVouAssetAcquisitionDetail = `-- name: UpdateVouAssetAcquisitionDetail :execrows
-UPDATE vou_asset_acquisition_details SET supplier_object_id=$1,supplier_version_id=$2,supplier_code=$3,supplier_name=$4
+UPDATE vou_asset_acquisition_details SET supplier_object_id=$1,supplier_approval_entry_id=$2,supplier_code=$3,supplier_name=$4
 WHERE document_id=$5
 `
 
 type UpdateVouAssetAcquisitionDetailParams struct {
-	SupplierObjectID  string `db:"supplier_object_id" json:"supplier_object_id"`
-	SupplierVersionID string `db:"supplier_version_id" json:"supplier_version_id"`
-	SupplierCode      string `db:"supplier_code" json:"supplier_code"`
-	SupplierName      string `db:"supplier_name" json:"supplier_name"`
-	DocumentID        string `db:"document_id" json:"document_id"`
+	SupplierObjectID        string `db:"supplier_object_id" json:"supplier_object_id"`
+	SupplierApprovalEntryID string `db:"supplier_approval_entry_id" json:"supplier_approval_entry_id"`
+	SupplierCode            string `db:"supplier_code" json:"supplier_code"`
+	SupplierName            string `db:"supplier_name" json:"supplier_name"`
+	DocumentID              string `db:"document_id" json:"document_id"`
 }
 
 func (q *Queries) UpdateVouAssetAcquisitionDetail(ctx context.Context, arg UpdateVouAssetAcquisitionDetailParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateVouAssetAcquisitionDetail,
 		arg.SupplierObjectID,
-		arg.SupplierVersionID,
+		arg.SupplierApprovalEntryID,
 		arg.SupplierCode,
 		arg.SupplierName,
 		arg.DocumentID,
@@ -5120,24 +5128,24 @@ func (q *Queries) UpdateVouAssetAcquisitionDetail(ctx context.Context, arg Updat
 }
 
 const updateVouAssetSaleDetail = `-- name: UpdateVouAssetSaleDetail :execrows
-UPDATE vou_asset_sale_details SET counterparty_entity=$1,counterparty_object_id=$2,counterparty_version_id=$3,counterparty_code=$4,counterparty_name=$5
+UPDATE vou_asset_sale_details SET counterparty_entity=$1,counterparty_object_id=$2,counterparty_approval_entry_id=$3,counterparty_code=$4,counterparty_name=$5
 WHERE document_id=$6
 `
 
 type UpdateVouAssetSaleDetailParams struct {
-	CounterpartyEntity    string `db:"counterparty_entity" json:"counterparty_entity"`
-	CounterpartyObjectID  string `db:"counterparty_object_id" json:"counterparty_object_id"`
-	CounterpartyVersionID string `db:"counterparty_version_id" json:"counterparty_version_id"`
-	CounterpartyCode      string `db:"counterparty_code" json:"counterparty_code"`
-	CounterpartyName      string `db:"counterparty_name" json:"counterparty_name"`
-	DocumentID            string `db:"document_id" json:"document_id"`
+	CounterpartyEntity          string `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID        string `db:"counterparty_object_id" json:"counterparty_object_id"`
+	CounterpartyApprovalEntryID string `db:"counterparty_approval_entry_id" json:"counterparty_approval_entry_id"`
+	CounterpartyCode            string `db:"counterparty_code" json:"counterparty_code"`
+	CounterpartyName            string `db:"counterparty_name" json:"counterparty_name"`
+	DocumentID                  string `db:"document_id" json:"document_id"`
 }
 
 func (q *Queries) UpdateVouAssetSaleDetail(ctx context.Context, arg UpdateVouAssetSaleDetailParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateVouAssetSaleDetail,
 		arg.CounterpartyEntity,
 		arg.CounterpartyObjectID,
-		arg.CounterpartyVersionID,
+		arg.CounterpartyApprovalEntryID,
 		arg.CounterpartyCode,
 		arg.CounterpartyName,
 		arg.DocumentID,
@@ -5204,23 +5212,23 @@ func (q *Queries) UpdateVouDraft(ctx context.Context, arg UpdateVouDraftParams) 
 
 const updateVouEmployeeLoanWriteoffDetail = `-- name: UpdateVouEmployeeLoanWriteoffDetail :execrows
 UPDATE vou_employee_loan_writeoff_details
-SET employee_object_id=$1, employee_version_id=$2,
+SET employee_object_id=$1, employee_approval_entry_id=$2,
     employee_code=$3, employee_name=$4
 WHERE document_id=$5
 `
 
 type UpdateVouEmployeeLoanWriteoffDetailParams struct {
-	EmployeeObjectID  string `db:"employee_object_id" json:"employee_object_id"`
-	EmployeeVersionID string `db:"employee_version_id" json:"employee_version_id"`
-	EmployeeCode      string `db:"employee_code" json:"employee_code"`
-	EmployeeName      string `db:"employee_name" json:"employee_name"`
-	DocumentID        string `db:"document_id" json:"document_id"`
+	EmployeeObjectID        string `db:"employee_object_id" json:"employee_object_id"`
+	EmployeeApprovalEntryID string `db:"employee_approval_entry_id" json:"employee_approval_entry_id"`
+	EmployeeCode            string `db:"employee_code" json:"employee_code"`
+	EmployeeName            string `db:"employee_name" json:"employee_name"`
+	DocumentID              string `db:"document_id" json:"document_id"`
 }
 
 func (q *Queries) UpdateVouEmployeeLoanWriteoffDetail(ctx context.Context, arg UpdateVouEmployeeLoanWriteoffDetailParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateVouEmployeeLoanWriteoffDetail,
 		arg.EmployeeObjectID,
-		arg.EmployeeVersionID,
+		arg.EmployeeApprovalEntryID,
 		arg.EmployeeCode,
 		arg.EmployeeName,
 		arg.DocumentID,
@@ -5234,24 +5242,24 @@ func (q *Queries) UpdateVouEmployeeLoanWriteoffDetail(ctx context.Context, arg U
 const updateVouExpensePaymentFundAccount = `-- name: UpdateVouExpensePaymentFundAccount :execrows
 UPDATE vou_expense_payment_details
 SET fund_account_object_id=$1,
-    fund_account_version_id=$2,
+    fund_account_approval_entry_id=$2,
     fund_account_code=$3,
     fund_account_name=$4
 WHERE document_id=$5
 `
 
 type UpdateVouExpensePaymentFundAccountParams struct {
-	FundAccountObjectID  string `db:"fund_account_object_id" json:"fund_account_object_id"`
-	FundAccountVersionID string `db:"fund_account_version_id" json:"fund_account_version_id"`
-	FundAccountCode      string `db:"fund_account_code" json:"fund_account_code"`
-	FundAccountName      string `db:"fund_account_name" json:"fund_account_name"`
-	DocumentID           string `db:"document_id" json:"document_id"`
+	FundAccountObjectID        string `db:"fund_account_object_id" json:"fund_account_object_id"`
+	FundAccountApprovalEntryID string `db:"fund_account_approval_entry_id" json:"fund_account_approval_entry_id"`
+	FundAccountCode            string `db:"fund_account_code" json:"fund_account_code"`
+	FundAccountName            string `db:"fund_account_name" json:"fund_account_name"`
+	DocumentID                 string `db:"document_id" json:"document_id"`
 }
 
 func (q *Queries) UpdateVouExpensePaymentFundAccount(ctx context.Context, arg UpdateVouExpensePaymentFundAccountParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateVouExpensePaymentFundAccount,
 		arg.FundAccountObjectID,
-		arg.FundAccountVersionID,
+		arg.FundAccountApprovalEntryID,
 		arg.FundAccountCode,
 		arg.FundAccountName,
 		arg.DocumentID,
@@ -5264,23 +5272,23 @@ func (q *Queries) UpdateVouExpensePaymentFundAccount(ctx context.Context, arg Up
 
 const updateVouExpenseReimbursementDetail = `-- name: UpdateVouExpenseReimbursementDetail :execrows
 UPDATE vou_expense_reimbursement_details
-SET employee_object_id = $1, employee_version_id = $2,
+SET employee_object_id = $1, employee_approval_entry_id = $2,
     employee_code = $3, employee_name = $4
 WHERE document_id = $5
 `
 
 type UpdateVouExpenseReimbursementDetailParams struct {
-	EmployeeObjectID  string `db:"employee_object_id" json:"employee_object_id"`
-	EmployeeVersionID string `db:"employee_version_id" json:"employee_version_id"`
-	EmployeeCode      string `db:"employee_code" json:"employee_code"`
-	EmployeeName      string `db:"employee_name" json:"employee_name"`
-	DocumentID        string `db:"document_id" json:"document_id"`
+	EmployeeObjectID        string `db:"employee_object_id" json:"employee_object_id"`
+	EmployeeApprovalEntryID string `db:"employee_approval_entry_id" json:"employee_approval_entry_id"`
+	EmployeeCode            string `db:"employee_code" json:"employee_code"`
+	EmployeeName            string `db:"employee_name" json:"employee_name"`
+	DocumentID              string `db:"document_id" json:"document_id"`
 }
 
 func (q *Queries) UpdateVouExpenseReimbursementDetail(ctx context.Context, arg UpdateVouExpenseReimbursementDetailParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateVouExpenseReimbursementDetail,
 		arg.EmployeeObjectID,
-		arg.EmployeeVersionID,
+		arg.EmployeeApprovalEntryID,
 		arg.EmployeeCode,
 		arg.EmployeeName,
 		arg.DocumentID,
@@ -5294,23 +5302,23 @@ func (q *Queries) UpdateVouExpenseReimbursementDetail(ctx context.Context, arg U
 const updateVouInventoryCountDetail = `-- name: UpdateVouInventoryCountDetail :execrows
 UPDATE vou_inventory_count_details SET
     warehouse_object_id=$1,
-    warehouse_version_id=$2,
+    warehouse_approval_entry_id=$2,
     warehouse_code=$3,warehouse_name=$4
 WHERE document_id=$5
 `
 
 type UpdateVouInventoryCountDetailParams struct {
-	WarehouseObjectID  string `db:"warehouse_object_id" json:"warehouse_object_id"`
-	WarehouseVersionID string `db:"warehouse_version_id" json:"warehouse_version_id"`
-	WarehouseCode      string `db:"warehouse_code" json:"warehouse_code"`
-	WarehouseName      string `db:"warehouse_name" json:"warehouse_name"`
-	DocumentID         string `db:"document_id" json:"document_id"`
+	WarehouseObjectID        string `db:"warehouse_object_id" json:"warehouse_object_id"`
+	WarehouseApprovalEntryID string `db:"warehouse_approval_entry_id" json:"warehouse_approval_entry_id"`
+	WarehouseCode            string `db:"warehouse_code" json:"warehouse_code"`
+	WarehouseName            string `db:"warehouse_name" json:"warehouse_name"`
+	DocumentID               string `db:"document_id" json:"document_id"`
 }
 
 func (q *Queries) UpdateVouInventoryCountDetail(ctx context.Context, arg UpdateVouInventoryCountDetailParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateVouInventoryCountDetail,
 		arg.WarehouseObjectID,
-		arg.WarehouseVersionID,
+		arg.WarehouseApprovalEntryID,
 		arg.WarehouseCode,
 		arg.WarehouseName,
 		arg.DocumentID,
@@ -5325,32 +5333,32 @@ const updateVouOtherIncomeDetail = `-- name: UpdateVouOtherIncomeDetail :execrow
 UPDATE vou_other_income_details
 SET source_name = $1, counterparty_entity = $2,
     counterparty_object_id = $3,
-    counterparty_version_id = $4,
+    counterparty_approval_entry_id = $4,
     counterparty_code = $5, counterparty_name = $6,
     fund_account_object_id = $7,
-    fund_account_version_id = $8,
+    fund_account_approval_entry_id = $8,
     fund_account_code = $9, fund_account_name = $10,
-    handler_object_id = $11, handler_version_id = $12,
+    handler_object_id = $11, handler_approval_entry_id = $12,
     handler_code = $13, handler_name = $14
 WHERE document_id = $15
 `
 
 type UpdateVouOtherIncomeDetailParams struct {
-	SourceName            string  `db:"source_name" json:"source_name"`
-	CounterpartyEntity    *string `db:"counterparty_entity" json:"counterparty_entity"`
-	CounterpartyObjectID  *string `db:"counterparty_object_id" json:"counterparty_object_id"`
-	CounterpartyVersionID *string `db:"counterparty_version_id" json:"counterparty_version_id"`
-	CounterpartyCode      *string `db:"counterparty_code" json:"counterparty_code"`
-	CounterpartyName      *string `db:"counterparty_name" json:"counterparty_name"`
-	FundAccountObjectID   string  `db:"fund_account_object_id" json:"fund_account_object_id"`
-	FundAccountVersionID  string  `db:"fund_account_version_id" json:"fund_account_version_id"`
-	FundAccountCode       string  `db:"fund_account_code" json:"fund_account_code"`
-	FundAccountName       string  `db:"fund_account_name" json:"fund_account_name"`
-	HandlerObjectID       *string `db:"handler_object_id" json:"handler_object_id"`
-	HandlerVersionID      *string `db:"handler_version_id" json:"handler_version_id"`
-	HandlerCode           *string `db:"handler_code" json:"handler_code"`
-	HandlerName           *string `db:"handler_name" json:"handler_name"`
-	DocumentID            string  `db:"document_id" json:"document_id"`
+	SourceName                  string  `db:"source_name" json:"source_name"`
+	CounterpartyEntity          *string `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID        *string `db:"counterparty_object_id" json:"counterparty_object_id"`
+	CounterpartyApprovalEntryID *string `db:"counterparty_approval_entry_id" json:"counterparty_approval_entry_id"`
+	CounterpartyCode            *string `db:"counterparty_code" json:"counterparty_code"`
+	CounterpartyName            *string `db:"counterparty_name" json:"counterparty_name"`
+	FundAccountObjectID         string  `db:"fund_account_object_id" json:"fund_account_object_id"`
+	FundAccountApprovalEntryID  string  `db:"fund_account_approval_entry_id" json:"fund_account_approval_entry_id"`
+	FundAccountCode             string  `db:"fund_account_code" json:"fund_account_code"`
+	FundAccountName             string  `db:"fund_account_name" json:"fund_account_name"`
+	HandlerObjectID             *string `db:"handler_object_id" json:"handler_object_id"`
+	HandlerApprovalEntryID      *string `db:"handler_approval_entry_id" json:"handler_approval_entry_id"`
+	HandlerCode                 *string `db:"handler_code" json:"handler_code"`
+	HandlerName                 *string `db:"handler_name" json:"handler_name"`
+	DocumentID                  string  `db:"document_id" json:"document_id"`
 }
 
 func (q *Queries) UpdateVouOtherIncomeDetail(ctx context.Context, arg UpdateVouOtherIncomeDetailParams) (int64, error) {
@@ -5358,15 +5366,15 @@ func (q *Queries) UpdateVouOtherIncomeDetail(ctx context.Context, arg UpdateVouO
 		arg.SourceName,
 		arg.CounterpartyEntity,
 		arg.CounterpartyObjectID,
-		arg.CounterpartyVersionID,
+		arg.CounterpartyApprovalEntryID,
 		arg.CounterpartyCode,
 		arg.CounterpartyName,
 		arg.FundAccountObjectID,
-		arg.FundAccountVersionID,
+		arg.FundAccountApprovalEntryID,
 		arg.FundAccountCode,
 		arg.FundAccountName,
 		arg.HandlerObjectID,
-		arg.HandlerVersionID,
+		arg.HandlerApprovalEntryID,
 		arg.HandlerCode,
 		arg.HandlerName,
 		arg.DocumentID,
@@ -5380,47 +5388,47 @@ func (q *Queries) UpdateVouOtherIncomeDetail(ctx context.Context, arg UpdateVouO
 const updateVouPaymentDetail = `-- name: UpdateVouPaymentDetail :execrows
 UPDATE vou_payment_details
 SET counterparty_entity = $1, counterparty_object_id = $2,
-    counterparty_version_id = $3, counterparty_code = $4,
+    counterparty_approval_entry_id = $3, counterparty_code = $4,
     counterparty_name = $5, fund_account_object_id = $6,
-    fund_account_version_id = $7, fund_account_code = $8,
+    fund_account_approval_entry_id = $7, fund_account_code = $8,
     fund_account_name = $9, other_category = $10,
-    handler_object_id = $11, handler_version_id = $12,
+    handler_object_id = $11, handler_approval_entry_id = $12,
     handler_code = $13, handler_name = $14
 WHERE document_id = $15
 `
 
 type UpdateVouPaymentDetailParams struct {
-	CounterpartyEntity    string  `db:"counterparty_entity" json:"counterparty_entity"`
-	CounterpartyObjectID  string  `db:"counterparty_object_id" json:"counterparty_object_id"`
-	CounterpartyVersionID string  `db:"counterparty_version_id" json:"counterparty_version_id"`
-	CounterpartyCode      string  `db:"counterparty_code" json:"counterparty_code"`
-	CounterpartyName      string  `db:"counterparty_name" json:"counterparty_name"`
-	FundAccountObjectID   string  `db:"fund_account_object_id" json:"fund_account_object_id"`
-	FundAccountVersionID  string  `db:"fund_account_version_id" json:"fund_account_version_id"`
-	FundAccountCode       string  `db:"fund_account_code" json:"fund_account_code"`
-	FundAccountName       string  `db:"fund_account_name" json:"fund_account_name"`
-	OtherCategory         *string `db:"other_category" json:"other_category"`
-	HandlerObjectID       *string `db:"handler_object_id" json:"handler_object_id"`
-	HandlerVersionID      *string `db:"handler_version_id" json:"handler_version_id"`
-	HandlerCode           *string `db:"handler_code" json:"handler_code"`
-	HandlerName           *string `db:"handler_name" json:"handler_name"`
-	DocumentID            string  `db:"document_id" json:"document_id"`
+	CounterpartyEntity          string  `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID        string  `db:"counterparty_object_id" json:"counterparty_object_id"`
+	CounterpartyApprovalEntryID string  `db:"counterparty_approval_entry_id" json:"counterparty_approval_entry_id"`
+	CounterpartyCode            string  `db:"counterparty_code" json:"counterparty_code"`
+	CounterpartyName            string  `db:"counterparty_name" json:"counterparty_name"`
+	FundAccountObjectID         string  `db:"fund_account_object_id" json:"fund_account_object_id"`
+	FundAccountApprovalEntryID  string  `db:"fund_account_approval_entry_id" json:"fund_account_approval_entry_id"`
+	FundAccountCode             string  `db:"fund_account_code" json:"fund_account_code"`
+	FundAccountName             string  `db:"fund_account_name" json:"fund_account_name"`
+	OtherCategory               *string `db:"other_category" json:"other_category"`
+	HandlerObjectID             *string `db:"handler_object_id" json:"handler_object_id"`
+	HandlerApprovalEntryID      *string `db:"handler_approval_entry_id" json:"handler_approval_entry_id"`
+	HandlerCode                 *string `db:"handler_code" json:"handler_code"`
+	HandlerName                 *string `db:"handler_name" json:"handler_name"`
+	DocumentID                  string  `db:"document_id" json:"document_id"`
 }
 
 func (q *Queries) UpdateVouPaymentDetail(ctx context.Context, arg UpdateVouPaymentDetailParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateVouPaymentDetail,
 		arg.CounterpartyEntity,
 		arg.CounterpartyObjectID,
-		arg.CounterpartyVersionID,
+		arg.CounterpartyApprovalEntryID,
 		arg.CounterpartyCode,
 		arg.CounterpartyName,
 		arg.FundAccountObjectID,
-		arg.FundAccountVersionID,
+		arg.FundAccountApprovalEntryID,
 		arg.FundAccountCode,
 		arg.FundAccountName,
 		arg.OtherCategory,
 		arg.HandlerObjectID,
-		arg.HandlerVersionID,
+		arg.HandlerApprovalEntryID,
 		arg.HandlerCode,
 		arg.HandlerName,
 		arg.DocumentID,
@@ -5434,24 +5442,24 @@ func (q *Queries) UpdateVouPaymentDetail(ctx context.Context, arg UpdateVouPayme
 const updateVouPurchaseInboundWarehouse = `-- name: UpdateVouPurchaseInboundWarehouse :execrows
 UPDATE vou_purchase_inbound_details
 SET warehouse_object_id = $1,
-    warehouse_version_id = $2,
+    warehouse_approval_entry_id = $2,
     warehouse_code = $3,
     warehouse_name = $4
 WHERE document_id = $5
 `
 
 type UpdateVouPurchaseInboundWarehouseParams struct {
-	WarehouseObjectID  string `db:"warehouse_object_id" json:"warehouse_object_id"`
-	WarehouseVersionID string `db:"warehouse_version_id" json:"warehouse_version_id"`
-	WarehouseCode      string `db:"warehouse_code" json:"warehouse_code"`
-	WarehouseName      string `db:"warehouse_name" json:"warehouse_name"`
-	DocumentID         string `db:"document_id" json:"document_id"`
+	WarehouseObjectID        string `db:"warehouse_object_id" json:"warehouse_object_id"`
+	WarehouseApprovalEntryID string `db:"warehouse_approval_entry_id" json:"warehouse_approval_entry_id"`
+	WarehouseCode            string `db:"warehouse_code" json:"warehouse_code"`
+	WarehouseName            string `db:"warehouse_name" json:"warehouse_name"`
+	DocumentID               string `db:"document_id" json:"document_id"`
 }
 
 func (q *Queries) UpdateVouPurchaseInboundWarehouse(ctx context.Context, arg UpdateVouPurchaseInboundWarehouseParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateVouPurchaseInboundWarehouse,
 		arg.WarehouseObjectID,
-		arg.WarehouseVersionID,
+		arg.WarehouseApprovalEntryID,
 		arg.WarehouseCode,
 		arg.WarehouseName,
 		arg.DocumentID,
@@ -5464,23 +5472,23 @@ func (q *Queries) UpdateVouPurchaseInboundWarehouse(ctx context.Context, arg Upd
 
 const updateVouPurchaseInquiryDetail = `-- name: UpdateVouPurchaseInquiryDetail :execrows
 UPDATE vou_purchase_inquiry_details SET
-    supplier_object_id=$1, supplier_version_id=$2,
+    supplier_object_id=$1, supplier_approval_entry_id=$2,
     supplier_code=$3, supplier_name=$4
 WHERE document_id=$5
 `
 
 type UpdateVouPurchaseInquiryDetailParams struct {
-	SupplierObjectID  string `db:"supplier_object_id" json:"supplier_object_id"`
-	SupplierVersionID string `db:"supplier_version_id" json:"supplier_version_id"`
-	SupplierCode      string `db:"supplier_code" json:"supplier_code"`
-	SupplierName      string `db:"supplier_name" json:"supplier_name"`
-	DocumentID        string `db:"document_id" json:"document_id"`
+	SupplierObjectID        string `db:"supplier_object_id" json:"supplier_object_id"`
+	SupplierApprovalEntryID string `db:"supplier_approval_entry_id" json:"supplier_approval_entry_id"`
+	SupplierCode            string `db:"supplier_code" json:"supplier_code"`
+	SupplierName            string `db:"supplier_name" json:"supplier_name"`
+	DocumentID              string `db:"document_id" json:"document_id"`
 }
 
 func (q *Queries) UpdateVouPurchaseInquiryDetail(ctx context.Context, arg UpdateVouPurchaseInquiryDetailParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateVouPurchaseInquiryDetail,
 		arg.SupplierObjectID,
-		arg.SupplierVersionID,
+		arg.SupplierApprovalEntryID,
 		arg.SupplierCode,
 		arg.SupplierName,
 		arg.DocumentID,
@@ -5493,17 +5501,17 @@ func (q *Queries) UpdateVouPurchaseInquiryDetail(ctx context.Context, arg Update
 
 const updateVouPurchaseOrderDetail = `-- name: UpdateVouPurchaseOrderDetail :execrows
 UPDATE vou_purchase_order_details
-SET supplier_object_id = $1, supplier_version_id = $2,
+SET supplier_object_id = $1, supplier_approval_entry_id = $2,
     supplier_code = $3, supplier_name = $4,
     purchaser_object_id = $5,
-    purchaser_version_id = $6,
+    purchaser_approval_entry_id = $6,
     purchaser_code = $7, purchaser_name = $8,
     warehouse_object_id = $9,
-    warehouse_version_id = $10,
+    warehouse_approval_entry_id = $10,
     warehouse_code = $11, warehouse_name = $12,
     contact_name = $13, contact_phone = $14,
     settlement_method_object_id = $15,
-    settlement_method_version_id = $16,
+    settlement_method_approval_entry_id = $16,
     settlement_method_code = $17,
     settlement_method_name = $18,
     settlement_rule_type = $19,
@@ -5520,21 +5528,21 @@ WHERE document_id = $28
 
 type UpdateVouPurchaseOrderDetailParams struct {
 	SupplierObjectID                     string  `db:"supplier_object_id" json:"supplier_object_id"`
-	SupplierVersionID                    string  `db:"supplier_version_id" json:"supplier_version_id"`
+	SupplierApprovalEntryID              string  `db:"supplier_approval_entry_id" json:"supplier_approval_entry_id"`
 	SupplierCode                         string  `db:"supplier_code" json:"supplier_code"`
 	SupplierName                         string  `db:"supplier_name" json:"supplier_name"`
 	PurchaserObjectID                    *string `db:"purchaser_object_id" json:"purchaser_object_id"`
-	PurchaserVersionID                   *string `db:"purchaser_version_id" json:"purchaser_version_id"`
+	PurchaserApprovalEntryID             *string `db:"purchaser_approval_entry_id" json:"purchaser_approval_entry_id"`
 	PurchaserCode                        *string `db:"purchaser_code" json:"purchaser_code"`
 	PurchaserName                        *string `db:"purchaser_name" json:"purchaser_name"`
 	WarehouseObjectID                    *string `db:"warehouse_object_id" json:"warehouse_object_id"`
-	WarehouseVersionID                   *string `db:"warehouse_version_id" json:"warehouse_version_id"`
+	WarehouseApprovalEntryID             *string `db:"warehouse_approval_entry_id" json:"warehouse_approval_entry_id"`
 	WarehouseCode                        *string `db:"warehouse_code" json:"warehouse_code"`
 	WarehouseName                        *string `db:"warehouse_name" json:"warehouse_name"`
 	ContactName                          *string `db:"contact_name" json:"contact_name"`
 	ContactPhone                         *string `db:"contact_phone" json:"contact_phone"`
 	SettlementMethodObjectID             *string `db:"settlement_method_object_id" json:"settlement_method_object_id"`
-	SettlementMethodVersionID            *string `db:"settlement_method_version_id" json:"settlement_method_version_id"`
+	SettlementMethodApprovalEntryID      *string `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
 	SettlementMethodCode                 *string `db:"settlement_method_code" json:"settlement_method_code"`
 	SettlementMethodName                 *string `db:"settlement_method_name" json:"settlement_method_name"`
 	SettlementRuleType                   *string `db:"settlement_rule_type" json:"settlement_rule_type"`
@@ -5552,21 +5560,21 @@ type UpdateVouPurchaseOrderDetailParams struct {
 func (q *Queries) UpdateVouPurchaseOrderDetail(ctx context.Context, arg UpdateVouPurchaseOrderDetailParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateVouPurchaseOrderDetail,
 		arg.SupplierObjectID,
-		arg.SupplierVersionID,
+		arg.SupplierApprovalEntryID,
 		arg.SupplierCode,
 		arg.SupplierName,
 		arg.PurchaserObjectID,
-		arg.PurchaserVersionID,
+		arg.PurchaserApprovalEntryID,
 		arg.PurchaserCode,
 		arg.PurchaserName,
 		arg.WarehouseObjectID,
-		arg.WarehouseVersionID,
+		arg.WarehouseApprovalEntryID,
 		arg.WarehouseCode,
 		arg.WarehouseName,
 		arg.ContactName,
 		arg.ContactPhone,
 		arg.SettlementMethodObjectID,
-		arg.SettlementMethodVersionID,
+		arg.SettlementMethodApprovalEntryID,
 		arg.SettlementMethodCode,
 		arg.SettlementMethodName,
 		arg.SettlementRuleType,
@@ -5589,47 +5597,47 @@ func (q *Queries) UpdateVouPurchaseOrderDetail(ctx context.Context, arg UpdateVo
 const updateVouReceiptDetail = `-- name: UpdateVouReceiptDetail :execrows
 UPDATE vou_receipt_details
 SET counterparty_entity = $1, counterparty_object_id = $2,
-    counterparty_version_id = $3, counterparty_code = $4,
+    counterparty_approval_entry_id = $3, counterparty_code = $4,
     counterparty_name = $5, fund_account_object_id = $6,
-    fund_account_version_id = $7, fund_account_code = $8,
+    fund_account_approval_entry_id = $7, fund_account_code = $8,
     fund_account_name = $9, other_category = $10,
-    handler_object_id = $11, handler_version_id = $12,
+    handler_object_id = $11, handler_approval_entry_id = $12,
     handler_code = $13, handler_name = $14
 WHERE document_id = $15
 `
 
 type UpdateVouReceiptDetailParams struct {
-	CounterpartyEntity    string  `db:"counterparty_entity" json:"counterparty_entity"`
-	CounterpartyObjectID  string  `db:"counterparty_object_id" json:"counterparty_object_id"`
-	CounterpartyVersionID string  `db:"counterparty_version_id" json:"counterparty_version_id"`
-	CounterpartyCode      string  `db:"counterparty_code" json:"counterparty_code"`
-	CounterpartyName      string  `db:"counterparty_name" json:"counterparty_name"`
-	FundAccountObjectID   string  `db:"fund_account_object_id" json:"fund_account_object_id"`
-	FundAccountVersionID  string  `db:"fund_account_version_id" json:"fund_account_version_id"`
-	FundAccountCode       string  `db:"fund_account_code" json:"fund_account_code"`
-	FundAccountName       string  `db:"fund_account_name" json:"fund_account_name"`
-	OtherCategory         *string `db:"other_category" json:"other_category"`
-	HandlerObjectID       *string `db:"handler_object_id" json:"handler_object_id"`
-	HandlerVersionID      *string `db:"handler_version_id" json:"handler_version_id"`
-	HandlerCode           *string `db:"handler_code" json:"handler_code"`
-	HandlerName           *string `db:"handler_name" json:"handler_name"`
-	DocumentID            string  `db:"document_id" json:"document_id"`
+	CounterpartyEntity          string  `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID        string  `db:"counterparty_object_id" json:"counterparty_object_id"`
+	CounterpartyApprovalEntryID string  `db:"counterparty_approval_entry_id" json:"counterparty_approval_entry_id"`
+	CounterpartyCode            string  `db:"counterparty_code" json:"counterparty_code"`
+	CounterpartyName            string  `db:"counterparty_name" json:"counterparty_name"`
+	FundAccountObjectID         string  `db:"fund_account_object_id" json:"fund_account_object_id"`
+	FundAccountApprovalEntryID  string  `db:"fund_account_approval_entry_id" json:"fund_account_approval_entry_id"`
+	FundAccountCode             string  `db:"fund_account_code" json:"fund_account_code"`
+	FundAccountName             string  `db:"fund_account_name" json:"fund_account_name"`
+	OtherCategory               *string `db:"other_category" json:"other_category"`
+	HandlerObjectID             *string `db:"handler_object_id" json:"handler_object_id"`
+	HandlerApprovalEntryID      *string `db:"handler_approval_entry_id" json:"handler_approval_entry_id"`
+	HandlerCode                 *string `db:"handler_code" json:"handler_code"`
+	HandlerName                 *string `db:"handler_name" json:"handler_name"`
+	DocumentID                  string  `db:"document_id" json:"document_id"`
 }
 
 func (q *Queries) UpdateVouReceiptDetail(ctx context.Context, arg UpdateVouReceiptDetailParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateVouReceiptDetail,
 		arg.CounterpartyEntity,
 		arg.CounterpartyObjectID,
-		arg.CounterpartyVersionID,
+		arg.CounterpartyApprovalEntryID,
 		arg.CounterpartyCode,
 		arg.CounterpartyName,
 		arg.FundAccountObjectID,
-		arg.FundAccountVersionID,
+		arg.FundAccountApprovalEntryID,
 		arg.FundAccountCode,
 		arg.FundAccountName,
 		arg.OtherCategory,
 		arg.HandlerObjectID,
-		arg.HandlerVersionID,
+		arg.HandlerApprovalEntryID,
 		arg.HandlerCode,
 		arg.HandlerName,
 		arg.DocumentID,
@@ -5644,14 +5652,14 @@ const updateVouSaleDeliveryCarrierSnapshot = `-- name: UpdateVouSaleDeliveryCarr
 UPDATE vou_sale_delivery_details SET
     carrier_type=$1,
     carrier_operating_entity_object_id=$2,
-    carrier_operating_entity_version_id=$3,
+    carrier_operating_entity_approval_entry_id=$3,
     carrier_operating_entity_code=$4,
     carrier_operating_entity_name=$5,
     carrier_service_relationship_object_id=$6,
-    carrier_service_relationship_version_id=$7,
+    carrier_service_relationship_approval_entry_id=$7,
     carrier_service_relationship_code=$8,
     carrier_service_relationship_name=$9,
-    vehicle_object_id=$10,vehicle_version_id=$11,
+    vehicle_object_id=$10,vehicle_approval_entry_id=$11,
     vehicle_code=$12,vehicle_name=$13,
     vehicle_plate_number=$14,
     vehicle_bulk_liquid_capable=$15
@@ -5659,37 +5667,37 @@ WHERE document_id=$16
 `
 
 type UpdateVouSaleDeliveryCarrierSnapshotParams struct {
-	CarrierType                         string  `db:"carrier_type" json:"carrier_type"`
-	CarrierOperatingEntityObjectID      *string `db:"carrier_operating_entity_object_id" json:"carrier_operating_entity_object_id"`
-	CarrierOperatingEntityVersionID     *string `db:"carrier_operating_entity_version_id" json:"carrier_operating_entity_version_id"`
-	CarrierOperatingEntityCode          *string `db:"carrier_operating_entity_code" json:"carrier_operating_entity_code"`
-	CarrierOperatingEntityName          *string `db:"carrier_operating_entity_name" json:"carrier_operating_entity_name"`
-	CarrierServiceRelationshipObjectID  *string `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
-	CarrierServiceRelationshipVersionID *string `db:"carrier_service_relationship_version_id" json:"carrier_service_relationship_version_id"`
-	CarrierServiceRelationshipCode      *string `db:"carrier_service_relationship_code" json:"carrier_service_relationship_code"`
-	CarrierServiceRelationshipName      *string `db:"carrier_service_relationship_name" json:"carrier_service_relationship_name"`
-	VehicleObjectID                     *string `db:"vehicle_object_id" json:"vehicle_object_id"`
-	VehicleVersionID                    *string `db:"vehicle_version_id" json:"vehicle_version_id"`
-	VehicleCode                         *string `db:"vehicle_code" json:"vehicle_code"`
-	VehicleName                         *string `db:"vehicle_name" json:"vehicle_name"`
-	VehiclePlateNumber                  *string `db:"vehicle_plate_number" json:"vehicle_plate_number"`
-	VehicleBulkLiquidCapable            bool    `db:"vehicle_bulk_liquid_capable" json:"vehicle_bulk_liquid_capable"`
-	DocumentID                          string  `db:"document_id" json:"document_id"`
+	CarrierType                               string  `db:"carrier_type" json:"carrier_type"`
+	CarrierOperatingEntityObjectID            *string `db:"carrier_operating_entity_object_id" json:"carrier_operating_entity_object_id"`
+	CarrierOperatingEntityApprovalEntryID     *string `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
+	CarrierOperatingEntityCode                *string `db:"carrier_operating_entity_code" json:"carrier_operating_entity_code"`
+	CarrierOperatingEntityName                *string `db:"carrier_operating_entity_name" json:"carrier_operating_entity_name"`
+	CarrierServiceRelationshipObjectID        *string `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
+	CarrierServiceRelationshipApprovalEntryID *string `db:"carrier_service_relationship_approval_entry_id" json:"carrier_service_relationship_approval_entry_id"`
+	CarrierServiceRelationshipCode            *string `db:"carrier_service_relationship_code" json:"carrier_service_relationship_code"`
+	CarrierServiceRelationshipName            *string `db:"carrier_service_relationship_name" json:"carrier_service_relationship_name"`
+	VehicleObjectID                           *string `db:"vehicle_object_id" json:"vehicle_object_id"`
+	VehicleApprovalEntryID                    *string `db:"vehicle_approval_entry_id" json:"vehicle_approval_entry_id"`
+	VehicleCode                               *string `db:"vehicle_code" json:"vehicle_code"`
+	VehicleName                               *string `db:"vehicle_name" json:"vehicle_name"`
+	VehiclePlateNumber                        *string `db:"vehicle_plate_number" json:"vehicle_plate_number"`
+	VehicleBulkLiquidCapable                  bool    `db:"vehicle_bulk_liquid_capable" json:"vehicle_bulk_liquid_capable"`
+	DocumentID                                string  `db:"document_id" json:"document_id"`
 }
 
 func (q *Queries) UpdateVouSaleDeliveryCarrierSnapshot(ctx context.Context, arg UpdateVouSaleDeliveryCarrierSnapshotParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateVouSaleDeliveryCarrierSnapshot,
 		arg.CarrierType,
 		arg.CarrierOperatingEntityObjectID,
-		arg.CarrierOperatingEntityVersionID,
+		arg.CarrierOperatingEntityApprovalEntryID,
 		arg.CarrierOperatingEntityCode,
 		arg.CarrierOperatingEntityName,
 		arg.CarrierServiceRelationshipObjectID,
-		arg.CarrierServiceRelationshipVersionID,
+		arg.CarrierServiceRelationshipApprovalEntryID,
 		arg.CarrierServiceRelationshipCode,
 		arg.CarrierServiceRelationshipName,
 		arg.VehicleObjectID,
-		arg.VehicleVersionID,
+		arg.VehicleApprovalEntryID,
 		arg.VehicleCode,
 		arg.VehicleName,
 		arg.VehiclePlateNumber,
@@ -5704,23 +5712,23 @@ func (q *Queries) UpdateVouSaleDeliveryCarrierSnapshot(ctx context.Context, arg 
 
 const updateVouSaleOrderDetail = `-- name: UpdateVouSaleOrderDetail :execrows
 UPDATE vou_sale_order_details
-SET customer_object_id = $1, customer_version_id = $2,
+SET customer_object_id = $1, customer_approval_entry_id = $2,
     customer_code = $3, customer_name = $4,
     salesperson_object_id = $5,
-    salesperson_version_id = $6,
+    salesperson_approval_entry_id = $6,
     salesperson_code = $7, salesperson_name = $8,
     sales_attribution_type = $9,
     sales_attribution_subject_object_id = $10,
-    sales_attribution_subject_version_id = $11,
+    sales_attribution_subject_approval_entry_id = $11,
     sales_attribution_subject_code = $12,
     sales_attribution_subject_name = $13,
     warehouse_object_id = $14,
-    warehouse_version_id = $15,
+    warehouse_approval_entry_id = $15,
     warehouse_code = $16, warehouse_name = $17,
     contact_name = $18, contact_phone = $19,
     delivery_address = $20,
     settlement_method_object_id = $21,
-    settlement_method_version_id = $22,
+    settlement_method_approval_entry_id = $22,
     settlement_method_code = $23,
     settlement_method_name = $24,
     settlement_rule_type = $25,
@@ -5737,67 +5745,67 @@ WHERE document_id = $35
 `
 
 type UpdateVouSaleOrderDetailParams struct {
-	CustomerObjectID                     string  `db:"customer_object_id" json:"customer_object_id"`
-	CustomerVersionID                    string  `db:"customer_version_id" json:"customer_version_id"`
-	CustomerCode                         string  `db:"customer_code" json:"customer_code"`
-	CustomerName                         string  `db:"customer_name" json:"customer_name"`
-	SalespersonObjectID                  *string `db:"salesperson_object_id" json:"salesperson_object_id"`
-	SalespersonVersionID                 *string `db:"salesperson_version_id" json:"salesperson_version_id"`
-	SalespersonCode                      *string `db:"salesperson_code" json:"salesperson_code"`
-	SalespersonName                      *string `db:"salesperson_name" json:"salesperson_name"`
-	SalesAttributionType                 string  `db:"sales_attribution_type" json:"sales_attribution_type"`
-	SalesAttributionSubjectObjectID      string  `db:"sales_attribution_subject_object_id" json:"sales_attribution_subject_object_id"`
-	SalesAttributionSubjectVersionID     string  `db:"sales_attribution_subject_version_id" json:"sales_attribution_subject_version_id"`
-	SalesAttributionSubjectCode          string  `db:"sales_attribution_subject_code" json:"sales_attribution_subject_code"`
-	SalesAttributionSubjectName          string  `db:"sales_attribution_subject_name" json:"sales_attribution_subject_name"`
-	WarehouseObjectID                    *string `db:"warehouse_object_id" json:"warehouse_object_id"`
-	WarehouseVersionID                   *string `db:"warehouse_version_id" json:"warehouse_version_id"`
-	WarehouseCode                        *string `db:"warehouse_code" json:"warehouse_code"`
-	WarehouseName                        *string `db:"warehouse_name" json:"warehouse_name"`
-	ContactName                          *string `db:"contact_name" json:"contact_name"`
-	ContactPhone                         *string `db:"contact_phone" json:"contact_phone"`
-	DeliveryAddress                      *string `db:"delivery_address" json:"delivery_address"`
-	SettlementMethodObjectID             *string `db:"settlement_method_object_id" json:"settlement_method_object_id"`
-	SettlementMethodVersionID            *string `db:"settlement_method_version_id" json:"settlement_method_version_id"`
-	SettlementMethodCode                 *string `db:"settlement_method_code" json:"settlement_method_code"`
-	SettlementMethodName                 *string `db:"settlement_method_name" json:"settlement_method_name"`
-	SettlementRuleType                   *string `db:"settlement_rule_type" json:"settlement_rule_type"`
-	SettlementMonthOffset                *int32  `db:"settlement_month_offset" json:"settlement_month_offset"`
-	SettlementDayOfMonth                 *int32  `db:"settlement_day_of_month" json:"settlement_day_of_month"`
-	SettlementDayOffset                  *int32  `db:"settlement_day_offset" json:"settlement_day_offset"`
-	SettlementDueDays                    *int32  `db:"settlement_due_days" json:"settlement_due_days"`
-	SettlementCutoffDay                  *int32  `db:"settlement_cutoff_day" json:"settlement_cutoff_day"`
-	SettlementDefaultSalesSurchargeCents int64   `db:"settlement_default_sales_surcharge_cents" json:"settlement_default_sales_surcharge_cents"`
-	SettlementTermCode                   string  `db:"settlement_term_code" json:"settlement_term_code"`
-	SettlementDescription                *string `db:"settlement_description" json:"settlement_description"`
-	SpecialApproval                      bool    `db:"special_approval" json:"special_approval"`
-	DocumentID                           string  `db:"document_id" json:"document_id"`
+	CustomerObjectID                       string  `db:"customer_object_id" json:"customer_object_id"`
+	CustomerApprovalEntryID                string  `db:"customer_approval_entry_id" json:"customer_approval_entry_id"`
+	CustomerCode                           string  `db:"customer_code" json:"customer_code"`
+	CustomerName                           string  `db:"customer_name" json:"customer_name"`
+	SalespersonObjectID                    *string `db:"salesperson_object_id" json:"salesperson_object_id"`
+	SalespersonApprovalEntryID             *string `db:"salesperson_approval_entry_id" json:"salesperson_approval_entry_id"`
+	SalespersonCode                        *string `db:"salesperson_code" json:"salesperson_code"`
+	SalespersonName                        *string `db:"salesperson_name" json:"salesperson_name"`
+	SalesAttributionType                   string  `db:"sales_attribution_type" json:"sales_attribution_type"`
+	SalesAttributionSubjectObjectID        string  `db:"sales_attribution_subject_object_id" json:"sales_attribution_subject_object_id"`
+	SalesAttributionSubjectApprovalEntryID string  `db:"sales_attribution_subject_approval_entry_id" json:"sales_attribution_subject_approval_entry_id"`
+	SalesAttributionSubjectCode            string  `db:"sales_attribution_subject_code" json:"sales_attribution_subject_code"`
+	SalesAttributionSubjectName            string  `db:"sales_attribution_subject_name" json:"sales_attribution_subject_name"`
+	WarehouseObjectID                      *string `db:"warehouse_object_id" json:"warehouse_object_id"`
+	WarehouseApprovalEntryID               *string `db:"warehouse_approval_entry_id" json:"warehouse_approval_entry_id"`
+	WarehouseCode                          *string `db:"warehouse_code" json:"warehouse_code"`
+	WarehouseName                          *string `db:"warehouse_name" json:"warehouse_name"`
+	ContactName                            *string `db:"contact_name" json:"contact_name"`
+	ContactPhone                           *string `db:"contact_phone" json:"contact_phone"`
+	DeliveryAddress                        *string `db:"delivery_address" json:"delivery_address"`
+	SettlementMethodObjectID               *string `db:"settlement_method_object_id" json:"settlement_method_object_id"`
+	SettlementMethodApprovalEntryID        *string `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
+	SettlementMethodCode                   *string `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName                   *string `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementRuleType                     *string `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset                  *int32  `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth                   *int32  `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset                    *int32  `db:"settlement_day_offset" json:"settlement_day_offset"`
+	SettlementDueDays                      *int32  `db:"settlement_due_days" json:"settlement_due_days"`
+	SettlementCutoffDay                    *int32  `db:"settlement_cutoff_day" json:"settlement_cutoff_day"`
+	SettlementDefaultSalesSurchargeCents   int64   `db:"settlement_default_sales_surcharge_cents" json:"settlement_default_sales_surcharge_cents"`
+	SettlementTermCode                     string  `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementDescription                  *string `db:"settlement_description" json:"settlement_description"`
+	SpecialApproval                        bool    `db:"special_approval" json:"special_approval"`
+	DocumentID                             string  `db:"document_id" json:"document_id"`
 }
 
 func (q *Queries) UpdateVouSaleOrderDetail(ctx context.Context, arg UpdateVouSaleOrderDetailParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateVouSaleOrderDetail,
 		arg.CustomerObjectID,
-		arg.CustomerVersionID,
+		arg.CustomerApprovalEntryID,
 		arg.CustomerCode,
 		arg.CustomerName,
 		arg.SalespersonObjectID,
-		arg.SalespersonVersionID,
+		arg.SalespersonApprovalEntryID,
 		arg.SalespersonCode,
 		arg.SalespersonName,
 		arg.SalesAttributionType,
 		arg.SalesAttributionSubjectObjectID,
-		arg.SalesAttributionSubjectVersionID,
+		arg.SalesAttributionSubjectApprovalEntryID,
 		arg.SalesAttributionSubjectCode,
 		arg.SalesAttributionSubjectName,
 		arg.WarehouseObjectID,
-		arg.WarehouseVersionID,
+		arg.WarehouseApprovalEntryID,
 		arg.WarehouseCode,
 		arg.WarehouseName,
 		arg.ContactName,
 		arg.ContactPhone,
 		arg.DeliveryAddress,
 		arg.SettlementMethodObjectID,
-		arg.SettlementMethodVersionID,
+		arg.SettlementMethodApprovalEntryID,
 		arg.SettlementMethodCode,
 		arg.SettlementMethodName,
 		arg.SettlementRuleType,

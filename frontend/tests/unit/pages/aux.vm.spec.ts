@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { auxConfigs } from '@/pages/aux/shared/config'
-import { createAuxEntityViewModel } from '@/pages/aux/shared/vm'
+import {
+  createAuxEntityViewModel,
+  type AuxListItem,
+} from '@/pages/aux/shared/vm'
 import { useSessionStore } from '@/stores/session'
 
 const mockedPost = vi.hoisted(() => vi.fn())
@@ -72,6 +75,84 @@ describe('AUX entity view model', () => {
     expect(vm.canEnable.value).toBe(true)
     expect(vm.canDisable.value).toBe(true)
     expect(vm.canDelete.value).toBe(true)
+  })
+
+  it('按公共 Approval 状态执行生命周期并读取版本与审批历史', async () => {
+    const session = useSessionStore()
+    session.user = {
+      id: 'USER-REVIEWER',
+      username: 'reviewer',
+      displayName: '审核人',
+    }
+    session.permissions = [
+      '/aux/position/query',
+      '/aux/position/submit',
+      '/aux/position/unsubmit',
+      '/aux/position/approve',
+      '/aux/position/reject',
+      '/aux/position/unapprove',
+      '/aux/position/versions',
+      '/aux/position/audit-history',
+    ]
+    const row: AuxListItem = {
+      objectId: 'OBJECT-1',
+      entity: 'position',
+      code: 'POS-0001',
+      enabled: true,
+      objectRevision: 2,
+      latestApproved: null,
+      openVersion: {
+        approval: {
+          approvalEntryId: 'ENTRY-1',
+          versionNo: 1,
+          status: 'DRAFT',
+          revision: 3,
+          createdBy: 'USER-OPERATOR',
+          createdAt: '2026-08-25T00:00:00Z',
+          updatedBy: 'USER-OPERATOR',
+          updatedAt: '2026-08-25T00:00:00Z',
+          submittedBy: null,
+          submittedAt: null,
+          approvedBy: null,
+          approvedAt: null,
+        },
+        data: { name: '仓储主管' },
+      },
+      updatedAt: '2026-08-25T00:00:00Z',
+      updatedBy: 'USER-OPERATOR',
+    }
+    const vm = createAuxEntityViewModel(auxConfigs.position)
+
+    expect(vm.approvalActions(row)).toEqual(['submit'])
+    mockedPost.mockResolvedValueOnce({ data: {} }).mockResolvedValueOnce({
+      data: { items: [], total: 0, page: 1, pageSize: 20 },
+    })
+    await expect(vm.runApprovalAction(row, 'submit')).resolves.toBe(true)
+    expect(mockedPost).toHaveBeenNthCalledWith(1, 'aux/position/submit', {
+      objectId: 'OBJECT-1',
+      approvalEntryId: 'ENTRY-1',
+      approvalRevision: 3,
+    })
+
+    mockedPost.mockResolvedValueOnce({
+      data: { items: [row.openVersion], total: 1, page: 1, pageSize: 20 },
+    })
+    await vm.openVersions(row)
+    expect(mockedPost).toHaveBeenLastCalledWith('aux/position/versions', {
+      objectId: 'OBJECT-1',
+      page: 1,
+      pageSize: 20,
+    })
+
+    mockedPost.mockResolvedValueOnce({
+      data: { items: [], total: 0, page: 1, pageSize: 20 },
+    })
+    await vm.openAuditHistory(row)
+    expect(mockedPost).toHaveBeenLastCalledWith('aux/position/audit-history', {
+      objectId: 'OBJECT-1',
+      page: 1,
+      pageSize: 20,
+    })
   })
 
   it('使用编码排序查询完整分页并在重置后恢复升序', async () => {

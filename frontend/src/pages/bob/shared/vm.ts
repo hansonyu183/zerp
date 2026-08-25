@@ -141,12 +141,15 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     loading.value = true
     errorMessage.value = null
     try {
-      const { data } = await apiClient.postContract(`bob/${config.entity}/query`, {
-        page: page.value,
-        pageSize: pageSize.value,
-        filters: buildQueryFilters(),
-        sort: [{ ...sort.value }],
-      })
+      const { data } = await apiClient.postContract(
+        `bob/${config.entity}/query`,
+        {
+          page: page.value,
+          pageSize: pageSize.value,
+          filters: buildQueryFilters(),
+          sort: [{ ...sort.value }],
+        },
+      )
       rows.value = Array.isArray(data.items) ? data.items : []
       total.value =
         typeof data.total === 'number' ? data.total : rows.value.length
@@ -192,27 +195,17 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
 
   async function getObject(
     row: Pick<BobListItem, 'objectId'>,
-    versionId?: string,
+    approvalEntryId?: string,
   ): Promise<BobObjectView> {
     const { data } = await apiClient.postContract(`bob/${config.entity}/get`, {
       objectId: row.objectId,
-      ...(versionId ? { versionId } : {}),
+      ...(approvalEntryId ? { approvalEntryId } : {}),
     })
     return data
   }
 
-  async function loadEffectiveView(view: BobObjectView): Promise<void> {
+  async function loadEffectiveView(_view: BobObjectView): Promise<void> {
     effectiveView.value = null
-    if (
-      !view.effectiveVersionId ||
-      view.effectiveVersionId === view.version.versionId
-    ) {
-      return
-    }
-    effectiveView.value = await getObject(
-      { objectId: view.objectId },
-      view.effectiveVersionId,
-    )
   }
 
   function openCreate(): void {
@@ -228,13 +221,16 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     preloadEditorReferences(editorModel.value)
   }
 
-  async function openView(row: BobListItem, versionId?: string): Promise<void> {
+  async function openView(
+    row: BobListItem,
+    approvalEntryId?: string,
+  ): Promise<void> {
     if (!session.can(permission('get')) || editorLoading.value) return
     editorMode.value = 'view'
     editorLoading.value = true
     editorErrorMessage.value = null
     try {
-      const view = await getObject(row, versionId)
+      const view = await getObject(row, approvalEntryId)
       currentView.value = view
       await loadEffectiveView(view)
       editorModel.value = bobFormFromView(config, view)
@@ -257,15 +253,15 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     editorLoading.value = true
     editorErrorMessage.value = null
     try {
-      const versionId = bobListActiveVersion(row).versionId
-      const view = await getObject(row, versionId)
+      const approvalEntryId = bobListActiveVersion(row).approval.approvalEntryId
+      const view = await getObject(row, approvalEntryId)
       currentView.value = view
       await loadEffectiveView(view)
       editContext.value = {
         objectId: row.objectId,
         objectRevision: row.objectRevision,
-        versionId,
-        revision: view.version.revision ?? bobListActiveVersion(row).revision,
+        approvalEntryId,
+        approvalRevision: view.approval.revision,
       }
       editorModel.value = bobFormFromView(config, view)
       editorResetKey.value += 1
@@ -294,9 +290,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
       const view = await getObject({ objectId })
       const editable =
         requestedMode === 'edit' &&
-        (view.version.status === 'DRAFT' ||
-          (config.entity === 'product' &&
-            view.version.status === 'EFFECTIVE')) &&
+        view.approval.status === 'DRAFT' &&
         session.can(permission('save')) &&
         canLoadEditorReferences.value
       editorMode.value = editable ? 'edit' : 'view'
@@ -306,8 +300,8 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
         ? {
             objectId: view.objectId,
             objectRevision: view.objectRevision,
-            versionId: view.version.versionId,
-            revision: view.version.revision,
+            approvalEntryId: view.approval.approvalEntryId,
+            approvalRevision: view.approval.revision,
           }
         : null
       editorModel.value = bobFormFromView(config, view)
@@ -353,28 +347,32 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     try {
       let mutation: BobMutationResult
       if (editorMode.value === 'create') {
-        const result = await apiClient.postContract(`bob/${config.entity}/create`, { data: bobCreateData(config, form) })
+        const result = await apiClient.postContract(
+          `bob/${config.entity}/create`,
+          { data: bobCreateData(config, form) },
+        )
         mutation = result.data
       } else {
         const context = editContext.value
         if (!context) throw new Error(`未加载可编辑的${config.title}版本。`)
-        const result = await apiClient.postContract(`bob/${config.entity}/save`, {
-          objectId: context.objectId,
-          versionId: context.versionId,
-          revision: context.revision,
-          data: bobSaveData(config, form),
-        })
+        const result = await apiClient.postContract(
+          `bob/${config.entity}/save`,
+          {
+            objectId: context.objectId,
+            approvalEntryId: context.approvalEntryId,
+            approvalRevision: context.approvalRevision,
+            data: bobSaveData(config, form),
+          },
+        )
         mutation = result.data
       }
       if ((config.persistedKeys?.length ?? 0) > 0) {
         const persisted = await getObject(
           { objectId: mutation.objectId },
-          mutation.versionId,
+          mutation.approval.approvalEntryId,
         )
         const normalized = normalizeBobForm(config, form)
-        const persistedData = Object.fromEntries(
-          Object.entries(persisted.data),
-        )
+        const persistedData = Object.fromEntries(Object.entries(persisted.data))
         const missing = config.persistedKeys?.find((key) => {
           if (
             config.entity === 'product' &&
@@ -423,20 +421,17 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
         await apiClient.postContract(`bob/${config.entity}/delete`, {
           objectId: row.objectId,
           objectRevision: row.objectRevision,
-          versionId: bobListActiveVersion(row).versionId,
-          revision: bobListActiveVersion(row).revision,
+          approvalEntryId: bobListActiveVersion(row).approval.approvalEntryId,
+          approvalRevision: bobListActiveVersion(row).approval.revision,
         })
         if (rows.value.length === 1 && page.value > 1) page.value -= 1
       } else {
         if (!(await checkProductCompleteness(row))) return false
-        await apiClient.postContract(
-          `bob/${config.entity}/submit`,
-          {
-            objectId: row.objectId,
-            versionId: bobListActiveVersion(row).versionId,
-            revision: bobListActiveVersion(row).revision,
-          },
-        )
+        await apiClient.postContract(`bob/${config.entity}/submit`, {
+          objectId: row.objectId,
+          approvalEntryId: bobListActiveVersion(row).approval.approvalEntryId,
+          approvalRevision: bobListActiveVersion(row).approval.revision,
+        })
       }
       await query()
       if (currentView.value?.objectId === row.objectId) closeEditor()

@@ -120,7 +120,7 @@ func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Qu
 		if err = validateReference(input.Supplier, "supplier", true); err != nil {
 			return result, err
 		}
-		resolved, resolveErr := s.resolver.ResolveEffectiveReference(ctx, tx, bobdomain.EntitySupplier, input.Supplier.ObjectID, input.Supplier.VersionID)
+		resolved, resolveErr := s.resolver.ResolveApprovedReference(ctx, tx, bobdomain.EntitySupplier, input.Supplier.ObjectID, input.Supplier.ApprovalEntryID)
 		if resolveErr != nil {
 			return result, domainError(ErrorConflict, "supplier is not effective", nil, resolveErr)
 		}
@@ -147,11 +147,11 @@ func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Qu
 			if err = validateReference(&line.Department, "department", true); err != nil {
 				return result, err
 			}
-			category, auxErr := s.auxResolver.ResolveAuxiliaryReference(ctx, tx, auxdomain.EntityAssetCategory, line.Category.ObjectID, line.Category.VersionID)
+			category, auxErr := s.auxResolver.ResolveAuxiliaryReference(ctx, tx, auxdomain.EntityAssetCategory, line.Category.ObjectID, line.Category.ApprovalEntryID)
 			if auxErr != nil {
 				return result, domainError(ErrorConflict, "asset category is not effective", nil, auxErr)
 			}
-			department, auxErr := s.auxResolver.ResolveAuxiliaryReference(ctx, tx, auxdomain.EntityDepartment, line.Department.ObjectID, line.Department.VersionID)
+			department, auxErr := s.auxResolver.ResolveAuxiliaryReference(ctx, tx, auxdomain.EntityDepartment, line.Department.ObjectID, line.Department.ApprovalEntryID)
 			if auxErr != nil {
 				return result, domainError(ErrorConflict, "department is not effective", nil, auxErr)
 			}
@@ -168,7 +168,7 @@ func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Qu
 				if err = validateReference(line.Custodian, "custodian", true); err != nil {
 					return result, err
 				}
-				resolvedCustodian, resolveErr := s.resolver.ResolveEffectiveReference(ctx, tx, bobdomain.EntityEmployee, line.Custodian.ObjectID, line.Custodian.VersionID)
+				resolvedCustodian, resolveErr := s.resolver.ResolveApprovedReference(ctx, tx, bobdomain.EntityEmployee, line.Custodian.ObjectID, line.Custodian.ApprovalEntryID)
 				if resolveErr != nil {
 					return result, domainError(ErrorConflict, "custodian is not effective", nil, resolveErr)
 				}
@@ -187,7 +187,7 @@ func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Qu
 		if err = validateReference(input.Counterparty, "counterparty", true); err != nil {
 			return result, err
 		}
-		resolved, resolveErr := s.resolver.ResolveEffectiveReference(ctx, tx, input.CounterpartyType, input.Counterparty.ObjectID, input.Counterparty.VersionID)
+		resolved, resolveErr := s.resolver.ResolveApprovedReference(ctx, tx, input.CounterpartyType, input.Counterparty.ObjectID, input.Counterparty.ApprovalEntryID)
 		if resolveErr != nil {
 			return result, domainError(ErrorConflict, "counterparty is not effective", nil, resolveErr)
 		}
@@ -352,9 +352,9 @@ func (s *Service) SaveAssetDocument(ctx context.Context, entity string, input Sa
 func (s *Service) writeAssetDraft(ctx context.Context, q *dbsqlc.Queries, entity, documentID string, draft preparedAssetDraft, update bool) error {
 	switch entity {
 	case EntityAssetAcquisition:
-		params := dbsqlc.InsertVouAssetAcquisitionDetailParams{DocumentID: documentID, SupplierObjectID: draft.supplier.ObjectID, SupplierVersionID: draft.supplier.VersionID, SupplierCode: draft.supplier.Code, SupplierName: draft.supplier.Data.Name}
+		params := dbsqlc.InsertVouAssetAcquisitionDetailParams{DocumentID: documentID, SupplierObjectID: draft.supplier.ObjectID, SupplierApprovalEntryID: draft.supplier.ApprovalEntryID, SupplierCode: draft.supplier.Code, SupplierName: draft.supplier.Data.Name}
 		if update {
-			if err := oneRow(q.UpdateVouAssetAcquisitionDetail(ctx, dbsqlc.UpdateVouAssetAcquisitionDetailParams{SupplierObjectID: params.SupplierObjectID, SupplierVersionID: params.SupplierVersionID, SupplierCode: params.SupplierCode, SupplierName: params.SupplierName, DocumentID: documentID})); err != nil {
+			if err := oneRow(q.UpdateVouAssetAcquisitionDetail(ctx, dbsqlc.UpdateVouAssetAcquisitionDetailParams{SupplierObjectID: params.SupplierObjectID, SupplierApprovalEntryID: params.SupplierApprovalEntryID, SupplierCode: params.SupplierCode, SupplierName: params.SupplierName, DocumentID: documentID})); err != nil {
 				return err
 			}
 		} else if err := q.InsertVouAssetAcquisitionDetail(ctx, params); err != nil {
@@ -367,18 +367,18 @@ func (s *Service) writeAssetDraft(ctx context.Context, q *dbsqlc.Queries, entity
 			var custID, custVersion, custCode, custName *string
 			if line.custodian != nil {
 				custID = stringPtr(line.custodian.ObjectID)
-				custVersion = stringPtr(line.custodian.VersionID)
+				custVersion = stringPtr(line.custodian.ApprovalEntryID)
 				custCode = stringPtr(line.custodian.Code)
 				custName = stringPtr(line.custodian.Data.Name)
 			}
-			if err := q.InsertVouAssetAcquisitionLine(ctx, dbsqlc.InsertVouAssetAcquisitionLineParams{ID: newID(), DocumentID: documentID, LineNo: int32(i + 1), AssetName: line.input.AssetName, Specification: line.input.Specification, CategoryObjectID: line.category.ObjectID, CategoryVersionID: line.category.VersionID, CategoryCode: line.category.Code, CategoryName: auxName(line.category), OriginalValueCents: line.originalValue, UsefulLifeMonths: line.input.UsefulLifeMonths, ResidualRateBps: line.residualRateBps, DepartmentObjectID: line.department.ObjectID, DepartmentVersionID: line.department.VersionID, DepartmentCode: line.department.Code, DepartmentName: auxName(line.department), CustodianObjectID: custID, CustodianVersionID: custVersion, CustodianCode: custCode, CustodianName: custName, Location: line.input.Location, Remark: optionalText(line.input.Remark)}); err != nil {
+			if err := q.InsertVouAssetAcquisitionLine(ctx, dbsqlc.InsertVouAssetAcquisitionLineParams{ID: newID(), DocumentID: documentID, LineNo: int32(i + 1), AssetName: line.input.AssetName, Specification: line.input.Specification, CategoryObjectID: line.category.ObjectID, CategoryApprovalEntryID: line.category.ApprovalEntryID, CategoryCode: line.category.Code, CategoryName: auxName(line.category), OriginalValueCents: line.originalValue, UsefulLifeMonths: line.input.UsefulLifeMonths, ResidualRateBps: line.residualRateBps, DepartmentObjectID: line.department.ObjectID, DepartmentApprovalEntryID: line.department.ApprovalEntryID, DepartmentCode: line.department.Code, DepartmentName: auxName(line.department), CustodianObjectID: custID, CustodianApprovalEntryID: custVersion, CustodianCode: custCode, CustodianName: custName, Location: line.input.Location, Remark: optionalText(line.input.Remark)}); err != nil {
 				return err
 			}
 		}
 	case EntityAssetSale:
-		params := dbsqlc.InsertVouAssetSaleDetailParams{DocumentID: documentID, CounterpartyEntity: draft.counterpartyType, CounterpartyObjectID: draft.counterparty.ObjectID, CounterpartyVersionID: draft.counterparty.VersionID, CounterpartyCode: draft.counterparty.Code, CounterpartyName: draft.counterparty.Data.Name}
+		params := dbsqlc.InsertVouAssetSaleDetailParams{DocumentID: documentID, CounterpartyEntity: draft.counterpartyType, CounterpartyObjectID: draft.counterparty.ObjectID, CounterpartyApprovalEntryID: draft.counterparty.ApprovalEntryID, CounterpartyCode: draft.counterparty.Code, CounterpartyName: draft.counterparty.Data.Name}
 		if update {
-			if err := oneRow(q.UpdateVouAssetSaleDetail(ctx, dbsqlc.UpdateVouAssetSaleDetailParams{CounterpartyEntity: params.CounterpartyEntity, CounterpartyObjectID: params.CounterpartyObjectID, CounterpartyVersionID: params.CounterpartyVersionID, CounterpartyCode: params.CounterpartyCode, CounterpartyName: params.CounterpartyName, DocumentID: documentID})); err != nil {
+			if err := oneRow(q.UpdateVouAssetSaleDetail(ctx, dbsqlc.UpdateVouAssetSaleDetailParams{CounterpartyEntity: params.CounterpartyEntity, CounterpartyObjectID: params.CounterpartyObjectID, CounterpartyApprovalEntryID: params.CounterpartyApprovalEntryID, CounterpartyCode: params.CounterpartyCode, CounterpartyName: params.CounterpartyName, DocumentID: documentID})); err != nil {
 				return err
 			}
 		} else if err := q.InsertVouAssetSaleDetail(ctx, params); err != nil {
@@ -417,16 +417,16 @@ func (s *Service) loadAssetData(ctx context.Context, q *dbsqlc.Queries, document
 		if err != nil {
 			return data, err
 		}
-		data.Supplier = reference(detail.SupplierObjectID, detail.SupplierVersionID, bobdomain.EntitySupplier, detail.SupplierCode, detail.SupplierName, "", "", "")
+		data.Supplier = reference(detail.SupplierObjectID, detail.SupplierApprovalEntryID, bobdomain.EntitySupplier, detail.SupplierCode, detail.SupplierName, "", "", "")
 		rows, err := q.ListVouAssetAcquisitionLines(ctx, document.ID)
 		if err != nil {
 			return data, err
 		}
 		data.AssetAcquisitionLines = make([]AssetAcquisitionLineView, 0, len(rows))
 		for _, row := range rows {
-			item := AssetAcquisitionLineView{LineID: row.ID, LineNo: row.LineNo, AssetName: row.AssetName, Specification: row.Specification, Category: *reference(row.CategoryObjectID, row.CategoryVersionID, auxdomain.EntityAssetCategory, row.CategoryCode, row.CategoryName, "", "", ""), OriginalValue: formatMoney(row.OriginalValueCents), UsefulLifeMonths: row.UsefulLifeMonths, ResidualRate: formatFixed(int64(row.ResidualRateBps), 2), Department: *reference(row.DepartmentObjectID, row.DepartmentVersionID, auxdomain.EntityDepartment, row.DepartmentCode, row.DepartmentName, "", "", ""), Location: row.Location, Remark: deref(row.Remark)}
+			item := AssetAcquisitionLineView{LineID: row.ID, LineNo: row.LineNo, AssetName: row.AssetName, Specification: row.Specification, Category: *reference(row.CategoryObjectID, row.CategoryApprovalEntryID, auxdomain.EntityAssetCategory, row.CategoryCode, row.CategoryName, "", "", ""), OriginalValue: formatMoney(row.OriginalValueCents), UsefulLifeMonths: row.UsefulLifeMonths, ResidualRate: formatFixed(int64(row.ResidualRateBps), 2), Department: *reference(row.DepartmentObjectID, row.DepartmentApprovalEntryID, auxdomain.EntityDepartment, row.DepartmentCode, row.DepartmentName, "", "", ""), Location: row.Location, Remark: deref(row.Remark)}
 			if row.CustodianObjectID != nil {
-				item.Custodian = reference(deref(row.CustodianObjectID), deref(row.CustodianVersionID), bobdomain.EntityEmployee, deref(row.CustodianCode), deref(row.CustodianName), "", "", "")
+				item.Custodian = reference(deref(row.CustodianObjectID), deref(row.CustodianApprovalEntryID), bobdomain.EntityEmployee, deref(row.CustodianCode), deref(row.CustodianName), "", "", "")
 			}
 			data.AssetAcquisitionLines = append(data.AssetAcquisitionLines, item)
 		}
@@ -435,7 +435,7 @@ func (s *Service) loadAssetData(ctx context.Context, q *dbsqlc.Queries, document
 		if err != nil {
 			return data, err
 		}
-		data.Counterparty = reference(detail.CounterpartyObjectID, detail.CounterpartyVersionID, detail.CounterpartyEntity, detail.CounterpartyCode, detail.CounterpartyName, "", "", "")
+		data.Counterparty = reference(detail.CounterpartyObjectID, detail.CounterpartyApprovalEntryID, detail.CounterpartyEntity, detail.CounterpartyCode, detail.CounterpartyName, "", "", "")
 		rows, err := q.ListVouAssetSaleLines(ctx, document.ID)
 		if err != nil {
 			return data, err

@@ -2262,11 +2262,31 @@
                   'content':
                     {
                       'application/json':
-                        { 'schema': { '$ref': './schemas/aux.yaml#/AuxApprovalRevisionRequest' } },
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/aux.yaml#/AuxApprovalRevisionRequest',
+                            },
+                        },
                     },
                 },
               'responses':
-                { '200': { 'description': '辅助对象审批变更响应。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/aux.yaml#/AuxMutationResponse' } } } } },
+                {
+                  '200':
+                    {
+                      'description': '辅助对象审批变更响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/aux.yaml#/AuxMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/aux/{entity}/unsubmit':
@@ -2279,9 +2299,36 @@
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
               'requestBody':
-                { 'required': true, 'content': { 'application/json': { 'schema': { '$ref': './schemas/aux.yaml#/AuxApprovalRevisionRequest' } } } },
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/aux.yaml#/AuxApprovalRevisionRequest',
+                            },
+                        },
+                    },
+                },
               'responses':
-                { '200': { 'description': '辅助对象审批变更响应。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/aux.yaml#/AuxMutationResponse' } } } } },
+                {
+                  '200':
+                    {
+                      'description': '辅助对象审批变更响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/aux.yaml#/AuxMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/aux/{entity}/approve':
@@ -2294,9 +2341,36 @@
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
               'requestBody':
-                { 'required': true, 'content': { 'application/json': { 'schema': { '$ref': './schemas/aux.yaml#/AuxReviewRequest' } } } },
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/aux.yaml#/AuxApprovalRevisionRequest',
+                            },
+                        },
+                    },
+                },
               'responses':
-                { '200': { 'description': '辅助对象审批变更响应。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/aux.yaml#/AuxMutationResponse' } } } } },
+                {
+                  '200':
+                    {
+                      'description': '辅助对象审批变更响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/aux.yaml#/AuxMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/aux/{entity}/reject':
@@ -2309,9 +2383,34 @@
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
               'requestBody':
-                { 'required': true, 'content': { 'application/json': { 'schema': { '$ref': './schemas/aux.yaml#/AuxReviewRequest' } } } },
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/aux.yaml#/AuxReviewRequest' },
+                        },
+                    },
+                },
               'responses':
-                { '200': { 'description': '辅助对象审批变更响应。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/aux.yaml#/AuxMutationResponse' } } } } },
+                {
+                  '200':
+                    {
+                      'description': '辅助对象审批变更响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/aux.yaml#/AuxMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/aux/{entity}/unapprove':
@@ -2324,9 +2423,34 @@
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
               'requestBody':
-                { 'required': true, 'content': { 'application/json': { 'schema': { '$ref': './schemas/aux.yaml#/AuxReviewRequest' } } } },
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            { '$ref': './schemas/aux.yaml#/AuxReviewRequest' },
+                        },
+                    },
+                },
               'responses':
-                { '200': { 'description': '辅助对象审批变更响应。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/aux.yaml#/AuxMutationResponse' } } } } },
+                {
+                  '200':
+                    {
+                      'description': '辅助对象审批变更响应。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/aux.yaml#/AuxMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/aux/{entity}/enable':
@@ -2867,7 +2991,9 @@
                       'application/json':
                         {
                           'schema':
-                            { '$ref': './schemas/bob.yaml#/BobVersionRevisionRequest' },
+                            {
+                              '$ref': './schemas/bob.yaml#/BobVersionRevisionRequest',
+                            },
                         },
                     },
                 },
@@ -4134,7 +4260,9 @@
                       'application/json':
                         {
                           'schema':
-                            { '$ref': './schemas/bob.yaml#/BobVersionRevisionRequest' },
+                            {
+                              '$ref': './schemas/bob.yaml#/BobVersionRevisionRequest',
+                            },
                         },
                     },
                 },
@@ -4264,14 +4392,14 @@
                 {
                   '200':
                     {
-                      'description': '业务对象变更响应。',
+                      'description': '业务对象变更响应；存在当前正式引用时在 data.references 返回结构化阻断。',
                       'content':
                         {
                           'application/json':
                             {
                               'schema':
                                 {
-                                  '$ref': './schemas/bob.yaml#/BobMutationResponse',
+                                  '$ref': './schemas/bob.yaml#/BobUnapproveResponse',
                                 },
                             },
                         },

@@ -1,15 +1,13 @@
 import type { components } from '@/api/generated/schema'
 
 export type CustomerSalesAttributionType =
-  | 'INTERNAL_EMPLOYEE'
-  | 'EXTERNAL_PART_TIME'
-  | 'CHANNEL_PARTNER'
+  'INTERNAL_EMPLOYEE' | 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER'
 export type CustomerCostCalculationBasis = 'UNIT_PRICE' | 'ORDER_AMOUNT'
 export type CustomerPartyMode = 'EXISTING' | 'NEW'
 
 export interface CustomerReference {
   objectId: string
-  versionId: string
+  approvalEntryId: string
   code: string
   name: string
   entity:
@@ -103,8 +101,8 @@ export interface CustomerListItem {
   customerType: string
   hasCandidate: boolean
   objectRevision: number
-  versionId: string
-  revision: number
+  approvalEntryId: string
+  approvalRevision: number
   submittedBy: string | null
 }
 
@@ -114,8 +112,8 @@ export interface CustomerAccount {
   objectRevision: number
   enabled: boolean
   status: string
-  versionId: string
-  revision: number
+  approvalEntryId: string
+  approvalRevision: number
   data: CustomerAccountDraft
   attachments: CustomerAttachment[]
 }

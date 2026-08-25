@@ -114,7 +114,7 @@ func saveOpeningBill(ctx context.Context, q *dbsqlc.Queries, bookID string, inde
 		if err != nil || interestErr != nil || costErr != nil || issueErr != nil || maturityErr != nil || maturityDate.Before(issueDate) ||
 			strings.TrimSpace(bill.BillNo) == "" || strings.TrimSpace(bill.Drawer) == "" || strings.TrimSpace(bill.Acceptor) == "" || strings.TrimSpace(bill.Payee) == "" ||
 			(bill.PositionType != "ASSET" && bill.PositionType != "LIABILITY") || (bill.Medium != "PAPER" && bill.Medium != "ELECTRONIC") ||
-			bill.AnnualRateBps < 0 || bill.InterestDays < 0 || !validID(bill.OriginatingParty.ObjectID) || !validID(bill.OriginatingParty.VersionID) {
+			bill.AnnualRateBps < 0 || bill.InterestDays < 0 || !validID(bill.OriginatingParty.ObjectID) || !validID(bill.OriginatingParty.ApprovalEntryID) {
 			return domainError(ErrorValidation, "invalid opening bill facts", firstError(err, interestErr, costErr, issueErr, maturityErr))
 		}
 		issue = pgtype.Date{Time: issueDate, Valid: true}
@@ -129,7 +129,7 @@ func saveOpeningBill(ctx context.Context, q *dbsqlc.Queries, bookID string, inde
 		AnnualRateBps: optionalRegisterInt(createObject, bill.AnnualRateBps), InterestDays: optionalRegisterInt(createObject, bill.InterestDays),
 		InterestAmountMinor: optionalRegisterMoney(createObject, interest), CustomerCostAmountMinor: optionalRegisterMoney(createObject, cost),
 		OriginPartyEntity: optionalRegisterText(bill.OriginatingParty.Entity), OriginPartyObjectID: optionalRegisterText(bill.OriginatingParty.ObjectID),
-		OriginPartyVersionID: optionalRegisterText(bill.OriginatingParty.VersionID), OriginPartyCode: optionalRegisterText(bill.OriginatingParty.Code),
+		OriginPartyApprovalEntryID: optionalRegisterText(bill.OriginatingParty.ApprovalEntryID), OriginPartyCode: optionalRegisterText(bill.OriginatingParty.Code),
 		OriginPartyName: optionalRegisterText(bill.OriginatingParty.Name), ValueMinor: value,
 	})
 	if err != nil {
@@ -176,7 +176,7 @@ func loadOpeningRegisters(ctx context.Context, q *dbsqlc.Queries, view *OpeningV
 				InterestAmount:     fixeddecimal.Format(row.InterestAmountMinor, 2, false),
 				CustomerCostAmount: fixeddecimal.Format(row.CustomerCostAmountMinor, 2, false),
 				ValueAmount:        fixeddecimal.Format(row.ValueMinor, 2, false),
-				OriginatingParty:   OpeningPartyInput{Entity: row.OriginPartyEntity, ObjectID: row.OriginPartyObjectID, VersionID: row.OriginPartyVersionID, Code: row.OriginPartyCode, Name: row.OriginPartyName},
+				OriginatingParty:   OpeningPartyInput{Entity: row.OriginPartyEntity, ObjectID: row.OriginPartyObjectID, ApprovalEntryID: row.OriginPartyApprovalEntryID, Code: row.OriginPartyCode, Name: row.OriginPartyName},
 			},
 			CreateObject: row.CreateObject,
 		}
@@ -260,7 +260,7 @@ func approveOpeningRegisters(ctx context.Context, q *dbsqlc.Queries, bookID stri
 				AnnualRateBps: *bill.AnnualRateBps, InterestDays: *bill.InterestDays,
 				InterestAmountMinor: *bill.InterestAmountMinor, CustomerCostAmountMinor: *bill.CustomerCostAmountMinor,
 				OriginPartyEntity: bill.OriginPartyEntity, OriginPartyObjectID: bill.OriginPartyObjectID,
-				OriginPartyVersionID: bill.OriginPartyVersionID, OriginPartyCode: bill.OriginPartyCode, OriginPartyName: bill.OriginPartyName,
+				OriginPartyApprovalEntryID: bill.OriginPartyApprovalEntryID, OriginPartyCode: bill.OriginPartyCode, OriginPartyName: bill.OriginPartyName,
 				SourceDocumentID: bookID, SourceLineID: bill.BillID,
 			}); err != nil {
 				return databaseError("create opening bill", err)

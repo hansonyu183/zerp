@@ -18,8 +18,8 @@ import (
 )
 
 type effectiveReferenceResolver interface {
-	ResolveEffectiveReference(context.Context, pgx.Tx, string, string, string) (bobdomain.EffectiveReference, error)
-	ResolveCurrentEffectiveReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
+	ResolveApprovedReference(context.Context, pgx.Tx, string, string, string) (bobdomain.EffectiveReference, error)
+	ResolveLatestApprovedReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
 }
 
 type auxiliaryReferenceResolver interface {
@@ -201,9 +201,9 @@ func formatDate(value pgtype.Date) string {
 func stringPtr(value string) *string { return &value }
 
 type settlementSnapshotFields struct {
-	ObjectID, VersionID, Code, Name, TermCode, RuleType, Description *string
-	MonthOffset, DayOfMonth, DayOffset, DueDays, CutoffDay           *int32
-	DefaultSalesSurchargeCents                                       int64
+	ObjectID, ApprovalEntryID, Code, Name, TermCode, RuleType, Description *string
+	MonthOffset, DayOfMonth, DayOffset, DueDays, CutoffDay                 *int32
+	DefaultSalesSurchargeCents                                             int64
 }
 
 func settlementSnapshot(
@@ -225,8 +225,8 @@ func settlementSnapshot(
 		DefaultSalesSurchargeCents: surcharge,
 		Description:                optionalText(reference.Data.Description),
 	}
-	if reference.VersionID != "" {
-		result.VersionID = stringPtr(reference.VersionID)
+	if reference.ApprovalEntryID != "" {
+		result.ApprovalEntryID = stringPtr(reference.ApprovalEntryID)
 	}
 	if reference.Data.RuleType == bobdomain.SettlementRuleRelativeDays {
 		result.DueDays = int32Ptr(reference.Data.DayOffset)

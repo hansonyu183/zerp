@@ -145,8 +145,8 @@ func defaultErrorKey(kind ErrorKind) string {
 }
 
 type ReferenceInput struct {
-	ObjectID  string `json:"objectId"`
-	VersionID string `json:"versionId"`
+	ObjectID        string `json:"objectId"`
+	ApprovalEntryID string `json:"approvalEntryId"`
 }
 
 type ProductReferenceInput struct {
@@ -380,11 +380,11 @@ type DraftInput struct {
 }
 
 type IntermediaryReference struct {
-	ObjectID  string `json:"objectId"`
-	VersionID string `json:"versionId"`
-	Entity    string `json:"entity"`
-	Code      string `json:"code"`
-	Name      string `json:"name"`
+	ObjectID        string `json:"objectId"`
+	ApprovalEntryID string `json:"approvalEntryId"`
+	Entity          string `json:"entity"`
+	Code            string `json:"code"`
+	Name            string `json:"name"`
 }
 
 type IntermediarySalesContractSnapshot struct {
@@ -606,30 +606,30 @@ type AttachmentRemoveInput struct {
 }
 
 type ReferenceView struct {
-	ObjectID             string                            `json:"objectId"`
-	VersionID            string                            `json:"versionId"`
-	Entity               string                            `json:"entity"`
-	Code                 string                            `json:"code"`
-	Name                 string                            `json:"name"`
-	Unit                 string                            `json:"unit,omitempty"`
-	Currency             string                            `json:"currency,omitempty"`
-	PlateNumber          string                            `json:"plateNumber,omitempty"`
-	BehaviorProfile      string                            `json:"behaviorProfile,omitempty"`
-	ProductTypeObjectID  string                            `json:"productTypeObjectId,omitempty"`
-	ProductTypeVersionID string                            `json:"productTypeVersionId,omitempty"`
-	ProductTypeCode      string                            `json:"productTypeCode,omitempty"`
-	ProductTypeName      string                            `json:"productTypeName,omitempty"`
-	DefaultInputUnitID   string                            `json:"defaultInputUnitId,omitempty"`
-	PricingUnitID        string                            `json:"pricingUnitId,omitempty"`
-	UnitConversions      []bobdomain.ProductUnitConversion `json:"unitConversions,omitempty"`
+	ObjectID                   string                            `json:"objectId"`
+	ApprovalEntryID            string                            `json:"approvalEntryId"`
+	Entity                     string                            `json:"entity"`
+	Code                       string                            `json:"code"`
+	Name                       string                            `json:"name"`
+	Unit                       string                            `json:"unit,omitempty"`
+	Currency                   string                            `json:"currency,omitempty"`
+	PlateNumber                string                            `json:"plateNumber,omitempty"`
+	BehaviorProfile            string                            `json:"behaviorProfile,omitempty"`
+	ProductTypeObjectID        string                            `json:"productTypeObjectId,omitempty"`
+	ProductTypeApprovalEntryID string                            `json:"productTypeApprovalEntryId,omitempty"`
+	ProductTypeCode            string                            `json:"productTypeCode,omitempty"`
+	ProductTypeName            string                            `json:"productTypeName,omitempty"`
+	DefaultInputUnitID         string                            `json:"defaultInputUnitId,omitempty"`
+	PricingUnitID              string                            `json:"pricingUnitId,omitempty"`
+	UnitConversions            []bobdomain.ProductUnitConversion `json:"unitConversions,omitempty"`
 }
 
 type UnitSnapshotView struct {
-	ObjectID  string `json:"objectId"`
-	VersionID string `json:"versionId"`
-	Code      string `json:"code"`
-	Name      string `json:"name"`
-	Symbol    string `json:"symbol"`
+	ObjectID        string `json:"objectId"`
+	ApprovalEntryID string `json:"approvalEntryId"`
+	Code            string `json:"code"`
+	Name            string `json:"name"`
+	Symbol          string `json:"symbol"`
 }
 
 type ProductLineView struct {
@@ -912,7 +912,7 @@ type BillCashLineView struct {
 
 type SettlementMethodSnapshotView struct {
 	ObjectID              string `json:"objectId"`
-	VersionID             string `json:"versionId,omitempty"`
+	ApprovalEntryID       string `json:"approvalEntryId,omitempty"`
 	Code                  string `json:"code"`
 	Name                  string `json:"name"`
 	RuleType              string `json:"ruleType"`

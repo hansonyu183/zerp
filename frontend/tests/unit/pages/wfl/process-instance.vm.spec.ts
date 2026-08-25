@@ -147,7 +147,7 @@ describe('process instance view model', () => {
     vi.useFakeTimers()
     const selectedParty = {
       objectId: '01J00000000000000000000010',
-      versionId: '01J00000000000000000000011',
+      approvalEntryId: '01J00000000000000000000011',
       entity: 'customer-account' as const,
       code: 'C-001',
       name: '已选客户',
@@ -160,20 +160,22 @@ describe('process instance view model', () => {
               {
                 objectId: '01J00000000000000000000010',
                 code: 'C-001-UPDATED',
-                effectiveVersionId: '01J00000000000000000000014',
-                currentVersion: {
-                  versionId: '01J00000000000000000000014',
-                  status: 'EFFECTIVE',
+                latestApproved: {
+                  approval: {
+                    approvalEntryId: '01J00000000000000000000014',
+                    status: 'APPROVED',
+                  },
                   summary: { name: '已选客户（搜索结果）' },
                 },
               },
               {
                 objectId: '01J00000000000000000000012',
                 code: 'C-002',
-                effectiveVersionId: '01J00000000000000000000013',
-                currentVersion: {
-                  versionId: '01J00000000000000000000013',
-                  status: 'EFFECTIVE',
+                latestApproved: {
+                  approval: {
+                    approvalEntryId: '01J00000000000000000000013',
+                    status: 'APPROVED',
+                  },
                   summary: { name: '搜索结果客户' },
                 },
               },
@@ -187,7 +189,7 @@ describe('process instance view model', () => {
       data: [
         {
           objectId: '01J00000000000000000000012',
-          versionId: '01J00000000000000000000013',
+          approvalEntryId: '01J00000000000000000000013',
           code: 'C-002',
           name: '搜索结果客户',
         },
@@ -206,7 +208,7 @@ describe('process instance view model', () => {
       selectedParty,
       {
         objectId: '01J00000000000000000000012',
-        versionId: '01J00000000000000000000013',
+        approvalEntryId: '01J00000000000000000000013',
         entity: 'customer-account',
         code: 'C-002',
         name: '搜索结果客户',

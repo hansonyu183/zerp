@@ -768,7 +768,10 @@ func voucherStatusRank(status string) (int, bool) {
 
 func (s *Seeder) voucherReference(key string) voudomain.ReferenceInput {
 	view := s.bobRefs[key]
-	return voudomain.ReferenceInput{ObjectID: view.ObjectID, VersionID: view.Version.VersionID}
+	if string(view.Approval.Status) != approvedStatus {
+		panic("test seed requires an approved BOB reference")
+	}
+	return voudomain.ReferenceInput{ObjectID: view.ObjectID, ApprovalEntryID: view.Approval.ApprovalEntryID}
 }
 
 func (s *Seeder) fixedFormula(

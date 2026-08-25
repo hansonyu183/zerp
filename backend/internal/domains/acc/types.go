@@ -166,11 +166,11 @@ type OpeningBillInput struct {
 }
 
 type OpeningPartyInput struct {
-	Entity    string `json:"entity"`
-	ObjectID  string `json:"objectId"`
-	VersionID string `json:"versionId"`
-	Code      string `json:"code"`
-	Name      string `json:"name"`
+	Entity          string `json:"entity"`
+	ObjectID        string `json:"objectId"`
+	ApprovalEntryID string `json:"approvalEntryId"`
+	Code            string `json:"code"`
+	Name            string `json:"name"`
 }
 
 type OpeningContainerInput struct {

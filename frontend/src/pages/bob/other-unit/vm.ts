@@ -10,7 +10,7 @@ type PartyKind = components['schemas']['PartyKind']
 
 interface ReferenceOption {
   objectId: string
-  versionId: string
+  approvalEntryId: string
   code: string
   name: string
   title: string
@@ -53,7 +53,14 @@ const emptyForm = (): OtherUnitForm => ({
 })
 
 export type OtherUnitLifecycleAction =
-  'submit' | 'unsubmit' | 'approve' | 'reject' | 'enable' | 'disable' | 'delete'
+  | 'submit'
+  | 'unsubmit'
+  | 'approve'
+  | 'reject'
+  | 'unapprove'
+  | 'enable'
+  | 'disable'
+  | 'delete'
 
 export function useOtherUnitViewModel() {
   const session = useSessionStore()
@@ -139,15 +146,16 @@ export function useOtherUnitViewModel() {
     action: OtherUnitLifecycleAction,
   ): boolean {
     if (!can(action)) return false
-    if (action === 'submit') return row.status === 'DRAFT'
-    if (action === 'unsubmit') return row.status === 'PENDING'
+    if (action === 'submit') return row.approval.status === 'DRAFT'
+    if (action === 'unsubmit') return row.approval.status === 'PENDING'
     if (action === 'approve' || action === 'reject')
-      return row.status === 'PENDING'
+      return row.approval.status === 'PENDING'
+    if (action === 'unapprove') return row.approval.status === 'APPROVED'
     if (action === 'enable')
-      return row.effectiveVersionId !== null && !row.enabled
+      return row.approval.status === 'APPROVED' && !row.enabled
     if (action === 'disable')
-      return row.effectiveVersionId !== null && row.enabled
-    return row.status === 'DRAFT' || row.status === 'PENDING'
+      return row.approval.status === 'APPROVED' && row.enabled
+    return row.approval.status === 'DRAFT' || row.approval.status === 'PENDING'
   }
 
   async function query(): Promise<void> {
@@ -258,12 +266,12 @@ export function useOtherUnitViewModel() {
       })
       if (!active || sequence !== operatingSearchSequence) return
       const loaded = result.data.items.flatMap((item) => {
-        const version = item.effective
+        const version = item.latestApproved
         if (!version) return []
         const name = String(version.summary.name ?? '')
         return {
           objectId: item.objectId,
-          versionId: version.versionId,
+          approvalEntryId: version.approval.approvalEntryId,
           code: item.code,
           name,
           title: `${item.code} · ${name}`,
@@ -296,7 +304,7 @@ export function useOtherUnitViewModel() {
       if (!active || sequence !== settlementSearchSequence) return
       const loaded = result.data.map((item) => ({
         objectId: item.objectId,
-        versionId: item.versionId,
+        approvalEntryId: item.approvalEntryId,
         code: item.code,
         name: item.name,
         title: `${item.code} · ${item.name}`,
@@ -363,7 +371,7 @@ export function useOtherUnitViewModel() {
       operatingOptions.value = [
         {
           objectId: result.data.operatingEntityId,
-          versionId: '',
+          approvalEntryId: '',
           code: result.data.operatingEntityCode,
           name: result.data.operatingEntityName,
           title: `${result.data.operatingEntityCode} · ${result.data.operatingEntityName}`,
@@ -373,7 +381,7 @@ export function useOtherUnitViewModel() {
         ? [
             {
               objectId: result.data.data.settlementMethodId,
-              versionId: '',
+              approvalEntryId: '',
               code: result.data.data.settlementMethodCode ?? '',
               name: result.data.data.settlementMethodName ?? '',
               title: `${result.data.data.settlementMethodCode ?? ''} · ${result.data.data.settlementMethodName ?? ''}`,
@@ -430,8 +438,8 @@ export function useOtherUnitViewModel() {
       } else if (detail.value) {
         await otherUnitApi.save({
           objectId: detail.value.objectId,
-          versionId: detail.value.versionId,
-          revision: detail.value.revision,
+          approvalEntryId: detail.value.approval.approvalEntryId,
+          approvalRevision: detail.value.approval.revision,
           data: {
             contactName: form.value.contactName.trim(),
             contactPhone: form.value.contactPhone.trim(),
@@ -470,29 +478,27 @@ export function useOtherUnitViewModel() {
         await otherUnitApi.delete({
           objectId: row.objectId,
           objectRevision: row.objectRevision,
-          versionId: row.versionId,
-          revision: row.revision,
+          approvalEntryId: row.approval.approvalEntryId,
+          approvalRevision: row.approval.revision,
         })
       } else if (action === 'submit' || action === 'approve') {
         await otherUnitApi[action]({
           objectId: row.objectId,
-          versionId: row.versionId,
-          revision: row.revision,
+          approvalEntryId: row.approval.approvalEntryId,
+          approvalRevision: row.approval.revision,
         })
       } else if (action === 'unsubmit') {
         await otherUnitApi.unsubmit({
           objectId: row.objectId,
-          objectRevision: row.objectRevision,
-          versionId: row.versionId,
-          revision: row.revision,
-          reason,
+          approvalEntryId: row.approval.approvalEntryId,
+          approvalRevision: row.approval.revision,
         })
-      } else if (action === 'reject') {
-        await otherUnitApi.reject({
+      } else if (action === 'reject' || action === 'unapprove') {
+        await otherUnitApi[action]({
           objectId: row.objectId,
-          versionId: row.versionId,
-          revision: row.revision,
-          comment: reason,
+          approvalEntryId: row.approval.approvalEntryId,
+          approvalRevision: row.approval.revision,
+          reason,
         })
       } else {
         await otherUnitApi[action]({

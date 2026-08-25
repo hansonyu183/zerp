@@ -6,12 +6,12 @@ import (
 )
 
 const (
-	testObjectID  = "01J00000000000000000000001"
-	testVersionID = "01J00000000000000000000002"
+	testObjectID        = "01J00000000000000000000001"
+	testApprovalEntryID = "01J00000000000000000000002"
 )
 
 func refInput() *ReferenceInput {
-	return &ReferenceInput{ObjectID: testObjectID, VersionID: testVersionID}
+	return &ReferenceInput{ObjectID: testObjectID, ApprovalEntryID: testApprovalEntryID}
 }
 
 func productLineInput(quantity, price string) ProductLineInput {

@@ -2,6 +2,7 @@ package testseed
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -99,13 +100,16 @@ func otherCashDraft(counterpartyType string, counterparty, fund, handler voudoma
 func (s *Seeder) seedAssetDocuments(ctx context.Context, counts *Counts, supplier, customer, employee voudomain.ReferenceInput) error {
 	category := s.auxRefs["asset-category-test"]
 	department := s.auxRefs["department-root"]
+	if category.LatestApproved == nil || department.LatestApproved == nil {
+		return errors.New("test asset references require approved AUX versions")
+	}
 	acquisition, _, result, err := s.ensureVoucher(ctx, "asset-acquisition-approved", voudomain.EntityAssetAcquisition, voudomain.StatusApproved, func() (voudomain.MutationResult, error) {
 		return s.vouchers.Create(ctx, voudomain.EntityAssetAcquisition, voudomain.CreateInput{Data: voudomain.DraftInput{
 			BusinessDate: "2026-07-02", Currency: "CNY", Supplier: &supplier,
 			Remark: "测试固定资产来源",
 			AssetAcquisitionLines: []voudomain.AssetAcquisitionLineInput{
-				{AssetName: "测试叉车", Specification: "FD-30", Category: voudomain.ReferenceInput{ObjectID: category.ObjectID, VersionID: category.CurrentVersion.VersionID}, OriginalValue: "50000.00", UsefulLifeMonths: 60, ResidualRate: "5.00", Department: voudomain.ReferenceInput{ObjectID: department.ObjectID, VersionID: department.CurrentVersion.VersionID}, Custodian: &employee, Location: "一号仓"},
-				{AssetName: "测试包装机", Specification: "PK-01", Category: voudomain.ReferenceInput{ObjectID: category.ObjectID, VersionID: category.CurrentVersion.VersionID}, OriginalValue: "30000.00", UsefulLifeMonths: 60, ResidualRate: "5.00", Department: voudomain.ReferenceInput{ObjectID: department.ObjectID, VersionID: department.CurrentVersion.VersionID}, Custodian: &employee, Location: "包装区"},
+				{AssetName: "测试叉车", Specification: "FD-30", Category: voudomain.ReferenceInput{ObjectID: category.ObjectID, ApprovalEntryID: category.LatestApproved.Approval.ApprovalEntryID}, OriginalValue: "50000.00", UsefulLifeMonths: 60, ResidualRate: "5.00", Department: voudomain.ReferenceInput{ObjectID: department.ObjectID, ApprovalEntryID: department.LatestApproved.Approval.ApprovalEntryID}, Custodian: &employee, Location: "一号仓"},
+				{AssetName: "测试包装机", Specification: "PK-01", Category: voudomain.ReferenceInput{ObjectID: category.ObjectID, ApprovalEntryID: category.LatestApproved.Approval.ApprovalEntryID}, OriginalValue: "30000.00", UsefulLifeMonths: 60, ResidualRate: "5.00", Department: voudomain.ReferenceInput{ObjectID: department.ObjectID, ApprovalEntryID: department.LatestApproved.Approval.ApprovalEntryID}, Custodian: &employee, Location: "包装区"},
 			},
 		}}, actorID, requestID("asset-acquisition-approved", "create"))
 	})

@@ -15,17 +15,14 @@ import { bobListActiveVersion } from './types'
 
 export const statusText: Record<BobStatus, string> = {
   DRAFT: '草稿',
-  PENDING: '待审核',
-  REJECTED: '已驳回',
-  EFFECTIVE: '有效',
-  INVALID: '已失效',
+  PENDING: '待批准',
+  APPROVED: '已批准',
 }
 
 export const statusOptions: readonly BusinessObjectFieldOption[] = [
   { title: '草稿', value: 'DRAFT' },
-  { title: '待审核', value: 'PENDING' },
-  { title: '有效', value: 'EFFECTIVE' },
-  { title: '已失效', value: 'INVALID' },
+  { title: '待批准', value: 'PENDING' },
+  { title: '已批准', value: 'APPROVED' },
 ]
 
 export const customerTypeOptions: readonly BusinessObjectFieldOption[] = [
@@ -63,12 +60,13 @@ export const containerTypeOptions: readonly BusinessObjectFieldOption[] = [
   { title: '树脂桶', value: 'RESIN' },
 ]
 
-export const productBehaviorProfileOptions: readonly BusinessObjectFieldOption[] = [
-  { title: '原材料（可销售）', value: 'RAW_MATERIAL' },
-  { title: '自制成品（固定配方）', value: 'STANDARD_FINISHED' },
-  { title: '定制成品（订单配方）', value: 'CUSTOM_FINISHED' },
-  { title: '包装物', value: 'PACKAGING' },
-]
+export const productBehaviorProfileOptions: readonly BusinessObjectFieldOption[] =
+  [
+    { title: '原材料（可销售）', value: 'RAW_MATERIAL' },
+    { title: '自制成品（固定配方）', value: 'STANDARD_FINISHED' },
+    { title: '定制成品（订单配方）', value: 'CUSTOM_FINISHED' },
+    { title: '包装物', value: 'PACKAGING' },
+  ]
 
 export function lengthOf(value: unknown): number {
   return typeof value === 'string' ? Array.from(value).length : 0
@@ -209,7 +207,7 @@ export function baseColumns(
     {
       key: 'status',
       label: '状态',
-      value: (row) => bobListActiveVersion(row).status,
+      value: (row) => bobListActiveVersion(row).approval.status,
       format: (value) => statusText[value as BobStatus] ?? String(value),
       sizing: 'compact',
     },

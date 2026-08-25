@@ -19,7 +19,14 @@ import type {
 } from './types'
 
 export type SupplierLifecycleAction =
-  'submit' | 'unsubmit' | 'approve' | 'reject' | 'enable' | 'disable' | 'delete'
+  | 'submit'
+  | 'unsubmit'
+  | 'approve'
+  | 'reject'
+  | 'unapprove'
+  | 'enable'
+  | 'disable'
+  | 'delete'
 
 interface SupplierFilters {
   status: string[]
@@ -43,7 +50,7 @@ function reference(
   return value
     ? {
         objectId: value.sourceObjectId,
-        versionId: '',
+        approvalEntryId: '',
         code: value.code,
         name: value.name,
         entity,
@@ -60,22 +67,22 @@ function listVersion(
 function listItem(
   item: components['schemas']['SupplierListItem'],
 ): SupplierListItem {
-  const effective = listVersion(item.effective)
-  const candidate = listVersion(item.candidate)
-  const current = candidate ?? effective
+  const latestApproved = listVersion(item.latestApproved)
+  const openVersion = listVersion(item.openVersion)
+  const current = openVersion ?? latestApproved
   return {
     objectId: item.objectId,
     code: item.code,
     objectRevision: item.objectRevision,
     enabled: item.enabled,
-    status: current?.status ?? '',
+    status: current?.approval.status ?? '',
     name: item.partyDisplayName,
-    hasCandidate: candidate !== null,
-    effective,
-    candidate,
-    versionId: current?.versionId ?? '',
-    revision: current?.revision ?? 0,
-    submittedBy: current?.submittedBy ?? null,
+    hasCandidate: openVersion !== null,
+    latestApproved,
+    openVersion,
+    approvalEntryId: current?.approval.approvalEntryId ?? '',
+    approvalRevision: current?.approval.revision ?? 0,
+    submittedBy: current?.approval.submittedBy ?? null,
   }
 }
 
@@ -84,13 +91,13 @@ function versionFromWire(
   code: string,
 ): SupplierVersion | null {
   if (!value) return null
-  const { data, version } = value
+  const { approval, data } = value
   return {
-    versionId: version.versionId,
-    version: version.version,
-    revision: version.revision,
-    status: version.status,
-    submittedBy: version.submittedBy ?? null,
+    approvalEntryId: approval.approvalEntryId,
+    versionNo: approval.versionNo,
+    approvalRevision: approval.revision,
+    status: approval.status,
+    submittedBy: approval.submittedBy,
     data: {
       code,
       name: '',
@@ -110,7 +117,7 @@ function versionFromWire(
       defaultPurchaser: data.defaultPurchaserEmployeeId
         ? {
             objectId: data.defaultPurchaserEmployeeId,
-            versionId: '',
+            approvalEntryId: '',
             code: '',
             name: '',
             entity: 'employee',
@@ -137,7 +144,7 @@ export function useSupplierViewModel() {
   const mode = ref<'create' | 'edit' | 'view'>('create')
   const form = ref<SupplierForm>(createSupplierForm())
   const detail = ref<SupplierDetail | null>(null)
-  const historicalVersionId = ref('')
+  const historicalApprovalEntryId = ref('')
   const historyObject = ref<SupplierListItem | null>(null)
   const versionsOpen = ref(false)
   const versionsLoading = ref(false)
@@ -240,8 +247,9 @@ export function useSupplierViewModel() {
         row.submittedBy !== session.user?.id
       )
     }
-    if (action === 'enable') return row.effective !== null && !row.enabled
-    if (action === 'disable') return row.effective !== null && row.enabled
+    if (action === 'unapprove') return row.status === 'APPROVED'
+    if (action === 'enable') return row.latestApproved !== null && !row.enabled
+    if (action === 'disable') return row.latestApproved !== null && row.enabled
     return (
       row.status === 'DRAFT' || (row.hasCandidate && row.status === 'PENDING')
     )
@@ -320,7 +328,10 @@ export function useSupplierViewModel() {
             ).data.map(
               (item) =>
                 ({
-                  ...item,
+                  objectId: item.objectId,
+                  approvalEntryId: item.approvalEntryId,
+                  code: item.code,
+                  name: item.name,
                   entity: 'settlement-method',
                 }) satisfies SupplierReference,
             )
@@ -331,7 +342,14 @@ export function useSupplierViewModel() {
                 keyword: keyword.trim(),
               })
             ).data.map(
-              (item) => ({ ...item, entity }) satisfies SupplierReference,
+              (item) =>
+                ({
+                  objectId: item.objectId,
+                  approvalEntryId: item.approvalEntryId,
+                  code: item.code,
+                  name: item.name,
+                  entity,
+                }) satisfies SupplierReference,
             )
       const selected = [
         form.value.settlementMethod,
@@ -413,7 +431,7 @@ export function useSupplierViewModel() {
     if (!canCreate.value) return
     mode.value = 'create'
     detail.value = null
-    historicalVersionId.value = ''
+    historicalApprovalEntryId.value = ''
     form.value = createSupplierForm()
     form.value.partyMode = canCreateWithNewParty.value ? 'new' : 'existing'
     partyOptions.value = []
@@ -428,20 +446,22 @@ export function useSupplierViewModel() {
     raw: components['schemas']['SupplierDetailView'],
     row: SupplierListItem | undefined,
     nextMode: 'edit' | 'view',
-    versionId = '',
+    approvalEntryId = '',
     openWorkspace = true,
   ): void {
-    const effective = versionFromWire(raw.effective, raw.code)
-    const candidate = versionFromWire(raw.candidate, raw.code)
-    if (effective) {
-      effective.defaultPurchaserCode = row?.effective?.defaultPurchaserCode
-      effective.defaultPurchaserName = row?.effective?.defaultPurchaserName
+    const latestApproved = versionFromWire(raw.latestApproved, raw.code)
+    const openVersion = versionFromWire(raw.openVersion, raw.code)
+    if (latestApproved) {
+      latestApproved.defaultPurchaserCode =
+        row?.latestApproved?.defaultPurchaserCode
+      latestApproved.defaultPurchaserName =
+        row?.latestApproved?.defaultPurchaserName
     }
-    if (candidate) {
-      candidate.defaultPurchaserCode = row?.candidate?.defaultPurchaserCode
-      candidate.defaultPurchaserName = row?.candidate?.defaultPurchaserName
+    if (openVersion) {
+      openVersion.defaultPurchaserCode = row?.openVersion?.defaultPurchaserCode
+      openVersion.defaultPurchaserName = row?.openVersion?.defaultPurchaserName
     }
-    const selected = candidate ?? effective
+    const selected = openVersion ?? latestApproved
     if (!selected) throw new Error('供应商没有可读取的版本。')
     detail.value = {
       objectId: raw.objectId,
@@ -454,8 +474,8 @@ export function useSupplierViewModel() {
       operatingEntityId: raw.operatingEntityId,
       operatingEntityCode: raw.operatingEntityCode,
       operatingEntityName: raw.operatingEntityName,
-      effective,
-      candidate,
+      latestApproved,
+      openVersion,
     }
     form.value = {
       ...selected.data,
@@ -468,7 +488,7 @@ export function useSupplierViewModel() {
       identifierValue: '',
       operatingEntity: {
         objectId: raw.operatingEntityId,
-        versionId: '',
+        approvalEntryId: '',
         code: raw.operatingEntityCode,
         name: raw.operatingEntityName,
         entity: 'operating-entity',
@@ -487,7 +507,7 @@ export function useSupplierViewModel() {
     keepSelectedReference('operatingEntity', form.value.operatingEntity)
     if (nextMode === 'edit') preloadReferences()
     mode.value = nextMode
-    historicalVersionId.value = versionId
+    historicalApprovalEntryId.value = approvalEntryId
     savedFormSignature = JSON.stringify(form.value)
     if (openWorkspace) workspaceOpen.value = true
   }
@@ -495,7 +515,7 @@ export function useSupplierViewModel() {
   async function loadDetail(
     objectId: string,
     row: SupplierListItem | undefined,
-    versionId = '',
+    approvalEntryId = '',
     nextMode: 'edit' | 'view' = 'edit',
     openWorkspace = true,
   ): Promise<void> {
@@ -504,11 +524,11 @@ export function useSupplierViewModel() {
     try {
       const result = await supplierApi.get({
         objectId,
-        ...(versionId ? { versionId } : {}),
+        ...(approvalEntryId ? { approvalEntryId } : {}),
       })
       const raw = result.data
       if (!raw) throw new Error('供应商不存在或已删除。')
-      applyDetail(raw, row, nextMode, versionId, openWorkspace)
+      applyDetail(raw, row, nextMode, approvalEntryId, openWorkspace)
     } catch (error) {
       errorMessage.value = getErrorMessage(error)
     } finally {
@@ -532,7 +552,7 @@ export function useSupplierViewModel() {
     const row = historyObject.value
     if (!row || !canView.value) return
     versionsOpen.value = false
-    await loadDetail(row.objectId, row, item.versionId, 'view')
+    await loadDetail(row.objectId, row, item.approvalEntryId, 'view')
   }
 
   async function returnToCurrentVersion(): Promise<void> {
@@ -669,12 +689,12 @@ export function useSupplierViewModel() {
         )
         objectId = result.data.objectId
       } else if (detail.value) {
-        const editable = detail.value.candidate ?? detail.value.effective
+        const editable = detail.value.openVersion ?? detail.value.latestApproved
         if (!editable) throw new Error('供应商没有可保存的版本。')
         const result = await supplierApi.save({
           objectId: detail.value.objectId,
-          versionId: editable.versionId,
-          revision: editable.revision,
+          approvalEntryId: editable.approvalEntryId,
+          approvalRevision: editable.approvalRevision,
           data: supplierSavePayload(form.value),
         })
         objectId = result.data.objectId
@@ -700,17 +720,17 @@ export function useSupplierViewModel() {
   ): Promise<boolean> {
     if (actionLoading.value || !canLifecycleFor(row, action)) return false
     const normalizedReason = reason.trim()
-    if (['reject', 'unsubmit'].includes(action) && !normalizedReason) {
+    if (['reject', 'unapprove'].includes(action) && !normalizedReason) {
       errorMessage.value = '请填写操作原因。'
       return false
     }
     actionLoading.value = action
     errorMessage.value = null
     try {
-      const baseVersion = {
+      const baseApproval = {
         objectId: row.objectId,
-        versionId: row.versionId,
-        revision: row.revision,
+        approvalEntryId: row.approvalEntryId,
+        approvalRevision: row.approvalRevision,
       }
       if (action === 'enable' || action === 'disable')
         await supplierApi[action]({
@@ -719,21 +739,21 @@ export function useSupplierViewModel() {
         })
       else if (action === 'delete')
         await supplierApi.delete({
-          ...baseVersion,
+          ...baseApproval,
           objectRevision: row.objectRevision,
         })
-      else if (action === 'unsubmit')
-        await supplierApi.unsubmit({
-          ...baseVersion,
-          objectRevision: row.objectRevision,
+      else if (action === 'unsubmit') await supplierApi.unsubmit(baseApproval)
+      else if (action === 'reject')
+        await supplierApi.reject({ ...baseApproval, reason: normalizedReason })
+      else if (action === 'unapprove')
+        await supplierApi.unapprove({
+          ...baseApproval,
           reason: normalizedReason,
         })
-      else if (action === 'reject')
-        await supplierApi.reject({ ...baseVersion, comment: normalizedReason })
-      else if (action === 'approve') await supplierApi.approve(baseVersion)
-      else await supplierApi.submit(baseVersion)
+      else if (action === 'approve') await supplierApi.approve(baseApproval)
+      else await supplierApi.submit(baseApproval)
       await query()
-      if (action === 'delete' && row.effective === null) {
+      if (action === 'delete' && row.latestApproved === null) {
         if (detail.value?.objectId === row.objectId) {
           detail.value = null
           workspaceOpen.value = false
@@ -750,7 +770,7 @@ export function useSupplierViewModel() {
           workspaceOpen.value,
         )
       }
-      successMessage.value = `${row.code} ${({ submit: '已提交审核', unsubmit: '已撤回提交', approve: '已审核通过', reject: '已审核驳回', enable: '已启用', disable: '已禁用', delete: '候选版本已删除' } as const)[action]}。`
+      successMessage.value = `${row.code} ${({ submit: '已提交审核', unsubmit: '已撤回提交', approve: '已审核通过', reject: '已审核驳回', unapprove: '已撤销批准', enable: '已启用', disable: '已禁用', delete: '候选版本已删除' } as const)[action]}。`
       return true
     } catch (error) {
       errorMessage.value = getErrorMessage(error)
@@ -776,7 +796,7 @@ export function useSupplierViewModel() {
     mode,
     form,
     detail,
-    historicalVersionId,
+    historicalApprovalEntryId,
     historyObject,
     versionsOpen,
     versionsLoading,

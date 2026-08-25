@@ -45,7 +45,7 @@ func TestZZAccountingPeriodLockUnlockAndVOUDatabaseBoundaryIntegration(t *testin
 		t.Fatal(err)
 	}
 	_, err = setupTx.Exec(t.Context(), `INSERT INTO vou_other_income_details(
-		document_id,source_name,fund_account_object_id,fund_account_version_id,fund_account_code,fund_account_name
+		document_id,source_name,fund_account_object_id,fund_account_approval_entry_id,fund_account_code,fund_account_name
 	) VALUES($1,'期间附件测试',$2,$3,'CASH','现金')`, documentID, ulid.Make().String(), ulid.Make().String())
 	if err != nil {
 		_ = setupTx.Rollback(t.Context())

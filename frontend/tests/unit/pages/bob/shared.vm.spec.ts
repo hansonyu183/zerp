@@ -22,12 +22,22 @@ vi.mock('@/api/client', () => ({
 const mockedApiClient = vi.mocked(apiClient)
 
 function row(status: BobStatus = 'DRAFT', enabled = true): BobListItem {
-  const version = {
-    versionId: 'VER-1',
-    version: status === 'EFFECTIVE' ? 2 : 1,
+  const approval = {
+    approvalEntryId: 'VER-1',
+    versionNo: status === 'APPROVED' ? 2 : 1,
     status,
     revision: 5,
-    submittedBy: null,
+    createdBy: 'USER-0',
+    createdAt: '2026-07-24T09:00:00Z',
+    updatedBy: 'USER-0',
+    updatedAt: '2026-07-24T10:00:00Z',
+    submittedBy: status === 'PENDING' ? 'USER-2' : null,
+    submittedAt: status === 'PENDING' ? '2026-07-24T09:30:00Z' : null,
+    approvedBy: status === 'APPROVED' ? 'USER-2' : null,
+    approvedAt: status === 'APPROVED' ? '2026-07-24T09:45:00Z' : null,
+  }
+  const version = {
+    approval,
     summary: {
       name: '标准产品',
       productTypeId: 'TYPE-RAW',
@@ -46,33 +56,40 @@ function row(status: BobStatus = 'DRAFT', enabled = true): BobListItem {
       barcode: '',
       remark: '',
     },
-  } satisfies NonNullable<BobListItem['effective']>
+  } satisfies NonNullable<BobListItem['openVersion']>
   return {
     objectId: 'OBJ-1',
     entity: 'product',
     code: 'PRD-1',
     objectRevision: 3,
     enabled,
-    effective: status === 'EFFECTIVE' ? version : null,
-    candidate: status === 'EFFECTIVE' ? null : version,
+    latestApproved: status === 'APPROVED' ? version : null,
+    openVersion: status === 'APPROVED' ? null : version,
     updatedAt: '2026-07-24T10:00:00Z',
   }
 }
 
-function objectView(versionId = 'VER-1'): BobObjectView {
+function objectView(approvalEntryId = 'VER-1'): BobObjectView {
   return {
     objectId: 'OBJ-1',
     entity: 'product',
     code: 'PRD-1',
     objectRevision: 4,
     enabled: true,
-    currentVersionId: versionId,
-    effectiveVersionId: null,
-    version: {
-      versionId,
-      version: 2,
+    updatedAt: '2026-07-24T10:00:00Z',
+    approval: {
+      approvalEntryId: approvalEntryId,
+      versionNo: 2,
       status: 'DRAFT',
       revision: 1,
+      createdBy: 'USER-0',
+      createdAt: '2026-07-24T09:00:00Z',
+      updatedBy: 'USER-0',
+      updatedAt: '2026-07-24T10:00:00Z',
+      submittedBy: null,
+      submittedAt: null,
+      approvedBy: null,
+      approvedAt: null,
     },
     data: {
       name: '标准产品',
@@ -100,10 +117,20 @@ function mutation(status: BobStatus = 'DRAFT'): BobMutationResult {
     objectId: 'OBJ-1',
     objectRevision: 4,
     enabled: true,
-    versionId: 'VER-2',
-    version: 2,
-    status,
-    revision: 1,
+    approval: {
+      approvalEntryId: 'VER-2',
+      versionNo: 2,
+      status,
+      revision: 1,
+      createdBy: 'USER-0',
+      createdAt: '2026-07-24T09:00:00Z',
+      updatedBy: 'USER-0',
+      updatedAt: '2026-07-24T10:00:00Z',
+      submittedBy: null,
+      submittedAt: null,
+      approvedBy: null,
+      approvedAt: null,
+    },
   }
 }
 
@@ -139,17 +166,22 @@ describe('shared BOB entity configuration and view model', () => {
 
     await vm.openById('OBJ-1', 'edit')
 
-    expect(mockedApiClient.postContract).toHaveBeenCalledWith('bob/product/get', {
-      objectId: 'OBJ-1',
-    })
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith(
+      'bob/product/get',
+      {
+        objectId: 'OBJ-1',
+      },
+    )
     expect(vm.drawerOpen.value).toBe(true)
     expect(vm.editorMode.value).toBe('edit')
-    expect(vm.currentView.value?.version.revision).toBe(1)
+    expect(vm.currentView.value?.approval.revision).toBe(1)
   })
 
   it('详情请求失败时不展示默认值空抽屉', async () => {
     grant('product', 'get')
-    mockedApiClient.postContract.mockRejectedValueOnce(new Error('详情加载失败'))
+    mockedApiClient.postContract.mockRejectedValueOnce(
+      new Error('详情加载失败'),
+    )
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
 
     await vm.openView(row())
@@ -203,7 +235,7 @@ describe('shared BOB entity configuration and view model', () => {
         multiple: true,
       })
     }
-    expect(statusOptions).toHaveLength(4)
+    expect(statusOptions).toHaveLength(3)
   })
 
   it('专用工作区、迁出的辅助对象和员工不再注册为通用 BOB 页面', () => {
@@ -227,7 +259,7 @@ describe('shared BOB entity configuration and view model', () => {
       displayName: '审核人',
     }
     const pending = row('PENDING')
-    pending.candidate!.submittedBy = 'USER-1'
+    pending.openVersion!.approval.submittedBy = 'USER-1'
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
 
     expect(vm.actionAvailability(pending).approve).toBe(false)
@@ -236,7 +268,7 @@ describe('shared BOB entity configuration and view model', () => {
       '提交人不能审核自己提交的版本，请由其他审核人处理。',
     )
 
-    pending.candidate!.submittedBy = 'USER-2'
+    pending.openVersion!.approval.submittedBy = 'USER-2'
     expect(vm.actionAvailability(pending).approve).toBe(true)
   })
 
@@ -245,21 +277,24 @@ describe('shared BOB entity configuration and view model', () => {
     mockedApiClient.postContract.mockResolvedValueOnce(emptyPage())
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
     vm.keyword.value = '  标准  '
-    vm.filters.value.status = ['DRAFT', 'EFFECTIVE']
+    vm.filters.value.status = ['DRAFT', 'APPROVED']
     vm.filters.value.categoryId = 'CAT-1'
 
     await vm.query()
 
-    expect(mockedApiClient.postContract).toHaveBeenCalledWith('bob/product/query', {
-      page: 1,
-      pageSize: 20,
-      filters: {
-        keyword: '标准',
-        status: ['DRAFT', 'EFFECTIVE'],
-        categoryId: 'CAT-1',
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith(
+      'bob/product/query',
+      {
+        page: 1,
+        pageSize: 20,
+        filters: {
+          keyword: '标准',
+          status: ['DRAFT', 'APPROVED'],
+          categoryId: 'CAT-1',
+        },
+        sort: [{ field: 'code', order: 'asc' }],
       },
-      sort: [{ field: 'code', order: 'asc' }],
-    })
+    )
   })
 
   it('产品提交和批准入口要求详情读取权限', () => {
@@ -329,8 +364,8 @@ describe('shared BOB entity configuration and view model', () => {
       approve: true,
       reject: true,
     })
-    expect(vm.actionAvailability(row('EFFECTIVE'))).toMatchObject({
-      edit: true,
+    expect(vm.actionAvailability(row('APPROVED'))).toMatchObject({
+      edit: false,
       delete: false,
       submit: false,
       unapprove: true,
@@ -386,20 +421,23 @@ describe('shared BOB entity configuration and view model', () => {
       `${vm.editorErrorMessage.value ?? ''} ${JSON.stringify(mockedApiClient.postContract.mock.calls)}`,
     ).toBe(true)
 
-    expect(mockedApiClient.postContract).toHaveBeenCalledWith('bob/product/create', {
-      data: {
-        name: '新产品',
-        productTypeId: 'TYPE-RAW',
-        defaultInputUnitId: 'UNIT-PIECE',
-        pricingUnitId: 'UNIT-KG',
-        unitConversions: [
-          { unit: { objectId: 'UNIT-PIECE' }, factor: '1' },
-          { unit: { objectId: 'UNIT-KG' }, factor: '1' },
-        ],
-        returnable: false,
-        defaultPackagingSpec: '1',
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith(
+      'bob/product/create',
+      {
+        data: {
+          name: '新产品',
+          productTypeId: 'TYPE-RAW',
+          defaultInputUnitId: 'UNIT-PIECE',
+          pricingUnitId: 'UNIT-KG',
+          unitConversions: [
+            { unit: { objectId: 'UNIT-PIECE' }, factor: '1' },
+            { unit: { objectId: 'UNIT-KG' }, factor: '1' },
+          ],
+          returnable: false,
+          defaultPackagingSpec: '1',
+        },
       },
-    })
+    )
 
     vi.clearAllMocks()
     await vm.openEdit(row())
@@ -425,28 +463,31 @@ describe('shared BOB entity configuration and view model', () => {
 
     expect(savedUpdate, vm.editorErrorMessage.value ?? '').toBe(true)
 
-    expect(mockedApiClient.postContract).toHaveBeenCalledWith('bob/product/save', {
-      objectId: 'OBJ-1',
-      versionId: 'VER-1',
-      revision: 1,
-      data: {
-        name: '标准产品',
-        productTypeId: 'TYPE-RAW',
-        defaultInputUnitId: 'UNIT-PIECE',
-        pricingUnitId: 'UNIT-KG',
-        unitConversions: [
-          { unit: { objectId: 'UNIT-PIECE' }, factor: '1' },
-          { unit: { objectId: 'UNIT-KG' }, factor: '1' },
-        ],
-        returnable: false,
-        defaultPackagingSpec: '1',
-        categoryId: '',
-        specification: '',
-        model: '',
-        barcode: '',
-        remark: '',
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith(
+      'bob/product/save',
+      {
+        objectId: 'OBJ-1',
+        approvalEntryId: 'VER-1',
+        approvalRevision: 1,
+        data: {
+          name: '标准产品',
+          productTypeId: 'TYPE-RAW',
+          defaultInputUnitId: 'UNIT-PIECE',
+          pricingUnitId: 'UNIT-KG',
+          unitConversions: [
+            { unit: { objectId: 'UNIT-PIECE' }, factor: '1' },
+            { unit: { objectId: 'UNIT-KG' }, factor: '1' },
+          ],
+          returnable: false,
+          defaultPackagingSpec: '1',
+          categoryId: '',
+          specification: '',
+          model: '',
+          barcode: '',
+          remark: '',
+        },
       },
-    })
+    )
   })
 
   it('保存接口成功后立即反馈，不等待列表刷新', async () => {
@@ -483,16 +524,19 @@ describe('shared BOB entity configuration and view model', () => {
   it('有效产品直接进入候选版本编辑', async () => {
     grant('product', 'get', 'save', 'unapprove')
     const effective = objectView()
-    effective.version.status = 'EFFECTIVE'
+    effective.approval.status = 'APPROVED'
     mockedApiClient.postContract.mockResolvedValueOnce({ data: effective })
 
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
-    await vm.openEdit(row('EFFECTIVE'))
+    await vm.openEdit(row())
 
-    expect(mockedApiClient.postContract).toHaveBeenCalledWith('bob/product/get', {
-      objectId: 'OBJ-1',
-      versionId: 'VER-1',
-    })
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith(
+      'bob/product/get',
+      {
+        objectId: 'OBJ-1',
+        approvalEntryId: 'VER-1',
+      },
+    )
     expect(vm.editorMode.value).toBe('edit')
   })
 
@@ -521,13 +565,13 @@ describe('shared BOB entity configuration and view model', () => {
     expect(mockedApiClient.postContract).toHaveBeenNthCalledWith(
       2,
       'bob/product/submit',
-      { objectId: 'OBJ-1', versionId: 'VER-1', revision: 5 },
+      { objectId: 'OBJ-1', approvalEntryId: 'VER-1', approvalRevision: 5 },
     )
 
     vi.clearAllMocks()
     mockedApiClient.postContract
       .mockResolvedValueOnce({ data: objectView() })
-      .mockResolvedValueOnce({ data: mutation('EFFECTIVE') })
+      .mockResolvedValueOnce({ data: mutation('APPROVED') })
       .mockResolvedValueOnce(emptyPage())
     await vm.review(row('PENDING'), 'approve', '不会提交的意见')
     expect(mockedApiClient.postContract).toHaveBeenNthCalledWith(
@@ -535,8 +579,8 @@ describe('shared BOB entity configuration and view model', () => {
       'bob/product/approve',
       {
         objectId: 'OBJ-1',
-        versionId: 'VER-1',
-        revision: 5,
+        approvalEntryId: 'VER-1',
+        approvalRevision: 5,
       },
     )
 
@@ -550,9 +594,9 @@ describe('shared BOB entity configuration and view model', () => {
       'bob/product/reject',
       {
         objectId: 'OBJ-1',
-        versionId: 'VER-1',
-        revision: 5,
-        comment: '资料不完整',
+        approvalEntryId: 'VER-1',
+        approvalRevision: 5,
+        reason: '资料不完整',
       },
     )
 
@@ -566,9 +610,8 @@ describe('shared BOB entity configuration and view model', () => {
       'bob/product/unsubmit',
       {
         objectId: 'OBJ-1',
-        objectRevision: 3,
-        versionId: 'VER-1',
-        revision: 5,
+        approvalEntryId: 'VER-1',
+        approvalRevision: 5,
         reason: '退回修改',
       },
     )
@@ -577,24 +620,23 @@ describe('shared BOB entity configuration and view model', () => {
     mockedApiClient.postContract
       .mockResolvedValueOnce({ data: mutation('PENDING') })
       .mockResolvedValueOnce(emptyPage())
-    await vm.reverse(row('EFFECTIVE'), 'unapprove', ' 重新维护 ')
+    await vm.reverse(row('APPROVED'), 'unapprove', ' 重新维护 ')
     expect(mockedApiClient.postContract).toHaveBeenNthCalledWith(
       1,
       'bob/product/unapprove',
       {
         objectId: 'OBJ-1',
-        objectRevision: 3,
-        versionId: 'VER-1',
-        revision: 5,
+        approvalEntryId: 'VER-1',
+        approvalRevision: 5,
         reason: '重新维护',
       },
     )
 
     vi.clearAllMocks()
     mockedApiClient.postContract
-      .mockResolvedValueOnce({ data: mutation('EFFECTIVE') })
+      .mockResolvedValueOnce({ data: mutation('APPROVED') })
       .mockResolvedValueOnce(emptyPage())
-    await vm.changeEnabled(row('EFFECTIVE'))
+    await vm.changeEnabled(row('APPROVED'))
     expect(mockedApiClient.postContract).toHaveBeenNthCalledWith(
       1,
       'bob/product/disable',
@@ -603,9 +645,9 @@ describe('shared BOB entity configuration and view model', () => {
 
     vi.clearAllMocks()
     mockedApiClient.postContract
-      .mockResolvedValueOnce({ data: mutation('EFFECTIVE') })
+      .mockResolvedValueOnce({ data: mutation('APPROVED') })
       .mockResolvedValueOnce(emptyPage())
-    await vm.changeEnabled(row('EFFECTIVE', false))
+    await vm.changeEnabled(row('APPROVED', false))
     expect(mockedApiClient.postContract).toHaveBeenNthCalledWith(
       1,
       'bob/product/enable',
@@ -653,7 +695,7 @@ describe('shared BOB entity configuration and view model', () => {
     )
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
 
-    await expect(vm.changeEnabled(row('EFFECTIVE'))).resolves.toBe(false)
+    await expect(vm.changeEnabled(row('APPROVED'))).resolves.toBe(false)
 
     expect(mockedApiClient.postContract).toHaveBeenCalledWith(
       'bob/product/disable',
@@ -673,7 +715,23 @@ describe('shared BOB entity configuration and view model', () => {
           {
             objectId: 'CAT-1',
             code: 'CAT-1',
-            currentVersion: { data: { name: '产品分类' } },
+            openVersion: {
+              approval: {
+                approvalEntryId: 'CAT-V1',
+                versionNo: 1,
+                status: 'DRAFT',
+                revision: 1,
+                createdBy: 'USER-0',
+                createdAt: '2026-07-24T09:00:00Z',
+                updatedBy: 'USER-0',
+                updatedAt: '2026-07-24T10:00:00Z',
+                submittedBy: null,
+                submittedAt: null,
+                approvedBy: null,
+                approvedAt: null,
+              },
+              summary: { name: '产品分类' },
+            },
           },
         ],
         total: 1,

@@ -79,7 +79,7 @@ const duplicateProducts = computed(() => {
   const seen = new Set<string>()
   for (const line of props.modelValue) {
     if (!line.product) continue
-    const key = `${line.product.objectId}/${line.product.versionId}`
+    const key = `${line.product.objectId}/${line.product.approvalEntryId}`
     if (seen.has(key)) return true
     seen.add(key)
   }

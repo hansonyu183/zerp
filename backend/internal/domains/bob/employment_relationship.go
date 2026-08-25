@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -21,63 +22,16 @@ type EmploymentCreateResult struct {
 }
 
 func (s *Service) queryEmploymentRelationships(ctx context.Context, input QueryInput) (Page[QueryItem], error) {
-	page, err := s.queryObjects(ctx, EntityEmployee, input)
-	if err != nil {
-		return Page[QueryItem]{}, err
-	}
-	if len(page.Items) == 0 {
-		return page, nil
-	}
-	objectIDs := make([]string, 0, len(page.Items))
-	for _, item := range page.Items {
-		objectIDs = append(objectIDs, item.ObjectID)
-	}
-	rows, err := s.queries.ListBobEmploymentRelationshipIdentities(ctx, objectIDs)
-	if err != nil {
-		return Page[QueryItem]{}, s.internal("read Employment Relationship identities", err)
-	}
-	identityByObjectID := make(map[string]*RelationshipIdentityView, len(rows))
-	for _, row := range rows {
-		identityByObjectID[row.ObjectID] = employmentRelationshipListIdentity(row)
-	}
-	for index := range page.Items {
-		item := &page.Items[index]
-		identity, ok := identityByObjectID[item.ObjectID]
-		if !ok {
-			return Page[QueryItem]{}, s.internal("read Employment Relationship identities", errors.New("relationship identity is missing"))
-		}
-		item.Relationship = identity
-		if item.Effective != nil {
-			item.Effective.Summary.Name = identity.PartyDisplayName
-		}
-		if item.Candidate != nil {
-			item.Candidate.Summary.Name = identity.PartyDisplayName
-		}
-	}
-	return page, nil
-}
-
-func (s *Service) getEmploymentRelationship(ctx context.Context, input GetInput) (ObjectView, error) {
-	result, err := s.getObject(ctx, EntityEmployee, input)
-	if err != nil {
-		return ObjectView{}, err
-	}
-	identity, err := s.queries.GetBobEmploymentRelationshipIdentity(ctx, input.ObjectID)
-	if err != nil {
-		return ObjectView{}, s.internal("read Employment Relationship identity", err)
-	}
-	result.Relationship = employmentRelationshipIdentity(identity)
-	result.Data.Name = identity.PartyDisplayName
-	return result, nil
+	return s.queryObjects(ctx, EntityEmployee, input)
 }
 
 func (s *Service) EmploymentCreate(
 	ctx context.Context,
 	input EmploymentCreateInput,
-	actorID string,
-	requestID string,
+	actor approval.Actor,
 	canReadMatchedParty bool,
 ) (EmploymentCreateResult, error) {
+	actorID, requestID := actor.ID(), actor.RequestID()
 	operatingEntityID := input.Data.OperatingEntityID
 	if !validActorAndRequest(actorID, requestID) || !validID(operatingEntityID) ||
 		(input.PartyID == "") == (input.NewParty == nil) {
@@ -89,13 +43,11 @@ func (s *Service) EmploymentCreate(
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.queries.WithTx(tx)
-	if _, err = qtx.ResolveCustomerOperatingEntity(ctx, operatingEntityID); errors.Is(err, pgx.ErrNoRows) {
-		return EmploymentCreateResult{}, domainError(ErrorConflict, "经营主体不可用", nil, nil)
-	} else if err != nil {
-		return EmploymentCreateResult{}, s.internal("resolve operating entity", err)
+	if _, err = s.ResolveLatestApprovedReference(ctx, tx, EntityOperatingEntity, operatingEntityID); err != nil {
+		return EmploymentCreateResult{}, domainError(ErrorConflict, "经营主体不可用", nil, err)
 	}
 	party, err := s.resolveOrCreateRelationshipParty(ctx, qtx, input.PartyID, input.NewParty,
-		actorID, requestID, canReadMatchedParty)
+		actorID, requestID, canReadMatchedParty, tx)
 	if err != nil {
 		return EmploymentCreateResult{}, err
 	}
@@ -116,43 +68,26 @@ func (s *Service) EmploymentCreate(
 	if err != nil {
 		return EmploymentCreateResult{}, s.writeError("allocate employment number", err)
 	}
-	objectID, versionID := newID(), newID()
+	objectID := newID()
+	code := fmt.Sprintf("EMP-%04d", counter)
 	if err = qtx.InsertBobObject(ctx, dbsqlc.InsertBobObjectParams{ID: objectID, Entity: EntityEmployee,
-		Code: fmt.Sprintf("EMP-%04d", counter), CurrentVersionID: versionID, ActorID: actorID}); err != nil {
+		Code: code, ActorID: actorID}); err != nil {
 		return EmploymentCreateResult{}, s.writeError("insert employment", err)
 	}
-	if err = qtx.InsertBobVersion(ctx, dbsqlc.InsertBobVersionParams{ID: versionID, ObjectID: objectID,
-		Entity: EntityEmployee, VersionNo: 1, ActorID: actorID}); err != nil {
-		return EmploymentCreateResult{}, s.writeError("insert employment version", err)
+	entry, err := s.createFirstApproval(ctx, tx, EntityEmployee, objectID, code, true, actor)
+	if err != nil {
+		return EmploymentCreateResult{}, translateApprovalError(err)
 	}
 	if err = qtx.InsertBobEmploymentRelationship(ctx, dbsqlc.InsertBobEmploymentRelationshipParams{
 		ObjectID: objectID, PartyID: party.ID, OperatingEntityID: operatingEntityID, ActorID: actorID,
 	}); err != nil {
 		return EmploymentCreateResult{}, s.writeError("insert Employment Relationship", err)
 	}
-	if err = insertDetail(ctx, qtx, EntityEmployee, versionID, data); err != nil {
+	if err = insertDetail(ctx, qtx, EntityEmployee, entry.ID, data); err != nil {
 		return EmploymentCreateResult{}, s.writeError("insert employment detail", err)
-	}
-	if err = insertAudit(ctx, qtx, auditInput{ObjectID: objectID, VersionID: versionID, Entity: EntityEmployee,
-		Event: "CREATED", To: StatusDraft, ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"fields": append([]string{"partyId", "operatingEntityId"}, detailFields(EntityEmployee)...)}}); err != nil {
-		return EmploymentCreateResult{}, s.writeError("audit employment create", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return EmploymentCreateResult{}, s.writeError("commit employment create", err)
 	}
-	return EmploymentCreateResult{MutationResult: MutationResult{ObjectID: objectID, ObjectRevision: 1,
-		Enabled: true, VersionID: versionID, Version: 1, Status: StatusDraft, Revision: 1}, PartyID: party.ID}, nil
-}
-
-func employmentRelationshipIdentity(row dbsqlc.GetBobEmploymentRelationshipIdentityRow) *RelationshipIdentityView {
-	return &RelationshipIdentityView{PartyID: row.PartyID, PartyKind: row.PartyKind,
-		PartyDisplayName: row.PartyDisplayName, OperatingEntityID: row.OperatingEntityID,
-		OperatingEntityCode: row.OperatingEntityCode, OperatingEntityName: row.OperatingEntityName}
-}
-
-func employmentRelationshipListIdentity(row dbsqlc.ListBobEmploymentRelationshipIdentitiesRow) *RelationshipIdentityView {
-	return &RelationshipIdentityView{PartyID: row.PartyID, PartyKind: row.PartyKind,
-		PartyDisplayName: row.PartyDisplayName, OperatingEntityID: row.OperatingEntityID,
-		OperatingEntityCode: row.OperatingEntityCode, OperatingEntityName: row.OperatingEntityName}
+	return EmploymentCreateResult{MutationResult: approvalMutation(objectID, 1, true, entry), PartyID: party.ID}, nil
 }

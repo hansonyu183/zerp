@@ -11,20 +11,20 @@ import (
 
 const getAuxVersionData = `-- name: GetAuxVersionData :one
 SELECT data
-FROM aux_versions
-WHERE id = $1
+FROM aux_version_payloads
+WHERE approval_entry_id = $1
   AND object_id = $2
   AND entity = $3
 `
 
 type GetAuxVersionDataParams struct {
-	VersionID string `db:"version_id" json:"version_id"`
-	ObjectID  string `db:"object_id" json:"object_id"`
-	Entity    string `db:"entity" json:"entity"`
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	ObjectID        string `db:"object_id" json:"object_id"`
+	Entity          string `db:"entity" json:"entity"`
 }
 
 func (q *Queries) GetAuxVersionData(ctx context.Context, arg GetAuxVersionDataParams) ([]byte, error) {
-	row := q.db.QueryRow(ctx, getAuxVersionData, arg.VersionID, arg.ObjectID, arg.Entity)
+	row := q.db.QueryRow(ctx, getAuxVersionData, arg.ApprovalEntryID, arg.ObjectID, arg.Entity)
 	var data []byte
 	err := row.Scan(&data)
 	return data, err
@@ -33,8 +33,21 @@ func (q *Queries) GetAuxVersionData(ctx context.Context, arg GetAuxVersionDataPa
 const isBobCustomerPaymentMethodReferenced = `-- name: IsBobCustomerPaymentMethodReferenced :one
 SELECT EXISTS(
     SELECT 1
-    FROM bob_customer_versions
-    WHERE payment_method_id = $1::text
+    FROM bob_customer_versions customer
+    JOIN approval_entries entry
+      ON entry.id = customer.version_id
+     AND entry.domain = 'bob'
+     AND entry.entity = 'customer-account'
+     AND entry.status = 'APPROVED'
+    WHERE customer.payment_method_id = $1::text
+      AND NOT EXISTS (
+          SELECT 1 FROM approval_entries newer
+          WHERE newer.domain = entry.domain
+            AND newer.entity = entry.entity
+            AND newer.subject_id = entry.subject_id
+            AND newer.status = 'APPROVED'
+            AND newer.version_no > entry.version_no
+      )
 )
 `
 
@@ -48,23 +61,37 @@ func (q *Queries) IsBobCustomerPaymentMethodReferenced(ctx context.Context, obje
 const queryAuxReferenceCandidates = `-- name: QueryAuxReferenceCandidates :many
 SELECT
     o.id AS object_id,
-    v.id AS version_id,
+    a.id AS approval_entry_id,
     o.code,
-    COALESCE(v.data->>'name', '')::text AS name
+    COALESCE(p.data->>'name', '')::text AS name
 FROM aux_objects o
-JOIN aux_versions v ON v.id = o.current_version_id
+JOIN approval_entries a
+  ON a.domain = 'aux'
+ AND a.entity = o.entity
+ AND a.subject_id = o.id
+ AND a.status = 'APPROVED'
+ AND NOT EXISTS (
+     SELECT 1
+     FROM approval_entries newer
+     WHERE newer.domain = a.domain
+       AND newer.entity = a.entity
+       AND newer.subject_id = a.subject_id
+       AND newer.status = 'APPROVED'
+       AND newer.version_no > a.version_no
+ )
+JOIN aux_version_payloads p ON p.approval_entry_id = a.id
 WHERE o.entity = $1
   AND o.enabled
   AND (
       $2::text = ''
       OR o.code ILIKE '%' || $2::text || '%'
-      OR COALESCE(v.data->>'name', '') ILIKE '%' || $2::text || '%'
+      OR COALESCE(p.data->>'name', '') ILIKE '%' || $2::text || '%'
   )
   AND (
       $3::text = ''
-      OR v.data->>'dictionaryTypeCode' = $3::text
+      OR p.data->>'dictionaryTypeCode' = $3::text
   )
-ORDER BY COALESCE((v.data->>'sortOrder')::integer, 2147483647), o.code, o.id
+ORDER BY COALESCE((p.data->>'sortOrder')::integer, 2147483647), o.code, o.id
 LIMIT 20
 `
 
@@ -75,10 +102,10 @@ type QueryAuxReferenceCandidatesParams struct {
 }
 
 type QueryAuxReferenceCandidatesRow struct {
-	ObjectID  string `db:"object_id" json:"object_id"`
-	VersionID string `db:"version_id" json:"version_id"`
-	Code      string `db:"code" json:"code"`
-	Name      string `db:"name" json:"name"`
+	ObjectID        string `db:"object_id" json:"object_id"`
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	Code            string `db:"code" json:"code"`
+	Name            string `db:"name" json:"name"`
 }
 
 func (q *Queries) QueryAuxReferenceCandidates(ctx context.Context, arg QueryAuxReferenceCandidatesParams) ([]QueryAuxReferenceCandidatesRow, error) {
@@ -92,7 +119,7 @@ func (q *Queries) QueryAuxReferenceCandidates(ctx context.Context, arg QueryAuxR
 		var i QueryAuxReferenceCandidatesRow
 		if err := rows.Scan(
 			&i.ObjectID,
-			&i.VersionID,
+			&i.ApprovalEntryID,
 			&i.Code,
 			&i.Name,
 		); err != nil {

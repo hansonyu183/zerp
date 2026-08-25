@@ -7,7 +7,11 @@ import {
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
-import { useSalesPartnerViewModel, type SalesPartnerListItem } from './vm'
+import {
+  useSalesPartnerViewModel,
+  type SalesPartnerLifecycleAction,
+  type SalesPartnerListItem,
+} from './vm'
 
 const vm = reactive(useSalesPartnerViewModel())
 const capabilities = [
@@ -33,12 +37,13 @@ const columns: readonly BusinessObjectColumn<SalesPartnerListItem>[] = [
   {
     key: 'capabilities',
     label: '能力',
-    value: (row) => (row.candidate ?? row.effective)?.capabilities ?? [],
+    value: (row) => (row.openVersion ?? row.latestApproved)?.capabilities ?? [],
   },
   {
     key: 'status',
     label: '状态',
-    value: (row) => (row.candidate ?? row.effective)?.status ?? '—',
+    value: (row) =>
+      (row.openVersion ?? row.latestApproved)?.approval.status ?? '—',
     sizing: 'compact',
   },
 ]
@@ -69,26 +74,53 @@ function rowActions(row: SalesPartnerListItem): ListRowAction[] {
           },
         ]
       : []),
-    ...(['submit', 'approve', 'enable', 'disable'] as const)
+    ...(
+      [
+        'submit',
+        'unsubmit',
+        'approve',
+        'reject',
+        'unapprove',
+        'enable',
+        'disable',
+        'delete',
+      ] as const
+    )
       .filter((action) => vm.canRun(row, action))
       .map((action) => ({
         key: action,
         label:
           action === 'submit'
             ? '提交'
-            : action === 'approve'
-              ? '审核'
-              : action === 'enable'
-                ? '启用'
-                : '停用',
+            : action === 'unsubmit'
+              ? '撤回'
+              : action === 'approve'
+                ? '审核'
+                : action === 'reject'
+                  ? '驳回'
+                  : action === 'unapprove'
+                    ? '撤销批准'
+                    : action === 'enable'
+                      ? '启用'
+                      : action === 'disable'
+                        ? '停用'
+                        : '删除草稿',
         icon:
           action === 'submit'
             ? 'mdi-send-outline'
-            : action === 'approve'
-              ? 'mdi-check-circle-outline'
-              : action === 'enable'
-                ? 'mdi-toggle-switch-outline'
-                : 'mdi-toggle-switch-off-outline',
+            : action === 'unsubmit'
+              ? 'mdi-undo-variant'
+              : action === 'approve'
+                ? 'mdi-check-circle-outline'
+                : action === 'reject'
+                  ? 'mdi-close-circle-outline'
+                  : action === 'unapprove'
+                    ? 'mdi-undo'
+                    : action === 'enable'
+                      ? 'mdi-toggle-switch-outline'
+                      : action === 'disable'
+                        ? 'mdi-toggle-switch-off-outline'
+                        : 'mdi-delete-outline',
       })),
   ]
 }
@@ -102,11 +134,27 @@ function selectRowAction(action: string, row: SalesPartnerListItem): void {
     void vm.open(row, 'edit')
     return
   }
-  if (['submit', 'approve', 'enable', 'disable'].includes(action)) {
-    void vm.runLifecycle(
-      row,
-      action as 'submit' | 'approve' | 'enable' | 'disable',
+  if (
+    [
+      'submit',
+      'unsubmit',
+      'approve',
+      'reject',
+      'unapprove',
+      'enable',
+      'disable',
+      'delete',
+    ].includes(action)
+  ) {
+    const reason = ['reject', 'unapprove'].includes(action)
+      ? (window.prompt('请输入原因') ?? '')
+      : ''
+    if (
+      ['delete', 'disable', 'unapprove'].includes(action) &&
+      !window.confirm('确认执行此操作？')
     )
+      return
+    void vm.runLifecycle(row, action as SalesPartnerLifecycleAction, reason)
   }
 }
 
@@ -177,7 +225,9 @@ function referenceTitle(item: { code: string; name: string }): string {
           </template>
           <template #cell-status="{ row }">
             <v-chip size="small" variant="tonal">
-              {{ (row.candidate ?? row.effective)?.status ?? '—' }}
+              {{
+                (row.openVersion ?? row.latestApproved)?.approval.status ?? '—'
+              }}
             </v-chip>
           </template>
           <template #actions="{ row }">

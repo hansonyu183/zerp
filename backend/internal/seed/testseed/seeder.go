@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	"github.com/hansonyu183/zerp/backend/internal/config"
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	accdomain "github.com/hansonyu183/zerp/backend/internal/domains/acc"
@@ -17,6 +18,7 @@ import (
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/workflowactions"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
@@ -25,7 +27,7 @@ import (
 
 const (
 	actorID      = systemidentity.UserID
-	reviewerID   = systemidentity.UserID
+	reviewerID   = "01J00000000000000000000001"
 	seedPrefix   = "seed-test-"
 	historyDate  = "2026-06-30"
 	openingDate  = "2026-06-01"
@@ -80,6 +82,19 @@ type Seeder struct {
 	bobRefs    map[string]bobdomain.ObjectView
 }
 
+// seedAuthorizer is only used by the isolated test-data builder. Every
+// seed transition still supplies a concrete actor and runs the same central
+// Approval lifecycle as the HTTP path.
+type seedAuthorizer struct{ authorization.FailClosed }
+
+func (seedAuthorizer) RequirePermission(context.Context, authorization.Principal, string, string) error {
+	return nil
+}
+
+func seedActor(id, requestID string) (approval.Actor, error) {
+	return approval.UserActor(authorization.Principal{ActorID: id}, requestID)
+}
+
 type AccountSeed struct {
 	AdminUsername    string
 	AdminDisplayName string
@@ -112,10 +127,10 @@ func New(
 		return nil, errors.New("two distinct test seed accounts are required")
 	}
 	cfg.AttachmentStorageRoot = attachmentRoot
-	auxiliary := auxdomain.NewService(pool)
-	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
-	business := bobdomain.NewService(pool, auxiliaryResolver)
 	events := txevent.NewBus()
+	auxiliary := auxdomain.NewService(pool, seedAuthorizer{}, events)
+	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
+	business := bobdomain.NewService(pool, auxiliaryResolver, seedAuthorizer{}, events)
 	accounting := accdomain.NewService(pool)
 	vouchers, err := voudomain.NewService(
 		pool,

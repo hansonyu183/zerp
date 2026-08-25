@@ -40,7 +40,7 @@ func (s *Service) FormulaDefault(
 		}
 		quantity := QuantitySnapshotView{
 			EnteredQuantity: "1.0",
-			EnteredUnit:     UnitSnapshotView{ObjectID: unit.ObjectID, VersionID: unit.VersionID, Code: unit.Code, Name: unit.Name, Symbol: unit.Symbol},
+			EnteredUnit:     UnitSnapshotView{ObjectID: unit.ObjectID, ApprovalEntryID: unit.ApprovalEntryID, Code: unit.Code, Name: unit.Name, Symbol: unit.Symbol},
 			BaseQuantity:    "1.0",
 		}
 		formula := &FormulaView{
@@ -105,7 +105,7 @@ func (s *Service) refreshFormulaMaterials(
 	ctx context.Context, tx pgx.Tx, formula *FormulaView,
 ) error {
 	for index := range formula.Components {
-		material, err := s.resolver.ResolveCurrentEffectiveReference(
+		material, err := s.resolver.ResolveLatestApprovedReference(
 			ctx,
 			tx,
 			bobdomain.EntityProduct,
@@ -137,7 +137,7 @@ func formulaFromProduct(input *bobdomain.ProductFormula) *FormulaView {
 		Output: QuantitySnapshotView{
 			EnteredQuantity: input.Output.EnteredQuantity,
 			EnteredUnit: UnitSnapshotView{
-				ObjectID: input.Output.EnteredUnit.ObjectID, VersionID: input.Output.EnteredUnit.VersionID,
+				ObjectID: input.Output.EnteredUnit.ObjectID, ApprovalEntryID: input.Output.EnteredUnit.ApprovalEntryID,
 				Code: input.Output.EnteredUnit.Code, Name: input.Output.EnteredUnit.Name, Symbol: input.Output.EnteredUnit.Symbol,
 			},
 			BaseQuantity: input.Output.BaseQuantity,
@@ -146,7 +146,7 @@ func formulaFromProduct(input *bobdomain.ProductFormula) *FormulaView {
 	}
 	for _, component := range input.Components {
 		material := ReferenceView{
-			ObjectID: component.Material.ObjectID, VersionID: component.Material.VersionID,
+			ObjectID: component.Material.ObjectID, ApprovalEntryID: component.Material.ApprovalEntryID,
 			Entity: bobdomain.EntityProduct, Code: component.Material.Code,
 			Name: component.Material.Name, Unit: component.Quantity.EnteredUnit.Symbol,
 			BehaviorProfile: component.Material.BehaviorProfile,
@@ -156,7 +156,7 @@ func formulaFromProduct(input *bobdomain.ProductFormula) *FormulaView {
 			Quantity: QuantitySnapshotView{
 				EnteredQuantity: component.Quantity.EnteredQuantity,
 				EnteredUnit: UnitSnapshotView{
-					ObjectID: component.Quantity.EnteredUnit.ObjectID, VersionID: component.Quantity.EnteredUnit.VersionID,
+					ObjectID: component.Quantity.EnteredUnit.ObjectID, ApprovalEntryID: component.Quantity.EnteredUnit.ApprovalEntryID,
 					Code: component.Quantity.EnteredUnit.Code, Name: component.Quantity.EnteredUnit.Name,
 					Symbol: component.Quantity.EnteredUnit.Symbol,
 				},
@@ -169,7 +169,7 @@ func formulaFromProduct(input *bobdomain.ProductFormula) *FormulaView {
 
 func referenceView(input bobdomain.EffectiveReference) ReferenceView {
 	return ReferenceView{
-		ObjectID: input.ObjectID, VersionID: input.VersionID, Entity: input.Entity,
+		ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, Entity: input.Entity,
 		Code: input.Code, Name: input.Data.Name, Unit: defaultUnitSymbol(input.Data),
 		BehaviorProfile:    input.Data.BehaviorProfile,
 		DefaultInputUnitID: input.Data.DefaultInputUnitID,

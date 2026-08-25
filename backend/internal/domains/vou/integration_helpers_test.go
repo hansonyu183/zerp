@@ -12,13 +12,28 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+func trustedIntegrationActor(t *testing.T, requestID string) approval.Actor {
+	t.Helper()
+	actorID := integrationActorOne
+	if strings.Contains(requestID, "approve") || strings.Contains(requestID, "reject") {
+		actorID = integrationActorTwo
+	}
+	actor, err := approval.UserActor(authorization.Principal{ActorID: actorID}, requestID)
+	if err != nil {
+		t.Fatalf("create trusted integration actor: %v", err)
+	}
+	return actor
+}
 
 const (
 	integrationActorOne         = "01J00000000000000000000000"
@@ -126,7 +141,7 @@ func createApprovedBOB(
 		result, createErr := service.EmploymentCreate(t.Context(), bobdomain.EmploymentCreateInput{
 			NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: data.Name},
 			Data:     data,
-		}, integrationActorOne, "vou-ref-create", true)
+		}, trustedIntegrationActor(t, "vou-ref-create"), true)
 		created, err = result.MutationResult, createErr
 	case bobdomain.EntitySupplier:
 		result, createErr := service.SupplierCreate(t.Context(), bobdomain.SupplierCreateInput{
@@ -135,7 +150,7 @@ func createApprovedBOB(
 				ContactName: data.ContactName, ContactPhone: data.ContactPhone,
 				SettlementMethodID:         data.SettlementMethodID,
 				DefaultPurchaserEmployeeID: data.DefaultPurchaserEmployeeID},
-		}, integrationActorOne, "vou-ref-create", true)
+		}, trustedIntegrationActor(t, "vou-ref-create"), true)
 		created, err = result.MutationResult, createErr
 	case bobdomain.EntityOtherUnit:
 		result, createErr := service.OtherUnitCreate(t.Context(), bobdomain.OtherUnitCreateInput{
@@ -143,28 +158,28 @@ func createApprovedBOB(
 			Data: bobdomain.OtherUnitData{OperatingEntityID: data.OperatingEntityID,
 				ContactName: data.ContactName, ContactPhone: data.ContactPhone,
 				SettlementMethodID: data.SettlementMethodID},
-		}, integrationActorOne, "vou-ref-create", true)
+		}, trustedIntegrationActor(t, "vou-ref-create"), true)
 		created, err = result.MutationResult, createErr
 	default:
 		created, err = service.Create(t.Context(), entity, bobdomain.CreateInput{Data: data},
-			integrationActorOne, "vou-ref-create")
+			trustedIntegrationActor(t, "vou-ref-create"))
 	}
 	if err != nil {
 		t.Fatalf("create %s reference: %v (cause: %v)", entity, err, errors.Unwrap(err))
 	}
 	submitted, err := service.Submit(t.Context(), entity, bobdomain.VersionRevisionInput{
-		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: created.Revision,
-	}, integrationActorOne, "vou-ref-submit")
+		ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision,
+	}, trustedIntegrationActor(t, "vou-ref-submit"))
 	if err != nil {
 		t.Fatalf("submit %s reference: %v", entity, err)
 	}
 	approved, err := service.Approve(t.Context(), entity, bobdomain.ReviewInput{
-		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: submitted.Revision,
-	}, integrationActorTwo, "vou-ref-approve")
+		ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: submitted.Approval.Revision,
+	}, trustedIntegrationActor(t, "vou-ref-approve"))
 	if err != nil {
 		t.Fatalf("approve %s reference: %v", entity, err)
 	}
-	return ReferenceInput{ObjectID: approved.ObjectID, VersionID: approved.VersionID}
+	return ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
 }
 
 func reverseApprovedBOBToDraft(
@@ -176,16 +191,16 @@ func reverseApprovedBOBToDraft(
 ) bobdomain.MutationResult {
 	t.Helper()
 	unapproved, err := service.Unapprove(t.Context(), entity, bobdomain.ReverseInput{
-		ObjectID: view.ObjectID, ObjectRevision: view.ObjectRevision,
-		VersionID: view.Version.VersionID, Revision: view.Version.Revision, Reason: "integration update",
-	}, integrationActorOne, requestID+"-unapprove")
+		ObjectID: view.ObjectID, ApprovalEntryID: view.Approval.ApprovalEntryID,
+		ApprovalRevision: view.Approval.Revision, Reason: "integration update",
+	}, trustedIntegrationActor(t, requestID+"-unapprove"))
 	if err != nil {
 		t.Fatalf("unapprove BOB reference: %v", err)
 	}
 	draft, err := service.Unsubmit(t.Context(), entity, bobdomain.ReverseInput{
-		ObjectID: unapproved.ObjectID, ObjectRevision: unapproved.ObjectRevision,
-		VersionID: unapproved.VersionID, Revision: unapproved.Revision, Reason: "integration update",
-	}, integrationActorOne, requestID+"-unsubmit")
+		ObjectID: unapproved.ObjectID, ApprovalEntryID: unapproved.Approval.ApprovalEntryID,
+		ApprovalRevision: unapproved.Approval.Revision, Reason: "integration update",
+	}, trustedIntegrationActor(t, requestID+"-unsubmit"))
 	if err != nil {
 		t.Fatalf("unsubmit BOB reference: %v", err)
 	}
@@ -196,18 +211,23 @@ func fixedSettlementReference(t *testing.T, pool *pgxpool.Pool, termCode string)
 	t.Helper()
 	var result ReferenceInput
 	if err := pool.QueryRow(t.Context(), `
-		SELECT object.id,object.current_version_id
+		SELECT object.id,entry.id
 		FROM aux_objects object
-		JOIN aux_versions version ON version.id=object.current_version_id
-		WHERE object.entity='settlement-method' AND object.enabled AND version.data->>'termCode'=$1
-	`, termCode).Scan(&result.ObjectID, &result.VersionID); err != nil {
+		JOIN approval_entries entry ON entry.domain='aux' AND entry.entity=object.entity
+		  AND entry.subject_id=object.id AND entry.status='APPROVED'
+		JOIN aux_version_payloads payload ON payload.approval_entry_id=entry.id
+		WHERE object.entity='settlement-method' AND object.enabled AND payload.data->>'termCode'=$1
+		ORDER BY entry.version_no DESC LIMIT 1
+	`, termCode).Scan(&result.ObjectID, &result.ApprovalEntryID); err != nil {
 		t.Fatalf("find fixed settlement method %s: %v", termCode, err)
 	}
 	return result
 }
 
 func newBOBIntegrationService(pool *pgxpool.Pool) *bobdomain.Service {
-	return bobdomain.NewService(pool, auxiliaryrefs.New(auxdomain.NewService(pool)))
+	bus := txevent.NewBus()
+	auxiliary := auxdomain.NewService(pool, authorization.Func(nil), bus)
+	return bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
 }
 
 type vouCustomerAuxiliaryResolver struct{}
@@ -216,15 +236,19 @@ func (vouCustomerAuxiliaryResolver) ResolveAuxiliaryReference(
 	ctx context.Context, tx pgx.Tx, entity, objectID, _ string,
 ) (bobdomain.AuxiliaryReference, error) {
 	if entity == "payment-method" {
-		return bobdomain.AuxiliaryReference{ObjectID: objectID, VersionID: "01J00000000000000000000083",
+		return bobdomain.AuxiliaryReference{ObjectID: objectID, ApprovalEntryID: "01J00000000000000000000083",
 			Entity: entity, Code: "PAY-0001", Data: map[string]any{"name": "银行转账"}}, nil
 	}
 	var versionID, code string
 	var raw []byte
 	if err := tx.QueryRow(ctx, `
-		SELECT object.current_version_id,object.code,version.data
-		FROM aux_objects object JOIN aux_versions version ON version.id=object.current_version_id
+		SELECT entry.id,object.code,payload.data
+		FROM aux_objects object
+		JOIN approval_entries entry ON entry.domain='aux' AND entry.entity=object.entity
+		  AND entry.subject_id=object.id AND entry.status='APPROVED'
+		JOIN aux_version_payloads payload ON payload.approval_entry_id=entry.id
 		WHERE object.id=$1 AND object.entity=$2 AND object.enabled
+		ORDER BY entry.version_no DESC LIMIT 1
 	`, objectID, entity).Scan(&versionID, &code, &raw); err != nil {
 		return bobdomain.AuxiliaryReference{}, err
 	}
@@ -232,14 +256,14 @@ func (vouCustomerAuxiliaryResolver) ResolveAuxiliaryReference(
 	if err := json.Unmarshal(raw, &data); err != nil {
 		return bobdomain.AuxiliaryReference{}, err
 	}
-	return bobdomain.AuxiliaryReference{ObjectID: objectID, VersionID: versionID, Entity: entity, Code: code, Data: data}, nil
+	return bobdomain.AuxiliaryReference{ObjectID: objectID, ApprovalEntryID: versionID, Entity: entity, Code: code, Data: data}, nil
 }
 
 func (vouCustomerAuxiliaryResolver) ResolveAuxiliaryCode(
 	_ context.Context, _ pgx.Tx, entity, code string,
 ) (bobdomain.AuxiliaryReference, error) {
 	return bobdomain.AuxiliaryReference{ObjectID: "01J00000000000000000000092",
-		VersionID: "01J00000000000000000000093", Entity: entity, Code: code,
+		ApprovalEntryID: "01J00000000000000000000093", Entity: entity, Code: code,
 		Data: map[string]any{"dictionaryTypeCode": "DCT-0001", "name": "终端客户"}}, nil
 }
 
@@ -247,7 +271,7 @@ func createApprovedCustomer(
 	t *testing.T, pool *pgxpool.Pool, data bobdomain.CreateDetailInput,
 ) ReferenceInput {
 	t.Helper()
-	service := bobdomain.NewService(pool, vouCustomerAuxiliaryResolver{})
+	service := bobdomain.NewService(pool, vouCustomerAuxiliaryResolver{}, authorization.Func(nil), txevent.NewBus())
 	operating := createApprovedBOB(t, service, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{
 		Name: "VOU 客户经营主体", TaxNumber: "TAX" + newID()[3:],
 	})
@@ -269,35 +293,35 @@ func createApprovedCustomer(
 				Type: bobdomain.SalesAttributionInternalEmployee, SubjectObjectID: data.SalespersonEmployeeID,
 			},
 		},
-	}, integrationActorOne, "vou-customer-create", true)
+	}, trustedIntegrationActor(t, "vou-customer-create"), true)
 	if err != nil {
 		t.Fatalf("create customer reference: %v", err)
 	}
 	submitted, err := service.Submit(t.Context(), bobdomain.EntityCustomer, bobdomain.VersionRevisionInput{
-		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: created.Revision,
-	}, integrationActorOne, "vou-customer-submit")
+		ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision,
+	}, trustedIntegrationActor(t, "vou-customer-submit"))
 	if err != nil {
 		t.Fatalf("submit customer reference: %v", err)
 	}
 	if _, err = service.Approve(t.Context(), bobdomain.EntityCustomer, bobdomain.ReviewInput{
-		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: submitted.Revision,
-	}, integrationActorTwo, "vou-customer-approve"); err != nil {
+		ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: submitted.Approval.Revision,
+	}, trustedIntegrationActor(t, "vou-customer-approve")); err != nil {
 		t.Fatalf("approve customer relationship: %v", err)
 	}
 	accountSubmitted, err := service.Submit(t.Context(), bobdomain.EntityCustomerAccount, bobdomain.VersionRevisionInput{
-		ObjectID: created.DefaultAccount.ObjectID, VersionID: created.DefaultAccount.Candidate.Version.VersionID,
-		Revision: created.DefaultAccount.Candidate.Version.Revision,
-	}, integrationActorOne, "vou-customer-account-submit")
+		ObjectID: created.DefaultAccount.ObjectID, ApprovalEntryID: created.DefaultAccount.OpenVersion.Approval.ApprovalEntryID,
+		ApprovalRevision: created.DefaultAccount.OpenVersion.Approval.Revision,
+	}, trustedIntegrationActor(t, "vou-customer-account-submit"))
 	if err != nil {
 		t.Fatalf("submit customer account: %v", err)
 	}
 	accountApproved, err := service.Approve(t.Context(), bobdomain.EntityCustomerAccount, bobdomain.ReviewInput{
-		ObjectID: created.DefaultAccount.ObjectID, VersionID: accountSubmitted.VersionID, Revision: accountSubmitted.Revision,
-	}, integrationActorTwo, "vou-customer-account-approve")
+		ObjectID: created.DefaultAccount.ObjectID, ApprovalEntryID: accountSubmitted.Approval.ApprovalEntryID, ApprovalRevision: accountSubmitted.Approval.Revision,
+	}, trustedIntegrationActor(t, "vou-customer-account-approve"))
 	if err != nil {
 		t.Fatalf("approve customer account: %v", err)
 	}
-	return ReferenceInput{ObjectID: accountApproved.ObjectID, VersionID: accountApproved.VersionID}
+	return ReferenceInput{ObjectID: accountApproved.ObjectID, ApprovalEntryID: accountApproved.Approval.ApprovalEntryID}
 }
 
 func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {
@@ -359,7 +383,7 @@ func newIntegrationService(t *testing.T, pool *pgxpool.Pool) *Service {
 
 func newIntegrationServiceWithBus(t *testing.T, pool *pgxpool.Pool, bus *txevent.Bus) *Service {
 	t.Helper()
-	service, err := NewService(pool, newBOBIntegrationService(pool), auxiliaryrefs.New(auxdomain.NewService(pool)), bus, AttachmentOptions{Root: t.TempDir()},
+	service, err := NewService(pool, newBOBIntegrationService(pool), auxiliaryrefs.New(auxdomain.NewService(pool, authorization.Func(nil), bus)), bus, AttachmentOptions{Root: t.TempDir()},
 		slog.New(slog.NewTextHandler(io.Discard, nil)), WithAccountingControl(integrationAccountingControl{}))
 	if err != nil {
 		t.Fatalf("new VOU service: %v", err)

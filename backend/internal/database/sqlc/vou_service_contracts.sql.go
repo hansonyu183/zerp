@@ -12,7 +12,7 @@ import (
 )
 
 const findLatestApplicableSalesContract = `-- name: FindLatestApplicableSalesContract :one
-SELECT contract.document_id, contract.entity, contract.counterparty_entity, contract.counterparty_object_id, contract.counterparty_version_id, contract.counterparty_code, contract.counterparty_name, contract.party_id, contract.party_name, contract.operating_entity_object_id, contract.operating_entity_version_id, contract.operating_entity_code, contract.operating_entity_name, contract.handler_object_id, contract.handler_version_id, contract.handler_code, contract.handler_name, contract.settlement_method_object_id, contract.settlement_method_version_id, contract.settlement_method_code, contract.settlement_method_name, contract.settlement_term_code, contract.settlement_rule_type, contract.settlement_month_offset, contract.settlement_day_of_month, contract.settlement_day_offset, contract.capabilities, contract.applicable_from, contract.applicable_to, contract.contract_terms
+SELECT contract.document_id, contract.entity, contract.counterparty_entity, contract.counterparty_object_id, contract.counterparty_approval_entry_id, contract.counterparty_code, contract.counterparty_name, contract.party_id, contract.party_name, contract.operating_entity_object_id, contract.operating_entity_approval_entry_id, contract.operating_entity_code, contract.operating_entity_name, contract.handler_object_id, contract.handler_approval_entry_id, contract.handler_code, contract.handler_name, contract.settlement_method_object_id, contract.settlement_method_approval_entry_id, contract.settlement_method_code, contract.settlement_method_name, contract.settlement_term_code, contract.settlement_rule_type, contract.settlement_month_offset, contract.settlement_day_of_month, contract.settlement_day_offset, contract.capabilities, contract.applicable_from, contract.applicable_to, contract.contract_terms
 FROM vou_service_contract_details contract
 JOIN vou_documents document ON document.id=contract.document_id
 WHERE contract.counterparty_entity='sales-partner'
@@ -39,21 +39,21 @@ func (q *Queries) FindLatestApplicableSalesContract(ctx context.Context, arg Fin
 		&i.Entity,
 		&i.CounterpartyEntity,
 		&i.CounterpartyObjectID,
-		&i.CounterpartyVersionID,
+		&i.CounterpartyApprovalEntryID,
 		&i.CounterpartyCode,
 		&i.CounterpartyName,
 		&i.PartyID,
 		&i.PartyName,
 		&i.OperatingEntityObjectID,
-		&i.OperatingEntityVersionID,
+		&i.OperatingEntityApprovalEntryID,
 		&i.OperatingEntityCode,
 		&i.OperatingEntityName,
 		&i.HandlerObjectID,
-		&i.HandlerVersionID,
+		&i.HandlerApprovalEntryID,
 		&i.HandlerCode,
 		&i.HandlerName,
 		&i.SettlementMethodObjectID,
-		&i.SettlementMethodVersionID,
+		&i.SettlementMethodApprovalEntryID,
 		&i.SettlementMethodCode,
 		&i.SettlementMethodName,
 		&i.SettlementTermCode,
@@ -134,7 +134,7 @@ func (q *Queries) GetVouServiceAcceptanceDetail(ctx context.Context, documentID 
 }
 
 const getVouServiceContractDetail = `-- name: GetVouServiceContractDetail :one
-SELECT document_id, entity, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, party_id, party_name, operating_entity_object_id, operating_entity_version_id, operating_entity_code, operating_entity_name, handler_object_id, handler_version_id, handler_code, handler_name, settlement_method_object_id, settlement_method_version_id, settlement_method_code, settlement_method_name, settlement_term_code, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, capabilities, applicable_from, applicable_to, contract_terms FROM vou_service_contract_details WHERE document_id=$1
+SELECT document_id, entity, counterparty_entity, counterparty_object_id, counterparty_approval_entry_id, counterparty_code, counterparty_name, party_id, party_name, operating_entity_object_id, operating_entity_approval_entry_id, operating_entity_code, operating_entity_name, handler_object_id, handler_approval_entry_id, handler_code, handler_name, settlement_method_object_id, settlement_method_approval_entry_id, settlement_method_code, settlement_method_name, settlement_term_code, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, capabilities, applicable_from, applicable_to, contract_terms FROM vou_service_contract_details WHERE document_id=$1
 `
 
 func (q *Queries) GetVouServiceContractDetail(ctx context.Context, documentID string) (VouServiceContractDetail, error) {
@@ -145,21 +145,21 @@ func (q *Queries) GetVouServiceContractDetail(ctx context.Context, documentID st
 		&i.Entity,
 		&i.CounterpartyEntity,
 		&i.CounterpartyObjectID,
-		&i.CounterpartyVersionID,
+		&i.CounterpartyApprovalEntryID,
 		&i.CounterpartyCode,
 		&i.CounterpartyName,
 		&i.PartyID,
 		&i.PartyName,
 		&i.OperatingEntityObjectID,
-		&i.OperatingEntityVersionID,
+		&i.OperatingEntityApprovalEntryID,
 		&i.OperatingEntityCode,
 		&i.OperatingEntityName,
 		&i.HandlerObjectID,
-		&i.HandlerVersionID,
+		&i.HandlerApprovalEntryID,
 		&i.HandlerCode,
 		&i.HandlerName,
 		&i.SettlementMethodObjectID,
-		&i.SettlementMethodVersionID,
+		&i.SettlementMethodApprovalEntryID,
 		&i.SettlementMethodCode,
 		&i.SettlementMethodName,
 		&i.SettlementTermCode,
@@ -212,10 +212,10 @@ func (q *Queries) InsertVouServiceAcceptanceDetail(ctx context.Context, arg Inse
 
 const insertVouServiceContractDetail = `-- name: InsertVouServiceContractDetail :exec
 INSERT INTO vou_service_contract_details(
- document_id,counterparty_entity,counterparty_object_id,counterparty_version_id,counterparty_code,counterparty_name,
- party_id,party_name,operating_entity_object_id,operating_entity_version_id,operating_entity_code,operating_entity_name,
- handler_object_id,handler_version_id,handler_code,handler_name,
- settlement_method_object_id,settlement_method_version_id,settlement_method_code,settlement_method_name,
+ document_id,counterparty_entity,counterparty_object_id,counterparty_approval_entry_id,counterparty_code,counterparty_name,
+ party_id,party_name,operating_entity_object_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,
+ handler_object_id,handler_approval_entry_id,handler_code,handler_name,
+ settlement_method_object_id,settlement_method_approval_entry_id,settlement_method_code,settlement_method_name,
  settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,
  capabilities,applicable_from,applicable_to,contract_terms
 ) VALUES (
@@ -229,35 +229,35 @@ INSERT INTO vou_service_contract_details(
 `
 
 type InsertVouServiceContractDetailParams struct {
-	DocumentID                string      `db:"document_id" json:"document_id"`
-	CounterpartyEntity        string      `db:"counterparty_entity" json:"counterparty_entity"`
-	CounterpartyObjectID      string      `db:"counterparty_object_id" json:"counterparty_object_id"`
-	CounterpartyVersionID     string      `db:"counterparty_version_id" json:"counterparty_version_id"`
-	CounterpartyCode          string      `db:"counterparty_code" json:"counterparty_code"`
-	CounterpartyName          string      `db:"counterparty_name" json:"counterparty_name"`
-	PartyID                   string      `db:"party_id" json:"party_id"`
-	PartyName                 string      `db:"party_name" json:"party_name"`
-	OperatingEntityObjectID   string      `db:"operating_entity_object_id" json:"operating_entity_object_id"`
-	OperatingEntityVersionID  string      `db:"operating_entity_version_id" json:"operating_entity_version_id"`
-	OperatingEntityCode       string      `db:"operating_entity_code" json:"operating_entity_code"`
-	OperatingEntityName       string      `db:"operating_entity_name" json:"operating_entity_name"`
-	HandlerObjectID           string      `db:"handler_object_id" json:"handler_object_id"`
-	HandlerVersionID          string      `db:"handler_version_id" json:"handler_version_id"`
-	HandlerCode               string      `db:"handler_code" json:"handler_code"`
-	HandlerName               string      `db:"handler_name" json:"handler_name"`
-	SettlementMethodObjectID  *string     `db:"settlement_method_object_id" json:"settlement_method_object_id"`
-	SettlementMethodVersionID *string     `db:"settlement_method_version_id" json:"settlement_method_version_id"`
-	SettlementMethodCode      *string     `db:"settlement_method_code" json:"settlement_method_code"`
-	SettlementMethodName      *string     `db:"settlement_method_name" json:"settlement_method_name"`
-	SettlementTermCode        *string     `db:"settlement_term_code" json:"settlement_term_code"`
-	SettlementRuleType        *string     `db:"settlement_rule_type" json:"settlement_rule_type"`
-	SettlementMonthOffset     *int32      `db:"settlement_month_offset" json:"settlement_month_offset"`
-	SettlementDayOfMonth      *int32      `db:"settlement_day_of_month" json:"settlement_day_of_month"`
-	SettlementDayOffset       *int32      `db:"settlement_day_offset" json:"settlement_day_offset"`
-	Capabilities              []string    `db:"capabilities" json:"capabilities"`
-	ApplicableFrom            pgtype.Date `db:"applicable_from" json:"applicable_from"`
-	ApplicableTo              pgtype.Date `db:"applicable_to" json:"applicable_to"`
-	ContractTerms             string      `db:"contract_terms" json:"contract_terms"`
+	DocumentID                      string      `db:"document_id" json:"document_id"`
+	CounterpartyEntity              string      `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID            string      `db:"counterparty_object_id" json:"counterparty_object_id"`
+	CounterpartyApprovalEntryID     string      `db:"counterparty_approval_entry_id" json:"counterparty_approval_entry_id"`
+	CounterpartyCode                string      `db:"counterparty_code" json:"counterparty_code"`
+	CounterpartyName                string      `db:"counterparty_name" json:"counterparty_name"`
+	PartyID                         string      `db:"party_id" json:"party_id"`
+	PartyName                       string      `db:"party_name" json:"party_name"`
+	OperatingEntityObjectID         string      `db:"operating_entity_object_id" json:"operating_entity_object_id"`
+	OperatingEntityApprovalEntryID  string      `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
+	OperatingEntityCode             string      `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName             string      `db:"operating_entity_name" json:"operating_entity_name"`
+	HandlerObjectID                 string      `db:"handler_object_id" json:"handler_object_id"`
+	HandlerApprovalEntryID          string      `db:"handler_approval_entry_id" json:"handler_approval_entry_id"`
+	HandlerCode                     string      `db:"handler_code" json:"handler_code"`
+	HandlerName                     string      `db:"handler_name" json:"handler_name"`
+	SettlementMethodObjectID        *string     `db:"settlement_method_object_id" json:"settlement_method_object_id"`
+	SettlementMethodApprovalEntryID *string     `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
+	SettlementMethodCode            *string     `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName            *string     `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementTermCode              *string     `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementRuleType              *string     `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset           *int32      `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth            *int32      `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset             *int32      `db:"settlement_day_offset" json:"settlement_day_offset"`
+	Capabilities                    []string    `db:"capabilities" json:"capabilities"`
+	ApplicableFrom                  pgtype.Date `db:"applicable_from" json:"applicable_from"`
+	ApplicableTo                    pgtype.Date `db:"applicable_to" json:"applicable_to"`
+	ContractTerms                   string      `db:"contract_terms" json:"contract_terms"`
 }
 
 func (q *Queries) InsertVouServiceContractDetail(ctx context.Context, arg InsertVouServiceContractDetailParams) error {
@@ -265,21 +265,21 @@ func (q *Queries) InsertVouServiceContractDetail(ctx context.Context, arg Insert
 		arg.DocumentID,
 		arg.CounterpartyEntity,
 		arg.CounterpartyObjectID,
-		arg.CounterpartyVersionID,
+		arg.CounterpartyApprovalEntryID,
 		arg.CounterpartyCode,
 		arg.CounterpartyName,
 		arg.PartyID,
 		arg.PartyName,
 		arg.OperatingEntityObjectID,
-		arg.OperatingEntityVersionID,
+		arg.OperatingEntityApprovalEntryID,
 		arg.OperatingEntityCode,
 		arg.OperatingEntityName,
 		arg.HandlerObjectID,
-		arg.HandlerVersionID,
+		arg.HandlerApprovalEntryID,
 		arg.HandlerCode,
 		arg.HandlerName,
 		arg.SettlementMethodObjectID,
-		arg.SettlementMethodVersionID,
+		arg.SettlementMethodApprovalEntryID,
 		arg.SettlementMethodCode,
 		arg.SettlementMethodName,
 		arg.SettlementTermCode,
@@ -316,7 +316,7 @@ func (q *Queries) LockVouServiceAcceptanceContract(ctx context.Context, contract
 }
 
 const lockVouServiceContractDetail = `-- name: LockVouServiceContractDetail :one
-SELECT document_id, entity, counterparty_entity, counterparty_object_id, counterparty_version_id, counterparty_code, counterparty_name, party_id, party_name, operating_entity_object_id, operating_entity_version_id, operating_entity_code, operating_entity_name, handler_object_id, handler_version_id, handler_code, handler_name, settlement_method_object_id, settlement_method_version_id, settlement_method_code, settlement_method_name, settlement_term_code, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, capabilities, applicable_from, applicable_to, contract_terms FROM vou_service_contract_details WHERE document_id=$1 FOR UPDATE
+SELECT document_id, entity, counterparty_entity, counterparty_object_id, counterparty_approval_entry_id, counterparty_code, counterparty_name, party_id, party_name, operating_entity_object_id, operating_entity_approval_entry_id, operating_entity_code, operating_entity_name, handler_object_id, handler_approval_entry_id, handler_code, handler_name, settlement_method_object_id, settlement_method_approval_entry_id, settlement_method_code, settlement_method_name, settlement_term_code, settlement_rule_type, settlement_month_offset, settlement_day_of_month, settlement_day_offset, capabilities, applicable_from, applicable_to, contract_terms FROM vou_service_contract_details WHERE document_id=$1 FOR UPDATE
 `
 
 func (q *Queries) LockVouServiceContractDetail(ctx context.Context, documentID string) (VouServiceContractDetail, error) {
@@ -327,21 +327,21 @@ func (q *Queries) LockVouServiceContractDetail(ctx context.Context, documentID s
 		&i.Entity,
 		&i.CounterpartyEntity,
 		&i.CounterpartyObjectID,
-		&i.CounterpartyVersionID,
+		&i.CounterpartyApprovalEntryID,
 		&i.CounterpartyCode,
 		&i.CounterpartyName,
 		&i.PartyID,
 		&i.PartyName,
 		&i.OperatingEntityObjectID,
-		&i.OperatingEntityVersionID,
+		&i.OperatingEntityApprovalEntryID,
 		&i.OperatingEntityCode,
 		&i.OperatingEntityName,
 		&i.HandlerObjectID,
-		&i.HandlerVersionID,
+		&i.HandlerApprovalEntryID,
 		&i.HandlerCode,
 		&i.HandlerName,
 		&i.SettlementMethodObjectID,
-		&i.SettlementMethodVersionID,
+		&i.SettlementMethodApprovalEntryID,
 		&i.SettlementMethodCode,
 		&i.SettlementMethodName,
 		&i.SettlementTermCode,
@@ -359,33 +359,37 @@ func (q *Queries) LockVouServiceContractDetail(ctx context.Context, documentID s
 
 const resolveVouContractCounterparty = `-- name: ResolveVouContractCounterparty :one
 SELECT object.id AS counterparty_object_id,object.entity AS counterparty_entity,
-       version.id AS counterparty_version_id,object.code AS counterparty_code,
+       version.id AS counterparty_approval_entry_id,object.code AS counterparty_code,
        party.id AS party_id,party.display_name AS party_name,
-       operating.id AS operating_entity_object_id,operating_version.id AS operating_entity_version_id,
+       operating.id AS operating_entity_object_id,operating_version.id AS operating_entity_approval_entry_id,
        operating.code AS operating_entity_code,operating_detail.legal_name AS operating_entity_name,
        COALESCE(sales.capabilities,ARRAY[]::varchar(32)[]) AS capabilities,
        service_detail.settlement_method_id,service_detail.settlement_method_code,
        service_detail.settlement_method_name,service_detail.settlement_term_code,
        service_detail.settlement_rule_type,service_detail.settlement_month_offset,
        service_detail.settlement_day_of_month,service_detail.settlement_day_offset
-       ,default_settlement_version.id AS default_settlement_version_id
+       ,service_detail.settlement_method_approval_entry_id AS default_settlement_approval_entry_id
 FROM bob_objects object
-JOIN bob_versions version ON version.id=object.effective_version_id AND version.status='EFFECTIVE'
+JOIN LATERAL (
+  SELECT id FROM approval_entries
+  WHERE domain='bob' AND entity=object.entity AND subject_id=object.id AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) version ON true
 LEFT JOIN bob_service_relationships service_rel ON service_rel.object_id=object.id AND object.entity='other-unit'
-LEFT JOIN bob_service_relationship_versions service_detail ON service_detail.version_id=version.id AND object.entity='other-unit'
-LEFT JOIN bob_objects default_settlement ON default_settlement.id=service_detail.settlement_method_id
-    AND default_settlement.entity='settlement-method' AND default_settlement.enabled
-LEFT JOIN bob_versions default_settlement_version ON default_settlement_version.id=default_settlement.effective_version_id
-    AND default_settlement_version.status='EFFECTIVE'
+LEFT JOIN bob_service_relationship_versions service_detail ON service_detail.approval_entry_id=version.id AND object.entity='other-unit'
 LEFT JOIN bob_sales_relationships sales_rel ON sales_rel.object_id=object.id AND object.entity='sales-partner'
-LEFT JOIN bob_sales_partner_versions sales ON sales.version_id=version.id AND object.entity='sales-partner'
+LEFT JOIN bob_sales_partner_versions sales ON sales.approval_entry_id=version.id AND object.entity='sales-partner'
 JOIN bob_parties party ON party.id=COALESCE(service_rel.party_id,sales_rel.party_id)
 JOIN bob_objects operating ON operating.id=COALESCE(service_rel.operating_entity_id,sales_rel.operating_entity_id)
-JOIN bob_versions operating_version ON operating_version.id=operating.effective_version_id AND operating_version.status='EFFECTIVE'
-JOIN bob_operating_entity_versions operating_detail ON operating_detail.version_id=operating_version.id
+JOIN LATERAL (
+  SELECT id FROM approval_entries
+  WHERE domain='bob' AND entity='operating-entity' AND subject_id=operating.id AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) operating_version ON true
+JOIN bob_operating_entity_versions operating_detail ON operating_detail.approval_entry_id=operating_version.id
 WHERE object.id=$1 AND object.entity=$2
   AND object.enabled
-FOR SHARE OF object,version,party,operating,operating_version
+FOR SHARE OF object,party,operating
 `
 
 type ResolveVouContractCounterpartyParams struct {
@@ -394,26 +398,26 @@ type ResolveVouContractCounterpartyParams struct {
 }
 
 type ResolveVouContractCounterpartyRow struct {
-	CounterpartyObjectID       string   `db:"counterparty_object_id" json:"counterparty_object_id"`
-	CounterpartyEntity         string   `db:"counterparty_entity" json:"counterparty_entity"`
-	CounterpartyVersionID      string   `db:"counterparty_version_id" json:"counterparty_version_id"`
-	CounterpartyCode           string   `db:"counterparty_code" json:"counterparty_code"`
-	PartyID                    string   `db:"party_id" json:"party_id"`
-	PartyName                  string   `db:"party_name" json:"party_name"`
-	OperatingEntityObjectID    string   `db:"operating_entity_object_id" json:"operating_entity_object_id"`
-	OperatingEntityVersionID   string   `db:"operating_entity_version_id" json:"operating_entity_version_id"`
-	OperatingEntityCode        string   `db:"operating_entity_code" json:"operating_entity_code"`
-	OperatingEntityName        string   `db:"operating_entity_name" json:"operating_entity_name"`
-	Capabilities               []string `db:"capabilities" json:"capabilities"`
-	SettlementMethodID         *string  `db:"settlement_method_id" json:"settlement_method_id"`
-	SettlementMethodCode       *string  `db:"settlement_method_code" json:"settlement_method_code"`
-	SettlementMethodName       *string  `db:"settlement_method_name" json:"settlement_method_name"`
-	SettlementTermCode         *string  `db:"settlement_term_code" json:"settlement_term_code"`
-	SettlementRuleType         *string  `db:"settlement_rule_type" json:"settlement_rule_type"`
-	SettlementMonthOffset      *int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
-	SettlementDayOfMonth       *int32   `db:"settlement_day_of_month" json:"settlement_day_of_month"`
-	SettlementDayOffset        *int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
-	DefaultSettlementVersionID *string  `db:"default_settlement_version_id" json:"default_settlement_version_id"`
+	CounterpartyObjectID             string   `db:"counterparty_object_id" json:"counterparty_object_id"`
+	CounterpartyEntity               string   `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyApprovalEntryID      string   `db:"counterparty_approval_entry_id" json:"counterparty_approval_entry_id"`
+	CounterpartyCode                 string   `db:"counterparty_code" json:"counterparty_code"`
+	PartyID                          string   `db:"party_id" json:"party_id"`
+	PartyName                        string   `db:"party_name" json:"party_name"`
+	OperatingEntityObjectID          string   `db:"operating_entity_object_id" json:"operating_entity_object_id"`
+	OperatingEntityApprovalEntryID   string   `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
+	OperatingEntityCode              string   `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName              string   `db:"operating_entity_name" json:"operating_entity_name"`
+	Capabilities                     []string `db:"capabilities" json:"capabilities"`
+	SettlementMethodID               *string  `db:"settlement_method_id" json:"settlement_method_id"`
+	SettlementMethodCode             *string  `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName             *string  `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementTermCode               *string  `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementRuleType               *string  `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset            *int32   `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth             *int32   `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset              *int32   `db:"settlement_day_offset" json:"settlement_day_offset"`
+	DefaultSettlementApprovalEntryID *string  `db:"default_settlement_approval_entry_id" json:"default_settlement_approval_entry_id"`
 }
 
 func (q *Queries) ResolveVouContractCounterparty(ctx context.Context, arg ResolveVouContractCounterpartyParams) (ResolveVouContractCounterpartyRow, error) {
@@ -422,12 +426,12 @@ func (q *Queries) ResolveVouContractCounterparty(ctx context.Context, arg Resolv
 	err := row.Scan(
 		&i.CounterpartyObjectID,
 		&i.CounterpartyEntity,
-		&i.CounterpartyVersionID,
+		&i.CounterpartyApprovalEntryID,
 		&i.CounterpartyCode,
 		&i.PartyID,
 		&i.PartyName,
 		&i.OperatingEntityObjectID,
-		&i.OperatingEntityVersionID,
+		&i.OperatingEntityApprovalEntryID,
 		&i.OperatingEntityCode,
 		&i.OperatingEntityName,
 		&i.Capabilities,
@@ -439,7 +443,7 @@ func (q *Queries) ResolveVouContractCounterparty(ctx context.Context, arg Resolv
 		&i.SettlementMonthOffset,
 		&i.SettlementDayOfMonth,
 		&i.SettlementDayOffset,
-		&i.DefaultSettlementVersionID,
+		&i.DefaultSettlementApprovalEntryID,
 	)
 	return i, err
 }
@@ -482,66 +486,66 @@ func (q *Queries) UpdateVouServiceAcceptanceDetail(ctx context.Context, arg Upda
 
 const updateVouServiceContractDetail = `-- name: UpdateVouServiceContractDetail :execrows
 UPDATE vou_service_contract_details SET
- counterparty_entity=$1,counterparty_object_id=$2,counterparty_version_id=$3,counterparty_code=$4,counterparty_name=$5,
- party_id=$6,party_name=$7,operating_entity_object_id=$8,operating_entity_version_id=$9,operating_entity_code=$10,operating_entity_name=$11,
- handler_object_id=$12,handler_version_id=$13,handler_code=$14,handler_name=$15,
- settlement_method_object_id=$16,settlement_method_version_id=$17,settlement_method_code=$18,settlement_method_name=$19,
+ counterparty_entity=$1,counterparty_object_id=$2,counterparty_approval_entry_id=$3,counterparty_code=$4,counterparty_name=$5,
+ party_id=$6,party_name=$7,operating_entity_object_id=$8,operating_entity_approval_entry_id=$9,operating_entity_code=$10,operating_entity_name=$11,
+ handler_object_id=$12,handler_approval_entry_id=$13,handler_code=$14,handler_name=$15,
+ settlement_method_object_id=$16,settlement_method_approval_entry_id=$17,settlement_method_code=$18,settlement_method_name=$19,
  settlement_term_code=$20,settlement_rule_type=$21,settlement_month_offset=$22,settlement_day_of_month=$23,settlement_day_offset=$24,
  capabilities=$25,applicable_from=$26,applicable_to=$27,contract_terms=$28
 WHERE document_id=$29
 `
 
 type UpdateVouServiceContractDetailParams struct {
-	CounterpartyEntity        string      `db:"counterparty_entity" json:"counterparty_entity"`
-	CounterpartyObjectID      string      `db:"counterparty_object_id" json:"counterparty_object_id"`
-	CounterpartyVersionID     string      `db:"counterparty_version_id" json:"counterparty_version_id"`
-	CounterpartyCode          string      `db:"counterparty_code" json:"counterparty_code"`
-	CounterpartyName          string      `db:"counterparty_name" json:"counterparty_name"`
-	PartyID                   string      `db:"party_id" json:"party_id"`
-	PartyName                 string      `db:"party_name" json:"party_name"`
-	OperatingEntityObjectID   string      `db:"operating_entity_object_id" json:"operating_entity_object_id"`
-	OperatingEntityVersionID  string      `db:"operating_entity_version_id" json:"operating_entity_version_id"`
-	OperatingEntityCode       string      `db:"operating_entity_code" json:"operating_entity_code"`
-	OperatingEntityName       string      `db:"operating_entity_name" json:"operating_entity_name"`
-	HandlerObjectID           string      `db:"handler_object_id" json:"handler_object_id"`
-	HandlerVersionID          string      `db:"handler_version_id" json:"handler_version_id"`
-	HandlerCode               string      `db:"handler_code" json:"handler_code"`
-	HandlerName               string      `db:"handler_name" json:"handler_name"`
-	SettlementMethodObjectID  *string     `db:"settlement_method_object_id" json:"settlement_method_object_id"`
-	SettlementMethodVersionID *string     `db:"settlement_method_version_id" json:"settlement_method_version_id"`
-	SettlementMethodCode      *string     `db:"settlement_method_code" json:"settlement_method_code"`
-	SettlementMethodName      *string     `db:"settlement_method_name" json:"settlement_method_name"`
-	SettlementTermCode        *string     `db:"settlement_term_code" json:"settlement_term_code"`
-	SettlementRuleType        *string     `db:"settlement_rule_type" json:"settlement_rule_type"`
-	SettlementMonthOffset     *int32      `db:"settlement_month_offset" json:"settlement_month_offset"`
-	SettlementDayOfMonth      *int32      `db:"settlement_day_of_month" json:"settlement_day_of_month"`
-	SettlementDayOffset       *int32      `db:"settlement_day_offset" json:"settlement_day_offset"`
-	Capabilities              []string    `db:"capabilities" json:"capabilities"`
-	ApplicableFrom            pgtype.Date `db:"applicable_from" json:"applicable_from"`
-	ApplicableTo              pgtype.Date `db:"applicable_to" json:"applicable_to"`
-	ContractTerms             string      `db:"contract_terms" json:"contract_terms"`
-	DocumentID                string      `db:"document_id" json:"document_id"`
+	CounterpartyEntity              string      `db:"counterparty_entity" json:"counterparty_entity"`
+	CounterpartyObjectID            string      `db:"counterparty_object_id" json:"counterparty_object_id"`
+	CounterpartyApprovalEntryID     string      `db:"counterparty_approval_entry_id" json:"counterparty_approval_entry_id"`
+	CounterpartyCode                string      `db:"counterparty_code" json:"counterparty_code"`
+	CounterpartyName                string      `db:"counterparty_name" json:"counterparty_name"`
+	PartyID                         string      `db:"party_id" json:"party_id"`
+	PartyName                       string      `db:"party_name" json:"party_name"`
+	OperatingEntityObjectID         string      `db:"operating_entity_object_id" json:"operating_entity_object_id"`
+	OperatingEntityApprovalEntryID  string      `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
+	OperatingEntityCode             string      `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName             string      `db:"operating_entity_name" json:"operating_entity_name"`
+	HandlerObjectID                 string      `db:"handler_object_id" json:"handler_object_id"`
+	HandlerApprovalEntryID          string      `db:"handler_approval_entry_id" json:"handler_approval_entry_id"`
+	HandlerCode                     string      `db:"handler_code" json:"handler_code"`
+	HandlerName                     string      `db:"handler_name" json:"handler_name"`
+	SettlementMethodObjectID        *string     `db:"settlement_method_object_id" json:"settlement_method_object_id"`
+	SettlementMethodApprovalEntryID *string     `db:"settlement_method_approval_entry_id" json:"settlement_method_approval_entry_id"`
+	SettlementMethodCode            *string     `db:"settlement_method_code" json:"settlement_method_code"`
+	SettlementMethodName            *string     `db:"settlement_method_name" json:"settlement_method_name"`
+	SettlementTermCode              *string     `db:"settlement_term_code" json:"settlement_term_code"`
+	SettlementRuleType              *string     `db:"settlement_rule_type" json:"settlement_rule_type"`
+	SettlementMonthOffset           *int32      `db:"settlement_month_offset" json:"settlement_month_offset"`
+	SettlementDayOfMonth            *int32      `db:"settlement_day_of_month" json:"settlement_day_of_month"`
+	SettlementDayOffset             *int32      `db:"settlement_day_offset" json:"settlement_day_offset"`
+	Capabilities                    []string    `db:"capabilities" json:"capabilities"`
+	ApplicableFrom                  pgtype.Date `db:"applicable_from" json:"applicable_from"`
+	ApplicableTo                    pgtype.Date `db:"applicable_to" json:"applicable_to"`
+	ContractTerms                   string      `db:"contract_terms" json:"contract_terms"`
+	DocumentID                      string      `db:"document_id" json:"document_id"`
 }
 
 func (q *Queries) UpdateVouServiceContractDetail(ctx context.Context, arg UpdateVouServiceContractDetailParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateVouServiceContractDetail,
 		arg.CounterpartyEntity,
 		arg.CounterpartyObjectID,
-		arg.CounterpartyVersionID,
+		arg.CounterpartyApprovalEntryID,
 		arg.CounterpartyCode,
 		arg.CounterpartyName,
 		arg.PartyID,
 		arg.PartyName,
 		arg.OperatingEntityObjectID,
-		arg.OperatingEntityVersionID,
+		arg.OperatingEntityApprovalEntryID,
 		arg.OperatingEntityCode,
 		arg.OperatingEntityName,
 		arg.HandlerObjectID,
-		arg.HandlerVersionID,
+		arg.HandlerApprovalEntryID,
 		arg.HandlerCode,
 		arg.HandlerName,
 		arg.SettlementMethodObjectID,
-		arg.SettlementMethodVersionID,
+		arg.SettlementMethodApprovalEntryID,
 		arg.SettlementMethodCode,
 		arg.SettlementMethodName,
 		arg.SettlementTermCode,

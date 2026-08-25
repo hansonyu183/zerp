@@ -6,6 +6,8 @@ import (
 	"math"
 	"strings"
 	"testing"
+
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 )
 
 func errorIsKind(err error, kind ErrorKind) bool {
@@ -16,13 +18,11 @@ func errorIsKind(err error, kind ErrorKind) bool {
 func TestObjectPrefixes(t *testing.T) {
 	t.Parallel()
 	expected := map[string]string{
-		EntityCustomer: "CUS", EntitySupplier: "SUP", EntityOtherUnit: "OTU", EntityEmployee: "EMP",
+		EntityCustomer: "CUS", EntityCustomerAccount: "CUA", EntitySupplier: "SUP", EntityOtherUnit: "OTU", EntityEmployee: "EMP",
 		EntitySalesPartner: "SLP",
 		EntityProduct:      "PRD", EntityWarehouse: "WHS",
 		EntityVehicle: "VEH", EntityFundAccount: "FAC",
-		EntityCategory: "PCT", EntityDepartment: "DEP", EntityPosition: "POS",
-		EntitySettlementMethod: "STM",
-		EntityOperatingEntity:  "OPE",
+		EntityOperatingEntity: "OPE",
 	}
 	for entity, prefix := range expected {
 		if actual := objectPrefix(entity); actual != prefix {
@@ -54,9 +54,9 @@ func TestSalesPartnerCapabilitiesAreClosedAndRequiredForSubmission(t *testing.T)
 func TestGenericCreateRejectsOtherUnitWithoutPartyRelationship(t *testing.T) {
 	t.Parallel()
 	service := &Service{}
-	_, err := service.Create(t.Context(), EntityOtherUnit, CreateInput{}, "", "")
-	if !errorIsKind(err, ErrorValidation) || !strings.Contains(err.Error(), "Party relationship") {
-		t.Fatalf("Create(other-unit) error = %v, want Party relationship validation", err)
+	_, err := service.Create(t.Context(), EntityOtherUnit, CreateInput{}, approval.Actor{})
+	if !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("Create(other-unit) error = %v, want dedicated-operation validation", err)
 	}
 }
 
@@ -64,7 +64,7 @@ func TestGenericSaveRejectsTypedRelationshipEntities(t *testing.T) {
 	t.Parallel()
 	service := &Service{}
 	for _, entity := range []string{EntityCustomer, EntityCustomerAccount, EntitySupplier, EntityOtherUnit, EntitySalesPartner} {
-		if _, err := service.Save(t.Context(), entity, SaveInput{}, "", ""); !errorIsKind(err, ErrorValidation) {
+		if _, err := service.Save(t.Context(), entity, SaveInput{}, approval.Actor{}); !errorIsKind(err, ErrorValidation) {
 			t.Fatalf("Save(%s) error = %v, want dedicated-operation validation", entity, err)
 		}
 	}
@@ -132,13 +132,6 @@ func TestValidateCreateIgnoresInternalFixtureCodeAndNormalizesEntityFields(t *te
 			VehicleType: " 厢式货车 ", CarrierAffiliation: &CarrierAffiliation{Type: "EXTERNAL", ServiceRelationshipObjectID: platformObjectID},
 		}},
 		{EntityFundAccount, CreateDetailInput{Code: "cash01", Name: "Cash", Currency: "cny", OperatingEntityID: "01J00000000000000000000030"}},
-		{EntityCategory, CreateDetailInput{Code: "cat01", Name: "产品分类", TargetEntity: EntityProduct}},
-		{EntityDepartment, CreateDetailInput{Code: "dept01", Name: "运营部"}},
-		{EntityPosition, CreateDetailInput{Code: "pos01", Name: "主管"}},
-		{EntitySettlementMethod, CreateDetailInput{
-			Code: "sm01", Name: "月结 30 天", TermCode: SettlementTermMonthly30,
-			RuleType: SettlementRuleMonthEnd, MonthOffset: 1, DefaultSalesSurcharge: "0.10",
-		}},
 	}
 	for _, test := range tests {
 		t.Run(test.entity, func(t *testing.T) {
@@ -177,34 +170,6 @@ func TestSupplierRejectsRemovedTypeAndKeepsPurchaserVocabulary(t *testing.T) {
 	}
 }
 
-func TestValidateSettlementMethodRules(t *testing.T) {
-	valid := []CreateDetailInput{
-		{Code: "SM-1", Name: "预付", TermCode: SettlementTermPrepaid, RuleType: SettlementRuleRelativeDays, DefaultSalesSurcharge: "0.00"},
-		{Code: "SM-2", Name: "现结", TermCode: SettlementTermCashOnDelivery, RuleType: SettlementRuleRelativeDays, DefaultSalesSurcharge: "0"},
-		{Code: "SM-3", Name: "货到30天", TermCode: SettlementTermArrival30, RuleType: SettlementRuleRelativeDays, DayOffset: 30, DefaultSalesSurcharge: "0.10"},
-		{Code: "SM-4", Name: "当月结", TermCode: SettlementTermMonthlyCurrent, RuleType: SettlementRuleMonthEnd, DefaultSalesSurcharge: "0.05"},
-		{Code: "SM-5", Name: "月结90天", TermCode: SettlementTermMonthly90, RuleType: SettlementRuleMonthEnd, MonthOffset: 3, DefaultSalesSurcharge: "0.30"},
-	}
-	for _, input := range valid {
-		if _, _, err := validateCreate(EntitySettlementMethod, input); err != nil {
-			t.Fatalf("valid settlement rule %+v rejected: %v", input, err)
-		}
-	}
-
-	invalid := []CreateDetailInput{
-		{Code: "SM-BAD-1", Name: "缺少术语代码", RuleType: SettlementRuleRelativeDays, DefaultSalesSurcharge: "0.00"},
-		{Code: "SM-BAD-2", Name: "未知术语", TermCode: "CUSTOM", RuleType: SettlementRuleRelativeDays, DefaultSalesSurcharge: "0.00"},
-		{Code: "SM-BAD-3", Name: "负加价", TermCode: SettlementTermPrepaid, RuleType: SettlementRuleRelativeDays, DefaultSalesSurcharge: "-0.01"},
-		{Code: "SM-BAD-4", Name: "超小数位", TermCode: SettlementTermPrepaid, RuleType: SettlementRuleRelativeDays, DefaultSalesSurcharge: "0.001"},
-		{Code: "SM-BAD-5", Name: "期限不匹配", TermCode: SettlementTermArrival30, RuleType: SettlementRuleRelativeDays, DayOffset: 15, DefaultSalesSurcharge: "0.00"},
-	}
-	for _, input := range invalid {
-		if _, _, err := validateCreate(EntitySettlementMethod, input); !errorIsKind(err, ErrorValidation) {
-			t.Fatalf("invalid settlement rule %+v error = %v", input, err)
-		}
-	}
-}
-
 func TestValidateProductDraftAllowsIncompleteConfiguration(t *testing.T) {
 	t.Parallel()
 	data, _, err := validateCreate(EntityProduct, CreateDetailInput{Name: "待完善产品"})
@@ -225,10 +190,10 @@ func TestValidateProductDraftAllowsIncompleteConfiguration(t *testing.T) {
 
 func TestValidateCompleteProductConfiguration(t *testing.T) {
 	t.Parallel()
-	unit := MeasurementUnitSnapshot{ObjectID: "01JAVX00000000000000000011", VersionID: "01JAVX00000000000000000012", Code: "UNT-0001", Name: "千克", Symbol: "kg"}
+	unit := MeasurementUnitSnapshot{ObjectID: "01JAVX00000000000000000011", ApprovalEntryID: "01JAVX00000000000000000012", Code: "UNT-0001", Name: "千克", Symbol: "kg"}
 	valid := DetailView{
 		Name: "固定配方成品", ProductTypeID: "01JPTY00000000000000000003",
-		ProductTypeVersionID: "01JPTY00000000000000000004", ProductTypeCode: "PTY-0002",
+		ProductTypeApprovalEntryID: "01JPTY00000000000000000004", ProductTypeCode: "PTY-0002",
 		ProductTypeName: "标准成品", BehaviorProfile: ProductBehaviorStandardFinished,
 		DefaultInputUnitID: unit.ObjectID, PricingUnitID: unit.ObjectID,
 		UnitConversions:      []ProductUnitConversion{{Unit: unit, Factor: "1"}},
@@ -238,7 +203,7 @@ func TestValidateCompleteProductConfiguration(t *testing.T) {
 			Components: []ProductFormulaComponent{{
 				Material: FormulaMaterialReference{
 					ObjectID:        "01J00000000000000000000031",
-					VersionID:       "01J00000000000000000000032",
+					ApprovalEntryID: "01J00000000000000000000032",
 					BehaviorProfile: ProductBehaviorRawMaterial,
 				},
 				Quantity:         QuantitySnapshot{EnteredQuantity: "25.5", EnteredUnit: unit, BaseQuantity: "25.5"},
@@ -274,8 +239,8 @@ func TestValidateCompleteProductConfiguration(t *testing.T) {
 		duplicate.Formula.Components,
 		ProductFormulaComponent{
 			Material: FormulaMaterialReference{
-				ObjectID:  "01J00000000000000000000031",
-				VersionID: "01J00000000000000000000033",
+				ObjectID:        "01J00000000000000000000031",
+				ApprovalEntryID: "01J00000000000000000000033",
 			},
 			Quantity:         QuantitySnapshot{EnteredQuantity: "1", EnteredUnit: unit, BaseQuantity: "1"},
 			ResolutionStatus: "CURRENT",
@@ -530,19 +495,9 @@ func TestCommonAttributeSaveOmissionAndExplicitClear(t *testing.T) {
 	}
 }
 
-func TestCategoryAndQueryFilterValidation(t *testing.T) {
+func TestQueryFilterValidation(t *testing.T) {
 	if _, err := validateQueryFilters(EntityOperatingEntity, QueryFilters{}); err != nil {
 		t.Fatalf("operating entity query rejected: %v", err)
-	}
-	if _, _, err := validateCreate(EntityCategory, CreateDetailInput{
-		Code: "cat-1", Name: "产品分类", TargetEntity: EntityProduct,
-	}); err != nil {
-		t.Fatalf("category rejected: %v", err)
-	}
-	if _, _, err := validateCreate(EntityCategory, CreateDetailInput{
-		Code: "cat-2", Name: "错误分类", TargetEntity: EntityCategory,
-	}); !errorIsKind(err, ErrorValidation) {
-		t.Fatalf("category self target error = %v", err)
 	}
 	if _, err := validateQueryFilters(EntityEmployee, QueryFilters{
 		DepartmentID: "01J00000000000000000000020",
@@ -557,14 +512,6 @@ func TestCategoryAndQueryFilterValidation(t *testing.T) {
 	}
 	if _, err := validateQueryFilters(EntityProduct, QueryFilters{CustomerType: CustomerTypeEndUser}); !errorIsKind(err, ErrorValidation) {
 		t.Fatalf("cross-entity filter error = %v", err)
-	}
-	if _, err := validateQueryFilters(EntitySettlementMethod, QueryFilters{}); err != nil {
-		t.Fatalf("settlement method query rejected: %v", err)
-	}
-	if _, err := validateQueryFilters(EntityCategory, QueryFilters{
-		ParentID: "01J00000000000000000000020", RootOnly: true,
-	}); !errorIsKind(err, ErrorValidation) {
-		t.Fatalf("parent/root conflict error = %v", err)
 	}
 
 	var explicitEmpty QueryFilters

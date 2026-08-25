@@ -19,8 +19,12 @@ interface Envelope<T> {
 interface Mutation {
   objectId: string
   objectRevision: number
-  versionId: string
-  revision: number
+  enabled: boolean
+  approval: {
+    approvalEntryId: string
+    revision: number
+    status: string
+  }
   code?: string
 }
 
@@ -46,8 +50,8 @@ interface BobView {
   code: string
   objectRevision: number
   enabled: boolean
-  version: {
-    versionId: string
+  approval: {
+    approvalEntryId: string
     revision: number
     status: string
   }
@@ -62,15 +66,20 @@ interface BobListItem {
   code: string
   objectRevision: number
   enabled: boolean
-  effective: {
-    versionId: string
-    status: string
+  latestApproved: {
+    approval: {
+      approvalEntryId: string
+      status: string
+      revision: number
+    }
     summary: Record<string, unknown>
   } | null
-  candidate: {
-    versionId: string
-    status: string
-    revision: number
+  openVersion: {
+    approval: {
+      approvalEntryId: string
+      status: string
+      revision: number
+    }
     summary: Record<string, unknown>
   } | null
 }
@@ -90,14 +99,22 @@ interface VoucherView extends VoucherMutation {
 interface CustomerCreateMutation {
   defaultAccount: {
     objectId: string
+    objectRevision: number
+    enabled: boolean
     code: string
-    candidate: { version: { versionId: string; revision: number } }
+    openVersion: {
+      approval: {
+        approvalEntryId: string
+        revision: number
+        status: string
+      }
+    } | null
   }
 }
 
 interface ReferenceMutation {
   objectId: string
-  versionId: string
+  approvalEntryId: string
   code?: string
 }
 
@@ -226,13 +243,31 @@ async function approve(
 ): Promise<Mutation> {
   const submitted = await operator.ok<Mutation>(`bob/${entity}/submit`, {
     objectId: mutation.objectId,
-    versionId: mutation.versionId,
-    revision: mutation.revision,
+    approvalEntryId: mutation.approval.approvalEntryId,
+    approvalRevision: mutation.approval.revision,
   })
   return reviewer.ok<Mutation>(`bob/${entity}/approve`, {
     objectId: submitted.objectId,
-    versionId: submitted.versionId,
-    revision: submitted.revision,
+    approvalEntryId: submitted.approval.approvalEntryId,
+    approvalRevision: submitted.approval.revision,
+  })
+}
+
+async function approveAux(
+  operator: Api,
+  reviewer: Api,
+  entity: string,
+  mutation: Mutation,
+): Promise<Mutation> {
+  const submitted = await operator.ok<Mutation>(`aux/${entity}/submit`, {
+    objectId: mutation.objectId,
+    approvalEntryId: mutation.approval.approvalEntryId,
+    approvalRevision: mutation.approval.revision,
+  })
+  return reviewer.ok<Mutation>(`aux/${entity}/approve`, {
+    objectId: submitted.objectId,
+    approvalEntryId: submitted.approval.approvalEntryId,
+    approvalRevision: submitted.approval.revision,
   })
 }
 
@@ -252,14 +287,14 @@ async function createApprovedSharedRelationships(
   }>('bob/operating-entity/query', {
     page: 1,
     pageSize: 20,
-    filters: { status: ['EFFECTIVE'], enabled: true },
+    filters: { status: ['APPROVED'], enabled: true },
   })
   const operatingEntityId = operatingEntities.items[0]?.objectId
   expect(operatingEntityId).toBeTruthy()
   const settlementMethods = await operator.ok<{
     items: Array<{
       objectId: string
-      currentVersion: { data: { termCode?: string } }
+      latestApproved: { data: { termCode?: string } }
     }>
   }>('aux/settlement-method/query', {
     page: 1,
@@ -268,7 +303,7 @@ async function createApprovedSharedRelationships(
     sort: [{ field: 'code', order: 'asc' }],
   })
   const settlementMethodId = settlementMethods.items.find(
-    (item) => item.currentVersion.data.termCode === 'MONTHLY_CURRENT',
+    (item) => item.latestApproved.data.termCode === 'MONTHLY_CURRENT',
   )?.objectId
   expect(settlementMethodId).toBeTruthy()
 
@@ -395,8 +430,8 @@ async function createAndApproveAcceptance(
   await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
 }
 
-function reference(value: { objectId: string; versionId: string }) {
-  return { objectId: value.objectId, versionId: value.versionId }
+function reference(value: { objectId: string; approvalEntryId: string }) {
+  return { objectId: value.objectId, approvalEntryId: value.approvalEntryId }
 }
 
 async function referenceByCode(
@@ -409,22 +444,25 @@ async function referenceByCode(
       items: Array<{
         objectId: string
         code: string
-        effective: { versionId: string; status: string } | null
+        latestApproved: {
+          approval: { approvalEntryId: string; status: string }
+        } | null
       }>
     }>(`bob/${entity}/query`, {
       page: 1,
       pageSize: 20,
-      filters: { status: ['EFFECTIVE'], keyword: code },
+      filters: { status: ['APPROVED'], keyword: code },
       sort: [{ field: 'name', order: 'asc' }],
     })
     const item = page.items.find(
       (candidate) =>
-        candidate.code === code && candidate.effective?.status === 'EFFECTIVE',
+        candidate.code === code &&
+        candidate.latestApproved?.approval.status === 'APPROVED',
     )
     expect(item, `${entity} ${code} reference`).toBeTruthy()
     return {
       objectId: item!.objectId,
-      versionId: item!.effective!.versionId,
+      approvalEntryId: item!.latestApproved!.approval.approvalEntryId,
       code: item!.code,
     }
   }
@@ -443,7 +481,7 @@ async function createAttributedCustomer(
   facts: Awaited<ReturnType<typeof createApprovedSharedRelationships>>,
   suffix: string,
 ): Promise<ReferenceMutation> {
-  const paymentMethod = await operator.ok<{ objectId: string }>(
+  const paymentMethodDraft = await operator.ok<Mutation>(
     'aux/payment-method/create',
     {
       data: {
@@ -452,6 +490,12 @@ async function createAttributedCustomer(
         description: '跨域居间 E2E',
       },
     },
+  )
+  const paymentMethod = await approveAux(
+    operator,
+    reviewer,
+    'payment-method',
+    paymentMethodDraft,
   )
   const created = await operator.ok<CustomerCreateMutation>(
     'bob/customer/create',
@@ -485,17 +529,25 @@ async function createAttributedCustomer(
       },
     },
   )
+  if (!created.defaultAccount.openVersion) {
+    throw new Error('客户创建未返回待审核的默认账户版本。')
+  }
   const submitted = await operator.ok<Mutation>('bob/customer-account/submit', {
     objectId: created.defaultAccount.objectId,
-    versionId: created.defaultAccount.candidate.version.versionId,
-    revision: created.defaultAccount.candidate.version.revision,
+    approvalEntryId:
+      created.defaultAccount.openVersion.approval.approvalEntryId,
+    approvalRevision: created.defaultAccount.openVersion.approval.revision,
   })
   const approved = await reviewer.ok<Mutation>('bob/customer-account/approve', {
     objectId: submitted.objectId,
-    versionId: submitted.versionId,
-    revision: submitted.revision,
+    approvalEntryId: submitted.approval.approvalEntryId,
+    approvalRevision: submitted.approval.revision,
   })
-  return { ...approved, code: created.defaultAccount.code }
+  return {
+    objectId: approved.objectId,
+    approvalEntryId: approved.approval.approvalEntryId,
+    code: created.defaultAccount.code,
+  }
 }
 
 async function createEnabledWorkflow(
@@ -739,7 +791,7 @@ async function createEmployeeAttributedCustomer(
   settlementMethodId: string,
   employeeObjectId: string,
 ): Promise<ReferenceMutation> {
-  const paymentMethod = await operator.ok<{ objectId: string }>(
+  const paymentMethodDraft = await operator.ok<Mutation>(
     'aux/payment-method/create',
     {
       data: {
@@ -748,6 +800,12 @@ async function createEmployeeAttributedCustomer(
         description: '连续生效跨主体 E2E',
       },
     },
+  )
+  const paymentMethod = await approveAux(
+    operator,
+    reviewer,
+    'payment-method',
+    paymentMethodDraft,
   )
   const created = await operator.ok<CustomerCreateMutation>(
     'bob/customer/create',
@@ -781,13 +839,25 @@ async function createEmployeeAttributedCustomer(
       },
     },
   )
-  const candidate = created.defaultAccount.candidate.version
-  const approved = await approve(operator, reviewer, 'customer-account', {
+  if (!created.defaultAccount.openVersion) {
+    throw new Error('客户创建未返回待审核的默认账户版本。')
+  }
+  const submitted = await operator.ok<Mutation>('bob/customer-account/submit', {
     objectId: created.defaultAccount.objectId,
-    versionId: candidate.versionId,
-    revision: candidate.revision,
+    approvalEntryId:
+      created.defaultAccount.openVersion.approval.approvalEntryId,
+    approvalRevision: created.defaultAccount.openVersion.approval.revision,
   })
-  return { ...approved, code: created.defaultAccount.code }
+  const approved = await reviewer.ok<Mutation>('bob/customer-account/approve', {
+    objectId: submitted.objectId,
+    approvalEntryId: submitted.approval.approvalEntryId,
+    approvalRevision: submitted.approval.revision,
+  })
+  return {
+    objectId: approved.objectId,
+    approvalEntryId: approved.approval.approvalEntryId,
+    code: created.defaultAccount.code,
+  }
 }
 
 async function createSaleOrderDraft(
@@ -1039,8 +1109,8 @@ test(
         'bob/warehouse/save',
         {
           objectId: managedWarehouse.objectId,
-          versionId: managedWarehouse.version.versionId,
-          revision: managedWarehouse.version.revision,
+          approvalEntryId: managedWarehouse.approval.approvalEntryId,
+          approvalRevision: managedWarehouse.approval.revision,
           data: { name: `E2E 全局仓库候选 ${suffix}` },
         },
       )
@@ -1055,13 +1125,13 @@ test(
       const warehouseRow = warehousePage.items.find(
         (item) => item.objectId === managedWarehouse.objectId,
       )
-      expect(warehouseRow?.effective?.versionId).toBe(
-        managedWarehouse.version.versionId,
+      expect(warehouseRow?.latestApproved?.approval.approvalEntryId).toBe(
+        managedWarehouse.approval.approvalEntryId,
       )
-      expect(warehouseRow?.candidate?.versionId).toBe(
-        warehouseCandidate.versionId,
+      expect(warehouseRow?.openVersion?.approval.approvalEntryId).toBe(
+        warehouseCandidate.approval.approvalEntryId,
       )
-      expect(warehouseRow?.candidate?.status).toBe('DRAFT')
+      expect(warehouseRow?.openVersion?.approval.status).toBe('DRAFT')
       const approvedWarehouseCandidate = await approve(
         session.api,
         reviewerSession.api,
@@ -1083,8 +1153,8 @@ test(
         'bob/warehouse/get',
         { objectId: managedWarehouse.objectId },
       )
-      expect(warehouseAfterBlockedManagerDisable.version.versionId).toBe(
-        approvedWarehouseCandidate.versionId,
+      expect(warehouseAfterBlockedManagerDisable.approval.approvalEntryId).toBe(
+        approvedWarehouseCandidate.approval.approvalEntryId,
       )
       expect(warehouseAfterBlockedManagerDisable.data.managerEmployeeId).toBe(
         manager.objectId,
@@ -1094,8 +1164,8 @@ test(
         'bob/warehouse/save',
         {
           objectId: managedWarehouse.objectId,
-          versionId: approvedWarehouseCandidate.versionId,
-          revision: approvedWarehouseCandidate.revision,
+          approvalEntryId: approvedWarehouseCandidate.approval.approvalEntryId,
+          approvalRevision: approvedWarehouseCandidate.approval.revision,
           data: {
             name: `E2E 全局仓库候选 ${suffix}`,
             managerEmployeeId: null,
@@ -1147,7 +1217,7 @@ test(
       )
       const sharedWarehouse = {
         objectId: updatedWarehouse.objectId,
-        versionId: updatedWarehouse.version.versionId,
+        approvalEntryId: updatedWarehouse.approval.approvalEntryId,
         code: updatedWarehouse.code,
       }
       const firstEntityDraft = await createSaleOrderDraft(
@@ -1263,11 +1333,11 @@ test(
       expect(internalDelivery.data.carrierOperatingEntity?.objectId).toBe(
         facts.operatingEntityId,
       )
-      expect(internalDelivery.data.vehicle?.versionId).toBe(
-        internalVehicle.version.versionId,
+      expect(internalDelivery.data.vehicle?.approvalEntryId).toBe(
+        internalVehicle.approval.approvalEntryId,
       )
       const internalVehicleSnapshot = {
-        versionId: internalDelivery.data.vehicle?.versionId,
+        approvalEntryId: internalDelivery.data.vehicle?.approvalEntryId,
         name: internalDelivery.data.vehicle?.name,
       }
 
@@ -1283,8 +1353,8 @@ test(
         'bob/vehicle/save',
         {
           objectId: internalVehicle.objectId,
-          versionId: internalVehicle.version.versionId,
-          revision: internalVehicle.version.revision,
+          approvalEntryId: internalVehicle.approval.approvalEntryId,
+          approvalRevision: internalVehicle.approval.revision,
           data: {
             name: `E2E 自有车辆候选 ${suffix}`,
             plateNumber: internalVehicle.data.plateNumber,
@@ -1322,10 +1392,12 @@ test(
         (item) => item.objectId === internalVehicle.objectId,
       )
       expect(vehicleRow?.enabled).toBe(true)
-      expect(vehicleRow?.effective?.versionId).toBe(
-        internalVehicle.version.versionId,
+      expect(vehicleRow?.latestApproved?.approval.approvalEntryId).toBe(
+        internalVehicle.approval.approvalEntryId,
       )
-      expect(vehicleRow?.candidate?.versionId).toBe(vehicleCandidate.versionId)
+      expect(vehicleRow?.openVersion?.approval.approvalEntryId).toBe(
+        vehicleCandidate.approval.approvalEntryId,
+      )
       await approve(
         session.api,
         reviewerSession.api,
@@ -1337,7 +1409,7 @@ test(
         { documentId: internalDelivery.documentId },
       )
       expect({
-        versionId: stableInternalDelivery.data.vehicle?.versionId,
+        approvalEntryId: stableInternalDelivery.data.vehicle?.approvalEntryId,
         name: stableInternalDelivery.data.vehicle?.name,
       }).toEqual(internalVehicleSnapshot)
 

@@ -36,7 +36,7 @@ function isReference(value: unknown): value is IntermediaryReference {
   if (!isRecord(value)) return false
   return (
     typeof value.objectId === 'string' &&
-    typeof value.versionId === 'string' &&
+    typeof value.approvalEntryId === 'string' &&
     typeof value.entity === 'string' &&
     typeof value.code === 'string' &&
     typeof value.name === 'string'
@@ -82,7 +82,7 @@ function referenceEquals(
 ): boolean {
   return (
     left.objectId === right.objectId &&
-    left.versionId === right.versionId &&
+    left.approvalEntryId === right.approvalEntryId &&
     left.entity === right.entity &&
     left.code === right.code &&
     left.name === right.name

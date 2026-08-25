@@ -482,7 +482,7 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path: { "entity": Models.AuxEntity; }; cookie?: never };
-      requestBody: { content: { 'application/json': Models.AuxReviewRequest } };
+      requestBody: { content: { 'application/json': Models.AuxApprovalRevisionRequest } };
       responses: { 200: { content: { 'application/json': Models.AuxMutationResponse } } };
     };
   };
@@ -923,7 +923,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path: { "entity": Models.BobEntity; }; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobReviewRequest } };
-      responses: { 200: { content: { 'application/json': Models.BobMutationResponse } } };
+      responses: { 200: { content: { 'application/json': Models.BobUnapproveResponse } } };
     };
   };
   "/bob/{entity}/enable": {
@@ -1691,10 +1691,12 @@ export interface components {
       "BobObjectResponse": Models.BobObjectResponse;
       "BobCreateRequest": Models.BobCreateRequest;
       "BobSaveRequest": Models.BobSaveRequest;
+      "BobActiveReferenceCount": Models.BobActiveReferenceCount;
+      "BobActiveReferenceBlockers": Models.BobActiveReferenceBlockers;
+      "BobUnapproveResponse": Models.BobUnapproveResponse;
       "WarehouseInventoryConflict": Models.WarehouseInventoryConflict;
       "VouStatus": Models.VouStatus;
       "WarehouseDocumentConflict": Models.WarehouseDocumentConflict;
-      "BobActiveReferenceCount": Models.BobActiveReferenceCount;
       "WarehouseDisableBlockers": Models.WarehouseDisableBlockers;
       "BobDisableResponse": Models.BobDisableResponse;
       "VouQueryRequest": Models.VouQueryRequest;

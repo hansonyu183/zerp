@@ -32,7 +32,7 @@ const reference = (
   code = entity.toUpperCase(),
 ): VoucherReference => ({
   objectId: `${entity}-object`,
-  versionId: `${entity}-version`,
+  approvalEntryId: `${entity}-version`,
   entity,
   code,
   name: `${entity} name`,
@@ -428,7 +428,7 @@ describe('shared VOU entity view model', () => {
       buildVoucherDraftPayload(config, form, false, new Set()).carrier,
     ).toEqual({
       objectId: form.carrier.objectId,
-      versionId: form.carrier.versionId,
+      approvalEntryId: form.carrier.approvalEntryId,
     })
 
     form.vehicle.carrierAffiliation = {
@@ -582,7 +582,7 @@ describe('shared VOU entity view model', () => {
       product: {
         ...reference('product', 'MANUAL'),
         objectId: 'manual-product-object',
-        versionId: 'manual-product-version',
+        approvalEntryId: 'manual-product-version',
       },
       enteredQuantity: '1',
       enteredUnit: {
@@ -808,7 +808,7 @@ describe('shared VOU entity view model', () => {
       currency: 'CNY',
       warehouse: {
         objectId: 'warehouse-object',
-        versionId: 'warehouse-version',
+        approvalEntryId: 'warehouse-version',
       },
       returnReason: '客户售后退货',
       returnLines: [
@@ -908,7 +908,7 @@ describe('shared VOU entity view model', () => {
         currency: 'CNY',
         warehouse: {
           objectId: 'warehouse-object',
-          versionId: 'warehouse-version',
+          approvalEntryId: 'warehouse-version',
         },
         sourceLines: [
           {
@@ -974,7 +974,7 @@ describe('shared VOU entity view model', () => {
       data: [
         {
           objectId: 'VALID',
-          versionId: 'VER-1',
+          approvalEntryId: 'VER-1',
           code: 'CUS-1',
           name: '有效客户',
         },
@@ -987,7 +987,7 @@ describe('shared VOU entity view model', () => {
     expect(vm.referenceOptions('counterparty')).toEqual([
       {
         objectId: 'VALID',
-        versionId: 'VER-1',
+        approvalEntryId: 'VER-1',
         entity: 'customer-account',
         code: 'CUS-1',
         name: '有效客户',
@@ -1011,7 +1011,7 @@ describe('shared VOU entity view model', () => {
         data: [
           {
             objectId: `${input.entity}-object`,
-            versionId: `${input.entity}-version`,
+            approvalEntryId: `${input.entity}-version`,
             code: input.entity === 'other-unit' ? 'OTU-1' : 'SLP-1',
             name: input.entity === 'other-unit' ? '服务单位' : '销售合作方',
           },
@@ -1096,13 +1096,13 @@ describe('shared VOU entity view model', () => {
             {
               objectId: 'CARRIER',
               code: 'CAR-1',
-              versionId: 'CAR-VER',
+              approvalEntryId: 'CAR-VER',
               name: '外部承运方',
             },
             {
               objectId: 'OTHER-CARRIER',
               code: 'CAR-2',
-              versionId: 'OTHER-VER',
+              approvalEntryId: 'OTHER-VER',
               name: '其它承运方',
             },
           ],
@@ -1114,9 +1114,11 @@ describe('shared VOU entity view model', () => {
             {
               objectId: 'MATCHING',
               code: 'VEH-1',
-              effective: {
-                versionId: 'VER-1',
-                status: 'EFFECTIVE',
+              latestApproved: {
+                approval: {
+                  approvalEntryId: 'VER-1',
+                  status: 'APPROVED',
+                },
                 summary: {
                   name: '匹配车辆',
                   carrierAffiliation: {
@@ -1130,9 +1132,11 @@ describe('shared VOU entity view model', () => {
             {
               objectId: 'OTHER',
               code: 'VEH-2',
-              effective: {
-                versionId: 'VER-2',
-                status: 'EFFECTIVE',
+              latestApproved: {
+                approval: {
+                  approvalEntryId: 'VER-2',
+                  status: 'APPROVED',
+                },
                 summary: {
                   name: '其它车辆',
                   carrierAffiliation: {

@@ -538,7 +538,7 @@ void vm.initialize()
                       /></v-col>
                       <v-col cols="12" md="3"
                         ><v-text-field
-                          v-model="bill.partyVersionId"
+                          v-model="bill.partyApprovalEntryId"
                           label="来源版本 ID"
                           :disabled="vm.opening?.state === 'APPROVED'"
                           @update:model-value="vm.markDirty"

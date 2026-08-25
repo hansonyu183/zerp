@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/fixeddecimal"
 	"github.com/jackc/pgx/v5"
 )
@@ -22,6 +24,7 @@ const (
 
 type CustomerSnapshot struct {
 	SourceObjectID        string `json:"sourceObjectId"`
+	ApprovalEntryID       string `json:"approvalEntryId"`
 	Code                  string `json:"code"`
 	Name                  string `json:"name"`
 	TermCode              string `json:"termCode,omitempty"`
@@ -40,9 +43,9 @@ type CustomerSalesAttributionInput struct {
 }
 type CustomerSalesAttributionView struct {
 	CustomerSalesAttributionInput
-	SubjectVersionID string `json:"subjectVersionId"`
-	SubjectCode      string `json:"subjectCode"`
-	SubjectName      string `json:"subjectName"`
+	SubjectApprovalEntryID string `json:"subjectApprovalEntryId"`
+	SubjectCode            string `json:"subjectCode"`
+	SubjectName            string `json:"subjectName"`
 }
 type CustomerCreditLimit struct {
 	Currency string `json:"currency"`
@@ -82,7 +85,7 @@ func (data CustomerAccountData) MarshalJSON() ([]byte, error) {
 }
 
 type CustomerVersionView struct {
-	Version     VersionMeta              `json:"version"`
+	Approval    VersionMeta              `json:"approval"`
 	Data        CustomerAccountData      `json:"data"`
 	Attachments []CustomerAttachmentView `json:"attachments"`
 }
@@ -91,8 +94,8 @@ type CustomerAccountView struct {
 	Code           string               `json:"code"`
 	ObjectRevision int64                `json:"objectRevision"`
 	Enabled        bool                 `json:"enabled"`
-	Effective      *CustomerVersionView `json:"effective,omitempty"`
-	Candidate      *CustomerVersionView `json:"candidate,omitempty"`
+	LatestApproved *CustomerVersionView `json:"latestApproved,omitempty"`
+	OpenVersion    *CustomerVersionView `json:"openVersion,omitempty"`
 }
 type CustomerDetailView struct {
 	ObjectID            string                   `json:"objectId"`
@@ -110,23 +113,19 @@ type CustomerDetailView struct {
 	Attachments         []CustomerAttachmentView `json:"attachments"`
 }
 type CustomerListVersion struct {
-	VersionID            string  `json:"versionId"`
-	Version              int32   `json:"version"`
-	Status               string  `json:"status,omitempty"`
-	Revision             int64   `json:"revision,omitempty"`
-	Name                 string  `json:"name,omitempty"`
-	CustomerTypeCode     string  `json:"customerTypeCode,omitempty"`
-	OperatingEntityName  string  `json:"operatingEntityName,omitempty"`
-	SalesAttributionName string  `json:"salesAttributionName,omitempty"`
-	SubmittedBy          *string `json:"submittedBy"`
+	Approval             approval.VersionMeta `json:"approval"`
+	Name                 string               `json:"name,omitempty"`
+	CustomerTypeCode     string               `json:"customerTypeCode,omitempty"`
+	OperatingEntityName  string               `json:"operatingEntityName,omitempty"`
+	SalesAttributionName string               `json:"salesAttributionName,omitempty"`
 }
 type CustomerListItem struct {
 	ObjectID       string               `json:"objectId"`
 	Code           string               `json:"code"`
 	ObjectRevision int64                `json:"objectRevision"`
 	Enabled        bool                 `json:"enabled"`
-	Effective      *CustomerListVersion `json:"effective"`
-	Candidate      *CustomerListVersion `json:"candidate"`
+	LatestApproved *CustomerListVersion `json:"latestApproved"`
+	OpenVersion    *CustomerListVersion `json:"openVersion"`
 	UpdatedAt      time.Time            `json:"updatedAt"`
 }
 type CustomerCreateInput struct {
@@ -139,10 +138,10 @@ type CustomerAccountAddInput struct {
 	Data                   CustomerAccountData `json:"data"`
 }
 type CustomerSaveInput struct {
-	ObjectID  string              `json:"objectId"`
-	VersionID string              `json:"versionId"`
-	Revision  int64               `json:"revision"`
-	Data      CustomerAccountData `json:"data"`
+	ObjectID         string              `json:"objectId"`
+	ApprovalEntryID  string              `json:"approvalEntryId"`
+	ApprovalRevision int64               `json:"approvalRevision"`
+	Data             CustomerAccountData `json:"data"`
 }
 type CustomerCreateResult struct {
 	MutationResult
@@ -233,30 +232,42 @@ func (s *Service) CustomerQuery(ctx context.Context, input QueryInput) (Page[Cus
 			enabled = 0
 		}
 	}
-	params := dbsqlc.CountBobCustomersParams{Keyword: strings.TrimSpace(input.Filters.Keyword), Statuses: statuses, EnabledFilter: enabled, CustomerType: strings.TrimSpace(input.Filters.CustomerType), OperatingEntityID: strings.TrimSpace(input.Filters.OperatingEntityID), SalesAttributionType: strings.TrimSpace(input.Filters.SalesAttributionType), SalesAttributionSubjectID: strings.TrimSpace(input.Filters.SalesAttributionSubjectID)}
-	total, err := s.queries.CountBobCustomers(ctx, params)
+	params := dbsqlc.CountBobObjectsParams{Entity: EntityCustomer, Keyword: strings.TrimSpace(input.Filters.Keyword), EnabledFilter: enabled, StatusFilter: statuses}
+	total, err := s.queries.CountBobObjects(ctx, params)
 	if err != nil {
 		return Page[CustomerListItem]{}, s.internal("count customer accounts", err)
 	}
-	rows, err := s.queries.ListBobCustomers(ctx, dbsqlc.ListBobCustomersParams{Keyword: params.Keyword, Statuses: params.Statuses, EnabledFilter: params.EnabledFilter, CustomerType: params.CustomerType, OperatingEntityID: params.OperatingEntityID, SalesAttributionType: params.SalesAttributionType, SalesAttributionSubjectID: params.SalesAttributionSubjectID, RowOffset: int32((input.Page - 1) * input.PageSize), RowLimit: int32(input.PageSize)})
+	rows, err := s.queries.ListBobObjects(ctx, dbsqlc.ListBobObjectsParams{Entity: EntityCustomer, Keyword: params.Keyword, EnabledFilter: enabled, StatusFilter: statuses, RowOffset: int32((input.Page - 1) * input.PageSize), RowLimit: int32(input.PageSize)})
 	if err != nil {
 		return Page[CustomerListItem]{}, s.internal("list customer accounts", err)
 	}
 	items := make([]CustomerListItem, 0, len(rows))
 	for _, r := range rows {
 		item := CustomerListItem{ObjectID: r.ObjectID, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, UpdatedAt: r.UpdatedAt.Time}
-		if r.EffectiveVersionID != nil {
-			item.Effective = &CustomerListVersion{VersionID: *r.EffectiveVersionID, Version: *r.EffectiveVersionNo, Status: deref(r.EffectiveStatus), Revision: *r.EffectiveRevision, Name: deref(r.EffectiveName), CustomerTypeCode: deref(r.EffectiveCustomerType), OperatingEntityName: r.EffectiveOperatingEntityName, SalesAttributionName: r.EffectiveSalesAttributionName, SubmittedBy: r.EffectiveSubmittedBy}
+		if r.ApprovalEntryID != "" {
+			entry, entryErr := s.queries.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: r.ApprovalEntryID, Domain: "bob", Entity: EntityCustomer})
+			if entryErr != nil {
+				return Page[CustomerListItem]{}, s.internal("get customer approval", entryErr)
+			}
+			item.LatestApproved = &CustomerListVersion{Approval: approvalMeta(entry)}
 		}
-		if r.CandidateVersionID != nil {
-			item.Candidate = &CustomerListVersion{VersionID: *r.CandidateVersionID, Version: *r.CandidateVersionNo, Status: deref(r.CandidateStatus), Revision: *r.CandidateRevision, Name: deref(r.CandidateName), CustomerTypeCode: deref(r.CandidateCustomerType), SubmittedBy: r.CandidateSubmittedBy}
+		if r.OpenApprovalEntryID != "" {
+			entry, entryErr := s.queries.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: r.OpenApprovalEntryID, Domain: "bob", Entity: EntityCustomer})
+			if entryErr != nil {
+				return Page[CustomerListItem]{}, s.internal("get customer approval", entryErr)
+			}
+			item.OpenVersion = &CustomerListVersion{Approval: approvalMeta(entry)}
+		}
+		if len(statuses) > 0 && (item.OpenVersion == nil || !slices.Contains(statuses, string(item.OpenVersion.Approval.Status))) && (item.LatestApproved == nil || !slices.Contains(statuses, string(item.LatestApproved.Approval.Status))) {
+			continue
 		}
 		items = append(items, item)
 	}
 	return Page[CustomerListItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
 
-func (s *Service) CustomerCreate(ctx context.Context, input CustomerCreateInput, actorID, requestID string, canReadMatchedParty bool) (CustomerCreateResult, error) {
+func (s *Service) CustomerCreate(ctx context.Context, input CustomerCreateInput, actor approval.Actor, canReadMatchedParty bool) (CustomerCreateResult, error) {
+	actorID, requestID := actor.ID(), actor.RequestID()
 	if !validActorAndRequest(actorID, requestID) || !validID(input.Data.OperatingEntityID) || (input.PartyID == "") == (input.NewParty == nil) {
 		return CustomerCreateResult{}, domainError(ErrorValidation, "invalid customer create", nil, nil)
 	}
@@ -270,12 +281,10 @@ func (s *Service) CustomerCreate(ctx context.Context, input CustomerCreateInput,
 	}
 	defer tx.Rollback(ctx)
 	q := s.queries.WithTx(tx)
-	if _, err = q.ResolveCustomerOperatingEntity(ctx, data.OperatingEntityID); errors.Is(err, pgx.ErrNoRows) {
-		return CustomerCreateResult{}, domainError(ErrorConflict, "经营主体不可用", nil, nil)
-	} else if err != nil {
-		return CustomerCreateResult{}, s.internal("resolve operating entity", err)
+	if _, err = s.ResolveLatestApprovedReference(ctx, tx, EntityOperatingEntity, data.OperatingEntityID); err != nil {
+		return CustomerCreateResult{}, domainError(ErrorConflict, "经营主体不可用", nil, err)
 	}
-	party, err := s.resolveOrCreateRelationshipParty(ctx, q, input.PartyID, input.NewParty, actorID, requestID, canReadMatchedParty)
+	party, err := s.resolveOrCreateRelationshipParty(ctx, q, input.PartyID, input.NewParty, actorID, requestID, canReadMatchedParty, tx)
 	if err != nil {
 		return CustomerCreateResult{}, err
 	}
@@ -286,40 +295,40 @@ func (s *Service) CustomerCreate(ctx context.Context, input CustomerCreateInput,
 	if err != nil {
 		return CustomerCreateResult{}, err
 	}
-	relationID, relationVersionID := newID(), newID()
+	relationID := newID()
 	n, err := q.NextObjectNumberCounter(ctx, dbsqlc.NextObjectNumberCounterParams{Domain: "bob", Entity: EntityCustomer})
 	if err != nil {
 		return CustomerCreateResult{}, s.writeError("allocate customer relationship number", err)
 	}
-	if err = q.InsertBobObject(ctx, dbsqlc.InsertBobObjectParams{ID: relationID, Entity: EntityCustomer, Code: fmt.Sprintf("CUR-%04d", n), CurrentVersionID: relationVersionID, ActorID: actorID}); err != nil {
+	code := fmt.Sprintf("CUR-%04d", n)
+	if err = q.InsertBobObject(ctx, dbsqlc.InsertBobObjectParams{ID: relationID, Entity: EntityCustomer, Code: code, ActorID: actorID}); err != nil {
 		return CustomerCreateResult{}, s.writeError("insert customer relationship", err)
 	}
-	if err = q.InsertBobVersion(ctx, dbsqlc.InsertBobVersionParams{ID: relationVersionID, ObjectID: relationID, Entity: EntityCustomer, VersionNo: 1, ActorID: actorID}); err != nil {
-		return CustomerCreateResult{}, s.writeError("insert customer relationship version", err)
+	entry, err := s.createFirstApproval(ctx, tx, EntityCustomer, relationID, code, true, actor)
+	if err != nil {
+		return CustomerCreateResult{}, translateApprovalError(err)
 	}
 	if err = q.InsertBobCustomerRelationship(ctx, dbsqlc.InsertBobCustomerRelationshipParams{ObjectID: relationID, PartyID: party.ID, OperatingEntityID: data.OperatingEntityID, ActorID: actorID}); err != nil {
 		return CustomerCreateResult{}, s.writeError("insert customer relationship identity", err)
 	}
-	if err = q.InsertBobCustomerRelationshipDetail(ctx, relationVersionID); err != nil {
+	if err = insertDetail(ctx, q, EntityCustomer, entry.ID, DetailView{}); err != nil {
 		return CustomerCreateResult{}, s.writeError("insert customer relationship detail", err)
 	}
-	account, err := s.insertCustomerAccount(ctx, q, relationID, data, actorID, requestID)
+	account, err := s.insertCustomerAccount(ctx, tx, q, relationID, data, actor)
 	if err != nil {
 		return CustomerCreateResult{}, err
-	}
-	if err = insertAudit(ctx, q, auditInput{ObjectID: relationID, VersionID: relationVersionID, Entity: EntityCustomer, Event: "CREATED", To: StatusDraft, ActorID: actorID, RequestID: requestID, Summary: map[string]any{"partyId": party.ID, "operatingEntityId": data.OperatingEntityID}}); err != nil {
-		return CustomerCreateResult{}, s.writeError("audit customer relationship", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return CustomerCreateResult{}, s.writeError("commit customer create", err)
 	}
-	return CustomerCreateResult{MutationResult: MutationResult{ObjectID: relationID, ObjectRevision: 1, Enabled: true, VersionID: relationVersionID, Version: 1, Status: StatusDraft, Revision: 1}, PartyID: party.ID, DefaultAccount: account}, nil
+	return CustomerCreateResult{MutationResult: approvalMutation(relationID, 1, true, entry), PartyID: party.ID, DefaultAccount: account}, nil
 }
-func (s *Service) CustomerAccountDelete(ctx context.Context, input DeleteInput) error {
-	return s.Delete(ctx, EntityCustomerAccount, input)
+func (s *Service) CustomerAccountDelete(ctx context.Context, input DeleteInput, actor approval.Actor) error {
+	return s.Delete(ctx, EntityCustomerAccount, input, actor)
 }
 
-func (s *Service) CustomerAccountAdd(ctx context.Context, input CustomerAccountAddInput, actorID, requestID string) (CustomerAccountView, error) {
+func (s *Service) CustomerAccountAdd(ctx context.Context, input CustomerAccountAddInput, actor approval.Actor) (CustomerAccountView, error) {
+	actorID, requestID := actor.ID(), actor.RequestID()
 	if !validID(input.CustomerRelationshipID) || !validActorAndRequest(actorID, requestID) {
 		return CustomerAccountView{}, domainError(ErrorValidation, "invalid customer account add", nil, nil)
 	}
@@ -333,7 +342,7 @@ func (s *Service) CustomerAccountAdd(ctx context.Context, input CustomerAccountA
 	}
 	defer tx.Rollback(ctx)
 	q := s.queries.WithTx(tx)
-	relation, err := q.GetBobCustomerRelationshipDetail(ctx, input.CustomerRelationshipID)
+	relation, err := q.GetBobCustomerRelationship(ctx, input.CustomerRelationshipID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return CustomerAccountView{}, domainError(ErrorConflict, "customer relationship is unavailable", nil, nil)
 	}
@@ -350,7 +359,7 @@ func (s *Service) CustomerAccountAdd(ctx context.Context, input CustomerAccountA
 	if err != nil {
 		return CustomerAccountView{}, err
 	}
-	result, err := s.insertCustomerAccount(ctx, q, input.CustomerRelationshipID, data, actorID, requestID)
+	result, err := s.insertCustomerAccount(ctx, tx, q, input.CustomerRelationshipID, data, actor)
 	if err != nil {
 		return CustomerAccountView{}, err
 	}
@@ -359,175 +368,194 @@ func (s *Service) CustomerAccountAdd(ctx context.Context, input CustomerAccountA
 	}
 	return result, nil
 }
-func (s *Service) insertCustomerAccount(ctx context.Context, q *dbsqlc.Queries, relationshipID string, data CustomerAccountData, actorID, requestID string) (CustomerAccountView, error) {
-	id, vid := newID(), newID()
+func (s *Service) insertCustomerAccount(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, relationshipID string, data CustomerAccountData, actor approval.Actor) (CustomerAccountView, error) {
+	id := newID()
 	n, err := q.NextObjectNumberCounter(ctx, dbsqlc.NextObjectNumberCounterParams{Domain: "bob", Entity: EntityCustomerAccount})
 	if err != nil {
 		return CustomerAccountView{}, s.writeError("allocate customer account number", err)
 	}
-	if err = q.InsertBobObject(ctx, dbsqlc.InsertBobObjectParams{ID: id, Entity: EntityCustomerAccount, Code: fmt.Sprintf("CAC-%04d", n), CurrentVersionID: vid, ActorID: actorID}); err != nil {
+	code := fmt.Sprintf("CAC-%04d", n)
+	if err = q.InsertBobObject(ctx, dbsqlc.InsertBobObjectParams{ID: id, Entity: EntityCustomerAccount, Code: code, ActorID: actor.ID()}); err != nil {
 		return CustomerAccountView{}, s.writeError("insert customer account", err)
 	}
-	if err = q.InsertBobVersion(ctx, dbsqlc.InsertBobVersionParams{ID: vid, ObjectID: id, Entity: EntityCustomerAccount, VersionNo: 1, ActorID: actorID}); err != nil {
-		return CustomerAccountView{}, s.writeError("insert customer account version", err)
+	entry, err := s.createFirstApproval(ctx, tx, EntityCustomerAccount, id, code, true, actor)
+	if err != nil {
+		return CustomerAccountView{}, translateApprovalError(err)
 	}
-	if err = q.InsertBobCustomerAccountRelationship(ctx, dbsqlc.InsertBobCustomerAccountRelationshipParams{ObjectID: id, CustomerRelationshipID: relationshipID, ActorID: actorID}); err != nil {
+	if err = q.InsertBobCustomerAccountRelationship(ctx, dbsqlc.InsertBobCustomerAccountRelationshipParams{ObjectID: id, CustomerRelationshipID: relationshipID, ActorID: actor.ID()}); err != nil {
 		return CustomerAccountView{}, s.writeError("bind customer account", err)
 	}
-	if err = insertCustomerAccountData(ctx, q, vid, data); err != nil {
+	if err = writeCustomerAccountData(ctx, q, entry.ID, data, true); err != nil {
 		return CustomerAccountView{}, s.writeError("insert customer account detail", err)
 	}
-	if err = insertAudit(ctx, q, auditInput{ObjectID: id, VersionID: vid, Entity: EntityCustomerAccount, Event: "CREATED", To: StatusDraft, ActorID: actorID, RequestID: requestID, Summary: map[string]any{"customerRelationshipId": relationshipID}}); err != nil {
-		return CustomerAccountView{}, s.writeError("audit customer account", err)
-	}
-	return CustomerAccountView{ObjectID: id, Code: fmt.Sprintf("CAC-%04d", n), ObjectRevision: 1, Enabled: true, Candidate: &CustomerVersionView{Version: VersionMeta{VersionID: vid, Version: 1, Status: StatusDraft, Revision: 1}, Data: data}}, nil
+	return CustomerAccountView{ObjectID: id, Code: code, ObjectRevision: 1, Enabled: true, OpenVersion: &CustomerVersionView{Approval: approval.VersionMetaFromEntry(entry), Data: data}}, nil
 }
 func (s *Service) CustomerGet(ctx context.Context, input GetInput) (CustomerDetailView, error) {
 	if !validID(input.ObjectID) {
 		return CustomerDetailView{}, domainError(ErrorValidation, "invalid customer relationship", nil, nil)
 	}
-	r, err := s.queries.GetBobCustomerRelationshipDetail(ctx, input.ObjectID)
+	r, err := s.queries.GetBobObject(ctx, dbsqlc.GetBobObjectParams{ObjectID: input.ObjectID, Entity: EntityCustomer})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return CustomerDetailView{}, domainError(ErrorValidation, "customer relationship not found", nil, nil)
 	}
 	if err != nil {
 		return CustomerDetailView{}, s.internal("get customer relationship", err)
 	}
-	out := CustomerDetailView{ObjectID: r.ID, Code: r.Code, ObjectRevision: r.Revision, Enabled: r.Enabled, PartyID: r.PartyID, PartyKind: r.PartyKind, PartyDisplayName: r.PartyDisplayName, OperatingEntityID: r.OperatingEntityID, OperatingEntityCode: r.OperatingEntityCode, OperatingEntityName: r.OperatingEntityName, UpdatedAt: r.UpdatedAt.Time, Accounts: []CustomerAccountView{}}
-	rows, err := s.queries.ListBobCustomerAccounts(ctx, input.ObjectID)
+	identity, err := s.queries.GetBobCustomerRelationship(ctx, input.ObjectID)
+	if err != nil {
+		return CustomerDetailView{}, s.internal("get customer relationship", err)
+	}
+	party, err := s.queries.GetBobParty(ctx, identity.PartyID)
+	if err != nil {
+		return CustomerDetailView{}, s.internal("get customer party", err)
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return CustomerDetailView{}, s.internal("begin customer read", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	operating, err := s.ResolveLatestApprovedReference(ctx, tx, EntityOperatingEntity, identity.OperatingEntityID)
+	if err != nil {
+		return CustomerDetailView{}, err
+	}
+	out := CustomerDetailView{ObjectID: r.ID, Code: r.Code, ObjectRevision: r.Revision, Enabled: r.Enabled, PartyID: party.ID, PartyKind: party.Kind, PartyDisplayName: party.DisplayName, OperatingEntityID: identity.OperatingEntityID, OperatingEntityCode: operating.Code, OperatingEntityName: operating.Data.Name, UpdatedAt: r.UpdatedAt.Time, Accounts: []CustomerAccountView{}}
+	accounts, err := s.queries.WithTx(tx).ListBobCustomerAccountObjects(ctx, input.ObjectID)
 	if err != nil {
 		return CustomerDetailView{}, s.internal("list customer accounts", err)
 	}
-	for _, a := range rows {
-		v, loadErr := s.loadCustomerVersion(ctx, a.ID, a.CurrentVersionID)
-		if loadErr != nil {
-			return CustomerDetailView{}, loadErr
+	for _, account := range accounts {
+		view := CustomerAccountView{ObjectID: account.ID, Code: account.Code, ObjectRevision: account.Revision, Enabled: account.Enabled}
+		if latest, latestErr := s.queries.WithTx(tx).GetBobLatestApprovedEntry(ctx, dbsqlc.GetBobLatestApprovedEntryParams{Entity: EntityCustomerAccount, ObjectID: account.ID}); latestErr == nil {
+			loaded, loadErr := s.loadCustomerVersionWithQueries(ctx, s.queries.WithTx(tx), latest)
+			if loadErr != nil {
+				return CustomerDetailView{}, loadErr
+			}
+			view.LatestApproved = &loaded
+		} else if !errors.Is(latestErr, pgx.ErrNoRows) {
+			return CustomerDetailView{}, s.internal("get latest approved customer account", latestErr)
 		}
-		view := CustomerAccountView{ObjectID: a.ID, Code: a.Code, ObjectRevision: a.Revision, Enabled: a.Enabled}
-		if a.EffectiveVersionID != nil {
-			view.Effective = &v
-		}
-		if a.EffectiveVersionID == nil || a.CurrentVersionID != *a.EffectiveVersionID {
-			view.Candidate = &v
+		if open, openErr := s.queries.WithTx(tx).GetBobOpenEntry(ctx, dbsqlc.GetBobOpenEntryParams{Entity: EntityCustomerAccount, ObjectID: account.ID}); openErr == nil {
+			loaded, loadErr := s.loadCustomerVersionWithQueries(ctx, s.queries.WithTx(tx), open)
+			if loadErr != nil {
+				return CustomerDetailView{}, loadErr
+			}
+			view.OpenVersion = &loaded
+		} else if !errors.Is(openErr, pgx.ErrNoRows) {
+			return CustomerDetailView{}, s.internal("get open customer account", openErr)
 		}
 		out.Accounts = append(out.Accounts, view)
 	}
+	if err = tx.Commit(ctx); err != nil {
+		return CustomerDetailView{}, s.internal("commit customer read", err)
+	}
 	return out, nil
 }
-func (s *Service) CustomerSave(ctx context.Context, input CustomerSaveInput, actorID, requestID string) (MutationResult, error) {
-	if !validWriteInput(EntityCustomerAccount, input.ObjectID, input.VersionID, input.Revision, actorID, requestID) {
+func (s *Service) CustomerSave(ctx context.Context, input CustomerSaveInput, actor approval.Actor) (MutationResult, error) {
+	actorID, requestID := actor.ID(), actor.RequestID()
+	if !validWriteInput(EntityCustomerAccount, input.ObjectID, input.ApprovalEntryID, input.ApprovalRevision, actorID, requestID) {
 		return MutationResult{}, domainError(ErrorValidation, "invalid customer account save", nil, nil)
 	}
 	data, err := normalizeCustomerAccount(input.Data)
 	if err != nil {
 		return MutationResult{}, domainError(ErrorValidation, "invalid customer account", nil, err)
 	}
-	tx, q, object, version, err := s.lockTarget(ctx, EntityCustomerAccount, input.ObjectID, input.VersionID)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return MutationResult{}, s.internal("begin customer account save", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	q := s.queries.WithTx(tx)
+	object, err := q.LockBobObject(ctx, dbsqlc.LockBobObjectParams{ObjectID: input.ObjectID, Entity: EntityCustomerAccount})
+	if err != nil {
+		return MutationResult{}, s.internal("lock customer account", err)
+	}
+	entry, err := s.entryForObject(ctx, q, EntityCustomerAccount, input.ObjectID, input.ApprovalEntryID)
 	if err != nil {
 		return MutationResult{}, err
 	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-	if object.CurrentVersionID != input.VersionID || version.Revision != input.Revision {
-		return MutationResult{}, conflict(object, version, "customer account changed before save")
+	if entry.Revision != input.ApprovalRevision {
+		return MutationResult{}, domainError(ErrorConflict, "customer account changed before save", nil, nil)
 	}
-	relation, err := q.GetBobCustomerAccountRelationshipParty(ctx, input.ObjectID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return MutationResult{}, domainError(ErrorConflict, "customer relationship is unavailable", nil, nil)
+	target := approvalEntry(entry)
+	if approval.Status(entry.Status) == approval.StatusApproved {
+		target, err = s.createNextApproval(ctx, tx, EntityCustomerAccount, input.ObjectID, object.Code, object.Enabled, actor)
+		if err == nil {
+			err = copyDetail(ctx, q, EntityCustomerAccount, target.ID, entry.ID)
+		}
+		if err != nil {
+			return MutationResult{}, s.writeError("copy customer account payload", err)
+		}
+	} else if approval.Status(entry.Status) != approval.StatusDraft {
+		return MutationResult{}, domainError(ErrorConflict, "only a draft or latest approved version can be saved", nil, nil)
 	}
+	relation, err := q.GetBobCustomerAccountRelationship(ctx, input.ObjectID)
+	if err != nil {
+		return MutationResult{}, s.internal("load customer account relationship", err)
+	}
+	customer, err := q.GetBobCustomerRelationship(ctx, relation.CustomerRelationshipID)
 	if err != nil {
 		return MutationResult{}, s.internal("load customer relationship", err)
 	}
-	if relation.OperatingEntityID != data.OperatingEntityID {
+	if customer.OperatingEntityID != data.OperatingEntityID {
 		return MutationResult{}, domainError(ErrorValidation, "customer account operating entity must match relationship", nil, nil)
 	}
-	if err = s.rejectCustomerSelfAttribution(ctx, q, relation.PartyID, data.PrimarySalesAttribution); err != nil {
+	if err = s.rejectCustomerSelfAttribution(ctx, q, customer.PartyID, data.PrimarySalesAttribution); err != nil {
 		return MutationResult{}, err
 	}
 	data, err = s.resolveCustomerSnapshots(ctx, tx, data)
 	if err != nil {
 		return MutationResult{}, err
 	}
-	targetID, targetNo, objectRevision := input.VersionID, version.VersionNo, object.Revision
-	candidate := false
-	if version.Status == StatusEffective && object.EffectiveVersionID != nil && *object.EffectiveVersionID == input.VersionID {
-		targetID, targetNo, candidate = newID(), object.NextVersionNo, true
-		if err = q.InsertBobVersion(ctx, dbsqlc.InsertBobVersionParams{ID: targetID, ObjectID: input.ObjectID, Entity: EntityCustomerAccount, VersionNo: targetNo, ActorID: actorID}); err != nil {
-			return MutationResult{}, s.writeError("insert customer account candidate", err)
-		}
-		if err = q.CopyCustomerVersionAttachments(ctx, dbsqlc.CopyCustomerVersionAttachmentsParams{SourceVersionID: input.VersionID, TargetVersionID: targetID}); err != nil {
-			return MutationResult{}, s.writeError("copy customer account attachments", err)
-		}
-		rows, advanceErr := q.AdvanceBobCustomerAccountCandidate(ctx, dbsqlc.AdvanceBobCustomerAccountCandidateParams{VersionID: targetID, ActorID: actorID, ObjectID: input.ObjectID, Revision: object.Revision, CurrentVersionID: input.VersionID})
-		if advanceErr != nil || rows != 1 {
-			return MutationResult{}, conflict(object, version, "customer account changed before save")
-		}
-		objectRevision++
-	} else if version.Status != StatusDraft || (object.EffectiveVersionID != nil && object.CurrentVersionID == *object.EffectiveVersionID) {
-		return MutationResult{}, conflict(object, version, "customer account changed before save")
-	}
-	if err = q.DeleteBobCustomerCreditLimits(ctx, targetID); err != nil {
+	if err = q.DeleteBobCustomerCreditLimits(ctx, target.ID); err != nil {
 		return MutationResult{}, s.writeError("delete customer account credit limits", err)
 	}
-	if !candidate {
-		if _, err = q.DeleteBobCustomerDetail(ctx, targetID); err != nil {
-			return MutationResult{}, s.writeError("replace customer account detail", err)
-		}
-	}
-	if err = insertCustomerAccountData(ctx, q, targetID, data); err != nil {
+	if err = writeCustomerAccountData(ctx, q, target.ID, data, false); err != nil {
 		return MutationResult{}, s.writeError("insert customer account detail", err)
 	}
-	if candidate {
-		if err = insertAudit(ctx, q, auditInput{ObjectID: input.ObjectID, VersionID: targetID, Entity: EntityCustomerAccount, Event: "CREATED", To: StatusDraft, ActorID: actorID, RequestID: requestID, Summary: map[string]any{"sourceVersionId": input.VersionID, "reason": "CUSTOMER_ACCOUNT_EDIT"}}); err != nil {
-			return MutationResult{}, s.writeError("audit customer account candidate", err)
-		}
-		if err = tx.Commit(ctx); err != nil {
-			return MutationResult{}, s.writeError("commit customer account candidate", err)
-		}
-		return MutationResult{ObjectID: input.ObjectID, ObjectRevision: objectRevision, Enabled: object.Enabled, VersionID: targetID, Version: targetNo, Status: StatusDraft, Revision: 1}, nil
+	target, err = s.transitionApproval(ctx, tx, EntityCustomerAccount, input.ObjectID, object.Code, object.Enabled, target.ID, target.Revision, approval.ActionSaved, "", actor)
+	if err != nil {
+		return MutationResult{}, translateApprovalError(err)
 	}
-	rows, err := q.MarkBobVersionSaved(ctx, dbsqlc.MarkBobVersionSavedParams{ActorID: actorID, ID: targetID, ObjectID: input.ObjectID, Entity: EntityCustomerAccount, Revision: input.Revision})
-	if err != nil || rows != 1 {
-		return MutationResult{}, conflict(object, version, "customer account changed before save")
-	}
-	if err = q.TouchBobObject(ctx, dbsqlc.TouchBobObjectParams{ActorID: actorID, ID: input.ObjectID, Entity: EntityCustomerAccount}); err != nil {
-		return MutationResult{}, s.internal("touch customer account", err)
-	}
-	if err = insertAudit(ctx, q, auditInput{ObjectID: input.ObjectID, VersionID: targetID, Entity: EntityCustomerAccount, Event: "SAVED", To: StatusDraft, ActorID: actorID, RequestID: requestID, Summary: map[string]any{"fields": []string{"pricingPolicy", "creditLimits", "primarySalesAttribution"}}}); err != nil {
-		return MutationResult{}, s.writeError("audit customer account save", err)
+	touched, err := q.TouchBobObject(ctx, dbsqlc.TouchBobObjectParams{ActorID: actorID, ObjectID: input.ObjectID, Entity: EntityCustomerAccount})
+	if err != nil {
+		return MutationResult{}, s.writeError("touch customer account", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit customer account save", err)
 	}
-	return MutationResult{ObjectID: input.ObjectID, ObjectRevision: object.Revision, Enabled: object.Enabled, VersionID: targetID, Version: targetNo, Status: StatusDraft, Revision: input.Revision + 1}, nil
+	return approvalMutation(touched.ID, touched.Revision, touched.Enabled, target), nil
 }
-func (s *Service) loadCustomerVersion(ctx context.Context, objectID, versionID string) (CustomerVersionView, error) {
-	row, err := s.queries.GetBobCustomerVersion(ctx, dbsqlc.GetBobCustomerVersionParams{ObjectID: objectID, VersionID: versionID})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return CustomerVersionView{}, domainError(ErrorValidation, "customer version not found", nil, nil)
+func (s *Service) loadCustomerVersionWithQueries(ctx context.Context, q *dbsqlc.Queries, entry dbsqlc.ApprovalEntry) (CustomerVersionView, error) {
+	var row dbsqlc.BobCustomerVersion
+	var err error
+	if approval.Status(entry.Status) == approval.StatusApproved {
+		row, err = q.GetBobCustomerPayload(ctx, entry.ID)
+	} else {
+		row, err = q.GetBobOpenCustomerPayload(ctx, entry.ID)
 	}
 	if err != nil {
-		return CustomerVersionView{}, s.internal("load customer version", err)
+		return CustomerVersionView{}, s.internal("load customer payload", err)
 	}
-	result := CustomerVersionView{Version: VersionMeta{VersionID: row.ID, Version: row.VersionNo, Status: row.Status, Revision: row.Revision, CreatedAt: row.CreatedAt.Time, CreatedBy: row.CreatedBy, UpdatedAt: row.UpdatedAt.Time, UpdatedBy: row.UpdatedBy, SubmittedAt: timePointer(row.SubmittedAt), SubmittedBy: row.SubmittedBy, ReviewedAt: timePointer(row.ReviewedAt), ReviewedBy: row.ReviewedBy, ReviewComment: row.ReviewComment}, Data: CustomerAccountData{Name: row.Name, ShortName: row.ShortName, CustomerTypeCode: row.CustomerType, ContactName: row.ContactName, ContactPhone: row.ContactPhone, Email: row.Email, Address: row.Address, DefaultTransportMethodCode: row.DefaultTransportMethodCode, DefaultTransportMethodName: row.DefaultTransportMethodName, InternalReminder: row.InternalReminder, DefaultSalesOrderRemark: row.DefaultSalesOrderRemark}}
+	result := CustomerVersionView{Approval: approvalMeta(entry), Data: CustomerAccountData{Name: row.Name, ShortName: deref(row.ShortName), CustomerTypeCode: row.CustomerType, ContactName: deref(row.ContactName), ContactPhone: deref(row.ContactPhone), Email: deref(row.Email), Address: deref(row.Address), DefaultTransportMethodCode: deref(row.DefaultTransportMethodCode), DefaultTransportMethodName: deref(row.DefaultTransportMethodName), InternalReminder: deref(row.InternalReminder), DefaultSalesOrderRemark: deref(row.DefaultSalesOrderRemark)}}
 	if err = json.Unmarshal(row.PricingPolicy, &result.Data.PricingPolicy); err != nil {
 		return CustomerVersionView{}, s.internal("decode customer pricing policy", err)
 	}
-	result.Data.OperatingEntityID = row.OperatingEntityID
-	if row.OperatingEntityID != "" {
-		result.Data.OperatingEntity = &CustomerSnapshot{SourceObjectID: row.OperatingEntityID, Code: row.OperatingEntityCode, Name: row.OperatingEntityName, TaxNumber: row.OperatingEntityTaxNumber, Address: row.OperatingEntityAddress, Phone: row.OperatingEntityPhone}
+	result.Data.OperatingEntityID = deref(row.OperatingEntityID)
+	if result.Data.OperatingEntityID != "" {
+		result.Data.OperatingEntity = &CustomerSnapshot{SourceObjectID: result.Data.OperatingEntityID, ApprovalEntryID: deref(row.OperatingEntityApprovalEntryID), Code: deref(row.OperatingEntityCode), Name: deref(row.OperatingEntityName), TaxNumber: deref(row.OperatingEntityTaxNumber), Address: deref(row.OperatingEntityAddress), Phone: deref(row.OperatingEntityPhone)}
 	}
-	result.Data.SettlementMethodID = row.SettlementMethodID
-	if row.SettlementMethodID != "" {
-		result.Data.SettlementMethod = &CustomerSnapshot{SourceObjectID: row.SettlementMethodID, Code: row.SettlementMethodCode, Name: row.SettlementMethodName, TermCode: row.SettlementTermCode, RuleType: row.SettlementRuleType, DueDays: row.SettlementDueDays, MonthOffset: row.SettlementMonthOffset, CutoffDay: row.SettlementCutoffDay, DefaultSalesSurcharge: fixeddecimal.Format(row.SettlementSalesSurchargeCents, 2, false)}
+	result.Data.SettlementMethodID = deref(row.SettlementMethodID)
+	if result.Data.SettlementMethodID != "" {
+		result.Data.SettlementMethod = &CustomerSnapshot{SourceObjectID: result.Data.SettlementMethodID, ApprovalEntryID: deref(row.SettlementMethodApprovalEntryID), Code: deref(row.SettlementMethodCode), Name: deref(row.SettlementMethodName), TermCode: deref(row.SettlementTermCode), RuleType: deref(row.SettlementRuleType), DueDays: row.SettlementDueDays, MonthOffset: row.SettlementMonthOffset, CutoffDay: row.SettlementCutoffDay, DefaultSalesSurcharge: fixeddecimal.Format(row.SettlementSalesSurchargeCents, 2, false)}
 	}
-	result.Data.PaymentMethodID = row.PaymentMethodID
-	if row.PaymentMethodID != "" {
-		result.Data.PaymentMethod = &CustomerSnapshot{SourceObjectID: row.PaymentMethodID, Code: row.PaymentMethodCode, Name: row.PaymentMethodName, DefaultSalesSurcharge: fixeddecimal.Format(row.PaymentSalesSurchargeCents, 2, false)}
+	result.Data.PaymentMethodID = deref(row.PaymentMethodID)
+	if result.Data.PaymentMethodID != "" {
+		result.Data.PaymentMethod = &CustomerSnapshot{SourceObjectID: result.Data.PaymentMethodID, ApprovalEntryID: deref(row.PaymentMethodApprovalEntryID), Code: deref(row.PaymentMethodCode), Name: deref(row.PaymentMethodName), DefaultSalesSurcharge: fixeddecimal.Format(row.PaymentSalesSurchargeCents, 2, false)}
 	}
 	result.Data.TransportSurcharge = fixeddecimal.Format(row.TransportSurchargeCents, 2, false)
 	result.Data.PrimarySalesAttribution = CustomerSalesAttributionInput{Type: deref(row.PrimarySalesAttributionType), SubjectObjectID: deref(row.PrimarySalesSubjectID)}
-	result.Data.SalesAttribution = CustomerSalesAttributionView{CustomerSalesAttributionInput: result.Data.PrimarySalesAttribution, SubjectVersionID: deref(row.PrimarySalesSubjectVersionID), SubjectCode: deref(row.PrimarySalesSubjectCode), SubjectName: deref(row.PrimarySalesSubjectName)}
-	limits, err := s.queries.ListBobCustomerCreditLimits(ctx, versionID)
+	result.Data.SalesAttribution = CustomerSalesAttributionView{CustomerSalesAttributionInput: result.Data.PrimarySalesAttribution, SubjectApprovalEntryID: deref(row.PrimarySalesSubjectApprovalEntryID), SubjectCode: deref(row.PrimarySalesSubjectCode), SubjectName: deref(row.PrimarySalesSubjectName)}
+	limits, err := q.ListBobCustomerCreditLimits(ctx, entry.ID)
 	if err != nil {
 		return CustomerVersionView{}, s.internal("load customer credit limits", err)
 	}
@@ -538,29 +566,33 @@ func (s *Service) loadCustomerVersion(ctx context.Context, objectID, versionID s
 	return result, nil
 }
 
-func insertCustomerAccountData(ctx context.Context, q *dbsqlc.Queries, versionID string, data CustomerAccountData) error {
+func writeCustomerAccountData(ctx context.Context, q *dbsqlc.Queries, versionID string, data CustomerAccountData, insert bool) error {
 	policy, err := json.Marshal(data.PricingPolicy)
 	if err != nil {
 		return err
 	}
 	transportMinor, _ := fixeddecimal.ParsePositive(data.TransportSurcharge, 2, true)
-	salespersonEmployeeID := ""
-	if data.PrimarySalesAttribution.Type == SalesAttributionInternalEmployee {
-		salespersonEmployeeID = data.PrimarySalesAttribution.SubjectObjectID
+	if insert {
+		if err = q.InsertBobCustomerPayload(ctx, dbsqlc.InsertBobCustomerPayloadParams{ApprovalEntryID: versionID, Name: data.Name}); err != nil {
+			return err
+		}
 	}
-	err = q.InsertBobCustomerAccountData(ctx, dbsqlc.InsertBobCustomerAccountDataParams{
-		VersionID: versionID, Name: data.Name, CustomerType: data.CustomerTypeCode, ShortName: data.ShortName, ContactName: data.ContactName, ContactPhone: data.ContactPhone, Email: data.Email, Address: data.Address, SalespersonEmployeeID: salespersonEmployeeID,
-		OperatingEntityID: data.OperatingEntityID, OperatingEntityCode: snapshotCode(data.OperatingEntity), OperatingEntityName: snapshotName(data.OperatingEntity), OperatingEntityTaxNumber: snapshotTax(data.OperatingEntity), OperatingEntityAddress: snapshotAddress(data.OperatingEntity), OperatingEntityPhone: snapshotPhone(data.OperatingEntity),
-		SettlementMethodID: data.SettlementMethodID, SettlementMethodCode: snapshotCode(data.SettlementMethod), SettlementMethodName: snapshotName(data.SettlementMethod), SettlementTermCode: snapshotTerm(data.SettlementMethod), SettlementRuleType: snapshotRule(data.SettlementMethod), SettlementDueDays: snapshotDueDays(data.SettlementMethod), SettlementMonthOffset: snapshotMonthOffset(data.SettlementMethod), SettlementCutoffDay: snapshotCutoffDay(data.SettlementMethod), SettlementSalesSurchargeCents: snapshotSurchargeMinor(data.SettlementMethod),
-		PaymentMethodID: data.PaymentMethodID, PaymentMethodCode: snapshotCode(data.PaymentMethod), PaymentMethodName: snapshotName(data.PaymentMethod), PaymentSalesSurchargeCents: snapshotSurchargeMinor(data.PaymentMethod), DefaultTransportMethodCode: data.DefaultTransportMethodCode, DefaultTransportMethodName: data.DefaultTransportMethodName, TransportSurchargeCents: transportMinor, PricingPolicy: policy,
-		PrimarySalesAttributionType: &data.PrimarySalesAttribution.Type, PrimarySalesSubjectID: &data.PrimarySalesAttribution.SubjectObjectID, PrimarySalesSubjectVersionID: &data.SalesAttribution.SubjectVersionID, PrimarySalesSubjectCode: &data.SalesAttribution.SubjectCode, PrimarySalesSubjectName: &data.SalesAttribution.SubjectName, InternalReminder: data.InternalReminder, DefaultSalesOrderRemark: data.DefaultSalesOrderRemark,
+	rows, err := q.UpdateBobCustomerPayload(ctx, dbsqlc.UpdateBobCustomerPayloadParams{
+		Name: data.Name, CustomerType: data.CustomerTypeCode, ShortName: nilIfEmpty(data.ShortName), ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email), Address: nilIfEmpty(data.Address),
+		OperatingEntityID: nilIfEmpty(data.OperatingEntityID), OperatingEntityApprovalEntryID: nilIfEmpty(snapshotApprovalEntryID(data.OperatingEntity)), OperatingEntityCode: nilIfEmpty(snapshotCode(data.OperatingEntity)), OperatingEntityName: nilIfEmpty(snapshotName(data.OperatingEntity)), OperatingEntityTaxNumber: nilIfEmpty(snapshotTax(data.OperatingEntity)), OperatingEntityAddress: nilIfEmpty(snapshotAddress(data.OperatingEntity)), OperatingEntityPhone: nilIfEmpty(snapshotPhone(data.OperatingEntity)),
+		SettlementMethodID: nilIfEmpty(data.SettlementMethodID), SettlementMethodApprovalEntryID: nilIfEmpty(snapshotApprovalEntryID(data.SettlementMethod)), SettlementMethodCode: nilIfEmpty(snapshotCode(data.SettlementMethod)), SettlementMethodName: nilIfEmpty(snapshotName(data.SettlementMethod)), SettlementTermCode: nilIfEmpty(snapshotTerm(data.SettlementMethod)), SettlementRuleType: nilIfEmpty(snapshotRule(data.SettlementMethod)), SettlementDueDays: snapshotDueDays(data.SettlementMethod), SettlementMonthOffset: snapshotMonthOffset(data.SettlementMethod), SettlementCutoffDay: snapshotCutoffDay(data.SettlementMethod), SettlementSalesSurchargeCents: snapshotSurchargeMinor(data.SettlementMethod),
+		PaymentMethodID: nilIfEmpty(data.PaymentMethodID), PaymentMethodApprovalEntryID: nilIfEmpty(snapshotApprovalEntryID(data.PaymentMethod)), PaymentMethodCode: nilIfEmpty(snapshotCode(data.PaymentMethod)), PaymentMethodName: nilIfEmpty(snapshotName(data.PaymentMethod)), PaymentSalesSurchargeCents: snapshotSurchargeMinor(data.PaymentMethod), DefaultTransportMethodCode: nilIfEmpty(data.DefaultTransportMethodCode), DefaultTransportMethodName: nilIfEmpty(data.DefaultTransportMethodName), TransportSurchargeCents: transportMinor, PricingPolicy: policy,
+		PrimarySalesAttributionType: &data.PrimarySalesAttribution.Type, PrimarySalesSubjectID: &data.PrimarySalesAttribution.SubjectObjectID, PrimarySalesSubjectApprovalEntryID: &data.SalesAttribution.SubjectApprovalEntryID, PrimarySalesSubjectCode: &data.SalesAttribution.SubjectCode, PrimarySalesSubjectName: &data.SalesAttribution.SubjectName, InternalReminder: nilIfEmpty(data.InternalReminder), DefaultSalesOrderRemark: nilIfEmpty(data.DefaultSalesOrderRemark), ApprovalEntryID: versionID,
 	})
 	if err != nil {
 		return err
 	}
+	if rows != 1 {
+		return errors.New("customer account payload changed")
+	}
 	for _, limit := range data.CreditLimits {
 		minor, _ := fixeddecimal.ParsePositive(limit.Amount, 2, true)
-		if err = q.InsertBobCustomerCreditLimit(ctx, dbsqlc.InsertBobCustomerCreditLimitParams{VersionID: versionID, Currency: limit.Currency, AmountCents: minor}); err != nil {
+		if err = q.InsertBobCustomerCreditLimit(ctx, dbsqlc.InsertBobCustomerCreditLimitParams{ApprovalEntryID: versionID, Currency: limit.Currency, AmountCents: minor}); err != nil {
 			return err
 		}
 	}
@@ -569,27 +601,24 @@ func insertCustomerAccountData(ctx context.Context, q *dbsqlc.Queries, versionID
 
 func (s *Service) resolveCustomerSnapshots(ctx context.Context, tx pgx.Tx, data CustomerAccountData) (CustomerAccountData, error) {
 	if data.PrimarySalesAttribution.Type == SalesAttributionInternalEmployee {
-		subject, err := s.ResolveCurrentEffectiveReference(ctx, tx, EntityEmployee, data.PrimarySalesAttribution.SubjectObjectID)
+		subject, err := s.ResolveLatestApprovedReference(ctx, tx, EntityEmployee, data.PrimarySalesAttribution.SubjectObjectID)
 		if err != nil {
 			return CustomerAccountData{}, err
 		}
-		data.SalesAttribution = CustomerSalesAttributionView{CustomerSalesAttributionInput: data.PrimarySalesAttribution, SubjectVersionID: subject.VersionID, SubjectCode: subject.Code, SubjectName: subject.Data.Name}
+		data.SalesAttribution = CustomerSalesAttributionView{CustomerSalesAttributionInput: data.PrimarySalesAttribution, SubjectApprovalEntryID: subject.ApprovalEntryID, SubjectCode: subject.Code, SubjectName: subject.Data.Name}
 	} else {
-		partner, err := s.queries.WithTx(tx).ResolveCurrentBobEffectiveSalesPartnerReference(ctx, data.PrimarySalesAttribution.SubjectObjectID)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return CustomerAccountData{}, domainError(ErrorConflict, "sales-partner reference is unavailable", nil, nil)
-		}
+		partner, err := s.ResolveLatestApprovedReference(ctx, tx, EntitySalesPartner, data.PrimarySalesAttribution.SubjectObjectID)
 		if err != nil {
-			return CustomerAccountData{}, s.internal("resolve sales-partner attribution", err)
+			return CustomerAccountData{}, err
 		}
 		required := SalesCapabilityExternalPartTime
 		if data.PrimarySalesAttribution.Type == SalesAttributionDealer {
 			required = SalesCapabilityChannelPartner
 		}
-		if !hasSalesCapability(partner.Capabilities, required) {
+		if !hasSalesCapability(partner.Data.SalesCapabilities, required) {
 			return CustomerAccountData{}, domainError(ErrorConflict, "sales-partner capability is unavailable", nil, nil)
 		}
-		data.SalesAttribution = CustomerSalesAttributionView{CustomerSalesAttributionInput: data.PrimarySalesAttribution, SubjectVersionID: partner.VersionID, SubjectCode: partner.Code, SubjectName: partner.Name}
+		data.SalesAttribution = CustomerSalesAttributionView{CustomerSalesAttributionInput: data.PrimarySalesAttribution, SubjectApprovalEntryID: partner.ApprovalEntryID, SubjectCode: partner.Code, SubjectName: partner.Data.Name}
 	}
 	if data.OperatingEntityID != "" {
 		operating, resolveErr := s.resolveOperatingEntityReference(ctx, tx, data.OperatingEntityID)
@@ -620,21 +649,25 @@ func (s *Service) resolveCustomerAuxSnapshot(ctx context.Context, tx pgx.Tx, ent
 	if err != nil {
 		return CustomerSnapshot{}, domainError(ErrorConflict, entity+" reference is unavailable", nil, err)
 	}
-	return CustomerSnapshot{SourceObjectID: reference.ObjectID, Code: reference.Code, Name: mapString(reference.Data, "name"),
+	return CustomerSnapshot{SourceObjectID: reference.ObjectID, ApprovalEntryID: reference.ApprovalEntryID, Code: reference.Code, Name: mapString(reference.Data, "name"),
 		TermCode: mapString(reference.Data, "termCode"), RuleType: mapString(reference.Data, "ruleType"),
 		DueDays: int32(mapInt(reference.Data, "dayOffset")), MonthOffset: int32(mapInt(reference.Data, "monthOffset")),
 		CutoffDay: int32(mapInt(reference.Data, "dayOfMonth")), DefaultSalesSurcharge: mapString(reference.Data, "defaultSalesSurcharge")}, nil
 }
 
 func (s *Service) resolveOperatingEntityReference(ctx context.Context, tx pgx.Tx, objectID string) (CustomerSnapshot, error) {
-	row, err := s.queries.WithTx(tx).ResolveCustomerOperatingEntity(ctx, objectID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return CustomerSnapshot{}, domainError(ErrorConflict, "operating-entity reference is unavailable", nil, nil)
-	}
+	reference, err := s.ResolveLatestApprovedReference(ctx, tx, EntityOperatingEntity, objectID)
 	if err != nil {
-		return CustomerSnapshot{}, s.internal("resolve operating entity", err)
+		return CustomerSnapshot{}, err
 	}
-	return CustomerSnapshot{SourceObjectID: row.ID, Code: row.Code, Name: row.LegalName, TaxNumber: row.TaxNumber, Address: row.Address, Phone: row.Phone}, nil
+	return CustomerSnapshot{SourceObjectID: reference.ObjectID, ApprovalEntryID: reference.ApprovalEntryID, Code: reference.Code, Name: reference.Data.Name, TaxNumber: reference.Data.TaxNumber, Address: reference.Data.Address, Phone: reference.Data.Phone}, nil
+}
+
+func snapshotApprovalEntryID(value *CustomerSnapshot) string {
+	if value == nil {
+		return ""
+	}
+	return value.ApprovalEntryID
 }
 
 func snapshotCode(value *CustomerSnapshot) string {
@@ -709,7 +742,7 @@ func (s *Service) rejectCustomerSelfAttribution(ctx context.Context, q *dbsqlc.Q
 	if attribution.Type == SalesAttributionInternalEmployee {
 		return nil
 	}
-	partner, err := q.ResolveCurrentBobEffectiveSalesPartnerReference(ctx, attribution.SubjectObjectID)
+	partner, err := q.GetBobSalesPartnerRelationship(ctx, attribution.SubjectObjectID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domainError(ErrorConflict, "sales-partner reference is unavailable", nil, nil)
 	}
@@ -729,4 +762,8 @@ func hasSalesCapability(values []string, expected string) bool {
 		}
 	}
 	return false
+}
+
+func approvalEntry(row dbsqlc.ApprovalEntry) approval.Entry {
+	return approval.Entry{EntryRef: approval.EntryRef{ID: row.ID, Domain: row.Domain, Entity: row.Entity, SubjectID: row.SubjectID, VersionNo: row.VersionNo}, Status: approval.Status(row.Status), Revision: row.Revision, CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt.Time, UpdatedBy: row.UpdatedBy, UpdatedAt: row.UpdatedAt.Time, SubmittedBy: row.SubmittedBy, ApprovedBy: row.ApprovedBy}
 }

@@ -79,7 +79,7 @@ func (s *Service) loadData(
 		if err != nil {
 			return data, err
 		}
-		data.Supplier = reference(detail.SupplierObjectID, detail.SupplierVersionID, "supplier",
+		data.Supplier = reference(detail.SupplierObjectID, detail.SupplierApprovalEntryID, "supplier",
 			detail.SupplierCode, detail.SupplierName, "", "", "")
 		data.PriceLines, err = loadPriceLines(ctx, q, document.ID)
 		return data, err
@@ -90,20 +90,20 @@ func (s *Service) loadData(
 		if err != nil {
 			return data, err
 		}
-		data.Customer = reference(detail.CustomerObjectID, detail.CustomerVersionID, bobdomain.EntityCustomerAccount, detail.CustomerCode, detail.CustomerName, "", "", "")
+		data.Customer = reference(detail.CustomerObjectID, detail.CustomerApprovalEntryID, bobdomain.EntityCustomerAccount, detail.CustomerCode, detail.CustomerName, "", "", "")
 		data.Salesperson = optionalReference(
-			detail.SalespersonObjectID, detail.SalespersonVersionID, "employee",
+			detail.SalespersonObjectID, detail.SalespersonApprovalEntryID, "employee",
 			detail.SalespersonCode, detail.SalespersonName,
 		)
 		data.Warehouse = optionalReference(
-			detail.WarehouseObjectID, detail.WarehouseVersionID, "warehouse",
+			detail.WarehouseObjectID, detail.WarehouseApprovalEntryID, "warehouse",
 			detail.WarehouseCode, detail.WarehouseName,
 		)
 		data.ContactName = deref(detail.ContactName)
 		data.ContactPhone = deref(detail.ContactPhone)
 		data.DeliveryAddress = deref(detail.DeliveryAddress)
 		data.SettlementMethod = settlementView(
-			detail.SettlementMethodObjectID, detail.SettlementMethodVersionID,
+			detail.SettlementMethodObjectID, detail.SettlementMethodApprovalEntryID,
 			detail.SettlementMethodCode, detail.SettlementMethodName, detail.SettlementRuleType,
 			detail.SettlementMonthOffset, detail.SettlementDayOfMonth,
 			detail.SettlementDayOffset, detail.SettlementDueDays,
@@ -131,19 +131,19 @@ func (s *Service) loadData(
 		if err != nil {
 			return data, err
 		}
-		data.Supplier = reference(detail.SupplierObjectID, detail.SupplierVersionID, "supplier", detail.SupplierCode, detail.SupplierName, "", "", "")
+		data.Supplier = reference(detail.SupplierObjectID, detail.SupplierApprovalEntryID, "supplier", detail.SupplierCode, detail.SupplierName, "", "", "")
 		data.Purchaser = optionalReference(
-			detail.PurchaserObjectID, detail.PurchaserVersionID, "employee",
+			detail.PurchaserObjectID, detail.PurchaserApprovalEntryID, "employee",
 			detail.PurchaserCode, detail.PurchaserName,
 		)
 		data.Warehouse = optionalReference(
-			detail.WarehouseObjectID, detail.WarehouseVersionID, "warehouse",
+			detail.WarehouseObjectID, detail.WarehouseApprovalEntryID, "warehouse",
 			detail.WarehouseCode, detail.WarehouseName,
 		)
 		data.ContactName = deref(detail.ContactName)
 		data.ContactPhone = deref(detail.ContactPhone)
 		data.SettlementMethod = settlementView(
-			detail.SettlementMethodObjectID, detail.SettlementMethodVersionID,
+			detail.SettlementMethodObjectID, detail.SettlementMethodApprovalEntryID,
 			detail.SettlementMethodCode, detail.SettlementMethodName, detail.SettlementRuleType,
 			detail.SettlementMonthOffset, detail.SettlementDayOfMonth,
 			detail.SettlementDayOffset, detail.SettlementDueDays,
@@ -161,11 +161,11 @@ func (s *Service) loadData(
 			return data, err
 		}
 		data.Supplier = reference(
-			detail.SupplierObjectID, detail.SupplierVersionID, "supplier",
+			detail.SupplierObjectID, detail.SupplierApprovalEntryID, "supplier",
 			detail.SupplierCode, detail.SupplierName, "", "", "",
 		)
 		data.Warehouse = reference(
-			detail.WarehouseObjectID, detail.WarehouseVersionID, "warehouse",
+			detail.WarehouseObjectID, detail.WarehouseApprovalEntryID, "warehouse",
 			detail.WarehouseCode, detail.WarehouseName, "", "", "",
 		)
 		rows, err := q.ListVouPurchaseInboundLines(ctx, document.ID)
@@ -187,7 +187,7 @@ func (s *Service) loadData(
 				LineID: row.ID, LineNo: row.LineNo,
 				SourceLineID: row.SourceOrderLineID,
 				Product: *reference(
-					row.ProductObjectID, row.ProductVersionID, "product",
+					row.ProductObjectID, row.ProductApprovalEntryID, "product",
 					row.ProductCode, row.ProductName, row.EnteredUnitSymbol, "", "",
 				),
 				EnteredQuantity:        formatQuantity(row.BaseQuantityMicros),
@@ -206,7 +206,7 @@ func (s *Service) loadData(
 			return data, err
 		}
 		data.Warehouse = reference(
-			detail.WarehouseObjectID, detail.WarehouseVersionID, "warehouse",
+			detail.WarehouseObjectID, detail.WarehouseApprovalEntryID, "warehouse",
 			detail.WarehouseCode, detail.WarehouseName, "", "", "",
 		)
 		rows, err := q.ListVouInventoryCountLines(ctx, document.ID)
@@ -216,10 +216,10 @@ func (s *Service) loadData(
 		for _, row := range rows {
 			item := InventoryCountLineView{
 				LineID: row.ID, LineNo: row.LineNo,
-				Product: *reference(row.ProductObjectID, row.ProductVersionID, "product",
+				Product: *reference(row.ProductObjectID, row.ProductApprovalEntryID, "product",
 					row.ProductCode, row.ProductName, row.EnteredUnitSymbol, "", ""),
 				EnteredQuantity: formatQuantity(row.EnteredQuantityMicros),
-				EnteredUnit: UnitSnapshotView{ObjectID: row.EnteredUnitObjectID, VersionID: row.EnteredUnitVersionID,
+				EnteredUnit: UnitSnapshotView{ObjectID: row.EnteredUnitObjectID, ApprovalEntryID: row.EnteredUnitApprovalEntryID,
 					Code: row.EnteredUnitCode, Name: row.EnteredUnitName, Symbol: row.EnteredUnitSymbol},
 				BaseQuantity: formatQuantity(row.ActualBaseQuantityMicros), Remark: deref(row.Remark),
 			}
@@ -239,12 +239,12 @@ func (s *Service) loadData(
 		if err != nil {
 			return data, err
 		}
-		data.Counterparty = reference(detail.CounterpartyObjectID, detail.CounterpartyVersionID, detail.CounterpartyEntity,
+		data.Counterparty = reference(detail.CounterpartyObjectID, detail.CounterpartyApprovalEntryID, detail.CounterpartyEntity,
 			detail.CounterpartyCode, detail.CounterpartyName, "", "", "")
-		data.FundAccount = reference(detail.FundAccountObjectID, detail.FundAccountVersionID, "fund-account",
+		data.FundAccount = reference(detail.FundAccountObjectID, detail.FundAccountApprovalEntryID, "fund-account",
 			detail.FundAccountCode, detail.FundAccountName, "", deref(document.Currency), "")
 		data.Handler = optionalReference(
-			detail.HandlerObjectID, detail.HandlerVersionID, "employee",
+			detail.HandlerObjectID, detail.HandlerApprovalEntryID, "employee",
 			detail.HandlerCode, detail.HandlerName,
 		)
 		data.OtherCategory = deref(detail.OtherCategory)
@@ -253,12 +253,12 @@ func (s *Service) loadData(
 		if err != nil {
 			return data, err
 		}
-		data.Counterparty = reference(detail.CounterpartyObjectID, detail.CounterpartyVersionID, detail.CounterpartyEntity,
+		data.Counterparty = reference(detail.CounterpartyObjectID, detail.CounterpartyApprovalEntryID, detail.CounterpartyEntity,
 			detail.CounterpartyCode, detail.CounterpartyName, "", "", "")
-		data.FundAccount = reference(detail.FundAccountObjectID, detail.FundAccountVersionID, "fund-account",
+		data.FundAccount = reference(detail.FundAccountObjectID, detail.FundAccountApprovalEntryID, "fund-account",
 			detail.FundAccountCode, detail.FundAccountName, "", deref(document.Currency), "")
 		data.Handler = optionalReference(
-			detail.HandlerObjectID, detail.HandlerVersionID, "employee",
+			detail.HandlerObjectID, detail.HandlerApprovalEntryID, "employee",
 			detail.HandlerCode, detail.HandlerName,
 		)
 		data.OtherCategory = deref(detail.OtherCategory)
@@ -267,7 +267,7 @@ func (s *Service) loadData(
 		if err != nil {
 			return data, err
 		}
-		data.Employee = reference(detail.EmployeeObjectID, detail.EmployeeVersionID, "employee",
+		data.Employee = reference(detail.EmployeeObjectID, detail.EmployeeApprovalEntryID, "employee",
 			detail.EmployeeCode, detail.EmployeeName, "", "", "")
 		rows, err := q.ListVouExpenseLines(ctx, document.ID)
 		if err != nil {
@@ -285,16 +285,16 @@ func (s *Service) loadData(
 		if err != nil {
 			return data, err
 		}
-		data.Employee = reference(detail.EmployeeObjectID, detail.EmployeeVersionID, "employee",
+		data.Employee = reference(detail.EmployeeObjectID, detail.EmployeeApprovalEntryID, "employee",
 			detail.EmployeeCode, detail.EmployeeName, "", "", "")
-		data.FundAccount = reference(detail.FundAccountObjectID, detail.FundAccountVersionID, "fund-account",
+		data.FundAccount = reference(detail.FundAccountObjectID, detail.FundAccountApprovalEntryID, "fund-account",
 			detail.FundAccountCode, detail.FundAccountName, "", deref(document.Currency), "")
 	case EntityEmployeeLoanWriteoff:
 		detail, err := q.GetVouEmployeeLoanWriteoffDetail(ctx, document.ID)
 		if err != nil {
 			return data, err
 		}
-		data.Employee = reference(detail.EmployeeObjectID, detail.EmployeeVersionID, "employee",
+		data.Employee = reference(detail.EmployeeObjectID, detail.EmployeeApprovalEntryID, "employee",
 			detail.EmployeeCode, detail.EmployeeName, "", "", "")
 		rows, err := q.ListVouExpenseLines(ctx, document.ID)
 		if err != nil {
@@ -314,13 +314,13 @@ func (s *Service) loadData(
 		}
 		data.SourceName = detail.SourceName
 		if detail.CounterpartyObjectID != nil {
-			data.Counterparty = reference(deref(detail.CounterpartyObjectID), deref(detail.CounterpartyVersionID),
+			data.Counterparty = reference(deref(detail.CounterpartyObjectID), deref(detail.CounterpartyApprovalEntryID),
 				deref(detail.CounterpartyEntity), deref(detail.CounterpartyCode), deref(detail.CounterpartyName), "", "", "")
 		}
-		data.FundAccount = reference(detail.FundAccountObjectID, detail.FundAccountVersionID, "fund-account",
+		data.FundAccount = reference(detail.FundAccountObjectID, detail.FundAccountApprovalEntryID, "fund-account",
 			detail.FundAccountCode, detail.FundAccountName, "", deref(document.Currency), "")
 		data.Handler = optionalReference(
-			detail.HandlerObjectID, detail.HandlerVersionID, "employee",
+			detail.HandlerObjectID, detail.HandlerApprovalEntryID, "employee",
 			detail.HandlerCode, detail.HandlerName,
 		)
 	}
@@ -336,10 +336,10 @@ func loadProductLines(ctx context.Context, q *dbsqlc.Queries, documentID string)
 	for _, row := range rows {
 		item := ProductLineView{
 			LineID: row.ID, LineNo: row.LineNo,
-			Product: *reference(row.ProductObjectID, row.ProductVersionID, "product",
+			Product: *reference(row.ProductObjectID, row.ProductApprovalEntryID, "product",
 				row.ProductCode, row.ProductName, row.EnteredUnitSymbol, "", ""),
 			EnteredQuantity: formatQuantity(row.EnteredQuantityMicros),
-			EnteredUnit: UnitSnapshotView{ObjectID: row.EnteredUnitObjectID, VersionID: row.EnteredUnitVersionID,
+			EnteredUnit: UnitSnapshotView{ObjectID: row.EnteredUnitObjectID, ApprovalEntryID: row.EnteredUnitApprovalEntryID,
 				Code: row.EnteredUnitCode, Name: row.EnteredUnitName, Symbol: row.EnteredUnitSymbol},
 			BaseQuantity:              formatQuantity(row.BaseQuantityMicros),
 			UnitPrice:                 formatMoney(row.UnitPriceCents),
@@ -355,7 +355,7 @@ func loadProductLines(ctx context.Context, q *dbsqlc.Queries, documentID string)
 		}
 		item.Product.BehaviorProfile = row.BehaviorProfile
 		item.Product.ProductTypeObjectID = row.ProductTypeObjectID
-		item.Product.ProductTypeVersionID = row.ProductTypeVersionID
+		item.Product.ProductTypeApprovalEntryID = row.ProductTypeApprovalEntryID
 		item.Product.ProductTypeCode = row.ProductTypeCode
 		item.Product.ProductTypeName = row.ProductTypeName
 		if row.PurchaseUnitPriceCents != nil {
@@ -382,11 +382,11 @@ func loadPriceLines(ctx context.Context, q *dbsqlc.Queries, documentID string) (
 	}
 	items := make([]PriceLineView, 0, len(rows))
 	for _, row := range rows {
-		product := *reference(row.ProductObjectID, row.ProductVersionID, bobdomain.EntityProduct,
+		product := *reference(row.ProductObjectID, row.ProductApprovalEntryID, bobdomain.EntityProduct,
 			row.ProductCode, row.ProductName, row.DefaultInputUnitSymbol, "", "")
 		product.BehaviorProfile = row.BehaviorProfile
 		product.ProductTypeObjectID = row.ProductTypeObjectID
-		product.ProductTypeVersionID = row.ProductTypeVersionID
+		product.ProductTypeApprovalEntryID = row.ProductTypeApprovalEntryID
 		product.ProductTypeCode = row.ProductTypeCode
 		product.ProductTypeName = row.ProductTypeName
 		items = append(items, PriceLineView{LineID: row.ID, LineNo: row.LineNo, Product: product,
@@ -413,7 +413,7 @@ func loadSaleOrderFormula(
 		Output: QuantitySnapshotView{
 			EnteredQuantity: formatQuantity(header.OutputEnteredQuantityMicros),
 			EnteredUnit: UnitSnapshotView{
-				ObjectID: header.OutputEnteredUnitObjectID, VersionID: header.OutputEnteredUnitVersionID,
+				ObjectID: header.OutputEnteredUnitObjectID, ApprovalEntryID: header.OutputEnteredUnitApprovalEntryID,
 				Code: header.OutputEnteredUnitCode, Name: header.OutputEnteredUnitName, Symbol: header.OutputEnteredUnitSymbol,
 			},
 			BaseQuantity: formatQuantity(header.OutputBaseQuantityMicros),
@@ -424,7 +424,7 @@ func loadSaleOrderFormula(
 	}
 	for _, row := range rows {
 		material := *reference(
-			row.MaterialObjectID, row.MaterialVersionID, bobdomain.EntityProduct,
+			row.MaterialObjectID, row.MaterialApprovalEntryID, bobdomain.EntityProduct,
 			row.MaterialCode, row.MaterialName, row.EnteredUnitSymbol, "", "",
 		)
 		material.BehaviorProfile = bobdomain.ProductBehaviorRawMaterial
@@ -433,7 +433,7 @@ func loadSaleOrderFormula(
 			Quantity: QuantitySnapshotView{
 				EnteredQuantity: formatQuantity(row.EnteredQuantityMicros),
 				EnteredUnit: UnitSnapshotView{
-					ObjectID: row.EnteredUnitObjectID, VersionID: row.EnteredUnitVersionID,
+					ObjectID: row.EnteredUnitObjectID, ApprovalEntryID: row.EnteredUnitApprovalEntryID,
 					Code: row.EnteredUnitCode, Name: row.EnteredUnitName, Symbol: row.EnteredUnitSymbol,
 				},
 				BaseQuantity: formatQuantity(row.BaseQuantityMicros),
@@ -445,7 +445,7 @@ func loadSaleOrderFormula(
 
 func reference(objectID, versionID, entity, code, name, unit, currency, plate string) *ReferenceView {
 	return &ReferenceView{
-		ObjectID: objectID, VersionID: versionID, Entity: entity, Code: code, Name: name,
+		ObjectID: objectID, ApprovalEntryID: versionID, Entity: entity, Code: code, Name: name,
 		Unit: unit, Currency: currency, PlateNumber: plate,
 	}
 }
@@ -474,7 +474,7 @@ func settlementView(
 		return nil
 	}
 	result := &SettlementMethodSnapshotView{
-		ObjectID: deref(objectID), VersionID: deref(versionID), Code: deref(code), Name: deref(name),
+		ObjectID: deref(objectID), ApprovalEntryID: deref(versionID), Code: deref(code), Name: deref(name),
 		RuleType: deref(ruleType), MonthOffset: derefInt32(monthOffset),
 		DayOfMonth: dayOfMonth, DayOffset: derefInt32(dayOffset), Description: deref(description),
 		DueDays: derefInt32(dueDays), CutoffDay: derefInt32(cutoffDay),

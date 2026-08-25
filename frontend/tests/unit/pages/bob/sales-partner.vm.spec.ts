@@ -38,7 +38,7 @@ function page(code: string) {
           operatingEntityName: '经营主体',
           effective: null,
           candidate: {
-            versionId: `version-${code}`,
+            approvalEntryId: `version-${code}`,
             version: 1,
             status: 'DRAFT' as const,
             revision: 1,
@@ -125,7 +125,7 @@ describe('销售合作关系 ViewModel', () => {
       data: {
         objectId: 'slp-draft',
         objectRevision: 1,
-        versionId: 'slp-draft-v1',
+        approvalEntryId: 'slp-draft-v1',
         version: 1,
         status: 'DRAFT',
         revision: 1,
@@ -139,7 +139,7 @@ describe('销售合作关系 ViewModel', () => {
     vm.newParty.value.legalName = '无能力草稿主体'
     vm.operatingEntity.value = {
       objectId: 'ope-1',
-      versionId: 'ope-v1',
+      approvalEntryId: 'ope-v1',
       code: 'OPE-0001',
       name: '经营主体',
     }
@@ -161,7 +161,7 @@ describe('销售合作关系 ViewModel', () => {
     const oldReferences = deferred<{
       data: Array<{
         objectId: string
-        versionId: string
+        approvalEntryId: string
         code: string
         name: string
       }>
@@ -169,7 +169,7 @@ describe('销售合作关系 ViewModel', () => {
     const currentReferences = deferred<{
       data: Array<{
         objectId: string
-        versionId: string
+        approvalEntryId: string
         code: string
         name: string
       }>
@@ -204,13 +204,23 @@ describe('销售合作关系 ViewModel', () => {
     const currentSearch = vm.searchOperatingEntities('新')
     currentReferences.resolve({
       data: [
-        { objectId: 'ope-new', versionId: 'v2', code: 'OPE-2', name: '新主体' },
+        {
+          objectId: 'ope-new',
+          approvalEntryId: 'v2',
+          code: 'OPE-2',
+          name: '新主体',
+        },
       ],
     })
     await currentSearch
     oldReferences.resolve({
       data: [
-        { objectId: 'ope-old', versionId: 'v1', code: 'OPE-1', name: '旧主体' },
+        {
+          objectId: 'ope-old',
+          approvalEntryId: 'v1',
+          code: 'OPE-1',
+          name: '旧主体',
+        },
       ],
     })
     await oldSearch

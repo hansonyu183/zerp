@@ -31,7 +31,10 @@ function selectFiles(event: Event): void {
   localError.value = ''
   const allowed = new Set(['application/pdf', 'image/jpeg', 'image/png'])
   const invalid = files.find(
-    (file) => !allowed.has(file.type) || file.size < 1 || file.size > MAX_ATTACHMENT_BYTES,
+    (file) =>
+      !allowed.has(file.type) ||
+      file.size < 1 ||
+      file.size > MAX_ATTACHMENT_BYTES,
   )
   if (props.attachments.length + files.length > 10) {
     localError.value = '每个资料范围最多 10 个附件。'
@@ -59,7 +62,11 @@ function sizeText(size: number): string {
       <v-btn
         v-if="canUpload"
         :disabled="
-          !created || !editable || !categorySelected || loading || attachments.length >= 10
+          !created ||
+          !editable ||
+          !categorySelected ||
+          loading ||
+          attachments.length >= 10
         "
         :loading="loading"
         prepend-icon="mdi-paperclip-plus"
@@ -80,7 +87,12 @@ function sizeText(size: number): string {
     <v-alert v-if="!created" density="compact" type="info" variant="tonal">
       请先保存客户，再添加附件。
     </v-alert>
-    <v-alert v-else-if="localError" density="compact" type="error" variant="tonal">
+    <v-alert
+      v-else-if="localError"
+      density="compact"
+      type="error"
+      variant="tonal"
+    >
       {{ localError }}
     </v-alert>
     <v-list v-if="attachments.length" lines="two">

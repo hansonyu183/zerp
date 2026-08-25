@@ -191,8 +191,7 @@
                   'DELETED',
                 ],
             },
-          'fromStatus':
-            { '$ref': '#/ApprovalStatus', 'nullable': true },
+          'fromStatus': { '$ref': '#/ApprovalStatus', 'nullable': true },
           'toStatus': { '$ref': '#/ApprovalStatus', 'nullable': true },
           'fromRevision':
             { 'type': 'integer', 'format': 'int64', 'nullable': true },

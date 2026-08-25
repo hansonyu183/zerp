@@ -441,7 +441,7 @@ func TestSaleDeliveryCarrierAffiliationAndApprovalRecheckIntegration(t *testing.
 	}
 	if _, err = bobService.Disable(t.Context(), bobdomain.EntityVehicle, bobdomain.ObjectRevisionInput{
 		ObjectID: recheckVehicle.ObjectID, ObjectRevision: vehicleView.ObjectRevision,
-	}, integrationActorOne, "disable-before-delivery-approve"); err != nil {
+	}, trustedIntegrationActor(t, "disable-before-delivery-approve")); err != nil {
 		t.Fatalf("disable approval recheck vehicle: %v", err)
 	}
 	if _, err = service.Approve(t.Context(), EntitySaleDelivery, DocumentRevisionInput{
@@ -467,7 +467,7 @@ func TestSaleDeliveryCarrierAffiliationAndApprovalRecheckIntegration(t *testing.
 	}
 	if _, err = bobService.Disable(t.Context(), bobdomain.EntityVehicle, bobdomain.ObjectRevisionInput{
 		ObjectID: checkVehicle.ObjectID, ObjectRevision: checkVehicleView.ObjectRevision,
-	}, integrationActorOne, "disable-before-delivery-check"); err != nil {
+	}, trustedIntegrationActor(t, "disable-before-delivery-check")); err != nil {
 		t.Fatalf("disable check revalidation vehicle: %v", err)
 	}
 	if _, err = service.Check(t.Context(), EntitySaleDelivery, DocumentRevisionInput{
@@ -478,7 +478,7 @@ func TestSaleDeliveryCarrierAffiliationAndApprovalRecheckIntegration(t *testing.
 
 	stored, err := service.Get(t.Context(), EntitySaleDelivery, GetInput{DocumentID: internalDelivery.DocumentID})
 	if err != nil || stored.Data.CarrierType != "INTERNAL" || stored.Data.Vehicle == nil ||
-		stored.Data.Vehicle.VersionID != internalVehicle.VersionID {
+		stored.Data.Vehicle.ApprovalEntryID != internalVehicle.ApprovalEntryID {
 		t.Fatalf("historical internal delivery snapshot changed: %+v err=%v", stored.Data, err)
 	}
 }
@@ -545,7 +545,7 @@ func TestWarehouseDisableTracksSalesLifecycleIntegration(t *testing.T) {
 		t.Helper()
 		_, disableErr := bobService.Disable(t.Context(), bobdomain.EntityWarehouse, bobdomain.ObjectRevisionInput{
 			ObjectID: refs.warehouse.ObjectID, ObjectRevision: warehouseView.ObjectRevision,
-		}, integrationActorOne, "warehouse-disable-blocked")
+		}, trustedIntegrationActor(t, "warehouse-disable-blocked"))
 		var domainErr *bobdomain.DomainError
 		if !errors.As(disableErr, &domainErr) || domainErr.Kind != bobdomain.ErrorConflict {
 			t.Fatalf("warehouse disable error = %v, want conflict", disableErr)
@@ -610,7 +610,7 @@ func TestWarehouseDisableTracksSalesLifecycleIntegration(t *testing.T) {
 	}, true)
 	if _, err = bobService.Disable(t.Context(), bobdomain.EntityWarehouse, bobdomain.ObjectRevisionInput{
 		ObjectID: refs.warehouse.ObjectID, ObjectRevision: warehouseView.ObjectRevision,
-	}, integrationActorOne, "warehouse-disable-after-fulfillment"); err != nil {
+	}, trustedIntegrationActor(t, "warehouse-disable-after-fulfillment")); err != nil {
 		t.Fatalf("disable warehouse after fulfillment: %v", err)
 	}
 	if _, err = service.Create(t.Context(), EntitySaleOrder, CreateInput{Data: DraftInput{

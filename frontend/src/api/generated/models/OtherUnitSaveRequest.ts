@@ -5,7 +5,7 @@
 export type OtherUnitSaveRequest = {
   objectId: string;
   approvalEntryId: string;
-  revision: number;
+  approvalRevision: number;
   data: {
     contactName?: string | null;
     contactPhone?: string | null;

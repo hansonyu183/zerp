@@ -50,7 +50,7 @@ func (s *Service) InventoryCountBookBalance(
 	}
 	items := make([]InventoryCountBalanceItem, 0, len(rows))
 	for _, row := range rows {
-		product, resolveErr := s.resolver.ResolveCurrentEffectiveReference(
+		product, resolveErr := s.resolver.ResolveLatestApprovedReference(
 			ctx, tx, bobdomain.EntityProduct, row.ProductObjectID,
 		)
 		if resolveErr != nil {

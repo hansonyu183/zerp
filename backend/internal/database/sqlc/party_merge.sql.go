@@ -150,68 +150,49 @@ func (q *Queries) InsertPartyRelationshipMergeEvent(ctx context.Context, arg Ins
 }
 
 const listPartyMergeRelationships = `-- name: ListPartyMergeRelationships :many
-SELECT 'customer'::text AS relationship_type,relation.object_id,object.code AS object_code,
-       relation.operating_entity_id,operating.legal_name AS operating_entity_name,
-       object.revision AS object_revision,object.enabled,object.current_version_id,
-       object.effective_version_id,current_version.status AS current_status,
-       current_version.revision AS current_revision,relation.merged_into_object_id
-FROM bob_customer_relationships relation
-JOIN bob_objects object ON object.id=relation.object_id AND object.entity='customer'
-JOIN bob_versions current_version ON current_version.id=object.current_version_id
-JOIN bob_operating_entity_versions operating ON operating.version_id=(SELECT effective_version_id FROM bob_objects WHERE id=relation.operating_entity_id AND entity='operating-entity')
+SELECT object.entity AS relationship_type, object.id AS object_id, object.code AS object_code,
+       relation.operating_entity_id, operating_detail.legal_name AS operating_entity_name,
+       object.revision AS object_revision, object.enabled,
+       COALESCE(open_entry.id,'')::text AS open_approval_entry_id,
+       approved.id AS latest_approved_entry_id,
+       COALESCE(open_entry.status,approved.status)::text AS visible_status,
+       COALESCE(open_entry.revision,approved.revision)::bigint AS visible_approval_revision,
+       relation.merged_into_object_id
+FROM bob_party_relationship_endpoints relation
+JOIN bob_objects object ON object.id=relation.object_id
+JOIN LATERAL (
+  SELECT id,status,revision FROM approval_entries
+  WHERE domain='bob' AND entity=object.entity AND subject_id=object.id AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) approved ON true
+LEFT JOIN LATERAL (
+  SELECT id,status,revision FROM approval_entries
+  WHERE domain='bob' AND entity=object.entity AND subject_id=object.id AND status IN ('DRAFT','PENDING')
+  ORDER BY version_no DESC LIMIT 1
+) open_entry ON true
+JOIN LATERAL (
+  SELECT id FROM approval_entries
+  WHERE domain='bob' AND entity='operating-entity' AND subject_id=relation.operating_entity_id AND status='APPROVED'
+  ORDER BY version_no DESC LIMIT 1
+) operating_entry ON true
+JOIN bob_operating_entity_versions operating_detail ON operating_detail.approval_entry_id=operating_entry.id
 WHERE relation.party_id=$1
-UNION ALL
-SELECT 'supplier'::text,relation.object_id,object.code,relation.operating_entity_id,operating.legal_name,
-       object.revision,object.enabled,object.current_version_id,object.effective_version_id,
-       current_version.status,current_version.revision,relation.merged_into_object_id
-FROM bob_supplier_relationships relation
-JOIN bob_objects object ON object.id=relation.object_id AND object.entity='supplier'
-JOIN bob_versions current_version ON current_version.id=object.current_version_id
-JOIN bob_operating_entity_versions operating ON operating.version_id=(SELECT effective_version_id FROM bob_objects WHERE id=relation.operating_entity_id AND entity='operating-entity')
-WHERE relation.party_id=$1
-UNION ALL
-SELECT 'employee'::text,relation.object_id,object.code,relation.operating_entity_id,operating.legal_name,
-       object.revision,object.enabled,object.current_version_id,object.effective_version_id,
-       current_version.status,current_version.revision,relation.merged_into_object_id
-FROM bob_employment_relationships relation
-JOIN bob_objects object ON object.id=relation.object_id AND object.entity='employee'
-JOIN bob_versions current_version ON current_version.id=object.current_version_id
-JOIN bob_operating_entity_versions operating ON operating.version_id=(SELECT effective_version_id FROM bob_objects WHERE id=relation.operating_entity_id AND entity='operating-entity')
-WHERE relation.party_id=$1
-UNION ALL
-SELECT 'other-unit'::text,relation.object_id,object.code,relation.operating_entity_id,operating.legal_name,
-       object.revision,object.enabled,object.current_version_id,object.effective_version_id,
-       current_version.status,current_version.revision,relation.merged_into_object_id
-FROM bob_service_relationships relation
-JOIN bob_objects object ON object.id=relation.object_id AND object.entity='other-unit'
-JOIN bob_versions current_version ON current_version.id=object.current_version_id
-JOIN bob_operating_entity_versions operating ON operating.version_id=(SELECT effective_version_id FROM bob_objects WHERE id=relation.operating_entity_id AND entity='operating-entity')
-WHERE relation.party_id=$1
-UNION ALL
-SELECT 'sales-partner'::text,relation.object_id,object.code,relation.operating_entity_id,operating.legal_name,
-       object.revision,object.enabled,object.current_version_id,object.effective_version_id,
-       current_version.status,current_version.revision,relation.merged_into_object_id
-FROM bob_sales_relationships relation
-JOIN bob_objects object ON object.id=relation.object_id AND object.entity='sales-partner'
-JOIN bob_versions current_version ON current_version.id=object.current_version_id
-JOIN bob_operating_entity_versions operating ON operating.version_id=(SELECT effective_version_id FROM bob_objects WHERE id=relation.operating_entity_id AND entity='operating-entity')
-WHERE relation.party_id=$1
-ORDER BY relationship_type,operating_entity_id,object_id
+ORDER BY object.entity,relation.operating_entity_id,object.id
 `
 
 type ListPartyMergeRelationshipsRow struct {
-	RelationshipType    string  `db:"relationship_type" json:"relationship_type"`
-	ObjectID            string  `db:"object_id" json:"object_id"`
-	ObjectCode          string  `db:"object_code" json:"object_code"`
-	OperatingEntityID   string  `db:"operating_entity_id" json:"operating_entity_id"`
-	OperatingEntityName string  `db:"operating_entity_name" json:"operating_entity_name"`
-	ObjectRevision      int64   `db:"object_revision" json:"object_revision"`
-	Enabled             bool    `db:"enabled" json:"enabled"`
-	CurrentVersionID    string  `db:"current_version_id" json:"current_version_id"`
-	EffectiveVersionID  *string `db:"effective_version_id" json:"effective_version_id"`
-	CurrentStatus       string  `db:"current_status" json:"current_status"`
-	CurrentRevision     int64   `db:"current_revision" json:"current_revision"`
-	MergedIntoObjectID  *string `db:"merged_into_object_id" json:"merged_into_object_id"`
+	RelationshipType        string  `db:"relationship_type" json:"relationship_type"`
+	ObjectID                string  `db:"object_id" json:"object_id"`
+	ObjectCode              string  `db:"object_code" json:"object_code"`
+	OperatingEntityID       string  `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityName     string  `db:"operating_entity_name" json:"operating_entity_name"`
+	ObjectRevision          int64   `db:"object_revision" json:"object_revision"`
+	Enabled                 bool    `db:"enabled" json:"enabled"`
+	OpenApprovalEntryID     string  `db:"open_approval_entry_id" json:"open_approval_entry_id"`
+	LatestApprovedEntryID   string  `db:"latest_approved_entry_id" json:"latest_approved_entry_id"`
+	VisibleStatus           string  `db:"visible_status" json:"visible_status"`
+	VisibleApprovalRevision int64   `db:"visible_approval_revision" json:"visible_approval_revision"`
+	MergedIntoObjectID      *string `db:"merged_into_object_id" json:"merged_into_object_id"`
 }
 
 func (q *Queries) ListPartyMergeRelationships(ctx context.Context, partyID string) ([]ListPartyMergeRelationshipsRow, error) {
@@ -231,10 +212,10 @@ func (q *Queries) ListPartyMergeRelationships(ctx context.Context, partyID strin
 			&i.OperatingEntityName,
 			&i.ObjectRevision,
 			&i.Enabled,
-			&i.CurrentVersionID,
-			&i.EffectiveVersionID,
-			&i.CurrentStatus,
-			&i.CurrentRevision,
+			&i.OpenApprovalEntryID,
+			&i.LatestApprovedEntryID,
+			&i.VisibleStatus,
+			&i.VisibleApprovalRevision,
 			&i.MergedIntoObjectID,
 		); err != nil {
 			return nil, err
@@ -248,7 +229,7 @@ func (q *Queries) ListPartyMergeRelationships(ctx context.Context, partyID strin
 }
 
 const lockPartyMergeObjects = `-- name: LockPartyMergeObjects :many
-SELECT id,entity,revision,enabled,current_version_id,effective_version_id
+SELECT id,entity,revision,enabled
 FROM bob_objects
 WHERE id=ANY($1::text[])
 ORDER BY id
@@ -256,12 +237,10 @@ FOR UPDATE
 `
 
 type LockPartyMergeObjectsRow struct {
-	ID                 string  `db:"id" json:"id"`
-	Entity             string  `db:"entity" json:"entity"`
-	Revision           int64   `db:"revision" json:"revision"`
-	Enabled            bool    `db:"enabled" json:"enabled"`
-	CurrentVersionID   string  `db:"current_version_id" json:"current_version_id"`
-	EffectiveVersionID *string `db:"effective_version_id" json:"effective_version_id"`
+	ID       string `db:"id" json:"id"`
+	Entity   string `db:"entity" json:"entity"`
+	Revision int64  `db:"revision" json:"revision"`
+	Enabled  bool   `db:"enabled" json:"enabled"`
 }
 
 func (q *Queries) LockPartyMergeObjects(ctx context.Context, objectIds []string) ([]LockPartyMergeObjectsRow, error) {
@@ -278,8 +257,6 @@ func (q *Queries) LockPartyMergeObjects(ctx context.Context, objectIds []string)
 			&i.Entity,
 			&i.Revision,
 			&i.Enabled,
-			&i.CurrentVersionID,
-			&i.EffectiveVersionID,
 		); err != nil {
 			return nil, err
 		}

@@ -15,7 +15,7 @@ type ReferenceQueryInput struct {
 
 type ReferenceCandidate struct {
 	ObjectID           string                  `json:"objectId"`
-	VersionID          string                  `json:"versionId"`
+	ApprovalEntryID    string                  `json:"approvalEntryId"`
 	Code               string                  `json:"code"`
 	Name               string                  `json:"name"`
 	BehaviorProfile    string                  `json:"behaviorProfile,omitempty"`
@@ -44,10 +44,10 @@ func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQ
 	}
 	result := make([]ReferenceCandidate, 0, len(rows))
 	for _, row := range rows {
-		candidate := ReferenceCandidate{ObjectID: row.ObjectID, VersionID: deref(row.VersionID), Code: row.Code, Name: row.Name,
+		candidate := ReferenceCandidate{ObjectID: row.ObjectID, ApprovalEntryID: row.ApprovalEntryID, Code: row.Code, Name: row.Name,
 			BehaviorProfile: row.BehaviorProfile, DefaultInputUnitID: row.DefaultInputUnitID, PricingUnitID: row.PricingUnitID}
 		if input.Entity == EntityProduct {
-			candidate.UnitConversions, err = loadProductUnitConversions(ctx, s.queries, candidate.VersionID)
+			candidate.UnitConversions, err = loadProductUnitConversions(ctx, s.queries, candidate.ApprovalEntryID)
 			if err != nil {
 				return nil, s.internal("read product reference unit conversions", err)
 			}

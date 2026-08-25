@@ -13,25 +13,42 @@ import (
 
 const countWorkbenchBobItems = `-- name: CountWorkbenchBobItems :one
 SELECT count(*)
-FROM bob_version_summaries view
-WHERE view.version_id = view.current_version_id
+FROM approval_entries entry
+JOIN bob_objects object ON object.id=entry.subject_id AND object.entity=entry.entity
+CROSS JOIN LATERAL (
+  SELECT CASE entry.entity
+    WHEN 'customer' THEN (SELECT party.display_name FROM bob_customer_relationships relationship JOIN bob_parties party ON party.id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
+    WHEN 'customer-account' THEN (SELECT payload.name FROM bob_customer_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'supplier' THEN (SELECT payload.name FROM bob_supplier_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'other-unit' THEN (SELECT party.display_name FROM bob_service_relationships relationship JOIN bob_parties party ON party.id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
+    WHEN 'employee' THEN (SELECT payload.name FROM bob_employee_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'sales-partner' THEN (SELECT party.display_name FROM bob_sales_relationships relationship JOIN bob_parties party ON party.id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
+    WHEN 'product' THEN (SELECT payload.name FROM bob_product_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'warehouse' THEN (SELECT payload.name FROM bob_warehouse_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'vehicle' THEN (SELECT payload.name FROM bob_vehicle_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'fund-account' THEN (SELECT payload.name FROM bob_fund_account_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'operating-entity' THEN (SELECT payload.legal_name FROM bob_operating_entity_versions payload WHERE payload.approval_entry_id=entry.id)
+    ELSE ''
+  END AS name
+) named
+WHERE entry.domain='bob'
   AND (
-    (view.status = 'DRAFT' AND view.entity = ANY($1::text[]))
+    (entry.status = 'DRAFT' AND entry.entity = ANY($1::text[]))
     OR (
-      view.status = 'PENDING'
+      entry.status = 'PENDING'
       AND (
         (
-          view.entity = ANY($2::text[])
-          AND view.submitted_by IS DISTINCT FROM $3::text
+          entry.entity = ANY($2::text[])
+          AND entry.submitted_by IS DISTINCT FROM $3::text
         )
-        OR view.entity = ANY($4::text[])
+        OR entry.entity = ANY($4::text[])
       )
     )
   )
   AND (
     $5::text = ''
-    OR view.code ILIKE '%' || $5 || '%'
-    OR view.name ILIKE '%' || $5 || '%'
+    OR object.code ILIKE '%' || $5 || '%'
+    OR named.name ILIKE '%' || $5 || '%'
   )
 `
 
@@ -103,33 +120,52 @@ func (q *Queries) CountWorkbenchVouItems(ctx context.Context, arg CountWorkbench
 }
 
 const listWorkbenchBobItems = `-- name: ListWorkbenchBobItems :many
-SELECT view.object_id, view.entity, view.code, view.name, view.object_revision,
-       view.version_id, view.status, view.version_revision, view.object_updated_at,
+SELECT entry.subject_id AS object_id, entry.entity, object.code,
+       named.name,
+       object.revision AS object_revision,
+       entry.id AS approval_entry_id, entry.status, entry.revision AS approval_revision, object.updated_at AS object_updated_at,
        CASE
-         WHEN view.submitted_by = $1::text THEN true
+         WHEN entry.submitted_by = $1::text THEN true
          ELSE false
        END AS is_submitted_by_actor
-FROM bob_version_summaries view
-WHERE view.version_id = view.current_version_id
+FROM approval_entries entry
+JOIN bob_objects object ON object.id=entry.subject_id AND object.entity=entry.entity
+CROSS JOIN LATERAL (
+  SELECT CASE entry.entity
+    WHEN 'customer' THEN (SELECT party.display_name FROM bob_customer_relationships relationship JOIN bob_parties party ON party.id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
+    WHEN 'customer-account' THEN (SELECT payload.name FROM bob_customer_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'supplier' THEN (SELECT payload.name FROM bob_supplier_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'other-unit' THEN (SELECT party.display_name FROM bob_service_relationships relationship JOIN bob_parties party ON party.id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
+    WHEN 'employee' THEN (SELECT payload.name FROM bob_employee_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'sales-partner' THEN (SELECT party.display_name FROM bob_sales_relationships relationship JOIN bob_parties party ON party.id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
+    WHEN 'product' THEN (SELECT payload.name FROM bob_product_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'warehouse' THEN (SELECT payload.name FROM bob_warehouse_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'vehicle' THEN (SELECT payload.name FROM bob_vehicle_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'fund-account' THEN (SELECT payload.name FROM bob_fund_account_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'operating-entity' THEN (SELECT payload.legal_name FROM bob_operating_entity_versions payload WHERE payload.approval_entry_id=entry.id)
+    ELSE ''
+  END AS name
+) named
+WHERE entry.domain='bob'
   AND (
-    (view.status = 'DRAFT' AND view.entity = ANY($2::text[]))
+    (entry.status = 'DRAFT' AND entry.entity = ANY($2::text[]))
     OR (
-      view.status = 'PENDING'
+      entry.status = 'PENDING'
       AND (
         (
-          view.entity = ANY($3::text[])
-          AND view.submitted_by IS DISTINCT FROM $1::text
+          entry.entity = ANY($3::text[])
+          AND entry.submitted_by IS DISTINCT FROM $1::text
         )
-        OR view.entity = ANY($4::text[])
+        OR entry.entity = ANY($4::text[])
       )
     )
   )
   AND (
     $5::text = ''
-    OR view.code ILIKE '%' || $5 || '%'
-    OR view.name ILIKE '%' || $5 || '%'
+    OR object.code ILIKE '%' || $5 || '%'
+    OR named.name ILIKE '%' || $5 || '%'
   )
-ORDER BY view.object_updated_at DESC, view.object_id ASC
+ORDER BY object.updated_at DESC, entry.subject_id ASC
 LIMIT $7 OFFSET $6
 `
 
@@ -149,9 +185,9 @@ type ListWorkbenchBobItemsRow struct {
 	Code               string             `db:"code" json:"code"`
 	Name               string             `db:"name" json:"name"`
 	ObjectRevision     int64              `db:"object_revision" json:"object_revision"`
-	VersionID          string             `db:"version_id" json:"version_id"`
+	ApprovalEntryID    string             `db:"approval_entry_id" json:"approval_entry_id"`
 	Status             string             `db:"status" json:"status"`
-	VersionRevision    int64              `db:"version_revision" json:"version_revision"`
+	ApprovalRevision   int64              `db:"approval_revision" json:"approval_revision"`
 	ObjectUpdatedAt    pgtype.Timestamptz `db:"object_updated_at" json:"object_updated_at"`
 	IsSubmittedByActor bool               `db:"is_submitted_by_actor" json:"is_submitted_by_actor"`
 }
@@ -179,9 +215,9 @@ func (q *Queries) ListWorkbenchBobItems(ctx context.Context, arg ListWorkbenchBo
 			&i.Code,
 			&i.Name,
 			&i.ObjectRevision,
-			&i.VersionID,
+			&i.ApprovalEntryID,
 			&i.Status,
-			&i.VersionRevision,
+			&i.ApprovalRevision,
 			&i.ObjectUpdatedAt,
 			&i.IsSubmittedByActor,
 		); err != nil {

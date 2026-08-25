@@ -13,14 +13,14 @@ import {
 
 const customer = {
   objectId: 'customer-1',
-  versionId: 'customer-v1',
+  approvalEntryId: 'customer-v1',
   entity: 'customer' as const,
   code: 'CUS-001',
   name: '客户一',
 }
 const salesperson = {
   objectId: 'employee-1',
-  versionId: 'employee-v1',
+  approvalEntryId: 'employee-v1',
   entity: 'employee' as const,
   code: 'EMP-001',
   name: '业务员一',
@@ -48,7 +48,7 @@ const source: IntermediaryCalculationSource = {
       salesContractStatus: 'NOT_REQUIRED',
       product: {
         objectId: 'product-1',
-        versionId: 'product-v1',
+        approvalEntryId: 'product-v1',
         entity: 'product',
         code: 'P-001',
         name: '产品一',
@@ -117,7 +117,7 @@ describe('intermediary calculation QuickJS sandbox', () => {
     const externalSource = structuredClone(source)
     externalSource.lines[0].salesperson = {
       objectId: 'sales-partner-1',
-      versionId: 'sales-partner-v1',
+      approvalEntryId: 'sales-partner-v1',
       entity: 'sales-partner',
       code: 'SLP-001',
       name: '外部销售一',
@@ -189,7 +189,7 @@ describe('intermediary calculation QuickJS sandbox', () => {
 
     const intermediary = {
       objectId: 'other-unit-1',
-      versionId: 'other-unit-v1',
+      approvalEntryId: 'other-unit-v1',
       entity: 'other-unit' as const,
       code: 'OTP-001',
       name: '居间商一',
@@ -357,7 +357,7 @@ describe('intermediary calculation QuickJS sandbox', () => {
           ...result(),
           summaries: [
             {
-              payee: { ...salesperson, versionId: 'employee-v2' },
+              payee: { ...salesperson, approvalEntryId: 'employee-v2' },
               category: 'COMMISSION',
               amount: '1890.00',
             },
@@ -512,7 +512,7 @@ describe('intermediary calculation QuickJS sandbox', () => {
       adjustmentRebateAmount: '2.00',
       intermediary: {
         objectId: 'other-unit-1',
-        versionId: 'other-unit-v1',
+        approvalEntryId: 'other-unit-v1',
         entity: 'other-unit',
         code: 'OTP-001',
         name: '居间商一',

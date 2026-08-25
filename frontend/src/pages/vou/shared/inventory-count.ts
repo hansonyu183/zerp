@@ -25,12 +25,15 @@ export function useVoucherInventoryCount(
     loading.value = true
     setError(null)
     try {
-      const { data } = await apiClient.postContract('vou/inventory-count/book-balance', {
-        page: 1,
-        pageSize: 200,
-        warehouseObjectId: form.value.warehouse.objectId,
-        asOfDate: form.value.businessDate,
-      })
+      const { data } = await apiClient.postContract(
+        'vou/inventory-count/book-balance',
+        {
+          page: 1,
+          pageSize: 200,
+          warehouseObjectId: form.value.warehouse.objectId,
+          asOfDate: form.value.businessDate,
+        },
+      )
       if (data.total > 200) {
         setError(
           `该仓库有 ${data.total} 个非零库存商品，超过单据 200 行上限，请拆分盘点。`,

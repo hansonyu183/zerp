@@ -429,7 +429,7 @@ Cookie 至少设置 `HttpOnly`、`Secure`、适当的 `SameSite`、受限的 `Pa
 
 - BOB `PENDING` 行在用户拥有该实体 `unsubmit` 权限时返回“撤回提交”；调用 `/bob/{entity}/unsubmit` 将版本退回 `DRAFT`，必须填写原因；
 - VOU `CHECKED` 行在用户拥有该实体 `uncheck` 权限时返回“反核对”；调用 `/vou/{entity}/uncheck` 将单据退回 `DRAFT`，不要求原因；
-- BOB `EFFECTIVE` 和 VOU `APPROVED` 不属于待办，不为提供 `unapprove` 而进入工作台；撤销批准和反批准继续在对应资料或单据页面执行。
+- BOB 和 VOU 的 `APPROVED` 不属于待办，不为提供 `unapprove` 而进入工作台；撤销批准和反批准继续在对应资料或单据页面执行。
 
 反向动作和正向动作一样由后端根据行状态与当前权限写入 `availableActions`；驳回是审核人带意见退回，撤回提交是具备独立权限的逆向动作，两者审计语义不同。
 

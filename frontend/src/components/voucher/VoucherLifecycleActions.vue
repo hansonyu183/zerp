@@ -25,7 +25,10 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
-  action: [action: 'check' | 'approve' | 'uncheck' | 'unapprove', reason?: string]
+  action: [
+    action: 'check' | 'approve' | 'uncheck' | 'unapprove',
+    reason?: string,
+  ]
 }>()
 
 const reverseOpen = ref(false)

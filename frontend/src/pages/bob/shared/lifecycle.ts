@@ -1,21 +1,17 @@
 import type { Ref } from 'vue'
 import { apiClient } from '@/api/client'
 import { getErrorMessage } from '@/api/types'
-import type {
-  BobActionAvailability,
-  BobEntity,
-  BobListItem,
-} from './types'
+import type { BobActionAvailability, BobEntity, BobListItem } from './types'
 import { bobListActiveVersion } from './types'
 
 interface VersionRevisionRequest {
   objectId: string
-  versionId: string
-  revision: number
+  approvalEntryId: string
+  approvalRevision: number
 }
 
 interface ReviewRequest extends VersionRevisionRequest {
-  comment: string
+  reason: string | null
 }
 
 export function bobSelfReviewBlocked(
@@ -24,8 +20,8 @@ export function bobSelfReviewBlocked(
 ): boolean {
   return (
     currentUserId !== undefined &&
-    bobListActiveVersion(row).status === 'PENDING' &&
-    bobListActiveVersion(row).submittedBy === currentUserId
+    bobListActiveVersion(row).approval.status === 'PENDING' &&
+    bobListActiveVersion(row).approval.submittedBy === currentUserId
   )
 }
 
@@ -45,27 +41,23 @@ export function bobActionAvailability(
   can: (action: string) => boolean,
 ): BobActionAvailability {
   const version = bobListActiveVersion(row)
-  const status = version.status
+  const status = version.approval.status
   const selfReview = bobSelfReviewBlocked(row, currentUserId)
   return {
     view: can('get'),
-    edit:
-      (status === 'DRAFT' ||
-        (row.effective !== null && status === 'EFFECTIVE')) &&
-      can('get') &&
-      can('save'),
+    edit: status === 'DRAFT' && can('get') && can('save'),
     delete:
       can('delete') &&
       status === 'DRAFT' &&
-      version.version === 1 &&
-      row.effective === null,
+      version.approval.versionNo === 1 &&
+      row.latestApproved === null,
     submit: can('submit') && status === 'DRAFT',
     unsubmit: can('unsubmit') && status === 'PENDING',
     approve: can('approve') && status === 'PENDING' && !selfReview,
-    unapprove: can('unapprove') && status === 'EFFECTIVE',
+    unapprove: can('unapprove') && status === 'APPROVED',
     reject: can('reject') && status === 'PENDING' && !selfReview,
-    enable: can('enable') && status === 'EFFECTIVE' && !row.enabled,
-    disable: can('disable') && status === 'EFFECTIVE' && row.enabled,
+    enable: can('enable') && row.latestApproved !== null && !row.enabled,
+    disable: can('disable') && row.latestApproved !== null && row.enabled,
     versions: can('versions'),
     audit: can('audit-history'),
   }
@@ -116,16 +108,19 @@ export function useBobLifecycleActions(
     actionLoading.value = `${action}:${row.objectId}`
     errorMessage.value = null
     try {
-      const request: VersionRevisionRequest | ReviewRequest = {
+      const request: VersionRevisionRequest = {
         objectId: row.objectId,
-        versionId: bobListActiveVersion(row).versionId,
-        revision: bobListActiveVersion(row).revision,
-        ...(action === 'reject' ? { comment: normalizedComment } : {}),
+        approvalEntryId: bobListActiveVersion(row).approval.approvalEntryId,
+        approvalRevision: bobListActiveVersion(row).approval.revision,
       }
-      await apiClient.postContract(
-        `bob/${entity}/${action}`,
-        request,
-      )
+      if (action === 'reject') {
+        await apiClient.postContract(`bob/${entity}/reject`, {
+          ...request,
+          reason: normalizedComment,
+        } satisfies ReviewRequest)
+      } else {
+        await apiClient.postContract(`bob/${entity}/approve`, request)
+      }
       await query()
       onSuccess(row, action)
       return true
@@ -155,16 +150,12 @@ export function useBobLifecycleActions(
     actionLoading.value = `${action}:${row.objectId}`
     errorMessage.value = null
     try {
-      await apiClient.postContract(
-        `bob/${entity}/${action}`,
-        {
-          objectId: row.objectId,
-          objectRevision: row.objectRevision,
-          versionId: bobListActiveVersion(row).versionId,
-          revision: bobListActiveVersion(row).revision,
-          reason: normalizedReason,
-        },
-      )
+      await apiClient.postContract(`bob/${entity}/${action}`, {
+        objectId: row.objectId,
+        approvalEntryId: bobListActiveVersion(row).approval.approvalEntryId,
+        approvalRevision: bobListActiveVersion(row).approval.revision,
+        reason: normalizedReason,
+      })
       onSuccess(row, action)
       void query()
       return true

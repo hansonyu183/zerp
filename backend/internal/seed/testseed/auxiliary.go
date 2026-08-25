@@ -102,9 +102,13 @@ func (s *Seeder) seedAuxiliary(ctx context.Context, counts *Counts) error {
 		counts.add(result)
 	}
 	for _, code := range []string{"UNT-0001", "UNT-0002", "UNT-0003", "UNT-0004"} {
+		actor, actorErr := seedActor(actorID, requestID(code, "query"))
+		if actorErr != nil {
+			return actorErr
+		}
 		view, err := s.auxiliary.Query(ctx, auxdomain.EntityMeasurementUnit, auxdomain.QueryInput{
 			Page: 1, PageSize: 20, Filters: auxdomain.QueryFilters{Keyword: code},
-		})
+		}, actor)
 		if err != nil || len(view.Items) != 1 || view.Items[0].Code != code {
 			return fmt.Errorf("required measurement unit %s is unavailable", code)
 		}
@@ -123,33 +127,64 @@ func (s *Seeder) ensureAuxiliary(
 ) (auxdomain.ObjectView, outcome, error) {
 	var objectID string
 	err := s.pool.QueryRow(ctx, `
-		SELECT object_id
-		FROM aux_audit_events
-		WHERE request_id=$1 AND event_type='CREATED'
-		ORDER BY occurred_at,id
+		SELECT subject_id
+		FROM approval_events
+		WHERE domain='aux' AND request_id=$1 AND action='CREATED'
+		ORDER BY created_at,id
 		LIMIT 1
 	`, requestID(sample.key, "create")).Scan(&objectID)
 	created := false
 	if errors.Is(err, pgx.ErrNoRows) {
+		createActor, actorErr := seedActor(actorID, requestID(sample.key, "create"))
+		if actorErr != nil {
+			return auxdomain.ObjectView{}, 0, actorErr
+		}
 		result, createErr := s.auxiliary.Create(
 			ctx,
 			sample.entity,
 			auxdomain.CreateInput{Data: auxdomain.CreateData{Data: sample.data(s.auxRefs)}},
-			actorID,
-			requestID(sample.key, "create"),
+			createActor,
 		)
 		if createErr != nil {
 			return auxdomain.ObjectView{}, 0, createErr
 		}
+		submitter, submitErr := seedActor(actorID, requestID(sample.key, "submit"))
+		if submitErr != nil {
+			return auxdomain.ObjectView{}, 0, submitErr
+		}
+		pending, submitErr := s.auxiliary.Submit(ctx, sample.entity, auxdomain.ApprovalRevisionInput{
+			ObjectID: result.ObjectID, ApprovalEntryID: result.Approval.ApprovalEntryID,
+			ApprovalRevision: result.Approval.Revision,
+		}, submitter)
+		if submitErr != nil {
+			return auxdomain.ObjectView{}, 0, submitErr
+		}
+		reviewer, reviewErr := seedActor(reviewerID, requestID(sample.key, "approve"))
+		if reviewErr != nil {
+			return auxdomain.ObjectView{}, 0, reviewErr
+		}
+		approved, reviewErr := s.auxiliary.Approve(ctx, sample.entity, auxdomain.ApprovalRevisionInput{
+			ObjectID: result.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID,
+			ApprovalRevision: pending.Approval.Revision,
+		}, reviewer)
+		if reviewErr != nil {
+			return auxdomain.ObjectView{}, 0, reviewErr
+		}
+		_ = approved
 		objectID = result.ObjectID
 		created = true
 	} else if err != nil {
 		return auxdomain.ObjectView{}, 0, err
 	}
+	getActor, actorErr := seedActor(actorID, requestID(sample.key, "get"))
+	if actorErr != nil {
+		return auxdomain.ObjectView{}, 0, actorErr
+	}
 	view, err := s.auxiliary.Get(
 		ctx,
 		sample.entity,
 		auxdomain.GetInput{ObjectID: objectID},
+		getActor,
 	)
 	if err != nil {
 		return auxdomain.ObjectView{}, 0, err
@@ -158,22 +193,26 @@ func (s *Seeder) ensureAuxiliary(
 		var external int
 		if err = s.pool.QueryRow(ctx, `
 			SELECT count(*)
-			FROM aux_audit_events
-			WHERE object_id=$1 AND request_id NOT LIKE $2
+			FROM approval_events
+			WHERE domain='aux' AND subject_id=$1 AND request_id NOT LIKE $2
 		`, objectID, seedPrefix+"%").Scan(&external); err != nil {
 			return auxdomain.ObjectView{}, 0, err
 		}
 		if external == 0 {
-			input := auxdomain.RevisionInput{ObjectID: objectID, Revision: view.ObjectRevision}
+			input := auxdomain.ObjectRevisionInput{ObjectID: objectID, ObjectRevision: view.ObjectRevision}
+			stateActor, stateErr := seedActor(actorID, requestID(sample.key, "state"))
+			if stateErr != nil {
+				return auxdomain.ObjectView{}, 0, stateErr
+			}
 			if sample.enabled {
-				_, err = s.auxiliary.Enable(ctx, sample.entity, input, actorID, requestID(sample.key, "enable"))
+				_, err = s.auxiliary.Enable(ctx, sample.entity, input, stateActor)
 			} else {
-				_, err = s.auxiliary.Disable(ctx, sample.entity, input, actorID, requestID(sample.key, "disable"))
+				_, err = s.auxiliary.Disable(ctx, sample.entity, input, stateActor)
 			}
 			if err != nil {
 				return auxdomain.ObjectView{}, 0, err
 			}
-			view, err = s.auxiliary.Get(ctx, sample.entity, auxdomain.GetInput{ObjectID: objectID})
+			view, err = s.auxiliary.Get(ctx, sample.entity, auxdomain.GetInput{ObjectID: objectID}, getActor)
 			if err != nil {
 				return auxdomain.ObjectView{}, 0, err
 			}

@@ -163,8 +163,8 @@ export function validateVoucherDraft(
         const adjusted =
           material.actualMaterial?.objectId !==
             material.formulaMaterial.objectId ||
-          material.actualMaterial?.versionId !==
-            material.formulaMaterial.versionId ||
+          material.actualMaterial?.approvalEntryId !==
+            material.formulaMaterial.approvalEntryId ||
           material.actualBaseQuantity.trim() !==
             material.suggestedBaseQuantity.trim()
         if (
@@ -210,7 +210,7 @@ export function validateVoucherDraft(
       lineAmounts.push(lineAmount)
       if (Array.from(line.remark).length > 1000)
         return `第 ${index + 1} 行 · 备注：不能超过 1000 字。`
-      const key = `${line.product.objectId}/${line.product.versionId}`
+      const key = `${line.product.objectId}/${line.product.approvalEntryId}`
       if (seen.has(key)) return `第 ${index + 1} 行 · 产品：不能重复添加。`
       seen.add(key)
       if (

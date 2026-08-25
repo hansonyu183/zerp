@@ -65,7 +65,10 @@ export function useVoucherSalesChain(
     sourceLoading.value = true
     sourceError.value = null
     try {
-      const { data } = await apiClient.postContract(`vou/${config.parentEntity}/get`, { documentId })
+      const { data } = await apiClient.postContract(
+        `vou/${config.parentEntity}/get`,
+        { documentId },
+      )
       form.value.currency = data.data.currency
       if (config.productionMode === 'order') {
         form.value.productionLines = (data.data.productLines ?? []).flatMap(

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 )
 
 func TestPartyMergeAssessmentFindsTypedOperatingEntityConflict(t *testing.T) {
@@ -11,11 +12,11 @@ func TestPartyMergeAssessmentFindsTypedOperatingEntityConflict(t *testing.T) {
 	target := dbsqlc.LockPartyMergePartyRow{ID: newID(), Kind: PartyKindOrganization, Revision: 4}
 	sourceRelationships := []partyMergeRelationship{{
 		relationshipType: EntitySupplier, objectID: newID(), operatingEntityID: newID(), objectRevision: 1,
-		enabled: true, currentVersionID: "v1", effectiveVersionID: "v1", currentStatus: StatusEffective, currentRevision: 1,
+		enabled: true, latestApprovedID: "v1", visibleStatus: string(approval.StatusApproved), visibleRevision: 1,
 	}}
 	targetRelationships := []partyMergeRelationship{{
 		relationshipType: EntitySupplier, objectID: newID(), operatingEntityID: sourceRelationships[0].operatingEntityID, objectRevision: 1,
-		enabled: true, currentVersionID: "v2", effectiveVersionID: "v2", currentStatus: StatusEffective, currentRevision: 1,
+		enabled: true, latestApprovedID: "v2", visibleStatus: string(approval.StatusApproved), visibleRevision: 1,
 	}}
 	assessment, _, _ := partyMergeAssessmentWithRelationships(source, target, sourceRelationships, targetRelationships)
 	if len(assessment.BlockReasons) != 0 {
@@ -36,7 +37,7 @@ func TestPartyMergeAssessmentBlocksCandidateOrMergedParty(t *testing.T) {
 	target := dbsqlc.LockPartyMergePartyRow{ID: newID(), Kind: PartyKindPerson, Revision: 1}
 	relationships := []partyMergeRelationship{{
 		relationshipType: EntityEmployee, objectID: newID(), operatingEntityID: newID(), objectRevision: 1,
-		enabled: true, currentVersionID: "candidate", effectiveVersionID: "effective", currentStatus: StatusDraft, currentRevision: 1,
+		enabled: true, openApprovalEntryID: "candidate", latestApprovedID: "effective", visibleStatus: StatusDraft, visibleRevision: 1,
 	}}
 	assessment, _, _ := partyMergeAssessmentWithRelationships(source, target, relationships, nil)
 	if len(assessment.BlockReasons) < 2 {
@@ -72,10 +73,10 @@ func TestPartyMergeFingerprintChangesWithRelationshipState(t *testing.T) {
 	target := dbsqlc.LockPartyMergePartyRow{ID: newID(), Kind: PartyKindOrganization, Revision: 1}
 	relationships := []partyMergeRelationship{{
 		relationshipType: EntitySupplier, objectID: newID(), operatingEntityID: newID(), objectRevision: 1,
-		enabled: true, currentVersionID: "effective", effectiveVersionID: "effective", currentStatus: StatusEffective, currentRevision: 1,
+		enabled: true, openApprovalEntryID: "effective", latestApprovedID: "effective", visibleStatus: string(approval.StatusApproved), visibleRevision: 1,
 	}}
 	before := partyMergeFingerprint(source, target, relationships, nil)
-	relationships[0].currentRevision++
+	relationships[0].visibleRevision++
 	after := partyMergeFingerprint(source, target, relationships, nil)
 	if before == after {
 		t.Fatal("relationship state change did not invalidate fingerprint")

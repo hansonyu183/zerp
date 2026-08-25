@@ -413,13 +413,13 @@
   'OpeningPartyInput':
     {
       'type': 'object',
-      'required': ['entity', 'objectId', 'versionId', 'code', 'name'],
+      'required': ['entity', 'objectId', 'approvalEntryId', 'code', 'name'],
       'additionalProperties': false,
       'properties':
         {
           'entity': { 'type': 'string' },
           'objectId': { 'type': 'string' },
-          'versionId': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
           'code': { 'type': 'string' },
           'name': { 'type': 'string' },
         },

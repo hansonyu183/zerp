@@ -26,14 +26,14 @@ type fixedSignoffLine struct {
 }
 
 type salesSource struct {
-	ID, Number, Entity, Status, Currency  string
-	BusinessDate                          time.Time
-	Total                                 int64
-	CustomerObjectID, CustomerVersionID   string
-	CustomerCode, CustomerName            string
-	WarehouseObjectID, WarehouseVersionID string
-	WarehouseCode, WarehouseName          string
-	OperatingEntityObjectID               string
+	ID, Number, Entity, Status, Currency        string
+	BusinessDate                                time.Time
+	Total                                       int64
+	CustomerObjectID, CustomerApprovalEntryID   string
+	CustomerCode, CustomerName                  string
+	WarehouseObjectID, WarehouseApprovalEntryID string
+	WarehouseCode, WarehouseName                string
+	OperatingEntityObjectID                     string
 }
 
 func validateChainHeader(data DraftInput) (time.Time, *string, error) {
@@ -232,36 +232,36 @@ func (s *Service) lockSalesSource(
 	switch entity {
 	case EntitySaleOrder:
 		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.business_date,d.currency,d.total_amount_cents,
-			x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name,
-			COALESCE(x.warehouse_object_id,''),COALESCE(x.warehouse_version_id,''),
+			x.customer_object_id,x.customer_approval_entry_id,x.customer_code,x.customer_name,
+			COALESCE(x.warehouse_object_id,''),COALESCE(x.warehouse_approval_entry_id,''),
 			COALESCE(x.warehouse_code,''),COALESCE(x.warehouse_name,'')
 			FROM vou_documents d JOIN vou_sale_order_details x ON x.document_id=d.id
 			WHERE d.id=$1 AND d.entity='sale-order' FOR UPDATE`, id).
 			Scan(&source.Number, &source.Status, &date, &source.Currency, &source.Total,
-				&source.CustomerObjectID, &source.CustomerVersionID, &source.CustomerCode, &source.CustomerName,
-				&source.WarehouseObjectID, &source.WarehouseVersionID, &source.WarehouseCode, &source.WarehouseName)
+				&source.CustomerObjectID, &source.CustomerApprovalEntryID, &source.CustomerCode, &source.CustomerName,
+				&source.WarehouseObjectID, &source.WarehouseApprovalEntryID, &source.WarehouseCode, &source.WarehouseName)
 	case EntitySaleOutbound:
 		var row dbsqlc.LockVouSaleOutboundSourceRow
 		row, err = qtx.LockVouSaleOutboundSource(ctx, id)
 		if err == nil {
 			source.Number, source.Status, date, source.Currency, source.Total =
 				row.DocumentNo, row.Status, row.BusinessDate.Time, row.Currency, row.TotalAmountCents
-			source.CustomerObjectID, source.CustomerVersionID = row.CustomerObjectID, row.CustomerVersionID
+			source.CustomerObjectID, source.CustomerApprovalEntryID = row.CustomerObjectID, row.CustomerApprovalEntryID
 			source.CustomerCode, source.CustomerName = row.CustomerCode, row.CustomerName
-			source.WarehouseObjectID, source.WarehouseVersionID = deref(row.WarehouseObjectID), deref(row.WarehouseVersionID)
+			source.WarehouseObjectID, source.WarehouseApprovalEntryID = deref(row.WarehouseObjectID), deref(row.WarehouseApprovalEntryID)
 			source.WarehouseCode, source.WarehouseName = deref(row.WarehouseCode), deref(row.WarehouseName)
 			source.OperatingEntityObjectID = row.OperatingEntityID
 		}
 	case EntitySaleDelivery:
 		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.business_date,d.currency,d.total_amount_cents,
-			x.customer_object_id,x.customer_version_id,x.customer_code,x.customer_name,
-			o.warehouse_object_id,o.warehouse_version_id,o.warehouse_code,o.warehouse_name
+			x.customer_object_id,x.customer_approval_entry_id,x.customer_code,x.customer_name,
+			o.warehouse_object_id,o.warehouse_approval_entry_id,o.warehouse_code,o.warehouse_name
 			FROM vou_documents d JOIN vou_sale_delivery_details x ON x.document_id=d.id
 			JOIN vou_sale_outbound_details o ON o.document_id=x.source_outbound_id
 			WHERE d.id=$1 AND d.entity='sale-delivery' FOR UPDATE`, id).
 			Scan(&source.Number, &source.Status, &date, &source.Currency, &source.Total,
-				&source.CustomerObjectID, &source.CustomerVersionID, &source.CustomerCode, &source.CustomerName,
-				&source.WarehouseObjectID, &source.WarehouseVersionID, &source.WarehouseCode, &source.WarehouseName)
+				&source.CustomerObjectID, &source.CustomerApprovalEntryID, &source.CustomerCode, &source.CustomerName,
+				&source.WarehouseObjectID, &source.WarehouseApprovalEntryID, &source.WarehouseCode, &source.WarehouseName)
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return source, domainError(ErrorValidation, "source document not found", nil, nil)
@@ -362,29 +362,29 @@ func (s *Service) writeSaleOutbound(
 	if err = validateReference(data.Warehouse, "warehouse", true); err != nil {
 		return MutationResult{}, err
 	}
-	warehouse, err := s.resolver.ResolveEffectiveReference(
-		ctx, tx, bobdomain.EntityWarehouse, data.Warehouse.ObjectID, data.Warehouse.VersionID,
+	warehouse, err := s.resolver.ResolveApprovedReference(
+		ctx, tx, bobdomain.EntityWarehouse, data.Warehouse.ObjectID, data.Warehouse.ApprovalEntryID,
 	)
 	if err != nil {
 		return MutationResult{}, domainError(ErrorConflict, "warehouse reference is not effective", nil, err)
 	}
 	if source.WarehouseObjectID != "" &&
-		(source.WarehouseObjectID != warehouse.ObjectID || source.WarehouseVersionID != warehouse.VersionID) {
+		(source.WarehouseObjectID != warehouse.ObjectID || source.WarehouseApprovalEntryID != warehouse.ApprovalEntryID) {
 		return MutationResult{}, domainError(ErrorConflict, "outbound warehouse must match sale order warehouse", nil, nil)
 	}
 	if source.WarehouseObjectID == "" {
 		if _, err = tx.Exec(ctx, `UPDATE vou_sale_order_details SET
-			warehouse_object_id=$1,warehouse_version_id=$2,warehouse_code=$3,warehouse_name=$4
-			WHERE document_id=$5 AND warehouse_object_id IS NULL`, warehouse.ObjectID, warehouse.VersionID,
+			warehouse_object_id=$1,warehouse_approval_entry_id=$2,warehouse_code=$3,warehouse_name=$4
+			WHERE document_id=$5 AND warehouse_object_id IS NULL`, warehouse.ObjectID, warehouse.ApprovalEntryID,
 			warehouse.Code, warehouse.Data.Name, source.ID); err != nil {
 			return MutationResult{}, s.writeError("bind legacy sale order warehouse", err)
 		}
 	}
 	type outboundLine struct {
 		fixedSourceQuantityLine
-		lineNo                                                                   int32
-		productObjectID, productVersionID, productCode, productName, productUnit string
-		price, amount                                                            int64
+		lineNo                                                                         int32
+		productObjectID, productApprovalEntryID, productCode, productName, productUnit string
+		price, amount                                                                  int64
 	}
 	resolved := make([]outboundLine, 0, len(lines))
 	var total int64
@@ -392,11 +392,11 @@ func (s *Service) writeSaleOutbound(
 		var item outboundLine
 		item.fixedSourceQuantityLine, item.lineNo = line, int32(index+1)
 		var ordered int64
-		err = tx.QueryRow(ctx, `SELECT product_object_id,product_version_id,product_code,product_name,
+		err = tx.QueryRow(ctx, `SELECT product_object_id,product_approval_entry_id,product_code,product_name,
 			entered_unit_symbol,base_quantity_micros,unit_price_cents FROM vou_product_lines
 			WHERE id=$1 AND document_id=$2 AND document_entity='sale-order'`,
 			line.SourceLineID, source.ID).Scan(
-			&item.productObjectID, &item.productVersionID, &item.productCode, &item.productName,
+			&item.productObjectID, &item.productApprovalEntryID, &item.productCode, &item.productName,
 			&item.productUnit, &ordered, &item.price)
 		if err != nil || line.Quantity > ordered {
 			return MutationResult{}, domainError(ErrorValidation, "invalid sale order source line", nil, err)
@@ -417,11 +417,11 @@ func (s *Service) writeSaleOutbound(
 			return MutationResult{}, err
 		}
 		_, err = tx.Exec(ctx, `INSERT INTO vou_sale_outbound_details(
-			document_id,source_order_id,customer_object_id,customer_version_id,customer_code,customer_name,
-			warehouse_object_id,warehouse_version_id,warehouse_code,warehouse_name)
+			document_id,source_order_id,customer_object_id,customer_approval_entry_id,customer_code,customer_name,
+			warehouse_object_id,warehouse_approval_entry_id,warehouse_code,warehouse_name)
 			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-			id, source.ID, source.CustomerObjectID, source.CustomerVersionID, source.CustomerCode, source.CustomerName,
-			warehouse.ObjectID, warehouse.VersionID, warehouse.Code, warehouse.Data.Name)
+			id, source.ID, source.CustomerObjectID, source.CustomerApprovalEntryID, source.CustomerCode, source.CustomerName,
+			warehouse.ObjectID, warehouse.ApprovalEntryID, warehouse.Code, warehouse.Data.Name)
 	} else {
 		err = tx.QueryRow(ctx, `SELECT document_no FROM vou_documents WHERE id=$1`, id).Scan(&number)
 		if err == nil {
@@ -429,8 +429,8 @@ func (s *Service) writeSaleOutbound(
 		}
 		if err == nil {
 			_, err = tx.Exec(ctx, `UPDATE vou_sale_outbound_details SET
-				warehouse_object_id=$1,warehouse_version_id=$2,warehouse_code=$3,warehouse_name=$4
-				WHERE document_id=$5`, warehouse.ObjectID, warehouse.VersionID, warehouse.Code, warehouse.Data.Name, id)
+				warehouse_object_id=$1,warehouse_approval_entry_id=$2,warehouse_code=$3,warehouse_name=$4
+				WHERE document_id=$5`, warehouse.ObjectID, warehouse.ApprovalEntryID, warehouse.Code, warehouse.Data.Name, id)
 		}
 		if err == nil {
 			_, err = tx.Exec(ctx, `DELETE FROM vou_sale_outbound_lines WHERE document_id=$1`, id)
@@ -441,10 +441,10 @@ func (s *Service) writeSaleOutbound(
 	}
 	for _, line := range resolved {
 		_, err = tx.Exec(ctx, `INSERT INTO vou_sale_outbound_lines(
-			id,document_id,source_order_line_id,line_no,product_object_id,product_version_id,
+			id,document_id,source_order_line_id,line_no,product_object_id,product_approval_entry_id,
 			product_code,product_name,entered_unit_symbol,base_quantity_micros,unit_price_cents,line_amount_cents,remark)
 			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-			newID(), id, line.SourceLineID, line.lineNo, line.productObjectID, line.productVersionID,
+			newID(), id, line.SourceLineID, line.lineNo, line.productObjectID, line.productApprovalEntryID,
 			line.productCode, line.productName, line.productUnit, line.Quantity, line.price, line.amount, line.Remark)
 		if err != nil {
 			return MutationResult{}, s.writeError("write sale outbound line", err)
@@ -484,7 +484,7 @@ func newNullableReferenceSnapshot(reference *bobdomain.EffectiveReference) nulla
 	}
 	return nullableReferenceSnapshot{
 		objectID:  &reference.ObjectID,
-		versionID: &reference.VersionID,
+		versionID: &reference.ApprovalEntryID,
 		code:      &reference.Code,
 		name:      &reference.Data.Name,
 	}
@@ -497,8 +497,8 @@ func (s *Service) resolveSaleDeliveryTransport(
 	carrier *ReferenceInput,
 	vehicleInput ReferenceInput,
 ) (saleDeliveryTransport, error) {
-	vehicle, err := s.resolver.ResolveEffectiveReference(
-		ctx, tx, bobdomain.EntityVehicle, vehicleInput.ObjectID, vehicleInput.VersionID,
+	vehicle, err := s.resolver.ResolveApprovedReference(
+		ctx, tx, bobdomain.EntityVehicle, vehicleInput.ObjectID, vehicleInput.ApprovalEntryID,
 	)
 	if err != nil || vehicle.Data.CarrierAffiliation == nil {
 		return saleDeliveryTransport{}, domainError(ErrorConflict, "vehicle is not currently effective", nil, err)
@@ -518,7 +518,7 @@ func (s *Service) resolveSaleDeliveryTransport(
 		if carrier != nil || affiliation.OperatingEntityID != source.OperatingEntityObjectID {
 			return saleDeliveryTransport{}, domainError(ErrorConflict, "internal vehicle must belong to the sale order Operating Entity", nil, nil)
 		}
-		operating, resolveErr := s.resolver.ResolveCurrentEffectiveReference(
+		operating, resolveErr := s.resolver.ResolveLatestApprovedReference(
 			ctx, tx, bobdomain.EntityOperatingEntity, affiliation.OperatingEntityID,
 		)
 		if resolveErr != nil {
@@ -529,8 +529,8 @@ func (s *Service) resolveSaleDeliveryTransport(
 		if err = validateReference(carrier, "carrier", true); err != nil {
 			return saleDeliveryTransport{}, err
 		}
-		service, resolveErr := s.resolver.ResolveEffectiveReference(
-			ctx, tx, bobdomain.EntityOtherUnit, carrier.ObjectID, carrier.VersionID,
+		service, resolveErr := s.resolver.ResolveApprovedReference(
+			ctx, tx, bobdomain.EntityOtherUnit, carrier.ObjectID, carrier.ApprovalEntryID,
 		)
 		if resolveErr != nil {
 			return saleDeliveryTransport{}, domainError(ErrorConflict, "carrier is not a current Service Relationship", nil, resolveErr)
@@ -556,14 +556,14 @@ func (s *Service) validateSaleDeliveryTransportCurrent(ctx context.Context, tx p
 		return err
 	}
 	var carrier *ReferenceInput
-	if snapshot.CarrierServiceRelationshipObjectID != nil && snapshot.CarrierServiceRelationshipVersionID != nil {
-		carrier = &ReferenceInput{ObjectID: *snapshot.CarrierServiceRelationshipObjectID, VersionID: *snapshot.CarrierServiceRelationshipVersionID}
+	if snapshot.CarrierServiceRelationshipObjectID != nil && snapshot.CarrierServiceRelationshipApprovalEntryID != nil {
+		carrier = &ReferenceInput{ObjectID: *snapshot.CarrierServiceRelationshipObjectID, ApprovalEntryID: *snapshot.CarrierServiceRelationshipApprovalEntryID}
 	}
-	if snapshot.VehicleObjectID == nil || snapshot.VehicleVersionID == nil {
+	if snapshot.VehicleObjectID == nil || snapshot.VehicleApprovalEntryID == nil {
 		return domainError(ErrorConflict, "sales-chain source is not ready", nil, nil)
 	}
 	transport, err := s.resolveSaleDeliveryTransport(ctx, tx, source, carrier, ReferenceInput{
-		ObjectID: *snapshot.VehicleObjectID, VersionID: *snapshot.VehicleVersionID,
+		ObjectID: *snapshot.VehicleObjectID, ApprovalEntryID: *snapshot.VehicleApprovalEntryID,
 	})
 	if err != nil {
 		return err
@@ -572,10 +572,10 @@ func (s *Service) validateSaleDeliveryTransportCurrent(ctx context.Context, tx p
 		return domainError(ErrorConflict, "saved carrier type is no longer current", nil, nil)
 	}
 	if snapshot.CarrierType == "INTERNAL" {
-		if snapshot.CarrierOperatingEntityObjectID == nil || snapshot.CarrierOperatingEntityVersionID == nil ||
+		if snapshot.CarrierOperatingEntityObjectID == nil || snapshot.CarrierOperatingEntityApprovalEntryID == nil ||
 			transport.operating.objectID == nil || transport.operating.versionID == nil ||
 			*transport.operating.objectID != *snapshot.CarrierOperatingEntityObjectID ||
-			*transport.operating.versionID != *snapshot.CarrierOperatingEntityVersionID {
+			*transport.operating.versionID != *snapshot.CarrierOperatingEntityApprovalEntryID {
 			return domainError(ErrorConflict, "saved Operating Entity version is no longer current", nil, nil)
 		}
 	}
@@ -616,18 +616,18 @@ func (s *Service) writeSaleDelivery(
 	qtx := s.queries.WithTx(tx)
 	detail := dbsqlc.InsertVouSaleDeliveryDetailParams{
 		SourceOutboundID: source.ID,
-		CustomerObjectID: source.CustomerObjectID, CustomerVersionID: source.CustomerVersionID,
+		CustomerObjectID: source.CustomerObjectID, CustomerApprovalEntryID: source.CustomerApprovalEntryID,
 		CustomerCode: source.CustomerCode, CustomerName: source.CustomerName,
-		CarrierType:                         transport.carrierType,
-		CarrierOperatingEntityObjectID:      transport.operating.objectID,
-		CarrierOperatingEntityVersionID:     transport.operating.versionID,
-		CarrierOperatingEntityCode:          transport.operating.code,
-		CarrierOperatingEntityName:          transport.operating.name,
-		CarrierServiceRelationshipObjectID:  transport.service.objectID,
-		CarrierServiceRelationshipVersionID: transport.service.versionID,
-		CarrierServiceRelationshipCode:      transport.service.code,
-		CarrierServiceRelationshipName:      transport.service.name,
-		VehicleObjectID:                     stringPtr(transport.vehicle.ObjectID), VehicleVersionID: stringPtr(transport.vehicle.VersionID),
+		CarrierType:                               transport.carrierType,
+		CarrierOperatingEntityObjectID:            transport.operating.objectID,
+		CarrierOperatingEntityApprovalEntryID:     transport.operating.versionID,
+		CarrierOperatingEntityCode:                transport.operating.code,
+		CarrierOperatingEntityName:                transport.operating.name,
+		CarrierServiceRelationshipObjectID:        transport.service.objectID,
+		CarrierServiceRelationshipApprovalEntryID: transport.service.versionID,
+		CarrierServiceRelationshipCode:            transport.service.code,
+		CarrierServiceRelationshipName:            transport.service.name,
+		VehicleObjectID:                           stringPtr(transport.vehicle.ObjectID), VehicleApprovalEntryID: stringPtr(transport.vehicle.ApprovalEntryID),
 		VehicleCode: stringPtr(transport.vehicle.Code), VehicleName: stringPtr(transport.vehicle.Data.Name),
 		VehiclePlateNumber:       stringPtr(transport.vehicle.Data.PlateNumber),
 		VehicleBulkLiquidCapable: transport.vehicle.Data.BulkLiquidCapable,
@@ -648,16 +648,16 @@ func (s *Service) writeSaleDelivery(
 		}
 		if err == nil {
 			_, err = qtx.UpdateVouSaleDeliveryCarrierSnapshot(ctx, dbsqlc.UpdateVouSaleDeliveryCarrierSnapshotParams{
-				CarrierType:                         detail.CarrierType,
-				CarrierOperatingEntityObjectID:      detail.CarrierOperatingEntityObjectID,
-				CarrierOperatingEntityVersionID:     detail.CarrierOperatingEntityVersionID,
-				CarrierOperatingEntityCode:          detail.CarrierOperatingEntityCode,
-				CarrierOperatingEntityName:          detail.CarrierOperatingEntityName,
-				CarrierServiceRelationshipObjectID:  detail.CarrierServiceRelationshipObjectID,
-				CarrierServiceRelationshipVersionID: detail.CarrierServiceRelationshipVersionID,
-				CarrierServiceRelationshipCode:      detail.CarrierServiceRelationshipCode,
-				CarrierServiceRelationshipName:      detail.CarrierServiceRelationshipName,
-				VehicleObjectID:                     detail.VehicleObjectID, VehicleVersionID: detail.VehicleVersionID,
+				CarrierType:                               detail.CarrierType,
+				CarrierOperatingEntityObjectID:            detail.CarrierOperatingEntityObjectID,
+				CarrierOperatingEntityApprovalEntryID:     detail.CarrierOperatingEntityApprovalEntryID,
+				CarrierOperatingEntityCode:                detail.CarrierOperatingEntityCode,
+				CarrierOperatingEntityName:                detail.CarrierOperatingEntityName,
+				CarrierServiceRelationshipObjectID:        detail.CarrierServiceRelationshipObjectID,
+				CarrierServiceRelationshipApprovalEntryID: detail.CarrierServiceRelationshipApprovalEntryID,
+				CarrierServiceRelationshipCode:            detail.CarrierServiceRelationshipCode,
+				CarrierServiceRelationshipName:            detail.CarrierServiceRelationshipName,
+				VehicleObjectID:                           detail.VehicleObjectID, VehicleApprovalEntryID: detail.VehicleApprovalEntryID,
 				VehicleCode: detail.VehicleCode, VehicleName: detail.VehicleName,
 				VehiclePlateNumber:       detail.VehiclePlateNumber,
 				VehicleBulkLiquidCapable: detail.VehicleBulkLiquidCapable,
@@ -718,20 +718,20 @@ func (s *Service) writeSaleSignoff(
 	}
 	type signoffLine struct {
 		fixedSignoffLine
-		lineNo                                                                                int32
-		orderLineID, productObjectID, productVersionID, productCode, productName, productUnit string
-		outbound, loss, price, amount                                                         int64
+		lineNo                                                                                      int32
+		orderLineID, productObjectID, productApprovalEntryID, productCode, productName, productUnit string
+		outbound, loss, price, amount                                                               int64
 	}
 	resolved := make([]signoffLine, 0, len(lines))
 	var total int64
 	for index, line := range lines {
 		var item signoffLine
 		item.fixedSignoffLine, item.lineNo = line, int32(index+1)
-		err = tx.QueryRow(ctx, `SELECT source_order_line_id,product_object_id,product_version_id,
+		err = tx.QueryRow(ctx, `SELECT source_order_line_id,product_object_id,product_approval_entry_id,
 			product_code,product_name,entered_unit_symbol,base_quantity_micros,unit_price_cents
 			FROM vou_sale_outbound_lines WHERE id=$1 AND document_id=$2`,
 			line.SourceLineID, outboundID).Scan(
-			&item.orderLineID, &item.productObjectID, &item.productVersionID,
+			&item.orderLineID, &item.productObjectID, &item.productApprovalEntryID,
 			&item.productCode, &item.productName, &item.productUnit, &item.outbound, &item.price)
 		if err != nil || line.Signed+line.Rejected > item.outbound {
 			return MutationResult{}, domainError(ErrorValidation, "invalid outbound source line", nil, err)
@@ -761,12 +761,12 @@ func (s *Service) writeSaleSignoff(
 		if err == nil {
 			_, err = tx.Exec(ctx, `INSERT INTO vou_sale_signoff_details(
 				document_id,source_delivery_id,source_outbound_id,source_order_id,
-				customer_object_id,customer_version_id,customer_code,customer_name,
-				warehouse_object_id,warehouse_version_id,warehouse_code,warehouse_name)
+				customer_object_id,customer_approval_entry_id,customer_code,customer_name,
+				warehouse_object_id,warehouse_approval_entry_id,warehouse_code,warehouse_name)
 				VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
 				id, source.ID, outboundID, orderID,
-				source.CustomerObjectID, source.CustomerVersionID, source.CustomerCode, source.CustomerName,
-				source.WarehouseObjectID, source.WarehouseVersionID, source.WarehouseCode, source.WarehouseName)
+				source.CustomerObjectID, source.CustomerApprovalEntryID, source.CustomerCode, source.CustomerName,
+				source.WarehouseObjectID, source.WarehouseApprovalEntryID, source.WarehouseCode, source.WarehouseName)
 		}
 	} else {
 		err = tx.QueryRow(ctx, `SELECT document_no FROM vou_documents WHERE id=$1`, id).Scan(&number)
@@ -786,11 +786,11 @@ func (s *Service) writeSaleSignoff(
 	for _, line := range resolved {
 		_, err = tx.Exec(ctx, `INSERT INTO vou_sale_signoff_lines(
 			id,document_id,source_outbound_line_id,source_order_line_id,line_no,
-			product_object_id,product_version_id,product_code,product_name,entered_unit_symbol,
+			product_object_id,product_approval_entry_id,product_code,product_name,entered_unit_symbol,
 			signed_base_quantity_micros,rejected_base_quantity_micros,loss_base_quantity_micros,unit_price_cents,line_amount_cents,remark)
 			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
 			newID(), id, line.SourceLineID, line.orderLineID, line.lineNo,
-			line.productObjectID, line.productVersionID, line.productCode, line.productName, line.productUnit,
+			line.productObjectID, line.productApprovalEntryID, line.productCode, line.productName, line.productUnit,
 			line.Signed, line.Rejected, line.loss, line.price, line.amount, line.Remark)
 		if err != nil {
 			return MutationResult{}, s.writeError("write sale signoff line", err)

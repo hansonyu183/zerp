@@ -94,10 +94,10 @@ WHERE document_id=sqlc.arg(document_id);
 -- name: InsertVouIntermediaryCalculationSummary :exec
 INSERT INTO vou_intermediary_calculation_summaries(
     id,document_id,line_no,category,payee_entity,payee_object_id,
-    payee_version_id,payee_code,payee_name,amount_cents
+    payee_approval_entry_id,payee_code,payee_name,amount_cents
 ) VALUES (
     sqlc.arg(id),sqlc.arg(document_id),sqlc.arg(line_no),sqlc.arg(category),
-    sqlc.arg(payee_entity),sqlc.arg(payee_object_id),sqlc.arg(payee_version_id),
+    sqlc.arg(payee_entity),sqlc.arg(payee_object_id),sqlc.arg(payee_approval_entry_id),
     sqlc.arg(payee_code),sqlc.arg(payee_name),sqlc.arg(amount_cents)
 );
 
@@ -130,16 +130,16 @@ SELECT
     order_document.document_no AS order_document_no,
     order_document.business_date AS order_date,
     detail.customer_object_id,
-    detail.customer_version_id,
+    detail.customer_approval_entry_id,
     detail.customer_code,
     detail.customer_name,
     order_detail.sales_attribution_type,
     order_detail.sales_attribution_subject_object_id,
-    order_detail.sales_attribution_subject_version_id,
+    order_detail.sales_attribution_subject_approval_entry_id,
     order_detail.sales_attribution_subject_code,
     order_detail.sales_attribution_subject_name,
     line.product_object_id,
-    line.product_version_id,
+    line.product_approval_entry_id,
     line.product_code,
     line.product_name,
 	line.entered_unit_symbol,
@@ -163,7 +163,7 @@ JOIN vou_sale_signoff_lines line ON line.document_id=signoff.id
 JOIN vou_documents order_document ON order_document.id=detail.source_order_id
 JOIN vou_sale_order_details order_detail ON order_detail.document_id=order_document.id
 JOIN vou_product_lines order_line ON order_line.id=line.source_order_line_id
-JOIN bob_customer_versions customer_version ON customer_version.version_id=detail.customer_version_id
+JOIN bob_customer_versions customer_version ON customer_version.approval_entry_id=detail.customer_approval_entry_id
 LEFT JOIN returned ON returned.source_signoff_line_id=line.id
 WHERE signoff.entity='sale-signoff'
   AND signoff.status = 'APPROVED'
@@ -418,7 +418,7 @@ SELECT
     document.document_no AS receipt_document_no,
     document.business_date AS receipt_date,
     detail.counterparty_object_id AS customer_object_id,
-    detail.counterparty_version_id AS customer_version_id,
+    detail.counterparty_approval_entry_id AS customer_approval_entry_id,
     detail.counterparty_code AS customer_code,
     detail.counterparty_name AS customer_name,
     bill_line.bill_type,

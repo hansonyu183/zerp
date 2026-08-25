@@ -33,6 +33,7 @@ export type { AuxVersionPage } from './models/AuxVersionPage';
 export type { AuxVersionPageResponse } from './models/AuxVersionPageResponse';
 export type { AuxVersionView } from './models/AuxVersionView';
 export type { BalanceDirection } from './models/BalanceDirection';
+export type { BobActiveReferenceBlockers } from './models/BobActiveReferenceBlockers';
 export type { BobActiveReferenceCount } from './models/BobActiveReferenceCount';
 export type { BobAuditEventPage } from './models/BobAuditEventPage';
 export type { BobAuditHistoryResponse } from './models/BobAuditHistoryResponse';
@@ -64,6 +65,7 @@ export type { BobReferenceQueryRequest } from './models/BobReferenceQueryRequest
 export type { BobRelationshipIdentityView } from './models/BobRelationshipIdentityView';
 export type { BobReviewRequest } from './models/BobReviewRequest';
 export type { BobSaveRequest } from './models/BobSaveRequest';
+export type { BobUnapproveResponse } from './models/BobUnapproveResponse';
 export type { BobVersionHistoryItem } from './models/BobVersionHistoryItem';
 export type { BobVersionHistoryPage } from './models/BobVersionHistoryPage';
 export type { BobVersionHistoryResponse } from './models/BobVersionHistoryResponse';

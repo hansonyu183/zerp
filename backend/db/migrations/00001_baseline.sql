@@ -76,115 +76,6 @@ $$;
 
 
 --
--- Name: bob_validate_active_vehicle_plate(); Type: FUNCTION; Schema: public; Owner: -
---
-
--- +goose StatementBegin
--- A vehicle's effective version and candidate version both reserve their plates.
--- Concurrent changes to different objects must serialize on the normalized plate;
--- an ordinary UNIQUE constraint cannot follow both version pointers while allowing history reuse.
-CREATE FUNCTION public.bob_validate_active_vehicle_plate() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-    vehicle_object_id varchar(26);
-BEGIN
-    IF TG_TABLE_NAME = 'bob_vehicle_versions' THEN
-        SELECT object_id INTO vehicle_object_id
-        FROM bob_versions WHERE id = NEW.version_id AND entity = 'vehicle';
-    ELSIF NEW.entity = 'vehicle' THEN
-        vehicle_object_id := NEW.id;
-    ELSE
-        RETURN NEW;
-    END IF;
-
-    IF vehicle_object_id IS NULL THEN
-        RETURN NEW;
-    END IF;
-
-    PERFORM pg_advisory_xact_lock(hashtextextended('bob.vehicle.plate:' || plate_number, 0))
-    FROM (
-        SELECT DISTINCT upper(btrim(detail.plate_number)) AS plate_number
-        FROM bob_objects object
-        JOIN bob_vehicle_versions detail
-          ON detail.version_id = object.current_version_id
-          OR detail.version_id = object.effective_version_id
-        WHERE object.id = vehicle_object_id AND object.entity = 'vehicle'
-    ) active_plates
-    ORDER BY plate_number;
-
-    IF EXISTS (
-        SELECT 1
-        FROM bob_objects object
-        JOIN bob_vehicle_versions detail
-          ON detail.version_id = object.current_version_id
-          OR detail.version_id = object.effective_version_id
-        JOIN bob_objects other_object
-          ON other_object.entity = 'vehicle' AND other_object.id <> object.id
-        JOIN bob_vehicle_versions other_detail
-          ON other_detail.version_id = other_object.current_version_id
-          OR other_detail.version_id = other_object.effective_version_id
-        WHERE object.id = vehicle_object_id AND object.entity = 'vehicle'
-          AND upper(btrim(detail.plate_number)) = upper(btrim(other_detail.plate_number))
-    ) THEN
-        RAISE EXCEPTION 'active vehicle plate number must be unique' USING ERRCODE = '23505';
-    END IF;
-    RETURN NEW;
-END;
-$$;
--- +goose StatementEnd
-
-
---
--- Name: bob_validate_current_detail_unique(); Type: FUNCTION; Schema: public; Owner: -
---
-
--- +goose StatementBegin
--- These identifiers are unique only across each object's current version. Historical
--- values must remain reusable, while concurrent pointer/detail changes still need a
--- keyed lock; an ordinary UNIQUE constraint would incorrectly include all history.
-CREATE FUNCTION public.bob_validate_current_detail_unique() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $_$
-DECLARE
-    normalized_value text;
-    target_object_id varchar(26);
-    is_current boolean;
-    duplicate_exists boolean;
-BEGIN
-    normalized_value := upper(btrim(to_jsonb(NEW) ->> TG_ARGV[0]));
-    IF normalized_value IS NULL OR normalized_value = '' THEN RETURN NEW; END IF;
-
-    SELECT v.object_id, o.current_version_id = v.id
-    INTO target_object_id, is_current
-    FROM bob_versions v
-    JOIN bob_objects o ON o.id = v.object_id AND o.entity = v.entity
-    WHERE v.id = NEW.version_id;
-    IF NOT FOUND OR NOT is_current THEN RETURN NEW; END IF;
-
-    PERFORM pg_advisory_xact_lock(hashtextextended(
-        'bob.unique:' || TG_TABLE_NAME || ':' || TG_ARGV[0] || ':' || normalized_value, 0
-    ));
-    EXECUTE format(
-        'SELECT EXISTS (
-            SELECT 1
-            FROM bob_objects o
-            JOIN bob_versions v ON v.id = o.current_version_id AND v.object_id = o.id AND v.entity = o.entity
-            JOIN %I d ON d.version_id = v.id
-            WHERE o.id <> $1 AND upper(btrim(d.%I::text)) = $2
-        )',
-        TG_TABLE_NAME, TG_ARGV[0]
-    ) INTO duplicate_exists USING target_object_id, normalized_value;
-    IF duplicate_exists THEN
-        RAISE EXCEPTION 'current BOB identifier must be unique' USING ERRCODE = '23505';
-    END IF;
-    RETURN NEW;
-END;
-$_$;
--- +goose StatementEnd
-
-
---
 -- Name: reject_locked_vou_attachment_period(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -506,7 +397,7 @@ CREATE TABLE public.acc_bills (
     customer_cost_amount_minor bigint NOT NULL,
     origin_party_entity character varying(16),
     origin_party_object_id character varying(26),
-    origin_party_version_id character varying(26),
+    origin_party_approval_entry_id character varying(26),
     origin_party_code character varying(64),
     origin_party_name character varying(200),
     state character varying(12) NOT NULL,
@@ -723,7 +614,7 @@ CREATE TABLE public.acc_opening_bills (
     customer_cost_amount_minor bigint,
     origin_party_entity character varying(16),
     origin_party_object_id character varying(26),
-    origin_party_version_id character varying(26),
+    origin_party_approval_entry_id character varying(26),
     origin_party_code character varying(64),
     origin_party_name character varying(200),
     value_minor bigint NOT NULL,
@@ -1177,24 +1068,6 @@ CREATE TABLE public.app_users (
 
 
 --
--- Name: aux_audit_events; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.aux_audit_events (
-    id character varying(26) NOT NULL,
-    object_id character varying(26) NOT NULL,
-    version_id character varying(26) NOT NULL,
-    entity character varying(32) NOT NULL,
-    event_type character varying(16) NOT NULL,
-    actor_id character varying(26) NOT NULL,
-    occurred_at timestamp with time zone DEFAULT now() NOT NULL,
-    request_id character varying(128) NOT NULL,
-    summary jsonb DEFAULT '{}'::jsonb NOT NULL,
-    CONSTRAINT aux_audit_events_event_type_check CHECK (((event_type)::text = ANY ((ARRAY['CREATED'::character varying, 'SAVED'::character varying, 'ENABLED'::character varying, 'DISABLED'::character varying])::text[])))
-);
-
-
---
 -- Name: aux_objects; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1202,78 +1075,116 @@ CREATE TABLE public.aux_objects (
     id character varying(26) NOT NULL,
     entity character varying(32) NOT NULL,
     code character varying(64) NOT NULL,
-    current_version_id character varying(26) NOT NULL,
     enabled boolean DEFAULT true NOT NULL,
-    next_version_no integer DEFAULT 2 NOT NULL,
     revision bigint DEFAULT 1 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     created_by character varying(26) NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_by character varying(26) NOT NULL,
     CONSTRAINT aux_objects_code_check CHECK (((code)::text ~ '^[A-Z]{3}-[0-9]{4}$'::text)),
-    CONSTRAINT aux_objects_entity_check CHECK (((entity)::text = ANY ((ARRAY['product-category'::character varying, 'product-type'::character varying, 'department'::character varying, 'position'::character varying, 'settlement-method'::character varying, 'payment-method'::character varying, 'dictionary-type'::character varying, 'dictionary-item'::character varying, 'measurement-unit'::character varying, 'income-expense-type'::character varying, 'account-subject'::character varying, 'asset-category'::character varying])::text[]))),
-    CONSTRAINT aux_objects_next_version_no_check CHECK ((next_version_no >= 2)),
+    CONSTRAINT aux_objects_entity_check CHECK (((entity)::text = ANY ((ARRAY['product-category'::character varying, 'product-type'::character varying, 'department'::character varying, 'position'::character varying, 'settlement-method'::character varying, 'payment-method'::character varying, 'dictionary-type'::character varying, 'dictionary-item'::character varying, 'measurement-unit'::character varying, 'income-expense-type'::character varying, 'asset-category'::character varying])::text[]))),
     CONSTRAINT aux_objects_revision_check CHECK ((revision >= 1))
 );
 
 
 --
--- Name: aux_versions; Type: TABLE; Schema: public; Owner: -
+-- Name: aux_version_payloads; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.aux_versions (
-    id character varying(26) NOT NULL,
+CREATE TABLE public.aux_version_payloads (
+    approval_entry_id character varying(26) NOT NULL,
     object_id character varying(26) NOT NULL,
-    entity character varying(32) NOT NULL,
-    version_no integer NOT NULL,
+    entity character varying(64) NOT NULL,
     data jsonb NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_by character varying(26) NOT NULL,
-    CONSTRAINT aux_versions_data_check CHECK ((jsonb_typeof(data) = 'object'::text)),
-    CONSTRAINT aux_versions_version_no_check CHECK ((version_no >= 1))
+    CONSTRAINT aux_version_payloads_data_object CHECK ((jsonb_typeof(data) = 'object'::text))
 );
 
 
+-- Central Approval persistence. Domain subjects remain owned by their Domain;
+-- subject_id is intentionally a controlled logical foreign key.
 --
--- Name: bob_audit_events; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_audit_events (
+CREATE TABLE public.approval_entries (
     id character varying(26) NOT NULL,
-    object_id character varying(26) NOT NULL,
-    version_id character varying(26) NOT NULL,
-    entity character varying(32) NOT NULL,
-    event_type character varying(32) NOT NULL,
+    domain character varying(32) NOT NULL,
+    entity character varying(64) NOT NULL,
+    subject_id character varying(128) NOT NULL,
+    version_no integer,
+    status character varying(16) NOT NULL,
+    revision bigint DEFAULT 1 NOT NULL,
+    created_by character varying(26) NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_by character varying(26) NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    submitted_by character varying(26),
+    submitted_at timestamp with time zone,
+    approved_by character varying(26),
+    approved_at timestamp with time zone,
+    CONSTRAINT approval_entries_pkey PRIMARY KEY (id),
+    CONSTRAINT approval_entries_domain_check CHECK (((domain)::text ~ '^[a-z][a-z0-9-]{0,31}$'::text)),
+    CONSTRAINT approval_entries_entity_check CHECK (((entity)::text ~ '^[a-z][a-z0-9-]{0,63}$'::text)),
+    CONSTRAINT approval_entries_subject_id_check CHECK ((length(btrim((subject_id)::text)) >= 1)),
+    CONSTRAINT approval_entries_version_no_check CHECK (((version_no IS NULL) OR (version_no >= 1))),
+    CONSTRAINT approval_entries_status_check CHECK (((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PENDING'::character varying, 'APPROVED'::character varying])::text[]))),
+    CONSTRAINT approval_entries_revision_check CHECK ((revision >= 1)),
+    CONSTRAINT approval_entries_metadata_check CHECK (
+        (((status)::text = 'DRAFT'::text) AND submitted_by IS NULL AND submitted_at IS NULL AND approved_by IS NULL AND approved_at IS NULL)
+        OR (((status)::text = 'PENDING'::text) AND submitted_by IS NOT NULL AND submitted_at IS NOT NULL AND approved_by IS NULL AND approved_at IS NULL)
+        OR (((status)::text = 'APPROVED'::text) AND submitted_by IS NOT NULL AND submitted_at IS NOT NULL AND approved_by IS NOT NULL AND approved_at IS NOT NULL AND approved_by <> submitted_by)
+    )
+);
+CREATE UNIQUE INDEX approval_entries_approval_only_unique
+    ON public.approval_entries USING btree (domain, entity, subject_id)
+    WHERE (version_no IS NULL);
+CREATE UNIQUE INDEX approval_entries_version_unique
+    ON public.approval_entries USING btree (domain, entity, subject_id, version_no)
+    WHERE (version_no IS NOT NULL);
+CREATE UNIQUE INDEX approval_entries_open_version_unique
+    ON public.approval_entries USING btree (domain, entity, subject_id)
+    WHERE ((version_no IS NOT NULL) AND ((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PENDING'::character varying])::text[])));
+CREATE INDEX approval_entries_latest_approved_idx
+    ON public.approval_entries USING btree (domain, entity, subject_id, version_no DESC)
+    WHERE ((version_no IS NOT NULL) AND ((status)::text = 'APPROVED'::text));
+
+COMMENT ON COLUMN public.approval_entries.version_no IS
+    'NULL for Approval-only entries; positive and required for Approval Version entries.';
+COMMENT ON INDEX public.approval_entries_version_unique IS
+    'One immutable version number per domain/entity/stable subject.';
+COMMENT ON INDEX public.approval_entries_open_version_unique IS
+    'At most one DRAFT or PENDING candidate per versioned stable subject.';
+COMMENT ON INDEX public.approval_entries_latest_approved_idx IS
+    'Supports highest approved version lookup without a current-version pointer.';
+
+CREATE TABLE public.approval_events (
+    id character varying(26) NOT NULL,
+    entry_id character varying(26) NOT NULL,
+    domain character varying(32) NOT NULL,
+    entity character varying(64) NOT NULL,
+    subject_id character varying(128) NOT NULL,
+    version_no integer,
+    action character varying(16) NOT NULL,
     from_status character varying(16),
-    to_status character varying(16) NOT NULL,
+    to_status character varying(16),
+    from_revision bigint,
+    to_revision bigint,
     actor_id character varying(26) NOT NULL,
-    occurred_at timestamp with time zone DEFAULT now() NOT NULL,
-    comment character varying(1000),
+    reason text,
     request_id character varying(128) NOT NULL,
-    summary jsonb DEFAULT '{}'::jsonb NOT NULL,
-    CONSTRAINT bob_audit_events_event_type_check CHECK (((event_type)::text = ANY ((ARRAY['CREATED'::character varying, 'EDIT_STARTED'::character varying, 'SAVED'::character varying, 'SUBMITTED'::character varying, 'UNSUBMITTED'::character varying, 'APPROVED'::character varying, 'UNAPPROVED'::character varying, 'REJECTED'::character varying, 'INVALIDATED'::character varying, 'ENABLED'::character varying, 'DISABLED'::character varying])::text[]))),
-    CONSTRAINT bob_audit_events_from_status_check CHECK (((from_status IS NULL) OR ((from_status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PENDING'::character varying, 'REJECTED'::character varying, 'EFFECTIVE'::character varying, 'INVALID'::character varying])::text[])))),
-    CONSTRAINT bob_audit_events_to_status_check CHECK (((to_status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PENDING'::character varying, 'REJECTED'::character varying, 'EFFECTIVE'::character varying, 'INVALID'::character varying])::text[])))
+    created_at timestamp with time zone NOT NULL,
+    CONSTRAINT approval_events_pkey PRIMARY KEY (id),
+    CONSTRAINT approval_events_action_check CHECK (((action)::text = ANY ((ARRAY['CREATED'::character varying, 'SAVED'::character varying, 'SUBMITTED'::character varying, 'UNSUBMITTED'::character varying, 'REJECTED'::character varying, 'APPROVED'::character varying, 'UNAPPROVED'::character varying, 'DELETED'::character varying])::text[]))),
+    CONSTRAINT approval_events_domain_check CHECK (((domain)::text ~ '^[a-z][a-z0-9-]{0,31}$'::text)),
+    CONSTRAINT approval_events_entity_check CHECK (((entity)::text ~ '^[a-z][a-z0-9-]{0,63}$'::text)),
+    CONSTRAINT approval_events_subject_id_check CHECK ((length(btrim((subject_id)::text)) >= 1)),
+    CONSTRAINT approval_events_version_no_check CHECK (((version_no IS NULL) OR (version_no >= 1))),
+    CONSTRAINT approval_events_status_check CHECK ((((from_status IS NULL) OR ((from_status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PENDING'::character varying, 'APPROVED'::character varying])::text[]))) AND ((to_status IS NULL) OR ((to_status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PENDING'::character varying, 'APPROVED'::character varying])::text[]))))),
+    CONSTRAINT approval_events_revision_check CHECK (((from_revision IS NULL OR from_revision >= 1) AND (to_revision IS NULL OR to_revision >= 1))),
+    CONSTRAINT approval_events_transition_shape_check CHECK ((((action)::text = 'CREATED'::text AND from_status IS NULL AND from_revision IS NULL AND to_status IS NOT NULL AND to_revision IS NOT NULL) OR ((action)::text = 'DELETED'::text AND from_status IS NOT NULL AND from_revision IS NOT NULL AND to_status IS NULL AND to_revision IS NULL) OR ((action)::text <> ALL ((ARRAY['CREATED'::character varying, 'DELETED'::character varying])::text[]) AND from_status IS NOT NULL AND from_revision IS NOT NULL AND to_status IS NOT NULL AND to_revision IS NOT NULL))),
+    CONSTRAINT approval_events_reason_check CHECK (((((action)::text = ANY ((ARRAY['REJECTED'::character varying, 'UNAPPROVED'::character varying])::text[])) AND reason IS NOT NULL AND length(btrim(reason)) > 0) OR (((action)::text <> ALL ((ARRAY['REJECTED'::character varying, 'UNAPPROVED'::character varying])::text[])) AND reason IS NULL))),
+    CONSTRAINT approval_events_request_id_check CHECK ((length(btrim((request_id)::text)) >= 1))
 );
 
-
---
--- Name: bob_category_versions; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_category_versions (
-    version_id character varying(26) NOT NULL,
-    entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
-    name character varying(200) NOT NULL,
-    target_entity character varying(16) NOT NULL,
-    parent_id character varying(26),
-    parent_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
-    description character varying(1000),
-    CONSTRAINT bob_category_versions_entity_check CHECK (((entity)::text = 'category'::text)),
-    CONSTRAINT bob_category_versions_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 200))),
-    CONSTRAINT bob_category_versions_parent_entity_check CHECK (((parent_entity)::text = 'category'::text)),
-    CONSTRAINT bob_category_versions_target_entity_check CHECK (((target_entity)::text = ANY ((ARRAY['customer'::character varying, 'supplier'::character varying, 'employee'::character varying, 'product'::character varying, 'service'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'department'::character varying, 'position'::character varying])::text[])))
-);
+CREATE INDEX approval_events_entry_created_idx
+    ON public.approval_events USING btree (entry_id, created_at, id);
 
 
 --
@@ -1295,7 +1206,7 @@ CREATE TABLE public.bob_customer_accounts (
 --
 
 CREATE TABLE public.bob_customer_credit_limits (
-    version_id character varying(26) NOT NULL,
+    approval_entry_id character varying(26) NOT NULL,
     currency character varying(3) NOT NULL,
     amount_cents bigint NOT NULL,
     CONSTRAINT bob_customer_credit_limits_amount_cents_check CHECK ((amount_cents >= 0)),
@@ -1352,7 +1263,7 @@ CREATE TABLE public.bob_customer_relationship_attachments (
     customer_relationship_id character varying(26) CONSTRAINT bob_customer_relationship_att_customer_relationship_id_not_null NOT NULL,
     file_id character varying(26) NOT NULL,
     category_object_id character varying(26) CONSTRAINT bob_customer_relationship_attachmen_category_object_id_not_null NOT NULL,
-    category_version_id character varying(26) CONSTRAINT bob_customer_relationship_attachme_category_version_id_not_null NOT NULL,
+    category_approval_entry_id character varying(26) CONSTRAINT bob_customer_rel_attach_category_entry_nn NOT NULL,
     category_code character varying(16) NOT NULL,
     category_name character varying(100) NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -1365,7 +1276,7 @@ CREATE TABLE public.bob_customer_relationship_attachments (
 --
 
 CREATE TABLE public.bob_customer_relationship_versions (
-    version_id character varying(26) NOT NULL,
+    approval_entry_id character varying(26) NOT NULL,
     entity character varying(16) DEFAULT 'customer'::character varying NOT NULL,
     CONSTRAINT bob_customer_relationship_versions_entity_check CHECK (((entity)::text = 'customer'::text))
 );
@@ -1396,10 +1307,10 @@ CREATE TABLE public.bob_customer_relationships (
 --
 
 CREATE TABLE public.bob_customer_version_attachments (
-    version_id character varying(26) NOT NULL,
+    approval_entry_id character varying(26) NOT NULL,
     file_id character varying(26) NOT NULL,
     category_object_id character varying(26) NOT NULL,
-    category_version_id character varying(26) NOT NULL,
+    category_approval_entry_id character varying(26) NOT NULL,
     category_code character varying(16) NOT NULL,
     category_name character varying(100) NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -1412,12 +1323,13 @@ CREATE TABLE public.bob_customer_version_attachments (
 --
 
 CREATE TABLE public.bob_customer_versions (
-    version_id character varying(26) NOT NULL,
-    entity character varying(16) DEFAULT 'customer'::character varying NOT NULL,
+    approval_entry_id character varying(26) NOT NULL,
+    entity character varying(16) DEFAULT 'customer-account'::character varying NOT NULL,
     name character varying(200) NOT NULL,
-    customer_type character varying(16) DEFAULT 'END_USER'::character varying NOT NULL,
+    customer_type character varying(16) DEFAULT 'DIT-0001'::character varying NOT NULL,
     short_name character varying(100),
     category_id character varying(26),
+    category_approval_entry_id character varying(26),
     category_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
     tax_number character varying(50),
     contact_name character varying(100),
@@ -1426,12 +1338,15 @@ CREATE TABLE public.bob_customer_versions (
     address character varying(500),
     remark character varying(1000),
     settlement_method_id character varying(26),
+    settlement_method_approval_entry_id character varying(26),
     settlement_method_entity character varying(32) DEFAULT 'settlement-method'::character varying NOT NULL,
     salesperson_employee_id character varying(26),
+    salesperson_employee_approval_entry_id character varying(26),
     salesperson_employee_entity character varying(32) DEFAULT 'employee'::character varying CONSTRAINT bob_customer_versions_salesperson_entity_not_null NOT NULL,
     monthly_closing_day integer,
     rebate_unit_price_cents bigint DEFAULT 0 NOT NULL,
     operating_entity_id character varying(26),
+    operating_entity_approval_entry_id character varying(26),
     operating_entity_code character varying(16),
     operating_entity_name character varying(200),
     operating_entity_tax_number character varying(100),
@@ -1446,6 +1361,7 @@ CREATE TABLE public.bob_customer_versions (
     settlement_cutoff_day integer DEFAULT 0 NOT NULL,
     settlement_sales_surcharge_cents bigint DEFAULT 0 NOT NULL,
     payment_method_id character varying(26),
+    payment_method_approval_entry_id character varying(26),
     payment_method_code character varying(32),
     payment_method_name character varying(200),
     payment_sales_surcharge_cents bigint DEFAULT 0 NOT NULL,
@@ -1455,7 +1371,7 @@ CREATE TABLE public.bob_customer_versions (
     pricing_policy jsonb DEFAULT '{"costItems": [], "defaultPremiumUnitPrice": "0.00", "defaultDiscountUnitPrice": "0.00", "thirdPartyIntermediaryFixedUnitCost": "0.00", "thirdPartyIntermediaryVariableUnitCost": "0.00"}'::jsonb NOT NULL,
     primary_sales_attribution_type character varying(32),
     primary_sales_subject_id character varying(26),
-    primary_sales_subject_version_id character varying(26),
+    primary_sales_subject_approval_entry_id character varying(26),
     primary_sales_subject_code character varying(32),
     primary_sales_subject_name character varying(200),
     internal_reminder character varying(1000),
@@ -1467,7 +1383,7 @@ CREATE TABLE public.bob_customer_versions (
     CONSTRAINT bob_customer_versions_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 200))),
     CONSTRAINT bob_customer_versions_payment_sales_surcharge_cents_check CHECK ((payment_sales_surcharge_cents >= 0)),
     CONSTRAINT bob_customer_versions_pricing_policy_ck CHECK (((jsonb_typeof(pricing_policy) = 'object'::text) AND (pricing_policy ?& ARRAY['defaultPremiumUnitPrice'::text, 'defaultDiscountUnitPrice'::text, 'costItems'::text, 'thirdPartyIntermediaryFixedUnitCost'::text, 'thirdPartyIntermediaryVariableUnitCost'::text]) AND ((pricing_policy - ARRAY['defaultPremiumUnitPrice'::text, 'defaultDiscountUnitPrice'::text, 'costItems'::text, 'thirdPartyIntermediaryFixedUnitCost'::text, 'thirdPartyIntermediaryVariableUnitCost'::text]) = '{}'::jsonb) AND (jsonb_typeof((pricing_policy -> 'costItems'::text)) = 'array'::text) AND (jsonb_typeof((pricing_policy -> 'defaultPremiumUnitPrice'::text)) = 'string'::text) AND (jsonb_typeof((pricing_policy -> 'defaultDiscountUnitPrice'::text)) = 'string'::text) AND (jsonb_typeof((pricing_policy -> 'thirdPartyIntermediaryFixedUnitCost'::text)) = 'string'::text) AND (jsonb_typeof((pricing_policy -> 'thirdPartyIntermediaryVariableUnitCost'::text)) = 'string'::text))),
-    CONSTRAINT bob_customer_versions_primary_attribution_ck CHECK ((((primary_sales_attribution_type)::text = ANY ((ARRAY['INTERNAL_EMPLOYEE'::character varying, 'EXTERNAL_PART_TIME'::character varying, 'CHANNEL_PARTNER'::character varying])::text[])) AND (primary_sales_subject_id IS NOT NULL) AND (primary_sales_subject_version_id IS NOT NULL) AND (primary_sales_subject_code IS NOT NULL) AND (primary_sales_subject_name IS NOT NULL))),
+    CONSTRAINT bob_customer_versions_primary_attribution_ck CHECK ((((primary_sales_attribution_type IS NULL) AND (primary_sales_subject_id IS NULL) AND (primary_sales_subject_approval_entry_id IS NULL) AND (primary_sales_subject_code IS NULL) AND (primary_sales_subject_name IS NULL)) OR (((primary_sales_attribution_type)::text = ANY ((ARRAY['INTERNAL_EMPLOYEE'::character varying, 'EXTERNAL_PART_TIME'::character varying, 'CHANNEL_PARTNER'::character varying])::text[])) AND (primary_sales_subject_id IS NOT NULL) AND (primary_sales_subject_approval_entry_id IS NOT NULL) AND (primary_sales_subject_code IS NOT NULL) AND (primary_sales_subject_name IS NOT NULL)))),
     CONSTRAINT bob_customer_versions_rebate_unit_price_cents_check CHECK ((rebate_unit_price_cents >= 0)),
     CONSTRAINT bob_customer_versions_salesperson_entity_check CHECK (((salesperson_employee_entity)::text = 'employee'::text)),
     CONSTRAINT bob_customer_versions_settlement_cutoff_day_check CHECK (((settlement_cutoff_day >= 0) AND (settlement_cutoff_day <= 31))),
@@ -1480,38 +1396,21 @@ CREATE TABLE public.bob_customer_versions (
 
 
 --
--- Name: bob_department_versions; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_department_versions (
-    version_id character varying(26) NOT NULL,
-    entity character varying(16) DEFAULT 'department'::character varying NOT NULL,
-    name character varying(200) NOT NULL,
-    category_id character varying(26),
-    category_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
-    parent_id character varying(26),
-    parent_entity character varying(16) DEFAULT 'department'::character varying NOT NULL,
-    description character varying(1000),
-    CONSTRAINT bob_department_versions_category_entity_check CHECK (((category_entity)::text = 'category'::text)),
-    CONSTRAINT bob_department_versions_entity_check CHECK (((entity)::text = 'department'::text)),
-    CONSTRAINT bob_department_versions_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 200))),
-    CONSTRAINT bob_department_versions_parent_entity_check CHECK (((parent_entity)::text = 'department'::text))
-);
-
-
---
 -- Name: bob_employee_versions; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.bob_employee_versions (
-    version_id character varying(26) NOT NULL,
+    approval_entry_id character varying(26) NOT NULL,
     entity character varying(16) DEFAULT 'employee'::character varying NOT NULL,
     name character varying(200) NOT NULL,
     category_id character varying(26),
+    category_approval_entry_id character varying(26),
     category_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
     department_id character varying(26),
+    department_approval_entry_id character varying(26),
     department_entity character varying(16) DEFAULT 'department'::character varying NOT NULL,
     position_id character varying(26),
+    position_approval_entry_id character varying(26),
     position_entity character varying(16) DEFAULT 'position'::character varying NOT NULL,
     phone character varying(32),
     email character varying(254),
@@ -1550,11 +1449,12 @@ CREATE TABLE public.bob_employment_relationships (
 --
 
 CREATE TABLE public.bob_fund_account_versions (
-    version_id character varying(26) NOT NULL,
+    approval_entry_id character varying(26) NOT NULL,
     entity character varying(16) DEFAULT 'fund-account'::character varying NOT NULL,
     name character varying(200) NOT NULL,
     currency character varying(3) NOT NULL,
     category_id character varying(26),
+    category_approval_entry_id character varying(26),
     category_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
     account_name character varying(200),
     bank_name character varying(200),
@@ -1562,7 +1462,7 @@ CREATE TABLE public.bob_fund_account_versions (
     account_number character varying(64),
     remark character varying(1000),
     operating_entity_id character varying(26),
-    operating_entity_version_id character varying(26),
+    operating_entity_approval_entry_id character varying(26),
     operating_entity_code character varying(16),
     operating_entity_name character varying(200),
     CONSTRAINT bob_fund_account_versions_category_entity_check CHECK (((category_entity)::text = 'category'::text)),
@@ -1580,9 +1480,6 @@ CREATE TABLE public.bob_objects (
     id character varying(26) NOT NULL,
     entity character varying(32) NOT NULL,
     code character varying(64) NOT NULL,
-    current_version_id character varying(26) NOT NULL,
-    effective_version_id character varying(26),
-    next_version_no integer DEFAULT 2 NOT NULL,
     revision bigint DEFAULT 1 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     created_by character varying(26) NOT NULL,
@@ -1590,8 +1487,7 @@ CREATE TABLE public.bob_objects (
     updated_by character varying(26) NOT NULL,
     enabled boolean DEFAULT true NOT NULL,
     CONSTRAINT bob_objects_code_check CHECK (((code)::text ~ '^[A-Z]{3}-[0-9]{4}$'::text)),
-    CONSTRAINT bob_objects_entity_check CHECK (((entity)::text = ANY ((ARRAY['customer'::character varying, 'customer-account'::character varying, 'supplier'::character varying, 'other-unit'::character varying, 'employee'::character varying, 'sales-partner'::character varying, 'product'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'category'::character varying, 'department'::character varying, 'position'::character varying, 'settlement-method'::character varying, 'operating-entity'::character varying])::text[]))),
-    CONSTRAINT bob_objects_next_version_no_check CHECK ((next_version_no >= 2)),
+    CONSTRAINT bob_objects_entity_check CHECK (((entity)::text = ANY ((ARRAY['customer'::character varying, 'customer-account'::character varying, 'supplier'::character varying, 'other-unit'::character varying, 'employee'::character varying, 'sales-partner'::character varying, 'product'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying, 'operating-entity'::character varying])::text[]))),
     CONSTRAINT bob_objects_revision_check CHECK ((revision >= 1))
 );
 
@@ -1601,7 +1497,7 @@ CREATE TABLE public.bob_objects (
 --
 
 CREATE TABLE public.bob_operating_entity_versions (
-    version_id character varying(26) NOT NULL,
+    approval_entry_id character varying(26) NOT NULL,
     entity character varying(32) DEFAULT 'operating-entity'::character varying NOT NULL,
     legal_name character varying(200) NOT NULL,
     short_name character varying(100),
@@ -1832,35 +1728,18 @@ CREATE TABLE public.bob_party_relationship_merge_events (
 
 
 --
--- Name: bob_position_versions; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_position_versions (
-    version_id character varying(26) NOT NULL,
-    entity character varying(16) DEFAULT 'position'::character varying NOT NULL,
-    name character varying(200) NOT NULL,
-    category_id character varying(26),
-    category_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
-    description character varying(1000),
-    CONSTRAINT bob_position_versions_category_entity_check CHECK (((category_entity)::text = 'category'::text)),
-    CONSTRAINT bob_position_versions_entity_check CHECK (((entity)::text = 'position'::text)),
-    CONSTRAINT bob_position_versions_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 200)))
-);
-
-
---
 -- Name: bob_product_formula_lines; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.bob_product_formula_lines (
-    product_version_id character varying(26) NOT NULL,
+    product_approval_entry_id character varying(26) NOT NULL,
     line_no integer NOT NULL,
     material_object_id character varying(26) NOT NULL,
-    material_version_id character varying(26) NOT NULL,
+    material_approval_entry_id character varying(26) NOT NULL,
     base_quantity_micros bigint CONSTRAINT bob_product_formula_lines_quantity_micros_not_null NOT NULL,
     entered_quantity_micros bigint NOT NULL,
     entered_unit_object_id character varying(26) NOT NULL,
-    entered_unit_version_id character varying(26) NOT NULL,
+    entered_unit_approval_entry_id character varying(26) NOT NULL,
     entered_unit_code character varying(64) NOT NULL,
     entered_unit_name character varying(200) NOT NULL,
     entered_unit_symbol character varying(32) NOT NULL,
@@ -1877,11 +1756,11 @@ CREATE TABLE public.bob_product_formula_lines (
 --
 
 CREATE TABLE public.bob_product_formulas (
-    product_version_id character varying(26) NOT NULL,
+    product_approval_entry_id character varying(26) NOT NULL,
     output_base_quantity_micros bigint CONSTRAINT bob_product_formulas_base_output_quantity_micros_not_null NOT NULL,
     output_entered_quantity_micros bigint NOT NULL,
     output_unit_object_id character varying(26) NOT NULL,
-    output_unit_version_id character varying(26) NOT NULL,
+    output_unit_approval_entry_id character varying(26) NOT NULL,
     output_unit_code character varying(64) NOT NULL,
     output_unit_name character varying(200) NOT NULL,
     output_unit_symbol character varying(32) NOT NULL,
@@ -1894,9 +1773,9 @@ CREATE TABLE public.bob_product_formulas (
 --
 
 CREATE TABLE public.bob_product_unit_conversions (
-    product_version_id character varying(26) NOT NULL,
+    product_approval_entry_id character varying(26) NOT NULL,
     unit_object_id character varying(26) NOT NULL,
-    unit_version_id character varying(26) NOT NULL,
+    unit_approval_entry_id character varying(26) NOT NULL,
     unit_code character varying(64) NOT NULL,
     unit_name character varying(200) NOT NULL,
     unit_symbol character varying(32) NOT NULL,
@@ -1910,24 +1789,27 @@ CREATE TABLE public.bob_product_unit_conversions (
 --
 
 CREATE TABLE public.bob_product_versions (
-    version_id character varying(26) NOT NULL,
+    approval_entry_id character varying(26) NOT NULL,
     entity character varying(16) DEFAULT 'product'::character varying NOT NULL,
     name character varying(200) NOT NULL,
     category_id character varying(26),
+    category_approval_entry_id character varying(26),
     category_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
     specification character varying(200),
     model character varying(200),
     barcode character varying(64),
     remark character varying(1000),
     pricing_unit_id character varying(26),
+    pricing_unit_approval_entry_id character varying(26),
     returnable boolean DEFAULT false NOT NULL,
     default_packaging_spec_micros bigint,
     product_type_id character varying(26),
-    product_type_version_id character varying(26),
+    product_type_approval_entry_id character varying(26),
     product_type_code character varying(64),
     product_type_name character varying(200),
     behavior_profile character varying(32),
     default_input_unit_id character varying(26),
+    default_input_unit_approval_entry_id character varying(26),
     CONSTRAINT bob_product_default_packaging_spec_ck CHECK (((default_packaging_spec_micros IS NULL) OR (((behavior_profile)::text <> 'PACKAGING'::text) AND (default_packaging_spec_micros > 0)))),
     CONSTRAINT bob_product_versions_category_entity_check CHECK (((category_entity)::text = 'category'::text)),
     CONSTRAINT bob_product_versions_entity_check CHECK (((entity)::text = 'product'::text)),
@@ -1940,7 +1822,7 @@ CREATE TABLE public.bob_product_versions (
 --
 
 CREATE TABLE public.bob_sales_partner_versions (
-    version_id character varying(26) NOT NULL,
+    approval_entry_id character varying(26) NOT NULL,
     entity character varying(16) DEFAULT 'sales-partner'::character varying NOT NULL,
     capabilities character varying(32)[] DEFAULT '{}'::character varying[] NOT NULL,
     contact_name character varying(100),
@@ -1958,13 +1840,14 @@ CREATE TABLE public.bob_sales_partner_versions (
 --
 
 CREATE TABLE public.bob_service_relationship_versions (
-    version_id character varying(26) NOT NULL,
+    approval_entry_id character varying(26) NOT NULL,
     entity character varying(16) DEFAULT 'other-unit'::character varying NOT NULL,
     contact_name character varying(100),
     contact_phone character varying(32),
     email character varying(254),
     address character varying(500),
     settlement_method_id character varying(26),
+    settlement_method_approval_entry_id character varying(26),
     settlement_method_code character varying(32),
     settlement_method_name character varying(200),
     settlement_term_code character varying(32),
@@ -1982,41 +1865,16 @@ CREATE TABLE public.bob_service_relationship_versions (
 
 
 --
--- Name: bob_settlement_method_versions; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_settlement_method_versions (
-    version_id character varying(26) NOT NULL,
-    entity character varying(32) DEFAULT 'settlement-method'::character varying NOT NULL,
-    name character varying(200) NOT NULL,
-    rule_type character varying(32) NOT NULL,
-    month_offset integer DEFAULT 0 NOT NULL,
-    day_of_month integer,
-    day_offset integer DEFAULT 0 NOT NULL,
-    description character varying(1000),
-    term_code character varying(32) DEFAULT 'LEGACY'::character varying NOT NULL,
-    default_sales_surcharge_cents bigint DEFAULT 0 CONSTRAINT bob_settlement_method_versi_default_sales_surcharge_ce_not_null NOT NULL,
-    CONSTRAINT bob_settlement_method_rule_ck CHECK (((((rule_type)::text = 'RELATIVE_DAYS'::text) AND (month_offset = 0) AND (day_of_month IS NULL)) OR (((rule_type)::text = 'MONTH_END'::text) AND (day_of_month IS NULL)) OR (((rule_type)::text = 'FIXED_DAY'::text) AND (day_of_month IS NOT NULL)))),
-    CONSTRAINT bob_settlement_method_versio_default_sales_surcharge_cent_check CHECK ((default_sales_surcharge_cents >= 0)),
-    CONSTRAINT bob_settlement_method_versions_day_of_month_check CHECK (((day_of_month >= 1) AND (day_of_month <= 31))),
-    CONSTRAINT bob_settlement_method_versions_day_offset_check CHECK (((day_offset >= '-3650'::integer) AND (day_offset <= 3650))),
-    CONSTRAINT bob_settlement_method_versions_entity_check CHECK (((entity)::text = 'settlement-method'::text)),
-    CONSTRAINT bob_settlement_method_versions_month_offset_check CHECK (((month_offset >= 0) AND (month_offset <= 120))),
-    CONSTRAINT bob_settlement_method_versions_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 200))),
-    CONSTRAINT bob_settlement_method_versions_rule_type_check CHECK (((rule_type)::text = ANY ((ARRAY['RELATIVE_DAYS'::character varying, 'MONTH_END'::character varying, 'FIXED_DAY'::character varying])::text[])))
-);
-
-
---
 -- Name: bob_supplier_versions; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.bob_supplier_versions (
-    version_id character varying(26) NOT NULL,
+    approval_entry_id character varying(26) NOT NULL,
     entity character varying(16) DEFAULT 'supplier'::character varying NOT NULL,
     name character varying(200) NOT NULL,
     short_name character varying(100),
     category_id character varying(26),
+    category_approval_entry_id character varying(26),
     category_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
     tax_number character varying(50),
     contact_name character varying(100),
@@ -2025,8 +1883,10 @@ CREATE TABLE public.bob_supplier_versions (
     address character varying(500),
     remark character varying(1000),
     settlement_method_id character varying(26),
+    settlement_method_approval_entry_id character varying(26),
     settlement_method_entity character varying(32) DEFAULT 'settlement-method'::character varying NOT NULL,
     default_purchaser_employee_id character varying(26),
+    default_purchaser_employee_approval_entry_id character varying(26),
     default_purchaser_employee_entity character varying(32) DEFAULT 'employee'::character varying CONSTRAINT bob_supplier_versions_salesperson_employee_entity_not_null NOT NULL,
     settlement_method_code character varying(32),
     settlement_method_name character varying(200),
@@ -2052,12 +1912,13 @@ CREATE TABLE public.bob_supplier_versions (
 --
 
 CREATE TABLE public.bob_vehicle_versions (
-    version_id character varying(26) NOT NULL,
+    approval_entry_id character varying(26) NOT NULL,
     entity character varying(16) DEFAULT 'vehicle'::character varying NOT NULL,
     name character varying(200) NOT NULL,
     plate_number character varying(32) NOT NULL,
     vehicle_type character varying(64) NOT NULL,
     category_id character varying(26),
+    category_approval_entry_id character varying(26),
     category_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
     vin character varying(17),
     engine_number character varying(64),
@@ -2065,8 +1926,10 @@ CREATE TABLE public.bob_vehicle_versions (
     remark character varying(1000),
     carrier_affiliation_type character varying(16) NOT NULL,
     carrier_operating_entity_id character varying(26),
+    carrier_operating_entity_approval_entry_id character varying(26),
     carrier_operating_entity character varying(16) DEFAULT 'operating-entity'::character varying NOT NULL,
     carrier_service_relationship_object_id character varying(26),
+    carrier_service_relationship_approval_entry_id character varying(26),
     carrier_service_relationship_entity character varying(16) DEFAULT 'other-unit'::character varying CONSTRAINT bob_vehicle_versions_carrier_service_relationship_enti_not_null NOT NULL,
     bulk_liquid_capable boolean DEFAULT false NOT NULL,
     CONSTRAINT bob_vehicle_versions_carrier_affiliation_shape_ck CHECK (((((carrier_affiliation_type)::text = 'INTERNAL'::text) AND (carrier_operating_entity_id IS NOT NULL) AND (carrier_service_relationship_object_id IS NULL)) OR (((carrier_affiliation_type)::text = 'EXTERNAL'::text) AND (carrier_operating_entity_id IS NULL) AND (carrier_service_relationship_object_id IS NOT NULL)))),
@@ -2084,47 +1947,21 @@ CREATE TABLE public.bob_vehicle_versions (
 
 
 --
--- Name: bob_versions; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_versions (
-    id character varying(26) NOT NULL,
-    object_id character varying(26) NOT NULL,
-    entity character varying(32) NOT NULL,
-    version_no integer NOT NULL,
-    status character varying(16) NOT NULL,
-    revision bigint DEFAULT 1 NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_by character varying(26) NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_by character varying(26) NOT NULL,
-    submitted_at timestamp with time zone,
-    submitted_by character varying(26),
-    reviewed_at timestamp with time zone,
-    reviewed_by character varying(26),
-    review_comment character varying(1000),
-    CONSTRAINT bob_versions_review_separation CHECK (((submitted_by IS NULL) OR (reviewed_by IS NULL) OR ((submitted_by)::text <> (reviewed_by)::text) OR (((submitted_by)::text = '01JAPPSYST3MACTR0000000000'::text) AND ((reviewed_by)::text = '01JAPPSYST3MACTR0000000000'::text)))),
-    CONSTRAINT bob_versions_revision_check CHECK ((revision >= 1)),
-    CONSTRAINT bob_versions_status_audit_ck CHECK (((((status)::text = 'DRAFT'::text) AND (submitted_at IS NULL) AND (submitted_by IS NULL) AND (reviewed_at IS NULL) AND (reviewed_by IS NULL)) OR (((status)::text = 'PENDING'::text) AND (submitted_at IS NOT NULL) AND (submitted_by IS NOT NULL) AND (reviewed_at IS NULL) AND (reviewed_by IS NULL)) OR (((status)::text = ANY ((ARRAY['EFFECTIVE'::character varying, 'INVALID'::character varying])::text[])) AND (submitted_at IS NOT NULL) AND (submitted_by IS NOT NULL) AND (reviewed_at IS NOT NULL) AND (reviewed_by IS NOT NULL)))),
-    CONSTRAINT bob_versions_status_check CHECK (((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PENDING'::character varying, 'EFFECTIVE'::character varying, 'INVALID'::character varying])::text[]))),
-    CONSTRAINT bob_versions_version_no_check CHECK ((version_no >= 1))
-);
-
-
---
 -- Name: bob_warehouse_versions; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.bob_warehouse_versions (
-    version_id character varying(26) NOT NULL,
+    approval_entry_id character varying(26) NOT NULL,
     entity character varying(16) DEFAULT 'warehouse'::character varying NOT NULL,
     name character varying(200) NOT NULL,
     category_id character varying(26),
+    category_approval_entry_id character varying(26),
     category_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
     address character varying(500),
     contact_name character varying(100),
     contact_phone character varying(32),
     manager_employee_id character varying(26),
+    manager_employee_approval_entry_id character varying(26),
     manager_employee_entity character varying(16) DEFAULT 'employee'::character varying NOT NULL,
     remark character varying(1000),
     CONSTRAINT bob_warehouse_versions_category_entity_check CHECK (((category_entity)::text = 'category'::text)),
@@ -2132,82 +1969,6 @@ CREATE TABLE public.bob_warehouse_versions (
     CONSTRAINT bob_warehouse_versions_manager_employee_entity_check CHECK (((manager_employee_entity)::text = 'employee'::text)),
     CONSTRAINT bob_warehouse_versions_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 200)))
 );
-
-
---
--- Name: bob_version_summaries; Type: VIEW; Schema: public; Owner: -
---
-
-SET search_path = public, pg_catalog;
-CREATE VIEW bob_version_summaries AS
-SELECT
-    o.id AS object_id, o.entity, o.code, o.current_version_id, o.effective_version_id,
-    o.revision AS object_revision, o.updated_at AS object_updated_at,
-    v.id AS version_id, v.version_no, v.status, v.revision AS version_revision,
-    v.created_at, v.created_by, v.updated_at, v.updated_by, v.submitted_at, v.submitted_by,
-    v.reviewed_at, v.reviewed_by, v.review_comment,
-    COALESCE(c.name,s.name,e.name,p.name,w.name,vh.name,f.name,ca.name,d.name,po.name,sm.name,oe.legal_name) AS name
-FROM bob_objects o JOIN bob_versions v ON v.object_id=o.id AND v.entity=o.entity
-LEFT JOIN bob_customer_versions c ON c.version_id=v.id LEFT JOIN bob_supplier_versions s ON s.version_id=v.id
-LEFT JOIN bob_employee_versions e ON e.version_id=v.id LEFT JOIN bob_product_versions p ON p.version_id=v.id
-LEFT JOIN bob_warehouse_versions w ON w.version_id=v.id
-LEFT JOIN bob_vehicle_versions vh ON vh.version_id=v.id LEFT JOIN bob_fund_account_versions f ON f.version_id=v.id
-LEFT JOIN bob_category_versions ca ON ca.version_id=v.id LEFT JOIN bob_department_versions d ON d.version_id=v.id
-LEFT JOIN bob_position_versions po ON po.version_id=v.id
-LEFT JOIN bob_operating_entity_versions oe ON oe.version_id=v.id
-LEFT JOIN bob_settlement_method_versions sm ON sm.version_id=v.id;
-
-
---
--- Name: bob_version_views; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW bob_version_views AS
-SELECT
-    summary.object_id, summary.entity, summary.code, summary.current_version_id, summary.effective_version_id,
-    summary.object_revision, summary.object_updated_at,
-    summary.version_id, summary.version_no, summary.status, summary.version_revision,
-    summary.created_at, summary.created_by, summary.updated_at, summary.updated_by, summary.submitted_at, summary.submitted_by,
-    summary.reviewed_at, summary.reviewed_by, summary.review_comment, summary.name,
-    ''::varchar AS unit, ''::varchar AS inventory_unit_id,
-    f.currency, vh.plate_number, vh.vehicle_type, vh.carrier_affiliation_type,
-    vh.carrier_operating_entity_id, vh.carrier_service_relationship_object_id, vh.bulk_liquid_capable,
-    COALESCE(c.customer_type,'') AS customer_type, COALESCE(c.short_name,s.short_name,oe.short_name,'') AS short_name,
-    COALESCE(c.category_id,s.category_id,e.category_id,p.category_id,w.category_id,vh.category_id,f.category_id,d.category_id,po.category_id,'') AS category_id,
-    COALESCE(c.tax_number,s.tax_number,oe.tax_number,'') AS tax_number, COALESCE(c.contact_name,s.contact_name,w.contact_name,'') AS contact_name,
-    COALESCE(c.contact_phone,s.contact_phone,w.contact_phone,'') AS contact_phone, COALESCE(c.email,s.email,e.email,'') AS email,
-    COALESCE(c.address,s.address,w.address,oe.address,'') AS address, COALESCE(c.remark,s.remark,e.remark,p.remark,w.remark,vh.remark,f.remark,oe.remark,'') AS remark,
-    COALESCE(e.department_id,'') AS department_id, COALESCE(e.position_id,'') AS position_id, COALESCE(e.phone,oe.phone,'') AS phone,
-    CAST(COALESCE(e.hire_date::text,'') AS varchar(10)) AS hire_date, COALESCE(p.specification,'') AS specification,
-    COALESCE(p.model,'') AS model, COALESCE(p.barcode,'') AS barcode, COALESCE(ca.description,d.description,po.description,sm.description,'') AS description,
-    COALESCE(w.manager_employee_id,'') AS manager_employee_id, COALESCE(vh.vin,'') AS vin, COALESCE(vh.engine_number,'') AS engine_number,
-    CAST(COALESCE(vh.load_capacity_kg::text,'') AS varchar(32)) AS load_capacity_kg, COALESCE(f.account_name,'') AS account_name,
-    COALESCE(f.bank_name,'') AS bank_name, COALESCE(f.bank_branch,'') AS bank_branch, COALESCE(f.account_number,'') AS account_number,
-    COALESCE(ca.target_entity,'') AS target_entity, COALESCE(ca.parent_id,d.parent_id,'') AS parent_id,
-    COALESCE(c.settlement_method_id,s.settlement_method_id,'') AS settlement_method_id, COALESCE(s.default_purchaser_employee_id,'') AS salesperson_employee_id,
-    COALESCE(linked_aux_sm.current_version_id,linked_sm.effective_version_id,'') AS settlement_method_version_id,
-    COALESCE(sm.rule_type,'') AS settlement_rule_type, COALESCE(sm.month_offset,0) AS settlement_month_offset,
-    COALESCE(sm.day_of_month,0) AS settlement_day_of_month, COALESCE(sm.day_offset,0) AS settlement_day_offset,
-    COALESCE(p.product_type_id,'') AS product_type_id, COALESCE(p.product_type_version_id,'') AS product_type_version_id,
-    COALESCE(p.product_type_code,'') AS product_type_code, COALESCE(p.product_type_name,'') AS product_type_name,
-    COALESCE(p.behavior_profile,'') AS behavior_profile, COALESCE(p.default_input_unit_id,'') AS default_input_unit_id,
-    COALESCE(p.pricing_unit_id,'') AS pricing_unit_id, COALESCE(p.returnable,false) AS returnable,
-    COALESCE(p.default_packaging_spec_micros,0) AS default_packaging_spec_micros, COALESCE(c.monthly_closing_day,0) AS monthly_closing_day,
-    COALESCE(settlement.term_code,'') AS settlement_term_code, COALESCE(settlement.default_sales_surcharge_cents,0) AS settlement_default_sales_surcharge_cents,
-    COALESCE(c.rebate_unit_price_cents,0) AS rebate_unit_price_cents
-FROM bob_version_summaries summary
-LEFT JOIN bob_customer_versions c ON c.version_id=summary.version_id LEFT JOIN bob_supplier_versions s ON s.version_id=summary.version_id
-LEFT JOIN bob_employee_versions e ON e.version_id=summary.version_id LEFT JOIN bob_product_versions p ON p.version_id=summary.version_id
-LEFT JOIN bob_warehouse_versions w ON w.version_id=summary.version_id
-LEFT JOIN bob_vehicle_versions vh ON vh.version_id=summary.version_id LEFT JOIN bob_fund_account_versions f ON f.version_id=summary.version_id
-LEFT JOIN bob_category_versions ca ON ca.version_id=summary.version_id LEFT JOIN bob_department_versions d ON d.version_id=summary.version_id
-LEFT JOIN bob_position_versions po ON po.version_id=summary.version_id
-LEFT JOIN bob_operating_entity_versions oe ON oe.version_id=summary.version_id
-LEFT JOIN bob_objects linked_sm ON linked_sm.id=COALESCE(c.settlement_method_id,s.settlement_method_id) AND linked_sm.entity='settlement-method'
-LEFT JOIN aux_objects linked_aux_sm ON linked_aux_sm.id=COALESCE(c.settlement_method_id,s.settlement_method_id) AND linked_aux_sm.entity='settlement-method' AND linked_aux_sm.enabled
-LEFT JOIN bob_settlement_method_versions sm ON sm.version_id=summary.version_id
-LEFT JOIN bob_settlement_method_versions settlement ON settlement.version_id=summary.version_id;
-
 
 
 --
@@ -2305,7 +2066,7 @@ CREATE TABLE public.vou_asset_acquisition_details (
     document_id character varying(26) NOT NULL,
     entity character varying(32) DEFAULT 'asset-acquisition'::character varying NOT NULL,
     supplier_object_id character varying(26) NOT NULL,
-    supplier_version_id character varying(26) NOT NULL,
+    supplier_approval_entry_id character varying(26) NOT NULL,
     supplier_code character varying(64) NOT NULL,
     supplier_name character varying(200) NOT NULL,
     party_account_type character varying(16) DEFAULT 'OTHER'::character varying NOT NULL,
@@ -2325,18 +2086,18 @@ CREATE TABLE public.vou_asset_acquisition_lines (
     asset_name character varying(200) NOT NULL,
     specification character varying(200) DEFAULT ''::character varying NOT NULL,
     category_object_id character varying(26) NOT NULL,
-    category_version_id character varying(26) NOT NULL,
+    category_approval_entry_id character varying(26) NOT NULL,
     category_code character varying(64) NOT NULL,
     category_name character varying(200) NOT NULL,
     original_value_cents bigint NOT NULL,
     useful_life_months integer NOT NULL,
     residual_rate_bps integer NOT NULL,
     department_object_id character varying(26) NOT NULL,
-    department_version_id character varying(26) NOT NULL,
+    department_approval_entry_id character varying(26) NOT NULL,
     department_code character varying(64) NOT NULL,
     department_name character varying(200) NOT NULL,
     custodian_object_id character varying(26),
-    custodian_version_id character varying(26),
+    custodian_approval_entry_id character varying(26),
     custodian_code character varying(64),
     custodian_name character varying(200),
     location character varying(200) DEFAULT ''::character varying NOT NULL,
@@ -2390,7 +2151,7 @@ CREATE TABLE public.vou_asset_sale_details (
     entity character varying(32) DEFAULT 'asset-sale'::character varying NOT NULL,
     counterparty_entity character varying(16) NOT NULL,
     counterparty_object_id character varying(26) NOT NULL,
-    counterparty_version_id character varying(26) NOT NULL,
+    counterparty_approval_entry_id character varying(26) NOT NULL,
     counterparty_code character varying(64) NOT NULL,
     counterparty_name character varying(200) NOT NULL,
     party_account_type character varying(16) DEFAULT 'OTHER'::character varying NOT NULL,
@@ -2456,7 +2217,7 @@ CREATE TABLE public.vou_bill_cash_lines (
     line_no integer NOT NULL,
     bill_line_id character varying(26),
     fund_account_object_id character varying(26) NOT NULL,
-    fund_account_version_id character varying(26) NOT NULL,
+    fund_account_approval_entry_id character varying(26) NOT NULL,
     fund_account_code character varying(64) NOT NULL,
     fund_account_name character varying(200) NOT NULL,
     direction character varying(3) NOT NULL,
@@ -2479,11 +2240,11 @@ CREATE TABLE public.vou_bill_details (
     entity character varying(32) NOT NULL,
     counterparty_entity character varying(16),
     counterparty_object_id character varying(26),
-    counterparty_version_id character varying(26),
+    counterparty_approval_entry_id character varying(26),
     counterparty_code character varying(64),
     counterparty_name character varying(200),
     handler_object_id character varying(26),
-    handler_version_id character varying(26),
+    handler_approval_entry_id character varying(26),
     handler_code character varying(64),
     handler_name character varying(200),
     internal_cost_rate_bps integer NOT NULL,
@@ -2491,19 +2252,19 @@ CREATE TABLE public.vou_bill_details (
     interest_mode character varying(32) DEFAULT 'NONE'::character varying NOT NULL,
     interest_party_entity character varying(16),
     interest_party_object_id character varying(26),
-    interest_party_version_id character varying(26),
+    interest_party_approval_entry_id character varying(26),
     interest_party_code character varying(64),
     interest_party_name character varying(200),
     with_recourse boolean DEFAULT false NOT NULL,
-    CONSTRAINT vou_bill_details_check CHECK ((((counterparty_entity IS NULL) AND (counterparty_object_id IS NULL) AND (counterparty_version_id IS NULL) AND (counterparty_code IS NULL) AND (counterparty_name IS NULL)) OR ((counterparty_entity IS NOT NULL) AND (counterparty_object_id IS NOT NULL) AND (counterparty_version_id IS NOT NULL) AND (counterparty_code IS NOT NULL) AND (counterparty_name IS NOT NULL)))),
-    CONSTRAINT vou_bill_details_check1 CHECK ((((handler_object_id IS NULL) AND (handler_version_id IS NULL) AND (handler_code IS NULL) AND (handler_name IS NULL)) OR ((handler_object_id IS NOT NULL) AND (handler_version_id IS NOT NULL) AND (handler_code IS NOT NULL) AND (handler_name IS NOT NULL)))),
+    CONSTRAINT vou_bill_details_check CHECK ((((counterparty_entity IS NULL) AND (counterparty_object_id IS NULL) AND (counterparty_approval_entry_id IS NULL) AND (counterparty_code IS NULL) AND (counterparty_name IS NULL)) OR ((counterparty_entity IS NOT NULL) AND (counterparty_object_id IS NOT NULL) AND (counterparty_approval_entry_id IS NOT NULL) AND (counterparty_code IS NOT NULL) AND (counterparty_name IS NOT NULL)))),
+    CONSTRAINT vou_bill_details_check1 CHECK ((((handler_object_id IS NULL) AND (handler_approval_entry_id IS NULL) AND (handler_code IS NULL) AND (handler_name IS NULL)) OR ((handler_object_id IS NOT NULL) AND (handler_approval_entry_id IS NOT NULL) AND (handler_code IS NOT NULL) AND (handler_name IS NOT NULL)))),
     CONSTRAINT vou_bill_details_counterparty_entity_check CHECK (((counterparty_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'supplier'::character varying, 'other-unit'::character varying])::text[]))),
     CONSTRAINT vou_bill_details_customer_receipt_ck CHECK ((((entity)::text <> 'bill-receipt'::text) OR (((counterparty_entity)::text = 'customer-account'::text) AND (handler_object_id IS NOT NULL) AND ((maturity_type)::text = 'NONE'::text) AND ((interest_mode)::text = 'NONE'::text) AND (interest_party_entity IS NULL) AND (with_recourse = false)))),
     CONSTRAINT vou_bill_details_entity_check CHECK (((entity)::text = ANY ((ARRAY['bill-receipt'::character varying, 'bill-payment'::character varying, 'bill-issue'::character varying, 'bill-discount'::character varying, 'bill-maturity'::character varying])::text[]))),
     CONSTRAINT vou_bill_details_interest_mode_check CHECK (((interest_mode)::text = ANY ((ARRAY['NONE'::character varying, 'BANK_DEDUCTED'::character varying, 'THIRD_PARTY_PAYABLE'::character varying])::text[]))),
     CONSTRAINT vou_bill_details_interest_mode_party_ck CHECK (((((interest_mode)::text = 'THIRD_PARTY_PAYABLE'::text) AND ((interest_party_entity)::text = 'other-unit'::text)) OR (((interest_mode)::text <> 'THIRD_PARTY_PAYABLE'::text) AND (interest_party_entity IS NULL)))),
     CONSTRAINT vou_bill_details_interest_party_entity_check CHECK (((interest_party_entity)::text = 'other-unit'::text)),
-    CONSTRAINT vou_bill_details_interest_party_reference_ck CHECK ((((interest_party_entity IS NULL) AND (interest_party_object_id IS NULL) AND (interest_party_version_id IS NULL) AND (interest_party_code IS NULL) AND (interest_party_name IS NULL)) OR (((interest_party_entity)::text = 'other-unit'::text) AND (interest_party_object_id IS NOT NULL) AND (interest_party_version_id IS NOT NULL) AND (interest_party_code IS NOT NULL) AND (interest_party_name IS NOT NULL)))),
+    CONSTRAINT vou_bill_details_interest_party_reference_ck CHECK ((((interest_party_entity IS NULL) AND (interest_party_object_id IS NULL) AND (interest_party_approval_entry_id IS NULL) AND (interest_party_code IS NULL) AND (interest_party_name IS NULL)) OR (((interest_party_entity)::text = 'other-unit'::text) AND (interest_party_object_id IS NOT NULL) AND (interest_party_approval_entry_id IS NOT NULL) AND (interest_party_code IS NOT NULL) AND (interest_party_name IS NOT NULL)))),
     CONSTRAINT vou_bill_details_internal_cost_rate_bps_check CHECK (((internal_cost_rate_bps >= 0) AND (internal_cost_rate_bps <= 100000))),
     CONSTRAINT vou_bill_details_maturity_type_check CHECK (((maturity_type)::text = ANY ((ARRAY['NONE'::character varying, 'RECEIPT'::character varying, 'PAYMENT'::character varying])::text[])))
 );
@@ -2634,7 +2395,7 @@ CREATE TABLE public.vou_employee_loan_writeoff_details (
     document_id character varying(26) NOT NULL,
     entity character varying(32) DEFAULT 'employee-loan-writeoff'::character varying NOT NULL,
     employee_object_id character varying(26) NOT NULL,
-    employee_version_id character varying(26) NOT NULL,
+    employee_approval_entry_id character varying(26) NOT NULL,
     employee_code character varying(64) NOT NULL,
     employee_name character varying(200) NOT NULL,
     CONSTRAINT vou_employee_loan_writeoff_details_entity_check CHECK (((entity)::text = 'employee-loan-writeoff'::text))
@@ -2672,11 +2433,11 @@ CREATE TABLE public.vou_expense_payment_details (
     entity character varying(32) DEFAULT 'expense-payment'::character varying NOT NULL,
     source_reimbursement_id character varying(26) NOT NULL,
     employee_object_id character varying(26) NOT NULL,
-    employee_version_id character varying(26) NOT NULL,
+    employee_approval_entry_id character varying(26) NOT NULL,
     employee_code character varying(64) NOT NULL,
     employee_name character varying(200) NOT NULL,
     fund_account_object_id character varying(26) NOT NULL,
-    fund_account_version_id character varying(26) NOT NULL,
+    fund_account_approval_entry_id character varying(26) NOT NULL,
     fund_account_code character varying(64) NOT NULL,
     fund_account_name character varying(200) NOT NULL,
     CONSTRAINT vou_expense_payment_details_entity_check CHECK (((entity)::text = 'expense-payment'::text))
@@ -2691,7 +2452,7 @@ CREATE TABLE public.vou_expense_reimbursement_details (
     document_id character varying(26) NOT NULL,
     entity character varying(32) DEFAULT 'expense-reimbursement'::character varying NOT NULL,
     employee_object_id character varying(26) NOT NULL,
-    employee_version_id character varying(26) NOT NULL,
+    employee_approval_entry_id character varying(26) NOT NULL,
     employee_code character varying(64) NOT NULL,
     employee_name character varying(200) NOT NULL,
     CONSTRAINT vou_expense_reimbursement_details_entity_check CHECK (((entity)::text = 'expense-reimbursement'::text))
@@ -2796,7 +2557,7 @@ CREATE TABLE public.vou_intermediary_calculation_summaries (
     category character varying(32) NOT NULL,
     payee_entity character varying(16) NOT NULL,
     payee_object_id character varying(26) NOT NULL,
-    payee_version_id character varying(26) CONSTRAINT vou_intermediary_calculation_summarie_payee_version_id_not_null NOT NULL,
+    payee_approval_entry_id character varying(26) CONSTRAINT vou_intermediary_calc_payee_entry_nn NOT NULL,
     payee_code character varying(64) NOT NULL,
     payee_name character varying(200) NOT NULL,
     amount_cents bigint NOT NULL,
@@ -2836,7 +2597,7 @@ CREATE TABLE public.vou_inventory_count_details (
     document_id character varying(26) NOT NULL,
     entity character varying(32) DEFAULT 'inventory-count'::character varying NOT NULL,
     warehouse_object_id character varying(26) NOT NULL,
-    warehouse_version_id character varying(26) NOT NULL,
+    warehouse_approval_entry_id character varying(26) NOT NULL,
     warehouse_code character varying(64) NOT NULL,
     warehouse_name character varying(200) NOT NULL,
     CONSTRAINT vou_inventory_count_details_entity_check CHECK (((entity)::text = 'inventory-count'::text))
@@ -2852,7 +2613,7 @@ CREATE TABLE public.vou_inventory_count_lines (
     document_id character varying(26) NOT NULL,
     line_no integer NOT NULL,
     product_object_id character varying(26) NOT NULL,
-    product_version_id character varying(26) NOT NULL,
+    product_approval_entry_id character varying(26) NOT NULL,
     product_code character varying(64) NOT NULL,
     product_name character varying(200) NOT NULL,
     entered_unit_symbol character varying(32) CONSTRAINT vou_inventory_count_lines_product_unit_not_null NOT NULL,
@@ -2862,7 +2623,7 @@ CREATE TABLE public.vou_inventory_count_lines (
     remark character varying(1000),
     entered_quantity_micros bigint NOT NULL,
     entered_unit_object_id character varying(26) NOT NULL,
-    entered_unit_version_id character varying(26) NOT NULL,
+    entered_unit_approval_entry_id character varying(26) NOT NULL,
     entered_unit_code character varying(64) NOT NULL,
     entered_unit_name character varying(200) NOT NULL,
     CONSTRAINT vou_inventory_count_lines_actual_quantity_micros_check CHECK ((actual_base_quantity_micros >= 0)),
@@ -2893,22 +2654,22 @@ CREATE TABLE public.vou_other_income_details (
     source_name character varying(200) NOT NULL,
     counterparty_entity character varying(16),
     counterparty_object_id character varying(26),
-    counterparty_version_id character varying(26),
+    counterparty_approval_entry_id character varying(26),
     counterparty_code character varying(64),
     counterparty_name character varying(200),
     fund_account_object_id character varying(26) NOT NULL,
-    fund_account_version_id character varying(26) NOT NULL,
+    fund_account_approval_entry_id character varying(26) NOT NULL,
     fund_account_code character varying(64) NOT NULL,
     fund_account_name character varying(200) NOT NULL,
     handler_object_id character varying(26),
-    handler_version_id character varying(26),
+    handler_approval_entry_id character varying(26),
     handler_code character varying(64),
     handler_name character varying(200),
-    CONSTRAINT vou_other_income_counterparty_ck CHECK ((((counterparty_entity IS NULL) AND (counterparty_object_id IS NULL) AND (counterparty_version_id IS NULL) AND (counterparty_code IS NULL) AND (counterparty_name IS NULL)) OR ((counterparty_entity IS NOT NULL) AND (counterparty_object_id IS NOT NULL) AND (counterparty_version_id IS NOT NULL) AND (counterparty_code IS NOT NULL) AND (counterparty_name IS NOT NULL)))),
+    CONSTRAINT vou_other_income_counterparty_ck CHECK ((((counterparty_entity IS NULL) AND (counterparty_object_id IS NULL) AND (counterparty_approval_entry_id IS NULL) AND (counterparty_code IS NULL) AND (counterparty_name IS NULL)) OR ((counterparty_entity IS NOT NULL) AND (counterparty_object_id IS NOT NULL) AND (counterparty_approval_entry_id IS NOT NULL) AND (counterparty_code IS NOT NULL) AND (counterparty_name IS NOT NULL)))),
     CONSTRAINT vou_other_income_details_counterparty_entity_check CHECK (((counterparty_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'supplier'::character varying])::text[]))),
     CONSTRAINT vou_other_income_details_entity_check CHECK (((entity)::text = 'other-income'::text)),
     CONSTRAINT vou_other_income_details_source_name_check CHECK (((length(btrim((source_name)::text)) >= 1) AND (length(btrim((source_name)::text)) <= 200))),
-    CONSTRAINT vou_other_income_handler_ck CHECK ((((handler_object_id IS NULL) AND (handler_version_id IS NULL) AND (handler_code IS NULL) AND (handler_name IS NULL)) OR ((handler_object_id IS NOT NULL) AND (handler_version_id IS NOT NULL) AND (handler_code IS NOT NULL) AND (handler_name IS NOT NULL))))
+    CONSTRAINT vou_other_income_handler_ck CHECK ((((handler_object_id IS NULL) AND (handler_approval_entry_id IS NULL) AND (handler_code IS NULL) AND (handler_name IS NULL)) OR ((handler_object_id IS NOT NULL) AND (handler_approval_entry_id IS NOT NULL) AND (handler_code IS NOT NULL) AND (handler_name IS NOT NULL))))
 );
 
 
@@ -2921,15 +2682,15 @@ CREATE TABLE public.vou_payment_details (
     entity character varying(32) DEFAULT 'payment'::character varying NOT NULL,
     counterparty_entity character varying(16) NOT NULL,
     counterparty_object_id character varying(26) NOT NULL,
-    counterparty_version_id character varying(26) NOT NULL,
+    counterparty_approval_entry_id character varying(26) NOT NULL,
     counterparty_code character varying(64) NOT NULL,
     counterparty_name character varying(200) NOT NULL,
     fund_account_object_id character varying(26) NOT NULL,
-    fund_account_version_id character varying(26) NOT NULL,
+    fund_account_approval_entry_id character varying(26) NOT NULL,
     fund_account_code character varying(64) NOT NULL,
     fund_account_name character varying(200) NOT NULL,
     handler_object_id character varying(26),
-    handler_version_id character varying(26),
+    handler_approval_entry_id character varying(26),
     handler_code character varying(64),
     handler_name character varying(200),
     other_category character varying(32),
@@ -2938,7 +2699,7 @@ CREATE TABLE public.vou_payment_details (
     CONSTRAINT vou_payment_details_entity_party_check CHECK (((((entity)::text = 'sales-refund'::text) AND ((counterparty_entity)::text = 'customer-account'::text)) OR (((entity)::text = 'purchase-payment'::text) AND ((counterparty_entity)::text = 'supplier'::text)) OR (((entity)::text = 'other-payment'::text) AND ((counterparty_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'supplier'::character varying, 'other-unit'::character varying, 'employee'::character varying, 'sales-partner'::character varying])::text[]))) OR (((entity)::text = 'employee-loan'::text) AND ((counterparty_entity)::text = 'employee'::text)))),
     CONSTRAINT vou_payment_details_other_category_check CHECK (((other_category)::text = ANY ((ARRAY['COMMISSION'::character varying, 'INTERMEDIARY'::character varying, 'REBATE'::character varying])::text[]))),
     CONSTRAINT vou_payment_details_other_category_ck CHECK (((other_category IS NULL) OR ((entity)::text = 'other-payment'::text))),
-    CONSTRAINT vou_payment_handler_ck CHECK ((((handler_object_id IS NULL) AND (handler_version_id IS NULL) AND (handler_code IS NULL) AND (handler_name IS NULL)) OR ((handler_object_id IS NOT NULL) AND (handler_version_id IS NOT NULL) AND (handler_code IS NOT NULL) AND (handler_name IS NOT NULL))))
+    CONSTRAINT vou_payment_handler_ck CHECK ((((handler_object_id IS NULL) AND (handler_approval_entry_id IS NULL) AND (handler_code IS NULL) AND (handler_name IS NULL)) OR ((handler_object_id IS NOT NULL) AND (handler_approval_entry_id IS NOT NULL) AND (handler_code IS NOT NULL) AND (handler_name IS NOT NULL))))
 );
 
 
@@ -2952,7 +2713,7 @@ CREATE TABLE public.vou_price_lines (
     document_entity character varying(32) NOT NULL,
     line_no integer NOT NULL,
     product_object_id character varying(26) NOT NULL,
-    product_version_id character varying(26) NOT NULL,
+    product_approval_entry_id character varying(26) NOT NULL,
     product_code character varying(64) NOT NULL,
     product_name character varying(200) NOT NULL,
     default_input_unit_symbol character varying(32) CONSTRAINT vou_price_lines_product_unit_not_null NOT NULL,
@@ -2960,7 +2721,7 @@ CREATE TABLE public.vou_price_lines (
     unit_price_cents bigint NOT NULL,
     remark character varying(1000),
     product_type_object_id character varying(26) NOT NULL,
-    product_type_version_id character varying(26) NOT NULL,
+    product_type_approval_entry_id character varying(26) NOT NULL,
     product_type_code character varying(64) NOT NULL,
     product_type_name character varying(200) NOT NULL,
     CONSTRAINT vou_price_lines_document_entity_check CHECK (((document_entity)::text = ANY ((ARRAY['sale-pricing'::character varying, 'purchase-inquiry'::character varying])::text[]))),
@@ -2979,7 +2740,7 @@ CREATE TABLE public.vou_product_lines (
     document_entity character varying(32) NOT NULL,
     line_no integer NOT NULL,
     product_object_id character varying(26) NOT NULL,
-    product_version_id character varying(26) NOT NULL,
+    product_approval_entry_id character varying(26) NOT NULL,
     product_code character varying(64) NOT NULL,
     product_name character varying(200) NOT NULL,
     entered_unit_symbol character varying(32) CONSTRAINT vou_product_lines_product_unit_not_null NOT NULL,
@@ -3003,11 +2764,11 @@ CREATE TABLE public.vou_product_lines (
     reference_line_id character varying(26),
     entered_quantity_micros bigint NOT NULL,
     entered_unit_object_id character varying(26) NOT NULL,
-    entered_unit_version_id character varying(26) NOT NULL,
+    entered_unit_approval_entry_id character varying(26) NOT NULL,
     entered_unit_code character varying(64) NOT NULL,
     entered_unit_name character varying(200) NOT NULL,
     product_type_object_id character varying(26) NOT NULL,
-    product_type_version_id character varying(26) NOT NULL,
+    product_type_approval_entry_id character varying(26) NOT NULL,
     product_type_code character varying(64) NOT NULL,
     product_type_name character varying(200) NOT NULL,
     default_packaging_spec_micros bigint,
@@ -3042,11 +2803,11 @@ CREATE TABLE public.vou_production_details (
     document_id character varying(26) NOT NULL,
     entity character varying(32) NOT NULL,
     material_warehouse_object_id character varying(26) NOT NULL,
-    material_warehouse_version_id character varying(26) NOT NULL,
+    material_warehouse_approval_entry_id character varying(26) NOT NULL,
     material_warehouse_code character varying(64) NOT NULL,
     material_warehouse_name character varying(200) NOT NULL,
     finished_warehouse_object_id character varying(26) NOT NULL,
-    finished_warehouse_version_id character varying(26) NOT NULL,
+    finished_warehouse_approval_entry_id character varying(26) NOT NULL,
     finished_warehouse_code character varying(64) NOT NULL,
     finished_warehouse_name character varying(200) NOT NULL,
     CONSTRAINT vou_production_details_entity_check CHECK (((entity)::text = ANY ((ARRAY['order-production'::character varying, 'self-production'::character varying])::text[])))
@@ -3062,14 +2823,14 @@ CREATE TABLE public.vou_production_material_lines (
     output_line_id character varying(26) NOT NULL,
     line_no integer NOT NULL,
     formula_material_object_id character varying(26) CONSTRAINT vou_production_material_lin_formula_material_object_id_not_null NOT NULL,
-    formula_material_version_id character varying(26) CONSTRAINT vou_production_material_lin_formula_material_version_i_not_null NOT NULL,
+    formula_material_approval_entry_id character varying(26) CONSTRAINT vou_production_material_line_formula_approval_entry_not_null NOT NULL,
     formula_material_code character varying(64) NOT NULL,
     formula_material_name character varying(200) NOT NULL,
     formula_entered_unit_symbol character varying(32) CONSTRAINT vou_production_material_lines_formula_material_unit_not_null NOT NULL,
     formula_base_quantity_micros bigint CONSTRAINT vou_production_material_lines_formula_quantity_micros_not_null NOT NULL,
     suggested_base_quantity_micros bigint CONSTRAINT vou_production_material_line_suggested_quantity_micros_not_null NOT NULL,
     actual_material_object_id character varying(26) CONSTRAINT vou_production_material_line_actual_material_object_id_not_null NOT NULL,
-    actual_material_version_id character varying(26) CONSTRAINT vou_production_material_lin_actual_material_version_id_not_null NOT NULL,
+    actual_material_approval_entry_id character varying(26) CONSTRAINT vou_production_material_actual_entry_nn NOT NULL,
     actual_material_code character varying(64) NOT NULL,
     actual_material_name character varying(200) NOT NULL,
     actual_entered_unit_symbol character varying(32) CONSTRAINT vou_production_material_lines_actual_material_unit_not_null NOT NULL,
@@ -3077,10 +2838,10 @@ CREATE TABLE public.vou_production_material_lines (
     adjustment_reason character varying(1000),
     actual_entered_quantity_micros bigint CONSTRAINT vou_production_material_lin_actual_entered_quantity_mi_not_null NOT NULL,
     actual_entered_unit_object_id character varying(26) CONSTRAINT vou_production_material_lin_actual_entered_unit_object_not_null NOT NULL,
-    actual_entered_unit_version_id character varying(26) CONSTRAINT vou_production_material_lin_actual_entered_unit_versio_not_null NOT NULL,
+    actual_entered_unit_approval_entry_id character varying(26) CONSTRAINT vou_production_material_line_actual_unit_entry_not_null NOT NULL,
     actual_entered_unit_code character varying(64) NOT NULL,
     actual_entered_unit_name character varying(200) NOT NULL,
-    CONSTRAINT vou_production_material_adjustment_ck CHECK (((((formula_material_object_id)::text = (actual_material_object_id)::text) AND ((formula_material_version_id)::text = (actual_material_version_id)::text) AND (suggested_base_quantity_micros = actual_base_quantity_micros)) OR (length(btrim((COALESCE(adjustment_reason, ''::character varying))::text)) > 0))),
+    CONSTRAINT vou_production_material_adjustment_ck CHECK (((((formula_material_object_id)::text = (actual_material_object_id)::text) AND ((formula_material_approval_entry_id)::text = (actual_material_approval_entry_id)::text) AND (suggested_base_quantity_micros = actual_base_quantity_micros)) OR (length(btrim((COALESCE(adjustment_reason, ''::character varying))::text)) > 0))),
     CONSTRAINT vou_production_material_lines_actual_quantity_micros_check CHECK ((actual_base_quantity_micros > 0)),
     CONSTRAINT vou_production_material_lines_formula_quantity_micros_check CHECK ((formula_base_quantity_micros > 0)),
     CONSTRAINT vou_production_material_lines_line_no_check CHECK ((line_no > 0)),
@@ -3098,7 +2859,7 @@ CREATE TABLE public.vou_production_output_lines (
     line_no integer NOT NULL,
     source_order_line_id character varying(26),
     product_object_id character varying(26) NOT NULL,
-    product_version_id character varying(26) NOT NULL,
+    product_approval_entry_id character varying(26) NOT NULL,
     product_code character varying(64) NOT NULL,
     product_name character varying(200) NOT NULL,
     entered_unit_symbol character varying(32) CONSTRAINT vou_production_output_lines_product_unit_not_null NOT NULL,
@@ -3109,7 +2870,7 @@ CREATE TABLE public.vou_production_output_lines (
     remark character varying(1000),
     entered_quantity_micros bigint NOT NULL,
     entered_unit_object_id character varying(26) NOT NULL,
-    entered_unit_version_id character varying(26) NOT NULL,
+    entered_unit_approval_entry_id character varying(26) NOT NULL,
     entered_unit_code character varying(64) NOT NULL,
     entered_unit_name character varying(200) NOT NULL,
     CONSTRAINT vou_production_output_lines_formula_base_output_quantity__check CHECK ((formula_base_quantity_micros > 0)),
@@ -3129,11 +2890,11 @@ CREATE TABLE public.vou_purchase_inbound_details (
     entity character varying(32) DEFAULT 'purchase-inbound'::character varying NOT NULL,
     source_order_id character varying(26) NOT NULL,
     supplier_object_id character varying(26) NOT NULL,
-    supplier_version_id character varying(26) NOT NULL,
+    supplier_approval_entry_id character varying(26) NOT NULL,
     supplier_code character varying(64) NOT NULL,
     supplier_name character varying(200) NOT NULL,
     warehouse_object_id character varying(26) NOT NULL,
-    warehouse_version_id character varying(26) NOT NULL,
+    warehouse_approval_entry_id character varying(26) NOT NULL,
     warehouse_code character varying(64) NOT NULL,
     warehouse_name character varying(200) NOT NULL,
     CONSTRAINT vou_purchase_inbound_details_entity_check CHECK (((entity)::text = 'purchase-inbound'::text))
@@ -3150,7 +2911,7 @@ CREATE TABLE public.vou_purchase_inbound_lines (
     source_order_line_id character varying(26) NOT NULL,
     line_no integer NOT NULL,
     product_object_id character varying(26) NOT NULL,
-    product_version_id character varying(26) NOT NULL,
+    product_approval_entry_id character varying(26) NOT NULL,
     product_code character varying(64) NOT NULL,
     product_name character varying(200) NOT NULL,
     entered_unit_symbol character varying(32) CONSTRAINT vou_purchase_inbound_lines_product_unit_not_null NOT NULL,
@@ -3173,7 +2934,7 @@ CREATE TABLE public.vou_purchase_inquiry_details (
     document_id character varying(26) NOT NULL,
     entity character varying(32) DEFAULT 'purchase-inquiry'::character varying NOT NULL,
     supplier_object_id character varying(26) NOT NULL,
-    supplier_version_id character varying(26) NOT NULL,
+    supplier_approval_entry_id character varying(26) NOT NULL,
     supplier_code character varying(64) NOT NULL,
     supplier_name character varying(200) NOT NULL,
     CONSTRAINT vou_purchase_inquiry_details_entity_check CHECK (((entity)::text = 'purchase-inquiry'::text))
@@ -3188,21 +2949,21 @@ CREATE TABLE public.vou_purchase_order_details (
     document_id character varying(26) NOT NULL,
     entity character varying(32) DEFAULT 'purchase-order'::character varying NOT NULL,
     supplier_object_id character varying(26) NOT NULL,
-    supplier_version_id character varying(26) NOT NULL,
+    supplier_approval_entry_id character varying(26) NOT NULL,
     supplier_code character varying(64) NOT NULL,
     supplier_name character varying(200) NOT NULL,
     purchaser_object_id character varying(26),
-    purchaser_version_id character varying(26),
+    purchaser_approval_entry_id character varying(26),
     purchaser_code character varying(64),
     purchaser_name character varying(200),
     warehouse_object_id character varying(26),
-    warehouse_version_id character varying(26),
+    warehouse_approval_entry_id character varying(26),
     warehouse_code character varying(64),
     warehouse_name character varying(200),
     contact_name character varying(100),
     contact_phone character varying(32),
     settlement_method_object_id character varying(26),
-    settlement_method_version_id character varying(26),
+    settlement_method_approval_entry_id character varying(26),
     settlement_method_code character varying(64),
     settlement_method_name character varying(200),
     settlement_rule_type character varying(32),
@@ -3217,9 +2978,9 @@ CREATE TABLE public.vou_purchase_order_details (
     settlement_term_code character varying(32) DEFAULT ''::character varying NOT NULL,
     CONSTRAINT vou_purchase_order_details_entity_check CHECK (((entity)::text = 'purchase-order'::text)),
     CONSTRAINT vou_purchase_order_fulfillment_status_ck CHECK (((fulfillment_status)::text = ANY ((ARRAY['OPEN'::character varying, 'FULFILLED'::character varying])::text[]))),
-    CONSTRAINT vou_purchase_order_purchaser_ck CHECK ((((purchaser_object_id IS NULL) AND (purchaser_version_id IS NULL) AND (purchaser_code IS NULL) AND (purchaser_name IS NULL)) OR ((purchaser_object_id IS NOT NULL) AND (purchaser_version_id IS NOT NULL) AND (purchaser_code IS NOT NULL) AND (purchaser_name IS NOT NULL)))),
-    CONSTRAINT vou_purchase_order_settlement_ck CHECK ((((settlement_method_object_id IS NULL) AND (settlement_method_version_id IS NULL) AND (settlement_method_code IS NULL) AND (settlement_method_name IS NULL) AND (settlement_rule_type IS NULL) AND (settlement_month_offset IS NULL) AND (settlement_day_of_month IS NULL) AND (settlement_day_offset IS NULL) AND (settlement_description IS NULL)) OR ((settlement_method_object_id IS NOT NULL) AND (settlement_method_code IS NOT NULL) AND (settlement_method_name IS NOT NULL) AND ((settlement_rule_type)::text = ANY ((ARRAY['DUE_DAYS'::character varying, 'RELATIVE_DAYS'::character varying, 'MONTH_END'::character varying, 'FIXED_DAY'::character varying])::text[])) AND ((settlement_month_offset >= 0) AND (settlement_month_offset <= 120)) AND ((settlement_day_offset >= '-3650'::integer) AND (settlement_day_offset <= 3650)) AND ((((settlement_rule_type)::text = 'DUE_DAYS'::text) AND (settlement_month_offset = 0) AND (settlement_day_of_month IS NULL) AND ((settlement_due_days >= 0) AND (settlement_due_days <= 3650))) OR (((settlement_rule_type)::text = 'RELATIVE_DAYS'::text) AND (settlement_month_offset = 0) AND (settlement_day_of_month IS NULL)) OR (((settlement_rule_type)::text = 'MONTH_END'::text) AND (settlement_day_of_month IS NULL) AND ((settlement_cutoff_day >= 1) AND (settlement_cutoff_day <= 31))) OR (((settlement_rule_type)::text = 'FIXED_DAY'::text) AND ((settlement_day_of_month >= 1) AND (settlement_day_of_month <= 31))))))),
-    CONSTRAINT vou_purchase_order_warehouse_ck CHECK (((warehouse_object_id IS NOT NULL) AND (warehouse_version_id IS NOT NULL) AND (warehouse_code IS NOT NULL) AND (warehouse_name IS NOT NULL)))
+    CONSTRAINT vou_purchase_order_purchaser_ck CHECK ((((purchaser_object_id IS NULL) AND (purchaser_approval_entry_id IS NULL) AND (purchaser_code IS NULL) AND (purchaser_name IS NULL)) OR ((purchaser_object_id IS NOT NULL) AND (purchaser_approval_entry_id IS NOT NULL) AND (purchaser_code IS NOT NULL) AND (purchaser_name IS NOT NULL)))),
+    CONSTRAINT vou_purchase_order_settlement_ck CHECK ((((settlement_method_object_id IS NULL) AND (settlement_method_approval_entry_id IS NULL) AND (settlement_method_code IS NULL) AND (settlement_method_name IS NULL) AND (settlement_rule_type IS NULL) AND (settlement_month_offset IS NULL) AND (settlement_day_of_month IS NULL) AND (settlement_day_offset IS NULL) AND (settlement_description IS NULL)) OR ((settlement_method_object_id IS NOT NULL) AND (settlement_method_code IS NOT NULL) AND (settlement_method_name IS NOT NULL) AND ((settlement_rule_type)::text = ANY ((ARRAY['DUE_DAYS'::character varying, 'RELATIVE_DAYS'::character varying, 'MONTH_END'::character varying, 'FIXED_DAY'::character varying])::text[])) AND ((settlement_month_offset >= 0) AND (settlement_month_offset <= 120)) AND ((settlement_day_offset >= '-3650'::integer) AND (settlement_day_offset <= 3650)) AND ((((settlement_rule_type)::text = 'DUE_DAYS'::text) AND (settlement_month_offset = 0) AND (settlement_day_of_month IS NULL) AND ((settlement_due_days >= 0) AND (settlement_due_days <= 3650))) OR (((settlement_rule_type)::text = 'RELATIVE_DAYS'::text) AND (settlement_month_offset = 0) AND (settlement_day_of_month IS NULL)) OR (((settlement_rule_type)::text = 'MONTH_END'::text) AND (settlement_day_of_month IS NULL) AND ((settlement_cutoff_day >= 1) AND (settlement_cutoff_day <= 31))) OR (((settlement_rule_type)::text = 'FIXED_DAY'::text) AND ((settlement_day_of_month >= 1) AND (settlement_day_of_month <= 31))))))),
+    CONSTRAINT vou_purchase_order_warehouse_ck CHECK (((warehouse_object_id IS NOT NULL) AND (warehouse_approval_entry_id IS NOT NULL) AND (warehouse_code IS NOT NULL) AND (warehouse_name IS NOT NULL)))
 );
 
 
@@ -3233,11 +2994,11 @@ CREATE TABLE public.vou_purchase_return_details (
     source_order_id character varying(26) NOT NULL,
     return_reason character varying(1000) NOT NULL,
     supplier_object_id character varying(26) NOT NULL,
-    supplier_version_id character varying(26) NOT NULL,
+    supplier_approval_entry_id character varying(26) NOT NULL,
     supplier_code character varying(64) NOT NULL,
     supplier_name character varying(200) NOT NULL,
     warehouse_object_id character varying(26) NOT NULL,
-    warehouse_version_id character varying(26) NOT NULL,
+    warehouse_approval_entry_id character varying(26) NOT NULL,
     warehouse_code character varying(64) NOT NULL,
     warehouse_name character varying(200) NOT NULL,
     CONSTRAINT vou_purchase_return_details_entity_check CHECK (((entity)::text = 'purchase-return'::text)),
@@ -3257,7 +3018,7 @@ CREATE TABLE public.vou_purchase_return_lines (
     source_order_line_id character varying(26) NOT NULL,
     line_no integer NOT NULL,
     product_object_id character varying(26) NOT NULL,
-    product_version_id character varying(26) NOT NULL,
+    product_approval_entry_id character varying(26) NOT NULL,
     product_code character varying(64) NOT NULL,
     product_name character varying(200) NOT NULL,
     entered_unit_symbol character varying(32) CONSTRAINT vou_purchase_return_lines_product_unit_not_null NOT NULL,
@@ -3281,15 +3042,15 @@ CREATE TABLE public.vou_receipt_details (
     entity character varying(32) DEFAULT 'receipt'::character varying NOT NULL,
     counterparty_entity character varying(16) NOT NULL,
     counterparty_object_id character varying(26) NOT NULL,
-    counterparty_version_id character varying(26) NOT NULL,
+    counterparty_approval_entry_id character varying(26) NOT NULL,
     counterparty_code character varying(64) NOT NULL,
     counterparty_name character varying(200) NOT NULL,
     fund_account_object_id character varying(26) NOT NULL,
-    fund_account_version_id character varying(26) NOT NULL,
+    fund_account_approval_entry_id character varying(26) NOT NULL,
     fund_account_code character varying(64) NOT NULL,
     fund_account_name character varying(200) NOT NULL,
     handler_object_id character varying(26),
-    handler_version_id character varying(26),
+    handler_approval_entry_id character varying(26),
     handler_code character varying(64),
     handler_name character varying(200),
     other_category character varying(32),
@@ -3298,7 +3059,7 @@ CREATE TABLE public.vou_receipt_details (
     CONSTRAINT vou_receipt_details_entity_party_check CHECK (((((entity)::text = 'sales-receipt'::text) AND ((counterparty_entity)::text = 'customer-account'::text)) OR (((entity)::text = 'purchase-refund'::text) AND ((counterparty_entity)::text = 'supplier'::text)) OR (((entity)::text = 'other-receipt'::text) AND ((counterparty_entity)::text = ANY ((ARRAY['customer-account'::character varying, 'supplier'::character varying, 'other-unit'::character varying, 'employee'::character varying, 'sales-partner'::character varying])::text[]))) OR (((entity)::text = 'employee-repayment'::text) AND ((counterparty_entity)::text = 'employee'::text)))),
     CONSTRAINT vou_receipt_details_other_category_check CHECK (((other_category)::text = ANY ((ARRAY['COMMISSION'::character varying, 'INTERMEDIARY'::character varying, 'REBATE'::character varying])::text[]))),
     CONSTRAINT vou_receipt_details_other_category_ck CHECK (((other_category IS NULL) OR ((entity)::text = 'other-receipt'::text))),
-    CONSTRAINT vou_receipt_handler_ck CHECK ((((handler_object_id IS NULL) AND (handler_version_id IS NULL) AND (handler_code IS NULL) AND (handler_name IS NULL)) OR ((handler_object_id IS NOT NULL) AND (handler_version_id IS NOT NULL) AND (handler_code IS NOT NULL) AND (handler_name IS NOT NULL))))
+    CONSTRAINT vou_receipt_handler_ck CHECK ((((handler_object_id IS NULL) AND (handler_approval_entry_id IS NULL) AND (handler_code IS NULL) AND (handler_name IS NULL)) OR ((handler_object_id IS NOT NULL) AND (handler_approval_entry_id IS NOT NULL) AND (handler_code IS NOT NULL) AND (handler_name IS NOT NULL))))
 );
 
 
@@ -3311,27 +3072,27 @@ CREATE TABLE public.vou_sale_delivery_details (
     entity character varying(32) DEFAULT 'sale-delivery'::character varying NOT NULL,
     source_outbound_id character varying(26) NOT NULL,
     customer_object_id character varying(26) NOT NULL,
-    customer_version_id character varying(26) NOT NULL,
+    customer_approval_entry_id character varying(26) NOT NULL,
     customer_code character varying(64) NOT NULL,
     customer_name character varying(200) NOT NULL,
     carrier_service_relationship_object_id character varying(26),
-    carrier_service_relationship_version_id character varying(26),
+    carrier_service_relationship_approval_entry_id character varying(26),
     carrier_service_relationship_code character varying(64),
     carrier_service_relationship_name character varying(200),
     vehicle_object_id character varying(26),
-    vehicle_version_id character varying(26),
+    vehicle_approval_entry_id character varying(26),
     vehicle_code character varying(64),
     vehicle_name character varying(200),
     vehicle_plate_number character varying(32),
     carrier_type character varying(16) NOT NULL,
     carrier_operating_entity_object_id character varying(26),
-    carrier_operating_entity_version_id character varying(26),
+    carrier_operating_entity_approval_entry_id character varying(26),
     carrier_operating_entity_code character varying(64),
     carrier_operating_entity_name character varying(200),
     vehicle_bulk_liquid_capable boolean DEFAULT false NOT NULL,
     CONSTRAINT vou_sale_delivery_carrier_type_ck CHECK (((carrier_type)::text = ANY ((ARRAY['INTERNAL'::character varying, 'EXTERNAL'::character varying])::text[]))),
     CONSTRAINT vou_sale_delivery_details_entity_check CHECK (((entity)::text = 'sale-delivery'::text)),
-    CONSTRAINT vou_sale_delivery_transport_snapshot_ck CHECK ((((vehicle_object_id IS NULL) AND (vehicle_version_id IS NULL) AND (vehicle_code IS NULL) AND (vehicle_name IS NULL) AND (vehicle_plate_number IS NULL) AND (carrier_operating_entity_object_id IS NULL) AND (carrier_operating_entity_version_id IS NULL) AND (carrier_operating_entity_code IS NULL) AND (carrier_operating_entity_name IS NULL) AND (carrier_service_relationship_object_id IS NULL) AND (carrier_service_relationship_version_id IS NULL) AND (carrier_service_relationship_code IS NULL) AND (carrier_service_relationship_name IS NULL)) OR ((vehicle_object_id IS NOT NULL) AND (vehicle_version_id IS NOT NULL) AND (vehicle_code IS NOT NULL) AND (vehicle_name IS NOT NULL) AND (vehicle_plate_number IS NOT NULL) AND ((((carrier_type)::text = 'INTERNAL'::text) AND (carrier_operating_entity_object_id IS NOT NULL) AND (carrier_operating_entity_version_id IS NOT NULL) AND (carrier_operating_entity_code IS NOT NULL) AND (carrier_operating_entity_name IS NOT NULL) AND (carrier_service_relationship_object_id IS NULL) AND (carrier_service_relationship_version_id IS NULL) AND (carrier_service_relationship_code IS NULL) AND (carrier_service_relationship_name IS NULL)) OR (((carrier_type)::text = 'EXTERNAL'::text) AND (carrier_operating_entity_object_id IS NULL) AND (carrier_operating_entity_version_id IS NULL) AND (carrier_operating_entity_code IS NULL) AND (carrier_operating_entity_name IS NULL) AND (carrier_service_relationship_object_id IS NOT NULL) AND (carrier_service_relationship_version_id IS NOT NULL) AND (carrier_service_relationship_code IS NOT NULL) AND (carrier_service_relationship_name IS NOT NULL))))))
+    CONSTRAINT vou_sale_delivery_transport_snapshot_ck CHECK ((((vehicle_object_id IS NULL) AND (vehicle_approval_entry_id IS NULL) AND (vehicle_code IS NULL) AND (vehicle_name IS NULL) AND (vehicle_plate_number IS NULL) AND (carrier_operating_entity_object_id IS NULL) AND (carrier_operating_entity_approval_entry_id IS NULL) AND (carrier_operating_entity_code IS NULL) AND (carrier_operating_entity_name IS NULL) AND (carrier_service_relationship_object_id IS NULL) AND (carrier_service_relationship_approval_entry_id IS NULL) AND (carrier_service_relationship_code IS NULL) AND (carrier_service_relationship_name IS NULL)) OR ((vehicle_object_id IS NOT NULL) AND (vehicle_approval_entry_id IS NOT NULL) AND (vehicle_code IS NOT NULL) AND (vehicle_name IS NOT NULL) AND (vehicle_plate_number IS NOT NULL) AND ((((carrier_type)::text = 'INTERNAL'::text) AND (carrier_operating_entity_object_id IS NOT NULL) AND (carrier_operating_entity_approval_entry_id IS NOT NULL) AND (carrier_operating_entity_code IS NOT NULL) AND (carrier_operating_entity_name IS NOT NULL) AND (carrier_service_relationship_object_id IS NULL) AND (carrier_service_relationship_approval_entry_id IS NULL) AND (carrier_service_relationship_code IS NULL) AND (carrier_service_relationship_name IS NULL)) OR (((carrier_type)::text = 'EXTERNAL'::text) AND (carrier_operating_entity_object_id IS NULL) AND (carrier_operating_entity_approval_entry_id IS NULL) AND (carrier_operating_entity_code IS NULL) AND (carrier_operating_entity_name IS NULL) AND (carrier_service_relationship_object_id IS NOT NULL) AND (carrier_service_relationship_approval_entry_id IS NOT NULL) AND (carrier_service_relationship_code IS NOT NULL) AND (carrier_service_relationship_name IS NOT NULL))))))
 );
 
 
@@ -3343,18 +3104,18 @@ CREATE TABLE public.vou_sale_order_details (
     document_id character varying(26) NOT NULL,
     entity character varying(32) DEFAULT 'sale-order'::character varying NOT NULL,
     customer_object_id character varying(26) NOT NULL,
-    customer_version_id character varying(26) NOT NULL,
+    customer_approval_entry_id character varying(26) NOT NULL,
     customer_code character varying(64) NOT NULL,
     customer_name character varying(200) NOT NULL,
     salesperson_object_id character varying(26),
-    salesperson_version_id character varying(26),
+    salesperson_approval_entry_id character varying(26),
     salesperson_code character varying(64),
     salesperson_name character varying(200),
     contact_name character varying(100),
     contact_phone character varying(32),
     delivery_address character varying(500),
     settlement_method_object_id character varying(26),
-    settlement_method_version_id character varying(26),
+    settlement_method_approval_entry_id character varying(26),
     settlement_method_code character varying(64),
     settlement_method_name character varying(200),
     settlement_rule_type character varying(32),
@@ -3367,22 +3128,22 @@ CREATE TABLE public.vou_sale_order_details (
     settlement_cutoff_day integer,
     settlement_default_sales_surcharge_cents bigint DEFAULT 0 CONSTRAINT vou_sale_order_details_settlement_default_sales_surcha_not_null NOT NULL,
     warehouse_object_id character varying(26),
-    warehouse_version_id character varying(26),
+    warehouse_approval_entry_id character varying(26),
     warehouse_code character varying(64),
     warehouse_name character varying(200),
     settlement_term_code character varying(32) DEFAULT ''::character varying NOT NULL,
     special_approval boolean DEFAULT false NOT NULL,
     sales_attribution_type character varying(32) NOT NULL,
     sales_attribution_subject_object_id character varying(26) CONSTRAINT vou_sale_order_details_sales_attribution_subject_objec_not_null NOT NULL,
-    sales_attribution_subject_version_id character varying(26) CONSTRAINT vou_sale_order_details_sales_attribution_subject_versi_not_null NOT NULL,
+    sales_attribution_subject_approval_entry_id character varying(26) CONSTRAINT vou_sale_order_details_sales_subject_entry_not_null NOT NULL,
     sales_attribution_subject_code character varying(64) NOT NULL,
     sales_attribution_subject_name character varying(200) NOT NULL,
     CONSTRAINT vou_sale_order_details_entity_check CHECK (((entity)::text = 'sale-order'::text)),
     CONSTRAINT vou_sale_order_fulfillment_status_ck CHECK (((fulfillment_status)::text = ANY ((ARRAY['OPEN'::character varying, 'FULFILLED'::character varying])::text[]))),
     CONSTRAINT vou_sale_order_sales_attribution_ck CHECK ((((sales_attribution_type)::text = 'INTERNAL_EMPLOYEE'::text) OR ((sales_attribution_type)::text = ANY ((ARRAY['EXTERNAL_PART_TIME'::character varying, 'CHANNEL_PARTNER'::character varying])::text[])))),
-    CONSTRAINT vou_sale_order_salesperson_ck CHECK ((((salesperson_object_id IS NULL) AND (salesperson_version_id IS NULL) AND (salesperson_code IS NULL) AND (salesperson_name IS NULL)) OR ((salesperson_object_id IS NOT NULL) AND (salesperson_version_id IS NOT NULL) AND (salesperson_code IS NOT NULL) AND (salesperson_name IS NOT NULL)))),
-    CONSTRAINT vou_sale_order_settlement_ck CHECK ((((settlement_method_object_id IS NULL) AND (settlement_method_version_id IS NULL) AND (settlement_method_code IS NULL) AND (settlement_method_name IS NULL) AND (settlement_rule_type IS NULL) AND (settlement_month_offset IS NULL) AND (settlement_day_of_month IS NULL) AND (settlement_day_offset IS NULL) AND (settlement_description IS NULL)) OR ((settlement_method_object_id IS NOT NULL) AND (settlement_method_code IS NOT NULL) AND (settlement_method_name IS NOT NULL) AND ((settlement_rule_type)::text = ANY ((ARRAY['DUE_DAYS'::character varying, 'RELATIVE_DAYS'::character varying, 'MONTH_END'::character varying, 'FIXED_DAY'::character varying])::text[])) AND ((settlement_month_offset >= 0) AND (settlement_month_offset <= 120)) AND ((settlement_day_offset >= '-3650'::integer) AND (settlement_day_offset <= 3650)) AND ((((settlement_rule_type)::text = 'DUE_DAYS'::text) AND (settlement_month_offset = 0) AND (settlement_day_of_month IS NULL) AND ((settlement_due_days >= 0) AND (settlement_due_days <= 3650))) OR (((settlement_rule_type)::text = 'RELATIVE_DAYS'::text) AND (settlement_month_offset = 0) AND (settlement_day_of_month IS NULL)) OR (((settlement_rule_type)::text = 'MONTH_END'::text) AND (settlement_day_of_month IS NULL) AND ((settlement_cutoff_day >= 1) AND (settlement_cutoff_day <= 31))) OR (((settlement_rule_type)::text = 'FIXED_DAY'::text) AND ((settlement_day_of_month >= 1) AND (settlement_day_of_month <= 31))))))),
-    CONSTRAINT vou_sale_order_warehouse_ck CHECK ((((warehouse_object_id IS NULL) AND (warehouse_version_id IS NULL) AND (warehouse_code IS NULL) AND (warehouse_name IS NULL)) OR ((warehouse_object_id IS NOT NULL) AND (warehouse_version_id IS NOT NULL) AND (warehouse_code IS NOT NULL) AND (warehouse_name IS NOT NULL))))
+    CONSTRAINT vou_sale_order_salesperson_ck CHECK ((((salesperson_object_id IS NULL) AND (salesperson_approval_entry_id IS NULL) AND (salesperson_code IS NULL) AND (salesperson_name IS NULL)) OR ((salesperson_object_id IS NOT NULL) AND (salesperson_approval_entry_id IS NOT NULL) AND (salesperson_code IS NOT NULL) AND (salesperson_name IS NOT NULL)))),
+    CONSTRAINT vou_sale_order_settlement_ck CHECK ((((settlement_method_object_id IS NULL) AND (settlement_method_approval_entry_id IS NULL) AND (settlement_method_code IS NULL) AND (settlement_method_name IS NULL) AND (settlement_rule_type IS NULL) AND (settlement_month_offset IS NULL) AND (settlement_day_of_month IS NULL) AND (settlement_day_offset IS NULL) AND (settlement_description IS NULL)) OR ((settlement_method_object_id IS NOT NULL) AND (settlement_method_code IS NOT NULL) AND (settlement_method_name IS NOT NULL) AND ((settlement_rule_type)::text = ANY ((ARRAY['DUE_DAYS'::character varying, 'RELATIVE_DAYS'::character varying, 'MONTH_END'::character varying, 'FIXED_DAY'::character varying])::text[])) AND ((settlement_month_offset >= 0) AND (settlement_month_offset <= 120)) AND ((settlement_day_offset >= '-3650'::integer) AND (settlement_day_offset <= 3650)) AND ((((settlement_rule_type)::text = 'DUE_DAYS'::text) AND (settlement_month_offset = 0) AND (settlement_day_of_month IS NULL) AND ((settlement_due_days >= 0) AND (settlement_due_days <= 3650))) OR (((settlement_rule_type)::text = 'RELATIVE_DAYS'::text) AND (settlement_month_offset = 0) AND (settlement_day_of_month IS NULL)) OR (((settlement_rule_type)::text = 'MONTH_END'::text) AND (settlement_day_of_month IS NULL) AND ((settlement_cutoff_day >= 1) AND (settlement_cutoff_day <= 31))) OR (((settlement_rule_type)::text = 'FIXED_DAY'::text) AND ((settlement_day_of_month >= 1) AND (settlement_day_of_month <= 31))))))),
+    CONSTRAINT vou_sale_order_warehouse_ck CHECK ((((warehouse_object_id IS NULL) AND (warehouse_approval_entry_id IS NULL) AND (warehouse_code IS NULL) AND (warehouse_name IS NULL)) OR ((warehouse_object_id IS NOT NULL) AND (warehouse_approval_entry_id IS NOT NULL) AND (warehouse_code IS NOT NULL) AND (warehouse_name IS NOT NULL))))
 );
 
 
@@ -3394,14 +3155,14 @@ CREATE TABLE public.vou_sale_order_formula_lines (
     product_line_id character varying(26) NOT NULL,
     line_no integer NOT NULL,
     material_object_id character varying(26) NOT NULL,
-    material_version_id character varying(26) NOT NULL,
+    material_approval_entry_id character varying(26) NOT NULL,
     material_code character varying(64) NOT NULL,
     material_name character varying(200) NOT NULL,
     entered_unit_symbol character varying(32) CONSTRAINT vou_sale_order_formula_lines_material_unit_not_null NOT NULL,
     base_quantity_micros bigint CONSTRAINT vou_sale_order_formula_lines_quantity_micros_not_null NOT NULL,
     entered_quantity_micros bigint NOT NULL,
     entered_unit_object_id character varying(26) NOT NULL,
-    entered_unit_version_id character varying(26) NOT NULL,
+    entered_unit_approval_entry_id character varying(26) NOT NULL,
     entered_unit_code character varying(64) NOT NULL,
     entered_unit_name character varying(200) NOT NULL,
     CONSTRAINT vou_sale_order_formula_lines_line_no_check CHECK ((line_no >= 1)),
@@ -3421,7 +3182,7 @@ CREATE TABLE public.vou_sale_order_formulas (
     output_base_quantity_micros bigint CONSTRAINT vou_sale_order_formulas_base_output_quantity_micros_not_null NOT NULL,
     output_entered_quantity_micros bigint NOT NULL,
     output_entered_unit_object_id character varying(26) NOT NULL,
-    output_entered_unit_version_id character varying(26) NOT NULL,
+    output_entered_unit_approval_entry_id character varying(26) NOT NULL,
     output_entered_unit_code character varying(64) NOT NULL,
     output_entered_unit_name character varying(200) NOT NULL,
     output_entered_unit_symbol character varying(32) NOT NULL,
@@ -3440,15 +3201,15 @@ CREATE TABLE public.vou_sale_outbound_details (
     entity character varying(32) DEFAULT 'sale-outbound'::character varying NOT NULL,
     source_order_id character varying(26) NOT NULL,
     customer_object_id character varying(26) NOT NULL,
-    customer_version_id character varying(26) NOT NULL,
+    customer_approval_entry_id character varying(26) NOT NULL,
     customer_code character varying(64) NOT NULL,
     customer_name character varying(200) NOT NULL,
     warehouse_object_id character varying(26),
-    warehouse_version_id character varying(26),
+    warehouse_approval_entry_id character varying(26),
     warehouse_code character varying(64),
     warehouse_name character varying(200),
     CONSTRAINT vou_sale_outbound_details_entity_check CHECK (((entity)::text = 'sale-outbound'::text)),
-    CONSTRAINT vou_sale_outbound_warehouse_draft_ck CHECK ((((warehouse_object_id IS NULL) AND (warehouse_version_id IS NULL) AND (warehouse_code IS NULL) AND (warehouse_name IS NULL)) OR ((warehouse_object_id IS NOT NULL) AND (warehouse_version_id IS NOT NULL) AND (warehouse_code IS NOT NULL) AND (warehouse_name IS NOT NULL))))
+    CONSTRAINT vou_sale_outbound_warehouse_draft_ck CHECK ((((warehouse_object_id IS NULL) AND (warehouse_approval_entry_id IS NULL) AND (warehouse_code IS NULL) AND (warehouse_name IS NULL)) OR ((warehouse_object_id IS NOT NULL) AND (warehouse_approval_entry_id IS NOT NULL) AND (warehouse_code IS NOT NULL) AND (warehouse_name IS NOT NULL))))
 );
 
 
@@ -3462,7 +3223,7 @@ CREATE TABLE public.vou_sale_outbound_lines (
     source_order_line_id character varying(26) NOT NULL,
     line_no integer NOT NULL,
     product_object_id character varying(26) NOT NULL,
-    product_version_id character varying(26) NOT NULL,
+    product_approval_entry_id character varying(26) NOT NULL,
     product_code character varying(64) NOT NULL,
     product_name character varying(200) NOT NULL,
     entered_unit_symbol character varying(32) CONSTRAINT vou_sale_outbound_lines_product_unit_not_null NOT NULL,
@@ -3500,11 +3261,11 @@ CREATE TABLE public.vou_sale_return_details (
     return_kind character varying(16) NOT NULL,
     return_reason character varying(1000) NOT NULL,
     customer_object_id character varying(26) NOT NULL,
-    customer_version_id character varying(26) NOT NULL,
+    customer_approval_entry_id character varying(26) NOT NULL,
     customer_code character varying(64) NOT NULL,
     customer_name character varying(200) NOT NULL,
     warehouse_object_id character varying(26) NOT NULL,
-    warehouse_version_id character varying(26) NOT NULL,
+    warehouse_approval_entry_id character varying(26) NOT NULL,
     warehouse_code character varying(64) NOT NULL,
     warehouse_name character varying(200) NOT NULL,
     CONSTRAINT vou_sale_return_details_entity_check CHECK (((entity)::text = 'sale-return'::text)),
@@ -3525,7 +3286,7 @@ CREATE TABLE public.vou_sale_return_lines (
     source_signoff_id character varying(26) NOT NULL,
     line_no integer NOT NULL,
     product_object_id character varying(26) NOT NULL,
-    product_version_id character varying(26) NOT NULL,
+    product_approval_entry_id character varying(26) NOT NULL,
     product_code character varying(64) NOT NULL,
     product_name character varying(200) NOT NULL,
     entered_unit_symbol character varying(32) CONSTRAINT vou_sale_return_lines_product_unit_not_null NOT NULL,
@@ -3551,11 +3312,11 @@ CREATE TABLE public.vou_sale_signoff_details (
     source_outbound_id character varying(26) NOT NULL,
     source_order_id character varying(26) NOT NULL,
     customer_object_id character varying(26) NOT NULL,
-    customer_version_id character varying(26) NOT NULL,
+    customer_approval_entry_id character varying(26) NOT NULL,
     customer_code character varying(64) NOT NULL,
     customer_name character varying(200) NOT NULL,
     warehouse_object_id character varying(26) NOT NULL,
-    warehouse_version_id character varying(26) NOT NULL,
+    warehouse_approval_entry_id character varying(26) NOT NULL,
     warehouse_code character varying(64) NOT NULL,
     warehouse_name character varying(200) NOT NULL,
     CONSTRAINT vou_sale_signoff_details_entity_check CHECK (((entity)::text = 'sale-signoff'::text))
@@ -3573,7 +3334,7 @@ CREATE TABLE public.vou_sale_signoff_lines (
     source_order_line_id character varying(26) NOT NULL,
     line_no integer NOT NULL,
     product_object_id character varying(26) NOT NULL,
-    product_version_id character varying(26) NOT NULL,
+    product_approval_entry_id character varying(26) NOT NULL,
     product_code character varying(64) NOT NULL,
     product_name character varying(200) NOT NULL,
     entered_unit_symbol character varying(32) CONSTRAINT vou_sale_signoff_lines_product_unit_not_null NOT NULL,
@@ -3624,21 +3385,21 @@ CREATE TABLE public.vou_service_contract_details (
     entity character varying(32) DEFAULT 'service-contract'::character varying NOT NULL,
     counterparty_entity character varying(32) NOT NULL,
     counterparty_object_id character varying(26) NOT NULL,
-    counterparty_version_id character varying(26) NOT NULL,
+    counterparty_approval_entry_id character varying(26) NOT NULL,
     counterparty_code character varying(64) NOT NULL,
     counterparty_name character varying(200) NOT NULL,
     party_id character varying(26) NOT NULL,
     party_name character varying(200) NOT NULL,
     operating_entity_object_id character varying(26) CONSTRAINT vou_service_contract_detail_operating_entity_object_id_not_null NOT NULL,
-    operating_entity_version_id character varying(26) CONSTRAINT vou_service_contract_detail_operating_entity_version_i_not_null NOT NULL,
+    operating_entity_approval_entry_id character varying(26) CONSTRAINT vou_service_contract_detail_operating_entry_not_null NOT NULL,
     operating_entity_code character varying(64) NOT NULL,
     operating_entity_name character varying(200) NOT NULL,
     handler_object_id character varying(26) NOT NULL,
-    handler_version_id character varying(26) NOT NULL,
+    handler_approval_entry_id character varying(26) NOT NULL,
     handler_code character varying(64) NOT NULL,
     handler_name character varying(200) NOT NULL,
     settlement_method_object_id character varying(26),
-    settlement_method_version_id character varying(26),
+    settlement_method_approval_entry_id character varying(26),
     settlement_method_code character varying(64),
     settlement_method_name character varying(200),
     settlement_term_code character varying(32),
@@ -3651,8 +3412,8 @@ CREATE TABLE public.vou_service_contract_details (
     applicable_to date,
     contract_terms text DEFAULT ''::text NOT NULL,
     CONSTRAINT vou_service_contract_details_capabilities_check CHECK ((capabilities <@ ARRAY['EXTERNAL_PART_TIME'::character varying(32), 'CHANNEL_PARTNER'::character varying(32)])),
-    CONSTRAINT vou_service_contract_details_check CHECK (((((counterparty_entity)::text = 'other-unit'::text) AND (cardinality(capabilities) = 0) AND (applicable_from IS NULL) AND (applicable_to IS NULL)) OR (((counterparty_entity)::text = 'sales-partner'::text) AND (cardinality(capabilities) > 0) AND (applicable_from IS NOT NULL) AND ((applicable_to IS NULL) OR (applicable_to >= applicable_from)) AND (settlement_method_object_id IS NULL) AND (settlement_method_version_id IS NULL) AND (settlement_method_code IS NULL) AND (settlement_method_name IS NULL) AND (settlement_term_code IS NULL) AND (settlement_rule_type IS NULL) AND (settlement_month_offset IS NULL) AND (settlement_day_of_month IS NULL) AND (settlement_day_offset IS NULL)))),
-    CONSTRAINT vou_service_contract_details_check1 CHECK (((((counterparty_entity)::text = 'other-unit'::text) AND (settlement_method_object_id IS NOT NULL) AND (settlement_method_version_id IS NOT NULL) AND (settlement_method_code IS NOT NULL) AND (settlement_method_name IS NOT NULL) AND (settlement_term_code IS NOT NULL) AND (settlement_rule_type IS NOT NULL) AND (settlement_month_offset IS NOT NULL) AND (settlement_day_offset IS NOT NULL)) OR ((counterparty_entity)::text = 'sales-partner'::text))),
+    CONSTRAINT vou_service_contract_details_check CHECK (((((counterparty_entity)::text = 'other-unit'::text) AND (cardinality(capabilities) = 0) AND (applicable_from IS NULL) AND (applicable_to IS NULL)) OR (((counterparty_entity)::text = 'sales-partner'::text) AND (cardinality(capabilities) > 0) AND (applicable_from IS NOT NULL) AND ((applicable_to IS NULL) OR (applicable_to >= applicable_from)) AND (settlement_method_object_id IS NULL) AND (settlement_method_approval_entry_id IS NULL) AND (settlement_method_code IS NULL) AND (settlement_method_name IS NULL) AND (settlement_term_code IS NULL) AND (settlement_rule_type IS NULL) AND (settlement_month_offset IS NULL) AND (settlement_day_of_month IS NULL) AND (settlement_day_offset IS NULL)))),
+    CONSTRAINT vou_service_contract_details_check1 CHECK (((((counterparty_entity)::text = 'other-unit'::text) AND (settlement_method_object_id IS NOT NULL) AND (settlement_method_approval_entry_id IS NOT NULL) AND (settlement_method_code IS NOT NULL) AND (settlement_method_name IS NOT NULL) AND (settlement_term_code IS NOT NULL) AND (settlement_rule_type IS NOT NULL) AND (settlement_month_offset IS NOT NULL) AND (settlement_day_offset IS NOT NULL)) OR ((counterparty_entity)::text = 'sales-partner'::text))),
     CONSTRAINT vou_service_contract_details_contract_terms_check CHECK ((length(btrim(contract_terms)) <= 10000)),
     CONSTRAINT vou_service_contract_details_counterparty_entity_check CHECK (((counterparty_entity)::text = ANY ((ARRAY['other-unit'::character varying, 'sales-partner'::character varying])::text[]))),
     CONSTRAINT vou_service_contract_details_entity_check CHECK (((entity)::text = 'service-contract'::text))
@@ -4511,17 +4272,6 @@ INSERT INTO public.app_permissions VALUES ('PS0df4bd2763812f898b1cc05a', '/vou/e
 INSERT INTO public.app_permissions VALUES ('PSb6b9cdbca6193def45c36203', '/vou/employee-loan/attachment-download', 'vou', 'employee-loan', 'attachment-download', '下载附件往来付款', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PS9f13fbfae9a142a7aba70c12', '/vou/employee-repayment/attachment-remove', 'vou', 'employee-repayment', 'attachment-remove', '移除附件往来收款', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PS2fade3ab3b03ec9619235cbf', '/vou/employee-loan/attachment-remove', 'vou', 'employee-loan', 'attachment-remove', '移除附件往来付款', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JSMTP0000000000000000002', '/bob/settlement-method/get', 'bob', 'settlement-method', 'get', '查看结算方式', 'ENABLED', '2026-08-24 15:23:49.623051+00', NULL, '2026-08-24 15:23:49.623051+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JSMTP0000000000000000003', '/bob/settlement-method/save', 'bob', 'settlement-method', 'save', '保存草稿结算方式', 'ENABLED', '2026-08-24 15:23:49.623051+00', NULL, '2026-08-24 15:23:49.623051+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JSMTP0000000000000000004', '/bob/settlement-method/submit', 'bob', 'settlement-method', 'submit', '提交审核结算方式', 'ENABLED', '2026-08-24 15:23:49.623051+00', NULL, '2026-08-24 15:23:49.623051+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JSMTP0000000000000000005', '/bob/settlement-method/unsubmit', 'bob', 'settlement-method', 'unsubmit', '撤回提交结算方式', 'ENABLED', '2026-08-24 15:23:49.623051+00', NULL, '2026-08-24 15:23:49.623051+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JSMTP0000000000000000006', '/bob/settlement-method/approve', 'bob', 'settlement-method', 'approve', '审核通过结算方式', 'ENABLED', '2026-08-24 15:23:49.623051+00', NULL, '2026-08-24 15:23:49.623051+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JSMTP0000000000000000007', '/bob/settlement-method/unapprove', 'bob', 'settlement-method', 'unapprove', '撤销审核结算方式', 'ENABLED', '2026-08-24 15:23:49.623051+00', NULL, '2026-08-24 15:23:49.623051+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JSMTP0000000000000000008', '/bob/settlement-method/reject', 'bob', 'settlement-method', 'reject', '审核驳回结算方式', 'ENABLED', '2026-08-24 15:23:49.623051+00', NULL, '2026-08-24 15:23:49.623051+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JSMTP0000000000000000009', '/bob/settlement-method/enable', 'bob', 'settlement-method', 'enable', '启用结算方式', 'ENABLED', '2026-08-24 15:23:49.623051+00', NULL, '2026-08-24 15:23:49.623051+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JSMTP0000000000000000010', '/bob/settlement-method/disable', 'bob', 'settlement-method', 'disable', '停用结算方式', 'ENABLED', '2026-08-24 15:23:49.623051+00', NULL, '2026-08-24 15:23:49.623051+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JSMTP0000000000000000011', '/bob/settlement-method/versions', 'bob', 'settlement-method', 'versions', '查看版本结算方式', 'ENABLED', '2026-08-24 15:23:49.623051+00', NULL, '2026-08-24 15:23:49.623051+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JSMTP0000000000000000012', '/bob/settlement-method/audit-history', 'bob', 'settlement-method', 'audit-history', '查看审核记录结算方式', 'ENABLED', '2026-08-24 15:23:49.623051+00', NULL, '2026-08-24 15:23:49.623051+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BIL1db2a82a850442aaae2b556', '/vou/bill-receipt/get', 'vou', 'bill-receipt', 'get', '查看收票单', 'ENABLED', '2026-08-24 15:23:49.649049+00', NULL, '2026-08-24 15:23:49.649049+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BILf2d9299f9a39d3a43faea58', '/vou/bill-receipt/create', 'vou', 'bill-receipt', 'create', '创建收票单', 'ENABLED', '2026-08-24 15:23:49.649049+00', NULL, '2026-08-24 15:23:49.649049+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BIL24a2d27aa1ba62d2a0341aa', '/vou/bill-receipt/save', 'vou', 'bill-receipt', 'save', '保存收票单', 'ENABLED', '2026-08-24 15:23:49.649049+00', NULL, '2026-08-24 15:23:49.649049+00', NULL, 1, NULL);
@@ -4586,7 +4336,6 @@ INSERT INTO public.app_permissions VALUES ('01JAPPSYSPARAM000000000001', '/app/s
 INSERT INTO public.app_permissions VALUES ('01JAPPSYSPARAM000000000002', '/app/system-parameter/get', 'app', 'system-parameter', 'get', '查看系统参数', 'ENABLED', '2026-08-24 15:23:49.673922+00', NULL, '2026-08-24 15:23:49.673922+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAPPSYSPARAM000000000003', '/app/system-parameter/save', 'app', 'system-parameter', 'save', '修改系统参数', 'ENABLED', '2026-08-24 15:23:49.673922+00', NULL, '2026-08-24 15:23:49.673922+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAPPSYSPARAM000000000004', '/app/system-parameter/reset', 'app', 'system-parameter', 'reset', '恢复系统参数默认值', 'ENABLED', '2026-08-24 15:23:49.673922+00', NULL, '2026-08-24 15:23:49.673922+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JSMTP0000000000000000001', '/bob/settlement-method/query', 'bob', 'settlement-method', 'query', '查询结算方式', 'ENABLED', '2026-08-24 15:23:49.623051+00', NULL, '2026-08-24 15:23:49.623051+00', NULL, 1, 90);
 INSERT INTO public.app_permissions VALUES ('FA8828b93f923b7bbf4ca5f57e', '/aux/asset-category/query', 'aux', 'asset-category', 'query', '查询资产类别', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, 5);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000201', '/aux/product-type/query', 'aux', 'product-type', 'query', '查询产品类型', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, 15);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000061', '/aux/position/query', 'aux', 'position', 'query', '查询岗位', 'ENABLED', '2026-08-24 15:23:49.336221+00', NULL, '2026-08-24 15:23:49.336221+00', NULL, 1, 30);
@@ -4791,6 +4540,64 @@ INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000010', '/bob/c
 INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000011', '/bob/customer-account/disable', 'bob', 'customer-account', 'disable', '停用客户账户', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000012', '/bob/customer-account/versions', 'bob', 'customer-account', 'versions', '查看客户账户版本', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB89CAC000000000000013', '/bob/customer-account/audit-history', 'bob', 'customer-account', 'audit-history', '查看客户账户审计', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000001', '/aux/product-category/submit', 'aux', 'product-category', 'submit', '提交产品类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000002', '/aux/product-category/unsubmit', 'aux', 'product-category', 'unsubmit', '撤回产品类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000003', '/aux/product-category/approve', 'aux', 'product-category', 'approve', '审核产品类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000004', '/aux/product-category/reject', 'aux', 'product-category', 'reject', '驳回产品类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000005', '/aux/product-category/unapprove', 'aux', 'product-category', 'unapprove', '反审核产品类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000006', '/aux/product-type/submit', 'aux', 'product-type', 'submit', '提交产品类型', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000007', '/aux/product-type/unsubmit', 'aux', 'product-type', 'unsubmit', '撤回产品类型', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000008', '/aux/product-type/approve', 'aux', 'product-type', 'approve', '审核产品类型', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000009', '/aux/product-type/reject', 'aux', 'product-type', 'reject', '驳回产品类型', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000010', '/aux/product-type/unapprove', 'aux', 'product-type', 'unapprove', '反审核产品类型', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000011', '/aux/department/submit', 'aux', 'department', 'submit', '提交部门', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000012', '/aux/department/unsubmit', 'aux', 'department', 'unsubmit', '撤回部门', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000013', '/aux/department/approve', 'aux', 'department', 'approve', '审核部门', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000014', '/aux/department/reject', 'aux', 'department', 'reject', '驳回部门', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000015', '/aux/department/unapprove', 'aux', 'department', 'unapprove', '反审核部门', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000016', '/aux/position/submit', 'aux', 'position', 'submit', '提交职位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000017', '/aux/position/unsubmit', 'aux', 'position', 'unsubmit', '撤回职位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000018', '/aux/position/approve', 'aux', 'position', 'approve', '审核职位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000019', '/aux/position/reject', 'aux', 'position', 'reject', '驳回职位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000020', '/aux/position/unapprove', 'aux', 'position', 'unapprove', '反审核职位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000021', '/aux/settlement-method/submit', 'aux', 'settlement-method', 'submit', '提交结算方式', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000022', '/aux/settlement-method/unsubmit', 'aux', 'settlement-method', 'unsubmit', '撤回结算方式', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000023', '/aux/settlement-method/approve', 'aux', 'settlement-method', 'approve', '审核结算方式', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000024', '/aux/settlement-method/reject', 'aux', 'settlement-method', 'reject', '驳回结算方式', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000025', '/aux/settlement-method/unapprove', 'aux', 'settlement-method', 'unapprove', '反审核结算方式', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000026', '/aux/payment-method/submit', 'aux', 'payment-method', 'submit', '提交收款方式', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000027', '/aux/payment-method/unsubmit', 'aux', 'payment-method', 'unsubmit', '撤回收款方式', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000028', '/aux/payment-method/approve', 'aux', 'payment-method', 'approve', '审核收款方式', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000029', '/aux/payment-method/reject', 'aux', 'payment-method', 'reject', '驳回收款方式', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000030', '/aux/payment-method/unapprove', 'aux', 'payment-method', 'unapprove', '反审核收款方式', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000031', '/aux/dictionary-type/submit', 'aux', 'dictionary-type', 'submit', '提交字典类型', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000032', '/aux/dictionary-type/unsubmit', 'aux', 'dictionary-type', 'unsubmit', '撤回字典类型', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000033', '/aux/dictionary-type/approve', 'aux', 'dictionary-type', 'approve', '审核字典类型', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000034', '/aux/dictionary-type/reject', 'aux', 'dictionary-type', 'reject', '驳回字典类型', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000035', '/aux/dictionary-type/unapprove', 'aux', 'dictionary-type', 'unapprove', '反审核字典类型', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000036', '/aux/dictionary-item/submit', 'aux', 'dictionary-item', 'submit', '提交字典项', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000037', '/aux/dictionary-item/unsubmit', 'aux', 'dictionary-item', 'unsubmit', '撤回字典项', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000038', '/aux/dictionary-item/approve', 'aux', 'dictionary-item', 'approve', '审核字典项', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000039', '/aux/dictionary-item/reject', 'aux', 'dictionary-item', 'reject', '驳回字典项', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000040', '/aux/dictionary-item/unapprove', 'aux', 'dictionary-item', 'unapprove', '反审核字典项', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000041', '/aux/measurement-unit/submit', 'aux', 'measurement-unit', 'submit', '提交计量单位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000042', '/aux/measurement-unit/unsubmit', 'aux', 'measurement-unit', 'unsubmit', '撤回计量单位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000043', '/aux/measurement-unit/approve', 'aux', 'measurement-unit', 'approve', '审核计量单位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000044', '/aux/measurement-unit/reject', 'aux', 'measurement-unit', 'reject', '驳回计量单位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000045', '/aux/measurement-unit/unapprove', 'aux', 'measurement-unit', 'unapprove', '反审核计量单位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000046', '/aux/income-expense-type/submit', 'aux', 'income-expense-type', 'submit', '提交收支类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000047', '/aux/income-expense-type/unsubmit', 'aux', 'income-expense-type', 'unsubmit', '撤回收支类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000048', '/aux/income-expense-type/approve', 'aux', 'income-expense-type', 'approve', '审核收支类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000049', '/aux/income-expense-type/reject', 'aux', 'income-expense-type', 'reject', '驳回收支类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000050', '/aux/income-expense-type/unapprove', 'aux', 'income-expense-type', 'unapprove', '反审核收支类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000051', '/aux/asset-category/submit', 'aux', 'asset-category', 'submit', '提交资产类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000052', '/aux/asset-category/unsubmit', 'aux', 'asset-category', 'unsubmit', '撤回资产类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000053', '/aux/asset-category/approve', 'aux', 'asset-category', 'approve', '审核资产类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000054', '/aux/asset-category/reject', 'aux', 'asset-category', 'reject', '驳回资产类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3AUX00000000000000055', '/aux/asset-category/unapprove', 'aux', 'asset-category', 'unapprove', '反审核资产类别', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3BOB00000000000000001', '/bob/customer-account/unapprove', 'bob', 'customer-account', 'unapprove', '反审核客户结算账户', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3BOB00000000000000002', '/bob/other-unit/unapprove', 'bob', 'other-unit', 'unapprove', '反审核其他单位', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JPR3BOB00000000000000003', '/bob/sales-partner/unapprove', 'bob', 'sales-partner', 'unapprove', '反审核销售合作关系', 'ENABLED', '2026-08-24 15:23:50.451904+00', NULL, '2026-08-24 15:23:50.451904+00', NULL, 1, NULL);
 
 
 --
@@ -4857,138 +4664,86 @@ INSERT INTO public.app_users VALUES ('01JAPPSYST3MACTR0000000000', 'system', '�
 
 --
 -- +goose StatementEnd
--- Data for Name: aux_audit_events; Type: TABLE DATA; Schema: public; Owner: -
---
-
--- +goose StatementBegin
-INSERT INTO public.aux_audit_events VALUES ('01JPTPA0000000000000000001', '01JPTP00000000000000000001', '01JPTP00000000000000000002', 'product-type', 'CREATED', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', 'migration-00082', '{"systemInitial": true, "behaviorProfile": "RAW_MATERIAL"}');
-INSERT INTO public.aux_audit_events VALUES ('01JPTPA0000000000000000002', '01JPTP00000000000000000003', '01JPTP00000000000000000004', 'product-type', 'CREATED', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', 'migration-00082', '{"systemInitial": true, "behaviorProfile": "STANDARD_FINISHED"}');
-INSERT INTO public.aux_audit_events VALUES ('01JPTPA0000000000000000003', '01JPTP00000000000000000005', '01JPTP00000000000000000006', 'product-type', 'CREATED', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', 'migration-00082', '{"systemInitial": true, "behaviorProfile": "CUSTOM_FINISHED"}');
-INSERT INTO public.aux_audit_events VALUES ('01JPTPA0000000000000000004', '01JPTP00000000000000000007', '01JPTP00000000000000000008', 'product-type', 'CREATED', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', 'migration-00082', '{"systemInitial": true, "behaviorProfile": "PACKAGING"}');
-INSERT INTO public.aux_audit_events VALUES ('01JSMTA0000000000000000001', '01JSMT00000000000000000001', '01JSMT00000000000000000002', 'settlement-method', 'CREATED', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', 'migration-00082', '{"termCode": "PREPAID", "systemDefined": true}');
-INSERT INTO public.aux_audit_events VALUES ('01JSMTA0000000000000000002', '01JSMT00000000000000000003', '01JSMT00000000000000000004', 'settlement-method', 'CREATED', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', 'migration-00082', '{"termCode": "CASH_ON_DELIVERY", "systemDefined": true}');
-INSERT INTO public.aux_audit_events VALUES ('01JSMTA0000000000000000003', '01JSMT00000000000000000005', '01JSMT00000000000000000006', 'settlement-method', 'CREATED', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', 'migration-00082', '{"termCode": "ARRIVAL_3", "systemDefined": true}');
-INSERT INTO public.aux_audit_events VALUES ('01JSMTA0000000000000000004', '01JSMT00000000000000000007', '01JSMT00000000000000000008', 'settlement-method', 'CREATED', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', 'migration-00082', '{"termCode": "ARRIVAL_5", "systemDefined": true}');
-INSERT INTO public.aux_audit_events VALUES ('01JSMTA0000000000000000005', '01JSMT00000000000000000009', '01JSMT00000000000000000010', 'settlement-method', 'CREATED', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', 'migration-00082', '{"termCode": "ARRIVAL_7", "systemDefined": true}');
-INSERT INTO public.aux_audit_events VALUES ('01JSMTA0000000000000000006', '01JSMT00000000000000000011', '01JSMT00000000000000000012', 'settlement-method', 'CREATED', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', 'migration-00082', '{"termCode": "ARRIVAL_15", "systemDefined": true}');
-INSERT INTO public.aux_audit_events VALUES ('01JSMTA0000000000000000007', '01JSMT00000000000000000013', '01JSMT00000000000000000014', 'settlement-method', 'CREATED', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', 'migration-00082', '{"termCode": "ARRIVAL_30", "systemDefined": true}');
-INSERT INTO public.aux_audit_events VALUES ('01JSMTA0000000000000000008', '01JSMT00000000000000000015', '01JSMT00000000000000000016', 'settlement-method', 'CREATED', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', 'migration-00082', '{"termCode": "MONTHLY_CURRENT", "systemDefined": true}');
-INSERT INTO public.aux_audit_events VALUES ('01JSMTA0000000000000000009', '01JSMT00000000000000000017', '01JSMT00000000000000000018', 'settlement-method', 'CREATED', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', 'migration-00082', '{"termCode": "MONTHLY_30", "systemDefined": true}');
-INSERT INTO public.aux_audit_events VALUES ('01JSMTA0000000000000000010', '01JSMT00000000000000000019', '01JSMT00000000000000000020', 'settlement-method', 'CREATED', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', 'migration-00082', '{"termCode": "MONTHLY_60", "systemDefined": true}');
-INSERT INTO public.aux_audit_events VALUES ('01JSMTA0000000000000000011', '01JSMT00000000000000000021', '01JSMT00000000000000000022', 'settlement-method', 'CREATED', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', 'migration-00082', '{"termCode": "MONTHLY_90", "systemDefined": true}');
-
-
---
--- +goose StatementEnd
 -- Data for Name: aux_objects; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 -- +goose StatementBegin
-INSERT INTO public.aux_objects VALUES ('01JAVX00000000000000000001', 'dictionary-type', 'DCT-0001', '01JAVX00000000000000000002', true, 2, 1, '2026-08-24 15:23:49.336221+00', '00000000000000000000000000', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JAVX00000000000000000003', 'dictionary-type', 'DCT-0002', '01JAVX00000000000000000004', true, 2, 1, '2026-08-24 15:23:49.336221+00', '00000000000000000000000000', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JAVX00000000000000000005', 'dictionary-item', 'DIT-0001', '01JAVX00000000000000000006', true, 2, 1, '2026-08-24 15:23:49.336221+00', '00000000000000000000000000', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JAVX00000000000000000007', 'dictionary-item', 'DIT-0002', '01JAVX00000000000000000008', true, 2, 1, '2026-08-24 15:23:49.336221+00', '00000000000000000000000000', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JAVX00000000000000000009', 'dictionary-item', 'DIT-0003', '01JAVX00000000000000000010', true, 2, 1, '2026-08-24 15:23:49.336221+00', '00000000000000000000000000', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JAVX00000000000000000011', 'measurement-unit', 'UNT-0001', '01JAVX00000000000000000012', true, 2, 1, '2026-08-24 15:23:49.336221+00', '00000000000000000000000000', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JAVX00000000000000000013', 'measurement-unit', 'UNT-0002', '01JAVX00000000000000000014', true, 2, 1, '2026-08-24 15:23:49.336221+00', '00000000000000000000000000', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JAVX00000000000000000015', 'measurement-unit', 'UNT-0003', '01JAVX00000000000000000016', true, 2, 1, '2026-08-24 15:23:49.336221+00', '00000000000000000000000000', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JAVX00000000000000000017', 'measurement-unit', 'UNT-0004', '01JAVX00000000000000000018', true, 2, 1, '2026-08-24 15:23:49.336221+00', '00000000000000000000000000', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JAVX00000000000000000025', 'measurement-unit', 'UNT-0005', '01JAVX00000000000000000026', true, 2, 1, '2026-08-24 15:23:49.336221+00', '00000000000000000000000000', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JAVX00000000000000000027', 'measurement-unit', 'UNT-0006', '01JAVX00000000000000000028', true, 2, 1, '2026-08-24 15:23:49.336221+00', '00000000000000000000000000', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JPTP00000000000000000001', 'product-type', 'PTP-0001', '01JPTP00000000000000000002', true, 2, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JPTP00000000000000000003', 'product-type', 'PTP-0002', '01JPTP00000000000000000004', true, 2, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JPTP00000000000000000005', 'product-type', 'PTP-0003', '01JPTP00000000000000000006', true, 2, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JPTP00000000000000000007', 'product-type', 'PTP-0004', '01JPTP00000000000000000008', true, 2, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JSMT00000000000000000001', 'settlement-method', 'STM-0001', '01JSMT00000000000000000002', true, 2, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JSMT00000000000000000003', 'settlement-method', 'STM-0002', '01JSMT00000000000000000004', true, 2, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JSMT00000000000000000005', 'settlement-method', 'STM-0003', '01JSMT00000000000000000006', true, 2, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JSMT00000000000000000007', 'settlement-method', 'STM-0004', '01JSMT00000000000000000008', true, 2, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JSMT00000000000000000009', 'settlement-method', 'STM-0005', '01JSMT00000000000000000010', true, 2, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JSMT00000000000000000011', 'settlement-method', 'STM-0006', '01JSMT00000000000000000012', true, 2, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JSMT00000000000000000013', 'settlement-method', 'STM-0007', '01JSMT00000000000000000014', true, 2, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JSMT00000000000000000015', 'settlement-method', 'STM-0008', '01JSMT00000000000000000016', true, 2, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JSMT00000000000000000017', 'settlement-method', 'STM-0009', '01JSMT00000000000000000018', true, 2, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JSMT00000000000000000019', 'settlement-method', 'STM-0010', '01JSMT00000000000000000020', true, 2, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JSMT00000000000000000021', 'settlement-method', 'STM-0011', '01JSMT00000000000000000022', true, 2, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JCDT00000000000000000001', 'dictionary-type', 'DCT-0003', '01JCDT00000000000000000002', true, 2, 1, '2026-08-24 15:23:50.224888+00', '00000000000000000000000000', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JCDT00000000000000000003', 'dictionary-item', 'DIT-0004', '01JCDT00000000000000000004', true, 2, 1, '2026-08-24 15:23:50.224888+00', '00000000000000000000000000', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JCDT00000000000000000005', 'dictionary-item', 'DIT-0005', '01JCDT00000000000000000006', true, 2, 1, '2026-08-24 15:23:50.224888+00', '00000000000000000000000000', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JCDT00000000000000000007', 'dictionary-item', 'DIT-0006', '01JCDT00000000000000000008', true, 2, 1, '2026-08-24 15:23:50.224888+00', '00000000000000000000000000', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JCDT00000000000000000009', 'dictionary-item', 'DIT-0007', '01JCDT00000000000000000010', true, 2, 1, '2026-08-24 15:23:50.224888+00', '00000000000000000000000000', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JCDT00000000000000000011', 'dictionary-item', 'DIT-0008', '01JCDT00000000000000000012', true, 2, 1, '2026-08-24 15:23:50.224888+00', '00000000000000000000000000', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JCDT00000000000000000013', 'dictionary-item', 'DIT-0009', '01JCDT00000000000000000014', true, 2, 1, '2026-08-24 15:23:50.224888+00', '00000000000000000000000000', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000');
-INSERT INTO public.aux_objects VALUES ('01JCDT00000000000000000015', 'dictionary-item', 'DIT-0010', '01JCDT00000000000000000016', true, 2, 1, '2026-08-24 15:23:50.224888+00', '00000000000000000000000000', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000');
-
-
---
+INSERT INTO public.aux_objects (id, entity, code, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES
+    ('01JAVX00000000000000000001', 'dictionary-type', 'DCT-0001', true, 1, '2026-08-24 15:23:49.336221+00', '00000000000000000000000000', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000'),
+    ('01JAVX00000000000000000003', 'dictionary-type', 'DCT-0002', true, 1, '2026-08-24 15:23:49.336221+00', '00000000000000000000000000', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000'),
+    ('01JAVX00000000000000000005', 'dictionary-item', 'DIT-0001', true, 1, '2026-08-24 15:23:49.336221+00', '00000000000000000000000000', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000'),
+    ('01JAVX00000000000000000007', 'dictionary-item', 'DIT-0002', true, 1, '2026-08-24 15:23:49.336221+00', '00000000000000000000000000', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000'),
+    ('01JAVX00000000000000000009', 'dictionary-item', 'DIT-0003', true, 1, '2026-08-24 15:23:49.336221+00', '00000000000000000000000000', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000'),
+    ('01JAVX00000000000000000011', 'measurement-unit', 'UNT-0001', true, 1, '2026-08-24 15:23:49.336221+00', '00000000000000000000000000', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000'),
+    ('01JAVX00000000000000000013', 'measurement-unit', 'UNT-0002', true, 1, '2026-08-24 15:23:49.336221+00', '00000000000000000000000000', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000'),
+    ('01JAVX00000000000000000015', 'measurement-unit', 'UNT-0003', true, 1, '2026-08-24 15:23:49.336221+00', '00000000000000000000000000', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000'),
+    ('01JAVX00000000000000000017', 'measurement-unit', 'UNT-0004', true, 1, '2026-08-24 15:23:49.336221+00', '00000000000000000000000000', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000'),
+    ('01JAVX00000000000000000025', 'measurement-unit', 'UNT-0005', true, 1, '2026-08-24 15:23:49.336221+00', '00000000000000000000000000', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000'),
+    ('01JAVX00000000000000000027', 'measurement-unit', 'UNT-0006', true, 1, '2026-08-24 15:23:49.336221+00', '00000000000000000000000000', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000'),
+    ('01JPTP00000000000000000001', 'product-type', 'PTP-0001', true, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000'),
+    ('01JPTP00000000000000000003', 'product-type', 'PTP-0002', true, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000'),
+    ('01JPTP00000000000000000005', 'product-type', 'PTP-0003', true, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000'),
+    ('01JPTP00000000000000000007', 'product-type', 'PTP-0004', true, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000'),
+    ('01JSMT00000000000000000001', 'settlement-method', 'STM-0001', true, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000'),
+    ('01JSMT00000000000000000003', 'settlement-method', 'STM-0002', true, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000'),
+    ('01JSMT00000000000000000005', 'settlement-method', 'STM-0003', true, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000'),
+    ('01JSMT00000000000000000007', 'settlement-method', 'STM-0004', true, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000'),
+    ('01JSMT00000000000000000009', 'settlement-method', 'STM-0005', true, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000'),
+    ('01JSMT00000000000000000011', 'settlement-method', 'STM-0006', true, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000'),
+    ('01JSMT00000000000000000013', 'settlement-method', 'STM-0007', true, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000'),
+    ('01JSMT00000000000000000015', 'settlement-method', 'STM-0008', true, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000'),
+    ('01JSMT00000000000000000017', 'settlement-method', 'STM-0009', true, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000'),
+    ('01JSMT00000000000000000019', 'settlement-method', 'STM-0010', true, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000'),
+    ('01JSMT00000000000000000021', 'settlement-method', 'STM-0011', true, 1, '2026-08-24 15:23:50.195722+00', '00000000000000000000000000', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000'),
+    ('01JCDT00000000000000000001', 'dictionary-type', 'DCT-0003', true, 1, '2026-08-24 15:23:50.224888+00', '00000000000000000000000000', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000'),
+    ('01JCDT00000000000000000003', 'dictionary-item', 'DIT-0004', true, 1, '2026-08-24 15:23:50.224888+00', '00000000000000000000000000', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000'),
+    ('01JCDT00000000000000000005', 'dictionary-item', 'DIT-0005', true, 1, '2026-08-24 15:23:50.224888+00', '00000000000000000000000000', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000'),
+    ('01JCDT00000000000000000007', 'dictionary-item', 'DIT-0006', true, 1, '2026-08-24 15:23:50.224888+00', '00000000000000000000000000', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000'),
+    ('01JCDT00000000000000000009', 'dictionary-item', 'DIT-0007', true, 1, '2026-08-24 15:23:50.224888+00', '00000000000000000000000000', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000'),
+    ('01JCDT00000000000000000011', 'dictionary-item', 'DIT-0008', true, 1, '2026-08-24 15:23:50.224888+00', '00000000000000000000000000', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000'),
+    ('01JCDT00000000000000000013', 'dictionary-item', 'DIT-0009', true, 1, '2026-08-24 15:23:50.224888+00', '00000000000000000000000000', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000'),
+    ('01JCDT00000000000000000015', 'dictionary-item', 'DIT-0010', true, 1, '2026-08-24 15:23:50.224888+00', '00000000000000000000000000', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000');
 -- +goose StatementEnd
--- Data for Name: aux_versions; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: aux_version_payloads; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 -- +goose StatementBegin
-INSERT INTO public.aux_versions VALUES ('01JAVX00000000000000000002', '01JAVX00000000000000000001', 'dictionary-type', 1, '{"name": "客户类型", "description": "客户展示和筛选类型"}', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JAVX00000000000000000004', '01JAVX00000000000000000003', 'dictionary-type', 1, '{"name": "车辆类型", "description": "车辆展示和筛选类型"}', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JAVX00000000000000000012', '01JAVX00000000000000000011', 'measurement-unit', 1, '{"name": "千克", "symbol": "kg", "quantityScale": 6}', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JAVX00000000000000000014', '01JAVX00000000000000000013', 'measurement-unit', 1, '{"name": "件", "symbol": "件", "quantityScale": 0}', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JAVX00000000000000000016', '01JAVX00000000000000000015', 'measurement-unit', 1, '{"name": "年", "symbol": "年", "quantityScale": 6}', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JAVX00000000000000000018', '01JAVX00000000000000000017', 'measurement-unit', 1, '{"name": "次", "symbol": "次", "quantityScale": 6}', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JAVX00000000000000000026', '01JAVX00000000000000000025', 'measurement-unit', 1, '{"name": "小时", "symbol": "h", "quantityScale": 6}', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JAVX00000000000000000028', '01JAVX00000000000000000027', 'measurement-unit', 1, '{"name": "吨", "symbol": "t", "quantityScale": 6}', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JAVX00000000000000000006', '01JAVX00000000000000000005', 'dictionary-item', 1, '{"name": "终端客户", "sortOrder": 10, "dictionaryTypeCode": "DCT-0001"}', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JAVX00000000000000000008', '01JAVX00000000000000000007', 'dictionary-item', 1, '{"name": "经销商", "sortOrder": 20, "dictionaryTypeCode": "DCT-0001"}', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JAVX00000000000000000010', '01JAVX00000000000000000009', 'dictionary-item', 1, '{"name": "厢式货车", "sortOrder": 10, "dictionaryTypeCode": "DCT-0002"}', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JPTP00000000000000000002', '01JPTP00000000000000000001', 'product-type', 1, '{"name": "原材料", "description": "系统初始产品类型", "behaviorProfile": "RAW_MATERIAL"}', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JPTP00000000000000000004', '01JPTP00000000000000000003', 'product-type', 1, '{"name": "标准成品", "description": "系统初始产品类型", "behaviorProfile": "STANDARD_FINISHED"}', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JPTP00000000000000000006', '01JPTP00000000000000000005', 'product-type', 1, '{"name": "定制成品", "description": "系统初始产品类型", "behaviorProfile": "CUSTOM_FINISHED"}', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JPTP00000000000000000008', '01JPTP00000000000000000007', 'product-type', 1, '{"name": "包装物", "description": "系统初始产品类型", "behaviorProfile": "PACKAGING"}', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JSMT00000000000000000002', '01JSMT00000000000000000001', 'settlement-method', 1, '{"name": "预付", "ruleType": "RELATIVE_DAYS", "termCode": "PREPAID", "dayOffset": 0, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.00"}', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JSMT00000000000000000004', '01JSMT00000000000000000003', 'settlement-method', 1, '{"name": "现结", "ruleType": "RELATIVE_DAYS", "termCode": "CASH_ON_DELIVERY", "dayOffset": 0, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.00"}', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JSMT00000000000000000006', '01JSMT00000000000000000005', 'settlement-method', 1, '{"name": "货到3天", "ruleType": "RELATIVE_DAYS", "termCode": "ARRIVAL_3", "dayOffset": 3, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.00"}', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JSMT00000000000000000008', '01JSMT00000000000000000007', 'settlement-method', 1, '{"name": "货到5天", "ruleType": "RELATIVE_DAYS", "termCode": "ARRIVAL_5", "dayOffset": 5, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.00"}', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JSMT00000000000000000010', '01JSMT00000000000000000009', 'settlement-method', 1, '{"name": "货到7天", "ruleType": "RELATIVE_DAYS", "termCode": "ARRIVAL_7", "dayOffset": 7, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.00"}', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JSMT00000000000000000012', '01JSMT00000000000000000011', 'settlement-method', 1, '{"name": "货到15天", "ruleType": "RELATIVE_DAYS", "termCode": "ARRIVAL_15", "dayOffset": 15, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.00"}', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JSMT00000000000000000014', '01JSMT00000000000000000013', 'settlement-method', 1, '{"name": "货到30天", "ruleType": "RELATIVE_DAYS", "termCode": "ARRIVAL_30", "dayOffset": 30, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.10"}', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JSMT00000000000000000016', '01JSMT00000000000000000015', 'settlement-method', 1, '{"name": "当月结", "ruleType": "MONTH_END", "termCode": "MONTHLY_CURRENT", "dayOffset": 0, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.05"}', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JSMT00000000000000000018', '01JSMT00000000000000000017', 'settlement-method', 1, '{"name": "月结30天", "ruleType": "MONTH_END", "termCode": "MONTHLY_30", "dayOffset": 0, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 1, "defaultSalesSurcharge": "0.10"}', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JSMT00000000000000000020', '01JSMT00000000000000000019', 'settlement-method', 1, '{"name": "月结60天", "ruleType": "MONTH_END", "termCode": "MONTHLY_60", "dayOffset": 0, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 2, "defaultSalesSurcharge": "0.20"}', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JSMT00000000000000000022', '01JSMT00000000000000000021', 'settlement-method', 1, '{"name": "月结90天", "ruleType": "MONTH_END", "termCode": "MONTHLY_90", "dayOffset": 0, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 3, "defaultSalesSurcharge": "0.30"}', '2026-08-24 15:23:50.195722+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JCDT00000000000000000002', '01JCDT00000000000000000001', 'dictionary-type', 1, '{"name": "客户资料类别", "description": "客户集团与结算子账户附件分类"}', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JCDT00000000000000000004', '01JCDT00000000000000000003', 'dictionary-item', 1, '{"name": "营业执照", "sortOrder": 10, "dictionaryTypeCode": "DCT-0003"}', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JCDT00000000000000000006', '01JCDT00000000000000000005', 'dictionary-item', 1, '{"name": "税务资料", "sortOrder": 20, "dictionaryTypeCode": "DCT-0003"}', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JCDT00000000000000000008', '01JCDT00000000000000000007', 'dictionary-item', 1, '{"name": "开票资料", "sortOrder": 30, "dictionaryTypeCode": "DCT-0003"}', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JCDT00000000000000000010', '01JCDT00000000000000000009', 'dictionary-item', 1, '{"name": "合同", "sortOrder": 40, "dictionaryTypeCode": "DCT-0003"}', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JCDT00000000000000000012', '01JCDT00000000000000000011', 'dictionary-item', 1, '{"name": "价格约定", "sortOrder": 50, "dictionaryTypeCode": "DCT-0003"}', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JCDT00000000000000000014', '01JCDT00000000000000000013', 'dictionary-item', 1, '{"name": "交付约定", "sortOrder": 60, "dictionaryTypeCode": "DCT-0003"}', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000');
-INSERT INTO public.aux_versions VALUES ('01JCDT00000000000000000016', '01JCDT00000000000000000015', 'dictionary-item', 1, '{"name": "其他", "sortOrder": 70, "dictionaryTypeCode": "DCT-0003"}', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000');
-
-
---
+INSERT INTO public.aux_version_payloads (approval_entry_id, object_id, entity, data) VALUES
+    ('01JAVX00000000000000000002', '01JAVX00000000000000000001', 'dictionary-type', '{"name": "客户类型", "description": "客户展示和筛选类型"}'),
+    ('01JAVX00000000000000000004', '01JAVX00000000000000000003', 'dictionary-type', '{"name": "车辆类型", "description": "车辆展示和筛选类型"}'),
+    ('01JAVX00000000000000000012', '01JAVX00000000000000000011', 'measurement-unit', '{"name": "千克", "symbol": "kg", "quantityScale": 6}'),
+    ('01JAVX00000000000000000014', '01JAVX00000000000000000013', 'measurement-unit', '{"name": "件", "symbol": "件", "quantityScale": 0}'),
+    ('01JAVX00000000000000000016', '01JAVX00000000000000000015', 'measurement-unit', '{"name": "年", "symbol": "年", "quantityScale": 6}'),
+    ('01JAVX00000000000000000018', '01JAVX00000000000000000017', 'measurement-unit', '{"name": "次", "symbol": "次", "quantityScale": 6}'),
+    ('01JAVX00000000000000000026', '01JAVX00000000000000000025', 'measurement-unit', '{"name": "小时", "symbol": "h", "quantityScale": 6}'),
+    ('01JAVX00000000000000000028', '01JAVX00000000000000000027', 'measurement-unit', '{"name": "吨", "symbol": "t", "quantityScale": 6}'),
+    ('01JAVX00000000000000000006', '01JAVX00000000000000000005', 'dictionary-item', '{"name": "终端客户", "sortOrder": 10, "dictionaryTypeCode": "DCT-0001"}'),
+    ('01JAVX00000000000000000008', '01JAVX00000000000000000007', 'dictionary-item', '{"name": "经销商", "sortOrder": 20, "dictionaryTypeCode": "DCT-0001"}'),
+    ('01JAVX00000000000000000010', '01JAVX00000000000000000009', 'dictionary-item', '{"name": "厢式货车", "sortOrder": 10, "dictionaryTypeCode": "DCT-0002"}'),
+    ('01JPTP00000000000000000002', '01JPTP00000000000000000001', 'product-type', '{"name": "原材料", "description": "系统初始产品类型", "behaviorProfile": "RAW_MATERIAL"}'),
+    ('01JPTP00000000000000000004', '01JPTP00000000000000000003', 'product-type', '{"name": "标准成品", "description": "系统初始产品类型", "behaviorProfile": "STANDARD_FINISHED"}'),
+    ('01JPTP00000000000000000006', '01JPTP00000000000000000005', 'product-type', '{"name": "定制成品", "description": "系统初始产品类型", "behaviorProfile": "CUSTOM_FINISHED"}'),
+    ('01JPTP00000000000000000008', '01JPTP00000000000000000007', 'product-type', '{"name": "包装物", "description": "系统初始产品类型", "behaviorProfile": "PACKAGING"}'),
+    ('01JSMT00000000000000000002', '01JSMT00000000000000000001', 'settlement-method', '{"name": "预付", "ruleType": "RELATIVE_DAYS", "termCode": "PREPAID", "dayOffset": 0, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.00"}'),
+    ('01JSMT00000000000000000004', '01JSMT00000000000000000003', 'settlement-method', '{"name": "现结", "ruleType": "RELATIVE_DAYS", "termCode": "CASH_ON_DELIVERY", "dayOffset": 0, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.00"}'),
+    ('01JSMT00000000000000000006', '01JSMT00000000000000000005', 'settlement-method', '{"name": "货到3天", "ruleType": "RELATIVE_DAYS", "termCode": "ARRIVAL_3", "dayOffset": 3, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.00"}'),
+    ('01JSMT00000000000000000008', '01JSMT00000000000000000007', 'settlement-method', '{"name": "货到5天", "ruleType": "RELATIVE_DAYS", "termCode": "ARRIVAL_5", "dayOffset": 5, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.00"}'),
+    ('01JSMT00000000000000000010', '01JSMT00000000000000000009', 'settlement-method', '{"name": "货到7天", "ruleType": "RELATIVE_DAYS", "termCode": "ARRIVAL_7", "dayOffset": 7, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.00"}'),
+    ('01JSMT00000000000000000012', '01JSMT00000000000000000011', 'settlement-method', '{"name": "货到15天", "ruleType": "RELATIVE_DAYS", "termCode": "ARRIVAL_15", "dayOffset": 15, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.00"}'),
+    ('01JSMT00000000000000000014', '01JSMT00000000000000000013', 'settlement-method', '{"name": "货到30天", "ruleType": "RELATIVE_DAYS", "termCode": "ARRIVAL_30", "dayOffset": 30, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.10"}'),
+    ('01JSMT00000000000000000016', '01JSMT00000000000000000015', 'settlement-method', '{"name": "当月结", "ruleType": "MONTH_END", "termCode": "MONTHLY_CURRENT", "dayOffset": 0, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 0, "defaultSalesSurcharge": "0.05"}'),
+    ('01JSMT00000000000000000018', '01JSMT00000000000000000017', 'settlement-method', '{"name": "月结30天", "ruleType": "MONTH_END", "termCode": "MONTHLY_30", "dayOffset": 0, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 1, "defaultSalesSurcharge": "0.10"}'),
+    ('01JSMT00000000000000000020', '01JSMT00000000000000000019', 'settlement-method', '{"name": "月结60天", "ruleType": "MONTH_END", "termCode": "MONTHLY_60", "dayOffset": 0, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 2, "defaultSalesSurcharge": "0.20"}'),
+    ('01JSMT00000000000000000022', '01JSMT00000000000000000021', 'settlement-method', '{"name": "月结90天", "ruleType": "MONTH_END", "termCode": "MONTHLY_90", "dayOffset": 0, "dayOfMonth": 0, "description": "系统固定结算方式", "monthOffset": 3, "defaultSalesSurcharge": "0.30"}'),
+    ('01JCDT00000000000000000002', '01JCDT00000000000000000001', 'dictionary-type', '{"name": "客户资料类别", "description": "客户集团与结算子账户附件分类"}'),
+    ('01JCDT00000000000000000004', '01JCDT00000000000000000003', 'dictionary-item', '{"name": "营业执照", "sortOrder": 10, "dictionaryTypeCode": "DCT-0003"}'),
+    ('01JCDT00000000000000000006', '01JCDT00000000000000000005', 'dictionary-item', '{"name": "税务资料", "sortOrder": 20, "dictionaryTypeCode": "DCT-0003"}'),
+    ('01JCDT00000000000000000008', '01JCDT00000000000000000007', 'dictionary-item', '{"name": "开票资料", "sortOrder": 30, "dictionaryTypeCode": "DCT-0003"}'),
+    ('01JCDT00000000000000000010', '01JCDT00000000000000000009', 'dictionary-item', '{"name": "合同", "sortOrder": 40, "dictionaryTypeCode": "DCT-0003"}'),
+    ('01JCDT00000000000000000012', '01JCDT00000000000000000011', 'dictionary-item', '{"name": "价格约定", "sortOrder": 50, "dictionaryTypeCode": "DCT-0003"}'),
+    ('01JCDT00000000000000000014', '01JCDT00000000000000000013', 'dictionary-item', '{"name": "交付约定", "sortOrder": 60, "dictionaryTypeCode": "DCT-0003"}'),
+    ('01JCDT00000000000000000016', '01JCDT00000000000000000015', 'dictionary-item', '{"name": "其他", "sortOrder": 70, "dictionaryTypeCode": "DCT-0003"}');
 -- +goose StatementEnd
--- Data for Name: bob_audit_events; Type: TABLE DATA; Schema: public; Owner: -
---
-
--- +goose StatementBegin
-INSERT INTO public.bob_audit_events VALUES ('01JSMTA0000000000000000001', '01JSMT00000000000000000001', '01JSMT00000000000000000002', 'settlement-method', 'APPROVED', 'PENDING', 'EFFECTIVE', '00000000000000000000000001', '2026-08-24 15:23:49.623051+00', NULL, 'migration-00046', '{"termCode": "PREPAID", "systemDefined": true}');
-INSERT INTO public.bob_audit_events VALUES ('01JSMTA0000000000000000002', '01JSMT00000000000000000003', '01JSMT00000000000000000004', 'settlement-method', 'APPROVED', 'PENDING', 'EFFECTIVE', '00000000000000000000000001', '2026-08-24 15:23:49.623051+00', NULL, 'migration-00046', '{"termCode": "CASH_ON_DELIVERY", "systemDefined": true}');
-INSERT INTO public.bob_audit_events VALUES ('01JSMTA0000000000000000003', '01JSMT00000000000000000005', '01JSMT00000000000000000006', 'settlement-method', 'APPROVED', 'PENDING', 'EFFECTIVE', '00000000000000000000000001', '2026-08-24 15:23:49.623051+00', NULL, 'migration-00046', '{"termCode": "ARRIVAL_3", "systemDefined": true}');
-INSERT INTO public.bob_audit_events VALUES ('01JSMTA0000000000000000004', '01JSMT00000000000000000007', '01JSMT00000000000000000008', 'settlement-method', 'APPROVED', 'PENDING', 'EFFECTIVE', '00000000000000000000000001', '2026-08-24 15:23:49.623051+00', NULL, 'migration-00046', '{"termCode": "ARRIVAL_5", "systemDefined": true}');
-INSERT INTO public.bob_audit_events VALUES ('01JSMTA0000000000000000005', '01JSMT00000000000000000009', '01JSMT00000000000000000010', 'settlement-method', 'APPROVED', 'PENDING', 'EFFECTIVE', '00000000000000000000000001', '2026-08-24 15:23:49.623051+00', NULL, 'migration-00046', '{"termCode": "ARRIVAL_7", "systemDefined": true}');
-INSERT INTO public.bob_audit_events VALUES ('01JSMTA0000000000000000006', '01JSMT00000000000000000011', '01JSMT00000000000000000012', 'settlement-method', 'APPROVED', 'PENDING', 'EFFECTIVE', '00000000000000000000000001', '2026-08-24 15:23:49.623051+00', NULL, 'migration-00046', '{"termCode": "ARRIVAL_15", "systemDefined": true}');
-INSERT INTO public.bob_audit_events VALUES ('01JSMTA0000000000000000007', '01JSMT00000000000000000013', '01JSMT00000000000000000014', 'settlement-method', 'APPROVED', 'PENDING', 'EFFECTIVE', '00000000000000000000000001', '2026-08-24 15:23:49.623051+00', NULL, 'migration-00046', '{"termCode": "ARRIVAL_30", "systemDefined": true}');
-INSERT INTO public.bob_audit_events VALUES ('01JSMTA0000000000000000008', '01JSMT00000000000000000015', '01JSMT00000000000000000016', 'settlement-method', 'APPROVED', 'PENDING', 'EFFECTIVE', '00000000000000000000000001', '2026-08-24 15:23:49.623051+00', NULL, 'migration-00046', '{"termCode": "MONTHLY_CURRENT", "systemDefined": true}');
-INSERT INTO public.bob_audit_events VALUES ('01JSMTA0000000000000000009', '01JSMT00000000000000000017', '01JSMT00000000000000000018', 'settlement-method', 'APPROVED', 'PENDING', 'EFFECTIVE', '00000000000000000000000001', '2026-08-24 15:23:49.623051+00', NULL, 'migration-00046', '{"termCode": "MONTHLY_30", "systemDefined": true}');
-INSERT INTO public.bob_audit_events VALUES ('01JSMTA0000000000000000010', '01JSMT00000000000000000019', '01JSMT00000000000000000020', 'settlement-method', 'APPROVED', 'PENDING', 'EFFECTIVE', '00000000000000000000000001', '2026-08-24 15:23:49.623051+00', NULL, 'migration-00046', '{"termCode": "MONTHLY_60", "systemDefined": true}');
-INSERT INTO public.bob_audit_events VALUES ('01JSMTA0000000000000000011', '01JSMT00000000000000000021', '01JSMT00000000000000000022', 'settlement-method', 'APPROVED', 'PENDING', 'EFFECTIVE', '00000000000000000000000001', '2026-08-24 15:23:49.623051+00', NULL, 'migration-00046', '{"termCode": "MONTHLY_90", "systemDefined": true}');
-
-
---
--- +goose StatementEnd
--- Data for Name: bob_category_versions; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
 -- Data for Name: bob_customer_accounts; Type: TABLE DATA; Schema: public; Owner: -
 --
 
@@ -5043,12 +4798,6 @@ INSERT INTO public.bob_audit_events VALUES ('01JSMTA0000000000000000011', '01JSM
 
 
 --
--- Data for Name: bob_department_versions; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
 -- Data for Name: bob_employee_versions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
@@ -5070,22 +4819,6 @@ INSERT INTO public.bob_audit_events VALUES ('01JSMTA0000000000000000011', '01JSM
 -- Data for Name: bob_objects; Type: TABLE DATA; Schema: public; Owner: -
 --
 
--- +goose StatementBegin
-INSERT INTO public.bob_objects VALUES ('01JSMT00000000000000000001', 'settlement-method', 'STM-0001', '01JSMT00000000000000000002', '01JSMT00000000000000000002', 2, 1, '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', true);
-INSERT INTO public.bob_objects VALUES ('01JSMT00000000000000000003', 'settlement-method', 'STM-0002', '01JSMT00000000000000000004', '01JSMT00000000000000000004', 2, 1, '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', true);
-INSERT INTO public.bob_objects VALUES ('01JSMT00000000000000000005', 'settlement-method', 'STM-0003', '01JSMT00000000000000000006', '01JSMT00000000000000000006', 2, 1, '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', true);
-INSERT INTO public.bob_objects VALUES ('01JSMT00000000000000000007', 'settlement-method', 'STM-0004', '01JSMT00000000000000000008', '01JSMT00000000000000000008', 2, 1, '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', true);
-INSERT INTO public.bob_objects VALUES ('01JSMT00000000000000000009', 'settlement-method', 'STM-0005', '01JSMT00000000000000000010', '01JSMT00000000000000000010', 2, 1, '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', true);
-INSERT INTO public.bob_objects VALUES ('01JSMT00000000000000000011', 'settlement-method', 'STM-0006', '01JSMT00000000000000000012', '01JSMT00000000000000000012', 2, 1, '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', true);
-INSERT INTO public.bob_objects VALUES ('01JSMT00000000000000000013', 'settlement-method', 'STM-0007', '01JSMT00000000000000000014', '01JSMT00000000000000000014', 2, 1, '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', true);
-INSERT INTO public.bob_objects VALUES ('01JSMT00000000000000000015', 'settlement-method', 'STM-0008', '01JSMT00000000000000000016', '01JSMT00000000000000000016', 2, 1, '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', true);
-INSERT INTO public.bob_objects VALUES ('01JSMT00000000000000000017', 'settlement-method', 'STM-0009', '01JSMT00000000000000000018', '01JSMT00000000000000000018', 2, 1, '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', true);
-INSERT INTO public.bob_objects VALUES ('01JSMT00000000000000000019', 'settlement-method', 'STM-0010', '01JSMT00000000000000000020', '01JSMT00000000000000000020', 2, 1, '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', true);
-INSERT INTO public.bob_objects VALUES ('01JSMT00000000000000000021', 'settlement-method', 'STM-0011', '01JSMT00000000000000000022', '01JSMT00000000000000000022', 2, 1, '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', true);
-
-
---
--- +goose StatementEnd
 -- Data for Name: bob_operating_entity_versions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
@@ -5123,12 +4856,6 @@ INSERT INTO public.bob_objects VALUES ('01JSMT00000000000000000021', 'settlement
 
 --
 -- Data for Name: bob_party_relationship_merge_events; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: bob_position_versions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
@@ -5182,31 +4909,6 @@ INSERT INTO public.bob_objects VALUES ('01JSMT00000000000000000021', 'settlement
 
 
 --
--- Data for Name: bob_settlement_method_versions; Type: TABLE DATA; Schema: public; Owner: -
---
-
--- +goose StatementBegin
-INSERT INTO public.bob_settlement_method_versions VALUES ('01JSMT00000000000000000002', 'settlement-method', '预付', 'RELATIVE_DAYS', 0, NULL, 0, '系统固定结算方式', 'PREPAID', 0);
-INSERT INTO public.bob_settlement_method_versions VALUES ('01JSMT00000000000000000004', 'settlement-method', '现结', 'RELATIVE_DAYS', 0, NULL, 0, '系统固定结算方式', 'CASH_ON_DELIVERY', 0);
-INSERT INTO public.bob_settlement_method_versions VALUES ('01JSMT00000000000000000006', 'settlement-method', '货到3天', 'RELATIVE_DAYS', 0, NULL, 3, '系统固定结算方式', 'ARRIVAL_3', 0);
-INSERT INTO public.bob_settlement_method_versions VALUES ('01JSMT00000000000000000008', 'settlement-method', '货到5天', 'RELATIVE_DAYS', 0, NULL, 5, '系统固定结算方式', 'ARRIVAL_5', 0);
-INSERT INTO public.bob_settlement_method_versions VALUES ('01JSMT00000000000000000010', 'settlement-method', '货到7天', 'RELATIVE_DAYS', 0, NULL, 7, '系统固定结算方式', 'ARRIVAL_7', 0);
-INSERT INTO public.bob_settlement_method_versions VALUES ('01JSMT00000000000000000012', 'settlement-method', '货到15天', 'RELATIVE_DAYS', 0, NULL, 15, '系统固定结算方式', 'ARRIVAL_15', 0);
-INSERT INTO public.bob_settlement_method_versions VALUES ('01JSMT00000000000000000014', 'settlement-method', '货到30天', 'RELATIVE_DAYS', 0, NULL, 30, '系统固定结算方式', 'ARRIVAL_30', 10);
-INSERT INTO public.bob_settlement_method_versions VALUES ('01JSMT00000000000000000016', 'settlement-method', '当月结', 'MONTH_END', 0, NULL, 0, '系统固定结算方式', 'MONTHLY_CURRENT', 5);
-INSERT INTO public.bob_settlement_method_versions VALUES ('01JSMT00000000000000000018', 'settlement-method', '月结30天', 'MONTH_END', 1, NULL, 0, '系统固定结算方式', 'MONTHLY_30', 10);
-INSERT INTO public.bob_settlement_method_versions VALUES ('01JSMT00000000000000000020', 'settlement-method', '月结60天', 'MONTH_END', 2, NULL, 0, '系统固定结算方式', 'MONTHLY_60', 20);
-INSERT INTO public.bob_settlement_method_versions VALUES ('01JSMT00000000000000000022', 'settlement-method', '月结90天', 'MONTH_END', 3, NULL, 0, '系统固定结算方式', 'MONTHLY_90', 30);
-
-
---
--- +goose StatementEnd
--- Data for Name: bob_supplier_relationships; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
 -- Data for Name: bob_supplier_versions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
@@ -5219,37 +4921,11 @@ INSERT INTO public.bob_settlement_method_versions VALUES ('01JSMT000000000000000
 
 
 --
--- Data for Name: bob_versions; Type: TABLE DATA; Schema: public; Owner: -
---
-
--- +goose StatementBegin
-INSERT INTO public.bob_versions VALUES ('01JSMT00000000000000000002', '01JSMT00000000000000000001', 'settlement-method', 1, 'EFFECTIVE', 1, '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000001', '系统固定结算方式初始版本');
-INSERT INTO public.bob_versions VALUES ('01JSMT00000000000000000004', '01JSMT00000000000000000003', 'settlement-method', 1, 'EFFECTIVE', 1, '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000001', '系统固定结算方式初始版本');
-INSERT INTO public.bob_versions VALUES ('01JSMT00000000000000000006', '01JSMT00000000000000000005', 'settlement-method', 1, 'EFFECTIVE', 1, '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000001', '系统固定结算方式初始版本');
-INSERT INTO public.bob_versions VALUES ('01JSMT00000000000000000008', '01JSMT00000000000000000007', 'settlement-method', 1, 'EFFECTIVE', 1, '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000001', '系统固定结算方式初始版本');
-INSERT INTO public.bob_versions VALUES ('01JSMT00000000000000000010', '01JSMT00000000000000000009', 'settlement-method', 1, 'EFFECTIVE', 1, '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000001', '系统固定结算方式初始版本');
-INSERT INTO public.bob_versions VALUES ('01JSMT00000000000000000012', '01JSMT00000000000000000011', 'settlement-method', 1, 'EFFECTIVE', 1, '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000001', '系统固定结算方式初始版本');
-INSERT INTO public.bob_versions VALUES ('01JSMT00000000000000000014', '01JSMT00000000000000000013', 'settlement-method', 1, 'EFFECTIVE', 1, '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000001', '系统固定结算方式初始版本');
-INSERT INTO public.bob_versions VALUES ('01JSMT00000000000000000016', '01JSMT00000000000000000015', 'settlement-method', 1, 'EFFECTIVE', 1, '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000001', '系统固定结算方式初始版本');
-INSERT INTO public.bob_versions VALUES ('01JSMT00000000000000000018', '01JSMT00000000000000000017', 'settlement-method', 1, 'EFFECTIVE', 1, '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000001', '系统固定结算方式初始版本');
-INSERT INTO public.bob_versions VALUES ('01JSMT00000000000000000020', '01JSMT00000000000000000019', 'settlement-method', 1, 'EFFECTIVE', 1, '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000001', '系统固定结算方式初始版本');
-INSERT INTO public.bob_versions VALUES ('01JSMT00000000000000000022', '01JSMT00000000000000000021', 'settlement-method', 1, 'EFFECTIVE', 1, '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000000', '2026-08-24 15:23:49.623051+00', '00000000000000000000000001', '系统固定结算方式初始版本');
-
-
---
--- +goose StatementEnd
--- Data for Name: bob_warehouse_versions; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
 -- Data for Name: object_number_counters; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 -- +goose StatementBegin
 INSERT INTO public.object_number_counters VALUES ('aux', 'measurement-unit', 6);
-INSERT INTO public.object_number_counters VALUES ('bob', 'settlement-method', 11);
 INSERT INTO public.object_number_counters VALUES ('aux', 'settlement-method', 11);
 INSERT INTO public.object_number_counters VALUES ('aux', 'dictionary-type', 3);
 INSERT INTO public.object_number_counters VALUES ('aux', 'dictionary-item', 10);
@@ -5389,12 +5065,12 @@ INSERT INTO public.rpt_versions VALUES ('RPV43189400de7a6fe5d7978ed', 'RPD431894
       FROM residuals r GROUP BY r.book_id,r.party_id,r.currency HAVING sum(r.signed_minor)<>0
     )
     SELECT b.code::text AS book_code,x.party_id::text AS customer_id,coalesce(p.code,x.party_id)::text AS customer_code,
-      coalesce(p.name,x.party_id)::text AS customer_name,x.currency::text AS currency,
+      x.party_id::text AS customer_name,x.currency::text AS currency,
       (x.receivable_minor::numeric/100) AS receivable_amount,(x.advance_minor::numeric/100) AS advance_amount,
       (x.net_minor::numeric/100) AS net_amount,(abs(x.net_minor)::numeric/100) AS unsettled_amount,
       greatest(($4::date-x.oldest_due_date)::bigint,0::bigint) AS oldest_age_days
     FROM balances x JOIN acc_books b ON b.id=x.book_id
-    LEFT JOIN bob_version_summaries p ON p.object_id=x.party_id AND p.entity=''customer-account'' AND p.version_id=p.effective_version_id
+    LEFT JOIN bob_objects p ON p.id=x.party_id AND p.entity=''customer-account''
     WHERE greatest(($4::date-x.oldest_due_date)::bigint,0::bigint)>=$5::bigint
     ORDER BY b.code,customer_code,x.currency
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "customerId", "name": "客户", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "CUSTOMER_ACCOUNT"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}, {"key": "minAgeDays", "name": "最小账龄天数", "type": "INTEGER", "required": false, "defaultValue": 0}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "客户ID", "type": "ID", "alias": "customer_id", "order": 2, "width": 180, "visible": false}, {"name": "客户编码", "type": "TEXT", "alias": "customer_code", "order": 3, "width": 120, "visible": true}, {"name": "客户名称", "type": "TEXT", "alias": "customer_name", "order": 4, "width": 180, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "应收原额", "type": "DECIMAL", "alias": "receivable_amount", "order": 6, "width": 130, "format": "money", "visible": true}, {"name": "预收原额", "type": "DECIMAL", "alias": "advance_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "净额", "type": "DECIMAL", "alias": "net_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 9, "width": 130, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 10, "width": 120, "visible": true}]', 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', NULL, NULL, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
@@ -5435,12 +5111,12 @@ INSERT INTO public.rpt_versions VALUES ('RPV24d57c02d870b62329517d0', 'RPD24d57c
       FROM residuals r GROUP BY r.book_id,r.party_id,r.currency HAVING sum(r.signed_minor)<>0
     )
     SELECT b.code::text AS book_code,x.party_id::text AS supplier_id,coalesce(p.code,x.party_id)::text AS supplier_code,
-      coalesce(p.name,x.party_id)::text AS supplier_name,x.currency::text AS currency,
+      x.party_id::text AS supplier_name,x.currency::text AS currency,
       (x.payable_minor::numeric/100) AS payable_amount,(x.advance_minor::numeric/100) AS advance_amount,
       (x.net_minor::numeric/100) AS net_amount,(abs(x.net_minor)::numeric/100) AS unsettled_amount,
       greatest(($4::date-x.oldest_due_date)::bigint,0::bigint) AS oldest_age_days
     FROM balances x JOIN acc_books b ON b.id=x.book_id
-    LEFT JOIN bob_version_summaries p ON p.object_id=x.party_id AND p.entity=''supplier'' AND p.version_id=p.effective_version_id
+    LEFT JOIN bob_objects p ON p.id=x.party_id AND p.entity=''supplier''
     WHERE greatest(($4::date-x.oldest_due_date)::bigint,0::bigint)>=$5::bigint
     ORDER BY b.code,supplier_code,x.currency
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "supplierId", "name": "供应商", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "SUPPLIER_RELATIONSHIP"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}, {"key": "minAgeDays", "name": "最小账龄天数", "type": "INTEGER", "required": false, "defaultValue": 0}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "供应商ID", "type": "ID", "alias": "supplier_id", "order": 2, "width": 180, "visible": false}, {"name": "供应商编码", "type": "TEXT", "alias": "supplier_code", "order": 3, "width": 120, "visible": true}, {"name": "供应商名称", "type": "TEXT", "alias": "supplier_name", "order": 4, "width": 180, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "应付原额", "type": "DECIMAL", "alias": "payable_amount", "order": 6, "width": 130, "format": "money", "visible": true}, {"name": "预付原额", "type": "DECIMAL", "alias": "advance_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "净额", "type": "DECIMAL", "alias": "net_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 9, "width": 130, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 10, "width": 120, "visible": true}]', 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', NULL, NULL, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
@@ -5473,13 +5149,12 @@ INSERT INTO public.rpt_versions VALUES ('RPV57bcbf1d2df6010d41816c0', 'RPD57bcbf
     )
     SELECT m.code::text AS book_code,m.customer_id::text AS customer_id,
       coalesce(customer.code,m.customer_id)::text AS customer_code,
-      coalesce(customer.name,m.customer_id)::text AS customer_name,m.container_type::text AS container_type,
+      m.customer_id::text AS customer_name,m.container_type::text AS container_type,
       m.opening_quantity::numeric AS opening_quantity,m.issued_quantity::numeric AS issued_quantity,
       m.returned_quantity::numeric AS returned_quantity,m.adjusted_quantity::numeric AS adjusted_quantity,
       m.balance_quantity::numeric AS balance_quantity,NULL::numeric AS amount
     FROM movements m
-    LEFT JOIN bob_version_summaries customer ON customer.object_id=m.customer_id AND customer.entity=''customer-account''
-      AND customer.version_id=customer.effective_version_id
+    LEFT JOIN bob_objects customer ON customer.id=m.customer_id AND customer.entity=''customer-account''
     ORDER BY m.code,customer_code,m.container_type
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "customerId", "name": "客户", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "CUSTOMER_ACCOUNT"}, {"key": "containerType", "name": "桶型", "type": "ENUM", "required": false, "enumValues": ["", "SOLVENT", "RESIN"], "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "客户ID", "type": "ID", "alias": "customer_id", "order": 2, "width": 180, "visible": false}, {"name": "客户编码", "type": "TEXT", "alias": "customer_code", "order": 3, "width": 120, "visible": true}, {"name": "客户名称", "type": "TEXT", "alias": "customer_name", "order": 4, "width": 180, "visible": true}, {"name": "桶型", "type": "TEXT", "alias": "container_type", "order": 5, "width": 100, "visible": true}, {"name": "期初", "type": "DECIMAL", "alias": "opening_quantity", "order": 6, "width": 110, "format": "quantity", "visible": true}, {"name": "发出", "type": "DECIMAL", "alias": "issued_quantity", "order": 7, "width": 110, "format": "quantity", "visible": true}, {"name": "收回", "type": "DECIMAL", "alias": "returned_quantity", "order": 8, "width": 110, "format": "quantity", "visible": true}, {"name": "调整", "type": "DECIMAL", "alias": "adjusted_quantity", "order": 9, "width": 110, "format": "quantity", "visible": true}, {"name": "欠桶余额", "type": "DECIMAL", "alias": "balance_quantity", "order": 10, "width": 120, "format": "quantity", "visible": true}, {"name": "核算金额", "type": "DECIMAL", "alias": "amount", "order": 11, "width": 130, "format": "money", "visible": true}]', 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', NULL, NULL, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
 INSERT INTO public.rpt_versions VALUES ('RPV517f80b4080608d1ef8ce23', 'RPD517f80b4080608d1ef8ce23', 1, 'APPROVED', 'VALID', '
@@ -5517,13 +5192,13 @@ INSERT INTO public.rpt_versions VALUES ('RPV517f80b4080608d1ef8ce23', 'RPD517f80
       FROM residuals r GROUP BY r.book_id,r.employee_id,r.currency HAVING sum(r.signed_minor)<>0
     )
     SELECT b.code::text AS book_code,x.employee_id::text AS employee_id,coalesce(p.code,x.employee_id)::text AS employee_code,
-      coalesce(p.name,x.employee_id)::text AS employee_name,x.currency::text AS currency,
+      x.employee_id::text AS employee_name,x.currency::text AS currency,
       (x.loan_minor::numeric/100) AS loan_amount,(x.repayment_minor::numeric/100) AS repayment_amount,
       (x.writeoff_minor::numeric/100) AS writeoff_amount,(x.balance_minor::numeric/100) AS balance,
       (abs(x.balance_minor)::numeric/100) AS unsettled_amount,greatest(($4::date-x.oldest_date)::bigint,0::bigint) AS oldest_age_days,
       (CASE WHEN x.balance_minor<0 THEN ''PAYABLE_TO_EMPLOYEE'' ELSE ''RECEIVABLE_FROM_EMPLOYEE'' END)::text AS balance_meaning
     FROM balances x JOIN acc_books b ON b.id=x.book_id
-    LEFT JOIN bob_version_summaries p ON p.object_id=x.employee_id AND p.entity=''employee'' AND p.version_id=p.effective_version_id
+    LEFT JOIN bob_objects p ON p.id=x.employee_id AND p.entity=''employee''
     ORDER BY b.code,employee_code,x.currency
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "employeeId", "name": "员工", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "EMPLOYMENT_RELATIONSHIP"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "员工ID", "type": "ID", "alias": "employee_id", "order": 2, "width": 180, "visible": false}, {"name": "员工编码", "type": "TEXT", "alias": "employee_code", "order": 3, "width": 120, "visible": true}, {"name": "员工姓名", "type": "TEXT", "alias": "employee_name", "order": 4, "width": 150, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "借款", "type": "DECIMAL", "alias": "loan_amount", "order": 6, "width": 120, "format": "money", "visible": true}, {"name": "还款", "type": "DECIMAL", "alias": "repayment_amount", "order": 7, "width": 120, "format": "money", "visible": true}, {"name": "费用核销", "type": "DECIMAL", "alias": "writeoff_amount", "order": 8, "width": 120, "format": "money", "visible": true}, {"name": "余额", "type": "DECIMAL", "alias": "balance", "order": 9, "width": 120, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 10, "width": 120, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 11, "width": 120, "visible": true}, {"name": "余额含义", "type": "TEXT", "alias": "balance_meaning", "order": 12, "width": 170, "visible": true}]', 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', NULL, NULL, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
 
@@ -6544,14 +6219,6 @@ ALTER TABLE ONLY public.app_users
 
 
 --
--- Name: aux_audit_events aux_audit_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.aux_audit_events
-    ADD CONSTRAINT aux_audit_events_pkey PRIMARY KEY (id);
-
-
---
 -- Name: aux_objects aux_objects_id_entity_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6568,43 +6235,11 @@ ALTER TABLE ONLY public.aux_objects
 
 
 --
--- Name: aux_versions aux_versions_id_object_id_entity_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: aux_version_payloads aux_version_payloads_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.aux_versions
-    ADD CONSTRAINT aux_versions_id_object_id_entity_key UNIQUE (id, object_id, entity);
-
-
---
--- Name: aux_versions aux_versions_object_id_version_no_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.aux_versions
-    ADD CONSTRAINT aux_versions_object_id_version_no_key UNIQUE (object_id, version_no);
-
-
---
--- Name: aux_versions aux_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.aux_versions
-    ADD CONSTRAINT aux_versions_pkey PRIMARY KEY (id);
-
-
---
--- Name: bob_audit_events bob_audit_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_audit_events
-    ADD CONSTRAINT bob_audit_events_pkey PRIMARY KEY (id);
-
-
---
--- Name: bob_category_versions bob_category_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_category_versions
-    ADD CONSTRAINT bob_category_versions_pkey PRIMARY KEY (version_id);
+ALTER TABLE ONLY public.aux_version_payloads
+    ADD CONSTRAINT aux_version_payloads_pkey PRIMARY KEY (approval_entry_id);
 
 
 --
@@ -6620,7 +6255,7 @@ ALTER TABLE ONLY public.bob_customer_accounts
 --
 
 ALTER TABLE ONLY public.bob_customer_credit_limits
-    ADD CONSTRAINT bob_customer_credit_limits_pkey PRIMARY KEY (version_id, currency);
+    ADD CONSTRAINT bob_customer_credit_limits_pkey PRIMARY KEY (approval_entry_id, currency);
 
 
 --
@@ -6676,7 +6311,7 @@ ALTER TABLE ONLY public.bob_customer_relationship_attachments
 --
 
 ALTER TABLE ONLY public.bob_customer_relationship_versions
-    ADD CONSTRAINT bob_customer_relationship_versions_pkey PRIMARY KEY (version_id);
+    ADD CONSTRAINT bob_customer_relationship_versions_pkey PRIMARY KEY (approval_entry_id);
 
 
 --
@@ -6692,7 +6327,7 @@ ALTER TABLE ONLY public.bob_customer_relationships
 --
 
 ALTER TABLE ONLY public.bob_customer_version_attachments
-    ADD CONSTRAINT bob_customer_version_attachments_pkey PRIMARY KEY (version_id, file_id);
+    ADD CONSTRAINT bob_customer_version_attachments_pkey PRIMARY KEY (approval_entry_id, file_id);
 
 
 --
@@ -6700,15 +6335,7 @@ ALTER TABLE ONLY public.bob_customer_version_attachments
 --
 
 ALTER TABLE ONLY public.bob_customer_versions
-    ADD CONSTRAINT bob_customer_versions_pkey PRIMARY KEY (version_id);
-
-
---
--- Name: bob_department_versions bob_department_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_department_versions
-    ADD CONSTRAINT bob_department_versions_pkey PRIMARY KEY (version_id);
+    ADD CONSTRAINT bob_customer_versions_pkey PRIMARY KEY (approval_entry_id);
 
 
 --
@@ -6716,7 +6343,7 @@ ALTER TABLE ONLY public.bob_department_versions
 --
 
 ALTER TABLE ONLY public.bob_employee_versions
-    ADD CONSTRAINT bob_employee_versions_pkey PRIMARY KEY (version_id);
+    ADD CONSTRAINT bob_employee_versions_pkey PRIMARY KEY (approval_entry_id);
 
 
 --
@@ -6732,7 +6359,7 @@ ALTER TABLE ONLY public.bob_employment_relationships
 --
 
 ALTER TABLE ONLY public.bob_fund_account_versions
-    ADD CONSTRAINT bob_fund_account_versions_pkey PRIMARY KEY (version_id);
+    ADD CONSTRAINT bob_fund_account_versions_pkey PRIMARY KEY (approval_entry_id);
 
 
 --
@@ -6756,7 +6383,7 @@ ALTER TABLE ONLY public.bob_objects
 --
 
 ALTER TABLE ONLY public.bob_operating_entity_versions
-    ADD CONSTRAINT bob_operating_entity_versions_pkey PRIMARY KEY (version_id);
+    ADD CONSTRAINT bob_operating_entity_versions_pkey PRIMARY KEY (approval_entry_id);
 
 
 --
@@ -6824,27 +6451,19 @@ ALTER TABLE ONLY public.bob_party_relationship_merge_events
 
 
 --
--- Name: bob_position_versions bob_position_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_position_versions
-    ADD CONSTRAINT bob_position_versions_pkey PRIMARY KEY (version_id);
-
-
---
 -- Name: bob_product_formula_lines bob_product_formula_lines_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bob_product_formula_lines
-    ADD CONSTRAINT bob_product_formula_lines_pkey PRIMARY KEY (product_version_id, line_no);
+    ADD CONSTRAINT bob_product_formula_lines_pkey PRIMARY KEY (product_approval_entry_id, line_no);
 
 
 --
--- Name: bob_product_formula_lines bob_product_formula_lines_product_version_id_material_objec_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: bob_product_formula_lines bob_formula_lines_product_entry_material_object_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bob_product_formula_lines
-    ADD CONSTRAINT bob_product_formula_lines_product_version_id_material_objec_key UNIQUE (product_version_id, material_object_id);
+    ADD CONSTRAINT bob_formula_lines_product_entry_material_object_key UNIQUE (product_approval_entry_id, material_object_id);
 
 
 --
@@ -6852,7 +6471,7 @@ ALTER TABLE ONLY public.bob_product_formula_lines
 --
 
 ALTER TABLE ONLY public.bob_product_formulas
-    ADD CONSTRAINT bob_product_formulas_pkey PRIMARY KEY (product_version_id);
+    ADD CONSTRAINT bob_product_formulas_pkey PRIMARY KEY (product_approval_entry_id);
 
 
 --
@@ -6860,7 +6479,7 @@ ALTER TABLE ONLY public.bob_product_formulas
 --
 
 ALTER TABLE ONLY public.bob_product_unit_conversions
-    ADD CONSTRAINT bob_product_unit_conversions_pkey PRIMARY KEY (product_version_id, unit_object_id);
+    ADD CONSTRAINT bob_product_unit_conversions_pkey PRIMARY KEY (product_approval_entry_id, unit_object_id);
 
 
 --
@@ -6868,7 +6487,7 @@ ALTER TABLE ONLY public.bob_product_unit_conversions
 --
 
 ALTER TABLE ONLY public.bob_product_versions
-    ADD CONSTRAINT bob_product_versions_pkey PRIMARY KEY (version_id);
+    ADD CONSTRAINT bob_product_versions_pkey PRIMARY KEY (approval_entry_id);
 
 
 --
@@ -6876,7 +6495,7 @@ ALTER TABLE ONLY public.bob_product_versions
 --
 
 ALTER TABLE ONLY public.bob_sales_partner_versions
-    ADD CONSTRAINT bob_sales_partner_versions_pkey PRIMARY KEY (version_id);
+    ADD CONSTRAINT bob_sales_partner_versions_pkey PRIMARY KEY (approval_entry_id);
 
 
 --
@@ -6892,7 +6511,7 @@ ALTER TABLE ONLY public.bob_sales_relationships
 --
 
 ALTER TABLE ONLY public.bob_service_relationship_versions
-    ADD CONSTRAINT bob_service_relationship_versions_pkey PRIMARY KEY (version_id);
+    ADD CONSTRAINT bob_service_relationship_versions_pkey PRIMARY KEY (approval_entry_id);
 
 
 --
@@ -6901,14 +6520,6 @@ ALTER TABLE ONLY public.bob_service_relationship_versions
 
 ALTER TABLE ONLY public.bob_service_relationships
     ADD CONSTRAINT bob_service_relationships_pkey PRIMARY KEY (object_id);
-
-
---
--- Name: bob_settlement_method_versions bob_settlement_method_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_settlement_method_versions
-    ADD CONSTRAINT bob_settlement_method_versions_pkey PRIMARY KEY (version_id);
 
 
 --
@@ -6924,7 +6535,7 @@ ALTER TABLE ONLY public.bob_supplier_relationships
 --
 
 ALTER TABLE ONLY public.bob_supplier_versions
-    ADD CONSTRAINT bob_supplier_versions_pkey PRIMARY KEY (version_id);
+    ADD CONSTRAINT bob_supplier_versions_pkey PRIMARY KEY (approval_entry_id);
 
 
 --
@@ -6932,39 +6543,7 @@ ALTER TABLE ONLY public.bob_supplier_versions
 --
 
 ALTER TABLE ONLY public.bob_vehicle_versions
-    ADD CONSTRAINT bob_vehicle_versions_pkey PRIMARY KEY (version_id);
-
-
---
--- Name: bob_versions bob_versions_id_entity_uq; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_versions
-    ADD CONSTRAINT bob_versions_id_entity_uq UNIQUE (id, entity);
-
-
---
--- Name: bob_versions bob_versions_number_uq; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_versions
-    ADD CONSTRAINT bob_versions_number_uq UNIQUE (object_id, version_no);
-
-
---
--- Name: bob_versions bob_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_versions
-    ADD CONSTRAINT bob_versions_pkey PRIMARY KEY (id);
-
-
---
--- Name: bob_versions bob_versions_pointer_target_uq; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_versions
-    ADD CONSTRAINT bob_versions_pointer_target_uq UNIQUE (id, object_id, entity);
+    ADD CONSTRAINT bob_vehicle_versions_pkey PRIMARY KEY (approval_entry_id);
 
 
 --
@@ -6972,7 +6551,7 @@ ALTER TABLE ONLY public.bob_versions
 --
 
 ALTER TABLE ONLY public.bob_warehouse_versions
-    ADD CONSTRAINT bob_warehouse_versions_pkey PRIMARY KEY (version_id);
+    ADD CONSTRAINT bob_warehouse_versions_pkey PRIMARY KEY (approval_entry_id);
 
 
 --
@@ -7979,13 +7558,6 @@ CREATE UNIQUE INDEX app_users_username_uq ON public.app_users USING btree (lower
 
 
 --
--- Name: aux_audit_events_history_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX aux_audit_events_history_idx ON public.aux_audit_events USING btree (object_id, occurred_at DESC, id DESC);
-
-
---
 -- Name: aux_objects_entity_code_uq; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7997,27 +7569,6 @@ CREATE UNIQUE INDEX aux_objects_entity_code_uq ON public.aux_objects USING btree
 --
 
 CREATE INDEX aux_objects_entity_updated_idx ON public.aux_objects USING btree (entity, updated_at DESC, id DESC);
-
-
---
--- Name: aux_versions_history_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX aux_versions_history_idx ON public.aux_versions USING btree (object_id, version_no DESC);
-
-
---
--- Name: bob_audit_events_history_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX bob_audit_events_history_idx ON public.bob_audit_events USING btree (object_id, occurred_at DESC, id DESC);
-
-
---
--- Name: bob_category_versions_parent_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX bob_category_versions_parent_idx ON public.bob_category_versions USING btree (parent_id);
 
 
 --
@@ -8081,20 +7632,6 @@ CREATE INDEX bob_customer_versions_primary_sales_subject_idx ON public.bob_custo
 --
 
 CREATE INDEX bob_customer_versions_salesperson_employee_idx ON public.bob_customer_versions USING btree (salesperson_employee_id);
-
-
---
--- Name: bob_department_versions_category_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX bob_department_versions_category_idx ON public.bob_department_versions USING btree (category_id);
-
-
---
--- Name: bob_department_versions_parent_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX bob_department_versions_parent_idx ON public.bob_department_versions USING btree (parent_id);
 
 
 --
@@ -8182,13 +7719,6 @@ CREATE INDEX bob_party_relationship_merge_events_source_idx ON public.bob_party_
 
 
 --
--- Name: bob_position_versions_category_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX bob_position_versions_category_idx ON public.bob_position_versions USING btree (category_id);
-
-
---
 -- Name: bob_product_versions_category_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8249,27 +7779,6 @@ CREATE INDEX bob_vehicle_versions_carrier_service_relationship_idx ON public.bob
 --
 
 CREATE INDEX bob_vehicle_versions_category_idx ON public.bob_vehicle_versions USING btree (category_id);
-
-
---
--- Name: bob_versions_candidate_uq; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX bob_versions_candidate_uq ON public.bob_versions USING btree (object_id) WHERE ((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PENDING'::character varying])::text[]));
-
-
---
--- Name: bob_versions_effective_uq; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX bob_versions_effective_uq ON public.bob_versions USING btree (object_id) WHERE ((status)::text = 'EFFECTIVE'::text);
-
-
---
--- Name: bob_versions_history_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX bob_versions_history_idx ON public.bob_versions USING btree (object_id, version_no DESC);
 
 
 --
@@ -8388,7 +7897,7 @@ CREATE INDEX vou_product_lines_document_idx ON public.vou_product_lines USING bt
 -- Name: vou_production_material_actual_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX vou_production_material_actual_idx ON public.vou_production_material_lines USING btree (actual_material_object_id, actual_material_version_id);
+CREATE INDEX vou_production_material_actual_idx ON public.vou_production_material_lines USING btree (actual_material_object_id, actual_material_approval_entry_id);
 
 
 --
@@ -8430,7 +7939,7 @@ CREATE INDEX vou_purchase_return_lines_source_idx ON public.vou_purchase_return_
 -- Name: vou_sale_order_formula_material_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX vou_sale_order_formula_material_idx ON public.vou_sale_order_formula_lines USING btree (material_object_id, material_version_id);
+CREATE INDEX vou_sale_order_formula_material_idx ON public.vou_sale_order_formula_lines USING btree (material_object_id, material_approval_entry_id);
 
 
 --
@@ -8511,38 +8020,10 @@ CREATE TRIGGER bob_customer_version_attachment_orphan_cleanup AFTER DELETE ON pu
 
 
 --
--- Name: bob_customer_versions bob_customer_versions_tax_uq; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_customer_versions_tax_uq AFTER INSERT OR UPDATE OF tax_number ON public.bob_customer_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_current_detail_unique('tax_number');
-
-
---
 -- Name: bob_employment_relationships bob_employment_relationship_merged_party_ck; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER bob_employment_relationship_merged_party_ck BEFORE INSERT OR UPDATE OF party_id ON public.bob_employment_relationships FOR EACH ROW EXECUTE FUNCTION public.bob_reject_merged_party_relationship();
-
-
---
--- Name: bob_fund_account_versions bob_fund_account_versions_account_uq; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_fund_account_versions_account_uq AFTER INSERT OR UPDATE OF account_number ON public.bob_fund_account_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_current_detail_unique('account_number');
-
-
---
--- Name: bob_objects bob_objects_active_vehicle_plate_uq; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_objects_active_vehicle_plate_uq AFTER INSERT OR UPDATE OF current_version_id, effective_version_id ON public.bob_objects DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_active_vehicle_plate();
-
-
---
--- Name: bob_product_versions bob_product_versions_barcode_uq; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_product_versions_barcode_uq AFTER INSERT OR UPDATE OF barcode ON public.bob_product_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_current_detail_unique('barcode');
 
 
 --
@@ -8564,27 +8045,6 @@ CREATE TRIGGER bob_service_relationship_merged_party_ck BEFORE INSERT OR UPDATE 
 --
 
 CREATE TRIGGER bob_supplier_relationship_merged_party_ck BEFORE INSERT OR UPDATE OF party_id ON public.bob_supplier_relationships FOR EACH ROW EXECUTE FUNCTION public.bob_reject_merged_party_relationship();
-
-
---
--- Name: bob_supplier_versions bob_supplier_versions_tax_uq; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_supplier_versions_tax_uq AFTER INSERT OR UPDATE OF tax_number ON public.bob_supplier_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_current_detail_unique('tax_number');
-
-
---
--- Name: bob_vehicle_versions bob_vehicle_versions_active_plate_uq; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_vehicle_versions_active_plate_uq AFTER INSERT OR UPDATE OF plate_number ON public.bob_vehicle_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_active_vehicle_plate();
-
-
---
--- Name: bob_vehicle_versions bob_vehicle_versions_vin_uq; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER bob_vehicle_versions_vin_uq AFTER INSERT OR UPDATE OF vin ON public.bob_vehicle_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.bob_validate_current_detail_unique('vin');
 
 
 --
@@ -9290,86 +8750,6 @@ ALTER TABLE ONLY public.app_user_roles
 
 
 --
--- Name: aux_audit_events aux_audit_events_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.aux_audit_events
-    ADD CONSTRAINT aux_audit_events_object_id_fkey FOREIGN KEY (object_id) REFERENCES public.aux_objects(id) ON DELETE RESTRICT;
-
-
---
--- Name: aux_audit_events aux_audit_events_version_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.aux_audit_events
-    ADD CONSTRAINT aux_audit_events_version_id_fkey FOREIGN KEY (version_id) REFERENCES public.aux_versions(id) ON DELETE RESTRICT;
-
-
---
--- Name: aux_audit_events aux_audit_events_version_id_object_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.aux_audit_events
-    ADD CONSTRAINT aux_audit_events_version_id_object_id_entity_fkey FOREIGN KEY (version_id, object_id, entity) REFERENCES public.aux_versions(id, object_id, entity) ON DELETE RESTRICT;
-
-
---
--- Name: aux_objects aux_objects_current_version_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.aux_objects
-    ADD CONSTRAINT aux_objects_current_version_fk FOREIGN KEY (current_version_id, id, entity) REFERENCES public.aux_versions(id, object_id, entity) DEFERRABLE INITIALLY DEFERRED;
-
-
---
--- Name: aux_versions aux_versions_object_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.aux_versions
-    ADD CONSTRAINT aux_versions_object_id_entity_fkey FOREIGN KEY (object_id, entity) REFERENCES public.aux_objects(id, entity) DEFERRABLE INITIALLY DEFERRED;
-
-
---
--- Name: bob_audit_events bob_audit_events_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_audit_events
-    ADD CONSTRAINT bob_audit_events_object_id_fkey FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
-
-
---
--- Name: bob_audit_events bob_audit_events_version_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_audit_events
-    ADD CONSTRAINT bob_audit_events_version_id_fkey FOREIGN KEY (version_id) REFERENCES public.bob_versions(id) ON DELETE RESTRICT;
-
-
---
--- Name: bob_audit_events bob_audit_events_version_id_object_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_audit_events
-    ADD CONSTRAINT bob_audit_events_version_id_object_id_entity_fkey FOREIGN KEY (version_id, object_id, entity) REFERENCES public.bob_versions(id, object_id, entity) ON DELETE RESTRICT;
-
-
---
--- Name: bob_category_versions bob_category_versions_parent_id_parent_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_category_versions
-    ADD CONSTRAINT bob_category_versions_parent_id_parent_entity_fkey FOREIGN KEY (parent_id, parent_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
-
-
---
--- Name: bob_category_versions bob_category_versions_version_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_category_versions
-    ADD CONSTRAINT bob_category_versions_version_id_entity_fkey FOREIGN KEY (version_id, entity) REFERENCES public.bob_versions(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
-
-
---
 -- Name: bob_customer_accounts bob_customer_accounts_customer_relationship_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9386,11 +8766,11 @@ ALTER TABLE ONLY public.bob_customer_accounts
 
 
 --
--- Name: bob_customer_credit_limits bob_customer_credit_limits_version_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: bob_customer_credit_limits bob_customer_credit_limits_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bob_customer_credit_limits
-    ADD CONSTRAINT bob_customer_credit_limits_version_id_fkey FOREIGN KEY (version_id) REFERENCES public.bob_customer_versions(version_id) ON DELETE RESTRICT;
+    ADD CONSTRAINT bob_customer_credit_limits_approval_entry_id_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.bob_customer_versions(approval_entry_id) ON DELETE RESTRICT;
 
 
 --
@@ -9418,11 +8798,11 @@ ALTER TABLE ONLY public.bob_customer_relationship_attachments
 
 
 --
--- Name: bob_customer_relationship_versions bob_customer_relationship_versions_version_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: bob_customer_relationship_versions bob_customer_rel_versions_entry_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bob_customer_relationship_versions
-    ADD CONSTRAINT bob_customer_relationship_versions_version_id_entity_fkey FOREIGN KEY (version_id, entity) REFERENCES public.bob_versions(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+    ADD CONSTRAINT bob_customer_rel_versions_entry_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --
@@ -9466,11 +8846,11 @@ ALTER TABLE ONLY public.bob_customer_version_attachments
 
 
 --
--- Name: bob_customer_version_attachments bob_customer_version_attachments_version_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: bob_customer_version_attachments bob_customer_version_attachments_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bob_customer_version_attachments
-    ADD CONSTRAINT bob_customer_version_attachments_version_id_fkey FOREIGN KEY (version_id) REFERENCES public.bob_versions(id) ON DELETE CASCADE;
+    ADD CONSTRAINT bob_customer_version_attachments_approval_entry_id_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE CASCADE;
 
 
 --
@@ -9478,7 +8858,7 @@ ALTER TABLE ONLY public.bob_customer_version_attachments
 --
 
 ALTER TABLE ONLY public.bob_customer_versions
-    ADD CONSTRAINT bob_customer_versions_category_id_category_entity_fkey FOREIGN KEY (category_id, category_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+    ADD CONSTRAINT bob_customer_versions_category_id_category_entity_fkey FOREIGN KEY (category_id, category_entity) REFERENCES public.aux_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 
 --
@@ -9490,35 +8870,11 @@ ALTER TABLE ONLY public.bob_customer_versions
 
 
 --
--- Name: bob_customer_versions bob_customer_versions_version_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: bob_customer_versions bob_customer_versions_approval_entry_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bob_customer_versions
-    ADD CONSTRAINT bob_customer_versions_version_id_entity_fkey FOREIGN KEY (version_id, entity) REFERENCES public.bob_versions(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
-
-
---
--- Name: bob_department_versions bob_department_versions_category_id_category_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_department_versions
-    ADD CONSTRAINT bob_department_versions_category_id_category_entity_fkey FOREIGN KEY (category_id, category_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
-
-
---
--- Name: bob_department_versions bob_department_versions_parent_id_parent_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_department_versions
-    ADD CONSTRAINT bob_department_versions_parent_id_parent_entity_fkey FOREIGN KEY (parent_id, parent_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
-
-
---
--- Name: bob_department_versions bob_department_versions_version_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_department_versions
-    ADD CONSTRAINT bob_department_versions_version_id_entity_fkey FOREIGN KEY (version_id, entity) REFERENCES public.bob_versions(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+    ADD CONSTRAINT bob_customer_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --
@@ -9526,15 +8882,15 @@ ALTER TABLE ONLY public.bob_department_versions
 --
 
 ALTER TABLE ONLY public.bob_employee_versions
-    ADD CONSTRAINT bob_employee_versions_category_id_category_entity_fkey FOREIGN KEY (category_id, category_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+    ADD CONSTRAINT bob_employee_versions_category_id_category_entity_fkey FOREIGN KEY (category_id, category_entity) REFERENCES public.aux_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 
 --
--- Name: bob_employee_versions bob_employee_versions_version_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: bob_employee_versions bob_employee_versions_approval_entry_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bob_employee_versions
-    ADD CONSTRAINT bob_employee_versions_version_id_entity_fkey FOREIGN KEY (version_id, entity) REFERENCES public.bob_versions(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+    ADD CONSTRAINT bob_employee_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --
@@ -9582,7 +8938,7 @@ ALTER TABLE ONLY public.bob_fund_account_versions
 --
 
 ALTER TABLE ONLY public.bob_fund_account_versions
-    ADD CONSTRAINT bob_fund_account_operating_version_fk FOREIGN KEY (operating_entity_version_id) REFERENCES public.bob_versions(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT bob_fund_account_operating_version_fk FOREIGN KEY (operating_entity_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --
@@ -9590,39 +8946,23 @@ ALTER TABLE ONLY public.bob_fund_account_versions
 --
 
 ALTER TABLE ONLY public.bob_fund_account_versions
-    ADD CONSTRAINT bob_fund_account_versions_category_id_category_entity_fkey FOREIGN KEY (category_id, category_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+    ADD CONSTRAINT bob_fund_account_versions_category_id_category_entity_fkey FOREIGN KEY (category_id, category_entity) REFERENCES public.aux_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 
 --
--- Name: bob_fund_account_versions bob_fund_account_versions_version_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: bob_fund_account_versions bob_fund_account_versions_approval_entry_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bob_fund_account_versions
-    ADD CONSTRAINT bob_fund_account_versions_version_id_entity_fkey FOREIGN KEY (version_id, entity) REFERENCES public.bob_versions(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+    ADD CONSTRAINT bob_fund_account_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_objects bob_objects_current_version_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_objects
-    ADD CONSTRAINT bob_objects_current_version_fk FOREIGN KEY (current_version_id, id, entity) REFERENCES public.bob_versions(id, object_id, entity) DEFERRABLE INITIALLY DEFERRED;
-
-
---
--- Name: bob_objects bob_objects_effective_version_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_objects
-    ADD CONSTRAINT bob_objects_effective_version_fk FOREIGN KEY (effective_version_id, id, entity) REFERENCES public.bob_versions(id, object_id, entity) DEFERRABLE INITIALLY DEFERRED;
-
-
---
--- Name: bob_operating_entity_versions bob_operating_entity_versions_version_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: bob_operating_entity_versions bob_operating_entity_versions_approval_entry_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bob_operating_entity_versions
-    ADD CONSTRAINT bob_operating_entity_versions_version_id_entity_fkey FOREIGN KEY (version_id, entity) REFERENCES public.bob_versions(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+    ADD CONSTRAINT bob_operating_entity_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --
@@ -9722,22 +9062,6 @@ ALTER TABLE ONLY public.bob_party_relationship_merge_events
 
 
 --
--- Name: bob_position_versions bob_position_versions_category_id_category_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_position_versions
-    ADD CONSTRAINT bob_position_versions_category_id_category_entity_fkey FOREIGN KEY (category_id, category_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
-
-
---
--- Name: bob_position_versions bob_position_versions_version_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_position_versions
-    ADD CONSTRAINT bob_position_versions_version_id_entity_fkey FOREIGN KEY (version_id, entity) REFERENCES public.bob_versions(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
-
-
---
 -- Name: bob_product_formula_lines bob_product_formula_lines_material_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9746,35 +9070,35 @@ ALTER TABLE ONLY public.bob_product_formula_lines
 
 
 --
--- Name: bob_product_formula_lines bob_product_formula_lines_material_version_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: bob_product_formula_lines bob_product_formula_lines_material_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bob_product_formula_lines
-    ADD CONSTRAINT bob_product_formula_lines_material_version_id_fkey FOREIGN KEY (material_version_id) REFERENCES public.bob_versions(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT bob_product_formula_lines_material_approval_entry_id_fkey FOREIGN KEY (material_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_product_formula_lines bob_product_formula_lines_product_version_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: bob_product_formula_lines bob_product_formula_lines_product_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bob_product_formula_lines
-    ADD CONSTRAINT bob_product_formula_lines_product_version_id_fkey FOREIGN KEY (product_version_id) REFERENCES public.bob_product_formulas(product_version_id) ON DELETE CASCADE;
+    ADD CONSTRAINT bob_product_formula_lines_product_approval_entry_id_fkey FOREIGN KEY (product_approval_entry_id) REFERENCES public.bob_product_formulas(product_approval_entry_id) ON DELETE CASCADE;
 
 
 --
--- Name: bob_product_formulas bob_product_formulas_product_version_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: bob_product_formulas bob_product_formulas_product_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bob_product_formulas
-    ADD CONSTRAINT bob_product_formulas_product_version_id_fkey FOREIGN KEY (product_version_id) REFERENCES public.bob_product_versions(version_id) ON DELETE RESTRICT;
+    ADD CONSTRAINT bob_product_formulas_product_approval_entry_id_fkey FOREIGN KEY (product_approval_entry_id) REFERENCES public.bob_product_versions(approval_entry_id) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_product_unit_conversions bob_product_unit_conversions_product_version_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: bob_product_unit_conversions bob_product_unit_conversions_product_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bob_product_unit_conversions
-    ADD CONSTRAINT bob_product_unit_conversions_product_version_id_fkey FOREIGN KEY (product_version_id) REFERENCES public.bob_product_versions(version_id) ON DELETE CASCADE;
+    ADD CONSTRAINT bob_product_unit_conversions_product_approval_entry_id_fkey FOREIGN KEY (product_approval_entry_id) REFERENCES public.bob_product_versions(approval_entry_id) ON DELETE CASCADE;
 
 
 --
@@ -9786,27 +9110,19 @@ ALTER TABLE ONLY public.bob_product_unit_conversions
 
 
 --
--- Name: bob_product_unit_conversions bob_product_unit_conversions_unit_version_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_product_unit_conversions
-    ADD CONSTRAINT bob_product_unit_conversions_unit_version_id_fkey FOREIGN KEY (unit_version_id) REFERENCES public.aux_versions(id) ON DELETE RESTRICT;
-
-
---
--- Name: bob_product_versions bob_product_versions_version_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: bob_product_versions bob_product_versions_approval_entry_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bob_product_versions
-    ADD CONSTRAINT bob_product_versions_version_id_entity_fkey FOREIGN KEY (version_id, entity) REFERENCES public.bob_versions(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+    ADD CONSTRAINT bob_product_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_sales_partner_versions bob_sales_partner_versions_version_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: bob_sales_partner_versions bob_sales_partner_versions_approval_entry_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bob_sales_partner_versions
-    ADD CONSTRAINT bob_sales_partner_versions_version_id_entity_fkey FOREIGN KEY (version_id, entity) REFERENCES public.bob_versions(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+    ADD CONSTRAINT bob_sales_partner_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --
@@ -9850,11 +9166,11 @@ ALTER TABLE ONLY public.bob_service_relationships
 
 
 --
--- Name: bob_service_relationship_versions bob_service_relationship_versions_version_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: bob_service_relationship_versions bob_service_relationship_versions_approval_entry_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bob_service_relationship_versions
-    ADD CONSTRAINT bob_service_relationship_versions_version_id_entity_fkey FOREIGN KEY (version_id, entity) REFERENCES public.bob_versions(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+    ADD CONSTRAINT bob_service_relationship_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --
@@ -9879,14 +9195,6 @@ ALTER TABLE ONLY public.bob_service_relationships
 
 ALTER TABLE ONLY public.bob_service_relationships
     ADD CONSTRAINT bob_service_relationships_party_id_fkey FOREIGN KEY (party_id) REFERENCES public.bob_parties(id) ON DELETE RESTRICT;
-
-
---
--- Name: bob_settlement_method_versions bob_settlement_method_versions_version_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_settlement_method_versions
-    ADD CONSTRAINT bob_settlement_method_versions_version_id_entity_fkey FOREIGN KEY (version_id, entity) REFERENCES public.bob_versions(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 
 --
@@ -9926,7 +9234,7 @@ ALTER TABLE ONLY public.bob_supplier_relationships
 --
 
 ALTER TABLE ONLY public.bob_supplier_versions
-    ADD CONSTRAINT bob_supplier_versions_category_id_category_entity_fkey FOREIGN KEY (category_id, category_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+    ADD CONSTRAINT bob_supplier_versions_category_id_category_entity_fkey FOREIGN KEY (category_id, category_entity) REFERENCES public.aux_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 
 --
@@ -9938,11 +9246,11 @@ ALTER TABLE ONLY public.bob_supplier_versions
 
 
 --
--- Name: bob_supplier_versions bob_supplier_versions_version_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: bob_supplier_versions bob_supplier_versions_approval_entry_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bob_supplier_versions
-    ADD CONSTRAINT bob_supplier_versions_version_id_entity_fkey FOREIGN KEY (version_id, entity) REFERENCES public.bob_versions(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+    ADD CONSTRAINT bob_supplier_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --
@@ -9966,23 +9274,15 @@ ALTER TABLE ONLY public.bob_vehicle_versions
 --
 
 ALTER TABLE ONLY public.bob_vehicle_versions
-    ADD CONSTRAINT bob_vehicle_versions_category_id_category_entity_fkey FOREIGN KEY (category_id, category_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+    ADD CONSTRAINT bob_vehicle_versions_category_id_category_entity_fkey FOREIGN KEY (category_id, category_entity) REFERENCES public.aux_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 
 --
--- Name: bob_vehicle_versions bob_vehicle_versions_version_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: bob_vehicle_versions bob_vehicle_versions_approval_entry_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bob_vehicle_versions
-    ADD CONSTRAINT bob_vehicle_versions_version_id_entity_fkey FOREIGN KEY (version_id, entity) REFERENCES public.bob_versions(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
-
-
---
--- Name: bob_versions bob_versions_object_entity_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_versions
-    ADD CONSTRAINT bob_versions_object_entity_fk FOREIGN KEY (object_id, entity) REFERENCES public.bob_objects(id, entity) DEFERRABLE INITIALLY DEFERRED;
+    ADD CONSTRAINT bob_vehicle_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --
@@ -9990,7 +9290,7 @@ ALTER TABLE ONLY public.bob_versions
 --
 
 ALTER TABLE ONLY public.bob_warehouse_versions
-    ADD CONSTRAINT bob_warehouse_versions_category_id_category_entity_fkey FOREIGN KEY (category_id, category_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+    ADD CONSTRAINT bob_warehouse_versions_category_id_category_entity_fkey FOREIGN KEY (category_id, category_entity) REFERENCES public.aux_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 
 --
@@ -10002,11 +9302,11 @@ ALTER TABLE ONLY public.bob_warehouse_versions
 
 
 --
--- Name: bob_warehouse_versions bob_warehouse_versions_version_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: bob_warehouse_versions bob_warehouse_versions_approval_entry_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.bob_warehouse_versions
-    ADD CONSTRAINT bob_warehouse_versions_version_id_entity_fkey FOREIGN KEY (version_id, entity) REFERENCES public.bob_versions(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+    ADD CONSTRAINT bob_warehouse_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --
@@ -10798,94 +10098,58 @@ ALTER TABLE ONLY public.wfl_node_instances
 --
 
 
---
--- Central Approval persistence. Domain subjects remain owned by their Domain;
--- subject_id is intentionally a controlled logical foreign key.
---
 
-CREATE TABLE public.approval_entries (
-    id character varying(26) NOT NULL,
-    domain character varying(32) NOT NULL,
-    entity character varying(64) NOT NULL,
-    subject_id character varying(128) NOT NULL,
-    version_no integer,
-    status character varying(16) NOT NULL,
-    revision bigint DEFAULT 1 NOT NULL,
-    created_by character varying(26) NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_by character varying(26) NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    submitted_by character varying(26),
-    submitted_at timestamp with time zone,
-    approved_by character varying(26),
-    approved_at timestamp with time zone,
-    CONSTRAINT approval_entries_pkey PRIMARY KEY (id),
-    CONSTRAINT approval_entries_domain_check CHECK (((domain)::text ~ '^[a-z][a-z0-9-]{0,31}$'::text)),
-    CONSTRAINT approval_entries_entity_check CHECK (((entity)::text ~ '^[a-z][a-z0-9-]{0,63}$'::text)),
-    CONSTRAINT approval_entries_subject_id_check CHECK ((length(btrim((subject_id)::text)) >= 1)),
-    CONSTRAINT approval_entries_version_no_check CHECK (((version_no IS NULL) OR (version_no >= 1))),
-    CONSTRAINT approval_entries_status_check CHECK (((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PENDING'::character varying, 'APPROVED'::character varying])::text[]))),
-    CONSTRAINT approval_entries_revision_check CHECK ((revision >= 1)),
-    CONSTRAINT approval_entries_metadata_check CHECK (
-        (((status)::text = 'DRAFT'::text) AND submitted_by IS NULL AND submitted_at IS NULL AND approved_by IS NULL AND approved_at IS NULL)
-        OR (((status)::text = 'PENDING'::text) AND submitted_by IS NOT NULL AND submitted_at IS NOT NULL AND approved_by IS NULL AND approved_at IS NULL)
-        OR (((status)::text = 'APPROVED'::text) AND submitted_by IS NOT NULL AND submitted_at IS NOT NULL AND approved_by IS NOT NULL AND approved_at IS NOT NULL AND approved_by <> submitted_by)
-    )
-);
+-- AUX baseline subjects are trusted system V1 approvals. Payloads remain
+-- domain-owned, while this central history is the only lifecycle record.
+INSERT INTO public.approval_entries (
+    id, domain, entity, subject_id, version_no, status, revision,
+    created_by, created_at, updated_by, updated_at,
+    submitted_by, submitted_at, approved_by, approved_at
+)
+SELECT
+    payload.approval_entry_id, 'aux', payload.entity, payload.object_id, 1, 'APPROVED', 3,
+    '01JAPPSYST3MACTR0000000000', TIMESTAMPTZ '2026-08-24 15:23:50.195722+00',
+    '01JAPPSYST3MACTR0000000000', TIMESTAMPTZ '2026-08-24 15:23:50.195722+00',
+    '00000000000000000000000000', TIMESTAMPTZ '2026-08-24 15:23:50.195722+00',
+    '01JAPPSYST3MACTR0000000000', TIMESTAMPTZ '2026-08-24 15:23:50.195722+00'
+FROM public.aux_version_payloads AS payload;
 
-CREATE UNIQUE INDEX approval_entries_approval_only_unique
-    ON public.approval_entries USING btree (domain, entity, subject_id)
-    WHERE (version_no IS NULL);
-CREATE UNIQUE INDEX approval_entries_version_unique
-    ON public.approval_entries USING btree (domain, entity, subject_id, version_no)
-    WHERE (version_no IS NOT NULL);
-CREATE UNIQUE INDEX approval_entries_open_version_unique
-    ON public.approval_entries USING btree (domain, entity, subject_id)
-    WHERE ((version_no IS NOT NULL) AND ((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PENDING'::character varying])::text[])));
-CREATE INDEX approval_entries_latest_approved_idx
-    ON public.approval_entries USING btree (domain, entity, subject_id, version_no DESC)
-    WHERE ((version_no IS NOT NULL) AND ((status)::text = 'APPROVED'::text));
+INSERT INTO public.approval_events (
+    id, entry_id, domain, entity, subject_id, version_no, action,
+    from_status, to_status, from_revision, to_revision, actor_id, reason, request_id, created_at
+)
+SELECT
+    substr(md5(payload.approval_entry_id || ':CREATED'), 1, 26), payload.approval_entry_id,
+    'aux', payload.entity, payload.object_id, 1, 'CREATED',
+    NULL, 'DRAFT', NULL, 1, '01JAPPSYST3MACTR0000000000', NULL, 'baseline-aux-v1',
+    TIMESTAMPTZ '2026-08-24 15:23:50.195722+00'
+FROM public.aux_version_payloads AS payload
+UNION ALL
+SELECT
+    substr(md5(payload.approval_entry_id || ':SUBMITTED'), 1, 26), payload.approval_entry_id,
+    'aux', payload.entity, payload.object_id, 1, 'SUBMITTED',
+    'DRAFT', 'PENDING', 1, 2, '00000000000000000000000000', NULL, 'baseline-aux-v1',
+    TIMESTAMPTZ '2026-08-24 15:23:50.195722+00'
+FROM public.aux_version_payloads AS payload
+UNION ALL
+SELECT
+    substr(md5(payload.approval_entry_id || ':APPROVED'), 1, 26), payload.approval_entry_id,
+    'aux', payload.entity, payload.object_id, 1, 'APPROVED',
+    'PENDING', 'APPROVED', 2, 3, '01JAPPSYST3MACTR0000000000', NULL, 'baseline-aux-v1',
+    TIMESTAMPTZ '2026-08-24 15:23:50.195722+00'
+FROM public.aux_version_payloads AS payload;
 
-COMMENT ON COLUMN public.approval_entries.version_no IS
-    'NULL for Approval-only entries; positive and required for Approval Version entries.';
-COMMENT ON INDEX public.approval_entries_version_unique IS
-    'One immutable version number per domain/entity/stable subject.';
-COMMENT ON INDEX public.approval_entries_open_version_unique IS
-    'At most one DRAFT or PENDING candidate per versioned stable subject.';
-COMMENT ON INDEX public.approval_entries_latest_approved_idx IS
-    'Supports highest approved version lookup without a current-version pointer.';
+ALTER TABLE ONLY public.aux_version_payloads
+    ADD CONSTRAINT aux_version_payloads_approval_entry_id_fkey
+    FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE CASCADE;
 
-CREATE TABLE public.approval_events (
-    id character varying(26) NOT NULL,
-    entry_id character varying(26) NOT NULL,
-    domain character varying(32) NOT NULL,
-    entity character varying(64) NOT NULL,
-    subject_id character varying(128) NOT NULL,
-    version_no integer,
-    action character varying(16) NOT NULL,
-    from_status character varying(16),
-    to_status character varying(16),
-    from_revision bigint,
-    to_revision bigint,
-    actor_id character varying(26) NOT NULL,
-    reason text,
-    request_id character varying(128) NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    CONSTRAINT approval_events_pkey PRIMARY KEY (id),
-    CONSTRAINT approval_events_action_check CHECK (((action)::text = ANY ((ARRAY['CREATED'::character varying, 'SAVED'::character varying, 'SUBMITTED'::character varying, 'UNSUBMITTED'::character varying, 'REJECTED'::character varying, 'APPROVED'::character varying, 'UNAPPROVED'::character varying, 'DELETED'::character varying])::text[]))),
-    CONSTRAINT approval_events_domain_check CHECK (((domain)::text ~ '^[a-z][a-z0-9-]{0,31}$'::text)),
-    CONSTRAINT approval_events_entity_check CHECK (((entity)::text ~ '^[a-z][a-z0-9-]{0,63}$'::text)),
-    CONSTRAINT approval_events_subject_id_check CHECK ((length(btrim((subject_id)::text)) >= 1)),
-    CONSTRAINT approval_events_version_no_check CHECK (((version_no IS NULL) OR (version_no >= 1))),
-    CONSTRAINT approval_events_status_check CHECK ((((from_status IS NULL) OR ((from_status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PENDING'::character varying, 'APPROVED'::character varying])::text[]))) AND ((to_status IS NULL) OR ((to_status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PENDING'::character varying, 'APPROVED'::character varying])::text[]))))),
-    CONSTRAINT approval_events_revision_check CHECK (((from_revision IS NULL OR from_revision >= 1) AND (to_revision IS NULL OR to_revision >= 1))),
-    CONSTRAINT approval_events_transition_shape_check CHECK ((((action)::text = 'CREATED'::text AND from_status IS NULL AND from_revision IS NULL AND to_status IS NOT NULL AND to_revision IS NOT NULL) OR ((action)::text = 'DELETED'::text AND from_status IS NOT NULL AND from_revision IS NOT NULL AND to_status IS NULL AND to_revision IS NULL) OR ((action)::text <> ALL ((ARRAY['CREATED'::character varying, 'DELETED'::character varying])::text[]) AND from_status IS NOT NULL AND from_revision IS NOT NULL AND to_status IS NOT NULL AND to_revision IS NOT NULL))),
-    CONSTRAINT approval_events_reason_check CHECK (((((action)::text = ANY ((ARRAY['REJECTED'::character varying, 'UNAPPROVED'::character varying])::text[])) AND reason IS NOT NULL AND length(btrim(reason)) > 0) OR (((action)::text <> ALL ((ARRAY['REJECTED'::character varying, 'UNAPPROVED'::character varying])::text[])) AND reason IS NULL))),
-    CONSTRAINT approval_events_request_id_check CHECK ((length(btrim((request_id)::text)) >= 1))
-);
+ALTER TABLE ONLY public.aux_version_payloads
+    ADD CONSTRAINT aux_version_payloads_object_id_entity_fkey
+    FOREIGN KEY (object_id, entity) REFERENCES public.aux_objects(id, entity) ON DELETE RESTRICT;
 
-CREATE INDEX approval_events_entry_created_idx
-    ON public.approval_events USING btree (entry_id, created_at, id);
+ALTER TABLE ONLY public.bob_product_unit_conversions
+    ADD CONSTRAINT bob_product_unit_conversions_unit_approval_entry_id_fkey
+    FOREIGN KEY (unit_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 

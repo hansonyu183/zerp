@@ -5,7 +5,7 @@ import type {
 } from '@/components/business-object'
 import type { components } from '@/api/generated/schema'
 
-export type BobStatus = components['schemas']['BobVersionMeta']['status']
+export type BobStatus = components['schemas']['ApprovalVersionMeta']['status']
 
 export type BobEntity = components['schemas']['BobCrudEntity']
 
@@ -19,28 +19,26 @@ export type BobDetail = components['schemas']['BobDetailView']
 export type BobVersionSummary = components['schemas']['BobVersionSummary']
 export type BobListItem = components['schemas']['BobListItem']
 
-export function bobListActiveVersion(
-  item: Pick<BobListItem, 'effective' | 'candidate'>,
-): BobVersionSummary {
-  const version = item.candidate ?? item.effective
-  if (!version) throw new Error('业务对象缺少有效版本和候选版本。')
+export function bobListActiveVersion(item: BobListItem): BobVersionSummary {
+  const version = item.openVersion ?? item.latestApproved
+  if (!version) throw new Error('业务对象缺少已批准版本和开放候选版本。')
   return version
 }
 
-export type BobVersionMeta = components['schemas']['BobVersionMeta']
+export type BobVersionMeta = components['schemas']['ApprovalVersionMeta']
 export type BobObjectView = components['schemas']['BobObjectView']
 export type BobMutationResult = components['schemas']['BobMutationResult']
 export type BobVersionRevisionRequest =
   components['schemas']['BobVersionRevisionRequest']
 export type BobVersionHistoryItem =
   components['schemas']['BobVersionHistoryItem']
-export type BobAuditEvent = components['schemas']['BobAuditEvent']
+export type BobAuditEvent = components['schemas']['ApprovalEventView']
 
 export interface BobEditContext {
   objectId: string
   objectRevision: number
-  versionId: string
-  revision: number
+  approvalEntryId: string
+  approvalRevision: number
 }
 
 interface ReferenceConfigBase {

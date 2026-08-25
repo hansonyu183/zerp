@@ -54,7 +54,7 @@ const availableBillPage = {
         payee: 'P',
         originatingParty: {
           objectId: 'customer-1',
-          versionId: 'customer-v1',
+          approvalEntryId: 'customer-v1',
           entity: 'customer',
           code: 'CUS-001',
           name: '客户一',
@@ -77,7 +77,7 @@ beforeEach(() => {
         data: [
           {
             objectId: 'r',
-            versionId: 'rv',
+            approvalEntryId: 'rv',
             code: 'R',
             name: '引用',
           },
@@ -93,7 +93,10 @@ beforeEach(() => {
               objectId: 'r',
               entity: 'customer',
               code: 'R',
-              currentVersion: { versionId: 'rv', summary: { name: '引用' } },
+              latestApproved: {
+                approval: { approvalEntryId: 'rv', status: 'APPROVED' },
+                summary: { name: '引用' },
+              },
             },
           ],
           total: 1,
@@ -158,7 +161,7 @@ beforeEach(() => {
                 lineId: 'C1',
                 fundAccount: {
                   objectId: 'f',
-                  versionId: 'fv',
+                  approvalEntryId: 'fv',
                   code: 'F',
                   name: '账户',
                 },
@@ -186,13 +189,23 @@ function form(): BillVoucherForm {
     businessDate: '2026-08-05',
     currency: 'CNY',
     remark: '',
-    customer: { objectId: 'c', versionId: 'cv', code: 'C', name: '客户' },
+    customer: { objectId: 'c', approvalEntryId: 'cv', code: 'C', name: '客户' },
     supplier: null,
-    counterparty: { objectId: 'o', versionId: 'ov', code: 'O', name: '贴现方' },
+    counterparty: {
+      objectId: 'o',
+      approvalEntryId: 'ov',
+      code: 'O',
+      name: '贴现方',
+    },
     interestMode: '',
     maturityType: '',
     interestParty: null,
-    handler: { objectId: 'e', versionId: 'ev', code: 'E', name: '经办人' },
+    handler: {
+      objectId: 'e',
+      approvalEntryId: 'ev',
+      code: 'E',
+      name: '经办人',
+    },
     internalCostRateBps: 0,
     withRecourse: false,
     billLines: [
@@ -233,7 +246,10 @@ describe('bill receipt payload', () => {
     const payload = buildBillReceiptPayload(form())
     expect(payload.billLines[0]).not.toHaveProperty('interestDays')
     expect(payload.billLines[0]).not.toHaveProperty('customerCostAmount')
-    expect(payload.counterparty).toEqual({ objectId: 'c', versionId: 'cv' })
+    expect(payload.counterparty).toEqual({
+      objectId: 'c',
+      approvalEntryId: 'cv',
+    })
   })
 
   it('previews integer interest with half-up rounding', () => {
@@ -408,7 +424,7 @@ describe('bill receipt payload', () => {
         key: 'cash-in',
         fundAccount: {
           objectId: 'f',
-          versionId: 'fv',
+          approvalEntryId: 'fv',
           code: 'F',
           name: '银行',
         },
@@ -500,7 +516,7 @@ describe('bill payment payload', () => {
     value.customer = null
     value.supplier = {
       objectId: 's',
-      versionId: 'sv',
+      approvalEntryId: 'sv',
       code: 'S',
       name: '供应商',
     }
@@ -508,7 +524,7 @@ describe('bill payment payload', () => {
       { ...value.billLines[0]!, billId: 'held-1', purpose: 'PRIMARY' },
     ]
     const payload = buildBillPaymentPayload(value)
-    expect(payload.supplier).toEqual({ objectId: 's', versionId: 'sv' })
+    expect(payload.supplier).toEqual({ objectId: 's', approvalEntryId: 'sv' })
     expect(payload.billLines).toEqual([
       { billId: 'held-1', purpose: 'PRIMARY' },
     ])
@@ -522,14 +538,14 @@ describe('bill issue payload', () => {
     value.customer = null
     value.supplier = {
       objectId: 's',
-      versionId: 'sv',
+      approvalEntryId: 'sv',
       code: 'S',
       name: '供应商',
     }
     value.interestMode = 'THIRD_PARTY_PAYABLE'
     value.interestParty = {
       objectId: 'o',
-      versionId: 'ov',
+      approvalEntryId: 'ov',
       code: 'O',
       name: '其他单位',
       entity: 'other-unit',
@@ -540,7 +556,7 @@ describe('bill issue payload', () => {
         key: 'cash',
         fundAccount: {
           objectId: 'f',
-          versionId: 'fv',
+          approvalEntryId: 'fv',
           code: 'F',
           name: '账户',
         },
@@ -557,7 +573,10 @@ describe('bill issue payload', () => {
       purpose: 'PRIMARY',
     })
     expect(payload.billLines[0]).not.toHaveProperty('billId')
-    expect(payload.interestParty).toEqual({ objectId: 'o', versionId: 'ov' })
+    expect(payload.interestParty).toEqual({
+      objectId: 'o',
+      approvalEntryId: 'ov',
+    })
     expect(payload.billCashLines).toHaveLength(1)
     expect(validateBillVoucherForm(value, 20, 20, 'issue')).toBeNull()
   })
@@ -570,14 +589,14 @@ describe('bill discount payload', () => {
     value.supplier = null
     value.counterparty = {
       objectId: 'o',
-      versionId: 'ov',
+      approvalEntryId: 'ov',
       code: 'O',
       name: '贴现方',
     }
     value.interestMode = 'THIRD_PARTY_PAYABLE'
     value.interestParty = {
       objectId: 'p',
-      versionId: 'pv',
+      approvalEntryId: 'pv',
       code: 'P',
       name: '利息方',
       entity: 'other-unit',
@@ -589,7 +608,7 @@ describe('bill discount payload', () => {
         key: 'cash-in',
         fundAccount: {
           objectId: 'f',
-          versionId: 'fv',
+          approvalEntryId: 'fv',
           code: 'F',
           name: '账户',
         },
@@ -602,7 +621,7 @@ describe('bill discount payload', () => {
         key: 'cash',
         fundAccount: {
           objectId: 'f',
-          versionId: 'fv',
+          approvalEntryId: 'fv',
           code: 'F',
           name: '账户',
         },
@@ -614,7 +633,7 @@ describe('bill discount payload', () => {
     ]
     const payload = buildBillDiscountPayload(value)
     expect(payload).toMatchObject({
-      counterparty: { objectId: 'o', versionId: 'ov' },
+      counterparty: { objectId: 'o', approvalEntryId: 'ov' },
       withRecourse: true,
     })
     expect(payload.billLines[0]).toEqual({
@@ -641,7 +660,7 @@ describe('bill discount payload', () => {
         key: 'cash-in',
         fundAccount: {
           objectId: 'f',
-          versionId: 'fv',
+          approvalEntryId: 'fv',
           code: 'F',
           name: '账户',
         },
@@ -654,7 +673,7 @@ describe('bill discount payload', () => {
         key: 'cash-out',
         fundAccount: {
           objectId: 'f',
-          versionId: 'fv',
+          approvalEntryId: 'fv',
           code: 'F',
           name: '账户',
         },
@@ -694,7 +713,7 @@ describe('bill maturity payload', () => {
         key: 'cash',
         fundAccount: {
           objectId: 'f',
-          versionId: 'fv',
+          approvalEntryId: 'fv',
           code: 'F',
           name: '账户',
         },
@@ -1033,7 +1052,7 @@ describe('bill voucher view model behavior', () => {
     await vm.searchFundAccount('账户')
     expect(vm.customerOptions.value[0]).toMatchObject({
       objectId: 'r',
-      versionId: 'rv',
+      approvalEntryId: 'rv',
       code: 'R',
       name: '引用',
     })
@@ -1047,7 +1066,7 @@ describe('bill voucher view model behavior', () => {
     )
     expect(vm.heldBillOptions.value[0]?.originatingParty).toEqual({
       objectId: 'customer-1',
-      versionId: 'customer-v1',
+      approvalEntryId: 'customer-v1',
       entity: 'customer',
       code: 'CUS-001',
       name: '客户一',
@@ -1069,7 +1088,7 @@ describe('bill voucher view model behavior', () => {
         key: 'cash',
         fundAccount: {
           objectId: 'f',
-          versionId: 'fv',
+          approvalEntryId: 'fv',
           code: 'F',
           name: '账户',
         },
@@ -1145,8 +1164,11 @@ describe('bill voucher view model behavior', () => {
                     objectId: 'late',
                     entity: 'supplier',
                     code: 'LATE',
-                    currentVersion: {
-                      versionId: 'late-version',
+                    latestApproved: {
+                      approval: {
+                        approvalEntryId: 'late-version',
+                        status: 'APPROVED',
+                      },
                       summary: { name: '晚到结果' },
                     },
                   },

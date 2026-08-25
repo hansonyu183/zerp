@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
@@ -13,6 +14,7 @@ import (
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/workflowactions"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
@@ -86,10 +88,10 @@ func New(
 	if pool == nil {
 		return nil, errors.New("production demo seed pool is required")
 	}
-	auxiliary := auxdomain.NewService(pool)
-	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
-	bobService := bobdomain.NewService(pool, auxiliaryResolver)
 	events := txevent.NewBus()
+	auxiliary := auxdomain.NewService(pool, authorization.FailClosed{}, events)
+	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
+	bobService := bobdomain.NewService(pool, auxiliaryResolver, authorization.FailClosed{}, events)
 	vouchers, err := voudomain.NewService(
 		pool,
 		bobService,
@@ -150,12 +152,12 @@ func (s *Seeder) references(ctx context.Context) (references, error) {
 		if err != nil {
 			return voudomain.ReferenceInput{}, fmt.Errorf("get BOB demo object %s: %w", code, err)
 		}
-		if view.Version.Status != bobdomain.StatusEffective {
-			return voudomain.ReferenceInput{}, fmt.Errorf("BOB demo object %s is not effective", code)
+		if view.Approval.Status != approval.StatusApproved {
+			return voudomain.ReferenceInput{}, fmt.Errorf("BOB demo object %s has no approved version", code)
 		}
 		return voudomain.ReferenceInput{
-			ObjectID:  view.ObjectID,
-			VersionID: view.Version.VersionID,
+			ObjectID:        view.ObjectID,
+			ApprovalEntryID: view.Approval.ApprovalEntryID,
 		}, nil
 	}
 	var refs references

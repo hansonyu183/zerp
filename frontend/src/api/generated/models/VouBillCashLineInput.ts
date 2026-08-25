@@ -6,7 +6,7 @@ export type VouBillCashLineInput = {
   billLineId?: string;
   fundAccount: {
     objectId: string;
-    versionId: string;
+    approvalEntryId: string;
   };
   direction: 'IN' | 'OUT';
   amountType: 'PRINCIPAL' | 'INTEREST' | 'FEE' | 'MARGIN' | 'OTHER';

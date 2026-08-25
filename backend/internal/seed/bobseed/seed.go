@@ -5,18 +5,20 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	"github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
-	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
+	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
-	submitterID = systemidentity.UserID
-	reviewerID  = systemidentity.UserID
+	approvedStatus = string(approval.StatusApproved)
+	seedReviewerID = "01J00000000000000000000001"
 )
 
 type Result struct {
@@ -25,15 +27,35 @@ type Result struct {
 	Skipped int
 }
 
+func seedActor(requestID string) (approval.Actor, error) {
+	return approval.TrustedSystemActor(requestID)
+}
+
+func mustSeedActor(requestID string) approval.Actor {
+	actor, err := seedActor(requestID)
+	if err != nil {
+		panic(fmt.Sprintf("invalid fixed seed actor: %v", err))
+	}
+	return actor
+}
+
+func mustReviewerActor(requestID string) approval.Actor {
+	actor, err := approval.UserActor(authorization.Principal{ActorID: seedReviewerID}, requestID)
+	if err != nil {
+		panic(fmt.Sprintf("invalid fixed seed reviewer actor: %v", err))
+	}
+	return actor
+}
+
 type lifecycleService interface {
-	Create(context.Context, string, bob.CreateInput, string, string) (bob.MutationResult, error)
+	Create(context.Context, string, bob.CreateInput, approval.Actor) (bob.MutationResult, error)
 	Get(context.Context, string, bob.GetInput) (bob.ObjectView, error)
-	Save(context.Context, string, bob.SaveInput, string, string) (bob.MutationResult, error)
-	Submit(context.Context, string, bob.VersionRevisionInput, string, string) (bob.MutationResult, error)
-	Unsubmit(context.Context, string, bob.ReverseInput, string, string) (bob.MutationResult, error)
-	Approve(context.Context, string, bob.ReviewInput, string, string) (bob.MutationResult, error)
-	Unapprove(context.Context, string, bob.ReverseInput, string, string) (bob.MutationResult, error)
-	Reject(context.Context, string, bob.ReviewInput, string, string) (bob.MutationResult, error)
+	Save(context.Context, string, bob.SaveInput, approval.Actor) (bob.MutationResult, error)
+	Submit(context.Context, string, bob.VersionRevisionInput, approval.Actor) (bob.MutationResult, error)
+	Unsubmit(context.Context, string, bob.ReverseInput, approval.Actor) (bob.MutationResult, error)
+	Approve(context.Context, string, bob.ReviewInput, approval.Actor) (bob.MutationResult, error)
+	Unapprove(context.Context, string, bob.ReverseInput, approval.Actor) (bob.MutationResult, error)
+	Reject(context.Context, string, bob.ReviewInput, approval.Actor) (bob.MutationResult, error)
 }
 
 type relationshipAwareLifecycleService struct {
@@ -45,7 +67,7 @@ type relationshipAwareLifecycleService struct {
 }
 
 func (service relationshipAwareLifecycleService) Create(
-	ctx context.Context, entity string, input bob.CreateInput, actorID, requestID string,
+	ctx context.Context, entity string, input bob.CreateInput, actor approval.Actor,
 ) (bob.MutationResult, error) {
 	partyKind := bob.PartyKindOrganization
 	if entity == bob.EntityEmployee {
@@ -59,7 +81,7 @@ func (service relationshipAwareLifecycleService) Create(
 		party.Phone = input.Data.Phone
 		result, err := service.relationships.EmploymentCreate(ctx, bob.EmploymentCreateInput{
 			NewParty: party, Data: input.Data,
-		}, actorID, requestID, true)
+		}, actor, true)
 		return result.MutationResult, err
 	case bob.EntitySupplier:
 		result, err := service.settlementRelationships.SupplierCreate(ctx, bob.SupplierCreateInput{
@@ -71,7 +93,7 @@ func (service relationshipAwareLifecycleService) Create(
 				Email: input.Data.Email, Address: input.Data.Address, Remark: input.Data.Remark,
 				SettlementMethodID:         input.Data.SettlementMethodID,
 				DefaultPurchaserEmployeeID: input.Data.DefaultPurchaserEmployeeID},
-		}, actorID, requestID, true)
+		}, actor, true)
 		return result.MutationResult, err
 	case bob.EntityOtherUnit:
 		result, err := service.relationships.OtherUnitCreate(ctx, bob.OtherUnitCreateInput{
@@ -80,10 +102,10 @@ func (service relationshipAwareLifecycleService) Create(
 				ContactName: input.Data.ContactName, ContactPhone: input.Data.ContactPhone,
 				Email: input.Data.Email, Address: input.Data.Address,
 				SettlementMethodID: input.Data.SettlementMethodID, Remark: input.Data.Remark},
-		}, actorID, requestID, true)
+		}, actor, true)
 		return result.MutationResult, err
 	case bob.EntityCustomerAccount:
-		paymentMethodID, err := service.ensurePaymentMethod(ctx, actorID)
+		paymentMethodID, err := service.ensurePaymentMethod(ctx, actor)
 		if err != nil {
 			return bob.MutationResult{}, err
 		}
@@ -105,46 +127,77 @@ func (service relationshipAwareLifecycleService) Create(
 				CreditLimits: []bob.CustomerCreditLimit{}, PrimarySalesAttribution: bob.CustomerSalesAttributionInput{
 					Type: bob.SalesAttributionInternalEmployee, SubjectObjectID: input.Data.SalespersonEmployeeID},
 				InternalReminder: input.Data.Remark},
-		}, actorID, requestID, true)
+		}, actor, true)
 		if err != nil {
 			return bob.MutationResult{}, err
 		}
 		account := result.DefaultAccount
-		version := account.Candidate.Version
-		return bob.MutationResult{ObjectID: account.ObjectID, ObjectRevision: account.ObjectRevision,
-			Enabled: account.Enabled, VersionID: version.VersionID, Version: version.Version,
-			Status: version.Status, Revision: version.Revision}, nil
+		if account.OpenVersion == nil {
+			return bob.MutationResult{}, errors.New("created customer account has no open approval version")
+		}
+		return bob.MutationResult{
+			ObjectID: account.ObjectID, ObjectRevision: account.ObjectRevision,
+			Enabled: account.Enabled, Approval: account.OpenVersion.Approval,
+		}, nil
 	}
-	return service.lifecycleService.Create(ctx, entity, input, actorID, requestID)
+	return service.lifecycleService.Create(ctx, entity, input, actor)
 }
 
-func (service relationshipAwareLifecycleService) ensurePaymentMethod(ctx context.Context, actorID string) (string, error) {
+func (service relationshipAwareLifecycleService) ensurePaymentMethod(ctx context.Context, actor approval.Actor) (string, error) {
 	var objectID string
-	err := service.pool.QueryRow(ctx, `SELECT object_id FROM aux_audit_events
-		WHERE entity='payment-method' AND request_id='seed-bob-DEMO-PAY-001-create'
-		ORDER BY occurred_at,id LIMIT 1`).Scan(&objectID)
-	if err == nil {
+	err := service.pool.QueryRow(ctx, `SELECT subject_id FROM approval_events
+		WHERE domain='aux' AND entity='payment-method' AND request_id='seed-bob-DEMO-PAY-001-create'
+		  AND action='CREATED' ORDER BY created_at,id LIMIT 1`).Scan(&objectID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return "", err
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		created, createErr := service.auxiliary.Create(ctx, auxdomain.EntityPaymentMethod, auxdomain.CreateInput{
+			Data: auxdomain.CreateData{Data: map[string]any{"name": "演示银行转账", "defaultSalesSurcharge": "0.00"}},
+		}, actor)
+		if createErr != nil {
+			return "", createErr
+		}
+		objectID = created.ObjectID
+	}
+	view, getErr := service.auxiliary.Get(ctx, auxdomain.EntityPaymentMethod, auxdomain.GetInput{ObjectID: objectID}, actor)
+	if getErr != nil {
+		return "", getErr
+	}
+	if view.LatestApproved != nil {
 		return objectID, nil
 	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return "", err
+	if view.OpenVersion == nil {
+		return "", errors.New("payment method has no approval entry")
 	}
-	created, err := service.auxiliary.Create(ctx, auxdomain.EntityPaymentMethod, auxdomain.CreateInput{
-		Data: auxdomain.CreateData{Data: map[string]any{"name": "演示银行转账", "defaultSalesSurcharge": "0.00"}},
-	}, actorID, "seed-bob-DEMO-PAY-001-create")
-	if err != nil {
-		return "", err
+	current := view.OpenVersion.Approval
+	if current.Status == approval.StatusDraft {
+		pending, submitErr := service.auxiliary.Submit(ctx, auxdomain.EntityPaymentMethod, auxdomain.ApprovalRevisionInput{
+			ObjectID: objectID, ApprovalEntryID: current.ApprovalEntryID, ApprovalRevision: current.Revision,
+		}, actor)
+		if submitErr != nil {
+			return "", submitErr
+		}
+		current = pending.Approval
 	}
-	return created.ObjectID, nil
+	if current.Status != approval.StatusPending {
+		return "", fmt.Errorf("cannot approve payment method from %s", current.Status)
+	}
+	if _, approveErr := service.auxiliary.Approve(ctx, auxdomain.EntityPaymentMethod, auxdomain.ApprovalRevisionInput{
+		ObjectID: objectID, ApprovalEntryID: current.ApprovalEntryID, ApprovalRevision: current.Revision,
+	}, mustReviewerActor("seed-bob-DEMO-PAY-001-approve")); approveErr != nil {
+		return "", approveErr
+	}
+	return objectID, nil
 }
 
 func (service relationshipAwareLifecycleService) Save(
-	ctx context.Context, entity string, input bob.SaveInput, actorID, requestID string,
+	ctx context.Context, entity string, input bob.SaveInput, actor approval.Actor,
 ) (bob.MutationResult, error) {
 	if entity == bob.EntitySupplier {
-		return service.relationships.Save(ctx, entity, input, actorID, requestID)
+		return service.relationships.Save(ctx, entity, input, actor)
 	}
-	return service.lifecycleService.Save(ctx, entity, input, actorID, requestID)
+	return service.lifecycleService.Save(ctx, entity, input, actor)
 }
 
 func (service relationshipAwareLifecycleService) Get(
@@ -159,8 +212,7 @@ func (service relationshipAwareLifecycleService) Get(
 	}
 	return bob.ObjectView{ObjectID: view.ObjectID, Entity: entity, Code: view.Code,
 		ObjectRevision: view.ObjectRevision, Enabled: view.Enabled,
-		Version: bob.VersionMeta{VersionID: view.VersionID, Version: view.Version,
-			Status: view.Status, Revision: view.Revision, SubmittedBy: view.SubmittedBy},
+		Approval: view.Approval,
 		Data: bob.DetailView{Name: view.PartyDisplayName, ContactName: view.Data.ContactName,
 			ContactPhone: view.Data.ContactPhone, Email: view.Data.Email, Address: view.Data.Address,
 			Remark: view.Data.Remark, SettlementMethodID: view.Data.SettlementMethodID}}, nil
@@ -178,20 +230,23 @@ type queryLookup struct {
 func (l queryLookup) Find(ctx context.Context, entity, code string) (string, bool, error) {
 	if auxiliaryEntity, ok := auxiliarySeedEntity(entity); ok {
 		var id string
-		err := l.pool.QueryRow(ctx, `SELECT object_id FROM aux_audit_events
-			WHERE entity=$1 AND request_id=$2
-			ORDER BY occurred_at,id LIMIT 1`, auxiliaryEntity, requestID(code, "create")).Scan(&id)
+		err := l.pool.QueryRow(ctx, `SELECT subject_id FROM approval_events
+			WHERE domain='aux' AND entity=$1 AND request_id=$2 AND action='CREATED'
+			ORDER BY created_at,id LIMIT 1`, auxiliaryEntity, requestID(code, "create")).Scan(&id)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", false, nil
 		}
 		return id, err == nil, err
 	}
-	if entity == bob.EntitySettlementMethod {
+	if entity == auxdomain.EntitySettlementMethod {
 		var id string
 		err := l.pool.QueryRow(ctx, `SELECT object.id FROM aux_objects object
-			JOIN aux_versions version ON version.id=object.current_version_id
+			JOIN approval_entries entry ON entry.domain='aux' AND entry.entity=object.entity
+			  AND entry.subject_id=object.id AND entry.status='APPROVED'
+			JOIN aux_version_payloads payload ON payload.approval_entry_id=entry.id
 			WHERE object.entity='settlement-method' AND object.enabled
-			  AND version.data->>'termCode'=$1`, code).Scan(&id)
+			  AND payload.data->>'termCode'=$1
+			ORDER BY entry.version_no DESC`, code).Scan(&id)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", false, nil
 		}
@@ -215,10 +270,12 @@ type Seeder struct {
 }
 
 func New(pool *pgxpool.Pool) *Seeder {
-	auxiliary := auxdomain.NewService(pool)
+	authorizer := authorization.Func(nil)
+	auxiliary := auxdomain.NewService(pool, authorizer, txevent.NewBus())
 	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
-	service := bob.NewService(pool, auxiliaryResolver)
-	supplier := bob.NewService(pool, auxiliaryResolver)
+	bus := txevent.NewBus()
+	service := bob.NewService(pool, auxiliaryResolver, authorizer, bus)
+	supplier := bob.NewService(pool, auxiliaryResolver, authorizer, bus)
 	return &Seeder{
 		service: relationshipAwareLifecycleService{lifecycleService: service, relationships: service,
 			settlementRelationships: supplier, auxiliary: auxiliary, pool: pool},
@@ -229,11 +286,11 @@ func New(pool *pgxpool.Pool) *Seeder {
 
 func auxiliarySeedEntity(entity string) (string, bool) {
 	switch entity {
-	case bob.EntityCategory:
+	case auxdomain.EntityProductCategory:
 		return auxdomain.EntityProductCategory, true
-	case bob.EntityDepartment:
+	case auxdomain.EntityDepartment:
 		return auxdomain.EntityDepartment, true
-	case bob.EntityPosition:
+	case auxdomain.EntityPosition:
 		return auxdomain.EntityPosition, true
 	default:
 		return "", false
@@ -259,108 +316,108 @@ type sample struct {
 }
 
 var samples = [...]sample{
-	{entity: bob.EntityCategory, data: bob.CreateDetailInput{
+	{entity: auxdomain.EntityProductCategory, data: bob.CreateDetailInput{
 		Code: "DEMO-CAT-001", Name: "工业零部件", TargetEntity: bob.EntityProduct, Description: "产品演示分类",
-	}, status: bob.StatusEffective},
-	{entity: bob.EntityCategory, data: bob.CreateDetailInput{
+	}, status: approvedStatus},
+	{entity: auxdomain.EntityProductCategory, data: bob.CreateDetailInput{
 		Code: "DEMO-CAT-002", Name: "标准件", TargetEntity: bob.EntityProduct, Description: "工业零部件子分类",
-	}, status: bob.StatusEffective, parentCode: "DEMO-CAT-001"},
-	{entity: bob.EntityDepartment, data: bob.CreateDetailInput{
+	}, status: approvedStatus, parentCode: "DEMO-CAT-001"},
+	{entity: auxdomain.EntityDepartment, data: bob.CreateDetailInput{
 		Code: "DEMO-DEPT-001", Name: "运营部", Description: "演示有效部门",
-	}, status: bob.StatusEffective},
-	{entity: bob.EntityDepartment, data: bob.CreateDetailInput{
+	}, status: approvedStatus},
+	{entity: auxdomain.EntityDepartment, data: bob.CreateDetailInput{
 		Code: "DEMO-DEPT-002", Name: "华东运营组", Description: "演示草稿部门",
-	}, status: bob.StatusDraft, parentCode: "DEMO-DEPT-001"},
-	{entity: bob.EntityPosition, data: bob.CreateDetailInput{
+	}, status: string(approval.StatusDraft), parentCode: "DEMO-DEPT-001"},
+	{entity: auxdomain.EntityPosition, data: bob.CreateDetailInput{
 		Code: "DEMO-POS-001", Name: "运营专员", Description: "演示有效岗位",
-	}, status: bob.StatusEffective},
-	{entity: bob.EntityPosition, data: bob.CreateDetailInput{
+	}, status: approvedStatus},
+	{entity: auxdomain.EntityPosition, data: bob.CreateDetailInput{
 		Code: "DEMO-POS-002", Name: "仓储主管", Description: "演示待审核岗位",
-	}, status: bob.StatusPending},
+	}, status: string(approval.StatusPending)},
 	{entity: bob.EntityOperatingEntity, data: bob.CreateDetailInput{
 		Code: "DEMO-OPE-001", Name: "上海示例科技有限公司", ShortName: "上海示例",
 		TaxNumber: "91310000DEMO0OPE01", Address: "上海市浦东新区示例路1号", Phone: "021-60000000",
-	}, status: bob.StatusEffective},
+	}, status: approvedStatus},
 	{entity: bob.EntityEmployee, data: bob.CreateDetailInput{
 		Code: "DEMO-EMP-001", Name: "张伟", Phone: "13800000004",
 		Email: "zhangwei@example.com", HireDate: "2024-01-15", Remark: "演示在岗员工",
-	}, status: bob.StatusEffective, departmentCode: "DEMO-DEPT-001", positionCode: "DEMO-POS-001", operatingEntityCode: "DEMO-OPE-001"},
+	}, status: approvedStatus, departmentCode: "DEMO-DEPT-001", positionCode: "DEMO-POS-001", operatingEntityCode: "DEMO-OPE-001"},
 	{entity: bob.EntityEmployee, data: bob.CreateDetailInput{
 		Code: "DEMO-EMP-002", Name: "李娜（草稿）", Phone: "13800000005",
-	}, status: bob.StatusDraft, departmentCode: "DEMO-DEPT-001", positionCode: "DEMO-POS-001", operatingEntityCode: "DEMO-OPE-001"},
+	}, status: string(approval.StatusDraft), departmentCode: "DEMO-DEPT-001", positionCode: "DEMO-POS-001", operatingEntityCode: "DEMO-OPE-001"},
 	{entity: bob.EntityCustomerAccount, data: bob.CreateDetailInput{
 		Code: "DEMO-CUST-001", Name: "星河零售有限公司", CustomerType: stringPointer(bob.CustomerTypeEndUser),
 		ShortName: "星河零售", TaxNumber: "91310000DEMO000001", ContactName: "王经理",
 		ContactPhone: "+86 13800000001", Email: "sales@example.com",
 		Address: "上海市浦东新区示例路1号", Remark: "演示终端客户",
-	}, status: bob.StatusEffective, salespersonEmployeeCode: "DEMO-EMP-001", settlementMethodCode: bob.SettlementTermMonthlyCurrent, operatingEntityCode: "DEMO-OPE-001"},
+	}, status: approvedStatus, salespersonEmployeeCode: "DEMO-EMP-001", settlementMethodCode: bob.SettlementTermMonthlyCurrent, operatingEntityCode: "DEMO-OPE-001"},
 	{entity: bob.EntityCustomerAccount, data: bob.CreateDetailInput{
 		Code: "DEMO-CUST-002", Name: "新客户（草稿）", CustomerType: stringPointer(bob.CustomerTypeEndUser),
 		ContactName: "陈先生", ContactPhone: "13800000002",
-	}, status: bob.StatusDraft, salespersonEmployeeCode: "DEMO-EMP-001", operatingEntityCode: "DEMO-OPE-001"},
+	}, status: string(approval.StatusDraft), salespersonEmployeeCode: "DEMO-EMP-001", operatingEntityCode: "DEMO-OPE-001"},
 	{entity: bob.EntityOtherUnit, data: bob.CreateDetailInput{
 		Code: "DEMO-OTU-001", Name: "自营物流服务单位",
 		ShortName: "自营物流", ContactName: "调度中心", ContactPhone: "021-60000001",
 		Address: "上海市闵行区物流路1号", Remark: "演示物流服务单位",
-	}, status: bob.StatusEffective, settlementMethodCode: bob.SettlementTermMonthlyCurrent, operatingEntityCode: "DEMO-OPE-001"},
+	}, status: approvedStatus, settlementMethodCode: bob.SettlementTermMonthlyCurrent, operatingEntityCode: "DEMO-OPE-001"},
 	{entity: bob.EntitySupplier, data: bob.CreateDetailInput{
 		Code: "DEMO-SUP-003", Name: "通用零部件供应商",
 		ShortName: "通用供应商", ContactName: "采购对接人", ContactPhone: "13800000006",
 		Address: "江苏省苏州市工业园区示例路3号", Remark: "VOU 演示普通供应商",
-	}, status: bob.StatusEffective, salespersonEmployeeCode: "DEMO-EMP-001", settlementMethodCode: bob.SettlementTermMonthlyCurrent, operatingEntityCode: "DEMO-OPE-001"},
+	}, status: approvedStatus, salespersonEmployeeCode: "DEMO-EMP-001", settlementMethodCode: bob.SettlementTermMonthlyCurrent, operatingEntityCode: "DEMO-OPE-001"},
 	{entity: bob.EntitySupplier, data: bob.CreateDetailInput{
 		Code: "DEMO-SUP-002", Name: "待审核供应商", TaxNumber: "91310000DEMO000002",
 		ContactName: "赵经理", ContactPhone: "13800000003",
-	}, status: bob.StatusPending, salespersonEmployeeCode: "DEMO-EMP-001", settlementMethodCode: bob.SettlementTermMonthlyCurrent, operatingEntityCode: "DEMO-OPE-001"},
+	}, status: string(approval.StatusPending), salespersonEmployeeCode: "DEMO-EMP-001", settlementMethodCode: bob.SettlementTermMonthlyCurrent, operatingEntityCode: "DEMO-OPE-001"},
 	{entity: bob.EntityProduct, data: bob.CreateDetailInput{
 		Code: "DEMO-PROD-001", Name: "标准零件 A", Unit: "件",
 		DefaultPackagingSpec: "1",
 		Specification:        "M20", Model: "A-20", Barcode: "DEMO-BARCODE-001", Remark: "演示标准产品",
-	}, status: bob.StatusEffective, categoryCode: "DEMO-CAT-002"},
+	}, status: approvedStatus, categoryCode: "DEMO-CAT-002"},
 	{entity: bob.EntityProduct, data: bob.CreateDetailInput{
 		Code: "DEMO-PROD-002", Name: "试制零件 B", Unit: "件",
 		DefaultPackagingSpec: "1",
 		Specification:        "M30", Model: "B-30", Barcode: "DEMO-BARCODE-002",
-	}, status: bob.StatusDraft, categoryCode: "DEMO-CAT-002"},
+	}, status: string(approval.StatusDraft), categoryCode: "DEMO-CAT-002"},
 	{entity: bob.EntityProduct, data: bob.CreateDetailInput{
 		Code: "DEMO-FG-001", Name: "标准自制品 A", Unit: "件",
 		DefaultPackagingSpec: "1",
 		Specification:        "FG-A", Model: "A-100",
 		Remark: "生产单固定测试成品",
-	}, status: bob.StatusEffective, categoryCode: "DEMO-CAT-002",
+	}, status: approvedStatus, categoryCode: "DEMO-CAT-002",
 		formulaMaterialCode: "DEMO-PROD-001", formulaBaseQuantity: "1", formulaMaterialQuantity: "2"},
 	{entity: bob.EntityProduct, data: bob.CreateDetailInput{
 		Code: "DEMO-FG-002", Name: "客户定制品 B", Unit: "件",
 		DefaultPackagingSpec: "1",
 		Specification:        "FG-B", Model: "B-200",
 		Remark: "生产配货固定测试成品",
-	}, status: bob.StatusEffective, categoryCode: "DEMO-CAT-002"},
+	}, status: approvedStatus, categoryCode: "DEMO-CAT-002"},
 	{entity: bob.EntityWarehouse, data: bob.CreateDetailInput{
 		Code: "DEMO-WH-001", Name: "华东主仓", Address: "上海市嘉定区仓储路1号",
 		ContactName: "张伟", ContactPhone: "13800000004", Remark: "演示主仓",
-	}, status: bob.StatusEffective, managerEmployeeCode: "DEMO-EMP-001"},
+	}, status: approvedStatus, managerEmployeeCode: "DEMO-EMP-001"},
 	{entity: bob.EntityWarehouse, data: bob.CreateDetailInput{
 		Code: "DEMO-WH-002", Name: "临时仓（草稿）", Address: "上海市青浦区临时仓路2号",
-	}, status: bob.StatusDraft},
+	}, status: string(approval.StatusDraft)},
 	{entity: bob.EntityVehicle, data: bob.CreateDetailInput{
 		Code: "DEMO-VEH-001", Name: "自营配送一号车", PlateNumber: "沪A10001", VehicleType: "DIT-0003",
 		VIN: "LSVAA4187N2000001", EngineNumber: "ENG-DEMO-001", LoadCapacityKG: "18000.000",
 		Remark: "演示有效车辆",
-	}, status: bob.StatusEffective, carrierServiceRelationshipCode: "DEMO-OTU-001"},
+	}, status: approvedStatus, carrierServiceRelationshipCode: "DEMO-OTU-001"},
 	{entity: bob.EntityVehicle, data: bob.CreateDetailInput{
 		Code: "DEMO-VEH-002", Name: "自营配送二号车", PlateNumber: "沪A10002", VehicleType: "DIT-0003",
 		VIN: "LSVAA4187N2000002", EngineNumber: "ENG-DEMO-002", LoadCapacityKG: "12000.000",
-	}, status: bob.StatusDraft, carrierServiceRelationshipCode: "DEMO-OTU-001"},
+	}, status: string(approval.StatusDraft), carrierServiceRelationshipCode: "DEMO-OTU-001"},
 	{entity: bob.EntityFundAccount, data: bob.CreateDetailInput{
 		Code: "DEMO-FA-001", Name: "人民币基本账户", Currency: "CNY",
 		AccountName: "上海示例科技有限公司", BankName: "示例银行",
 		BankBranch: "上海浦东支行", AccountNumber: "622200000000000001", Remark: "演示基本账户",
-	}, status: bob.StatusEffective, operatingEntityCode: "DEMO-OPE-001"},
+	}, status: approvedStatus, operatingEntityCode: "DEMO-OPE-001"},
 	{entity: bob.EntityFundAccount, data: bob.CreateDetailInput{
 		Code: "DEMO-FA-002", Name: "备用结算账户", Currency: "CNY",
 		AccountName: "上海示例科技有限公司", BankName: "示例银行",
 		BankBranch: "上海虹桥支行", AccountNumber: "622200000000000002",
-	}, status: bob.StatusDraft, operatingEntityCode: "DEMO-OPE-001"},
+	}, status: string(approval.StatusDraft), operatingEntityCode: "DEMO-OPE-001"},
 }
 
 func (s *Seeder) Seed(ctx context.Context) (Result, error) {
@@ -423,13 +480,13 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 			Type: "EXTERNAL", ServiceRelationshipObjectID: carrierObjectID,
 		}
 	}
-	if item.data.CategoryID, err = resolve(bob.EntityCategory, item.categoryCode, "category"); err != nil {
+	if item.data.CategoryID, err = resolve(auxdomain.EntityProductCategory, item.categoryCode, "category"); err != nil {
 		return 0, err
 	}
-	if item.data.DepartmentID, err = resolve(bob.EntityDepartment, item.departmentCode, "department"); err != nil {
+	if item.data.DepartmentID, err = resolve(auxdomain.EntityDepartment, item.departmentCode, "department"); err != nil {
 		return 0, err
 	}
-	if item.data.PositionID, err = resolve(bob.EntityPosition, item.positionCode, "position"); err != nil {
+	if item.data.PositionID, err = resolve(auxdomain.EntityPosition, item.positionCode, "position"); err != nil {
 		return 0, err
 	}
 	if item.data.ManagerEmployeeID, err = resolve(bob.EntityEmployee, item.managerEmployeeCode, "manager employee"); err != nil {
@@ -441,7 +498,7 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 		return 0, err
 	}
 	if item.data.SettlementMethodID, err = resolve(
-		bob.EntitySettlementMethod, item.settlementMethodCode, "settlement method",
+		auxdomain.EntitySettlementMethod, item.settlementMethodCode, "settlement method",
 	); err != nil {
 		return 0, err
 	}
@@ -470,9 +527,12 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 		if s.pool == nil {
 			item.data.ProductTypeID = demoProductTypeID(profile)
 		} else if err := s.pool.QueryRow(ctx, `
-			SELECT object.id FROM aux_objects object JOIN aux_versions version ON version.id=object.current_version_id
-			WHERE object.entity='product-type' AND object.enabled AND version.data->>'behaviorProfile'=$1
-			ORDER BY object.code LIMIT 1`, profile).Scan(&item.data.ProductTypeID); err != nil {
+			SELECT object.id FROM aux_objects object
+			JOIN approval_entries entry ON entry.domain='aux' AND entry.entity=object.entity
+			  AND entry.subject_id=object.id AND entry.status='APPROVED'
+			JOIN aux_version_payloads payload ON payload.approval_entry_id=entry.id
+			WHERE object.entity='product-type' AND object.enabled AND payload.data->>'behaviorProfile'=$1
+			ORDER BY entry.version_no DESC, object.code LIMIT 1`, profile).Scan(&item.data.ProductTypeID); err != nil {
 			return 0, fmt.Errorf("resolve demo product type: %w", err)
 		}
 		if s.pool != nil {
@@ -502,15 +562,14 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 		if getErr != nil {
 			return 0, fmt.Errorf("get formula material: %w", getErr)
 		}
-		if material.Version.Status != bob.StatusEffective {
+		if string(material.Approval.Status) != approvedStatus {
 			return 0, fmt.Errorf("formula material %s is not effective", item.formulaMaterialCode)
 		}
 		item.data.Formula = &bob.ProductFormula{
 			Output: bob.QuantitySnapshot{EnteredQuantity: item.formulaBaseQuantity, EnteredUnit: bob.MeasurementUnitSnapshot{ObjectID: "01JAVX00000000000000000013"}, BaseQuantity: item.formulaBaseQuantity},
 			Components: []bob.ProductFormulaComponent{{
 				Material: bob.FormulaMaterialReference{
-					ObjectID:  material.ObjectID,
-					VersionID: material.Version.VersionID,
+					ObjectID: material.ObjectID, ApprovalEntryID: material.Approval.ApprovalEntryID,
 				},
 				Quantity: bob.QuantitySnapshot{EnteredQuantity: item.formulaMaterialQuantity, EnteredUnit: bob.MeasurementUnitSnapshot{ObjectID: "01JAVX00000000000000000013"}, BaseQuantity: item.formulaMaterialQuantity}, ResolutionStatus: "CURRENT",
 			}},
@@ -541,15 +600,13 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 			}
 			outcome = outcomeResumed
 		} else {
-			if view.Version.Status == item.status {
+			if string(view.Approval.Status) == item.status {
 				return outcomeSkipped, nil
 			}
 			current = bob.MutationResult{
 				ObjectID:       view.ObjectID,
 				ObjectRevision: view.ObjectRevision,
-				VersionID:      view.Version.VersionID,
-				Status:         view.Version.Status,
-				Revision:       view.Version.Revision,
+				Approval:       view.Approval,
 			}
 			outcome = outcomeResumed
 		}
@@ -558,38 +615,34 @@ func (s *Seeder) seedOne(ctx context.Context, item sample) (seedOutcome, error) 
 			ctx,
 			item.entity,
 			bob.CreateInput{Data: item.data},
-			submitterID,
-			requestID(item.data.Code, "create"),
+			mustSeedActor(requestID(item.data.Code, "create")),
 		)
 		if err != nil {
 			return 0, fmt.Errorf("create object: %w (cause: %v)", err, errors.Unwrap(err))
 		}
 	}
 
-	if current.Status == bob.StatusDraft && item.status != current.Status {
+	if current.Approval.Status == approval.StatusDraft && item.status != string(current.Approval.Status) {
 		current, err = s.service.Submit(ctx, item.entity, bob.VersionRevisionInput{
-			ObjectID:  current.ObjectID,
-			VersionID: current.VersionID,
-			Revision:  current.Revision,
-		}, submitterID, requestID(item.data.Code, "submit"))
+			ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID,
+			ApprovalRevision: current.Approval.Revision,
+		}, mustSeedActor(requestID(item.data.Code, "submit")))
 		if err != nil {
 			return 0, fmt.Errorf("submit object: %w", err)
 		}
 	}
 
 	switch {
-	case current.Status == item.status:
+	case string(current.Approval.Status) == item.status:
 		return outcome, nil
-	case current.Status == bob.StatusPending && item.status == bob.StatusEffective:
-		comment := "演示数据：审核通过"
+	case current.Approval.Status == approval.StatusPending && item.status == approvedStatus:
+		reason := "演示数据：审核通过"
 		_, err = s.service.Approve(ctx, item.entity, bob.ReviewInput{
-			ObjectID:  current.ObjectID,
-			VersionID: current.VersionID,
-			Revision:  current.Revision,
-			Comment:   &comment,
-		}, reviewerID, requestID(item.data.Code, "approve"))
+			ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID,
+			ApprovalRevision: current.Approval.Revision, Reason: &reason,
+		}, mustReviewerActor(requestID(item.data.Code, "approve")))
 	default:
-		return 0, fmt.Errorf("cannot advance status %s to %s", current.Status, item.status)
+		return 0, fmt.Errorf("cannot advance status %s to %s", current.Approval.Status, item.status)
 	}
 	if err != nil {
 		return 0, fmt.Errorf("review object: %w", err)
@@ -602,36 +655,72 @@ func (s *Seeder) seedAuxiliaryOne(
 	entity string,
 	item sample,
 ) (seedOutcome, error) {
-	if _, found, err := s.lookup.Find(ctx, item.entity, item.data.Code); err != nil {
+	objectID, found, err := s.lookup.Find(ctx, item.entity, item.data.Code)
+	if err != nil {
 		return 0, fmt.Errorf("find existing auxiliary object: %w", err)
-	} else if found {
+	}
+	created := false
+	if !found {
+		data := map[string]any{
+			"name":        item.data.Name,
+			"description": item.data.Description,
+		}
+		if item.parentCode != "" {
+			parentID, parentFound, parentErr := s.lookup.Find(ctx, item.entity, item.parentCode)
+			if parentErr != nil {
+				return 0, fmt.Errorf("find auxiliary parent: %w", parentErr)
+			}
+			if !parentFound {
+				return 0, fmt.Errorf("parent %s is missing", item.parentCode)
+			}
+			data["parentId"] = parentID
+		}
+		result, createErr := s.auxiliary.Create(
+			ctx,
+			entity,
+			auxdomain.CreateInput{Data: auxdomain.CreateData{Data: data}},
+			mustSeedActor(requestID(item.data.Code, "create")),
+		)
+		if createErr != nil {
+			return 0, createErr
+		}
+		objectID, created = result.ObjectID, true
+	}
+	view, getErr := s.auxiliary.Get(ctx, entity, auxdomain.GetInput{ObjectID: objectID}, mustSeedActor(requestID(item.data.Code, "get")))
+	if getErr != nil {
+		return 0, getErr
+	}
+	if view.LatestApproved != nil {
+		if created {
+			return outcomeCreated, nil
+		}
 		return outcomeSkipped, nil
 	}
-
-	data := map[string]any{
-		"name":        item.data.Name,
-		"description": item.data.Description,
+	if view.OpenVersion == nil {
+		return 0, fmt.Errorf("auxiliary object has no approval entry")
 	}
-	if item.parentCode != "" {
-		parentID, found, err := s.lookup.Find(ctx, item.entity, item.parentCode)
-		if err != nil {
-			return 0, fmt.Errorf("find auxiliary parent: %w", err)
+	current := view.OpenVersion.Approval
+	if current.Status == approval.StatusDraft {
+		pending, submitErr := s.auxiliary.Submit(ctx, entity, auxdomain.ApprovalRevisionInput{
+			ObjectID: objectID, ApprovalEntryID: current.ApprovalEntryID, ApprovalRevision: current.Revision,
+		}, mustSeedActor(requestID(item.data.Code, "submit")))
+		if submitErr != nil {
+			return 0, submitErr
 		}
-		if !found {
-			return 0, fmt.Errorf("parent %s is missing", item.parentCode)
-		}
-		data["parentId"] = parentID
+		current = pending.Approval
 	}
-	if _, err := s.auxiliary.Create(
-		ctx,
-		entity,
-		auxdomain.CreateInput{Data: auxdomain.CreateData{Data: data}},
-		submitterID,
-		requestID(item.data.Code, "create"),
-	); err != nil {
-		return 0, err
+	if current.Status != approval.StatusPending {
+		return 0, fmt.Errorf("cannot approve auxiliary object from %s", current.Status)
 	}
-	return outcomeCreated, nil
+	if _, approveErr := s.auxiliary.Approve(ctx, entity, auxdomain.ApprovalRevisionInput{
+		ObjectID: objectID, ApprovalEntryID: current.ApprovalEntryID, ApprovalRevision: current.Revision,
+	}, mustReviewerActor(requestID(item.data.Code, "approve"))); approveErr != nil {
+		return 0, approveErr
+	}
+	if created {
+		return outcomeCreated, nil
+	}
+	return outcomeResumed, nil
 }
 
 func demoProductTypeID(profile string) string {
@@ -717,7 +806,7 @@ func formulaMatches(actual, expected *bob.ProductFormula) bool {
 		actualComponent := actual.Components[index]
 		expectedComponent := expected.Components[index]
 		if actualComponent.Material.ObjectID != expectedComponent.Material.ObjectID ||
-			actualComponent.Material.VersionID != expectedComponent.Material.VersionID ||
+			actualComponent.Material.ApprovalEntryID != expectedComponent.Material.ApprovalEntryID ||
 			actualComponent.Quantity.BaseQuantity != expectedComponent.Quantity.BaseQuantity {
 			return false
 		}
@@ -726,7 +815,7 @@ func formulaMatches(actual, expected *bob.ProductFormula) bool {
 }
 
 func matchesLegacyShape(item sample, view bob.ObjectView) bool {
-	if item.entity == bob.EntityCategory || item.entity == bob.EntityDepartment || item.entity == bob.EntityPosition {
+	if item.entity == auxdomain.EntityProductCategory || item.entity == auxdomain.EntityDepartment || item.entity == auxdomain.EntityPosition {
 		return false
 	}
 	return view.Entity == item.entity &&
@@ -745,48 +834,52 @@ func requestID(code, action string) string {
 func (s *Seeder) reconcileExisting(ctx context.Context, item sample, view bob.ObjectView) (bob.MutationResult, error) {
 	current := bob.MutationResult{
 		ObjectID: view.ObjectID, ObjectRevision: view.ObjectRevision,
-		VersionID: view.Version.VersionID, Status: view.Version.Status, Revision: view.Version.Revision,
+		Approval: view.Approval,
 	}
-	if item.entity == bob.EntitySupplier && current.Status == bob.StatusEffective {
+	if item.entity == bob.EntitySupplier && string(current.Approval.Status) == approvedStatus {
 		saved, err := s.service.Save(ctx, item.entity, bob.SaveInput{
-			ObjectID: current.ObjectID, VersionID: current.VersionID, Revision: current.Revision,
-			Data: detailInput(item.entity, item.data),
-		}, submitterID, requestID(item.data.Code, "upgrade-save"))
+			ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID,
+			ApprovalRevision: current.Approval.Revision,
+			Data:             detailInput(item.entity, item.data),
+		}, mustSeedActor(requestID(item.data.Code, "upgrade-save")))
 		if err != nil {
 			return bob.MutationResult{}, fmt.Errorf("save upgraded demo supplier: %w", err)
 		}
 		return saved, nil
 	}
 	var err error
-	switch current.Status {
-	case bob.StatusEffective:
+	switch current.Approval.Status {
+	case approval.StatusApproved:
 		current, err = s.service.Unapprove(ctx, item.entity, bob.ReverseInput{
-			ObjectID: current.ObjectID, ObjectRevision: current.ObjectRevision,
-			VersionID: current.VersionID, Revision: current.Revision, Reason: "演示数据：撤销批准后补齐属性",
-		}, submitterID, requestID(item.data.Code, "upgrade-unapprove"))
+			ObjectID:        current.ObjectID,
+			ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision,
+			Reason: "演示数据：撤销批准后补齐属性",
+		}, mustSeedActor(requestID(item.data.Code, "upgrade-unapprove")))
 		if err == nil {
 			current, err = s.service.Unsubmit(ctx, item.entity, bob.ReverseInput{
-				ObjectID: current.ObjectID, ObjectRevision: current.ObjectRevision,
-				VersionID: current.VersionID, Revision: current.Revision, Reason: "演示数据：退回草稿补齐属性",
-			}, submitterID, requestID(item.data.Code, "upgrade-unsubmit"))
+				ObjectID:        current.ObjectID,
+				ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision,
+				Reason: "演示数据：退回草稿补齐属性",
+			}, mustSeedActor(requestID(item.data.Code, "upgrade-unsubmit")))
 		}
-	case bob.StatusPending:
-		comment := "演示数据：补齐新增属性"
+	case approval.StatusPending:
+		reason := "演示数据：补齐新增属性"
 		current, err = s.service.Reject(ctx, item.entity, bob.ReviewInput{
-			ObjectID: current.ObjectID, VersionID: current.VersionID,
-			Revision: current.Revision, Comment: &comment,
-		}, reviewerID, requestID(item.data.Code, "upgrade-reject"))
-	case bob.StatusDraft:
+			ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID,
+			ApprovalRevision: current.Approval.Revision, Reason: &reason,
+		}, mustReviewerActor(requestID(item.data.Code, "upgrade-reject")))
+	case approval.StatusDraft:
 	default:
-		return bob.MutationResult{}, fmt.Errorf("cannot reconcile status %s", current.Status)
+		return bob.MutationResult{}, fmt.Errorf("cannot reconcile status %s", current.Approval.Status)
 	}
 	if err != nil {
 		return bob.MutationResult{}, fmt.Errorf("prepare demo data upgrade: %w", err)
 	}
 	saved, err := s.service.Save(ctx, item.entity, bob.SaveInput{
-		ObjectID: current.ObjectID, VersionID: current.VersionID, Revision: current.Revision,
-		Data: detailInput(item.entity, item.data),
-	}, submitterID, requestID(item.data.Code, "upgrade-save"))
+		ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID,
+		ApprovalRevision: current.Approval.Revision,
+		Data:             detailInput(item.entity, item.data),
+	}, mustSeedActor(requestID(item.data.Code, "upgrade-save")))
 	if err != nil {
 		return bob.MutationResult{}, fmt.Errorf("save upgraded demo data: %w", err)
 	}
@@ -864,17 +957,17 @@ func detailInput(entity string, input bob.CreateDetailInput) bob.DetailInput {
 		result.AccountNumber = bob.Optional(input.AccountNumber)
 		result.OperatingEntityID = bob.Optional(input.OperatingEntityID)
 		result.Remark = bob.Optional(input.Remark)
-	case bob.EntityCategory:
+	case auxdomain.EntityProductCategory:
 		result.ParentID = bob.Optional(input.ParentID)
 		result.Description = bob.Optional(input.Description)
-	case bob.EntityDepartment:
+	case auxdomain.EntityDepartment:
 		result.CategoryID = bob.Optional(input.CategoryID)
 		result.ParentID = bob.Optional(input.ParentID)
 		result.Description = bob.Optional(input.Description)
-	case bob.EntityPosition:
+	case auxdomain.EntityPosition:
 		result.CategoryID = bob.Optional(input.CategoryID)
 		result.Description = bob.Optional(input.Description)
-	case bob.EntitySettlementMethod:
+	case auxdomain.EntitySettlementMethod:
 		result.Description = bob.Optional(input.Description)
 	}
 	return result

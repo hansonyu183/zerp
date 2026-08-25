@@ -8,11 +8,11 @@ function parseDate(value: string): Date | null {
     Number(match[2]) - 1,
     Number(match[3]),
   )
-  return (
-    date.getFullYear() === Number(match[1]) &&
+  return date.getFullYear() === Number(match[1]) &&
     date.getMonth() === Number(match[2]) - 1 &&
     date.getDate() === Number(match[3])
-  ) ? date : null
+    ? date
+    : null
 }
 
 function formatDate(date: Date): string {
@@ -52,7 +52,7 @@ export function calculateDueDate(
       addDays(
         date,
         settlement.ruleType === 'DUE_DAYS'
-          ? settlement.dueDays ?? 0
+          ? (settlement.dueDays ?? 0)
           : settlement.dayOffset,
       ),
     )
@@ -63,10 +63,7 @@ export function calculateDueDate(
     date.getDate() > (settlement.cutoffDay ?? 31)
       ? 1
       : 0
-  const target = shiftedMonth(
-    date,
-    settlement.monthOffset + cutoffMonth,
-  )
+  const target = shiftedMonth(date, settlement.monthOffset + cutoffMonth)
   if (settlement.ruleType === 'MONTH_END') {
     return formatDate(
       addDays(new Date(target.year, target.month + 1, 0), settlement.dayOffset),

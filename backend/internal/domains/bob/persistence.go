@@ -2,323 +2,340 @@ package bob
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/platform/fixeddecimal"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/oklog/ulid/v2"
 )
 
-func derefInt32(value *int32) int32 {
-	if value == nil {
-		return 0
-	}
-	return *value
-}
-
-func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID string, data DetailView) error {
-	switch entity {
-	case EntityOtherUnit:
-		return q.InsertBobServiceRelationshipDetail(ctx, dbsqlc.InsertBobServiceRelationshipDetailParams{
-			VersionID: versionID, ContactName: nilIfEmpty(data.ContactName),
-			ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email),
-			Address: nilIfEmpty(data.Address), SettlementMethodID: nilIfEmpty(data.SettlementMethodID),
-			SettlementMethodCode: nilIfEmpty(data.SettlementMethodCode), SettlementMethodName: nilIfEmpty(data.SettlementMethodName),
-			SettlementTermCode: nilIfEmpty(data.TermCode), SettlementRuleType: nilIfEmpty(data.RuleType),
-			SettlementMonthOffset: data.MonthOffset, SettlementDayOfMonth: derefInt32(data.DayOfMonth),
-			SettlementDayOffset: data.DayOffset, Remark: nilIfEmpty(data.Remark),
-		})
-	case EntitySupplier:
-		return q.InsertBobSupplierDetail(ctx, dbsqlc.InsertBobSupplierDetailParams{
-			VersionID: versionID, Name: data.Name,
-			ShortName: nilIfEmpty(data.ShortName), CategoryID: nilIfEmpty(data.CategoryID),
-			TaxNumber: nilIfEmpty(data.TaxNumber), ContactName: nilIfEmpty(data.ContactName),
-			ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email),
-			Address: nilIfEmpty(data.Address), Remark: nilIfEmpty(data.Remark),
-			SettlementMethodID:         nilIfEmpty(data.SettlementMethodID),
-			SettlementMethodCode:       nilIfEmpty(data.SettlementMethodCode),
-			SettlementMethodName:       nilIfEmpty(data.SettlementMethodName),
-			SettlementTermCode:         nilIfEmpty(data.TermCode),
-			SettlementRuleType:         nilIfEmpty(data.RuleType),
-			SettlementMonthOffset:      data.MonthOffset,
-			SettlementDayOfMonth:       derefInt32(data.DayOfMonth),
-			SettlementDayOffset:        data.DayOffset,
-			DefaultPurchaserEmployeeID: nilIfEmpty(data.DefaultPurchaserEmployeeID),
-		})
-	case EntityEmployee:
-		return q.InsertBobEmployeeDetail(ctx, dbsqlc.InsertBobEmployeeDetailParams{
-			VersionID: versionID, Name: data.Name, CategoryID: nilIfEmpty(data.CategoryID),
-			DepartmentID: nilIfEmpty(data.DepartmentID), PositionID: nilIfEmpty(data.PositionID),
-			Phone: nilIfEmpty(data.Phone), Email: nilIfEmpty(data.Email),
-			HireDate: data.HireDate, Remark: nilIfEmpty(data.Remark),
-		})
-	case EntityProduct:
-		defaultPackagingSpec, err := defaultPackagingSpecMicros(data)
-		if err != nil {
-			return err
-		}
-		if err = q.InsertBobProductDetail(ctx, dbsqlc.InsertBobProductDetailParams{
-			VersionID: versionID, Name: data.Name, CategoryID: nilIfEmpty(data.CategoryID),
-			Specification: nilIfEmpty(data.Specification), Model: nilIfEmpty(data.Model),
-			Barcode: nilIfEmpty(data.Barcode), Remark: nilIfEmpty(data.Remark),
-			ProductTypeID: nilIfEmpty(data.ProductTypeID), ProductTypeVersionID: nilIfEmpty(data.ProductTypeVersionID),
-			ProductTypeCode: nilIfEmpty(data.ProductTypeCode), ProductTypeName: nilIfEmpty(data.ProductTypeName),
-			BehaviorProfile: nilIfEmpty(data.BehaviorProfile), DefaultInputUnitID: nilIfEmpty(data.DefaultInputUnitID),
-			PricingUnitID: nilIfEmpty(data.PricingUnitID), Returnable: data.Returnable,
-			DefaultPackagingSpecMicros: defaultPackagingSpec,
-		}); err != nil {
-			return err
-		}
-		if err = replaceProductUnitConversions(ctx, q, versionID, data.UnitConversions); err != nil {
-			return err
-		}
-		return insertProductFormula(ctx, q, versionID, data.Formula)
-	case EntityWarehouse:
-		return q.InsertBobWarehouseDetail(ctx, dbsqlc.InsertBobWarehouseDetailParams{
-			VersionID: versionID, Name: data.Name, CategoryID: nilIfEmpty(data.CategoryID),
-			Address: nilIfEmpty(data.Address), ContactName: nilIfEmpty(data.ContactName),
-			ContactPhone: nilIfEmpty(data.ContactPhone), ManagerEmployeeID: nilIfEmpty(data.ManagerEmployeeID),
-			Remark: nilIfEmpty(data.Remark),
-		})
-	case EntityVehicle:
-		return q.InsertBobVehicleDetail(ctx, dbsqlc.InsertBobVehicleDetailParams{
-			VersionID: versionID, Name: data.Name, PlateNumber: data.PlateNumber,
-			VehicleType: data.VehicleType, CarrierAffiliationType: data.CarrierAffiliation.Type,
-			CarrierOperatingEntityID:           nilIfEmpty(data.CarrierAffiliation.OperatingEntityID),
-			CarrierServiceRelationshipObjectID: nilIfEmpty(data.CarrierAffiliation.ServiceRelationshipObjectID),
-			BulkLiquidCapable:                  data.BulkLiquidCapable,
-			CategoryID:                         nilIfEmpty(data.CategoryID), Vin: nilIfEmpty(data.VIN),
-			EngineNumber: nilIfEmpty(data.EngineNumber), LoadCapacityKg: data.LoadCapacityKG,
-			Remark: nilIfEmpty(data.Remark),
-		})
-	case EntityFundAccount:
-		return q.InsertBobFundAccountDetail(ctx, dbsqlc.InsertBobFundAccountDetailParams{
-			VersionID: versionID, Name: data.Name, Currency: data.Currency,
-			CategoryID: nilIfEmpty(data.CategoryID), AccountName: nilIfEmpty(data.AccountName),
-			BankName: nilIfEmpty(data.BankName), BankBranch: nilIfEmpty(data.BankBranch),
-			AccountNumber: nilIfEmpty(data.AccountNumber), Remark: nilIfEmpty(data.Remark),
-			OperatingEntityID: nilIfEmpty(data.OperatingEntityID), OperatingEntityVersionID: nilIfEmpty(data.OperatingEntityVersionID),
-			OperatingEntityCode: nilIfEmpty(data.OperatingEntityCode), OperatingEntityName: nilIfEmpty(data.OperatingEntityName),
-		})
-	case EntityCategory:
-		return q.InsertBobCategoryDetail(ctx, dbsqlc.InsertBobCategoryDetailParams{
-			VersionID: versionID, Name: data.Name, TargetEntity: data.TargetEntity,
-			ParentID: nilIfEmpty(data.ParentID), Description: nilIfEmpty(data.Description),
-		})
-	case EntityDepartment:
-		return q.InsertBobDepartmentDetail(ctx, dbsqlc.InsertBobDepartmentDetailParams{
-			VersionID: versionID, Name: data.Name, CategoryID: nilIfEmpty(data.CategoryID),
-			ParentID: nilIfEmpty(data.ParentID), Description: nilIfEmpty(data.Description),
-		})
-	case EntityPosition:
-		return q.InsertBobPositionDetail(ctx, dbsqlc.InsertBobPositionDetailParams{
-			VersionID: versionID, Name: data.Name, CategoryID: nilIfEmpty(data.CategoryID),
-			Description: nilIfEmpty(data.Description),
-		})
-	case EntitySettlementMethod:
-		surcharge, err := moneyCents(data.DefaultSalesSurcharge)
-		if err != nil {
-			return err
-		}
-		return q.InsertBobSettlementMethodDetail(ctx, dbsqlc.InsertBobSettlementMethodDetailParams{
-			VersionID: versionID, Name: data.Name, TermCode: data.TermCode, RuleType: data.RuleType,
-			MonthOffset: data.MonthOffset, DayOfMonth: data.DayOfMonth,
-			DayOffset: data.DayOffset, DefaultSalesSurchargeCents: surcharge,
-			Description: nilIfEmpty(data.Description),
-		})
-	case EntityOperatingEntity:
-		return q.InsertBobOperatingEntityDetail(ctx, dbsqlc.InsertBobOperatingEntityDetailParams{
-			VersionID: versionID, LegalName: data.Name, ShortName: nilIfEmpty(data.ShortName),
-			TaxNumber: nilIfEmpty(data.TaxNumber), Address: nilIfEmpty(data.Address),
-			Phone: nilIfEmpty(data.Phone), Remark: nilIfEmpty(data.Remark),
-		})
-	default:
-		return domainError(ErrorValidation, "invalid entity", nil, nil)
-	}
-}
-
-func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID string, data DetailView) error {
-	var rows int64
+// BOB payloads are keyed exclusively by the central approval entry.
+func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID string, data DetailView) error {
 	var err error
 	switch entity {
+	case EntityCustomer:
+		return q.InsertBobCustomerRelationshipPayload(ctx, approvalEntryID)
+	case EntityCustomerAccount:
+		err = q.InsertBobCustomerPayload(ctx, dbsqlc.InsertBobCustomerPayloadParams{ApprovalEntryID: approvalEntryID, Name: data.Name})
 	case EntityOtherUnit:
-		rows, err = q.UpdateBobServiceRelationshipDetail(ctx, dbsqlc.UpdateBobServiceRelationshipDetailParams{
-			ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone),
-			Email: nilIfEmpty(data.Email), Address: nilIfEmpty(data.Address),
-			SettlementMethodID: nilIfEmpty(data.SettlementMethodID), SettlementMethodCode: nilIfEmpty(data.SettlementMethodCode),
-			SettlementMethodName: nilIfEmpty(data.SettlementMethodName), SettlementTermCode: nilIfEmpty(data.TermCode),
-			SettlementRuleType: nilIfEmpty(data.RuleType), SettlementMonthOffset: data.MonthOffset,
-			SettlementDayOfMonth: derefInt32(data.DayOfMonth), SettlementDayOffset: data.DayOffset,
-			Remark: nilIfEmpty(data.Remark), VersionID: versionID,
-		})
+		err = q.InsertBobOtherUnitPayload(ctx, approvalEntryID)
 	case EntitySupplier:
-		rows, err = q.UpdateBobSupplierDetail(ctx, dbsqlc.UpdateBobSupplierDetailParams{
-			Name: data.Name, ShortName: nilIfEmpty(data.ShortName),
-			CategoryID: nilIfEmpty(data.CategoryID), TaxNumber: nilIfEmpty(data.TaxNumber),
-			ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone),
-			Email: nilIfEmpty(data.Email), Address: nilIfEmpty(data.Address),
-			Remark: nilIfEmpty(data.Remark), SettlementMethodID: nilIfEmpty(data.SettlementMethodID),
-			SettlementMethodCode:       nilIfEmpty(data.SettlementMethodCode),
-			SettlementMethodName:       nilIfEmpty(data.SettlementMethodName),
-			SettlementTermCode:         nilIfEmpty(data.TermCode),
-			SettlementRuleType:         nilIfEmpty(data.RuleType),
-			SettlementMonthOffset:      data.MonthOffset,
-			SettlementDayOfMonth:       derefInt32(data.DayOfMonth),
-			SettlementDayOffset:        data.DayOffset,
-			DefaultPurchaserEmployeeID: nilIfEmpty(data.DefaultPurchaserEmployeeID),
-			VersionID:                  versionID,
-		})
+		err = q.InsertBobSupplierPayload(ctx, dbsqlc.InsertBobSupplierPayloadParams{ApprovalEntryID: approvalEntryID, Name: data.Name})
 	case EntityEmployee:
-		rows, err = q.UpdateBobEmployeeDetail(ctx, dbsqlc.UpdateBobEmployeeDetailParams{
-			Name: data.Name, CategoryID: nilIfEmpty(data.CategoryID),
-			DepartmentID: nilIfEmpty(data.DepartmentID), PositionID: nilIfEmpty(data.PositionID),
-			Phone: nilIfEmpty(data.Phone), Email: nilIfEmpty(data.Email), HireDate: data.HireDate,
-			Remark: nilIfEmpty(data.Remark), VersionID: versionID,
-		})
+		err = q.InsertBobEmployeePayload(ctx, dbsqlc.InsertBobEmployeePayloadParams{ApprovalEntryID: approvalEntryID, Name: data.Name})
+	case EntitySalesPartner:
+		err = q.InsertBobSalesPartnerPayload(ctx, approvalEntryID)
 	case EntityProduct:
-		defaultPackagingSpec, parseErr := defaultPackagingSpecMicros(data)
-		if parseErr != nil {
-			return parseErr
-		}
-		rows, err = q.UpdateBobProductDetail(ctx, dbsqlc.UpdateBobProductDetailParams{
-			Name: data.Name, CategoryID: nilIfEmpty(data.CategoryID),
-			Specification: nilIfEmpty(data.Specification), Model: nilIfEmpty(data.Model),
-			Barcode: nilIfEmpty(data.Barcode), Remark: nilIfEmpty(data.Remark), VersionID: versionID,
-			ProductTypeID: nilIfEmpty(data.ProductTypeID), ProductTypeVersionID: nilIfEmpty(data.ProductTypeVersionID),
-			ProductTypeCode: nilIfEmpty(data.ProductTypeCode), ProductTypeName: nilIfEmpty(data.ProductTypeName),
-			BehaviorProfile: nilIfEmpty(data.BehaviorProfile), DefaultInputUnitID: nilIfEmpty(data.DefaultInputUnitID),
-			PricingUnitID: nilIfEmpty(data.PricingUnitID), Returnable: data.Returnable,
-			DefaultPackagingSpecMicros: defaultPackagingSpec,
-		})
-		if err == nil && rows == 1 {
-			err = q.DeleteBobProductUnitConversions(ctx, versionID)
-			if err == nil {
-				err = replaceProductUnitConversions(ctx, q, versionID, data.UnitConversions)
-			}
-			if err == nil {
-				err = q.DeleteBobProductFormula(ctx, versionID)
-			}
-			if err == nil {
-				err = insertProductFormula(ctx, q, versionID, data.Formula)
-			}
-		}
+		err = q.InsertBobProductPayload(ctx, dbsqlc.InsertBobProductPayloadParams{ApprovalEntryID: approvalEntryID, Name: data.Name})
 	case EntityWarehouse:
-		rows, err = q.UpdateBobWarehouseDetail(ctx, dbsqlc.UpdateBobWarehouseDetailParams{
-			Name: data.Name, CategoryID: nilIfEmpty(data.CategoryID), Address: nilIfEmpty(data.Address),
-			ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone),
-			ManagerEmployeeID: nilIfEmpty(data.ManagerEmployeeID), Remark: nilIfEmpty(data.Remark),
-			VersionID: versionID,
-		})
+		err = q.InsertBobWarehousePayload(ctx, dbsqlc.InsertBobWarehousePayloadParams{ApprovalEntryID: approvalEntryID, Name: data.Name})
 	case EntityVehicle:
-		rows, err = q.UpdateBobVehicleDetail(ctx, dbsqlc.UpdateBobVehicleDetailParams{
-			Name: data.Name, PlateNumber: data.PlateNumber, VehicleType: data.VehicleType,
-			CarrierAffiliationType:             data.CarrierAffiliation.Type,
-			CarrierOperatingEntityID:           nilIfEmpty(data.CarrierAffiliation.OperatingEntityID),
-			CarrierServiceRelationshipObjectID: nilIfEmpty(data.CarrierAffiliation.ServiceRelationshipObjectID),
-			BulkLiquidCapable:                  data.BulkLiquidCapable, VersionID: versionID,
-			CategoryID: nilIfEmpty(data.CategoryID), Vin: nilIfEmpty(data.VIN),
-			EngineNumber: nilIfEmpty(data.EngineNumber), LoadCapacityKg: data.LoadCapacityKG,
-			Remark: nilIfEmpty(data.Remark),
+		affiliation := data.CarrierAffiliation
+		if affiliation == nil {
+			affiliation = &CarrierAffiliation{}
+		}
+		err = q.InsertBobVehiclePayload(ctx, dbsqlc.InsertBobVehiclePayloadParams{
+			ApprovalEntryID: approvalEntryID, Name: data.Name, PlateNumber: data.PlateNumber,
+			VehicleType: data.VehicleType, CarrierAffiliationType: affiliation.Type,
+			CarrierOperatingEntityID:           nilIfEmpty(affiliation.OperatingEntityID),
+			CarrierServiceRelationshipObjectID: nilIfEmpty(affiliation.ServiceRelationshipObjectID),
 		})
 	case EntityFundAccount:
-		rows, err = q.UpdateBobFundAccountDetail(ctx, dbsqlc.UpdateBobFundAccountDetailParams{
-			Name: data.Name, Currency: data.Currency, CategoryID: nilIfEmpty(data.CategoryID),
-			AccountName: nilIfEmpty(data.AccountName), BankName: nilIfEmpty(data.BankName),
-			BankBranch: nilIfEmpty(data.BankBranch), AccountNumber: nilIfEmpty(data.AccountNumber),
-			Remark: nilIfEmpty(data.Remark), VersionID: versionID,
-			OperatingEntityID: nilIfEmpty(data.OperatingEntityID), OperatingEntityVersionID: nilIfEmpty(data.OperatingEntityVersionID),
-			OperatingEntityCode: nilIfEmpty(data.OperatingEntityCode), OperatingEntityName: nilIfEmpty(data.OperatingEntityName),
-		})
-	case EntityCategory:
-		rows, err = q.UpdateBobCategoryDetail(ctx, dbsqlc.UpdateBobCategoryDetailParams{
-			Name: data.Name, TargetEntity: data.TargetEntity, ParentID: nilIfEmpty(data.ParentID),
-			Description: nilIfEmpty(data.Description), VersionID: versionID,
-		})
-	case EntityDepartment:
-		rows, err = q.UpdateBobDepartmentDetail(ctx, dbsqlc.UpdateBobDepartmentDetailParams{
-			Name: data.Name, CategoryID: nilIfEmpty(data.CategoryID), ParentID: nilIfEmpty(data.ParentID),
-			Description: nilIfEmpty(data.Description), VersionID: versionID,
-		})
-	case EntityPosition:
-		rows, err = q.UpdateBobPositionDetail(ctx, dbsqlc.UpdateBobPositionDetailParams{
-			Name: data.Name, CategoryID: nilIfEmpty(data.CategoryID),
-			Description: nilIfEmpty(data.Description), VersionID: versionID,
-		})
-	case EntitySettlementMethod:
-		surcharge, parseErr := moneyCents(data.DefaultSalesSurcharge)
-		if parseErr != nil {
-			return parseErr
-		}
-		rows, err = q.UpdateBobSettlementMethodDetail(ctx, dbsqlc.UpdateBobSettlementMethodDetailParams{
-			Name: data.Name, TermCode: data.TermCode, RuleType: data.RuleType, MonthOffset: data.MonthOffset,
-			DayOfMonth: data.DayOfMonth, DayOffset: data.DayOffset,
-			DefaultSalesSurchargeCents: surcharge,
-			Description:                nilIfEmpty(data.Description), VersionID: versionID,
-		})
+		err = q.InsertBobFundAccountPayload(ctx, dbsqlc.InsertBobFundAccountPayloadParams{ApprovalEntryID: approvalEntryID, Name: data.Name, Currency: data.Currency})
 	case EntityOperatingEntity:
-		rows, err = q.UpdateBobOperatingEntityDetail(ctx, dbsqlc.UpdateBobOperatingEntityDetailParams{
-			LegalName: data.Name, ShortName: nilIfEmpty(data.ShortName), TaxNumber: nilIfEmpty(data.TaxNumber),
-			Address: nilIfEmpty(data.Address), Phone: nilIfEmpty(data.Phone), Remark: nilIfEmpty(data.Remark),
-			VersionID: versionID,
-		})
+		err = q.InsertBobOperatingEntityPayload(ctx, dbsqlc.InsertBobOperatingEntityPayloadParams{ApprovalEntryID: approvalEntryID, LegalName: data.Name})
 	default:
-		return domainError(ErrorValidation, "invalid entity", nil, nil)
+		return invalidPayloadEntity(entity)
 	}
-	if err == nil && rows != 1 {
-		return domainError(ErrorConflict, "version detail changed", nil, nil)
+	if err != nil {
+		return err
 	}
-	return err
+	return updateDetail(ctx, q, entity, approvalEntryID, data)
 }
 
-func copyDetail(ctx context.Context, q *dbsqlc.Queries, entity, newVersionID, sourceVersionID string) error {
+func loadDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID string) (DetailView, error) {
+	switch entity {
+	case EntityCustomer:
+		_, err := q.GetBobOpenCustomerRelationshipPayload(ctx, approvalEntryID)
+		return DetailView{}, err
+	case EntityCustomerAccount:
+		r, err := q.GetBobOpenCustomerPayload(ctx, approvalEntryID)
+		if err != nil {
+			return DetailView{}, err
+		}
+		return DetailView{Name: r.Name, CustomerType: r.CustomerType, ShortName: deref(r.ShortName), TaxNumber: deref(r.TaxNumber), ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), Email: deref(r.Email), Address: deref(r.Address), Remark: deref(r.Remark), OperatingEntityID: deref(r.OperatingEntityID), OperatingEntityApprovalEntryID: deref(r.OperatingEntityApprovalEntryID), OperatingEntityCode: deref(r.OperatingEntityCode), OperatingEntityName: deref(r.OperatingEntityName), SettlementMethodID: deref(r.SettlementMethodID), SettlementMethodApprovalEntryID: deref(r.SettlementMethodApprovalEntryID), SettlementMethodCode: deref(r.SettlementMethodCode), SettlementMethodName: deref(r.SettlementMethodName), TermCode: deref(r.SettlementTermCode), RuleType: deref(r.SettlementRuleType), DueDays: r.SettlementDueDays, MonthOffset: r.SettlementMonthOffset, CutoffDay: r.SettlementCutoffDay, RebateUnitPrice: fixeddecimal.Format(r.RebateUnitPriceCents, 2, false)}, nil
+	case EntityOtherUnit:
+		r, err := q.GetBobOpenOtherUnitPayload(ctx, approvalEntryID)
+		if err != nil {
+			return DetailView{}, err
+		}
+		name, err := relationshipPartyName(ctx, q, EntityOtherUnit, approvalEntryID)
+		if err != nil {
+			return DetailView{}, err
+		}
+		return DetailView{Name: name, ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), Email: deref(r.Email), Address: deref(r.Address), SettlementMethodID: deref(r.SettlementMethodID), SettlementMethodApprovalEntryID: deref(r.SettlementMethodApprovalEntryID), SettlementMethodCode: deref(r.SettlementMethodCode), SettlementMethodName: deref(r.SettlementMethodName), TermCode: deref(r.SettlementTermCode), RuleType: deref(r.SettlementRuleType), MonthOffset: r.SettlementMonthOffset, DayOfMonth: int32Pointer(r.SettlementDayOfMonth), DayOffset: r.SettlementDayOffset, Remark: deref(r.Remark)}, nil
+	case EntitySupplier:
+		r, err := q.GetBobOpenSupplierPayload(ctx, approvalEntryID)
+		if err != nil {
+			return DetailView{}, err
+		}
+		return DetailView{Name: r.Name, ShortName: deref(r.ShortName), TaxNumber: deref(r.TaxNumber), ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), Email: deref(r.Email), Address: deref(r.Address), Remark: deref(r.Remark), SettlementMethodID: deref(r.SettlementMethodID), SettlementMethodApprovalEntryID: deref(r.SettlementMethodApprovalEntryID), SettlementMethodCode: deref(r.SettlementMethodCode), SettlementMethodName: deref(r.SettlementMethodName), TermCode: deref(r.SettlementTermCode), RuleType: deref(r.SettlementRuleType), MonthOffset: r.SettlementMonthOffset, DayOfMonth: int32Pointer(r.SettlementDayOfMonth), DayOffset: r.SettlementDayOffset, DefaultPurchaserEmployeeID: deref(r.DefaultPurchaserEmployeeID)}, nil
+	case EntityEmployee:
+		r, err := q.GetBobOpenEmployeePayload(ctx, approvalEntryID)
+		if err != nil {
+			return DetailView{}, err
+		}
+		return DetailView{Name: r.Name, CategoryID: deref(r.CategoryID), DepartmentID: deref(r.DepartmentID), PositionID: deref(r.PositionID), Phone: deref(r.Phone), Email: deref(r.Email), HireDate: dateString(r.HireDate), Remark: deref(r.Remark)}, nil
+	case EntitySalesPartner:
+		r, err := q.GetBobOpenSalesPartnerPayload(ctx, approvalEntryID)
+		if err != nil {
+			return DetailView{}, err
+		}
+		name, err := relationshipPartyName(ctx, q, EntitySalesPartner, approvalEntryID)
+		if err != nil {
+			return DetailView{}, err
+		}
+		return DetailView{Name: name, SalesCapabilities: r.Capabilities, ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), Email: deref(r.Email), Address: deref(r.Address), Remark: deref(r.Remark)}, nil
+	case EntityProduct:
+		r, err := q.GetBobOpenProductPayload(ctx, approvalEntryID)
+		if err != nil {
+			return DetailView{}, err
+		}
+		data := DetailView{Name: r.Name, CategoryID: deref(r.CategoryID), Specification: deref(r.Specification), Model: deref(r.Model), Barcode: deref(r.Barcode), Remark: deref(r.Remark), PricingUnitID: deref(r.PricingUnitID), Returnable: r.Returnable, ProductTypeID: deref(r.ProductTypeID), ProductTypeApprovalEntryID: deref(r.ProductTypeApprovalEntryID), ProductTypeCode: deref(r.ProductTypeCode), ProductTypeName: deref(r.ProductTypeName), BehaviorProfile: deref(r.BehaviorProfile), DefaultInputUnitID: deref(r.DefaultInputUnitID)}
+		if r.DefaultPackagingSpecMicros != nil {
+			data.DefaultPackagingSpec = formatMicros(*r.DefaultPackagingSpecMicros)
+		}
+		data.UnitConversions, err = loadProductUnitConversions(ctx, q, approvalEntryID)
+		if err != nil {
+			return DetailView{}, err
+		}
+		data.Formula, err = loadProductFormula(ctx, q, approvalEntryID)
+		return data, err
+	case EntityWarehouse:
+		r, err := q.GetBobOpenWarehousePayload(ctx, approvalEntryID)
+		if err != nil {
+			return DetailView{}, err
+		}
+		return DetailView{Name: r.Name, CategoryID: deref(r.CategoryID), Address: deref(r.Address), ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), ManagerEmployeeID: deref(r.ManagerEmployeeID), Remark: deref(r.Remark)}, nil
+	case EntityVehicle:
+		r, err := q.GetBobOpenVehiclePayload(ctx, approvalEntryID)
+		if err != nil {
+			return DetailView{}, err
+		}
+		return DetailView{Name: r.Name, PlateNumber: r.PlateNumber, VehicleType: r.VehicleType, CategoryID: deref(r.CategoryID), VIN: deref(r.Vin), EngineNumber: deref(r.EngineNumber), LoadCapacityKG: numericString(r.LoadCapacityKg), Remark: deref(r.Remark), CarrierAffiliation: &CarrierAffiliation{Type: r.CarrierAffiliationType, OperatingEntityID: deref(r.CarrierOperatingEntityID), ServiceRelationshipObjectID: deref(r.CarrierServiceRelationshipObjectID)}, BulkLiquidCapable: r.BulkLiquidCapable}, nil
+	case EntityFundAccount:
+		r, err := q.GetBobOpenFundAccountPayload(ctx, approvalEntryID)
+		if err != nil {
+			return DetailView{}, err
+		}
+		return DetailView{Name: r.Name, Currency: r.Currency, CategoryID: deref(r.CategoryID), AccountName: deref(r.AccountName), BankName: deref(r.BankName), BankBranch: deref(r.BankBranch), AccountNumber: deref(r.AccountNumber), Remark: deref(r.Remark), OperatingEntityID: deref(r.OperatingEntityID), OperatingEntityApprovalEntryID: deref(r.OperatingEntityApprovalEntryID), OperatingEntityCode: deref(r.OperatingEntityCode), OperatingEntityName: deref(r.OperatingEntityName)}, nil
+	case EntityOperatingEntity:
+		r, err := q.GetBobOpenOperatingEntityPayload(ctx, approvalEntryID)
+		if err != nil {
+			return DetailView{}, err
+		}
+		return DetailView{Name: r.LegalName, ShortName: deref(r.ShortName), TaxNumber: deref(r.TaxNumber), Address: deref(r.Address), Phone: deref(r.Phone), Remark: deref(r.Remark)}, nil
+	default:
+		return DetailView{}, invalidPayloadEntity(entity)
+	}
+}
+
+func relationshipPartyName(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID string) (string, error) {
+	entry, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{
+		ID: approvalEntryID, Domain: "bob", Entity: entity,
+	})
+	if err != nil {
+		return "", err
+	}
+	var partyID string
 	switch entity {
 	case EntityOtherUnit:
-		return q.CopyBobServiceRelationshipDetail(ctx, dbsqlc.CopyBobServiceRelationshipDetailParams{
-			NewVersionID: newVersionID, SourceVersionID: sourceVersionID,
-		})
-	case EntitySupplier:
-		return q.CopyBobSupplierDetail(ctx, dbsqlc.CopyBobSupplierDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID})
-	case EntityEmployee:
-		return q.CopyBobEmployeeDetail(ctx, dbsqlc.CopyBobEmployeeDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID})
-	case EntityProduct:
-		if err := q.CopyBobProductDetail(ctx, dbsqlc.CopyBobProductDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID}); err != nil {
-			return err
+		relationship, relationshipErr := q.GetBobOtherUnitRelationship(ctx, entry.SubjectID)
+		if relationshipErr != nil {
+			return "", relationshipErr
 		}
-		if err := q.CopyBobProductFormula(ctx, dbsqlc.CopyBobProductFormulaParams{
-			NewVersionID: newVersionID, SourceVersionID: sourceVersionID,
-		}); err != nil {
-			return err
+		partyID = relationship.PartyID
+	case EntitySalesPartner:
+		relationship, relationshipErr := q.GetBobSalesPartnerRelationship(ctx, entry.SubjectID)
+		if relationshipErr != nil {
+			return "", relationshipErr
 		}
-		if err := q.CopyBobProductUnitConversions(ctx, dbsqlc.CopyBobProductUnitConversionsParams{
-			NewVersionID: newVersionID, SourceVersionID: sourceVersionID,
-		}); err != nil {
-			return err
-		}
-		return q.CopyBobProductFormulaLines(ctx, dbsqlc.CopyBobProductFormulaLinesParams{
-			NewVersionID: newVersionID, SourceVersionID: sourceVersionID,
-		})
-	case EntityWarehouse:
-		return q.CopyBobWarehouseDetail(ctx, dbsqlc.CopyBobWarehouseDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID})
-	case EntityVehicle:
-		return q.CopyBobVehicleDetail(ctx, dbsqlc.CopyBobVehicleDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID})
-	case EntityFundAccount:
-		return q.CopyBobFundAccountDetail(ctx, dbsqlc.CopyBobFundAccountDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID})
-	case EntityCategory:
-		return q.CopyBobCategoryDetail(ctx, dbsqlc.CopyBobCategoryDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID})
-	case EntityDepartment:
-		return q.CopyBobDepartmentDetail(ctx, dbsqlc.CopyBobDepartmentDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID})
-	case EntityPosition:
-		return q.CopyBobPositionDetail(ctx, dbsqlc.CopyBobPositionDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID})
-	case EntitySettlementMethod:
-		return q.CopyBobSettlementMethodDetail(ctx, dbsqlc.CopyBobSettlementMethodDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID})
-	case EntityOperatingEntity:
-		return q.CopyBobOperatingEntityDetail(ctx, dbsqlc.CopyBobOperatingEntityDetailParams{NewVersionID: newVersionID, SourceVersionID: sourceVersionID})
+		partyID = relationship.PartyID
 	default:
-		return domainError(ErrorValidation, "invalid entity", nil, nil)
+		return "", invalidPayloadEntity(entity)
+	}
+	party, err := q.GetBobParty(ctx, partyID)
+	if err != nil {
+		return "", err
+	}
+	return party.DisplayName, nil
+}
+
+func updateDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID string, data DetailView) error {
+	rows, err := updatePayload(ctx, q, entity, approvalEntryID, data)
+	if err != nil {
+		return err
+	}
+	if rows != 1 {
+		return domainError(ErrorConflict, "approval payload changed", nil, nil)
+	}
+	if entity != EntityProduct {
+		return nil
+	}
+	if err = q.DeleteBobProductUnitConversions(ctx, approvalEntryID); err != nil {
+		return err
+	}
+	if err = replaceProductUnitConversions(ctx, q, approvalEntryID, data.UnitConversions); err != nil {
+		return err
+	}
+	if err = q.DeleteBobProductFormula(ctx, approvalEntryID); err != nil {
+		return err
+	}
+	return insertProductFormula(ctx, q, approvalEntryID, data.Formula)
+}
+
+func updatePayload(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID string, d DetailView) (int64, error) {
+	switch entity {
+	case EntityCustomerAccount:
+		rebate, err := moneyCentsOrZero(d.RebateUnitPrice)
+		if err != nil {
+			return 0, err
+		}
+		return q.UpdateBobCustomerPayload(ctx, dbsqlc.UpdateBobCustomerPayloadParams{Name: d.Name, CustomerType: d.CustomerType, ShortName: nilIfEmpty(d.ShortName), TaxNumber: nilIfEmpty(d.TaxNumber), ContactName: nilIfEmpty(d.ContactName), ContactPhone: nilIfEmpty(d.ContactPhone), Email: nilIfEmpty(d.Email), Address: nilIfEmpty(d.Address), Remark: nilIfEmpty(d.Remark), OperatingEntityID: nilIfEmpty(d.OperatingEntityID), OperatingEntityApprovalEntryID: nilIfEmpty(d.OperatingEntityApprovalEntryID), OperatingEntityCode: nilIfEmpty(d.OperatingEntityCode), OperatingEntityName: nilIfEmpty(d.OperatingEntityName), SettlementMethodID: nilIfEmpty(d.SettlementMethodID), SettlementMethodApprovalEntryID: nilIfEmpty(d.SettlementMethodApprovalEntryID), SettlementMethodCode: nilIfEmpty(d.SettlementMethodCode), SettlementMethodName: nilIfEmpty(d.SettlementMethodName), SettlementTermCode: nilIfEmpty(d.TermCode), SettlementRuleType: nilIfEmpty(d.RuleType), SettlementDueDays: d.DueDays, SettlementMonthOffset: d.MonthOffset, SettlementCutoffDay: d.CutoffDay, SettlementSalesSurchargeCents: rebate, PricingPolicy: []byte("{}"), ApprovalEntryID: approvalEntryID})
+	case EntityCustomer:
+		return 1, nil
+	case EntityOtherUnit:
+		return q.UpdateBobOtherUnitPayload(ctx, dbsqlc.UpdateBobOtherUnitPayloadParams{ContactName: nilIfEmpty(d.ContactName), ContactPhone: nilIfEmpty(d.ContactPhone), Email: nilIfEmpty(d.Email), Address: nilIfEmpty(d.Address), SettlementMethodID: nilIfEmpty(d.SettlementMethodID), SettlementMethodApprovalEntryID: nilIfEmpty(d.SettlementMethodApprovalEntryID), SettlementMethodCode: nilIfEmpty(d.SettlementMethodCode), SettlementMethodName: nilIfEmpty(d.SettlementMethodName), SettlementTermCode: nilIfEmpty(d.TermCode), SettlementRuleType: nilIfEmpty(d.RuleType), SettlementMonthOffset: d.MonthOffset, SettlementDayOfMonth: derefInt32(d.DayOfMonth), SettlementDayOffset: d.DayOffset, Remark: nilIfEmpty(d.Remark), ApprovalEntryID: approvalEntryID})
+	case EntitySupplier:
+		return q.UpdateBobSupplierPayload(ctx, dbsqlc.UpdateBobSupplierPayloadParams{Name: d.Name, ShortName: nilIfEmpty(d.ShortName), TaxNumber: nilIfEmpty(d.TaxNumber), ContactName: nilIfEmpty(d.ContactName), ContactPhone: nilIfEmpty(d.ContactPhone), Email: nilIfEmpty(d.Email), Address: nilIfEmpty(d.Address), Remark: nilIfEmpty(d.Remark), SettlementMethodID: nilIfEmpty(d.SettlementMethodID), SettlementMethodApprovalEntryID: nilIfEmpty(d.SettlementMethodApprovalEntryID), SettlementMethodCode: nilIfEmpty(d.SettlementMethodCode), SettlementMethodName: nilIfEmpty(d.SettlementMethodName), SettlementTermCode: nilIfEmpty(d.TermCode), SettlementRuleType: nilIfEmpty(d.RuleType), SettlementMonthOffset: d.MonthOffset, SettlementDayOfMonth: derefInt32(d.DayOfMonth), SettlementDayOffset: d.DayOffset, DefaultPurchaserEmployeeID: nilIfEmpty(d.DefaultPurchaserEmployeeID), ApprovalEntryID: approvalEntryID})
+	case EntityEmployee:
+		return q.UpdateBobEmployeePayload(ctx, dbsqlc.UpdateBobEmployeePayloadParams{Name: d.Name, CategoryID: nilIfEmpty(d.CategoryID), DepartmentID: nilIfEmpty(d.DepartmentID), PositionID: nilIfEmpty(d.PositionID), Phone: nilIfEmpty(d.Phone), Email: nilIfEmpty(d.Email), HireDate: dateValue(d.HireDate), Remark: nilIfEmpty(d.Remark), ApprovalEntryID: approvalEntryID})
+	case EntitySalesPartner:
+		return q.UpdateBobSalesPartnerPayload(ctx, dbsqlc.UpdateBobSalesPartnerPayloadParams{Capabilities: d.SalesCapabilities, ContactName: nilIfEmpty(d.ContactName), ContactPhone: nilIfEmpty(d.ContactPhone), Email: nilIfEmpty(d.Email), Address: nilIfEmpty(d.Address), Remark: nilIfEmpty(d.Remark), ApprovalEntryID: approvalEntryID})
+	case EntityProduct:
+		packaging, err := defaultPackagingSpecMicros(d)
+		if err != nil {
+			return 0, err
+		}
+		return q.UpdateBobProductPayload(ctx, dbsqlc.UpdateBobProductPayloadParams{Name: d.Name, CategoryID: nilIfEmpty(d.CategoryID), Specification: nilIfEmpty(d.Specification), Model: nilIfEmpty(d.Model), Barcode: nilIfEmpty(d.Barcode), Remark: nilIfEmpty(d.Remark), PricingUnitID: nilIfEmpty(d.PricingUnitID), Returnable: d.Returnable, DefaultPackagingSpecMicros: packaging, ProductTypeID: nilIfEmpty(d.ProductTypeID), ProductTypeApprovalEntryID: nilIfEmpty(d.ProductTypeApprovalEntryID), ProductTypeCode: nilIfEmpty(d.ProductTypeCode), ProductTypeName: nilIfEmpty(d.ProductTypeName), BehaviorProfile: nilIfEmpty(d.BehaviorProfile), DefaultInputUnitID: nilIfEmpty(d.DefaultInputUnitID), ApprovalEntryID: approvalEntryID})
+	case EntityWarehouse:
+		return q.UpdateBobWarehousePayload(ctx, dbsqlc.UpdateBobWarehousePayloadParams{Name: d.Name, CategoryID: nilIfEmpty(d.CategoryID), Address: nilIfEmpty(d.Address), ContactName: nilIfEmpty(d.ContactName), ContactPhone: nilIfEmpty(d.ContactPhone), ManagerEmployeeID: nilIfEmpty(d.ManagerEmployeeID), Remark: nilIfEmpty(d.Remark), ApprovalEntryID: approvalEntryID})
+	case EntityVehicle:
+		load, err := numericValue(d.LoadCapacityKG)
+		if err != nil {
+			return 0, err
+		}
+		a := d.CarrierAffiliation
+		if a == nil {
+			a = &CarrierAffiliation{}
+		}
+		return q.UpdateBobVehiclePayload(ctx, dbsqlc.UpdateBobVehiclePayloadParams{Name: d.Name, PlateNumber: d.PlateNumber, VehicleType: d.VehicleType, CategoryID: nilIfEmpty(d.CategoryID), Vin: nilIfEmpty(d.VIN), EngineNumber: nilIfEmpty(d.EngineNumber), LoadCapacityKg: load, Remark: nilIfEmpty(d.Remark), CarrierAffiliationType: a.Type, CarrierOperatingEntityID: nilIfEmpty(a.OperatingEntityID), CarrierServiceRelationshipObjectID: nilIfEmpty(a.ServiceRelationshipObjectID), BulkLiquidCapable: d.BulkLiquidCapable, ApprovalEntryID: approvalEntryID})
+	case EntityFundAccount:
+		return q.UpdateBobFundAccountPayload(ctx, dbsqlc.UpdateBobFundAccountPayloadParams{Name: d.Name, Currency: d.Currency, CategoryID: nilIfEmpty(d.CategoryID), AccountName: nilIfEmpty(d.AccountName), BankName: nilIfEmpty(d.BankName), BankBranch: nilIfEmpty(d.BankBranch), AccountNumber: nilIfEmpty(d.AccountNumber), Remark: nilIfEmpty(d.Remark), OperatingEntityID: nilIfEmpty(d.OperatingEntityID), OperatingEntityApprovalEntryID: nilIfEmpty(d.OperatingEntityApprovalEntryID), OperatingEntityCode: nilIfEmpty(d.OperatingEntityCode), OperatingEntityName: nilIfEmpty(d.OperatingEntityName), ApprovalEntryID: approvalEntryID})
+	case EntityOperatingEntity:
+		return q.UpdateBobOperatingEntityPayload(ctx, dbsqlc.UpdateBobOperatingEntityPayloadParams{LegalName: d.Name, ShortName: nilIfEmpty(d.ShortName), TaxNumber: nilIfEmpty(d.TaxNumber), Address: nilIfEmpty(d.Address), Phone: nilIfEmpty(d.Phone), Remark: nilIfEmpty(d.Remark), ApprovalEntryID: approvalEntryID})
+	default:
+		return 0, invalidPayloadEntity(entity)
 	}
 }
 
+func copyDetail(ctx context.Context, q *dbsqlc.Queries, entity, newApprovalEntryID, sourceApprovalEntryID string) error {
+	switch entity {
+	case EntityCustomer:
+		return q.CopyBobCustomerRelationshipPayload(ctx, dbsqlc.CopyBobCustomerRelationshipPayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID})
+	case EntityCustomerAccount:
+		if err := q.CopyBobCustomerPayload(ctx, dbsqlc.CopyBobCustomerPayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID}); err != nil {
+			return err
+		}
+		return copyCustomerPayloadExtras(ctx, q, newApprovalEntryID, sourceApprovalEntryID)
+	case EntityOtherUnit:
+		return q.CopyBobOtherUnitPayload(ctx, dbsqlc.CopyBobOtherUnitPayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID})
+	case EntitySupplier:
+		return q.CopyBobSupplierPayload(ctx, dbsqlc.CopyBobSupplierPayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID})
+	case EntityEmployee:
+		return q.CopyBobEmployeePayload(ctx, dbsqlc.CopyBobEmployeePayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID})
+	case EntitySalesPartner:
+		return q.CopyBobSalesPartnerPayload(ctx, dbsqlc.CopyBobSalesPartnerPayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID})
+	case EntityProduct:
+		if err := q.CopyBobProductPayload(ctx, dbsqlc.CopyBobProductPayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID}); err != nil {
+			return err
+		}
+		conversions, err := loadProductUnitConversions(ctx, q, sourceApprovalEntryID)
+		if err != nil {
+			return err
+		}
+		if err := replaceProductUnitConversions(ctx, q, newApprovalEntryID, conversions); err != nil {
+			return err
+		}
+		formula, err := loadProductFormula(ctx, q, sourceApprovalEntryID)
+		if err != nil {
+			return err
+		}
+		return insertProductFormula(ctx, q, newApprovalEntryID, formula)
+	case EntityWarehouse:
+		return q.CopyBobWarehousePayload(ctx, dbsqlc.CopyBobWarehousePayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID})
+	case EntityVehicle:
+		return q.CopyBobVehiclePayload(ctx, dbsqlc.CopyBobVehiclePayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID})
+	case EntityFundAccount:
+		return q.CopyBobFundAccountPayload(ctx, dbsqlc.CopyBobFundAccountPayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID})
+	case EntityOperatingEntity:
+		return q.CopyBobOperatingEntityPayload(ctx, dbsqlc.CopyBobOperatingEntityPayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID})
+	default:
+		return invalidPayloadEntity(entity)
+	}
+}
+
+func deleteDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID string) (int64, error) {
+	switch entity {
+	case EntityCustomer:
+		return q.DeleteBobCustomerRelationshipPayload(ctx, approvalEntryID)
+	case EntityCustomerAccount:
+		if err := q.DeleteBobCustomerCreditLimits(ctx, approvalEntryID); err != nil {
+			return 0, err
+		}
+		if err := q.DeleteBobCustomerVersionAttachments(ctx, approvalEntryID); err != nil {
+			return 0, err
+		}
+		return q.DeleteBobCustomerPayload(ctx, approvalEntryID)
+	case EntityOtherUnit:
+		return q.DeleteBobOtherUnitPayload(ctx, approvalEntryID)
+	case EntitySupplier:
+		return q.DeleteBobSupplierPayload(ctx, approvalEntryID)
+	case EntityEmployee:
+		return q.DeleteBobEmployeePayload(ctx, approvalEntryID)
+	case EntitySalesPartner:
+		return q.DeleteBobSalesPartnerPayload(ctx, approvalEntryID)
+	case EntityProduct:
+		if err := q.DeleteBobProductFormula(ctx, approvalEntryID); err != nil {
+			return 0, err
+		}
+		if err := q.DeleteBobProductUnitConversions(ctx, approvalEntryID); err != nil {
+			return 0, err
+		}
+		return q.DeleteBobProductPayload(ctx, approvalEntryID)
+	case EntityWarehouse:
+		return q.DeleteBobWarehousePayload(ctx, approvalEntryID)
+	case EntityVehicle:
+		return q.DeleteBobVehiclePayload(ctx, approvalEntryID)
+	case EntityFundAccount:
+		return q.DeleteBobFundAccountPayload(ctx, approvalEntryID)
+	case EntityOperatingEntity:
+		return q.DeleteBobOperatingEntityPayload(ctx, approvalEntryID)
+	default:
+		return 0, invalidPayloadEntity(entity)
+	}
+}
+
+func copyCustomerPayloadExtras(ctx context.Context, q *dbsqlc.Queries, newApprovalEntryID, sourceApprovalEntryID string) error {
+	if err := q.CopyBobCustomerCreditLimits(ctx, dbsqlc.CopyBobCustomerCreditLimitsParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID}); err != nil {
+		return err
+	}
+	return q.CopyBobCustomerVersionAttachments(ctx, dbsqlc.CopyBobCustomerVersionAttachmentsParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID})
+}
 func defaultPackagingSpecMicros(data DetailView) (*int64, error) {
 	if data.BehaviorProfile == ProductBehaviorPackaging || data.DefaultPackagingSpec == "" {
 		return nil, nil
@@ -330,182 +347,137 @@ func defaultPackagingSpecMicros(data DetailView) (*int64, error) {
 	return &value, nil
 }
 
-func insertProductFormula(
-	ctx context.Context, q *dbsqlc.Queries, versionID string, formula *ProductFormula,
-) error {
+func moneyCentsOrZero(value string) (int64, error) {
+	if strings.TrimSpace(value) == "" {
+		return 0, nil
+	}
+	return moneyCents(value)
+}
+func insertProductFormula(ctx context.Context, q *dbsqlc.Queries, approvalEntryID string, formula *ProductFormula) error {
 	if formula == nil {
 		return nil
 	}
-	outputEntered, err := fixedMicros(formula.Output.EnteredQuantity)
+	entered, err := fixedMicros(formula.Output.EnteredQuantity)
 	if err != nil {
 		return err
 	}
-	baseQuantity, err := fixedMicros(formula.Output.BaseQuantity)
+	base, err := fixedMicros(formula.Output.BaseQuantity)
 	if err != nil {
 		return err
 	}
-	if err = q.InsertBobProductFormula(ctx, dbsqlc.InsertBobProductFormulaParams{
-		ProductVersionID: versionID, OutputEnteredQuantityMicros: outputEntered,
-		OutputUnitObjectID: formula.Output.EnteredUnit.ObjectID, OutputUnitVersionID: formula.Output.EnteredUnit.VersionID,
-		OutputUnitCode: formula.Output.EnteredUnit.Code, OutputUnitName: formula.Output.EnteredUnit.Name,
-		OutputUnitSymbol: formula.Output.EnteredUnit.Symbol, OutputBaseQuantityMicros: baseQuantity,
-	}); err != nil {
+	if err = q.InsertBobProductFormula(ctx, dbsqlc.InsertBobProductFormulaParams{ProductApprovalEntryID: approvalEntryID, OutputBaseQuantityMicros: base, OutputEnteredQuantityMicros: entered, OutputUnitObjectID: formula.Output.EnteredUnit.ObjectID, OutputUnitApprovalEntryID: formula.Output.EnteredUnit.ApprovalEntryID, OutputUnitCode: formula.Output.EnteredUnit.Code, OutputUnitName: formula.Output.EnteredUnit.Name, OutputUnitSymbol: formula.Output.EnteredUnit.Symbol}); err != nil {
 		return err
 	}
-	for index, component := range formula.Components {
-		entered, quantityErr := fixedMicros(component.Quantity.EnteredQuantity)
-		if quantityErr != nil {
-			return quantityErr
+	for i, c := range formula.Components {
+		entered, err = fixedMicros(c.Quantity.EnteredQuantity)
+		if err != nil {
+			return err
 		}
-		quantity, quantityErr := fixedMicros(component.Quantity.BaseQuantity)
-		if quantityErr != nil {
-			return quantityErr
+		base, err = fixedMicros(c.Quantity.BaseQuantity)
+		if err != nil {
+			return err
 		}
-		if err = q.InsertBobProductFormulaLine(ctx, dbsqlc.InsertBobProductFormulaLineParams{
-			ProductVersionID: versionID, LineNo: int32(index + 1),
-			MaterialObjectID: component.Material.ObjectID, MaterialVersionID: component.Material.VersionID,
-			EnteredQuantityMicros: entered, EnteredUnitObjectID: component.Quantity.EnteredUnit.ObjectID,
-			EnteredUnitVersionID: component.Quantity.EnteredUnit.VersionID, EnteredUnitCode: component.Quantity.EnteredUnit.Code,
-			EnteredUnitName: component.Quantity.EnteredUnit.Name, EnteredUnitSymbol: component.Quantity.EnteredUnit.Symbol,
-			BaseQuantityMicros: quantity, ResolutionStatus: component.ResolutionStatus, RequiresConfirmation: component.RequiresConfirmation,
-		}); err != nil {
+		if err = q.InsertBobProductFormulaLine(ctx, dbsqlc.InsertBobProductFormulaLineParams{ProductApprovalEntryID: approvalEntryID, LineNo: int32(i + 1), MaterialObjectID: c.Material.ObjectID, MaterialApprovalEntryID: c.Material.ApprovalEntryID, BaseQuantityMicros: base, EnteredQuantityMicros: entered, EnteredUnitObjectID: c.Quantity.EnteredUnit.ObjectID, EnteredUnitApprovalEntryID: c.Quantity.EnteredUnit.ApprovalEntryID, EnteredUnitCode: c.Quantity.EnteredUnit.Code, EnteredUnitName: c.Quantity.EnteredUnit.Name, EnteredUnitSymbol: c.Quantity.EnteredUnit.Symbol, ResolutionStatus: c.ResolutionStatus, RequiresConfirmation: c.RequiresConfirmation}); err != nil {
 			return err
 		}
 	}
 	return nil
 }
-
-func loadProductFormula(
-	ctx context.Context, q *dbsqlc.Queries, versionID string,
-) (*ProductFormula, error) {
-	formula, err := q.GetBobProductFormula(ctx, versionID)
+func loadProductFormula(ctx context.Context, q *dbsqlc.Queries, approvalEntryID string) (*ProductFormula, error) {
+	f, err := q.GetBobProductFormula(ctx, approvalEntryID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	rows, err := q.ListBobProductFormulaLines(ctx, versionID)
+	rows, err := q.ListBobProductFormulaLines(ctx, approvalEntryID)
 	if err != nil {
 		return nil, err
 	}
-	result := &ProductFormula{
-		Output: QuantitySnapshot{EnteredQuantity: formatMicros(formula.OutputEnteredQuantityMicros),
-			EnteredUnit:  MeasurementUnitSnapshot{ObjectID: formula.OutputUnitObjectID, VersionID: formula.OutputUnitVersionID, Code: formula.OutputUnitCode, Name: formula.OutputUnitName, Symbol: formula.OutputUnitSymbol},
-			BaseQuantity: formatMicros(formula.OutputBaseQuantityMicros)},
-		Components: make([]ProductFormulaComponent, 0, len(rows)),
-	}
+	result := &ProductFormula{Output: QuantitySnapshot{EnteredQuantity: formatMicros(f.OutputEnteredQuantityMicros), BaseQuantity: formatMicros(f.OutputBaseQuantityMicros), EnteredUnit: MeasurementUnitSnapshot{ObjectID: f.OutputUnitObjectID, ApprovalEntryID: f.OutputUnitApprovalEntryID, Code: f.OutputUnitCode, Name: f.OutputUnitName, Symbol: f.OutputUnitSymbol}}, Components: make([]ProductFormulaComponent, 0, len(rows))}
 	for _, row := range rows {
-		result.Components = append(result.Components, ProductFormulaComponent{
-			Material: FormulaMaterialReference{
-				ObjectID: row.MaterialObjectID, VersionID: row.MaterialVersionID,
-				Code: row.MaterialCode, Name: row.MaterialName, BehaviorProfile: deref(row.MaterialBehaviorProfile),
-			},
-			Quantity: QuantitySnapshot{EnteredQuantity: formatMicros(row.EnteredQuantityMicros),
-				EnteredUnit:  MeasurementUnitSnapshot{ObjectID: row.EnteredUnitObjectID, VersionID: row.EnteredUnitVersionID, Code: row.EnteredUnitCode, Name: row.EnteredUnitName, Symbol: row.EnteredUnitSymbol},
-				BaseQuantity: formatMicros(row.BaseQuantityMicros)},
-			ResolutionStatus: row.ResolutionStatus, RequiresConfirmation: row.RequiresConfirmation,
-		})
+		result.Components = append(result.Components, ProductFormulaComponent{Material: FormulaMaterialReference{ObjectID: row.MaterialObjectID, ApprovalEntryID: row.MaterialApprovalEntryID}, Quantity: QuantitySnapshot{EnteredQuantity: formatMicros(row.EnteredQuantityMicros), BaseQuantity: formatMicros(row.BaseQuantityMicros), EnteredUnit: MeasurementUnitSnapshot{ObjectID: row.EnteredUnitObjectID, ApprovalEntryID: row.EnteredUnitApprovalEntryID, Code: row.EnteredUnitCode, Name: row.EnteredUnitName, Symbol: row.EnteredUnitSymbol}}, ResolutionStatus: row.ResolutionStatus, RequiresConfirmation: row.RequiresConfirmation})
 	}
 	return result, nil
 }
-
-func loadProductUnitConversions(ctx context.Context, q *dbsqlc.Queries, versionID string) ([]ProductUnitConversion, error) {
-	rows, err := q.ListBobProductUnitConversions(ctx, versionID)
+func loadProductUnitConversions(ctx context.Context, q *dbsqlc.Queries, approvalEntryID string) ([]ProductUnitConversion, error) {
+	rows, err := q.ListBobProductUnitConversions(ctx, approvalEntryID)
 	if err != nil {
 		return nil, err
 	}
 	result := make([]ProductUnitConversion, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, ProductUnitConversion{Unit: MeasurementUnitSnapshot{
-			ObjectID: row.UnitObjectID, VersionID: row.UnitVersionID, Code: row.UnitCode,
-			Name: row.UnitName, Symbol: row.UnitSymbol,
-		}, Factor: formatMicros(row.FactorMicros)})
+		result = append(result, ProductUnitConversion{Unit: MeasurementUnitSnapshot{ObjectID: row.UnitObjectID, ApprovalEntryID: row.UnitApprovalEntryID, Code: row.UnitCode, Name: row.UnitName, Symbol: row.UnitSymbol}, Factor: formatMicros(row.FactorMicros)})
 	}
 	return result, nil
 }
-
-func deleteDetail(ctx context.Context, q *dbsqlc.Queries, entity, versionID string) (int64, error) {
-	switch entity {
-	case EntityCustomer, EntityCustomerAccount:
-		return q.DeleteBobCustomerDetail(ctx, versionID)
-	case EntityOtherUnit:
-		return q.DeleteBobServiceRelationshipDetail(ctx, versionID)
-	case EntitySupplier:
-		return q.DeleteBobSupplierDetail(ctx, versionID)
-	case EntityEmployee:
-		return q.DeleteBobEmployeeDetail(ctx, versionID)
-	case EntitySalesPartner:
-		return q.DeleteBobSalesPartnerDetail(ctx, versionID)
-	case EntityProduct:
-		if err := q.DeleteBobProductFormula(ctx, versionID); err != nil {
-			return 0, err
-		}
-		return q.DeleteBobProductDetail(ctx, versionID)
-	case EntityWarehouse:
-		return q.DeleteBobWarehouseDetail(ctx, versionID)
-	case EntityVehicle:
-		return q.DeleteBobVehicleDetail(ctx, versionID)
-	case EntityFundAccount:
-		return q.DeleteBobFundAccountDetail(ctx, versionID)
-	case EntityCategory:
-		return q.DeleteBobCategoryDetail(ctx, versionID)
-	case EntityDepartment:
-		return q.DeleteBobDepartmentDetail(ctx, versionID)
-	case EntityPosition:
-		return q.DeleteBobPositionDetail(ctx, versionID)
-	case EntitySettlementMethod:
-		return q.DeleteBobSettlementMethodDetail(ctx, versionID)
-	case EntityOperatingEntity:
-		return q.DeleteBobOperatingEntityDetail(ctx, versionID)
-	default:
-		return 0, domainError(ErrorValidation, "invalid entity", nil, nil)
-	}
-}
-
-func nilIfEmpty(value string) *string {
-	if value == "" {
-		return nil
-	}
-	return &value
-}
-
-func replaceProductUnitConversions(ctx context.Context, q *dbsqlc.Queries, versionID string, conversions []ProductUnitConversion) error {
+func replaceProductUnitConversions(ctx context.Context, q *dbsqlc.Queries, approvalEntryID string, conversions []ProductUnitConversion) error {
 	for _, conversion := range conversions {
 		factor, err := fixedMicros(conversion.Factor)
 		if err != nil {
 			return err
 		}
-		if err = q.InsertBobProductUnitConversion(ctx, dbsqlc.InsertBobProductUnitConversionParams{
-			ProductVersionID: versionID, UnitObjectID: conversion.Unit.ObjectID, UnitVersionID: conversion.Unit.VersionID,
-			UnitCode: conversion.Unit.Code, UnitName: conversion.Unit.Name, UnitSymbol: conversion.Unit.Symbol, FactorMicros: factor,
-		}); err != nil {
+		if err = q.InsertBobProductUnitConversion(ctx, dbsqlc.InsertBobProductUnitConversionParams{ProductApprovalEntryID: approvalEntryID, UnitObjectID: conversion.Unit.ObjectID, UnitApprovalEntryID: conversion.Unit.ApprovalEntryID, UnitCode: conversion.Unit.Code, UnitName: conversion.Unit.Name, UnitSymbol: conversion.Unit.Symbol, FactorMicros: factor}); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-type auditInput struct {
-	ObjectID, VersionID, Entity, Event, To, ActorID, RequestID string
-	From, Comment                                              *string
-	Summary                                                    map[string]any
-}
-
-func insertAudit(ctx context.Context, q *dbsqlc.Queries, input auditInput) error {
-	summary := input.Summary
-	if summary == nil {
-		summary = map[string]any{}
+func derefInt32(value *int32) int32 {
+	if value == nil {
+		return 0
 	}
-	encoded, err := json.Marshal(summary)
-	if err != nil {
-		return err
-	}
-	return q.InsertBobAuditEvent(ctx, dbsqlc.InsertBobAuditEventParams{
-		ID: newID(), ObjectID: input.ObjectID, VersionID: input.VersionID, Entity: input.Entity,
-		EventType: input.Event, FromStatus: input.From, ToStatus: input.To, ActorID: input.ActorID,
-		Comment: input.Comment, RequestID: input.RequestID, Summary: encoded,
-	})
+	return *value
 }
-
+func int32Pointer(value int32) *int32 {
+	if value == 0 {
+		return nil
+	}
+	return &value
+}
+func nilIfEmpty(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
+}
+func invalidPayloadEntity(entity string) error {
+	return domainError(ErrorValidation, fmt.Sprintf("invalid BOB approval payload entity %q", entity), nil, nil)
+}
+func dateValue(value string) pgtype.Date {
+	if strings.TrimSpace(value) == "" {
+		return pgtype.Date{}
+	}
+	var date pgtype.Date
+	_ = date.Scan(value)
+	return date
+}
+func dateString(value pgtype.Date) string {
+	if !value.Valid {
+		return ""
+	}
+	return value.Time.Format("2006-01-02")
+}
+func numericValue(value string) (pgtype.Numeric, error) {
+	if strings.TrimSpace(value) == "" {
+		return pgtype.Numeric{}, nil
+	}
+	var numeric pgtype.Numeric
+	if err := numeric.Scan(value); err != nil {
+		return pgtype.Numeric{}, err
+	}
+	return numeric, nil
+}
+func numericString(value pgtype.Numeric) string {
+	if !value.Valid {
+		return ""
+	}
+	raw, err := value.Value()
+	if err != nil || raw == nil {
+		return ""
+	}
+	return fmt.Sprint(raw)
+}
 func newID() string { return ulid.Make().String() }

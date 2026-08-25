@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 	"unicode"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -158,10 +160,10 @@ type OtherUnitSaveData struct {
 }
 
 type OtherUnitSaveInput struct {
-	ObjectID  string            `json:"objectId"`
-	VersionID string            `json:"versionId"`
-	Revision  int64             `json:"revision"`
-	Data      OtherUnitSaveData `json:"data"`
+	ObjectID         string            `json:"objectId"`
+	ApprovalEntryID  string            `json:"approvalEntryId"`
+	ApprovalRevision int64             `json:"approvalRevision"`
+	Data             OtherUnitSaveData `json:"data"`
 }
 
 func mergePartyOptional(input OptionalString, target *string) {
@@ -171,24 +173,19 @@ func mergePartyOptional(input OptionalString, target *string) {
 }
 
 type OtherUnitView struct {
-	ObjectID            string        `json:"objectId"`
-	Code                string        `json:"code"`
-	ObjectRevision      int64         `json:"objectRevision"`
-	Enabled             bool          `json:"enabled"`
-	VersionID           string        `json:"versionId"`
-	Version             int32         `json:"version"`
-	Status              string        `json:"status"`
-	Revision            int64         `json:"revision"`
-	SubmittedBy         *string       `json:"submittedBy"`
-	EffectiveVersionID  *string       `json:"effectiveVersionId"`
-	PartyID             string        `json:"partyId"`
-	PartyKind           string        `json:"partyKind"`
-	PartyDisplayName    string        `json:"partyDisplayName"`
-	OperatingEntityID   string        `json:"operatingEntityId"`
-	OperatingEntityCode string        `json:"operatingEntityCode"`
-	OperatingEntityName string        `json:"operatingEntityName"`
-	Data                OtherUnitData `json:"data"`
-	UpdatedAt           string        `json:"updatedAt"`
+	ObjectID            string               `json:"objectId"`
+	Code                string               `json:"code"`
+	ObjectRevision      int64                `json:"objectRevision"`
+	Enabled             bool                 `json:"enabled"`
+	Approval            approval.VersionMeta `json:"approval"`
+	PartyID             string               `json:"partyId"`
+	PartyKind           string               `json:"partyKind"`
+	PartyDisplayName    string               `json:"partyDisplayName"`
+	OperatingEntityID   string               `json:"operatingEntityId"`
+	OperatingEntityCode string               `json:"operatingEntityCode"`
+	OperatingEntityName string               `json:"operatingEntityName"`
+	Data                OtherUnitData        `json:"data"`
+	UpdatedAt           string               `json:"updatedAt"`
 }
 
 func normalizePartyIdentifier(value string) string {
@@ -253,7 +250,7 @@ func validatePartyData(data PartyCreateData) (PartyCreateData, []PartyIdentifier
 	return data, identifiers, nil
 }
 
-func partyView(row dbsqlc.BobParty, identifiers []dbsqlc.ListBobPartyIdentifiersRow) PartyView {
+func partyView(row dbsqlc.BobParty, identifiers []PartyIdentifierInput) PartyView {
 	result := PartyView{
 		PartyID: row.ID, Kind: row.Kind, LegalName: row.LegalName, DisplayName: row.DisplayName,
 		TaxNumber: deref(row.TaxNumber), Phone: deref(row.Phone), Email: deref(row.Email),
@@ -268,10 +265,8 @@ func partyView(row dbsqlc.BobParty, identifiers []dbsqlc.ListBobPartyIdentifiers
 		result.MergedAt = row.MergedAt.Time.Format(time.RFC3339)
 	}
 	for _, identifier := range identifiers {
-		if identifier.IdentifierType != PartyIdentifierTaxNumber {
-			result.StrongIdentifiers = append(result.StrongIdentifiers, PartyIdentifierInput{
-				Type: identifier.IdentifierType, Value: identifier.Value,
-			})
+		if identifier.Type != PartyIdentifierTaxNumber {
+			result.StrongIdentifiers = append(result.StrongIdentifiers, identifier)
 		}
 	}
 	return result
@@ -287,18 +282,22 @@ func (s *Service) PartyQuery(ctx context.Context, input QueryInput) (Page[PartyL
 		return Page[PartyListItem]{}, err
 	}
 	merged := filters.Merged != nil && *filters.Merged
-	total, err := s.queries.CountBobParties(ctx, dbsqlc.CountBobPartiesParams{PartyKind: filters.PartyKind, Keyword: filters.Keyword, Merged: merged})
+	var total int64
+	err = s.pool.QueryRow(ctx, `SELECT count(*) FROM bob_parties WHERE ($1 = '' OR kind = $1) AND ($2 = '' OR legal_name ILIKE '%' || $2 || '%' OR display_name ILIKE '%' || $2 || '%') AND (($3 AND merged_into_party_id IS NOT NULL) OR (NOT $3 AND merged_into_party_id IS NULL))`, filters.PartyKind, filters.Keyword, merged).Scan(&total)
 	if err != nil {
 		return Page[PartyListItem]{}, s.internal("count Parties", err)
 	}
-	rows, err := s.queries.ListBobParties(ctx, dbsqlc.ListBobPartiesParams{
-		PartyKind: filters.PartyKind, Keyword: filters.Keyword, Merged: merged, PageSize: int32(input.PageSize), PageOffset: offset,
-	})
+	rows, err := s.pool.Query(ctx, `SELECT id,kind,legal_name,display_name,tax_number,phone,email,address,revision,created_at,created_by,updated_at,updated_by,merged_into_party_id,merged_at FROM bob_parties WHERE ($1 = '' OR kind = $1) AND ($2 = '' OR legal_name ILIKE '%' || $2 || '%' OR display_name ILIKE '%' || $2 || '%') AND (($3 AND merged_into_party_id IS NOT NULL) OR (NOT $3 AND merged_into_party_id IS NULL)) ORDER BY display_name,id LIMIT $4 OFFSET $5`, filters.PartyKind, filters.Keyword, merged, input.PageSize, offset)
 	if err != nil {
 		return Page[PartyListItem]{}, s.internal("list Parties", err)
 	}
-	items := make([]PartyListItem, 0, len(rows))
-	for _, row := range rows {
+	defer rows.Close()
+	items := make([]PartyListItem, 0, input.PageSize)
+	for rows.Next() {
+		row, scanErr := scanParty(rows)
+		if scanErr != nil {
+			return Page[PartyListItem]{}, s.internal("scan Party", scanErr)
+		}
 		item := PartyListItem{PartyID: row.ID, Kind: row.Kind, LegalName: row.LegalName,
 			DisplayName: row.DisplayName, Revision: row.Revision, UpdatedAt: row.UpdatedAt.Time.Format(time.RFC3339)}
 		if row.MergedIntoPartyID != nil {
@@ -309,6 +308,9 @@ func (s *Service) PartyQuery(ctx context.Context, input QueryInput) (Page[PartyL
 		}
 		items = append(items, item)
 	}
+	if err = rows.Err(); err != nil {
+		return Page[PartyListItem]{}, s.internal("list Parties", err)
+	}
 	return Page[PartyListItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
 
@@ -316,20 +318,20 @@ func (s *Service) PartyGet(ctx context.Context, input PartyGetInput, visibility 
 	if !validID(input.PartyID) {
 		return PartyView{}, domainError(ErrorValidation, "invalid Party", nil, nil)
 	}
-	row, err := s.queries.GetBobParty(ctx, input.PartyID)
+	row, err := partyByID(ctx, s.pool, input.PartyID, false)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return PartyView{}, domainError(ErrorValidation, "Party not found", nil, nil)
 	}
 	if err != nil {
 		return PartyView{}, s.internal("get Party", err)
 	}
-	identifiers, err := s.queries.ListBobPartyIdentifiers(ctx, input.PartyID)
+	identifiers, err := partyIdentifiers(ctx, s.pool, input.PartyID)
 	if err != nil {
 		return PartyView{}, s.internal("list Party identifiers", err)
 	}
 	result := partyView(row, identifiers)
 	if visibility.Customer || visibility.Supplier || visibility.Employment || visibility.OtherUnit || visibility.SalesPartner {
-		cards, cardErr := s.queries.ListBobPartyRelationshipCards(ctx, input.PartyID)
+		cards, cardErr := partyRelationshipCards(ctx, s.pool, input.PartyID)
 		if cardErr != nil {
 			return PartyView{}, s.internal("list Party relationships", cardErr)
 		}
@@ -346,7 +348,7 @@ func (s *Service) PartyGet(ctx context.Context, input PartyGetInput, visibility 
 				ObjectID: card.ObjectID, Entity: card.Entity, Code: card.Code,
 				OperatingEntityID: card.OperatingEntityID, OperatingEntityCode: card.OperatingEntityCode,
 				OperatingEntityName: card.OperatingEntityName, Enabled: card.Enabled,
-				Status: card.Status, Version: card.VersionNo,
+				Status: card.Status, Version: card.Version,
 			})
 		}
 	}
@@ -363,7 +365,7 @@ func (s *Service) PartySave(ctx context.Context, input PartySaveInput, actorID, 
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.queries.WithTx(tx)
-	stored, err := qtx.LockBobParty(ctx, input.PartyID)
+	stored, err := partyByID(ctx, tx, input.PartyID, true)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return PartyView{}, domainError(ErrorValidation, "Party not found", nil, nil)
 	}
@@ -378,13 +380,13 @@ func (s *Service) PartySave(ctx context.Context, input PartySaveInput, actorID, 
 	}
 	data := PartyCreateData{Kind: stored.Kind, LegalName: stored.LegalName, DisplayName: stored.DisplayName,
 		TaxNumber: deref(stored.TaxNumber), Phone: deref(stored.Phone), Email: deref(stored.Email), Address: deref(stored.Address)}
-	identifierRows, err := qtx.ListBobPartyIdentifiers(ctx, input.PartyID)
+	identifierRows, err := partyIdentifiers(ctx, tx, input.PartyID)
 	if err != nil {
 		return PartyView{}, s.internal("read Party identifiers", err)
 	}
 	for _, row := range identifierRows {
-		if row.IdentifierType != PartyIdentifierTaxNumber {
-			data.StrongIdentifiers = append(data.StrongIdentifiers, PartyIdentifierInput{Type: row.IdentifierType, Value: row.Value})
+		if row.Type != PartyIdentifierTaxNumber {
+			data.StrongIdentifiers = append(data.StrongIdentifiers, row)
 		}
 	}
 	if input.Data.Kind != nil {
@@ -403,25 +405,20 @@ func (s *Service) PartySave(ctx context.Context, input PartySaveInput, actorID, 
 	if err != nil {
 		return PartyView{}, err
 	}
-	rows, err := qtx.UpdateBobParty(ctx, dbsqlc.UpdateBobPartyParams{
-		Kind: validated.Kind, LegalName: validated.LegalName, DisplayName: validated.DisplayName,
-		TaxNumber: nilIfEmpty(validated.TaxNumber), Phone: nilIfEmpty(validated.Phone),
-		Email: nilIfEmpty(validated.Email), Address: nilIfEmpty(validated.Address), ActorID: actorID,
-		PartyID: input.PartyID, Revision: input.Revision,
-	})
+	result, err := tx.Exec(ctx, `UPDATE bob_parties SET kind=$1,legal_name=$2,display_name=$3,tax_number=$4,phone=$5,email=$6,address=$7,revision=revision+1,updated_at=now(),updated_by=$8 WHERE id=$9 AND revision=$10 AND merged_into_party_id IS NULL`, validated.Kind, validated.LegalName, validated.DisplayName, nilIfEmpty(validated.TaxNumber), nilIfEmpty(validated.Phone), nilIfEmpty(validated.Email), nilIfEmpty(validated.Address), actorID, input.PartyID, input.Revision)
 	if err != nil {
 		return PartyView{}, s.writeError("update Party", err)
 	}
-	if rows != 1 {
+	if result.RowsAffected() != 1 {
 		return PartyView{}, domainError(ErrorConflict, "Party changed before save", nil, nil)
 	}
-	if err = qtx.DeleteBobPartyIdentifiers(ctx, input.PartyID); err != nil {
+	if _, err = tx.Exec(ctx, `DELETE FROM bob_party_identifiers WHERE party_id=$1`, input.PartyID); err != nil {
 		return PartyView{}, s.writeError("replace Party identifiers", err)
 	}
-	if err = insertPartyIdentifiers(ctx, qtx, input.PartyID, identifiers); err != nil {
+	if err = insertPartyIdentifiers(ctx, tx, input.PartyID, identifiers); err != nil {
 		return PartyView{}, s.writeError("replace Party identifiers", err)
 	}
-	if err = insertPartyAudit(ctx, qtx, input.PartyID, "SAVED", input.Revision+1, actorID, requestID); err != nil {
+	if err = insertPartyAudit(ctx, qtx, input.PartyID, "SAVED", input.Revision+1, actorID, requestID, tx); err != nil {
 		return PartyView{}, s.writeError("audit Party save", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -430,35 +427,118 @@ func (s *Service) PartySave(ctx context.Context, input PartySaveInput, actorID, 
 	return s.PartyGet(ctx, PartyGetInput{PartyID: input.PartyID}, PartyRelationshipVisibility{})
 }
 
-func insertPartyAudit(ctx context.Context, q *dbsqlc.Queries, partyID, event string, revision int64, actorID, requestID string) error {
+type partyQueryer interface {
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+	QueryRow(context.Context, string, ...any) pgx.Row
+}
+
+type partyRelationshipCardRow struct {
+	ObjectID, Entity, Code, OperatingEntityID, OperatingEntityCode, OperatingEntityName, Status string
+	Enabled                                                                                     bool
+	Version                                                                                     int32
+}
+
+func scanParty(row interface{ Scan(...any) error }) (dbsqlc.BobParty, error) {
+	var result dbsqlc.BobParty
+	err := row.Scan(&result.ID, &result.Kind, &result.LegalName, &result.DisplayName, &result.TaxNumber, &result.Phone, &result.Email, &result.Address, &result.Revision, &result.CreatedAt, &result.CreatedBy, &result.UpdatedAt, &result.UpdatedBy, &result.MergedIntoPartyID, &result.MergedAt)
+	return result, err
+}
+
+func partyByID(ctx context.Context, q partyQueryer, partyID string, lock bool) (dbsqlc.BobParty, error) {
+	sql := `SELECT id,kind,legal_name,display_name,tax_number,phone,email,address,revision,created_at,created_by,updated_at,updated_by,merged_into_party_id,merged_at FROM bob_parties WHERE id=$1`
+	if lock {
+		sql += ` FOR UPDATE`
+	}
+	return scanParty(q.QueryRow(ctx, sql, partyID))
+}
+
+func partyIdentifiers(ctx context.Context, q partyQueryer, partyID string) ([]PartyIdentifierInput, error) {
+	rows, err := q.Query(ctx, `SELECT identifier_type,value FROM bob_party_identifiers WHERE party_id=$1 ORDER BY identifier_type,value`, partyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]PartyIdentifierInput, 0)
+	for rows.Next() {
+		var item PartyIdentifierInput
+		if err = rows.Scan(&item.Type, &item.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func partyRelationshipCards(ctx context.Context, q partyQueryer, partyID string) ([]partyRelationshipCardRow, error) {
+	rows, err := q.Query(ctx, `WITH relationships AS (
+		SELECT object_id,'customer'::text AS entity,operating_entity_id FROM bob_customer_relationships WHERE party_id=$1
+		UNION ALL SELECT object_id,'supplier',operating_entity_id FROM bob_supplier_relationships WHERE party_id=$1
+		UNION ALL SELECT object_id,'employee',operating_entity_id FROM bob_employment_relationships WHERE party_id=$1
+		UNION ALL SELECT object_id,'other-unit',operating_entity_id FROM bob_service_relationships WHERE party_id=$1
+		UNION ALL SELECT object_id,'sales-partner',operating_entity_id FROM bob_sales_relationships WHERE party_id=$1
+	) SELECT r.object_id,r.entity,o.code,r.operating_entity_id,oe.code,COALESCE(ov.legal_name,''),o.enabled,COALESCE(open_entry.status,approved.status,''),COALESCE(open_entry.version_no,approved.version_no,0)
+	FROM relationships r JOIN bob_objects o ON o.id=r.object_id JOIN bob_objects oe ON oe.id=r.operating_entity_id
+	LEFT JOIN LATERAL (SELECT legal_name FROM bob_operating_entity_versions p JOIN approval_entries e ON e.id=p.approval_entry_id WHERE e.domain='bob' AND e.entity='operating-entity' AND e.subject_id=oe.id AND e.status='APPROVED' ORDER BY e.version_no DESC LIMIT 1) ov ON true
+	LEFT JOIN LATERAL (SELECT status,version_no FROM approval_entries WHERE domain='bob' AND entity=r.entity AND subject_id=r.object_id AND status IN ('DRAFT','PENDING') ORDER BY version_no DESC LIMIT 1) open_entry ON true
+	LEFT JOIN LATERAL (SELECT status,version_no FROM approval_entries WHERE domain='bob' AND entity=r.entity AND subject_id=r.object_id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
+	ORDER BY o.code`, partyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]partyRelationshipCardRow, 0)
+	for rows.Next() {
+		var item partyRelationshipCardRow
+		if err = rows.Scan(&item.ObjectID, &item.Entity, &item.Code, &item.OperatingEntityID, &item.OperatingEntityCode, &item.OperatingEntityName, &item.Enabled, &item.Status, &item.Version); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (s *Service) relationshipOperatingEntity(ctx context.Context, objectID string) (string, string, error) {
+	object, err := s.queries.GetBobObject(ctx, dbsqlc.GetBobObjectParams{ObjectID: objectID, Entity: EntityOperatingEntity})
+	if err != nil {
+		return "", "", err
+	}
+	entry, err := s.queries.GetBobLatestApprovedEntry(ctx, dbsqlc.GetBobLatestApprovedEntryParams{Entity: EntityOperatingEntity, ObjectID: objectID})
+	if err != nil {
+		return "", "", err
+	}
+	data, err := loadDetail(ctx, s.queries, EntityOperatingEntity, entry.ID)
+	if err != nil {
+		return "", "", err
+	}
+	return object.Code, data.Name, nil
+}
+
+func insertPartyAudit(ctx context.Context, q *dbsqlc.Queries, partyID, event string, revision int64, actorID, requestID string, txs ...pgx.Tx) error {
+	if len(txs) == 0 {
+		return errors.New("party identity mutation requires transaction")
+	}
+	tx := txs[0]
 	summary, err := json.Marshal(map[string]any{"identityChanged": true})
 	if err != nil {
 		return err
 	}
-	return q.InsertBobPartyAuditEvent(ctx, dbsqlc.InsertBobPartyAuditEventParams{
-		ID: newID(), PartyID: partyID, EventType: event, Revision: revision,
-		ActorID: actorID, RequestID: requestID, Summary: summary,
-	})
+	_, err = tx.Exec(ctx, `INSERT INTO bob_party_audit_events(id,party_id,event_type,revision,actor_id,request_id,summary) VALUES($1,$2,$3,$4,$5,$6,$7)`, newID(), partyID, event, revision, actorID, requestID, summary)
+	return err
 }
 
-func insertPartyIdentifiers(ctx context.Context, q *dbsqlc.Queries, partyID string, identifiers []PartyIdentifierInput) error {
+func insertPartyIdentifiers(ctx context.Context, tx pgx.Tx, partyID string, identifiers []PartyIdentifierInput) error {
 	for _, identifier := range identifiers {
-		if err := q.InsertBobPartyIdentifier(ctx, dbsqlc.InsertBobPartyIdentifierParams{
-			PartyID: partyID, IdentifierType: identifier.Type, Value: identifier.Value,
-			NormalizedValue: normalizePartyIdentifier(identifier.Value),
-		}); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO bob_party_identifiers(party_id,identifier_type,value,normalized_value) VALUES($1,$2,$3,$4)`, partyID, identifier.Type, identifier.Value, normalizePartyIdentifier(identifier.Value)); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func findExactParty(ctx context.Context, q *dbsqlc.Queries, identifiers []PartyIdentifierInput) (*dbsqlc.BobParty, error) {
+func findExactParty(ctx context.Context, tx pgx.Tx, identifiers []PartyIdentifierInput) (*dbsqlc.BobParty, error) {
 	var matched *dbsqlc.BobParty
 	for _, identifier := range identifiers {
-		row, err := q.FindBobPartyByIdentifier(ctx, dbsqlc.FindBobPartyByIdentifierParams{
-			IdentifierType: identifier.Type, NormalizedValue: normalizePartyIdentifier(identifier.Value),
-		})
+		row, err := partyByIdentifier(ctx, tx, identifier.Type, normalizePartyIdentifier(identifier.Value))
 		if errors.Is(err, pgx.ErrNoRows) {
 			continue
 		}
@@ -474,7 +554,11 @@ func findExactParty(ctx context.Context, q *dbsqlc.Queries, identifiers []PartyI
 	return matched, nil
 }
 
-func lockPartyIdentifiers(ctx context.Context, q *dbsqlc.Queries, identifiers []PartyIdentifierInput) error {
+func partyByIdentifier(ctx context.Context, tx pgx.Tx, identifierType, normalizedValue string) (dbsqlc.BobParty, error) {
+	return scanParty(tx.QueryRow(ctx, `SELECT p.id,p.kind,p.legal_name,p.display_name,p.tax_number,p.phone,p.email,p.address,p.revision,p.created_at,p.created_by,p.updated_at,p.updated_by,p.merged_into_party_id,p.merged_at FROM bob_party_identifiers i JOIN bob_parties p ON p.id=i.party_id WHERE i.identifier_type=$1 AND i.normalized_value=$2`, identifierType, normalizedValue))
+}
+
+func lockPartyIdentifiers(ctx context.Context, tx pgx.Tx, identifiers []PartyIdentifierInput) error {
 	keys := make([]string, 0, len(identifiers))
 	seen := make(map[string]struct{}, len(identifiers))
 	for _, identifier := range identifiers {
@@ -487,7 +571,7 @@ func lockPartyIdentifiers(ctx context.Context, q *dbsqlc.Queries, identifiers []
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
-		if err := q.AcquireBobPartyIdentifierLock(ctx, key); err != nil {
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, key); err != nil {
 			return err
 		}
 	}
@@ -508,7 +592,12 @@ func (s *Service) resolveOrCreateRelationshipParty(
 	actorID string,
 	requestID string,
 	canReadMatchedParty bool,
+	txs ...pgx.Tx,
 ) (relationshipParty, error) {
+	if len(txs) == 0 {
+		return relationshipParty{}, s.internal("resolve Party", errors.New("party identity mutation requires transaction"))
+	}
+	tx := txs[0]
 	if (partyID == "") == (newParty == nil) || (partyID != "" && !validID(partyID)) {
 		return relationshipParty{}, domainError(ErrorValidation, "invalid Party reference", nil, nil)
 	}
@@ -517,10 +606,10 @@ func (s *Service) resolveOrCreateRelationshipParty(
 		if err != nil {
 			return relationshipParty{}, err
 		}
-		if err = lockPartyIdentifiers(ctx, qtx, identifiers); err != nil {
+		if err = lockPartyIdentifiers(ctx, tx, identifiers); err != nil {
 			return relationshipParty{}, s.writeError("lock Party identifiers", err)
 		}
-		matched, err := findExactParty(ctx, qtx, identifiers)
+		matched, err := findExactParty(ctx, tx, identifiers)
 		if err != nil {
 			return relationshipParty{}, s.writeError("match Party identifier", err)
 		}
@@ -531,23 +620,18 @@ func (s *Service) resolveOrCreateRelationshipParty(
 			return relationshipParty{ID: matched.ID, Kind: matched.Kind, DisplayName: matched.DisplayName}, nil
 		}
 		partyID = newID()
-		if err = qtx.InsertBobParty(ctx, dbsqlc.InsertBobPartyParams{
-			ID: partyID, Kind: validated.Kind, LegalName: validated.LegalName,
-			DisplayName: validated.DisplayName, TaxNumber: nilIfEmpty(validated.TaxNumber),
-			Phone: nilIfEmpty(validated.Phone), Email: nilIfEmpty(validated.Email),
-			Address: nilIfEmpty(validated.Address), ActorID: actorID,
-		}); err != nil {
+		if _, err = tx.Exec(ctx, `INSERT INTO bob_parties(id,kind,legal_name,display_name,tax_number,phone,email,address,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$9)`, partyID, validated.Kind, validated.LegalName, validated.DisplayName, nilIfEmpty(validated.TaxNumber), nilIfEmpty(validated.Phone), nilIfEmpty(validated.Email), nilIfEmpty(validated.Address), actorID); err != nil {
 			return relationshipParty{}, s.writeError("insert Party", err)
 		}
-		if err = insertPartyIdentifiers(ctx, qtx, partyID, identifiers); err != nil {
+		if err = insertPartyIdentifiers(ctx, tx, partyID, identifiers); err != nil {
 			return relationshipParty{}, s.writeError("insert Party identifiers", err)
 		}
-		if err = insertPartyAudit(ctx, qtx, partyID, "CREATED", 1, actorID, requestID); err != nil {
+		if err = insertPartyAudit(ctx, qtx, partyID, "CREATED", 1, actorID, requestID, tx); err != nil {
 			return relationshipParty{}, s.writeError("audit Party create", err)
 		}
 		return relationshipParty{ID: partyID, Kind: validated.Kind, DisplayName: validated.DisplayName}, nil
 	}
-	row, err := qtx.GetBobParty(ctx, partyID)
+	row, err := partyByID(ctx, tx, partyID, false)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return relationshipParty{}, domainError(ErrorConflict, "主体不可用", nil, nil)
 	}
@@ -558,8 +642,9 @@ func (s *Service) resolveOrCreateRelationshipParty(
 }
 
 func (s *Service) OtherUnitCreate(
-	ctx context.Context, input OtherUnitCreateInput, actorID, requestID string, canReadMatchedParty bool,
+	ctx context.Context, input OtherUnitCreateInput, actor approval.Actor, canReadMatchedParty bool,
 ) (OtherUnitCreateResult, error) {
+	actorID, requestID := actor.ID(), actor.RequestID()
 	if !validActorAndRequest(actorID, requestID) || !validID(input.Data.OperatingEntityID) ||
 		(input.PartyID == "") == (input.NewParty == nil) {
 		return OtherUnitCreateResult{}, domainError(ErrorValidation, "invalid other-unit create", nil, nil)
@@ -573,26 +658,34 @@ func (s *Service) OtherUnitCreate(
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.queries.WithTx(tx)
-	if _, err = qtx.ResolveCustomerOperatingEntity(ctx, input.Data.OperatingEntityID); errors.Is(err, pgx.ErrNoRows) {
-		return OtherUnitCreateResult{}, domainError(ErrorConflict, "经营主体不可用", nil, nil)
-	} else if err != nil {
-		return OtherUnitCreateResult{}, s.internal("resolve operating entity", err)
+	if _, err = s.ResolveLatestApprovedReference(ctx, tx, EntityOperatingEntity, input.Data.OperatingEntityID); err != nil {
+		return OtherUnitCreateResult{}, domainError(ErrorConflict, "经营主体不可用", nil, err)
 	}
 	party, err := s.resolveOrCreateRelationshipParty(ctx, qtx, input.PartyID, input.NewParty,
-		actorID, requestID, canReadMatchedParty)
+		actorID, requestID, canReadMatchedParty, tx)
 	if err != nil {
 		return OtherUnitCreateResult{}, err
 	}
 	partyID := party.ID
 
-	data := DetailView{SettlementMethodID: strings.TrimSpace(input.Data.SettlementMethodID)}
+	data := DetailView{
+		ContactName: strings.TrimSpace(input.Data.ContactName), ContactPhone: strings.TrimSpace(input.Data.ContactPhone),
+		Email: strings.TrimSpace(input.Data.Email), Address: strings.TrimSpace(input.Data.Address),
+		SettlementMethodID: strings.TrimSpace(input.Data.SettlementMethodID), Remark: strings.TrimSpace(input.Data.Remark),
+	}
 	if data.SettlementMethodID != "" {
 		data, err = s.resolveSettlementSnapshot(ctx, tx, data)
 		if err != nil {
 			return OtherUnitCreateResult{}, err
 		}
+		// Service relationships copy settlement timing only. The AUX sales
+		// surcharge belongs to customer pricing and is not service data.
+		data.DefaultSalesSurcharge = ""
 	}
-	objectID, versionID := newID(), newID()
+	if data, err = validateDetailData(EntityOtherUnit, data); err != nil {
+		return OtherUnitCreateResult{}, domainError(ErrorValidation, "invalid other-unit create", nil, err)
+	}
+	objectID := newID()
 	counter, err := qtx.NextObjectNumberCounter(ctx, dbsqlc.NextObjectNumberCounterParams{Domain: "bob", Entity: EntityOtherUnit})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return OtherUnitCreateResult{}, domainError(ErrorConflict, "object number exhausted", nil, nil)
@@ -602,126 +695,130 @@ func (s *Service) OtherUnitCreate(
 	}
 	code := fmt.Sprintf("OTU-%04d", counter)
 	if err = qtx.InsertBobObject(ctx, dbsqlc.InsertBobObjectParams{
-		ID: objectID, Entity: EntityOtherUnit, Code: code, CurrentVersionID: versionID, ActorID: actorID,
+		ID: objectID, Entity: EntityOtherUnit, Code: code, ActorID: actorID,
 	}); err != nil {
 		return OtherUnitCreateResult{}, s.writeError("insert other-unit object", err)
 	}
-	if err = qtx.InsertBobVersion(ctx, dbsqlc.InsertBobVersionParams{
-		ID: versionID, ObjectID: objectID, Entity: EntityOtherUnit, VersionNo: 1, ActorID: actorID,
-	}); err != nil {
-		return OtherUnitCreateResult{}, s.writeError("insert other-unit version", err)
+	entry, err := s.createFirstApproval(ctx, tx, EntityOtherUnit, objectID, code, true, actor)
+	if err != nil {
+		return OtherUnitCreateResult{}, translateApprovalError(err)
 	}
-	if err = qtx.InsertBobServiceRelationship(ctx, dbsqlc.InsertBobServiceRelationshipParams{
+	if err = qtx.InsertBobOtherUnitRelationship(ctx, dbsqlc.InsertBobOtherUnitRelationshipParams{
 		ObjectID: objectID, PartyID: partyID, OperatingEntityID: input.Data.OperatingEntityID, ActorID: actorID,
 	}); err != nil {
-		return OtherUnitCreateResult{}, s.writeError("insert Service Relationship", err)
+		return OtherUnitCreateResult{}, s.writeError("insert other-unit relationship", err)
 	}
-	dayOfMonth := int32(0)
-	if data.DayOfMonth != nil {
-		dayOfMonth = *data.DayOfMonth
-	}
-	if err = qtx.InsertBobServiceRelationshipDetail(ctx, dbsqlc.InsertBobServiceRelationshipDetailParams{
-		VersionID: versionID, ContactName: nilIfEmpty(strings.TrimSpace(input.Data.ContactName)),
-		ContactPhone: nilIfEmpty(strings.TrimSpace(input.Data.ContactPhone)), Email: nilIfEmpty(strings.TrimSpace(input.Data.Email)),
-		Address: nilIfEmpty(strings.TrimSpace(input.Data.Address)), SettlementMethodID: nilIfEmpty(data.SettlementMethodID),
-		SettlementMethodCode: nilIfEmpty(data.SettlementMethodCode), SettlementMethodName: nilIfEmpty(data.SettlementMethodName),
-		SettlementTermCode: nilIfEmpty(data.TermCode), SettlementRuleType: nilIfEmpty(data.RuleType),
-		SettlementMonthOffset: data.MonthOffset, SettlementDayOfMonth: dayOfMonth,
-		SettlementDayOffset: data.DayOffset, Remark: nilIfEmpty(strings.TrimSpace(input.Data.Remark)),
-	}); err != nil {
-		return OtherUnitCreateResult{}, s.writeError("insert Service Relationship detail", err)
-	}
-	if err = insertAudit(ctx, qtx, auditInput{
-		ObjectID: objectID, VersionID: versionID, Entity: EntityOtherUnit, Event: "CREATED",
-		To: StatusDraft, ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"fields": []string{"partyId", "operatingEntityId"}},
-	}); err != nil {
-		return OtherUnitCreateResult{}, s.writeError("audit other-unit create", err)
+	if err = insertDetail(ctx, qtx, EntityOtherUnit, entry.ID, data); err != nil {
+		return OtherUnitCreateResult{}, s.writeError("insert other-unit payload", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return OtherUnitCreateResult{}, s.writeError("commit other-unit create", err)
 	}
-	return OtherUnitCreateResult{MutationResult: MutationResult{
-		ObjectID: objectID, ObjectRevision: 1, Enabled: true, VersionID: versionID,
-		Version: 1, Status: StatusDraft, Revision: 1,
-	}, PartyID: partyID}, nil
+	return OtherUnitCreateResult{MutationResult: approvalMutation(objectID, 1, true, entry), PartyID: partyID}, nil
 }
 
-func otherUnitView(row dbsqlc.GetBobOtherUnitRow) OtherUnitView {
-	return OtherUnitView{
-		ObjectID: row.ObjectID, Code: row.Code, ObjectRevision: row.ObjectRevision, Enabled: row.Enabled,
-		VersionID: row.VersionID, Version: row.VersionNo, Status: row.Status, Revision: row.VersionRevision,
-		SubmittedBy: row.SubmittedBy, EffectiveVersionID: row.EffectiveVersionID,
-		PartyID: row.PartyID, PartyKind: row.PartyKind, PartyDisplayName: row.PartyDisplayName,
-		OperatingEntityID: row.OperatingEntityID, OperatingEntityCode: row.OperatingEntityCode,
-		OperatingEntityName: row.OperatingEntityName, UpdatedAt: row.UpdatedAt.Time.Format(time.RFC3339),
-		Data: OtherUnitData{OperatingEntityID: row.OperatingEntityID, ContactName: deref(row.ContactName),
-			ContactPhone: deref(row.ContactPhone), Email: deref(row.Email), Address: deref(row.Address),
-			SettlementMethodID: deref(row.SettlementMethodID), SettlementMethodCode: deref(row.SettlementMethodCode),
-			SettlementMethodName: deref(row.SettlementMethodName), Remark: deref(row.Remark)},
+func otherUnitData(data DetailView, operatingEntityID string) OtherUnitData {
+	return OtherUnitData{
+		OperatingEntityID: operatingEntityID, ContactName: data.ContactName, ContactPhone: data.ContactPhone,
+		Email: data.Email, Address: data.Address, SettlementMethodID: data.SettlementMethodID,
+		SettlementMethodCode: data.SettlementMethodCode, SettlementMethodName: data.SettlementMethodName, Remark: data.Remark,
 	}
 }
 
 func (s *Service) OtherUnitGet(ctx context.Context, input GetInput) (OtherUnitView, error) {
-	if !validID(input.ObjectID) || (input.VersionID != "" && !validID(input.VersionID)) {
+	if !validID(input.ObjectID) || (input.ApprovalEntryID != "" && !validID(input.ApprovalEntryID)) {
 		return OtherUnitView{}, domainError(ErrorValidation, "invalid other-unit", nil, nil)
 	}
-	row, err := s.queries.GetBobOtherUnit(ctx, dbsqlc.GetBobOtherUnitParams{ObjectID: input.ObjectID, VersionID: input.VersionID})
+	object, err := s.queries.GetBobObject(ctx, dbsqlc.GetBobObjectParams{ObjectID: input.ObjectID, Entity: EntityOtherUnit})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return OtherUnitView{}, domainError(ErrorValidation, "other-unit not found", nil, nil)
 	}
 	if err != nil {
 		return OtherUnitView{}, s.internal("get other-unit", err)
 	}
-	return otherUnitView(row), nil
-}
-
-func storedOtherUnitData(row dbsqlc.GetStoredBobServiceRelationshipDetailRow) DetailView {
-	result := DetailView{
-		ContactName: deref(row.ContactName), ContactPhone: deref(row.ContactPhone),
-		Email: deref(row.Email), Address: deref(row.Address), Remark: deref(row.Remark),
-		SettlementMethodID: deref(row.SettlementMethodID), SettlementMethodCode: deref(row.SettlementMethodCode),
-		SettlementMethodName: deref(row.SettlementMethodName), TermCode: deref(row.SettlementTermCode),
-		RuleType: deref(row.SettlementRuleType), MonthOffset: row.SettlementMonthOffset,
-		DayOffset: row.SettlementDayOffset,
+	identity, err := s.queries.GetBobOtherUnitRelationship(ctx, input.ObjectID)
+	if err != nil {
+		return OtherUnitView{}, s.internal("get other-unit relationship", err)
 	}
-	if row.SettlementDayOfMonth > 0 {
-		result.DayOfMonth = &row.SettlementDayOfMonth
+	party, err := s.queries.GetBobParty(ctx, identity.PartyID)
+	if err != nil {
+		return OtherUnitView{}, s.internal("get other-unit party", err)
 	}
-	return result
-}
-
-func insertOtherUnitDetail(ctx context.Context, q *dbsqlc.Queries, versionID string, data DetailView) error {
-	return q.InsertBobServiceRelationshipDetail(ctx, dbsqlc.InsertBobServiceRelationshipDetailParams{
-		VersionID: versionID, ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone),
-		Email: nilIfEmpty(data.Email), Address: nilIfEmpty(data.Address),
-		SettlementMethodID: nilIfEmpty(data.SettlementMethodID), SettlementMethodCode: nilIfEmpty(data.SettlementMethodCode),
-		SettlementMethodName: nilIfEmpty(data.SettlementMethodName), SettlementTermCode: nilIfEmpty(data.TermCode),
-		SettlementRuleType: nilIfEmpty(data.RuleType), SettlementMonthOffset: data.MonthOffset,
-		SettlementDayOfMonth: derefInt32(data.DayOfMonth), SettlementDayOffset: data.DayOffset,
-		Remark: nilIfEmpty(data.Remark),
-	})
+	entryID := input.ApprovalEntryID
+	if entryID == "" {
+		if entry, openErr := s.queries.GetBobOpenEntry(ctx, dbsqlc.GetBobOpenEntryParams{Entity: EntityOtherUnit, ObjectID: input.ObjectID}); openErr == nil {
+			entryID = entry.ID
+		} else if !errors.Is(openErr, pgx.ErrNoRows) {
+			return OtherUnitView{}, s.internal("get open other-unit approval", openErr)
+		} else if entry, approvedErr := s.queries.GetBobLatestApprovedEntry(ctx, dbsqlc.GetBobLatestApprovedEntryParams{Entity: EntityOtherUnit, ObjectID: input.ObjectID}); approvedErr == nil {
+			entryID = entry.ID
+		} else if !errors.Is(approvedErr, pgx.ErrNoRows) {
+			return OtherUnitView{}, s.internal("get latest approved other-unit", approvedErr)
+		} else {
+			return OtherUnitView{}, domainError(ErrorConflict, "other-unit has no approval entry", nil, nil)
+		}
+	}
+	entry, err := s.entryForObject(ctx, s.queries, EntityOtherUnit, input.ObjectID, entryID)
+	if err != nil {
+		return OtherUnitView{}, err
+	}
+	data, err := loadDetail(ctx, s.queries, EntityOtherUnit, entry.ID)
+	if err != nil {
+		return OtherUnitView{}, s.internal("load other-unit payload", err)
+	}
+	operatingEntityCode, operatingEntityName, err := s.relationshipOperatingEntity(ctx, identity.OperatingEntityID)
+	if err != nil {
+		return OtherUnitView{}, s.internal("load other-unit operating entity", err)
+	}
+	return OtherUnitView{ObjectID: object.ID, Code: object.Code, ObjectRevision: object.Revision, Enabled: object.Enabled,
+		Approval: approvalMeta(entry), PartyID: party.ID, PartyKind: party.Kind, PartyDisplayName: party.DisplayName,
+		OperatingEntityID: identity.OperatingEntityID, OperatingEntityCode: operatingEntityCode, OperatingEntityName: operatingEntityName,
+		Data: otherUnitData(data, identity.OperatingEntityID), UpdatedAt: object.UpdatedAt.Time.Format(time.RFC3339)}, nil
 }
 
 func (s *Service) OtherUnitSave(
-	ctx context.Context, input OtherUnitSaveInput, actorID, requestID string,
+	ctx context.Context, input OtherUnitSaveInput, actor approval.Actor,
 ) (MutationResult, error) {
-	if !validWriteInput(EntityOtherUnit, input.ObjectID, input.VersionID, input.Revision, actorID, requestID) {
+	actorID, requestID := actor.ID(), actor.RequestID()
+	if !validWriteInput(EntityOtherUnit, input.ObjectID, input.ApprovalEntryID, input.ApprovalRevision, actorID, requestID) {
 		return MutationResult{}, domainError(ErrorValidation, "invalid other-unit save", nil, nil)
 	}
-	tx, qtx, object, version, err := s.lockTarget(ctx, EntityOtherUnit, input.ObjectID, input.VersionID)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return MutationResult{}, s.internal("begin other-unit save", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	qtx := s.queries.WithTx(tx)
+	object, err := qtx.LockBobObject(ctx, dbsqlc.LockBobObjectParams{ObjectID: input.ObjectID, Entity: EntityOtherUnit})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return MutationResult{}, domainError(ErrorValidation, "other-unit not found", nil, nil)
+	}
+	if err != nil {
+		return MutationResult{}, s.internal("lock other-unit", err)
+	}
+	entry, err := s.entryForObject(ctx, qtx, EntityOtherUnit, input.ObjectID, input.ApprovalEntryID)
 	if err != nil {
 		return MutationResult{}, err
 	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-	if object.CurrentVersionID != input.VersionID || version.Revision != input.Revision {
-		return MutationResult{}, conflict(object, version, "other-unit changed before save")
+	if entry.Revision != input.ApprovalRevision {
+		return MutationResult{}, domainErrorWithKey(ErrorConflict, "approval_stale_revision", "other-unit changed before save", nil, nil)
 	}
-	stored, err := qtx.GetStoredBobServiceRelationshipDetail(ctx, input.VersionID)
+	target := approvalEntry(entry)
+	if approval.Status(entry.Status) == approval.StatusApproved {
+		target, err = s.createNextApproval(ctx, tx, EntityOtherUnit, input.ObjectID, object.Code, object.Enabled, actor)
+		if err == nil {
+			err = copyDetail(ctx, qtx, EntityOtherUnit, target.ID, entry.ID)
+		}
+		if err != nil {
+			return MutationResult{}, s.writeError("copy other-unit approval payload", err)
+		}
+	} else if approval.Status(entry.Status) != approval.StatusDraft {
+		return MutationResult{}, domainError(ErrorConflict, "only a draft or latest approved version can be saved", nil, nil)
+	}
+	data, err := loadDetail(ctx, qtx, EntityOtherUnit, target.ID)
 	if err != nil {
-		return MutationResult{}, s.internal("load other-unit before save", err)
+		return MutationResult{}, s.internal("load other-unit payload before save", err)
 	}
-	data := storedOtherUnitData(stored)
 	mergePartyOptional(input.Data.ContactName, &data.ContactName)
 	mergePartyOptional(input.Data.ContactPhone, &data.ContactPhone)
 	mergePartyOptional(input.Data.Email, &data.Email)
@@ -737,76 +834,28 @@ func (s *Service) OtherUnitSave(
 			if err != nil {
 				return MutationResult{}, err
 			}
+			data.DefaultSalesSurcharge = ""
 		}
 	}
 	data, err = validateDetailData(EntityOtherUnit, data)
 	if err != nil {
 		return MutationResult{}, domainError(ErrorValidation, "invalid other-unit save", nil, err)
 	}
-	targetVersionID, targetVersionNo := input.VersionID, version.VersionNo
-	objectRevision := object.Revision
-	createdCandidate := false
-	if version.Status == StatusEffective && object.EffectiveVersionID != nil && *object.EffectiveVersionID == input.VersionID {
-		targetVersionID, targetVersionNo = newID(), object.NextVersionNo
-		if err = qtx.InsertBobVersion(ctx, dbsqlc.InsertBobVersionParams{
-			ID: targetVersionID, ObjectID: input.ObjectID, Entity: EntityOtherUnit,
-			VersionNo: targetVersionNo, ActorID: actorID,
-		}); err != nil {
-			return MutationResult{}, s.writeError("insert other-unit candidate", err)
-		}
-		rows, advanceErr := qtx.AdvanceBobOtherUnitCandidate(ctx, dbsqlc.AdvanceBobOtherUnitCandidateParams{
-			VersionID: targetVersionID, ActorID: actorID, ObjectID: input.ObjectID,
-			Revision: object.Revision, CurrentVersionID: input.VersionID,
-		})
-		if advanceErr != nil || rows != 1 {
-			return MutationResult{}, conflict(object, version, "other-unit changed before save")
-		}
-		objectRevision++
-		createdCandidate = true
-	} else if version.Status != StatusDraft || (object.EffectiveVersionID != nil && object.CurrentVersionID == *object.EffectiveVersionID) {
-		return MutationResult{}, conflict(object, version, "other-unit changed before save")
+	if err = updateDetail(ctx, qtx, EntityOtherUnit, target.ID, data); err != nil {
+		return MutationResult{}, s.writeError("update other-unit payload", err)
 	}
-	if createdCandidate {
-		if err = insertOtherUnitDetail(ctx, qtx, targetVersionID, data); err != nil {
-			return MutationResult{}, s.writeError("insert other-unit candidate detail", err)
-		}
-	} else {
-		if err = updateDetail(ctx, qtx, EntityOtherUnit, targetVersionID, data); err != nil {
-			return MutationResult{}, s.writeError("update other-unit detail", err)
-		}
-		rows, saveErr := qtx.MarkBobVersionSaved(ctx, dbsqlc.MarkBobVersionSavedParams{
-			ActorID: actorID, ID: targetVersionID, ObjectID: input.ObjectID,
-			Entity: EntityOtherUnit, Revision: input.Revision,
-		})
-		if saveErr != nil || rows != 1 {
-			return MutationResult{}, conflict(object, version, "other-unit changed before save")
-		}
-		if err = qtx.TouchBobObject(ctx, dbsqlc.TouchBobObjectParams{
-			ActorID: actorID, ID: input.ObjectID, Entity: EntityOtherUnit,
-		}); err != nil {
-			return MutationResult{}, s.internal("touch other-unit", err)
-		}
+	target, err = s.transitionApproval(ctx, tx, EntityOtherUnit, input.ObjectID, object.Code, object.Enabled, target.ID, target.Revision, approval.ActionSaved, "", actor)
+	if err != nil {
+		return MutationResult{}, translateApprovalError(err)
 	}
-	event := "SAVED"
-	if createdCandidate {
-		event = "CREATED"
-	}
-	if err = insertAudit(ctx, qtx, auditInput{
-		ObjectID: input.ObjectID, VersionID: targetVersionID, Entity: EntityOtherUnit,
-		Event: event, To: StatusDraft, ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"fields": []string{"contactName", "contactPhone", "email", "address", "settlementMethodId", "remark"}},
-	}); err != nil {
-		return MutationResult{}, s.writeError("audit other-unit save", err)
+	touched, err := qtx.TouchBobObject(ctx, dbsqlc.TouchBobObjectParams{ActorID: actorID, ObjectID: input.ObjectID, Entity: EntityOtherUnit})
+	if err != nil {
+		return MutationResult{}, s.writeError("touch other-unit", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit other-unit save", err)
 	}
-	revision := input.Revision + 1
-	if createdCandidate {
-		revision = 1
-	}
-	return MutationResult{ObjectID: input.ObjectID, ObjectRevision: objectRevision, Enabled: object.Enabled,
-		VersionID: targetVersionID, Version: targetVersionNo, Status: StatusDraft, Revision: revision}, nil
+	return approvalMutation(touched.ID, touched.Revision, touched.Enabled, target), nil
 }
 
 func (s *Service) OtherUnitQuery(ctx context.Context, input QueryInput) (Page[OtherUnitView], error) {
@@ -824,23 +873,40 @@ func (s *Service) OtherUnitQuery(ctx context.Context, input QueryInput) (Page[Ot
 			return Page[OtherUnitView]{}, domainError(ErrorValidation, "invalid status filter", nil, nil)
 		}
 	}
-	total, err := s.queries.CountBobOtherUnits(ctx, dbsqlc.CountBobOtherUnitsParams{
-		Keyword: filters.Keyword, OperatingEntityID: filters.OperatingEntityID, Statuses: statuses,
-	})
+	enabledFilter := int32(-1)
+	if filters.Enabled != nil {
+		if *filters.Enabled {
+			enabledFilter = 1
+		} else {
+			enabledFilter = 0
+		}
+	}
+	total, err := s.queries.CountBobObjects(ctx, dbsqlc.CountBobObjectsParams{Entity: EntityOtherUnit, Keyword: filters.Keyword, EnabledFilter: enabledFilter, StatusFilter: statuses})
 	if err != nil {
 		return Page[OtherUnitView]{}, s.internal("count other-units", err)
 	}
-	rows, err := s.queries.ListBobOtherUnits(ctx, dbsqlc.ListBobOtherUnitsParams{
-		Keyword: filters.Keyword, OperatingEntityID: filters.OperatingEntityID, Statuses: statuses,
-		PageSize: int32(input.PageSize), PageOffset: offset,
-	})
+	rows, err := s.queries.ListBobObjects(ctx, dbsqlc.ListBobObjectsParams{Entity: EntityOtherUnit, Keyword: filters.Keyword, EnabledFilter: enabledFilter, StatusFilter: statuses, RowLimit: int32(input.PageSize), RowOffset: offset})
 	if err != nil {
 		return Page[OtherUnitView]{}, s.internal("list other-units", err)
 	}
 	items := make([]OtherUnitView, 0, len(rows))
 	for _, row := range rows {
-		getRow := dbsqlc.GetBobOtherUnitRow(row)
-		items = append(items, otherUnitView(getRow))
+		view, getErr := s.OtherUnitGet(ctx, GetInput{ObjectID: row.ObjectID, ApprovalEntryID: func() string {
+			if row.OpenApprovalEntryID != "" {
+				return row.OpenApprovalEntryID
+			}
+			return row.ApprovalEntryID
+		}()})
+		if getErr != nil {
+			return Page[OtherUnitView]{}, getErr
+		}
+		if filters.OperatingEntityID != "" && view.OperatingEntityID != filters.OperatingEntityID {
+			continue
+		}
+		if len(statuses) != 0 && !slices.Contains(statuses, string(view.Approval.Status)) {
+			continue
+		}
+		items = append(items, view)
 	}
 	return Page[OtherUnitView]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
@@ -849,35 +915,5 @@ func (s *Service) OtherUnitVersions(ctx context.Context, input HistoryInput) (Pa
 	if !validHistoryInput(EntityOtherUnit, input) {
 		return Page[VersionHistoryItem]{}, domainError(ErrorValidation, "invalid versions request", nil, nil)
 	}
-	if _, err := s.OtherUnitGet(ctx, GetInput{ObjectID: input.ObjectID}); err != nil {
-		return Page[VersionHistoryItem]{}, err
-	}
-	total, err := s.queries.CountBobVersions(ctx, dbsqlc.CountBobVersionsParams{
-		ObjectID: input.ObjectID, Entity: EntityOtherUnit,
-	})
-	if err != nil {
-		return Page[VersionHistoryItem]{}, s.internal("count other-unit versions", err)
-	}
-	rows, err := s.queries.ListBobOtherUnitVersions(ctx, dbsqlc.ListBobOtherUnitVersionsParams{
-		ObjectID: input.ObjectID, PageOffset: mustPageOffset(input.Page, input.PageSize), PageSize: int32(input.PageSize),
-	})
-	if err != nil {
-		return Page[VersionHistoryItem]{}, s.internal("list other-unit versions", err)
-	}
-	items := make([]VersionHistoryItem, 0, len(rows))
-	for _, row := range rows {
-		items = append(items, VersionHistoryItem{
-			VersionID: row.VersionID, Version: row.VersionNo, Status: row.Status, Revision: row.Revision,
-			CreatedAt: row.CreatedAt.Time, CreatedBy: row.CreatedBy, UpdatedAt: row.UpdatedAt.Time, UpdatedBy: row.UpdatedBy,
-			SubmittedAt: timePointer(row.SubmittedAt), SubmittedBy: row.SubmittedBy,
-			ReviewedAt: timePointer(row.ReviewedAt), ReviewedBy: row.ReviewedBy, ReviewComment: row.ReviewComment,
-			Summary: DetailView{
-				Name: row.PartyDisplayName, OperatingEntityID: row.OperatingEntityID,
-				ContactName: deref(row.ContactName), ContactPhone: deref(row.ContactPhone),
-				Email: deref(row.Email), Address: deref(row.Address),
-				SettlementMethodID: deref(row.SettlementMethodID), Remark: deref(row.Remark),
-			},
-		})
-	}
-	return Page[VersionHistoryItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
+	return s.Versions(ctx, EntityOtherUnit, input)
 }

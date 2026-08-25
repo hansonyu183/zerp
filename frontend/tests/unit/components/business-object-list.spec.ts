@@ -13,7 +13,7 @@ interface ExampleRow {
 
 const rows: ExampleRow[] = [
   { id: 'C-1', name: '华东客户', status: 'DRAFT' },
-  { id: 'C-2', name: '华南客户', status: 'EFFECTIVE' },
+  { id: 'C-2', name: '华南客户', status: 'APPROVED' },
 ]
 
 const columns: readonly BusinessObjectColumn<ExampleRow>[] = [
@@ -177,7 +177,7 @@ describe('BusinessObjectList', () => {
   it('发出查询、关键字、新增和条件行操作事件', async () => {
     const wrapper = mountList({
       creatable: true,
-      editable: (row) => row.status !== 'EFFECTIVE',
+      editable: (row) => row.status !== 'APPROVED',
       deletable: (row) => row.status === 'DRAFT',
     })
 

@@ -33,10 +33,7 @@ export function normalizeBobForm(
   return normalized
 }
 
-export function bobCreateData(
-  config: BobEntityConfig,
-  form: BobForm,
-) {
+export function bobCreateData(config: BobEntityConfig, form: BobForm) {
   const normalized = normalizeBobForm(config, form)
   const data: Record<string, unknown> = {}
   for (const key of config.persistedKeys ?? config.detailKeys) {
@@ -62,13 +59,13 @@ export function bobCreateData(
   return { ...data, name: normalized.name }
 }
 
-export function bobSaveData(
-  config: BobEntityConfig,
-  form: BobForm,
-) {
+export function bobSaveData(config: BobEntityConfig, form: BobForm) {
   const normalized = normalizeBobForm(config, form)
   const data = Object.fromEntries(
-    (config.persistedKeys ?? config.detailKeys).map((key) => [key, normalized[key]]),
+    (config.persistedKeys ?? config.detailKeys).map((key) => [
+      key,
+      normalized[key],
+    ]),
   )
   if (config.entity === 'product') {
     Object.assign(data, productPayload(normalized))
@@ -97,18 +94,35 @@ export function bobFormFromView(
   }
   if (config.entity === 'vehicle') {
     const affiliation = view.data.carrierAffiliation as
-      | { type?: unknown; operatingEntityId?: unknown; serviceRelationshipObjectId?: unknown }
+      | {
+          type?: unknown
+          operatingEntityId?: unknown
+          serviceRelationshipObjectId?: unknown
+        }
       | undefined
-    form.carrierType = typeof affiliation?.type === 'string' ? affiliation.type : ''
-    form.carrierOperatingEntityId = typeof affiliation?.operatingEntityId === 'string' ? affiliation.operatingEntityId : ''
-    form.carrierServiceRelationshipObjectId = typeof affiliation?.serviceRelationshipObjectId === 'string' ? affiliation.serviceRelationshipObjectId : ''
+    form.carrierType =
+      typeof affiliation?.type === 'string' ? affiliation.type : ''
+    form.carrierOperatingEntityId =
+      typeof affiliation?.operatingEntityId === 'string'
+        ? affiliation.operatingEntityId
+        : ''
+    form.carrierServiceRelationshipObjectId =
+      typeof affiliation?.serviceRelationshipObjectId === 'string'
+        ? affiliation.serviceRelationshipObjectId
+        : ''
   }
   return form
 }
 
 function vehicleCarrierAffiliation(form: BobForm): Record<string, unknown> {
   if (form.carrierType === 'INTERNAL') {
-    return { type: 'INTERNAL', operatingEntityId: form.carrierOperatingEntityId }
+    return {
+      type: 'INTERNAL',
+      operatingEntityId: form.carrierOperatingEntityId,
+    }
   }
-  return { type: 'EXTERNAL', serviceRelationshipObjectId: form.carrierServiceRelationshipObjectId }
+  return {
+    type: 'EXTERNAL',
+    serviceRelationshipObjectId: form.carrierServiceRelationshipObjectId,
+  }
 }

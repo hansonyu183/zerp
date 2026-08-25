@@ -4,7 +4,7 @@
 /* eslint-disable */
 export type VouBillReferenceView = {
   objectId: string;
-  versionId: string;
+  approvalEntryId: string;
   entity?: string;
   code: string;
   name: string;

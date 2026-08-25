@@ -7,10 +7,10 @@ export type VouPriceReferenceRequest = {
   currency: string;
   supplier?: {
     objectId: string;
-    versionId: string;
+    approvalEntryId: string;
   };
   products: Array<{
     objectId: string;
-    versionId: string;
+    approvalEntryId: string;
   }>;
 };

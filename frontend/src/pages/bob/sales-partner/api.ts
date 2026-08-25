@@ -15,8 +15,16 @@ export const salesPartnerApi = {
     apiClient.postContract('bob/reference/query', input),
   submit: (input: ApiPostRequest<'bob/sales-partner/submit'>) =>
     apiClient.postContract('bob/sales-partner/submit', input),
+  unsubmit: (input: ApiPostRequest<'bob/sales-partner/unsubmit'>) =>
+    apiClient.postContract('bob/sales-partner/unsubmit', input),
   approve: (input: ApiPostRequest<'bob/sales-partner/approve'>) =>
     apiClient.postContract('bob/sales-partner/approve', input),
+  reject: (input: ApiPostRequest<'bob/sales-partner/reject'>) =>
+    apiClient.postContract('bob/sales-partner/reject', input),
+  unapprove: (input: ApiPostRequest<'bob/sales-partner/unapprove'>) =>
+    apiClient.postContract('bob/sales-partner/unapprove', input),
+  delete: (input: ApiPostRequest<'bob/sales-partner/delete'>) =>
+    apiClient.postContract('bob/sales-partner/delete', input),
   enable: (input: ApiPostRequest<'bob/sales-partner/enable'>) =>
     apiClient.postContract('bob/sales-partner/enable', input),
   disable: (input: ApiPostRequest<'bob/sales-partner/disable'>) =>

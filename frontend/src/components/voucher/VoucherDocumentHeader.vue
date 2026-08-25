@@ -14,10 +14,7 @@ defineProps<{
     <div>
       <div class="voucher-document-header__eyebrow">{{ entityLabel }}</div>
       <div class="voucher-document-header__number">{{ documentNo }}</div>
-      <div
-        v-if="parentDocumentId"
-        class="voucher-document-header__parent"
-      >
+      <div v-if="parentDocumentId" class="voucher-document-header__parent">
         父单：{{ parentDocumentId }}
       </div>
     </div>

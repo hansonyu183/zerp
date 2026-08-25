@@ -188,7 +188,10 @@
       'required': ['objectId'],
       'additionalProperties': false,
       'properties':
-        { 'objectId': { 'type': 'string' }, 'approvalEntryId': { 'type': 'string' } },
+        {
+          'objectId': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
+        },
     },
   'EmploymentData':
     {
@@ -333,13 +336,13 @@
   'BobSaveRequest':
     {
       'type': 'object',
-      'required': ['objectId', 'approvalEntryId', 'revision', 'data'],
+      'required': ['objectId', 'approvalEntryId', 'approvalRevision', 'data'],
       'additionalProperties': false,
       'properties':
         {
           'objectId': { 'type': 'string' },
           'approvalEntryId': { 'type': 'string' },
-          'revision': { 'type': 'integer', 'format': 'int64' },
+          'approvalRevision': { 'type': 'integer', 'format': 'int64' },
           'data':
             {
               'type': 'object',
@@ -525,7 +528,8 @@
   'BobDeleteRequest':
     {
       'type': 'object',
-      'required': ['objectId', 'objectRevision', 'approvalEntryId', 'approvalRevision'],
+      'required':
+        ['objectId', 'objectRevision', 'approvalEntryId', 'approvalRevision'],
       'additionalProperties': false,
       'properties':
         {
@@ -545,20 +549,6 @@
           'objectId': { 'type': 'string' },
           'approvalEntryId': { 'type': 'string' },
           'approvalRevision': { 'type': 'integer', 'format': 'int64' },
-        },
-    },
-  'BobReverseRequest':
-    {
-      'type': 'object',
-      'required':
-        ['objectId', 'approvalEntryId', 'approvalRevision', 'reason'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'objectId': { 'type': 'string' },
-          'approvalEntryId': { 'type': 'string' },
-          'approvalRevision': { 'type': 'integer', 'format': 'int64' },
-          'reason': { 'type': 'string', 'minLength': 1, 'maxLength': 1000 },
         },
     },
   'BobReviewRequest':
@@ -654,11 +644,12 @@
   'CustomerSnapshot':
     {
       'type': 'object',
-      'required': ['sourceObjectId', 'code', 'name'],
+      'required': ['sourceObjectId', 'approvalEntryId', 'code', 'name'],
       'additionalProperties': false,
       'properties':
         {
           'sourceObjectId': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
           'code': { 'type': 'string' },
           'name': { 'type': 'string' },
           'termCode': { 'type': 'string' },
@@ -695,7 +686,7 @@
         [
           'type',
           'subjectObjectId',
-          'subjectVersionId',
+          'subjectApprovalEntryId',
           'subjectCode',
           'subjectName',
         ],
@@ -709,7 +700,7 @@
                 ['INTERNAL_EMPLOYEE', 'EXTERNAL_PART_TIME', 'CHANNEL_PARTNER'],
             },
           'subjectObjectId': { 'type': 'string' },
-          'subjectVersionId': { 'type': 'string' },
+          'subjectApprovalEntryId': { 'type': 'string' },
           'subjectCode': { 'type': 'string' },
           'subjectName': { 'type': 'string' },
         },
@@ -862,7 +853,7 @@
           'sha256',
           'status',
           'categoryObjectId',
-          'categoryVersionId',
+          'categoryApprovalEntryId',
           'categoryCode',
           'categoryName',
           'createdAt',
@@ -882,7 +873,7 @@
           'sha256': { 'type': 'string' },
           'status': { 'type': 'string', 'enum': ['PENDING', 'READY'] },
           'categoryObjectId': { 'type': 'string' },
-          'categoryVersionId': { 'type': 'string' },
+          'categoryApprovalEntryId': { 'type': 'string' },
           'categoryCode': { 'type': 'string' },
           'categoryName': { 'type': 'string' },
           'storedAt':
@@ -902,7 +893,8 @@
           'code': { 'type': 'string' },
           'objectRevision': { 'type': 'integer', 'format': 'int64' },
           'enabled': { 'type': 'boolean' },
-          'latestApproved': { '$ref': '#/CustomerVersionView', 'nullable': true },
+          'latestApproved':
+            { '$ref': '#/CustomerVersionView', 'nullable': true },
           'openVersion': { '$ref': '#/CustomerVersionView', 'nullable': true },
         },
     },
@@ -1041,8 +1033,7 @@
           'requestId': { 'type': 'string' },
         },
     },
-  'CustomerVersionMeta':
-    { '$ref': './common.yaml#/ApprovalVersionMeta' },
+  'CustomerVersionMeta': { '$ref': './common.yaml#/ApprovalVersionMeta' },
   'CustomerCreateRequest':
     {
       'oneOf':
@@ -1083,13 +1074,13 @@
   'CustomerSaveRequest':
     {
       'type': 'object',
-      'required': ['objectId', 'approvalEntryId', 'revision', 'data'],
+      'required': ['objectId', 'approvalEntryId', 'approvalRevision', 'data'],
       'additionalProperties': false,
       'properties':
         {
           'objectId': { 'type': 'string' },
           'approvalEntryId': { 'type': 'string' },
-          'revision': { 'type': 'integer', 'format': 'int64' },
+          'approvalRevision': { 'type': 'integer', 'format': 'int64' },
           'data': { '$ref': '#/CustomerAccountInput' },
         },
     },
@@ -1169,17 +1160,14 @@
               'type': 'object',
               'nullable': true,
               'additionalProperties': false,
+              'required': ['approval'],
               'properties':
                 {
-                  'approvalEntryId': { 'type': 'string' },
-                  'version': { 'type': 'integer' },
-                  'status': { 'type': 'string' },
-                  'revision': { 'type': 'integer', 'format': 'int64' },
+                  'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
                   'name': { 'type': 'string' },
                   'customerTypeCode': { 'type': 'string' },
                   'operatingEntityName': { 'type': 'string' },
                   'salesAttributionName': { 'type': 'string' },
-                  'submittedBy': { 'type': 'string', 'nullable': true },
                 },
             },
           'openVersion':
@@ -1187,15 +1175,12 @@
               'type': 'object',
               'nullable': true,
               'additionalProperties': false,
+              'required': ['approval'],
               'properties':
                 {
-                  'approvalEntryId': { 'type': 'string' },
-                  'version': { 'type': 'integer' },
-                  'status': { 'type': 'string' },
-                  'revision': { 'type': 'integer', 'format': 'int64' },
+                  'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
                   'name': { 'type': 'string' },
                   'customerTypeCode': { 'type': 'string' },
-                  'submittedBy': { 'type': 'string', 'nullable': true },
                 },
             },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
@@ -1389,13 +1374,13 @@
   'SupplierSaveRequest':
     {
       'type': 'object',
-      'required': ['objectId', 'approvalEntryId', 'revision', 'data'],
+      'required': ['objectId', 'approvalEntryId', 'approvalRevision', 'data'],
       'additionalProperties': false,
       'properties':
         {
           'objectId': { 'type': 'string' },
           'approvalEntryId': { 'type': 'string' },
-          'revision': { 'type': 'integer', 'format': 'int64' },
+          'approvalRevision': { 'type': 'integer', 'format': 'int64' },
           'data':
             {
               'type': 'object',
@@ -1533,17 +1518,13 @@
   'SupplierListVersion':
     {
       'type': 'object',
-      'required': ['approvalEntryId', 'version', 'status', 'revision', 'submittedBy'],
+      'required': ['approval'],
       'additionalProperties': false,
       'properties':
         {
-          'approvalEntryId': { 'type': 'string' },
-          'version': { 'type': 'integer', 'format': 'int32' },
-          'status': { 'type': 'string' },
-          'revision': { 'type': 'integer', 'format': 'int64' },
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
           'defaultPurchaserCode': { 'type': 'string' },
           'defaultPurchaserName': { 'type': 'string' },
-          'submittedBy': { 'type': 'string', 'nullable': true },
         },
     },
   'SupplierListItem':
@@ -1838,10 +1819,7 @@
           'operatingEntityName': { 'type': 'string' },
           'enabled': { 'type': 'boolean' },
           'status':
-            {
-              'type': 'string',
-              'enum': ['DRAFT', 'PENDING', 'APPROVED'],
-            },
+            { 'type': 'string', 'enum': ['DRAFT', 'PENDING', 'APPROVED'] },
           'version': { 'type': 'integer', 'format': 'int32' },
         },
     },
@@ -2033,13 +2011,14 @@
   'OtherUnitSaveRequest':
     {
       'type': 'object',
-      'required': ['objectId', 'approvalEntryId', 'revision', 'data'],
+      'required': ['objectId', 'approvalEntryId', 'approvalRevision', 'data'],
       'additionalProperties': false,
       'properties':
         {
           'objectId': { 'type': 'string' },
           'approvalEntryId': { 'type': 'string' },
-          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'approvalRevision':
+            { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
           'data':
             {
               'type': 'object',
@@ -2096,13 +2075,7 @@
   'OtherUnitMutationResult':
     {
       'type': 'object',
-      'required':
-        [
-          'objectId',
-          'objectRevision',
-          'enabled',
-          'approval',
-        ],
+      'required': ['objectId', 'objectRevision', 'enabled', 'approval'],
       'additionalProperties': false,
       'properties':
         {
@@ -2254,13 +2227,13 @@
   'SalesPartnerSaveRequest':
     {
       'type': 'object',
-      'required': ['objectId', 'approvalEntryId', 'revision', 'data'],
+      'required': ['objectId', 'approvalEntryId', 'approvalRevision', 'data'],
       'additionalProperties': false,
       'properties':
         {
           'objectId': { 'type': 'string' },
           'approvalEntryId': { 'type': 'string' },
-          'revision': { 'type': 'integer', 'format': 'int64' },
+          'approvalRevision': { 'type': 'integer', 'format': 'int64' },
           'data': { '$ref': '#/SalesPartnerInput' },
         },
     },
@@ -2307,32 +2280,16 @@
   'SalesPartnerListVersion':
     {
       'type': 'object',
-      'required':
-        [
-          'approvalEntryId',
-          'version',
-          'status',
-          'revision',
-          'capabilities',
-          'submittedBy',
-        ],
+      'required': ['approval', 'capabilities'],
       'additionalProperties': false,
       'properties':
         {
-          'approvalEntryId': { 'type': 'string' },
-          'version': { 'type': 'integer', 'format': 'int32' },
-          'status':
-            {
-              'type': 'string',
-              'enum': ['DRAFT', 'PENDING', 'APPROVED'],
-            },
-          'revision': { 'type': 'integer', 'format': 'int64' },
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
           'capabilities':
             {
               'type': 'array',
               'items': { '$ref': '#/SalesPartnerCapability' },
             },
-          'submittedBy': { 'type': 'string', 'nullable': true },
         },
     },
   'SalesPartnerListItem':
@@ -2457,13 +2414,7 @@
   'SalesPartnerMutationResult':
     {
       'type': 'object',
-      'required':
-        [
-          'objectId',
-          'objectRevision',
-          'enabled',
-          'approval',
-        ],
+      'required': ['objectId', 'objectRevision', 'enabled', 'approval'],
       'additionalProperties': false,
       'properties':
         {
@@ -2758,6 +2709,20 @@
           'count': { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
         },
     },
+  'BobActiveReferenceBlockers':
+    {
+      'type': 'object',
+      'required': ['references'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'references':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/BobActiveReferenceCount' },
+            },
+        },
+    },
   'WarehouseDisableBlockers':
     {
       'type': 'object',
@@ -2804,7 +2769,31 @@
               'anyOf':
                 [
                   { '$ref': '#/WarehouseDisableBlockers' },
-                  { 'type': 'object', 'additionalProperties': true },
+                  { '$ref': '#/BobActiveReferenceBlockers' },
+                  { '$ref': '#/BobMutationResult' },
+                ],
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'BobUnapproveResponse':
+    {
+      'type': 'object',
+      'required': [code, errorKey, message, data, requestId],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'anyOf':
+                [
+                  { '$ref': '#/BobMutationResult' },
+                  { '$ref': '#/BobActiveReferenceBlockers' },
                 ],
             },
           'requestId': { 'type': 'string' },
@@ -2838,8 +2827,7 @@
           },
         ],
     },
-  'BobVersionMeta':
-    { '$ref': './common.yaml#/ApprovalVersionMeta' },
+  'BobVersionMeta': { '$ref': './common.yaml#/ApprovalVersionMeta' },
   'BobRelationshipIdentityView':
     {
       'type': 'object',
@@ -2894,13 +2882,7 @@
   'BobMutationResult':
     {
       'type': 'object',
-      'required':
-        [
-          objectId,
-          objectRevision,
-          enabled,
-          approval,
-        ],
+      'required': [objectId, objectRevision, enabled, approval],
       'additionalProperties': false,
       'properties':
         {
@@ -2937,8 +2919,7 @@
           'pageSize': { 'type': 'integer' },
         },
     },
-  'BobAuditEvent':
-    { '$ref': './common.yaml#/ApprovalEventView' },
+  'BobAuditEvent': { '$ref': './common.yaml#/ApprovalEventView' },
   'BobAuditEventPage':
     {
       'type': 'object',

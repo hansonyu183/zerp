@@ -21,7 +21,7 @@ vi.mock('@/api/client', () => ({
 
 const product: VoucherReference = {
   objectId: 'product-1',
-  versionId: 'product-version-1',
+  approvalEntryId: 'product-version-1',
   entity: 'product',
   code: 'FG-001',
   name: '标准成品',
@@ -36,7 +36,7 @@ const product: VoucherReference = {
 }
 const material: VoucherReference = {
   objectId: 'material-1',
-  versionId: 'material-version-1',
+  approvalEntryId: 'material-version-1',
   entity: 'product',
   code: 'RM-001',
   name: '原材料',
@@ -51,7 +51,7 @@ const material: VoucherReference = {
 }
 const warehouse: VoucherReference = {
   objectId: 'warehouse-1',
-  versionId: 'warehouse-version-1',
+  approvalEntryId: 'warehouse-version-1',
   entity: 'warehouse',
   code: 'WH-001',
   name: '生产仓',
@@ -101,11 +101,11 @@ describe('production voucher helpers', () => {
       businessDate: form.businessDate,
       materialWarehouse: {
         objectId: warehouse.objectId,
-        versionId: warehouse.versionId,
+        approvalEntryId: warehouse.approvalEntryId,
       },
       finishedWarehouse: {
         objectId: warehouse.objectId,
-        versionId: warehouse.versionId,
+        approvalEntryId: warehouse.approvalEntryId,
       },
       productionLines: [
         {
@@ -155,7 +155,7 @@ describe('production voucher helpers', () => {
     const newerProduct: VoucherReference = {
       ...product,
       objectId: 'product-2',
-      versionId: 'product-version-2',
+      approvalEntryId: 'product-version-2',
       code: 'FG-002',
       name: '新成品',
     }

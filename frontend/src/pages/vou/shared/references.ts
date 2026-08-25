@@ -174,6 +174,7 @@ export function useVoucherReferences(
         })
         state.options = data.map((item) => ({
           ...item,
+          approvalEntryId: item.approvalEntryId,
           entity: 'settlement-method',
         }))
       } catch (error) {
@@ -220,7 +221,7 @@ export function useVoucherReferences(
             )
             return data.map((item): VoucherReference => ({
               objectId: item.objectId,
-              versionId: item.versionId,
+              approvalEntryId: item.approvalEntryId,
               entity,
               code: item.code,
               name: item.name,
@@ -233,7 +234,7 @@ export function useVoucherReferences(
               page: 1,
               pageSize: 20,
               filters: {
-                status: ['EFFECTIVE'],
+                status: ['APPROVED'],
                 ...(keyword.trim() && { keyword: keyword.trim() }),
                 ...definition.filters,
               },
@@ -243,17 +244,17 @@ export function useVoucherReferences(
           )
           return (data.items ?? []).flatMap((item): VoucherReference[] => {
             if (
-              item.effective?.status !== 'EFFECTIVE' ||
-              !item.effective.summary.name
+              item.latestApproved?.approval.status !== 'APPROVED' ||
+              !item.latestApproved.summary.name
             ) {
               return []
             }
-            const summary = item.effective.summary
+            const summary = item.latestApproved.summary
             const behaviorProfile = summary.behaviorProfile
             return [
               {
                 objectId: item.objectId,
-                versionId: item.effective.versionId,
+                approvalEntryId: item.latestApproved.approval.approvalEntryId,
                 entity,
                 code: item.code,
                 name: String(summary.name),
@@ -309,8 +310,7 @@ export function useVoucherReferences(
       const serviceRelationshipObjectId =
         key === 'carrier' &&
         form.value.vehicle?.carrierAffiliation?.type === 'EXTERNAL'
-          ? form.value.vehicle.carrierAffiliation
-              .serviceRelationshipObjectId
+          ? form.value.vehicle.carrierAffiliation.serviceRelationshipObjectId
           : undefined
       state.options = [...selectedReferences(), ...pages.flat()]
         .filter(
@@ -324,7 +324,7 @@ export function useVoucherReferences(
             all.findIndex(
               (candidate) =>
                 candidate.objectId === item.objectId &&
-                candidate.versionId === item.versionId,
+                candidate.approvalEntryId === item.approvalEntryId,
             ) === index,
         )
     } catch (error) {

@@ -8,69 +8,82 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
+	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/oklog/ulid/v2"
 )
 
 func TestWorkbenchQueryIntegration(t *testing.T) {
 	service, pool, admin := appIntegrationService(t)
-	bobService := bobdomain.NewService(pool, auxiliaryrefs.New(auxdomain.NewService(pool)))
+	bus := txevent.NewBus()
+	authorizer := authorization.Func(nil)
+	auxiliary := auxdomain.NewService(pool, authorizer, bus)
+	bobService := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
+	actor := func(id, requestID string) approval.Actor {
+		result, actorErr := approval.UserActor(authorization.Principal{ActorID: id}, requestID)
+		if actorErr != nil {
+			t.Fatalf("create workbench actor: %v", actorErr)
+		}
+		return result
+	}
 	suffix := ulid.Make().String()[20:]
 	draftName := "工作台草稿-" + suffix
 	pendingName := "工作台待批准-" + suffix
 
 	draft, err := bobService.Create(t.Context(), bobdomain.EntityWarehouse, bobdomain.CreateInput{
 		Data: bobdomain.CreateDetailInput{Name: draftName},
-	}, admin.ID, "workbench-create-draft")
+	}, actor(admin.ID, "workbench-create-draft"))
 	if err != nil {
 		t.Fatalf("create draft object: %v", err)
 	}
 	pending, err := bobService.Create(t.Context(), bobdomain.EntityWarehouse, bobdomain.CreateInput{
 		Data: bobdomain.CreateDetailInput{Name: pendingName},
-	}, admin.ID, "workbench-create-pending")
+	}, actor(admin.ID, "workbench-create-pending"))
 	if err != nil {
 		t.Fatalf("create pending object: %v", err)
 	}
 	if _, err = bobService.Submit(t.Context(), bobdomain.EntityWarehouse, bobdomain.VersionRevisionInput{
-		ObjectID: pending.ObjectID, VersionID: pending.VersionID, Revision: pending.Revision,
-	}, admin.ID, "workbench-submit-pending"); err != nil {
+		ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID, ApprovalRevision: pending.Approval.Revision,
+	}, actor(admin.ID, "workbench-submit-pending")); err != nil {
 		t.Fatalf("submit pending object: %v", err)
 	}
 	operating, err := bobService.Create(t.Context(), bobdomain.EntityOperatingEntity, bobdomain.CreateInput{
 		Data: bobdomain.CreateDetailInput{Name: "工作台经营主体-" + suffix},
-	}, admin.ID, "workbench-create-operating")
+	}, actor(admin.ID, "workbench-create-operating"))
 	if err != nil {
 		t.Fatalf("create operating entity: %v", err)
 	}
 	operatingSubmitted, err := bobService.Submit(t.Context(), bobdomain.EntityOperatingEntity, bobdomain.VersionRevisionInput{
-		ObjectID: operating.ObjectID, VersionID: operating.VersionID, Revision: operating.Revision,
-	}, admin.ID, "workbench-submit-operating")
+		ObjectID: operating.ObjectID, ApprovalEntryID: operating.Approval.ApprovalEntryID, ApprovalRevision: operating.Approval.Revision,
+	}, actor(admin.ID, "workbench-submit-operating"))
 	if err != nil {
 		t.Fatalf("submit operating entity: %v", err)
 	}
 	if _, err = bobService.Approve(t.Context(), bobdomain.EntityOperatingEntity, bobdomain.ReviewInput{
-		ObjectID: operating.ObjectID, VersionID: operating.VersionID, Revision: operatingSubmitted.Revision,
-	}, ulid.Make().String(), "workbench-approve-operating"); err != nil {
+		ObjectID: operating.ObjectID, ApprovalEntryID: operatingSubmitted.Approval.ApprovalEntryID, ApprovalRevision: operatingSubmitted.Approval.Revision,
+	}, actor(ulid.Make().String(), "workbench-approve-operating")); err != nil {
 		t.Fatalf("approve operating entity: %v", err)
 	}
 	fund, err := bobService.Create(t.Context(), bobdomain.EntityFundAccount, bobdomain.CreateInput{
 		Data: bobdomain.CreateDetailInput{Name: "工作台资金账户-" + suffix, Currency: "CNY", OperatingEntityID: operating.ObjectID},
-	}, admin.ID, "workbench-create-fund")
+	}, actor(admin.ID, "workbench-create-fund"))
 	if err != nil {
 		t.Fatalf("create fund account: %v", err)
 	}
 	fundSubmitted, err := bobService.Submit(t.Context(), bobdomain.EntityFundAccount, bobdomain.VersionRevisionInput{
-		ObjectID: fund.ObjectID, VersionID: fund.VersionID, Revision: fund.Revision,
-	}, admin.ID, "workbench-submit-fund")
+		ObjectID: fund.ObjectID, ApprovalEntryID: fund.Approval.ApprovalEntryID, ApprovalRevision: fund.Approval.Revision,
+	}, actor(admin.ID, "workbench-submit-fund"))
 	if err != nil {
 		t.Fatalf("submit fund account: %v", err)
 	}
 	reviewerID := ulid.Make().String()
 	if _, err = bobService.Approve(t.Context(), bobdomain.EntityFundAccount, bobdomain.ReviewInput{
-		ObjectID: fund.ObjectID, VersionID: fund.VersionID, Revision: fundSubmitted.Revision,
-	}, reviewerID, "workbench-approve-fund"); err != nil {
+		ObjectID: fund.ObjectID, ApprovalEntryID: fundSubmitted.Approval.ApprovalEntryID, ApprovalRevision: fundSubmitted.Approval.Revision,
+	}, actor(reviewerID, "workbench-approve-fund")); err != nil {
 		t.Fatalf("approve fund account: %v", err)
 	}
 	fundView, err := bobService.Get(t.Context(), bobdomain.EntityFundAccount, bobdomain.GetInput{ObjectID: fund.ObjectID})
@@ -88,8 +101,11 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		fmt.Sprintf("%s-%04d", documentPrefix, baseSequence+1),
 		fmt.Sprintf("%s-%04d", documentPrefix, baseSequence+2),
 	}
-	allObjectIDs := []string{draft.ObjectID, pending.ObjectID, fund.ObjectID}
-	allVersionIDs := []string{draft.VersionID, pending.VersionID, fund.VersionID}
+	allObjectIDs := []string{draft.ObjectID, pending.ObjectID, operating.ObjectID, fund.ObjectID}
+	allApprovalEntryIDs := []string{
+		draft.Approval.ApprovalEntryID, pending.Approval.ApprovalEntryID,
+		operatingSubmitted.Approval.ApprovalEntryID, fundSubmitted.Approval.ApprovalEntryID,
+	}
 	t.Cleanup(func() {
 		_, _ = pool.Exec(t.Context(), `DELETE FROM vou_other_income_details WHERE document_id=ANY($1::text[])`, documentIDs)
 		_, _ = pool.Exec(t.Context(), `DELETE FROM vou_documents WHERE id=ANY($1::text[])`, documentIDs)
@@ -99,11 +115,12 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		}
 		defer tx.Rollback(t.Context()) //nolint:errcheck
 		_, _ = tx.Exec(t.Context(), `SET CONSTRAINTS ALL DEFERRED`)
-		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_audit_events WHERE object_id=ANY($1::text[])`, allObjectIDs)
-		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_warehouse_versions WHERE version_id=ANY($1::text[])`, []string{draft.VersionID, pending.VersionID})
-		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_fund_account_versions WHERE version_id=$1`, fund.VersionID)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM approval_events WHERE domain='bob' AND subject_id=ANY($1::text[])`, allObjectIDs)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_warehouse_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_fund_account_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_operating_entity_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_objects WHERE id=ANY($1::text[])`, allObjectIDs)
-		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_versions WHERE id=ANY($1::text[])`, allVersionIDs)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM approval_entries WHERE domain='bob' AND subject_id=ANY($1::text[])`, allObjectIDs)
 		_ = tx.Commit(t.Context())
 	})
 
@@ -129,13 +146,13 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	}
 	if _, err = tx.Exec(t.Context(), `
 		INSERT INTO vou_other_income_details (
-			document_id, source_name, fund_account_object_id, fund_account_version_id,
+			document_id, source_name, fund_account_object_id, fund_account_approval_entry_id,
 			fund_account_code, fund_account_name
 		) VALUES
 			($1, '工作台待核对', $4, $5, $6, $7),
 			($2, '工作台待批准', $4, $5, $6, $7),
 			($3, '工作台待完成', $4, $5, $6, $7)
-	`, documentIDs[0], documentIDs[1], documentIDs[2], fund.ObjectID, fund.VersionID, fundView.Code, fundView.Data.Name); err != nil {
+	`, documentIDs[0], documentIDs[1], documentIDs[2], fund.ObjectID, fundView.Approval.ApprovalEntryID, fundView.Code, fundView.Data.Name); err != nil {
 		t.Fatalf("insert workbench voucher details: %v", err)
 	}
 	if err = tx.Commit(t.Context()); err != nil {

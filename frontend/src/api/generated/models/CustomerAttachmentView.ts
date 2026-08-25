@@ -10,7 +10,7 @@ export type CustomerAttachmentView = {
   sha256: string;
   status: 'PENDING' | 'READY';
   categoryObjectId: string;
-  categoryVersionId: string;
+  categoryApprovalEntryId: string;
   categoryCode: string;
   categoryName: string;
   storedAt?: string | null;

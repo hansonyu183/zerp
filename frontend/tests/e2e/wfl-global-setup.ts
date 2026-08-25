@@ -68,8 +68,11 @@ interface AccountingMappingView {
 interface BobMutation {
   objectId: string
   objectRevision: number
-  versionId: string
-  revision: number
+  enabled: boolean
+  approval: {
+    approvalEntryId: string
+    revision: number
+  }
   code: string
 }
 
@@ -78,18 +81,18 @@ interface CustomerCreateMutation extends BobMutation {
     objectId: string
     objectRevision: number
     code: string
-    candidate: {
-      version: {
-        versionId: string
+    openVersion: {
+      approval: {
+        approvalEntryId: string
         revision: number
       }
-    }
+    } | null
   }
 }
 
 interface AuxQueryItem {
   objectId: string
-  currentVersion: {
+  latestApproved: {
     data: { termCode?: string }
   }
 }
@@ -139,6 +142,10 @@ const accMappingEntities = new Set([
 
 interface AuxMutation {
   objectId: string
+  approval: {
+    approvalEntryId: string
+    revision: number
+  }
 }
 
 interface VouMutation {
@@ -284,6 +291,7 @@ const bobReviewerActions = new Set([
   '/acc/book/query',
   '/acc/book/get',
   '/acc/book/save',
+  '/aux/payment-method/approve',
   '/bob/customer/query',
   '/bob/customer/get',
   '/bob/customer/approve',
@@ -325,13 +333,13 @@ async function createEffectiveBob(
   })
   const submitted = await operator.post<BobMutation>(`bob/${entity}/submit`, {
     objectId: created.objectId,
-    versionId: created.versionId,
-    revision: created.revision,
+    approvalEntryId: created.approval.approvalEntryId,
+    approvalRevision: created.approval.revision,
   })
   const approved = await reviewer.post<BobMutation>(`bob/${entity}/approve`, {
     objectId: submitted.objectId,
-    versionId: submitted.versionId,
-    revision: submitted.revision,
+    approvalEntryId: submitted.approval.approvalEntryId,
+    approvalRevision: submitted.approval.revision,
   })
   const view = await operator.post<{ code: string }>(`bob/${entity}/get`, {
     objectId: approved.objectId,
@@ -401,13 +409,13 @@ async function approveBob(
 ): Promise<BobMutation> {
   const submitted = await operator.post<BobMutation>(`bob/${entity}/submit`, {
     objectId: created.objectId,
-    versionId: created.versionId,
-    revision: created.revision,
+    approvalEntryId: created.approval.approvalEntryId,
+    approvalRevision: created.approval.revision,
   })
   const approved = await reviewer.post<BobMutation>(`bob/${entity}/approve`, {
     objectId: submitted.objectId,
-    versionId: submitted.versionId,
-    revision: submitted.revision,
+    approvalEntryId: submitted.approval.approvalEntryId,
+    approvalRevision: submitted.approval.revision,
   })
   const view = await operator.post<{ code: string }>(`bob/${entity}/get`, {
     objectId: approved.objectId,
@@ -428,7 +436,7 @@ async function fixedSettlementMethod(
     },
   )
   const item = page.items.find(
-    (candidate) => candidate.currentVersion.data.termCode === 'MONTHLY_CURRENT',
+    (candidate) => candidate.latestApproved.data.termCode === 'MONTHLY_CURRENT',
   )
   if (!item) throw new Error('WFL 预置未找到系统固定当月结结算方式。')
   return { objectId: item.objectId }
@@ -441,7 +449,7 @@ async function fixedOperatingEntity(operator: RealApi): Promise<string> {
       page: 1,
       pageSize: 20,
       filters: {
-        status: ['EFFECTIVE'],
+        status: ['APPROVED'],
         enabled: true,
       },
       sort: [{ field: 'code', order: 'asc' }],
@@ -454,12 +462,32 @@ async function fixedOperatingEntity(operator: RealApi): Promise<string> {
 
 async function createPaymentMethod(
   operator: RealApi,
+  reviewer: RealApi,
   name: string,
 ): Promise<string> {
-  const result = await operator.post<AuxMutation>('aux/payment-method/create', {
-    data: { name, defaultSalesSurcharge: '0.00', description: 'E2E 测试' },
-  })
-  return result.objectId
+  const created = await operator.post<AuxMutation>(
+    'aux/payment-method/create',
+    {
+      data: { name, defaultSalesSurcharge: '0.00', description: 'E2E 测试' },
+    },
+  )
+  const submitted = await operator.post<AuxMutation>(
+    'aux/payment-method/submit',
+    {
+      objectId: created.objectId,
+      approvalEntryId: created.approval.approvalEntryId,
+      approvalRevision: created.approval.revision,
+    },
+  )
+  const approved = await reviewer.post<AuxMutation>(
+    'aux/payment-method/approve',
+    {
+      objectId: submitted.objectId,
+      approvalEntryId: submitted.approval.approvalEntryId,
+      approvalRevision: submitted.approval.revision,
+    },
+  )
+  return approved.objectId
 }
 
 async function createEffectiveCustomer(
@@ -504,20 +532,23 @@ async function createEffectiveCustomer(
     },
   )
   const account = created.defaultAccount
+  if (!account.openVersion) {
+    throw new Error('客户创建未返回待审核的默认账户版本。')
+  }
   const submitted = await operator.post<BobMutation>(
     'bob/customer-account/submit',
     {
       objectId: account.objectId,
-      versionId: account.candidate.version.versionId,
-      revision: account.candidate.version.revision,
+      approvalEntryId: account.openVersion.approval.approvalEntryId,
+      approvalRevision: account.openVersion.approval.revision,
     },
   )
   const approved = await reviewer.post<BobMutation>(
     'bob/customer-account/approve',
     {
       objectId: submitted.objectId,
-      versionId: submitted.versionId,
-      revision: submitted.revision,
+      approvalEntryId: submitted.approval.approvalEntryId,
+      approvalRevision: submitted.approval.revision,
     },
   )
   return { ...approved, code: account.code }
@@ -612,7 +643,7 @@ async function createWorkflowTrialOrder(
 ): Promise<VouMutation> {
   const reference = (value: BobMutation) => ({
     objectId: value.objectId,
-    versionId: value.versionId,
+    approvalEntryId: value.approval.approvalEntryId,
   })
   const data = {
     businessDate: new Date().toISOString().slice(0, 10),
@@ -1158,6 +1189,7 @@ export async function createWflWorkerState(options: {
     }
     const paymentMethodId = await createPaymentMethod(
       operatorSession.api,
+      reviewerSession.api,
       `WFL 银行转账 ${suffix}`,
     )
     const customer = await createEffectiveCustomer(

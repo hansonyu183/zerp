@@ -3,11 +3,42 @@ package vou
 import (
 	"context"
 	"errors"
+	"math"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/jackc/pgx/v5"
 )
+
+func auxiliaryString(data map[string]any, key string) string {
+	value, _ := data[key].(string)
+	return value
+}
+
+func auxiliaryInt32(data map[string]any, key string) int32 {
+	switch value := data[key].(type) {
+	case int:
+		return int32(value)
+	case int32:
+		return value
+	case int64:
+		return int32(value)
+	case float64:
+		if value >= math.MinInt32 && value <= math.MaxInt32 {
+			return int32(value)
+		}
+	}
+	return 0
+}
+
+func auxiliaryOptionalInt32(data map[string]any, key string) *int32 {
+	if _, exists := data[key]; !exists || data[key] == nil {
+		return nil
+	}
+	value := auxiliaryInt32(data, key)
+	return &value
+}
 
 func (s *Service) resolveReference(
 	ctx context.Context,
@@ -18,11 +49,37 @@ func (s *Service) resolveReference(
 	if input == nil {
 		return nil, nil
 	}
-	ref, err := s.resolver.ResolveEffectiveReference(ctx, tx, kind, input.ObjectID, input.VersionID)
+	ref, err := s.resolver.ResolveApprovedReference(ctx, tx, kind, input.ObjectID, input.ApprovalEntryID)
 	if err != nil {
 		return nil, domainError(ErrorConflict, kind+" reference is not effective", nil, err)
 	}
 	return &ref, nil
+}
+
+func (s *Service) resolveAuxiliaryReference(
+	ctx context.Context,
+	tx pgx.Tx,
+	entity string,
+	input *ReferenceInput,
+) (*bobdomain.EffectiveReference, error) {
+	if input == nil {
+		return nil, nil
+	}
+	ref, err := s.auxResolver.ResolveAuxiliaryReference(ctx, tx, entity, input.ObjectID, input.ApprovalEntryID)
+	if err != nil {
+		return nil, domainError(ErrorConflict, entity+" reference is not approved", nil, err)
+	}
+	return &bobdomain.EffectiveReference{
+		ObjectID: ref.ObjectID, ApprovalEntryID: ref.ApprovalEntryID,
+		Entity: ref.Entity, Code: ref.Code,
+		Data: bobdomain.DetailView{
+			Name: auxiliaryString(ref.Data, "name"), TermCode: auxiliaryString(ref.Data, "termCode"),
+			RuleType: auxiliaryString(ref.Data, "ruleType"), MonthOffset: auxiliaryInt32(ref.Data, "monthOffset"),
+			DayOfMonth: auxiliaryOptionalInt32(ref.Data, "dayOfMonth"), DayOffset: auxiliaryInt32(ref.Data, "dayOffset"),
+			DueDays: auxiliaryInt32(ref.Data, "dueDays"), CutoffDay: auxiliaryInt32(ref.Data, "cutoffDay"),
+			Description: auxiliaryString(ref.Data, "description"),
+		},
+	}, nil
 }
 
 func (s *Service) resolveDraftParties(
@@ -47,7 +104,7 @@ func (s *Service) resolveDraftParties(
 	if result.InterestParty, err = s.resolveReference(ctx, tx, bobdomain.EntityOtherUnit, draft.InterestParty); err != nil {
 		return err
 	}
-	if result.Settlement, err = s.resolveReference(ctx, tx, bobdomain.EntitySettlementMethod, draft.SettlementMethod); err != nil {
+	if result.Settlement, err = s.resolveAuxiliaryReference(ctx, tx, auxdomain.EntitySettlementMethod, draft.SettlementMethod); err != nil {
 		return err
 	}
 	return nil
@@ -68,12 +125,7 @@ func (s *Service) resolveDraftPersonnel(
 	} else if preserved.Salesperson != nil {
 		result.Salesperson = preserved.Salesperson
 	} else if entity == EntitySaleOrder && allowDefaults && result.Customer != nil {
-		result.Salesperson, err = s.resolveCurrentEmployee(
-			ctx,
-			tx,
-			result.Customer.Data.SalespersonEmployeeID,
-			"customer salesperson",
-		)
+		result.Salesperson, err = s.resolveCustomerSalesperson(ctx, tx, *result.Customer)
 	} else if entity == EntitySaleOrder {
 		err = domainError(ErrorConflict, "salesperson is required", nil, nil)
 	}
@@ -98,13 +150,31 @@ func (s *Service) resolveDraftPersonnel(
 	return err
 }
 
+func (s *Service) resolveCustomerSalesperson(
+	ctx context.Context,
+	tx pgx.Tx,
+	customer bobdomain.EffectiveReference,
+) (*bobdomain.EffectiveReference, error) {
+	attribution, err := s.queries.WithTx(tx).GetVouSalesAttributionSnapshot(ctx, customer.ApprovalEntryID)
+	if err != nil {
+		return nil, s.internal("read customer sales attribution snapshot", err)
+	}
+	if deref(attribution.PrimarySalesAttributionType) != bobdomain.SalesAttributionInternalEmployee {
+		return nil, domainError(ErrorConflict, "salesperson is required", nil, nil)
+	}
+	return s.resolveReference(ctx, tx, bobdomain.EntityEmployee, &ReferenceInput{
+		ObjectID:        deref(attribution.PrimarySalesSubjectID),
+		ApprovalEntryID: deref(attribution.PrimarySalesSubjectApprovalEntryID),
+	})
+}
+
 func (s *Service) resolveCurrentEmployee(
 	ctx context.Context,
 	tx pgx.Tx,
 	objectID string,
 	field string,
 ) (*bobdomain.EffectiveReference, error) {
-	ref, err := s.resolver.ResolveCurrentEffectiveReference(ctx, tx, bobdomain.EntityEmployee, objectID)
+	ref, err := s.resolver.ResolveLatestApprovedReference(ctx, tx, bobdomain.EntityEmployee, objectID)
 	if err != nil {
 		return nil, domainError(ErrorConflict, field+" is not an effective employee", nil, err)
 	}
@@ -169,7 +239,7 @@ func (s *Service) resolveDraftSettlements(
 }
 
 func sameReference(left, right *bobdomain.EffectiveReference) bool {
-	return left != nil && right != nil && left.ObjectID == right.ObjectID && left.VersionID == right.VersionID
+	return left != nil && right != nil && left.ObjectID == right.ObjectID && left.ApprovalEntryID == right.ApprovalEntryID
 }
 
 func (s *Service) resolveSettlement(
@@ -183,7 +253,7 @@ func (s *Service) resolveSettlement(
 	}
 	if party.Data.TermCode != "" && party.Data.RuleType != "" && party.Data.SettlementMethodCode != "" {
 		return &bobdomain.EffectiveReference{
-			ObjectID: party.Data.SettlementMethodID, Entity: bobdomain.EntitySettlementMethod,
+			ObjectID: party.Data.SettlementMethodID, Entity: auxdomain.EntitySettlementMethod,
 			Code: party.Data.SettlementMethodCode,
 			Data: bobdomain.DetailView{
 				Name: party.Data.SettlementMethodName, TermCode: party.Data.TermCode, RuleType: party.Data.RuleType,
@@ -209,7 +279,7 @@ func (s *Service) resolveDraftProducts(
 		if err != nil {
 			return err
 		}
-		draft.PriceLines[index].Product.VersionID = product.VersionID
+		draft.PriceLines[index].Product.ApprovalEntryID = product.ApprovalEntryID
 		result.Products = append(result.Products, *product)
 	}
 	for index := range draft.ProductLines {
@@ -218,7 +288,7 @@ func (s *Service) resolveDraftProducts(
 		if err != nil {
 			return err
 		}
-		line.Product.VersionID = product.VersionID
+		line.Product.ApprovalEntryID = product.ApprovalEntryID
 		if !productHasUnit(product.Data, line.EnteredUnitID) {
 			return domainError(ErrorConflict, "entered unit is not configured for product", nil, nil)
 		}
@@ -288,7 +358,7 @@ func (s *Service) resolveDraftProducts(
 		materials := make([]bobdomain.EffectiveReference, 0, len(line.Formula.Components))
 		for componentIndex := range line.Formula.Components {
 			component := &line.Formula.Components[componentIndex]
-			material, materialErr := s.resolver.ResolveCurrentEffectiveReference(
+			material, materialErr := s.resolver.ResolveLatestApprovedReference(
 				ctx,
 				tx,
 				bobdomain.EntityProduct,
@@ -309,8 +379,8 @@ func (s *Service) resolveDraftProducts(
 				return domainError(ErrorConflict, "formula material unit is not configured for product", nil, nil)
 			}
 			component.Material = ReferenceInput{
-				ObjectID:  material.ObjectID,
-				VersionID: material.VersionID,
+				ObjectID:        material.ObjectID,
+				ApprovalEntryID: material.ApprovalEntryID,
 			}
 			materials = append(materials, material)
 		}
@@ -322,7 +392,7 @@ func (s *Service) resolveDraftProducts(
 		if err != nil {
 			return err
 		}
-		line.Product.VersionID = product.VersionID
+		line.Product.ApprovalEntryID = product.ApprovalEntryID
 		if !productHasUnit(product.Data, line.EnteredUnitID) {
 			return domainError(ErrorConflict, "entered unit is not configured for product", nil, nil)
 		}
@@ -334,7 +404,7 @@ func (s *Service) resolveDraftProducts(
 func (s *Service) resolveCurrentProduct(
 	ctx context.Context, tx pgx.Tx, objectID string,
 ) (*bobdomain.EffectiveReference, error) {
-	product, err := s.resolver.ResolveCurrentEffectiveReference(
+	product, err := s.resolver.ResolveLatestApprovedReference(
 		ctx, tx, bobdomain.EntityProduct, objectID,
 	)
 	if err != nil {

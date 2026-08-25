@@ -73,7 +73,7 @@ func (s *Service) CreateWorkflowSaleOutbound(ctx context.Context, tx pgx.Tx, sou
 	}
 	return s.writeSaleOutbound(ctx, tx, "", DraftInput{
 		SourceDocumentID: sourceDocumentID,
-		Warehouse:        &ReferenceInput{ObjectID: warehouse.ObjectID, VersionID: warehouse.VersionID},
+		Warehouse:        &ReferenceInput{ObjectID: warehouse.ObjectID, ApprovalEntryID: warehouse.ApprovalEntryID},
 		SourceLines:      initial.Lines,
 	}, date, nil, systemidentity.UserID, requestID)
 }
@@ -92,14 +92,14 @@ func (s *Service) CreateWorkflowSaleDelivery(ctx context.Context, tx pgx.Tx, sou
 	}
 	data := DraftInput{
 		SourceDocumentID: sourceDocumentID,
-		Vehicle:          &ReferenceInput{ObjectID: vehicle.ObjectID, VersionID: vehicle.VersionID},
+		Vehicle:          &ReferenceInput{ObjectID: vehicle.ObjectID, ApprovalEntryID: vehicle.ApprovalEntryID},
 	}
 	if initial.CarrierServiceRelationshipObjectID != "" {
 		carrier, resolveErr := s.resolveWorkflowDefault(ctx, tx, bobdomain.EntityOtherUnit, initial.CarrierServiceRelationshipObjectID, "carrier")
 		if resolveErr != nil {
 			return MutationResult{}, resolveErr
 		}
-		data.Carrier = &ReferenceInput{ObjectID: carrier.ObjectID, VersionID: carrier.VersionID}
+		data.Carrier = &ReferenceInput{ObjectID: carrier.ObjectID, ApprovalEntryID: carrier.ApprovalEntryID}
 	}
 	return s.writeSaleDelivery(ctx, tx, "", data, date, nil, systemidentity.UserID, requestID)
 }
@@ -208,7 +208,7 @@ func (s *Service) createWorkflowPurchaseInbound(ctx context.Context, tx pgx.Tx, 
 	if err != nil {
 		return MutationResult{}, err
 	}
-	if err = q.InsertVouPurchaseInboundDetail(ctx, dbsqlc.InsertVouPurchaseInboundDetailParams{DocumentID: id, SourceOrderID: orderID, SupplierObjectID: detail.SupplierObjectID, SupplierVersionID: detail.SupplierVersionID, SupplierCode: detail.SupplierCode, SupplierName: detail.SupplierName, WarehouseObjectID: warehouseRef.ObjectID, WarehouseVersionID: warehouseRef.VersionID, WarehouseCode: warehouseRef.Code, WarehouseName: warehouseRef.Data.Name}); err != nil {
+	if err = q.InsertVouPurchaseInboundDetail(ctx, dbsqlc.InsertVouPurchaseInboundDetailParams{DocumentID: id, SourceOrderID: orderID, SupplierObjectID: detail.SupplierObjectID, SupplierApprovalEntryID: detail.SupplierApprovalEntryID, SupplierCode: detail.SupplierCode, SupplierName: detail.SupplierName, WarehouseObjectID: warehouseRef.ObjectID, WarehouseApprovalEntryID: warehouseRef.ApprovalEntryID, WarehouseCode: warehouseRef.Code, WarehouseName: warehouseRef.Data.Name}); err != nil {
 		return MutationResult{}, err
 	}
 	if err = s.insertPurchaseInboundLines(ctx, q, id, lines); err != nil {
@@ -227,7 +227,7 @@ func (s *Service) resolveWorkflowDefault(ctx context.Context, tx pgx.Tx, entity,
 	if objectID == "" {
 		return bobdomain.EffectiveReference{}, domainError(ErrorConflict, field+" is required by workflow", nil, nil)
 	}
-	ref, err := s.resolver.ResolveCurrentEffectiveReference(ctx, tx, entity, objectID)
+	ref, err := s.resolver.ResolveLatestApprovedReference(ctx, tx, entity, objectID)
 	if err != nil {
 		return ref, domainError(ErrorConflict, field+" is not effective", nil, err)
 	}
@@ -273,7 +273,7 @@ func (s *Service) createWorkflowExpensePayment(ctx context.Context, tx pgx.Tx, r
 	if err != nil {
 		return MutationResult{}, err
 	}
-	err = q.InsertVouExpensePaymentDetail(ctx, dbsqlc.InsertVouExpensePaymentDetailParams{DocumentID: id, SourceReimbursementID: reimbursementID, EmployeeObjectID: locked.EmployeeObjectID, EmployeeVersionID: locked.EmployeeVersionID, EmployeeCode: locked.EmployeeCode, EmployeeName: locked.EmployeeName, FundAccountObjectID: fund.ObjectID, FundAccountVersionID: fund.VersionID, FundAccountCode: fund.Code, FundAccountName: fund.Data.Name})
+	err = q.InsertVouExpensePaymentDetail(ctx, dbsqlc.InsertVouExpensePaymentDetailParams{DocumentID: id, SourceReimbursementID: reimbursementID, EmployeeObjectID: locked.EmployeeObjectID, EmployeeApprovalEntryID: locked.EmployeeApprovalEntryID, EmployeeCode: locked.EmployeeCode, EmployeeName: locked.EmployeeName, FundAccountObjectID: fund.ObjectID, FundAccountApprovalEntryID: fund.ApprovalEntryID, FundAccountCode: fund.Code, FundAccountName: fund.Data.Name})
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -307,7 +307,7 @@ func (s *Service) SaveExpensePayment(ctx context.Context, input SaveInput, actor
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
 		return MutationResult{}, err
 	}
-	fund, err := s.resolver.ResolveEffectiveReference(ctx, tx, bobdomain.EntityFundAccount, input.Data.FundAccount.ObjectID, input.Data.FundAccount.VersionID)
+	fund, err := s.resolver.ResolveApprovedReference(ctx, tx, bobdomain.EntityFundAccount, input.Data.FundAccount.ObjectID, input.Data.FundAccount.ApprovalEntryID)
 	if err != nil {
 		return MutationResult{}, domainError(ErrorConflict, "fund account is not effective", nil, err)
 	}
@@ -318,7 +318,7 @@ func (s *Service) SaveExpensePayment(ctx context.Context, input SaveInput, actor
 	if err != nil {
 		return MutationResult{}, err
 	}
-	rows, err := q.UpdateVouExpensePaymentFundAccount(ctx, dbsqlc.UpdateVouExpensePaymentFundAccountParams{FundAccountObjectID: fund.ObjectID, FundAccountVersionID: fund.VersionID, FundAccountCode: fund.Code, FundAccountName: fund.Data.Name, DocumentID: input.DocumentID})
+	rows, err := q.UpdateVouExpensePaymentFundAccount(ctx, dbsqlc.UpdateVouExpensePaymentFundAccountParams{FundAccountObjectID: fund.ObjectID, FundAccountApprovalEntryID: fund.ApprovalEntryID, FundAccountCode: fund.Code, FundAccountName: fund.Data.Name, DocumentID: input.DocumentID})
 	if err != nil || rows != 1 {
 		return MutationResult{}, s.writeError("update expense payment", err)
 	}

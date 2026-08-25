@@ -8,6 +8,7 @@ import (
 	"time"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	"github.com/jackc/pgx/v5"
 )
@@ -33,7 +34,7 @@ func (s *Service) loadPreservedPersonnel(
 			return nil
 		}
 		return &bobdomain.EffectiveReference{
-			ObjectID: *objectID, Entity: bobdomain.EntityEmployee, Code: *code, VersionID: *versionID,
+			ObjectID: *objectID, Entity: bobdomain.EntityEmployee, Code: *code, ApprovalEntryID: *versionID,
 			Data: bobdomain.DetailView{Name: *name},
 		}
 	}
@@ -52,8 +53,8 @@ func (s *Service) loadPreservedPersonnel(
 			version = *versionID
 		}
 		return &bobdomain.EffectiveReference{
-			ObjectID: *objectID, Entity: bobdomain.EntitySettlementMethod,
-			Code: *code, VersionID: version,
+			ObjectID: *objectID, Entity: auxdomain.EntitySettlementMethod,
+			Code: *code, ApprovalEntryID: version,
 			Data: bobdomain.DetailView{
 				Name: *name, TermCode: *termCode, RuleType: *ruleType,
 				MonthOffset: *monthOffset, DayOfMonth: dayOfMonth, DayOffset: *dayOffset,
@@ -69,14 +70,14 @@ func (s *Service) loadPreservedPersonnel(
 			return result, s.internal("read sale order salesperson", err)
 		}
 		result.Salesperson = makeReference(
-			detail.SalespersonObjectID, detail.SalespersonVersionID,
+			detail.SalespersonObjectID, detail.SalespersonApprovalEntryID,
 			detail.SalespersonCode, detail.SalespersonName,
 		)
 		result.Customer = &bobdomain.EffectiveReference{
-			ObjectID: detail.CustomerObjectID, VersionID: detail.CustomerVersionID,
+			ObjectID: detail.CustomerObjectID, ApprovalEntryID: detail.CustomerApprovalEntryID,
 		}
 		result.CustomerSettlement = settlementReference(
-			detail.SettlementMethodObjectID, detail.SettlementMethodVersionID,
+			detail.SettlementMethodObjectID, detail.SettlementMethodApprovalEntryID,
 			detail.SettlementMethodCode, detail.SettlementMethodName,
 			stringPtr(detail.SettlementTermCode), detail.SettlementRuleType,
 			detail.SettlementMonthOffset, detail.SettlementDayOfMonth,
@@ -89,14 +90,14 @@ func (s *Service) loadPreservedPersonnel(
 			return result, s.internal("read purchase order purchaser", err)
 		}
 		result.Purchaser = makeReference(
-			detail.PurchaserObjectID, detail.PurchaserVersionID,
+			detail.PurchaserObjectID, detail.PurchaserApprovalEntryID,
 			detail.PurchaserCode, detail.PurchaserName,
 		)
 		result.Supplier = &bobdomain.EffectiveReference{
-			ObjectID: detail.SupplierObjectID, VersionID: detail.SupplierVersionID,
+			ObjectID: detail.SupplierObjectID, ApprovalEntryID: detail.SupplierApprovalEntryID,
 		}
 		result.SupplierSettlement = settlementReference(
-			detail.SettlementMethodObjectID, detail.SettlementMethodVersionID,
+			detail.SettlementMethodObjectID, detail.SettlementMethodApprovalEntryID,
 			detail.SettlementMethodCode, detail.SettlementMethodName,
 			stringPtr(detail.SettlementTermCode), detail.SettlementRuleType,
 			detail.SettlementMonthOffset, detail.SettlementDayOfMonth,
@@ -392,7 +393,7 @@ func (s *Service) writeDetail(
 	case EntityPurchaseInquiry:
 		params := dbsqlc.InsertVouPurchaseInquiryDetailParams{
 			DocumentID: documentID, SupplierObjectID: refs.Supplier.ObjectID,
-			SupplierVersionID: refs.Supplier.VersionID, SupplierCode: refs.Supplier.Code,
+			SupplierApprovalEntryID: refs.Supplier.ApprovalEntryID, SupplierCode: refs.Supplier.Code,
 			SupplierName: refs.Supplier.Data.Name,
 		}
 		if !update {
@@ -400,7 +401,7 @@ func (s *Service) writeDetail(
 		}
 		return oneRow(q.UpdateVouPurchaseInquiryDetail(ctx, dbsqlc.UpdateVouPurchaseInquiryDetailParams{
 			DocumentID: params.DocumentID, SupplierObjectID: params.SupplierObjectID,
-			SupplierVersionID: params.SupplierVersionID, SupplierCode: params.SupplierCode,
+			SupplierApprovalEntryID: params.SupplierApprovalEntryID, SupplierCode: params.SupplierCode,
 			SupplierName: params.SupplierName,
 		}))
 	case EntitySaleOrder:
@@ -419,14 +420,14 @@ func (s *Service) writeDetail(
 	case EntityInventoryCount:
 		params := dbsqlc.InsertVouInventoryCountDetailParams{
 			DocumentID: documentID, WarehouseObjectID: refs.Warehouse.ObjectID,
-			WarehouseVersionID: refs.Warehouse.VersionID, WarehouseCode: refs.Warehouse.Code,
+			WarehouseApprovalEntryID: refs.Warehouse.ApprovalEntryID, WarehouseCode: refs.Warehouse.Code,
 			WarehouseName: refs.Warehouse.Data.Name,
 		}
 		if !update {
 			return q.InsertVouInventoryCountDetail(ctx, params)
 		}
 		return oneRow(q.UpdateVouInventoryCountDetail(ctx, dbsqlc.UpdateVouInventoryCountDetailParams{
-			WarehouseObjectID: params.WarehouseObjectID, WarehouseVersionID: params.WarehouseVersionID,
+			WarehouseObjectID: params.WarehouseObjectID, WarehouseApprovalEntryID: params.WarehouseApprovalEntryID,
 			WarehouseCode: params.WarehouseCode, WarehouseName: params.WarehouseName,
 			DocumentID: params.DocumentID,
 		}))
@@ -456,10 +457,10 @@ func (s *Service) replaceLines(
 			}
 			if err := q.InsertVouInventoryCountLine(ctx, dbsqlc.InsertVouInventoryCountLineParams{
 				ID: newID(), DocumentID: documentID, LineNo: int32(index + 1),
-				ProductObjectID: ref.ObjectID, ProductVersionID: ref.VersionID,
+				ProductObjectID: ref.ObjectID, ProductApprovalEntryID: ref.ApprovalEntryID,
 				ProductCode: ref.Code, ProductName: ref.Data.Name,
 				EnteredQuantityMicros: line.EnteredQuantity, EnteredUnitObjectID: unit.ObjectID,
-				EnteredUnitVersionID: unit.VersionID, EnteredUnitCode: unit.Code,
+				EnteredUnitApprovalEntryID: unit.ApprovalEntryID, EnteredUnitCode: unit.Code,
 				EnteredUnitName: unit.Name, EnteredUnitSymbol: unit.Symbol,
 				ActualBaseQuantityMicros: line.ActualQuantity, Remark: line.Remark,
 			}); err != nil {
@@ -479,10 +480,10 @@ func (s *Service) replaceLines(
 			ref := refs.Products[index]
 			if err := q.InsertVouPriceLine(ctx, dbsqlc.InsertVouPriceLineParams{
 				ID: newID(), DocumentID: documentID, DocumentEntity: entity, LineNo: int32(index + 1),
-				ProductObjectID: ref.ObjectID, ProductVersionID: ref.VersionID, ProductCode: ref.Code,
+				ProductObjectID: ref.ObjectID, ProductApprovalEntryID: ref.ApprovalEntryID, ProductCode: ref.Code,
 				ProductName: ref.Data.Name, DefaultInputUnitSymbol: defaultUnitSymbol(ref.Data),
 				BehaviorProfile:     ref.Data.BehaviorProfile,
-				ProductTypeObjectID: ref.Data.ProductTypeID, ProductTypeVersionID: ref.Data.ProductTypeVersionID,
+				ProductTypeObjectID: ref.Data.ProductTypeID, ProductTypeApprovalEntryID: ref.Data.ProductTypeApprovalEntryID,
 				ProductTypeCode: ref.Data.ProductTypeCode, ProductTypeName: ref.Data.ProductTypeName,
 				UnitPriceCents: line.UnitPrice, Remark: line.Remark,
 			}); err != nil {
@@ -508,13 +509,13 @@ func (s *Service) replaceLines(
 			}
 			if err := q.InsertVouProductLine(ctx, dbsqlc.InsertVouProductLineParams{
 				ID: lineID, DocumentID: documentID, DocumentEntity: entity, LineNo: int32(index + 1),
-				ProductObjectID: ref.ObjectID, ProductVersionID: ref.VersionID,
+				ProductObjectID: ref.ObjectID, ProductApprovalEntryID: ref.ApprovalEntryID,
 				ProductCode: ref.Code, ProductName: ref.Data.Name,
 				EnteredQuantityMicros: line.EnteredQuantity, EnteredUnitObjectID: unit.ObjectID,
-				EnteredUnitVersionID: unit.VersionID, EnteredUnitCode: unit.Code,
+				EnteredUnitApprovalEntryID: unit.ApprovalEntryID, EnteredUnitCode: unit.Code,
 				EnteredUnitName: unit.Name, EnteredUnitSymbol: unit.Symbol,
 				BaseQuantityMicros:  line.Quantity,
-				ProductTypeObjectID: ref.Data.ProductTypeID, ProductTypeVersionID: ref.Data.ProductTypeVersionID,
+				ProductTypeObjectID: ref.Data.ProductTypeID, ProductTypeApprovalEntryID: ref.Data.ProductTypeApprovalEntryID,
 				ProductTypeCode: ref.Data.ProductTypeCode, ProductTypeName: ref.Data.ProductTypeName,
 				BehaviorProfile: ref.Data.BehaviorProfile, DefaultPackagingSpecMicros: defaultPackagingSpec,
 				BaseUnitPriceCents:       line.BaseUnitPrice,
@@ -540,7 +541,7 @@ func (s *Service) replaceLines(
 					SourceDocumentID:            stringPointer(line.Formula.SourceDocumentID),
 					SourceDocumentNo:            stringPointer(line.Formula.SourceDocumentNo),
 					OutputEnteredQuantityMicros: line.Formula.Output.EnteredQuantity,
-					OutputEnteredUnitObjectID:   outputUnit.ObjectID, OutputEnteredUnitVersionID: outputUnit.VersionID,
+					OutputEnteredUnitObjectID:   outputUnit.ObjectID, OutputEnteredUnitApprovalEntryID: outputUnit.ApprovalEntryID,
 					OutputEnteredUnitCode: outputUnit.Code, OutputEnteredUnitName: outputUnit.Name,
 					OutputEnteredUnitSymbol:  outputUnit.Symbol,
 					OutputBaseQuantityMicros: line.Formula.Output.BaseQuantity,
@@ -556,10 +557,10 @@ func (s *Service) replaceLines(
 					if err := q.InsertVouSaleOrderFormulaLine(
 						ctx, dbsqlc.InsertVouSaleOrderFormulaLineParams{
 							ProductLineID: lineID, LineNo: int32(componentIndex + 1),
-							MaterialObjectID: material.ObjectID, MaterialVersionID: material.VersionID,
+							MaterialObjectID: material.ObjectID, MaterialApprovalEntryID: material.ApprovalEntryID,
 							MaterialCode: material.Code, MaterialName: material.Data.Name,
 							EnteredQuantityMicros: component.Quantity.EnteredQuantity,
-							EnteredUnitObjectID:   componentUnit.ObjectID, EnteredUnitVersionID: componentUnit.VersionID,
+							EnteredUnitObjectID:   componentUnit.ObjectID, EnteredUnitApprovalEntryID: componentUnit.ApprovalEntryID,
 							EnteredUnitCode: componentUnit.Code, EnteredUnitName: componentUnit.Name,
 							EnteredUnitSymbol:  componentUnit.Symbol,
 							BaseQuantityMicros: component.Quantity.BaseQuantity,
@@ -605,9 +606,9 @@ func (s *Service) validateStoredAttributes(
 		if err != nil {
 			return s.internal("read service contract detail", err)
 		}
-		missing = detail.CounterpartyObjectID == "" || detail.CounterpartyVersionID == "" || detail.HandlerObjectID == "" || detail.HandlerVersionID == ""
+		missing = detail.CounterpartyObjectID == "" || detail.CounterpartyApprovalEntryID == "" || detail.HandlerObjectID == "" || detail.HandlerApprovalEntryID == ""
 		if detail.CounterpartyEntity == contractCounterpartyService {
-			missing = missing || detail.SettlementMethodObjectID == nil || detail.SettlementMethodVersionID == nil
+			missing = missing || detail.SettlementMethodObjectID == nil || detail.SettlementMethodApprovalEntryID == nil
 		} else if detail.CounterpartyEntity == contractCounterpartySales {
 			missing = missing || len(detail.Capabilities) == 0 || !detail.ApplicableFrom.Valid
 		} else {
@@ -644,10 +645,10 @@ func (s *Service) validateStoredAttributes(
 		}
 		missing = len(lines) == 0
 		if entity != EntityBillMaturity {
-			missing = detail.CounterpartyObjectID == nil || detail.CounterpartyVersionID == nil || missing
+			missing = detail.CounterpartyObjectID == nil || detail.CounterpartyApprovalEntryID == nil || missing
 		}
 		if entity == EntityBillReceipt {
-			missing = missing || detail.HandlerObjectID == nil || detail.HandlerVersionID == nil
+			missing = missing || detail.HandlerObjectID == nil || detail.HandlerApprovalEntryID == nil
 		}
 	case EntityAssetAcquisition:
 		lines, err := q.ListVouAssetAcquisitionLines(ctx, documentID)

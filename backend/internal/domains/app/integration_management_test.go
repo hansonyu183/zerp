@@ -216,6 +216,57 @@ func TestQueryAndPermissionCatalogIntegration(t *testing.T) {
 	}
 }
 
+func TestBOBAndAUXApprovalPermissionCatalogIntegration(t *testing.T) {
+	_, pool, _ := appIntegrationService(t)
+	entitiesByDomain := map[string][]string{
+		"bob": {
+			"customer", "customer-account", "supplier", "other-unit", "employee",
+			"sales-partner", "product", "warehouse", "vehicle", "fund-account", "operating-entity",
+		},
+		"aux": {
+			"product-category", "product-type", "department", "position", "settlement-method",
+			"payment-method", "dictionary-type", "dictionary-item", "measurement-unit",
+			"income-expense-type", "asset-category",
+		},
+	}
+	actions := []string{
+		"query", "get", "create", "save", "submit", "unsubmit", "approve",
+		"reject", "unapprove", "enable", "disable", "delete", "versions", "audit-history",
+	}
+	expected := make(map[string]struct{}, len(entitiesByDomain)*len(actions)*11)
+	for domain, entities := range entitiesByDomain {
+		for _, entity := range entities {
+			for _, action := range actions {
+				expected["/"+domain+"/"+entity+"/"+action] = struct{}{}
+			}
+		}
+	}
+
+	rows, err := pool.Query(t.Context(), `SELECT path FROM app_permissions WHERE domain IN ('bob', 'aux')`)
+	if err != nil {
+		t.Fatalf("query BOB/AUX permission catalog: %v", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var path string
+		if err = rows.Scan(&path); err != nil {
+			t.Fatalf("scan BOB/AUX permission path: %v", err)
+		}
+		delete(expected, path)
+	}
+	if err = rows.Err(); err != nil {
+		t.Fatalf("iterate BOB/AUX permission catalog: %v", err)
+	}
+	if len(expected) != 0 {
+		missing := make([]string, 0, len(expected))
+		for path := range expected {
+			missing = append(missing, path)
+		}
+		slices.Sort(missing)
+		t.Fatalf("BOB/AUX permission catalog is missing %v", missing)
+	}
+}
+
 func TestUserManagementSecurityIntegration(t *testing.T) {
 	service, pool, admin := appIntegrationService(t)
 	restoreAPPSystemIdentity(t, pool)

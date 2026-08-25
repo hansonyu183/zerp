@@ -10,15 +10,30 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/oklog/ulid/v2"
 )
+
+func workflowActor(t *testing.T, requestID string) approval.Actor {
+	t.Helper()
+	actorID := "01J00000000000000000000000"
+	if strings.Contains(requestID, "approve") || strings.Contains(requestID, "reject") {
+		actorID = "01J00000000000000000000001"
+	}
+	actor, err := approval.UserActor(authorization.Principal{ActorID: actorID}, requestID)
+	if err != nil {
+		t.Fatalf("create workflow integration actor: %v", err)
+	}
+	return actor
+}
 
 func workflowActionIntegrationPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
@@ -41,23 +56,23 @@ func workflowActionIntegrationPool(t *testing.T) *pgxpool.Pool {
 
 func approveWorkflowReference(t *testing.T, service *bobdomain.Service, entity string, data bobdomain.CreateDetailInput, submitterID, reviewerID string) voudomain.ReferenceInput {
 	t.Helper()
-	created, err := service.Create(t.Context(), entity, bobdomain.CreateInput{Data: data}, submitterID, "wfl-reference-create")
+	created, err := service.Create(t.Context(), entity, bobdomain.CreateInput{Data: data}, workflowActor(t, "wfl-reference-create"))
 	if err != nil {
 		t.Fatalf("create %s: %v", entity, err)
 	}
 	submitted, err := service.Submit(t.Context(), entity, bobdomain.VersionRevisionInput{
-		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: created.Revision,
-	}, submitterID, "wfl-reference-submit")
+		ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: created.Approval.Revision,
+	}, workflowActor(t, "wfl-reference-submit"))
 	if err != nil {
 		t.Fatalf("submit %s: %v", entity, err)
 	}
 	approved, err := service.Approve(t.Context(), entity, bobdomain.ReviewInput{
-		ObjectID: created.ObjectID, VersionID: created.VersionID, Revision: submitted.Revision,
-	}, reviewerID, "wfl-reference-approve")
+		ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID, ApprovalRevision: submitted.Approval.Revision,
+	}, workflowActor(t, "wfl-reference-approve"))
 	if err != nil {
 		t.Fatalf("approve %s: %v", entity, err)
 	}
-	return voudomain.ReferenceInput{ObjectID: approved.ObjectID, VersionID: approved.VersionID}
+	return voudomain.ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
 }
 
 func createApprovedReimbursement(t *testing.T, service *voudomain.Service, employee voudomain.ReferenceInput, actorID, requestID string) voudomain.MutationResult {
@@ -90,35 +105,35 @@ func TestExpenseWorkflowRunsThroughRealVOUAdapterInOneApproval(t *testing.T) {
 	actorID := ulid.Make().String()
 	submitterID := ulid.Make().String()
 	suffix := strings.ToLower(ulid.Make().String()[:10])
-	auxiliaryResolver := auxiliaryrefs.New(auxdomain.NewService(pool))
-	bobService := bobdomain.NewService(pool, auxiliaryResolver)
+	bus := txevent.NewBus()
+	auxiliaryResolver := auxiliaryrefs.New(auxdomain.NewService(pool, authorization.Func(nil), bus))
+	bobService := bobdomain.NewService(pool, auxiliaryResolver, authorization.Func(nil), bus)
 	operating := approveWorkflowReference(t, bobService, bobdomain.EntityOperatingEntity, bobdomain.CreateDetailInput{
 		Name: "流程经营主体", TaxNumber: "TAX" + suffix,
 	}, submitterID, actorID)
 	employment, err := bobService.EmploymentCreate(t.Context(), bobdomain.EmploymentCreateInput{
 		NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson, LegalName: "流程员工"},
 		Data:     bobdomain.CreateDetailInput{OperatingEntityID: operating.ObjectID},
-	}, submitterID, "wfl-reference-create", true)
+	}, workflowActor(t, "wfl-reference-create"), true)
 	if err != nil {
 		t.Fatalf("create employee: %v", err)
 	}
 	submittedEmployment, err := bobService.Submit(t.Context(), bobdomain.EntityEmployee, bobdomain.VersionRevisionInput{
-		ObjectID: employment.ObjectID, VersionID: employment.VersionID, Revision: employment.Revision,
-	}, submitterID, "wfl-reference-submit")
+		ObjectID: employment.ObjectID, ApprovalEntryID: employment.Approval.ApprovalEntryID, ApprovalRevision: employment.Approval.Revision,
+	}, workflowActor(t, "wfl-reference-submit"))
 	if err != nil {
 		t.Fatalf("submit employee: %v", err)
 	}
 	approvedEmployment, err := bobService.Approve(t.Context(), bobdomain.EntityEmployee, bobdomain.ReviewInput{
-		ObjectID: employment.ObjectID, VersionID: employment.VersionID, Revision: submittedEmployment.Revision,
-	}, actorID, "wfl-reference-approve")
+		ObjectID: employment.ObjectID, ApprovalEntryID: employment.Approval.ApprovalEntryID, ApprovalRevision: submittedEmployment.Approval.Revision,
+	}, workflowActor(t, "wfl-reference-approve"))
 	if err != nil {
 		t.Fatalf("approve employee: %v", err)
 	}
-	employee := voudomain.ReferenceInput{ObjectID: approvedEmployment.ObjectID, VersionID: approvedEmployment.VersionID}
+	employee := voudomain.ReferenceInput{ObjectID: approvedEmployment.ObjectID, ApprovalEntryID: approvedEmployment.Approval.ApprovalEntryID}
 	fund := approveWorkflowReference(t, bobService, bobdomain.EntityFundAccount, bobdomain.CreateDetailInput{
 		Code: "WF" + suffix, Name: "流程资金账户", Currency: "CNY", OperatingEntityID: operating.ObjectID,
 	}, submitterID, actorID)
-	bus := txevent.NewBus()
 	vouService, err := voudomain.NewService(pool, bobService, auxiliaryResolver, bus,
 		voudomain.AttachmentOptions{Root: t.TempDir()}, logger)
 	if err != nil {

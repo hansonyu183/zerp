@@ -5,7 +5,7 @@
 export type VouPriceLineInput = {
   product: {
     objectId: string;
-    versionId: string;
+    approvalEntryId: string;
   };
   unitPrice: string;
   remark?: string;

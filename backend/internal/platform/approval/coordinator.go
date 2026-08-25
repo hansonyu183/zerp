@@ -48,6 +48,18 @@ func NewCoordinator[T any](domain, entity string, authorizer Authorizer, bus *tx
 	}, nil
 }
 
+// Authorize applies the coordinator's fixed domain/entity permission path to
+// read and object-level actions that do not otherwise mutate an Approval entry.
+func (c *Coordinator[T]) Authorize(ctx context.Context, actor Actor, action string) error {
+	switch action {
+	case "query", "get", "create", "save", "submit", "unsubmit", "reject", "approve", "unapprove",
+		"enable", "disable", "delete", "versions", "audit-history":
+		return c.authorize(ctx, actor, action)
+	default:
+		return newError(ErrorValidation, "approval_invalid_action", "invalid approval action", nil)
+	}
+}
+
 func (c *Coordinator[T]) Get(ctx context.Context, tx pgx.Tx, entryID string, actor Actor) (Entry, error) {
 	if err := c.authorize(ctx, actor, "get"); err != nil {
 		return Entry{}, err

@@ -375,7 +375,7 @@ INSERT INTO acc_bills (
   id,bill_no,bill_type,position_type,currency,medium,face_amount_minor,
   issue_date,maturity_date,drawer,acceptor,payee,annual_rate_bps,interest_days,
   interest_amount_minor,customer_cost_amount_minor,origin_party_entity,
-  origin_party_object_id,origin_party_version_id,origin_party_code,origin_party_name,
+  origin_party_object_id,origin_party_approval_entry_id,origin_party_code,origin_party_name,
   state,source_document_id,source_line_id
 ) VALUES (
   $1,$2,$3,$4,
@@ -390,29 +390,29 @@ INSERT INTO acc_bills (
 `
 
 type CreateAccountingBillParams struct {
-	ID                      string      `db:"id" json:"id"`
-	BillNo                  string      `db:"bill_no" json:"bill_no"`
-	BillType                string      `db:"bill_type" json:"bill_type"`
-	PositionType            string      `db:"position_type" json:"position_type"`
-	Currency                string      `db:"currency" json:"currency"`
-	Medium                  string      `db:"medium" json:"medium"`
-	FaceAmountMinor         int64       `db:"face_amount_minor" json:"face_amount_minor"`
-	IssueDate               pgtype.Date `db:"issue_date" json:"issue_date"`
-	MaturityDate            pgtype.Date `db:"maturity_date" json:"maturity_date"`
-	Drawer                  string      `db:"drawer" json:"drawer"`
-	Acceptor                string      `db:"acceptor" json:"acceptor"`
-	Payee                   string      `db:"payee" json:"payee"`
-	AnnualRateBps           int32       `db:"annual_rate_bps" json:"annual_rate_bps"`
-	InterestDays            int32       `db:"interest_days" json:"interest_days"`
-	InterestAmountMinor     int64       `db:"interest_amount_minor" json:"interest_amount_minor"`
-	CustomerCostAmountMinor int64       `db:"customer_cost_amount_minor" json:"customer_cost_amount_minor"`
-	OriginPartyEntity       *string     `db:"origin_party_entity" json:"origin_party_entity"`
-	OriginPartyObjectID     *string     `db:"origin_party_object_id" json:"origin_party_object_id"`
-	OriginPartyVersionID    *string     `db:"origin_party_version_id" json:"origin_party_version_id"`
-	OriginPartyCode         *string     `db:"origin_party_code" json:"origin_party_code"`
-	OriginPartyName         *string     `db:"origin_party_name" json:"origin_party_name"`
-	SourceDocumentID        string      `db:"source_document_id" json:"source_document_id"`
-	SourceLineID            string      `db:"source_line_id" json:"source_line_id"`
+	ID                         string      `db:"id" json:"id"`
+	BillNo                     string      `db:"bill_no" json:"bill_no"`
+	BillType                   string      `db:"bill_type" json:"bill_type"`
+	PositionType               string      `db:"position_type" json:"position_type"`
+	Currency                   string      `db:"currency" json:"currency"`
+	Medium                     string      `db:"medium" json:"medium"`
+	FaceAmountMinor            int64       `db:"face_amount_minor" json:"face_amount_minor"`
+	IssueDate                  pgtype.Date `db:"issue_date" json:"issue_date"`
+	MaturityDate               pgtype.Date `db:"maturity_date" json:"maturity_date"`
+	Drawer                     string      `db:"drawer" json:"drawer"`
+	Acceptor                   string      `db:"acceptor" json:"acceptor"`
+	Payee                      string      `db:"payee" json:"payee"`
+	AnnualRateBps              int32       `db:"annual_rate_bps" json:"annual_rate_bps"`
+	InterestDays               int32       `db:"interest_days" json:"interest_days"`
+	InterestAmountMinor        int64       `db:"interest_amount_minor" json:"interest_amount_minor"`
+	CustomerCostAmountMinor    int64       `db:"customer_cost_amount_minor" json:"customer_cost_amount_minor"`
+	OriginPartyEntity          *string     `db:"origin_party_entity" json:"origin_party_entity"`
+	OriginPartyObjectID        *string     `db:"origin_party_object_id" json:"origin_party_object_id"`
+	OriginPartyApprovalEntryID *string     `db:"origin_party_approval_entry_id" json:"origin_party_approval_entry_id"`
+	OriginPartyCode            *string     `db:"origin_party_code" json:"origin_party_code"`
+	OriginPartyName            *string     `db:"origin_party_name" json:"origin_party_name"`
+	SourceDocumentID           string      `db:"source_document_id" json:"source_document_id"`
+	SourceLineID               string      `db:"source_line_id" json:"source_line_id"`
 }
 
 func (q *Queries) CreateAccountingBill(ctx context.Context, arg CreateAccountingBillParams) error {
@@ -435,7 +435,7 @@ func (q *Queries) CreateAccountingBill(ctx context.Context, arg CreateAccounting
 		arg.CustomerCostAmountMinor,
 		arg.OriginPartyEntity,
 		arg.OriginPartyObjectID,
-		arg.OriginPartyVersionID,
+		arg.OriginPartyApprovalEntryID,
 		arg.OriginPartyCode,
 		arg.OriginPartyName,
 		arg.SourceDocumentID,
@@ -1879,7 +1879,7 @@ INSERT INTO acc_opening_bills(
   book_id,line_order,bill_id,create_object,bill_no,bill_type,position_type,medium,currency,
   face_amount_minor,issue_date,maturity_date,drawer,acceptor,payee,annual_rate_bps,
   interest_days,interest_amount_minor,customer_cost_amount_minor,origin_party_entity,
-  origin_party_object_id,origin_party_version_id,origin_party_code,origin_party_name,value_minor
+  origin_party_object_id,origin_party_approval_entry_id,origin_party_code,origin_party_name,value_minor
 ) VALUES (
   $1,$2,$3,$4,
   $5,$6,$7,$8,
@@ -1892,31 +1892,31 @@ INSERT INTO acc_opening_bills(
 `
 
 type InsertAccountingOpeningBillParams struct {
-	BookID                  string      `db:"book_id" json:"book_id"`
-	LineOrder               int32       `db:"line_order" json:"line_order"`
-	BillID                  string      `db:"bill_id" json:"bill_id"`
-	CreateObject            bool        `db:"create_object" json:"create_object"`
-	BillNo                  *string     `db:"bill_no" json:"bill_no"`
-	BillType                *string     `db:"bill_type" json:"bill_type"`
-	PositionType            *string     `db:"position_type" json:"position_type"`
-	Medium                  *string     `db:"medium" json:"medium"`
-	Currency                string      `db:"currency" json:"currency"`
-	FaceAmountMinor         *int64      `db:"face_amount_minor" json:"face_amount_minor"`
-	IssueDate               pgtype.Date `db:"issue_date" json:"issue_date"`
-	MaturityDate            pgtype.Date `db:"maturity_date" json:"maturity_date"`
-	Drawer                  *string     `db:"drawer" json:"drawer"`
-	Acceptor                *string     `db:"acceptor" json:"acceptor"`
-	Payee                   *string     `db:"payee" json:"payee"`
-	AnnualRateBps           *int32      `db:"annual_rate_bps" json:"annual_rate_bps"`
-	InterestDays            *int32      `db:"interest_days" json:"interest_days"`
-	InterestAmountMinor     *int64      `db:"interest_amount_minor" json:"interest_amount_minor"`
-	CustomerCostAmountMinor *int64      `db:"customer_cost_amount_minor" json:"customer_cost_amount_minor"`
-	OriginPartyEntity       *string     `db:"origin_party_entity" json:"origin_party_entity"`
-	OriginPartyObjectID     *string     `db:"origin_party_object_id" json:"origin_party_object_id"`
-	OriginPartyVersionID    *string     `db:"origin_party_version_id" json:"origin_party_version_id"`
-	OriginPartyCode         *string     `db:"origin_party_code" json:"origin_party_code"`
-	OriginPartyName         *string     `db:"origin_party_name" json:"origin_party_name"`
-	ValueMinor              int64       `db:"value_minor" json:"value_minor"`
+	BookID                     string      `db:"book_id" json:"book_id"`
+	LineOrder                  int32       `db:"line_order" json:"line_order"`
+	BillID                     string      `db:"bill_id" json:"bill_id"`
+	CreateObject               bool        `db:"create_object" json:"create_object"`
+	BillNo                     *string     `db:"bill_no" json:"bill_no"`
+	BillType                   *string     `db:"bill_type" json:"bill_type"`
+	PositionType               *string     `db:"position_type" json:"position_type"`
+	Medium                     *string     `db:"medium" json:"medium"`
+	Currency                   string      `db:"currency" json:"currency"`
+	FaceAmountMinor            *int64      `db:"face_amount_minor" json:"face_amount_minor"`
+	IssueDate                  pgtype.Date `db:"issue_date" json:"issue_date"`
+	MaturityDate               pgtype.Date `db:"maturity_date" json:"maturity_date"`
+	Drawer                     *string     `db:"drawer" json:"drawer"`
+	Acceptor                   *string     `db:"acceptor" json:"acceptor"`
+	Payee                      *string     `db:"payee" json:"payee"`
+	AnnualRateBps              *int32      `db:"annual_rate_bps" json:"annual_rate_bps"`
+	InterestDays               *int32      `db:"interest_days" json:"interest_days"`
+	InterestAmountMinor        *int64      `db:"interest_amount_minor" json:"interest_amount_minor"`
+	CustomerCostAmountMinor    *int64      `db:"customer_cost_amount_minor" json:"customer_cost_amount_minor"`
+	OriginPartyEntity          *string     `db:"origin_party_entity" json:"origin_party_entity"`
+	OriginPartyObjectID        *string     `db:"origin_party_object_id" json:"origin_party_object_id"`
+	OriginPartyApprovalEntryID *string     `db:"origin_party_approval_entry_id" json:"origin_party_approval_entry_id"`
+	OriginPartyCode            *string     `db:"origin_party_code" json:"origin_party_code"`
+	OriginPartyName            *string     `db:"origin_party_name" json:"origin_party_name"`
+	ValueMinor                 int64       `db:"value_minor" json:"value_minor"`
 }
 
 func (q *Queries) InsertAccountingOpeningBill(ctx context.Context, arg InsertAccountingOpeningBillParams) error {
@@ -1942,7 +1942,7 @@ func (q *Queries) InsertAccountingOpeningBill(ctx context.Context, arg InsertAcc
 		arg.CustomerCostAmountMinor,
 		arg.OriginPartyEntity,
 		arg.OriginPartyObjectID,
-		arg.OriginPartyVersionID,
+		arg.OriginPartyApprovalEntryID,
 		arg.OriginPartyCode,
 		arg.OriginPartyName,
 		arg.ValueMinor,
@@ -2593,36 +2593,36 @@ SELECT bill_id,create_object,COALESCE(bill_no,'') AS bill_no,COALESCE(bill_type,
   COALESCE(customer_cost_amount_minor,0)::bigint AS customer_cost_amount_minor,
   COALESCE(origin_party_entity,'') AS origin_party_entity,
   COALESCE(origin_party_object_id,'') AS origin_party_object_id,
-  COALESCE(origin_party_version_id,'') AS origin_party_version_id,
+  COALESCE(origin_party_approval_entry_id,'') AS origin_party_approval_entry_id,
   COALESCE(origin_party_code,'') AS origin_party_code,COALESCE(origin_party_name,'') AS origin_party_name,
   value_minor
 FROM acc_opening_bills WHERE book_id=$1 ORDER BY line_order
 `
 
 type ListAccountingOpeningBillsRow struct {
-	BillID                  string      `db:"bill_id" json:"bill_id"`
-	CreateObject            bool        `db:"create_object" json:"create_object"`
-	BillNo                  string      `db:"bill_no" json:"bill_no"`
-	BillType                string      `db:"bill_type" json:"bill_type"`
-	PositionType            string      `db:"position_type" json:"position_type"`
-	Medium                  string      `db:"medium" json:"medium"`
-	Currency                string      `db:"currency" json:"currency"`
-	FaceAmountMinor         int64       `db:"face_amount_minor" json:"face_amount_minor"`
-	IssueDate               pgtype.Date `db:"issue_date" json:"issue_date"`
-	MaturityDate            pgtype.Date `db:"maturity_date" json:"maturity_date"`
-	Drawer                  string      `db:"drawer" json:"drawer"`
-	Acceptor                string      `db:"acceptor" json:"acceptor"`
-	Payee                   string      `db:"payee" json:"payee"`
-	AnnualRateBps           int32       `db:"annual_rate_bps" json:"annual_rate_bps"`
-	InterestDays            int32       `db:"interest_days" json:"interest_days"`
-	InterestAmountMinor     int64       `db:"interest_amount_minor" json:"interest_amount_minor"`
-	CustomerCostAmountMinor int64       `db:"customer_cost_amount_minor" json:"customer_cost_amount_minor"`
-	OriginPartyEntity       string      `db:"origin_party_entity" json:"origin_party_entity"`
-	OriginPartyObjectID     string      `db:"origin_party_object_id" json:"origin_party_object_id"`
-	OriginPartyVersionID    string      `db:"origin_party_version_id" json:"origin_party_version_id"`
-	OriginPartyCode         string      `db:"origin_party_code" json:"origin_party_code"`
-	OriginPartyName         string      `db:"origin_party_name" json:"origin_party_name"`
-	ValueMinor              int64       `db:"value_minor" json:"value_minor"`
+	BillID                     string      `db:"bill_id" json:"bill_id"`
+	CreateObject               bool        `db:"create_object" json:"create_object"`
+	BillNo                     string      `db:"bill_no" json:"bill_no"`
+	BillType                   string      `db:"bill_type" json:"bill_type"`
+	PositionType               string      `db:"position_type" json:"position_type"`
+	Medium                     string      `db:"medium" json:"medium"`
+	Currency                   string      `db:"currency" json:"currency"`
+	FaceAmountMinor            int64       `db:"face_amount_minor" json:"face_amount_minor"`
+	IssueDate                  pgtype.Date `db:"issue_date" json:"issue_date"`
+	MaturityDate               pgtype.Date `db:"maturity_date" json:"maturity_date"`
+	Drawer                     string      `db:"drawer" json:"drawer"`
+	Acceptor                   string      `db:"acceptor" json:"acceptor"`
+	Payee                      string      `db:"payee" json:"payee"`
+	AnnualRateBps              int32       `db:"annual_rate_bps" json:"annual_rate_bps"`
+	InterestDays               int32       `db:"interest_days" json:"interest_days"`
+	InterestAmountMinor        int64       `db:"interest_amount_minor" json:"interest_amount_minor"`
+	CustomerCostAmountMinor    int64       `db:"customer_cost_amount_minor" json:"customer_cost_amount_minor"`
+	OriginPartyEntity          string      `db:"origin_party_entity" json:"origin_party_entity"`
+	OriginPartyObjectID        string      `db:"origin_party_object_id" json:"origin_party_object_id"`
+	OriginPartyApprovalEntryID string      `db:"origin_party_approval_entry_id" json:"origin_party_approval_entry_id"`
+	OriginPartyCode            string      `db:"origin_party_code" json:"origin_party_code"`
+	OriginPartyName            string      `db:"origin_party_name" json:"origin_party_name"`
+	ValueMinor                 int64       `db:"value_minor" json:"value_minor"`
 }
 
 func (q *Queries) ListAccountingOpeningBills(ctx context.Context, bookID string) ([]ListAccountingOpeningBillsRow, error) {
@@ -2654,7 +2654,7 @@ func (q *Queries) ListAccountingOpeningBills(ctx context.Context, bookID string)
 			&i.CustomerCostAmountMinor,
 			&i.OriginPartyEntity,
 			&i.OriginPartyObjectID,
-			&i.OriginPartyVersionID,
+			&i.OriginPartyApprovalEntryID,
 			&i.OriginPartyCode,
 			&i.OriginPartyName,
 			&i.ValueMinor,
@@ -2673,34 +2673,34 @@ const listAccountingOpeningBillsForApproval = `-- name: ListAccountingOpeningBil
 SELECT bill_id,create_object,bill_no,bill_type,position_type,medium,currency,
   face_amount_minor,issue_date,maturity_date,drawer,acceptor,payee,annual_rate_bps,
   interest_days,interest_amount_minor,customer_cost_amount_minor,origin_party_entity,
-  origin_party_object_id,origin_party_version_id,origin_party_code,origin_party_name,value_minor
+  origin_party_object_id,origin_party_approval_entry_id,origin_party_code,origin_party_name,value_minor
 FROM acc_opening_bills WHERE book_id=$1
 `
 
 type ListAccountingOpeningBillsForApprovalRow struct {
-	BillID                  string      `db:"bill_id" json:"bill_id"`
-	CreateObject            bool        `db:"create_object" json:"create_object"`
-	BillNo                  *string     `db:"bill_no" json:"bill_no"`
-	BillType                *string     `db:"bill_type" json:"bill_type"`
-	PositionType            *string     `db:"position_type" json:"position_type"`
-	Medium                  *string     `db:"medium" json:"medium"`
-	Currency                string      `db:"currency" json:"currency"`
-	FaceAmountMinor         *int64      `db:"face_amount_minor" json:"face_amount_minor"`
-	IssueDate               pgtype.Date `db:"issue_date" json:"issue_date"`
-	MaturityDate            pgtype.Date `db:"maturity_date" json:"maturity_date"`
-	Drawer                  *string     `db:"drawer" json:"drawer"`
-	Acceptor                *string     `db:"acceptor" json:"acceptor"`
-	Payee                   *string     `db:"payee" json:"payee"`
-	AnnualRateBps           *int32      `db:"annual_rate_bps" json:"annual_rate_bps"`
-	InterestDays            *int32      `db:"interest_days" json:"interest_days"`
-	InterestAmountMinor     *int64      `db:"interest_amount_minor" json:"interest_amount_minor"`
-	CustomerCostAmountMinor *int64      `db:"customer_cost_amount_minor" json:"customer_cost_amount_minor"`
-	OriginPartyEntity       *string     `db:"origin_party_entity" json:"origin_party_entity"`
-	OriginPartyObjectID     *string     `db:"origin_party_object_id" json:"origin_party_object_id"`
-	OriginPartyVersionID    *string     `db:"origin_party_version_id" json:"origin_party_version_id"`
-	OriginPartyCode         *string     `db:"origin_party_code" json:"origin_party_code"`
-	OriginPartyName         *string     `db:"origin_party_name" json:"origin_party_name"`
-	ValueMinor              int64       `db:"value_minor" json:"value_minor"`
+	BillID                     string      `db:"bill_id" json:"bill_id"`
+	CreateObject               bool        `db:"create_object" json:"create_object"`
+	BillNo                     *string     `db:"bill_no" json:"bill_no"`
+	BillType                   *string     `db:"bill_type" json:"bill_type"`
+	PositionType               *string     `db:"position_type" json:"position_type"`
+	Medium                     *string     `db:"medium" json:"medium"`
+	Currency                   string      `db:"currency" json:"currency"`
+	FaceAmountMinor            *int64      `db:"face_amount_minor" json:"face_amount_minor"`
+	IssueDate                  pgtype.Date `db:"issue_date" json:"issue_date"`
+	MaturityDate               pgtype.Date `db:"maturity_date" json:"maturity_date"`
+	Drawer                     *string     `db:"drawer" json:"drawer"`
+	Acceptor                   *string     `db:"acceptor" json:"acceptor"`
+	Payee                      *string     `db:"payee" json:"payee"`
+	AnnualRateBps              *int32      `db:"annual_rate_bps" json:"annual_rate_bps"`
+	InterestDays               *int32      `db:"interest_days" json:"interest_days"`
+	InterestAmountMinor        *int64      `db:"interest_amount_minor" json:"interest_amount_minor"`
+	CustomerCostAmountMinor    *int64      `db:"customer_cost_amount_minor" json:"customer_cost_amount_minor"`
+	OriginPartyEntity          *string     `db:"origin_party_entity" json:"origin_party_entity"`
+	OriginPartyObjectID        *string     `db:"origin_party_object_id" json:"origin_party_object_id"`
+	OriginPartyApprovalEntryID *string     `db:"origin_party_approval_entry_id" json:"origin_party_approval_entry_id"`
+	OriginPartyCode            *string     `db:"origin_party_code" json:"origin_party_code"`
+	OriginPartyName            *string     `db:"origin_party_name" json:"origin_party_name"`
+	ValueMinor                 int64       `db:"value_minor" json:"value_minor"`
 }
 
 func (q *Queries) ListAccountingOpeningBillsForApproval(ctx context.Context, bookID string) ([]ListAccountingOpeningBillsForApprovalRow, error) {
@@ -2732,7 +2732,7 @@ func (q *Queries) ListAccountingOpeningBillsForApproval(ctx context.Context, boo
 			&i.CustomerCostAmountMinor,
 			&i.OriginPartyEntity,
 			&i.OriginPartyObjectID,
-			&i.OriginPartyVersionID,
+			&i.OriginPartyApprovalEntryID,
 			&i.OriginPartyCode,
 			&i.OriginPartyName,
 			&i.ValueMinor,

@@ -38,16 +38,17 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 	if err := appService.SynchronizeMenuRoutes(ctx); err != nil {
 		return nil, fmt.Errorf("synchronize menu routes: %w", err)
 	}
-	auxService := auxdomain.NewService(db)
+	authorizer := appAuthorizer{service: appService, cfg: cfg}
+	eventBus := txevent.NewBus()
+	auxService := auxdomain.NewService(db, authorizer, eventBus)
 	auxiliaryResolver := auxiliaryrefs.New(auxService)
-	bobService := bobdomain.NewService(db, auxiliaryResolver)
+	bobService := bobdomain.NewService(db, auxiliaryResolver, authorizer, eventBus)
 	bobAttachmentService, err := bobdomain.NewCustomerAttachmentService(db, bobdomain.CustomerAttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
-	})
+	}, bobService)
 	if err != nil {
 		return nil, err
 	}
-	eventBus := txevent.NewBus()
 	accService := accdomain.NewService(db)
 	vouService, err := voudomain.NewService(db, bobService, auxiliaryResolver, eventBus, voudomain.AttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
@@ -67,7 +68,6 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 		return nil, err
 	}
 	router := newRouter(cfg, db, logger, func(router *gin.Engine) {
-		authorizer := appAuthorizer{service: appService, cfg: cfg}
 		appdomain.NewHandler(appService, authorizer, cfg, logger).Register(router)
 		accdomain.NewHandler(accService, authorizer, logger).Register(router)
 		bobdomain.NewHandler(bobService, bobAttachmentService, authorizer, logger).Register(router)

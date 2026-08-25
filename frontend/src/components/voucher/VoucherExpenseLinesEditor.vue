@@ -6,16 +6,21 @@ import CompactTableField from '@/components/common/CompactTableField.vue'
 
 defineOptions({ name: 'VoucherExpenseLinesEditor' })
 
-const props = withDefaults(defineProps<{
-  modelValue: readonly VoucherExpenseLineDraft[]
-  editable?: boolean
-}>(), { editable: true })
+const props = withDefaults(
+  defineProps<{
+    modelValue: readonly VoucherExpenseLineDraft[]
+    editable?: boolean
+  }>(),
+  { editable: true },
+)
 
 const emit = defineEmits<{
   'update:modelValue': [value: VoucherExpenseLineDraft[]]
 }>()
 
-const total = computed(() => sumMoney(props.modelValue.map((line) => line.amount)))
+const total = computed(() =>
+  sumMoney(props.modelValue.map((line) => line.amount)),
+)
 
 function updateLine(
   index: number,
@@ -46,7 +51,8 @@ function addLine(): void {
 function removeLine(index: number): void {
   emit(
     'update:modelValue',
-    props.modelValue.filter((_, lineIndex) => lineIndex !== index)
+    props.modelValue
+      .filter((_, lineIndex) => lineIndex !== index)
       .map((line) => ({ ...line })),
   )
 }
@@ -75,7 +81,11 @@ function removeLine(index: number): void {
       >
         <thead>
           <tr>
-            <th>#</th><th>类别</th><th>说明</th><th>金额</th><th>备注</th>
+            <th>#</th>
+            <th>类别</th>
+            <th>说明</th>
+            <th>金额</th>
+            <th>备注</th>
             <th v-if="editable" />
           </tr>
         </thead>
@@ -88,7 +98,8 @@ function removeLine(index: number): void {
                 :model-value="line.category"
                 :rules="[
                   (v: string) => Boolean(v?.trim()) || '请输入费用类别。',
-                  (v: string) => Array.from(v ?? '').length <= 100 || '不能超过 100 字。',
+                  (v: string) =>
+                    Array.from(v ?? '').length <= 100 || '不能超过 100 字。',
                 ]"
                 @update:model-value="updateLine(index, { category: $event })"
               />
@@ -100,7 +111,8 @@ function removeLine(index: number): void {
                 :model-value="line.description"
                 :rules="[
                   (v: string) => Boolean(v?.trim()) || '请输入说明。',
-                  (v: string) => Array.from(v ?? '').length <= 500 || '不能超过 500 字。',
+                  (v: string) =>
+                    Array.from(v ?? '').length <= 500 || '不能超过 500 字。',
                 ]"
                 @update:model-value="updateLine(index, { description: $event })"
               />
@@ -112,8 +124,8 @@ function removeLine(index: number): void {
                 inputmode="decimal"
                 :model-value="line.amount"
                 :rules="[
-                  (v: string) => isMoney(v) ||
-                    '请输入大于零且最多两位小数的金额。',
+                  (v: string) =>
+                    isMoney(v) || '请输入大于零且最多两位小数的金额。',
                 ]"
                 @update:model-value="updateLine(index, { amount: $event })"
               />
@@ -124,7 +136,11 @@ function removeLine(index: number): void {
                 v-if="editable"
                 :maxlength="1000"
                 :model-value="line.remark"
-                :rules="[(v: string) => Array.from(v ?? '').length <= 1000 || '备注不能超过 1000 字。']"
+                :rules="[
+                  (v: string) =>
+                    Array.from(v ?? '').length <= 1000 ||
+                    '备注不能超过 1000 字。',
+                ]"
                 @update:model-value="updateLine(index, { remark: $event })"
               />
               <span v-else>{{ line.remark || '—' }}</span>
@@ -147,7 +163,9 @@ function removeLine(index: number): void {
             v-if="modelValue.length === 0"
             class="responsive-table__empty-row"
           >
-            <td :colspan="editable ? 6 : 5" class="text-center py-8">暂无费用明细</td>
+            <td :colspan="editable ? 6 : 5" class="text-center py-8">
+              暂无费用明细
+            </td>
           </tr>
         </tbody>
         <tfoot>
@@ -174,9 +192,20 @@ function removeLine(index: number): void {
   gap: 16px;
   margin-bottom: 14px;
 }
-.voucher-expense-lines__header h3 { margin: 0; }
-.voucher-expense-lines__header span { color: rgb(var(--v-theme-on-surface-variant)); font-size: 12px; }
-.voucher-expense-lines__wrap { overflow-x: auto; }
-.voucher-expense-lines__table { min-width: 960px; }
-.voucher-expense-lines__table :deep(.v-input) { min-width: 150px; }
+.voucher-expense-lines__header h3 {
+  margin: 0;
+}
+.voucher-expense-lines__header span {
+  color: rgb(var(--v-theme-on-surface-variant));
+  font-size: 12px;
+}
+.voucher-expense-lines__wrap {
+  overflow-x: auto;
+}
+.voucher-expense-lines__table {
+  min-width: 960px;
+}
+.voucher-expense-lines__table :deep(.v-input) {
+  min-width: 150px;
+}
 </style>

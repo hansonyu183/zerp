@@ -34,12 +34,12 @@ export function useVoucherFormula(
     const current = form.value.productLines[index]
     const currentCustomer = form.value.customer
     const currentCustomerKey = currentCustomer
-      ? `${currentCustomer.objectId}/${currentCustomer.versionId}`
+      ? `${currentCustomer.objectId}/${currentCustomer.approvalEntryId}`
       : ''
     if (
       !current?.product ||
       current.key !== lineKey ||
-      `${current.product.objectId}/${current.product.versionId}` !==
+      `${current.product.objectId}/${current.product.approvalEntryId}` !==
         productKey ||
       (customerKey !== null && currentCustomerKey !== customerKey) ||
       requestVersions.get(lineKey) !== requestVersion
@@ -78,10 +78,10 @@ export function useVoucherFormula(
     const customerKey =
       product.behaviorProfile === 'CUSTOM_FINISHED'
         ? customer
-          ? `${customer.objectId}/${customer.versionId}`
+          ? `${customer.objectId}/${customer.approvalEntryId}`
           : ''
         : null
-    const productKey = `${product.objectId}/${product.versionId}`
+    const productKey = `${product.objectId}/${product.approvalEntryId}`
     if (product.behaviorProfile === 'PACKAGING') {
       line.formula = null
       line.formulaError = ''
@@ -95,10 +95,13 @@ export function useVoucherFormula(
     line.formulaLoading = true
     line.formulaError = ''
     try {
-      const { data } = await apiClient.postContract('vou/sale-order/formula-default', {
-        ...(customer ? { customer: inputReference(customer) } : {}),
-        product: { objectId: product.objectId },
-      })
+      const { data } = await apiClient.postContract(
+        'vou/sale-order/formula-default',
+        {
+          ...(customer ? { customer: inputReference(customer) } : {}),
+          product: { objectId: product.objectId },
+        },
+      )
       const current = currentRequestLine(
         index,
         lineKey,

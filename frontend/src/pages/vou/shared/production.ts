@@ -222,9 +222,12 @@ export function useVoucherProduction(
     })
     if (!product) return
     try {
-      const { data } = await apiClient.postContract('vou/self-production/formula-default', {
-        product: inputReference(product)!,
-      })
+      const { data } = await apiClient.postContract(
+        'vou/self-production/formula-default',
+        {
+          product: inputReference(product)!,
+        },
+      )
       const line = form.value.productionLines[index]
       if (
         !line ||

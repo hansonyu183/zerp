@@ -4,6 +4,7 @@
 /* eslint-disable */
 export type CustomerSnapshot = {
   sourceObjectId: string;
+  approvalEntryId: string;
   code: string;
   name: string;
   termCode?: string;

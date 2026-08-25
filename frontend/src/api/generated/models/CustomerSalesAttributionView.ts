@@ -5,7 +5,7 @@
 export type CustomerSalesAttributionView = {
   type: 'INTERNAL_EMPLOYEE' | 'EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER';
   subjectObjectId: string;
-  subjectVersionId: string;
+  subjectApprovalEntryId: string;
   subjectCode: string;
   subjectName: string;
 };

@@ -72,8 +72,8 @@ func (s *Service) resolveReturnSource(
 		var signed int64
 		var orderID, currency, customerID, customerVersion, customerCode, customerName, status string
 		err = tx.QueryRow(ctx, `SELECT sl.document_id,sd.source_order_id,d.status,d.business_date,
-			od.currency,sd.customer_object_id,sd.customer_version_id,sd.customer_code,sd.customer_name,
-			sl.product_object_id,sl.product_version_id,sl.product_code,sl.product_name,sl.entered_unit_symbol,
+			od.currency,sd.customer_object_id,sd.customer_approval_entry_id,sd.customer_code,sd.customer_name,
+			sl.product_object_id,sl.product_approval_entry_id,sl.product_code,sl.product_name,sl.entered_unit_symbol,
 			sl.signed_base_quantity_micros,sl.unit_price_cents
 			FROM vou_sale_signoff_lines sl
 			JOIN vou_sale_signoff_details sd ON sd.document_id=sl.document_id
@@ -145,8 +145,8 @@ func (s *Service) CreateSaleReturn(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	warehouse, err := s.resolver.ResolveEffectiveReference(
-		ctx, tx, bobdomain.EntityWarehouse, input.Data.Warehouse.ObjectID, input.Data.Warehouse.VersionID,
+	warehouse, err := s.resolver.ResolveApprovedReference(
+		ctx, tx, bobdomain.EntityWarehouse, input.Data.Warehouse.ObjectID, input.Data.Warehouse.ApprovalEntryID,
 	)
 	if err != nil {
 		return MutationResult{}, err
@@ -226,8 +226,8 @@ func (s *Service) SaveSaleReturn(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	warehouse, err := s.resolver.ResolveEffectiveReference(
-		ctx, tx, bobdomain.EntityWarehouse, input.Data.Warehouse.ObjectID, input.Data.Warehouse.VersionID,
+	warehouse, err := s.resolver.ResolveApprovedReference(
+		ctx, tx, bobdomain.EntityWarehouse, input.Data.Warehouse.ObjectID, input.Data.Warehouse.ApprovalEntryID,
 	)
 	if err != nil {
 		return MutationResult{}, err
@@ -239,8 +239,8 @@ func (s *Service) SaveSaleReturn(
 		return MutationResult{}, err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE vou_sale_return_details SET return_reason=$1,
-		warehouse_object_id=$2,warehouse_version_id=$3,warehouse_code=$4,warehouse_name=$5
-		WHERE document_id=$6`, reason, warehouse.ObjectID, warehouse.VersionID,
+		warehouse_object_id=$2,warehouse_approval_entry_id=$3,warehouse_code=$4,warehouse_name=$5
+		WHERE document_id=$6`, reason, warehouse.ObjectID, warehouse.ApprovalEntryID,
 		warehouse.Code, warehouse.Data.Name, input.DocumentID); err != nil {
 		return MutationResult{}, err
 	}
@@ -257,8 +257,8 @@ func (s *Service) saveRefusalReturnHeader(
 	if len(input.Data.ReturnLines) != 0 {
 		return MutationResult{}, domainError(ErrorValidation, "workflow refusal lines cannot be changed", nil, nil)
 	}
-	warehouse, err := s.resolver.ResolveEffectiveReference(
-		ctx, tx, bobdomain.EntityWarehouse, input.Data.Warehouse.ObjectID, input.Data.Warehouse.VersionID,
+	warehouse, err := s.resolver.ResolveApprovedReference(
+		ctx, tx, bobdomain.EntityWarehouse, input.Data.Warehouse.ObjectID, input.Data.Warehouse.ApprovalEntryID,
 	)
 	if err != nil {
 		return MutationResult{}, err
@@ -273,8 +273,8 @@ func (s *Service) saveRefusalReturnHeader(
 		return MutationResult{}, domainError(ErrorValidation, "return date precedes signoff", nil, nil)
 	}
 	if _, err = tx.Exec(ctx, `UPDATE vou_sale_return_details SET return_reason=$1,
-		warehouse_object_id=$2,warehouse_version_id=$3,warehouse_code=$4,warehouse_name=$5
-		WHERE document_id=$6`, reason, warehouse.ObjectID, warehouse.VersionID,
+		warehouse_object_id=$2,warehouse_approval_entry_id=$3,warehouse_code=$4,warehouse_name=$5
+		WHERE document_id=$6`, reason, warehouse.ObjectID, warehouse.ApprovalEntryID,
 		warehouse.Code, warehouse.Data.Name, input.DocumentID); err != nil {
 		return MutationResult{}, err
 	}
@@ -312,9 +312,9 @@ func (s *Service) insertSaleReturnDetail(
 	return q.InsertVouSaleReturnDetail(ctx, dbsqlc.InsertVouSaleReturnDetailParams{
 		DocumentID: id, SourceOrderID: source.orderID, SourceSignoffID: optionalText(signoffID),
 		ReturnKind: kind, ReturnReason: reason, CustomerObjectID: source.customerID,
-		CustomerVersionID: source.customerVersion, CustomerCode: source.customerCode,
+		CustomerApprovalEntryID: source.customerVersion, CustomerCode: source.customerCode,
 		CustomerName: source.customerName, WarehouseObjectID: warehouse.ObjectID,
-		WarehouseVersionID: warehouse.VersionID, WarehouseCode: warehouse.Code,
+		WarehouseApprovalEntryID: warehouse.ApprovalEntryID, WarehouseCode: warehouse.Code,
 		WarehouseName: warehouse.Data.Name,
 	})
 }
@@ -326,7 +326,7 @@ func (s *Service) insertSaleReturnLines(
 		if err := q.InsertVouSaleReturnLine(ctx, dbsqlc.InsertVouSaleReturnLineParams{
 			ID: newID(), DocumentID: id, SourceSignoffLineID: line.sourceLineID,
 			SourceSignoffID: line.signoffID, LineNo: int32(index + 1),
-			ProductObjectID: line.productID, ProductVersionID: line.productVersion,
+			ProductObjectID: line.productID, ProductApprovalEntryID: line.productVersion,
 			ProductCode: line.productCode, ProductName: line.productName, EnteredUnitSymbol: line.productUnit,
 			BaseQuantityMicros: line.quantity, UnitPriceCents: line.price, LineAmountCents: line.amount,
 			Remark: line.remark,
@@ -343,8 +343,8 @@ func (s *Service) loadSaleReturnData(
 	var customerID, customerVersion, customerCode, customerName string
 	var warehouseID, warehouseVersion, warehouseCode, warehouseName string
 	if err := s.pool.QueryRow(ctx, `SELECT return_kind,return_reason,
-		customer_object_id,customer_version_id,customer_code,customer_name,
-		warehouse_object_id,warehouse_version_id,warehouse_code,warehouse_name
+		customer_object_id,customer_approval_entry_id,customer_code,customer_name,
+		warehouse_object_id,warehouse_approval_entry_id,warehouse_code,warehouse_name
 		FROM vou_sale_return_details WHERE document_id=$1`, document.ID).Scan(
 		&data.ReturnKind, &data.ReturnReason, &customerID, &customerVersion, &customerCode, &customerName,
 		&warehouseID, &warehouseVersion, &warehouseCode, &warehouseName); err != nil {
@@ -353,7 +353,7 @@ func (s *Service) loadSaleReturnData(
 	data.Customer = reference(customerID, customerVersion, bobdomain.EntityCustomerAccount, customerCode, customerName, "", "", "")
 	data.Warehouse = reference(warehouseID, warehouseVersion, "warehouse", warehouseCode, warehouseName, "", "", "")
 	rows, err := s.pool.Query(ctx, `SELECT l.id,l.source_signoff_line_id,l.source_signoff_id,
-		s.document_no,l.line_no,l.product_object_id,l.product_version_id,l.product_code,
+		s.document_no,l.line_no,l.product_object_id,l.product_approval_entry_id,l.product_code,
 		l.product_name,l.entered_unit_symbol,l.base_quantity_micros,l.unit_price_cents,l.line_amount_cents,
 		COALESCE(l.remark,'') FROM vou_sale_return_lines l
 		JOIN vou_documents s ON s.id=l.source_signoff_id
@@ -422,9 +422,9 @@ func (s *Service) ensureRefusalReturnDraft(
 		return err
 	}
 	source.orderID, source.currency = sourceRow.SourceOrderID, deref(sourceRow.Currency)
-	source.customerID, source.customerVersion = sourceRow.CustomerObjectID, sourceRow.CustomerVersionID
+	source.customerID, source.customerVersion = sourceRow.CustomerObjectID, sourceRow.CustomerApprovalEntryID
 	source.customerCode, source.customerName = sourceRow.CustomerCode, sourceRow.CustomerName
-	warehouse.ObjectID, warehouse.VersionID = sourceRow.WarehouseObjectID, sourceRow.WarehouseVersionID
+	warehouse.ObjectID, warehouse.ApprovalEntryID = sourceRow.WarehouseObjectID, sourceRow.WarehouseApprovalEntryID
 	warehouse.Code, warehouse.Data.Name = sourceRow.WarehouseCode, sourceRow.WarehouseName
 	if sourceRow.Status != StatusApproved || date.Before(sourceRow.BusinessDate.Time) {
 		return domainError(ErrorConflict, "source signoff is not returnable", nil, nil)
@@ -435,7 +435,7 @@ func (s *Service) ensureRefusalReturnDraft(
 	}
 	for _, row := range rows {
 		var line fixedReturnLine
-		line.sourceLineID, line.productID, line.productVersion = row.ID, row.ProductObjectID, row.ProductVersionID
+		line.sourceLineID, line.productID, line.productVersion = row.ID, row.ProductObjectID, row.ProductApprovalEntryID
 		line.productCode, line.productName, line.productUnit = row.ProductCode, row.ProductName, row.EnteredUnitSymbol
 		line.quantity, line.price = row.RejectedBaseQuantityMicros, row.UnitPriceCents
 		quantity, ok := requested[line.sourceLineID]

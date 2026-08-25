@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -77,10 +78,10 @@ type partyMergeRelationship struct {
 	operatingEntityName string
 	objectRevision      int64
 	enabled             bool
-	currentVersionID    string
-	effectiveVersionID  string
-	currentStatus       string
-	currentRevision     int64
+	openApprovalEntryID string
+	latestApprovedID    string
+	visibleStatus       string
+	visibleRevision     int64
 	mergedIntoObjectID  string
 }
 
@@ -269,7 +270,7 @@ func (s *Service) PartyMergeConfirm(
 	}); markErr != nil || rows != 1 {
 		return PartyMergeResult{}, s.writeError("mark source Party merged", markErr)
 	}
-	if err = insertPartyAudit(ctx, qtx, input.SourcePartyID, "MERGED", input.SourceRevision+1, actorID, requestID); err != nil {
+	if err = insertPartyAudit(ctx, qtx, input.SourcePartyID, "MERGED", input.SourceRevision+1, actorID, requestID, tx); err != nil {
 		return PartyMergeResult{}, s.writeError("audit source Party merge", err)
 	}
 	if rows, consumeErr := qtx.ConsumePartyMergePreflight(ctx, dbsqlc.ConsumePartyMergePreflightParams{ID: input.PreflightID, ActorID: &actorID}); consumeErr != nil || rows != 1 {
@@ -346,8 +347,8 @@ func mapPartyMergeRelationships(rows []dbsqlc.ListPartyMergeRelationshipsRow) []
 		result = append(result, partyMergeRelationship{relationshipType: row.RelationshipType, objectID: row.ObjectID,
 			objectCode: row.ObjectCode, operatingEntityID: row.OperatingEntityID, operatingEntityName: row.OperatingEntityName,
 			objectRevision: row.ObjectRevision, enabled: row.Enabled,
-			currentVersionID: row.CurrentVersionID, effectiveVersionID: deref(row.EffectiveVersionID), currentStatus: row.CurrentStatus,
-			currentRevision: row.CurrentRevision, mergedIntoObjectID: deref(row.MergedIntoObjectID)})
+			openApprovalEntryID: row.OpenApprovalEntryID, latestApprovedID: row.LatestApprovedEntryID, visibleStatus: row.VisibleStatus,
+			visibleRevision: row.VisibleApprovalRevision, mergedIntoObjectID: deref(row.MergedIntoObjectID)})
 	}
 	return result
 }
@@ -369,7 +370,7 @@ func partyMergeAssessmentWithRelationships(source, target dbsqlc.LockPartyMergeP
 			result.BlockReasons = append(result.BlockReasons, "关系已合并，不能再次合并主体")
 			break
 		}
-		if !relationship.enabled || relationship.effectiveVersionID == "" || relationship.currentVersionID != relationship.effectiveVersionID || relationship.currentStatus != StatusEffective {
+		if !relationship.enabled || relationship.latestApprovedID == "" || relationship.openApprovalEntryID != "" || relationship.visibleStatus != string(approval.StatusApproved) {
 			result.BlockReasons = append(result.BlockReasons, "存在候选、失效或已停用关系，不能合并")
 			break
 		}
@@ -398,7 +399,7 @@ func partyMergeFingerprint(source, target dbsqlc.LockPartyMergePartyRow, sourceR
 		for _, relationship := range relationships {
 			parts = append(parts, fmt.Sprintf("%s:%s:%s:%s:%d:%t:%s:%s:%s:%d:%s", side, relationship.relationshipType,
 				relationship.objectID, relationship.operatingEntityID, relationship.objectRevision, relationship.enabled,
-				relationship.currentVersionID, relationship.effectiveVersionID, relationship.currentStatus, relationship.currentRevision,
+				relationship.openApprovalEntryID, relationship.latestApprovedID, relationship.visibleStatus, relationship.visibleRevision,
 				relationship.mergedIntoObjectID))
 		}
 	}

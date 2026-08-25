@@ -75,7 +75,7 @@ describe('Party 与其他单位页面编排', () => {
               operatingEntityCode: 'OPE-0001',
               operatingEntityName: '经营主体一',
               enabled: true,
-              status: 'EFFECTIVE',
+              status: 'APPROVED',
               version: 1,
             },
           ],
@@ -296,7 +296,7 @@ describe('Party 与其他单位页面编排', () => {
     })
     const vm = useOtherUnitViewModel()
     vm.keywordDraft.value = ' 律所 '
-    vm.statusDraft.value = ['EFFECTIVE']
+    vm.statusDraft.value = ['APPROVED']
     vm.operatingDraft.value = 'operating-1'
 
     expect(mocked.postContract).not.toHaveBeenCalled()
@@ -307,7 +307,7 @@ describe('Party 与其他单位页面编排', () => {
       pageSize: 20,
       filters: {
         keyword: '律所',
-        status: ['EFFECTIVE'],
+        status: ['APPROVED'],
         operatingEntityId: 'operating-1',
       },
     })
@@ -320,12 +320,20 @@ describe('Party 与其他单位页面编排', () => {
         code: 'OTU-0001',
         objectRevision: 2,
         enabled: true,
-        versionId: 'version-1',
-        version: 1,
-        status: 'DRAFT',
-        revision: 3,
-        submittedBy: null,
-        effectiveVersionId: null,
+        approval: {
+          approvalEntryId: 'version-1',
+          versionNo: 1,
+          status: 'DRAFT',
+          revision: 3,
+          createdBy: 'USER-1',
+          createdAt: '2026-08-20T00:00:00Z',
+          updatedBy: 'USER-1',
+          updatedAt: '2026-08-21T00:00:00Z',
+          submittedBy: null,
+          submittedAt: null,
+          approvedBy: null,
+          approvedAt: null,
+        },
         partyId: 'party-1',
         partyKind: 'ORGANIZATION',
         partyDisplayName: '测试主体',
@@ -349,12 +357,20 @@ describe('Party 与其他单位页面编排', () => {
         code: 'OTU-0001',
         objectRevision: 1,
         enabled: true,
-        versionId: 'stale',
-        version: 1,
-        status: 'DRAFT',
-        revision: 1,
-        submittedBy: null,
-        effectiveVersionId: null,
+        approval: {
+          approvalEntryId: 'stale',
+          versionNo: 1,
+          status: 'DRAFT',
+          revision: 1,
+          createdBy: 'USER-1',
+          createdAt: '2026-08-19T00:00:00Z',
+          updatedBy: 'USER-1',
+          updatedAt: '2026-08-20T00:00:00Z',
+          submittedBy: null,
+          submittedAt: null,
+          approvedBy: null,
+          approvedAt: null,
+        },
         partyId: 'party-1',
         partyKind: 'ORGANIZATION',
         partyDisplayName: '测试主体',
@@ -372,8 +388,8 @@ describe('Party 与其他单位页面编排', () => {
 
     expect(mocked.postContract).toHaveBeenCalledWith('bob/other-unit/save', {
       objectId: 'other-unit-1',
-      versionId: 'version-1',
-      revision: 3,
+      approvalEntryId: 'version-1',
+      approvalRevision: 3,
       data: expect.not.objectContaining({
         operatingEntityId: expect.anything(),
       }),
@@ -404,7 +420,7 @@ describe('Party 与其他单位页面编排', () => {
     vm.operatingOptions.value = [
       {
         objectId: 'operating-selected',
-        versionId: 'version-selected',
+        approvalEntryId: 'version-selected',
         code: 'OPE-0001',
         name: '已选经营主体',
         title: 'OPE-0001 · 已选经营主体',
@@ -419,8 +435,8 @@ describe('Party 与其他单位页面编排', () => {
           {
             objectId: 'operating-new',
             code: 'OPE-0002',
-            effective: {
-              versionId: 'version-new',
+            latestApproved: {
+              approval: { approvalEntryId: 'version-new' },
               summary: { name: '新结果' },
             },
           },
@@ -434,8 +450,8 @@ describe('Party 与其他单位页面编排', () => {
           {
             objectId: 'operating-old',
             code: 'OPE-0003',
-            effective: {
-              versionId: 'version-old',
+            latestApproved: {
+              approval: { approvalEntryId: 'version-old' },
               summary: { name: '旧结果' },
             },
           },

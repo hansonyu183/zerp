@@ -59,7 +59,7 @@ interface OpeningBillForm {
   valueAmount: string
   partyEntity: string
   partyObjectId: string
-  partyVersionId: string
+  partyApprovalEntryId: string
   partyCode: string
   partyName: string
 }
@@ -229,7 +229,7 @@ export function createAccountingOpeningViewModel() {
           !bill.acceptor.trim() ||
           !bill.payee.trim() ||
           !bill.partyObjectId.trim() ||
-          !bill.partyVersionId.trim())
+          !bill.partyApprovalEntryId.trim())
       ) {
         return '新建期初票据必须填写完整票据事实。'
       }
@@ -356,7 +356,7 @@ export function createAccountingOpeningViewModel() {
         valueAmount: bill.valueAmount,
         partyEntity: bill.originatingParty?.entity ?? '',
         partyObjectId: bill.originatingParty?.objectId ?? '',
-        partyVersionId: bill.originatingParty?.versionId ?? '',
+        partyApprovalEntryId: bill.originatingParty?.approvalEntryId ?? '',
         partyCode: bill.originatingParty?.code ?? '',
         partyName: bill.originatingParty?.name ?? '',
       })),
@@ -436,7 +436,7 @@ export function createAccountingOpeningViewModel() {
       valueAmount: '0.00',
       partyEntity: '',
       partyObjectId: '',
-      partyVersionId: '',
+      partyApprovalEntryId: '',
       partyCode: '',
       partyName: '',
     })
@@ -516,7 +516,7 @@ export function createAccountingOpeningViewModel() {
             createObject: _create,
             partyEntity,
             partyObjectId,
-            partyVersionId,
+            partyApprovalEntryId,
             partyCode,
             partyName,
             ...bill
@@ -529,7 +529,7 @@ export function createAccountingOpeningViewModel() {
                   originatingParty: {
                     entity: partyEntity.trim(),
                     objectId: partyObjectId.trim(),
-                    versionId: partyVersionId.trim(),
+                    approvalEntryId: partyApprovalEntryId.trim(),
                     code: partyCode.trim(),
                     name: partyName.trim(),
                   },

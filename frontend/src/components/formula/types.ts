@@ -1,6 +1,6 @@
 export interface FormulaUnitSnapshot {
   objectId: string
-  versionId?: string
+  approvalEntryId?: string
   code?: string
   name?: string
   symbol?: string
@@ -13,7 +13,7 @@ export interface FormulaUnitConversion {
 
 export interface FormulaMaterialReference {
   objectId: string
-  versionId: string
+  approvalEntryId: string
   entity?: string
   code: string
   name: string

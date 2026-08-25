@@ -134,7 +134,7 @@ func TestApprovedExistingRootUsesStartedPublishedRevisionAcrossRootKeyChangeAndN
 	}
 	if _, err = fixtureTx.Exec(ctx, `
 		INSERT INTO vou_expense_reimbursement_details(
-			document_id,employee_object_id,employee_version_id,employee_code,employee_name
+			document_id,employee_object_id,employee_approval_entry_id,employee_code,employee_name
 		) VALUES
 			($1,$3,$4,'fixture-employee','测试员工'),
 			($2,$3,$4,'fixture-employee','测试员工')
@@ -144,8 +144,8 @@ func TestApprovedExistingRootUsesStartedPublishedRevisionAcrossRootKeyChangeAndN
 	if _, err = fixtureTx.Exec(ctx, `
 		INSERT INTO vou_expense_payment_details(
 			document_id,source_reimbursement_id,
-			employee_object_id,employee_version_id,employee_code,employee_name,
-			fund_account_object_id,fund_account_version_id,fund_account_code,fund_account_name
+			employee_object_id,employee_approval_entry_id,employee_code,employee_name,
+			fund_account_object_id,fund_account_approval_entry_id,fund_account_code,fund_account_name
 		) VALUES
 			($1,$3,$5,$6,'fixture-employee','测试员工',$7,$8,'fixture-fund','测试资金账户'),
 			($2,$4,$5,$6,'fixture-employee','测试员工',$7,$8,'fixture-fund','测试资金账户')

@@ -16,15 +16,24 @@ function enabledWarehouse(): BobListItem {
     code: 'WHS-0001',
     objectRevision: 3,
     enabled: true,
-    effective: {
-      versionId: '01J00000000000000000000002',
-      version: 1,
-      status: 'EFFECTIVE',
-      revision: 2,
-      submittedBy: null,
+    latestApproved: {
+      approval: {
+        approvalEntryId: '01J00000000000000000000002',
+        versionNo: 1,
+        status: 'APPROVED',
+        revision: 2,
+        createdBy: 'USER-1',
+        createdAt: '2026-08-25T00:00:00Z',
+        updatedBy: 'USER-2',
+        updatedAt: '2026-08-25T00:00:00Z',
+        submittedBy: 'USER-1',
+        submittedAt: '2026-08-25T00:00:00Z',
+        approvedBy: 'USER-2',
+        approvedAt: '2026-08-25T00:00:00Z',
+      },
       summary: { name: '测试仓库' },
     },
-    candidate: null,
+    openVersion: null,
     updatedAt: '2026-08-25T00:00:00Z',
   }
 }

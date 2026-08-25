@@ -180,15 +180,26 @@ AuxApprovalRevisionRequest:
       minimum: 1
 
 AuxReviewRequest:
-  allOf:
-    - $ref: '#/AuxApprovalRevisionRequest'
-    - type: object
-      required: [reason]
-      properties:
-        reason:
-          type: string
-          nullable: true
-          maxLength: 1000
+  type: object
+  additionalProperties: false
+  required: [objectId, approvalEntryId, approvalRevision, reason]
+  properties:
+    objectId:
+      type: string
+      minLength: 26
+      maxLength: 26
+    approvalEntryId:
+      type: string
+      minLength: 26
+      maxLength: 26
+    approvalRevision:
+      type: integer
+      format: int64
+      minimum: 1
+    reason:
+      type: string
+      nullable: true
+      maxLength: 1000
 
 AuxObjectRevisionRequest:
   type: object

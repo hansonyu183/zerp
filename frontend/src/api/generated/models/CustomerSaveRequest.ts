@@ -6,6 +6,6 @@ import type { CustomerAccountInput } from './CustomerAccountInput';
 export type CustomerSaveRequest = {
   objectId: string;
   approvalEntryId: string;
-  revision: number;
+  approvalRevision: number;
   data: CustomerAccountInput;
 };

@@ -7,10 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"time"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -42,8 +44,8 @@ type SupplierData struct {
 }
 
 type SupplierVersionView struct {
-	Version VersionMeta  `json:"version"`
-	Data    SupplierData `json:"data"`
+	Approval VersionMeta  `json:"approval"`
+	Data     SupplierData `json:"data"`
 }
 
 type SupplierDetailView struct {
@@ -57,19 +59,15 @@ type SupplierDetailView struct {
 	OperatingEntityID   string               `json:"operatingEntityId"`
 	OperatingEntityCode string               `json:"operatingEntityCode"`
 	OperatingEntityName string               `json:"operatingEntityName"`
-	Effective           *SupplierVersionView `json:"effective"`
-	Candidate           *SupplierVersionView `json:"candidate"`
+	LatestApproved      *SupplierVersionView `json:"latestApproved"`
+	OpenVersion         *SupplierVersionView `json:"openVersion"`
 	UpdatedAt           time.Time            `json:"updatedAt"`
 }
 
 type SupplierListVersion struct {
-	VersionID            string  `json:"versionId"`
-	Version              int32   `json:"version"`
-	Status               string  `json:"status"`
-	Revision             int64   `json:"revision"`
-	DefaultPurchaserCode string  `json:"defaultPurchaserCode,omitempty"`
-	DefaultPurchaserName string  `json:"defaultPurchaserName,omitempty"`
-	SubmittedBy          *string `json:"submittedBy"`
+	Approval             approval.VersionMeta `json:"approval"`
+	DefaultPurchaserCode string               `json:"defaultPurchaserCode,omitempty"`
+	DefaultPurchaserName string               `json:"defaultPurchaserName,omitempty"`
 }
 
 type SupplierListItem struct {
@@ -83,8 +81,8 @@ type SupplierListItem struct {
 	OperatingEntityID   string               `json:"operatingEntityId"`
 	OperatingEntityCode string               `json:"operatingEntityCode"`
 	OperatingEntityName string               `json:"operatingEntityName"`
-	Effective           *SupplierListVersion `json:"effective"`
-	Candidate           *SupplierListVersion `json:"candidate"`
+	LatestApproved      *SupplierListVersion `json:"latestApproved"`
+	OpenVersion         *SupplierListVersion `json:"openVersion"`
 	UpdatedAt           time.Time            `json:"updatedAt"`
 }
 
@@ -100,10 +98,10 @@ type SupplierCreateResult struct {
 }
 
 type SupplierSaveInput struct {
-	ObjectID  string       `json:"objectId"`
-	VersionID string       `json:"versionId"`
-	Revision  int64        `json:"revision"`
-	Data      SupplierData `json:"data"`
+	ObjectID         string       `json:"objectId"`
+	ApprovalEntryID  string       `json:"approvalEntryId"`
+	ApprovalRevision int64        `json:"approvalRevision"`
+	Data             SupplierData `json:"data"`
 }
 
 func (data *SupplierData) UnmarshalJSON(raw []byte) error {
@@ -232,45 +230,48 @@ func (s *Service) SupplierQuery(ctx context.Context, input QueryInput) (Page[Sup
 			enabledFilter = 0
 		}
 	}
-	params := dbsqlc.CountBobSuppliersParams{Keyword: strings.TrimSpace(input.Filters.Keyword), Statuses: statuses,
-		EnabledFilter:              enabledFilter,
-		DefaultPurchaserEmployeeID: input.Filters.DefaultPurchaserEmployeeID}
-	total, err := s.queries.CountBobSuppliers(ctx, params)
+	params := dbsqlc.CountBobObjectsParams{Entity: EntitySupplier, Keyword: strings.TrimSpace(input.Filters.Keyword), EnabledFilter: enabledFilter, StatusFilter: statuses}
+	total, err := s.queries.CountBobObjects(ctx, params)
 	if err != nil {
 		return Page[SupplierListItem]{}, s.internal("count suppliers", err)
 	}
-	rows, err := s.queries.ListBobSuppliers(ctx, dbsqlc.ListBobSuppliersParams{Keyword: params.Keyword,
-		Statuses: statuses, EnabledFilter: enabledFilter,
-		DefaultPurchaserEmployeeID: params.DefaultPurchaserEmployeeID,
-		RowOffset:                  int32((input.Page - 1) * input.PageSize), RowLimit: int32(input.PageSize)})
+	rows, err := s.queries.ListBobObjects(ctx, dbsqlc.ListBobObjectsParams{Entity: EntitySupplier, Keyword: params.Keyword, EnabledFilter: enabledFilter, StatusFilter: statuses, RowOffset: int32((input.Page - 1) * input.PageSize), RowLimit: int32(input.PageSize)})
 	if err != nil {
 		return Page[SupplierListItem]{}, s.internal("list suppliers", err)
 	}
 	items := make([]SupplierListItem, 0, len(rows))
 	for _, row := range rows {
-		item := SupplierListItem{ObjectID: row.ObjectID, Code: row.Code, ObjectRevision: row.ObjectRevision,
-			Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time, PartyID: row.PartyID,
-			PartyKind: row.PartyKind, PartyDisplayName: row.PartyDisplayName,
-			OperatingEntityID: row.OperatingEntityID, OperatingEntityCode: row.OperatingEntityCode,
-			OperatingEntityName: row.OperatingEntityName}
-		if row.EffectiveVersionID != nil {
-			item.Effective = &SupplierListVersion{VersionID: *row.EffectiveVersionID, Version: *row.EffectiveVersionNo,
-				Status: deref(row.EffectiveStatus), Revision: *row.EffectiveRevision,
-				DefaultPurchaserCode: row.EffectiveDefaultPurchaserCode,
-				DefaultPurchaserName: row.EffectiveDefaultPurchaserName, SubmittedBy: row.EffectiveSubmittedBy}
+		item := SupplierListItem{ObjectID: row.ObjectID, Code: row.Code, ObjectRevision: row.ObjectRevision, Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time}
+		identity, identityErr := s.supplierIdentity(ctx, row.ObjectID)
+		if identityErr != nil {
+			return Page[SupplierListItem]{}, identityErr
 		}
-		if row.CandidateVersionID != nil {
-			item.Candidate = &SupplierListVersion{VersionID: *row.CandidateVersionID, Version: *row.CandidateVersionNo,
-				Status: deref(row.CandidateStatus), Revision: *row.CandidateRevision,
-				DefaultPurchaserCode: row.CandidateDefaultPurchaserCode,
-				DefaultPurchaserName: row.CandidateDefaultPurchaserName, SubmittedBy: row.CandidateSubmittedBy}
+		item.PartyID, item.PartyKind, item.PartyDisplayName = identity.PartyID, identity.PartyKind, identity.PartyDisplayName
+		item.OperatingEntityID, item.OperatingEntityCode, item.OperatingEntityName = identity.OperatingEntityID, identity.OperatingEntityCode, identity.OperatingEntityName
+		if row.ApprovalEntryID != "" {
+			version, loadErr := s.loadSupplierVersion(ctx, row.ApprovalEntryID)
+			if loadErr != nil {
+				return Page[SupplierListItem]{}, loadErr
+			}
+			item.LatestApproved = &SupplierListVersion{Approval: version.Approval}
+		}
+		if row.OpenApprovalEntryID != "" {
+			version, loadErr := s.loadSupplierVersion(ctx, row.OpenApprovalEntryID)
+			if loadErr != nil {
+				return Page[SupplierListItem]{}, loadErr
+			}
+			item.OpenVersion = &SupplierListVersion{Approval: version.Approval}
+		}
+		if len(statuses) > 0 && (item.OpenVersion == nil || !slices.Contains(statuses, string(item.OpenVersion.Approval.Status))) && (item.LatestApproved == nil || !slices.Contains(statuses, string(item.LatestApproved.Approval.Status))) {
+			continue
 		}
 		items = append(items, item)
 	}
 	return Page[SupplierListItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
 
-func (s *Service) SupplierCreate(ctx context.Context, input SupplierCreateInput, actorID, requestID string, canReadMatchedParty bool) (SupplierCreateResult, error) {
+func (s *Service) SupplierCreate(ctx context.Context, input SupplierCreateInput, actor approval.Actor, canReadMatchedParty bool) (SupplierCreateResult, error) {
+	actorID, requestID := actor.ID(), actor.RequestID()
 	if !validActorAndRequest(actorID, requestID) || !validID(input.Data.OperatingEntityID) ||
 		(input.PartyID == "") == (input.NewParty == nil) {
 		return SupplierCreateResult{}, domainError(ErrorValidation, "invalid supplier create", nil, nil)
@@ -281,13 +282,11 @@ func (s *Service) SupplierCreate(ctx context.Context, input SupplierCreateInput,
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.queries.WithTx(tx)
-	if _, err = qtx.ResolveCustomerOperatingEntity(ctx, input.Data.OperatingEntityID); errors.Is(err, pgx.ErrNoRows) {
-		return SupplierCreateResult{}, domainError(ErrorConflict, "经营主体不可用", nil, nil)
-	} else if err != nil {
-		return SupplierCreateResult{}, s.internal("resolve operating entity", err)
+	if _, err = s.ResolveLatestApprovedReference(ctx, tx, EntityOperatingEntity, input.Data.OperatingEntityID); err != nil {
+		return SupplierCreateResult{}, domainError(ErrorConflict, "经营主体不可用", nil, err)
 	}
 	party, err := s.resolveOrCreateRelationshipParty(ctx, qtx, input.PartyID, input.NewParty,
-		actorID, requestID, canReadMatchedParty)
+		actorID, requestID, canReadMatchedParty, tx)
 	if err != nil {
 		return SupplierCreateResult{}, err
 	}
@@ -304,48 +303,64 @@ func (s *Service) SupplierCreate(ctx context.Context, input SupplierCreateInput,
 	if err != nil {
 		return SupplierCreateResult{}, s.writeError("allocate supplier number", err)
 	}
-	objectID, versionID := newID(), newID()
+	objectID := newID()
 	if err = qtx.InsertBobObject(ctx, dbsqlc.InsertBobObjectParams{ID: objectID, Entity: EntitySupplier,
-		Code: fmt.Sprintf("SUP-%04d", counter), CurrentVersionID: versionID, ActorID: actorID}); err != nil {
+		Code: fmt.Sprintf("SUP-%04d", counter), ActorID: actorID}); err != nil {
 		return SupplierCreateResult{}, s.writeError("insert supplier", err)
 	}
-	if err = qtx.InsertBobVersion(ctx, dbsqlc.InsertBobVersionParams{ID: versionID, ObjectID: objectID,
-		Entity: EntitySupplier, VersionNo: 1, ActorID: actorID}); err != nil {
-		return SupplierCreateResult{}, s.writeError("insert supplier version", err)
+	entry, err := s.createFirstApproval(ctx, tx, EntitySupplier, objectID, fmt.Sprintf("SUP-%04d", counter), true, actor)
+	if err != nil {
+		return SupplierCreateResult{}, translateApprovalError(err)
 	}
 	if err = qtx.InsertBobSupplierRelationship(ctx, dbsqlc.InsertBobSupplierRelationshipParams{
 		ObjectID: objectID, PartyID: party.ID, OperatingEntityID: input.Data.OperatingEntityID, ActorID: actorID,
 	}); err != nil {
 		return SupplierCreateResult{}, s.writeError("insert Supplier Relationship", err)
 	}
-	if err = insertSupplierData(ctx, qtx, versionID, data); err != nil {
+	if err = insertDetail(ctx, qtx, EntitySupplier, entry.ID, supplierDetail(data)); err != nil {
 		return SupplierCreateResult{}, s.writeError("insert supplier detail", err)
-	}
-	if err = insertAudit(ctx, qtx, auditInput{ObjectID: objectID, VersionID: versionID, Entity: EntitySupplier,
-		Event: "CREATED", To: StatusDraft, ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"fields": []string{"code", "settlementMethodId", "defaultPurchaserEmployeeId"}}}); err != nil {
-		return SupplierCreateResult{}, s.writeError("audit supplier create", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return SupplierCreateResult{}, s.writeError("commit supplier create", err)
 	}
-	return SupplierCreateResult{MutationResult: MutationResult{ObjectID: objectID, ObjectRevision: 1, Enabled: true,
-		VersionID: versionID, Version: 1, Status: StatusDraft, Revision: 1}, PartyID: party.ID}, nil
+	return SupplierCreateResult{MutationResult: approvalMutation(objectID, 1, true, entry), PartyID: party.ID}, nil
 }
 
-func (s *Service) SupplierSave(ctx context.Context, input SupplierSaveInput, actorID, requestID string) (MutationResult, error) {
-	if !validWriteInput(EntitySupplier, input.ObjectID, input.VersionID, input.Revision, actorID, requestID) {
+func (s *Service) SupplierSave(ctx context.Context, input SupplierSaveInput, actor approval.Actor) (MutationResult, error) {
+	actorID, requestID := actor.ID(), actor.RequestID()
+	if !validWriteInput(EntitySupplier, input.ObjectID, input.ApprovalEntryID, input.ApprovalRevision, actorID, requestID) {
 		return MutationResult{}, domainError(ErrorValidation, "invalid supplier save", nil, nil)
 	}
-	tx, qtx, object, version, err := s.lockTarget(ctx, EntitySupplier, input.ObjectID, input.VersionID)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return MutationResult{}, s.internal("begin supplier save", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	qtx := s.queries.WithTx(tx)
+	object, err := qtx.LockBobObject(ctx, dbsqlc.LockBobObjectParams{ObjectID: input.ObjectID, Entity: EntitySupplier})
+	if err != nil {
+		return MutationResult{}, s.internal("lock supplier", err)
+	}
+	entry, err := s.entryForObject(ctx, qtx, EntitySupplier, input.ObjectID, input.ApprovalEntryID)
 	if err != nil {
 		return MutationResult{}, err
 	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-	if object.CurrentVersionID != input.VersionID || version.Revision != input.Revision {
-		return MutationResult{}, conflict(object, version, "supplier changed before save")
+	if entry.Revision != input.ApprovalRevision {
+		return MutationResult{}, domainError(ErrorConflict, "supplier changed before save", nil, nil)
 	}
-	current, err := loadSupplierVersionWithQueries(ctx, qtx, input.ObjectID, input.VersionID)
+	target := approvalEntry(entry)
+	if approval.Status(entry.Status) == approval.StatusApproved {
+		target, err = s.createNextApproval(ctx, tx, EntitySupplier, input.ObjectID, object.Code, object.Enabled, actor)
+		if err == nil {
+			err = copyDetail(ctx, qtx, EntitySupplier, target.ID, entry.ID)
+		}
+		if err != nil {
+			return MutationResult{}, s.writeError("copy supplier approval payload", err)
+		}
+	} else if approval.Status(entry.Status) != approval.StatusDraft {
+		return MutationResult{}, domainError(ErrorConflict, "only a draft or latest approved version can be saved", nil, nil)
+	}
+	current, err := loadSupplierVersionWithQueries(ctx, qtx, target.ID)
 	if err != nil {
 		return MutationResult{}, s.internal("load supplier before save", err)
 	}
@@ -360,67 +375,28 @@ func (s *Service) SupplierSave(ctx context.Context, input SupplierSaveInput, act
 	if err != nil {
 		return MutationResult{}, err
 	}
-	targetVersionID, targetVersionNo := input.VersionID, version.VersionNo
-	objectRevision := object.Revision
-	createdCandidate := false
-	if version.Status == StatusEffective && object.EffectiveVersionID != nil && *object.EffectiveVersionID == input.VersionID {
-		targetVersionID, targetVersionNo = newID(), object.NextVersionNo
-		if err = qtx.InsertBobVersion(ctx, dbsqlc.InsertBobVersionParams{ID: targetVersionID, ObjectID: input.ObjectID,
-			Entity: EntitySupplier, VersionNo: targetVersionNo, ActorID: actorID}); err != nil {
-			return MutationResult{}, s.writeError("insert supplier candidate", err)
-		}
-		rows, advanceErr := qtx.AdvanceBobSupplierCandidate(ctx, dbsqlc.AdvanceBobSupplierCandidateParams{VersionID: targetVersionID,
-			ActorID: actorID, ObjectID: input.ObjectID, Revision: object.Revision, CurrentVersionID: input.VersionID})
-		if advanceErr != nil || rows != 1 {
-			return MutationResult{}, conflict(object, version, "supplier changed before save")
-		}
-		objectRevision++
-		createdCandidate = true
-	} else if version.Status != StatusDraft || (object.EffectiveVersionID != nil && object.CurrentVersionID == *object.EffectiveVersionID) {
-		return MutationResult{}, conflict(object, version, "supplier changed before save")
+	if err = updateDetail(ctx, qtx, EntitySupplier, target.ID, supplierDetail(data)); err != nil {
+		return MutationResult{}, s.writeError("update supplier payload", err)
 	}
-	if createdCandidate {
-		if err = insertSupplierData(ctx, qtx, targetVersionID, data); err != nil {
-			return MutationResult{}, s.writeError("insert supplier candidate detail", err)
-		}
-	} else {
-		if err = updateSupplierData(ctx, qtx, targetVersionID, data); err != nil {
-			return MutationResult{}, s.writeError("update supplier detail", err)
-		}
-		rows, saveErr := qtx.MarkBobVersionSaved(ctx, dbsqlc.MarkBobVersionSavedParams{ActorID: actorID,
-			ID: targetVersionID, ObjectID: input.ObjectID, Entity: EntitySupplier, Revision: input.Revision})
-		if saveErr != nil || rows != 1 {
-			return MutationResult{}, conflict(object, version, "supplier changed before save")
-		}
-		if err = qtx.TouchBobObject(ctx, dbsqlc.TouchBobObjectParams{ActorID: actorID, ID: input.ObjectID, Entity: EntitySupplier}); err != nil {
-			return MutationResult{}, s.internal("touch supplier", err)
-		}
+	target, err = s.transitionApproval(ctx, tx, EntitySupplier, input.ObjectID, object.Code, object.Enabled, target.ID, target.Revision, approval.ActionSaved, "", actor)
+	if err != nil {
+		return MutationResult{}, translateApprovalError(err)
 	}
-	event := "SAVED"
-	if createdCandidate {
-		event = "CREATED"
-	}
-	if err = insertAudit(ctx, qtx, auditInput{ObjectID: input.ObjectID, VersionID: targetVersionID,
-		Entity: EntitySupplier, Event: event, To: StatusDraft, ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"fields": []string{"name", "settlementMethodId", "defaultPurchaserEmployeeId"}}}); err != nil {
-		return MutationResult{}, s.writeError("audit supplier save", err)
+	touched, err := qtx.TouchBobObject(ctx, dbsqlc.TouchBobObjectParams{ActorID: actorID, ObjectID: input.ObjectID, Entity: EntitySupplier})
+	if err != nil {
+		return MutationResult{}, s.writeError("touch supplier", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit supplier save", err)
 	}
-	revision := input.Revision + 1
-	if createdCandidate {
-		revision = 1
-	}
-	return MutationResult{ObjectID: input.ObjectID, ObjectRevision: objectRevision, Enabled: object.Enabled,
-		VersionID: targetVersionID, Version: targetVersionNo, Status: StatusDraft, Revision: revision}, nil
+	return approvalMutation(touched.ID, touched.Revision, touched.Enabled, target), nil
 }
 
 func (s *Service) SupplierGet(ctx context.Context, input GetInput) (SupplierDetailView, error) {
-	if !validID(input.ObjectID) || (input.VersionID != "" && !validID(input.VersionID)) {
+	if !validID(input.ObjectID) || (input.ApprovalEntryID != "" && !validID(input.ApprovalEntryID)) {
 		return SupplierDetailView{}, domainError(ErrorValidation, "invalid supplier", nil, nil)
 	}
-	row, err := s.queries.GetBobSupplierDetail(ctx, input.ObjectID)
+	row, err := s.queries.GetBobObject(ctx, dbsqlc.GetBobObjectParams{ObjectID: input.ObjectID, Entity: EntitySupplier})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return SupplierDetailView{}, domainError(ErrorValidation, "supplier not found", nil, nil)
 	}
@@ -429,7 +405,7 @@ func (s *Service) SupplierGet(ctx context.Context, input GetInput) (SupplierDeta
 	}
 	result := SupplierDetailView{ObjectID: row.ID, Code: row.Code, ObjectRevision: row.Revision,
 		Enabled: row.Enabled, UpdatedAt: row.UpdatedAt.Time}
-	identity, err := s.queries.GetBobSupplierRelationshipIdentity(ctx, input.ObjectID)
+	identity, err := s.supplierIdentity(ctx, input.ObjectID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return SupplierDetailView{}, domainError(ErrorConflict, "supplier relationship is unavailable", nil, nil)
 	}
@@ -439,31 +415,36 @@ func (s *Service) SupplierGet(ctx context.Context, input GetInput) (SupplierDeta
 	result.PartyID, result.PartyKind, result.PartyDisplayName = identity.PartyID, identity.PartyKind, identity.PartyDisplayName
 	result.OperatingEntityID, result.OperatingEntityCode, result.OperatingEntityName = identity.OperatingEntityID,
 		identity.OperatingEntityCode, identity.OperatingEntityName
-	if input.VersionID != "" {
-		version, loadErr := s.loadSupplierVersion(ctx, input.ObjectID, input.VersionID)
+	entryID := input.ApprovalEntryID
+	if entryID != "" {
+		version, loadErr := s.loadSupplierVersion(ctx, entryID)
 		if loadErr != nil {
 			return SupplierDetailView{}, loadErr
 		}
-		if version.Version.Status == StatusEffective || version.Version.Status == StatusInvalid {
-			result.Effective = &version
+		if version.Approval.Status == approval.StatusApproved {
+			result.LatestApproved = &version
 		} else {
-			result.Candidate = &version
+			result.OpenVersion = &version
 		}
 		return result, nil
 	}
-	if row.EffectiveVersionID != nil {
-		version, loadErr := s.loadSupplierVersion(ctx, input.ObjectID, *row.EffectiveVersionID)
+	if entry, latestErr := s.queries.GetBobLatestApprovedEntry(ctx, dbsqlc.GetBobLatestApprovedEntryParams{Entity: EntitySupplier, ObjectID: input.ObjectID}); latestErr == nil {
+		version, loadErr := s.loadSupplierVersion(ctx, entry.ID)
 		if loadErr != nil {
 			return SupplierDetailView{}, loadErr
 		}
-		result.Effective = &version
+		result.LatestApproved = &version
+	} else if !errors.Is(latestErr, pgx.ErrNoRows) {
+		return SupplierDetailView{}, s.internal("get latest approved supplier", latestErr)
 	}
-	if row.EffectiveVersionID == nil || row.CurrentVersionID != *row.EffectiveVersionID {
-		version, loadErr := s.loadSupplierVersion(ctx, input.ObjectID, row.CurrentVersionID)
+	if entry, openErr := s.queries.GetBobOpenEntry(ctx, dbsqlc.GetBobOpenEntryParams{Entity: EntitySupplier, ObjectID: input.ObjectID}); openErr == nil {
+		version, loadErr := s.loadSupplierVersion(ctx, entry.ID)
 		if loadErr != nil {
 			return SupplierDetailView{}, loadErr
 		}
-		result.Candidate = &version
+		result.OpenVersion = &version
+	} else if !errors.Is(openErr, pgx.ErrNoRows) {
+		return SupplierDetailView{}, s.internal("get open supplier", openErr)
 	}
 	return result, nil
 }
@@ -480,52 +461,15 @@ func (s *Service) resolveSupplierReferences(ctx context.Context, tx pgx.Tx, data
 			DayOfMonth: int32(mapInt(reference.Data, "dayOfMonth")), DayOffset: int32(mapInt(reference.Data, "dayOffset"))}
 	}
 	if data.DefaultPurchaserEmployeeID != "" {
-		if _, err := s.ResolveCurrentEffectiveReference(ctx, tx, EntityEmployee, data.DefaultPurchaserEmployeeID); err != nil {
+		if _, err := s.ResolveLatestApprovedReference(ctx, tx, EntityEmployee, data.DefaultPurchaserEmployeeID); err != nil {
 			return SupplierData{}, domainError(ErrorConflict, "default purchaser reference is unavailable", nil, err)
 		}
 	}
 	return data, nil
 }
 
-func insertSupplierData(ctx context.Context, q *dbsqlc.Queries, versionID string, data SupplierData) error {
-	var snapshot SupplierSettlementSnapshot
-	if data.SettlementMethod != nil {
-		snapshot = *data.SettlementMethod
-	}
-	return q.InsertBobSupplierDetail(ctx, dbsqlc.InsertBobSupplierDetailParams{VersionID: versionID,
-		Name: data.Name, ShortName: nilIfEmpty(data.ShortName), TaxNumber: nilIfEmpty(data.TaxNumber),
-		ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email),
-		Address: nilIfEmpty(data.Address), Remark: nilIfEmpty(data.Remark), SettlementMethodID: nilIfEmpty(data.SettlementMethodID),
-		SettlementMethodCode: nilIfEmpty(snapshot.Code), SettlementMethodName: nilIfEmpty(snapshot.Name),
-		SettlementTermCode: nilIfEmpty(snapshot.TermCode), SettlementRuleType: nilIfEmpty(snapshot.RuleType),
-		SettlementMonthOffset: snapshot.MonthOffset, SettlementDayOfMonth: snapshot.DayOfMonth,
-		SettlementDayOffset: snapshot.DayOffset, DefaultPurchaserEmployeeID: nilIfEmpty(data.DefaultPurchaserEmployeeID)})
-}
-
-func updateSupplierData(ctx context.Context, q *dbsqlc.Queries, versionID string, data SupplierData) error {
-	var snapshot SupplierSettlementSnapshot
-	if data.SettlementMethod != nil {
-		snapshot = *data.SettlementMethod
-	}
-	rows, err := q.UpdateBobSupplierDetail(ctx, dbsqlc.UpdateBobSupplierDetailParams{VersionID: versionID,
-		Name: data.Name, ShortName: nilIfEmpty(data.ShortName), TaxNumber: nilIfEmpty(data.TaxNumber),
-		ContactName: nilIfEmpty(data.ContactName), ContactPhone: nilIfEmpty(data.ContactPhone), Email: nilIfEmpty(data.Email),
-		Address: nilIfEmpty(data.Address), Remark: nilIfEmpty(data.Remark), SettlementMethodID: nilIfEmpty(data.SettlementMethodID),
-		SettlementMethodCode: nilIfEmpty(snapshot.Code), SettlementMethodName: nilIfEmpty(snapshot.Name),
-		SettlementTermCode: nilIfEmpty(snapshot.TermCode), SettlementRuleType: nilIfEmpty(snapshot.RuleType),
-		SettlementMonthOffset: snapshot.MonthOffset, SettlementDayOfMonth: snapshot.DayOfMonth,
-		SettlementDayOffset: snapshot.DayOffset, DefaultPurchaserEmployeeID: nilIfEmpty(data.DefaultPurchaserEmployeeID)})
-	if err != nil {
-		return err
-	}
-	if rows != 1 {
-		return errors.New("supplier detail changed")
-	}
-	return nil
-}
-
-func (s *Service) loadSupplierVersion(ctx context.Context, objectID, versionID string) (SupplierVersionView, error) {
-	result, err := loadSupplierVersionWithQueries(ctx, s.queries, objectID, versionID)
+func (s *Service) loadSupplierVersion(ctx context.Context, entryID string) (SupplierVersionView, error) {
+	result, err := loadSupplierVersionWithQueries(ctx, s.queries, entryID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return SupplierVersionView{}, domainError(ErrorValidation, "supplier version not found", nil, nil)
 	}
@@ -535,23 +479,45 @@ func (s *Service) loadSupplierVersion(ctx context.Context, objectID, versionID s
 	return result, nil
 }
 
-func loadSupplierVersionWithQueries(ctx context.Context, q *dbsqlc.Queries, objectID, versionID string) (SupplierVersionView, error) {
-	row, err := q.GetBobSupplierVersion(ctx, dbsqlc.GetBobSupplierVersionParams{ObjectID: objectID, VersionID: versionID})
+func loadSupplierVersionWithQueries(ctx context.Context, q *dbsqlc.Queries, entryID string) (SupplierVersionView, error) {
+	entry, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: entryID, Domain: "bob", Entity: EntitySupplier})
 	if err != nil {
 		return SupplierVersionView{}, err
 	}
-	data := SupplierData{Name: row.Name, ShortName: row.ShortName,
-		TaxNumber: row.TaxNumber, ContactName: row.ContactName, ContactPhone: row.ContactPhone, Email: row.Email,
-		Address: row.Address, Remark: row.Remark, SettlementMethodID: row.SettlementMethodID,
-		DefaultPurchaserEmployeeID: row.DefaultPurchaserEmployeeID}
-	if row.SettlementMethodID != "" {
-		data.SettlementMethod = &SupplierSettlementSnapshot{SourceObjectID: row.SettlementMethodID,
-			Code: row.SettlementMethodCode, Name: row.SettlementMethodName, TermCode: row.SettlementTermCode,
-			RuleType: row.SettlementRuleType, MonthOffset: row.SettlementMonthOffset,
-			DayOfMonth: row.SettlementDayOfMonth, DayOffset: row.SettlementDayOffset}
+	detail, err := loadDetail(ctx, q, EntitySupplier, entryID)
+	if err != nil {
+		return SupplierVersionView{}, err
 	}
-	return SupplierVersionView{Version: VersionMeta{VersionID: row.ID, Version: row.VersionNo, Status: row.Status,
-		Revision: row.Revision, CreatedAt: row.CreatedAt.Time, CreatedBy: row.CreatedBy, UpdatedAt: row.UpdatedAt.Time,
-		UpdatedBy: row.UpdatedBy, SubmittedAt: timePointer(row.SubmittedAt), SubmittedBy: row.SubmittedBy,
-		ReviewedAt: timePointer(row.ReviewedAt), ReviewedBy: row.ReviewedBy, ReviewComment: row.ReviewComment}, Data: data}, nil
+	data := SupplierData{Name: detail.Name, ShortName: detail.ShortName,
+		TaxNumber: detail.TaxNumber, ContactName: detail.ContactName, ContactPhone: detail.ContactPhone, Email: detail.Email,
+		Address: detail.Address, Remark: detail.Remark, SettlementMethodID: detail.SettlementMethodID,
+		DefaultPurchaserEmployeeID: detail.DefaultPurchaserEmployeeID}
+	if detail.SettlementMethodID != "" {
+		data.SettlementMethod = &SupplierSettlementSnapshot{SourceObjectID: detail.SettlementMethodID,
+			Code: detail.SettlementMethodCode, Name: detail.SettlementMethodName, TermCode: detail.TermCode,
+			RuleType: detail.RuleType, MonthOffset: detail.MonthOffset,
+			DayOfMonth: derefInt32(detail.DayOfMonth), DayOffset: detail.DayOffset}
+	}
+	return SupplierVersionView{Approval: approvalMeta(entry), Data: data}, nil
+}
+
+func supplierDetail(data SupplierData) DetailView {
+	result := DetailView{Name: data.Name, ShortName: data.ShortName, TaxNumber: data.TaxNumber, ContactName: data.ContactName, ContactPhone: data.ContactPhone, Email: data.Email, Address: data.Address, Remark: data.Remark, SettlementMethodID: data.SettlementMethodID, DefaultPurchaserEmployeeID: data.DefaultPurchaserEmployeeID}
+	if data.SettlementMethod != nil {
+		result.SettlementMethodCode, result.SettlementMethodName, result.TermCode, result.RuleType, result.MonthOffset, result.DayOffset = data.SettlementMethod.Code, data.SettlementMethod.Name, data.SettlementMethod.TermCode, data.SettlementMethod.RuleType, data.SettlementMethod.MonthOffset, data.SettlementMethod.DayOffset
+		result.DayOfMonth = &data.SettlementMethod.DayOfMonth
+	}
+	return result
+}
+
+func (s *Service) supplierIdentity(ctx context.Context, objectID string) (RelationshipIdentityView, error) {
+	relationship, err := s.queries.GetBobSupplierRelationship(ctx, objectID)
+	if err != nil {
+		return RelationshipIdentityView{}, s.internal("get supplier relationship", err)
+	}
+	party, err := s.queries.GetBobParty(ctx, relationship.PartyID)
+	if err != nil {
+		return RelationshipIdentityView{}, s.internal("get supplier party", err)
+	}
+	return RelationshipIdentityView{PartyID: party.ID, PartyKind: party.Kind, PartyDisplayName: party.DisplayName, OperatingEntityID: relationship.OperatingEntityID}, nil
 }

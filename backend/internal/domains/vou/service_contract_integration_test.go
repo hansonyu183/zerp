@@ -58,19 +58,19 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 		PartyID: customerPartyID,
 		Data: bobdomain.SalesPartnerData{OperatingEntityID: operatingEntityID,
 			Capabilities: []string{bobdomain.SalesCapabilityChannelPartner}},
-	}, integrationActorOne, "customer-channel-create", true)
+	}, trustedIntegrationActor(t, "customer-channel-create"), true)
 	if err != nil {
 		t.Fatalf("create channel relationship on customer Party: %v", err)
 	}
 	submitted, err := bobService.Submit(t.Context(), bobdomain.EntitySalesPartner, bobdomain.VersionRevisionInput{
-		ObjectID: salesPartner.ObjectID, VersionID: salesPartner.VersionID, Revision: salesPartner.Revision,
-	}, integrationActorOne, "customer-channel-submit")
+		ObjectID: salesPartner.ObjectID, ApprovalEntryID: salesPartner.Approval.ApprovalEntryID, ApprovalRevision: salesPartner.Approval.Revision,
+	}, trustedIntegrationActor(t, "customer-channel-submit"))
 	if err != nil {
 		t.Fatalf("submit channel relationship: %v", err)
 	}
 	approvedSalesPartner, err := bobService.Approve(t.Context(), bobdomain.EntitySalesPartner, bobdomain.ReviewInput{
-		ObjectID: submitted.ObjectID, VersionID: submitted.VersionID, Revision: submitted.Revision,
-	}, integrationActorTwo, "customer-channel-approve")
+		ObjectID: submitted.ObjectID, ApprovalEntryID: submitted.Approval.ApprovalEntryID, ApprovalRevision: submitted.Approval.Revision,
+	}, trustedIntegrationActor(t, "customer-channel-approve"))
 	if err != nil {
 		t.Fatalf("approve channel relationship: %v", err)
 	}
@@ -89,10 +89,10 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 				Type: bobdomain.SalesCapabilityChannelPartner, SubjectObjectID: approvedSalesPartner.ObjectID,
 			},
 		},
-	}, integrationActorOne, "customer-channel-self-attribution"); err == nil {
+	}, trustedIntegrationActor(t, "customer-channel-self-attribution")); err == nil {
 		t.Fatal("customer account accepted its own Party sales relationship attribution")
 	}
-	salesReference := ReferenceInput{ObjectID: approvedSalesPartner.ObjectID, VersionID: approvedSalesPartner.VersionID}
+	salesReference := ReferenceInput{ObjectID: approvedSalesPartner.ObjectID, ApprovalEntryID: approvedSalesPartner.Approval.ApprovalEntryID}
 	contractStatus, contractSnapshot, err := service.intermediarySalesContract(t.Context(), dbsqlc.New(pool),
 		bobdomain.SalesCapabilityChannelPartner, salesReference.ObjectID,
 		time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC))

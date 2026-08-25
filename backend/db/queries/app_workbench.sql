@@ -1,54 +1,90 @@
 -- name: CountWorkbenchBobItems :one
 SELECT count(*)
-FROM bob_version_summaries view
-WHERE view.version_id = view.current_version_id
+FROM approval_entries entry
+JOIN bob_objects object ON object.id=entry.subject_id AND object.entity=entry.entity
+CROSS JOIN LATERAL (
+  SELECT CASE entry.entity
+    WHEN 'customer' THEN (SELECT party.display_name FROM bob_customer_relationships relationship JOIN bob_parties party ON party.id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
+    WHEN 'customer-account' THEN (SELECT payload.name FROM bob_customer_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'supplier' THEN (SELECT payload.name FROM bob_supplier_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'other-unit' THEN (SELECT party.display_name FROM bob_service_relationships relationship JOIN bob_parties party ON party.id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
+    WHEN 'employee' THEN (SELECT payload.name FROM bob_employee_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'sales-partner' THEN (SELECT party.display_name FROM bob_sales_relationships relationship JOIN bob_parties party ON party.id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
+    WHEN 'product' THEN (SELECT payload.name FROM bob_product_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'warehouse' THEN (SELECT payload.name FROM bob_warehouse_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'vehicle' THEN (SELECT payload.name FROM bob_vehicle_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'fund-account' THEN (SELECT payload.name FROM bob_fund_account_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'operating-entity' THEN (SELECT payload.legal_name FROM bob_operating_entity_versions payload WHERE payload.approval_entry_id=entry.id)
+    ELSE ''
+  END AS name
+) named
+WHERE entry.domain='bob'
   AND (
-    (view.status = 'DRAFT' AND view.entity = ANY(sqlc.arg(draft_entities)::text[]))
+    (entry.status = 'DRAFT' AND entry.entity = ANY(sqlc.arg(draft_entities)::text[]))
     OR (
-      view.status = 'PENDING'
+      entry.status = 'PENDING'
       AND (
         (
-          view.entity = ANY(sqlc.arg(pending_entities)::text[])
-          AND view.submitted_by IS DISTINCT FROM sqlc.arg(actor_id)::text
+          entry.entity = ANY(sqlc.arg(pending_entities)::text[])
+          AND entry.submitted_by IS DISTINCT FROM sqlc.arg(actor_id)::text
         )
-        OR view.entity = ANY(sqlc.arg(unsubmit_entities)::text[])
+        OR entry.entity = ANY(sqlc.arg(unsubmit_entities)::text[])
       )
     )
   )
   AND (
     sqlc.arg(keyword)::text = ''
-    OR view.code ILIKE '%' || sqlc.arg(keyword) || '%'
-    OR view.name ILIKE '%' || sqlc.arg(keyword) || '%'
+    OR object.code ILIKE '%' || sqlc.arg(keyword) || '%'
+    OR named.name ILIKE '%' || sqlc.arg(keyword) || '%'
   );
 
 -- name: ListWorkbenchBobItems :many
-SELECT view.object_id, view.entity, view.code, view.name, view.object_revision,
-       view.version_id, view.status, view.version_revision, view.object_updated_at,
+SELECT entry.subject_id AS object_id, entry.entity, object.code,
+       named.name,
+       object.revision AS object_revision,
+       entry.id AS approval_entry_id, entry.status, entry.revision AS approval_revision, object.updated_at AS object_updated_at,
        CASE
-         WHEN view.submitted_by = sqlc.arg(actor_id)::text THEN true
+         WHEN entry.submitted_by = sqlc.arg(actor_id)::text THEN true
          ELSE false
        END AS is_submitted_by_actor
-FROM bob_version_summaries view
-WHERE view.version_id = view.current_version_id
+FROM approval_entries entry
+JOIN bob_objects object ON object.id=entry.subject_id AND object.entity=entry.entity
+CROSS JOIN LATERAL (
+  SELECT CASE entry.entity
+    WHEN 'customer' THEN (SELECT party.display_name FROM bob_customer_relationships relationship JOIN bob_parties party ON party.id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
+    WHEN 'customer-account' THEN (SELECT payload.name FROM bob_customer_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'supplier' THEN (SELECT payload.name FROM bob_supplier_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'other-unit' THEN (SELECT party.display_name FROM bob_service_relationships relationship JOIN bob_parties party ON party.id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
+    WHEN 'employee' THEN (SELECT payload.name FROM bob_employee_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'sales-partner' THEN (SELECT party.display_name FROM bob_sales_relationships relationship JOIN bob_parties party ON party.id=relationship.party_id WHERE relationship.object_id=entry.subject_id)
+    WHEN 'product' THEN (SELECT payload.name FROM bob_product_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'warehouse' THEN (SELECT payload.name FROM bob_warehouse_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'vehicle' THEN (SELECT payload.name FROM bob_vehicle_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'fund-account' THEN (SELECT payload.name FROM bob_fund_account_versions payload WHERE payload.approval_entry_id=entry.id)
+    WHEN 'operating-entity' THEN (SELECT payload.legal_name FROM bob_operating_entity_versions payload WHERE payload.approval_entry_id=entry.id)
+    ELSE ''
+  END AS name
+) named
+WHERE entry.domain='bob'
   AND (
-    (view.status = 'DRAFT' AND view.entity = ANY(sqlc.arg(draft_entities)::text[]))
+    (entry.status = 'DRAFT' AND entry.entity = ANY(sqlc.arg(draft_entities)::text[]))
     OR (
-      view.status = 'PENDING'
+      entry.status = 'PENDING'
       AND (
         (
-          view.entity = ANY(sqlc.arg(pending_entities)::text[])
-          AND view.submitted_by IS DISTINCT FROM sqlc.arg(actor_id)::text
+          entry.entity = ANY(sqlc.arg(pending_entities)::text[])
+          AND entry.submitted_by IS DISTINCT FROM sqlc.arg(actor_id)::text
         )
-        OR view.entity = ANY(sqlc.arg(unsubmit_entities)::text[])
+        OR entry.entity = ANY(sqlc.arg(unsubmit_entities)::text[])
       )
     )
   )
   AND (
     sqlc.arg(keyword)::text = ''
-    OR view.code ILIKE '%' || sqlc.arg(keyword) || '%'
-    OR view.name ILIKE '%' || sqlc.arg(keyword) || '%'
+    OR object.code ILIKE '%' || sqlc.arg(keyword) || '%'
+    OR named.name ILIKE '%' || sqlc.arg(keyword) || '%'
   )
-ORDER BY view.object_updated_at DESC, view.object_id ASC
+ORDER BY object.updated_at DESC, entry.subject_id ASC
 LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 
 -- name: CountWorkbenchVouItems :one

@@ -323,6 +323,7 @@ describe('permission menu registry', () => {
       'customer',
       'supplier',
       'other-unit',
+      'sales-partner',
       'employee',
       'product',
       'warehouse',
@@ -335,6 +336,7 @@ describe('permission menu registry', () => {
       '客户',
       '供应商',
       '其他单位',
+      '销售合作方',
       '员工',
       '产品',
       '仓库',
@@ -389,10 +391,13 @@ describe('permission menu registry', () => {
     registerMenuRoutes(router, [])
   })
 
-  it('为 AUX 八类实体生成中文菜单并加载真实页面组件', () => {
+  it('为全部十一类 AUX 实体生成中文菜单并加载真实页面组件', () => {
     const entities = [
+      'settlement-method',
+      'payment-method',
       'asset-category',
       'product-category',
+      'product-type',
       'department',
       'position',
       'measurement-unit',
@@ -401,8 +406,11 @@ describe('permission menu registry', () => {
       'income-expense-type',
     ]
     const titles = [
+      '结算方式',
+      '收款方式',
       '资产类别',
       '产品分类',
+      '产品类型',
       '部门',
       '岗位',
       '计量单位',

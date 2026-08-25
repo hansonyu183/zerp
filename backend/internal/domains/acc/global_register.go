@@ -199,7 +199,7 @@ func registerBillChanges(ctx context.Context, q *dbsqlc.Queries, event voudomain
 			customerCost, _ := fixeddecimal.ParsePositive(line.CustomerCostAmount, 2, true)
 			var originEntity, originID, originVersion, originCode, originName *string
 			if origin != nil {
-				originEntity, originID, originVersion = &origin.Entity, &origin.ObjectID, &origin.VersionID
+				originEntity, originID, originVersion = &origin.Entity, &origin.ObjectID, &origin.ApprovalEntryID
 				originCode, originName = &origin.Code, &origin.Name
 			}
 			if err = q.CreateAccountingBill(ctx, dbsqlc.CreateAccountingBillParams{
@@ -209,7 +209,7 @@ func registerBillChanges(ctx context.Context, q *dbsqlc.Queries, event voudomain
 				Drawer: line.Drawer, Acceptor: line.Acceptor, Payee: line.Payee,
 				AnnualRateBps: line.AnnualRateBps, InterestDays: line.InterestDays,
 				InterestAmountMinor: interest, CustomerCostAmountMinor: customerCost,
-				OriginPartyEntity: originEntity, OriginPartyObjectID: originID, OriginPartyVersionID: originVersion,
+				OriginPartyEntity: originEntity, OriginPartyObjectID: originID, OriginPartyApprovalEntryID: originVersion,
 				OriginPartyCode: originCode, OriginPartyName: originName,
 				SourceDocumentID: event.DocumentID, SourceLineID: line.LineID,
 			}); err != nil {

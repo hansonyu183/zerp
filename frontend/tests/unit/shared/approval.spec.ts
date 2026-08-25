@@ -1,11 +1,16 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 
-import type { ApprovalMeta, ApprovalStatus } from '@/api/generated'
+import type {
+  ApprovalMeta,
+  ApprovalStatus,
+  ApprovalVersionMeta,
+} from '@/api/generated'
 import {
   ApprovalStatusBadge,
   approvalActionLabels,
   approvalStatusPresentation,
+  approvalVersionHistoryMetadata,
   visibleApprovalActions,
 } from '@/shared/approval'
 
@@ -80,5 +85,20 @@ describe('shared Approval primitives', () => {
     })
     expect(wrapper.text()).toBe('待批准')
     expect(wrapper.get('[data-color="info"]').exists()).toBe(true)
+  })
+
+  it('derives stable version-history metadata from the generated contract', () => {
+    const version: ApprovalVersionMeta = {
+      ...meta('APPROVED', 'actor-1'),
+      approvalEntryId: '01K4APPROVALVERSION0000001',
+      versionNo: 2,
+    }
+
+    expect(approvalVersionHistoryMetadata(version)).toEqual({
+      key: '01K4APPROVALVERSION0000001',
+      versionLabel: 'V2',
+      statusLabel: '已批准',
+      statusColor: 'success',
+    })
   })
 })

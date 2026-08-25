@@ -6,6 +6,7 @@
 export type { ActivateMenuRequest } from './models/ActivateMenuRequest';
 export type { ApprovalMeta } from './models/ApprovalMeta';
 export type { ApprovalStatus } from './models/ApprovalStatus';
+export type { ApprovalVersionMeta } from './models/ApprovalVersionMeta';
 export type { AssetAccountingConfiguration } from './models/AssetAccountingConfiguration';
 export type { AuxAuditEventPage } from './models/AuxAuditEventPage';
 export type { AuxAuditEventPageResponse } from './models/AuxAuditEventPageResponse';

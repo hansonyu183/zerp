@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -473,6 +474,388 @@ func TestApprovalPersistenceLifecycleIntegration(t *testing.T) {
 		var deletedEvents int64
 		if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM approval_events WHERE entry_id=$1 AND action='DELETED'`, entry.ID).Scan(&deletedEvents); err != nil || deletedEvents != 1 {
 			t.Fatalf("deleted audit events = %d, err = %v", deletedEvents, err)
+		}
+	})
+
+	t.Run("first version becomes latest approved", func(t *testing.T) {
+		subjectID := ulid.Make().String()
+		payload := fixturePayload{SubjectID: subjectID, Name: "Versioned subject"}
+		var events []Event[fixturePayload]
+		versionBus := txevent.NewBus()
+		versionTopic := MustTopic[fixturePayload]("approval.fixture-version.lifecycle")
+		versionCoordinator, coordinatorErr := NewCoordinator("fixture", "version", authorizer, versionBus, versionTopic)
+		if coordinatorErr != nil {
+			t.Fatalf("new version coordinator: %v", coordinatorErr)
+		}
+		versionCoordinator.now = coordinator.now
+		if subscribeErr := versionTopic.Subscribe(versionBus, "capture-version-events", func(_ context.Context, _ pgx.Tx, event Event[fixturePayload]) error {
+			events = append(events, event)
+			return nil
+		}); subscribeErr != nil {
+			t.Fatalf("subscribe version events: %v", subscribeErr)
+		}
+
+		var entry Entry
+		createErr := inTransaction(t, pool, func(tx pgx.Tx) error {
+			if _, insertErr := tx.Exec(t.Context(), `INSERT INTO approval_fixture_subjects(id, name) VALUES($1, $2)`, subjectID, payload.Name); insertErr != nil {
+				return insertErr
+			}
+			var createVersionErr error
+			entry, createVersionErr = versionCoordinator.CreateFirstVersion(t.Context(), tx, subjectID, actorOne("create-v1"), payload)
+			return createVersionErr
+		})
+		if createErr != nil || entry.VersionNo == nil || *entry.VersionNo != 1 || entry.Status != StatusDraft {
+			t.Fatalf("create first version = %+v, err = %v", entry, createErr)
+		}
+
+		entry, err = mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
+			return versionCoordinator.Submit(t.Context(), tx, entry.ID, entry.Revision, actorOne("submit-v1"), payload)
+		})
+		if err != nil {
+			t.Fatalf("submit first version: %v", err)
+		}
+		entry, err = mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
+			return versionCoordinator.Approve(t.Context(), tx, entry.ID, entry.Revision, actorTwo("approve-v1"), payload)
+		})
+		if err != nil || entry.Status != StatusApproved {
+			t.Fatalf("approve first version = %+v, err = %v", entry, err)
+		}
+
+		var latest Entry
+		if latestErr := inTransaction(t, pool, func(tx pgx.Tx) error {
+			var getErr error
+			latest, getErr = versionCoordinator.GetLatestApproved(t.Context(), tx, subjectID, actorOne("latest-v1"))
+			return getErr
+		}); latestErr != nil || latest.ID != entry.ID {
+			t.Fatalf("latest approved = %+v, err = %v", latest, latestErr)
+		}
+		approvedEvent := events[len(events)-1]
+		if approvedEvent.VersionNo == nil || *approvedEvent.VersionNo != 1 || approvedEvent.PreviousApprovedVersionID != nil || approvedEvent.CurrentApprovedVersionID == nil || *approvedEvent.CurrentApprovedVersionID != entry.ID {
+			t.Fatalf("approved version event = %+v", approvedEvent)
+		}
+
+		v1 := entry
+		authorizer.deniedPath = "/fixture/version/save"
+		if _, deniedErr := mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
+			return versionCoordinator.CreateNextVersion(t.Context(), tx, subjectID, actorOne("denied-create-v2"), payload)
+		}); !IsKind(deniedErr, ErrorForbidden) {
+			t.Fatalf("create next version permission error = %v", deniedErr)
+		}
+		authorizer.deniedPath = ""
+		var v2 Entry
+		v2, err = mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
+			return versionCoordinator.CreateNextVersion(t.Context(), tx, subjectID, actorOne("create-v2"), payload)
+		})
+		if err != nil || v2.VersionNo == nil || *v2.VersionNo != 2 || v2.Status != StatusDraft {
+			t.Fatalf("create next version = %+v, err = %v", v2, err)
+		}
+		createdV2Event := events[len(events)-1]
+		if createdV2Event.PreviousApprovedVersionID == nil || *createdV2Event.PreviousApprovedVersionID != v1.ID || createdV2Event.CurrentApprovedVersionID == nil || *createdV2Event.CurrentApprovedVersionID != v1.ID {
+			t.Fatalf("created V2 event = %+v", createdV2Event)
+		}
+
+		var open Entry
+		if openErr := inTransaction(t, pool, func(tx pgx.Tx) error {
+			var getErr error
+			open, getErr = versionCoordinator.GetOpenVersion(t.Context(), tx, subjectID, actorOne("open-v2"))
+			return getErr
+		}); openErr != nil || open.ID != v2.ID {
+			t.Fatalf("open version = %+v, err = %v", open, openErr)
+		}
+		var versions []Entry
+		if listErr := inTransaction(t, pool, func(tx pgx.Tx) error {
+			var queryErr error
+			versions, queryErr = versionCoordinator.ListVersions(t.Context(), tx, subjectID, actorOne("list-versions"))
+			return queryErr
+		}); listErr != nil || len(versions) != 2 || versions[0].ID != v2.ID || versions[1].ID != v1.ID {
+			t.Fatalf("version history = %+v, err = %v", versions, listErr)
+		}
+		if got := authorizer.paths[len(authorizer.paths)-1]; got != "/fixture/version/versions" {
+			t.Fatalf("version history permission path = %q", got)
+		}
+
+		if deleteErr := inTransaction(t, pool, func(tx pgx.Tx) error {
+			return versionCoordinator.DeleteDraftVersion(t.Context(), tx, v2.ID, v2.Revision, actorOne("delete-v2"), payload)
+		}); deleteErr != nil {
+			t.Fatalf("delete V2 draft: %v", deleteErr)
+		}
+		v2, err = mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
+			return versionCoordinator.CreateNextVersion(t.Context(), tx, subjectID, actorOne("reuse-v2"), payload)
+		})
+		if err != nil || v2.VersionNo == nil || *v2.VersionNo != 2 {
+			t.Fatalf("reuse V2 = %+v, err = %v", v2, err)
+		}
+
+		if duplicateErr := inTransaction(t, pool, func(tx pgx.Tx) error {
+			_, insertErr := tx.Exec(t.Context(), `
+				INSERT INTO approval_entries(
+					id, domain, entity, subject_id, version_no, status, revision,
+					created_by, created_at, updated_by, updated_at
+				) VALUES($1, 'fixture', 'version', $2, 2, 'DRAFT', 1, $3, now(), $3, now())
+			`, ulid.Make().String(), subjectID, actorOneID)
+			return insertErr
+		}); duplicateErr == nil {
+			t.Fatal("duplicate version number was accepted")
+		}
+
+		v2, err = mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
+			return versionCoordinator.Submit(t.Context(), tx, v2.ID, v2.Revision, actorOne("submit-v2"), payload)
+		})
+		if err != nil {
+			t.Fatalf("submit V2: %v", err)
+		}
+		v2, err = mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
+			return versionCoordinator.Approve(t.Context(), tx, v2.ID, v2.Revision, actorTwo("approve-v2"), payload)
+		})
+		if err != nil {
+			t.Fatalf("approve V2: %v", err)
+		}
+		if nonLatestErr := inTransaction(t, pool, func(tx pgx.Tx) error {
+			_, unapproveErr := versionCoordinator.Unapprove(t.Context(), tx, v1.ID, v1.Revision, actorOne("unapprove-v1-too-early"), "not latest", payload)
+			return unapproveErr
+		}); !IsKey(nonLatestErr, "approval_not_latest_approved") {
+			t.Fatalf("non-latest unapprove error = %v", nonLatestErr)
+		}
+
+		v2, err = mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
+			return versionCoordinator.Unapprove(t.Context(), tx, v2.ID, v2.Revision, actorOne("unapprove-v2"), "return to V1", payload)
+		})
+		if err != nil || v2.Status != StatusPending {
+			t.Fatalf("unapprove V2 = %+v, err = %v", v2, err)
+		}
+		unapprovedV2Event := events[len(events)-1]
+		if unapprovedV2Event.PreviousApprovedVersionID == nil || *unapprovedV2Event.PreviousApprovedVersionID != v2.ID || unapprovedV2Event.CurrentApprovedVersionID == nil || *unapprovedV2Event.CurrentApprovedVersionID != v1.ID {
+			t.Fatalf("unapproved V2 event = %+v", unapprovedV2Event)
+		}
+		if latestErr := inTransaction(t, pool, func(tx pgx.Tx) error {
+			var getErr error
+			latest, getErr = versionCoordinator.GetLatestApproved(t.Context(), tx, subjectID, actorOne("latest-v1-again"))
+			return getErr
+		}); latestErr != nil || latest.ID != v1.ID {
+			t.Fatalf("fallback latest approved = %+v, err = %v", latest, latestErr)
+		}
+
+		v2, err = mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
+			return versionCoordinator.Unsubmit(t.Context(), tx, v2.ID, v2.Revision, actorOne("unsubmit-v2"), payload)
+		})
+		if err != nil {
+			t.Fatalf("unsubmit V2: %v", err)
+		}
+		if deleteErr := inTransaction(t, pool, func(tx pgx.Tx) error {
+			return versionCoordinator.DeleteDraftVersion(t.Context(), tx, v2.ID, v2.Revision, actorOne("delete-v2-again"), payload)
+		}); deleteErr != nil {
+			t.Fatalf("delete V2 again: %v", deleteErr)
+		}
+		v1, err = mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
+			return versionCoordinator.Unapprove(t.Context(), tx, v1.ID, v1.Revision, actorOne("unapprove-v1"), "no formal version", payload)
+		})
+		if err != nil || v1.Status != StatusPending {
+			t.Fatalf("unapprove V1 = %+v, err = %v", v1, err)
+		}
+		unapprovedV1Event := events[len(events)-1]
+		if unapprovedV1Event.PreviousApprovedVersionID == nil || *unapprovedV1Event.PreviousApprovedVersionID != v1.ID || unapprovedV1Event.CurrentApprovedVersionID != nil {
+			t.Fatalf("unapproved V1 event = %+v", unapprovedV1Event)
+		}
+		if latestErr := inTransaction(t, pool, func(tx pgx.Tx) error {
+			_, getErr := versionCoordinator.GetLatestApproved(t.Context(), tx, subjectID, actorOne("latest-none"))
+			return getErr
+		}); !IsKey(latestErr, "approval_version_not_found") {
+			t.Fatalf("missing latest approved error = %v", latestErr)
+		}
+	})
+
+	t.Run("concurrent candidates leave exactly one open version", func(t *testing.T) {
+		subjectID := ulid.Make().String()
+		payload := fixturePayload{SubjectID: subjectID, Name: "Concurrent versioned subject"}
+		versionBus := txevent.NewBus()
+		versionTopic := MustTopic[fixturePayload]("approval.concurrent-version.lifecycle")
+		versionCoordinator, coordinatorErr := NewCoordinator("fixture", "concurrent-version", allowAuthorizer{}, versionBus, versionTopic)
+		if coordinatorErr != nil {
+			t.Fatalf("new concurrent version coordinator: %v", coordinatorErr)
+		}
+		var v1 Entry
+		if createErr := inTransaction(t, pool, func(tx pgx.Tx) error {
+			if _, insertErr := tx.Exec(t.Context(), `INSERT INTO approval_fixture_subjects(id, name) VALUES($1, $2)`, subjectID, payload.Name); insertErr != nil {
+				return insertErr
+			}
+			var versionErr error
+			v1, versionErr = versionCoordinator.CreateFirstVersion(t.Context(), tx, subjectID, actorOne("concurrent-create-v1"), payload)
+			return versionErr
+		}); createErr != nil {
+			t.Fatalf("create concurrent V1: %v", createErr)
+		}
+		v1, err = mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
+			return versionCoordinator.Submit(t.Context(), tx, v1.ID, v1.Revision, actorOne("concurrent-submit-v1"), payload)
+		})
+		if err != nil {
+			t.Fatalf("submit concurrent V1: %v", err)
+		}
+		v1, err = mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
+			return versionCoordinator.Approve(t.Context(), tx, v1.ID, v1.Revision, actorTwo("concurrent-approve-v1"), payload)
+		})
+		if err != nil {
+			t.Fatalf("approve concurrent V1: %v", err)
+		}
+
+		start := make(chan struct{})
+		results := make(chan error, 2)
+		candidateActors := []Actor{
+			integrationActor(t, ulid.Make().String(), "concurrent-v2-0"),
+			integrationActor(t, ulid.Make().String(), "concurrent-v2-1"),
+		}
+		var wait sync.WaitGroup
+		for candidate := 0; candidate < 2; candidate++ {
+			wait.Add(1)
+			go func(candidate int) {
+				defer wait.Done()
+				tx, beginErr := pool.Begin(context.Background())
+				if beginErr != nil {
+					results <- beginErr
+					return
+				}
+				defer func() { _ = tx.Rollback(context.Background()) }()
+				<-start
+				_, createErr := versionCoordinator.CreateNextVersion(
+					context.Background(), tx, subjectID, candidateActors[candidate], payload,
+				)
+				if createErr == nil {
+					createErr = tx.Commit(context.Background())
+				}
+				results <- createErr
+			}(candidate)
+		}
+		close(start)
+		wait.Wait()
+		close(results)
+		successes, conflicts := 0, 0
+		for resultErr := range results {
+			switch {
+			case resultErr == nil:
+				successes++
+			case IsKind(resultErr, ErrorConflict):
+				conflicts++
+			default:
+				t.Fatalf("concurrent candidate error = %v", resultErr)
+			}
+		}
+		var openVersions int64
+		if err = pool.QueryRow(t.Context(), `
+			SELECT count(*) FROM approval_entries
+			WHERE domain='fixture' AND entity='concurrent-version' AND subject_id=$1
+			  AND version_no IS NOT NULL AND status IN ('DRAFT', 'PENDING')
+		`, subjectID).Scan(&openVersions); err != nil {
+			t.Fatalf("count concurrent open versions: %v", err)
+		}
+		if successes != 1 || conflicts != 1 || openVersions != 1 {
+			t.Fatalf("concurrent candidates successes=%d conflicts=%d open=%d", successes, conflicts, openVersions)
+		}
+	})
+
+	t.Run("versioned subject and entry roll back and delete atomically without orphan", func(t *testing.T) {
+		versionBus := txevent.NewBus()
+		versionTopic := MustTopic[fixturePayload]("approval.atomic-version.lifecycle")
+		versionCoordinator, coordinatorErr := NewCoordinator("fixture", "atomic-version", allowAuthorizer{}, versionBus, versionTopic)
+		if coordinatorErr != nil {
+			t.Fatalf("new atomic version coordinator: %v", coordinatorErr)
+		}
+		if subscribeErr := versionTopic.Subscribe(versionBus, "atomic-version-effect", func(ctx context.Context, tx pgx.Tx, event Event[fixturePayload]) error {
+			if event.Payload.Failure == "" {
+				return nil
+			}
+			if _, writeErr := tx.Exec(ctx, `
+				INSERT INTO approval_fixture_effects(id, subject_id, action)
+				VALUES($1, $2, $3)
+			`, ulid.Make().String(), event.Payload.SubjectID, event.Action); writeErr != nil {
+				return writeErr
+			}
+			if event.Payload.Failure == "panic" {
+				panic("atomic version subscriber panic")
+			}
+			return errors.New("atomic version subscriber error")
+		}); subscribeErr != nil {
+			t.Fatalf("subscribe atomic version effect: %v", subscribeErr)
+		}
+
+		for _, failure := range []string{"error", "panic"} {
+			subjectID := ulid.Make().String()
+			payload := fixturePayload{SubjectID: subjectID, Name: "Failed version create", Failure: failure}
+			createErr := inTransaction(t, pool, func(tx pgx.Tx) error {
+				if _, insertErr := tx.Exec(t.Context(), `INSERT INTO approval_fixture_subjects(id, name) VALUES($1, $2)`, subjectID, payload.Name); insertErr != nil {
+					return insertErr
+				}
+				_, versionErr := versionCoordinator.CreateFirstVersion(t.Context(), tx, subjectID, actorOne("atomic-version-create-"+failure), payload)
+				return versionErr
+			})
+			if !IsKey(createErr, "approval_event_delivery_failed") {
+				t.Fatalf("version create %s rollback error = %v", failure, createErr)
+			}
+			var subjects, entries, effects int64
+			if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM approval_fixture_subjects WHERE id=$1`, subjectID).Scan(&subjects); err != nil {
+				t.Fatalf("count rolled back version subjects: %v", err)
+			}
+			if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM approval_entries WHERE domain='fixture' AND entity='atomic-version' AND subject_id=$1`, subjectID).Scan(&entries); err != nil {
+				t.Fatalf("count rolled back versions: %v", err)
+			}
+			if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM approval_fixture_effects WHERE subject_id=$1`, subjectID).Scan(&effects); err != nil {
+				t.Fatalf("count rolled back version effects: %v", err)
+			}
+			if subjects != 0 || entries != 0 || effects != 0 {
+				t.Fatalf("version create %s left subjects=%d entries=%d effects=%d", failure, subjects, entries, effects)
+			}
+		}
+
+		subjectID := ulid.Make().String()
+		payload := fixturePayload{SubjectID: subjectID, Name: "Atomic version delete"}
+		var entry Entry
+		if createErr := inTransaction(t, pool, func(tx pgx.Tx) error {
+			if _, insertErr := tx.Exec(t.Context(), `INSERT INTO approval_fixture_subjects(id, name) VALUES($1, $2)`, subjectID, payload.Name); insertErr != nil {
+				return insertErr
+			}
+			var versionErr error
+			entry, versionErr = versionCoordinator.CreateFirstVersion(t.Context(), tx, subjectID, actorOne("atomic-version-create"), payload)
+			return versionErr
+		}); createErr != nil {
+			t.Fatalf("create atomic version: %v", createErr)
+		}
+		failingPayload := payload
+		failingPayload.Failure = "error"
+		deleteErr := inTransaction(t, pool, func(tx pgx.Tx) error {
+			return versionCoordinator.DeleteDraftVersion(t.Context(), tx, entry.ID, entry.Revision, actorOne("atomic-version-delete-failure"), failingPayload)
+		})
+		if !IsKey(deleteErr, "approval_event_delivery_failed") {
+			t.Fatalf("version delete rollback error = %v", deleteErr)
+		}
+		var preserved int64
+		if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM approval_entries WHERE id=$1`, entry.ID).Scan(&preserved); err != nil || preserved != 1 {
+			t.Fatalf("preserved version entries=%d, err=%v", preserved, err)
+		}
+
+		if deleteErr = inTransaction(t, pool, func(tx pgx.Tx) error {
+			if versionErr := versionCoordinator.DeleteDraftVersion(t.Context(), tx, entry.ID, entry.Revision, actorOne("atomic-version-delete"), payload); versionErr != nil {
+				return versionErr
+			}
+			command, deleteSubjectErr := tx.Exec(t.Context(), `DELETE FROM approval_fixture_subjects WHERE id=$1`, subjectID)
+			if deleteSubjectErr != nil {
+				return deleteSubjectErr
+			}
+			if command.RowsAffected() != 1 {
+				return errors.New("fixture version subject changed before delete")
+			}
+			return nil
+		}); deleteErr != nil {
+			t.Fatalf("delete version and subject: %v", deleteErr)
+		}
+		var orphans int64
+		if err = pool.QueryRow(t.Context(), `
+			SELECT count(*)
+			FROM approval_entries entry
+			LEFT JOIN approval_fixture_subjects subject ON subject.id=entry.subject_id
+			WHERE entry.domain='fixture' AND entry.entity='atomic-version' AND subject.id IS NULL
+		`).Scan(&orphans); err != nil {
+			t.Fatalf("count version orphans: %v", err)
+		}
+		if orphans != 0 {
+			t.Fatalf("version approval orphan count = %d", orphans)
 		}
 	})
 }

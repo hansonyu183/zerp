@@ -11,6 +11,30 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const approvalVersionsExist = `-- name: ApprovalVersionsExist :one
+SELECT EXISTS(
+  SELECT 1
+  FROM approval_entries
+  WHERE domain = $1
+    AND entity = $2
+    AND subject_id = $3
+    AND version_no IS NOT NULL
+)
+`
+
+type ApprovalVersionsExistParams struct {
+	Domain    string `db:"domain" json:"domain"`
+	Entity    string `db:"entity" json:"entity"`
+	SubjectID string `db:"subject_id" json:"subject_id"`
+}
+
+func (q *Queries) ApprovalVersionsExist(ctx context.Context, arg ApprovalVersionsExistParams) (bool, error) {
+	row := q.db.QueryRow(ctx, approvalVersionsExist, arg.Domain, arg.Entity, arg.SubjectID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const createApprovalEntry = `-- name: CreateApprovalEntry :one
 INSERT INTO approval_entries(
   id, domain, entity, subject_id, version_no, status, revision,
@@ -39,6 +63,60 @@ func (q *Queries) CreateApprovalEntry(ctx context.Context, arg CreateApprovalEnt
 		arg.Domain,
 		arg.Entity,
 		arg.SubjectID,
+		arg.ActorID,
+		arg.OccurredAt,
+	)
+	var i ApprovalEntry
+	err := row.Scan(
+		&i.ID,
+		&i.Domain,
+		&i.Entity,
+		&i.SubjectID,
+		&i.VersionNo,
+		&i.Status,
+		&i.Revision,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedBy,
+		&i.UpdatedAt,
+		&i.SubmittedBy,
+		&i.SubmittedAt,
+		&i.ApprovedBy,
+		&i.ApprovedAt,
+	)
+	return i, err
+}
+
+const createApprovalVersion = `-- name: CreateApprovalVersion :one
+INSERT INTO approval_entries(
+  id, domain, entity, subject_id, version_no, status, revision,
+  created_by, created_at, updated_by, updated_at,
+  submitted_by, submitted_at, approved_by, approved_at
+) VALUES (
+  $1, $2, $3, $4, $5, 'DRAFT', 1,
+  $6, $7, $6, $7,
+  NULL, NULL, NULL, NULL
+)
+RETURNING id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at
+`
+
+type CreateApprovalVersionParams struct {
+	ID         string             `db:"id" json:"id"`
+	Domain     string             `db:"domain" json:"domain"`
+	Entity     string             `db:"entity" json:"entity"`
+	SubjectID  string             `db:"subject_id" json:"subject_id"`
+	VersionNo  *int32             `db:"version_no" json:"version_no"`
+	ActorID    string             `db:"actor_id" json:"actor_id"`
+	OccurredAt pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
+}
+
+func (q *Queries) CreateApprovalVersion(ctx context.Context, arg CreateApprovalVersionParams) (ApprovalEntry, error) {
+	row := q.db.QueryRow(ctx, createApprovalVersion,
+		arg.ID,
+		arg.Domain,
+		arg.Entity,
+		arg.SubjectID,
+		arg.VersionNo,
 		arg.ActorID,
 		arg.OccurredAt,
 	)
@@ -143,6 +221,87 @@ func (q *Queries) GetApprovalEntry(ctx context.Context, arg GetApprovalEntryPara
 	return i, err
 }
 
+const getLatestApprovedVersion = `-- name: GetLatestApprovedVersion :one
+SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at
+FROM approval_entries
+WHERE domain = $1
+  AND entity = $2
+  AND subject_id = $3
+  AND version_no IS NOT NULL
+  AND status = 'APPROVED'
+ORDER BY version_no DESC
+LIMIT 1
+`
+
+type GetLatestApprovedVersionParams struct {
+	Domain    string `db:"domain" json:"domain"`
+	Entity    string `db:"entity" json:"entity"`
+	SubjectID string `db:"subject_id" json:"subject_id"`
+}
+
+func (q *Queries) GetLatestApprovedVersion(ctx context.Context, arg GetLatestApprovedVersionParams) (ApprovalEntry, error) {
+	row := q.db.QueryRow(ctx, getLatestApprovedVersion, arg.Domain, arg.Entity, arg.SubjectID)
+	var i ApprovalEntry
+	err := row.Scan(
+		&i.ID,
+		&i.Domain,
+		&i.Entity,
+		&i.SubjectID,
+		&i.VersionNo,
+		&i.Status,
+		&i.Revision,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedBy,
+		&i.UpdatedAt,
+		&i.SubmittedBy,
+		&i.SubmittedAt,
+		&i.ApprovedBy,
+		&i.ApprovedAt,
+	)
+	return i, err
+}
+
+const getOpenApprovalVersion = `-- name: GetOpenApprovalVersion :one
+SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at
+FROM approval_entries
+WHERE domain = $1
+  AND entity = $2
+  AND subject_id = $3
+  AND version_no IS NOT NULL
+  AND status IN ('DRAFT', 'PENDING')
+LIMIT 1
+`
+
+type GetOpenApprovalVersionParams struct {
+	Domain    string `db:"domain" json:"domain"`
+	Entity    string `db:"entity" json:"entity"`
+	SubjectID string `db:"subject_id" json:"subject_id"`
+}
+
+func (q *Queries) GetOpenApprovalVersion(ctx context.Context, arg GetOpenApprovalVersionParams) (ApprovalEntry, error) {
+	row := q.db.QueryRow(ctx, getOpenApprovalVersion, arg.Domain, arg.Entity, arg.SubjectID)
+	var i ApprovalEntry
+	err := row.Scan(
+		&i.ID,
+		&i.Domain,
+		&i.Entity,
+		&i.SubjectID,
+		&i.VersionNo,
+		&i.Status,
+		&i.Revision,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedBy,
+		&i.UpdatedAt,
+		&i.SubmittedBy,
+		&i.SubmittedAt,
+		&i.ApprovedBy,
+		&i.ApprovedAt,
+	)
+	return i, err
+}
+
 const insertApprovalEvent = `-- name: InsertApprovalEvent :exec
 INSERT INTO approval_events(
   id, entry_id, domain, entity, subject_id, version_no,
@@ -194,6 +353,58 @@ func (q *Queries) InsertApprovalEvent(ctx context.Context, arg InsertApprovalEve
 	return err
 }
 
+const listApprovalVersions = `-- name: ListApprovalVersions :many
+SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at
+FROM approval_entries
+WHERE domain = $1
+  AND entity = $2
+  AND subject_id = $3
+  AND version_no IS NOT NULL
+ORDER BY version_no DESC
+`
+
+type ListApprovalVersionsParams struct {
+	Domain    string `db:"domain" json:"domain"`
+	Entity    string `db:"entity" json:"entity"`
+	SubjectID string `db:"subject_id" json:"subject_id"`
+}
+
+func (q *Queries) ListApprovalVersions(ctx context.Context, arg ListApprovalVersionsParams) ([]ApprovalEntry, error) {
+	rows, err := q.db.Query(ctx, listApprovalVersions, arg.Domain, arg.Entity, arg.SubjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ApprovalEntry{}
+	for rows.Next() {
+		var i ApprovalEntry
+		if err := rows.Scan(
+			&i.ID,
+			&i.Domain,
+			&i.Entity,
+			&i.SubjectID,
+			&i.VersionNo,
+			&i.Status,
+			&i.Revision,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedBy,
+			&i.UpdatedAt,
+			&i.SubmittedBy,
+			&i.SubmittedAt,
+			&i.ApprovedBy,
+			&i.ApprovedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockApprovalEntry = `-- name: LockApprovalEntry :one
 SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at
 FROM approval_entries
@@ -209,6 +420,48 @@ type LockApprovalEntryParams struct {
 
 func (q *Queries) LockApprovalEntry(ctx context.Context, arg LockApprovalEntryParams) (ApprovalEntry, error) {
 	row := q.db.QueryRow(ctx, lockApprovalEntry, arg.ID, arg.Domain, arg.Entity)
+	var i ApprovalEntry
+	err := row.Scan(
+		&i.ID,
+		&i.Domain,
+		&i.Entity,
+		&i.SubjectID,
+		&i.VersionNo,
+		&i.Status,
+		&i.Revision,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedBy,
+		&i.UpdatedAt,
+		&i.SubmittedBy,
+		&i.SubmittedAt,
+		&i.ApprovedBy,
+		&i.ApprovedAt,
+	)
+	return i, err
+}
+
+const lockLatestApprovedVersion = `-- name: LockLatestApprovedVersion :one
+SELECT id, domain, entity, subject_id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at
+FROM approval_entries
+WHERE domain = $1
+  AND entity = $2
+  AND subject_id = $3
+  AND version_no IS NOT NULL
+  AND status = 'APPROVED'
+ORDER BY version_no DESC
+LIMIT 1
+FOR UPDATE
+`
+
+type LockLatestApprovedVersionParams struct {
+	Domain    string `db:"domain" json:"domain"`
+	Entity    string `db:"entity" json:"entity"`
+	SubjectID string `db:"subject_id" json:"subject_id"`
+}
+
+func (q *Queries) LockLatestApprovedVersion(ctx context.Context, arg LockLatestApprovedVersionParams) (ApprovalEntry, error) {
+	row := q.db.QueryRow(ctx, lockLatestApprovedVersion, arg.Domain, arg.Entity, arg.SubjectID)
 	var i ApprovalEntry
 	err := row.Scan(
 		&i.ID,

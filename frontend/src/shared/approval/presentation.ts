@@ -1,4 +1,8 @@
-import type { ApprovalMeta, ApprovalStatus } from '@/api/generated'
+import type {
+  ApprovalMeta,
+  ApprovalStatus,
+  ApprovalVersionMeta,
+} from '@/api/generated'
 
 export type ApprovalAction =
   'submit' | 'unsubmit' | 'reject' | 'approve' | 'unapprove'
@@ -16,6 +20,16 @@ export const approvalActionLabels = {
   approve: '批准',
   unapprove: '反批准',
 } as const satisfies Record<ApprovalAction, string>
+
+export function approvalVersionHistoryMetadata(meta: ApprovalVersionMeta) {
+  const status = approvalStatusPresentation[meta.status]
+  return {
+    key: meta.approvalEntryId,
+    versionLabel: `V${meta.versionNo}`,
+    statusLabel: status.label,
+    statusColor: status.color,
+  }
+}
 
 export function visibleApprovalActions(
   meta: ApprovalMeta,

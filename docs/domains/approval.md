@@ -4,11 +4,11 @@
 
 Approval 是跨领域的中央审批能力，唯一拥有审批生命周期、操作授权、revision、审批元数据、审计事件和同步事务事件发布。业务 Domain 仍拥有稳定主体、业务数据、业务校验和强类型事件 payload；Approval 不认识任何 Domain 业务规则。
 
-当前切片只交付 Approval-only 持久化与生命周期基础设施。BOB、AUX、VOU、ACC、RPT 和 WFL 仍使用它们当前的生命周期，直到后续独立切片完成迁移；本文不把尚未迁移的领域描述为已经使用 Approval。
+中央能力同时提供 Approval-only 与 Approval Version 两种条目形态。BOB、AUX、VOU、ACC、RPT 和 WFL 仍使用它们当前的生命周期，直到后续独立切片完成迁移；本文不把尚未迁移的领域描述为已经使用 Approval。
 
 ## 2. 审批条目与主体边界
 
-`approval_entries` 保存 `id`、`domain`、`entity`、`subject_id`、可空 `version_no`、`status`、`revision` 和统一元数据。Approval-only 条目的 `version_no` 必须为空，同一 `(domain, entity, subject_id)` 最多一条。表结构保留之后 Versioning 所需的非空版本号约束和查询索引，但当前 Coordinator 不创建或操作版本条目。
+`approval_entries` 保存 `id`、`domain`、`entity`、`subject_id`、可空 `version_no`、`status`、`revision` 和统一元数据。Approval-only 条目的 `version_no` 必须为空，同一 `(domain, entity, subject_id)` 最多一条。Approval Version 条目的 `version_no` 必须为正数，`(domain, entity, subject_id, version_no)` 唯一；同一 stable subject 的 `DRAFT` 与 `PENDING` 合计最多一条。
 
 `subject_id` 是指向 Domain stable subject 的受控逻辑外键，不建立中央 `approval_subjects` 或 Domain Store Adapter。Domain application service 必须在同一 PostgreSQL transaction 内创建或删除 stable subject 和审批条目；任一步失败时整体回滚，不得留下 orphan。
 
@@ -40,6 +40,18 @@ Approval event 包含条目引用、动作、前后状态和 revision、操作�
 
 subscriber 必须复用发布者的同一 `pgx.Tx`，不得回查发布 Domain，也不得产生不可回滚副作用。任一 subscriber 返回 error 或 panic 都使当次 Approval 写入和所有订阅写入由调用方整体回滚。
 
-## 6. 验收边界
+Versioned event 由 Approval 填充 `VersionNo`、`PreviousApprovedVersionID` 和 `CurrentApprovedVersionID`。后两个版本身份分别表示动作前与动作后按最高已批准版本号计算出的正式版本；首次批准前者为空，反批 V1 后后者为空。Domain 只提供不可变 payload，不推导版本号或正式版本身份。
 
-当前切片的真实 PostgreSQL 验收覆盖 Approval-only 唯一性、正反状态转换、stale revision、permission denied、自批、缺失 reason、元数据精确性、每次 revision 递增、subscriber error/panic 回滚，以及 stable subject 与 entry 同事务创建/删除不留 orphan。页面在未迁移业务 Domain 前不调用 Approval API，因此本切片不新增或改写页面用例。
+## 6. Approval Version
+
+`CreateFirstVersion` 建立 V1 草稿；只有尚无任何版本历史的 stable subject 可以调用。`CreateNextVersion` 以最高 `APPROVED version_no + 1` 建立候选；没有正式版本或已经存在开放候选时拒绝。删除草稿候选不消耗编号，因此下一次创建会复用同一号码。系统不保存 `next_version_no`。
+
+`GetLatestApproved` 始终返回 `version_no` 最高的 `APPROVED` 条目；`GetOpenVersion` 返回唯一的 `DRAFT` 或 `PENDING` 候选；`ListVersions` 按版本号倒序返回完整版本头。系统不维护 `current_version_id`、`effective_version_id`、`base_version_id` 或其他当前指针。
+
+`DeleteDraftVersion` 只删除 Approval Version 的 `DRAFT` 候选。只允许反批当前最高的 `APPROVED`：反批 V2 后 V1 自然成为正式版本；反批 V1 后允许没有正式版本。若已有另一开放候选，数据库开放候选唯一约束会拒绝把正式版本反批为第二个 `PENDING`。
+
+首次版本创建使用 `create` 权限，后续候选创建使用 `save` 权限，版本删除使用 `delete` 权限，读取当前版本使用 `get` 权限，历史列表使用 `versions` 权限；这些路径仍由 Coordinator 从固定 `(domain, entity, action)` 生成。
+
+## 7. 验收边界
+
+真实 PostgreSQL 验收覆盖 Approval-only 唯一性、V1/V2、候选删除后复号、latest approved、只反批 latest、正式版本回落、版本号与开放候选唯一性、并发候选，以及正反状态转换、stale revision、permission denied、自批、缺失 reason、元数据精确性、每次 revision 递增、subscriber error/panic 回滚和 stable subject-entry 同事务创建/删除不留 orphan。页面在未迁移业务 Domain 前不调用 Approval API，因此当前不新增或改写页面用例。

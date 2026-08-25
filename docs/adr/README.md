@@ -17,7 +17,7 @@
 | [ADR-0029](0029-extensible-product-types-use-closed-behavior-profiles.md)             | 2026-08-22 | 可扩展产品类型绑定封闭行为模板                                  |
 | [ADR-0030](0030-party-and-typed-business-relationships.md)                            | 2026-08-23 | Party 与强类型业务关系                                          |
 | [ADR-0031](0031-pay-is-deferred-and-requires-a-new-design.md)                         | 2026-08-23 | PAY 暂缓，未来从新输入模型重建                                  |
-| [ADR-0032](0032-central-approval-persistence-and-lifecycle.md)                        | 2026-08-25 | 审批持久化与生命周期由中央 Approval 统一拥有                    |
+| [ADR-0032](0032-central-approval-persistence-and-lifecycle.md)                        | 2026-08-25 | 审批持久化、生命周期与版本头由中央 Approval 统一拥有            |
 
 ## Superseded
 

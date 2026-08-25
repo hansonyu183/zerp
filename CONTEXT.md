@@ -21,6 +21,11 @@ _Rules_: [Approval 领域](docs/domains/approval.md#2-审批条目与主体边�
 _Avoid_: 审批语义下的 `CHECKED`、`EFFECTIVE`、`published`、领域自定义审批状态机
 _Rules_: [Approval 生命周期](docs/domains/approval.md#3-生命周期)
 
+**Approval Version（审批版本）**:
+需要候选与历史的 stable subject 在中央 Approval 中拥有的带正数版本号审批条目；正式版本永远是版本号最高的 `APPROVED` 条目。
+_Avoid_: Domain 版本头、当前版本指针、有效版本指针、下一个版本号、分支或合并
+_Rules_: [Approval Version](docs/domains/approval.md#6-approval-version)
+
 **Trusted System Actor（受信系统操作者）**:
 只能由系统身份显式建立的审批操作者，可免普通用户权限但仍受完整状态机、revision、业务校验和事务不变量约束。
 _Avoid_: 跳过授权开关、绕过审批、任意受信用户

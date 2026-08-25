@@ -121,6 +121,7 @@ type Querier interface {
 	CreateAccountingVoucher(ctx context.Context, arg CreateAccountingVoucherParams) error
 	CreateAppAuditEvent(ctx context.Context, arg CreateAppAuditEventParams) error
 	CreateAppSession(ctx context.Context, arg CreateAppSessionParams) error
+	CreateApprovalEntry(ctx context.Context, arg CreateApprovalEntryParams) (ApprovalEntry, error)
 	CreateApprovedZeroAccountingOpening(ctx context.Context, arg CreateApprovedZeroAccountingOpeningParams) error
 	CreateAutomaticAccountingVoucher(ctx context.Context, arg CreateAutomaticAccountingVoucherParams) error
 	CreateWorkflowActionExecution(ctx context.Context, arg CreateWorkflowActionExecutionParams) error
@@ -157,6 +158,7 @@ type Querier interface {
 	DeleteAppRolePermissions(ctx context.Context, roleID string) error
 	DeleteAppUserProfileAvatar(ctx context.Context, userID string) error
 	DeleteAppUserRoles(ctx context.Context, userID string) error
+	DeleteApprovalEntry(ctx context.Context, arg DeleteApprovalEntryParams) (ApprovalEntry, error)
 	DeleteAutomaticAccountingVoucher(ctx context.Context, arg DeleteAutomaticAccountingVoucherParams) ([]string, error)
 	DeleteAvailableAccountingBillsBySource(ctx context.Context, documentID string) error
 	DeleteBobAuditEventsForDraft(ctx context.Context, arg DeleteBobAuditEventsForDraftParams) (int64, error)
@@ -278,6 +280,7 @@ type Querier interface {
 	GetAppUserByUsername(ctx context.Context, username string) (AppUser, error)
 	GetAppUserPermissions(ctx context.Context, userID string) ([]string, error)
 	GetAppUserRoleIDs(ctx context.Context, userID string) ([]string, error)
+	GetApprovalEntry(ctx context.Context, arg GetApprovalEntryParams) (ApprovalEntry, error)
 	GetAutomaticAccountingVoucher(ctx context.Context, arg GetAutomaticAccountingVoucherParams) (GetAutomaticAccountingVoucherRow, error)
 	GetAuxVersionData(ctx context.Context, arg GetAuxVersionDataParams) ([]byte, error)
 	GetBobCustomerAccountDetail(ctx context.Context, objectID string) (GetBobCustomerAccountDetailRow, error)
@@ -376,6 +379,7 @@ type Querier interface {
 	InsertAppRolePermission(ctx context.Context, arg InsertAppRolePermissionParams) error
 	InsertAppUser(ctx context.Context, arg InsertAppUserParams) error
 	InsertAppUserRole(ctx context.Context, arg InsertAppUserRoleParams) error
+	InsertApprovalEvent(ctx context.Context, arg InsertApprovalEventParams) error
 	InsertBobAuditEvent(ctx context.Context, arg InsertBobAuditEventParams) error
 	InsertBobCategoryDetail(ctx context.Context, arg InsertBobCategoryDetailParams) error
 	InsertBobCustomerAccountData(ctx context.Context, arg InsertBobCustomerAccountDataParams) error
@@ -575,6 +579,7 @@ type Querier interface {
 	LockAccountingControlBookForVou(ctx context.Context) (LockAccountingControlBookForVouRow, error)
 	LockAccountingInventory(ctx context.Context, lockKey string) error
 	LockAccountingPeriodRow(ctx context.Context, arg LockAccountingPeriodRowParams) (LockAccountingPeriodRowRow, error)
+	LockApprovalEntry(ctx context.Context, arg LockApprovalEntryParams) (ApprovalEntry, error)
 	LockBobCustomerAccountRelationship(ctx context.Context, objectID string) (string, error)
 	LockBobObject(ctx context.Context, arg LockBobObjectParams) (LockBobObjectRow, error)
 	LockBobParty(ctx context.Context, partyID string) (BobParty, error)
@@ -734,6 +739,7 @@ type Querier interface {
 	UpdateAppSystemParameterValue(ctx context.Context, arg UpdateAppSystemParameterValueParams) (AppSystemParameter, error)
 	UpdateAppUser(ctx context.Context, arg UpdateAppUserParams) (int64, error)
 	UpdateAppUserPassword(ctx context.Context, arg UpdateAppUserPasswordParams) (int64, error)
+	UpdateApprovalEntry(ctx context.Context, arg UpdateApprovalEntryParams) (ApprovalEntry, error)
 	UpdateBobCategoryDetail(ctx context.Context, arg UpdateBobCategoryDetailParams) (int64, error)
 	UpdateBobDepartmentDetail(ctx context.Context, arg UpdateBobDepartmentDetailParams) (int64, error)
 	UpdateBobEmployeeDetail(ctx context.Context, arg UpdateBobEmployeeDetailParams) (int64, error)

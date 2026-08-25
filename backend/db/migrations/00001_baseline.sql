@@ -10798,6 +10798,87 @@ ALTER TABLE ONLY public.wfl_node_instances
 --
 
 
+--
+-- Central Approval persistence. Domain subjects remain owned by their Domain;
+-- subject_id is intentionally a controlled logical foreign key.
+--
+
+CREATE TABLE public.approval_entries (
+    id character varying(26) NOT NULL,
+    domain character varying(32) NOT NULL,
+    entity character varying(64) NOT NULL,
+    subject_id character varying(128) NOT NULL,
+    version_no integer,
+    status character varying(16) NOT NULL,
+    revision bigint DEFAULT 1 NOT NULL,
+    created_by character varying(26) NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_by character varying(26) NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    submitted_by character varying(26),
+    submitted_at timestamp with time zone,
+    approved_by character varying(26),
+    approved_at timestamp with time zone,
+    CONSTRAINT approval_entries_pkey PRIMARY KEY (id),
+    CONSTRAINT approval_entries_domain_check CHECK (((domain)::text ~ '^[a-z][a-z0-9-]{0,31}$'::text)),
+    CONSTRAINT approval_entries_entity_check CHECK (((entity)::text ~ '^[a-z][a-z0-9-]{0,63}$'::text)),
+    CONSTRAINT approval_entries_subject_id_check CHECK ((length(btrim((subject_id)::text)) >= 1)),
+    CONSTRAINT approval_entries_version_no_check CHECK (((version_no IS NULL) OR (version_no >= 1))),
+    CONSTRAINT approval_entries_status_check CHECK (((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PENDING'::character varying, 'APPROVED'::character varying])::text[]))),
+    CONSTRAINT approval_entries_revision_check CHECK ((revision >= 1)),
+    CONSTRAINT approval_entries_metadata_check CHECK (
+        (((status)::text = 'DRAFT'::text) AND submitted_by IS NULL AND submitted_at IS NULL AND approved_by IS NULL AND approved_at IS NULL)
+        OR (((status)::text = 'PENDING'::text) AND submitted_by IS NOT NULL AND submitted_at IS NOT NULL AND approved_by IS NULL AND approved_at IS NULL)
+        OR (((status)::text = 'APPROVED'::text) AND submitted_by IS NOT NULL AND submitted_at IS NOT NULL AND approved_by IS NOT NULL AND approved_at IS NOT NULL AND approved_by <> submitted_by)
+    )
+);
+
+CREATE UNIQUE INDEX approval_entries_approval_only_unique
+    ON public.approval_entries USING btree (domain, entity, subject_id)
+    WHERE (version_no IS NULL);
+CREATE UNIQUE INDEX approval_entries_version_unique
+    ON public.approval_entries USING btree (domain, entity, subject_id, version_no)
+    WHERE (version_no IS NOT NULL);
+CREATE UNIQUE INDEX approval_entries_open_version_unique
+    ON public.approval_entries USING btree (domain, entity, subject_id)
+    WHERE ((version_no IS NOT NULL) AND ((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PENDING'::character varying])::text[])));
+CREATE INDEX approval_entries_latest_approved_idx
+    ON public.approval_entries USING btree (domain, entity, subject_id, version_no DESC)
+    WHERE ((version_no IS NOT NULL) AND ((status)::text = 'APPROVED'::text));
+
+CREATE TABLE public.approval_events (
+    id character varying(26) NOT NULL,
+    entry_id character varying(26) NOT NULL,
+    domain character varying(32) NOT NULL,
+    entity character varying(64) NOT NULL,
+    subject_id character varying(128) NOT NULL,
+    version_no integer,
+    action character varying(16) NOT NULL,
+    from_status character varying(16),
+    to_status character varying(16),
+    from_revision bigint,
+    to_revision bigint,
+    actor_id character varying(26) NOT NULL,
+    reason text,
+    request_id character varying(128) NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    CONSTRAINT approval_events_pkey PRIMARY KEY (id),
+    CONSTRAINT approval_events_action_check CHECK (((action)::text = ANY ((ARRAY['CREATED'::character varying, 'SAVED'::character varying, 'SUBMITTED'::character varying, 'UNSUBMITTED'::character varying, 'REJECTED'::character varying, 'APPROVED'::character varying, 'UNAPPROVED'::character varying, 'DELETED'::character varying])::text[]))),
+    CONSTRAINT approval_events_domain_check CHECK (((domain)::text ~ '^[a-z][a-z0-9-]{0,31}$'::text)),
+    CONSTRAINT approval_events_entity_check CHECK (((entity)::text ~ '^[a-z][a-z0-9-]{0,63}$'::text)),
+    CONSTRAINT approval_events_subject_id_check CHECK ((length(btrim((subject_id)::text)) >= 1)),
+    CONSTRAINT approval_events_version_no_check CHECK (((version_no IS NULL) OR (version_no >= 1))),
+    CONSTRAINT approval_events_status_check CHECK ((((from_status IS NULL) OR ((from_status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PENDING'::character varying, 'APPROVED'::character varying])::text[]))) AND ((to_status IS NULL) OR ((to_status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PENDING'::character varying, 'APPROVED'::character varying])::text[]))))),
+    CONSTRAINT approval_events_revision_check CHECK (((from_revision IS NULL OR from_revision >= 1) AND (to_revision IS NULL OR to_revision >= 1))),
+    CONSTRAINT approval_events_transition_shape_check CHECK ((((action)::text = 'CREATED'::text AND from_status IS NULL AND from_revision IS NULL AND to_status IS NOT NULL AND to_revision IS NOT NULL) OR ((action)::text = 'DELETED'::text AND from_status IS NOT NULL AND from_revision IS NOT NULL AND to_status IS NULL AND to_revision IS NULL) OR ((action)::text <> ALL ((ARRAY['CREATED'::character varying, 'DELETED'::character varying])::text[]) AND from_status IS NOT NULL AND from_revision IS NOT NULL AND to_status IS NOT NULL AND to_revision IS NOT NULL))),
+    CONSTRAINT approval_events_reason_check CHECK (((((action)::text = ANY ((ARRAY['REJECTED'::character varying, 'UNAPPROVED'::character varying])::text[])) AND reason IS NOT NULL AND length(btrim(reason)) > 0) OR (((action)::text <> ALL ((ARRAY['REJECTED'::character varying, 'UNAPPROVED'::character varying])::text[])) AND reason IS NULL))),
+    CONSTRAINT approval_events_request_id_check CHECK ((length(btrim((request_id)::text)) >= 1))
+);
+
+CREATE INDEX approval_events_entry_created_idx
+    ON public.approval_events USING btree (entry_id, created_at, id);
+
+
 
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO zerp_report_reader;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO zerp_report_reader;

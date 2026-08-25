@@ -14,6 +14,8 @@ If a source is absent, proceed with the sources that exist. Create or amend shar
 
 Do not introduce per-module `CONTEXT.md` files or duplicate domain documentation under `frontend/` or `backend/`.
 
+Cross-domain platform capabilities such as Approval may own an authoritative `docs/domains/<capability>.md` without registering a standalone frontend domain or HTTP route. Their business-domain consumers own the pages and endpoints; documentation checks must not force a fictitious capability page or API.
+
 ## Use the glossary's vocabulary
 
 When output names a domain concept—in an issue title, refactor proposal, hypothesis, or test name—use the term defined in `CONTEXT.md`. Don't drift to synonyms the glossary explicitly avoids.

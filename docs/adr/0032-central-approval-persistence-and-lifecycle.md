@@ -1,0 +1,11 @@
+---
+id: ADR-0032
+date: 2026-08-25
+status: accepted
+---
+
+# 审批持久化与生命周期由中央 Approval 统一拥有
+
+ZERP 将审批状态、revision、元数据、审计、APP 动作授权和强类型同步事务事件集中到一套 Approval 持久化与 Coordinator。各业务 Domain 仅拥有 stable subject、业务 payload 和业务校验，并在自己创建的 PostgreSQL transaction 内调用 Approval；不建立 Domain Store Adapter、中央 subject 表、callback/hook、异步 broker 或各域独立状态机。
+
+这一边界用受控逻辑外键保留 Domain 主体所有权，以数据库约束表达审批内部不变量，并以同事务集成测试证明 subject-entry 原子性。中央化使生命周期与授权规则无法被 Domain 绕过，代价是后续各域必须以独立切片删除旧持久化和事件路径。本 ADR 只确立中央基础设施，在 VOU 迁移切片合并前不取代 ADR-0004 对当前 VOU 运行行为的描述。

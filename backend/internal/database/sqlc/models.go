@@ -463,6 +463,42 @@ type AppUserRole struct {
 	CreatedBy *string            `db:"created_by" json:"created_by"`
 }
 
+type ApprovalEntry struct {
+	ID          string             `db:"id" json:"id"`
+	Domain      string             `db:"domain" json:"domain"`
+	Entity      string             `db:"entity" json:"entity"`
+	SubjectID   string             `db:"subject_id" json:"subject_id"`
+	VersionNo   *int32             `db:"version_no" json:"version_no"`
+	Status      string             `db:"status" json:"status"`
+	Revision    int64              `db:"revision" json:"revision"`
+	CreatedBy   string             `db:"created_by" json:"created_by"`
+	CreatedAt   pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedBy   string             `db:"updated_by" json:"updated_by"`
+	UpdatedAt   pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	SubmittedBy *string            `db:"submitted_by" json:"submitted_by"`
+	SubmittedAt pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
+	ApprovedBy  *string            `db:"approved_by" json:"approved_by"`
+	ApprovedAt  pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
+}
+
+type ApprovalEvent struct {
+	ID           string             `db:"id" json:"id"`
+	EntryID      string             `db:"entry_id" json:"entry_id"`
+	Domain       string             `db:"domain" json:"domain"`
+	Entity       string             `db:"entity" json:"entity"`
+	SubjectID    string             `db:"subject_id" json:"subject_id"`
+	VersionNo    *int32             `db:"version_no" json:"version_no"`
+	Action       string             `db:"action" json:"action"`
+	FromStatus   *string            `db:"from_status" json:"from_status"`
+	ToStatus     *string            `db:"to_status" json:"to_status"`
+	FromRevision *int64             `db:"from_revision" json:"from_revision"`
+	ToRevision   *int64             `db:"to_revision" json:"to_revision"`
+	ActorID      string             `db:"actor_id" json:"actor_id"`
+	Reason       *string            `db:"reason" json:"reason"`
+	RequestID    string             `db:"request_id" json:"request_id"`
+	CreatedAt    pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
 type AuxAuditEvent struct {
 	ID         string             `db:"id" json:"id"`
 	ObjectID   string             `db:"object_id" json:"object_id"`

@@ -678,6 +678,10 @@ for (const file of domainFiles) {
 const documentedDomains = new Set(
   domainFiles.map((file) => path.basename(file, '.md')),
 )
+// Cross-domain platform capabilities own authoritative business rules without
+// exposing their own page or HTTP route. Their consumers remain the routed
+// business domains.
+const platformCapabilityDomains = new Set(['approval'])
 const registrySource = fs.readFileSync(
   path.join(root, 'frontend', 'src', 'router', 'registry.ts'),
   'utf8',
@@ -738,6 +742,15 @@ for (const domain of [...registeredDomains, ...contractDomains].sort()) {
 }
 
 for (const domain of [...documentedDomains].sort()) {
+  if (platformCapabilityDomains.has(domain)) {
+    if (registeredDomains.has(domain)) {
+      failures.push(`平台能力领域 ${domain} 不应注册独立前端领域`)
+    }
+    if (contractDomains.has(domain)) {
+      failures.push(`平台能力领域 ${domain} 不应暴露独立 OpenAPI 路径`)
+    }
+    continue
+  }
   if (!registeredDomains.has(domain)) {
     failures.push(`领域文档 ${domain} 缺少前端领域注册`)
   }

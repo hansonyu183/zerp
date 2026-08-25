@@ -49,6 +49,45 @@
           'revision': { 'type': 'integer', 'format': 'int64' },
         },
     },
+  'ApprovalStatus':
+    {
+      'type': 'string',
+      'enum': ['DRAFT', 'PENDING', 'APPROVED'],
+      'description': 'Approval 唯一生命周期状态。',
+    },
+  'ApprovalMeta':
+    {
+      'type': 'object',
+      'required':
+        [
+          'status',
+          'revision',
+          'createdBy',
+          'createdAt',
+          'updatedBy',
+          'updatedAt',
+          'submittedBy',
+          'submittedAt',
+          'approvedBy',
+          'approvedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'status': { '$ref': '#/ApprovalStatus' },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'createdBy': { 'type': 'string' },
+          'createdAt': { 'type': 'string', 'format': 'date-time' },
+          'updatedBy': { 'type': 'string' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+          'submittedBy': { 'type': 'string', 'nullable': true },
+          'submittedAt':
+            { 'type': 'string', 'format': 'date-time', 'nullable': true },
+          'approvedBy': { 'type': 'string', 'nullable': true },
+          'approvedAt':
+            { 'type': 'string', 'format': 'date-time', 'nullable': true },
+        },
+    },
   'PageRequest':
     {
       'type': 'object',

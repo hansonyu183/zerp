@@ -26,12 +26,15 @@ pnpm --filter @zerp/frontend dev
 
 ```bash
 pnpm build
+pnpm typecheck
 pnpm lint
 pnpm format:check
 pnpm test:unit
 pnpm test:coverage
 pnpm check
 ```
+
+`pnpm typecheck` 是唯一类型门禁：通过 `vue-tsc` 与 TypeScript native bridge 使用 TypeScript 7/tsgo checker，一次检查 `.ts`、`.tsx` 和 `.vue` template，并运行隔离 fixture 自检来证明 template 诊断有效。
 
 真实全栈 Playwright 从仓库根目录运行：
 

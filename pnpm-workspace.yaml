@@ -4,3 +4,4 @@ packages:
 overrides:
   glob: 10.5.0
   postcss: 8.5.26
+  typescript: npm:typescript-native-bridge@6.0.3-bridge.15.tsgo.7.0.2

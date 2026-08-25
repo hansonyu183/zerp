@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "typecheck": "tsc -b --force",
+    "typecheck": "vue-tsc -b --force && node scripts/check-vue-template-typecheck.mjs",
     "build": "pnpm typecheck && vite build",
     "preview": "vite preview",
     "lint": "oxlint --quiet .",
@@ -48,9 +48,10 @@
     "oxc-parser": "^0.147.0",
     "prettier": "^3.9.6",
     "sass-embedded": "^1.100.0",
-    "typescript": "~7.0.2",
+    "typescript": "npm:typescript-native-bridge@6.0.3-bridge.15.tsgo.7.0.2",
     "vite": "^8.1.5",
     "vite-plugin-vuetify": "^2.1.3",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "vue-tsc": "3.3.11"
   }
 }

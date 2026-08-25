@@ -1,4 +1,4 @@
-FROM node:26-alpine AS build
+FROM node:26-bookworm-slim AS build
 
 RUN npm install --global corepack@0.35.0 \
     && corepack enable

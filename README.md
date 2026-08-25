@@ -34,7 +34,7 @@ make dev
 
 `make dev` 会启动 PostgreSQL 容器、执行迁移，并以前台热更新方式运行 Go API 和 Vite。浏览器访问 `http://127.0.0.1:5173`；Vite 将 `/api/*` 代理到 API 并去掉 `/api` 前缀，将 `/files/*` 直接代理到附件端点。
 
-前端构建、类型检查及相关工具统一使用 TypeScript 7.0.2，不维护第二套 TypeScript 兼容工具链。
+前端构建、类型检查及相关工具统一使用 TypeScript 7.0.2 的 tsgo checker。仓库通过锁定的 TypeScript native bridge 让 `vue-tsc` 使用同一 checker 检查 TypeScript 与 Vue SFC template，不维护第二套 TypeScript 兼容工具链。native bridge 需要 glibc，因此前端 Docker 构建阶段使用 Debian，最终 Nginx 运行镜像仍使用 Alpine。
 
 停止前台进程后数据库卷会保留；需要停止容器时运行：
 
@@ -57,6 +57,8 @@ make dev-down
 | `make compose-up`     | 启动生产形态 Compose                   |
 | `make compose-down`   | 停止生产形态 Compose                   |
 
+`pnpm --filter @zerp/frontend typecheck` 是唯一生产前端类型门禁，只运行一次 `vue-tsc -b --force`。`pnpm --filter @zerp/frontend test:vue-template-typecheck` 是独立工具链回归测试：它要求同一 checker 拒绝故意错误的隔离 Vue template fixture，并由 `make check` 自动运行；该 canary 不属于生产 `typecheck` 命令。
+
 ## 契约开发
 
 `contracts/openapi/openapi.yaml` 及其引用文件是 HTTP 线协议的唯一来源。修改契约后运行：
@@ -71,7 +73,7 @@ make generate
 - `frontend/src/api/generated/schema.ts`
 - `backend/internal/database/sqlc/`
 
-`make generate` 还会在 `contracts/openapi/dist/openapi.json` 生成被 Git 忽略的临时 bundle，供后续生成步骤使用；该文件不提交。前端模型由不依赖 TypeScript 编译器 API 的 OpenAPI 生成器产生，并由仓库脚本补充 `openapi-fetch` 所需的路径类型，因此工具链只安装 TypeScript 7。
+`make generate` 还会在 `contracts/openapi/dist/openapi.json` 生成被 Git 忽略的临时 bundle，供后续生成步骤使用；该文件不提交。前端模型由不依赖 TypeScript 编译器 API 的 OpenAPI 生成器产生，并由仓库脚本补充 `openapi-fetch` 所需的路径类型，因此工具链只使用 TypeScript 7/tsgo checker；native bridge 仅提供 Vue language tools 所需的经典 API 表面，不引入第二个 checker。
 
 业务代码不得手改生成物。前端页面只依赖生成 DTO 或 UI 自有模型；后端在 Handler 边界把生成 DTO 映射到领域类型。
 

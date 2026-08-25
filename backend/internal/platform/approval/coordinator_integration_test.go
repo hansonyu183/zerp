@@ -980,7 +980,7 @@ func TestApprovalPersistenceLifecycleIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("subject lock prevents stale unapproval while the next version is approved", func(t *testing.T) {
+	t.Run("prepare rejects unapproval while an open version exists", func(t *testing.T) {
 		subjectID := ulid.Make().String()
 		payload := fixturePayload{SubjectID: subjectID, Name: "Subject lock approval race"}
 		versionBus := txevent.NewBus()
@@ -1037,60 +1037,25 @@ func TestApprovalPersistenceLifecycleIntegration(t *testing.T) {
 		if createErr != nil {
 			t.Fatalf("create race V3: %v", createErr)
 		}
+		assertPrepareRejected := func(label string) {
+			t.Helper()
+			prepareErr := inTransaction(t, pool, func(tx pgx.Tx) error {
+				_, operationErr := versionCoordinator.Prepare(t.Context(), tx, ActionUnapproved, v2.ID, v2.Revision, actorOne(label), "superseded")
+				return operationErr
+			})
+			if !IsKey(prepareErr, "approval_open_version_exists") {
+				t.Fatalf("prepare unapprove with %s V3 error = %v", label, prepareErr)
+			}
+		}
+		assertPrepareRejected("draft-v3")
+
 		v3, err = mutateEntry(t, pool, func(tx pgx.Tx) (Entry, error) {
 			return versionCoordinator.Submit(t.Context(), tx, v3.ID, v3.Revision, actorOne("race-submit-v3"), payload)
 		})
 		if err != nil {
 			t.Fatalf("submit race V3: %v", err)
 		}
-
-		unapprovePrepared := make(chan struct{})
-		releaseUnapprove := make(chan struct{})
-		unapproveResult := make(chan error, 1)
-		go func() {
-			tx, beginErr := pool.Begin(context.Background())
-			if beginErr != nil {
-				unapproveResult <- beginErr
-				return
-			}
-			defer func() { _ = tx.Rollback(context.Background()) }()
-			prepared, prepareErr := versionCoordinator.Prepare(context.Background(), tx, ActionUnapproved, v2.ID, v2.Revision, actorOne("race-unapprove-v2"), "superseded")
-			if prepareErr != nil {
-				unapproveResult <- prepareErr
-				return
-			}
-			close(unapprovePrepared)
-			<-releaseUnapprove
-			_, commitErr := versionCoordinator.Commit(context.Background(), tx, prepared, payload)
-			if commitErr == nil {
-				commitErr = tx.Commit(context.Background())
-			}
-			unapproveResult <- commitErr
-		}()
-		<-unapprovePrepared
-
-		approveResult := make(chan error, 1)
-		go func() {
-			tx, beginErr := pool.Begin(context.Background())
-			if beginErr != nil {
-				approveResult <- beginErr
-				return
-			}
-			defer func() { _ = tx.Rollback(context.Background()) }()
-			_, approveErr := versionCoordinator.Approve(context.Background(), tx, v3.ID, v3.Revision, actorTwo("race-approve-v3"), payload)
-			if approveErr == nil {
-				approveErr = tx.Commit(context.Background())
-			}
-			approveResult <- approveErr
-		}()
-		waitForAdvisoryLockWaiter(t, pool)
-		close(releaseUnapprove)
-		if unapproveErr := <-unapproveResult; !IsKey(unapproveErr, "approval_open_version_exists") {
-			t.Fatalf("stale V2 unapprove error = %v", unapproveErr)
-		}
-		if approveErr := <-approveResult; approveErr != nil {
-			t.Fatalf("approve V3 after stale unapprove: %v", approveErr)
-		}
+		assertPrepareRejected("pending-v3")
 
 		var v2Status, v3Status string
 		if queryErr := pool.QueryRow(t.Context(), `SELECT status FROM approval_entries WHERE id=$1`, v2.ID).Scan(&v2Status); queryErr != nil {
@@ -1099,8 +1064,8 @@ func TestApprovalPersistenceLifecycleIntegration(t *testing.T) {
 		if queryErr := pool.QueryRow(t.Context(), `SELECT status FROM approval_entries WHERE id=$1`, v3.ID).Scan(&v3Status); queryErr != nil {
 			t.Fatalf("read V3 status: %v", queryErr)
 		}
-		if v2Status != string(StatusApproved) || v3Status != string(StatusApproved) {
-			t.Fatalf("stale unapprove race left V2=%s V3=%s", v2Status, v3Status)
+		if v2Status != string(StatusApproved) || v3Status != string(StatusPending) {
+			t.Fatalf("rejected prepare changed V2=%s V3=%s", v2Status, v3Status)
 		}
 	})
 }

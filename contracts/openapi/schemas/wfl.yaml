@@ -582,3 +582,64 @@
         'requestKey': { 'type': 'string', 'minLength': 16, 'maxLength': 64 },
       },
   }
+'WflRuntimeAuditView':
+  {
+    'type': 'object',
+    'required':
+      ['id', 'eventType', 'actorId', 'requestId', 'summary', 'occurredAt'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'id': { 'type': 'string' },
+        'eventType': { 'type': 'string' },
+        'nodeInstanceId': { 'type': 'string', 'nullable': true },
+        'documentId': { 'type': 'string', 'nullable': true },
+        'documentNo': { 'type': 'string', 'nullable': true },
+        'actorId': { 'type': 'string' },
+        'requestId': { 'type': 'string' },
+        'summary': { 'type': 'object', 'additionalProperties': true },
+        'occurredAt': { 'type': 'string', 'format': 'date-time' },
+      },
+  }
+'WflRuntimeAuditPage':
+  {
+    'type': 'object',
+    'required': ['items', 'total', 'page', 'pageSize'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'items':
+          { 'type': 'array', 'items': { '$ref': '#/WflRuntimeAuditView' } },
+        'total': { 'type': 'integer', 'format': 'int64' },
+        'page': { 'type': 'integer' },
+        'pageSize': { 'type': 'integer' },
+      },
+  }
+'WflInstanceHistoryResponse':
+  {
+    'type': 'object',
+    'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'code': { 'type': 'integer', 'format': 'int32' },
+        'errorKey': { 'type': 'string' },
+        'message': { 'type': 'string' },
+        'data': { '$ref': '#/WflRuntimeAuditPage', 'nullable': true },
+        'requestId': { 'type': 'string' },
+      },
+  }
+'WflCreateChildResponse':
+  {
+    'type': 'object',
+    'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'code': { 'type': 'integer', 'format': 'int32' },
+        'errorKey': { 'type': 'string' },
+        'message': { 'type': 'string' },
+        'data': { '$ref': '#/WflBusinessObjectReference', 'nullable': true },
+        'requestId': { 'type': 'string' },
+      },
+  }

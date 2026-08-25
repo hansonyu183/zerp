@@ -216,7 +216,7 @@ func (h *Handler) deleteSubject(c *gin.Context) {
 	if !h.bind(c, &body) {
 		return
 	}
-	h.result(c, struct{}{}, h.service.DeleteSubject(c.Request.Context(), body.BookId, body.SubjectId, body.Revision, h.actorID(c)))
+	h.result(c, nil, h.service.DeleteSubject(c.Request.Context(), body.BookId, body.SubjectId, body.Revision, h.actorID(c)))
 }
 
 func (h *Handler) queryOpening(c *gin.Context) {
@@ -414,7 +414,7 @@ func (h *Handler) delete(c *gin.Context) {
 	if !h.bind(c, &body) {
 		return
 	}
-	h.result(c, struct{}{}, h.service.DeleteBook(c.Request.Context(), body.BookId, body.Revision, h.actorID(c)))
+	h.result(c, nil, h.service.DeleteBook(c.Request.Context(), body.BookId, body.Revision, h.actorID(c)))
 }
 
 func (h *Handler) bind(c *gin.Context, target any) bool {

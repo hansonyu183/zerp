@@ -39,7 +39,12 @@
           'code': { 'type': 'integer', 'format': 'int32' },
           'errorKey': { 'type': 'string' },
           'message': { 'type': 'string' },
-          'data': { '$ref': '#/EmptyObject' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/EmptyObject' }],
+              'nullable': true,
+            },
           'requestId': { 'type': 'string' },
         },
     },

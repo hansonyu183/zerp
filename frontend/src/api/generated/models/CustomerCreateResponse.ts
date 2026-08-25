@@ -2,11 +2,11 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { EmptyObject } from './EmptyObject';
-export type EmptyResponse = {
+import type { CustomerCreateResult } from './CustomerCreateResult';
+export type CustomerCreateResponse = {
   code: number;
   errorKey: string;
   message: string;
-  data: EmptyObject | null;
+  data: CustomerCreateResult | null;
   requestId: string;
 };

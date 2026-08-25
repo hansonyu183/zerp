@@ -138,7 +138,7 @@ func (h *Handler) disable(c *gin.Context, entity string) {
 func (h *Handler) delete(c *gin.Context, entity string) {
 	var input DeleteInput
 	if h.bind(c, &input) {
-		h.result(c, struct{}{}, h.service.Delete(c.Request.Context(), entity, input))
+		h.result(c, nil, h.service.Delete(c.Request.Context(), entity, input))
 	}
 }
 

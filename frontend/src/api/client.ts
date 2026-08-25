@@ -1,4 +1,8 @@
 import createClient, { type Client } from 'openapi-fetch'
+import {
+  permitsNullSuccessData,
+  type NullSuccessContractPath,
+} from '@/api/generated/contract-meta'
 import type { components, paths } from '@/api/generated/schema'
 import { ApiError, type ApiResponse, type ApiResult } from '@/api/types'
 
@@ -74,7 +78,9 @@ type ApiPostResponse<Path extends ApiPostPath> = Path extends ApiPostPath
 export type ApiPostData<Path extends ApiPostPath> =
   ApiPostResponse<Path> extends infer Response
     ? Response extends { data: infer Data }
-      ? NonNullable<Data>
+      ? ContractPathFor<Path> extends NullSuccessContractPath
+        ? Data
+        : NonNullable<Data>
       : never
     : never
 
@@ -231,7 +237,10 @@ export class ApiClient {
         })
       }
 
-      if (payload.data === null) {
+      if (
+        payload.data === null &&
+        !permitsNullSuccessData(contractRequest.path)
+      ) {
         throw new ApiError('protocol', '后端成功响应缺少契约数据。')
       }
 

@@ -3217,4 +3217,74 @@
           'requestId': { 'type': 'string' },
         },
     },
+  'CustomerCreateResult':
+    {
+      'allOf':
+        [
+          { '$ref': '#/BobMutationResult' },
+          {
+            'type': 'object',
+            'required': ['partyId', 'defaultAccount'],
+            'properties':
+              {
+                'partyId': { 'type': 'string' },
+                'defaultAccount': { '$ref': '#/CustomerAccountView' },
+              },
+          },
+        ],
+    },
+  'CustomerCreateResponse':
+    {
+      'type': 'object',
+      'required': [code, errorKey, message, data, requestId],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/CustomerCreateResult', 'nullable': true },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'CustomerAccountResponse':
+    {
+      'type': 'object',
+      'required': [code, errorKey, message, data, requestId],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/CustomerAccountView', 'nullable': true },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'SupplierCreateResult':
+    {
+      'allOf':
+        [
+          { '$ref': '#/BobMutationResult' },
+          {
+            'type': 'object',
+            'required': ['partyId'],
+            'properties': { 'partyId': { 'type': 'string' } },
+          },
+        ],
+    },
+  'SupplierCreateResponse':
+    {
+      'type': 'object',
+      'required': [code, errorKey, message, data, requestId],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data': { '$ref': '#/SupplierCreateResult', 'nullable': true },
+          'requestId': { 'type': 'string' },
+        },
+    },
 }

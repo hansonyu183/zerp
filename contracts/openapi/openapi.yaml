@@ -2764,7 +2764,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200': { '$ref': '#/components/responses/OtherUnitMutation' },
+                },
             },
         },
       '/bob/other-unit/unsubmit':
@@ -2788,7 +2790,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200': { '$ref': '#/components/responses/OtherUnitMutation' },
+                },
             },
         },
       '/bob/other-unit/approve':
@@ -2814,7 +2818,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200': { '$ref': '#/components/responses/OtherUnitMutation' },
+                },
             },
         },
       '/bob/other-unit/reject':
@@ -2838,7 +2844,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200': { '$ref': '#/components/responses/OtherUnitMutation' },
+                },
             },
         },
       '/bob/other-unit/enable':
@@ -2864,7 +2872,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200': { '$ref': '#/components/responses/OtherUnitMutation' },
+                },
             },
         },
       '/bob/other-unit/disable':
@@ -2890,7 +2900,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200': { '$ref': '#/components/responses/OtherUnitMutation' },
+                },
             },
         },
       '/bob/other-unit/versions':
@@ -2914,7 +2926,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200': { '$ref': '#/components/responses/BobVersionHistory' },
+                },
             },
         },
       '/bob/other-unit/audit-history':
@@ -2938,7 +2952,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/BobAuditHistory' } },
             },
         },
       '/bob/customer/query':
@@ -3044,7 +3058,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '已创建的客户关系与默认结算账户。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/CustomerCreateResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/bob/customer/account-add':
@@ -3070,7 +3099,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '已创建的客户结算账户。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/CustomerAccountResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/bob/customer/account-delete':
@@ -3120,7 +3164,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/BobMutation' } },
             },
         },
       '/bob/customer/attachment-initiate':
@@ -3349,7 +3393,22 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    {
+                      'description': '已创建的供应商关系。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/bob.yaml#/SupplierCreateResponse',
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
       '/bob/supplier/save':
@@ -3375,7 +3434,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/BobMutation' } },
             },
         },
       '/bob/reference/query':
@@ -5711,7 +5770,10 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    { '$ref': '#/components/responses/WflInstanceHistory' },
+                },
             },
         },
       '/wfl/{processName}/create-child':
@@ -5746,7 +5808,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/WflCreateChild' } },
             },
         },
       '/wfl/process-instance/get':
@@ -5813,7 +5875,10 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200':
+                    { '$ref': '#/components/responses/WflInstanceHistory' },
+                },
             },
         },
       '/rpt/definition/query':
@@ -5839,7 +5904,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200': { '$ref': '#/components/responses/RptDefinitionPage' },
+                },
             },
         },
       '/rpt/definition/get':
@@ -5865,7 +5932,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200': { '$ref': '#/components/responses/RptDefinitionView' },
+                },
             },
         },
       '/rpt/definition/create':
@@ -5891,7 +5960,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/RptMutation' } },
             },
         },
       '/rpt/definition/create-version':
@@ -5917,7 +5986,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/RptMutation' } },
             },
         },
       '/rpt/definition/save':
@@ -5943,7 +6012,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/RptMutation' } },
             },
         },
       '/rpt/definition/approve':
@@ -5969,7 +6038,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/RptMutation' } },
             },
         },
       '/rpt/definition/unapprove':
@@ -5995,7 +6064,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/RptMutation' } },
             },
         },
       '/rpt/definition/enable':
@@ -6021,7 +6090,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/RptMutation' } },
             },
         },
       '/rpt/definition/disable':
@@ -6047,7 +6116,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/RptMutation' } },
             },
         },
       '/rpt/definition/delete':
@@ -6114,7 +6183,7 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                { '200': { '$ref': '#/components/responses/RptQuery' } },
             },
         },
       '/rpt/directory/query':
@@ -6140,7 +6209,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200': { '$ref': '#/components/responses/RptDirectoryPage' },
+                },
             },
         },
       '/rpt/{report}/export':
@@ -6214,7 +6285,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/Business' } },
+                {
+                  '200': { '$ref': '#/components/responses/RptReferencePage' },
+                },
             },
         },
       '/files/customer-attachments/upload/{token}':
@@ -6433,18 +6506,6 @@
         },
       'responses':
         {
-          'Business':
-            {
-              'description': '统一业务响应；业务错误仍使用 HTTP 200。',
-              'content':
-                {
-                  'application/json':
-                    {
-                      'schema':
-                        { '$ref': './schemas/common.yaml#/BusinessEnvelope' },
-                    },
-                },
-            },
           'Empty':
             {
               'description': '成功且不返回业务数据。',
@@ -6454,6 +6515,168 @@
                     {
                       'schema':
                         { '$ref': './schemas/common.yaml#/EmptyResponse' },
+                    },
+                },
+            },
+          'BobMutation':
+            {
+              'description': '精确 BOB 变更响应。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        { '$ref': './schemas/bob.yaml#/BobMutationResponse' },
+                    },
+                },
+            },
+          'OtherUnitMutation':
+            {
+              'description': '精确其他单位变更响应。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          '$ref': './schemas/bob.yaml#/OtherUnitMutationResponse',
+                        },
+                    },
+                },
+            },
+          'BobVersionHistory':
+            {
+              'description': '精确 BOB 版本历史响应。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          '$ref': './schemas/bob.yaml#/BobVersionHistoryResponse',
+                        },
+                    },
+                },
+            },
+          'BobAuditHistory':
+            {
+              'description': '精确 BOB 审计历史响应。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          '$ref': './schemas/bob.yaml#/BobAuditHistoryResponse',
+                        },
+                    },
+                },
+            },
+          'WflInstanceHistory':
+            {
+              'description': '精确工作流实例审计历史响应。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          '$ref': './schemas/wfl.yaml#/WflInstanceHistoryResponse',
+                        },
+                    },
+                },
+            },
+          'WflCreateChild':
+            {
+              'description': '精确工作流创建下级单据响应。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          '$ref': './schemas/wfl.yaml#/WflCreateChildResponse',
+                        },
+                    },
+                },
+            },
+          'RptDefinitionPage':
+            {
+              'description': '精确报表定义分页响应。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          '$ref': './schemas/rpt.yaml#/RptDefinitionPageResponse',
+                        },
+                    },
+                },
+            },
+          'RptDefinitionView':
+            {
+              'description': '精确报表定义响应。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          '$ref': './schemas/rpt.yaml#/RptDefinitionViewResponse',
+                        },
+                    },
+                },
+            },
+          'RptMutation':
+            {
+              'description': '精确报表变更响应。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        { '$ref': './schemas/rpt.yaml#/RptMutationResponse' },
+                    },
+                },
+            },
+          'RptDirectoryPage':
+            {
+              'description': '精确报表目录分页响应。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          '$ref': './schemas/rpt.yaml#/RptDirectoryPageResponse',
+                        },
+                    },
+                },
+            },
+          'RptQuery':
+            {
+              'description': '精确动态报表结果响应。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        { '$ref': './schemas/rpt.yaml#/RptQueryResponse' },
+                    },
+                },
+            },
+          'RptReferencePage':
+            {
+              'description': '精确报表引用候选分页响应。',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          '$ref': './schemas/rpt.yaml#/RptReferencePageResponse',
+                        },
                     },
                 },
             },

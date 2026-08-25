@@ -1,7 +1,7 @@
 import { HttpResponse, http } from 'msw'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import type { components } from '@/api/generated/schema'
-import { ApiClient, type ApiPostRequest } from '@/api/client'
+import { ApiClient, type ApiPostData, type ApiPostRequest } from '@/api/client'
 import { ApiError } from '@/api/types'
 import { mockServer } from '../../mocks/server'
 
@@ -62,14 +62,14 @@ describe('ApiClient', () => {
     ).rejects.toMatchObject<ApiError>({ kind: 'protocol' })
   })
 
-  it('接受精确空对象删除响应', async () => {
+  it('接受精确 nullable 空删除响应', async () => {
     mockServer.use(
       http.post('https://api.test/bob/supplier/delete', () =>
         HttpResponse.json({
           code: 0,
           errorKey: '',
           message: 'ok',
-          data: {},
+          data: null,
           requestId: 'req-delete-contract',
         }),
       ),
@@ -83,7 +83,10 @@ describe('ApiClient', () => {
       revision: 1,
     })
 
-    expect(result.data).toEqual({})
+    expectTypeOf<ApiPostData<'bob/supplier/delete'>>().toEqualTypeOf<
+      components['schemas']['EmptyObject'] | null
+    >()
+    expect(result.data).toBeNull()
     expect(result.requestId).toBe('req-delete-contract')
   })
 

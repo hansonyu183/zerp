@@ -571,7 +571,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobVersionRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.OtherUnitMutationResponse } } };
     };
   };
   "/bob/other-unit/unsubmit": {
@@ -579,7 +579,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobReverseRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.OtherUnitMutationResponse } } };
     };
   };
   "/bob/other-unit/approve": {
@@ -587,7 +587,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobVersionRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.OtherUnitMutationResponse } } };
     };
   };
   "/bob/other-unit/reject": {
@@ -595,7 +595,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobReviewRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.OtherUnitMutationResponse } } };
     };
   };
   "/bob/other-unit/enable": {
@@ -603,7 +603,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobObjectRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.OtherUnitMutationResponse } } };
     };
   };
   "/bob/other-unit/disable": {
@@ -611,7 +611,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobObjectRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.OtherUnitMutationResponse } } };
     };
   };
   "/bob/other-unit/versions": {
@@ -619,7 +619,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobHistoryRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.BobVersionHistoryResponse } } };
     };
   };
   "/bob/other-unit/audit-history": {
@@ -627,7 +627,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobHistoryRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.BobAuditHistoryResponse } } };
     };
   };
   "/bob/customer/query": {
@@ -651,7 +651,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.CustomerCreateRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.CustomerCreateResponse } } };
     };
   };
   "/bob/customer/account-add": {
@@ -659,7 +659,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.CustomerAccountAddRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.CustomerAccountResponse } } };
     };
   };
   "/bob/customer/account-delete": {
@@ -675,7 +675,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.CustomerSaveRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.BobMutationResponse } } };
     };
   };
   "/bob/customer/attachment-initiate": {
@@ -723,7 +723,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.SupplierCreateRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.SupplierCreateResponse } } };
     };
   };
   "/bob/supplier/save": {
@@ -731,7 +731,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.SupplierSaveRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.BobMutationResponse } } };
     };
   };
   "/bob/reference/query": {
@@ -1187,7 +1187,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path: { "processName": string; }; cookie?: never };
       requestBody: { content: { 'application/json': Models.WflInstanceHistoryRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.WflInstanceHistoryResponse } } };
     };
   };
   "/wfl/{processName}/create-child": {
@@ -1195,7 +1195,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path: { "processName": string; }; cookie?: never };
       requestBody: { content: { 'application/json': Models.WflCreateChildRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.WflCreateChildResponse } } };
     };
   };
   "/wfl/process-instance/get": {
@@ -1211,7 +1211,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.WflInstanceHistoryRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.WflInstanceHistoryResponse } } };
     };
   };
   "/rpt/definition/query": {
@@ -1219,7 +1219,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.RptDefinitionQueryRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.RptDefinitionPageResponse } } };
     };
   };
   "/rpt/definition/get": {
@@ -1227,7 +1227,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.RptDefinitionGetRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.RptDefinitionViewResponse } } };
     };
   };
   "/rpt/definition/create": {
@@ -1235,7 +1235,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.RptDefinitionCreateRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.RptMutationResponse } } };
     };
   };
   "/rpt/definition/create-version": {
@@ -1243,7 +1243,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.RptVersionCreateRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.RptMutationResponse } } };
     };
   };
   "/rpt/definition/save": {
@@ -1251,7 +1251,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.RptVersionSaveRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.RptMutationResponse } } };
     };
   };
   "/rpt/definition/approve": {
@@ -1259,7 +1259,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.RptVersionRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.RptMutationResponse } } };
     };
   };
   "/rpt/definition/unapprove": {
@@ -1267,7 +1267,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.RptVersionRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.RptMutationResponse } } };
     };
   };
   "/rpt/definition/enable": {
@@ -1275,7 +1275,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.RptDefinitionRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.RptMutationResponse } } };
     };
   };
   "/rpt/definition/disable": {
@@ -1283,7 +1283,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.RptDefinitionRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.RptMutationResponse } } };
     };
   };
   "/rpt/definition/delete": {
@@ -1299,7 +1299,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path: { "report": string; }; cookie?: never };
       requestBody: { content: { 'application/json': Models.RptExecuteRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.RptQueryResponse } } };
     };
   };
   "/rpt/directory/query": {
@@ -1307,7 +1307,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.RptDirectoryQueryRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.RptDirectoryPageResponse } } };
     };
   };
   "/rpt/{report}/export": {
@@ -1323,7 +1323,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path: { "report": string; }; cookie?: never };
       requestBody: { content: { 'application/json': Models.RptReferenceQueryRequest } };
-      responses: { 200: { content: { 'application/json': Models.BusinessEnvelope } } };
+      responses: { 200: { content: { 'application/json': Models.RptReferencePageResponse } } };
     };
   };
   "/files/customer-attachments/upload/{token}": {
@@ -1540,11 +1540,17 @@ export interface components {
       "OtherUnitSaveRequest": Models.OtherUnitSaveRequest;
       "BobDeleteRequest": Models.BobDeleteRequest;
       "BobVersionRevisionRequest": Models.BobVersionRevisionRequest;
-      "BusinessEnvelope": Models.BusinessEnvelope;
       "BobReverseRequest": Models.BobReverseRequest;
       "BobReviewRequest": Models.BobReviewRequest;
       "BobObjectRevisionRequest": Models.BobObjectRevisionRequest;
       "BobHistoryRequest": Models.BobHistoryRequest;
+      "BobVersionMeta": Models.BobVersionMeta;
+      "BobVersionHistoryItem": Models.BobVersionHistoryItem;
+      "BobVersionHistoryPage": Models.BobVersionHistoryPage;
+      "BobVersionHistoryResponse": Models.BobVersionHistoryResponse;
+      "BobAuditEvent": Models.BobAuditEvent;
+      "BobAuditEventPage": Models.BobAuditEventPage;
+      "BobAuditHistoryResponse": Models.BobAuditHistoryResponse;
       "CustomerQueryRequest": Models.CustomerQueryRequest;
       "CustomerListItem": Models.CustomerListItem;
       "CustomerQueryResponse": Models.CustomerQueryResponse;
@@ -1563,8 +1569,13 @@ export interface components {
       "CustomerSalesAttributionInput": Models.CustomerSalesAttributionInput;
       "CustomerAccountInput": Models.CustomerAccountInput;
       "CustomerCreateRequest": Models.CustomerCreateRequest;
+      "BobMutationResult": Models.BobMutationResult;
+      "CustomerCreateResult": Models.CustomerCreateResult;
+      "CustomerCreateResponse": Models.CustomerCreateResponse;
       "CustomerAccountAddRequest": Models.CustomerAccountAddRequest;
+      "CustomerAccountResponse": Models.CustomerAccountResponse;
       "CustomerSaveRequest": Models.CustomerSaveRequest;
+      "BobMutationResponse": Models.BobMutationResponse;
       "CustomerAttachmentScope": Models.CustomerAttachmentScope;
       "CustomerAttachmentInitiateRequest": Models.CustomerAttachmentInitiateRequest;
       "CustomerAttachmentInitiateResult": Models.CustomerAttachmentInitiateResult;
@@ -1586,6 +1597,8 @@ export interface components {
       "SupplierGetResponse": Models.SupplierGetResponse;
       "SupplierInput": Models.SupplierInput;
       "SupplierCreateRequest": Models.SupplierCreateRequest;
+      "SupplierCreateResult": Models.SupplierCreateResult;
+      "SupplierCreateResponse": Models.SupplierCreateResponse;
       "SupplierSaveRequest": Models.SupplierSaveRequest;
       "BobReferenceQueryRequest": Models.BobReferenceQueryRequest;
       "BobMeasurementUnitSnapshot": Models.BobMeasurementUnitSnapshot;
@@ -1618,15 +1631,12 @@ export interface components {
       "PartyMergeConfirmResponse": Models.PartyMergeConfirmResponse;
       "EmploymentData": Models.EmploymentData;
       "EmploymentCreateRequest": Models.EmploymentCreateRequest;
-      "BobMutationResult": Models.BobMutationResult;
-      "BobMutationResponse": Models.BobMutationResponse;
       "BobCrudEntity": Models.BobCrudEntity;
       "BobQueryRequest": Models.BobQueryRequest;
       "BobVersionSummary": Models.BobVersionSummary;
       "BobListItem": Models.BobListItem;
       "BobListPage": Models.BobListPage;
       "BobQueryResponse": Models.BobQueryResponse;
-      "BobVersionMeta": Models.BobVersionMeta;
       "VehicleInternalCarrierAffiliation": Models.VehicleInternalCarrierAffiliation;
       "VehicleExternalCarrierAffiliation": Models.VehicleExternalCarrierAffiliation;
       "VehicleCarrierAffiliation": Models.VehicleCarrierAffiliation;
@@ -1648,12 +1658,6 @@ export interface components {
       "BobActiveReferenceCount": Models.BobActiveReferenceCount;
       "WarehouseDisableBlockers": Models.WarehouseDisableBlockers;
       "BobDisableResponse": Models.BobDisableResponse;
-      "BobVersionHistoryItem": Models.BobVersionHistoryItem;
-      "BobVersionHistoryPage": Models.BobVersionHistoryPage;
-      "BobVersionHistoryResponse": Models.BobVersionHistoryResponse;
-      "BobAuditEvent": Models.BobAuditEvent;
-      "BobAuditEventPage": Models.BobAuditEventPage;
-      "BobAuditHistoryResponse": Models.BobAuditHistoryResponse;
       "VouQueryRequest": Models.VouQueryRequest;
       "VouSalesBaseQuantitySummary": Models.VouSalesBaseQuantitySummary;
       "VouPurchaseBaseQuantitySummary": Models.VouPurchaseBaseQuantitySummary;
@@ -1661,6 +1665,7 @@ export interface components {
       "VouListPage": Models.VouListPage;
       "VouQueryResponse": Models.VouQueryResponse;
       "VouGetRequest": Models.VouGetRequest;
+      "BusinessEnvelope": Models.BusinessEnvelope;
       "VouUnitSnapshotView": Models.VouUnitSnapshotView;
       "VouReferenceView": Models.VouReferenceView;
       "VouQuantitySnapshotView": Models.VouQuantitySnapshotView;
@@ -1781,25 +1786,41 @@ export interface components {
       "WflInstanceView": Models.WflInstanceView;
       "WflInstanceViewResponse": Models.WflInstanceViewResponse;
       "WflInstanceHistoryRequest": Models.WflInstanceHistoryRequest;
+      "WflRuntimeAuditView": Models.WflRuntimeAuditView;
+      "WflRuntimeAuditPage": Models.WflRuntimeAuditPage;
+      "WflInstanceHistoryResponse": Models.WflInstanceHistoryResponse;
       "WflCreateChildRequest": Models.WflCreateChildRequest;
+      "WflCreateChildResponse": Models.WflCreateChildResponse;
       "RptDefinitionQueryRequest": Models.RptDefinitionQueryRequest;
-      "RptDefinitionGetRequest": Models.RptDefinitionGetRequest;
       "RptParameterType": Models.RptParameterType;
       "RptReferenceType": Models.RptReferenceType;
       "RptParameter": Models.RptParameter;
       "RptResultType": Models.RptResultType;
       "RptResultColumn": Models.RptResultColumn;
       "RptVersionData": Models.RptVersionData;
+      "RptDefinitionViewData": Models.RptDefinitionViewData;
+      "RptDefinitionPageData": Models.RptDefinitionPageData;
+      "RptDefinitionPageResponse": Models.RptDefinitionPageResponse;
+      "RptDefinitionGetRequest": Models.RptDefinitionGetRequest;
+      "RptDefinitionViewResponse": Models.RptDefinitionViewResponse;
       "RptDefinitionCreateRequest": Models.RptDefinitionCreateRequest;
+      "RptMutationResult": Models.RptMutationResult;
+      "RptMutationResponse": Models.RptMutationResponse;
       "RptVersionCreateRequest": Models.RptVersionCreateRequest;
       "RptVersionSaveRequest": Models.RptVersionSaveRequest;
       "RptVersionRevisionRequest": Models.RptVersionRevisionRequest;
       "RptDefinitionRevisionRequest": Models.RptDefinitionRevisionRequest;
-      "RptMutationResult": Models.RptMutationResult;
-      "RptMutationResponse": Models.RptMutationResponse;
       "RptExecuteRequest": Models.RptExecuteRequest;
+      "RptQueryResult": Models.RptQueryResult;
+      "RptQueryResponse": Models.RptQueryResponse;
       "RptDirectoryQueryRequest": Models.RptDirectoryQueryRequest;
+      "RptReportMetadata": Models.RptReportMetadata;
+      "RptDirectoryPageData": Models.RptDirectoryPageData;
+      "RptDirectoryPageResponse": Models.RptDirectoryPageResponse;
       "RptReferenceQueryRequest": Models.RptReferenceQueryRequest;
+      "RptReferenceItem": Models.RptReferenceItem;
+      "RptReferencePageData": Models.RptReferencePageData;
+      "RptReferencePageResponse": Models.RptReferencePageResponse;
       "TechnicalError": Models.TechnicalError;
       "HealthResponse": Models.HealthResponse;
   };

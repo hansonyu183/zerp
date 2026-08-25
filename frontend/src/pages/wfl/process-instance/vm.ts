@@ -58,7 +58,7 @@ export interface InstanceView extends InstanceListItem {
 export interface AuditEvent {
   id: string
   eventType: string
-  documentNo?: string
+  documentNo?: string | null
   actorId: string
   requestId: string
   summary: Record<string, unknown>
@@ -239,10 +239,9 @@ export function useProcessInstanceViewModel() {
     errorMessage.value = null
     try {
       const [detail, audit] = await Promise.all([
-        apiClient.postContract(
-          `wfl/${processName.value}/get`,
-          { processId: item.processId },
-        ),
+        apiClient.postContract(`wfl/${processName.value}/get`, {
+          processId: item.processId,
+        }),
         can('audit-history')
           ? apiClient.postContract(`wfl/${processName.value}/audit-history`, {
               processId: item.processId,

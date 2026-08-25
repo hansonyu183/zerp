@@ -2,11 +2,11 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { EmptyObject } from './EmptyObject';
-export type EmptyResponse = {
+import type { WflBusinessObjectReference } from './WflBusinessObjectReference';
+export type WflCreateChildResponse = {
   code: number;
   errorKey: string;
   message: string;
-  data: EmptyObject | null;
+  data: WflBusinessObjectReference | null;
   requestId: string;
 };

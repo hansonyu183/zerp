@@ -2,11 +2,11 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { EmptyObject } from './EmptyObject';
-export type EmptyResponse = {
+import type { RptDefinitionViewData } from './RptDefinitionViewData';
+export type RptDefinitionViewResponse = {
   code: number;
   errorKey: string;
   message: string;
-  data: EmptyObject | null;
+  data: RptDefinitionViewData | null;
   requestId: string;
 };

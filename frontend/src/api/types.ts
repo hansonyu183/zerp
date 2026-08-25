@@ -85,6 +85,8 @@ export function getErrorMessage(error: unknown): string {
 
     const translated = businessErrorMessage(error.errorKey)
     if (translated) return translated
+    const backendMessage = sanitizeUserMessage(error.message)
+    if (backendMessage) return backendMessage
     const code = normalizedCode(error.code)
     if (code === 1001) return '登录失败，请检查账号和密码后重试。'
     if (code === 1002) return '没有权限执行此操作，请联系管理员。'

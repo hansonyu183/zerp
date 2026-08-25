@@ -36,4 +36,21 @@ describe('AppSnackbar', () => {
     await wrapper.get('button[aria-label="关闭提示"]').trigger('click')
     expect(wrapper.emitted('dismiss')).toHaveLength(1)
   })
+
+  it('显示已经清理过的英文可读业务说明', () => {
+    const wrapper = mount(AppSnackbar, {
+      props: { message: 'A newer business rule must be completed first.' },
+      global: {
+        components: {
+          VBtn: passthrough('VBtn', 'button'),
+          VIcon: passthrough('VIcon', 'span'),
+          VSnackbar: passthrough('VSnackbar'),
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain(
+      'A newer business rule must be completed first.',
+    )
+  })
 })

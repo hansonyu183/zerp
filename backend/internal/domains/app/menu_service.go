@@ -47,27 +47,27 @@ var businessMenuGroups = []initialMenuGroup{
 	{ID: "menu-group-other", Name: "其他/待归类", Icon: "mdi-folder-question-outline", Order: 150},
 }
 
-func (s *Service) GetMenu(ctx context.Context, principal Principal) (MenuGetData, error) {
+func (s *Service) SynchronizeMenuRoutes(ctx context.Context) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return MenuGetData{}, s.internal("begin get menu", err)
+		return s.internal("begin synchronize menu routes", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.queries.WithTx(tx)
 	settings, err := qtx.GetAppMenuSettingsForUpdate(ctx)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return MenuGetData{}, domainError(ErrorInternal, "menu settings are not registered", err)
+		return domainError(ErrorInternal, "menu settings are not registered", err)
 	}
 	if err != nil {
-		return MenuGetData{}, s.internal("lock menu settings", err)
+		return s.internal("lock menu settings", err)
 	}
 	catalog, err := s.menuCatalog(ctx, qtx)
 	if err != nil {
-		return MenuGetData{}, err
+		return err
 	}
 	rows, err := qtx.ListAppBusinessMenuItems(ctx)
 	if err != nil {
-		return MenuGetData{}, s.internal("list business menu items", err)
+		return s.internal("list business menu items", err)
 	}
 	businessMenu := buildInitialBusinessMenu(catalog)
 	if len(rows) > 0 {
@@ -75,16 +75,36 @@ func (s *Service) GetMenu(ctx context.Context, principal Principal) (MenuGetData
 	}
 	if !menuRowsMatchTree(rows, businessMenu.Items) {
 		if err = replaceBusinessMenu(ctx, qtx, menuViewToInput(businessMenu.Items), catalog, nil); err != nil {
-			return MenuGetData{}, s.internal("synchronize business menu", err)
+			return s.internal("synchronize business menu", err)
 		}
 		settings, err = qtx.AdvanceAppMenuRevision(ctx, dbsqlc.AdvanceAppMenuRevisionParams{Revision: settings.Revision})
 		if err != nil {
-			return MenuGetData{}, s.internal("advance synchronized menu revision", err)
+			return s.internal("advance synchronized menu revision", err)
 		}
 	}
-	if err = tx.Commit(ctx); err != nil {
-		return MenuGetData{}, s.internal("commit get menu", err)
+	if err := tx.Commit(ctx); err != nil {
+		return s.internal("commit synchronized menu routes", err)
 	}
+	return nil
+}
+
+func (s *Service) GetMenu(ctx context.Context, principal Principal) (MenuGetData, error) {
+	settings, err := s.queries.GetAppMenuSettings(ctx)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return MenuGetData{}, domainError(ErrorInternal, "menu settings are not registered", err)
+	}
+	if err != nil {
+		return MenuGetData{}, s.internal("get menu settings", err)
+	}
+	catalog, err := s.menuCatalog(ctx, s.queries)
+	if err != nil {
+		return MenuGetData{}, err
+	}
+	rows, err := s.queries.ListAppBusinessMenuItems(ctx)
+	if err != nil {
+		return MenuGetData{}, s.internal("list business menu items", err)
+	}
+	businessMenu := editableMenuTreeFromRows(rows, catalog)
 	return menuData(settings.MenuMode, settings.Revision, businessMenu, catalog, principal), nil
 }
 

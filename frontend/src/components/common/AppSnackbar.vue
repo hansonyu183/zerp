@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { containsChineseText, sanitizeUserMessage } from '@/api/types'
+import { sanitizeUserMessage } from '@/api/types'
 
 defineOptions({ name: 'AppSnackbar' })
 
@@ -26,9 +26,6 @@ const displayMessage = computed(() => {
   const message = props.diagnostics
     ? (props.message ?? '').trim()
     : sanitizeUserMessage(props.message ?? '')
-  if (props.type === 'error' && message && !containsChineseText(message)) {
-    return '操作失败，请稍后重试。'
-  }
   return message
 })
 

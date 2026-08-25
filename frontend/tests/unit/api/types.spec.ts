@@ -37,10 +37,19 @@ describe('API user messages', () => {
     ).toBe('库存不足，无法完成本次操作，请先补充库存。')
   })
 
-  it('未知 errorKey 只按业务大类返回通用提示', () => {
+  it('未知 errorKey 使用清理请求标识后的后端可读说明', () => {
     expect(
       getErrorMessage(
-        new ApiError('business', 'do not expose this detail', {
+        new ApiError('business', '请先维护新增业务条件（requestId: req-2）', {
+          code: 2001,
+          errorKey: 'future_validation_rule',
+        }),
+      ),
+    ).toBe('请先维护新增业务条件')
+
+    expect(
+      getErrorMessage(
+        new ApiError('business', 'requestId: req-2', {
           code: 2001,
           errorKey: 'future_validation_rule',
         }),

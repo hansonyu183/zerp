@@ -41,7 +41,7 @@ func main() {
 	}
 	defer db.Close()
 
-	router, err := httpserver.New(cfg, db, logger)
+	router, err := httpserver.New(context.Background(), cfg, db, logger)
 	if err != nil {
 		logger.Error("initialize HTTP server", "error", err)
 		os.Exit(1)

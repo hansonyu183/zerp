@@ -20,6 +20,7 @@ import (
 
 type handlerServiceStub struct {
 	applicationService
+	signinCalls           int
 	signinResult          SessionResult
 	restoreResult         SessionResult
 	restoredPrincipal     Principal
@@ -38,6 +39,7 @@ type handlerServiceStub struct {
 }
 
 func (stub *handlerServiceStub) Signin(context.Context, string, string, string) (SessionResult, error) {
+	stub.signinCalls++
 	return stub.signinResult, nil
 }
 
@@ -350,6 +352,22 @@ func TestRequestRejectsUnknownFields(t *testing.T) {
 	}
 	if envelope.Code != response.CodeValidation {
 		t.Fatalf("code = %d, want %d", envelope.Code, response.CodeValidation)
+	}
+}
+
+func TestSigninDelegatesEveryValidRequestToThePersistentLoginPolicy(t *testing.T) {
+	stub := &handlerServiceStub{signinResult: SessionResult{
+		Data: SessionData{CSRFToken: "csrf"}, SessionToken: "session", ExpiresAt: time.Now().Add(time.Hour),
+	}}
+	router := testRouter(stub)
+	for attempt := 0; attempt < 31; attempt++ {
+		request := httptest.NewRequest(http.MethodPost, "/app/user/signin", strings.NewReader(`{"username":"alice","password":"Strong-password-1!"}`))
+		request.Header.Set("Content-Type", "application/json")
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, request)
+	}
+	if stub.signinCalls != 31 {
+		t.Fatalf("persistent signin calls = %d, want 31", stub.signinCalls)
 	}
 }
 

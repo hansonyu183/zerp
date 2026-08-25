@@ -3,6 +3,7 @@
 package bobseed
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -319,6 +320,142 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	}
 }
 
+func TestBobUnapproveUsesExactSnapshotEntryAndDisableUsesStableObjectIntegration(t *testing.T) {
+	databaseURL := strings.TrimSpace(os.Getenv("TEST_DATABASE_URL"))
+	databaseName := strings.TrimSpace(os.Getenv("TEST_POSTGRES_DB"))
+	if databaseURL == "" || !strings.HasSuffix(databaseName, "_test") {
+		t.Fatal("safe TEST_DATABASE_URL and TEST_POSTGRES_DB ending in _test are required")
+	}
+	pool, err := pgxpool.New(t.Context(), databaseURL)
+	if err != nil {
+		t.Fatalf("connect integration database: %v", err)
+	}
+	t.Cleanup(pool.Close)
+
+	bus := txevent.NewBus()
+	auxiliary := auxdomain.NewService(pool, authorization.FailClosed{}, bus)
+	service := bob.NewService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
+	actor := func(label string) approval.Actor {
+		actorID := "01J00000000000000000000000"
+		if strings.Contains(label, "approve") {
+			actorID = "01J00000000000000000000001"
+		}
+		result, actorErr := approval.UserActor(authorization.Principal{ActorID: actorID}, "approval-bob-correctness-"+label)
+		if actorErr != nil {
+			t.Fatalf("create %s actor: %v", label, actorErr)
+		}
+		return result
+	}
+	approve := func(entity string, created bob.MutationResult, label string) bob.MutationResult {
+		t.Helper()
+		pending, submitErr := service.Submit(t.Context(), entity, bob.VersionRevisionInput{
+			ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID,
+			ApprovalRevision: created.Approval.Revision,
+		}, actor(label+"-submit"))
+		if submitErr != nil {
+			t.Fatalf("submit %s: %v", label, submitErr)
+		}
+		approved, approveErr := service.Approve(t.Context(), entity, bob.ReviewInput{
+			ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID,
+			ApprovalRevision: pending.Approval.Revision,
+		}, actor(label+"-approve"))
+		if approveErr != nil {
+			t.Fatalf("approve %s: %v", label, approveErr)
+		}
+		return approved
+	}
+	createFundAccount := func(operatingEntityID, label string) bob.MutationResult {
+		t.Helper()
+		created, createErr := service.Create(t.Context(), bob.EntityFundAccount, bob.CreateInput{Data: bob.CreateDetailInput{
+			Name: label, Currency: "CNY", OperatingEntityID: operatingEntityID,
+		}}, actor(label+"-create"))
+		if createErr != nil {
+			t.Fatalf("create %s: %v", label, createErr)
+		}
+		return approve(bob.EntityFundAccount, created, label)
+	}
+
+	suffix := ulid.Make().String()
+	created, err := service.Create(t.Context(), bob.EntityOperatingEntity, bob.CreateInput{Data: bob.CreateDetailInput{
+		Name: "exact-entry operating V1 " + suffix,
+	}}, actor("operating-create"))
+	if err != nil {
+		t.Fatalf("create operating entity V1: %v", err)
+	}
+	v1 := approve(bob.EntityOperatingEntity, created, "operating-v1")
+	_ = createFundAccount(v1.ObjectID, "fund-referencing-v1-"+suffix)
+
+	createV2 := func(label string) bob.MutationResult {
+		t.Helper()
+		v2, saveErr := service.Save(t.Context(), bob.EntityOperatingEntity, bob.SaveInput{
+			ObjectID: v1.ObjectID, ApprovalEntryID: v1.Approval.ApprovalEntryID,
+			ApprovalRevision: v1.Approval.Revision,
+			Data:             bob.DetailInput{Name: "exact-entry operating V2 " + suffix},
+		}, actor(label+"-save"))
+		if saveErr != nil {
+			t.Fatalf("create %s: %v", label, saveErr)
+		}
+		return approve(bob.EntityOperatingEntity, v2, label)
+	}
+
+	v2 := createV2("operating-v2-unreferenced")
+	v2Pending, err := service.Unapprove(t.Context(), bob.EntityOperatingEntity, bob.ReverseInput{
+		ObjectID: v2.ObjectID, ApprovalEntryID: v2.Approval.ApprovalEntryID,
+		ApprovalRevision: v2.Approval.Revision, Reason: "V1 reference must not block V2",
+	}, actor("unapprove-unreferenced-v2"))
+	if err != nil {
+		t.Fatalf("unapprove unreferenced V2 while V1 remains referenced: %v", err)
+	}
+	if v2Pending.Approval.Status != approval.StatusPending {
+		t.Fatalf("unapproved V2 status = %s", v2Pending.Approval.Status)
+	}
+	tx, err := pool.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("begin latest fallback check: %v", err)
+	}
+	latest, latestErr := service.ResolveLatestApprovedReference(t.Context(), tx, bob.EntityOperatingEntity, v1.ObjectID)
+	if latestErr != nil || latest.ApprovalEntryID != v1.Approval.ApprovalEntryID {
+		_ = tx.Rollback(t.Context())
+		t.Fatalf("latest after V2 unapprove = %+v err=%v, want V1", latest, latestErr)
+	}
+	if err = tx.Rollback(t.Context()); err != nil {
+		t.Fatalf("rollback latest fallback check: %v", err)
+	}
+
+	v2Draft, err := service.Unsubmit(t.Context(), bob.EntityOperatingEntity, bob.ReverseInput{
+		ObjectID: v2Pending.ObjectID, ApprovalEntryID: v2Pending.Approval.ApprovalEntryID,
+		ApprovalRevision: v2Pending.Approval.Revision, Reason: "replace V2 fixture",
+	}, actor("unsubmit-v2"))
+	if err != nil {
+		t.Fatalf("unsubmit V2: %v", err)
+	}
+	if err = service.Delete(t.Context(), bob.EntityOperatingEntity, bob.DeleteInput{
+		ObjectID: v2Draft.ObjectID, ObjectRevision: v2Draft.ObjectRevision,
+		ApprovalEntryID: v2Draft.Approval.ApprovalEntryID, ApprovalRevision: v2Draft.Approval.Revision,
+	}, actor("delete-v2")); err != nil {
+		t.Fatalf("delete V2 fixture: %v", err)
+	}
+
+	v2 = createV2("operating-v2-referenced")
+	_ = createFundAccount(v2.ObjectID, "fund-referencing-v2-"+suffix)
+	_, err = service.Unapprove(t.Context(), bob.EntityOperatingEntity, bob.ReverseInput{
+		ObjectID: v2.ObjectID, ApprovalEntryID: v2.Approval.ApprovalEntryID,
+		ApprovalRevision: v2.Approval.Revision, Reason: "exact V2 snapshot must block",
+	}, actor("unapprove-referenced-v2"))
+	var unapproveErr *bob.DomainError
+	if !errors.As(err, &unapproveErr) || unapproveErr.ErrorKey != "bob_unapprove_blocked" {
+		t.Fatalf("referenced V2 unapprove error = %v", err)
+	}
+
+	_, err = service.Disable(t.Context(), bob.EntityOperatingEntity, bob.ObjectRevisionInput{
+		ObjectID: v2.ObjectID, ObjectRevision: v2.ObjectRevision,
+	}, actor("disable-referenced-object"))
+	var disableErr *bob.DomainError
+	if !errors.As(err, &disableErr) || disableErr.ErrorKey != "bob_disable_blocked" {
+		t.Fatalf("referenced stable object disable error = %v", err)
+	}
+}
+
 func TestBobAuxiliaryApprovalBoundaryIntegration(t *testing.T) {
 	databaseURL := strings.TrimSpace(os.Getenv("TEST_DATABASE_URL"))
 	databaseName := strings.TrimSpace(os.Getenv("TEST_POSTGRES_DB"))
@@ -445,6 +582,50 @@ func TestBobAuxiliaryApprovalBoundaryIntegration(t *testing.T) {
 	}, "formal-category-"+suffix)
 	formalName := "PR3 正式产品-" + suffix
 	formalProduct := approveProduct(newProduct(formalCategory.ObjectID, formalName), "formal-product-"+suffix)
+	formalCategoryV2, err := auxiliary.Save(t.Context(), auxdomain.EntityProductCategory, auxdomain.SaveInput{
+		ObjectID: formalCategory.ObjectID, ApprovalEntryID: formalCategory.Approval.ApprovalEntryID,
+		ApprovalRevision: formalCategory.Approval.Revision,
+		Data:             map[string]any{"name": "PR3 正式分类 V2-" + suffix},
+	}, actor("formal-category-v2-save-"+suffix))
+	if err != nil {
+		t.Fatalf("create formal category V2: %v", err)
+	}
+	formalCategoryV2, err = auxiliary.Submit(t.Context(), auxdomain.EntityProductCategory, auxdomain.ApprovalRevisionInput{
+		ObjectID: formalCategoryV2.ObjectID, ApprovalEntryID: formalCategoryV2.Approval.ApprovalEntryID,
+		ApprovalRevision: formalCategoryV2.Approval.Revision,
+	}, actor("formal-category-v2-submit-"+suffix))
+	if err != nil {
+		t.Fatalf("submit formal category V2: %v", err)
+	}
+	formalCategoryV2, err = auxiliary.Approve(t.Context(), auxdomain.EntityProductCategory, auxdomain.ApprovalRevisionInput{
+		ObjectID: formalCategoryV2.ObjectID, ApprovalEntryID: formalCategoryV2.Approval.ApprovalEntryID,
+		ApprovalRevision: formalCategoryV2.Approval.Revision,
+	}, actor("formal-category-v2-approve-"+suffix))
+	if err != nil {
+		t.Fatalf("approve formal category V2: %v", err)
+	}
+	formalCategoryV2, err = auxiliary.Unapprove(t.Context(), auxdomain.EntityProductCategory, auxdomain.ReviewInput{
+		ApprovalRevisionInput: auxdomain.ApprovalRevisionInput{
+			ObjectID: formalCategoryV2.ObjectID, ApprovalEntryID: formalCategoryV2.Approval.ApprovalEntryID,
+			ApprovalRevision: formalCategoryV2.Approval.Revision,
+		}, Reason: &reason,
+	}, actor("formal-category-v2-unapprove-"+suffix))
+	if err != nil {
+		t.Fatalf("V1 BOB snapshot incorrectly blocked AUX V2 unapprove: %v", err)
+	}
+	formalCategoryV2, err = auxiliary.Unsubmit(t.Context(), auxdomain.EntityProductCategory, auxdomain.ApprovalRevisionInput{
+		ObjectID: formalCategoryV2.ObjectID, ApprovalEntryID: formalCategoryV2.Approval.ApprovalEntryID,
+		ApprovalRevision: formalCategoryV2.Approval.Revision,
+	}, actor("formal-category-v2-unsubmit-"+suffix))
+	if err != nil {
+		t.Fatalf("unsubmit formal category V2: %v", err)
+	}
+	if err = auxiliary.Delete(t.Context(), auxdomain.EntityProductCategory, auxdomain.DeleteInput{
+		ObjectID: formalCategoryV2.ObjectID, ApprovalEntryID: formalCategoryV2.Approval.ApprovalEntryID,
+		ApprovalRevision: formalCategoryV2.Approval.Revision,
+	}, actor("formal-category-v2-delete-"+suffix)); err != nil {
+		t.Fatalf("delete formal category V2: %v", err)
+	}
 	if _, err = auxiliary.Unapprove(t.Context(), auxdomain.EntityProductCategory, auxdomain.ReviewInput{
 		ApprovalRevisionInput: auxdomain.ApprovalRevisionInput{
 			ObjectID: formalCategory.ObjectID, ApprovalEntryID: formalCategory.Approval.ApprovalEntryID,
@@ -510,6 +691,28 @@ func TestBobUnapproveBlocksAnyVoucherStateUntilPhysicalDeletionIntegration(t *te
 	}, actor("warehouse-approve"))
 	if err != nil {
 		t.Fatalf("approve warehouse: %v", err)
+	}
+	v2, err := service.Save(t.Context(), bob.EntityWarehouse, bob.SaveInput{
+		ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID,
+		ApprovalRevision: approved.Approval.Revision,
+		Data:             bob.DetailInput{Name: "PR3 VOU 阻断仓库 V2"},
+	}, actor("warehouse-v2-save"))
+	if err != nil {
+		t.Fatalf("create warehouse V2: %v", err)
+	}
+	v2Pending, err := service.Submit(t.Context(), bob.EntityWarehouse, bob.VersionRevisionInput{
+		ObjectID: v2.ObjectID, ApprovalEntryID: v2.Approval.ApprovalEntryID,
+		ApprovalRevision: v2.Approval.Revision,
+	}, actor("warehouse-v2-submit"))
+	if err != nil {
+		t.Fatalf("submit warehouse V2: %v", err)
+	}
+	approved, err = service.Approve(t.Context(), bob.EntityWarehouse, bob.ReviewInput{
+		ObjectID: v2Pending.ObjectID, ApprovalEntryID: v2Pending.Approval.ApprovalEntryID,
+		ApprovalRevision: v2Pending.Approval.Revision,
+	}, actor("warehouse-v2-approve"))
+	if err != nil {
+		t.Fatalf("approve warehouse V2: %v", err)
 	}
 	approvedView, err := service.Get(t.Context(), bob.EntityWarehouse, bob.GetInput{
 		ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID,

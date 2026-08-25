@@ -461,12 +461,23 @@ func (s *Service) transition(ctx context.Context, entity, objectID, entryID stri
 			return MutationResult{}, err
 		}
 	}
+	var transitioned approval.Entry
 	if action == approval.ActionUnapproved {
-		if err = s.ensureUnapproveAllowed(ctx, tx, q, entity, objectID, entryID); err != nil {
+		coordinator, coordinatorErr := s.coordinator(entity)
+		if coordinatorErr != nil {
+			return MutationResult{}, coordinatorErr
+		}
+		prepared, prepareErr := coordinator.Prepare(ctx, tx, action, entryID, revision, actor, reason)
+		if prepareErr != nil {
+			return MutationResult{}, translateApprovalError(prepareErr)
+		}
+		if err = s.ensureUnapproveAllowed(ctx, q, entryID); err != nil {
 			return MutationResult{}, err
 		}
+		transitioned, err = coordinator.Commit(ctx, tx, prepared, s.approvalPayload(objectID, entity, object.Code, object.Enabled))
+	} else {
+		transitioned, err = s.transitionApproval(ctx, tx, entity, objectID, object.Code, object.Enabled, entryID, revision, action, reason, actor)
 	}
-	transitioned, err := s.transitionApproval(ctx, tx, entity, objectID, object.Code, object.Enabled, entryID, revision, action, reason, actor)
 	if err != nil {
 		return MutationResult{}, translateApprovalError(err)
 	}
@@ -779,17 +790,10 @@ func (s *Service) validateStoredApprovalDetail(ctx context.Context, tx pgx.Tx, q
 	return err
 }
 
-func (s *Service) ensureUnapproveAllowed(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, entity, objectID, entryID string) error {
-	latest, err := q.GetBobLatestApprovedEntry(ctx, dbsqlc.GetBobLatestApprovedEntryParams{Entity: entity, ObjectID: objectID})
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && latest.ID != entryID) {
-		return domainError(ErrorConflict, "only the latest approved version can be unapproved", nil, nil)
-	}
+func (s *Service) ensureUnapproveAllowed(ctx context.Context, q *dbsqlc.Queries, entryID string) error {
+	counts, err := listBobApprovalEntryReferenceCounts(ctx, q, entryID)
 	if err != nil {
-		return s.internal("get latest approved version before unapprove", err)
-	}
-	counts, err := listActiveReferenceCounts(ctx, q, entity, objectID)
-	if err != nil {
-		return s.internal("scan current BOB references before unapprove", err)
+		return s.internal("scan exact BOB approval-entry references before unapprove", err)
 	}
 	if len(counts) != 0 {
 		return domainErrorWithKey(ErrorConflict, "bob_unapprove_blocked", "approved version is referenced by current BOB facts", ActiveReferenceBlockers{References: counts}, nil)

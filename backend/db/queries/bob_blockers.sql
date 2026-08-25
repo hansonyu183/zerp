@@ -1,5 +1,49 @@
--- Fixed VOU blocker projection. Every typed VOU snapshot participates in all
--- document states; physical deletion removes the corresponding blocker row.
+-- Exact BOB Approval-entry blocker projection. Only the latest APPROVED
+-- payload of each referencing object is a current formal reference; each row
+-- is matched by the immutable snapshot entry rather than the stable object.
+-- name: ListBobApprovalEntryReferenceCounts :many
+WITH current_bob_entries AS (
+    SELECT entry.id
+    FROM approval_entries entry
+    WHERE entry.domain='bob' AND entry.status='APPROVED'
+      AND NOT EXISTS (
+          SELECT 1 FROM approval_entries newer
+          WHERE newer.domain=entry.domain AND newer.entity=entry.entity
+            AND newer.subject_id=entry.subject_id AND newer.status='APPROVED'
+            AND newer.version_no>entry.version_no
+      )
+), snapshot_references(entity, field, entry_id) AS (
+    SELECT 'customer-account','customer-salesperson',payload.salesperson_employee_approval_entry_id
+    FROM bob_customer_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id
+    UNION ALL SELECT 'customer-account','customer-operating',payload.operating_entity_approval_entry_id
+    FROM bob_customer_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id
+    UNION ALL SELECT 'customer-account',CASE payload.primary_sales_attribution_type
+        WHEN 'INTERNAL_EMPLOYEE' THEN 'customer-sales'
+        WHEN 'EXTERNAL_PART_TIME' THEN 'customer-external-sales'
+        ELSE 'customer-channel-sales' END,payload.primary_sales_subject_approval_entry_id
+    FROM bob_customer_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id
+    WHERE payload.primary_sales_attribution_type IS NOT NULL
+    UNION ALL SELECT 'supplier','supplier-purchaser',payload.default_purchaser_employee_approval_entry_id
+    FROM bob_supplier_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id
+    UNION ALL SELECT 'fund-account','fund-operating',payload.operating_entity_approval_entry_id
+    FROM bob_fund_account_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id
+    UNION ALL SELECT 'product','formula-material',payload.material_approval_entry_id
+    FROM bob_product_formula_lines payload JOIN current_bob_entries current_entry ON current_entry.id=payload.product_approval_entry_id
+    UNION ALL SELECT 'vehicle','vehicle-carrier-operating',payload.carrier_operating_entity_approval_entry_id
+    FROM bob_vehicle_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id
+    UNION ALL SELECT 'vehicle','vehicle-carrier-service',payload.carrier_service_relationship_approval_entry_id
+    FROM bob_vehicle_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id
+    UNION ALL SELECT 'warehouse','warehouse-manager',payload.manager_employee_approval_entry_id
+    FROM bob_warehouse_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id
+)
+SELECT entity::text, field::text, count(*)::bigint AS reference_count
+FROM snapshot_references
+WHERE entry_id=sqlc.arg(approval_entry_id)::text
+GROUP BY entity,field
+ORDER BY entity,field;
+
+-- Exact VOU Approval-entry blocker projection. Every typed VOU snapshot
+-- participates in all document states; physical deletion removes the row.
 -- name: ListVouApprovalEntryReferenceCounts :many
 WITH snapshot_references(entity, field, entry_id) AS (
     SELECT 'vou_asset_acquisition_details','snapshot',unnest(ARRAY[supplier_approval_entry_id]) FROM vou_asset_acquisition_details

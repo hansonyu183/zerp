@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -408,8 +409,8 @@ func TestHandlerDispatchesEveryAction(t *testing.T) {
 				if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
 					t.Fatalf("decode delete response: %v", err)
 				}
-				if envelope.Code != response.CodeOK || envelope.Data != nil {
-					t.Fatalf("delete envelope = %+v, want data null", envelope)
+				if envelope.Code != response.CodeOK || !reflect.DeepEqual(envelope.Data, map[string]any{}) {
+					t.Fatalf("delete envelope = %+v, want empty data object", envelope)
 				}
 			}
 		})

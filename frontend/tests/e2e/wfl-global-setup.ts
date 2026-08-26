@@ -151,7 +151,10 @@ interface AuxMutation {
 interface VouMutation {
   documentId: string
   documentNo?: string
-  revision: number
+  approval: {
+    approvalEntryId: string
+    revision: number
+  }
 }
 
 interface WflDefinitionView {
@@ -250,6 +253,28 @@ async function signIn(
   } catch (error) {
     await anonymous.dispose()
     throw error
+  }
+}
+
+export async function approveVouAsReviewer(
+  baseURL: string,
+  credentials: E2ECredentials,
+  entity: string,
+  documentId: string,
+  revision: number,
+): Promise<void> {
+  const session = await signIn(
+    baseURL,
+    credentials.username,
+    credentials.password,
+  )
+  try {
+    await session.api.post<VouMutation>(`vou/${entity}/approve`, {
+      documentId,
+      revision,
+    })
+  } finally {
+    await session.context.dispose()
   }
 }
 
@@ -723,6 +748,7 @@ async function grantWorkflowPermissionsToRole(
 
 async function seedInventoryThroughLifecycle(
   operator: RealApi,
+  reviewer: RealApi,
   processCode: string,
   supplier: BobMutation,
   purchaser: BobMutation,
@@ -737,13 +763,13 @@ async function seedInventoryThroughLifecycle(
     product,
     quantity: '1000',
   })
-  const checkedOrder = await operator.post<VouMutation>(
-    'vou/purchase-order/check',
-    { documentId: order.documentId, revision: order.revision },
+  const submittedOrder = await operator.post<VouMutation>(
+    'vou/purchase-order/submit',
+    { documentId: order.documentId, revision: order.approval.revision },
   )
-  await operator.post<VouMutation>('vou/purchase-order/approve', {
-    documentId: checkedOrder.documentId,
-    revision: checkedOrder.revision,
+  await reviewer.post<VouMutation>('vou/purchase-order/approve', {
+    documentId: submittedOrder.documentId,
+    revision: submittedOrder.approval.revision,
   })
   const processes = await operator.post<Page<WflInstanceListItem>>(
     `wfl/${processCode}/query`,
@@ -765,13 +791,13 @@ async function seedInventoryThroughLifecycle(
   if (!inbound) {
     throw new Error('WFL 库存预置未取得采购入库节点。')
   }
-  const checkedInbound = await operator.post<VouMutation>(
-    'vou/purchase-inbound/check',
+  const submittedInbound = await operator.post<VouMutation>(
+    'vou/purchase-inbound/submit',
     { documentId: inbound.documentId, revision: inbound.documentRevision },
   )
-  await operator.post<VouMutation>('vou/purchase-inbound/approve', {
-    documentId: checkedInbound.documentId,
-    revision: checkedInbound.revision,
+  await reviewer.post<VouMutation>('vou/purchase-inbound/approve', {
+    documentId: submittedInbound.documentId,
+    revision: submittedInbound.approval.revision,
   })
 }
 
@@ -1107,7 +1133,10 @@ export async function createWflWorkerState(options: {
       (item) => item.status === 'ENABLED',
     )
     const selectedReviewerPermissions = enabledPermissions.filter(
-      (item) => item.status === 'ENABLED' && bobReviewerActions.has(item.path),
+      (item) =>
+        item.status === 'ENABLED' &&
+        (bobReviewerActions.has(item.path) ||
+          /^\/vou\/[^/]+\/approve$/.test(item.path)),
     )
 
     const suffix =
@@ -1362,6 +1391,7 @@ export async function createWflWorkerState(options: {
       )
       await seedInventoryThroughLifecycle(
         operatorSession.api,
+        reviewerSession.api,
         purchaseProcessCode,
         supplier,
         employee,

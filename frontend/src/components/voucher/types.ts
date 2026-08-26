@@ -2,7 +2,7 @@ import type { components } from '@/api/generated/schema'
 
 export type VoucherEntity = components['schemas']['VouEntity']
 
-export type VoucherStatus = components['schemas']['VouStatus']
+export type VoucherStatus = components['schemas']['ApprovalStatus']
 
 export interface VoucherReferenceInput {
   objectId: string
@@ -335,10 +335,6 @@ export interface VouAtomicDocument<
   createdBy: string
   updatedAt?: string
   updatedBy?: string
-  checkedAt?: string
-  checkedBy?: string
-  reviewedAt?: string
-  reviewedBy?: string
   approvedAt?: string
   approvedBy?: string
 }
@@ -619,7 +615,7 @@ export interface VoucherListItem extends VoucherListRow {
 
 export type VoucherMutationResult = components['schemas']['VouMutationResult']
 
-export type VoucherAuditEvent = components['schemas']['VouAuditEventView']
+export type VoucherAuditEvent = components['schemas']['ApprovalEventView']
 
 export interface VoucherQueryFilters {
   keyword: string
@@ -645,16 +641,16 @@ export type VoucherLineKind =
   | 'bill'
   | 'none'
 export interface VoucherLifecycleLabels {
-  check: string
-  uncheck: string
+  submit: string
+  unsubmit: string
   approve: string
   unapprove: string
-  checked: string
+  pending: string
   approved: string
 }
 
 export type VoucherLifecycleAction =
-  'check' | 'approve' | 'uncheck' | 'unapprove'
+  'submit' | 'approve' | 'unsubmit' | 'unapprove'
 
 export interface VoucherEntityConfig {
   entity: VoucherEntity
@@ -682,8 +678,8 @@ export interface VoucherEntityConfig {
 export interface VoucherActionAvailability {
   get: boolean
   save: boolean
-  check: boolean
-  uncheck: boolean
+  submit: boolean
+  unsubmit: boolean
   approve: boolean
   unapprove: boolean
   delete: boolean

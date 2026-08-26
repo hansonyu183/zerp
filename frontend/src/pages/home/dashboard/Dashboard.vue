@@ -37,7 +37,7 @@ function canProcessEntity(domain: 'bob' | 'vou', entity: string): boolean {
   const actions =
     domain === 'bob'
       ? ['submit', 'approve', 'reject', 'unsubmit']
-      : ['check', 'approve', 'uncheck']
+      : ['submit', 'approve', 'unsubmit']
   return (
     session.can(`/${domain}/${entity}/query`) &&
     actions.some((action) => session.can(`/${domain}/${entity}/${action}`))
@@ -79,7 +79,7 @@ const entityFilterOptions = computed(() => {
   return [...options].map(([value, title]) => ({ title, value }))
 })
 const pendingStageFilterOptions = computed(() => [
-  { title: '待核对', value: 'CHECK' as const },
+  { title: '待提交审核', value: 'SUBMIT' as const },
   { title: '待批准', value: 'APPROVE' as const },
 ])
 
@@ -112,32 +112,26 @@ const documentRows = computed(() =>
 )
 const documentSort: VoucherSort = { field: 'updatedAt', order: 'desc' }
 const documentLifecycleLabels: VoucherLifecycleLabels = {
-  check: '核对',
-  uncheck: '反核对',
+  submit: '提交审核',
+  unsubmit: '撤回提交',
   approve: '批准',
   unapprove: '反批准',
-  checked: '已核对',
+  pending: '待审核',
   approved: '已批准',
 }
 
 const actionDefinitions: Record<WorkbenchAction, Omit<ListRowAction, 'key'>> = {
   view: { label: '查看', icon: 'mdi-eye-outline' },
   edit: { label: '编辑', icon: 'mdi-pencil-outline', color: 'primary' },
-  submit: { label: '提交审核', icon: 'mdi-send-outline', color: 'primary' },
-  unsubmit: {
-    label: '撤回提交',
-    icon: 'mdi-undo-variant',
-    color: 'warning',
-  },
   approve: {
     label: '批准',
     icon: 'mdi-check-decagram-outline',
     color: 'success',
   },
   reject: { label: '驳回', icon: 'mdi-close-octagon-outline', color: 'error' },
-  check: { label: '核对', icon: 'mdi-account-check-outline', color: 'primary' },
-  uncheck: {
-    label: '反核对',
+  submit: { label: '提交审核', icon: 'mdi-send-outline', color: 'primary' },
+  unsubmit: {
+    label: '撤回提交',
     icon: 'mdi-undo-variant',
     color: 'warning',
   },
@@ -151,10 +145,11 @@ function entityTitle(row: Readonly<WorkbenchItem>): string {
 }
 
 function pendingStatus(row: Readonly<WorkbenchItem>): string {
-  return {
-    CHECK: '待核对',
+  const labels: Record<string, string> = {
+    SUBMIT: '待提交审核',
     APPROVE: '待批准',
-  }[row.pendingStage]
+  }
+  return labels[row.pendingStage] ?? '待处理'
 }
 
 function pendingColor(row: Readonly<WorkbenchItem>): string {
@@ -175,7 +170,7 @@ function visibleActions(row: WorkbenchItem): WorkbenchAction[] {
 function rowActions(row: WorkbenchItem): ListRowAction[] {
   const actions = visibleActions(row)
   const forward = actions.find((action) =>
-    ['submit', 'approve', 'check', 'reject'].includes(action),
+    ['submit', 'approve', 'reject'].includes(action),
   )
   const primaryAction = forward ?? actions[0]
   const toAction = (action: WorkbenchAction): ListRowAction => ({
@@ -200,7 +195,7 @@ function updateEntityFilters(value: unknown): void {
 }
 
 function updatePendingStageFilters(value: unknown): void {
-  const validStages = new Set<WorkbenchPendingStage>(['CHECK', 'APPROVE'])
+  const validStages = new Set<WorkbenchPendingStage>(['SUBMIT', 'APPROVE'])
   vm.activeState.pendingStages = Array.isArray(value)
     ? value.filter(
         (stage): stage is WorkbenchPendingStage =>
@@ -239,11 +234,11 @@ async function selectAction(action: string, row: WorkbenchItem): Promise<void> {
     vm.requestConfirmation(row, action)
     return
   }
-  if (action === 'uncheck' && row.category === 'VOU') {
+  if (action === 'unsubmit' && row.category === 'VOU') {
     vm.requestConfirmation(row, action)
     return
   }
-  if (action === 'submit' || action === 'approve' || action === 'check') {
+  if (action === 'submit' || action === 'approve') {
     await vm.runAction(row, action)
   }
 }

@@ -183,11 +183,11 @@ function mountList(
       sort: { field: 'documentNo', order: 'desc' },
       party: null,
       lifecycleLabels: {
-        check: '核对',
-        uncheck: '反核对',
+        submit: '提交审核',
+        unsubmit: '撤回提交',
         approve: '批准',
         unapprove: '反批准',
-        checked: '已核对',
+        pending: '待审核',
         finalized: '已完成',
       },
       ...props,
@@ -457,12 +457,12 @@ describe('VoucherList', () => {
     })
     const rows = [
       row('DRAFT', 'SO-DRAFT'),
-      row('CHECKED', 'SO-CHECKED'),
+      row('PENDING', 'SO-PENDING'),
       row('APPROVED', 'SO-APPROVED'),
     ]
     const allowed = new Set<VoucherLifecycleAction>([
-      'check',
-      'uncheck',
+      'submit',
+      'unsubmit',
       'approve',
       'unapprove',
     ])
@@ -472,17 +472,17 @@ describe('VoucherList', () => {
     })
 
     for (const label of [
-      '核对 SO-DRAFT',
-      '反核对 SO-CHECKED',
-      '批准 SO-CHECKED',
+      '提交审核 SO-DRAFT',
+      '撤回提交 SO-PENDING',
+      '批准 SO-PENDING',
       '反批准 SO-APPROVED',
     ]) {
       expect(wrapper.find(`[aria-label="${label}"]`).exists()).toBe(true)
     }
     expect(wrapper.find('[aria-label^="更多操作"]').exists()).toBe(false)
 
-    await wrapper.get('[aria-label="核对 SO-DRAFT"]').trigger('click')
-    expect(wrapper.emitted('lifecycle')).toEqual([[rows[0], 'check']])
+    await wrapper.get('[aria-label="提交审核 SO-DRAFT"]').trigger('click')
+    expect(wrapper.emitted('lifecycle')).toEqual([[rows[0], 'submit']])
   })
 
   it('不显示状态不匹配或无权限的流程动作', () => {
@@ -502,7 +502,7 @@ describe('VoucherList', () => {
       canLifecycleAction: (_, action) => action === 'approve',
     })
 
-    expect(wrapper.find('[aria-label="核对 SO-0001"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="提交审核 SO-0001"]').exists()).toBe(false)
     expect(wrapper.find('[aria-label="批准 SO-0001"]').exists()).toBe(false)
   })
 })

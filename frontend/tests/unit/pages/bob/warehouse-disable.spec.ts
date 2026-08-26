@@ -69,7 +69,7 @@ describe('warehouse disable conflict labels', () => {
 
   it('maps blocking statuses from the closed wire contract', () => {
     expect(warehouseDocumentStatusLabel('DRAFT')).toBe('草稿')
-    expect(warehouseDocumentStatusLabel('CHECKED')).toBe('已核对')
+    expect(warehouseDocumentStatusLabel('PENDING')).toBe('待审核')
     expect(warehouseDocumentStatusLabel()).toBe('未知状态')
   })
 

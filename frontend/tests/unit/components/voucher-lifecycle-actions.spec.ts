@@ -56,12 +56,12 @@ const VTextareaStub = defineComponent({
 function mountActions() {
   return mount(VoucherLifecycleActions, {
     props: {
-      status: 'CHECKED',
+      status: 'PENDING',
       availability: {
         get: true,
         save: false,
-        check: false,
-        uncheck: true,
+        submit: false,
+        unsubmit: true,
         approve: true,
         unapprove: false,
         finalize: false,
@@ -70,13 +70,13 @@ function mountActions() {
         audit: false,
       },
       labels: {
-        check: '核对',
-        uncheck: '反核对',
+        submit: '提交审核',
+        unsubmit: '撤回提交',
         approve: '批准',
         unapprove: '反批准',
         finalize: '完成',
         unfinalize: '撤销完成',
-        checked: '已核对',
+        pending: '待审核',
         finalized: '已完成',
       },
     },
@@ -95,12 +95,12 @@ function mountActions() {
 }
 
 describe('VoucherLifecycleActions', () => {
-  it('runs uncheck directly without opening a reason dialog', async () => {
+  it('runs unsubmit directly without opening a reason dialog', async () => {
     const wrapper = mountActions()
 
     await wrapper.get('button').trigger('click')
 
-    expect(wrapper.emitted('action')).toEqual([['uncheck']])
+    expect(wrapper.emitted('action')).toEqual([['unsubmit']])
     expect(wrapper.find('textarea').exists()).toBe(false)
   })
 
@@ -110,7 +110,7 @@ describe('VoucherLifecycleActions', () => {
       status: 'APPROVED',
       availability: {
         ...wrapper.props('availability'),
-        uncheck: false,
+        unsubmit: false,
         approve: false,
         unapprove: true,
         finalize: true,

@@ -13,13 +13,13 @@ export function useVoucherActionAvailability(
   const permission = (action: string) => `/vou/${config.entity}/${action}`
 
   return computed<VoucherActionAvailability>(() => {
-    const status = documentView.value?.status
+    const status = documentView.value?.approval.status
     return {
       get: can(permission('get')),
       save: status === 'DRAFT' && can(permission('save')),
-      check: status === 'DRAFT' && can(permission('check')),
-      uncheck: status === 'CHECKED' && can(permission('uncheck')),
-      approve: status === 'CHECKED' && can(permission('approve')),
+      submit: status === 'DRAFT' && can(permission('submit')),
+      unsubmit: status === 'PENDING' && can(permission('unsubmit')),
+      approve: status === 'PENDING' && can(permission('approve')),
       unapprove: status === 'APPROVED' && can(permission('unapprove')),
       delete: status === 'DRAFT' && can(permission('delete')),
       audit: Boolean(documentView.value) && can(permission('audit-history')),

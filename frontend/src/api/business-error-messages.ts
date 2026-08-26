@@ -15,7 +15,7 @@ export const businessErrorMessages: Readonly<Record<string, string>> = {
   submitter_cannot_review:
     '提交人与审核人不能为同一人，请由其他有审批权限的用户处理。',
   document_data_incomplete:
-    '自动生成的单据缺少必填业务资料，请先编辑补全并保存后再核对。',
+    '自动生成的单据缺少必填业务资料，请先编辑补全并保存后再提交审核。',
   warehouse_disable_blocked:
     '仓库仍有库存、待处理业务或有效引用，暂时不能停用。',
   object_has_active_references:

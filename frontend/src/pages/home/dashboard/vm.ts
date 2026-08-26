@@ -8,7 +8,7 @@ import {
   unsubmitBusinessObject,
 } from '@/api/bob'
 import { getDiagnosticErrorMessage, getErrorMessage } from '@/api/types'
-import { approveVoucher, checkVoucher, uncheckVoucher } from '@/api/vou'
+import { approveVoucher, submitVoucher, unsubmitVoucher } from '@/api/vou'
 
 export type WorkbenchCategory = components['schemas']['WorkbenchCategory']
 export type WorkbenchAction = components['schemas']['WorkbenchAction']
@@ -20,7 +20,7 @@ export type WorkbenchDocumentItem =
 export type WorkbenchItem = WorkbenchObjectItem | WorkbenchDocumentItem
 export type WorkbenchConfirmationAction = Extract<
   WorkbenchAction,
-  'reject' | 'unsubmit' | 'uncheck'
+  'reject' | 'unsubmit'
 >
 
 interface WorkbenchListState {
@@ -174,7 +174,11 @@ export function useDashboardViewModel() {
     if (!item.availableActions.includes(action) || actionLoading.value) {
       return false
     }
-    if ((action === 'reject' || action === 'unsubmit') && !comment.trim()) {
+    if (
+      (action === 'reject' ||
+        (item.category === 'BOB' && action === 'unsubmit')) &&
+      !comment.trim()
+    ) {
       return false
     }
     const category = item.category
@@ -205,10 +209,10 @@ export function useDashboardViewModel() {
           documentId: item.documentId,
           revision: item.revision,
         }
-        if (action === 'check') {
-          await checkVoucher(item.entity, request)
-        } else if (action === 'uncheck') {
-          await uncheckVoucher(item.entity, request)
+        if (action === 'submit') {
+          await submitVoucher(item.entity, request)
+        } else if (action === 'unsubmit') {
+          await unsubmitVoucher(item.entity, request)
         } else if (action === 'approve') {
           await approveVoucher(item.entity, request)
         }
@@ -221,8 +225,6 @@ export function useDashboardViewModel() {
         unsubmit: '已撤回提交',
         approve: item.category === 'BOB' ? '已审核通过' : '已批准',
         reject: '已审核驳回',
-        check: '已核对',
-        uncheck: '已反核对',
       }[action]
       successMessage.value = `${identity} ${label}。`
       return true
@@ -243,7 +245,7 @@ export function useDashboardViewModel() {
     const supported =
       (item.category === 'BOB' &&
         (action === 'reject' || action === 'unsubmit')) ||
-      (item.category === 'VOU' && action === 'uncheck')
+      (item.category === 'VOU' && action === 'unsubmit')
     if (!supported || !item.availableActions.includes(action)) return false
     confirmationTarget.value = item
     confirmationAction.value = action

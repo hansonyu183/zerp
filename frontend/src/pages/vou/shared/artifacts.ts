@@ -80,14 +80,14 @@ export function useVoucherArtifacts(
           `vou/${config.entity}/attachment-initiate`,
           {
             documentId: current.documentId,
-            revision: documentView.value!.revision,
+            revision: documentView.value!.approval.revision,
             fileName: file.name,
             contentType: file.type,
             size: file.size,
             sha256: hash,
           },
         )
-        documentView.value!.revision = initiated.data.revision
+        documentView.value!.approval.revision = initiated.data.revision
         try {
           await apiClient.uploadAttachment(initiated.data.uploadUrl, file)
         } catch (error) {
@@ -138,7 +138,7 @@ export function useVoucherArtifacts(
     try {
       await apiClient.postContract(`vou/${config.entity}/attachment-remove`, {
         documentId: current.documentId,
-        revision: current.revision,
+        revision: current.approval.revision,
         fileId: attachment.fileId,
       })
       await Promise.all([loadDocument(current.documentId), loadAudit(1)])

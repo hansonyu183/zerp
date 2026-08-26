@@ -26,7 +26,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   action: [
-    action: 'check' | 'approve' | 'uncheck' | 'unapprove',
+    action: 'submit' | 'approve' | 'unsubmit' | 'unapprove',
     reason?: string,
   ]
 }>()
@@ -54,27 +54,27 @@ function confirmReverse(): void {
 <template>
   <div class="voucher-lifecycle-actions">
     <v-btn
-      v-if="status === 'DRAFT' && availability.check"
+      v-if="status === 'DRAFT' && availability.submit"
       color="primary"
       :disabled="disabled"
-      :loading="loadingAction === 'check'"
+      :loading="loadingAction === 'submit'"
       :title="disabled ? disabledReason : undefined"
-      prepend-icon="mdi-account-check-outline"
-      @click="emit('action', 'check')"
+      prepend-icon="mdi-send-outline"
+      @click="emit('action', 'submit')"
     >
-      {{ labels.check }}
+      {{ labels.submit }}
     </v-btn>
-    <template v-if="status === 'CHECKED'">
+    <template v-if="status === 'PENDING'">
       <v-btn
-        v-if="availability.uncheck"
+        v-if="availability.unsubmit"
         :disabled="disabled"
-        :loading="loadingAction === 'uncheck'"
+        :loading="loadingAction === 'unsubmit'"
         :title="disabled ? disabledReason : undefined"
         prepend-icon="mdi-undo-variant"
         variant="tonal"
-        @click="emit('action', 'uncheck')"
+        @click="emit('action', 'unsubmit')"
       >
-        {{ labels.uncheck }}
+        {{ labels.unsubmit }}
       </v-btn>
       <v-btn
         v-if="availability.approve"

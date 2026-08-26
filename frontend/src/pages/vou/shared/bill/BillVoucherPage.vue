@@ -190,11 +190,11 @@ onMounted(() => void vm.query())
           :availability="vm.actionAvailability.value"
           :loading-action="vm.actionLoading.value"
           :labels="{
-            check: '检查',
-            uncheck: '反检查',
+            submit: '提交审核',
+            unsubmit: '撤回提交',
             approve: '批准',
             unapprove: '反批准',
-            checked: '已检查',
+            pending: '待审核',
             approved: '已批准',
           }"
           @action="vm.lifecycle"

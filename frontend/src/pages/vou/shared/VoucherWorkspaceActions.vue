@@ -61,7 +61,7 @@ const lifecycleDisabledReason = computed(() => {
       :disabled-reason="lifecycleDisabledReason"
       :labels="labels"
       :loading-action="vm.actionLoading"
-      :status="vm.documentView.status"
+      :status="vm.documentView.approval.status"
       @action="vm.lifecycleAction"
     />
     <span
@@ -75,7 +75,7 @@ const lifecycleDisabledReason = computed(() => {
       v-if="
         vm.documentView &&
         vm.config.entity === 'sale-signoff' &&
-        ['APPROVED'].includes(vm.documentView.status) &&
+        ['APPROVED'].includes(vm.documentView.approval.status) &&
         session.can('/vou/sale-return/create')
       "
       :to="{
@@ -91,7 +91,7 @@ const lifecycleDisabledReason = computed(() => {
       v-if="
         vm.documentView &&
         vm.config.entity === 'purchase-inbound' &&
-        ['APPROVED'].includes(vm.documentView.status) &&
+        ['APPROVED'].includes(vm.documentView.approval.status) &&
         session.can('/vou/purchase-return/create')
       "
       :to="{

@@ -50,7 +50,7 @@ make e2e
 - [前端工程约束](AGENTS.md)：目录组织、API、页面、权限、测试与重构规则
 - [根 README](../README.md)：统一环境、命令、契约开发与部署方式
 - [领域与页面用例](../README.md#文档)
-- [前端 API 与双部署配置](../docs/operations/frontend-api-configuration.md)
+- [前端 API 配置](../docs/operations/frontend-api-configuration.md)
 
 ## License
 

@@ -69,6 +69,6 @@ approve 前必须验证：单条允许的只读 SQL、参数占位符与类型�
 
 ## 7. 发布门禁与验收边界
 
-数据库结构发布必须在迁移事务提交前重新验证全部 enabled definition 的 latest APPROVED + VALID entry；任一不兼容即回滚并阻断发布。继续发布前，必须在同次变更中提供并批准兼容的新版本，或由管理员明确停用受影响定义；不得为旧表或字段保留兼容视图、别名、fallback 或第二套查询口径。 <!-- docs-check: legacy-exception=release-gate ref=ADR-0026 -->
+数据库基线变化必须在重建内测库前验证全部 enabled definition 的 latest APPROVED + VALID entry；任一不兼容即阻断发布。继续发布前，必须在同次变更中提供并批准兼容的新版本，或由管理员明确停用受影响定义；不得为旧表或字段保留兼容视图、别名、fallback 或第二套查询口径。 <!-- docs-check: legacy-exception=release-gate ref=ADR-0026 -->
 
 验收覆盖 stable definition 与 V1/V2、候选删除复号、完整 Approval 生命周期与 reason、exact entry 读取、latest-only unapprove 和执行、VALID/INVALID 独立、APPROVED+INVALID 停止执行且不改用其他版本、SQL/参数/列契约批准门禁、独立 query/export 权限、跨账簿授权、动态菜单、八类首批报表口径，以及任一事务失败整体回滚。

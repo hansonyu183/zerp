@@ -16,7 +16,6 @@ set +a
 
 docker compose --env-file backend/.env.local \
   -f compose.yaml -f compose.dev.yaml up -d --wait db
-make -C backend ENV_FILE=.env.local migrate-up
 
 exec pnpm exec concurrently --kill-others-on-fail --names api,web \
   "go -C backend/tools tool air -c ../.air.toml" \

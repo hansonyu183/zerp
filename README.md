@@ -1,12 +1,12 @@
 # ZERP
 
-ZERP 是一个面向企业内部业务的全栈 ERP 单仓项目。Vue 前端、Go API、数据库迁移、OpenAPI 契约、领域文档和部署编排均在本仓库统一维护。
+ZERP 是一个面向企业内部业务的全栈 ERP 单仓项目。Vue 前端、Go API、当前数据库基线、OpenAPI 契约、领域文档和部署编排均在本仓库统一维护。
 
 ## 目录
 
 ```text
 frontend/             Vue 3、TypeScript、Vite、Vuetify
-backend/              Go、Gin、pgx、sqlc、Goose
+backend/              Go、Gin、pgx、sqlc
 contracts/openapi/    唯一 HTTP 线协议与生成后的 bundle
 docs/domains/         唯一业务规则与领域职责说明
 docs/use-cases/       按页面组织的前后端处理流程与验收场景
@@ -32,9 +32,9 @@ make bootstrap
 make dev
 ```
 
-`make dev` 会启动 PostgreSQL 容器、执行迁移，并以前台热更新方式运行 Go API 和 Vite。浏览器访问 `http://127.0.0.1:5173`；Vite 将 `/api/*` 代理到 API 并去掉 `/api` 前缀，将 `/files/*` 直接代理到附件端点。
+`make dev` 会启动按当前 `backend/db/schema.sql` 初始化的 PostgreSQL 容器，并以前台热更新方式运行 Go API 和 Vite。浏览器访问 `http://127.0.0.1:5173`；Vite 将 `/api/*` 代理到 API 并去掉 `/api` 前缀，将 `/files/*` 直接代理到附件端点。
 
-前端构建、类型检查及相关工具统一使用 TypeScript 7.0.2 的 tsgo checker。仓库通过锁定的 TypeScript native bridge 让 `vue-tsc` 使用同一 checker 检查 TypeScript 与 Vue SFC template，不维护第二套 TypeScript 兼容工具链。native bridge 需要 glibc，因此前端 Docker 构建阶段使用 Debian，最终 Nginx 运行镜像仍使用 Alpine。
+前端构建、类型检查及相关工具统一使用 TypeScript 7.0.2 的 tsgo checker。仓库通过锁定的 TypeScript native bridge 让 `vue-tsc` 使用同一 checker 检查 TypeScript 与 Vue SFC template，不维护第二套 TypeScript 兼容工具链。
 
 停止前台进程后数据库卷会保留；需要停止容器时运行：
 
@@ -47,13 +47,13 @@ make dev-down
 | 命令                  | 作用                                   |
 | --------------------- | -------------------------------------- |
 | `make bootstrap`      | 安装 pnpm 与 Go 依赖                   |
-| `make dev`            | 启动数据库、迁移、API 与前端热更新     |
+| `make dev`            | 启动数据库、API 与前端热更新           |
 | `make generate`       | 生成 OpenAPI bundle、Go/TS API 与 sqlc |
 | `make generate-check` | 验证生成物已提交且无漂移               |
 | `make check`          | 运行前端与后端质量检查                 |
 | `make test`           | 运行前后端测试                         |
 | `make e2e`            | 启动隔离全栈并运行真实 API Playwright  |
-| `make build`          | 构建前端、后端及容器镜像               |
+| `make build`          | 构建前端、后端及 API 容器镜像          |
 | `make compose-up`     | 启动生产形态 Compose                   |
 | `make compose-down`   | 停止生产形态 Compose                   |
 
@@ -79,7 +79,7 @@ make generate
 
 ## 部署方式
 
-ZERP 正式支持同源 Web 和 Cloudflare Pages 两种前端部署。拓扑、API 基址、Origin、Cookie、联调和验收步骤统一见[前端 API 与双部署配置](docs/operations/frontend-api-configuration.md)。
+ZERP 前端仅通过 Cloudflare Pages 部署。API 基址、Origin、Cookie、联调和验收步骤统一见[前端 API 配置](docs/operations/frontend-api-configuration.md)。
 
 ## 文档
 
@@ -92,7 +92,7 @@ ZERP 正式支持同源 Web 和 Cloudflare Pages 两种前端部署。拓扑、A
 - [ACC：内部会计](docs/domains/acc.md)
 - [RPT：报表](docs/domains/rpt.md)
 - [页面用例索引](docs/use-cases/README.md)
-- [前端 API 与双部署配置](docs/operations/frontend-api-configuration.md)
+- [前端 API 配置](docs/operations/frontend-api-configuration.md)
 
 安全开发约束见 [AGENTS.md](AGENTS.md)，部署安全配置见[运行手册](docs/operations/frontend-api-configuration.md)。
 

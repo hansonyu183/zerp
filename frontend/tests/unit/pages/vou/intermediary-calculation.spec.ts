@@ -91,7 +91,7 @@ const resultLine: IntermediaryResultLine = {
 const migration = readFileSync(
   resolve(
     dirname(fileURLToPath(import.meta.url)),
-    '../../../../../backend/db/migrations/00001_baseline.sql',
+    '../../../../../backend/db/schema.sql',
   ),
   'utf8',
 )

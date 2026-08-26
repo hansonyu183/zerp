@@ -72,7 +72,6 @@ check-containers:
 	docker compose --env-file backend/.env.e2e.example -p zerp-fullstack-e2e -f compose.yaml -f compose.e2e.yaml config --quiet
 	ZERP_RELEASE_SHA=0000000000000000000000000000000000000000 \
 	ZERP_API_IMAGE=zerp-production-api:config \
-	ZERP_WEB_IMAGE=zerp-production-web:config \
 	docker compose --env-file backend/.env.production.example \
 		-p zerp-back -f compose.yaml -f compose.production.yaml config --quiet
 
@@ -98,7 +97,7 @@ e2e: check-e2e-constraints
 build:
 	pnpm build:web
 	$(MAKE) -C backend build
-	$(COMPOSE) build web api migrate
+	$(COMPOSE) build api
 
 compose-up:
 	$(COMPOSE) up --build -d --wait

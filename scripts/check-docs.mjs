@@ -567,13 +567,6 @@ const legacyReferences = new Set(
     .map(({ source }) => parseAdrFrontmatter(source).metadata?.id)
     .filter(Boolean),
 )
-for (const filename of fs.readdirSync(
-  path.join(root, 'backend', 'db', 'migrations'),
-)) {
-  const migrationNumber = filename.match(/^(\d{5})_.+\.sql$/u)?.[1]
-  if (migrationNumber) legacyReferences.add('migration-' + migrationNumber)
-}
-
 failures.push(...validateSkillReferences(documentationSources))
 failures.push(
   ...validateLegacyLanguage(

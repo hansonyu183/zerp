@@ -10,30 +10,13 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
     volumes:
       - postgres-data:/var/lib/postgresql
+      - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
       interval: 5s
       timeout: 3s
       retries: 20
       start_period: 5s
-
-  migrate:
-    image: ${ZERP_API_IMAGE:-zerp-api:workspace}
-    build:
-      context: backend
-    restart: 'no'
-    entrypoint: ['/usr/local/bin/goose']
-    command:
-      [
-        '-dir',
-        '/app/migrations',
-        'postgres',
-        'postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable',
-        'up',
-      ]
-    depends_on:
-      db:
-        condition: service_healthy
 
   api:
     image: ${ZERP_API_IMAGE:-zerp-api:workspace}
@@ -68,8 +51,8 @@ services:
     volumes:
       - attachment-data:/var/lib/zerp/attachments
     depends_on:
-      migrate:
-        condition: service_completed_successfully
+      db:
+        condition: service_healthy
     healthcheck:
       test: ['CMD', 'wget', '-q', '-O', '-', 'http://localhost:8080/readyz']
       interval: 10s
@@ -77,47 +60,6 @@ services:
       retries: 10
       start_period: 10s
 
-  web:
-    image: ${ZERP_WEB_IMAGE:-zerp-web:workspace}
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile
-    restart: unless-stopped
-    ports:
-      - '127.0.0.1:${WEB_PORT:-8088}:8080'
-    depends_on:
-      api:
-        condition: service_healthy
-    healthcheck:
-      test: ['CMD', 'wget', '-q', '-O', '-', 'http://127.0.0.1:8080/healthz']
-      interval: 10s
-      timeout: 3s
-      retries: 5
-
-  pgadmin:
-    image: dpage/pgadmin4:9.16
-    profiles: ['admin']
-    restart: unless-stopped
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.invalid}
-      PGADMIN_DEFAULT_PASSWORD_FILE: /run/secrets/pgadmin_password
-      PGADMIN_DISABLE_POSTFIX: '1'
-      PGADMIN_LISTEN_PORT: '5050'
-    ports:
-      - '127.0.0.1:${PGADMIN_PORT:-5050}:5050'
-    volumes:
-      - pgadmin-data:/var/lib/pgadmin
-    secrets:
-      - pgadmin_password
-    depends_on:
-      db:
-        condition: service_healthy
-
-secrets:
-  pgadmin_password:
-    file: ${PGADMIN_PASSWORD_FILE:-backend/.pgadmin-password}
-
 volumes:
   postgres-data:
   attachment-data:
-  pgadmin-data:

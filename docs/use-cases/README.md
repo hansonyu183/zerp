@@ -10,4 +10,4 @@
 - 通过链接引用 OpenAPI，不维护请求或响应结构副本；
 - 全站通用交互规范写入 [`frontend/AGENTS.md`](../../frontend/AGENTS.md)，页面文档只记录有业务含义的例外。
 
-全站列表、详情和引用候选的读取边界见 [`frontend/AGENTS.md`](../../frontend/AGENTS.md)。前端页面及用例的双向覆盖清单见自动生成的 [`COVERAGE.md`](COVERAGE.md)；新增、删除或重命名页面或用例后运行 `pnpm docs:coverage`。缺失用例在覆盖清单中统一跟踪；`pnpm docs:check` 会拒绝孤儿用例或覆盖文件漂移。
+全站列表、详情和引用候选的读取边界见 [`frontend/AGENTS.md`](../../frontend/AGENTS.md)。前端页面及用例的双向覆盖清单见自动生成的 [`COVERAGE.md`](COVERAGE.md)；新增、删除或重命名页面或用例后运行 `pnpm docs:coverage`。当前缺失集合记录在 [`MISSING-BASELINE.json`](MISSING-BASELINE.json)，修复缺失时必须同步删除对应 baseline 项。`pnpm docs:check` 要求当前缺失与 baseline 精确一致，并拒绝孤儿用例或覆盖文件漂移；PR 文档门禁还会拒绝 baseline 新增项，因此缺失债务只能减少。

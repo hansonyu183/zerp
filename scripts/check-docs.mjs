@@ -12,6 +12,8 @@ const isMain =
 const failures = []
 const writeUseCaseCoverage = process.argv.includes('--write-use-case-coverage')
 const writeAdrIndex = process.argv.includes('--write-adr-index')
+const useCaseMissingBaselineBaseRef =
+  process.env.DOCS_USE_CASE_MISSING_BASELINE_BASE
 const ADR_STATUSES = new Set(['accepted', 'superseded', 'rejected'])
 const DOCUMENTED_SKILL_ALLOWLIST = new Set(['code-review', 'tdd'])
 const LEGACY_EXCEPTION_MARKER =
@@ -365,6 +367,103 @@ export function validateLegacyLanguage(documents, knownReferences = new Set()) {
   return legacyFailures
 }
 
+export function validateCurrentStateLegacyLanguage(
+  documents,
+  knownReferences = new Set(),
+) {
+  return validateLegacyLanguage(
+    documents.filter(({ file }) =>
+      /^(?:CONTEXT\.md|README\.md|(?:frontend|backend)\/README\.md|docs\/(?:domains|use-cases)\/)/u.test(
+        file.replaceAll('\\', '/'),
+      ),
+    ),
+    knownReferences,
+  )
+}
+
+export function parseUseCaseMissingBaseline(source, label) {
+  const baselineFailures = []
+  let parsed
+  try {
+    parsed = JSON.parse(source)
+  } catch {
+    return { keys: [], failures: [`${label} 不是有效 JSON`] }
+  }
+
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    Array.isArray(parsed) ||
+    Object.keys(parsed).length !== 1 ||
+    !Object.hasOwn(parsed, 'missingUseCaseKeys')
+  ) {
+    return {
+      keys: [],
+      failures: [`${label} 必须只包含 missingUseCaseKeys`],
+    }
+  }
+  if (!Array.isArray(parsed.missingUseCaseKeys)) {
+    return {
+      keys: [],
+      failures: [`${label} 的 missingUseCaseKeys 必须是数组`],
+    }
+  }
+
+  const keys = parsed.missingUseCaseKeys
+  if (
+    keys.some(
+      (key) =>
+        typeof key !== 'string' ||
+        !/^[a-z][a-z0-9-]*\/[a-z][a-z0-9-]*$/u.test(key),
+    )
+  ) {
+    baselineFailures.push(`${label} 包含无效页面用例入口`)
+  }
+  if (duplicates(keys).length > 0) {
+    baselineFailures.push(
+      `${label} 包含重复页面用例入口：${duplicates(keys).join('、')}`,
+    )
+  }
+  if (keys.join('\n') !== [...keys].sort().join('\n')) {
+    baselineFailures.push(`${label} 的 missingUseCaseKeys 必须按字典序排列`)
+  }
+
+  return { keys, failures: baselineFailures }
+}
+
+export function validateUseCaseMissingBaseline(baselineKeys, missingKeys) {
+  const baseline = new Set(baselineKeys)
+  const missing = new Set(missingKeys)
+  const newDebt = [...missing].filter((key) => !baseline.has(key)).sort()
+  const resolvedDebt = [...baseline].filter((key) => !missing.has(key)).sort()
+  const baselineFailures = []
+
+  if (newDebt.length > 0) {
+    baselineFailures.push(
+      `页面用例缺失 baseline 未登记新增债务：${newDebt.join('、')}`,
+    )
+  }
+  if (resolvedDebt.length > 0) {
+    baselineFailures.push(
+      `页面用例缺失 baseline 包含已修复债务：${resolvedDebt.join('、')}`,
+    )
+  }
+
+  return baselineFailures
+}
+
+export function validateUseCaseMissingBaselineReduction(
+  previousBaselineKeys,
+  baselineKeys,
+) {
+  const additions = [...new Set(baselineKeys)]
+    .filter((key) => !new Set(previousBaselineKeys).has(key))
+    .sort()
+  return additions.length > 0
+    ? [`页面用例缺失 baseline 只能随债务减少：${additions.join('、')}`]
+    : []
+}
+
 function trackedMarkdownFiles() {
   const output = execFileSync(
     'git',
@@ -569,12 +668,7 @@ const legacyReferences = new Set(
 )
 failures.push(...validateSkillReferences(documentationSources))
 failures.push(
-  ...validateLegacyLanguage(
-    documentationSources.filter(({ file }) =>
-      /^(docs\/domains|docs\/use-cases)\//u.test(file),
-    ),
-    legacyReferences,
-  ),
+  ...validateCurrentStateLegacyLanguage(documentationSources, legacyReferences),
 )
 
 for (const file of documentationFiles) {
@@ -917,6 +1011,65 @@ const orphanUseCases = [...documentedUseCases].filter(
 orphanUseCases.sort()
 if (!writeUseCaseCoverage && orphanUseCases.length > 0) {
   failures.push(`页面用例孤儿文档：${orphanUseCases.join('、')}`)
+}
+const missingUseCaseKeys = [...expectedUseCaseKeySet]
+  .filter((key) => !documentedUseCases.has(key))
+  .sort()
+const useCaseMissingBaselineFile = path.join(
+  useCaseRoot,
+  'MISSING-BASELINE.json',
+)
+if (!fs.existsSync(useCaseMissingBaselineFile)) {
+  failures.push('缺少 docs/use-cases/MISSING-BASELINE.json')
+} else {
+  const baseline = parseUseCaseMissingBaseline(
+    fs.readFileSync(useCaseMissingBaselineFile, 'utf8'),
+    'docs/use-cases/MISSING-BASELINE.json',
+  )
+  failures.push(...baseline.failures)
+  failures.push(
+    ...validateUseCaseMissingBaseline(baseline.keys, missingUseCaseKeys),
+  )
+
+  if (useCaseMissingBaselineBaseRef) {
+    const hasPreviousBaseline =
+      execFileSync(
+        'git',
+        [
+          '-C',
+          root,
+          'ls-tree',
+          '-r',
+          '--name-only',
+          useCaseMissingBaselineBaseRef,
+          '--',
+          'docs/use-cases/MISSING-BASELINE.json',
+        ],
+        { encoding: 'utf8' },
+      ).trim() === 'docs/use-cases/MISSING-BASELINE.json'
+    if (hasPreviousBaseline) {
+      const previousBaseline = parseUseCaseMissingBaseline(
+        execFileSync(
+          'git',
+          [
+            '-C',
+            root,
+            'show',
+            `${useCaseMissingBaselineBaseRef}:docs/use-cases/MISSING-BASELINE.json`,
+          ],
+          { encoding: 'utf8' },
+        ),
+        `${useCaseMissingBaselineBaseRef}:docs/use-cases/MISSING-BASELINE.json`,
+      )
+      failures.push(...previousBaseline.failures)
+      failures.push(
+        ...validateUseCaseMissingBaselineReduction(
+          previousBaseline.keys,
+          baseline.keys,
+        ),
+      )
+    }
+  }
 }
 const coverageFile = path.join(useCaseRoot, 'COVERAGE.md')
 const expectedCoverage = await prettier.format(

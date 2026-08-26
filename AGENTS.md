@@ -51,7 +51,7 @@
 
 ### Issue tracker
 
-Issues and specs are tracked as local Markdown under `.scratch/`. See `docs/agents/issue-tracker.md`.
+Issues and specs are tracked in this repository's GitHub Issues. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

@@ -39,8 +39,5 @@ services:
     volumes:
       - attachment-data:/var/lib/zerp/attachments
     depends_on:
-      migrate:
-        condition: service_completed_successfully
-
-  pgadmin:
-    profiles: ['never']
+      db:
+        condition: service_healthy

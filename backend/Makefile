@@ -15,7 +15,7 @@ include $(ENV_FILE)
 export
 endif
 
-.PHONY: run build test test-unit test-db-prepare test-db-clean test-integration generate quality quality-core quality-fast quality-generated quality-format quality-format-fast quality-modules quality-compose quality-test quality-vet-build quality-race quality-staticcheck quality-vuln quality-image migrate-status migrate-up migrate-down bootstrap-admin seed-bob seed-test cleanup-attachments e2e-env-init e2e-env-rotate e2e-guard
+.PHONY: run build test test-unit test-db-prepare test-db-clean test-integration generate quality quality-core quality-fast quality-generated quality-format quality-format-fast quality-modules quality-compose quality-test quality-vet-build quality-race quality-staticcheck quality-vuln quality-image bootstrap-admin seed-bob seed-test cleanup-attachments e2e-env-init e2e-env-rotate e2e-guard
 
 run:
 	go run ./cmd/server
@@ -45,6 +45,8 @@ test-db-prepare:
 	@$(TEST_COMPOSE) up -d --wait db
 	@$(TEST_COMPOSE) exec -T -e TEST_POSTGRES_DB="$(TEST_POSTGRES_DB)" db sh -eu -c \
 		'dropdb -U "$$POSTGRES_USER" --if-exists --force "$$TEST_POSTGRES_DB" && createdb -U "$$POSTGRES_USER" "$$TEST_POSTGRES_DB"'
+	@$(TEST_COMPOSE) exec -T -e TEST_POSTGRES_DB="$(TEST_POSTGRES_DB)" db sh -eu -c \
+		'psql -v ON_ERROR_STOP=1 -U "$$POSTGRES_USER" -d "$$TEST_POSTGRES_DB"' < db/schema.sql
 
 test-db-clean:
 	@test "$(TEST_PROJECT)" = "zerp-api-test" || { echo "refusing to clean unexpected test project: $(TEST_PROJECT)" >&2; exit 1; }
@@ -88,7 +90,6 @@ quality-format: quality-format-fast quality-modules
 
 quality-format-fast:
 	@test -z "$$(gofmt -l $$(git ls-files '*.go'))" || { gofmt -l $$(git ls-files '*.go'); exit 1; }
-	@./scripts/check-rpt-migration-gate.sh
 	git diff --check
 	git diff --cached --check
 
@@ -141,16 +142,7 @@ quality-vuln:
 
 quality-image:
 	docker build --tag $(QUALITY_IMAGE_TAG) .
-	docker run --rm --entrypoint /bin/sh $(QUALITY_IMAGE_TAG) -c 'test -r /app/migrations/00001_baseline.sql'
-
-migrate-status:
-	@go -C tools tool goose -dir ../db/migrations postgres "$(DATABASE_URL)" status
-
-migrate-up:
-	@go -C tools tool goose -dir ../db/migrations postgres "$(DATABASE_URL)" up
-
-migrate-down:
-	@go -C tools tool goose -dir ../db/migrations postgres "$(DATABASE_URL)" down
+	docker run --rm --entrypoint /bin/sh $(QUALITY_IMAGE_TAG) -c 'test -x /usr/local/bin/zerp-server'
 
 bootstrap-admin:
 	@go run ./cmd/bootstrap-admin \

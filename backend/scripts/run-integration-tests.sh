@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-# Build one fully migrated template database, then give every integration
+# Build one schema-initialized template database, then give every integration
 # package a private clone. Keeping orchestration here makes cleanup reliable
-# even when a package, migration, or signal terminates the full test gate.
+# even when a package, schema load, or signal terminates the full test gate.
 set -euo pipefail
 
 : "${ENV_FILE:=.env.local}"
@@ -91,11 +91,13 @@ clone_database() {
 		db sh -eu -c 'createdb -U "$POSTGRES_USER" -T "$TEMPLATE_DATABASE" "$TARGET_DATABASE"' </dev/null
 }
 
-goose() {
-	(
-		cd tools
-		go tool goose -dir ../db/migrations postgres "$1" "${@:2}"
-	)
+initialize_schema() {
+	local database="$1"
+	# shellcheck disable=SC2016 # Variables expand inside the container shell.
+	"${compose[@]}" exec -T \
+		-e TARGET_DATABASE="$database" \
+		db sh -eu -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$TARGET_DATABASE"' \
+		<db/schema.sql
 }
 
 wait_for_packages() {
@@ -169,12 +171,10 @@ mkdir -p "$work_root"
 "${compose[@]}" up -d --wait db
 
 recreate_database "$base_database"
-base_url="$(database_url "$base_database")"
-goose "$base_url" up
+initialize_schema "$base_database"
 
 recreate_database "$template_database"
-template_url="$(database_url "$template_database")"
-goose "$template_url" up
+initialize_schema "$template_database"
 
 all_packages_file="$work_root/all-packages"
 git ls-files --cached --others --exclude-standard -- '*_test.go' |

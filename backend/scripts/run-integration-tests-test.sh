@@ -7,13 +7,13 @@ cleanup() { rm -rf "${tmp}"; }
 trap cleanup EXIT HUP INT TERM
 
 fixture="${tmp}/backend"
-mkdir -p "${fixture}/db/migrations" \
+mkdir -p "${fixture}/db" \
   "${fixture}/tools" "${tmp}/bin"
 for package in a b c d; do
   mkdir -p "${fixture}/internal/${package}"
   printf '//go:build integration\n' >"${fixture}/internal/${package}/${package}_test.go"
 done
-printf '%s\n' '-- migration' >"${fixture}/db/migrations/000001_baseline.sql"
+printf '%s\n' '-- schema' >"${fixture}/db/schema.sql"
 git -C "${fixture}" init -b main >/dev/null
 git -C "${fixture}" add .
 
@@ -26,9 +26,6 @@ chmod +x "${tmp}/bin/docker"
 cat >"${tmp}/bin/go" <<'EOF'
 #!/bin/sh
 set -eu
-if [ "${1:-}" = tool ] && [ "${2:-}" = goose ]; then
-  exit 0
-fi
 [ "${1:-}" = test ] || exit 2
 shift
 package=

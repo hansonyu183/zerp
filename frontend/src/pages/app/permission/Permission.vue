@@ -33,7 +33,7 @@ void vm.query()
   <v-container fluid class="pa-5 pa-md-8">
     <AppSnackbar :message="vm.errorMessage" @dismiss="vm.errorMessage = null" />
     <v-alert class="mb-4" type="info" variant="tonal">
-      权限由代码和数据库迁移注册，本页面只读。角色授权请在“角色管理”中维护。
+      权限由代码和数据库基线注册，本页面只读。角色授权请在“角色管理”中维护。
     </v-alert>
     <BusinessObjectList
       :columns="columns"

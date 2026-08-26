@@ -1,34 +1,10 @@
-# ZERP 前端 API 与部署配置
+# ZERP 前端 API 配置
 
 本文只说明环境拓扑、API 基址、Origin、Cookie 和联调步骤。HTTP 路径与数据结构以 `contracts/openapi/` 为准，业务规则以 `docs/domains/` 为准。
 
-ZERP 正式支持同源 Web 和 Cloudflare Pages 两种前端部署，二者使用相同的生成客户端和后端 API。
+ZERP 前端仅通过 Cloudflare Pages 部署，并使用生成客户端直连后端 API。
 
-## 1. 同源 Web
-
-根目录 Compose 由 Nginx 提供 SPA，并代理：
-
-```text
-/api/*   -> API 业务端点，转发时去掉 /api 前缀
-/files/* -> API 文件端点，保留 /files 前缀
-```
-
-前端构建参数：
-
-```env
-VITE_API_BASE_URL=/api/
-```
-
-浏览器只访问 Web Origin，不需要为 Web 与 API 配置跨域。生产环境应只公开 Web 入口，TLS 在外层入口终止。
-
-验证配置和镜像：
-
-```bash
-docker compose --env-file backend/.env.example config --quiet
-docker compose --env-file backend/.env.example build web api migrate
-```
-
-## 2. Cloudflare Pages
+## 1. Cloudflare Pages
 
 Pages 构建配置：
 
@@ -58,7 +34,7 @@ Origin 包含协议、主机和可选端口，不包含路径或结尾 `/`。不
 
 仓库当前 Pages 默认 API 见 `frontend/.env.production`；不同环境应通过 Pages 的 Preview 或 Production 变量显式覆盖。
 
-## 3. 本地开发
+## 2. 本地开发
 
 推荐从仓库根目录启动：
 
@@ -83,7 +59,7 @@ Vite 必须使用固定端口，避免端口占用后自动切换到未配置的
 pnpm --filter @zerp/frontend dev --host 127.0.0.1 --port 5173 --strictPort
 ```
 
-## 4. 隔离 E2E
+## 3. 隔离 E2E
 
 BOB、VOU、WFL 和 ACC 流程会写入并流转真实数据，只能使用根目录自包含环境：
 
@@ -107,13 +83,13 @@ make e2e
 
 完整验收统一从仓库根目录运行 `make e2e`。命令会创建一次性 PostgreSQL 容器，原生启动 API 和 Web，结束后自动清理隔离数据库与进程。
 
-## 5. 联调验收
+## 4. 联调验收
 
 每个目标环境重新验证：
 
 1. `/healthz` 与 `/readyz` 成功；
 2. 浏览器使用预期 API 基址，没有把业务请求发往静态站点；
-3. Pages 模式返回精确 Origin 和凭证 CORS，同源模式不产生跨域请求；
+3. Pages 模式返回精确 Origin 和凭证 CORS；
 4. 登录写入 HttpOnly Cookie，生产带 `Secure`，SameSite 与站点拓扑一致；
 5. 刷新后恢复会话和 CSRF，受保护请求成功；
 6. 使用真实已注册业务动作验证目标版本，不以健康检查代替业务验收；

@@ -1,13 +1,9 @@
--- +goose Up
-
--- The report reader is cluster-scoped while migrations are database-scoped.
--- +goose StatementBegin
+-- The report reader is cluster-scoped while schema initialization is database-scoped.
 DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='zerp_report_reader') THEN
         CREATE ROLE zerp_report_reader NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
     END IF;
 END $$;
--- +goose StatementEnd
 GRANT USAGE ON SCHEMA public TO zerp_report_reader;
 --
 -- PostgreSQL database dump
@@ -39,7 +35,6 @@ SET row_security = off;
 -- Name: bob_delete_unreferenced_customer_file(); Type: FUNCTION; Schema: public; Owner: -
 --
 
--- +goose StatementBegin
 CREATE FUNCTION public.bob_delete_unreferenced_customer_file() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -51,14 +46,12 @@ BEGIN
     RETURN OLD;
 END;
 $$;
--- +goose StatementEnd
 
 
 --
 -- Name: bob_reject_merged_party_relationship(); Type: FUNCTION; Schema: public; Owner: -
 --
 
--- +goose StatementBegin
 -- Relationship creation and Party merge run in separate service transactions.
 -- This guard closes the race in which a relationship is inserted after merge has
 -- locked and inspected the Party but before the source Party becomes read-only.
@@ -72,14 +65,12 @@ BEGIN
     RETURN NEW;
 END;
 $$;
--- +goose StatementEnd
 
 
 --
 -- Name: reject_locked_vou_attachment_period(); Type: FUNCTION; Schema: public; Owner: -
 --
 
--- +goose StatementBegin
 CREATE FUNCTION public.reject_locked_vou_attachment_period() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -99,14 +90,12 @@ BEGIN
     RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
 END
 $$;
--- +goose StatementEnd
 
 
 --
 -- Name: reject_locked_vou_period(); Type: FUNCTION; Schema: public; Owner: -
 --
 
--- +goose StatementBegin
 CREATE FUNCTION public.reject_locked_vou_period() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -124,14 +113,12 @@ BEGIN
     RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
 END
 $$;
--- +goose StatementEnd
 
 
 --
 -- Name: reject_locked_vou_approval_period(); Type: FUNCTION; Schema: public; Owner: -
 --
 
--- +goose StatementBegin
 CREATE FUNCTION public.reject_locked_vou_approval_period() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -164,14 +151,12 @@ BEGIN
     RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
 END
 $$;
--- +goose StatementEnd
 
 
 --
 -- Name: rpt_validate_current_reports(); Type: FUNCTION; Schema: public; Owner: -
 --
 
--- +goose StatementBegin
 CREATE FUNCTION public.rpt_validate_current_reports() RETURNS void
     LANGUAGE plpgsql
     AS $_$
@@ -257,14 +242,12 @@ BEGIN
     END LOOP;
 END;
 $_$;
--- +goose StatementEnd
 
 
 --
 -- Name: vou_validate_document_detail(); Type: FUNCTION; Schema: public; Owner: -
 --
 
--- +goose StatementBegin
 CREATE FUNCTION public.vou_validate_document_detail() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -277,14 +260,12 @@ BEGIN
  IF detail_count<>1 THEN RAISE EXCEPTION 'VOU document must have exactly one typed detail row' USING ERRCODE='23514'; END IF;
  RETURN CASE WHEN TG_OP='DELETE' THEN OLD ELSE NEW END;
 END; $$;
--- +goose StatementEnd
 
 
 --
 -- Name: vou_validate_parent(); Type: FUNCTION; Schema: public; Owner: -
 --
 
--- +goose StatementBegin
 CREATE FUNCTION public.vou_validate_parent() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -310,14 +291,12 @@ BEGIN
     RETURN NEW;
 END;
 $$;
--- +goose StatementEnd
 
 
 --
 -- Name: vou_validate_wfl_parent(); Type: FUNCTION; Schema: public; Owner: -
 --
 
--- +goose StatementBegin
 CREATE FUNCTION public.vou_validate_wfl_parent() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -355,7 +334,6 @@ BEGIN
     RAISE EXCEPTION 'invalid WFL document parent';
 END;
 $$;
--- +goose StatementEnd
 
 
 SET default_tablespace = '';
@@ -3702,16 +3680,13 @@ CREATE TABLE public.wfl_runtime_audit_events (
 -- Data for Name: app_business_menu_items; Type: TABLE DATA; Schema: public; Owner: -
 --
 
--- +goose StatementBegin
 
 INSERT INTO public.app_menu_settings VALUES (1, 'DEFAULT', 1, '2026-08-24 15:23:49.677744+00', '01JAPPSYST3MACTR0000000000');
 
 --
--- +goose StatementEnd
 -- Data for Name: app_permissions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
--- +goose StatementBegin
 INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000002', '/vou/sale-order/get', 'vou', 'sale-order', 'get', '查看销售订单', 'ENABLED', '2026-08-24 15:23:48.959532+00', NULL, '2026-08-24 15:23:48.959532+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000016', '/vou/purchase-order/get', 'vou', 'purchase-order', 'get', '查看采购订单', 'ENABLED', '2026-08-24 15:23:48.959532+00', NULL, '2026-08-24 15:23:48.959532+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000072', '/vou/expense-reimbursement/get', 'vou', 'expense-reimbursement', 'get', '查看费用报销', 'ENABLED', '2026-08-24 15:23:48.959532+00', NULL, '2026-08-24 15:23:48.959532+00', NULL, 1, NULL);
@@ -4606,16 +4581,13 @@ INSERT INTO public.app_permissions VALUES ('01JPR3BOB00000000000000003', '/bob/s
 
 
 --
--- +goose StatementEnd
 -- Data for Name: app_role_code_counters; Type: TABLE DATA; Schema: public; Owner: -
 --
 
--- +goose StatementBegin
 INSERT INTO public.app_role_code_counters VALUES ('default', 0);
 
 
 --
--- +goose StatementEnd
 -- Data for Name: app_role_permissions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
@@ -4625,12 +4597,10 @@ INSERT INTO public.app_role_code_counters VALUES ('default', 0);
 -- Data for Name: app_roles; Type: TABLE DATA; Schema: public; Owner: -
 --
 
--- +goose StatementBegin
 INSERT INTO public.app_roles VALUES ('01JAPPSYST3MR0X30000000000', 'system', '系统角色', '系统内部自动化专用，不授予接口权限且不可人工维护', 'ENABLED', '2026-08-24 15:23:49.496142+00', '01JAPPSYST3MACTR0000000000', '2026-08-24 15:23:49.496142+00', '01JAPPSYST3MACTR0000000000', 1);
 
 
 --
--- +goose StatementEnd
 -- Data for Name: app_sessions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
@@ -4640,11 +4610,9 @@ INSERT INTO public.app_roles VALUES ('01JAPPSYST3MR0X30000000000', 'system', '�
 -- Data for Name: app_system_parameters; Type: TABLE DATA; Schema: public; Owner: -
 --
 
--- +goose StatementBegin
 
 
 --
--- +goose StatementEnd
 -- Data for Name: app_user_profiles; Type: TABLE DATA; Schema: public; Owner: -
 --
 
@@ -4654,25 +4622,20 @@ INSERT INTO public.app_roles VALUES ('01JAPPSYST3MR0X30000000000', 'system', '�
 -- Data for Name: app_user_roles; Type: TABLE DATA; Schema: public; Owner: -
 --
 
--- +goose StatementBegin
 INSERT INTO public.app_user_roles VALUES ('01JAPPSYST3MACTR0000000000', '01JAPPSYST3MR0X30000000000', '2026-08-24 15:23:49.496142+00', '01JAPPSYST3MACTR0000000000');
 
 
 --
--- +goose StatementEnd
 -- Data for Name: app_users; Type: TABLE DATA; Schema: public; Owner: -
 --
 
--- +goose StatementBegin
 INSERT INTO public.app_users VALUES ('01JAPPSYST3MACTR0000000000', 'system', '系统用户', '!system-login-disabled!', 'DISABLED', 0, NULL, '2026-08-24 15:23:49.496142+00', '2026-08-24 15:23:49.496142+00', '01JAPPSYST3MACTR0000000000', '2026-08-24 15:23:49.496142+00', '01JAPPSYST3MACTR0000000000', 1, false);
 
 
 --
--- +goose StatementEnd
 -- Data for Name: aux_objects; Type: TABLE DATA; Schema: public; Owner: -
 --
 
--- +goose StatementBegin
 INSERT INTO public.aux_objects (id, entity, code, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES
     ('01JAVX00000000000000000001', 'dictionary-type', 'DCT-0001', true, 1, '2026-08-24 15:23:49.336221+00', '00000000000000000000000000', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000'),
     ('01JAVX00000000000000000003', 'dictionary-type', 'DCT-0002', true, 1, '2026-08-24 15:23:49.336221+00', '00000000000000000000000000', '2026-08-24 15:23:49.336221+00', '00000000000000000000000000'),
@@ -4708,11 +4671,9 @@ INSERT INTO public.aux_objects (id, entity, code, enabled, revision, created_at,
     ('01JCDT00000000000000000011', 'dictionary-item', 'DIT-0008', true, 1, '2026-08-24 15:23:50.224888+00', '00000000000000000000000000', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000'),
     ('01JCDT00000000000000000013', 'dictionary-item', 'DIT-0009', true, 1, '2026-08-24 15:23:50.224888+00', '00000000000000000000000000', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000'),
     ('01JCDT00000000000000000015', 'dictionary-item', 'DIT-0010', true, 1, '2026-08-24 15:23:50.224888+00', '00000000000000000000000000', '2026-08-24 15:23:50.224888+00', '00000000000000000000000000');
--- +goose StatementEnd
 -- Data for Name: aux_version_payloads; Type: TABLE DATA; Schema: public; Owner: -
 --
 
--- +goose StatementBegin
 INSERT INTO public.aux_version_payloads (approval_entry_id, object_id, entity, data) VALUES
     ('01JAVX00000000000000000002', '01JAVX00000000000000000001', 'dictionary-type', '{"name": "客户类型", "description": "客户展示和筛选类型"}'),
     ('01JAVX00000000000000000004', '01JAVX00000000000000000003', 'dictionary-type', '{"name": "车辆类型", "description": "车辆展示和筛选类型"}'),
@@ -4748,7 +4709,6 @@ INSERT INTO public.aux_version_payloads (approval_entry_id, object_id, entity, d
     ('01JCDT00000000000000000012', '01JCDT00000000000000000011', 'dictionary-item', '{"name": "价格约定", "sortOrder": 50, "dictionaryTypeCode": "DCT-0003"}'),
     ('01JCDT00000000000000000014', '01JCDT00000000000000000013', 'dictionary-item', '{"name": "交付约定", "sortOrder": 60, "dictionaryTypeCode": "DCT-0003"}'),
     ('01JCDT00000000000000000016', '01JCDT00000000000000000015', 'dictionary-item', '{"name": "其他", "sortOrder": 70, "dictionaryTypeCode": "DCT-0003"}');
--- +goose StatementEnd
 -- Data for Name: bob_customer_accounts; Type: TABLE DATA; Schema: public; Owner: -
 --
 
@@ -4929,7 +4889,6 @@ INSERT INTO public.aux_version_payloads (approval_entry_id, object_id, entity, d
 -- Data for Name: object_number_counters; Type: TABLE DATA; Schema: public; Owner: -
 --
 
--- +goose StatementBegin
 INSERT INTO public.object_number_counters VALUES ('aux', 'measurement-unit', 6);
 INSERT INTO public.object_number_counters VALUES ('aux', 'settlement-method', 11);
 INSERT INTO public.object_number_counters VALUES ('aux', 'dictionary-type', 3);
@@ -4938,7 +4897,6 @@ INSERT INTO public.object_number_counters VALUES ('aux', 'product-type', 4);
 
 
 --
--- +goose StatementEnd
 -- Data for Name: rpt_runtime_audit_events; Type: TABLE DATA; Schema: public; Owner: -
 --
 
@@ -4948,7 +4906,6 @@ INSERT INTO public.object_number_counters VALUES ('aux', 'product-type', 4);
 -- Data for Name: rpt_definitions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
--- +goose StatementBegin
 INSERT INTO public.rpt_definitions (id, code, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPD1e68c4c93e49d8d1e1877f9', 'account-journal', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
 INSERT INTO public.rpt_definitions (id, code, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPDb40033a1ed0a842d50c23f1', 'subject-balance', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
 INSERT INTO public.rpt_definitions (id, code, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPD43189400de7a6fe5d7978ed', 'customer-aging', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
@@ -4960,11 +4917,9 @@ INSERT INTO public.rpt_definitions (id, code, enabled, revision, created_at, cre
 
 
 --
--- +goose StatementEnd
 -- Data for Name: rpt_versions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
--- +goose StatementBegin
 INSERT INTO public.rpt_versions (approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV1e68c4c93e49d8d1e1877f9', 'RPD1e68c4c93e49d8d1e1877f9', '科目流水', '系统预置报表', 'VALID', '
     SELECT b.code::text AS book_code,s.code::text AS subject_code,v.business_date::date AS business_date,
         v.id::text AS voucher_id,v.source_document_no::text AS source_document_no,e.currency::text AS currency,
@@ -5209,7 +5164,6 @@ INSERT INTO public.rpt_versions (approval_entry_id, definition_id, name, descrip
 
 
 --
--- +goose StatementEnd
 -- Data for Name: vou_asset_acquisition_details; Type: TABLE DATA; Schema: public; Owner: -
 --
 
@@ -5339,7 +5293,6 @@ INSERT INTO public.rpt_versions (approval_entry_id, definition_id, name, descrip
 -- Data for Name: vou_intermediary_scripts; Type: TABLE DATA; Schema: public; Owner: -
 --
 
--- +goose StatementBegin
 INSERT INTO public.vou_intermediary_scripts VALUES ('00000000000000000000005701', true, 3, '2026 居间计算规则', '
 globalThis.calculate = function calculate(input) {
   const number = (value) => Number(value || 0);
@@ -5508,7 +5461,6 @@ globalThis.calculate = function calculate(input) {
 
 
 --
--- +goose StatementEnd
 -- Data for Name: vou_inventory_count_details; Type: TABLE DATA; Schema: public; Owner: -
 --
 
@@ -5722,7 +5674,6 @@ globalThis.calculate = function calculate(input) {
 -- Data for Name: wfl_process_definitions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
--- +goose StatementBegin
 INSERT INTO public.wfl_process_definitions (id, code, enabled, revision, created_by, updated_by) VALUES
     ('WFD0f7b734eecb146455d2f051', 'expense-payment', false, 1, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000'),
     ('WFD811182d17c4453955c72f85', 'purchase-fulfillment', false, 1, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000'),
@@ -5748,7 +5699,6 @@ END::text));
 
 
 --
--- +goose StatementEnd
 -- Data for Name: wfl_runtime_audit_events; Type: TABLE DATA; Schema: public; Owner: -
 --
 

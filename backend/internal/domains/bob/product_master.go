@@ -70,7 +70,7 @@ func (s *Service) loadProductListEnrichments(
 	return unitConversions, formulas, nil
 }
 
-func (s *Service) resolveProductReferences(ctx context.Context, tx pgx.Tx, data DetailView, resolveFormula bool) (DetailView, error) {
+func (s *Service) resolveProductReferences(ctx context.Context, tx pgx.Tx, data DetailView, resolveFormula, requireFormulaConfirmation bool) (DetailView, error) {
 	if data.ProductTypeID != "" {
 		typeRef, err := s.resolveNamedAuxiliaryReference(ctx, tx, "product-type", data.ProductTypeID, "")
 		if err != nil {
@@ -108,6 +108,7 @@ func (s *Service) resolveProductReferences(ctx context.Context, tx pgx.Tx, data 
 		if err := resolveUnit(&component.Quantity.EnteredUnit); err != nil {
 			return DetailView{}, err
 		}
+		previousApprovalEntryID := component.Material.ApprovalEntryID
 		material, err := s.ResolveLatestApprovedReference(ctx, tx, EntityProduct, component.Material.ObjectID)
 		if err != nil {
 			return DetailView{}, err
@@ -115,8 +116,14 @@ func (s *Service) resolveProductReferences(ctx context.Context, tx pgx.Tx, data 
 		component.Material.ApprovalEntryID, component.Material.Code = material.ApprovalEntryID, material.Code
 		component.Material.Name = material.Data.Name
 		component.Material.BehaviorProfile = material.Data.BehaviorProfile
-		component.ResolutionStatus = "CURRENT"
-		component.RequiresConfirmation = false
+		if material.Data.BehaviorProfile != ProductBehaviorRawMaterial {
+			component.ResolutionStatus = "UNRESOLVED"
+			component.RequiresConfirmation = false
+		} else {
+			component.ResolutionStatus = "CURRENT"
+			component.RequiresConfirmation = component.RequiresConfirmation || requireFormulaConfirmation ||
+				(previousApprovalEntryID != "" && previousApprovalEntryID != material.ApprovalEntryID)
+		}
 	}
 	return data, nil
 }

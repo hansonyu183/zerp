@@ -306,7 +306,7 @@ onMounted(() => {
           class="mb-4"
           type="warning"
           variant="tonal"
-          >删除后无法恢复；已有有效版本时只删除当前候选版本。</v-alert
+          >删除后无法恢复；已存在批准版本时只删除当前候选版本。</v-alert
         >
         <v-alert
           v-else-if="lifecycleAction === 'disable'"

@@ -38,6 +38,66 @@ JOIN bob_objects o ON o.id=account.object_id AND o.entity='customer-account'
 WHERE account.customer_relationship_id=sqlc.arg(customer_relationship_id)
 ORDER BY o.code;
 
+-- Customer management is account-centric: one stable customer-account row per
+-- list item, with its open candidate and latest approved version projected
+-- independently. The parent customer relationship only supplies the stable
+-- operating-entity boundary.
+-- name: CountBobCustomerAccounts :one
+SELECT count(*)
+FROM bob_customer_accounts account
+JOIN bob_objects object ON object.id=account.object_id AND object.entity='customer-account'
+JOIN bob_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id
+LEFT JOIN LATERAL (
+  SELECT entry.id,entry.status FROM approval_entries entry
+  WHERE entry.domain='bob' AND entry.entity='customer-account' AND entry.subject_id=object.id AND entry.status='APPROVED'
+  ORDER BY entry.version_no DESC LIMIT 1
+) approved_entry ON true
+LEFT JOIN LATERAL (
+  SELECT entry.id,entry.status FROM approval_entries entry
+  WHERE entry.domain='bob' AND entry.entity='customer-account' AND entry.subject_id=object.id AND entry.status IN ('DRAFT','PENDING')
+  ORDER BY entry.version_no DESC LIMIT 1
+) open_entry ON true
+LEFT JOIN bob_customer_versions approved ON approved.approval_entry_id=approved_entry.id
+LEFT JOIN bob_customer_versions candidate ON candidate.approval_entry_id=open_entry.id
+WHERE (sqlc.arg(keyword)::text='' OR object.code ILIKE '%' || sqlc.arg(keyword)::text || '%'
+       OR approved.name ILIKE '%' || sqlc.arg(keyword)::text || '%' OR candidate.name ILIKE '%' || sqlc.arg(keyword)::text || '%')
+  AND (sqlc.arg(enabled_filter)::integer=-1 OR object.enabled=(sqlc.arg(enabled_filter)::integer=1))
+  AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR approved_entry.status=ANY(sqlc.arg(status_filter)::text[]) OR open_entry.status=ANY(sqlc.arg(status_filter)::text[]))
+  AND (sqlc.arg(customer_type)::text='' OR approved.customer_type=sqlc.arg(customer_type)::text OR candidate.customer_type=sqlc.arg(customer_type)::text)
+  AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id)::text)
+  AND (sqlc.arg(sales_attribution_type)::text='' OR approved.primary_sales_attribution_type=sqlc.arg(sales_attribution_type)::text OR candidate.primary_sales_attribution_type=sqlc.arg(sales_attribution_type)::text)
+  AND (sqlc.arg(sales_attribution_subject_id)::text='' OR approved.primary_sales_subject_id=sqlc.arg(sales_attribution_subject_id)::text OR candidate.primary_sales_subject_id=sqlc.arg(sales_attribution_subject_id)::text);
+
+-- name: ListBobCustomerAccounts :many
+SELECT object.id AS object_id,object.code,object.revision AS object_revision,object.enabled,object.updated_at,
+       COALESCE(approved_entry.id,'')::text AS approval_entry_id,
+       COALESCE(open_entry.id,'')::text AS open_approval_entry_id
+FROM bob_customer_accounts account
+JOIN bob_objects object ON object.id=account.object_id AND object.entity='customer-account'
+JOIN bob_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id
+LEFT JOIN LATERAL (
+  SELECT entry.id,entry.status FROM approval_entries entry
+  WHERE entry.domain='bob' AND entry.entity='customer-account' AND entry.subject_id=object.id AND entry.status='APPROVED'
+  ORDER BY entry.version_no DESC LIMIT 1
+) approved_entry ON true
+LEFT JOIN LATERAL (
+  SELECT entry.id,entry.status FROM approval_entries entry
+  WHERE entry.domain='bob' AND entry.entity='customer-account' AND entry.subject_id=object.id AND entry.status IN ('DRAFT','PENDING')
+  ORDER BY entry.version_no DESC LIMIT 1
+) open_entry ON true
+LEFT JOIN bob_customer_versions approved ON approved.approval_entry_id=approved_entry.id
+LEFT JOIN bob_customer_versions candidate ON candidate.approval_entry_id=open_entry.id
+WHERE (sqlc.arg(keyword)::text='' OR object.code ILIKE '%' || sqlc.arg(keyword)::text || '%'
+       OR approved.name ILIKE '%' || sqlc.arg(keyword)::text || '%' OR candidate.name ILIKE '%' || sqlc.arg(keyword)::text || '%')
+  AND (sqlc.arg(enabled_filter)::integer=-1 OR object.enabled=(sqlc.arg(enabled_filter)::integer=1))
+  AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR approved_entry.status=ANY(sqlc.arg(status_filter)::text[]) OR open_entry.status=ANY(sqlc.arg(status_filter)::text[]))
+  AND (sqlc.arg(customer_type)::text='' OR approved.customer_type=sqlc.arg(customer_type)::text OR candidate.customer_type=sqlc.arg(customer_type)::text)
+  AND (sqlc.arg(operating_entity_id)::text='' OR relationship.operating_entity_id=sqlc.arg(operating_entity_id)::text)
+  AND (sqlc.arg(sales_attribution_type)::text='' OR approved.primary_sales_attribution_type=sqlc.arg(sales_attribution_type)::text OR candidate.primary_sales_attribution_type=sqlc.arg(sales_attribution_type)::text)
+  AND (sqlc.arg(sales_attribution_subject_id)::text='' OR approved.primary_sales_subject_id=sqlc.arg(sales_attribution_subject_id)::text OR candidate.primary_sales_subject_id=sqlc.arg(sales_attribution_subject_id)::text)
+ORDER BY object.code ASC,object.id ASC
+LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+
 -- name: InsertBobEmploymentRelationship :exec
 INSERT INTO bob_employment_relationships(object_id,party_id,operating_entity_id,created_by)
 VALUES(sqlc.arg(object_id),sqlc.arg(party_id),sqlc.arg(operating_entity_id),sqlc.arg(actor_id));
@@ -621,7 +681,17 @@ DELETE FROM bob_product_formulas WHERE product_approval_entry_id=sqlc.arg(produc
 INSERT INTO bob_product_formulas(product_approval_entry_id,output_base_quantity_micros,output_entered_quantity_micros,output_unit_object_id,output_unit_approval_entry_id,output_unit_code,output_unit_name,output_unit_symbol)
 VALUES(sqlc.arg(product_approval_entry_id),sqlc.arg(output_base_quantity_micros),sqlc.arg(output_entered_quantity_micros),sqlc.arg(output_unit_object_id),sqlc.arg(output_unit_approval_entry_id),sqlc.arg(output_unit_code),sqlc.arg(output_unit_name),sqlc.arg(output_unit_symbol));
 -- name: ListBobProductFormulaLines :many
-SELECT * FROM bob_product_formula_lines WHERE product_approval_entry_id=sqlc.arg(product_approval_entry_id) ORDER BY line_no;
+SELECT line.*,material_object.code AS material_code,material.name AS material_name,
+       material.behavior_profile AS material_behavior_profile
+FROM bob_product_formula_lines line
+JOIN approval_entries material_entry ON material_entry.id=line.material_approval_entry_id
+  AND material_entry.domain='bob' AND material_entry.entity='product'
+  AND material_entry.subject_id=line.material_object_id
+JOIN bob_objects material_object ON material_object.id=line.material_object_id
+  AND material_object.entity='product'
+JOIN bob_product_versions material ON material.approval_entry_id=material_entry.id
+WHERE line.product_approval_entry_id=sqlc.arg(product_approval_entry_id)
+ORDER BY line.line_no;
 -- name: DeleteBobProductFormulaLines :exec
 DELETE FROM bob_product_formula_lines WHERE product_approval_entry_id=sqlc.arg(product_approval_entry_id);
 -- name: InsertBobProductFormulaLine :exec

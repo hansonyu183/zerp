@@ -241,12 +241,24 @@ func (s *Service) CustomerQuery(ctx context.Context, input QueryInput) (Page[Cus
 			enabled = 0
 		}
 	}
-	params := bobListParams(EntityCustomer, input.Filters, enabled, statuses, "code", "asc", int32((input.Page-1)*input.PageSize), int32(input.PageSize))
-	total, err := s.queries.CountBobObjects(ctx, bobCountParams(params))
+	params := dbsqlc.ListBobCustomerAccountsParams{
+		Keyword: strings.TrimSpace(input.Filters.Keyword), EnabledFilter: enabled,
+		StatusFilter: statuses, CustomerType: strings.TrimSpace(input.Filters.CustomerType),
+		OperatingEntityID:         strings.TrimSpace(input.Filters.OperatingEntityID),
+		SalesAttributionType:      strings.TrimSpace(input.Filters.SalesAttributionType),
+		SalesAttributionSubjectID: strings.TrimSpace(input.Filters.SalesAttributionSubjectID),
+		RowOffset:                 int32((input.Page - 1) * input.PageSize), RowLimit: int32(input.PageSize),
+	}
+	total, err := s.queries.CountBobCustomerAccounts(ctx, dbsqlc.CountBobCustomerAccountsParams{
+		Keyword: params.Keyword, EnabledFilter: params.EnabledFilter, StatusFilter: params.StatusFilter,
+		CustomerType: params.CustomerType, OperatingEntityID: params.OperatingEntityID,
+		SalesAttributionType:      params.SalesAttributionType,
+		SalesAttributionSubjectID: params.SalesAttributionSubjectID,
+	})
 	if err != nil {
 		return Page[CustomerListItem]{}, s.internal("count customer accounts", err)
 	}
-	rows, err := s.queries.ListBobObjects(ctx, params)
+	rows, err := s.queries.ListBobCustomerAccounts(ctx, params)
 	if err != nil {
 		return Page[CustomerListItem]{}, s.internal("list customer accounts", err)
 	}
@@ -254,21 +266,30 @@ func (s *Service) CustomerQuery(ctx context.Context, input QueryInput) (Page[Cus
 	for _, r := range rows {
 		item := CustomerListItem{ObjectID: r.ObjectID, Code: r.Code, ObjectRevision: r.ObjectRevision, Enabled: r.Enabled, UpdatedAt: r.UpdatedAt.Time}
 		if r.ApprovalEntryID != "" {
-			entry, entryErr := s.queries.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: r.ApprovalEntryID, Domain: "bob", Entity: EntityCustomer})
+			entry, entryErr := s.queries.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: r.ApprovalEntryID, Domain: "bob", Entity: EntityCustomerAccount})
 			if entryErr != nil {
 				return Page[CustomerListItem]{}, s.internal("get customer approval", entryErr)
 			}
-			item.LatestApproved = &CustomerListVersion{Approval: approvalMeta(entry)}
+			payload, payloadErr := s.queries.GetBobOpenCustomerPayload(ctx, r.ApprovalEntryID)
+			if payloadErr != nil {
+				return Page[CustomerListItem]{}, s.internal("get customer payload", payloadErr)
+			}
+			item.LatestApproved = &CustomerListVersion{
+				Approval: approvalMeta(entry), Name: payload.Name, CustomerTypeCode: payload.CustomerType,
+				OperatingEntityName:  stringValue(payload.OperatingEntityName),
+				SalesAttributionName: stringValue(payload.PrimarySalesSubjectName),
+			}
 		}
 		if r.OpenApprovalEntryID != "" {
-			entry, entryErr := s.queries.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: r.OpenApprovalEntryID, Domain: "bob", Entity: EntityCustomer})
+			entry, entryErr := s.queries.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: r.OpenApprovalEntryID, Domain: "bob", Entity: EntityCustomerAccount})
 			if entryErr != nil {
 				return Page[CustomerListItem]{}, s.internal("get customer approval", entryErr)
 			}
-			item.OpenVersion = &CustomerListVersion{Approval: approvalMeta(entry)}
-		}
-		if len(statuses) > 0 && (item.OpenVersion == nil || !slices.Contains(statuses, string(item.OpenVersion.Approval.Status))) && (item.LatestApproved == nil || !slices.Contains(statuses, string(item.LatestApproved.Approval.Status))) {
-			continue
+			payload, payloadErr := s.queries.GetBobOpenCustomerPayload(ctx, r.OpenApprovalEntryID)
+			if payloadErr != nil {
+				return Page[CustomerListItem]{}, s.internal("get customer payload", payloadErr)
+			}
+			item.OpenVersion = &CustomerListVersion{Approval: approvalMeta(entry), Name: payload.Name, CustomerTypeCode: payload.CustomerType}
 		}
 		items = append(items, item)
 	}

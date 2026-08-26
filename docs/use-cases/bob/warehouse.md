@@ -3,7 +3,7 @@
 ## 页面范围
 
 - 路由：`/bob/warehouse`
-- 仓库共享边界、负责人、连续生效和停用规则：[BOB 领域](../../domains/bob.md)
+- 仓库共享边界、负责人、候选换版和停用规则：[BOB 领域](../../domains/bob.md)
 - 库存数量控制：[ACC 领域](../../domains/acc.md#9-库存数量账与控制)
 - 使用仓库的业务单据：[VOU 领域](../../domains/vou.md)
 - 线协议：[OpenAPI](../../../contracts/openapi/openapi.yaml) 与 [BOB Schema](../../../contracts/openapi/schemas/bob.yaml)

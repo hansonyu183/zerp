@@ -45,7 +45,10 @@ export function bobActionAvailability(
   const selfReview = bobSelfReviewBlocked(row, currentUserId)
   return {
     view: can('get'),
-    edit: status === 'DRAFT' && can('get') && can('save'),
+    edit:
+      (status === 'DRAFT' || status === 'APPROVED') &&
+      can('get') &&
+      can('save'),
     delete:
       can('delete') &&
       status === 'DRAFT' &&

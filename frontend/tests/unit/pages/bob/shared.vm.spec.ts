@@ -365,7 +365,7 @@ describe('shared BOB entity configuration and view model', () => {
       reject: true,
     })
     expect(vm.actionAvailability(row('APPROVED'))).toMatchObject({
-      edit: false,
+      edit: true,
       delete: false,
       submit: false,
       unapprove: true,
@@ -521,14 +521,14 @@ describe('shared BOB entity configuration and view model', () => {
     await expect(saving).resolves.toBe(true)
   })
 
-  it('有效产品直接进入候选版本编辑', async () => {
+  it('已批准产品直接进入候选版本编辑', async () => {
     grant('product', 'get', 'save', 'unapprove')
     const effective = objectView()
     effective.approval.status = 'APPROVED'
     mockedApiClient.postContract.mockResolvedValueOnce({ data: effective })
 
     const vm = useBobEntityViewModel(getBobEntityConfig('product'))
-    await vm.openEdit(row())
+    await vm.openEdit(row('APPROVED'))
 
     expect(mockedApiClient.postContract).toHaveBeenCalledWith(
       'bob/product/get',
@@ -538,6 +538,32 @@ describe('shared BOB entity configuration and view model', () => {
       },
     )
     expect(vm.editorMode.value).toBe('edit')
+  })
+
+  it('候选产品编辑同时读取最新批准版本作为交易事实', async () => {
+    grant('product', 'get', 'save')
+    const candidate = row()
+    const approved = row('APPROVED').latestApproved!
+    approved.approval.approvalEntryId = 'VER-APPROVED'
+    candidate.latestApproved = approved
+    const draftView = objectView()
+    const approvedView = objectView('VER-APPROVED')
+    approvedView.approval.status = 'APPROVED'
+    mockedApiClient.postContract
+      .mockResolvedValueOnce({ data: draftView })
+      .mockResolvedValueOnce({ data: approvedView })
+
+    const vm = useBobEntityViewModel(getBobEntityConfig('product'))
+    await vm.openEdit(candidate)
+
+    expect(mockedApiClient.postContract).toHaveBeenNthCalledWith(
+      2,
+      'bob/product/get',
+      { objectId: 'OBJ-1', approvalEntryId: 'VER-APPROVED' },
+    )
+    expect(vm.effectiveView.value?.approval.approvalEntryId).toBe(
+      'VER-APPROVED',
+    )
   })
 
   it('提交、审核、反向和启停动作使用当前并发版本', async () => {

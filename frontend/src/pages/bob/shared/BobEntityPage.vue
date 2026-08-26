@@ -574,7 +574,7 @@ function saveFormula(value: ProductFormulaDraft): void {
                 )
               "
             >
-              查看当前有效配方
+              查看当前已批准配方
             </v-btn>
           </div>
         </v-card-text>
@@ -595,7 +595,7 @@ function saveFormula(value: ProductFormulaDraft): void {
         type="warning"
         variant="tonal"
       >
-        下方是正在变更的候选版本；新交易继续使用上方当前有效版本，直到候选审核通过。
+        下方是正在变更的候选版本；新交易继续使用上方当前已批准版本，直到候选批准。
       </v-alert>
       <BusinessObjectEditor
         :editable="false"
@@ -806,7 +806,7 @@ function saveFormula(value: ProductFormulaDraft): void {
           type="info"
           variant="tonal"
         >
-          当前有效版本会冻结为历史记录，并复制一个新的待审核版本。
+          当前已批准版本会冻结为历史记录，并复制一个新的待批准版本。
         </v-alert>
         <v-textarea
           v-model="reverseReason"

@@ -3,7 +3,7 @@
 ## 页面范围
 
 - 路由：`/bob/vehicle`
-- 车辆承运归属、散水能力和连续生效：[BOB 领域](../../domains/bob.md#24-车辆承运归属)
+- 车辆承运归属、散水能力和候选换版：[BOB 领域](../../domains/bob.md#24-车辆承运归属)
 - 销售送货用车规则：[VOU 销售四单](../../domains/vou.md#32-销售四单)
 - 线协议：[OpenAPI](../../../contracts/openapi/openapi.yaml) 与 [BOB Schema](../../../contracts/openapi/schemas/bob.yaml)
 

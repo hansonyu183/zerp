@@ -49,6 +49,6 @@ func DocumentDeletedTopic(entity string) string {
 	return documentDeletedTopicPrefix + strings.TrimSpace(entity)
 }
 
-func ApprovalTopic(entity string) approval.Topic[DocumentView] {
-	return approval.MustTopic[DocumentView](approvalTopicPrefix + strings.TrimSpace(entity))
+func ApprovalTopic(entity string) approval.Topic[ApprovalPayload] {
+	return approval.MustTopic[ApprovalPayload](approvalTopicPrefix + strings.TrimSpace(entity))
 }

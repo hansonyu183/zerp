@@ -93,7 +93,7 @@ func (s *Service) deleteGeneratedWorkflowDocument(ctx context.Context, tx pgx.Tx
 	if err != nil {
 		return err
 	}
-	if err = coordinator.DeleteSubject(ctx, tx, document.ApprovalEntryID, document.Revision, actor, DocumentView{}); err != nil {
+	if err = coordinator.DeleteSubject(ctx, tx, document.ApprovalEntryID, document.Revision, actor, ApprovalPayload{}); err != nil {
 		return mapApprovalError(err)
 	}
 	return nil

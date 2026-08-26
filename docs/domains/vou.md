@@ -395,7 +395,7 @@ WFL 只编排服务合同与履约验收的审批过程，不拥有合同、验�
 
 Approval 审计事件追加保存动作、前后状态与 revision、操作者、发生时间、适用时的反向原因和请求 ID。反向动作清理中央 Approval 当前态字段，但不得删除 `approval_events` 历史；VOU 不再保存第二套生命周期审计。
 
-单据 `approve` 和 `unapprove` 通过按 VOU 实体区分的类型化 `ApprovalEvent[T]` 主题发布中央 Approval 事件。事件携带 Approval revision、操作者、request ID、业务日期及完整的强类型 VOU 不可变副本；反批准事件使用反批准前的已批准副本。订阅者使用事件副本并通过同一个 `pgx.Tx` 写入下游数据，不回查 VOU 表拼装业务事实。
+单据 `approve` 和 `unapprove` 通过按 VOU 实体区分的类型化 `ApprovalEvent[T]` 主题发布中央 Approval 事件。VOU 在调用 `Commit` 前构造只含业务日期、金额、明细、附件和业务引用的强类型不可变 payload；Approval entry、动作、前后状态和 revision、操作者及 request ID 只由 `ApprovalEvent[T]` 提供，不在 `T` 内重复。反批准事件使用反批准前的已批准业务副本。订阅者使用事件副本并通过同一个 `pgx.Tx` 写入下游数据，不回查 VOU 表拼装业务事实。
 
 所有订阅者按启动时的注册顺序同步执行并采用 fail-fast。任一订阅者主动拒绝、返回故障或发生 panic 时，VOU 批准或反批准、Approval 审计记录以及此前订阅者的数据库写入全部回滚；没有订阅者时保持现有批准行为。业务拒绝返回冲突响应，其他订阅故障返回内部错误。订阅者不得产生不能由数据库事务回滚的外部副作用。
 

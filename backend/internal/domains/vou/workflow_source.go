@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -49,10 +50,12 @@ func (s *Service) LoadWorkflowSource(ctx context.Context, tx pgx.Tx, entity, doc
 		if err != nil {
 			return WorkflowDocumentView{}, s.internal("lock workflow source", err)
 		}
-		view, err = s.eventSnapshot(ctx, queries, document)
+		payload, snapshotErr := s.eventSnapshot(ctx, queries, document)
+		err = snapshotErr
 		if err != nil {
 			return WorkflowDocumentView{}, err
 		}
+		view = payload.DocumentView(approval.MetaFromEntry(document.approvalEntry()))
 	}
 	return workflowDocumentView(view), nil
 }

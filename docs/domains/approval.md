@@ -38,11 +38,11 @@ HTTP 状态 wire value 只有 `DRAFT`、`PENDING`、`APPROVED`，共享中文分
 
 Coordinator 在每次写操作中使用 APP Authorizer 做最终权限校验，并且只能从自身固定的 `(domain, entity)` 与当次 action 生成 `/{domain}/{entity}/{action}`；调用方不能传入任意 permission path。Trusted System Actor 只能使用系统用户身份显式建立，它可免普通 HTTP role permission，但不能跳过状态、expected revision、reason、职责分离、Domain validation 或 transaction invariant。
 
-事务由 Domain Service 或 application service 建立，Approval 只接收调用方的 `pgx.Tx`。Approval Version 以 `(domain, entity, subject_id)` 的 PostgreSQL transaction-scoped advisory lock 串行化版本历史读写；所有版本历史读取、候选创建/删除、版本条目 `Prepare` 与 `Commit` 都先取得该锁，再取得条目行锁。`Prepare` 使用 `FOR UPDATE` 锁定条目并完成授权、expected revision、当前状态、合法转换、reason 和职责分离检查，但不写数据。Versioned subject 的反批还在该阶段确认目标仍是最高 `APPROVED` 且不存在其他 `DRAFT`/`PENDING` 候选；已有开放候选时直接返回稳定错误 `approval_open_version_exists`。Domain 完成业务校验并构造不可变 payload 后，`Commit` 在仍持有 subject lock 时重新锁定条目并复核这些版本不变量，随后更新条目、追加审计并通过强类型 topic 同步发布。
+事务由 Domain Service 或 application service 建立，Approval 只接收调用方的 `pgx.Tx`。Approval Version 以 `(domain, entity, subject_id)` 的 PostgreSQL transaction-scoped advisory lock 串行化版本历史读写；所有版本历史读取、候选创建/删除、版本条目 `Prepare` 与 `Commit` 都先取得该锁，再取得条目行锁。`Prepare` 使用 `FOR UPDATE` 锁定条目并完成授权、expected revision、当前状态、合法转换、reason 和职责分离检查，但不写数据。Versioned subject 的反批还在该阶段确认目标仍是最高 `APPROVED` 且不存在其他 `DRAFT`/`PENDING` 候选；已有开放候选时直接返回稳定错误 `approval_open_version_exists`。Domain 完成业务校验并在调用前构造纯业务不可变 payload，`Commit(ctx, tx, prepared, payload)` 在仍持有 subject lock 时重新锁定条目并复核这些版本不变量，随后更新条目、追加审计并通过强类型 topic 同步发布。Approval 不接受 callback，也不调用领域函数或回查领域数据。
 
 ## 5. 强类型事务事件
 
-Approval event 包含条目引用、动作、前后状态和 revision、操作者、request、reason、提交/批准元数据与 Domain 提供的完整不可变 payload。Domain 事件契约使用 `Topic[T]`、`Publish[T]` 和 `Subscribe[T]` 封装现有同步 `txevent.Bus`；producer 和 subscriber 只共享强类型 contract，不传递 `any`、raw JSON 或 `map[string]any` payload。
+Approval event 包含条目引用、动作、前后状态和 revision、操作者、request、reason、提交/批准元数据与 Domain 提供的完整不可变 payload。类型参数 `T` 只保存纯业务快照，不重复条目引用、动作、前后状态、revision、操作者或提交/批准元数据。Domain 事件契约使用 `Topic[T]`、`Publish[T]` 和 `Subscribe[T]` 封装现有同步 `txevent.Bus`；producer 和 subscriber 只共享强类型 contract，不传递 `any`、raw JSON 或 `map[string]any` payload。
 
 subscriber 必须复用发布者的同一 `pgx.Tx`，不得回查发布 Domain，也不得产生不可回滚副作用。任一 subscriber 返回 error 或 panic 都使当次 Approval 写入和所有订阅写入由调用方整体回滚。
 

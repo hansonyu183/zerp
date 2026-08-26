@@ -80,7 +80,7 @@ func (s *Service) createDocument(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	entry, err := coordinator.CreateSubject(ctx, tx, documentID, actor, DocumentView{})
+	entry, err := coordinator.CreateSubject(ctx, tx, documentID, actor, ApprovalPayload{})
 	if err != nil {
 		return MutationResult{}, mapApprovalError(err)
 	}
@@ -226,9 +226,11 @@ func (s *Service) Save(
 	if err != nil {
 		return MutationResult{}, s.internal("read saved document", err)
 	}
-	entry, err := coordinator.CommitWithPayload(ctx, tx, preparedApproval, func(entry approval.Entry) (DocumentView, error) {
-		return s.eventSnapshot(ctx, q, document.withApproval(entry))
-	})
+	payload, err := s.eventSnapshot(ctx, q, document)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	entry, err := coordinator.Commit(ctx, tx, preparedApproval, payload)
 	if err != nil {
 		return MutationResult{}, mapApprovalError(err)
 	}
@@ -283,9 +285,11 @@ func (s *Service) Submit(
 	if pending != 0 {
 		return MutationResult{}, domainError(ErrorConflict, "attachments are still uploading", nil, nil)
 	}
-	entry, err := coordinator.CommitWithPayload(ctx, tx, preparedApproval, func(entry approval.Entry) (DocumentView, error) {
-		return s.eventSnapshot(ctx, q, document.withApproval(entry))
-	})
+	payload, err := s.eventSnapshot(ctx, q, document)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	entry, err := coordinator.Commit(ctx, tx, preparedApproval, payload)
 	if err != nil {
 		return MutationResult{}, mapApprovalError(err)
 	}
@@ -383,9 +387,11 @@ func (s *Service) forwardTransition(
 	if err = s.validateFulfillmentSettlement(ctx, tx, entity, input.DocumentID); err != nil {
 		return MutationResult{}, err
 	}
-	entry, err := coordinator.CommitWithPayload(ctx, tx, preparedApproval, func(entry approval.Entry) (DocumentView, error) {
-		return s.eventSnapshot(ctx, q, document.withApproval(entry))
-	})
+	payload, err := s.eventSnapshot(ctx, q, document)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	entry, err := coordinator.Commit(ctx, tx, preparedApproval, payload)
 	if err != nil {
 		return MutationResult{}, mapApprovalError(err)
 	}
@@ -431,9 +437,11 @@ func (s *Service) unsubmit(
 			return MutationResult{}, err
 		}
 	}
-	entry, err := coordinator.CommitWithPayload(ctx, tx, preparedApproval, func(entry approval.Entry) (DocumentView, error) {
-		return s.eventSnapshot(ctx, q, document.withApproval(entry))
-	})
+	payload, err := s.eventSnapshot(ctx, q, document)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	entry, err := coordinator.Commit(ctx, tx, preparedApproval, payload)
 	if err != nil {
 		return MutationResult{}, mapApprovalError(err)
 	}

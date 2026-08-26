@@ -435,11 +435,11 @@ unapprove: latest APPROVED → PENDING；前一个 APPROVED 自动回落为 late
 
 ### 6.4 反向与启停
 
-`unsubmit` 只允许开放的 `PENDING` 候选退回 `DRAFT`，最新批准版本保持不变。`unapprove` 只允许最新 `APPROVED` entry 执行，并把同一 entry 改为 `PENDING`；若还有更早批准版本，它自动回落为 latest approved，V1 反批后则暂时没有正式版本。反批要求原因并写入中央审批事件。
+`unsubmit` 只允许开放的 `PENDING` 候选退回 `DRAFT`，最新批准版本保持不变。`unapprove` 只允许最新 `APPROVED` entry 执行，并把同一 entry 改为 `PENDING`；若还有更早批准版本，它自动回落为 latest approved，V1 反批后则暂时没有正式版本。已有开放候选时返回 `approval_open_version_exists`。反批要求原因并写入中央审批事件，引用 blocker 只按目标 `approvalEntryId` 精确检查当前正式 BOB 快照和所有现存 VOU 快照；引用 V1 的业务不会阻断未被引用的 V2 反批，引用目标 V2 的快照必须阻断。
 
 对象只要仍有 latest approved 版本，就可以在候选并存期间启停；动作不修改候选版本。成功后对象 revision 增加；重复启用或重复禁用按数据冲突处理。
 
-任一 BOB 对象禁用前必须在同一事务扫描所有 latest approved BOB 关联，并按来源实体和字段返回引用数量。存在任何当前引用时，`disable` 返回结构化 blocker 且不修改任何对象；用户必须进入引用方对象，通过正常编辑、提交和审核流程解除引用后再重试。禁用动作不得自动清空字段、迁移引用、创建替代版本或修改历史快照。
+任一 BOB 对象禁用前必须按稳定 `objectId` 在同一事务扫描所有 latest approved BOB 关联，并按来源实体和字段返回引用数量。存在任何当前引用时，`disable` 返回结构化 blocker 且不修改任何对象；用户必须进入引用方对象，通过正常编辑、提交和审核流程解除引用后再重试。禁用动作不得降为版本 entry 粒度，不得自动清空字段、迁移引用、创建替代版本或修改历史快照。
 
 ### 6.5 保存草稿
 

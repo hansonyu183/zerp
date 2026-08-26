@@ -346,6 +346,9 @@ func (c *Coordinator[T]) Prepare(ctx context.Context, tx pgx.Tx, action Action, 
 		if err := c.requireLatestApprovedVersion(ctx, tx, entry); err != nil {
 			return Prepared{}, err
 		}
+		if err := c.requireNoOpenVersion(ctx, tx, entry); err != nil {
+			return Prepared{}, err
+		}
 	}
 	prepared := Prepared{domain: c.domain, entity: c.entity, entry: entry, action: action, actor: actor}
 	if reason != "" {
@@ -379,6 +382,9 @@ func (c *Coordinator[T]) Commit(ctx context.Context, tx pgx.Tx, prepared Prepare
 	}
 	if prepared.action == ActionUnapproved && prepared.entry.VersionNo != nil {
 		if err := c.requireLatestApprovedVersion(ctx, tx, prepared.entry); err != nil {
+			return Entry{}, err
+		}
+		if err := c.requireNoOpenVersion(ctx, tx, prepared.entry); err != nil {
 			return Entry{}, err
 		}
 	}
@@ -469,6 +475,19 @@ func (c *Coordinator[T]) requireLatestApprovedVersion(ctx context.Context, tx pg
 		return c.databaseError("lock latest approved version", err)
 	}
 	return nil
+}
+
+func (c *Coordinator[T]) requireNoOpenVersion(ctx context.Context, tx pgx.Tx, entry Entry) error {
+	_, err := dbsqlc.New(tx).GetOpenApprovalVersion(ctx, dbsqlc.GetOpenApprovalVersionParams{
+		Domain: c.domain, Entity: c.entity, SubjectID: entry.SubjectID,
+	})
+	if err == nil {
+		return newError(ErrorConflict, "approval_open_version_exists", "an open approval version already exists", nil)
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	return c.databaseError("get open approval version before unapprove", err)
 }
 
 func (c *Coordinator[T]) SaveDraft(ctx context.Context, tx pgx.Tx, entryID string, expectedRevision int64, actor Actor, payload T) (Entry, error) {

@@ -141,3 +141,15 @@ func listVoucherApprovalEntryReferenceCounts(ctx context.Context, q *dbsqlc.Quer
 	}
 	return counts, nil
 }
+
+func listBobApprovalEntryReferenceCounts(ctx context.Context, q *dbsqlc.Queries, entryID string) ([]ActiveReferenceCount, error) {
+	rows, err := q.ListBobApprovalEntryReferenceCounts(ctx, entryID)
+	if err != nil {
+		return nil, err
+	}
+	counts := make([]ActiveReferenceCount, 0, len(rows))
+	for _, row := range rows {
+		counts = append(counts, ActiveReferenceCount{Entity: row.Entity, Field: row.Field, Count: int(row.ReferenceCount)})
+	}
+	return counts, nil
+}

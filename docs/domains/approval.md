@@ -32,7 +32,7 @@ APPROVED --unapprove--> PENDING
 
 Coordinator 在每次写操作中使用 APP Authorizer 做最终权限校验，并且只能从自身固定的 `(domain, entity)` 与当次 action 生成 `/{domain}/{entity}/{action}`；调用方不能传入任意 permission path。Trusted System Actor 只能使用系统用户身份显式建立，它可免普通 HTTP role permission，但不能跳过状态、expected revision、reason、职责分离、Domain validation 或 transaction invariant。
 
-事务由 Domain Service 或 application service 建立，Approval 只接收调用方的 `pgx.Tx`。Approval Version 以 `(domain, entity, subject_id)` 的 PostgreSQL transaction-scoped advisory lock 串行化版本历史读写；所有版本历史读取、候选创建/删除、版本条目 `Prepare` 与 `Commit` 都先取得该锁，再取得条目行锁。`Prepare` 使用 `FOR UPDATE` 锁定条目并完成授权、expected revision、当前状态、合法转换、reason 和职责分离检查，但不写数据。Domain 完成业务校验并构造不可变 payload 后，`Commit` 在仍持有 subject lock 时重新锁定条目；反批还必须重新确认它仍是最高 `APPROVED` 版本，随后更新条目、追加审计并通过强类型 topic 同步发布。
+事务由 Domain Service 或 application service 建立，Approval 只接收调用方的 `pgx.Tx`。Approval Version 以 `(domain, entity, subject_id)` 的 PostgreSQL transaction-scoped advisory lock 串行化版本历史读写；所有版本历史读取、候选创建/删除、版本条目 `Prepare` 与 `Commit` 都先取得该锁，再取得条目行锁。`Prepare` 使用 `FOR UPDATE` 锁定条目并完成授权、expected revision、当前状态、合法转换、reason 和职责分离检查，但不写数据。Versioned subject 的反批还在该阶段确认目标仍是最高 `APPROVED` 且不存在其他 `DRAFT`/`PENDING` 候选；已有开放候选时直接返回稳定错误 `approval_open_version_exists`。Domain 完成业务校验并构造不可变 payload 后，`Commit` 在仍持有 subject lock 时重新锁定条目并复核这些版本不变量，随后更新条目、追加审计并通过强类型 topic 同步发布。
 
 ## 5. 强类型事务事件
 
@@ -48,7 +48,7 @@ Versioned event 由 Approval 填充 `VersionNo`、`PreviousApprovedVersionID` �
 
 `GetLatestApproved` 始终返回 `version_no` 最高的 `APPROVED` 条目；`GetOpenVersion` 返回唯一的 `DRAFT` 或 `PENDING` 候选；`ListVersions` 按版本号倒序返回完整版本头。系统不维护 `current_version_id`、`effective_version_id`、`base_version_id` 或其他当前指针。
 
-`DeleteDraftVersion` 只删除 Approval Version 的 `DRAFT` 候选。只允许反批当前最高的 `APPROVED`：反批 V2 后 V1 自然成为正式版本；反批 V1 后允许没有正式版本。若已有另一开放候选，数据库开放候选唯一约束会拒绝把正式版本反批为第二个 `PENDING`。
+`DeleteDraftVersion` 只删除 Approval Version 的 `DRAFT` 候选。只允许反批当前最高的 `APPROVED`：反批 V2 后 V1 自然成为正式版本；反批 V1 后允许没有正式版本。若已有另一开放候选，`Prepare` 在业务写入前返回 `approval_open_version_exists`；PostgreSQL 的开放候选部分唯一约束继续作为最终并发防线，正常流程不依赖 unique violation。
 
 首次版本创建使用 `create` 权限，后续候选创建使用 `save` 权限，版本删除使用 `delete` 权限，读取当前版本使用 `get` 权限，历史列表使用 `versions` 权限；这些路径仍由 Coordinator 从固定 `(domain, entity, action)` 生成。
 

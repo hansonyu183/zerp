@@ -23,6 +23,8 @@ export const businessErrorMessages: Readonly<Record<string, string>> = {
   inventory_insufficient: '库存不足，无法完成本次操作，请先补充库存。',
   funds_insufficient: '可用资金不足，无法完成本次操作。',
   candidate_exists: '该资料已有候选版本，请先处理现有候选版本。',
+  approval_open_version_exists:
+    '该资料已有草稿或待审核版本，请先处理现有版本后再撤销审核。',
   invalid_reference: '所选业务资料不存在、已失效或不适用于当前操作。',
 }
 

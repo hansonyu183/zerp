@@ -464,6 +464,10 @@ type Querier interface {
 	ListAppUserRoleSummaries(ctx context.Context, userID string) ([]ListAppUserRoleSummariesRow, error)
 	ListAppUsers(ctx context.Context, arg ListAppUsersParams) ([]ListAppUsersRow, error)
 	ListApprovalVersions(ctx context.Context, arg ListApprovalVersionsParams) ([]ApprovalEntry, error)
+	// Exact BOB Approval-entry blocker projection. Only the latest APPROVED
+	// payload of each referencing object is a current formal reference; each row
+	// is matched by the immutable snapshot entry rather than the stable object.
+	ListBobApprovalEntryReferenceCounts(ctx context.Context, approvalEntryID string) ([]ListBobApprovalEntryReferenceCountsRow, error)
 	ListBobApprovalEvents(ctx context.Context, arg ListBobApprovalEventsParams) ([]ApprovalEvent, error)
 	ListBobCustomerAccountObjects(ctx context.Context, customerRelationshipID string) ([]ListBobCustomerAccountObjectsRow, error)
 	ListBobCustomerCreditLimits(ctx context.Context, approvalEntryID string) ([]BobCustomerCreditLimit, error)
@@ -502,8 +506,8 @@ type Querier interface {
 	ListSupplierPurchaserReferencesForEmployee(ctx context.Context, sourceObjectID *string) ([]ListSupplierPurchaserReferencesForEmployeeRow, error)
 	ListVehicleCarrierOperatingReferences(ctx context.Context, sourceObjectID *string) ([]ListVehicleCarrierOperatingReferencesRow, error)
 	ListVehicleCarrierServiceReferences(ctx context.Context, sourceObjectID *string) ([]ListVehicleCarrierServiceReferencesRow, error)
-	// Fixed VOU blocker projection. Every typed VOU snapshot participates in all
-	// document states; physical deletion removes the corresponding blocker row.
+	// Exact VOU Approval-entry blocker projection. Every typed VOU snapshot
+	// participates in all document states; physical deletion removes the row.
 	ListVouApprovalEntryReferenceCounts(ctx context.Context, approvalEntryID string) ([]ListVouApprovalEntryReferenceCountsRow, error)
 	ListVouAssetAcquisitionLines(ctx context.Context, documentID string) ([]VouAssetAcquisitionLine, error)
 	ListVouAssetLiquidationLines(ctx context.Context, documentID string) ([]VouAssetLiquidationLine, error)

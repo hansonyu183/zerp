@@ -63,8 +63,8 @@ func (s *Service) LockPeriod(ctx context.Context, input PeriodActionInput, actor
 	if err != nil {
 		return PeriodView{}, databaseError("get accounting period book", err)
 	}
-	opening, err := q.GetAccountingOpeningForUpdate(ctx, input.BookID)
-	if err != nil || opening.State != OpeningStateApproved {
+	openingApproved, err := q.IsAccountingBookReadyForPosting(ctx, input.BookID)
+	if err != nil || !openingApproved {
 		return PeriodView{}, domainError(ErrorConflict, "accounting opening is not approved", err)
 	}
 	expected, _ := time.Parse("2006-01", book.StartMonth)

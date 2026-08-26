@@ -109,9 +109,12 @@ RETURNING revision;
 -- name: GetReadyControlAccountingBookID :one
 SELECT book.id
 FROM acc_books book
-JOIN acc_openings opening ON opening.book_id = book.id AND opening.state = 'APPROVED'
+JOIN acc_openings opening ON opening.book_id = book.id
+JOIN approval_entries approval
+  ON approval.domain='acc' AND approval.entity='opening' AND approval.subject_id=opening.book_id
+ AND approval.status='APPROVED'
 WHERE book.control_book
-FOR SHARE OF book;
+FOR SHARE OF book, opening, approval;
 
 -- name: LockAccountingBalanceKey :exec
 SELECT pg_advisory_xact_lock(hashtextextended(sqlc.arg(lock_key), 0));
@@ -174,9 +177,12 @@ SELECT EXISTS(
     AND document.business_date < sqlc.arg(period_end)
     AND approval.status = 'APPROVED'
     AND NOT EXISTS (
-      SELECT 1 FROM acc_mapping_versions mapping
-      WHERE mapping.book_id=sqlc.arg(book_id)
-        AND mapping.vou_entity=document.entity AND mapping.state='APPROVED'
+      SELECT 1
+      FROM acc_mappings mapping
+      JOIN approval_entries mapping_approval
+        ON mapping_approval.domain='acc' AND mapping_approval.entity='mapping'
+       AND mapping_approval.subject_id=mapping.id AND mapping_approval.status='APPROVED'
+      WHERE mapping.book_id=sqlc.arg(book_id) AND mapping.vou_entity=document.entity
     )
 );
 
@@ -625,15 +631,9 @@ DELETE FROM acc_subject_usages
 WHERE usage_type = sqlc.arg(usage_type) AND usage_id = sqlc.arg(usage_id);
 
 -- name: GetAccountingOpening :one
-SELECT o.book_id, o.state, o.voucher_id, o.revision, o.approved_at, o.approved_by
+SELECT o.book_id, o.voucher_id
 FROM acc_openings o
 WHERE o.book_id = sqlc.arg(book_id);
-
--- name: GetAccountingOpeningForUpdate :one
-SELECT o.book_id, o.state, o.voucher_id, o.revision, o.approved_at, o.approved_by
-FROM acc_openings o
-WHERE o.book_id = sqlc.arg(book_id)
-FOR UPDATE;
 
 -- name: ListAccountingOpeningLines :many
 SELECT id, book_id, subject_id, currency, debit_minor, credit_minor,
@@ -643,14 +643,13 @@ WHERE book_id = sqlc.arg(book_id)
 ORDER BY line_order;
 
 -- name: CreateAccountingOpening :exec
-INSERT INTO acc_openings (book_id, state, revision, created_by, updated_by)
-VALUES (sqlc.arg(book_id), 'DRAFT', 1, sqlc.arg(actor_id), sqlc.arg(actor_id));
+INSERT INTO acc_openings (book_id, created_by, updated_by)
+VALUES (sqlc.arg(book_id), sqlc.arg(actor_id), sqlc.arg(actor_id));
 
--- name: TouchAccountingOpeningDraft :one
+-- name: TouchAccountingOpening :exec
 UPDATE acc_openings SET
-  revision = revision + 1, updated_at = now(), updated_by = sqlc.arg(actor_id)
-WHERE book_id = sqlc.arg(book_id) AND state = 'DRAFT' AND revision = sqlc.arg(revision)
-RETURNING revision;
+  updated_at = now(), updated_by = sqlc.arg(actor_id)
+WHERE book_id = sqlc.arg(book_id);
 
 -- name: DeleteAccountingOpeningLines :exec
 DELETE FROM acc_opening_lines WHERE book_id = sqlc.arg(book_id);
@@ -682,22 +681,10 @@ INSERT INTO acc_voucher_lines (
   sqlc.arg(dimensions), sqlc.arg(source_line_id), sqlc.arg(line_order)
 );
 
--- name: ApproveAccountingOpening :one
+-- name: SetAccountingOpeningVoucher :exec
 UPDATE acc_openings SET
-  state = 'APPROVED', voucher_id = sqlc.arg(voucher_id),
-  approved_at = now(), approved_by = sqlc.arg(actor_id),
-  revision = revision + 1, updated_at = now(), updated_by = sqlc.arg(actor_id)
-WHERE book_id = sqlc.arg(book_id) AND state = 'DRAFT' AND revision = sqlc.arg(revision)
-RETURNING revision;
-
--- name: CreateApprovedZeroAccountingOpening :exec
-INSERT INTO acc_openings (
-  book_id, state, voucher_id, revision, approved_at, approved_by,
-  created_by, updated_by
-) VALUES (
-  sqlc.arg(book_id), 'APPROVED', sqlc.arg(voucher_id), 1, now(), sqlc.arg(actor_id),
-  sqlc.arg(actor_id), sqlc.arg(actor_id)
-);
+  voucher_id = sqlc.arg(voucher_id), updated_at = now(), updated_by = sqlc.arg(actor_id)
+WHERE book_id = sqlc.arg(book_id);
 
 -- name: AccountingBookHasLaterFacts :one
 SELECT EXISTS(
@@ -708,97 +695,140 @@ SELECT EXISTS(
 -- name: DeleteAccountingVoucher :exec
 DELETE FROM acc_vouchers WHERE book_id = sqlc.arg(book_id) AND id = sqlc.arg(voucher_id);
 
--- name: UnapproveAccountingOpening :one
+-- name: ClearAccountingOpeningVoucher :exec
 UPDATE acc_openings SET
-  state = 'DRAFT', voucher_id = NULL, approved_at = NULL, approved_by = NULL,
-  revision = revision + 1, updated_at = now(), updated_by = sqlc.arg(actor_id)
-WHERE book_id = sqlc.arg(book_id) AND state = 'APPROVED' AND revision = sqlc.arg(revision)
-RETURNING revision;
+  voucher_id = NULL, updated_at = now(), updated_by = sqlc.arg(actor_id)
+WHERE book_id = sqlc.arg(book_id);
 
 -- name: IsAccountingBookReadyForPosting :one
 SELECT EXISTS(
-  SELECT 1 FROM acc_openings
-  WHERE book_id = sqlc.arg(book_id) AND state = 'APPROVED'
+  SELECT 1
+  FROM acc_openings opening
+  JOIN approval_entries approval
+    ON approval.domain='acc' AND approval.entity='opening' AND approval.subject_id=opening.book_id
+  WHERE opening.book_id = sqlc.arg(book_id) AND approval.status = 'APPROVED'
 );
 
--- name: NextAccountingMappingVersion :one
-SELECT COALESCE(max(version), 0)::integer + 1
-FROM acc_mapping_versions
-WHERE book_id = sqlc.arg(book_id) AND vou_entity = sqlc.arg(vou_entity);
+-- name: GetAccountingMappingSubject :one
+SELECT id, book_id, vou_entity
+FROM acc_mappings
+WHERE book_id=sqlc.arg(book_id) AND vou_entity=sqlc.arg(vou_entity);
+
+-- name: CreateAccountingMappingSubject :exec
+INSERT INTO acc_mappings(id, book_id, vou_entity, created_by, updated_by)
+VALUES(sqlc.arg(id), sqlc.arg(book_id), sqlc.arg(vou_entity), sqlc.arg(actor_id), sqlc.arg(actor_id));
 
 -- name: CreateAccountingMappingVersion :exec
 INSERT INTO acc_mapping_versions (
-  id, book_id, vou_entity, version, state, default_result, definition,
+  approval_entry_id, mapping_id, default_result, definition,
   created_by, updated_by
 ) VALUES (
-  sqlc.arg(id), sqlc.arg(book_id), sqlc.arg(vou_entity), sqlc.arg(version),
-  'DRAFT', sqlc.arg(default_result), sqlc.arg(definition),
+  sqlc.arg(approval_entry_id), sqlc.arg(mapping_id), sqlc.arg(default_result), sqlc.arg(definition),
   sqlc.arg(actor_id), sqlc.arg(actor_id)
 );
 
 -- name: ListAccountingMappings :many
-SELECT id, book_id, vou_entity, version, state, default_result, definition,
-       revision, approved_at, approved_by, count(*) OVER() AS total
-FROM acc_mapping_versions
-WHERE book_id = sqlc.arg(book_id)
-  AND (sqlc.arg(vou_entity)::text = '' OR vou_entity = sqlc.arg(vou_entity))
-ORDER BY vou_entity, version DESC
+SELECT mapping.id AS mapping_id, mapping.book_id, mapping.vou_entity,
+       entry.id AS approval_entry_id, entry.version_no, entry.status,
+       entry.revision, entry.created_by, entry.created_at, entry.updated_by, entry.updated_at,
+       entry.submitted_by, entry.submitted_at, entry.approved_by, entry.approved_at,
+       payload.default_result, payload.definition, count(*) OVER() AS total
+FROM acc_mappings mapping
+JOIN LATERAL (
+  SELECT candidate.*
+  FROM approval_entries candidate
+  WHERE candidate.domain='acc' AND candidate.entity='mapping' AND candidate.subject_id=mapping.id
+    AND candidate.status IN ('DRAFT','PENDING','APPROVED')
+  ORDER BY CASE WHEN candidate.status IN ('DRAFT','PENDING') THEN 0 ELSE 1 END,
+           candidate.version_no DESC
+  LIMIT 1
+) entry ON true
+JOIN acc_mapping_versions payload ON payload.approval_entry_id=entry.id
+WHERE mapping.book_id = sqlc.arg(book_id)
+  AND (sqlc.arg(vou_entity)::text = '' OR mapping.vou_entity = sqlc.arg(vou_entity))
+ORDER BY mapping.vou_entity
 OFFSET sqlc.arg(page_offset) LIMIT sqlc.arg(page_size);
 
--- name: GetAccountingMapping :one
-SELECT id, book_id, vou_entity, version, state, default_result, definition,
-       revision, approved_at, approved_by
-FROM acc_mapping_versions
-WHERE book_id = sqlc.arg(book_id) AND id = sqlc.arg(mapping_id);
+-- name: ListAccountingMappingVersions :many
+SELECT mapping.id AS mapping_id, mapping.book_id, mapping.vou_entity,
+       entry.id AS approval_entry_id, entry.version_no, entry.status,
+       entry.revision, entry.created_by, entry.created_at, entry.updated_by, entry.updated_at,
+       entry.submitted_by, entry.submitted_at, entry.approved_by, entry.approved_at,
+       payload.default_result, payload.definition, count(*) OVER() AS total
+FROM acc_mappings mapping
+JOIN approval_entries entry
+  ON entry.domain='acc' AND entry.entity='mapping' AND entry.subject_id=mapping.id
+JOIN acc_mapping_versions payload ON payload.approval_entry_id=entry.id
+WHERE mapping.book_id=sqlc.arg(book_id) AND mapping.vou_entity=sqlc.arg(vou_entity)
+ORDER BY entry.version_no DESC
+OFFSET sqlc.arg(page_offset) LIMIT sqlc.arg(page_size);
 
--- name: GetAccountingMappingForUpdate :one
-SELECT m.id, m.book_id, m.vou_entity, m.version, m.state, m.default_result, m.definition,
-       m.revision, m.approved_at, m.approved_by,
-		 EXISTS(SELECT 1 FROM acc_vouchers v WHERE v.mapping_version_id = m.id) AS referenced
-FROM acc_mapping_versions m
-WHERE m.book_id = sqlc.arg(book_id) AND m.id = sqlc.arg(mapping_id)
-FOR UPDATE;
+-- name: GetAccountingMappingVersion :one
+SELECT mapping.id AS mapping_id, mapping.book_id, mapping.vou_entity,
+       payload.approval_entry_id, payload.default_result, payload.definition
+FROM acc_mapping_versions payload
+JOIN acc_mappings mapping ON mapping.id=payload.mapping_id
+WHERE mapping.book_id=sqlc.arg(book_id) AND mapping.vou_entity=sqlc.arg(vou_entity)
+  AND payload.approval_entry_id=sqlc.arg(approval_entry_id);
 
--- name: UpdateAccountingMappingDraft :one
+-- name: GetPreferredAccountingMappingVersion :one
+SELECT mapping.id AS mapping_id, mapping.book_id, mapping.vou_entity,
+       entry.id AS approval_entry_id, payload.default_result, payload.definition
+FROM acc_mappings mapping
+JOIN LATERAL (
+  SELECT candidate.id
+  FROM approval_entries candidate
+  WHERE candidate.domain='acc' AND candidate.entity='mapping' AND candidate.subject_id=mapping.id
+    AND candidate.status IN ('DRAFT','PENDING','APPROVED')
+  ORDER BY CASE WHEN candidate.status IN ('DRAFT','PENDING') THEN 0 ELSE 1 END,
+           candidate.version_no DESC
+  LIMIT 1
+) entry ON true
+JOIN acc_mapping_versions payload ON payload.approval_entry_id=entry.id
+WHERE mapping.book_id=sqlc.arg(book_id) AND mapping.vou_entity=sqlc.arg(vou_entity);
+
+-- name: UpdateAccountingMappingVersion :exec
 UPDATE acc_mapping_versions SET
   default_result = sqlc.arg(default_result), definition = sqlc.arg(definition),
-  revision = revision + 1, updated_at = now(), updated_by = sqlc.arg(actor_id)
-WHERE book_id = sqlc.arg(book_id) AND id = sqlc.arg(mapping_id)
-  AND state = 'DRAFT' AND revision = sqlc.arg(revision)
-RETURNING revision;
+  updated_at = now(), updated_by = sqlc.arg(actor_id)
+WHERE approval_entry_id=sqlc.arg(approval_entry_id);
 
--- name: ApproveAccountingMapping :one
-UPDATE acc_mapping_versions SET
-  state = 'APPROVED', approved_at = now(), approved_by = sqlc.arg(actor_id),
-  revision = revision + 1, updated_at = now(), updated_by = sqlc.arg(actor_id)
-WHERE book_id = sqlc.arg(book_id) AND id = sqlc.arg(mapping_id)
-  AND state = 'DRAFT' AND revision = sqlc.arg(revision)
-RETURNING revision;
+-- name: DeleteAccountingMappingVersion :exec
+DELETE FROM acc_mapping_versions WHERE approval_entry_id=sqlc.arg(approval_entry_id);
 
--- name: UnapproveAccountingMapping :one
-UPDATE acc_mapping_versions SET
-  state = 'DRAFT', approved_at = NULL, approved_by = NULL,
-  revision = revision + 1, updated_at = now(), updated_by = sqlc.arg(actor_id)
-WHERE book_id = sqlc.arg(book_id) AND id = sqlc.arg(mapping_id)
-  AND state = 'APPROVED' AND revision = sqlc.arg(revision)
-RETURNING revision;
+-- name: DeleteAccountingMappingSubjectIfEmpty :exec
+DELETE FROM acc_mappings mapping
+WHERE mapping.id=sqlc.arg(mapping_id)
+  AND NOT EXISTS(SELECT 1 FROM acc_mapping_versions payload WHERE payload.mapping_id=mapping.id);
+
+-- name: AccountingMappingVersionReferenced :one
+SELECT EXISTS(
+  SELECT 1 FROM acc_vouchers voucher
+  WHERE voucher.mapping_approval_entry_id=sqlc.arg(approval_entry_id)
+);
 
 -- name: GetCurrentApprovedAccountingMapping :one
-SELECT id, book_id, vou_entity, version, state, default_result, definition,
-       revision, approved_at, approved_by
-FROM acc_mapping_versions
-WHERE book_id = sqlc.arg(book_id) AND vou_entity = sqlc.arg(vou_entity)
-  AND state = 'APPROVED'
-ORDER BY version DESC
+SELECT payload.approval_entry_id, mapping.id AS mapping_id, mapping.book_id,
+       mapping.vou_entity, payload.default_result, payload.definition
+FROM acc_mappings mapping
+JOIN approval_entries entry
+  ON entry.domain='acc' AND entry.entity='mapping' AND entry.subject_id=mapping.id
+ AND entry.status='APPROVED'
+JOIN acc_mapping_versions payload ON payload.approval_entry_id=entry.id
+WHERE mapping.book_id=sqlc.arg(book_id) AND mapping.vou_entity=sqlc.arg(vou_entity)
+ORDER BY entry.version_no DESC
 LIMIT 1;
 
 -- name: ListAccountingPostingBooks :many
 SELECT b.id, b.control_book
 FROM acc_books b
-JOIN acc_openings opening ON opening.book_id = b.id AND opening.state = 'APPROVED'
+JOIN acc_openings opening ON opening.book_id = b.id
+JOIN approval_entries approval
+  ON approval.domain='acc' AND approval.entity='opening' AND approval.subject_id=opening.book_id
+ AND approval.status='APPROVED'
 WHERE b.start_month <= sqlc.arg(business_date)::date
 ORDER BY b.code
-FOR SHARE OF b, opening;
+FOR SHARE OF b, opening, approval;
 
 -- name: GetAutomaticAccountingVoucher :one
 SELECT id, source_revision
@@ -811,11 +841,11 @@ WHERE book_id = sqlc.arg(book_id)
 -- name: CreateAutomaticAccountingVoucher :exec
 INSERT INTO acc_vouchers (
   id, book_id, source_type, source_id, source_entity, source_revision,
-  source_document_no, business_date, mapping_version_id, created_by
+  source_document_no, business_date, mapping_approval_entry_id, created_by
 ) VALUES (
   sqlc.arg(id), sqlc.arg(book_id), 'VOU', sqlc.arg(source_id),
   sqlc.arg(source_entity), sqlc.arg(source_revision), sqlc.arg(source_document_no),
-  sqlc.arg(business_date), sqlc.arg(mapping_version_id), sqlc.arg(actor_id)
+  sqlc.arg(business_date), sqlc.arg(mapping_approval_entry_id), sqlc.arg(actor_id)
 );
 
 -- name: DeleteAutomaticAccountingVoucher :many

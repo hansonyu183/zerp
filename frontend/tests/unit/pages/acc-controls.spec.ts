@@ -158,12 +158,13 @@ describe('ACC mapping and period controls', () => {
     const session = useSessionStore()
     session.permissions = [
       '/acc/opening/save',
+      '/acc/opening/submit',
       '/acc/opening/approve',
       '/acc/opening/unapprove',
     ]
     const vm = createAccountingOpeningViewModel()
     vm.opening = {
-      state: 'DRAFT',
+      approval: { status: 'DRAFT' },
       trialBalance: [],
     } as typeof vm.opening
     expect(vm.canSave).toBe(false)
@@ -175,9 +176,9 @@ describe('ACC mapping and period controls', () => {
       '/acc/opening/query',
     )
     expect(vm.canSave).toBe(true)
-    expect(vm.canApprove).toBe(true)
+    expect(vm.canSubmit).toBe(true)
 
-    vm.opening = { state: 'APPROVED' } as typeof vm.opening
+    vm.opening = { approval: { status: 'APPROVED' } } as typeof vm.opening
     expect(vm.canUnapprove).toBe(true)
     session.permissions = session.permissions.filter(
       (permission) => permission !== '/acc/subject/query',

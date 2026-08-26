@@ -6,7 +6,8 @@ import type { MappingDefinition } from './MappingDefinition';
 import type { MappingResult } from './MappingResult';
 export type MappingSaveRequest = {
   bookId: string;
-  mappingId: string;
+  vouEntity: string;
+  approvalEntryId: string;
   defaultResult: MappingResult;
   definition: MappingDefinition;
   revision: number;

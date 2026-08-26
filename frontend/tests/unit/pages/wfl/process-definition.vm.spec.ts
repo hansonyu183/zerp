@@ -19,7 +19,20 @@ const listItem: DefinitionListItem = {
   definitionId: '01J00000000000000000000001',
   code: 'editor-flow',
   name: '编辑流程',
-  status: 'DRAFT',
+	approval: {
+		approvalEntryId: '01J00000000000000000000002',
+		versionNo: 1,
+		status: 'DRAFT',
+		revision: 1,
+		createdBy: '01J00000000000000000000003',
+		createdAt: '2026-08-03T00:00:00Z',
+		updatedBy: '01J00000000000000000000003',
+		updatedAt: '2026-08-03T00:00:00Z',
+		submittedBy: null,
+		submittedAt: null,
+		approvedBy: null,
+		approvedAt: null,
+	},
   revision: 1,
   rootEntity: 'sale-order',
   nodeCount: 2,
@@ -111,6 +124,7 @@ describe('Starlark process definition view model', () => {
       if (path === 'wfl/process-definition/trial') {
         expect(body).toEqual({
           definitionId: listItem.definitionId,
+		  approvalEntryId: listItem.approval.approvalEntryId,
           revision: 1,
           source: {
             entity: 'sale-order',
@@ -155,11 +169,11 @@ describe('Starlark process definition view model', () => {
     vi.clearAllMocks()
 
     vm.keyword.value = '待清除'
-    vm.status.value = 'ENABLED'
+	vm.status.value = 'APPROVED'
     await vm.query()
     expect(mockedPost).toHaveBeenLastCalledWith(
       'wfl/process-definition/query',
-      expect.objectContaining({ statuses: ['ENABLED'] }),
+		  expect.objectContaining({ approvalStatuses: ['APPROVED'] }),
     )
 
     vm.resetFilters()

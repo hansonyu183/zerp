@@ -124,8 +124,12 @@ interface ReferenceMutation {
 interface WflDefinition {
   definitionId: string
   revision: number
-  status: string
-  publishedRevision?: number
+  enabled: boolean
+  approval: {
+    approvalEntryId: string
+    revision: number
+    status: string
+  }
 }
 
 interface WflInstance {
@@ -591,40 +595,50 @@ async function createAttributedCustomer(
 }
 
 async function createEnabledWorkflow(
-  api: Api,
+  operator: Api,
+  reviewer: Api,
   code: string,
   script: string,
   trialDocumentId: string,
 ): Promise<void> {
-  const created = await api.ok<WflDefinition>('wfl/process-definition/create', {
-    script,
-  })
-  expect(created.status).toBe('DRAFT')
-  const saved = await api.ok<WflDefinition>('wfl/process-definition/save', {
+  const created = await operator.ok<WflDefinition>(
+    'wfl/process-definition/create',
+    { script },
+  )
+  expect(created.approval.status).toBe('DRAFT')
+  const saved = await operator.ok<WflDefinition>('wfl/process-definition/save', {
     definitionId: created.definitionId,
-    revision: created.revision,
+    approvalEntryId: created.approval.approvalEntryId,
+    revision: created.approval.revision,
     script: `${script}\n`,
   })
-  const trial = await api.ok<{ matched: boolean; plannedActions: unknown[] }>(
+  const trial = await operator.ok<{ matched: boolean; plannedActions: unknown[] }>(
     'wfl/process-definition/trial',
     {
       definitionId: saved.definitionId,
-      revision: saved.revision,
+      approvalEntryId: saved.approval.approvalEntryId,
+      revision: saved.approval.revision,
       source: { entity: 'sale-order', documentId: trialDocumentId },
     },
   )
   expect(trial.matched).toBe(true)
   expect(trial.plannedActions).toHaveLength(1)
-  const published = await api.ok<WflDefinition>(
-    'wfl/process-definition/publish',
-    { definitionId: saved.definitionId, revision: saved.revision },
-  )
-  expect(published.publishedRevision).toBeTruthy()
-  const enabled = await api.ok<WflDefinition>('wfl/process-definition/enable', {
-    definitionId: published.definitionId,
-    revision: published.revision,
+  const submitted = await operator.ok<WflDefinition>('wfl/process-definition/submit', {
+    definitionId: saved.definitionId,
+    approvalEntryId: saved.approval.approvalEntryId,
+    revision: saved.approval.revision,
   })
-  expect(enabled.status).toBe('ENABLED')
+  const approved = await reviewer.ok<WflDefinition>('wfl/process-definition/approve', {
+    definitionId: submitted.definitionId,
+    approvalEntryId: submitted.approval.approvalEntryId,
+    revision: submitted.approval.revision,
+  })
+  expect(approved.approval.status).toBe('APPROVED')
+  const enabled = await operator.ok<WflDefinition>('wfl/process-definition/enable', {
+    definitionId: approved.definitionId,
+    revision: approved.revision,
+  })
+  expect(enabled.enabled).toBe(true)
 }
 
 async function approveVou(
@@ -746,7 +760,7 @@ workflow(code="${processCode}", name="${processCode}", root=order, when=lambda s
     "lines": [{"sourceLineId": line["lineId"], "signedBaseQuantity": line["baseQuantity"], "rejectedBaseQuantity": "0"} for line in source["data"]["productLines"]],
   })),
 ])`
-  await createEnabledWorkflow(operator, processCode, script, order.documentId)
+  await createEnabledWorkflow(operator, reviewer, processCode, script, order.documentId)
   await workerState.grantWorkflowPermissions([processCode])
   await approveVou(operator, reviewer, 'sale-order', order)
   const processPage = await operator.ok<{
@@ -982,7 +996,7 @@ workflow(code="${processCode}", name="${processCode}", root=order, when=lambda s
     "businessDate": source["data"]["businessDate"],
   })),
 ])`
-  await createEnabledWorkflow(operator, processCode, script, order.documentId)
+  await createEnabledWorkflow(operator, reviewer, processCode, script, order.documentId)
   await workerState.grantWorkflowPermissions([processCode])
   await approveVou(operator, reviewer, 'sale-order', order)
   const processPage = await operator.ok<{

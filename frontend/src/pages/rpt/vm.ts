@@ -29,8 +29,9 @@ export interface ReportDefinition {
   description: string
   enabled: boolean
   revision: number
-  versionId: string
-  versionRevision: number
+  approvalEntryId: string
+  approvalRevision: number
+  approvalStatus: string
   parameters: RptParameter[]
   columns: RptResultColumn[]
   data?: VersionData
@@ -55,16 +56,6 @@ function string(value: unknown): string {
 function number(value: unknown): number {
   if (typeof value !== 'number') throw contractError()
   return value
-}
-
-function optionalString(value: unknown): string {
-  if (value === undefined) return ''
-  return string(value)
-}
-
-function optionalNumber(value: unknown): number {
-  if (value === undefined) return 0
-  return number(value)
 }
 
 function boolean(value: unknown): boolean {
@@ -101,8 +92,9 @@ export function parseDefinitionPage(value: unknown): ReportDefinition[] {
       description: string(source.description),
       enabled: boolean(source.enabled),
       revision: number(source.revision),
-      versionId: optionalString(source.versionId),
-      versionRevision: optionalNumber(source.versionRevision),
+      approvalEntryId: string(object(source.approval).approvalEntryId),
+      approvalRevision: number(object(source.approval).revision),
+      approvalStatus: string(object(source.approval).status),
       parameters: data.parameters,
       columns: data.columns,
       data,
@@ -121,8 +113,9 @@ export function parseReportMetadata(value: unknown): ReportDefinition {
     description: string(source.description),
     enabled: true,
     revision: 0,
-    versionId: '',
-    versionRevision: 0,
+    approvalEntryId: '',
+    approvalRevision: 0,
+    approvalStatus: '',
     parameters: source.parameters as RptParameter[],
     columns: source.columns as RptResultColumn[],
   }
@@ -196,6 +189,7 @@ export function useReportViewModel(mode: RptPageMode) {
   const managementCode = ref('')
   const managementVersionId = ref('')
   const managementRevision = ref(0)
+  const managementReason = ref('')
   let disposed = false
   let queryGeneration = 0
 
@@ -478,21 +472,27 @@ export function useReportViewModel(mode: RptPageMode) {
       errorMessage.value = '请填写报表编码。'
       return
     }
-    const needsData = ['create', 'create-version', 'save'].includes(action)
+    const needsData = ['create', 'save'].includes(action)
     const data = needsData ? parseManagementData() : null
     if (needsData && !data) return
     const versionBody = {
       code,
-      versionId: managementVersionId.value,
+      approvalEntryId: managementVersionId.value,
       revision: managementRevision.value,
     }
     const body =
       action === 'create'
         ? { code, name: code, data: data! }
         : action === 'create-version'
-          ? { code, data: data! }
+          ? { code }
           : action === 'save'
             ? { ...versionBody, data: data! }
+            : action === 'versions'
+              ? { code, page: 1, pageSize: 200 }
+            : action === 'delete-version'
+              ? versionBody
+              : action === 'reject' || action === 'unapprove'
+                ? { ...versionBody, reason: managementReason.value.trim() }
             : action === 'enable' || action === 'disable' || action === 'delete'
               ? { code, revision: managementRevision.value }
               : versionBody
@@ -507,8 +507,8 @@ export function useReportViewModel(mode: RptPageMode) {
 
   function editDefinition(definition: ReportDefinition): void {
     managementCode.value = definition.code
-    managementVersionId.value = definition.versionId
-    managementRevision.value = definition.versionRevision || definition.revision
+    managementVersionId.value = definition.approvalEntryId
+    managementRevision.value = definition.approvalRevision || definition.revision
     managementData.value = JSON.stringify(
       definition.data ?? {
         sql: '',
@@ -562,6 +562,7 @@ export function useReportViewModel(mode: RptPageMode) {
     managementData,
     managementPermissions,
     managementRevision,
+    managementReason,
     managementVersionId,
     manage,
     notice,

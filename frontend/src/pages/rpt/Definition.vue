@@ -10,6 +10,7 @@ const {
   managementData,
   managementPermissions,
   managementRevision,
+  managementReason,
   managementVersionId,
   manage,
   notice,
@@ -51,12 +52,13 @@ const {
           @update:model-value="selectManagementDefinition"
         />
         <v-text-field v-model="managementCode" label="报表编码" />
-        <v-text-field v-model="managementVersionId" label="版本 ID" />
+        <v-text-field v-model="managementVersionId" label="Approval 版本 ID" />
         <v-text-field
           v-model.number="managementRevision"
           label="修订号"
           type="number"
         />
+        <v-text-field v-model="managementReason" label="驳回/反批准原因" />
         <v-textarea v-model="managementData" label="版本数据 JSON" auto-grow />
         <div class="d-flex flex-wrap ga-2">
           <v-btn
@@ -74,6 +76,32 @@ const {
             size="small"
             @click="manage('save')"
             >保存版本</v-btn
+          ><v-btn
+            v-if="managementPermissions.versions"
+            size="small"
+            @click="manage('versions')"
+            >版本列表</v-btn
+          ><v-btn
+            v-if="managementPermissions['delete-version']"
+            size="small"
+            color="error"
+            @click="manage('delete-version')"
+            >删除草稿版本</v-btn
+          ><v-btn
+            v-if="managementPermissions.submit"
+            size="small"
+            @click="manage('submit')"
+            >提交</v-btn
+          ><v-btn
+            v-if="managementPermissions.unsubmit"
+            size="small"
+            @click="manage('unsubmit')"
+            >撤回提交</v-btn
+          ><v-btn
+            v-if="managementPermissions.reject"
+            size="small"
+            @click="manage('reject')"
+            >驳回</v-btn
           ><v-btn
             v-if="managementPermissions.approve"
             size="small"

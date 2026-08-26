@@ -6,6 +6,7 @@ import type { WflExecutionTrace } from './WflExecutionTrace';
 import type { WflPlannedAction } from './WflPlannedAction';
 export type WflDefinitionTrialResult = {
   definitionId: string;
+  approvalEntryId: string;
   revision: number;
   matched: boolean;
   rootNodeKey: string;

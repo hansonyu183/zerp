@@ -14,7 +14,7 @@ import (
 func TestZZPeriodDepreciationBalancesAndUnlockIntegration(t *testing.T) {
 	pool := integrationPool(t)
 	seedUsers(t, pool)
-	service := NewService(pool)
+	service := defaultIntegrationACCService(pool)
 	book, err := service.CreateBook(t.Context(), CreateBookInput{Name: "折旧账", StartMonth: "2026-06", BaseCurrency: "CNY", SubjectTemplate: SubjectTemplateEmpty}, adminID)
 	if err != nil {
 		t.Fatal(err)
@@ -34,13 +34,11 @@ func TestZZPeriodDepreciationBalancesAndUnlockIntegration(t *testing.T) {
 	createApprovedZeroOpening(t, service, book)
 	mapping, err := service.CreateMapping(t.Context(), CreateMappingInput{BookID: book.ID, VouEntity: voudomain.EntityAssetAcquisition, DefaultResult: MappingResultUnpost, Definition: MappingDefinition{Rules: []MappingRule{}, Templates: []PostingTemplate{}, AssetConfiguration: &AssetAccountingConfiguration{
 		AssetSubjectID: asset.ID, AssetDimensions: map[string]string{DimensionAsset: "lineId"}, AccumulatedDepreciationSubjectID: accumulated.ID, AccumulatedDepreciationDimensions: map[string]string{DimensionAsset: "lineId"}, DepreciationExpenseSubjectID: expense.ID, DepreciationExpenseDimensions: map[string]string{DimensionDepartment: "department.objectId"},
-	}}}, adminID)
+	}}}, integrationACCActor(t, adminID, "acc-depreciation-mapping-create"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.ApproveMapping(t.Context(), book.ID, mapping.ID, mapping.Revision, adminID); err != nil {
-		t.Fatal(err)
-	}
+	approveIntegrationMapping(t, service, book.ID, voudomain.EntityAssetAcquisition, mapping)
 	assetID, departmentID := ulid.Make().String(), ulid.Make().String()
 	snapshot := voudomain.DocumentView{DocumentID: ulid.Make().String(), Entity: voudomain.EntityAssetAcquisition, DocumentNo: "ACQ-JUNE", Approval: approval.Meta{Status: approval.StatusApproved, Revision: 3}, Data: voudomain.DocumentDataView{BusinessDate: "2026-06-15", Currency: "CNY", AssetAcquisitionLines: []voudomain.AssetAcquisitionLineView{{LineID: assetID, AssetName: "设备", Category: voudomain.ReferenceView{ObjectID: ulid.Make().String()}, Department: voudomain.ReferenceView{ObjectID: departmentID}, OriginalValue: "120.00", UsefulLifeMonths: 12, ResidualRate: "0"}}}}
 	deliverApprovalEvent(t, pool, service, approvedVOUEvent(snapshot), false)

@@ -131,7 +131,7 @@ func New(
 	auxiliary := auxdomain.NewService(pool, seedAuthorizer{}, events)
 	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
 	business := bobdomain.NewService(pool, auxiliaryResolver, seedAuthorizer{}, events)
-	accounting := accdomain.NewService(pool)
+	accounting := accdomain.NewService(pool, seedAuthorizer{}, events)
 	vouchers, err := voudomain.NewService(
 		pool,
 		business,
@@ -145,7 +145,7 @@ func New(
 	if err != nil {
 		return nil, fmt.Errorf("create voucher service: %w", err)
 	}
-	_, err = wfldomain.NewService(pool, events, workflowactions.New(vouchers), logger)
+	_, err = wfldomain.NewService(pool, seedAuthorizer{}, events, workflowactions.New(vouchers), logger)
 	if err != nil {
 		return nil, fmt.Errorf("create workflow service: %w", err)
 	}

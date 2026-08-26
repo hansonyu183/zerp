@@ -14,7 +14,7 @@ import (
 func TestZZAccountingPeriodLockUnlockAndVOUDatabaseBoundaryIntegration(t *testing.T) {
 	pool := integrationPool(t)
 	seedUsers(t, pool)
-	service := NewService(pool)
+	service := defaultIntegrationACCService(pool)
 	book, err := service.CreateBook(t.Context(), CreateBookInput{Name: "期间测试账", StartMonth: "2025-07", BaseCurrency: "CNY", SubjectTemplate: SubjectTemplateEmpty}, adminID)
 	if err != nil {
 		t.Fatal(err)
@@ -23,13 +23,11 @@ func TestZZAccountingPeriodLockUnlockAndVOUDatabaseBoundaryIntegration(t *testin
 	mapping, err := service.CreateMapping(t.Context(), CreateMappingInput{
 		BookID: book.ID, VouEntity: "other-income", DefaultResult: MappingResultUnpost,
 		Definition: MappingDefinition{Rules: []MappingRule{}, Templates: []PostingTemplate{}},
-	}, adminID)
+	}, integrationACCActor(t, adminID, "acc-period-mapping-create"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.ApproveMapping(t.Context(), book.ID, mapping.ID, mapping.Revision, adminID); err != nil {
-		t.Fatal(err)
-	}
+	approveIntegrationMapping(t, service, book.ID, "other-income", mapping)
 	documentID, approvalEntryID := ulid.Make().String(), ulid.Make().String()
 	attachedFileID, pendingFileID := ulid.Make().String(), ulid.Make().String()
 	setupTx, err := pool.Begin(t.Context())

@@ -3,7 +3,6 @@ package acc
 import (
 	"strings"
 	"testing"
-	"time"
 
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
@@ -11,18 +10,14 @@ import (
 )
 
 func TestMappingViewNormalizesOptionalDimensionMapsForTheWireContract(t *testing.T) {
+	entryID, subjectID := ulid.Make().String(), ulid.Make().String()
+	versionNo := int32(1)
 	view, err := mappingView(
 		ulid.Make().String(),
-		ulid.Make().String(),
 		"sale-order",
-		1,
-		MappingStateDraft,
 		MappingResultPost,
 		[]byte(`{"defaultTemplateId":"standard","rules":[],"templates":[{"templateId":"standard","collection":null,"lines":[{"subjectSource":"FIXED","subjectValue":"01JACC00000000000000000010","direction":"DEBIT","amountField":"totalAmount","currencyField":"currency","dimensions":null,"quantityField":null,"costCounterpartSubjectId":null,"costCounterpartDimensions":null}]}]}`),
-		1,
-		time.Time{},
-		false,
-		nil,
+		approval.Entry{EntryRef: approval.EntryRef{ID: entryID, SubjectID: subjectID, VersionNo: &versionNo}, Status: approval.StatusDraft, Revision: 1},
 	)
 	if err != nil {
 		t.Fatal(err)

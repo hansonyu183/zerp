@@ -144,34 +144,34 @@ type AccInventoryEntry struct {
 	OriginSourceLineID        *string     `db:"origin_source_line_id" json:"origin_source_line_id"`
 }
 
+type AccMapping struct {
+	ID        string             `db:"id" json:"id"`
+	BookID    string             `db:"book_id" json:"book_id"`
+	VouEntity string             `db:"vou_entity" json:"vou_entity"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy string             `db:"created_by" json:"created_by"`
+	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy string             `db:"updated_by" json:"updated_by"`
+}
+
 type AccMappingVersion struct {
-	ID            string             `db:"id" json:"id"`
-	BookID        string             `db:"book_id" json:"book_id"`
-	VouEntity     string             `db:"vou_entity" json:"vou_entity"`
-	Version       int32              `db:"version" json:"version"`
-	State         string             `db:"state" json:"state"`
-	DefaultResult string             `db:"default_result" json:"default_result"`
-	Definition    []byte             `db:"definition" json:"definition"`
-	Revision      int64              `db:"revision" json:"revision"`
-	ApprovedAt    pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
-	ApprovedBy    *string            `db:"approved_by" json:"approved_by"`
-	CreatedAt     pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy     string             `db:"created_by" json:"created_by"`
-	UpdatedAt     pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy     string             `db:"updated_by" json:"updated_by"`
+	ApprovalEntryID string             `db:"approval_entry_id" json:"approval_entry_id"`
+	MappingID       string             `db:"mapping_id" json:"mapping_id"`
+	DefaultResult   string             `db:"default_result" json:"default_result"`
+	Definition      []byte             `db:"definition" json:"definition"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy       string             `db:"created_by" json:"created_by"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy       string             `db:"updated_by" json:"updated_by"`
 }
 
 type AccOpening struct {
-	BookID     string             `db:"book_id" json:"book_id"`
-	State      string             `db:"state" json:"state"`
-	VoucherID  *string            `db:"voucher_id" json:"voucher_id"`
-	Revision   int64              `db:"revision" json:"revision"`
-	ApprovedAt pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
-	ApprovedBy *string            `db:"approved_by" json:"approved_by"`
-	CreatedAt  pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy  string             `db:"created_by" json:"created_by"`
-	UpdatedAt  pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy  string             `db:"updated_by" json:"updated_by"`
+	BookID    string             `db:"book_id" json:"book_id"`
+	VoucherID *string            `db:"voucher_id" json:"voucher_id"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy string             `db:"created_by" json:"created_by"`
+	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy string             `db:"updated_by" json:"updated_by"`
 }
 
 type AccOpeningAsset struct {
@@ -300,17 +300,17 @@ type AccSubjectUsage struct {
 }
 
 type AccVoucher struct {
-	ID               string             `db:"id" json:"id"`
-	BookID           string             `db:"book_id" json:"book_id"`
-	SourceType       string             `db:"source_type" json:"source_type"`
-	SourceID         string             `db:"source_id" json:"source_id"`
-	BusinessDate     pgtype.Date        `db:"business_date" json:"business_date"`
-	CreatedAt        pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy        string             `db:"created_by" json:"created_by"`
-	MappingVersionID *string            `db:"mapping_version_id" json:"mapping_version_id"`
-	SourceEntity     *string            `db:"source_entity" json:"source_entity"`
-	SourceRevision   *int64             `db:"source_revision" json:"source_revision"`
-	SourceDocumentNo *string            `db:"source_document_no" json:"source_document_no"`
+	ID                     string             `db:"id" json:"id"`
+	BookID                 string             `db:"book_id" json:"book_id"`
+	SourceType             string             `db:"source_type" json:"source_type"`
+	SourceID               string             `db:"source_id" json:"source_id"`
+	BusinessDate           pgtype.Date        `db:"business_date" json:"business_date"`
+	CreatedAt              pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy              string             `db:"created_by" json:"created_by"`
+	MappingApprovalEntryID *string            `db:"mapping_approval_entry_id" json:"mapping_approval_entry_id"`
+	SourceEntity           *string            `db:"source_entity" json:"source_entity"`
+	SourceRevision         *int64             `db:"source_revision" json:"source_revision"`
+	SourceDocumentNo       *string            `db:"source_document_no" json:"source_document_no"`
 }
 
 type AccVoucherLine struct {
@@ -1004,52 +1004,44 @@ type ObjectNumberCounter struct {
 	LastValue int32  `db:"last_value" json:"last_value"`
 }
 
-type RptAuditEvent struct {
-	ID           string             `db:"id" json:"id"`
-	DefinitionID *string            `db:"definition_id" json:"definition_id"`
-	ReportCode   string             `db:"report_code" json:"report_code"`
-	VersionID    *string            `db:"version_id" json:"version_id"`
-	EventType    string             `db:"event_type" json:"event_type"`
-	ActorID      string             `db:"actor_id" json:"actor_id"`
-	RequestID    string             `db:"request_id" json:"request_id"`
-	OccurredAt   pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
-	Summary      []byte             `db:"summary" json:"summary"`
+type RptDefinition struct {
+	ID          string             `db:"id" json:"id"`
+	Code        string             `db:"code" json:"code"`
+	Name        string             `db:"name" json:"name"`
+	Description string             `db:"description" json:"description"`
+	Enabled     bool               `db:"enabled" json:"enabled"`
+	Revision    int64              `db:"revision" json:"revision"`
+	CreatedAt   pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy   string             `db:"created_by" json:"created_by"`
+	UpdatedAt   pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy   string             `db:"updated_by" json:"updated_by"`
 }
 
-type RptDefinition struct {
-	ID               string             `db:"id" json:"id"`
-	Code             string             `db:"code" json:"code"`
-	Name             string             `db:"name" json:"name"`
-	Description      string             `db:"description" json:"description"`
-	Enabled          bool               `db:"enabled" json:"enabled"`
-	EverApproved     bool               `db:"ever_approved" json:"ever_approved"`
-	CurrentVersionID *string            `db:"current_version_id" json:"current_version_id"`
-	NextVersionNo    int32              `db:"next_version_no" json:"next_version_no"`
-	Revision         int64              `db:"revision" json:"revision"`
-	CreatedAt        pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy        string             `db:"created_by" json:"created_by"`
-	UpdatedAt        pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy        string             `db:"updated_by" json:"updated_by"`
+type RptRuntimeAuditEvent struct {
+	ID              string             `db:"id" json:"id"`
+	DefinitionID    *string            `db:"definition_id" json:"definition_id"`
+	ReportCode      string             `db:"report_code" json:"report_code"`
+	ApprovalEntryID *string            `db:"approval_entry_id" json:"approval_entry_id"`
+	EventType       string             `db:"event_type" json:"event_type"`
+	ActorID         string             `db:"actor_id" json:"actor_id"`
+	RequestID       string             `db:"request_id" json:"request_id"`
+	OccurredAt      pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
+	Summary         []byte             `db:"summary" json:"summary"`
 }
 
 type RptVersion struct {
-	ID            string             `db:"id" json:"id"`
-	DefinitionID  string             `db:"definition_id" json:"definition_id"`
-	VersionNo     int32              `db:"version_no" json:"version_no"`
-	Status        string             `db:"status" json:"status"`
-	Validity      string             `db:"validity" json:"validity"`
-	SqlText       string             `db:"sql_text" json:"sql_text"`
-	Parameters    []byte             `db:"parameters" json:"parameters"`
-	Columns       []byte             `db:"columns" json:"columns"`
-	Revision      int64              `db:"revision" json:"revision"`
-	ApprovedAt    pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
-	ApprovedBy    *string            `db:"approved_by" json:"approved_by"`
-	InvalidatedAt pgtype.Timestamptz `db:"invalidated_at" json:"invalidated_at"`
-	InvalidReason *string            `db:"invalid_reason" json:"invalid_reason"`
-	CreatedAt     pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy     string             `db:"created_by" json:"created_by"`
-	UpdatedAt     pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy     string             `db:"updated_by" json:"updated_by"`
+	ApprovalEntryID string             `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID    string             `db:"definition_id" json:"definition_id"`
+	Validity        string             `db:"validity" json:"validity"`
+	SqlText         string             `db:"sql_text" json:"sql_text"`
+	Parameters      []byte             `db:"parameters" json:"parameters"`
+	Columns         []byte             `db:"columns" json:"columns"`
+	InvalidatedAt   pgtype.Timestamptz `db:"invalidated_at" json:"invalidated_at"`
+	InvalidReason   *string            `db:"invalid_reason" json:"invalid_reason"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy       string             `db:"created_by" json:"created_by"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy       string             `db:"updated_by" json:"updated_by"`
 }
 
 type VouAssetAcquisitionDetail struct {
@@ -1929,7 +1921,7 @@ type WflDefinitionInstance struct {
 	PartyName                 *string            `db:"party_name" json:"party_name"`
 	DefinitionCode            string             `db:"definition_code" json:"definition_code"`
 	DefinitionName            string             `db:"definition_name" json:"definition_name"`
-	StartedDefinitionRevision int64              `db:"started_definition_revision" json:"started_definition_revision"`
+	DefinitionApprovalEntryID string             `db:"definition_approval_entry_id" json:"definition_approval_entry_id"`
 	Revision                  int64              `db:"revision" json:"revision"`
 	RootDeletedAt             pgtype.Timestamptz `db:"root_deleted_at" json:"root_deleted_at"`
 	CreatedAt                 pgtype.Timestamptz `db:"created_at" json:"created_at"`
@@ -1938,13 +1930,17 @@ type WflDefinitionInstance struct {
 	UpdatedBy                 string             `db:"updated_by" json:"updated_by"`
 }
 
-type WflDefinitionRevision struct {
-	DefinitionID string             `db:"definition_id" json:"definition_id"`
-	Revision     int64              `db:"revision" json:"revision"`
-	Script       string             `db:"script" json:"script"`
-	Compiled     []byte             `db:"compiled" json:"compiled"`
-	PublishedAt  pgtype.Timestamptz `db:"published_at" json:"published_at"`
-	PublishedBy  string             `db:"published_by" json:"published_by"`
+type WflDefinitionVersion struct {
+	ApprovalEntryID           string             `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID              string             `db:"definition_id" json:"definition_id"`
+	Script                    string             `db:"script" json:"script"`
+	Diagnostic                *string            `db:"diagnostic" json:"diagnostic"`
+	Compiled                  []byte             `db:"compiled" json:"compiled"`
+	LastTrialApprovalRevision *int64             `db:"last_trial_approval_revision" json:"last_trial_approval_revision"`
+	CreatedAt                 pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy                 string             `db:"created_by" json:"created_by"`
+	UpdatedAt                 pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy                 string             `db:"updated_by" json:"updated_by"`
 }
 
 type WflNodeInstance struct {
@@ -1966,33 +1962,28 @@ type WflNodeInstance struct {
 }
 
 type WflProcessDefinition struct {
-	ID                string             `db:"id" json:"id"`
-	Code              string             `db:"code" json:"code"`
-	Name              string             `db:"name" json:"name"`
-	Status            string             `db:"status" json:"status"`
-	Revision          int64              `db:"revision" json:"revision"`
-	DraftScript       string             `db:"draft_script" json:"draft_script"`
-	DraftDiagnostic   *string            `db:"draft_diagnostic" json:"draft_diagnostic"`
-	DraftCompiled     []byte             `db:"draft_compiled" json:"draft_compiled"`
-	LastTrialRevision *int64             `db:"last_trial_revision" json:"last_trial_revision"`
-	PublishedRevision *int64             `db:"published_revision" json:"published_revision"`
-	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy         string             `db:"created_by" json:"created_by"`
-	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy         string             `db:"updated_by" json:"updated_by"`
+	ID        string             `db:"id" json:"id"`
+	Code      string             `db:"code" json:"code"`
+	Name      string             `db:"name" json:"name"`
+	Enabled   bool               `db:"enabled" json:"enabled"`
+	Revision  int64              `db:"revision" json:"revision"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy string             `db:"created_by" json:"created_by"`
+	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy string             `db:"updated_by" json:"updated_by"`
 }
 
 type WflRuntimeAuditEvent struct {
-	ID                 string             `db:"id" json:"id"`
-	ProcessID          *string            `db:"process_id" json:"process_id"`
-	DefinitionID       string             `db:"definition_id" json:"definition_id"`
-	DefinitionRevision int64              `db:"definition_revision" json:"definition_revision"`
-	EventType          string             `db:"event_type" json:"event_type"`
-	NodeInstanceID     *string            `db:"node_instance_id" json:"node_instance_id"`
-	DocumentID         *string            `db:"document_id" json:"document_id"`
-	DocumentNo         *string            `db:"document_no" json:"document_no"`
-	ActorID            string             `db:"actor_id" json:"actor_id"`
-	RequestID          string             `db:"request_id" json:"request_id"`
-	Summary            []byte             `db:"summary" json:"summary"`
-	OccurredAt         pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
+	ID                        string             `db:"id" json:"id"`
+	ProcessID                 *string            `db:"process_id" json:"process_id"`
+	DefinitionID              string             `db:"definition_id" json:"definition_id"`
+	DefinitionApprovalEntryID string             `db:"definition_approval_entry_id" json:"definition_approval_entry_id"`
+	EventType                 string             `db:"event_type" json:"event_type"`
+	NodeInstanceID            *string            `db:"node_instance_id" json:"node_instance_id"`
+	DocumentID                *string            `db:"document_id" json:"document_id"`
+	DocumentNo                *string            `db:"document_no" json:"document_no"`
+	ActorID                   string             `db:"actor_id" json:"actor_id"`
+	RequestID                 string             `db:"request_id" json:"request_id"`
+	Summary                   []byte             `db:"summary" json:"summary"`
+	OccurredAt                pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
 }

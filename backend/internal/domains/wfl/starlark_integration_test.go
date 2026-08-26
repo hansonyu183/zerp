@@ -4,6 +4,7 @@ package wfl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -11,7 +12,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	"github.com/hansonyu183/zerp/backend/internal/events/wflapproval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
@@ -42,12 +45,25 @@ func workflowIntegrationPool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-func TestStarlarkDefinitionTrialPublishAndEnableIntegration(t *testing.T) {
+func TestStarlarkDefinitionTrialApprovalAndEnableIntegration(t *testing.T) {
 	pool := workflowIntegrationPool(t)
+	reviewerID := "01JWFL00000000000000000001"
+	if _, err := pool.Exec(t.Context(), `INSERT INTO app_users(id,username,display_name,password_hash,status,password_changed_at,created_by,updated_by)
+		VALUES($1,'wfl-reviewer','流程审批人','hash','ENABLED',now(),$1,$1) ON CONFLICT(id) DO NOTHING`, reviewerID); err != nil {
+		t.Fatal(err)
+	}
 	runtime := &integrationRuntime{source: map[string]any{"warehouseObjectId": "01J00000000000000000000001"}}
-	service, err := NewService(pool, txevent.NewBus(), runtime, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	service, err := NewService(pool, authorization.Func(nil), txevent.NewBus(), runtime, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatalf("create workflow service: %v", err)
+	}
+	actor, err := approval.TrustedSystemActor("integration-trial")
+	if err != nil {
+		t.Fatalf("create approval actor: %v", err)
+	}
+	reviewer, err := approval.UserActor(authorization.Principal{ActorID: reviewerID}, "integration-approve")
+	if err != nil {
+		t.Fatalf("create workflow reviewer: %v", err)
 	}
 	code := "integration-" + strings.ToLower(newID()[:8])
 	script := `root = node(key="order", name="采购订单", entity="purchase-order")
@@ -59,45 +75,98 @@ workflow(code="` + code + `", name="集成流程", root=root, edges=[
     "lines": [{"sourceLineId": "01J00000000000000000000003", "baseQuantity": "1"}],
   })),
 ])`
-	created, err := service.DefinitionCreate(t.Context(), DefinitionCreateInput{Script: script}, "01J00000000000000000000000")
+	created, err := service.DefinitionCreate(t.Context(), DefinitionCreateInput{Script: script}, actor)
 	if err != nil {
 		t.Fatalf("create definition: %v", err)
 	}
 	t.Cleanup(func() {
 		_, _ = pool.Exec(context.Background(), `DELETE FROM app_role_permissions WHERE permission_id IN (SELECT id FROM app_permissions WHERE domain='wfl' AND entity=$1)`, code)
 		_, _ = pool.Exec(context.Background(), `DELETE FROM app_permissions WHERE domain='wfl' AND entity=$1`, code)
-		_, _ = pool.Exec(context.Background(), `DELETE FROM wfl_definition_revisions WHERE definition_id=$1`, created.DefinitionID)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM wfl_definition_versions WHERE definition_id=$1`, created.DefinitionID)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM approval_events WHERE domain='wfl' AND entity='process-definition' AND subject_id=$1`, created.DefinitionID)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM approval_entries WHERE domain='wfl' AND entity='process-definition' AND subject_id=$1`, created.DefinitionID)
 		_, _ = pool.Exec(context.Background(), `DELETE FROM wfl_process_definitions WHERE id=$1`, created.DefinitionID)
 	})
 	trial, err := service.DefinitionTrial(t.Context(), DefinitionTrialInput{
-		DefinitionID: created.DefinitionID, Revision: created.Revision,
+		DefinitionID: created.DefinitionID, ApprovalEntryID: created.Approval.ApprovalEntryID, Revision: created.Approval.Revision,
 		Source: DefinitionTrialSource{Entity: "purchase-order", DocumentID: "01J00000000000000000000002"},
-	}, "01J00000000000000000000000", "integration-trial")
+	}, actor)
 	if err != nil || !trial.Matched || len(trial.PlannedActions) != 1 {
 		t.Fatalf("trial = %+v, err=%v", trial, err)
 	}
-	publishedValue, err := service.DefinitionAction(t.Context(), "publish", DefinitionActionInput{
-		DefinitionID: created.DefinitionID, Revision: created.Revision,
-	}, "01J00000000000000000000000")
+	submittedValue, err := service.DefinitionAction(t.Context(), "submit", DefinitionActionInput{
+		DefinitionID: created.DefinitionID, ApprovalEntryID: created.Approval.ApprovalEntryID, Revision: created.Approval.Revision,
+	}, reviewer)
 	if err != nil {
-		t.Fatalf("publish definition: %v", err)
+		t.Fatalf("submit definition: %v", err)
 	}
-	published := publishedValue.(DefinitionView)
-	if published.PublishedRevision == nil {
-		t.Fatal("published revision is missing")
+	submitted := submittedValue.(DefinitionView)
+	approvedValue, err := service.DefinitionAction(t.Context(), "approve", DefinitionActionInput{
+		DefinitionID: submitted.DefinitionID, ApprovalEntryID: submitted.Approval.ApprovalEntryID, Revision: submitted.Approval.Revision,
+	}, actor)
+	if err != nil {
+		t.Fatalf("approve definition: %v", err)
 	}
-	enabledValue, err := service.DefinitionAction(t.Context(), "enable", DefinitionActionInput{
-		DefinitionID: published.DefinitionID, Revision: published.Revision,
-	}, "01J00000000000000000000000")
-	if err != nil || enabledValue.(DefinitionView).Status != DefinitionEnabled {
-		t.Fatalf("enable definition = %+v, err=%v", enabledValue, err)
+	approved := approvedValue.(DefinitionView)
+	if approved.Approval.Status != approval.StatusApproved {
+		t.Fatalf("approval status = %s", approved.Approval.Status)
+	}
+	if _, err = service.DefinitionSave(t.Context(), DefinitionSaveInput{
+		DefinitionID: approved.DefinitionID, ApprovalEntryID: approved.Approval.ApprovalEntryID,
+		Revision: approved.Approval.Revision, Script: script + "\n# immutable",
+	}, actor); err == nil {
+		t.Fatal("approved definition payload remained mutable")
+	}
+	enabled, err := service.DefinitionToggle(t.Context(), true, DefinitionToggleInput{DefinitionID: approved.DefinitionID, Revision: approved.Revision}, actor)
+	if err != nil || !enabled.Enabled || enabled.Approval.ApprovalEntryID != approved.Approval.ApprovalEntryID {
+		t.Fatalf("enable definition = %+v, err=%v", enabled, err)
+	}
+	next, err := service.DefinitionCreateVersion(t.Context(), DefinitionVersionCreateInput{DefinitionID: approved.DefinitionID}, actor)
+	if err != nil || !next.Enabled || next.Approval.VersionNo != 2 {
+		t.Fatalf("enabled definition next version = %+v, err=%v", next, err)
+	}
+	historical, err := service.DefinitionGet(t.Context(), DefinitionGetInput{DefinitionID: approved.DefinitionID, ApprovalEntryID: approved.Approval.ApprovalEntryID}, actor)
+	if err != nil || historical.Script != script || historical.Approval.Status != approval.StatusApproved {
+		t.Fatalf("historical approved definition = %+v, err=%v", historical, err)
 	}
 }
 
-func TestApprovedExistingRootUsesStartedPublishedRevisionAcrossRootKeyChangeAndNewMatchIntegration(t *testing.T) {
+func TestWorkflowApprovalSubscriberFailureRollsBackIntegration(t *testing.T) {
+	pool := workflowIntegrationPool(t)
+	bus := txevent.NewBus()
+	failure := errors.New("workflow subscriber rejected")
+	if err := wflapproval.Topic().Subscribe(bus, "wfl-integration-rejector", func(context.Context, pgx.Tx, approval.Event[wflapproval.Payload]) error {
+		return failure
+	}); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(pool, authorization.Func(nil), bus, &integrationRuntime{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor, err := approval.TrustedSystemActor("wfl-rollback-create")
+	if err != nil {
+		t.Fatal(err)
+	}
+	code := "rollback-" + strings.ToLower(newID()[:8])
+	script := `root = node(key="order", name="采购订单", entity="purchase-order")
+workflow(code="` + code + `", name="回滚流程", root=root, edges=[])`
+	if _, err = service.DefinitionCreate(t.Context(), DefinitionCreateInput{Script: script}, actor); err == nil {
+		t.Fatal("expected workflow subscriber failure")
+	}
+	var definitions int
+	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM wfl_process_definitions WHERE code=$1`, code).Scan(&definitions); err != nil {
+		t.Fatal(err)
+	}
+	if definitions != 0 {
+		t.Fatalf("subscriber failure committed definitions=%d", definitions)
+	}
+}
+
+func TestApprovedExistingRootUsesStoredApprovalEntryAcrossNewVersionAndNewMatchIntegration(t *testing.T) {
 	pool := workflowIntegrationPool(t)
 	ctx := t.Context()
-	actorID, definitionID, processID, rootNodeID := newID(), newID(), newID(), newID()
+	actorID, reviewerID, definitionID, processID, rootNodeID := newID(), newID(), newID(), newID(), newID()
 	rootDocumentID, oldDocumentID, newDocumentID, newPaymentSourceID := newID(), newID(), newID(), newID()
 	rootDocumentNo, oldDocumentNo, newDocumentNo, newPaymentSourceNo := "EXR-20260816-9001", "EXP-20260816-9001", "EXP-20260816-9002", "EXR-20260816-9002"
 	oldFundAccountID, newFundAccountID := newID(), newID()
@@ -171,37 +240,35 @@ func TestApprovedExistingRootUsesStartedPublishedRevisionAcrossRootKeyChangeAndN
 	if err = fixtureTx.Commit(ctx); err != nil {
 		t.Fatalf("commit workflow document fixture: %v", err)
 	}
+	oldDefinitionApprovalID, newDefinitionApprovalID := newID(), newID()
+	secondDefinitionID, secondDefinitionApprovalID := newID(), newID()
 	if _, err = pool.Exec(ctx, `
-		INSERT INTO wfl_process_definitions(
-			id,code,name,status,revision,draft_script,draft_compiled,published_revision,created_by,updated_by
-		) VALUES($1,$2,'固定修订流程','ENABLED',2,$3,$4,2,$5,$5)
-	`, definitionID, code, newScript, mustJSON(newCompiled), actorID); err != nil {
-		t.Fatalf("insert workflow definition: %v", err)
+		INSERT INTO wfl_process_definitions(id,code,name,enabled,revision,created_by,updated_by)
+		VALUES($1,$2,'固定修订流程',true,2,$3,$3),($4,$5,'另一匹配流程',true,1,$3,$3)
+	`, definitionID, code, actorID, secondDefinitionID, secondCode); err != nil {
+		t.Fatalf("insert workflow definitions: %v", err)
 	}
 	if _, err = pool.Exec(ctx, `
-		INSERT INTO wfl_definition_revisions(definition_id,revision,script,compiled,published_by)
-		VALUES($1,1,$2,$3,$4),($1,2,$5,$6,$4)
-	`, definitionID, oldScript, mustJSON(oldCompiled), actorID, newScript, mustJSON(newCompiled)); err != nil {
-		t.Fatalf("insert workflow revisions: %v", err)
+		INSERT INTO approval_entries(id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at)
+		VALUES
+			($1,'wfl','process-definition',$2,1,'APPROVED',3,$5,now(),$6,now(),$5,now(),$6,now()),
+			($3,'wfl','process-definition',$2,2,'APPROVED',3,$5,now(),$6,now(),$5,now(),$6,now()),
+			($4,'wfl','process-definition',$7,1,'APPROVED',3,$5,now(),$6,now(),$5,now(),$6,now())
+	`, oldDefinitionApprovalID, definitionID, newDefinitionApprovalID, secondDefinitionApprovalID, actorID, reviewerID, secondDefinitionID); err != nil {
+		t.Fatalf("insert workflow approval versions: %v", err)
 	}
 	if _, err = pool.Exec(ctx, `
-		INSERT INTO wfl_process_definitions(
-			id,code,name,status,revision,draft_script,draft_compiled,published_revision,created_by,updated_by
-		) VALUES($1,$2,'另一匹配流程','ENABLED',1,$3,$4,1,$5,$5)
-	`, newID(), secondCode, secondScript, mustJSON(secondCompiled), actorID); err != nil {
-		t.Fatalf("insert second matching workflow definition: %v", err)
-	}
-	if _, err = pool.Exec(ctx, `
-		INSERT INTO wfl_definition_revisions(definition_id,revision,script,compiled,published_by)
-		SELECT id,1,$2,$3,$4 FROM wfl_process_definitions WHERE code=$1
-	`, secondCode, secondScript, mustJSON(secondCompiled), actorID); err != nil {
-		t.Fatalf("insert second matching workflow revision: %v", err)
+		INSERT INTO wfl_definition_versions(approval_entry_id,definition_id,script,compiled,created_by,updated_by)
+		VALUES($1,$2,$3,$4,$5,$5),($6,$2,$7,$8,$5,$5),($9,$10,$11,$12,$5,$5)
+	`, oldDefinitionApprovalID, definitionID, oldScript, mustJSON(oldCompiled), actorID,
+		newDefinitionApprovalID, newScript, mustJSON(newCompiled), secondDefinitionApprovalID, secondDefinitionID, secondScript, mustJSON(secondCompiled)); err != nil {
+		t.Fatalf("insert workflow definition payloads: %v", err)
 	}
 	if _, err = pool.Exec(ctx, `
 		INSERT INTO wfl_definition_instances(
-			id,definition_id,root_document_id,root_document_no,root_entity,definition_code,definition_name,started_definition_revision,created_by,updated_by
-		) VALUES($1,$2,$3,$4,'expense-reimbursement',$5,'固定修订流程',1,$6,$6)
-	`, processID, definitionID, rootDocumentID, rootDocumentNo, code, actorID); err != nil {
+			id,definition_id,root_document_id,root_document_no,root_entity,definition_code,definition_name,definition_approval_entry_id,created_by,updated_by
+		) VALUES($1,$2,$3,$4,'expense-reimbursement',$5,'固定修订流程',$6,$7,$7)
+	`, processID, definitionID, rootDocumentID, rootDocumentNo, code, oldDefinitionApprovalID, actorID); err != nil {
 		t.Fatalf("insert workflow instance: %v", err)
 	}
 	if _, err = pool.Exec(ctx, `
@@ -216,7 +283,7 @@ func TestApprovedExistingRootUsesStartedPublishedRevisionAcrossRootKeyChangeAndN
 		oldPayment:       BusinessObjectReference{Entity: "expense-payment", DocumentID: oldDocumentID, DocumentNo: oldDocumentNo},
 		newPayment:       BusinessObjectReference{Entity: "expense-payment", DocumentID: newDocumentID, DocumentNo: newDocumentNo},
 	}
-	service, err := NewService(pool, txevent.NewBus(), runtime, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	service, err := NewService(pool, authorization.Func(nil), txevent.NewBus(), runtime, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatalf("create workflow service: %v", err)
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/generated"
 	"github.com/hansonyu183/zerp/backend/internal/api/requestbody"
 	"github.com/hansonyu183/zerp/backend/internal/api/response"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 )
 
 type bookApplicationService interface {
@@ -24,16 +25,25 @@ type bookApplicationService interface {
 	CreateSubject(context.Context, CreateSubjectInput, string) (SubjectView, error)
 	SaveSubject(context.Context, SaveSubjectInput, string) (SubjectView, error)
 	DeleteSubject(context.Context, string, string, int64, string) error
-	GetOpening(context.Context, string, string) (OpeningView, error)
-	SaveOpening(context.Context, SaveOpeningInput, string) (OpeningView, error)
-	ApproveOpening(context.Context, string, int64, string) (OpeningView, error)
-	UnapproveOpening(context.Context, string, int64, string) (OpeningView, error)
-	QueryMappings(context.Context, QueryMappingsInput, string) (MappingPage, error)
-	GetMapping(context.Context, string, string, string) (MappingView, error)
-	CreateMapping(context.Context, CreateMappingInput, string) (MappingView, error)
-	SaveMapping(context.Context, SaveMappingInput, string) (MappingView, error)
-	ApproveMapping(context.Context, string, string, int64, string) (MappingView, error)
-	UnapproveMapping(context.Context, string, string, int64, string) (MappingView, error)
+	GetOpening(context.Context, string, approval.Actor) (OpeningView, error)
+	SaveOpening(context.Context, SaveOpeningInput, approval.Actor) (OpeningView, error)
+	SubmitOpening(context.Context, string, int64, approval.Actor) (OpeningView, error)
+	UnsubmitOpening(context.Context, string, int64, approval.Actor) (OpeningView, error)
+	RejectOpening(context.Context, string, int64, string, approval.Actor) (OpeningView, error)
+	ApproveOpening(context.Context, string, int64, approval.Actor) (OpeningView, error)
+	UnapproveOpening(context.Context, string, int64, string, approval.Actor) (OpeningView, error)
+	QueryMappings(context.Context, QueryMappingsInput, approval.Actor) (MappingPage, error)
+	GetMapping(context.Context, string, string, string, approval.Actor) (MappingView, error)
+	CreateMapping(context.Context, CreateMappingInput, approval.Actor) (MappingView, error)
+	CreateNextMappingVersion(context.Context, string, string, approval.Actor) (MappingView, error)
+	MappingVersions(context.Context, QueryMappingsInput, approval.Actor) (MappingPage, error)
+	SaveMapping(context.Context, SaveMappingInput, approval.Actor) (MappingView, error)
+	SubmitMapping(context.Context, MappingVersionInput, approval.Actor) (MappingView, error)
+	UnsubmitMapping(context.Context, MappingVersionInput, approval.Actor) (MappingView, error)
+	RejectMapping(context.Context, MappingReasonInput, approval.Actor) (MappingView, error)
+	ApproveMapping(context.Context, MappingVersionInput, approval.Actor) (MappingView, error)
+	UnapproveMapping(context.Context, MappingReasonInput, approval.Actor) (MappingView, error)
+	DeleteMappingVersion(context.Context, MappingVersionInput, approval.Actor) error
 	QueryPeriods(context.Context, string, string) ([]PeriodView, error)
 	LockPeriod(context.Context, PeriodActionInput, string) (PeriodView, error)
 	UnlockPeriod(context.Context, PeriodActionInput, string) (PeriodView, error)
@@ -75,14 +85,23 @@ func (h *Handler) Register(router *gin.Engine) {
 	openings.POST("/save", h.authorize("/acc/opening/save"), h.saveOpening)
 	openings.POST("/approve", h.authorize("/acc/opening/approve"), h.approveOpening)
 	openings.POST("/unapprove", h.authorize("/acc/opening/unapprove"), h.unapproveOpening)
+	openings.POST("/submit", h.authorize("/acc/opening/submit"), h.submitOpening)
+	openings.POST("/unsubmit", h.authorize("/acc/opening/unsubmit"), h.unsubmitOpening)
+	openings.POST("/reject", h.authorize("/acc/opening/reject"), h.rejectOpening)
 
 	mappings := router.Group("/acc/mapping")
 	mappings.POST("/query", h.authorize("/acc/mapping/query"), h.queryMappings)
 	mappings.POST("/get", h.authorize("/acc/mapping/get"), h.getMapping)
 	mappings.POST("/create", h.authorize("/acc/mapping/create"), h.createMapping)
+	mappings.POST("/create-next", h.authorize("/acc/mapping/create-next"), h.createNextMapping)
+	mappings.POST("/versions", h.authorize("/acc/mapping/versions"), h.mappingVersions)
 	mappings.POST("/save", h.authorize("/acc/mapping/save"), h.saveMapping)
 	mappings.POST("/approve", h.authorize("/acc/mapping/approve"), h.approveMapping)
 	mappings.POST("/unapprove", h.authorize("/acc/mapping/unapprove"), h.unapproveMapping)
+	mappings.POST("/submit", h.authorize("/acc/mapping/submit"), h.submitMapping)
+	mappings.POST("/unsubmit", h.authorize("/acc/mapping/unsubmit"), h.unsubmitMapping)
+	mappings.POST("/reject", h.authorize("/acc/mapping/reject"), h.rejectMapping)
+	mappings.POST("/delete-version", h.authorize("/acc/mapping/delete-version"), h.deleteMappingVersion)
 	mappings.POST("/catalog", h.authorize("/acc/mapping/catalog"), h.mappingCatalog)
 
 	periods := router.Group("/acc/period")
@@ -97,6 +116,15 @@ func (h *Handler) authorize(path string) gin.HandlerFunc {
 
 func (h *Handler) actorID(c *gin.Context) string {
 	return authmiddleware.Principal(c).ActorID
+}
+
+func (h *Handler) approvalActor(c *gin.Context) (approval.Actor, bool) {
+	actor, err := approval.UserActor(authmiddleware.Principal(c), response.RequestID(c))
+	if err != nil {
+		h.result(c, nil, mapApprovalError(err))
+		return approval.Actor{}, false
+	}
+	return actor, true
 }
 
 func optionalString(value *string) string {
@@ -224,7 +252,11 @@ func (h *Handler) queryOpening(c *gin.Context) {
 	if !h.bind(c, &body) {
 		return
 	}
-	result, err := h.service.GetOpening(c.Request.Context(), body.BookId, h.actorID(c))
+	actor, ok := h.approvalActor(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.GetOpening(c.Request.Context(), body.BookId, actor)
 	h.result(c, result, err)
 }
 
@@ -241,27 +273,112 @@ func (h *Handler) saveOpening(c *gin.Context) {
 			Quantity: line.Quantity, Dimensions: line.Dimensions,
 		})
 	}
+	assets := make([]OpeningAssetInput, 0, len(body.Assets))
+	for _, item := range body.Assets {
+		asset := OpeningAssetInput{AssetID: optionalString(item.AssetId), AssetNo: optionalString(item.AssetNo), Name: optionalString(item.Name), CategoryID: optionalString(item.CategoryId), DepartmentID: optionalString(item.DepartmentId), Currency: item.Currency, OriginalValue: item.OriginalValue, AccumulatedDepreciation: item.AccumulatedDepreciation, ResidualRate: optionalString(item.ResidualRate)}
+		if item.UsefulLifeMonths != nil {
+			asset.UsefulLifeMonths = int32(*item.UsefulLifeMonths)
+		}
+		if item.AcquiredOn != nil {
+			asset.AcquiredOn = item.AcquiredOn.Time.Format("2006-01-02")
+		}
+		assets = append(assets, asset)
+	}
+	bills := make([]OpeningBillInput, 0, len(body.Bills))
+	for _, item := range body.Bills {
+		bill := OpeningBillInput{BillID: optionalString(item.BillId), BillNo: optionalString(item.BillNo), BillType: optionalString(item.BillType), PositionType: optionalString(item.PositionType), Medium: optionalString(item.Medium), Currency: item.Currency, FaceAmount: optionalString(item.FaceAmount), Drawer: optionalString(item.Drawer), Acceptor: optionalString(item.Acceptor), Payee: optionalString(item.Payee), InterestAmount: optionalString(item.InterestAmount), CustomerCostAmount: optionalString(item.CustomerCostAmount), ValueAmount: item.ValueAmount}
+		if item.AnnualRateBps != nil {
+			bill.AnnualRateBps = int32(*item.AnnualRateBps)
+		}
+		if item.InterestDays != nil {
+			bill.InterestDays = int32(*item.InterestDays)
+		}
+		if item.IssueDate != nil {
+			bill.IssueDate = item.IssueDate.Time.Format("2006-01-02")
+		}
+		if item.MaturityDate != nil {
+			bill.MaturityDate = item.MaturityDate.Time.Format("2006-01-02")
+		}
+		if item.OriginatingParty != nil {
+			bill.OriginatingParty = OpeningPartyInput{Entity: item.OriginatingParty.Entity, ObjectID: item.OriginatingParty.ObjectId, ApprovalEntryID: item.OriginatingParty.ApprovalEntryId, Code: item.OriginatingParty.Code, Name: item.OriginatingParty.Name}
+		}
+		bills = append(bills, bill)
+	}
+	containers := make([]OpeningContainerInput, 0, len(body.Containers))
+	for _, item := range body.Containers {
+		containers = append(containers, OpeningContainerInput{CustomerID: item.CustomerId, ContainerType: string(item.ContainerType), Quantity: int64(item.Quantity)})
+	}
+	actor, ok := h.approvalActor(c)
+	if !ok {
+		return
+	}
 	result, err := h.service.SaveOpening(c.Request.Context(), SaveOpeningInput{
 		BookID: body.BookId, Revision: body.Revision, Lines: lines,
-	}, h.actorID(c))
+		Assets: assets, Bills: bills, Containers: containers,
+	}, actor)
 	h.result(c, result, err)
 }
 
 func (h *Handler) approveOpening(c *gin.Context) {
-	var body generated.OpeningActionRequest
+	var body generated.OpeningApprovalActionRequest
 	if !h.bind(c, &body) {
 		return
 	}
-	result, err := h.service.ApproveOpening(c.Request.Context(), body.BookId, body.Revision, h.actorID(c))
+	actor, ok := h.approvalActor(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.ApproveOpening(c.Request.Context(), body.BookId, body.Revision, actor)
 	h.result(c, result, err)
 }
 
 func (h *Handler) unapproveOpening(c *gin.Context) {
-	var body generated.OpeningActionRequest
+	var body generated.OpeningReasonActionRequest
 	if !h.bind(c, &body) {
 		return
 	}
-	result, err := h.service.UnapproveOpening(c.Request.Context(), body.BookId, body.Revision, h.actorID(c))
+	actor, ok := h.approvalActor(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.UnapproveOpening(c.Request.Context(), body.BookId, body.Revision, body.Reason, actor)
+	h.result(c, result, err)
+}
+
+func (h *Handler) submitOpening(c *gin.Context) {
+	var body generated.OpeningApprovalActionRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	actor, ok := h.approvalActor(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.SubmitOpening(c, body.BookId, body.Revision, actor)
+	h.result(c, result, err)
+}
+func (h *Handler) unsubmitOpening(c *gin.Context) {
+	var body generated.OpeningApprovalActionRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	actor, ok := h.approvalActor(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.UnsubmitOpening(c, body.BookId, body.Revision, actor)
+	h.result(c, result, err)
+}
+func (h *Handler) rejectOpening(c *gin.Context) {
+	var body generated.OpeningReasonActionRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	actor, ok := h.approvalActor(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.RejectOpening(c, body.BookId, body.Revision, body.Reason, actor)
 	h.result(c, result, err)
 }
 
@@ -306,7 +423,11 @@ func (h *Handler) queryMappings(c *gin.Context) {
 	if !h.bind(c, &body) {
 		return
 	}
-	result, err := h.service.QueryMappings(c.Request.Context(), QueryMappingsInput{BookID: body.BookId, VouEntity: optionalString(body.VouEntity), Page: body.Page, PageSize: body.PageSize}, h.actorID(c))
+	actor, ok := h.approvalActor(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.QueryMappings(c.Request.Context(), QueryMappingsInput{BookID: body.BookId, VouEntity: optionalString(body.VouEntity), Page: body.Page, PageSize: body.PageSize}, actor)
 	h.result(c, result, err)
 }
 
@@ -315,7 +436,11 @@ func (h *Handler) getMapping(c *gin.Context) {
 	if !h.bind(c, &body) {
 		return
 	}
-	result, err := h.service.GetMapping(c.Request.Context(), body.BookId, body.MappingId, h.actorID(c))
+	actor, ok := h.approvalActor(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.GetMapping(c.Request.Context(), body.BookId, body.VouEntity, optionalString(body.ApprovalEntryId), actor)
 	h.result(c, result, err)
 }
 
@@ -324,7 +449,11 @@ func (h *Handler) createMapping(c *gin.Context) {
 	if !h.bind(c, &body) {
 		return
 	}
-	result, err := h.service.CreateMapping(c.Request.Context(), CreateMappingInput{BookID: body.BookId, VouEntity: body.VouEntity, DefaultResult: string(body.DefaultResult), Definition: mappingDefinition(body.Definition)}, h.actorID(c))
+	actor, ok := h.approvalActor(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.CreateMapping(c.Request.Context(), CreateMappingInput{BookID: body.BookId, VouEntity: body.VouEntity, DefaultResult: string(body.DefaultResult), Definition: mappingDefinition(body.Definition)}, actor)
 	h.result(c, result, err)
 }
 
@@ -333,26 +462,115 @@ func (h *Handler) saveMapping(c *gin.Context) {
 	if !h.bind(c, &body) {
 		return
 	}
-	result, err := h.service.SaveMapping(c.Request.Context(), SaveMappingInput{BookID: body.BookId, MappingID: body.MappingId, DefaultResult: string(body.DefaultResult), Definition: mappingDefinition(body.Definition), Revision: body.Revision}, h.actorID(c))
+	actor, ok := h.approvalActor(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.SaveMapping(c.Request.Context(), SaveMappingInput{BookID: body.BookId, VouEntity: body.VouEntity, ApprovalEntryID: body.ApprovalEntryId, DefaultResult: string(body.DefaultResult), Definition: mappingDefinition(body.Definition), Revision: body.Revision}, actor)
 	h.result(c, result, err)
 }
 
 func (h *Handler) approveMapping(c *gin.Context) {
-	var body generated.MappingActionRequest
+	var body generated.MappingApprovalActionRequest
 	if !h.bind(c, &body) {
 		return
 	}
-	result, err := h.service.ApproveMapping(c.Request.Context(), body.BookId, body.MappingId, body.Revision, h.actorID(c))
+	actor, ok := h.approvalActor(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.ApproveMapping(c.Request.Context(), mappingVersionInput(body.BookId, body.VouEntity, body.ApprovalEntryId, body.Revision), actor)
 	h.result(c, result, err)
 }
 
 func (h *Handler) unapproveMapping(c *gin.Context) {
-	var body generated.MappingActionRequest
+	var body generated.MappingReasonActionRequest
 	if !h.bind(c, &body) {
 		return
 	}
-	result, err := h.service.UnapproveMapping(c.Request.Context(), body.BookId, body.MappingId, body.Revision, h.actorID(c))
+	actor, ok := h.approvalActor(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.UnapproveMapping(c.Request.Context(), MappingReasonInput{MappingVersionInput: mappingVersionInput(body.BookId, body.VouEntity, body.ApprovalEntryId, body.Revision), Reason: body.Reason}, actor)
 	h.result(c, result, err)
+}
+
+func mappingVersionInput(bookID, entity, entryID string, revision int64) MappingVersionInput {
+	return MappingVersionInput{BookID: bookID, VouEntity: entity, ApprovalEntryID: entryID, Revision: revision}
+}
+
+func (h *Handler) createNextMapping(c *gin.Context) {
+	var body generated.MappingCreateNextRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	actor, ok := h.approvalActor(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.CreateNextMappingVersion(c, body.BookId, body.VouEntity, actor)
+	h.result(c, result, err)
+}
+func (h *Handler) mappingVersions(c *gin.Context) {
+	var body generated.MappingVersionsRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	actor, ok := h.approvalActor(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.MappingVersions(c, QueryMappingsInput{BookID: body.BookId, VouEntity: body.VouEntity, Page: body.Page, PageSize: body.PageSize}, actor)
+	h.result(c, result, err)
+}
+func (h *Handler) submitMapping(c *gin.Context) {
+	var body generated.MappingApprovalActionRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	actor, ok := h.approvalActor(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.SubmitMapping(c, mappingVersionInput(body.BookId, body.VouEntity, body.ApprovalEntryId, body.Revision), actor)
+	h.result(c, result, err)
+}
+func (h *Handler) unsubmitMapping(c *gin.Context) {
+	var body generated.MappingApprovalActionRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	actor, ok := h.approvalActor(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.UnsubmitMapping(c, mappingVersionInput(body.BookId, body.VouEntity, body.ApprovalEntryId, body.Revision), actor)
+	h.result(c, result, err)
+}
+func (h *Handler) rejectMapping(c *gin.Context) {
+	var body generated.MappingReasonActionRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	actor, ok := h.approvalActor(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.RejectMapping(c, MappingReasonInput{MappingVersionInput: mappingVersionInput(body.BookId, body.VouEntity, body.ApprovalEntryId, body.Revision), Reason: body.Reason}, actor)
+	h.result(c, result, err)
+}
+func (h *Handler) deleteMappingVersion(c *gin.Context) {
+	var body generated.MappingApprovalActionRequest
+	if !h.bind(c, &body) {
+		return
+	}
+	actor, ok := h.approvalActor(c)
+	if !ok {
+		return
+	}
+	err := h.service.DeleteMappingVersion(c, mappingVersionInput(body.BookId, body.VouEntity, body.ApprovalEntryId, body.Revision), actor)
+	h.result(c, nil, err)
 }
 
 func (h *Handler) mappingCatalog(c *gin.Context) {

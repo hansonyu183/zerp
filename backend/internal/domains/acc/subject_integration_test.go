@@ -7,7 +7,7 @@ import "testing"
 func TestAccountingSubjectTemplatesAreCopiedOncePerBook(t *testing.T) {
 	pool := integrationPool(t)
 	seedUsers(t, pool)
-	service := NewService(pool)
+	service := defaultIntegrationACCService(pool)
 
 	enterprise, err := service.CreateBook(t.Context(), CreateBookInput{
 		Name: "企业账簿", StartMonth: "2026-08", BaseCurrency: "CNY",
@@ -75,7 +75,7 @@ func TestAccountingSubjectTemplatesAreCopiedOncePerBook(t *testing.T) {
 func TestAccountingSubjectHierarchyDimensionsUsageAndScopes(t *testing.T) {
 	pool := integrationPool(t)
 	seedUsers(t, pool)
-	service := NewService(pool)
+	service := defaultIntegrationACCService(pool)
 	book, err := service.CreateBook(t.Context(), CreateBookInput{
 		Name: "科目测试", StartMonth: "2026-08", BaseCurrency: "CNY",
 		SubjectTemplate: SubjectTemplateEmpty,

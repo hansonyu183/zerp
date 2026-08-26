@@ -24,8 +24,8 @@ func TestHandlerRegistersTypedWorkflowPermissions(t *testing.T) {
 	for _, route := range router.Routes() {
 		routes[route.Path] = route.Method
 	}
-	if len(routes) != 16 {
-		t.Fatalf("route count = %d, want 16", len(routes))
+	if len(routes) != 22 {
+		t.Fatalf("route count = %d, want 22", len(routes))
 	}
 	for _, path := range []string{
 		"/wfl/process-definition/query",
@@ -33,10 +33,16 @@ func TestHandlerRegistersTypedWorkflowPermissions(t *testing.T) {
 		"/wfl/process-definition/create",
 		"/wfl/process-definition/save",
 		"/wfl/process-definition/trial",
-		"/wfl/process-definition/publish",
+		"/wfl/process-definition/create-version",
+		"/wfl/process-definition/versions",
 		"/wfl/process-definition/enable",
 		"/wfl/process-definition/disable",
-		"/wfl/process-definition/delete",
+		"/wfl/process-definition/submit",
+		"/wfl/process-definition/unsubmit",
+		"/wfl/process-definition/reject",
+		"/wfl/process-definition/approve",
+		"/wfl/process-definition/unapprove",
+		"/wfl/process-definition/delete-version",
 		"/wfl/process-instance/query",
 		"/wfl/process-instance/get",
 		"/wfl/process-instance/audit-history",
@@ -50,6 +56,8 @@ func TestHandlerRegistersTypedWorkflowPermissions(t *testing.T) {
 		}
 	}
 	for _, path := range []string{
+		"/wfl/process-definition/publish",
+		"/wfl/process-definition/delete",
 		"/wfl/intermediary-trade/query",
 		"/wfl/sales-fulfillment/create",
 		"/wfl/sales-fulfillment/outbound-save",

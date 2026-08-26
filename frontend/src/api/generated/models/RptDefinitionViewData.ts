@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalVersionMeta } from './ApprovalVersionMeta';
 import type { RptVersionData } from './RptVersionData';
 export type RptDefinitionViewData = {
   definitionId: string;
@@ -9,13 +10,11 @@ export type RptDefinitionViewData = {
   name: string;
   description: string;
   enabled: boolean;
-  everApproved: boolean;
-  currentVersionId?: string;
+  /**
+   * Stable definition revision; only enable, disable and subject deletion use it.
+   */
   revision: number;
-  versionId?: string;
-  versionNo?: number;
-  status?: string;
-  validity?: string;
-  versionRevision?: number;
+  approval: ApprovalVersionMeta;
+  validity: 'VALID' | 'INVALID';
   data: RptVersionData;
 };

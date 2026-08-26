@@ -2,18 +2,13 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalVersionMeta } from './ApprovalVersionMeta';
 import type { MappingDefinition } from './MappingDefinition';
 import type { MappingResult } from './MappingResult';
-import type { MappingState } from './MappingState';
 export type Mapping = {
-  mappingId: string;
   bookId: string;
   vouEntity: string;
-  version: number;
-  state: MappingState;
+  approval: ApprovalVersionMeta;
   defaultResult: MappingResult;
   definition: MappingDefinition;
-  revision: number;
-  approvedAt: string | null;
-  approvedBy: string | null;
 };

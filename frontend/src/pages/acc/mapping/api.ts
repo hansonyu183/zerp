@@ -1,7 +1,12 @@
 import { apiClient } from '@/api/client'
 import type { components } from '@/api/generated/schema'
 
-export type AccountingMapping = components['schemas']['Mapping']
+export type MappingContract = components['schemas']['Mapping']
+// List rows expose compact presentation fields derived from Approval meta.
+export type AccountingMapping = MappingContract & {
+  state: MappingContract['approval']['status']
+  version: number
+}
 export type AccountingMappingDefinition =
   components['schemas']['MappingDefinition']
 export type AccountingMappingCatalog = components['schemas']['MappingCatalog']
@@ -21,8 +26,16 @@ export function queryAccountingMappings(input: {
   )
 }
 
-export function getAccountingMapping(bookId: string, mappingId: string) {
-  return apiClient.postContract('acc/mapping/get', { bookId, mappingId })
+export function getAccountingMapping(
+  bookId: string,
+  vouEntity: string,
+  approvalEntryId?: string,
+) {
+  return apiClient.postContract('acc/mapping/get', {
+    bookId,
+    vouEntity,
+    ...(approvalEntryId ? { approvalEntryId } : {}),
+  })
 }
 
 export function createAccountingMapping(input: AccountingMappingCreate) {
@@ -39,20 +52,33 @@ export function saveAccountingMapping(input: AccountingMappingSave) {
   )
 }
 
-export function approveAccountingMapping(
+export function mappingApprovalAction(
+  action: 'submit' | 'unsubmit' | 'approve' | 'delete-version',
   bookId: string,
-  mappingId: string,
+  vouEntity: string,
+  approvalEntryId: string,
   revision: number,
 ) {
-  return apiClient.postContract('acc/mapping/approve', { bookId, mappingId, revision })
+  return apiClient.postContract(`acc/mapping/${action}`, { bookId, vouEntity, approvalEntryId, revision })
 }
 
-export function unapproveAccountingMapping(
+export function mappingReasonAction(
+  action: 'reject' | 'unapprove',
   bookId: string,
-  mappingId: string,
+  vouEntity: string,
+  approvalEntryId: string,
   revision: number,
+  reason: string,
 ) {
-  return apiClient.postContract('acc/mapping/unapprove', { bookId, mappingId, revision })
+  return apiClient.postContract(`acc/mapping/${action}`, { bookId, vouEntity, approvalEntryId, revision, reason })
+}
+
+export function createNextAccountingMapping(bookId: string, vouEntity: string) {
+  return apiClient.postContract('acc/mapping/create-next', { bookId, vouEntity })
+}
+
+export function getAccountingMappingVersions(bookId: string, vouEntity: string) {
+  return apiClient.postContract('acc/mapping/versions', { bookId, vouEntity, page: 1, pageSize: 200 })
 }
 
 export function getAccountingMappingCatalog(vouEntity: string) {

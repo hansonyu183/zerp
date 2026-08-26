@@ -2,9 +2,8 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type RptVersionRevisionRequest = {
+export type RptVersionDeleteRequest = {
   code: string;
-  versionId: string;
+  approvalEntryId: string;
   revision: number;
-  validationParameters?: Record<string, any>;
 };

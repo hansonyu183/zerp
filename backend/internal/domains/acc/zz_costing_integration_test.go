@@ -13,7 +13,7 @@ import (
 func TestZZPeriodCostingUsesMovingAverageAndUnlockRollsBackIntegration(t *testing.T) {
 	pool := integrationPool(t)
 	seedUsers(t, pool)
-	service := NewService(pool)
+	service := defaultIntegrationACCService(pool)
 	productID, warehouseID := ulid.Make().String(), ulid.Make().String()
 	book, err := service.CreateBook(t.Context(), CreateBookInput{Name: "成本账", StartMonth: "2026-07", BaseCurrency: "CNY", SubjectTemplate: SubjectTemplateEmpty}, adminID)
 	if err != nil {
@@ -35,26 +35,22 @@ func TestZZPeriodCostingUsesMovingAverageAndUnlockRollsBackIntegration(t *testin
 	draft, err := service.SaveOpening(t.Context(), SaveOpeningInput{BookID: book.ID, Lines: []OpeningLineInput{
 		{SubjectID: inventory.ID, Currency: "CNY", DebitAmount: "50.00", CreditAmount: "0", Quantity: &quantity, Dimensions: map[string]string{DimensionProduct: productID, DimensionWarehouse: warehouseID}},
 		{SubjectID: equity.ID, Currency: "CNY", DebitAmount: "0", CreditAmount: "50.00", Dimensions: map[string]string{}},
-	}}, adminID)
+	}}, integrationACCActor(t, adminID, "acc-costing-opening-save"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.ApproveOpening(t.Context(), book.ID, draft.Revision, adminID); err != nil {
-		t.Fatal(err)
-	}
+	approveIntegrationOpening(t, service, book.ID, draft)
 
 	templateID, quantityField := "sale-cost", "baseQuantity"
 	costSubjectID := cost.ID
 	mapping, err := service.CreateMapping(t.Context(), CreateMappingInput{BookID: book.ID, VouEntity: voudomain.EntitySaleOrder, DefaultResult: MappingResultPost, Definition: MappingDefinition{DefaultTemplateID: &templateID, Templates: []PostingTemplate{{ID: templateID, Collection: stringPointer("productLines"), Lines: []PostingLineTemplate{
 		{SubjectSource: "FIXED", SubjectValue: inventory.ID, Direction: BalanceDirectionCredit, AmountField: "amount", CurrencyField: "currency", QuantityField: &quantityField, Dimensions: map[string]string{DimensionProduct: "product.objectId", DimensionWarehouse: "warehouse.objectId"}, CostCounterpartSubjectID: &costSubjectID, CostCounterpartDimensions: map[string]string{DimensionProduct: "product.objectId"}},
 		{SubjectSource: "FIXED", SubjectValue: equity.ID, Direction: BalanceDirectionDebit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{}},
-	}}}}}, adminID)
+	}}}}}, integrationACCActor(t, adminID, "acc-costing-mapping-create"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.ApproveMapping(t.Context(), book.ID, mapping.ID, mapping.Revision, adminID); err != nil {
-		t.Fatal(err)
-	}
+	approveIntegrationMapping(t, service, book.ID, voudomain.EntitySaleOrder, mapping)
 	event := inventoryApprovalEvent(productID, warehouseID, "2")
 	deliverApprovalEvent(t, pool, service, event, false)
 

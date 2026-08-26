@@ -2,11 +2,11 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { RptMutationResult } from './RptMutationResult';
-export type RptMutationResponse = {
+import type { RptDefinitionVersionPageData } from './RptDefinitionVersionPageData';
+export type RptDefinitionVersionPageResponse = {
   code: number;
   errorKey: string;
   message: string;
-  data: RptMutationResult | null;
+  data: RptDefinitionVersionPageData | null;
   requestId: string;
 };

@@ -2,8 +2,9 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type MappingActionRequest = {
-  bookId: string;
-  mappingId: string;
+export type RptVersionActionRequest = {
+  code: string;
+  approvalEntryId: string;
   revision: number;
+  validationParameters?: Record<string, any>;
 };

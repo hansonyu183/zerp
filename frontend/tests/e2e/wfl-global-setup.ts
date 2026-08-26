@@ -50,8 +50,10 @@ interface AccountingBookView {
 }
 
 interface AccountingOpeningView {
-  state: 'DRAFT' | 'APPROVED'
-  revision: number
+  approval: {
+    status: 'DRAFT' | 'PENDING' | 'APPROVED'
+    revision: number
+  }
 }
 
 interface AccountingSubjectView {
@@ -60,9 +62,13 @@ interface AccountingSubjectView {
 }
 
 interface AccountingMappingView {
-  mappingId: string
-  state: 'DRAFT' | 'APPROVED'
-  revision: number
+  bookId: string
+  vouEntity: string
+  approval: {
+    approvalEntryId: string
+    status: 'DRAFT' | 'PENDING' | 'APPROVED'
+    revision: number
+  }
 }
 
 interface BobMutation {
@@ -160,9 +166,13 @@ interface VouMutation {
 interface WflDefinitionView {
   definitionId: string
   code: string
-  status: 'DRAFT' | 'ENABLED' | 'DISABLED'
+  enabled: boolean
   revision: number
-  publishedRevision?: number
+  approval: {
+    approvalEntryId: string
+    status: 'DRAFT' | 'PENDING' | 'APPROVED'
+    revision: number
+  }
 }
 
 interface WflInstanceListItem {
@@ -316,6 +326,9 @@ const bobReviewerActions = new Set([
   '/acc/book/query',
   '/acc/book/get',
   '/acc/book/save',
+  '/acc/opening/approve',
+  '/acc/mapping/approve',
+  '/wfl/process-definition/approve',
   '/aux/payment-method/approve',
   '/bob/customer/query',
   '/bob/customer/get',
@@ -356,20 +369,7 @@ async function createEffectiveBob(
   const created = await operator.post<BobMutation>(`bob/${entity}/create`, {
     data,
   })
-  const submitted = await operator.post<BobMutation>(`bob/${entity}/submit`, {
-    objectId: created.objectId,
-    approvalEntryId: created.approval.approvalEntryId,
-    approvalRevision: created.approval.revision,
-  })
-  const approved = await reviewer.post<BobMutation>(`bob/${entity}/approve`, {
-    objectId: submitted.objectId,
-    approvalEntryId: submitted.approval.approvalEntryId,
-    approvalRevision: submitted.approval.revision,
-  })
-  const view = await operator.post<{ code: string }>(`bob/${entity}/get`, {
-    objectId: approved.objectId,
-  })
-  return { ...approved, code: view.code }
+  return approveBob(operator, reviewer, entity, created)
 }
 
 async function createEffectiveEmployment(
@@ -442,10 +442,16 @@ async function approveBob(
     approvalEntryId: submitted.approval.approvalEntryId,
     approvalRevision: submitted.approval.revision,
   })
+  const effective = approved.enabled
+    ? approved
+    : await operator.post<BobMutation>(`bob/${entity}/enable`, {
+        objectId: approved.objectId,
+        objectRevision: approved.objectRevision,
+      })
   const view = await operator.post<{ code: string }>(`bob/${entity}/get`, {
-    objectId: approved.objectId,
+    objectId: effective.objectId,
   })
-  return { ...approved, code: view.code }
+  return { ...effective, code: view.code }
 }
 
 async function fixedSettlementMethod(
@@ -604,6 +610,7 @@ workflow(code="${options.code}", name="${options.name}", root=root, when=lambda 
 
 async function createEnabledWorkflowDefinition(
   operator: RealApi,
+  reviewer: RealApi,
   options: {
     code: string
     name: string
@@ -615,14 +622,15 @@ async function createEnabledWorkflowDefinition(
     'wfl/process-definition/create',
     { script: options.script },
   )
-  if (created.status !== 'DRAFT') {
+  if (created.approval.status !== 'DRAFT') {
     throw new Error(`WFL 预置流程定义 ${options.code} 未以草稿创建。`)
   }
   const edited = await operator.post<WflDefinitionView>(
     'wfl/process-definition/save',
     {
       definitionId: created.definitionId,
-      revision: created.revision,
+      approvalEntryId: created.approval.approvalEntryId,
+      revision: created.approval.revision,
       script: `${options.script}\n`,
     },
   )
@@ -631,24 +639,37 @@ async function createEnabledWorkflowDefinition(
     plannedActions: unknown[]
   }>('wfl/process-definition/trial', {
     definitionId: edited.definitionId,
-    revision: edited.revision,
+    approvalEntryId: edited.approval.approvalEntryId,
+    revision: edited.approval.revision,
     source: options.trialSource,
   })
   if (!trial.matched || trial.plannedActions.length !== 1) {
     throw new Error(`WFL 预置流程定义 ${options.code} 试算未生成预期动作。`)
   }
-  const published = await operator.post<WflDefinitionView>(
-    'wfl/process-definition/publish',
-    { definitionId: edited.definitionId, revision: edited.revision },
+  const submitted = await operator.post<WflDefinitionView>(
+    'wfl/process-definition/submit',
+    {
+      definitionId: edited.definitionId,
+      approvalEntryId: edited.approval.approvalEntryId,
+      revision: edited.approval.revision,
+    },
   )
-  if (!published.publishedRevision) {
-    throw new Error(`WFL 预置流程定义 ${options.code} 未发布。`)
+  const approved = await reviewer.post<WflDefinitionView>(
+    'wfl/process-definition/approve',
+    {
+      definitionId: submitted.definitionId,
+      approvalEntryId: submitted.approval.approvalEntryId,
+      revision: submitted.approval.revision,
+    },
+  )
+  if (approved.approval.status !== 'APPROVED') {
+    throw new Error(`WFL 预置流程定义 ${options.code} 未批准。`)
   }
   const enabled = await operator.post<WflDefinitionView>(
     'wfl/process-definition/enable',
-    { definitionId: published.definitionId, revision: published.revision },
+    { definitionId: approved.definitionId, revision: approved.revision },
   )
-  if (enabled.status !== 'ENABLED') {
+  if (!enabled.enabled) {
     throw new Error(`WFL 预置流程定义 ${options.code} 未启用。`)
   }
   return enabled
@@ -803,6 +824,7 @@ async function seedInventoryThroughLifecycle(
 
 async function ensureAccountingControlBook(
   api: RealApi,
+  reviewer: RealApi,
   queryUserIds: string[],
   operateUserIds: string[],
   vouEntities: string[],
@@ -851,10 +873,33 @@ async function ensureAccountingControlBook(
   const opening = await api.post<AccountingOpeningView>('acc/opening/query', {
     bookId: book.bookId,
   })
-  if (opening.state === 'DRAFT') {
-    await api.post<AccountingOpeningView>('acc/opening/approve', {
+  let openingCandidate = opening
+  if (openingCandidate.approval.status === 'DRAFT') {
+    if (openingCandidate.approval.revision === 0) {
+      openingCandidate = await api.post<AccountingOpeningView>(
+        'acc/opening/save',
+        {
+          bookId: book.bookId,
+          revision: 0,
+          lines: [],
+          assets: [],
+          bills: [],
+          containers: [],
+        },
+      )
+    }
+    openingCandidate = await api.post<AccountingOpeningView>(
+      'acc/opening/submit',
+      {
+        bookId: book.bookId,
+        revision: openingCandidate.approval.revision,
+      },
+    )
+  }
+  if (openingCandidate.approval.status === 'PENDING') {
+    await reviewer.post<AccountingOpeningView>('acc/opening/approve', {
       bookId: book.bookId,
-      revision: opening.revision,
+      revision: openingCandidate.approval.revision,
     })
   }
 
@@ -902,7 +947,8 @@ async function ensureAccountingControlBook(
       'acc/mapping/query',
       { bookId: book.bookId, vouEntity, page: 1, pageSize: 200 },
     )
-    if (mappings.items.some((item) => item.state === 'APPROVED')) continue
+    if (mappings.items.some((item) => item.approval.status === 'APPROVED'))
+      continue
     const inventorySubjectId = subjectIdByCode.get('1405')
     const payableSubjectId = subjectIdByCode.get('2202')
     if (
@@ -1064,18 +1110,27 @@ async function ensureAccountingControlBook(
       templates: [],
     }
     const defaultResult = vouEntity in postDefinitions ? 'POST' : 'UN_POST'
-    const draft =
-      mappings.items.find((item) => item.state === 'DRAFT') ??
+    let candidate =
+      mappings.items.find((item) => item.approval.status !== 'APPROVED') ??
       (await api.post<AccountingMappingView>('acc/mapping/create', {
         bookId: book.bookId,
         vouEntity,
         defaultResult,
         definition,
       }))
-    await api.post<AccountingMappingView>('acc/mapping/approve', {
+    if (candidate.approval.status === 'DRAFT') {
+      candidate = await api.post<AccountingMappingView>('acc/mapping/submit', {
+        bookId: book.bookId,
+        vouEntity,
+        approvalEntryId: candidate.approval.approvalEntryId,
+        revision: candidate.approval.revision,
+      })
+    }
+    await reviewer.post<AccountingMappingView>('acc/mapping/approve', {
       bookId: book.bookId,
-      mappingId: draft.mappingId,
-      revision: draft.revision,
+      vouEntity,
+      approvalEntryId: candidate.approval.approvalEntryId,
+      revision: candidate.approval.revision,
     })
   }
 }
@@ -1327,46 +1382,54 @@ export async function createWflWorkerState(options: {
       'sale-order',
       trialReferences,
     )
-    await createEnabledWorkflowDefinition(operatorSession.api, {
-      code: purchaseProcessCode,
-      name: purchaseProcessCode,
-      script: workflowScript({
+    await createEnabledWorkflowDefinition(
+      operatorSession.api,
+      reviewerSession.api,
+      {
         code: purchaseProcessCode,
         name: purchaseProcessCode,
-        rootEntity: 'purchase-order',
-        rootName: '采购订单',
-        childEntity: 'purchase-inbound',
-        childName: '采购入库',
-        action: 'purchase_inbound',
-        warehouseObjectId: warehouse.objectId,
-        partyField: 'supplier',
-        partyObjectId: supplier.objectId,
-      }),
-      trialSource: {
-        entity: 'purchase-order',
-        documentId: purchaseTrial.documentId,
+        script: workflowScript({
+          code: purchaseProcessCode,
+          name: purchaseProcessCode,
+          rootEntity: 'purchase-order',
+          rootName: '采购订单',
+          childEntity: 'purchase-inbound',
+          childName: '采购入库',
+          action: 'purchase_inbound',
+          warehouseObjectId: warehouse.objectId,
+          partyField: 'supplier',
+          partyObjectId: supplier.objectId,
+        }),
+        trialSource: {
+          entity: 'purchase-order',
+          documentId: purchaseTrial.documentId,
+        },
       },
-    })
-    await createEnabledWorkflowDefinition(operatorSession.api, {
-      code: salesProcessCode,
-      name: salesProcessCode,
-      script: workflowScript({
+    )
+    await createEnabledWorkflowDefinition(
+      operatorSession.api,
+      reviewerSession.api,
+      {
         code: salesProcessCode,
         name: salesProcessCode,
-        rootEntity: 'sale-order',
-        rootName: '销售订单',
-        childEntity: 'sale-outbound',
-        childName: '销售出库',
-        action: 'sale_outbound',
-        warehouseObjectId: warehouse.objectId,
-        partyField: 'customer',
-        partyObjectId: customer.objectId,
-      }),
-      trialSource: {
-        entity: 'sale-order',
-        documentId: salesTrial.documentId,
+        script: workflowScript({
+          code: salesProcessCode,
+          name: salesProcessCode,
+          rootEntity: 'sale-order',
+          rootName: '销售订单',
+          childEntity: 'sale-outbound',
+          childName: '销售出库',
+          action: 'sale_outbound',
+          warehouseObjectId: warehouse.objectId,
+          partyField: 'customer',
+          partyObjectId: customer.objectId,
+        }),
+        trialSource: {
+          entity: 'sale-order',
+          documentId: salesTrial.documentId,
+        },
       },
-    })
+    )
     await addWorkflowPermissionsToOperatorRole(
       bootstrapSession.api,
       operatorRole,
@@ -1385,6 +1448,7 @@ export async function createWflWorkerState(options: {
         )
       await ensureAccountingControlBook(
         bootstrapSession.api,
+        reviewerSession.api,
         [operatorUser.id, reviewerUser.id],
         [operatorUser.id, reviewerUser.id],
         vouEntities,

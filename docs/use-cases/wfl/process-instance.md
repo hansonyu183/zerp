@@ -2,19 +2,19 @@
 
 ## 页面目标
 
-用户从会话权限进入动态流程页面。实例、事务与重试规则见 [WFL 事件、实例与幂等](../../domains/wfl.md#4-事件实例与幂等)，页面权限边界见[权限与页面边界](../../domains/wfl.md#6-权限与页面边界)，请求结构见 [OpenAPI](../../../contracts/openapi/openapi.yaml)。
+用户从会话权限进入动态流程页面。实例、事务与重试规则见 [WFL 事件、实例与幂等](../../domains/wfl.md#4-事件实例与幂等)，页面权限边界见[普通种子、权限与页面边界](../../domains/wfl.md#5-普通种子权限与页面边界)，请求结构见 [OpenAPI](../../../contracts/openapi/openapi.yaml)。
 
 ## 主流程
 
 1. 页面按流程 code 查询实际实例，可按单号关键词或往来对象筛选。
-2. 打开实例后展示固定发布修订、完整实际节点树、业务父级、具名关系、触发、动作及运行审计。
+2. 打开实例后展示固定 `approvalEntryId`、定义 code/name、完整实际节点树、业务父级、具名关系、触发、动作及运行审计。
 3. 打开节点正文时跳转对应 `/vou/{entity}` 页面并携带 documentId；VOU get 权限决定正文能否读取。
-4. 有动态 create-child 权限时，页面只展示当前父节点的 `availableTargets`。用户提供 16–64 位 requestKey 后提交。
+4. 有动态 create-child 权限时，页面只展示该实例固定 entry 下当前父节点的 `availableTargets`。用户提供 16–64 位 requestKey 后提交。
 5. 成功后重新读取实例；网络重试复用原 requestKey，新的业务意图使用新 key。
 
 ## 异常分支
 
-- 停用定义：已有实例仍可查询和继续执行。
+- 定义停用、出现新版本或反批最新版本：既有实例仍按自己的 approvalEntryId 查询和继续执行。
 - 条件在提交前改变：服务端在写事务重算并拒绝已不可用目标。
 - requestKey 已绑定其他父级或目标：服务端拒绝。
 - 原动作结果已删除：旧 requestKey 只返回冲突，不重建。

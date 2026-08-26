@@ -1,59 +1,81 @@
+-- Definitions are stable subjects. Lifecycle/versioning belongs exclusively to
+-- approval_entries; this table owns only identity, enabled and object revision.
 -- name: CountWorkflowDefinitions :one
 SELECT count(*)
-FROM wfl_process_definitions
-WHERE (sqlc.arg(keyword)::text = '' OR code ILIKE '%' || sqlc.arg(keyword)::text || '%' OR name ILIKE '%' || sqlc.arg(keyword)::text || '%')
-  AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]), 0) = 0 OR status = ANY(sqlc.arg(statuses)::text[]));
+FROM wfl_process_definitions definition
+JOIN approval_entries approval ON approval.subject_id=definition.id
+  AND approval.domain='wfl' AND approval.entity='process-definition'
+WHERE (sqlc.arg(keyword)::text = '' OR definition.code ILIKE '%' || sqlc.arg(keyword)::text || '%' OR definition.name ILIKE '%' || sqlc.arg(keyword)::text || '%')
+  AND (COALESCE(cardinality(sqlc.arg(approval_statuses)::text[]), 0) = 0 OR approval.status = ANY(sqlc.arg(approval_statuses)::text[]))
+  AND (sqlc.narg(enabled)::boolean IS NULL OR definition.enabled=sqlc.narg(enabled)::boolean);
 
 -- name: ListWorkflowDefinitions :many
-SELECT id,code,name,status,revision,published_revision,draft_compiled,updated_at
-FROM wfl_process_definitions
-WHERE (sqlc.arg(keyword)::text = '' OR code ILIKE '%' || sqlc.arg(keyword)::text || '%' OR name ILIKE '%' || sqlc.arg(keyword)::text || '%')
-  AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]), 0) = 0 OR status = ANY(sqlc.arg(statuses)::text[]))
-ORDER BY updated_at DESC,id DESC
+SELECT definition.id,definition.code,definition.name,definition.enabled,definition.revision,
+       approval.id approval_entry_id,approval.version_no,approval.status,approval.revision approval_revision,
+       approval.created_by approval_created_by,approval.created_at approval_created_at,
+       approval.updated_by approval_updated_by,approval.updated_at approval_updated_at,
+       approval.submitted_by,approval.submitted_at,approval.approved_by,approval.approved_at,
+       version.compiled,definition.updated_at
+FROM wfl_process_definitions definition
+JOIN approval_entries approval ON approval.subject_id=definition.id
+  AND approval.domain='wfl' AND approval.entity='process-definition'
+JOIN wfl_definition_versions version ON version.approval_entry_id=approval.id
+WHERE (sqlc.arg(keyword)::text = '' OR definition.code ILIKE '%' || sqlc.arg(keyword)::text || '%' OR definition.name ILIKE '%' || sqlc.arg(keyword)::text || '%')
+  AND (COALESCE(cardinality(sqlc.arg(approval_statuses)::text[]), 0) = 0 OR approval.status = ANY(sqlc.arg(approval_statuses)::text[]))
+  AND (sqlc.narg(enabled)::boolean IS NULL OR definition.enabled=sqlc.narg(enabled)::boolean)
+ORDER BY definition.updated_at DESC,definition.id DESC,approval.version_no DESC
 LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 
--- name: GetWorkflowDefinition :one
-SELECT id,code,name,status,revision,draft_script,draft_diagnostic,draft_compiled,last_trial_revision,published_revision,created_at,created_by,updated_at,updated_by
-FROM wfl_process_definitions WHERE id=$1;
+-- name: GetWorkflowDefinitionVersion :one
+SELECT definition.id,definition.code,definition.name,definition.enabled,definition.revision,
+       approval.id approval_entry_id,approval.version_no,approval.status,approval.revision approval_revision,
+       approval.created_by approval_created_by,approval.created_at approval_created_at,
+       approval.updated_by approval_updated_by,approval.updated_at approval_updated_at,
+       approval.submitted_by,approval.submitted_at,approval.approved_by,approval.approved_at,
+       version.script,version.diagnostic,version.compiled,version.last_trial_approval_revision,definition.updated_at
+FROM wfl_process_definitions definition
+JOIN approval_entries approval ON approval.subject_id=definition.id
+  AND approval.domain='wfl' AND approval.entity='process-definition'
+JOIN wfl_definition_versions version ON version.approval_entry_id=approval.id
+WHERE definition.id=sqlc.arg(definition_id) AND approval.id=sqlc.arg(approval_entry_id);
+
+-- name: GetWorkflowLatestApprovedVersion :one
+SELECT approval.id
+FROM approval_entries approval
+WHERE approval.domain='wfl' AND approval.entity='process-definition'
+  AND approval.subject_id=$1 AND approval.status='APPROVED'
+ORDER BY approval.version_no DESC LIMIT 1;
+
+-- name: GetWorkflowOpenVersion :one
+SELECT approval.id
+FROM approval_entries approval
+WHERE approval.domain='wfl' AND approval.entity='process-definition'
+  AND approval.subject_id=$1 AND approval.status IN ('DRAFT','PENDING')
+ORDER BY approval.version_no DESC LIMIT 1;
 
 -- name: LockWorkflowDefinition :one
-SELECT id,code,name,status,revision,draft_script,draft_diagnostic,draft_compiled,last_trial_revision,published_revision
-FROM wfl_process_definitions WHERE id=$1 FOR UPDATE;
+SELECT id,code,name,enabled,revision FROM wfl_process_definitions WHERE id=$1 FOR UPDATE;
 
 -- name: CreateWorkflowDefinition :exec
-INSERT INTO wfl_process_definitions(id,code,name,draft_script,draft_compiled,created_by,updated_by)
-VALUES($1,$2,$3,$4,$5,$6,$6);
+INSERT INTO wfl_process_definitions(id,code,name,enabled,created_by,updated_by)
+VALUES($1,$2,$3,false,$4,$4);
 
--- name: SaveWorkflowDefinition :execrows
-UPDATE wfl_process_definitions
-SET name=$1,draft_script=$2,draft_diagnostic=$3,draft_compiled=$4,last_trial_revision=NULL,
-    revision=revision+1,updated_at=now(),updated_by=$5
-WHERE id=$6 AND revision=$7;
+-- name: CreateWorkflowDefinitionVersion :exec
+INSERT INTO wfl_definition_versions(approval_entry_id,definition_id,script,diagnostic,compiled,last_trial_approval_revision,created_by,updated_by)
+VALUES($1,$2,$3,$4,$5,NULL,$6,$6);
+
+-- name: SaveWorkflowDefinitionVersion :execrows
+UPDATE wfl_definition_versions
+SET script=$1,diagnostic=$2,compiled=$3,last_trial_approval_revision=NULL,updated_at=now(),updated_by=$4
+WHERE approval_entry_id=$5;
 
 -- name: RecordWorkflowDefinitionTrial :execrows
-UPDATE wfl_process_definitions SET last_trial_revision=$2,updated_at=now()
-WHERE id=$1 AND revision=$2;
+UPDATE wfl_definition_versions SET last_trial_approval_revision=$1,updated_at=now()
+WHERE approval_entry_id=$2;
 
--- name: NextWorkflowPublishedRevision :one
-SELECT (COALESCE(max(revision),0) + 1)::bigint AS revision
-FROM wfl_definition_revisions WHERE definition_id=$1;
-
--- name: PublishWorkflowDefinitionRevision :exec
-INSERT INTO wfl_definition_revisions(definition_id,revision,script,compiled,published_by)
-VALUES($1,$2,$3,$4,$5);
-
--- name: SetWorkflowPublishedRevision :execrows
+-- name: SetWorkflowDefinitionEnabled :execrows
 UPDATE wfl_process_definitions
-SET published_revision=$1,revision=revision+1,updated_at=now(),updated_by=$2
-WHERE id=$3 AND revision=$4;
-
--- name: GetWorkflowPublishedRevision :one
-SELECT definition_id,revision,script,compiled,published_at,published_by
-FROM wfl_definition_revisions WHERE definition_id=$1 AND revision=$2;
-
--- name: SetWorkflowDefinitionStatus :execrows
-UPDATE wfl_process_definitions
-SET status=$1,revision=revision+1,updated_at=now(),updated_by=$2
+SET enabled=$1,revision=revision+1,updated_at=now(),updated_by=$2
 WHERE id=$3 AND revision=$4;
 
 -- name: CountDefinitionInstances :one
@@ -66,7 +88,7 @@ WHERE instance.root_deleted_at IS NULL
        OR EXISTS (SELECT 1 FROM wfl_node_instances node WHERE node.process_id=instance.id AND node.document_no ILIKE '%' || sqlc.arg(keyword)::text || '%'));
 
 -- name: ListDefinitionInstances :many
-SELECT instance.id process_id,instance.definition_id,instance.definition_code,instance.definition_name,
+SELECT instance.id process_id,instance.definition_id,instance.definition_approval_entry_id,instance.definition_code,instance.definition_name,
        instance.revision,COALESCE(instance.root_document_id,'') root_document_id,instance.root_document_no,
        instance.root_entity,COALESCE(instance.party_code,'') party_code,COALESCE(instance.party_name,'') party_name,instance.updated_at
 FROM wfl_definition_instances instance
@@ -82,7 +104,7 @@ LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 SELECT id process_id,definition_id,definition_code,definition_name,revision,
        COALESCE(root_document_id,'') root_document_id,root_document_no,root_entity,
        COALESCE(party_code,'') party_code,COALESCE(party_name,'') party_name,
-       started_definition_revision,updated_at
+       definition_approval_entry_id,updated_at
 FROM wfl_definition_instances WHERE id=$1;
 
 -- These order summaries are VOU read models kept here because they are shared
@@ -226,8 +248,8 @@ LEFT JOIN inbound ON inbound.order_id=d.id LEFT JOIN returns ON returns.order_id
 WHERE d.id=ANY(sqlc.arg(order_ids)::text[]) ORDER BY d.id;
 
 -- name: RecordWorkflowTrialAudit :exec
-INSERT INTO wfl_runtime_audit_events(id,definition_id,definition_revision,event_type,document_id,actor_id,request_id,summary)
-VALUES(sqlc.arg(id),sqlc.arg(definition_id),sqlc.arg(definition_revision),'TRIAL',sqlc.arg(document_id),sqlc.arg(actor_id),sqlc.arg(request_id),sqlc.arg(summary));
+INSERT INTO wfl_runtime_audit_events(id,definition_id,definition_approval_entry_id,event_type,document_id,actor_id,request_id,summary)
+VALUES(sqlc.arg(id),sqlc.arg(definition_id),sqlc.arg(definition_approval_entry_id),'TRIAL',sqlc.arg(document_id),sqlc.arg(actor_id),sqlc.arg(request_id),sqlc.arg(summary));
 
 -- name: WorkflowDefinitionHasInstances :one
 SELECT EXISTS(SELECT 1 FROM wfl_definition_instances WHERE definition_id=$1);
@@ -266,14 +288,20 @@ SELECT id,event_type,node_instance_id,document_id,document_no,actor_id,request_i
 FROM wfl_runtime_audit_events WHERE process_id=sqlc.arg(process_id)
 ORDER BY occurred_at DESC,id DESC LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 
--- name: GetPublishedWorkflowDefinitionIDByCode :one
-SELECT id FROM wfl_process_definitions WHERE code=$1 AND published_revision IS NOT NULL;
-
 -- name: ListEnabledWorkflowDefinitionsForShare :many
-SELECT definition.id,definition.code,definition.name,revision.revision,revision.script
+SELECT definition.id,definition.code,definition.name,approval.id approval_entry_id,version.script
 FROM wfl_process_definitions definition
-JOIN wfl_definition_revisions revision ON revision.definition_id=definition.id AND revision.revision=definition.published_revision
-WHERE definition.status='ENABLED' ORDER BY definition.id FOR SHARE OF definition;
+JOIN approval_entries approval ON approval.subject_id=definition.id
+  AND approval.domain='wfl' AND approval.entity='process-definition' AND approval.status='APPROVED'
+JOIN wfl_definition_versions version ON version.approval_entry_id=approval.id
+WHERE definition.enabled
+  AND NOT EXISTS (
+    SELECT 1 FROM approval_entries newer
+    WHERE newer.domain=approval.domain AND newer.entity=approval.entity
+      AND newer.subject_id=approval.subject_id AND newer.status='APPROVED'
+      AND newer.version_no > approval.version_no
+  )
+ORDER BY definition.id FOR SHARE OF definition;
 
 -- name: LockWorkflowRootInstance :one
 SELECT instance.id process_id,node.id node_id
@@ -290,15 +318,15 @@ SELECT EXISTS(
 );
 
 -- name: CreateWorkflowDefinitionInstance :exec
-INSERT INTO wfl_definition_instances(id,definition_id,root_document_id,root_document_no,root_entity,definition_code,definition_name,party_object_id,party_code,party_name,started_definition_revision,created_by,updated_by)
-VALUES(sqlc.arg(id),sqlc.arg(definition_id),sqlc.arg(root_document_id),sqlc.arg(root_document_no),sqlc.arg(root_entity),sqlc.arg(definition_code),sqlc.arg(definition_name),sqlc.narg(party_object_id),sqlc.narg(party_code),sqlc.narg(party_name),sqlc.arg(started_definition_revision),sqlc.arg(actor_id),sqlc.arg(actor_id));
+INSERT INTO wfl_definition_instances(id,definition_id,root_document_id,root_document_no,root_entity,definition_code,definition_name,party_object_id,party_code,party_name,definition_approval_entry_id,created_by,updated_by)
+VALUES(sqlc.arg(id),sqlc.arg(definition_id),sqlc.arg(root_document_id),sqlc.arg(root_document_no),sqlc.arg(root_entity),sqlc.arg(definition_code),sqlc.arg(definition_name),sqlc.narg(party_object_id),sqlc.narg(party_code),sqlc.narg(party_name),sqlc.arg(definition_approval_entry_id),sqlc.arg(actor_id),sqlc.arg(actor_id));
 
 -- name: CreateWorkflowRootNodeInstance :exec
 INSERT INTO wfl_node_instances(id,process_id,node_key,node_name,document_id,document_no,document_entity,trigger_event)
 VALUES(sqlc.arg(id),sqlc.arg(process_id),sqlc.arg(node_key),sqlc.arg(node_name),sqlc.arg(document_id),sqlc.arg(document_no),sqlc.arg(document_entity),'APPROVED');
 
 -- name: LockWorkflowNodesForDocument :many
-SELECT node.id,node.process_id,node.node_key,instance.definition_id,instance.started_definition_revision
+SELECT node.id,node.process_id,node.node_key,instance.definition_id,instance.definition_approval_entry_id
 FROM wfl_node_instances node JOIN wfl_definition_instances instance ON instance.id=node.process_id
 WHERE node.document_id=$1 FOR UPDATE OF node,instance;
 
@@ -351,7 +379,7 @@ FROM wfl_action_executions execution JOIN wfl_node_instances node ON node.id=exe
 WHERE execution.id=$1;
 
 -- name: LockWorkflowCreateChildSourceNode :one
-SELECT node.node_key,node.document_entity,node.document_id,instance.started_definition_revision
+SELECT node.node_key,node.document_entity,node.document_id,instance.definition_approval_entry_id
 FROM wfl_definition_instances instance JOIN wfl_node_instances node ON node.process_id=instance.id
 WHERE instance.id=sqlc.arg(process_id) AND instance.definition_id=sqlc.arg(definition_id) AND node.id=sqlc.arg(node_id) AND node.document_id IS NOT NULL
 FOR UPDATE OF instance,node;
@@ -377,8 +405,8 @@ WHERE root_document_id=sqlc.arg(document_id);
 UPDATE wfl_node_instances SET document_id=NULL WHERE document_id=$1;
 
 -- name: GetWorkflowInstanceDefinition :one
-SELECT definition_id,started_definition_revision FROM wfl_definition_instances WHERE id=$1;
+SELECT definition_id,definition_approval_entry_id FROM wfl_definition_instances WHERE id=$1;
 
 -- name: CreateWorkflowRuntimeAudit :exec
-INSERT INTO wfl_runtime_audit_events(id,process_id,definition_id,definition_revision,event_type,node_instance_id,document_id,document_no,actor_id,request_id,summary)
-VALUES(sqlc.arg(id),sqlc.narg(process_id),sqlc.arg(definition_id),sqlc.arg(definition_revision),sqlc.arg(event_type),sqlc.narg(node_instance_id),sqlc.narg(document_id),sqlc.narg(document_no),sqlc.arg(actor_id),sqlc.arg(request_id),sqlc.arg(summary));
+INSERT INTO wfl_runtime_audit_events(id,process_id,definition_id,definition_approval_entry_id,event_type,node_instance_id,document_id,document_no,actor_id,request_id,summary)
+VALUES(sqlc.arg(id),sqlc.narg(process_id),sqlc.arg(definition_id),sqlc.arg(definition_approval_entry_id),sqlc.arg(event_type),sqlc.narg(node_instance_id),sqlc.narg(document_id),sqlc.narg(document_no),sqlc.arg(actor_id),sqlc.arg(request_id),sqlc.arg(summary));

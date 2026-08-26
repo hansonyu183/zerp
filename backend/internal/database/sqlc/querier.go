@@ -17,6 +17,7 @@ type Querier interface {
 	AccountingBillIsAvailable(ctx context.Context, billID string) (bool, error)
 	AccountingBookExists(ctx context.Context) (bool, error)
 	AccountingBookHasLaterFacts(ctx context.Context, bookID string) (bool, error)
+	AccountingMappingVersionReferenced(ctx context.Context, approvalEntryID *string) (bool, error)
 	AccountingOpeningObjectsReferencedByOtherBooks(ctx context.Context, bookID string) (bool, error)
 	AccountingPeriodHasMissingMappings(ctx context.Context, arg AccountingPeriodHasMissingMappingsParams) (bool, error)
 	AccountingPeriodHasNegativeInventory(ctx context.Context, arg AccountingPeriodHasNegativeInventoryParams) (bool, error)
@@ -29,9 +30,8 @@ type Querier interface {
 	AddAccountingAssetDepreciation(ctx context.Context, arg AddAccountingAssetDepreciationParams) error
 	AdvanceAppMenuRevision(ctx context.Context, arg AdvanceAppMenuRevisionParams) (AppMenuSetting, error)
 	ApprovalVersionsExist(ctx context.Context, arg ApprovalVersionsExistParams) (bool, error)
-	ApproveAccountingMapping(ctx context.Context, arg ApproveAccountingMappingParams) (int64, error)
-	ApproveAccountingOpening(ctx context.Context, arg ApproveAccountingOpeningParams) (int64, error)
 	BuildAccountingPeriodBalances(ctx context.Context, arg BuildAccountingPeriodBalancesParams) error
+	ClearAccountingOpeningVoucher(ctx context.Context, arg ClearAccountingOpeningVoucherParams) error
 	ClearVouInventoryCountResults(ctx context.Context, documentID string) error
 	ClearVouProductLineExecution(ctx context.Context, documentID string) error
 	ClearWorkflowNodeDocument(ctx context.Context, documentID *string) error
@@ -77,6 +77,8 @@ type Querier interface {
 	CountVouProductionAttributes(ctx context.Context, targetDocumentID string) (CountVouProductionAttributesRow, error)
 	CountWorkbenchBobItems(ctx context.Context, arg CountWorkbenchBobItemsParams) (int64, error)
 	CountWorkbenchVouItems(ctx context.Context, arg CountWorkbenchVouItemsParams) (int64, error)
+	// Definitions are stable subjects. Lifecycle/versioning belongs exclusively to
+	// approval_entries; this table owns only identity, enabled and object revision.
 	CountWorkflowDefinitions(ctx context.Context, arg CountWorkflowDefinitionsParams) (int64, error)
 	CountWorkflowRuntimeAudits(ctx context.Context, processID *string) (int64, error)
 	CreateAccountingAsset(ctx context.Context, arg CreateAccountingAssetParams) error
@@ -86,6 +88,7 @@ type Querier interface {
 	CreateAccountingBook(ctx context.Context, arg CreateAccountingBookParams) error
 	CreateAccountingBookScope(ctx context.Context, arg CreateAccountingBookScopeParams) error
 	CreateAccountingContainerEntry(ctx context.Context, arg CreateAccountingContainerEntryParams) error
+	CreateAccountingMappingSubject(ctx context.Context, arg CreateAccountingMappingSubjectParams) error
 	CreateAccountingMappingVersion(ctx context.Context, arg CreateAccountingMappingVersionParams) error
 	CreateAccountingOpening(ctx context.Context, arg CreateAccountingOpeningParams) error
 	CreateAccountingOpeningContainerBalances(ctx context.Context, bookID string) error
@@ -94,13 +97,13 @@ type Querier interface {
 	CreateAppSession(ctx context.Context, arg CreateAppSessionParams) error
 	CreateApprovalEntry(ctx context.Context, arg CreateApprovalEntryParams) (ApprovalEntry, error)
 	CreateApprovalVersion(ctx context.Context, arg CreateApprovalVersionParams) (ApprovalEntry, error)
-	CreateApprovedZeroAccountingOpening(ctx context.Context, arg CreateApprovedZeroAccountingOpeningParams) error
 	CreateAutomaticAccountingVoucher(ctx context.Context, arg CreateAutomaticAccountingVoucherParams) error
 	CreateWorkflowActionExecution(ctx context.Context, arg CreateWorkflowActionExecutionParams) error
 	CreateWorkflowActionNodeInstance(ctx context.Context, arg CreateWorkflowActionNodeInstanceParams) error
 	CreateWorkflowCreateChildRequest(ctx context.Context, arg CreateWorkflowCreateChildRequestParams) error
 	CreateWorkflowDefinition(ctx context.Context, arg CreateWorkflowDefinitionParams) error
 	CreateWorkflowDefinitionInstance(ctx context.Context, arg CreateWorkflowDefinitionInstanceParams) error
+	CreateWorkflowDefinitionVersion(ctx context.Context, arg CreateWorkflowDefinitionVersionParams) error
 	CreateWorkflowRootNodeInstance(ctx context.Context, arg CreateWorkflowRootNodeInstanceParams) error
 	CreateWorkflowRuntimeAudit(ctx context.Context, arg CreateWorkflowRuntimeAuditParams) error
 	CustomerFileReferenceCount(ctx context.Context, targetFileID string) (int32, error)
@@ -112,6 +115,8 @@ type Querier interface {
 	DeleteAccountingDepreciationEntries(ctx context.Context, arg DeleteAccountingDepreciationEntriesParams) error
 	DeleteAccountingGlobalEvent(ctx context.Context, arg DeleteAccountingGlobalEventParams) (int64, error)
 	DeleteAccountingInventoryCostAllocations(ctx context.Context, arg DeleteAccountingInventoryCostAllocationsParams) error
+	DeleteAccountingMappingSubjectIfEmpty(ctx context.Context, mappingID string) error
+	DeleteAccountingMappingVersion(ctx context.Context, approvalEntryID string) error
 	DeleteAccountingOpeningAssets(ctx context.Context, bookID string) error
 	DeleteAccountingOpeningBills(ctx context.Context, bookID string) error
 	DeleteAccountingOpeningContainerBalances(ctx context.Context, bookID string) error
@@ -206,10 +211,9 @@ type Querier interface {
 	GetAccountingBookUserScope(ctx context.Context, arg GetAccountingBookUserScopeParams) (GetAccountingBookUserScopeRow, error)
 	GetAccountingControlBookForVou(ctx context.Context) (GetAccountingControlBookForVouRow, error)
 	GetAccountingInventoryQuantity(ctx context.Context, arg GetAccountingInventoryQuantityParams) (int64, error)
-	GetAccountingMapping(ctx context.Context, arg GetAccountingMappingParams) (GetAccountingMappingRow, error)
-	GetAccountingMappingForUpdate(ctx context.Context, arg GetAccountingMappingForUpdateParams) (GetAccountingMappingForUpdateRow, error)
+	GetAccountingMappingSubject(ctx context.Context, arg GetAccountingMappingSubjectParams) (GetAccountingMappingSubjectRow, error)
+	GetAccountingMappingVersion(ctx context.Context, arg GetAccountingMappingVersionParams) (GetAccountingMappingVersionRow, error)
 	GetAccountingOpening(ctx context.Context, bookID string) (GetAccountingOpeningRow, error)
-	GetAccountingOpeningForUpdate(ctx context.Context, bookID string) (GetAccountingOpeningForUpdateRow, error)
 	GetAccountingPartyBalance(ctx context.Context, arg GetAccountingPartyBalanceParams) (int64, error)
 	GetAccountingSubject(ctx context.Context, arg GetAccountingSubjectParams) (GetAccountingSubjectRow, error)
 	GetAccountingSubjectParent(ctx context.Context, arg GetAccountingSubjectParentParams) (*string, error)
@@ -288,7 +292,7 @@ type Querier interface {
 	GetMinimumAccountingFundBalance(ctx context.Context, arg GetMinimumAccountingFundBalanceParams) (int64, error)
 	GetMinimumAccountingInventoryQuantity(ctx context.Context, arg GetMinimumAccountingInventoryQuantityParams) (int64, error)
 	GetOpenApprovalVersion(ctx context.Context, arg GetOpenApprovalVersionParams) (ApprovalEntry, error)
-	GetPublishedWorkflowDefinitionIDByCode(ctx context.Context, code string) (string, error)
+	GetPreferredAccountingMappingVersion(ctx context.Context, arg GetPreferredAccountingMappingVersionParams) (GetPreferredAccountingMappingVersionRow, error)
 	GetPurchaseInboundSettlementSource(ctx context.Context, documentID string) (GetPurchaseInboundSettlementSourceRow, error)
 	GetPurchaseOrderSettlementGate(ctx context.Context, orderID string) (GetPurchaseOrderSettlementGateRow, error)
 	GetReadyControlAccountingBookID(ctx context.Context) (string, error)
@@ -324,10 +328,11 @@ type Querier interface {
 	GetVouServiceContractDetail(ctx context.Context, documentID string) (VouServiceContractDetail, error)
 	GetWorkflowActionExecutionResult(ctx context.Context, arg GetWorkflowActionExecutionResultParams) (GetWorkflowActionExecutionResultRow, error)
 	GetWorkflowCreateChildExecutionResult(ctx context.Context, id string) (GetWorkflowCreateChildExecutionResultRow, error)
-	GetWorkflowDefinition(ctx context.Context, id string) (WflProcessDefinition, error)
+	GetWorkflowDefinitionVersion(ctx context.Context, arg GetWorkflowDefinitionVersionParams) (GetWorkflowDefinitionVersionRow, error)
 	GetWorkflowInstanceDefinition(ctx context.Context, id string) (GetWorkflowInstanceDefinitionRow, error)
+	GetWorkflowLatestApprovedVersion(ctx context.Context, subjectID string) (string, error)
 	GetWorkflowNodeDocumentEntity(ctx context.Context, id string) (string, error)
-	GetWorkflowPublishedRevision(ctx context.Context, arg GetWorkflowPublishedRevisionParams) (WflDefinitionRevision, error)
+	GetWorkflowOpenVersion(ctx context.Context, subjectID string) (string, error)
 	HasAccountingBookOperateAccess(ctx context.Context, arg HasAccountingBookOperateAccessParams) (bool, error)
 	HasAccountingBookQueryAccess(ctx context.Context, arg HasAccountingBookQueryAccessParams) (bool, error)
 	HasApprovedIntermediaryCalculationDependents(ctx context.Context, documentID *string) (bool, error)
@@ -434,6 +439,7 @@ type Querier interface {
 	ListAccountingBooks(ctx context.Context, arg ListAccountingBooksParams) ([]ListAccountingBooksRow, error)
 	ListAccountingDepreciationCandidates(ctx context.Context, arg ListAccountingDepreciationCandidatesParams) ([]ListAccountingDepreciationCandidatesRow, error)
 	ListAccountingInventoryCostFacts(ctx context.Context, arg ListAccountingInventoryCostFactsParams) ([]ListAccountingInventoryCostFactsRow, error)
+	ListAccountingMappingVersions(ctx context.Context, arg ListAccountingMappingVersionsParams) ([]ListAccountingMappingVersionsRow, error)
 	ListAccountingMappings(ctx context.Context, arg ListAccountingMappingsParams) ([]ListAccountingMappingsRow, error)
 	ListAccountingOpeningAssets(ctx context.Context, bookID string) ([]ListAccountingOpeningAssetsRow, error)
 	ListAccountingOpeningAssetsForApproval(ctx context.Context, bookID string) ([]ListAccountingOpeningAssetsForApprovalRow, error)
@@ -593,16 +599,13 @@ type Querier interface {
 	MoveServiceRelationshipParty(ctx context.Context, arg MoveServiceRelationshipPartyParams) (int64, error)
 	MoveSupplierRelationshipParty(ctx context.Context, arg MoveSupplierRelationshipPartyParams) (int64, error)
 	NextAccountingBookNumber(ctx context.Context) (int32, error)
-	NextAccountingMappingVersion(ctx context.Context, arg NextAccountingMappingVersionParams) (int32, error)
 	NextAppRoleCode(ctx context.Context) (string, error)
 	// BOB owns stable identities and typed approval payloads.  Version state is
 	// exclusively stored in approval_entries; every resolver below selects the
 	// latest APPROVED entry and never falls back to an open candidate.
 	NextObjectNumberCounter(ctx context.Context, arg NextObjectNumberCounterParams) (int32, error)
 	NextVouNumberCounter(ctx context.Context, arg NextVouNumberCounterParams) (int32, error)
-	NextWorkflowPublishedRevision(ctx context.Context, definitionID string) (int64, error)
 	Ping(ctx context.Context) (int32, error)
-	PublishWorkflowDefinitionRevision(ctx context.Context, arg PublishWorkflowDefinitionRevisionParams) error
 	QueryAuxReferenceCandidates(ctx context.Context, arg QueryAuxReferenceCandidatesParams) ([]QueryAuxReferenceCandidatesRow, error)
 	QueryBobReferenceCandidates(ctx context.Context, arg QueryBobReferenceCandidatesParams) ([]QueryBobReferenceCandidatesRow, error)
 	RecordSigninFailure(ctx context.Context, arg RecordSigninFailureParams) (AppUser, error)
@@ -624,53 +627,53 @@ type Querier interface {
 	RevokeAppSession(ctx context.Context, arg RevokeAppSessionParams) error
 	RevokeAppUserSessions(ctx context.Context, arg RevokeAppUserSessionsParams) error
 	RotateAppSessionCSRF(ctx context.Context, arg RotateAppSessionCSRFParams) (int64, error)
-	RptActivateVersion(ctx context.Context, arg RptActivateVersionParams) error
-	RptAllocateVersionNumber(ctx context.Context, arg RptAllocateVersionNumberParams) (RptAllocateVersionNumberRow, error)
-	RptApproveVersion(ctx context.Context, arg RptApproveVersionParams) error
-	RptClearCurrentVersion(ctx context.Context, arg RptClearCurrentVersionParams) error
-	RptDeleteDefinition(ctx context.Context, id string) error
+	RptCopyVersionPayload(ctx context.Context, arg RptCopyVersionPayloadParams) error
+	RptDeleteDefinition(ctx context.Context, arg RptDeleteDefinitionParams) (int64, error)
+	RptDeleteVersionPayload(ctx context.Context, arg RptDeleteVersionPayloadParams) error
 	RptDisableUsePermissions(ctx context.Context, arg RptDisableUsePermissionsParams) error
 	RptGetActiveDefinition(ctx context.Context, code string) (RptGetActiveDefinitionRow, error)
-	RptGetDefinition(ctx context.Context, arg RptGetDefinitionParams) (RptGetDefinitionRow, error)
-	RptInsertAuditEvent(ctx context.Context, arg RptInsertAuditEventParams) error
+	RptGetDefinitionByEntry(ctx context.Context, arg RptGetDefinitionByEntryParams) (RptGetDefinitionByEntryRow, error)
+	RptGetDefinitionObject(ctx context.Context, code string) (RptGetDefinitionObjectRow, error)
+	RptGetLatestApprovedPayload(ctx context.Context, definitionID string) (RptGetLatestApprovedPayloadRow, error)
+	RptGetVersionPayload(ctx context.Context, arg RptGetVersionPayloadParams) (RptGetVersionPayloadRow, error)
 	RptInsertDefinition(ctx context.Context, arg RptInsertDefinitionParams) error
-	RptInsertVersion(ctx context.Context, arg RptInsertVersionParams) error
-	RptInvalidateVersion(ctx context.Context, id string) error
+	RptInsertRuntimeAuditEvent(ctx context.Context, arg RptInsertRuntimeAuditEventParams) error
+	RptInsertVersionPayload(ctx context.Context, arg RptInsertVersionPayloadParams) error
+	RptInvalidateVersion(ctx context.Context, arg RptInvalidateVersionParams) error
+	// The persisted query/export permissions are enabled iff the stable definition
+	// is enabled and its latest APPROVED payload is VALID. They do not own Approval state.
+	RptLatestApprovedUseState(ctx context.Context, definitionID string) (RptLatestApprovedUseStateRow, error)
 	RptListAssetReferences(ctx context.Context, arg RptListAssetReferencesParams) ([]RptListAssetReferencesRow, error)
 	RptListBOBReferences(ctx context.Context, arg RptListBOBReferencesParams) ([]RptListBOBReferencesRow, error)
 	RptListBillReferences(ctx context.Context, arg RptListBillReferencesParams) ([]RptListBillReferencesRow, error)
 	RptListBookReferences(ctx context.Context, arg RptListBookReferencesParams) ([]RptListBookReferencesRow, error)
 	RptListSubjectReferences(ctx context.Context, arg RptListSubjectReferencesParams) ([]RptListSubjectReferencesRow, error)
-	RptLockCurrentApprovedVersion(ctx context.Context, arg RptLockCurrentApprovedVersionParams) (string, error)
-	RptLockDefinitionCurrentVersion(ctx context.Context, arg RptLockDefinitionCurrentVersionParams) (bool, error)
-	RptLockDeletableDefinition(ctx context.Context, arg RptLockDeletableDefinitionParams) (string, error)
-	RptLockDraftForApproval(ctx context.Context, arg RptLockDraftForApprovalParams) (RptLockDraftForApprovalRow, error)
+	RptLockDefinitionObject(ctx context.Context, code string) (RptLockDefinitionObjectRow, error)
+	// RPT owns only stable definition identity and version payload. Approval owns lifecycle.
 	RptQueryDefinitions(ctx context.Context, arg RptQueryDefinitionsParams) ([]RptQueryDefinitionsRow, error)
 	RptQueryDirectory(ctx context.Context, arg RptQueryDirectoryParams) ([]RptQueryDirectoryRow, error)
-	RptSaveDraft(ctx context.Context, arg RptSaveDraftParams) (RptSaveDraftRow, error)
 	RptSetDefinitionEnabled(ctx context.Context, arg RptSetDefinitionEnabledParams) (RptSetDefinitionEnabledRow, error)
-	RptUpdateDefinitionText(ctx context.Context, arg RptUpdateDefinitionTextParams) error
+	RptUpdateDefinitionText(ctx context.Context, arg RptUpdateDefinitionTextParams) (int64, error)
+	RptUpdateDraftPayload(ctx context.Context, arg RptUpdateDraftPayloadParams) error
 	RptUpsertUsePermission(ctx context.Context, arg RptUpsertUsePermissionParams) error
-	SaveWorkflowDefinition(ctx context.Context, arg SaveWorkflowDefinitionParams) (int64, error)
+	SaveWorkflowDefinitionVersion(ctx context.Context, arg SaveWorkflowDefinitionVersionParams) (int64, error)
+	SetAccountingOpeningVoucher(ctx context.Context, arg SetAccountingOpeningVoucherParams) error
 	SetAppRoleStatus(ctx context.Context, arg SetAppRoleStatusParams) (int64, error)
 	SetAppUserStatus(ctx context.Context, arg SetAppUserStatusParams) (int64, error)
 	SetBobObjectEnabled(ctx context.Context, arg SetBobObjectEnabledParams) (int64, error)
 	SetVouInventoryCountResult(ctx context.Context, arg SetVouInventoryCountResultParams) (int64, error)
 	SetVouSaleLineExecution(ctx context.Context, arg SetVouSaleLineExecutionParams) (int64, error)
 	SetWorkflowCreateChildRequestExecution(ctx context.Context, arg SetWorkflowCreateChildRequestExecutionParams) error
-	SetWorkflowDefinitionStatus(ctx context.Context, arg SetWorkflowDefinitionStatusParams) (int64, error)
-	SetWorkflowPublishedRevision(ctx context.Context, arg SetWorkflowPublishedRevisionParams) (int64, error)
+	SetWorkflowDefinitionEnabled(ctx context.Context, arg SetWorkflowDefinitionEnabledParams) (int64, error)
 	SettleAccountingBill(ctx context.Context, arg SettleAccountingBillParams) (int64, error)
 	SumVouBillLineFaceAmounts(ctx context.Context, documentID string) (int64, error)
-	TouchAccountingOpeningDraft(ctx context.Context, arg TouchAccountingOpeningDraftParams) (int64, error)
+	TouchAccountingOpening(ctx context.Context, arg TouchAccountingOpeningParams) error
 	TouchAppSession(ctx context.Context, arg TouchAppSessionParams) error
 	TouchBobObject(ctx context.Context, arg TouchBobObjectParams) (TouchBobObjectRow, error)
 	TouchCustomerRelationshipAttachment(ctx context.Context, arg TouchCustomerRelationshipAttachmentParams) (int64, error)
-	UnapproveAccountingMapping(ctx context.Context, arg UnapproveAccountingMappingParams) (int64, error)
-	UnapproveAccountingOpening(ctx context.Context, arg UnapproveAccountingOpeningParams) (int64, error)
 	UnlockAccountingPeriodRow(ctx context.Context, arg UnlockAccountingPeriodRowParams) (int64, error)
 	UpdateAccountingBook(ctx context.Context, arg UpdateAccountingBookParams) (int64, error)
-	UpdateAccountingMappingDraft(ctx context.Context, arg UpdateAccountingMappingDraftParams) (int64, error)
+	UpdateAccountingMappingVersion(ctx context.Context, arg UpdateAccountingMappingVersionParams) error
 	UpdateAccountingSubject(ctx context.Context, arg UpdateAccountingSubjectParams) (int64, error)
 	UpdateAppMenuMode(ctx context.Context, arg UpdateAppMenuModeParams) (AppMenuSetting, error)
 	UpdateAppRole(ctx context.Context, arg UpdateAppRoleParams) (int64, error)

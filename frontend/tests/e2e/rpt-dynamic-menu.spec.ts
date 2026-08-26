@@ -26,8 +26,17 @@ test('报表动态菜单进入单份报表，查询与独立 CSV 导出共用当
   expect(response.ok()).toBe(true)
   await expect(page.getByText(/查询结果（\d+）/)).toBeVisible()
 
+  const exportResponsePromise = page.waitForResponse((candidate) =>
+    candidate.url().includes('/rpt/account-journal/export'),
+  )
   const downloadPromise = page.waitForEvent('download')
   await page.getByRole('button', { name: '导出 CSV' }).click()
+  const exportResponse = await exportResponsePromise
+  expect(exportResponse.ok()).toBe(true)
+  const contentType = exportResponse.headers()['content-type'] ?? ''
+  if (!contentType.includes('text/csv')) {
+    throw new Error(`报表导出未返回 CSV：${await exportResponse.text()}`)
+  }
   const download = await downloadPromise
   expect(download.suggestedFilename()).toBe('account-journal.csv')
   await expect(page.getByText('导出已完成。', { exact: true })).toBeVisible()

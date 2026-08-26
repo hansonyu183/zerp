@@ -155,7 +155,11 @@ func TestSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T) {
 	var workflowDefinitions, workflowInstances int
 	if err = pool.QueryRow(t.Context(), `
 		SELECT
-			(SELECT count(*) FROM wfl_process_definitions WHERE status='DRAFT' AND published_revision IS NULL),
+			(SELECT count(*) FROM wfl_process_definitions definition WHERE EXISTS(
+				SELECT 1 FROM approval_entries approval
+				WHERE approval.domain='wfl' AND approval.entity='process-definition'
+					AND approval.subject_id=definition.id AND approval.status='DRAFT'
+			)),
 			(SELECT count(*) FROM wfl_definition_instances)
 	`).Scan(&workflowDefinitions, &workflowInstances); err != nil {
 		t.Fatalf("count workflow seeds: %v", err)
@@ -220,8 +224,8 @@ func assertAccountingAndReportFacts(t *testing.T, pool *pgxpool.Pool) {
 	if err := pool.QueryRow(t.Context(), `
 		SELECT
 			(SELECT count(*) FROM acc_books WHERE description=$1),
-			(SELECT count(*) FROM acc_openings opening JOIN acc_books book ON book.id=opening.book_id WHERE book.description=$1 AND opening.state='APPROVED'),
-			(SELECT count(*) FROM acc_mapping_versions mapping JOIN acc_books book ON book.id=mapping.book_id WHERE book.description=$1 AND mapping.state='APPROVED'),
+			(SELECT count(*) FROM approval_entries approval JOIN acc_books book ON book.id=approval.subject_id WHERE book.description=$1 AND approval.domain='acc' AND approval.entity='opening' AND approval.version_no IS NULL AND approval.status='APPROVED'),
+			(SELECT count(*) FROM approval_entries approval JOIN acc_mappings mapping ON mapping.id=approval.subject_id JOIN acc_books book ON book.id=mapping.book_id WHERE book.description=$1 AND approval.domain='acc' AND approval.entity='mapping' AND approval.status='APPROVED'),
 			(SELECT count(*) FROM acc_voucher_lines line JOIN acc_vouchers voucher ON voucher.id=line.voucher_id WHERE voucher.source_entity='other-income')
 	`, testAccountingBookDescription).Scan(&books, &approvedOpenings, &mappings, &postedLines); err != nil {
 		t.Fatalf("read test accounting facts: %v", err)
@@ -232,7 +236,7 @@ func assertAccountingAndReportFacts(t *testing.T, pool *pgxpool.Pool) {
 	var reports, reportRows int
 	if err := pool.QueryRow(t.Context(), `
 		SELECT
-			(SELECT count(*) FROM rpt_definitions WHERE current_version_id IS NOT NULL AND enabled),
+			(SELECT count(*) FROM rpt_definitions definition WHERE definition.enabled AND EXISTS(SELECT 1 FROM approval_entries approval WHERE approval.domain='rpt' AND approval.entity='definition' AND approval.subject_id=definition.id AND approval.status='APPROVED')),
 			(SELECT count(*) FROM acc_voucher_lines)
 	`).Scan(&reports, &reportRows); err != nil {
 		t.Fatalf("read test report facts: %v", err)

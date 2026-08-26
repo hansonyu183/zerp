@@ -3,16 +3,19 @@ import { getErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
 import { queryAccountingBooks, type AccountingBook } from '../book/api'
 import {
-  approveAccountingMapping,
+  createNextAccountingMapping,
   createAccountingMapping,
   getAccountingMapping,
   getAccountingMappingCatalog,
+  getAccountingMappingVersions,
+  mappingApprovalAction,
+  mappingReasonAction,
   queryAccountingMappings,
   saveAccountingMapping,
-  unapproveAccountingMapping,
   type AccountingMapping,
   type AccountingMappingCatalog,
   type AccountingMappingDefinition,
+  type MappingContract,
 } from './api'
 
 export const mappingEntities: readonly string[] = [
@@ -76,6 +79,8 @@ export function createAccountingMappingViewModel() {
   const catalog = ref<AccountingMappingCatalog | null>(null)
   const errorMessage = ref<string | null>(null)
   const successMessage = ref<string | null>(null)
+  const approvalReason = ref('')
+  const versions = ref<AccountingMapping[]>([])
   let listSequence = 0
   let detailSequence = 0
   let catalogSequence = 0
@@ -117,6 +122,12 @@ export function createAccountingMappingViewModel() {
   const canUnapprove = computed(
     () => canQuery.value && session.can('/acc/mapping/unapprove'),
   )
+  const canSubmitApproval = computed(() => canQuery.value && session.can('/acc/mapping/submit'))
+  const canUnsubmitApproval = computed(() => canQuery.value && session.can('/acc/mapping/unsubmit'))
+  const canRejectApproval = computed(() => canQuery.value && session.can('/acc/mapping/reject'))
+  const canCreateNext = computed(() => canQuery.value && session.can('/acc/mapping/create-next'))
+  const canVersions = computed(() => canQuery.value && session.can('/acc/mapping/versions'))
+  const canDeleteVersion = computed(() => canQuery.value && session.can('/acc/mapping/delete-version'))
   const parsedDefinition = computed<AccountingMappingDefinition | null>(() => {
     try {
       const value = JSON.parse(
@@ -190,7 +201,7 @@ export function createAccountingMappingViewModel() {
         ...(entityFilter.value ? { vouEntity: entityFilter.value } : {}),
       })
       if (!active || current !== listSequence) return
-      rows.value = result.data.items
+      rows.value = result.data.items.map(projectMapping)
       total.value = result.data.total
     } catch (error) {
       if (active && current === listSequence) {
@@ -227,6 +238,9 @@ export function createAccountingMappingViewModel() {
       2,
     )
   }
+  function projectMapping(mapping: MappingContract): AccountingMapping {
+    return { ...mapping, state: mapping.approval.status, version: mapping.approval.versionNo }
+  }
 
   async function openCreate(source?: AccountingMapping): Promise<void> {
     if (!canCreate.value) return
@@ -247,11 +261,12 @@ export function createAccountingMappingViewModel() {
     try {
       const result = await getAccountingMapping(
         mapping.bookId,
-        mapping.mappingId,
+        mapping.vouEntity,
+        mapping.approval.approvalEntryId,
       )
       if (!active || current !== detailSequence) return
-      editing.value = result.data
-      setForm(result.data)
+      editing.value = projectMapping(result.data)
+      setForm(editing.value)
       editorOpen.value = true
       await loadCatalog()
     } catch (error) {
@@ -281,8 +296,9 @@ export function createAccountingMappingViewModel() {
       if (editing.value) {
         await saveAccountingMapping({
           bookId: editing.value.bookId,
-          mappingId: editing.value.mappingId,
-          revision: editing.value.revision,
+          vouEntity: editing.value.vouEntity,
+          approvalEntryId: editing.value.approval.approvalEntryId,
+          revision: editing.value.approval.revision,
           defaultResult: form.defaultResult,
           definition: parsedDefinition.value,
         })
@@ -309,35 +325,60 @@ export function createAccountingMappingViewModel() {
 
   async function changeState(
     mapping: AccountingMapping,
-    approve: boolean,
+    action: 'submit' | 'unsubmit' | 'approve' | 'reject' | 'unapprove' | 'delete-version',
   ): Promise<void> {
-    if (approve ? !canApprove.value : !canUnapprove.value) {
+    const permitted = {
+      submit: canSubmitApproval.value, unsubmit: canUnsubmitApproval.value,
+      approve: canApprove.value, reject: canRejectApproval.value,
+      unapprove: canUnapprove.value, 'delete-version': canDeleteVersion.value,
+    }[action]
+    if (!permitted) {
       errorMessage.value = '没有权限变更会计映射状态。'
+      return
+    }
+    const reason = approvalReason.value.trim()
+    if ((action === 'reject' || action === 'unapprove') && !reason) {
+      errorMessage.value = '请填写审批原因。'
       return
     }
     loading.value = true
     errorMessage.value = null
     try {
-      if (approve)
-        await approveAccountingMapping(
+      if (action === 'reject' || action === 'unapprove')
+        await mappingReasonAction(
+          action,
           mapping.bookId,
-          mapping.mappingId,
-          mapping.revision,
+          mapping.vouEntity,
+          mapping.approval.approvalEntryId,
+          mapping.approval.revision,
+          reason,
         )
       else
-        await unapproveAccountingMapping(
+        await mappingApprovalAction(
+          action,
           mapping.bookId,
-          mapping.mappingId,
-          mapping.revision,
+          mapping.vouEntity,
+          mapping.approval.approvalEntryId,
+          mapping.approval.revision,
         )
       if (!active) return
-      successMessage.value = approve ? '映射版本已批准。' : '映射版本已反批准。'
+      successMessage.value = '映射版本状态已更新。'
       await query()
     } catch (error) {
       if (active) errorMessage.value = getErrorMessage(error)
     } finally {
       if (active) loading.value = false
     }
+  }
+  async function createNext(mapping: AccountingMapping): Promise<void> {
+    if (!canCreateNext.value) return
+    await createNextAccountingMapping(mapping.bookId, mapping.vouEntity)
+    await query()
+  }
+  async function loadVersions(mapping: AccountingMapping): Promise<void> {
+    if (!canVersions.value) return
+    const result = await getAccountingMappingVersions(mapping.bookId, mapping.vouEntity)
+    versions.value = result.data.items.map(projectMapping)
   }
 
   async function changeBook(bookId: string): Promise<void> {
@@ -370,6 +411,7 @@ export function createAccountingMappingViewModel() {
     editorOpen,
     editing,
     catalog,
+    versions,
     errorMessage,
     successMessage,
     form,
@@ -378,6 +420,12 @@ export function createAccountingMappingViewModel() {
     canEdit,
     canApprove,
     canUnapprove,
+    canSubmitApproval,
+    canUnsubmitApproval,
+    canRejectApproval,
+    canCreateNext,
+    canVersions,
+    canDeleteVersion,
     canSubmit,
     validationError,
     bookOptions,
@@ -389,6 +437,9 @@ export function createAccountingMappingViewModel() {
     closeEditor,
     save,
     changeState,
+    createNext,
+    loadVersions,
+    approvalReason,
     changeBook,
     changePage,
     resetFilters,

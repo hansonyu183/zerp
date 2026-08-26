@@ -2,7 +2,9 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type OpeningActionRequest = {
+export type MappingApprovalActionRequest = {
   bookId: string;
+  vouEntity: string;
+  approvalEntryId: string;
   revision: number;
 };

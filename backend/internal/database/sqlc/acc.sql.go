@@ -80,6 +80,20 @@ func (q *Queries) AccountingBookHasLaterFacts(ctx context.Context, bookID string
 	return exists, err
 }
 
+const accountingMappingVersionReferenced = `-- name: AccountingMappingVersionReferenced :one
+SELECT EXISTS(
+  SELECT 1 FROM acc_vouchers voucher
+  WHERE voucher.mapping_approval_entry_id=$1
+)
+`
+
+func (q *Queries) AccountingMappingVersionReferenced(ctx context.Context, approvalEntryID *string) (bool, error) {
+	row := q.db.QueryRow(ctx, accountingMappingVersionReferenced, approvalEntryID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const accountingOpeningObjectsReferencedByOtherBooks = `-- name: AccountingOpeningObjectsReferencedByOtherBooks :one
 SELECT (EXISTS(
   SELECT 1 FROM acc_opening_assets opening
@@ -109,9 +123,12 @@ SELECT EXISTS(
     AND document.business_date < $2
     AND approval.status = 'APPROVED'
     AND NOT EXISTS (
-      SELECT 1 FROM acc_mapping_versions mapping
-      WHERE mapping.book_id=$3
-        AND mapping.vou_entity=document.entity AND mapping.state='APPROVED'
+      SELECT 1
+      FROM acc_mappings mapping
+      JOIN approval_entries mapping_approval
+        ON mapping_approval.domain='acc' AND mapping_approval.entity='mapping'
+       AND mapping_approval.subject_id=mapping.id AND mapping_approval.status='APPROVED'
+      WHERE mapping.book_id=$3 AND mapping.vou_entity=document.entity
     )
 )
 `
@@ -211,62 +228,6 @@ func (q *Queries) AddAccountingAssetDepreciation(ctx context.Context, arg AddAcc
 	return err
 }
 
-const approveAccountingMapping = `-- name: ApproveAccountingMapping :one
-UPDATE acc_mapping_versions SET
-  state = 'APPROVED', approved_at = now(), approved_by = $1,
-  revision = revision + 1, updated_at = now(), updated_by = $1
-WHERE book_id = $2 AND id = $3
-  AND state = 'DRAFT' AND revision = $4
-RETURNING revision
-`
-
-type ApproveAccountingMappingParams struct {
-	ActorID   *string `db:"actor_id" json:"actor_id"`
-	BookID    string  `db:"book_id" json:"book_id"`
-	MappingID string  `db:"mapping_id" json:"mapping_id"`
-	Revision  int64   `db:"revision" json:"revision"`
-}
-
-func (q *Queries) ApproveAccountingMapping(ctx context.Context, arg ApproveAccountingMappingParams) (int64, error) {
-	row := q.db.QueryRow(ctx, approveAccountingMapping,
-		arg.ActorID,
-		arg.BookID,
-		arg.MappingID,
-		arg.Revision,
-	)
-	var revision int64
-	err := row.Scan(&revision)
-	return revision, err
-}
-
-const approveAccountingOpening = `-- name: ApproveAccountingOpening :one
-UPDATE acc_openings SET
-  state = 'APPROVED', voucher_id = $1,
-  approved_at = now(), approved_by = $2,
-  revision = revision + 1, updated_at = now(), updated_by = $2
-WHERE book_id = $3 AND state = 'DRAFT' AND revision = $4
-RETURNING revision
-`
-
-type ApproveAccountingOpeningParams struct {
-	VoucherID *string `db:"voucher_id" json:"voucher_id"`
-	ActorID   *string `db:"actor_id" json:"actor_id"`
-	BookID    string  `db:"book_id" json:"book_id"`
-	Revision  int64   `db:"revision" json:"revision"`
-}
-
-func (q *Queries) ApproveAccountingOpening(ctx context.Context, arg ApproveAccountingOpeningParams) (int64, error) {
-	row := q.db.QueryRow(ctx, approveAccountingOpening,
-		arg.VoucherID,
-		arg.ActorID,
-		arg.BookID,
-		arg.Revision,
-	)
-	var revision int64
-	err := row.Scan(&revision)
-	return revision, err
-}
-
 const buildAccountingPeriodBalances = `-- name: BuildAccountingPeriodBalances :exec
 INSERT INTO acc_period_balances(
   id,book_id,period_month,subject_id,currency,dimensions,dimension_key,
@@ -290,6 +251,22 @@ type BuildAccountingPeriodBalancesParams struct {
 
 func (q *Queries) BuildAccountingPeriodBalances(ctx context.Context, arg BuildAccountingPeriodBalancesParams) error {
 	_, err := q.db.Exec(ctx, buildAccountingPeriodBalances, arg.BookID, arg.PeriodMonth, arg.PeriodEnd)
+	return err
+}
+
+const clearAccountingOpeningVoucher = `-- name: ClearAccountingOpeningVoucher :exec
+UPDATE acc_openings SET
+  voucher_id = NULL, updated_at = now(), updated_by = $1
+WHERE book_id = $2
+`
+
+type ClearAccountingOpeningVoucherParams struct {
+	ActorID string `db:"actor_id" json:"actor_id"`
+	BookID  string `db:"book_id" json:"book_id"`
+}
+
+func (q *Queries) ClearAccountingOpeningVoucher(ctx context.Context, arg ClearAccountingOpeningVoucherParams) error {
+	_, err := q.db.Exec(ctx, clearAccountingOpeningVoucher, arg.ActorID, arg.BookID)
 	return err
 }
 
@@ -564,33 +541,50 @@ func (q *Queries) CreateAccountingContainerEntry(ctx context.Context, arg Create
 	return err
 }
 
+const createAccountingMappingSubject = `-- name: CreateAccountingMappingSubject :exec
+INSERT INTO acc_mappings(id, book_id, vou_entity, created_by, updated_by)
+VALUES($1, $2, $3, $4, $4)
+`
+
+type CreateAccountingMappingSubjectParams struct {
+	ID        string `db:"id" json:"id"`
+	BookID    string `db:"book_id" json:"book_id"`
+	VouEntity string `db:"vou_entity" json:"vou_entity"`
+	ActorID   string `db:"actor_id" json:"actor_id"`
+}
+
+func (q *Queries) CreateAccountingMappingSubject(ctx context.Context, arg CreateAccountingMappingSubjectParams) error {
+	_, err := q.db.Exec(ctx, createAccountingMappingSubject,
+		arg.ID,
+		arg.BookID,
+		arg.VouEntity,
+		arg.ActorID,
+	)
+	return err
+}
+
 const createAccountingMappingVersion = `-- name: CreateAccountingMappingVersion :exec
 INSERT INTO acc_mapping_versions (
-  id, book_id, vou_entity, version, state, default_result, definition,
+  approval_entry_id, mapping_id, default_result, definition,
   created_by, updated_by
 ) VALUES (
   $1, $2, $3, $4,
-  'DRAFT', $5, $6,
-  $7, $7
+  $5, $5
 )
 `
 
 type CreateAccountingMappingVersionParams struct {
-	ID            string `db:"id" json:"id"`
-	BookID        string `db:"book_id" json:"book_id"`
-	VouEntity     string `db:"vou_entity" json:"vou_entity"`
-	Version       int32  `db:"version" json:"version"`
-	DefaultResult string `db:"default_result" json:"default_result"`
-	Definition    []byte `db:"definition" json:"definition"`
-	ActorID       string `db:"actor_id" json:"actor_id"`
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	MappingID       string `db:"mapping_id" json:"mapping_id"`
+	DefaultResult   string `db:"default_result" json:"default_result"`
+	Definition      []byte `db:"definition" json:"definition"`
+	ActorID         string `db:"actor_id" json:"actor_id"`
 }
 
 func (q *Queries) CreateAccountingMappingVersion(ctx context.Context, arg CreateAccountingMappingVersionParams) error {
 	_, err := q.db.Exec(ctx, createAccountingMappingVersion,
-		arg.ID,
-		arg.BookID,
-		arg.VouEntity,
-		arg.Version,
+		arg.ApprovalEntryID,
+		arg.MappingID,
 		arg.DefaultResult,
 		arg.Definition,
 		arg.ActorID,
@@ -599,8 +593,8 @@ func (q *Queries) CreateAccountingMappingVersion(ctx context.Context, arg Create
 }
 
 const createAccountingOpening = `-- name: CreateAccountingOpening :exec
-INSERT INTO acc_openings (book_id, state, revision, created_by, updated_by)
-VALUES ($1, 'DRAFT', 1, $2, $2)
+INSERT INTO acc_openings (book_id, created_by, updated_by)
+VALUES ($1, $2, $2)
 `
 
 type CreateAccountingOpeningParams struct {
@@ -653,31 +647,10 @@ func (q *Queries) CreateAccountingVoucher(ctx context.Context, arg CreateAccount
 	return err
 }
 
-const createApprovedZeroAccountingOpening = `-- name: CreateApprovedZeroAccountingOpening :exec
-INSERT INTO acc_openings (
-  book_id, state, voucher_id, revision, approved_at, approved_by,
-  created_by, updated_by
-) VALUES (
-  $1, 'APPROVED', $2, 1, now(), $3,
-  $3, $3
-)
-`
-
-type CreateApprovedZeroAccountingOpeningParams struct {
-	BookID    string  `db:"book_id" json:"book_id"`
-	VoucherID *string `db:"voucher_id" json:"voucher_id"`
-	ActorID   *string `db:"actor_id" json:"actor_id"`
-}
-
-func (q *Queries) CreateApprovedZeroAccountingOpening(ctx context.Context, arg CreateApprovedZeroAccountingOpeningParams) error {
-	_, err := q.db.Exec(ctx, createApprovedZeroAccountingOpening, arg.BookID, arg.VoucherID, arg.ActorID)
-	return err
-}
-
 const createAutomaticAccountingVoucher = `-- name: CreateAutomaticAccountingVoucher :exec
 INSERT INTO acc_vouchers (
   id, book_id, source_type, source_id, source_entity, source_revision,
-  source_document_no, business_date, mapping_version_id, created_by
+  source_document_no, business_date, mapping_approval_entry_id, created_by
 ) VALUES (
   $1, $2, 'VOU', $3,
   $4, $5, $6,
@@ -686,15 +659,15 @@ INSERT INTO acc_vouchers (
 `
 
 type CreateAutomaticAccountingVoucherParams struct {
-	ID               string      `db:"id" json:"id"`
-	BookID           string      `db:"book_id" json:"book_id"`
-	SourceID         string      `db:"source_id" json:"source_id"`
-	SourceEntity     *string     `db:"source_entity" json:"source_entity"`
-	SourceRevision   *int64      `db:"source_revision" json:"source_revision"`
-	SourceDocumentNo *string     `db:"source_document_no" json:"source_document_no"`
-	BusinessDate     pgtype.Date `db:"business_date" json:"business_date"`
-	MappingVersionID *string     `db:"mapping_version_id" json:"mapping_version_id"`
-	ActorID          string      `db:"actor_id" json:"actor_id"`
+	ID                     string      `db:"id" json:"id"`
+	BookID                 string      `db:"book_id" json:"book_id"`
+	SourceID               string      `db:"source_id" json:"source_id"`
+	SourceEntity           *string     `db:"source_entity" json:"source_entity"`
+	SourceRevision         *int64      `db:"source_revision" json:"source_revision"`
+	SourceDocumentNo       *string     `db:"source_document_no" json:"source_document_no"`
+	BusinessDate           pgtype.Date `db:"business_date" json:"business_date"`
+	MappingApprovalEntryID *string     `db:"mapping_approval_entry_id" json:"mapping_approval_entry_id"`
+	ActorID                string      `db:"actor_id" json:"actor_id"`
 }
 
 func (q *Queries) CreateAutomaticAccountingVoucher(ctx context.Context, arg CreateAutomaticAccountingVoucherParams) error {
@@ -706,7 +679,7 @@ func (q *Queries) CreateAutomaticAccountingVoucher(ctx context.Context, arg Crea
 		arg.SourceRevision,
 		arg.SourceDocumentNo,
 		arg.BusinessDate,
-		arg.MappingVersionID,
+		arg.MappingApprovalEntryID,
 		arg.ActorID,
 	)
 	return err
@@ -810,6 +783,26 @@ type DeleteAccountingInventoryCostAllocationsParams struct {
 
 func (q *Queries) DeleteAccountingInventoryCostAllocations(ctx context.Context, arg DeleteAccountingInventoryCostAllocationsParams) error {
 	_, err := q.db.Exec(ctx, deleteAccountingInventoryCostAllocations, arg.BookID, arg.PeriodMonth)
+	return err
+}
+
+const deleteAccountingMappingSubjectIfEmpty = `-- name: DeleteAccountingMappingSubjectIfEmpty :exec
+DELETE FROM acc_mappings mapping
+WHERE mapping.id=$1
+  AND NOT EXISTS(SELECT 1 FROM acc_mapping_versions payload WHERE payload.mapping_id=mapping.id)
+`
+
+func (q *Queries) DeleteAccountingMappingSubjectIfEmpty(ctx context.Context, mappingID string) error {
+	_, err := q.db.Exec(ctx, deleteAccountingMappingSubjectIfEmpty, mappingID)
+	return err
+}
+
+const deleteAccountingMappingVersion = `-- name: DeleteAccountingMappingVersion :exec
+DELETE FROM acc_mapping_versions WHERE approval_entry_id=$1
+`
+
+func (q *Queries) DeleteAccountingMappingVersion(ctx context.Context, approvalEntryID string) error {
+	_, err := q.db.Exec(ctx, deleteAccountingMappingVersion, approvalEntryID)
 	return err
 }
 
@@ -1191,152 +1184,83 @@ func (q *Queries) GetAccountingInventoryQuantity(ctx context.Context, arg GetAcc
 	return column_1, err
 }
 
-const getAccountingMapping = `-- name: GetAccountingMapping :one
-SELECT id, book_id, vou_entity, version, state, default_result, definition,
-       revision, approved_at, approved_by
-FROM acc_mapping_versions
-WHERE book_id = $1 AND id = $2
+const getAccountingMappingSubject = `-- name: GetAccountingMappingSubject :one
+SELECT id, book_id, vou_entity
+FROM acc_mappings
+WHERE book_id=$1 AND vou_entity=$2
 `
 
-type GetAccountingMappingParams struct {
+type GetAccountingMappingSubjectParams struct {
 	BookID    string `db:"book_id" json:"book_id"`
-	MappingID string `db:"mapping_id" json:"mapping_id"`
+	VouEntity string `db:"vou_entity" json:"vou_entity"`
 }
 
-type GetAccountingMappingRow struct {
-	ID            string             `db:"id" json:"id"`
-	BookID        string             `db:"book_id" json:"book_id"`
-	VouEntity     string             `db:"vou_entity" json:"vou_entity"`
-	Version       int32              `db:"version" json:"version"`
-	State         string             `db:"state" json:"state"`
-	DefaultResult string             `db:"default_result" json:"default_result"`
-	Definition    []byte             `db:"definition" json:"definition"`
-	Revision      int64              `db:"revision" json:"revision"`
-	ApprovedAt    pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
-	ApprovedBy    *string            `db:"approved_by" json:"approved_by"`
+type GetAccountingMappingSubjectRow struct {
+	ID        string `db:"id" json:"id"`
+	BookID    string `db:"book_id" json:"book_id"`
+	VouEntity string `db:"vou_entity" json:"vou_entity"`
 }
 
-func (q *Queries) GetAccountingMapping(ctx context.Context, arg GetAccountingMappingParams) (GetAccountingMappingRow, error) {
-	row := q.db.QueryRow(ctx, getAccountingMapping, arg.BookID, arg.MappingID)
-	var i GetAccountingMappingRow
-	err := row.Scan(
-		&i.ID,
-		&i.BookID,
-		&i.VouEntity,
-		&i.Version,
-		&i.State,
-		&i.DefaultResult,
-		&i.Definition,
-		&i.Revision,
-		&i.ApprovedAt,
-		&i.ApprovedBy,
-	)
+func (q *Queries) GetAccountingMappingSubject(ctx context.Context, arg GetAccountingMappingSubjectParams) (GetAccountingMappingSubjectRow, error) {
+	row := q.db.QueryRow(ctx, getAccountingMappingSubject, arg.BookID, arg.VouEntity)
+	var i GetAccountingMappingSubjectRow
+	err := row.Scan(&i.ID, &i.BookID, &i.VouEntity)
 	return i, err
 }
 
-const getAccountingMappingForUpdate = `-- name: GetAccountingMappingForUpdate :one
-SELECT m.id, m.book_id, m.vou_entity, m.version, m.state, m.default_result, m.definition,
-       m.revision, m.approved_at, m.approved_by,
-		 EXISTS(SELECT 1 FROM acc_vouchers v WHERE v.mapping_version_id = m.id) AS referenced
-FROM acc_mapping_versions m
-WHERE m.book_id = $1 AND m.id = $2
-FOR UPDATE
+const getAccountingMappingVersion = `-- name: GetAccountingMappingVersion :one
+SELECT mapping.id AS mapping_id, mapping.book_id, mapping.vou_entity,
+       payload.approval_entry_id, payload.default_result, payload.definition
+FROM acc_mapping_versions payload
+JOIN acc_mappings mapping ON mapping.id=payload.mapping_id
+WHERE mapping.book_id=$1 AND mapping.vou_entity=$2
+  AND payload.approval_entry_id=$3
 `
 
-type GetAccountingMappingForUpdateParams struct {
-	BookID    string `db:"book_id" json:"book_id"`
-	MappingID string `db:"mapping_id" json:"mapping_id"`
+type GetAccountingMappingVersionParams struct {
+	BookID          string `db:"book_id" json:"book_id"`
+	VouEntity       string `db:"vou_entity" json:"vou_entity"`
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
 }
 
-type GetAccountingMappingForUpdateRow struct {
-	ID            string             `db:"id" json:"id"`
-	BookID        string             `db:"book_id" json:"book_id"`
-	VouEntity     string             `db:"vou_entity" json:"vou_entity"`
-	Version       int32              `db:"version" json:"version"`
-	State         string             `db:"state" json:"state"`
-	DefaultResult string             `db:"default_result" json:"default_result"`
-	Definition    []byte             `db:"definition" json:"definition"`
-	Revision      int64              `db:"revision" json:"revision"`
-	ApprovedAt    pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
-	ApprovedBy    *string            `db:"approved_by" json:"approved_by"`
-	Referenced    bool               `db:"referenced" json:"referenced"`
+type GetAccountingMappingVersionRow struct {
+	MappingID       string `db:"mapping_id" json:"mapping_id"`
+	BookID          string `db:"book_id" json:"book_id"`
+	VouEntity       string `db:"vou_entity" json:"vou_entity"`
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	DefaultResult   string `db:"default_result" json:"default_result"`
+	Definition      []byte `db:"definition" json:"definition"`
 }
 
-func (q *Queries) GetAccountingMappingForUpdate(ctx context.Context, arg GetAccountingMappingForUpdateParams) (GetAccountingMappingForUpdateRow, error) {
-	row := q.db.QueryRow(ctx, getAccountingMappingForUpdate, arg.BookID, arg.MappingID)
-	var i GetAccountingMappingForUpdateRow
+func (q *Queries) GetAccountingMappingVersion(ctx context.Context, arg GetAccountingMappingVersionParams) (GetAccountingMappingVersionRow, error) {
+	row := q.db.QueryRow(ctx, getAccountingMappingVersion, arg.BookID, arg.VouEntity, arg.ApprovalEntryID)
+	var i GetAccountingMappingVersionRow
 	err := row.Scan(
-		&i.ID,
+		&i.MappingID,
 		&i.BookID,
 		&i.VouEntity,
-		&i.Version,
-		&i.State,
+		&i.ApprovalEntryID,
 		&i.DefaultResult,
 		&i.Definition,
-		&i.Revision,
-		&i.ApprovedAt,
-		&i.ApprovedBy,
-		&i.Referenced,
 	)
 	return i, err
 }
 
 const getAccountingOpening = `-- name: GetAccountingOpening :one
-SELECT o.book_id, o.state, o.voucher_id, o.revision, o.approved_at, o.approved_by
+SELECT o.book_id, o.voucher_id
 FROM acc_openings o
 WHERE o.book_id = $1
 `
 
 type GetAccountingOpeningRow struct {
-	BookID     string             `db:"book_id" json:"book_id"`
-	State      string             `db:"state" json:"state"`
-	VoucherID  *string            `db:"voucher_id" json:"voucher_id"`
-	Revision   int64              `db:"revision" json:"revision"`
-	ApprovedAt pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
-	ApprovedBy *string            `db:"approved_by" json:"approved_by"`
+	BookID    string  `db:"book_id" json:"book_id"`
+	VoucherID *string `db:"voucher_id" json:"voucher_id"`
 }
 
 func (q *Queries) GetAccountingOpening(ctx context.Context, bookID string) (GetAccountingOpeningRow, error) {
 	row := q.db.QueryRow(ctx, getAccountingOpening, bookID)
 	var i GetAccountingOpeningRow
-	err := row.Scan(
-		&i.BookID,
-		&i.State,
-		&i.VoucherID,
-		&i.Revision,
-		&i.ApprovedAt,
-		&i.ApprovedBy,
-	)
-	return i, err
-}
-
-const getAccountingOpeningForUpdate = `-- name: GetAccountingOpeningForUpdate :one
-SELECT o.book_id, o.state, o.voucher_id, o.revision, o.approved_at, o.approved_by
-FROM acc_openings o
-WHERE o.book_id = $1
-FOR UPDATE
-`
-
-type GetAccountingOpeningForUpdateRow struct {
-	BookID     string             `db:"book_id" json:"book_id"`
-	State      string             `db:"state" json:"state"`
-	VoucherID  *string            `db:"voucher_id" json:"voucher_id"`
-	Revision   int64              `db:"revision" json:"revision"`
-	ApprovedAt pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
-	ApprovedBy *string            `db:"approved_by" json:"approved_by"`
-}
-
-func (q *Queries) GetAccountingOpeningForUpdate(ctx context.Context, bookID string) (GetAccountingOpeningForUpdateRow, error) {
-	row := q.db.QueryRow(ctx, getAccountingOpeningForUpdate, bookID)
-	var i GetAccountingOpeningForUpdateRow
-	err := row.Scan(
-		&i.BookID,
-		&i.State,
-		&i.VoucherID,
-		&i.Revision,
-		&i.ApprovedAt,
-		&i.ApprovedBy,
-	)
+	err := row.Scan(&i.BookID, &i.VoucherID)
 	return i, err
 }
 
@@ -1536,12 +1460,15 @@ func (q *Queries) GetAutomaticAccountingVoucher(ctx context.Context, arg GetAuto
 }
 
 const getCurrentApprovedAccountingMapping = `-- name: GetCurrentApprovedAccountingMapping :one
-SELECT id, book_id, vou_entity, version, state, default_result, definition,
-       revision, approved_at, approved_by
-FROM acc_mapping_versions
-WHERE book_id = $1 AND vou_entity = $2
-  AND state = 'APPROVED'
-ORDER BY version DESC
+SELECT payload.approval_entry_id, mapping.id AS mapping_id, mapping.book_id,
+       mapping.vou_entity, payload.default_result, payload.definition
+FROM acc_mappings mapping
+JOIN approval_entries entry
+  ON entry.domain='acc' AND entry.entity='mapping' AND entry.subject_id=mapping.id
+ AND entry.status='APPROVED'
+JOIN acc_mapping_versions payload ON payload.approval_entry_id=entry.id
+WHERE mapping.book_id=$1 AND mapping.vou_entity=$2
+ORDER BY entry.version_no DESC
 LIMIT 1
 `
 
@@ -1551,32 +1478,24 @@ type GetCurrentApprovedAccountingMappingParams struct {
 }
 
 type GetCurrentApprovedAccountingMappingRow struct {
-	ID            string             `db:"id" json:"id"`
-	BookID        string             `db:"book_id" json:"book_id"`
-	VouEntity     string             `db:"vou_entity" json:"vou_entity"`
-	Version       int32              `db:"version" json:"version"`
-	State         string             `db:"state" json:"state"`
-	DefaultResult string             `db:"default_result" json:"default_result"`
-	Definition    []byte             `db:"definition" json:"definition"`
-	Revision      int64              `db:"revision" json:"revision"`
-	ApprovedAt    pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
-	ApprovedBy    *string            `db:"approved_by" json:"approved_by"`
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	MappingID       string `db:"mapping_id" json:"mapping_id"`
+	BookID          string `db:"book_id" json:"book_id"`
+	VouEntity       string `db:"vou_entity" json:"vou_entity"`
+	DefaultResult   string `db:"default_result" json:"default_result"`
+	Definition      []byte `db:"definition" json:"definition"`
 }
 
 func (q *Queries) GetCurrentApprovedAccountingMapping(ctx context.Context, arg GetCurrentApprovedAccountingMappingParams) (GetCurrentApprovedAccountingMappingRow, error) {
 	row := q.db.QueryRow(ctx, getCurrentApprovedAccountingMapping, arg.BookID, arg.VouEntity)
 	var i GetCurrentApprovedAccountingMappingRow
 	err := row.Scan(
-		&i.ID,
+		&i.ApprovalEntryID,
+		&i.MappingID,
 		&i.BookID,
 		&i.VouEntity,
-		&i.Version,
-		&i.State,
 		&i.DefaultResult,
 		&i.Definition,
-		&i.Revision,
-		&i.ApprovedAt,
-		&i.ApprovedBy,
 	)
 	return i, err
 }
@@ -1663,12 +1582,60 @@ func (q *Queries) GetMinimumAccountingInventoryQuantity(ctx context.Context, arg
 	return column_1, err
 }
 
+const getPreferredAccountingMappingVersion = `-- name: GetPreferredAccountingMappingVersion :one
+SELECT mapping.id AS mapping_id, mapping.book_id, mapping.vou_entity,
+       entry.id AS approval_entry_id, payload.default_result, payload.definition
+FROM acc_mappings mapping
+JOIN LATERAL (
+  SELECT candidate.id
+  FROM approval_entries candidate
+  WHERE candidate.domain='acc' AND candidate.entity='mapping' AND candidate.subject_id=mapping.id
+    AND candidate.status IN ('DRAFT','PENDING','APPROVED')
+  ORDER BY CASE WHEN candidate.status IN ('DRAFT','PENDING') THEN 0 ELSE 1 END,
+           candidate.version_no DESC
+  LIMIT 1
+) entry ON true
+JOIN acc_mapping_versions payload ON payload.approval_entry_id=entry.id
+WHERE mapping.book_id=$1 AND mapping.vou_entity=$2
+`
+
+type GetPreferredAccountingMappingVersionParams struct {
+	BookID    string `db:"book_id" json:"book_id"`
+	VouEntity string `db:"vou_entity" json:"vou_entity"`
+}
+
+type GetPreferredAccountingMappingVersionRow struct {
+	MappingID       string `db:"mapping_id" json:"mapping_id"`
+	BookID          string `db:"book_id" json:"book_id"`
+	VouEntity       string `db:"vou_entity" json:"vou_entity"`
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	DefaultResult   string `db:"default_result" json:"default_result"`
+	Definition      []byte `db:"definition" json:"definition"`
+}
+
+func (q *Queries) GetPreferredAccountingMappingVersion(ctx context.Context, arg GetPreferredAccountingMappingVersionParams) (GetPreferredAccountingMappingVersionRow, error) {
+	row := q.db.QueryRow(ctx, getPreferredAccountingMappingVersion, arg.BookID, arg.VouEntity)
+	var i GetPreferredAccountingMappingVersionRow
+	err := row.Scan(
+		&i.MappingID,
+		&i.BookID,
+		&i.VouEntity,
+		&i.ApprovalEntryID,
+		&i.DefaultResult,
+		&i.Definition,
+	)
+	return i, err
+}
+
 const getReadyControlAccountingBookID = `-- name: GetReadyControlAccountingBookID :one
 SELECT book.id
 FROM acc_books book
-JOIN acc_openings opening ON opening.book_id = book.id AND opening.state = 'APPROVED'
+JOIN acc_openings opening ON opening.book_id = book.id
+JOIN approval_entries approval
+  ON approval.domain='acc' AND approval.entity='opening' AND approval.subject_id=opening.book_id
+ AND approval.status='APPROVED'
 WHERE book.control_book
-FOR SHARE OF book
+FOR SHARE OF book, opening, approval
 `
 
 func (q *Queries) GetReadyControlAccountingBookID(ctx context.Context) (string, error) {
@@ -2119,8 +2086,11 @@ func (q *Queries) InsertAccountingVoucherLine(ctx context.Context, arg InsertAcc
 
 const isAccountingBookReadyForPosting = `-- name: IsAccountingBookReadyForPosting :one
 SELECT EXISTS(
-  SELECT 1 FROM acc_openings
-  WHERE book_id = $1 AND state = 'APPROVED'
+  SELECT 1
+  FROM acc_openings opening
+  JOIN approval_entries approval
+    ON approval.domain='acc' AND approval.entity='opening' AND approval.subject_id=opening.book_id
+  WHERE opening.book_id = $1 AND approval.status = 'APPROVED'
 )
 `
 
@@ -2410,13 +2380,113 @@ func (q *Queries) ListAccountingInventoryCostFacts(ctx context.Context, arg List
 	return items, nil
 }
 
+const listAccountingMappingVersions = `-- name: ListAccountingMappingVersions :many
+SELECT mapping.id AS mapping_id, mapping.book_id, mapping.vou_entity,
+       entry.id AS approval_entry_id, entry.version_no, entry.status,
+       entry.revision, entry.created_by, entry.created_at, entry.updated_by, entry.updated_at,
+       entry.submitted_by, entry.submitted_at, entry.approved_by, entry.approved_at,
+       payload.default_result, payload.definition, count(*) OVER() AS total
+FROM acc_mappings mapping
+JOIN approval_entries entry
+  ON entry.domain='acc' AND entry.entity='mapping' AND entry.subject_id=mapping.id
+JOIN acc_mapping_versions payload ON payload.approval_entry_id=entry.id
+WHERE mapping.book_id=$1 AND mapping.vou_entity=$2
+ORDER BY entry.version_no DESC
+OFFSET $3 LIMIT $4
+`
+
+type ListAccountingMappingVersionsParams struct {
+	BookID     string `db:"book_id" json:"book_id"`
+	VouEntity  string `db:"vou_entity" json:"vou_entity"`
+	PageOffset int32  `db:"page_offset" json:"page_offset"`
+	PageSize   int32  `db:"page_size" json:"page_size"`
+}
+
+type ListAccountingMappingVersionsRow struct {
+	MappingID       string             `db:"mapping_id" json:"mapping_id"`
+	BookID          string             `db:"book_id" json:"book_id"`
+	VouEntity       string             `db:"vou_entity" json:"vou_entity"`
+	ApprovalEntryID string             `db:"approval_entry_id" json:"approval_entry_id"`
+	VersionNo       *int32             `db:"version_no" json:"version_no"`
+	Status          string             `db:"status" json:"status"`
+	Revision        int64              `db:"revision" json:"revision"`
+	CreatedBy       string             `db:"created_by" json:"created_by"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedBy       string             `db:"updated_by" json:"updated_by"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	SubmittedBy     *string            `db:"submitted_by" json:"submitted_by"`
+	SubmittedAt     pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
+	ApprovedBy      *string            `db:"approved_by" json:"approved_by"`
+	ApprovedAt      pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
+	DefaultResult   string             `db:"default_result" json:"default_result"`
+	Definition      []byte             `db:"definition" json:"definition"`
+	Total           int64              `db:"total" json:"total"`
+}
+
+func (q *Queries) ListAccountingMappingVersions(ctx context.Context, arg ListAccountingMappingVersionsParams) ([]ListAccountingMappingVersionsRow, error) {
+	rows, err := q.db.Query(ctx, listAccountingMappingVersions,
+		arg.BookID,
+		arg.VouEntity,
+		arg.PageOffset,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAccountingMappingVersionsRow{}
+	for rows.Next() {
+		var i ListAccountingMappingVersionsRow
+		if err := rows.Scan(
+			&i.MappingID,
+			&i.BookID,
+			&i.VouEntity,
+			&i.ApprovalEntryID,
+			&i.VersionNo,
+			&i.Status,
+			&i.Revision,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedBy,
+			&i.UpdatedAt,
+			&i.SubmittedBy,
+			&i.SubmittedAt,
+			&i.ApprovedBy,
+			&i.ApprovedAt,
+			&i.DefaultResult,
+			&i.Definition,
+			&i.Total,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAccountingMappings = `-- name: ListAccountingMappings :many
-SELECT id, book_id, vou_entity, version, state, default_result, definition,
-       revision, approved_at, approved_by, count(*) OVER() AS total
-FROM acc_mapping_versions
-WHERE book_id = $1
-  AND ($2::text = '' OR vou_entity = $2)
-ORDER BY vou_entity, version DESC
+SELECT mapping.id AS mapping_id, mapping.book_id, mapping.vou_entity,
+       entry.id AS approval_entry_id, entry.version_no, entry.status,
+       entry.revision, entry.created_by, entry.created_at, entry.updated_by, entry.updated_at,
+       entry.submitted_by, entry.submitted_at, entry.approved_by, entry.approved_at,
+       payload.default_result, payload.definition, count(*) OVER() AS total
+FROM acc_mappings mapping
+JOIN LATERAL (
+  SELECT candidate.id, candidate.domain, candidate.entity, candidate.subject_id, candidate.version_no, candidate.status, candidate.revision, candidate.created_by, candidate.created_at, candidate.updated_by, candidate.updated_at, candidate.submitted_by, candidate.submitted_at, candidate.approved_by, candidate.approved_at
+  FROM approval_entries candidate
+  WHERE candidate.domain='acc' AND candidate.entity='mapping' AND candidate.subject_id=mapping.id
+    AND candidate.status IN ('DRAFT','PENDING','APPROVED')
+  ORDER BY CASE WHEN candidate.status IN ('DRAFT','PENDING') THEN 0 ELSE 1 END,
+           candidate.version_no DESC
+  LIMIT 1
+) entry ON true
+JOIN acc_mapping_versions payload ON payload.approval_entry_id=entry.id
+WHERE mapping.book_id = $1
+  AND ($2::text = '' OR mapping.vou_entity = $2)
+ORDER BY mapping.vou_entity
 OFFSET $3 LIMIT $4
 `
 
@@ -2428,17 +2498,24 @@ type ListAccountingMappingsParams struct {
 }
 
 type ListAccountingMappingsRow struct {
-	ID            string             `db:"id" json:"id"`
-	BookID        string             `db:"book_id" json:"book_id"`
-	VouEntity     string             `db:"vou_entity" json:"vou_entity"`
-	Version       int32              `db:"version" json:"version"`
-	State         string             `db:"state" json:"state"`
-	DefaultResult string             `db:"default_result" json:"default_result"`
-	Definition    []byte             `db:"definition" json:"definition"`
-	Revision      int64              `db:"revision" json:"revision"`
-	ApprovedAt    pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
-	ApprovedBy    *string            `db:"approved_by" json:"approved_by"`
-	Total         int64              `db:"total" json:"total"`
+	MappingID       string             `db:"mapping_id" json:"mapping_id"`
+	BookID          string             `db:"book_id" json:"book_id"`
+	VouEntity       string             `db:"vou_entity" json:"vou_entity"`
+	ApprovalEntryID string             `db:"approval_entry_id" json:"approval_entry_id"`
+	VersionNo       *int32             `db:"version_no" json:"version_no"`
+	Status          string             `db:"status" json:"status"`
+	Revision        int64              `db:"revision" json:"revision"`
+	CreatedBy       string             `db:"created_by" json:"created_by"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedBy       string             `db:"updated_by" json:"updated_by"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	SubmittedBy     *string            `db:"submitted_by" json:"submitted_by"`
+	SubmittedAt     pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
+	ApprovedBy      *string            `db:"approved_by" json:"approved_by"`
+	ApprovedAt      pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
+	DefaultResult   string             `db:"default_result" json:"default_result"`
+	Definition      []byte             `db:"definition" json:"definition"`
+	Total           int64              `db:"total" json:"total"`
 }
 
 func (q *Queries) ListAccountingMappings(ctx context.Context, arg ListAccountingMappingsParams) ([]ListAccountingMappingsRow, error) {
@@ -2456,16 +2533,23 @@ func (q *Queries) ListAccountingMappings(ctx context.Context, arg ListAccounting
 	for rows.Next() {
 		var i ListAccountingMappingsRow
 		if err := rows.Scan(
-			&i.ID,
+			&i.MappingID,
 			&i.BookID,
 			&i.VouEntity,
-			&i.Version,
-			&i.State,
+			&i.ApprovalEntryID,
+			&i.VersionNo,
+			&i.Status,
+			&i.Revision,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedBy,
+			&i.UpdatedAt,
+			&i.SubmittedBy,
+			&i.SubmittedAt,
+			&i.ApprovedBy,
+			&i.ApprovedAt,
 			&i.DefaultResult,
 			&i.Definition,
-			&i.Revision,
-			&i.ApprovedAt,
-			&i.ApprovedBy,
 			&i.Total,
 		); err != nil {
 			return nil, err
@@ -2868,10 +2952,13 @@ func (q *Queries) ListAccountingPeriods(ctx context.Context, bookID string) ([]L
 const listAccountingPostingBooks = `-- name: ListAccountingPostingBooks :many
 SELECT b.id, b.control_book
 FROM acc_books b
-JOIN acc_openings opening ON opening.book_id = b.id AND opening.state = 'APPROVED'
+JOIN acc_openings opening ON opening.book_id = b.id
+JOIN approval_entries approval
+  ON approval.domain='acc' AND approval.entity='opening' AND approval.subject_id=opening.book_id
+ AND approval.status='APPROVED'
 WHERE b.start_month <= $1::date
 ORDER BY b.code
-FOR SHARE OF b, opening
+FOR SHARE OF b, opening, approval
 `
 
 type ListAccountingPostingBooksRow struct {
@@ -3131,24 +3218,6 @@ func (q *Queries) NextAccountingBookNumber(ctx context.Context) (int32, error) {
 	return last_value, err
 }
 
-const nextAccountingMappingVersion = `-- name: NextAccountingMappingVersion :one
-SELECT COALESCE(max(version), 0)::integer + 1
-FROM acc_mapping_versions
-WHERE book_id = $1 AND vou_entity = $2
-`
-
-type NextAccountingMappingVersionParams struct {
-	BookID    string `db:"book_id" json:"book_id"`
-	VouEntity string `db:"vou_entity" json:"vou_entity"`
-}
-
-func (q *Queries) NextAccountingMappingVersion(ctx context.Context, arg NextAccountingMappingVersionParams) (int32, error) {
-	row := q.db.QueryRow(ctx, nextAccountingMappingVersion, arg.BookID, arg.VouEntity)
-	var column_1 int32
-	err := row.Scan(&column_1)
-	return column_1, err
-}
-
 const registerAccountingGlobalEvent = `-- name: RegisterAccountingGlobalEvent :one
 INSERT INTO acc_register_events (source_entity, source_document_id, source_revision)
 VALUES ($1,$2,$3)
@@ -3225,6 +3294,23 @@ func (q *Queries) ReverseAccountingAssetDepreciation(ctx context.Context, arg Re
 	return err
 }
 
+const setAccountingOpeningVoucher = `-- name: SetAccountingOpeningVoucher :exec
+UPDATE acc_openings SET
+  voucher_id = $1, updated_at = now(), updated_by = $2
+WHERE book_id = $3
+`
+
+type SetAccountingOpeningVoucherParams struct {
+	VoucherID *string `db:"voucher_id" json:"voucher_id"`
+	ActorID   string  `db:"actor_id" json:"actor_id"`
+	BookID    string  `db:"book_id" json:"book_id"`
+}
+
+func (q *Queries) SetAccountingOpeningVoucher(ctx context.Context, arg SetAccountingOpeningVoucherParams) error {
+	_, err := q.db.Exec(ctx, setAccountingOpeningVoucher, arg.VoucherID, arg.ActorID, arg.BookID)
+	return err
+}
+
 const settleAccountingBill = `-- name: SettleAccountingBill :execrows
 UPDATE acc_bills SET state='SETTLED',settled_by_document_id=$1
 WHERE id=$2 AND state='AVAILABLE'
@@ -3243,73 +3329,20 @@ func (q *Queries) SettleAccountingBill(ctx context.Context, arg SettleAccounting
 	return result.RowsAffected(), nil
 }
 
-const touchAccountingOpeningDraft = `-- name: TouchAccountingOpeningDraft :one
+const touchAccountingOpening = `-- name: TouchAccountingOpening :exec
 UPDATE acc_openings SET
-  revision = revision + 1, updated_at = now(), updated_by = $1
-WHERE book_id = $2 AND state = 'DRAFT' AND revision = $3
-RETURNING revision
+  updated_at = now(), updated_by = $1
+WHERE book_id = $2
 `
 
-type TouchAccountingOpeningDraftParams struct {
-	ActorID  string `db:"actor_id" json:"actor_id"`
-	BookID   string `db:"book_id" json:"book_id"`
-	Revision int64  `db:"revision" json:"revision"`
+type TouchAccountingOpeningParams struct {
+	ActorID string `db:"actor_id" json:"actor_id"`
+	BookID  string `db:"book_id" json:"book_id"`
 }
 
-func (q *Queries) TouchAccountingOpeningDraft(ctx context.Context, arg TouchAccountingOpeningDraftParams) (int64, error) {
-	row := q.db.QueryRow(ctx, touchAccountingOpeningDraft, arg.ActorID, arg.BookID, arg.Revision)
-	var revision int64
-	err := row.Scan(&revision)
-	return revision, err
-}
-
-const unapproveAccountingMapping = `-- name: UnapproveAccountingMapping :one
-UPDATE acc_mapping_versions SET
-  state = 'DRAFT', approved_at = NULL, approved_by = NULL,
-  revision = revision + 1, updated_at = now(), updated_by = $1
-WHERE book_id = $2 AND id = $3
-  AND state = 'APPROVED' AND revision = $4
-RETURNING revision
-`
-
-type UnapproveAccountingMappingParams struct {
-	ActorID   string `db:"actor_id" json:"actor_id"`
-	BookID    string `db:"book_id" json:"book_id"`
-	MappingID string `db:"mapping_id" json:"mapping_id"`
-	Revision  int64  `db:"revision" json:"revision"`
-}
-
-func (q *Queries) UnapproveAccountingMapping(ctx context.Context, arg UnapproveAccountingMappingParams) (int64, error) {
-	row := q.db.QueryRow(ctx, unapproveAccountingMapping,
-		arg.ActorID,
-		arg.BookID,
-		arg.MappingID,
-		arg.Revision,
-	)
-	var revision int64
-	err := row.Scan(&revision)
-	return revision, err
-}
-
-const unapproveAccountingOpening = `-- name: UnapproveAccountingOpening :one
-UPDATE acc_openings SET
-  state = 'DRAFT', voucher_id = NULL, approved_at = NULL, approved_by = NULL,
-  revision = revision + 1, updated_at = now(), updated_by = $1
-WHERE book_id = $2 AND state = 'APPROVED' AND revision = $3
-RETURNING revision
-`
-
-type UnapproveAccountingOpeningParams struct {
-	ActorID  string `db:"actor_id" json:"actor_id"`
-	BookID   string `db:"book_id" json:"book_id"`
-	Revision int64  `db:"revision" json:"revision"`
-}
-
-func (q *Queries) UnapproveAccountingOpening(ctx context.Context, arg UnapproveAccountingOpeningParams) (int64, error) {
-	row := q.db.QueryRow(ctx, unapproveAccountingOpening, arg.ActorID, arg.BookID, arg.Revision)
-	var revision int64
-	err := row.Scan(&revision)
-	return revision, err
+func (q *Queries) TouchAccountingOpening(ctx context.Context, arg TouchAccountingOpeningParams) error {
+	_, err := q.db.Exec(ctx, touchAccountingOpening, arg.ActorID, arg.BookID)
+	return err
 }
 
 const unlockAccountingPeriodRow = `-- name: UnlockAccountingPeriodRow :one
@@ -3375,36 +3408,28 @@ func (q *Queries) UpdateAccountingBook(ctx context.Context, arg UpdateAccounting
 	return revision, err
 }
 
-const updateAccountingMappingDraft = `-- name: UpdateAccountingMappingDraft :one
+const updateAccountingMappingVersion = `-- name: UpdateAccountingMappingVersion :exec
 UPDATE acc_mapping_versions SET
   default_result = $1, definition = $2,
-  revision = revision + 1, updated_at = now(), updated_by = $3
-WHERE book_id = $4 AND id = $5
-  AND state = 'DRAFT' AND revision = $6
-RETURNING revision
+  updated_at = now(), updated_by = $3
+WHERE approval_entry_id=$4
 `
 
-type UpdateAccountingMappingDraftParams struct {
-	DefaultResult string `db:"default_result" json:"default_result"`
-	Definition    []byte `db:"definition" json:"definition"`
-	ActorID       string `db:"actor_id" json:"actor_id"`
-	BookID        string `db:"book_id" json:"book_id"`
-	MappingID     string `db:"mapping_id" json:"mapping_id"`
-	Revision      int64  `db:"revision" json:"revision"`
+type UpdateAccountingMappingVersionParams struct {
+	DefaultResult   string `db:"default_result" json:"default_result"`
+	Definition      []byte `db:"definition" json:"definition"`
+	ActorID         string `db:"actor_id" json:"actor_id"`
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
 }
 
-func (q *Queries) UpdateAccountingMappingDraft(ctx context.Context, arg UpdateAccountingMappingDraftParams) (int64, error) {
-	row := q.db.QueryRow(ctx, updateAccountingMappingDraft,
+func (q *Queries) UpdateAccountingMappingVersion(ctx context.Context, arg UpdateAccountingMappingVersionParams) error {
+	_, err := q.db.Exec(ctx, updateAccountingMappingVersion,
 		arg.DefaultResult,
 		arg.Definition,
 		arg.ActorID,
-		arg.BookID,
-		arg.MappingID,
-		arg.Revision,
+		arg.ApprovalEntryID,
 	)
-	var revision int64
-	err := row.Scan(&revision)
-	return revision, err
+	return err
 }
 
 const updateAccountingSubject = `-- name: UpdateAccountingSubject :one

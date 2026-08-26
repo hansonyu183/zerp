@@ -182,11 +182,11 @@ func (s *Service) postSnapshotToBook(ctx context.Context, tx pgx.Tx, q *dbsqlc.Q
 		}
 	}
 	voucherID := ulid.Make().String()
-	entity, revision, documentNo, mappingID := event.Entity, event.Revision, event.DocumentNo, mapping.ID
+	entity, revision, documentNo, mappingEntryID := event.Entity, event.Revision, event.DocumentNo, mapping.ApprovalEntryID
 	if err = q.CreateAutomaticAccountingVoucher(ctx, dbsqlc.CreateAutomaticAccountingVoucherParams{
 		ID: voucherID, BookID: bookID, SourceID: event.DocumentID,
 		SourceEntity: &entity, SourceRevision: &revision, SourceDocumentNo: &documentNo,
-		BusinessDate: pgtype.Date{Time: businessDate, Valid: true}, MappingVersionID: &mappingID,
+		BusinessDate: pgtype.Date{Time: businessDate, Valid: true}, MappingApprovalEntryID: &mappingEntryID,
 		ActorID: systemidentity.UserID,
 	}); err != nil {
 		return databaseError("create automatic accounting voucher", err)

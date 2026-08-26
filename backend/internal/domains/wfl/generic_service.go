@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/events/wflapproval"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.starlark.net/starlark"
@@ -22,23 +24,25 @@ var workflowDiagnosticLocationPattern = regexp.MustCompile(`workflow\.star:(\d+)
 
 var reservedDefinitionCodes = map[string]bool{"process-definition": true, "process-instance": true}
 
-func (s *Service) DefinitionQuery(ctx context.Context, input DefinitionQueryInput) (Page[DefinitionListItem], error) {
+func (s *Service) DefinitionQuery(ctx context.Context, input DefinitionQueryInput, actor approval.Actor) (Page[DefinitionListItem], error) {
 	if input.Page < 1 || input.PageSize < 1 || input.PageSize > 200 {
 		return Page[DefinitionListItem]{}, validation("invalid pagination", nil)
 	}
-	allowed := map[string]bool{DefinitionDraft: true, DefinitionEnabled: true, DefinitionDisabled: true}
-	for _, status := range input.Statuses {
-		if !allowed[status] {
+	for _, status := range input.ApprovalStatuses {
+		if status != string(approval.StatusDraft) && status != string(approval.StatusPending) && status != string(approval.StatusApproved) {
 			return Page[DefinitionListItem]{}, validation("invalid definition status", nil)
 		}
 	}
-	params := sqlc.CountWorkflowDefinitionsParams{Keyword: strings.TrimSpace(input.Keyword), Statuses: input.Statuses}
+	if err := s.approval.Authorize(ctx, actor, "query"); err != nil {
+		return Page[DefinitionListItem]{}, err
+	}
+	params := sqlc.CountWorkflowDefinitionsParams{Keyword: strings.TrimSpace(input.Keyword), ApprovalStatuses: input.ApprovalStatuses, Enabled: input.Enabled}
 	total, err := s.queries.CountWorkflowDefinitions(ctx, params)
 	if err != nil {
 		return Page[DefinitionListItem]{}, internal("count workflow definitions", err)
 	}
 	rows, err := s.queries.ListWorkflowDefinitions(ctx, sqlc.ListWorkflowDefinitionsParams{
-		Keyword: params.Keyword, Statuses: params.Statuses,
+		Keyword: params.Keyword, ApprovalStatuses: params.ApprovalStatuses, Enabled: params.Enabled,
 		PageOffset: int32((input.Page - 1) * input.PageSize), PageSize: int32(input.PageSize),
 	})
 	if err != nil {
@@ -47,24 +51,71 @@ func (s *Service) DefinitionQuery(ctx context.Context, input DefinitionQueryInpu
 	items := make([]DefinitionListItem, 0, len(rows))
 	for _, row := range rows {
 		var compiled compiledScriptDefinition
-		if err = json.Unmarshal(row.DraftCompiled, &compiled); err != nil {
+		if err = json.Unmarshal(row.Compiled, &compiled); err != nil {
 			return Page[DefinitionListItem]{}, internal("decode workflow definition", err)
 		}
 		root := compiledNodeByKey(compiled, compiled.RootKey)
 		items = append(items, DefinitionListItem{
-			DefinitionID: row.ID, Code: row.Code, Name: row.Name, Status: row.Status,
-			Revision: row.Revision, PublishedRevision: row.PublishedRevision,
+			DefinitionID: row.ID, Code: row.Code, Name: row.Name, Enabled: row.Enabled, Revision: row.Revision,
+			Approval:   workflowApprovalMeta(row.ApprovalEntryID, row.VersionNo, row.Status, row.ApprovalRevision, row.ApprovalCreatedBy, row.ApprovalCreatedAt, row.ApprovalUpdatedBy, row.ApprovalUpdatedAt, row.SubmittedBy, row.SubmittedAt, row.ApprovedBy, row.ApprovedAt),
 			RootEntity: root.Entity, NodeCount: len(compiled.Nodes), UpdatedAt: row.UpdatedAt.Time,
 		})
 	}
 	return Page[DefinitionListItem]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
 
-func (s *Service) DefinitionGet(ctx context.Context, input DefinitionGetInput) (DefinitionView, error) {
+func (s *Service) DefinitionGet(ctx context.Context, input DefinitionGetInput, actor approval.Actor) (DefinitionView, error) {
 	if !validWorkflowID(input.DefinitionID) {
 		return DefinitionView{}, validation("invalid definitionId", nil)
 	}
-	row, err := s.queries.GetWorkflowDefinition(ctx, input.DefinitionID)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return DefinitionView{}, internal("begin get workflow definition", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	entryID := input.ApprovalEntryID
+	if entryID == "" {
+		open, openErr := s.approval.GetOpenVersion(ctx, tx, input.DefinitionID, actor)
+		if openErr == nil {
+			entryID = open.ID
+		} else {
+			latest, latestErr := s.approval.GetLatestApproved(ctx, tx, input.DefinitionID, actor)
+			if latestErr != nil {
+				return DefinitionView{}, latestErr
+			}
+			entryID = latest.ID
+		}
+	} else if _, err = s.approval.Get(ctx, tx, entryID, actor); err != nil {
+		return DefinitionView{}, err
+	}
+	row, err := s.queries.WithTx(tx).GetWorkflowDefinitionVersion(ctx, sqlc.GetWorkflowDefinitionVersionParams{DefinitionID: input.DefinitionID, ApprovalEntryID: entryID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DefinitionView{}, validation("process definition not found", nil)
+	}
+	if err != nil {
+		return DefinitionView{}, internal("get workflow definition", err)
+	}
+	result, err := definitionView(row)
+	if err != nil {
+		return DefinitionView{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return DefinitionView{}, internal("commit get workflow definition", err)
+	}
+	return result, nil
+}
+
+// definitionGetExact loads the response for an action that has already
+// authorized its own permission. It deliberately does not require the caller
+// to also hold /get merely to receive the result of that action.
+func (s *Service) definitionGetExact(ctx context.Context, definitionID, approvalEntryID string) (DefinitionView, error) {
+	if !validWorkflowID(definitionID) || !validWorkflowID(approvalEntryID) {
+		return DefinitionView{}, validation("invalid workflow definition version", nil)
+	}
+	row, err := s.queries.GetWorkflowDefinitionVersion(ctx, sqlc.GetWorkflowDefinitionVersionParams{
+		DefinitionID:    definitionID,
+		ApprovalEntryID: approvalEntryID,
+	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return DefinitionView{}, validation("process definition not found", nil)
 	}
@@ -74,23 +125,31 @@ func (s *Service) DefinitionGet(ctx context.Context, input DefinitionGetInput) (
 	return definitionView(row)
 }
 
-func definitionView(row sqlc.WflProcessDefinition) (DefinitionView, error) {
+func workflowApprovalMeta(id string, versionNo *int32, status string, revision int64, createdBy string, createdAt pgtype.Timestamptz, updatedBy string, updatedAt pgtype.Timestamptz, submittedBy *string, submittedAt pgtype.Timestamptz, approvedBy *string, approvedAt pgtype.Timestamptz) approval.VersionMeta {
+	version := int32(0)
+	if versionNo != nil {
+		version = *versionNo
+	}
+	return approval.VersionMeta{ApprovalEntryID: id, VersionNo: version, Status: approval.Status(status), Revision: revision, CreatedBy: createdBy, CreatedAt: createdAt.Time, UpdatedBy: updatedBy, UpdatedAt: updatedAt.Time, SubmittedBy: submittedBy, SubmittedAt: workflowTime(submittedAt), ApprovedBy: approvedBy, ApprovedAt: workflowTime(approvedAt)}
+}
+
+func definitionView(row sqlc.GetWorkflowDefinitionVersionRow) (DefinitionView, error) {
 	var compiled compiledScriptDefinition
-	if err := json.Unmarshal(row.DraftCompiled, &compiled); err != nil {
+	if err := json.Unmarshal(row.Compiled, &compiled); err != nil {
 		return DefinitionView{}, internal("decode workflow graph", err)
 	}
 	result := DefinitionView{
 		DefinitionListItem: DefinitionListItem{
-			DefinitionID: row.ID, Code: row.Code, Name: row.Name, Status: row.Status,
-			Revision: row.Revision, PublishedRevision: row.PublishedRevision,
+			DefinitionID: row.ID, Code: row.Code, Name: row.Name, Enabled: row.Enabled, Revision: row.Revision,
+			Approval:   workflowApprovalMeta(row.ApprovalEntryID, row.VersionNo, row.Status, row.ApprovalRevision, row.ApprovalCreatedBy, row.ApprovalCreatedAt, row.ApprovalUpdatedBy, row.ApprovalUpdatedAt, row.SubmittedBy, row.SubmittedAt, row.ApprovedBy, row.ApprovedAt),
 			RootEntity: compiledNodeByKey(compiled, compiled.RootKey).Entity,
 			NodeCount:  len(compiled.Nodes), UpdatedAt: row.UpdatedAt.Time,
 		},
-		Script: row.DraftScript, RootNodeKey: compiled.RootKey,
+		Script: row.Script, RootNodeKey: compiled.RootKey,
 		Nodes: []DefinitionNodeView{}, Edges: []DefinitionEdgeView{},
 	}
-	if row.DraftDiagnostic != nil {
-		result.Diagnostic = workflowDiagnostic(*row.DraftDiagnostic)
+	if row.Diagnostic != nil {
+		result.Diagnostic = workflowDiagnostic(*row.Diagnostic)
 	}
 	depth := map[string]int{compiled.RootKey: 0}
 	rowByDepth := map[int]int{}
@@ -119,7 +178,7 @@ func compiledJSON(compiled compiledScriptDefinition) ([]byte, error) {
 	return json.Marshal(compiled)
 }
 
-func (s *Service) DefinitionCreate(ctx context.Context, input DefinitionCreateInput, actorID string) (DefinitionView, error) {
+func (s *Service) DefinitionCreate(ctx context.Context, input DefinitionCreateInput, actor approval.Actor) (DefinitionView, error) {
 	compiled, err := compileDefinitionScript(input.Script)
 	if err != nil {
 		return DefinitionView{}, workflowScriptValidation(err)
@@ -129,17 +188,31 @@ func (s *Service) DefinitionCreate(ctx context.Context, input DefinitionCreateIn
 		return DefinitionView{}, internal("encode workflow graph", err)
 	}
 	id := newID()
-	if err = s.queries.CreateWorkflowDefinition(ctx, sqlc.CreateWorkflowDefinitionParams{
-		ID: id, Code: compiled.Code, Name: compiled.Name, DraftScript: input.Script,
-		DraftCompiled: encoded, CreatedBy: actorID,
-	}); err != nil {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return DefinitionView{}, internal("begin create workflow definition", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	queries := s.queries.WithTx(tx)
+	if err = queries.CreateWorkflowDefinition(ctx, sqlc.CreateWorkflowDefinitionParams{ID: id, Code: compiled.Code, Name: compiled.Name, CreatedBy: actor.ID()}); err != nil {
 		return DefinitionView{}, conflict("process definition code already exists", nil)
 	}
-	return s.DefinitionGet(ctx, DefinitionGetInput{DefinitionID: id})
+	payload := wflapproval.Payload{DefinitionID: id, Code: compiled.Code, Name: compiled.Name, Script: input.Script, Compiled: encoded}
+	entry, err := s.approval.CreateFirstVersion(ctx, tx, id, actor, payload)
+	if err != nil {
+		return DefinitionView{}, err
+	}
+	if err = queries.CreateWorkflowDefinitionVersion(ctx, sqlc.CreateWorkflowDefinitionVersionParams{ApprovalEntryID: entry.ID, DefinitionID: id, Script: input.Script, Compiled: encoded, CreatedBy: actor.ID()}); err != nil {
+		return DefinitionView{}, internal("create workflow definition version", err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return DefinitionView{}, internal("commit create workflow definition", err)
+	}
+	return s.definitionGetExact(ctx, id, entry.ID)
 }
 
-func (s *Service) DefinitionSave(ctx context.Context, input DefinitionSaveInput, actorID string) (DefinitionView, error) {
-	if !validWorkflowID(input.DefinitionID) || input.Revision < 1 {
+func (s *Service) DefinitionSave(ctx context.Context, input DefinitionSaveInput, actor approval.Actor) (DefinitionView, error) {
+	if !validWorkflowID(input.DefinitionID) || !validWorkflowID(input.ApprovalEntryID) || input.Revision < 1 {
 		return DefinitionView{}, validation("invalid definition revision", nil)
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -155,11 +228,15 @@ func (s *Service) DefinitionSave(ctx context.Context, input DefinitionSaveInput,
 	if err != nil {
 		return DefinitionView{}, internal("lock workflow definition", err)
 	}
-	if locked.Revision != input.Revision {
-		return DefinitionView{}, conflict("process definition changed", map[string]any{"revision": locked.Revision})
+	current, err := queries.GetWorkflowDefinitionVersion(ctx, sqlc.GetWorkflowDefinitionVersionParams{DefinitionID: input.DefinitionID, ApprovalEntryID: input.ApprovalEntryID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DefinitionView{}, validation("process definition version not found", nil)
+	}
+	if err != nil {
+		return DefinitionView{}, internal("get workflow definition version", err)
 	}
 	compiled, compileErr := compileDefinitionScript(input.Script)
-	name, encoded := locked.Name, locked.DraftCompiled
+	name, encoded := locked.Name, current.Compiled
 	var diagnostic *string
 	if compileErr != nil {
 		message := compileErr.Error()
@@ -174,32 +251,34 @@ func (s *Service) DefinitionSave(ctx context.Context, input DefinitionSaveInput,
 			return DefinitionView{}, internal("encode workflow graph", err)
 		}
 	}
-	rows, err := queries.SaveWorkflowDefinition(ctx, sqlc.SaveWorkflowDefinitionParams{
-		Name: name, DraftScript: input.Script, DraftDiagnostic: diagnostic,
-		DraftCompiled: encoded, UpdatedBy: actorID, ID: input.DefinitionID, Revision: input.Revision,
-	})
+	payload := wflapproval.Payload{DefinitionID: input.DefinitionID, Code: locked.Code, Name: name, Enabled: locked.Enabled, Script: input.Script, Diagnostic: diagnostic, Compiled: encoded}
+	entry, err := s.approval.SaveDraft(ctx, tx, input.ApprovalEntryID, input.Revision, actor, payload)
 	if err != nil {
-		return DefinitionView{}, internal("save workflow definition", err)
+		return DefinitionView{}, err
 	}
-	if rows != 1 {
-		return DefinitionView{}, conflict("process definition changed", nil)
+	rows, err := queries.SaveWorkflowDefinitionVersion(ctx, sqlc.SaveWorkflowDefinitionVersionParams{Script: input.Script, Diagnostic: diagnostic, Compiled: encoded, UpdatedBy: actor.ID(), ApprovalEntryID: entry.ID})
+	if err != nil || rows != 1 {
+		return DefinitionView{}, internal("save workflow definition version", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return DefinitionView{}, internal("commit workflow definition", err)
 	}
-	return s.DefinitionGet(ctx, DefinitionGetInput{DefinitionID: input.DefinitionID})
+	return s.definitionGetExact(ctx, input.DefinitionID, entry.ID)
 }
 
-func (s *Service) DefinitionTrial(ctx context.Context, input DefinitionTrialInput, actorID, requestID string) (DefinitionTrialResult, error) {
-	if !validWorkflowID(input.DefinitionID) || input.Revision < 1 || !validWorkflowID(input.Source.DocumentID) {
+func (s *Service) DefinitionTrial(ctx context.Context, input DefinitionTrialInput, actor approval.Actor) (DefinitionTrialResult, error) {
+	if !validWorkflowID(input.DefinitionID) || !validWorkflowID(input.ApprovalEntryID) || input.Revision < 1 || !validWorkflowID(input.Source.DocumentID) {
 		return DefinitionTrialResult{}, validation("invalid definition trial", nil)
 	}
-	definition, err := s.DefinitionGet(ctx, DefinitionGetInput{DefinitionID: input.DefinitionID})
+	definition, err := s.definitionGetExact(ctx, input.DefinitionID, input.ApprovalEntryID)
 	if err != nil {
 		return DefinitionTrialResult{}, err
 	}
-	if definition.Revision != input.Revision {
-		return DefinitionTrialResult{}, conflict("process definition changed", map[string]any{"revision": definition.Revision})
+	if definition.Approval.Revision != input.Revision {
+		return DefinitionTrialResult{}, conflict("process definition changed", map[string]any{"revision": definition.Approval.Revision})
+	}
+	if definition.Approval.Status != approval.StatusDraft {
+		return DefinitionTrialResult{}, conflict("only a draft process definition can be trialled", nil)
 	}
 	if definition.Diagnostic != nil {
 		return DefinitionTrialResult{}, workflowScriptValidation(errors.New(definition.Diagnostic.Message))
@@ -217,7 +296,7 @@ func (s *Service) DefinitionTrial(ctx context.Context, input DefinitionTrialInpu
 		return DefinitionTrialResult{}, err
 	}
 	actions := &trialActions{}
-	execution, err := executeCompiledWorkflow(ctx, nil, compiled, compiled.RootKey, input.Source.DocumentID, source, actions, requestID, "")
+	execution, err := executeCompiledWorkflow(ctx, nil, compiled, compiled.RootKey, input.Source.DocumentID, source, actions, actor.RequestID(), "")
 	if err != nil {
 		return DefinitionTrialResult{}, err
 	}
@@ -226,7 +305,7 @@ func (s *Service) DefinitionTrial(ctx context.Context, input DefinitionTrialInpu
 		return DefinitionTrialResult{}, internal("begin workflow trial", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	rows, err := s.queries.WithTx(tx).RecordWorkflowDefinitionTrial(ctx, sqlc.RecordWorkflowDefinitionTrialParams{ID: input.DefinitionID, LastTrialRevision: &input.Revision})
+	rows, err := s.queries.WithTx(tx).RecordWorkflowDefinitionTrial(ctx, sqlc.RecordWorkflowDefinitionTrialParams{ApprovalEntryID: input.ApprovalEntryID, LastTrialApprovalRevision: &input.Revision})
 	if err != nil {
 		return DefinitionTrialResult{}, internal("record workflow trial", err)
 	}
@@ -234,8 +313,8 @@ func (s *Service) DefinitionTrial(ctx context.Context, input DefinitionTrialInpu
 		return DefinitionTrialResult{}, conflict("process definition changed", nil)
 	}
 	if err = s.queries.WithTx(tx).RecordWorkflowTrialAudit(ctx, sqlc.RecordWorkflowTrialAuditParams{
-		ID: newID(), DefinitionID: input.DefinitionID, DefinitionRevision: input.Revision,
-		DocumentID: workflowText(input.Source.DocumentID), ActorID: actorID, RequestID: requestID,
+		ID: newID(), DefinitionID: input.DefinitionID, DefinitionApprovalEntryID: input.ApprovalEntryID,
+		DocumentID: workflowText(input.Source.DocumentID), ActorID: actor.ID(), RequestID: actor.RequestID(),
 		Summary: mustJSON(map[string]any{"matched": execution.Matched}),
 	}); err != nil {
 		return DefinitionTrialResult{}, internal("audit workflow trial", err)
@@ -244,7 +323,7 @@ func (s *Service) DefinitionTrial(ctx context.Context, input DefinitionTrialInpu
 		return DefinitionTrialResult{}, internal("commit workflow trial", err)
 	}
 	return DefinitionTrialResult{
-		DefinitionID: input.DefinitionID, Revision: input.Revision, Matched: execution.Matched,
+		DefinitionID: input.DefinitionID, ApprovalEntryID: input.ApprovalEntryID, Revision: input.Revision, Matched: execution.Matched,
 		RootNodeKey: compiled.RootKey, Trace: execution.Trace, PlannedActions: actions.plans,
 		UncoveredBranches: execution.UncoveredBranches,
 	}, nil
@@ -264,9 +343,12 @@ func workflowDiagnostic(message string) *DefinitionDiagnostic {
 	return diagnostic
 }
 
-func (s *Service) DefinitionAction(ctx context.Context, action string, input DefinitionActionInput, actorID string) (any, error) {
-	if !validWorkflowID(input.DefinitionID) || input.Revision < 1 {
+func (s *Service) DefinitionAction(ctx context.Context, action string, input DefinitionActionInput, actor approval.Actor) (any, error) {
+	if !validWorkflowID(input.DefinitionID) || !validWorkflowID(input.ApprovalEntryID) || input.Revision < 1 {
 		return nil, validation("invalid definition action", nil)
+	}
+	if (action == "reject" || action == "unapprove") && strings.TrimSpace(input.Reason) == "" {
+		return nil, validation("approval reason is required", nil)
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -274,76 +356,188 @@ func (s *Service) DefinitionAction(ctx context.Context, action string, input Def
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	queries := s.queries.WithTx(tx)
-	locked, err := queries.LockWorkflowDefinition(ctx, input.DefinitionID)
+	row, err := queries.GetWorkflowDefinitionVersion(ctx, sqlc.GetWorkflowDefinitionVersionParams{DefinitionID: input.DefinitionID, ApprovalEntryID: input.ApprovalEntryID})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, validation("process definition not found", nil)
+		return nil, validation("process definition version not found", nil)
 	}
 	if err != nil {
-		return nil, internal("lock workflow definition", err)
+		return nil, internal("get workflow definition version", err)
 	}
-	if locked.Revision != input.Revision {
-		return nil, conflict("process definition changed", map[string]any{"revision": locked.Revision})
-	}
+	payload := wflapproval.Payload{DefinitionID: row.ID, Code: row.Code, Name: row.Name, Enabled: row.Enabled, Script: row.Script, Diagnostic: row.Diagnostic, Compiled: row.Compiled, TrialApprovalRevision: row.LastTrialApprovalRevision}
+	var entry approval.Entry
 	switch action {
-	case "publish":
-		if locked.DraftDiagnostic != nil || locked.LastTrialRevision == nil || *locked.LastTrialRevision != locked.Revision {
-			return nil, conflict("the current draft requires a successful document trial before publication", nil)
+	case "submit":
+		entry, err = s.approval.Submit(ctx, tx, input.ApprovalEntryID, input.Revision, actor, payload)
+	case "unsubmit":
+		entry, err = s.approval.Unsubmit(ctx, tx, input.ApprovalEntryID, input.Revision, actor, payload)
+	case "reject":
+		entry, err = s.approval.Reject(ctx, tx, input.ApprovalEntryID, input.Revision, actor, input.Reason, payload)
+	case "approve":
+		if row.Diagnostic != nil || row.LastTrialApprovalRevision == nil {
+			return nil, conflict("the current draft requires a successful document trial before approval", nil)
 		}
-		published, nextErr := queries.NextWorkflowPublishedRevision(ctx, input.DefinitionID)
-		if nextErr != nil {
-			return nil, internal("allocate workflow revision", nextErr)
-		}
-		publishedRevision := int64(published)
-		if err = queries.PublishWorkflowDefinitionRevision(ctx, sqlc.PublishWorkflowDefinitionRevisionParams{
-			DefinitionID: input.DefinitionID, Revision: publishedRevision,
-			Script: locked.DraftScript, Compiled: locked.DraftCompiled, PublishedBy: actorID,
-		}); err != nil {
-			return nil, internal("publish workflow revision", err)
-		}
-		rows, updateErr := queries.SetWorkflowPublishedRevision(ctx, sqlc.SetWorkflowPublishedRevisionParams{
-			PublishedRevision: &publishedRevision, UpdatedBy: actorID, ID: input.DefinitionID, Revision: input.Revision,
-		})
-		if updateErr != nil || rows != 1 {
-			return nil, conflict("process definition changed", nil)
-		}
-	case "enable", "disable":
-		if action == "enable" && locked.PublishedRevision == nil {
-			return nil, conflict("publish the workflow before enabling it", nil)
-		}
-		status := DefinitionDisabled
-		if action == "enable" {
-			status = DefinitionEnabled
-			if err = enableDefinitionPermissions(ctx, tx, locked.Code, locked.Name, actorID); err != nil {
-				return nil, err
-			}
-		}
-		rows, updateErr := queries.SetWorkflowDefinitionStatus(ctx, sqlc.SetWorkflowDefinitionStatusParams{
-			Status: status, UpdatedBy: actorID, ID: input.DefinitionID, Revision: input.Revision,
-		})
-		if updateErr != nil || rows != 1 {
-			return nil, conflict("process definition changed", nil)
-		}
-	case "delete":
+		entry, err = s.approval.Approve(ctx, tx, input.ApprovalEntryID, input.Revision, actor, payload)
+	case "unapprove":
+		entry, err = s.approval.Unapprove(ctx, tx, input.ApprovalEntryID, input.Revision, actor, input.Reason, payload)
+	case "delete-version":
 		used, queryErr := queries.WorkflowDefinitionHasInstances(ctx, input.DefinitionID)
 		if queryErr != nil {
-			return nil, internal("check workflow definition use", err)
+			return nil, internal("check workflow definition use", queryErr)
 		}
-		if used || locked.PublishedRevision != nil || locked.Status != DefinitionDraft {
-			return nil, conflict("only unused draft definitions can be deleted", nil)
+		if err = s.approval.DeleteDraftVersion(ctx, tx, input.ApprovalEntryID, input.Revision, actor, payload); err != nil {
+			return nil, err
 		}
-		if err = queries.DeleteWorkflowDefinition(ctx, input.DefinitionID); err != nil {
-			return nil, internal("delete workflow definition", err)
+		if row.VersionNo != nil && *row.VersionNo == 1 {
+			if used {
+				return nil, conflict("an in-use process definition cannot be deleted", nil)
+			}
+			if err = queries.DeleteWorkflowDefinition(ctx, input.DefinitionID); err != nil {
+				return nil, internal("delete workflow definition", err)
+			}
 		}
 	default:
 		return nil, validation("invalid definition action", nil)
 	}
+	if err != nil {
+		return nil, err
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return nil, internal("commit workflow definition action", err)
 	}
-	if action == "delete" {
+	if action == "delete-version" && row.VersionNo != nil && *row.VersionNo == 1 {
 		return map[string]any{"definitionId": input.DefinitionID}, nil
 	}
-	return s.DefinitionGet(ctx, DefinitionGetInput{DefinitionID: input.DefinitionID})
+	return s.definitionGetExact(ctx, input.DefinitionID, entry.ID)
+}
+
+func (s *Service) DefinitionCreateVersion(ctx context.Context, input DefinitionVersionCreateInput, actor approval.Actor) (DefinitionView, error) {
+	if !validWorkflowID(input.DefinitionID) {
+		return DefinitionView{}, validation("invalid definitionId", nil)
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return DefinitionView{}, internal("begin create workflow version", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	queries := s.queries.WithTx(tx)
+	definition, err := queries.LockWorkflowDefinition(ctx, input.DefinitionID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DefinitionView{}, validation("process definition not found", nil)
+	}
+	if err != nil {
+		return DefinitionView{}, internal("lock workflow definition", err)
+	}
+	approvedEntryID, err := queries.GetWorkflowLatestApprovedVersion(ctx, input.DefinitionID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DefinitionView{}, conflict("an approved process definition version is required", nil)
+	}
+	if err != nil {
+		return DefinitionView{}, internal("get approved workflow definition", err)
+	}
+	previous, err := queries.GetWorkflowDefinitionVersion(ctx, sqlc.GetWorkflowDefinitionVersionParams{DefinitionID: input.DefinitionID, ApprovalEntryID: approvedEntryID})
+	if err != nil {
+		return DefinitionView{}, internal("get approved workflow definition", err)
+	}
+	payload := wflapproval.Payload{DefinitionID: input.DefinitionID, Code: definition.Code, Name: definition.Name, Enabled: definition.Enabled, Script: previous.Script, Diagnostic: previous.Diagnostic, Compiled: previous.Compiled}
+	entry, err := s.approval.CreateNextVersion(ctx, tx, input.DefinitionID, actor, payload)
+	if err != nil {
+		return DefinitionView{}, err
+	}
+	if err = queries.CreateWorkflowDefinitionVersion(ctx, sqlc.CreateWorkflowDefinitionVersionParams{ApprovalEntryID: entry.ID, DefinitionID: input.DefinitionID, Script: previous.Script, Diagnostic: previous.Diagnostic, Compiled: previous.Compiled, CreatedBy: actor.ID()}); err != nil {
+		return DefinitionView{}, internal("create workflow definition version", err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return DefinitionView{}, internal("commit create workflow version", err)
+	}
+	return s.definitionGetExact(ctx, input.DefinitionID, entry.ID)
+}
+
+func (s *Service) DefinitionVersions(ctx context.Context, input DefinitionQueryInput, definitionID string, actor approval.Actor) (Page[DefinitionListItem], error) {
+	if !validWorkflowID(definitionID) || input.Page < 1 || input.PageSize < 1 || input.PageSize > 200 {
+		return Page[DefinitionListItem]{}, validation("invalid workflow version query", nil)
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Page[DefinitionListItem]{}, internal("begin workflow version query", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	entries, err := s.approval.ListVersions(ctx, tx, definitionID, actor)
+	if err != nil {
+		return Page[DefinitionListItem]{}, err
+	}
+	items := make([]DefinitionListItem, 0, len(entries))
+	for _, entry := range entries {
+		row, getErr := s.queries.WithTx(tx).GetWorkflowDefinitionVersion(ctx, sqlc.GetWorkflowDefinitionVersionParams{DefinitionID: definitionID, ApprovalEntryID: entry.ID})
+		if getErr != nil {
+			return Page[DefinitionListItem]{}, internal("get workflow version", getErr)
+		}
+		view, viewErr := definitionView(row)
+		if viewErr != nil {
+			return Page[DefinitionListItem]{}, viewErr
+		}
+		items = append(items, view.DefinitionListItem)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return Page[DefinitionListItem]{}, internal("commit workflow version query", err)
+	}
+	total := int64(len(items))
+	start := (input.Page - 1) * input.PageSize
+	if start >= len(items) {
+		return Page[DefinitionListItem]{Items: []DefinitionListItem{}, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
+	}
+	end := start + input.PageSize
+	if end > len(items) {
+		end = len(items)
+	}
+	return Page[DefinitionListItem]{Items: items[start:end], Total: total, Page: input.Page, PageSize: input.PageSize}, nil
+}
+
+func (s *Service) DefinitionToggle(ctx context.Context, enabled bool, input DefinitionToggleInput, actor approval.Actor) (DefinitionView, error) {
+	if !validWorkflowID(input.DefinitionID) || input.Revision < 1 {
+		return DefinitionView{}, validation("invalid definition enabled revision", nil)
+	}
+	if err := s.approval.Authorize(ctx, actor, map[bool]string{true: "enable", false: "disable"}[enabled]); err != nil {
+		return DefinitionView{}, err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return DefinitionView{}, internal("begin set workflow enabled", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	queries := s.queries.WithTx(tx)
+	definition, err := queries.LockWorkflowDefinition(ctx, input.DefinitionID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DefinitionView{}, validation("process definition not found", nil)
+	}
+	if err != nil {
+		return DefinitionView{}, internal("lock workflow definition", err)
+	}
+	if definition.Revision != input.Revision {
+		return DefinitionView{}, conflict("process definition changed", map[string]any{"revision": definition.Revision})
+	}
+	approvedEntryID, err := queries.GetWorkflowLatestApprovedVersion(ctx, input.DefinitionID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DefinitionView{}, conflict("an approved process definition version is required", nil)
+	}
+	if err != nil {
+		return DefinitionView{}, internal("get approved workflow definition", err)
+	}
+	if enabled {
+		if err = enableDefinitionPermissions(ctx, tx, definition.Code, definition.Name, actor.ID()); err != nil {
+			return DefinitionView{}, err
+		}
+	}
+	rows, err := queries.SetWorkflowDefinitionEnabled(ctx, sqlc.SetWorkflowDefinitionEnabledParams{Enabled: enabled, UpdatedBy: actor.ID(), ID: input.DefinitionID, Revision: input.Revision})
+	if err != nil {
+		return DefinitionView{}, internal("set workflow enabled", err)
+	}
+	if rows != 1 {
+		return DefinitionView{}, conflict("process definition changed", nil)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return DefinitionView{}, internal("commit set workflow enabled", err)
+	}
+	return s.definitionGetExact(ctx, input.DefinitionID, approvedEntryID)
 }
 
 var definitionPermissionActions = []struct{ action, label string }{
@@ -387,7 +581,7 @@ func (s *Service) InstanceQuery(ctx context.Context, input InstanceQueryInput) (
 	items := make([]InstanceListItem, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, InstanceListItem{
-			ProcessID: row.ProcessID, DefinitionID: row.DefinitionID, DefinitionCode: row.DefinitionCode,
+			ProcessID: row.ProcessID, DefinitionID: row.DefinitionID, ApprovalEntryID: row.DefinitionApprovalEntryID, DefinitionCode: row.DefinitionCode,
 			DefinitionName: row.DefinitionName, Revision: row.Revision, RootDocumentID: row.RootDocumentID,
 			RootDocumentNo: row.RootDocumentNo, RootEntity: row.RootEntity,
 			PartyCode: row.PartyCode, PartyName: row.PartyName, UpdatedAt: row.UpdatedAt.Time,
@@ -417,11 +611,11 @@ func (s *Service) InstanceGet(ctx context.Context, input InstanceGetInput) (Inst
 		return InstanceView{}, internal("get workflow instance", err)
 	}
 	result := InstanceView{InstanceListItem: InstanceListItem{
-		ProcessID: row.ProcessID, DefinitionID: row.DefinitionID, DefinitionCode: row.DefinitionCode,
+		ProcessID: row.ProcessID, DefinitionID: row.DefinitionID, ApprovalEntryID: row.DefinitionApprovalEntryID, DefinitionCode: row.DefinitionCode,
 		DefinitionName: row.DefinitionName, Revision: row.Revision, RootDocumentID: row.RootDocumentID,
 		RootDocumentNo: row.RootDocumentNo, RootEntity: row.RootEntity, PartyCode: row.PartyCode,
 		PartyName: row.PartyName, UpdatedAt: row.UpdatedAt.Time,
-	}, StartedDefinitionRevision: row.StartedDefinitionRevision, Nodes: []NodeInstanceView{}, AvailableTargets: []AvailableChildTarget{}}
+	}, Nodes: []NodeInstanceView{}, AvailableTargets: []AvailableChildTarget{}}
 	rows, err := s.queries.ListWorkflowInstanceNodes(ctx, input.ProcessID)
 	if err != nil {
 		return InstanceView{}, internal("list workflow instance nodes", err)
@@ -435,15 +629,14 @@ func (s *Service) InstanceGet(ctx context.Context, input InstanceGetInput) (Inst
 			Action: node.ActionName, EvaluatedAt: workflowTime(node.EvaluatedAt),
 		})
 	}
-	revision, err := s.queries.GetWorkflowPublishedRevision(ctx, sqlc.GetWorkflowPublishedRevisionParams{
-		DefinitionID: row.DefinitionID, Revision: row.StartedDefinitionRevision,
-	})
+	definition, err := s.queries.GetWorkflowDefinitionVersion(ctx, sqlc.GetWorkflowDefinitionVersionParams{DefinitionID: row.DefinitionID, ApprovalEntryID: row.DefinitionApprovalEntryID})
 	if err != nil {
-		return InstanceView{}, internal("get workflow instance revision", err)
+		return InstanceView{}, internal("get workflow instance definition", err)
 	}
-	compiled, err := compileDefinitionScript(revision.Script)
+	var compiled compiledScriptDefinition
+	err = json.Unmarshal(definition.Compiled, &compiled)
 	if err != nil {
-		return InstanceView{}, internal("compile published workflow revision", err)
+		return InstanceView{}, internal("decode workflow instance definition", err)
 	}
 	executed := map[string]bool{}
 	executionRows, err := s.queries.ListCompletedWorkflowActionTargets(ctx, input.ProcessID)
@@ -534,7 +727,8 @@ func (s *Service) definitionIDByCode(ctx context.Context, code string) (string, 
 	if !definitionCodePattern.MatchString(code) || reservedDefinitionCodes[code] {
 		return "", validation("process definition not found", nil)
 	}
-	definitionID, err := s.queries.GetPublishedWorkflowDefinitionIDByCode(ctx, code)
+	var definitionID string
+	err := s.pool.QueryRow(ctx, `SELECT id FROM wfl_process_definitions WHERE code=$1`, code).Scan(&definitionID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", validation("process definition not found", nil)
 	}

@@ -7,6 +7,7 @@ import (
 
 	accdomain "github.com/hansonyu183/zerp/backend/internal/domains/acc"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -159,15 +160,19 @@ func (s *Seeder) ensureAccountingOpening(
 	accountingActor string,
 	counts *Counts,
 ) error {
-	opening, err := s.accounting.GetOpening(ctx, bookID, accountingActor)
+	actor, err := seedActor(accountingActor, "seed-acc-opening-"+bookID)
 	if err != nil {
 		return err
 	}
-	if opening.State == accdomain.OpeningStateApproved {
+	opening, err := s.accounting.GetOpening(ctx, bookID, actor)
+	if err != nil {
+		return err
+	}
+	if opening.Approval.Status == approval.StatusApproved {
 		counts.add(outcomeSkipped)
 		return nil
 	}
-	if opening.Revision != 0 || len(opening.Lines) != 0 || len(opening.Assets) != 0 ||
+	if opening.Approval.Revision != 0 || len(opening.Lines) != 0 || len(opening.Assets) != 0 ||
 		len(opening.Bills) != 0 || len(opening.Containers) != 0 {
 		return errors.New("test accounting opening was changed by a tester")
 	}
@@ -175,11 +180,19 @@ func (s *Seeder) ensureAccountingOpening(
 		BookID: bookID, Revision: 0,
 		Lines: []accdomain.OpeningLineInput{}, Assets: []accdomain.OpeningAssetInput{},
 		Bills: []accdomain.OpeningBillInput{}, Containers: []accdomain.OpeningContainerInput{},
-	}, accountingActor)
+	}, actor)
 	if err != nil {
 		return err
 	}
-	if _, err = s.accounting.ApproveOpening(ctx, bookID, opening.Revision, accountingActor); err != nil {
+	opening, err = s.accounting.SubmitOpening(ctx, bookID, opening.Approval.Revision, actor)
+	if err != nil {
+		return err
+	}
+	reviewer, actorErr := approval.TrustedSystemActor("seed-acc-opening-approve-" + bookID)
+	if actorErr != nil {
+		return actorErr
+	}
+	if _, err = s.accounting.ApproveOpening(ctx, bookID, opening.Approval.Revision, reviewer); err != nil {
 		return err
 	}
 	counts.add(outcomeCreated)
@@ -224,14 +237,18 @@ func (s *Seeder) ensureAccountingMapping(
 	bookID, accountingActor, entity, defaultResult string,
 	definition accdomain.MappingDefinition,
 ) (outcome, error) {
+	actor, err := seedActor(accountingActor, "seed-acc-mapping-"+entity)
+	if err != nil {
+		return 0, err
+	}
 	page, err := s.accounting.QueryMappings(ctx, accdomain.QueryMappingsInput{
 		BookID: bookID, VouEntity: entity, Page: 1, PageSize: 200,
-	}, accountingActor)
+	}, actor)
 	if err != nil {
 		return 0, err
 	}
 	for _, mapping := range page.Items {
-		if mapping.State == accdomain.MappingStateApproved {
+		if mapping.Approval.Status == approval.StatusApproved {
 			return outcomeSkipped, nil
 		}
 	}
@@ -241,13 +258,19 @@ func (s *Seeder) ensureAccountingMapping(
 	mapping, err := s.accounting.CreateMapping(ctx, accdomain.CreateMappingInput{
 		BookID: bookID, VouEntity: entity, DefaultResult: defaultResult,
 		Definition: definition,
-	}, accountingActor)
+	}, actor)
 	if err != nil {
 		return 0, err
 	}
-	if _, err = s.accounting.ApproveMapping(
-		ctx, bookID, mapping.ID, mapping.Revision, accountingActor,
-	); err != nil {
+	mapping, err = s.accounting.SubmitMapping(ctx, accdomain.MappingVersionInput{BookID: bookID, VouEntity: entity, ApprovalEntryID: mapping.Approval.ApprovalEntryID, Revision: mapping.Approval.Revision}, actor)
+	if err != nil {
+		return 0, err
+	}
+	reviewer, actorErr := approval.TrustedSystemActor("seed-acc-mapping-approve-" + entity)
+	if actorErr != nil {
+		return 0, actorErr
+	}
+	if _, err = s.accounting.ApproveMapping(ctx, accdomain.MappingVersionInput{BookID: bookID, VouEntity: entity, ApprovalEntryID: mapping.Approval.ApprovalEntryID, Revision: mapping.Approval.Revision}, reviewer); err != nil {
 		return 0, err
 	}
 	return outcomeCreated, nil

@@ -1,5 +1,7 @@
 package rpt
 
+import "github.com/hansonyu183/zerp/backend/internal/platform/approval"
+
 type ParameterType string
 
 const (
@@ -52,7 +54,6 @@ type Parameter struct {
 	Required      bool           `json:"required"`
 	Type          ParameterType  `json:"type"`
 }
-
 type ResultColumn struct {
 	Alias           string     `json:"alias"`
 	DrilldownEntity *string    `json:"drilldownEntity,omitempty"`
@@ -63,69 +64,69 @@ type ResultColumn struct {
 	Visible         bool       `json:"visible"`
 	Width           int        `json:"width"`
 }
-
 type VersionData struct {
 	Columns    []ResultColumn `json:"columns"`
 	Parameters []Parameter    `json:"parameters"`
 	SQL        string         `json:"sql"`
 }
-
 type DefinitionCreateInput struct {
 	Code        string
 	Name        string
 	Description *string
 	Data        VersionData
 }
-
 type DefinitionQueryInput struct {
 	IncludeDisabled bool
 	Keyword         string
 	Page            int
 	PageSize        int
 }
-
 type DirectoryQueryInput struct {
 	Page     int
 	PageSize int
 }
-
 type DefinitionGetInput struct {
-	Code      string
-	VersionID string
+	Code            string
+	ApprovalEntryID string
 }
-
-type VersionCreateInput struct {
-	Code string
-	Data VersionData
-}
-
+type VersionCreateInput struct{ Code string }
 type VersionSaveInput struct {
-	Code        string
-	VersionID   string
-	Revision    int64
-	Name        *string
-	Description *string
-	Data        VersionData
+	Code            string
+	ApprovalEntryID string
+	Revision        int64
+	Name            *string
+	Description     *string
+	Data            VersionData
 }
-
-type VersionRevisionInput struct {
+type VersionActionInput struct {
 	Code                 string
-	VersionID            string
+	ApprovalEntryID      string
 	Revision             int64
 	ValidationParameters map[string]any
 }
-
+type VersionReasonActionInput struct {
+	VersionActionInput
+	Reason string
+}
+type VersionDeleteInput struct {
+	Code            string
+	ApprovalEntryID string
+	Revision        int64
+}
+type VersionListInput struct {
+	Code     string
+	Page     int
+	PageSize int
+}
 type DefinitionRevisionInput struct {
 	Code     string
 	Revision int64
 }
-
 type ExecuteInput struct {
 	Parameters map[string]any
 	Page       *int
 	PageSize   *int
 }
-
 type ReferenceQueryInput struct {
 	ParameterKey string
 	Keyword      string
@@ -133,31 +134,23 @@ type ReferenceQueryInput struct {
 	Page         *int
 	PageSize     *int
 }
-
 type Page struct {
 	Items    any   `json:"items"`
 	Total    int64 `json:"total"`
 	Page     int   `json:"page"`
 	PageSize int   `json:"pageSize"`
 }
-
 type DefinitionView struct {
-	DefinitionID     string      `json:"definitionId"`
-	Code             string      `json:"code"`
-	Name             string      `json:"name"`
-	Description      string      `json:"description"`
-	Enabled          bool        `json:"enabled"`
-	EverApproved     bool        `json:"everApproved"`
-	CurrentVersionID string      `json:"currentVersionId,omitempty"`
-	Revision         int64       `json:"revision"`
-	VersionID        string      `json:"versionId,omitempty"`
-	VersionNo        int32       `json:"versionNo,omitempty"`
-	Status           string      `json:"status,omitempty"`
-	Validity         string      `json:"validity,omitempty"`
-	VersionRevision  int64       `json:"versionRevision,omitempty"`
-	Data             VersionData `json:"data"`
+	DefinitionID   string               `json:"definitionId"`
+	Code           string               `json:"code"`
+	Name           string               `json:"name"`
+	Description    string               `json:"description"`
+	Enabled        bool                 `json:"enabled"`
+	ObjectRevision int64                `json:"revision"`
+	Approval       approval.VersionMeta `json:"approval"`
+	Validity       string               `json:"validity"`
+	Data           VersionData          `json:"data"`
 }
-
 type ReportMetadata struct {
 	Code        string         `json:"code"`
 	Name        string         `json:"name"`
@@ -167,13 +160,12 @@ type ReportMetadata struct {
 	CanQuery    bool           `json:"canQuery"`
 	CanExport   bool           `json:"canExport"`
 }
-
 type MutationResult struct {
-	ID       string `json:"id"`
-	Status   string `json:"status,omitempty"`
-	Revision int64  `json:"revision"`
+	DefinitionID   string               `json:"definitionId"`
+	ObjectRevision int64                `json:"revision"`
+	Enabled        bool                 `json:"enabled"`
+	Approval       approval.VersionMeta `json:"approval"`
 }
-
 type QueryResult struct {
 	Columns  []ResultColumn   `json:"columns"`
 	Items    []map[string]any `json:"items"`
@@ -181,7 +173,6 @@ type QueryResult struct {
 	Page     int              `json:"page"`
 	PageSize int              `json:"pageSize"`
 }
-
 type ReferenceItem struct {
 	ID   string `json:"id"`
 	Code string `json:"code"`

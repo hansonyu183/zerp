@@ -4,6 +4,10 @@ import type { components } from '@/api/generated/schema'
 import { ApiError, getErrorMessage } from '@/api/types'
 import { documentEntityText } from '@/components/wfl/config'
 import { useSessionStore } from '@/stores/session'
+import {
+  type ApprovalAction,
+  visibleApprovalActions,
+} from '@/shared/approval'
 
 export type DefinitionNode = components['schemas']['WflDefinitionNode']
 export type DefinitionEdge = components['schemas']['WflDefinitionEdge']
@@ -76,7 +80,7 @@ export function useProcessDefinitionViewModel() {
   const definitions = ref<DefinitionListItem[]>([])
   const selected = ref<DefinitionView | null>(null)
   const keyword = ref('')
-  const status = ref<DefinitionView['status'] | null>(null)
+  const status = ref<components['schemas']['ApprovalStatus'] | null>(null)
   const loading = ref(false)
   const saving = ref(false)
   const trialing = ref(false)
@@ -88,6 +92,7 @@ export function useProcessDefinitionViewModel() {
   const trialEntityText = computed(() => documentEntityText(trialEntity.value))
   const trialDocumentId = ref('')
   const trialResult = ref<DefinitionTrialResult | null>(null)
+  const reviewReason = ref('')
 
   const can = (action: string) =>
     session.can(`/wfl/process-definition/${action}`)
@@ -105,7 +110,7 @@ export function useProcessDefinitionViewModel() {
         page: 1,
         pageSize: 100,
         ...(keyword.value.trim() ? { keyword: keyword.value.trim() } : {}),
-        ...(status.value ? { statuses: [status.value] } : {}),
+        ...(status.value ? { approvalStatuses: [status.value] } : {}),
       })
       definitions.value = data.items ?? []
     } catch (error) {
@@ -137,7 +142,10 @@ export function useProcessDefinitionViewModel() {
     loading.value = true
     errorMessage.value = null
     try {
-      const { data } = await apiClient.postContract('wfl/process-definition/get', { definitionId: item.definitionId })
+      const { data } = await apiClient.postContract('wfl/process-definition/get', {
+        definitionId: item.definitionId,
+        approvalEntryId: item.approval.approvalEntryId,
+      })
       setSelected(data)
       editorOpen.value = true
     } catch (error) {
@@ -152,8 +160,22 @@ export function useProcessDefinitionViewModel() {
       definitionId: '',
       code: '',
       name: '',
-      status: 'DRAFT',
+      enabled: false,
       revision: 0,
+      approval: {
+        approvalEntryId: '',
+        versionNo: 0,
+        status: 'DRAFT',
+        revision: 0,
+        createdBy: '',
+        createdAt: '',
+        updatedBy: '',
+        updatedAt: '',
+        submittedBy: null,
+        submittedAt: null,
+        approvedBy: null,
+        approvedAt: null,
+      },
       rootEntity: 'sale-order',
       nodeCount: 0,
       script: DEFAULT_STARLARK_SCRIPT,
@@ -183,7 +205,8 @@ export function useProcessDefinitionViewModel() {
       const { data } = definition.definitionId
         ? await apiClient.postContract('wfl/process-definition/save', {
             definitionId: definition.definitionId,
-            revision: definition.revision,
+            approvalEntryId: definition.approval.approvalEntryId,
+            revision: definition.approval.revision,
             script: scriptText.value,
           })
         : await apiClient.postContract(
@@ -214,7 +237,8 @@ export function useProcessDefinitionViewModel() {
     try {
       const { data } = await apiClient.postContract('wfl/process-definition/trial', {
         definitionId: definition.definitionId,
-        revision: definition.revision,
+        approvalEntryId: definition.approval.approvalEntryId,
+        revision: definition.approval.revision,
         source: {
           entity,
           documentId: trialDocumentId.value,
@@ -228,18 +252,33 @@ export function useProcessDefinitionViewModel() {
     }
   }
 
+  const lifecycleActions = computed<ApprovalAction[]>(() => {
+    const definition = selected.value
+    if (!definition || !session.user) return []
+    return visibleApprovalActions(definition.approval, session.user.id, (action) =>
+      can(action),
+    )
+  })
+
   async function action(
-    actionName: 'publish' | 'enable' | 'disable' | 'delete',
+    actionName: ApprovalAction | 'enable' | 'disable' | 'delete-version',
   ): Promise<void> {
     const definition = selected.value
     if (!definition?.definitionId || !can(actionName)) return
+    const requiresReason = actionName === 'reject' || actionName === 'unapprove'
+    const reason = reviewReason.value.trim()
+    if (requiresReason && !reason) {
+      errorMessage.value = '请填写审核意见。'
+      return
+    }
     saving.value = true
     errorMessage.value = null
     try {
-      if (actionName === 'delete') {
-        await apiClient.postContract('wfl/process-definition/delete', {
+      if (actionName === 'delete-version') {
+        await apiClient.postContract('wfl/process-definition/delete-version', {
           definitionId: definition.definitionId,
-          revision: definition.revision,
+          approvalEntryId: definition.approval.approvalEntryId,
+          revision: definition.approval.revision,
         })
         await session.restore({ force: true })
         editorOpen.value = false
@@ -247,11 +286,43 @@ export function useProcessDefinitionViewModel() {
         await query()
         return
       }
-      const { data } = await apiClient.postContract(`wfl/process-definition/${actionName}`, {
-        definitionId: definition.definitionId,
-        revision: definition.revision,
-      })
+      const { data } = actionName === 'enable' || actionName === 'disable'
+        ? await apiClient.postContract(`wfl/process-definition/${actionName}`, {
+            definitionId: definition.definitionId,
+            revision: definition.revision,
+          })
+        : requiresReason
+          ? await apiClient.postContract(`wfl/process-definition/${actionName}`, {
+              definitionId: definition.definitionId,
+              approvalEntryId: definition.approval.approvalEntryId,
+              revision: definition.approval.revision,
+              reason,
+            })
+          : await apiClient.postContract(`wfl/process-definition/${actionName}`, {
+              definitionId: definition.definitionId,
+              approvalEntryId: definition.approval.approvalEntryId,
+              revision: definition.approval.revision,
+            })
       await session.restore({ force: true })
+      reviewReason.value = ''
+      setSelected(data)
+      await query()
+    } catch (error) {
+      errorMessage.value = getErrorMessage(error)
+    } finally {
+      saving.value = false
+    }
+  }
+
+  async function createVersion(): Promise<void> {
+    const definition = selected.value
+    if (!definition?.definitionId || !can('save')) return
+    saving.value = true
+    errorMessage.value = null
+    try {
+      const { data } = await apiClient.postContract('wfl/process-definition/create-version', {
+        definitionId: definition.definitionId,
+      })
       setSelected(data)
       await query()
     } catch (error) {
@@ -279,7 +350,9 @@ export function useProcessDefinitionViewModel() {
     trialEntityText,
     trialDocumentId,
     trialResult,
+    reviewReason,
     nodeMap,
+    lifecycleActions,
     can,
     query,
     resetFilters,
@@ -288,5 +361,6 @@ export function useProcessDefinitionViewModel() {
     save,
     trial,
     action,
+    createVersion,
   }
 }

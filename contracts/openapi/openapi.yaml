@@ -483,7 +483,7 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/acc.yaml#/OpeningActionRequest',
+                              '$ref': './schemas/acc.yaml#/OpeningApprovalActionRequest',
                             },
                         },
                     },
@@ -524,7 +524,7 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/acc.yaml#/OpeningActionRequest',
+                              '$ref': './schemas/acc.yaml#/OpeningReasonActionRequest',
                             },
                         },
                     },
@@ -534,6 +534,129 @@
                   '200':
                     {
                       'description': '反批准后的可编辑账簿期初。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/OpeningEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/opening/submit':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '提交账簿期初审批',
+              'operationId': 'accOpeningSubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/OpeningApprovalActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '提交后的账簿期初。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/OpeningEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/opening/unsubmit':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '撤回账簿期初审批',
+              'operationId': 'accOpeningUnsubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/OpeningApprovalActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '撤回后的账簿期初。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/OpeningEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/opening/reject':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '驳回账簿期初审批',
+              'operationId': 'accOpeningReject',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/OpeningReasonActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '驳回后的账簿期初。',
                       'content':
                         {
                           'application/json':
@@ -633,7 +756,7 @@
           'post':
             {
               'tags': ['acc'],
-              'summary': '创建 VOU 会计映射草稿版本',
+              'summary': '创建 VOU 会计映射首个草稿版本',
               'operationId': 'accMappingCreate',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -662,6 +785,88 @@
                               'schema':
                                 {
                                   '$ref': './schemas/acc.yaml#/MappingEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/mapping/create-next':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '创建 VOU 会计映射下一草稿版本',
+              'operationId': 'accMappingCreateNext',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/MappingCreateNextRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '创建后的映射候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/MappingEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/mapping/versions':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '读取 VOU 会计映射版本历史',
+              'operationId': 'accMappingVersions',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/MappingVersionsRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '映射版本历史。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/MappingPageEnvelope',
                                 },
                             },
                         },
@@ -727,7 +932,7 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/acc.yaml#/MappingActionRequest',
+                              '$ref': './schemas/acc.yaml#/MappingApprovalActionRequest',
                             },
                         },
                     },
@@ -768,7 +973,7 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/acc.yaml#/MappingActionRequest',
+                              '$ref': './schemas/acc.yaml#/MappingReasonActionRequest',
                             },
                         },
                     },
@@ -790,6 +995,155 @@
                         },
                     },
                 },
+            },
+        },
+      '/acc/mapping/submit':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '提交 VOU 会计映射审批',
+              'operationId': 'accMappingSubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/MappingApprovalActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '提交后的映射候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/MappingEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/mapping/unsubmit':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '撤回 VOU 会计映射审批',
+              'operationId': 'accMappingUnsubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/MappingApprovalActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '撤回后的映射候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/MappingEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/mapping/reject':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '驳回 VOU 会计映射审批',
+              'operationId': 'accMappingReject',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/MappingReasonActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '驳回后的映射候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/acc.yaml#/MappingEnvelope',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/acc/mapping/delete-version':
+        {
+          'post':
+            {
+              'tags': ['acc'],
+              'summary': '删除 VOU 会计映射草稿版本',
+              'operationId': 'accMappingDeleteVersion',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/acc.yaml#/MappingApprovalActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Empty' } },
             },
         },
       '/acc/mapping/catalog':
@@ -5643,13 +5997,95 @@
                 },
             },
         },
-      '/wfl/process-definition/publish':
+      '/wfl/process-definition/create-version':
         {
           'post':
             {
               'tags': ['wfl'],
-              'summary': '发布不可变流程修订',
-              'operationId': 'wflProcessDefinitionPublish',
+              'summary': '创建流程定义下一草稿版本',
+              'operationId': 'wflProcessDefinitionCreateVersion',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflDefinitionVersionCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '创建后的流程定义候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/wfl/process-definition/versions':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '查询流程定义版本历史',
+              'operationId': 'wflProcessDefinitionVersions',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflDefinitionVersionsRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '流程定义版本历史。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflDefinitionQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/wfl/process-definition/delete-version':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '删除流程定义草稿版本',
+              'operationId': 'wflProcessDefinitionDeleteVersion',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
                 {
@@ -5669,7 +6105,212 @@
                 {
                   '200':
                     {
-                      'description': '发布后的定义。',
+                      'description': '已删除流程定义草稿版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflDefinitionDeleteResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/wfl/process-definition/submit':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '提交流程定义版本审批',
+              'operationId': 'wflProcessDefinitionSubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflDefinitionActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '提交后的流程定义版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/wfl/process-definition/unsubmit':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '撤回流程定义版本审批',
+              'operationId': 'wflProcessDefinitionUnsubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflDefinitionActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '撤回后的流程定义版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/wfl/process-definition/reject':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '驳回流程定义版本审批',
+              'operationId': 'wflProcessDefinitionReject',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflDefinitionReasonActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '驳回后的流程定义版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/wfl/process-definition/approve':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '批准流程定义版本',
+              'operationId': 'wflProcessDefinitionApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflDefinitionActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '批准后的流程定义版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/wfl/process-definition/unapprove':
+        {
+          'post':
+            {
+              'tags': ['wfl'],
+              'summary': '反批准流程定义版本',
+              'operationId': 'wflProcessDefinitionUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/wfl.yaml#/WflDefinitionReasonActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '反批准后的流程定义版本。',
                       'content':
                         {
                           'application/json':
@@ -5701,7 +6342,7 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/wfl.yaml#/WflDefinitionActionRequest',
+                              '$ref': './schemas/wfl.yaml#/WflDefinitionToggleRequest',
                             },
                         },
                     },
@@ -5742,7 +6383,7 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/wfl.yaml#/WflDefinitionActionRequest',
+                              '$ref': './schemas/wfl.yaml#/WflDefinitionToggleRequest',
                             },
                         },
                     },
@@ -5759,47 +6400,6 @@
                               'schema':
                                 {
                                   '$ref': './schemas/wfl.yaml#/WflDefinitionViewResponse',
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-      '/wfl/process-definition/delete':
-        {
-          'post':
-            {
-              'tags': ['wfl'],
-              'summary': '删除流程定义',
-              'operationId': 'wflProcessDefinitionDelete',
-              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'requestBody':
-                {
-                  'required': true,
-                  'content':
-                    {
-                      'application/json':
-                        {
-                          'schema':
-                            {
-                              '$ref': './schemas/wfl.yaml#/WflDefinitionActionRequest',
-                            },
-                        },
-                    },
-                },
-              'responses':
-                {
-                  '200':
-                    {
-                      'description': '已删除的流程定义。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/wfl.yaml#/WflDefinitionDeleteResponse',
                                 },
                             },
                         },
@@ -6170,7 +6770,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/RptMutation' } },
+                {
+                  '200': { '$ref': '#/components/responses/RptDefinitionView' },
+                },
             },
         },
       '/rpt/definition/create-version':
@@ -6196,7 +6798,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/RptMutation' } },
+                {
+                  '200': { '$ref': '#/components/responses/RptDefinitionView' },
+                },
             },
         },
       '/rpt/definition/save':
@@ -6222,7 +6826,150 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/RptMutation' } },
+                {
+                  '200': { '$ref': '#/components/responses/RptDefinitionView' },
+                },
+            },
+        },
+      '/rpt/definition/versions':
+        {
+          'post':
+            {
+              'tags': ['rpt'],
+              'summary': '读取报表定义版本历史',
+              'operationId': 'rptDefinitionVersions',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/rpt.yaml#/RptVersionListRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      '$ref': '#/components/responses/RptDefinitionVersionPage',
+                    },
+                },
+            },
+        },
+      '/rpt/definition/delete-version':
+        {
+          'post':
+            {
+              'tags': ['rpt'],
+              'summary': '删除报表草稿版本',
+              'operationId': 'rptDefinitionDeleteVersion',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/rpt.yaml#/RptVersionDeleteRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Empty' } },
+            },
+        },
+      '/rpt/definition/submit':
+        {
+          'post':
+            {
+              'tags': ['rpt'],
+              'summary': '提交报表版本审批',
+              'operationId': 'rptDefinitionSubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/rpt.yaml#/RptVersionActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200': { '$ref': '#/components/responses/RptDefinitionView' },
+                },
+            },
+        },
+      '/rpt/definition/unsubmit':
+        {
+          'post':
+            {
+              'tags': ['rpt'],
+              'summary': '撤回报表版本审批',
+              'operationId': 'rptDefinitionUnsubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/rpt.yaml#/RptVersionActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200': { '$ref': '#/components/responses/RptDefinitionView' },
+                },
+            },
+        },
+      '/rpt/definition/reject':
+        {
+          'post':
+            {
+              'tags': ['rpt'],
+              'summary': '驳回报表版本审批',
+              'operationId': 'rptDefinitionReject',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/rpt.yaml#/RptVersionReasonActionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200': { '$ref': '#/components/responses/RptDefinitionView' },
+                },
             },
         },
       '/rpt/definition/approve':
@@ -6242,13 +6989,15 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/rpt.yaml#/RptVersionRevisionRequest',
+                              '$ref': './schemas/rpt.yaml#/RptVersionActionRequest',
                             },
                         },
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/RptMutation' } },
+                {
+                  '200': { '$ref': '#/components/responses/RptDefinitionView' },
+                },
             },
         },
       '/rpt/definition/unapprove':
@@ -6268,13 +7017,15 @@
                         {
                           'schema':
                             {
-                              '$ref': './schemas/rpt.yaml#/RptVersionRevisionRequest',
+                              '$ref': './schemas/rpt.yaml#/RptVersionReasonActionRequest',
                             },
                         },
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/RptMutation' } },
+                {
+                  '200': { '$ref': '#/components/responses/RptDefinitionView' },
+                },
             },
         },
       '/rpt/definition/enable':
@@ -6300,7 +7051,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/RptMutation' } },
+                {
+                  '200': { '$ref': '#/components/responses/RptDefinitionView' },
+                },
             },
         },
       '/rpt/definition/disable':
@@ -6326,7 +7079,9 @@
                     },
                 },
               'responses':
-                { '200': { '$ref': '#/components/responses/RptMutation' } },
+                {
+                  '200': { '$ref': '#/components/responses/RptDefinitionView' },
+                },
             },
         },
       '/rpt/definition/delete':
@@ -6352,22 +7107,7 @@
                     },
                 },
               'responses':
-                {
-                  '200':
-                    {
-                      'description': '已删除的报表定义。',
-                      'content':
-                        {
-                          'application/json':
-                            {
-                              'schema':
-                                {
-                                  '$ref': './schemas/rpt.yaml#/RptMutationResponse',
-                                },
-                            },
-                        },
-                    },
-                },
+                { '200': { '$ref': '#/components/responses/Empty' } },
             },
         },
       '/rpt/{report}/query':
@@ -6840,15 +7580,17 @@
                     },
                 },
             },
-          'RptMutation':
+          'RptDefinitionVersionPage':
             {
-              'description': '精确报表变更响应。',
+              'description': '精确报表定义版本分页响应。',
               'content':
                 {
                   'application/json':
                     {
                       'schema':
-                        { '$ref': './schemas/rpt.yaml#/RptMutationResponse' },
+                        {
+                          '$ref': './schemas/rpt.yaml#/RptDefinitionVersionPageResponse',
+                        },
                     },
                 },
             },

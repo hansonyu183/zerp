@@ -10,6 +10,8 @@ import (
 	"time"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/events/accapproval"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/fixeddecimal"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -24,14 +26,19 @@ type normalizedOpeningLine struct {
 	dimensionsJSON          []byte
 }
 
-func (s *Service) GetOpening(ctx context.Context, bookID, actorID string) (OpeningView, error) {
-	if err := s.requireAccess(ctx, s.queries, bookID, actorID, false); err != nil {
+func (s *Service) GetOpening(ctx context.Context, bookID string, actor approval.Actor) (OpeningView, error) {
+	if err := s.openingApproval.Authorize(ctx, actor, "query"); err != nil {
+		return OpeningView{}, mapApprovalError(err)
+	}
+	if err := s.requireApprovalAccess(ctx, s.queries, bookID, actor, false); err != nil {
 		return OpeningView{}, err
 	}
-	return loadOpening(ctx, s.queries, bookID)
+	return loadOpening(ctx, s.queries, s.pool, bookID)
 }
 
-func loadOpening(ctx context.Context, q *dbsqlc.Queries, bookID string) (OpeningView, error) {
+func loadOpening(ctx context.Context, q *dbsqlc.Queries, raw interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}, bookID string) (OpeningView, error) {
 	row, err := q.GetAccountingOpening(ctx, bookID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		if _, bookErr := q.GetAccountingBook(ctx, bookID); errors.Is(bookErr, pgx.ErrNoRows) {
@@ -39,19 +46,16 @@ func loadOpening(ctx context.Context, q *dbsqlc.Queries, bookID string) (Opening
 		} else if bookErr != nil {
 			return OpeningView{}, databaseError("get accounting book", bookErr)
 		}
-		return OpeningView{BookID: bookID, State: OpeningStateDraft, Revision: 0, Lines: []OpeningLineView{}, Assets: []OpeningAssetView{}, Bills: []OpeningBillView{}, Containers: []OpeningContainerView{}}, nil
+		return OpeningView{BookID: bookID, Approval: approval.Meta{Status: approval.StatusDraft}, Lines: []OpeningLineView{}, Assets: []OpeningAssetView{}, Bills: []OpeningBillView{}, Containers: []OpeningContainerView{}}, nil
 	}
 	if err != nil {
 		return OpeningView{}, databaseError("get accounting opening", err)
 	}
-	result := OpeningView{
-		BookID: row.BookID, State: row.State, VoucherID: row.VoucherID,
-		Revision: row.Revision, ApprovedBy: row.ApprovedBy, Lines: []OpeningLineView{},
+	entry, err := readACCApprovalEntry(ctx, raw, "opening", bookID, "")
+	if err != nil {
+		return OpeningView{}, databaseError("get accounting opening approval", err)
 	}
-	if row.ApprovedAt.Valid {
-		approvedAt := row.ApprovedAt.Time.Format(time.RFC3339Nano)
-		result.ApprovedAt = &approvedAt
-	}
+	result := OpeningView{BookID: row.BookID, Approval: approval.MetaFromEntry(entry), VoucherID: row.VoucherID, Lines: []OpeningLineView{}}
 	lines, err := q.ListAccountingOpeningLines(ctx, bookID)
 	if err != nil {
 		return OpeningView{}, databaseError("get accounting opening lines", err)
@@ -79,7 +83,7 @@ func loadOpening(ctx context.Context, q *dbsqlc.Queries, bookID string) (Opening
 	return result, nil
 }
 
-func (s *Service) SaveOpening(ctx context.Context, input SaveOpeningInput, actorID string) (OpeningView, error) {
+func (s *Service) SaveOpening(ctx context.Context, input SaveOpeningInput, actor approval.Actor) (OpeningView, error) {
 	if input.Revision < 0 || len(input.Lines) > 2000 || len(input.Assets) > 1000 || len(input.Bills) > 1000 || len(input.Containers) > 1000 {
 		return OpeningView{}, domainError(ErrorValidation, "invalid accounting opening", nil)
 	}
@@ -89,34 +93,37 @@ func (s *Service) SaveOpening(ctx context.Context, input SaveOpeningInput, actor
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.queries.WithTx(tx)
-	if err = s.requireAccess(ctx, qtx, input.BookID, actorID, true); err != nil {
+	if err = s.requireApprovalAccess(ctx, qtx, input.BookID, actor, true); err != nil {
 		return OpeningView{}, err
 	}
 	lines, err := normalizeOpeningLines(ctx, qtx, input.BookID, input.Lines)
 	if err != nil {
 		return OpeningView{}, err
 	}
-	state, err := qtx.GetAccountingOpeningForUpdate(ctx, input.BookID)
+	_, err = qtx.GetAccountingOpening(ctx, input.BookID)
+	created := false
+	var prepared approval.Prepared
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		if input.Revision != 0 {
 			return OpeningView{}, domainError(ErrorConflict, "accounting opening changed", nil)
 		}
-		if err = qtx.CreateAccountingOpening(ctx, dbsqlc.CreateAccountingOpeningParams{BookID: input.BookID, ActorID: actorID}); err != nil {
+		created = true
+		if err = qtx.CreateAccountingOpening(ctx, dbsqlc.CreateAccountingOpeningParams{BookID: input.BookID, ActorID: actor.ID()}); err != nil {
 			return OpeningView{}, databaseError("accounting opening cannot be created", err)
 		}
 	case err != nil:
 		return OpeningView{}, databaseError("get accounting opening state", err)
-	case state.State != OpeningStateDraft:
-		return OpeningView{}, domainError(ErrorConflict, "approved accounting opening cannot be edited", nil)
-	case state.Revision != input.Revision:
-		return OpeningView{}, domainError(ErrorConflict, "accounting opening changed", nil)
 	default:
-		if _, err = qtx.TouchAccountingOpeningDraft(ctx, dbsqlc.TouchAccountingOpeningDraftParams{
-			ActorID: actorID, BookID: input.BookID, Revision: input.Revision,
-		}); errors.Is(err, pgx.ErrNoRows) {
-			return OpeningView{}, domainError(ErrorConflict, "accounting opening changed", err)
-		} else if err != nil {
+		entry, readErr := readACCApprovalEntry(ctx, tx, "opening", input.BookID, "")
+		if readErr != nil {
+			return OpeningView{}, databaseError("get accounting opening approval", readErr)
+		}
+		prepared, err = s.openingApproval.Prepare(ctx, tx, approval.ActionSaved, entry.ID, input.Revision, actor, "")
+		if err != nil {
+			return OpeningView{}, mapApprovalError(err)
+		}
+		if err = qtx.TouchAccountingOpening(ctx, dbsqlc.TouchAccountingOpeningParams{ActorID: actor.ID(), BookID: input.BookID}); err != nil {
 			return OpeningView{}, databaseError("accounting opening cannot be saved", err)
 		}
 	}
@@ -135,7 +142,17 @@ func (s *Service) SaveOpening(ctx context.Context, input SaveOpeningInput, actor
 	if err = saveOpeningRegisters(ctx, qtx, input); err != nil {
 		return OpeningView{}, err
 	}
-	result, err := loadOpening(ctx, qtx, input.BookID)
+	payload := accapproval.Payload{BookID: input.BookID}
+	if created {
+		if _, err = s.openingApproval.CreateSubject(ctx, tx, input.BookID, actor, payload); err != nil {
+			return OpeningView{}, mapApprovalError(err)
+		}
+	} else {
+		if _, err = s.openingApproval.Commit(ctx, tx, prepared, payload); err != nil {
+			return OpeningView{}, mapApprovalError(err)
+		}
+	}
+	result, err := loadOpening(ctx, qtx, tx, input.BookID)
 	if err != nil {
 		return OpeningView{}, err
 	}
@@ -258,8 +275,8 @@ func validateOpeningTrialBalance(lines []normalizedOpeningLine) error {
 	return nil
 }
 
-func (s *Service) ApproveOpening(ctx context.Context, bookID string, revision int64, actorID string) (OpeningView, error) {
-	if revision < 0 {
+func (s *Service) ApproveOpening(ctx context.Context, bookID string, revision int64, actor approval.Actor) (OpeningView, error) {
+	if revision < 1 {
 		return OpeningView{}, domainError(ErrorValidation, "invalid accounting opening", nil)
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -268,8 +285,19 @@ func (s *Service) ApproveOpening(ctx context.Context, bookID string, revision in
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.queries.WithTx(tx)
-	if err = s.requireAccess(ctx, qtx, bookID, actorID, true); err != nil {
+	if err = s.requireApprovalAccess(ctx, qtx, bookID, actor, true); err != nil {
 		return OpeningView{}, err
+	}
+	entry, err := readACCApprovalEntry(ctx, tx, "opening", bookID, "")
+	if errors.Is(err, pgx.ErrNoRows) {
+		return OpeningView{}, domainError(ErrorConflict, "accounting opening not found", err)
+	}
+	if err != nil {
+		return OpeningView{}, databaseError("get accounting opening approval", err)
+	}
+	prepared, err := s.openingApproval.Prepare(ctx, tx, approval.ActionApproved, entry.ID, revision, actor, "")
+	if err != nil {
+		return OpeningView{}, mapApprovalError(err)
 	}
 	book, err := qtx.GetAccountingBook(ctx, bookID)
 	if err != nil {
@@ -279,46 +307,37 @@ func (s *Service) ApproveOpening(ctx context.Context, bookID string, revision in
 	if err != nil {
 		return OpeningView{}, domainError(ErrorInternal, "invalid stored accounting book start month", err)
 	}
-	state, stateErr := qtx.GetAccountingOpeningForUpdate(ctx, bookID)
-	var lines []normalizedOpeningLine
-	if errors.Is(stateErr, pgx.ErrNoRows) {
-		if revision != 0 {
-			return OpeningView{}, domainError(ErrorConflict, "accounting opening changed", nil)
-		}
-	} else if stateErr != nil {
+	state, stateErr := qtx.GetAccountingOpening(ctx, bookID)
+	if stateErr != nil {
 		return OpeningView{}, databaseError("get accounting opening state", stateErr)
-	} else {
-		if state.State != OpeningStateDraft || state.Revision != revision {
-			return OpeningView{}, domainError(ErrorConflict, "accounting opening changed", nil)
+	}
+	stored, err := qtx.ListAccountingOpeningLines(ctx, bookID)
+	if err != nil {
+		return OpeningView{}, databaseError("get accounting opening lines", err)
+	}
+	inputs := make([]OpeningLineInput, 0, len(stored))
+	for _, line := range stored {
+		dimensions := map[string]string{}
+		if err = json.Unmarshal(line.Dimensions, &dimensions); err != nil {
+			return OpeningView{}, domainError(ErrorInternal, "invalid stored accounting opening dimensions", err)
 		}
-		stored, err := qtx.ListAccountingOpeningLines(ctx, bookID)
-		if err != nil {
-			return OpeningView{}, databaseError("get accounting opening lines", err)
+		input := OpeningLineInput{
+			SubjectID: line.SubjectID, Currency: line.Currency,
+			DebitAmount:  fixeddecimal.Format(line.DebitMinor, 2, false),
+			CreditAmount: fixeddecimal.Format(line.CreditMinor, 2, false), Dimensions: dimensions,
 		}
-		inputs := make([]OpeningLineInput, 0, len(stored))
-		for _, line := range stored {
-			dimensions := map[string]string{}
-			if err = json.Unmarshal(line.Dimensions, &dimensions); err != nil {
-				return OpeningView{}, domainError(ErrorInternal, "invalid stored accounting opening dimensions", err)
-			}
-			input := OpeningLineInput{
-				SubjectID: line.SubjectID, Currency: line.Currency,
-				DebitAmount:  fixeddecimal.Format(line.DebitMinor, 2, false),
-				CreditAmount: fixeddecimal.Format(line.CreditMinor, 2, false), Dimensions: dimensions,
-			}
-			if line.QuantityMicros != nil {
-				quantity := fixeddecimal.Format(*line.QuantityMicros, 6, true)
-				input.Quantity = &quantity
-			}
-			inputs = append(inputs, input)
+		if line.QuantityMicros != nil {
+			quantity := fixeddecimal.Format(*line.QuantityMicros, 6, true)
+			input.Quantity = &quantity
 		}
-		lines, err = normalizeOpeningLines(ctx, qtx, bookID, inputs)
-		if err != nil {
-			return OpeningView{}, err
-		}
-		for index := range lines {
-			lines[index].id = stored[index].ID
-		}
+		inputs = append(inputs, input)
+	}
+	lines, err := normalizeOpeningLines(ctx, qtx, bookID, inputs)
+	if err != nil {
+		return OpeningView{}, err
+	}
+	for index := range lines {
+		lines[index].id = stored[index].ID
 	}
 	if err = validateOpeningTrialBalance(lines); err != nil {
 		return OpeningView{}, err
@@ -326,7 +345,7 @@ func (s *Service) ApproveOpening(ctx context.Context, bookID string, revision in
 	voucherID := ulid.Make().String()
 	if err = qtx.CreateAccountingVoucher(ctx, dbsqlc.CreateAccountingVoucherParams{
 		ID: voucherID, BookID: bookID, SourceType: "OPENING", SourceID: bookID,
-		BusinessDate: pgtype.Date{Time: startDate, Valid: true}, ActorID: actorID,
+		BusinessDate: pgtype.Date{Time: startDate, Valid: true}, ActorID: actor.ID(),
 	}); err != nil {
 		return OpeningView{}, databaseError("create accounting opening voucher", err)
 	}
@@ -359,22 +378,14 @@ func (s *Service) ApproveOpening(ctx context.Context, bookID string, revision in
 	if err = approveOpeningRegisters(ctx, qtx, bookID, lines); err != nil {
 		return OpeningView{}, err
 	}
-	if errors.Is(stateErr, pgx.ErrNoRows) {
-		err = qtx.CreateApprovedZeroAccountingOpening(ctx, dbsqlc.CreateApprovedZeroAccountingOpeningParams{
-			BookID: bookID, VoucherID: &voucherID, ActorID: &actorID,
-		})
-	} else {
-		_, err = qtx.ApproveAccountingOpening(ctx, dbsqlc.ApproveAccountingOpeningParams{
-			VoucherID: &voucherID, ActorID: &actorID, BookID: bookID, Revision: revision,
-		})
-	}
-	if errors.Is(err, pgx.ErrNoRows) {
-		return OpeningView{}, domainError(ErrorConflict, "accounting opening changed", err)
-	}
-	if err != nil {
+	if err = qtx.SetAccountingOpeningVoucher(ctx, dbsqlc.SetAccountingOpeningVoucherParams{VoucherID: &voucherID, ActorID: actor.ID(), BookID: bookID}); err != nil {
 		return OpeningView{}, databaseError("accounting opening cannot be approved", err)
 	}
-	result, err := loadOpening(ctx, qtx, bookID)
+	if _, err = s.openingApproval.Commit(ctx, tx, prepared, accapproval.Payload{BookID: bookID}); err != nil {
+		return OpeningView{}, mapApprovalError(err)
+	}
+	_ = state
+	result, err := loadOpening(ctx, qtx, tx, bookID)
 	if err != nil {
 		return OpeningView{}, err
 	}
@@ -384,7 +395,7 @@ func (s *Service) ApproveOpening(ctx context.Context, bookID string, revision in
 	return result, nil
 }
 
-func (s *Service) UnapproveOpening(ctx context.Context, bookID string, revision int64, actorID string) (OpeningView, error) {
+func (s *Service) UnapproveOpening(ctx context.Context, bookID string, revision int64, reason string, actor approval.Actor) (OpeningView, error) {
 	if revision < 1 {
 		return OpeningView{}, domainError(ErrorValidation, "invalid accounting opening", nil)
 	}
@@ -394,17 +405,25 @@ func (s *Service) UnapproveOpening(ctx context.Context, bookID string, revision 
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.queries.WithTx(tx)
-	if err = s.requireAccess(ctx, qtx, bookID, actorID, true); err != nil {
+	if err = s.requireApprovalAccess(ctx, qtx, bookID, actor, true); err != nil {
 		return OpeningView{}, err
 	}
-	state, err := qtx.GetAccountingOpeningForUpdate(ctx, bookID)
+	entry, err := readACCApprovalEntry(ctx, tx, "opening", bookID, "")
+	if err != nil {
+		return OpeningView{}, databaseError("get accounting opening approval", err)
+	}
+	prepared, err := s.openingApproval.Prepare(ctx, tx, approval.ActionUnapproved, entry.ID, revision, actor, reason)
+	if err != nil {
+		return OpeningView{}, mapApprovalError(err)
+	}
+	state, err := qtx.GetAccountingOpening(ctx, bookID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return OpeningView{}, domainError(ErrorConflict, "accounting opening changed", err)
 	}
 	if err != nil {
 		return OpeningView{}, databaseError("get accounting opening state", err)
 	}
-	if state.State != OpeningStateApproved || state.Revision != revision || state.VoucherID == nil {
+	if state.VoucherID == nil {
 		return OpeningView{}, domainError(ErrorConflict, "accounting opening changed", nil)
 	}
 	hasLaterFacts, err := qtx.AccountingBookHasLaterFacts(ctx, bookID)
@@ -422,11 +441,7 @@ func (s *Service) UnapproveOpening(ctx context.Context, bookID string, revision 
 	}); err != nil {
 		return OpeningView{}, databaseError("release accounting opening subject usage", err)
 	}
-	if _, err = qtx.UnapproveAccountingOpening(ctx, dbsqlc.UnapproveAccountingOpeningParams{
-		ActorID: actorID, BookID: bookID, Revision: revision,
-	}); errors.Is(err, pgx.ErrNoRows) {
-		return OpeningView{}, domainError(ErrorConflict, "accounting opening changed", err)
-	} else if err != nil {
+	if err = qtx.ClearAccountingOpeningVoucher(ctx, dbsqlc.ClearAccountingOpeningVoucherParams{ActorID: actor.ID(), BookID: bookID}); err != nil {
 		return OpeningView{}, databaseError("accounting opening cannot be unapproved", err)
 	}
 	if err = qtx.DeleteAccountingVoucher(ctx, dbsqlc.DeleteAccountingVoucherParams{
@@ -434,12 +449,64 @@ func (s *Service) UnapproveOpening(ctx context.Context, bookID string, revision 
 	}); err != nil {
 		return OpeningView{}, databaseError("delete accounting opening voucher", err)
 	}
-	result, err := loadOpening(ctx, qtx, bookID)
+	if _, err = s.openingApproval.Commit(ctx, tx, prepared, accapproval.Payload{BookID: bookID}); err != nil {
+		return OpeningView{}, mapApprovalError(err)
+	}
+	result, err := loadOpening(ctx, qtx, tx, bookID)
 	if err != nil {
 		return OpeningView{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return OpeningView{}, databaseError("commit accounting opening unapproval", err)
+	}
+	return result, nil
+}
+
+func (s *Service) SubmitOpening(ctx context.Context, bookID string, revision int64, actor approval.Actor) (OpeningView, error) {
+	return s.transitionOpening(ctx, bookID, revision, "", actor, approval.ActionSubmitted)
+}
+
+func (s *Service) UnsubmitOpening(ctx context.Context, bookID string, revision int64, actor approval.Actor) (OpeningView, error) {
+	return s.transitionOpening(ctx, bookID, revision, "", actor, approval.ActionUnsubmitted)
+}
+
+func (s *Service) RejectOpening(ctx context.Context, bookID string, revision int64, reason string, actor approval.Actor) (OpeningView, error) {
+	return s.transitionOpening(ctx, bookID, revision, reason, actor, approval.ActionRejected)
+}
+
+func (s *Service) transitionOpening(ctx context.Context, bookID string, revision int64, reason string, actor approval.Actor, action approval.Action) (OpeningView, error) {
+	if revision < 1 {
+		return OpeningView{}, domainError(ErrorValidation, "invalid accounting opening approval", nil)
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return OpeningView{}, databaseError("begin accounting opening approval", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	qtx := s.queries.WithTx(tx)
+	if err = s.requireApprovalAccess(ctx, qtx, bookID, actor, true); err != nil {
+		return OpeningView{}, err
+	}
+	if _, err = qtx.GetAccountingOpening(ctx, bookID); err != nil {
+		return OpeningView{}, databaseError("get accounting opening", err)
+	}
+	entry, err := readACCApprovalEntry(ctx, tx, "opening", bookID, "")
+	if err != nil {
+		return OpeningView{}, databaseError("get accounting opening approval", err)
+	}
+	prepared, err := s.openingApproval.Prepare(ctx, tx, action, entry.ID, revision, actor, reason)
+	if err != nil {
+		return OpeningView{}, mapApprovalError(err)
+	}
+	if _, err = s.openingApproval.Commit(ctx, tx, prepared, accapproval.Payload{BookID: bookID}); err != nil {
+		return OpeningView{}, mapApprovalError(err)
+	}
+	result, err := loadOpening(ctx, qtx, tx, bookID)
+	if err != nil {
+		return OpeningView{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return OpeningView{}, databaseError("commit accounting opening approval", err)
 	}
 	return result, nil
 }

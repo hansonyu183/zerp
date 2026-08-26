@@ -357,7 +357,6 @@
           'requestId': { 'type': 'string' },
         },
     },
-  'OpeningState': { 'type': 'string', 'enum': ['DRAFT', 'APPROVED'] },
   'OpeningQueryRequest':
     {
       'type': 'object',
@@ -366,7 +365,7 @@
       'properties':
         { 'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 } },
     },
-  'OpeningActionRequest':
+  'OpeningApprovalActionRequest':
     {
       'type': 'object',
       'required': ['bookId', 'revision'],
@@ -601,17 +600,26 @@
             { 'type': 'object', 'additionalProperties': { 'type': 'string' } },
         },
     },
+  'OpeningReasonActionRequest':
+    {
+      'type': 'object',
+      'required': ['bookId', 'revision', 'reason'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'reason': { 'type': 'string', 'minLength': 1, 'maxLength': 1000 },
+        },
+    },
   'Opening':
     {
       'type': 'object',
       'required':
         [
           'bookId',
-          'state',
+          'approval',
           'voucherId',
-          'revision',
-          'approvedAt',
-          'approvedBy',
           'lines',
           'assets',
           'bills',
@@ -621,12 +629,8 @@
       'properties':
         {
           'bookId': { 'type': 'string' },
-          'state': { '$ref': '#/OpeningState' },
+          'approval': { '$ref': './common.yaml#/ApprovalMeta' },
           'voucherId': { 'type': 'string', 'nullable': true },
-          'revision': { 'type': 'integer', 'format': 'int64' },
-          'approvedAt':
-            { 'type': 'string', 'format': 'date-time', 'nullable': true },
-          'approvedBy': { 'type': 'string', 'nullable': true },
           'lines': { 'type': 'array', 'items': { '$ref': '#/OpeningLine' } },
           'assets': { 'type': 'array', 'items': { '$ref': '#/OpeningAsset' } },
           'bills': { 'type': 'array', 'items': { '$ref': '#/OpeningBill' } },
@@ -653,7 +657,6 @@
           'requestId': { 'type': 'string' },
         },
     },
-  'MappingState': { 'type': 'string', 'enum': ['DRAFT', 'APPROVED'] },
   'MappingResult': { 'type': 'string', 'enum': ['POST', 'UN_POST'] },
   'MappingConditionOperator':
     {
@@ -807,12 +810,19 @@
   'MappingGetRequest':
     {
       'type': 'object',
-      'required': ['bookId', 'mappingId'],
+      'required': ['bookId', 'vouEntity'],
       'additionalProperties': false,
       'properties':
         {
           'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
-          'mappingId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'vouEntity': { 'type': 'string', 'minLength': 1 },
+          'approvalEntryId':
+            {
+              'type': 'string',
+              'minLength': 26,
+              'maxLength': 26,
+              'description': '精确读取该 Approval Version；省略时读取 latest APPROVED 或开放候选。',
+            },
         },
     },
   'MappingCreateRequest':
@@ -832,27 +842,78 @@
     {
       'type': 'object',
       'required':
-        ['bookId', 'mappingId', 'defaultResult', 'definition', 'revision'],
+        [
+          'bookId',
+          'vouEntity',
+          'approvalEntryId',
+          'defaultResult',
+          'definition',
+          'revision',
+        ],
       'additionalProperties': false,
       'properties':
         {
           'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
-          'mappingId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'vouEntity': { 'type': 'string', 'minLength': 1 },
+          'approvalEntryId':
+            { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
           'defaultResult': { '$ref': '#/MappingResult' },
           'definition': { '$ref': '#/MappingDefinition' },
           'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
         },
     },
-  'MappingActionRequest':
+  'MappingApprovalActionRequest':
     {
       'type': 'object',
-      'required': ['bookId', 'mappingId', 'revision'],
+      'required': ['bookId', 'vouEntity', 'approvalEntryId', 'revision'],
       'additionalProperties': false,
       'properties':
         {
           'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
-          'mappingId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'vouEntity': { 'type': 'string', 'minLength': 1 },
+          'approvalEntryId':
+            { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
           'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+        },
+    },
+  'MappingReasonActionRequest':
+    {
+      'type': 'object',
+      'required':
+        ['bookId', 'vouEntity', 'approvalEntryId', 'revision', 'reason'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'vouEntity': { 'type': 'string', 'minLength': 1 },
+          'approvalEntryId':
+            { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'reason': { 'type': 'string', 'minLength': 1, 'maxLength': 1000 },
+        },
+    },
+  'MappingVersionsRequest':
+    {
+      'type': 'object',
+      'required': ['bookId', 'vouEntity', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'vouEntity': { 'type': 'string', 'minLength': 1 },
+          'page': { 'type': 'integer', 'minimum': 1 },
+          'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
+        },
+    },
+  'MappingCreateNextRequest':
+    {
+      'type': 'object',
+      'required': ['bookId', 'vouEntity'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'bookId': { 'type': 'string', 'minLength': 26, 'maxLength': 26 },
+          'vouEntity': { 'type': 'string', 'minLength': 1 },
         },
     },
   'MappingCatalogRequest':
@@ -866,32 +927,15 @@
     {
       'type': 'object',
       'required':
-        [
-          'mappingId',
-          'bookId',
-          'vouEntity',
-          'version',
-          'state',
-          'defaultResult',
-          'definition',
-          'revision',
-          'approvedAt',
-          'approvedBy',
-        ],
+        ['bookId', 'vouEntity', 'approval', 'defaultResult', 'definition'],
       'additionalProperties': false,
       'properties':
         {
-          'mappingId': { 'type': 'string' },
           'bookId': { 'type': 'string' },
           'vouEntity': { 'type': 'string' },
-          'version': { 'type': 'integer', 'minimum': 1 },
-          'state': { '$ref': '#/MappingState' },
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
           'defaultResult': { '$ref': '#/MappingResult' },
           'definition': { '$ref': '#/MappingDefinition' },
-          'revision': { 'type': 'integer', 'format': 'int64' },
-          'approvedAt':
-            { 'type': 'string', 'format': 'date-time', 'nullable': true },
-          'approvedBy': { 'type': 'string', 'nullable': true },
         },
     },
   'MappingPage':

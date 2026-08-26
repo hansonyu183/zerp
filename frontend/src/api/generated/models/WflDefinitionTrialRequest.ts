@@ -5,6 +5,7 @@
 import type { VouEntity } from './VouEntity';
 export type WflDefinitionTrialRequest = {
   definitionId: string;
+  approvalEntryId: string;
   revision: number;
   source: {
     entity: VouEntity;

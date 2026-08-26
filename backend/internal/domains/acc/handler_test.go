@@ -14,6 +14,7 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	"github.com/hansonyu183/zerp/backend/internal/api/middleware"
 	"github.com/hansonyu183/zerp/backend/internal/api/response"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 )
 
 type bookServiceStub struct{ actions []string }
@@ -60,45 +61,72 @@ func (stub *bookServiceStub) DeleteSubject(_ context.Context, _, _ string, _ int
 	stub.actions = append(stub.actions, "subject-delete")
 	return nil
 }
-func (stub *bookServiceStub) GetOpening(_ context.Context, _, _ string) (OpeningView, error) {
+func (stub *bookServiceStub) GetOpening(_ context.Context, _ string, _ approval.Actor) (OpeningView, error) {
 	stub.actions = append(stub.actions, "opening-query")
 	return OpeningView{}, nil
 }
-func (stub *bookServiceStub) SaveOpening(_ context.Context, _ SaveOpeningInput, _ string) (OpeningView, error) {
+func (stub *bookServiceStub) SaveOpening(_ context.Context, _ SaveOpeningInput, _ approval.Actor) (OpeningView, error) {
 	stub.actions = append(stub.actions, "opening-save")
 	return OpeningView{}, nil
 }
-func (stub *bookServiceStub) ApproveOpening(_ context.Context, _ string, _ int64, _ string) (OpeningView, error) {
+func (stub *bookServiceStub) SubmitOpening(_ context.Context, _ string, _ int64, _ approval.Actor) (OpeningView, error) {
+	return OpeningView{}, nil
+}
+func (stub *bookServiceStub) UnsubmitOpening(_ context.Context, _ string, _ int64, _ approval.Actor) (OpeningView, error) {
+	return OpeningView{}, nil
+}
+func (stub *bookServiceStub) RejectOpening(_ context.Context, _ string, _ int64, _ string, _ approval.Actor) (OpeningView, error) {
+	return OpeningView{}, nil
+}
+func (stub *bookServiceStub) ApproveOpening(_ context.Context, _ string, _ int64, _ approval.Actor) (OpeningView, error) {
 	stub.actions = append(stub.actions, "opening-approve")
 	return OpeningView{}, nil
 }
-func (stub *bookServiceStub) UnapproveOpening(_ context.Context, _ string, _ int64, _ string) (OpeningView, error) {
+func (stub *bookServiceStub) UnapproveOpening(_ context.Context, _ string, _ int64, _ string, _ approval.Actor) (OpeningView, error) {
 	stub.actions = append(stub.actions, "opening-unapprove")
 	return OpeningView{}, nil
 }
-func (stub *bookServiceStub) QueryMappings(_ context.Context, input QueryMappingsInput, _ string) (MappingPage, error) {
+func (stub *bookServiceStub) QueryMappings(_ context.Context, input QueryMappingsInput, _ approval.Actor) (MappingPage, error) {
 	stub.actions = append(stub.actions, "mapping-query")
 	return MappingPage{Items: []MappingView{}, Page: input.Page, PageSize: input.PageSize}, nil
 }
-func (stub *bookServiceStub) GetMapping(_ context.Context, _, _, _ string) (MappingView, error) {
+func (stub *bookServiceStub) GetMapping(_ context.Context, _, _, _ string, _ approval.Actor) (MappingView, error) {
 	stub.actions = append(stub.actions, "mapping-get")
 	return MappingView{}, nil
 }
-func (stub *bookServiceStub) CreateMapping(_ context.Context, _ CreateMappingInput, _ string) (MappingView, error) {
+func (stub *bookServiceStub) CreateMapping(_ context.Context, _ CreateMappingInput, _ approval.Actor) (MappingView, error) {
 	stub.actions = append(stub.actions, "mapping-create")
 	return MappingView{}, nil
 }
-func (stub *bookServiceStub) SaveMapping(_ context.Context, _ SaveMappingInput, _ string) (MappingView, error) {
+func (stub *bookServiceStub) CreateNextMappingVersion(_ context.Context, _, _ string, _ approval.Actor) (MappingView, error) {
+	return MappingView{}, nil
+}
+func (stub *bookServiceStub) MappingVersions(_ context.Context, input QueryMappingsInput, _ approval.Actor) (MappingPage, error) {
+	return MappingPage{Page: input.Page, PageSize: input.PageSize}, nil
+}
+func (stub *bookServiceStub) SaveMapping(_ context.Context, _ SaveMappingInput, _ approval.Actor) (MappingView, error) {
 	stub.actions = append(stub.actions, "mapping-save")
 	return MappingView{}, nil
 }
-func (stub *bookServiceStub) ApproveMapping(_ context.Context, _, _ string, _ int64, _ string) (MappingView, error) {
+func (stub *bookServiceStub) SubmitMapping(_ context.Context, _ MappingVersionInput, _ approval.Actor) (MappingView, error) {
+	return MappingView{}, nil
+}
+func (stub *bookServiceStub) UnsubmitMapping(_ context.Context, _ MappingVersionInput, _ approval.Actor) (MappingView, error) {
+	return MappingView{}, nil
+}
+func (stub *bookServiceStub) RejectMapping(_ context.Context, _ MappingReasonInput, _ approval.Actor) (MappingView, error) {
+	return MappingView{}, nil
+}
+func (stub *bookServiceStub) ApproveMapping(_ context.Context, _ MappingVersionInput, _ approval.Actor) (MappingView, error) {
 	stub.actions = append(stub.actions, "mapping-approve")
 	return MappingView{}, nil
 }
-func (stub *bookServiceStub) UnapproveMapping(_ context.Context, _, _ string, _ int64, _ string) (MappingView, error) {
+func (stub *bookServiceStub) UnapproveMapping(_ context.Context, _ MappingReasonInput, _ approval.Actor) (MappingView, error) {
 	stub.actions = append(stub.actions, "mapping-unapprove")
 	return MappingView{}, nil
+}
+func (stub *bookServiceStub) DeleteMappingVersion(_ context.Context, _ MappingVersionInput, _ approval.Actor) error {
+	return nil
 }
 func (stub *bookServiceStub) QueryPeriods(_ context.Context, _, _ string) ([]PeriodView, error) {
 	stub.actions = append(stub.actions, "period-query")
@@ -234,11 +262,11 @@ func TestMappingHandlerUsesExactActionPermissionsAndBusinessEnvelope(t *testing.
 	definition := `"definition":{"defaultTemplateId":null,"rules":[],"templates":[]}`
 	tests := []struct{ action, body string }{
 		{"query", `{"bookId":"01JACC00000000000000000001","page":1,"pageSize":20}`},
-		{"get", `{"bookId":"01JACC00000000000000000001","mappingId":"01JACC00000000000000000002"}`},
+		{"get", `{"bookId":"01JACC00000000000000000001","vouEntity":"sale-order","approvalEntryId":"01JACC00000000000000000002"}`},
 		{"create", `{"bookId":"01JACC00000000000000000001","vouEntity":"sale-order","defaultResult":"UN_POST",` + definition + `}`},
-		{"save", `{"bookId":"01JACC00000000000000000001","mappingId":"01JACC00000000000000000002","defaultResult":"UN_POST","revision":1,` + definition + `}`},
-		{"approve", `{"bookId":"01JACC00000000000000000001","mappingId":"01JACC00000000000000000002","revision":1}`},
-		{"unapprove", `{"bookId":"01JACC00000000000000000001","mappingId":"01JACC00000000000000000002","revision":2}`},
+		{"save", `{"bookId":"01JACC00000000000000000001","vouEntity":"sale-order","approvalEntryId":"01JACC00000000000000000002","defaultResult":"UN_POST","revision":1,` + definition + `}`},
+		{"approve", `{"bookId":"01JACC00000000000000000001","vouEntity":"sale-order","approvalEntryId":"01JACC00000000000000000002","revision":1}`},
+		{"unapprove", `{"bookId":"01JACC00000000000000000001","vouEntity":"sale-order","approvalEntryId":"01JACC00000000000000000002","revision":2,"reason":"rollback"}`},
 	}
 	for _, test := range tests {
 		t.Run(test.action, func(t *testing.T) {

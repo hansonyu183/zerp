@@ -4,7 +4,7 @@
 
 Approval 是跨领域的中央审批能力，唯一拥有审批生命周期、操作授权、revision、审批元数据、审计事件和同步事务事件发布。业务 Domain 仍拥有稳定主体、业务数据、业务校验和强类型事件 payload；Approval 不认识任何 Domain 业务规则。
 
-中央能力同时提供 Approval-only 与 Approval Version 两种条目形态。BOB、AUX 使用 Approval Version，VOU 使用 Approval-only；ACC、RPT 和 WFL 的自身审批对象仍使用当前生命周期，直到后续独立切片完成迁移。
+中央能力同时提供 Approval-only 与 Approval Version 两种条目形态。VOU 和 ACC Opening 使用 Approval-only；BOB、AUX、ACC Mapping、RPT Definition 与 WFL Definition 使用 Approval Version。
 
 ## 2. 审批条目与主体边界
 
@@ -27,6 +27,12 @@ APPROVED --unapprove--> PENDING
 `save` 只能用于 `DRAFT`。每次 save 或 transition 必须令 `revision += 1`。`reject` 和 `unapprove` 必须提供非空 reason；`APPROVED` 的批准人必须与当前提交人不同。
 
 状态与元数据始终精确对应：`DRAFT` 的提交和批准元数据均为空；`PENDING` 的提交元数据非空、批准元数据为空；`APPROVED` 两组元数据均非空。`unsubmit` 和 `reject` 清空提交元数据，`unapprove` 仅清空批准元数据。
+
+### 3.1 Wire values 与最小共享中文映射
+
+HTTP 状态 wire value 只有 `DRAFT`、`PENDING`、`APPROVED`，共享中文分别为“草稿”“待批准”“已批准”。公开生命周期 action 只有 `submit`、`unsubmit`、`reject`、`approve`、`unapprove`，共享中文分别为“提交”“撤回”“驳回”“批准”“反批准”。创建、保存和删除是资源动作，不增加审批状态；审计 action 只有 `CREATED`、`SAVED`、`SUBMITTED`、`UNSUBMITTED`、`REJECTED`、`APPROVED`、`UNAPPROVED`、`DELETED`。
+
+中央 Approval 可返回的稳定 `errorKey` 完整集合为：`approval_invalid_actor`、`approval_invalid_configuration`、`approval_invalid_action`、`approval_invalid_revision`、`approval_invalid_request`、`approval_invalid_preparation`、`approval_not_found`、`approval_version_not_found`、`approval_stale_revision`、`approval_invalid_transition`、`approval_self_approval_forbidden`、`approval_reason_required`、`approval_reason_not_allowed`、`approval_version_history_exists`、`approval_open_version_exists`、`approval_no_approved_version`、`approval_not_latest_approved`、`approval_versioned_entry`、`approval_not_versioned`、`approval_version_number_conflict`、`approval_conflict`、`approval_event_delivery_failed`。Domain blocker 使用各领域自己的稳定 `errorKey`，不得伪装成 Approval 状态或 message 分支。
 
 ## 4. 授权与事务边界
 
@@ -54,4 +60,4 @@ Versioned event 由 Approval 填充 `VersionNo`、`PreviousApprovedVersionID` �
 
 ## 7. 验收边界
 
-真实 PostgreSQL 验收覆盖 Approval-only 唯一性、V1/V2、候选删除后复号、latest approved、只反批 latest、正式版本回落、版本号与开放候选唯一性、并发候选，以及正反状态转换、stale revision、permission denied、自批、缺失 reason、元数据精确性、每次 revision 递增、subscriber error/panic 回滚和 stable subject-entry 同事务创建/删除不留 orphan。页面在未迁移业务 Domain 前不调用 Approval API，因此当前不新增或改写页面用例。
+真实 PostgreSQL 验收覆盖 Approval-only 唯一性、V1/V2、候选删除后复号、latest approved、只反批 latest、正式版本回落、版本号与开放候选唯一性、并发候选，以及正反状态转换、stale revision、permission denied、自批、缺失 reason、元数据精确性、每次 revision 递增、subscriber error/panic 回滚和 stable subject-entry 同事务创建/删除不留 orphan。

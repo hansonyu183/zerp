@@ -4,5 +4,6 @@
 /* eslint-disable */
 export type WflDefinitionActionRequest = {
   definitionId: string;
+  approvalEntryId: string;
   revision: number;
 };

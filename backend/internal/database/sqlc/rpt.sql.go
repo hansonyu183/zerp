@@ -7,95 +7,69 @@ package sqlc
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const rptActivateVersion = `-- name: RptActivateVersion :exec
-UPDATE rpt_definitions
-SET current_version_id = $1, ever_approved = true, revision = revision + 1, updated_at = now(), updated_by = $2
-WHERE id = $3
+const rptCopyVersionPayload = `-- name: RptCopyVersionPayload :exec
+INSERT INTO rpt_versions(approval_entry_id, definition_id, validity, sql_text, parameters, columns, created_by, updated_by)
+SELECT $1, source.definition_id, source.validity, source.sql_text,
+       source.parameters, source.columns, $2, $2
+FROM rpt_versions source
+WHERE source.approval_entry_id=$3
+  AND source.definition_id=$4
 `
 
-type RptActivateVersionParams struct {
-	VersionID *string `db:"version_id" json:"version_id"`
-	ActorID   string  `db:"actor_id" json:"actor_id"`
-	ID        string  `db:"id" json:"id"`
+type RptCopyVersionPayloadParams struct {
+	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
+	ActorID               string `db:"actor_id" json:"actor_id"`
+	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	TargetDefinitionID    string `db:"target_definition_id" json:"target_definition_id"`
 }
 
-func (q *Queries) RptActivateVersion(ctx context.Context, arg RptActivateVersionParams) error {
-	_, err := q.db.Exec(ctx, rptActivateVersion, arg.VersionID, arg.ActorID, arg.ID)
+func (q *Queries) RptCopyVersionPayload(ctx context.Context, arg RptCopyVersionPayloadParams) error {
+	_, err := q.db.Exec(ctx, rptCopyVersionPayload,
+		arg.NewApprovalEntryID,
+		arg.ActorID,
+		arg.SourceApprovalEntryID,
+		arg.TargetDefinitionID,
+	)
 	return err
 }
 
-const rptAllocateVersionNumber = `-- name: RptAllocateVersionNumber :one
-UPDATE rpt_definitions
-SET next_version_no = next_version_no + 1, revision = revision + 1, updated_at = now(), updated_by = $1
-WHERE code = $2
-RETURNING id, next_version_no - 1 AS version_no
+const rptDeleteDefinition = `-- name: RptDeleteDefinition :execrows
+DELETE FROM rpt_definitions WHERE id=$1 AND revision=$2
 `
 
-type RptAllocateVersionNumberParams struct {
-	ActorID string `db:"actor_id" json:"actor_id"`
-	Code    string `db:"code" json:"code"`
+type RptDeleteDefinitionParams struct {
+	DefinitionID string `db:"definition_id" json:"definition_id"`
+	Revision     int64  `db:"revision" json:"revision"`
 }
 
-type RptAllocateVersionNumberRow struct {
-	ID        string `db:"id" json:"id"`
-	VersionNo int32  `db:"version_no" json:"version_no"`
+func (q *Queries) RptDeleteDefinition(ctx context.Context, arg RptDeleteDefinitionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, rptDeleteDefinition, arg.DefinitionID, arg.Revision)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
-func (q *Queries) RptAllocateVersionNumber(ctx context.Context, arg RptAllocateVersionNumberParams) (RptAllocateVersionNumberRow, error) {
-	row := q.db.QueryRow(ctx, rptAllocateVersionNumber, arg.ActorID, arg.Code)
-	var i RptAllocateVersionNumberRow
-	err := row.Scan(&i.ID, &i.VersionNo)
-	return i, err
-}
-
-const rptApproveVersion = `-- name: RptApproveVersion :exec
-UPDATE rpt_versions
-SET status = 'APPROVED', validity = 'VALID', revision = revision + 1, approved_at = now(), approved_by = $1, updated_at = now(), updated_by = $1
-WHERE id = $2
+const rptDeleteVersionPayload = `-- name: RptDeleteVersionPayload :exec
+DELETE FROM rpt_versions WHERE approval_entry_id=$1 AND definition_id=$2
 `
 
-type RptApproveVersionParams struct {
-	ActorID   *string `db:"actor_id" json:"actor_id"`
-	VersionID string  `db:"version_id" json:"version_id"`
+type RptDeleteVersionPayloadParams struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID    string `db:"definition_id" json:"definition_id"`
 }
 
-func (q *Queries) RptApproveVersion(ctx context.Context, arg RptApproveVersionParams) error {
-	_, err := q.db.Exec(ctx, rptApproveVersion, arg.ActorID, arg.VersionID)
-	return err
-}
-
-const rptClearCurrentVersion = `-- name: RptClearCurrentVersion :exec
-UPDATE rpt_definitions
-SET current_version_id = NULL, revision = revision + 1, updated_at = now(), updated_by = $1
-WHERE id = $2 AND current_version_id = $3
-`
-
-type RptClearCurrentVersionParams struct {
-	ActorID   string  `db:"actor_id" json:"actor_id"`
-	ID        string  `db:"id" json:"id"`
-	VersionID *string `db:"version_id" json:"version_id"`
-}
-
-func (q *Queries) RptClearCurrentVersion(ctx context.Context, arg RptClearCurrentVersionParams) error {
-	_, err := q.db.Exec(ctx, rptClearCurrentVersion, arg.ActorID, arg.ID, arg.VersionID)
-	return err
-}
-
-const rptDeleteDefinition = `-- name: RptDeleteDefinition :exec
-DELETE FROM rpt_definitions WHERE id = $1
-`
-
-func (q *Queries) RptDeleteDefinition(ctx context.Context, id string) error {
-	_, err := q.db.Exec(ctx, rptDeleteDefinition, id)
+func (q *Queries) RptDeleteVersionPayload(ctx context.Context, arg RptDeleteVersionPayloadParams) error {
+	_, err := q.db.Exec(ctx, rptDeleteVersionPayload, arg.ApprovalEntryID, arg.DefinitionID)
 	return err
 }
 
 const rptDisableUsePermissions = `-- name: RptDisableUsePermissions :exec
-UPDATE app_permissions
-SET status = 'DISABLED', revision = revision + 1, updated_at = now(), updated_by = $1
-WHERE domain = 'rpt' AND entity = $2 AND action IN ('query', 'export') AND status = 'ENABLED'
+UPDATE app_permissions SET status='DISABLED', revision=revision+1, updated_at=now(), updated_by=$1 WHERE domain='rpt' AND entity=$2 AND action IN ('query','export') AND status='ENABLED'
 `
 
 type RptDisableUsePermissionsParams struct {
@@ -109,50 +83,57 @@ func (q *Queries) RptDisableUsePermissions(ctx context.Context, arg RptDisableUs
 }
 
 const rptGetActiveDefinition = `-- name: RptGetActiveDefinition :one
-SELECT d.id, d.code, d.name, d.description, d.enabled, d.ever_approved,
-  d.current_version_id, d.revision, v.id AS version_id, v.version_no, v.status,
-  v.validity, v.revision AS version_revision, v.sql_text, v.parameters, v.columns
-FROM rpt_definitions d
-JOIN rpt_versions v ON v.id = d.current_version_id
-WHERE d.code = $1 AND d.enabled AND v.validity = 'VALID'
+SELECT d.id AS definition_id, d.code, d.name, d.description, d.enabled, e.id AS approval_entry_id, e.version_no, e.status, e.revision AS approval_revision, e.created_by AS approval_created_by, e.created_at AS approval_created_at, e.updated_by AS approval_updated_by, e.updated_at AS approval_updated_at, e.submitted_by AS approval_submitted_by, e.submitted_at AS approval_submitted_at, e.approved_by AS approval_approved_by, e.approved_at AS approval_approved_at, v.validity, v.sql_text, v.parameters, v.columns
+FROM rpt_definitions d JOIN LATERAL (SELECT id, version_no, status, revision, created_by, created_at, updated_by, updated_at, submitted_by, submitted_at, approved_by, approved_at FROM approval_entries WHERE domain='rpt' AND entity='definition' AND subject_id=d.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true JOIN rpt_versions v ON v.approval_entry_id=e.id AND v.definition_id=d.id
+WHERE d.code=$1 AND d.enabled AND v.validity='VALID'
 `
 
 type RptGetActiveDefinitionRow struct {
-	ID               string  `db:"id" json:"id"`
-	Code             string  `db:"code" json:"code"`
-	Name             string  `db:"name" json:"name"`
-	Description      string  `db:"description" json:"description"`
-	Enabled          bool    `db:"enabled" json:"enabled"`
-	EverApproved     bool    `db:"ever_approved" json:"ever_approved"`
-	CurrentVersionID *string `db:"current_version_id" json:"current_version_id"`
-	Revision         int64   `db:"revision" json:"revision"`
-	VersionID        string  `db:"version_id" json:"version_id"`
-	VersionNo        int32   `db:"version_no" json:"version_no"`
-	Status           string  `db:"status" json:"status"`
-	Validity         string  `db:"validity" json:"validity"`
-	VersionRevision  int64   `db:"version_revision" json:"version_revision"`
-	SqlText          string  `db:"sql_text" json:"sql_text"`
-	Parameters       []byte  `db:"parameters" json:"parameters"`
-	Columns          []byte  `db:"columns" json:"columns"`
+	DefinitionID        string             `db:"definition_id" json:"definition_id"`
+	Code                string             `db:"code" json:"code"`
+	Name                string             `db:"name" json:"name"`
+	Description         string             `db:"description" json:"description"`
+	Enabled             bool               `db:"enabled" json:"enabled"`
+	ApprovalEntryID     string             `db:"approval_entry_id" json:"approval_entry_id"`
+	VersionNo           *int32             `db:"version_no" json:"version_no"`
+	Status              string             `db:"status" json:"status"`
+	ApprovalRevision    int64              `db:"approval_revision" json:"approval_revision"`
+	ApprovalCreatedBy   string             `db:"approval_created_by" json:"approval_created_by"`
+	ApprovalCreatedAt   pgtype.Timestamptz `db:"approval_created_at" json:"approval_created_at"`
+	ApprovalUpdatedBy   string             `db:"approval_updated_by" json:"approval_updated_by"`
+	ApprovalUpdatedAt   pgtype.Timestamptz `db:"approval_updated_at" json:"approval_updated_at"`
+	ApprovalSubmittedBy *string            `db:"approval_submitted_by" json:"approval_submitted_by"`
+	ApprovalSubmittedAt pgtype.Timestamptz `db:"approval_submitted_at" json:"approval_submitted_at"`
+	ApprovalApprovedBy  *string            `db:"approval_approved_by" json:"approval_approved_by"`
+	ApprovalApprovedAt  pgtype.Timestamptz `db:"approval_approved_at" json:"approval_approved_at"`
+	Validity            string             `db:"validity" json:"validity"`
+	SqlText             string             `db:"sql_text" json:"sql_text"`
+	Parameters          []byte             `db:"parameters" json:"parameters"`
+	Columns             []byte             `db:"columns" json:"columns"`
 }
 
 func (q *Queries) RptGetActiveDefinition(ctx context.Context, code string) (RptGetActiveDefinitionRow, error) {
 	row := q.db.QueryRow(ctx, rptGetActiveDefinition, code)
 	var i RptGetActiveDefinitionRow
 	err := row.Scan(
-		&i.ID,
+		&i.DefinitionID,
 		&i.Code,
 		&i.Name,
 		&i.Description,
 		&i.Enabled,
-		&i.EverApproved,
-		&i.CurrentVersionID,
-		&i.Revision,
-		&i.VersionID,
+		&i.ApprovalEntryID,
 		&i.VersionNo,
 		&i.Status,
+		&i.ApprovalRevision,
+		&i.ApprovalCreatedBy,
+		&i.ApprovalCreatedAt,
+		&i.ApprovalUpdatedBy,
+		&i.ApprovalUpdatedAt,
+		&i.ApprovalSubmittedBy,
+		&i.ApprovalSubmittedAt,
+		&i.ApprovalApprovedBy,
+		&i.ApprovalApprovedAt,
 		&i.Validity,
-		&i.VersionRevision,
 		&i.SqlText,
 		&i.Parameters,
 		&i.Columns,
@@ -160,58 +141,122 @@ func (q *Queries) RptGetActiveDefinition(ctx context.Context, code string) (RptG
 	return i, err
 }
 
-const rptGetDefinition = `-- name: RptGetDefinition :one
-SELECT d.id, d.code, d.name, d.description, d.enabled, d.ever_approved,
-  coalesce(d.current_version_id, '') AS current_version_id, d.revision,
-  v.id AS version_id, v.version_no, v.status, v.validity, v.revision AS version_revision,
-  v.sql_text, v.parameters, v.columns
-FROM rpt_definitions d
-JOIN rpt_versions v ON v.definition_id = d.id
-WHERE d.code = $1
-  AND (v.id = $2 OR ($2::text = '' AND v.id = d.current_version_id))
+const rptGetDefinitionByEntry = `-- name: RptGetDefinitionByEntry :one
+SELECT d.id AS definition_id, d.code, d.name, d.description, d.enabled, d.revision AS object_revision,
+ e.id AS approval_entry_id, e.version_no, e.status, e.revision AS approval_revision, e.created_by AS approval_created_by, e.created_at AS approval_created_at, e.updated_by AS approval_updated_by, e.updated_at AS approval_updated_at, e.submitted_by AS approval_submitted_by, e.submitted_at AS approval_submitted_at, e.approved_by AS approval_approved_by, e.approved_at AS approval_approved_at,
+ v.validity, v.sql_text, v.parameters, v.columns
+FROM rpt_definitions d JOIN approval_entries e ON e.domain='rpt' AND e.entity='definition' AND e.subject_id=d.id JOIN rpt_versions v ON v.approval_entry_id=e.id AND v.definition_id=d.id
+WHERE d.code=$1 AND e.id=$2
 `
 
-type RptGetDefinitionParams struct {
-	Code      string `db:"code" json:"code"`
-	VersionID string `db:"version_id" json:"version_id"`
+type RptGetDefinitionByEntryParams struct {
+	Code            string `db:"code" json:"code"`
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
 }
 
-type RptGetDefinitionRow struct {
-	ID               string `db:"id" json:"id"`
-	Code             string `db:"code" json:"code"`
-	Name             string `db:"name" json:"name"`
-	Description      string `db:"description" json:"description"`
-	Enabled          bool   `db:"enabled" json:"enabled"`
-	EverApproved     bool   `db:"ever_approved" json:"ever_approved"`
-	CurrentVersionID string `db:"current_version_id" json:"current_version_id"`
-	Revision         int64  `db:"revision" json:"revision"`
-	VersionID        string `db:"version_id" json:"version_id"`
-	VersionNo        int32  `db:"version_no" json:"version_no"`
-	Status           string `db:"status" json:"status"`
-	Validity         string `db:"validity" json:"validity"`
-	VersionRevision  int64  `db:"version_revision" json:"version_revision"`
-	SqlText          string `db:"sql_text" json:"sql_text"`
-	Parameters       []byte `db:"parameters" json:"parameters"`
-	Columns          []byte `db:"columns" json:"columns"`
+type RptGetDefinitionByEntryRow struct {
+	DefinitionID        string             `db:"definition_id" json:"definition_id"`
+	Code                string             `db:"code" json:"code"`
+	Name                string             `db:"name" json:"name"`
+	Description         string             `db:"description" json:"description"`
+	Enabled             bool               `db:"enabled" json:"enabled"`
+	ObjectRevision      int64              `db:"object_revision" json:"object_revision"`
+	ApprovalEntryID     string             `db:"approval_entry_id" json:"approval_entry_id"`
+	VersionNo           *int32             `db:"version_no" json:"version_no"`
+	Status              string             `db:"status" json:"status"`
+	ApprovalRevision    int64              `db:"approval_revision" json:"approval_revision"`
+	ApprovalCreatedBy   string             `db:"approval_created_by" json:"approval_created_by"`
+	ApprovalCreatedAt   pgtype.Timestamptz `db:"approval_created_at" json:"approval_created_at"`
+	ApprovalUpdatedBy   string             `db:"approval_updated_by" json:"approval_updated_by"`
+	ApprovalUpdatedAt   pgtype.Timestamptz `db:"approval_updated_at" json:"approval_updated_at"`
+	ApprovalSubmittedBy *string            `db:"approval_submitted_by" json:"approval_submitted_by"`
+	ApprovalSubmittedAt pgtype.Timestamptz `db:"approval_submitted_at" json:"approval_submitted_at"`
+	ApprovalApprovedBy  *string            `db:"approval_approved_by" json:"approval_approved_by"`
+	ApprovalApprovedAt  pgtype.Timestamptz `db:"approval_approved_at" json:"approval_approved_at"`
+	Validity            string             `db:"validity" json:"validity"`
+	SqlText             string             `db:"sql_text" json:"sql_text"`
+	Parameters          []byte             `db:"parameters" json:"parameters"`
+	Columns             []byte             `db:"columns" json:"columns"`
 }
 
-func (q *Queries) RptGetDefinition(ctx context.Context, arg RptGetDefinitionParams) (RptGetDefinitionRow, error) {
-	row := q.db.QueryRow(ctx, rptGetDefinition, arg.Code, arg.VersionID)
-	var i RptGetDefinitionRow
+func (q *Queries) RptGetDefinitionByEntry(ctx context.Context, arg RptGetDefinitionByEntryParams) (RptGetDefinitionByEntryRow, error) {
+	row := q.db.QueryRow(ctx, rptGetDefinitionByEntry, arg.Code, arg.ApprovalEntryID)
+	var i RptGetDefinitionByEntryRow
+	err := row.Scan(
+		&i.DefinitionID,
+		&i.Code,
+		&i.Name,
+		&i.Description,
+		&i.Enabled,
+		&i.ObjectRevision,
+		&i.ApprovalEntryID,
+		&i.VersionNo,
+		&i.Status,
+		&i.ApprovalRevision,
+		&i.ApprovalCreatedBy,
+		&i.ApprovalCreatedAt,
+		&i.ApprovalUpdatedBy,
+		&i.ApprovalUpdatedAt,
+		&i.ApprovalSubmittedBy,
+		&i.ApprovalSubmittedAt,
+		&i.ApprovalApprovedBy,
+		&i.ApprovalApprovedAt,
+		&i.Validity,
+		&i.SqlText,
+		&i.Parameters,
+		&i.Columns,
+	)
+	return i, err
+}
+
+const rptGetDefinitionObject = `-- name: RptGetDefinitionObject :one
+SELECT id, code, name, description, enabled, revision FROM rpt_definitions WHERE code=$1
+`
+
+type RptGetDefinitionObjectRow struct {
+	ID          string `db:"id" json:"id"`
+	Code        string `db:"code" json:"code"`
+	Name        string `db:"name" json:"name"`
+	Description string `db:"description" json:"description"`
+	Enabled     bool   `db:"enabled" json:"enabled"`
+	Revision    int64  `db:"revision" json:"revision"`
+}
+
+func (q *Queries) RptGetDefinitionObject(ctx context.Context, code string) (RptGetDefinitionObjectRow, error) {
+	row := q.db.QueryRow(ctx, rptGetDefinitionObject, code)
+	var i RptGetDefinitionObjectRow
 	err := row.Scan(
 		&i.ID,
 		&i.Code,
 		&i.Name,
 		&i.Description,
 		&i.Enabled,
-		&i.EverApproved,
-		&i.CurrentVersionID,
 		&i.Revision,
-		&i.VersionID,
-		&i.VersionNo,
-		&i.Status,
+	)
+	return i, err
+}
+
+const rptGetLatestApprovedPayload = `-- name: RptGetLatestApprovedPayload :one
+SELECT v.approval_entry_id, v.definition_id, v.validity, v.sql_text, v.parameters, v.columns FROM approval_entries e JOIN rpt_versions v ON v.approval_entry_id=e.id
+WHERE e.domain='rpt' AND e.entity='definition' AND e.subject_id=$1 AND e.status='APPROVED' ORDER BY e.version_no DESC LIMIT 1
+`
+
+type RptGetLatestApprovedPayloadRow struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID    string `db:"definition_id" json:"definition_id"`
+	Validity        string `db:"validity" json:"validity"`
+	SqlText         string `db:"sql_text" json:"sql_text"`
+	Parameters      []byte `db:"parameters" json:"parameters"`
+	Columns         []byte `db:"columns" json:"columns"`
+}
+
+func (q *Queries) RptGetLatestApprovedPayload(ctx context.Context, definitionID string) (RptGetLatestApprovedPayloadRow, error) {
+	row := q.db.QueryRow(ctx, rptGetLatestApprovedPayload, definitionID)
+	var i RptGetLatestApprovedPayloadRow
+	err := row.Scan(
+		&i.ApprovalEntryID,
+		&i.DefinitionID,
 		&i.Validity,
-		&i.VersionRevision,
 		&i.SqlText,
 		&i.Parameters,
 		&i.Columns,
@@ -219,39 +264,40 @@ func (q *Queries) RptGetDefinition(ctx context.Context, arg RptGetDefinitionPara
 	return i, err
 }
 
-const rptInsertAuditEvent = `-- name: RptInsertAuditEvent :exec
-INSERT INTO rpt_audit_events(id, definition_id, report_code, version_id, event_type, actor_id, request_id, summary)
-VALUES($1, $2, $3, $4, $5, $6, $7, $8)
+const rptGetVersionPayload = `-- name: RptGetVersionPayload :one
+SELECT approval_entry_id, definition_id, validity, sql_text, parameters, columns FROM rpt_versions WHERE approval_entry_id=$1 AND definition_id=$2
 `
 
-type RptInsertAuditEventParams struct {
-	ID           string  `db:"id" json:"id"`
-	DefinitionID *string `db:"definition_id" json:"definition_id"`
-	ReportCode   string  `db:"report_code" json:"report_code"`
-	VersionID    *string `db:"version_id" json:"version_id"`
-	EventType    string  `db:"event_type" json:"event_type"`
-	ActorID      string  `db:"actor_id" json:"actor_id"`
-	RequestID    string  `db:"request_id" json:"request_id"`
-	Summary      []byte  `db:"summary" json:"summary"`
+type RptGetVersionPayloadParams struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID    string `db:"definition_id" json:"definition_id"`
 }
 
-func (q *Queries) RptInsertAuditEvent(ctx context.Context, arg RptInsertAuditEventParams) error {
-	_, err := q.db.Exec(ctx, rptInsertAuditEvent,
-		arg.ID,
-		arg.DefinitionID,
-		arg.ReportCode,
-		arg.VersionID,
-		arg.EventType,
-		arg.ActorID,
-		arg.RequestID,
-		arg.Summary,
+type RptGetVersionPayloadRow struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID    string `db:"definition_id" json:"definition_id"`
+	Validity        string `db:"validity" json:"validity"`
+	SqlText         string `db:"sql_text" json:"sql_text"`
+	Parameters      []byte `db:"parameters" json:"parameters"`
+	Columns         []byte `db:"columns" json:"columns"`
+}
+
+func (q *Queries) RptGetVersionPayload(ctx context.Context, arg RptGetVersionPayloadParams) (RptGetVersionPayloadRow, error) {
+	row := q.db.QueryRow(ctx, rptGetVersionPayload, arg.ApprovalEntryID, arg.DefinitionID)
+	var i RptGetVersionPayloadRow
+	err := row.Scan(
+		&i.ApprovalEntryID,
+		&i.DefinitionID,
+		&i.Validity,
+		&i.SqlText,
+		&i.Parameters,
+		&i.Columns,
 	)
-	return err
+	return i, err
 }
 
 const rptInsertDefinition = `-- name: RptInsertDefinition :exec
-INSERT INTO rpt_definitions(id, code, name, description, created_by, updated_by)
-VALUES($1, $2, $3, $4, $5, $5)
+INSERT INTO rpt_definitions(id, code, name, description, created_by, updated_by) VALUES($1, $2, $3, $4, $5, $5)
 `
 
 type RptInsertDefinitionParams struct {
@@ -273,26 +319,52 @@ func (q *Queries) RptInsertDefinition(ctx context.Context, arg RptInsertDefiniti
 	return err
 }
 
-const rptInsertVersion = `-- name: RptInsertVersion :exec
-INSERT INTO rpt_versions(id, definition_id, version_no, status, validity, sql_text, parameters, columns, created_by, updated_by)
-VALUES($1, $2, $3, 'DRAFT', 'VALID', $4, $5, $6, $7, $7)
+const rptInsertRuntimeAuditEvent = `-- name: RptInsertRuntimeAuditEvent :exec
+INSERT INTO rpt_runtime_audit_events(id, definition_id, report_code, approval_entry_id, event_type, actor_id, request_id, summary) VALUES($1, $2, $3, $4, $5, $6, $7, $8)
 `
 
-type RptInsertVersionParams struct {
-	ID           string `db:"id" json:"id"`
-	DefinitionID string `db:"definition_id" json:"definition_id"`
-	VersionNo    int32  `db:"version_no" json:"version_no"`
-	SqlText      string `db:"sql_text" json:"sql_text"`
-	Parameters   []byte `db:"parameters" json:"parameters"`
-	Columns      []byte `db:"columns" json:"columns"`
-	ActorID      string `db:"actor_id" json:"actor_id"`
+type RptInsertRuntimeAuditEventParams struct {
+	ID              string  `db:"id" json:"id"`
+	DefinitionID    *string `db:"definition_id" json:"definition_id"`
+	ReportCode      string  `db:"report_code" json:"report_code"`
+	ApprovalEntryID *string `db:"approval_entry_id" json:"approval_entry_id"`
+	EventType       string  `db:"event_type" json:"event_type"`
+	ActorID         string  `db:"actor_id" json:"actor_id"`
+	RequestID       string  `db:"request_id" json:"request_id"`
+	Summary         []byte  `db:"summary" json:"summary"`
 }
 
-func (q *Queries) RptInsertVersion(ctx context.Context, arg RptInsertVersionParams) error {
-	_, err := q.db.Exec(ctx, rptInsertVersion,
+func (q *Queries) RptInsertRuntimeAuditEvent(ctx context.Context, arg RptInsertRuntimeAuditEventParams) error {
+	_, err := q.db.Exec(ctx, rptInsertRuntimeAuditEvent,
 		arg.ID,
 		arg.DefinitionID,
-		arg.VersionNo,
+		arg.ReportCode,
+		arg.ApprovalEntryID,
+		arg.EventType,
+		arg.ActorID,
+		arg.RequestID,
+		arg.Summary,
+	)
+	return err
+}
+
+const rptInsertVersionPayload = `-- name: RptInsertVersionPayload :exec
+INSERT INTO rpt_versions(approval_entry_id, definition_id, validity, sql_text, parameters, columns, created_by, updated_by) VALUES($1, $2, 'VALID', $3, $4, $5, $6, $6)
+`
+
+type RptInsertVersionPayloadParams struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID    string `db:"definition_id" json:"definition_id"`
+	SqlText         string `db:"sql_text" json:"sql_text"`
+	Parameters      []byte `db:"parameters" json:"parameters"`
+	Columns         []byte `db:"columns" json:"columns"`
+	ActorID         string `db:"actor_id" json:"actor_id"`
+}
+
+func (q *Queries) RptInsertVersionPayload(ctx context.Context, arg RptInsertVersionPayloadParams) error {
+	_, err := q.db.Exec(ctx, rptInsertVersionPayload,
+		arg.ApprovalEntryID,
+		arg.DefinitionID,
 		arg.SqlText,
 		arg.Parameters,
 		arg.Columns,
@@ -302,19 +374,54 @@ func (q *Queries) RptInsertVersion(ctx context.Context, arg RptInsertVersionPara
 }
 
 const rptInvalidateVersion = `-- name: RptInvalidateVersion :exec
-UPDATE rpt_versions
-SET validity = 'INVALID', invalidated_at = now(), invalid_reason = 'STRUCTURE_CHANGED', revision = revision + 1
-WHERE id = $1 AND validity = 'VALID'
+UPDATE rpt_versions SET validity='INVALID', invalidated_at=now(), invalid_reason='STRUCTURE_CHANGED', updated_at=now(), updated_by=$1 WHERE approval_entry_id=$2 AND validity='VALID'
 `
 
-func (q *Queries) RptInvalidateVersion(ctx context.Context, id string) error {
-	_, err := q.db.Exec(ctx, rptInvalidateVersion, id)
+type RptInvalidateVersionParams struct {
+	ActorID         string `db:"actor_id" json:"actor_id"`
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+}
+
+func (q *Queries) RptInvalidateVersion(ctx context.Context, arg RptInvalidateVersionParams) error {
+	_, err := q.db.Exec(ctx, rptInvalidateVersion, arg.ActorID, arg.ApprovalEntryID)
 	return err
 }
 
+const rptLatestApprovedUseState = `-- name: RptLatestApprovedUseState :one
+SELECT d.id AS definition_id, d.code, d.name, d.enabled, coalesce(e.id,'') AS approval_entry_id, coalesce(e.status,'') AS status, v.validity
+FROM rpt_definitions d LEFT JOIN LATERAL (SELECT id, status FROM approval_entries WHERE domain='rpt' AND entity='definition' AND subject_id=d.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
+LEFT JOIN rpt_versions v ON v.approval_entry_id=e.id AND v.definition_id=d.id WHERE d.id=$1
+`
+
+type RptLatestApprovedUseStateRow struct {
+	DefinitionID    string  `db:"definition_id" json:"definition_id"`
+	Code            string  `db:"code" json:"code"`
+	Name            string  `db:"name" json:"name"`
+	Enabled         bool    `db:"enabled" json:"enabled"`
+	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
+	Status          string  `db:"status" json:"status"`
+	Validity        *string `db:"validity" json:"validity"`
+}
+
+// The persisted query/export permissions are enabled iff the stable definition
+// is enabled and its latest APPROVED payload is VALID. They do not own Approval state.
+func (q *Queries) RptLatestApprovedUseState(ctx context.Context, definitionID string) (RptLatestApprovedUseStateRow, error) {
+	row := q.db.QueryRow(ctx, rptLatestApprovedUseState, definitionID)
+	var i RptLatestApprovedUseStateRow
+	err := row.Scan(
+		&i.DefinitionID,
+		&i.Code,
+		&i.Name,
+		&i.Enabled,
+		&i.ApprovalEntryID,
+		&i.Status,
+		&i.Validity,
+	)
+	return i, err
+}
+
 const rptListAssetReferences = `-- name: RptListAssetReferences :many
-SELECT id, asset_no AS code, name, count(*) OVER() AS total
-FROM acc_assets
+SELECT id, asset_no AS code, name, count(*) OVER() AS total FROM acc_assets
 WHERE ($1::text = '' OR id = $1 OR asset_no ILIKE '%' || $2 || '%' OR name ILIKE '%' || $2 || '%')
 ORDER BY (id = $1 AND $1::text <> '') DESC, asset_no OFFSET $3 LIMIT $4
 `
@@ -366,13 +473,8 @@ func (q *Queries) RptListAssetReferences(ctx context.Context, arg RptListAssetRe
 const rptListBOBReferences = `-- name: RptListBOBReferences :many
 SELECT object.id, object.code, object.code AS name, count(*) OVER() AS total
 FROM bob_objects object
-JOIN LATERAL (
-  SELECT id FROM approval_entries
-  WHERE domain='bob' AND entity=object.entity AND subject_id=object.id AND status='APPROVED'
-  ORDER BY version_no DESC LIMIT 1
-) approved ON true
-WHERE object.entity = $1
-  AND ($2::text = '' OR object.id = $2 OR object.code ILIKE '%' || $3 || '%')
+JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='bob' AND entity=object.entity AND subject_id=object.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) approved ON true
+WHERE object.entity = $1 AND ($2::text = '' OR object.id = $2 OR object.code ILIKE '%' || $3 || '%')
 ORDER BY (object.id = $2 AND $2::text <> '') DESC, object.code OFFSET $4 LIMIT $5
 `
 
@@ -423,8 +525,7 @@ func (q *Queries) RptListBOBReferences(ctx context.Context, arg RptListBOBRefere
 }
 
 const rptListBillReferences = `-- name: RptListBillReferences :many
-SELECT id, bill_no AS code, bill_no AS name, count(*) OVER() AS total
-FROM acc_bills
+SELECT id, bill_no AS code, bill_no AS name, count(*) OVER() AS total FROM acc_bills
 WHERE ($1::text = '' OR id = $1 OR bill_no ILIKE '%' || $2 || '%')
 ORDER BY (id = $1 AND $1::text <> '') DESC, bill_no OFFSET $3 LIMIT $4
 `
@@ -474,8 +575,7 @@ func (q *Queries) RptListBillReferences(ctx context.Context, arg RptListBillRefe
 }
 
 const rptListBookReferences = `-- name: RptListBookReferences :many
-SELECT id, code, name, count(*) OVER() AS total
-FROM acc_books
+SELECT id, code, name, count(*) OVER() AS total FROM acc_books
 WHERE ($1::text = '' OR id = $1 OR code ILIKE '%' || $2 || '%' OR name ILIKE '%' || $2 || '%')
 ORDER BY (id = $1 AND $1::text <> '') DESC, code OFFSET $3 LIMIT $4
 `
@@ -525,8 +625,7 @@ func (q *Queries) RptListBookReferences(ctx context.Context, arg RptListBookRefe
 }
 
 const rptListSubjectReferences = `-- name: RptListSubjectReferences :many
-SELECT id, code, name, count(*) OVER() AS total
-FROM acc_subjects
+SELECT id, code, name, count(*) OVER() AS total FROM acc_subjects
 WHERE enabled AND ($1::text = '' OR id = $1 OR code ILIKE '%' || $2 || '%' OR name ILIKE '%' || $2 || '%')
 ORDER BY (id = $1 AND $1::text <> '') DESC, code, id OFFSET $3 LIMIT $4
 `
@@ -575,121 +674,41 @@ func (q *Queries) RptListSubjectReferences(ctx context.Context, arg RptListSubje
 	return items, nil
 }
 
-const rptLockCurrentApprovedVersion = `-- name: RptLockCurrentApprovedVersion :one
-SELECT d.id
-FROM rpt_definitions d
-JOIN rpt_versions v ON v.definition_id = d.id
-WHERE d.code = $1 AND d.current_version_id = v.id AND v.id = $2
-  AND v.status = 'APPROVED' AND v.revision = $3
-FOR UPDATE OF d, v
+const rptLockDefinitionObject = `-- name: RptLockDefinitionObject :one
+SELECT id, code, name, description, enabled, revision FROM rpt_definitions WHERE code=$1 FOR UPDATE
 `
 
-type RptLockCurrentApprovedVersionParams struct {
-	Code      string `db:"code" json:"code"`
-	VersionID string `db:"version_id" json:"version_id"`
-	Revision  int64  `db:"revision" json:"revision"`
+type RptLockDefinitionObjectRow struct {
+	ID          string `db:"id" json:"id"`
+	Code        string `db:"code" json:"code"`
+	Name        string `db:"name" json:"name"`
+	Description string `db:"description" json:"description"`
+	Enabled     bool   `db:"enabled" json:"enabled"`
+	Revision    int64  `db:"revision" json:"revision"`
 }
 
-func (q *Queries) RptLockCurrentApprovedVersion(ctx context.Context, arg RptLockCurrentApprovedVersionParams) (string, error) {
-	row := q.db.QueryRow(ctx, rptLockCurrentApprovedVersion, arg.Code, arg.VersionID, arg.Revision)
-	var id string
-	err := row.Scan(&id)
-	return id, err
-}
-
-const rptLockDefinitionCurrentVersion = `-- name: RptLockDefinitionCurrentVersion :one
-SELECT current_version_id = $1 AS is_current
-FROM rpt_definitions WHERE id = $2 FOR UPDATE
-`
-
-type RptLockDefinitionCurrentVersionParams struct {
-	VersionID *string `db:"version_id" json:"version_id"`
-	ID        string  `db:"id" json:"id"`
-}
-
-func (q *Queries) RptLockDefinitionCurrentVersion(ctx context.Context, arg RptLockDefinitionCurrentVersionParams) (bool, error) {
-	row := q.db.QueryRow(ctx, rptLockDefinitionCurrentVersion, arg.VersionID, arg.ID)
-	var is_current bool
-	err := row.Scan(&is_current)
-	return is_current, err
-}
-
-const rptLockDeletableDefinition = `-- name: RptLockDeletableDefinition :one
-SELECT id FROM rpt_definitions
-WHERE code = $1 AND revision = $2 AND ever_approved = false
-FOR UPDATE
-`
-
-type RptLockDeletableDefinitionParams struct {
-	Code     string `db:"code" json:"code"`
-	Revision int64  `db:"revision" json:"revision"`
-}
-
-func (q *Queries) RptLockDeletableDefinition(ctx context.Context, arg RptLockDeletableDefinitionParams) (string, error) {
-	row := q.db.QueryRow(ctx, rptLockDeletableDefinition, arg.Code, arg.Revision)
-	var id string
-	err := row.Scan(&id)
-	return id, err
-}
-
-const rptLockDraftForApproval = `-- name: RptLockDraftForApproval :one
-SELECT d.id, d.name, d.enabled, v.sql_text, v.parameters, v.columns
-FROM rpt_definitions d
-JOIN rpt_versions v ON v.definition_id = d.id
-WHERE d.code = $1 AND v.id = $2 AND v.status = 'DRAFT' AND v.revision = $3
-FOR UPDATE OF d, v
-`
-
-type RptLockDraftForApprovalParams struct {
-	Code      string `db:"code" json:"code"`
-	VersionID string `db:"version_id" json:"version_id"`
-	Revision  int64  `db:"revision" json:"revision"`
-}
-
-type RptLockDraftForApprovalRow struct {
-	ID         string `db:"id" json:"id"`
-	Name       string `db:"name" json:"name"`
-	Enabled    bool   `db:"enabled" json:"enabled"`
-	SqlText    string `db:"sql_text" json:"sql_text"`
-	Parameters []byte `db:"parameters" json:"parameters"`
-	Columns    []byte `db:"columns" json:"columns"`
-}
-
-func (q *Queries) RptLockDraftForApproval(ctx context.Context, arg RptLockDraftForApprovalParams) (RptLockDraftForApprovalRow, error) {
-	row := q.db.QueryRow(ctx, rptLockDraftForApproval, arg.Code, arg.VersionID, arg.Revision)
-	var i RptLockDraftForApprovalRow
+func (q *Queries) RptLockDefinitionObject(ctx context.Context, code string) (RptLockDefinitionObjectRow, error) {
+	row := q.db.QueryRow(ctx, rptLockDefinitionObject, code)
+	var i RptLockDefinitionObjectRow
 	err := row.Scan(
 		&i.ID,
+		&i.Code,
 		&i.Name,
+		&i.Description,
 		&i.Enabled,
-		&i.SqlText,
-		&i.Parameters,
-		&i.Columns,
+		&i.Revision,
 	)
 	return i, err
 }
 
 const rptQueryDefinitions = `-- name: RptQueryDefinitions :many
-SELECT d.id, d.code, d.name, d.description, d.enabled, d.ever_approved,
-  coalesce(d.current_version_id, '') AS current_version_id, d.revision,
-  coalesce(v.id, '') AS version_id, coalesce(v.version_no, 0)::integer AS version_no,
-  coalesce(v.status, '') AS status, coalesce(v.validity, '') AS validity,
-  coalesce(v.revision, 0)::bigint AS version_revision, coalesce(v.sql_text, '') AS sql_text,
-  coalesce(v.parameters, '[]'::jsonb) AS parameters, coalesce(v.columns, '[]'::jsonb) AS columns,
-  count(*) OVER() AS total
+SELECT d.id AS definition_id, d.code, d.name, d.description, d.enabled, d.revision AS object_revision,
+ e.id AS approval_entry_id, e.version_no, e.status, e.revision AS approval_revision, e.created_by AS approval_created_by, e.created_at AS approval_created_at, e.updated_by AS approval_updated_by, e.updated_at AS approval_updated_at, e.submitted_by AS approval_submitted_by, e.submitted_at AS approval_submitted_at, e.approved_by AS approval_approved_by, e.approved_at AS approval_approved_at,
+ v.validity, v.sql_text, v.parameters, v.columns, count(*) OVER() AS total
 FROM rpt_definitions d
-LEFT JOIN rpt_versions v ON v.id = coalesce(
-  (
-    SELECT draft.id
-    FROM rpt_versions draft
-    WHERE draft.definition_id = d.id AND draft.status = 'DRAFT'
-    ORDER BY draft.version_no DESC
-    LIMIT 1
-  ),
-  d.current_version_id
-)
-WHERE ($1::boolean OR d.enabled)
-  AND ($2::text = '' OR d.code ILIKE '%' || $2 || '%' OR d.name ILIKE '%' || $2 || '%')
+JOIN LATERAL (SELECT candidate.id, candidate.domain, candidate.entity, candidate.subject_id, candidate.version_no, candidate.status, candidate.revision, candidate.created_by, candidate.created_at, candidate.updated_by, candidate.updated_at, candidate.submitted_by, candidate.submitted_at, candidate.approved_by, candidate.approved_at FROM approval_entries candidate WHERE candidate.domain='rpt' AND candidate.entity='definition' AND candidate.subject_id=d.id ORDER BY CASE candidate.status WHEN 'DRAFT' THEN 0 WHEN 'PENDING' THEN 0 ELSE 1 END, candidate.version_no DESC LIMIT 1) e ON true
+JOIN rpt_versions v ON v.approval_entry_id=e.id
+WHERE ($1::boolean OR d.enabled) AND ($2::text='' OR d.code ILIKE '%' || $2 || '%' OR d.name ILIKE '%' || $2 || '%')
 ORDER BY d.code OFFSET $3 LIMIT $4
 `
 
@@ -701,25 +720,32 @@ type RptQueryDefinitionsParams struct {
 }
 
 type RptQueryDefinitionsRow struct {
-	ID               string `db:"id" json:"id"`
-	Code             string `db:"code" json:"code"`
-	Name             string `db:"name" json:"name"`
-	Description      string `db:"description" json:"description"`
-	Enabled          bool   `db:"enabled" json:"enabled"`
-	EverApproved     bool   `db:"ever_approved" json:"ever_approved"`
-	CurrentVersionID string `db:"current_version_id" json:"current_version_id"`
-	Revision         int64  `db:"revision" json:"revision"`
-	VersionID        string `db:"version_id" json:"version_id"`
-	VersionNo        int32  `db:"version_no" json:"version_no"`
-	Status           string `db:"status" json:"status"`
-	Validity         string `db:"validity" json:"validity"`
-	VersionRevision  int64  `db:"version_revision" json:"version_revision"`
-	SqlText          string `db:"sql_text" json:"sql_text"`
-	Parameters       []byte `db:"parameters" json:"parameters"`
-	Columns          []byte `db:"columns" json:"columns"`
-	Total            int64  `db:"total" json:"total"`
+	DefinitionID        string             `db:"definition_id" json:"definition_id"`
+	Code                string             `db:"code" json:"code"`
+	Name                string             `db:"name" json:"name"`
+	Description         string             `db:"description" json:"description"`
+	Enabled             bool               `db:"enabled" json:"enabled"`
+	ObjectRevision      int64              `db:"object_revision" json:"object_revision"`
+	ApprovalEntryID     string             `db:"approval_entry_id" json:"approval_entry_id"`
+	VersionNo           *int32             `db:"version_no" json:"version_no"`
+	Status              string             `db:"status" json:"status"`
+	ApprovalRevision    int64              `db:"approval_revision" json:"approval_revision"`
+	ApprovalCreatedBy   string             `db:"approval_created_by" json:"approval_created_by"`
+	ApprovalCreatedAt   pgtype.Timestamptz `db:"approval_created_at" json:"approval_created_at"`
+	ApprovalUpdatedBy   string             `db:"approval_updated_by" json:"approval_updated_by"`
+	ApprovalUpdatedAt   pgtype.Timestamptz `db:"approval_updated_at" json:"approval_updated_at"`
+	ApprovalSubmittedBy *string            `db:"approval_submitted_by" json:"approval_submitted_by"`
+	ApprovalSubmittedAt pgtype.Timestamptz `db:"approval_submitted_at" json:"approval_submitted_at"`
+	ApprovalApprovedBy  *string            `db:"approval_approved_by" json:"approval_approved_by"`
+	ApprovalApprovedAt  pgtype.Timestamptz `db:"approval_approved_at" json:"approval_approved_at"`
+	Validity            string             `db:"validity" json:"validity"`
+	SqlText             string             `db:"sql_text" json:"sql_text"`
+	Parameters          []byte             `db:"parameters" json:"parameters"`
+	Columns             []byte             `db:"columns" json:"columns"`
+	Total               int64              `db:"total" json:"total"`
 }
 
+// RPT owns only stable definition identity and version payload. Approval owns lifecycle.
 func (q *Queries) RptQueryDefinitions(ctx context.Context, arg RptQueryDefinitionsParams) ([]RptQueryDefinitionsRow, error) {
 	rows, err := q.db.Query(ctx, rptQueryDefinitions,
 		arg.IncludeDisabled,
@@ -735,19 +761,25 @@ func (q *Queries) RptQueryDefinitions(ctx context.Context, arg RptQueryDefinitio
 	for rows.Next() {
 		var i RptQueryDefinitionsRow
 		if err := rows.Scan(
-			&i.ID,
+			&i.DefinitionID,
 			&i.Code,
 			&i.Name,
 			&i.Description,
 			&i.Enabled,
-			&i.EverApproved,
-			&i.CurrentVersionID,
-			&i.Revision,
-			&i.VersionID,
+			&i.ObjectRevision,
+			&i.ApprovalEntryID,
 			&i.VersionNo,
 			&i.Status,
+			&i.ApprovalRevision,
+			&i.ApprovalCreatedBy,
+			&i.ApprovalCreatedAt,
+			&i.ApprovalUpdatedBy,
+			&i.ApprovalUpdatedAt,
+			&i.ApprovalSubmittedBy,
+			&i.ApprovalSubmittedAt,
+			&i.ApprovalApprovedBy,
+			&i.ApprovalApprovedAt,
 			&i.Validity,
-			&i.VersionRevision,
 			&i.SqlText,
 			&i.Parameters,
 			&i.Columns,
@@ -764,11 +796,8 @@ func (q *Queries) RptQueryDefinitions(ctx context.Context, arg RptQueryDefinitio
 }
 
 const rptQueryDirectory = `-- name: RptQueryDirectory :many
-SELECT d.code, d.name, d.description, v.parameters, v.columns, count(*) OVER() AS total
-FROM rpt_definitions d
-JOIN rpt_versions v ON v.id = d.current_version_id
-WHERE d.enabled AND v.validity = 'VALID' AND d.code = ANY($1::text[])
-ORDER BY d.code OFFSET $2 LIMIT $3
+SELECT d.code, d.name, d.description, v.parameters, v.columns, count(*) OVER() AS total FROM rpt_definitions d JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='rpt' AND entity='definition' AND subject_id=d.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true JOIN rpt_versions v ON v.approval_entry_id=e.id AND v.definition_id=d.id
+WHERE d.enabled AND v.validity='VALID' AND d.code=ANY($1::text[]) ORDER BY d.code OFFSET $2 LIMIT $3
 `
 
 type RptQueryDirectoryParams struct {
@@ -813,115 +842,93 @@ func (q *Queries) RptQueryDirectory(ctx context.Context, arg RptQueryDirectoryPa
 	return items, nil
 }
 
-const rptSaveDraft = `-- name: RptSaveDraft :one
-UPDATE rpt_versions v
-SET sql_text = $1, parameters = $2, columns = $3,
-  revision = v.revision + 1, updated_at = now(), updated_by = $4
-FROM rpt_definitions d
-WHERE v.id = $5 AND v.definition_id = d.id AND d.code = $6
-  AND v.status = 'DRAFT' AND v.revision = $7
-RETURNING d.id AS definition_id, v.revision
+const rptSetDefinitionEnabled = `-- name: RptSetDefinitionEnabled :one
+UPDATE rpt_definitions SET enabled=$1, revision=revision+1, updated_at=now(), updated_by=$2 WHERE id=$3 AND revision=$4 RETURNING id, code, name, enabled, revision
 `
 
-type RptSaveDraftParams struct {
-	SqlText    string `db:"sql_text" json:"sql_text"`
-	Parameters []byte `db:"parameters" json:"parameters"`
-	Columns    []byte `db:"columns" json:"columns"`
-	ActorID    string `db:"actor_id" json:"actor_id"`
-	VersionID  string `db:"version_id" json:"version_id"`
-	Code       string `db:"code" json:"code"`
-	Revision   int64  `db:"revision" json:"revision"`
-}
-
-type RptSaveDraftRow struct {
+type RptSetDefinitionEnabledParams struct {
+	Enabled      bool   `db:"enabled" json:"enabled"`
+	ActorID      string `db:"actor_id" json:"actor_id"`
 	DefinitionID string `db:"definition_id" json:"definition_id"`
 	Revision     int64  `db:"revision" json:"revision"`
 }
 
-func (q *Queries) RptSaveDraft(ctx context.Context, arg RptSaveDraftParams) (RptSaveDraftRow, error) {
-	row := q.db.QueryRow(ctx, rptSaveDraft,
-		arg.SqlText,
-		arg.Parameters,
-		arg.Columns,
-		arg.ActorID,
-		arg.VersionID,
-		arg.Code,
-		arg.Revision,
-	)
-	var i RptSaveDraftRow
-	err := row.Scan(&i.DefinitionID, &i.Revision)
-	return i, err
-}
-
-const rptSetDefinitionEnabled = `-- name: RptSetDefinitionEnabled :one
-UPDATE rpt_definitions d
-SET enabled = $1, revision = revision + 1, updated_at = now(), updated_by = $2
-WHERE code = $3 AND d.revision = $4
-RETURNING id, name,
-  EXISTS(SELECT 1 FROM rpt_versions v WHERE v.id = d.current_version_id AND v.validity = 'VALID') AS current_valid,
-  d.revision
-`
-
-type RptSetDefinitionEnabledParams struct {
-	Enabled  bool   `db:"enabled" json:"enabled"`
-	ActorID  string `db:"actor_id" json:"actor_id"`
-	Code     string `db:"code" json:"code"`
-	Revision int64  `db:"revision" json:"revision"`
-}
-
 type RptSetDefinitionEnabledRow struct {
-	ID           string `db:"id" json:"id"`
-	Name         string `db:"name" json:"name"`
-	CurrentValid bool   `db:"current_valid" json:"current_valid"`
-	Revision     int64  `db:"revision" json:"revision"`
+	ID       string `db:"id" json:"id"`
+	Code     string `db:"code" json:"code"`
+	Name     string `db:"name" json:"name"`
+	Enabled  bool   `db:"enabled" json:"enabled"`
+	Revision int64  `db:"revision" json:"revision"`
 }
 
 func (q *Queries) RptSetDefinitionEnabled(ctx context.Context, arg RptSetDefinitionEnabledParams) (RptSetDefinitionEnabledRow, error) {
 	row := q.db.QueryRow(ctx, rptSetDefinitionEnabled,
 		arg.Enabled,
 		arg.ActorID,
-		arg.Code,
+		arg.DefinitionID,
 		arg.Revision,
 	)
 	var i RptSetDefinitionEnabledRow
 	err := row.Scan(
 		&i.ID,
+		&i.Code,
 		&i.Name,
-		&i.CurrentValid,
+		&i.Enabled,
 		&i.Revision,
 	)
 	return i, err
 }
 
-const rptUpdateDefinitionText = `-- name: RptUpdateDefinitionText :exec
-UPDATE rpt_definitions
-SET name = coalesce($1, name), description = coalesce($2, description),
-  revision = revision + 1, updated_at = now(), updated_by = $3
-WHERE id = $4
+const rptUpdateDefinitionText = `-- name: RptUpdateDefinitionText :one
+UPDATE rpt_definitions SET name=coalesce($1, name), description=coalesce($2, description), revision=revision+1, updated_at=now(), updated_by=$3 WHERE id=$4 RETURNING revision
 `
 
 type RptUpdateDefinitionTextParams struct {
-	Name        *string `db:"name" json:"name"`
-	Description *string `db:"description" json:"description"`
-	ActorID     string  `db:"actor_id" json:"actor_id"`
-	ID          string  `db:"id" json:"id"`
+	Name         *string `db:"name" json:"name"`
+	Description  *string `db:"description" json:"description"`
+	ActorID      string  `db:"actor_id" json:"actor_id"`
+	DefinitionID string  `db:"definition_id" json:"definition_id"`
 }
 
-func (q *Queries) RptUpdateDefinitionText(ctx context.Context, arg RptUpdateDefinitionTextParams) error {
-	_, err := q.db.Exec(ctx, rptUpdateDefinitionText,
+func (q *Queries) RptUpdateDefinitionText(ctx context.Context, arg RptUpdateDefinitionTextParams) (int64, error) {
+	row := q.db.QueryRow(ctx, rptUpdateDefinitionText,
 		arg.Name,
 		arg.Description,
 		arg.ActorID,
-		arg.ID,
+		arg.DefinitionID,
+	)
+	var revision int64
+	err := row.Scan(&revision)
+	return revision, err
+}
+
+const rptUpdateDraftPayload = `-- name: RptUpdateDraftPayload :exec
+UPDATE rpt_versions SET sql_text=$1, parameters=$2, columns=$3, validity='VALID', invalidated_at=NULL, invalid_reason=NULL, updated_at=now(), updated_by=$4 WHERE approval_entry_id=$5 AND definition_id=$6
+`
+
+type RptUpdateDraftPayloadParams struct {
+	SqlText         string `db:"sql_text" json:"sql_text"`
+	Parameters      []byte `db:"parameters" json:"parameters"`
+	Columns         []byte `db:"columns" json:"columns"`
+	ActorID         string `db:"actor_id" json:"actor_id"`
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID    string `db:"definition_id" json:"definition_id"`
+}
+
+func (q *Queries) RptUpdateDraftPayload(ctx context.Context, arg RptUpdateDraftPayloadParams) error {
+	_, err := q.db.Exec(ctx, rptUpdateDraftPayload,
+		arg.SqlText,
+		arg.Parameters,
+		arg.Columns,
+		arg.ActorID,
+		arg.ApprovalEntryID,
+		arg.DefinitionID,
 	)
 	return err
 }
 
 const rptUpsertUsePermission = `-- name: RptUpsertUsePermission :exec
-INSERT INTO app_permissions(id, path, domain, entity, action, description, status, created_by, updated_by)
-VALUES($1, $2, 'rpt', $3, $4, $5, 'ENABLED', $6, $6)
-ON CONFLICT(path) DO UPDATE SET status = 'ENABLED', description = excluded.description,
-  revision = app_permissions.revision + 1, updated_at = now(), updated_by = excluded.updated_by
+INSERT INTO app_permissions(id, path, domain, entity, action, description, status, created_by, updated_by) VALUES($1, $2, 'rpt', $3, $4, $5, 'ENABLED', $6, $6) ON CONFLICT(path) DO UPDATE SET status='ENABLED', description=excluded.description, revision=app_permissions.revision+1, updated_at=now(), updated_by=excluded.updated_by
 `
 
 type RptUpsertUsePermissionParams struct {

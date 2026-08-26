@@ -1,7 +1,12 @@
 import { apiClient } from '@/api/client'
 import type { components } from '@/api/generated/schema'
 
-export type AccountingOpening = components['schemas']['Opening']
+export type OpeningContract = components['schemas']['Opening']
+// The template keeps a compact status accessor; its value is always projected
+// from the central Approval meta in setOpening.
+export type AccountingOpening = OpeningContract & {
+  state: OpeningContract['approval']['status']
+}
 export type AccountingOpeningLineInput =
   components['schemas']['OpeningLineInput']
 export type AccountingOpeningSaveInput =
@@ -21,10 +26,19 @@ export function saveAccountingOpening(input: AccountingOpeningSaveInput) {
   )
 }
 
-export function approveAccountingOpening(bookId: string, revision: number) {
-  return apiClient.postContract('acc/opening/approve', { bookId, revision })
+export function openingApprovalAction(
+  action: 'submit' | 'unsubmit' | 'approve',
+  bookId: string,
+  revision: number,
+) {
+  return apiClient.postContract(`acc/opening/${action}`, { bookId, revision })
 }
 
-export function unapproveAccountingOpening(bookId: string, revision: number) {
-  return apiClient.postContract('acc/opening/unapprove', { bookId, revision })
+export function openingReasonAction(
+  action: 'reject' | 'unapprove',
+  bookId: string,
+  revision: number,
+  reason: string,
+) {
+  return apiClient.postContract(`acc/opening/${action}`, { bookId, revision, reason })
 }

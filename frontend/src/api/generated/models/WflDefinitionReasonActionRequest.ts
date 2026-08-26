@@ -2,8 +2,9 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type RptMutationResult = {
-  id: string;
-  status?: string;
+export type WflDefinitionReasonActionRequest = {
+  definitionId: string;
+  approvalEntryId: string;
   revision: number;
+  reason: string;
 };

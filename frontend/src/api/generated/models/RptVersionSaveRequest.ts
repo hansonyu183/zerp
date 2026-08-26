@@ -5,7 +5,7 @@
 import type { RptVersionData } from './RptVersionData';
 export type RptVersionSaveRequest = {
   code: string;
-  versionId: string;
+  approvalEntryId: string;
   revision: number;
   name?: string;
   description?: string;

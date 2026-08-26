@@ -79,15 +79,15 @@ func (s *Service) handleApproval(ctx context.Context, tx pgx.Tx, source approval
 		return err
 	}
 	type candidate struct {
-		id, code, name string
-		revision       int64
-		compiled       compiledScriptDefinition
+		id, code, name  string
+		approvalEntryID string
+		compiled        compiledScriptDefinition
 	}
 	candidates := []candidate{}
 	for _, row := range rows {
 		var item candidate
 		item.id, item.code, item.name = row.ID, row.Code, row.Name
-		item.revision = row.Revision
+		item.approvalEntryID = row.ApprovalEntryID
 		var revisionErr error
 		item.compiled, revisionErr = compileDefinitionScript(row.Script)
 		if revisionErr != nil {
@@ -137,9 +137,9 @@ func workflowStartMatches(compiled compiledScriptDefinition, source any) (bool, 
 }
 
 func (s *Service) ensureRootInstance(ctx context.Context, tx pgx.Tx, definition struct {
-	id, code, name string
-	revision       int64
-	compiled       compiledScriptDefinition
+	id, code, name  string
+	approvalEntryID string
+	compiled        compiledScriptDefinition
 }, event workflowApprovalEvent) (string, string, bool, error) {
 	queries := s.queries.WithTx(tx)
 	locked, err := queries.LockWorkflowRootInstance(ctx, sqlc.LockWorkflowRootInstanceParams{
@@ -164,7 +164,7 @@ func (s *Service) ensureRootInstance(ctx context.Context, tx pgx.Tx, definition 
 		ID: processID, DefinitionID: definition.id, RootDocumentID: workflowText(event.DocumentID), RootDocumentNo: event.DocumentNo,
 		RootEntity: event.Entity, DefinitionCode: definition.code, DefinitionName: definition.name,
 		PartyObjectID: nullableText(partyObjectID), PartyCode: nullableText(partyCode), PartyName: nullableText(partyName),
-		StartedDefinitionRevision: definition.revision, ActorID: event.ActorID,
+		DefinitionApprovalEntryID: definition.approvalEntryID, ActorID: event.ActorID,
 	}); err != nil {
 		return "", "", false, err
 	}
@@ -174,9 +174,9 @@ func (s *Service) ensureRootInstance(ctx context.Context, tx pgx.Tx, definition 
 	}); err != nil {
 		return "", "", false, err
 	}
-	if err = insertRuntimeAudit(ctx, tx, processID, definition.id, definition.revision, "STARTED", nodeID,
+	if err = insertRuntimeAudit(ctx, tx, processID, definition.id, definition.approvalEntryID, "STARTED", nodeID,
 		event.DocumentID, event.DocumentNo, event.ActorID, event.RequestID,
-		map[string]any{"definitionRevision": definition.revision}); err != nil {
+		map[string]any{"approvalEntryId": definition.approvalEntryID}); err != nil {
 		return "", "", false, err
 	}
 	return processID, nodeID, true, nil
@@ -189,15 +189,15 @@ func (s *Service) executeExistingNodes(ctx context.Context, tx pgx.Tx, event wor
 	}
 	type node struct {
 		id, processID, key, definitionID string
-		revision                         int64
+		approvalEntryID                  string
 	}
 	nodes := []node{}
 	for _, row := range rows {
-		nodes = append(nodes, node{id: row.ID, processID: row.ProcessID, key: row.NodeKey, definitionID: row.DefinitionID, revision: row.StartedDefinitionRevision})
+		nodes = append(nodes, node{id: row.ID, processID: row.ProcessID, key: row.NodeKey, definitionID: row.DefinitionID, approvalEntryID: row.DefinitionApprovalEntryID})
 	}
 	for _, item := range nodes {
-		revision, revisionErr := s.queries.WithTx(tx).GetWorkflowPublishedRevision(ctx, sqlc.GetWorkflowPublishedRevisionParams{
-			DefinitionID: item.definitionID, Revision: item.revision,
+		revision, revisionErr := s.queries.WithTx(tx).GetWorkflowDefinitionVersion(ctx, sqlc.GetWorkflowDefinitionVersionParams{
+			DefinitionID: item.definitionID, ApprovalEntryID: item.approvalEntryID,
 		})
 		if revisionErr != nil {
 			return revisionErr
@@ -324,7 +324,7 @@ func (s *Service) executeNode(
 				return err
 			}
 		}
-		if err = insertRuntimeAudit(ctx, tx, processID, "", 0, "ACTION_EXECUTED", targetNodeID,
+		if err = insertRuntimeAudit(ctx, tx, processID, "", "", "ACTION_EXECUTED", targetNodeID,
 			businessObject.DocumentID, businessObject.DocumentNo, actorID, requestID,
 			map[string]any{"action": edge.ActionName, "relation": edge.Relation, "sourceNodeInstanceId": sourceNodeID}); err != nil {
 			return err
@@ -393,8 +393,8 @@ func (s *Service) CreateChildByDefinitionCode(ctx context.Context, code string, 
 	if err != nil {
 		return BusinessObjectReference{}, err
 	}
-	revision, err := queries.GetWorkflowPublishedRevision(ctx, sqlc.GetWorkflowPublishedRevisionParams{
-		DefinitionID: definitionID, Revision: sourceNode.StartedDefinitionRevision,
+	revision, err := queries.GetWorkflowDefinitionVersion(ctx, sqlc.GetWorkflowDefinitionVersionParams{
+		DefinitionID: definitionID, ApprovalEntryID: sourceNode.DefinitionApprovalEntryID,
 	})
 	if err != nil {
 		return BusinessObjectReference{}, err
@@ -443,7 +443,7 @@ func (s *Service) handleDeleted(ctx context.Context, tx pgx.Tx, raw txevent.Even
 }
 
 func insertRuntimeAudit(
-	ctx context.Context, tx pgx.Tx, processID, definitionID string, definitionRevision int64,
+	ctx context.Context, tx pgx.Tx, processID, definitionID, definitionApprovalEntryID string,
 	eventType, nodeID, documentID, documentNo, actorID, requestID string, summary map[string]any,
 ) error {
 	if definitionID == "" && processID != "" {
@@ -451,10 +451,10 @@ func insertRuntimeAudit(
 		if err != nil {
 			return err
 		}
-		definitionID, definitionRevision = instance.DefinitionID, instance.StartedDefinitionRevision
+		definitionID, definitionApprovalEntryID = instance.DefinitionID, instance.DefinitionApprovalEntryID
 	}
 	return sqlc.New(tx).CreateWorkflowRuntimeAudit(ctx, sqlc.CreateWorkflowRuntimeAuditParams{
-		ID: newID(), ProcessID: nullableText(processID), DefinitionID: definitionID, DefinitionRevision: definitionRevision,
+		ID: newID(), ProcessID: nullableText(processID), DefinitionID: definitionID, DefinitionApprovalEntryID: definitionApprovalEntryID,
 		EventType: eventType, NodeInstanceID: nullableText(nodeID), DocumentID: nullableText(documentID), DocumentNo: nullableText(documentNo),
 		ActorID: actorID, RequestID: requestID, Summary: mustJSON(summary),
 	})

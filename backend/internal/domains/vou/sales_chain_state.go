@@ -3,14 +3,13 @@ package vou
 import (
 	"context"
 
-	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
-	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 )
 
 func (s *Service) loadSalesChainData(
-	ctx context.Context, document dbsqlc.VouDocument, data DocumentDataView,
+	ctx context.Context, document documentRecord, data DocumentDataView,
 ) (DocumentDataView, error) {
 	switch document.Entity {
 	case EntitySaleOutbound:
@@ -182,14 +181,18 @@ func (s *Service) setSaleOrderBalances(
 	ctx context.Context, orderID string, data *DocumentDataView,
 ) error {
 	rows, err := s.pool.Query(ctx, `SELECT l.id,l.base_quantity_micros,
-		COALESCE(sum(CASE WHEN sd.status = 'APPROVED' THEN sl.signed_base_quantity_micros ELSE 0 END),0)::bigint,
-		COALESCE(sum(CASE WHEN od.status = 'APPROVED' AND (sd.id IS NULL OR sd.status <> 'APPROVED')
+		COALESCE(sum(CASE WHEN sda.status = 'APPROVED' THEN sl.signed_base_quantity_micros ELSE 0 END),0)::bigint,
+		COALESCE(sum(CASE WHEN oda.status = 'APPROVED' AND (sd.id IS NULL OR sda.status <> 'APPROVED')
 			THEN ol.base_quantity_micros ELSE 0 END),0)::bigint
 		FROM vou_product_lines l
 		LEFT JOIN vou_sale_outbound_lines ol ON ol.source_order_line_id=l.id
 		LEFT JOIN vou_documents od ON od.id=ol.document_id
+		LEFT JOIN approval_entries oda ON oda.id=od.approval_entry_id AND oda.domain='vou'
+			AND oda.entity=od.entity AND oda.subject_id=od.id
 		LEFT JOIN vou_sale_signoff_lines sl ON sl.source_outbound_line_id=ol.id
 		LEFT JOIN vou_documents sd ON sd.id=sl.document_id
+		LEFT JOIN approval_entries sda ON sda.id=sd.approval_entry_id AND sda.domain='vou'
+			AND sda.entity=sd.entity AND sda.subject_id=sd.id
 		WHERE l.document_id=$1 GROUP BY l.id,l.base_quantity_micros`, orderID)
 	if err != nil {
 		return err
@@ -235,10 +238,12 @@ func (s *Service) validateSalesChainStored(
 	complete := false
 	switch entity {
 	case EntitySaleOutbound:
-		err := s.pool.QueryRow(ctx, `SELECT p.status,
+		err := s.pool.QueryRow(ctx, `SELECT approval.status,
 			(SELECT count(*) FROM vou_sale_outbound_lines WHERE document_id=x.document_id),
 			x.warehouse_object_id IS NOT NULL
 			FROM vou_sale_outbound_details x JOIN vou_documents p ON p.id=x.source_order_id
+			JOIN approval_entries approval ON approval.id=p.approval_entry_id
+				AND approval.domain='vou' AND approval.entity=p.entity AND approval.subject_id=p.id
 			WHERE x.document_id=$1`, documentID).
 			Scan(&sourceStatus, &lineCount, &complete)
 		if err != nil {
@@ -252,9 +257,11 @@ func (s *Service) validateSalesChainStored(
 		sourceStatus, lineCount = row.SourceStatus, row.LineCount
 		complete = row.Complete != nil && *row.Complete
 	case EntitySaleSignoff:
-		err := s.pool.QueryRow(ctx, `SELECT p.status,
+		err := s.pool.QueryRow(ctx, `SELECT approval.status,
 			(SELECT count(*) FROM vou_sale_signoff_lines WHERE document_id=x.document_id),true
 			FROM vou_sale_signoff_details x JOIN vou_documents p ON p.id=x.source_delivery_id
+			JOIN approval_entries approval ON approval.id=p.approval_entry_id
+				AND approval.domain='vou' AND approval.entity=p.entity AND approval.subject_id=p.id
 			WHERE x.document_id=$1`, documentID).
 			Scan(&sourceStatus, &lineCount, &complete)
 		if err != nil {
@@ -269,14 +276,16 @@ func (s *Service) validateSalesChainStored(
 }
 
 func (s *Service) prepareSalesChainApproval(
-	ctx context.Context, tx pgx.Tx, document dbsqlc.VouDocument,
+	ctx context.Context, tx pgx.Tx, document documentRecord,
 ) (map[string]any, error) {
 	if document.Entity == EntitySaleOutbound {
 		var orderID, fulfillment string
 		if err := tx.QueryRow(ctx, `SELECT x.source_order_id,o.fulfillment_status
 			FROM vou_sale_outbound_details x JOIN vou_sale_order_details o ON o.document_id=x.source_order_id
 			JOIN vou_documents d ON d.id=x.source_order_id
-			WHERE x.document_id=$1 AND d.status = 'APPROVED' FOR UPDATE OF d`,
+			JOIN approval_entries a ON a.id=d.approval_entry_id AND a.domain='vou'
+				AND a.entity=d.entity AND a.subject_id=d.id
+			WHERE x.document_id=$1 AND a.status = 'APPROVED' FOR UPDATE OF d,a`,
 			document.ID).Scan(&orderID, &fulfillment); err != nil {
 			return nil, domainError(ErrorConflict, "sale order is not approved", nil, err)
 		}
@@ -285,14 +294,20 @@ func (s *Service) prepareSalesChainApproval(
 		}
 		rows, err := tx.Query(ctx, `SELECT ol.source_order_line_id,ol.base_quantity_micros,l.base_quantity_micros,
 			COALESCE((SELECT sum(sl.signed_base_quantity_micros) FROM vou_sale_signoff_lines sl
-				JOIN vou_documents sd ON sd.id=sl.document_id AND sd.status = 'APPROVED'
+				JOIN vou_documents sd ON sd.id=sl.document_id
+				JOIN approval_entries sa ON sa.id=sd.approval_entry_id AND sa.domain='vou'
+					AND sa.entity=sd.entity AND sa.subject_id=sd.id AND sa.status='APPROVED'
 				WHERE sl.source_order_line_id=l.id),0)::bigint,
 			COALESCE((SELECT sum(other.base_quantity_micros) FROM vou_sale_outbound_lines other
-				JOIN vou_documents od ON od.id=other.document_id AND od.status = 'APPROVED'
+				JOIN vou_documents od ON od.id=other.document_id
+				JOIN approval_entries oa ON oa.id=od.approval_entry_id AND oa.domain='vou'
+					AND oa.entity=od.entity AND oa.subject_id=od.id AND oa.status='APPROVED'
 				LEFT JOIN vou_sale_signoff_lines sl2 ON sl2.source_outbound_line_id=other.id
 				LEFT JOIN vou_documents sd2 ON sd2.id=sl2.document_id
+				LEFT JOIN approval_entries sa2 ON sa2.id=sd2.approval_entry_id AND sa2.domain='vou'
+					AND sa2.entity=sd2.entity AND sa2.subject_id=sd2.id
 				WHERE other.source_order_line_id=l.id
-				AND (sd2.id IS NULL OR sd2.status <> 'APPROVED')),0)::bigint
+				AND (sd2.id IS NULL OR sa2.status <> 'APPROVED')),0)::bigint
 			FROM vou_sale_outbound_lines ol JOIN vou_product_lines l ON l.id=ol.source_order_line_id
 			WHERE ol.document_id=$1`, document.ID)
 		if err != nil {
@@ -316,9 +331,11 @@ func (s *Service) prepareSalesChainApproval(
 		return map[string]any{"parentDocumentId": orderID}, nil
 	}
 	var sourceStatus string
-	if err := tx.QueryRow(ctx, `SELECT p.status FROM vou_documents d
+	if err := tx.QueryRow(ctx, `SELECT approval.status FROM vou_documents d
 		JOIN vou_documents p ON p.id=d.parent_document_id
-		WHERE d.id=$1 FOR UPDATE OF p`, document.ID).Scan(&sourceStatus); err != nil ||
+		JOIN approval_entries approval ON approval.id=p.approval_entry_id
+			AND approval.domain='vou' AND approval.entity=p.entity AND approval.subject_id=p.id
+		WHERE d.id=$1 FOR UPDATE OF p,approval`, document.ID).Scan(&sourceStatus); err != nil ||
 		sourceStatus != StatusApproved {
 		return nil, domainError(ErrorConflict, "sales-chain source is not approved", nil, err)
 	}
@@ -328,7 +345,6 @@ func (s *Service) prepareSalesChainApproval(
 func (s *Service) refreshSaleOrderFulfillment(
 	ctx context.Context, tx pgx.Tx, signoffID, _ string,
 ) error {
-	actorID := systemidentity.UserID
 	var orderID, current string
 	if err := tx.QueryRow(ctx, `SELECT x.source_order_id,o.fulfillment_status
 		FROM vou_sale_signoff_details x JOIN vou_sale_order_details o ON o.document_id=x.source_order_id
@@ -338,7 +354,9 @@ func (s *Service) refreshSaleOrderFulfillment(
 	var remaining int64
 	err := tx.QueryRow(ctx, `SELECT COALESCE(sum(GREATEST(l.base_quantity_micros -
 		COALESCE((SELECT sum(sl.signed_base_quantity_micros) FROM vou_sale_signoff_lines sl
-			JOIN vou_documents sd ON sd.id=sl.document_id AND sd.status = 'APPROVED'
+			JOIN vou_documents sd ON sd.id=sl.document_id
+			JOIN approval_entries sa ON sa.id=sd.approval_entry_id AND sa.domain='vou'
+				AND sa.entity=sd.entity AND sa.subject_id=sd.id AND sa.status='APPROVED'
 			WHERE sl.source_order_line_id=l.id),0),0)),0)::bigint
 		FROM vou_product_lines l WHERE l.document_id=$1`, orderID).Scan(&remaining)
 	if err != nil {
@@ -354,19 +372,15 @@ func (s *Service) refreshSaleOrderFulfillment(
 	if next != current {
 		_, err = tx.Exec(ctx, `UPDATE vou_sale_order_details SET fulfillment_status=$1 WHERE document_id=$2`,
 			next, orderID)
-		if err == nil {
-			_, err = tx.Exec(ctx, `UPDATE vou_documents SET revision=revision+1,updated_at=now(),updated_by=$1
-				WHERE id=$2`, actorID, orderID)
-		}
 	}
 	return err
 }
 
 func (s *Service) Delete(
-	ctx context.Context, entity string, input DeleteInput, actorID, requestID string,
+	ctx context.Context, entity string, input DeleteInput, actor approval.Actor,
 ) (MutationResult, error) {
 	if entity == EntityPurchaseInbound {
-		return s.DeletePurchaseInbound(ctx, input, actorID, requestID)
+		return s.DeletePurchaseInbound(ctx, input, actor)
 	}
 	if !validEntity(entity) {
 		return MutationResult{}, domainError(ErrorValidation, "invalid entity", nil, nil)
@@ -381,15 +395,11 @@ func (s *Service) Delete(
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.queries.WithTx(tx)
-	var number, status string
-	var parentID *string
-	var revision int64
-	err = tx.QueryRow(ctx, `SELECT document_no,status,revision,parent_document_id
-		FROM vou_documents WHERE id=$1 AND entity=$2 FOR UPDATE`,
-		input.DocumentID, entity).Scan(&number, &status, &revision, &parentID)
-	if err = documentWriteConflict(err, revision, input.Revision, status, StatusDraft); err != nil {
+	document, err := lockDocument(ctx, tx, input.DocumentID, entity)
+	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
 		return MutationResult{}, err
 	}
+	number, parentID := document.DocumentNo, document.ParentDocumentID
 	if entity == EntitySaleReturn {
 		var kind string
 		if err = tx.QueryRow(ctx, `SELECT return_kind FROM vou_sale_return_details
@@ -421,12 +431,9 @@ func (s *Service) Delete(
 	}
 	if err = s.events.Publish(ctx, tx, DocumentDeletedEvent{
 		Entity: entity, DocumentID: input.DocumentID, DocumentNo: number,
-		ParentDocumentID: parentDocumentID, ActorID: actorID,
-		RequestID: requestID, Reason: *reason,
+		ParentDocumentID: parentDocumentID, ActorID: actor.ID(),
+		RequestID: actor.RequestID(), Reason: *reason,
 	}); err != nil {
-		return MutationResult{}, err
-	}
-	if _, err = tx.Exec(ctx, `DELETE FROM vou_audit_events WHERE document_id=$1`, input.DocumentID); err != nil {
 		return MutationResult{}, err
 	}
 	switch entity {
@@ -547,26 +554,17 @@ func (s *Service) Delete(
 	if _, err = tx.Exec(ctx, `DELETE FROM vou_documents WHERE id=$1`, input.DocumentID); err != nil {
 		return MutationResult{}, err
 	}
-	if parentID != nil {
-		derivedActorID := systemidentity.UserID
-		var parentEntity, parentStatus string
-		if err = tx.QueryRow(ctx, `UPDATE vou_documents SET revision=revision+1,updated_at=now(),updated_by=$1
-			WHERE id=$2 RETURNING entity,status`, derivedActorID, *parentID).Scan(&parentEntity, &parentStatus); err != nil {
-			return MutationResult{}, err
-		}
-		if err = insertAudit(ctx, s.queries.WithTx(tx), auditInput{
-			DocumentID: *parentID, Entity: parentEntity, Event: "DELETED",
-			From: &parentStatus, To: parentStatus, ActorID: derivedActorID, Reason: reason, RequestID: requestID,
-			Summary: map[string]any{"documentId": input.DocumentID, "documentNo": number, "entity": entity},
-		}); err != nil {
-			return MutationResult{}, err
-		}
-
+	coordinator, err := s.coordinator(entity)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if err = coordinator.DeleteSubject(ctx, tx, document.ApprovalEntryID, input.Revision, actor, DocumentView{}); err != nil {
+		return MutationResult{}, mapApprovalError(err)
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, err
 	}
 	return MutationResult{
-		DocumentID: input.DocumentID, DocumentNo: number, Status: "DELETED", Revision: revision + 1,
+		DocumentID: input.DocumentID, DocumentNo: number, Approval: approval.MetaFromEntry(document.approvalEntry()),
 	}, nil
 }

@@ -10,6 +10,7 @@ import (
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -135,9 +136,9 @@ func validateChainShape(entity string, data DraftInput) error {
 }
 
 func (s *Service) createSalesChain(
-	ctx context.Context, entity string, input CreateInput, actorID, requestID string,
+	ctx context.Context, entity string, input CreateInput, actor approval.Actor,
 ) (MutationResult, error) {
-	if !isSalesChainEntity(entity) || !validID(actorID) {
+	if !isSalesChainEntity(entity) || !validID(actor.ID()) {
 		return MutationResult{}, domainError(ErrorValidation, "invalid sales-chain create", nil, nil)
 	}
 	if err := validateChainShape(entity, input.Data); err != nil {
@@ -148,7 +149,7 @@ func (s *Service) createSalesChain(
 		return MutationResult{}, s.internal("begin sales-chain create", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	result, err := s.writeSalesChainDraft(ctx, tx, entity, "", input.Data, actorID, requestID)
+	result, err := s.writeSalesChainDraft(ctx, tx, entity, "", input.Data, actor)
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -159,7 +160,7 @@ func (s *Service) createSalesChain(
 }
 
 func (s *Service) saveSalesChain(
-	ctx context.Context, entity string, input SaveInput, actorID, requestID string,
+	ctx context.Context, entity string, input SaveInput, actor approval.Actor,
 ) (MutationResult, error) {
 	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
 		return MutationResult{}, err
@@ -175,23 +176,26 @@ func (s *Service) saveSalesChain(
 		return MutationResult{}, s.internal("begin sales-chain save", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	var status, parentID string
-	var actualRevision int64
-	if err = tx.QueryRow(ctx, `SELECT status,revision,parent_document_id
-		FROM vou_documents WHERE id=$1 AND entity=$2 FOR UPDATE`,
-		input.DocumentID, entity).Scan(&status, &actualRevision, &parentID); err != nil {
-		return MutationResult{}, documentWriteConflict(err, actualRevision, input.Revision, status, StatusDraft)
+	document, err := lockDocument(ctx, tx, input.DocumentID, entity)
+	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
+		return MutationResult{}, err
 	}
-	if actualRevision != input.Revision || status != StatusDraft {
-		return MutationResult{}, documentWriteConflict(nil, actualRevision, input.Revision, status, StatusDraft)
-	}
-	if parentID != strings.TrimSpace(input.Data.SourceDocumentID) {
+	if deref(document.ParentDocumentID) != strings.TrimSpace(input.Data.SourceDocumentID) {
 		return MutationResult{}, domainError(ErrorConflict, "source document cannot be changed", nil, nil)
 	}
-	result, err := s.writeSalesChainDraft(ctx, tx, entity, input.DocumentID, input.Data, actorID, requestID)
+	coordinator, prepared, err := s.prepareDraftSave(ctx, tx, document, input.Revision, actor)
 	if err != nil {
 		return MutationResult{}, err
 	}
+	result, err := s.writeSalesChainDraft(ctx, tx, entity, input.DocumentID, input.Data, actor)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	entry, err := s.commitDraftSave(ctx, tx, s.queries.WithTx(tx), document, coordinator, prepared)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	result.Approval = approval.MetaFromEntry(entry)
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit sales-chain save", err)
 	}
@@ -203,7 +207,7 @@ func (s *Service) writeSalesChainDraft(
 	tx pgx.Tx,
 	entity, replacingID string,
 	data DraftInput,
-	actorID, requestID string,
+	actor approval.Actor,
 ) (MutationResult, error) {
 	date, remark, err := validateChainHeader(data)
 	if err != nil {
@@ -211,11 +215,11 @@ func (s *Service) writeSalesChainDraft(
 	}
 	switch entity {
 	case EntitySaleOutbound:
-		return s.writeSaleOutbound(ctx, tx, replacingID, data, date, remark, actorID, requestID)
+		return s.writeSaleOutbound(ctx, tx, replacingID, data, date, remark, actor)
 	case EntitySaleDelivery:
-		return s.writeSaleDelivery(ctx, tx, replacingID, data, date, remark, actorID, requestID)
+		return s.writeSaleDelivery(ctx, tx, replacingID, data, date, remark, actor)
 	case EntitySaleSignoff:
-		return s.writeSaleSignoff(ctx, tx, replacingID, data, date, remark, actorID, requestID)
+		return s.writeSaleSignoff(ctx, tx, replacingID, data, date, remark, actor)
 	default:
 		return MutationResult{}, domainError(ErrorValidation, "invalid sales-chain entity", nil, nil)
 	}
@@ -231,11 +235,13 @@ func (s *Service) lockSalesSource(
 	qtx := s.queries.WithTx(tx)
 	switch entity {
 	case EntitySaleOrder:
-		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.business_date,d.currency,d.total_amount_cents,
+		err = tx.QueryRow(ctx, `SELECT d.document_no,a.status,d.business_date,d.currency,d.total_amount_cents,
 			x.customer_object_id,x.customer_approval_entry_id,x.customer_code,x.customer_name,
 			COALESCE(x.warehouse_object_id,''),COALESCE(x.warehouse_approval_entry_id,''),
 			COALESCE(x.warehouse_code,''),COALESCE(x.warehouse_name,'')
 			FROM vou_documents d JOIN vou_sale_order_details x ON x.document_id=d.id
+			JOIN approval_entries a ON a.id=d.approval_entry_id AND a.domain='vou'
+				AND a.entity=d.entity AND a.subject_id=d.id
 			WHERE d.id=$1 AND d.entity='sale-order' FOR UPDATE`, id).
 			Scan(&source.Number, &source.Status, &date, &source.Currency, &source.Total,
 				&source.CustomerObjectID, &source.CustomerApprovalEntryID, &source.CustomerCode, &source.CustomerName,
@@ -253,11 +259,13 @@ func (s *Service) lockSalesSource(
 			source.OperatingEntityObjectID = row.OperatingEntityID
 		}
 	case EntitySaleDelivery:
-		err = tx.QueryRow(ctx, `SELECT d.document_no,d.status,d.business_date,d.currency,d.total_amount_cents,
+		err = tx.QueryRow(ctx, `SELECT d.document_no,a.status,d.business_date,d.currency,d.total_amount_cents,
 			x.customer_object_id,x.customer_approval_entry_id,x.customer_code,x.customer_name,
 			o.warehouse_object_id,o.warehouse_approval_entry_id,o.warehouse_code,o.warehouse_name
 			FROM vou_documents d JOIN vou_sale_delivery_details x ON x.document_id=d.id
 			JOIN vou_sale_outbound_details o ON o.document_id=x.source_outbound_id
+			JOIN approval_entries a ON a.id=d.approval_entry_id AND a.domain='vou'
+				AND a.entity=d.entity AND a.subject_id=d.id
 			WHERE d.id=$1 AND d.entity='sale-delivery' FOR UPDATE`, id).
 			Scan(&source.Number, &source.Status, &date, &source.Currency, &source.Total,
 				&source.CustomerObjectID, &source.CustomerApprovalEntryID, &source.CustomerCode, &source.CustomerName,
@@ -285,29 +293,33 @@ func (s *Service) insertChainDocument(
 	currency string,
 	total int64,
 	remark *string,
-	actorID string,
-) (string, string, error) {
+	actor approval.Actor,
+) (string, string, approval.Entry, error) {
 	q := s.queries.WithTx(tx)
 	counter, err := q.NextVouNumberCounter(ctx, dbsqlc.NextVouNumberCounterParams{
 		Entity: entity, BusinessDate: dateValue(date),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return "", "", domainError(ErrorConflict, "document number exhausted", nil, nil)
+			return "", "", approval.Entry{}, domainError(ErrorConflict, "document number exhausted", nil, nil)
 		}
-		return "", "", s.writeError("allocate sales-chain number", err)
+		return "", "", approval.Entry{}, s.writeError("allocate sales-chain number", err)
 	}
 	id := newID()
 	number := fmt.Sprintf("%s-%s-%04d", entityPrefix(entity), date.Format("20060102"), counter)
+	entry, err := s.createDocumentApproval(ctx, tx, entity, id, actor)
+	if err != nil {
+		return "", "", approval.Entry{}, err
+	}
 	_, err = tx.Exec(ctx, `INSERT INTO vou_documents(
 		id,entity,document_no,parent_entity,parent_document_id,business_date,currency,
-		total_amount_cents,remark,created_by,updated_by
-	) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)`,
-		id, entity, number, salesParentEntity(entity), parentID, date, currency, total, remark, actorID)
+		total_amount_cents,remark,approval_entry_id
+	) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		id, entity, number, salesParentEntity(entity), parentID, date, currency, total, remark, entry.ID)
 	if err != nil {
-		return "", "", s.writeError("insert sales-chain document", err)
+		return "", "", approval.Entry{}, s.writeError("insert sales-chain document", err)
 	}
-	return id, number, nil
+	return id, number, entry, nil
 }
 
 func (s *Service) updateChainDocument(
@@ -318,17 +330,16 @@ func (s *Service) updateChainDocument(
 	currency string,
 	total int64,
 	remark *string,
-	actorID string,
-) (int64, error) {
-	var revision int64
-	err := tx.QueryRow(ctx, `UPDATE vou_documents SET business_date=$1,currency=$2,total_amount_cents=$3,
-		remark=$4,revision=revision+1,updated_at=now(),updated_by=$5
-		WHERE id=$6 AND entity=$7 AND status='DRAFT' RETURNING revision`,
-		date, currency, total, remark, actorID, id, entity).Scan(&revision)
+) error {
+	command, err := tx.Exec(ctx, `UPDATE vou_documents SET business_date=$1,currency=$2,total_amount_cents=$3,
+		remark=$4 WHERE id=$5 AND entity=$6`, date, currency, total, remark, id, entity)
 	if err != nil {
-		return 0, s.writeError("update sales-chain draft", err)
+		return s.writeError("update sales-chain draft", err)
 	}
-	return revision, nil
+	if command.RowsAffected() != 1 {
+		return domainError(ErrorConflict, "document changed", nil, nil)
+	}
+	return nil
 }
 
 func (s *Service) writeSaleOutbound(
@@ -338,7 +349,7 @@ func (s *Service) writeSaleOutbound(
 	data DraftInput,
 	date time.Time,
 	remark *string,
-	actorID, requestID string,
+	actor approval.Actor,
 ) (MutationResult, error) {
 	lines, err := validateSourceQuantityLines(data.SourceLines)
 	if err != nil {
@@ -362,12 +373,21 @@ func (s *Service) writeSaleOutbound(
 	if err = validateReference(data.Warehouse, "warehouse", true); err != nil {
 		return MutationResult{}, err
 	}
-	warehouse, err := s.resolver.ResolveApprovedReference(
-		ctx, tx, bobdomain.EntityWarehouse, data.Warehouse.ObjectID, data.Warehouse.ApprovalEntryID,
-	)
+	var savedWarehouse *bobdomain.EffectiveReference
+	if replacingID != "" {
+		var objectID, entryID string
+		if err = tx.QueryRow(ctx, `SELECT warehouse_object_id,warehouse_approval_entry_id
+			FROM vou_sale_outbound_details WHERE document_id=$1`, replacingID).Scan(&objectID, &entryID); err != nil {
+			return MutationResult{}, err
+		}
+		savedWarehouse = &bobdomain.EffectiveReference{ObjectID: objectID, ApprovalEntryID: entryID}
+	}
+	selectedWarehouse, err := s.resolveSelectedReference(ctx, tx, bobdomain.EntityWarehouse,
+		data.Warehouse, savedWarehouse, replacingID == "")
 	if err != nil {
 		return MutationResult{}, domainError(ErrorConflict, "warehouse reference is not effective", nil, err)
 	}
+	warehouse := *selectedWarehouse
 	if source.WarehouseObjectID != "" &&
 		(source.WarehouseObjectID != warehouse.ObjectID || source.WarehouseApprovalEntryID != warehouse.ApprovalEntryID) {
 		return MutationResult{}, domainError(ErrorConflict, "outbound warehouse must match sale order warehouse", nil, nil)
@@ -408,10 +428,11 @@ func (s *Service) writeSaleOutbound(
 		total += item.amount
 		resolved = append(resolved, item)
 	}
-	id, number, revision := replacingID, "", int64(1)
+	id, number := replacingID, ""
+	var entry approval.Entry
 	if replacingID == "" {
-		id, number, err = s.insertChainDocument(
-			ctx, tx, EntitySaleOutbound, source.ID, date, source.Currency, total, remark, actorID,
+		id, number, entry, err = s.insertChainDocument(
+			ctx, tx, EntitySaleOutbound, source.ID, date, source.Currency, total, remark, actor,
 		)
 		if err != nil {
 			return MutationResult{}, err
@@ -425,7 +446,7 @@ func (s *Service) writeSaleOutbound(
 	} else {
 		err = tx.QueryRow(ctx, `SELECT document_no FROM vou_documents WHERE id=$1`, id).Scan(&number)
 		if err == nil {
-			revision, err = s.updateChainDocument(ctx, tx, id, EntitySaleOutbound, date, source.Currency, total, remark, actorID)
+			err = s.updateChainDocument(ctx, tx, id, EntitySaleOutbound, date, source.Currency, total, remark)
 		}
 		if err == nil {
 			_, err = tx.Exec(ctx, `UPDATE vou_sale_outbound_details SET
@@ -450,18 +471,7 @@ func (s *Service) writeSaleOutbound(
 			return MutationResult{}, s.writeError("write sale outbound line", err)
 		}
 	}
-	event := "CREATED"
-	if replacingID != "" {
-		event = "SAVED"
-	}
-	if err = insertAudit(ctx, s.queries.WithTx(tx), auditInput{
-		DocumentID: id, Entity: EntitySaleOutbound, Event: event, From: stringPtr(StatusDraft),
-		To: StatusDraft, ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"parentDocumentId": source.ID},
-	}); err != nil {
-		return MutationResult{}, err
-	}
-	return MutationResult{DocumentID: id, DocumentNo: number, Status: StatusDraft, Revision: revision}, nil
+	return MutationResult{DocumentID: id, DocumentNo: number, Approval: approval.MetaFromEntry(entry)}, nil
 }
 
 type saleDeliveryTransport struct {
@@ -496,10 +506,30 @@ func (s *Service) resolveSaleDeliveryTransport(
 	source salesSource,
 	carrier *ReferenceInput,
 	vehicleInput ReferenceInput,
+	replacingID string,
 ) (saleDeliveryTransport, error) {
-	vehicle, err := s.resolver.ResolveApprovedReference(
-		ctx, tx, bobdomain.EntityVehicle, vehicleInput.ObjectID, vehicleInput.ApprovalEntryID,
-	)
+	var savedVehicle, savedOperating, savedService *bobdomain.EffectiveReference
+	if replacingID != "" {
+		snapshot, snapshotErr := s.queries.WithTx(tx).LockVouSaleDeliveryCarrierSnapshot(ctx, replacingID)
+		if snapshotErr != nil {
+			return saleDeliveryTransport{}, snapshotErr
+		}
+		if snapshot.VehicleObjectID != nil && snapshot.VehicleApprovalEntryID != nil {
+			savedVehicle = &bobdomain.EffectiveReference{ObjectID: *snapshot.VehicleObjectID, ApprovalEntryID: *snapshot.VehicleApprovalEntryID}
+		}
+		if snapshot.CarrierOperatingEntityObjectID != nil && snapshot.CarrierOperatingEntityApprovalEntryID != nil {
+			savedOperating = &bobdomain.EffectiveReference{ObjectID: *snapshot.CarrierOperatingEntityObjectID, ApprovalEntryID: *snapshot.CarrierOperatingEntityApprovalEntryID}
+		}
+		if snapshot.CarrierServiceRelationshipObjectID != nil && snapshot.CarrierServiceRelationshipApprovalEntryID != nil {
+			savedService = &bobdomain.EffectiveReference{ObjectID: *snapshot.CarrierServiceRelationshipObjectID, ApprovalEntryID: *snapshot.CarrierServiceRelationshipApprovalEntryID}
+		}
+	}
+	resolvedVehicle, err := s.resolveSelectedReference(ctx, tx, bobdomain.EntityVehicle,
+		&vehicleInput, savedVehicle, replacingID == "")
+	if err != nil {
+		return saleDeliveryTransport{}, domainError(ErrorConflict, "vehicle is not currently effective", nil, err)
+	}
+	vehicle := *resolvedVehicle
 	if err != nil || vehicle.Data.CarrierAffiliation == nil {
 		return saleDeliveryTransport{}, domainError(ErrorConflict, "vehicle is not currently effective", nil, err)
 	}
@@ -518,27 +548,29 @@ func (s *Service) resolveSaleDeliveryTransport(
 		if carrier != nil || affiliation.OperatingEntityID != source.OperatingEntityObjectID {
 			return saleDeliveryTransport{}, domainError(ErrorConflict, "internal vehicle must belong to the sale order Operating Entity", nil, nil)
 		}
-		operating, resolveErr := s.resolver.ResolveLatestApprovedReference(
-			ctx, tx, bobdomain.EntityOperatingEntity, affiliation.OperatingEntityID,
-		)
+		operatingInput := &ReferenceInput{ObjectID: affiliation.OperatingEntityID}
+		if savedOperating != nil && savedOperating.ObjectID == affiliation.OperatingEntityID {
+			operatingInput.ApprovalEntryID = savedOperating.ApprovalEntryID
+		}
+		operatingRef, resolveErr := s.resolveSelectedReference(ctx, tx, bobdomain.EntityOperatingEntity,
+			operatingInput, savedOperating, replacingID == "")
 		if resolveErr != nil {
 			return saleDeliveryTransport{}, domainError(ErrorConflict, "vehicle Operating Entity is not currently effective", nil, resolveErr)
 		}
-		result.operating = newNullableReferenceSnapshot(&operating)
+		result.operating = newNullableReferenceSnapshot(operatingRef)
 	case "EXTERNAL":
 		if err = validateReference(carrier, "carrier", true); err != nil {
 			return saleDeliveryTransport{}, err
 		}
-		service, resolveErr := s.resolver.ResolveApprovedReference(
-			ctx, tx, bobdomain.EntityOtherUnit, carrier.ObjectID, carrier.ApprovalEntryID,
-		)
+		serviceRef, resolveErr := s.resolveSelectedReference(ctx, tx, bobdomain.EntityOtherUnit,
+			carrier, savedService, replacingID == "")
 		if resolveErr != nil {
 			return saleDeliveryTransport{}, domainError(ErrorConflict, "carrier is not a current Service Relationship", nil, resolveErr)
 		}
-		if affiliation.ServiceRelationshipObjectID != service.ObjectID {
+		if affiliation.ServiceRelationshipObjectID != serviceRef.ObjectID {
 			return saleDeliveryTransport{}, domainError(ErrorConflict, "external vehicle does not belong to the selected carrier", nil, nil)
 		}
-		result.service = newNullableReferenceSnapshot(&service)
+		result.service = newNullableReferenceSnapshot(serviceRef)
 	default:
 		return saleDeliveryTransport{}, domainError(ErrorConflict, "vehicle carrier affiliation is invalid", nil, nil)
 	}
@@ -564,7 +596,7 @@ func (s *Service) validateSaleDeliveryTransportCurrent(ctx context.Context, tx p
 	}
 	transport, err := s.resolveSaleDeliveryTransport(ctx, tx, source, carrier, ReferenceInput{
 		ObjectID: *snapshot.VehicleObjectID, ApprovalEntryID: *snapshot.VehicleApprovalEntryID,
-	})
+	}, documentID)
 	if err != nil {
 		return err
 	}
@@ -589,7 +621,7 @@ func (s *Service) writeSaleDelivery(
 	data DraftInput,
 	date time.Time,
 	remark *string,
-	actorID, requestID string,
+	actor approval.Actor,
 ) (MutationResult, error) {
 	if err := validateReference(data.Vehicle, "vehicle", true); err != nil {
 		return MutationResult{}, err
@@ -609,7 +641,7 @@ func (s *Service) writeSaleDelivery(
 	if existing != 0 {
 		return MutationResult{}, domainError(ErrorConflict, "outbound already has a delivery", nil, nil)
 	}
-	transport, err := s.resolveSaleDeliveryTransport(ctx, tx, source, data.Carrier, *data.Vehicle)
+	transport, err := s.resolveSaleDeliveryTransport(ctx, tx, source, data.Carrier, *data.Vehicle, replacingID)
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -632,10 +664,11 @@ func (s *Service) writeSaleDelivery(
 		VehiclePlateNumber:       stringPtr(transport.vehicle.Data.PlateNumber),
 		VehicleBulkLiquidCapable: transport.vehicle.Data.BulkLiquidCapable,
 	}
-	id, number, revision := replacingID, "", int64(1)
+	id, number := replacingID, ""
+	var entry approval.Entry
 	if replacingID == "" {
-		id, number, err = s.insertChainDocument(
-			ctx, tx, EntitySaleDelivery, source.ID, date, source.Currency, source.Total, remark, actorID,
+		id, number, entry, err = s.insertChainDocument(
+			ctx, tx, EntitySaleDelivery, source.ID, date, source.Currency, source.Total, remark, actor,
 		)
 		if err == nil {
 			detail.DocumentID = id
@@ -644,7 +677,7 @@ func (s *Service) writeSaleDelivery(
 	} else {
 		err = tx.QueryRow(ctx, `SELECT document_no FROM vou_documents WHERE id=$1`, id).Scan(&number)
 		if err == nil {
-			revision, err = s.updateChainDocument(ctx, tx, id, EntitySaleDelivery, date, source.Currency, source.Total, remark, actorID)
+			err = s.updateChainDocument(ctx, tx, id, EntitySaleDelivery, date, source.Currency, source.Total, remark)
 		}
 		if err == nil {
 			_, err = qtx.UpdateVouSaleDeliveryCarrierSnapshot(ctx, dbsqlc.UpdateVouSaleDeliveryCarrierSnapshotParams{
@@ -668,18 +701,7 @@ func (s *Service) writeSaleDelivery(
 	if err != nil {
 		return MutationResult{}, s.writeError("write sale delivery", err)
 	}
-	event := "CREATED"
-	if replacingID != "" {
-		event = "SAVED"
-	}
-	if err = insertAudit(ctx, s.queries.WithTx(tx), auditInput{
-		DocumentID: id, Entity: EntitySaleDelivery, Event: event, From: stringPtr(StatusDraft),
-		To: StatusDraft, ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"parentDocumentId": source.ID},
-	}); err != nil {
-		return MutationResult{}, err
-	}
-	return MutationResult{DocumentID: id, DocumentNo: number, Status: StatusDraft, Revision: revision}, nil
+	return MutationResult{DocumentID: id, DocumentNo: number, Approval: approval.MetaFromEntry(entry)}, nil
 }
 
 func (s *Service) writeSaleSignoff(
@@ -689,7 +711,7 @@ func (s *Service) writeSaleSignoff(
 	data DraftInput,
 	date time.Time,
 	remark *string,
-	actorID, requestID string,
+	actor approval.Actor,
 ) (MutationResult, error) {
 	lines, err := validateSignoffLines(data.SignoffLines)
 	if err != nil {
@@ -753,10 +775,11 @@ func (s *Service) writeSaleSignoff(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	id, number, revision := replacingID, "", int64(1)
+	id, number := replacingID, ""
+	var entry approval.Entry
 	if replacingID == "" {
-		id, number, err = s.insertChainDocument(
-			ctx, tx, EntitySaleSignoff, source.ID, date, source.Currency, total, remark, actorID,
+		id, number, entry, err = s.insertChainDocument(
+			ctx, tx, EntitySaleSignoff, source.ID, date, source.Currency, total, remark, actor,
 		)
 		if err == nil {
 			_, err = tx.Exec(ctx, `INSERT INTO vou_sale_signoff_details(
@@ -771,7 +794,7 @@ func (s *Service) writeSaleSignoff(
 	} else {
 		err = tx.QueryRow(ctx, `SELECT document_no FROM vou_documents WHERE id=$1`, id).Scan(&number)
 		if err == nil {
-			revision, err = s.updateChainDocument(ctx, tx, id, EntitySaleSignoff, date, source.Currency, total, remark, actorID)
+			err = s.updateChainDocument(ctx, tx, id, EntitySaleSignoff, date, source.Currency, total, remark)
 		}
 		if err == nil {
 			_, err = tx.Exec(ctx, `DELETE FROM vou_sale_signoff_lines WHERE document_id=$1`, id)
@@ -796,16 +819,5 @@ func (s *Service) writeSaleSignoff(
 			return MutationResult{}, s.writeError("write sale signoff line", err)
 		}
 	}
-	event := "CREATED"
-	if replacingID != "" {
-		event = "SAVED"
-	}
-	if err = insertAudit(ctx, s.queries.WithTx(tx), auditInput{
-		DocumentID: id, Entity: EntitySaleSignoff, Event: event, From: stringPtr(StatusDraft),
-		To: StatusDraft, ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"parentDocumentId": source.ID},
-	}); err != nil {
-		return MutationResult{}, err
-	}
-	return MutationResult{DocumentID: id, DocumentNo: number, Status: StatusDraft, Revision: revision}, nil
+	return MutationResult{DocumentID: id, DocumentNo: number, Approval: approval.MetaFromEntry(entry)}, nil
 }

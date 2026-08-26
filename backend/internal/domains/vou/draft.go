@@ -23,86 +23,39 @@ type resolvedDraft struct {
 	BillFunds                                                              []bobdomain.EffectiveReference
 }
 
-func (s *Service) loadPreservedPersonnel(
-	ctx context.Context, q *dbsqlc.Queries, entity, documentID string,
+func (s *Service) loadPreservedReferences(
+	ctx context.Context, q *dbsqlc.Queries, document documentRecord,
 ) (resolvedDraft, error) {
-	var result resolvedDraft
-	makeReference := func(
-		objectID, versionID, code, name *string,
-	) *bobdomain.EffectiveReference {
-		if objectID == nil || versionID == nil || code == nil || name == nil {
+	data, err := s.loadData(ctx, q, document)
+	if err != nil {
+		return resolvedDraft{}, s.internal("read saved VOU reference snapshots", err)
+	}
+	fromView := func(view *ReferenceView) *bobdomain.EffectiveReference {
+		if view == nil {
 			return nil
 		}
-		return &bobdomain.EffectiveReference{
-			ObjectID: *objectID, Entity: bobdomain.EntityEmployee, Code: *code, ApprovalEntryID: *versionID,
-			Data: bobdomain.DetailView{Name: *name},
-		}
+		return &bobdomain.EffectiveReference{ObjectID: view.ObjectID, ApprovalEntryID: view.ApprovalEntryID, Entity: view.Entity, Code: view.Code, Data: bobdomain.DetailView{Name: view.Name}}
 	}
-	settlementReference := func(
-		objectID, versionID, code, name, termCode, ruleType *string,
-		monthOffset, dayOfMonth, dayOffset *int32,
-		surcharge int64,
-		description *string,
-	) *bobdomain.EffectiveReference {
-		if objectID == nil || code == nil || name == nil ||
-			termCode == nil || ruleType == nil || monthOffset == nil || dayOffset == nil {
+	fromSettlement := func(view *SettlementMethodSnapshotView) *bobdomain.EffectiveReference {
+		if view == nil {
 			return nil
 		}
-		version := ""
-		if versionID != nil {
-			version = *versionID
-		}
-		return &bobdomain.EffectiveReference{
-			ObjectID: *objectID, Entity: auxdomain.EntitySettlementMethod,
-			Code: *code, ApprovalEntryID: version,
-			Data: bobdomain.DetailView{
-				Name: *name, TermCode: *termCode, RuleType: *ruleType,
-				MonthOffset: *monthOffset, DayOfMonth: dayOfMonth, DayOffset: *dayOffset,
-				DefaultSalesSurcharge: formatMoney(surcharge),
-				Description:           deref(description),
-			},
-		}
+		return &bobdomain.EffectiveReference{ObjectID: view.ObjectID, ApprovalEntryID: view.ApprovalEntryID,
+			Entity: auxdomain.EntitySettlementMethod, Code: view.Code, Data: bobdomain.DetailView{
+				Name: view.Name, RuleType: view.RuleType, MonthOffset: view.MonthOffset, DayOfMonth: view.DayOfMonth,
+				DayOffset: view.DayOffset, DueDays: view.DueDays, CutoffDay: view.CutoffDay,
+				DefaultSalesSurcharge: view.DefaultSalesSurcharge, Description: view.Description,
+			}}
 	}
-	switch entity {
-	case EntitySaleOrder:
-		detail, err := q.GetVouSaleOrderDetail(ctx, documentID)
-		if err != nil {
-			return result, s.internal("read sale order salesperson", err)
-		}
-		result.Salesperson = makeReference(
-			detail.SalespersonObjectID, detail.SalespersonApprovalEntryID,
-			detail.SalespersonCode, detail.SalespersonName,
-		)
-		result.Customer = &bobdomain.EffectiveReference{
-			ObjectID: detail.CustomerObjectID, ApprovalEntryID: detail.CustomerApprovalEntryID,
-		}
-		result.CustomerSettlement = settlementReference(
-			detail.SettlementMethodObjectID, detail.SettlementMethodApprovalEntryID,
-			detail.SettlementMethodCode, detail.SettlementMethodName,
-			stringPtr(detail.SettlementTermCode), detail.SettlementRuleType,
-			detail.SettlementMonthOffset, detail.SettlementDayOfMonth,
-			detail.SettlementDayOffset, detail.SettlementDefaultSalesSurchargeCents,
-			detail.SettlementDescription,
-		)
-	case EntityPurchaseOrder:
-		detail, err := q.GetVouPurchaseOrderDetail(ctx, documentID)
-		if err != nil {
-			return result, s.internal("read purchase order purchaser", err)
-		}
-		result.Purchaser = makeReference(
-			detail.PurchaserObjectID, detail.PurchaserApprovalEntryID,
-			detail.PurchaserCode, detail.PurchaserName,
-		)
-		result.Supplier = &bobdomain.EffectiveReference{
-			ObjectID: detail.SupplierObjectID, ApprovalEntryID: detail.SupplierApprovalEntryID,
-		}
-		result.SupplierSettlement = settlementReference(
-			detail.SettlementMethodObjectID, detail.SettlementMethodApprovalEntryID,
-			detail.SettlementMethodCode, detail.SettlementMethodName,
-			stringPtr(detail.SettlementTermCode), detail.SettlementRuleType,
-			detail.SettlementMonthOffset, detail.SettlementDayOfMonth,
-			detail.SettlementDayOffset, 0, detail.SettlementDescription,
-		)
+	result := resolvedDraft{
+		Customer: fromView(data.Customer), Supplier: fromView(data.Supplier), Counterparty: fromView(data.Counterparty),
+		Employee: fromView(data.Employee), Salesperson: fromView(data.Salesperson), Purchaser: fromView(data.Purchaser),
+		Handler: fromView(data.Handler), Warehouse: fromView(data.Warehouse), FundAccount: fromView(data.FundAccount),
+		InterestParty: fromView(data.InterestParty), Settlement: fromSettlement(data.SettlementMethod),
+		CustomerSettlement: fromSettlement(data.CustomerSettlementMethod), SupplierSettlement: fromSettlement(data.SupplierSettlementMethod),
+	}
+	for _, line := range data.BillCashLines {
+		result.BillFunds = append(result.BillFunds, *fromView(&line.FundAccount))
 	}
 	return result, nil
 }
@@ -116,7 +69,7 @@ func (s *Service) resolveDraft(
 	allowPersonnelDefaults bool,
 ) (resolvedDraft, error) {
 	var result resolvedDraft
-	if err := s.resolveDraftParties(ctx, tx, draft, &result); err != nil {
+	if err := s.resolveDraftParties(ctx, tx, draft, preserved, allowPersonnelDefaults, &result); err != nil {
 		return result, err
 	}
 	if err := s.resolveDraftPersonnel(
@@ -124,7 +77,7 @@ func (s *Service) resolveDraft(
 	); err != nil {
 		return result, err
 	}
-	if err := s.resolveDraftAccounts(ctx, tx, draft, &result); err != nil {
+	if err := s.resolveDraftAccounts(ctx, tx, draft, preserved, allowPersonnelDefaults, &result); err != nil {
 		return result, err
 	}
 	if err := s.resolveDraftSettlements(ctx, tx, entity, preserved, &result); err != nil {

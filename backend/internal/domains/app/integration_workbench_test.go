@@ -94,6 +94,7 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	baseSequence := int(time.Now().UnixNano()%9000) + 1
 	documentPrefix := "OIN-20991231"
 	documentIDs := []string{ulid.Make().String(), ulid.Make().String(), ulid.Make().String()}
+	documentApprovalEntryIDs := []string{ulid.Make().String(), ulid.Make().String(), ulid.Make().String()}
 	slices.Sort(documentIDs[:2])
 	documentIDs[0], documentIDs[1] = documentIDs[1], documentIDs[0]
 	documentNos := []string{
@@ -109,6 +110,7 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	t.Cleanup(func() {
 		_, _ = pool.Exec(t.Context(), `DELETE FROM vou_other_income_details WHERE document_id=ANY($1::text[])`, documentIDs)
 		_, _ = pool.Exec(t.Context(), `DELETE FROM vou_documents WHERE id=ANY($1::text[])`, documentIDs)
+		_, _ = pool.Exec(t.Context(), `DELETE FROM approval_entries WHERE id=ANY($1::text[])`, documentApprovalEntryIDs)
 		tx, cleanupErr := pool.Begin(t.Context())
 		if cleanupErr != nil {
 			return
@@ -133,15 +135,25 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		t.Fatalf("defer voucher fixture constraints: %v", err)
 	}
 	if _, err = tx.Exec(t.Context(), `
-		INSERT INTO vou_documents (
-			id, entity, document_no, status, revision, business_date, currency,
-			total_amount_cents, created_by, updated_by, reviewed_at, reviewed_by,
-			approved_at, approved_by, posted_at, posted_by, updated_at
+		INSERT INTO approval_entries (
+			id,domain,entity,subject_id,version_no,status,revision,
+			created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at
 		) VALUES
-			($1, 'other-income', $2, 'DRAFT', 1, '2099-12-31', 'CNY', 12345, $7, $7, NULL, NULL, NULL, NULL, NULL, NULL, now() - interval '1 second'),
-			($3, 'other-income', $4, 'CHECKED', 2, '2099-12-31', 'CNY', 23456, $7, $7, now(), $7, NULL, NULL, NULL, NULL, now() - interval '1 second'),
-			($5, 'other-income', $6, 'APPROVED', 3, '2099-12-31', 'CNY', 34567, $7, $7, now(), $7, now(), $7, now(), $7, now())
-	`, documentIDs[0], documentNos[0], documentIDs[1], documentNos[1], documentIDs[2], documentNos[2], admin.ID); err != nil {
+			($1,'vou','other-income',$2,NULL,'DRAFT',1,$7,now(),$7,now(),NULL,NULL,NULL,NULL),
+			($3,'vou','other-income',$4,NULL,'PENDING',2,$7,now(),$7,now(),$7,now(),NULL,NULL),
+			($5,'vou','other-income',$6,NULL,'APPROVED',3,$7,now(),$7,now(),$7,now(),$8,now())
+	`, documentApprovalEntryIDs[0], documentIDs[0], documentApprovalEntryIDs[1], documentIDs[1], documentApprovalEntryIDs[2], documentIDs[2], admin.ID, reviewerID); err != nil {
+		t.Fatalf("insert workbench VOU approvals: %v", err)
+	}
+	if _, err = tx.Exec(t.Context(), `
+		INSERT INTO vou_documents (
+			id, entity, document_no, approval_entry_id, business_date, currency,
+			total_amount_cents
+		) VALUES
+			($1, 'other-income', $2, $3, '2099-12-31', 'CNY', 12345),
+			($4, 'other-income', $5, $6, '2099-12-31', 'CNY', 23456),
+			($7, 'other-income', $8, $9, '2099-12-31', 'CNY', 34567)
+	`, documentIDs[0], documentNos[0], documentApprovalEntryIDs[0], documentIDs[1], documentNos[1], documentApprovalEntryIDs[1], documentIDs[2], documentNos[2], documentApprovalEntryIDs[2]); err != nil {
 		t.Fatalf("insert workbench vouchers: %v", err)
 	}
 	if _, err = tx.Exec(t.Context(), `
@@ -173,7 +185,7 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	for _, item := range bobPage.Items {
 		byID[item.ObjectID] = item
 	}
-	if byID[draft.ObjectID].PendingStage != "CHECK" || byID[pending.ObjectID].PendingStage != "APPROVE" {
+	if byID[draft.ObjectID].PendingStage != "SUBMIT" || byID[pending.ObjectID].PendingStage != "APPROVE" {
 		t.Fatalf("unexpected BOB stages: %#v", byID)
 	}
 	if bobPage.Total < 2 {
@@ -244,7 +256,7 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 
 	vouPrincipal := Principal{Permissions: []string{
 		"/vou/other-income/query", "/vou/other-income/get", "/vou/other-income/save",
-		"/vou/other-income/check", "/vou/other-income/approve", "/vou/other-income/uncheck",
+		"/vou/other-income/submit", "/vou/other-income/approve", "/vou/other-income/unsubmit",
 	}}
 	vouInput := WorkbenchQueryInput{Category: WorkbenchCategoryVou, Keyword: documentPrefix, Page: 1, PageSize: 20}
 	vouPage, err := service.QueryWorkbench(t.Context(), vouPrincipal, vouInput)
@@ -258,7 +270,7 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	for _, item := range vouPage.Items {
 		vouByID[item.DocumentID] = item
 	}
-	if vouByID[documentIDs[0]].PendingStage != "CHECK" || vouByID[documentIDs[0]].Amount != "123.45" ||
+	if vouByID[documentIDs[0]].PendingStage != "SUBMIT" || vouByID[documentIDs[0]].Amount != "123.45" ||
 		vouByID[documentIDs[1]].PendingStage != "APPROVE" {
 		t.Fatalf("unexpected VOU workbench items: %+v", vouByID)
 	}
@@ -284,22 +296,22 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	if !slices.Equal(repeatedStableOrder, wantStableOrder) {
 		t.Fatalf("repeated VOU stable order = %v, want %v", repeatedStableOrder, wantStableOrder)
 	}
-	if !slices.Contains(vouByID[documentIDs[0]].AvailableActions, "check") ||
+	if !slices.Contains(vouByID[documentIDs[0]].AvailableActions, "submit") ||
 		!slices.Contains(vouByID[documentIDs[0]].AvailableActions, "edit") {
-		t.Fatalf("incomplete VOU draft actions = %v, want edit and check",
+		t.Fatalf("incomplete VOU draft actions = %v, want edit and submit",
 			vouByID[documentIDs[0]].AvailableActions)
 	}
-	if !slices.Contains(vouByID[documentIDs[1]].AvailableActions, "uncheck") {
-		t.Fatalf("incomplete VOU checked actions = %v, want uncheck", vouByID[documentIDs[1]].AvailableActions)
+	if !slices.Contains(vouByID[documentIDs[1]].AvailableActions, "unsubmit") {
+		t.Fatalf("incomplete VOU pending actions = %v, want unsubmit", vouByID[documentIDs[1]].AvailableActions)
 	}
-	if !slices.Equal(vouByID[documentIDs[0]].AvailableActions, []string{"view", "edit", "check"}) {
+	if !slices.Equal(vouByID[documentIDs[0]].AvailableActions, []string{"view", "edit", "submit"}) {
 		t.Fatalf("draft VOU actions = %v", vouByID[documentIDs[0]].AvailableActions)
 	}
-	if !slices.Equal(vouByID[documentIDs[1]].AvailableActions, []string{"view", "approve", "uncheck"}) {
-		t.Fatalf("checked VOU actions = %v", vouByID[documentIDs[1]].AvailableActions)
+	if !slices.Equal(vouByID[documentIDs[1]].AvailableActions, []string{"view", "approve", "unsubmit"}) {
+		t.Fatalf("pending VOU actions = %v", vouByID[documentIDs[1]].AvailableActions)
 	}
 	vouSecondPage, err := service.QueryWorkbench(t.Context(), Principal{Permissions: []string{
-		"/vou/other-income/query", "/vou/other-income/check", "/vou/other-income/approve",
+		"/vou/other-income/query", "/vou/other-income/submit", "/vou/other-income/approve",
 	}}, WorkbenchQueryInput{Category: WorkbenchCategoryVou, Keyword: documentPrefix, Page: 2, PageSize: 20})
 	if err != nil || vouSecondPage.Total != 2 || vouSecondPage.Page != 2 || len(vouSecondPage.Items) != 0 {
 		t.Fatalf("VOU second page = %+v, err = %v", vouSecondPage, err)
@@ -314,12 +326,12 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		vouApprovalPage.Items[0].DocumentID != documentIDs[1] {
 		t.Fatalf("filtered VOU workbench page = %+v, err = %v", vouApprovalPage, err)
 	}
-	vouUncheckPage, err := service.QueryWorkbench(t.Context(), Principal{Permissions: []string{
-		"/vou/other-income/query", "/vou/other-income/uncheck",
+	vouUnsubmitPage, err := service.QueryWorkbench(t.Context(), Principal{Permissions: []string{
+		"/vou/other-income/query", "/vou/other-income/unsubmit",
 	}}, WorkbenchQueryInput{Category: WorkbenchCategoryVou, Keyword: documentNos[1], Page: 1, PageSize: 20})
-	if err != nil || vouUncheckPage.Total != 1 || len(vouUncheckPage.Items) != 1 ||
-		vouUncheckPage.Items[0].DocumentID != documentIDs[1] ||
-		!slices.Equal(vouUncheckPage.Items[0].AvailableActions, []string{"uncheck"}) {
-		t.Fatalf("uncheck-only VOU workbench page = %+v, err = %v", vouUncheckPage, err)
+	if err != nil || vouUnsubmitPage.Total != 1 || len(vouUnsubmitPage.Items) != 1 ||
+		vouUnsubmitPage.Items[0].DocumentID != documentIDs[1] ||
+		!slices.Equal(vouUnsubmitPage.Items[0].AvailableActions, []string{"unsubmit"}) {
+		t.Fatalf("unsubmit-only VOU workbench page = %+v, err = %v", vouUnsubmitPage, err)
 	}
 }

@@ -66,15 +66,14 @@ func TestProductionDemoSeedIsIdempotentAndPostsInventoryIntegration(t *testing.T
 	if err != nil {
 		t.Fatalf("get draft order production: %v", err)
 	}
-	if _, err = seeder.vouchers.Check(
+	if _, err = seeder.vouchers.Submit(
 		t.Context(),
 		voudomain.EntityOrderProduction,
 		voudomain.DocumentRevisionInput{
 			DocumentID: orderProduction.DocumentID,
-			Revision:   orderProduction.Revision,
+			Revision:   orderProduction.Approval.Revision,
 		},
-		actorID,
-		requestID("integration-advance-order-production"),
+		mustApprovalActor(requestID("integration-advance-order-production")),
 	); err != nil {
 		t.Fatalf("advance draft order production: %v", err)
 	}
@@ -89,9 +88,12 @@ func TestProductionDemoSeedIsIdempotentAndPostsInventoryIntegration(t *testing.T
 	var productionDocuments int
 	if err = pool.QueryRow(t.Context(), `
 		SELECT count(*)
-		FROM vou_documents
-		WHERE created_by=$1
-		  AND entity IN ('order-production', 'self-production')
+		FROM vou_documents document
+		JOIN approval_entries approval ON approval.id=document.approval_entry_id
+			AND approval.domain='vou' AND approval.entity=document.entity
+			AND approval.subject_id=document.id
+		WHERE approval.created_by=$1
+		  AND document.entity IN ('order-production', 'self-production')
 	`, actorID).Scan(&productionDocuments); err != nil {
 		t.Fatalf("count production documents: %v", err)
 	}

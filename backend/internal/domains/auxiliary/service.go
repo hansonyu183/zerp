@@ -850,6 +850,64 @@ func (s *Service) Resolve(ctx context.Context, q dbtx, entity, objectID, approva
 	return result, nil
 }
 
+func (s *Service) ResolveLatestApprovedReference(ctx context.Context, q dbtx, entity, objectID string) (Reference, error) {
+	if q == nil {
+		q = s.pool
+	}
+	if !validEntity(entity) || !validID(objectID) {
+		return Reference{}, domainError(ErrorValidation, "invalid auxiliary reference", nil, nil)
+	}
+	var result Reference
+	var raw []byte
+	err := q.QueryRow(ctx, `SELECT o.id,a.id,o.entity,o.code,p.data
+		FROM aux_objects o
+		JOIN approval_entries a ON a.domain='aux' AND a.entity=o.entity AND a.subject_id=o.id AND a.status='APPROVED'
+		JOIN aux_version_payloads p ON p.approval_entry_id=a.id
+		WHERE o.id=$1 AND o.entity=$2 AND o.enabled
+		  AND a.id=(SELECT id FROM approval_entries latest WHERE latest.domain='aux' AND latest.entity=o.entity
+		    AND latest.subject_id=o.id AND latest.status='APPROVED' ORDER BY latest.version_no DESC LIMIT 1)
+		FOR SHARE OF o`, objectID, entity).
+		Scan(&result.ObjectID, &result.ApprovalEntryID, &result.Entity, &result.Code, &raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Reference{}, domainError(ErrorConflict, "auxiliary reference has no latest approved version", nil, nil)
+	}
+	if err != nil {
+		return Reference{}, s.internal("resolve latest auxiliary reference", err)
+	}
+	if err = json.Unmarshal(raw, &result.Data); err != nil {
+		return Reference{}, s.internal("decode latest auxiliary reference", err)
+	}
+	return result, nil
+}
+
+func (s *Service) ValidateApprovedSnapshotReference(ctx context.Context, q dbtx, entity, objectID, approvalEntryID string) (Reference, error) {
+	if q == nil {
+		q = s.pool
+	}
+	if !validEntity(entity) || !validID(objectID) || !validID(approvalEntryID) {
+		return Reference{}, domainError(ErrorValidation, "invalid auxiliary reference", nil, nil)
+	}
+	var result Reference
+	var raw []byte
+	err := q.QueryRow(ctx, `SELECT o.id,a.id,o.entity,o.code,p.data
+		FROM aux_objects o
+		JOIN approval_entries a ON a.id=$3 AND a.domain='aux' AND a.entity=o.entity AND a.subject_id=o.id AND a.status='APPROVED'
+		JOIN aux_version_payloads p ON p.approval_entry_id=a.id
+		WHERE o.id=$1 AND o.entity=$2 AND o.enabled
+		FOR SHARE OF o`, objectID, entity, approvalEntryID).
+		Scan(&result.ObjectID, &result.ApprovalEntryID, &result.Entity, &result.Code, &raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Reference{}, domainError(ErrorConflict, "auxiliary approval snapshot is unavailable", nil, nil)
+	}
+	if err != nil {
+		return Reference{}, s.internal("validate auxiliary approval snapshot", err)
+	}
+	if err = json.Unmarshal(raw, &result.Data); err != nil {
+		return Reference{}, s.internal("decode auxiliary approval snapshot", err)
+	}
+	return result, nil
+}
+
 func (s *Service) ResolveCode(ctx context.Context, q dbtx, entity, code string) (Reference, error) {
 	if !validEntity(entity) {
 		return Reference{}, errors.New("invalid auxiliary entity")

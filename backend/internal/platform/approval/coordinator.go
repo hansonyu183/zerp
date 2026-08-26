@@ -358,6 +358,19 @@ func (c *Coordinator[T]) Prepare(ctx context.Context, tx pgx.Tx, action Action, 
 }
 
 func (c *Coordinator[T]) Commit(ctx context.Context, tx pgx.Tx, prepared Prepared, payload T) (Entry, error) {
+	return c.CommitWithPayload(ctx, tx, prepared, func(Entry) (T, error) { return payload, nil })
+}
+
+// CommitWithPayload builds the immutable event payload from the committed
+// Approval entry while the caller transaction is still open. Domains whose
+// snapshot includes Approval metadata can therefore publish one coherent
+// post-transition snapshot without a second lifecycle write.
+func (c *Coordinator[T]) CommitWithPayload(
+	ctx context.Context,
+	tx pgx.Tx,
+	prepared Prepared,
+	payload func(Entry) (T, error),
+) (Entry, error) {
 	if tx == nil || prepared.domain != c.domain || prepared.entity != c.entity || prepared.entry.ID == "" {
 		return Entry{}, newError(ErrorValidation, "approval_invalid_preparation", "invalid prepared approval action", nil)
 	}
@@ -407,6 +420,10 @@ func (c *Coordinator[T]) Commit(ctx context.Context, tx pgx.Tx, prepared Prepare
 		return Entry{}, c.databaseError("commit approval entry", err)
 	}
 	entry := entryFromRow(row)
+	eventPayload, err := payload(entry)
+	if err != nil {
+		return Entry{}, err
+	}
 	currentApprovedVersionID, err := c.latestApprovedVersionID(ctx, tx, entry)
 	if err != nil {
 		return Entry{}, err
@@ -416,7 +433,7 @@ func (c *Coordinator[T]) Commit(ctx context.Context, tx pgx.Tx, prepared Prepare
 	event := Event[T]{
 		Entry: entry, VersionNo: entry.VersionNo, Action: prepared.action, FromStatus: &fromStatus, ToStatus: &toStatus,
 		FromRevision: &fromRevision, ToRevision: &toRevision, ActorID: prepared.actor.ID(),
-		RequestID: prepared.actor.RequestID(), Reason: prepared.reason, Payload: payload,
+		RequestID: prepared.actor.RequestID(), Reason: prepared.reason, Payload: eventPayload,
 		SubmittedBy: entry.SubmittedBy, SubmittedAt: entry.SubmittedAt,
 		ApprovedBy: entry.ApprovedBy, ApprovedAt: entry.ApprovedAt,
 		PreviousApprovedVersionID: previousApprovedVersionID,

@@ -78,24 +78,24 @@ func TestVOUOrderProductionSnapshotsMultipleLinesAndReservesQuantityIntegration(
 			orderLine(firstFinished, "10", "10.00", "2"),
 			orderLine(secondFinished, "8", "20.00", "3"),
 		},
-	}}, integrationActorOne, "production-order-create")
+	}}, integrationApprovalActor(t, integrationActorOne, "production-order-create"))
 	if err != nil {
 		t.Fatalf("create source sale order: %v", err)
 	}
-	checked, err := service.Check(t.Context(), EntitySaleOrder, DocumentRevisionInput{
-		DocumentID: order.DocumentID, Revision: order.Revision,
-	}, integrationActorOne, "production-order-check")
+	checked, err := service.Submit(t.Context(), EntitySaleOrder, DocumentRevisionInput{
+		DocumentID: order.DocumentID, Revision: order.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorOne, "production-order-check"))
 	if err != nil {
 		t.Fatalf("check source sale order: %v", err)
 	}
 	approved, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
-		DocumentID: order.DocumentID, Revision: checked.Revision,
-	}, integrationActorOne, "production-order-approve")
+		DocumentID: order.DocumentID, Revision: checked.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorOne, "production-order-approve"))
 	if err != nil {
 		t.Fatalf("approve source sale order: %v", err)
 	}
-	if approved.Status != StatusApproved {
-		t.Fatalf("source sale order status = %s", approved.Status)
+	if approved.Approval.Status != StatusApproved {
+		t.Fatalf("source sale order status = %s", approved.Approval.Status)
 	}
 	orderView, err := service.Get(t.Context(), EntitySaleOrder, GetInput{DocumentID: order.DocumentID})
 	if err != nil {
@@ -116,7 +116,7 @@ func TestVOUOrderProductionSnapshotsMultipleLinesAndReservesQuantityIntegration(
 				productionOutput(orderView.Data.ProductLines[1].LineID, "2.5", "0", "0.0075", "7.5"),
 			},
 		},
-	}, integrationActorOne, "order-production-create")
+	}, integrationApprovalActor(t, integrationActorOne, "order-production-create"))
 	if err != nil {
 		t.Fatalf("create order production: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestVOUOrderProductionSnapshotsMultipleLinesAndReservesQuantityIntegration(
 		t.Fatalf("order production view = %+v", view)
 	}
 	saved, err := service.Save(t.Context(), EntityOrderProduction, SaveInput{
-		DocumentID: production.DocumentID, Revision: production.Revision,
+		DocumentID: production.DocumentID, Revision: production.Approval.Revision,
 		Data: DraftInput{
 			BusinessDate:      "2026-07-29",
 			MaterialWarehouse: &refs.warehouse,
@@ -143,7 +143,7 @@ func TestVOUOrderProductionSnapshotsMultipleLinesAndReservesQuantityIntegration(
 				productionOutput(orderView.Data.ProductLines[1].LineID, "2.5", "0", "0.0075", "7.5"),
 			},
 		},
-	}, integrationActorOne, "order-production-save")
+	}, integrationApprovalActor(t, integrationActorOne, "order-production-save"))
 	if err != nil {
 		t.Fatalf("save order production: %v", err)
 	}
@@ -158,7 +158,7 @@ func TestVOUOrderProductionSnapshotsMultipleLinesAndReservesQuantityIntegration(
 				productionOutput(orderView.Data.ProductLines[0].LineID, "6", "0", "0.012", "12"),
 			},
 		},
-	}, integrationActorOne, "order-production-over-reserve")
+	}, integrationApprovalActor(t, integrationActorOne, "order-production-over-reserve"))
 	var domainErr *DomainError
 	if !errors.As(err, &domainErr) || domainErr.Kind != ErrorConflict {
 		t.Fatalf("over-reserved production error = %v", err)
@@ -166,9 +166,9 @@ func TestVOUOrderProductionSnapshotsMultipleLinesAndReservesQuantityIntegration(
 
 	if _, err = service.Delete(t.Context(), EntityOrderProduction, DeleteInput{
 		DocumentID: production.DocumentID,
-		Revision:   saved.Revision,
+		Revision:   saved.Approval.Revision,
 		Reason:     "重建生产单",
-	}, integrationActorOne, "order-production-delete"); err != nil {
+	}, integrationApprovalActor(t, integrationActorOne, "order-production-delete")); err != nil {
 		t.Fatalf("delete order production: %v", err)
 	}
 	if _, err = service.Create(t.Context(), EntityOrderProduction, CreateInput{
@@ -181,7 +181,7 @@ func TestVOUOrderProductionSnapshotsMultipleLinesAndReservesQuantityIntegration(
 				productionOutput(orderView.Data.ProductLines[0].LineID, "10", "0", "0.02", "20"),
 			},
 		},
-	}, integrationActorOne, "order-production-after-release"); err != nil {
+	}, integrationApprovalActor(t, integrationActorOne, "order-production-after-release")); err != nil {
 		t.Fatalf("quantity allocation was not released after delete: %v", err)
 	}
 }

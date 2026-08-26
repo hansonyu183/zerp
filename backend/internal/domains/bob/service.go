@@ -27,7 +27,8 @@ type Service struct {
 }
 
 type AuxiliaryResolver interface {
-	ResolveAuxiliaryReference(context.Context, pgx.Tx, string, string, string) (AuxiliaryReference, error)
+	ResolveLatestApprovedAuxiliaryReference(context.Context, pgx.Tx, string, string) (AuxiliaryReference, error)
+	ValidateApprovedAuxiliarySnapshotReference(context.Context, pgx.Tx, string, string, string) (AuxiliaryReference, error)
 	ResolveAuxiliaryCode(context.Context, pgx.Tx, string, string) (AuxiliaryReference, error)
 }
 
@@ -597,21 +598,21 @@ func (s *Service) AuditHistory(ctx context.Context, entity string, input History
 	return Page[AuditEventView]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }
 
-func (s *Service) ResolveApprovedReference(ctx context.Context, tx pgx.Tx, entity, objectID, approvalEntryID string) (EffectiveReference, error) {
+func (s *Service) ValidateApprovedSnapshotReference(ctx context.Context, tx pgx.Tx, entity, objectID, approvalEntryID string) (EffectiveReference, error) {
 	if !validEntity(entity) || !validID(objectID) || !validID(approvalEntryID) {
 		return EffectiveReference{}, domainError(ErrorValidation, "invalid BOB reference", nil, nil)
 	}
 	q := s.queries.WithTx(tx)
-	row, err := q.ResolveBobLatestApprovedReferenceByEntry(ctx, dbsqlc.ResolveBobLatestApprovedReferenceByEntryParams{ApprovalEntryID: approvalEntryID, ObjectID: objectID, Entity: entity})
+	row, err := q.ValidateBobApprovedSnapshotReference(ctx, dbsqlc.ValidateBobApprovedSnapshotReferenceParams{ApprovalEntryID: approvalEntryID, ObjectID: objectID, Entity: entity})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return EffectiveReference{}, domainError(ErrorConflict, "BOB reference is not the latest approved version", nil, nil)
+		return EffectiveReference{}, domainError(ErrorConflict, "BOB approval snapshot is unavailable", nil, nil)
 	}
 	if err != nil {
-		return EffectiveReference{}, s.internal("resolve approved BOB reference", err)
+		return EffectiveReference{}, s.internal("validate BOB approval snapshot", err)
 	}
 	data, err := loadDetail(ctx, q, entity, row.ApprovalEntryID)
 	if err != nil {
-		return EffectiveReference{}, s.internal("load approved BOB reference payload", err)
+		return EffectiveReference{}, s.internal("load BOB approval snapshot payload", err)
 	}
 	return EffectiveReference{ObjectID: row.ObjectID, Entity: row.Entity, Code: row.Code, ApprovalEntryID: row.ApprovalEntryID, Data: data}, nil
 }
@@ -670,7 +671,7 @@ func (s *Service) validateStoredApprovalDetail(ctx context.Context, tx pgx.Tx, q
 		if version.Data.OperatingEntity == nil || version.Data.SalesAttribution.SubjectApprovalEntryID == "" {
 			return domainError(ErrorValidation, "customer references are incomplete", nil, nil)
 		}
-		if _, err = s.ResolveApprovedReference(ctx, tx, EntityOperatingEntity, version.Data.OperatingEntityID, version.Data.OperatingEntity.ApprovalEntryID); err != nil {
+		if _, err = s.ValidateApprovedSnapshotReference(ctx, tx, EntityOperatingEntity, version.Data.OperatingEntityID, version.Data.OperatingEntity.ApprovalEntryID); err != nil {
 			return err
 		}
 		for _, auxiliary := range []struct {
@@ -695,7 +696,7 @@ func (s *Service) validateStoredApprovalDetail(ctx context.Context, tx pgx.Tx, q
 		if version.Data.PrimarySalesAttribution.Type == SalesAttributionInternalEmployee {
 			subjectEntity = EntityEmployee
 		}
-		if _, err = s.ResolveApprovedReference(ctx, tx, subjectEntity, version.Data.PrimarySalesAttribution.SubjectObjectID, version.Data.SalesAttribution.SubjectApprovalEntryID); err != nil {
+		if _, err = s.ValidateApprovedSnapshotReference(ctx, tx, subjectEntity, version.Data.PrimarySalesAttribution.SubjectObjectID, version.Data.SalesAttribution.SubjectApprovalEntryID); err != nil {
 			return err
 		}
 		return nil
@@ -753,7 +754,7 @@ func (s *Service) validateStoredApprovalDetail(ctx context.Context, tx pgx.Tx, q
 		if data.Formula != nil {
 			for index := range data.Formula.Components {
 				component := &data.Formula.Components[index]
-				material, resolveErr := s.ResolveApprovedReference(
+				material, resolveErr := s.ValidateApprovedSnapshotReference(
 					ctx, tx, EntityProduct, component.Material.ObjectID, component.Material.ApprovalEntryID,
 				)
 				if resolveErr != nil {
@@ -823,7 +824,7 @@ func (s *Service) resolveDetailReferenceSnapshots(ctx context.Context, tx pgx.Tx
 			if *approvalEntryID == "" {
 				return domainError(ErrorConflict, referenceEntity+" approval snapshot is missing", nil, nil)
 			}
-			reference, err = s.ResolveApprovedReference(ctx, tx, referenceEntity, referenceObjectID, *approvalEntryID)
+			reference, err = s.ValidateApprovedSnapshotReference(ctx, tx, referenceEntity, referenceObjectID, *approvalEntryID)
 		} else {
 			reference, err = s.ResolveLatestApprovedReference(ctx, tx, referenceEntity, referenceObjectID)
 		}
@@ -950,7 +951,7 @@ func (s *Service) resolveSettlementSnapshot(ctx context.Context, tx pgx.Tx, data
 }
 
 func (s *Service) resolveAuxiliaryReference(ctx context.Context, tx pgx.Tx, entity, objectID, approvalEntryID string) (EffectiveReference, error) {
-	reference, err := s.auxiliaryResolver.ResolveAuxiliaryReference(ctx, tx, entity, objectID, approvalEntryID)
+	reference, err := s.resolveAuxiliaryReferenceBySemantics(ctx, tx, entity, objectID, approvalEntryID)
 	if err != nil {
 		return EffectiveReference{}, domainError(ErrorConflict, entity+" reference is unavailable", nil, err)
 	}
@@ -963,11 +964,18 @@ func (s *Service) resolveAuxiliaryReference(ctx context.Context, tx pgx.Tx, enti
 }
 
 func (s *Service) resolveNamedAuxiliaryReference(ctx context.Context, tx pgx.Tx, entity, objectID, approvalEntryID string) (AuxiliaryReference, error) {
-	reference, err := s.auxiliaryResolver.ResolveAuxiliaryReference(ctx, tx, entity, objectID, approvalEntryID)
+	reference, err := s.resolveAuxiliaryReferenceBySemantics(ctx, tx, entity, objectID, approvalEntryID)
 	if err != nil {
 		return AuxiliaryReference{}, domainError(ErrorConflict, entity+" reference is unavailable", nil, err)
 	}
 	return reference, nil
+}
+
+func (s *Service) resolveAuxiliaryReferenceBySemantics(ctx context.Context, tx pgx.Tx, entity, objectID, approvalEntryID string) (AuxiliaryReference, error) {
+	if approvalEntryID == "" {
+		return s.auxiliaryResolver.ResolveLatestApprovedAuxiliaryReference(ctx, tx, entity, objectID)
+	}
+	return s.auxiliaryResolver.ValidateApprovedAuxiliarySnapshotReference(ctx, tx, entity, objectID, approvalEntryID)
 }
 
 func mapString(data map[string]any, key string) string { value, _ := data[key].(string); return value }

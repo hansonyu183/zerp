@@ -2,7 +2,6 @@ package vou
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"strings"
@@ -10,6 +9,7 @@ import (
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -18,16 +18,13 @@ import (
 )
 
 type effectiveReferenceResolver interface {
-	ResolveApprovedReference(context.Context, pgx.Tx, string, string, string) (bobdomain.EffectiveReference, error)
 	ResolveLatestApprovedReference(context.Context, pgx.Tx, string, string) (bobdomain.EffectiveReference, error)
+	ValidateApprovedSnapshotReference(context.Context, pgx.Tx, string, string, string) (bobdomain.EffectiveReference, error)
 }
 
 type auxiliaryReferenceResolver interface {
-	ResolveAuxiliaryReference(context.Context, pgx.Tx, string, string, string) (bobdomain.AuxiliaryReference, error)
-}
-
-type eventPublisher interface {
-	Publish(context.Context, pgx.Tx, txevent.Event) error
+	ResolveLatestApprovedAuxiliaryReference(context.Context, pgx.Tx, string, string) (bobdomain.AuxiliaryReference, error)
+	ValidateApprovedAuxiliarySnapshotReference(context.Context, pgx.Tx, string, string, string) (bobdomain.AuxiliaryReference, error)
 }
 
 // AccountingControl is the narrow business-control view exposed by ACC to VOU.
@@ -46,12 +43,164 @@ type PartyBalanceQuery struct {
 	SourceDocumentIDs     []string
 }
 
+// documentRecord combines the VOU business payload with its single central
+// Approval entry. Lifecycle fields are projected from approval_entries and are
+// never persisted on vou_documents.
+type documentRecord struct {
+	ID, Entity, DocumentNo, ApprovalEntryID string
+	BusinessDate                            pgtype.Date
+	Currency                                *string
+	TotalAmountCents                        int64
+	Remark                                  *string
+	ParentDocumentID, ParentEntity          *string
+	DueDate                                 pgtype.Date
+	Status                                  string
+	Revision                                int64
+	CreatedAt, UpdatedAt                    pgtype.Timestamptz
+	CreatedBy, UpdatedBy                    string
+	ReviewedAt, ApprovedAt, PostedAt        pgtype.Timestamptz
+	ReviewedBy, ApprovedBy, PostedBy        *string
+}
+
+func scanDocument(row pgx.Row) (documentRecord, error) {
+	var document documentRecord
+	err := row.Scan(
+		&document.ID, &document.Entity, &document.DocumentNo, &document.ApprovalEntryID,
+		&document.BusinessDate, &document.Currency, &document.TotalAmountCents, &document.Remark,
+		&document.ParentDocumentID, &document.ParentEntity, &document.DueDate,
+		&document.Status, &document.Revision,
+		&document.CreatedAt, &document.CreatedBy, &document.UpdatedAt, &document.UpdatedBy,
+		&document.ReviewedAt, &document.ReviewedBy, &document.ApprovedAt, &document.ApprovedBy,
+	)
+	document.PostedAt, document.PostedBy = document.ApprovedAt, document.ApprovedBy
+	return document, err
+}
+
+const documentSelect = `SELECT document.id,document.entity,document.document_no,document.approval_entry_id,
+	document.business_date,document.currency,document.total_amount_cents,document.remark,
+	document.parent_document_id,document.parent_entity,document.due_date,
+	approval.status,approval.revision,
+	approval.created_at,approval.created_by,approval.updated_at,approval.updated_by,
+	approval.submitted_at,approval.submitted_by,approval.approved_at,approval.approved_by
+	FROM vou_documents document
+	JOIN approval_entries approval ON approval.id=document.approval_entry_id
+	WHERE document.id=$1 AND document.entity=$2
+	  AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id`
+
+func (s *Service) getDocument(ctx context.Context, id, entity string) (documentRecord, error) {
+	return scanDocument(s.pool.QueryRow(ctx, documentSelect, id, entity))
+}
+
+func lockDocument(ctx context.Context, tx pgx.Tx, id, entity string) (documentRecord, error) {
+	return scanDocument(tx.QueryRow(ctx, documentSelect+` FOR UPDATE OF document,approval`, id, entity))
+}
+
+func (d documentRecord) approvalEntry() approval.Entry {
+	return approval.Entry{
+		EntryRef: approval.EntryRef{ID: d.ApprovalEntryID, Domain: "vou", Entity: d.Entity, SubjectID: d.ID},
+		Status:   approval.Status(d.Status), Revision: d.Revision,
+		CreatedBy: d.CreatedBy, CreatedAt: d.CreatedAt.Time,
+		UpdatedBy: d.UpdatedBy, UpdatedAt: d.UpdatedAt.Time,
+		SubmittedBy: d.ReviewedBy, SubmittedAt: timestampPointer(d.ReviewedAt),
+		ApprovedBy: d.ApprovedBy, ApprovedAt: timestampPointer(d.ApprovedAt),
+	}
+}
+
+func (d documentRecord) withApproval(entry approval.Entry) documentRecord {
+	d.ApprovalEntryID = entry.ID
+	d.Status, d.Revision = string(entry.Status), entry.Revision
+	d.CreatedBy, d.CreatedAt = entry.CreatedBy, timestampValue(entry.CreatedAt)
+	d.UpdatedBy, d.UpdatedAt = entry.UpdatedBy, timestampValue(entry.UpdatedAt)
+	d.ReviewedBy, d.ReviewedAt = entry.SubmittedBy, optionalTimestampValue(entry.SubmittedAt)
+	d.ApprovedBy, d.ApprovedAt = entry.ApprovedBy, optionalTimestampValue(entry.ApprovedAt)
+	d.PostedBy, d.PostedAt = d.ApprovedBy, d.ApprovedAt
+	return d
+}
+
+func timestampValue(value time.Time) pgtype.Timestamptz {
+	return pgtype.Timestamptz{Time: value, Valid: true}
+}
+
+func optionalTimestampValue(value *time.Time) pgtype.Timestamptz {
+	if value == nil {
+		return pgtype.Timestamptz{}
+	}
+	return timestampValue(*value)
+}
+
+func (s *Service) coordinator(entity string) (*approval.Coordinator[DocumentView], error) {
+	coordinator := s.approvals[entity]
+	if coordinator == nil {
+		return nil, domainError(ErrorValidation, "invalid entity", nil, nil)
+	}
+	return coordinator, nil
+}
+
+func (s *Service) createDocumentApproval(
+	ctx context.Context, tx pgx.Tx, entity, documentID string, actor approval.Actor,
+) (approval.Entry, error) {
+	coordinator, err := s.coordinator(entity)
+	if err != nil {
+		return approval.Entry{}, err
+	}
+	entry, err := coordinator.CreateSubject(ctx, tx, documentID, actor, DocumentView{})
+	if err != nil {
+		return approval.Entry{}, mapApprovalError(err)
+	}
+	return entry, nil
+}
+
+func (s *Service) prepareDraftSave(
+	ctx context.Context, tx pgx.Tx, document documentRecord, expectedRevision int64, actor approval.Actor,
+) (*approval.Coordinator[DocumentView], approval.Prepared, error) {
+	coordinator, err := s.coordinator(document.Entity)
+	if err != nil {
+		return nil, approval.Prepared{}, err
+	}
+	prepared, err := coordinator.Prepare(ctx, tx, approval.ActionSaved, document.ApprovalEntryID, expectedRevision, actor, "")
+	if err != nil {
+		return nil, approval.Prepared{}, mapApprovalError(err)
+	}
+	return coordinator, prepared, nil
+}
+
+func (s *Service) commitDraftSave(
+	ctx context.Context,
+	tx pgx.Tx,
+	q *dbsqlc.Queries,
+	document documentRecord,
+	coordinator *approval.Coordinator[DocumentView],
+	prepared approval.Prepared,
+) (approval.Entry, error) {
+	entry, err := coordinator.CommitWithPayload(ctx, tx, prepared, func(entry approval.Entry) (DocumentView, error) {
+		updated, readErr := scanDocument(tx.QueryRow(ctx, documentSelect, document.ID, document.Entity))
+		if readErr != nil {
+			return DocumentView{}, s.internal("read saved document", readErr)
+		}
+		return s.eventSnapshot(ctx, q, updated.withApproval(entry))
+	})
+	if err != nil {
+		return approval.Entry{}, mapApprovalError(err)
+	}
+	return entry, nil
+}
+
+func timestampPointer(value pgtype.Timestamptz) *time.Time {
+	if !value.Valid {
+		return nil
+	}
+	result := value.Time
+	return &result
+}
+
 type Service struct {
 	pool        *pgxpool.Pool
 	queries     *dbsqlc.Queries
 	resolver    effectiveReferenceResolver
 	auxResolver auxiliaryReferenceResolver
-	events      eventPublisher
+	events      *txevent.Bus
+	approvals   map[string]*approval.Coordinator[DocumentView]
+	authorizer  approval.Authorizer
 	accounting  AccountingControl
 	storage     *localStorage
 	uploadTTL   time.Duration
@@ -65,23 +214,21 @@ func WithAccountingControl(control AccountingControl) ServiceOption {
 	return func(service *Service) { service.accounting = control }
 }
 
+func WithApprovalAuthorizer(authorizer approval.Authorizer) ServiceOption {
+	return func(service *Service) { service.authorizer = authorizer }
+}
+
 type AttachmentOptions struct {
 	Root        string
 	UploadTTL   time.Duration
 	DownloadTTL time.Duration
 }
 
-type auditInput struct {
-	DocumentID, Entity, Event, To, ActorID, RequestID string
-	From, Reason                                      *string
-	Summary                                           map[string]any
-}
-
 func NewService(
 	pool *pgxpool.Pool,
 	resolver effectiveReferenceResolver,
 	auxResolver auxiliaryReferenceResolver,
-	events eventPublisher,
+	events *txevent.Bus,
 	options AttachmentOptions,
 	logger *slog.Logger,
 	serviceOptions ...ServiceOption,
@@ -111,22 +258,18 @@ func NewService(
 			option(service)
 		}
 	}
+	if service.authorizer == nil {
+		return nil, errors.New("VOU Approval authorizer is required")
+	}
+	service.approvals = make(map[string]*approval.Coordinator[DocumentView], len(entities))
+	for _, entity := range entities {
+		coordinator, coordinatorErr := approval.NewCoordinator("vou", entity, service.authorizer, events, ApprovalTopic(entity))
+		if coordinatorErr != nil {
+			return nil, coordinatorErr
+		}
+		service.approvals[entity] = coordinator
+	}
 	return service, nil
-}
-
-func insertAudit(ctx context.Context, q *dbsqlc.Queries, input auditInput) error {
-	if input.Summary == nil {
-		input.Summary = map[string]any{}
-	}
-	encoded, err := json.Marshal(input.Summary)
-	if err != nil {
-		return err
-	}
-	return q.InsertVouAuditEvent(ctx, dbsqlc.InsertVouAuditEventParams{
-		ID: newID(), DocumentID: input.DocumentID, Entity: input.Entity, EventType: input.Event,
-		FromStatus: input.From, ToStatus: input.To, ActorID: input.ActorID, Reason: input.Reason,
-		RequestID: input.RequestID, Summary: encoded,
-	})
 }
 
 func documentWriteConflict(err error, actualRevision, expectedRevision int64, actualStatus, expectedStatus string) error {
@@ -144,9 +287,9 @@ func documentWriteConflict(err error, actualRevision, expectedRevision int64, ac
 	return nil
 }
 
-func mutation(document dbsqlc.VouDocument, status string, revision int64) MutationResult {
+func mutation(document documentRecord, entry approval.Entry) MutationResult {
 	return MutationResult{
-		DocumentID: document.ID, DocumentNo: document.DocumentNo, Status: status, Revision: revision,
+		DocumentID: document.ID, DocumentNo: document.DocumentNo, Approval: approval.MetaFromEntry(entry),
 	}
 }
 

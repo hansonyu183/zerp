@@ -8,6 +8,7 @@ import (
 	"time"
 
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/oklog/ulid/v2"
 )
@@ -91,8 +92,9 @@ func TestZZControlBookFundsAndSettlementBalancesIntegration(t *testing.T) {
 
 	approvePayment := func(amount string, wantFailure bool) {
 		documentID := ulid.Make().String()
-		snapshot := voudomain.DocumentView{DocumentID: documentID, Entity: voudomain.EntityOtherPayment, DocumentNo: "PAY-" + documentID, Status: voudomain.StatusApproved, Revision: 3, Amount: amount, Data: voudomain.DocumentDataView{BusinessDate: "2026-07-25", Currency: "CNY", FundAccount: &voudomain.ReferenceView{ObjectID: fundAccountID}}}
-		event := voudomain.DocumentApprovedEvent{Entity: snapshot.Entity, DocumentID: documentID, DocumentNo: snapshot.DocumentNo, Revision: snapshot.Revision, Snapshot: snapshot}
+		snapshot := voudomain.DocumentView{DocumentID: documentID, Entity: voudomain.EntityOtherPayment, DocumentNo: "PAY-" + documentID,
+			Approval: approval.Meta{Status: approval.StatusApproved, Revision: 3}, Amount: amount, Data: voudomain.DocumentDataView{BusinessDate: "2026-07-25", Currency: "CNY", FundAccount: &voudomain.ReferenceView{ObjectID: fundAccountID}}}
+		event := approvedVOUEvent(snapshot)
 		eventTx, beginErr := pool.Begin(t.Context())
 		if beginErr != nil {
 			t.Fatal(beginErr)

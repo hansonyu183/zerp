@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -122,14 +123,29 @@ func TestApprovedExistingRootUsesStartedPublishedRevisionAcrossRootKeyChangeAndN
 		t.Fatalf("begin workflow document fixture: %v", err)
 	}
 	defer fixtureTx.Rollback(ctx) //nolint:errcheck
+	rootApprovalID, oldApprovalID := newID(), newID()
+	newApprovalID, sourceApprovalID := newID(), newID()
 	if _, err = fixtureTx.Exec(ctx, `
-		INSERT INTO vou_documents(id,entity,document_no,status,business_date,currency,total_amount_cents,created_by,updated_by)
+		INSERT INTO approval_entries(id,domain,entity,subject_id,status,revision,created_by,created_at,updated_by,updated_at)
 		VALUES
-			($1,'expense-reimbursement',$2,'DRAFT',DATE '2026-08-16','CNY',1,$4,$4),
-			($3,'expense-payment',$5,'DRAFT',DATE '2026-08-16','CNY',1,$4,$4),
-			($6,'expense-payment',$7,'DRAFT',DATE '2026-08-16','CNY',1,$4,$4),
-			($8,'expense-reimbursement',$9,'DRAFT',DATE '2026-08-16','CNY',1,$4,$4)
-	`, rootDocumentID, rootDocumentNo, oldDocumentID, actorID, oldDocumentNo, newDocumentID, newDocumentNo, newPaymentSourceID, newPaymentSourceNo); err != nil {
+			($6,'vou','expense-reimbursement',$1,'DRAFT',1,$5,now(),$5,now()),
+			($7,'vou','expense-payment',$2,'DRAFT',1,$5,now(),$5,now()),
+			($8,'vou','expense-payment',$3,'DRAFT',1,$5,now(),$5,now()),
+			($9,'vou','expense-reimbursement',$4,'DRAFT',1,$5,now(),$5,now())
+	`, rootDocumentID, oldDocumentID, newDocumentID, newPaymentSourceID, actorID,
+		rootApprovalID, oldApprovalID, newApprovalID, sourceApprovalID); err != nil {
+		t.Fatalf("insert workflow approvals: %v", err)
+	}
+	if _, err = fixtureTx.Exec(ctx, `
+		INSERT INTO vou_documents(id,entity,document_no,approval_entry_id,business_date,currency,total_amount_cents)
+		VALUES
+			($1,'expense-reimbursement',$2,$9,DATE '2026-08-16','CNY',1),
+			($3,'expense-payment',$4,$10,DATE '2026-08-16','CNY',1),
+			($5,'expense-payment',$6,$11,DATE '2026-08-16','CNY',1),
+			($7,'expense-reimbursement',$8,$12,DATE '2026-08-16','CNY',1)
+	`, rootDocumentID, rootDocumentNo, oldDocumentID, oldDocumentNo, newDocumentID,
+		newDocumentNo, newPaymentSourceID, newPaymentSourceNo,
+		rootApprovalID, oldApprovalID, newApprovalID, sourceApprovalID); err != nil {
 		t.Fatalf("insert workflow documents: %v", err)
 	}
 	if _, err = fixtureTx.Exec(ctx, `
@@ -209,9 +225,17 @@ func TestApprovedExistingRootUsesStartedPublishedRevisionAcrossRootKeyChangeAndN
 		t.Fatalf("begin reapproval: %v", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	err = service.handleApproved(ctx, tx, voudomain.DocumentApprovedEvent{
-		Entity: "expense-reimbursement", DocumentID: rootDocumentID, DocumentNo: rootDocumentNo,
-		ActorID: actorID, RequestID: "fixed-revision-reapproval",
+	approvedStatus := approval.StatusApproved
+	pendingStatus := approval.StatusPending
+	fromRevision, toRevision := int64(2), int64(3)
+	err = service.handleApproval(ctx, tx, approval.Event[voudomain.DocumentView]{
+		Entry: approval.Entry{EntryRef: approval.EntryRef{
+			ID: "01J00000000000000000000042", Domain: "vou", Entity: "expense-reimbursement", SubjectID: rootDocumentID,
+		}, Status: approvedStatus, Revision: toRevision},
+		Action: approval.ActionApproved, FromStatus: &pendingStatus, ToStatus: &approvedStatus,
+		FromRevision: &fromRevision, ToRevision: &toRevision, ActorID: actorID, RequestID: "fixed-revision-reapproval",
+		Payload: voudomain.DocumentView{DocumentID: rootDocumentID, DocumentNo: rootDocumentNo,
+			Entity: "expense-reimbursement", Approval: approval.Meta{Status: approvedStatus, Revision: toRevision}},
 	})
 	if err != nil {
 		t.Fatalf("reapprove existing workflow root: %v", err)

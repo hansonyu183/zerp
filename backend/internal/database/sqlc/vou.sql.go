@@ -11,65 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const approveVouDocument = `-- name: ApproveVouDocument :one
-UPDATE vou_documents
-SET status = 'APPROVED', revision = revision + 1,
-    approved_at = now(), approved_by = $1,
-    posted_at = now(), posted_by = $1,
-    updated_at = now(), updated_by = $1
-WHERE id = $2 AND entity = $3
-  AND revision = $4 AND status = 'CHECKED'
-RETURNING revision
-`
-
-type ApproveVouDocumentParams struct {
-	ActorID  *string `db:"actor_id" json:"actor_id"`
-	ID       string  `db:"id" json:"id"`
-	Entity   string  `db:"entity" json:"entity"`
-	Revision int64   `db:"revision" json:"revision"`
-}
-
-func (q *Queries) ApproveVouDocument(ctx context.Context, arg ApproveVouDocumentParams) (int64, error) {
-	row := q.db.QueryRow(ctx, approveVouDocument,
-		arg.ActorID,
-		arg.ID,
-		arg.Entity,
-		arg.Revision,
-	)
-	var revision int64
-	err := row.Scan(&revision)
-	return revision, err
-}
-
-const checkVouDocument = `-- name: CheckVouDocument :one
-UPDATE vou_documents
-SET status = 'CHECKED', revision = revision + 1,
-    reviewed_at = now(), reviewed_by = $1,
-    updated_at = now(), updated_by = $1
-WHERE id = $2 AND entity = $3
-  AND revision = $4 AND status = 'DRAFT'
-RETURNING revision
-`
-
-type CheckVouDocumentParams struct {
-	ActorID  *string `db:"actor_id" json:"actor_id"`
-	ID       string  `db:"id" json:"id"`
-	Entity   string  `db:"entity" json:"entity"`
-	Revision int64   `db:"revision" json:"revision"`
-}
-
-func (q *Queries) CheckVouDocument(ctx context.Context, arg CheckVouDocumentParams) (int64, error) {
-	row := q.db.QueryRow(ctx, checkVouDocument,
-		arg.ActorID,
-		arg.ID,
-		arg.Entity,
-		arg.Revision,
-	)
-	var revision int64
-	err := row.Scan(&revision)
-	return revision, err
-}
-
 const clearVouInventoryCountResults = `-- name: ClearVouInventoryCountResults :exec
 UPDATE vou_inventory_count_lines
 SET book_base_quantity_micros=NULL,difference_base_quantity_micros=NULL
@@ -150,28 +91,13 @@ func (q *Queries) CountVouAttachments(ctx context.Context, documentID string) (i
 	return count, err
 }
 
-const countVouAuditEvents = `-- name: CountVouAuditEvents :one
-SELECT count(*) FROM vou_audit_events
-WHERE document_id = $1 AND entity = $2
-`
-
-type CountVouAuditEventsParams struct {
-	DocumentID string `db:"document_id" json:"document_id"`
-	Entity     string `db:"entity" json:"entity"`
-}
-
-func (q *Queries) CountVouAuditEvents(ctx context.Context, arg CountVouAuditEventsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countVouAuditEvents, arg.DocumentID, arg.Entity)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const countVouDocuments = `-- name: CountVouDocuments :one
 SELECT count(*)
 FROM vou_documents d
+JOIN approval_entries approval ON approval.id=d.approval_entry_id
 WHERE d.entity = $1
-  AND (COALESCE(cardinality($2::text[]), 0) = 0 OR d.status = ANY($2::text[]))
+  AND approval.domain='vou' AND approval.entity=d.entity AND approval.subject_id=d.id
+  AND (COALESCE(cardinality($2::text[]), 0) = 0 OR approval.status = ANY($2::text[]))
   AND ($3::date IS NULL OR d.business_date >= $3::date)
   AND ($4::date IS NULL OR d.business_date <= $4::date)
   AND (
@@ -381,15 +307,6 @@ func (q *Queries) DeleteVouAttachmentByFileID(ctx context.Context, fileID string
 		return 0, err
 	}
 	return result.RowsAffected(), nil
-}
-
-const deleteVouAuditEventsForDocument = `-- name: DeleteVouAuditEventsForDocument :exec
-DELETE FROM vou_audit_events WHERE document_id=$1
-`
-
-func (q *Queries) DeleteVouAuditEventsForDocument(ctx context.Context, documentID string) error {
-	_, err := q.db.Exec(ctx, deleteVouAuditEventsForDocument, documentID)
-	return err
 }
 
 const deleteVouBillCashLines = `-- name: DeleteVouBillCashLines :exec
@@ -624,11 +541,12 @@ const findLatestCustomerSaleOrderFormula = `-- name: FindLatestCustomerSaleOrder
 SELECT formula.product_line_id, formula.output_base_quantity_micros,
        document.id AS source_document_id, document.document_no AS source_document_no
 FROM vou_documents document
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
 JOIN vou_sale_order_details detail ON detail.document_id = document.id
 JOIN vou_product_lines product_line ON product_line.document_id = document.id
 JOIN vou_sale_order_formulas formula ON formula.product_line_id = product_line.id
 WHERE document.entity = 'sale-order'
-  AND document.status IN ('CHECKED', 'APPROVED')
+  AND approval.status IN ('PENDING', 'APPROVED')
   AND detail.customer_object_id = $1
   AND product_line.product_object_id = $2
 ORDER BY document.business_date DESC, document.document_no DESC
@@ -665,13 +583,14 @@ SELECT line.id AS source_line_id, document.id AS source_document_id,
        line.unit_price_cents
 FROM vou_price_lines line
 JOIN vou_documents document ON document.id=line.document_id
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
 JOIN vou_purchase_inquiry_details inquiry ON inquiry.document_id=document.id
 WHERE line.document_entity='purchase-inquiry'
   AND line.product_object_id=$1
   AND inquiry.supplier_object_id=$2
   AND document.currency=$3
   AND document.business_date <= $4
-  AND document.status = 'APPROVED'
+  AND approval.status = 'APPROVED'
 ORDER BY document.business_date DESC, document.document_no DESC
 LIMIT 1
 `
@@ -728,11 +647,12 @@ SELECT line.id AS source_line_id, document.id AS source_document_id,
        line.unit_price_cents
 FROM vou_price_lines line
 JOIN vou_documents document ON document.id=line.document_id
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
 WHERE line.document_entity='sale-pricing'
   AND line.product_object_id=$1
   AND document.currency=$2
   AND document.business_date <= $3
-  AND document.status = 'APPROVED'
+  AND approval.status = 'APPROVED'
 ORDER BY document.business_date DESC, document.document_no DESC
 LIMIT 1
 `
@@ -765,9 +685,11 @@ func (q *Queries) FindVouSalePriceReference(ctx context.Context, arg FindVouSale
 }
 
 const findWorkflowVouChild = `-- name: FindWorkflowVouChild :one
-SELECT id,document_no,status,revision FROM vou_documents
-WHERE parent_document_id=$1 AND entity=$2 AND status<>'DELETED'
-ORDER BY created_at,id LIMIT 1 FOR UPDATE
+SELECT document.id,document.document_no,approval.status,approval.revision
+FROM vou_documents document
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+WHERE document.parent_document_id=$1 AND document.entity=$2
+ORDER BY approval.created_at,document.id LIMIT 1 FOR UPDATE OF document,approval
 `
 
 type FindWorkflowVouChildParams struct {
@@ -1108,9 +1030,11 @@ func (q *Queries) GetVouBillDetail(ctx context.Context, documentID string) (VouB
 }
 
 const getVouDocument = `-- name: GetVouDocument :one
-SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, checked_at, checked_by, parent_document_id, parent_entity, due_date, posted_at, posted_by
-FROM vou_documents
-WHERE id = $1 AND entity = $2
+SELECT document.id, document.entity, document.document_no, document.approval_entry_id, document.business_date, document.currency, document.total_amount_cents, document.remark, document.parent_document_id, document.parent_entity, document.due_date, approval.id, approval.domain, approval.entity, approval.subject_id, approval.version_no, approval.status, approval.revision, approval.created_by, approval.created_at, approval.updated_by, approval.updated_at, approval.submitted_by, approval.submitted_at, approval.approved_by, approval.approved_at
+FROM vou_documents document
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+WHERE document.id = $1 AND document.entity = $2
+  AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
 `
 
 type GetVouDocumentParams struct {
@@ -1118,34 +1042,41 @@ type GetVouDocumentParams struct {
 	Entity string `db:"entity" json:"entity"`
 }
 
-func (q *Queries) GetVouDocument(ctx context.Context, arg GetVouDocumentParams) (VouDocument, error) {
+type GetVouDocumentRow struct {
+	VouDocument   VouDocument   `db:"vou_document" json:"vou_document"`
+	ApprovalEntry ApprovalEntry `db:"approval_entry" json:"approval_entry"`
+}
+
+func (q *Queries) GetVouDocument(ctx context.Context, arg GetVouDocumentParams) (GetVouDocumentRow, error) {
 	row := q.db.QueryRow(ctx, getVouDocument, arg.ID, arg.Entity)
-	var i VouDocument
+	var i GetVouDocumentRow
 	err := row.Scan(
-		&i.ID,
-		&i.Entity,
-		&i.DocumentNo,
-		&i.Status,
-		&i.Revision,
-		&i.BusinessDate,
-		&i.Currency,
-		&i.TotalAmountCents,
-		&i.Remark,
-		&i.CreatedAt,
-		&i.CreatedBy,
-		&i.UpdatedAt,
-		&i.UpdatedBy,
-		&i.ReviewedAt,
-		&i.ReviewedBy,
-		&i.ApprovedAt,
-		&i.ApprovedBy,
-		&i.CheckedAt,
-		&i.CheckedBy,
-		&i.ParentDocumentID,
-		&i.ParentEntity,
-		&i.DueDate,
-		&i.PostedAt,
-		&i.PostedBy,
+		&i.VouDocument.ID,
+		&i.VouDocument.Entity,
+		&i.VouDocument.DocumentNo,
+		&i.VouDocument.ApprovalEntryID,
+		&i.VouDocument.BusinessDate,
+		&i.VouDocument.Currency,
+		&i.VouDocument.TotalAmountCents,
+		&i.VouDocument.Remark,
+		&i.VouDocument.ParentDocumentID,
+		&i.VouDocument.ParentEntity,
+		&i.VouDocument.DueDate,
+		&i.ApprovalEntry.ID,
+		&i.ApprovalEntry.Domain,
+		&i.ApprovalEntry.Entity,
+		&i.ApprovalEntry.SubjectID,
+		&i.ApprovalEntry.VersionNo,
+		&i.ApprovalEntry.Status,
+		&i.ApprovalEntry.Revision,
+		&i.ApprovalEntry.CreatedBy,
+		&i.ApprovalEntry.CreatedAt,
+		&i.ApprovalEntry.UpdatedBy,
+		&i.ApprovalEntry.UpdatedAt,
+		&i.ApprovalEntry.SubmittedBy,
+		&i.ApprovalEntry.SubmittedAt,
+		&i.ApprovalEntry.ApprovedBy,
+		&i.ApprovalEntry.ApprovedAt,
 	)
 	return i, err
 }
@@ -1418,10 +1349,11 @@ func (q *Queries) GetVouReceiptDetail(ctx context.Context, documentID string) (V
 }
 
 const getVouSaleDeliveryStoredState = `-- name: GetVouSaleDeliveryStoredState :one
-SELECT source.status AS source_status,1::bigint AS line_count,
+SELECT approval.status AS source_status,1::bigint AS line_count,
        delivery.carrier_type IS NOT NULL AND delivery.vehicle_object_id IS NOT NULL AS complete
 FROM vou_sale_delivery_details AS delivery
 JOIN vou_documents AS source ON source.id=delivery.source_outbound_id
+JOIN approval_entries approval ON approval.id=source.approval_entry_id
 WHERE delivery.document_id=$1
 `
 
@@ -1845,45 +1777,6 @@ func (q *Queries) InsertVouAssetSaleLine(ctx context.Context, arg InsertVouAsset
 	return err
 }
 
-const insertVouAuditEvent = `-- name: InsertVouAuditEvent :exec
-INSERT INTO vou_audit_events (
-    id, document_id, entity, event_type, from_status, to_status, actor_id, reason, request_id, summary
-) VALUES (
-    $1, $2, $3, $4,
-    $5, $6, $7,
-    $8, $9, $10
-)
-`
-
-type InsertVouAuditEventParams struct {
-	ID         string  `db:"id" json:"id"`
-	DocumentID string  `db:"document_id" json:"document_id"`
-	Entity     string  `db:"entity" json:"entity"`
-	EventType  string  `db:"event_type" json:"event_type"`
-	FromStatus *string `db:"from_status" json:"from_status"`
-	ToStatus   string  `db:"to_status" json:"to_status"`
-	ActorID    string  `db:"actor_id" json:"actor_id"`
-	Reason     *string `db:"reason" json:"reason"`
-	RequestID  string  `db:"request_id" json:"request_id"`
-	Summary    []byte  `db:"summary" json:"summary"`
-}
-
-func (q *Queries) InsertVouAuditEvent(ctx context.Context, arg InsertVouAuditEventParams) error {
-	_, err := q.db.Exec(ctx, insertVouAuditEvent,
-		arg.ID,
-		arg.DocumentID,
-		arg.Entity,
-		arg.EventType,
-		arg.FromStatus,
-		arg.ToStatus,
-		arg.ActorID,
-		arg.Reason,
-		arg.RequestID,
-		arg.Summary,
-	)
-	return err
-}
-
 const insertVouBillCashLine = `-- name: InsertVouBillCashLine :exec
 INSERT INTO vou_bill_cash_lines(id,document_id,line_no,bill_line_id,fund_account_object_id,fund_account_approval_entry_id,fund_account_code,fund_account_name,direction,amount_type,amount_cents,remark)
 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
@@ -2036,13 +1929,12 @@ func (q *Queries) InsertVouBillLine(ctx context.Context, arg InsertVouBillLinePa
 
 const insertVouDocument = `-- name: InsertVouDocument :exec
 INSERT INTO vou_documents (
-    id, entity, document_no, business_date, due_date, currency, total_amount_cents, remark,
-    parent_entity, parent_document_id, created_by, updated_by
+    id, entity, document_no, approval_entry_id, business_date, due_date, currency, total_amount_cents, remark,
+    parent_entity, parent_document_id
 ) VALUES (
-    $1, $2, $3, $4, $5,
-    $6, $7, $8,
-    $9, $10,
-    $11, $11
+    $1, $2, $3, $4, $5, $6,
+    $7, $8, $9,
+    $10, $11
 )
 `
 
@@ -2050,6 +1942,7 @@ type InsertVouDocumentParams struct {
 	ID               string      `db:"id" json:"id"`
 	Entity           string      `db:"entity" json:"entity"`
 	DocumentNo       string      `db:"document_no" json:"document_no"`
+	ApprovalEntryID  string      `db:"approval_entry_id" json:"approval_entry_id"`
 	BusinessDate     pgtype.Date `db:"business_date" json:"business_date"`
 	DueDate          pgtype.Date `db:"due_date" json:"due_date"`
 	Currency         *string     `db:"currency" json:"currency"`
@@ -2057,7 +1950,6 @@ type InsertVouDocumentParams struct {
 	Remark           *string     `db:"remark" json:"remark"`
 	ParentEntity     *string     `db:"parent_entity" json:"parent_entity"`
 	ParentDocumentID *string     `db:"parent_document_id" json:"parent_document_id"`
-	ActorID          string      `db:"actor_id" json:"actor_id"`
 }
 
 func (q *Queries) InsertVouDocument(ctx context.Context, arg InsertVouDocumentParams) error {
@@ -2065,6 +1957,7 @@ func (q *Queries) InsertVouDocument(ctx context.Context, arg InsertVouDocumentPa
 		arg.ID,
 		arg.Entity,
 		arg.DocumentNo,
+		arg.ApprovalEntryID,
 		arg.BusinessDate,
 		arg.DueDate,
 		arg.Currency,
@@ -2072,7 +1965,6 @@ func (q *Queries) InsertVouDocument(ctx context.Context, arg InsertVouDocumentPa
 		arg.Remark,
 		arg.ParentEntity,
 		arg.ParentDocumentID,
-		arg.ActorID,
 	)
 	return err
 }
@@ -3427,9 +3319,11 @@ func (q *Queries) ListExpiredPendingVouFiles(ctx context.Context, batchSize int3
 }
 
 const listGeneratedWorkflowChildrenForUpdate = `-- name: ListGeneratedWorkflowChildrenForUpdate :many
-SELECT id,entity,status,revision,created_by,
-       EXISTS(SELECT 1 FROM vou_document_attachments attachment WHERE attachment.document_id=vou_documents.id) AS has_attachments
-FROM vou_documents WHERE parent_document_id=$1 FOR UPDATE
+SELECT document.id,document.entity,approval.status,approval.revision,approval.created_by,
+       EXISTS(SELECT 1 FROM vou_document_attachments attachment WHERE attachment.document_id=document.id) AS has_attachments
+FROM vou_documents document
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+WHERE document.parent_document_id=$1 FOR UPDATE OF document,approval
 `
 
 type ListGeneratedWorkflowChildrenForUpdateRow struct {
@@ -3634,62 +3528,6 @@ func (q *Queries) ListVouAttachments(ctx context.Context, documentID string) ([]
 	return items, nil
 }
 
-const listVouAuditEvents = `-- name: ListVouAuditEvents :many
-SELECT id, document_id, entity, event_type, from_status, to_status, actor_id, occurred_at, reason, request_id, summary, workflow_version, stage, child_id, child_no, child_status FROM vou_audit_events
-WHERE document_id = $1 AND entity = $2
-ORDER BY occurred_at DESC, id DESC
-LIMIT $4 OFFSET $3
-`
-
-type ListVouAuditEventsParams struct {
-	DocumentID string `db:"document_id" json:"document_id"`
-	Entity     string `db:"entity" json:"entity"`
-	PageOffset int32  `db:"page_offset" json:"page_offset"`
-	PageSize   int32  `db:"page_size" json:"page_size"`
-}
-
-func (q *Queries) ListVouAuditEvents(ctx context.Context, arg ListVouAuditEventsParams) ([]VouAuditEvent, error) {
-	rows, err := q.db.Query(ctx, listVouAuditEvents,
-		arg.DocumentID,
-		arg.Entity,
-		arg.PageOffset,
-		arg.PageSize,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []VouAuditEvent{}
-	for rows.Next() {
-		var i VouAuditEvent
-		if err := rows.Scan(
-			&i.ID,
-			&i.DocumentID,
-			&i.Entity,
-			&i.EventType,
-			&i.FromStatus,
-			&i.ToStatus,
-			&i.ActorID,
-			&i.OccurredAt,
-			&i.Reason,
-			&i.RequestID,
-			&i.Summary,
-			&i.WorkflowVersion,
-			&i.Stage,
-			&i.ChildID,
-			&i.ChildNo,
-			&i.ChildStatus,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listVouBillCashLines = `-- name: ListVouBillCashLines :many
 SELECT id, document_id, line_no, bill_line_id, fund_account_object_id, fund_account_approval_entry_id, fund_account_code, fund_account_name, direction, amount_type, amount_cents, remark FROM vou_bill_cash_lines WHERE document_id=$1 ORDER BY line_no
 `
@@ -3775,12 +3613,13 @@ func (q *Queries) ListVouBillLines(ctx context.Context, documentID string) ([]Vo
 }
 
 const listVouDocuments = `-- name: ListVouDocuments :many
-SELECT d.id, d.entity, d.document_no, d.status, d.revision, d.business_date, d.currency, d.total_amount_cents, d.remark, d.created_at, d.created_by, d.updated_at, d.updated_by, d.reviewed_at, d.reviewed_by, d.approved_at, d.approved_by, d.checked_at, d.checked_by, d.parent_document_id, d.parent_entity, d.due_date, d.posted_at, d.posted_by,
+SELECT d.id, d.entity, d.document_no, d.approval_entry_id, d.business_date, d.currency, d.total_amount_cents, d.remark, d.parent_document_id, d.parent_entity, d.due_date, approval.status, approval.revision, approval.updated_at,
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name, sr.customer_name,
                 pqi.supplier_name, po.supplier_name, pi.supplier_name, pr.supplier_name, r.counterparty_name,
                 p.counterparty_name, er.employee_name, ep.employee_name, elw.employee_name, oi.counterparty_name,
                 aa.supplier_name, asl.counterparty_name, bd.counterparty_name, oi.source_name, '') AS party_name
 FROM vou_documents d
+JOIN approval_entries approval ON approval.id=d.approval_entry_id
 LEFT JOIN vou_sale_order_details so ON so.document_id = d.id
 LEFT JOIN vou_sale_outbound_details sob ON sob.document_id = d.id
 LEFT JOIN vou_sale_delivery_details sd ON sd.document_id = d.id
@@ -3800,7 +3639,8 @@ LEFT JOIN vou_asset_acquisition_details aa ON aa.document_id = d.id
 LEFT JOIN vou_asset_sale_details asl ON asl.document_id = d.id
 LEFT JOIN vou_bill_details bd ON bd.document_id = d.id
 WHERE d.entity = $1
-  AND (COALESCE(cardinality($2::text[]), 0) = 0 OR d.status = ANY($2::text[]))
+  AND approval.domain='vou' AND approval.entity=d.entity AND approval.subject_id=d.id
+  AND (COALESCE(cardinality($2::text[]), 0) = 0 OR approval.status = ANY($2::text[]))
   AND ($3::date IS NULL OR d.business_date >= $3::date)
   AND ($4::date IS NULL OR d.business_date <= $4::date)
   AND (
@@ -3843,14 +3683,14 @@ WHERE d.entity = $1
       OR bd.counterparty_code ILIKE '%' || $6 || '%' OR bd.counterparty_name ILIKE '%' || $6 || '%'
   )
 ORDER BY
-  CASE WHEN $7::text = 'updatedAt' AND $8::text = 'asc' THEN d.updated_at END ASC,
-  CASE WHEN $7::text = 'updatedAt' AND $8::text = 'desc' THEN d.updated_at END DESC,
+  CASE WHEN $7::text = 'updatedAt' AND $8::text = 'asc' THEN approval.updated_at END ASC,
+  CASE WHEN $7::text = 'updatedAt' AND $8::text = 'desc' THEN approval.updated_at END DESC,
   CASE WHEN $7::text = 'documentNo' AND $8::text = 'asc' THEN d.document_no END ASC,
   CASE WHEN $7::text = 'documentNo' AND $8::text = 'desc' THEN d.document_no END DESC,
   CASE WHEN $7::text = 'businessDate' AND $8::text = 'asc' THEN d.business_date END ASC,
   CASE WHEN $7::text = 'businessDate' AND $8::text = 'desc' THEN d.business_date END DESC,
-  CASE WHEN $7::text = 'status' AND $8::text = 'asc' THEN d.status END ASC,
-  CASE WHEN $7::text = 'status' AND $8::text = 'desc' THEN d.status END DESC,
+  CASE WHEN $7::text = 'status' AND $8::text = 'asc' THEN approval.status END ASC,
+  CASE WHEN $7::text = 'status' AND $8::text = 'desc' THEN approval.status END DESC,
   CASE WHEN $7::text = 'amount' AND $8::text = 'asc' THEN d.total_amount_cents END ASC,
   CASE WHEN $7::text = 'amount' AND $8::text = 'desc' THEN d.total_amount_cents END DESC,
   d.id DESC
@@ -3874,27 +3714,17 @@ type ListVouDocumentsRow struct {
 	ID               string             `db:"id" json:"id"`
 	Entity           string             `db:"entity" json:"entity"`
 	DocumentNo       string             `db:"document_no" json:"document_no"`
-	Status           string             `db:"status" json:"status"`
-	Revision         int64              `db:"revision" json:"revision"`
+	ApprovalEntryID  string             `db:"approval_entry_id" json:"approval_entry_id"`
 	BusinessDate     pgtype.Date        `db:"business_date" json:"business_date"`
 	Currency         *string            `db:"currency" json:"currency"`
 	TotalAmountCents int64              `db:"total_amount_cents" json:"total_amount_cents"`
 	Remark           *string            `db:"remark" json:"remark"`
-	CreatedAt        pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy        string             `db:"created_by" json:"created_by"`
-	UpdatedAt        pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy        string             `db:"updated_by" json:"updated_by"`
-	ReviewedAt       pgtype.Timestamptz `db:"reviewed_at" json:"reviewed_at"`
-	ReviewedBy       *string            `db:"reviewed_by" json:"reviewed_by"`
-	ApprovedAt       pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
-	ApprovedBy       *string            `db:"approved_by" json:"approved_by"`
-	CheckedAt        pgtype.Timestamptz `db:"checked_at" json:"checked_at"`
-	CheckedBy        *string            `db:"checked_by" json:"checked_by"`
 	ParentDocumentID *string            `db:"parent_document_id" json:"parent_document_id"`
 	ParentEntity     *string            `db:"parent_entity" json:"parent_entity"`
 	DueDate          pgtype.Date        `db:"due_date" json:"due_date"`
-	PostedAt         pgtype.Timestamptz `db:"posted_at" json:"posted_at"`
-	PostedBy         *string            `db:"posted_by" json:"posted_by"`
+	Status           string             `db:"status" json:"status"`
+	Revision         int64              `db:"revision" json:"revision"`
+	UpdatedAt        pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	PartyName        string             `db:"party_name" json:"party_name"`
 }
 
@@ -3922,27 +3752,17 @@ func (q *Queries) ListVouDocuments(ctx context.Context, arg ListVouDocumentsPara
 			&i.ID,
 			&i.Entity,
 			&i.DocumentNo,
-			&i.Status,
-			&i.Revision,
+			&i.ApprovalEntryID,
 			&i.BusinessDate,
 			&i.Currency,
 			&i.TotalAmountCents,
 			&i.Remark,
-			&i.CreatedAt,
-			&i.CreatedBy,
-			&i.UpdatedAt,
-			&i.UpdatedBy,
-			&i.ReviewedAt,
-			&i.ReviewedBy,
-			&i.ApprovedAt,
-			&i.ApprovedBy,
-			&i.CheckedAt,
-			&i.CheckedBy,
 			&i.ParentDocumentID,
 			&i.ParentEntity,
 			&i.DueDate,
-			&i.PostedAt,
-			&i.PostedBy,
+			&i.Status,
+			&i.Revision,
+			&i.UpdatedAt,
 			&i.PartyName,
 		); err != nil {
 			return nil, err
@@ -4416,7 +4236,9 @@ func (q *Queries) ListVouSaleOutboundStateLines(ctx context.Context, documentID 
 }
 
 const listVouWorkflowChildrenForShare = `-- name: ListVouWorkflowChildrenForShare :many
-SELECT id,entity,status FROM vou_documents WHERE parent_document_id=$1 FOR SHARE
+SELECT document.id,document.entity,approval.status FROM vou_documents document
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+WHERE document.parent_document_id=$1 FOR SHARE OF document,approval
 `
 
 type ListVouWorkflowChildrenForShareRow struct {
@@ -4541,9 +4363,11 @@ SELECT f.id, f.storage_key, f.original_name, f.content_type, f.declared_size, f.
        links.child_id, links.child_no, links.stage
 FROM vou_files f
 JOIN LATERAL (
-    SELECT a.document_id, d.entity, d.status AS document_status,
+    SELECT a.document_id, d.entity, approval.status AS document_status,
            ''::varchar AS child_id, ''::varchar AS child_no, ''::varchar AS stage
-    FROM vou_document_attachments a JOIN vou_documents d ON d.id=a.document_id
+    FROM vou_document_attachments a
+    JOIN vou_documents d ON d.id=a.document_id
+    JOIN approval_entries approval ON approval.id=d.approval_entry_id
     WHERE a.file_id=f.id
 ) links ON true
 WHERE f.upload_token_hash = $1
@@ -4599,12 +4423,13 @@ func (q *Queries) LockPendingVouUpload(ctx context.Context, uploadTokenHash stri
 }
 
 const lockVouAttachmentForRemoval = `-- name: LockVouAttachmentForRemoval :one
-SELECT f.id, f.storage_key, f.original_name, f.content_type, f.declared_size, f.sha256_hex, f.status, f.upload_token_hash, f.upload_expires_at, f.stored_at, f.created_at, f.created_by, d.entity, d.status AS document_status
+SELECT f.id, f.storage_key, f.original_name, f.content_type, f.declared_size, f.sha256_hex, f.status, f.upload_token_hash, f.upload_expires_at, f.stored_at, f.created_at, f.created_by, d.entity, approval.status AS document_status
 FROM vou_files f
 JOIN vou_document_attachments a ON a.file_id = f.id
 JOIN vou_documents d ON d.id = a.document_id
+JOIN approval_entries approval ON approval.id=d.approval_entry_id
 WHERE a.document_id = $1 AND f.id = $2
-FOR UPDATE OF f, d
+FOR UPDATE OF f, d, approval
 `
 
 type LockVouAttachmentForRemovalParams struct {
@@ -4652,10 +4477,12 @@ func (q *Queries) LockVouAttachmentForRemoval(ctx context.Context, arg LockVouAt
 }
 
 const lockVouDocument = `-- name: LockVouDocument :one
-SELECT id, entity, document_no, status, revision, business_date, currency, total_amount_cents, remark, created_at, created_by, updated_at, updated_by, reviewed_at, reviewed_by, approved_at, approved_by, checked_at, checked_by, parent_document_id, parent_entity, due_date, posted_at, posted_by
-FROM vou_documents
-WHERE id = $1 AND entity = $2
-FOR UPDATE
+SELECT document.id, document.entity, document.document_no, document.approval_entry_id, document.business_date, document.currency, document.total_amount_cents, document.remark, document.parent_document_id, document.parent_entity, document.due_date, approval.id, approval.domain, approval.entity, approval.subject_id, approval.version_no, approval.status, approval.revision, approval.created_by, approval.created_at, approval.updated_by, approval.updated_at, approval.submitted_by, approval.submitted_at, approval.approved_by, approval.approved_at
+FROM vou_documents document
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+WHERE document.id = $1 AND document.entity = $2
+  AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
+FOR UPDATE OF approval, document
 `
 
 type LockVouDocumentParams struct {
@@ -4663,40 +4490,49 @@ type LockVouDocumentParams struct {
 	Entity string `db:"entity" json:"entity"`
 }
 
-func (q *Queries) LockVouDocument(ctx context.Context, arg LockVouDocumentParams) (VouDocument, error) {
+type LockVouDocumentRow struct {
+	VouDocument   VouDocument   `db:"vou_document" json:"vou_document"`
+	ApprovalEntry ApprovalEntry `db:"approval_entry" json:"approval_entry"`
+}
+
+func (q *Queries) LockVouDocument(ctx context.Context, arg LockVouDocumentParams) (LockVouDocumentRow, error) {
 	row := q.db.QueryRow(ctx, lockVouDocument, arg.ID, arg.Entity)
-	var i VouDocument
+	var i LockVouDocumentRow
 	err := row.Scan(
-		&i.ID,
-		&i.Entity,
-		&i.DocumentNo,
-		&i.Status,
-		&i.Revision,
-		&i.BusinessDate,
-		&i.Currency,
-		&i.TotalAmountCents,
-		&i.Remark,
-		&i.CreatedAt,
-		&i.CreatedBy,
-		&i.UpdatedAt,
-		&i.UpdatedBy,
-		&i.ReviewedAt,
-		&i.ReviewedBy,
-		&i.ApprovedAt,
-		&i.ApprovedBy,
-		&i.CheckedAt,
-		&i.CheckedBy,
-		&i.ParentDocumentID,
-		&i.ParentEntity,
-		&i.DueDate,
-		&i.PostedAt,
-		&i.PostedBy,
+		&i.VouDocument.ID,
+		&i.VouDocument.Entity,
+		&i.VouDocument.DocumentNo,
+		&i.VouDocument.ApprovalEntryID,
+		&i.VouDocument.BusinessDate,
+		&i.VouDocument.Currency,
+		&i.VouDocument.TotalAmountCents,
+		&i.VouDocument.Remark,
+		&i.VouDocument.ParentDocumentID,
+		&i.VouDocument.ParentEntity,
+		&i.VouDocument.DueDate,
+		&i.ApprovalEntry.ID,
+		&i.ApprovalEntry.Domain,
+		&i.ApprovalEntry.Entity,
+		&i.ApprovalEntry.SubjectID,
+		&i.ApprovalEntry.VersionNo,
+		&i.ApprovalEntry.Status,
+		&i.ApprovalEntry.Revision,
+		&i.ApprovalEntry.CreatedBy,
+		&i.ApprovalEntry.CreatedAt,
+		&i.ApprovalEntry.UpdatedBy,
+		&i.ApprovalEntry.UpdatedAt,
+		&i.ApprovalEntry.SubmittedBy,
+		&i.ApprovalEntry.SubmittedAt,
+		&i.ApprovalEntry.ApprovedBy,
+		&i.ApprovalEntry.ApprovedAt,
 	)
 	return i, err
 }
 
 const lockVouDocumentStatusForShare = `-- name: LockVouDocumentStatusForShare :one
-SELECT status FROM vou_documents WHERE id=$1 FOR SHARE
+SELECT approval.status FROM vou_documents document
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+WHERE document.id=$1 FOR SHARE OF document,approval
 `
 
 func (q *Queries) LockVouDocumentStatusForShare(ctx context.Context, documentID string) (string, error) {
@@ -4707,13 +4543,14 @@ func (q *Queries) LockVouDocumentStatusForShare(ctx context.Context, documentID 
 }
 
 const lockVouRefusalReturnSource = `-- name: LockVouRefusalReturnSource :one
-SELECT detail.source_order_id,document.business_date,document.status,document.currency,
+SELECT detail.source_order_id,document.business_date,approval.status,document.currency,
        detail.customer_object_id,detail.customer_approval_entry_id,detail.customer_code,detail.customer_name,
        detail.warehouse_object_id,detail.warehouse_approval_entry_id,detail.warehouse_code,detail.warehouse_name
 FROM vou_sale_signoff_details detail
 JOIN vou_documents document ON document.id=detail.document_id
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
 WHERE detail.document_id=$1
-FOR UPDATE OF document
+FOR UPDATE OF document,approval
 `
 
 type LockVouRefusalReturnSourceRow struct {
@@ -4789,7 +4626,7 @@ func (q *Queries) LockVouSaleDeliveryCarrierSnapshot(ctx context.Context, docume
 }
 
 const lockVouSaleOutboundSource = `-- name: LockVouSaleOutboundSource :one
-SELECT document.document_no,document.status,document.business_date,
+SELECT document.document_no,approval.status,document.business_date,
        COALESCE(document.currency,'') AS currency,document.total_amount_cents,
        outbound.customer_object_id,outbound.customer_approval_entry_id,
        outbound.customer_code,outbound.customer_name,
@@ -4797,11 +4634,12 @@ SELECT document.document_no,document.status,document.business_date,
        outbound.warehouse_code,outbound.warehouse_name,
        relationship.operating_entity_id
 FROM vou_documents AS document
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
 JOIN vou_sale_outbound_details AS outbound ON outbound.document_id=document.id
 JOIN bob_customer_accounts AS account ON account.object_id=outbound.customer_object_id
 JOIN bob_customer_relationships AS relationship ON relationship.object_id=account.customer_relationship_id
 WHERE document.id=$1 AND document.entity='sale-outbound'
-FOR UPDATE OF document,outbound
+FOR UPDATE OF document,approval,outbound
 `
 
 type LockVouSaleOutboundSourceRow struct {
@@ -4853,13 +4691,14 @@ func (q *Queries) LockVouSettlementBalance(ctx context.Context, lockKey string) 
 }
 
 const lockWorkflowExpenseReimbursement = `-- name: LockWorkflowExpenseReimbursement :one
-SELECT d.id,d.entity,d.document_no,d.status,d.revision,d.business_date,d.currency,
-       d.total_amount_cents,d.remark,d.created_at,d.created_by,d.updated_at,d.updated_by,
+SELECT d.id,d.entity,d.document_no,approval.status,approval.revision,d.business_date,d.currency,
+       d.total_amount_cents,d.remark,approval.created_at,approval.created_by,approval.updated_at,approval.updated_by,
        x.employee_object_id,x.employee_approval_entry_id,x.employee_code,x.employee_name
 FROM vou_documents d
+JOIN approval_entries approval ON approval.id=d.approval_entry_id
 JOIN vou_expense_reimbursement_details x ON x.document_id=d.id
 WHERE d.id=$1
-FOR UPDATE OF d
+FOR UPDATE OF d,approval
 `
 
 type LockWorkflowExpenseReimbursementRow struct {
@@ -5014,92 +4853,6 @@ func (q *Queries) SumVouBillLineFaceAmounts(ctx context.Context, documentID stri
 	return column_1, err
 }
 
-const touchVouDraftAttachment = `-- name: TouchVouDraftAttachment :one
-UPDATE vou_documents
-SET revision = revision + 1, updated_at = now(), updated_by = $1
-WHERE id = $2 AND entity = $3
-  AND revision = $4 AND status = 'DRAFT'
-RETURNING revision
-`
-
-type TouchVouDraftAttachmentParams struct {
-	ActorID  string `db:"actor_id" json:"actor_id"`
-	ID       string `db:"id" json:"id"`
-	Entity   string `db:"entity" json:"entity"`
-	Revision int64  `db:"revision" json:"revision"`
-}
-
-func (q *Queries) TouchVouDraftAttachment(ctx context.Context, arg TouchVouDraftAttachmentParams) (int64, error) {
-	row := q.db.QueryRow(ctx, touchVouDraftAttachment,
-		arg.ActorID,
-		arg.ID,
-		arg.Entity,
-		arg.Revision,
-	)
-	var revision int64
-	err := row.Scan(&revision)
-	return revision, err
-}
-
-const unapproveVouDocument = `-- name: UnapproveVouDocument :one
-UPDATE vou_documents
-SET status = 'CHECKED', revision = revision + 1,
-    approved_at = NULL, approved_by = NULL,
-    posted_at = NULL, posted_by = NULL,
-    updated_at = now(), updated_by = $1
-WHERE id = $2 AND entity = $3
-  AND revision = $4 AND status = 'APPROVED'
-RETURNING revision
-`
-
-type UnapproveVouDocumentParams struct {
-	ActorID  string `db:"actor_id" json:"actor_id"`
-	ID       string `db:"id" json:"id"`
-	Entity   string `db:"entity" json:"entity"`
-	Revision int64  `db:"revision" json:"revision"`
-}
-
-func (q *Queries) UnapproveVouDocument(ctx context.Context, arg UnapproveVouDocumentParams) (int64, error) {
-	row := q.db.QueryRow(ctx, unapproveVouDocument,
-		arg.ActorID,
-		arg.ID,
-		arg.Entity,
-		arg.Revision,
-	)
-	var revision int64
-	err := row.Scan(&revision)
-	return revision, err
-}
-
-const uncheckVouDocument = `-- name: UncheckVouDocument :one
-UPDATE vou_documents
-SET status = 'DRAFT', revision = revision + 1,
-    reviewed_at = NULL, reviewed_by = NULL,
-    updated_at = now(), updated_by = $1
-WHERE id = $2 AND entity = $3
-  AND revision = $4 AND status = 'CHECKED'
-RETURNING revision
-`
-
-type UncheckVouDocumentParams struct {
-	ActorID  string `db:"actor_id" json:"actor_id"`
-	ID       string `db:"id" json:"id"`
-	Entity   string `db:"entity" json:"entity"`
-	Revision int64  `db:"revision" json:"revision"`
-}
-
-func (q *Queries) UncheckVouDocument(ctx context.Context, arg UncheckVouDocumentParams) (int64, error) {
-	row := q.db.QueryRow(ctx, uncheckVouDocument,
-		arg.ActorID,
-		arg.ID,
-		arg.Entity,
-		arg.Revision,
-	)
-	var revision int64
-	err := row.Scan(&revision)
-	return revision, err
-}
-
 const updateVouAssetAcquisitionDetail = `-- name: UpdateVouAssetAcquisitionDetail :execrows
 UPDATE vou_asset_acquisition_details SET supplier_object_id=$1,supplier_approval_entry_id=$2,supplier_code=$3,supplier_name=$4
 WHERE document_id=$5
@@ -5157,7 +4910,7 @@ func (q *Queries) UpdateVouAssetSaleDetail(ctx context.Context, arg UpdateVouAss
 }
 
 const updateVouBillDocumentTotal = `-- name: UpdateVouBillDocumentTotal :exec
-UPDATE vou_documents SET total_amount_cents=$1,updated_at=now() WHERE id=$2 AND entity=$3
+UPDATE vou_documents SET total_amount_cents=$1 WHERE id=$2 AND entity=$3
 `
 
 type UpdateVouBillDocumentTotalParams struct {
@@ -5174,11 +4927,9 @@ func (q *Queries) UpdateVouBillDocumentTotal(ctx context.Context, arg UpdateVouB
 const updateVouDraft = `-- name: UpdateVouDraft :one
 UPDATE vou_documents
 SET business_date = $1, due_date = $2, currency = $3,
-    total_amount_cents = $4, remark = $5,
-    revision = revision + 1, updated_at = now(), updated_by = $6
-WHERE id = $7 AND entity = $8
-  AND revision = $9 AND status = 'DRAFT'
-RETURNING revision
+    total_amount_cents = $4, remark = $5
+WHERE id = $6 AND entity = $7
+RETURNING id
 `
 
 type UpdateVouDraftParams struct {
@@ -5187,27 +4938,23 @@ type UpdateVouDraftParams struct {
 	Currency         *string     `db:"currency" json:"currency"`
 	TotalAmountCents int64       `db:"total_amount_cents" json:"total_amount_cents"`
 	Remark           *string     `db:"remark" json:"remark"`
-	ActorID          string      `db:"actor_id" json:"actor_id"`
 	ID               string      `db:"id" json:"id"`
 	Entity           string      `db:"entity" json:"entity"`
-	Revision         int64       `db:"revision" json:"revision"`
 }
 
-func (q *Queries) UpdateVouDraft(ctx context.Context, arg UpdateVouDraftParams) (int64, error) {
+func (q *Queries) UpdateVouDraft(ctx context.Context, arg UpdateVouDraftParams) (string, error) {
 	row := q.db.QueryRow(ctx, updateVouDraft,
 		arg.BusinessDate,
 		arg.DueDate,
 		arg.Currency,
 		arg.TotalAmountCents,
 		arg.Remark,
-		arg.ActorID,
 		arg.ID,
 		arg.Entity,
-		arg.Revision,
 	)
-	var revision int64
-	err := row.Scan(&revision)
-	return revision, err
+	var id string
+	err := row.Scan(&id)
+	return id, err
 }
 
 const updateVouEmployeeLoanWriteoffDetail = `-- name: UpdateVouEmployeeLoanWriteoffDetail :execrows

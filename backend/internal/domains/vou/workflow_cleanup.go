@@ -3,6 +3,7 @@ package vou
 import (
 	"context"
 
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/jackc/pgx/v5"
 )
@@ -37,10 +38,10 @@ func (s *Service) removeUntouchedGeneratedChildren(ctx context.Context, tx pgx.T
 
 func (s *Service) deleteGeneratedWorkflowDocument(ctx context.Context, tx pgx.Tx, documentID, entity string) error {
 	q := s.queries.WithTx(tx)
-	if err := q.DeleteVouAuditEventsForDocument(ctx, documentID); err != nil {
+	document, err := lockDocument(ctx, tx, documentID, entity)
+	if err != nil {
 		return err
 	}
-	var err error
 	switch entity {
 	case EntitySaleOutbound:
 		err = q.DeleteVouSaleOutboundLines(ctx, documentID)
@@ -81,5 +82,19 @@ func (s *Service) deleteGeneratedWorkflowDocument(ctx context.Context, tx pgx.Tx
 	if err != nil {
 		return err
 	}
-	return q.DeleteVouDocument(ctx, documentID)
+	if err = q.DeleteVouDocument(ctx, documentID); err != nil {
+		return err
+	}
+	actor, err := approval.TrustedSystemActor("vou-workflow-cleanup-" + documentID)
+	if err != nil {
+		return err
+	}
+	coordinator, err := s.coordinator(entity)
+	if err != nil {
+		return err
+	}
+	if err = coordinator.DeleteSubject(ctx, tx, document.ApprovalEntryID, document.Revision, actor, DocumentView{}); err != nil {
+		return mapApprovalError(err)
+	}
+	return nil
 }

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -217,7 +218,7 @@ func TestIntermediaryCalculationMappingUsesSalesRelationshipSummaryFields(t *tes
 
 func TestIntermediaryPostingSnapshotFlattensSummaryPayee(t *testing.T) {
 	t.Parallel()
-	document := voudomain.DocumentView{DocumentID: "CALC-1", Entity: voudomain.EntityIntermediaryCalculation, DocumentNo: "IC-1", Status: voudomain.StatusApproved, Revision: 1,
+	document := voudomain.DocumentView{DocumentID: "CALC-1", Entity: voudomain.EntityIntermediaryCalculation, DocumentNo: "IC-1", Approval: approval.Meta{Status: approval.StatusApproved, Revision: 1},
 		Data: voudomain.DocumentDataView{BusinessDate: "2026-08-31", Currency: "CNY", IntermediaryCalculation: &voudomain.IntermediaryCalculationInput{
 			Result: voudomain.IntermediaryCalculationResult{Summaries: []voudomain.IntermediarySummary{
 				{Category: "EXTERNAL_PART_TIME", Amount: "10.00", Payee: voudomain.IntermediaryReference{ObjectID: "01J00000000000000000000001", Entity: "sales-partner"}},

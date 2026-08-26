@@ -30,7 +30,7 @@ func TestVOUCreateRejectsExhaustedDocumentNumberIntegration(t *testing.T) {
 			Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
 			Handler: &refs.employee, Amount: "100.00",
 		},
-	}, integrationActorOne, "document-number-exhausted")
+	}, integrationApprovalActor(t, integrationActorOne, "document-number-exhausted"))
 	var domainErr *DomainError
 	if !errors.As(err, &domainErr) || domainErr.Kind != ErrorConflict {
 		t.Fatalf("exhausted document counter error = %v", err)
@@ -89,36 +89,35 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.entity, func(t *testing.T) {
 			test.draft.Remark = "单据备注"
-			created, err := service.Create(t.Context(), test.entity, CreateInput{Data: test.draft},
-				integrationActorOne, "vou-create")
+			created, err := service.Create(t.Context(), test.entity, CreateInput{Data: test.draft}, integrationApprovalActor(t, integrationActorOne, "vou-create"))
 			if err != nil {
 				t.Fatalf("create: %v (cause: %v)", err, errors.Unwrap(err))
 			}
-			reviewed, err := service.Check(t.Context(), test.entity, DocumentRevisionInput{
-				DocumentID: created.DocumentID, Revision: created.Revision,
-			}, integrationActorOne, "vou-review")
+			reviewed, err := service.Submit(t.Context(), test.entity, DocumentRevisionInput{
+				DocumentID: created.DocumentID, Revision: created.Approval.Revision,
+			}, integrationApprovalActor(t, integrationActorOne, "vou-review"))
 			if err != nil {
 				t.Fatalf("review: %v", err)
 			}
 			if test.entity == EntitySaleOrder {
 				if _, staleErr := service.Approve(t.Context(), test.entity, DocumentRevisionInput{
-					DocumentID: created.DocumentID, Revision: created.Revision,
-				}, integrationActorOne, "vou-stale-approve"); staleErr == nil {
+					DocumentID: created.DocumentID, Revision: created.Approval.Revision,
+				}, integrationApprovalActor(t, integrationActorOne, "vou-stale-approve")); staleErr == nil {
 					t.Fatal("stale revision was accepted")
 				}
 			}
 			approved, err := service.Approve(t.Context(), test.entity, DocumentRevisionInput{
-				DocumentID: created.DocumentID, Revision: reviewed.Revision,
-			}, integrationActorOne, "vou-approve")
+				DocumentID: created.DocumentID, Revision: reviewed.Approval.Revision,
+			}, integrationApprovalActor(t, integrationActorOne, "vou-approve"))
 			if err != nil {
 				t.Fatalf("approve: %v (cause: %v)", err, errors.Unwrap(err))
 			}
 			expectedStatus := StatusApproved
-			if approved.Status != expectedStatus {
-				t.Fatalf("approved status = %s, want %s", approved.Status, expectedStatus)
+			if string(approved.Approval.Status) != expectedStatus {
+				t.Fatalf("approved status = %s, want %s", approved.Approval.Status, expectedStatus)
 			}
 			view, err := service.Get(t.Context(), test.entity, GetInput{DocumentID: created.DocumentID})
-			if err != nil || view.Status != expectedStatus || view.Amount == "" {
+			if err != nil || string(view.Approval.Status) != expectedStatus || view.Amount == "" {
 				t.Fatalf("approved view=%+v err=%v", view, err)
 			}
 			if view.Data.Remark != "单据备注" {
@@ -174,15 +173,15 @@ func TestVOUIntegrationAllEntitiesAndReverseLifecycle(t *testing.T) {
 					t.Fatalf("sale order list summary = %+v", page.Items[0].SalesSummary)
 				}
 				unapproved, reverseErr := service.Unapprove(t.Context(), test.entity, ReverseInput{
-					DocumentID: created.DocumentID, Revision: approved.Revision, Reason: "修正批准内容",
-				}, integrationActorOne, "vou-unapprove")
+					DocumentID: created.DocumentID, Revision: approved.Approval.Revision, Reason: "修正批准内容",
+				}, integrationApprovalActor(t, integrationActorOne, "vou-unapprove"))
 				if reverseErr != nil {
 					t.Fatalf("unapprove: %v", reverseErr)
 				}
-				unreviewed, reverseErr := service.Uncheck(t.Context(), test.entity, DocumentRevisionInput{
-					DocumentID: created.DocumentID, Revision: unapproved.Revision,
-				}, integrationActorOne, "vou-unreview")
-				if reverseErr != nil || unreviewed.Status != StatusDraft {
+				unreviewed, reverseErr := service.Unsubmit(t.Context(), test.entity, DocumentRevisionInput{
+					DocumentID: created.DocumentID, Revision: unapproved.Approval.Revision,
+				}, integrationApprovalActor(t, integrationActorOne, "vou-unreview"))
+				if reverseErr != nil || unreviewed.Approval.Status != StatusDraft {
 					t.Fatalf("unreview=%+v err=%v", unreviewed, reverseErr)
 				}
 				history, historyErr := service.AuditHistory(t.Context(), test.entity, HistoryInput{
@@ -207,7 +206,7 @@ func TestVOUIntegrationGenericParentValidationAndImmutability(t *testing.T) {
 		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: bobdomain.EntityCustomerAccount,
 		Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
 		Handler: &refs.employee, Amount: "100.00",
-	}}, integrationActorOne, "parent-create")
+	}}, integrationApprovalActor(t, integrationActorOne, "parent-create"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +217,7 @@ func TestVOUIntegrationGenericParentValidationAndImmutability(t *testing.T) {
 			Counterparty: &refs.supplier, FundAccount: &refs.fundAccount,
 			Handler: &refs.employee, Amount: "80.00",
 		},
-	}, integrationActorOne, "child-create")
+	}, integrationApprovalActor(t, integrationActorOne, "child-create"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +234,7 @@ func TestVOUIntegrationGenericParentValidationAndImmutability(t *testing.T) {
 			Counterparty: &refs.supplier, FundAccount: &refs.fundAccount,
 			Handler: &refs.employee, Amount: "10.00",
 		},
-	}, integrationActorOne, "mismatched-parent"); err == nil {
+	}, integrationApprovalActor(t, integrationActorOne, "mismatched-parent")); err == nil {
 		t.Fatal("mismatched parent entity was accepted")
 	}
 	if _, err = pool.Exec(t.Context(), `UPDATE vou_documents
@@ -262,7 +261,7 @@ func TestVOUIntegrationConcurrentNumberingAndPermissions(t *testing.T) {
 				BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: bobdomain.EntityCustomerAccount,
 				Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
 				Handler: &refs.employee, Amount: "1.00",
-			}}, integrationActorOne, "concurrent-number")
+			}}, integrationApprovalActor(t, integrationActorOne, "concurrent-number"))
 			if err != nil {
 				errorsChannel <- err
 				return

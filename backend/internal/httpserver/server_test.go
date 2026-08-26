@@ -315,11 +315,11 @@ func TestOpenAPIValidatorEnforcesVOUReverseReasonRules(t *testing.T) {
 		name, path, body string
 	}{
 		{
-			name: "uncheck rejects a reason", path: "/vou/customer-receipt/uncheck",
+			name: "unsubmit rejects a reason", path: "/vou/sales-receipt/unsubmit",
 			body: `{"documentId":"01J00000000000000000000001","revision":1,"reason":"不应传入"}`,
 		},
 		{
-			name: "unapprove requires a reason", path: "/vou/customer-receipt/unapprove",
+			name: "unapprove requires a reason", path: "/vou/sales-receipt/unapprove",
 			body: `{"documentId":"01J00000000000000000000001","revision":1}`,
 		},
 	} {

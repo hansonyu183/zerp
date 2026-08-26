@@ -13,6 +13,7 @@ import (
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/fixeddecimal"
 	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
@@ -39,24 +40,62 @@ type automaticPostingLine struct {
 	originSourceLineID                *string
 }
 
+type vouApprovalDelivery struct {
+	Entity, DocumentID, DocumentNo string
+	Revision                       int64
+	Snapshot                       voudomain.DocumentView
+}
+
 func (s *Service) RegisterSubscriptions(bus *txevent.Bus) error {
 	if bus == nil {
 		return errors.New("ACC event bus is required")
 	}
 	for _, entity := range SupportedMappingEntities() {
-		if err := bus.Subscribe(voudomain.DocumentApprovedTopic(entity), "acc-automatic-posting", s.HandleDocumentApproved); err != nil {
-			return err
-		}
-		if err := bus.Subscribe(voudomain.DocumentUnapprovedTopic(entity), "acc-automatic-unposting", s.HandleDocumentUnapproved); err != nil {
+		if err := voudomain.ApprovalTopic(entity).Subscribe(bus, "acc-vou-approval", s.HandleApprovalEvent); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *Service) HandleDocumentApproved(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
-	event, ok := raw.(voudomain.DocumentApprovedEvent)
-	if !ok || event.Snapshot.DocumentID != event.DocumentID || event.Snapshot.Entity != event.Entity || event.Snapshot.Revision != event.Revision || event.Snapshot.Status != voudomain.StatusApproved {
+func (s *Service) HandleApprovalEvent(ctx context.Context, tx pgx.Tx, event approval.Event[voudomain.DocumentView]) error {
+	switch event.Action {
+	case approval.ActionApproved:
+		return s.HandleDocumentApproved(ctx, tx, event)
+	case approval.ActionUnapproved:
+		return s.HandleDocumentUnapproved(ctx, tx, event)
+	default:
+		return nil
+	}
+}
+
+func approvedDelivery(event approval.Event[voudomain.DocumentView]) (vouApprovalDelivery, bool) {
+	snapshot := event.Payload
+	if event.ToRevision == nil || event.ToStatus == nil || *event.ToStatus != approval.StatusApproved ||
+		event.Entry.Domain != "vou" || snapshot.DocumentID != event.Entry.SubjectID || snapshot.Entity != event.Entry.Entity ||
+		snapshot.Approval.Status != approval.StatusApproved ||
+		snapshot.Approval.Revision != *event.ToRevision {
+		return vouApprovalDelivery{}, false
+	}
+	return vouApprovalDelivery{Entity: snapshot.Entity, DocumentID: snapshot.DocumentID,
+		DocumentNo: snapshot.DocumentNo, Revision: *event.ToRevision, Snapshot: snapshot}, true
+}
+
+func unapprovedDelivery(event approval.Event[voudomain.DocumentView]) (vouApprovalDelivery, bool) {
+	snapshot := event.Payload
+	if event.FromRevision == nil || event.FromStatus == nil || *event.FromStatus != approval.StatusApproved ||
+		event.Entry.Domain != "vou" || snapshot.DocumentID != event.Entry.SubjectID || snapshot.Entity != event.Entry.Entity ||
+		snapshot.Approval.Status != approval.StatusApproved ||
+		snapshot.Approval.Revision != *event.FromRevision {
+		return vouApprovalDelivery{}, false
+	}
+	return vouApprovalDelivery{Entity: snapshot.Entity, DocumentID: snapshot.DocumentID,
+		DocumentNo: snapshot.DocumentNo, Revision: *event.FromRevision, Snapshot: snapshot}, true
+}
+
+func (s *Service) HandleDocumentApproved(ctx context.Context, tx pgx.Tx, source approval.Event[voudomain.DocumentView]) error {
+	event, ok := approvedDelivery(source)
+	if !ok {
 		return txevent.Reject("invalid VOU approval snapshot", nil)
 	}
 	businessDate, err := time.Parse("2006-01-02", event.Snapshot.Data.BusinessDate)
@@ -91,7 +130,7 @@ func postingDeliveryError(err error) error {
 	return err
 }
 
-func (s *Service) postSnapshotToBook(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, bookID string, controlBook bool, event voudomain.DocumentApprovedEvent, businessDate time.Time, snapshot postingSnapshot) error {
+func (s *Service) postSnapshotToBook(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, bookID string, controlBook bool, event vouApprovalDelivery, businessDate time.Time, snapshot postingSnapshot) error {
 	existing, err := q.GetAutomaticAccountingVoucher(ctx, dbsqlc.GetAutomaticAccountingVoucherParams{BookID: bookID, SourceEntity: &event.Entity, SourceID: event.DocumentID})
 	if err == nil {
 		if existing.SourceRevision != nil && *existing.SourceRevision == event.Revision {
@@ -448,7 +487,7 @@ func validateAutomaticTrialBalance(lines []automaticPostingLine) error {
 func newPostingSnapshot(document voudomain.DocumentView) (postingSnapshot, error) {
 	result := postingSnapshot{header: map[string]string{
 		"documentId": document.DocumentID, "documentNo": document.DocumentNo, "entity": document.Entity,
-		"status": document.Status, "revision": strconv.FormatInt(document.Revision, 10), "amount": document.Amount,
+		"status": string(document.Approval.Status), "revision": strconv.FormatInt(document.Approval.Revision, 10), "amount": document.Amount,
 		"totalAmount": document.Amount, "parentEntity": document.ParentEntity, "parentDocumentId": document.ParentDocumentID,
 	}, collections: map[string][]map[string]string{}}
 	encoded, err := json.Marshal(document.Data)
@@ -516,16 +555,16 @@ func flattenSnapshotValue(target map[string]string, prefix string, value any) {
 	}
 }
 
-func (s *Service) HandleDocumentUnapproved(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
-	event, ok := raw.(voudomain.DocumentUnapprovedEvent)
-	if !ok || event.Snapshot.DocumentID != event.DocumentID || event.Snapshot.Entity != event.Entity || event.Snapshot.Status != voudomain.StatusApproved || event.Snapshot.Revision < 1 {
+func (s *Service) HandleDocumentUnapproved(ctx context.Context, tx pgx.Tx, source approval.Event[voudomain.DocumentView]) error {
+	event, ok := unapprovedDelivery(source)
+	if !ok {
 		return txevent.Reject("invalid VOU unapproval snapshot", nil)
 	}
 	q := s.queries.WithTx(tx)
 	if err := s.reverseGlobalRegisters(ctx, tx, event); err != nil {
 		return postingDeliveryError(err)
 	}
-	entity, revision := event.Entity, event.Snapshot.Revision
+	entity, revision := event.Entity, event.Revision
 	voucherIDs, err := q.DeleteAutomaticAccountingVoucher(ctx, dbsqlc.DeleteAutomaticAccountingVoucherParams{SourceEntity: &entity, SourceID: event.DocumentID, SourceRevision: &revision})
 	if err != nil {
 		return databaseError("delete automatic accounting vouchers", err)

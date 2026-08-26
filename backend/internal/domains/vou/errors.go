@@ -5,12 +5,34 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func (s *Service) internal(operation string, err error) error {
 	return domainError(ErrorInternal, "internal server error", nil, fmt.Errorf("%s: %w", operation, err))
+}
+
+func mapApprovalError(err error) error {
+	var rejection *txevent.RejectionError
+	if errors.As(err, &rejection) {
+		return domainError(ErrorConflict, rejection.Message, rejection.Data, err)
+	}
+	var approvalErr *approval.Error
+	if !errors.As(err, &approvalErr) {
+		return domainError(ErrorInternal, "internal server error", nil, err)
+	}
+	kind := ErrorInternal
+	switch approvalErr.Kind {
+	case approval.ErrorValidation, approval.ErrorNotFound:
+		kind = ErrorValidation
+	case approval.ErrorConflict:
+		kind = ErrorConflict
+	case approval.ErrorForbidden:
+		kind = ErrorForbidden
+	}
+	return &DomainError{Kind: kind, ErrorKey: approvalErr.ErrorKey, Message: approvalErr.Message, Cause: err}
 }
 
 func (s *Service) writeError(operation string, err error) error {

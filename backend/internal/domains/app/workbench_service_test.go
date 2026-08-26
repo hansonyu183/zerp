@@ -11,8 +11,8 @@ func TestWorkbenchPermissionScopeRequiresQueryAndStageAction(t *testing.T) {
 		"/bob/customer/query", "/bob/customer/submit",
 		"/bob/supplier/query", "/bob/supplier/unsubmit",
 		"/bob/product/query", "/bob/product/reject",
-		"/vou/sale-order/query", "/vou/sale-order/check",
-		"/vou/purchase-payment/query", "/vou/purchase-payment/uncheck",
+		"/vou/sale-order/query", "/vou/sale-order/submit",
+		"/vou/purchase-payment/query", "/vou/purchase-payment/unsubmit",
 	})
 
 	draftBob := scope.entitiesWith("bob", func(entity string) bool {
@@ -24,21 +24,21 @@ func TestWorkbenchPermissionScopeRequiresQueryAndStageAction(t *testing.T) {
 			scope.can("bob", entity, "unsubmit")
 	})
 	draftVou := scope.entitiesWith("vou", func(entity string) bool {
-		return scope.can("vou", entity, "check")
+		return scope.can("vou", entity, "submit")
 	})
 
 	if !reflect.DeepEqual(draftBob, []string{"customer"}) {
 		t.Fatalf("draft BOB entities = %v", draftBob)
 	}
-	checkedVou := scope.entitiesWith("vou", func(entity string) bool {
+	pendingVou := scope.entitiesWith("vou", func(entity string) bool {
 		return scope.can("vou", entity, "approve") ||
-			scope.can("vou", entity, "uncheck")
+			scope.can("vou", entity, "unsubmit")
 	})
 	if !reflect.DeepEqual(pendingBob, []string{"product", "supplier"}) {
 		t.Fatalf("pending BOB entities = %v", pendingBob)
 	}
-	if !reflect.DeepEqual(checkedVou, []string{"purchase-payment"}) {
-		t.Fatalf("checked VOU entities = %v", checkedVou)
+	if !reflect.DeepEqual(pendingVou, []string{"purchase-payment"}) {
+		t.Fatalf("pending VOU entities = %v", pendingVou)
 	}
 	if !reflect.DeepEqual(draftVou, []string{"sale-order"}) {
 		t.Fatalf("draft VOU entities = %v", draftVou)
@@ -48,7 +48,7 @@ func TestWorkbenchPermissionScopeRequiresQueryAndStageAction(t *testing.T) {
 func TestValidateWorkbenchQueryNormalizesAndRejectsInvalidInput(t *testing.T) {
 	input, spec, err := validateWorkbenchQuery(WorkbenchQueryInput{
 		Category: " bob ", Keyword: " 客户 ", Entities: []string{" Customer "},
-		PendingStages: []string{" check "},
+		PendingStages: []string{" submit "},
 		Page:          1,
 		PageSize:      20,
 	})
@@ -57,7 +57,7 @@ func TestValidateWorkbenchQueryNormalizesAndRejectsInvalidInput(t *testing.T) {
 	}
 	if input.Category != WorkbenchCategoryBob || input.Keyword != "客户" ||
 		!reflect.DeepEqual(input.Entities, []string{"customer"}) ||
-		!reflect.DeepEqual(input.PendingStages, []string{"CHECK"}) ||
+		!reflect.DeepEqual(input.PendingStages, []string{"SUBMIT"}) ||
 		spec.Page != 1 || spec.PageSize != 20 {
 		t.Fatalf("normalized input = %+v, spec = %+v", input, spec)
 	}
@@ -92,7 +92,7 @@ func TestFilterWorkbenchEntitiesAndStages(t *testing.T) {
 	if actual := filterWorkbenchEntities(available, []string{"supplier", "warehouse"}); !reflect.DeepEqual(actual, []string{"supplier"}) {
 		t.Fatalf("filtered entities = %v", actual)
 	}
-	if !includesWorkbenchStage(nil, "CHECK") || includesWorkbenchStage([]string{"APPROVE"}, "CHECK") {
+	if !includesWorkbenchStage(nil, "SUBMIT") || includesWorkbenchStage([]string{"APPROVE"}, "SUBMIT") {
 		t.Fatal("unexpected pending stage selection")
 	}
 }

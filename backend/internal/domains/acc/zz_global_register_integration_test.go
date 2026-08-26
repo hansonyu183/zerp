@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -36,12 +37,13 @@ func TestZZGlobalAssetRegisterIgnoresPerBookUnpostAndReversesIntegration(t *test
 	lineID := ulid.Make().String()
 	documentID := ulid.Make().String()
 	snapshot := voudomain.DocumentView{
-		DocumentID: documentID, Entity: voudomain.EntityAssetAcquisition, DocumentNo: "FAA-20260720-0001", Status: voudomain.StatusApproved, Revision: 3,
+		DocumentID: documentID, Entity: voudomain.EntityAssetAcquisition, DocumentNo: "FAA-20260720-0001",
+		Approval: approval.Meta{Status: approval.StatusApproved, Revision: 3},
 		Data: voudomain.DocumentDataView{BusinessDate: "2026-07-20", Currency: "CNY", AssetAcquisitionLines: []voudomain.AssetAcquisitionLineView{{
 			LineID: lineID, AssetName: "反应釜", Category: voudomain.ReferenceView{ObjectID: ulid.Make().String()}, Department: voudomain.ReferenceView{ObjectID: ulid.Make().String()}, OriginalValue: "12000.00", UsefulLifeMonths: 60, ResidualRate: "5.00",
 		}}},
 	}
-	event := voudomain.DocumentApprovedEvent{Entity: snapshot.Entity, DocumentID: documentID, DocumentNo: snapshot.DocumentNo, Revision: snapshot.Revision, Snapshot: snapshot}
+	event := approvedVOUEvent(snapshot)
 	deliverApprovalEvent(t, pool, service, event, false)
 	deliverApprovalEvent(t, pool, service, event, false)
 	var assets, values, vouchers, residualRateBPS int
@@ -64,7 +66,7 @@ func TestZZGlobalAssetRegisterIgnoresPerBookUnpostAndReversesIntegration(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = service.HandleDocumentUnapproved(t.Context(), tx, voudomain.DocumentUnapprovedEvent{Entity: snapshot.Entity, DocumentID: documentID, DocumentNo: snapshot.DocumentNo, Revision: 4, Snapshot: snapshot}); err != nil {
+	if err = service.HandleDocumentUnapproved(t.Context(), tx, unapprovedVOUEvent(snapshot)); err != nil {
 		_ = tx.Rollback(t.Context())
 		t.Fatal(err)
 	}

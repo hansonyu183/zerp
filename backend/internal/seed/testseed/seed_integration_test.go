@@ -62,19 +62,19 @@ func TestSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T) {
 		BusinessDate: "2026-07-12", Currency: "CNY", FundAccount: &fund, Employee: &employee,
 		ExpenseLines: []voudomain.ExpenseLineInput{{Category: "交通", Description: "测试基线费用", Amount: "120.00"}},
 		Remark:       "测试费用报销：已批准",
-	}}, actorID, requestID("expense-approved", "create"))
+	}}, mustApprovalActor(requestID("expense-approved", "create")))
 	if err != nil {
 		t.Fatalf("create legacy test expense reimbursement: %v", err)
 	}
-	checked, err := seeder.vouchers.Check(t.Context(), voudomain.EntityExpenseReimbursement, voudomain.DocumentRevisionInput{
-		DocumentID: created.DocumentID, Revision: created.Revision,
-	}, actorID, requestID("expense-approved", "check"))
+	checked, err := seeder.vouchers.Submit(t.Context(), voudomain.EntityExpenseReimbursement, voudomain.DocumentRevisionInput{
+		DocumentID: created.DocumentID, Revision: created.Approval.Revision,
+	}, mustApprovalActor(requestID("expense-approved", "check")))
 	if err != nil {
 		t.Fatalf("check legacy test expense reimbursement: %v", err)
 	}
 	if _, err = seeder.vouchers.Approve(t.Context(), voudomain.EntityExpenseReimbursement, voudomain.DocumentRevisionInput{
-		DocumentID: checked.DocumentID, Revision: checked.Revision,
-	}, actorID, requestID("expense-approved", "approve")); err != nil {
+		DocumentID: checked.DocumentID, Revision: checked.Approval.Revision,
+	}, mustApprovalActor(requestID("expense-approved", "approve"))); err != nil {
 		t.Fatalf("approve legacy test expense reimbursement: %v", err)
 	}
 	first, err := seeder.Seed(t.Context())
@@ -113,8 +113,8 @@ func TestSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T) {
 		t.Fatalf("change test user password: %v", err)
 	}
 	if _, err = pool.Exec(t.Context(), `
-		DELETE FROM vou_audit_events
-		WHERE request_id=$1 AND event_type='CREATED'
+		DELETE FROM approval_events
+		WHERE domain='vou' AND request_id=$1 AND action='CREATED'
 	`, requestID("intermediary-calculation-draft", "create")); err != nil {
 		t.Fatalf("simulate existing test intermediary period: %v", err)
 	}
@@ -177,9 +177,10 @@ func TestSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T) {
 	assertAccountingAndReportFacts(t, pool)
 	var receiptID string
 	if err = pool.QueryRow(t.Context(), `
-		SELECT document_id
-		FROM vou_audit_events
-		WHERE request_id=$1 AND event_type='CREATED'
+		SELECT entry.subject_id
+		FROM approval_events event
+		JOIN approval_entries entry ON entry.id = event.entry_id
+		WHERE entry.domain='vou' AND event.request_id=$1 AND event.action='CREATED'
 	`, requestID("receipt-approved", "create")).Scan(&receiptID); err != nil {
 		t.Fatalf("find approved receipt: %v", err)
 	}
@@ -193,10 +194,9 @@ func TestSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T) {
 		t.Context(),
 		voudomain.EntitySalesReceipt,
 		voudomain.ReverseInput{
-			DocumentID: receipt.DocumentID, Revision: receipt.Revision, Reason: "测试人员接管",
+			DocumentID: receipt.DocumentID, Revision: receipt.Approval.Revision, Reason: "测试人员接管",
 		},
-		actorID,
-		"tester-unapprove-test-receipt",
+		mustApprovalActor("tester-unapprove-test-receipt"),
 	); err != nil {
 		t.Fatalf("tester unapprove receipt: %v", err)
 	}
@@ -209,8 +209,8 @@ func TestSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get tester-owned receipt: %v", err)
 	}
-	if receipt.Status != voudomain.StatusChecked {
-		t.Fatalf("tester-owned receipt status = %s, want CHECKED", receipt.Status)
+	if receipt.Approval.Status != voudomain.StatusPending {
+		t.Fatalf("tester-owned receipt status = %s, want PENDING", receipt.Approval.Status)
 	}
 }
 

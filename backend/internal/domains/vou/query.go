@@ -6,7 +6,9 @@ import (
 	"strings"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (Page[ListItem], error) {
@@ -105,7 +107,7 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Docum
 	if !validEntity(entity) || !validID(input.DocumentID) {
 		return DocumentView{}, domainError(ErrorValidation, "invalid document", nil, nil)
 	}
-	document, err := s.queries.GetVouDocument(ctx, dbsqlc.GetVouDocumentParams{ID: input.DocumentID, Entity: entity})
+	document, err := s.getDocument(ctx, input.DocumentID, entity)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return DocumentView{}, domainError(ErrorValidation, "document not found", nil, nil)
 	}
@@ -141,31 +143,45 @@ func (s *Service) AuditHistory(ctx context.Context, entity string, input History
 	if err := validateHistory(input); err != nil {
 		return Page[AuditEventView]{}, err
 	}
-	total, err := s.queries.CountVouAuditEvents(ctx, dbsqlc.CountVouAuditEventsParams{
-		DocumentID: input.DocumentID, Entity: entity,
-	})
+	var total int64
+	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM approval_events
+		WHERE domain='vou' AND entity=$1 AND subject_id=$2`, entity, input.DocumentID).Scan(&total)
 	if err != nil {
 		return Page[AuditEventView]{}, s.internal("count audit events", err)
 	}
-	rows, err := s.queries.ListVouAuditEvents(ctx, dbsqlc.ListVouAuditEventsParams{
-		DocumentID: input.DocumentID, Entity: entity,
-		PageOffset: int32((input.Page - 1) * input.PageSize), PageSize: int32(input.PageSize),
-	})
+	rows, err := s.pool.Query(ctx, `SELECT id,entry_id,action,from_status,to_status,
+		from_revision,to_revision,actor_id,reason,request_id,created_at
+		FROM approval_events WHERE domain='vou' AND entity=$1 AND subject_id=$2
+		ORDER BY created_at DESC,id DESC LIMIT $3 OFFSET $4`,
+		entity, input.DocumentID, input.PageSize, (input.Page-1)*input.PageSize)
 	if err != nil {
 		return Page[AuditEventView]{}, s.internal("list audit events", err)
 	}
-	items := make([]AuditEventView, 0, len(rows))
-	for _, row := range rows {
-		fromStatus := row.FromStatus
-		if fromStatus != nil {
-			value := documentStatus(entity, *fromStatus)
-			fromStatus = &value
+	items := make([]AuditEventView, 0, input.PageSize)
+	defer rows.Close()
+	for rows.Next() {
+		var item approval.EventView
+		var action string
+		var fromStatus, toStatus *string
+		var createdAt pgtype.Timestamptz
+		if err = rows.Scan(&item.ID, &item.ApprovalEntryID, &action, &fromStatus, &toStatus,
+			&item.FromRevision, &item.ToRevision, &item.ActorID, &item.Reason, &item.RequestID, &createdAt); err != nil {
+			return Page[AuditEventView]{}, s.internal("scan audit events", err)
 		}
-		items = append(items, AuditEventView{
-			ID: row.ID, EventType: row.EventType, FromStatus: fromStatus, ToStatus: documentStatus(entity, row.ToStatus),
-			ActorID: row.ActorID, OccurredAt: row.OccurredAt.Time, Reason: row.Reason,
-			RequestID: row.RequestID, Summary: row.Summary,
-		})
+		item.Action = approval.Action(action)
+		if fromStatus != nil {
+			value := approval.Status(*fromStatus)
+			item.FromStatus = &value
+		}
+		if toStatus != nil {
+			value := approval.Status(*toStatus)
+			item.ToStatus = &value
+		}
+		item.CreatedAt = createdAt.Time
+		items = append(items, item)
+	}
+	if err = rows.Err(); err != nil {
+		return Page[AuditEventView]{}, s.internal("iterate audit events", err)
 	}
 	return Page[AuditEventView]{Items: items, Total: total, Page: input.Page, PageSize: input.PageSize}, nil
 }

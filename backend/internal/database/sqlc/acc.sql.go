@@ -102,9 +102,12 @@ func (q *Queries) AccountingOpeningObjectsReferencedByOtherBooks(ctx context.Con
 const accountingPeriodHasMissingMappings = `-- name: AccountingPeriodHasMissingMappings :one
 SELECT EXISTS(
   SELECT 1 FROM vou_documents document
+  JOIN approval_entries approval
+    ON approval.id=document.approval_entry_id
+   AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
   WHERE document.business_date >= $1
     AND document.business_date < $2
-    AND document.status = 'APPROVED'
+    AND approval.status = 'APPROVED'
     AND NOT EXISTS (
       SELECT 1 FROM acc_mapping_versions mapping
       WHERE mapping.book_id=$3
@@ -148,9 +151,13 @@ func (q *Queries) AccountingPeriodHasNegativeInventory(ctx context.Context, arg 
 
 const accountingPeriodHasUnfinishedVOU = `-- name: AccountingPeriodHasUnfinishedVOU :one
 SELECT EXISTS(
-  SELECT 1 FROM vou_documents
-  WHERE business_date >= $1 AND business_date < $2
-    AND status <> 'APPROVED'
+  SELECT 1
+  FROM vou_documents document
+  JOIN approval_entries approval
+    ON approval.id=document.approval_entry_id
+   AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
+  WHERE document.business_date >= $1 AND document.business_date < $2
+    AND approval.status <> 'APPROVED'
 )
 `
 

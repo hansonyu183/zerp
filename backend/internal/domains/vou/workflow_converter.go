@@ -7,6 +7,7 @@ import (
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
 	"github.com/jackc/pgx/v5"
 )
@@ -63,6 +64,10 @@ func (s *Service) CreateWorkflowPurchaseInbound(ctx context.Context, tx pgx.Tx, 
 }
 
 func (s *Service) CreateWorkflowSaleOutbound(ctx context.Context, tx pgx.Tx, sourceDocumentID string, initial WorkflowSaleOutboundInitial, requestID string) (MutationResult, error) {
+	actor, err := approval.TrustedSystemActor(requestID)
+	if err != nil {
+		return MutationResult{}, mapApprovalError(err)
+	}
 	date, err := parseBusinessDate(initial.BusinessDate)
 	if err != nil {
 		return MutationResult{}, err
@@ -75,12 +80,16 @@ func (s *Service) CreateWorkflowSaleOutbound(ctx context.Context, tx pgx.Tx, sou
 		SourceDocumentID: sourceDocumentID,
 		Warehouse:        &ReferenceInput{ObjectID: warehouse.ObjectID, ApprovalEntryID: warehouse.ApprovalEntryID},
 		SourceLines:      initial.Lines,
-	}, date, nil, systemidentity.UserID, requestID)
+	}, date, nil, actor)
 }
 
 func (s *Service) CreateWorkflowSaleDelivery(ctx context.Context, tx pgx.Tx, sourceDocumentID string, initial WorkflowSaleDeliveryInitial, requestID string) (MutationResult, error) {
 	if existing, ok, err := s.findWorkflowChild(ctx, tx, sourceDocumentID, EntitySaleDelivery); err != nil || ok {
 		return existing, err
+	}
+	actor, err := approval.TrustedSystemActor(requestID)
+	if err != nil {
+		return MutationResult{}, mapApprovalError(err)
 	}
 	date, err := parseBusinessDate(initial.BusinessDate)
 	if err != nil {
@@ -101,12 +110,16 @@ func (s *Service) CreateWorkflowSaleDelivery(ctx context.Context, tx pgx.Tx, sou
 		}
 		data.Carrier = &ReferenceInput{ObjectID: carrier.ObjectID, ApprovalEntryID: carrier.ApprovalEntryID}
 	}
-	return s.writeSaleDelivery(ctx, tx, "", data, date, nil, systemidentity.UserID, requestID)
+	return s.writeSaleDelivery(ctx, tx, "", data, date, nil, actor)
 }
 
 func (s *Service) CreateWorkflowSaleSignoff(ctx context.Context, tx pgx.Tx, sourceDocumentID string, initial WorkflowSaleSignoffInitial, requestID string) (MutationResult, error) {
 	if existing, ok, err := s.findWorkflowChild(ctx, tx, sourceDocumentID, EntitySaleSignoff); err != nil || ok {
 		return existing, err
+	}
+	actor, err := approval.TrustedSystemActor(requestID)
+	if err != nil {
+		return MutationResult{}, mapApprovalError(err)
 	}
 	date, err := parseBusinessDate(initial.BusinessDate)
 	if err != nil {
@@ -121,7 +134,7 @@ func (s *Service) CreateWorkflowSaleSignoff(ctx context.Context, tx pgx.Tx, sour
 	}
 	return s.writeSaleSignoff(ctx, tx, "", DraftInput{
 		SourceDocumentID: sourceDocumentID, SignoffLines: lines,
-	}, date, nil, systemidentity.UserID, requestID)
+	}, date, nil, actor)
 }
 
 func (s *Service) CreateWorkflowSaleReturn(ctx context.Context, tx pgx.Tx, sourceDocumentID string, initial WorkflowSaleReturnInitial, requestID string) (MutationResult, error) {
@@ -132,18 +145,11 @@ func (s *Service) CreateWorkflowSaleReturn(ctx context.Context, tx pgx.Tx, sourc
 	if err != nil {
 		return MutationResult{}, err
 	}
-	document, err := s.queries.WithTx(tx).GetVouDocument(ctx, dbsqlc.GetVouDocumentParams{
-		ID: documentID, Entity: EntitySaleReturn,
-	})
+	document, err := lockDocument(ctx, tx, documentID, EntitySaleReturn)
 	if err != nil {
 		return MutationResult{}, err
 	}
-	return MutationResult{
-		DocumentID: document.ID,
-		DocumentNo: document.DocumentNo,
-		Status:     document.Status,
-		Revision:   document.Revision,
-	}, nil
+	return mutation(document, document.approvalEntry()), nil
 }
 
 func (s *Service) findWorkflowChild(ctx context.Context, tx pgx.Tx, sourceID, entity string) (MutationResult, bool, error) {
@@ -157,12 +163,11 @@ func (s *Service) findWorkflowChild(ctx context.Context, tx pgx.Tx, sourceID, en
 	if err != nil {
 		return MutationResult{}, false, err
 	}
-	return MutationResult{
-		DocumentID: child.ID,
-		DocumentNo: child.DocumentNo,
-		Status:     child.Status,
-		Revision:   child.Revision,
-	}, true, nil
+	document, err := lockDocument(ctx, tx, child.ID, entity)
+	if err != nil {
+		return MutationResult{}, false, err
+	}
+	return mutation(document, document.approvalEntry()), true, nil
 }
 
 func (s *Service) createWorkflowPurchaseInbound(ctx context.Context, tx pgx.Tx, orderID string, initial WorkflowPurchaseInboundInitial, requestID string) (MutationResult, error) {
@@ -199,11 +204,19 @@ func (s *Service) createWorkflowPurchaseInbound(ctx context.Context, tx pgx.Tx, 
 		return MutationResult{}, err
 	}
 	number := fmt.Sprintf("%s-%s-%04d", entityPrefix(EntityPurchaseInbound), date.Format("20060102"), counter)
+	actor, err := approval.TrustedSystemActor(requestID)
+	if err != nil {
+		return MutationResult{}, mapApprovalError(err)
+	}
+	entry, err := s.createDocumentApproval(ctx, tx, EntityPurchaseInbound, id, actor)
+	if err != nil {
+		return MutationResult{}, err
+	}
 	err = q.InsertVouDocument(ctx, dbsqlc.InsertVouDocumentParams{
-		ID: id, Entity: EntityPurchaseInbound, DocumentNo: number,
+		ID: id, Entity: EntityPurchaseInbound, DocumentNo: number, ApprovalEntryID: entry.ID,
 		BusinessDate: dateValue(date), Currency: order.Currency, DueDate: dateValue(dueDate),
 		TotalAmountCents: total, ParentEntity: stringPtr(EntityPurchaseOrder),
-		ParentDocumentID: stringPtr(orderID), ActorID: systemidentity.UserID,
+		ParentDocumentID: stringPtr(orderID),
 	})
 	if err != nil {
 		return MutationResult{}, err
@@ -214,13 +227,10 @@ func (s *Service) createWorkflowPurchaseInbound(ctx context.Context, tx pgx.Tx, 
 	if err = s.insertPurchaseInboundLines(ctx, q, id, lines); err != nil {
 		return MutationResult{}, err
 	}
-	if err = insertAudit(ctx, q, auditInput{DocumentID: id, Entity: EntityPurchaseInbound, Event: "CREATED", To: StatusDraft, ActorID: systemidentity.UserID, RequestID: requestID, Summary: map[string]any{"sourceOrderId": orderID}}); err != nil {
-		return MutationResult{}, err
-	}
 	if err = s.events.Publish(ctx, tx, DocumentCreatedEvent{Entity: EntityPurchaseInbound, DocumentID: id, DocumentNo: number, Revision: 1, ParentEntity: EntityPurchaseOrder, ParentDocumentID: orderID, ActorID: systemidentity.UserID, RequestID: requestID}); err != nil {
 		return MutationResult{}, err
 	}
-	return MutationResult{DocumentID: id, DocumentNo: number, Status: StatusDraft, Revision: 1}, nil
+	return MutationResult{DocumentID: id, DocumentNo: number, Approval: approval.MetaFromEntry(entry)}, nil
 }
 
 func (s *Service) resolveWorkflowDefault(ctx context.Context, tx pgx.Tx, entity, objectID, field string) (bobdomain.EffectiveReference, error) {
@@ -240,7 +250,7 @@ func (s *Service) createWorkflowExpensePayment(ctx context.Context, tx pgx.Tx, r
 	if err != nil {
 		return MutationResult{}, err
 	}
-	source := dbsqlc.VouDocument{
+	source := documentRecord{
 		ID: locked.ID, Entity: locked.Entity, DocumentNo: locked.DocumentNo, Status: locked.Status,
 		Revision: locked.Revision, BusinessDate: locked.BusinessDate, Currency: locked.Currency,
 		TotalAmountCents: locked.TotalAmountCents, Remark: locked.Remark, CreatedAt: locked.CreatedAt,
@@ -263,12 +273,19 @@ func (s *Service) createWorkflowExpensePayment(ctx context.Context, tx pgx.Tx, r
 	id := newID()
 	date := source.BusinessDate.Time
 	number := fmt.Sprintf("%s-%s-%04d", entityPrefix(EntityExpensePayment), date.Format("20060102"), counter)
+	actor, err := approval.TrustedSystemActor(requestID)
+	if err != nil {
+		return MutationResult{}, mapApprovalError(err)
+	}
+	entry, err := s.createDocumentApproval(ctx, tx, EntityExpensePayment, id, actor)
+	if err != nil {
+		return MutationResult{}, err
+	}
 	err = q.InsertVouDocument(ctx, dbsqlc.InsertVouDocumentParams{
-		ID: id, Entity: EntityExpensePayment, DocumentNo: number,
+		ID: id, Entity: EntityExpensePayment, DocumentNo: number, ApprovalEntryID: entry.ID,
 		BusinessDate: source.BusinessDate, Currency: source.Currency,
 		TotalAmountCents: source.TotalAmountCents, Remark: source.Remark,
 		ParentEntity: stringPtr(EntityExpenseReimbursement), ParentDocumentID: stringPtr(reimbursementID),
-		ActorID: systemidentity.UserID,
 	})
 	if err != nil {
 		return MutationResult{}, err
@@ -277,16 +294,13 @@ func (s *Service) createWorkflowExpensePayment(ctx context.Context, tx pgx.Tx, r
 	if err != nil {
 		return MutationResult{}, err
 	}
-	if err = insertAudit(ctx, q, auditInput{DocumentID: id, Entity: EntityExpensePayment, Event: "CREATED", To: StatusDraft, ActorID: systemidentity.UserID, RequestID: requestID, Summary: map[string]any{"sourceReimbursementId": reimbursementID}}); err != nil {
-		return MutationResult{}, err
-	}
 	if err = s.events.Publish(ctx, tx, DocumentCreatedEvent{Entity: EntityExpensePayment, DocumentID: id, DocumentNo: number, Revision: 1, ParentEntity: EntityExpenseReimbursement, ParentDocumentID: reimbursementID, ActorID: systemidentity.UserID, RequestID: requestID}); err != nil {
 		return MutationResult{}, err
 	}
-	return MutationResult{DocumentID: id, DocumentNo: number, Status: StatusDraft, Revision: 1}, nil
+	return MutationResult{DocumentID: id, DocumentNo: number, Approval: approval.MetaFromEntry(entry)}, nil
 }
 
-func (s *Service) SaveExpensePayment(ctx context.Context, input SaveInput, actorID, requestID string) (MutationResult, error) {
+func (s *Service) SaveExpensePayment(ctx context.Context, input SaveInput, actor approval.Actor) (MutationResult, error) {
 	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
 		return MutationResult{}, err
 	}
@@ -303,18 +317,28 @@ func (s *Service) SaveExpensePayment(ctx context.Context, input SaveInput, actor
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	document, err := q.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{ID: input.DocumentID, Entity: EntityExpensePayment})
+	document, err := lockDocument(ctx, tx, input.DocumentID, EntityExpensePayment)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
 		return MutationResult{}, err
 	}
-	fund, err := s.resolver.ResolveApprovedReference(ctx, tx, bobdomain.EntityFundAccount, input.Data.FundAccount.ObjectID, input.Data.FundAccount.ApprovalEntryID)
+	coordinator, prepared, err := s.prepareDraftSave(ctx, tx, document, input.Revision, actor)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	savedDetail, err := q.GetVouExpensePaymentDetail(ctx, input.DocumentID)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	selectedFund, err := s.resolveSelectedReference(ctx, tx, bobdomain.EntityFundAccount, input.Data.FundAccount,
+		&bobdomain.EffectiveReference{ObjectID: savedDetail.FundAccountObjectID, ApprovalEntryID: savedDetail.FundAccountApprovalEntryID}, false)
 	if err != nil {
 		return MutationResult{}, domainError(ErrorConflict, "fund account is not effective", nil, err)
 	}
+	fund := *selectedFund
 	if fund.Data.Currency != deref(document.Currency) {
 		return MutationResult{}, domainError(ErrorConflict, "fund account currency does not match document currency", nil, nil)
 	}
-	revision, err := q.UpdateVouDraft(ctx, dbsqlc.UpdateVouDraftParams{BusinessDate: dateValue(date), Currency: document.Currency, DueDate: document.DueDate, TotalAmountCents: document.TotalAmountCents, Remark: optionalText(input.Data.Remark), ActorID: actorID, ID: input.DocumentID, Entity: EntityExpensePayment, Revision: input.Revision})
+	_, err = q.UpdateVouDraft(ctx, dbsqlc.UpdateVouDraftParams{BusinessDate: dateValue(date), Currency: document.Currency, DueDate: document.DueDate, TotalAmountCents: document.TotalAmountCents, Remark: optionalText(input.Data.Remark), ID: input.DocumentID, Entity: EntityExpensePayment})
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -322,11 +346,12 @@ func (s *Service) SaveExpensePayment(ctx context.Context, input SaveInput, actor
 	if err != nil || rows != 1 {
 		return MutationResult{}, s.writeError("update expense payment", err)
 	}
-	if err = insertAudit(ctx, q, auditInput{DocumentID: input.DocumentID, Entity: EntityExpensePayment, Event: "SAVED", From: stringPtr(StatusDraft), To: StatusDraft, ActorID: actorID, RequestID: requestID}); err != nil {
+	entry, err := s.commitDraftSave(ctx, tx, q, document, coordinator, prepared)
+	if err != nil {
 		return MutationResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, err
 	}
-	return mutation(document, StatusDraft, revision), nil
+	return mutation(document, entry), nil
 }

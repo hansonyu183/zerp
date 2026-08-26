@@ -64,7 +64,7 @@ func (s *Seeder) seedExtendedVouchers(ctx context.Context, counts *Counts) error
 	for _, sample := range samples {
 		sample := sample
 		_, _, result, err := s.ensureVoucher(ctx, sample.key, sample.entity, sample.target, func() (voudomain.MutationResult, error) {
-			return s.vouchers.Create(ctx, sample.entity, voudomain.CreateInput{Data: sample.data}, actorID, requestID(sample.key, "create"))
+			return s.vouchers.Create(ctx, sample.entity, voudomain.CreateInput{Data: sample.data}, mustApprovalActor(requestID(sample.key, "create")))
 		})
 		if err != nil {
 			return fmt.Errorf("%s: %w", sample.key, err)
@@ -111,7 +111,7 @@ func (s *Seeder) seedAssetDocuments(ctx context.Context, counts *Counts, supplie
 				{AssetName: "测试叉车", Specification: "FD-30", Category: voudomain.ReferenceInput{ObjectID: category.ObjectID, ApprovalEntryID: category.LatestApproved.Approval.ApprovalEntryID}, OriginalValue: "50000.00", UsefulLifeMonths: 60, ResidualRate: "5.00", Department: voudomain.ReferenceInput{ObjectID: department.ObjectID, ApprovalEntryID: department.LatestApproved.Approval.ApprovalEntryID}, Custodian: &employee, Location: "一号仓"},
 				{AssetName: "测试包装机", Specification: "PK-01", Category: voudomain.ReferenceInput{ObjectID: category.ObjectID, ApprovalEntryID: category.LatestApproved.Approval.ApprovalEntryID}, OriginalValue: "30000.00", UsefulLifeMonths: 60, ResidualRate: "5.00", Department: voudomain.ReferenceInput{ObjectID: department.ObjectID, ApprovalEntryID: department.LatestApproved.Approval.ApprovalEntryID}, Custodian: &employee, Location: "包装区"},
 			},
-		}}, actorID, requestID("asset-acquisition-approved", "create"))
+		}}, mustApprovalActor(requestID("asset-acquisition-approved", "create")))
 	})
 	if err != nil {
 		return fmt.Errorf("asset acquisition: %w", err)
@@ -134,7 +134,7 @@ func (s *Seeder) seedAssetDocuments(ctx context.Context, counts *Counts, supplie
 	for _, sample := range assetSamples {
 		sample := sample
 		_, _, seedResult, seedErr := s.ensureVoucher(ctx, sample.key, sample.entity, voudomain.StatusDraft, func() (voudomain.MutationResult, error) {
-			return s.vouchers.Create(ctx, sample.entity, voudomain.CreateInput{Data: sample.data}, actorID, requestID(sample.key, "create"))
+			return s.vouchers.Create(ctx, sample.entity, voudomain.CreateInput{Data: sample.data}, mustApprovalActor(requestID(sample.key, "create")))
 		})
 		if seedErr != nil {
 			return fmt.Errorf("%s: %w", sample.key, seedErr)
@@ -154,7 +154,7 @@ func (s *Seeder) seedBillDocuments(
 			BusinessDate: "2026-07-03", Currency: "CNY", Counterparty: &customer,
 			Handler: &employee, InternalCostRateBps: 365, Remark: "测试应收票据来源",
 			BillLines: []voudomain.BillLineInput{{PositionType: "ASSET", Direction: "IN", Purpose: "PRIMARY", BillType: "BANK_ACCEPTANCE", BillNo: "TEST-AR-001", Medium: "ELECTRONIC", Currency: "CNY", FaceAmount: "10000.00", IssueDate: "2026-07-01", MaturityDate: "2026-09-30", Drawer: "星河制造有限公司", Acceptor: "测试银行", Payee: "本公司", AnnualRateBps: 120}},
-		}}, actorID, requestID("bill-receipt-approved", "create"))
+		}}, mustApprovalActor(requestID("bill-receipt-approved", "create")))
 	})
 	if err != nil {
 		return fmt.Errorf("bill receipt: %w", err)
@@ -165,7 +165,7 @@ func (s *Seeder) seedBillDocuments(
 			BusinessDate: "2026-07-03", Currency: "CNY", Supplier: &supplier,
 			InterestMode: "BANK_DEDUCTED", Remark: "测试应付票据来源",
 			BillLines: []voudomain.BillLineInput{{PositionType: "LIABILITY", Direction: "IN", Purpose: "PRIMARY", BillType: "BANK_ACCEPTANCE", BillNo: "TEST-AP-001", Medium: "ELECTRONIC", Currency: "CNY", FaceAmount: "8000.00", IssueDate: "2026-07-01", MaturityDate: "2026-09-30", Drawer: "本公司", Acceptor: "测试银行", Payee: "启明供应链有限公司", AnnualRateBps: 100}},
-		}}, actorID, requestID("bill-issue-approved", "create"))
+		}}, mustApprovalActor(requestID("bill-issue-approved", "create")))
 	})
 	if err != nil {
 		return fmt.Errorf("bill issue: %w", err)
@@ -189,7 +189,7 @@ func (s *Seeder) seedBillDocuments(
 	for _, sample := range billSamples {
 		sample := sample
 		_, _, seedResult, seedErr := s.ensureVoucher(ctx, sample.key, sample.entity, voudomain.StatusDraft, func() (voudomain.MutationResult, error) {
-			return s.vouchers.Create(ctx, sample.entity, voudomain.CreateInput{Data: sample.data}, actorID, requestID(sample.key, "create"))
+			return s.vouchers.Create(ctx, sample.entity, voudomain.CreateInput{Data: sample.data}, mustApprovalActor(requestID(sample.key, "create")))
 		})
 		if seedErr != nil {
 			return fmt.Errorf("%s: %w", sample.key, seedErr)
@@ -226,7 +226,7 @@ func (s *Seeder) seedIntermediaryCalculation(ctx context.Context, counts *Counts
 				Source: source.Source, SourceHash: source.SourceHash, Script: script,
 				Result: voudomain.IntermediaryCalculationResult{Lines: []voudomain.IntermediaryResultLine{}, Summaries: []voudomain.IntermediarySummary{}},
 			},
-		}}, actorID, requestID("intermediary-calculation-draft", "create"))
+		}}, mustApprovalActor(requestID("intermediary-calculation-draft", "create")))
 	})
 	if err != nil {
 		return fmt.Errorf("intermediary calculation: %w", err)

@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	"github.com/hansonyu183/zerp/backend/internal/api/middleware"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 )
 
 type handlerServiceStub struct {
@@ -33,25 +34,25 @@ func (*handlerServiceStub) FormulaDefault(context.Context, FormulaDefaultInput) 
 func (*handlerServiceStub) PriceReference(context.Context, string, PriceReferenceInput) (PriceReferenceView, error) {
 	return PriceReferenceView{}, nil
 }
-func (*handlerServiceStub) Create(context.Context, string, CreateInput, string, string) (MutationResult, error) {
+func (*handlerServiceStub) Create(context.Context, string, CreateInput, approval.Actor) (MutationResult, error) {
 	return MutationResult{}, nil
 }
-func (*handlerServiceStub) Save(context.Context, string, SaveInput, string, string) (MutationResult, error) {
+func (*handlerServiceStub) Save(context.Context, string, SaveInput, approval.Actor) (MutationResult, error) {
 	return MutationResult{}, nil
 }
-func (*handlerServiceStub) Check(context.Context, string, DocumentRevisionInput, string, string) (MutationResult, error) {
+func (*handlerServiceStub) Submit(context.Context, string, DocumentRevisionInput, approval.Actor) (MutationResult, error) {
 	return MutationResult{}, nil
 }
-func (*handlerServiceStub) Uncheck(context.Context, string, DocumentRevisionInput, string, string) (MutationResult, error) {
+func (*handlerServiceStub) Unsubmit(context.Context, string, DocumentRevisionInput, approval.Actor) (MutationResult, error) {
 	return MutationResult{}, nil
 }
-func (*handlerServiceStub) Approve(context.Context, string, DocumentRevisionInput, string, string) (MutationResult, error) {
+func (*handlerServiceStub) Approve(context.Context, string, DocumentRevisionInput, approval.Actor) (MutationResult, error) {
 	return MutationResult{}, nil
 }
-func (*handlerServiceStub) Unapprove(context.Context, string, ReverseInput, string, string) (MutationResult, error) {
+func (*handlerServiceStub) Unapprove(context.Context, string, ReverseInput, approval.Actor) (MutationResult, error) {
 	return MutationResult{}, nil
 }
-func (*handlerServiceStub) Delete(context.Context, string, DeleteInput, string, string) (MutationResult, error) {
+func (*handlerServiceStub) Delete(context.Context, string, DeleteInput, approval.Actor) (MutationResult, error) {
 	return MutationResult{}, nil
 }
 func (*handlerServiceStub) AuditHistory(context.Context, string, HistoryInput) (Page[AuditEventView], error) {
@@ -66,13 +67,13 @@ func (*handlerServiceStub) AvailableBills(context.Context, AvailableBillQueryInp
 func (*handlerServiceStub) AvailableAssets(context.Context, AvailableAssetQueryInput) (Page[AvailableAssetItem], error) {
 	return Page[AvailableAssetItem]{Items: []AvailableAssetItem{}}, nil
 }
-func (*handlerServiceStub) InitiateAttachment(context.Context, string, AttachmentInitiateInput, string, string) (AttachmentInitiateResult, error) {
+func (*handlerServiceStub) InitiateAttachment(context.Context, string, AttachmentInitiateInput, approval.Actor) (AttachmentInitiateResult, error) {
 	return AttachmentInitiateResult{}, nil
 }
 func (*handlerServiceStub) CreateDownload(context.Context, string, AttachmentDownloadInput, string) (AttachmentDownloadResult, error) {
 	return AttachmentDownloadResult{}, nil
 }
-func (*handlerServiceStub) RemoveAttachment(context.Context, string, AttachmentRemoveInput, string, string) (MutationResult, error) {
+func (*handlerServiceStub) RemoveAttachment(context.Context, string, AttachmentRemoveInput, approval.Actor) (MutationResult, error) {
 	return MutationResult{}, nil
 }
 func (*handlerServiceStub) Upload(context.Context, string, io.Reader, int64, string, string) error {

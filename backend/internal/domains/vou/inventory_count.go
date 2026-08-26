@@ -70,7 +70,7 @@ func (s *Service) InventoryCountBookBalance(
 }
 
 func (s *Service) prepareInventoryCountFinalization(
-	ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, document dbsqlc.VouDocument,
+	ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, document documentRecord,
 ) (map[string]any, error) {
 	control, err := q.LockAccountingControlBookForVou(ctx)
 	if err != nil {

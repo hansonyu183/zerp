@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/businessdate"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
@@ -50,13 +51,13 @@ func createCheckedSettlementSale(
 		BusinessDate: "2026-08-04", Currency: "CNY", Customer: &customer,
 		Salesperson: &refs.employee, Warehouse: &refs.warehouse,
 		ProductLines: []ProductLineInput{integrationProductLine(t, refs.product, "1", "10.00")},
-	}}, integrationActorOne, requestID+"-create")
+	}}, integrationApprovalActor(t, integrationActorOne, requestID+"-create"))
 	if err != nil {
 		t.Fatalf("create settlement order: %v", err)
 	}
-	checked, err := service.Check(t.Context(), EntitySaleOrder, DocumentRevisionInput{
-		DocumentID: created.DocumentID, Revision: created.Revision,
-	}, integrationActorOne, requestID+"-check")
+	checked, err := service.Submit(t.Context(), EntitySaleOrder, DocumentRevisionInput{
+		DocumentID: created.DocumentID, Revision: created.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorOne, requestID+"-submit"))
 	if err != nil {
 		t.Fatalf("check settlement order: %v", err)
 	}
@@ -193,13 +194,13 @@ func TestPrepaidOrderApprovalChecksCurrentBalanceWithoutReservationIntegration(t
 	activateSettlementLedger(t, pool, customer, -amount, businessdate.Today().Format(businessdate.Layout))
 
 	if _, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
-		DocumentID: first.DocumentID, Revision: first.Revision,
-	}, integrationActorTwo, "prepaid-first-approve"); err != nil {
+		DocumentID: first.DocumentID, Revision: first.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorTwo, "prepaid-first-approve")); err != nil {
 		t.Fatalf("approve first prepaid order: %v", err)
 	}
 	if _, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
-		DocumentID: second.DocumentID, Revision: second.Revision,
-	}, integrationActorTwo, "prepaid-second-approve"); err != nil {
+		DocumentID: second.DocumentID, Revision: second.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorTwo, "prepaid-second-approve")); err != nil {
 		t.Fatalf("approve second prepaid order without an order-level balance claim: %v", err)
 	}
 }
@@ -220,8 +221,8 @@ func TestPrepaidApprovalExcludesFutureDatedFundsIntegration(t *testing.T) {
 	}
 	activateSettlementLedger(t, pool, customer, -amount, "2999-01-01")
 	if _, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
-		DocumentID: order.DocumentID, Revision: order.Revision,
-	}, integrationActorTwo, "prepaid-future-approve"); err == nil ||
+		DocumentID: order.DocumentID, Revision: order.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorTwo, "prepaid-future-approve")); err == nil ||
 		!strings.Contains(err.Error(), "insufficient prepaid funds") {
 		t.Fatalf("future prepaid funds error = %v", err)
 	}
@@ -275,8 +276,8 @@ func TestPrepaidApprovalExcludesCustomerOtherBalanceIntegration(t *testing.T) {
 		t.Fatalf("insert customer rebate other balance: %v", err)
 	}
 	if _, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
-		DocumentID: order.DocumentID, Revision: order.Revision,
-	}, integrationActorTwo, "prepaid-other-approve"); err == nil ||
+		DocumentID: order.DocumentID, Revision: order.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorTwo, "prepaid-other-approve")); err == nil ||
 		!strings.Contains(err.Error(), "insufficient prepaid funds") {
 		t.Fatalf("customer other balance used as prepaid funds: %v", err)
 	}
@@ -294,8 +295,8 @@ func TestSettlementApprovalRequiresActiveLedgerIntegration(t *testing.T) {
 	order := createCheckedSettlementSale(t, service, refs, customer, "inactive-ledger")
 
 	if _, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
-		DocumentID: order.DocumentID, Revision: order.Revision,
-	}, integrationActorTwo, "inactive-ledger-approve"); err == nil ||
+		DocumentID: order.DocumentID, Revision: order.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorTwo, "inactive-ledger-approve")); err == nil ||
 		!strings.Contains(err.Error(), "accounting settlement balance is unavailable") {
 		t.Fatalf("inactive settlement ledger error = %v", err)
 	}
@@ -317,8 +318,8 @@ func TestCashOnDeliveryBlocksCurrentDebtIntegration(t *testing.T) {
 	}
 	order := createCheckedSettlementSale(t, service, refs, customer, "cod-debt")
 	if _, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
-		DocumentID: order.DocumentID, Revision: order.Revision,
-	}, integrationActorTwo, "cod-debt-approve"); err == nil ||
+		DocumentID: order.DocumentID, Revision: order.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorTwo, "cod-debt-approve")); err == nil ||
 		!strings.Contains(err.Error(), "outstanding debt") {
 		t.Fatalf("COD debt error = %v", err)
 	}
@@ -333,22 +334,26 @@ func TestPrepaidConcurrentSignoffConsumesCurrentBalanceAtomicallyIntegration(t *
 		t, pool, refs.employee, bobdomain.SettlementTermPrepaid, "预付签收并发客户",
 	)
 	bus := txevent.NewBus()
-	if err := bus.Subscribe(DocumentApprovedTopic(EntitySaleSignoff), "test-prepaid-signoff-posting",
-		func(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
-			event := raw.(DocumentApprovedEvent)
+	if err := ApprovalTopic(EntitySaleSignoff).Subscribe(bus, "test-prepaid-signoff-posting",
+		func(ctx context.Context, tx pgx.Tx, event approval.Event[DocumentView]) error {
+			if event.Action != approval.ActionApproved {
+				return nil
+			}
 			var amount int64
-			if err := tx.QueryRow(ctx, `SELECT total_amount_cents FROM vou_documents WHERE id=$1`, event.DocumentID).Scan(&amount); err != nil {
+			if err := tx.QueryRow(ctx, `SELECT total_amount_cents FROM vou_documents WHERE id=$1`, event.Entry.SubjectID).Scan(&amount); err != nil {
 				return err
 			}
 			return insertAccountingPartyEntry(ctx, tx, "customer", customer.ObjectID,
-				"ADVANCE_RECEIPT", -amount, businessdate.Today().Format(businessdate.Layout), event.DocumentID)
+				"ADVANCE_RECEIPT", -amount, businessdate.Today().Format(businessdate.Layout), event.Entry.SubjectID)
 		}); err != nil {
 		t.Fatalf("subscribe prepaid signoff posting: %v", err)
 	}
-	if err := bus.Subscribe(DocumentUnapprovedTopic(EntitySaleSignoff), "test-prepaid-signoff-reversal",
-		func(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
-			event := raw.(DocumentUnapprovedEvent)
-			_, err := tx.Exec(ctx, `DELETE FROM acc_vouchers WHERE source_id=$1`, event.DocumentID)
+	if err := ApprovalTopic(EntitySaleSignoff).Subscribe(bus, "test-prepaid-signoff-reversal",
+		func(ctx context.Context, tx pgx.Tx, event approval.Event[DocumentView]) error {
+			if event.Action != approval.ActionUnapproved {
+				return nil
+			}
+			_, err := tx.Exec(ctx, `DELETE FROM acc_vouchers WHERE source_id=$1`, event.Entry.SubjectID)
 			return err
 		}); err != nil {
 		t.Fatalf("subscribe prepaid signoff reversal: %v", err)
@@ -358,8 +363,8 @@ func TestPrepaidConcurrentSignoffConsumesCurrentBalanceAtomicallyIntegration(t *
 	createCheckedSignoff := func(order MutationResult, requestID string) MutationResult {
 		t.Helper()
 		approvedOrder, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
-			DocumentID: order.DocumentID, Revision: order.Revision,
-		}, integrationActorOne, requestID+"-order-approve")
+			DocumentID: order.DocumentID, Revision: order.Approval.Revision,
+		}, integrationApprovalActor(t, integrationActorTwo, requestID+"-order-approve"))
 		if err != nil {
 			t.Fatalf("approve settlement order: %v", err)
 		}
@@ -428,8 +433,8 @@ func TestPrepaidConcurrentSignoffConsumesCurrentBalanceAtomicallyIntegration(t *
 		go func(index int, input MutationResult) {
 			defer workers.Done()
 			approved, err := service.Approve(t.Context(), EntitySaleSignoff, DocumentRevisionInput{
-				DocumentID: input.DocumentID, Revision: input.Revision,
-			}, integrationActorTwo, "prepaid-batch-concurrent-"+string(rune('a'+index)))
+				DocumentID: input.DocumentID, Revision: input.Approval.Revision,
+			}, integrationApprovalActor(t, integrationActorTwo, "prepaid-batch-concurrent-"+string(rune('a'+index))))
 			results <- result{input: input, result: approved, err: err}
 		}(index, input)
 	}
@@ -449,8 +454,8 @@ func TestPrepaidConcurrentSignoffConsumesCurrentBalanceAtomicallyIntegration(t *
 		t.Fatalf("concurrent prepaid signoffs = winner:%+v loser:%+v", winner, loser)
 	}
 	if _, err := service.Unapprove(t.Context(), EntitySaleSignoff, ReverseInput{
-		DocumentID: winner.result.DocumentID, Revision: winner.result.Revision, Reason: "验证反批准流水撤销",
-	}, integrationActorOne, "prepaid-batch-unapprove"); err != nil {
+		DocumentID: winner.result.DocumentID, Revision: winner.result.Approval.Revision, Reason: "验证反批准流水撤销",
+	}, integrationApprovalActor(t, integrationActorOne, "prepaid-batch-unapprove")); err != nil {
 		t.Fatalf("unapprove winning signoff: %v", err)
 	}
 	var remaining int64

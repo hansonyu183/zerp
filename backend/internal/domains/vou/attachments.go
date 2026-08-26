@@ -9,6 +9,7 @@ import (
 	"time"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -26,8 +27,9 @@ func (s *Service) InitiateAttachment(
 	ctx context.Context,
 	entity string,
 	input AttachmentInitiateInput,
-	actorID, requestID string,
+	actor approval.Actor,
 ) (AttachmentInitiateResult, error) {
+	actorID := actor.ID()
 	if !validEntity(entity) {
 		return AttachmentInitiateResult{}, domainError(ErrorValidation, "invalid entity", nil, nil)
 	}
@@ -49,8 +51,12 @@ func (s *Service) InitiateAttachment(
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	document, err := q.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{ID: input.DocumentID, Entity: entity})
+	document, err := lockDocument(ctx, tx, input.DocumentID, entity)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
+		return AttachmentInitiateResult{}, err
+	}
+	coordinator, prepared, err := s.prepareDraftSave(ctx, tx, document, input.Revision, actor)
+	if err != nil {
 		return AttachmentInitiateResult{}, err
 	}
 	count, err := q.CountVouAttachments(ctx, input.DocumentID)
@@ -73,25 +79,16 @@ func (s *Service) InitiateAttachment(
 	}); err != nil {
 		return AttachmentInitiateResult{}, s.writeError("link attachment", err)
 	}
-	revision, err := q.TouchVouDraftAttachment(ctx, dbsqlc.TouchVouDraftAttachmentParams{
-		ActorID: actorID, ID: input.DocumentID, Entity: entity, Revision: input.Revision,
-	})
+	entry, err := s.commitDraftSave(ctx, tx, q, document, coordinator, prepared)
 	if err != nil {
-		return AttachmentInitiateResult{}, s.writeError("touch attachment document", err)
-	}
-	if err = insertAudit(ctx, q, auditInput{
-		DocumentID: input.DocumentID, Entity: entity, Event: "ATTACHMENT_INITIATED",
-		From: stringPtr(StatusDraft), To: StatusDraft, ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"fileId": fileID, "fileName": fileName, "size": input.Size},
-	}); err != nil {
-		return AttachmentInitiateResult{}, s.writeError("audit attachment initiate", err)
+		return AttachmentInitiateResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return AttachmentInitiateResult{}, s.writeError("commit attachment initiate", err)
 	}
 	return AttachmentInitiateResult{
 		FileID: fileID, UploadURL: "/files/attachments/upload/" + token,
-		ExpiresAt: expiresAt, Revision: revision,
+		ExpiresAt: expiresAt, Revision: entry.Revision,
 	}, nil
 }
 
@@ -100,7 +97,7 @@ func (s *Service) Upload(
 	token string,
 	body io.Reader,
 	contentLength int64,
-	contentType, requestID string,
+	contentType, _ string,
 ) error {
 	if token == "" {
 		return domainError(ErrorValidation, "invalid upload token", nil, nil)
@@ -131,15 +128,6 @@ func (s *Service) Upload(
 	if err != nil || rows != 1 {
 		s.storage.Delete(file.StorageKey) //nolint:errcheck
 		return s.writeError("mark attachment ready", err)
-	}
-	err = insertAudit(ctx, q, auditInput{
-		DocumentID: file.DocumentID, Entity: file.Entity, Event: "ATTACHMENT_UPLOADED",
-		From: stringPtr(StatusDraft), To: StatusDraft, ActorID: file.CreatedBy, RequestID: requestID,
-		Summary: map[string]any{"fileId": file.ID, "size": file.DeclaredSize},
-	})
-	if err != nil {
-		s.storage.Delete(file.StorageKey) //nolint:errcheck
-		return s.writeError("audit attachment upload", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
 		s.storage.Delete(file.StorageKey) //nolint:errcheck
@@ -212,7 +200,7 @@ func (s *Service) RemoveAttachment(
 	ctx context.Context,
 	entity string,
 	input AttachmentRemoveInput,
-	actorID, requestID string,
+	actor approval.Actor,
 ) (MutationResult, error) {
 	if !validEntity(entity) || !validID(input.FileID) {
 		return MutationResult{}, domainError(ErrorValidation, "invalid attachment", nil, nil)
@@ -226,8 +214,12 @@ func (s *Service) RemoveAttachment(
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	document, err := q.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{ID: input.DocumentID, Entity: entity})
+	document, err := lockDocument(ctx, tx, input.DocumentID, entity)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
+		return MutationResult{}, err
+	}
+	coordinator, prepared, err := s.prepareDraftSave(ctx, tx, document, input.Revision, actor)
+	if err != nil {
 		return MutationResult{}, err
 	}
 	file, err := q.LockVouAttachmentForRemoval(ctx, dbsqlc.LockVouAttachmentForRemovalParams{
@@ -247,18 +239,9 @@ func (s *Service) RemoveAttachment(
 	if rows, deleteErr := q.DeleteVouFile(ctx, input.FileID); deleteErr != nil || rows != 1 {
 		return MutationResult{}, s.writeError("delete attachment metadata", deleteErr)
 	}
-	revision, err := q.TouchVouDraftAttachment(ctx, dbsqlc.TouchVouDraftAttachmentParams{
-		ActorID: actorID, ID: input.DocumentID, Entity: entity, Revision: input.Revision,
-	})
+	entry, err := s.commitDraftSave(ctx, tx, q, document, coordinator, prepared)
 	if err != nil {
-		return MutationResult{}, s.writeError("touch attachment document", err)
-	}
-	if err = insertAudit(ctx, q, auditInput{
-		DocumentID: input.DocumentID, Entity: entity, Event: "ATTACHMENT_REMOVED",
-		From: stringPtr(StatusDraft), To: StatusDraft, ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"fileId": file.ID, "fileName": file.OriginalName},
-	}); err != nil {
-		return MutationResult{}, s.writeError("audit attachment removal", err)
+		return MutationResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit attachment removal", err)
@@ -266,7 +249,7 @@ func (s *Service) RemoveAttachment(
 	if err = s.storage.Delete(file.StorageKey); err != nil {
 		s.logger.Warn("attachment file cleanup deferred", "fileId", file.ID, "error", err)
 	}
-	return mutation(document, StatusDraft, revision), nil
+	return mutation(document, entry), nil
 }
 
 func (s *Service) CleanupAttachments(ctx context.Context, batchSize int) (int, error) {

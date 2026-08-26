@@ -217,11 +217,11 @@ func TestAuxiliaryApprovalVersionLifecycleIntegration(t *testing.T) {
 		"name": "集成审批生命周期-" + suffix,
 	}, "approval-lifecycle-"+suffix)
 
-	if _, err := service.Resolve(t.Context(), nil, EntityProductCategory, created.ObjectID, created.Approval.ApprovalEntryID); err == nil {
+	if _, err := service.ValidateApprovedSnapshotReference(t.Context(), nil, EntityProductCategory, created.ObjectID, created.Approval.ApprovalEntryID); err == nil {
 		t.Fatal("draft candidate resolved before approval")
 	}
 	v1 := approveAuxiliary(t, service, EntityProductCategory, created, "approval-lifecycle-v1-"+suffix)
-	v1Ref, err := service.Resolve(t.Context(), nil, EntityProductCategory, created.ObjectID, "")
+	v1Ref, err := service.ResolveLatestApprovedReference(t.Context(), nil, EntityProductCategory, created.ObjectID)
 	if err != nil {
 		t.Fatalf("resolve approved V1: %v", err)
 	}
@@ -240,10 +240,10 @@ func TestAuxiliaryApprovalVersionLifecycleIntegration(t *testing.T) {
 	if v2.Approval.VersionNo != 2 || v2.Approval.Status != approval.StatusDraft {
 		t.Fatalf("V2 candidate approval = %+v, want V2 DRAFT", v2.Approval)
 	}
-	if _, err = service.Resolve(t.Context(), nil, EntityProductCategory, created.ObjectID, v2.Approval.ApprovalEntryID); err == nil {
+	if _, err = service.ValidateApprovedSnapshotReference(t.Context(), nil, EntityProductCategory, created.ObjectID, v2.Approval.ApprovalEntryID); err == nil {
 		t.Fatal("V2 candidate resolved before approval")
 	}
-	if ref, resolveErr := service.Resolve(t.Context(), nil, EntityProductCategory, created.ObjectID, ""); resolveErr != nil || ref.ApprovalEntryID != v1.Approval.ApprovalEntryID {
+	if ref, resolveErr := service.ResolveLatestApprovedReference(t.Context(), nil, EntityProductCategory, created.ObjectID); resolveErr != nil || ref.ApprovalEntryID != v1.Approval.ApprovalEntryID {
 		t.Fatalf("latest reference during V2 candidate = %+v err=%v, want V1", ref, resolveErr)
 	}
 
@@ -268,11 +268,18 @@ func TestAuxiliaryApprovalVersionLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("submit V2: %v", err)
 	}
+	if _, err = service.ValidateApprovedSnapshotReference(t.Context(), nil, EntityProductCategory, created.ObjectID, v2Pending.Approval.ApprovalEntryID); err == nil {
+		t.Fatal("pending V2 resolved as an approved snapshot")
+	}
 	v2Approved, err := service.Approve(t.Context(), EntityProductCategory, approvalInput(v2Pending), trustedIntegrationActor(t, "approval-lifecycle-v2-approve-"+suffix))
 	if err != nil {
 		t.Fatalf("approve V2: %v", err)
 	}
-	v2Ref, err := service.Resolve(t.Context(), nil, EntityProductCategory, created.ObjectID, "")
+	v1Snapshot, err := service.ValidateApprovedSnapshotReference(t.Context(), nil, EntityProductCategory, created.ObjectID, v1.Approval.ApprovalEntryID)
+	if err != nil || v1Snapshot.ApprovalEntryID != v1.Approval.ApprovalEntryID {
+		t.Fatalf("validate V1 snapshot after V2 approval = %+v err=%v, want V1", v1Snapshot, err)
+	}
+	v2Ref, err := service.ResolveLatestApprovedReference(t.Context(), nil, EntityProductCategory, created.ObjectID)
 	if err != nil || v2Ref.ApprovalEntryID != v2Approved.Approval.ApprovalEntryID || stringValue(v2Ref.Data["name"]) != "集成审批生命周期-V2-"+suffix {
 		t.Fatalf("latest reference after V2 approval = %+v err=%v, want V2", v2Ref, err)
 	}
@@ -286,7 +293,7 @@ func TestAuxiliaryApprovalVersionLifecycleIntegration(t *testing.T) {
 	if v2Unapproved.Approval.Status != approval.StatusPending {
 		t.Fatalf("V2 unapprove status = %s, want PENDING", v2Unapproved.Approval.Status)
 	}
-	if ref, resolveErr := service.Resolve(t.Context(), nil, EntityProductCategory, created.ObjectID, ""); resolveErr != nil || ref.ApprovalEntryID != v1.Approval.ApprovalEntryID {
+	if ref, resolveErr := service.ResolveLatestApprovedReference(t.Context(), nil, EntityProductCategory, created.ObjectID); resolveErr != nil || ref.ApprovalEntryID != v1.Approval.ApprovalEntryID {
 		t.Fatalf("latest reference after V2 unapprove = %+v err=%v, want V1", ref, resolveErr)
 	}
 

@@ -29,19 +29,19 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 		ServiceAcceptance: &ServiceAcceptanceInput{ContractDocumentID: serviceContract.DocumentID,
 			ServiceDate: "2026-08-01", AcceptanceDate: "2026-08-10", SettlementDirection: "PAYABLE",
 			FulfillmentFact: "已完成月度申报", AcceptanceFact: "验收通过"},
-	}}, integrationActorOne, "service-acceptance-create")
+	}}, integrationApprovalActor(t, integrationActorOne, "service-acceptance-create"))
 	if err != nil {
 		t.Fatalf("create service acceptance: %v", err)
 	}
-	checked, err := service.Check(t.Context(), EntityServiceAcceptance, DocumentRevisionInput{
-		DocumentID: acceptance.DocumentID, Revision: acceptance.Revision,
-	}, integrationActorOne, "service-acceptance-check")
+	checked, err := service.Submit(t.Context(), EntityServiceAcceptance, DocumentRevisionInput{
+		DocumentID: acceptance.DocumentID, Revision: acceptance.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorOne, "service-acceptance-check"))
 	if err != nil {
 		t.Fatalf("check service acceptance: %v", err)
 	}
 	if _, err = service.Approve(t.Context(), EntityServiceAcceptance, DocumentRevisionInput{
-		DocumentID: checked.DocumentID, Revision: checked.Revision,
-	}, integrationActorTwo, "service-acceptance-approve"); err != nil {
+		DocumentID: checked.DocumentID, Revision: checked.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorTwo, "service-acceptance-approve")); err != nil {
 		t.Fatalf("approve service acceptance: %v", err)
 	}
 
@@ -128,7 +128,7 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 		BusinessDate: "2026-08-12", Currency: "CNY", Amount: "100.00",
 		CounterpartyType: bobdomain.EntitySalesPartner, Counterparty: &salesReference,
 		FundAccount: &refs.fundAccount, Handler: &refs.employee, OtherCategory: "COMMISSION",
-	}}, integrationActorOne, "sales-partner-payment-create")
+	}}, integrationApprovalActor(t, integrationActorOne, "sales-partner-payment-create"))
 	if err != nil {
 		t.Fatalf("create sales relationship payment: %v", err)
 	}
@@ -146,7 +146,7 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 		BusinessDate: "2026-08-10", Currency: "CNY", Amount: "100.00",
 		ServiceAcceptance: &ServiceAcceptanceInput{ContractDocumentID: latestContract.DocumentID,
 			ServiceDate: "2026-08-01", AcceptanceDate: "2026-08-10", SettlementDirection: "PAYABLE"},
-	}}, integrationActorOne, "sales-contract-acceptance-rejected"); err == nil {
+	}}, integrationApprovalActor(t, integrationActorOne, "sales-contract-acceptance-rejected")); err == nil {
 		t.Fatal("sales cooperation contract was accepted by service acceptance")
 	}
 }
@@ -154,19 +154,19 @@ func TestServiceContractsAcceptanceAndSalesContractSelectionIntegration(t *testi
 func approveServiceContractIntegration(t *testing.T, service *Service, draft DraftInput, requestPrefix string) MutationResult {
 	t.Helper()
 	created, err := service.Create(t.Context(), EntityServiceContract, CreateInput{Data: draft},
-		integrationActorOne, requestPrefix+"-create")
+		integrationApprovalActor(t, integrationActorOne, requestPrefix+"-create"))
 	if err != nil {
 		t.Fatalf("create service contract: %v (cause: %v)", err, errors.Unwrap(err))
 	}
-	checked, err := service.Check(t.Context(), EntityServiceContract, DocumentRevisionInput{
-		DocumentID: created.DocumentID, Revision: created.Revision,
-	}, integrationActorOne, requestPrefix+"-check")
+	checked, err := service.Submit(t.Context(), EntityServiceContract, DocumentRevisionInput{
+		DocumentID: created.DocumentID, Revision: created.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorOne, requestPrefix+"-submit"))
 	if err != nil {
 		t.Fatalf("check service contract: %v", err)
 	}
 	approved, err := service.Approve(t.Context(), EntityServiceContract, DocumentRevisionInput{
-		DocumentID: checked.DocumentID, Revision: checked.Revision,
-	}, integrationActorTwo, requestPrefix+"-approve")
+		DocumentID: checked.DocumentID, Revision: checked.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorTwo, requestPrefix+"-approve"))
 	if err != nil {
 		t.Fatalf("approve service contract: %v", err)
 	}

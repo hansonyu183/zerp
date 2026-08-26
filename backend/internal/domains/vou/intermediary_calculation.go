@@ -17,6 +17,7 @@ import (
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/fixeddecimal"
 	"github.com/jackc/pgx/v5"
 )
@@ -1001,8 +1002,9 @@ func (s *Service) writeIntermediaryCalculation(
 }
 
 func (s *Service) CreateIntermediaryCalculation(
-	ctx context.Context, input CreateInput, actorID, requestID string,
+	ctx context.Context, input CreateInput, actor approval.Actor,
 ) (MutationResult, error) {
+	actorID, requestID := actor.ID(), actor.RequestID()
 	if !validID(actorID) || input.ParentEntity != "" || input.ParentDocumentID != "" {
 		return MutationResult{}, domainError(ErrorValidation, "invalid intermediary calculation create", nil, nil)
 	}
@@ -1024,20 +1026,19 @@ func (s *Service) CreateIntermediaryCalculation(
 	}
 	documentID := newID()
 	documentNo := fmt.Sprintf("%s-%s-%04d", entityPrefix(EntityIntermediaryCalculation), prepared.date.Format("20060102"), counter)
+	entry, err := s.createDocumentApproval(ctx, tx, EntityIntermediaryCalculation, documentID, actor)
+	if err != nil {
+		return MutationResult{}, err
+	}
 	if err = q.InsertVouDocument(ctx, dbsqlc.InsertVouDocumentParams{
-		ID: documentID, Entity: EntityIntermediaryCalculation, DocumentNo: documentNo,
+		ID: documentID, Entity: EntityIntermediaryCalculation, DocumentNo: documentNo, ApprovalEntryID: entry.ID,
 		BusinessDate: dateValue(prepared.date), Currency: stringPtr(intermediaryCurrency),
-		TotalAmountCents: prepared.total, Remark: optionalText(input.Data.Remark), ActorID: actorID,
+		TotalAmountCents: prepared.total, Remark: optionalText(input.Data.Remark),
 	}); err != nil {
 		return MutationResult{}, s.writeError("insert intermediary calculation", err)
 	}
 	if err = s.writeIntermediaryCalculation(ctx, q, documentID, input.Data.IntermediaryCalculation, prepared, false); err != nil {
 		return MutationResult{}, s.writeError("insert intermediary calculation draft", err)
-	}
-	if err = insertAudit(ctx, q, auditInput{DocumentID: documentID, Entity: EntityIntermediaryCalculation,
-		Event: "CREATED", To: StatusDraft, ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"documentNo": documentNo, "periodEnd": prepared.date.Format(dateLayout)}}); err != nil {
-		return MutationResult{}, s.writeError("audit intermediary calculation create", err)
 	}
 	if err = s.events.Publish(ctx, tx, DocumentCreatedEvent{Entity: EntityIntermediaryCalculation,
 		DocumentID: documentID, DocumentNo: documentNo, Revision: 1, ActorID: actorID, RequestID: requestID}); err != nil {
@@ -1046,16 +1047,16 @@ func (s *Service) CreateIntermediaryCalculation(
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit intermediary calculation create", err)
 	}
-	return MutationResult{DocumentID: documentID, DocumentNo: documentNo, Status: StatusDraft, Revision: 1}, nil
+	return MutationResult{DocumentID: documentID, DocumentNo: documentNo, Approval: approval.MetaFromEntry(entry)}, nil
 }
 
 func (s *Service) SaveIntermediaryCalculation(
-	ctx context.Context, input SaveInput, actorID, requestID string,
+	ctx context.Context, input SaveInput, actor approval.Actor,
 ) (MutationResult, error) {
 	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
 		return MutationResult{}, err
 	}
-	if !validID(actorID) {
+	if !validID(actor.ID()) {
 		return MutationResult{}, domainError(ErrorValidation, "invalid actor", nil, nil)
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -1064,8 +1065,12 @@ func (s *Service) SaveIntermediaryCalculation(
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	document, err := q.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{ID: input.DocumentID, Entity: EntityIntermediaryCalculation})
+	document, err := lockDocument(ctx, tx, input.DocumentID, EntityIntermediaryCalculation)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
+		return MutationResult{}, err
+	}
+	coordinator, approvalPrepared, err := s.prepareDraftSave(ctx, tx, document, input.Revision, actor)
+	if err != nil {
 		return MutationResult{}, err
 	}
 	if err = s.requireNoIntermediaryCalculationDependents(ctx, q, input.DocumentID); err != nil {
@@ -1078,10 +1083,10 @@ func (s *Service) SaveIntermediaryCalculation(
 	if err = s.writeIntermediaryCalculation(ctx, q, input.DocumentID, input.Data.IntermediaryCalculation, prepared, true); err != nil {
 		return MutationResult{}, s.writeError("save intermediary calculation draft", err)
 	}
-	revision, err := q.UpdateVouDraft(ctx, dbsqlc.UpdateVouDraftParams{
+	_, err = q.UpdateVouDraft(ctx, dbsqlc.UpdateVouDraftParams{
 		BusinessDate: dateValue(prepared.date), Currency: stringPtr(intermediaryCurrency), TotalAmountCents: prepared.total,
-		Remark: optionalText(input.Data.Remark), ActorID: actorID, ID: input.DocumentID,
-		Entity: EntityIntermediaryCalculation, Revision: input.Revision,
+		Remark: optionalText(input.Data.Remark), ID: input.DocumentID,
+		Entity: EntityIntermediaryCalculation,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return MutationResult{}, domainError(ErrorConflict, "document changed", nil, nil)
@@ -1089,20 +1094,14 @@ func (s *Service) SaveIntermediaryCalculation(
 	if err != nil {
 		return MutationResult{}, s.writeError("update intermediary calculation", err)
 	}
-	if err = insertAudit(ctx, q, auditInput{DocumentID: input.DocumentID, Entity: EntityIntermediaryCalculation,
-		Event: "SAVED", From: stringPtr(StatusDraft), To: StatusDraft, ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"revision": revision}}); err != nil {
-		return MutationResult{}, s.writeError("audit intermediary calculation save", err)
-	}
-	if err = s.events.Publish(ctx, tx, DocumentChangedEvent{Action: "SAVED", Entity: EntityIntermediaryCalculation,
-		DocumentID: document.ID, DocumentNo: document.DocumentNo, Status: StatusDraft, Revision: revision,
-		ActorID: actorID, RequestID: requestID}); err != nil {
-		return MutationResult{}, s.eventError("publish intermediary calculation saved", err)
+	entry, err := s.commitDraftSave(ctx, tx, q, document, coordinator, approvalPrepared)
+	if err != nil {
+		return MutationResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit intermediary calculation save", err)
 	}
-	return MutationResult{DocumentID: document.ID, DocumentNo: document.DocumentNo, Status: StatusDraft, Revision: revision}, nil
+	return MutationResult{DocumentID: document.ID, DocumentNo: document.DocumentNo, Approval: approval.MetaFromEntry(entry)}, nil
 }
 
 func (s *Service) requireNoIntermediaryCalculationDependents(

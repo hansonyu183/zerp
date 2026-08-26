@@ -703,7 +703,7 @@ func (s *Service) insertResolvedBillLines(ctx context.Context, q *dbsqlc.Queries
 	return nil
 }
 
-func (s *Service) loadBillData(ctx context.Context, q *dbsqlc.Queries, document dbsqlc.VouDocument, data DocumentDataView) (DocumentDataView, error) {
+func (s *Service) loadBillData(ctx context.Context, q *dbsqlc.Queries, document documentRecord, data DocumentDataView) (DocumentDataView, error) {
 	d, err := q.GetVouBillDetail(ctx, document.ID)
 	if err != nil {
 		return data, err

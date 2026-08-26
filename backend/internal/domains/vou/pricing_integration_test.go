@@ -6,15 +6,15 @@ import "testing"
 
 func approvePricingDocument(t *testing.T, service *Service, entity string, draft DraftInput) MutationResult {
 	t.Helper()
-	created, err := service.Create(t.Context(), entity, CreateInput{Data: draft}, integrationActorOne, "pricing-create")
+	created, err := service.Create(t.Context(), entity, CreateInput{Data: draft}, integrationApprovalActor(t, integrationActorOne, "pricing-create"))
 	if err != nil {
 		t.Fatalf("create %s: %v", entity, err)
 	}
-	checked, err := service.Check(t.Context(), entity, DocumentRevisionInput{DocumentID: created.DocumentID, Revision: created.Revision}, integrationActorOne, "pricing-check")
+	checked, err := service.Submit(t.Context(), entity, DocumentRevisionInput{DocumentID: created.DocumentID, Revision: created.Approval.Revision}, integrationApprovalActor(t, integrationActorOne, "pricing-check"))
 	if err != nil {
 		t.Fatalf("check %s: %v", entity, err)
 	}
-	approved, err := service.Approve(t.Context(), entity, DocumentRevisionInput{DocumentID: created.DocumentID, Revision: checked.Revision}, integrationActorTwo, "pricing-approve")
+	approved, err := service.Approve(t.Context(), entity, DocumentRevisionInput{DocumentID: created.DocumentID, Revision: checked.Approval.Revision}, integrationApprovalActor(t, integrationActorTwo, "pricing-approve"))
 	if err != nil {
 		t.Fatalf("approve %s: %v", entity, err)
 	}
@@ -62,7 +62,7 @@ func TestPricingReferencesAndZeroOrderIntegration(t *testing.T) {
 		BusinessDate: "2026-07-19", Currency: "CNY", Supplier: &refs.supplier,
 		Warehouse:    &refs.warehouse,
 		ProductLines: []ProductLineInput{integrationProductLine(t, refs.product, "2", "0.00")},
-	}}, integrationActorOne, "zero-order-create")
+	}}, integrationApprovalActor(t, integrationActorOne, "zero-order-create"))
 	if err != nil {
 		t.Fatalf("create zero-price order: %v", err)
 	}
@@ -72,21 +72,21 @@ func TestPricingReferencesAndZeroOrderIntegration(t *testing.T) {
 		view.Data.ProductLines[0].ReferenceDocumentID != "" {
 		t.Fatalf("zero order=%+v err=%v", view, err)
 	}
-	checked, err := service.Check(t.Context(), EntityPurchaseOrder, DocumentRevisionInput{
-		DocumentID: zeroOrder.DocumentID, Revision: zeroOrder.Revision,
-	}, integrationActorOne, "zero-order-check")
+	checked, err := service.Submit(t.Context(), EntityPurchaseOrder, DocumentRevisionInput{
+		DocumentID: zeroOrder.DocumentID, Revision: zeroOrder.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorOne, "zero-order-check"))
 	if err != nil {
 		t.Fatalf("check zero-price order: %v", err)
 	}
 	if _, err = service.Approve(t.Context(), EntityPurchaseOrder, DocumentRevisionInput{
-		DocumentID: zeroOrder.DocumentID, Revision: checked.Revision,
-	}, integrationActorTwo, "zero-order-approve"); err != nil {
+		DocumentID: zeroOrder.DocumentID, Revision: checked.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorTwo, "zero-order-approve")); err != nil {
 		t.Fatalf("approve zero-price order: %v", err)
 	}
 	inbound, err := service.CreatePurchaseInbound(t.Context(), CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-19", SourceDocumentID: zeroOrder.DocumentID, Warehouse: &refs.warehouse,
 		SourceLines: []SourceQuantityLineInput{{SourceLineID: view.Data.ProductLines[0].LineID, BaseQuantity: "2"}},
-	}}, integrationActorOne, "zero-inbound-create")
+	}}, integrationApprovalActor(t, integrationActorOne, "zero-inbound-create"))
 	if err != nil {
 		t.Fatalf("create zero-price inbound: %v", err)
 	}

@@ -69,13 +69,15 @@ SELECT * FROM vou_service_contract_details WHERE document_id=sqlc.arg(document_i
 SELECT contract.*
 FROM vou_service_contract_details contract
 JOIN vou_documents document ON document.id=contract.document_id
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+  AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
 WHERE contract.counterparty_entity='sales-partner'
   AND contract.counterparty_object_id=sqlc.arg(sales_partner_object_id)
-  AND document.entity='service-contract' AND document.status='APPROVED'
+  AND document.entity='service-contract' AND approval.status='APPROVED'
   AND sqlc.arg(capability)::text=ANY(contract.capabilities)
   AND contract.applicable_from<=sqlc.arg(business_date)::date
   AND (contract.applicable_to IS NULL OR contract.applicable_to>=sqlc.arg(business_date)::date)
-ORDER BY contract.applicable_from DESC,document.approved_at DESC,contract.document_id DESC
+ORDER BY contract.applicable_from DESC,approval.approved_at DESC,contract.document_id DESC
 LIMIT 1;
 
 -- name: InsertVouServiceAcceptanceDetail :exec
@@ -98,22 +100,26 @@ WHERE document_id=sqlc.arg(document_id);
 SELECT * FROM vou_service_acceptance_details WHERE document_id=sqlc.arg(document_id);
 
 -- name: LockVouServiceAcceptanceContract :one
-SELECT document.id,document.status,contract.counterparty_entity
+SELECT document.id,approval.status,contract.counterparty_entity
 FROM vou_documents document JOIN vou_service_contract_details contract ON contract.document_id=document.id
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+  AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
 WHERE document.id=sqlc.arg(contract_document_id) AND document.entity='service-contract'
 FOR UPDATE OF document,contract;
 
 -- name: FindLatestApplicableSalesContractSnapshot :one
-SELECT contract.document_id,document.revision AS document_revision,
+SELECT contract.document_id,approval.revision AS document_revision,
        contract.applicable_from,contract.applicable_to,contract.contract_terms
 FROM vou_service_contract_details contract
 JOIN vou_documents document ON document.id=contract.document_id
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+  AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
 WHERE contract.counterparty_entity='sales-partner'
   AND contract.counterparty_object_id=sqlc.arg(sales_partner_object_id)
-  AND document.entity='service-contract' AND document.status='APPROVED'
+  AND document.entity='service-contract' AND approval.status='APPROVED'
   AND sqlc.arg(capability)::text=ANY(contract.capabilities)
   AND contract.applicable_from<=sqlc.arg(business_date)::date
   AND (contract.applicable_to IS NULL OR contract.applicable_to>=sqlc.arg(business_date)::date)
-ORDER BY contract.applicable_from DESC,document.approved_at DESC,contract.document_id DESC
+ORDER BY contract.applicable_from DESC,approval.approved_at DESC,contract.document_id DESC
 LIMIT 1
 FOR SHARE OF contract,document;

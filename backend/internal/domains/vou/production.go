@@ -11,6 +11,7 @@ import (
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -66,8 +67,9 @@ func (s *Service) CreateProduction(
 	ctx context.Context,
 	entity string,
 	input CreateInput,
-	actorID, requestID string,
+	actor approval.Actor,
 ) (MutationResult, error) {
+	actorID, requestID := actor.ID(), actor.RequestID()
 	if !isProductionEntity(entity) || !validID(actorID) {
 		return MutationResult{}, domainError(ErrorValidation, "invalid production create request", nil, nil)
 	}
@@ -91,7 +93,7 @@ func (s *Service) CreateProduction(
 		return MutationResult{}, s.internal("begin production create", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	draft, err := s.prepareProductionDraft(ctx, tx, entity, parentID, "", input.Data)
+	draft, err := s.prepareProductionDraft(ctx, tx, entity, parentID, "", input.Data, nil)
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -109,24 +111,21 @@ func (s *Service) CreateProduction(
 	documentNo := fmt.Sprintf(
 		"%s-%s-%04d", entityPrefix(entity), draft.BusinessDate.Format("20060102"), counter,
 	)
+	entry, err := s.createDocumentApproval(ctx, tx, entity, documentID, actor)
+	if err != nil {
+		return MutationResult{}, err
+	}
 	_, err = tx.Exec(ctx, `INSERT INTO vou_documents(
-		id,entity,document_no,business_date,currency,total_amount_cents,remark,
-		parent_entity,parent_document_id,created_by,updated_by
-	) VALUES($1,$2,$3,$4,NULL,0,$5,$6,$7,$8,$8)`,
-		documentID, entity, documentNo, draft.BusinessDate, draft.Remark,
-		nullableString(parentEntity), nullableString(parentID), actorID)
+		id,entity,document_no,approval_entry_id,business_date,currency,total_amount_cents,remark,
+		parent_entity,parent_document_id
+	) VALUES($1,$2,$3,$4,$5,NULL,0,$6,$7,$8)`,
+		documentID, entity, documentNo, entry.ID, draft.BusinessDate, draft.Remark,
+		nullableString(parentEntity), nullableString(parentID))
 	if err != nil {
 		return MutationResult{}, s.writeError("insert production document", err)
 	}
 	if err = s.insertProductionDraft(ctx, tx, entity, documentID, draft); err != nil {
 		return MutationResult{}, err
-	}
-	if err = insertAudit(ctx, q, auditInput{
-		DocumentID: documentID, Entity: entity, Event: "CREATED", To: StatusDraft,
-		ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"documentNo": documentNo},
-	}); err != nil {
-		return MutationResult{}, s.writeError("audit production create", err)
 	}
 	if err = s.events.Publish(ctx, tx, DocumentCreatedEvent{
 		Entity: entity, DocumentID: documentID, DocumentNo: documentNo, Revision: 1,
@@ -139,7 +138,7 @@ func (s *Service) CreateProduction(
 		return MutationResult{}, s.writeError("commit production create", err)
 	}
 	return MutationResult{
-		DocumentID: documentID, DocumentNo: documentNo, Status: StatusDraft, Revision: 1,
+		DocumentID: documentID, DocumentNo: documentNo, Approval: approval.MetaFromEntry(entry),
 	}, nil
 }
 
@@ -147,7 +146,7 @@ func (s *Service) SaveProduction(
 	ctx context.Context,
 	entity string,
 	input SaveInput,
-	actorID, requestID string,
+	actor approval.Actor,
 ) (MutationResult, error) {
 	if !isProductionEntity(entity) {
 		return MutationResult{}, domainError(ErrorValidation, "invalid production entity", nil, nil)
@@ -161,17 +160,23 @@ func (s *Service) SaveProduction(
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	document, err := q.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{
-		ID: input.DocumentID, Entity: entity,
-	})
+	document, err := lockDocument(ctx, tx, input.DocumentID, entity)
 	if err = documentWriteConflict(
 		err, document.Revision, input.Revision, document.Status, StatusDraft,
 	); err != nil {
 		return MutationResult{}, err
 	}
+	coordinator, prepared, err := s.prepareDraftSave(ctx, tx, document, input.Revision, actor)
+	if err != nil {
+		return MutationResult{}, err
+	}
 	parentID := deref(document.ParentDocumentID)
+	saved, err := s.loadData(ctx, q, document)
+	if err != nil {
+		return MutationResult{}, err
+	}
 	draft, err := s.prepareProductionDraft(
-		ctx, tx, entity, parentID, input.DocumentID, input.Data,
+		ctx, tx, entity, parentID, input.DocumentID, input.Data, &saved,
 	)
 	if err != nil {
 		return MutationResult{}, err
@@ -204,40 +209,23 @@ func (s *Service) SaveProduction(
 	if err = s.insertProductionLines(ctx, tx, input.DocumentID, draft.Outputs); err != nil {
 		return MutationResult{}, err
 	}
-	var revision int64
-	err = tx.QueryRow(ctx, `UPDATE vou_documents SET
-		business_date=$1,currency=NULL,total_amount_cents=0,remark=$2,
-		revision=revision+1,updated_at=now(),updated_by=$3
-		WHERE id=$4 AND entity=$5 AND revision=$6 AND status='DRAFT'
-		RETURNING revision`,
-		draft.BusinessDate, draft.Remark, actorID, input.DocumentID, entity, input.Revision,
-	).Scan(&revision)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return MutationResult{}, domainError(ErrorConflict, "document changed", nil, err)
-	}
+	_, err = tx.Exec(ctx, `UPDATE vou_documents SET
+		business_date=$1,currency=NULL,total_amount_cents=0,remark=$2
+		WHERE id=$3 AND entity=$4`,
+		draft.BusinessDate, draft.Remark, input.DocumentID, entity)
 	if err != nil {
 		return MutationResult{}, s.writeError("update production draft", err)
 	}
-	if err = insertAudit(ctx, q, auditInput{
-		DocumentID: input.DocumentID, Entity: entity, Event: "SAVED",
-		From: stringPtr(StatusDraft), To: StatusDraft, ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"revision": revision},
-	}); err != nil {
-		return MutationResult{}, s.writeError("audit production save", err)
-	}
-	if err = s.events.Publish(ctx, tx, DocumentChangedEvent{
-		Action: "SAVED", Entity: entity, DocumentID: document.ID,
-		DocumentNo: document.DocumentNo, Status: StatusDraft, Revision: revision,
-		ActorID: actorID, RequestID: requestID,
-	}); err != nil {
-		return MutationResult{}, s.eventError("publish production saved", err)
+	entry, err := s.commitDraftSave(ctx, tx, q, document, coordinator, prepared)
+	if err != nil {
+		return MutationResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit production save", err)
 	}
 	return MutationResult{
 		DocumentID: input.DocumentID, DocumentNo: document.DocumentNo,
-		Status: StatusDraft, Revision: revision,
+		Approval: approval.MetaFromEntry(entry),
 	}, nil
 }
 
@@ -246,6 +234,7 @@ func (s *Service) prepareProductionDraft(
 	tx pgx.Tx,
 	entity, parentID, excludedDocumentID string,
 	input DraftInput,
+	saved *DocumentDataView,
 ) (fixedProductionDraft, error) {
 	if strings.TrimSpace(input.Currency) != "" || input.Customer != nil || input.Supplier != nil ||
 		input.Counterparty != nil || input.Employee != nil || input.Salesperson != nil ||
@@ -277,15 +266,20 @@ func (s *Service) prepareProductionDraft(
 			ErrorValidation, "productionLines must contain 1 to 200 items", nil, nil,
 		)
 	}
-	materialWarehouse, err := s.resolveReference(
-		ctx, tx, bobdomain.EntityWarehouse, input.MaterialWarehouse,
-	)
+	var savedMaterialWarehouse, savedFinishedWarehouse *bobdomain.EffectiveReference
+	if saved != nil && saved.MaterialWarehouse != nil {
+		savedMaterialWarehouse = &bobdomain.EffectiveReference{ObjectID: saved.MaterialWarehouse.ObjectID, ApprovalEntryID: saved.MaterialWarehouse.ApprovalEntryID}
+	}
+	if saved != nil && saved.FinishedWarehouse != nil {
+		savedFinishedWarehouse = &bobdomain.EffectiveReference{ObjectID: saved.FinishedWarehouse.ObjectID, ApprovalEntryID: saved.FinishedWarehouse.ApprovalEntryID}
+	}
+	materialWarehouse, err := s.resolveSelectedReference(ctx, tx, bobdomain.EntityWarehouse,
+		input.MaterialWarehouse, savedMaterialWarehouse, saved == nil)
 	if err != nil {
 		return fixedProductionDraft{}, err
 	}
-	finishedWarehouse, err := s.resolveReference(
-		ctx, tx, bobdomain.EntityWarehouse, input.FinishedWarehouse,
-	)
+	finishedWarehouse, err := s.resolveSelectedReference(ctx, tx, bobdomain.EntityWarehouse,
+		input.FinishedWarehouse, savedFinishedWarehouse, saved == nil)
 	if err != nil {
 		return fixedProductionDraft{}, err
 	}
@@ -301,8 +295,10 @@ func (s *Service) prepareProductionDraft(
 			)
 		}
 		var status string
-		if err = tx.QueryRow(ctx, `SELECT status FROM vou_documents
-			WHERE id=$1 AND entity='sale-order' FOR UPDATE`, parentID).Scan(&status); err != nil {
+		if err = tx.QueryRow(ctx, `SELECT a.status FROM vou_documents d
+			JOIN approval_entries a ON a.id=d.approval_entry_id AND a.domain='vou'
+				AND a.entity=d.entity AND a.subject_id=d.id
+			WHERE d.id=$1 AND d.entity='sale-order' FOR UPDATE OF d,a`, parentID).Scan(&status); err != nil {
 			return fixedProductionDraft{}, domainError(
 				ErrorConflict, "production source order is unavailable", nil, err,
 			)
@@ -763,7 +759,7 @@ func (s *Service) insertProductionLines(
 
 func (s *Service) loadProductionData(
 	ctx context.Context,
-	document dbsqlc.VouDocument,
+	document documentRecord,
 	data DocumentDataView,
 ) (DocumentDataView, error) {
 	var material, finished ReferenceView

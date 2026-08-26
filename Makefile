@@ -9,8 +9,10 @@ DEV_COMPOSE = $(COMPOSE) -f compose.yaml -f compose.dev.yaml
 .PHONY: bootstrap dev dev-down generate generate-check check check-common check-contracts check-frontend check-frontend-fast check-e2e-constraints check-backend check-backend-fast check-containers check-runtime check-shell test e2e build compose-up compose-down
 
 bootstrap:
-	command -v corepack >/dev/null 2>&1 || npm install --global corepack@$(COREPACK_VERSION)
-	corepack enable
+	@if ! command -v pnpm >/dev/null 2>&1; then \
+		command -v corepack >/dev/null 2>&1 || npm install --global corepack@$(COREPACK_VERSION); \
+		corepack enable; \
+	fi
 	pnpm install --frozen-lockfile
 	go -C backend mod download
 	go -C backend/tools mod download

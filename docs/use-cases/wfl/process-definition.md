@@ -6,7 +6,7 @@
 
 ## 主流程
 
-1. 页面查询定义，选择最新已批准 entry、唯一开放候选或历史中的精确 `approvalEntryId`，展示脚本、诊断和只读编译图。
+1. 页面查询定义时，每个 stable definition 只显示唯一开放候选（`DRAFT`/`PENDING`）或没有候选时的最新已批准 entry；名称取该 entry 的编译图。选择历史中的精确 `approvalEntryId` 时展示该版本脚本、名称、诊断和只读编译图。
 2. 管理员创建定义会得到 V1 DRAFT；保存时提交 definitionId、approvalEntryId、当前 Approval revision 和完整脚本。冲突时重新读取该 entry，不覆盖服务端草稿。
 3. 已批准定义要修改时，管理员创建下一候选版本；页面可读取 versions，DRAFT 候选可删除。候选不影响正在运行的实例。
 4. 管理员输入存在的 VOU entity 和 documentId 试算当前 DRAFT entry。页面展示命中轨迹、计划动作和未覆盖分支，不搜索或展示 VOU 正文。

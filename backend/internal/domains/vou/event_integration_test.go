@@ -135,21 +135,19 @@ func TestVOUApprovalEventsCommitAndRouteExactlyIntegration(t *testing.T) {
 	bus := txevent.NewBus()
 	var wrongTopicCalls atomic.Int32
 	if err := ApprovalTopic(EntitySaleOrder).Subscribe(bus, "wrong-document-type",
-		func(context.Context, pgx.Tx, approval.Event[DocumentView]) error {
+		func(context.Context, pgx.Tx, approval.Event[ApprovalPayload]) error {
 			wrongTopicCalls.Add(1)
 			return nil
 		}); err != nil {
 		t.Fatalf("subscribe wrong document type: %v", err)
 	}
 	if err := ApprovalTopic(EntitySalesReceipt).Subscribe(bus, "ledger",
-		func(ctx context.Context, tx pgx.Tx, event approval.Event[DocumentView]) error {
+		func(ctx context.Context, tx pgx.Tx, event approval.Event[ApprovalPayload]) error {
 			if event.Action != approval.ActionApproved {
 				return nil
 			}
 			if event.Action != approval.ActionApproved || event.ToStatus == nil || *event.ToStatus != approval.StatusApproved ||
 				event.ToRevision == nil || event.Payload.DocumentID != event.Entry.SubjectID ||
-				event.Payload.Approval.Status != approval.StatusApproved ||
-				event.Payload.Approval.Revision != *event.ToRevision ||
 				event.Payload.Data.BusinessDate != "2026-07-24" || event.Payload.Data.FundAccount == nil ||
 				event.Payload.Data.Counterparty == nil || event.Payload.Amount != "100.00" {
 				return errors.New("approved event does not carry the complete typed document snapshot")
@@ -176,7 +174,7 @@ func TestVOUApprovalEventsCommitAndRouteExactlyIntegration(t *testing.T) {
 		t.Fatalf("subscribe approval: %v", err)
 	}
 	if err := ApprovalTopic(EntitySalesReceipt).Subscribe(bus, "ledger-reversal",
-		func(ctx context.Context, tx pgx.Tx, event approval.Event[DocumentView]) error {
+		func(ctx context.Context, tx pgx.Tx, event approval.Event[ApprovalPayload]) error {
 			if event.Action != approval.ActionUnapproved {
 				return nil
 			}
@@ -184,7 +182,7 @@ func TestVOUApprovalEventsCommitAndRouteExactlyIntegration(t *testing.T) {
 				event.FromStatus == nil || *event.FromStatus != approval.StatusApproved ||
 				event.ToStatus == nil || *event.ToStatus != approval.StatusPending ||
 				event.FromRevision == nil || event.ToRevision == nil || *event.FromRevision+1 != *event.ToRevision ||
-				event.Payload.Approval.Status != approval.StatusApproved || event.Payload.Data.FundAccount == nil {
+				event.Payload.Data.FundAccount == nil {
 				return errors.New("unexpected unapproved central Approval event")
 			}
 			_, err := tx.Exec(ctx, `
@@ -227,7 +225,7 @@ func TestVOUApprovedSubscriberFailureAndPanicRollBackIntegration(t *testing.T) {
 	bus := txevent.NewBus()
 	var calls atomic.Int32
 	if err := ApprovalTopic(EntitySalesReceipt).Subscribe(bus, "first-writer",
-		func(ctx context.Context, tx pgx.Tx, event approval.Event[DocumentView]) error {
+		func(ctx context.Context, tx pgx.Tx, event approval.Event[ApprovalPayload]) error {
 			if event.Action != approval.ActionApproved {
 				return nil
 			}
@@ -240,7 +238,7 @@ func TestVOUApprovedSubscriberFailureAndPanicRollBackIntegration(t *testing.T) {
 		t.Fatalf("subscribe first writer: %v", err)
 	}
 	if err := ApprovalTopic(EntitySalesReceipt).Subscribe(bus, "closed-period",
-		func(_ context.Context, _ pgx.Tx, event approval.Event[DocumentView]) error {
+		func(_ context.Context, _ pgx.Tx, event approval.Event[ApprovalPayload]) error {
 			if event.Action != approval.ActionApproved {
 				return nil
 			}
@@ -250,7 +248,7 @@ func TestVOUApprovedSubscriberFailureAndPanicRollBackIntegration(t *testing.T) {
 		t.Fatalf("subscribe rejector: %v", err)
 	}
 	if err := ApprovalTopic(EntitySalesReceipt).Subscribe(bus, "must-not-run",
-		func(_ context.Context, _ pgx.Tx, event approval.Event[DocumentView]) error {
+		func(_ context.Context, _ pgx.Tx, event approval.Event[ApprovalPayload]) error {
 			if event.Action != approval.ActionApproved {
 				return nil
 			}
@@ -283,7 +281,7 @@ func TestVOUApprovedSubscriberFailureAndPanicRollBackIntegration(t *testing.T) {
 
 	failingBus := txevent.NewBus()
 	if subscribeErr := ApprovalTopic(EntitySalesReceipt).Subscribe(failingBus, "database-failure",
-		func(context.Context, pgx.Tx, approval.Event[DocumentView]) error {
+		func(context.Context, pgx.Tx, approval.Event[ApprovalPayload]) error {
 			return errors.New("downstream database unavailable")
 		}); subscribeErr != nil {
 		t.Fatalf("subscribe ordinary failure: %v", subscribeErr)
@@ -300,7 +298,7 @@ func TestVOUApprovedSubscriberFailureAndPanicRollBackIntegration(t *testing.T) {
 
 	panicBus := txevent.NewBus()
 	if subscribeErr := ApprovalTopic(EntitySalesReceipt).Subscribe(panicBus, "panicking-consumer",
-		func(context.Context, pgx.Tx, approval.Event[DocumentView]) error {
+		func(context.Context, pgx.Tx, approval.Event[ApprovalPayload]) error {
 			panic("consumer invariant failed")
 		}); subscribeErr != nil {
 		t.Fatalf("subscribe panicking consumer: %v", subscribeErr)
@@ -337,7 +335,7 @@ func TestVOUUnapprovedSubscriberFailureRestoresApprovalIntegration(t *testing.T)
 
 	bus := txevent.NewBus()
 	if err := ApprovalTopic(EntitySalesReceipt).Subscribe(bus, "reversal-writer",
-		func(ctx context.Context, tx pgx.Tx, event approval.Event[DocumentView]) error {
+		func(ctx context.Context, tx pgx.Tx, event approval.Event[ApprovalPayload]) error {
 			if event.Action != approval.ActionUnapproved {
 				return nil
 			}
@@ -349,7 +347,7 @@ func TestVOUUnapprovedSubscriberFailureRestoresApprovalIntegration(t *testing.T)
 		t.Fatalf("subscribe reversal writer: %v", err)
 	}
 	if err := ApprovalTopic(EntitySalesReceipt).Subscribe(bus, "reversal-failure",
-		func(_ context.Context, _ pgx.Tx, event approval.Event[DocumentView]) error {
+		func(_ context.Context, _ pgx.Tx, event approval.Event[ApprovalPayload]) error {
 			if event.Action != approval.ActionUnapproved {
 				return nil
 			}

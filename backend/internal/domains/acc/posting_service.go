@@ -43,7 +43,7 @@ type automaticPostingLine struct {
 type vouApprovalDelivery struct {
 	Entity, DocumentID, DocumentNo string
 	Revision                       int64
-	Snapshot                       voudomain.DocumentView
+	Snapshot                       voudomain.ApprovalPayload
 }
 
 func (s *Service) RegisterSubscriptions(bus *txevent.Bus) error {
@@ -58,7 +58,7 @@ func (s *Service) RegisterSubscriptions(bus *txevent.Bus) error {
 	return nil
 }
 
-func (s *Service) HandleApprovalEvent(ctx context.Context, tx pgx.Tx, event approval.Event[voudomain.DocumentView]) error {
+func (s *Service) HandleApprovalEvent(ctx context.Context, tx pgx.Tx, event approval.Event[voudomain.ApprovalPayload]) error {
 	switch event.Action {
 	case approval.ActionApproved:
 		return s.HandleDocumentApproved(ctx, tx, event)
@@ -69,31 +69,27 @@ func (s *Service) HandleApprovalEvent(ctx context.Context, tx pgx.Tx, event appr
 	}
 }
 
-func approvedDelivery(event approval.Event[voudomain.DocumentView]) (vouApprovalDelivery, bool) {
+func approvedDelivery(event approval.Event[voudomain.ApprovalPayload]) (vouApprovalDelivery, bool) {
 	snapshot := event.Payload
 	if event.ToRevision == nil || event.ToStatus == nil || *event.ToStatus != approval.StatusApproved ||
-		event.Entry.Domain != "vou" || snapshot.DocumentID != event.Entry.SubjectID || snapshot.Entity != event.Entry.Entity ||
-		snapshot.Approval.Status != approval.StatusApproved ||
-		snapshot.Approval.Revision != *event.ToRevision {
+		event.Entry.Domain != "vou" || snapshot.DocumentID != event.Entry.SubjectID || snapshot.Entity != event.Entry.Entity {
 		return vouApprovalDelivery{}, false
 	}
 	return vouApprovalDelivery{Entity: snapshot.Entity, DocumentID: snapshot.DocumentID,
 		DocumentNo: snapshot.DocumentNo, Revision: *event.ToRevision, Snapshot: snapshot}, true
 }
 
-func unapprovedDelivery(event approval.Event[voudomain.DocumentView]) (vouApprovalDelivery, bool) {
+func unapprovedDelivery(event approval.Event[voudomain.ApprovalPayload]) (vouApprovalDelivery, bool) {
 	snapshot := event.Payload
 	if event.FromRevision == nil || event.FromStatus == nil || *event.FromStatus != approval.StatusApproved ||
-		event.Entry.Domain != "vou" || snapshot.DocumentID != event.Entry.SubjectID || snapshot.Entity != event.Entry.Entity ||
-		snapshot.Approval.Status != approval.StatusApproved ||
-		snapshot.Approval.Revision != *event.FromRevision {
+		event.Entry.Domain != "vou" || snapshot.DocumentID != event.Entry.SubjectID || snapshot.Entity != event.Entry.Entity {
 		return vouApprovalDelivery{}, false
 	}
 	return vouApprovalDelivery{Entity: snapshot.Entity, DocumentID: snapshot.DocumentID,
 		DocumentNo: snapshot.DocumentNo, Revision: *event.FromRevision, Snapshot: snapshot}, true
 }
 
-func (s *Service) HandleDocumentApproved(ctx context.Context, tx pgx.Tx, source approval.Event[voudomain.DocumentView]) error {
+func (s *Service) HandleDocumentApproved(ctx context.Context, tx pgx.Tx, source approval.Event[voudomain.ApprovalPayload]) error {
 	event, ok := approvedDelivery(source)
 	if !ok {
 		return txevent.Reject("invalid VOU approval snapshot", nil)
@@ -102,7 +98,7 @@ func (s *Service) HandleDocumentApproved(ctx context.Context, tx pgx.Tx, source 
 	if err != nil {
 		return txevent.Reject("invalid VOU accounting business date", nil)
 	}
-	snapshot, err := newPostingSnapshot(event.Snapshot)
+	snapshot, err := newPostingSnapshot(event.Snapshot, approval.StatusApproved, event.Revision)
 	if err != nil {
 		return err
 	}
@@ -484,10 +480,10 @@ func validateAutomaticTrialBalance(lines []automaticPostingLine) error {
 	return nil
 }
 
-func newPostingSnapshot(document voudomain.DocumentView) (postingSnapshot, error) {
+func newPostingSnapshot(document voudomain.ApprovalPayload, status approval.Status, revision int64) (postingSnapshot, error) {
 	result := postingSnapshot{header: map[string]string{
 		"documentId": document.DocumentID, "documentNo": document.DocumentNo, "entity": document.Entity,
-		"status": string(document.Approval.Status), "revision": strconv.FormatInt(document.Approval.Revision, 10), "amount": document.Amount,
+		"status": string(status), "revision": strconv.FormatInt(revision, 10), "amount": document.Amount,
 		"totalAmount": document.Amount, "parentEntity": document.ParentEntity, "parentDocumentId": document.ParentDocumentID,
 	}, collections: map[string][]map[string]string{}}
 	encoded, err := json.Marshal(document.Data)
@@ -555,7 +551,7 @@ func flattenSnapshotValue(target map[string]string, prefix string, value any) {
 	}
 }
 
-func (s *Service) HandleDocumentUnapproved(ctx context.Context, tx pgx.Tx, source approval.Event[voudomain.DocumentView]) error {
+func (s *Service) HandleDocumentUnapproved(ctx context.Context, tx pgx.Tx, source approval.Event[voudomain.ApprovalPayload]) error {
 	event, ok := unapprovedDelivery(source)
 	if !ok {
 		return txevent.Reject("invalid VOU unapproval snapshot", nil)

@@ -241,7 +241,7 @@ func (s *Service) Create(ctx context.Context, entity string, input CreateInput, 
 		data, err = s.resolveFundAccountOperating(ctx, tx, data)
 	}
 	if err == nil && entity == EntityProduct {
-		data, err = s.resolveProductReferences(ctx, tx, data, true)
+		data, err = s.resolveProductReferences(ctx, tx, data, true, false)
 	}
 	if err != nil {
 		return MutationResult{}, err
@@ -306,7 +306,9 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 		return MutationResult{}, domainErrorWithKey(ErrorConflict, "approval_stale_revision", "approval entry changed", nil, nil)
 	}
 	target := approvalEntry(entry)
+	createdCandidate := false
 	if approval.Status(entry.Status) == approval.StatusApproved {
+		createdCandidate = true
 		target, err = s.createNextApproval(ctx, tx, entity, input.ObjectID, object.Code, object.Enabled, actor)
 		if err != nil {
 			return MutationResult{}, translateApprovalError(err)
@@ -329,7 +331,7 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 		data, err = s.resolveFundAccountOperating(ctx, tx, data)
 	}
 	if err == nil && entity == EntityProduct {
-		data, err = s.resolveProductReferences(ctx, tx, data, true)
+		data, err = s.resolveProductReferences(ctx, tx, data, true, createdCandidate)
 	}
 	if err != nil {
 		return MutationResult{}, err

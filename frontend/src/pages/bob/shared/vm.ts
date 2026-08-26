@@ -204,8 +204,14 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     return data
   }
 
-  async function loadEffectiveView(_view: BobObjectView): Promise<void> {
-    effectiveView.value = null
+  async function loadEffectiveView(
+    view: BobObjectView,
+    latestApprovedEntryId?: string,
+  ): Promise<void> {
+    effectiveView.value =
+      view.approval.status !== 'APPROVED' && latestApprovedEntryId
+        ? await getObject(view, latestApprovedEntryId)
+        : null
   }
 
   function openCreate(): void {
@@ -232,7 +238,10 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     try {
       const view = await getObject(row, approvalEntryId)
       currentView.value = view
-      await loadEffectiveView(view)
+      await loadEffectiveView(
+        view,
+        row.latestApproved?.approval.approvalEntryId,
+      )
       editorModel.value = bobFormFromView(config, view)
       editorResetKey.value += 1
       drawerOpen.value = true
@@ -256,7 +265,10 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
       const approvalEntryId = bobListActiveVersion(row).approval.approvalEntryId
       const view = await getObject(row, approvalEntryId)
       currentView.value = view
-      await loadEffectiveView(view)
+      await loadEffectiveView(
+        view,
+        row.latestApproved?.approval.approvalEntryId,
+      )
       editContext.value = {
         objectId: row.objectId,
         objectRevision: row.objectRevision,

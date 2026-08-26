@@ -41,7 +41,7 @@ _Rules_: [Approval 授权](docs/domains/approval.md#4-授权与事务边界)
 **Continuous Effectiveness（连续生效）**:
 已有有效版本的主数据在候选变更期间继续以最后有效版本供业务使用，候选审核后一次切换；只有显式停用才立即阻止新引用。
 _Avoid_: 编辑即停用、候选待审期间无可用版本、逐页面决定变更期是否可用
-_Rules_: [BOB 连续生效](docs/domains/bob.md#42-草稿编辑连续生效与历史版本冻结)、[AUX Approval 生命周期](docs/domains/aux.md#2-approval--versioning-生命周期)、[APP 菜单模板](docs/domains/app.md#39-菜单模板)
+_Rules_: [BOB 候选换版](docs/domains/bob.md#42-草稿编辑候选换版与历史版本冻结)、[AUX Approval 生命周期](docs/domains/aux.md#2-approval--versioning-生命周期)、[APP 菜单模板](docs/domains/app.md#39-菜单模板)
 
 **Party（主体）**:
 现实中的个人或组织，是名称、身份标识和联系资料等共享身份事实的唯一根；同一主体可以同时拥有多种业务关系。

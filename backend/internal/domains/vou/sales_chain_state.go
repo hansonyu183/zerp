@@ -558,7 +558,7 @@ func (s *Service) Delete(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	if err = coordinator.DeleteSubject(ctx, tx, document.ApprovalEntryID, input.Revision, actor, DocumentView{}); err != nil {
+	if err = coordinator.DeleteSubject(ctx, tx, document.ApprovalEntryID, input.Revision, actor, ApprovalPayload{}); err != nil {
 		return MutationResult{}, mapApprovalError(err)
 	}
 	if err = tx.Commit(ctx); err != nil {

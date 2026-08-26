@@ -222,6 +222,62 @@ func (q *Queries) CountBobApprovalEvents(ctx context.Context, arg CountBobApprov
 	return count, err
 }
 
+const countBobCustomerAccounts = `-- name: CountBobCustomerAccounts :one
+SELECT count(*)
+FROM bob_customer_accounts account
+JOIN bob_objects object ON object.id=account.object_id AND object.entity='customer-account'
+JOIN bob_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id
+LEFT JOIN LATERAL (
+  SELECT entry.id,entry.status FROM approval_entries entry
+  WHERE entry.domain='bob' AND entry.entity='customer-account' AND entry.subject_id=object.id AND entry.status='APPROVED'
+  ORDER BY entry.version_no DESC LIMIT 1
+) approved_entry ON true
+LEFT JOIN LATERAL (
+  SELECT entry.id,entry.status FROM approval_entries entry
+  WHERE entry.domain='bob' AND entry.entity='customer-account' AND entry.subject_id=object.id AND entry.status IN ('DRAFT','PENDING')
+  ORDER BY entry.version_no DESC LIMIT 1
+) open_entry ON true
+LEFT JOIN bob_customer_versions approved ON approved.approval_entry_id=approved_entry.id
+LEFT JOIN bob_customer_versions candidate ON candidate.approval_entry_id=open_entry.id
+WHERE ($1::text='' OR object.code ILIKE '%' || $1::text || '%'
+       OR approved.name ILIKE '%' || $1::text || '%' OR candidate.name ILIKE '%' || $1::text || '%')
+  AND ($2::integer=-1 OR object.enabled=($2::integer=1))
+  AND (cardinality($3::text[])=0 OR approved_entry.status=ANY($3::text[]) OR open_entry.status=ANY($3::text[]))
+  AND ($4::text='' OR approved.customer_type=$4::text OR candidate.customer_type=$4::text)
+  AND ($5::text='' OR relationship.operating_entity_id=$5::text)
+  AND ($6::text='' OR approved.primary_sales_attribution_type=$6::text OR candidate.primary_sales_attribution_type=$6::text)
+  AND ($7::text='' OR approved.primary_sales_subject_id=$7::text OR candidate.primary_sales_subject_id=$7::text)
+`
+
+type CountBobCustomerAccountsParams struct {
+	Keyword                   string   `db:"keyword" json:"keyword"`
+	EnabledFilter             int32    `db:"enabled_filter" json:"enabled_filter"`
+	StatusFilter              []string `db:"status_filter" json:"status_filter"`
+	CustomerType              string   `db:"customer_type" json:"customer_type"`
+	OperatingEntityID         string   `db:"operating_entity_id" json:"operating_entity_id"`
+	SalesAttributionType      string   `db:"sales_attribution_type" json:"sales_attribution_type"`
+	SalesAttributionSubjectID string   `db:"sales_attribution_subject_id" json:"sales_attribution_subject_id"`
+}
+
+// Customer management is account-centric: one stable customer-account row per
+// list item, with its open candidate and latest approved version projected
+// independently. The parent customer relationship only supplies the stable
+// operating-entity boundary.
+func (q *Queries) CountBobCustomerAccounts(ctx context.Context, arg CountBobCustomerAccountsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countBobCustomerAccounts,
+		arg.Keyword,
+		arg.EnabledFilter,
+		arg.StatusFilter,
+		arg.CustomerType,
+		arg.OperatingEntityID,
+		arg.SalesAttributionType,
+		arg.SalesAttributionSubjectID,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countBobObjects = `-- name: CountBobObjects :one
 SELECT count(*)
 FROM bob_objects o
@@ -2177,6 +2233,97 @@ func (q *Queries) ListBobCustomerAccountObjects(ctx context.Context, customerRel
 	return items, nil
 }
 
+const listBobCustomerAccounts = `-- name: ListBobCustomerAccounts :many
+SELECT object.id AS object_id,object.code,object.revision AS object_revision,object.enabled,object.updated_at,
+       COALESCE(approved_entry.id,'')::text AS approval_entry_id,
+       COALESCE(open_entry.id,'')::text AS open_approval_entry_id
+FROM bob_customer_accounts account
+JOIN bob_objects object ON object.id=account.object_id AND object.entity='customer-account'
+JOIN bob_customer_relationships relationship ON relationship.object_id=account.customer_relationship_id
+LEFT JOIN LATERAL (
+  SELECT entry.id,entry.status FROM approval_entries entry
+  WHERE entry.domain='bob' AND entry.entity='customer-account' AND entry.subject_id=object.id AND entry.status='APPROVED'
+  ORDER BY entry.version_no DESC LIMIT 1
+) approved_entry ON true
+LEFT JOIN LATERAL (
+  SELECT entry.id,entry.status FROM approval_entries entry
+  WHERE entry.domain='bob' AND entry.entity='customer-account' AND entry.subject_id=object.id AND entry.status IN ('DRAFT','PENDING')
+  ORDER BY entry.version_no DESC LIMIT 1
+) open_entry ON true
+LEFT JOIN bob_customer_versions approved ON approved.approval_entry_id=approved_entry.id
+LEFT JOIN bob_customer_versions candidate ON candidate.approval_entry_id=open_entry.id
+WHERE ($1::text='' OR object.code ILIKE '%' || $1::text || '%'
+       OR approved.name ILIKE '%' || $1::text || '%' OR candidate.name ILIKE '%' || $1::text || '%')
+  AND ($2::integer=-1 OR object.enabled=($2::integer=1))
+  AND (cardinality($3::text[])=0 OR approved_entry.status=ANY($3::text[]) OR open_entry.status=ANY($3::text[]))
+  AND ($4::text='' OR approved.customer_type=$4::text OR candidate.customer_type=$4::text)
+  AND ($5::text='' OR relationship.operating_entity_id=$5::text)
+  AND ($6::text='' OR approved.primary_sales_attribution_type=$6::text OR candidate.primary_sales_attribution_type=$6::text)
+  AND ($7::text='' OR approved.primary_sales_subject_id=$7::text OR candidate.primary_sales_subject_id=$7::text)
+ORDER BY object.code ASC,object.id ASC
+LIMIT $9 OFFSET $8
+`
+
+type ListBobCustomerAccountsParams struct {
+	Keyword                   string   `db:"keyword" json:"keyword"`
+	EnabledFilter             int32    `db:"enabled_filter" json:"enabled_filter"`
+	StatusFilter              []string `db:"status_filter" json:"status_filter"`
+	CustomerType              string   `db:"customer_type" json:"customer_type"`
+	OperatingEntityID         string   `db:"operating_entity_id" json:"operating_entity_id"`
+	SalesAttributionType      string   `db:"sales_attribution_type" json:"sales_attribution_type"`
+	SalesAttributionSubjectID string   `db:"sales_attribution_subject_id" json:"sales_attribution_subject_id"`
+	RowOffset                 int32    `db:"row_offset" json:"row_offset"`
+	RowLimit                  int32    `db:"row_limit" json:"row_limit"`
+}
+
+type ListBobCustomerAccountsRow struct {
+	ObjectID            string             `db:"object_id" json:"object_id"`
+	Code                string             `db:"code" json:"code"`
+	ObjectRevision      int64              `db:"object_revision" json:"object_revision"`
+	Enabled             bool               `db:"enabled" json:"enabled"`
+	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ApprovalEntryID     string             `db:"approval_entry_id" json:"approval_entry_id"`
+	OpenApprovalEntryID string             `db:"open_approval_entry_id" json:"open_approval_entry_id"`
+}
+
+func (q *Queries) ListBobCustomerAccounts(ctx context.Context, arg ListBobCustomerAccountsParams) ([]ListBobCustomerAccountsRow, error) {
+	rows, err := q.db.Query(ctx, listBobCustomerAccounts,
+		arg.Keyword,
+		arg.EnabledFilter,
+		arg.StatusFilter,
+		arg.CustomerType,
+		arg.OperatingEntityID,
+		arg.SalesAttributionType,
+		arg.SalesAttributionSubjectID,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListBobCustomerAccountsRow{}
+	for rows.Next() {
+		var i ListBobCustomerAccountsRow
+		if err := rows.Scan(
+			&i.ObjectID,
+			&i.Code,
+			&i.ObjectRevision,
+			&i.Enabled,
+			&i.UpdatedAt,
+			&i.ApprovalEntryID,
+			&i.OpenApprovalEntryID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listBobCustomerCreditLimits = `-- name: ListBobCustomerCreditLimits :many
 SELECT approval_entry_id, currency, amount_cents FROM bob_customer_credit_limits WHERE approval_entry_id=$1 ORDER BY currency
 `
@@ -2458,18 +2605,47 @@ func (q *Queries) ListBobPartyIdentifiers(ctx context.Context, partyID string) (
 }
 
 const listBobProductFormulaLines = `-- name: ListBobProductFormulaLines :many
-SELECT product_approval_entry_id, line_no, material_object_id, material_approval_entry_id, base_quantity_micros, entered_quantity_micros, entered_unit_object_id, entered_unit_approval_entry_id, entered_unit_code, entered_unit_name, entered_unit_symbol, resolution_status, requires_confirmation FROM bob_product_formula_lines WHERE product_approval_entry_id=$1 ORDER BY line_no
+SELECT line.product_approval_entry_id, line.line_no, line.material_object_id, line.material_approval_entry_id, line.base_quantity_micros, line.entered_quantity_micros, line.entered_unit_object_id, line.entered_unit_approval_entry_id, line.entered_unit_code, line.entered_unit_name, line.entered_unit_symbol, line.resolution_status, line.requires_confirmation,material_object.code AS material_code,material.name AS material_name,
+       material.behavior_profile AS material_behavior_profile
+FROM bob_product_formula_lines line
+JOIN approval_entries material_entry ON material_entry.id=line.material_approval_entry_id
+  AND material_entry.domain='bob' AND material_entry.entity='product'
+  AND material_entry.subject_id=line.material_object_id
+JOIN bob_objects material_object ON material_object.id=line.material_object_id
+  AND material_object.entity='product'
+JOIN bob_product_versions material ON material.approval_entry_id=material_entry.id
+WHERE line.product_approval_entry_id=$1
+ORDER BY line.line_no
 `
 
-func (q *Queries) ListBobProductFormulaLines(ctx context.Context, productApprovalEntryID string) ([]BobProductFormulaLine, error) {
+type ListBobProductFormulaLinesRow struct {
+	ProductApprovalEntryID     string  `db:"product_approval_entry_id" json:"product_approval_entry_id"`
+	LineNo                     int32   `db:"line_no" json:"line_no"`
+	MaterialObjectID           string  `db:"material_object_id" json:"material_object_id"`
+	MaterialApprovalEntryID    string  `db:"material_approval_entry_id" json:"material_approval_entry_id"`
+	BaseQuantityMicros         int64   `db:"base_quantity_micros" json:"base_quantity_micros"`
+	EnteredQuantityMicros      int64   `db:"entered_quantity_micros" json:"entered_quantity_micros"`
+	EnteredUnitObjectID        string  `db:"entered_unit_object_id" json:"entered_unit_object_id"`
+	EnteredUnitApprovalEntryID string  `db:"entered_unit_approval_entry_id" json:"entered_unit_approval_entry_id"`
+	EnteredUnitCode            string  `db:"entered_unit_code" json:"entered_unit_code"`
+	EnteredUnitName            string  `db:"entered_unit_name" json:"entered_unit_name"`
+	EnteredUnitSymbol          string  `db:"entered_unit_symbol" json:"entered_unit_symbol"`
+	ResolutionStatus           string  `db:"resolution_status" json:"resolution_status"`
+	RequiresConfirmation       bool    `db:"requires_confirmation" json:"requires_confirmation"`
+	MaterialCode               string  `db:"material_code" json:"material_code"`
+	MaterialName               string  `db:"material_name" json:"material_name"`
+	MaterialBehaviorProfile    *string `db:"material_behavior_profile" json:"material_behavior_profile"`
+}
+
+func (q *Queries) ListBobProductFormulaLines(ctx context.Context, productApprovalEntryID string) ([]ListBobProductFormulaLinesRow, error) {
 	rows, err := q.db.Query(ctx, listBobProductFormulaLines, productApprovalEntryID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []BobProductFormulaLine{}
+	items := []ListBobProductFormulaLinesRow{}
 	for rows.Next() {
-		var i BobProductFormulaLine
+		var i ListBobProductFormulaLinesRow
 		if err := rows.Scan(
 			&i.ProductApprovalEntryID,
 			&i.LineNo,
@@ -2484,6 +2660,9 @@ func (q *Queries) ListBobProductFormulaLines(ctx context.Context, productApprova
 			&i.EnteredUnitSymbol,
 			&i.ResolutionStatus,
 			&i.RequiresConfirmation,
+			&i.MaterialCode,
+			&i.MaterialName,
+			&i.MaterialBehaviorProfile,
 		); err != nil {
 			return nil, err
 		}

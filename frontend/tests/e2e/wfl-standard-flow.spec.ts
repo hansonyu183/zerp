@@ -1,4 +1,29 @@
 import { expect, test, type Page, type WflWorkerState } from './fixtures'
+import {
+  approveVouAsReviewer,
+  approveWorkflowDefinitionAsReviewer,
+} from './wfl-global-setup'
+
+interface DefinitionMutation {
+  definitionId: string
+  approval: {
+    approvalEntryId: string
+    revision: number
+  }
+}
+
+interface VouMutation {
+  documentId: string
+  approval: {
+    revision: number
+  }
+}
+
+interface Envelope<T> {
+  code: number | string
+  message: string
+  data: T
+}
 
 const standardPurchaseCode = 'purchase-fulfillment'
 
@@ -46,7 +71,7 @@ async function signInAgain(page: Page, workerState: WflWorkerState) {
   await expect(page).toHaveURL(/\/home\/dashboard$/)
 }
 
-test('标准采购脚本经编辑、试算和发布后支持手工重建下级 @system-serial', async ({
+test('标准采购脚本经编辑、试算和批准后支持手工重建下级 @system-serial', async ({
   page,
   workerState,
 }) => {
@@ -90,12 +115,36 @@ test('标准采购脚本经编辑、试算和发布后支持手工重建下级 @
   await expect(
     definition.getByText('试算完成（零写入）', { exact: true }),
   ).toBeVisible()
-  await definition
-    .getByRole('button', { name: '发布修订', exact: true })
-    .click()
-  await definition.getByRole('button', { name: '启用', exact: true }).click()
+  const submitResponsePromise = page.waitForResponse((response) =>
+    response.url().endsWith('/wfl/process-definition/submit'),
+  )
+  await definition.getByRole('button', { name: '提交', exact: true }).click()
+  const submitEnvelope = (await (
+    await submitResponsePromise
+  ).json()) as Envelope<DefinitionMutation>
+  expect(String(submitEnvelope.code), submitEnvelope.message).toBe('0')
+  await expect(definition.getByText('待批准', { exact: true })).toBeVisible()
+  await approveWorkflowDefinitionAsReviewer(
+    process.env.E2E_API_BASE_URL!,
+    workerState.reviewer,
+    {
+      definitionId: submitEnvelope.data.definitionId,
+      approvalEntryId: submitEnvelope.data.approval.approvalEntryId,
+      revision: submitEnvelope.data.approval.revision,
+    },
+  )
   await definition.locator('.v-toolbar button').first().click()
   await expect(definition).toBeHidden()
+
+  const approvedDefinition = await openDefinition(page, standardPurchaseCode)
+  await expect(
+    approvedDefinition.getByText('已批准', { exact: true }),
+  ).toBeVisible()
+  await approvedDefinition
+    .getByRole('button', { name: '启用', exact: true })
+    .click()
+  await approvedDefinition.locator('.v-toolbar button').first().click()
+  await expect(approvedDefinition).toBeHidden()
 
   await workerState.grantWorkflowPermissions([standardPurchaseCode])
   await signInAgain(page, workerState)
@@ -111,14 +160,30 @@ test('标准采购脚本经编辑、试算和发布后支持手工重建下级 @
       .textContent()
   )?.trim()
   expect(orderNo).toMatch(/^POR-\d{8}-\d{4}$/)
+  const submitOrderResponsePromise = page.waitForResponse((response) =>
+    response.url().endsWith('/vou/purchase-order/submit'),
+  )
   await orderWorkspace
-    .getByRole('button', { name: '核对', exact: true })
+    .getByRole('button', { name: '提交审核', exact: true })
     .click()
-  await orderWorkspace
-    .getByRole('button', { name: '批准', exact: true })
-    .click()
+  const submitOrderEnvelope = (await (
+    await submitOrderResponsePromise
+  ).json()) as Envelope<VouMutation>
+  expect(String(submitOrderEnvelope.code), submitOrderEnvelope.message).toBe(
+    '0',
+  )
+  await approveVouAsReviewer(
+    process.env.E2E_API_BASE_URL!,
+    workerState.reviewer,
+    'purchase-order',
+    submitOrderEnvelope.data.documentId,
+    submitOrderEnvelope.data.approval.revision,
+  )
+  await page.goto(
+    `/vou/purchase-order?documentId=${submitOrderEnvelope.data.documentId}&mode=view`,
+  )
   await expect(
-    orderWorkspace.getByText('已批准', { exact: true }),
+    page.locator('.voucher-workspace').getByText('已批准', { exact: true }),
   ).toBeVisible()
 
   await page.goto(`/wfl/${standardPurchaseCode}`)

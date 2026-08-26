@@ -59,6 +59,11 @@ type Querier interface {
 	CountAppUsers(ctx context.Context, arg CountAppUsersParams) (int64, error)
 	CountAppUsersExcept(ctx context.Context, excludedUserID string) (int64, error)
 	CountBobApprovalEvents(ctx context.Context, arg CountBobApprovalEventsParams) (int64, error)
+	// Customer management is account-centric: one stable customer-account row per
+	// list item, with its open candidate and latest approved version projected
+	// independently. The parent customer relationship only supplies the stable
+	// operating-entity boundary.
+	CountBobCustomerAccounts(ctx context.Context, arg CountBobCustomerAccountsParams) (int64, error)
 	CountBobObjects(ctx context.Context, arg CountBobObjectsParams) (int64, error)
 	CountCustomerRelationshipAttachments(ctx context.Context, ownerID string) (int64, error)
 	CountCustomerVersionAttachments(ctx context.Context, ownerID string) (int64, error)
@@ -190,6 +195,7 @@ type Querier interface {
 	DeleteVouSaleSignoffDetails(ctx context.Context, documentID string) error
 	DeleteVouSaleSignoffLines(ctx context.Context, documentID string) error
 	DeleteWorkflowDefinition(ctx context.Context, id string) error
+	DeleteWorkflowDefinitionVersion(ctx context.Context, arg DeleteWorkflowDefinitionVersionParams) (int64, error)
 	DisableMergedPartyRelationshipObject(ctx context.Context, arg DisableMergedPartyRelationshipObjectParams) (int64, error)
 	DisposeAccountingAsset(ctx context.Context, arg DisposeAccountingAssetParams) (int64, error)
 	FindAccountingBillIDBySourceDocument(ctx context.Context, sourceDocumentID string) (string, error)
@@ -471,11 +477,12 @@ type Querier interface {
 	ListBobApprovalEntryReferenceCounts(ctx context.Context, approvalEntryID string) ([]ListBobApprovalEntryReferenceCountsRow, error)
 	ListBobApprovalEvents(ctx context.Context, arg ListBobApprovalEventsParams) ([]ApprovalEvent, error)
 	ListBobCustomerAccountObjects(ctx context.Context, customerRelationshipID string) ([]ListBobCustomerAccountObjectsRow, error)
+	ListBobCustomerAccounts(ctx context.Context, arg ListBobCustomerAccountsParams) ([]ListBobCustomerAccountsRow, error)
 	ListBobCustomerCreditLimits(ctx context.Context, approvalEntryID string) ([]BobCustomerCreditLimit, error)
 	ListBobCustomerVersionAttachments(ctx context.Context, approvalEntryID string) ([]BobCustomerVersionAttachment, error)
 	ListBobObjects(ctx context.Context, arg ListBobObjectsParams) ([]ListBobObjectsRow, error)
 	ListBobPartyIdentifiers(ctx context.Context, partyID string) ([]ListBobPartyIdentifiersRow, error)
-	ListBobProductFormulaLines(ctx context.Context, productApprovalEntryID string) ([]BobProductFormulaLine, error)
+	ListBobProductFormulaLines(ctx context.Context, productApprovalEntryID string) ([]ListBobProductFormulaLinesRow, error)
 	ListBobProductUnitConversions(ctx context.Context, productApprovalEntryID string) ([]BobProductUnitConversion, error)
 	ListCompletedWorkflowActionTargets(ctx context.Context, processID string) ([]ListCompletedWorkflowActionTargetsRow, error)
 	ListCustomerOperatingReferences(ctx context.Context, sourceObjectID *string) ([]ListCustomerOperatingReferencesRow, error)
@@ -653,7 +660,6 @@ type Querier interface {
 	RptQueryDefinitions(ctx context.Context, arg RptQueryDefinitionsParams) ([]RptQueryDefinitionsRow, error)
 	RptQueryDirectory(ctx context.Context, arg RptQueryDirectoryParams) ([]RptQueryDirectoryRow, error)
 	RptSetDefinitionEnabled(ctx context.Context, arg RptSetDefinitionEnabledParams) (RptSetDefinitionEnabledRow, error)
-	RptUpdateDefinitionText(ctx context.Context, arg RptUpdateDefinitionTextParams) (int64, error)
 	RptUpdateDraftPayload(ctx context.Context, arg RptUpdateDraftPayloadParams) error
 	RptUpsertUsePermission(ctx context.Context, arg RptUpsertUsePermissionParams) error
 	SaveWorkflowDefinitionVersion(ctx context.Context, arg SaveWorkflowDefinitionVersionParams) (int64, error)

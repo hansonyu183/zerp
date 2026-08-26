@@ -221,7 +221,7 @@ test(
       '/bob/customer-account/submit',
       () => customerRow(page, code!).getByLabel('提交审核').click(),
     )
-    await expect(customerRow(page, code!)).toContainText('待审核')
+    await expect(customerRow(page, code!)).toContainText('待批准')
     await customerRow(page, code!).getByLabel('撤回提交').click()
     await confirmReason(page, '客户账户生命周期操作', 'E2E 验证撤回提交')
     await expect(customerRow(page, code!)).toContainText('草稿')
@@ -230,7 +230,7 @@ test(
       '/bob/customer-account/submit',
       () => customerRow(page, code!).getByLabel('提交审核').click(),
     )
-    await expect(customerRow(page, code!)).toContainText('待审核')
+    await expect(customerRow(page, code!)).toContainText('待批准')
     await signOut(page)
 
     await signIn(page, workerState.reviewer)
@@ -249,7 +249,7 @@ test(
       '/bob/customer-account/submit',
       () => customerRow(page, code!).getByLabel('提交审核').click(),
     )
-    await expect(customerRow(page, code!)).toContainText('待审核')
+    await expect(customerRow(page, code!)).toContainText('待批准')
     await signOut(page)
 
     await signIn(page, workerState.reviewer)
@@ -260,7 +260,7 @@ test(
       .getByRole('dialog')
       .filter({ hasText: '客户账户生命周期操作' })
     await dialog.getByRole('button', { name: '确认', exact: true }).click()
-    await expect(customerRow(page, code!)).toContainText('已生效')
+    await expect(customerRow(page, code!)).toContainText('已批准')
 
     await customerRow(page, code!).getByLabel('禁用').click()
     dialog = page
@@ -276,11 +276,11 @@ test(
 )
 
 test(
-  '供应商连续生效、候选启停与删除保持旧有效版本',
+  '供应商已批准版本在候选启停与删除期间保持可用',
   { tag: '@mobile' },
   async ({ page, workerState }, testInfo) => {
     test.setTimeout(120_000)
-    const supplierName = `E2E 连续生效供应商 ${testInfo.project.name} ${testInfo.parallelIndex}`
+    const supplierName = `E2E 已批准供应商 ${testInfo.project.name} ${testInfo.parallelIndex}`
 
     await signIn(page, workerState.operator)
     await openSupplier(page)
@@ -319,7 +319,7 @@ test(
     let dialog = page.getByRole('dialog').filter({ hasText: '审核通过' })
     await dialog.getByRole('button', { name: '确认', exact: true }).click()
     await dismissSupplierNotice(page, '已审核通过')
-    await expect(supplierRow(page, code!)).toContainText('有效')
+    await expect(supplierRow(page, code!)).toContainText('已批准')
     await signOut(page)
 
     await signIn(page, workerState.operator)
@@ -348,7 +348,7 @@ test(
     await dialog.getByRole('button', { name: '确认', exact: true }).click()
     await dismissSupplierNotice(page, '候选版本已删除')
     await expect(dialog).toHaveCount(0)
-    await expect(supplierRow(page, code!)).toContainText('有效')
+    await expect(supplierRow(page, code!)).toContainText('已批准')
     await expect(supplierRow(page, code!)).toContainText('—')
   },
 )

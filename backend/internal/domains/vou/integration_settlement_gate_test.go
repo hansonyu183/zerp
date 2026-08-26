@@ -340,7 +340,7 @@ func TestPrepaidConcurrentSignoffConsumesCurrentBalanceAtomicallyIntegration(t *
 	)
 	bus := txevent.NewBus()
 	if err := ApprovalTopic(EntitySaleSignoff).Subscribe(bus, "test-prepaid-signoff-posting",
-		func(ctx context.Context, tx pgx.Tx, event approval.Event[DocumentView]) error {
+		func(ctx context.Context, tx pgx.Tx, event approval.Event[ApprovalPayload]) error {
 			if event.Action != approval.ActionApproved {
 				return nil
 			}
@@ -354,7 +354,7 @@ func TestPrepaidConcurrentSignoffConsumesCurrentBalanceAtomicallyIntegration(t *
 		t.Fatalf("subscribe prepaid signoff posting: %v", err)
 	}
 	if err := ApprovalTopic(EntitySaleSignoff).Subscribe(bus, "test-prepaid-signoff-reversal",
-		func(ctx context.Context, tx pgx.Tx, event approval.Event[DocumentView]) error {
+		func(ctx context.Context, tx pgx.Tx, event approval.Event[ApprovalPayload]) error {
 			if event.Action != approval.ActionUnapproved {
 				return nil
 			}

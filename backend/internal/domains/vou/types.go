@@ -1043,6 +1043,39 @@ type DocumentView struct {
 	ParentDocumentNo string           `json:"parentDocumentNo,omitempty"`
 }
 
+// ApprovalPayload is the immutable VOU business snapshot delivered with a
+// central Approval event. Lifecycle identity, status, revision, actor and
+// transition metadata live exclusively on approval.Event.
+type ApprovalPayload struct {
+	DocumentID       string
+	Entity           string
+	DocumentNo       string
+	Amount           string
+	Data             DocumentDataView
+	Attachments      []AttachmentView
+	ParentEntity     string
+	ParentDocumentID string
+	ParentDocumentNo string
+}
+
+func ApprovalPayloadFromView(view DocumentView) ApprovalPayload {
+	return ApprovalPayload{
+		DocumentID: view.DocumentID, Entity: view.Entity, DocumentNo: view.DocumentNo,
+		Amount: view.Amount, Data: view.Data, Attachments: view.Attachments,
+		ParentEntity: view.ParentEntity, ParentDocumentID: view.ParentDocumentID,
+		ParentDocumentNo: view.ParentDocumentNo,
+	}
+}
+
+func (payload ApprovalPayload) DocumentView(meta approval.Meta) DocumentView {
+	return DocumentView{
+		DocumentID: payload.DocumentID, Entity: payload.Entity, DocumentNo: payload.DocumentNo,
+		Approval: meta, Amount: payload.Amount, Data: payload.Data, Attachments: payload.Attachments,
+		ParentEntity: payload.ParentEntity, ParentDocumentID: payload.ParentDocumentID,
+		ParentDocumentNo: payload.ParentDocumentNo,
+	}
+}
+
 type MutationResult struct {
 	DocumentID string        `json:"documentId"`
 	DocumentNo string        `json:"documentNo"`

@@ -2566,7 +2566,7 @@
           'post':
             {
               'tags': ['aux'],
-              'summary': '保存辅助对象草稿；编辑已批准版本时创建连续生效候选',
+              'summary': '保存辅助对象草稿；编辑已批准版本时创建候选版本',
               'operationId': 'auxsave',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/AuxEntity' }],
@@ -3563,7 +3563,7 @@
           'post':
             {
               'tags': ['bob'],
-              'summary': '读取客户集团、有效版本与候选版本',
+              'summary': '读取客户集团、已批准版本与候选版本',
               'operationId': 'customerGet',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':
@@ -3898,7 +3898,7 @@
           'post':
             {
               'tags': ['bob'],
-              'summary': '读取供应商有效版本与候选版本',
+              'summary': '读取供应商已批准版本与候选版本',
               'operationId': 'supplierGet',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'requestBody':

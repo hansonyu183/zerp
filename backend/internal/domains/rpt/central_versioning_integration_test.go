@@ -59,6 +59,38 @@ func approveRPTVersion(t *testing.T, service *Service, code string, value Mutati
 	return approved
 }
 
+func assertRPTVersionedSurfaces(t *testing.T, service *Service, code, name, description, sql string, managementEntryID string) {
+	t.Helper()
+	management, err := service.QueryDefinitions(t.Context(), DefinitionQueryInput{Keyword: code, Page: 1, PageSize: 20}, rptActor(t, rptSubmitterID, "rpt-manage-"+code))
+	if err != nil {
+		t.Fatalf("query management definitions: %v", err)
+	}
+	managementItems := management.Items.([]DefinitionView)
+	if len(managementItems) != 1 || managementItems[0].Approval.ApprovalEntryID != managementEntryID || managementItems[0].Name != name || managementItems[0].Description != description || managementItems[0].Data.SQL != sql {
+		t.Fatalf("management definition = %+v", managementItems)
+	}
+	preferred, err := service.GetDefinition(t.Context(), DefinitionGetInput{Code: code}, rptActor(t, rptSubmitterID, "rpt-preferred-"+code))
+	if err != nil || preferred.Approval.ApprovalEntryID != managementEntryID || preferred.Name != name || preferred.Description != description || preferred.Data.SQL != sql {
+		t.Fatalf("preferred definition = %+v, err=%v", preferred, err)
+	}
+}
+
+func assertRPTApprovedSurfaces(t *testing.T, service *Service, code, name, description, value string) {
+	t.Helper()
+	directory, err := service.QueryDirectory(t.Context(), DirectoryQueryInput{Page: 1, PageSize: 20}, []string{permissionPath(code, "query")})
+	if err != nil {
+		t.Fatalf("query report directory: %v", err)
+	}
+	directoryItems := directory.Items.([]ReportMetadata)
+	if len(directoryItems) != 1 || directoryItems[0].Name != name || directoryItems[0].Description != description {
+		t.Fatalf("directory report = %+v", directoryItems)
+	}
+	executed, err := service.Execute(t.Context(), code, ExecuteInput{Parameters: map[string]any{}}, rptSubmitterID, "rpt-execute-"+code)
+	if err != nil || len(executed.Items) != 1 || executed.Items[0]["value"] != value {
+		t.Fatalf("execute report = %+v, err=%v", executed, err)
+	}
+}
+
 func TestRPTCentralVersioningCandidateLatestAndHistoricalSnapshotIntegration(t *testing.T) {
 	pool := rptIntegrationPool(t)
 	seedRPTActors(t, pool)
@@ -68,12 +100,14 @@ func TestRPTCentralVersioningCandidateLatestAndHistoricalSnapshotIntegration(t *
 	}
 	code := rptCode()
 	first, err := service.CreateDefinition(t.Context(), DefinitionCreateInput{
-		Code: code, Name: "中央版本报表", Data: rptData(`SELECT 'v1'::text AS value`, "value"),
+		Code: code, Name: "V1 名称 A", Description: stringPointer("V1 描述 A"), Data: rptData(`SELECT 'v1'::text AS value`, "value"),
 	}, rptActor(t, rptSubmitterID, "rpt-create-"+code))
 	if err != nil || first.Approval.VersionNo != 1 || first.Approval.Status != approval.StatusDraft {
 		t.Fatalf("create = %+v, err=%v", first, err)
 	}
 	first = approveRPTVersion(t, service, code, first)
+	assertRPTVersionedSurfaces(t, service, code, "V1 名称 A", "V1 描述 A", `SELECT 'v1'::text AS value`, first.Approval.ApprovalEntryID)
+	assertRPTApprovedSurfaces(t, service, code, "V1 名称 A", "V1 描述 A", "v1")
 
 	second, err := service.CreateVersion(t.Context(), VersionCreateInput{Code: code}, rptActor(t, rptSubmitterID, "rpt-next-"+code))
 	if err != nil || second.Approval.VersionNo != 2 || second.Approval.Status != approval.StatusDraft {
@@ -93,21 +127,31 @@ func TestRPTCentralVersioningCandidateLatestAndHistoricalSnapshotIntegration(t *
 	if _, err = service.Unapprove(t.Context(), VersionReasonActionInput{VersionActionInput: VersionActionInput{Code: code, ApprovalEntryID: first.Approval.ApprovalEntryID, Revision: first.Approval.Revision}, Reason: "重开"}, rptActor(t, rptReviewerID, "rpt-unapprove-blocked-"+code)); !rptErrorKind(err, ErrorConflict) {
 		t.Fatalf("unapprove with candidate err=%v", err)
 	}
+	second, err = service.SaveVersion(t.Context(), VersionSaveInput{Code: code, ApprovalEntryID: second.Approval.ApprovalEntryID, Revision: second.Approval.Revision, Name: stringPointer("V2 候选 B"), Description: stringPointer("V2 描述 B"), Data: rptData(`SELECT 'v2'::text AS value`, "value")}, rptActor(t, rptSubmitterID, "rpt-save-candidate-"+code))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertRPTVersionedSurfaces(t, service, code, "V2 候选 B", "V2 描述 B", `SELECT 'v2'::text AS value`, second.Approval.ApprovalEntryID)
+	assertRPTApprovedSurfaces(t, service, code, "V1 名称 A", "V1 描述 A", "v1")
 	if err = service.DeleteVersion(t.Context(), VersionDeleteInput{Code: code, ApprovalEntryID: second.Approval.ApprovalEntryID, Revision: second.Approval.Revision}, rptActor(t, rptSubmitterID, "rpt-delete-v2-"+code)); err != nil {
 		t.Fatal(err)
 	}
+	assertRPTVersionedSurfaces(t, service, code, "V1 名称 A", "V1 描述 A", `SELECT 'v1'::text AS value`, first.Approval.ApprovalEntryID)
+	assertRPTApprovedSurfaces(t, service, code, "V1 名称 A", "V1 描述 A", "v1")
 
 	second, err = service.CreateVersion(t.Context(), VersionCreateInput{Code: code}, rptActor(t, rptSubmitterID, "rpt-next-again-"+code))
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err = service.SaveVersion(t.Context(), VersionSaveInput{Code: code, ApprovalEntryID: second.Approval.ApprovalEntryID, Revision: second.Approval.Revision, Data: rptData(`SELECT 'v2'::text AS value`, "value")}, rptActor(t, rptSubmitterID, "rpt-save-v2-"+code))
+	second, err = service.SaveVersion(t.Context(), VersionSaveInput{Code: code, ApprovalEntryID: second.Approval.ApprovalEntryID, Revision: second.Approval.Revision, Name: stringPointer("V2 候选 B"), Description: stringPointer("V2 描述 B"), Data: rptData(`SELECT 'v2'::text AS value`, "value")}, rptActor(t, rptSubmitterID, "rpt-save-v2-"+code))
 	if err != nil {
 		t.Fatal(err)
 	}
 	second = approveRPTVersion(t, service, code, second)
+	assertRPTVersionedSurfaces(t, service, code, "V2 候选 B", "V2 描述 B", `SELECT 'v2'::text AS value`, second.Approval.ApprovalEntryID)
+	assertRPTApprovedSurfaces(t, service, code, "V2 候选 B", "V2 描述 B", "v2")
 	exactFirst, err = service.GetDefinition(t.Context(), DefinitionGetInput{Code: code, ApprovalEntryID: first.Approval.ApprovalEntryID}, rptActor(t, rptSubmitterID, "rpt-get-history-"+code))
-	if err != nil || exactFirst.Data.SQL != `SELECT 'v1'::text AS value` || second.Approval.VersionNo != 2 {
+	if err != nil || exactFirst.Name != "V1 名称 A" || exactFirst.Description != "V1 描述 A" || exactFirst.Data.SQL != `SELECT 'v1'::text AS value` || second.Approval.VersionNo != 2 {
 		t.Fatalf("historical snapshot = %+v, current=%+v err=%v", exactFirst, second, err)
 	}
 }

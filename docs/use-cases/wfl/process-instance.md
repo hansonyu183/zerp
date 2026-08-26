@@ -7,7 +7,7 @@
 ## 主流程
 
 1. 页面按流程 code 查询实际实例，可按单号关键词或往来对象筛选。
-2. 打开实例后展示固定 `approvalEntryId`、定义 code/name、完整实际节点树、业务父级、具名关系、触发、动作及运行审计。
+2. 打开实例后展示固定 `approvalEntryId` 和启动时写入的定义 code/name 快照、完整实际节点树、业务父级、具名关系、触发、动作及运行审计；后续版本改名不会改写该历史快照。
 3. 打开节点正文时跳转对应 `/vou/{entity}` 页面并携带 documentId；VOU get 权限决定正文能否读取。
 4. 有动态 create-child 权限时，页面只展示该实例固定 entry 下当前父节点的 `availableTargets`。用户提供 16–64 位 requestKey 后提交。
 5. 成功后重新读取实例；网络重试复用原 requestKey，新的业务意图使用新 key。

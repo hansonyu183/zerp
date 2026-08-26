@@ -133,7 +133,7 @@ func TestPurchaseFulfillmentQuantitiesIntegration(t *testing.T) {
 	registerSettlementPosting := func(entity string, sign int64) {
 		t.Helper()
 		if err := ApprovalTopic(entity).Subscribe(bus, "test-acc-posting",
-			func(ctx context.Context, tx pgx.Tx, event approval.Event[DocumentView]) error {
+			func(ctx context.Context, tx pgx.Tx, event approval.Event[ApprovalPayload]) error {
 				if event.Action != approval.ActionApproved {
 					return nil
 				}
@@ -147,7 +147,7 @@ func TestPurchaseFulfillmentQuantitiesIntegration(t *testing.T) {
 			t.Fatalf("register %s settlement posting: %v", entity, err)
 		}
 		if err := ApprovalTopic(entity).Subscribe(bus, "test-acc-reversal",
-			func(ctx context.Context, tx pgx.Tx, event approval.Event[DocumentView]) error {
+			func(ctx context.Context, tx pgx.Tx, event approval.Event[ApprovalPayload]) error {
 				if event.Action != approval.ActionUnapproved {
 					return nil
 				}

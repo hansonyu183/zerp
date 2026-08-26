@@ -106,29 +106,7 @@ func (d documentRecord) approvalEntry() approval.Entry {
 	}
 }
 
-func (d documentRecord) withApproval(entry approval.Entry) documentRecord {
-	d.ApprovalEntryID = entry.ID
-	d.Status, d.Revision = string(entry.Status), entry.Revision
-	d.CreatedBy, d.CreatedAt = entry.CreatedBy, timestampValue(entry.CreatedAt)
-	d.UpdatedBy, d.UpdatedAt = entry.UpdatedBy, timestampValue(entry.UpdatedAt)
-	d.ReviewedBy, d.ReviewedAt = entry.SubmittedBy, optionalTimestampValue(entry.SubmittedAt)
-	d.ApprovedBy, d.ApprovedAt = entry.ApprovedBy, optionalTimestampValue(entry.ApprovedAt)
-	d.PostedBy, d.PostedAt = d.ApprovedBy, d.ApprovedAt
-	return d
-}
-
-func timestampValue(value time.Time) pgtype.Timestamptz {
-	return pgtype.Timestamptz{Time: value, Valid: true}
-}
-
-func optionalTimestampValue(value *time.Time) pgtype.Timestamptz {
-	if value == nil {
-		return pgtype.Timestamptz{}
-	}
-	return timestampValue(*value)
-}
-
-func (s *Service) coordinator(entity string) (*approval.Coordinator[DocumentView], error) {
+func (s *Service) coordinator(entity string) (*approval.Coordinator[ApprovalPayload], error) {
 	coordinator := s.approvals[entity]
 	if coordinator == nil {
 		return nil, domainError(ErrorValidation, "invalid entity", nil, nil)
@@ -143,7 +121,7 @@ func (s *Service) createDocumentApproval(
 	if err != nil {
 		return approval.Entry{}, err
 	}
-	entry, err := coordinator.CreateSubject(ctx, tx, documentID, actor, DocumentView{})
+	entry, err := coordinator.CreateSubject(ctx, tx, documentID, actor, ApprovalPayload{})
 	if err != nil {
 		return approval.Entry{}, mapApprovalError(err)
 	}
@@ -152,7 +130,7 @@ func (s *Service) createDocumentApproval(
 
 func (s *Service) prepareDraftSave(
 	ctx context.Context, tx pgx.Tx, document documentRecord, expectedRevision int64, actor approval.Actor,
-) (*approval.Coordinator[DocumentView], approval.Prepared, error) {
+) (*approval.Coordinator[ApprovalPayload], approval.Prepared, error) {
 	coordinator, err := s.coordinator(document.Entity)
 	if err != nil {
 		return nil, approval.Prepared{}, err
@@ -169,16 +147,18 @@ func (s *Service) commitDraftSave(
 	tx pgx.Tx,
 	q *dbsqlc.Queries,
 	document documentRecord,
-	coordinator *approval.Coordinator[DocumentView],
+	coordinator *approval.Coordinator[ApprovalPayload],
 	prepared approval.Prepared,
 ) (approval.Entry, error) {
-	entry, err := coordinator.CommitWithPayload(ctx, tx, prepared, func(entry approval.Entry) (DocumentView, error) {
-		updated, readErr := scanDocument(tx.QueryRow(ctx, documentSelect, document.ID, document.Entity))
-		if readErr != nil {
-			return DocumentView{}, s.internal("read saved document", readErr)
-		}
-		return s.eventSnapshot(ctx, q, updated.withApproval(entry))
-	})
+	updated, err := scanDocument(tx.QueryRow(ctx, documentSelect, document.ID, document.Entity))
+	if err != nil {
+		return approval.Entry{}, s.internal("read saved document", err)
+	}
+	payload, err := s.eventSnapshot(ctx, q, updated)
+	if err != nil {
+		return approval.Entry{}, err
+	}
+	entry, err := coordinator.Commit(ctx, tx, prepared, payload)
 	if err != nil {
 		return approval.Entry{}, mapApprovalError(err)
 	}
@@ -199,7 +179,7 @@ type Service struct {
 	resolver    effectiveReferenceResolver
 	auxResolver auxiliaryReferenceResolver
 	events      *txevent.Bus
-	approvals   map[string]*approval.Coordinator[DocumentView]
+	approvals   map[string]*approval.Coordinator[ApprovalPayload]
 	authorizer  approval.Authorizer
 	accounting  AccountingControl
 	storage     *localStorage
@@ -261,7 +241,7 @@ func NewService(
 	if service.authorizer == nil {
 		return nil, errors.New("VOU Approval authorizer is required")
 	}
-	service.approvals = make(map[string]*approval.Coordinator[DocumentView], len(entities))
+	service.approvals = make(map[string]*approval.Coordinator[ApprovalPayload], len(entities))
 	for _, entity := range entities {
 		coordinator, coordinatorErr := approval.NewCoordinator("vou", entity, service.authorizer, events, ApprovalTopic(entity))
 		if coordinatorErr != nil {

@@ -221,7 +221,7 @@ func TestIntermediaryPostingSnapshotFlattensSummaryPayee(t *testing.T) {
 			}},
 		}},
 	}
-	snapshot, err := newPostingSnapshot(document)
+	snapshot, err := newPostingSnapshot(voudomain.ApprovalPayloadFromView(document), approval.StatusApproved, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

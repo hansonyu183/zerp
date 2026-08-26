@@ -70,7 +70,9 @@ func TestZZInventoryQuantityLedgerAndControlBookGateIntegration(t *testing.T) {
 	deliverApprovalEvent(t, pool, service, event, false)
 	assertInventoryQuantity(t, pool, controlBook.ID, controlSubject.ID, productID, warehouseID, 1_000_000)
 
-	unapproval := unapprovedVOUEvent(event.Payload)
+	unapproval := unapprovedVOUEvent(event.Payload.DocumentView(approval.Meta{
+		Status: approval.StatusApproved, Revision: event.Entry.Revision,
+	}))
 	tx, err := pool.Begin(t.Context())
 	if err != nil {
 		t.Fatal(err)
@@ -103,7 +105,7 @@ func TestZZInventoryQuantityLedgerAndControlBookGateIntegration(t *testing.T) {
 
 func stringPointer(value string) *string { return &value }
 
-func inventoryApprovalEvent(productID, warehouseID, quantity string) approval.Event[voudomain.DocumentView] {
+func inventoryApprovalEvent(productID, warehouseID, quantity string) approval.Event[voudomain.ApprovalPayload] {
 	documentID := ulid.Make().String()
 	snapshot := voudomain.DocumentView{
 		DocumentID: documentID, Entity: voudomain.EntitySaleOrder, DocumentNo: "SO-TEST",
@@ -113,7 +115,7 @@ func inventoryApprovalEvent(productID, warehouseID, quantity string) approval.Ev
 	return approvedVOUEvent(snapshot)
 }
 
-func deliverApprovalEvent(t *testing.T, pool *pgxpool.Pool, service *Service, event approval.Event[voudomain.DocumentView], wantConflict bool) {
+func deliverApprovalEvent(t *testing.T, pool *pgxpool.Pool, service *Service, event approval.Event[voudomain.ApprovalPayload], wantConflict bool) {
 	t.Helper()
 	tx, err := pool.Begin(t.Context())
 	if err != nil {

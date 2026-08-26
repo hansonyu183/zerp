@@ -125,8 +125,68 @@ workflow(code="` + code + `", name="集成流程", root=root, edges=[
 	if err != nil || !next.Enabled || next.Approval.VersionNo != 2 {
 		t.Fatalf("enabled definition next version = %+v, err=%v", next, err)
 	}
+	listed, err := service.DefinitionQuery(t.Context(), DefinitionQueryInput{Page: 1, PageSize: 20, Keyword: code}, actor)
+	if err != nil || listed.Total != 1 || len(listed.Items) != 1 || listed.Items[0].Approval.ApprovalEntryID != next.Approval.ApprovalEntryID {
+		t.Fatalf("draft preferred definition list = %+v, err=%v", listed, err)
+	}
+	if _, err = service.DefinitionAction(t.Context(), "delete-version", DefinitionActionInput{
+		DefinitionID: next.DefinitionID, ApprovalEntryID: next.Approval.ApprovalEntryID, Revision: next.Approval.Revision,
+	}, actor); err != nil {
+		t.Fatalf("delete V2 draft: %v", err)
+	}
+	listed, err = service.DefinitionQuery(t.Context(), DefinitionQueryInput{Page: 1, PageSize: 20, Keyword: code}, actor)
+	if err != nil || listed.Total != 1 || len(listed.Items) != 1 || listed.Items[0].Approval.VersionNo != 1 || listed.Items[0].Approval.Status != approval.StatusApproved {
+		t.Fatalf("approved V1 preferred definition list after V2 deletion = %+v, err=%v", listed, err)
+	}
+	next, err = service.DefinitionCreateVersion(t.Context(), DefinitionVersionCreateInput{DefinitionID: approved.DefinitionID}, actor)
+	if err != nil || next.Approval.VersionNo != 2 {
+		t.Fatalf("recreated V2 = %+v, err=%v", next, err)
+	}
+	v2Script := strings.Replace(script, `name="集成流程"`, `name="集成流程 V2"`, 1)
+	next, err = service.DefinitionSave(t.Context(), DefinitionSaveInput{
+		DefinitionID: next.DefinitionID, ApprovalEntryID: next.Approval.ApprovalEntryID, Revision: next.Approval.Revision, Script: v2Script,
+	}, actor)
+	if err != nil || next.Name != "集成流程 V2" {
+		t.Fatalf("save V2 workflow name = %+v, err=%v", next, err)
+	}
+	listed, err = service.DefinitionQuery(t.Context(), DefinitionQueryInput{Page: 1, PageSize: 20, Keyword: code}, actor)
+	if err != nil || listed.Total != 1 || len(listed.Items) != 1 || listed.Items[0].Name != "集成流程 V2" || listed.Items[0].Approval.Status != approval.StatusDraft {
+		t.Fatalf("V2 draft preferred definition list = %+v, err=%v", listed, err)
+	}
+	if _, err = service.DefinitionTrial(t.Context(), DefinitionTrialInput{
+		DefinitionID: next.DefinitionID, ApprovalEntryID: next.Approval.ApprovalEntryID, Revision: next.Approval.Revision,
+		Source: DefinitionTrialSource{Entity: "purchase-order", DocumentID: "01J00000000000000000000002"},
+	}, actor); err != nil {
+		t.Fatalf("trial V2 definition: %v", err)
+	}
+	submittedValue, err = service.DefinitionAction(t.Context(), "submit", DefinitionActionInput{
+		DefinitionID: next.DefinitionID, ApprovalEntryID: next.Approval.ApprovalEntryID, Revision: next.Approval.Revision,
+	}, reviewer)
+	if err != nil {
+		t.Fatalf("submit V2 definition: %v", err)
+	}
+	submitted = submittedValue.(DefinitionView)
+	listed, err = service.DefinitionQuery(t.Context(), DefinitionQueryInput{Page: 1, PageSize: 20, Keyword: code}, actor)
+	if err != nil || listed.Total != 1 || len(listed.Items) != 1 || listed.Items[0].Approval.ApprovalEntryID != submitted.Approval.ApprovalEntryID || listed.Items[0].Approval.Status != approval.StatusPending {
+		t.Fatalf("V2 pending preferred definition list = %+v, err=%v", listed, err)
+	}
+	approvedValue, err = service.DefinitionAction(t.Context(), "approve", DefinitionActionInput{
+		DefinitionID: submitted.DefinitionID, ApprovalEntryID: submitted.Approval.ApprovalEntryID, Revision: submitted.Approval.Revision,
+	}, actor)
+	if err != nil {
+		t.Fatalf("approve V2 definition: %v", err)
+	}
+	approvedV2 := approvedValue.(DefinitionView)
+	listed, err = service.DefinitionQuery(t.Context(), DefinitionQueryInput{Page: 1, PageSize: 20, Keyword: code}, actor)
+	if err != nil || listed.Total != 1 || len(listed.Items) != 1 || listed.Items[0].Approval.ApprovalEntryID != approvedV2.Approval.ApprovalEntryID || listed.Items[0].Name != "集成流程 V2" {
+		t.Fatalf("approved V2 preferred definition list = %+v, err=%v", listed, err)
+	}
+	versions, err := service.DefinitionVersions(t.Context(), DefinitionQueryInput{Page: 1, PageSize: 20}, approved.DefinitionID, actor)
+	if err != nil || versions.Total != 2 || len(versions.Items) != 2 || versions.Items[0].Name != "集成流程 V2" || versions.Items[1].Name != "集成流程" {
+		t.Fatalf("definition version history = %+v, err=%v", versions, err)
+	}
 	historical, err := service.DefinitionGet(t.Context(), DefinitionGetInput{DefinitionID: approved.DefinitionID, ApprovalEntryID: approved.Approval.ApprovalEntryID}, actor)
-	if err != nil || historical.Script != script || historical.Approval.Status != approval.StatusApproved {
+	if err != nil || historical.Script != script || historical.Name != "集成流程" || historical.Approval.Status != approval.StatusApproved {
 		t.Fatalf("historical approved definition = %+v, err=%v", historical, err)
 	}
 }
@@ -172,9 +232,13 @@ func TestApprovedExistingRootUsesStoredApprovalEntryAcrossNewVersionAndNewMatchI
 	oldFundAccountID, newFundAccountID := newID(), newID()
 	code := "fixed-revision-" + strings.ToLower(newID()[:8])
 	secondCode := "fixed-match-" + strings.ToLower(newID()[:8])
-	oldScript := workflowExpensePaymentScript(code, "expense", "old-payment", oldFundAccountID)
-	newScript := workflowExpensePaymentScript(code, "replacement-expense", "new-payment", newFundAccountID)
-	secondScript := workflowExpensePaymentScript(secondCode, "second-expense", "second-payment", newFundAccountID)
+	oldScript := workflowExpensePaymentScript(code, "流程 V1", "expense", "old-payment", oldFundAccountID)
+	newScript := workflowExpensePaymentScript(code, "流程 V2", "replacement-expense", "new-payment", newFundAccountID)
+	secondScript := `root = node(key="purchase", name="采购订单", entity="purchase-order")
+child = node(key="inbound", name="采购入库", entity="purchase-inbound")
+workflow(code="` + secondCode + `", name="另一流程", root=root, edges=[
+  edge(source=root, target=child, relation="inbound", action=purchase_inbound(initial={})),
+])`
 	oldCompiled, err := compileDefinitionScript(oldScript)
 	if err != nil {
 		t.Fatalf("compile started workflow revision: %v", err)
@@ -243,8 +307,8 @@ func TestApprovedExistingRootUsesStoredApprovalEntryAcrossNewVersionAndNewMatchI
 	oldDefinitionApprovalID, newDefinitionApprovalID := newID(), newID()
 	secondDefinitionID, secondDefinitionApprovalID := newID(), newID()
 	if _, err = pool.Exec(ctx, `
-		INSERT INTO wfl_process_definitions(id,code,name,enabled,revision,created_by,updated_by)
-		VALUES($1,$2,'固定修订流程',true,2,$3,$3),($4,$5,'另一匹配流程',true,1,$3,$3)
+		INSERT INTO wfl_process_definitions(id,code,enabled,revision,created_by,updated_by)
+		VALUES($1,$2,true,2,$3,$3),($4,$5,true,1,$3,$3)
 	`, definitionID, code, actorID, secondDefinitionID, secondCode); err != nil {
 		t.Fatalf("insert workflow definitions: %v", err)
 	}
@@ -267,7 +331,7 @@ func TestApprovedExistingRootUsesStoredApprovalEntryAcrossNewVersionAndNewMatchI
 	if _, err = pool.Exec(ctx, `
 		INSERT INTO wfl_definition_instances(
 			id,definition_id,root_document_id,root_document_no,root_entity,definition_code,definition_name,definition_approval_entry_id,created_by,updated_by
-		) VALUES($1,$2,$3,$4,'expense-reimbursement',$5,'固定修订流程',$6,$7,$7)
+		) VALUES($1,$2,$3,$4,'expense-reimbursement',$5,'流程 V1',$6,$7,$7)
 	`, processID, definitionID, rootDocumentID, rootDocumentNo, code, oldDefinitionApprovalID, actorID); err != nil {
 		t.Fatalf("insert workflow instance: %v", err)
 	}
@@ -295,14 +359,14 @@ func TestApprovedExistingRootUsesStoredApprovalEntryAcrossNewVersionAndNewMatchI
 	approvedStatus := approval.StatusApproved
 	pendingStatus := approval.StatusPending
 	fromRevision, toRevision := int64(2), int64(3)
-	err = service.handleApproval(ctx, tx, approval.Event[voudomain.DocumentView]{
+	err = service.handleApproval(ctx, tx, approval.Event[voudomain.ApprovalPayload]{
 		Entry: approval.Entry{EntryRef: approval.EntryRef{
 			ID: "01J00000000000000000000042", Domain: "vou", Entity: "expense-reimbursement", SubjectID: rootDocumentID,
 		}, Status: approvedStatus, Revision: toRevision},
 		Action: approval.ActionApproved, FromStatus: &pendingStatus, ToStatus: &approvedStatus,
 		FromRevision: &fromRevision, ToRevision: &toRevision, ActorID: actorID, RequestID: "fixed-revision-reapproval",
-		Payload: voudomain.DocumentView{DocumentID: rootDocumentID, DocumentNo: rootDocumentNo,
-			Entity: "expense-reimbursement", Approval: approval.Meta{Status: approvedStatus, Revision: toRevision}},
+		Payload: voudomain.ApprovalPayload{DocumentID: rootDocumentID, DocumentNo: rootDocumentNo,
+			Entity: "expense-reimbursement"},
 	})
 	if err != nil {
 		t.Fatalf("reapprove existing workflow root: %v", err)
@@ -313,12 +377,44 @@ func TestApprovedExistingRootUsesStoredApprovalEntryAcrossNewVersionAndNewMatchI
 	if got := runtime.expensePaymentFundAccountIDs; len(got) != 1 || got[0] != oldFundAccountID {
 		t.Fatalf("reapproval actions = %v, want only started revision fund account %q", got, oldFundAccountID)
 	}
+	var historicalName, historicalEntry string
+	if err = pool.QueryRow(ctx, `SELECT definition_name,definition_approval_entry_id FROM wfl_definition_instances WHERE id=$1`, processID).Scan(&historicalName, &historicalEntry); err != nil {
+		t.Fatalf("read historical workflow instance: %v", err)
+	}
+	if historicalName != "流程 V1" || historicalEntry != oldDefinitionApprovalID {
+		t.Fatalf("historical workflow instance = (%q,%q), want V1 snapshot", historicalName, historicalEntry)
+	}
+	tx, err = pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin new workflow root: %v", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	err = service.handleApproval(ctx, tx, approval.Event[voudomain.ApprovalPayload]{
+		Entry:  approval.Entry{EntryRef: approval.EntryRef{ID: sourceApprovalID, Domain: "vou", Entity: "expense-reimbursement", SubjectID: newPaymentSourceID}, Status: approvedStatus, Revision: toRevision},
+		Action: approval.ActionApproved, FromStatus: &pendingStatus, ToStatus: &approvedStatus,
+		FromRevision: &fromRevision, ToRevision: &toRevision, ActorID: actorID, RequestID: "fixed-revision-new-root",
+		Payload: voudomain.ApprovalPayload{DocumentID: newPaymentSourceID, DocumentNo: newPaymentSourceNo,
+			Entity: "expense-reimbursement"},
+	})
+	if err != nil {
+		t.Fatalf("start new workflow root from latest approved version: %v", err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		t.Fatalf("commit new workflow root: %v", err)
+	}
+	var currentName, currentEntry string
+	if err = pool.QueryRow(ctx, `SELECT definition_name,definition_approval_entry_id FROM wfl_definition_instances WHERE root_document_id=$1`, newPaymentSourceID).Scan(&currentName, &currentEntry); err != nil {
+		t.Fatalf("read current workflow instance: %v", err)
+	}
+	if currentName != "流程 V2" || currentEntry != newDefinitionApprovalID {
+		t.Fatalf("current workflow instance = (%q,%q), want latest V2 snapshot", currentName, currentEntry)
+	}
 }
 
-func workflowExpensePaymentScript(code, rootKey, targetKey, fundAccountID string) string {
+func workflowExpensePaymentScript(code, name, rootKey, targetKey, fundAccountID string) string {
 	return `root = node(key="` + rootKey + `", name="费用报销", entity="expense-reimbursement")
 payment = node(key="` + targetKey + `", name="费用付款", entity="expense-payment")
-workflow(code="` + code + `", name="固定修订流程", root=root, edges=[
+workflow(code="` + code + `", name="` + name + `", root=root, edges=[
   edge(source=root, target=payment, relation="payment", action=expense_payment(initial={"fundAccountObjectId": "` + fundAccountID + `"})),
 ])`
 }

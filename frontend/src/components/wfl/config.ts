@@ -7,26 +7,8 @@ export function statusText(
 
 export function stageStatusText(value: string): string {
   return (
-    {
-      DRAFT: '草稿',
-      CHECKED: '已核对',
-      APPROVED: '已批准',
-    }[value] ?? value
+    approvalStatusPresentation[value as ApprovalStatus]?.label ?? '未知状态'
   )
-}
-
-const definitionStatusLabels = {
-  DRAFT: '草稿',
-  ENABLED: '已启用',
-  DISABLED: '已停用',
-} as const
-
-export const definitionStatusOptions = Object.entries(
-  definitionStatusLabels,
-).map(([value, title]) => ({ value, title }))
-
-export function definitionStatusText(value: string): string {
-  return statusText(definitionStatusLabels, value)
 }
 
 export function documentEntityText(value: string): string {
@@ -87,3 +69,5 @@ export function workflowTriggerText(value?: string): string {
     value,
   )
 }
+import type { ApprovalStatus } from '@/api/generated'
+import { approvalStatusPresentation } from '@/shared/approval'

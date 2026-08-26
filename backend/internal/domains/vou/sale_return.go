@@ -552,7 +552,7 @@ func (s *Service) removeSignoffReturnDrafts(
 		if coordinatorErr != nil {
 			return coordinatorErr
 		}
-		if err = coordinator.DeleteSubject(ctx, tx, item.approvalEntryID, item.revision, actor, DocumentView{}); err != nil {
+		if err = coordinator.DeleteSubject(ctx, tx, item.approvalEntryID, item.revision, actor, ApprovalPayload{}); err != nil {
 			return mapApprovalError(err)
 		}
 		if err = s.events.Publish(ctx, tx, DocumentDeletedEvent{Entity: EntitySaleReturn,

@@ -1005,16 +1005,14 @@ type ObjectNumberCounter struct {
 }
 
 type RptDefinition struct {
-	ID          string             `db:"id" json:"id"`
-	Code        string             `db:"code" json:"code"`
-	Name        string             `db:"name" json:"name"`
-	Description string             `db:"description" json:"description"`
-	Enabled     bool               `db:"enabled" json:"enabled"`
-	Revision    int64              `db:"revision" json:"revision"`
-	CreatedAt   pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy   string             `db:"created_by" json:"created_by"`
-	UpdatedAt   pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy   string             `db:"updated_by" json:"updated_by"`
+	ID        string             `db:"id" json:"id"`
+	Code      string             `db:"code" json:"code"`
+	Enabled   bool               `db:"enabled" json:"enabled"`
+	Revision  int64              `db:"revision" json:"revision"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	CreatedBy string             `db:"created_by" json:"created_by"`
+	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy string             `db:"updated_by" json:"updated_by"`
 }
 
 type RptRuntimeAuditEvent struct {
@@ -1032,6 +1030,8 @@ type RptRuntimeAuditEvent struct {
 type RptVersion struct {
 	ApprovalEntryID string             `db:"approval_entry_id" json:"approval_entry_id"`
 	DefinitionID    string             `db:"definition_id" json:"definition_id"`
+	Name            string             `db:"name" json:"name"`
+	Description     string             `db:"description" json:"description"`
 	Validity        string             `db:"validity" json:"validity"`
 	SqlText         string             `db:"sql_text" json:"sql_text"`
 	Parameters      []byte             `db:"parameters" json:"parameters"`
@@ -1964,7 +1964,6 @@ type WflNodeInstance struct {
 type WflProcessDefinition struct {
 	ID        string             `db:"id" json:"id"`
 	Code      string             `db:"code" json:"code"`
-	Name      string             `db:"name" json:"name"`
 	Enabled   bool               `db:"enabled" json:"enabled"`
 	Revision  int64              `db:"revision" json:"revision"`
 	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`

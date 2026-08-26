@@ -43,6 +43,7 @@
 - 跨端契约变更必须同时包含 OpenAPI、后端适配、前端调用和对应测试。
 - SQL 修改后运行 `make generate`，不得手改 sqlc 生成代码。
 - 修改后运行与变更相关的生成、测试和静态检查；涉及运行环境时额外验证 Docker Compose 配置与服务健康。
+- 生产 API 发布成功并通过健康检查后，`zerp-production-api` 只保留当前运行 SHA 及最近的两个历史 SHA，每个镜像只保留规范 SHA 标签；删除更早标签和重复的 `rollback-*` 别名。清理前从运行容器解析实际镜像 ID，清理范围限于该镜像仓库，完成后回读三个 SHA 标签、容器镜像 ID 和健康状态。
 - 保留用户已有修改，只改任务相关文件。
 
 运行环境、统一命令和部署方式见根目录 `README.md`；模块细则见 `frontend/AGENTS.md` 和 `backend/AGENTS.md`。

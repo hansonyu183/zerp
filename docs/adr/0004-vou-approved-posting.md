@@ -8,7 +8,7 @@ status: accepted
 
 所有会产生账簿流水的 VOU 单据统一在 `APPROVED` 时由 ACC 写入会计分录及辅助账，并在 `unapprove` 时删除该单生成的全部 ACC 记录；不会产生账簿流水的单据同样以 `APPROVED` 作为唯一终态。
 
-VOU 生命周期固定为 `DRAFT ⇄ CHECKED ⇄ APPROVED`。`APPROVED` 表示审批与必要入账已在同一事务中完成；反批准直接从 `APPROVED` 回到 `CHECKED` 并撤销对应台账事实。系统不维护额外的完成状态，也不提供完成、重开或短结动作。
+VOU 生命周期由中央 Approval 固定为 `DRAFT ⇄ PENDING ⇄ APPROVED`。`APPROVED` 表示审批与必要入账已在同一事务中完成；反批准直接从 `APPROVED` 回到 `PENDING` 并撤销对应台账事实。系统不维护额外的完成状态，也不提供完成、重开或短结动作。
 
 订单履约量仍由已批准的下游单据计算，用于限制可出库、可入库、可退数量和结算资金保留量；这些数量事实不改变订单或流程实例的生命周期。ACC 期间锁定阻止该月全部 VOU 操作；未锁定期间不增加限制。
 

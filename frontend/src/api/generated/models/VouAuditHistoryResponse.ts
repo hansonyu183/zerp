@@ -2,11 +2,11 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalEventView } from './ApprovalEventView';
 import type { BusinessEnvelope } from './BusinessEnvelope';
-import type { VouAuditEventView } from './VouAuditEventView';
 export type VouAuditHistoryResponse = (BusinessEnvelope & {
   data?: {
-    items: Array<VouAuditEventView>;
+    items: Array<ApprovalEventView>;
     total: number;
     page: number;
     pageSize: number;

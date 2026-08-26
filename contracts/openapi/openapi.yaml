@@ -5106,13 +5106,13 @@
                 },
             },
         },
-      '/vou/{entity}/check':
+      '/vou/{entity}/submit':
         {
           'post':
             {
               'tags': ['vou'],
-              'summary': '核对业务单据',
-              'operationId': 'voucheck',
+              'summary': '提交业务单据',
+              'operationId': 'vousubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
               'requestBody':
@@ -5133,7 +5133,7 @@
                 {
                   '200':
                     {
-                      'description': '单据核对结果。',
+                      'description': '单据提交结果。',
                       'content':
                         {
                           'application/json':
@@ -5148,13 +5148,13 @@
                 },
             },
         },
-      '/vou/{entity}/uncheck':
+      '/vou/{entity}/unsubmit':
         {
           'post':
             {
               'tags': ['vou'],
-              'summary': '反核对业务单据',
-              'operationId': 'vouuncheck',
+              'summary': '撤回业务单据提交',
+              'operationId': 'vouunsubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters': [{ '$ref': '#/components/parameters/VouEntity' }],
               'requestBody':
@@ -5175,7 +5175,7 @@
                 {
                   '200':
                     {
-                      'description': '单据反核对结果。',
+                      'description': '单据撤回提交结果。',
                       'content':
                         {
                           'application/json':

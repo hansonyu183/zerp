@@ -1079,21 +1079,11 @@
         { 'revision': { 'type': 'integer', 'format': 'int64', 'minimum': 1 } },
     },
   'WorkbenchCategory': { 'type': 'string', 'enum': ['BOB', 'VOU'] },
-  'WorkbenchPendingStage': { 'type': 'string', 'enum': ['CHECK', 'APPROVE'] },
+  'WorkbenchPendingStage': { 'type': 'string', 'enum': ['SUBMIT', 'APPROVE'] },
   'WorkbenchAction':
     {
       'type': 'string',
-      'enum':
-        [
-          'view',
-          'edit',
-          'submit',
-          'unsubmit',
-          'approve',
-          'reject',
-          'check',
-          'uncheck',
-        ],
+      'enum': ['view', 'edit', 'submit', 'unsubmit', 'approve', 'reject'],
     },
   'WorkbenchQueryRequest':
     {
@@ -1151,7 +1141,7 @@
           'category': { 'type': 'string', 'enum': ['BOB'] },
           'entity': { '$ref': '../schemas/bob.yaml#/BobEntity' },
           'status': { 'type': 'string', 'enum': ['DRAFT', 'PENDING'] },
-          'pendingStage': { 'type': 'string', 'enum': ['CHECK', 'APPROVE'] },
+          'pendingStage': { '$ref': '#/WorkbenchPendingStage' },
           'availableActions':
             { 'type': 'array', 'items': { '$ref': '#/WorkbenchAction' } },
           'updatedAt': { 'type': 'string', 'format': 'date-time' },
@@ -1187,8 +1177,7 @@
         {
           'category': { 'type': 'string', 'enum': ['VOU'] },
           'entity': { '$ref': '../schemas/vou.yaml#/VouEntity' },
-          'status':
-            { 'type': 'string', 'enum': ['DRAFT', 'CHECKED', 'APPROVED'] },
+          'status': { '$ref': './common.yaml#/ApprovalStatus' },
           'pendingStage': { '$ref': '#/WorkbenchPendingStage' },
           'availableActions':
             { 'type': 'array', 'items': { '$ref': '#/WorkbenchAction' } },

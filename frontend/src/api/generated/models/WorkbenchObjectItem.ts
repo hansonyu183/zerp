@@ -4,11 +4,12 @@
 /* eslint-disable */
 import type { BobEntity } from './BobEntity';
 import type { WorkbenchAction } from './WorkbenchAction';
+import type { WorkbenchPendingStage } from './WorkbenchPendingStage';
 export type WorkbenchObjectItem = {
   category: 'BOB';
   entity: BobEntity;
   status: 'DRAFT' | 'PENDING';
-  pendingStage: 'CHECK' | 'APPROVE';
+  pendingStage: WorkbenchPendingStage;
   availableActions: Array<WorkbenchAction>;
   updatedAt: string;
   objectId: string;

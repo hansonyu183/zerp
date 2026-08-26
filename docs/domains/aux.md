@@ -108,6 +108,6 @@ payment-method PMT
 
 `aux_objects` 只保存稳定身份、编码、启停和对象 revision；`aux_version_payloads` 以 `approval_entry_id` 保存严格白名单校验的类型化 JSON 数据。Approval 的 `approval_entries` 是唯一版本头，`approval_events` 是唯一审批生命周期审计。AUX 只为启停等对象级领域变化保存领域事件，不复制 Approval 状态、操作者或时间。
 
-BOB、VOU 和 ACC 在同一 PostgreSQL 事务中解析 AUX 引用：先锁定稳定对象，再只选择该 subject 中版本号最大的 `APPROVED` entry；调用方指定 `approvalEntryId` 时，该 entry 必须正是最新批准版本。不存在批准版本、对象已停用或传入候选 entry 时拒绝，不得回退到最新创建版本、任意最大版本或旧指针。
+BOB、VOU 和 ACC 在同一 PostgreSQL 事务中解析 AUX 引用。新选择或主动重选先锁定稳定对象，再只选择该 subject 中版本号最大的 `APPROVED` entry；已有 VOU 保存未修改快照时只验证指定 `approvalEntryId` 属于该对象且曾正式批准，不要求仍为 latest。不存在批准版本、对象已停用或传入候选 entry 时拒绝，不得回退到最新创建版本、任意最大版本或旧指针。
 
 历史批准版本永不被后续保存覆盖；停用、改名、候选版本或新的批准版本不会改写既有交易快照。结算方式在客户或供应商显式选择时解析，收款方式只在客户显式选择时解析；引用方按 3.3 和 3.4 节保存自足快照，后续提交、批准和制单不递归解析来源版本。客户结算快照保存销售加价，供应商结算快照不保存销售加价；委托配制制造费等采购加价由对应专门采购单据维护，不进入 AUX 或供应商主数据。

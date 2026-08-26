@@ -106,28 +106,6 @@ func (d documentRecord) approvalEntry() approval.Entry {
 	}
 }
 
-func (d documentRecord) withApproval(entry approval.Entry) documentRecord {
-	d.ApprovalEntryID = entry.ID
-	d.Status, d.Revision = string(entry.Status), entry.Revision
-	d.CreatedBy, d.CreatedAt = entry.CreatedBy, timestampValue(entry.CreatedAt)
-	d.UpdatedBy, d.UpdatedAt = entry.UpdatedBy, timestampValue(entry.UpdatedAt)
-	d.ReviewedBy, d.ReviewedAt = entry.SubmittedBy, optionalTimestampValue(entry.SubmittedAt)
-	d.ApprovedBy, d.ApprovedAt = entry.ApprovedBy, optionalTimestampValue(entry.ApprovedAt)
-	d.PostedBy, d.PostedAt = d.ApprovedBy, d.ApprovedAt
-	return d
-}
-
-func timestampValue(value time.Time) pgtype.Timestamptz {
-	return pgtype.Timestamptz{Time: value, Valid: true}
-}
-
-func optionalTimestampValue(value *time.Time) pgtype.Timestamptz {
-	if value == nil {
-		return pgtype.Timestamptz{}
-	}
-	return timestampValue(*value)
-}
-
 func (s *Service) coordinator(entity string) (*approval.Coordinator[ApprovalPayload], error) {
 	coordinator := s.approvals[entity]
 	if coordinator == nil {

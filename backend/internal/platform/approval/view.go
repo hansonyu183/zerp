@@ -2,6 +2,32 @@ package approval
 
 import "time"
 
+// Meta is the shared wire-neutral projection of an Approval-only entry.
+// The stable entry identity stays an implementation detail because the
+// subject itself is the public identity for Approval-only aggregates.
+type Meta struct {
+	Status      Status     `json:"status"`
+	Revision    int64      `json:"revision"`
+	CreatedBy   string     `json:"createdBy"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedBy   string     `json:"updatedBy"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+	SubmittedBy *string    `json:"submittedBy"`
+	SubmittedAt *time.Time `json:"submittedAt"`
+	ApprovedBy  *string    `json:"approvedBy"`
+	ApprovedAt  *time.Time `json:"approvedAt"`
+}
+
+func MetaFromEntry(entry Entry) Meta {
+	return Meta{
+		Status: entry.Status, Revision: entry.Revision,
+		CreatedBy: entry.CreatedBy, CreatedAt: entry.CreatedAt,
+		UpdatedBy: entry.UpdatedBy, UpdatedAt: entry.UpdatedAt,
+		SubmittedBy: entry.SubmittedBy, SubmittedAt: entry.SubmittedAt,
+		ApprovedBy: entry.ApprovedBy, ApprovedAt: entry.ApprovedAt,
+	}
+}
+
 // VersionMeta is the shared wire-neutral projection of a versioned Approval
 // entry. Domain response models embed it instead of defining their own
 // lifecycle metadata.

@@ -1,10 +1,10 @@
 package vou
 
 import (
-	"encoding/json"
 	"time"
 
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 )
 
 const (
@@ -45,7 +45,7 @@ const (
 	EntityServiceContract         = "service-contract"
 	EntityServiceAcceptance       = "service-acceptance"
 	StatusDraft                   = "DRAFT"
-	StatusChecked                 = "CHECKED"
+	StatusPending                 = "PENDING"
 	StatusApproved                = "APPROVED"
 )
 
@@ -111,6 +111,7 @@ type ErrorKind string
 const (
 	ErrorValidation ErrorKind = "VALIDATION"
 	ErrorConflict   ErrorKind = "CONFLICT"
+	ErrorForbidden  ErrorKind = "FORBIDDEN"
 	ErrorInternal   ErrorKind = "INTERNAL"
 )
 
@@ -139,6 +140,8 @@ func defaultErrorKey(kind ErrorKind) string {
 		return "validation_failed"
 	case ErrorConflict:
 		return "conflict"
+	case ErrorForbidden:
+		return "forbidden"
 	default:
 		return "internal_error"
 	}
@@ -1031,29 +1034,19 @@ type DocumentView struct {
 	DocumentID       string           `json:"documentId"`
 	Entity           string           `json:"entity"`
 	DocumentNo       string           `json:"documentNo"`
-	Status           string           `json:"status"`
-	Revision         int64            `json:"revision"`
+	Approval         approval.Meta    `json:"approval"`
 	Amount           string           `json:"amount"`
 	Data             DocumentDataView `json:"data"`
 	Attachments      []AttachmentView `json:"attachments"`
-	CreatedAt        time.Time        `json:"createdAt"`
-	CreatedBy        string           `json:"createdBy"`
-	UpdatedAt        time.Time        `json:"updatedAt"`
-	UpdatedBy        string           `json:"updatedBy"`
-	CheckedAt        *time.Time       `json:"checkedAt,omitempty"`
-	CheckedBy        *string          `json:"checkedBy,omitempty"`
-	ApprovedAt       *time.Time       `json:"approvedAt,omitempty"`
-	ApprovedBy       *string          `json:"approvedBy,omitempty"`
 	ParentEntity     string           `json:"parentEntity,omitempty"`
 	ParentDocumentID string           `json:"parentDocumentId,omitempty"`
 	ParentDocumentNo string           `json:"parentDocumentNo,omitempty"`
 }
 
 type MutationResult struct {
-	DocumentID string `json:"documentId"`
-	DocumentNo string `json:"documentNo"`
-	Status     string `json:"status"`
-	Revision   int64  `json:"revision"`
+	DocumentID string        `json:"documentId"`
+	DocumentNo string        `json:"documentNo"`
+	Approval   approval.Meta `json:"approval"`
 }
 
 type ListItem struct {
@@ -1095,17 +1088,7 @@ type Page[T any] struct {
 	PageSize int   `json:"pageSize"`
 }
 
-type AuditEventView struct {
-	ID         string          `json:"id"`
-	EventType  string          `json:"eventType"`
-	FromStatus *string         `json:"fromStatus"`
-	ToStatus   string          `json:"toStatus"`
-	ActorID    string          `json:"actorId"`
-	OccurredAt time.Time       `json:"occurredAt"`
-	Reason     *string         `json:"reason"`
-	RequestID  string          `json:"requestId"`
-	Summary    json.RawMessage `json:"summary"`
-}
+type AuditEventView = approval.EventView
 
 type AttachmentInitiateResult struct {
 	FileID    string    `json:"fileId"`

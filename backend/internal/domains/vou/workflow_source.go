@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -43,7 +42,7 @@ func (s *Service) LoadWorkflowSource(ctx context.Context, tx pgx.Tx, entity, doc
 		view = loaded
 	} else {
 		queries := s.queries.WithTx(tx)
-		document, err := queries.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{ID: documentID, Entity: entity})
+		document, err := lockDocument(ctx, tx, documentID, entity)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return WorkflowDocumentView{}, domainError(ErrorValidation, "document not found", nil, nil)
 		}
@@ -67,7 +66,7 @@ func workflowDocumentView(view DocumentView) WorkflowDocumentView {
 		})
 	}
 	return WorkflowDocumentView{
-		Entity: view.Entity, DocumentNo: view.DocumentNo, Status: view.Status, Amount: view.Amount,
+		Entity: view.Entity, DocumentNo: view.DocumentNo, Status: string(view.Approval.Status), Amount: view.Amount,
 		Data: view.Data, Attachments: attachments, ParentEntity: view.ParentEntity,
 		ParentDocumentID: view.ParentDocumentID, ParentDocumentNo: view.ParentDocumentNo,
 	}

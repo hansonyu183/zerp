@@ -128,6 +128,46 @@ $$;
 
 
 --
+-- Name: reject_locked_vou_approval_period(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+-- +goose StatementBegin
+CREATE FUNCTION public.reject_locked_vou_approval_period() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    target_domain varchar(32);
+    target_entity varchar(64);
+    target_subject_id varchar(128);
+    target_entry_id varchar(26);
+    target_date date;
+BEGIN
+    target_domain := CASE WHEN TG_OP = 'DELETE' THEN OLD.domain ELSE NEW.domain END;
+    target_entity := CASE WHEN TG_OP = 'DELETE' THEN OLD.entity ELSE NEW.entity END;
+    target_subject_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.subject_id ELSE NEW.subject_id END;
+    target_entry_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.id ELSE NEW.id END;
+    IF target_domain <> 'vou' THEN
+        RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+    END IF;
+    SELECT business_date INTO target_date
+    FROM vou_documents
+    WHERE id = target_subject_id
+      AND entity = target_entity
+      AND approval_entry_id = target_entry_id;
+    IF target_date IS NOT NULL AND EXISTS (
+        SELECT 1 FROM acc_periods
+        WHERE state = 'LOCKED'
+          AND period_month = date_trunc('month', target_date)::date
+    ) THEN
+        RAISE EXCEPTION USING ERRCODE = '23514', MESSAGE = 'accounting period is locked';
+    END IF;
+    RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+END
+$$;
+-- +goose StatementEnd
+
+
+--
 -- Name: rpt_validate_current_reports(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2180,34 +2220,6 @@ CREATE TABLE public.vou_asset_sale_lines (
 
 
 --
--- Name: vou_audit_events; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.vou_audit_events (
-    id character varying(26) NOT NULL,
-    document_id character varying(26) NOT NULL,
-    entity character varying(32) NOT NULL,
-    event_type character varying(48) NOT NULL,
-    from_status character varying(16),
-    to_status character varying(16) NOT NULL,
-    actor_id character varying(26) NOT NULL,
-    occurred_at timestamp with time zone DEFAULT now() NOT NULL,
-    reason character varying(1000),
-    request_id character varying(128) NOT NULL,
-    summary jsonb DEFAULT '{}'::jsonb NOT NULL,
-    workflow_version smallint DEFAULT 1 NOT NULL,
-    stage character varying(16),
-    child_id character varying(26),
-    child_no character varying(40),
-    child_status character varying(16),
-    CONSTRAINT vou_audit_events_event_type_check CHECK (((event_type)::text = ANY ((ARRAY['CREATED'::character varying, 'SAVED'::character varying, 'DELETED'::character varying, 'CHECKED'::character varying, 'UNCHECKED'::character varying, 'APPROVED'::character varying, 'UNAPPROVED'::character varying, 'ATTACHMENT_INITIATED'::character varying, 'ATTACHMENT_UPLOADED'::character varying, 'ATTACHMENT_REMOVED'::character varying])::text[]))),
-    CONSTRAINT vou_audit_events_from_status_check CHECK (((from_status IS NULL) OR ((from_status)::text = ANY ((ARRAY['DRAFT'::character varying, 'CHECKED'::character varying, 'APPROVED'::character varying])::text[])))),
-    CONSTRAINT vou_audit_events_to_status_check CHECK (((to_status)::text = ANY ((ARRAY['DRAFT'::character varying, 'CHECKED'::character varying, 'APPROVED'::character varying])::text[]))),
-    CONSTRAINT vou_audit_events_workflow_version_check CHECK ((workflow_version = ANY (ARRAY[1, 2])))
-);
-
-
---
 -- Name: vou_bill_cash_lines; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2337,37 +2349,20 @@ CREATE TABLE public.vou_documents (
     id character varying(26) NOT NULL,
     entity character varying(32) NOT NULL,
     document_no character varying(32) NOT NULL,
-    status character varying(16) DEFAULT 'DRAFT'::character varying NOT NULL,
-    revision bigint DEFAULT 1 NOT NULL,
+    approval_entry_id character varying(26) NOT NULL,
     business_date date NOT NULL,
     currency character varying(3),
     total_amount_cents bigint NOT NULL,
     remark character varying(1000),
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_by character varying(26) NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_by character varying(26) NOT NULL,
-    reviewed_at timestamp with time zone,
-    reviewed_by character varying(26),
-    approved_at timestamp with time zone,
-    approved_by character varying(26),
-    checked_at timestamp with time zone,
-    checked_by character varying(26),
     parent_document_id character varying(26),
     parent_entity character varying(32),
     due_date date,
-    posted_at timestamp with time zone,
-    posted_by character varying(26),
     CONSTRAINT vou_documents_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
     CONSTRAINT vou_documents_entity_check CHECK (((entity)::text = ANY ((ARRAY['sale-pricing'::character varying, 'sale-order'::character varying, 'sale-outbound'::character varying, 'sale-delivery'::character varying, 'sale-signoff'::character varying, 'sale-return'::character varying, 'purchase-inquiry'::character varying, 'purchase-order'::character varying, 'purchase-inbound'::character varying, 'purchase-return'::character varying, 'order-production'::character varying, 'self-production'::character varying, 'inventory-count'::character varying, 'sales-receipt'::character varying, 'sales-refund'::character varying, 'purchase-payment'::character varying, 'purchase-refund'::character varying, 'other-receipt'::character varying, 'other-payment'::character varying, 'employee-loan'::character varying, 'employee-repayment'::character varying, 'employee-loan-writeoff'::character varying, 'expense-reimbursement'::character varying, 'expense-payment'::character varying, 'other-income'::character varying, 'asset-acquisition'::character varying, 'asset-sale'::character varying, 'asset-liquidation'::character varying, 'bill-receipt'::character varying, 'bill-payment'::character varying, 'bill-issue'::character varying, 'bill-discount'::character varying, 'bill-maturity'::character varying, 'intermediary-calculation'::character varying, 'service-contract'::character varying, 'service-acceptance'::character varying, 'customer-order'::character varying, 'procurement-order'::character varying, 'goods-receipt'::character varying, 'delivery-note'::character varying, 'signoff-note'::character varying])::text[]))),
     CONSTRAINT vou_documents_not_self_parent_ck CHECK (((parent_document_id IS NULL) OR ((parent_document_id)::text <> (id)::text))),
     CONSTRAINT vou_documents_number_format_check CHECK (((document_no)::text ~ '^[A-Z]{3}-[0-9]{8}-[0-9]{4}$'::text)),
     CONSTRAINT vou_documents_parent_pair_ck CHECK (((parent_entity IS NULL) = (parent_document_id IS NULL))),
-    CONSTRAINT vou_documents_posting_audit_ck CHECK (((((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'CHECKED'::character varying])::text[])) AND (posted_at IS NULL) AND (posted_by IS NULL)) OR (((status)::text = 'APPROVED'::text) AND (posted_at IS NOT NULL) AND (posted_by IS NOT NULL)))),
     CONSTRAINT vou_documents_production_money_ck CHECK (((((entity)::text = ANY ((ARRAY['order-production'::character varying, 'self-production'::character varying])::text[])) AND (currency IS NULL) AND (total_amount_cents = 0)) OR (((entity)::text <> ALL ((ARRAY['order-production'::character varying, 'self-production'::character varying])::text[])) AND (currency IS NOT NULL)))),
-    CONSTRAINT vou_documents_revision_check CHECK ((revision >= 1)),
-    CONSTRAINT vou_documents_status_audit_ck CHECK (((((status)::text = 'DRAFT'::text) AND (reviewed_at IS NULL) AND (reviewed_by IS NULL) AND (approved_at IS NULL) AND (approved_by IS NULL)) OR (((status)::text = 'CHECKED'::text) AND (reviewed_at IS NOT NULL) AND (reviewed_by IS NOT NULL) AND (approved_at IS NULL) AND (approved_by IS NULL)) OR (((status)::text = 'APPROVED'::text) AND (reviewed_at IS NOT NULL) AND (reviewed_by IS NOT NULL) AND (approved_at IS NOT NULL) AND (approved_by IS NOT NULL)))),
-    CONSTRAINT vou_documents_status_ck CHECK (((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'CHECKED'::character varying, 'APPROVED'::character varying])::text[]))),
     CONSTRAINT vou_documents_total_amount_ck CHECK ((((entity)::text = ANY ((ARRAY['intermediary-calculation'::character varying, 'service-contract'::character varying])::text[])) OR (((entity)::text = ANY ((ARRAY['sale-pricing'::character varying, 'purchase-inquiry'::character varying, 'sale-order'::character varying, 'sale-outbound'::character varying, 'sale-delivery'::character varying, 'sale-signoff'::character varying, 'sale-return'::character varying, 'purchase-order'::character varying, 'purchase-inbound'::character varying, 'purchase-return'::character varying, 'order-production'::character varying, 'self-production'::character varying, 'inventory-count'::character varying, 'asset-liquidation'::character varying])::text[])) AND (total_amount_cents >= 0)) OR (((entity)::text <> ALL ((ARRAY['intermediary-calculation'::character varying, 'service-contract'::character varying, 'sale-pricing'::character varying, 'purchase-inquiry'::character varying, 'sale-order'::character varying, 'sale-outbound'::character varying, 'sale-delivery'::character varying, 'sale-signoff'::character varying, 'sale-return'::character varying, 'purchase-order'::character varying, 'purchase-inbound'::character varying, 'purchase-return'::character varying, 'order-production'::character varying, 'self-production'::character varying, 'inventory-count'::character varying, 'asset-liquidation'::character varying])::text[])) AND (total_amount_cents > 0))))
 );
 
@@ -3857,22 +3852,22 @@ INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000015', '/vou/p
 INSERT INTO public.app_permissions VALUES ('VI11596452ba9fcf5681378779', '/vou/purchase-inbound/query', 'vou', 'purchase-inbound', 'query', '查询采购入库', 'ENABLED', '2026-08-24 15:23:49.271068+00', NULL, '2026-08-24 15:23:49.271068+00', NULL, 1, 70);
 INSERT INTO public.app_permissions VALUES ('018942C078FF73D2116AAF37DB', '/vou/expense-reimbursement/delete', 'vou', 'expense-reimbursement', 'delete', '删除草稿费用报销', 'ENABLED', '2026-08-24 15:23:49.29388+00', NULL, '2026-08-24 15:23:49.29388+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('017F2CBB1F173D9CCF0784173A', '/vou/other-income/delete', 'vou', 'other-income', 'delete', '删除草稿其他收入', 'ENABLED', '2026-08-24 15:23:49.29388+00', NULL, '2026-08-24 15:23:49.29388+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000005', '/vou/sale-order/check', 'vou', 'sale-order', 'check', '核对销售订单', 'ENABLED', '2026-08-24 15:23:48.959532+00', NULL, '2026-08-24 15:23:48.959532+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000104', '/vou/sale-outbound/check', 'vou', 'sale-outbound', 'check', '核对销售出库', 'ENABLED', '2026-08-24 15:23:49.226715+00', NULL, '2026-08-24 15:23:49.226715+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000119', '/vou/sale-delivery/check', 'vou', 'sale-delivery', 'check', '核对销售送货', 'ENABLED', '2026-08-24 15:23:49.226715+00', NULL, '2026-08-24 15:23:49.226715+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000134', '/vou/sale-signoff/check', 'vou', 'sale-signoff', 'check', '核对销售签收', 'ENABLED', '2026-08-24 15:23:49.226715+00', NULL, '2026-08-24 15:23:49.226715+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01292F5F8B1FA77933B8CE6CC8', '/vou/purchase-order/check', 'vou', 'purchase-order', 'check', '核对采购订单', 'ENABLED', '2026-08-24 15:23:49.29388+00', NULL, '2026-08-24 15:23:49.29388+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01CD9A7B21FD613A09709E5A1C', '/vou/purchase-inbound/check', 'vou', 'purchase-inbound', 'check', '核对采购入库', 'ENABLED', '2026-08-24 15:23:49.29388+00', NULL, '2026-08-24 15:23:49.29388+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000075', '/vou/expense-reimbursement/check', 'vou', 'expense-reimbursement', 'check', '核对费用报销', 'ENABLED', '2026-08-24 15:23:48.959532+00', NULL, '2026-08-24 15:23:48.959532+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000089', '/vou/other-income/check', 'vou', 'other-income', 'check', '核对其他收入', 'ENABLED', '2026-08-24 15:23:48.959532+00', NULL, '2026-08-24 15:23:48.959532+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000006', '/vou/sale-order/uncheck', 'vou', 'sale-order', 'uncheck', '反核对销售订单', 'ENABLED', '2026-08-24 15:23:48.959532+00', NULL, '2026-08-24 15:23:48.959532+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000105', '/vou/sale-outbound/uncheck', 'vou', 'sale-outbound', 'uncheck', '反核对销售出库', 'ENABLED', '2026-08-24 15:23:49.226715+00', NULL, '2026-08-24 15:23:49.226715+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000120', '/vou/sale-delivery/uncheck', 'vou', 'sale-delivery', 'uncheck', '反核对销售送货', 'ENABLED', '2026-08-24 15:23:49.226715+00', NULL, '2026-08-24 15:23:49.226715+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000135', '/vou/sale-signoff/uncheck', 'vou', 'sale-signoff', 'uncheck', '反核对销售签收', 'ENABLED', '2026-08-24 15:23:49.226715+00', NULL, '2026-08-24 15:23:49.226715+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('0146FE50B2D6000DFF4272DA0E', '/vou/purchase-order/uncheck', 'vou', 'purchase-order', 'uncheck', '反核对采购订单', 'ENABLED', '2026-08-24 15:23:49.29388+00', NULL, '2026-08-24 15:23:49.29388+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01327AFEC8544172B16AD95C6B', '/vou/purchase-inbound/uncheck', 'vou', 'purchase-inbound', 'uncheck', '反核对采购入库', 'ENABLED', '2026-08-24 15:23:49.29388+00', NULL, '2026-08-24 15:23:49.29388+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000076', '/vou/expense-reimbursement/uncheck', 'vou', 'expense-reimbursement', 'uncheck', '反核对费用报销', 'ENABLED', '2026-08-24 15:23:48.959532+00', NULL, '2026-08-24 15:23:48.959532+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000090', '/vou/other-income/uncheck', 'vou', 'other-income', 'uncheck', '反核对其他收入', 'ENABLED', '2026-08-24 15:23:48.959532+00', NULL, '2026-08-24 15:23:48.959532+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000005', '/vou/sale-order/submit', 'vou', 'sale-order', 'submit', '提交销售订单', 'ENABLED', '2026-08-24 15:23:48.959532+00', NULL, '2026-08-24 15:23:48.959532+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000104', '/vou/sale-outbound/submit', 'vou', 'sale-outbound', 'submit', '提交销售出库', 'ENABLED', '2026-08-24 15:23:49.226715+00', NULL, '2026-08-24 15:23:49.226715+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000119', '/vou/sale-delivery/submit', 'vou', 'sale-delivery', 'submit', '提交销售送货', 'ENABLED', '2026-08-24 15:23:49.226715+00', NULL, '2026-08-24 15:23:49.226715+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000134', '/vou/sale-signoff/submit', 'vou', 'sale-signoff', 'submit', '提交销售签收', 'ENABLED', '2026-08-24 15:23:49.226715+00', NULL, '2026-08-24 15:23:49.226715+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01292F5F8B1FA77933B8CE6CC8', '/vou/purchase-order/submit', 'vou', 'purchase-order', 'submit', '提交采购订单', 'ENABLED', '2026-08-24 15:23:49.29388+00', NULL, '2026-08-24 15:23:49.29388+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01CD9A7B21FD613A09709E5A1C', '/vou/purchase-inbound/submit', 'vou', 'purchase-inbound', 'submit', '提交采购入库', 'ENABLED', '2026-08-24 15:23:49.29388+00', NULL, '2026-08-24 15:23:49.29388+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000075', '/vou/expense-reimbursement/submit', 'vou', 'expense-reimbursement', 'submit', '提交费用报销', 'ENABLED', '2026-08-24 15:23:48.959532+00', NULL, '2026-08-24 15:23:48.959532+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000089', '/vou/other-income/submit', 'vou', 'other-income', 'submit', '提交其他收入', 'ENABLED', '2026-08-24 15:23:48.959532+00', NULL, '2026-08-24 15:23:48.959532+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000006', '/vou/sale-order/unsubmit', 'vou', 'sale-order', 'unsubmit', '撤销提交销售订单', 'ENABLED', '2026-08-24 15:23:48.959532+00', NULL, '2026-08-24 15:23:48.959532+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000105', '/vou/sale-outbound/unsubmit', 'vou', 'sale-outbound', 'unsubmit', '撤销提交销售出库', 'ENABLED', '2026-08-24 15:23:49.226715+00', NULL, '2026-08-24 15:23:49.226715+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000120', '/vou/sale-delivery/unsubmit', 'vou', 'sale-delivery', 'unsubmit', '撤销提交销售送货', 'ENABLED', '2026-08-24 15:23:49.226715+00', NULL, '2026-08-24 15:23:49.226715+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000135', '/vou/sale-signoff/unsubmit', 'vou', 'sale-signoff', 'unsubmit', '撤销提交销售签收', 'ENABLED', '2026-08-24 15:23:49.226715+00', NULL, '2026-08-24 15:23:49.226715+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('0146FE50B2D6000DFF4272DA0E', '/vou/purchase-order/unsubmit', 'vou', 'purchase-order', 'unsubmit', '撤销提交采购订单', 'ENABLED', '2026-08-24 15:23:49.29388+00', NULL, '2026-08-24 15:23:49.29388+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01327AFEC8544172B16AD95C6B', '/vou/purchase-inbound/unsubmit', 'vou', 'purchase-inbound', 'unsubmit', '撤销提交采购入库', 'ENABLED', '2026-08-24 15:23:49.29388+00', NULL, '2026-08-24 15:23:49.29388+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000076', '/vou/expense-reimbursement/unsubmit', 'vou', 'expense-reimbursement', 'unsubmit', '撤销提交费用报销', 'ENABLED', '2026-08-24 15:23:48.959532+00', NULL, '2026-08-24 15:23:48.959532+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000090', '/vou/other-income/unsubmit', 'vou', 'other-income', 'unsubmit', '撤销提交其他收入', 'ENABLED', '2026-08-24 15:23:48.959532+00', NULL, '2026-08-24 15:23:48.959532+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000007', '/vou/sale-order/approve', 'vou', 'sale-order', 'approve', '批准销售订单', 'ENABLED', '2026-08-24 15:23:48.959532+00', NULL, '2026-08-24 15:23:48.959532+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000106', '/vou/sale-outbound/approve', 'vou', 'sale-outbound', 'approve', '批准销售出库', 'ENABLED', '2026-08-24 15:23:49.226715+00', NULL, '2026-08-24 15:23:49.226715+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000121', '/vou/sale-delivery/approve', 'vou', 'sale-delivery', 'approve', '批准销售送货', 'ENABLED', '2026-08-24 15:23:49.226715+00', NULL, '2026-08-24 15:23:49.226715+00', NULL, 1, NULL);
@@ -3996,8 +3991,8 @@ INSERT INTO public.app_permissions VALUES ('SR2e3f53fb55b6f0c87524c566', '/vou/s
 INSERT INTO public.app_permissions VALUES ('SR14074cf0ec69a8d22bfcad1b', '/vou/sale-return/create', 'vou', 'sale-return', 'create', '创建销售退货', 'ENABLED', '2026-08-24 15:23:49.390761+00', NULL, '2026-08-24 15:23:49.390761+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('SR5781a9f73050e25af584e583', '/vou/sale-return/save', 'vou', 'sale-return', 'save', '保存销售退货', 'ENABLED', '2026-08-24 15:23:49.390761+00', NULL, '2026-08-24 15:23:49.390761+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('SR3d9f811dd94e25552882125c', '/vou/sale-return/delete', 'vou', 'sale-return', 'delete', '删除销售退货', 'ENABLED', '2026-08-24 15:23:49.390761+00', NULL, '2026-08-24 15:23:49.390761+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('SR1df765da38ce9fd430db8e22', '/vou/sale-return/check', 'vou', 'sale-return', 'check', '核对销售退货', 'ENABLED', '2026-08-24 15:23:49.390761+00', NULL, '2026-08-24 15:23:49.390761+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('SR9c79a4eea70e976098f6a9d0', '/vou/sale-return/uncheck', 'vou', 'sale-return', 'uncheck', '反核对销售退货', 'ENABLED', '2026-08-24 15:23:49.390761+00', NULL, '2026-08-24 15:23:49.390761+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('SR1df765da38ce9fd430db8e22', '/vou/sale-return/submit', 'vou', 'sale-return', 'submit', '提交销售退货', 'ENABLED', '2026-08-24 15:23:49.390761+00', NULL, '2026-08-24 15:23:49.390761+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('SR9c79a4eea70e976098f6a9d0', '/vou/sale-return/unsubmit', 'vou', 'sale-return', 'unsubmit', '撤销提交销售退货', 'ENABLED', '2026-08-24 15:23:49.390761+00', NULL, '2026-08-24 15:23:49.390761+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('SR4bed86cfc7015da6c48fa05a', '/vou/sale-return/approve', 'vou', 'sale-return', 'approve', '批准销售退货', 'ENABLED', '2026-08-24 15:23:49.390761+00', NULL, '2026-08-24 15:23:49.390761+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('SRa040dac8bd143466ccfe89b5', '/vou/sale-return/unapprove', 'vou', 'sale-return', 'unapprove', '反批准销售退货', 'ENABLED', '2026-08-24 15:23:49.390761+00', NULL, '2026-08-24 15:23:49.390761+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('SRfa9b2f4da24460e29fb56659', '/vou/sale-return/audit-history', 'vou', 'sale-return', 'audit-history', '查看销售退货审计', 'ENABLED', '2026-08-24 15:23:49.390761+00', NULL, '2026-08-24 15:23:49.390761+00', NULL, 1, NULL);
@@ -4008,8 +4003,8 @@ INSERT INTO public.app_permissions VALUES ('PR718b4d715d7438d0a4d984ae', '/vou/p
 INSERT INTO public.app_permissions VALUES ('PR81adbfc09038ad1333b9600e', '/vou/purchase-return/create', 'vou', 'purchase-return', 'create', '创建采购退货', 'ENABLED', '2026-08-24 15:23:49.401432+00', NULL, '2026-08-24 15:23:49.401432+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PR32c9168b4669b803a6733a57', '/vou/purchase-return/save', 'vou', 'purchase-return', 'save', '保存采购退货', 'ENABLED', '2026-08-24 15:23:49.401432+00', NULL, '2026-08-24 15:23:49.401432+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PRe0c8092db4e288e700dfd47a', '/vou/purchase-return/delete', 'vou', 'purchase-return', 'delete', '删除采购退货', 'ENABLED', '2026-08-24 15:23:49.401432+00', NULL, '2026-08-24 15:23:49.401432+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PR44dfea7f682a9cb8e554c6a9', '/vou/purchase-return/check', 'vou', 'purchase-return', 'check', '核对采购退货', 'ENABLED', '2026-08-24 15:23:49.401432+00', NULL, '2026-08-24 15:23:49.401432+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PR54368ec7e5f650bc88ed7d3f', '/vou/purchase-return/uncheck', 'vou', 'purchase-return', 'uncheck', '反核对采购退货', 'ENABLED', '2026-08-24 15:23:49.401432+00', NULL, '2026-08-24 15:23:49.401432+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PR44dfea7f682a9cb8e554c6a9', '/vou/purchase-return/submit', 'vou', 'purchase-return', 'submit', '提交采购退货', 'ENABLED', '2026-08-24 15:23:49.401432+00', NULL, '2026-08-24 15:23:49.401432+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PR54368ec7e5f650bc88ed7d3f', '/vou/purchase-return/unsubmit', 'vou', 'purchase-return', 'unsubmit', '撤销提交采购退货', 'ENABLED', '2026-08-24 15:23:49.401432+00', NULL, '2026-08-24 15:23:49.401432+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PR2d5f333eb8d5ee269aebdc3c', '/vou/purchase-return/approve', 'vou', 'purchase-return', 'approve', '批准采购退货', 'ENABLED', '2026-08-24 15:23:49.401432+00', NULL, '2026-08-24 15:23:49.401432+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PR20dd55fd646d58fb64fd0e07', '/vou/purchase-return/unapprove', 'vou', 'purchase-return', 'unapprove', '反批准采购退货', 'ENABLED', '2026-08-24 15:23:49.401432+00', NULL, '2026-08-24 15:23:49.401432+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PR8fa22cce8900d86d95c3831c', '/vou/purchase-return/audit-history', 'vou', 'purchase-return', 'audit-history', '查看采购退货审计', 'ENABLED', '2026-08-24 15:23:49.401432+00', NULL, '2026-08-24 15:23:49.401432+00', NULL, 1, NULL);
@@ -4020,8 +4015,8 @@ INSERT INTO public.app_permissions VALUES ('PD0e5618fdbf79c5eb4895db0b', '/vou/o
 INSERT INTO public.app_permissions VALUES ('PD627da930843a36c9e20c581d', '/vou/order-production/create', 'vou', 'order-production', 'create', '创建生产配货', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PD4a89d5bb71f3900823731dbc', '/vou/order-production/save', 'vou', 'order-production', 'save', '保存生产配货', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PDd6d2526111b69fde070a60b1', '/vou/order-production/delete', 'vou', 'order-production', 'delete', '删除生产配货', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PD8591f7d39010ae784bbe15a1', '/vou/order-production/check', 'vou', 'order-production', 'check', '核对生产配货', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PDf275e87ca4ea42daa9a86374', '/vou/order-production/uncheck', 'vou', 'order-production', 'uncheck', '反核对生产配货', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PD8591f7d39010ae784bbe15a1', '/vou/order-production/submit', 'vou', 'order-production', 'submit', '提交生产配货', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PDf275e87ca4ea42daa9a86374', '/vou/order-production/unsubmit', 'vou', 'order-production', 'unsubmit', '撤销提交生产配货', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PD855a7b6e895bf69b670fc209', '/vou/order-production/approve', 'vou', 'order-production', 'approve', '批准生产配货', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PDebacd886a97c5e986646bb95', '/vou/order-production/unapprove', 'vou', 'order-production', 'unapprove', '反批准生产配货', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PDcca2dfc81078ff0151814e3d', '/vou/order-production/audit-history', 'vou', 'order-production', 'audit-history', '查看审计生产配货', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, NULL);
@@ -4033,8 +4028,8 @@ INSERT INTO public.app_permissions VALUES ('PD07d06b8b200c4e34c1aa0882', '/vou/s
 INSERT INTO public.app_permissions VALUES ('PD35ea7fe74494070596ab83bc', '/vou/self-production/create', 'vou', 'self-production', 'create', '创建生产自制品', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PD182c9e3adda920516ed6f5b1', '/vou/self-production/save', 'vou', 'self-production', 'save', '保存生产自制品', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PDc669846d1fdca741ec56ca72', '/vou/self-production/delete', 'vou', 'self-production', 'delete', '删除生产自制品', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PD1e31f24a0c58d5d872d26e51', '/vou/self-production/check', 'vou', 'self-production', 'check', '核对生产自制品', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PDb5419ac78da76c793d5d27b9', '/vou/self-production/uncheck', 'vou', 'self-production', 'uncheck', '反核对生产自制品', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PD1e31f24a0c58d5d872d26e51', '/vou/self-production/submit', 'vou', 'self-production', 'submit', '提交生产自制品', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PDb5419ac78da76c793d5d27b9', '/vou/self-production/unsubmit', 'vou', 'self-production', 'unsubmit', '撤销提交生产自制品', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PD827db941d616789e12f75098', '/vou/self-production/approve', 'vou', 'self-production', 'approve', '批准生产自制品', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PD7e4a9852bb2b2a3c13e79a5f', '/vou/self-production/unapprove', 'vou', 'self-production', 'unapprove', '反批准生产自制品', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PDf5a97f37dc20172c1ba57274', '/vou/self-production/audit-history', 'vou', 'self-production', 'audit-history', '查看审计生产自制品', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, NULL);
@@ -4079,10 +4074,10 @@ INSERT INTO public.app_permissions VALUES ('PR64a5516e8bf28a9e86d6948d', '/vou/s
 INSERT INTO public.app_permissions VALUES ('PR4623bc852b27715da2794781', '/vou/purchase-inquiry/save', 'vou', 'purchase-inquiry', 'save', '保存采购询价', 'ENABLED', '2026-08-24 15:23:49.505114+00', NULL, '2026-08-24 15:23:49.505114+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PR4ae55fae1c46708ea6627566', '/vou/sale-pricing/delete', 'vou', 'sale-pricing', 'delete', '删除销售定价', 'ENABLED', '2026-08-24 15:23:49.505114+00', NULL, '2026-08-24 15:23:49.505114+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PRd516191dd4b3a1a8932a0c14', '/vou/purchase-inquiry/delete', 'vou', 'purchase-inquiry', 'delete', '删除采购询价', 'ENABLED', '2026-08-24 15:23:49.505114+00', NULL, '2026-08-24 15:23:49.505114+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PR113886ebe9f50966895d4bd8', '/vou/sale-pricing/check', 'vou', 'sale-pricing', 'check', '核对销售定价', 'ENABLED', '2026-08-24 15:23:49.505114+00', NULL, '2026-08-24 15:23:49.505114+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PR02d39fbef186f450d356ab86', '/vou/purchase-inquiry/check', 'vou', 'purchase-inquiry', 'check', '核对采购询价', 'ENABLED', '2026-08-24 15:23:49.505114+00', NULL, '2026-08-24 15:23:49.505114+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PR8601392480a4956e0265e3ba', '/vou/sale-pricing/uncheck', 'vou', 'sale-pricing', 'uncheck', '反核对销售定价', 'ENABLED', '2026-08-24 15:23:49.505114+00', NULL, '2026-08-24 15:23:49.505114+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PR4535924d0cb3a50f06d34cbf', '/vou/purchase-inquiry/uncheck', 'vou', 'purchase-inquiry', 'uncheck', '反核对采购询价', 'ENABLED', '2026-08-24 15:23:49.505114+00', NULL, '2026-08-24 15:23:49.505114+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PR113886ebe9f50966895d4bd8', '/vou/sale-pricing/submit', 'vou', 'sale-pricing', 'submit', '提交销售定价', 'ENABLED', '2026-08-24 15:23:49.505114+00', NULL, '2026-08-24 15:23:49.505114+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PR02d39fbef186f450d356ab86', '/vou/purchase-inquiry/submit', 'vou', 'purchase-inquiry', 'submit', '提交采购询价', 'ENABLED', '2026-08-24 15:23:49.505114+00', NULL, '2026-08-24 15:23:49.505114+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PR8601392480a4956e0265e3ba', '/vou/sale-pricing/unsubmit', 'vou', 'sale-pricing', 'unsubmit', '撤销提交销售定价', 'ENABLED', '2026-08-24 15:23:49.505114+00', NULL, '2026-08-24 15:23:49.505114+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PR4535924d0cb3a50f06d34cbf', '/vou/purchase-inquiry/unsubmit', 'vou', 'purchase-inquiry', 'unsubmit', '撤销提交采购询价', 'ENABLED', '2026-08-24 15:23:49.505114+00', NULL, '2026-08-24 15:23:49.505114+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PR44a5d79fc99a80e589b1f57d', '/vou/sale-pricing/approve', 'vou', 'sale-pricing', 'approve', '批准销售定价', 'ENABLED', '2026-08-24 15:23:49.505114+00', NULL, '2026-08-24 15:23:49.505114+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PRfd72130ec6cbdb39622887a4', '/vou/purchase-inquiry/approve', 'vou', 'purchase-inquiry', 'approve', '批准采购询价', 'ENABLED', '2026-08-24 15:23:49.505114+00', NULL, '2026-08-24 15:23:49.505114+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PR71c15e7ba2ba48595a2291b7', '/vou/sale-pricing/unapprove', 'vou', 'sale-pricing', 'unapprove', '反批准销售定价', 'ENABLED', '2026-08-24 15:23:49.505114+00', NULL, '2026-08-24 15:23:49.505114+00', NULL, 1, NULL);
@@ -4106,8 +4101,8 @@ INSERT INTO public.app_permissions VALUES ('WG8cce66a1abfe87c2efebdd54', '/wfl/p
 INSERT INTO public.app_permissions VALUES ('VE70b2c2b2f72e9ba6e39a8b11', '/vou/expense-payment/get', 'vou', 'expense-payment', 'get', '读取费用付款', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:49.521804+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('VE78afc21477bcad85cec9a8b7', '/vou/expense-payment/save', 'vou', 'expense-payment', 'save', '保存费用付款', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:49.521804+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('VE82ca63143d458d5531c729c2', '/vou/expense-payment/delete', 'vou', 'expense-payment', 'delete', '删除费用付款', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:49.521804+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('VE90db9897c7247dc41e124f9c', '/vou/expense-payment/check', 'vou', 'expense-payment', 'check', '核对费用付款', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:49.521804+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('VE0ce3ae91a4d9c396f3dcbd98', '/vou/expense-payment/uncheck', 'vou', 'expense-payment', 'uncheck', '撤销核对费用付款', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:49.521804+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('VE90db9897c7247dc41e124f9c', '/vou/expense-payment/submit', 'vou', 'expense-payment', 'submit', '提交费用付款', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:49.521804+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('VE0ce3ae91a4d9c396f3dcbd98', '/vou/expense-payment/unsubmit', 'vou', 'expense-payment', 'unsubmit', '撤销提交费用付款', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:49.521804+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('VE6cde2c465fd17de1a340cfbd', '/vou/expense-payment/approve', 'vou', 'expense-payment', 'approve', '批准费用付款', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:49.521804+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('VE46e22b8f297e54cb85f80ae3', '/vou/expense-payment/unapprove', 'vou', 'expense-payment', 'unapprove', '撤销批准费用付款', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:49.521804+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('VEa3f6979037c4a98b6177a4c6', '/vou/expense-payment/audit-history', 'vou', 'expense-payment', 'audit-history', '查询费用付款审计', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:49.521804+00', NULL, 1, NULL);
@@ -4133,10 +4128,10 @@ INSERT INTO public.app_permissions VALUES ('PS64390d02f8468f4536efd158', '/vou/o
 INSERT INTO public.app_permissions VALUES ('PSc1fede872c8793848f383d86', '/vou/other-payment/save', 'vou', 'other-payment', 'save', '保存往来付款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PS62427bd8230f0a6512fdcf20', '/vou/other-receipt/delete', 'vou', 'other-receipt', 'delete', '删除草稿往来收款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PS212666f5154bbdac0995c15b', '/vou/other-payment/delete', 'vou', 'other-payment', 'delete', '删除草稿往来付款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PS62d8e67e77119d1fa217bf97', '/vou/other-receipt/check', 'vou', 'other-receipt', 'check', '核对往来收款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PS8d370ef94537c52810e55a02', '/vou/other-payment/check', 'vou', 'other-payment', 'check', '核对往来付款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PS824938e8f987438aa4c4830e', '/vou/other-receipt/uncheck', 'vou', 'other-receipt', 'uncheck', '反核对往来收款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PS9ed097e4c956f3ec3c6d1f43', '/vou/other-payment/uncheck', 'vou', 'other-payment', 'uncheck', '反核对往来付款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PS62d8e67e77119d1fa217bf97', '/vou/other-receipt/submit', 'vou', 'other-receipt', 'submit', '提交往来收款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PS8d370ef94537c52810e55a02', '/vou/other-payment/submit', 'vou', 'other-payment', 'submit', '提交往来付款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PS824938e8f987438aa4c4830e', '/vou/other-receipt/unsubmit', 'vou', 'other-receipt', 'unsubmit', '撤销提交往来收款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PS9ed097e4c956f3ec3c6d1f43', '/vou/other-payment/unsubmit', 'vou', 'other-payment', 'unsubmit', '撤销提交往来付款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PS4699e1bd3fc16e206d488809', '/vou/purchase-payment/attachment-initiate', 'vou', 'purchase-payment', 'attachment-initiate', '发起附件上传往来付款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PSe202a67f152925f5d26289f3', '/vou/sales-refund/attachment-initiate', 'vou', 'sales-refund', 'attachment-initiate', '发起附件上传往来付款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PSe0438bda35e6b2a534839c38', '/vou/purchase-refund/save', 'vou', 'purchase-refund', 'save', '保存往来收款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
@@ -4156,9 +4151,9 @@ INSERT INTO public.app_permissions VALUES ('IC96820eeaa97ae8c728512e81', '/vou/i
 INSERT INTO public.app_permissions VALUES ('IC264a0b8eedd0287be356892c', '/vou/inventory-count/create', 'vou', 'inventory-count', 'create', '创建库存盘点单', 'ENABLED', '2026-08-24 15:23:49.566641+00', NULL, '2026-08-24 15:23:49.566641+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('IC47596cf5a310b9914ee61fa0', '/vou/inventory-count/save', 'vou', 'inventory-count', 'save', '保存库存盘点单', 'ENABLED', '2026-08-24 15:23:49.566641+00', NULL, '2026-08-24 15:23:49.566641+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('IC1a5f8641cb72d7152bc24c76', '/vou/inventory-count/delete', 'vou', 'inventory-count', 'delete', '删除库存盘点单', 'ENABLED', '2026-08-24 15:23:49.566641+00', NULL, '2026-08-24 15:23:49.566641+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('IC35cc3dfe5063f691a83b6a5b', '/vou/inventory-count/check', 'vou', 'inventory-count', 'check', '核对库存盘点单', 'ENABLED', '2026-08-24 15:23:49.566641+00', NULL, '2026-08-24 15:23:49.566641+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('ICc983cb066a2325b2bb3b22ee', '/vou/inventory-count/uncheck', 'vou', 'inventory-count', 'uncheck', '反核对库存盘点单', 'ENABLED', '2026-08-24 15:23:49.566641+00', NULL, '2026-08-24 15:23:49.566641+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PSa89b88052b70458c92abd85d', '/vou/sales-refund/uncheck', 'vou', 'sales-refund', 'uncheck', '反核对往来付款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('IC35cc3dfe5063f691a83b6a5b', '/vou/inventory-count/submit', 'vou', 'inventory-count', 'submit', '提交库存盘点单', 'ENABLED', '2026-08-24 15:23:49.566641+00', NULL, '2026-08-24 15:23:49.566641+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('ICc983cb066a2325b2bb3b22ee', '/vou/inventory-count/unsubmit', 'vou', 'inventory-count', 'unsubmit', '撤销提交库存盘点单', 'ENABLED', '2026-08-24 15:23:49.566641+00', NULL, '2026-08-24 15:23:49.566641+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PSa89b88052b70458c92abd85d', '/vou/sales-refund/unsubmit', 'vou', 'sales-refund', 'unsubmit', '撤销提交往来付款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PS4c5b77734757aaf501198040', '/vou/purchase-refund/approve', 'vou', 'purchase-refund', 'approve', '批准往来收款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PSbb2a462131e160ee3af3c49d', '/vou/sales-receipt/approve', 'vou', 'sales-receipt', 'approve', '批准往来收款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PS195300f49a35714b96ab4b02', '/vou/purchase-payment/approve', 'vou', 'purchase-payment', 'approve', '批准往来付款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
@@ -4212,12 +4207,12 @@ INSERT INTO public.app_permissions VALUES ('FV5be4fcb4959d795b4b6fd976', '/vou/a
 INSERT INTO public.app_permissions VALUES ('FV28e03f951f5f2ee3b6775e44', '/vou/asset-acquisition/delete', 'vou', 'asset-acquisition', 'delete', '删除资产购置', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('FV2857dcde30161d7381db0f53', '/vou/asset-sale/delete', 'vou', 'asset-sale', 'delete', '删除资产出让', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('FV77302146e745528b23f4eb75', '/vou/asset-liquidation/delete', 'vou', 'asset-liquidation', 'delete', '删除资产清算', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('FVfec420a9e5a4f00e3333198d', '/vou/asset-acquisition/check', 'vou', 'asset-acquisition', 'check', '核对资产购置', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('FVee18a275d852377e9d59d11b', '/vou/asset-sale/check', 'vou', 'asset-sale', 'check', '核对资产出让', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('FV45aebc56dc1b58b17b165a87', '/vou/asset-liquidation/check', 'vou', 'asset-liquidation', 'check', '核对资产清算', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('FV889700557551578b0e85298d', '/vou/asset-acquisition/uncheck', 'vou', 'asset-acquisition', 'uncheck', '撤销核对资产购置', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('FV19418a9c9c0456d39e544c25', '/vou/asset-sale/uncheck', 'vou', 'asset-sale', 'uncheck', '撤销核对资产出让', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('FV76646cfc58ea0e2a420f1915', '/vou/asset-liquidation/uncheck', 'vou', 'asset-liquidation', 'uncheck', '撤销核对资产清算', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('FVfec420a9e5a4f00e3333198d', '/vou/asset-acquisition/submit', 'vou', 'asset-acquisition', 'submit', '提交资产购置', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('FVee18a275d852377e9d59d11b', '/vou/asset-sale/submit', 'vou', 'asset-sale', 'submit', '提交资产出让', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('FV45aebc56dc1b58b17b165a87', '/vou/asset-liquidation/submit', 'vou', 'asset-liquidation', 'submit', '提交资产清算', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('FV889700557551578b0e85298d', '/vou/asset-acquisition/unsubmit', 'vou', 'asset-acquisition', 'unsubmit', '撤销提交资产购置', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('FV19418a9c9c0456d39e544c25', '/vou/asset-sale/unsubmit', 'vou', 'asset-sale', 'unsubmit', '撤销提交资产出让', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('FV76646cfc58ea0e2a420f1915', '/vou/asset-liquidation/unsubmit', 'vou', 'asset-liquidation', 'unsubmit', '撤销提交资产清算', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('FV7ebbe6cd8fe309adf031758e', '/vou/asset-acquisition/approve', 'vou', 'asset-acquisition', 'approve', '批准资产购置', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('FVf425305135f8baa6d8343d83', '/vou/asset-sale/approve', 'vou', 'asset-sale', 'approve', '批准资产出让', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('FV623f01638bdd98c3c5cb592c', '/vou/asset-liquidation/approve', 'vou', 'asset-liquidation', 'approve', '批准资产清算', 'ENABLED', '2026-08-24 15:23:49.574507+00', NULL, '2026-08-24 15:23:49.574507+00', NULL, 1, NULL);
@@ -4242,8 +4237,8 @@ INSERT INTO public.app_permissions VALUES ('PS86e7fbe12e63e2095dd8e5e2', '/vou/e
 INSERT INTO public.app_permissions VALUES ('PScae571d259f6217d6d430a0a', '/vou/employee-loan-writeoff/audit-history', 'vou', 'employee-loan-writeoff', 'audit-history', '查看审计费用报销', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PS4b65b9d72c11d66bb1e7912d', '/vou/employee-loan-writeoff/save', 'vou', 'employee-loan-writeoff', 'save', '保存费用报销', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PSc52688f125855c0d3767c9ea', '/vou/employee-loan-writeoff/delete', 'vou', 'employee-loan-writeoff', 'delete', '删除草稿费用报销', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PS8aebb592584e826d71ee60a1', '/vou/employee-loan-writeoff/check', 'vou', 'employee-loan-writeoff', 'check', '核对费用报销', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PS3c3ae981eb3942ec66ac1930', '/vou/employee-loan-writeoff/uncheck', 'vou', 'employee-loan-writeoff', 'uncheck', '反核对费用报销', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PS8aebb592584e826d71ee60a1', '/vou/employee-loan-writeoff/submit', 'vou', 'employee-loan-writeoff', 'submit', '提交费用报销', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PS3c3ae981eb3942ec66ac1930', '/vou/employee-loan-writeoff/unsubmit', 'vou', 'employee-loan-writeoff', 'unsubmit', '撤销提交费用报销', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PS20dff83e98f088f2bde0dcde', '/vou/employee-loan-writeoff/approve', 'vou', 'employee-loan-writeoff', 'approve', '批准费用报销', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PS160b73ab07849088fec8ffb5', '/vou/employee-loan-writeoff/attachment-initiate', 'vou', 'employee-loan-writeoff', 'attachment-initiate', '发起附件上传费用报销', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PS3104fd9c196534214e961325', '/vou/employee-loan-writeoff/attachment-download', 'vou', 'employee-loan-writeoff', 'attachment-download', '下载附件费用报销', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
@@ -4262,10 +4257,10 @@ INSERT INTO public.app_permissions VALUES ('PS5e282ca9420c5bae87175f5a', '/vou/e
 INSERT INTO public.app_permissions VALUES ('PSd69e054cad26b026b3df402f', '/vou/employee-loan/save', 'vou', 'employee-loan', 'save', '保存往来付款', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PSc29cff3db564bd3bc4111188', '/vou/employee-repayment/delete', 'vou', 'employee-repayment', 'delete', '删除草稿往来收款', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PS92972bd359c8476b54086741', '/vou/employee-loan/delete', 'vou', 'employee-loan', 'delete', '删除草稿往来付款', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PS06d93a2e11e107552ef25be8', '/vou/employee-repayment/check', 'vou', 'employee-repayment', 'check', '核对往来收款', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PSbabdae667dc2369677c1a526', '/vou/employee-loan/check', 'vou', 'employee-loan', 'check', '核对往来付款', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PSeaa9fba996ceeae8c43bf015', '/vou/employee-repayment/uncheck', 'vou', 'employee-repayment', 'uncheck', '反核对往来收款', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PS240f04218506a963b79b45b6', '/vou/employee-loan/uncheck', 'vou', 'employee-loan', 'uncheck', '反核对往来付款', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PS06d93a2e11e107552ef25be8', '/vou/employee-repayment/submit', 'vou', 'employee-repayment', 'submit', '提交往来收款', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PSbabdae667dc2369677c1a526', '/vou/employee-loan/submit', 'vou', 'employee-loan', 'submit', '提交往来付款', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PSeaa9fba996ceeae8c43bf015', '/vou/employee-repayment/unsubmit', 'vou', 'employee-repayment', 'unsubmit', '撤销提交往来收款', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PS240f04218506a963b79b45b6', '/vou/employee-loan/unsubmit', 'vou', 'employee-loan', 'unsubmit', '撤销提交往来付款', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PS428969ebd959b202a7cb2a8a', '/vou/employee-repayment/approve', 'vou', 'employee-repayment', 'approve', '批准往来收款', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PS882e083892bde64c6030165d', '/vou/employee-loan/approve', 'vou', 'employee-loan', 'approve', '批准往来付款', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PS0df4bd2763812f898b1cc05a', '/vou/employee-repayment/attachment-download', 'vou', 'employee-repayment', 'attachment-download', '下载附件往来收款', 'ENABLED', '2026-08-24 15:23:49.601051+00', NULL, '2026-08-24 15:23:49.601051+00', NULL, 1, NULL);
@@ -4275,8 +4270,8 @@ INSERT INTO public.app_permissions VALUES ('PS2fade3ab3b03ec9619235cbf', '/vou/e
 INSERT INTO public.app_permissions VALUES ('BIL1db2a82a850442aaae2b556', '/vou/bill-receipt/get', 'vou', 'bill-receipt', 'get', '查看收票单', 'ENABLED', '2026-08-24 15:23:49.649049+00', NULL, '2026-08-24 15:23:49.649049+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BILf2d9299f9a39d3a43faea58', '/vou/bill-receipt/create', 'vou', 'bill-receipt', 'create', '创建收票单', 'ENABLED', '2026-08-24 15:23:49.649049+00', NULL, '2026-08-24 15:23:49.649049+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BIL24a2d27aa1ba62d2a0341aa', '/vou/bill-receipt/save', 'vou', 'bill-receipt', 'save', '保存收票单', 'ENABLED', '2026-08-24 15:23:49.649049+00', NULL, '2026-08-24 15:23:49.649049+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('BIL831ab1b776ce580f7b81544', '/vou/bill-receipt/check', 'vou', 'bill-receipt', 'check', '检查收票单', 'ENABLED', '2026-08-24 15:23:49.649049+00', NULL, '2026-08-24 15:23:49.649049+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('BIL20085cedb2039b2d52c1e4c', '/vou/bill-receipt/uncheck', 'vou', 'bill-receipt', 'uncheck', '反检查收票单', 'ENABLED', '2026-08-24 15:23:49.649049+00', NULL, '2026-08-24 15:23:49.649049+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('BIL831ab1b776ce580f7b81544', '/vou/bill-receipt/submit', 'vou', 'bill-receipt', 'submit', '提交收票单', 'ENABLED', '2026-08-24 15:23:49.649049+00', NULL, '2026-08-24 15:23:49.649049+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('BIL20085cedb2039b2d52c1e4c', '/vou/bill-receipt/unsubmit', 'vou', 'bill-receipt', 'unsubmit', '撤销提交收票单', 'ENABLED', '2026-08-24 15:23:49.649049+00', NULL, '2026-08-24 15:23:49.649049+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BILdc16693ac5e98178451c547', '/vou/bill-receipt/approve', 'vou', 'bill-receipt', 'approve', '批准收票单', 'ENABLED', '2026-08-24 15:23:49.649049+00', NULL, '2026-08-24 15:23:49.649049+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BIL88cb6e9e1c372dd3df2c5e1', '/vou/bill-receipt/unapprove', 'vou', 'bill-receipt', 'unapprove', '反批准收票单', 'ENABLED', '2026-08-24 15:23:49.649049+00', NULL, '2026-08-24 15:23:49.649049+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BILa573198ef6fca1ecb3d3972', '/vou/bill-receipt/delete', 'vou', 'bill-receipt', 'delete', '删除收票单', 'ENABLED', '2026-08-24 15:23:49.649049+00', NULL, '2026-08-24 15:23:49.649049+00', NULL, 1, NULL);
@@ -4287,8 +4282,8 @@ INSERT INTO public.app_permissions VALUES ('BILeff613d46eefc6d7babe163', '/vou/b
 INSERT INTO public.app_permissions VALUES ('BLPd3ad5b01bfdd5c076821000', '/vou/bill-payment/get', 'vou', 'bill-payment', 'get', '查看付票单', 'ENABLED', '2026-08-24 15:23:49.666178+00', NULL, '2026-08-24 15:23:49.666178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BLP69cc1d5a9aa89dd7d275512', '/vou/bill-payment/create', 'vou', 'bill-payment', 'create', '创建付票单', 'ENABLED', '2026-08-24 15:23:49.666178+00', NULL, '2026-08-24 15:23:49.666178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BLP7900c1cc988a3dee5c6439a', '/vou/bill-payment/save', 'vou', 'bill-payment', 'save', '保存付票单', 'ENABLED', '2026-08-24 15:23:49.666178+00', NULL, '2026-08-24 15:23:49.666178+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('BLP4b7151a3b304955ba2854d7', '/vou/bill-payment/check', 'vou', 'bill-payment', 'check', '检查付票单', 'ENABLED', '2026-08-24 15:23:49.666178+00', NULL, '2026-08-24 15:23:49.666178+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('BLP84a2abb53e594631c66ecda', '/vou/bill-payment/uncheck', 'vou', 'bill-payment', 'uncheck', '反检查付票单', 'ENABLED', '2026-08-24 15:23:49.666178+00', NULL, '2026-08-24 15:23:49.666178+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('BLP4b7151a3b304955ba2854d7', '/vou/bill-payment/submit', 'vou', 'bill-payment', 'submit', '提交付票单', 'ENABLED', '2026-08-24 15:23:49.666178+00', NULL, '2026-08-24 15:23:49.666178+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('BLP84a2abb53e594631c66ecda', '/vou/bill-payment/unsubmit', 'vou', 'bill-payment', 'unsubmit', '撤销提交付票单', 'ENABLED', '2026-08-24 15:23:49.666178+00', NULL, '2026-08-24 15:23:49.666178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BLPffcc3c392247936d80a592e', '/vou/bill-payment/approve', 'vou', 'bill-payment', 'approve', '批准付票单', 'ENABLED', '2026-08-24 15:23:49.666178+00', NULL, '2026-08-24 15:23:49.666178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BLPffbd5d7b535bc9d779d1329', '/vou/bill-payment/unapprove', 'vou', 'bill-payment', 'unapprove', '反批准付票单', 'ENABLED', '2026-08-24 15:23:49.666178+00', NULL, '2026-08-24 15:23:49.666178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BLP500b54c120ea9d74ddf301e', '/vou/bill-payment/delete', 'vou', 'bill-payment', 'delete', '删除付票单', 'ENABLED', '2026-08-24 15:23:49.666178+00', NULL, '2026-08-24 15:23:49.666178+00', NULL, 1, NULL);
@@ -4299,8 +4294,8 @@ INSERT INTO public.app_permissions VALUES ('BLPd81c4dd2f3c6ab116b47756', '/vou/b
 INSERT INTO public.app_permissions VALUES ('BLIce4afc6784eaa28b2af42e5', '/vou/bill-issue/get', 'vou', 'bill-issue', 'get', '查看开票单', 'ENABLED', '2026-08-24 15:23:49.668473+00', NULL, '2026-08-24 15:23:49.668473+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BLI331f7dd8227d22ef3ed3f58', '/vou/bill-issue/create', 'vou', 'bill-issue', 'create', '创建开票单', 'ENABLED', '2026-08-24 15:23:49.668473+00', NULL, '2026-08-24 15:23:49.668473+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BLI053b97469b03ef3da791a94', '/vou/bill-issue/save', 'vou', 'bill-issue', 'save', '保存开票单', 'ENABLED', '2026-08-24 15:23:49.668473+00', NULL, '2026-08-24 15:23:49.668473+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('BLI7800f916cfd33395d78023c', '/vou/bill-issue/check', 'vou', 'bill-issue', 'check', '检查开票单', 'ENABLED', '2026-08-24 15:23:49.668473+00', NULL, '2026-08-24 15:23:49.668473+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('BLI058489be49de1c40c29b77e', '/vou/bill-issue/uncheck', 'vou', 'bill-issue', 'uncheck', '反检查开票单', 'ENABLED', '2026-08-24 15:23:49.668473+00', NULL, '2026-08-24 15:23:49.668473+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('BLI7800f916cfd33395d78023c', '/vou/bill-issue/submit', 'vou', 'bill-issue', 'submit', '提交开票单', 'ENABLED', '2026-08-24 15:23:49.668473+00', NULL, '2026-08-24 15:23:49.668473+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('BLI058489be49de1c40c29b77e', '/vou/bill-issue/unsubmit', 'vou', 'bill-issue', 'unsubmit', '撤销提交开票单', 'ENABLED', '2026-08-24 15:23:49.668473+00', NULL, '2026-08-24 15:23:49.668473+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BLIe1b89781396dea7851a61a4', '/vou/bill-issue/approve', 'vou', 'bill-issue', 'approve', '批准开票单', 'ENABLED', '2026-08-24 15:23:49.668473+00', NULL, '2026-08-24 15:23:49.668473+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BLIc03bc649078bc3114b006bb', '/vou/bill-issue/unapprove', 'vou', 'bill-issue', 'unapprove', '反批准开票单', 'ENABLED', '2026-08-24 15:23:49.668473+00', NULL, '2026-08-24 15:23:49.668473+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BLIfdbd22a519f6d2b83bb9c7c', '/vou/bill-issue/delete', 'vou', 'bill-issue', 'delete', '删除开票单', 'ENABLED', '2026-08-24 15:23:49.668473+00', NULL, '2026-08-24 15:23:49.668473+00', NULL, 1, NULL);
@@ -4311,8 +4306,8 @@ INSERT INTO public.app_permissions VALUES ('BLI2958cb55cdee8d362a5f1dd', '/vou/b
 INSERT INTO public.app_permissions VALUES ('BLDef8c210e4def067672ccc48', '/vou/bill-discount/get', 'vou', 'bill-discount', 'get', '查看贴现单', 'ENABLED', '2026-08-24 15:23:49.670459+00', NULL, '2026-08-24 15:23:49.670459+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BLD670416d3dd58d865d754a48', '/vou/bill-discount/create', 'vou', 'bill-discount', 'create', '创建贴现单', 'ENABLED', '2026-08-24 15:23:49.670459+00', NULL, '2026-08-24 15:23:49.670459+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BLD4c5fc405d992a4d92800132', '/vou/bill-discount/save', 'vou', 'bill-discount', 'save', '保存贴现单', 'ENABLED', '2026-08-24 15:23:49.670459+00', NULL, '2026-08-24 15:23:49.670459+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('BLD8c3e5f3bc9ddfb923924de2', '/vou/bill-discount/check', 'vou', 'bill-discount', 'check', '检查贴现单', 'ENABLED', '2026-08-24 15:23:49.670459+00', NULL, '2026-08-24 15:23:49.670459+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('BLDf426f96ed1bacbefdb4ae7d', '/vou/bill-discount/uncheck', 'vou', 'bill-discount', 'uncheck', '反检查贴现单', 'ENABLED', '2026-08-24 15:23:49.670459+00', NULL, '2026-08-24 15:23:49.670459+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('BLD8c3e5f3bc9ddfb923924de2', '/vou/bill-discount/submit', 'vou', 'bill-discount', 'submit', '提交贴现单', 'ENABLED', '2026-08-24 15:23:49.670459+00', NULL, '2026-08-24 15:23:49.670459+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('BLDf426f96ed1bacbefdb4ae7d', '/vou/bill-discount/unsubmit', 'vou', 'bill-discount', 'unsubmit', '撤销提交贴现单', 'ENABLED', '2026-08-24 15:23:49.670459+00', NULL, '2026-08-24 15:23:49.670459+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BLD7140237899399e80efc0452', '/vou/bill-discount/approve', 'vou', 'bill-discount', 'approve', '批准贴现单', 'ENABLED', '2026-08-24 15:23:49.670459+00', NULL, '2026-08-24 15:23:49.670459+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BLD4738da1d51561c2db596cb6', '/vou/bill-discount/unapprove', 'vou', 'bill-discount', 'unapprove', '反批准贴现单', 'ENABLED', '2026-08-24 15:23:49.670459+00', NULL, '2026-08-24 15:23:49.670459+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BLD3e079a49974af2a8ad84d63', '/vou/bill-discount/delete', 'vou', 'bill-discount', 'delete', '删除贴现单', 'ENABLED', '2026-08-24 15:23:49.670459+00', NULL, '2026-08-24 15:23:49.670459+00', NULL, 1, NULL);
@@ -4323,8 +4318,8 @@ INSERT INTO public.app_permissions VALUES ('BLDeba6558f85cd28c35337b48', '/vou/b
 INSERT INTO public.app_permissions VALUES ('BLMf3d6599a0367c05ed5ee4dc', '/vou/bill-maturity/get', 'vou', 'bill-maturity', 'get', '查看到期单', 'ENABLED', '2026-08-24 15:23:49.672191+00', NULL, '2026-08-24 15:23:49.672191+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BLM404392ddb242d28bdeb4368', '/vou/bill-maturity/create', 'vou', 'bill-maturity', 'create', '创建到期单', 'ENABLED', '2026-08-24 15:23:49.672191+00', NULL, '2026-08-24 15:23:49.672191+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BLM774f0ab4de296ce3bd9e22a', '/vou/bill-maturity/save', 'vou', 'bill-maturity', 'save', '保存到期单', 'ENABLED', '2026-08-24 15:23:49.672191+00', NULL, '2026-08-24 15:23:49.672191+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('BLM23e5e27ef07f112e3e2b7e8', '/vou/bill-maturity/check', 'vou', 'bill-maturity', 'check', '检查到期单', 'ENABLED', '2026-08-24 15:23:49.672191+00', NULL, '2026-08-24 15:23:49.672191+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('BLMdd19830965bb179e21139ce', '/vou/bill-maturity/uncheck', 'vou', 'bill-maturity', 'uncheck', '反检查到期单', 'ENABLED', '2026-08-24 15:23:49.672191+00', NULL, '2026-08-24 15:23:49.672191+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('BLM23e5e27ef07f112e3e2b7e8', '/vou/bill-maturity/submit', 'vou', 'bill-maturity', 'submit', '提交到期单', 'ENABLED', '2026-08-24 15:23:49.672191+00', NULL, '2026-08-24 15:23:49.672191+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('BLMdd19830965bb179e21139ce', '/vou/bill-maturity/unsubmit', 'vou', 'bill-maturity', 'unsubmit', '撤销提交到期单', 'ENABLED', '2026-08-24 15:23:49.672191+00', NULL, '2026-08-24 15:23:49.672191+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BLMccc20408da12e6cd3e1cfcd', '/vou/bill-maturity/approve', 'vou', 'bill-maturity', 'approve', '批准到期单', 'ENABLED', '2026-08-24 15:23:49.672191+00', NULL, '2026-08-24 15:23:49.672191+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BLM1651a266f0717ff95f5b927', '/vou/bill-maturity/unapprove', 'vou', 'bill-maturity', 'unapprove', '反批准到期单', 'ENABLED', '2026-08-24 15:23:49.672191+00', NULL, '2026-08-24 15:23:49.672191+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('BLMd71156b4e025fac02bd234f', '/vou/bill-maturity/delete', 'vou', 'bill-maturity', 'delete', '删除到期单', 'ENABLED', '2026-08-24 15:23:49.672191+00', NULL, '2026-08-24 15:23:49.672191+00', NULL, 1, NULL);
@@ -4365,8 +4360,8 @@ INSERT INTO public.app_permissions VALUES ('ICL9d55f48b21cad0f87fab6a6', '/vou/i
 INSERT INTO public.app_permissions VALUES ('ICL45e2c4ff2d01a74555c738a', '/vou/intermediary-calculation/get', 'vou', 'intermediary-calculation', 'get', '查看居间计算', 'ENABLED', '2026-08-24 15:23:49.702898+00', NULL, '2026-08-24 15:23:49.702898+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('ICL6b1ae1572c634727d7ad83e', '/vou/intermediary-calculation/create', 'vou', 'intermediary-calculation', 'create', '创建居间计算', 'ENABLED', '2026-08-24 15:23:49.702898+00', NULL, '2026-08-24 15:23:49.702898+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('ICLcf85f025cd59eb2a6814683', '/vou/intermediary-calculation/save', 'vou', 'intermediary-calculation', 'save', '保存居间计算', 'ENABLED', '2026-08-24 15:23:49.702898+00', NULL, '2026-08-24 15:23:49.702898+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('ICLe467079dc4817527662e2fa', '/vou/intermediary-calculation/check', 'vou', 'intermediary-calculation', 'check', '核对居间计算', 'ENABLED', '2026-08-24 15:23:49.702898+00', NULL, '2026-08-24 15:23:49.702898+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('ICL42cbb05a7d25bbeb4669a01', '/vou/intermediary-calculation/uncheck', 'vou', 'intermediary-calculation', 'uncheck', '反核对居间计算', 'ENABLED', '2026-08-24 15:23:49.702898+00', NULL, '2026-08-24 15:23:49.702898+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('ICLe467079dc4817527662e2fa', '/vou/intermediary-calculation/submit', 'vou', 'intermediary-calculation', 'submit', '提交居间计算', 'ENABLED', '2026-08-24 15:23:49.702898+00', NULL, '2026-08-24 15:23:49.702898+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('ICL42cbb05a7d25bbeb4669a01', '/vou/intermediary-calculation/unsubmit', 'vou', 'intermediary-calculation', 'unsubmit', '撤销提交居间计算', 'ENABLED', '2026-08-24 15:23:49.702898+00', NULL, '2026-08-24 15:23:49.702898+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('ICL470dd41074d392b2aa91f76', '/vou/intermediary-calculation/approve', 'vou', 'intermediary-calculation', 'approve', '批准居间计算', 'ENABLED', '2026-08-24 15:23:49.702898+00', NULL, '2026-08-24 15:23:49.702898+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('ICL83a8bc3e4565344e325fcff', '/vou/intermediary-calculation/unapprove', 'vou', 'intermediary-calculation', 'unapprove', '反批准居间计算', 'ENABLED', '2026-08-24 15:23:49.702898+00', NULL, '2026-08-24 15:23:49.702898+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('ICLe1c76a1b072cc6ced980918', '/vou/intermediary-calculation/delete', 'vou', 'intermediary-calculation', 'delete', '删除居间计算', 'ENABLED', '2026-08-24 15:23:49.702898+00', NULL, '2026-08-24 15:23:49.702898+00', NULL, 1, NULL);
@@ -4396,13 +4391,13 @@ INSERT INTO public.app_permissions VALUES ('PS633cdf0848f9557711f046cd', '/vou/p
 INSERT INTO public.app_permissions VALUES ('PS86fb7a6ff1857037d7c059d2', '/vou/sales-receipt/attachment-initiate', 'vou', 'sales-receipt', 'attachment-initiate', '发起附件上传往来收款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PS9f66cf0946c5ce37ee03daa5', '/vou/purchase-payment/delete', 'vou', 'purchase-payment', 'delete', '删除草稿往来付款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PS62f6db80b8434a70c38c8a88', '/vou/sales-refund/delete', 'vou', 'sales-refund', 'delete', '删除草稿往来付款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PS5df45b2c63006c32c92b22fb', '/vou/purchase-refund/check', 'vou', 'purchase-refund', 'check', '核对往来收款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PS474cb3c6975555a19b0a46bc', '/vou/sales-receipt/check', 'vou', 'sales-receipt', 'check', '核对往来收款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PSf73d05e41b40564c0ad5178f', '/vou/purchase-payment/check', 'vou', 'purchase-payment', 'check', '核对往来付款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PS06c7f3cf914ac8df278d28ee', '/vou/sales-refund/check', 'vou', 'sales-refund', 'check', '核对往来付款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PS4222795453181f926b5e09d4', '/vou/purchase-refund/uncheck', 'vou', 'purchase-refund', 'uncheck', '反核对往来收款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PS691e162c5e052efeff772258', '/vou/sales-receipt/uncheck', 'vou', 'sales-receipt', 'uncheck', '反核对往来收款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('PS6db352d644573dae90511096', '/vou/purchase-payment/uncheck', 'vou', 'purchase-payment', 'uncheck', '反核对往来付款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PS5df45b2c63006c32c92b22fb', '/vou/purchase-refund/submit', 'vou', 'purchase-refund', 'submit', '提交往来收款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PS474cb3c6975555a19b0a46bc', '/vou/sales-receipt/submit', 'vou', 'sales-receipt', 'submit', '提交往来收款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PSf73d05e41b40564c0ad5178f', '/vou/purchase-payment/submit', 'vou', 'purchase-payment', 'submit', '提交往来付款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PS06c7f3cf914ac8df278d28ee', '/vou/sales-refund/submit', 'vou', 'sales-refund', 'submit', '提交往来付款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PS4222795453181f926b5e09d4', '/vou/purchase-refund/unsubmit', 'vou', 'purchase-refund', 'unsubmit', '撤销提交往来收款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PS691e162c5e052efeff772258', '/vou/sales-receipt/unsubmit', 'vou', 'sales-receipt', 'unsubmit', '撤销提交往来收款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('PS6db352d644573dae90511096', '/vou/purchase-payment/unsubmit', 'vou', 'purchase-payment', 'unsubmit', '撤销提交往来付款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PSb95efcac53484f97efa9e36c', '/vou/sales-receipt/query', 'vou', 'sales-receipt', 'query', '查询往来收款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, 80);
 INSERT INTO public.app_permissions VALUES ('PSde0ef0300803f46bdf52656d', '/vou/purchase-refund/query', 'vou', 'purchase-refund', 'query', '查询往来收款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, 81);
 INSERT INTO public.app_permissions VALUES ('PS6be909c8a6361edee9988053', '/vou/sales-refund/query', 'vou', 'sales-refund', 'query', '查询往来付款', 'ENABLED', '2026-08-24 15:23:49.547238+00', NULL, '2026-08-24 15:23:49.547238+00', NULL, 1, 90);
@@ -4509,8 +4504,8 @@ INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000001', '/vou/s
 INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000002', '/vou/service-contract/get', 'vou', 'service-contract', 'get', '查看服务合同', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000003', '/vou/service-contract/create', 'vou', 'service-contract', 'create', '创建服务合同', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000004', '/vou/service-contract/save', 'vou', 'service-contract', 'save', '保存服务合同', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000005', '/vou/service-contract/check', 'vou', 'service-contract', 'check', '核对服务合同', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000006', '/vou/service-contract/uncheck', 'vou', 'service-contract', 'uncheck', '反核对服务合同', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000005', '/vou/service-contract/submit', 'vou', 'service-contract', 'submit', '提交服务合同', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000006', '/vou/service-contract/unsubmit', 'vou', 'service-contract', 'unsubmit', '撤销提交服务合同', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000007', '/vou/service-contract/approve', 'vou', 'service-contract', 'approve', '批准服务合同', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000008', '/vou/service-contract/unapprove', 'vou', 'service-contract', 'unapprove', '反批准服务合同', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000009', '/vou/service-contract/delete', 'vou', 'service-contract', 'delete', '删除服务合同草稿', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
@@ -4519,8 +4514,8 @@ INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000011', '/vou/s
 INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000012', '/vou/service-acceptance/get', 'vou', 'service-acceptance', 'get', '查看履约验收', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000013', '/vou/service-acceptance/create', 'vou', 'service-acceptance', 'create', '创建履约验收', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000014', '/vou/service-acceptance/save', 'vou', 'service-acceptance', 'save', '保存履约验收', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000015', '/vou/service-acceptance/check', 'vou', 'service-acceptance', 'check', '核对履约验收', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000016', '/vou/service-acceptance/uncheck', 'vou', 'service-acceptance', 'uncheck', '反核对履约验收', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000015', '/vou/service-acceptance/submit', 'vou', 'service-acceptance', 'submit', '提交履约验收', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000016', '/vou/service-acceptance/unsubmit', 'vou', 'service-acceptance', 'unsubmit', '撤销提交履约验收', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000017', '/vou/service-acceptance/approve', 'vou', 'service-acceptance', 'approve', '批准履约验收', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000018', '/vou/service-acceptance/unapprove', 'vou', 'service-acceptance', 'unapprove', '反批准履约验收', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU87000000000000000019', '/vou/service-acceptance/delete', 'vou', 'service-acceptance', 'delete', '删除履约验收草稿', 'ENABLED', '2026-08-24 15:23:50.387239+00', NULL, '2026-08-24 15:23:50.387239+00', NULL, 1, NULL);
@@ -5236,12 +5231,6 @@ INSERT INTO public.rpt_versions VALUES ('RPV517f80b4080608d1ef8ce23', 'RPD517f80
 
 --
 -- Data for Name: vou_asset_sale_lines; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: vou_audit_events; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
@@ -6691,14 +6680,6 @@ ALTER TABLE ONLY public.vou_asset_sale_lines
 
 
 --
--- Name: vou_audit_events vou_audit_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.vou_audit_events
-    ADD CONSTRAINT vou_audit_events_pkey PRIMARY KEY (id);
-
-
---
 -- Name: vou_bill_cash_lines vou_bill_cash_lines_document_id_line_no_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6776,6 +6757,14 @@ ALTER TABLE ONLY public.vou_documents
 
 ALTER TABLE ONLY public.vou_documents
     ADD CONSTRAINT vou_documents_id_entity_uq UNIQUE (id, entity);
+
+
+--
+-- Name: vou_documents vou_documents_approval_entry_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.vou_documents
+    ADD CONSTRAINT vou_documents_approval_entry_id_key UNIQUE (approval_entry_id);
 
 
 --
@@ -7810,13 +7799,6 @@ CREATE UNIQUE INDEX rpt_versions_one_draft_uq ON public.rpt_versions USING btree
 
 
 --
--- Name: vou_audit_events_history_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX vou_audit_events_history_idx ON public.vou_audit_events USING btree (document_id, occurred_at DESC, id DESC);
-
-
---
 -- Name: vou_documents_parent_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7824,24 +7806,10 @@ CREATE INDEX vou_documents_parent_idx ON public.vou_documents USING btree (paren
 
 
 --
--- Name: vou_documents_posted_replay_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX vou_documents_posted_replay_idx ON public.vou_documents USING btree (posted_at, id) WHERE ((status)::text = 'APPROVED'::text);
-
-
---
 -- Name: vou_documents_query_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX vou_documents_query_idx ON public.vou_documents USING btree (entity, business_date DESC, id DESC);
-
-
---
--- Name: vou_documents_status_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX vou_documents_status_idx ON public.vou_documents USING btree (entity, status, updated_at DESC, id DESC);
 
 
 --
@@ -8045,6 +8013,13 @@ CREATE TRIGGER bob_service_relationship_merged_party_ck BEFORE INSERT OR UPDATE 
 --
 
 CREATE TRIGGER bob_supplier_relationship_merged_party_ck BEFORE INSERT OR UPDATE OF party_id ON public.bob_supplier_relationships FOR EACH ROW EXECUTE FUNCTION public.bob_reject_merged_party_relationship();
+
+
+--
+-- Name: approval_entries vou_approval_locked_period_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER vou_approval_locked_period_guard BEFORE UPDATE OR DELETE ON public.approval_entries FOR EACH ROW EXECUTE FUNCTION public.reject_locked_vou_approval_period();
 
 
 --
@@ -9382,22 +9357,6 @@ ALTER TABLE ONLY public.vou_asset_sale_lines
 
 
 --
--- Name: vou_audit_events vou_audit_events_document_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.vou_audit_events
-    ADD CONSTRAINT vou_audit_events_document_id_entity_fkey FOREIGN KEY (document_id, entity) REFERENCES public.vou_documents(id, entity) ON DELETE RESTRICT;
-
-
---
--- Name: vou_audit_events vou_audit_events_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.vou_audit_events
-    ADD CONSTRAINT vou_audit_events_document_id_fkey FOREIGN KEY (document_id) REFERENCES public.vou_documents(id) ON DELETE RESTRICT;
-
-
---
 -- Name: vou_bill_cash_lines vou_bill_cash_lines_document_id_bill_line_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9451,6 +9410,14 @@ ALTER TABLE ONLY public.vou_document_attachments
 
 ALTER TABLE ONLY public.vou_documents
     ADD CONSTRAINT vou_documents_parent_fk FOREIGN KEY (parent_document_id) REFERENCES public.vou_documents(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: vou_documents vou_documents_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.vou_documents
+    ADD CONSTRAINT vou_documents_approval_entry_id_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --

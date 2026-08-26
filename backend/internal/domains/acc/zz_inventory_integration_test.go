@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/oklog/ulid/v2"
@@ -73,7 +74,7 @@ func TestZZInventoryQuantityLedgerAndControlBookGateIntegration(t *testing.T) {
 	deliverApprovalEvent(t, pool, service, event, false)
 	assertInventoryQuantity(t, pool, controlBook.ID, controlSubject.ID, productID, warehouseID, 1_000_000)
 
-	unapproval := voudomain.DocumentUnapprovedEvent{Entity: event.Entity, DocumentID: event.DocumentID, DocumentNo: event.DocumentNo, Revision: event.Revision + 1, Snapshot: event.Snapshot}
+	unapproval := unapprovedVOUEvent(event.Payload)
 	tx, err := pool.Begin(t.Context())
 	if err != nil {
 		t.Fatal(err)
@@ -95,7 +96,7 @@ func TestZZInventoryQuantityLedgerAndControlBookGateIntegration(t *testing.T) {
 	event = inventoryApprovalEvent(productID, warehouseID, "6")
 	// The control book would reject this source, so use a business date before its start month;
 	// only the non-control book is applicable and may temporarily become negative.
-	event.Snapshot.Data.BusinessDate = "2026-06-30"
+	event.Payload.Data.BusinessDate = "2026-06-30"
 	nonControlStart := "2026-06"
 	if _, err = pool.Exec(t.Context(), `UPDATE acc_books SET start_month=to_date($1,'YYYY-MM') WHERE id=$2`, nonControlStart, nonControlBook.ID); err != nil {
 		t.Fatal(err)
@@ -106,16 +107,17 @@ func TestZZInventoryQuantityLedgerAndControlBookGateIntegration(t *testing.T) {
 
 func stringPointer(value string) *string { return &value }
 
-func inventoryApprovalEvent(productID, warehouseID, quantity string) voudomain.DocumentApprovedEvent {
+func inventoryApprovalEvent(productID, warehouseID, quantity string) approval.Event[voudomain.DocumentView] {
 	documentID := ulid.Make().String()
 	snapshot := voudomain.DocumentView{
-		DocumentID: documentID, Entity: voudomain.EntitySaleOrder, DocumentNo: "SO-TEST", Status: voudomain.StatusApproved, Revision: 3, Amount: "0",
+		DocumentID: documentID, Entity: voudomain.EntitySaleOrder, DocumentNo: "SO-TEST",
+		Approval: approval.Meta{Status: approval.StatusApproved, Revision: 3}, Amount: "0",
 		Data: voudomain.DocumentDataView{BusinessDate: "2026-07-25", Currency: "CNY", Warehouse: &voudomain.ReferenceView{ObjectID: warehouseID}, ProductLines: []voudomain.ProductLineView{{LineID: ulid.Make().String(), Product: voudomain.ReferenceView{ObjectID: productID}, BaseQuantity: quantity}}},
 	}
-	return voudomain.DocumentApprovedEvent{Entity: snapshot.Entity, DocumentID: documentID, DocumentNo: snapshot.DocumentNo, Revision: snapshot.Revision, Snapshot: snapshot}
+	return approvedVOUEvent(snapshot)
 }
 
-func deliverApprovalEvent(t *testing.T, pool *pgxpool.Pool, service *Service, event voudomain.DocumentApprovedEvent, wantConflict bool) {
+func deliverApprovalEvent(t *testing.T, pool *pgxpool.Pool, service *Service, event approval.Event[voudomain.DocumentView], wantConflict bool) {
 	t.Helper()
 	tx, err := pool.Begin(t.Context())
 	if err != nil {

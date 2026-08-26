@@ -12,6 +12,7 @@ import (
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -101,7 +102,7 @@ func validateAssetText(value, field string, required bool, max int) (string, err
 	return value, nil
 }
 
-func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, entity string, input DraftInput) (preparedAssetDraft, error) {
+func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Queries, entity string, input DraftInput, saved *DocumentDataView) (preparedAssetDraft, error) {
 	var result preparedAssetDraft
 	if input.Currency != "CNY" {
 		return result, domainError(ErrorValidation, "fixed asset currency must be CNY", nil, nil)
@@ -120,15 +121,19 @@ func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Qu
 		if err = validateReference(input.Supplier, "supplier", true); err != nil {
 			return result, err
 		}
-		resolved, resolveErr := s.resolver.ResolveApprovedReference(ctx, tx, bobdomain.EntitySupplier, input.Supplier.ObjectID, input.Supplier.ApprovalEntryID)
+		var savedSupplier *bobdomain.EffectiveReference
+		if saved != nil && saved.Supplier != nil {
+			savedSupplier = &bobdomain.EffectiveReference{ObjectID: saved.Supplier.ObjectID, ApprovalEntryID: saved.Supplier.ApprovalEntryID}
+		}
+		resolvedSupplier, resolveErr := s.resolveSelectedReference(ctx, tx, bobdomain.EntitySupplier, input.Supplier, savedSupplier, saved == nil)
 		if resolveErr != nil {
 			return result, domainError(ErrorConflict, "supplier is not effective", nil, resolveErr)
 		}
-		result.supplier = &resolved
+		result.supplier = resolvedSupplier
 		if len(input.AssetAcquisitionLines) < 1 || len(input.AssetAcquisitionLines) > 200 {
 			return result, domainError(ErrorValidation, "asset acquisition requires 1-200 lines", nil, nil)
 		}
-		for _, line := range input.AssetAcquisitionLines {
+		for lineIndex, line := range input.AssetAcquisitionLines {
 			line.AssetName, err = validateAssetText(line.AssetName, "assetName", true, 200)
 			if err != nil {
 				return result, err
@@ -147,11 +152,20 @@ func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Qu
 			if err = validateReference(&line.Department, "department", true); err != nil {
 				return result, err
 			}
-			category, auxErr := s.auxResolver.ResolveAuxiliaryReference(ctx, tx, auxdomain.EntityAssetCategory, line.Category.ObjectID, line.Category.ApprovalEntryID)
+			var savedCategory, savedDepartment, savedCustodian *bobdomain.EffectiveReference
+			if saved != nil && lineIndex < len(saved.AssetAcquisitionLines) {
+				stored := saved.AssetAcquisitionLines[lineIndex]
+				savedCategory = &bobdomain.EffectiveReference{ObjectID: stored.Category.ObjectID, ApprovalEntryID: stored.Category.ApprovalEntryID}
+				savedDepartment = &bobdomain.EffectiveReference{ObjectID: stored.Department.ObjectID, ApprovalEntryID: stored.Department.ApprovalEntryID}
+				if stored.Custodian != nil {
+					savedCustodian = &bobdomain.EffectiveReference{ObjectID: stored.Custodian.ObjectID, ApprovalEntryID: stored.Custodian.ApprovalEntryID}
+				}
+			}
+			categoryRef, auxErr := s.resolveSelectedAuxiliaryReference(ctx, tx, auxdomain.EntityAssetCategory, &line.Category, savedCategory, saved == nil)
 			if auxErr != nil {
 				return result, domainError(ErrorConflict, "asset category is not effective", nil, auxErr)
 			}
-			department, auxErr := s.auxResolver.ResolveAuxiliaryReference(ctx, tx, auxdomain.EntityDepartment, line.Department.ObjectID, line.Department.ApprovalEntryID)
+			departmentRef, auxErr := s.resolveSelectedAuxiliaryReference(ctx, tx, auxdomain.EntityDepartment, &line.Department, savedDepartment, saved == nil)
 			if auxErr != nil {
 				return result, domainError(ErrorConflict, "department is not effective", nil, auxErr)
 			}
@@ -168,16 +182,18 @@ func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Qu
 				if err = validateReference(line.Custodian, "custodian", true); err != nil {
 					return result, err
 				}
-				resolvedCustodian, resolveErr := s.resolver.ResolveApprovedReference(ctx, tx, bobdomain.EntityEmployee, line.Custodian.ObjectID, line.Custodian.ApprovalEntryID)
+				resolvedCustodian, resolveErr := s.resolveSelectedReference(ctx, tx, bobdomain.EntityEmployee, line.Custodian, savedCustodian, saved == nil)
 				if resolveErr != nil {
 					return result, domainError(ErrorConflict, "custodian is not effective", nil, resolveErr)
 				}
-				custodian = &resolvedCustodian
+				custodian = resolvedCustodian
 			}
 			if result.total > math.MaxInt64-original {
 				return result, domainError(ErrorValidation, "total amount is out of range", nil, nil)
 			}
 			result.total += original
+			category := bobdomain.AuxiliaryReference{ObjectID: categoryRef.ObjectID, ApprovalEntryID: categoryRef.ApprovalEntryID, Entity: categoryRef.Entity, Code: categoryRef.Code, Data: map[string]any{"name": categoryRef.Data.Name}}
+			department := bobdomain.AuxiliaryReference{ObjectID: departmentRef.ObjectID, ApprovalEntryID: departmentRef.ApprovalEntryID, Entity: departmentRef.Entity, Code: departmentRef.Code, Data: map[string]any{"name": departmentRef.Data.Name}}
 			result.acquisitions = append(result.acquisitions, preparedAssetAcquisitionLine{input: line, category: category, department: department, custodian: custodian, originalValue: original, residualRateBps: int32(rate)})
 		}
 	case EntityAssetSale:
@@ -187,11 +203,15 @@ func (s *Service) prepareAssetDraft(ctx context.Context, tx pgx.Tx, q *dbsqlc.Qu
 		if err = validateReference(input.Counterparty, "counterparty", true); err != nil {
 			return result, err
 		}
-		resolved, resolveErr := s.resolver.ResolveApprovedReference(ctx, tx, input.CounterpartyType, input.Counterparty.ObjectID, input.Counterparty.ApprovalEntryID)
+		var savedCounterparty *bobdomain.EffectiveReference
+		if saved != nil && saved.Counterparty != nil {
+			savedCounterparty = &bobdomain.EffectiveReference{ObjectID: saved.Counterparty.ObjectID, ApprovalEntryID: saved.Counterparty.ApprovalEntryID}
+		}
+		resolved, resolveErr := s.resolveSelectedReference(ctx, tx, input.CounterpartyType, input.Counterparty, savedCounterparty, saved == nil)
 		if resolveErr != nil {
 			return result, domainError(ErrorConflict, "counterparty is not effective", nil, resolveErr)
 		}
-		result.counterparty, result.counterpartyType = &resolved, input.CounterpartyType
+		result.counterparty, result.counterpartyType = resolved, input.CounterpartyType
 		if len(input.AssetSaleLines) < 1 || len(input.AssetSaleLines) > 200 {
 			return result, domainError(ErrorValidation, "asset sale requires 1-200 lines", nil, nil)
 		}
@@ -271,7 +291,8 @@ func auxName(ref bobdomain.AuxiliaryReference) string {
 	return value
 }
 
-func (s *Service) CreateAssetDocument(ctx context.Context, entity string, input CreateInput, actorID, requestID string) (MutationResult, error) {
+func (s *Service) CreateAssetDocument(ctx context.Context, entity string, input CreateInput, actor approval.Actor) (MutationResult, error) {
+	actorID, requestID := actor.ID(), actor.RequestID()
 	if !validID(actorID) || input.ParentEntity != "" || input.ParentDocumentID != "" {
 		return MutationResult{}, domainError(ErrorValidation, "invalid asset create request", nil, nil)
 	}
@@ -281,7 +302,7 @@ func (s *Service) CreateAssetDocument(ctx context.Context, entity string, input 
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	draft, err := s.prepareAssetDraft(ctx, tx, q, entity, input.Data)
+	draft, err := s.prepareAssetDraft(ctx, tx, q, entity, input.Data, nil)
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -294,14 +315,15 @@ func (s *Service) CreateAssetDocument(ctx context.Context, entity string, input 
 	}
 	id := newID()
 	no := fmt.Sprintf("%s-%s-%04d", entityPrefix(entity), draft.businessDate.Format("20060102"), counter)
-	if err = q.InsertVouDocument(ctx, dbsqlc.InsertVouDocumentParams{ID: id, Entity: entity, DocumentNo: no, BusinessDate: dateValue(draft.businessDate), Currency: stringPtr("CNY"), TotalAmountCents: draft.total, Remark: draft.remark, ActorID: actorID}); err != nil {
+	entry, err := s.createDocumentApproval(ctx, tx, entity, id, actor)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if err = q.InsertVouDocument(ctx, dbsqlc.InsertVouDocumentParams{ID: id, Entity: entity, DocumentNo: no, ApprovalEntryID: entry.ID, BusinessDate: dateValue(draft.businessDate), Currency: stringPtr("CNY"), TotalAmountCents: draft.total, Remark: draft.remark}); err != nil {
 		return MutationResult{}, s.writeError("insert asset document", err)
 	}
 	if err = s.writeAssetDraft(ctx, q, entity, id, draft, false); err != nil {
 		return MutationResult{}, s.writeError("insert asset detail", err)
-	}
-	if err = insertAudit(ctx, q, auditInput{DocumentID: id, Entity: entity, Event: "CREATED", To: StatusDraft, ActorID: actorID, RequestID: requestID, Summary: map[string]any{"documentNo": no}}); err != nil {
-		return MutationResult{}, err
 	}
 	if err = s.events.Publish(ctx, tx, DocumentCreatedEvent{Entity: entity, DocumentID: id, DocumentNo: no, Revision: 1, ActorID: actorID, RequestID: requestID}); err != nil {
 		return MutationResult{}, err
@@ -309,10 +331,10 @@ func (s *Service) CreateAssetDocument(ctx context.Context, entity string, input 
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit asset create", err)
 	}
-	return MutationResult{DocumentID: id, DocumentNo: no, Status: StatusDraft, Revision: 1}, nil
+	return MutationResult{DocumentID: id, DocumentNo: no, Approval: approval.MetaFromEntry(entry)}, nil
 }
 
-func (s *Service) SaveAssetDocument(ctx context.Context, entity string, input SaveInput, actorID, requestID string) (MutationResult, error) {
+func (s *Service) SaveAssetDocument(ctx context.Context, entity string, input SaveInput, actor approval.Actor) (MutationResult, error) {
 	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
 		return MutationResult{}, err
 	}
@@ -322,31 +344,37 @@ func (s *Service) SaveAssetDocument(ctx context.Context, entity string, input Sa
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	document, err := q.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{ID: input.DocumentID, Entity: entity})
+	document, err := lockDocument(ctx, tx, input.DocumentID, entity)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
 		return MutationResult{}, err
 	}
-	draft, err := s.prepareAssetDraft(ctx, tx, q, entity, input.Data)
+	coordinator, prepared, err := s.prepareDraftSave(ctx, tx, document, input.Revision, actor)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	saved, err := s.loadData(ctx, q, document)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	draft, err := s.prepareAssetDraft(ctx, tx, q, entity, input.Data, &saved)
 	if err != nil {
 		return MutationResult{}, err
 	}
 	if err = s.writeAssetDraft(ctx, q, entity, input.DocumentID, draft, true); err != nil {
 		return MutationResult{}, s.writeError("update asset detail", err)
 	}
-	revision, err := q.UpdateVouDraft(ctx, dbsqlc.UpdateVouDraftParams{BusinessDate: dateValue(draft.businessDate), Currency: stringPtr("CNY"), TotalAmountCents: draft.total, Remark: draft.remark, ActorID: actorID, ID: input.DocumentID, Entity: entity, Revision: input.Revision})
+	_, err = q.UpdateVouDraft(ctx, dbsqlc.UpdateVouDraftParams{BusinessDate: dateValue(draft.businessDate), Currency: stringPtr("CNY"), TotalAmountCents: draft.total, Remark: draft.remark, ID: input.DocumentID, Entity: entity})
 	if err != nil {
 		return MutationResult{}, s.writeError("update asset draft", err)
 	}
-	if err = insertAudit(ctx, q, auditInput{DocumentID: input.DocumentID, Entity: entity, Event: "SAVED", From: stringPtr(StatusDraft), To: StatusDraft, ActorID: actorID, RequestID: requestID, Summary: map[string]any{"revision": revision}}); err != nil {
-		return MutationResult{}, err
-	}
-	if err = s.events.Publish(ctx, tx, DocumentChangedEvent{Action: "SAVED", Entity: entity, DocumentID: document.ID, DocumentNo: document.DocumentNo, Status: StatusDraft, Revision: revision, ActorID: actorID, RequestID: requestID}); err != nil {
+	entry, err := s.commitDraftSave(ctx, tx, q, document, coordinator, prepared)
+	if err != nil {
 		return MutationResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit asset save", err)
 	}
-	return MutationResult{DocumentID: input.DocumentID, DocumentNo: document.DocumentNo, Status: StatusDraft, Revision: revision}, nil
+	return MutationResult{DocumentID: input.DocumentID, DocumentNo: document.DocumentNo, Approval: approval.MetaFromEntry(entry)}, nil
 }
 
 func (s *Service) writeAssetDraft(ctx context.Context, q *dbsqlc.Queries, entity, documentID string, draft preparedAssetDraft, update bool) error {
@@ -410,7 +438,7 @@ func (s *Service) writeAssetDraft(ctx context.Context, q *dbsqlc.Queries, entity
 	return nil
 }
 
-func (s *Service) loadAssetData(ctx context.Context, q *dbsqlc.Queries, document dbsqlc.VouDocument, data DocumentDataView) (DocumentDataView, error) {
+func (s *Service) loadAssetData(ctx context.Context, q *dbsqlc.Queries, document documentRecord, data DocumentDataView) (DocumentDataView, error) {
 	switch document.Entity {
 	case EntityAssetAcquisition:
 		detail, err := q.GetVouAssetAcquisitionDetail(ctx, document.ID)

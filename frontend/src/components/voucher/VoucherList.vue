@@ -126,19 +126,19 @@ const lifecycleActionDefinitions: ReadonlyArray<{
   color?: string
 }> = [
   {
-    action: 'check',
+    action: 'submit',
     statuses: ['DRAFT'],
-    icon: 'mdi-account-check-outline',
+    icon: 'mdi-send-outline',
     color: 'primary',
   },
   {
-    action: 'uncheck',
-    statuses: ['CHECKED'],
+    action: 'unsubmit',
+    statuses: ['PENDING'],
     icon: 'mdi-undo-variant',
   },
   {
     action: 'approve',
-    statuses: ['CHECKED'],
+    statuses: ['PENDING'],
     icon: 'mdi-check-decagram-outline',
     color: 'success',
   },

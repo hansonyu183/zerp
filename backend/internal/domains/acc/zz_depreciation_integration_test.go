@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -41,8 +42,8 @@ func TestZZPeriodDepreciationBalancesAndUnlockIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	assetID, departmentID := ulid.Make().String(), ulid.Make().String()
-	snapshot := voudomain.DocumentView{DocumentID: ulid.Make().String(), Entity: voudomain.EntityAssetAcquisition, DocumentNo: "ACQ-JUNE", Status: voudomain.StatusApproved, Revision: 3, Data: voudomain.DocumentDataView{BusinessDate: "2026-06-15", Currency: "CNY", AssetAcquisitionLines: []voudomain.AssetAcquisitionLineView{{LineID: assetID, AssetName: "设备", Category: voudomain.ReferenceView{ObjectID: ulid.Make().String()}, Department: voudomain.ReferenceView{ObjectID: departmentID}, OriginalValue: "120.00", UsefulLifeMonths: 12, ResidualRate: "0"}}}}
-	deliverApprovalEvent(t, pool, service, voudomain.DocumentApprovedEvent{Entity: snapshot.Entity, DocumentID: snapshot.DocumentID, DocumentNo: snapshot.DocumentNo, Revision: snapshot.Revision, Snapshot: snapshot}, false)
+	snapshot := voudomain.DocumentView{DocumentID: ulid.Make().String(), Entity: voudomain.EntityAssetAcquisition, DocumentNo: "ACQ-JUNE", Approval: approval.Meta{Status: approval.StatusApproved, Revision: 3}, Data: voudomain.DocumentDataView{BusinessDate: "2026-06-15", Currency: "CNY", AssetAcquisitionLines: []voudomain.AssetAcquisitionLineView{{LineID: assetID, AssetName: "设备", Category: voudomain.ReferenceView{ObjectID: ulid.Make().String()}, Department: voudomain.ReferenceView{ObjectID: departmentID}, OriginalValue: "120.00", UsefulLifeMonths: 12, ResidualRate: "0"}}}}
+	deliverApprovalEvent(t, pool, service, approvedVOUEvent(snapshot), false)
 	june, err := service.LockPeriod(t.Context(), PeriodActionInput{BookID: book.ID, Month: "2026-06", Revision: 0}, adminID)
 	if err != nil {
 		t.Fatal(err)

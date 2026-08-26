@@ -43,26 +43,32 @@ function documentView(): VoucherDocumentView {
     documentId: 'DOCUMENT-1',
     entity: 'sales-receipt',
     documentNo: 'REC-1',
-    status: 'DRAFT',
-    revision: 1,
+    approval: {
+      status: 'DRAFT',
+      revision: 1,
+      createdAt: '2026-07-26T00:00:00Z',
+      createdBy: 'USER-1',
+      updatedAt: '2026-07-26T00:00:00Z',
+      updatedBy: 'USER-1',
+      submittedAt: null,
+      submittedBy: null,
+      approvedAt: null,
+      approvedBy: null,
+    },
     amount: '10.00',
     data: {
       businessDate: '2026-07-26',
       currency: 'CNY',
     },
     attachments: [attachment],
-    createdAt: '2026-07-26T00:00:00Z',
-    createdBy: 'USER-1',
-    updatedAt: '2026-07-26T00:00:00Z',
-    updatedBy: 'USER-1',
   }
 }
 
 const allowed: VoucherActionAvailability = {
   get: true,
   save: true,
-  check: true,
-  uncheck: true,
+  submit: true,
+  unsubmit: true,
   approve: true,
   unapprove: true,
   delete: true,
@@ -97,14 +103,16 @@ describe('VOU attachment and audit artifacts', () => {
             items: [
               {
                 id: 'EVENT-1',
-                eventType: 'ATTACHMENT_ADDED',
+                action: 'SAVED',
+                approvalEntryId: 'APPROVAL-1',
                 fromStatus: 'DRAFT',
                 toStatus: 'DRAFT',
+                fromRevision: 1,
+                toRevision: 1,
                 actorId: 'USER-1',
-                occurredAt: '2026-07-26T00:00:00Z',
+                createdAt: '2026-07-26T00:00:00Z',
                 reason: null,
                 requestId: 'REQUEST-1',
-                summary: null,
               },
             ],
             total: 1,
@@ -135,8 +143,10 @@ describe('VOU attachment and audit artifacts', () => {
         data: {
           documentId: 'DOCUMENT-1',
           documentNo: 'REC-1',
-          status: 'DRAFT',
-          revision: 3,
+          approval: {
+            ...documentView().approval,
+            revision: 3,
+          },
         },
       }
     })
@@ -170,7 +180,7 @@ describe('VOU attachment and audit artifacts', () => {
         sha256: '0102',
       }),
     )
-    expect(current.value?.revision).toBe(2)
+    expect(current.value?.approval.revision).toBe(2)
     expect(mockedUpload).toHaveBeenCalledWith(
       'https://upload.example.test/file',
       file,

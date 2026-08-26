@@ -286,7 +286,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     const request = beginDocumentLoad()
     try {
       if (!(await applyDocument(row.documentId, request))) return
-      const editable = documentView.value?.status === 'DRAFT'
+      const editable = documentView.value?.approval.status === 'DRAFT'
       editing.value = edit && editable && session.can(permission('save'))
       if (actionAvailability.value.audit) void loadAudit(1)
     } catch (error) {
@@ -344,7 +344,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
           businessDate: data.data.businessDate,
           currency: data.data.currency,
           amount: data.amount,
-          updatedAt: data.updatedAt,
+          updatedAt: data.approval.updatedAt,
         },
         ...sourceOptions.value.filter(
           (item) => item.documentId !== data.parentDocumentId,
@@ -381,7 +381,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
 
   function startEditing(): void {
     if (
-      documentView.value?.status !== 'DRAFT' ||
+      documentView.value?.approval.status !== 'DRAFT' ||
       !actionAvailability.value.save
     )
       return
@@ -428,7 +428,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
           `vou/${config.entity}/save`,
           {
             documentId: documentView.value.documentId,
-            revision: documentView.value.revision,
+            revision: documentView.value.approval.revision,
             data: payload,
           },
         )
@@ -474,7 +474,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
         config,
         action,
         current.documentId,
-        current.revision,
+        current.approval.revision,
         reason,
       )
       await loadDocument(current.documentId)
@@ -517,7 +517,7 @@ export function useVoucherEntityViewModel(config: VoucherEntityConfig) {
     try {
       await apiClient.postContract(`vou/${config.entity}/delete`, {
         documentId: current.documentId,
-        revision: current.revision,
+        revision: current.approval.revision,
         reason: reason ?? '',
       })
       if (action === 'delete') {

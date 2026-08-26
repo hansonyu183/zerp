@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
@@ -23,6 +24,7 @@ import (
 
 const (
 	actorID      = systemidentity.UserID
+	reviewerID   = "01J00000000000000000000001"
 	businessDate = "2026-07-30"
 	inputUnitID  = "01JAVX00000000000000000013"
 )
@@ -99,6 +101,7 @@ func New(
 		events,
 		voudomain.AttachmentOptions{Root: attachmentRoot},
 		logger,
+		voudomain.WithApprovalAuthorizer(authorization.Func(nil)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create VOU service: %w", err)
@@ -206,7 +209,7 @@ func (s *Seeder) seedPurchaseStock(ctx context.Context, refs references) (seedOu
 				Purchaser:    &refs.employee,
 				Warehouse:    &refs.warehouse,
 				ProductLines: []voudomain.ProductLineInput{productLine(refs.raw, "500", "10.00")},
-			}}, actorID, requestID("purchase-order-create"))
+			}}, mustApprovalActor(requestID("purchase-order-create")))
 		},
 		voudomain.StatusApproved,
 	)
@@ -238,7 +241,7 @@ func (s *Seeder) seedPurchaseStock(ctx context.Context, refs references) (seedOu
 					SourceLineID: orderView.Data.ProductLines[0].LineID,
 					BaseQuantity: "500",
 				}},
-			}}, actorID, requestID("purchase-inbound-create"))
+			}}, mustApprovalActor(requestID("purchase-inbound-create")))
 		},
 		voudomain.StatusApproved,
 	)
@@ -279,7 +282,7 @@ func (s *Seeder) seedSaleOrder(ctx context.Context, refs references) (seedOutcom
 						return line
 					}(),
 				},
-			}}, actorID, requestID("sale-order-create"))
+			}}, mustApprovalActor(requestID("sale-order-create")))
 		},
 		voudomain.StatusApproved,
 	)
@@ -306,7 +309,7 @@ func (s *Seeder) seedCompletedSelfProduction(
 					"5",
 					"21",
 				),
-			}, actorID, requestID("self-production-approved-create"))
+			}, mustApprovalActor(requestID("self-production-approved-create")))
 		},
 		voudomain.StatusApproved,
 	)
@@ -352,7 +355,7 @@ func (s *Seeder) seedDraftOrderProduction(
 						productionLine(order.Data.ProductLines[1].LineID, nil, "20", "5", refs.raw, "63"),
 					},
 				},
-			}, actorID, requestID("order-production-draft-create"))
+			}, mustApprovalActor(requestID("order-production-draft-create")))
 		},
 		voudomain.StatusDraft,
 	)
@@ -379,7 +382,7 @@ func (s *Seeder) seedDraftSelfProduction(
 					"3",
 					"51.5",
 				),
-			}, actorID, requestID("self-production-draft-create"))
+			}, mustApprovalActor(requestID("self-production-draft-create")))
 		},
 		voudomain.StatusDraft,
 	)
@@ -437,19 +440,18 @@ func (s *Seeder) ensureDocument(
 		current = voudomain.MutationResult{
 			DocumentID: view.DocumentID,
 			DocumentNo: view.DocumentNo,
-			Status:     view.Status,
-			Revision:   view.Revision,
+			Approval:   view.Approval,
 		}
-		if current.Status == targetStatus {
+		if string(current.Approval.Status) == targetStatus {
 			return current, outcomeSkipped, nil
 		}
-		currentRank, currentKnown := productionStatusRank(current.Status)
+		currentRank, currentKnown := productionStatusRank(string(current.Approval.Status))
 		targetRank, targetKnown := productionStatusRank(targetStatus)
 		if !currentKnown {
 			return current, 0, fmt.Errorf(
 				"cannot evaluate %s seed status %s",
 				entity,
-				current.Status,
+				string(current.Approval.Status),
 			)
 		}
 		if !targetKnown {
@@ -475,34 +477,34 @@ func (s *Seeder) advanceDocument(
 	if !ok {
 		return current, fmt.Errorf("unsupported seed target status %s", targetStatus)
 	}
-	currentRank, ok := productionStatusRank(current.Status)
+	currentRank, ok := productionStatusRank(string(current.Approval.Status))
 	if !ok {
-		return current, fmt.Errorf("cannot advance %s from status %s", entity, current.Status)
+		return current, fmt.Errorf("cannot advance %s from status %s", entity, string(current.Approval.Status))
 	}
 	for currentRank < targetRank {
 		var err error
-		switch current.Status {
+		switch string(current.Approval.Status) {
 		case voudomain.StatusDraft:
-			current, err = s.vouchers.Check(ctx, entity, voudomain.DocumentRevisionInput{
-				DocumentID: current.DocumentID, Revision: current.Revision,
-			}, actorID, requestID(key+"-check"))
-		case voudomain.StatusChecked:
+			current, err = s.vouchers.Submit(ctx, entity, voudomain.DocumentRevisionInput{
+				DocumentID: current.DocumentID, Revision: current.Approval.Revision,
+			}, mustApprovalActor(requestID(key+"-submit")))
+		case voudomain.StatusPending:
 			current, err = s.vouchers.Approve(ctx, entity, voudomain.DocumentRevisionInput{
-				DocumentID: current.DocumentID, Revision: current.Revision,
-			}, actorID, requestID(key+"-approve"))
+				DocumentID: current.DocumentID, Revision: current.Approval.Revision,
+			}, mustApprovalActor(requestID(key+"-approve")))
 		default:
-			return current, fmt.Errorf("cannot advance %s from status %s", entity, current.Status)
+			return current, fmt.Errorf("cannot advance %s from status %s", entity, string(current.Approval.Status))
 		}
 		if err != nil {
 			return current, err
 		}
-		currentRank, ok = productionStatusRank(current.Status)
+		currentRank, ok = productionStatusRank(string(current.Approval.Status))
 		if !ok {
-			return current, fmt.Errorf("cannot advance %s from status %s", entity, current.Status)
+			return current, fmt.Errorf("cannot advance %s from status %s", entity, string(current.Approval.Status))
 		}
 	}
 	if currentRank != targetRank {
-		return current, fmt.Errorf("%s reached unexpected status %s", entity, current.Status)
+		return current, fmt.Errorf("%s reached unexpected status %s", entity, string(current.Approval.Status))
 	}
 	return current, nil
 }
@@ -511,7 +513,7 @@ func productionStatusRank(status string) (int, bool) {
 	switch status {
 	case voudomain.StatusDraft:
 		return 0, true
-	case voudomain.StatusChecked:
+	case voudomain.StatusPending:
 		return 1, true
 	case voudomain.StatusApproved:
 		return 2, true
@@ -523,10 +525,11 @@ func productionStatusRank(status string) (int, bool) {
 func (s *Seeder) findDocumentID(ctx context.Context, request string) (string, error) {
 	var id string
 	err := s.pool.QueryRow(ctx, `
-		SELECT document_id
-		FROM vou_audit_events
-		WHERE request_id = $1 AND event_type IN ('CREATED','SAVED')
-		ORDER BY occurred_at, id
+		SELECT entry.subject_id
+		FROM approval_events event
+		JOIN approval_entries entry ON entry.id=event.entry_id
+		WHERE event.request_id=$1 AND event.action='CREATED' AND entry.domain='vou'
+		ORDER BY event.created_at,event.id
 		LIMIT 1
 	`, request).Scan(&id)
 	return id, err
@@ -534,6 +537,18 @@ func (s *Seeder) findDocumentID(ctx context.Context, request string) (string, er
 
 func requestID(value string) string {
 	return "seed-production-demo-" + value
+}
+
+func mustApprovalActor(request string) approval.Actor {
+	id := actorID
+	if strings.HasSuffix(request, "-approve") || strings.HasSuffix(request, "-reject") {
+		id = reviewerID
+	}
+	actor, err := approval.UserActor(authorization.Principal{ActorID: id}, request)
+	if err != nil {
+		panic(err)
+	}
+	return actor
 }
 
 func combineOutcomes(values ...seedOutcome) seedOutcome {

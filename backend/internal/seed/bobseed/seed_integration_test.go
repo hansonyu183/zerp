@@ -227,6 +227,12 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("approve V1: %v", err)
 	}
+	unrelated, err := service.Create(t.Context(), bob.EntityWarehouse, bob.CreateInput{
+		Data: bob.CreateDetailInput{Name: "审批版本集成无关仓库"},
+	}, actor("create-unrelated"))
+	if err != nil {
+		t.Fatalf("create unrelated warehouse: %v", err)
+	}
 
 	v2, err := service.Save(t.Context(), bob.EntityWarehouse, bob.SaveInput{
 		ObjectID: created.ObjectID, ApprovalEntryID: v1.Approval.ApprovalEntryID,
@@ -243,14 +249,33 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin reference check: %v", err)
 	}
-	if _, err = service.ResolveApprovedReference(
+	if _, err = service.ValidateApprovedSnapshotReference(
 		t.Context(), tx, bob.EntityWarehouse, created.ObjectID, v2.Approval.ApprovalEntryID,
 	); err == nil {
 		t.Fatal("draft V2 was resolvable as an approved reference")
 	}
+	if _, err = service.ValidateApprovedSnapshotReference(
+		t.Context(), tx, bob.EntityWarehouse, unrelated.ObjectID, v1.Approval.ApprovalEntryID,
+	); err == nil {
+		t.Fatal("approval entry resolved for a different BOB object")
+	}
 	latest, err := service.ResolveLatestApprovedReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID)
 	if err != nil || latest.ApprovalEntryID != v1.Approval.ApprovalEntryID {
 		t.Fatalf("latest during V2 draft = %+v err=%v, want V1", latest, err)
+	}
+	forgedEntryID := ulid.Make().String()
+	if _, err = tx.Exec(t.Context(), `
+		INSERT INTO approval_entries (
+			id,domain,entity,subject_id,version_no,status,revision,
+			created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at
+		) VALUES ($1,'bob','warehouse',$2,3,'APPROVED',1,$3,clock_timestamp(),$3,clock_timestamp(),$3,clock_timestamp(),$4,clock_timestamp())
+	`, forgedEntryID, created.ObjectID, "01J00000000000000000000000", "01J00000000000000000000001"); err != nil {
+		t.Fatalf("insert forged approved BOB metadata: %v", err)
+	}
+	if _, err = service.ValidateApprovedSnapshotReference(
+		t.Context(), tx, bob.EntityWarehouse, created.ObjectID, forgedEntryID,
+	); err == nil {
+		t.Fatal("approved metadata without a BOB version payload resolved as a snapshot")
 	}
 	if err = tx.Rollback(t.Context()); err != nil {
 		t.Fatalf("rollback reference check: %v", err)
@@ -263,12 +288,41 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("submit V2: %v", err)
 	}
+	tx, err = pool.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("begin pending reference check: %v", err)
+	}
+	if _, err = service.ValidateApprovedSnapshotReference(
+		t.Context(), tx, bob.EntityWarehouse, created.ObjectID, v2Pending.Approval.ApprovalEntryID,
+	); err == nil {
+		t.Fatal("pending V2 was resolvable as an approved snapshot")
+	}
+	if err = tx.Rollback(t.Context()); err != nil {
+		t.Fatalf("rollback pending reference check: %v", err)
+	}
 	v2Approved, err := service.Approve(t.Context(), bob.EntityWarehouse, bob.ReviewInput{
 		ObjectID: created.ObjectID, ApprovalEntryID: v2Pending.Approval.ApprovalEntryID,
 		ApprovalRevision: v2Pending.Approval.Revision,
 	}, actor("approve-v2"))
 	if err != nil {
 		t.Fatalf("approve V2: %v", err)
+	}
+	tx, err = pool.Begin(t.Context())
+	if err != nil {
+		t.Fatalf("begin approved reference check: %v", err)
+	}
+	snapshot, err := service.ValidateApprovedSnapshotReference(
+		t.Context(), tx, bob.EntityWarehouse, created.ObjectID, v1.Approval.ApprovalEntryID,
+	)
+	if err != nil || snapshot.ApprovalEntryID != v1.Approval.ApprovalEntryID {
+		t.Fatalf("validate V1 snapshot after V2 approval = %+v err=%v, want V1", snapshot, err)
+	}
+	latest, err = service.ResolveLatestApprovedReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID)
+	if err != nil || latest.ApprovalEntryID != v2Approved.Approval.ApprovalEntryID {
+		t.Fatalf("latest reference after V2 approval = %+v err=%v, want V2", latest, err)
+	}
+	if err = tx.Rollback(t.Context()); err != nil {
+		t.Fatalf("rollback approved reference check: %v", err)
 	}
 	v2Unapproved, err := service.Unapprove(t.Context(), bob.EntityWarehouse, bob.ReverseInput{
 		ObjectID: created.ObjectID, ApprovalEntryID: v2Approved.Approval.ApprovalEntryID,
@@ -724,15 +778,22 @@ func TestBobUnapproveBlocksAnyVoucherStateUntilPhysicalDeletionIntegration(t *te
 	// The blocker deliberately scans typed VOU snapshots without filtering the
 	// document state. A DRAFT inventory count therefore blocks unapprove until
 	// its physical snapshot row is deleted.
-	documentID := ulid.Make().String()
+	documentID, approvalEntryID := ulid.Make().String(), ulid.Make().String()
 	voucherTx, err := pool.Begin(t.Context())
 	if err != nil {
 		t.Fatalf("begin draft VOU insert: %v", err)
 	}
 	if _, err = voucherTx.Exec(t.Context(), `
-		INSERT INTO vou_documents(id,entity,document_no,status,business_date,currency,total_amount_cents,created_by,updated_by)
-		VALUES($1,'inventory-count',$2,'DRAFT',CURRENT_DATE,'CNY',0,$3,$3)
-	`, documentID, "CNT-20260825-9999", "01J00000000000000000000000"); err != nil {
+		INSERT INTO approval_entries(id,domain,entity,subject_id,status,revision,created_by,created_at,updated_by,updated_at)
+		VALUES($1,'vou','inventory-count',$2,'DRAFT',1,$3,now(),$3,now())
+	`, approvalEntryID, documentID, "01J00000000000000000000000"); err != nil {
+		_ = voucherTx.Rollback(t.Context())
+		t.Fatalf("insert draft VOU approval: %v", err)
+	}
+	if _, err = voucherTx.Exec(t.Context(), `
+		INSERT INTO vou_documents(id,entity,document_no,approval_entry_id,business_date,currency,total_amount_cents)
+		VALUES($1,'inventory-count',$2,$3,CURRENT_DATE,'CNY',0)
+	`, documentID, "CNT-20260825-9999", approvalEntryID); err != nil {
 		_ = voucherTx.Rollback(t.Context())
 		t.Fatalf("insert draft VOU document: %v", err)
 	}
@@ -765,6 +826,10 @@ func TestBobUnapproveBlocksAnyVoucherStateUntilPhysicalDeletionIntegration(t *te
 	if _, err = voucherTx.Exec(t.Context(), `DELETE FROM vou_documents WHERE id=$1`, documentID); err != nil {
 		_ = voucherTx.Rollback(t.Context())
 		t.Fatalf("physically delete draft VOU snapshot: %v", err)
+	}
+	if _, err = voucherTx.Exec(t.Context(), `DELETE FROM approval_entries WHERE id=$1`, approvalEntryID); err != nil {
+		_ = voucherTx.Rollback(t.Context())
+		t.Fatalf("physically delete draft VOU approval: %v", err)
 	}
 	if err = voucherTx.Commit(t.Context()); err != nil {
 		t.Fatalf("commit physical VOU deletion: %v", err)

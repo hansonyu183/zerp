@@ -2,4 +2,4 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type WorkbenchPendingStage = 'CHECK' | 'APPROVE';
+export type WorkbenchPendingStage = 'SUBMIT' | 'APPROVE';

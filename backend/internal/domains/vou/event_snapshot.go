@@ -6,7 +6,7 @@ import (
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 )
 
-func (s *Service) eventSnapshot(ctx context.Context, q *dbsqlc.Queries, document dbsqlc.VouDocument) (DocumentView, error) {
+func (s *Service) eventSnapshot(ctx context.Context, q *dbsqlc.Queries, document documentRecord) (DocumentView, error) {
 	data, err := s.loadData(ctx, q, document)
 	if err != nil {
 		return DocumentView{}, s.internal("load event document detail", err)
@@ -19,7 +19,7 @@ func (s *Service) eventSnapshot(ctx context.Context, q *dbsqlc.Queries, document
 	if document.ParentDocumentID != nil && document.ParentEntity != nil {
 		result.ParentDocumentID = *document.ParentDocumentID
 		result.ParentEntity = *document.ParentEntity
-		parent, parentErr := q.GetVouDocument(ctx, dbsqlc.GetVouDocumentParams{ID: *document.ParentDocumentID, Entity: *document.ParentEntity})
+		parent, parentErr := s.getDocument(ctx, *document.ParentDocumentID, *document.ParentEntity)
 		if parentErr != nil {
 			return DocumentView{}, s.internal("load event parent document", parentErr)
 		}

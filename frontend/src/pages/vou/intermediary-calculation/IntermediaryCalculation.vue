@@ -31,7 +31,7 @@ const secondaryOpen = ref(false)
 const secondaryReason = ref('')
 const listLifecycleTarget = ref<VoucherListItem | null>(null)
 const listLifecycleAction =
-  ref<Extract<VoucherLifecycleAction, 'uncheck' | 'unapprove'>>('uncheck')
+  ref<Extract<VoucherLifecycleAction, 'unapprove'>>('unapprove')
 const listLifecycleReason = ref('')
 const payeeEntityLabels: Readonly<Record<string, string>> = {
   customer: '客户',
@@ -79,7 +79,7 @@ function requestListLifecycleAction(
   row: VoucherListItem,
   action: VoucherLifecycleAction,
 ): void {
-  if (action === 'uncheck' || action === 'unapprove') {
+  if (action === 'unapprove') {
     listLifecycleTarget.value = row
     listLifecycleAction.value = action
     listLifecycleReason.value = ''
@@ -228,9 +228,9 @@ async function confirmDelete(): Promise<void> {
             v-if="vm.documentView"
             :document-no="vm.documentView.documentNo"
             entity-label="居间计算单"
-            :revision="vm.documentView.revision"
-            :status="vm.documentView.status"
-            :status-label="formatVoucherStatus(vm.documentView.status)"
+            :revision="vm.documentView.approval.revision"
+            :status="vm.documentView.approval.status"
+            :status-label="formatVoucherStatus(vm.documentView.approval.status)"
           />
           <v-divider v-if="vm.documentView" class="my-5" />
 
@@ -369,7 +369,7 @@ async function confirmDelete(): Promise<void> {
         :can-remove="vm.actionAvailability.attachmentRemove"
         :can-upload="vm.actionAvailability.attachmentInitiate"
         :document-created="Boolean(vm.documentView)"
-        :draft="vm.documentView?.status === 'DRAFT'"
+        :draft="vm.documentView?.approval.status === 'DRAFT'"
         :error-message="vm.attachmentError"
         :loading="vm.attachmentLoading"
         @download="vm.downloadAttachment"

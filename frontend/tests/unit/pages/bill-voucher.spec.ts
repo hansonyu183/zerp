@@ -111,8 +111,18 @@ beforeEach(() => {
         data: {
           documentId: 'DOC-1',
           documentNo: 'V-1',
-          revision: 1,
-          status: 'DRAFT',
+          approval: {
+            status: 'DRAFT',
+            revision: 1,
+            createdAt: '2026-08-05T00:00:00Z',
+            createdBy: 'USER-1',
+            updatedAt: '2026-08-05T00:00:00Z',
+            updatedBy: 'USER-1',
+            submittedAt: null,
+            submittedBy: null,
+            approvedAt: null,
+            approvedBy: null,
+          },
         },
       } as never
     if (path.includes('/save'))
@@ -120,8 +130,18 @@ beforeEach(() => {
         data: {
           documentId: 'DOC-1',
           documentNo: 'V-1',
-          revision: 2,
-          status: 'DRAFT',
+          approval: {
+            status: 'DRAFT',
+            revision: 2,
+            createdAt: '2026-08-05T00:00:00Z',
+            createdBy: 'USER-1',
+            updatedAt: '2026-08-05T00:00:00Z',
+            updatedBy: 'USER-1',
+            submittedAt: null,
+            submittedBy: null,
+            approvedAt: null,
+            approvedBy: null,
+          },
         },
       } as never
     if (path.includes('/get'))
@@ -129,8 +149,18 @@ beforeEach(() => {
         data: {
           documentId: 'DOC-1',
           documentNo: 'V-1',
-          revision: 1,
-          status: 'DRAFT',
+          approval: {
+            status: 'DRAFT',
+            revision: 1,
+            createdAt: '2026-08-05T00:00:00Z',
+            createdBy: 'USER-1',
+            updatedAt: '2026-08-05T00:00:00Z',
+            updatedBy: 'USER-1',
+            submittedAt: null,
+            submittedBy: null,
+            approvedAt: null,
+            approvedBy: null,
+          },
           entity: 'bill-maturity',
           amount: '10.00',
           data: {
@@ -177,8 +207,18 @@ beforeEach(() => {
       data: {
         documentId: 'DOC-1',
         documentNo: 'V-1',
-        revision: 2,
-        status: 'CHECKED',
+        approval: {
+          status: 'PENDING',
+          revision: 2,
+          createdAt: '2026-08-05T00:00:00Z',
+          createdBy: 'USER-1',
+          updatedAt: '2026-08-05T00:00:00Z',
+          updatedBy: 'USER-1',
+          submittedAt: '2026-08-05T00:00:00Z',
+          submittedBy: 'USER-1',
+          approvedAt: null,
+          approvedBy: null,
+        },
       },
     } as never
   })
@@ -754,13 +794,13 @@ describe('bill voucher view model behavior', () => {
     scope.stop()
   })
 
-  it('restores bill payment queries and sends contract-valid uncheck requests', async () => {
+  it('restores bill payment queries and sends contract-valid unsubmit requests', async () => {
     const session = useSessionStore()
     session.$patch({
       permissions: [
         '/vou/bill-payment/query',
         '/vou/bill-payment/get',
-        '/vou/bill-payment/uncheck',
+        '/vou/bill-payment/unsubmit',
       ],
     })
     const scope = effectScope()
@@ -777,9 +817,9 @@ describe('bill voucher view model behavior', () => {
     await vm.openDocument({ documentId: 'DOC-1' })
     mockedPost.mockClear()
 
-    await vm.lifecycle('uncheck', '不应进入请求')
+    await vm.lifecycle('unsubmit')
 
-    expect(mockedPost).toHaveBeenCalledWith('vou/bill-payment/uncheck', {
+    expect(mockedPost).toHaveBeenCalledWith('vou/bill-payment/unsubmit', {
       documentId: 'DOC-1',
       revision: 1,
     })
@@ -806,13 +846,13 @@ describe('bill voucher view model behavior', () => {
     scope.stop()
   })
 
-  it('restores bill discount queries and sends contract-valid uncheck requests', async () => {
+  it('restores bill discount queries and sends contract-valid unsubmit requests', async () => {
     const session = useSessionStore()
     session.$patch({
       permissions: [
         '/vou/bill-discount/query',
         '/vou/bill-discount/get',
-        '/vou/bill-discount/uncheck',
+        '/vou/bill-discount/unsubmit',
       ],
     })
     const scope = effectScope()
@@ -829,22 +869,22 @@ describe('bill voucher view model behavior', () => {
     await vm.openDocument({ documentId: 'DOC-1' })
     mockedPost.mockClear()
 
-    await vm.lifecycle('uncheck', '不应进入请求')
+    await vm.lifecycle('unsubmit')
 
-    expect(mockedPost).toHaveBeenCalledWith('vou/bill-discount/uncheck', {
+    expect(mockedPost).toHaveBeenCalledWith('vou/bill-discount/unsubmit', {
       documentId: 'DOC-1',
       revision: 1,
     })
     scope.stop()
   })
 
-  it('restores bill maturity queries and sends contract-valid uncheck requests', async () => {
+  it('restores bill maturity queries and sends contract-valid unsubmit requests', async () => {
     const session = useSessionStore()
     session.$patch({
       permissions: [
         '/vou/bill-maturity/query',
         '/vou/bill-maturity/get',
-        '/vou/bill-maturity/uncheck',
+        '/vou/bill-maturity/unsubmit',
       ],
     })
     const scope = effectScope()
@@ -861,9 +901,9 @@ describe('bill voucher view model behavior', () => {
     await vm.openDocument({ documentId: 'DOC-1' })
     mockedPost.mockClear()
 
-    await vm.lifecycle('uncheck', '不应进入请求')
+    await vm.lifecycle('unsubmit')
 
-    expect(mockedPost).toHaveBeenCalledWith('vou/bill-maturity/uncheck', {
+    expect(mockedPost).toHaveBeenCalledWith('vou/bill-maturity/unsubmit', {
       documentId: 'DOC-1',
       revision: 1,
     })
@@ -1027,7 +1067,7 @@ describe('bill voucher view model behavior', () => {
         '/vou/bill-maturity/create',
         '/vou/bill-maturity/get',
         '/vou/bill-maturity/save',
-        '/vou/bill-maturity/check',
+        '/vou/bill-maturity/submit',
         '/vou/bill-maturity/delete',
         '/vou/bill-maturity/query',
         '/bob/fund-account/query',
@@ -1099,9 +1139,9 @@ describe('bill voucher view model behavior', () => {
       },
     ]
     expect(await vm.save()).toBe(true)
-    await vm.lifecycle('check')
-    expect(vm.documentStatus.value).toBe('CHECKED')
-    await vm.lifecycle('uncheck', '测试')
+    await vm.lifecycle('submit')
+    expect(vm.documentStatus.value).toBe('PENDING')
+    await vm.lifecycle('unsubmit')
     await vm.lifecycle('approve')
     await vm.lifecycle('unapprove', '测试')
     await vm.changePage(0)

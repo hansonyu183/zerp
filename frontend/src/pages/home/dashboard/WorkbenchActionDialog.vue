@@ -16,12 +16,14 @@ const emit = defineEmits<{
 }>()
 
 const needsComment = computed(
-  () => props.action === 'reject' || props.action === 'unsubmit',
+  () =>
+    props.action === 'reject' ||
+    (props.action === 'unsubmit' && props.target?.category === 'BOB'),
 )
 const title = computed(() => {
   if (props.action === 'reject') return '驳回资料'
   if (props.action === 'unsubmit') return '撤回提交'
-  return '反核对'
+  return '撤回提交'
 })
 const prompt = computed(() => {
   if (!props.target) return ''
@@ -31,7 +33,7 @@ const prompt = computed(() => {
   if (props.action === 'unsubmit' && props.target.category === 'BOB') {
     return `请输入撤回 ${props.target.code} 提交的原因。`
   }
-  if (props.action === 'uncheck' && props.target.category === 'VOU') {
+  if (props.action === 'unsubmit' && props.target.category === 'VOU') {
     return `确认将 ${props.target.documentNo} 退回草稿吗？`
   }
   return ''
@@ -42,7 +44,7 @@ const commentLabel = computed(() =>
 const confirmLabel = computed(() => {
   if (props.action === 'reject') return '确认驳回'
   if (props.action === 'unsubmit') return '确认撤回'
-  return '确认反核对'
+  return '确认撤回'
 })
 const confirmColor = computed(() =>
   props.action === 'reject' ? 'error' : 'warning',

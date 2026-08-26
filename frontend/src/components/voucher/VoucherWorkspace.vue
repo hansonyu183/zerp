@@ -61,7 +61,7 @@ function forceClose(): void {
 
 function statusText(): string {
   if (!props.document) return props.editing ? '新增草稿' : '加载中'
-  return formatVoucherStatus(props.document.status)
+  return formatVoucherStatus(props.document.approval.status)
 }
 </script>
 
@@ -93,7 +93,7 @@ function statusText(): string {
             v-if="document"
             class="voucher-workspace__revision text-caption"
           >
-            Revision {{ document.revision }}
+            Revision {{ document.approval.revision }}
           </span>
         </div>
         <div class="voucher-workspace__actions">

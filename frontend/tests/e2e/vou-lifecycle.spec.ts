@@ -5,6 +5,21 @@ import {
   type Page,
   type WflWorkerState,
 } from './fixtures'
+import { approveVouAsReviewer } from './wfl-global-setup'
+
+interface VouMutation {
+  documentId: string
+  documentNo?: string
+  approval: {
+    revision: number
+  }
+}
+
+interface Envelope<T> {
+  code: number | string
+  message: string
+  data: T
+}
 
 function vouFixture(workerState: WflWorkerState) {
   return {
@@ -74,11 +89,62 @@ async function expectNoPageHorizontalOverflow(page: Page): Promise<void> {
     })
 }
 
-async function approveCurrentDraft(workspace: Locator): Promise<void> {
-  await workspace.getByRole('button', { name: '取消编辑' }).click()
-  await workspace.getByRole('button', { name: '核对', exact: true }).click()
-  await workspace.getByRole('button', { name: '批准', exact: true }).click()
-  await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
+async function submitVou(
+  page: Page,
+  entity: string,
+  submitButton: Locator,
+): Promise<VouMutation> {
+  const responsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      response.url().endsWith(`/vou/${entity}/submit`),
+  )
+  await submitButton.click()
+  const response = await responsePromise
+  const payload = (await response.json()) as Envelope<VouMutation>
+  expect(String(payload.code), payload.message).toBe('0')
+  return payload.data
+}
+
+async function approveSubmittedVou(
+  workerState: WflWorkerState,
+  entity: string,
+  mutation: VouMutation,
+): Promise<void> {
+  const baseURL = process.env.E2E_API_BASE_URL
+  if (!baseURL) throw new Error('VOU E2E 缺少 API 地址。')
+  await approveVouAsReviewer(
+    baseURL,
+    workerState.reviewer,
+    entity,
+    mutation.documentId,
+    mutation.approval.revision,
+  )
+}
+
+async function approveCurrentDraft(
+  page: Page,
+  workspace: Locator,
+  workerState: WflWorkerState,
+  entity: string,
+): Promise<void> {
+  const cancelEdit = workspace.getByRole('button', { name: '取消编辑' })
+  if (await cancelEdit.isVisible()) await cancelEdit.click()
+  const submitted = await submitVou(
+    page,
+    entity,
+    workspace.getByRole('button', { name: '提交审核', exact: true }),
+  )
+  await approveSubmittedVou(workerState, entity, submitted)
+  await page.goto(`/vou/${entity}?documentId=${submitted.documentId}&mode=view`)
+  if (await workspace.isVisible()) {
+    await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
+    return
+  }
+  expect(submitted.documentNo).toBeTruthy()
+  await expect(
+    page.locator('tbody tr').filter({ hasText: submitted.documentNo! }),
+  ).toContainText('已批准')
 }
 
 function isoDateOffset(days: number): string {
@@ -127,13 +193,12 @@ test('票据收入批准后进入真实票据台账', async ({ page, workerState
   }
   expect(String(billCreatePayload.code), billCreatePayload.message).toBe('0')
   await expectDraftCreated(workspace, /^BRE-\d{8}-\d{4}$/)
-  await workspace.getByRole('button', { name: '检查', exact: true }).click()
-  await workspace.getByRole('button', { name: '批准', exact: true }).click()
-  await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
+  await approveCurrentDraft(page, workspace, workerState, 'bill-receipt')
 })
 
 async function verifyEmployeeLoanLifecycle(
   page: Page,
+  workerState: WflWorkerState,
   fixture: ReturnType<typeof vouFixture>,
 ): Promise<void> {
   for (const document of [
@@ -152,7 +217,7 @@ async function verifyEmployeeLoanLifecycle(
       workspace,
       new RegExp(`^${document.prefix}-\\d{8}-\\d{4}$`),
     )
-    await approveCurrentDraft(workspace)
+    await approveCurrentDraft(page, workspace, workerState, document.entity)
   }
 
   await page.goto('/vou/employee-loan-writeoff')
@@ -168,7 +233,12 @@ async function verifyEmployeeLoanLifecycle(
   await expenseInputs.nth(2).fill('50.00')
   await workspace.getByRole('button', { name: '保存', exact: true }).click()
   await expectDraftCreated(workspace, /^ELW-\d{8}-\d{4}$/)
-  await approveCurrentDraft(workspace)
+  await approveCurrentDraft(
+    page,
+    workspace,
+    workerState,
+    'employee-loan-writeoff',
+  )
 }
 
 test(
@@ -179,7 +249,7 @@ test(
     const fixture = vouFixture(workerState)
     await signIn(page)
     if (test.info().project.name !== 'mobile-chromium') {
-      await verifyEmployeeLoanLifecycle(page, fixture)
+      await verifyEmployeeLoanLifecycle(page, workerState, fixture)
     }
     await page.goto('/vou/sales-receipt')
     await page.getByRole('button', { name: '新增', exact: true }).click()
@@ -218,7 +288,7 @@ test(
     await page.getByRole('textbox', { name: '单号或往来方' }).fill(documentNo!)
     await page.getByRole('button', { name: '查询', exact: true }).click()
     let workbenchRow = page.locator('tbody tr').filter({ hasText: documentNo! })
-    await expect(workbenchRow).toContainText('待核对')
+    await expect(workbenchRow).toContainText('待提交审核')
     await workbenchRow.getByLabel(`编辑 ${documentNo}`).click()
     await expect(page).toHaveURL(
       new RegExp(`/vou/sales-receipt\\?documentId=[^&]+&mode=edit`),
@@ -228,8 +298,8 @@ test(
     await page.getByRole('textbox', { name: '单号或往来方' }).fill(documentNo!)
     await page.getByRole('button', { name: '查询', exact: true }).click()
     workbenchRow = page.locator('tbody tr').filter({ hasText: documentNo! })
-    await expect(workbenchRow).toContainText('待核对')
-    await workbenchRow.getByLabel(`核对 ${documentNo}`).click()
+    await expect(workbenchRow).toContainText('待提交审核')
+    await workbenchRow.getByLabel(`提交审核 ${documentNo}`).click()
     await expect(workbenchRow).toContainText('待批准')
     await workbenchRow.getByLabel(`查看 ${documentNo}`).click()
     await expect(page).toHaveURL(
@@ -241,16 +311,25 @@ test(
     await page.getByRole('button', { name: '查询', exact: true }).click()
     workbenchRow = page.locator('tbody tr').filter({ hasText: documentNo! })
     await expect(workbenchRow).toContainText('待批准')
-    await workbenchRow.getByLabel(`反核对 ${documentNo}`).click()
-    const uncheckDialog = page.getByRole('dialog').filter({
-      hasText: '反核对',
+    await workbenchRow.getByLabel(`撤回提交 ${documentNo}`).click()
+    const unsubmitDialog = page.getByRole('dialog').filter({
+      hasText: '撤回提交',
     })
-    await expect(uncheckDialog.getByLabel('原因')).toHaveCount(0)
-    await uncheckDialog.getByRole('button', { name: '确认反核对' }).click()
-    await expect(workbenchRow).toContainText('待核对')
-    await workbenchRow.getByLabel(`核对 ${documentNo}`).click()
+    await expect(unsubmitDialog.getByLabel('原因')).toHaveCount(0)
+    await unsubmitDialog.getByRole('button', { name: '确认撤回' }).click()
+    await expect(workbenchRow).toContainText('待提交审核')
+    const submitted = await submitVou(
+      page,
+      'sales-receipt',
+      workbenchRow.getByLabel(`提交审核 ${documentNo}`),
+    )
     await expect(workbenchRow).toContainText('待批准')
-    await workbenchRow.getByLabel(`批准 ${documentNo}`).click()
+    await approveSubmittedVou(workerState, 'sales-receipt', submitted)
+    await page.reload()
+    await page.getByRole('tab', { name: '待办单据' }).click()
+    await page.getByRole('textbox', { name: '单号或往来方' }).fill(documentNo!)
+    await page.getByRole('button', { name: '查询', exact: true }).click()
+    workbenchRow = page.locator('tbody tr').filter({ hasText: documentNo! })
     await expect(workbenchRow).toHaveCount(0, { timeout: 15_000 })
 
     await page.goto('/vou/sales-receipt')
@@ -266,8 +345,7 @@ test(
     await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
 
     await reverse(page, '反批准')
-    await page.getByRole('button', { name: '反核对', exact: true }).click()
-    await expect(page.getByLabel('原因')).toHaveCount(0)
+    await page.getByRole('button', { name: '撤回提交', exact: true }).click()
     await expect(workspace.getByText('草稿', { exact: true })).toBeVisible()
 
     await page.getByRole('tab', { name: '审计' }).click()
@@ -275,7 +353,7 @@ test(
       workspace.getByText('反批准', { exact: true }).first(),
     ).toBeVisible()
     await expect(
-      workspace.getByText('反核对', { exact: true }).first(),
+      workspace.getByText('撤回提交', { exact: true }).first(),
     ).toBeVisible()
     await page.getByRole('tab', { name: '附件' }).click()
     await page.getByLabel('移除 vou-e2e.pdf').click()
@@ -330,8 +408,15 @@ test('库存盘点加载账面库存并按批准时差异过账', async ({
   await workspace.getByRole('button', { name: '保存', exact: true }).click()
   await expectDraftCreated(workspace, /^IVC-\d{8}-\d{4}$/)
   await workspace.getByRole('button', { name: '取消编辑' }).click()
-  await workspace.getByRole('button', { name: '核对', exact: true }).click()
-  await workspace.getByRole('button', { name: '批准', exact: true }).click()
+  const submitted = await submitVou(
+    page,
+    'inventory-count',
+    workspace.getByRole('button', { name: '提交审核', exact: true }),
+  )
+  await approveSubmittedVou(workerState, 'inventory-count', submitted)
+  await page.goto(
+    `/vou/inventory-count?documentId=${submitted.documentId}&mode=view`,
+  )
   await expect(workspace.getByText(/^已盘点 · r\d+$/)).toBeVisible()
   await expect
     .poll(async () =>
@@ -391,10 +476,15 @@ test('销售订单经动态流程生成出库草稿', async ({ page, workerState
   await workspace.getByLabel('关闭单据工作区').click()
   await expect(workspace).not.toBeVisible()
   let orderRow = page.locator('tbody tr').filter({ hasText: orderNo! })
-  await orderRow.getByLabel(`核对 ${orderNo}`).click()
-  await expect(orderRow).toContainText('已核对')
+  const submittedOrder = await submitVou(
+    page,
+    'sale-order',
+    orderRow.getByLabel(`提交审核 ${orderNo}`),
+  )
+  await expect(orderRow).toContainText('待审核')
+  await approveSubmittedVou(workerState, 'sale-order', submittedOrder)
+  await page.reload()
   orderRow = page.locator('tbody tr').filter({ hasText: orderNo! })
-  await orderRow.getByLabel(`批准 ${orderNo}`).click()
   await expect(orderRow).toContainText('已批准')
 
   await page.goto(`/wfl/${fixture.salesProcessCode}`)
@@ -473,10 +563,18 @@ test('销售订单经动态流程生成出库草稿', async ({ page, workerState
   const outboundWorkbenchRow = page
     .locator('tbody tr')
     .filter({ hasText: outboundNo! })
-  await expect(outboundWorkbenchRow).toContainText('待核对')
-  await outboundWorkbenchRow.getByLabel(`核对 ${outboundNo}`).click()
+  await expect(outboundWorkbenchRow).toContainText('待提交审核')
+  const submittedOutbound = await submitVou(
+    page,
+    'sale-outbound',
+    outboundWorkbenchRow.getByLabel(`提交审核 ${outboundNo}`),
+  )
   await expect(outboundWorkbenchRow).toContainText('待批准')
-  await outboundWorkbenchRow.getByLabel(`批准 ${outboundNo}`).click()
+  await approveSubmittedVou(workerState, 'sale-outbound', submittedOutbound)
+  await page.reload()
+  await page.getByRole('tab', { name: '待办单据' }).click()
+  await keyword.fill(outboundNo!)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
   await expect(outboundWorkbenchRow).toHaveCount(0, { timeout: 15_000 })
 })
 
@@ -506,8 +604,15 @@ test('采购订单经动态流程显示实例树', async ({ page, workerState })
   )?.trim()
   expect(orderNo).toBeTruthy()
   await workspace.getByRole('button', { name: '取消编辑' }).click()
-  await workspace.getByRole('button', { name: '核对', exact: true }).click()
-  await workspace.getByRole('button', { name: '批准', exact: true }).click()
+  const submitted = await submitVou(
+    page,
+    'purchase-order',
+    workspace.getByRole('button', { name: '提交审核', exact: true }),
+  )
+  await approveSubmittedVou(workerState, 'purchase-order', submitted)
+  await page.goto(
+    `/vou/purchase-order?documentId=${submitted.documentId}&mode=view`,
+  )
   await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
 
   await page.goto(`/wfl/${fixture.purchaseProcessCode}`)

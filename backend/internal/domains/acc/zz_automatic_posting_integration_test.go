@@ -116,19 +116,19 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 	}
 	handler := voudomain.ReferenceInput{ObjectID: approvedEmployment.ObjectID, ApprovalEntryID: approvedEmployment.Approval.ApprovalEntryID}
 	fund := createApprovedAccountingReference(t, business, bobdomain.EntityFundAccount, bobdomain.CreateDetailInput{Name: "自动记账账户", Currency: "CNY", OperatingEntityID: operating.ObjectID})
-	vouchers, err := voudomain.NewService(pool, business, auxiliaryrefs.New(auxiliary), bus, voudomain.AttachmentOptions{Root: t.TempDir()}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	vouchers, err := voudomain.NewService(pool, business, auxiliaryrefs.New(auxiliary), bus, voudomain.AttachmentOptions{Root: t.TempDir()}, slog.New(slog.NewTextHandler(io.Discard, nil)), voudomain.WithApprovalAuthorizer(authorization.Func(nil)))
 	if err != nil {
 		t.Fatalf("new VOU service: %v", err)
 	}
-	created, err := vouchers.Create(t.Context(), voudomain.EntityOtherIncome, voudomain.CreateInput{Data: voudomain.DraftInput{BusinessDate: "2026-07-24", Currency: "CNY", SourceName: "废料收入", FundAccount: &fund, Handler: &handler, Amount: "60.00"}}, adminID, "acc-posting-vou-create")
+	created, err := vouchers.Create(t.Context(), voudomain.EntityOtherIncome, voudomain.CreateInput{Data: voudomain.DraftInput{BusinessDate: "2026-07-24", Currency: "CNY", SourceName: "废料收入", FundAccount: &fund, Handler: &handler, Amount: "60.00"}}, trustedAccountingActor(t, "acc-posting-vou-create"))
 	if err != nil {
 		t.Fatalf("create VOU: %v", err)
 	}
-	checked, err := vouchers.Check(t.Context(), voudomain.EntityOtherIncome, voudomain.DocumentRevisionInput{DocumentID: created.DocumentID, Revision: created.Revision}, adminID, "acc-posting-vou-check")
+	checked, err := vouchers.Submit(t.Context(), voudomain.EntityOtherIncome, voudomain.DocumentRevisionInput{DocumentID: created.DocumentID, Revision: created.Approval.Revision}, trustedAccountingActor(t, "acc-posting-vou-submit"))
 	if err != nil {
 		t.Fatalf("check VOU: %v", err)
 	}
-	approved, err := vouchers.Approve(t.Context(), voudomain.EntityOtherIncome, voudomain.DocumentRevisionInput{DocumentID: created.DocumentID, Revision: checked.Revision}, adminID, "acc-posting-vou-approve")
+	approved, err := vouchers.Approve(t.Context(), voudomain.EntityOtherIncome, voudomain.DocumentRevisionInput{DocumentID: created.DocumentID, Revision: checked.Approval.Revision}, trustedAccountingActor(t, "acc-posting-vou-approve"))
 	if err != nil {
 		chain := []string{err.Error()}
 		for current := errors.Unwrap(err); current != nil; current = errors.Unwrap(current) {
@@ -147,7 +147,7 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 	`, book.ID, created.DocumentID).Scan(&vouchersCount, &linesCount, &sourceEntity, &sourceDocumentNo, &sourceRevision); err != nil {
 		t.Fatalf("read automatic voucher: %v", err)
 	}
-	if vouchersCount != 1 || linesCount != 2 || sourceEntity != voudomain.EntityOtherIncome || sourceDocumentNo == "" || sourceRevision != approved.Revision {
+	if vouchersCount != 1 || linesCount != 2 || sourceEntity != voudomain.EntityOtherIncome || sourceDocumentNo == "" || sourceRevision != approved.Approval.Revision {
 		t.Fatalf("automatic facts = vouchers:%d lines:%d entity:%s no:%s revision:%d", vouchersCount, linesCount, sourceEntity, sourceDocumentNo, sourceRevision)
 	}
 	var debitTotal, creditTotal int64
@@ -163,10 +163,7 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 	if err != nil {
 		t.Fatalf("begin duplicate approval delivery: %v", err)
 	}
-	if err = accounting.HandleDocumentApproved(t.Context(), duplicateTx, voudomain.DocumentApprovedEvent{
-		Entity: voudomain.EntityOtherIncome, DocumentID: created.DocumentID, DocumentNo: approved.DocumentNo,
-		Revision: approved.Revision, ActorID: adminID, RequestID: "acc-posting-duplicate-approve", Snapshot: approvedSnapshot,
-	}); err != nil {
+	if err = accounting.HandleDocumentApproved(t.Context(), duplicateTx, approvedVOUEvent(approvedSnapshot)); err != nil {
 		_ = duplicateTx.Rollback(t.Context())
 		t.Fatalf("duplicate approval delivery: %v", err)
 	}
@@ -176,7 +173,7 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM acc_vouchers WHERE source_type='VOU' AND source_id=$1`, created.DocumentID).Scan(&remaining); err != nil || remaining != 1 {
 		t.Fatalf("facts after duplicate approval = %d, err=%v", remaining, err)
 	}
-	unapproved, err := vouchers.Unapprove(t.Context(), voudomain.EntityOtherIncome, voudomain.ReverseInput{DocumentID: created.DocumentID, Revision: approved.Revision, Reason: "测试反批准"}, adminID, "acc-posting-vou-unapprove")
+	unapproved, err := vouchers.Unapprove(t.Context(), voudomain.EntityOtherIncome, voudomain.ReverseInput{DocumentID: created.DocumentID, Revision: approved.Approval.Revision, Reason: "测试反批准"}, trustedAccountingActor(t, "acc-posting-vou-unapprove"))
 	if err != nil {
 		t.Fatalf("unapprove VOU with ACC deletion: %v", err)
 	}
@@ -187,21 +184,18 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 	if err != nil {
 		t.Fatalf("begin duplicate unapproval delivery: %v", err)
 	}
-	if err = accounting.HandleDocumentUnapproved(t.Context(), duplicateTx, voudomain.DocumentUnapprovedEvent{
-		Entity: voudomain.EntityOtherIncome, DocumentID: created.DocumentID, DocumentNo: approved.DocumentNo,
-		Revision: approved.Revision + 1, ActorID: adminID, RequestID: "acc-posting-duplicate-unapprove", Reason: "重复投递", Snapshot: approvedSnapshot,
-	}); err != nil {
+	if err = accounting.HandleDocumentUnapproved(t.Context(), duplicateTx, unapprovedVOUEvent(approvedSnapshot)); err != nil {
 		_ = duplicateTx.Rollback(t.Context())
 		t.Fatalf("duplicate unapproval delivery: %v", err)
 	}
 	if err = duplicateTx.Commit(t.Context()); err != nil {
 		t.Fatalf("commit duplicate unapproval delivery: %v", err)
 	}
-	reopenedApproved, err := vouchers.Uncheck(t.Context(), voudomain.EntityOtherIncome, voudomain.DocumentRevisionInput{DocumentID: created.DocumentID, Revision: unapproved.Revision}, adminID, "acc-posting-vou-uncheck")
+	reopenedApproved, err := vouchers.Unsubmit(t.Context(), voudomain.EntityOtherIncome, voudomain.DocumentRevisionInput{DocumentID: created.DocumentID, Revision: unapproved.Approval.Revision}, trustedAccountingActor(t, "acc-posting-vou-unsubmit"))
 	if err != nil {
 		t.Fatalf("uncheck reversed VOU: %v", err)
 	}
-	if _, err = vouchers.Delete(t.Context(), voudomain.EntityOtherIncome, voudomain.DeleteInput{DocumentID: created.DocumentID, Revision: reopenedApproved.Revision, Reason: "测试清理"}, adminID, "acc-posting-vou-delete"); err != nil {
+	if _, err = vouchers.Delete(t.Context(), voudomain.EntityOtherIncome, voudomain.DeleteInput{DocumentID: created.DocumentID, Revision: reopenedApproved.Approval.Revision, Reason: "测试清理"}, trustedAccountingActor(t, "acc-posting-vou-delete")); err != nil {
 		t.Fatalf("delete reversed VOU: %v", err)
 	}
 
@@ -210,31 +204,31 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 		t.Fatalf("create second accounting book: %v", err)
 	}
 	createApprovedZeroOpening(t, accounting, secondBook)
-	failed, err := vouchers.Create(t.Context(), voudomain.EntityOtherIncome, voudomain.CreateInput{Data: voudomain.DraftInput{BusinessDate: "2026-07-25", Currency: "CNY", SourceName: "缺失映射", FundAccount: &fund, Handler: &handler, Amount: "10.00"}}, adminID, "acc-posting-failure-create")
+	failed, err := vouchers.Create(t.Context(), voudomain.EntityOtherIncome, voudomain.CreateInput{Data: voudomain.DraftInput{BusinessDate: "2026-07-25", Currency: "CNY", SourceName: "缺失映射", FundAccount: &fund, Handler: &handler, Amount: "10.00"}}, trustedAccountingActor(t, "acc-posting-failure-create"))
 	if err != nil {
 		t.Fatalf("create failure VOU: %v", err)
 	}
-	failedChecked, err := vouchers.Check(t.Context(), voudomain.EntityOtherIncome, voudomain.DocumentRevisionInput{DocumentID: failed.DocumentID, Revision: failed.Revision}, adminID, "acc-posting-failure-check")
+	failedChecked, err := vouchers.Submit(t.Context(), voudomain.EntityOtherIncome, voudomain.DocumentRevisionInput{DocumentID: failed.DocumentID, Revision: failed.Approval.Revision}, trustedAccountingActor(t, "acc-posting-failure-submit"))
 	if err != nil {
 		t.Fatalf("check failure VOU: %v", err)
 	}
-	_, err = vouchers.Approve(t.Context(), voudomain.EntityOtherIncome, voudomain.DocumentRevisionInput{DocumentID: failed.DocumentID, Revision: failedChecked.Revision}, adminID, "acc-posting-failure-approve")
+	_, err = vouchers.Approve(t.Context(), voudomain.EntityOtherIncome, voudomain.DocumentRevisionInput{DocumentID: failed.DocumentID, Revision: failedChecked.Approval.Revision}, trustedAccountingActor(t, "acc-posting-failure-approve"))
 	var vouErr *voudomain.DomainError
 	if !errors.As(err, &vouErr) || vouErr.Kind != voudomain.ErrorConflict || vouErr.Message != "approved accounting mapping is missing" {
 		t.Fatalf("missing mapping approval error = %#v", err)
 	}
 	var status string
-	if err = pool.QueryRow(t.Context(), `SELECT status FROM vou_documents WHERE id=$1`, failed.DocumentID).Scan(&status); err != nil || status != voudomain.StatusChecked {
+	if err = pool.QueryRow(t.Context(), `SELECT entry.status FROM vou_documents document JOIN approval_entries entry ON entry.id=document.approval_entry_id WHERE document.id=$1`, failed.DocumentID).Scan(&status); err != nil || status != voudomain.StatusPending {
 		t.Fatalf("failed VOU state = %s, err=%v", status, err)
 	}
 	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM acc_vouchers WHERE source_type='VOU' AND source_id=$1`, failed.DocumentID).Scan(&remaining); err != nil || remaining != 0 {
 		t.Fatalf("rolled back automatic facts = %d, err=%v", remaining, err)
 	}
-	reopened, err := vouchers.Uncheck(t.Context(), voudomain.EntityOtherIncome, voudomain.DocumentRevisionInput{DocumentID: failed.DocumentID, Revision: failedChecked.Revision}, adminID, "acc-posting-failure-uncheck")
+	reopened, err := vouchers.Unsubmit(t.Context(), voudomain.EntityOtherIncome, voudomain.DocumentRevisionInput{DocumentID: failed.DocumentID, Revision: failedChecked.Approval.Revision}, trustedAccountingActor(t, "acc-posting-failure-unsubmit"))
 	if err != nil {
 		t.Fatalf("uncheck failed VOU: %v", err)
 	}
-	if _, err = vouchers.Delete(t.Context(), voudomain.EntityOtherIncome, voudomain.DeleteInput{DocumentID: failed.DocumentID, Revision: reopened.Revision, Reason: "测试清理"}, adminID, "acc-posting-failure-delete"); err != nil {
+	if _, err = vouchers.Delete(t.Context(), voudomain.EntityOtherIncome, voudomain.DeleteInput{DocumentID: failed.DocumentID, Revision: reopened.Approval.Revision, Reason: "测试清理"}, trustedAccountingActor(t, "acc-posting-failure-delete")); err != nil {
 		t.Fatalf("delete failed VOU: %v", err)
 	}
 }
@@ -371,7 +365,7 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 	if err != nil {
 		t.Fatalf("approve service relationship: %v", err)
 	}
-	vouchers, err := voudomain.NewService(pool, business, auxiliaryrefs.New(auxiliary), bus, voudomain.AttachmentOptions{Root: t.TempDir()}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	vouchers, err := voudomain.NewService(pool, business, auxiliaryrefs.New(auxiliary), bus, voudomain.AttachmentOptions{Root: t.TempDir()}, slog.New(slog.NewTextHandler(io.Discard, nil)), voudomain.WithApprovalAuthorizer(authorization.Func(nil)))
 	if err != nil {
 		t.Fatalf("new VOU service: %v", err)
 	}
@@ -381,15 +375,15 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 		BusinessDate: "2026-07-01", Currency: "CNY", CounterpartyType: bobdomain.EntityOtherUnit,
 		Counterparty: counterparty, Handler: handler,
 		ServiceContract: &voudomain.ServiceContractInput{Terms: "服务验收自动记账合同"},
-	}}, adminID, "service-acceptance-contract-create")
+	}}, trustedAccountingActor(t, "service-acceptance-contract-create"))
 	if err != nil {
 		t.Fatalf("create service contract: %v", err)
 	}
-	checkedContract, err := vouchers.Check(t.Context(), voudomain.EntityServiceContract, voudomain.DocumentRevisionInput{DocumentID: contract.DocumentID, Revision: contract.Revision}, adminID, "service-acceptance-contract-check")
+	checkedContract, err := vouchers.Submit(t.Context(), voudomain.EntityServiceContract, voudomain.DocumentRevisionInput{DocumentID: contract.DocumentID, Revision: contract.Approval.Revision}, trustedAccountingActor(t, "service-acceptance-contract-submit"))
 	if err != nil {
 		t.Fatalf("check service contract: %v", err)
 	}
-	approvedContract, err := vouchers.Approve(t.Context(), voudomain.EntityServiceContract, voudomain.DocumentRevisionInput{DocumentID: checkedContract.DocumentID, Revision: checkedContract.Revision}, adminID, "service-acceptance-contract-approve")
+	approvedContract, err := vouchers.Approve(t.Context(), voudomain.EntityServiceContract, voudomain.DocumentRevisionInput{DocumentID: checkedContract.DocumentID, Revision: checkedContract.Approval.Revision}, trustedAccountingActor(t, "service-acceptance-contract-approve"))
 	if err != nil {
 		t.Fatalf("approve service contract: %v", err)
 	}
@@ -402,15 +396,15 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 				ContractDocumentID: approvedContract.DocumentID, ServiceDate: "2026-07-01", AcceptanceDate: "2026-07-10",
 				SettlementDirection: direction, FulfillmentFact: "服务已履约", AcceptanceFact: "验收通过",
 			},
-		}}, adminID, requestPrefix+"-create")
+		}}, trustedAccountingActor(t, requestPrefix+"-create"))
 		if createErr != nil {
 			t.Fatalf("create %s service acceptance: %v", direction, createErr)
 		}
-		checked, checkErr := vouchers.Check(t.Context(), voudomain.EntityServiceAcceptance, voudomain.DocumentRevisionInput{DocumentID: created.DocumentID, Revision: created.Revision}, adminID, requestPrefix+"-check")
+		checked, checkErr := vouchers.Submit(t.Context(), voudomain.EntityServiceAcceptance, voudomain.DocumentRevisionInput{DocumentID: created.DocumentID, Revision: created.Approval.Revision}, trustedAccountingActor(t, requestPrefix+"-submit"))
 		if checkErr != nil {
 			t.Fatalf("check %s service acceptance: %v", direction, checkErr)
 		}
-		approved, approveErr := vouchers.Approve(t.Context(), voudomain.EntityServiceAcceptance, voudomain.DocumentRevisionInput{DocumentID: checked.DocumentID, Revision: checked.Revision}, adminID, requestPrefix+"-approve")
+		approved, approveErr := vouchers.Approve(t.Context(), voudomain.EntityServiceAcceptance, voudomain.DocumentRevisionInput{DocumentID: checked.DocumentID, Revision: checked.Approval.Revision}, trustedAccountingActor(t, requestPrefix+"-approve"))
 		if approveErr != nil {
 			t.Fatalf("approve %s service acceptance with ACC posting: %v", direction, approveErr)
 		}
@@ -458,38 +452,38 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 	assertPosting(receivableAcceptance, receivable.ID, income.ID, 30000, receivable.ID)
 	for _, acceptance := range []voudomain.MutationResult{payableAcceptance, receivableAcceptance} {
 		unapproved, unapproveErr := vouchers.Unapprove(t.Context(), voudomain.EntityServiceAcceptance, voudomain.ReverseInput{
-			DocumentID: acceptance.DocumentID, Revision: acceptance.Revision, Reason: "测试清理",
-		}, adminID, "service-acceptance-cleanup-unapprove-"+acceptance.DocumentID)
+			DocumentID: acceptance.DocumentID, Revision: acceptance.Approval.Revision, Reason: "测试清理",
+		}, trustedAccountingActor(t, "service-acceptance-cleanup-unapprove-"+acceptance.DocumentID))
 		if unapproveErr != nil {
 			t.Fatalf("unapprove service acceptance during cleanup: %v", unapproveErr)
 		}
-		draft, uncheckErr := vouchers.Uncheck(t.Context(), voudomain.EntityServiceAcceptance, voudomain.DocumentRevisionInput{
-			DocumentID: acceptance.DocumentID, Revision: unapproved.Revision,
-		}, adminID, "service-acceptance-cleanup-uncheck-"+acceptance.DocumentID)
+		draft, uncheckErr := vouchers.Unsubmit(t.Context(), voudomain.EntityServiceAcceptance, voudomain.DocumentRevisionInput{
+			DocumentID: acceptance.DocumentID, Revision: unapproved.Approval.Revision,
+		}, trustedAccountingActor(t, "service-acceptance-cleanup-unsubmit-"+acceptance.DocumentID))
 		if uncheckErr != nil {
 			t.Fatalf("uncheck service acceptance during cleanup: %v", uncheckErr)
 		}
 		if _, deleteErr := vouchers.Delete(t.Context(), voudomain.EntityServiceAcceptance, voudomain.DeleteInput{
-			DocumentID: acceptance.DocumentID, Revision: draft.Revision, Reason: "测试清理",
-		}, adminID, "service-acceptance-cleanup-delete-"+acceptance.DocumentID); deleteErr != nil {
+			DocumentID: acceptance.DocumentID, Revision: draft.Approval.Revision, Reason: "测试清理",
+		}, trustedAccountingActor(t, "service-acceptance-cleanup-delete-"+acceptance.DocumentID)); deleteErr != nil {
 			t.Fatalf("delete service acceptance during cleanup: %v", deleteErr)
 		}
 	}
 	unapprovedContract, err := vouchers.Unapprove(t.Context(), voudomain.EntityServiceContract, voudomain.ReverseInput{
-		DocumentID: approvedContract.DocumentID, Revision: approvedContract.Revision, Reason: "测试清理",
-	}, adminID, "service-contract-cleanup-unapprove")
+		DocumentID: approvedContract.DocumentID, Revision: approvedContract.Approval.Revision, Reason: "测试清理",
+	}, trustedAccountingActor(t, "service-contract-cleanup-unapprove"))
 	if err != nil {
 		t.Fatalf("unapprove service contract during cleanup: %v", err)
 	}
-	draftContract, err := vouchers.Uncheck(t.Context(), voudomain.EntityServiceContract, voudomain.DocumentRevisionInput{
-		DocumentID: approvedContract.DocumentID, Revision: unapprovedContract.Revision,
-	}, adminID, "service-contract-cleanup-uncheck")
+	draftContract, err := vouchers.Unsubmit(t.Context(), voudomain.EntityServiceContract, voudomain.DocumentRevisionInput{
+		DocumentID: approvedContract.DocumentID, Revision: unapprovedContract.Approval.Revision,
+	}, trustedAccountingActor(t, "service-contract-cleanup-unsubmit"))
 	if err != nil {
 		t.Fatalf("uncheck service contract during cleanup: %v", err)
 	}
 	if _, err = vouchers.Delete(t.Context(), voudomain.EntityServiceContract, voudomain.DeleteInput{
-		DocumentID: approvedContract.DocumentID, Revision: draftContract.Revision, Reason: "测试清理",
-	}, adminID, "service-contract-cleanup-delete"); err != nil {
+		DocumentID: approvedContract.DocumentID, Revision: draftContract.Approval.Revision, Reason: "测试清理",
+	}, trustedAccountingActor(t, "service-contract-cleanup-delete")); err != nil {
 		t.Fatalf("delete service contract during cleanup: %v", err)
 	}
 }

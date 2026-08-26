@@ -79,7 +79,7 @@ func (s *Seeder) seedPurchaseChain(ctx context.Context, counts *Counts) error {
 				Purchaser: &employee, Warehouse: &warehouse,
 				Remark:       "测试完整采购链：已批准采购订单",
 				ProductLines: []voudomain.ProductLineInput{s.productLine(raw, "500", "10.00")},
-			}}, actorID, requestID("purchase-complete-order", "create"))
+			}}, mustApprovalActor(requestID("purchase-complete-order", "create")))
 		},
 	)
 	if err != nil {
@@ -101,7 +101,7 @@ func (s *Seeder) seedPurchaseChain(ctx context.Context, counts *Counts) error {
 				SourceLines: []voudomain.SourceQuantityLineInput{{
 					SourceLineID: orderView.Data.ProductLines[0].LineID, BaseQuantity: "500",
 				}},
-			}}, actorID, requestID("purchase-complete-inbound", "create"))
+			}}, mustApprovalActor(requestID("purchase-complete-inbound", "create")))
 		},
 	)
 	if err != nil {
@@ -123,7 +123,7 @@ func (s *Seeder) seedPurchaseChain(ctx context.Context, counts *Counts) error {
 				ReturnLines: []voudomain.ReturnLineInput{{
 					SourceLineID: inboundView.Data.ProductLines[0].LineID, BaseQuantity: "20",
 				}},
-			}}, actorID, requestID("purchase-complete-return", "create"))
+			}}, mustApprovalActor(requestID("purchase-complete-return", "create")))
 		},
 	)
 	if err != nil {
@@ -142,7 +142,7 @@ func (s *Seeder) seedPurchaseChain(ctx context.Context, counts *Counts) error {
 				Purchaser: &employee, Warehouse: &warehouse,
 				Remark:       "测试可操作草稿：采购订单",
 				ProductLines: []voudomain.ProductLineInput{s.productLine(raw, "80", "11.00")},
-			}}, actorID, requestID("purchase-draft", "create"))
+			}}, mustApprovalActor(requestID("purchase-draft", "create")))
 		},
 	)
 	if err != nil {
@@ -161,7 +161,7 @@ func (s *Seeder) seedPurchaseChain(ctx context.Context, counts *Counts) error {
 				Purchaser: &employee, Warehouse: &warehouse,
 				Remark:       "测试可操作来源：采购入库与退货",
 				ProductLines: []voudomain.ProductLineInput{s.productLine(raw, "100", "10.50")},
-			}}, actorID, requestID("purchase-open-order", "create"))
+			}}, mustApprovalActor(requestID("purchase-open-order", "create")))
 		},
 	)
 	if err != nil {
@@ -183,7 +183,7 @@ func (s *Seeder) seedPurchaseChain(ctx context.Context, counts *Counts) error {
 				SourceLines: []voudomain.SourceQuantityLineInput{{
 					SourceLineID: openView.Data.ProductLines[0].LineID, BaseQuantity: "40",
 				}},
-			}}, actorID, requestID("purchase-inbound-draft", "create"))
+			}}, mustApprovalActor(requestID("purchase-inbound-draft", "create")))
 		},
 	)
 	if err != nil {
@@ -202,7 +202,7 @@ func (s *Seeder) seedPurchaseChain(ctx context.Context, counts *Counts) error {
 				ReturnLines: []voudomain.ReturnLineInput{{
 					SourceLineID: inboundView.Data.ProductLines[0].LineID, BaseQuantity: "10",
 				}},
-			}}, actorID, requestID("purchase-return-draft", "create"))
+			}}, mustApprovalActor(requestID("purchase-return-draft", "create")))
 		},
 	)
 	if err != nil {
@@ -231,7 +231,7 @@ func (s *Seeder) seedCompletedPurchaseWorkflow(ctx context.Context, counts *Coun
 				Purchaser: &employee, Warehouse: &warehouse,
 				Remark:       "测试已批准采购履约流程",
 				ProductLines: []voudomain.ProductLineInput{s.productLine(raw, "50", "10.00")},
-			}}, actorID, requestID("purchase-fulfilled-order", "create"))
+			}}, mustApprovalActor(requestID("purchase-fulfilled-order", "create")))
 		},
 	)
 	if err != nil {
@@ -253,7 +253,7 @@ func (s *Seeder) seedCompletedPurchaseWorkflow(ctx context.Context, counts *Coun
 				SourceLines: []voudomain.SourceQuantityLineInput{{
 					SourceLineID: orderView.Data.ProductLines[0].LineID, BaseQuantity: "50",
 				}},
-			}}, actorID, requestID("purchase-fulfilled-inbound", "create"))
+			}}, mustApprovalActor(requestID("purchase-fulfilled-inbound", "create")))
 		},
 	)
 	if err != nil {
@@ -285,7 +285,7 @@ func (s *Seeder) seedProductionDocuments(ctx context.Context, counts *Counts) er
 					line.Formula = formula
 					return line
 				}()},
-			}}, actorID, requestID("production-source-order", "create"))
+			}}, mustApprovalActor(requestID("production-source-order", "create")))
 		},
 	)
 	if err != nil {
@@ -313,7 +313,7 @@ func (s *Seeder) seedProductionDocuments(ctx context.Context, counts *Counts) er
 			return s.vouchers.Create(ctx, voudomain.EntityOrderProduction, voudomain.CreateInput{
 				ParentEntity: voudomain.EntitySaleOrder, ParentDocumentID: order.DocumentID,
 				Data: productionData("10", "2", "20.4", "测试生产配货：已批准"),
-			}, actorID, requestID("order-production-approved", "create"))
+			}, mustApprovalActor(requestID("order-production-approved", "create")))
 		},
 	)
 	if err != nil {
@@ -329,7 +329,7 @@ func (s *Seeder) seedProductionDocuments(ctx context.Context, counts *Counts) er
 			return s.vouchers.Create(ctx, voudomain.EntityOrderProduction, voudomain.CreateInput{
 				ParentEntity: voudomain.EntitySaleOrder, ParentDocumentID: order.DocumentID,
 				Data: productionData("8", "3", "16.48", "测试可操作草稿：生产配货"),
-			}, actorID, requestID("order-production-draft", "create"))
+			}, mustApprovalActor(requestID("order-production-draft", "create")))
 		},
 	)
 	if err != nil {
@@ -353,7 +353,7 @@ func (s *Seeder) seedProductionDocuments(ctx context.Context, counts *Counts) er
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.Create(ctx, voudomain.EntitySelfProduction, voudomain.CreateInput{
 				Data: selfData("20", "5", "42", "测试生产自制品：已批准"),
-			}, actorID, requestID("self-production-approved", "create"))
+			}, mustApprovalActor(requestID("self-production-approved", "create")))
 		},
 	)
 	if err != nil {
@@ -368,7 +368,7 @@ func (s *Seeder) seedProductionDocuments(ctx context.Context, counts *Counts) er
 		func() (voudomain.MutationResult, error) {
 			return s.vouchers.Create(ctx, voudomain.EntitySelfProduction, voudomain.CreateInput{
 				Data: selfData("15", "3", "30.9", "测试可操作草稿：生产自制品"),
-			}, actorID, requestID("self-production-draft", "create"))
+			}, mustApprovalActor(requestID("self-production-draft", "create")))
 		},
 	)
 	if err != nil {
@@ -401,7 +401,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 					line.Formula = s.fixedFormula(raw, "2")
 					return line
 				}()},
-			}}, actorID, requestID("sales-complete-order", "create"))
+			}}, mustApprovalActor(requestID("sales-complete-order", "create")))
 		},
 	)
 	if err != nil {
@@ -423,7 +423,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 				SourceLines: []voudomain.SourceQuantityLineInput{{
 					SourceLineID: orderView.Data.ProductLines[0].LineID, BaseQuantity: "10",
 				}},
-			}}, actorID, requestID("sales-complete-outbound", "create"))
+			}}, mustApprovalActor(requestID("sales-complete-outbound", "create")))
 		},
 	)
 	if err != nil {
@@ -439,7 +439,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 			return s.vouchers.Create(ctx, voudomain.EntitySaleDelivery, voudomain.CreateInput{Data: voudomain.DraftInput{
 				BusinessDate: "2026-07-07", SourceDocumentID: outbound.DocumentID,
 				Carrier: &carrier, Vehicle: &vehicle, Remark: "测试完整销售履约链：配送中",
-			}}, actorID, requestID("sales-complete-delivery", "create"))
+			}}, mustApprovalActor(requestID("sales-complete-delivery", "create")))
 		},
 	)
 	if err != nil {
@@ -468,7 +468,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 					SourceLineID:       deliveryView.Data.ProductLines[0].LineID,
 					SignedBaseQuantity: "10", RejectedBaseQuantity: "0",
 				}},
-			}}, actorID, requestID("sales-complete-signoff", "create"))
+			}}, mustApprovalActor(requestID("sales-complete-signoff", "create")))
 		},
 	)
 	if err != nil {
@@ -490,7 +490,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 				ReturnLines: []voudomain.ReturnLineInput{{
 					SourceLineID: signoffView.Data.SignoffLines[0].LineID, BaseQuantity: "2",
 				}},
-			}}, actorID, requestID("sales-complete-return", "create"))
+			}}, mustApprovalActor(requestID("sales-complete-return", "create")))
 		},
 	)
 	if err != nil {
@@ -509,7 +509,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 				ReturnLines: []voudomain.ReturnLineInput{{
 					SourceLineID: signoffView.Data.SignoffLines[0].LineID, BaseQuantity: "1",
 				}},
-			}}, actorID, requestID("sales-return-draft", "create"))
+			}}, mustApprovalActor(requestID("sales-return-draft", "create")))
 		},
 	)
 	if err != nil {
@@ -530,7 +530,7 @@ func (s *Seeder) seedSalesChain(ctx context.Context, counts *Counts) error {
 					line.Formula = s.fixedFormula(raw, "2")
 					return line
 				}()},
-			}}, actorID, requestID("sales-order-draft", "create"))
+			}}, mustApprovalActor(requestID("sales-order-draft", "create")))
 		},
 	)
 	if err != nil {
@@ -641,8 +641,7 @@ func (s *Seeder) seedFinancialDocuments(ctx context.Context, counts *Counts) err
 					ctx,
 					sample.entity,
 					voudomain.CreateInput{Data: sample.data},
-					actorID,
-					requestID(sample.key, "create"),
+					mustApprovalActor(requestID(sample.key, "create")),
 				)
 			},
 		)
@@ -661,10 +660,11 @@ func (s *Seeder) ensureVoucher(
 ) (voudomain.MutationResult, voudomain.DocumentView, outcome, error) {
 	var documentID string
 	err := s.pool.QueryRow(ctx, `
-		SELECT document_id
-		FROM vou_audit_events
-		WHERE request_id=$1 AND event_type IN ('CREATED','SAVED')
-		ORDER BY occurred_at,id
+		SELECT entry.subject_id
+		FROM approval_events event
+		JOIN approval_entries entry ON entry.id=event.entry_id
+		WHERE event.request_id=$1 AND event.action='CREATED' AND entry.domain='vou'
+		ORDER BY event.created_at,event.id
 		LIMIT 1
 	`, requestID(key, "create")).Scan(&documentID)
 	created := false
@@ -685,12 +685,12 @@ func (s *Seeder) ensureVoucher(
 	}
 	current = voudomain.MutationResult{
 		DocumentID: view.DocumentID, DocumentNo: view.DocumentNo,
-		Status: view.Status, Revision: view.Revision,
+		Approval: view.Approval,
 	}
-	currentRank, currentKnown := voucherStatusRank(current.Status)
+	currentRank, currentKnown := voucherStatusRank(string(current.Approval.Status))
 	targetRank, targetKnown := voucherStatusRank(targetStatus)
 	if !currentKnown || !targetKnown {
-		return current, view, 0, fmt.Errorf("unsupported status %s -> %s", current.Status, targetStatus)
+		return current, view, 0, fmt.Errorf("unsupported status %s -> %s", string(current.Approval.Status), targetStatus)
 	}
 	if currentRank >= targetRank {
 		if created {
@@ -701,8 +701,9 @@ func (s *Seeder) ensureVoucher(
 	var external int
 	if err = s.pool.QueryRow(ctx, `
 		SELECT count(*)
-		FROM vou_audit_events
-		WHERE document_id=$1 AND request_id NOT LIKE $2
+		FROM approval_events event
+		JOIN approval_entries entry ON entry.id=event.entry_id
+		WHERE entry.domain='vou' AND entry.subject_id=$1 AND event.request_id NOT LIKE $2
 	`, documentID, seedPrefix+"%").Scan(&external); err != nil {
 		return current, view, 0, err
 	}
@@ -730,25 +731,25 @@ func (s *Seeder) advanceVoucher(
 	targetStatus string,
 ) (voudomain.MutationResult, error) {
 	targetRank, _ := voucherStatusRank(targetStatus)
-	currentRank, _ := voucherStatusRank(current.Status)
+	currentRank, _ := voucherStatusRank(string(current.Approval.Status))
 	for currentRank < targetRank {
 		var err error
-		switch current.Status {
+		switch string(current.Approval.Status) {
 		case voudomain.StatusDraft:
-			current, err = s.vouchers.Check(ctx, entity, voudomain.DocumentRevisionInput{
-				DocumentID: current.DocumentID, Revision: current.Revision,
-			}, actorID, requestID(key, "check"))
-		case voudomain.StatusChecked:
+			current, err = s.vouchers.Submit(ctx, entity, voudomain.DocumentRevisionInput{
+				DocumentID: current.DocumentID, Revision: current.Approval.Revision,
+			}, mustApprovalActor(requestID(key, "submit")))
+		case voudomain.StatusPending:
 			current, err = s.vouchers.Approve(ctx, entity, voudomain.DocumentRevisionInput{
-				DocumentID: current.DocumentID, Revision: current.Revision,
-			}, actorID, requestID(key, "approve"))
+				DocumentID: current.DocumentID, Revision: current.Approval.Revision,
+			}, mustApprovalActor(requestID(key, "approve")))
 		default:
-			return current, fmt.Errorf("cannot advance %s from %s", entity, current.Status)
+			return current, fmt.Errorf("cannot advance %s from %s", entity, string(current.Approval.Status))
 		}
 		if err != nil {
 			return current, err
 		}
-		currentRank, _ = voucherStatusRank(current.Status)
+		currentRank, _ = voucherStatusRank(string(current.Approval.Status))
 	}
 	return current, nil
 }
@@ -757,7 +758,7 @@ func voucherStatusRank(status string) (int, bool) {
 	switch status {
 	case voudomain.StatusDraft:
 		return 0, true
-	case voudomain.StatusChecked:
+	case voudomain.StatusPending:
 		return 1, true
 	case voudomain.StatusApproved:
 		return 2, true

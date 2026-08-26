@@ -8,12 +8,13 @@ import (
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func (s *Service) loadData(
-	ctx context.Context, q *dbsqlc.Queries, document dbsqlc.VouDocument,
+	ctx context.Context, q *dbsqlc.Queries, document documentRecord,
 ) (DocumentDataView, error) {
 	data := DocumentDataView{
 		BusinessDate: formatDate(document.BusinessDate), Currency: deref(document.Currency), Remark: deref(document.Remark),
@@ -492,15 +493,11 @@ func derefInt32(value *int32) int32 {
 	return *value
 }
 
-func documentView(document dbsqlc.VouDocument, data DocumentDataView, attachments []AttachmentView) DocumentView {
+func documentView(document documentRecord, data DocumentDataView, attachments []AttachmentView) DocumentView {
 	return DocumentView{
 		DocumentID: document.ID, Entity: document.Entity, DocumentNo: document.DocumentNo,
-		Status: documentStatus(document.Entity, document.Status), Revision: document.Revision, Amount: documentAmount(document.Entity, document.TotalAmountCents),
+		Approval: approval.MetaFromEntry(document.approvalEntry()), Amount: documentAmount(document.Entity, document.TotalAmountCents),
 		Data: data, Attachments: attachments,
-		CreatedAt: document.CreatedAt.Time, CreatedBy: document.CreatedBy,
-		UpdatedAt: document.UpdatedAt.Time, UpdatedBy: document.UpdatedBy,
-		CheckedAt: optionalTime(document.ReviewedAt), CheckedBy: document.ReviewedBy,
-		ApprovedAt: optionalTime(document.ApprovedAt), ApprovedBy: document.ApprovedBy,
 	}
 }
 

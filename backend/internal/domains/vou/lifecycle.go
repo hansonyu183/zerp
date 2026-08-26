@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -13,34 +14,35 @@ func (s *Service) Create(
 	ctx context.Context,
 	entity string,
 	input CreateInput,
-	actorID, requestID string,
+	actor approval.Actor,
 ) (MutationResult, error) {
 	if entity == EntityIntermediaryCalculation {
-		return s.CreateIntermediaryCalculation(ctx, input, actorID, requestID)
+		return s.CreateIntermediaryCalculation(ctx, input, actor)
 	}
 	if isAssetEntity(entity) {
-		return s.CreateAssetDocument(ctx, entity, input, actorID, requestID)
+		return s.CreateAssetDocument(ctx, entity, input, actor)
 	}
 	if isProductionEntity(entity) {
-		return s.CreateProduction(ctx, entity, input, actorID, requestID)
+		return s.CreateProduction(ctx, entity, input, actor)
 	}
 	if entity == EntitySaleReturn {
-		return s.CreateSaleReturn(ctx, input, actorID, requestID)
+		return s.CreateSaleReturn(ctx, input, actor)
 	}
 	if entity == EntityPurchaseReturn {
-		return s.CreatePurchaseReturn(ctx, input, actorID, requestID)
+		return s.CreatePurchaseReturn(ctx, input, actor)
 	}
-	return s.createDocument(ctx, entity, input, actorID, requestID)
+	return s.createDocument(ctx, entity, input, actor)
 }
 
 func (s *Service) createDocument(
 	ctx context.Context,
 	entity string,
 	input CreateInput,
-	actorID, requestID string,
+	actor approval.Actor,
 ) (MutationResult, error) {
+	actorID, requestID := actor.ID(), actor.RequestID()
 	if isSalesChainEntity(entity) {
-		return s.createSalesChain(ctx, entity, input, actorID, requestID)
+		return s.createSalesChain(ctx, entity, input, actor)
 	}
 	draft, err := validateDraft(entity, input.Data)
 	if err != nil {
@@ -74,6 +76,14 @@ func (s *Service) createDocument(
 	}
 	documentID := newID()
 	documentNo := fmt.Sprintf("%s-%s-%04d", entityPrefix(entity), draft.BusinessDate.Format("20060102"), counter)
+	coordinator, err := s.coordinator(entity)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	entry, err := coordinator.CreateSubject(ctx, tx, documentID, actor, DocumentView{})
+	if err != nil {
+		return MutationResult{}, mapApprovalError(err)
+	}
 	resolved, err := s.resolveDraft(ctx, tx, entity, draft, resolvedDraft{}, true)
 	if err != nil {
 		return MutationResult{}, err
@@ -97,25 +107,17 @@ func (s *Service) createDocument(
 		}
 	}
 	err = q.InsertVouDocument(ctx, dbsqlc.InsertVouDocumentParams{
-		ID: documentID, Entity: entity, DocumentNo: documentNo,
+		ID: documentID, Entity: entity, DocumentNo: documentNo, ApprovalEntryID: entry.ID,
 		BusinessDate: dateValue(draft.BusinessDate), Currency: stringPtr(draft.Currency),
 		DueDate:          optionalDate(draft.DueDate),
 		TotalAmountCents: draft.TotalAmount, Remark: draft.Remark,
 		ParentEntity: nullableString(parentEntity), ParentDocumentID: nullableString(parentDocumentID),
-		ActorID: actorID,
 	})
 	if err != nil {
 		return MutationResult{}, s.writeError("insert document", err)
 	}
 	if err = s.insertDetail(ctx, q, entity, documentID, draft, resolved); err != nil {
 		return MutationResult{}, s.writeError("insert document detail", err)
-	}
-	if err = insertAudit(ctx, q, auditInput{
-		DocumentID: documentID, Entity: entity, Event: "CREATED", To: StatusDraft,
-		ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"documentNo": documentNo},
-	}); err != nil {
-		return MutationResult{}, s.writeError("audit create", err)
 	}
 	if err = s.events.Publish(ctx, tx, DocumentCreatedEvent{
 		Entity: entity, DocumentID: documentID, DocumentNo: documentNo, Revision: 1,
@@ -127,35 +129,35 @@ func (s *Service) createDocument(
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit create", err)
 	}
-	return MutationResult{DocumentID: documentID, DocumentNo: documentNo, Status: StatusDraft, Revision: 1}, nil
+	return MutationResult{DocumentID: documentID, DocumentNo: documentNo, Approval: approval.MetaFromEntry(entry)}, nil
 }
 
 func (s *Service) Save(
 	ctx context.Context,
 	entity string,
 	input SaveInput,
-	actorID, requestID string,
+	actor approval.Actor,
 ) (MutationResult, error) {
 	if entity == EntityIntermediaryCalculation {
-		return s.SaveIntermediaryCalculation(ctx, input, actorID, requestID)
+		return s.SaveIntermediaryCalculation(ctx, input, actor)
 	}
 	if isAssetEntity(entity) {
-		return s.SaveAssetDocument(ctx, entity, input, actorID, requestID)
+		return s.SaveAssetDocument(ctx, entity, input, actor)
 	}
 	if isProductionEntity(entity) {
-		return s.SaveProduction(ctx, entity, input, actorID, requestID)
+		return s.SaveProduction(ctx, entity, input, actor)
 	}
 	if isSalesChainEntity(entity) {
-		return s.saveSalesChain(ctx, entity, input, actorID, requestID)
+		return s.saveSalesChain(ctx, entity, input, actor)
 	}
 	if entity == EntitySaleReturn {
-		return s.SaveSaleReturn(ctx, input, actorID, requestID)
+		return s.SaveSaleReturn(ctx, input, actor)
 	}
 	if entity == EntityPurchaseReturn {
-		return s.SavePurchaseReturn(ctx, input, actorID, requestID)
+		return s.SavePurchaseReturn(ctx, input, actor)
 	}
 	if entity == EntityExpensePayment {
-		return s.SaveExpensePayment(ctx, input, actorID, requestID)
+		return s.SaveExpensePayment(ctx, input, actor)
 	}
 	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
 		return MutationResult{}, err
@@ -170,14 +172,22 @@ func (s *Service) Save(
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	document, err := q.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{ID: input.DocumentID, Entity: entity})
+	document, err := lockDocument(ctx, tx, input.DocumentID, entity)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
 		return MutationResult{}, err
 	}
-	if err = s.validateManagedSalesParentStatus(ctx, tx, document, StatusChecked); err != nil {
+	coordinator, err := s.coordinator(entity)
+	if err != nil {
 		return MutationResult{}, err
 	}
-	preserved, err := s.loadPreservedPersonnel(ctx, q, entity, input.DocumentID)
+	preparedApproval, err := coordinator.Prepare(ctx, tx, approval.ActionSaved, document.ApprovalEntryID, input.Revision, actor, "")
+	if err != nil {
+		return MutationResult{}, mapApprovalError(err)
+	}
+	if err = s.validateManagedSalesParentStatus(ctx, tx, document, StatusPending); err != nil {
+		return MutationResult{}, err
+	}
+	preserved, err := s.loadPreservedReferences(ctx, q, document)
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -200,11 +210,11 @@ func (s *Service) Save(
 			return MutationResult{}, s.writeError("sum bill payment amount", err)
 		}
 	}
-	revision, err := q.UpdateVouDraft(ctx, dbsqlc.UpdateVouDraftParams{
+	_, err = q.UpdateVouDraft(ctx, dbsqlc.UpdateVouDraftParams{
 		BusinessDate: dateValue(draft.BusinessDate), Currency: stringPtr(draft.Currency),
 		DueDate:          optionalDate(draft.DueDate),
-		TotalAmountCents: draft.TotalAmount, Remark: draft.Remark, ActorID: actorID,
-		ID: input.DocumentID, Entity: entity, Revision: input.Revision,
+		TotalAmountCents: draft.TotalAmount, Remark: draft.Remark,
+		ID: input.DocumentID, Entity: entity,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return MutationResult{}, domainError(ErrorConflict, "document changed", nil, err)
@@ -212,45 +222,47 @@ func (s *Service) Save(
 	if err != nil {
 		return MutationResult{}, s.writeError("update draft", err)
 	}
-	if err = insertAudit(ctx, q, auditInput{
-		DocumentID: input.DocumentID, Entity: entity, Event: "SAVED",
-		From: stringPtr(StatusDraft), To: StatusDraft, ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"revision": revision},
-	}); err != nil {
-		return MutationResult{}, s.writeError("audit save", err)
+	document, err = scanDocument(tx.QueryRow(ctx, documentSelect, input.DocumentID, entity))
+	if err != nil {
+		return MutationResult{}, s.internal("read saved document", err)
 	}
-	if err = s.events.Publish(ctx, tx, DocumentChangedEvent{
-		Action: "SAVED", Entity: entity, DocumentID: document.ID,
-		DocumentNo: document.DocumentNo, Status: StatusDraft, Revision: revision,
-		ActorID: actorID, RequestID: requestID,
-	}); err != nil {
-		return MutationResult{}, err
+	entry, err := coordinator.CommitWithPayload(ctx, tx, preparedApproval, func(entry approval.Entry) (DocumentView, error) {
+		return s.eventSnapshot(ctx, q, document.withApproval(entry))
+	})
+	if err != nil {
+		return MutationResult{}, mapApprovalError(err)
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit save", err)
 	}
-	return MutationResult{
-		DocumentID: input.DocumentID, DocumentNo: document.DocumentNo, Status: StatusDraft, Revision: revision,
-	}, nil
+	return MutationResult{DocumentID: input.DocumentID, DocumentNo: document.DocumentNo, Approval: approval.MetaFromEntry(entry)}, nil
 }
 
-func (s *Service) Check(
-	ctx context.Context, entity string, input DocumentRevisionInput, actorID, requestID string,
+func (s *Service) Submit(
+	ctx context.Context, entity string, input DocumentRevisionInput, actor approval.Actor,
 ) (MutationResult, error) {
 	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
 		return MutationResult{}, err
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return MutationResult{}, s.internal("begin check", err)
+		return MutationResult{}, s.internal("begin submit", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	document, err := q.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{ID: input.DocumentID, Entity: entity})
+	document, err := lockDocument(ctx, tx, input.DocumentID, entity)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
 		return MutationResult{}, err
 	}
-	if err = s.validateManagedSalesParentStatus(ctx, tx, document, StatusChecked); err != nil {
+	coordinator, err := s.coordinator(entity)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	preparedApproval, err := coordinator.Prepare(ctx, tx, approval.ActionSubmitted, document.ApprovalEntryID, input.Revision, actor, "")
+	if err != nil {
+		return MutationResult{}, mapApprovalError(err)
+	}
+	if err = s.validateManagedSalesParentStatus(ctx, tx, document, StatusPending); err != nil {
 		return MutationResult{}, err
 	}
 	if err = s.validateManagedSalesReady(ctx, tx, document); err != nil {
@@ -271,48 +283,35 @@ func (s *Service) Check(
 	if pending != 0 {
 		return MutationResult{}, domainError(ErrorConflict, "attachments are still uploading", nil, nil)
 	}
-	revision, err := q.CheckVouDocument(ctx, dbsqlc.CheckVouDocumentParams{
-		ActorID: stringPtr(actorID), ID: input.DocumentID, Entity: entity, Revision: input.Revision,
+	entry, err := coordinator.CommitWithPayload(ctx, tx, preparedApproval, func(entry approval.Entry) (DocumentView, error) {
+		return s.eventSnapshot(ctx, q, document.withApproval(entry))
 	})
 	if err != nil {
-		return MutationResult{}, s.writeError("check document", err)
-	}
-	if err = insertAudit(ctx, q, auditInput{
-		DocumentID: input.DocumentID, Entity: entity, Event: "CHECKED",
-		From: stringPtr(StatusDraft), To: StatusChecked, ActorID: actorID, RequestID: requestID,
-	}); err != nil {
-		return MutationResult{}, s.writeError("audit check", err)
-	}
-	if err = s.events.Publish(ctx, tx, DocumentChangedEvent{
-		Action: "CHECKED", Entity: entity, DocumentID: document.ID,
-		DocumentNo: document.DocumentNo, Status: StatusChecked, Revision: revision,
-		ActorID: actorID, RequestID: requestID,
-	}); err != nil {
-		return MutationResult{}, err
+		return MutationResult{}, mapApprovalError(err)
 	}
 	if err = tx.Commit(ctx); err != nil {
-		return MutationResult{}, s.writeError("commit check", err)
+		return MutationResult{}, s.writeError("commit submit", err)
 	}
-	return mutation(document, StatusChecked, revision), nil
+	return mutation(document, entry), nil
 }
 
 func (s *Service) Approve(
-	ctx context.Context, entity string, input DocumentRevisionInput, actorID, requestID string,
+	ctx context.Context, entity string, input DocumentRevisionInput, actor approval.Actor,
 ) (MutationResult, error) {
-	return s.forwardTransition(ctx, entity, input, actorID, requestID, StatusChecked, StatusApproved)
+	return s.forwardTransition(ctx, entity, input, actor)
 }
 
-func (s *Service) Uncheck(
-	ctx context.Context, entity string, input DocumentRevisionInput, actorID, requestID string,
+func (s *Service) Unsubmit(
+	ctx context.Context, entity string, input DocumentRevisionInput, actor approval.Actor,
 ) (MutationResult, error) {
 	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
 		return MutationResult{}, err
 	}
-	return s.reverseTransition(ctx, entity, input, actorID, requestID, StatusChecked, StatusDraft, nil)
+	return s.unsubmit(ctx, entity, input, actor)
 }
 
 func (s *Service) Unapprove(
-	ctx context.Context, entity string, input ReverseInput, actorID, requestID string,
+	ctx context.Context, entity string, input ReverseInput, actor approval.Actor,
 ) (MutationResult, error) {
 	reason, err := validateReverse(input)
 	if err != nil {
@@ -321,15 +320,17 @@ func (s *Service) Unapprove(
 	return s.reverseTransition(ctx, entity, DocumentRevisionInput{
 		DocumentID: input.DocumentID,
 		Revision:   input.Revision,
-	}, actorID, requestID, StatusApproved, StatusChecked, reason)
+	}, actor, *reason)
 }
 
 func (s *Service) forwardTransition(
 	ctx context.Context,
 	entity string,
 	input DocumentRevisionInput,
-	actorID, requestID, from, to string,
+	actor approval.Actor,
 ) (MutationResult, error) {
+	actorID := actor.ID()
+	from, to := StatusPending, StatusApproved
 	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
 		return MutationResult{}, err
 	}
@@ -339,9 +340,17 @@ func (s *Service) forwardTransition(
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	document, err := q.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{ID: input.DocumentID, Entity: entity})
+	document, err := lockDocument(ctx, tx, input.DocumentID, entity)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, from); err != nil {
 		return MutationResult{}, err
+	}
+	coordinator, err := s.coordinator(entity)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	preparedApproval, err := coordinator.Prepare(ctx, tx, approval.ActionApproved, document.ApprovalEntryID, input.Revision, actor, "")
+	if err != nil {
+		return MutationResult{}, mapApprovalError(err)
 	}
 	if err = s.validateManagedSalesParentStatus(ctx, tx, document, to); err != nil {
 		return MutationResult{}, err
@@ -349,92 +358,43 @@ func (s *Service) forwardTransition(
 	if err = s.validateStoredAttributes(ctx, q, entity, input.DocumentID); err != nil {
 		return MutationResult{}, err
 	}
-	if to == StatusApproved {
-		if entity == EntitySaleDelivery {
-			if err = s.validateSaleDeliveryTransportCurrent(ctx, tx, input.DocumentID); err != nil {
-				return MutationResult{}, err
-			}
-		}
-		if entity == EntityIntermediaryCalculation {
-			if err = s.validateIntermediarySalesContracts(ctx, q, input.DocumentID); err != nil {
-				return MutationResult{}, err
-			}
-		}
-		if err = s.validateOrderSettlement(ctx, tx, entity, input.DocumentID); err != nil {
+	if entity == EntitySaleDelivery {
+		if err = s.validateSaleDeliveryTransportCurrent(ctx, tx, input.DocumentID); err != nil {
 			return MutationResult{}, err
 		}
 	}
-	var summary map[string]any
-	if to == StatusApproved {
-		switch entity {
-		case EntityInventoryCount:
-			summary, err = s.prepareInventoryCountFinalization(ctx, tx, q, document)
-		case EntitySaleOutbound, EntitySaleDelivery, EntitySaleSignoff:
-			summary, err = s.prepareSalesChainApproval(ctx, tx, document)
-		default:
-			summary = map[string]any{"posted": true}
-		}
-		if err != nil {
+	if entity == EntityIntermediaryCalculation {
+		if err = s.validateIntermediarySalesContracts(ctx, q, input.DocumentID); err != nil {
 			return MutationResult{}, err
 		}
 	}
-	if to == StatusApproved {
-		if err = s.validateFulfillmentSettlement(ctx, tx, entity, input.DocumentID); err != nil {
-			return MutationResult{}, err
-		}
+	if err = s.validateOrderSettlement(ctx, tx, entity, input.DocumentID); err != nil {
+		return MutationResult{}, err
 	}
-	var revision int64
-	switch to {
-	case StatusApproved:
-		revision, err = q.ApproveVouDocument(ctx, dbsqlc.ApproveVouDocumentParams{
-			ActorID: stringPtr(actorID), ID: input.DocumentID, Entity: entity, Revision: input.Revision,
-		})
-	default:
-		return MutationResult{}, domainError(ErrorInternal, "unsupported transition", nil, nil)
+	switch entity {
+	case EntityInventoryCount:
+		_, err = s.prepareInventoryCountFinalization(ctx, tx, q, document)
+	case EntitySaleOutbound, EntitySaleDelivery, EntitySaleSignoff:
+		_, err = s.prepareSalesChainApproval(ctx, tx, document)
 	}
 	if err != nil {
-		return MutationResult{}, s.writeError("transition document", err)
+		return MutationResult{}, err
 	}
-	event := map[string]string{StatusApproved: "APPROVED"}[to]
-	if err = insertAudit(ctx, q, auditInput{
-		DocumentID: input.DocumentID, Entity: entity, Event: event,
-		From: &from, To: to, ActorID: actorID, RequestID: requestID, Summary: summary,
-	}); err != nil {
-		return MutationResult{}, s.writeError("audit transition", err)
+	if err = s.validateFulfillmentSettlement(ctx, tx, entity, input.DocumentID); err != nil {
+		return MutationResult{}, err
+	}
+	entry, err := coordinator.CommitWithPayload(ctx, tx, preparedApproval, func(entry approval.Entry) (DocumentView, error) {
+		return s.eventSnapshot(ctx, q, document.withApproval(entry))
+	})
+	if err != nil {
+		return MutationResult{}, mapApprovalError(err)
 	}
 	if entity == EntitySaleSignoff {
 		if err = s.refreshSaleOrderFulfillment(ctx, tx, input.DocumentID, actorID); err != nil {
 			return MutationResult{}, err
 		}
 	}
-	if entity == EntityPurchaseInbound {
-		if err = s.refreshPurchaseOrderFulfillment(ctx, tx, input.DocumentID, actorID); err != nil {
-			return MutationResult{}, err
-		}
-	}
-	current, err := q.GetVouDocument(ctx, dbsqlc.GetVouDocumentParams{ID: input.DocumentID, Entity: entity})
-	if err != nil {
-		return MutationResult{}, s.internal("read approved document", err)
-	}
-	snapshot, err := s.eventSnapshot(ctx, q, current)
-	if err != nil {
-		return MutationResult{}, err
-	}
-	if err = s.events.Publish(ctx, tx, DocumentChangedEvent{
-		Action: event, Entity: entity, DocumentID: document.ID,
-		DocumentNo: document.DocumentNo, Status: to, Revision: revision,
-		ActorID: actorID, RequestID: requestID,
-	}); err != nil {
-		return MutationResult{}, err
-	}
-	if err = s.events.Publish(ctx, tx, DocumentApprovedEvent{
-		Entity: entity, DocumentID: document.ID, DocumentNo: document.DocumentNo,
-		Revision: revision, ActorID: actorID, RequestID: requestID,
-		Snapshot: snapshot,
-	}); err != nil {
-		return MutationResult{}, s.eventError("publish document approved", err)
-	}
-	if entity == EntityPurchaseReturn {
+	if entity == EntityPurchaseInbound || entity == EntityPurchaseReturn {
 		if err = s.refreshPurchaseOrderFulfillment(ctx, tx, input.DocumentID, actorID); err != nil {
 			return MutationResult{}, err
 		}
@@ -442,104 +402,92 @@ func (s *Service) forwardTransition(
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit transition", err)
 	}
-	return mutation(current, current.Status, current.Revision), nil
+	return mutation(document, entry), nil
 }
 
-func (s *Service) reverseTransition(
-	ctx context.Context,
-	entity string,
-	input DocumentRevisionInput,
-	actorID, requestID, from, to string,
-	reason *string,
+func (s *Service) unsubmit(
+	ctx context.Context, entity string, input DocumentRevisionInput, actor approval.Actor,
 ) (MutationResult, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return MutationResult{}, s.internal("begin reverse transition", err)
+		return MutationResult{}, s.internal("begin unsubmit", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	document, err := q.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{ID: input.DocumentID, Entity: entity})
-	if err != nil {
-		return MutationResult{}, documentWriteConflict(err, document.Revision, input.Revision, document.Status, from)
-	}
-	if document.Revision != input.Revision {
-		return MutationResult{}, domainError(ErrorConflict, "document changed", nil, nil)
-	}
-	if document.Status != from {
-		return MutationResult{}, domainError(ErrorConflict, "document status changed", map[string]any{
-			"expectedStatus": from, "actualStatus": document.Status,
-		}, nil)
-	}
-	var unapprovalSnapshot DocumentView
-	if from == StatusApproved && to == StatusChecked {
-		unapprovalSnapshot, err = s.eventSnapshot(ctx, q, document)
-		if err != nil {
-			return MutationResult{}, err
-		}
-	}
-	if from == StatusApproved && to == StatusChecked {
-		if err = s.prepareUnapproval(ctx, tx, document, actorID, requestID); err != nil {
-			return MutationResult{}, err
-		}
-		if err = s.removeUntouchedGeneratedChildren(ctx, tx, document.ID); err != nil {
-			return MutationResult{}, err
-		}
-	} else if managedSalesDocument(document) {
-		if err = s.validateManagedSalesChildrenAtMost(ctx, tx, document, to); err != nil {
-			return MutationResult{}, err
-		}
-	}
-	var revision int64
-	var event string
-	switch {
-	case from == StatusChecked && to == StatusDraft:
-		revision, err = q.UncheckVouDocument(ctx, dbsqlc.UncheckVouDocumentParams{
-			ActorID: actorID, ID: input.DocumentID, Entity: entity, Revision: input.Revision,
-		})
-		event = "UNCHECKED"
-	case from == StatusApproved && to == StatusChecked:
-		revision, err = q.UnapproveVouDocument(ctx, dbsqlc.UnapproveVouDocumentParams{
-			ActorID: actorID, ID: input.DocumentID, Entity: entity, Revision: document.Revision,
-		})
-		event = "UNAPPROVED"
-	default:
-		return MutationResult{}, domainError(ErrorInternal, "unsupported reverse transition", nil, nil)
-	}
-	if err != nil {
-		return MutationResult{}, s.writeError("reverse transition", err)
-	}
-	if err = insertAudit(ctx, q, auditInput{
-		DocumentID: input.DocumentID, Entity: entity, Event: event,
-		From: &from, To: to, ActorID: actorID, Reason: reason, RequestID: requestID,
-	}); err != nil {
-		return MutationResult{}, s.writeError("audit reverse transition", err)
-	}
-	if err = s.events.Publish(ctx, tx, DocumentChangedEvent{
-		Action: event, Entity: entity, DocumentID: document.ID,
-		DocumentNo: document.DocumentNo, Status: to, Revision: revision,
-		ActorID: actorID, RequestID: requestID, Reason: deref(reason),
-	}); err != nil {
+	document, err := lockDocument(ctx, tx, input.DocumentID, entity)
+	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusPending); err != nil {
 		return MutationResult{}, err
 	}
-	if from == StatusApproved && to == StatusChecked {
-		if err = s.events.Publish(ctx, tx, DocumentUnapprovedEvent{
-			Entity: entity, DocumentID: document.ID, DocumentNo: document.DocumentNo,
-			Revision: revision, ActorID: actorID, RequestID: requestID, Reason: *reason,
-			Snapshot: unapprovalSnapshot,
-		}); err != nil {
-			return MutationResult{}, s.eventError("publish document unapproved", err)
-		}
-		if err = s.finishUnapproval(ctx, tx, document, actorID); err != nil {
+	coordinator, err := s.coordinator(entity)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	preparedApproval, err := coordinator.Prepare(ctx, tx, approval.ActionUnsubmitted, document.ApprovalEntryID, input.Revision, actor, "")
+	if err != nil {
+		return MutationResult{}, mapApprovalError(err)
+	}
+	if managedSalesDocument(document) {
+		if err = s.validateManagedSalesChildrenAtMost(ctx, tx, document, StatusDraft); err != nil {
 			return MutationResult{}, err
 		}
-		if entity == EntityInventoryCount {
-			if err = q.ClearVouInventoryCountResults(ctx, input.DocumentID); err != nil {
-				return MutationResult{}, s.writeError("clear inventory count result", err)
-			}
+	}
+	entry, err := coordinator.CommitWithPayload(ctx, tx, preparedApproval, func(entry approval.Entry) (DocumentView, error) {
+		return s.eventSnapshot(ctx, q, document.withApproval(entry))
+	})
+	if err != nil {
+		return MutationResult{}, mapApprovalError(err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return MutationResult{}, s.writeError("commit unsubmit", err)
+	}
+	return mutation(document, entry), nil
+}
+
+func (s *Service) reverseTransition(
+	ctx context.Context, entity string, input DocumentRevisionInput, actor approval.Actor, reason string,
+) (MutationResult, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return MutationResult{}, s.internal("begin unapprove", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	q := s.queries.WithTx(tx)
+	document, err := lockDocument(ctx, tx, input.DocumentID, entity)
+	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusApproved); err != nil {
+		return MutationResult{}, err
+	}
+	coordinator, err := s.coordinator(entity)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	preparedApproval, err := coordinator.Prepare(ctx, tx, approval.ActionUnapproved, document.ApprovalEntryID, input.Revision, actor, reason)
+	if err != nil {
+		return MutationResult{}, mapApprovalError(err)
+	}
+	unapprovalSnapshot, err := s.eventSnapshot(ctx, q, document)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if err = s.prepareUnapproval(ctx, tx, document, actor.ID(), actor.RequestID()); err != nil {
+		return MutationResult{}, err
+	}
+	if err = s.removeUntouchedGeneratedChildren(ctx, tx, document.ID); err != nil {
+		return MutationResult{}, err
+	}
+	entry, err := coordinator.Commit(ctx, tx, preparedApproval, unapprovalSnapshot)
+	if err != nil {
+		return MutationResult{}, mapApprovalError(err)
+	}
+	if err = s.finishUnapproval(ctx, tx, document, actor.ID()); err != nil {
+		return MutationResult{}, err
+	}
+	if entity == EntityInventoryCount {
+		if err = q.ClearVouInventoryCountResults(ctx, input.DocumentID); err != nil {
+			return MutationResult{}, s.writeError("clear inventory count result", err)
 		}
 	}
 	if err = tx.Commit(ctx); err != nil {
-		return MutationResult{}, s.writeError("commit reverse transition", err)
+		return MutationResult{}, s.writeError("commit unapprove", err)
 	}
-	return mutation(document, to, revision), nil
+	return mutation(document, entry), nil
 }

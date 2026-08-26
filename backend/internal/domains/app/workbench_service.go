@@ -85,7 +85,7 @@ func validateWorkbenchQuery(input WorkbenchQueryInput) (WorkbenchQueryInput, pag
 	stageSet := make(map[string]struct{}, len(input.PendingStages))
 	for index, stage := range input.PendingStages {
 		stage = strings.ToUpper(strings.TrimSpace(stage))
-		valid := stage == "CHECK" || stage == "APPROVE"
+		valid := stage == "SUBMIT" || stage == "APPROVE"
 		if !valid {
 			return input, pageSpec{}, domainError(ErrorValidation, "invalid workbench pending stage filter", nil)
 		}
@@ -158,7 +158,7 @@ func (s *Service) queryWorkbenchBob(
 	draftEntities = filterWorkbenchEntities(draftEntities, input.Entities)
 	pendingEntities = filterWorkbenchEntities(pendingEntities, input.Entities)
 	unsubmitEntities = filterWorkbenchEntities(unsubmitEntities, input.Entities)
-	if !includesWorkbenchStage(input.PendingStages, "CHECK") {
+	if !includesWorkbenchStage(input.PendingStages, "SUBMIT") {
 		draftEntities = nil
 	}
 	if !includesWorkbenchStage(input.PendingStages, "APPROVE") {
@@ -199,7 +199,7 @@ func (s *Service) queryWorkbenchBob(
 		}
 		pendingStage := "APPROVE"
 		if row.Status == "DRAFT" {
-			pendingStage = "CHECK"
+			pendingStage = "SUBMIT"
 			if scope.can("bob", row.Entity, "submit") {
 				actions = append(actions, "submit")
 			}
@@ -231,21 +231,21 @@ func (s *Service) queryWorkbenchVou(
 	spec pageSpec,
 ) (Page[WorkbenchItem], error) {
 	draftEntities := scope.entitiesWith("vou", func(entity string) bool {
-		return scope.can("vou", entity, "check")
+		return scope.can("vou", entity, "submit")
 	})
-	checkedEntities := scope.entitiesWith("vou", func(entity string) bool {
-		return scope.can("vou", entity, "approve") || scope.can("vou", entity, "uncheck")
+	pendingEntities := scope.entitiesWith("vou", func(entity string) bool {
+		return scope.can("vou", entity, "approve") || scope.can("vou", entity, "unsubmit")
 	})
 	draftEntities = filterWorkbenchEntities(draftEntities, input.Entities)
-	checkedEntities = filterWorkbenchEntities(checkedEntities, input.Entities)
-	if !includesWorkbenchStage(input.PendingStages, "CHECK") {
+	pendingEntities = filterWorkbenchEntities(pendingEntities, input.Entities)
+	if !includesWorkbenchStage(input.PendingStages, "SUBMIT") {
 		draftEntities = nil
 	}
 	if !includesWorkbenchStage(input.PendingStages, "APPROVE") {
-		checkedEntities = nil
+		pendingEntities = nil
 	}
 	params := dbsqlc.CountWorkbenchVouItemsParams{
-		DraftEntities: draftEntities, CheckedEntities: checkedEntities,
+		DraftEntities: draftEntities, PendingEntities: pendingEntities,
 		Keyword: input.Keyword,
 	}
 	total, err := s.queries.CountWorkbenchVouItems(ctx, params)
@@ -253,7 +253,7 @@ func (s *Service) queryWorkbenchVou(
 		return Page[WorkbenchItem]{}, s.internal("count workbench vouchers", err)
 	}
 	rows, err := s.queries.ListWorkbenchVouItems(ctx, dbsqlc.ListWorkbenchVouItemsParams{
-		DraftEntities: draftEntities, CheckedEntities: checkedEntities,
+		DraftEntities: draftEntities, PendingEntities: pendingEntities,
 		Keyword:  input.Keyword,
 		PageSize: int32(spec.PageSize), PageOffset: spec.Offset,
 	})
@@ -269,17 +269,17 @@ func (s *Service) queryWorkbenchVou(
 				actions = append(actions, "edit")
 			}
 		}
-		pendingStage := "CHECK"
-		if row.Status == "CHECKED" {
+		pendingStage := "SUBMIT"
+		if row.Status == "PENDING" {
 			pendingStage = "APPROVE"
 			if scope.can("vou", row.Entity, "approve") {
 				actions = append(actions, "approve")
 			}
-			if scope.can("vou", row.Entity, "uncheck") {
-				actions = append(actions, "uncheck")
+			if scope.can("vou", row.Entity, "unsubmit") {
+				actions = append(actions, "unsubmit")
 			}
-		} else if scope.can("vou", row.Entity, "check") {
-			actions = append(actions, "check")
+		} else if scope.can("vou", row.Entity, "submit") {
+			actions = append(actions, "submit")
 		}
 		items = append(items, WorkbenchItem{
 			Category: WorkbenchCategoryVou, Entity: row.Entity, Status: row.Status,

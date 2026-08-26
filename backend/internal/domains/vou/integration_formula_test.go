@@ -101,7 +101,7 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 			}
 			return line
 		}()},
-	}}, integrationActorOne, "formula-custom-order-create")
+	}}, integrationApprovalActor(t, integrationActorOne, "formula-custom-order-create"))
 	if err != nil {
 		t.Fatalf("create custom formula order: %v", err)
 	}
@@ -114,10 +114,10 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 		snapshot.Components[0].Quantity.BaseQuantity != "30000.0" {
 		t.Fatalf("custom order snapshot = %+v", snapshot)
 	}
-	if _, err = service.Check(t.Context(), EntitySaleOrder, DocumentRevisionInput{
+	if _, err = service.Submit(t.Context(), EntitySaleOrder, DocumentRevisionInput{
 		DocumentID: order.DocumentID,
-		Revision:   order.Revision,
-	}, integrationActorOne, "formula-custom-order-check"); err != nil {
+		Revision:   order.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorOne, "formula-custom-order-check")); err != nil {
 		t.Fatalf("check custom formula order: %v", err)
 	}
 
@@ -154,7 +154,7 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 			}
 			return line
 		}()},
-	}}, integrationActorOne, "formula-fixed-order-create")
+	}}, integrationApprovalActor(t, integrationActorOne, "formula-fixed-order-create"))
 	if err != nil {
 		t.Fatalf("create fixed formula order: %v", err)
 	}
@@ -246,7 +246,7 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 				ActualBaseQuantity: "25500",
 			}},
 		}},
-	}}, integrationActorOne, "formula-self-production-current-material"); err != nil {
+	}}, integrationApprovalActor(t, integrationActorOne, "formula-self-production-current-material")); err != nil {
 		t.Fatalf("create self production with refreshed formula material: %v", err)
 	}
 	refreshedCustomerDefault, err := service.FormulaDefault(t.Context(), FormulaDefaultInput{
@@ -279,7 +279,7 @@ func TestVOUFormulaDefaultsAndOrderSnapshotsIntegration(t *testing.T) {
 			}
 			return line
 		}()},
-	}}, integrationActorOne, "formula-rebased-order-create")
+	}}, integrationApprovalActor(t, integrationActorOne, "formula-rebased-order-create"))
 	if err != nil {
 		t.Fatalf("create order from stale formula material version: %v", err)
 	}

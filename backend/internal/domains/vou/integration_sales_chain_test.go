@@ -33,15 +33,15 @@ func advanceWorkflowSalesDraft(
 	if err = tx.Commit(t.Context()); err != nil {
 		t.Fatalf("commit workflow %s: %v", entity, err)
 	}
-	checked, err := service.Check(t.Context(), entity, DocumentRevisionInput{
-		DocumentID: created.DocumentID, Revision: created.Revision,
-	}, integrationActorOne, "workflow-sales-check")
+	checked, err := service.Submit(t.Context(), entity, DocumentRevisionInput{
+		DocumentID: created.DocumentID, Revision: created.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorOne, "workflow-sales-check"))
 	if err != nil {
 		t.Fatalf("check workflow %s: %v", entity, err)
 	}
 	approved, err := service.Approve(t.Context(), entity, DocumentRevisionInput{
-		DocumentID: created.DocumentID, Revision: checked.Revision,
-	}, integrationActorOne, "workflow-sales-approve")
+		DocumentID: created.DocumentID, Revision: checked.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorOne, "workflow-sales-approve"))
 	if err != nil {
 		t.Fatalf("approve workflow %s: %v", entity, err)
 	}
@@ -61,22 +61,22 @@ func advanceSalesDocument(
 ) (MutationResult, DocumentView) {
 	t.Helper()
 	created, err := service.Create(
-		t.Context(), entity, CreateInput{Data: data}, integrationActorOne, "sales-chain-create",
+		t.Context(), entity, CreateInput{Data: data}, integrationApprovalActor(t, integrationActorOne, "sales-chain-create"),
 	)
 	if err != nil {
 		t.Fatalf("create %s: %v", entity, err)
 	}
-	checked, err := service.Check(t.Context(), entity, DocumentRevisionInput{
-		DocumentID: created.DocumentID, Revision: created.Revision,
-	}, integrationActorOne, "sales-chain-check")
+	checked, err := service.Submit(t.Context(), entity, DocumentRevisionInput{
+		DocumentID: created.DocumentID, Revision: created.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorOne, "sales-chain-check"))
 	if err != nil {
 		t.Fatalf("check %s: %v", entity, err)
 	}
 	result := checked
 	if approve {
 		result, err = service.Approve(t.Context(), entity, DocumentRevisionInput{
-			DocumentID: created.DocumentID, Revision: checked.Revision,
-		}, integrationActorOne, "sales-chain-approve")
+			DocumentID: created.DocumentID, Revision: checked.Approval.Revision,
+		}, integrationApprovalActor(t, integrationActorOne, "sales-chain-approve"))
 		if err != nil {
 			t.Fatalf("approve %s: %v", entity, err)
 		}
@@ -111,7 +111,8 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 
 	order, orderView := approvedSalesOrder(t, service, refs, "10")
 	var orderCreator string
-	if err := pool.QueryRow(t.Context(), `SELECT created_by FROM vou_documents WHERE id=$1`, order.DocumentID).Scan(&orderCreator); err != nil {
+	if err := pool.QueryRow(t.Context(), `SELECT approval.created_by FROM vou_documents document
+		JOIN approval_entries approval ON approval.id=document.approval_entry_id WHERE document.id=$1`, order.DocumentID).Scan(&orderCreator); err != nil {
 		t.Fatalf("load sales order creator: %v", err)
 	}
 	if orderCreator != integrationActorOne {
@@ -143,7 +144,7 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 	if _, err := service.Create(t.Context(), EntitySaleDelivery, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-26", SourceDocumentID: outboundOne.DocumentID,
 		Carrier: &refs.carrier, Vehicle: &refs.vehicle,
-	}}, integrationActorOne, "duplicate-delivery"); err == nil {
+	}}, integrationApprovalActor(t, integrationActorOne, "duplicate-delivery")); err == nil {
 		t.Fatal("second delivery for one outbound was accepted")
 	}
 
@@ -166,7 +167,7 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 			SourceLineID:       deliveryView.Data.ProductLines[0].LineID,
 			SignedBaseQuantity: "6", RejectedBaseQuantity: "0",
 		}},
-	}}, integrationActorOne, "duplicate-signoff"); err == nil {
+	}}, integrationApprovalActor(t, integrationActorOne, "duplicate-signoff")); err == nil {
 		t.Fatal("second signoff for one delivery was accepted")
 	}
 	refusalTx, err := pool.Begin(t.Context())
@@ -187,8 +188,9 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 	}
 	var refusalID string
 	var refusalRevision int64
-	if err := pool.QueryRow(t.Context(), `SELECT d.id,d.revision
-		FROM vou_documents d JOIN vou_sale_return_details r ON r.document_id=d.id
+	if err := pool.QueryRow(t.Context(), `SELECT d.id,approval.revision
+		FROM vou_documents d JOIN approval_entries approval ON approval.id=d.approval_entry_id
+		JOIN vou_sale_return_details r ON r.document_id=d.id
 		WHERE r.source_signoff_id=$1`, signoffOne.DocumentID).Scan(&refusalID, &refusalRevision); err != nil {
 		t.Fatalf("load refusal return: %v", err)
 	}
@@ -196,11 +198,12 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 		t.Fatalf("workflow refusal return = %s, query=%s", refusalDraft.DocumentID, refusalID)
 	}
 	var refusalCreator, refusalAuditActor string
-	if err := pool.QueryRow(t.Context(), `SELECT created_by FROM vou_documents WHERE id=$1`, refusalID).Scan(&refusalCreator); err != nil {
+	if err := pool.QueryRow(t.Context(), `SELECT approval.created_by FROM vou_documents document
+		JOIN approval_entries approval ON approval.id=document.approval_entry_id WHERE document.id=$1`, refusalID).Scan(&refusalCreator); err != nil {
 		t.Fatalf("load refusal return creator: %v", err)
 	}
-	if err := pool.QueryRow(t.Context(), `SELECT actor_id FROM vou_audit_events
-		WHERE document_id=$1 AND event_type='CREATED' ORDER BY occurred_at LIMIT 1`, refusalID).Scan(&refusalAuditActor); err != nil {
+	if err := pool.QueryRow(t.Context(), `SELECT actor_id FROM approval_events
+		WHERE domain='vou' AND subject_id=$1 AND action='CREATED' ORDER BY created_at LIMIT 1`, refusalID).Scan(&refusalAuditActor); err != nil {
 		t.Fatalf("load refusal return audit: %v", err)
 	}
 	if refusalCreator != systemidentity.UserID || refusalAuditActor != systemidentity.UserID {
@@ -208,8 +211,8 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 	}
 	firstRefusalID := refusalID
 	unapprovedSignoff, err := service.Unapprove(t.Context(), EntitySaleSignoff, ReverseInput{
-		DocumentID: signoffOne.DocumentID, Revision: signoffOne.Revision, Reason: "修正签收测试",
-	}, integrationActorOne, "signoff-unapprove")
+		DocumentID: signoffOne.DocumentID, Revision: signoffOne.Approval.Revision, Reason: "修正签收测试",
+	}, integrationApprovalActor(t, integrationActorOne, "signoff-unapprove"))
 	if err != nil {
 		t.Fatalf("unapprove signoff with automatic refusal draft: %v", err)
 	}
@@ -219,8 +222,8 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 		t.Fatalf("automatic refusal drafts after unapprove = %d, err=%v", refusalCount, err)
 	}
 	signoffOne, err = service.Approve(t.Context(), EntitySaleSignoff, DocumentRevisionInput{
-		DocumentID: signoffOne.DocumentID, Revision: unapprovedSignoff.Revision,
-	}, integrationActorOne, "signoff-reapprove")
+		DocumentID: signoffOne.DocumentID, Revision: unapprovedSignoff.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorTwo, "signoff-re-approve"))
 	if err != nil {
 		t.Fatalf("reapprove signoff: %v", err)
 	}
@@ -240,35 +243,36 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 	if err != nil {
 		t.Fatalf("regenerate refusal return: %v", err)
 	}
-	if err = pool.QueryRow(t.Context(), `SELECT d.id,d.revision
-		FROM vou_documents d JOIN vou_sale_return_details r ON r.document_id=d.id
+	if err = pool.QueryRow(t.Context(), `SELECT d.id,approval.revision
+		FROM vou_documents d JOIN approval_entries approval ON approval.id=d.approval_entry_id
+		JOIN vou_sale_return_details r ON r.document_id=d.id
 		WHERE r.source_signoff_id=$1`, signoffOne.DocumentID).Scan(&refusalID, &refusalRevision); err != nil {
 		t.Fatalf("load regenerated refusal return: %v", err)
 	}
 	if firstRefusalID == refusalID {
 		t.Fatal("workflow refusal return was not regenerated")
 	}
-	refusalChecked, err := service.Check(t.Context(), EntitySaleReturn, DocumentRevisionInput{
+	refusalChecked, err := service.Submit(t.Context(), EntitySaleReturn, DocumentRevisionInput{
 		DocumentID: refusalID, Revision: refusalRevision,
-	}, integrationActorOne, "refusal-check")
+	}, integrationApprovalActor(t, integrationActorOne, "refusal-check"))
 	if err != nil {
 		t.Fatalf("check refusal return: %v", err)
 	}
 	refusalApproved, err := service.Approve(t.Context(), EntitySaleReturn, DocumentRevisionInput{
-		DocumentID: refusalID, Revision: refusalChecked.Revision,
-	}, integrationActorOne, "refusal-approve")
+		DocumentID: refusalID, Revision: refusalChecked.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorOne, "refusal-approve"))
 	if err != nil {
 		t.Fatalf("approve refusal return: %v", err)
 	}
-	if refusalApproved.Status != StatusApproved {
-		t.Fatalf("approved refusal return status = %s", refusalApproved.Status)
+	if refusalApproved.Approval.Status != StatusApproved {
+		t.Fatalf("approved refusal return status = %s", refusalApproved.Approval.Status)
 	}
 	afterSale, err := service.Create(t.Context(), EntitySaleReturn, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-28", Warehouse: &refs.warehouse, ReturnReason: "客户退回",
 		ReturnLines: []ReturnLineInput{{
 			SourceLineID: signoffView.Data.SignoffLines[0].LineID, BaseQuantity: "2",
 		}},
-	}}, integrationActorOne, "after-sale-return")
+	}}, integrationApprovalActor(t, integrationActorOne, "after-sale-return"))
 	if err != nil {
 		t.Fatalf("create after-sale return: %v", err)
 	}
@@ -277,12 +281,12 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 		ReturnLines: []ReturnLineInput{{
 			SourceLineID: signoffView.Data.SignoffLines[0].LineID, BaseQuantity: "3",
 		}},
-	}}, integrationActorOne, "over-return"); err == nil {
+	}}, integrationApprovalActor(t, integrationActorOne, "over-return")); err == nil {
 		t.Fatal("cumulative after-sale over-return was accepted")
 	}
 	if _, err = service.Delete(t.Context(), EntitySaleReturn, DeleteInput{
-		DocumentID: afterSale.DocumentID, Revision: afterSale.Revision, Reason: "取消测试退货",
-	}, integrationActorOne, "delete-after-sale-return"); err != nil {
+		DocumentID: afterSale.DocumentID, Revision: afterSale.Approval.Revision, Reason: "取消测试退货",
+	}, integrationApprovalActor(t, integrationActorOne, "delete-after-sale-return")); err != nil {
 		t.Fatalf("delete after-sale return: %v", err)
 	}
 
@@ -321,8 +325,8 @@ func TestVOUIntegrationSalesOrderOutboundDeliveryAndSignoff(t *testing.T) {
 		orderView.Data.RemainingBaseQuantity != "0.0" {
 		t.Fatalf("fulfilled order = %+v err=%v", orderView.Data, err)
 	}
-	if signoffOne.Status != StatusApproved {
-		t.Fatalf("first signoff status = %s", signoffOne.Status)
+	if signoffOne.Approval.Status != StatusApproved {
+		t.Fatalf("first signoff status = %s", signoffOne.Approval.Status)
 	}
 }
 
@@ -383,7 +387,8 @@ func TestSaleDeliveryCarrierAffiliationAndApprovalRecheckIntegration(t *testing.
 			BusinessDate: "2026-07-26", SourceDocumentID: createOutbound("1").DocumentID, Vehicle: &wrongInternalVehicle,
 		},
 	} {
-		if _, err := service.Create(t.Context(), EntitySaleDelivery, CreateInput{Data: data}, integrationActorOne, "carrier-negative-"+name); err == nil {
+		if _, err := service.Create(t.Context(), EntitySaleDelivery, CreateInput{Data: data},
+			integrationApprovalActor(t, integrationActorOne, "carrier-negative-"+name)); err == nil {
 			t.Fatalf("%s was accepted", name)
 		}
 	}
@@ -401,7 +406,7 @@ func TestSaleDeliveryCarrierAffiliationAndApprovalRecheckIntegration(t *testing.
 	if _, err := service.Create(t.Context(), EntitySaleDelivery, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-26", SourceDocumentID: bulkOutbound.DocumentID,
 		Carrier: &refs.carrier, Vehicle: &refs.vehicle,
-	}}, integrationActorOne, "bulk-liquid-incapable-vehicle"); err == nil {
+	}}, integrationApprovalActor(t, integrationActorOne, "bulk-liquid-incapable-vehicle")); err == nil {
 		t.Fatal("bulk-liquid delivery accepted a vehicle without bulk-liquid capability")
 	}
 	bulkVehicle := createApprovedBOB(t, bobService, bobdomain.EntityVehicle, bobdomain.CreateDetailInput{
@@ -445,8 +450,8 @@ func TestSaleDeliveryCarrierAffiliationAndApprovalRecheckIntegration(t *testing.
 		t.Fatalf("disable approval recheck vehicle: %v", err)
 	}
 	if _, err = service.Approve(t.Context(), EntitySaleDelivery, DocumentRevisionInput{
-		DocumentID: checkedDelivery.DocumentID, Revision: checkedDelivery.Revision,
-	}, integrationActorOne, "delivery-approve-after-vehicle-disable"); err == nil {
+		DocumentID: checkedDelivery.DocumentID, Revision: checkedDelivery.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorOne, "delivery-approve-after-vehicle-disable")); err == nil {
 		t.Fatal("delivery approval accepted a disabled vehicle")
 	}
 
@@ -457,7 +462,7 @@ func TestSaleDeliveryCarrierAffiliationAndApprovalRecheckIntegration(t *testing.
 	draftDelivery, err := service.Create(t.Context(), EntitySaleDelivery, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-26", SourceDocumentID: createOutbound("1").DocumentID,
 		Carrier: &refs.carrier, Vehicle: &checkVehicle,
-	}}, integrationActorOne, "delivery-create-before-vehicle-disable")
+	}}, integrationApprovalActor(t, integrationActorOne, "delivery-create-before-vehicle-disable"))
 	if err != nil {
 		t.Fatalf("create delivery before check revalidation: %v", err)
 	}
@@ -470,9 +475,9 @@ func TestSaleDeliveryCarrierAffiliationAndApprovalRecheckIntegration(t *testing.
 	}, trustedIntegrationActor(t, "disable-before-delivery-check")); err != nil {
 		t.Fatalf("disable check revalidation vehicle: %v", err)
 	}
-	if _, err = service.Check(t.Context(), EntitySaleDelivery, DocumentRevisionInput{
-		DocumentID: draftDelivery.DocumentID, Revision: draftDelivery.Revision,
-	}, integrationActorOne, "delivery-check-after-vehicle-disable"); err == nil {
+	if _, err = service.Submit(t.Context(), EntitySaleDelivery, DocumentRevisionInput{
+		DocumentID: draftDelivery.DocumentID, Revision: draftDelivery.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorOne, "delivery-check-after-vehicle-disable")); err == nil {
 		t.Fatal("delivery check accepted a disabled vehicle")
 	}
 
@@ -510,8 +515,8 @@ func TestVOUIntegrationConcurrentOutboundReservationAllowsOneWinner(t *testing.T
 		go func() {
 			defer group.Done()
 			_, err := service.Approve(t.Context(), EntitySaleOutbound, DocumentRevisionInput{
-				DocumentID: document.DocumentID, Revision: document.Revision,
-			}, integrationActorOne, "concurrent-outbound-approve")
+				DocumentID: document.DocumentID, Revision: document.Approval.Revision,
+			}, integrationApprovalActor(t, integrationActorOne, "concurrent-outbound-approve"))
 			results <- err
 		}()
 	}
@@ -561,7 +566,7 @@ func TestWarehouseDisableTracksSalesLifecycleIntegration(t *testing.T) {
 		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
 		Warehouse:    &refs.warehouse,
 		ProductLines: []ProductLineInput{integrationProductLine(t, refs.product, "2", "12.00")},
-	}}, integrationActorOne, "warehouse-precheck-draft")
+	}}, integrationApprovalActor(t, integrationActorOne, "warehouse-precheck-draft"))
 	if err != nil {
 		t.Fatalf("create warehouse-blocking sale order: %v", err)
 	}
@@ -570,28 +575,28 @@ func TestWarehouseDisableTracksSalesLifecycleIntegration(t *testing.T) {
 		t.Fatalf("draft warehouse blockers = %+v", blockers)
 	}
 	if _, err = service.Delete(t.Context(), EntitySaleOrder, DeleteInput{
-		DocumentID: draft.DocumentID, Revision: draft.Revision, Reason: "repair warehouse disable blocker",
-	}, integrationActorOne, "warehouse-precheck-delete-draft"); err != nil {
+		DocumentID: draft.DocumentID, Revision: draft.Approval.Revision, Reason: "repair warehouse disable blocker",
+	}, integrationApprovalActor(t, integrationActorOne, "warehouse-precheck-delete-draft")); err != nil {
 		t.Fatalf("delete warehouse-blocking sale order: %v", err)
 	}
 	draft, err = service.Create(t.Context(), EntitySaleOrder, CreateInput{Data: DraftInput{
 		BusinessDate: "2026-07-24", Currency: "CNY", Customer: &refs.customer,
 		Warehouse:    &refs.warehouse,
 		ProductLines: []ProductLineInput{integrationProductLine(t, refs.product, "2", "12.00")},
-	}}, integrationActorOne, "warehouse-precheck-recreated-draft")
+	}}, integrationApprovalActor(t, integrationActorOne, "warehouse-precheck-recreated-draft"))
 	if err != nil {
 		t.Fatalf("recreate warehouse-blocking sale order: %v", err)
 	}
 
-	checked, err := service.Check(t.Context(), EntitySaleOrder, DocumentRevisionInput{
-		DocumentID: draft.DocumentID, Revision: draft.Revision,
-	}, integrationActorOne, "warehouse-precheck-check")
+	checked, err := service.Submit(t.Context(), EntitySaleOrder, DocumentRevisionInput{
+		DocumentID: draft.DocumentID, Revision: draft.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorOne, "warehouse-precheck-check"))
 	if err != nil {
 		t.Fatalf("check warehouse-blocking sale order: %v", err)
 	}
 	approved, err := service.Approve(t.Context(), EntitySaleOrder, DocumentRevisionInput{
-		DocumentID: checked.DocumentID, Revision: checked.Revision,
-	}, integrationActorOne, "warehouse-precheck-approve")
+		DocumentID: checked.DocumentID, Revision: checked.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorOne, "warehouse-precheck-approve"))
 	if err != nil {
 		t.Fatalf("approve warehouse-blocking sale order: %v", err)
 	}
@@ -617,7 +622,7 @@ func TestWarehouseDisableTracksSalesLifecycleIntegration(t *testing.T) {
 		BusinessDate: "2026-07-26", Currency: "CNY", Customer: &refs.customer,
 		Warehouse:    &refs.warehouse,
 		ProductLines: []ProductLineInput{integrationProductLine(t, refs.product, "1", "12.00")},
-	}}, integrationActorOne, "warehouse-reference-after-disable"); err == nil {
+	}}, integrationApprovalActor(t, integrationActorOne, "warehouse-reference-after-disable")); err == nil {
 		t.Fatal("new sale order accepted a disabled warehouse")
 	}
 }

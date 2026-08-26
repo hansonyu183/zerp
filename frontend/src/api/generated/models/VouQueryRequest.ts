@@ -2,13 +2,13 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { VouStatus } from './VouStatus';
+import type { ApprovalStatus } from './ApprovalStatus';
 export type VouQueryRequest = {
   page: number;
   pageSize: number;
   filters: {
     keyword?: string;
-    status?: Array<VouStatus>;
+    status?: Array<ApprovalStatus>;
     dateFrom?: string;
     dateTo?: string;
     partyObjectId?: string;

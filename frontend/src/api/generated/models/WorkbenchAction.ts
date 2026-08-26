@@ -2,4 +2,4 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type WorkbenchAction = 'view' | 'edit' | 'submit' | 'unsubmit' | 'approve' | 'reject' | 'check' | 'uncheck';
+export type WorkbenchAction = 'view' | 'edit' | 'submit' | 'unsubmit' | 'approve' | 'reject';

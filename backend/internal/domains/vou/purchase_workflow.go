@@ -10,10 +10,11 @@ import (
 
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 )
 
-func managedPurchaseDocument(document dbsqlc.VouDocument) bool {
+func managedPurchaseDocument(document documentRecord) bool {
 	return document.Entity == EntityPurchaseOrder || document.Entity == EntityPurchaseInbound ||
 		document.Entity == EntityPurchaseReturn
 }
@@ -21,7 +22,7 @@ func managedPurchaseDocument(document dbsqlc.VouDocument) bool {
 func (s *Service) validateManagedPurchaseParentStatus(
 	ctx context.Context,
 	tx pgx.Tx,
-	document dbsqlc.VouDocument,
+	document documentRecord,
 	targetStatus string,
 ) error {
 	if document.Entity == EntityPurchaseOrder {
@@ -31,10 +32,11 @@ func (s *Service) validateManagedPurchaseParentStatus(
 		return domainError(ErrorConflict, "purchase document has no source order", nil, nil)
 	}
 	var status, fulfillment string
-	err := tx.QueryRow(ctx, `SELECT d.status,o.fulfillment_status
+	err := tx.QueryRow(ctx, `SELECT approval.status,o.fulfillment_status
 		FROM vou_documents d
+		JOIN approval_entries approval ON approval.id=d.approval_entry_id
 		JOIN vou_purchase_order_details o ON o.document_id=d.id
-		WHERE d.id=$1 FOR SHARE OF d,o`, *document.ParentDocumentID).
+		WHERE d.id=$1 FOR SHARE OF d,approval,o`, *document.ParentDocumentID).
 		Scan(&status, &fulfillment)
 	if err != nil {
 		return s.internal("read purchase order status", err)
@@ -61,8 +63,9 @@ func (s *Service) validateManagedPurchaseParentStatus(
 func (s *Service) CreatePurchaseInbound(
 	ctx context.Context,
 	input CreateInput,
-	actorID, requestID string,
+	actor approval.Actor,
 ) (MutationResult, error) {
+	actorID, requestID := actor.ID(), actor.RequestID()
 	if !validID(actorID) || !validID(input.Data.SourceDocumentID) {
 		return MutationResult{}, domainError(ErrorValidation, "invalid purchase inbound", nil, nil)
 	}
@@ -80,7 +83,7 @@ func (s *Service) CreatePurchaseInbound(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	warehouse, err := s.resolveInboundWarehouse(ctx, tx, input.Data.Warehouse, detail)
+	warehouse, err := s.resolveInboundWarehouse(ctx, tx, input.Data.Warehouse, detail, nil, true)
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -103,12 +106,16 @@ func (s *Service) CreatePurchaseInbound(
 	}
 	id := newID()
 	number := fmt.Sprintf("%s-%s-%04d", entityPrefix(EntityPurchaseInbound), businessDate.Format("20060102"), counter)
+	entry, err := s.createDocumentApproval(ctx, tx, EntityPurchaseInbound, id, actor)
+	if err != nil {
+		return MutationResult{}, err
+	}
 	if _, err = tx.Exec(ctx, `INSERT INTO vou_documents(
-		id,entity,document_no,business_date,currency,due_date,total_amount_cents,remark,
-		parent_entity,parent_document_id,created_by,updated_by
-	) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11)`,
-		id, EntityPurchaseInbound, number, businessDate, order.Currency, dueDate, total,
-		optionalText(input.Data.Remark), EntityPurchaseOrder, order.ID, actorID); err != nil {
+		id,entity,document_no,approval_entry_id,business_date,currency,due_date,total_amount_cents,remark,
+		parent_entity,parent_document_id
+	) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+		id, EntityPurchaseInbound, number, entry.ID, businessDate, order.Currency, dueDate, total,
+		optionalText(input.Data.Remark), EntityPurchaseOrder, order.ID); err != nil {
 		return MutationResult{}, s.writeError("insert purchase inbound", err)
 	}
 	q := s.queries.WithTx(tx)
@@ -124,12 +131,6 @@ func (s *Service) CreatePurchaseInbound(
 	if err = s.insertPurchaseInboundLines(ctx, q, id, lines); err != nil {
 		return MutationResult{}, err
 	}
-	if err = insertAudit(ctx, q, auditInput{
-		DocumentID: id, Entity: EntityPurchaseInbound, Event: "CREATED", To: StatusDraft,
-		ActorID: actorID, RequestID: requestID, Summary: map[string]any{"sourceOrderId": order.ID},
-	}); err != nil {
-		return MutationResult{}, err
-	}
 	if err = s.events.Publish(ctx, tx, DocumentCreatedEvent{
 		Entity: EntityPurchaseInbound, DocumentID: id, DocumentNo: number, Revision: 1,
 		ParentEntity: EntityPurchaseOrder, ParentDocumentID: order.ID,
@@ -140,13 +141,13 @@ func (s *Service) CreatePurchaseInbound(
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit purchase inbound", err)
 	}
-	return MutationResult{DocumentID: id, DocumentNo: number, Status: StatusDraft, Revision: 1}, nil
+	return MutationResult{DocumentID: id, DocumentNo: number, Approval: approval.MetaFromEntry(entry)}, nil
 }
 
 func (s *Service) SavePurchaseInbound(
 	ctx context.Context,
 	input SaveInput,
-	actorID, requestID string,
+	actor approval.Actor,
 ) (MutationResult, error) {
 	if err := validateDocumentRevision(input.DocumentID, input.Revision); err != nil {
 		return MutationResult{}, err
@@ -161,10 +162,12 @@ func (s *Service) SavePurchaseInbound(
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	document, err := q.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{
-		ID: input.DocumentID, Entity: EntityPurchaseInbound,
-	})
+	document, err := lockDocument(ctx, tx, input.DocumentID, EntityPurchaseInbound)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
+		return MutationResult{}, err
+	}
+	coordinator, prepared, err := s.prepareDraftSave(ctx, tx, document, input.Revision, actor)
+	if err != nil {
 		return MutationResult{}, err
 	}
 	detail, err := q.GetVouPurchaseInboundDetail(ctx, input.DocumentID)
@@ -175,7 +178,10 @@ func (s *Service) SavePurchaseInbound(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	warehouse, err := s.resolveInboundWarehouse(ctx, tx, input.Data.Warehouse, orderDetail)
+	savedWarehouse := &bobdomain.EffectiveReference{ObjectID: detail.WarehouseObjectID,
+		ApprovalEntryID: detail.WarehouseApprovalEntryID, Entity: bobdomain.EntityWarehouse,
+		Code: detail.WarehouseCode, Data: bobdomain.DetailView{Name: detail.WarehouseName}}
+	warehouse, err := s.resolveInboundWarehouse(ctx, tx, input.Data.Warehouse, orderDetail, savedWarehouse, false)
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -189,11 +195,11 @@ func (s *Service) SavePurchaseInbound(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	revision, err := q.UpdateVouDraft(ctx, dbsqlc.UpdateVouDraftParams{
+	_, err = q.UpdateVouDraft(ctx, dbsqlc.UpdateVouDraftParams{
 		BusinessDate: dateValue(businessDate), Currency: order.Currency,
 		DueDate:          dateValue(dueDate),
-		TotalAmountCents: total, Remark: optionalText(input.Data.Remark), ActorID: actorID,
-		ID: input.DocumentID, Entity: EntityPurchaseInbound, Revision: input.Revision,
+		TotalAmountCents: total, Remark: optionalText(input.Data.Remark),
+		ID: input.DocumentID, Entity: EntityPurchaseInbound,
 	})
 	if err != nil {
 		return MutationResult{}, s.writeError("update purchase inbound", err)
@@ -212,24 +218,22 @@ func (s *Service) SavePurchaseInbound(
 	if err = s.insertPurchaseInboundLines(ctx, q, input.DocumentID, lines); err != nil {
 		return MutationResult{}, err
 	}
-	if err = insertAudit(ctx, q, auditInput{
-		DocumentID: input.DocumentID, Entity: EntityPurchaseInbound, Event: "SAVED",
-		From: stringPtr(StatusDraft), To: StatusDraft, ActorID: actorID, RequestID: requestID,
-		Summary: map[string]any{"lineCount": len(lines)},
-	}); err != nil {
+	entry, err := s.commitDraftSave(ctx, tx, q, document, coordinator, prepared)
+	if err != nil {
 		return MutationResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit save purchase inbound", err)
 	}
-	return mutation(document, StatusDraft, revision), nil
+	return mutation(document, entry), nil
 }
 
 func (s *Service) DeletePurchaseInbound(
 	ctx context.Context,
 	input ReverseInput,
-	actorID, requestID string,
+	actor approval.Actor,
 ) (MutationResult, error) {
+	actorID, requestID := actor.ID(), actor.RequestID()
 	reason, err := validateReverse(input)
 	if err != nil {
 		return MutationResult{}, err
@@ -239,10 +243,7 @@ func (s *Service) DeletePurchaseInbound(
 		return MutationResult{}, s.internal("begin delete purchase inbound", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
-	q := s.queries.WithTx(tx)
-	document, err := q.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{
-		ID: input.DocumentID, Entity: EntityPurchaseInbound,
-	})
+	document, err := lockDocument(ctx, tx, input.DocumentID, EntityPurchaseInbound)
 	if err = documentWriteConflict(err, document.Revision, input.Revision, document.Status, StatusDraft); err != nil {
 		return MutationResult{}, err
 	}
@@ -265,6 +266,10 @@ func (s *Service) DeletePurchaseInbound(
 		return MutationResult{}, domainError(ErrorConflict,
 			"purchase inbound has return documents", nil, nil)
 	}
+	coordinator, err := s.coordinator(EntityPurchaseInbound)
+	if err != nil {
+		return MutationResult{}, err
+	}
 	if err = s.events.Publish(ctx, tx, DocumentDeletedEvent{
 		Entity: EntityPurchaseInbound, DocumentID: document.ID,
 		DocumentNo: document.DocumentNo, ParentDocumentID: deref(document.ParentDocumentID),
@@ -273,7 +278,6 @@ func (s *Service) DeletePurchaseInbound(
 		return MutationResult{}, err
 	}
 	for _, statement := range []string{
-		`DELETE FROM vou_audit_events WHERE document_id=$1`,
 		`DELETE FROM vou_purchase_inbound_lines WHERE document_id=$1`,
 		`DELETE FROM vou_purchase_inbound_details WHERE document_id=$1`,
 		`DELETE FROM vou_documents WHERE id=$1`,
@@ -282,12 +286,15 @@ func (s *Service) DeletePurchaseInbound(
 			return MutationResult{}, s.writeError("delete purchase inbound", err)
 		}
 	}
+	if err = coordinator.DeleteSubject(ctx, tx, document.ApprovalEntryID, input.Revision, actor, DocumentView{}); err != nil {
+		return MutationResult{}, mapApprovalError(err)
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return MutationResult{}, s.writeError("commit delete purchase inbound", err)
 	}
 	return MutationResult{
 		DocumentID: document.ID, DocumentNo: document.DocumentNo,
-		Status: "DELETED", Revision: document.Revision,
+		Approval: approval.MetaFromEntry(document.approvalEntry()),
 	}, nil
 }
 
@@ -316,11 +323,9 @@ func parseDateValue(value string) (time.Time, error) {
 
 func (s *Service) lockPurchaseOrderForInbound(
 	ctx context.Context, tx pgx.Tx, orderID string,
-) (dbsqlc.VouDocument, dbsqlc.VouPurchaseOrderDetail, error) {
+) (documentRecord, dbsqlc.VouPurchaseOrderDetail, error) {
 	q := s.queries.WithTx(tx)
-	order, err := q.LockVouDocument(ctx, dbsqlc.LockVouDocumentParams{
-		ID: orderID, Entity: EntityPurchaseOrder,
-	})
+	order, err := lockDocument(ctx, tx, orderID, EntityPurchaseOrder)
 	if err != nil {
 		return order, dbsqlc.VouPurchaseOrderDetail{},
 			domainError(ErrorValidation, "purchase order not found", nil, err)
@@ -342,22 +347,24 @@ func (s *Service) resolveInboundWarehouse(
 	tx pgx.Tx,
 	input *ReferenceInput,
 	detail dbsqlc.VouPurchaseOrderDetail,
+	preserved *bobdomain.EffectiveReference,
+	newDocument bool,
 ) (bobdomain.EffectiveReference, error) {
 	if input == nil {
-		input = &ReferenceInput{
-			ObjectID: deref(detail.WarehouseObjectID), ApprovalEntryID: deref(detail.WarehouseApprovalEntryID),
+		if !newDocument && preserved != nil {
+			input = &ReferenceInput{ObjectID: preserved.ObjectID, ApprovalEntryID: preserved.ApprovalEntryID}
+		} else {
+			input = &ReferenceInput{ObjectID: deref(detail.WarehouseObjectID), ApprovalEntryID: deref(detail.WarehouseApprovalEntryID)}
 		}
 	}
 	if err := validateReference(input, "warehouse", true); err != nil {
 		return bobdomain.EffectiveReference{}, err
 	}
-	ref, err := s.resolver.ResolveApprovedReference(
-		ctx, tx, bobdomain.EntityWarehouse, input.ObjectID, input.ApprovalEntryID,
-	)
+	resolved, err := s.resolveSelectedReference(ctx, tx, bobdomain.EntityWarehouse, input, preserved, newDocument)
 	if err != nil {
-		return ref, domainError(ErrorConflict, "warehouse is not effective", nil, err)
+		return bobdomain.EffectiveReference{}, domainError(ErrorConflict, "warehouse is not effective", nil, err)
 	}
-	return ref, nil
+	return *resolved, nil
 }
 
 func (s *Service) validateAndReserveInboundLines(
@@ -392,9 +399,11 @@ func (s *Service) validateAndReserveInboundLines(
 		}
 		var reserved int64
 		err = tx.QueryRow(ctx, `SELECT COALESCE(sum(l.base_quantity_micros),0) - COALESCE((
-				SELECT sum(r.base_quantity_micros) FROM vou_purchase_return_lines r
-				JOIN vou_documents d ON d.id=r.document_id
-				WHERE r.source_order_line_id=$2 AND d.status = 'APPROVED'
+					SELECT sum(r.base_quantity_micros) FROM vou_purchase_return_lines r
+					JOIN vou_documents d ON d.id=r.document_id
+					JOIN approval_entries a ON a.id=d.approval_entry_id AND a.domain='vou'
+						AND a.entity=d.entity AND a.subject_id=d.id
+					WHERE r.source_order_line_id=$2 AND a.status = 'APPROVED'
 			),0)
 			FROM vou_purchase_inbound_lines l
 			JOIN vou_purchase_inbound_details x ON x.document_id=l.document_id
@@ -447,8 +456,11 @@ func (s *Service) setPurchaseOrderBalances(
 			SELECT sum(return_line.base_quantity_micros)
 			FROM vou_purchase_return_lines return_line
 			JOIN vou_documents return_doc ON return_doc.id=return_line.document_id
+			JOIN approval_entries return_approval ON return_approval.id=return_doc.approval_entry_id
+				AND return_approval.domain='vou' AND return_approval.entity=return_doc.entity
+				AND return_approval.subject_id=return_doc.id
 			WHERE return_line.source_order_line_id=order_line.id
-			  AND return_doc.status = 'APPROVED'
+			  AND return_approval.status = 'APPROVED'
 		),0)::bigint
 		FROM vou_product_lines order_line
 		LEFT JOIN vou_purchase_inbound_lines inbound_line
@@ -504,13 +516,17 @@ func (s *Service) refreshPurchaseOrderFulfillment(
 				SELECT sum(r.base_quantity_micros)
 				FROM vou_purchase_return_lines r
 				JOIN vou_documents rd ON rd.id=r.document_id
-				WHERE r.source_order_line_id=o.id AND rd.status = 'APPROVED'
+				JOIN approval_entries ra ON ra.id=rd.approval_entry_id AND ra.domain='vou'
+					AND ra.entity=rd.entity AND ra.subject_id=rd.id
+				WHERE r.source_order_line_id=o.id AND ra.status = 'APPROVED'
 			),0)
 			FROM vou_purchase_inbound_lines i
 			JOIN vou_documents d ON d.id=i.document_id
+			JOIN approval_entries da ON da.id=d.approval_entry_id AND da.domain='vou'
+				AND da.entity=d.entity AND da.subject_id=d.id
 			JOIN vou_purchase_inbound_details x ON x.document_id=i.document_id
 			WHERE x.source_order_id=$1 AND i.source_order_line_id=o.id
-			  AND d.status = 'APPROVED'
+			  AND da.status = 'APPROVED'
 		),0)
 	)`, orderID).Scan(&complete)
 	if err != nil {

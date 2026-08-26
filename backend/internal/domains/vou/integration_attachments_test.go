@@ -26,16 +26,16 @@ func TestVOUIntegrationAttachmentRoundTrip(t *testing.T) {
 		BusinessDate: "2026-07-24", Currency: "CNY", CounterpartyType: bobdomain.EntityCustomerAccount,
 		Counterparty: &refs.customer, FundAccount: &refs.fundAccount,
 		Handler: &refs.employee, Amount: "10.00",
-	}}, integrationActorOne, "attachment-create")
+	}}, integrationApprovalActor(t, integrationActorOne, "attachment-create"))
 	if err != nil {
 		t.Fatalf("create receipt: %v", err)
 	}
 	content := []byte("%PDF-1.7\nintegration")
 	sum := sha256.Sum256(content)
 	initiated, err := service.InitiateAttachment(t.Context(), EntitySalesReceipt, AttachmentInitiateInput{
-		DocumentID: created.DocumentID, Revision: created.Revision, FileName: "invoice.pdf",
+		DocumentID: created.DocumentID, Revision: created.Approval.Revision, FileName: "invoice.pdf",
 		ContentType: "application/pdf", Size: int64(len(content)), SHA256: hex.EncodeToString(sum[:]),
-	}, integrationActorOne, "attachment-initiate")
+	}, integrationApprovalActor(t, integrationActorOne, "attachment-initiate"))
 	if err != nil {
 		t.Fatalf("initiate attachment: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestVOUIntegrationAttachmentRoundTrip(t *testing.T) {
 	}
 	if _, err = service.RemoveAttachment(t.Context(), EntitySalesReceipt, AttachmentRemoveInput{
 		DocumentID: created.DocumentID, Revision: initiated.Revision, FileID: initiated.FileID,
-	}, integrationActorOne, "attachment-remove"); err != nil {
+	}, integrationApprovalActor(t, integrationActorOne, "attachment-remove")); err != nil {
 		t.Fatalf("remove attachment: %v", err)
 	}
 }

@@ -485,7 +485,6 @@
           'source': { 'type': 'string', 'minLength': 1, 'maxLength': 100000 },
         },
     },
-  'VouStatus': { 'type': 'string', 'enum': ['DRAFT', 'CHECKED', 'APPROVED'] },
   'VouBillPrimaryLineInput':
     {
       'type': 'object',
@@ -1215,7 +1214,7 @@
                     {
                       'type': 'array',
                       'uniqueItems': true,
-                      'items': { '$ref': '#/VouStatus' },
+                      'items': { '$ref': './common.yaml#/ApprovalStatus' },
                     },
                   'dateFrom': { 'type': 'string', 'format': 'date' },
                   'dateTo': { 'type': 'string', 'format': 'date' },
@@ -1304,7 +1303,7 @@
           'documentId': { 'type': 'string' },
           'entity': { '$ref': '#/VouEntity' },
           'documentNo': { 'type': 'string' },
-          'status': { '$ref': '#/VouStatus' },
+          'status': { '$ref': './common.yaml#/ApprovalStatus' },
           'revision': { 'type': 'integer', 'format': 'int64' },
           'businessDate': { 'type': 'string', 'format': 'date' },
           'partyName': { 'type': 'string' },
@@ -3118,39 +3117,17 @@
     {
       'type': 'object',
       'required':
-        [
-          documentId,
-          entity,
-          documentNo,
-          status,
-          revision,
-          amount,
-          data,
-          attachments,
-          createdAt,
-          createdBy,
-          updatedAt,
-          updatedBy,
-        ],
+        [documentId, entity, documentNo, approval, amount, data, attachments],
       'properties':
         {
           'documentId': { 'type': 'string' },
           'entity': { '$ref': '#/VouEntity' },
           'documentNo': { 'type': 'string' },
-          'status': { '$ref': '#/VouStatus' },
-          'revision': { 'type': 'integer', 'format': 'int64' },
+          'approval': { '$ref': './common.yaml#/ApprovalMeta' },
           'amount': { 'type': 'string' },
           'data': { '$ref': '#/VouDocumentDataView' },
           'attachments':
             { 'type': 'array', 'items': { '$ref': '#/VouAttachmentView' } },
-          'createdAt': { 'type': 'string', 'format': 'date-time' },
-          'createdBy': { 'type': 'string' },
-          'updatedAt': { 'type': 'string', 'format': 'date-time' },
-          'updatedBy': { 'type': 'string' },
-          'checkedAt': { 'type': 'string', 'format': 'date-time' },
-          'checkedBy': { 'type': 'string' },
-          'approvedAt': { 'type': 'string', 'format': 'date-time' },
-          'approvedBy': { 'type': 'string' },
           'parentEntity': { '$ref': '#/VouEntity' },
           'parentDocumentId': { 'type': 'string' },
           'parentDocumentNo': { 'type': 'string' },
@@ -3159,48 +3136,15 @@
   'VouMutationResult':
     {
       'type': 'object',
-      'required': ['documentId', 'documentNo', 'status', 'revision'],
+      'required': ['documentId', 'documentNo', 'approval'],
       'properties':
         {
           'documentId': { 'type': 'string' },
           'documentNo': { 'type': 'string' },
-          'status': { '$ref': '#/VouStatus' },
-          'revision': { 'type': 'integer', 'format': 'int64' },
+          'approval': { '$ref': './common.yaml#/ApprovalMeta' },
         },
     },
-  'VouAuditEventView':
-    {
-      'type': 'object',
-      'required':
-        [
-          id,
-          eventType,
-          fromStatus,
-          toStatus,
-          actorId,
-          occurredAt,
-          reason,
-          requestId,
-          summary,
-        ],
-      'properties':
-        {
-          'id': { 'type': 'string' },
-          'eventType': { 'type': 'string' },
-          'fromStatus':
-            {
-              'type': 'string',
-              'nullable': true,
-              'enum': [DRAFT, CHECKED, APPROVED],
-            },
-          'toStatus': { '$ref': '#/VouStatus' },
-          'actorId': { 'type': 'string' },
-          'occurredAt': { 'type': 'string', 'format': 'date-time' },
-          'reason': { 'type': 'string', 'nullable': true },
-          'requestId': { 'type': 'string' },
-          'summary': {},
-        },
-    },
+  'VouAuditEventView': { '$ref': './common.yaml#/ApprovalEventView' },
   'VouInventoryCountBalancePage':
     {
       'type': 'object',

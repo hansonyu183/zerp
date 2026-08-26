@@ -15,13 +15,15 @@ const findLatestApplicableSalesContract = `-- name: FindLatestApplicableSalesCon
 SELECT contract.document_id, contract.entity, contract.counterparty_entity, contract.counterparty_object_id, contract.counterparty_approval_entry_id, contract.counterparty_code, contract.counterparty_name, contract.party_id, contract.party_name, contract.operating_entity_object_id, contract.operating_entity_approval_entry_id, contract.operating_entity_code, contract.operating_entity_name, contract.handler_object_id, contract.handler_approval_entry_id, contract.handler_code, contract.handler_name, contract.settlement_method_object_id, contract.settlement_method_approval_entry_id, contract.settlement_method_code, contract.settlement_method_name, contract.settlement_term_code, contract.settlement_rule_type, contract.settlement_month_offset, contract.settlement_day_of_month, contract.settlement_day_offset, contract.capabilities, contract.applicable_from, contract.applicable_to, contract.contract_terms
 FROM vou_service_contract_details contract
 JOIN vou_documents document ON document.id=contract.document_id
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+  AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
 WHERE contract.counterparty_entity='sales-partner'
   AND contract.counterparty_object_id=$1
-  AND document.entity='service-contract' AND document.status='APPROVED'
+  AND document.entity='service-contract' AND approval.status='APPROVED'
   AND $2::text=ANY(contract.capabilities)
   AND contract.applicable_from<=$3::date
   AND (contract.applicable_to IS NULL OR contract.applicable_to>=$3::date)
-ORDER BY contract.applicable_from DESC,document.approved_at DESC,contract.document_id DESC
+ORDER BY contract.applicable_from DESC,approval.approved_at DESC,contract.document_id DESC
 LIMIT 1
 `
 
@@ -70,17 +72,19 @@ func (q *Queries) FindLatestApplicableSalesContract(ctx context.Context, arg Fin
 }
 
 const findLatestApplicableSalesContractSnapshot = `-- name: FindLatestApplicableSalesContractSnapshot :one
-SELECT contract.document_id,document.revision AS document_revision,
+SELECT contract.document_id,approval.revision AS document_revision,
        contract.applicable_from,contract.applicable_to,contract.contract_terms
 FROM vou_service_contract_details contract
 JOIN vou_documents document ON document.id=contract.document_id
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+  AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
 WHERE contract.counterparty_entity='sales-partner'
   AND contract.counterparty_object_id=$1
-  AND document.entity='service-contract' AND document.status='APPROVED'
+  AND document.entity='service-contract' AND approval.status='APPROVED'
   AND $2::text=ANY(contract.capabilities)
   AND contract.applicable_from<=$3::date
   AND (contract.applicable_to IS NULL OR contract.applicable_to>=$3::date)
-ORDER BY contract.applicable_from DESC,document.approved_at DESC,contract.document_id DESC
+ORDER BY contract.applicable_from DESC,approval.approved_at DESC,contract.document_id DESC
 LIMIT 1
 FOR SHARE OF contract,document
 `
@@ -296,8 +300,10 @@ func (q *Queries) InsertVouServiceContractDetail(ctx context.Context, arg Insert
 }
 
 const lockVouServiceAcceptanceContract = `-- name: LockVouServiceAcceptanceContract :one
-SELECT document.id,document.status,contract.counterparty_entity
+SELECT document.id,approval.status,contract.counterparty_entity
 FROM vou_documents document JOIN vou_service_contract_details contract ON contract.document_id=document.id
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+  AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
 WHERE document.id=$1 AND document.entity='service-contract'
 FOR UPDATE OF document,contract
 `

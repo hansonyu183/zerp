@@ -155,17 +155,24 @@ SELECT COALESCE(min(balance),0)::bigint FROM running;
 
 -- name: AccountingPeriodHasUnfinishedVOU :one
 SELECT EXISTS(
-  SELECT 1 FROM vou_documents
-  WHERE business_date >= sqlc.arg(period_start) AND business_date < sqlc.arg(period_end)
-    AND status <> 'APPROVED'
+  SELECT 1
+  FROM vou_documents document
+  JOIN approval_entries approval
+    ON approval.id=document.approval_entry_id
+   AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
+  WHERE document.business_date >= sqlc.arg(period_start) AND document.business_date < sqlc.arg(period_end)
+    AND approval.status <> 'APPROVED'
 );
 
 -- name: AccountingPeriodHasMissingMappings :one
 SELECT EXISTS(
   SELECT 1 FROM vou_documents document
+  JOIN approval_entries approval
+    ON approval.id=document.approval_entry_id
+   AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
   WHERE document.business_date >= sqlc.arg(period_start)
     AND document.business_date < sqlc.arg(period_end)
-    AND document.status = 'APPROVED'
+    AND approval.status = 'APPROVED'
     AND NOT EXISTS (
       SELECT 1 FROM acc_mapping_versions mapping
       WHERE mapping.book_id=sqlc.arg(book_id)

@@ -11,9 +11,9 @@ import type {
 } from '@/components/voucher'
 
 const lifecycleStatuses: Record<VoucherLifecycleAction, VoucherStatus> = {
-  check: 'DRAFT',
-  uncheck: 'CHECKED',
-  approve: 'CHECKED',
+  submit: 'DRAFT',
+  unsubmit: 'PENDING',
+  approve: 'PENDING',
   unapprove: 'APPROVED',
 }
 
@@ -21,8 +21,8 @@ export function lifecycleActionSuccessLabel(
   action: VoucherLifecycleAction,
 ): string {
   return {
-    check: '已核对',
-    uncheck: '已反核对',
+    submit: '已提交审核',
+    unsubmit: '已撤回提交',
     approve: '已批准',
     unapprove: '已反批准',
   }[action]
@@ -95,7 +95,11 @@ export async function runListLifecycleAction(
     )
     context.rows.value = context.rows.value.map((item) =>
       item.documentId === row.documentId
-        ? { ...item, status: data.status, revision: data.revision }
+        ? {
+            ...item,
+            status: data.approval.status,
+            revision: data.approval.revision,
+          }
         : item,
     )
     if (context.documentView.value?.documentId === row.documentId) {

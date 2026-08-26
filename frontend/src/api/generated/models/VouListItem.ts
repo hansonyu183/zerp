@@ -2,15 +2,15 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalStatus } from './ApprovalStatus';
 import type { VouEntity } from './VouEntity';
 import type { VouPurchaseBaseQuantitySummary } from './VouPurchaseBaseQuantitySummary';
 import type { VouSalesBaseQuantitySummary } from './VouSalesBaseQuantitySummary';
-import type { VouStatus } from './VouStatus';
 export type VouListItem = {
   documentId: string;
   entity: VouEntity;
   documentNo: string;
-  status: VouStatus;
+  status: ApprovalStatus;
   revision: number;
   businessDate: string;
   partyName?: string;

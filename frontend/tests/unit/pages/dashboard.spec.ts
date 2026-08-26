@@ -38,8 +38,8 @@ const documentItem: WorkbenchItem = {
   category: 'VOU',
   entity: 'sale-order',
   status: 'DRAFT',
-  pendingStage: 'CHECK',
-  availableActions: ['view', 'edit', 'check'],
+  pendingStage: 'SUBMIT',
+  availableActions: ['view', 'edit', 'submit'],
   updatedAt: '2026-08-01T08:00:00Z',
   documentId: 'document-1',
   revision: 2,
@@ -117,9 +117,9 @@ describe('Dashboard workbench', () => {
       '/bob/supplier/query',
       '/bob/supplier/unsubmit',
       '/vou/sale-order/query',
-      '/vou/sale-order/check',
+      '/vou/sale-order/submit',
       '/vou/developing-invoice/query',
-      '/vou/developing-invoice/uncheck',
+      '/vou/developing-invoice/unsubmit',
     ]
     const navigation = {
       revision: 1,
@@ -443,18 +443,18 @@ describe('Dashboard workbench', () => {
     expect(vm.states.VOU.rows).toEqual([documentItem])
   })
 
-  it('撤回提交与反核对只调用服务器返回的动作，并在完成后刷新', async () => {
+  it('撤回提交只调用服务器返回的动作，并在完成后刷新', async () => {
     const submitted = {
       ...objectItem,
       status: 'PENDING' as const,
       pendingStage: 'APPROVE' as const,
       availableActions: ['unsubmit'] as const,
     }
-    const checked = {
+    const pendingDocument = {
       ...documentItem,
-      status: 'CHECKED' as const,
+      status: 'PENDING' as const,
       pendingStage: 'APPROVE' as const,
-      availableActions: ['uncheck'] as const,
+      availableActions: ['unsubmit'] as const,
     }
     mockedPost
       .mockResolvedValueOnce({ data: {} })
@@ -466,14 +466,14 @@ describe('Dashboard workbench', () => {
     await expect(
       vm.runAction(submitted, 'unsubmit', '  资料有误  '),
     ).resolves.toBe(true)
-    await expect(vm.runAction(checked, 'uncheck')).resolves.toBe(true)
+    await expect(vm.runAction(pendingDocument, 'unsubmit')).resolves.toBe(true)
 
     expect(mockedPost).toHaveBeenNthCalledWith(1, 'bob/customer/unsubmit', {
       objectId: 'object-1',
       approvalEntryId: 'version-1',
       approvalRevision: 5,
     })
-    expect(mockedPost).toHaveBeenNthCalledWith(3, 'vou/sale-order/uncheck', {
+    expect(mockedPost).toHaveBeenNthCalledWith(3, 'vou/sale-order/unsubmit', {
       documentId: 'document-1',
       revision: 2,
     })
@@ -509,20 +509,20 @@ describe('Dashboard workbench', () => {
     expect(vm.confirmationComment.value).toBe('')
   })
 
-  it('反核对确认不要求或发送原因', async () => {
-    const checked = {
+  it('撤回提交确认不要求或发送原因', async () => {
+    const pendingDocument = {
       ...documentItem,
-      status: 'CHECKED' as const,
+      status: 'PENDING' as const,
       pendingStage: 'APPROVE' as const,
-      availableActions: ['uncheck'] as const,
+      availableActions: ['unsubmit'] as const,
     }
     mockedPost.mockResolvedValueOnce({ data: {} }).mockResolvedValueOnce(page())
     const vm = useDashboardViewModel()
 
-    expect(vm.requestConfirmation(checked, 'uncheck')).toBe(true)
+    expect(vm.requestConfirmation(pendingDocument, 'unsubmit')).toBe(true)
     await expect(vm.confirmAction()).resolves.toBe(true)
 
-    expect(mockedPost).toHaveBeenNthCalledWith(1, 'vou/sale-order/uncheck', {
+    expect(mockedPost).toHaveBeenNthCalledWith(1, 'vou/sale-order/unsubmit', {
       documentId: 'document-1',
       revision: 2,
     })
@@ -539,7 +539,7 @@ describe('Dashboard workbench', () => {
     vm.states.VOU.page = 2
     vm.states.VOU.rows = [documentItem]
 
-    expect(await vm.runAction(documentItem, 'check')).toBe(true)
+    expect(await vm.runAction(documentItem, 'submit')).toBe(true)
 
     expect(vm.states.VOU.page).toBe(2)
     expect(mockedPost).toHaveBeenLastCalledWith('app/workbench/query', {
@@ -613,7 +613,7 @@ describe('Dashboard workbench', () => {
     )
   })
 
-  it('单据核对失败时保留操作并显示具体业务原因', async () => {
+  it('单据提交失败时保留操作并显示具体业务原因', async () => {
     const delivery = {
       ...documentItem,
       entity: 'sale-delivery' as const,
@@ -630,12 +630,12 @@ describe('Dashboard workbench', () => {
       .mockResolvedValueOnce(page([delivery]))
     const vm = useDashboardViewModel()
 
-    const success = await vm.runAction(delivery, 'check')
+    const success = await vm.runAction(delivery, 'submit')
 
     expect(success).toBe(false)
-    expect(delivery.availableActions).toContain('check')
+    expect(delivery.availableActions).toContain('submit')
     expect(vm.states.VOU.errorMessage).toBe(
-      '自动生成的单据缺少必填业务资料，请先编辑补全并保存后再核对。（错误码：2001；错误标识：document_data_incomplete）',
+      '自动生成的单据缺少必填业务资料，请先编辑补全并保存后再提交审核。（错误码：2001；错误标识：document_data_incomplete）',
     )
   })
 })

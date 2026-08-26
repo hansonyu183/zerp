@@ -3,14 +3,13 @@ package vou
 import (
 	"context"
 
-	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/jackc/pgx/v5"
 )
 
 func (s *Service) prepareUnapproval(
 	ctx context.Context,
 	tx pgx.Tx,
-	document dbsqlc.VouDocument,
+	document documentRecord,
 	actorID string,
 	requestID string,
 ) error {
@@ -56,8 +55,10 @@ func (s *Service) prepareUnapproval(
 				SELECT COALESCE(sum(r.base_quantity_micros),0)
 				FROM vou_purchase_return_lines r
 				JOIN vou_documents d ON d.id=r.document_id
+				JOIN approval_entries a ON a.id=d.approval_entry_id AND a.domain='vou'
+					AND a.entity=d.entity AND a.subject_id=d.id
 				WHERE r.source_order_line_id=o.id
-				  AND d.status = 'APPROVED' AND r.document_id<>$2
+				  AND a.status = 'APPROVED' AND r.document_id<>$2
 			) > o.base_quantity_micros
 		)`, deref(document.ParentDocumentID), document.ID).Scan(&overbooked); err != nil {
 			return err
@@ -73,7 +74,7 @@ func (s *Service) prepareUnapproval(
 func (s *Service) finishUnapproval(
 	ctx context.Context,
 	tx pgx.Tx,
-	document dbsqlc.VouDocument,
+	document documentRecord,
 	actorID string,
 ) error {
 	switch document.Entity {

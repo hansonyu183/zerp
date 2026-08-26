@@ -16,12 +16,24 @@ func New(service *auxdomain.Service) Resolver {
 	return Resolver{service: service}
 }
 
-func (resolver Resolver) ResolveAuxiliaryReference(
+func (resolver Resolver) ResolveLatestApprovedAuxiliaryReference(
 	ctx context.Context,
 	tx pgx.Tx,
-	entity, objectID, versionID string,
+	entity, objectID string,
 ) (bobdomain.AuxiliaryReference, error) {
-	reference, err := resolver.service.Resolve(ctx, tx, entity, objectID, versionID)
+	reference, err := resolver.service.ResolveLatestApprovedReference(ctx, tx, entity, objectID)
+	if err != nil {
+		return bobdomain.AuxiliaryReference{}, err
+	}
+	return mapReference(reference), nil
+}
+
+func (resolver Resolver) ValidateApprovedAuxiliarySnapshotReference(
+	ctx context.Context,
+	tx pgx.Tx,
+	entity, objectID, approvalEntryID string,
+) (bobdomain.AuxiliaryReference, error) {
+	reference, err := resolver.service.ValidateApprovedSnapshotReference(ctx, tx, entity, objectID, approvalEntryID)
 	if err != nil {
 		return bobdomain.AuxiliaryReference{}, err
 	}

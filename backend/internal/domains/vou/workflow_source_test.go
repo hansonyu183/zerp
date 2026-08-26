@@ -5,14 +5,16 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 )
 
 func TestWorkflowDocumentViewExcludesTechnicalAndSensitiveMetadata(t *testing.T) {
 	t.Parallel()
 	view := workflowDocumentView(DocumentView{
 		DocumentID: "01J00000000000000000000001", Entity: EntitySaleOrder,
-		DocumentNo: "SO-1", Status: StatusApproved, Revision: 7, Amount: "100.00",
-		CreatedBy: "01J00000000000000000000002", UpdatedBy: "01J00000000000000000000003",
+		DocumentNo: "SO-1", Amount: "100.00", Approval: approval.Meta{Status: approval.StatusApproved, Revision: 7,
+			CreatedBy: "01J00000000000000000000002", UpdatedBy: "01J00000000000000000000003"},
 		Attachments: []AttachmentView{{FileID: "secret-file-id", FileName: "order.pdf", SHA256: "secret-hash", CreatedAt: time.Now(), CreatedBy: "secret-actor"}},
 	})
 	encoded, err := json.Marshal(view)

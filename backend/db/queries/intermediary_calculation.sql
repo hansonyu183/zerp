@@ -61,7 +61,10 @@ SELECT EXISTS(
     JOIN vou_documents dependent_document
       ON dependent_document.id=dependent_line.document_id
      AND dependent_document.entity='intermediary-calculation'
-     AND dependent_document.status = 'APPROVED'
+    JOIN approval_entries dependent_approval
+      ON dependent_approval.id=dependent_document.approval_entry_id
+     AND dependent_approval.domain='vou' AND dependent_approval.entity=dependent_document.entity
+     AND dependent_approval.subject_id=dependent_document.id AND dependent_approval.status='APPROVED'
     WHERE dependent_line.source_calculation_document_id=sqlc.arg(document_id)
 );
 
@@ -116,8 +119,11 @@ WITH returned AS (
     JOIN vou_documents return_document
       ON return_document.id=return_line.document_id
      AND return_document.entity='sale-return'
-     AND return_document.status = 'APPROVED'
      AND return_document.business_date <= sqlc.arg(period_end)
+    JOIN approval_entries return_approval
+      ON return_approval.id=return_document.approval_entry_id
+     AND return_approval.domain='vou' AND return_approval.entity=return_document.entity
+     AND return_approval.subject_id=return_document.id AND return_approval.status='APPROVED'
     GROUP BY return_line.source_signoff_line_id
 )
 SELECT
@@ -158,6 +164,8 @@ SELECT
     order_detail.special_approval,
     line.line_amount_cents AS fifo_line_amount_cents
 FROM vou_documents signoff
+JOIN approval_entries signoff_approval ON signoff_approval.id=signoff.approval_entry_id
+  AND signoff_approval.domain='vou' AND signoff_approval.entity=signoff.entity AND signoff_approval.subject_id=signoff.id
 JOIN vou_sale_signoff_details detail ON detail.document_id=signoff.id
 JOIN vou_sale_signoff_lines line ON line.document_id=signoff.id
 JOIN vou_documents order_document ON order_document.id=detail.source_order_id
@@ -166,7 +174,7 @@ JOIN vou_product_lines order_line ON order_line.id=line.source_order_line_id
 JOIN bob_customer_versions customer_version ON customer_version.approval_entry_id=detail.customer_approval_entry_id
 LEFT JOIN returned ON returned.source_signoff_line_id=line.id
 WHERE signoff.entity='sale-signoff'
-  AND signoff.status = 'APPROVED'
+  AND signoff_approval.status = 'APPROVED'
   AND signoff.business_date >= sqlc.arg(cutover_date)
   AND signoff.business_date <= sqlc.arg(period_end)
   AND signoff.currency='CNY'
@@ -189,13 +197,19 @@ WITH daily_return AS (
     JOIN vou_documents return_document
       ON return_document.id=return_line.document_id
      AND return_document.entity='sale-return'
-     AND return_document.status = 'APPROVED'
+    JOIN approval_entries return_approval
+      ON return_approval.id=return_document.approval_entry_id
+     AND return_approval.domain='vou' AND return_approval.entity=return_document.entity
+     AND return_approval.subject_id=return_document.id AND return_approval.status='APPROVED'
     JOIN vou_sale_signoff_lines signoff_line
       ON signoff_line.id=return_line.source_signoff_line_id
     JOIN vou_documents signoff
       ON signoff.id=signoff_line.document_id
      AND signoff.entity='sale-signoff'
-     AND signoff.status = 'APPROVED'
+    JOIN approval_entries signoff_approval
+      ON signoff_approval.id=signoff.approval_entry_id
+     AND signoff_approval.domain='vou' AND signoff_approval.entity=signoff.entity
+     AND signoff_approval.subject_id=signoff.id AND signoff_approval.status='APPROVED'
     JOIN vou_sale_signoff_details signoff_detail
       ON signoff_detail.document_id=signoff.id
     WHERE signoff.business_date >= sqlc.arg(cutover_date)
@@ -252,7 +266,10 @@ JOIN vou_sale_return_details return_detail
 JOIN vou_documents return_document
   ON return_document.id=return_line.document_id
  AND return_document.entity='sale-return'
- AND return_document.status = 'APPROVED'
+JOIN approval_entries return_approval
+  ON return_approval.id=return_document.approval_entry_id
+ AND return_approval.domain='vou' AND return_approval.entity=return_document.entity
+ AND return_approval.subject_id=return_document.id AND return_approval.status='APPROVED'
 JOIN LATERAL (
     SELECT calculation_document.id AS document_id,
            calculation_document.business_date,
@@ -264,7 +281,10 @@ JOIN LATERAL (
     JOIN vou_documents calculation_document
       ON calculation_document.id=calculation_line.document_id
      AND calculation_document.entity='intermediary-calculation'
-     AND calculation_document.status = 'APPROVED'
+    JOIN approval_entries calculation_approval
+      ON calculation_approval.id=calculation_document.approval_entry_id
+     AND calculation_approval.domain='vou' AND calculation_approval.entity=calculation_document.entity
+     AND calculation_approval.subject_id=calculation_document.id AND calculation_approval.status='APPROVED'
     WHERE calculation_line.source_signoff_line_id=return_line.source_signoff_line_id
       AND calculation_document.business_date < return_document.business_date
       AND (calculation_line.employee_amount_cents>0
@@ -305,7 +325,10 @@ WITH trade AS (
     JOIN vou_documents return_document
       ON return_document.id=return_line.document_id
      AND return_document.entity='sale-return'
-     AND return_document.status = 'APPROVED'
+    JOIN approval_entries return_approval
+      ON return_approval.id=return_document.approval_entry_id
+     AND return_approval.domain='vou' AND return_approval.entity=return_document.entity
+     AND return_approval.subject_id=return_document.id AND return_approval.status='APPROVED'
     WHERE return_document.business_date < sqlc.arg(cutover_date)
     GROUP BY return_line.source_signoff_line_id
 ), precutover_daily_return AS (
@@ -323,14 +346,20 @@ WITH trade AS (
     JOIN vou_documents return_document
       ON return_document.id=return_line.document_id
      AND return_document.entity='sale-return'
-     AND return_document.status = 'APPROVED'
+    JOIN approval_entries return_approval
+      ON return_approval.id=return_document.approval_entry_id
+     AND return_approval.domain='vou' AND return_approval.entity=return_document.entity
+     AND return_approval.subject_id=return_document.id AND return_approval.status='APPROVED'
     JOIN vou_sale_signoff_lines signoff_line
       ON signoff_line.id=return_line.source_signoff_line_id
     JOIN vou_documents signoff
       ON signoff.id=signoff_line.document_id
      AND signoff.entity='sale-signoff'
-     AND signoff.status = 'APPROVED'
      AND signoff.currency='CNY'
+    JOIN approval_entries signoff_approval
+      ON signoff_approval.id=signoff.approval_entry_id
+     AND signoff_approval.domain='vou' AND signoff_approval.entity=signoff.entity
+     AND signoff_approval.subject_id=signoff.id AND signoff_approval.status='APPROVED'
     WHERE signoff.business_date < sqlc.arg(cutover_date)
       AND return_document.business_date >= sqlc.arg(cutover_date)
       AND return_document.business_date <= sqlc.arg(period_end)
@@ -426,10 +455,12 @@ SELECT
     bill_line.issue_date,
     bill_line.maturity_date
 FROM vou_documents document
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+  AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
 JOIN vou_bill_details detail ON detail.document_id=document.id
 JOIN vou_bill_lines bill_line ON bill_line.document_id=document.id
 WHERE document.entity='bill-receipt'
-  AND document.status = 'APPROVED'
+  AND approval.status = 'APPROVED'
   AND document.business_date >= sqlc.arg(cutover_date)
   AND (CASE WHEN bill_line.bill_type='CHECK'
         THEN bill_line.maturity_date ELSE document.business_date END)
@@ -444,7 +475,10 @@ WHERE document.entity='bill-receipt'
       JOIN vou_documents allocation_document
         ON allocation_document.id=allocation.document_id
        AND allocation_document.entity='intermediary-calculation'
-       AND allocation_document.status = 'APPROVED'
+      JOIN approval_entries allocation_approval
+        ON allocation_approval.id=allocation_document.approval_entry_id
+       AND allocation_approval.domain='vou' AND allocation_approval.entity=allocation_document.entity
+       AND allocation_approval.subject_id=allocation_document.id AND allocation_approval.status='APPROVED'
       WHERE allocation.bill_line_id=bill_line.id
         AND allocation_document.business_date <> sqlc.arg(period_end)::date
   )

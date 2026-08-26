@@ -14,7 +14,7 @@ import (
 	"github.com/oklog/ulid/v2"
 )
 
-func (s *Service) applyGlobalRegisters(ctx context.Context, q *dbsqlc.Queries, event voudomain.DocumentApprovedEvent, books []dbsqlc.ListAccountingPostingBooksRow, snapshot postingSnapshot) error {
+func (s *Service) applyGlobalRegisters(ctx context.Context, q *dbsqlc.Queries, event vouApprovalDelivery, books []dbsqlc.ListAccountingPostingBooksRow, snapshot postingSnapshot) error {
 	_, err := q.RegisterAccountingGlobalEvent(ctx, dbsqlc.RegisterAccountingGlobalEventParams{SourceEntity: event.Entity, SourceDocumentID: event.DocumentID, SourceRevision: event.Revision})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
@@ -38,7 +38,7 @@ func (s *Service) applyGlobalRegisters(ctx context.Context, q *dbsqlc.Queries, e
 	}
 }
 
-func registerAssetAcquisition(ctx context.Context, q *dbsqlc.Queries, event voudomain.DocumentApprovedEvent, books []dbsqlc.ListAccountingPostingBooksRow, snapshot postingSnapshot) error {
+func registerAssetAcquisition(ctx context.Context, q *dbsqlc.Queries, event vouApprovalDelivery, books []dbsqlc.ListAccountingPostingBooksRow, snapshot postingSnapshot) error {
 	date, _ := time.Parse("2006-01-02", event.Snapshot.Data.BusinessDate)
 	for _, line := range event.Snapshot.Data.AssetAcquisitionLines {
 		original, err := fixeddecimal.ParsePositive(line.OriginalValue, 2, false)
@@ -153,7 +153,7 @@ func renderAssetDimensions(configuration map[string]string, fields map[string]st
 	return result, nil
 }
 
-func registerAssetDisposal(ctx context.Context, q *dbsqlc.Queries, event voudomain.DocumentApprovedEvent) error {
+func registerAssetDisposal(ctx context.Context, q *dbsqlc.Queries, event vouApprovalDelivery) error {
 	state := "SOLD"
 	assetIDs := make([]string, 0)
 	for _, line := range event.Snapshot.Data.AssetSaleLines {
@@ -179,7 +179,7 @@ func registerAssetDisposal(ctx context.Context, q *dbsqlc.Queries, event voudoma
 	return nil
 }
 
-func registerBillChanges(ctx context.Context, q *dbsqlc.Queries, event voudomain.DocumentApprovedEvent, books []dbsqlc.ListAccountingPostingBooksRow) error {
+func registerBillChanges(ctx context.Context, q *dbsqlc.Queries, event vouApprovalDelivery, books []dbsqlc.ListAccountingPostingBooksRow) error {
 	origin := event.Snapshot.Data.Customer
 	if origin == nil {
 		origin = event.Snapshot.Data.Supplier
@@ -234,7 +234,7 @@ func registerBillChanges(ctx context.Context, q *dbsqlc.Queries, event voudomain
 	return nil
 }
 
-func registerContainerChange(ctx context.Context, q *dbsqlc.Queries, event voudomain.DocumentApprovedEvent) error {
+func registerContainerChange(ctx context.Context, q *dbsqlc.Queries, event vouApprovalDelivery) error {
 	if event.Snapshot.Data.Customer == nil {
 		return nil
 	}
@@ -257,9 +257,9 @@ func registerContainerChange(ctx context.Context, q *dbsqlc.Queries, event voudo
 	return nil
 }
 
-func (s *Service) reverseGlobalRegisters(ctx context.Context, tx pgx.Tx, event voudomain.DocumentUnapprovedEvent) error {
+func (s *Service) reverseGlobalRegisters(ctx context.Context, tx pgx.Tx, event vouApprovalDelivery) error {
 	q := s.queries.WithTx(tx)
-	rows, err := q.DeleteAccountingGlobalEvent(ctx, dbsqlc.DeleteAccountingGlobalEventParams{SourceEntity: event.Entity, SourceDocumentID: event.DocumentID, SourceRevision: event.Snapshot.Revision})
+	rows, err := q.DeleteAccountingGlobalEvent(ctx, dbsqlc.DeleteAccountingGlobalEventParams{SourceEntity: event.Entity, SourceDocumentID: event.DocumentID, SourceRevision: event.Revision})
 	if err != nil {
 		return databaseError("delete global accounting event", err)
 	}
@@ -276,7 +276,7 @@ func (s *Service) reverseGlobalRegisters(ctx context.Context, tx pgx.Tx, event v
 	case voudomain.EntityBillPayment, voudomain.EntityBillDiscount, voudomain.EntityBillMaturity:
 		err = q.RestoreAccountingBillsBySettlement(ctx, &event.DocumentID)
 	case voudomain.EntitySaleSignoff:
-		err = q.DeleteAccountingContainerEntriesBySource(ctx, dbsqlc.DeleteAccountingContainerEntriesBySourceParams{DocumentID: event.DocumentID, SourceRevision: event.Snapshot.Revision})
+		err = q.DeleteAccountingContainerEntriesBySource(ctx, dbsqlc.DeleteAccountingContainerEntriesBySourceParams{DocumentID: event.DocumentID, SourceRevision: event.Revision})
 	}
 	if err != nil {
 		return databaseError("reverse global accounting register", err)

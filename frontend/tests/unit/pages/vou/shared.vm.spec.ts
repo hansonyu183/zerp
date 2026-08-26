@@ -65,8 +65,18 @@ function documentView(
     documentId: 'DOCUMENT-1',
     entity: config.entity,
     documentNo: 'DOC-1',
-    status: 'DRAFT',
-    revision: 1,
+    approval: {
+      status: 'DRAFT',
+      revision: 1,
+      createdAt: '2026-07-24T00:00:00Z',
+      createdBy: 'USER-1',
+      updatedAt: '2026-07-24T00:00:00Z',
+      updatedBy: 'USER-1',
+      submittedAt: null,
+      submittedBy: null,
+      approvedAt: null,
+      approvedBy: null,
+    },
     amount: form.amount || '10.00',
     data: {
       businessDate: form.businessDate,
@@ -178,10 +188,6 @@ function documentView(
       })),
     },
     attachments: [],
-    createdAt: '2026-07-24T00:00:00Z',
-    createdBy: 'USER-1',
-    updatedAt: '2026-07-24T00:00:00Z',
-    updatedBy: 'USER-1',
   }
 }
 
@@ -927,7 +933,7 @@ describe('shared VOU entity view model', () => {
       '/vou/sale-order/get',
       '/vou/sale-order/create',
       '/vou/sale-order/save',
-      '/vou/sale-order/check',
+      '/vou/sale-order/submit',
       '/vou/sale-order/attachment-initiate',
       '/vou/sale-order/attachment-remove',
     ]
@@ -961,7 +967,7 @@ describe('shared VOU entity view model', () => {
       }),
     ).toBe(true)
     expect(vm.actionAvailability.value.save).toBe(true)
-    expect(vm.actionAvailability.value.check).toBe(true)
+    expect(vm.actionAvailability.value.submit).toBe(true)
     expect(vm.actionAvailability.value.attachmentInitiate).toBe(true)
     expect(vm.actionAvailability.value.attachmentRemove).toBe(true)
   })
@@ -1180,11 +1186,11 @@ describe('shared VOU entity view model', () => {
       currency: 'CNY',
       amount: '10.00',
     })
-    view.status = 'CHECKED'
+    view.approval.status = 'PENDING'
     useSessionStore().permissions = [
       '/vou/purchase-payment/get',
       '/vou/purchase-payment/approve',
-      '/vou/purchase-payment/uncheck',
+      '/vou/purchase-payment/unsubmit',
     ]
     mockedPost.mockResolvedValue({ data: view })
     const vm = useVoucherEntityViewModel(config)
@@ -1193,7 +1199,7 @@ describe('shared VOU entity view model', () => {
       documentId: view.documentId,
       entity: config.entity,
       documentNo: view.documentNo,
-      status: 'CHECKED',
+      status: 'PENDING',
       revision: 1,
       businessDate: '2026-07-24',
       currency: 'CNY',
@@ -1203,8 +1209,8 @@ describe('shared VOU entity view model', () => {
 
     expect(vm.actionAvailability.value).toMatchObject({
       approve: true,
-      uncheck: true,
-      check: false,
+      unsubmit: true,
+      submit: false,
       unapprove: false,
     })
   })
@@ -1236,7 +1242,7 @@ describe('shared VOU entity view model', () => {
       '/vou/sale-order/query',
       '/vou/sale-order/get',
       '/vou/sale-order/save',
-      '/vou/sale-order/check',
+      '/vou/sale-order/submit',
       '/vou/sale-order/approve',
     ]
     const row = {
@@ -1258,18 +1264,21 @@ describe('shared VOU entity view model', () => {
         data: {
           documentId: row.documentId,
           documentNo: row.documentNo,
-          status: 'CHECKED',
-          revision: 4,
+          approval: {
+            ...documentView(config, vm.form.value).approval,
+            status: 'PENDING',
+            revision: 4,
+          },
         },
       }
     })
     const vm = useVoucherEntityViewModel(config)
 
-    expect(vm.canLifecycleAction(row, 'check')).toBe(true)
+    expect(vm.canLifecycleAction(row, 'submit')).toBe(true)
     expect(vm.canLifecycleAction(row, 'approve')).toBe(false)
     expect(await vm.lifecycleActionFromList(row, 'approve')).toBe(false)
-    expect(await vm.lifecycleActionFromList(row, 'check')).toBe(true)
-    expect(mockedPost).toHaveBeenCalledWith('vou/sale-order/check', {
+    expect(await vm.lifecycleActionFromList(row, 'submit')).toBe(true)
+    expect(mockedPost).toHaveBeenCalledWith('vou/sale-order/submit', {
       documentId: 'DOCUMENT-1',
       revision: 3,
     })
@@ -1280,7 +1289,7 @@ describe('shared VOU entity view model', () => {
       }),
       expect.any(Object),
     )
-    expect(vm.successMessage.value).toBe('SO-1 已核对。')
+    expect(vm.successMessage.value).toBe('SO-1 已提交审核。')
     expect(vm.actionLoading.value).toBeNull()
   })
 

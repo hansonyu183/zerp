@@ -319,15 +319,10 @@ JOIN LATERAL (
 ) entry ON true
 WHERE o.id = sqlc.arg(object_id) AND o.entity = sqlc.arg(entity) AND o.enabled;
 
--- name: ResolveBobLatestApprovedReferenceByEntry :one
+-- name: ValidateBobApprovedSnapshotReference :one
 SELECT o.id AS object_id, o.entity, o.code, o.enabled, entry.id AS approval_entry_id, entry.version_no
 FROM bob_objects o
 JOIN approval_entries entry ON entry.id = sqlc.arg(approval_entry_id)
-JOIN LATERAL (
-    SELECT id FROM approval_entries
-    WHERE domain = 'bob' AND entity = o.entity AND subject_id = o.id AND status = 'APPROVED'
-    ORDER BY version_no DESC LIMIT 1
-) latest ON latest.id = entry.id
 WHERE entry.domain = 'bob' AND entry.entity = o.entity AND entry.subject_id = o.id
   AND entry.status = 'APPROVED' AND o.id = sqlc.arg(object_id) AND o.entity = sqlc.arg(entity) AND o.enabled;
 
@@ -664,9 +659,11 @@ ORDER BY object.code,entry.product_id;
 SELECT id FROM acc_inventory_entries WHERE warehouse_id=sqlc.arg(warehouse_object_id) FOR UPDATE;
 
 -- name: ListWarehouseDisableInProgressDocuments :many
-SELECT DISTINCT document.id AS document_id,document.entity,document.document_no,document.status
+SELECT DISTINCT document.id AS document_id,document.entity,document.document_no,approval.status
 FROM vou_documents document
-WHERE document.status IN ('DRAFT','CHECKED') AND (
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+  AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
+WHERE approval.status IN ('DRAFT','PENDING') AND (
   EXISTS(SELECT 1 FROM vou_sale_order_details x WHERE x.document_id=document.id AND x.warehouse_object_id=sqlc.arg(warehouse_object_id)) OR
   EXISTS(SELECT 1 FROM vou_purchase_order_details x WHERE x.document_id=document.id AND x.warehouse_object_id=sqlc.arg(warehouse_object_id)) OR
   EXISTS(SELECT 1 FROM vou_sale_outbound_details x WHERE x.document_id=document.id AND x.warehouse_object_id=sqlc.arg(warehouse_object_id)) OR
@@ -696,20 +693,22 @@ SELECT document.id FROM vou_documents document WHERE (
 SELECT document.id AS document_id,document.entity,document.document_no
 FROM vou_documents document
 JOIN vou_sale_order_details detail ON detail.document_id=document.id
-WHERE document.status='APPROVED' AND detail.warehouse_object_id=sqlc.arg(warehouse_object_id)
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+  AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
+WHERE approval.status='APPROVED' AND detail.warehouse_object_id=sqlc.arg(warehouse_object_id)
   AND EXISTS (
     SELECT 1 FROM vou_product_lines order_line
     WHERE order_line.document_id=document.id
       AND order_line.base_quantity_micros >
-        COALESCE((SELECT sum(signoff_line.signed_base_quantity_micros) FROM vou_sale_signoff_lines signoff_line JOIN vou_documents signoff_document ON signoff_document.id=signoff_line.document_id AND signoff_document.status='APPROVED' WHERE signoff_line.source_order_line_id=order_line.id),0)
-        + COALESCE((SELECT sum(outbound_line.base_quantity_micros) FROM vou_sale_outbound_lines outbound_line JOIN vou_documents outbound_document ON outbound_document.id=outbound_line.document_id AND outbound_document.status='APPROVED' WHERE outbound_line.source_order_line_id=order_line.id AND NOT EXISTS (SELECT 1 FROM vou_sale_signoff_lines signoff_line JOIN vou_documents signoff_document ON signoff_document.id=signoff_line.document_id AND signoff_document.status='APPROVED' WHERE signoff_line.source_outbound_line_id=outbound_line.id)),0)
+        COALESCE((SELECT sum(signoff_line.signed_base_quantity_micros) FROM vou_sale_signoff_lines signoff_line JOIN vou_documents signoff_document ON signoff_document.id=signoff_line.document_id JOIN approval_entries signoff_approval ON signoff_approval.id=signoff_document.approval_entry_id AND signoff_approval.domain='vou' AND signoff_approval.entity=signoff_document.entity AND signoff_approval.subject_id=signoff_document.id AND signoff_approval.status='APPROVED' WHERE signoff_line.source_order_line_id=order_line.id),0)
+        + COALESCE((SELECT sum(outbound_line.base_quantity_micros) FROM vou_sale_outbound_lines outbound_line JOIN vou_documents outbound_document ON outbound_document.id=outbound_line.document_id JOIN approval_entries outbound_approval ON outbound_approval.id=outbound_document.approval_entry_id AND outbound_approval.domain='vou' AND outbound_approval.entity=outbound_document.entity AND outbound_approval.subject_id=outbound_document.id AND outbound_approval.status='APPROVED' WHERE outbound_line.source_order_line_id=order_line.id AND NOT EXISTS (SELECT 1 FROM vou_sale_signoff_lines signoff_line JOIN vou_documents signoff_document ON signoff_document.id=signoff_line.document_id JOIN approval_entries signoff_approval ON signoff_approval.id=signoff_document.approval_entry_id AND signoff_approval.domain='vou' AND signoff_approval.entity=signoff_document.entity AND signoff_approval.subject_id=signoff_document.id AND signoff_approval.status='APPROVED' WHERE signoff_line.source_outbound_line_id=outbound_line.id)),0)
   )
 UNION ALL
-SELECT document.id,document.entity,document.document_no FROM vou_documents document JOIN vou_purchase_order_details detail ON detail.document_id=document.id WHERE document.status='APPROVED' AND detail.warehouse_object_id=sqlc.arg(warehouse_object_id) AND detail.fulfillment_status='OPEN'
+SELECT document.id,document.entity,document.document_no FROM vou_documents document JOIN vou_purchase_order_details detail ON detail.document_id=document.id JOIN approval_entries approval ON approval.id=document.approval_entry_id AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id WHERE approval.status='APPROVED' AND detail.warehouse_object_id=sqlc.arg(warehouse_object_id) AND detail.fulfillment_status='OPEN'
 UNION ALL
-SELECT document.id,document.entity,document.document_no FROM vou_documents document JOIN vou_sale_signoff_details detail ON detail.document_id=document.id JOIN vou_sale_signoff_lines line ON line.document_id=document.id WHERE document.status='APPROVED' AND detail.warehouse_object_id=sqlc.arg(warehouse_object_id) GROUP BY document.id,document.entity,document.document_no HAVING EXISTS(SELECT 1 FROM vou_sale_signoff_lines source_line WHERE source_line.document_id=document.id AND source_line.signed_base_quantity_micros > COALESCE((SELECT sum(return_line.base_quantity_micros) FROM vou_sale_return_lines return_line JOIN vou_sale_return_details return_detail ON return_detail.document_id=return_line.document_id WHERE return_detail.return_kind='AFTER_SALE' AND return_line.source_signoff_line_id=source_line.id),0))
+SELECT document.id,document.entity,document.document_no FROM vou_documents document JOIN vou_sale_signoff_details detail ON detail.document_id=document.id JOIN vou_sale_signoff_lines line ON line.document_id=document.id JOIN approval_entries approval ON approval.id=document.approval_entry_id AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id WHERE approval.status='APPROVED' AND detail.warehouse_object_id=sqlc.arg(warehouse_object_id) GROUP BY document.id,document.entity,document.document_no HAVING EXISTS(SELECT 1 FROM vou_sale_signoff_lines source_line WHERE source_line.document_id=document.id AND source_line.signed_base_quantity_micros > COALESCE((SELECT sum(return_line.base_quantity_micros) FROM vou_sale_return_lines return_line JOIN vou_sale_return_details return_detail ON return_detail.document_id=return_line.document_id WHERE return_detail.return_kind='AFTER_SALE' AND return_line.source_signoff_line_id=source_line.id),0))
 UNION ALL
-SELECT document.id,document.entity,document.document_no FROM vou_documents document JOIN vou_purchase_inbound_details detail ON detail.document_id=document.id JOIN vou_purchase_inbound_lines line ON line.document_id=document.id WHERE document.status='APPROVED' AND detail.warehouse_object_id=sqlc.arg(warehouse_object_id) GROUP BY document.id,document.entity,document.document_no HAVING EXISTS(SELECT 1 FROM vou_purchase_inbound_lines source_line WHERE source_line.document_id=document.id AND source_line.base_quantity_micros > COALESCE((SELECT sum(return_line.base_quantity_micros) FROM vou_purchase_return_lines return_line WHERE return_line.source_inbound_line_id=source_line.id),0))
+SELECT document.id,document.entity,document.document_no FROM vou_documents document JOIN vou_purchase_inbound_details detail ON detail.document_id=document.id JOIN vou_purchase_inbound_lines line ON line.document_id=document.id JOIN approval_entries approval ON approval.id=document.approval_entry_id AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id WHERE approval.status='APPROVED' AND detail.warehouse_object_id=sqlc.arg(warehouse_object_id) GROUP BY document.id,document.entity,document.document_no HAVING EXISTS(SELECT 1 FROM vou_purchase_inbound_lines source_line WHERE source_line.document_id=document.id AND source_line.base_quantity_micros > COALESCE((SELECT sum(return_line.base_quantity_micros) FROM vou_purchase_return_lines return_line WHERE return_line.source_inbound_line_id=source_line.id),0))
 ORDER BY entity,document_no,document_id;
 
 -- name: ListBobCustomerCreditLimits :many

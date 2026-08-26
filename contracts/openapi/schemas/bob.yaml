@@ -2696,7 +2696,7 @@
           'documentId': { 'type': 'string' },
           'entity': { '$ref': './vou.yaml#/VouEntity' },
           'documentNo': { 'type': 'string' },
-          'status': { '$ref': './vou.yaml#/VouStatus' },
+          'status': { '$ref': './common.yaml#/ApprovalStatus' },
         },
     },
   'BobActiveReferenceCount':

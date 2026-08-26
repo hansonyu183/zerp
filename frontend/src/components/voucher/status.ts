@@ -2,7 +2,7 @@ import type { VoucherStatus } from './types'
 
 export const voucherStatusLabels: Readonly<Record<VoucherStatus, string>> = {
   DRAFT: '草稿',
-  CHECKED: '已核对',
+  PENDING: '待审核',
   APPROVED: '已批准',
 }
 

@@ -2792,20 +2792,22 @@ const listWarehouseDisableExecutableSources = `-- name: ListWarehouseDisableExec
 SELECT document.id AS document_id,document.entity,document.document_no
 FROM vou_documents document
 JOIN vou_sale_order_details detail ON detail.document_id=document.id
-WHERE document.status='APPROVED' AND detail.warehouse_object_id=$1
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+  AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
+WHERE approval.status='APPROVED' AND detail.warehouse_object_id=$1
   AND EXISTS (
     SELECT 1 FROM vou_product_lines order_line
     WHERE order_line.document_id=document.id
       AND order_line.base_quantity_micros >
-        COALESCE((SELECT sum(signoff_line.signed_base_quantity_micros) FROM vou_sale_signoff_lines signoff_line JOIN vou_documents signoff_document ON signoff_document.id=signoff_line.document_id AND signoff_document.status='APPROVED' WHERE signoff_line.source_order_line_id=order_line.id),0)
-        + COALESCE((SELECT sum(outbound_line.base_quantity_micros) FROM vou_sale_outbound_lines outbound_line JOIN vou_documents outbound_document ON outbound_document.id=outbound_line.document_id AND outbound_document.status='APPROVED' WHERE outbound_line.source_order_line_id=order_line.id AND NOT EXISTS (SELECT 1 FROM vou_sale_signoff_lines signoff_line JOIN vou_documents signoff_document ON signoff_document.id=signoff_line.document_id AND signoff_document.status='APPROVED' WHERE signoff_line.source_outbound_line_id=outbound_line.id)),0)
+        COALESCE((SELECT sum(signoff_line.signed_base_quantity_micros) FROM vou_sale_signoff_lines signoff_line JOIN vou_documents signoff_document ON signoff_document.id=signoff_line.document_id JOIN approval_entries signoff_approval ON signoff_approval.id=signoff_document.approval_entry_id AND signoff_approval.domain='vou' AND signoff_approval.entity=signoff_document.entity AND signoff_approval.subject_id=signoff_document.id AND signoff_approval.status='APPROVED' WHERE signoff_line.source_order_line_id=order_line.id),0)
+        + COALESCE((SELECT sum(outbound_line.base_quantity_micros) FROM vou_sale_outbound_lines outbound_line JOIN vou_documents outbound_document ON outbound_document.id=outbound_line.document_id JOIN approval_entries outbound_approval ON outbound_approval.id=outbound_document.approval_entry_id AND outbound_approval.domain='vou' AND outbound_approval.entity=outbound_document.entity AND outbound_approval.subject_id=outbound_document.id AND outbound_approval.status='APPROVED' WHERE outbound_line.source_order_line_id=order_line.id AND NOT EXISTS (SELECT 1 FROM vou_sale_signoff_lines signoff_line JOIN vou_documents signoff_document ON signoff_document.id=signoff_line.document_id JOIN approval_entries signoff_approval ON signoff_approval.id=signoff_document.approval_entry_id AND signoff_approval.domain='vou' AND signoff_approval.entity=signoff_document.entity AND signoff_approval.subject_id=signoff_document.id AND signoff_approval.status='APPROVED' WHERE signoff_line.source_outbound_line_id=outbound_line.id)),0)
   )
 UNION ALL
-SELECT document.id,document.entity,document.document_no FROM vou_documents document JOIN vou_purchase_order_details detail ON detail.document_id=document.id WHERE document.status='APPROVED' AND detail.warehouse_object_id=$1 AND detail.fulfillment_status='OPEN'
+SELECT document.id,document.entity,document.document_no FROM vou_documents document JOIN vou_purchase_order_details detail ON detail.document_id=document.id JOIN approval_entries approval ON approval.id=document.approval_entry_id AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id WHERE approval.status='APPROVED' AND detail.warehouse_object_id=$1 AND detail.fulfillment_status='OPEN'
 UNION ALL
-SELECT document.id,document.entity,document.document_no FROM vou_documents document JOIN vou_sale_signoff_details detail ON detail.document_id=document.id JOIN vou_sale_signoff_lines line ON line.document_id=document.id WHERE document.status='APPROVED' AND detail.warehouse_object_id=$1 GROUP BY document.id,document.entity,document.document_no HAVING EXISTS(SELECT 1 FROM vou_sale_signoff_lines source_line WHERE source_line.document_id=document.id AND source_line.signed_base_quantity_micros > COALESCE((SELECT sum(return_line.base_quantity_micros) FROM vou_sale_return_lines return_line JOIN vou_sale_return_details return_detail ON return_detail.document_id=return_line.document_id WHERE return_detail.return_kind='AFTER_SALE' AND return_line.source_signoff_line_id=source_line.id),0))
+SELECT document.id,document.entity,document.document_no FROM vou_documents document JOIN vou_sale_signoff_details detail ON detail.document_id=document.id JOIN vou_sale_signoff_lines line ON line.document_id=document.id JOIN approval_entries approval ON approval.id=document.approval_entry_id AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id WHERE approval.status='APPROVED' AND detail.warehouse_object_id=$1 GROUP BY document.id,document.entity,document.document_no HAVING EXISTS(SELECT 1 FROM vou_sale_signoff_lines source_line WHERE source_line.document_id=document.id AND source_line.signed_base_quantity_micros > COALESCE((SELECT sum(return_line.base_quantity_micros) FROM vou_sale_return_lines return_line JOIN vou_sale_return_details return_detail ON return_detail.document_id=return_line.document_id WHERE return_detail.return_kind='AFTER_SALE' AND return_line.source_signoff_line_id=source_line.id),0))
 UNION ALL
-SELECT document.id,document.entity,document.document_no FROM vou_documents document JOIN vou_purchase_inbound_details detail ON detail.document_id=document.id JOIN vou_purchase_inbound_lines line ON line.document_id=document.id WHERE document.status='APPROVED' AND detail.warehouse_object_id=$1 GROUP BY document.id,document.entity,document.document_no HAVING EXISTS(SELECT 1 FROM vou_purchase_inbound_lines source_line WHERE source_line.document_id=document.id AND source_line.base_quantity_micros > COALESCE((SELECT sum(return_line.base_quantity_micros) FROM vou_purchase_return_lines return_line WHERE return_line.source_inbound_line_id=source_line.id),0))
+SELECT document.id,document.entity,document.document_no FROM vou_documents document JOIN vou_purchase_inbound_details detail ON detail.document_id=document.id JOIN vou_purchase_inbound_lines line ON line.document_id=document.id JOIN approval_entries approval ON approval.id=document.approval_entry_id AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id WHERE approval.status='APPROVED' AND detail.warehouse_object_id=$1 GROUP BY document.id,document.entity,document.document_no HAVING EXISTS(SELECT 1 FROM vou_purchase_inbound_lines source_line WHERE source_line.document_id=document.id AND source_line.base_quantity_micros > COALESCE((SELECT sum(return_line.base_quantity_micros) FROM vou_purchase_return_lines return_line WHERE return_line.source_inbound_line_id=source_line.id),0))
 ORDER BY entity,document_no,document_id
 `
 
@@ -2836,9 +2838,11 @@ func (q *Queries) ListWarehouseDisableExecutableSources(ctx context.Context, war
 }
 
 const listWarehouseDisableInProgressDocuments = `-- name: ListWarehouseDisableInProgressDocuments :many
-SELECT DISTINCT document.id AS document_id,document.entity,document.document_no,document.status
+SELECT DISTINCT document.id AS document_id,document.entity,document.document_no,approval.status
 FROM vou_documents document
-WHERE document.status IN ('DRAFT','CHECKED') AND (
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+  AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
+WHERE approval.status IN ('DRAFT','PENDING') AND (
   EXISTS(SELECT 1 FROM vou_sale_order_details x WHERE x.document_id=document.id AND x.warehouse_object_id=$1) OR
   EXISTS(SELECT 1 FROM vou_purchase_order_details x WHERE x.document_id=document.id AND x.warehouse_object_id=$1) OR
   EXISTS(SELECT 1 FROM vou_sale_outbound_details x WHERE x.document_id=document.id AND x.warehouse_object_id=$1) OR
@@ -3295,48 +3299,6 @@ type ResolveBobLatestApprovedReferenceRow struct {
 func (q *Queries) ResolveBobLatestApprovedReference(ctx context.Context, arg ResolveBobLatestApprovedReferenceParams) (ResolveBobLatestApprovedReferenceRow, error) {
 	row := q.db.QueryRow(ctx, resolveBobLatestApprovedReference, arg.ObjectID, arg.Entity)
 	var i ResolveBobLatestApprovedReferenceRow
-	err := row.Scan(
-		&i.ObjectID,
-		&i.Entity,
-		&i.Code,
-		&i.Enabled,
-		&i.ApprovalEntryID,
-		&i.VersionNo,
-	)
-	return i, err
-}
-
-const resolveBobLatestApprovedReferenceByEntry = `-- name: ResolveBobLatestApprovedReferenceByEntry :one
-SELECT o.id AS object_id, o.entity, o.code, o.enabled, entry.id AS approval_entry_id, entry.version_no
-FROM bob_objects o
-JOIN approval_entries entry ON entry.id = $1
-JOIN LATERAL (
-    SELECT id FROM approval_entries
-    WHERE domain = 'bob' AND entity = o.entity AND subject_id = o.id AND status = 'APPROVED'
-    ORDER BY version_no DESC LIMIT 1
-) latest ON latest.id = entry.id
-WHERE entry.domain = 'bob' AND entry.entity = o.entity AND entry.subject_id = o.id
-  AND entry.status = 'APPROVED' AND o.id = $2 AND o.entity = $3 AND o.enabled
-`
-
-type ResolveBobLatestApprovedReferenceByEntryParams struct {
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-	ObjectID        string `db:"object_id" json:"object_id"`
-	Entity          string `db:"entity" json:"entity"`
-}
-
-type ResolveBobLatestApprovedReferenceByEntryRow struct {
-	ObjectID        string `db:"object_id" json:"object_id"`
-	Entity          string `db:"entity" json:"entity"`
-	Code            string `db:"code" json:"code"`
-	Enabled         bool   `db:"enabled" json:"enabled"`
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-	VersionNo       *int32 `db:"version_no" json:"version_no"`
-}
-
-func (q *Queries) ResolveBobLatestApprovedReferenceByEntry(ctx context.Context, arg ResolveBobLatestApprovedReferenceByEntryParams) (ResolveBobLatestApprovedReferenceByEntryRow, error) {
-	row := q.db.QueryRow(ctx, resolveBobLatestApprovedReferenceByEntry, arg.ApprovalEntryID, arg.ObjectID, arg.Entity)
-	var i ResolveBobLatestApprovedReferenceByEntryRow
 	err := row.Scan(
 		&i.ObjectID,
 		&i.Entity,
@@ -3902,4 +3864,41 @@ func (q *Queries) UpdateBobWarehousePayload(ctx context.Context, arg UpdateBobWa
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const validateBobApprovedSnapshotReference = `-- name: ValidateBobApprovedSnapshotReference :one
+SELECT o.id AS object_id, o.entity, o.code, o.enabled, entry.id AS approval_entry_id, entry.version_no
+FROM bob_objects o
+JOIN approval_entries entry ON entry.id = $1
+WHERE entry.domain = 'bob' AND entry.entity = o.entity AND entry.subject_id = o.id
+  AND entry.status = 'APPROVED' AND o.id = $2 AND o.entity = $3 AND o.enabled
+`
+
+type ValidateBobApprovedSnapshotReferenceParams struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	ObjectID        string `db:"object_id" json:"object_id"`
+	Entity          string `db:"entity" json:"entity"`
+}
+
+type ValidateBobApprovedSnapshotReferenceRow struct {
+	ObjectID        string `db:"object_id" json:"object_id"`
+	Entity          string `db:"entity" json:"entity"`
+	Code            string `db:"code" json:"code"`
+	Enabled         bool   `db:"enabled" json:"enabled"`
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	VersionNo       *int32 `db:"version_no" json:"version_no"`
+}
+
+func (q *Queries) ValidateBobApprovedSnapshotReference(ctx context.Context, arg ValidateBobApprovedSnapshotReferenceParams) (ValidateBobApprovedSnapshotReferenceRow, error) {
+	row := q.db.QueryRow(ctx, validateBobApprovedSnapshotReference, arg.ApprovalEntryID, arg.ObjectID, arg.Entity)
+	var i ValidateBobApprovedSnapshotReferenceRow
+	err := row.Scan(
+		&i.ObjectID,
+		&i.Entity,
+		&i.Code,
+		&i.Enabled,
+		&i.ApprovalEntryID,
+		&i.VersionNo,
+	)
+	return i, err
 }

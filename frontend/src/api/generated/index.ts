@@ -341,7 +341,6 @@ export type { VouAttachmentInitiateResponse } from './models/VouAttachmentInitia
 export type { VouAttachmentInitiateResult } from './models/VouAttachmentInitiateResult';
 export type { VouAttachmentRemoveRequest } from './models/VouAttachmentRemoveRequest';
 export type { VouAttachmentView } from './models/VouAttachmentView';
-export type { VouAuditEventView } from './models/VouAuditEventView';
 export type { VouAuditHistoryResponse } from './models/VouAuditHistoryResponse';
 export type { VouAvailableAssetItem } from './models/VouAvailableAssetItem';
 export type { VouAvailableAssetQueryRequest } from './models/VouAvailableAssetQueryRequest';
@@ -424,7 +423,6 @@ export type { VouServiceAcceptanceView } from './models/VouServiceAcceptanceView
 export type { VouServiceContractInput } from './models/VouServiceContractInput';
 export type { VouServiceContractView } from './models/VouServiceContractView';
 export type { VouSettlementMethodSnapshotView } from './models/VouSettlementMethodSnapshotView';
-export type { VouStatus } from './models/VouStatus';
 export type { VouUnitSnapshotView } from './models/VouUnitSnapshotView';
 export type { WarehouseDisableBlockers } from './models/WarehouseDisableBlockers';
 export type { WarehouseDocumentConflict } from './models/WarehouseDocumentConflict';

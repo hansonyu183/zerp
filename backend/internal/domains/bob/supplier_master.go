@@ -453,7 +453,7 @@ func (s *Service) SupplierGet(ctx context.Context, input GetInput) (SupplierDeta
 
 func (s *Service) resolveSupplierReferences(ctx context.Context, tx pgx.Tx, data SupplierData) (SupplierData, error) {
 	if data.SettlementMethodID != "" {
-		reference, err := s.auxiliaryResolver.ResolveAuxiliaryReference(ctx, tx, "settlement-method", data.SettlementMethodID, "")
+		reference, err := s.resolveNamedAuxiliaryReference(ctx, tx, "settlement-method", data.SettlementMethodID, "")
 		if err != nil {
 			return SupplierData{}, domainError(ErrorConflict, "settlement-method reference is unavailable", nil, err)
 		}

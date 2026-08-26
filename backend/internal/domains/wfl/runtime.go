@@ -7,6 +7,7 @@ import (
 
 	"github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
 	"go.starlark.net/starlark"
@@ -14,7 +15,7 @@ import (
 
 func (s *Service) registerSubscriptions(bus *txevent.Bus) error {
 	for _, entity := range workflowDocumentEntities() {
-		if err := bus.Subscribe(voudomain.DocumentApprovedTopic(entity), "wfl-starlark-approved", s.handleApproved); err != nil {
+		if err := voudomain.ApprovalTopic(entity).Subscribe(bus, "wfl-starlark-approved", s.handleApproval); err != nil {
 			return err
 		}
 		if err := bus.Subscribe(voudomain.DocumentDeletedTopic(entity), "wfl-starlark-deleted", s.handleDeleted); err != nil {
@@ -22,6 +23,13 @@ func (s *Service) registerSubscriptions(bus *txevent.Bus) error {
 		}
 	}
 	return nil
+}
+
+type workflowApprovalEvent struct {
+	Entity, DocumentID, DocumentNo string
+	Revision                       int64
+	Snapshot                       voudomain.DocumentView
+	ActorID, RequestID             string
 }
 
 func workflowDocumentEntities() []string {
@@ -38,16 +46,25 @@ func workflowDocumentEntities() []string {
 	return result
 }
 
-func (s *Service) handleApproved(ctx context.Context, tx pgx.Tx, raw txevent.Event) error {
-	event, ok := raw.(voudomain.DocumentApprovedEvent)
-	if !ok {
+func (s *Service) handleApproval(ctx context.Context, tx pgx.Tx, source approval.Event[voudomain.DocumentView]) error {
+	if source.Action != approval.ActionApproved {
+		return nil
+	}
+	snapshot := source.Payload
+	if source.ToRevision == nil || source.ToStatus == nil || *source.ToStatus != approval.StatusApproved ||
+		source.Entry.Domain != "vou" || snapshot.DocumentID != source.Entry.SubjectID ||
+		snapshot.Entity != source.Entry.Entity ||
+		snapshot.Approval.Status != approval.StatusApproved || snapshot.Approval.Revision != *source.ToRevision {
 		return txevent.Reject("invalid workflow approval event", nil)
 	}
-	source, err := s.runtime.LoadWorkflowSource(ctx, tx, event.Entity, event.DocumentID)
+	event := workflowApprovalEvent{Entity: snapshot.Entity, DocumentID: snapshot.DocumentID,
+		DocumentNo: snapshot.DocumentNo, Revision: *source.ToRevision, Snapshot: snapshot,
+		ActorID: source.ActorID, RequestID: source.RequestID}
+	runtimeSource, err := s.runtime.LoadWorkflowSource(ctx, tx, event.Entity, event.DocumentID)
 	if err != nil {
 		return err
 	}
-	if err := s.executeExistingNodes(ctx, tx, event, source); err != nil {
+	if err := s.executeExistingNodes(ctx, tx, event, runtimeSource); err != nil {
 		return err
 	}
 	hasExistingRoot, err := s.queries.WithTx(tx).WorkflowDocumentHasRootInstance(ctx, workflowText(event.DocumentID))
@@ -80,7 +97,7 @@ func (s *Service) handleApproved(ctx context.Context, tx pgx.Tx, raw txevent.Eve
 		if root.Entity != event.Entity {
 			continue
 		}
-		matched, revisionErr := workflowStartMatches(item.compiled, source)
+		matched, revisionErr := workflowStartMatches(item.compiled, runtimeSource)
 		if revisionErr != nil {
 			return txevent.Reject("workflow start condition failed", map[string]any{"definitionId": item.id, "error": revisionErr.Error()})
 		}
@@ -103,7 +120,7 @@ func (s *Service) handleApproved(ctx context.Context, tx pgx.Tx, raw txevent.Eve
 		return nil
 	}
 	return s.executeNode(ctx, tx, selected.compiled, processID, nodeID, selected.compiled.RootKey,
-		event.DocumentID, source, event.ActorID, event.RequestID, "")
+		event.DocumentID, runtimeSource, event.ActorID, event.RequestID, "")
 }
 
 func workflowStartMatches(compiled compiledScriptDefinition, source any) (bool, error) {
@@ -123,7 +140,7 @@ func (s *Service) ensureRootInstance(ctx context.Context, tx pgx.Tx, definition 
 	id, code, name string
 	revision       int64
 	compiled       compiledScriptDefinition
-}, event voudomain.DocumentApprovedEvent) (string, string, bool, error) {
+}, event workflowApprovalEvent) (string, string, bool, error) {
 	queries := s.queries.WithTx(tx)
 	locked, err := queries.LockWorkflowRootInstance(ctx, sqlc.LockWorkflowRootInstanceParams{
 		DefinitionID: definition.id, RootDocumentID: workflowText(event.DocumentID),
@@ -165,7 +182,7 @@ func (s *Service) ensureRootInstance(ctx context.Context, tx pgx.Tx, definition 
 	return processID, nodeID, true, nil
 }
 
-func (s *Service) executeExistingNodes(ctx context.Context, tx pgx.Tx, event voudomain.DocumentApprovedEvent, source any) error {
+func (s *Service) executeExistingNodes(ctx context.Context, tx pgx.Tx, event workflowApprovalEvent, source any) error {
 	rows, err := s.queries.WithTx(tx).LockWorkflowNodesForDocument(ctx, workflowText(event.DocumentID))
 	if err != nil {
 		return err

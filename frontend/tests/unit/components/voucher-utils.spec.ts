@@ -14,11 +14,11 @@ import {
 
 describe('VOU decimal and settlement helpers', () => {
   it('keeps voucher status labels in one ordered source', () => {
-    expect(formatVoucherStatus('CHECKED')).toBe('已核对')
-    expect(formatVoucherStatus('CHECKED', { CHECKED: '已确认' })).toBe('已确认')
+    expect(formatVoucherStatus('PENDING')).toBe('待审核')
+    expect(formatVoucherStatus('PENDING', { PENDING: '审核中' })).toBe('审核中')
     expect(voucherStatusOptions.map((option) => option.value)).toEqual([
       'DRAFT',
-      'CHECKED',
+      'PENDING',
       'APPROVED',
     ])
   })
@@ -96,8 +96,18 @@ describe('VOU decimal and settlement helpers', () => {
       documentId: 'SO-1',
       entity: 'sale-order',
       documentNo: 'SOR-20260725-0001',
-      status: 'CHECKED',
-      revision: 3,
+      approval: {
+        status: 'PENDING',
+        revision: 3,
+        createdAt: '2026-07-25T00:00:00Z',
+        createdBy: 'USER-1',
+        updatedAt: '2026-07-25T01:00:00Z',
+        updatedBy: 'USER-2',
+        submittedAt: '2026-07-25T01:00:00Z',
+        submittedBy: 'USER-2',
+        approvedAt: null,
+        approvedBy: null,
+      },
       amount: '25.00',
       data: {
         businessDate: '2026-07-25',
@@ -105,22 +115,16 @@ describe('VOU decimal and settlement helpers', () => {
         productLines: [],
       },
       attachments: [],
-      createdAt: '2026-07-25T00:00:00Z',
-      createdBy: 'USER-1',
-      updatedAt: '2026-07-25T01:00:00Z',
-      updatedBy: 'USER-2',
-      checkedAt: '2026-07-25T01:00:00Z',
-      checkedBy: 'USER-2',
     })
 
     expect(atomic).toMatchObject({
       documentId: 'SO-1',
       entity: 'sale-order',
-      status: 'CHECKED',
+      status: 'PENDING',
       revision: 3,
       businessDate: '2026-07-25',
       currency: 'CNY',
-      checkedBy: 'USER-2',
+      updatedBy: 'USER-2',
     })
   })
 })

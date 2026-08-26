@@ -385,7 +385,7 @@ unapprove: latest APPROVED → PENDING；前一个 APPROVED 自动回落为 late
 
 `enabled` 属于稳定对象而不是版本，新对象默认启用。对象拥有最新批准版本时允许启停，即使候选并存也不改变候选。禁用对象不可用于新的业务引用，历史快照不受影响。
 
-仓库停用不提供独立预检。用户确认后直接调用停用接口；接口在同一事务内锁定仓库对象、有效版本、库存和相关单据，并一次校验：业务控制账簿中该仓库所有产品的实时库存均为零，不存在引用该仓库的 `DRAFT` 或 `CHECKED` VOU，不存在仍可生成后续库存动作的已批准来源单据，也不存在当前有效 BOB 引用。任一阻断存在时返回 `inventory`、`documents`、`sources`、`references` 四类最小冲突摘要，仓库保持启用且不产生部分状态变化。已批准历史库存事实和快照不阻止停用，也不被改写。
+仓库停用不提供独立预检。用户确认后直接调用停用接口；接口在同一事务内锁定仓库对象、有效版本、库存和相关单据，并一次校验：业务控制账簿中该仓库所有产品的实时库存均为零，不存在引用该仓库的 `DRAFT` 或 `PENDING` VOU，不存在仍可生成后续库存动作的已批准来源单据，也不存在当前有效 BOB 引用。任一阻断存在时返回 `inventory`、`documents`、`sources`、`references` 四类最小冲突摘要，仓库保持启用且不产生部分状态变化。已批准历史库存事实和快照不阻止停用，也不被改写。
 
 主体不使用启停或归档状态。客户、供应、雇佣、服务和销售合作关系分别启停；停用一条关系只阻止该关系形成新交易，不级联停用同一主体的其他关系，也不改变主体身份。
 
@@ -507,14 +507,14 @@ unapprove: latest APPROVED → PENDING；前一个 APPROVED 自动回落为 late
 
 客户销售和应收引用客户结算子账户，采购和应付引用供应关系，员工业务引用雇佣关系，普通服务引用服务关系，外部兼职与渠道收益引用销售合作关系，其他往来引用对应的明确强类型关系。任何 VOU 或 ACC 事实都不得只保存裸主体 ID，再由调用方用自由文本或可配置枚举解释其业务身份。
 
-BOB 提供内部领域能力 `ResolveApprovedReference(entity, objectId, approvalEntryId)`。交易写入必须在自身数据库事务中调用该能力，并确认：
+BOB 提供两个不得混用的内部领域能力。`ResolveLatestApprovedReference(entity, objectId)` 用于新建、新选择或主动重选，只接受当前 latest `APPROVED`。`ValidateApprovedSnapshotReference(entity, objectId, approvalEntryId)` 用于已有交易保存未修改引用，只确认 entry 属于该对象、曾正式批准且快照身份一致；它不要求 entry 仍是 latest。两者都必须在交易自身数据库事务中调用，并确认：
 
 1. 对象和 Approval entry 存在且实体匹配；
-2. entry 是该 subject 中版本号最大的 `APPROVED` entry；
+2. latest 解析的 entry 是该 subject 中版本号最大的 `APPROVED` entry；snapshot 校验的 entry 具有正式批准元数据且身份不可伪造；
 3. 对象当前启用；
 4. 当前操作者满足必要的数据范围规则。
 
-需要按对象读取正式版本时，内部调用方使用 `ResolveLatestApprovedReference(entity, objectId)`；该能力遵循相同的事务共享锁与有效性规则，VOU 仅用它解析客户或供应商配置的默认员工。候选、最大创建版本和历史批准版本都不得作为当前正式事实。
+VOU 已保存的 `objectId + approvalEntryId` 快照在对象产生新批准版本后仍可继续保存；若用户主动重选同一对象，则必须重新解析 latest。候选、最大创建版本和伪造 entry 永远不得作为正式快照。
 
 解析车辆正式引用时，还必须在同一事务内按 `carrierAffiliation.type` 确认经营主体或服务关系存在 latest `APPROVED` 版本。车辆和承运归属对象的共享锁保持到消费方事务结束，防止校验后承运归属立即失效。
 

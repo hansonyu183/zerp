@@ -253,11 +253,12 @@ SELECT line.id AS source_line_id, document.id AS source_document_id,
        line.unit_price_cents
 FROM vou_price_lines line
 JOIN vou_documents document ON document.id=line.document_id
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
 WHERE line.document_entity='sale-pricing'
   AND line.product_object_id=sqlc.arg(product_object_id)
   AND document.currency=sqlc.arg(currency)
   AND document.business_date <= sqlc.arg(business_date)
-  AND document.status = 'APPROVED'
+  AND approval.status = 'APPROVED'
 ORDER BY document.business_date DESC, document.document_no DESC
 LIMIT 1;
 
@@ -267,84 +268,48 @@ SELECT line.id AS source_line_id, document.id AS source_document_id,
        line.unit_price_cents
 FROM vou_price_lines line
 JOIN vou_documents document ON document.id=line.document_id
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
 JOIN vou_purchase_inquiry_details inquiry ON inquiry.document_id=document.id
 WHERE line.document_entity='purchase-inquiry'
   AND line.product_object_id=sqlc.arg(product_object_id)
   AND inquiry.supplier_object_id=sqlc.arg(supplier_object_id)
   AND document.currency=sqlc.arg(currency)
   AND document.business_date <= sqlc.arg(business_date)
-  AND document.status = 'APPROVED'
+  AND approval.status = 'APPROVED'
 ORDER BY document.business_date DESC, document.document_no DESC
 LIMIT 1;
 
 -- name: InsertVouDocument :exec
 INSERT INTO vou_documents (
-    id, entity, document_no, business_date, due_date, currency, total_amount_cents, remark,
-    parent_entity, parent_document_id, created_by, updated_by
+    id, entity, document_no, approval_entry_id, business_date, due_date, currency, total_amount_cents, remark,
+    parent_entity, parent_document_id
 ) VALUES (
-    sqlc.arg(id), sqlc.arg(entity), sqlc.arg(document_no), sqlc.arg(business_date), sqlc.narg(due_date),
+    sqlc.arg(id), sqlc.arg(entity), sqlc.arg(document_no), sqlc.arg(approval_entry_id), sqlc.arg(business_date), sqlc.narg(due_date),
     sqlc.arg(currency), sqlc.arg(total_amount_cents), sqlc.narg(remark),
-    sqlc.narg(parent_entity), sqlc.narg(parent_document_id),
-    sqlc.arg(actor_id), sqlc.arg(actor_id)
+    sqlc.narg(parent_entity), sqlc.narg(parent_document_id)
 );
 
 -- name: LockVouDocument :one
-SELECT *
-FROM vou_documents
-WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity)
-FOR UPDATE;
+SELECT sqlc.embed(document), sqlc.embed(approval)
+FROM vou_documents document
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+WHERE document.id = sqlc.arg(id) AND document.entity = sqlc.arg(entity)
+  AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
+FOR UPDATE OF approval, document;
 
 -- name: GetVouDocument :one
-SELECT *
-FROM vou_documents
-WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity);
+SELECT sqlc.embed(document), sqlc.embed(approval)
+FROM vou_documents document
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+WHERE document.id = sqlc.arg(id) AND document.entity = sqlc.arg(entity)
+  AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id;
 
 -- name: UpdateVouDraft :one
 UPDATE vou_documents
 SET business_date = sqlc.arg(business_date), due_date = sqlc.narg(due_date), currency = sqlc.arg(currency),
-    total_amount_cents = sqlc.arg(total_amount_cents), remark = sqlc.narg(remark),
-    revision = revision + 1, updated_at = now(), updated_by = sqlc.arg(actor_id)
+    total_amount_cents = sqlc.arg(total_amount_cents), remark = sqlc.narg(remark)
 WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity)
-  AND revision = sqlc.arg(revision) AND status = 'DRAFT'
-RETURNING revision;
-
--- name: CheckVouDocument :one
-UPDATE vou_documents
-SET status = 'CHECKED', revision = revision + 1,
-    reviewed_at = now(), reviewed_by = sqlc.arg(actor_id),
-    updated_at = now(), updated_by = sqlc.arg(actor_id)
-WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity)
-  AND revision = sqlc.arg(revision) AND status = 'DRAFT'
-RETURNING revision;
-
--- name: UncheckVouDocument :one
-UPDATE vou_documents
-SET status = 'DRAFT', revision = revision + 1,
-    reviewed_at = NULL, reviewed_by = NULL,
-    updated_at = now(), updated_by = sqlc.arg(actor_id)
-WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity)
-  AND revision = sqlc.arg(revision) AND status = 'CHECKED'
-RETURNING revision;
-
--- name: ApproveVouDocument :one
-UPDATE vou_documents
-SET status = 'APPROVED', revision = revision + 1,
-    approved_at = now(), approved_by = sqlc.arg(actor_id),
-    posted_at = now(), posted_by = sqlc.arg(actor_id),
-    updated_at = now(), updated_by = sqlc.arg(actor_id)
-WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity)
-  AND revision = sqlc.arg(revision) AND status = 'CHECKED'
-RETURNING revision;
-
--- name: UnapproveVouDocument :one
-UPDATE vou_documents
-SET status = 'CHECKED', revision = revision + 1,
-    approved_at = NULL, approved_by = NULL,
-    posted_at = NULL, posted_by = NULL,
-    updated_at = now(), updated_by = sqlc.arg(actor_id)
-WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity)
-  AND revision = sqlc.arg(revision) AND status = 'APPROVED'
-RETURNING revision;
+RETURNING id;
 
 -- name: IsVouDocumentInClosedPeriod :one
 SELECT EXISTS(
@@ -378,8 +343,10 @@ WHERE parent_document_id = sqlc.arg(parent_document_id)
 -- name: CountVouDocuments :one
 SELECT count(*)
 FROM vou_documents d
+JOIN approval_entries approval ON approval.id=d.approval_entry_id
 WHERE d.entity = sqlc.arg(entity)
-  AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]), 0) = 0 OR d.status = ANY(sqlc.arg(statuses)::text[]))
+  AND approval.domain='vou' AND approval.entity=d.entity AND approval.subject_id=d.id
+  AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]), 0) = 0 OR approval.status = ANY(sqlc.arg(statuses)::text[]))
   AND (sqlc.narg(date_from)::date IS NULL OR d.business_date >= sqlc.narg(date_from)::date)
   AND (sqlc.narg(date_to)::date IS NULL OR d.business_date <= sqlc.narg(date_to)::date)
   AND (
@@ -442,12 +409,13 @@ WHERE d.entity = sqlc.arg(entity)
   );
 
 -- name: ListVouDocuments :many
-SELECT d.*,
+SELECT d.*, approval.status, approval.revision, approval.updated_at,
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name, sr.customer_name,
                 pqi.supplier_name, po.supplier_name, pi.supplier_name, pr.supplier_name, r.counterparty_name,
                 p.counterparty_name, er.employee_name, ep.employee_name, elw.employee_name, oi.counterparty_name,
                 aa.supplier_name, asl.counterparty_name, bd.counterparty_name, oi.source_name, '') AS party_name
 FROM vou_documents d
+JOIN approval_entries approval ON approval.id=d.approval_entry_id
 LEFT JOIN vou_sale_order_details so ON so.document_id = d.id
 LEFT JOIN vou_sale_outbound_details sob ON sob.document_id = d.id
 LEFT JOIN vou_sale_delivery_details sd ON sd.document_id = d.id
@@ -467,7 +435,8 @@ LEFT JOIN vou_asset_acquisition_details aa ON aa.document_id = d.id
 LEFT JOIN vou_asset_sale_details asl ON asl.document_id = d.id
 LEFT JOIN vou_bill_details bd ON bd.document_id = d.id
 WHERE d.entity = sqlc.arg(entity)
-  AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]), 0) = 0 OR d.status = ANY(sqlc.arg(statuses)::text[]))
+  AND approval.domain='vou' AND approval.entity=d.entity AND approval.subject_id=d.id
+  AND (COALESCE(cardinality(sqlc.arg(statuses)::text[]), 0) = 0 OR approval.status = ANY(sqlc.arg(statuses)::text[]))
   AND (sqlc.narg(date_from)::date IS NULL OR d.business_date >= sqlc.narg(date_from)::date)
   AND (sqlc.narg(date_to)::date IS NULL OR d.business_date <= sqlc.narg(date_to)::date)
   AND (
@@ -510,14 +479,14 @@ WHERE d.entity = sqlc.arg(entity)
       OR bd.counterparty_code ILIKE '%' || sqlc.arg(keyword) || '%' OR bd.counterparty_name ILIKE '%' || sqlc.arg(keyword) || '%'
   )
 ORDER BY
-  CASE WHEN sqlc.arg(sort_field)::text = 'updatedAt' AND sqlc.arg(sort_order)::text = 'asc' THEN d.updated_at END ASC,
-  CASE WHEN sqlc.arg(sort_field)::text = 'updatedAt' AND sqlc.arg(sort_order)::text = 'desc' THEN d.updated_at END DESC,
+  CASE WHEN sqlc.arg(sort_field)::text = 'updatedAt' AND sqlc.arg(sort_order)::text = 'asc' THEN approval.updated_at END ASC,
+  CASE WHEN sqlc.arg(sort_field)::text = 'updatedAt' AND sqlc.arg(sort_order)::text = 'desc' THEN approval.updated_at END DESC,
   CASE WHEN sqlc.arg(sort_field)::text = 'documentNo' AND sqlc.arg(sort_order)::text = 'asc' THEN d.document_no END ASC,
   CASE WHEN sqlc.arg(sort_field)::text = 'documentNo' AND sqlc.arg(sort_order)::text = 'desc' THEN d.document_no END DESC,
   CASE WHEN sqlc.arg(sort_field)::text = 'businessDate' AND sqlc.arg(sort_order)::text = 'asc' THEN d.business_date END ASC,
   CASE WHEN sqlc.arg(sort_field)::text = 'businessDate' AND sqlc.arg(sort_order)::text = 'desc' THEN d.business_date END DESC,
-  CASE WHEN sqlc.arg(sort_field)::text = 'status' AND sqlc.arg(sort_order)::text = 'asc' THEN d.status END ASC,
-  CASE WHEN sqlc.arg(sort_field)::text = 'status' AND sqlc.arg(sort_order)::text = 'desc' THEN d.status END DESC,
+  CASE WHEN sqlc.arg(sort_field)::text = 'status' AND sqlc.arg(sort_order)::text = 'asc' THEN approval.status END ASC,
+  CASE WHEN sqlc.arg(sort_field)::text = 'status' AND sqlc.arg(sort_order)::text = 'desc' THEN approval.status END DESC,
   CASE WHEN sqlc.arg(sort_field)::text = 'amount' AND sqlc.arg(sort_order)::text = 'asc' THEN d.total_amount_cents END ASC,
   CASE WHEN sqlc.arg(sort_field)::text = 'amount' AND sqlc.arg(sort_order)::text = 'desc' THEN d.total_amount_cents END DESC,
   d.id DESC
@@ -934,11 +903,12 @@ ORDER BY line_no;
 SELECT formula.product_line_id, formula.output_base_quantity_micros,
        document.id AS source_document_id, document.document_no AS source_document_no
 FROM vou_documents document
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
 JOIN vou_sale_order_details detail ON detail.document_id = document.id
 JOIN vou_product_lines product_line ON product_line.document_id = document.id
 JOIN vou_sale_order_formulas formula ON formula.product_line_id = product_line.id
 WHERE document.entity = 'sale-order'
-  AND document.status IN ('CHECKED', 'APPROVED')
+  AND approval.status IN ('PENDING', 'APPROVED')
   AND detail.customer_object_id = sqlc.arg(customer_object_id)
   AND product_line.product_object_id = sqlc.arg(product_object_id)
 ORDER BY document.business_date DESC, document.document_no DESC
@@ -973,34 +943,8 @@ INSERT INTO vou_expense_lines (
 -- name: ListVouExpenseLines :many
 SELECT * FROM vou_expense_lines WHERE document_id = sqlc.arg(document_id) ORDER BY line_no;
 
--- name: InsertVouAuditEvent :exec
-INSERT INTO vou_audit_events (
-    id, document_id, entity, event_type, from_status, to_status, actor_id, reason, request_id, summary
-) VALUES (
-    sqlc.arg(id), sqlc.arg(document_id), sqlc.arg(entity), sqlc.arg(event_type),
-    sqlc.narg(from_status), sqlc.arg(to_status), sqlc.arg(actor_id),
-    sqlc.narg(reason), sqlc.arg(request_id), sqlc.arg(summary)
-);
-
--- name: CountVouAuditEvents :one
-SELECT count(*) FROM vou_audit_events
-WHERE document_id = sqlc.arg(document_id) AND entity = sqlc.arg(entity);
-
--- name: ListVouAuditEvents :many
-SELECT * FROM vou_audit_events
-WHERE document_id = sqlc.arg(document_id) AND entity = sqlc.arg(entity)
-ORDER BY occurred_at DESC, id DESC
-LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
-
 -- name: CountVouAttachments :one
 SELECT count(*) FROM vou_document_attachments WHERE document_id = sqlc.arg(document_id);
-
--- name: TouchVouDraftAttachment :one
-UPDATE vou_documents
-SET revision = revision + 1, updated_at = now(), updated_by = sqlc.arg(actor_id)
-WHERE id = sqlc.arg(id) AND entity = sqlc.arg(entity)
-  AND revision = sqlc.arg(revision) AND status = 'DRAFT'
-RETURNING revision;
 
 -- name: CountPendingVouAttachments :one
 SELECT count(*)
@@ -1035,9 +979,11 @@ SELECT f.*, links.document_id, links.entity, links.document_status,
        links.child_id, links.child_no, links.stage
 FROM vou_files f
 JOIN LATERAL (
-    SELECT a.document_id, d.entity, d.status AS document_status,
+    SELECT a.document_id, d.entity, approval.status AS document_status,
            ''::varchar AS child_id, ''::varchar AS child_no, ''::varchar AS stage
-    FROM vou_document_attachments a JOIN vou_documents d ON d.id=a.document_id
+    FROM vou_document_attachments a
+    JOIN vou_documents d ON d.id=a.document_id
+    JOIN approval_entries approval ON approval.id=d.approval_entry_id
     WHERE a.file_id=f.id
 ) links ON true
 WHERE f.upload_token_hash = sqlc.arg(upload_token_hash)
@@ -1069,12 +1015,13 @@ WHERE t.token_hash = sqlc.arg(token_hash) AND t.file_id = f.id
 RETURNING f.id, f.storage_key, f.original_name, f.content_type, f.declared_size, f.sha256_hex;
 
 -- name: LockVouAttachmentForRemoval :one
-SELECT f.*, d.entity, d.status AS document_status
+SELECT f.*, d.entity, approval.status AS document_status
 FROM vou_files f
 JOIN vou_document_attachments a ON a.file_id = f.id
 JOIN vou_documents d ON d.id = a.document_id
+JOIN approval_entries approval ON approval.id=d.approval_entry_id
 WHERE a.document_id = sqlc.arg(document_id) AND f.id = sqlc.arg(file_id)
-FOR UPDATE OF f, d;
+FOR UPDATE OF f, d, approval;
 
 -- name: DeleteVouDocumentAttachment :execrows
 DELETE FROM vou_document_attachments
@@ -1124,7 +1071,7 @@ SELECT * FROM vou_bill_lines WHERE document_id=sqlc.arg(document_id) ORDER BY li
 -- name: SumVouBillLineFaceAmounts :one
 SELECT COALESCE(sum(face_amount_cents),0)::bigint FROM vou_bill_lines WHERE document_id=sqlc.arg(document_id);
 -- name: UpdateVouBillDocumentTotal :exec
-UPDATE vou_documents SET total_amount_cents=sqlc.arg(total_amount_cents),updated_at=now() WHERE id=sqlc.arg(id) AND entity=sqlc.arg(entity);
+UPDATE vou_documents SET total_amount_cents=sqlc.arg(total_amount_cents) WHERE id=sqlc.arg(id) AND entity=sqlc.arg(entity);
 -- name: InsertVouBillCashLine :exec
 INSERT INTO vou_bill_cash_lines(id,document_id,line_no,bill_line_id,fund_account_object_id,fund_account_approval_entry_id,fund_account_code,fund_account_name,direction,amount_type,amount_cents,remark)
 VALUES(sqlc.arg(id),sqlc.arg(document_id),sqlc.arg(line_no),sqlc.narg(bill_line_id),sqlc.arg(fund_account_object_id),sqlc.arg(fund_account_approval_entry_id),sqlc.arg(fund_account_code),sqlc.arg(fund_account_name),sqlc.arg(direction),sqlc.arg(amount_type),sqlc.arg(amount_cents),sqlc.narg(remark));
@@ -1132,26 +1079,29 @@ VALUES(sqlc.arg(id),sqlc.arg(document_id),sqlc.arg(line_no),sqlc.narg(bill_line_
 SELECT * FROM vou_bill_cash_lines WHERE document_id=sqlc.arg(document_id) ORDER BY line_no;
 
 -- name: FindWorkflowVouChild :one
-SELECT id,document_no,status,revision FROM vou_documents
-WHERE parent_document_id=sqlc.arg(source_document_id) AND entity=sqlc.arg(entity) AND status<>'DELETED'
-ORDER BY created_at,id LIMIT 1 FOR UPDATE;
+SELECT document.id,document.document_no,approval.status,approval.revision
+FROM vou_documents document
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+WHERE document.parent_document_id=sqlc.arg(source_document_id) AND document.entity=sqlc.arg(entity)
+ORDER BY approval.created_at,document.id LIMIT 1 FOR UPDATE OF document,approval;
 
 -- name: LockWorkflowExpenseReimbursement :one
-SELECT d.id,d.entity,d.document_no,d.status,d.revision,d.business_date,d.currency,
-       d.total_amount_cents,d.remark,d.created_at,d.created_by,d.updated_at,d.updated_by,
+SELECT d.id,d.entity,d.document_no,approval.status,approval.revision,d.business_date,d.currency,
+       d.total_amount_cents,d.remark,approval.created_at,approval.created_by,approval.updated_at,approval.updated_by,
        x.employee_object_id,x.employee_approval_entry_id,x.employee_code,x.employee_name
 FROM vou_documents d
+JOIN approval_entries approval ON approval.id=d.approval_entry_id
 JOIN vou_expense_reimbursement_details x ON x.document_id=d.id
 WHERE d.id=sqlc.arg(reimbursement_id)
-FOR UPDATE OF d;
+FOR UPDATE OF d,approval;
 
 -- name: ListGeneratedWorkflowChildrenForUpdate :many
-SELECT id,entity,status,revision,created_by,
-       EXISTS(SELECT 1 FROM vou_document_attachments attachment WHERE attachment.document_id=vou_documents.id) AS has_attachments
-FROM vou_documents WHERE parent_document_id=sqlc.arg(parent_document_id) FOR UPDATE;
+SELECT document.id,document.entity,approval.status,approval.revision,approval.created_by,
+       EXISTS(SELECT 1 FROM vou_document_attachments attachment WHERE attachment.document_id=document.id) AS has_attachments
+FROM vou_documents document
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+WHERE document.parent_document_id=sqlc.arg(parent_document_id) FOR UPDATE OF document,approval;
 
--- name: DeleteVouAuditEventsForDocument :exec
-DELETE FROM vou_audit_events WHERE document_id=sqlc.arg(document_id);
 -- name: DeleteVouSaleOutboundLines :exec
 DELETE FROM vou_sale_outbound_lines WHERE document_id=sqlc.arg(document_id);
 -- name: DeleteVouSaleOutboundDetails :exec
@@ -1198,7 +1148,7 @@ WHERE document_id=sqlc.arg(document_id)
 FOR UPDATE;
 
 -- name: LockVouSaleOutboundSource :one
-SELECT document.document_no,document.status,document.business_date,
+SELECT document.document_no,approval.status,document.business_date,
        COALESCE(document.currency,'') AS currency,document.total_amount_cents,
        outbound.customer_object_id,outbound.customer_approval_entry_id,
        outbound.customer_code,outbound.customer_name,
@@ -1206,11 +1156,12 @@ SELECT document.document_no,document.status,document.business_date,
        outbound.warehouse_code,outbound.warehouse_name,
        relationship.operating_entity_id
 FROM vou_documents AS document
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
 JOIN vou_sale_outbound_details AS outbound ON outbound.document_id=document.id
 JOIN bob_customer_accounts AS account ON account.object_id=outbound.customer_object_id
 JOIN bob_customer_relationships AS relationship ON relationship.object_id=account.customer_relationship_id
 WHERE document.id=sqlc.arg(document_id) AND document.entity='sale-outbound'
-FOR UPDATE OF document,outbound;
+FOR UPDATE OF document,approval,outbound;
 
 -- name: InsertVouSaleDeliveryDetail :exec
 INSERT INTO vou_sale_delivery_details(
@@ -1282,10 +1233,11 @@ WHERE document_id=sqlc.arg(document_id)
 ORDER BY line_no;
 
 -- name: GetVouSaleDeliveryStoredState :one
-SELECT source.status AS source_status,1::bigint AS line_count,
+SELECT approval.status AS source_status,1::bigint AS line_count,
        delivery.carrier_type IS NOT NULL AND delivery.vehicle_object_id IS NOT NULL AS complete
 FROM vou_sale_delivery_details AS delivery
 JOIN vou_documents AS source ON source.id=delivery.source_outbound_id
+JOIN approval_entries approval ON approval.id=source.approval_entry_id
 WHERE delivery.document_id=sqlc.arg(document_id);
 
 -- name: FindVouRefusalReturnDocument :one
@@ -1294,13 +1246,14 @@ FROM vou_sale_return_details
 WHERE source_signoff_id=sqlc.arg(source_signoff_id) AND return_kind='REFUSAL';
 
 -- name: LockVouRefusalReturnSource :one
-SELECT detail.source_order_id,document.business_date,document.status,document.currency,
+SELECT detail.source_order_id,document.business_date,approval.status,document.currency,
        detail.customer_object_id,detail.customer_approval_entry_id,detail.customer_code,detail.customer_name,
        detail.warehouse_object_id,detail.warehouse_approval_entry_id,detail.warehouse_code,detail.warehouse_name
 FROM vou_sale_signoff_details detail
 JOIN vou_documents document ON document.id=detail.document_id
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
 WHERE detail.document_id=sqlc.arg(document_id)
-FOR UPDATE OF document;
+FOR UPDATE OF document,approval;
 
 -- name: ListVouRefusalReturnSourceLines :many
 SELECT id,product_object_id,product_approval_entry_id,product_code,product_name,entered_unit_symbol,
@@ -1357,7 +1310,9 @@ FROM vou_documents document JOIN vou_sale_order_details detail ON detail.documen
 WHERE document.id=sqlc.arg(order_id);
 
 -- name: LockVouDocumentStatusForShare :one
-SELECT status FROM vou_documents WHERE id=sqlc.arg(document_id) FOR SHARE;
+SELECT approval.status FROM vou_documents document
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+WHERE document.id=sqlc.arg(document_id) FOR SHARE OF document,approval;
 -- name: HasVouPurchaseInboundLines :one
 SELECT EXISTS(SELECT 1 FROM vou_purchase_inbound_lines WHERE document_id=sqlc.arg(document_id));
 -- name: HasVouPurchaseReturnLines :one
@@ -1374,7 +1329,9 @@ FROM vou_sale_delivery_details x WHERE x.document_id=sqlc.arg(document_id);
 SELECT EXISTS(SELECT 1 FROM vou_sale_signoff_lines l WHERE l.document_id=sqlc.arg(document_id)
               AND l.signed_base_quantity_micros+l.rejected_base_quantity_micros>=0);
 -- name: ListVouWorkflowChildrenForShare :many
-SELECT id,entity,status FROM vou_documents WHERE parent_document_id=sqlc.arg(parent_document_id) FOR SHARE;
+SELECT document.id,document.entity,approval.status FROM vou_documents document
+JOIN approval_entries approval ON approval.id=document.approval_entry_id
+WHERE document.parent_document_id=sqlc.arg(parent_document_id) FOR SHARE OF document,approval;
 -- name: GetPurchaseOrderSettlementGate :one
 SELECT detail.settlement_term_code,COALESCE(detail.settlement_method_name,'') AS settlement_method_name,
        COALESCE(detail.settlement_rule_type,'') AS settlement_rule_type,

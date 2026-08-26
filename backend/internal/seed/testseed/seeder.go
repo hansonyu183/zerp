@@ -140,6 +140,7 @@ func New(
 		voudomain.AttachmentOptions{Root: attachmentRoot},
 		logger,
 		voudomain.WithAccountingControl(accounting),
+		voudomain.WithApprovalAuthorizer(seedAuthorizer{}),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create voucher service: %w", err)
@@ -323,4 +324,16 @@ func (s *Seeder) activateTestUserPassword(ctx context.Context, userID string) er
 
 func requestID(key, action string) string {
 	return seedPrefix + key + "-" + action
+}
+
+func mustApprovalActor(request string) approval.Actor {
+	id := actorID
+	if strings.HasSuffix(request, "-approve") || strings.HasSuffix(request, "-reject") {
+		id = reviewerID
+	}
+	actor, err := seedActor(id, request)
+	if err != nil {
+		panic(err)
+	}
+	return actor
 }

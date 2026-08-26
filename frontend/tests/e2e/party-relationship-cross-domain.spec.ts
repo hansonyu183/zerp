@@ -42,7 +42,10 @@ interface Party {
 interface VoucherMutation {
   documentId: string
   documentNo?: string
-  revision: number
+  approval: {
+    approvalEntryId: string
+    revision: number
+  }
 }
 
 interface BobView {
@@ -370,6 +373,7 @@ async function createApprovedSharedRelationships(
 
 async function createAndApproveContract(
   page: Page,
+  reviewer: Api,
   counterparty: { type: '服务关系' | '销售合作关系'; code: string },
   handlerCode: string,
   applicableFrom = '2026-01-01',
@@ -401,14 +405,29 @@ async function createAndApproveContract(
   const envelope = (await (await created).json()) as Envelope<VoucherMutation>
   expect(String(envelope.code), envelope.message).toBe('0')
   await workspace.getByRole('button', { name: '取消编辑', exact: true }).click()
-  await workspace.getByRole('button', { name: '核对', exact: true }).click()
-  await workspace.getByRole('button', { name: '批准', exact: true }).click()
+  const submitResponse = page.waitForResponse((response) =>
+    response.url().endsWith('/vou/service-contract/submit'),
+  )
+  await workspace.getByRole('button', { name: '提交审核', exact: true }).click()
+  const submittedEnvelope = (await (
+    await submitResponse
+  ).json()) as Envelope<VoucherMutation>
+  expect(String(submittedEnvelope.code), submittedEnvelope.message).toBe('0')
+  const submitted = submittedEnvelope.data
+  await reviewer.ok<VoucherMutation>('vou/service-contract/approve', {
+    documentId: submitted.documentId,
+    revision: submitted.approval.revision,
+  })
+  await page.goto(
+    `/vou/service-contract?documentId=${submitted.documentId}&mode=view`,
+  )
   await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
   return envelope.data.documentId
 }
 
 async function createAndApproveAcceptance(
   page: Page,
+  reviewer: Api,
   contractDocumentId: string,
 ): Promise<void> {
   await page.goto('/vou/service-acceptance')
@@ -423,10 +442,31 @@ async function createAndApproveAcceptance(
   await workspace.getByLabel('履约事实', { exact: true }).fill('E2E 履约')
   await workspace.getByLabel('验收事实', { exact: true }).fill('E2E 验收')
   await workspace.getByLabel('金额', { exact: true }).fill('100.00')
+  const createResponse = page.waitForResponse((response) =>
+    response.url().endsWith('/vou/service-acceptance/create'),
+  )
   await workspace.getByRole('button', { name: '保存', exact: true }).click()
+  const createdEnvelope = (await (
+    await createResponse
+  ).json()) as Envelope<VoucherMutation>
+  expect(String(createdEnvelope.code), createdEnvelope.message).toBe('0')
   await workspace.getByRole('button', { name: '取消编辑', exact: true }).click()
-  await workspace.getByRole('button', { name: '核对', exact: true }).click()
-  await workspace.getByRole('button', { name: '批准', exact: true }).click()
+  const submitResponse = page.waitForResponse((response) =>
+    response.url().endsWith('/vou/service-acceptance/submit'),
+  )
+  await workspace.getByRole('button', { name: '提交审核', exact: true }).click()
+  const submittedEnvelope = (await (
+    await submitResponse
+  ).json()) as Envelope<VoucherMutation>
+  expect(String(submittedEnvelope.code), submittedEnvelope.message).toBe('0')
+  const submitted = submittedEnvelope.data
+  await reviewer.ok<VoucherMutation>('vou/service-acceptance/approve', {
+    documentId: submitted.documentId,
+    revision: submitted.approval.revision,
+  })
+  await page.goto(
+    `/vou/service-acceptance?documentId=${submitted.documentId}&mode=view`,
+  )
   await expect(workspace.getByText('已批准', { exact: true })).toBeVisible()
 }
 
@@ -588,39 +628,45 @@ async function createEnabledWorkflow(
 }
 
 async function approveVou(
-  api: Api,
+  operator: Api,
+  reviewer: Api,
   entity: string,
   input: VoucherMutation,
 ): Promise<VoucherMutation> {
-  const checked = await api.ok<VoucherMutation>(`vou/${entity}/check`, {
+  const submitted = await operator.ok<VoucherMutation>(`vou/${entity}/submit`, {
     documentId: input.documentId,
-    revision: input.revision,
+    revision: input.approval.revision,
   })
-  return api.ok<VoucherMutation>(`vou/${entity}/approve`, {
-    documentId: checked.documentId,
-    revision: checked.revision,
+  return reviewer.ok<VoucherMutation>(`vou/${entity}/approve`, {
+    documentId: submitted.documentId,
+    revision: submitted.approval.revision,
   })
 }
 
 async function approveWorkflowNode(
-  api: Api,
+  operator: Api,
+  reviewer: Api,
   processCode: string,
   processId: string,
   entity: string,
 ): Promise<VoucherMutation> {
-  const instance = await api.ok<WflInstance>(`wfl/${processCode}/get`, {
+  const instance = await operator.ok<WflInstance>(`wfl/${processCode}/get`, {
     processId,
   })
   const node = instance.nodes.find((item) => item.documentEntity === entity)
   expect(node, `${entity} workflow node`).toBeTruthy()
-  return approveVou(api, entity, {
+  return approveVou(operator, reviewer, entity, {
     documentId: node!.documentId,
-    revision: node!.documentRevision,
+    approval: {
+      approvalEntryId: '',
+      revision: node!.documentRevision,
+    },
   })
 }
 
 async function createCollectedSale(
   operator: Api,
+  reviewer: Api,
   workerState: WflWorkerState,
   customer: ReferenceMutation,
   suffix: string,
@@ -702,7 +748,7 @@ workflow(code="${processCode}", name="${processCode}", root=order, when=lambda s
 ])`
   await createEnabledWorkflow(operator, processCode, script, order.documentId)
   await workerState.grantWorkflowPermissions([processCode])
-  await approveVou(operator, 'sale-order', order)
+  await approveVou(operator, reviewer, 'sale-order', order)
   const processPage = await operator.ok<{
     items: Array<{ processId: string; rootDocumentId: string }>
   }>(`wfl/${processCode}/query`, {
@@ -716,18 +762,21 @@ workflow(code="${processCode}", name="${processCode}", root=order, when=lambda s
   expect(process).toBeTruthy()
   await approveWorkflowNode(
     operator,
+    reviewer,
     processCode,
     process!.processId,
     'sale-outbound',
   )
   const delivery = await approveWorkflowNode(
     operator,
+    reviewer,
     processCode,
     process!.processId,
     'sale-delivery',
   )
   const signoff = await approveWorkflowNode(
     operator,
+    reviewer,
     processCode,
     process!.processId,
     'sale-signoff',
@@ -746,7 +795,7 @@ workflow(code="${processCode}", name="${processCode}", root=order, when=lambda s
       },
     },
   )
-  await approveVou(operator, 'sales-receipt', receipt)
+  await approveVou(operator, reviewer, 'sales-receipt', receipt)
   return {
     deliveryDocumentId: delivery.documentId,
     signoffDocumentId: signoff.documentId,
@@ -890,7 +939,8 @@ async function createSaleOrderDraft(
 }
 
 async function createApprovedDirectDelivery(
-  api: Api,
+  operator: Api,
+  reviewer: Api,
   workerState: WflWorkerState,
   suffix: string,
   input: {
@@ -903,14 +953,14 @@ async function createApprovedDirectDelivery(
   },
 ): Promise<VoucherView> {
   const order = await createSaleOrderDraft(
-    api,
+    operator,
     input.customer,
     input.warehouse,
     input.product,
     input.businessDate,
     input.salesperson,
   )
-  const orderView = await api.ok<VoucherView>('vou/sale-order/get', {
+  const orderView = await operator.ok<VoucherView>('vou/sale-order/get', {
     documentId: order.documentId,
   })
   const line = orderView.data.productLines?.[0]
@@ -932,10 +982,10 @@ workflow(code="${processCode}", name="${processCode}", root=order, when=lambda s
     "businessDate": source["data"]["businessDate"],
   })),
 ])`
-  await createEnabledWorkflow(api, processCode, script, order.documentId)
+  await createEnabledWorkflow(operator, processCode, script, order.documentId)
   await workerState.grantWorkflowPermissions([processCode])
-  await approveVou(api, 'sale-order', order)
-  const processPage = await api.ok<{
+  await approveVou(operator, reviewer, 'sale-order', order)
+  const processPage = await operator.ok<{
     items: Array<{ processId: string; rootDocumentId: string }>
   }>(`wfl/${processCode}/query`, {
     page: 1,
@@ -947,18 +997,20 @@ workflow(code="${processCode}", name="${processCode}", root=order, when=lambda s
   )
   expect(process, 'internal delivery workflow instance').toBeTruthy()
   await approveWorkflowNode(
-    api,
+    operator,
+    reviewer,
     processCode,
     process!.processId,
     'sale-outbound',
   )
   const delivery = await approveWorkflowNode(
-    api,
+    operator,
+    reviewer,
     processCode,
     process!.processId,
     'sale-delivery',
   )
-  return api.ok<VoucherView>('vou/sale-delivery/get', {
+  return operator.ok<VoucherView>('vou/sale-delivery/get', {
     documentId: delivery.documentId,
   })
 }
@@ -1053,13 +1105,18 @@ test(
 
       const serviceContractDocumentId = await createAndApproveContract(
         page,
+        reviewerSession.api,
         {
           type: '服务关系',
           code: facts.otherUnit.code!,
         },
         workerState.fixtures.employee,
       )
-      await createAndApproveAcceptance(page, serviceContractDocumentId)
+      await createAndApproveAcceptance(
+        page,
+        reviewerSession.api,
+        serviceContractDocumentId,
+      )
       const customer = await createAttributedCustomer(
         session.api,
         reviewerSession.api,
@@ -1068,6 +1125,7 @@ test(
       )
       const sale = await createCollectedSale(
         session.api,
+        reviewerSession.api,
         workerState,
         customer,
         suffix,
@@ -1256,7 +1314,7 @@ test(
       for (const draft of [firstEntityDraft, secondEntityDraft]) {
         await session.api.ok<VoucherMutation>('vou/sale-order/delete', {
           documentId: draft.documentId,
-          revision: draft.revision,
+          revision: draft.approval.revision,
           reason: 'E2E 修复仓库停用阻断',
         })
       }
@@ -1317,6 +1375,7 @@ test(
       )
       const internalDelivery = await createApprovedDirectDelivery(
         session.api,
+        reviewerSession.api,
         workerState,
         suffix,
         {
@@ -1497,42 +1556,44 @@ test(
       await calculationWorkspace
         .getByRole('button', { name: '取消编辑', exact: true })
         .click()
-      const calculationChecked = await session.api.post(
-        'vou/intermediary-calculation/check',
+      const calculationSubmitted = await session.api.post(
+        'vou/intermediary-calculation/submit',
         {
           documentId: calculationCreated.documentId,
-          revision: calculationCreated.revision,
+          revision: calculationCreated.approval.revision,
         },
       )
-      expect(String(calculationChecked.code), calculationChecked.message).toBe(
-        '0',
-      )
-      const checkedCalculation = calculationChecked.data as VoucherMutation
-      const missingContract = await session.api.post(
+      expect(
+        String(calculationSubmitted.code),
+        calculationSubmitted.message,
+      ).toBe('0')
+      const submittedCalculation = calculationSubmitted.data as VoucherMutation
+      const missingContract = await reviewerSession.api.post(
         'vou/intermediary-calculation/approve',
         {
-          documentId: checkedCalculation.documentId,
-          revision: checkedCalculation.revision,
+          documentId: submittedCalculation.documentId,
+          revision: submittedCalculation.approval.revision,
         },
       )
       expect(String(missingContract.code)).not.toBe('0')
       expect(missingContract.message).toContain(
         'missing applicable sales contract',
       )
-      const calculationUnchecked = await session.api.post(
-        'vou/intermediary-calculation/uncheck',
+      const calculationUnsubmitted = await session.api.post(
+        'vou/intermediary-calculation/unsubmit',
         {
-          documentId: checkedCalculation.documentId,
-          revision: checkedCalculation.revision,
+          documentId: submittedCalculation.documentId,
+          revision: submittedCalculation.approval.revision,
         },
       )
       expect(
-        String(calculationUnchecked.code),
-        calculationUnchecked.message,
+        String(calculationUnsubmitted.code),
+        calculationUnsubmitted.message,
       ).toBe('0')
 
       const salesContractDocumentId = await createAndApproveContract(
         page,
+        reviewerSession.api,
         {
           type: '销售合作关系',
           code: facts.salesPartner.code!,
@@ -1543,6 +1604,7 @@ test(
       // The second approved sales contract deliberately overlaps the first.
       const latestSalesContractDocumentId = await createAndApproveContract(
         page,
+        reviewerSession.api,
         {
           type: '销售合作关系',
           code: facts.salesPartner.code!,
@@ -1601,12 +1663,23 @@ test(
       await calculationWorkspace
         .getByRole('button', { name: '取消编辑', exact: true })
         .click()
-      await calculationWorkspace
-        .getByRole('button', { name: '核对', exact: true })
-        .click()
-      await calculationWorkspace
-        .getByRole('button', { name: '批准', exact: true })
-        .click()
+      const repairedSubmitted = await session.api.ok<VoucherMutation>(
+        'vou/intermediary-calculation/submit',
+        {
+          documentId: calculationSavedEnvelope.data.documentId,
+          revision: calculationSavedEnvelope.data.approval.revision,
+        },
+      )
+      await reviewerSession.api.ok<VoucherMutation>(
+        'vou/intermediary-calculation/approve',
+        {
+          documentId: repairedSubmitted.documentId,
+          revision: repairedSubmitted.approval.revision,
+        },
+      )
+      await page.goto(
+        `/vou/intermediary-calculation?documentId=${repairedSubmitted.documentId}&mode=view`,
+      )
       await expect(
         calculationWorkspace.getByText('已批准', { exact: true }),
       ).toBeVisible()

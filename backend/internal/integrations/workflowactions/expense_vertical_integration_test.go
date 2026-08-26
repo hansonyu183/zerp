@@ -80,19 +80,19 @@ func createApprovedReimbursement(t *testing.T, service *voudomain.Service, emplo
 	created, err := service.Create(t.Context(), voudomain.EntityExpenseReimbursement, voudomain.CreateInput{Data: voudomain.DraftInput{
 		BusinessDate: "2026-08-16", Currency: "CNY", Employee: &employee,
 		ExpenseLines: []voudomain.ExpenseLineInput{{Category: "交通", Description: "流程纵切", Amount: "20.00"}},
-	}}, actorID, requestID+"-create")
+	}}, workflowActor(t, requestID+"-create"))
 	if err != nil {
 		t.Fatalf("create reimbursement: %v", err)
 	}
-	checked, err := service.Check(t.Context(), voudomain.EntityExpenseReimbursement, voudomain.DocumentRevisionInput{
-		DocumentID: created.DocumentID, Revision: created.Revision,
-	}, actorID, requestID+"-check")
+	checked, err := service.Submit(t.Context(), voudomain.EntityExpenseReimbursement, voudomain.DocumentRevisionInput{
+		DocumentID: created.DocumentID, Revision: created.Approval.Revision,
+	}, workflowActor(t, requestID+"-submit"))
 	if err != nil {
 		t.Fatalf("check reimbursement: %v", err)
 	}
 	approved, err := service.Approve(t.Context(), voudomain.EntityExpenseReimbursement, voudomain.DocumentRevisionInput{
-		DocumentID: created.DocumentID, Revision: checked.Revision,
-	}, actorID, requestID+"-approve")
+		DocumentID: created.DocumentID, Revision: checked.Approval.Revision,
+	}, workflowActor(t, requestID+"-approve"))
 	if err != nil {
 		t.Fatalf("approve reimbursement: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestExpenseWorkflowRunsThroughRealVOUAdapterInOneApproval(t *testing.T) {
 		Code: "WF" + suffix, Name: "流程资金账户", Currency: "CNY", OperatingEntityID: operating.ObjectID,
 	}, submitterID, actorID)
 	vouService, err := voudomain.NewService(pool, bobService, auxiliaryResolver, bus,
-		voudomain.AttachmentOptions{Root: t.TempDir()}, logger)
+		voudomain.AttachmentOptions{Root: t.TempDir()}, logger, voudomain.WithApprovalAuthorizer(authorization.Func(nil)))
 	if err != nil {
 		t.Fatalf("create VOU service: %v", err)
 	}
@@ -196,8 +196,9 @@ workflow(code="` + code + `", name="费用付款纵切", root=root, edges=[
 		t.Fatalf("instance = %+v, err=%v", instance, err)
 	}
 	var paymentID string
-	if err = pool.QueryRow(t.Context(), `SELECT id FROM vou_documents
-		WHERE parent_document_id=$1 AND entity='expense-payment' AND status='DRAFT'`, approved.DocumentID).Scan(&paymentID); err != nil {
+	if err = pool.QueryRow(t.Context(), `SELECT document.id FROM vou_documents document
+		JOIN approval_entries entry ON entry.id=document.approval_entry_id
+		WHERE document.parent_document_id=$1 AND document.entity='expense-payment' AND entry.status='DRAFT'`, approved.DocumentID).Scan(&paymentID); err != nil {
 		t.Fatalf("workflow payment draft: %v", err)
 	}
 	if instance.Nodes[1].DocumentID != paymentID || instance.Nodes[1].BusinessParentDocumentID != approved.DocumentID {
@@ -206,15 +207,15 @@ workflow(code="` + code + `", name="费用付款纵切", root=root, edges=[
 	originalProcessID := instance.ProcessID
 	originalPaymentNodeID := instance.Nodes[1].NodeInstanceID
 	reversed, err := vouService.Unapprove(t.Context(), voudomain.EntityExpenseReimbursement, voudomain.ReverseInput{
-		DocumentID: approved.DocumentID, Revision: approved.Revision, Reason: "验证流程重建",
-	}, actorID, "wfl-formal-unapprove")
+		DocumentID: approved.DocumentID, Revision: approved.Approval.Revision, Reason: "验证流程重建",
+	}, workflowActor(t, "wfl-formal-unapprove"))
 	if err != nil {
 		t.Fatalf("unapprove workflow source: %v", err)
 	}
 	reapproved, err := vouService.Approve(t.Context(), voudomain.EntityExpenseReimbursement, voudomain.DocumentRevisionInput{
-		DocumentID: approved.DocumentID, Revision: reversed.Revision,
-	}, actorID, "wfl-formal-reapprove")
-	if err != nil || reapproved.Status != voudomain.StatusApproved {
+		DocumentID: approved.DocumentID, Revision: reversed.Approval.Revision,
+	}, workflowActor(t, "wfl-formal-reapprove"))
+	if err != nil || reapproved.Approval.Status != approval.StatusApproved {
 		t.Fatalf("reapprove workflow source = %+v, err=%v", reapproved, err)
 	}
 	instance, err = wflService.InstanceGetByDefinitionCode(t.Context(), code, wfldomain.InstanceGetInput{ProcessID: originalProcessID})

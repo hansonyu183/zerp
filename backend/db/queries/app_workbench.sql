@@ -90,9 +90,12 @@ LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 -- name: CountWorkbenchVouItems :one
 SELECT count(*)
 FROM vou_documents document
+JOIN approval_entries approval
+  ON approval.id=document.approval_entry_id
+ AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
 WHERE (
-    (document.status = 'DRAFT' AND document.entity = ANY(sqlc.arg(draft_entities)::text[]))
-    OR (document.status = 'CHECKED' AND document.entity = ANY(sqlc.arg(checked_entities)::text[]))
+    (approval.status = 'DRAFT' AND document.entity = ANY(sqlc.arg(draft_entities)::text[]))
+    OR (approval.status = 'PENDING' AND document.entity = ANY(sqlc.arg(pending_entities)::text[]))
   )
   AND (
     sqlc.arg(keyword)::text = ''
@@ -121,14 +124,17 @@ WHERE (
 
 -- name: ListWorkbenchVouItems :many
 SELECT document.id AS document_id, document.entity, document.document_no,
-       document.status, document.revision, document.business_date::text AS business_date,
+       approval.status, approval.revision, document.business_date::text AS business_date,
        COALESCE(document.currency, '') AS currency, document.total_amount_cents,
-       document.updated_at,
+       approval.updated_at,
        COALESCE(so.customer_name, sob.customer_name, sd.customer_name, ss.customer_name,
                 sr.customer_name, pqi.supplier_name, po.supplier_name, pi.supplier_name, pr.supplier_name,
                 receipt.counterparty_name, payment.counterparty_name, expense.employee_name, writeoff.employee_name,
                 NULLIF(income.counterparty_name, ''), income.source_name, '') AS party_name
 FROM vou_documents document
+JOIN approval_entries approval
+  ON approval.id=document.approval_entry_id
+ AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
 LEFT JOIN vou_sale_order_details so ON so.document_id = document.id
 LEFT JOIN vou_sale_outbound_details sob ON sob.document_id = document.id
 LEFT JOIN vou_sale_delivery_details sd ON sd.document_id = document.id
@@ -144,8 +150,8 @@ LEFT JOIN vou_expense_reimbursement_details expense ON expense.document_id = doc
 LEFT JOIN vou_employee_loan_writeoff_details writeoff ON writeoff.document_id = document.id
 LEFT JOIN vou_other_income_details income ON income.document_id = document.id
 WHERE (
-    (document.status = 'DRAFT' AND document.entity = ANY(sqlc.arg(draft_entities)::text[]))
-    OR (document.status = 'CHECKED' AND document.entity = ANY(sqlc.arg(checked_entities)::text[]))
+    (approval.status = 'DRAFT' AND document.entity = ANY(sqlc.arg(draft_entities)::text[]))
+    OR (approval.status = 'PENDING' AND document.entity = ANY(sqlc.arg(pending_entities)::text[]))
   )
   AND (
     sqlc.arg(keyword)::text = ''
@@ -156,5 +162,5 @@ WHERE (
                 NULLIF(income.counterparty_name, ''), income.source_name, '')
        ILIKE '%' || sqlc.arg(keyword) || '%'
   )
-ORDER BY document.updated_at DESC, document.id ASC
+ORDER BY approval.updated_at DESC, document.id ASC
 LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);

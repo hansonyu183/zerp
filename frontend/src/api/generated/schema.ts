@@ -1062,7 +1062,7 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.VouMutationResponse } } };
     };
   };
-  "/vou/{entity}/check": {
+  "/vou/{entity}/submit": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path: { "entity": Models.VouEntity; }; cookie?: never };
@@ -1070,7 +1070,7 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.VouMutationResponse } } };
     };
   };
-  "/vou/{entity}/uncheck": {
+  "/vou/{entity}/unsubmit": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path: { "entity": Models.VouEntity; }; cookie?: never };
@@ -1695,7 +1695,6 @@ export interface components {
       "BobActiveReferenceBlockers": Models.BobActiveReferenceBlockers;
       "BobUnapproveResponse": Models.BobUnapproveResponse;
       "WarehouseInventoryConflict": Models.WarehouseInventoryConflict;
-      "VouStatus": Models.VouStatus;
       "WarehouseDocumentConflict": Models.WarehouseDocumentConflict;
       "WarehouseDisableBlockers": Models.WarehouseDisableBlockers;
       "BobDisableResponse": Models.BobDisableResponse;
@@ -1787,7 +1786,6 @@ export interface components {
       "VouReverseRequest": Models.VouReverseRequest;
       "VouDocumentRevisionRequest": Models.VouDocumentRevisionRequest;
       "VouHistoryRequest": Models.VouHistoryRequest;
-      "VouAuditEventView": Models.VouAuditEventView;
       "VouAuditHistoryResponse": Models.VouAuditHistoryResponse;
       "VouAttachmentInitiateRequest": Models.VouAttachmentInitiateRequest;
       "VouAttachmentInitiateResult": Models.VouAttachmentInitiateResult;

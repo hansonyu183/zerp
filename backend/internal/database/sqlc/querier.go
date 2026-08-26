@@ -31,9 +31,7 @@ type Querier interface {
 	ApprovalVersionsExist(ctx context.Context, arg ApprovalVersionsExistParams) (bool, error)
 	ApproveAccountingMapping(ctx context.Context, arg ApproveAccountingMappingParams) (int64, error)
 	ApproveAccountingOpening(ctx context.Context, arg ApproveAccountingOpeningParams) (int64, error)
-	ApproveVouDocument(ctx context.Context, arg ApproveVouDocumentParams) (int64, error)
 	BuildAccountingPeriodBalances(ctx context.Context, arg BuildAccountingPeriodBalancesParams) error
-	CheckVouDocument(ctx context.Context, arg CheckVouDocumentParams) (int64, error)
 	ClearVouInventoryCountResults(ctx context.Context, documentID string) error
 	ClearVouProductLineExecution(ctx context.Context, documentID string) error
 	ClearWorkflowNodeDocument(ctx context.Context, documentID *string) error
@@ -72,7 +70,6 @@ type Querier interface {
 	CountOtherEnabledUsersWithPermission(ctx context.Context, arg CountOtherEnabledUsersWithPermissionParams) (int64, error)
 	CountPendingVouAttachments(ctx context.Context, documentID string) (int64, error)
 	CountVouAttachments(ctx context.Context, documentID string) (int64, error)
-	CountVouAuditEvents(ctx context.Context, arg CountVouAuditEventsParams) (int64, error)
 	CountVouDocuments(ctx context.Context, arg CountVouDocumentsParams) (int64, error)
 	CountVouDocumentsByEntity(ctx context.Context, entity string) (int64, error)
 	CountVouDocumentsByParentAndEntity(ctx context.Context, arg CountVouDocumentsByParentAndEntityParams) (int64, error)
@@ -160,7 +157,6 @@ type Querier interface {
 	DeleteVouAssetLiquidationLines(ctx context.Context, documentID string) error
 	DeleteVouAssetSaleLines(ctx context.Context, documentID string) error
 	DeleteVouAttachmentByFileID(ctx context.Context, fileID string) (int64, error)
-	DeleteVouAuditEventsForDocument(ctx context.Context, documentID string) error
 	DeleteVouBillCashLines(ctx context.Context, documentID string) error
 	DeleteVouBillDetails(ctx context.Context, documentID string) error
 	DeleteVouBillLines(ctx context.Context, documentID string) error
@@ -305,7 +301,7 @@ type Querier interface {
 	GetVouAssetLiquidationDetail(ctx context.Context, documentID string) (VouAssetLiquidationDetail, error)
 	GetVouAssetSaleDetail(ctx context.Context, documentID string) (VouAssetSaleDetail, error)
 	GetVouBillDetail(ctx context.Context, documentID string) (VouBillDetail, error)
-	GetVouDocument(ctx context.Context, arg GetVouDocumentParams) (VouDocument, error)
+	GetVouDocument(ctx context.Context, arg GetVouDocumentParams) (GetVouDocumentRow, error)
 	GetVouEmployeeLoanWriteoffDetail(ctx context.Context, documentID string) (VouEmployeeLoanWriteoffDetail, error)
 	GetVouExpensePaymentDetail(ctx context.Context, documentID string) (VouExpensePaymentDetail, error)
 	GetVouExpenseReimbursementDetail(ctx context.Context, documentID string) (VouExpenseReimbursementDetail, error)
@@ -391,7 +387,6 @@ type Querier interface {
 	InsertVouAssetLiquidationLine(ctx context.Context, arg InsertVouAssetLiquidationLineParams) error
 	InsertVouAssetSaleDetail(ctx context.Context, arg InsertVouAssetSaleDetailParams) error
 	InsertVouAssetSaleLine(ctx context.Context, arg InsertVouAssetSaleLineParams) error
-	InsertVouAuditEvent(ctx context.Context, arg InsertVouAuditEventParams) error
 	InsertVouBillCashLine(ctx context.Context, arg InsertVouBillCashLineParams) error
 	InsertVouBillDetail(ctx context.Context, arg InsertVouBillDetailParams) error
 	InsertVouBillLine(ctx context.Context, arg InsertVouBillLineParams) error
@@ -513,7 +508,6 @@ type Querier interface {
 	ListVouAssetLiquidationLines(ctx context.Context, documentID string) ([]VouAssetLiquidationLine, error)
 	ListVouAssetSaleLines(ctx context.Context, documentID string) ([]VouAssetSaleLine, error)
 	ListVouAttachments(ctx context.Context, documentID string) ([]ListVouAttachmentsRow, error)
-	ListVouAuditEvents(ctx context.Context, arg ListVouAuditEventsParams) ([]VouAuditEvent, error)
 	ListVouBillCashLines(ctx context.Context, documentID string) ([]VouBillCashLine, error)
 	ListVouBillLines(ctx context.Context, documentID string) ([]VouBillLine, error)
 	ListVouDocuments(ctx context.Context, arg ListVouDocumentsParams) ([]ListVouDocumentsRow, error)
@@ -563,7 +557,7 @@ type Querier interface {
 	LockPendingCustomerUpload(ctx context.Context, tokenHash string) (LockPendingCustomerUploadRow, error)
 	LockPendingVouUpload(ctx context.Context, uploadTokenHash string) (LockPendingVouUploadRow, error)
 	LockVouAttachmentForRemoval(ctx context.Context, arg LockVouAttachmentForRemovalParams) (LockVouAttachmentForRemovalRow, error)
-	LockVouDocument(ctx context.Context, arg LockVouDocumentParams) (VouDocument, error)
+	LockVouDocument(ctx context.Context, arg LockVouDocumentParams) (LockVouDocumentRow, error)
 	LockVouDocumentStatusForShare(ctx context.Context, documentID string) (string, error)
 	LockVouIntermediaryScript(ctx context.Context) (VouIntermediaryScript, error)
 	LockVouRefusalReturnSource(ctx context.Context, documentID string) (LockVouRefusalReturnSourceRow, error)
@@ -620,7 +614,6 @@ type Querier interface {
 	ResetAppUserPassword(ctx context.Context, arg ResetAppUserPasswordParams) (int64, error)
 	ResetSigninFailures(ctx context.Context, id string) error
 	ResolveBobLatestApprovedReference(ctx context.Context, arg ResolveBobLatestApprovedReferenceParams) (ResolveBobLatestApprovedReferenceRow, error)
-	ResolveBobLatestApprovedReferenceByEntry(ctx context.Context, arg ResolveBobLatestApprovedReferenceByEntryParams) (ResolveBobLatestApprovedReferenceByEntryRow, error)
 	ResolveCustomerDocumentCategory(ctx context.Context, objectID string) (ResolveCustomerDocumentCategoryRow, error)
 	ResolveVouContractCounterparty(ctx context.Context, arg ResolveVouContractCounterpartyParams) (ResolveVouContractCounterpartyRow, error)
 	RestoreAccountingAssetsByDisposal(ctx context.Context, documentID *string) error
@@ -673,11 +666,8 @@ type Querier interface {
 	TouchAppSession(ctx context.Context, arg TouchAppSessionParams) error
 	TouchBobObject(ctx context.Context, arg TouchBobObjectParams) (TouchBobObjectRow, error)
 	TouchCustomerRelationshipAttachment(ctx context.Context, arg TouchCustomerRelationshipAttachmentParams) (int64, error)
-	TouchVouDraftAttachment(ctx context.Context, arg TouchVouDraftAttachmentParams) (int64, error)
 	UnapproveAccountingMapping(ctx context.Context, arg UnapproveAccountingMappingParams) (int64, error)
 	UnapproveAccountingOpening(ctx context.Context, arg UnapproveAccountingOpeningParams) (int64, error)
-	UnapproveVouDocument(ctx context.Context, arg UnapproveVouDocumentParams) (int64, error)
-	UncheckVouDocument(ctx context.Context, arg UncheckVouDocumentParams) (int64, error)
 	UnlockAccountingPeriodRow(ctx context.Context, arg UnlockAccountingPeriodRowParams) (int64, error)
 	UpdateAccountingBook(ctx context.Context, arg UpdateAccountingBookParams) (int64, error)
 	UpdateAccountingMappingDraft(ctx context.Context, arg UpdateAccountingMappingDraftParams) (int64, error)
@@ -702,7 +692,7 @@ type Querier interface {
 	UpdateVouAssetAcquisitionDetail(ctx context.Context, arg UpdateVouAssetAcquisitionDetailParams) (int64, error)
 	UpdateVouAssetSaleDetail(ctx context.Context, arg UpdateVouAssetSaleDetailParams) (int64, error)
 	UpdateVouBillDocumentTotal(ctx context.Context, arg UpdateVouBillDocumentTotalParams) error
-	UpdateVouDraft(ctx context.Context, arg UpdateVouDraftParams) (int64, error)
+	UpdateVouDraft(ctx context.Context, arg UpdateVouDraftParams) (string, error)
 	UpdateVouEmployeeLoanWriteoffDetail(ctx context.Context, arg UpdateVouEmployeeLoanWriteoffDetailParams) (int64, error)
 	UpdateVouExpensePaymentFundAccount(ctx context.Context, arg UpdateVouExpensePaymentFundAccountParams) (int64, error)
 	UpdateVouExpenseReimbursementDetail(ctx context.Context, arg UpdateVouExpenseReimbursementDetailParams) (int64, error)
@@ -722,6 +712,7 @@ type Querier interface {
 	UpsertAppUserProfileAvatar(ctx context.Context, arg UpsertAppUserProfileAvatarParams) error
 	UpsertWorkflowDefinitionPermission(ctx context.Context, arg UpsertWorkflowDefinitionPermissionParams) error
 	UserHoldsSuperadminRole(ctx context.Context, userID string) (bool, error)
+	ValidateBobApprovedSnapshotReference(ctx context.Context, arg ValidateBobApprovedSnapshotReferenceParams) (ValidateBobApprovedSnapshotReferenceRow, error)
 	VouEntityExistsOnBusinessDate(ctx context.Context, arg VouEntityExistsOnBusinessDateParams) (bool, error)
 	VouSaleOutboundRequiresBulkLiquidVehicle(ctx context.Context, documentID string) (bool, error)
 	WorkflowDefinitionHasInstances(ctx context.Context, definitionID string) (bool, error)

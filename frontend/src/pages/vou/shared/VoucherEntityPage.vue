@@ -62,7 +62,7 @@ const atomicStatusLabel = computed(() => {
   const status = atomicDocument.value?.status
   return status
     ? formatVoucherStatus(status, {
-        CHECKED: labels.value.checked,
+        PENDING: labels.value.pending,
         APPROVED: labels.value.approved,
       })
     : ''
@@ -1209,7 +1209,7 @@ function updateSignoffLoss(line: VoucherSalesChainLineDraft): void {
             :can-remove="vm.actionAvailability.attachmentRemove"
             :can-upload="vm.actionAvailability.attachmentInitiate"
             :document-created="Boolean(vm.documentView)"
-            :draft="vm.documentView?.status === 'DRAFT'"
+            :draft="vm.documentView?.approval.status === 'DRAFT'"
             :error-message="vm.attachmentError"
             :loading="vm.attachmentLoading"
             @download="vm.downloadAttachment"

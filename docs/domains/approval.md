@@ -4,7 +4,7 @@
 
 Approval 是跨领域的中央审批能力，唯一拥有审批生命周期、操作授权、revision、审批元数据、审计事件和同步事务事件发布。业务 Domain 仍拥有稳定主体、业务数据、业务校验和强类型事件 payload；Approval 不认识任何 Domain 业务规则。
 
-中央能力同时提供 Approval-only 与 Approval Version 两种条目形态。BOB、AUX、VOU、ACC、RPT 和 WFL 仍使用它们当前的生命周期，直到后续独立切片完成迁移；本文不把尚未迁移的领域描述为已经使用 Approval。
+中央能力同时提供 Approval-only 与 Approval Version 两种条目形态。BOB、AUX 使用 Approval Version，VOU 使用 Approval-only；ACC、RPT 和 WFL 的自身审批对象仍使用当前生命周期，直到后续独立切片完成迁移。
 
 ## 2. 审批条目与主体边界
 

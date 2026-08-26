@@ -98,7 +98,9 @@ WITH ordered AS (
   SELECT d.id AS order_id,d.business_date,d.document_no,detail.warehouse_object_id,false AS hypothetical
   FROM vou_documents d
   JOIN vou_sale_order_details detail ON detail.document_id=d.id
-  WHERE d.status='APPROVED' AND detail.fulfillment_status='OPEN' AND detail.warehouse_object_id IS NOT NULL
+  JOIN approval_entries approval ON approval.id=d.approval_entry_id
+    AND approval.domain='vou' AND approval.entity=d.entity AND approval.subject_id=d.id
+  WHERE approval.status='APPROVED' AND detail.fulfillment_status='OPEN' AND detail.warehouse_object_id IS NOT NULL
 ), target_orders AS (
   SELECT d.id AS order_id,d.business_date,d.document_no,detail.warehouse_object_id,
          NOT EXISTS (SELECT 1 FROM active_orders active WHERE active.order_id=d.id) AS hypothetical
@@ -110,7 +112,9 @@ WITH ordered AS (
   WHERE NOT EXISTS (SELECT 1 FROM active_orders active WHERE active.order_id=target.order_id)
 ), approved_outbound AS (
 	SELECT line.source_order_line_id,sum(line.base_quantity_micros)::bigint AS quantity_micros
-  FROM vou_sale_outbound_lines line JOIN vou_documents doc ON doc.id=line.document_id AND doc.status='APPROVED'
+	FROM vou_sale_outbound_lines line JOIN vou_documents doc ON doc.id=line.document_id
+  JOIN approval_entries approval ON approval.id=doc.approval_entry_id
+    AND approval.domain='vou' AND approval.entity=doc.entity AND approval.subject_id=doc.id AND approval.status='APPROVED'
   GROUP BY line.source_order_line_id
 ), demand_lines AS (
   SELECT orders.order_id,orders.business_date,orders.document_no,orders.warehouse_object_id,orders.hypothetical,
@@ -141,7 +145,9 @@ WITH ordered AS (
   SELECT detail.source_order_id AS order_id,
 		 COALESCE(sum(line.base_quantity_micros),0)::bigint AS quantity_micros
   FROM vou_sale_outbound_details detail
-  JOIN vou_documents doc ON doc.id=detail.document_id AND doc.status='APPROVED'
+  JOIN vou_documents doc ON doc.id=detail.document_id
+  JOIN approval_entries approval ON approval.id=doc.approval_entry_id
+    AND approval.domain='vou' AND approval.entity=doc.entity AND approval.subject_id=doc.id AND approval.status='APPROVED'
   JOIN vou_sale_outbound_lines line ON line.document_id=detail.document_id
   JOIN vou_product_lines source ON source.id=line.source_order_line_id
   WHERE detail.source_order_id=ANY(sqlc.arg(order_ids)::text[]) GROUP BY detail.source_order_id
@@ -150,7 +156,9 @@ WITH ordered AS (
 		 COALESCE(sum(line.signed_base_quantity_micros),0)::bigint AS signed_micros,
 		 COALESCE(sum(line.signed_base_quantity_micros+line.rejected_base_quantity_micros+line.loss_base_quantity_micros),0)::bigint AS resolved_micros
   FROM vou_sale_signoff_details detail
-  JOIN vou_documents doc ON doc.id=detail.document_id AND doc.status='APPROVED'
+  JOIN vou_documents doc ON doc.id=detail.document_id
+  JOIN approval_entries approval ON approval.id=doc.approval_entry_id
+    AND approval.domain='vou' AND approval.entity=doc.entity AND approval.subject_id=doc.id AND approval.status='APPROVED'
   JOIN vou_sale_signoff_lines line ON line.document_id=detail.document_id
   JOIN vou_product_lines source ON source.id=line.source_order_line_id
   WHERE detail.source_order_id=ANY(sqlc.arg(order_ids)::text[]) GROUP BY detail.source_order_id
@@ -158,7 +166,9 @@ WITH ordered AS (
   SELECT detail.source_order_id AS order_id,
 		 COALESCE(sum(line.base_quantity_micros),0)::bigint AS quantity_micros
   FROM vou_sale_return_details detail
-  JOIN vou_documents doc ON doc.id=detail.document_id AND doc.status='APPROVED'
+  JOIN vou_documents doc ON doc.id=detail.document_id
+  JOIN approval_entries approval ON approval.id=doc.approval_entry_id
+    AND approval.domain='vou' AND approval.entity=doc.entity AND approval.subject_id=doc.id AND approval.status='APPROVED'
   JOIN vou_sale_return_lines line ON line.document_id=detail.document_id
   JOIN vou_sale_signoff_lines signoff_line ON signoff_line.id=line.source_signoff_line_id
   JOIN vou_product_lines source ON source.id=signoff_line.source_order_line_id
@@ -189,15 +199,19 @@ WITH ordered AS (
   SELECT detail.source_order_id AS order_id,
 		 COALESCE(sum(line.base_quantity_micros),0)::bigint AS quantity_micros
   FROM vou_purchase_inbound_details detail
-  JOIN vou_documents doc ON doc.id=detail.document_id AND doc.status='APPROVED'
+  JOIN vou_documents doc ON doc.id=detail.document_id
+  JOIN approval_entries approval ON approval.id=doc.approval_entry_id
+    AND approval.domain='vou' AND approval.entity=doc.entity AND approval.subject_id=doc.id AND approval.status='APPROVED'
   JOIN vou_purchase_inbound_lines line ON line.document_id=detail.document_id
   JOIN vou_product_lines source ON source.id=line.source_order_line_id
   WHERE detail.source_order_id=ANY(sqlc.arg(order_ids)::text[]) GROUP BY detail.source_order_id
 ), returns AS (
   SELECT detail.source_order_id AS order_id,
-		 COALESCE(sum(line.base_quantity_micros) FILTER (WHERE doc.status<>'APPROVED'),0)::bigint AS processing_micros,
-		 COALESCE(sum(line.base_quantity_micros) FILTER (WHERE doc.status='APPROVED'),0)::bigint AS approved_micros
+		 COALESCE(sum(line.base_quantity_micros) FILTER (WHERE approval.status<>'APPROVED'),0)::bigint AS processing_micros,
+		 COALESCE(sum(line.base_quantity_micros) FILTER (WHERE approval.status='APPROVED'),0)::bigint AS approved_micros
   FROM vou_purchase_return_details detail JOIN vou_documents doc ON doc.id=detail.document_id
+  JOIN approval_entries approval ON approval.id=doc.approval_entry_id
+    AND approval.domain='vou' AND approval.entity=doc.entity AND approval.subject_id=doc.id
   JOIN vou_purchase_return_lines line ON line.document_id=detail.document_id
   JOIN vou_product_lines source ON source.id=line.source_order_line_id
   WHERE detail.source_order_id=ANY(sqlc.arg(order_ids)::text[]) GROUP BY detail.source_order_id
@@ -228,11 +242,14 @@ ON CONFLICT(path) DO UPDATE SET description=excluded.description,status='ENABLED
 
 -- name: ListWorkflowInstanceNodes :many
 SELECT node.id,node.parent_node_instance_id,node.node_key,node.node_name,
-       COALESCE(node.document_id,'') document_id,node.document_no,node.document_entity,COALESCE(document.status,'') document_status,
-       COALESCE(document.revision,0) document_revision,COALESCE(to_char(document.business_date,'YYYY-MM-DD'),'')::text business_date,
+       COALESCE(node.document_id,'') document_id,node.document_no,node.document_entity,COALESCE(approval.status,'') document_status,
+       COALESCE(approval.revision,0) document_revision,COALESCE(to_char(document.business_date,'YYYY-MM-DD'),'')::text business_date,
        COALESCE(node.business_parent_entity,'') business_parent_entity,COALESCE(node.business_parent_document_id,'') business_parent_document_id,
        COALESCE(node.relation_name,'') relation_name,node.trigger_event,COALESCE(node.action_name,'') action_name,node.evaluated_at
-FROM wfl_node_instances node LEFT JOIN vou_documents document ON document.id=node.document_id
+FROM wfl_node_instances node
+LEFT JOIN vou_documents document ON document.id=node.document_id
+LEFT JOIN approval_entries approval ON approval.id=document.approval_entry_id
+  AND approval.domain='vou' AND approval.entity=document.entity AND approval.subject_id=document.id
 WHERE node.process_id=$1 ORDER BY node.created_at,node.id;
 
 -- name: ListCompletedWorkflowActionTargets :many

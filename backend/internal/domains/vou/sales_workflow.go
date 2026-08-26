@@ -3,7 +3,6 @@ package vou
 import (
 	"context"
 
-	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -18,11 +17,11 @@ func salesParentEntity(entity string) string {
 	}
 }
 
-func managedSalesDocument(document dbsqlc.VouDocument) bool {
+func managedSalesDocument(document documentRecord) bool {
 	return document.Entity == EntitySaleOrder || isSalesChainEntity(document.Entity) || document.Entity == EntitySaleReturn
 }
 
-func (s *Service) validateManagedSalesParentStatus(ctx context.Context, tx pgx.Tx, document dbsqlc.VouDocument, targetStatus string) error {
+func (s *Service) validateManagedSalesParentStatus(ctx context.Context, tx pgx.Tx, document documentRecord, targetStatus string) error {
 	if managedPurchaseDocument(document) {
 		return s.validateManagedPurchaseParentStatus(ctx, tx, document, targetStatus)
 	}
@@ -33,7 +32,7 @@ func (s *Service) validateManagedSalesParentStatus(ctx context.Context, tx pgx.T
 	if err != nil {
 		return s.internal("read sales workflow parent status", err)
 	}
-	rank := map[string]int{StatusDraft: 0, StatusChecked: 1, StatusApproved: 2}
+	rank := map[string]int{StatusDraft: 0, StatusPending: 1, StatusApproved: 2}
 	required, ok := rank[targetStatus]
 	if !ok || rank[parentStatus] < required {
 		return domainError(ErrorConflict, "parent sales document has not reached the required status", map[string]any{
@@ -43,7 +42,7 @@ func (s *Service) validateManagedSalesParentStatus(ctx context.Context, tx pgx.T
 	return nil
 }
 
-func (s *Service) validateManagedSalesReady(ctx context.Context, tx pgx.Tx, document dbsqlc.VouDocument) error {
+func (s *Service) validateManagedSalesReady(ctx context.Context, tx pgx.Tx, document documentRecord) error {
 	if managedPurchaseDocument(document) {
 		if document.Entity == EntityPurchaseOrder {
 			return nil
@@ -99,11 +98,11 @@ func (s *Service) validateManagedSalesReady(ctx context.Context, tx pgx.Tx, docu
 	return nil
 }
 
-func (s *Service) validateManagedSalesChildrenAtMost(ctx context.Context, tx pgx.Tx, document dbsqlc.VouDocument, targetStatus string) error {
+func (s *Service) validateManagedSalesChildrenAtMost(ctx context.Context, tx pgx.Tx, document documentRecord, targetStatus string) error {
 	if !managedSalesDocument(document) {
 		return nil
 	}
-	targetRank := map[string]int{StatusDraft: 0, StatusChecked: 1, StatusApproved: 2}[targetStatus]
+	targetRank := map[string]int{StatusDraft: 0, StatusPending: 1, StatusApproved: 2}[targetStatus]
 	rows, err := s.queries.WithTx(tx).ListVouWorkflowChildrenForShare(ctx, &document.ID)
 	if err != nil {
 		return s.internal("read sales workflow children", err)
@@ -113,7 +112,7 @@ func (s *Service) validateManagedSalesChildrenAtMost(ctx context.Context, tx pgx
 		if childEntity == EntityOrderProduction {
 			return domainError(ErrorConflict, "production document blocks the reverse transition", map[string]any{"documentId": childID, "status": status}, nil)
 		}
-		childRank, ok := map[string]int{StatusDraft: 0, StatusChecked: 1, StatusApproved: 2}[status]
+		childRank, ok := map[string]int{StatusDraft: 0, StatusPending: 1, StatusApproved: 2}[status]
 		if !ok || childRank > targetRank {
 			return domainError(ErrorConflict, "downstream sales document blocks the reverse transition", map[string]any{
 				"documentId": childID, "status": status, "parentTargetStatus": targetStatus,

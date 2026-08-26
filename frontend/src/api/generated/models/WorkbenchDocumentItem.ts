@@ -2,13 +2,14 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalStatus } from './ApprovalStatus';
 import type { VouEntity } from './VouEntity';
 import type { WorkbenchAction } from './WorkbenchAction';
 import type { WorkbenchPendingStage } from './WorkbenchPendingStage';
 export type WorkbenchDocumentItem = {
   category: 'VOU';
   entity: VouEntity;
-  status: 'DRAFT' | 'CHECKED' | 'APPROVED';
+  status: ApprovalStatus;
   pendingStage: WorkbenchPendingStage;
   availableActions: Array<WorkbenchAction>;
   updatedAt: string;

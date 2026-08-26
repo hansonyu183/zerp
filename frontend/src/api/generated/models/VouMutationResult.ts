@@ -2,10 +2,9 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { VouStatus } from './VouStatus';
+import type { ApprovalMeta } from './ApprovalMeta';
 export type VouMutationResult = {
   documentId: string;
   documentNo: string;
-  status: VouStatus;
-  revision: number;
+  approval: ApprovalMeta;
 };

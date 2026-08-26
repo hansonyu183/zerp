@@ -5,11 +5,11 @@ import type {
 } from '@/components/voucher'
 
 const defaultLifecycleLabels: VoucherLifecycleLabels = {
-  check: '核对',
-  uncheck: '反核对',
+  submit: '提交审核',
+  unsubmit: '撤回提交',
   approve: '批准',
   unapprove: '反批准',
-  checked: '已核对',
+  pending: '待审核',
   approved: '已批准',
 }
 

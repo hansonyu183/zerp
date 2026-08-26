@@ -35,6 +35,18 @@ func trustedIntegrationActor(t *testing.T, requestID string) approval.Actor {
 	return actor
 }
 
+func integrationApprovalActor(t *testing.T, actorID, requestID string) approval.Actor {
+	t.Helper()
+	if strings.HasSuffix(requestID, "-approve") || strings.HasSuffix(requestID, "-reject") {
+		actorID = integrationActorTwo
+	}
+	actor, err := approval.UserActor(authorization.Principal{ActorID: actorID}, requestID)
+	if err != nil {
+		t.Fatalf("create integration Approval actor: %v", err)
+	}
+	return actor
+}
+
 const (
 	integrationActorOne         = "01J00000000000000000000000"
 	integrationActorTwo         = "01J00000000000000000000001"
@@ -88,7 +100,7 @@ func truncateVOU(t *testing.T, pool *pgxpool.Pool) {
 		TRUNCATE acc_books CASCADE;
 		TRUNCATE
 			wfl_runtime_audit_events, wfl_action_executions, wfl_create_child_requests, wfl_node_instances,
-			wfl_definition_instances, vou_audit_events, vou_download_tokens, vou_document_attachments,
+			wfl_definition_instances, vou_download_tokens, vou_document_attachments,
 			vou_files,
 			vou_asset_liquidation_lines,vou_asset_liquidation_details,
 			vou_asset_sale_lines,vou_asset_sale_details,
@@ -110,6 +122,9 @@ func truncateVOU(t *testing.T, pool *pgxpool.Pool) {
 			vou_service_acceptance_details, vou_service_contract_details,
 			vou_purchase_order_details,
 			vou_sale_order_details, vou_documents, vou_number_counters;
+		DELETE FROM approval_events
+		WHERE entry_id IN (SELECT id FROM approval_entries WHERE domain = 'vou');
+		DELETE FROM approval_entries WHERE domain = 'vou';
 		INSERT INTO app_users(id,username,display_name,password_hash,status,password_changed_at,created_by,updated_by)
 		VALUES
 			('01J00000000000000000000000','vou-test-one','VOU 测试用户一','hash','ENABLED',now(),'01J00000000000000000000000','01J00000000000000000000000'),
@@ -232,7 +247,13 @@ func newBOBIntegrationService(pool *pgxpool.Pool) *bobdomain.Service {
 
 type vouCustomerAuxiliaryResolver struct{}
 
-func (vouCustomerAuxiliaryResolver) ResolveAuxiliaryReference(
+func (resolver vouCustomerAuxiliaryResolver) ResolveLatestApprovedAuxiliaryReference(
+	ctx context.Context, tx pgx.Tx, entity, objectID string,
+) (bobdomain.AuxiliaryReference, error) {
+	return resolver.ValidateApprovedAuxiliarySnapshotReference(ctx, tx, entity, objectID, "")
+}
+
+func (vouCustomerAuxiliaryResolver) ValidateApprovedAuxiliarySnapshotReference(
 	ctx context.Context, tx pgx.Tx, entity, objectID, _ string,
 ) (bobdomain.AuxiliaryReference, error) {
 	if entity == "payment-method" {
@@ -384,7 +405,8 @@ func newIntegrationService(t *testing.T, pool *pgxpool.Pool) *Service {
 func newIntegrationServiceWithBus(t *testing.T, pool *pgxpool.Pool, bus *txevent.Bus) *Service {
 	t.Helper()
 	service, err := NewService(pool, newBOBIntegrationService(pool), auxiliaryrefs.New(auxdomain.NewService(pool, authorization.Func(nil), bus)), bus, AttachmentOptions{Root: t.TempDir()},
-		slog.New(slog.NewTextHandler(io.Discard, nil)), WithAccountingControl(integrationAccountingControl{}))
+		slog.New(slog.NewTextHandler(io.Discard, nil)), WithAccountingControl(integrationAccountingControl{}),
+		WithApprovalAuthorizer(authorization.Func(nil)))
 	if err != nil {
 		t.Fatalf("new VOU service: %v", err)
 	}

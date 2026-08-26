@@ -29,8 +29,8 @@ const eventText: Record<string, string> = {
   CREATED: '创建',
   SAVED: '保存',
   DELETED: '删除草稿',
-  CHECKED: '核对',
-  UNCHECKED: '反核对',
+  SUBMITTED: '提交审核',
+  UNSUBMITTED: '撤回提交',
   APPROVED: '批准',
   UNAPPROVED: '反批准',
   ATTACHMENT_INITIATED: '发起附件',
@@ -63,25 +63,14 @@ const eventText: Record<string, string> = {
       >
         <v-card variant="outlined">
           <v-card-title class="text-body-1">
-            {{ eventText[event.eventType] ?? '未知审计事件' }}
+            {{ eventText[event.action] ?? '未知审计事件' }}
           </v-card-title>
           <v-card-subtitle>
-            {{ formatMediumDateTime(event.occurredAt) }} · {{ event.actorId }}
+            {{ formatMediumDateTime(event.createdAt) }} · {{ event.actorId }}
           </v-card-subtitle>
           <v-card-text>
             <div>{{ event.fromStatus || '—' }} → {{ event.toStatus }}</div>
             <div v-if="event.reason" class="mt-2">原因：{{ event.reason }}</div>
-            <v-expansion-panels
-              v-if="event.summary"
-              class="mt-3"
-              variant="accordion"
-            >
-              <v-expansion-panel title="变更摘要">
-                <v-expansion-panel-text>
-                  <pre>{{ JSON.stringify(event.summary, null, 2) }}</pre>
-                </v-expansion-panel-text>
-              </v-expansion-panel>
-            </v-expansion-panels>
           </v-card-text>
         </v-card>
       </v-timeline-item>
@@ -110,9 +99,5 @@ const eventText: Record<string, string> = {
 }
 .voucher-audit__toolbar h3 {
   margin: 0;
-}
-pre {
-  overflow-x: auto;
-  white-space: pre-wrap;
 }
 </style>

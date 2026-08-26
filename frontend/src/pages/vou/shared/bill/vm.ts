@@ -94,7 +94,7 @@ export interface BillListItem {
 }
 type VouQueryRequest = ApiPostRequest<'vou/bill-receipt/query'>
 type VouGetRequest = ApiPostRequest<'vou/bill-receipt/get'>
-type VouRevisionRequest = ApiPostRequest<'vou/bill-receipt/check'>
+type VouRevisionRequest = ApiPostRequest<'vou/bill-receipt/submit'>
 type VouReverseRequest = ApiPostRequest<'vou/bill-receipt/unapprove'>
 type BobQueryRequest = ApiPostRequest<'bob/customer-account/query'>
 type AvailableBillQueryRequest = ApiPostRequest<'vou/bill-payment/bill-source'>
@@ -214,8 +214,9 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
   const actionAvailability = computed<VoucherActionAvailability>(() => ({
     get: session.can(permission('get')),
     save: session.can(permission('save')) && hasRequiredHeldBillAccess.value,
-    check: session.can(permission('check')),
-    uncheck: session.can(permission('uncheck')),
+    submit: documentStatus.value === 'DRAFT' && session.can(permission('submit')),
+    unsubmit:
+      documentStatus.value === 'PENDING' && session.can(permission('unsubmit')),
     approve: session.can(permission('approve')),
     unapprove: session.can(permission('unapprove')),
     delete: session.can(permission('delete')),
@@ -250,7 +251,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         filters: {
           ...(normalizedKeyword ? { keyword: normalizedKeyword } : {}),
           ...(status.value.length
-            ? { status: status.value as components['schemas']['VouStatus'][] }
+            ? { status: status.value as components['schemas']['ApprovalStatus'][] }
             : {}),
         },
         sort: [{ field: 'documentNo', order: 'desc' }],
@@ -333,8 +334,8 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
       const billData = data.data
       documentId.value = data.documentId
       documentNo.value = data.documentNo
-      revision.value = data.revision
-      documentStatus.value = data.status
+      revision.value = data.approval.revision
+      documentStatus.value = data.approval.status
       Object.assign(form, {
         businessDate: billData.businessDate,
         currency: billData.currency,
@@ -361,7 +362,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
       })
       documentView.value = data
       editing.value =
-        edit && data.status === 'DRAFT' && actionAvailability.value.save
+        edit && data.approval.status === 'DRAFT' && actionAvailability.value.save
     } catch (error) {
       if (current === documentLoadSequence && !requestController.signal.aborted)
         errorMessage.value = getErrorMessage(error)
@@ -417,7 +418,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
           `vou/${config.entity}/save`,
           request,
         )
-        revision.value = result.data.revision
+        revision.value = result.data.approval.revision
       } else {
         const request = { data }
         const result = await apiClient.postContract(
@@ -426,7 +427,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
         )
         documentId.value = result.data.documentId
         documentNo.value = result.data.documentNo
-        revision.value = result.data.revision
+        revision.value = result.data.approval.revision
       }
       editing.value = false
       await Promise.all([
@@ -442,7 +443,7 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
     }
   }
   async function lifecycle(
-    action: 'check' | 'uncheck' | 'approve' | 'unapprove',
+    action: 'submit' | 'unsubmit' | 'approve' | 'unapprove',
     reason?: string,
   ) {
     if (!documentId.value) return
@@ -469,11 +470,10 @@ export function useBillVoucherViewModel(config: BillVoucherConfig) {
           request,
         )
       }
-      revision.value = result.data.revision
-      documentStatus.value = result.data.status as VoucherStatus
+      revision.value = result.data.approval.revision
+      documentStatus.value = result.data.approval.status as VoucherStatus
       if (documentView.value) {
-        documentView.value.revision = result.data.revision
-        documentView.value.status = result.data.status as VoucherStatus
+        documentView.value.approval = result.data.approval
       }
     } catch (error) {
       errorMessage.value = getErrorMessage(error)

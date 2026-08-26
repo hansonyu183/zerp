@@ -49,62 +49,99 @@ func (s *Service) resolveReference(
 	if input == nil {
 		return nil, nil
 	}
-	ref, err := s.resolver.ResolveApprovedReference(ctx, tx, kind, input.ObjectID, input.ApprovalEntryID)
+	ref, err := s.resolver.ValidateApprovedSnapshotReference(ctx, tx, kind, input.ObjectID, input.ApprovalEntryID)
 	if err != nil {
 		return nil, domainError(ErrorConflict, kind+" reference is not effective", nil, err)
 	}
 	return &ref, nil
 }
 
-func (s *Service) resolveAuxiliaryReference(
+func (s *Service) resolveSelectedReference(
 	ctx context.Context,
 	tx pgx.Tx,
-	entity string,
+	kind string,
 	input *ReferenceInput,
+	preserved *bobdomain.EffectiveReference,
+	newDocument bool,
 ) (*bobdomain.EffectiveReference, error) {
 	if input == nil {
 		return nil, nil
 	}
-	ref, err := s.auxResolver.ResolveAuxiliaryReference(ctx, tx, entity, input.ObjectID, input.ApprovalEntryID)
+	var ref bobdomain.EffectiveReference
+	var err error
+	if !newDocument && preserved != nil && input.ObjectID == preserved.ObjectID && input.ApprovalEntryID == preserved.ApprovalEntryID {
+		ref, err = s.resolver.ValidateApprovedSnapshotReference(ctx, tx, kind, input.ObjectID, input.ApprovalEntryID)
+	} else {
+		ref, err = s.resolver.ResolveLatestApprovedReference(ctx, tx, kind, input.ObjectID)
+		if err == nil && input.ApprovalEntryID != "" && input.ApprovalEntryID != ref.ApprovalEntryID {
+			return nil, domainError(ErrorConflict, kind+" reference does not match the latest approved version", nil, nil)
+		}
+	}
+	if err != nil {
+		return nil, domainError(ErrorConflict, kind+" reference is not effective", nil, err)
+	}
+	return &ref, nil
+}
+
+func (s *Service) resolveSelectedAuxiliaryReference(
+	ctx context.Context,
+	tx pgx.Tx,
+	entity string,
+	input *ReferenceInput,
+	preserved *bobdomain.EffectiveReference,
+	newDocument bool,
+) (*bobdomain.EffectiveReference, error) {
+	if input == nil {
+		return nil, nil
+	}
+	var ref bobdomain.AuxiliaryReference
+	var err error
+	if !newDocument && preserved != nil && input.ObjectID == preserved.ObjectID && input.ApprovalEntryID == preserved.ApprovalEntryID {
+		ref, err = s.auxResolver.ValidateApprovedAuxiliarySnapshotReference(ctx, tx, entity, input.ObjectID, input.ApprovalEntryID)
+	} else {
+		ref, err = s.auxResolver.ResolveLatestApprovedAuxiliaryReference(ctx, tx, entity, input.ObjectID)
+		if err == nil && input.ApprovalEntryID != "" && input.ApprovalEntryID != ref.ApprovalEntryID {
+			return nil, domainError(ErrorConflict, entity+" reference does not match the latest approved version", nil, nil)
+		}
+	}
 	if err != nil {
 		return nil, domainError(ErrorConflict, entity+" reference is not approved", nil, err)
 	}
-	return &bobdomain.EffectiveReference{
-		ObjectID: ref.ObjectID, ApprovalEntryID: ref.ApprovalEntryID,
-		Entity: ref.Entity, Code: ref.Code,
-		Data: bobdomain.DetailView{
+	return &bobdomain.EffectiveReference{ObjectID: ref.ObjectID, ApprovalEntryID: ref.ApprovalEntryID,
+		Entity: ref.Entity, Code: ref.Code, Data: bobdomain.DetailView{
 			Name: auxiliaryString(ref.Data, "name"), TermCode: auxiliaryString(ref.Data, "termCode"),
 			RuleType: auxiliaryString(ref.Data, "ruleType"), MonthOffset: auxiliaryInt32(ref.Data, "monthOffset"),
 			DayOfMonth: auxiliaryOptionalInt32(ref.Data, "dayOfMonth"), DayOffset: auxiliaryInt32(ref.Data, "dayOffset"),
 			DueDays: auxiliaryInt32(ref.Data, "dueDays"), CutoffDay: auxiliaryInt32(ref.Data, "cutoffDay"),
 			Description: auxiliaryString(ref.Data, "description"),
-		},
-	}, nil
+		}}, nil
 }
 
 func (s *Service) resolveDraftParties(
 	ctx context.Context,
 	tx pgx.Tx,
 	draft validatedDraft,
+	preserved resolvedDraft,
+	newDocument bool,
 	result *resolvedDraft,
 ) error {
 	var err error
-	if result.Customer, err = s.resolveReference(ctx, tx, bobdomain.EntityCustomerAccount, draft.Customer); err != nil {
+	if result.Customer, err = s.resolveSelectedReference(ctx, tx, bobdomain.EntityCustomerAccount, draft.Customer, preserved.Customer, newDocument); err != nil {
 		return err
 	}
-	if result.Supplier, err = s.resolveReference(ctx, tx, bobdomain.EntitySupplier, draft.Supplier); err != nil {
+	if result.Supplier, err = s.resolveSelectedReference(ctx, tx, bobdomain.EntitySupplier, draft.Supplier, preserved.Supplier, newDocument); err != nil {
 		return err
 	}
-	if result.Counterparty, err = s.resolveReference(ctx, tx, draft.CounterpartyType, draft.Counterparty); err != nil {
+	if result.Counterparty, err = s.resolveSelectedReference(ctx, tx, draft.CounterpartyType, draft.Counterparty, preserved.Counterparty, newDocument); err != nil {
 		return err
 	}
-	if result.Employee, err = s.resolveReference(ctx, tx, bobdomain.EntityEmployee, draft.Employee); err != nil {
+	if result.Employee, err = s.resolveSelectedReference(ctx, tx, bobdomain.EntityEmployee, draft.Employee, preserved.Employee, newDocument); err != nil {
 		return err
 	}
-	if result.InterestParty, err = s.resolveReference(ctx, tx, bobdomain.EntityOtherUnit, draft.InterestParty); err != nil {
+	if result.InterestParty, err = s.resolveSelectedReference(ctx, tx, bobdomain.EntityOtherUnit, draft.InterestParty, preserved.InterestParty, newDocument); err != nil {
 		return err
 	}
-	if result.Settlement, err = s.resolveAuxiliaryReference(ctx, tx, auxdomain.EntitySettlementMethod, draft.SettlementMethod); err != nil {
+	if result.Settlement, err = s.resolveSelectedAuxiliaryReference(ctx, tx, auxdomain.EntitySettlementMethod, draft.SettlementMethod, preserved.Settlement, newDocument); err != nil {
 		return err
 	}
 	return nil
@@ -121,7 +158,7 @@ func (s *Service) resolveDraftPersonnel(
 ) error {
 	var err error
 	if draft.Salesperson != nil {
-		result.Salesperson, err = s.resolveReference(ctx, tx, bobdomain.EntityEmployee, draft.Salesperson)
+		result.Salesperson, err = s.resolveSelectedReference(ctx, tx, bobdomain.EntityEmployee, draft.Salesperson, preserved.Salesperson, allowDefaults)
 	} else if preserved.Salesperson != nil {
 		result.Salesperson = preserved.Salesperson
 	} else if entity == EntitySaleOrder && allowDefaults && result.Customer != nil {
@@ -134,7 +171,7 @@ func (s *Service) resolveDraftPersonnel(
 	}
 
 	if draft.Purchaser != nil {
-		result.Purchaser, err = s.resolveReference(ctx, tx, bobdomain.EntityEmployee, draft.Purchaser)
+		result.Purchaser, err = s.resolveSelectedReference(ctx, tx, bobdomain.EntityEmployee, draft.Purchaser, preserved.Purchaser, allowDefaults)
 	} else if preserved.Purchaser != nil {
 		result.Purchaser = preserved.Purchaser
 	} else if entity == EntityPurchaseOrder && allowDefaults && result.Supplier != nil {
@@ -185,23 +222,29 @@ func (s *Service) resolveDraftAccounts(
 	ctx context.Context,
 	tx pgx.Tx,
 	draft validatedDraft,
+	preserved resolvedDraft,
+	newDocument bool,
 	result *resolvedDraft,
 ) error {
 	var err error
-	if result.Handler, err = s.resolveReference(ctx, tx, bobdomain.EntityEmployee, draft.Handler); err != nil {
+	if result.Handler, err = s.resolveSelectedReference(ctx, tx, bobdomain.EntityEmployee, draft.Handler, preserved.Handler, newDocument); err != nil {
 		return err
 	}
-	if result.Warehouse, err = s.resolveReference(ctx, tx, bobdomain.EntityWarehouse, draft.Warehouse); err != nil {
+	if result.Warehouse, err = s.resolveSelectedReference(ctx, tx, bobdomain.EntityWarehouse, draft.Warehouse, preserved.Warehouse, newDocument); err != nil {
 		return err
 	}
-	if result.FundAccount, err = s.resolveReference(ctx, tx, bobdomain.EntityFundAccount, draft.FundAccount); err != nil {
+	if result.FundAccount, err = s.resolveSelectedReference(ctx, tx, bobdomain.EntityFundAccount, draft.FundAccount, preserved.FundAccount, newDocument); err != nil {
 		return err
 	}
 	if result.FundAccount != nil && result.FundAccount.Data.Currency != draft.Currency {
 		return domainError(ErrorConflict, "fund account currency does not match document currency", nil, nil)
 	}
 	for _, line := range draft.BillCashLines {
-		fund, resolveErr := s.resolveReference(ctx, tx, bobdomain.EntityFundAccount, &line.FundAccount)
+		var saved *bobdomain.EffectiveReference
+		if len(result.BillFunds) < len(preserved.BillFunds) {
+			saved = &preserved.BillFunds[len(result.BillFunds)]
+		}
+		fund, resolveErr := s.resolveSelectedReference(ctx, tx, bobdomain.EntityFundAccount, &line.FundAccount, saved, newDocument)
 		if resolveErr != nil {
 			return resolveErr
 		}

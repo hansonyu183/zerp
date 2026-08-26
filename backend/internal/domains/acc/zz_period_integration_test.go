@@ -30,16 +30,22 @@ func TestZZAccountingPeriodLockUnlockAndVOUDatabaseBoundaryIntegration(t *testin
 	if _, err = service.ApproveMapping(t.Context(), book.ID, mapping.ID, mapping.Revision, adminID); err != nil {
 		t.Fatal(err)
 	}
-	documentID, attachedFileID, pendingFileID := ulid.Make().String(), ulid.Make().String(), ulid.Make().String()
+	documentID, approvalEntryID := ulid.Make().String(), ulid.Make().String()
+	attachedFileID, pendingFileID := ulid.Make().String(), ulid.Make().String()
 	setupTx, err := pool.Begin(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = setupTx.Exec(t.Context(), `INSERT INTO vou_documents (
-		id, entity, document_no, status, business_date, currency, total_amount_cents,
-		reviewed_at,reviewed_by,approved_at,approved_by,posted_at,posted_by,created_by,updated_by
-	) VALUES ($1, 'other-income', $2, 'APPROVED', DATE '2025-07-20', 'CNY', 100,
-		now(),$3,now(),$3,now(),$3,$3,$3)`, documentID, "OIN-20250720-0000", adminID)
+	_, err = setupTx.Exec(t.Context(), `INSERT INTO approval_entries(
+		id,domain,entity,subject_id,status,revision,created_by,created_at,updated_by,updated_at,
+		submitted_by,submitted_at,approved_by,approved_at
+	) VALUES($1,'vou','other-income',$2,'APPROVED',3,$3,now(),$4,now(),$3,now(),$4,now())`,
+		approvalEntryID, documentID, adminID, operatorID)
+	if err == nil {
+		_, err = setupTx.Exec(t.Context(), `INSERT INTO vou_documents (
+			id, entity, document_no, approval_entry_id, business_date, currency, total_amount_cents
+		) VALUES ($1, 'other-income', $2, $3, DATE '2025-07-20', 'CNY', 100)`, documentID, "OIN-20250720-0000", approvalEntryID)
+	}
 	if err != nil {
 		_ = setupTx.Rollback(t.Context())
 		t.Fatal(err)
@@ -76,9 +82,15 @@ func TestZZAccountingPeriodLockUnlockAndVOUDatabaseBoundaryIntegration(t *testin
 		t.Fatalf("periods = %+v, err=%v", periods, err)
 	}
 
+	lockedDocumentID, lockedEntryID := ulid.Make().String(), ulid.Make().String()
+	if _, err = pool.Exec(t.Context(), `INSERT INTO approval_entries(
+		id,domain,entity,subject_id,status,revision,created_by,created_at,updated_by,updated_at
+	) VALUES($1,'vou','other-income',$2,'DRAFT',1,$3,now(),$3,now())`, lockedEntryID, lockedDocumentID, adminID); err != nil {
+		t.Fatal(err)
+	}
 	_, err = pool.Exec(t.Context(), `INSERT INTO vou_documents (
-		id, entity, document_no, business_date, currency, total_amount_cents, created_by, updated_by
-	) VALUES ($1, 'other-income', $2, DATE '2025-07-20', 'CNY', 100, $3, $3)`, ulid.Make().String(), "OIN-20250720-0001", adminID)
+		id, entity, document_no, approval_entry_id, business_date, currency, total_amount_cents
+	) VALUES ($1, 'other-income', $2, $3, DATE '2025-07-20', 'CNY', 100)`, lockedDocumentID, "OIN-20250720-0001", lockedEntryID)
 	var pgErr *pgconn.PgError
 	if !errors.As(err, &pgErr) || pgErr.Message != "accounting period is locked" {
 		t.Fatalf("locked VOU write error = %#v", err)
@@ -100,9 +112,15 @@ func TestZZAccountingPeriodLockUnlockAndVOUDatabaseBoundaryIntegration(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = tx.Exec(t.Context(), `INSERT INTO vou_documents (
-		id, entity, document_no, business_date, currency, total_amount_cents, created_by, updated_by
-	) VALUES ($1, 'other-income', $2, DATE '2025-07-20', 'CNY', 100, $3, $3)`, ulid.Make().String(), "OIN-20250720-0002", adminID)
+	unlockedDocumentID, unlockedEntryID := ulid.Make().String(), ulid.Make().String()
+	_, err = tx.Exec(t.Context(), `INSERT INTO approval_entries(
+		id,domain,entity,subject_id,status,revision,created_by,created_at,updated_by,updated_at
+	) VALUES($1,'vou','other-income',$2,'DRAFT',1,$3,now(),$3,now())`, unlockedEntryID, unlockedDocumentID, adminID)
+	if err == nil {
+		_, err = tx.Exec(t.Context(), `INSERT INTO vou_documents (
+		id, entity, document_no, approval_entry_id, business_date, currency, total_amount_cents
+	) VALUES ($1, 'other-income', $2, $3, DATE '2025-07-20', 'CNY', 100)`, unlockedDocumentID, "OIN-20250720-0002", unlockedEntryID)
+	}
 	_ = tx.Rollback(t.Context())
 	if err != nil {
 		t.Fatalf("unlocked VOU write rejected: %v", err)

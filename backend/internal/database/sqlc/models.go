@@ -1127,25 +1127,6 @@ type VouAssetSaleLine struct {
 	Remark          *string `db:"remark" json:"remark"`
 }
 
-type VouAuditEvent struct {
-	ID              string             `db:"id" json:"id"`
-	DocumentID      string             `db:"document_id" json:"document_id"`
-	Entity          string             `db:"entity" json:"entity"`
-	EventType       string             `db:"event_type" json:"event_type"`
-	FromStatus      *string            `db:"from_status" json:"from_status"`
-	ToStatus        string             `db:"to_status" json:"to_status"`
-	ActorID         string             `db:"actor_id" json:"actor_id"`
-	OccurredAt      pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
-	Reason          *string            `db:"reason" json:"reason"`
-	RequestID       string             `db:"request_id" json:"request_id"`
-	Summary         []byte             `db:"summary" json:"summary"`
-	WorkflowVersion int16              `db:"workflow_version" json:"workflow_version"`
-	Stage           *string            `db:"stage" json:"stage"`
-	ChildID         *string            `db:"child_id" json:"child_id"`
-	ChildNo         *string            `db:"child_no" json:"child_no"`
-	ChildStatus     *string            `db:"child_status" json:"child_status"`
-}
-
 type VouBillCashLine struct {
 	ID                         string  `db:"id" json:"id"`
 	DocumentID                 string  `db:"document_id" json:"document_id"`
@@ -1210,30 +1191,17 @@ type VouBillLine struct {
 }
 
 type VouDocument struct {
-	ID               string             `db:"id" json:"id"`
-	Entity           string             `db:"entity" json:"entity"`
-	DocumentNo       string             `db:"document_no" json:"document_no"`
-	Status           string             `db:"status" json:"status"`
-	Revision         int64              `db:"revision" json:"revision"`
-	BusinessDate     pgtype.Date        `db:"business_date" json:"business_date"`
-	Currency         *string            `db:"currency" json:"currency"`
-	TotalAmountCents int64              `db:"total_amount_cents" json:"total_amount_cents"`
-	Remark           *string            `db:"remark" json:"remark"`
-	CreatedAt        pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	CreatedBy        string             `db:"created_by" json:"created_by"`
-	UpdatedAt        pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	UpdatedBy        string             `db:"updated_by" json:"updated_by"`
-	ReviewedAt       pgtype.Timestamptz `db:"reviewed_at" json:"reviewed_at"`
-	ReviewedBy       *string            `db:"reviewed_by" json:"reviewed_by"`
-	ApprovedAt       pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
-	ApprovedBy       *string            `db:"approved_by" json:"approved_by"`
-	CheckedAt        pgtype.Timestamptz `db:"checked_at" json:"checked_at"`
-	CheckedBy        *string            `db:"checked_by" json:"checked_by"`
-	ParentDocumentID *string            `db:"parent_document_id" json:"parent_document_id"`
-	ParentEntity     *string            `db:"parent_entity" json:"parent_entity"`
-	DueDate          pgtype.Date        `db:"due_date" json:"due_date"`
-	PostedAt         pgtype.Timestamptz `db:"posted_at" json:"posted_at"`
-	PostedBy         *string            `db:"posted_by" json:"posted_by"`
+	ID               string      `db:"id" json:"id"`
+	Entity           string      `db:"entity" json:"entity"`
+	DocumentNo       string      `db:"document_no" json:"document_no"`
+	ApprovalEntryID  string      `db:"approval_entry_id" json:"approval_entry_id"`
+	BusinessDate     pgtype.Date `db:"business_date" json:"business_date"`
+	Currency         *string     `db:"currency" json:"currency"`
+	TotalAmountCents int64       `db:"total_amount_cents" json:"total_amount_cents"`
+	Remark           *string     `db:"remark" json:"remark"`
+	ParentDocumentID *string     `db:"parent_document_id" json:"parent_document_id"`
+	ParentEntity     *string     `db:"parent_entity" json:"parent_entity"`
+	DueDate          pgtype.Date `db:"due_date" json:"due_date"`
 }
 
 type VouDocumentAttachment struct {

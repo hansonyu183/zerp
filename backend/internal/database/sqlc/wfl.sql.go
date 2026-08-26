@@ -55,9 +55,18 @@ func (q *Queries) CountDefinitionInstances(ctx context.Context, arg CountDefinit
 const countWorkflowDefinitions = `-- name: CountWorkflowDefinitions :one
 SELECT count(*)
 FROM wfl_process_definitions definition
-JOIN approval_entries approval ON approval.subject_id=definition.id
-  AND approval.domain='wfl' AND approval.entity='process-definition'
-WHERE ($1::text = '' OR definition.code ILIKE '%' || $1::text || '%' OR definition.name ILIKE '%' || $1::text || '%')
+JOIN LATERAL (
+  SELECT candidate.id,candidate.status
+  FROM approval_entries candidate
+  WHERE candidate.subject_id=definition.id
+    AND candidate.domain='wfl' AND candidate.entity='process-definition'
+    AND candidate.status IN ('DRAFT','PENDING','APPROVED')
+  ORDER BY CASE WHEN candidate.status IN ('DRAFT','PENDING') THEN 0 ELSE 1 END,
+           candidate.version_no DESC
+  LIMIT 1
+) approval ON true
+JOIN wfl_definition_versions version ON version.approval_entry_id=approval.id
+WHERE ($1::text = '' OR definition.code ILIKE '%' || $1::text || '%' OR version.compiled->>'name' ILIKE '%' || $1::text || '%')
   AND (COALESCE(cardinality($2::text[]), 0) = 0 OR approval.status = ANY($2::text[]))
   AND ($3::boolean IS NULL OR definition.enabled=$3::boolean)
 `
@@ -181,24 +190,18 @@ func (q *Queries) CreateWorkflowCreateChildRequest(ctx context.Context, arg Crea
 }
 
 const createWorkflowDefinition = `-- name: CreateWorkflowDefinition :exec
-INSERT INTO wfl_process_definitions(id,code,name,enabled,created_by,updated_by)
-VALUES($1,$2,$3,false,$4,$4)
+INSERT INTO wfl_process_definitions(id,code,enabled,created_by,updated_by)
+VALUES($1,$2,false,$3,$3)
 `
 
 type CreateWorkflowDefinitionParams struct {
 	ID        string `db:"id" json:"id"`
 	Code      string `db:"code" json:"code"`
-	Name      string `db:"name" json:"name"`
 	CreatedBy string `db:"created_by" json:"created_by"`
 }
 
 func (q *Queries) CreateWorkflowDefinition(ctx context.Context, arg CreateWorkflowDefinitionParams) error {
-	_, err := q.db.Exec(ctx, createWorkflowDefinition,
-		arg.ID,
-		arg.Code,
-		arg.Name,
-		arg.CreatedBy,
-	)
+	_, err := q.db.Exec(ctx, createWorkflowDefinition, arg.ID, arg.Code, arg.CreatedBy)
 	return err
 }
 
@@ -339,6 +342,25 @@ func (q *Queries) DeleteWorkflowDefinition(ctx context.Context, id string) error
 	return err
 }
 
+const deleteWorkflowDefinitionVersion = `-- name: DeleteWorkflowDefinitionVersion :execrows
+DELETE FROM wfl_definition_versions
+WHERE approval_entry_id=$1
+  AND definition_id=$2
+`
+
+type DeleteWorkflowDefinitionVersionParams struct {
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	DefinitionID    string `db:"definition_id" json:"definition_id"`
+}
+
+func (q *Queries) DeleteWorkflowDefinitionVersion(ctx context.Context, arg DeleteWorkflowDefinitionVersionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteWorkflowDefinitionVersion, arg.ApprovalEntryID, arg.DefinitionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getDefinitionInstance = `-- name: GetDefinitionInstance :one
 SELECT id process_id,definition_id,definition_code,definition_name,revision,
        COALESCE(root_document_id,'') root_document_id,root_document_no,root_entity,
@@ -433,7 +455,7 @@ func (q *Queries) GetWorkflowCreateChildExecutionResult(ctx context.Context, id 
 }
 
 const getWorkflowDefinitionVersion = `-- name: GetWorkflowDefinitionVersion :one
-SELECT definition.id,definition.code,definition.name,definition.enabled,definition.revision,
+SELECT definition.id,definition.code,COALESCE(version.compiled->>'name','')::text name,definition.enabled,definition.revision,
        approval.id approval_entry_id,approval.version_no,approval.status,approval.revision approval_revision,
        approval.created_by approval_created_by,approval.created_at approval_created_at,
        approval.updated_by approval_updated_by,approval.updated_at approval_updated_at,
@@ -672,18 +694,19 @@ func (q *Queries) ListDefinitionInstances(ctx context.Context, arg ListDefinitio
 }
 
 const listEnabledWorkflowDefinitionsForShare = `-- name: ListEnabledWorkflowDefinitionsForShare :many
-SELECT definition.id,definition.code,definition.name,approval.id approval_entry_id,version.script
+SELECT definition.id,definition.code,COALESCE(version.compiled->>'name','')::text name,approval.id approval_entry_id,version.script
 FROM wfl_process_definitions definition
-JOIN approval_entries approval ON approval.subject_id=definition.id
-  AND approval.domain='wfl' AND approval.entity='process-definition' AND approval.status='APPROVED'
+JOIN LATERAL (
+  SELECT candidate.id
+  FROM approval_entries candidate
+  WHERE candidate.subject_id=definition.id
+    AND candidate.domain='wfl' AND candidate.entity='process-definition'
+    AND candidate.status='APPROVED'
+  ORDER BY candidate.version_no DESC
+  LIMIT 1
+) approval ON true
 JOIN wfl_definition_versions version ON version.approval_entry_id=approval.id
 WHERE definition.enabled
-  AND NOT EXISTS (
-    SELECT 1 FROM approval_entries newer
-    WHERE newer.domain=approval.domain AND newer.entity=approval.entity
-      AND newer.subject_id=approval.subject_id AND newer.status='APPROVED'
-      AND newer.version_no > approval.version_no
-  )
 ORDER BY definition.id FOR SHARE OF definition
 `
 
@@ -938,20 +961,30 @@ func (q *Queries) ListSalesOrderBaseQuantitySummaries(ctx context.Context, order
 }
 
 const listWorkflowDefinitions = `-- name: ListWorkflowDefinitions :many
-SELECT definition.id,definition.code,definition.name,definition.enabled,definition.revision,
+SELECT definition.id,definition.code,COALESCE(version.compiled->>'name','')::text name,definition.enabled,definition.revision,
        approval.id approval_entry_id,approval.version_no,approval.status,approval.revision approval_revision,
        approval.created_by approval_created_by,approval.created_at approval_created_at,
        approval.updated_by approval_updated_by,approval.updated_at approval_updated_at,
        approval.submitted_by,approval.submitted_at,approval.approved_by,approval.approved_at,
-       version.compiled,definition.updated_at
+       version.compiled,approval.updated_at
 FROM wfl_process_definitions definition
-JOIN approval_entries approval ON approval.subject_id=definition.id
-  AND approval.domain='wfl' AND approval.entity='process-definition'
+JOIN LATERAL (
+  SELECT candidate.id,candidate.version_no,candidate.status,candidate.revision,
+         candidate.created_by,candidate.created_at,candidate.updated_by,candidate.updated_at,
+         candidate.submitted_by,candidate.submitted_at,candidate.approved_by,candidate.approved_at
+  FROM approval_entries candidate
+  WHERE candidate.subject_id=definition.id
+    AND candidate.domain='wfl' AND candidate.entity='process-definition'
+    AND candidate.status IN ('DRAFT','PENDING','APPROVED')
+  ORDER BY CASE WHEN candidate.status IN ('DRAFT','PENDING') THEN 0 ELSE 1 END,
+           candidate.version_no DESC
+  LIMIT 1
+) approval ON true
 JOIN wfl_definition_versions version ON version.approval_entry_id=approval.id
-WHERE ($1::text = '' OR definition.code ILIKE '%' || $1::text || '%' OR definition.name ILIKE '%' || $1::text || '%')
+WHERE ($1::text = '' OR definition.code ILIKE '%' || $1::text || '%' OR version.compiled->>'name' ILIKE '%' || $1::text || '%')
   AND (COALESCE(cardinality($2::text[]), 0) = 0 OR approval.status = ANY($2::text[]))
   AND ($3::boolean IS NULL OR definition.enabled=$3::boolean)
-ORDER BY definition.updated_at DESC,definition.id DESC,approval.version_no DESC
+ORDER BY approval.updated_at DESC,definition.id DESC
 LIMIT $5 OFFSET $4
 `
 
@@ -1257,13 +1290,12 @@ func (q *Queries) LockWorkflowCreateChildSourceNode(ctx context.Context, arg Loc
 }
 
 const lockWorkflowDefinition = `-- name: LockWorkflowDefinition :one
-SELECT id,code,name,enabled,revision FROM wfl_process_definitions WHERE id=$1 FOR UPDATE
+SELECT id,code,enabled,revision FROM wfl_process_definitions WHERE id=$1 FOR UPDATE
 `
 
 type LockWorkflowDefinitionRow struct {
 	ID       string `db:"id" json:"id"`
 	Code     string `db:"code" json:"code"`
-	Name     string `db:"name" json:"name"`
 	Enabled  bool   `db:"enabled" json:"enabled"`
 	Revision int64  `db:"revision" json:"revision"`
 }
@@ -1274,7 +1306,6 @@ func (q *Queries) LockWorkflowDefinition(ctx context.Context, id string) (LockWo
 	err := row.Scan(
 		&i.ID,
 		&i.Code,
-		&i.Name,
 		&i.Enabled,
 		&i.Revision,
 	)

@@ -56,7 +56,6 @@ func TestHandlerRegistersTypedWorkflowPermissions(t *testing.T) {
 		}
 	}
 	for _, path := range []string{
-		"/wfl/process-definition/publish",
 		"/wfl/process-definition/delete",
 		"/wfl/intermediary-trade/query",
 		"/wfl/sales-fulfillment/create",

@@ -10,7 +10,7 @@ status: accepted
 
 WFL uses one deterministic, hermetic Starlark script as the sole editable source of each workflow definition. A script compiles to a read-only graph, reads a recursively frozen canonical VOU document, and invokes one of six statically bound typed `WorkflowActions`. Formal execution delegates document creation and final validation to the VOU adapter in the caller's PostgreSQL transaction; trial uses a zero-write implementation of the same interface.
 
-Published revisions are immutable. An instance fixes the published revision selected when its root starts, so later draft edits, publication, or disabling cannot alter an active instance. Publication requires compilation, graph and action compatibility checks, resource limits, and a successful trial of the exact saved draft revision against a real VOU document.
+Approved Approval versions are immutable. An instance pins the latest approved version selected when its root starts, so later draft edits, approval, or disabling cannot alter an active instance. Approval requires compilation, graph and action compatibility checks, resource limits, and a successful trial of the exact saved candidate version against a real VOU document.
 
 ## Considered options
 

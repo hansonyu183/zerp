@@ -40,10 +40,10 @@ RPT 拥有稳定的报表定义、每个不可变版本的 SQL/参数/结果列 
 
 ## 3. 报表定义与 Approval Version
 
-报表定义是拥有稳定 `definitionId` 和 code 的 stable subject。code 创建后永久冻结；name、description、enabled 和 stable revision 是定义层资料。定义的每个不可变 SQL payload 都是中央 Approval Version entry：`approvalEntryId`、正数 `versionNo`、`DRAFT | PENDING | APPROVED`、approval revision 和审批元数据由 `ApprovalVersionMeta` 表达，不保存 `currentVersionId`、effective pointer、next pointer 或 domain version header。
+报表定义是拥有稳定 `definitionId` 和 code 的 stable subject。code 创建后永久冻结；stable definition 只保存 identity、enabled 和 stable revision。每个 Approval Version entry 的不可变 payload 同时保存 name、description、SQL、参数和结果列：`approvalEntryId`、正数 `versionNo`、`DRAFT | PENDING | APPROVED`、approval revision 和审批元数据由 `ApprovalVersionMeta` 表达，不保存 `currentVersionId`、effective pointer、next pointer 或 domain version header。
 
 - 创建定义会原子建立 stable definition、V1 `DRAFT` entry 和 payload；定义、entry、payload 或事件任一失败均回滚。
-- 保存只允许 DRAFT；修改已批准内容必须 create-version。每个 subject 最多一个 DRAFT/PENDING 候选；create-version 从 latest APPROVED 复制 payload，delete-version 只删除 DRAFT，删除后号码可复用。
+- 保存只允许 DRAFT；修改已批准内容必须 create-version。每个 subject 最多一个 DRAFT/PENDING 候选；create-version 从 latest APPROVED 复制完整 payload，delete-version 只删除 DRAFT，删除后号码可复用。草稿保存不会修改正式目录、执行文本或已登记权限说明；删除候选后管理读取自然回到 latest APPROVED payload，候选批准后才一次切换。
 - `submit`、`unsubmit`、`reject`、`approve`、`unapprove` 使用中央 Approval 生命周期；reject 与 unapprove 必须提交非空 reason，批准人与提交人必须不同，且只能反批最新 APPROVED entry。
 - `get` 可用精确 `approvalEntryId` 读取任一历史 entry；未指定时优先返回唯一开放候选，没有候选时返回 latest APPROVED。`versions` 返回完整历史。前端状态、徽标、动作和版本历史中文语义统一使用 `frontend/src/shared/approval/`，不在 RPT 另建状态映射。
 

@@ -10,7 +10,7 @@ WFL 是以 VOU 单据为节点的用户可管理流程引擎。VOU 独立负责�
 
 Starlark 脚本是流程定义的唯一可编辑来源。`node` 声明稳定节点 key、名称和 VOU entity；`edge` 声明具名关系、分支条件和一个静态动作；`workflow` 声明稳定 code、名称、唯一根节点和可选启动条件。编译图只读展示；编译必须得到单根、单父、连通且无环的树，并拒绝重复 key、不兼容来源/目标动作和动态动作调用。
 
-流程定义是 stable subject，code 创建后不可修改。每个脚本、诊断和成功编译图属于一个中央 Approval Version entry；`ApprovalVersionMeta` 提供 `approvalEntryId`、`versionNo`、`DRAFT | PENDING | APPROVED`、revision 和审批元数据。`enabled` 是 stable definition 上独立的布尔开关，不是审批状态；不存在 publish、published revision、current revision 或任何 version pointer。前端状态、徽标、动作和版本历史中文语义统一使用 `frontend/src/shared/approval/`。
+流程定义是 stable subject，只保存 id、创建后不可修改的 code、`enabled` 和 stable revision。`workflow(code, name, root)` 中的 name 与成功编译图是唯一的版本化名称事实；每个脚本、名称、诊断和编译图属于一个中央 Approval Version entry。管理列表对每个 stable definition 只显示唯一开放候选（`DRAFT`/`PENDING`）或没有候选时的最新 `APPROVED` entry，versions 始终返回完整历史。`ApprovalVersionMeta` 提供 `approvalEntryId`、`versionNo`、`DRAFT | PENDING | APPROVED`、revision 和审批元数据。`enabled` 是 stable definition 上独立的布尔开关，不是审批状态；不存在 publish、published revision、current revision、stable name 或任何 version pointer。前端状态、徽标、动作和版本历史中文语义统一使用 `frontend/src/shared/approval/`。
 
 - 创建定义原子建立 stable definition 与 V1 DRAFT；保存仅允许 DRAFT。
 - 已批准定义的改动通过 create-version 创建候选；每个 definition 最多一个 DRAFT/PENDING 候选。delete-version 仅可删除 DRAFT，编号按中央 Versioning 规则复用。
@@ -31,7 +31,7 @@ WFL 拥有最小、类型化的 `WorkflowActions` 接口，正式运行 adapter 
 
 WFL 复用 VOU 的同步事务事件总线。根单据批准时允许零个或一个 `enabled` 且拥有 latest APPROVED entry 的定义匹配：零匹配正常批准且不创建实例，多匹配使整个批准失败。创建实例时必须保存该 latest APPROVED 的 `approvalEntryId`；实例及其节点之后只按这个 immutable entry 的脚本运行。定义后续 create-version、approve、unapprove 或 enabled 变更都不改写旧实例。
 
-实例只记录实际节点、业务父级、具名关系、触发事件、动作和运行审计，不推导完成、当前节点、进度或短结状态。每个动作有规范指纹；同一实例、来源节点和脚本位置只保留一个有效结果。反批准按 VOU 普通删除规则删除仍可删除的直属下级，任一下级不可删除则阻断整个反批准。删除根 VOU 只清除活动引用；历史节点、动作和审计保留。重新批准沿用原实例及其 `approvalEntryId`；已删除的自动结果可以在新的批准意图中由同一位置重建。
+实例只记录实际节点、业务父级、具名关系、触发事件、动作和运行审计，不推导完成、当前节点、进度或短结状态。启动时从固定 entry 的编译图写入 definition code/name 快照；历史实例绝不追随新版本名称。每个动作有规范指纹；同一实例、来源节点和脚本位置只保留一个有效结果。反批准按 VOU 普通删除规则删除仍可删除的直属下级，任一下级不可删除则阻断整个反批准。删除根 VOU 只清除活动引用；历史节点、动作和审计保留。重新批准沿用原实例及其 `approvalEntryId`；已删除的自动结果可以在新的批准意图中由同一位置重建。
 
 手工 `create-child` 接受实例、父节点、当前固定 entry 下满足条件的目标节点及 16–64 位 `requestKey`。写事务会重锁来源、重算条件并执行同一动作路径；同一 key 只能复用原意图和结果，旧结果删除后不能用旧 key 重建。
 

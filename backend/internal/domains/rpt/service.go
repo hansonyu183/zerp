@@ -194,14 +194,15 @@ func (s *Service) CreateDefinition(ctx context.Context, in DefinitionCreateInput
 	if in.Description != nil {
 		description = *in.Description
 	}
-	if e = q.RptInsertDefinition(ctx, db.RptInsertDefinitionParams{ID: id, Code: in.Code, Name: strings.TrimSpace(in.Name), Description: description, ActorID: actor.ID()}); e != nil {
+	name := strings.TrimSpace(in.Name)
+	if e = q.RptInsertDefinition(ctx, db.RptInsertDefinitionParams{ID: id, Code: in.Code, ActorID: actor.ID()}); e != nil {
 		return MutationResult{}, domainError(ErrorConflict, "report code already exists", nil, e)
 	}
-	entry, e := s.coordinator.CreateFirstVersion(ctx, tx, id, actor, eventPayload(id, in.Code, strings.TrimSpace(in.Name), description, true, "VALID", in.Data.SQL, p, c))
+	entry, e := s.coordinator.CreateFirstVersion(ctx, tx, id, actor, eventPayload(id, in.Code, name, description, true, "VALID", in.Data.SQL, p, c))
 	if e != nil {
 		return MutationResult{}, approvalError(e)
 	}
-	if e = q.RptInsertVersionPayload(ctx, db.RptInsertVersionPayloadParams{ApprovalEntryID: entry.ID, DefinitionID: id, SqlText: in.Data.SQL, Parameters: p, Columns: c, ActorID: actor.ID()}); e != nil {
+	if e = q.RptInsertVersionPayload(ctx, db.RptInsertVersionPayloadParams{ApprovalEntryID: entry.ID, DefinitionID: id, Name: name, Description: description, SqlText: in.Data.SQL, Parameters: p, Columns: c, ActorID: actor.ID()}); e != nil {
 		return MutationResult{}, internal("insert report payload", e)
 	}
 	if e = tx.Commit(ctx); e != nil {
@@ -224,7 +225,7 @@ func (s *Service) CreateVersion(ctx context.Context, in VersionCreateInput, acto
 	if e != nil {
 		return MutationResult{}, internal("load approved report payload", e)
 	}
-	entry, e := s.coordinator.CreateNextVersion(ctx, tx, o.ID, actor, eventPayload(o.ID, o.Code, o.Name, o.Description, o.Enabled, latest.Validity, latest.SqlText, latest.Parameters, latest.Columns))
+	entry, e := s.coordinator.CreateNextVersion(ctx, tx, o.ID, actor, eventPayload(o.ID, o.Code, latest.Name, latest.Description, o.Enabled, latest.Validity, latest.SqlText, latest.Parameters, latest.Columns))
 	if e != nil {
 		return MutationResult{}, approvalError(e)
 	}
@@ -239,6 +240,14 @@ func (s *Service) CreateVersion(ctx context.Context, in VersionCreateInput, acto
 func (s *Service) SaveVersion(ctx context.Context, in VersionSaveInput, actor approval.Actor) (MutationResult, error) {
 	if e := validateVersionData(in.Data); e != nil {
 		return MutationResult{}, e
+	}
+	var name *string
+	if in.Name != nil {
+		trimmed := strings.TrimSpace(*in.Name)
+		if trimmed == "" {
+			return MutationResult{}, validation("invalid report name", nil)
+		}
+		name = &trimmed
 	}
 	p, c, e := encodeData(in.Data)
 	if e != nil {
@@ -261,23 +270,14 @@ func (s *Service) SaveVersion(ctx context.Context, in VersionSaveInput, actor ap
 	if entry.SubjectID != o.ID {
 		return MutationResult{}, validation("report version does not belong to definition", nil)
 	}
-	if e = q.RptUpdateDraftPayload(ctx, db.RptUpdateDraftPayloadParams{ApprovalEntryID: entry.ID, DefinitionID: o.ID, SqlText: in.Data.SQL, Parameters: p, Columns: c, ActorID: actor.ID()}); e != nil {
+	if e = q.RptUpdateDraftPayload(ctx, db.RptUpdateDraftPayloadParams{ApprovalEntryID: entry.ID, DefinitionID: o.ID, Name: name, Description: in.Description, SqlText: in.Data.SQL, Parameters: p, Columns: c, ActorID: actor.ID()}); e != nil {
 		return MutationResult{}, internal("save report payload", e)
 	}
-	if in.Name != nil || in.Description != nil {
-		rev, e := q.RptUpdateDefinitionText(ctx, db.RptUpdateDefinitionTextParams{Name: in.Name, Description: in.Description, ActorID: actor.ID(), DefinitionID: o.ID})
-		if e != nil {
-			return MutationResult{}, internal("save report definition", e)
-		}
-		o.Revision = rev
-		if in.Name != nil {
-			o.Name = *in.Name
-		}
-		if in.Description != nil {
-			o.Description = *in.Description
-		}
+	payload, e := q.RptGetVersionPayload(ctx, db.RptGetVersionPayloadParams{ApprovalEntryID: entry.ID, DefinitionID: o.ID})
+	if e != nil {
+		return MutationResult{}, internal("load saved report payload", e)
 	}
-	entry, e = s.coordinator.SaveDraft(ctx, tx, entry.ID, entry.Revision, actor, eventPayload(o.ID, o.Code, o.Name, o.Description, o.Enabled, "VALID", in.Data.SQL, p, c))
+	entry, e = s.coordinator.SaveDraft(ctx, tx, entry.ID, entry.Revision, actor, eventPayload(o.ID, o.Code, payload.Name, payload.Description, o.Enabled, payload.Validity, payload.SqlText, payload.Parameters, payload.Columns))
 	if e != nil {
 		return MutationResult{}, approvalError(e)
 	}
@@ -324,7 +324,7 @@ func (s *Service) transition(ctx context.Context, in VersionActionInput, reason 
 	if e != nil {
 		return MutationResult{}, approvalError(e)
 	}
-	entry, e = s.coordinator.Commit(ctx, tx, prepared, eventPayload(o.ID, o.Code, o.Name, o.Description, o.Enabled, payload.Validity, payload.SqlText, payload.Parameters, payload.Columns))
+	entry, e = s.coordinator.Commit(ctx, tx, prepared, eventPayload(o.ID, o.Code, payload.Name, payload.Description, o.Enabled, payload.Validity, payload.SqlText, payload.Parameters, payload.Columns))
 	if e != nil {
 		return MutationResult{}, approvalError(e)
 	}
@@ -376,7 +376,7 @@ func (s *Service) DeleteVersion(ctx context.Context, in VersionDeleteInput, acto
 	if e = q.RptDeleteVersionPayload(ctx, db.RptDeleteVersionPayloadParams{ApprovalEntryID: entry.ID, DefinitionID: o.ID}); e != nil {
 		return internal("delete report payload", e)
 	}
-	if e = s.coordinator.DeleteDraftVersion(ctx, tx, entry.ID, entry.Revision, actor, eventPayload(o.ID, o.Code, o.Name, o.Description, o.Enabled, payload.Validity, payload.SqlText, payload.Parameters, payload.Columns)); e != nil {
+	if e = s.coordinator.DeleteDraftVersion(ctx, tx, entry.ID, entry.Revision, actor, eventPayload(o.ID, o.Code, payload.Name, payload.Description, o.Enabled, payload.Validity, payload.SqlText, payload.Parameters, payload.Columns)); e != nil {
 		return approvalError(e)
 	}
 	exists, e := q.ApprovalVersionsExist(ctx, db.ApprovalVersionsExistParams{Domain: "rpt", Entity: "definition", SubjectID: o.ID})

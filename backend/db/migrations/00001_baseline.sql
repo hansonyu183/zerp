@@ -2054,8 +2054,6 @@ CREATE TABLE public.rpt_runtime_audit_events (
 CREATE TABLE public.rpt_definitions (
     id character varying(26) NOT NULL,
     code character varying(64) NOT NULL,
-    name character varying(200) NOT NULL,
-    description character varying(1000) DEFAULT ''::character varying NOT NULL,
     enabled boolean DEFAULT true NOT NULL,
     revision bigint DEFAULT 1 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -2063,7 +2061,6 @@ CREATE TABLE public.rpt_definitions (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_by character varying(26) NOT NULL,
     CONSTRAINT rpt_definitions_code_check CHECK ((((code)::text ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'::text) AND ((code)::text <> ALL ((ARRAY['definition'::character varying, 'directory'::character varying])::text[])))),
-    CONSTRAINT rpt_definitions_name_check CHECK ((btrim((name)::text) <> ''::text)),
     CONSTRAINT rpt_definitions_revision_check CHECK ((revision >= 1))
 );
 
@@ -2075,6 +2072,8 @@ CREATE TABLE public.rpt_definitions (
 CREATE TABLE public.rpt_versions (
     approval_entry_id character varying(26) NOT NULL,
     definition_id character varying(26) NOT NULL,
+    name character varying(200) NOT NULL,
+    description character varying(1000) DEFAULT ''::character varying NOT NULL,
     validity character varying(16) NOT NULL,
     sql_text text NOT NULL,
     parameters jsonb NOT NULL,
@@ -2086,6 +2085,7 @@ CREATE TABLE public.rpt_versions (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_by character varying(26) NOT NULL,
     CONSTRAINT rpt_versions_columns_check CHECK ((jsonb_typeof(columns) = 'array'::text)),
+    CONSTRAINT rpt_versions_name_check CHECK ((btrim((name)::text) <> ''::text)),
     CONSTRAINT rpt_versions_parameters_check CHECK ((jsonb_typeof(parameters) = 'array'::text)),
     CONSTRAINT rpt_versions_sql_text_check CHECK ((btrim(sql_text) <> ''::text)),
     CONSTRAINT rpt_versions_validity_check CHECK (((validity)::text = ANY ((ARRAY['VALID'::character varying, 'INVALID'::character varying])::text[])))
@@ -3517,7 +3517,6 @@ CREATE TABLE public.wfl_node_instances (
 CREATE TABLE public.wfl_process_definitions (
     id character varying(26) NOT NULL,
     code character varying(64) NOT NULL,
-    name character varying(100) NOT NULL,
     enabled boolean DEFAULT false NOT NULL,
     revision bigint DEFAULT 1 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -3525,7 +3524,6 @@ CREATE TABLE public.wfl_process_definitions (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_by character varying(26) NOT NULL,
     CONSTRAINT wfl_process_definitions_code_check CHECK (((code)::text ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'::text)),
-    CONSTRAINT wfl_process_definitions_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 100))),
     CONSTRAINT wfl_process_definitions_revision_check CHECK ((revision > 0))
 );
 
@@ -4951,14 +4949,14 @@ INSERT INTO public.object_number_counters VALUES ('aux', 'product-type', 4);
 --
 
 -- +goose StatementBegin
-INSERT INTO public.rpt_definitions (id, code, name, description, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPD1e68c4c93e49d8d1e1877f9', 'account-journal', '科目流水', '系统预置报表', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_definitions (id, code, name, description, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPDb40033a1ed0a842d50c23f1', 'subject-balance', '科目余额', '系统预置报表', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_definitions (id, code, name, description, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPD43189400de7a6fe5d7978ed', 'customer-aging', '客户应收预收账龄', '系统预置报表', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_definitions (id, code, name, description, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPD24d57c02d870b62329517d0', 'supplier-aging', '供应商应付预付账龄', '系统预置报表', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_definitions (id, code, name, description, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPDef5b48e5bf2909eebd39609', 'inventory-movement', '库存收发存', '系统预置报表', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_definitions (id, code, name, description, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPDb5237b6a7892a42a4a7a60f', 'bills', '票据', '系统预置报表', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_definitions (id, code, name, description, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPD57bcbf1d2df6010d41816c0', 'containers', '空桶', '系统预置报表', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_definitions (id, code, name, description, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPD517f80b4080608d1ef8ce23', 'employee-loans', '员工借款', '系统预置报表', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
+INSERT INTO public.rpt_definitions (id, code, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPD1e68c4c93e49d8d1e1877f9', 'account-journal', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
+INSERT INTO public.rpt_definitions (id, code, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPDb40033a1ed0a842d50c23f1', 'subject-balance', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
+INSERT INTO public.rpt_definitions (id, code, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPD43189400de7a6fe5d7978ed', 'customer-aging', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
+INSERT INTO public.rpt_definitions (id, code, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPD24d57c02d870b62329517d0', 'supplier-aging', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
+INSERT INTO public.rpt_definitions (id, code, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPDef5b48e5bf2909eebd39609', 'inventory-movement', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
+INSERT INTO public.rpt_definitions (id, code, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPDb5237b6a7892a42a4a7a60f', 'bills', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
+INSERT INTO public.rpt_definitions (id, code, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPD57bcbf1d2df6010d41816c0', 'containers', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
+INSERT INTO public.rpt_definitions (id, code, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPD517f80b4080608d1ef8ce23', 'employee-loans', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
 
 
 --
@@ -4967,7 +4965,7 @@ INSERT INTO public.rpt_definitions (id, code, name, description, enabled, revisi
 --
 
 -- +goose StatementBegin
-INSERT INTO public.rpt_versions (approval_entry_id, definition_id, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV1e68c4c93e49d8d1e1877f9', 'RPD1e68c4c93e49d8d1e1877f9', 'VALID', '
+INSERT INTO public.rpt_versions (approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV1e68c4c93e49d8d1e1877f9', 'RPD1e68c4c93e49d8d1e1877f9', '科目流水', '系统预置报表', 'VALID', '
     SELECT b.code::text AS book_code,s.code::text AS subject_code,v.business_date::date AS business_date,
         v.id::text AS voucher_id,v.source_document_no::text AS source_document_no,e.currency::text AS currency,
         CASE WHEN e.debit_minor>0 THEN ''DEBIT'' ELSE ''CREDIT'' END::text AS direction,
@@ -4981,7 +4979,7 @@ INSERT INTO public.rpt_versions (approval_entry_id, definition_id, validity, sql
       AND ($3::text='''' OR e.currency=$3) AND v.business_date <@ $4::daterange
     ORDER BY v.business_date,v.id,e.line_order
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "subjectId", "name": "会计科目", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNT_SUBJECT"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "dateRange", "name": "日期范围", "type": "DATE_RANGE", "required": false, "defaultValue": ["1900-01-01", "9999-12-31"]}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "科目", "type": "TEXT", "alias": "subject_code", "order": 2, "width": 100, "visible": true}, {"name": "日期", "type": "DATE", "alias": "business_date", "order": 3, "width": 110, "format": "date", "visible": true}, {"name": "凭证", "type": "ID", "alias": "voucher_id", "order": 4, "width": 180, "visible": false}, {"name": "来源单号", "type": "TEXT", "alias": "source_document_no", "order": 5, "width": 150, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 6, "width": 80, "visible": true}, {"name": "方向", "type": "TEXT", "alias": "direction", "order": 7, "width": 80, "visible": true}, {"name": "金额", "type": "DECIMAL", "alias": "amount", "order": 8, "width": 120, "format": "money", "visible": true}, {"name": "来源类型", "type": "TEXT", "alias": "source_entity", "order": 9, "width": 130, "visible": true}, {"name": "来源单据", "type": "ID", "alias": "source_document_id", "order": 10, "width": 100, "visible": true, "drilldownEntity": "VOU"}]', 'SYSTEM', 'SYSTEM');
-INSERT INTO public.rpt_versions (approval_entry_id, definition_id, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPVb40033a1ed0a842d50c23f1', 'RPDb40033a1ed0a842d50c23f1', 'VALID', '
+INSERT INTO public.rpt_versions (approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPVb40033a1ed0a842d50c23f1', 'RPDb40033a1ed0a842d50c23f1', '科目余额', '系统预置报表', 'VALID', '
     SELECT b.code::text AS book_code,s.code::text AS subject_code,e.currency::text AS currency,
       (sum(CASE WHEN v.business_date<lower($4::daterange) THEN e.debit_minor-e.credit_minor ELSE 0 END)::numeric/100) AS opening_balance,
       (sum(CASE WHEN v.business_date <@ $4::daterange THEN e.debit_minor ELSE 0 END)::numeric/100) AS debit_amount,
@@ -4994,7 +4992,7 @@ INSERT INTO public.rpt_versions (approval_entry_id, definition_id, validity, sql
       AND v.business_date<upper($4::daterange)
     GROUP BY b.code,s.code,e.currency ORDER BY b.code,s.code,e.currency
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "subjectId", "name": "会计科目", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNT_SUBJECT"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "dateRange", "name": "期间", "type": "DATE_RANGE", "required": false, "defaultValue": ["1900-01-01", "9999-12-31"]}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "科目", "type": "TEXT", "alias": "subject_code", "order": 2, "width": 100, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 3, "width": 80, "visible": true}, {"name": "期初余额", "type": "DECIMAL", "alias": "opening_balance", "order": 4, "width": 130, "format": "money", "visible": true}, {"name": "借方发生", "type": "DECIMAL", "alias": "debit_amount", "order": 5, "width": 130, "format": "money", "visible": true}, {"name": "贷方发生", "type": "DECIMAL", "alias": "credit_amount", "order": 6, "width": 130, "format": "money", "visible": true}, {"name": "期末余额", "type": "DECIMAL", "alias": "ending_balance", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "余额方向", "type": "TEXT", "alias": "balance_direction", "order": 8, "width": 90, "visible": true}]', 'SYSTEM', 'SYSTEM');
-INSERT INTO public.rpt_versions (approval_entry_id, definition_id, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPVef5b48e5bf2909eebd39609', 'RPDef5b48e5bf2909eebd39609', 'VALID', '
+INSERT INTO public.rpt_versions (approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPVef5b48e5bf2909eebd39609', 'RPDef5b48e5bf2909eebd39609', '库存收发存', '系统预置报表', 'VALID', '
     SELECT b.code::text AS book_code,s.code::text AS subject_code,i.warehouse_id::text AS warehouse_id,
       i.product_id::text AS product_id,
       (sum(CASE WHEN i.business_date<date_trunc(''month'',$5::date)::date THEN i.quantity_delta_micros ELSE 0 END)::numeric/1000000) AS opening_quantity,
@@ -5016,7 +5014,7 @@ INSERT INTO public.rpt_versions (approval_entry_id, definition_id, validity, sql
       AND ($3::text='''' OR i.warehouse_id=$3) AND ($4::text='''' OR i.product_id=$4) AND i.business_date<=$5::date
     GROUP BY b.code,s.code,i.warehouse_id,i.product_id ORDER BY b.code,s.code,i.warehouse_id,i.product_id
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "subjectId", "name": "库存科目", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNT_SUBJECT"}, {"key": "warehouseId", "name": "仓库", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "WAREHOUSE"}, {"key": "productId", "name": "产品", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "PRODUCT"}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "库存科目", "type": "TEXT", "alias": "subject_code", "order": 2, "width": 100, "visible": true}, {"name": "仓库", "type": "ID", "alias": "warehouse_id", "order": 3, "width": 180, "visible": true}, {"name": "产品", "type": "ID", "alias": "product_id", "order": 4, "width": 180, "visible": true}, {"name": "期初数量", "type": "DECIMAL", "alias": "opening_quantity", "order": 5, "width": 120, "format": "quantity", "visible": true}, {"name": "入库数量", "type": "DECIMAL", "alias": "inbound_quantity", "order": 6, "width": 120, "format": "quantity", "visible": true}, {"name": "出库数量", "type": "DECIMAL", "alias": "outbound_quantity", "order": 7, "width": 120, "format": "quantity", "visible": true}, {"name": "期末数量", "type": "DECIMAL", "alias": "ending_quantity", "order": 8, "width": 120, "format": "quantity", "visible": true}, {"name": "移动平均单价", "type": "DECIMAL", "alias": "average_unit_cost", "order": 9, "width": 140, "format": "money", "visible": true}, {"name": "期末金额", "type": "DECIMAL", "alias": "ending_amount", "order": 10, "width": 130, "format": "money", "visible": true}, {"name": "来源类型", "type": "TEXT", "alias": "source_entity", "order": 11, "width": 130, "visible": false}, {"name": "来源单据", "type": "ID", "alias": "source_document_id", "order": 12, "width": 100, "visible": true, "drilldownEntity": "VOU"}]', 'SYSTEM', 'SYSTEM');
-INSERT INTO public.rpt_versions (approval_entry_id, definition_id, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPVb5237b6a7892a42a4a7a60f', 'RPDb5237b6a7892a42a4a7a60f', 'VALID', '
+INSERT INTO public.rpt_versions (approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPVb5237b6a7892a42a4a7a60f', 'RPDb5237b6a7892a42a4a7a60f', '票据', '系统预置报表', 'VALID', '
     SELECT book.code::text AS book_code,bill.id::text AS bill_id,bill.bill_no::text AS bill_no,
       CASE WHEN settled.business_date IS NOT NULL AND settled.business_date<=$6::date THEN ''SETTLED'' ELSE ''AVAILABLE'' END::text AS business_status,
       bill.position_type::text AS position_type,bill.currency::text AS currency,
@@ -5035,7 +5033,7 @@ INSERT INTO public.rpt_versions (approval_entry_id, definition_id, validity, sql
       AND bill.maturity_date <@ $5::daterange AND bill.issue_date<=$6::date
     ORDER BY book.code,bill.bill_no,bill.id
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "billId", "name": "票据", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "BILL"}, {"key": "partyId", "name": "往来方", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "OTHER_PARTY"}, {"key": "status", "name": "状态", "type": "ENUM", "required": false, "enumValues": ["", "AVAILABLE", "SETTLED"], "defaultValue": ""}, {"key": "maturityRange", "name": "到期日范围", "type": "DATE_RANGE", "required": false, "defaultValue": ["1900-01-01", "9999-12-31"]}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "票据ID", "type": "ID", "alias": "bill_id", "order": 2, "width": 180, "visible": false}, {"name": "票据号", "type": "TEXT", "alias": "bill_no", "order": 3, "width": 160, "visible": true}, {"name": "业务状态", "type": "TEXT", "alias": "business_status", "order": 4, "width": 110, "visible": true}, {"name": "账簿方向", "type": "TEXT", "alias": "position_type", "order": 5, "width": 100, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 6, "width": 80, "visible": true}, {"name": "原值", "type": "DECIMAL", "alias": "original_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "账面金额", "type": "DECIMAL", "alias": "carrying_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "到期日", "type": "DATE", "alias": "maturity_date", "order": 9, "width": 110, "format": "date", "visible": true}, {"name": "往来方", "type": "ID", "alias": "party_id", "order": 10, "width": 180, "visible": false}, {"name": "来源类型", "type": "TEXT", "alias": "source_entity", "order": 11, "width": 130, "visible": false}, {"name": "来源单据", "type": "ID", "alias": "source_document_id", "order": 12, "width": 100, "visible": true, "drilldownEntity": "VOU"}]', 'SYSTEM', 'SYSTEM');
-INSERT INTO public.rpt_versions (approval_entry_id, definition_id, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV43189400de7a6fe5d7978ed', 'RPD43189400de7a6fe5d7978ed', 'VALID', '
+INSERT INTO public.rpt_versions (approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV43189400de7a6fe5d7978ed', 'RPD43189400de7a6fe5d7978ed', '客户应收预收账龄', '系统预置报表', 'VALID', '
     WITH facts AS (
       SELECT e.id,e.voucher_id,e.line_order,e.book_id,e.currency,e.dimensions->>''CUSTOMER_ACCOUNT'' AS party_id,v.business_date,
         coalesce(d.due_date,v.business_date) AS due_date,s.settlement_purpose,
@@ -5081,7 +5079,7 @@ INSERT INTO public.rpt_versions (approval_entry_id, definition_id, validity, sql
     WHERE greatest(($4::date-x.oldest_due_date)::bigint,0::bigint)>=$5::bigint
     ORDER BY b.code,customer_code,x.currency
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "customerId", "name": "客户", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "CUSTOMER_ACCOUNT"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}, {"key": "minAgeDays", "name": "最小账龄天数", "type": "INTEGER", "required": false, "defaultValue": 0}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "客户ID", "type": "ID", "alias": "customer_id", "order": 2, "width": 180, "visible": false}, {"name": "客户编码", "type": "TEXT", "alias": "customer_code", "order": 3, "width": 120, "visible": true}, {"name": "客户名称", "type": "TEXT", "alias": "customer_name", "order": 4, "width": 180, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "应收原额", "type": "DECIMAL", "alias": "receivable_amount", "order": 6, "width": 130, "format": "money", "visible": true}, {"name": "预收原额", "type": "DECIMAL", "alias": "advance_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "净额", "type": "DECIMAL", "alias": "net_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 9, "width": 130, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 10, "width": 120, "visible": true}]', 'SYSTEM', 'SYSTEM');
-INSERT INTO public.rpt_versions (approval_entry_id, definition_id, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV24d57c02d870b62329517d0', 'RPD24d57c02d870b62329517d0', 'VALID', '
+INSERT INTO public.rpt_versions (approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV24d57c02d870b62329517d0', 'RPD24d57c02d870b62329517d0', '供应商应付预付账龄', '系统预置报表', 'VALID', '
     WITH facts AS (
       SELECT e.id,e.voucher_id,e.line_order,e.book_id,e.currency,e.dimensions->>''SUPPLIER_RELATIONSHIP'' AS party_id,v.business_date,
         coalesce(d.due_date,v.business_date) AS due_date,s.settlement_purpose,
@@ -5127,7 +5125,7 @@ INSERT INTO public.rpt_versions (approval_entry_id, definition_id, validity, sql
     WHERE greatest(($4::date-x.oldest_due_date)::bigint,0::bigint)>=$5::bigint
     ORDER BY b.code,supplier_code,x.currency
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "supplierId", "name": "供应商", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "SUPPLIER_RELATIONSHIP"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}, {"key": "minAgeDays", "name": "最小账龄天数", "type": "INTEGER", "required": false, "defaultValue": 0}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "供应商ID", "type": "ID", "alias": "supplier_id", "order": 2, "width": 180, "visible": false}, {"name": "供应商编码", "type": "TEXT", "alias": "supplier_code", "order": 3, "width": 120, "visible": true}, {"name": "供应商名称", "type": "TEXT", "alias": "supplier_name", "order": 4, "width": 180, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "应付原额", "type": "DECIMAL", "alias": "payable_amount", "order": 6, "width": 130, "format": "money", "visible": true}, {"name": "预付原额", "type": "DECIMAL", "alias": "advance_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "净额", "type": "DECIMAL", "alias": "net_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 9, "width": 130, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 10, "width": 120, "visible": true}]', 'SYSTEM', 'SYSTEM');
-INSERT INTO public.rpt_versions (approval_entry_id, definition_id, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV57bcbf1d2df6010d41816c0', 'RPD57bcbf1d2df6010d41816c0', 'VALID', '
+INSERT INTO public.rpt_versions (approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV57bcbf1d2df6010d41816c0', 'RPD57bcbf1d2df6010d41816c0', '空桶', '系统预置报表', 'VALID', '
     WITH facts AS (
       SELECT book.id AS book_id,book.code,e.customer_id,e.container_type,e.quantity_delta,
         coalesce(source.business_date,book.start_month) AS business_date,e.source_revision
@@ -5164,7 +5162,7 @@ INSERT INTO public.rpt_versions (approval_entry_id, definition_id, validity, sql
     LEFT JOIN bob_objects customer ON customer.id=m.customer_id AND customer.entity=''customer-account''
     ORDER BY m.code,customer_code,m.container_type
     ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "customerId", "name": "客户", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "CUSTOMER_ACCOUNT"}, {"key": "containerType", "name": "桶型", "type": "ENUM", "required": false, "enumValues": ["", "SOLVENT", "RESIN"], "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "客户ID", "type": "ID", "alias": "customer_id", "order": 2, "width": 180, "visible": false}, {"name": "客户编码", "type": "TEXT", "alias": "customer_code", "order": 3, "width": 120, "visible": true}, {"name": "客户名称", "type": "TEXT", "alias": "customer_name", "order": 4, "width": 180, "visible": true}, {"name": "桶型", "type": "TEXT", "alias": "container_type", "order": 5, "width": 100, "visible": true}, {"name": "期初", "type": "DECIMAL", "alias": "opening_quantity", "order": 6, "width": 110, "format": "quantity", "visible": true}, {"name": "发出", "type": "DECIMAL", "alias": "issued_quantity", "order": 7, "width": 110, "format": "quantity", "visible": true}, {"name": "收回", "type": "DECIMAL", "alias": "returned_quantity", "order": 8, "width": 110, "format": "quantity", "visible": true}, {"name": "调整", "type": "DECIMAL", "alias": "adjusted_quantity", "order": 9, "width": 110, "format": "quantity", "visible": true}, {"name": "欠桶余额", "type": "DECIMAL", "alias": "balance_quantity", "order": 10, "width": 120, "format": "quantity", "visible": true}, {"name": "核算金额", "type": "DECIMAL", "alias": "amount", "order": 11, "width": 130, "format": "money", "visible": true}]', 'SYSTEM', 'SYSTEM');
-INSERT INTO public.rpt_versions (approval_entry_id, definition_id, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV517f80b4080608d1ef8ce23', 'RPD517f80b4080608d1ef8ce23', 'VALID', '
+INSERT INTO public.rpt_versions (approval_entry_id, definition_id, name, description, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV517f80b4080608d1ef8ce23', 'RPD517f80b4080608d1ef8ce23', '员工借款', '系统预置报表', 'VALID', '
     WITH facts AS (
       SELECT e.id,e.voucher_id,e.line_order,e.book_id,e.currency,e.dimensions->>''EMPLOYMENT_RELATIONSHIP'' AS employee_id,v.business_date,v.source_entity,
         (e.debit_minor-e.credit_minor) AS signed_minor
@@ -5725,10 +5723,10 @@ globalThis.calculate = function calculate(input) {
 --
 
 -- +goose StatementBegin
-INSERT INTO public.wfl_process_definitions (id, code, name, enabled, revision, created_by, updated_by) VALUES
-    ('WFD0f7b734eecb146455d2f051', 'expense-payment', '费用报销付款', false, 1, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000'),
-    ('WFD811182d17c4453955c72f85', 'purchase-fulfillment', '采购履约', false, 1, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000'),
-    ('WFDcd6f1eaebf0d5b6055c58fe', 'sales-fulfillment', '销售履约', false, 1, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000');
+INSERT INTO public.wfl_process_definitions (id, code, enabled, revision, created_by, updated_by) VALUES
+    ('WFD0f7b734eecb146455d2f051', 'expense-payment', false, 1, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000'),
+    ('WFD811182d17c4453955c72f85', 'purchase-fulfillment', false, 1, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000'),
+    ('WFDcd6f1eaebf0d5b6055c58fe', 'sales-fulfillment', false, 1, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000');
 INSERT INTO public.wfl_definition_versions (approval_entry_id, definition_id, script, diagnostic, compiled, last_trial_approval_revision, created_by, updated_by) VALUES ('WVE0f7b734eecb146455d2f051', 'WFD0f7b734eecb146455d2f051', 'reimbursement = node(key="reimbursement", name="费用报销", entity="expense-reimbursement")
 payment = node(key="payment", name="费用付款", entity="expense-payment")
 workflow(code="expense-payment", name="费用报销付款", root=reimbursement, edges=[edge(source=reimbursement, target=payment, relation="payment", action=expense_payment(initial={"fundAccountObjectId": ""}))])', NULL, '{"edges": [{"relation": "payment", "sourceKey": "reimbursement", "targetKey": "payment", "actionName": "expense_payment"}], "nodes": [{"key": "reimbursement", "name": "费用报销", "entity": "expense-reimbursement"}, {"key": "payment", "name": "费用付款", "entity": "expense-payment"}], "rootKey": "reimbursement"}', NULL, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000');
@@ -5741,6 +5739,12 @@ delivery = node(key="sale-delivery", name="销售送货", entity="sale-delivery"
 signoff = node(key="sale-signoff", name="销售签收", entity="sale-signoff")
 refusal_return = node(key="sale-return", name="拒收退货", entity="sale-return")
 workflow(code="sales-fulfillment", name="销售履约", root=order, edges=[edge(source=order, target=outbound, relation="outbound", action=sale_outbound(initial={})), edge(source=outbound, target=delivery, relation="delivery", action=sale_delivery(initial={"carrierServiceRelationshipObjectId":"","vehicleObjectId":""})), edge(source=delivery, target=signoff, relation="signoff", action=sale_signoff(initial={})), edge(source=signoff, target=refusal_return, relation="refusal-return", action=sale_return(initial={}))])', NULL, '{"edges": [{"relation": "outbound", "sourceKey": "sale-order", "targetKey": "sale-outbound", "actionName": "sale_outbound"}, {"relation": "delivery", "sourceKey": "sale-outbound", "targetKey": "sale-delivery", "actionName": "sale_delivery"}, {"relation": "signoff", "sourceKey": "sale-delivery", "targetKey": "sale-signoff", "actionName": "sale_signoff"}, {"relation": "refusal-return", "sourceKey": "sale-signoff", "targetKey": "sale-return", "actionName": "sale_return"}], "nodes": [{"key": "sale-order", "name": "销售订单", "entity": "sale-order"}, {"key": "sale-outbound", "name": "销售出库", "entity": "sale-outbound"}, {"key": "sale-delivery", "name": "销售送货", "entity": "sale-delivery"}, {"key": "sale-signoff", "name": "销售签收", "entity": "sale-signoff"}, {"key": "sale-return", "name": "拒收退货", "entity": "sale-return"}], "rootKey": "sale-order"}', NULL, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000');
+UPDATE public.wfl_definition_versions
+SET compiled=jsonb_set(compiled, '{name}', to_jsonb(CASE definition_id
+    WHEN 'WFD0f7b734eecb146455d2f051' THEN '费用报销付款'
+    WHEN 'WFD811182d17c4453955c72f85' THEN '采购履约'
+    WHEN 'WFDcd6f1eaebf0d5b6055c58fe' THEN '销售履约'
+END::text));
 
 
 --

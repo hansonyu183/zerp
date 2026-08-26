@@ -288,6 +288,30 @@ export async function approveVouAsReviewer(
   }
 }
 
+export async function approveWorkflowDefinitionAsReviewer(
+  baseURL: string,
+  credentials: E2ECredentials,
+  definition: {
+    definitionId: string
+    approvalEntryId: string
+    revision: number
+  },
+): Promise<void> {
+  const session = await signIn(
+    baseURL,
+    credentials.username,
+    credentials.password,
+  )
+  try {
+    await session.api.post<WflDefinitionView>(
+      'wfl/process-definition/approve',
+      definition,
+    )
+  } finally {
+    await session.context.dispose()
+  }
+}
+
 async function signInAfterForcedPasswordChange(
   baseURL: string,
   username: string,

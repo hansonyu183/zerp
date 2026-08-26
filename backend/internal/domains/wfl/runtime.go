@@ -28,7 +28,7 @@ func (s *Service) registerSubscriptions(bus *txevent.Bus) error {
 type workflowApprovalEvent struct {
 	Entity, DocumentID, DocumentNo string
 	Revision                       int64
-	Snapshot                       voudomain.DocumentView
+	Snapshot                       voudomain.ApprovalPayload
 	ActorID, RequestID             string
 }
 
@@ -46,15 +46,14 @@ func workflowDocumentEntities() []string {
 	return result
 }
 
-func (s *Service) handleApproval(ctx context.Context, tx pgx.Tx, source approval.Event[voudomain.DocumentView]) error {
+func (s *Service) handleApproval(ctx context.Context, tx pgx.Tx, source approval.Event[voudomain.ApprovalPayload]) error {
 	if source.Action != approval.ActionApproved {
 		return nil
 	}
 	snapshot := source.Payload
 	if source.ToRevision == nil || source.ToStatus == nil || *source.ToStatus != approval.StatusApproved ||
 		source.Entry.Domain != "vou" || snapshot.DocumentID != source.Entry.SubjectID ||
-		snapshot.Entity != source.Entry.Entity ||
-		snapshot.Approval.Status != approval.StatusApproved || snapshot.Approval.Revision != *source.ToRevision {
+		snapshot.Entity != source.Entry.Entity {
 		return txevent.Reject("invalid workflow approval event", nil)
 	}
 	event := workflowApprovalEvent{Entity: snapshot.Entity, DocumentID: snapshot.DocumentID,

@@ -6,8 +6,12 @@ import {
   generateAdrIndex,
   validateAdrIndex,
   validateAdrDocuments,
+  validateCurrentStateLegacyLanguage,
   validateLegacyLanguage,
+  parseUseCaseMissingBaseline,
   validateSkillReferences,
+  validateUseCaseMissingBaseline,
+  validateUseCaseMissingBaselineReduction,
   validateUseCaseOwnership,
 } from './check-docs.mjs'
 
@@ -292,5 +296,78 @@ test('discovers every domain use case and requires its authority link', () => {
       },
     ]),
     [],
+  )
+})
+
+test('applies legacy language checks to current-state documents but not ADRs', () => {
+  const failures = validateCurrentStateLegacyLanguage([
+    { file: 'CONTEXT.md', source: 'legacy wording' },
+    { file: 'README.md', source: 'deprecated wording' },
+    { file: 'frontend/README.md', source: 'fallback wording' },
+    { file: 'backend/README.md', source: '旧实体' },
+    { file: 'docs/adr/0001-history.md', source: 'legacy wording' },
+  ]).join('\n')
+
+  assert.match(failures, /CONTEXT\.md:1/)
+  assert.match(failures, /README\.md:1/)
+  assert.match(failures, /frontend\/README\.md:1/)
+  assert.match(failures, /backend\/README\.md:1/)
+  assert.doesNotMatch(failures, /docs\/adr\/0001-history\.md/)
+})
+
+test('rejects newly missing use cases and stale baseline debt', () => {
+  assert.match(
+    validateUseCaseMissingBaseline(
+      ['app/existing'],
+      ['app/existing', 'app/new'],
+    ).join('\n'),
+    /未登记新增债务：app\/new/,
+  )
+  assert.match(
+    validateUseCaseMissingBaseline(
+      ['app/existing', 'app/resolved'],
+      ['app/existing'],
+    ).join('\n'),
+    /包含已修复债务：app\/resolved/,
+  )
+})
+
+test('requires the missing-use-case baseline to exactly match current debt', () => {
+  const failures = validateUseCaseMissingBaseline(
+    ['app/old', 'app/resolved'],
+    ['app/new', 'app/old'],
+  ).join('\n')
+
+  assert.match(failures, /未登记新增债务：app\/new/)
+  assert.match(failures, /包含已修复债务：app\/resolved/)
+})
+
+test('only permits manual baseline reductions', () => {
+  assert.deepEqual(
+    validateUseCaseMissingBaselineReduction(['app/a', 'app/b'], ['app/a']),
+    [],
+  )
+  assert.match(
+    validateUseCaseMissingBaselineReduction(['app/a'], ['app/a', 'app/b']).join(
+      '\n',
+    ),
+    /只能随债务减少：app\/b/,
+  )
+})
+
+test('requires a controlled, sorted missing-use-case baseline file', () => {
+  assert.match(
+    parseUseCaseMissingBaseline(
+      '{"missingUseCaseKeys":["app/b","app/a"]}',
+      'baseline',
+    ).failures.join('\n'),
+    /必须按字典序排列/,
+  )
+  assert.match(
+    parseUseCaseMissingBaseline(
+      '{"missingUseCaseKeys":["app/a","app/a"]}',
+      'baseline',
+    ).failures.join('\n'),
+    /重复页面用例入口：app\/a/,
   )
 })

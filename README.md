@@ -34,8 +34,6 @@ make dev
 
 `make dev` 会启动按当前 `backend/db/schema.sql` 初始化的 PostgreSQL 容器，并以前台热更新方式运行 Go API 和 Vite。浏览器访问 `http://127.0.0.1:5173`；Vite 将 `/api/*` 代理到 API 并去掉 `/api` 前缀，将 `/files/*` 直接代理到附件端点。
 
-前端构建、类型检查及相关工具统一使用 TypeScript 7.0.2 的 tsgo checker。仓库通过锁定的 TypeScript native bridge 让 `vue-tsc` 使用同一 checker 检查 TypeScript 与 Vue SFC template，不维护第二套 TypeScript 兼容工具链。
-
 停止前台进程后数据库卷会保留；需要停止容器时运行：
 
 ```bash
@@ -83,6 +81,7 @@ ZERP 前端仅通过 Cloudflare Pages 部署。API 基址、Origin、Cookie、�
 
 ## 文档
 
+- [共享术语与权威链接](CONTEXT.md)
 - [Approval：中央审批与版本](docs/domains/approval.md)
 - [APP：访问、会话与权限](docs/domains/app.md)
 - [BOB：业务对象](docs/domains/bob.md)
@@ -91,6 +90,7 @@ ZERP 前端仅通过 Cloudflare Pages 部署。API 基址、Origin、Cookie、�
 - [WFL：业务流程](docs/domains/wfl.md)
 - [ACC：内部会计](docs/domains/acc.md)
 - [RPT：报表](docs/domains/rpt.md)
+- [架构决策记录](docs/adr/README.md)
 - [页面用例索引](docs/use-cases/README.md)
 - [前端 API 配置](docs/operations/frontend-api-configuration.md)
 

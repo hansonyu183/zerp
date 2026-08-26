@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
+import { ApprovalStatusBadge, approvalActionLabels } from '@/shared/approval'
 import EntityListControls from '@/components/common/EntityListControls.vue'
 import ListRowActions from '@/components/common/ListRowActions.vue'
 import type { ListRowAction } from '@/components/common/list-row-actions'
@@ -9,7 +10,7 @@ import type { AccountingMapping } from './api'
 const vm = createAccountingMappingViewModel()
 
 function actions(mapping: AccountingMapping): ListRowAction[] {
-  if (mapping.state === 'DRAFT') {
+  if (mapping.approval.status === 'DRAFT') {
     return [
       ...(vm.canEdit
         ? [
@@ -21,22 +22,31 @@ function actions(mapping: AccountingMapping): ListRowAction[] {
             },
           ]
         : []),
-      ...(vm.canApprove
+      ...(vm.canSubmitApproval
         ? [
             {
-              key: 'approve',
-              label: '批准',
-              icon: 'mdi-check-circle-outline',
+              key: 'submit',
+              label: approvalActionLabels.submit,
+              icon: 'mdi-send-outline',
             },
-          ]
+          ] : []),
+      ...(vm.canDeleteVersion
+        ? [{ key: 'delete-version', label: '删除草稿', icon: 'mdi-delete-outline', color: 'error' }]
         : []),
     ]
   }
+  if (mapping.approval.status === 'PENDING') {
+    return [
+      ...(vm.canUnsubmitApproval ? [{ key: 'unsubmit', label: approvalActionLabels.unsubmit, icon: 'mdi-undo' }] : []),
+      ...(vm.canRejectApproval ? [{ key: 'reject', label: approvalActionLabels.reject, icon: 'mdi-close-circle-outline', color: 'error' }] : []),
+      ...(vm.canApprove ? [{ key: 'approve', label: approvalActionLabels.approve, icon: 'mdi-check-circle-outline' }] : []),
+    ]
+  }
   return [
-    ...(vm.canCreate
+    ...(vm.canCreateNext
       ? [
           {
-            key: 'create',
+            key: 'create-next',
             label: '基于此版本新建',
             icon: 'mdi-content-copy',
             color: 'primary',
@@ -52,6 +62,9 @@ function actions(mapping: AccountingMapping): ListRowAction[] {
           },
         ]
       : []),
+    ...(vm.canVersions
+      ? [{ key: 'versions', label: '版本历史', icon: 'mdi-history' }]
+      : []),
   ]
 }
 
@@ -60,11 +73,15 @@ function selectAction(mapping: AccountingMapping, action: string): void {
     void vm.openEdit(mapping)
     return
   }
-  if (action === 'create') {
-    void vm.openCreate(mapping)
+  if (action === 'create-next') {
+    void vm.createNext(mapping)
     return
   }
-  void vm.changeState(mapping, action === 'approve')
+  if (action === 'versions') {
+    void vm.loadVersions(mapping)
+    return
+  }
+  void vm.changeState(mapping, action as 'submit' | 'unsubmit' | 'approve' | 'reject' | 'unapprove' | 'delete-version')
 }
 
 void vm.initialize()
@@ -123,12 +140,21 @@ void vm.initialize()
       </template>
     </EntityListControls>
     <v-card title="VOU 会计映射">
+      <v-card-text class="pb-0">
+        <v-text-field
+          v-model="vm.approvalReason"
+          density="compact"
+          hide-details
+          label="驳回/反批准原因"
+          style="max-width: 360px"
+        />
+      </v-card-text>
       <v-data-table-server
         class="mapping-table"
         :headers="[
           { title: 'VOU 类型', key: 'vouEntity' },
-          { title: '版本', key: 'version' },
-          { title: '状态', key: 'state' },
+          { title: '版本', key: 'approval.versionNo' },
+          { title: '状态', key: 'approval.status' },
           { title: '默认结果', key: 'defaultResult' },
           { title: '操作', key: 'actions', sortable: false },
         ]"
@@ -140,14 +166,8 @@ void vm.initialize()
         :items-per-page="vm.pageSize"
         @update:page="vm.changePage"
       >
-        <template #[`item.state`]="{ item }">
-          <v-chip
-            :color="item.state === 'APPROVED' ? 'success' : 'warning'"
-            size="small"
-            variant="tonal"
-          >
-            {{ item.state === 'APPROVED' ? '已批准' : '草稿' }}
-          </v-chip>
+        <template #[`item.approval.status`]="{ item }">
+          <ApprovalStatusBadge :status="item.approval.status" />
         </template>
         <template #[`item.defaultResult`]="{ item }">
           {{ item.defaultResult === 'POST' ? '生成凭证' : '忽略' }}
@@ -155,7 +175,7 @@ void vm.initialize()
         <template #[`item.actions`]="{ item }">
           <ListRowActions
             :actions="actions(item)"
-            :label="`操作 ${item.vouEntity} 版本 ${item.version}`"
+            :label="`操作 ${item.vouEntity} 版本 ${item.approval.versionNo}`"
             @select="selectAction(item, $event)"
           />
         </template>

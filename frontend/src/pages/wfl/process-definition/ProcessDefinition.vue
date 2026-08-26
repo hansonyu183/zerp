@@ -3,11 +3,14 @@ import { ref } from 'vue'
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
 import EntityListControls from '@/components/common/EntityListControls.vue'
 import {
-  definitionStatusOptions,
-  definitionStatusText,
   documentEntityText,
   workflowActionText,
 } from '@/components/wfl/config'
+import {
+  ApprovalStatusBadge,
+  approvalActionLabels,
+  approvalStatusPresentation,
+} from '@/shared/approval'
 import { useProcessDefinitionViewModel } from './vm'
 
 const vm = useProcessDefinitionViewModel()
@@ -43,12 +46,12 @@ function locateScriptDiagnostic(): void {
       <template #filters
         ><v-select
           v-model="vm.status.value"
-          :items="definitionStatusOptions"
+          :items="Object.entries(approvalStatusPresentation).map(([value, item]) => ({ value, title: item.label }))"
           clearable
           hide-details
           item-title="title"
           item-value="value"
-          label="流程状态"
+          label="审批状态"
           variant="outlined"
       /></template>
       <template #toolbar
@@ -89,9 +92,7 @@ function locateScriptDiagnostic(): void {
             <td>{{ documentEntityText(item.rootEntity) }}</td>
             <td>{{ item.nodeCount }}</td>
             <td>
-              <v-chip size="small">{{
-                definitionStatusText(item.status)
-              }}</v-chip>
+              <ApprovalStatusBadge :status="item.approval.status" />
             </td>
             <td>{{ new Date(item.updatedAt).toLocaleString() }}</td>
           </tr>
@@ -111,9 +112,7 @@ function locateScriptDiagnostic(): void {
           @click="vm.open(item)"
         >
           <span class="definition-card__title">{{ item.name }}</span
-          ><v-chip size="x-small">{{
-            definitionStatusText(item.status)
-          }}</v-chip
+          ><ApprovalStatusBadge :status="item.approval.status" />
           ><span>编码：{{ item.code }}</span
           ><span>根单据：{{ documentEntityText(item.rootEntity) }}</span
           ><span>节点：{{ item.nodeCount }}</span>
@@ -151,20 +150,19 @@ function locateScriptDiagnostic(): void {
           <v-btn
             v-if="
               vm.selected.value.definitionId &&
-              vm.selected.value.status === 'DRAFT' &&
-              vm.can('publish')
+              vm.selected.value.approval.status === 'APPROVED' &&
+              vm.can('save')
             "
             :loading="vm.saving.value"
             color="primary"
             variant="tonal"
-            @click="vm.action('publish')"
-            >发布修订</v-btn
+            @click="vm.createVersion"
+            >创建新版本</v-btn
           >
           <v-btn
             v-if="
               vm.selected.value.definitionId &&
-              vm.selected.value.status === 'DRAFT' &&
-              vm.selected.value.publishedRevision !== undefined &&
+              !vm.selected.value.enabled &&
               vm.can('enable')
             "
             :loading="vm.saving.value"
@@ -173,19 +171,19 @@ function locateScriptDiagnostic(): void {
             >启用</v-btn
           >
           <v-btn
-            v-if="vm.selected.value.status === 'ENABLED' && vm.can('disable')"
+            v-if="vm.selected.value.enabled && vm.can('disable')"
             :loading="vm.saving.value"
             color="warning"
             @click="vm.action('disable')"
             >停用</v-btn
           >
           <v-btn
-            v-if="vm.selected.value.status === 'DRAFT' && vm.can('delete')"
+            v-if="vm.selected.value.approval.status === 'DRAFT' && vm.can('delete-version')"
             :loading="vm.saving.value"
             color="error"
             variant="text"
-            @click="vm.action('delete')"
-            >删除</v-btn
+            @click="vm.action('delete-version')"
+            >删除草稿版本</v-btn
           >
         </v-toolbar>
         <v-card-text class="definition-editor__body"
@@ -234,6 +232,27 @@ function locateScriptDiagnostic(): void {
             />
             <template v-if="vm.selected.value.definitionId"
               ><v-divider class="my-5" />
+              <div class="text-subtitle-1 mb-2">
+                当前版本 · V{{ vm.selected.value.approval.versionNo }}
+                <ApprovalStatusBadge :status="vm.selected.value.approval.status" />
+              </div>
+              <v-text-field
+                v-if="['PENDING', 'APPROVED'].includes(vm.selected.value.approval.status)"
+                v-model="vm.reviewReason.value"
+                label="审核意见（驳回或反批准时必填）"
+                variant="outlined"
+              />
+              <div class="d-flex flex-wrap ga-2 mb-5">
+                <v-btn
+                  v-for="approvalAction in vm.lifecycleActions.value"
+                  :key="approvalAction"
+                  size="small"
+                  variant="tonal"
+                  :loading="vm.saving.value"
+                  @click="vm.action(approvalAction)"
+                  >{{ approvalActionLabels[approvalAction] }}</v-btn
+                >
+              </div>
               <div class="text-subtitle-1 mb-2">真实单据试算</div>
               <v-text-field
                 :model-value="vm.trialEntityText.value"
@@ -247,7 +266,7 @@ function locateScriptDiagnostic(): void {
                 hint="试算仅读取现有 VOU 单据，不创建或修改业务数据。"
                 persistent-hint
               /><v-btn
-                v-if="vm.can('save')"
+                v-if="vm.selected.value.approval.status === 'DRAFT' && vm.can('save')"
                 block
                 color="primary"
                 variant="tonal"

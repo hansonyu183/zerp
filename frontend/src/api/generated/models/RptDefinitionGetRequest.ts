@@ -4,5 +4,8 @@
 /* eslint-disable */
 export type RptDefinitionGetRequest = {
   code: string;
-  versionId?: string;
+  /**
+   * Exact central Approval Version entry; omit to read the latest APPROVED or open candidate.
+   */
+  approvalEntryId?: string;
 };

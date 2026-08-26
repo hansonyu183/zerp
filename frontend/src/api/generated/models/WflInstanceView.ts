@@ -16,7 +16,7 @@ export type WflInstanceView = {
   partyCode: string;
   partyName: string;
   updatedAt: string;
-  startedDefinitionRevision: number;
+  approvalEntryId: string;
   nodes: Array<WflNodeInstance>;
   availableTargets: Array<WflAvailableChildTarget>;
 };

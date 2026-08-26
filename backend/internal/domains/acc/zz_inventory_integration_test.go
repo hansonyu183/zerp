@@ -16,7 +16,7 @@ import (
 func TestZZInventoryQuantityLedgerAndControlBookGateIntegration(t *testing.T) {
 	pool := integrationPool(t)
 	seedUsers(t, pool)
-	service := NewService(pool)
+	service := defaultIntegrationACCService(pool)
 	productID, warehouseID := ulid.Make().String(), ulid.Make().String()
 
 	createInventoryBook := func(name string, openingQuantity string) (BookView, SubjectView) {
@@ -40,13 +40,11 @@ func TestZZInventoryQuantityLedgerAndControlBookGateIntegration(t *testing.T) {
 			opening, saveErr := service.SaveOpening(t.Context(), SaveOpeningInput{BookID: book.ID, Revision: 0, Lines: []OpeningLineInput{
 				{SubjectID: inventory.ID, Currency: "CNY", DebitAmount: "50.00", CreditAmount: "0", Quantity: &quantity, Dimensions: map[string]string{DimensionProduct: productID, DimensionWarehouse: warehouseID}},
 				{SubjectID: equity.ID, Currency: "CNY", DebitAmount: "0", CreditAmount: "50.00", Dimensions: map[string]string{}},
-			}}, adminID)
+			}}, integrationACCActor(t, adminID, "acc-inventory-opening-save-"+book.ID))
 			if saveErr != nil {
 				t.Fatalf("save inventory opening: %v", saveErr)
 			}
-			if _, err = service.ApproveOpening(t.Context(), book.ID, opening.Revision, adminID); err != nil {
-				t.Fatalf("approve inventory opening: %v", err)
-			}
+			approveIntegrationOpening(t, service, book.ID, opening)
 		} else {
 			createApprovedZeroOpening(t, service, book)
 		}
@@ -57,13 +55,11 @@ func TestZZInventoryQuantityLedgerAndControlBookGateIntegration(t *testing.T) {
 				{SubjectSource: "FIXED", SubjectValue: inventory.ID, Direction: BalanceDirectionCredit, AmountField: "totalAmount", CurrencyField: "currency", QuantityField: &quantityField, Dimensions: map[string]string{DimensionProduct: "product.objectId", DimensionWarehouse: "warehouse.objectId"}},
 				{SubjectSource: "FIXED", SubjectValue: equity.ID, Direction: BalanceDirectionDebit, AmountField: "totalAmount", CurrencyField: "currency", Dimensions: map[string]string{}},
 			}}},
-		}}, adminID)
+		}}, integrationACCActor(t, adminID, "acc-inventory-mapping-create-"+book.ID))
 		if err != nil {
 			t.Fatalf("create inventory mapping: %v", err)
 		}
-		if _, err = service.ApproveMapping(t.Context(), book.ID, mapping.ID, mapping.Revision, adminID); err != nil {
-			t.Fatalf("approve inventory mapping: %v", err)
-		}
+		approveIntegrationMapping(t, service, book.ID, voudomain.EntitySaleOrder, mapping)
 		return book, inventory
 	}
 

@@ -2,4 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type MappingState = 'DRAFT' | 'APPROVED';
+export type OpeningApprovalActionRequest = {
+  bookId: string;
+  revision: number;
+};

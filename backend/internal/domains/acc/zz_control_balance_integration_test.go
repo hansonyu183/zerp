@@ -16,7 +16,7 @@ import (
 func TestZZControlBookFundsAndSettlementBalancesIntegration(t *testing.T) {
 	pool := integrationPool(t)
 	seedUsers(t, pool)
-	service := NewService(pool)
+	service := defaultIntegrationACCService(pool)
 	fundAccountID, customerID := ulid.Make().String(), ulid.Make().String()
 
 	type bookSubjects struct {
@@ -49,13 +49,11 @@ func TestZZControlBookFundsAndSettlementBalancesIntegration(t *testing.T) {
 				{SubjectID: cash.ID, Currency: "CNY", DebitAmount: "150.00", CreditAmount: "0", Dimensions: map[string]string{DimensionFundAccount: fundAccountID}},
 				{SubjectID: advance.ID, Currency: "CNY", DebitAmount: "0", CreditAmount: "80.00", Dimensions: map[string]string{DimensionCustomerAccount: customerID}},
 				{SubjectID: other.ID, Currency: "CNY", DebitAmount: "0", CreditAmount: "70.00", Dimensions: map[string]string{DimensionCustomerAccount: customerID}},
-			}}, adminID)
+			}}, integrationACCActor(t, adminID, "acc-control-opening-save-"+book.ID))
 			if saveErr != nil {
 				t.Fatal(saveErr)
 			}
-			if _, err = service.ApproveOpening(t.Context(), book.ID, draft.Revision, adminID); err != nil {
-				t.Fatal(err)
-			}
+			approveIntegrationOpening(t, service, book.ID, draft)
 		} else {
 			createApprovedZeroOpening(t, service, book)
 		}
@@ -63,13 +61,11 @@ func TestZZControlBookFundsAndSettlementBalancesIntegration(t *testing.T) {
 		mapping, err := service.CreateMapping(t.Context(), CreateMappingInput{BookID: book.ID, VouEntity: voudomain.EntityOtherPayment, DefaultResult: MappingResultPost, Definition: MappingDefinition{DefaultTemplateID: &templateID, Templates: []PostingTemplate{{ID: templateID, Lines: []PostingLineTemplate{
 			{SubjectSource: "FIXED", SubjectValue: expense.ID, Direction: BalanceDirectionDebit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{}},
 			{SubjectSource: "FIXED", SubjectValue: cash.ID, Direction: BalanceDirectionCredit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{DimensionFundAccount: "fundAccount.objectId"}},
-		}}}}}, adminID)
+		}}}}}, integrationACCActor(t, adminID, "acc-control-mapping-create-"+book.ID))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err = service.ApproveMapping(t.Context(), book.ID, mapping.ID, mapping.Revision, adminID); err != nil {
-			t.Fatal(err)
-		}
+		approveIntegrationMapping(t, service, book.ID, voudomain.EntityOtherPayment, mapping)
 		return bookSubjects{book: book, cash: cash, expense: expense}
 	}
 

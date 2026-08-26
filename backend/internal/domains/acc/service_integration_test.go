@@ -53,6 +53,8 @@ func seedUsers(t *testing.T, pool *pgxpool.Pool) {
 		DELETE FROM acc_vouchers;
 		DELETE FROM acc_subject_usages;
 		DELETE FROM acc_mapping_versions;
+		DELETE FROM approval_events WHERE domain = 'acc';
+		DELETE FROM approval_entries WHERE domain = 'acc';
 		DELETE FROM acc_books;
 		DELETE FROM object_number_counters WHERE domain = 'acc';
 		DELETE FROM app_users WHERE username LIKE 'acc-%'
@@ -77,7 +79,7 @@ func seedUsers(t *testing.T, pool *pgxpool.Pool) {
 func TestConcurrentFirstBookCreationKeepsOneControlBook(t *testing.T) {
 	pool := integrationPool(t)
 	seedUsers(t, pool)
-	service := NewService(pool)
+	service := defaultIntegrationACCService(pool)
 
 	results := make(chan BookView, 2)
 	errors := make(chan error, 2)
@@ -116,7 +118,7 @@ func TestConcurrentFirstBookCreationKeepsOneControlBook(t *testing.T) {
 func TestAccountingBooksAreIsolatedByQueryAndOperationScopes(t *testing.T) {
 	pool := integrationPool(t)
 	seedUsers(t, pool)
-	service := NewService(pool)
+	service := defaultIntegrationACCService(pool)
 
 	control, err := service.CreateBook(t.Context(), CreateBookInput{
 		Name: "管理账簿", Description: "内部管理",
@@ -188,7 +190,7 @@ func TestAccountingBooksAreIsolatedByQueryAndOperationScopes(t *testing.T) {
 func TestAccountingBookIdentityAndConcurrencyRules(t *testing.T) {
 	pool := integrationPool(t)
 	seedUsers(t, pool)
-	service := NewService(pool)
+	service := defaultIntegrationACCService(pool)
 
 	created, err := service.CreateBook(t.Context(), CreateBookInput{
 		Name: "主账簿", StartMonth: "2026-08", BaseCurrency: "CNY", SubjectTemplate: SubjectTemplateEmpty,

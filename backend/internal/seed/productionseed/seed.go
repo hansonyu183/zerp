@@ -106,7 +106,7 @@ func New(
 	if err != nil {
 		return nil, fmt.Errorf("create VOU service: %w", err)
 	}
-	if _, err = wfldomain.NewService(pool, events, workflowactions.New(vouchers), logger); err != nil {
+	if _, err = wfldomain.NewService(pool, authorization.FailClosed{}, events, workflowactions.New(vouchers), logger); err != nil {
 		return nil, fmt.Errorf("create WFL service: %w", err)
 	}
 	return &Seeder{pool: pool, bob: bobService, vouchers: vouchers}, nil

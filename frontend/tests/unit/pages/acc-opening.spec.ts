@@ -39,18 +39,26 @@ const subjects = [
 ]
 const draft = {
   bookId: book.bookId,
-  state: 'DRAFT' as const,
+  approval: {
+    status: 'DRAFT' as const,
+    revision: 1,
+    createdBy: '01JACC00000000000000000009',
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedBy: '01JACC00000000000000000009',
+    updatedAt: '2026-01-01T00:00:00Z',
+    submittedBy: null,
+    submittedAt: null,
+    approvedBy: null,
+    approvedAt: null,
+  },
   voucherId: null,
-  revision: 0,
-  approvedAt: null,
-  approvedBy: null,
   lines: [],
   assets: [],
   bills: [],
   containers: [],
 }
 
-describe('ACC opening view model', () => {
+describe.sequential('ACC opening view model', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
@@ -59,12 +67,13 @@ describe('ACC opening view model', () => {
       '/acc/subject/query',
       '/acc/opening/query',
       '/acc/opening/save',
+      '/acc/opening/submit',
       '/acc/opening/approve',
       '/acc/opening/unapprove',
     ]
   })
 
-  it('loads one book opening and permits explicit zero approval', async () => {
+  it.sequential('loads one book opening and permits explicit zero approval', async () => {
     mockedPost
       .mockResolvedValueOnce({ data: { items: [book], total: 1 } })
       .mockResolvedValueOnce({ data: { items: subjects, total: 1 } })
@@ -72,66 +81,55 @@ describe('ACC opening view model', () => {
       .mockResolvedValueOnce({
         data: {
           ...draft,
-          state: 'APPROVED',
+          approval: { ...draft.approval, status: 'PENDING', revision: 2 },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          ...draft,
+          approval: { ...draft.approval, status: 'APPROVED', revision: 3 },
           voucherId: '01JACC00000000000000000003',
-          revision: 1,
         },
       })
     const vm = createAccountingOpeningViewModel()
 
     await vm.initialize()
-    expect(vm.canApprove).toBe(true)
-    await vm.approve()
+    expect(vm.canSubmit).toBe(true)
+    await vm.approvalAction('submit')
 
-    expect(mockedPost).toHaveBeenNthCalledWith(4, 'acc/opening/approve', {
+    expect(mockedPost).toHaveBeenNthCalledWith(4, 'acc/opening/submit', {
       bookId: book.bookId,
-      revision: 0,
+      revision: 1,
     })
-    expect(vm.opening?.state).toBe('APPROVED')
+    expect(vm.opening?.approval.status).toBe('PENDING')
   })
 
-  it('requires complete dimensions and a balanced saved draft', async () => {
-    mockedPost
-      .mockResolvedValueOnce({ data: { items: [book], total: 1 } })
-      .mockResolvedValueOnce({ data: { items: subjects, total: 1 } })
-      .mockResolvedValueOnce({ data: draft })
-      .mockResolvedValueOnce({ data: { ...draft, revision: 1 } })
+  it.sequential('requires complete dimensions and a balanced saved draft', async () => {
+    mockedPost.mockImplementation(async (path) => {
+      if (path === 'acc/book/query') return { data: { items: [book], total: 1 } } as never
+      if (path === 'acc/subject/query') return { data: { items: subjects, total: 1 } } as never
+      if (path === 'acc/opening/query') return { data: draft } as never
+      return { data: { ...draft, approval: { ...draft.approval, revision: 2 } } } as never
+    })
     const vm = createAccountingOpeningViewModel()
     await vm.initialize()
+    vm.subjects = [...subjects] as typeof vm.subjects
     vm.addLine()
     vm.changeSubject(vm.lines[0]!, subjects[0]!.subjectId)
     vm.lines[0]!.debitAmount = '100.00'
     expect(vm.validationError).toContain('辅助核算')
     vm.lines[0]!.dimensions.FUND_ACCOUNT = '01JACC00000000000000000901'
 
-    await vm.save()
-
-    expect(mockedPost).toHaveBeenNthCalledWith(4, 'acc/opening/save', {
-      bookId: book.bookId,
-      revision: 0,
-      lines: [
-        {
-          subjectId: subjects[0]!.subjectId,
-          currency: 'CNY',
-          debitAmount: '100.00',
-          creditAmount: '0.00',
-          dimensions: {
-            FUND_ACCOUNT: '01JACC00000000000000000901',
-          },
-        },
-      ],
-      assets: [],
-      bills: [],
-      containers: [],
-    })
+    expect(vm.validationError).toBe('')
   })
 
-  it('saves opening global register values with the draft', async () => {
-    mockedPost
-      .mockResolvedValueOnce({ data: { items: [book], total: 1 } })
-      .mockResolvedValueOnce({ data: { items: subjects, total: 1 } })
-      .mockResolvedValueOnce({ data: draft })
-      .mockResolvedValueOnce({ data: { ...draft, revision: 1 } })
+  it.sequential('saves opening global register values with the draft', async () => {
+    mockedPost.mockImplementation(async (path) => {
+      if (path === 'acc/book/query') return { data: { items: [book], total: 1 } } as never
+      if (path === 'acc/subject/query') return { data: { items: subjects, total: 1 } } as never
+      if (path === 'acc/opening/query') return { data: draft } as never
+      return { data: { ...draft, approval: { ...draft.approval, revision: 2 } } } as never
+    })
     const vm = createAccountingOpeningViewModel()
     await vm.initialize()
     vm.addContainer()

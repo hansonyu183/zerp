@@ -2,15 +2,18 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalVersionMeta } from './ApprovalVersionMeta';
 import type { VouEntity } from './VouEntity';
-import type { WflDefinitionStatus } from './WflDefinitionStatus';
 export type WflDefinitionListItem = {
   definitionId: string;
   code: string;
   name: string;
-  status: WflDefinitionStatus;
+  enabled: boolean;
+  /**
+   * stable definition revision; only enable/disable use it.
+   */
   revision: number;
-  publishedRevision?: number;
+  approval: ApprovalVersionMeta;
   rootEntity: VouEntity;
   nodeCount: number;
   updatedAt: string;

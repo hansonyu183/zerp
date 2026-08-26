@@ -26,6 +26,11 @@ _Rules_: [Approval 生命周期](docs/domains/approval.md#3-生命周期)
 _Avoid_: Domain 版本头、当前版本指针、有效版本指针、下一个版本号、分支或合并
 _Rules_: [Approval Version](docs/domains/approval.md#6-approval-version)
 
+**Approval Metadata（审批元数据）**:
+HTTP 响应中由 `ApprovalMeta` 或 `ApprovalVersionMeta` 表达的中央审批状态、revision 和操作者时间；前端状态、徽标、动作和版本历史中文语义统一由 `frontend/src/shared/approval/` 派生。
+_Avoid_: Domain 自定义状态标签、重复三态 enum、按协议原码直接显示
+_Rules_: [Approval 生命周期](docs/domains/approval.md#3-生命周期)
+
 **Trusted System Actor（受信系统操作者）**:
 只能由系统身份显式建立的审批操作者，可免普通用户权限但仍受完整状态机、revision、业务校验和事务不变量约束。
 _Avoid_: 跳过授权开关、绕过审批、任意受信用户
@@ -264,10 +269,39 @@ _Rules_: [APP 系统参数](docs/domains/app.md#38-系统参数)
 
 ## Accounting
 
+**Accounting Opening（会计期初）**:
+一个会计账簿的 Approval-only 期初主体；它没有版本号，所有草稿、提交、批准和反批准都使用中央 `DRAFT`、`PENDING`、`APPROVED` 生命周期。
+_Avoid_: `state`、局部批准人/时间字段、期初版本
+_Rules_: [ACC 账簿期初](docs/domains/acc.md#6-账簿期初)
+
+**Accounting Mapping（会计映射）**:
+以 `(bookId, vouEntity)` 为稳定主体的 Approval Version；候选映射不参与记账，只有最新 `APPROVED` entry 是该单据类型的记账映射。
+_Avoid_: mapping version header、当前映射指针、候选参与记账
+_Rules_: [ACC VOU 会计映射](docs/domains/acc.md#7-vou-会计映射)
+
 **Accounting Subject（会计科目）**:
 归 ACC 领域和单本会计账簿所有的分层会计分类。
 _Avoid_: AUX 会计科目、全局会计科目
 _Rules_: [ACC 会计科目](docs/domains/acc.md#5-会计科目)
+
+## Reporting
+
+**Report Definition（报表定义）**:
+具有稳定 code 的报表主体；每个不可变业务版本由一个 Approval Version entry 承载，最新 `APPROVED` entry 是唯一执行版本。
+_Avoid_: `currentVersionId`、历史版本回退、候选执行
+_Rules_: [RPT 报表定义与版本](docs/domains/rpt.md#3-报表定义与-approval-version)
+
+## Workflow
+
+**Workflow Definition（流程定义）**:
+具有稳定 code 的 Starlark 流程主体；脚本和编译图属于 Approval Version entry，`enabled` 是与 Approval 独立的布尔运行开关。
+_Avoid_: publish、published revision、以启停代替审批
+_Rules_: [WFL 定义与 Approval Version](docs/domains/wfl.md#2-定义与-approval-version)
+
+**Workflow Instance Definition Entry（流程实例定义条目）**:
+实例启动时固定的已批准流程定义 `approvalEntryId`；该 entry 对应的不可变脚本持续驱动该实例，即使随后出现新版本或定义停用。
+_Avoid_: fixed published revision、实例跟随最新版本
+_Rules_: [WFL 事件、实例与幂等](docs/domains/wfl.md#4-事件实例与幂等)
 
 ## Voucher Lifecycle
 

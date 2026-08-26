@@ -418,8 +418,10 @@ type integrationAccountingControl struct{}
 func (integrationAccountingControl) PartyBalance(ctx context.Context, tx pgx.Tx, input PartyBalanceQuery) (int64, error) {
 	var ready bool
 	if err := tx.QueryRow(ctx, `SELECT EXISTS(
-		SELECT 1 FROM acc_books book JOIN acc_openings opening ON opening.book_id=book.id
-		WHERE book.control_book AND opening.state='APPROVED'
+		SELECT 1 FROM acc_books book
+		JOIN approval_entries approval ON approval.domain='acc' AND approval.entity='opening'
+			AND approval.subject_id=book.id AND approval.version_no IS NULL AND approval.status='APPROVED'
+		WHERE book.control_book
 	)`).Scan(&ready); err != nil {
 		return 0, err
 	}
@@ -440,7 +442,8 @@ func (integrationAccountingControl) PartyBalance(ctx context.Context, tx pgx.Tx,
 		JOIN acc_vouchers voucher ON voucher.book_id=line.book_id AND voucher.id=line.voucher_id
 		JOIN acc_subjects subject ON subject.book_id=line.book_id AND subject.id=line.subject_id
 		JOIN acc_books book ON book.id=line.book_id AND book.control_book
-		JOIN acc_openings opening ON opening.book_id=book.id AND opening.state='APPROVED'
+		JOIN approval_entries approval ON approval.domain='acc' AND approval.entity='opening'
+			AND approval.subject_id=book.id AND approval.version_no IS NULL AND approval.status='APPROVED'
 		WHERE subject.settlement_purpose=$2 AND line.currency=$3
 		  AND line.dimensions->>$4=$5 AND voucher.business_date<=$6::date
 		  AND (COALESCE(cardinality($7::text[]),0)=0 OR voucher.source_id=ANY($7::text[]))`,

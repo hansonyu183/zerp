@@ -121,11 +121,16 @@ func activateSettlementLedgerForParty(
 			t.Fatalf("insert accounting subject dimension: %v", err)
 		}
 	}
+	openingApprovalEntryID := newID()
 	if _, err := pool.Exec(t.Context(), `WITH inserted_voucher AS (INSERT INTO acc_vouchers(
 		id,book_id,source_type,source_id,business_date,created_by
-	) VALUES($1,$2,'OPENING','OPENING','2020-01-01',$3) RETURNING id)
-	INSERT INTO acc_openings(book_id,state,voucher_id,approved_at,approved_by,created_by,updated_by)
-	VALUES($2,'APPROVED',$1,now(),$3,$3,$3)`, openingVoucherID, bookID, integrationActorOne); err != nil {
+	) VALUES($1,$2,'OPENING','OPENING','2020-01-01',$3) RETURNING id),
+	inserted_approval AS (INSERT INTO approval_entries(
+		id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,updated_by,updated_at,
+		submitted_by,submitted_at,approved_by,approved_at
+	) VALUES($4,'acc','opening',$2,NULL,'APPROVED',3,$3,now(),$5,now(),$3,now(),$5,now()))
+	INSERT INTO acc_openings(book_id,voucher_id,created_by,updated_by)
+	VALUES($2,$1,$3,$5)`, openingVoucherID, bookID, integrationActorOne, openingApprovalEntryID, integrationActorTwo); err != nil {
 		t.Fatalf("approve accounting control opening: %v", err)
 	}
 	if amountCents != 0 {

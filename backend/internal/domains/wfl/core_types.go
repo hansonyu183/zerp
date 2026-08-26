@@ -5,6 +5,7 @@ type ErrorKind string
 const (
 	ErrorValidation ErrorKind = "VALIDATION"
 	ErrorConflict   ErrorKind = "CONFLICT"
+	ErrorForbidden  ErrorKind = "FORBIDDEN"
 	ErrorInternal   ErrorKind = "INTERNAL"
 )
 

@@ -2,57 +2,45 @@
 
 ## 1. 领域边界
 
-WFL 是以 VOU 单据为节点的用户可管理流程引擎。VOU 独立负责单据正文、生命周期、附件、领域校验和单据审计；ACC 独立负责资金、库存和往来事实。WFL 只保存 Starlark 定义、不可变发布修订、实际实例树、动作结果和运行审计，不复制 VOU 正文，也不代理 VOU 正文权限。
+WFL 是以 VOU 单据为节点的用户可管理流程引擎。VOU 独立负责单据正文、生命周期、附件、领域校验和审计；ACC 独立负责资金、库存和往来事实。WFL 拥有 stable process definition、其 Approval Version 脚本/编译图、实际实例树、动作结果和运行审计；不复制 VOU 正文或代理 VOU 正文权限。
 
 销售定价 `sale-pricing`、采购询价 `purchase-inquiry` 和其他收入 `other-income` 不触发流程，也不能成为流程节点。
 
-## 2. 定义、草稿和发布
+## 2. 定义与 Approval Version
 
-Starlark 脚本是流程定义的唯一可编辑来源。`node` 声明稳定节点 key、名称和 VOU entity；`edge` 声明具名关系、分支条件和一个静态动作；`workflow` 声明不可变 code、名称、唯一根节点和可选启动条件。编译结果图只读展示。
+Starlark 脚本是流程定义的唯一可编辑来源。`node` 声明稳定节点 key、名称和 VOU entity；`edge` 声明具名关系、分支条件和一个静态动作；`workflow` 声明稳定 code、名称、唯一根节点和可选启动条件。编译图只读展示；编译必须得到单根、单父、连通且无环的树，并拒绝重复 key、不兼容来源/目标动作和动态动作调用。
 
-编译必须得到单根、单父、连通且无环的树，拒绝重复 key、不兼容的来源/目标动作和动态动作调用。语法、宿主调用及结构错误返回脚本位置诊断。脚本禁止 import、文件、网络、数据库、环境变量、附件内容、凭证、当前时间、随机数和直接持久化，并受脚本大小、节点数、边数及执行步数限制。
+流程定义是 stable subject，code 创建后不可修改。每个脚本、诊断和成功编译图属于一个中央 Approval Version entry；`ApprovalVersionMeta` 提供 `approvalEntryId`、`versionNo`、`DRAFT | PENDING | APPROVED`、revision 和审批元数据。`enabled` 是 stable definition 上独立的布尔开关，不是审批状态；不存在 publish、published revision、current revision 或任何 version pointer。前端状态、徽标、动作和版本历史中文语义统一使用 `frontend/src/shared/approval/`。
 
-定义状态只有 `DRAFT`、`ENABLED`、`DISABLED`。定义 `code` 创建后不可修改；`revision` 保护保存、发布和启停并发。保存错误脚本会保留脚本及诊断，同时保留上一次成功编译图；任何保存都使当前试算证明失效。
+- 创建定义原子建立 stable definition 与 V1 DRAFT；保存仅允许 DRAFT。
+- 已批准定义的改动通过 create-version 创建候选；每个 definition 最多一个 DRAFT/PENDING 候选。delete-version 仅可删除 DRAFT，编号按中央 Versioning 规则复用。
+- `submit`、`unsubmit`、`reject`、`approve`、`unapprove` 由中央 Approval 处理。reject/unapprove 的 reason 非空，批准人与提交人不同，且只能反批最新 APPROVED entry。
+- get 可指定精确 `approvalEntryId`；未指定时读取 latest APPROVED 或唯一开放候选；versions 返回完整历史。最新 APPROVED entry 就是不可变流程修订，候选永不运行。
 
-试算只接受已保存草稿的 `{entity, documentId}`。WFL 以系统读取能力取得现有 VOU 单据的完整标准业务副本，递归冻结后执行同一编译脚本和同一 `WorkflowActions` 接口的零写入实现。试算不检查操作者的 VOU get 权限，不接受任意 JSON，也不提供 VOU 搜索；打开正文仍必须调用对应 VOU get。结果包含命中轨迹、计划动作和未覆盖分支；试算审计只保存操作者、草稿 revision、对象引用、结果和 request ID。
+脚本禁止 import、文件、网络、数据库、环境变量、附件内容、凭证、当前时间、随机数和直接持久化，并受脚本大小、节点数、边数及执行步数限制。试算仅针对某个 DRAFT entry，接受已存在的 `{entity, documentId}`，以完整冻结的 VOU 副本和零写入 adapter 执行；保存后此前成功试算失效。提交/批准前，该 DRAFT entry 必须编译成功并完成至少一次成功真实单据试算。
 
-只有当前草稿 revision 编译成功且完成至少一次成功真实单据试算后才能发布。每次发布写入新的不可变发布修订；后续保存继续形成草稿。启用要求已有发布修订，只影响未来根批准，不回填历史。实例在启动时固定发布修订，之后的保存、发布和停用均不改变它。
+enabled 只影响未来根单据匹配：启用要求存在 latest APPROVED entry，停用不修改 Approval entry 或既有实例。启用/停用均使用 stable definition revision 作并发保护。
 
 ## 3. 静态动作边界
 
-WFL 拥有最小、类型化的 Go `WorkflowActions` 接口，正式运行 adapter 和零写入试算 adapter 都实现以下六个动作：
+WFL 拥有最小、类型化的 `WorkflowActions` 接口，正式运行 adapter 和零写入试算 adapter 都实现 `expense_payment`、`purchase_inbound`、`sale_outbound`、`sale_delivery`、`sale_signoff` 和 `sale_return`。动作只接收来源引用和脚本计算的完整初始值；正式 adapter 在当前写事务锁定并重读来源，由 VOU 重算业务快照并执行全部领域校验。动作之间不互相调用，顺序仅由实例固定 entry 的脚本决定；不存在数据库动作目录、动态发现、反射或任意字符串分派。
 
-- `expense_payment`：费用报销 → 费用付款；
-- `purchase_inbound`：采购订单 → 采购入库；
-- `sale_outbound`：销售订单 → 销售出库；
-- `sale_delivery`：销售出库 → 销售送货；
-- `sale_signoff`：销售送货 → 销售签收；
-- `sale_return`：销售签收 → 拒收退货。
-
-动作只接收来源引用和脚本计算的完整初始值。正式 adapter 在当前写事务锁定并重读来源，由 VOU 重算数量、固定来源链与业务快照并执行唯一性、金额、数量、日期、仓库、物流、资金账户及退货原因等领域校验；创建者是系统用户。动作之间不会互相调用，只有实例固定修订的脚本决定执行顺序。不存在数据库动作目录、动态发现、反射或任意字符串方法分派。
-
-订单批准只读取当日 ACC 可用净余额而不预留。采购入库或销售签收批准时，在同一 PostgreSQL 事务锁定往来方与币种、重算实际批次金额、读取最新 ACC 事实并写入 VOU/ACC 流水；并发批次不能共同消费同一余额。结算规则始终属于 VOU/ACC，不由脚本替代。
+订单批准只读取当日 ACC 可用净余额而不预留。采购入库或销售签收批准时，在同一 PostgreSQL 事务锁定往来方与币种、重算实际金额、读取最新 ACC 事实并写入 VOU/ACC 流水；结算规则属于 VOU/ACC，不由脚本替代。
 
 ## 4. 事件、实例与幂等
 
-WFL 复用 VOU 的同步事务事件总线。根单据批准时允许零个或一个已启用定义匹配：零匹配正常批准且不创建实例，多匹配使整个批准失败。已有实例的节点批准继续按实例固定修订执行，即使定义已停用。所有匹配的下级分支都在同一事务执行；脚本、领域、订阅或写入失败会回滚批准和全部 WFL/VOU/ACC 写入。
+WFL 复用 VOU 的同步事务事件总线。根单据批准时允许零个或一个 `enabled` 且拥有 latest APPROVED entry 的定义匹配：零匹配正常批准且不创建实例，多匹配使整个批准失败。创建实例时必须保存该 latest APPROVED 的 `approvalEntryId`；实例及其节点之后只按这个 immutable entry 的脚本运行。定义后续 create-version、approve、unapprove 或 enabled 变更都不改写旧实例。
 
-实例只记录实际发生的节点、业务父级、具名关系、触发事件、动作和运行审计，不推导完成、当前节点、进度或短结状态。每个动作由 WFL 生成规范指纹；同一实例、来源节点和脚本位置只保留一个有效结果。动作结果在相同位置复用，在其他位置出现则拒绝。
+实例只记录实际节点、业务父级、具名关系、触发事件、动作和运行审计，不推导完成、当前节点、进度或短结状态。每个动作有规范指纹；同一实例、来源节点和脚本位置只保留一个有效结果。反批准按 VOU 普通删除规则删除仍可删除的直属下级，任一下级不可删除则阻断整个反批准。删除根 VOU 只清除活动引用；历史节点、动作和审计保留。重新批准沿用原实例及其 `approvalEntryId`；已删除的自动结果可以在新的批准意图中由同一位置重建。
 
-反批准按 VOU 普通删除规则删除仍为未编辑系统草稿、无附件且可删除的直属下级；任一下级不可删除都会阻断整个反批准。删除 VOU 单据只清除活动文档引用，不执行脚本。根单据删除后实例退出正常列表，历史节点、动作和审计保留。重新批准沿用原实例、根节点和启动修订；已删除的自动结果可以在新的批准意图中由同一位置重建。
+手工 `create-child` 接受实例、父节点、当前固定 entry 下满足条件的目标节点及 16–64 位 `requestKey`。写事务会重锁来源、重算条件并执行同一动作路径；同一 key 只能复用原意图和结果，旧结果删除后不能用旧 key 重建。
 
-手工 `create-child` 接受实例、父节点、当前固定修订下实际满足的目标节点及 16–64 位 `requestKey`。它要求动态 create-child 权限，并在写事务重新锁定来源、重算条件和执行同一动作路径。网络重试只能复用首次意图和结果；同一 key 改变父级或目标会拒绝，旧结果删除后重放不会重建，新意图必须使用新 key。
+## 5. 普通种子、权限与页面边界
 
-## 5. 普通种子
+新环境由数据库初始化费用、采购和销售三条普通 Starlark DRAFT 定义；它们与管理员定义使用同一表和 API，无系统类型、保护位、隐藏 converter 或专用运行时。默认不启用，不创建实例或业务单据，删除/修改后也不会自动补回。
 
-新环境由数据库初始化费用、采购和销售三条普通 Starlark `DRAFT` 定义。它们与管理员新建定义使用同一表和 API，没有系统类型、保护位、隐藏 converter 或专用运行时；默认不发布、不启用，也不创建实例或业务单据。删除或修改后，应用启动和 test seed 不会补回或覆盖。
+公开动作、路径和数据结构以 [OpenAPI WFL Schema](../../contracts/openapi/schemas/wfl.yaml) 为准。定义管理的 Approval 和 Versioning 权限与 enabled 的独立操作权限均由 APP 注册；停用保留既有角色关联，使已有实例仍可查询和运行。页面编排见[流程定义用例](../use-cases/wfl/process-definition.md)和[流程实例用例](../use-cases/wfl/process-instance.md)。WFL 结构不按节点 VOU 详情权限裁剪；打开正文和创建下级仍由相应 VOU/WFL 操作精确鉴权。
 
-## 6. 权限与页面边界
+## 6. 验收边界
 
-公开动作、路径和数据结构以 [OpenAPI WFL Schema](../../contracts/openapi/schemas/wfl.yaml) 为准。定义首次启用时登记该流程的动态 APP 权限；停用保留权限及角色关联，使既有实例仍可查询和运行。
-
-页面编排见[流程定义用例](../use-cases/wfl/process-definition.md)和[流程实例用例](../use-cases/wfl/process-instance.md)。WFL 结构不会按节点 VOU 详情权限裁剪；用户打开节点正文时由对应 VOU 详情动作精确鉴权，创建下级提交时服务端仍重新校验。
-
-## 7. 验收边界
-
-真实 PostgreSQL 验收覆盖定义缺失、单匹配、多匹配、不可变修订、标准定义可删改、六个动作、试算零写入、费用/采购/销售链路、手工重试、反批准、删除、分批并发、实时结算和任一失败全事务回滚。OpenAPI、生成客户端、后端、前端、领域文档和 ADR 只能描述这一套 Starlark 运行模型。
+真实 PostgreSQL 验收覆盖 definition 与 Approval entry 原子创建/删除、V1/V2、候选复号、完整 Approval 生命周期、reason、latest-only 反批、enabled 独立、无 publish residue、试算零写入、最新批准 entry 的新实例固定、旧实例继续固定原 entry、单/零/多匹配、六个动作、重试、反批准、删除、并发与任一失败全事务回滚。OpenAPI、生成客户端、后端、前端、领域文档和 ADR 只描述这一套模型。

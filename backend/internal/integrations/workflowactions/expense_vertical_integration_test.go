@@ -139,7 +139,7 @@ func TestExpenseWorkflowRunsThroughRealVOUAdapterInOneApproval(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create VOU service: %v", err)
 	}
-	wflService, err := wfldomain.NewService(pool, bus, New(vouService), logger)
+	wflService, err := wfldomain.NewService(pool, authorization.Func(nil), bus, New(vouService), logger)
 	if err != nil {
 		t.Fatalf("create WFL service: %v", err)
 	}
@@ -151,7 +151,8 @@ payment = node(key="payment", name="费用付款", entity="expense-payment")
 workflow(code="` + code + `", name="费用付款纵切", root=root, edges=[
   edge(source=root, target=payment, relation="payment", action=expense_payment(initial={"fundAccountObjectId":"` + fund.ObjectID + `"})),
 ])`
-	definition, err := wflService.DefinitionCreate(t.Context(), wfldomain.DefinitionCreateInput{Script: script}, actorID)
+	definitionActor := workflowActor(t, "wfl-definition-create")
+	definition, err := wflService.DefinitionCreate(t.Context(), wfldomain.DefinitionCreateInput{Script: script}, definitionActor)
 	if err != nil {
 		t.Fatalf("create definition: %v", err)
 	}
@@ -163,26 +164,35 @@ workflow(code="` + code + `", name="费用付款纵切", root=root, edges=[
 		_, _ = pool.Exec(context.Background(), `DELETE FROM wfl_action_executions WHERE process_id IN (SELECT id FROM wfl_definition_instances WHERE definition_id=$1)`, definition.DefinitionID)
 		_, _ = pool.Exec(context.Background(), `DELETE FROM wfl_node_instances WHERE process_id IN (SELECT id FROM wfl_definition_instances WHERE definition_id=$1)`, definition.DefinitionID)
 		_, _ = pool.Exec(context.Background(), `DELETE FROM wfl_definition_instances WHERE definition_id=$1`, definition.DefinitionID)
-		_, _ = pool.Exec(context.Background(), `DELETE FROM wfl_definition_revisions WHERE definition_id=$1`, definition.DefinitionID)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM wfl_definition_versions WHERE definition_id=$1`, definition.DefinitionID)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM approval_events WHERE domain='wfl' AND entity='process-definition' AND subject_id=$1`, definition.DefinitionID)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM approval_entries WHERE domain='wfl' AND entity='process-definition' AND subject_id=$1`, definition.DefinitionID)
 		_, _ = pool.Exec(context.Background(), `DELETE FROM wfl_process_definitions WHERE id=$1`, definition.DefinitionID)
 	})
 	trial, err := wflService.DefinitionTrial(t.Context(), wfldomain.DefinitionTrialInput{
-		DefinitionID: definition.DefinitionID, Revision: definition.Revision,
+		DefinitionID: definition.DefinitionID, ApprovalEntryID: definition.Approval.ApprovalEntryID, Revision: definition.Approval.Revision,
 		Source: wfldomain.DefinitionTrialSource{Entity: voudomain.EntityExpenseReimbursement, DocumentID: trialSource.DocumentID},
-	}, actorID, "wfl-real-trial")
+	}, definitionActor)
 	if err != nil || !trial.Matched || len(trial.PlannedActions) != 1 {
 		t.Fatalf("real trial = %+v, err=%v", trial, err)
 	}
-	publishedValue, err := wflService.DefinitionAction(t.Context(), "publish", wfldomain.DefinitionActionInput{
-		DefinitionID: definition.DefinitionID, Revision: definition.Revision,
-	}, actorID)
+	submittedValue, err := wflService.DefinitionAction(t.Context(), "submit", wfldomain.DefinitionActionInput{
+		DefinitionID: definition.DefinitionID, ApprovalEntryID: definition.Approval.ApprovalEntryID, Revision: definition.Approval.Revision,
+	}, definitionActor)
 	if err != nil {
-		t.Fatalf("publish definition: %v", err)
+		t.Fatalf("submit definition: %v", err)
 	}
-	published := publishedValue.(wfldomain.DefinitionView)
-	if _, err = wflService.DefinitionAction(t.Context(), "enable", wfldomain.DefinitionActionInput{
-		DefinitionID: definition.DefinitionID, Revision: published.Revision,
-	}, actorID); err != nil {
+	submitted := submittedValue.(wfldomain.DefinitionView)
+	approvedValue, err := wflService.DefinitionAction(t.Context(), "approve", wfldomain.DefinitionActionInput{
+		DefinitionID: definition.DefinitionID, ApprovalEntryID: submitted.Approval.ApprovalEntryID, Revision: submitted.Approval.Revision,
+	}, workflowActor(t, "wfl-definition-approve"))
+	if err != nil {
+		t.Fatalf("approve definition: %v", err)
+	}
+	approvedDefinition := approvedValue.(wfldomain.DefinitionView)
+	if _, err = wflService.DefinitionToggle(t.Context(), true, wfldomain.DefinitionToggleInput{
+		DefinitionID: definition.DefinitionID, Revision: approvedDefinition.Revision,
+	}, definitionActor); err != nil {
 		t.Fatalf("enable definition: %v", err)
 	}
 

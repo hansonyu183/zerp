@@ -49,21 +49,21 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 	if err != nil {
 		return nil, err
 	}
-	accService := accdomain.NewService(db)
+	accService := accdomain.NewService(db, authorizer, eventBus)
 	vouService, err := voudomain.NewService(db, bobService, auxiliaryResolver, eventBus, voudomain.AttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
 	}, logger, voudomain.WithAccountingControl(accService), voudomain.WithApprovalAuthorizer(authorizer))
 	if err != nil {
 		return nil, err
 	}
-	wflService, err := wfldomain.NewService(db, eventBus, workflowactions.New(vouService), logger)
+	wflService, err := wfldomain.NewService(db, authorizer, eventBus, workflowactions.New(vouService), logger)
 	if err != nil {
 		return nil, err
 	}
 	if err = accService.RegisterSubscriptions(eventBus); err != nil {
 		return nil, err
 	}
-	rptService, err := rptdomain.NewService(db)
+	rptService, err := rptdomain.NewService(db, authorizer, eventBus)
 	if err != nil {
 		return nil, err
 	}

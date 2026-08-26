@@ -1,5 +1,3 @@
-'WflDefinitionStatus':
-  { 'type': 'string', 'enum': ['DRAFT', 'ENABLED', 'DISABLED'] }
 'WflDefinitionQueryRequest':
   {
     'type': 'object',
@@ -10,8 +8,12 @@
         'page': { 'type': 'integer', 'minimum': 1 },
         'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
         'keyword': { 'type': 'string' },
-        'statuses':
-          { 'type': 'array', 'items': { '$ref': '#/WflDefinitionStatus' } },
+        'approvalStatuses':
+          {
+            'type': 'array',
+            'items': { '$ref': './common.yaml#/ApprovalStatus' },
+          },
+        'enabled': { 'type': 'boolean' },
       },
   }
 'WflDefinitionGetRequest':
@@ -19,7 +21,15 @@
     'type': 'object',
     'required': ['definitionId'],
     'additionalProperties': false,
-    'properties': { 'definitionId': { 'type': 'string' } },
+    'properties':
+      {
+        'definitionId': { 'type': 'string' },
+        'approvalEntryId':
+          {
+            'type': 'string',
+            'description': '精确读取该 Approval Version；省略时读取 latest APPROVED 或开放候选。',
+          },
+      },
   }
 'WflDefinitionCreateRequest':
   {
@@ -31,11 +41,12 @@
 'WflDefinitionSaveRequest':
   {
     'type': 'object',
-    'required': ['definitionId', 'revision', 'script'],
+    'required': ['definitionId', 'approvalEntryId', 'revision', 'script'],
     'additionalProperties': false,
     'properties':
       {
         'definitionId': { 'type': 'string' },
+        'approvalEntryId': { 'type': 'string' },
         'revision': { 'type': 'integer', 'format': 'int64' },
         'script': { 'type': 'string', 'minLength': 1 },
       },
@@ -43,11 +54,12 @@
 'WflDefinitionTrialRequest':
   {
     'type': 'object',
-    'required': ['definitionId', 'revision', 'source'],
+    'required': ['definitionId', 'approvalEntryId', 'revision', 'source'],
     'additionalProperties': false,
     'properties':
       {
         'definitionId': { 'type': 'string' },
+        'approvalEntryId': { 'type': 'string' },
         'revision': { 'type': 'integer', 'format': 'int64' },
         'source':
           {
@@ -63,6 +75,50 @@
       },
   }
 'WflDefinitionActionRequest':
+  {
+    'type': 'object',
+    'required': ['definitionId', 'approvalEntryId', 'revision'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'definitionId': { 'type': 'string' },
+        'approvalEntryId': { 'type': 'string' },
+        'revision': { 'type': 'integer', 'format': 'int64' },
+      },
+  }
+'WflDefinitionReasonActionRequest':
+  {
+    'type': 'object',
+    'required': ['definitionId', 'approvalEntryId', 'revision', 'reason'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'definitionId': { 'type': 'string' },
+        'approvalEntryId': { 'type': 'string' },
+        'revision': { 'type': 'integer', 'format': 'int64' },
+        'reason': { 'type': 'string', 'minLength': 1, 'maxLength': 1000 },
+      },
+  }
+'WflDefinitionVersionCreateRequest':
+  {
+    'type': 'object',
+    'required': ['definitionId'],
+    'additionalProperties': false,
+    'properties': { 'definitionId': { 'type': 'string' } },
+  }
+'WflDefinitionVersionsRequest':
+  {
+    'type': 'object',
+    'required': ['definitionId', 'page', 'pageSize'],
+    'additionalProperties': false,
+    'properties':
+      {
+        'definitionId': { 'type': 'string' },
+        'page': { 'type': 'integer', 'minimum': 1 },
+        'pageSize': { 'type': 'integer', 'minimum': 1, 'maximum': 200 },
+      },
+  }
+'WflDefinitionToggleRequest':
   {
     'type': 'object',
     'required': ['definitionId', 'revision'],
@@ -132,8 +188,9 @@
         'definitionId',
         'code',
         'name',
-        'status',
+        'enabled',
         'revision',
+        'approval',
         'rootEntity',
         'nodeCount',
         'updatedAt',
@@ -148,9 +205,14 @@
         'definitionId': { 'type': 'string' },
         'code': { 'type': 'string' },
         'name': { 'type': 'string' },
-        'status': { '$ref': '#/WflDefinitionStatus' },
-        'revision': { 'type': 'integer', 'format': 'int64' },
-        'publishedRevision': { 'type': 'integer', 'format': 'int64' },
+        'enabled': { 'type': 'boolean' },
+        'revision':
+          {
+            'type': 'integer',
+            'format': 'int64',
+            'description': 'stable definition revision; only enable/disable use it.',
+          },
+        'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
         'rootEntity': { '$ref': './vou.yaml#/VouEntity' },
         'nodeCount': { 'type': 'integer' },
         'updatedAt': { 'type': 'string', 'format': 'date-time' },
@@ -169,6 +231,7 @@
     'required':
       [
         'definitionId',
+        'approvalEntryId',
         'revision',
         'matched',
         'rootNodeKey',
@@ -180,6 +243,7 @@
     'properties':
       {
         'definitionId': { 'type': 'string' },
+        'approvalEntryId': { 'type': 'string' },
         'revision': { 'type': 'integer', 'format': 'int64' },
         'matched': { 'type': 'boolean' },
         'rootNodeKey': { 'type': 'string' },
@@ -237,8 +301,9 @@
         definitionId,
         code,
         name,
-        status,
+        enabled,
         revision,
+        approval,
         rootEntity,
         nodeCount,
         updatedAt,
@@ -249,9 +314,14 @@
         'definitionId': { 'type': 'string' },
         'code': { 'type': 'string' },
         'name': { 'type': 'string' },
-        'status': { '$ref': '#/WflDefinitionStatus' },
-        'revision': { 'type': 'integer', 'format': 'int64' },
-        'publishedRevision': { 'type': 'integer', 'format': 'int64' },
+        'enabled': { 'type': 'boolean' },
+        'revision':
+          {
+            'type': 'integer',
+            'format': 'int64',
+            'description': 'stable definition revision; only enable/disable use it.',
+          },
+        'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
         'rootEntity': { '$ref': './vou.yaml#/VouEntity' },
         'nodeCount': { 'type': 'integer' },
         'updatedAt': { 'type': 'string', 'format': 'date-time' },
@@ -373,6 +443,7 @@
       [
         'processId',
         'definitionId',
+        'approvalEntryId',
         'definitionCode',
         'definitionName',
         'revision',
@@ -388,6 +459,7 @@
       {
         'processId': { 'type': 'string' },
         'definitionId': { 'type': 'string' },
+        'approvalEntryId': { 'type': 'string' },
         'definitionCode': { 'type': 'string' },
         'definitionName': { 'type': 'string' },
         'revision': { 'type': 'integer', 'format': 'int64' },
@@ -513,7 +585,7 @@
         'partyCode',
         'partyName',
         'updatedAt',
-        'startedDefinitionRevision',
+        'approvalEntryId',
         'nodes',
         'availableTargets',
       ],
@@ -531,7 +603,7 @@
         'partyCode': { 'type': 'string' },
         'partyName': { 'type': 'string' },
         'updatedAt': { 'type': 'string', 'format': 'date-time' },
-        'startedDefinitionRevision': { 'type': 'integer', 'format': 'int64' },
+        'approvalEntryId': { 'type': 'string' },
         'nodes': { 'type': 'array', 'items': { '$ref': '#/WflNodeInstance' } },
         'availableTargets':
           { 'type': 'array', 'items': { '$ref': '#/WflAvailableChildTarget' } },

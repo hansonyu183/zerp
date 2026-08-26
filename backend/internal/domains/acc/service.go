@@ -9,7 +9,11 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
+	"github.com/hansonyu183/zerp/backend/internal/events/accapproval"
+	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
+	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -22,12 +26,42 @@ var (
 )
 
 type Service struct {
-	pool    *pgxpool.Pool
-	queries *dbsqlc.Queries
+	pool            *pgxpool.Pool
+	queries         *dbsqlc.Queries
+	openingApproval *approval.Coordinator[accapproval.Payload]
+	mappingApproval *approval.Coordinator[accapproval.Payload]
 }
 
-func NewService(pool *pgxpool.Pool) *Service {
-	return &Service{pool: pool, queries: dbsqlc.New(pool)}
+func NewService(pool *pgxpool.Pool, authorizer authorization.Authorizer, bus *txevent.Bus) *Service {
+	if pool == nil || authorizer == nil || bus == nil {
+		panic("acc: database, authorizer, and transactional event bus are required")
+	}
+	opening, err := approval.NewCoordinator("acc", "opening", authorizer, bus, accapproval.Topic("opening"))
+	if err != nil {
+		panic(err)
+	}
+	mapping, err := approval.NewCoordinator("acc", "mapping", authorizer, bus, accapproval.Topic("mapping"))
+	if err != nil {
+		panic(err)
+	}
+	return &Service{pool: pool, queries: dbsqlc.New(pool), openingApproval: opening, mappingApproval: mapping}
+}
+
+func mapApprovalError(err error) error {
+	var approvalErr *approval.Error
+	if !errors.As(err, &approvalErr) {
+		return err
+	}
+	kind := ErrorInternal
+	switch approvalErr.Kind {
+	case approval.ErrorValidation, approval.ErrorNotFound:
+		kind = ErrorValidation
+	case approval.ErrorForbidden:
+		kind = ErrorForbidden
+	case approval.ErrorConflict:
+		kind = ErrorConflict
+	}
+	return domainErrorWithKey(kind, approvalErr.ErrorKey, approvalErr.Message, approvalErr)
 }
 
 func normalizeBookFields(name, description, currency string) (string, string, string, error) {
@@ -74,6 +108,13 @@ func (s *Service) requireAccess(ctx context.Context, q *dbsqlc.Queries, bookID, 
 		return domainError(ErrorForbidden, "没有该会计账簿的访问范围", nil)
 	}
 	return nil
+}
+
+func (s *Service) requireApprovalAccess(ctx context.Context, q *dbsqlc.Queries, bookID string, actor approval.Actor, operate bool) error {
+	if actor.Trusted() {
+		return nil
+	}
+	return s.requireAccess(ctx, q, bookID, actor.ID(), operate)
 }
 
 type accessGrant struct {

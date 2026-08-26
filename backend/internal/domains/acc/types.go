@@ -1,5 +1,7 @@
 package acc
 
+import "github.com/hansonyu183/zerp/backend/internal/platform/approval"
+
 type CreateBookInput struct {
 	Name            string
 	Description     string
@@ -116,11 +118,6 @@ type SubjectPage struct {
 	PageSize int           `json:"pageSize"`
 }
 
-const (
-	OpeningStateDraft    = "DRAFT"
-	OpeningStateApproved = "APPROVED"
-)
-
 type OpeningLineInput struct {
 	SubjectID    string            `json:"subjectId"`
 	Currency     string            `json:"currency"`
@@ -212,11 +209,8 @@ type OpeningLineView struct {
 
 type OpeningView struct {
 	BookID     string                 `json:"bookId"`
-	State      string                 `json:"state"`
+	Approval   approval.Meta          `json:"approval"`
 	VoucherID  *string                `json:"voucherId"`
-	Revision   int64                  `json:"revision"`
-	ApprovedAt *string                `json:"approvedAt"`
-	ApprovedBy *string                `json:"approvedBy"`
 	Lines      []OpeningLineView      `json:"lines"`
 	Assets     []OpeningAssetView     `json:"assets"`
 	Bills      []OpeningBillView      `json:"bills"`
@@ -224,10 +218,8 @@ type OpeningView struct {
 }
 
 const (
-	MappingStateDraft    = "DRAFT"
-	MappingStateApproved = "APPROVED"
-	MappingResultPost    = "POST"
-	MappingResultUnpost  = "UN_POST"
+	MappingResultPost   = "POST"
+	MappingResultUnpost = "UN_POST"
 )
 
 type MappingCondition struct {
@@ -291,24 +283,32 @@ type CreateMappingInput struct {
 }
 
 type SaveMappingInput struct {
-	BookID        string
-	MappingID     string
-	DefaultResult string
-	Definition    MappingDefinition
-	Revision      int64
+	BookID          string
+	VouEntity       string
+	ApprovalEntryID string
+	DefaultResult   string
+	Definition      MappingDefinition
+	Revision        int64
+}
+
+type MappingVersionInput struct {
+	BookID          string
+	VouEntity       string
+	ApprovalEntryID string
+	Revision        int64
+}
+
+type MappingReasonInput struct {
+	MappingVersionInput
+	Reason string
 }
 
 type MappingView struct {
-	ID            string            `json:"mappingId"`
-	BookID        string            `json:"bookId"`
-	VouEntity     string            `json:"vouEntity"`
-	Version       int               `json:"version"`
-	State         string            `json:"state"`
-	DefaultResult string            `json:"defaultResult"`
-	Definition    MappingDefinition `json:"definition"`
-	Revision      int64             `json:"revision"`
-	ApprovedAt    *string           `json:"approvedAt"`
-	ApprovedBy    *string           `json:"approvedBy"`
+	BookID        string               `json:"bookId"`
+	VouEntity     string               `json:"vouEntity"`
+	Approval      approval.VersionMeta `json:"approval"`
+	DefaultResult string               `json:"defaultResult"`
+	Definition    MappingDefinition    `json:"definition"`
 }
 
 type MappingPage struct {

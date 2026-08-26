@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AppSnackbar from '@/components/common/AppSnackbar.vue'
+import { ApprovalStatusBadge } from '@/shared/approval'
 import {
   createAccountingOpeningViewModel,
   openingDimensionLabels,
@@ -26,14 +27,10 @@ void vm.initialize()
     <v-card>
       <v-card-title class="d-flex flex-wrap align-center ga-3 pa-5">
         <span>账簿期初</span>
-        <v-chip
+        <ApprovalStatusBadge
           v-if="vm.opening"
-          :color="vm.opening.state === 'APPROVED' ? 'success' : 'warning'"
-          size="small"
-          variant="tonal"
-        >
-          {{ vm.opening.state === 'APPROVED' ? '已批准' : '草稿' }}
-        </v-chip>
+          :status="vm.opening.approval.status"
+        />
         <v-spacer />
         <v-select
           class="opening-book-select"
@@ -643,6 +640,13 @@ void vm.initialize()
       </v-card-text>
       <v-divider />
       <v-card-actions class="pa-5">
+        <v-text-field
+          v-model="vm.approvalReason"
+          density="compact"
+          hide-details
+          label="驳回/反批准原因"
+          style="max-width: 280px"
+        />
         <v-spacer />
         <v-btn
           v-if="vm.opening?.state === 'APPROVED'"
@@ -650,11 +654,11 @@ void vm.initialize()
           :disabled="!vm.canUnapprove"
           :loading="vm.saving"
           variant="tonal"
-          @click="vm.unapprove"
+          @click="vm.reasonAction('unapprove')"
         >
           反批准
         </v-btn>
-        <template v-else>
+        <template v-else-if="vm.opening?.state === 'DRAFT'">
           <v-btn
             :disabled="!vm.canSave"
             :loading="vm.saving"
@@ -665,12 +669,17 @@ void vm.initialize()
           </v-btn>
           <v-btn
             color="primary"
-            :disabled="!vm.canApprove"
+            :disabled="!vm.canSubmit"
             :loading="vm.saving"
-            @click="vm.approve"
+            @click="vm.approvalAction('submit')"
           >
-            批准期初
+            提交期初
           </v-btn>
+        </template>
+        <template v-else>
+          <v-btn :disabled="!vm.canUnsubmit" :loading="vm.saving" variant="tonal" @click="vm.approvalAction('unsubmit')">撤回提交</v-btn>
+          <v-btn color="error" :disabled="!vm.canReject" :loading="vm.saving" variant="tonal" @click="vm.reasonAction('reject')">驳回</v-btn>
+          <v-btn color="primary" :disabled="!vm.canApprove" :loading="vm.saving" @click="vm.approvalAction('approve')">批准期初</v-btn>
         </template>
       </v-card-actions>
     </v-card>

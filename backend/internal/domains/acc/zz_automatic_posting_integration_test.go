@@ -48,18 +48,10 @@ func createApprovedAccountingReference(t *testing.T, service *bobdomain.Service,
 	return voudomain.ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
 }
 
-func createApprovedZeroOpening(t *testing.T, service *Service, book BookView) {
-	t.Helper()
-	opening, err := service.ApproveOpening(t.Context(), book.ID, 0, adminID)
-	if err != nil || opening.State != OpeningStateApproved {
-		t.Fatalf("approve zero opening for %s: %+v, %v", book.Code, opening, err)
-	}
-}
-
 func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegration(t *testing.T) {
 	pool := integrationPool(t)
 	seedUsers(t, pool)
-	accounting := NewService(pool)
+	accounting := defaultIntegrationACCService(pool)
 	book, err := accounting.CreateBook(t.Context(), CreateBookInput{Name: "自动记账", StartMonth: "2026-07", BaseCurrency: "CNY", SubjectTemplate: SubjectTemplateEmpty}, adminID)
 	if err != nil {
 		t.Fatalf("create accounting book: %v", err)
@@ -80,13 +72,11 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 			{SubjectSource: "FIXED", SubjectValue: debit.ID, Direction: BalanceDirectionDebit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{}},
 			{SubjectSource: "FIXED", SubjectValue: credit.ID, Direction: BalanceDirectionCredit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{}},
 		}}}},
-	}, adminID)
+	}, integrationACCActor(t, adminID, "acc-posting-mapping-create"))
 	if err != nil {
 		t.Fatalf("create accounting mapping: %v", err)
 	}
-	if _, err = accounting.ApproveMapping(t.Context(), book.ID, mapping.ID, mapping.Revision, adminID); err != nil {
-		t.Fatalf("approve accounting mapping: %v", err)
-	}
+	mapping = approveIntegrationMapping(t, accounting, book.ID, voudomain.EntityOtherIncome, mapping)
 
 	bus := txevent.NewBus()
 	if err = accounting.RegisterSubscriptions(bus); err != nil {
@@ -193,7 +183,7 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 	}
 	reopenedApproved, err := vouchers.Unsubmit(t.Context(), voudomain.EntityOtherIncome, voudomain.DocumentRevisionInput{DocumentID: created.DocumentID, Revision: unapproved.Approval.Revision}, trustedAccountingActor(t, "acc-posting-vou-unsubmit"))
 	if err != nil {
-		t.Fatalf("uncheck reversed VOU: %v", err)
+		t.Fatalf("unsubmit reversed VOU: %v", err)
 	}
 	if _, err = vouchers.Delete(t.Context(), voudomain.EntityOtherIncome, voudomain.DeleteInput{DocumentID: created.DocumentID, Revision: reopenedApproved.Approval.Revision, Reason: "测试清理"}, trustedAccountingActor(t, "acc-posting-vou-delete")); err != nil {
 		t.Fatalf("delete reversed VOU: %v", err)
@@ -226,7 +216,7 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 	}
 	reopened, err := vouchers.Unsubmit(t.Context(), voudomain.EntityOtherIncome, voudomain.DocumentRevisionInput{DocumentID: failed.DocumentID, Revision: failedChecked.Approval.Revision}, trustedAccountingActor(t, "acc-posting-failure-unsubmit"))
 	if err != nil {
-		t.Fatalf("uncheck failed VOU: %v", err)
+		t.Fatalf("unsubmit failed VOU: %v", err)
 	}
 	if _, err = vouchers.Delete(t.Context(), voudomain.EntityOtherIncome, voudomain.DeleteInput{DocumentID: failed.DocumentID, Revision: reopened.Approval.Revision, Reason: "测试清理"}, trustedAccountingActor(t, "acc-posting-failure-delete")); err != nil {
 		t.Fatalf("delete failed VOU: %v", err)
@@ -236,7 +226,7 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivableIntegration(t *testing.T) {
 	pool := integrationPool(t)
 	seedUsers(t, pool)
-	accounting := NewService(pool)
+	accounting := defaultIntegrationACCService(pool)
 	book, err := accounting.CreateBook(t.Context(), CreateBookInput{
 		Name: "服务验收自动记账", StartMonth: "2026-07", BaseCurrency: "CNY", SubjectTemplate: SubjectTemplateEmpty,
 	}, adminID)
@@ -291,23 +281,19 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 				}},
 			},
 		},
-	}, adminID)
+	}, integrationACCActor(t, adminID, "acc-service-acceptance-mapping-create"))
 	if err != nil {
 		t.Fatalf("create service acceptance mapping: %v", err)
 	}
-	if _, err = accounting.ApproveMapping(t.Context(), book.ID, mapping.ID, mapping.Revision, adminID); err != nil {
-		t.Fatalf("approve service acceptance mapping: %v", err)
-	}
+	approveIntegrationMapping(t, accounting, book.ID, voudomain.EntityServiceAcceptance, mapping)
 	contractMapping, err := accounting.CreateMapping(t.Context(), CreateMappingInput{
 		BookID: book.ID, VouEntity: voudomain.EntityServiceContract, DefaultResult: MappingResultUnpost,
 		Definition: MappingDefinition{Rules: []MappingRule{}, Templates: []PostingTemplate{}},
-	}, adminID)
+	}, integrationACCActor(t, adminID, "acc-service-contract-mapping-create"))
 	if err != nil {
 		t.Fatalf("create service contract mapping: %v", err)
 	}
-	if _, err = accounting.ApproveMapping(t.Context(), book.ID, contractMapping.ID, contractMapping.Revision, adminID); err != nil {
-		t.Fatalf("approve service contract mapping: %v", err)
-	}
+	approveIntegrationMapping(t, accounting, book.ID, voudomain.EntityServiceContract, contractMapping)
 
 	bus := txevent.NewBus()
 	if err = accounting.RegisterSubscriptions(bus); err != nil {
@@ -457,11 +443,11 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 		if unapproveErr != nil {
 			t.Fatalf("unapprove service acceptance during cleanup: %v", unapproveErr)
 		}
-		draft, uncheckErr := vouchers.Unsubmit(t.Context(), voudomain.EntityServiceAcceptance, voudomain.DocumentRevisionInput{
+		draft, unsubmitErr := vouchers.Unsubmit(t.Context(), voudomain.EntityServiceAcceptance, voudomain.DocumentRevisionInput{
 			DocumentID: acceptance.DocumentID, Revision: unapproved.Approval.Revision,
 		}, trustedAccountingActor(t, "service-acceptance-cleanup-unsubmit-"+acceptance.DocumentID))
-		if uncheckErr != nil {
-			t.Fatalf("uncheck service acceptance during cleanup: %v", uncheckErr)
+		if unsubmitErr != nil {
+			t.Fatalf("unsubmit service acceptance during cleanup: %v", unsubmitErr)
 		}
 		if _, deleteErr := vouchers.Delete(t.Context(), voudomain.EntityServiceAcceptance, voudomain.DeleteInput{
 			DocumentID: acceptance.DocumentID, Revision: draft.Approval.Revision, Reason: "测试清理",
@@ -479,7 +465,7 @@ func TestZZServiceAcceptanceApprovalPostsServiceRelationshipPayableAndReceivable
 		DocumentID: approvedContract.DocumentID, Revision: unapprovedContract.Approval.Revision,
 	}, trustedAccountingActor(t, "service-contract-cleanup-unsubmit"))
 	if err != nil {
-		t.Fatalf("uncheck service contract during cleanup: %v", err)
+		t.Fatalf("unsubmit service contract during cleanup: %v", err)
 	}
 	if _, err = vouchers.Delete(t.Context(), voudomain.EntityServiceContract, voudomain.DeleteInput{
 		DocumentID: approvedContract.DocumentID, Revision: draftContract.Approval.Revision, Reason: "测试清理",

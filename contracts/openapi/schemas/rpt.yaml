@@ -69,29 +69,6 @@ RptVersionData:
       minItems: 1
       items: { $ref: '#/RptResultColumn' }
 
-RptMutationResult:
-  type: object
-  additionalProperties: false
-  required: [id, revision]
-  properties:
-    id: { type: string }
-    status: { type: string }
-    revision: { type: integer, format: int64 }
-
-RptMutationResponse:
-  type: object
-  additionalProperties: false
-  required: [code, errorKey, message, data, requestId]
-  properties:
-    code: { type: integer, format: int32 }
-    errorKey: { type: string }
-    message: { type: string }
-    data:
-      type: object
-      nullable: true
-      allOf: [{ $ref: '#/RptMutationResult' }]
-    requestId: { type: string }
-
 RptDefinitionCreateRequest:
   type: object
   additionalProperties: false
@@ -118,39 +95,68 @@ RptDefinitionGetRequest:
   required: [code]
   properties:
     code: { type: string, minLength: 3, maxLength: 64 }
-    versionId: { type: string, minLength: 26, maxLength: 26 }
+    approvalEntryId:
+      type: string
+      minLength: 26
+      maxLength: 26
+      description: Exact central Approval Version entry; omit to read the latest APPROVED or open candidate.
 
 RptVersionCreateRequest:
   type: object
   additionalProperties: false
-  required: [code, data]
+  required: [code]
   properties:
     code: { type: string, minLength: 3, maxLength: 64 }
-    data: { $ref: '#/RptVersionData' }
 
 RptVersionSaveRequest:
   type: object
   additionalProperties: false
-  required: [code, versionId, revision, data]
+  required: [code, approvalEntryId, revision, data]
   properties:
     code: { type: string, minLength: 3, maxLength: 64 }
-    versionId: { type: string, minLength: 26, maxLength: 26 }
+    approvalEntryId: { type: string, minLength: 26, maxLength: 26 }
     revision: { type: integer, format: int64, minimum: 1 }
     name: { type: string, minLength: 1, maxLength: 200 }
     description: { type: string, maxLength: 1000 }
     data: { $ref: '#/RptVersionData' }
 
-RptVersionRevisionRequest:
+RptVersionActionRequest:
   type: object
   additionalProperties: false
-  required: [code, versionId, revision]
+  required: [code, approvalEntryId, revision]
   properties:
     code: { type: string, minLength: 3, maxLength: 64 }
-    versionId: { type: string, minLength: 26, maxLength: 26 }
+    approvalEntryId: { type: string, minLength: 26, maxLength: 26 }
     revision: { type: integer, format: int64, minimum: 1 }
-    validationParameters:
-      type: object
-      additionalProperties: true
+    validationParameters: { type: object, additionalProperties: true }
+
+RptVersionReasonActionRequest:
+  type: object
+  additionalProperties: false
+  required: [code, approvalEntryId, revision, reason]
+  properties:
+    code: { type: string, minLength: 3, maxLength: 64 }
+    approvalEntryId: { type: string, minLength: 26, maxLength: 26 }
+    revision: { type: integer, format: int64, minimum: 1 }
+    reason: { type: string, minLength: 1, maxLength: 1000 }
+
+RptVersionDeleteRequest:
+  type: object
+  additionalProperties: false
+  required: [code, approvalEntryId, revision]
+  properties:
+    code: { type: string, minLength: 3, maxLength: 64 }
+    approvalEntryId: { type: string, minLength: 26, maxLength: 26 }
+    revision: { type: integer, format: int64, minimum: 1 }
+
+RptVersionListRequest:
+  type: object
+  additionalProperties: false
+  required: [code, page, pageSize]
+  properties:
+    code: { type: string, minLength: 3, maxLength: 64 }
+    page: { type: integer, minimum: 1 }
+    pageSize: { type: integer, minimum: 1, maximum: 200 }
 
 RptDefinitionRevisionRequest:
   type: object
@@ -199,8 +205,9 @@ RptDefinitionViewData:
       name,
       description,
       enabled,
-      everApproved,
       revision,
+      approval,
+      validity,
       data,
     ]
   properties:
@@ -209,14 +216,14 @@ RptDefinitionViewData:
     name: { type: string }
     description: { type: string }
     enabled: { type: boolean }
-    everApproved: { type: boolean }
-    currentVersionId: { type: string }
-    revision: { type: integer, format: int64 }
-    versionId: { type: string }
-    versionNo: { type: integer, format: int32 }
-    status: { type: string }
-    validity: { type: string }
-    versionRevision: { type: integer, format: int64 }
+    revision:
+      {
+        type: integer,
+        format: int64,
+        description: 'Stable definition revision; only enable, disable and subject deletion use it.',
+      }
+    approval: { $ref: './common.yaml#/ApprovalVersionMeta' }
+    validity: { type: string, enum: [VALID, INVALID] }
     data: { $ref: '#/RptVersionData' }
 RptReportMetadata:
   type: object
@@ -235,6 +242,17 @@ RptReportMetadata:
     canQuery: { type: boolean }
     canExport: { type: boolean }
 RptDefinitionPageData:
+  type: object
+  additionalProperties: false
+  required: [items, total, page, pageSize]
+  properties:
+    items:
+      type: array
+      items: { $ref: '#/RptDefinitionViewData' }
+    total: { type: integer, format: int64 }
+    page: { type: integer }
+    pageSize: { type: integer }
+RptDefinitionVersionPageData:
   type: object
   additionalProperties: false
   required: [items, total, page, pageSize]
@@ -309,6 +327,16 @@ RptDefinitionViewResponse:
     errorKey: { type: string }
     message: { type: string }
     data: { $ref: '#/RptDefinitionViewData', nullable: true }
+    requestId: { type: string }
+RptDefinitionVersionPageResponse:
+  type: object
+  additionalProperties: false
+  required: [code, errorKey, message, data, requestId]
+  properties:
+    code: { type: integer, format: int32 }
+    errorKey: { type: string }
+    message: { type: string }
+    data: { $ref: '#/RptDefinitionVersionPageData', nullable: true }
     requestId: { type: string }
 RptDirectoryPageResponse:
   type: object

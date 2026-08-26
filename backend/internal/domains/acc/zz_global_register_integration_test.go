@@ -13,7 +13,7 @@ import (
 func TestZZGlobalAssetRegisterIgnoresPerBookUnpostAndReversesIntegration(t *testing.T) {
 	pool := integrationPool(t)
 	seedUsers(t, pool)
-	service := NewService(pool)
+	service := defaultIntegrationACCService(pool)
 	books := make([]BookView, 0, 2)
 	for _, name := range []string{"资产控制账", "资产管理账"} {
 		book, err := service.CreateBook(t.Context(), CreateBookInput{Name: name, StartMonth: "2026-07", BaseCurrency: "CNY", SubjectTemplate: SubjectTemplateEmpty}, adminID)
@@ -25,13 +25,11 @@ func TestZZGlobalAssetRegisterIgnoresPerBookUnpostAndReversesIntegration(t *test
 			BookID: book.ID, VouEntity: voudomain.EntityAssetAcquisition,
 			DefaultResult: MappingResultUnpost,
 			Definition:    MappingDefinition{Rules: []MappingRule{}, Templates: []PostingTemplate{}},
-		}, adminID)
+		}, integrationACCActor(t, adminID, "acc-global-register-mapping-create-"+book.ID))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err = service.ApproveMapping(t.Context(), book.ID, mapping.ID, mapping.Revision, adminID); err != nil {
-			t.Fatal(err)
-		}
+		approveIntegrationMapping(t, service, book.ID, voudomain.EntityAssetAcquisition, mapping)
 		books = append(books, book)
 	}
 	lineID := ulid.Make().String()

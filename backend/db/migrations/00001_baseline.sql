@@ -189,7 +189,15 @@ BEGIN
     FOR report IN
         SELECT d.code,v.sql_text,v.parameters,v.columns
         FROM rpt_definitions d
-        JOIN rpt_versions v ON v.id=d.current_version_id
+        JOIN LATERAL (
+            SELECT payload.sql_text,payload.parameters,payload.columns,payload.validity
+            FROM approval_entries entry
+            JOIN rpt_versions payload ON payload.approval_entry_id=entry.id
+            WHERE entry.domain='rpt' AND entry.entity='definition'
+              AND entry.subject_id=d.id AND entry.status='APPROVED'
+            ORDER BY entry.version_no DESC
+            LIMIT 1
+        ) v ON true
         WHERE d.enabled AND v.validity='VALID'
         ORDER BY d.code
     LOOP
@@ -574,31 +582,36 @@ CREATE TABLE public.acc_inventory_entries (
 
 
 --
--- Name: acc_mapping_versions; Type: TABLE; Schema: public; Owner: -
+-- Name: acc_mappings; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.acc_mapping_versions (
+CREATE TABLE public.acc_mappings (
     id character varying(26) NOT NULL,
     book_id character varying(26) NOT NULL,
     vou_entity character varying(64) NOT NULL,
-    version integer NOT NULL,
-    state character varying(10) DEFAULT 'DRAFT'::character varying NOT NULL,
-    default_result character varying(7) NOT NULL,
-    definition jsonb NOT NULL,
-    revision bigint DEFAULT 1 NOT NULL,
-    approved_at timestamp with time zone,
-    approved_by character varying(26),
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     created_by character varying(26) NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_by character varying(26) NOT NULL,
-    CONSTRAINT acc_mapping_versions_check CHECK (((((state)::text = 'DRAFT'::text) AND (approved_at IS NULL) AND (approved_by IS NULL)) OR (((state)::text = 'APPROVED'::text) AND (approved_at IS NOT NULL) AND (approved_by IS NOT NULL)))),
+    CONSTRAINT acc_mappings_vou_entity_check CHECK (((vou_entity)::text ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))
+);
+
+
+--
+-- Name: acc_mapping_versions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.acc_mapping_versions (
+    approval_entry_id character varying(26) NOT NULL,
+    mapping_id character varying(26) NOT NULL,
+    default_result character varying(7) NOT NULL,
+    definition jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by character varying(26) NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by character varying(26) NOT NULL,
     CONSTRAINT acc_mapping_versions_default_result_check CHECK (((default_result)::text = ANY ((ARRAY['POST'::character varying, 'UN_POST'::character varying])::text[]))),
-    CONSTRAINT acc_mapping_versions_definition_check CHECK ((jsonb_typeof(definition) = 'object'::text)),
-    CONSTRAINT acc_mapping_versions_revision_check CHECK ((revision >= 1)),
-    CONSTRAINT acc_mapping_versions_state_check CHECK (((state)::text = ANY ((ARRAY['DRAFT'::character varying, 'APPROVED'::character varying])::text[]))),
-    CONSTRAINT acc_mapping_versions_version_check CHECK ((version >= 1)),
-    CONSTRAINT acc_mapping_versions_vou_entity_check CHECK (((vou_entity)::text ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))
+    CONSTRAINT acc_mapping_versions_definition_check CHECK ((jsonb_typeof(definition) = 'object'::text))
 );
 
 
@@ -710,18 +723,11 @@ CREATE TABLE public.acc_opening_lines (
 
 CREATE TABLE public.acc_openings (
     book_id character varying(26) NOT NULL,
-    state character varying(10) DEFAULT 'DRAFT'::character varying NOT NULL,
     voucher_id character varying(26),
-    revision bigint DEFAULT 1 NOT NULL,
-    approved_at timestamp with time zone,
-    approved_by character varying(26),
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     created_by character varying(26) NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_by character varying(26) NOT NULL,
-    CONSTRAINT acc_openings_check CHECK (((((state)::text = 'DRAFT'::text) AND (voucher_id IS NULL) AND (approved_at IS NULL) AND (approved_by IS NULL)) OR (((state)::text = 'APPROVED'::text) AND (voucher_id IS NOT NULL) AND (approved_at IS NOT NULL) AND (approved_by IS NOT NULL)))),
-    CONSTRAINT acc_openings_revision_check CHECK ((revision >= 1)),
-    CONSTRAINT acc_openings_state_check CHECK (((state)::text = ANY ((ARRAY['DRAFT'::character varying, 'APPROVED'::character varying])::text[])))
+    updated_by character varying(26) NOT NULL
 );
 
 
@@ -870,13 +876,13 @@ CREATE TABLE public.acc_vouchers (
     business_date date NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     created_by character varying(26) NOT NULL,
-    mapping_version_id character varying(26),
+    mapping_approval_entry_id character varying(26),
     source_entity character varying(64),
     source_revision bigint,
     source_document_no character varying(64),
     CONSTRAINT acc_vouchers_source_id_check CHECK ((btrim((source_id)::text) <> ''::text)),
     CONSTRAINT acc_vouchers_source_type_check CHECK (((source_type)::text = ANY ((ARRAY['OPENING'::character varying, 'VOU'::character varying, 'COST_SETTLEMENT'::character varying, 'DEPRECIATION'::character varying])::text[]))),
-    CONSTRAINT acc_vouchers_vou_source_check CHECK ((((source_type)::text <> 'VOU'::text) OR ((source_entity IS NOT NULL) AND (source_revision IS NOT NULL) AND (source_revision >= 1) AND (source_document_no IS NOT NULL) AND (btrim((source_document_no)::text) <> ''::text) AND (mapping_version_id IS NOT NULL))))
+    CONSTRAINT acc_vouchers_vou_source_check CHECK ((((source_type)::text <> 'VOU'::text) OR ((source_entity IS NOT NULL) AND (source_revision IS NOT NULL) AND (source_revision >= 1) AND (source_document_no IS NOT NULL) AND (btrim((source_document_no)::text) <> ''::text) AND (mapping_approval_entry_id IS NOT NULL))))
 );
 
 
@@ -2025,14 +2031,14 @@ CREATE TABLE public.object_number_counters (
 
 
 --
--- Name: rpt_audit_events; Type: TABLE; Schema: public; Owner: -
+-- Name: rpt_runtime_audit_events; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.rpt_audit_events (
+CREATE TABLE public.rpt_runtime_audit_events (
     id character varying(26) NOT NULL,
     definition_id character varying(26),
     report_code character varying(64) NOT NULL,
-    version_id character varying(26),
+    approval_entry_id character varying(26),
     event_type character varying(32) NOT NULL,
     actor_id character varying(26) NOT NULL,
     request_id character varying(128) NOT NULL,
@@ -2051,9 +2057,6 @@ CREATE TABLE public.rpt_definitions (
     name character varying(200) NOT NULL,
     description character varying(1000) DEFAULT ''::character varying NOT NULL,
     enabled boolean DEFAULT true NOT NULL,
-    ever_approved boolean DEFAULT false NOT NULL,
-    current_version_id character varying(26),
-    next_version_no integer DEFAULT 2 NOT NULL,
     revision bigint DEFAULT 1 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     created_by character varying(26) NOT NULL,
@@ -2061,7 +2064,6 @@ CREATE TABLE public.rpt_definitions (
     updated_by character varying(26) NOT NULL,
     CONSTRAINT rpt_definitions_code_check CHECK ((((code)::text ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'::text) AND ((code)::text <> ALL ((ARRAY['definition'::character varying, 'directory'::character varying])::text[])))),
     CONSTRAINT rpt_definitions_name_check CHECK ((btrim((name)::text) <> ''::text)),
-    CONSTRAINT rpt_definitions_next_version_no_check CHECK ((next_version_no >= 2)),
     CONSTRAINT rpt_definitions_revision_check CHECK ((revision >= 1))
 );
 
@@ -2071,17 +2073,12 @@ CREATE TABLE public.rpt_definitions (
 --
 
 CREATE TABLE public.rpt_versions (
-    id character varying(26) NOT NULL,
+    approval_entry_id character varying(26) NOT NULL,
     definition_id character varying(26) NOT NULL,
-    version_no integer NOT NULL,
-    status character varying(16) NOT NULL,
     validity character varying(16) NOT NULL,
     sql_text text NOT NULL,
     parameters jsonb NOT NULL,
     columns jsonb NOT NULL,
-    revision bigint DEFAULT 1 NOT NULL,
-    approved_at timestamp with time zone,
-    approved_by character varying(26),
     invalidated_at timestamp with time zone,
     invalid_reason character varying(200),
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -2090,11 +2087,8 @@ CREATE TABLE public.rpt_versions (
     updated_by character varying(26) NOT NULL,
     CONSTRAINT rpt_versions_columns_check CHECK ((jsonb_typeof(columns) = 'array'::text)),
     CONSTRAINT rpt_versions_parameters_check CHECK ((jsonb_typeof(parameters) = 'array'::text)),
-    CONSTRAINT rpt_versions_revision_check CHECK ((revision >= 1)),
     CONSTRAINT rpt_versions_sql_text_check CHECK ((btrim(sql_text) <> ''::text)),
-    CONSTRAINT rpt_versions_status_check CHECK (((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'APPROVED'::character varying])::text[]))),
-    CONSTRAINT rpt_versions_validity_check CHECK (((validity)::text = ANY ((ARRAY['VALID'::character varying, 'INVALID'::character varying])::text[]))),
-    CONSTRAINT rpt_versions_version_no_check CHECK ((version_no >= 1))
+    CONSTRAINT rpt_versions_validity_check CHECK (((validity)::text = ANY ((ARRAY['VALID'::character varying, 'INVALID'::character varying])::text[])))
 );
 
 
@@ -3463,30 +3457,33 @@ CREATE TABLE public.wfl_definition_instances (
     party_name character varying(200),
     definition_code character varying(64) NOT NULL,
     definition_name character varying(100) NOT NULL,
-    started_definition_revision bigint NOT NULL,
+    definition_approval_entry_id character varying(26) NOT NULL,
     revision bigint DEFAULT 1 NOT NULL,
     root_deleted_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     created_by character varying(26) NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_by character varying(26) NOT NULL,
-    CONSTRAINT wfl_definition_instances_revision_check CHECK ((revision > 0)),
-    CONSTRAINT wfl_definition_instances_started_definition_revision_check CHECK ((started_definition_revision > 0))
+    CONSTRAINT wfl_definition_instances_revision_check CHECK ((revision > 0))
 );
 
 
 --
--- Name: wfl_definition_revisions; Type: TABLE; Schema: public; Owner: -
+-- Name: wfl_definition_versions; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.wfl_definition_revisions (
+CREATE TABLE public.wfl_definition_versions (
+    approval_entry_id character varying(26) NOT NULL,
     definition_id character varying(26) NOT NULL,
-    revision bigint NOT NULL,
     script text NOT NULL,
+    diagnostic text,
     compiled jsonb NOT NULL,
-    published_at timestamp with time zone DEFAULT now() NOT NULL,
-    published_by character varying(26) NOT NULL,
-    CONSTRAINT wfl_definition_revisions_revision_check CHECK ((revision > 0))
+    last_trial_approval_revision bigint,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by character varying(26) NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by character varying(26) NOT NULL,
+    CONSTRAINT wfl_definition_versions_trial_revision_check CHECK (((last_trial_approval_revision IS NULL) OR (last_trial_approval_revision > 0)))
 );
 
 
@@ -3521,23 +3518,15 @@ CREATE TABLE public.wfl_process_definitions (
     id character varying(26) NOT NULL,
     code character varying(64) NOT NULL,
     name character varying(100) NOT NULL,
-    status character varying(16) DEFAULT 'DRAFT'::character varying NOT NULL,
+    enabled boolean DEFAULT false NOT NULL,
     revision bigint DEFAULT 1 NOT NULL,
-    draft_script text NOT NULL,
-    draft_diagnostic text,
-    draft_compiled jsonb NOT NULL,
-    last_trial_revision bigint,
-    published_revision bigint,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     created_by character varying(26) NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_by character varying(26) NOT NULL,
-    CONSTRAINT wfl_process_definitions_check CHECK (((last_trial_revision IS NULL) OR (last_trial_revision <= revision))),
     CONSTRAINT wfl_process_definitions_code_check CHECK (((code)::text ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'::text)),
     CONSTRAINT wfl_process_definitions_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 100))),
-    CONSTRAINT wfl_process_definitions_published_revision_check CHECK (((published_revision IS NULL) OR (published_revision > 0))),
-    CONSTRAINT wfl_process_definitions_revision_check CHECK ((revision > 0)),
-    CONSTRAINT wfl_process_definitions_status_check CHECK (((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'ENABLED'::character varying, 'DISABLED'::character varying])::text[])))
+    CONSTRAINT wfl_process_definitions_revision_check CHECK ((revision > 0))
 );
 
 
@@ -3549,7 +3538,7 @@ CREATE TABLE public.wfl_runtime_audit_events (
     id character varying(26) NOT NULL,
     process_id character varying(26),
     definition_id character varying(26) NOT NULL,
-    definition_revision bigint NOT NULL,
+    definition_approval_entry_id character varying(26) NOT NULL,
     event_type character varying(48) NOT NULL,
     node_instance_id character varying(26),
     document_id character varying(26),
@@ -3911,6 +3900,10 @@ INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000106', '/acc/o
 INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000107', '/acc/opening/save', 'acc', 'opening', 'save', '保存账簿期初', 'ENABLED', '2026-08-24 15:23:49.781829+00', NULL, '2026-08-24 15:23:49.781829+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000108', '/acc/opening/approve', 'acc', 'opening', 'approve', '批准账簿期初', 'ENABLED', '2026-08-24 15:23:49.781829+00', NULL, '2026-08-24 15:23:49.781829+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000109', '/acc/opening/unapprove', 'acc', 'opening', 'unapprove', '反批准账簿期初', 'ENABLED', '2026-08-24 15:23:49.781829+00', NULL, '2026-08-24 15:23:49.781829+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000201', '/acc/opening/submit', 'acc', 'opening', 'submit', '提交账簿期初', 'ENABLED', '2026-08-24 15:23:49.781829+00', NULL, '2026-08-24 15:23:49.781829+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000202', '/acc/opening/unsubmit', 'acc', 'opening', 'unsubmit', '撤回账簿期初', 'ENABLED', '2026-08-24 15:23:49.781829+00', NULL, '2026-08-24 15:23:49.781829+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000203', '/acc/opening/reject', 'acc', 'opening', 'reject', '驳回账簿期初', 'ENABLED', '2026-08-24 15:23:49.781829+00', NULL, '2026-08-24 15:23:49.781829+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000204', '/acc/opening/create', 'acc', 'opening', 'create', '建立账簿期初审批', 'ENABLED', '2026-08-24 15:23:49.781829+00', NULL, '2026-08-24 15:23:49.781829+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000110', '/acc/mapping/query', 'acc', 'mapping', 'query', '查询会计映射', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, 40);
 INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000111', '/acc/mapping/get', 'acc', 'mapping', 'get', '查看会计映射', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000112', '/acc/mapping/create', 'acc', 'mapping', 'create', '创建会计映射版本', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
@@ -4098,6 +4091,14 @@ INSERT INTO public.app_permissions VALUES ('WGd6e65556b0f2761f2666649d', '/wfl/p
 INSERT INTO public.app_permissions VALUES ('WG45cc51ab6fa077508670df15', '/wfl/process-definition/enable', 'wfl', 'process-definition', 'enable', '启用流程定义', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('WG855f746f2476c3c06c7132e9', '/wfl/process-definition/disable', 'wfl', 'process-definition', 'disable', '停用流程定义', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('WG8cce66a1abfe87c2efebdd54', '/wfl/process-definition/delete', 'wfl', 'process-definition', 'delete', '删除流程定义', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000001', '/wfl/process-definition/versions', 'wfl', 'process-definition', 'versions', '查看流程定义版本', 'ENABLED', '2026-08-24 15:23:50.02923+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000002', '/wfl/process-definition/submit', 'wfl', 'process-definition', 'submit', '提交流程定义', 'ENABLED', '2026-08-24 15:23:50.02923+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000003', '/wfl/process-definition/unsubmit', 'wfl', 'process-definition', 'unsubmit', '撤回流程定义', 'ENABLED', '2026-08-24 15:23:50.02923+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000004', '/wfl/process-definition/reject', 'wfl', 'process-definition', 'reject', '驳回流程定义', 'ENABLED', '2026-08-24 15:23:50.02923+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000005', '/wfl/process-definition/approve', 'wfl', 'process-definition', 'approve', '批准流程定义', 'ENABLED', '2026-08-24 15:23:50.02923+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000006', '/wfl/process-definition/unapprove', 'wfl', 'process-definition', 'unapprove', '反批准流程定义', 'ENABLED', '2026-08-24 15:23:50.02923+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000007', '/wfl/process-definition/create-version', 'wfl', 'process-definition', 'create-version', '创建下一流程定义版本', 'ENABLED', '2026-08-24 15:23:50.02923+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KWFL00000000000000000008', '/wfl/process-definition/delete-version', 'wfl', 'process-definition', 'delete-version', '删除流程定义草稿版本', 'ENABLED', '2026-08-24 15:23:50.02923+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('VE70b2c2b2f72e9ba6e39a8b11', '/vou/expense-payment/get', 'vou', 'expense-payment', 'get', '读取费用付款', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:49.521804+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('VE78afc21477bcad85cec9a8b7', '/vou/expense-payment/save', 'vou', 'expense-payment', 'save', '保存费用付款', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:49.521804+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('VE82ca63143d458d5531c729c2', '/vou/expense-payment/delete', 'vou', 'expense-payment', 'delete', '删除费用付款', 'ENABLED', '2026-08-24 15:23:49.521804+00', NULL, '2026-08-24 15:23:49.521804+00', NULL, 1, NULL);
@@ -4170,17 +4171,29 @@ INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000113', '/acc/m
 INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000114', '/acc/mapping/approve', 'acc', 'mapping', 'approve', '批准会计映射版本', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000115', '/acc/mapping/unapprove', 'acc', 'mapping', 'unapprove', '反批准会计映射版本', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000116', '/acc/mapping/catalog', 'acc', 'mapping', 'catalog', '查看 VOU 映射字段目录', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000211', '/acc/mapping/versions', 'acc', 'mapping', 'versions', '查看会计映射版本', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000212', '/acc/mapping/delete', 'acc', 'mapping', 'delete', '删除会计映射草稿', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000213', '/acc/mapping/submit', 'acc', 'mapping', 'submit', '提交会计映射', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000214', '/acc/mapping/unsubmit', 'acc', 'mapping', 'unsubmit', '撤回会计映射', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000215', '/acc/mapping/reject', 'acc', 'mapping', 'reject', '驳回会计映射', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000216', '/acc/mapping/create-next', 'acc', 'mapping', 'create-next', '创建下一会计映射版本', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000217', '/acc/mapping/delete-version', 'acc', 'mapping', 'delete-version', '删除会计映射草稿版本', 'ENABLED', '2026-08-24 15:23:49.791438+00', NULL, '2026-08-24 15:23:49.791438+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000117', '/acc/period/query', 'acc', 'period', 'query', '查询会计期间', 'ENABLED', '2026-08-24 15:23:49.803268+00', NULL, '2026-08-24 15:23:49.803268+00', NULL, 1, 50);
 INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000118', '/acc/period/lock', 'acc', 'period', 'lock', '锁定会计期间', 'ENABLED', '2026-08-24 15:23:49.803268+00', NULL, '2026-08-24 15:23:49.803268+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JACC00000000000000000119', '/acc/period/unlock', 'acc', 'period', 'unlock', '解锁会计期间', 'ENABLED', '2026-08-24 15:23:49.803268+00', NULL, '2026-08-24 15:23:49.803268+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01KRPT00000000000000000003', '/rpt/definition/create', 'rpt', 'definition', 'create', '创建报表定义', 'ENABLED', '2026-08-24 15:23:49.887333+00', NULL, '2026-08-24 15:23:49.887333+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01KRPT00000000000000000004', '/rpt/definition/create-version', 'rpt', 'definition', 'create-version', '创建报表版本', 'ENABLED', '2026-08-24 15:23:49.887333+00', NULL, '2026-08-24 15:23:49.887333+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01KRPT00000000000000000005', '/rpt/definition/save', 'rpt', 'definition', 'save', '保存报表版本', 'ENABLED', '2026-08-24 15:23:49.887333+00', NULL, '2026-08-24 15:23:49.887333+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01KRPT00000000000000000006', '/rpt/definition/approve', 'rpt', 'definition', 'approve', '批准报表版本', 'ENABLED', '2026-08-24 15:23:49.887333+00', NULL, '2026-08-24 15:23:49.887333+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01KRPT00000000000000000007', '/rpt/definition/unapprove', 'rpt', 'definition', 'unapprove', '反批准报表版本', 'ENABLED', '2026-08-24 15:23:49.887333+00', NULL, '2026-08-24 15:23:49.887333+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01KRPT00000000000000000008', '/rpt/definition/enable', 'rpt', 'definition', 'enable', '启用报表', 'ENABLED', '2026-08-24 15:23:49.887333+00', NULL, '2026-08-24 15:23:49.887333+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01KRPT00000000000000000009', '/rpt/definition/disable', 'rpt', 'definition', 'disable', '停用报表', 'ENABLED', '2026-08-24 15:23:49.887333+00', NULL, '2026-08-24 15:23:49.887333+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01KRPT00000000000000000010', '/rpt/definition/delete', 'rpt', 'definition', 'delete', '删除未批准报表', 'ENABLED', '2026-08-24 15:23:49.887333+00', NULL, '2026-08-24 15:23:49.887333+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KRPT00000000000000000011', '/rpt/definition/versions', 'rpt', 'definition', 'versions', '查看报表版本', 'ENABLED', '2026-08-24 15:23:49.887333+00', NULL, '2026-08-24 15:23:49.887333+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KRPT00000000000000000012', '/rpt/definition/submit', 'rpt', 'definition', 'submit', '提交报表版本', 'ENABLED', '2026-08-24 15:23:49.887333+00', NULL, '2026-08-24 15:23:49.887333+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KRPT00000000000000000013', '/rpt/definition/unsubmit', 'rpt', 'definition', 'unsubmit', '撤回报表版本', 'ENABLED', '2026-08-24 15:23:49.887333+00', NULL, '2026-08-24 15:23:49.887333+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KRPT00000000000000000014', '/rpt/definition/reject', 'rpt', 'definition', 'reject', '驳回报表版本', 'ENABLED', '2026-08-24 15:23:49.887333+00', NULL, '2026-08-24 15:23:49.887333+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KRPT00000000000000000015', '/rpt/definition/create-version', 'rpt', 'definition', 'create-version', '创建下一报表版本', 'ENABLED', '2026-08-24 15:23:49.887333+00', NULL, '2026-08-24 15:23:49.887333+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01KRPT00000000000000000016', '/rpt/definition/delete-version', 'rpt', 'definition', 'delete-version', '删除报表草稿版本', 'ENABLED', '2026-08-24 15:23:49.887333+00', NULL, '2026-08-24 15:23:49.887333+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('IC2c4435f69ea3212ccae40054', '/vou/inventory-count/approve', 'vou', 'inventory-count', 'approve', '批准库存盘点单', 'ENABLED', '2026-08-24 15:23:49.566641+00', NULL, '2026-08-24 15:23:49.566641+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('ICffc1d3e27a63c4e98cdc5492', '/vou/inventory-count/unapprove', 'vou', 'inventory-count', 'unapprove', '反批准库存盘点单', 'ENABLED', '2026-08-24 15:23:49.566641+00', NULL, '2026-08-24 15:23:49.566641+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('IC36e546bc5758280fefe3ef6e', '/vou/inventory-count/audit-history', 'vou', 'inventory-count', 'audit-history', '查看库存盘点单审计', 'ENABLED', '2026-08-24 15:23:49.566641+00', NULL, '2026-08-24 15:23:49.566641+00', NULL, 1, NULL);
@@ -4432,7 +4445,6 @@ INSERT INTO public.app_permissions VALUES ('RPPd42093b4298e81be2fc6b08', '/rpt/e
 INSERT INTO public.app_permissions VALUES ('RPP0fb2a60a22a29999551000b', '/rpt/employee-loans/export', 'rpt', 'employee-loans', 'export', '导出员工借款', 'ENABLED', '2026-08-24 15:23:49.887333+00', NULL, '2026-08-24 15:23:49.887333+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAPP00000000000000000018', '/app/user/reset-password', 'app', 'user', 'reset-password', '重置用户密码', 'ENABLED', '2026-08-24 15:23:50.002937+00', NULL, '2026-08-24 15:23:50.002937+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('WG6ba149ae2772987659e7e433', '/wfl/process-definition/trial', 'wfl', 'process-definition', 'trial', '试算流程定义', 'ENABLED', '2026-08-24 15:23:50.02923+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('WG942257c819e3680a6af8ee5e', '/wfl/process-definition/publish', 'wfl', 'process-definition', 'publish', '发布流程定义', 'ENABLED', '2026-08-24 15:23:50.02923+00', NULL, '2026-08-24 15:23:50.02923+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000911', '/aux/settlement-method/query', 'aux', 'settlement-method', 'query', '查询结算方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000921', '/aux/payment-method/query', 'aux', 'payment-method', 'query', '查询收款方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JAUX00000000000000000912', '/aux/settlement-method/get', 'aux', 'settlement-method', 'get', '查看结算方式', 'ENABLED', '2026-08-24 15:23:50.195722+00', NULL, '2026-08-24 15:23:50.195722+00', NULL, 1, NULL);
@@ -4929,7 +4941,7 @@ INSERT INTO public.object_number_counters VALUES ('aux', 'product-type', 4);
 
 --
 -- +goose StatementEnd
--- Data for Name: rpt_audit_events; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: rpt_runtime_audit_events; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
@@ -4939,14 +4951,14 @@ INSERT INTO public.object_number_counters VALUES ('aux', 'product-type', 4);
 --
 
 -- +goose StatementBegin
-INSERT INTO public.rpt_definitions VALUES ('RPD1e68c4c93e49d8d1e1877f9', 'account-journal', '科目流水', '系统预置报表', true, true, 'RPV1e68c4c93e49d8d1e1877f9', 2, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_definitions VALUES ('RPDb40033a1ed0a842d50c23f1', 'subject-balance', '科目余额', '系统预置报表', true, true, 'RPVb40033a1ed0a842d50c23f1', 2, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_definitions VALUES ('RPD43189400de7a6fe5d7978ed', 'customer-aging', '客户应收预收账龄', '系统预置报表', true, true, 'RPV43189400de7a6fe5d7978ed', 2, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_definitions VALUES ('RPD24d57c02d870b62329517d0', 'supplier-aging', '供应商应付预付账龄', '系统预置报表', true, true, 'RPV24d57c02d870b62329517d0', 2, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_definitions VALUES ('RPDef5b48e5bf2909eebd39609', 'inventory-movement', '库存收发存', '系统预置报表', true, true, 'RPVef5b48e5bf2909eebd39609', 2, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_definitions VALUES ('RPDb5237b6a7892a42a4a7a60f', 'bills', '票据', '系统预置报表', true, true, 'RPVb5237b6a7892a42a4a7a60f', 2, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_definitions VALUES ('RPD57bcbf1d2df6010d41816c0', 'containers', '空桶', '系统预置报表', true, true, 'RPV57bcbf1d2df6010d41816c0', 2, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_definitions VALUES ('RPD517f80b4080608d1ef8ce23', 'employee-loans', '员工借款', '系统预置报表', true, true, 'RPV517f80b4080608d1ef8ce23', 2, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
+INSERT INTO public.rpt_definitions (id, code, name, description, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPD1e68c4c93e49d8d1e1877f9', 'account-journal', '科目流水', '系统预置报表', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
+INSERT INTO public.rpt_definitions (id, code, name, description, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPDb40033a1ed0a842d50c23f1', 'subject-balance', '科目余额', '系统预置报表', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
+INSERT INTO public.rpt_definitions (id, code, name, description, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPD43189400de7a6fe5d7978ed', 'customer-aging', '客户应收预收账龄', '系统预置报表', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
+INSERT INTO public.rpt_definitions (id, code, name, description, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPD24d57c02d870b62329517d0', 'supplier-aging', '供应商应付预付账龄', '系统预置报表', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
+INSERT INTO public.rpt_definitions (id, code, name, description, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPDef5b48e5bf2909eebd39609', 'inventory-movement', '库存收发存', '系统预置报表', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
+INSERT INTO public.rpt_definitions (id, code, name, description, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPDb5237b6a7892a42a4a7a60f', 'bills', '票据', '系统预置报表', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
+INSERT INTO public.rpt_definitions (id, code, name, description, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPD57bcbf1d2df6010d41816c0', 'containers', '空桶', '系统预置报表', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
+INSERT INTO public.rpt_definitions (id, code, name, description, enabled, revision, created_at, created_by, updated_at, updated_by) VALUES ('RPD517f80b4080608d1ef8ce23', 'employee-loans', '员工借款', '系统预置报表', true, 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
 
 
 --
@@ -4955,7 +4967,7 @@ INSERT INTO public.rpt_definitions VALUES ('RPD517f80b4080608d1ef8ce23', 'employ
 --
 
 -- +goose StatementBegin
-INSERT INTO public.rpt_versions VALUES ('RPV1e68c4c93e49d8d1e1877f9', 'RPD1e68c4c93e49d8d1e1877f9', 1, 'APPROVED', 'VALID', '
+INSERT INTO public.rpt_versions (approval_entry_id, definition_id, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV1e68c4c93e49d8d1e1877f9', 'RPD1e68c4c93e49d8d1e1877f9', 'VALID', '
     SELECT b.code::text AS book_code,s.code::text AS subject_code,v.business_date::date AS business_date,
         v.id::text AS voucher_id,v.source_document_no::text AS source_document_no,e.currency::text AS currency,
         CASE WHEN e.debit_minor>0 THEN ''DEBIT'' ELSE ''CREDIT'' END::text AS direction,
@@ -4968,8 +4980,8 @@ INSERT INTO public.rpt_versions VALUES ('RPV1e68c4c93e49d8d1e1877f9', 'RPD1e68c4
     WHERE ($1::text='''' OR b.id=$1) AND ($2::text='''' OR s.id=$2)
       AND ($3::text='''' OR e.currency=$3) AND v.business_date <@ $4::daterange
     ORDER BY v.business_date,v.id,e.line_order
-    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "subjectId", "name": "会计科目", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNT_SUBJECT"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "dateRange", "name": "日期范围", "type": "DATE_RANGE", "required": false, "defaultValue": ["1900-01-01", "9999-12-31"]}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "科目", "type": "TEXT", "alias": "subject_code", "order": 2, "width": 100, "visible": true}, {"name": "日期", "type": "DATE", "alias": "business_date", "order": 3, "width": 110, "format": "date", "visible": true}, {"name": "凭证", "type": "ID", "alias": "voucher_id", "order": 4, "width": 180, "visible": false}, {"name": "来源单号", "type": "TEXT", "alias": "source_document_no", "order": 5, "width": 150, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 6, "width": 80, "visible": true}, {"name": "方向", "type": "TEXT", "alias": "direction", "order": 7, "width": 80, "visible": true}, {"name": "金额", "type": "DECIMAL", "alias": "amount", "order": 8, "width": 120, "format": "money", "visible": true}, {"name": "来源类型", "type": "TEXT", "alias": "source_entity", "order": 9, "width": 130, "visible": true}, {"name": "来源单据", "type": "ID", "alias": "source_document_id", "order": 10, "width": 100, "visible": true, "drilldownEntity": "VOU"}]', 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', NULL, NULL, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_versions VALUES ('RPVb40033a1ed0a842d50c23f1', 'RPDb40033a1ed0a842d50c23f1', 1, 'APPROVED', 'VALID', '
+    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "subjectId", "name": "会计科目", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNT_SUBJECT"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "dateRange", "name": "日期范围", "type": "DATE_RANGE", "required": false, "defaultValue": ["1900-01-01", "9999-12-31"]}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "科目", "type": "TEXT", "alias": "subject_code", "order": 2, "width": 100, "visible": true}, {"name": "日期", "type": "DATE", "alias": "business_date", "order": 3, "width": 110, "format": "date", "visible": true}, {"name": "凭证", "type": "ID", "alias": "voucher_id", "order": 4, "width": 180, "visible": false}, {"name": "来源单号", "type": "TEXT", "alias": "source_document_no", "order": 5, "width": 150, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 6, "width": 80, "visible": true}, {"name": "方向", "type": "TEXT", "alias": "direction", "order": 7, "width": 80, "visible": true}, {"name": "金额", "type": "DECIMAL", "alias": "amount", "order": 8, "width": 120, "format": "money", "visible": true}, {"name": "来源类型", "type": "TEXT", "alias": "source_entity", "order": 9, "width": 130, "visible": true}, {"name": "来源单据", "type": "ID", "alias": "source_document_id", "order": 10, "width": 100, "visible": true, "drilldownEntity": "VOU"}]', 'SYSTEM', 'SYSTEM');
+INSERT INTO public.rpt_versions (approval_entry_id, definition_id, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPVb40033a1ed0a842d50c23f1', 'RPDb40033a1ed0a842d50c23f1', 'VALID', '
     SELECT b.code::text AS book_code,s.code::text AS subject_code,e.currency::text AS currency,
       (sum(CASE WHEN v.business_date<lower($4::daterange) THEN e.debit_minor-e.credit_minor ELSE 0 END)::numeric/100) AS opening_balance,
       (sum(CASE WHEN v.business_date <@ $4::daterange THEN e.debit_minor ELSE 0 END)::numeric/100) AS debit_amount,
@@ -4981,8 +4993,8 @@ INSERT INTO public.rpt_versions VALUES ('RPVb40033a1ed0a842d50c23f1', 'RPDb40033
     WHERE ($1::text='''' OR b.id=$1) AND ($2::text='''' OR s.id=$2) AND ($3::text='''' OR e.currency=$3)
       AND v.business_date<upper($4::daterange)
     GROUP BY b.code,s.code,e.currency ORDER BY b.code,s.code,e.currency
-    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "subjectId", "name": "会计科目", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNT_SUBJECT"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "dateRange", "name": "期间", "type": "DATE_RANGE", "required": false, "defaultValue": ["1900-01-01", "9999-12-31"]}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "科目", "type": "TEXT", "alias": "subject_code", "order": 2, "width": 100, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 3, "width": 80, "visible": true}, {"name": "期初余额", "type": "DECIMAL", "alias": "opening_balance", "order": 4, "width": 130, "format": "money", "visible": true}, {"name": "借方发生", "type": "DECIMAL", "alias": "debit_amount", "order": 5, "width": 130, "format": "money", "visible": true}, {"name": "贷方发生", "type": "DECIMAL", "alias": "credit_amount", "order": 6, "width": 130, "format": "money", "visible": true}, {"name": "期末余额", "type": "DECIMAL", "alias": "ending_balance", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "余额方向", "type": "TEXT", "alias": "balance_direction", "order": 8, "width": 90, "visible": true}]', 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', NULL, NULL, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_versions VALUES ('RPVef5b48e5bf2909eebd39609', 'RPDef5b48e5bf2909eebd39609', 1, 'APPROVED', 'VALID', '
+    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "subjectId", "name": "会计科目", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNT_SUBJECT"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "dateRange", "name": "期间", "type": "DATE_RANGE", "required": false, "defaultValue": ["1900-01-01", "9999-12-31"]}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "科目", "type": "TEXT", "alias": "subject_code", "order": 2, "width": 100, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 3, "width": 80, "visible": true}, {"name": "期初余额", "type": "DECIMAL", "alias": "opening_balance", "order": 4, "width": 130, "format": "money", "visible": true}, {"name": "借方发生", "type": "DECIMAL", "alias": "debit_amount", "order": 5, "width": 130, "format": "money", "visible": true}, {"name": "贷方发生", "type": "DECIMAL", "alias": "credit_amount", "order": 6, "width": 130, "format": "money", "visible": true}, {"name": "期末余额", "type": "DECIMAL", "alias": "ending_balance", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "余额方向", "type": "TEXT", "alias": "balance_direction", "order": 8, "width": 90, "visible": true}]', 'SYSTEM', 'SYSTEM');
+INSERT INTO public.rpt_versions (approval_entry_id, definition_id, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPVef5b48e5bf2909eebd39609', 'RPDef5b48e5bf2909eebd39609', 'VALID', '
     SELECT b.code::text AS book_code,s.code::text AS subject_code,i.warehouse_id::text AS warehouse_id,
       i.product_id::text AS product_id,
       (sum(CASE WHEN i.business_date<date_trunc(''month'',$5::date)::date THEN i.quantity_delta_micros ELSE 0 END)::numeric/1000000) AS opening_quantity,
@@ -5003,8 +5015,8 @@ INSERT INTO public.rpt_versions VALUES ('RPVef5b48e5bf2909eebd39609', 'RPDef5b48
     WHERE ($1::text='''' OR i.book_id=$1) AND ($2::text='''' OR i.subject_id=$2)
       AND ($3::text='''' OR i.warehouse_id=$3) AND ($4::text='''' OR i.product_id=$4) AND i.business_date<=$5::date
     GROUP BY b.code,s.code,i.warehouse_id,i.product_id ORDER BY b.code,s.code,i.warehouse_id,i.product_id
-    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "subjectId", "name": "库存科目", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNT_SUBJECT"}, {"key": "warehouseId", "name": "仓库", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "WAREHOUSE"}, {"key": "productId", "name": "产品", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "PRODUCT"}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "库存科目", "type": "TEXT", "alias": "subject_code", "order": 2, "width": 100, "visible": true}, {"name": "仓库", "type": "ID", "alias": "warehouse_id", "order": 3, "width": 180, "visible": true}, {"name": "产品", "type": "ID", "alias": "product_id", "order": 4, "width": 180, "visible": true}, {"name": "期初数量", "type": "DECIMAL", "alias": "opening_quantity", "order": 5, "width": 120, "format": "quantity", "visible": true}, {"name": "入库数量", "type": "DECIMAL", "alias": "inbound_quantity", "order": 6, "width": 120, "format": "quantity", "visible": true}, {"name": "出库数量", "type": "DECIMAL", "alias": "outbound_quantity", "order": 7, "width": 120, "format": "quantity", "visible": true}, {"name": "期末数量", "type": "DECIMAL", "alias": "ending_quantity", "order": 8, "width": 120, "format": "quantity", "visible": true}, {"name": "移动平均单价", "type": "DECIMAL", "alias": "average_unit_cost", "order": 9, "width": 140, "format": "money", "visible": true}, {"name": "期末金额", "type": "DECIMAL", "alias": "ending_amount", "order": 10, "width": 130, "format": "money", "visible": true}, {"name": "来源类型", "type": "TEXT", "alias": "source_entity", "order": 11, "width": 130, "visible": false}, {"name": "来源单据", "type": "ID", "alias": "source_document_id", "order": 12, "width": 100, "visible": true, "drilldownEntity": "VOU"}]', 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', NULL, NULL, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_versions VALUES ('RPVb5237b6a7892a42a4a7a60f', 'RPDb5237b6a7892a42a4a7a60f', 1, 'APPROVED', 'VALID', '
+    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "subjectId", "name": "库存科目", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNT_SUBJECT"}, {"key": "warehouseId", "name": "仓库", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "WAREHOUSE"}, {"key": "productId", "name": "产品", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "PRODUCT"}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "库存科目", "type": "TEXT", "alias": "subject_code", "order": 2, "width": 100, "visible": true}, {"name": "仓库", "type": "ID", "alias": "warehouse_id", "order": 3, "width": 180, "visible": true}, {"name": "产品", "type": "ID", "alias": "product_id", "order": 4, "width": 180, "visible": true}, {"name": "期初数量", "type": "DECIMAL", "alias": "opening_quantity", "order": 5, "width": 120, "format": "quantity", "visible": true}, {"name": "入库数量", "type": "DECIMAL", "alias": "inbound_quantity", "order": 6, "width": 120, "format": "quantity", "visible": true}, {"name": "出库数量", "type": "DECIMAL", "alias": "outbound_quantity", "order": 7, "width": 120, "format": "quantity", "visible": true}, {"name": "期末数量", "type": "DECIMAL", "alias": "ending_quantity", "order": 8, "width": 120, "format": "quantity", "visible": true}, {"name": "移动平均单价", "type": "DECIMAL", "alias": "average_unit_cost", "order": 9, "width": 140, "format": "money", "visible": true}, {"name": "期末金额", "type": "DECIMAL", "alias": "ending_amount", "order": 10, "width": 130, "format": "money", "visible": true}, {"name": "来源类型", "type": "TEXT", "alias": "source_entity", "order": 11, "width": 130, "visible": false}, {"name": "来源单据", "type": "ID", "alias": "source_document_id", "order": 12, "width": 100, "visible": true, "drilldownEntity": "VOU"}]', 'SYSTEM', 'SYSTEM');
+INSERT INTO public.rpt_versions (approval_entry_id, definition_id, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPVb5237b6a7892a42a4a7a60f', 'RPDb5237b6a7892a42a4a7a60f', 'VALID', '
     SELECT book.code::text AS book_code,bill.id::text AS bill_id,bill.bill_no::text AS bill_no,
       CASE WHEN settled.business_date IS NOT NULL AND settled.business_date<=$6::date THEN ''SETTLED'' ELSE ''AVAILABLE'' END::text AS business_status,
       bill.position_type::text AS position_type,bill.currency::text AS currency,
@@ -5022,8 +5034,8 @@ INSERT INTO public.rpt_versions VALUES ('RPVb5237b6a7892a42a4a7a60f', 'RPDb5237b
       AND ($4::text='''' OR CASE WHEN settled.business_date IS NOT NULL AND settled.business_date<=$6::date THEN ''SETTLED'' ELSE ''AVAILABLE'' END=$4)
       AND bill.maturity_date <@ $5::daterange AND bill.issue_date<=$6::date
     ORDER BY book.code,bill.bill_no,bill.id
-    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "billId", "name": "票据", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "BILL"}, {"key": "partyId", "name": "往来方", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "OTHER_PARTY"}, {"key": "status", "name": "状态", "type": "ENUM", "required": false, "enumValues": ["", "AVAILABLE", "SETTLED"], "defaultValue": ""}, {"key": "maturityRange", "name": "到期日范围", "type": "DATE_RANGE", "required": false, "defaultValue": ["1900-01-01", "9999-12-31"]}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "票据ID", "type": "ID", "alias": "bill_id", "order": 2, "width": 180, "visible": false}, {"name": "票据号", "type": "TEXT", "alias": "bill_no", "order": 3, "width": 160, "visible": true}, {"name": "业务状态", "type": "TEXT", "alias": "business_status", "order": 4, "width": 110, "visible": true}, {"name": "账簿方向", "type": "TEXT", "alias": "position_type", "order": 5, "width": 100, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 6, "width": 80, "visible": true}, {"name": "原值", "type": "DECIMAL", "alias": "original_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "账面金额", "type": "DECIMAL", "alias": "carrying_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "到期日", "type": "DATE", "alias": "maturity_date", "order": 9, "width": 110, "format": "date", "visible": true}, {"name": "往来方", "type": "ID", "alias": "party_id", "order": 10, "width": 180, "visible": false}, {"name": "来源类型", "type": "TEXT", "alias": "source_entity", "order": 11, "width": 130, "visible": false}, {"name": "来源单据", "type": "ID", "alias": "source_document_id", "order": 12, "width": 100, "visible": true, "drilldownEntity": "VOU"}]', 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', NULL, NULL, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_versions VALUES ('RPV43189400de7a6fe5d7978ed', 'RPD43189400de7a6fe5d7978ed', 1, 'APPROVED', 'VALID', '
+    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "billId", "name": "票据", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "BILL"}, {"key": "partyId", "name": "往来方", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "OTHER_PARTY"}, {"key": "status", "name": "状态", "type": "ENUM", "required": false, "enumValues": ["", "AVAILABLE", "SETTLED"], "defaultValue": ""}, {"key": "maturityRange", "name": "到期日范围", "type": "DATE_RANGE", "required": false, "defaultValue": ["1900-01-01", "9999-12-31"]}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "票据ID", "type": "ID", "alias": "bill_id", "order": 2, "width": 180, "visible": false}, {"name": "票据号", "type": "TEXT", "alias": "bill_no", "order": 3, "width": 160, "visible": true}, {"name": "业务状态", "type": "TEXT", "alias": "business_status", "order": 4, "width": 110, "visible": true}, {"name": "账簿方向", "type": "TEXT", "alias": "position_type", "order": 5, "width": 100, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 6, "width": 80, "visible": true}, {"name": "原值", "type": "DECIMAL", "alias": "original_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "账面金额", "type": "DECIMAL", "alias": "carrying_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "到期日", "type": "DATE", "alias": "maturity_date", "order": 9, "width": 110, "format": "date", "visible": true}, {"name": "往来方", "type": "ID", "alias": "party_id", "order": 10, "width": 180, "visible": false}, {"name": "来源类型", "type": "TEXT", "alias": "source_entity", "order": 11, "width": 130, "visible": false}, {"name": "来源单据", "type": "ID", "alias": "source_document_id", "order": 12, "width": 100, "visible": true, "drilldownEntity": "VOU"}]', 'SYSTEM', 'SYSTEM');
+INSERT INTO public.rpt_versions (approval_entry_id, definition_id, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV43189400de7a6fe5d7978ed', 'RPD43189400de7a6fe5d7978ed', 'VALID', '
     WITH facts AS (
       SELECT e.id,e.voucher_id,e.line_order,e.book_id,e.currency,e.dimensions->>''CUSTOMER_ACCOUNT'' AS party_id,v.business_date,
         coalesce(d.due_date,v.business_date) AS due_date,s.settlement_purpose,
@@ -5068,8 +5080,8 @@ INSERT INTO public.rpt_versions VALUES ('RPV43189400de7a6fe5d7978ed', 'RPD431894
     LEFT JOIN bob_objects p ON p.id=x.party_id AND p.entity=''customer-account''
     WHERE greatest(($4::date-x.oldest_due_date)::bigint,0::bigint)>=$5::bigint
     ORDER BY b.code,customer_code,x.currency
-    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "customerId", "name": "客户", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "CUSTOMER_ACCOUNT"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}, {"key": "minAgeDays", "name": "最小账龄天数", "type": "INTEGER", "required": false, "defaultValue": 0}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "客户ID", "type": "ID", "alias": "customer_id", "order": 2, "width": 180, "visible": false}, {"name": "客户编码", "type": "TEXT", "alias": "customer_code", "order": 3, "width": 120, "visible": true}, {"name": "客户名称", "type": "TEXT", "alias": "customer_name", "order": 4, "width": 180, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "应收原额", "type": "DECIMAL", "alias": "receivable_amount", "order": 6, "width": 130, "format": "money", "visible": true}, {"name": "预收原额", "type": "DECIMAL", "alias": "advance_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "净额", "type": "DECIMAL", "alias": "net_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 9, "width": 130, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 10, "width": 120, "visible": true}]', 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', NULL, NULL, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_versions VALUES ('RPV24d57c02d870b62329517d0', 'RPD24d57c02d870b62329517d0', 1, 'APPROVED', 'VALID', '
+    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "customerId", "name": "客户", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "CUSTOMER_ACCOUNT"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}, {"key": "minAgeDays", "name": "最小账龄天数", "type": "INTEGER", "required": false, "defaultValue": 0}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "客户ID", "type": "ID", "alias": "customer_id", "order": 2, "width": 180, "visible": false}, {"name": "客户编码", "type": "TEXT", "alias": "customer_code", "order": 3, "width": 120, "visible": true}, {"name": "客户名称", "type": "TEXT", "alias": "customer_name", "order": 4, "width": 180, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "应收原额", "type": "DECIMAL", "alias": "receivable_amount", "order": 6, "width": 130, "format": "money", "visible": true}, {"name": "预收原额", "type": "DECIMAL", "alias": "advance_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "净额", "type": "DECIMAL", "alias": "net_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 9, "width": 130, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 10, "width": 120, "visible": true}]', 'SYSTEM', 'SYSTEM');
+INSERT INTO public.rpt_versions (approval_entry_id, definition_id, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV24d57c02d870b62329517d0', 'RPD24d57c02d870b62329517d0', 'VALID', '
     WITH facts AS (
       SELECT e.id,e.voucher_id,e.line_order,e.book_id,e.currency,e.dimensions->>''SUPPLIER_RELATIONSHIP'' AS party_id,v.business_date,
         coalesce(d.due_date,v.business_date) AS due_date,s.settlement_purpose,
@@ -5114,8 +5126,8 @@ INSERT INTO public.rpt_versions VALUES ('RPV24d57c02d870b62329517d0', 'RPD24d57c
     LEFT JOIN bob_objects p ON p.id=x.party_id AND p.entity=''supplier''
     WHERE greatest(($4::date-x.oldest_due_date)::bigint,0::bigint)>=$5::bigint
     ORDER BY b.code,supplier_code,x.currency
-    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "supplierId", "name": "供应商", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "SUPPLIER_RELATIONSHIP"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}, {"key": "minAgeDays", "name": "最小账龄天数", "type": "INTEGER", "required": false, "defaultValue": 0}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "供应商ID", "type": "ID", "alias": "supplier_id", "order": 2, "width": 180, "visible": false}, {"name": "供应商编码", "type": "TEXT", "alias": "supplier_code", "order": 3, "width": 120, "visible": true}, {"name": "供应商名称", "type": "TEXT", "alias": "supplier_name", "order": 4, "width": 180, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "应付原额", "type": "DECIMAL", "alias": "payable_amount", "order": 6, "width": 130, "format": "money", "visible": true}, {"name": "预付原额", "type": "DECIMAL", "alias": "advance_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "净额", "type": "DECIMAL", "alias": "net_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 9, "width": 130, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 10, "width": 120, "visible": true}]', 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', NULL, NULL, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_versions VALUES ('RPV57bcbf1d2df6010d41816c0', 'RPD57bcbf1d2df6010d41816c0', 1, 'APPROVED', 'VALID', '
+    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "supplierId", "name": "供应商", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "SUPPLIER_RELATIONSHIP"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}, {"key": "minAgeDays", "name": "最小账龄天数", "type": "INTEGER", "required": false, "defaultValue": 0}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "供应商ID", "type": "ID", "alias": "supplier_id", "order": 2, "width": 180, "visible": false}, {"name": "供应商编码", "type": "TEXT", "alias": "supplier_code", "order": 3, "width": 120, "visible": true}, {"name": "供应商名称", "type": "TEXT", "alias": "supplier_name", "order": 4, "width": 180, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "应付原额", "type": "DECIMAL", "alias": "payable_amount", "order": 6, "width": 130, "format": "money", "visible": true}, {"name": "预付原额", "type": "DECIMAL", "alias": "advance_amount", "order": 7, "width": 130, "format": "money", "visible": true}, {"name": "净额", "type": "DECIMAL", "alias": "net_amount", "order": 8, "width": 130, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 9, "width": 130, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 10, "width": 120, "visible": true}]', 'SYSTEM', 'SYSTEM');
+INSERT INTO public.rpt_versions (approval_entry_id, definition_id, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV57bcbf1d2df6010d41816c0', 'RPD57bcbf1d2df6010d41816c0', 'VALID', '
     WITH facts AS (
       SELECT book.id AS book_id,book.code,e.customer_id,e.container_type,e.quantity_delta,
         coalesce(source.business_date,book.start_month) AS business_date,e.source_revision
@@ -5151,8 +5163,8 @@ INSERT INTO public.rpt_versions VALUES ('RPV57bcbf1d2df6010d41816c0', 'RPD57bcbf
     FROM movements m
     LEFT JOIN bob_objects customer ON customer.id=m.customer_id AND customer.entity=''customer-account''
     ORDER BY m.code,customer_code,m.container_type
-    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "customerId", "name": "客户", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "CUSTOMER_ACCOUNT"}, {"key": "containerType", "name": "桶型", "type": "ENUM", "required": false, "enumValues": ["", "SOLVENT", "RESIN"], "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "客户ID", "type": "ID", "alias": "customer_id", "order": 2, "width": 180, "visible": false}, {"name": "客户编码", "type": "TEXT", "alias": "customer_code", "order": 3, "width": 120, "visible": true}, {"name": "客户名称", "type": "TEXT", "alias": "customer_name", "order": 4, "width": 180, "visible": true}, {"name": "桶型", "type": "TEXT", "alias": "container_type", "order": 5, "width": 100, "visible": true}, {"name": "期初", "type": "DECIMAL", "alias": "opening_quantity", "order": 6, "width": 110, "format": "quantity", "visible": true}, {"name": "发出", "type": "DECIMAL", "alias": "issued_quantity", "order": 7, "width": 110, "format": "quantity", "visible": true}, {"name": "收回", "type": "DECIMAL", "alias": "returned_quantity", "order": 8, "width": 110, "format": "quantity", "visible": true}, {"name": "调整", "type": "DECIMAL", "alias": "adjusted_quantity", "order": 9, "width": 110, "format": "quantity", "visible": true}, {"name": "欠桶余额", "type": "DECIMAL", "alias": "balance_quantity", "order": 10, "width": 120, "format": "quantity", "visible": true}, {"name": "核算金额", "type": "DECIMAL", "alias": "amount", "order": 11, "width": 130, "format": "money", "visible": true}]', 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', NULL, NULL, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
-INSERT INTO public.rpt_versions VALUES ('RPV517f80b4080608d1ef8ce23', 'RPD517f80b4080608d1ef8ce23', 1, 'APPROVED', 'VALID', '
+    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "customerId", "name": "客户", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "CUSTOMER_ACCOUNT"}, {"key": "containerType", "name": "桶型", "type": "ENUM", "required": false, "enumValues": ["", "SOLVENT", "RESIN"], "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "客户ID", "type": "ID", "alias": "customer_id", "order": 2, "width": 180, "visible": false}, {"name": "客户编码", "type": "TEXT", "alias": "customer_code", "order": 3, "width": 120, "visible": true}, {"name": "客户名称", "type": "TEXT", "alias": "customer_name", "order": 4, "width": 180, "visible": true}, {"name": "桶型", "type": "TEXT", "alias": "container_type", "order": 5, "width": 100, "visible": true}, {"name": "期初", "type": "DECIMAL", "alias": "opening_quantity", "order": 6, "width": 110, "format": "quantity", "visible": true}, {"name": "发出", "type": "DECIMAL", "alias": "issued_quantity", "order": 7, "width": 110, "format": "quantity", "visible": true}, {"name": "收回", "type": "DECIMAL", "alias": "returned_quantity", "order": 8, "width": 110, "format": "quantity", "visible": true}, {"name": "调整", "type": "DECIMAL", "alias": "adjusted_quantity", "order": 9, "width": 110, "format": "quantity", "visible": true}, {"name": "欠桶余额", "type": "DECIMAL", "alias": "balance_quantity", "order": 10, "width": 120, "format": "quantity", "visible": true}, {"name": "核算金额", "type": "DECIMAL", "alias": "amount", "order": 11, "width": 130, "format": "money", "visible": true}]', 'SYSTEM', 'SYSTEM');
+INSERT INTO public.rpt_versions (approval_entry_id, definition_id, validity, sql_text, parameters, columns, created_by, updated_by) VALUES ('RPV517f80b4080608d1ef8ce23', 'RPD517f80b4080608d1ef8ce23', 'VALID', '
     WITH facts AS (
       SELECT e.id,e.voucher_id,e.line_order,e.book_id,e.currency,e.dimensions->>''EMPLOYMENT_RELATIONSHIP'' AS employee_id,v.business_date,v.source_entity,
         (e.debit_minor-e.credit_minor) AS signed_minor
@@ -5195,7 +5207,7 @@ INSERT INTO public.rpt_versions VALUES ('RPV517f80b4080608d1ef8ce23', 'RPD517f80
     FROM balances x JOIN acc_books b ON b.id=x.book_id
     LEFT JOIN bob_objects p ON p.id=x.employee_id AND p.entity=''employee''
     ORDER BY b.code,employee_code,x.currency
-    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "employeeId", "name": "员工", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "EMPLOYMENT_RELATIONSHIP"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "员工ID", "type": "ID", "alias": "employee_id", "order": 2, "width": 180, "visible": false}, {"name": "员工编码", "type": "TEXT", "alias": "employee_code", "order": 3, "width": 120, "visible": true}, {"name": "员工姓名", "type": "TEXT", "alias": "employee_name", "order": 4, "width": 150, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "借款", "type": "DECIMAL", "alias": "loan_amount", "order": 6, "width": 120, "format": "money", "visible": true}, {"name": "还款", "type": "DECIMAL", "alias": "repayment_amount", "order": 7, "width": 120, "format": "money", "visible": true}, {"name": "费用核销", "type": "DECIMAL", "alias": "writeoff_amount", "order": 8, "width": 120, "format": "money", "visible": true}, {"name": "余额", "type": "DECIMAL", "alias": "balance", "order": 9, "width": 120, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 10, "width": 120, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 11, "width": 120, "visible": true}, {"name": "余额含义", "type": "TEXT", "alias": "balance_meaning", "order": 12, "width": 170, "visible": true}]', 1, '2026-08-24 15:23:49.887333+00', 'SYSTEM', NULL, NULL, '2026-08-24 15:23:49.887333+00', 'SYSTEM', '2026-08-24 15:23:49.887333+00', 'SYSTEM');
+    ', '[{"key": "bookId", "name": "会计账簿", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "ACCOUNTING_BOOK"}, {"key": "employeeId", "name": "员工", "type": "REFERENCE", "required": false, "defaultValue": "", "referenceType": "EMPLOYMENT_RELATIONSHIP"}, {"key": "currency", "name": "币种", "type": "TEXT", "required": false, "defaultValue": ""}, {"key": "asOfDate", "name": "截止日", "type": "DATE", "required": false, "defaultValue": "9999-12-31"}]', '[{"name": "账簿", "type": "TEXT", "alias": "book_code", "order": 1, "width": 100, "visible": true}, {"name": "员工ID", "type": "ID", "alias": "employee_id", "order": 2, "width": 180, "visible": false}, {"name": "员工编码", "type": "TEXT", "alias": "employee_code", "order": 3, "width": 120, "visible": true}, {"name": "员工姓名", "type": "TEXT", "alias": "employee_name", "order": 4, "width": 150, "visible": true}, {"name": "币种", "type": "TEXT", "alias": "currency", "order": 5, "width": 80, "visible": true}, {"name": "借款", "type": "DECIMAL", "alias": "loan_amount", "order": 6, "width": 120, "format": "money", "visible": true}, {"name": "还款", "type": "DECIMAL", "alias": "repayment_amount", "order": 7, "width": 120, "format": "money", "visible": true}, {"name": "费用核销", "type": "DECIMAL", "alias": "writeoff_amount", "order": 8, "width": 120, "format": "money", "visible": true}, {"name": "余额", "type": "DECIMAL", "alias": "balance", "order": 9, "width": 120, "format": "money", "visible": true}, {"name": "未结金额", "type": "DECIMAL", "alias": "unsettled_amount", "order": 10, "width": 120, "format": "money", "visible": true}, {"name": "最长账龄天数", "type": "INTEGER", "alias": "oldest_age_days", "order": 11, "width": 120, "visible": true}, {"name": "余额含义", "type": "TEXT", "alias": "balance_meaning", "order": 12, "width": 170, "visible": true}]', 'SYSTEM', 'SYSTEM');
 
 
 --
@@ -5697,7 +5709,7 @@ globalThis.calculate = function calculate(input) {
 
 
 --
--- Data for Name: wfl_definition_revisions; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: wfl_definition_versions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
@@ -5713,18 +5725,22 @@ globalThis.calculate = function calculate(input) {
 --
 
 -- +goose StatementBegin
-INSERT INTO public.wfl_process_definitions VALUES ('WFD0f7b734eecb146455d2f051', 'expense-payment', '费用报销付款', 'DRAFT', 1, 'reimbursement = node(key="reimbursement", name="费用报销", entity="expense-reimbursement")
+INSERT INTO public.wfl_process_definitions (id, code, name, enabled, revision, created_by, updated_by) VALUES
+    ('WFD0f7b734eecb146455d2f051', 'expense-payment', '费用报销付款', false, 1, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000'),
+    ('WFD811182d17c4453955c72f85', 'purchase-fulfillment', '采购履约', false, 1, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000'),
+    ('WFDcd6f1eaebf0d5b6055c58fe', 'sales-fulfillment', '销售履约', false, 1, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000');
+INSERT INTO public.wfl_definition_versions (approval_entry_id, definition_id, script, diagnostic, compiled, last_trial_approval_revision, created_by, updated_by) VALUES ('WVE0f7b734eecb146455d2f051', 'WFD0f7b734eecb146455d2f051', 'reimbursement = node(key="reimbursement", name="费用报销", entity="expense-reimbursement")
 payment = node(key="payment", name="费用付款", entity="expense-payment")
-workflow(code="expense-payment", name="费用报销付款", root=reimbursement, edges=[edge(source=reimbursement, target=payment, relation="payment", action=expense_payment(initial={"fundAccountObjectId": ""}))])', NULL, '{"edges": [{"relation": "payment", "sourceKey": "reimbursement", "targetKey": "payment", "actionName": "expense_payment"}], "nodes": [{"key": "reimbursement", "name": "费用报销", "entity": "expense-reimbursement"}, {"key": "payment", "name": "费用付款", "entity": "expense-payment"}], "rootKey": "reimbursement"}', NULL, NULL, '2026-08-24 15:23:50.02923+00', '01JAPPSYST3MACTR0000000000', '2026-08-24 15:23:50.02923+00', '01JAPPSYST3MACTR0000000000');
-INSERT INTO public.wfl_process_definitions VALUES ('WFD811182d17c4453955c72f85', 'purchase-fulfillment', '采购履约', 'DRAFT', 1, 'purchase = node(key="purchase-order", name="采购订单", entity="purchase-order")
+workflow(code="expense-payment", name="费用报销付款", root=reimbursement, edges=[edge(source=reimbursement, target=payment, relation="payment", action=expense_payment(initial={"fundAccountObjectId": ""}))])', NULL, '{"edges": [{"relation": "payment", "sourceKey": "reimbursement", "targetKey": "payment", "actionName": "expense_payment"}], "nodes": [{"key": "reimbursement", "name": "费用报销", "entity": "expense-reimbursement"}, {"key": "payment", "name": "费用付款", "entity": "expense-payment"}], "rootKey": "reimbursement"}', NULL, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000');
+INSERT INTO public.wfl_definition_versions (approval_entry_id, definition_id, script, diagnostic, compiled, last_trial_approval_revision, created_by, updated_by) VALUES ('WVE811182d17c4453955c72f85', 'WFD811182d17c4453955c72f85', 'purchase = node(key="purchase-order", name="采购订单", entity="purchase-order")
 inbound = node(key="purchase-inbound", name="采购入库", entity="purchase-inbound")
-workflow(code="purchase-fulfillment", name="采购履约", root=purchase, edges=[edge(source=purchase, target=inbound, relation="inbound", action=purchase_inbound(initial={}))])', NULL, '{"edges": [{"relation": "inbound", "sourceKey": "purchase-order", "targetKey": "purchase-inbound", "actionName": "purchase_inbound"}], "nodes": [{"key": "purchase-order", "name": "采购订单", "entity": "purchase-order"}, {"key": "purchase-inbound", "name": "采购入库", "entity": "purchase-inbound"}], "rootKey": "purchase-order"}', NULL, NULL, '2026-08-24 15:23:50.02923+00', '01JAPPSYST3MACTR0000000000', '2026-08-24 15:23:50.02923+00', '01JAPPSYST3MACTR0000000000');
-INSERT INTO public.wfl_process_definitions VALUES ('WFDcd6f1eaebf0d5b6055c58fe', 'sales-fulfillment', '销售履约', 'DRAFT', 2, 'order = node(key="sale-order", name="销售订单", entity="sale-order")
+workflow(code="purchase-fulfillment", name="采购履约", root=purchase, edges=[edge(source=purchase, target=inbound, relation="inbound", action=purchase_inbound(initial={}))])', NULL, '{"edges": [{"relation": "inbound", "sourceKey": "purchase-order", "targetKey": "purchase-inbound", "actionName": "purchase_inbound"}], "nodes": [{"key": "purchase-order", "name": "采购订单", "entity": "purchase-order"}, {"key": "purchase-inbound", "name": "采购入库", "entity": "purchase-inbound"}], "rootKey": "purchase-order"}', NULL, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000');
+INSERT INTO public.wfl_definition_versions (approval_entry_id, definition_id, script, diagnostic, compiled, last_trial_approval_revision, created_by, updated_by) VALUES ('WVEcd6f1eaebf0d5b6055c58fe', 'WFDcd6f1eaebf0d5b6055c58fe', 'order = node(key="sale-order", name="销售订单", entity="sale-order")
 outbound = node(key="sale-outbound", name="销售出库", entity="sale-outbound")
 delivery = node(key="sale-delivery", name="销售送货", entity="sale-delivery")
 signoff = node(key="sale-signoff", name="销售签收", entity="sale-signoff")
 refusal_return = node(key="sale-return", name="拒收退货", entity="sale-return")
-workflow(code="sales-fulfillment", name="销售履约", root=order, edges=[edge(source=order, target=outbound, relation="outbound", action=sale_outbound(initial={})), edge(source=outbound, target=delivery, relation="delivery", action=sale_delivery(initial={"carrierServiceRelationshipObjectId":"","vehicleObjectId":""})), edge(source=delivery, target=signoff, relation="signoff", action=sale_signoff(initial={})), edge(source=signoff, target=refusal_return, relation="refusal-return", action=sale_return(initial={}))])', NULL, '{"edges": [{"relation": "outbound", "sourceKey": "sale-order", "targetKey": "sale-outbound", "actionName": "sale_outbound"}, {"relation": "delivery", "sourceKey": "sale-outbound", "targetKey": "sale-delivery", "actionName": "sale_delivery"}, {"relation": "signoff", "sourceKey": "sale-delivery", "targetKey": "sale-signoff", "actionName": "sale_signoff"}, {"relation": "refusal-return", "sourceKey": "sale-signoff", "targetKey": "sale-return", "actionName": "sale_return"}], "nodes": [{"key": "sale-order", "name": "销售订单", "entity": "sale-order"}, {"key": "sale-outbound", "name": "销售出库", "entity": "sale-outbound"}, {"key": "sale-delivery", "name": "销售送货", "entity": "sale-delivery"}, {"key": "sale-signoff", "name": "销售签收", "entity": "sale-signoff"}, {"key": "sale-return", "name": "拒收退货", "entity": "sale-return"}], "rootKey": "sale-order"}', NULL, NULL, '2026-08-24 15:23:50.02923+00', '01JAPPSYST3MACTR0000000000', '2026-08-24 15:23:50.906295+00', '01JAPPSYST3MACTR0000000000');
+workflow(code="sales-fulfillment", name="销售履约", root=order, edges=[edge(source=order, target=outbound, relation="outbound", action=sale_outbound(initial={})), edge(source=outbound, target=delivery, relation="delivery", action=sale_delivery(initial={"carrierServiceRelationshipObjectId":"","vehicleObjectId":""})), edge(source=delivery, target=signoff, relation="signoff", action=sale_signoff(initial={})), edge(source=signoff, target=refusal_return, relation="refusal-return", action=sale_return(initial={}))])', NULL, '{"edges": [{"relation": "outbound", "sourceKey": "sale-order", "targetKey": "sale-outbound", "actionName": "sale_outbound"}, {"relation": "delivery", "sourceKey": "sale-outbound", "targetKey": "sale-delivery", "actionName": "sale_delivery"}, {"relation": "signoff", "sourceKey": "sale-delivery", "targetKey": "sale-signoff", "actionName": "sale_signoff"}, {"relation": "refusal-return", "sourceKey": "sale-signoff", "targetKey": "sale-return", "actionName": "sale_return"}], "nodes": [{"key": "sale-order", "name": "销售订单", "entity": "sale-order"}, {"key": "sale-outbound", "name": "销售出库", "entity": "sale-outbound"}, {"key": "sale-delivery", "name": "销售送货", "entity": "sale-delivery"}, {"key": "sale-signoff", "name": "销售签收", "entity": "sale-signoff"}, {"key": "sale-return", "name": "拒收退货", "entity": "sale-return"}], "rootKey": "sale-order"}', NULL, '01JAPPSYST3MACTR0000000000', '01JAPPSYST3MACTR0000000000');
 
 
 --
@@ -5879,19 +5895,19 @@ ALTER TABLE ONLY public.acc_inventory_entries
 
 
 --
--- Name: acc_mapping_versions acc_mapping_versions_book_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: acc_mappings acc_mappings_book_id_vou_entity_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.acc_mapping_versions
-    ADD CONSTRAINT acc_mapping_versions_book_id_id_key UNIQUE (book_id, id);
+ALTER TABLE ONLY public.acc_mappings
+    ADD CONSTRAINT acc_mappings_book_id_vou_entity_key UNIQUE (book_id, vou_entity);
 
 
 --
--- Name: acc_mapping_versions acc_mapping_versions_book_id_vou_entity_version_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: acc_mappings acc_mappings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.acc_mapping_versions
-    ADD CONSTRAINT acc_mapping_versions_book_id_vou_entity_version_key UNIQUE (book_id, vou_entity, version);
+ALTER TABLE ONLY public.acc_mappings
+    ADD CONSTRAINT acc_mappings_pkey PRIMARY KEY (id);
 
 
 --
@@ -5899,7 +5915,7 @@ ALTER TABLE ONLY public.acc_mapping_versions
 --
 
 ALTER TABLE ONLY public.acc_mapping_versions
-    ADD CONSTRAINT acc_mapping_versions_pkey PRIMARY KEY (id);
+    ADD CONSTRAINT acc_mapping_versions_pkey PRIMARY KEY (approval_entry_id);
 
 
 --
@@ -6552,11 +6568,11 @@ ALTER TABLE ONLY public.object_number_counters
 
 
 --
--- Name: rpt_audit_events rpt_audit_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: rpt_runtime_audit_events rpt_runtime_audit_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.rpt_audit_events
-    ADD CONSTRAINT rpt_audit_events_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.rpt_runtime_audit_events
+    ADD CONSTRAINT rpt_runtime_audit_events_pkey PRIMARY KEY (id);
 
 
 --
@@ -6576,19 +6592,12 @@ ALTER TABLE ONLY public.rpt_definitions
 
 
 --
--- Name: rpt_versions rpt_versions_definition_id_version_no_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.rpt_versions
-    ADD CONSTRAINT rpt_versions_definition_id_version_no_key UNIQUE (definition_id, version_no);
-
-
 --
 -- Name: rpt_versions rpt_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.rpt_versions
-    ADD CONSTRAINT rpt_versions_pkey PRIMARY KEY (id);
+    ADD CONSTRAINT rpt_versions_pkey PRIMARY KEY (approval_entry_id);
 
 
 --
@@ -7400,11 +7409,11 @@ ALTER TABLE ONLY public.wfl_definition_instances
 
 
 --
--- Name: wfl_definition_revisions wfl_definition_revisions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: wfl_definition_versions wfl_definition_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.wfl_definition_revisions
-    ADD CONSTRAINT wfl_definition_revisions_pkey PRIMARY KEY (definition_id, revision);
+ALTER TABLE ONLY public.wfl_definition_versions
+    ADD CONSTRAINT wfl_definition_versions_pkey PRIMARY KEY (approval_entry_id);
 
 
 --
@@ -7483,12 +7492,6 @@ CREATE INDEX acc_inventory_entries_balance_idx ON public.acc_inventory_entries U
 
 
 --
--- Name: acc_mapping_versions_one_draft_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX acc_mapping_versions_one_draft_idx ON public.acc_mapping_versions USING btree (book_id, vou_entity) WHERE ((state)::text = 'DRAFT'::text);
-
-
 --
 -- Name: acc_subjects_parent_idx; Type: INDEX; Schema: public; Owner: -
 --
@@ -7785,17 +7788,10 @@ CREATE INDEX bob_warehouse_versions_manager_idx ON public.bob_warehouse_versions
 
 
 --
--- Name: rpt_audit_events_report_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: rpt_runtime_audit_events_report_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX rpt_audit_events_report_idx ON public.rpt_audit_events USING btree (report_code, occurred_at DESC, id DESC);
-
-
---
--- Name: rpt_versions_one_draft_uq; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX rpt_versions_one_draft_uq ON public.rpt_versions USING btree (definition_id) WHERE ((status)::text = 'DRAFT'::text);
+CREATE INDEX rpt_runtime_audit_events_report_idx ON public.rpt_runtime_audit_events USING btree (report_code, occurred_at DESC, id DESC);
 
 
 --
@@ -8396,35 +8392,43 @@ ALTER TABLE ONLY public.acc_inventory_entries
 
 
 --
--- Name: acc_mapping_versions acc_mapping_versions_approved_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: acc_mappings acc_mappings_book_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.acc_mappings
+    ADD CONSTRAINT acc_mappings_book_id_fkey FOREIGN KEY (book_id) REFERENCES public.acc_books(id) ON DELETE CASCADE;
+
+
+--
+-- Name: acc_mappings acc_mappings_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.acc_mappings
+    ADD CONSTRAINT acc_mappings_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.app_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: acc_mappings acc_mappings_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.acc_mappings
+    ADD CONSTRAINT acc_mappings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.app_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: acc_mapping_versions acc_mapping_versions_mapping_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.acc_mapping_versions
-    ADD CONSTRAINT acc_mapping_versions_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES public.app_users(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT acc_mapping_versions_mapping_id_fkey FOREIGN KEY (mapping_id) REFERENCES public.acc_mappings(id) ON DELETE CASCADE;
 
 
 --
--- Name: acc_mapping_versions acc_mapping_versions_book_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.acc_mapping_versions
-    ADD CONSTRAINT acc_mapping_versions_book_id_fkey FOREIGN KEY (book_id) REFERENCES public.acc_books(id) ON DELETE CASCADE;
-
-
---
--- Name: acc_mapping_versions acc_mapping_versions_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: acc_mapping_versions acc_mapping_versions_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.acc_mapping_versions
-    ADD CONSTRAINT acc_mapping_versions_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.app_users(id) ON DELETE RESTRICT;
-
-
---
--- Name: acc_mapping_versions acc_mapping_versions_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.acc_mapping_versions
-    ADD CONSTRAINT acc_mapping_versions_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.app_users(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT acc_mapping_versions_approval_entry_id_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --
@@ -8468,13 +8472,6 @@ ALTER TABLE ONLY public.acc_opening_lines
 
 
 --
--- Name: acc_openings acc_openings_approved_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.acc_openings
-    ADD CONSTRAINT acc_openings_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES public.app_users(id) ON DELETE RESTRICT;
-
-
 --
 -- Name: acc_openings acc_openings_book_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
@@ -8628,11 +8625,11 @@ ALTER TABLE ONLY public.acc_vouchers
 
 
 --
--- Name: acc_vouchers acc_vouchers_mapping_version_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: acc_vouchers acc_vouchers_mapping_approval_entry_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.acc_vouchers
-    ADD CONSTRAINT acc_vouchers_mapping_version_fk FOREIGN KEY (book_id, mapping_version_id) REFERENCES public.acc_mapping_versions(book_id, id) ON DELETE RESTRICT;
+    ADD CONSTRAINT acc_vouchers_mapping_approval_entry_fk FOREIGN KEY (mapping_approval_entry_id) REFERENCES public.acc_mapping_versions(approval_entry_id) ON DELETE RESTRICT;
 
 
 --
@@ -9285,21 +9282,14 @@ ALTER TABLE ONLY public.bob_warehouse_versions
 
 
 --
--- Name: rpt_audit_events rpt_audit_events_definition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: rpt_runtime_audit_events rpt_runtime_audit_events_definition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.rpt_audit_events
-    ADD CONSTRAINT rpt_audit_events_definition_id_fkey FOREIGN KEY (definition_id) REFERENCES public.rpt_definitions(id) ON DELETE SET NULL;
+ALTER TABLE ONLY public.rpt_runtime_audit_events
+    ADD CONSTRAINT rpt_runtime_audit_events_definition_id_fkey FOREIGN KEY (definition_id) REFERENCES public.rpt_definitions(id) ON DELETE SET NULL;
 
 
 --
--- Name: rpt_definitions rpt_definitions_current_version_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.rpt_definitions
-    ADD CONSTRAINT rpt_definitions_current_version_fk FOREIGN KEY (current_version_id) REFERENCES public.rpt_versions(id) DEFERRABLE INITIALLY DEFERRED;
-
-
 --
 -- Name: rpt_versions rpt_versions_definition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
@@ -10029,13 +10019,22 @@ ALTER TABLE ONLY public.wfl_definition_instances
 
 
 --
--- Name: wfl_definition_revisions wfl_definition_revisions_definition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: wfl_definition_instances wfl_definition_instances_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.wfl_definition_revisions
-    ADD CONSTRAINT wfl_definition_revisions_definition_id_fkey FOREIGN KEY (definition_id) REFERENCES public.wfl_process_definitions(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.wfl_definition_instances
+    ADD CONSTRAINT wfl_definition_instances_approval_entry_id_fkey FOREIGN KEY (definition_approval_entry_id) REFERENCES public.wfl_definition_versions(approval_entry_id) ON DELETE RESTRICT;
 
 
+--
+-- Name: wfl_definition_versions wfl_definition_versions_definition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.wfl_definition_versions
+    ADD CONSTRAINT wfl_definition_versions_definition_id_fkey FOREIGN KEY (definition_id) REFERENCES public.wfl_process_definitions(id) ON DELETE CASCADE;
+
+
+--
 --
 -- Name: wfl_node_instances wfl_node_instances_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
@@ -10065,6 +10064,70 @@ ALTER TABLE ONLY public.wfl_node_instances
 --
 
 
+
+-- RPT baseline payloads are trusted system V1 approvals. Runtime validity stays
+-- domain-owned while central Approval is the only lifecycle and version header.
+INSERT INTO public.approval_entries (
+    id, domain, entity, subject_id, version_no, status, revision,
+    created_by, created_at, updated_by, updated_at,
+    submitted_by, submitted_at, approved_by, approved_at
+)
+SELECT
+    payload.approval_entry_id, 'rpt', 'definition', payload.definition_id, 1, 'APPROVED', 3,
+    '01JAPPSYST3MACTR0000000000', payload.created_at,
+    '01JAPPSYST3MACTR0000000000', payload.updated_at,
+    '00000000000000000000000000', payload.created_at,
+    '01JAPPSYST3MACTR0000000000', payload.created_at
+FROM public.rpt_versions AS payload;
+
+INSERT INTO public.approval_events (
+    id, entry_id, domain, entity, subject_id, version_no, action,
+    from_status, to_status, from_revision, to_revision, actor_id, reason, request_id, created_at
+)
+SELECT substr(md5(payload.approval_entry_id || ':CREATED'), 1, 26), payload.approval_entry_id,
+       'rpt', 'definition', payload.definition_id, 1, 'CREATED',
+       NULL, 'DRAFT', NULL, 1, '01JAPPSYST3MACTR0000000000', NULL, 'baseline-rpt-v1', payload.created_at
+FROM public.rpt_versions AS payload
+UNION ALL
+SELECT substr(md5(payload.approval_entry_id || ':SUBMITTED'), 1, 26), payload.approval_entry_id,
+       'rpt', 'definition', payload.definition_id, 1, 'SUBMITTED',
+       'DRAFT', 'PENDING', 1, 2, '00000000000000000000000000', NULL, 'baseline-rpt-v1', payload.created_at
+FROM public.rpt_versions AS payload
+UNION ALL
+SELECT substr(md5(payload.approval_entry_id || ':APPROVED'), 1, 26), payload.approval_entry_id,
+       'rpt', 'definition', payload.definition_id, 1, 'APPROVED',
+       'PENDING', 'APPROVED', 2, 3, '01JAPPSYST3MACTR0000000000', NULL, 'baseline-rpt-v1', payload.created_at
+FROM public.rpt_versions AS payload;
+
+-- WFL ordinary seeds are central V1 drafts. They are not enabled and are not
+-- treated differently from definitions created through the public service.
+INSERT INTO public.approval_entries (
+    id, domain, entity, subject_id, version_no, status, revision,
+    created_by, created_at, updated_by, updated_at
+)
+SELECT
+    payload.approval_entry_id, 'wfl', 'process-definition', payload.definition_id, 1, 'DRAFT', 1,
+    '01JAPPSYST3MACTR0000000000', payload.created_at,
+    '01JAPPSYST3MACTR0000000000', payload.updated_at
+FROM public.wfl_definition_versions AS payload;
+
+INSERT INTO public.approval_events (
+    id, entry_id, domain, entity, subject_id, version_no, action,
+    from_status, to_status, from_revision, to_revision, actor_id, reason, request_id, created_at
+)
+SELECT
+    substr(md5(payload.approval_entry_id || ':CREATED'), 1, 26), payload.approval_entry_id,
+    'wfl', 'process-definition', payload.definition_id, 1, 'CREATED',
+    NULL, 'DRAFT', NULL, 1, '01JAPPSYST3MACTR0000000000', NULL, 'baseline-wfl-v1', payload.created_at
+FROM public.wfl_definition_versions AS payload;
+
+ALTER TABLE ONLY public.rpt_versions
+    ADD CONSTRAINT rpt_versions_approval_entry_id_fkey
+    FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.wfl_definition_versions
+    ADD CONSTRAINT wfl_definition_versions_approval_entry_id_fkey
+    FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 -- AUX baseline subjects are trusted system V1 approvals. Payloads remain
 -- domain-owned, while this central history is the only lifecycle record.

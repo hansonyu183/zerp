@@ -2,4 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type WflDefinitionStatus = 'DRAFT' | 'ENABLED' | 'DISABLED';
+export type MappingCreateNextRequest = {
+  bookId: string;
+  vouEntity: string;
+};

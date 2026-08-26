@@ -5,6 +5,7 @@
 export type WflInstanceListItem = {
   processId: string;
   definitionId: string;
+  approvalEntryId: string;
   definitionCode: string;
   definitionName: string;
   revision: number;

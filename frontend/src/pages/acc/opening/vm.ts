@@ -4,11 +4,12 @@ import { useSessionStore } from '@/stores/session'
 import { queryAccountingBooks, type AccountingBook } from '../book/api'
 import { queryAccountingSubjects, type AccountingSubject } from '../subject/api'
 import {
-  approveAccountingOpening,
+  openingApprovalAction,
+  openingReasonAction,
   queryAccountingOpening,
   saveAccountingOpening,
-  unapproveAccountingOpening,
   type AccountingOpening,
+  type OpeningContract,
 } from './api'
 
 interface OpeningLineForm {
@@ -100,6 +101,7 @@ export function createAccountingOpeningViewModel() {
   const dirty = ref(false)
   const errorMessage = ref<string | null>(null)
   const successMessage = ref<string | null>(null)
+  const approvalReason = ref('')
   let nextKey = 1
   let sequence = 0
   let active = true
@@ -119,22 +121,31 @@ export function createAccountingOpeningViewModel() {
   const canSave = computed(
     () =>
       canQuery.value &&
-      opening.value?.state === 'DRAFT' &&
+      opening.value?.approval.status === 'DRAFT' &&
       session.can('/acc/opening/save') &&
       validationError.value === '',
   )
-  const canApprove = computed(
+  const canSubmit = computed(
     () =>
       canQuery.value &&
-      opening.value?.state === 'DRAFT' &&
+      opening.value?.approval.status === 'DRAFT' &&
       !dirty.value &&
       trialBalanced.value &&
-      session.can('/acc/opening/approve'),
+      session.can('/acc/opening/submit'),
+  )
+  const canUnsubmit = computed(
+    () => canQuery.value && opening.value?.approval.status === 'PENDING' && session.can('/acc/opening/unsubmit'),
+  )
+  const canApprove = computed(
+    () => canQuery.value && opening.value?.approval.status === 'PENDING' && !dirty.value && trialBalanced.value && session.can('/acc/opening/approve'),
+  )
+  const canReject = computed(
+    () => canQuery.value && opening.value?.approval.status === 'PENDING' && session.can('/acc/opening/reject'),
   )
   const canUnapprove = computed(
     () =>
       canQuery.value &&
-      opening.value?.state === 'APPROVED' &&
+      opening.value?.approval.status === 'APPROVED' &&
       session.can('/acc/opening/unapprove'),
   )
   const bookOptions = computed(() =>
@@ -297,8 +308,8 @@ export function createAccountingOpeningViewModel() {
     }
   }
 
-  function setOpening(value: AccountingOpening): void {
-    opening.value = value
+  function setOpening(value: OpeningContract): void {
+    opening.value = { ...value, state: value.approval.status }
     lines.splice(
       0,
       lines.length,
@@ -379,7 +390,7 @@ export function createAccountingOpeningViewModel() {
       key: nextKey++,
       subjectId: '',
       currency:
-        books.value.find((book) => book.bookId === selectedBookId.value)
+        (books.value ?? []).find((book) => book.bookId === selectedBookId.value)
           ?.baseCurrency ?? 'CNY',
       debitAmount: '0.00',
       creditAmount: '0.00',
@@ -489,7 +500,7 @@ export function createAccountingOpeningViewModel() {
     try {
       const result = await saveAccountingOpening({
         bookId: selectedBookId.value,
-        revision: opening.value.revision,
+        revision: opening.value.approval.revision,
         lines: lines.map((line) => ({
           subjectId: line.subjectId,
           currency: line.currency.trim().toUpperCase(),
@@ -552,23 +563,25 @@ export function createAccountingOpeningViewModel() {
     }
   }
 
-  async function approve(): Promise<void> {
-    if (!canApprove.value || !opening.value) {
+  async function approvalAction(action: 'submit' | 'unsubmit' | 'approve'): Promise<void> {
+    const permitted = { submit: canSubmit.value, unsubmit: canUnsubmit.value, approve: canApprove.value }[action]
+    if (!permitted || !opening.value) {
       errorMessage.value = dirty.value
         ? '请先保存当前期初修改。'
-        : '期初试算不平衡或没有批准权限。'
+        : '期初状态或权限不允许该操作。'
       return
     }
     saving.value = true
     errorMessage.value = null
     try {
-      const result = await approveAccountingOpening(
+      const result = await openingApprovalAction(
+        action,
         selectedBookId.value,
-        opening.value.revision,
+        opening.value.approval.revision,
       )
       if (!active) return
       setOpening(result.data)
-      successMessage.value = '账簿期初已批准。'
+      successMessage.value = { submit: '账簿期初已提交。', unsubmit: '账簿期初已撤回。', approve: '账簿期初已批准。' }[action]
     } catch (error) {
       if (active) errorMessage.value = getErrorMessage(error)
     } finally {
@@ -576,21 +589,25 @@ export function createAccountingOpeningViewModel() {
     }
   }
 
-  async function unapprove(): Promise<void> {
-    if (!canUnapprove.value || !opening.value) {
-      errorMessage.value = '没有权限反批准账簿期初。'
+  async function reasonAction(action: 'reject' | 'unapprove'): Promise<void> {
+    const permitted = action === 'reject' ? canReject.value : canUnapprove.value
+    const reason = approvalReason.value.trim()
+    if (!permitted || !opening.value || !reason) {
+      errorMessage.value = !reason ? '请填写审批原因。' : '期初状态或权限不允许该操作。'
       return
     }
     saving.value = true
     errorMessage.value = null
     try {
-      const result = await unapproveAccountingOpening(
+      const result = await openingReasonAction(
+        action,
         selectedBookId.value,
-        opening.value.revision,
+        opening.value.approval.revision,
+        reason,
       )
       if (!active) return
       setOpening(result.data)
-      successMessage.value = '账簿期初已反批准，可重新编辑。'
+      successMessage.value = action === 'reject' ? '账簿期初已驳回。' : '账簿期初已反批准。'
     } catch (error) {
       if (active) errorMessage.value = getErrorMessage(error)
     } finally {
@@ -612,9 +629,13 @@ export function createAccountingOpeningViewModel() {
     dirty,
     errorMessage,
     successMessage,
+    approvalReason,
     canQuery,
     canSave,
+    canSubmit,
+    canUnsubmit,
     canApprove,
+    canReject,
     canUnapprove,
     bookOptions,
     subjectOptions,
@@ -634,8 +655,8 @@ export function createAccountingOpeningViewModel() {
     changeSubject,
     markDirty,
     save,
-    approve,
-    unapprove,
+    approvalAction,
+    reasonAction,
   })
 }
 

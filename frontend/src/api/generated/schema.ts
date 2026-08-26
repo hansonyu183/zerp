@@ -106,7 +106,7 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.OpeningActionRequest } };
+      requestBody: { content: { 'application/json': Models.OpeningApprovalActionRequest } };
       responses: { 200: { content: { 'application/json': Models.OpeningEnvelope } } };
     };
   };
@@ -114,7 +114,31 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.OpeningActionRequest } };
+      requestBody: { content: { 'application/json': Models.OpeningReasonActionRequest } };
+      responses: { 200: { content: { 'application/json': Models.OpeningEnvelope } } };
+    };
+  };
+  "/acc/opening/submit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.OpeningApprovalActionRequest } };
+      responses: { 200: { content: { 'application/json': Models.OpeningEnvelope } } };
+    };
+  };
+  "/acc/opening/unsubmit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.OpeningApprovalActionRequest } };
+      responses: { 200: { content: { 'application/json': Models.OpeningEnvelope } } };
+    };
+  };
+  "/acc/opening/reject": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.OpeningReasonActionRequest } };
       responses: { 200: { content: { 'application/json': Models.OpeningEnvelope } } };
     };
   };
@@ -142,6 +166,22 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.MappingEnvelope } } };
     };
   };
+  "/acc/mapping/create-next": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.MappingCreateNextRequest } };
+      responses: { 200: { content: { 'application/json': Models.MappingEnvelope } } };
+    };
+  };
+  "/acc/mapping/versions": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.MappingVersionsRequest } };
+      responses: { 200: { content: { 'application/json': Models.MappingPageEnvelope } } };
+    };
+  };
   "/acc/mapping/save": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
@@ -154,7 +194,7 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.MappingActionRequest } };
+      requestBody: { content: { 'application/json': Models.MappingApprovalActionRequest } };
       responses: { 200: { content: { 'application/json': Models.MappingEnvelope } } };
     };
   };
@@ -162,8 +202,40 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.MappingActionRequest } };
+      requestBody: { content: { 'application/json': Models.MappingReasonActionRequest } };
       responses: { 200: { content: { 'application/json': Models.MappingEnvelope } } };
+    };
+  };
+  "/acc/mapping/submit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.MappingApprovalActionRequest } };
+      responses: { 200: { content: { 'application/json': Models.MappingEnvelope } } };
+    };
+  };
+  "/acc/mapping/unsubmit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.MappingApprovalActionRequest } };
+      responses: { 200: { content: { 'application/json': Models.MappingEnvelope } } };
+    };
+  };
+  "/acc/mapping/reject": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.MappingReasonActionRequest } };
+      responses: { 200: { content: { 'application/json': Models.MappingEnvelope } } };
+    };
+  };
+  "/acc/mapping/delete-version": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.MappingApprovalActionRequest } };
+      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
     };
   };
   "/acc/mapping/catalog": {
@@ -1166,11 +1238,67 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.WflDefinitionTrialResponse } } };
     };
   };
-  "/wfl/process-definition/publish": {
+  "/wfl/process-definition/create-version": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.WflDefinitionVersionCreateRequest } };
+      responses: { 200: { content: { 'application/json': Models.WflDefinitionViewResponse } } };
+    };
+  };
+  "/wfl/process-definition/versions": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.WflDefinitionVersionsRequest } };
+      responses: { 200: { content: { 'application/json': Models.WflDefinitionQueryResponse } } };
+    };
+  };
+  "/wfl/process-definition/delete-version": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.WflDefinitionActionRequest } };
+      responses: { 200: { content: { 'application/json': Models.WflDefinitionDeleteResponse } } };
+    };
+  };
+  "/wfl/process-definition/submit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.WflDefinitionActionRequest } };
+      responses: { 200: { content: { 'application/json': Models.WflDefinitionViewResponse } } };
+    };
+  };
+  "/wfl/process-definition/unsubmit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.WflDefinitionActionRequest } };
+      responses: { 200: { content: { 'application/json': Models.WflDefinitionViewResponse } } };
+    };
+  };
+  "/wfl/process-definition/reject": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.WflDefinitionReasonActionRequest } };
+      responses: { 200: { content: { 'application/json': Models.WflDefinitionViewResponse } } };
+    };
+  };
+  "/wfl/process-definition/approve": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.WflDefinitionActionRequest } };
+      responses: { 200: { content: { 'application/json': Models.WflDefinitionViewResponse } } };
+    };
+  };
+  "/wfl/process-definition/unapprove": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.WflDefinitionReasonActionRequest } };
       responses: { 200: { content: { 'application/json': Models.WflDefinitionViewResponse } } };
     };
   };
@@ -1178,7 +1306,7 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.WflDefinitionActionRequest } };
+      requestBody: { content: { 'application/json': Models.WflDefinitionToggleRequest } };
       responses: { 200: { content: { 'application/json': Models.WflDefinitionViewResponse } } };
     };
   };
@@ -1186,16 +1314,8 @@ export interface paths {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.WflDefinitionActionRequest } };
+      requestBody: { content: { 'application/json': Models.WflDefinitionToggleRequest } };
       responses: { 200: { content: { 'application/json': Models.WflDefinitionViewResponse } } };
-    };
-  };
-  "/wfl/process-definition/delete": {
-    parameters: { query?: never; header?: never; path?: never; cookie?: never };
-    post: {
-      parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.WflDefinitionActionRequest } };
-      responses: { 200: { content: { 'application/json': Models.WflDefinitionDeleteResponse } } };
     };
   };
   "/wfl/process-instance/query": {
@@ -1275,7 +1395,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.RptDefinitionCreateRequest } };
-      responses: { 200: { content: { 'application/json': Models.RptMutationResponse } } };
+      responses: { 200: { content: { 'application/json': Models.RptDefinitionViewResponse } } };
     };
   };
   "/rpt/definition/create-version": {
@@ -1283,7 +1403,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.RptVersionCreateRequest } };
-      responses: { 200: { content: { 'application/json': Models.RptMutationResponse } } };
+      responses: { 200: { content: { 'application/json': Models.RptDefinitionViewResponse } } };
     };
   };
   "/rpt/definition/save": {
@@ -1291,23 +1411,63 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.RptVersionSaveRequest } };
-      responses: { 200: { content: { 'application/json': Models.RptMutationResponse } } };
+      responses: { 200: { content: { 'application/json': Models.RptDefinitionViewResponse } } };
+    };
+  };
+  "/rpt/definition/versions": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.RptVersionListRequest } };
+      responses: { 200: { content: { 'application/json': Models.RptDefinitionVersionPageResponse } } };
+    };
+  };
+  "/rpt/definition/delete-version": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.RptVersionDeleteRequest } };
+      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
+    };
+  };
+  "/rpt/definition/submit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.RptVersionActionRequest } };
+      responses: { 200: { content: { 'application/json': Models.RptDefinitionViewResponse } } };
+    };
+  };
+  "/rpt/definition/unsubmit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.RptVersionActionRequest } };
+      responses: { 200: { content: { 'application/json': Models.RptDefinitionViewResponse } } };
+    };
+  };
+  "/rpt/definition/reject": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.RptVersionReasonActionRequest } };
+      responses: { 200: { content: { 'application/json': Models.RptDefinitionViewResponse } } };
     };
   };
   "/rpt/definition/approve": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.RptVersionRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.RptMutationResponse } } };
+      requestBody: { content: { 'application/json': Models.RptVersionActionRequest } };
+      responses: { 200: { content: { 'application/json': Models.RptDefinitionViewResponse } } };
     };
   };
   "/rpt/definition/unapprove": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
-      requestBody: { content: { 'application/json': Models.RptVersionRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.RptMutationResponse } } };
+      requestBody: { content: { 'application/json': Models.RptVersionReasonActionRequest } };
+      responses: { 200: { content: { 'application/json': Models.RptDefinitionViewResponse } } };
     };
   };
   "/rpt/definition/enable": {
@@ -1315,7 +1475,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.RptDefinitionRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.RptMutationResponse } } };
+      responses: { 200: { content: { 'application/json': Models.RptDefinitionViewResponse } } };
     };
   };
   "/rpt/definition/disable": {
@@ -1323,7 +1483,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.RptDefinitionRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.RptMutationResponse } } };
+      responses: { 200: { content: { 'application/json': Models.RptDefinitionViewResponse } } };
     };
   };
   "/rpt/definition/delete": {
@@ -1331,7 +1491,7 @@ export interface paths {
     post: {
       parameters: { query?: never; header?: never; path?: never; cookie?: never };
       requestBody: { content: { 'application/json': Models.RptDefinitionRevisionRequest } };
-      responses: { 200: { content: { 'application/json': Models.RptMutationResponse } } };
+      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
     };
   };
   "/rpt/{report}/query": {
@@ -1422,7 +1582,6 @@ export interface components {
       "SubjectSaveRequest": Models.SubjectSaveRequest;
       "SubjectDeleteRequest": Models.SubjectDeleteRequest;
       "OpeningQueryRequest": Models.OpeningQueryRequest;
-      "OpeningState": Models.OpeningState;
       "OpeningLine": Models.OpeningLine;
       "OpeningAsset": Models.OpeningAsset;
       "OpeningPartyInput": Models.OpeningPartyInput;
@@ -1434,9 +1593,9 @@ export interface components {
       "OpeningAssetInput": Models.OpeningAssetInput;
       "OpeningBillInput": Models.OpeningBillInput;
       "OpeningSaveRequest": Models.OpeningSaveRequest;
-      "OpeningActionRequest": Models.OpeningActionRequest;
+      "OpeningApprovalActionRequest": Models.OpeningApprovalActionRequest;
+      "OpeningReasonActionRequest": Models.OpeningReasonActionRequest;
       "MappingQueryRequest": Models.MappingQueryRequest;
-      "MappingState": Models.MappingState;
       "MappingResult": Models.MappingResult;
       "MappingConditionOperator": Models.MappingConditionOperator;
       "MappingCondition": Models.MappingCondition;
@@ -1451,8 +1610,11 @@ export interface components {
       "MappingGetRequest": Models.MappingGetRequest;
       "MappingEnvelope": Models.MappingEnvelope;
       "MappingCreateRequest": Models.MappingCreateRequest;
+      "MappingCreateNextRequest": Models.MappingCreateNextRequest;
+      "MappingVersionsRequest": Models.MappingVersionsRequest;
       "MappingSaveRequest": Models.MappingSaveRequest;
-      "MappingActionRequest": Models.MappingActionRequest;
+      "MappingApprovalActionRequest": Models.MappingApprovalActionRequest;
+      "MappingReasonActionRequest": Models.MappingReasonActionRequest;
       "MappingCatalogRequest": Models.MappingCatalogRequest;
       "MappingCatalog": Models.MappingCatalog;
       "MappingCatalogEnvelope": Models.MappingCatalogEnvelope;
@@ -1794,7 +1956,6 @@ export interface components {
       "VouAttachmentDownloadResult": Models.VouAttachmentDownloadResult;
       "VouAttachmentDownloadResponse": Models.VouAttachmentDownloadResponse;
       "VouAttachmentRemoveRequest": Models.VouAttachmentRemoveRequest;
-      "WflDefinitionStatus": Models.WflDefinitionStatus;
       "WflDefinitionQueryRequest": Models.WflDefinitionQueryRequest;
       "WflDefinitionListItem": Models.WflDefinitionListItem;
       "WflDefinitionQueryResponse": Models.WflDefinitionQueryResponse;
@@ -1812,9 +1973,13 @@ export interface components {
       "WflPlannedAction": Models.WflPlannedAction;
       "WflDefinitionTrialResult": Models.WflDefinitionTrialResult;
       "WflDefinitionTrialResponse": Models.WflDefinitionTrialResponse;
+      "WflDefinitionVersionCreateRequest": Models.WflDefinitionVersionCreateRequest;
+      "WflDefinitionVersionsRequest": Models.WflDefinitionVersionsRequest;
       "WflDefinitionActionRequest": Models.WflDefinitionActionRequest;
       "WflDefinitionDeleteResult": Models.WflDefinitionDeleteResult;
       "WflDefinitionDeleteResponse": Models.WflDefinitionDeleteResponse;
+      "WflDefinitionReasonActionRequest": Models.WflDefinitionReasonActionRequest;
+      "WflDefinitionToggleRequest": Models.WflDefinitionToggleRequest;
       "WflInstanceQueryRequest": Models.WflInstanceQueryRequest;
       "WflInstanceListItem": Models.WflInstanceListItem;
       "WflInstancePage": Models.WflInstancePage;
@@ -1843,11 +2008,14 @@ export interface components {
       "RptDefinitionGetRequest": Models.RptDefinitionGetRequest;
       "RptDefinitionViewResponse": Models.RptDefinitionViewResponse;
       "RptDefinitionCreateRequest": Models.RptDefinitionCreateRequest;
-      "RptMutationResult": Models.RptMutationResult;
-      "RptMutationResponse": Models.RptMutationResponse;
       "RptVersionCreateRequest": Models.RptVersionCreateRequest;
       "RptVersionSaveRequest": Models.RptVersionSaveRequest;
-      "RptVersionRevisionRequest": Models.RptVersionRevisionRequest;
+      "RptVersionListRequest": Models.RptVersionListRequest;
+      "RptDefinitionVersionPageData": Models.RptDefinitionVersionPageData;
+      "RptDefinitionVersionPageResponse": Models.RptDefinitionVersionPageResponse;
+      "RptVersionDeleteRequest": Models.RptVersionDeleteRequest;
+      "RptVersionActionRequest": Models.RptVersionActionRequest;
+      "RptVersionReasonActionRequest": Models.RptVersionReasonActionRequest;
       "RptDefinitionRevisionRequest": Models.RptDefinitionRevisionRequest;
       "RptExecuteRequest": Models.RptExecuteRequest;
       "RptQueryResult": Models.RptQueryResult;

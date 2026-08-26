@@ -2,4 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type OpeningState = 'DRAFT' | 'APPROVED';
+export type WflDefinitionToggleRequest = {
+  definitionId: string;
+  revision: number;
+};

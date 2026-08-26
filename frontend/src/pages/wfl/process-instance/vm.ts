@@ -50,7 +50,7 @@ export interface AvailableTarget {
 }
 
 export interface InstanceView extends InstanceListItem {
-  startedDefinitionRevision: number
+  approvalEntryId: string
   nodes: NodeInstance[]
   availableTargets: AvailableTarget[]
 }

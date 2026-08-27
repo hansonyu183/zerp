@@ -7,6 +7,12 @@ import {
   submitBusinessObject,
   unsubmitBusinessObject,
 } from '@/api/bob'
+import {
+  approveOperatingEntity,
+  rejectOperatingEntity,
+  submitOperatingEntity,
+  unsubmitOperatingEntity,
+} from '@/api/dcl'
 import { getDiagnosticErrorMessage, getErrorMessage } from '@/api/types'
 import { approveVoucher, submitVoucher, unsubmitVoucher } from '@/api/vou'
 
@@ -22,6 +28,13 @@ export type WorkbenchConfirmationAction = Extract<
   WorkbenchAction,
   'reject' | 'unsubmit'
 >
+
+export function workbenchItemPath(item: WorkbenchItem): string {
+  if (item.category === 'VOU') return `/vou/${item.entity}`
+  return item.entity === 'operating-entity'
+    ? '/dcl/operating-entity'
+    : `/bob/${item.entity}`
+}
 
 interface WorkbenchListState {
   rows: WorkbenchItem[]
@@ -192,7 +205,23 @@ export function useDashboardViewModel() {
           approvalEntryId: item.versionId,
           approvalRevision: item.revision,
         }
-        if (action === 'submit') {
+        if (item.entity === 'operating-entity') {
+          if (action === 'submit') {
+            await submitOperatingEntity(request)
+          } else if (action === 'unsubmit') {
+            await unsubmitOperatingEntity({
+              ...request,
+              reason: comment.trim(),
+            })
+          } else if (action === 'approve') {
+            await approveOperatingEntity(request)
+          } else if (action === 'reject') {
+            await rejectOperatingEntity({
+              ...request,
+              reason: comment.trim(),
+            })
+          }
+        } else if (action === 'submit') {
           await submitBusinessObject(item.entity, request)
         } else if (action === 'unsubmit') {
           await unsubmitBusinessObject(item.entity, request)

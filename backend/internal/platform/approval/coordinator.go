@@ -245,6 +245,17 @@ func (c *Coordinator[T]) CreateNextVersion(ctx context.Context, tx pgx.Tx, subje
 	return entry, nil
 }
 
+// LockVersionSubject lets a domain establish Approval's canonical lock order
+// before it locks its own stable subject or projection rows. Coordinator
+// operations re-enter the same transaction-scoped advisory lock safely.
+func (c *Coordinator[T]) LockVersionSubject(ctx context.Context, tx pgx.Tx, subjectID string) error {
+	subjectID = strings.TrimSpace(subjectID)
+	if tx == nil || subjectID == "" || len(subjectID) > 128 {
+		return newError(ErrorValidation, "approval_invalid_request", "invalid approval request", nil)
+	}
+	return c.lockVersionSubject(ctx, tx, subjectID)
+}
+
 func (c *Coordinator[T]) GetLatestApproved(ctx context.Context, tx pgx.Tx, subjectID string, actor Actor) (Entry, error) {
 	if err := c.authorize(ctx, actor, "get"); err != nil {
 		return Entry{}, err

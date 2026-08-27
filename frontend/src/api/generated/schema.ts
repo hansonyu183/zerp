@@ -294,6 +294,102 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
     };
   };
+  "/dcl/operating-entity/create": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityCreateRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/operating-entity/save": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntitySaveRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/operating-entity/submit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/operating-entity/unsubmit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/operating-entity/reject": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/operating-entity/approve": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/operating-entity/unapprove": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityMutationResponse } } };
+    };
+  };
+  "/dcl/operating-entity/delete": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
+    };
+  };
+  "/dcl/operating-entity/get": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityGetRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityViewResponse } } };
+    };
+  };
+  "/dcl/operating-entity/query": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityQueryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityQueryResponse } } };
+    };
+  };
+  "/dcl/operating-entity/versions": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityVersionPageResponse } } };
+    };
+  };
+  "/dcl/operating-entity/audit-history": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclOperatingEntityAuditHistoryResponse } } };
+    };
+  };
   "/app/workbench/query": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
@@ -921,7 +1017,7 @@ export interface paths {
   "/bob/{entity}/query": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.BobCrudEntity; }; cookie?: never };
+      parameters: { query?: never; header?: never; path: { "entity": Models.BobReadableEntity; }; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobQueryRequest } };
       responses: { 200: { content: { 'application/json': Models.BobQueryResponse } } };
     };
@@ -929,7 +1025,7 @@ export interface paths {
   "/bob/{entity}/get": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.BobCrudEntity; }; cookie?: never };
+      parameters: { query?: never; header?: never; path: { "entity": Models.BobReadableEntity; }; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobGetRequest } };
       responses: { 200: { content: { 'application/json': Models.BobObjectResponse } } };
     };
@@ -953,7 +1049,7 @@ export interface paths {
   "/bob/{entity}/delete": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.BobEntity; }; cookie?: never };
+      parameters: { query?: never; header?: never; path: { "entity": Models.BobLifecycleEntity; }; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobDeleteRequest } };
       responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
     };
@@ -961,7 +1057,7 @@ export interface paths {
   "/bob/{entity}/submit": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.BobEntity; }; cookie?: never };
+      parameters: { query?: never; header?: never; path: { "entity": Models.BobLifecycleEntity; }; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobVersionRevisionRequest } };
       responses: { 200: { content: { 'application/json': Models.BobMutationResponse } } };
     };
@@ -969,7 +1065,7 @@ export interface paths {
   "/bob/{entity}/unsubmit": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.BobEntity; }; cookie?: never };
+      parameters: { query?: never; header?: never; path: { "entity": Models.BobLifecycleEntity; }; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobVersionRevisionRequest } };
       responses: { 200: { content: { 'application/json': Models.BobMutationResponse } } };
     };
@@ -977,7 +1073,7 @@ export interface paths {
   "/bob/{entity}/approve": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.BobEntity; }; cookie?: never };
+      parameters: { query?: never; header?: never; path: { "entity": Models.BobLifecycleEntity; }; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobVersionRevisionRequest } };
       responses: { 200: { content: { 'application/json': Models.BobMutationResponse } } };
     };
@@ -985,7 +1081,7 @@ export interface paths {
   "/bob/{entity}/reject": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.BobEntity; }; cookie?: never };
+      parameters: { query?: never; header?: never; path: { "entity": Models.BobLifecycleEntity; }; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobReviewRequest } };
       responses: { 200: { content: { 'application/json': Models.BobMutationResponse } } };
     };
@@ -993,7 +1089,7 @@ export interface paths {
   "/bob/{entity}/unapprove": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.BobEntity; }; cookie?: never };
+      parameters: { query?: never; header?: never; path: { "entity": Models.BobLifecycleEntity; }; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobReviewRequest } };
       responses: { 200: { content: { 'application/json': Models.BobUnapproveResponse } } };
     };
@@ -1001,7 +1097,7 @@ export interface paths {
   "/bob/{entity}/enable": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.BobEntity; }; cookie?: never };
+      parameters: { query?: never; header?: never; path: { "entity": Models.BobLifecycleEntity; }; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobObjectRevisionRequest } };
       responses: { 200: { content: { 'application/json': Models.BobMutationResponse } } };
     };
@@ -1009,7 +1105,7 @@ export interface paths {
   "/bob/{entity}/disable": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.BobEntity; }; cookie?: never };
+      parameters: { query?: never; header?: never; path: { "entity": Models.BobLifecycleEntity; }; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobObjectRevisionRequest } };
       responses: { 200: { content: { 'application/json': Models.BobDisableResponse } } };
     };
@@ -1017,7 +1113,7 @@ export interface paths {
   "/bob/{entity}/versions": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.BobEntity; }; cookie?: never };
+      parameters: { query?: never; header?: never; path: { "entity": Models.BobLifecycleEntity; }; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobHistoryRequest } };
       responses: { 200: { content: { 'application/json': Models.BobVersionHistoryResponse } } };
     };
@@ -1025,7 +1121,7 @@ export interface paths {
   "/bob/{entity}/audit-history": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
-      parameters: { query?: never; header?: never; path: { "entity": Models.BobEntity; }; cookie?: never };
+      parameters: { query?: never; header?: never; path: { "entity": Models.BobLifecycleEntity; }; cookie?: never };
       requestBody: { content: { 'application/json': Models.BobHistoryRequest } };
       responses: { 200: { content: { 'application/json': Models.BobAuditHistoryResponse } } };
     };
@@ -1627,6 +1723,27 @@ export interface components {
       "SessionUser": Models.SessionUser;
       "SessionData": Models.SessionData;
       "SessionResponse": Models.SessionResponse;
+      "DclOperatingEntityData": Models.DclOperatingEntityData;
+      "DclOperatingEntityCreateRequest": Models.DclOperatingEntityCreateRequest;
+      "DclOperatingEntityMutation": Models.DclOperatingEntityMutation;
+      "DclOperatingEntityMutationResponse": Models.DclOperatingEntityMutationResponse;
+      "DclOperatingEntitySaveRequest": Models.DclOperatingEntitySaveRequest;
+      "DclOperatingEntityVersionRequest": Models.DclOperatingEntityVersionRequest;
+      "DclOperatingEntityReviewRequest": Models.DclOperatingEntityReviewRequest;
+      "DclOperatingEntityGetRequest": Models.DclOperatingEntityGetRequest;
+      "DclOperatingEntityView": Models.DclOperatingEntityView;
+      "DclOperatingEntityViewResponse": Models.DclOperatingEntityViewResponse;
+      "DclOperatingEntityQueryRequest": Models.DclOperatingEntityQueryRequest;
+      "DclOperatingEntityVersionView": Models.DclOperatingEntityVersionView;
+      "DclOperatingEntityListItem": Models.DclOperatingEntityListItem;
+      "DclOperatingEntityQueryPage": Models.DclOperatingEntityQueryPage;
+      "DclOperatingEntityQueryResponse": Models.DclOperatingEntityQueryResponse;
+      "DclOperatingEntityHistoryRequest": Models.DclOperatingEntityHistoryRequest;
+      "DclOperatingEntityVersionPage": Models.DclOperatingEntityVersionPage;
+      "DclOperatingEntityVersionPageResponse": Models.DclOperatingEntityVersionPageResponse;
+      "ApprovalEventView": Models.ApprovalEventView;
+      "DclOperatingEntityAuditEventPage": Models.DclOperatingEntityAuditEventPage;
+      "DclOperatingEntityAuditHistoryResponse": Models.DclOperatingEntityAuditHistoryResponse;
       "WorkbenchCategory": Models.WorkbenchCategory;
       "WorkbenchPendingStage": Models.WorkbenchPendingStage;
       "WorkbenchQueryRequest": Models.WorkbenchQueryRequest;
@@ -1715,7 +1832,6 @@ export interface components {
       "AuxHistoryRequest": Models.AuxHistoryRequest;
       "AuxVersionPage": Models.AuxVersionPage;
       "AuxVersionPageResponse": Models.AuxVersionPageResponse;
-      "ApprovalEventView": Models.ApprovalEventView;
       "AuxAuditEventPage": Models.AuxAuditEventPage;
       "AuxAuditEventPageResponse": Models.AuxAuditEventPageResponse;
       "PartyKind": Models.PartyKind;
@@ -1832,7 +1948,7 @@ export interface components {
       "PartyMergeConfirmResponse": Models.PartyMergeConfirmResponse;
       "EmploymentData": Models.EmploymentData;
       "EmploymentCreateRequest": Models.EmploymentCreateRequest;
-      "BobCrudEntity": Models.BobCrudEntity;
+      "BobReadableEntity": Models.BobReadableEntity;
       "BobQueryRequest": Models.BobQueryRequest;
       "BobVersionSummary": Models.BobVersionSummary;
       "BobListItem": Models.BobListItem;
@@ -1851,8 +1967,10 @@ export interface components {
       "BobRelationshipIdentityView": Models.BobRelationshipIdentityView;
       "BobObjectView": Models.BobObjectView;
       "BobObjectResponse": Models.BobObjectResponse;
+      "BobCrudEntity": Models.BobCrudEntity;
       "BobCreateRequest": Models.BobCreateRequest;
       "BobSaveRequest": Models.BobSaveRequest;
+      "BobLifecycleEntity": Models.BobLifecycleEntity;
       "BobActiveReferenceCount": Models.BobActiveReferenceCount;
       "BobActiveReferenceBlockers": Models.BobActiveReferenceBlockers;
       "BobUnapproveResponse": Models.BobUnapproveResponse;

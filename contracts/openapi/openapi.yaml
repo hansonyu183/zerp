@@ -1412,6 +1412,483 @@
                 { '200': { '$ref': '#/components/responses/Empty' } },
             },
         },
+      '/dcl/operating-entity/create':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '新建经营主体声明草稿',
+              'operationId': 'dclOperatingEntityCreate',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclOperatingEntityCreateRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '新建后的经营主体候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclOperatingEntityMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/operating-entity/save':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '保存经营主体声明草稿',
+              'operationId': 'dclOperatingEntitySave',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclOperatingEntitySaveRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '保存后的经营主体候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclOperatingEntityMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/operating-entity/submit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '提交经营主体声明审批',
+              'operationId': 'dclOperatingEntitySubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclOperatingEntityVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '提交后的经营主体候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclOperatingEntityMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/operating-entity/unsubmit':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '撤回经营主体声明审批',
+              'operationId': 'dclOperatingEntityUnsubmit',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclOperatingEntityReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '撤回后的经营主体候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclOperatingEntityMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/operating-entity/reject':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '驳回经营主体声明审批',
+              'operationId': 'dclOperatingEntityReject',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclOperatingEntityReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '驳回后的经营主体候选。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclOperatingEntityMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/operating-entity/approve':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '批准经营主体声明',
+              'operationId': 'dclOperatingEntityApprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclOperatingEntityVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '批准后的经营主体版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclOperatingEntityMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/operating-entity/unapprove':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '反批准经营主体声明',
+              'operationId': 'dclOperatingEntityUnapprove',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclOperatingEntityReviewRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '反批准后的经营主体版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclOperatingEntityMutationResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/operating-entity/delete':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '删除经营主体首版草稿',
+              'operationId': 'dclOperatingEntityDelete',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclOperatingEntityVersionRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                { '200': { '$ref': '#/components/responses/Empty' } },
+            },
+        },
+      '/dcl/operating-entity/get':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '读取经营主体声明版本',
+              'operationId': 'dclOperatingEntityGet',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclOperatingEntityGetRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '指定经营主体声明版本。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclOperatingEntityViewResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/operating-entity/query':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询经营主体候选与已批准版本',
+              'operationId': 'dclOperatingEntityQuery',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclOperatingEntityQueryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '每个 stable subject 的已批准与开放候选版本组合。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclOperatingEntityQueryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/operating-entity/versions':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询经营主体声明版本历史',
+              'operationId': 'dclOperatingEntityVersions',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclOperatingEntityHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '经营主体声明版本分页。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclOperatingEntityVersionPageResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      '/dcl/operating-entity/audit-history':
+        {
+          'post':
+            {
+              'tags': ['dcl'],
+              'summary': '查询经营主体声明审核历史',
+              'operationId': 'dclOperatingEntityAuditHistory',
+              'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
+              'requestBody':
+                {
+                  'required': true,
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              '$ref': './schemas/dcl.yaml#/DclOperatingEntityHistoryRequest',
+                            },
+                        },
+                    },
+                },
+              'responses':
+                {
+                  '200':
+                    {
+                      'description': '经营主体声明审核历史分页。',
+                      'content':
+                        {
+                          'application/json':
+                            {
+                              'schema':
+                                {
+                                  '$ref': './schemas/dcl.yaml#/DclOperatingEntityAuditHistoryResponse',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       '/app/workbench/query':
         {
           'post':
@@ -4375,7 +4852,7 @@
               'operationId': 'bobquery',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters':
-                [{ '$ref': '#/components/parameters/BobCrudEntity' }],
+                [{ '$ref': '#/components/parameters/BobReadableEntity' }],
               'requestBody':
                 {
                   'required': true,
@@ -4416,7 +4893,7 @@
               'operationId': 'bobget',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
               'parameters':
-                [{ '$ref': '#/components/parameters/BobCrudEntity' }],
+                [{ '$ref': '#/components/parameters/BobReadableEntity' }],
               'requestBody':
                 {
                   'required': true,
@@ -4538,7 +5015,8 @@
               'summary': '删除业务对象首版草稿',
               'operationId': 'bobdelete',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'parameters':
+                [{ '$ref': '#/components/parameters/BobLifecycleEntity' }],
               'requestBody':
                 {
                   'required': true,
@@ -4563,7 +5041,8 @@
               'summary': '提交业务对象审核',
               'operationId': 'bobsubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'parameters':
+                [{ '$ref': '#/components/parameters/BobLifecycleEntity' }],
               'requestBody':
                 {
                   'required': true,
@@ -4605,7 +5084,8 @@
               'summary': '撤回业务对象提交',
               'operationId': 'bobunsubmit',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'parameters':
+                [{ '$ref': '#/components/parameters/BobLifecycleEntity' }],
               'requestBody':
                 {
                   'required': true,
@@ -4647,7 +5127,8 @@
               'summary': '批准业务对象',
               'operationId': 'bobapprove',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'parameters':
+                [{ '$ref': '#/components/parameters/BobLifecycleEntity' }],
               'requestBody':
                 {
                   'required': true,
@@ -4689,7 +5170,8 @@
               'summary': '驳回业务对象',
               'operationId': 'bobreject',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'parameters':
+                [{ '$ref': '#/components/parameters/BobLifecycleEntity' }],
               'requestBody':
                 {
                   'required': true,
@@ -4729,7 +5211,8 @@
               'summary': '撤销批准业务对象',
               'operationId': 'bobunapprove',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'parameters':
+                [{ '$ref': '#/components/parameters/BobLifecycleEntity' }],
               'requestBody':
                 {
                   'required': true,
@@ -4769,7 +5252,8 @@
               'summary': '启用有效业务对象',
               'operationId': 'bobenable',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'parameters':
+                [{ '$ref': '#/components/parameters/BobLifecycleEntity' }],
               'requestBody':
                 {
                   'required': true,
@@ -4811,7 +5295,8 @@
               'summary': '禁用有效业务对象',
               'operationId': 'bobdisable',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'parameters':
+                [{ '$ref': '#/components/parameters/BobLifecycleEntity' }],
               'requestBody':
                 {
                   'required': true,
@@ -4853,7 +5338,8 @@
               'summary': '查询业务对象版本',
               'operationId': 'bobversions',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'parameters':
+                [{ '$ref': '#/components/parameters/BobLifecycleEntity' }],
               'requestBody':
                 {
                   'required': true,
@@ -4893,7 +5379,8 @@
               'summary': '查询业务对象审核历史',
               'operationId': 'bobaudithistory',
               'security': [{ 'cookieAuth': [], 'csrfToken': [] }],
-              'parameters': [{ '$ref': '#/components/parameters/BobEntity' }],
+              'parameters':
+                [{ '$ref': '#/components/parameters/BobLifecycleEntity' }],
               'requestBody':
                 {
                   'required': true,
@@ -7402,19 +7889,26 @@
         },
       'parameters':
         {
-          'BobEntity':
-            {
-              'name': 'entity',
-              'in': 'path',
-              'required': true,
-              'schema': { '$ref': './schemas/bob.yaml#/BobEntity' },
-            },
           'BobCrudEntity':
             {
               'name': 'entity',
               'in': 'path',
               'required': true,
               'schema': { '$ref': './schemas/bob.yaml#/BobCrudEntity' },
+            },
+          'BobReadableEntity':
+            {
+              'name': 'entity',
+              'in': 'path',
+              'required': true,
+              'schema': { '$ref': './schemas/bob.yaml#/BobReadableEntity' },
+            },
+          'BobLifecycleEntity':
+            {
+              'name': 'entity',
+              'in': 'path',
+              'required': true,
+              'schema': { '$ref': './schemas/bob.yaml#/BobLifecycleEntity' },
             },
           'AuxEntity':
             {

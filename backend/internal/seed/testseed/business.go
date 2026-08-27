@@ -7,6 +7,7 @@ import (
 
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/jackc/pgx/v5"
 )
@@ -381,14 +382,18 @@ func (s *Seeder) ensureBusiness(
 	ctx context.Context,
 	sample bobSample,
 ) (bobdomain.ObjectView, outcome, error) {
+	approvalDomain := "bob"
+	if sample.entity == bobdomain.EntityOperatingEntity {
+		approvalDomain = "dcl"
+	}
 	var objectID string
 	err := s.pool.QueryRow(ctx, `
 		SELECT subject_id
 		FROM approval_events
-		WHERE domain='bob' AND entity=$2 AND request_id=$1 AND action='CREATED'
+		WHERE domain=$3 AND entity=$2 AND request_id=$1 AND action='CREATED'
 		ORDER BY created_at,id
 		LIMIT 1
-	`, requestID(sample.key, "create"), sample.entity).Scan(&objectID)
+	`, requestID(sample.key, "create"), sample.entity, approvalDomain).Scan(&objectID)
 	created := false
 	if errors.Is(err, pgx.ErrNoRows) {
 		data := sample.data(s)
@@ -399,6 +404,12 @@ func (s *Seeder) ensureBusiness(
 		var result bobdomain.MutationResult
 		var createErr error
 		switch sample.entity {
+		case bobdomain.EntityOperatingEntity:
+			createdOperatingEntity, declarationErr := s.operatingEntities.Create(ctx, dcldomain.OperatingEntityCreateInput{
+				Data: dcldomain.OperatingEntityData{Name: data.Name, ShortName: data.ShortName,
+					TaxNumber: data.TaxNumber, Address: data.Address, Phone: data.Phone, Remark: data.Remark},
+			}, createActor)
+			result, createErr = dclBusinessMutation(createdOperatingEntity), declarationErr
 		case bobdomain.EntityEmployee:
 			createdEmployment, relationshipErr := s.business.EmploymentCreate(ctx, bobdomain.EmploymentCreateInput{
 				NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson,
@@ -469,7 +480,7 @@ func (s *Seeder) ensureBusiness(
 	} else if err != nil {
 		return bobdomain.ObjectView{}, 0, err
 	}
-	view, err := s.business.Get(ctx, sample.entity, bobdomain.GetInput{ObjectID: objectID})
+	view, err := s.getBusiness(ctx, sample.entity, objectID, sample.key)
 	if err != nil {
 		return bobdomain.ObjectView{}, 0, err
 	}
@@ -478,15 +489,15 @@ func (s *Seeder) ensureBusiness(
 		if err = s.pool.QueryRow(ctx, `
 			SELECT count(*)
 			FROM approval_events
-			WHERE domain='bob' AND subject_id=$1 AND request_id NOT LIKE $2
-		`, objectID, seedPrefix+"%").Scan(&external); err != nil {
+			WHERE domain=$3 AND subject_id=$1 AND request_id NOT LIKE $2
+		`, objectID, seedPrefix+"%", approvalDomain).Scan(&external); err != nil {
 			return bobdomain.ObjectView{}, 0, err
 		}
 		if external == 0 {
 			if err = s.advanceBusiness(ctx, sample, view); err != nil {
 				return bobdomain.ObjectView{}, 0, err
 			}
-			view, err = s.business.Get(ctx, sample.entity, bobdomain.GetInput{ObjectID: objectID})
+			view, err = s.getBusiness(ctx, sample.entity, objectID, sample.key)
 			if err != nil {
 				return bobdomain.ObjectView{}, 0, err
 			}
@@ -499,6 +510,31 @@ func (s *Seeder) ensureBusiness(
 		return view, outcomeCreated, nil
 	}
 	return view, outcomeSkipped, nil
+}
+
+func dclBusinessMutation(result dcldomain.OperatingEntityMutation) bobdomain.MutationResult {
+	return bobdomain.MutationResult{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision,
+		Enabled: result.Enabled, Approval: result.Approval}
+}
+
+func dclBusinessView(view dcldomain.OperatingEntityView) bobdomain.ObjectView {
+	return bobdomain.ObjectView{ObjectID: view.ObjectID, Entity: bobdomain.EntityOperatingEntity,
+		Code: view.Code, ObjectRevision: view.ObjectRevision, Enabled: view.Enabled,
+		Approval: view.Approval, Data: bobdomain.DetailView{Name: view.Data.Name,
+			ShortName: view.Data.ShortName, TaxNumber: view.Data.TaxNumber, Address: view.Data.Address,
+			Phone: view.Data.Phone, Remark: view.Data.Remark}, UpdatedAt: view.UpdatedAt}
+}
+
+func (s *Seeder) getBusiness(ctx context.Context, entity, objectID, key string) (bobdomain.ObjectView, error) {
+	if entity != bobdomain.EntityOperatingEntity {
+		return s.business.Get(ctx, entity, bobdomain.GetInput{ObjectID: objectID})
+	}
+	actor, err := seedActor(actorID, requestID(key, "get"))
+	if err != nil {
+		return bobdomain.ObjectView{}, err
+	}
+	view, err := s.operatingEntities.Get(ctx, dcldomain.OperatingEntityGetInput{ObjectID: objectID}, actor)
+	return dclBusinessView(view), err
 }
 
 func (s *Seeder) advanceBusiness(
@@ -516,9 +552,18 @@ func (s *Seeder) advanceBusiness(
 		if actorErr != nil {
 			return actorErr
 		}
-		current, err = s.business.Submit(ctx, sample.entity, bobdomain.VersionRevisionInput{
-			ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision,
-		}, actor)
+		if sample.entity == bobdomain.EntityOperatingEntity {
+			var submitted dcldomain.OperatingEntityMutation
+			submitted, err = s.operatingEntities.Submit(ctx, dcldomain.OperatingEntityVersionInput{
+				ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID,
+				ApprovalRevision: current.Approval.Revision,
+			}, actor)
+			current = dclBusinessMutation(submitted)
+		} else {
+			current, err = s.business.Submit(ctx, sample.entity, bobdomain.VersionRevisionInput{
+				ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision,
+			}, actor)
+		}
 		if err != nil {
 			return err
 		}
@@ -532,10 +577,17 @@ func (s *Seeder) advanceBusiness(
 		if actorErr != nil {
 			return actorErr
 		}
-		_, err = s.business.Approve(ctx, sample.entity, bobdomain.ReviewInput{
-			ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID,
-			ApprovalRevision: current.Approval.Revision, Reason: &comment,
-		}, actor)
+		if sample.entity == bobdomain.EntityOperatingEntity {
+			_, err = s.operatingEntities.Approve(ctx, dcldomain.OperatingEntityVersionInput{
+				ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID,
+				ApprovalRevision: current.Approval.Revision,
+			}, actor)
+		} else {
+			_, err = s.business.Approve(ctx, sample.entity, bobdomain.ReviewInput{
+				ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID,
+				ApprovalRevision: current.Approval.Revision, Reason: &comment,
+			}, actor)
+		}
 	default:
 		return fmt.Errorf("cannot advance status %s to %s", current.Approval.Status, sample.status)
 	}

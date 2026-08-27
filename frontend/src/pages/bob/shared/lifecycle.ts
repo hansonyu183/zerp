@@ -1,8 +1,12 @@
 import type { Ref } from 'vue'
 import { apiClient } from '@/api/client'
 import { getErrorMessage } from '@/api/types'
-import type { BobActionAvailability, BobEntity, BobListItem } from './types'
-import { bobListActiveVersion } from './types'
+import type {
+  BobActionAvailability,
+  BobEntityConfig,
+  BobListItem,
+} from './types'
+import { bobListActiveVersion, bobWriteEntity } from './types'
 
 interface VersionRevisionRequest {
   objectId: string
@@ -81,7 +85,7 @@ export function bobLifecycleSuccessLabel(
 }
 
 export function useBobLifecycleActions(
-  entity: BobEntity,
+  config: BobEntityConfig,
   actionLoading: Ref<string | null>,
   errorMessage: Ref<string | null>,
   actionAvailability: (row: Readonly<BobListItem>) => BobActionAvailability,
@@ -117,12 +121,19 @@ export function useBobLifecycleActions(
         approvalRevision: bobListActiveVersion(row).approval.revision,
       }
       if (action === 'reject') {
-        await apiClient.postContract(`bob/${entity}/reject`, {
+        const reviewRequest = {
           ...request,
           reason: normalizedComment,
-        } satisfies ReviewRequest)
+        } satisfies ReviewRequest
+        await apiClient.postContract(
+          `bob/${bobWriteEntity(config)}/reject`,
+          reviewRequest,
+        )
       } else {
-        await apiClient.postContract(`bob/${entity}/approve`, request)
+        await apiClient.postContract(
+          `bob/${bobWriteEntity(config)}/approve`,
+          request,
+        )
       }
       await query()
       onSuccess(row, action)
@@ -153,12 +164,16 @@ export function useBobLifecycleActions(
     actionLoading.value = `${action}:${row.objectId}`
     errorMessage.value = null
     try {
-      await apiClient.postContract(`bob/${entity}/${action}`, {
+      const request = {
         objectId: row.objectId,
         approvalEntryId: bobListActiveVersion(row).approval.approvalEntryId,
         approvalRevision: bobListActiveVersion(row).approval.revision,
         reason: normalizedReason,
-      })
+      }
+      await apiClient.postContract(
+        `bob/${bobWriteEntity(config)}/${action}`,
+        request,
+      )
       onSuccess(row, action)
       void query()
       return true
@@ -179,7 +194,7 @@ export function useBobLifecycleActions(
     actionLoading.value = `${action}:${row.objectId}`
     errorMessage.value = null
     try {
-      await apiClient.postContract(`bob/${entity}/${action}`, {
+      await apiClient.postContract(`bob/${bobWriteEntity(config)}/${action}`, {
         objectId: row.objectId,
         objectRevision: row.objectRevision,
       })

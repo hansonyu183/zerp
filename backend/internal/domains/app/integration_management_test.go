@@ -216,12 +216,12 @@ func TestQueryAndPermissionCatalogIntegration(t *testing.T) {
 	}
 }
 
-func TestBOBAndAUXApprovalPermissionCatalogIntegration(t *testing.T) {
+func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 	_, pool, _ := appIntegrationService(t)
 	entitiesByDomain := map[string][]string{
 		"bob": {
 			"customer", "customer-account", "supplier", "other-unit", "employee",
-			"sales-partner", "product", "warehouse", "vehicle", "fund-account", "operating-entity",
+			"sales-partner", "product", "warehouse", "vehicle", "fund-account",
 		},
 		"aux": {
 			"product-category", "product-type", "department", "position", "settlement-method",
@@ -241,10 +241,18 @@ func TestBOBAndAUXApprovalPermissionCatalogIntegration(t *testing.T) {
 			}
 		}
 	}
+	expected["/bob/operating-entity/query"] = struct{}{}
+	expected["/bob/operating-entity/get"] = struct{}{}
+	for _, action := range []string{
+		"query", "get", "create", "save", "submit", "unsubmit", "approve",
+		"reject", "unapprove", "delete", "versions", "audit-history",
+	} {
+		expected["/dcl/operating-entity/"+action] = struct{}{}
+	}
 
-	rows, err := pool.Query(t.Context(), `SELECT path FROM app_permissions WHERE domain IN ('bob', 'aux')`)
+	rows, err := pool.Query(t.Context(), `SELECT path FROM app_permissions WHERE domain IN ('bob', 'aux', 'dcl')`)
 	if err != nil {
-		t.Fatalf("query BOB/AUX permission catalog: %v", err)
+		t.Fatalf("query BOB/AUX/DCL permission catalog: %v", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
@@ -263,7 +271,15 @@ func TestBOBAndAUXApprovalPermissionCatalogIntegration(t *testing.T) {
 			missing = append(missing, path)
 		}
 		slices.Sort(missing)
-		t.Fatalf("BOB/AUX permission catalog is missing %v", missing)
+		t.Fatalf("BOB/AUX/DCL permission catalog is missing %v", missing)
+	}
+	var obsoleteOperatingEntityWrites int
+	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM app_permissions
+		WHERE domain='bob' AND entity='operating-entity' AND action NOT IN ('query','get')`).Scan(&obsoleteOperatingEntityWrites); err != nil {
+		t.Fatalf("query obsolete BOB operating entity permissions: %v", err)
+	}
+	if obsoleteOperatingEntityWrites != 0 {
+		t.Fatalf("obsolete BOB operating entity write permissions = %d", obsoleteOperatingEntityWrites)
 	}
 }
 

@@ -216,13 +216,20 @@ describe('shared BOB entity configuration and view model', () => {
     expect(vm.actionAvailability(row()).edit).toBe(true)
   })
 
-  it('定义仍使用通用工作区的五类业务对象和完整状态筛选', () => {
+  it('经营主体使用当前档案只读列，其余通用对象保留完整状态筛选', () => {
     const expectedColumns: Record<string, string[]> = {
       product: ['编码', '名称', '产品类型', '默认录入单位', '型号', '状态'],
       warehouse: ['编码', '名称', '仓库负责人', '地址', '联系人', '状态'],
       vehicle: ['编码', '名称', '车牌', '类型', '状态'],
       'fund-account': ['编码', '名称', '银行', '状态'],
-      'operating-entity': ['编码', '法定公司名称', '税号', '状态'],
+      'operating-entity': [
+        '编码',
+        '法定公司名称',
+        '税号',
+        'Stable ID',
+        '来源 Approval Entry ID',
+        '启停状态',
+      ],
     }
 
     for (const [entity, columns] of Object.entries(expectedColumns)) {
@@ -230,10 +237,14 @@ describe('shared BOB entity configuration and view model', () => {
       expect(config.entity).toBe(entity)
       expect(config.detailKeys).toContain('name')
       expect(config.columns.map((column) => column.label)).toEqual(columns)
-      expect(config.filters[0]).toMatchObject({
-        key: 'status',
-        multiple: true,
-      })
+      if (entity === 'operating-entity') {
+        expect(config.filters.map((filter) => filter.key)).toEqual(['enabled'])
+      } else {
+        expect(config.filters[0]).toMatchObject({
+          key: 'status',
+          multiple: true,
+        })
+      }
     }
     expect(statusOptions).toHaveLength(3)
   })
@@ -295,6 +306,82 @@ describe('shared BOB entity configuration and view model', () => {
         sort: [{ field: 'code', order: 'asc' }],
       },
     )
+  })
+
+  it('BOB 经营主体只读取当前投影且忽略 DCL 生命周期权限', async () => {
+    useSessionStore().permissions = [
+      '/bob/operating-entity/query',
+      '/bob/operating-entity/get',
+      '/bob/operating-entity/create',
+      '/bob/operating-entity/save',
+      '/bob/operating-entity/submit',
+      '/bob/operating-entity/approve',
+      '/bob/operating-entity/versions',
+      '/dcl/operating-entity/create',
+      '/dcl/operating-entity/approve',
+    ]
+    const approval = row('APPROVED').latestApproved!.approval
+    mockedApiClient.postContract.mockResolvedValueOnce({
+      data: {
+        items: [
+          {
+            objectId: 'OPE-OBJECT-1',
+            entity: 'operating-entity',
+            code: 'OPE-0001',
+            objectRevision: 1,
+            enabled: true,
+            latestApproved: {
+              approval,
+              summary: {
+                name: '当前经营主体',
+                shortName: '当前主体',
+                taxNumber: '91310000DCL',
+                address: '',
+                phone: '',
+                remark: '',
+              },
+            },
+            openVersion: null,
+            updatedAt: '2026-08-27T06:00:00Z',
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+      },
+    })
+    const vm = useBobEntityViewModel(getBobEntityConfig('operating-entity'))
+
+    await vm.query()
+
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith(
+      'bob/operating-entity/query',
+      {
+        page: 1,
+        pageSize: 20,
+        filters: {},
+        sort: [{ field: 'code', order: 'asc' }],
+      },
+    )
+    expect(vm.rows.value[0]?.latestApproved?.summary).toMatchObject({
+      name: '当前经营主体',
+      taxNumber: '91310000DCL',
+    })
+    expect(vm.canCreate.value).toBe(false)
+    expect(vm.actionAvailability(vm.rows.value[0]!)).toEqual({
+      view: true,
+      edit: false,
+      delete: false,
+      submit: false,
+      unsubmit: false,
+      approve: false,
+      unapprove: false,
+      reject: false,
+      enable: false,
+      disable: false,
+      versions: false,
+      audit: false,
+    })
   })
 
   it('产品提交和批准入口要求详情读取权限', () => {

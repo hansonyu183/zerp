@@ -83,6 +83,7 @@ ZERP 前端仅通过 Cloudflare Pages 部署。API 基址、Origin、Cookie、�
 
 - [共享术语与权威链接](CONTEXT.md)
 - [Approval：中央审批与版本](docs/domains/approval.md)
+- [DCL：申报控制](docs/domains/dcl.md)
 - [APP：访问、会话与权限](docs/domains/app.md)
 - [BOB：业务对象](docs/domains/bob.md)
 - [AUX：辅助对象](docs/domains/aux.md)

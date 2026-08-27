@@ -170,12 +170,7 @@ LEFT JOIN LATERAL (
   WHERE domain='bob' AND entity=object.entity AND subject_id=object.id AND status IN ('DRAFT','PENDING')
   ORDER BY version_no DESC LIMIT 1
 ) open_entry ON true
-JOIN LATERAL (
-  SELECT id FROM approval_entries
-  WHERE domain='bob' AND entity='operating-entity' AND subject_id=relation.operating_entity_id AND status='APPROVED'
-  ORDER BY version_no DESC LIMIT 1
-) operating_entry ON true
-JOIN bob_operating_entity_versions operating_detail ON operating_detail.approval_entry_id=operating_entry.id
+JOIN bob_operating_entities operating_detail ON operating_detail.object_id=relation.operating_entity_id
 WHERE relation.party_id=$1
 ORDER BY object.entity,relation.operating_entity_id,object.id
 `

@@ -7,6 +7,7 @@ import type {
   BobListItem,
   BobVersionHistoryItem,
 } from './types'
+import { bobWriteEntity } from './types'
 
 export function useBobHistory(
   config: BobEntityConfig,
@@ -35,7 +36,7 @@ export function useBobHistory(
     versionsLoading.value = true
     try {
       const { data } = await apiClient.postContract(
-        `bob/${config.entity}/versions`,
+        `bob/${bobWriteEntity(config)}/versions`,
         {
           objectId: row.objectId,
           page: versionsPage.value,
@@ -73,13 +74,14 @@ export function useBobHistory(
     if (!row) return
     auditLoading.value = true
     try {
+      const request = {
+        objectId: row.objectId,
+        page: auditPage.value,
+        pageSize: auditPageSize.value,
+      }
       const { data } = await apiClient.postContract(
-        `bob/${config.entity}/audit-history`,
-        {
-          objectId: row.objectId,
-          page: auditPage.value,
-          pageSize: auditPageSize.value,
-        },
+        `bob/${bobWriteEntity(config)}/audit-history`,
+        request,
       )
       auditEvents.value = data.items ?? []
       auditTotal.value = data.total

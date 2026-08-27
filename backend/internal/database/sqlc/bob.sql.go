@@ -99,21 +99,6 @@ func (q *Queries) CopyBobFundAccountPayload(ctx context.Context, arg CopyBobFund
 	return err
 }
 
-const copyBobOperatingEntityPayload = `-- name: CopyBobOperatingEntityPayload :exec
-INSERT INTO bob_operating_entity_versions(approval_entry_id,entity,legal_name,short_name,tax_number,address,phone,remark)
-SELECT $1,entity,legal_name,short_name,tax_number,address,phone,remark FROM bob_operating_entity_versions source WHERE source.approval_entry_id=$2
-`
-
-type CopyBobOperatingEntityPayloadParams struct {
-	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
-	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-}
-
-func (q *Queries) CopyBobOperatingEntityPayload(ctx context.Context, arg CopyBobOperatingEntityPayloadParams) error {
-	_, err := q.db.Exec(ctx, copyBobOperatingEntityPayload, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
-	return err
-}
-
 const copyBobOtherUnitPayload = `-- name: CopyBobOtherUnitPayload :exec
 INSERT INTO bob_service_relationship_versions(approval_entry_id,entity,contact_name,contact_phone,email,address,settlement_method_id,settlement_method_approval_entry_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,remark)
 SELECT $1,entity,contact_name,contact_phone,email,address,settlement_method_id,settlement_method_approval_entry_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,remark FROM bob_service_relationship_versions source WHERE source.approval_entry_id=$2
@@ -303,8 +288,6 @@ LEFT JOIN bob_vehicle_versions approved_vehicle ON approved_vehicle.approval_ent
 LEFT JOIN bob_vehicle_versions open_vehicle ON open_vehicle.approval_entry_id=open_entry.id
 LEFT JOIN bob_fund_account_versions approved_fund ON approved_fund.approval_entry_id=approved.id
 LEFT JOIN bob_fund_account_versions open_fund ON open_fund.approval_entry_id=open_entry.id
-LEFT JOIN bob_operating_entity_versions approved_operating ON approved_operating.approval_entry_id=approved.id
-LEFT JOIN bob_operating_entity_versions open_operating ON open_operating.approval_entry_id=open_entry.id
 LEFT JOIN bob_supplier_versions approved_supplier ON approved_supplier.approval_entry_id=approved.id
 LEFT JOIN bob_supplier_versions open_supplier ON open_supplier.approval_entry_id=open_entry.id
 LEFT JOIN bob_sales_partner_versions approved_sales ON approved_sales.approval_entry_id=approved.id
@@ -319,7 +302,7 @@ WHERE o.entity = $1
        OR o.code ILIKE '%' || $2::text || '%'
        OR COALESCE(approved_employee.name, open_employee.name, approved_product.name, open_product.name,
                    approved_warehouse.name, open_warehouse.name, approved_vehicle.name, open_vehicle.name,
-                   approved_fund.name, open_fund.name, approved_operating.legal_name, open_operating.legal_name,
+                   approved_fund.name, open_fund.name,
                    approved_supplier.name, open_supplier.name, relationship_party.display_name, '')
           ILIKE '%' || $2::text || '%'
        OR EXISTS (
@@ -396,6 +379,40 @@ func (q *Queries) CountBobObjects(ctx context.Context, arg CountBobObjectsParams
 		arg.SalesAttributionType,
 		arg.SalesAttributionSubjectID,
 	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countBobOperatingEntities = `-- name: CountBobOperatingEntities :one
+SELECT count(*)
+FROM bob_objects object
+JOIN bob_operating_entities current ON current.object_id=object.id
+JOIN approval_entries approved ON approved.id=current.source_approval_entry_id
+  AND approved.domain='dcl' AND approved.entity='operating-entity'
+LEFT JOIN LATERAL (
+  SELECT id,status FROM approval_entries
+  WHERE domain='dcl' AND entity='operating-entity' AND subject_id=object.id
+    AND status IN ('DRAFT','PENDING')
+  ORDER BY version_no DESC LIMIT 1
+) candidate ON true
+WHERE object.entity='operating-entity'
+  AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%'
+       OR current.legal_name ILIKE '%'||$1::text||'%')
+  AND ($2::integer=-1 OR current.enabled=($2::integer=1))
+  AND (cardinality($3::text[])=0
+       OR approved.status=ANY($3::text[])
+       OR candidate.status=ANY($3::text[]))
+`
+
+type CountBobOperatingEntitiesParams struct {
+	Keyword       string   `db:"keyword" json:"keyword"`
+	EnabledFilter int32    `db:"enabled_filter" json:"enabled_filter"`
+	StatusFilter  []string `db:"status_filter" json:"status_filter"`
+}
+
+func (q *Queries) CountBobOperatingEntities(ctx context.Context, arg CountBobOperatingEntitiesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countBobOperatingEntities, arg.Keyword, arg.EnabledFilter, arg.StatusFilter)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -486,12 +503,12 @@ func (q *Queries) DeleteBobObject(ctx context.Context, arg DeleteBobObjectParams
 	return result.RowsAffected(), nil
 }
 
-const deleteBobOperatingEntityPayload = `-- name: DeleteBobOperatingEntityPayload :execrows
-DELETE FROM bob_operating_entity_versions WHERE approval_entry_id = $1
+const deleteBobOperatingEntityCurrent = `-- name: DeleteBobOperatingEntityCurrent :execrows
+DELETE FROM bob_operating_entities WHERE object_id=$1
 `
 
-func (q *Queries) DeleteBobOperatingEntityPayload(ctx context.Context, approvalEntryID string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteBobOperatingEntityPayload, approvalEntryID)
+func (q *Queries) DeleteBobOperatingEntityCurrent(ctx context.Context, objectID string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteBobOperatingEntityCurrent, objectID)
 	if err != nil {
 		return 0, err
 	}
@@ -819,11 +836,7 @@ SELECT relation.party_id,party.kind AS party_kind,party.display_name AS party_di
 FROM bob_employment_relationships relation
 JOIN bob_parties party ON party.id=relation.party_id
 JOIN bob_objects operating ON operating.id=relation.operating_entity_id AND operating.entity='operating-entity'
-JOIN LATERAL (
-    SELECT id FROM approval_entries WHERE domain='bob' AND entity='operating-entity'
-      AND subject_id=operating.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1
-) operating_entry ON true
-JOIN bob_operating_entity_versions operating_payload ON operating_payload.approval_entry_id=operating_entry.id
+JOIN bob_operating_entities operating_payload ON operating_payload.object_id=operating.id
 WHERE relation.object_id=$1
 `
 
@@ -1168,26 +1181,6 @@ func (q *Queries) GetBobOpenFundAccountPayload(ctx context.Context, approvalEntr
 	return i, err
 }
 
-const getBobOpenOperatingEntityPayload = `-- name: GetBobOpenOperatingEntityPayload :one
-SELECT payload.approval_entry_id, payload.entity, payload.legal_name, payload.short_name, payload.tax_number, payload.address, payload.phone, payload.remark FROM bob_operating_entity_versions payload WHERE payload.approval_entry_id=$1
-`
-
-func (q *Queries) GetBobOpenOperatingEntityPayload(ctx context.Context, approvalEntryID string) (BobOperatingEntityVersion, error) {
-	row := q.db.QueryRow(ctx, getBobOpenOperatingEntityPayload, approvalEntryID)
-	var i BobOperatingEntityVersion
-	err := row.Scan(
-		&i.ApprovalEntryID,
-		&i.Entity,
-		&i.LegalName,
-		&i.ShortName,
-		&i.TaxNumber,
-		&i.Address,
-		&i.Phone,
-		&i.Remark,
-	)
-	return i, err
-}
-
 const getBobOpenOtherUnitPayload = `-- name: GetBobOpenOtherUnitPayload :one
 SELECT payload.approval_entry_id, payload.entity, payload.contact_name, payload.contact_phone, payload.email, payload.address, payload.settlement_method_id, payload.settlement_method_approval_entry_id, payload.settlement_method_code, payload.settlement_method_name, payload.settlement_term_code, payload.settlement_rule_type, payload.settlement_month_offset, payload.settlement_day_of_month, payload.settlement_day_offset, payload.remark FROM bob_service_relationship_versions payload WHERE payload.approval_entry_id=$1
 `
@@ -1364,18 +1357,117 @@ func (q *Queries) GetBobOpenWarehousePayload(ctx context.Context, approvalEntryI
 	return i, err
 }
 
-const getBobOperatingEntityPayload = `-- name: GetBobOperatingEntityPayload :one
-SELECT payload.approval_entry_id, payload.entity, payload.legal_name, payload.short_name, payload.tax_number, payload.address, payload.phone, payload.remark FROM bob_operating_entity_versions payload JOIN approval_entries entry ON entry.id=payload.approval_entry_id
-WHERE payload.approval_entry_id=$1 AND entry.domain='bob' AND entry.status='APPROVED'
-  AND entry.id=(SELECT latest.id FROM approval_entries latest WHERE latest.domain='bob' AND latest.entity=entry.entity AND latest.subject_id=entry.subject_id AND latest.status='APPROVED' ORDER BY latest.version_no DESC LIMIT 1)
+const getBobOperatingEntityCurrent = `-- name: GetBobOperatingEntityCurrent :one
+SELECT object.id AS object_id, object.entity, object.code,
+       object.revision AS object_revision, current.enabled,
+       current.legal_name, current.short_name, current.tax_number,
+       current.address, current.phone, current.remark,
+       current.updated_at, entry.id AS approval_entry_id, entry.domain,
+       entry.version_no, entry.status, entry.revision AS approval_revision,
+       entry.created_by, entry.created_at, entry.updated_by, entry.updated_at AS approval_updated_at,
+       entry.submitted_by, entry.submitted_at, entry.approved_by, entry.approved_at
+FROM bob_objects object
+JOIN bob_operating_entities current ON current.object_id=object.id
+JOIN approval_entries entry ON entry.id=current.source_approval_entry_id
+  AND entry.domain='dcl' AND entry.entity='operating-entity'
+  AND entry.subject_id=object.id AND entry.status='APPROVED'
+WHERE object.id=$1 AND object.entity='operating-entity'
 `
 
-func (q *Queries) GetBobOperatingEntityPayload(ctx context.Context, approvalEntryID string) (BobOperatingEntityVersion, error) {
-	row := q.db.QueryRow(ctx, getBobOperatingEntityPayload, approvalEntryID)
-	var i BobOperatingEntityVersion
+type GetBobOperatingEntityCurrentRow struct {
+	ObjectID          string             `db:"object_id" json:"object_id"`
+	Entity            string             `db:"entity" json:"entity"`
+	Code              string             `db:"code" json:"code"`
+	ObjectRevision    int64              `db:"object_revision" json:"object_revision"`
+	Enabled           bool               `db:"enabled" json:"enabled"`
+	LegalName         string             `db:"legal_name" json:"legal_name"`
+	ShortName         *string            `db:"short_name" json:"short_name"`
+	TaxNumber         *string            `db:"tax_number" json:"tax_number"`
+	Address           *string            `db:"address" json:"address"`
+	Phone             *string            `db:"phone" json:"phone"`
+	Remark            *string            `db:"remark" json:"remark"`
+	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ApprovalEntryID   string             `db:"approval_entry_id" json:"approval_entry_id"`
+	Domain            string             `db:"domain" json:"domain"`
+	VersionNo         *int32             `db:"version_no" json:"version_no"`
+	Status            string             `db:"status" json:"status"`
+	ApprovalRevision  int64              `db:"approval_revision" json:"approval_revision"`
+	CreatedBy         string             `db:"created_by" json:"created_by"`
+	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedBy         string             `db:"updated_by" json:"updated_by"`
+	ApprovalUpdatedAt pgtype.Timestamptz `db:"approval_updated_at" json:"approval_updated_at"`
+	SubmittedBy       *string            `db:"submitted_by" json:"submitted_by"`
+	SubmittedAt       pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
+	ApprovedBy        *string            `db:"approved_by" json:"approved_by"`
+	ApprovedAt        pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
+}
+
+func (q *Queries) GetBobOperatingEntityCurrent(ctx context.Context, objectID string) (GetBobOperatingEntityCurrentRow, error) {
+	row := q.db.QueryRow(ctx, getBobOperatingEntityCurrent, objectID)
+	var i GetBobOperatingEntityCurrentRow
 	err := row.Scan(
-		&i.ApprovalEntryID,
+		&i.ObjectID,
 		&i.Entity,
+		&i.Code,
+		&i.ObjectRevision,
+		&i.Enabled,
+		&i.LegalName,
+		&i.ShortName,
+		&i.TaxNumber,
+		&i.Address,
+		&i.Phone,
+		&i.Remark,
+		&i.UpdatedAt,
+		&i.ApprovalEntryID,
+		&i.Domain,
+		&i.VersionNo,
+		&i.Status,
+		&i.ApprovalRevision,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedBy,
+		&i.ApprovalUpdatedAt,
+		&i.SubmittedBy,
+		&i.SubmittedAt,
+		&i.ApprovedBy,
+		&i.ApprovedAt,
+	)
+	return i, err
+}
+
+const getBobOperatingEntityCurrentReference = `-- name: GetBobOperatingEntityCurrentReference :one
+SELECT object.id AS object_id, object.entity, object.code, current.enabled,
+       current.source_approval_entry_id AS approval_entry_id,
+       current.legal_name, current.short_name, current.tax_number,
+       current.address, current.phone, current.remark
+FROM bob_objects object
+JOIN bob_operating_entities current ON current.object_id=object.id
+WHERE object.id=$1 AND object.entity='operating-entity' AND current.enabled
+`
+
+type GetBobOperatingEntityCurrentReferenceRow struct {
+	ObjectID        string  `db:"object_id" json:"object_id"`
+	Entity          string  `db:"entity" json:"entity"`
+	Code            string  `db:"code" json:"code"`
+	Enabled         bool    `db:"enabled" json:"enabled"`
+	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
+	LegalName       string  `db:"legal_name" json:"legal_name"`
+	ShortName       *string `db:"short_name" json:"short_name"`
+	TaxNumber       *string `db:"tax_number" json:"tax_number"`
+	Address         *string `db:"address" json:"address"`
+	Phone           *string `db:"phone" json:"phone"`
+	Remark          *string `db:"remark" json:"remark"`
+}
+
+func (q *Queries) GetBobOperatingEntityCurrentReference(ctx context.Context, objectID string) (GetBobOperatingEntityCurrentReferenceRow, error) {
+	row := q.db.QueryRow(ctx, getBobOperatingEntityCurrentReference, objectID)
+	var i GetBobOperatingEntityCurrentReferenceRow
+	err := row.Scan(
+		&i.ObjectID,
+		&i.Entity,
+		&i.Code,
+		&i.Enabled,
+		&i.ApprovalEntryID,
 		&i.LegalName,
 		&i.ShortName,
 		&i.TaxNumber,
@@ -1852,21 +1944,6 @@ func (q *Queries) InsertBobObject(ctx context.Context, arg InsertBobObjectParams
 		arg.Code,
 		arg.ActorID,
 	)
-	return err
-}
-
-const insertBobOperatingEntityPayload = `-- name: InsertBobOperatingEntityPayload :exec
-INSERT INTO bob_operating_entity_versions (approval_entry_id, legal_name)
-VALUES ($1, $2)
-`
-
-type InsertBobOperatingEntityPayloadParams struct {
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-	LegalName       string `db:"legal_name" json:"legal_name"`
-}
-
-func (q *Queries) InsertBobOperatingEntityPayload(ctx context.Context, arg InsertBobOperatingEntityPayloadParams) error {
-	_, err := q.db.Exec(ctx, insertBobOperatingEntityPayload, arg.ApprovalEntryID, arg.LegalName)
 	return err
 }
 
@@ -2413,8 +2490,6 @@ LEFT JOIN bob_vehicle_versions approved_vehicle ON approved_vehicle.approval_ent
 LEFT JOIN bob_vehicle_versions open_vehicle ON open_vehicle.approval_entry_id=open_entry.id
 LEFT JOIN bob_fund_account_versions approved_fund ON approved_fund.approval_entry_id=approved.id
 LEFT JOIN bob_fund_account_versions open_fund ON open_fund.approval_entry_id=open_entry.id
-LEFT JOIN bob_operating_entity_versions approved_operating ON approved_operating.approval_entry_id=approved.id
-LEFT JOIN bob_operating_entity_versions open_operating ON open_operating.approval_entry_id=open_entry.id
 LEFT JOIN bob_supplier_versions approved_supplier ON approved_supplier.approval_entry_id=approved.id
 LEFT JOIN bob_supplier_versions open_supplier ON open_supplier.approval_entry_id=open_entry.id
 LEFT JOIN bob_sales_partner_versions approved_sales ON approved_sales.approval_entry_id=approved.id
@@ -2429,7 +2504,7 @@ WHERE o.entity = $1
        OR o.code ILIKE '%' || $2::text || '%'
        OR COALESCE(approved_employee.name, open_employee.name, approved_product.name, open_product.name,
                    approved_warehouse.name, open_warehouse.name, approved_vehicle.name, open_vehicle.name,
-                   approved_fund.name, open_fund.name, approved_operating.legal_name, open_operating.legal_name,
+                   approved_fund.name, open_fund.name,
                    approved_supplier.name, open_supplier.name, relationship_party.display_name, '')
           ILIKE '%' || $2::text || '%'
        OR EXISTS (
@@ -2473,8 +2548,8 @@ ORDER BY
   CASE WHEN $16::text='updatedAt' AND $17::text='desc' THEN o.updated_at END DESC,
   CASE WHEN $16::text='code' AND $17::text='asc' THEN o.code END ASC,
   CASE WHEN $16::text='code' AND $17::text='desc' THEN o.code END DESC,
-  CASE WHEN $16::text='name' AND $17::text='asc' THEN COALESCE(open_employee.name,approved_employee.name,open_product.name,approved_product.name,open_warehouse.name,approved_warehouse.name,open_vehicle.name,approved_vehicle.name,open_fund.name,approved_fund.name,open_operating.legal_name,approved_operating.legal_name,open_supplier.name,approved_supplier.name,relationship_party.display_name,'') END ASC,
-  CASE WHEN $16::text='name' AND $17::text='desc' THEN COALESCE(open_employee.name,approved_employee.name,open_product.name,approved_product.name,open_warehouse.name,approved_warehouse.name,open_vehicle.name,approved_vehicle.name,open_fund.name,approved_fund.name,open_operating.legal_name,approved_operating.legal_name,open_supplier.name,approved_supplier.name,relationship_party.display_name,'') END DESC,
+  CASE WHEN $16::text='name' AND $17::text='asc' THEN COALESCE(open_employee.name,approved_employee.name,open_product.name,approved_product.name,open_warehouse.name,approved_warehouse.name,open_vehicle.name,approved_vehicle.name,open_fund.name,approved_fund.name,open_supplier.name,approved_supplier.name,relationship_party.display_name,'') END ASC,
+  CASE WHEN $16::text='name' AND $17::text='desc' THEN COALESCE(open_employee.name,approved_employee.name,open_product.name,approved_product.name,open_warehouse.name,approved_warehouse.name,open_vehicle.name,approved_vehicle.name,open_fund.name,approved_fund.name,open_supplier.name,approved_supplier.name,relationship_party.display_name,'') END DESC,
   CASE WHEN $16::text='status' AND $17::text='asc' THEN COALESCE(open_entry.status,approved.status,'') END ASC,
   CASE WHEN $16::text='status' AND $17::text='desc' THEN COALESCE(open_entry.status,approved.status,'') END DESC,
   CASE WHEN $16::text='version' AND $17::text='asc' THEN COALESCE(open_entry.version_no,approved.version_no,0) END ASC,
@@ -2564,6 +2639,151 @@ func (q *Queries) ListBobObjects(ctx context.Context, arg ListBobObjectsParams) 
 			&i.OpenVersionNo,
 			&i.OpenStatus,
 			&i.OpenRevision,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBobOperatingEntities = `-- name: ListBobOperatingEntities :many
+SELECT object.id AS object_id, object.entity, object.code,
+       object.revision AS object_revision, current.enabled, current.updated_at,
+       approved.id AS approval_entry_id,
+       COALESCE(candidate.id,'')::text AS open_approval_entry_id
+FROM bob_objects object
+JOIN bob_operating_entities current ON current.object_id=object.id
+JOIN approval_entries approved ON approved.id=current.source_approval_entry_id
+  AND approved.domain='dcl' AND approved.entity='operating-entity'
+LEFT JOIN LATERAL (
+  SELECT id,status,version_no FROM approval_entries
+  WHERE domain='dcl' AND entity='operating-entity' AND subject_id=object.id
+    AND status IN ('DRAFT','PENDING')
+  ORDER BY version_no DESC LIMIT 1
+) candidate ON true
+WHERE object.entity='operating-entity'
+  AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%'
+       OR current.legal_name ILIKE '%'||$1::text||'%')
+  AND ($2::integer=-1 OR current.enabled=($2::integer=1))
+  AND (cardinality($3::text[])=0
+       OR approved.status=ANY($3::text[])
+       OR candidate.status=ANY($3::text[]))
+ORDER BY
+  CASE WHEN $4::text='updatedAt' AND $5::text='asc' THEN current.updated_at END ASC,
+  CASE WHEN $4::text='updatedAt' AND $5::text='desc' THEN current.updated_at END DESC,
+  CASE WHEN $4::text='code' AND $5::text='asc' THEN object.code END ASC,
+  CASE WHEN $4::text='code' AND $5::text='desc' THEN object.code END DESC,
+  CASE WHEN $4::text='name' AND $5::text='asc' THEN current.legal_name END ASC,
+  CASE WHEN $4::text='name' AND $5::text='desc' THEN current.legal_name END DESC,
+  CASE WHEN $4::text='status' AND $5::text='asc' THEN COALESCE(candidate.status,approved.status) END ASC,
+  CASE WHEN $4::text='status' AND $5::text='desc' THEN COALESCE(candidate.status,approved.status) END DESC,
+  CASE WHEN $4::text='version' AND $5::text='asc' THEN COALESCE(candidate.version_no,approved.version_no) END ASC,
+  CASE WHEN $4::text='version' AND $5::text='desc' THEN COALESCE(candidate.version_no,approved.version_no) END DESC,
+  object.id DESC
+LIMIT $7 OFFSET $6
+`
+
+type ListBobOperatingEntitiesParams struct {
+	Keyword       string   `db:"keyword" json:"keyword"`
+	EnabledFilter int32    `db:"enabled_filter" json:"enabled_filter"`
+	StatusFilter  []string `db:"status_filter" json:"status_filter"`
+	SortField     string   `db:"sort_field" json:"sort_field"`
+	SortOrder     string   `db:"sort_order" json:"sort_order"`
+	RowOffset     int32    `db:"row_offset" json:"row_offset"`
+	RowLimit      int32    `db:"row_limit" json:"row_limit"`
+}
+
+type ListBobOperatingEntitiesRow struct {
+	ObjectID            string             `db:"object_id" json:"object_id"`
+	Entity              string             `db:"entity" json:"entity"`
+	Code                string             `db:"code" json:"code"`
+	ObjectRevision      int64              `db:"object_revision" json:"object_revision"`
+	Enabled             bool               `db:"enabled" json:"enabled"`
+	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ApprovalEntryID     string             `db:"approval_entry_id" json:"approval_entry_id"`
+	OpenApprovalEntryID string             `db:"open_approval_entry_id" json:"open_approval_entry_id"`
+}
+
+func (q *Queries) ListBobOperatingEntities(ctx context.Context, arg ListBobOperatingEntitiesParams) ([]ListBobOperatingEntitiesRow, error) {
+	rows, err := q.db.Query(ctx, listBobOperatingEntities,
+		arg.Keyword,
+		arg.EnabledFilter,
+		arg.StatusFilter,
+		arg.SortField,
+		arg.SortOrder,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListBobOperatingEntitiesRow{}
+	for rows.Next() {
+		var i ListBobOperatingEntitiesRow
+		if err := rows.Scan(
+			&i.ObjectID,
+			&i.Entity,
+			&i.Code,
+			&i.ObjectRevision,
+			&i.Enabled,
+			&i.UpdatedAt,
+			&i.ApprovalEntryID,
+			&i.OpenApprovalEntryID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBobOperatingEntityReferenceCandidates = `-- name: ListBobOperatingEntityReferenceCandidates :many
+SELECT object.id AS object_id, current.source_approval_entry_id AS approval_entry_id,
+       object.code, current.legal_name AS name
+FROM bob_objects object
+JOIN bob_operating_entities current ON current.object_id=object.id
+WHERE object.entity='operating-entity' AND current.enabled
+  AND ($1::text='' OR object.id<>$1::text)
+  AND ($2::text='' OR object.code ILIKE '%'||$2::text||'%'
+       OR current.legal_name ILIKE '%'||$2::text||'%')
+ORDER BY object.code
+LIMIT 200
+`
+
+type ListBobOperatingEntityReferenceCandidatesParams struct {
+	SourceObjectID string `db:"source_object_id" json:"source_object_id"`
+	Keyword        string `db:"keyword" json:"keyword"`
+}
+
+type ListBobOperatingEntityReferenceCandidatesRow struct {
+	ObjectID        string `db:"object_id" json:"object_id"`
+	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
+	Code            string `db:"code" json:"code"`
+	Name            string `db:"name" json:"name"`
+}
+
+func (q *Queries) ListBobOperatingEntityReferenceCandidates(ctx context.Context, arg ListBobOperatingEntityReferenceCandidatesParams) ([]ListBobOperatingEntityReferenceCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, listBobOperatingEntityReferenceCandidates, arg.SourceObjectID, arg.Keyword)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListBobOperatingEntityReferenceCandidatesRow{}
+	for rows.Next() {
+		var i ListBobOperatingEntityReferenceCandidatesRow
+		if err := rows.Scan(
+			&i.ObjectID,
+			&i.ApprovalEntryID,
+			&i.Code,
+			&i.Name,
 		); err != nil {
 			return nil, err
 		}
@@ -3370,7 +3590,7 @@ func (q *Queries) NextObjectNumberCounter(ctx context.Context, arg NextObjectNum
 
 const queryBobReferenceCandidates = `-- name: QueryBobReferenceCandidates :many
 SELECT o.id AS object_id, latest.id AS approval_entry_id, o.code,
-       COALESCE(customer.name, supplier.name, employee.name, product.name, operating.legal_name,
+       COALESCE(customer.name, supplier.name, employee.name, product.name,
                 other_party.display_name, sales_party.display_name, '')::text AS name,
        COALESCE(product.behavior_profile, '')::text AS behavior_profile,
        COALESCE(product.default_input_unit_id, '')::text AS default_input_unit_id,
@@ -3385,7 +3605,6 @@ LEFT JOIN bob_customer_versions customer ON customer.approval_entry_id=latest.id
 LEFT JOIN bob_supplier_versions supplier ON supplier.approval_entry_id=latest.id
 LEFT JOIN bob_employee_versions employee ON employee.approval_entry_id=latest.id
 LEFT JOIN bob_product_versions product ON product.approval_entry_id=latest.id
-LEFT JOIN bob_operating_entity_versions operating ON operating.approval_entry_id=latest.id
 LEFT JOIN bob_service_relationships other_relation ON other_relation.object_id=o.id AND o.entity='other-unit'
 LEFT JOIN bob_parties other_party ON other_party.id=other_relation.party_id
 LEFT JOIN bob_sales_relationships sales_relation ON sales_relation.object_id=o.id AND o.entity='sales-partner'
@@ -3393,7 +3612,7 @@ LEFT JOIN bob_parties sales_party ON sales_party.id=sales_relation.party_id
 WHERE o.entity=$1 AND o.enabled
   AND ($2::text='' OR o.id<>$2::text)
   AND ($3::text='' OR o.code ILIKE '%'||$3::text||'%'
-       OR COALESCE(customer.name,supplier.name,employee.name,product.name,operating.legal_name,
+       OR COALESCE(customer.name,supplier.name,employee.name,product.name,
                    other_party.display_name,sales_party.display_name,'') ILIKE '%'||$3::text||'%')
   AND ($4::text='' OR product.behavior_profile=$4::text)
 ORDER BY o.code
@@ -3745,36 +3964,6 @@ func (q *Queries) UpdateBobFundAccountPayload(ctx context.Context, arg UpdateBob
 	return result.RowsAffected(), nil
 }
 
-const updateBobOperatingEntityPayload = `-- name: UpdateBobOperatingEntityPayload :execrows
-UPDATE bob_operating_entity_versions SET legal_name=$1,short_name=$2,tax_number=$3,address=$4,phone=$5,remark=$6 WHERE approval_entry_id=$7
-`
-
-type UpdateBobOperatingEntityPayloadParams struct {
-	LegalName       string  `db:"legal_name" json:"legal_name"`
-	ShortName       *string `db:"short_name" json:"short_name"`
-	TaxNumber       *string `db:"tax_number" json:"tax_number"`
-	Address         *string `db:"address" json:"address"`
-	Phone           *string `db:"phone" json:"phone"`
-	Remark          *string `db:"remark" json:"remark"`
-	ApprovalEntryID string  `db:"approval_entry_id" json:"approval_entry_id"`
-}
-
-func (q *Queries) UpdateBobOperatingEntityPayload(ctx context.Context, arg UpdateBobOperatingEntityPayloadParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateBobOperatingEntityPayload,
-		arg.LegalName,
-		arg.ShortName,
-		arg.TaxNumber,
-		arg.Address,
-		arg.Phone,
-		arg.Remark,
-		arg.ApprovalEntryID,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const updateBobOtherUnitPayload = `-- name: UpdateBobOtherUnitPayload :execrows
 UPDATE bob_service_relationship_versions SET contact_name=$1,contact_phone=$2,email=$3,address=$4,settlement_method_id=$5,settlement_method_approval_entry_id=$6,settlement_method_code=$7,settlement_method_name=$8,settlement_term_code=$9,settlement_rule_type=$10,settlement_month_offset=$11,settlement_day_of_month=$12,settlement_day_offset=$13,remark=$14 WHERE approval_entry_id=$15
 `
@@ -4043,6 +4232,60 @@ func (q *Queries) UpdateBobWarehousePayload(ctx context.Context, arg UpdateBobWa
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const upsertBobOperatingEntityCurrent = `-- name: UpsertBobOperatingEntityCurrent :exec
+INSERT INTO bob_operating_entities(
+  object_id, source_approval_entry_id, legal_name, short_name, tax_number,
+  address, phone, remark, enabled, updated_by
+)
+VALUES(
+  $1, $2, $3,
+  $4, $5, $6, $7,
+  $8, $9, $10
+)
+ON CONFLICT (object_id) DO UPDATE SET
+  source_approval_entry_id=excluded.source_approval_entry_id,
+  legal_name=excluded.legal_name,
+  short_name=excluded.short_name,
+  tax_number=excluded.tax_number,
+  address=excluded.address,
+  phone=excluded.phone,
+  remark=excluded.remark,
+  enabled=excluded.enabled,
+  updated_at=now(),
+  updated_by=excluded.updated_by
+`
+
+type UpsertBobOperatingEntityCurrentParams struct {
+	ObjectID              string  `db:"object_id" json:"object_id"`
+	SourceApprovalEntryID string  `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	LegalName             string  `db:"legal_name" json:"legal_name"`
+	ShortName             *string `db:"short_name" json:"short_name"`
+	TaxNumber             *string `db:"tax_number" json:"tax_number"`
+	Address               *string `db:"address" json:"address"`
+	Phone                 *string `db:"phone" json:"phone"`
+	Remark                *string `db:"remark" json:"remark"`
+	Enabled               bool    `db:"enabled" json:"enabled"`
+	ActorID               string  `db:"actor_id" json:"actor_id"`
+}
+
+// Operating Entity is the first DCL-owned BOB slice. bob_objects keeps only
+// its stable ID/code allocation; this table is the current approved BOB data.
+func (q *Queries) UpsertBobOperatingEntityCurrent(ctx context.Context, arg UpsertBobOperatingEntityCurrentParams) error {
+	_, err := q.db.Exec(ctx, upsertBobOperatingEntityCurrent,
+		arg.ObjectID,
+		arg.SourceApprovalEntryID,
+		arg.LegalName,
+		arg.ShortName,
+		arg.TaxNumber,
+		arg.Address,
+		arg.Phone,
+		arg.Remark,
+		arg.Enabled,
+		arg.ActorID,
+	)
+	return err
 }
 
 const validateBobApprovedSnapshotReference = `-- name: ValidateBobApprovedSnapshotReference :one

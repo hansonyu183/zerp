@@ -22,6 +22,7 @@ import (
 	appdomain "github.com/hansonyu183/zerp/backend/internal/domains/app"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
 	rptdomain "github.com/hansonyu183/zerp/backend/internal/domains/rpt"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
@@ -172,6 +173,7 @@ func TestOpenAPIContractCoversEveryRegisteredRoute(t *testing.T) {
 		accdomain.NewHandler(nil, nil, testLogger()).Register(router)
 		auxdomain.NewHandler(nil, nil, testLogger()).Register(router)
 		bobdomain.NewHandler(nil, nil, nil, testLogger()).Register(router)
+		dcldomain.NewHandler(nil, nil, testLogger()).Register(router)
 		voudomain.NewHandler(nil, nil, testLogger()).Register(router)
 		wfldomain.NewHandler(nil, nil, testLogger()).Register(router)
 		rptdomain.NewHandler(nil, nil, testLogger()).Register(router)

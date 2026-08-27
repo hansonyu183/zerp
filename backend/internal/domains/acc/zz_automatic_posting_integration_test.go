@@ -12,6 +12,7 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
@@ -33,6 +34,31 @@ func trustedAccountingActor(t *testing.T, requestID string) approval.Actor {
 
 func createApprovedAccountingReference(t *testing.T, service *bobdomain.Service, entity string, data bobdomain.CreateDetailInput) voudomain.ReferenceInput {
 	t.Helper()
+	if entity == bobdomain.EntityOperatingEntity {
+		declarations := dcldomain.NewOperatingEntityService(integrationPool(t), service, authorization.Func(nil), txevent.NewBus())
+		created, err := declarations.Create(t.Context(), dcldomain.OperatingEntityCreateInput{Data: dcldomain.OperatingEntityData{
+			Name: data.Name, ShortName: data.ShortName, TaxNumber: data.TaxNumber,
+			Address: data.Address, Phone: data.Phone, Remark: data.Remark,
+		}}, trustedAccountingActor(t, "acc-posting-reference-create"))
+		if err != nil {
+			t.Fatalf("create operating entity reference: %v", err)
+		}
+		submitted, err := declarations.Submit(t.Context(), dcldomain.OperatingEntityVersionInput{
+			ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID,
+			ApprovalRevision: created.Approval.Revision,
+		}, trustedAccountingActor(t, "acc-posting-reference-submit"))
+		if err != nil {
+			t.Fatalf("submit operating entity reference: %v", err)
+		}
+		approved, err := declarations.Approve(t.Context(), dcldomain.OperatingEntityVersionInput{
+			ObjectID: submitted.ObjectID, ApprovalEntryID: submitted.Approval.ApprovalEntryID,
+			ApprovalRevision: submitted.Approval.Revision,
+		}, trustedAccountingActor(t, "acc-posting-reference-approve"))
+		if err != nil {
+			t.Fatalf("approve operating entity reference: %v", err)
+		}
+		return voudomain.ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
+	}
 	created, err := service.Create(t.Context(), entity, bobdomain.CreateInput{Data: data}, trustedAccountingActor(t, "acc-posting-reference-create"))
 	if err != nil {
 		t.Fatalf("create %s reference: %v", entity, err)

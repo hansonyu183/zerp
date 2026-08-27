@@ -401,6 +401,7 @@ func replaceBusinessMenu(ctx context.Context, q *dbsqlc.Queries, items []SaveMen
 
 func buildDefaultMenu(catalog []registeredMenuRoute) MenuTree {
 	groups := []initialMenuGroup{
+		{ID: "default-dcl", Name: "申报控制", Icon: "mdi-file-sign", Order: 10},
 		{ID: "default-bob", Name: "业务对象", Icon: "mdi-account-group-outline", Order: 20},
 		{ID: "default-aux", Name: "辅助对象", Icon: "mdi-shape-outline", Order: 30},
 		{ID: "default-vou", Name: "业务单据", Icon: "mdi-file-document-multiple-outline", Order: 40},
@@ -421,7 +422,7 @@ func buildDefaultMenu(catalog []registeredMenuRoute) MenuTree {
 		parent := "default-other"
 		domain := strings.SplitN(route.RouteKey, "/", 2)[0]
 		switch domain {
-		case "bob", "aux", "vou", "wfl", "acc", "led":
+		case "dcl", "bob", "aux", "vou", "wfl", "acc", "led":
 			parent = "default-" + domain
 		case "app":
 			parent = "default-system"

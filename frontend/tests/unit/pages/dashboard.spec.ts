@@ -8,6 +8,7 @@ import { ApiError } from '@/api/types'
 import Dashboard from '@/pages/home/dashboard/Dashboard.vue'
 import {
   type WorkbenchItem,
+  workbenchItemPath,
   useDashboardViewModel,
 } from '@/pages/home/dashboard/vm'
 import { useSessionStore } from '@/stores/session'
@@ -566,6 +567,30 @@ describe('Dashboard workbench', () => {
       approvalRevision: 5,
     })
     expect(vm.states.BOB.rows).toEqual([])
+  })
+
+  it('经营主体待办深链和生命周期动作固定进入 DCL', async () => {
+    const operatingEntity = {
+      ...objectItem,
+      entity: 'operating-entity' as const,
+      code: 'OPE-0001',
+      name: '测试经营主体',
+    }
+    mockedPost.mockResolvedValueOnce({ data: {} }).mockResolvedValueOnce(page())
+    const vm = useDashboardViewModel()
+
+    expect(workbenchItemPath(operatingEntity)).toBe('/dcl/operating-entity')
+    await expect(vm.runAction(operatingEntity, 'submit')).resolves.toBe(true)
+
+    expect(mockedPost).toHaveBeenNthCalledWith(
+      1,
+      'dcl/operating-entity/submit',
+      {
+        objectId: 'object-1',
+        approvalEntryId: 'version-1',
+        approvalRevision: 5,
+      },
+    )
   })
 
   it('驳回资料时提交去除首尾空白的意见', async () => {

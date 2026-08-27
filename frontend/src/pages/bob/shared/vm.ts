@@ -26,7 +26,7 @@ import type {
   BobMutationResult,
   BobObjectView,
 } from './types'
-import { bobListActiveVersion } from './types'
+import { bobListActiveVersion, bobWriteEntity } from './types'
 import { useBobActionAvailability } from './action-availability'
 
 export function useBobEntityViewModel(config: BobEntityConfig) {
@@ -68,6 +68,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
   )
   const canCreate = computed(
     () =>
+      config.entity !== 'operating-entity' &&
       session.can(`/bob/${config.entity}/create`) &&
       canLoadEditorReferences.value,
   )
@@ -89,7 +90,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
 
   const { permission, actionAvailability, actionBlockedReason, hasAnyAction } =
     useBobActionAvailability(
-      config.entity,
+      config,
       () => session.user?.id,
       (path) => session.can(path),
       () => canLoadEditorReferences.value,
@@ -141,14 +142,15 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     loading.value = true
     errorMessage.value = null
     try {
+      const request = {
+        page: page.value,
+        pageSize: pageSize.value,
+        filters: buildQueryFilters(),
+        sort: [{ ...sort.value }],
+      }
       const { data } = await apiClient.postContract(
         `bob/${config.entity}/query`,
-        {
-          page: page.value,
-          pageSize: pageSize.value,
-          filters: buildQueryFilters(),
-          sort: [{ ...sort.value }],
-        },
+        request,
       )
       rows.value = Array.isArray(data.items) ? data.items : []
       total.value =
@@ -359,21 +361,23 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     try {
       let mutation: BobMutationResult
       if (editorMode.value === 'create') {
+        const payload = bobCreateData(config, form)
         const result = await apiClient.postContract(
-          `bob/${config.entity}/create`,
-          { data: bobCreateData(config, form) },
+          `bob/${bobWriteEntity(config)}/create`,
+          { data: payload },
         )
         mutation = result.data
       } else {
         const context = editContext.value
         if (!context) throw new Error(`未加载可编辑的${config.title}版本。`)
+        const payload = bobSaveData(config, form)
         const result = await apiClient.postContract(
-          `bob/${config.entity}/save`,
+          `bob/${bobWriteEntity(config)}/save`,
           {
             objectId: context.objectId,
             approvalEntryId: context.approvalEntryId,
             approvalRevision: context.approvalRevision,
-            data: bobSaveData(config, form),
+            data: payload,
           },
         )
         mutation = result.data
@@ -430,20 +434,27 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     errorMessage.value = null
     try {
       if (action === 'delete') {
-        await apiClient.postContract(`bob/${config.entity}/delete`, {
+        const request = {
           objectId: row.objectId,
-          objectRevision: row.objectRevision,
           approvalEntryId: bobListActiveVersion(row).approval.approvalEntryId,
           approvalRevision: bobListActiveVersion(row).approval.revision,
+        }
+        await apiClient.postContract(`bob/${bobWriteEntity(config)}/delete`, {
+          ...request,
+          objectRevision: row.objectRevision,
         })
         if (rows.value.length === 1 && page.value > 1) page.value -= 1
       } else {
         if (!(await checkProductCompleteness(row))) return false
-        await apiClient.postContract(`bob/${config.entity}/submit`, {
+        const request = {
           objectId: row.objectId,
           approvalEntryId: bobListActiveVersion(row).approval.approvalEntryId,
           approvalRevision: bobListActiveVersion(row).approval.revision,
-        })
+        }
+        await apiClient.postContract(
+          `bob/${bobWriteEntity(config)}/submit`,
+          request,
+        )
       }
       await query()
       if (currentView.value?.objectId === row.objectId) closeEditor()
@@ -473,7 +484,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     reverse,
     changeEnabled,
   } = useBobLifecycleActions(
-    config.entity,
+    config,
     actionLoading,
     errorMessage,
     actionAvailability,

@@ -58,7 +58,7 @@ const developingPage: PageLoader = () =>
 const workflowInstancePage: PageLoader = () =>
   import('@/pages/wfl/process-instance/ProcessInstance.vue')
 
-type DomainId = 'bob' | 'aux' | 'vou' | 'wfl' | 'acc' | 'rpt'
+type DomainId = 'dcl' | 'bob' | 'aux' | 'vou' | 'wfl' | 'acc' | 'rpt'
 type DomainRegistration = Pick<
   PageRegistration,
   'domainTitle' | 'domainIcon' | 'domainOrder'
@@ -69,6 +69,11 @@ type EntityRegistration = Omit<
 >
 
 const domainRegistrations: Readonly<Record<DomainId, DomainRegistration>> = {
+  dcl: {
+    domainTitle: '申报控制',
+    domainIcon: 'mdi-file-sign',
+    domainOrder: 5,
+  },
   bob: {
     domainTitle: '业务对象',
     domainIcon: 'mdi-database-outline',
@@ -113,6 +118,13 @@ function registerPage(
 }
 
 export const pageRegistrations: readonly PageRegistration[] = [
+  registerPage('dcl', {
+    entity: 'operating-entity',
+    entityTitle: '经营主体申报',
+    icon: 'mdi-office-building-edit-outline',
+    order: 10,
+    component: () => import('@/pages/dcl/operating-entity/OperatingEntity.vue'),
+  }),
   registerPage('rpt', {
     entity: 'definition',
     entityTitle: '报表定义管理',

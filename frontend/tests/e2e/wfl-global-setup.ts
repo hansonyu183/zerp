@@ -376,12 +376,16 @@ const bobReviewerActions = new Set([
     'vehicle',
     'warehouse',
     'fund-account',
-    'operating-entity',
   ].flatMap((entity) => [
     `/bob/${entity}/query`,
     `/bob/${entity}/get`,
     `/bob/${entity}/approve`,
   ]),
+  '/bob/operating-entity/query',
+  '/bob/operating-entity/get',
+  '/dcl/operating-entity/query',
+  '/dcl/operating-entity/get',
+  '/dcl/operating-entity/approve',
 ])
 
 async function createEffectiveBob(

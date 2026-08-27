@@ -363,6 +363,54 @@ describe('permission menu registry', () => {
     registerMenuRoutes(router, [])
   })
 
+  it('为 DCL 申报和 BOB 当前档案注册独立经营主体入口', () => {
+    const router = createTestRouter()
+    const menus = buildMenus([
+      '/dcl/operating-entity/query',
+      '/dcl/operating-entity/create',
+      '/bob/operating-entity/query',
+      '/bob/operating-entity/get',
+    ])
+
+    expect(menus.map((domain) => domain.domain)).toEqual(['dcl', 'bob'])
+    expect(menus[0]).toMatchObject({
+      title: '申报控制',
+      children: [
+        {
+          entity: 'operating-entity',
+          title: '经营主体申报',
+          actions: ['query', 'create'],
+        },
+      ],
+    })
+    expect(menus[1]).toMatchObject({
+      title: '业务对象',
+      children: [
+        {
+          entity: 'operating-entity',
+          title: '经营主体',
+          actions: ['query', 'get'],
+        },
+      ],
+    })
+
+    expect(registerMenuRoutes(router, menus)).toBe(2)
+    expect(hasRegisteredPage('dcl', 'operating-entity')).toBe(true)
+    expect(hasRegisteredPage('bob', 'operating-entity')).toBe(true)
+    expect(router.resolve('/dcl/operating-entity').meta).toMatchObject({
+      developing: false,
+      title: '经营主体申报',
+      actions: ['query', 'create'],
+    })
+    expect(router.resolve('/bob/operating-entity').meta).toMatchObject({
+      developing: false,
+      title: '经营主体',
+      actions: ['query', 'get'],
+    })
+
+    registerMenuRoutes(router, [])
+  })
+
   it('权限动作变化时更新已有动态路由的元数据', () => {
     const router = createTestRouter()
 

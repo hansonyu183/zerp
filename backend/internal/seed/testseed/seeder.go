@@ -14,6 +14,7 @@ import (
 	appdomain "github.com/hansonyu183/zerp/backend/internal/domains/app"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
 	wfldomain "github.com/hansonyu183/zerp/backend/internal/domains/wfl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
@@ -70,16 +71,17 @@ const (
 )
 
 type Seeder struct {
-	pool       *pgxpool.Pool
-	queries    *dbsqlc.Queries
-	app        *appdomain.Service
-	accounts   AccountSeed
-	auxiliary  *auxdomain.Service
-	business   *bobdomain.Service
-	vouchers   *voudomain.Service
-	accounting *accdomain.Service
-	auxRefs    map[string]auxdomain.ObjectView
-	bobRefs    map[string]bobdomain.ObjectView
+	pool              *pgxpool.Pool
+	queries           *dbsqlc.Queries
+	app               *appdomain.Service
+	accounts          AccountSeed
+	auxiliary         *auxdomain.Service
+	business          *bobdomain.Service
+	operatingEntities *dcldomain.OperatingEntityService
+	vouchers          *voudomain.Service
+	accounting        *accdomain.Service
+	auxRefs           map[string]auxdomain.ObjectView
+	bobRefs           map[string]bobdomain.ObjectView
 }
 
 // seedAuthorizer is only used by the isolated test-data builder. Every
@@ -131,6 +133,7 @@ func New(
 	auxiliary := auxdomain.NewService(pool, seedAuthorizer{}, events)
 	auxiliaryResolver := auxiliaryrefs.New(auxiliary)
 	business := bobdomain.NewService(pool, auxiliaryResolver, seedAuthorizer{}, events)
+	operatingEntities := dcldomain.NewOperatingEntityService(pool, business, seedAuthorizer{}, events)
 	accounting := accdomain.NewService(pool, seedAuthorizer{}, events)
 	vouchers, err := voudomain.NewService(
 		pool,
@@ -154,7 +157,7 @@ func New(
 	}
 	return &Seeder{
 		pool: pool, queries: dbsqlc.New(pool), app: appdomain.NewService(pool, cfg, logger), accounts: accounts,
-		auxiliary: auxiliary, business: business,
+		auxiliary: auxiliary, business: business, operatingEntities: operatingEntities,
 		vouchers: vouchers, accounting: accounting,
 		auxRefs: make(map[string]auxdomain.ObjectView),
 		bobRefs: make(map[string]bobdomain.ObjectView),

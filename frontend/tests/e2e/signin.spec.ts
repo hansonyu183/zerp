@@ -21,6 +21,36 @@ async function signIn(page: Page, workerState: WflWorkerState): Promise<void> {
   await expect(page.locator('.account-button')).toBeVisible()
 }
 
+async function signOut(page: Page): Promise<void> {
+  await page.locator('.account-button').click()
+  await page.getByText('退出登录', { exact: true }).click()
+  await expect(page).toHaveURL(/\/signin$/)
+}
+
+function operatingEntityRow(page: Page, code: string) {
+  return page.locator('tbody tr').filter({
+    has: page.locator('td[data-label="编码"]').filter({ hasText: code }),
+  })
+}
+
+async function operatingEntityAction(
+  page: Page,
+  code: string,
+  label: string,
+): Promise<void> {
+  const row = operatingEntityRow(page, code)
+  const direct = row.getByLabel(label, { exact: true })
+  if (await direct.count()) {
+    await direct.click()
+    return
+  }
+  await row.getByLabel(`更多操作 ${code}`, { exact: true }).click()
+  await page
+    .locator('.v-overlay.v-menu.v-overlay--active')
+    .getByText(label, { exact: true })
+    .click()
+}
+
 async function submitCredentials(
   page: Page,
   credentials: { username: string; password: string },
@@ -68,7 +98,9 @@ test('未登录访问完整深链后登录返回原路径', async ({ page, worke
   await submitCredentials(page, workerState.operator)
 
   await expect(page).toHaveURL(/\/bob\/customer\?tab=history#version-2$/)
-  await expect(page.getByRole('textbox', { name: '账户编码或名称' })).toBeVisible()
+  await expect(
+    page.getByRole('textbox', { name: '账户编码或名称' }),
+  ).toBeVisible()
 })
 
 test('登录后对已知但无权限的深链显示无权访问', async ({
@@ -155,6 +187,126 @@ test(
     }
   },
 )
+
+test('DCL 经营主体申报与 BOB 当前档案使用独立入口和请求边界', async ({
+  page,
+  workerState,
+}) => {
+  test.setTimeout(90_000)
+  await signIn(page, workerState)
+  await page.goto('/home/dashboard')
+
+  await page.getByText('申报控制', { exact: true }).click()
+  const declarationLink = page.getByRole('link', {
+    name: '经营主体申报',
+    exact: true,
+  })
+  await expect(declarationLink).toBeVisible()
+  await declarationLink.click()
+  await expect(page).toHaveURL(/\/dcl\/operating-entity$/)
+  await expect(
+    page.getByRole('button', { name: '新增', exact: true }),
+  ).toBeVisible()
+
+  const declarationName = `E2E 经营主体申报 ${workerState.operator.username}`
+  await page.getByRole('button', { name: '新增', exact: true }).click()
+  const declarationEditor = page.locator('.dcl-operating-entity-drawer')
+  await declarationEditor.getByLabel('法定公司名称').fill(declarationName)
+  await declarationEditor.getByLabel('税号').fill('91310000E2EDCL')
+  await declarationEditor
+    .getByRole('button', { name: '保存', exact: true })
+    .click()
+  const createdRow = page.locator('tbody tr').filter({ hasText: declarationName })
+  await expect(createdRow).toHaveCount(1)
+  const code = (
+    await createdRow.locator('td[data-label="编码"]').textContent()
+  )?.trim()
+  expect(code).toMatch(/^OPE-\d{4}$/)
+  await operatingEntityAction(page, code!, '提交审核')
+  await expect(operatingEntityRow(page, code!)).toContainText('待批准')
+
+  await signOut(page)
+  await submitCredentials(page, workerState.reviewer)
+  await expect(page).toHaveURL(/\/home\/dashboard$/)
+  await page.goto('/dcl/operating-entity')
+  await page.getByRole('textbox', { name: '经营主体申报关键字' }).fill(code!)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  await expect(operatingEntityRow(page, code!)).toBeVisible()
+  await operatingEntityAction(page, code!, '审核通过')
+  await expect(operatingEntityRow(page, code!)).toContainText('已批准')
+
+  const bobRequests: string[] = []
+  page.on('request', (request) => {
+    const pathname = new URL(request.url()).pathname
+    if (pathname.includes('/operating-entity/')) bobRequests.push(pathname)
+  })
+
+  await page.getByText('业务对象', { exact: true }).click()
+  const currentProfileLink = page.getByRole('link', {
+    name: '经营主体',
+    exact: true,
+  })
+  await expect(currentProfileLink).toBeVisible()
+  await currentProfileLink.click()
+  await expect(page).toHaveURL(/\/bob\/operating-entity$/)
+  await expect(
+    page.getByRole('textbox', { name: '经营主体关键字', exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: '新增', exact: true }),
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole('combobox', { name: '状态', exact: true }),
+  ).toHaveCount(0)
+  await page.getByRole('textbox', { name: '经营主体关键字' }).fill(code!)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  const currentRow = operatingEntityRow(page, code!)
+  await expect(currentRow).toContainText(declarationName)
+  const objectId = (
+    await currentRow.locator('td[data-label="Stable ID"]').textContent()
+  )?.trim()
+  const approvalEntryId = (
+    await currentRow
+      .locator('td[data-label="来源 Approval Entry ID"]')
+      .textContent()
+  )?.trim()
+  expect(objectId).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/)
+  expect(approvalEntryId).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/)
+  await currentRow.getByLabel(`查看 ${code}`, { exact: true }).click()
+  const currentDrawer = page.locator('.bob-entity-drawer')
+  await expect(currentDrawer.getByText('Stable ID', { exact: true })).toBeVisible()
+  await expect(currentDrawer.getByText(objectId!, { exact: true })).toBeVisible()
+  await expect(
+    currentDrawer.getByText('来源 Approval Entry ID', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    currentDrawer.getByText(approvalEntryId!, { exact: true }),
+  ).toBeVisible()
+  for (const action of [
+    '提交审核',
+    '撤回提交',
+    '审核通过',
+    '审核驳回',
+    '撤销批准',
+    '版本历史',
+    '审核历史',
+  ]) {
+    await expect(
+      page.getByRole('button', { name: action, exact: true }),
+    ).toHaveCount(0)
+  }
+  await expect
+    .poll(() =>
+      bobRequests.some((path) => path.endsWith('/bob/operating-entity/query')),
+    )
+    .toBe(true)
+  await expect
+    .poll(() =>
+      bobRequests.some((path) => path.endsWith('/bob/operating-entity/get')),
+    )
+    .toBe(true)
+  expect(bobRequests.some((path) => path.includes('/dcl/'))).toBe(false)
+})
 
 test('使用真实后端读取、保存并恢复个人资料', async ({ page, workerState }) => {
   await signIn(page, workerState)

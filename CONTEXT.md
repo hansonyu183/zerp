@@ -91,7 +91,7 @@ _Authority_: [BOB 领域边界](docs/domains/bob.md#2-领域职责与边界)、[
 **Operating Entity（经营主体）**:
 我方实际承担合同销售方、开票方和收款方责任的法人公司。
 _Avoid_: 商品品牌、客户类型、报表标签、允许跨经营主体收款分摊
-_Authority_: [BOB 领域边界](docs/domains/bob.md#2-领域职责与边界)、[VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
+_Authority_: [DCL 经营主体申报](docs/domains/dcl.md#2-经营主体申报)、[BOB 领域边界](docs/domains/bob.md#2-领域职责与边界)、[VOU 编号、金额和引用](docs/domains/vou.md#21-编号金额和引用)
 
 **Sales Receipt Allocation（销售收款分摊）**:
 一笔客户关系来款分配到该关系下具体客户结算子账户及其未结应收的金额明细。

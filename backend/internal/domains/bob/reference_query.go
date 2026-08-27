@@ -35,6 +35,21 @@ func (s *Service) QueryReferenceCandidates(ctx context.Context, input ReferenceQ
 	if input.BehaviorProfile != "" && (input.Entity != EntityProduct || !validProductBehavior(input.BehaviorProfile)) {
 		return nil, domainError(ErrorValidation, "invalid product behavior profile", nil, nil)
 	}
+	if input.Entity == EntityOperatingEntity {
+		rows, err := s.queries.ListBobOperatingEntityReferenceCandidates(ctx, dbsqlc.ListBobOperatingEntityReferenceCandidatesParams{
+			SourceObjectID: input.SourceObjectID, Keyword: input.Keyword,
+		})
+		if err != nil {
+			return nil, s.internal("query operating entity reference candidates", err)
+		}
+		result := make([]ReferenceCandidate, 0, len(rows))
+		for _, row := range rows {
+			result = append(result, ReferenceCandidate{
+				ObjectID: row.ObjectID, ApprovalEntryID: row.ApprovalEntryID, Code: row.Code, Name: row.Name,
+			})
+		}
+		return result, nil
+	}
 	rows, err := s.queries.QueryBobReferenceCandidates(ctx, dbsqlc.QueryBobReferenceCandidatesParams{
 		Entity: input.Entity, Keyword: input.Keyword, SourceObjectID: input.SourceObjectID,
 		BehaviorProfile: input.BehaviorProfile,

@@ -473,6 +473,9 @@ test('销售订单经动态流程生成出库草稿', async ({ page, workerState
     await workspace.locator('.voucher-document-header__number').textContent()
   )?.trim()
   expect(orderNo).toBeTruthy()
+  await expect(
+    page.getByText(`${orderNo} 已保存。`, { exact: true }).first(),
+  ).toBeVisible()
   await workspace.getByLabel('关闭单据工作区').click()
   await expect(workspace).not.toBeVisible()
   let orderRow = page.locator('tbody tr').filter({ hasText: orderNo! })

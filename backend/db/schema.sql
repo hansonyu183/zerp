@@ -1611,6 +1611,9 @@ CREATE TABLE public.bob_vehicles (
     name character varying(200) NOT NULL,
     plate_number character varying(32) NOT NULL,
     vehicle_type character varying(64) NOT NULL,
+    vehicle_type_object_id character varying(26) NOT NULL,
+    vehicle_type_approval_entry_id character varying(26) NOT NULL,
+    vehicle_type_name character varying(200) NOT NULL,
     vin character varying(17),
     engine_number character varying(200),
     load_capacity_kg numeric(12,3),
@@ -2036,9 +2039,10 @@ CREATE TABLE public.dcl_vehicle_versions (
     name character varying(200) NOT NULL,
     plate_number character varying(32) NOT NULL,
     vehicle_type character varying(64) NOT NULL,
-    category_id character varying(26),
-    category_approval_entry_id character varying(26),
-    category_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
+    vehicle_type_object_id character varying(26) NOT NULL,
+    vehicle_type_approval_entry_id character varying(26) NOT NULL,
+    vehicle_type_name character varying(200) NOT NULL,
+    vehicle_type_entity character varying(32) DEFAULT 'dictionary-item'::character varying NOT NULL,
     vin character varying(17),
     engine_number character varying(64),
     load_capacity_kg numeric(12,3),
@@ -2056,13 +2060,24 @@ CREATE TABLE public.dcl_vehicle_versions (
     CONSTRAINT dcl_vehicle_versions_carrier_affiliation_type_ck CHECK (((carrier_affiliation_type)::text = ANY ((ARRAY['INTERNAL'::character varying, 'EXTERNAL'::character varying])::text[]))),
     CONSTRAINT dcl_vehicle_versions_carrier_operating_entity_check CHECK (((carrier_operating_entity)::text = 'operating-entity'::text)),
     CONSTRAINT dcl_vehicle_versions_carrier_service_relationship_entity_check CHECK (((carrier_service_relationship_entity)::text = 'other-unit'::text)),
-    CONSTRAINT dcl_vehicle_versions_category_entity_check CHECK (((category_entity)::text = 'category'::text)),
+    CONSTRAINT dcl_vehicle_versions_vehicle_type_entity_check CHECK (((vehicle_type_entity)::text = 'dictionary-item'::text)),
     CONSTRAINT dcl_vehicle_versions_entity_check CHECK (((entity)::text = 'vehicle'::text)),
     CONSTRAINT dcl_vehicle_versions_load_capacity_kg_check CHECK (((load_capacity_kg IS NULL) OR (load_capacity_kg > (0)::numeric))),
     CONSTRAINT dcl_vehicle_versions_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 200))),
     CONSTRAINT dcl_vehicle_versions_plate_number_check CHECK ((((length(btrim((plate_number)::text)) >= 1) AND (length(btrim((plate_number)::text)) <= 32)) AND ((plate_number)::text = upper(btrim((plate_number)::text))))),
     CONSTRAINT dcl_vehicle_versions_vehicle_type_check CHECK (((length(btrim((vehicle_type)::text)) >= 1) AND (length(btrim((vehicle_type)::text)) <= 64))),
+    CONSTRAINT dcl_vehicle_versions_vehicle_type_name_check CHECK (((length(btrim((vehicle_type_name)::text)) >= 1) AND (length(btrim((vehicle_type_name)::text)) <= 200))),
     CONSTRAINT dcl_vehicle_versions_vin_check CHECK (((vin IS NULL) OR ((vin)::text ~ '^[A-HJ-NPR-Z0-9]{17}$'::text)))
+);
+
+CREATE TABLE public.dcl_vehicle_identifier_claims (
+    identifier_kind character varying(8) NOT NULL CHECK (((identifier_kind)::text = ANY ((ARRAY['PLATE'::character varying, 'VIN'::character varying])::text[]))),
+    normalized_value character varying(64) NOT NULL CHECK (length(btrim(normalized_value)) > 0),
+    object_id character varying(26) NOT NULL,
+    approved_entry_id character varying(26),
+    open_entry_id character varying(26),
+    CONSTRAINT dcl_vehicle_identifier_claims_pkey PRIMARY KEY (identifier_kind, normalized_value),
+    CONSTRAINT dcl_vehicle_identifier_claims_source_ck CHECK (approved_entry_id IS NOT NULL OR open_entry_id IS NOT NULL)
 );
 
 
@@ -7785,7 +7800,7 @@ CREATE INDEX dcl_vehicle_versions_carrier_service_relationship_idx ON public.dcl
 -- Name: dcl_vehicle_versions_category_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX dcl_vehicle_versions_category_idx ON public.dcl_vehicle_versions USING btree (category_id);
+CREATE INDEX dcl_vehicle_versions_vehicle_type_idx ON public.dcl_vehicle_versions USING btree (vehicle_type_object_id);
 
 
 --
@@ -9263,11 +9278,11 @@ ALTER TABLE ONLY public.dcl_vehicle_versions
 
 
 --
--- Name: dcl_vehicle_versions dcl_vehicle_versions_category_id_category_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_vehicle_versions dcl_vehicle_versions_vehicle_type_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.dcl_vehicle_versions
-    ADD CONSTRAINT dcl_vehicle_versions_category_id_category_entity_fkey FOREIGN KEY (category_id, category_entity) REFERENCES public.aux_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+    ADD CONSTRAINT dcl_vehicle_versions_vehicle_type_fk FOREIGN KEY (vehicle_type_object_id, vehicle_type_entity) REFERENCES public.aux_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 
 --
@@ -9312,6 +9327,15 @@ ALTER TABLE ONLY public.bob_vehicles
 
 ALTER TABLE ONLY public.bob_vehicles
     ADD CONSTRAINT bob_vehicles_source_approval_entry_id_fkey FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.dcl_vehicle_identifier_claims
+    ADD CONSTRAINT dcl_vehicle_identifier_claims_object_id_fkey FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.dcl_vehicle_identifier_claims
+    ADD CONSTRAINT dcl_vehicle_identifier_claims_approved_entry_id_fkey FOREIGN KEY (approved_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.dcl_vehicle_identifier_claims
+    ADD CONSTRAINT dcl_vehicle_identifier_claims_open_entry_id_fkey FOREIGN KEY (open_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --

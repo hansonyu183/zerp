@@ -14,6 +14,7 @@ import (
 // VehicleData is the typed DCL declaration payload and BOB current projection.
 type VehicleData struct {
 	Name, PlateNumber, VehicleType, VIN, EngineNumber, LoadCapacityKG, Remark string
+	VehicleTypeObjectID, VehicleTypeApprovalEntryID, VehicleTypeName          string
 	CarrierAffiliation                                                        *CarrierAffiliation
 	BulkLiquidCapable                                                         bool
 }
@@ -33,7 +34,45 @@ func ValidateVehicleData(input VehicleData) (VehicleData, error) {
 	if err != nil {
 		return VehicleData{}, err
 	}
-	return VehicleData{Name: d.Name, PlateNumber: d.PlateNumber, VehicleType: d.VehicleType, VIN: d.VIN, EngineNumber: d.EngineNumber, LoadCapacityKG: d.LoadCapacityKG, Remark: d.Remark, CarrierAffiliation: d.CarrierAffiliation, BulkLiquidCapable: d.BulkLiquidCapable}, nil
+	return VehicleData{Name: d.Name, PlateNumber: d.PlateNumber, VehicleType: d.VehicleType, VehicleTypeObjectID: strings.TrimSpace(input.VehicleTypeObjectID), VehicleTypeApprovalEntryID: strings.TrimSpace(input.VehicleTypeApprovalEntryID), VehicleTypeName: strings.TrimSpace(input.VehicleTypeName), VIN: d.VIN, EngineNumber: d.EngineNumber, LoadCapacityKG: d.LoadCapacityKG, Remark: d.Remark, CarrierAffiliation: d.CarrierAffiliation, BulkLiquidCapable: d.BulkLiquidCapable}, nil
+}
+
+func (s *Service) ResolveVehicleType(ctx context.Context, tx pgx.Tx, d VehicleData, exact bool) (VehicleData, error) {
+	const dictionaryTypeCode = "DCT-0002"
+	if strings.TrimSpace(d.VehicleType) == "" {
+		return VehicleData{}, domainErrorWithKey(ErrorValidation, "vehicle_type_reference_unavailable", "vehicle type is required", nil, nil)
+	}
+	var ref AuxiliaryReference
+	var err error
+	if exact {
+		if d.VehicleTypeObjectID == "" || d.VehicleTypeApprovalEntryID == "" {
+			return VehicleData{}, domainErrorWithKey(ErrorConflict, "vehicle_type_reference_unavailable", "vehicle type approval snapshot is missing", nil, nil)
+		}
+		ref, err = s.auxiliaryResolver.ValidateApprovedAuxiliarySnapshotReference(ctx, tx, "dictionary-item", d.VehicleTypeObjectID, d.VehicleTypeApprovalEntryID)
+		if err == nil {
+			latest, latestErr := s.auxiliaryResolver.ResolveAuxiliaryCode(ctx, tx, "dictionary-item", d.VehicleType)
+			if latestErr != nil {
+				err = latestErr
+			} else if latest.ObjectID != ref.ObjectID || latest.ApprovalEntryID != ref.ApprovalEntryID {
+				return VehicleData{}, domainErrorWithKey(ErrorConflict, "vehicle_type_reference_stale", "vehicle type approval snapshot is not latest", nil, nil)
+			}
+		}
+	} else {
+		ref, err = s.auxiliaryResolver.ResolveAuxiliaryCode(ctx, tx, "dictionary-item", d.VehicleType)
+	}
+	if err != nil {
+		return VehicleData{}, domainErrorWithKey(ErrorConflict, "vehicle_type_reference_unavailable", "vehicle type reference is unavailable", nil, err)
+	}
+	typeCode, _ := ref.Data["dictionaryTypeCode"].(string)
+	name, _ := ref.Data["name"].(string)
+	if !strings.EqualFold(strings.TrimSpace(typeCode), dictionaryTypeCode) || strings.TrimSpace(name) == "" {
+		return VehicleData{}, domainErrorWithKey(ErrorConflict, "vehicle_type_reference_unavailable", "vehicle type reference has the wrong dictionary type", nil, nil)
+	}
+	d.VehicleType = ref.Code
+	d.VehicleTypeObjectID = ref.ObjectID
+	d.VehicleTypeApprovalEntryID = ref.ApprovalEntryID
+	d.VehicleTypeName = strings.TrimSpace(name)
+	return d, nil
 }
 func (s *Service) ReserveVehicleIdentity(ctx context.Context, tx pgx.Tx, actorID string) (VehicleIdentity, error) {
 	q := s.queries.WithTx(tx)
@@ -67,6 +106,14 @@ func (s *Service) ResolveVehicleCarrier(ctx context.Context, tx pgx.Tx, d Vehicl
 	if a.Type == "INTERNAL" {
 		if exact {
 			r, err = s.ValidateApprovedSnapshotReference(ctx, tx, EntityOperatingEntity, a.OperatingEntityID, a.OperatingApprovalEntryID)
+			if err == nil {
+				latest, latestErr := s.ResolveLatestApprovedReference(ctx, tx, EntityOperatingEntity, a.OperatingEntityID)
+				if latestErr != nil {
+					err = latestErr
+				} else if latest.ApprovalEntryID != r.ApprovalEntryID {
+					return VehicleData{}, domainErrorWithKey(ErrorConflict, "vehicle_carrier_reference_stale", "vehicle carrier approval snapshot is not latest", nil, nil)
+				}
+			}
 		} else {
 			r, err = s.ResolveLatestApprovedReference(ctx, tx, EntityOperatingEntity, a.OperatingEntityID)
 		}
@@ -76,6 +123,14 @@ func (s *Service) ResolveVehicleCarrier(ctx context.Context, tx pgx.Tx, d Vehicl
 	} else {
 		if exact {
 			r, err = s.ValidateApprovedSnapshotReference(ctx, tx, EntityOtherUnit, a.ServiceRelationshipObjectID, a.ServiceApprovalEntryID)
+			if err == nil {
+				latest, latestErr := s.ResolveLatestApprovedReference(ctx, tx, EntityOtherUnit, a.ServiceRelationshipObjectID)
+				if latestErr != nil {
+					err = latestErr
+				} else if latest.ApprovalEntryID != r.ApprovalEntryID {
+					return VehicleData{}, domainErrorWithKey(ErrorConflict, "vehicle_carrier_reference_stale", "vehicle carrier approval snapshot is not latest", nil, nil)
+				}
+			}
 		} else {
 			r, err = s.ResolveLatestApprovedReference(ctx, tx, EntityOtherUnit, a.ServiceRelationshipObjectID)
 		}
@@ -100,7 +155,7 @@ func (s *Service) ApplyVehicleCurrent(ctx context.Context, tx pgx.Tx, objectID, 
 	if err != nil {
 		return VehicleCurrent{}, err
 	}
-	err = q.UpsertBobVehicleCurrent(ctx, dbsqlc.UpsertBobVehicleCurrentParams{ObjectID: objectID, SourceApprovalEntryID: entryID, Name: d.Name, PlateNumber: d.PlateNumber, VehicleType: d.VehicleType, Vin: nilIfEmpty(d.VIN), EngineNumber: nilIfEmpty(d.EngineNumber), LoadCapacityKg: load, Remark: nilIfEmpty(d.Remark), CarrierAffiliationType: a.Type, CarrierOperatingEntityID: nilIfEmpty(a.OperatingEntityID), CarrierOperatingEntityApprovalEntryID: nilIfEmpty(a.OperatingApprovalEntryID), CarrierServiceRelationshipObjectID: nilIfEmpty(a.ServiceRelationshipObjectID), CarrierServiceRelationshipApprovalEntryID: nilIfEmpty(a.ServiceApprovalEntryID), BulkLiquidCapable: d.BulkLiquidCapable, Enabled: enabled, ActorID: actorID})
+	err = q.UpsertBobVehicleCurrent(ctx, dbsqlc.UpsertBobVehicleCurrentParams{ObjectID: objectID, SourceApprovalEntryID: entryID, Name: d.Name, PlateNumber: d.PlateNumber, VehicleType: d.VehicleType, VehicleTypeObjectID: d.VehicleTypeObjectID, VehicleTypeApprovalEntryID: d.VehicleTypeApprovalEntryID, VehicleTypeName: d.VehicleTypeName, Vin: nilIfEmpty(d.VIN), EngineNumber: nilIfEmpty(d.EngineNumber), LoadCapacityKg: load, Remark: nilIfEmpty(d.Remark), CarrierAffiliationType: a.Type, CarrierOperatingEntityID: nilIfEmpty(a.OperatingEntityID), CarrierOperatingEntityApprovalEntryID: nilIfEmpty(a.OperatingApprovalEntryID), CarrierServiceRelationshipObjectID: nilIfEmpty(a.ServiceRelationshipObjectID), CarrierServiceRelationshipApprovalEntryID: nilIfEmpty(a.ServiceApprovalEntryID), BulkLiquidCapable: d.BulkLiquidCapable, Enabled: enabled, ActorID: actorID})
 	if err != nil {
 		return VehicleCurrent{}, s.writeError("apply vehicle current", err)
 	}
@@ -140,7 +195,7 @@ func vehicleDetail(d VehicleData) DetailView {
 }
 
 func vehicleDataFromCurrent(r dbsqlc.GetBobVehicleCurrentRow) VehicleData {
-	return VehicleData{Name: r.Name, PlateNumber: r.PlateNumber, VehicleType: r.VehicleType, VIN: deref(r.Vin), EngineNumber: deref(r.EngineNumber), LoadCapacityKG: numericString(r.LoadCapacityKg), Remark: deref(r.Remark), BulkLiquidCapable: r.BulkLiquidCapable, CarrierAffiliation: &CarrierAffiliation{Type: r.CarrierAffiliationType, OperatingEntityID: deref(r.CarrierOperatingEntityID), OperatingApprovalEntryID: deref(r.CarrierOperatingEntityApprovalEntryID), ServiceRelationshipObjectID: deref(r.CarrierServiceRelationshipObjectID), ServiceApprovalEntryID: deref(r.CarrierServiceRelationshipApprovalEntryID)}}
+	return VehicleData{Name: r.Name, PlateNumber: r.PlateNumber, VehicleType: r.VehicleType, VehicleTypeObjectID: r.VehicleTypeObjectID, VehicleTypeApprovalEntryID: r.VehicleTypeApprovalEntryID, VehicleTypeName: r.VehicleTypeName, VIN: deref(r.Vin), EngineNumber: deref(r.EngineNumber), LoadCapacityKG: numericString(r.LoadCapacityKg), Remark: deref(r.Remark), BulkLiquidCapable: r.BulkLiquidCapable, CarrierAffiliation: &CarrierAffiliation{Type: r.CarrierAffiliationType, OperatingEntityID: deref(r.CarrierOperatingEntityID), OperatingApprovalEntryID: deref(r.CarrierOperatingEntityApprovalEntryID), ServiceRelationshipObjectID: deref(r.CarrierServiceRelationshipObjectID), ServiceApprovalEntryID: deref(r.CarrierServiceRelationshipApprovalEntryID)}}
 }
 
 func (s *Service) getVehicleCurrent(ctx context.Context, input GetInput) (ObjectView, error) {
@@ -218,7 +273,7 @@ func (s *Service) validateVehicleSnapshotReference(ctx context.Context, q *dbsql
 	if err != nil {
 		return EffectiveReference{}, s.internal("load DCL vehicle snapshot", err)
 	}
-	return EffectiveReference{ObjectID: identity.ID, Entity: identity.Entity, Code: identity.Code, ApprovalEntryID: entry.ID, Data: vehicleDetail(VehicleData{Name: stored.Name, PlateNumber: stored.PlateNumber, VehicleType: stored.VehicleType, VIN: deref(stored.Vin), EngineNumber: deref(stored.EngineNumber), LoadCapacityKG: numericString(stored.LoadCapacityKg), Remark: deref(stored.Remark), BulkLiquidCapable: stored.BulkLiquidCapable, CarrierAffiliation: &CarrierAffiliation{Type: stored.CarrierAffiliationType, OperatingEntityID: deref(stored.CarrierOperatingEntityID), OperatingApprovalEntryID: deref(stored.CarrierOperatingEntityApprovalEntryID), ServiceRelationshipObjectID: deref(stored.CarrierServiceRelationshipObjectID), ServiceApprovalEntryID: deref(stored.CarrierServiceRelationshipApprovalEntryID)}})}, nil
+	return EffectiveReference{ObjectID: identity.ID, Entity: identity.Entity, Code: identity.Code, ApprovalEntryID: entry.ID, Data: vehicleDetail(VehicleData{Name: stored.Name, PlateNumber: stored.PlateNumber, VehicleType: stored.VehicleType, VehicleTypeObjectID: stored.VehicleTypeObjectID, VehicleTypeApprovalEntryID: stored.VehicleTypeApprovalEntryID, VehicleTypeName: stored.VehicleTypeName, VIN: deref(stored.Vin), EngineNumber: deref(stored.EngineNumber), LoadCapacityKG: numericString(stored.LoadCapacityKg), Remark: deref(stored.Remark), BulkLiquidCapable: stored.BulkLiquidCapable, CarrierAffiliation: &CarrierAffiliation{Type: stored.CarrierAffiliationType, OperatingEntityID: deref(stored.CarrierOperatingEntityID), OperatingApprovalEntryID: deref(stored.CarrierOperatingEntityApprovalEntryID), ServiceRelationshipObjectID: deref(stored.CarrierServiceRelationshipObjectID), ServiceApprovalEntryID: deref(stored.CarrierServiceRelationshipApprovalEntryID)}})}, nil
 }
 
 func (s *Service) resolveVehicleCurrentReference(ctx context.Context, q *dbsqlc.Queries, objectID string) (EffectiveReference, error) {
@@ -229,6 +284,6 @@ func (s *Service) resolveVehicleCurrentReference(ctx context.Context, q *dbsqlc.
 	if err != nil {
 		return EffectiveReference{}, s.internal("resolve vehicle current", err)
 	}
-	data := VehicleData{Name: r.Name, PlateNumber: r.PlateNumber, VehicleType: r.VehicleType, VIN: deref(r.Vin), EngineNumber: deref(r.EngineNumber), LoadCapacityKG: numericString(r.LoadCapacityKg), Remark: deref(r.Remark), BulkLiquidCapable: r.BulkLiquidCapable, CarrierAffiliation: &CarrierAffiliation{Type: r.CarrierAffiliationType, OperatingEntityID: deref(r.CarrierOperatingEntityID), OperatingApprovalEntryID: deref(r.CarrierOperatingEntityApprovalEntryID), ServiceRelationshipObjectID: deref(r.CarrierServiceRelationshipObjectID), ServiceApprovalEntryID: deref(r.CarrierServiceRelationshipApprovalEntryID)}}
+	data := VehicleData{Name: r.Name, PlateNumber: r.PlateNumber, VehicleType: r.VehicleType, VehicleTypeObjectID: r.VehicleTypeObjectID, VehicleTypeApprovalEntryID: r.VehicleTypeApprovalEntryID, VehicleTypeName: r.VehicleTypeName, VIN: deref(r.Vin), EngineNumber: deref(r.EngineNumber), LoadCapacityKG: numericString(r.LoadCapacityKg), Remark: deref(r.Remark), BulkLiquidCapable: r.BulkLiquidCapable, CarrierAffiliation: &CarrierAffiliation{Type: r.CarrierAffiliationType, OperatingEntityID: deref(r.CarrierOperatingEntityID), OperatingApprovalEntryID: deref(r.CarrierOperatingEntityApprovalEntryID), ServiceRelationshipObjectID: deref(r.CarrierServiceRelationshipObjectID), ServiceApprovalEntryID: deref(r.CarrierServiceRelationshipApprovalEntryID)}}
 	return EffectiveReference{ObjectID: r.ObjectID, Entity: r.Entity, Code: r.Code, ApprovalEntryID: r.ApprovalEntryID, Data: vehicleDetail(data)}, nil
 }

@@ -173,6 +173,7 @@ type Querier interface {
 	DeleteCustomerVersionAttachment(ctx context.Context, arg DeleteCustomerVersionAttachmentParams) (int64, error)
 	DeleteDCLOperatingEntityVersion(ctx context.Context, approvalEntryID string) (int64, error)
 	DeleteDCLSubject(ctx context.Context, arg DeleteDCLSubjectParams) (int64, error)
+	DeleteDCLVehicleIdentifierClaims(ctx context.Context, objectID string) error
 	DeleteDCLVehicleVersion(ctx context.Context, approvalEntryID string) (int64, error)
 	DeleteDCLWarehouseVersion(ctx context.Context, approvalEntryID string) (int64, error)
 	DeleteExpiredVouDownloadTokens(ctx context.Context) error
@@ -215,6 +216,7 @@ type Querier interface {
 	FindAccountingBookIDByDescription(ctx context.Context, description string) (string, error)
 	FindAppRoleIDByNormalizedNameExcludingID(ctx context.Context, arg FindAppRoleIDByNormalizedNameExcludingIDParams) (string, error)
 	FindBobSeedObjectID(ctx context.Context, arg FindBobSeedObjectIDParams) (string, error)
+	FindDCLVehicleIdentifierConflict(ctx context.Context, objectID string) (FindDCLVehicleIdentifierConflictRow, error)
 	FindEnabledAppUserIDExcludingID(ctx context.Context, excludedUserID string) (string, error)
 	FindLatestApplicableSalesContract(ctx context.Context, arg FindLatestApplicableSalesContractParams) (VouServiceContractDetail, error)
 	FindLatestApplicableSalesContractSnapshot(ctx context.Context, arg FindLatestApplicableSalesContractSnapshotParams) (FindLatestApplicableSalesContractSnapshotRow, error)
@@ -598,6 +600,7 @@ type Querier interface {
 	LockBobSupplierRelationship(ctx context.Context, objectID string) (BobSupplierRelationship, error)
 	LockCustomerAttachmentRelationship(ctx context.Context, ownerID string) (LockCustomerAttachmentRelationshipRow, error)
 	LockCustomerAttachmentVersion(ctx context.Context, ownerID string) (LockCustomerAttachmentVersionRow, error)
+	LockDCLVehicleIdentifierClaims(ctx context.Context) error
 	LockExpiredPendingVouFile(ctx context.Context, id string) (string, error)
 	LockLatestApprovedVersion(ctx context.Context, arg LockLatestApprovedVersionParams) (ApprovalEntry, error)
 	LockPartyMergeObjects(ctx context.Context, objectIds []string) ([]LockPartyMergeObjectsRow, error)
@@ -651,6 +654,7 @@ type Querier interface {
 	Ping(ctx context.Context) (int32, error)
 	QueryAuxReferenceCandidates(ctx context.Context, arg QueryAuxReferenceCandidatesParams) ([]QueryAuxReferenceCandidatesRow, error)
 	QueryBobReferenceCandidates(ctx context.Context, arg QueryBobReferenceCandidatesParams) ([]QueryBobReferenceCandidatesRow, error)
+	RebuildDCLVehicleIdentifierClaims(ctx context.Context, objectID string) error
 	RecordSigninFailure(ctx context.Context, arg RecordSigninFailureParams) (AppUser, error)
 	RecordWorkflowDefinitionTrial(ctx context.Context, arg RecordWorkflowDefinitionTrialParams) (int64, error)
 	RecordWorkflowTrialAudit(ctx context.Context, arg RecordWorkflowTrialAuditParams) error

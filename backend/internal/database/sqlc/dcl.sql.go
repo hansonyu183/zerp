@@ -34,8 +34,8 @@ func (q *Queries) CopyDCLOperatingEntityVersion(ctx context.Context, arg CopyDCL
 }
 
 const copyDCLVehicleVersion = `-- name: CopyDCLVehicleVersion :execrows
-INSERT INTO dcl_vehicle_versions(approval_entry_id,entity,name,plate_number,vehicle_type,category_id,category_approval_entry_id,category_entity,vin,engine_number,load_capacity_kg,remark,carrier_affiliation_type,carrier_operating_entity_id,carrier_operating_entity_approval_entry_id,carrier_operating_entity,carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,carrier_service_relationship_entity,bulk_liquid_capable,enabled)
-SELECT $1,source.entity,source.name,source.plate_number,source.vehicle_type,source.category_id,source.category_approval_entry_id,source.category_entity,source.vin,source.engine_number,source.load_capacity_kg,source.remark,source.carrier_affiliation_type,source.carrier_operating_entity_id,source.carrier_operating_entity_approval_entry_id,source.carrier_operating_entity,source.carrier_service_relationship_object_id,source.carrier_service_relationship_approval_entry_id,source.carrier_service_relationship_entity,source.bulk_liquid_capable,source.enabled FROM dcl_vehicle_versions source WHERE source.approval_entry_id=$2
+INSERT INTO dcl_vehicle_versions(approval_entry_id,entity,name,plate_number,vehicle_type,vehicle_type_object_id,vehicle_type_approval_entry_id,vehicle_type_name,vehicle_type_entity,vin,engine_number,load_capacity_kg,remark,carrier_affiliation_type,carrier_operating_entity_id,carrier_operating_entity_approval_entry_id,carrier_operating_entity,carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,carrier_service_relationship_entity,bulk_liquid_capable,enabled)
+SELECT $1,source.entity,source.name,source.plate_number,source.vehicle_type,source.vehicle_type_object_id,source.vehicle_type_approval_entry_id,source.vehicle_type_name,source.vehicle_type_entity,source.vin,source.engine_number,source.load_capacity_kg,source.remark,source.carrier_affiliation_type,source.carrier_operating_entity_id,source.carrier_operating_entity_approval_entry_id,source.carrier_operating_entity,source.carrier_service_relationship_object_id,source.carrier_service_relationship_approval_entry_id,source.carrier_service_relationship_entity,source.bulk_liquid_capable,source.enabled FROM dcl_vehicle_versions source WHERE source.approval_entry_id=$2
 `
 
 type CopyDCLVehicleVersionParams struct {
@@ -229,6 +229,15 @@ func (q *Queries) DeleteDCLSubject(ctx context.Context, arg DeleteDCLSubjectPara
 	return result.RowsAffected(), nil
 }
 
+const deleteDCLVehicleIdentifierClaims = `-- name: DeleteDCLVehicleIdentifierClaims :exec
+DELETE FROM dcl_vehicle_identifier_claims WHERE object_id=$1
+`
+
+func (q *Queries) DeleteDCLVehicleIdentifierClaims(ctx context.Context, objectID string) error {
+	_, err := q.db.Exec(ctx, deleteDCLVehicleIdentifierClaims, objectID)
+	return err
+}
+
 const deleteDCLVehicleVersion = `-- name: DeleteDCLVehicleVersion :execrows
 DELETE FROM dcl_vehicle_versions WHERE approval_entry_id=$1
 `
@@ -251,6 +260,41 @@ func (q *Queries) DeleteDCLWarehouseVersion(ctx context.Context, approvalEntryID
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const findDCLVehicleIdentifierConflict = `-- name: FindDCLVehicleIdentifierConflict :one
+WITH selected_entries AS (
+  SELECT id,status FROM approval_entries
+  WHERE domain='dcl' AND entity='vehicle' AND subject_id=$1 AND status IN ('DRAFT','PENDING')
+  UNION ALL
+  (SELECT id,status FROM approval_entries
+   WHERE domain='dcl' AND entity='vehicle' AND subject_id=$1 AND status='APPROVED'
+   ORDER BY version_no DESC LIMIT 1)
+), selected_versions AS (
+  SELECT version.approval_entry_id, version.entity, version.name, version.plate_number, version.vehicle_type, version.vehicle_type_object_id, version.vehicle_type_approval_entry_id, version.vehicle_type_name, version.vehicle_type_entity, version.vin, version.engine_number, version.load_capacity_kg, version.remark, version.carrier_affiliation_type, version.carrier_operating_entity_id, version.carrier_operating_entity_approval_entry_id, version.carrier_operating_entity, version.carrier_service_relationship_object_id, version.carrier_service_relationship_approval_entry_id, version.carrier_service_relationship_entity, version.bulk_liquid_capable, version.enabled FROM selected_entries entry
+  JOIN dcl_vehicle_versions version ON version.approval_entry_id=entry.id
+), desired AS (
+  SELECT 'PLATE'::text AS identifier_kind,upper(btrim(plate_number)) AS normalized_value FROM selected_versions
+  UNION ALL
+  SELECT 'VIN'::text AS identifier_kind,upper(btrim(vin)) AS normalized_value FROM selected_versions WHERE vin IS NOT NULL
+)
+SELECT desired.identifier_kind,desired.normalized_value
+FROM desired JOIN dcl_vehicle_identifier_claims claim
+  ON claim.identifier_kind=desired.identifier_kind AND claim.normalized_value=desired.normalized_value
+WHERE claim.object_id<>$1
+ORDER BY desired.identifier_kind LIMIT 1
+`
+
+type FindDCLVehicleIdentifierConflictRow struct {
+	IdentifierKind  string      `db:"identifier_kind" json:"identifier_kind"`
+	NormalizedValue interface{} `db:"normalized_value" json:"normalized_value"`
+}
+
+func (q *Queries) FindDCLVehicleIdentifierConflict(ctx context.Context, objectID string) (FindDCLVehicleIdentifierConflictRow, error) {
+	row := q.db.QueryRow(ctx, findDCLVehicleIdentifierConflict, objectID)
+	var i FindDCLVehicleIdentifierConflictRow
+	err := row.Scan(&i.IdentifierKind, &i.NormalizedValue)
+	return i, err
 }
 
 const getDCLOperatingEntityVersion = `-- name: GetDCLOperatingEntityVersion :one
@@ -299,7 +343,7 @@ func (q *Queries) GetDCLSubject(ctx context.Context, arg GetDCLSubjectParams) (D
 }
 
 const getDCLVehicleVersion = `-- name: GetDCLVehicleVersion :one
-SELECT approval_entry_id, entity, name, plate_number, vehicle_type, category_id, category_approval_entry_id, category_entity, vin, engine_number, load_capacity_kg, remark, carrier_affiliation_type, carrier_operating_entity_id, carrier_operating_entity_approval_entry_id, carrier_operating_entity, carrier_service_relationship_object_id, carrier_service_relationship_approval_entry_id, carrier_service_relationship_entity, bulk_liquid_capable, enabled FROM dcl_vehicle_versions WHERE approval_entry_id=$1
+SELECT approval_entry_id, entity, name, plate_number, vehicle_type, vehicle_type_object_id, vehicle_type_approval_entry_id, vehicle_type_name, vehicle_type_entity, vin, engine_number, load_capacity_kg, remark, carrier_affiliation_type, carrier_operating_entity_id, carrier_operating_entity_approval_entry_id, carrier_operating_entity, carrier_service_relationship_object_id, carrier_service_relationship_approval_entry_id, carrier_service_relationship_entity, bulk_liquid_capable, enabled FROM dcl_vehicle_versions WHERE approval_entry_id=$1
 `
 
 func (q *Queries) GetDCLVehicleVersion(ctx context.Context, approvalEntryID string) (DclVehicleVersion, error) {
@@ -311,9 +355,10 @@ func (q *Queries) GetDCLVehicleVersion(ctx context.Context, approvalEntryID stri
 		&i.Name,
 		&i.PlateNumber,
 		&i.VehicleType,
-		&i.CategoryID,
-		&i.CategoryApprovalEntryID,
-		&i.CategoryEntity,
+		&i.VehicleTypeObjectID,
+		&i.VehicleTypeApprovalEntryID,
+		&i.VehicleTypeName,
+		&i.VehicleTypeEntity,
 		&i.Vin,
 		&i.EngineNumber,
 		&i.LoadCapacityKg,
@@ -481,8 +526,8 @@ func (q *Queries) InsertDCLSubject(ctx context.Context, arg InsertDCLSubjectPara
 }
 
 const insertDCLVehicleVersion = `-- name: InsertDCLVehicleVersion :exec
-INSERT INTO dcl_vehicle_versions(approval_entry_id,name,plate_number,vehicle_type,vin,engine_number,load_capacity_kg,remark,carrier_affiliation_type,carrier_operating_entity_id,carrier_operating_entity_approval_entry_id,carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,bulk_liquid_capable,enabled)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+INSERT INTO dcl_vehicle_versions(approval_entry_id,name,plate_number,vehicle_type,vehicle_type_object_id,vehicle_type_approval_entry_id,vehicle_type_name,vin,engine_number,load_capacity_kg,remark,carrier_affiliation_type,carrier_operating_entity_id,carrier_operating_entity_approval_entry_id,carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,bulk_liquid_capable,enabled)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
 `
 
 type InsertDCLVehicleVersionParams struct {
@@ -490,6 +535,9 @@ type InsertDCLVehicleVersionParams struct {
 	Name                                      string         `db:"name" json:"name"`
 	PlateNumber                               string         `db:"plate_number" json:"plate_number"`
 	VehicleType                               string         `db:"vehicle_type" json:"vehicle_type"`
+	VehicleTypeObjectID                       string         `db:"vehicle_type_object_id" json:"vehicle_type_object_id"`
+	VehicleTypeApprovalEntryID                string         `db:"vehicle_type_approval_entry_id" json:"vehicle_type_approval_entry_id"`
+	VehicleTypeName                           string         `db:"vehicle_type_name" json:"vehicle_type_name"`
 	Vin                                       *string        `db:"vin" json:"vin"`
 	EngineNumber                              *string        `db:"engine_number" json:"engine_number"`
 	LoadCapacityKg                            pgtype.Numeric `db:"load_capacity_kg" json:"load_capacity_kg"`
@@ -509,6 +557,9 @@ func (q *Queries) InsertDCLVehicleVersion(ctx context.Context, arg InsertDCLVehi
 		arg.Name,
 		arg.PlateNumber,
 		arg.VehicleType,
+		arg.VehicleTypeObjectID,
+		arg.VehicleTypeApprovalEntryID,
+		arg.VehicleTypeName,
 		arg.Vin,
 		arg.EngineNumber,
 		arg.LoadCapacityKg,
@@ -969,6 +1020,46 @@ func (q *Queries) ListDCLWarehouses(ctx context.Context, arg ListDCLWarehousesPa
 	return items, nil
 }
 
+const lockDCLVehicleIdentifierClaims = `-- name: LockDCLVehicleIdentifierClaims :exec
+SELECT pg_advisory_xact_lock(74155002)
+`
+
+func (q *Queries) LockDCLVehicleIdentifierClaims(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, lockDCLVehicleIdentifierClaims)
+	return err
+}
+
+const rebuildDCLVehicleIdentifierClaims = `-- name: RebuildDCLVehicleIdentifierClaims :exec
+WITH selected_entries AS (
+  SELECT id,status FROM approval_entries
+  WHERE domain='dcl' AND entity='vehicle' AND subject_id=$1 AND status IN ('DRAFT','PENDING')
+  UNION ALL
+  (SELECT id,status FROM approval_entries
+   WHERE domain='dcl' AND entity='vehicle' AND subject_id=$1 AND status='APPROVED'
+   ORDER BY version_no DESC LIMIT 1)
+), selected_versions AS (
+  SELECT version.approval_entry_id, version.entity, version.name, version.plate_number, version.vehicle_type, version.vehicle_type_object_id, version.vehicle_type_approval_entry_id, version.vehicle_type_name, version.vehicle_type_entity, version.vin, version.engine_number, version.load_capacity_kg, version.remark, version.carrier_affiliation_type, version.carrier_operating_entity_id, version.carrier_operating_entity_approval_entry_id, version.carrier_operating_entity, version.carrier_service_relationship_object_id, version.carrier_service_relationship_approval_entry_id, version.carrier_service_relationship_entity, version.bulk_liquid_capable, version.enabled,entry.id AS selected_entry_id,entry.status AS selected_status
+  FROM selected_entries entry
+  JOIN dcl_vehicle_versions version ON version.approval_entry_id=entry.id
+), identifiers AS (
+  SELECT 'PLATE'::text AS identifier_kind,upper(btrim(plate_number)) AS normalized_value,selected_entry_id,selected_status FROM selected_versions
+  UNION ALL
+  SELECT 'VIN'::text AS identifier_kind,upper(btrim(vin)) AS normalized_value,selected_entry_id,selected_status FROM selected_versions WHERE vin IS NOT NULL
+), desired AS (
+  SELECT identifier_kind,normalized_value,
+    max(selected_entry_id) FILTER (WHERE selected_status='APPROVED') AS approved_entry_id,
+    max(selected_entry_id) FILTER (WHERE selected_status IN ('DRAFT','PENDING')) AS open_entry_id
+  FROM identifiers GROUP BY identifier_kind,normalized_value
+)
+INSERT INTO dcl_vehicle_identifier_claims(identifier_kind,normalized_value,object_id,approved_entry_id,open_entry_id)
+SELECT identifier_kind,normalized_value,$1,approved_entry_id,open_entry_id FROM desired
+`
+
+func (q *Queries) RebuildDCLVehicleIdentifierClaims(ctx context.Context, objectID string) error {
+	_, err := q.db.Exec(ctx, rebuildDCLVehicleIdentifierClaims, objectID)
+	return err
+}
+
 const updateDCLOperatingEntityVersion = `-- name: UpdateDCLOperatingEntityVersion :execrows
 UPDATE dcl_operating_entity_versions
 SET legal_name=$1, short_name=$2,
@@ -1006,13 +1097,16 @@ func (q *Queries) UpdateDCLOperatingEntityVersion(ctx context.Context, arg Updat
 }
 
 const updateDCLVehicleVersion = `-- name: UpdateDCLVehicleVersion :execrows
-UPDATE dcl_vehicle_versions SET name=$1,plate_number=$2,vehicle_type=$3,vin=$4,engine_number=$5,load_capacity_kg=$6,remark=$7,carrier_affiliation_type=$8,carrier_operating_entity_id=$9,carrier_operating_entity_approval_entry_id=$10,carrier_service_relationship_object_id=$11,carrier_service_relationship_approval_entry_id=$12,bulk_liquid_capable=$13,enabled=$14 WHERE approval_entry_id=$15
+UPDATE dcl_vehicle_versions SET name=$1,plate_number=$2,vehicle_type=$3,vehicle_type_object_id=$4,vehicle_type_approval_entry_id=$5,vehicle_type_name=$6,vin=$7,engine_number=$8,load_capacity_kg=$9,remark=$10,carrier_affiliation_type=$11,carrier_operating_entity_id=$12,carrier_operating_entity_approval_entry_id=$13,carrier_service_relationship_object_id=$14,carrier_service_relationship_approval_entry_id=$15,bulk_liquid_capable=$16,enabled=$17 WHERE approval_entry_id=$18
 `
 
 type UpdateDCLVehicleVersionParams struct {
 	Name                                      string         `db:"name" json:"name"`
 	PlateNumber                               string         `db:"plate_number" json:"plate_number"`
 	VehicleType                               string         `db:"vehicle_type" json:"vehicle_type"`
+	VehicleTypeObjectID                       string         `db:"vehicle_type_object_id" json:"vehicle_type_object_id"`
+	VehicleTypeApprovalEntryID                string         `db:"vehicle_type_approval_entry_id" json:"vehicle_type_approval_entry_id"`
+	VehicleTypeName                           string         `db:"vehicle_type_name" json:"vehicle_type_name"`
 	Vin                                       *string        `db:"vin" json:"vin"`
 	EngineNumber                              *string        `db:"engine_number" json:"engine_number"`
 	LoadCapacityKg                            pgtype.Numeric `db:"load_capacity_kg" json:"load_capacity_kg"`
@@ -1032,6 +1126,9 @@ func (q *Queries) UpdateDCLVehicleVersion(ctx context.Context, arg UpdateDCLVehi
 		arg.Name,
 		arg.PlateNumber,
 		arg.VehicleType,
+		arg.VehicleTypeObjectID,
+		arg.VehicleTypeApprovalEntryID,
+		arg.VehicleTypeName,
 		arg.Vin,
 		arg.EngineNumber,
 		arg.LoadCapacityKg,

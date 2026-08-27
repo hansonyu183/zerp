@@ -22,6 +22,43 @@ const approval = {
   approvedAt: null,
 }
 
+const vehicleView = {
+  objectId: 'VEH-1',
+  entity: 'vehicle' as const,
+  code: 'VEH-0001',
+  objectRevision: 1,
+  enabled: true,
+  approval,
+  data: {
+    name: '配送车',
+    plateNumber: '沪A12345',
+    vehicleType: 'DIT-0003',
+    carrierAffiliation: {
+      type: 'INTERNAL' as const,
+      operatingEntityId: 'OPE-1',
+    },
+    bulkLiquidCapable: false,
+  },
+  updatedAt: '2026-08-28T00:00:00Z',
+}
+
+function vehicleForm() {
+  return {
+    code: '',
+    name: '配送车',
+    plateNumber: '沪A12345',
+    vehicleType: 'DIT-0003',
+    carrierType: 'INTERNAL' as const,
+    carrierOperatingEntityId: 'OPE-1',
+    carrierServiceRelationshipObjectId: '',
+    bulkLiquidCapable: false,
+    vin: '',
+    engineNumber: '',
+    loadCapacityKg: '',
+    remark: '',
+  }
+}
+
 describe('DCL vehicle view model', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -137,5 +174,76 @@ describe('DCL vehicle view model', () => {
         bulkLiquidCapable: true,
       },
     })
+  })
+
+  it.each([
+    ['operating entity', '/bob/operating-entity/query'],
+    ['other unit', '/bob/other-unit/query'],
+  ])(
+    'prevents create, deep-link edit, and save without %s reference permission',
+    async (_name, missingPermission) => {
+      useSessionStore().permissions = [
+        '/dcl/vehicle/create',
+        '/dcl/vehicle/get',
+        '/dcl/vehicle/save',
+        '/aux/dictionary-item/query',
+        '/bob/operating-entity/query',
+        '/bob/other-unit/query',
+      ].filter((permission) => permission !== missingPermission)
+      mockedPost.mockResolvedValue({ data: vehicleView })
+      const vm = useDclVehicleViewModel()
+
+      vm.openCreate()
+
+      expect(vm.canCreate.value).toBe(false)
+      expect(vm.drawerOpen.value).toBe(false)
+      await expect(vm.save(vehicleForm())).resolves.toBe(false)
+
+      await vm.openById('VEH-1', 'edit')
+
+      expect(vm.editorMode.value).toBe('view')
+      await expect(vm.save(vehicleForm())).resolves.toBe(false)
+      expect(mockedPost.mock.calls.map(([path]) => path)).not.toContain(
+        'dcl/vehicle/create',
+      )
+      expect(mockedPost.mock.calls.map(([path]) => path)).not.toContain(
+        'dcl/vehicle/save',
+      )
+    },
+  )
+
+  it('requests only enabled other-unit references for external carriers', async () => {
+    vi.useFakeTimers()
+    try {
+      useSessionStore().permissions = [
+        '/dcl/vehicle/create',
+        '/aux/dictionary-item/query',
+        '/bob/operating-entity/query',
+        '/bob/other-unit/query',
+      ]
+      mockedPost.mockResolvedValue({ data: { items: [] } })
+      const vm = useDclVehicleViewModel()
+
+      vm.openCreate()
+      vm.editorModel.value.carrierType = 'EXTERNAL'
+      vm.searchEditorReference(
+        'carrierServiceRelationshipObjectId',
+        '承运商',
+        vm.editorModel.value,
+      )
+      await vi.advanceTimersByTimeAsync(300)
+
+      expect(mockedPost).toHaveBeenCalledWith('bob/other-unit/query', {
+        page: 1,
+        pageSize: 20,
+        filters: {
+          status: ['APPROVED'],
+          enabled: true,
+          keyword: '承运商',
+        },
+      })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

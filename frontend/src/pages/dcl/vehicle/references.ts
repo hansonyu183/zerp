@@ -162,7 +162,11 @@ async function loadOptions(
   const { data } = await apiClient.postContract('bob/other-unit/query', {
     page: 1,
     pageSize: 20,
-    filters: { status: ['APPROVED'], ...(keyword ? { keyword } : {}) },
+    filters: {
+      status: ['APPROVED'],
+      enabled: true,
+      ...(keyword ? { keyword } : {}),
+    },
   })
   return data.items.map((item) => ({
     title: formatReferenceLabel({

@@ -19,6 +19,7 @@ import (
 type vehicleCurrentWriter interface {
 	ReserveVehicleIdentity(context.Context, pgx.Tx, string) (bobdomain.VehicleIdentity, error)
 	GetVehicleIdentity(context.Context, pgx.Tx, string) (bobdomain.VehicleIdentity, error)
+	ResolveVehicleType(context.Context, pgx.Tx, bobdomain.VehicleData, bool) (bobdomain.VehicleData, error)
 	ResolveVehicleCarrier(context.Context, pgx.Tx, bobdomain.VehicleData, bool) (bobdomain.VehicleData, error)
 	ApplyVehicleCurrent(context.Context, pgx.Tx, string, string, bool, bobdomain.VehicleData, string) (bobdomain.VehicleCurrent, error)
 	RemoveVehicleCurrent(context.Context, pgx.Tx, string, string) (bobdomain.VehicleIdentity, error)
@@ -79,6 +80,10 @@ func (s *VehicleService) Create(ctx context.Context, in VehicleCreateInput, a ap
 	if err != nil {
 		return VehicleMutation{}, translateError(err)
 	}
+	d, err = s.current.ResolveVehicleType(ctx, tx, d, false)
+	if err != nil {
+		return VehicleMutation{}, translateError(err)
+	}
 	q := s.queries.WithTx(tx)
 	if err = q.InsertDCLSubject(ctx, dbsqlc.InsertDCLSubjectParams{ID: i.ObjectID, Entity: EntityVehicle, ActorID: a.ID()}); err != nil {
 		return VehicleMutation{}, translateError(err)
@@ -89,6 +94,9 @@ func (s *VehicleService) Create(ctx context.Context, in VehicleCreateInput, a ap
 	}
 	if err = insertVehicleVersion(ctx, q, e.ID, true, d); err != nil {
 		return VehicleMutation{}, translateError(err)
+	}
+	if err = refreshVehicleIdentifierClaims(ctx, q, i.ObjectID); err != nil {
+		return VehicleMutation{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return VehicleMutation{}, translateError(err)
@@ -108,11 +116,14 @@ func (s *VehicleService) Save(ctx context.Context, in VehicleSaveInput, a approv
 		return VehicleMutation{}, translateError(err)
 	}
 	defer tx.Rollback(ctx)
+	if err = s.coordinator.LockVersionSubject(ctx, tx, in.ObjectID); err != nil {
+		return VehicleMutation{}, translateError(err)
+	}
 	q := s.queries.WithTx(tx)
 	stored, err := q.GetApprovalEntry(ctx, dbsqlc.GetApprovalEntryParams{ID: in.ApprovalEntryID, Domain: "dcl", Entity: EntityVehicle})
-	if err != nil || stored.SubjectID != in.ObjectID {
-		if err == nil {
-			err = newError(ErrorValidation, "validation_failed", "declaration not found", nil, nil)
+	if err != nil || stored.SubjectID != in.ObjectID || stored.Revision != in.ApprovalRevision {
+		if err == nil || errors.Is(err, pgx.ErrNoRows) {
+			err = newError(ErrorConflict, "approval_stale_revision", "approval entry changed", nil, err)
 		}
 		return VehicleMutation{}, translateError(err)
 	}
@@ -127,6 +138,9 @@ func (s *VehicleService) Save(ctx context.Context, in VehicleSaveInput, a approv
 			n, copyErr := q.CopyDCLVehicleVersion(ctx, dbsqlc.CopyDCLVehicleVersionParams{NewApprovalEntryID: e.ID, SourceApprovalEntryID: stored.ID})
 			if copyErr != nil || n != 1 {
 				err = copyErr
+				if err == nil {
+					err = errors.New("approved vehicle snapshot is missing")
+				}
 			}
 		}
 	} else if stored.Status == string(approval.StatusDraft) {
@@ -141,17 +155,27 @@ func (s *VehicleService) Save(ctx context.Context, in VehicleSaveInput, a approv
 	if err != nil {
 		return VehicleMutation{}, translateError(err)
 	}
+	d, err = s.current.ResolveVehicleType(ctx, tx, d, false)
+	if err != nil {
+		return VehicleMutation{}, translateError(err)
+	}
 	params, err := vehicleUpdateParams(e.ID, in.Enabled, d)
 	if err != nil {
 		return VehicleMutation{}, translateError(err)
 	}
 	n, err := q.UpdateDCLVehicleVersion(ctx, params)
 	if err != nil || n != 1 {
+		if err == nil {
+			err = errors.New("vehicle declaration snapshot is missing")
+		}
 		return VehicleMutation{}, translateError(err)
 	}
 	e, err = s.coordinator.SaveDraft(ctx, tx, e.ID, e.Revision, a, vehiclePayload(i, in.Enabled, vehicleDCLData(d)))
 	if err != nil {
 		return VehicleMutation{}, translateError(err)
+	}
+	if err = refreshVehicleIdentifierClaims(ctx, q, in.ObjectID); err != nil {
+		return VehicleMutation{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return VehicleMutation{}, translateError(err)
@@ -203,6 +227,10 @@ func (s *VehicleService) transition(ctx context.Context, in VehicleVersionInput,
 		return VehicleMutation{}, translateError(err)
 	}
 	if action == approval.ActionSubmitted || action == approval.ActionApproved {
+		d, err = s.current.ResolveVehicleType(ctx, tx, d, true)
+		if err != nil {
+			return VehicleMutation{}, translateError(err)
+		}
 		d, err = s.current.ResolveVehicleCarrier(ctx, tx, d, true)
 		if err != nil {
 			return VehicleMutation{}, translateError(err)
@@ -216,6 +244,9 @@ func (s *VehicleService) transition(ctx context.Context, in VehicleVersionInput,
 	e, err := s.coordinator.Commit(ctx, tx, p, vehiclePayload(i, stored.Enabled, vehicleDCLData(d)))
 	if err != nil {
 		return VehicleMutation{}, translateError(err)
+	}
+	if err = refreshVehicleIdentifierClaims(ctx, q, in.ObjectID); err != nil {
+		return VehicleMutation{}, err
 	}
 	result := i
 	enabled := stored.Enabled
@@ -291,6 +322,9 @@ func (s *VehicleService) Delete(ctx context.Context, input VehicleDeleteInput, a
 		}
 		return translateError(deleteErr)
 	}
+	if err = refreshVehicleIdentifierClaims(ctx, q, input.ObjectID); err != nil {
+		return err
+	}
 	if err = s.coordinator.DeleteDraftVersion(ctx, tx, entry.ID, input.ApprovalRevision, actor, vehiclePayload(identity, stored.Enabled, vehicleDCLData(vehicleStoredData(stored)))); err != nil {
 		return translateError(err)
 	}
@@ -324,17 +358,41 @@ func vehicleInsertParams(id string, enabled bool, d bobdomain.VehicleData) (dbsq
 	if err != nil {
 		return dbsqlc.InsertDCLVehicleVersionParams{}, err
 	}
-	return dbsqlc.InsertDCLVehicleVersionParams{ApprovalEntryID: id, Name: d.Name, PlateNumber: d.PlateNumber, VehicleType: d.VehicleType, Vin: nilIfEmpty(d.VIN), EngineNumber: nilIfEmpty(d.EngineNumber), LoadCapacityKg: load, Remark: nilIfEmpty(d.Remark), CarrierAffiliationType: a.Type, CarrierOperatingEntityID: nilIfEmpty(a.OperatingEntityID), CarrierOperatingEntityApprovalEntryID: nilIfEmpty(a.OperatingApprovalEntryID), CarrierServiceRelationshipObjectID: nilIfEmpty(a.ServiceRelationshipObjectID), CarrierServiceRelationshipApprovalEntryID: nilIfEmpty(a.ServiceApprovalEntryID), BulkLiquidCapable: d.BulkLiquidCapable, Enabled: enabled}, nil
+	return dbsqlc.InsertDCLVehicleVersionParams{ApprovalEntryID: id, Name: d.Name, PlateNumber: d.PlateNumber, VehicleType: d.VehicleType, VehicleTypeObjectID: d.VehicleTypeObjectID, VehicleTypeApprovalEntryID: d.VehicleTypeApprovalEntryID, VehicleTypeName: d.VehicleTypeName, Vin: nilIfEmpty(d.VIN), EngineNumber: nilIfEmpty(d.EngineNumber), LoadCapacityKg: load, Remark: nilIfEmpty(d.Remark), CarrierAffiliationType: a.Type, CarrierOperatingEntityID: nilIfEmpty(a.OperatingEntityID), CarrierOperatingEntityApprovalEntryID: nilIfEmpty(a.OperatingApprovalEntryID), CarrierServiceRelationshipObjectID: nilIfEmpty(a.ServiceRelationshipObjectID), CarrierServiceRelationshipApprovalEntryID: nilIfEmpty(a.ServiceApprovalEntryID), BulkLiquidCapable: d.BulkLiquidCapable, Enabled: enabled}, nil
 }
 func vehicleUpdateParams(id string, enabled bool, d bobdomain.VehicleData) (dbsqlc.UpdateDCLVehicleVersionParams, error) {
 	p, err := vehicleInsertParams(id, enabled, d)
 	if err != nil {
 		return dbsqlc.UpdateDCLVehicleVersionParams{}, err
 	}
-	return dbsqlc.UpdateDCLVehicleVersionParams{ApprovalEntryID: p.ApprovalEntryID, Name: p.Name, PlateNumber: p.PlateNumber, VehicleType: p.VehicleType, Vin: p.Vin, EngineNumber: p.EngineNumber, LoadCapacityKg: p.LoadCapacityKg, Remark: p.Remark, CarrierAffiliationType: p.CarrierAffiliationType, CarrierOperatingEntityID: p.CarrierOperatingEntityID, CarrierOperatingEntityApprovalEntryID: p.CarrierOperatingEntityApprovalEntryID, CarrierServiceRelationshipObjectID: p.CarrierServiceRelationshipObjectID, CarrierServiceRelationshipApprovalEntryID: p.CarrierServiceRelationshipApprovalEntryID, BulkLiquidCapable: p.BulkLiquidCapable, Enabled: p.Enabled}, nil
+	return dbsqlc.UpdateDCLVehicleVersionParams{ApprovalEntryID: p.ApprovalEntryID, Name: p.Name, PlateNumber: p.PlateNumber, VehicleType: p.VehicleType, VehicleTypeObjectID: p.VehicleTypeObjectID, VehicleTypeApprovalEntryID: p.VehicleTypeApprovalEntryID, VehicleTypeName: p.VehicleTypeName, Vin: p.Vin, EngineNumber: p.EngineNumber, LoadCapacityKg: p.LoadCapacityKg, Remark: p.Remark, CarrierAffiliationType: p.CarrierAffiliationType, CarrierOperatingEntityID: p.CarrierOperatingEntityID, CarrierOperatingEntityApprovalEntryID: p.CarrierOperatingEntityApprovalEntryID, CarrierServiceRelationshipObjectID: p.CarrierServiceRelationshipObjectID, CarrierServiceRelationshipApprovalEntryID: p.CarrierServiceRelationshipApprovalEntryID, BulkLiquidCapable: p.BulkLiquidCapable, Enabled: p.Enabled}, nil
 }
 func vehicleStoredData(r dbsqlc.DclVehicleVersion) bobdomain.VehicleData {
-	return bobdomain.VehicleData{Name: r.Name, PlateNumber: r.PlateNumber, VehicleType: r.VehicleType, VIN: stringValue(r.Vin), EngineNumber: stringValue(r.EngineNumber), LoadCapacityKG: vehicleNumericString(r.LoadCapacityKg), Remark: stringValue(r.Remark), BulkLiquidCapable: r.BulkLiquidCapable, CarrierAffiliation: &bobdomain.CarrierAffiliation{Type: r.CarrierAffiliationType, OperatingEntityID: stringValue(r.CarrierOperatingEntityID), OperatingApprovalEntryID: stringValue(r.CarrierOperatingEntityApprovalEntryID), ServiceRelationshipObjectID: stringValue(r.CarrierServiceRelationshipObjectID), ServiceApprovalEntryID: stringValue(r.CarrierServiceRelationshipApprovalEntryID)}}
+	return bobdomain.VehicleData{Name: r.Name, PlateNumber: r.PlateNumber, VehicleType: r.VehicleType, VehicleTypeObjectID: r.VehicleTypeObjectID, VehicleTypeApprovalEntryID: r.VehicleTypeApprovalEntryID, VehicleTypeName: r.VehicleTypeName, VIN: stringValue(r.Vin), EngineNumber: stringValue(r.EngineNumber), LoadCapacityKG: vehicleNumericString(r.LoadCapacityKg), Remark: stringValue(r.Remark), BulkLiquidCapable: r.BulkLiquidCapable, CarrierAffiliation: &bobdomain.CarrierAffiliation{Type: r.CarrierAffiliationType, OperatingEntityID: stringValue(r.CarrierOperatingEntityID), OperatingApprovalEntryID: stringValue(r.CarrierOperatingEntityApprovalEntryID), ServiceRelationshipObjectID: stringValue(r.CarrierServiceRelationshipObjectID), ServiceApprovalEntryID: stringValue(r.CarrierServiceRelationshipApprovalEntryID)}}
+}
+
+func refreshVehicleIdentifierClaims(ctx context.Context, q *dbsqlc.Queries, objectID string) error {
+	if err := q.LockDCLVehicleIdentifierClaims(ctx); err != nil {
+		return translateError(err)
+	}
+	conflict, err := q.FindDCLVehicleIdentifierConflict(ctx, objectID)
+	if err == nil {
+		field := "vin"
+		if conflict.IdentifierKind == "PLATE" {
+			field = "plateNumber"
+		}
+		return newError(ErrorConflict, "vehicle_identifier_conflict", "vehicle identifier is already occupied", map[string]string{"field": field}, nil)
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return translateError(err)
+	}
+	if err = q.DeleteDCLVehicleIdentifierClaims(ctx, objectID); err != nil {
+		return translateError(err)
+	}
+	if err = q.RebuildDCLVehicleIdentifierClaims(ctx, objectID); err != nil {
+		return translateError(err)
+	}
+	return nil
 }
 
 func vehicleNumericValue(value string) (pgtype.Numeric, error) {

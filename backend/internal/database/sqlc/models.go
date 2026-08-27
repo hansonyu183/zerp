@@ -968,6 +968,9 @@ type BobVehicle struct {
 	Name                                      string             `db:"name" json:"name"`
 	PlateNumber                               string             `db:"plate_number" json:"plate_number"`
 	VehicleType                               string             `db:"vehicle_type" json:"vehicle_type"`
+	VehicleTypeObjectID                       string             `db:"vehicle_type_object_id" json:"vehicle_type_object_id"`
+	VehicleTypeApprovalEntryID                string             `db:"vehicle_type_approval_entry_id" json:"vehicle_type_approval_entry_id"`
+	VehicleTypeName                           string             `db:"vehicle_type_name" json:"vehicle_type_name"`
 	Vin                                       *string            `db:"vin" json:"vin"`
 	EngineNumber                              *string            `db:"engine_number" json:"engine_number"`
 	LoadCapacityKg                            pgtype.Numeric     `db:"load_capacity_kg" json:"load_capacity_kg"`
@@ -1018,15 +1021,24 @@ type DclSubject struct {
 	CreatedBy string             `db:"created_by" json:"created_by"`
 }
 
+type DclVehicleIdentifierClaim struct {
+	IdentifierKind  string  `db:"identifier_kind" json:"identifier_kind"`
+	NormalizedValue string  `db:"normalized_value" json:"normalized_value"`
+	ObjectID        string  `db:"object_id" json:"object_id"`
+	ApprovedEntryID *string `db:"approved_entry_id" json:"approved_entry_id"`
+	OpenEntryID     *string `db:"open_entry_id" json:"open_entry_id"`
+}
+
 type DclVehicleVersion struct {
 	ApprovalEntryID                           string         `db:"approval_entry_id" json:"approval_entry_id"`
 	Entity                                    string         `db:"entity" json:"entity"`
 	Name                                      string         `db:"name" json:"name"`
 	PlateNumber                               string         `db:"plate_number" json:"plate_number"`
 	VehicleType                               string         `db:"vehicle_type" json:"vehicle_type"`
-	CategoryID                                *string        `db:"category_id" json:"category_id"`
-	CategoryApprovalEntryID                   *string        `db:"category_approval_entry_id" json:"category_approval_entry_id"`
-	CategoryEntity                            string         `db:"category_entity" json:"category_entity"`
+	VehicleTypeObjectID                       string         `db:"vehicle_type_object_id" json:"vehicle_type_object_id"`
+	VehicleTypeApprovalEntryID                string         `db:"vehicle_type_approval_entry_id" json:"vehicle_type_approval_entry_id"`
+	VehicleTypeName                           string         `db:"vehicle_type_name" json:"vehicle_type_name"`
+	VehicleTypeEntity                         string         `db:"vehicle_type_entity" json:"vehicle_type_entity"`
 	Vin                                       *string        `db:"vin" json:"vin"`
 	EngineNumber                              *string        `db:"engine_number" json:"engine_number"`
 	LoadCapacityKg                            pgtype.Numeric `db:"load_capacity_kg" json:"load_capacity_kg"`

@@ -35,6 +35,10 @@ func translateError(err error) error {
 	if err == nil {
 		return nil
 	}
+	var domainErr *DomainError
+	if errors.As(err, &domainErr) {
+		return err
+	}
 	var approvalErr *approval.Error
 	if errors.As(err, &approvalErr) {
 		kind := ErrorInternal

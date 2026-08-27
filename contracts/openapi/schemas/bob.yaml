@@ -2018,6 +2018,7 @@
               'properties':
                 {
                   'keyword': { 'type': 'string' },
+                  'enabled': { 'type': 'boolean' },
                   'status':
                     {
                       'type': 'array',

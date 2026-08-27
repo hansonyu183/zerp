@@ -73,24 +73,21 @@ export function useDclVehicleViewModel() {
       (path) => session.can(path),
     )
   const references = useDclVehicleReferences(config)
-  const canCreate = computed(
+  const canQueryVehicleReferences = computed(
     () =>
-      session.can(permission('create')) &&
       session.can('/aux/dictionary-item/query') &&
-      session.can('/bob/operating-entity/query'),
+      session.can('/bob/operating-entity/query') &&
+      session.can('/bob/other-unit/query'),
+  )
+  const canCreate = computed(
+    () => session.can(permission('create')) && canQueryVehicleReferences.value,
+  )
+  const canEditVehicle = computed(
+    () => session.can(permission('save')) && canQueryVehicleReferences.value,
   )
   function actionAvailability(row: Readonly<DclVehicleListItem>) {
     const availability = baseActionAvailability(row)
-    if (availability.edit) {
-      const carrierType = dclVehicleActiveVersion(row).data.carrierAffiliation.type
-      availability.edit =
-        session.can('/aux/dictionary-item/query') &&
-        session.can(
-          carrierType === 'INTERNAL'
-            ? '/bob/operating-entity/query'
-            : '/bob/other-unit/query',
-        )
-    }
+    if (availability.edit) availability.edit = canEditVehicle.value
     return availability
   }
   function hasAnyAction(row: Readonly<DclVehicleListItem>): boolean {
@@ -244,7 +241,7 @@ export function useDclVehicleViewModel() {
       const editable =
         requestedMode === 'edit' &&
         view.approval.status === 'DRAFT' &&
-        session.can(permission('save'))
+        canEditVehicle.value
       editorMode.value = editable ? 'edit' : 'view'
       currentView.value = view
       effectiveView.value = null
@@ -279,6 +276,14 @@ export function useDclVehicleViewModel() {
   }
   async function save(form: DclVehicleForm): Promise<boolean> {
     if (saving.value || editorMode.value === 'view') return false
+    if (
+      editorMode.value === 'create'
+        ? !canCreate.value
+        : !canEditVehicle.value
+    ) {
+      editorErrorMessage.value = '当前权限不足，无法保存车辆申报。'
+      return false
+    }
     if (
       !form.name.trim() ||
       !form.plateNumber.trim() ||

@@ -8,7 +8,11 @@ const bobPages = [
   { entity: 'product', title: '产品', searchLabel: '产品关键字' },
   { entity: 'warehouse', title: '仓库', searchLabel: '仓库关键字' },
   { entity: 'vehicle', title: '车辆', searchLabel: '车辆关键字' },
-  { entity: 'fund-account', title: '资金账户', searchLabel: '资金账户关键字' },
+  {
+    entity: 'fund-account',
+    title: '资金账户（当前档案）',
+    searchLabel: '资金账户（当前档案）关键字',
+  },
 ] as const
 
 async function signIn(page: Page, workerState: WflWorkerState): Promise<void> {
@@ -153,7 +157,7 @@ test('有效会话访问带 redirect 的登录页时忽略参数且不再登录'
 })
 
 test(
-  '登录后逐项加载八类业务对象中文菜单与真实组件',
+  '登录后逐项加载业务对象中文菜单与真实组件',
   { tag: '@mobile' },
   async ({ page, isMobile, workerState }) => {
     await signIn(page, workerState)
@@ -216,7 +220,9 @@ test('DCL 经营主体申报与 BOB 当前档案使用独立入口和请求边�
   await declarationEditor
     .getByRole('button', { name: '保存', exact: true })
     .click()
-  const createdRow = page.locator('tbody tr').filter({ hasText: declarationName })
+  const createdRow = page
+    .locator('tbody tr')
+    .filter({ hasText: declarationName })
   await expect(createdRow).toHaveCount(1)
   const code = (
     await createdRow.locator('td[data-label="编码"]').textContent()
@@ -274,8 +280,12 @@ test('DCL 经营主体申报与 BOB 当前档案使用独立入口和请求边�
   expect(approvalEntryId).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/)
   await currentRow.getByLabel(`查看 ${code}`, { exact: true }).click()
   const currentDrawer = page.locator('.bob-entity-drawer')
-  await expect(currentDrawer.getByText('Stable ID', { exact: true })).toBeVisible()
-  await expect(currentDrawer.getByText(objectId!, { exact: true })).toBeVisible()
+  await expect(
+    currentDrawer.getByText('Stable ID', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    currentDrawer.getByText(objectId!, { exact: true }),
+  ).toBeVisible()
   await expect(
     currentDrawer.getByText('来源 Approval Entry ID', { exact: true }),
   ).toBeVisible()

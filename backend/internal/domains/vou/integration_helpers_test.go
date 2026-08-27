@@ -498,8 +498,8 @@ func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {
 		warehouse: createApprovedBOB(t, service, bobdomain.EntityWarehouse, bobdomain.CreateDetailInput{
 			Code: "VW" + suffix, Name: "VOU 仓库",
 		}),
-		fundAccount: createApprovedBOB(t, service, bobdomain.EntityFundAccount, bobdomain.CreateDetailInput{
-			Code: "VF" + suffix, Name: "VOU 资金账户", Currency: "CNY", OperatingEntityID: operating.ObjectID,
+		fundAccount: createApprovedFundAccount(t, pool, dcldomain.FundAccountData{
+			Name: "VOU 资金账户", Currency: "CNY", OperatingEntityID: operating.ObjectID,
 		}),
 		settlement: settlement, carrier: carrier,
 		vehicle: createApprovedBOB(t, service, bobdomain.EntityVehicle, bobdomain.CreateDetailInput{
@@ -509,6 +509,44 @@ func prepareReferences(t *testing.T, pool *pgxpool.Pool) integrationReferences {
 			},
 		}),
 	}
+}
+
+func newFundAccountIntegrationService(t *testing.T, pool *pgxpool.Pool) *dcldomain.FundAccountService {
+	t.Helper()
+	return dcldomain.NewFundAccountService(
+		pool,
+		newBOBIntegrationService(pool),
+		authorization.Func(nil),
+		txevent.NewBus(),
+	)
+}
+
+func createApprovedFundAccount(
+	t *testing.T,
+	pool *pgxpool.Pool,
+	data dcldomain.FundAccountData,
+) ReferenceInput {
+	t.Helper()
+	service := newFundAccountIntegrationService(t, pool)
+	created, err := service.Create(t.Context(), dcldomain.FundAccountCreateInput{Data: data}, trustedIntegrationActor(t, "vou-fund-create"))
+	if err != nil {
+		t.Fatalf("create fund account: %v", err)
+	}
+	pending, err := service.Submit(t.Context(), dcldomain.FundAccountVersionInput{
+		ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID,
+		ApprovalRevision: created.Approval.Revision,
+	}, trustedIntegrationActor(t, "vou-fund-submit"))
+	if err != nil {
+		t.Fatalf("submit fund account: %v", err)
+	}
+	approved, err := service.Approve(t.Context(), dcldomain.FundAccountVersionInput{
+		ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID,
+		ApprovalRevision: pending.Approval.Revision,
+	}, trustedIntegrationActor(t, "vou-fund-approve"))
+	if err != nil {
+		t.Fatalf("approve fund account: %v", err)
+	}
+	return ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
 }
 
 func newIntegrationService(t *testing.T, pool *pgxpool.Pool) *Service {

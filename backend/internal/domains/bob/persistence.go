@@ -31,8 +31,6 @@ func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryI
 		err = q.InsertBobSalesPartnerPayload(ctx, approvalEntryID)
 	case EntityProduct:
 		err = q.InsertBobProductPayload(ctx, dbsqlc.InsertBobProductPayloadParams{ApprovalEntryID: approvalEntryID, Name: data.Name})
-	case EntityFundAccount:
-		err = q.InsertBobFundAccountPayload(ctx, dbsqlc.InsertBobFundAccountPayloadParams{ApprovalEntryID: approvalEntryID, Name: data.Name, Currency: data.Currency})
 	default:
 		return invalidPayloadEntity(entity)
 	}
@@ -100,12 +98,6 @@ func loadDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID 
 		}
 		data.Formula, err = loadProductFormula(ctx, q, approvalEntryID)
 		return data, err
-	case EntityFundAccount:
-		r, err := q.GetBobOpenFundAccountPayload(ctx, approvalEntryID)
-		if err != nil {
-			return DetailView{}, err
-		}
-		return DetailView{Name: r.Name, Currency: r.Currency, CategoryID: deref(r.CategoryID), CategoryApprovalEntryID: deref(r.CategoryApprovalEntryID), AccountName: deref(r.AccountName), BankName: deref(r.BankName), BankBranch: deref(r.BankBranch), AccountNumber: deref(r.AccountNumber), Remark: deref(r.Remark), OperatingEntityID: deref(r.OperatingEntityID), OperatingEntityApprovalEntryID: deref(r.OperatingEntityApprovalEntryID), OperatingEntityCode: deref(r.OperatingEntityCode), OperatingEntityName: deref(r.OperatingEntityName)}, nil
 	default:
 		return DetailView{}, invalidPayloadEntity(entity)
 	}
@@ -189,8 +181,6 @@ func updatePayload(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntry
 			return 0, err
 		}
 		return q.UpdateBobProductPayload(ctx, dbsqlc.UpdateBobProductPayloadParams{Name: d.Name, CategoryID: nilIfEmpty(d.CategoryID), CategoryApprovalEntryID: nilIfEmpty(d.CategoryApprovalEntryID), Specification: nilIfEmpty(d.Specification), Model: nilIfEmpty(d.Model), Barcode: nilIfEmpty(d.Barcode), Remark: nilIfEmpty(d.Remark), PricingUnitID: nilIfEmpty(d.PricingUnitID), PricingUnitApprovalEntryID: nilIfEmpty(d.PricingUnitApprovalEntryID), Returnable: d.Returnable, DefaultPackagingSpecMicros: packaging, ProductTypeID: nilIfEmpty(d.ProductTypeID), ProductTypeApprovalEntryID: nilIfEmpty(d.ProductTypeApprovalEntryID), ProductTypeCode: nilIfEmpty(d.ProductTypeCode), ProductTypeName: nilIfEmpty(d.ProductTypeName), BehaviorProfile: nilIfEmpty(d.BehaviorProfile), DefaultInputUnitID: nilIfEmpty(d.DefaultInputUnitID), DefaultInputUnitApprovalEntryID: nilIfEmpty(d.DefaultInputUnitApprovalEntryID), ApprovalEntryID: approvalEntryID})
-	case EntityFundAccount:
-		return q.UpdateBobFundAccountPayload(ctx, dbsqlc.UpdateBobFundAccountPayloadParams{Name: d.Name, Currency: d.Currency, CategoryID: nilIfEmpty(d.CategoryID), CategoryApprovalEntryID: nilIfEmpty(d.CategoryApprovalEntryID), AccountName: nilIfEmpty(d.AccountName), BankName: nilIfEmpty(d.BankName), BankBranch: nilIfEmpty(d.BankBranch), AccountNumber: nilIfEmpty(d.AccountNumber), Remark: nilIfEmpty(d.Remark), OperatingEntityID: nilIfEmpty(d.OperatingEntityID), OperatingEntityApprovalEntryID: nilIfEmpty(d.OperatingEntityApprovalEntryID), OperatingEntityCode: nilIfEmpty(d.OperatingEntityCode), OperatingEntityName: nilIfEmpty(d.OperatingEntityName), ApprovalEntryID: approvalEntryID})
 	default:
 		return 0, invalidPayloadEntity(entity)
 	}
@@ -229,8 +219,6 @@ func copyDetail(ctx context.Context, q *dbsqlc.Queries, entity, newApprovalEntry
 			return err
 		}
 		return insertProductFormula(ctx, q, newApprovalEntryID, formula)
-	case EntityFundAccount:
-		return q.CopyBobFundAccountPayload(ctx, dbsqlc.CopyBobFundAccountPayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID})
 	default:
 		return invalidPayloadEntity(entity)
 	}
@@ -264,8 +252,6 @@ func deleteDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryI
 			return 0, err
 		}
 		return q.DeleteBobProductPayload(ctx, approvalEntryID)
-	case EntityFundAccount:
-		return q.DeleteBobFundAccountPayload(ctx, approvalEntryID)
 	default:
 		return 0, invalidPayloadEntity(entity)
 	}

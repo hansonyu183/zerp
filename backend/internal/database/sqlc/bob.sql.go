@@ -84,21 +84,6 @@ func (q *Queries) CopyBobEmployeePayload(ctx context.Context, arg CopyBobEmploye
 	return err
 }
 
-const copyBobFundAccountPayload = `-- name: CopyBobFundAccountPayload :exec
-INSERT INTO bob_fund_account_versions(approval_entry_id,entity,name,currency,category_id,category_approval_entry_id,category_entity,account_name,bank_name,bank_branch,account_number,remark,operating_entity_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name)
-SELECT $1,entity,name,currency,category_id,category_approval_entry_id,category_entity,account_name,bank_name,bank_branch,account_number,remark,operating_entity_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name FROM bob_fund_account_versions source WHERE source.approval_entry_id=$2
-`
-
-type CopyBobFundAccountPayloadParams struct {
-	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
-	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-}
-
-func (q *Queries) CopyBobFundAccountPayload(ctx context.Context, arg CopyBobFundAccountPayloadParams) error {
-	_, err := q.db.Exec(ctx, copyBobFundAccountPayload, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
-	return err
-}
-
 const copyBobOtherUnitPayload = `-- name: CopyBobOtherUnitPayload :exec
 INSERT INTO bob_service_relationship_versions(approval_entry_id,entity,contact_name,contact_phone,email,address,settlement_method_id,settlement_method_approval_entry_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,remark)
 SELECT $1,entity,contact_name,contact_phone,email,address,settlement_method_id,settlement_method_approval_entry_id,settlement_method_code,settlement_method_name,settlement_term_code,settlement_rule_type,settlement_month_offset,settlement_day_of_month,settlement_day_offset,remark FROM bob_service_relationship_versions source WHERE source.approval_entry_id=$2
@@ -233,6 +218,22 @@ func (q *Queries) CountBobCustomerAccounts(ctx context.Context, arg CountBobCust
 	return count, err
 }
 
+const countBobFundAccounts = `-- name: CountBobFundAccounts :one
+SELECT count(*) FROM bob_fund_accounts c JOIN bob_objects o ON o.id=c.object_id WHERE ($1::text='' OR o.code ILIKE '%'||$1::text||'%' OR c.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR c.enabled=($2::integer=1))
+`
+
+type CountBobFundAccountsParams struct {
+	Keyword       string `db:"keyword" json:"keyword"`
+	EnabledFilter int32  `db:"enabled_filter" json:"enabled_filter"`
+}
+
+func (q *Queries) CountBobFundAccounts(ctx context.Context, arg CountBobFundAccountsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countBobFundAccounts, arg.Keyword, arg.EnabledFilter)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countBobObjects = `-- name: CountBobObjects :one
 SELECT count(*)
 FROM bob_objects o
@@ -254,8 +255,8 @@ LEFT JOIN bob_product_versions approved_product ON approved_product.approval_ent
 LEFT JOIN bob_product_versions open_product ON open_product.approval_entry_id=open_entry.id
 LEFT JOIN dcl_vehicle_versions approved_vehicle ON approved_vehicle.approval_entry_id=approved.id
 LEFT JOIN dcl_vehicle_versions open_vehicle ON open_vehicle.approval_entry_id=open_entry.id
-LEFT JOIN bob_fund_account_versions approved_fund ON approved_fund.approval_entry_id=approved.id
-LEFT JOIN bob_fund_account_versions open_fund ON open_fund.approval_entry_id=open_entry.id
+LEFT JOIN dcl_fund_account_versions approved_fund ON approved_fund.approval_entry_id=approved.id
+LEFT JOIN dcl_fund_account_versions open_fund ON open_fund.approval_entry_id=open_entry.id
 LEFT JOIN bob_supplier_versions approved_supplier ON approved_supplier.approval_entry_id=approved.id
 LEFT JOIN bob_supplier_versions open_supplier ON open_supplier.approval_entry_id=open_entry.id
 LEFT JOIN bob_sales_partner_versions approved_sales ON approved_sales.approval_entry_id=approved.id
@@ -474,12 +475,12 @@ func (q *Queries) DeleteBobEmployeePayload(ctx context.Context, approvalEntryID 
 	return result.RowsAffected(), nil
 }
 
-const deleteBobFundAccountPayload = `-- name: DeleteBobFundAccountPayload :execrows
-DELETE FROM bob_fund_account_versions WHERE approval_entry_id = $1
+const deleteBobFundAccountCurrent = `-- name: DeleteBobFundAccountCurrent :execrows
+DELETE FROM bob_fund_accounts WHERE object_id=$1
 `
 
-func (q *Queries) DeleteBobFundAccountPayload(ctx context.Context, approvalEntryID string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteBobFundAccountPayload, approvalEntryID)
+func (q *Queries) DeleteBobFundAccountCurrent(ctx context.Context, objectID string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteBobFundAccountCurrent, objectID)
 	if err != nil {
 		return 0, err
 	}
@@ -865,23 +866,117 @@ func (q *Queries) GetBobEmploymentRelationshipIdentity(ctx context.Context, obje
 	return i, err
 }
 
-const getBobFundAccountPayload = `-- name: GetBobFundAccountPayload :one
-SELECT payload.approval_entry_id, payload.entity, payload.name, payload.currency, payload.category_id, payload.category_approval_entry_id, payload.category_entity, payload.account_name, payload.bank_name, payload.bank_branch, payload.account_number, payload.remark, payload.operating_entity_id, payload.operating_entity_approval_entry_id, payload.operating_entity_code, payload.operating_entity_name FROM bob_fund_account_versions payload JOIN approval_entries entry ON entry.id=payload.approval_entry_id
-WHERE payload.approval_entry_id=$1 AND entry.domain='bob' AND entry.status='APPROVED'
-  AND entry.id=(SELECT latest.id FROM approval_entries latest WHERE latest.domain='bob' AND latest.entity=entry.entity AND latest.subject_id=entry.subject_id AND latest.status='APPROVED' ORDER BY latest.version_no DESC LIMIT 1)
+const getBobFundAccountCurrent = `-- name: GetBobFundAccountCurrent :one
+SELECT o.id object_id,o.entity,o.code,o.revision object_revision,c.object_id, c.source_approval_entry_id, c.name, c.currency, c.account_name, c.bank_name, c.bank_branch, c.account_number, c.remark, c.operating_entity_id, c.operating_entity_approval_entry_id, c.operating_entity_code, c.operating_entity_name, c.enabled, c.updated_at, c.updated_by,e.domain,e.version_no,e.status,e.revision approval_revision,e.created_by,e.created_at,e.updated_by approval_updated_by,e.updated_at approval_updated_at,e.submitted_by,e.submitted_at,e.approved_by,e.approved_at FROM bob_fund_accounts c JOIN bob_objects o ON o.id=c.object_id JOIN approval_entries e ON e.id=c.source_approval_entry_id WHERE c.object_id=$1
 `
 
-func (q *Queries) GetBobFundAccountPayload(ctx context.Context, approvalEntryID string) (BobFundAccountVersion, error) {
-	row := q.db.QueryRow(ctx, getBobFundAccountPayload, approvalEntryID)
-	var i BobFundAccountVersion
+type GetBobFundAccountCurrentRow struct {
+	ObjectID                       string             `db:"object_id" json:"object_id"`
+	Entity                         string             `db:"entity" json:"entity"`
+	Code                           string             `db:"code" json:"code"`
+	ObjectRevision                 int64              `db:"object_revision" json:"object_revision"`
+	ObjectID_2                     string             `db:"object_id_2" json:"object_id_2"`
+	SourceApprovalEntryID          string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	Name                           string             `db:"name" json:"name"`
+	Currency                       string             `db:"currency" json:"currency"`
+	AccountName                    *string            `db:"account_name" json:"account_name"`
+	BankName                       *string            `db:"bank_name" json:"bank_name"`
+	BankBranch                     *string            `db:"bank_branch" json:"bank_branch"`
+	AccountNumber                  *string            `db:"account_number" json:"account_number"`
+	Remark                         *string            `db:"remark" json:"remark"`
+	OperatingEntityID              string             `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityApprovalEntryID string             `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
+	OperatingEntityCode            string             `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName            string             `db:"operating_entity_name" json:"operating_entity_name"`
+	Enabled                        bool               `db:"enabled" json:"enabled"`
+	UpdatedAt                      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy                      string             `db:"updated_by" json:"updated_by"`
+	Domain                         string             `db:"domain" json:"domain"`
+	VersionNo                      *int32             `db:"version_no" json:"version_no"`
+	Status                         string             `db:"status" json:"status"`
+	ApprovalRevision               int64              `db:"approval_revision" json:"approval_revision"`
+	CreatedBy                      string             `db:"created_by" json:"created_by"`
+	CreatedAt                      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	ApprovalUpdatedBy              string             `db:"approval_updated_by" json:"approval_updated_by"`
+	ApprovalUpdatedAt              pgtype.Timestamptz `db:"approval_updated_at" json:"approval_updated_at"`
+	SubmittedBy                    *string            `db:"submitted_by" json:"submitted_by"`
+	SubmittedAt                    pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
+	ApprovedBy                     *string            `db:"approved_by" json:"approved_by"`
+	ApprovedAt                     pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
+}
+
+func (q *Queries) GetBobFundAccountCurrent(ctx context.Context, objectID string) (GetBobFundAccountCurrentRow, error) {
+	row := q.db.QueryRow(ctx, getBobFundAccountCurrent, objectID)
+	var i GetBobFundAccountCurrentRow
 	err := row.Scan(
-		&i.ApprovalEntryID,
+		&i.ObjectID,
 		&i.Entity,
+		&i.Code,
+		&i.ObjectRevision,
+		&i.ObjectID_2,
+		&i.SourceApprovalEntryID,
 		&i.Name,
 		&i.Currency,
-		&i.CategoryID,
-		&i.CategoryApprovalEntryID,
-		&i.CategoryEntity,
+		&i.AccountName,
+		&i.BankName,
+		&i.BankBranch,
+		&i.AccountNumber,
+		&i.Remark,
+		&i.OperatingEntityID,
+		&i.OperatingEntityApprovalEntryID,
+		&i.OperatingEntityCode,
+		&i.OperatingEntityName,
+		&i.Enabled,
+		&i.UpdatedAt,
+		&i.UpdatedBy,
+		&i.Domain,
+		&i.VersionNo,
+		&i.Status,
+		&i.ApprovalRevision,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.ApprovalUpdatedBy,
+		&i.ApprovalUpdatedAt,
+		&i.SubmittedBy,
+		&i.SubmittedAt,
+		&i.ApprovedBy,
+		&i.ApprovedAt,
+	)
+	return i, err
+}
+
+const getBobFundAccountCurrentReference = `-- name: GetBobFundAccountCurrentReference :one
+SELECT o.id object_id,o.entity,o.code,c.source_approval_entry_id approval_entry_id,c.name,c.currency,c.account_name,c.bank_name,c.bank_branch,c.account_number,c.remark,c.operating_entity_id,c.operating_entity_approval_entry_id,c.operating_entity_code,c.operating_entity_name FROM bob_fund_accounts c JOIN bob_objects o ON o.id=c.object_id WHERE c.object_id=$1 AND c.enabled
+`
+
+type GetBobFundAccountCurrentReferenceRow struct {
+	ObjectID                       string  `db:"object_id" json:"object_id"`
+	Entity                         string  `db:"entity" json:"entity"`
+	Code                           string  `db:"code" json:"code"`
+	ApprovalEntryID                string  `db:"approval_entry_id" json:"approval_entry_id"`
+	Name                           string  `db:"name" json:"name"`
+	Currency                       string  `db:"currency" json:"currency"`
+	AccountName                    *string `db:"account_name" json:"account_name"`
+	BankName                       *string `db:"bank_name" json:"bank_name"`
+	BankBranch                     *string `db:"bank_branch" json:"bank_branch"`
+	AccountNumber                  *string `db:"account_number" json:"account_number"`
+	Remark                         *string `db:"remark" json:"remark"`
+	OperatingEntityID              string  `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityApprovalEntryID string  `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
+	OperatingEntityCode            string  `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName            string  `db:"operating_entity_name" json:"operating_entity_name"`
+}
+
+func (q *Queries) GetBobFundAccountCurrentReference(ctx context.Context, objectID string) (GetBobFundAccountCurrentReferenceRow, error) {
+	row := q.db.QueryRow(ctx, getBobFundAccountCurrentReference, objectID)
+	var i GetBobFundAccountCurrentReferenceRow
+	err := row.Scan(
+		&i.ObjectID,
+		&i.Entity,
+		&i.Code,
+		&i.ApprovalEntryID,
+		&i.Name,
+		&i.Currency,
 		&i.AccountName,
 		&i.BankName,
 		&i.BankBranch,
@@ -1151,34 +1246,6 @@ func (q *Queries) GetBobOpenEntry(ctx context.Context, arg GetBobOpenEntryParams
 		&i.SubmittedAt,
 		&i.ApprovedBy,
 		&i.ApprovedAt,
-	)
-	return i, err
-}
-
-const getBobOpenFundAccountPayload = `-- name: GetBobOpenFundAccountPayload :one
-SELECT payload.approval_entry_id, payload.entity, payload.name, payload.currency, payload.category_id, payload.category_approval_entry_id, payload.category_entity, payload.account_name, payload.bank_name, payload.bank_branch, payload.account_number, payload.remark, payload.operating_entity_id, payload.operating_entity_approval_entry_id, payload.operating_entity_code, payload.operating_entity_name FROM bob_fund_account_versions payload WHERE payload.approval_entry_id=$1
-`
-
-func (q *Queries) GetBobOpenFundAccountPayload(ctx context.Context, approvalEntryID string) (BobFundAccountVersion, error) {
-	row := q.db.QueryRow(ctx, getBobOpenFundAccountPayload, approvalEntryID)
-	var i BobFundAccountVersion
-	err := row.Scan(
-		&i.ApprovalEntryID,
-		&i.Entity,
-		&i.Name,
-		&i.Currency,
-		&i.CategoryID,
-		&i.CategoryApprovalEntryID,
-		&i.CategoryEntity,
-		&i.AccountName,
-		&i.BankName,
-		&i.BankBranch,
-		&i.AccountNumber,
-		&i.Remark,
-		&i.OperatingEntityID,
-		&i.OperatingEntityApprovalEntryID,
-		&i.OperatingEntityCode,
-		&i.OperatingEntityName,
 	)
 	return i, err
 }
@@ -2080,22 +2147,6 @@ func (q *Queries) InsertBobEmploymentRelationship(ctx context.Context, arg Inser
 	return err
 }
 
-const insertBobFundAccountPayload = `-- name: InsertBobFundAccountPayload :exec
-INSERT INTO bob_fund_account_versions (approval_entry_id, name, currency)
-VALUES ($1, $2, $3)
-`
-
-type InsertBobFundAccountPayloadParams struct {
-	ApprovalEntryID string `db:"approval_entry_id" json:"approval_entry_id"`
-	Name            string `db:"name" json:"name"`
-	Currency        string `db:"currency" json:"currency"`
-}
-
-func (q *Queries) InsertBobFundAccountPayload(ctx context.Context, arg InsertBobFundAccountPayloadParams) error {
-	_, err := q.db.Exec(ctx, insertBobFundAccountPayload, arg.ApprovalEntryID, arg.Name, arg.Currency)
-	return err
-}
-
 const insertBobObject = `-- name: InsertBobObject :exec
 INSERT INTO bob_objects (id, entity, code, revision, created_by, updated_by)
 VALUES ($1, $2, $3, 1, $4, $4)
@@ -2580,6 +2631,62 @@ func (q *Queries) ListBobCustomerVersionAttachments(ctx context.Context, approva
 	return items, nil
 }
 
+const listBobFundAccounts = `-- name: ListBobFundAccounts :many
+SELECT o.id object_id,o.entity,o.code,o.revision object_revision,c.enabled current_enabled,c.updated_at FROM bob_fund_accounts c JOIN bob_objects o ON o.id=c.object_id WHERE ($1::text='' OR o.code ILIKE '%'||$1::text||'%' OR c.name ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR c.enabled=($2::integer=1)) ORDER BY CASE WHEN $3::text='updatedAt' AND $4::text='asc' THEN c.updated_at END ASC, CASE WHEN $3::text='updatedAt' AND $4::text='desc' THEN c.updated_at END DESC, CASE WHEN $3::text='code' AND $4::text='asc' THEN o.code END ASC, CASE WHEN $3::text='code' AND $4::text='desc' THEN o.code END DESC, CASE WHEN $3::text='name' AND $4::text='asc' THEN c.name END ASC, CASE WHEN $3::text='name' AND $4::text='desc' THEN c.name END DESC,o.id DESC LIMIT $6 OFFSET $5
+`
+
+type ListBobFundAccountsParams struct {
+	Keyword       string `db:"keyword" json:"keyword"`
+	EnabledFilter int32  `db:"enabled_filter" json:"enabled_filter"`
+	SortField     string `db:"sort_field" json:"sort_field"`
+	SortOrder     string `db:"sort_order" json:"sort_order"`
+	RowOffset     int32  `db:"row_offset" json:"row_offset"`
+	RowLimit      int32  `db:"row_limit" json:"row_limit"`
+}
+
+type ListBobFundAccountsRow struct {
+	ObjectID       string             `db:"object_id" json:"object_id"`
+	Entity         string             `db:"entity" json:"entity"`
+	Code           string             `db:"code" json:"code"`
+	ObjectRevision int64              `db:"object_revision" json:"object_revision"`
+	CurrentEnabled bool               `db:"current_enabled" json:"current_enabled"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) ListBobFundAccounts(ctx context.Context, arg ListBobFundAccountsParams) ([]ListBobFundAccountsRow, error) {
+	rows, err := q.db.Query(ctx, listBobFundAccounts,
+		arg.Keyword,
+		arg.EnabledFilter,
+		arg.SortField,
+		arg.SortOrder,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListBobFundAccountsRow{}
+	for rows.Next() {
+		var i ListBobFundAccountsRow
+		if err := rows.Scan(
+			&i.ObjectID,
+			&i.Entity,
+			&i.Code,
+			&i.ObjectRevision,
+			&i.CurrentEnabled,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listBobObjects = `-- name: ListBobObjects :many
 SELECT o.id AS object_id, o.entity, o.code, o.revision AS object_revision, o.enabled, o.updated_at,
 	   COALESCE(approved.id, '')::text AS approval_entry_id,
@@ -2608,8 +2715,8 @@ LEFT JOIN bob_product_versions approved_product ON approved_product.approval_ent
 LEFT JOIN bob_product_versions open_product ON open_product.approval_entry_id=open_entry.id
 LEFT JOIN dcl_vehicle_versions approved_vehicle ON approved_vehicle.approval_entry_id=approved.id
 LEFT JOIN dcl_vehicle_versions open_vehicle ON open_vehicle.approval_entry_id=open_entry.id
-LEFT JOIN bob_fund_account_versions approved_fund ON approved_fund.approval_entry_id=approved.id
-LEFT JOIN bob_fund_account_versions open_fund ON open_fund.approval_entry_id=open_entry.id
+LEFT JOIN dcl_fund_account_versions approved_fund ON approved_fund.approval_entry_id=approved.id
+LEFT JOIN dcl_fund_account_versions open_fund ON open_fund.approval_entry_id=open_entry.id
 LEFT JOIN bob_supplier_versions approved_supplier ON approved_supplier.approval_entry_id=approved.id
 LEFT JOIN bob_supplier_versions open_supplier ON open_supplier.approval_entry_id=open_entry.id
 LEFT JOIN bob_sales_partner_versions approved_sales ON approved_sales.approval_entry_id=approved.id
@@ -3312,8 +3419,7 @@ func (q *Queries) ListFormulaMaterialReferences(ctx context.Context, sourceObjec
 
 const listFundOperatingReferences = `-- name: ListFundOperatingReferences :many
 SELECT o.id AS object_id,o.entity,'fund-operating'::text AS role FROM bob_objects o
-JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='bob' AND entity='fund-account' AND subject_id=o.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
-JOIN bob_fund_account_versions p ON p.approval_entry_id=e.id WHERE p.operating_entity_id=$1
+JOIN bob_fund_accounts p ON p.object_id=o.id WHERE p.operating_entity_id=$1
 `
 
 type ListFundOperatingReferencesRow struct {
@@ -4169,50 +4275,6 @@ func (q *Queries) UpdateBobEmployeePayload(ctx context.Context, arg UpdateBobEmp
 	return result.RowsAffected(), nil
 }
 
-const updateBobFundAccountPayload = `-- name: UpdateBobFundAccountPayload :execrows
-UPDATE bob_fund_account_versions SET name=$1,currency=$2,category_id=$3,category_approval_entry_id=$4,account_name=$5,bank_name=$6,bank_branch=$7,account_number=$8,remark=$9,operating_entity_id=$10,operating_entity_approval_entry_id=$11,operating_entity_code=$12,operating_entity_name=$13 WHERE approval_entry_id=$14
-`
-
-type UpdateBobFundAccountPayloadParams struct {
-	Name                           string  `db:"name" json:"name"`
-	Currency                       string  `db:"currency" json:"currency"`
-	CategoryID                     *string `db:"category_id" json:"category_id"`
-	CategoryApprovalEntryID        *string `db:"category_approval_entry_id" json:"category_approval_entry_id"`
-	AccountName                    *string `db:"account_name" json:"account_name"`
-	BankName                       *string `db:"bank_name" json:"bank_name"`
-	BankBranch                     *string `db:"bank_branch" json:"bank_branch"`
-	AccountNumber                  *string `db:"account_number" json:"account_number"`
-	Remark                         *string `db:"remark" json:"remark"`
-	OperatingEntityID              *string `db:"operating_entity_id" json:"operating_entity_id"`
-	OperatingEntityApprovalEntryID *string `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
-	OperatingEntityCode            *string `db:"operating_entity_code" json:"operating_entity_code"`
-	OperatingEntityName            *string `db:"operating_entity_name" json:"operating_entity_name"`
-	ApprovalEntryID                string  `db:"approval_entry_id" json:"approval_entry_id"`
-}
-
-func (q *Queries) UpdateBobFundAccountPayload(ctx context.Context, arg UpdateBobFundAccountPayloadParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateBobFundAccountPayload,
-		arg.Name,
-		arg.Currency,
-		arg.CategoryID,
-		arg.CategoryApprovalEntryID,
-		arg.AccountName,
-		arg.BankName,
-		arg.BankBranch,
-		arg.AccountNumber,
-		arg.Remark,
-		arg.OperatingEntityID,
-		arg.OperatingEntityApprovalEntryID,
-		arg.OperatingEntityCode,
-		arg.OperatingEntityName,
-		arg.ApprovalEntryID,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const updateBobOtherUnitPayload = `-- name: UpdateBobOtherUnitPayload :execrows
 UPDATE bob_service_relationship_versions SET contact_name=$1,contact_phone=$2,email=$3,address=$4,settlement_method_id=$5,settlement_method_approval_entry_id=$6,settlement_method_code=$7,settlement_method_name=$8,settlement_term_code=$9,settlement_rule_type=$10,settlement_month_offset=$11,settlement_day_of_month=$12,settlement_day_offset=$13,remark=$14 WHERE approval_entry_id=$15
 `
@@ -4397,6 +4459,51 @@ func (q *Queries) UpdateBobSupplierPayload(ctx context.Context, arg UpdateBobSup
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const upsertBobFundAccountCurrent = `-- name: UpsertBobFundAccountCurrent :exec
+INSERT INTO bob_fund_accounts(object_id,source_approval_entry_id,name,currency,account_name,bank_name,bank_branch,account_number,remark,operating_entity_id,operating_entity_approval_entry_id,operating_entity_code,operating_entity_name,enabled,updated_by)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+ON CONFLICT(object_id) DO UPDATE SET source_approval_entry_id=excluded.source_approval_entry_id,name=excluded.name,currency=excluded.currency,account_name=excluded.account_name,bank_name=excluded.bank_name,bank_branch=excluded.bank_branch,account_number=excluded.account_number,remark=excluded.remark,operating_entity_id=excluded.operating_entity_id,operating_entity_approval_entry_id=excluded.operating_entity_approval_entry_id,operating_entity_code=excluded.operating_entity_code,operating_entity_name=excluded.operating_entity_name,enabled=excluded.enabled,updated_at=now(),updated_by=excluded.updated_by
+`
+
+type UpsertBobFundAccountCurrentParams struct {
+	ObjectID                       string  `db:"object_id" json:"object_id"`
+	SourceApprovalEntryID          string  `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	Name                           string  `db:"name" json:"name"`
+	Currency                       string  `db:"currency" json:"currency"`
+	AccountName                    *string `db:"account_name" json:"account_name"`
+	BankName                       *string `db:"bank_name" json:"bank_name"`
+	BankBranch                     *string `db:"bank_branch" json:"bank_branch"`
+	AccountNumber                  *string `db:"account_number" json:"account_number"`
+	Remark                         *string `db:"remark" json:"remark"`
+	OperatingEntityID              string  `db:"operating_entity_id" json:"operating_entity_id"`
+	OperatingEntityApprovalEntryID string  `db:"operating_entity_approval_entry_id" json:"operating_entity_approval_entry_id"`
+	OperatingEntityCode            string  `db:"operating_entity_code" json:"operating_entity_code"`
+	OperatingEntityName            string  `db:"operating_entity_name" json:"operating_entity_name"`
+	Enabled                        bool    `db:"enabled" json:"enabled"`
+	ActorID                        string  `db:"actor_id" json:"actor_id"`
+}
+
+func (q *Queries) UpsertBobFundAccountCurrent(ctx context.Context, arg UpsertBobFundAccountCurrentParams) error {
+	_, err := q.db.Exec(ctx, upsertBobFundAccountCurrent,
+		arg.ObjectID,
+		arg.SourceApprovalEntryID,
+		arg.Name,
+		arg.Currency,
+		arg.AccountName,
+		arg.BankName,
+		arg.BankBranch,
+		arg.AccountNumber,
+		arg.Remark,
+		arg.OperatingEntityID,
+		arg.OperatingEntityApprovalEntryID,
+		arg.OperatingEntityCode,
+		arg.OperatingEntityName,
+		arg.Enabled,
+		arg.ActorID,
+	)
+	return err
 }
 
 const upsertBobOperatingEntityCurrent = `-- name: UpsertBobOperatingEntityCurrent :exec

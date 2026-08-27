@@ -221,7 +221,7 @@ func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 	entitiesByDomain := map[string][]string{
 		"bob": {
 			"customer", "customer-account", "supplier", "other-unit", "employee",
-			"sales-partner", "product", "fund-account",
+			"sales-partner", "product",
 		},
 		"aux": {
 			"product-category", "product-type", "department", "position", "settlement-method",
@@ -247,7 +247,9 @@ func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 	expected["/bob/warehouse/get"] = struct{}{}
 	expected["/bob/vehicle/query"] = struct{}{}
 	expected["/bob/vehicle/get"] = struct{}{}
-	for _, entity := range []string{"operating-entity", "warehouse", "vehicle"} {
+	expected["/bob/fund-account/query"] = struct{}{}
+	expected["/bob/fund-account/get"] = struct{}{}
+	for _, entity := range []string{"operating-entity", "warehouse", "vehicle", "fund-account"} {
 		for _, action := range []string{
 			"query", "get", "create", "save", "submit", "unsubmit", "approve",
 			"reject", "unapprove", "delete", "versions", "audit-history",

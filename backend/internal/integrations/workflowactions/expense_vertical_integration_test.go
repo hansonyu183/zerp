@@ -82,6 +82,32 @@ func approveWorkflowReference(t *testing.T, service *bobdomain.Service, entity s
 		}
 		return voudomain.ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
 	}
+	if entity == bobdomain.EntityFundAccount {
+		declarations := dcldomain.NewFundAccountService(workflowActionIntegrationPool(t), service, authorization.Func(nil), txevent.NewBus())
+		created, err := declarations.Create(t.Context(), dcldomain.FundAccountCreateInput{Data: dcldomain.FundAccountData{
+			Name: data.Name, Currency: data.Currency, OperatingEntityID: data.OperatingEntityID,
+			AccountName: data.AccountName, BankName: data.BankName, BankBranch: data.BankBranch,
+			AccountNumber: data.AccountNumber, Remark: data.Remark,
+		}}, workflowActor(t, "wfl-reference-create"))
+		if err != nil {
+			t.Fatalf("create fund account: %v", err)
+		}
+		submitted, err := declarations.Submit(t.Context(), dcldomain.FundAccountVersionInput{
+			ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID,
+			ApprovalRevision: created.Approval.Revision,
+		}, workflowActor(t, "wfl-reference-submit"))
+		if err != nil {
+			t.Fatalf("submit fund account: %v", err)
+		}
+		approved, err := declarations.Approve(t.Context(), dcldomain.FundAccountVersionInput{
+			ObjectID: submitted.ObjectID, ApprovalEntryID: submitted.Approval.ApprovalEntryID,
+			ApprovalRevision: submitted.Approval.Revision,
+		}, workflowActor(t, "wfl-reference-approve"))
+		if err != nil {
+			t.Fatalf("approve fund account: %v", err)
+		}
+		return voudomain.ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
+	}
 	created, err := service.Create(t.Context(), entity, bobdomain.CreateInput{Data: data}, workflowActor(t, "wfl-reference-create"))
 	if err != nil {
 		t.Fatalf("create %s: %v", entity, err)

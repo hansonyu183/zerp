@@ -1,7 +1,8 @@
 import { ref, type Ref } from 'vue'
 import { getErrorMessage } from '@/api/types'
 
-export type DclDeclarationEntity = 'operating-entity' | 'warehouse' | 'vehicle'
+export type DclDeclarationEntity =
+  'operating-entity' | 'warehouse' | 'vehicle' | 'fund-account'
 export type DclDeclarationLifecycleAction =
   'approve' | 'reject' | 'unsubmit' | 'unapprove' | 'enable' | 'disable'
 export type DclDeclarationWireAction =
@@ -71,7 +72,8 @@ export function isDclDeclarationEntity(
   return (
     entity === 'operating-entity' ||
     entity === 'warehouse' ||
-    entity === 'vehicle'
+    entity === 'vehicle' ||
+    entity === 'fund-account'
   )
 }
 

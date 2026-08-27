@@ -60,11 +60,11 @@ func bobApprovalPayload(objectID, entity, code string, enabled bool) bobapproval
 }
 
 func genericEntity(entity string) bool {
-	return slices.Contains([]string{EntityEmployee, EntityProduct, EntityFundAccount, EntityOperatingEntity}, entity)
+	return slices.Contains([]string{EntityEmployee, EntityProduct, EntityOperatingEntity}, entity)
 }
 
 func genericWriteEntity(entity string) bool {
-	return slices.Contains([]string{EntityEmployee, EntityProduct, EntityFundAccount}, entity)
+	return slices.Contains([]string{EntityEmployee, EntityProduct}, entity)
 }
 
 func approvalEntity(entity string) bool {
@@ -80,6 +80,9 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 	}
 	if entity == EntityVehicle {
 		return s.queryVehicles(ctx, input)
+	}
+	if entity == EntityFundAccount {
+		return s.queryFundAccounts(ctx, input)
 	}
 	if entity == EntityEmployee {
 		return s.queryEmploymentRelationships(ctx, input)
@@ -200,6 +203,9 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Objec
 	if entity == EntityVehicle {
 		return s.getVehicleCurrent(ctx, input)
 	}
+	if entity == EntityFundAccount {
+		return s.getFundAccountCurrent(ctx, input)
+	}
 	if !validEntity(entity) || !validID(input.ObjectID) || (input.ApprovalEntryID != "" && !validID(input.ApprovalEntryID)) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid get request", nil, nil)
 	}
@@ -263,9 +269,6 @@ func (s *Service) Create(ctx context.Context, entity string, input CreateInput, 
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.queries.WithTx(tx)
-	if entity == EntityFundAccount {
-		data, err = s.resolveFundAccountOperating(ctx, tx, data)
-	}
 	if err == nil && entity == EntityProduct {
 		data, err = s.resolveProductReferences(ctx, tx, data, true, false)
 	}
@@ -352,9 +355,6 @@ func (s *Service) Save(ctx context.Context, entity string, input SaveInput, acto
 	data, err := validateDetailData(entity, mergeDetailInput(current, input.Data))
 	if err != nil {
 		return MutationResult{}, domainError(ErrorValidation, "invalid save request", nil, err)
-	}
-	if entity == EntityFundAccount {
-		data, err = s.resolveFundAccountOperating(ctx, tx, data)
 	}
 	if err == nil && entity == EntityProduct {
 		data, err = s.resolveProductReferences(ctx, tx, data, true, createdCandidate)
@@ -637,6 +637,9 @@ func (s *Service) ValidateApprovedSnapshotReference(ctx context.Context, tx pgx.
 	if entity == EntityVehicle {
 		return s.validateVehicleSnapshotReference(ctx, q, objectID, approvalEntryID)
 	}
+	if entity == EntityFundAccount {
+		return s.validateFundAccountSnapshotReference(ctx, q, objectID, approvalEntryID)
+	}
 	row, err := q.ValidateBobApprovedSnapshotReference(ctx, dbsqlc.ValidateBobApprovedSnapshotReferenceParams{ApprovalEntryID: approvalEntryID, ObjectID: objectID, Entity: entity})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return EffectiveReference{}, domainError(ErrorConflict, "BOB approval snapshot is unavailable", nil, nil)
@@ -664,6 +667,9 @@ func (s *Service) ResolveLatestApprovedReference(ctx context.Context, tx pgx.Tx,
 	}
 	if entity == EntityVehicle {
 		return s.resolveVehicleCurrentReference(ctx, q, objectID)
+	}
+	if entity == EntityFundAccount {
+		return s.resolveFundAccountCurrentReference(ctx, q, objectID)
 	}
 	row, err := q.ResolveBobLatestApprovedReference(ctx, dbsqlc.ResolveBobLatestApprovedReferenceParams{ObjectID: objectID, Entity: entity})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -941,11 +947,6 @@ func (s *Service) resolveDetailReferenceSnapshots(ctx context.Context, tx pgx.Tx
 	}
 	if entity == EntityWarehouse {
 		if err := resolveBob(EntityEmployee, data.ManagerEmployeeID, &data.ManagerEmployeeApprovalEntryID); err != nil {
-			return DetailView{}, err
-		}
-	}
-	if entity == EntityFundAccount {
-		if err := resolveBob(EntityOperatingEntity, data.OperatingEntityID, &data.OperatingEntityApprovalEntryID); err != nil {
 			return DetailView{}, err
 		}
 	}

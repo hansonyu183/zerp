@@ -90,7 +90,8 @@ export function bobWriteEntity(
   if (
     config.entity === 'operating-entity' ||
     config.entity === 'warehouse' ||
-    config.entity === 'vehicle'
+    config.entity === 'vehicle' ||
+    config.entity === 'fund-account'
   ) {
     throw new Error(
       `${
@@ -98,7 +99,9 @@ export function bobWriteEntity(
           ? '仓库'
           : config.entity === 'vehicle'
             ? '车辆'
-            : '经营主体'
+            : config.entity === 'fund-account'
+              ? '资金账户'
+              : '经营主体'
       }写入必须使用 DCL。`,
     )
   }

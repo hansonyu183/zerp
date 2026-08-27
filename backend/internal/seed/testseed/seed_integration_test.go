@@ -84,6 +84,22 @@ func TestSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T) {
 	if first.Accounts.Created != 2 {
 		t.Fatalf("first seed accounts = %+v, want two created", first.Accounts)
 	}
+	var fundApprovalEntryID string
+	if err = pool.QueryRow(t.Context(), `
+		SELECT entry.id
+		FROM approval_events event
+		JOIN approval_entries entry ON entry.id=event.entry_id
+		WHERE event.request_id=$1 AND event.action='CREATED'
+		  AND entry.domain='dcl' AND entry.entity='fund-account'
+	`, requestID("fund-effective", "create")).Scan(&fundApprovalEntryID); err != nil {
+		t.Fatalf("find DCL fund-account seed approval entry: %v", err)
+	}
+	var fundSnapshotName string
+	if err = pool.QueryRow(t.Context(), `
+		SELECT name FROM dcl_fund_account_versions WHERE approval_entry_id=$1
+	`, fundApprovalEntryID).Scan(&fundSnapshotName); err != nil || fundSnapshotName != "人民币基本账户（测试）" {
+		t.Fatalf("DCL fund-account seed snapshot name=%q err=%v", fundSnapshotName, err)
+	}
 	for _, account := range []struct{ username, password string }{
 		{"test-admin", "Admin-password-1!"},
 		{"test-user", "User-password-1!"},
@@ -139,17 +155,15 @@ func TestSeedCoverageIdempotenceAndTesterTakeoverIntegration(t *testing.T) {
 	assertDistinctEntities(t, pool, "aux_objects", 11)
 	var businessEntities int
 	if err = pool.QueryRow(t.Context(), `
-		SELECT count(DISTINCT o.entity)
-		FROM bob_objects o
-		WHERE EXISTS(
-			SELECT 1 FROM approval_events event
-			WHERE event.domain IN ('bob','dcl') AND event.subject_id=o.id AND event.request_id LIKE $1
-		)
+		SELECT count(DISTINCT entry.entity)
+		FROM approval_events event
+		JOIN approval_entries entry ON entry.id=event.entry_id
+		WHERE event.domain IN ('bob','dcl') AND event.request_id LIKE $1
 	`, seedPrefix+"%").Scan(&businessEntities); err != nil {
-		t.Fatalf("count test BOB entities: %v", err)
+		t.Fatalf("count test business entities: %v", err)
 	}
 	if businessEntities != 10 {
-		t.Fatalf("test BOB distinct entities = %d, want 10", businessEntities)
+		t.Fatalf("test business distinct entities = %d, want 10", businessEntities)
 	}
 	assertDistinctEntities(t, pool, "vou_documents", 33)
 	var workflowDefinitions, workflowInstances int

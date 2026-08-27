@@ -1889,6 +1889,30 @@
                 },
             },
         },
+      '/dcl/fund-account/create':
+        { 'post': { 'tags': ['dcl'], 'summary': '新建资金账户申报草稿', 'operationId': 'dclFundAccountCreate', 'security': [{ 'cookieAuth': [], 'csrfToken': [] }], 'requestBody': { 'required': true, 'content': { 'application/json': { 'schema': { '$ref': './schemas/dcl.yaml#/DclFundAccountCreateRequest' } } } }, 'responses': { '200': { 'description': '资金账户候选。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/dcl.yaml#/DclFundAccountMutationResponse' } } } } } } },
+      '/dcl/fund-account/save':
+        { 'post': { 'tags': ['dcl'], 'summary': '保存资金账户申报草稿', 'operationId': 'dclFundAccountSave', 'security': [{ 'cookieAuth': [], 'csrfToken': [] }], 'requestBody': { 'required': true, 'content': { 'application/json': { 'schema': { '$ref': './schemas/dcl.yaml#/DclFundAccountSaveRequest' } } } }, 'responses': { '200': { 'description': '资金账户候选。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/dcl.yaml#/DclFundAccountMutationResponse' } } } } } } },
+      '/dcl/fund-account/submit':
+        { 'post': { 'tags': ['dcl'], 'summary': '提交资金账户申报', 'operationId': 'dclFundAccountSubmit', 'security': [{ 'cookieAuth': [], 'csrfToken': [] }], 'requestBody': { 'required': true, 'content': { 'application/json': { 'schema': { '$ref': './schemas/dcl.yaml#/DclFundAccountVersionRequest' } } } }, 'responses': { '200': { 'description': '资金账户候选。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/dcl.yaml#/DclFundAccountMutationResponse' } } } } } } },
+      '/dcl/fund-account/unsubmit':
+        { 'post': { 'tags': ['dcl'], 'summary': '撤回资金账户申报', 'operationId': 'dclFundAccountUnsubmit', 'security': [{ 'cookieAuth': [], 'csrfToken': [] }], 'requestBody': { 'required': true, 'content': { 'application/json': { 'schema': { '$ref': './schemas/dcl.yaml#/DclFundAccountReviewRequest' } } } }, 'responses': { '200': { 'description': '资金账户候选。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/dcl.yaml#/DclFundAccountMutationResponse' } } } } } } },
+      '/dcl/fund-account/reject':
+        { 'post': { 'tags': ['dcl'], 'summary': '驳回资金账户申报', 'operationId': 'dclFundAccountReject', 'security': [{ 'cookieAuth': [], 'csrfToken': [] }], 'requestBody': { 'required': true, 'content': { 'application/json': { 'schema': { '$ref': './schemas/dcl.yaml#/DclFundAccountReviewRequest' } } } }, 'responses': { '200': { 'description': '资金账户候选。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/dcl.yaml#/DclFundAccountMutationResponse' } } } } } } },
+      '/dcl/fund-account/approve':
+        { 'post': { 'tags': ['dcl'], 'summary': '批准资金账户申报', 'operationId': 'dclFundAccountApprove', 'security': [{ 'cookieAuth': [], 'csrfToken': [] }], 'requestBody': { 'required': true, 'content': { 'application/json': { 'schema': { '$ref': './schemas/dcl.yaml#/DclFundAccountVersionRequest' } } } }, 'responses': { '200': { 'description': '资金账户候选。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/dcl.yaml#/DclFundAccountMutationResponse' } } } } } } },
+      '/dcl/fund-account/unapprove':
+        { 'post': { 'tags': ['dcl'], 'summary': '反批资金账户申报', 'operationId': 'dclFundAccountUnapprove', 'security': [{ 'cookieAuth': [], 'csrfToken': [] }], 'requestBody': { 'required': true, 'content': { 'application/json': { 'schema': { '$ref': './schemas/dcl.yaml#/DclFundAccountReviewRequest' } } } }, 'responses': { '200': { 'description': '资金账户候选。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/dcl.yaml#/DclFundAccountMutationResponse' } } } } } } },
+      '/dcl/fund-account/delete':
+        { 'post': { 'tags': ['dcl'], 'summary': '删除资金账户申报草稿', 'operationId': 'dclFundAccountDelete', 'security': [{ 'cookieAuth': [], 'csrfToken': [] }], 'requestBody': { 'required': true, 'content': { 'application/json': { 'schema': { '$ref': './schemas/dcl.yaml#/DclFundAccountVersionRequest' } } } }, 'responses': { '200': { 'description': '已删除。' } } } },
+      '/dcl/fund-account/get':
+        { 'post': { 'tags': ['dcl'], 'summary': '读取资金账户申报', 'operationId': 'dclFundAccountGet', 'security': [{ 'cookieAuth': [], 'csrfToken': [] }], 'requestBody': { 'required': true, 'content': { 'application/json': { 'schema': { '$ref': './schemas/dcl.yaml#/DclFundAccountGetRequest' } } } }, 'responses': { '200': { 'description': '资金账户申报。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/dcl.yaml#/DclFundAccountViewResponse' } } } } } } },
+      '/dcl/fund-account/query':
+        { 'post': { 'tags': ['dcl'], 'summary': '查询资金账户申报', 'operationId': 'dclFundAccountQuery', 'security': [{ 'cookieAuth': [], 'csrfToken': [] }], 'requestBody': { 'required': true, 'content': { 'application/json': { 'schema': { '$ref': './schemas/dcl.yaml#/DclFundAccountQueryRequest' } } } }, 'responses': { '200': { 'description': '资金账户申报分页。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/dcl.yaml#/DclFundAccountQueryResponse' } } } } } } },
+      '/dcl/fund-account/versions':
+        { 'post': { 'tags': ['dcl'], 'summary': '读取资金账户申报版本', 'operationId': 'dclFundAccountVersions', 'security': [{ 'cookieAuth': [], 'csrfToken': [] }], 'requestBody': { 'required': true, 'content': { 'application/json': { 'schema': { '$ref': './schemas/dcl.yaml#/DclFundAccountHistoryRequest' } } } }, 'responses': { '200': { 'description': '版本分页。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/dcl.yaml#/DclFundAccountVersionPageResponse' } } } } } } },
+      '/dcl/fund-account/audit-history':
+        { 'post': { 'tags': ['dcl'], 'summary': '读取资金账户申报审核记录', 'operationId': 'dclFundAccountAuditHistory', 'security': [{ 'cookieAuth': [], 'csrfToken': [] }], 'requestBody': { 'required': true, 'content': { 'application/json': { 'schema': { '$ref': './schemas/dcl.yaml#/DclFundAccountHistoryRequest' } } } }, 'responses': { '200': { 'description': '审核记录分页。', 'content': { 'application/json': { 'schema': { '$ref': './schemas/dcl.yaml#/DclFundAccountAuditHistoryResponse' } } } } } } },
       '/dcl/vehicle/create':
         {
           'post':

@@ -59,6 +59,32 @@ func createApprovedAccountingReference(t *testing.T, service *bobdomain.Service,
 		}
 		return voudomain.ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
 	}
+	if entity == bobdomain.EntityFundAccount {
+		declarations := dcldomain.NewFundAccountService(integrationPool(t), service, authorization.Func(nil), txevent.NewBus())
+		created, err := declarations.Create(t.Context(), dcldomain.FundAccountCreateInput{Data: dcldomain.FundAccountData{
+			Name: data.Name, Currency: data.Currency, AccountName: data.AccountName,
+			BankName: data.BankName, BankBranch: data.BankBranch, AccountNumber: data.AccountNumber,
+			Remark: data.Remark, OperatingEntityID: data.OperatingEntityID,
+		}}, trustedAccountingActor(t, "acc-posting-fund-create"))
+		if err != nil {
+			t.Fatalf("create fund account reference: %v", err)
+		}
+		submitted, err := declarations.Submit(t.Context(), dcldomain.FundAccountVersionInput{
+			ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID,
+			ApprovalRevision: created.Approval.Revision,
+		}, trustedAccountingActor(t, "acc-posting-fund-submit"))
+		if err != nil {
+			t.Fatalf("submit fund account reference: %v", err)
+		}
+		approved, err := declarations.Approve(t.Context(), dcldomain.FundAccountVersionInput{
+			ObjectID: submitted.ObjectID, ApprovalEntryID: submitted.Approval.ApprovalEntryID,
+			ApprovalRevision: submitted.Approval.Revision,
+		}, trustedAccountingActor(t, "acc-posting-fund-approve"))
+		if err != nil {
+			t.Fatalf("approve fund account reference: %v", err)
+		}
+		return voudomain.ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
+	}
 	created, err := service.Create(t.Context(), entity, bobdomain.CreateInput{Data: data}, trustedAccountingActor(t, "acc-posting-reference-create"))
 	if err != nil {
 		t.Fatalf("create %s reference: %v", entity, err)
@@ -82,7 +108,7 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 	if err != nil {
 		t.Fatalf("create accounting book: %v", err)
 	}
-	debit, err := accounting.CreateSubject(t.Context(), CreateSubjectInput{BookID: book.ID, Code: "1002", Name: "银行存款", BalanceDirection: BalanceDirectionDebit, Enabled: true, RequiredDimensions: []string{}, SettlementPurpose: SettlementPurposeNone}, adminID)
+	debit, err := accounting.CreateSubject(t.Context(), CreateSubjectInput{BookID: book.ID, Code: "1002", Name: "银行存款", BalanceDirection: BalanceDirectionDebit, Enabled: true, RequiredDimensions: []string{DimensionFundAccount}, SettlementPurpose: SettlementPurposeNone}, adminID)
 	if err != nil {
 		t.Fatalf("create debit subject: %v", err)
 	}
@@ -95,7 +121,7 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 	mapping, err := accounting.CreateMapping(t.Context(), CreateMappingInput{
 		BookID: book.ID, VouEntity: voudomain.EntityOtherIncome, DefaultResult: MappingResultPost,
 		Definition: MappingDefinition{DefaultTemplateID: &templateID, Rules: []MappingRule{}, Templates: []PostingTemplate{{ID: templateID, Lines: []PostingLineTemplate{
-			{SubjectSource: "FIXED", SubjectValue: debit.ID, Direction: BalanceDirectionDebit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{}},
+			{SubjectSource: "FIXED", SubjectValue: debit.ID, Direction: BalanceDirectionDebit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{DimensionFundAccount: "fundAccount.objectId"}},
 			{SubjectSource: "FIXED", SubjectValue: credit.ID, Direction: BalanceDirectionCredit, AmountField: "amount", CurrencyField: "currency", Dimensions: map[string]string{}},
 		}}}},
 	}, integrationACCActor(t, adminID, "acc-posting-mapping-create"))
@@ -175,6 +201,69 @@ func TestZZAutomaticPostingUsesVOUEventSnapshotAndUnapprovalDeletesFactsIntegrat
 	if err != nil {
 		t.Fatalf("get approved VOU snapshot: %v", err)
 	}
+	var storedFundDimension, storedSourceID string
+	if err = pool.QueryRow(t.Context(), `
+		SELECT line.dimensions->>$3, voucher.source_id
+		FROM acc_voucher_lines line
+		JOIN acc_vouchers voucher ON voucher.id=line.voucher_id
+		WHERE voucher.book_id=$1 AND voucher.source_id=$2 AND line.subject_id=$4
+	`, book.ID, created.DocumentID, DimensionFundAccount, debit.ID).Scan(&storedFundDimension, &storedSourceID); err != nil {
+		t.Fatalf("read ACC fund account trace: %v", err)
+	}
+	if storedFundDimension != fund.ObjectID || storedSourceID != created.DocumentID {
+		t.Fatalf("ACC fund account trace = dimension:%q source:%q", storedFundDimension, storedSourceID)
+	}
+
+	fundDeclarations := dcldomain.NewFundAccountService(pool, business, authorization.Func(nil), txevent.NewBus())
+	fundV1, err := fundDeclarations.Get(t.Context(), dcldomain.FundAccountGetInput{
+		ObjectID: fund.ObjectID, ApprovalEntryID: fund.ApprovalEntryID,
+	}, trustedAccountingActor(t, "acc-posting-fund-v1-get"))
+	if err != nil {
+		t.Fatalf("get fund account V1: %v", err)
+	}
+	fundV2, err := fundDeclarations.Save(t.Context(), dcldomain.FundAccountSaveInput{
+		ObjectID: fundV1.ObjectID, ApprovalEntryID: fundV1.Approval.ApprovalEntryID,
+		ApprovalRevision: fundV1.Approval.Revision, Enabled: fundV1.Enabled,
+		Data: dcldomain.FundAccountData{
+			Name: fundV1.Data.Name + " V2", Currency: fundV1.Data.Currency,
+			AccountName: fundV1.Data.AccountName, BankName: fundV1.Data.BankName,
+			BankBranch: fundV1.Data.BankBranch, AccountNumber: fundV1.Data.AccountNumber,
+			Remark: fundV1.Data.Remark, OperatingEntityID: fundV1.Data.OperatingEntityID,
+		},
+	}, trustedAccountingActor(t, "acc-posting-fund-v2-save"))
+	if err != nil {
+		t.Fatalf("save fund account V2: %v", err)
+	}
+	fundV2, err = fundDeclarations.Submit(t.Context(), dcldomain.FundAccountVersionInput{
+		ObjectID: fundV2.ObjectID, ApprovalEntryID: fundV2.Approval.ApprovalEntryID,
+		ApprovalRevision: fundV2.Approval.Revision,
+	}, trustedAccountingActor(t, "acc-posting-fund-v2-submit"))
+	if err != nil {
+		t.Fatalf("submit fund account V2: %v", err)
+	}
+	fundV2, err = fundDeclarations.Approve(t.Context(), dcldomain.FundAccountVersionInput{
+		ObjectID: fundV2.ObjectID, ApprovalEntryID: fundV2.Approval.ApprovalEntryID,
+		ApprovalRevision: fundV2.Approval.Revision,
+	}, trustedAccountingActor(t, "acc-posting-fund-v2-approve"))
+	if err != nil {
+		t.Fatalf("approve fund account V2: %v", err)
+	}
+	stableSnapshot, err := vouchers.Get(t.Context(), voudomain.EntityOtherIncome, voudomain.GetInput{DocumentID: created.DocumentID})
+	if err != nil || stableSnapshot.Data.FundAccount == nil || stableSnapshot.Data.FundAccount.ApprovalEntryID != fund.ApprovalEntryID {
+		t.Fatalf("historical VOU fund snapshot = %+v, err=%v", stableSnapshot.Data.FundAccount, err)
+	}
+	if err = pool.QueryRow(t.Context(), `
+		SELECT line.dimensions->>$3, voucher.source_id
+		FROM acc_voucher_lines line
+		JOIN acc_vouchers voucher ON voucher.id=line.voucher_id
+		WHERE voucher.book_id=$1 AND voucher.source_id=$2 AND line.subject_id=$4
+	`, book.ID, created.DocumentID, DimensionFundAccount, debit.ID).Scan(&storedFundDimension, &storedSourceID); err != nil {
+		t.Fatalf("read ACC fund trace after current switch: %v", err)
+	}
+	if storedFundDimension != fund.ObjectID || storedSourceID != created.DocumentID {
+		t.Fatalf("ACC fund trace changed after current switch = dimension:%q source:%q", storedFundDimension, storedSourceID)
+	}
+	fund = voudomain.ReferenceInput{ObjectID: fundV2.ObjectID, ApprovalEntryID: fundV2.Approval.ApprovalEntryID}
 	duplicateTx, err := pool.Begin(t.Context())
 	if err != nil {
 		t.Fatalf("begin duplicate approval delivery: %v", err)

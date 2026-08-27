@@ -1188,7 +1188,7 @@ CREATE TABLE public.dcl_subjects (
     created_by character varying(26) NOT NULL,
     CONSTRAINT dcl_subjects_pkey PRIMARY KEY (id),
     CONSTRAINT dcl_subjects_id_entity_key UNIQUE (id, entity),
-    CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying])::text[])))
+    CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying, 'vehicle'::character varying, 'fund-account'::character varying])::text[])))
 );
 
 CREATE TABLE public.dcl_operating_entity_versions (
@@ -1517,30 +1517,48 @@ CREATE TABLE public.bob_employment_relationships (
 
 
 --
--- Name: bob_fund_account_versions; Type: TABLE; Schema: public; Owner: -
+-- Name: dcl_fund_account_versions; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.bob_fund_account_versions (
+CREATE TABLE public.dcl_fund_account_versions (
     approval_entry_id character varying(26) NOT NULL,
     entity character varying(16) DEFAULT 'fund-account'::character varying NOT NULL,
     name character varying(200) NOT NULL,
     currency character varying(3) NOT NULL,
-    category_id character varying(26),
-    category_approval_entry_id character varying(26),
-    category_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
     account_name character varying(200),
     bank_name character varying(200),
     bank_branch character varying(200),
     account_number character varying(64),
     remark character varying(1000),
-    operating_entity_id character varying(26),
-    operating_entity_approval_entry_id character varying(26),
-    operating_entity_code character varying(16),
-    operating_entity_name character varying(200),
-    CONSTRAINT bob_fund_account_versions_category_entity_check CHECK (((category_entity)::text = 'category'::text)),
-    CONSTRAINT bob_fund_account_versions_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
-    CONSTRAINT bob_fund_account_versions_entity_check CHECK (((entity)::text = 'fund-account'::text)),
-    CONSTRAINT bob_fund_account_versions_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 200)))
+    operating_entity_id character varying(26) NOT NULL,
+    operating_entity_approval_entry_id character varying(26) NOT NULL,
+    operating_entity_code character varying(16) NOT NULL,
+    operating_entity_name character varying(200) NOT NULL,
+    enabled boolean NOT NULL,
+    CONSTRAINT dcl_fund_account_versions_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
+    CONSTRAINT dcl_fund_account_versions_entity_check CHECK (((entity)::text = 'fund-account'::text)),
+    CONSTRAINT dcl_fund_account_versions_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 200)))
+);
+
+CREATE TABLE public.dcl_fund_account_identifier_claims (
+    normalized_account_number character varying(64) NOT NULL PRIMARY KEY,
+    object_id character varying(26) NOT NULL,
+    approved_entry_id character varying(26),
+    open_entry_id character varying(26),
+    CONSTRAINT dcl_fund_account_identifier_claims_source_ck CHECK (approved_entry_id IS NOT NULL OR open_entry_id IS NOT NULL)
+);
+
+CREATE TABLE public.bob_fund_accounts (
+    object_id character varying(26) NOT NULL PRIMARY KEY,
+    source_approval_entry_id character varying(26) NOT NULL UNIQUE,
+    name character varying(200) NOT NULL,
+    currency character varying(3) NOT NULL,
+    account_name character varying(200), bank_name character varying(200), bank_branch character varying(200),
+    account_number character varying(64), remark character varying(1000),
+    operating_entity_id character varying(26) NOT NULL,
+    operating_entity_approval_entry_id character varying(26) NOT NULL,
+    operating_entity_code character varying(16) NOT NULL, operating_entity_name character varying(200) NOT NULL,
+    enabled boolean NOT NULL, updated_at timestamp with time zone DEFAULT now() NOT NULL, updated_by character varying(26) NOT NULL
 );
 
 
@@ -3820,14 +3838,14 @@ INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000027', '/bob/e
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000028', '/bob/employee/save', 'bob', 'employee', 'save', '保存草稿员工', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000029', '/bob/employee/submit', 'bob', 'employee', 'submit', '提交审核员工', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000030', '/bob/employee/versions', 'bob', 'employee', 'versions', '查看版本员工', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000051', '/bob/fund-account/approve', 'bob', 'fund-account', 'approve', '审核通过资金账户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000052', '/bob/fund-account/audit-history', 'bob', 'fund-account', 'audit-history', '查看审核记录资金账户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000053', '/bob/fund-account/create', 'bob', 'fund-account', 'create', '创建资金账户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000051', '/dcl/fund-account/approve', 'dcl', 'fund-account', 'approve', '审核通过资金账户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000052', '/dcl/fund-account/audit-history', 'dcl', 'fund-account', 'audit-history', '查看审核记录资金账户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000053', '/dcl/fund-account/create', 'dcl', 'fund-account', 'create', '创建资金账户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000055', '/bob/fund-account/get', 'bob', 'fund-account', 'get', '查看资金账户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000057', '/bob/fund-account/reject', 'bob', 'fund-account', 'reject', '审核驳回资金账户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000058', '/bob/fund-account/save', 'bob', 'fund-account', 'save', '保存草稿资金账户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000059', '/bob/fund-account/submit', 'bob', 'fund-account', 'submit', '提交审核资金账户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000060', '/bob/fund-account/versions', 'bob', 'fund-account', 'versions', '查看版本资金账户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000057', '/dcl/fund-account/reject', 'dcl', 'fund-account', 'reject', '审核驳回资金账户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000058', '/dcl/fund-account/save', 'dcl', 'fund-account', 'save', '保存草稿资金账户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000059', '/dcl/fund-account/submit', 'dcl', 'fund-account', 'submit', '提交审核资金账户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000060', '/dcl/fund-account/versions', 'dcl', 'fund-account', 'versions', '查看版本资金账户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000006', '/bob/customer/query', 'bob', 'customer', 'query', '查询客户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, 10);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000026', '/bob/employee/query', 'bob', 'employee', 'query', '查询员工', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, 30);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000056', '/bob/fund-account/query', 'bob', 'fund-account', 'query', '查询资金账户', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, 80);
@@ -3873,7 +3891,7 @@ INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000083', '/bob/e
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000084', '/bob/product/delete', 'bob', 'product', 'delete', '删除首版草稿产品', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000086', '/dcl/warehouse/delete', 'dcl', 'warehouse', 'delete', '删除首版仓库声明草稿', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000087', '/dcl/vehicle/delete', 'dcl', 'vehicle', 'delete', '删除首版车辆声明草稿', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000088', '/bob/fund-account/delete', 'bob', 'fund-account', 'delete', '删除首版草稿资金账户', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000088', '/dcl/fund-account/delete', 'dcl', 'fund-account', 'delete', '删除首版草稿资金账户', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000101', '/vou/sale-outbound/get', 'vou', 'sale-outbound', 'get', '查看销售出库', 'ENABLED', '2026-08-24 15:23:49.226715+00', NULL, '2026-08-24 15:23:49.226715+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000116', '/vou/sale-delivery/get', 'vou', 'sale-delivery', 'get', '查看销售送货', 'ENABLED', '2026-08-24 15:23:49.226715+00', NULL, '2026-08-24 15:23:49.226715+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000131', '/vou/sale-signoff/get', 'vou', 'sale-signoff', 'get', '查看销售签收', 'ENABLED', '2026-08-24 15:23:49.226715+00', NULL, '2026-08-24 15:23:49.226715+00', NULL, 1, NULL);
@@ -4114,10 +4132,10 @@ INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000158', '/dcl/v
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000159', '/dcl/vehicle/get', 'dcl', 'vehicle', 'get', '查看车辆声明', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000160', '/dcl/vehicle/query', 'dcl', 'vehicle', 'query', '查询车辆声明', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, 70);
 INSERT INTO public.app_permissions VALUES ('PDcfd012a8326be3c56244dddc', '/vou/self-production/query', 'vou', 'self-production', 'query', '查询生产自制品', 'ENABLED', '2026-08-24 15:23:49.454799+00', NULL, '2026-08-24 15:23:49.454799+00', NULL, 1, 56);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000161', '/bob/fund-account/unsubmit', 'bob', 'fund-account', 'unsubmit', 'unsubmit fund-account', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000162', '/bob/fund-account/unapprove', 'bob', 'fund-account', 'unapprove', 'unapprove fund-account', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000163', '/bob/fund-account/enable', 'bob', 'fund-account', 'enable', 'enable fund-account', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000164', '/bob/fund-account/disable', 'bob', 'fund-account', 'disable', 'disable fund-account', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000161', '/dcl/fund-account/unsubmit', 'dcl', 'fund-account', 'unsubmit', 'unsubmit fund-account', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000162', '/dcl/fund-account/unapprove', 'dcl', 'fund-account', 'unapprove', 'unapprove fund-account', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000163', '/dcl/fund-account/get', 'dcl', 'fund-account', 'get', '查看资金账户声明', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000164', '/dcl/fund-account/query', 'dcl', 'fund-account', 'query', '查询资金账户声明', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PR604ef4230754ae77eeaf3138', '/vou/sale-pricing/get', 'vou', 'sale-pricing', 'get', '查看销售定价', 'ENABLED', '2026-08-24 15:23:49.505114+00', NULL, '2026-08-24 15:23:49.505114+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PR2ea215e473f97405024e07e7', '/vou/purchase-inquiry/get', 'vou', 'purchase-inquiry', 'get', '查看采购询价', 'ENABLED', '2026-08-24 15:23:49.505114+00', NULL, '2026-08-24 15:23:49.505114+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('PR65b897558a7ebd11ed8db67b', '/vou/sale-pricing/create', 'vou', 'sale-pricing', 'create', '创建销售定价', 'ENABLED', '2026-08-24 15:23:49.505114+00', NULL, '2026-08-24 15:23:49.505114+00', NULL, 1, NULL);
@@ -4861,7 +4879,7 @@ INSERT INTO public.aux_version_payloads (approval_entry_id, object_id, entity, d
 
 
 --
--- Data for Name: bob_fund_account_versions; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: dcl_fund_account_versions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
@@ -6400,11 +6418,11 @@ ALTER TABLE ONLY public.bob_employment_relationships
 
 
 --
--- Name: bob_fund_account_versions bob_fund_account_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_fund_account_versions dcl_fund_account_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bob_fund_account_versions
-    ADD CONSTRAINT bob_fund_account_versions_pkey PRIMARY KEY (approval_entry_id);
+ALTER TABLE ONLY public.dcl_fund_account_versions
+    ADD CONSTRAINT dcl_fund_account_versions_pkey PRIMARY KEY (approval_entry_id);
 
 
 --
@@ -7685,11 +7703,6 @@ CREATE UNIQUE INDEX bob_employment_relationships_active_party_operating_key ON p
 
 
 --
--- Name: bob_fund_account_versions_category_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX bob_fund_account_versions_category_idx ON public.bob_fund_account_versions USING btree (category_id);
-
 
 --
 -- Name: bob_objects_entity_code_uq; Type: INDEX; Schema: public; Owner: -
@@ -8928,35 +8941,44 @@ ALTER TABLE ONLY public.bob_employment_relationships
 
 
 --
--- Name: bob_fund_account_versions bob_fund_account_operating_object_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_fund_account_versions dcl_fund_account_operating_object_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bob_fund_account_versions
-    ADD CONSTRAINT bob_fund_account_operating_object_fk FOREIGN KEY (operating_entity_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
-
-
---
--- Name: bob_fund_account_versions bob_fund_account_operating_version_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_fund_account_versions
-    ADD CONSTRAINT bob_fund_account_operating_version_fk FOREIGN KEY (operating_entity_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_fund_account_versions
+    ADD CONSTRAINT dcl_fund_account_operating_object_fk FOREIGN KEY (operating_entity_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_fund_account_versions bob_fund_account_versions_category_id_category_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_fund_account_versions dcl_fund_account_operating_version_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bob_fund_account_versions
-    ADD CONSTRAINT bob_fund_account_versions_category_id_category_entity_fkey FOREIGN KEY (category_id, category_entity) REFERENCES public.aux_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE ONLY public.dcl_fund_account_versions
+    ADD CONSTRAINT dcl_fund_account_operating_version_fk FOREIGN KEY (operating_entity_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --
--- Name: bob_fund_account_versions bob_fund_account_versions_approval_entry_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+
+--
+-- Name: dcl_fund_account_versions dcl_fund_account_versions_approval_entry_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bob_fund_account_versions
-    ADD CONSTRAINT bob_fund_account_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_fund_account_versions
+    ADD CONSTRAINT dcl_fund_account_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.dcl_fund_account_identifier_claims
+    ADD CONSTRAINT dcl_fund_account_identifier_claims_object_fkey FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.dcl_fund_account_identifier_claims
+    ADD CONSTRAINT dcl_fund_account_identifier_claims_approved_fkey FOREIGN KEY (approved_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_fund_account_identifier_claims
+    ADD CONSTRAINT dcl_fund_account_identifier_claims_open_fkey FOREIGN KEY (open_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.bob_fund_accounts
+    ADD CONSTRAINT bob_fund_accounts_object_fkey FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.bob_fund_accounts
+    ADD CONSTRAINT bob_fund_accounts_source_fkey FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.bob_fund_accounts
+    ADD CONSTRAINT bob_fund_accounts_operating_object_fkey FOREIGN KEY (operating_entity_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.bob_fund_accounts
+    ADD CONSTRAINT bob_fund_accounts_operating_version_fkey FOREIGN KEY (operating_entity_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --

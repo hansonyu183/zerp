@@ -534,6 +534,30 @@ func TestQueryFilterValidation(t *testing.T) {
 	}
 }
 
+func TestFundAccountValidationUsesCharacterLengthAndNormalizesAccountNumber(t *testing.T) {
+	valid, err := ValidateFundAccountData(FundAccountData{
+		Name:              strings.Repeat("账", 200),
+		Currency:          "cny",
+		AccountNumber:     " ab-12 34 ",
+		OperatingEntityID: "01J00000000000000000000030",
+	})
+	if err != nil {
+		t.Fatalf("valid multibyte fund account rejected: %v", err)
+	}
+	if valid.Currency != "CNY" || valid.AccountNumber != "AB1234" {
+		t.Fatalf("normalized fund account = %+v", valid)
+	}
+
+	_, err = ValidateFundAccountData(FundAccountData{
+		Name:              strings.Repeat("账", 201),
+		Currency:          "CNY",
+		OperatingEntityID: "01J00000000000000000000030",
+	})
+	if !errorIsKind(err, ErrorValidation) {
+		t.Fatalf("oversized multibyte fund account error = %v", err)
+	}
+}
+
 func stringTestPointer(value string) *string {
 	return &value
 }

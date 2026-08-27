@@ -71,6 +71,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
       config.entity !== 'operating-entity' &&
       config.entity !== 'warehouse' &&
       config.entity !== 'vehicle' &&
+      config.entity !== 'fund-account' &&
       session.can(`/bob/${config.entity}/create`) &&
       canLoadEditorReferences.value,
   )
@@ -307,6 +308,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
       const editable =
         requestedMode === 'edit' &&
         config.entity !== 'vehicle' &&
+        config.entity !== 'fund-account' &&
         view.approval.status === 'DRAFT' &&
         session.can(permission('save')) &&
         canLoadEditorReferences.value

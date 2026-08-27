@@ -68,6 +68,7 @@ type relationshipAwareLifecycleService struct {
 	operatingEntities       *dcldomain.OperatingEntityService
 	warehouses              *dcldomain.WarehouseService
 	vehicles                *dcldomain.VehicleService
+	fundAccounts            *dcldomain.FundAccountService
 }
 
 func (service relationshipAwareLifecycleService) Create(
@@ -88,6 +89,10 @@ func (service relationshipAwareLifecycleService) Create(
 	if entity == bob.EntityVehicle {
 		result, err := service.vehicles.Create(ctx, dcldomain.VehicleCreateInput{Data: vehicleData(input.Data)}, actor)
 		return vehicleMutation(result), err
+	}
+	if entity == bob.EntityFundAccount {
+		result, err := service.fundAccounts.Create(ctx, dcldomain.FundAccountCreateInput{Data: fundAccountData(input.Data)}, actor)
+		return fundAccountMutation(result), err
 	}
 	partyKind := bob.PartyKindOrganization
 	if entity == bob.EntityEmployee {
@@ -268,6 +273,26 @@ func (service relationshipAwareLifecycleService) Save(
 		}, actor)
 		return vehicleMutation(result), err
 	}
+	if entity == bob.EntityFundAccount {
+		view, err := service.fundAccounts.Get(ctx, dcldomain.FundAccountGetInput{
+			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
+		}, mustSeedActor("seed-bob-fund-account-save-get"))
+		if err != nil {
+			return bob.MutationResult{}, err
+		}
+		result, err := service.fundAccounts.Save(ctx, dcldomain.FundAccountSaveInput{
+			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
+			ApprovalRevision: input.ApprovalRevision, Enabled: view.Enabled,
+			Data: dcldomain.FundAccountData{
+				Name: input.Data.Name, Currency: input.Data.Currency,
+				OperatingEntityID: input.Data.OperatingEntityID.Value,
+				AccountName:       input.Data.AccountName.Value, BankName: input.Data.BankName.Value,
+				BankBranch: input.Data.BankBranch.Value, AccountNumber: input.Data.AccountNumber.Value,
+				Remark: input.Data.Remark.Value,
+			},
+		}, actor)
+		return fundAccountMutation(result), err
+	}
 	if entity == bob.EntitySupplier {
 		return service.relationships.Save(ctx, entity, input, actor)
 	}
@@ -295,6 +320,12 @@ func (service relationshipAwareLifecycleService) Get(
 		}, mustSeedActor("seed-bob-vehicle-get"))
 		return vehicleView(view), err
 	}
+	if entity == bob.EntityFundAccount {
+		view, err := service.fundAccounts.Get(ctx, dcldomain.FundAccountGetInput{
+			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
+		}, mustSeedActor("seed-bob-fund-account-get"))
+		return fundAccountView(view), err
+	}
 	if entity != bob.EntityOtherUnit {
 		return service.lifecycleService.Get(ctx, entity, input)
 	}
@@ -311,6 +342,10 @@ func (service relationshipAwareLifecycleService) Get(
 }
 
 func (service relationshipAwareLifecycleService) Submit(ctx context.Context, entity string, input bob.VersionRevisionInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityFundAccount {
+		result, err := service.fundAccounts.Submit(ctx, dcldomain.FundAccountVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
+		return fundAccountMutation(result), err
+	}
 	if entity == bob.EntityVehicle {
 		result, err := service.vehicles.Submit(ctx, dcldomain.VehicleVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
 		return vehicleMutation(result), err
@@ -331,6 +366,10 @@ func (service relationshipAwareLifecycleService) Submit(ctx context.Context, ent
 }
 
 func (service relationshipAwareLifecycleService) Unsubmit(ctx context.Context, entity string, input bob.ReverseInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityFundAccount {
+		result, err := service.fundAccounts.Unsubmit(ctx, dcldomain.FundAccountReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: input.Reason}, actor)
+		return fundAccountMutation(result), err
+	}
 	if entity == bob.EntityVehicle {
 		result, err := service.vehicles.Unsubmit(ctx, dcldomain.VehicleReviewInput{
 			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
@@ -356,6 +395,10 @@ func (service relationshipAwareLifecycleService) Unsubmit(ctx context.Context, e
 }
 
 func (service relationshipAwareLifecycleService) Approve(ctx context.Context, entity string, input bob.ReviewInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityFundAccount {
+		result, err := service.fundAccounts.Approve(ctx, dcldomain.FundAccountVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
+		return fundAccountMutation(result), err
+	}
 	if entity == bob.EntityVehicle {
 		result, err := service.vehicles.Approve(ctx, dcldomain.VehicleVersionInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision}, actor)
 		return vehicleMutation(result), err
@@ -376,6 +419,10 @@ func (service relationshipAwareLifecycleService) Approve(ctx context.Context, en
 }
 
 func (service relationshipAwareLifecycleService) Unapprove(ctx context.Context, entity string, input bob.ReverseInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityFundAccount {
+		result, err := service.fundAccounts.Unapprove(ctx, dcldomain.FundAccountReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: input.Reason}, actor)
+		return fundAccountMutation(result), err
+	}
 	if entity == bob.EntityVehicle {
 		result, err := service.vehicles.Unapprove(ctx, dcldomain.VehicleReviewInput{
 			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
@@ -401,6 +448,14 @@ func (service relationshipAwareLifecycleService) Unapprove(ctx context.Context, 
 }
 
 func (service relationshipAwareLifecycleService) Reject(ctx context.Context, entity string, input bob.ReviewInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityFundAccount {
+		reason := ""
+		if input.Reason != nil {
+			reason = *input.Reason
+		}
+		result, err := service.fundAccounts.Reject(ctx, dcldomain.FundAccountReviewInput{ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision, Reason: reason}, actor)
+		return fundAccountMutation(result), err
+	}
 	if entity == bob.EntityVehicle {
 		reason := ""
 		if input.Reason != nil {
@@ -501,6 +556,30 @@ func vehicleView(view dcldomain.VehicleView) bob.ObjectView {
 	}
 }
 
+func fundAccountData(data bob.CreateDetailInput) dcldomain.FundAccountData {
+	return dcldomain.FundAccountData{
+		Name: data.Name, Currency: data.Currency, OperatingEntityID: data.OperatingEntityID,
+		AccountName: data.AccountName, BankName: data.BankName, BankBranch: data.BankBranch,
+		AccountNumber: data.AccountNumber, Remark: data.Remark,
+	}
+}
+
+func fundAccountMutation(result dcldomain.FundAccountMutation) bob.MutationResult {
+	return bob.MutationResult{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}
+}
+
+func fundAccountView(view dcldomain.FundAccountView) bob.ObjectView {
+	return bob.ObjectView{
+		ObjectID: view.ObjectID, Entity: bob.EntityFundAccount, Code: view.Code,
+		ObjectRevision: view.ObjectRevision, Enabled: view.Enabled, Approval: view.Approval,
+		Data: bob.DetailView{
+			Name: view.Data.Name, Currency: view.Data.Currency, OperatingEntityID: view.Data.OperatingEntityID,
+			AccountName: view.Data.AccountName, BankName: view.Data.BankName, BankBranch: view.Data.BankBranch,
+			AccountNumber: view.Data.AccountNumber, Remark: view.Data.Remark,
+		}, UpdatedAt: view.UpdatedAt,
+	}
+}
+
 func warehouseView(view dcldomain.WarehouseView) bob.ObjectView {
 	return bob.ObjectView{
 		ObjectID: view.ObjectID, Entity: bob.EntityWarehouse, Code: view.Code,
@@ -523,7 +602,7 @@ type queryLookup struct {
 }
 
 func (l queryLookup) Find(ctx context.Context, entity, code string) (string, bool, error) {
-	if entity == bob.EntityOperatingEntity || entity == bob.EntityWarehouse || entity == bob.EntityVehicle {
+	if entity == bob.EntityOperatingEntity || entity == bob.EntityWarehouse || entity == bob.EntityVehicle || entity == bob.EntityFundAccount {
 		var id string
 		err := l.pool.QueryRow(ctx, `SELECT subject_id FROM approval_events
 			WHERE domain='dcl' AND entity=$1 AND request_id=$2 AND action='CREATED'
@@ -584,10 +663,11 @@ func New(pool *pgxpool.Pool) *Seeder {
 	operatingEntities := dcldomain.NewOperatingEntityService(pool, service, authorizer, bus)
 	warehouses := dcldomain.NewWarehouseService(pool, service, authorizer, bus)
 	vehicles := dcldomain.NewVehicleService(pool, service, authorizer, bus)
+	fundAccounts := dcldomain.NewFundAccountService(pool, service, authorizer, bus)
 	return &Seeder{
 		service: relationshipAwareLifecycleService{lifecycleService: service, relationships: service,
 			settlementRelationships: supplier, auxiliary: auxiliary, pool: pool,
-			operatingEntities: operatingEntities, warehouses: warehouses, vehicles: vehicles},
+			operatingEntities: operatingEntities, warehouses: warehouses, vehicles: vehicles, fundAccounts: fundAccounts},
 		lookup: queryLookup{queries: dbsqlc.New(pool), pool: pool}, pool: pool,
 		auxiliary: auxiliary,
 	}

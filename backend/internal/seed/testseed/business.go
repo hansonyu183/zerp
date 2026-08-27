@@ -383,7 +383,7 @@ func (s *Seeder) ensureBusiness(
 	sample bobSample,
 ) (bobdomain.ObjectView, outcome, error) {
 	approvalDomain := "bob"
-	if sample.entity == bobdomain.EntityOperatingEntity || sample.entity == bobdomain.EntityWarehouse {
+	if sample.entity == bobdomain.EntityOperatingEntity || sample.entity == bobdomain.EntityWarehouse || sample.entity == bobdomain.EntityVehicle {
 		approvalDomain = "dcl"
 	}
 	var objectID string
@@ -417,6 +417,9 @@ func (s *Seeder) ensureBusiness(
 					ManagerEmployeeID: data.ManagerEmployeeID, Remark: data.Remark},
 			}, createActor)
 			result, createErr = dclWarehouseBusinessMutation(createdWarehouse), declarationErr
+		case bobdomain.EntityVehicle:
+			createdVehicle, declarationErr := s.vehicles.Create(ctx, dcldomain.VehicleCreateInput{Data: dcldomain.VehicleData{Name: data.Name, PlateNumber: data.PlateNumber, VehicleType: data.VehicleType, CarrierAffiliation: data.CarrierAffiliation, BulkLiquidCapable: data.BulkLiquidCapable, VIN: data.VIN, EngineNumber: data.EngineNumber, LoadCapacityKG: data.LoadCapacityKG, Remark: data.Remark}}, createActor)
+			result, createErr = dclVehicleBusinessMutation(createdVehicle), declarationErr
 		case bobdomain.EntityEmployee:
 			createdEmployment, relationshipErr := s.business.EmploymentCreate(ctx, bobdomain.EmploymentCreateInput{
 				NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson,
@@ -545,9 +548,15 @@ func dclWarehouseBusinessView(view dcldomain.WarehouseView) bobdomain.ObjectView
 			ManagerEmployeeID: view.Data.ManagerEmployeeID,
 			Remark:            view.Data.Remark}, UpdatedAt: view.UpdatedAt}
 }
+func dclVehicleBusinessMutation(result dcldomain.VehicleMutation) bobdomain.MutationResult {
+	return bobdomain.MutationResult{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision, Enabled: result.Enabled, Approval: result.Approval}
+}
+func dclVehicleBusinessView(view dcldomain.VehicleView) bobdomain.ObjectView {
+	return bobdomain.ObjectView{ObjectID: view.ObjectID, Entity: bobdomain.EntityVehicle, Code: view.Code, ObjectRevision: view.ObjectRevision, Enabled: view.Enabled, Approval: view.Approval, Data: bobdomain.DetailView{Name: view.Data.Name, PlateNumber: view.Data.PlateNumber, VehicleType: view.Data.VehicleType, CarrierAffiliation: view.Data.CarrierAffiliation, BulkLiquidCapable: view.Data.BulkLiquidCapable, VIN: view.Data.VIN, EngineNumber: view.Data.EngineNumber, LoadCapacityKG: view.Data.LoadCapacityKG, Remark: view.Data.Remark}, UpdatedAt: view.UpdatedAt}
+}
 
 func (s *Seeder) getBusiness(ctx context.Context, entity, objectID, key string) (bobdomain.ObjectView, error) {
-	if entity != bobdomain.EntityOperatingEntity && entity != bobdomain.EntityWarehouse {
+	if entity != bobdomain.EntityOperatingEntity && entity != bobdomain.EntityWarehouse && entity != bobdomain.EntityVehicle {
 		return s.business.Get(ctx, entity, bobdomain.GetInput{ObjectID: objectID})
 	}
 	actor, err := seedActor(actorID, requestID(key, "get"))
@@ -557,6 +566,10 @@ func (s *Seeder) getBusiness(ctx context.Context, entity, objectID, key string) 
 	if entity == bobdomain.EntityWarehouse {
 		view, getErr := s.warehouses.Get(ctx, dcldomain.WarehouseGetInput{ObjectID: objectID}, actor)
 		return dclWarehouseBusinessView(view), getErr
+	}
+	if entity == bobdomain.EntityVehicle {
+		view, getErr := s.vehicles.Get(ctx, dcldomain.VehicleGetInput{ObjectID: objectID}, actor)
+		return dclVehicleBusinessView(view), getErr
 	}
 	view, getErr := s.operatingEntities.Get(ctx, dcldomain.OperatingEntityGetInput{ObjectID: objectID}, actor)
 	return dclBusinessView(view), getErr
@@ -577,7 +590,11 @@ func (s *Seeder) advanceBusiness(
 		if actorErr != nil {
 			return actorErr
 		}
-		if sample.entity == bobdomain.EntityWarehouse {
+		if sample.entity == bobdomain.EntityVehicle {
+			var submitted dcldomain.VehicleMutation
+			submitted, err = s.vehicles.Submit(ctx, dcldomain.VehicleVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
+			current = dclVehicleBusinessMutation(submitted)
+		} else if sample.entity == bobdomain.EntityWarehouse {
 			var submitted dcldomain.WarehouseMutation
 			submitted, err = s.warehouses.Submit(ctx, dcldomain.WarehouseVersionInput{
 				ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID,
@@ -609,7 +626,9 @@ func (s *Seeder) advanceBusiness(
 		if actorErr != nil {
 			return actorErr
 		}
-		if sample.entity == bobdomain.EntityWarehouse {
+		if sample.entity == bobdomain.EntityVehicle {
+			_, err = s.vehicles.Approve(ctx, dcldomain.VehicleVersionInput{ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID, ApprovalRevision: current.Approval.Revision}, actor)
+		} else if sample.entity == bobdomain.EntityWarehouse {
 			_, err = s.warehouses.Approve(ctx, dcldomain.WarehouseVersionInput{
 				ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID,
 				ApprovalRevision: current.Approval.Revision,

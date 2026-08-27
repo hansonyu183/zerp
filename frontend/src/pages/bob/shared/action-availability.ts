@@ -18,7 +18,11 @@ export function useBobActionAvailability(
   function actionAvailability(
     row: Readonly<BobListItem>,
   ): BobActionAvailability {
-    if (config.entity === 'operating-entity' || config.entity === 'warehouse') {
+    if (
+      config.entity === 'operating-entity' ||
+      config.entity === 'warehouse' ||
+      config.entity === 'vehicle'
+    ) {
       return {
         view: can(permission('get')),
         edit: false,

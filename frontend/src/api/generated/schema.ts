@@ -390,6 +390,102 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.DclWarehouseAuditHistoryResponse } } };
     };
   };
+  "/dcl/vehicle/create": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclVehicleCreateRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclVehicleMutationResponse } } };
+    };
+  };
+  "/dcl/vehicle/save": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclVehicleSaveRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclVehicleMutationResponse } } };
+    };
+  };
+  "/dcl/vehicle/submit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclVehicleMutationResponse } } };
+    };
+  };
+  "/dcl/vehicle/unsubmit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclVehicleMutationResponse } } };
+    };
+  };
+  "/dcl/vehicle/reject": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclVehicleMutationResponse } } };
+    };
+  };
+  "/dcl/vehicle/approve": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclVehicleMutationResponse } } };
+    };
+  };
+  "/dcl/vehicle/unapprove": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclVehicleMutationResponse } } };
+    };
+  };
+  "/dcl/vehicle/delete": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
+    };
+  };
+  "/dcl/vehicle/get": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityGetRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclVehicleViewResponse } } };
+    };
+  };
+  "/dcl/vehicle/query": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityQueryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclVehicleQueryResponse } } };
+    };
+  };
+  "/dcl/vehicle/versions": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclVehicleVersionPageResponse } } };
+    };
+  };
+  "/dcl/vehicle/audit-history": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWarehouseAuditHistoryResponse } } };
+    };
+  };
   "/dcl/operating-entity/create": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
@@ -1846,6 +1942,21 @@ export interface components {
       "ApprovalEventView": Models.ApprovalEventView;
       "DclOperatingEntityAuditEventPage": Models.DclOperatingEntityAuditEventPage;
       "DclWarehouseAuditHistoryResponse": Models.DclWarehouseAuditHistoryResponse;
+      "VehicleInternalCarrierAffiliation": Models.VehicleInternalCarrierAffiliation;
+      "VehicleExternalCarrierAffiliation": Models.VehicleExternalCarrierAffiliation;
+      "VehicleCarrierAffiliation": Models.VehicleCarrierAffiliation;
+      "DclVehicleData": Models.DclVehicleData;
+      "DclVehicleCreateRequest": Models.DclVehicleCreateRequest;
+      "DclVehicleMutationResponse": Models.DclVehicleMutationResponse;
+      "DclVehicleSaveRequest": Models.DclVehicleSaveRequest;
+      "DclVehicleView": Models.DclVehicleView;
+      "DclVehicleViewResponse": Models.DclVehicleViewResponse;
+      "DclVehicleVersionView": Models.DclVehicleVersionView;
+      "DclVehicleListItem": Models.DclVehicleListItem;
+      "DclVehicleQueryPage": Models.DclVehicleQueryPage;
+      "DclVehicleQueryResponse": Models.DclVehicleQueryResponse;
+      "DclVehicleVersionPage": Models.DclVehicleVersionPage;
+      "DclVehicleVersionPageResponse": Models.DclVehicleVersionPageResponse;
       "DclOperatingEntityData": Models.DclOperatingEntityData;
       "DclOperatingEntityCreateRequest": Models.DclOperatingEntityCreateRequest;
       "DclOperatingEntityMutationResponse": Models.DclOperatingEntityMutationResponse;
@@ -2068,9 +2179,6 @@ export interface components {
       "BobListItem": Models.BobListItem;
       "BobListPage": Models.BobListPage;
       "BobQueryResponse": Models.BobQueryResponse;
-      "VehicleInternalCarrierAffiliation": Models.VehicleInternalCarrierAffiliation;
-      "VehicleExternalCarrierAffiliation": Models.VehicleExternalCarrierAffiliation;
-      "VehicleCarrierAffiliation": Models.VehicleCarrierAffiliation;
       "BobMeasurementUnitSnapshotInput": Models.BobMeasurementUnitSnapshotInput;
       "BobProductUnitConversionInput": Models.BobProductUnitConversionInput;
       "BobQuantitySnapshotInput": Models.BobQuantitySnapshotInput;

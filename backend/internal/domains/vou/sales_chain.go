@@ -596,7 +596,7 @@ func (s *Service) validateSaleDeliveryTransportCurrent(ctx context.Context, tx p
 	}
 	transport, err := s.resolveSaleDeliveryTransport(ctx, tx, source, carrier, ReferenceInput{
 		ObjectID: *snapshot.VehicleObjectID, ApprovalEntryID: *snapshot.VehicleApprovalEntryID,
-	}, documentID)
+	}, "")
 	if err != nil {
 		return err
 	}

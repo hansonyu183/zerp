@@ -10,7 +10,81 @@ import (
 const (
 	EntityOperatingEntity = "operating-entity"
 	EntityWarehouse       = "warehouse"
+	EntityVehicle         = "vehicle"
 )
+
+type VehicleData struct {
+	Name               string                        `json:"name"`
+	PlateNumber        string                        `json:"plateNumber"`
+	VehicleType        string                        `json:"vehicleType"`
+	CarrierAffiliation *bobdomain.CarrierAffiliation `json:"carrierAffiliation"`
+	BulkLiquidCapable  bool                          `json:"bulkLiquidCapable"`
+	VIN                string                        `json:"vin,omitempty"`
+	EngineNumber       string                        `json:"engineNumber,omitempty"`
+	LoadCapacityKG     string                        `json:"loadCapacityKg,omitempty"`
+	Remark             string                        `json:"remark,omitempty"`
+}
+type VehicleCreateInput struct {
+	Data VehicleData `json:"data"`
+}
+type VehicleSaveInput struct {
+	ObjectID         string      `json:"objectId"`
+	ApprovalEntryID  string      `json:"approvalEntryId"`
+	ApprovalRevision int64       `json:"approvalRevision"`
+	Enabled          bool        `json:"enabled"`
+	Data             VehicleData `json:"data"`
+}
+type VehicleVersionInput struct {
+	ObjectID         string `json:"objectId"`
+	ApprovalEntryID  string `json:"approvalEntryId"`
+	ApprovalRevision int64  `json:"approvalRevision"`
+}
+type VehicleReviewInput struct {
+	ObjectID         string `json:"objectId"`
+	ApprovalEntryID  string `json:"approvalEntryId"`
+	ApprovalRevision int64  `json:"approvalRevision"`
+	Reason           string `json:"reason"`
+}
+type VehicleDeleteInput = VehicleVersionInput
+type VehicleGetInput struct {
+	ObjectID        string `json:"objectId"`
+	ApprovalEntryID string `json:"approvalEntryId,omitempty"`
+}
+type VehicleQueryFilters = OperatingEntityQueryFilters
+type VehicleSortItem = OperatingEntitySortItem
+type VehicleQueryInput struct {
+	Page     int                 `json:"page"`
+	PageSize int                 `json:"pageSize"`
+	Filters  VehicleQueryFilters `json:"filters"`
+	Sort     []VehicleSortItem   `json:"sort"`
+}
+type VehicleHistoryInput = OperatingEntityHistoryInput
+type VehicleMutation = WarehouseMutation
+type VehicleView struct {
+	ObjectID       string               `json:"objectId"`
+	Entity         string               `json:"entity"`
+	Code           string               `json:"code"`
+	ObjectRevision int64                `json:"objectRevision"`
+	Enabled        bool                 `json:"enabled"`
+	Approval       approval.VersionMeta `json:"approval"`
+	Data           VehicleData          `json:"data"`
+	UpdatedAt      time.Time            `json:"updatedAt"`
+}
+type VehicleVersionView struct {
+	Approval approval.VersionMeta `json:"approval"`
+	Data     VehicleData          `json:"data"`
+	Enabled  bool                 `json:"enabled"`
+}
+type VehicleQueryItem struct {
+	ObjectID       string              `json:"objectId"`
+	Entity         string              `json:"entity"`
+	Code           string              `json:"code"`
+	ObjectRevision int64               `json:"objectRevision"`
+	Enabled        bool                `json:"enabled"`
+	LatestApproved *VehicleVersionView `json:"latestApproved"`
+	OpenVersion    *VehicleVersionView `json:"openVersion"`
+	UpdatedAt      time.Time           `json:"updatedAt"`
+}
 
 type WarehouseData struct {
 	Name              string `json:"name"`

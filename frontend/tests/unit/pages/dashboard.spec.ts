@@ -608,6 +608,23 @@ describe('Dashboard workbench', () => {
       approvalEntryId: 'version-1',
       approvalRevision: 5,
     })
+
+    const vehicle = {
+      ...objectItem,
+      entity: 'vehicle' as const,
+      code: 'VEH-0001',
+      name: '测试车辆',
+    }
+    vi.clearAllMocks()
+    mockedPost.mockResolvedValueOnce({ data: {} }).mockResolvedValueOnce(page())
+
+    expect(workbenchItemPath(vehicle)).toBe('/dcl/vehicle')
+    await expect(vm.runAction(vehicle, 'submit')).resolves.toBe(true)
+    expect(mockedPost).toHaveBeenNthCalledWith(1, 'dcl/vehicle/submit', {
+      objectId: 'object-1',
+      approvalEntryId: 'version-1',
+      approvalRevision: 5,
+    })
   })
 
   it('驳回资料时提交去除首尾空白的意见', async () => {

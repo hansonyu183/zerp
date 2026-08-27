@@ -30,9 +30,9 @@ WITH current_bob_entries AS (
     UNION ALL SELECT 'product','formula-material',payload.material_approval_entry_id
     FROM bob_product_formula_lines payload JOIN current_bob_entries current_entry ON current_entry.id=payload.product_approval_entry_id
     UNION ALL SELECT 'vehicle','vehicle-carrier-operating',payload.carrier_operating_entity_approval_entry_id
-    FROM bob_vehicle_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id
+    FROM dcl_vehicle_versions payload JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id WHERE current_entry.domain='dcl' AND current_entry.entity='vehicle' AND current_entry.status='APPROVED' AND NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain='dcl' AND newer.entity='vehicle' AND newer.subject_id=current_entry.subject_id AND newer.status='APPROVED' AND newer.version_no>current_entry.version_no)
     UNION ALL SELECT 'vehicle','vehicle-carrier-service',payload.carrier_service_relationship_approval_entry_id
-    FROM bob_vehicle_versions payload JOIN current_bob_entries current_entry ON current_entry.id=payload.approval_entry_id
+    FROM dcl_vehicle_versions payload JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id WHERE current_entry.domain='dcl' AND current_entry.entity='vehicle' AND current_entry.status='APPROVED' AND NOT EXISTS (SELECT 1 FROM approval_entries newer WHERE newer.domain='dcl' AND newer.entity='vehicle' AND newer.subject_id=current_entry.subject_id AND newer.status='APPROVED' AND newer.version_no>current_entry.version_no)
     UNION ALL SELECT 'warehouse','warehouse-manager',payload.manager_employee_approval_entry_id
     FROM dcl_warehouse_versions payload JOIN approval_entries current_entry ON current_entry.id=payload.approval_entry_id
     WHERE current_entry.domain='dcl' AND current_entry.entity='warehouse' AND current_entry.status='APPROVED'

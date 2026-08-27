@@ -159,21 +159,6 @@ func (q *Queries) CopyBobSupplierPayload(ctx context.Context, arg CopyBobSupplie
 	return err
 }
 
-const copyBobVehiclePayload = `-- name: CopyBobVehiclePayload :exec
-INSERT INTO bob_vehicle_versions(approval_entry_id,entity,name,plate_number,vehicle_type,category_id,category_approval_entry_id,category_entity,vin,engine_number,load_capacity_kg,remark,carrier_affiliation_type,carrier_operating_entity_id,carrier_operating_entity_approval_entry_id,carrier_operating_entity,carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,carrier_service_relationship_entity,bulk_liquid_capable)
-SELECT $1,entity,name,plate_number,vehicle_type,category_id,category_approval_entry_id,category_entity,vin,engine_number,load_capacity_kg,remark,carrier_affiliation_type,carrier_operating_entity_id,carrier_operating_entity_approval_entry_id,carrier_operating_entity,carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,carrier_service_relationship_entity,bulk_liquid_capable FROM bob_vehicle_versions source WHERE source.approval_entry_id=$2
-`
-
-type CopyBobVehiclePayloadParams struct {
-	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
-	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
-}
-
-func (q *Queries) CopyBobVehiclePayload(ctx context.Context, arg CopyBobVehiclePayloadParams) error {
-	_, err := q.db.Exec(ctx, copyBobVehiclePayload, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
-	return err
-}
-
 const countBobApprovalEvents = `-- name: CountBobApprovalEvents :one
 SELECT count(*)
 FROM approval_events
@@ -267,8 +252,8 @@ LEFT JOIN bob_employee_versions approved_employee ON approved_employee.approval_
 LEFT JOIN bob_employee_versions open_employee ON open_employee.approval_entry_id=open_entry.id
 LEFT JOIN bob_product_versions approved_product ON approved_product.approval_entry_id=approved.id
 LEFT JOIN bob_product_versions open_product ON open_product.approval_entry_id=open_entry.id
-LEFT JOIN bob_vehicle_versions approved_vehicle ON approved_vehicle.approval_entry_id=approved.id
-LEFT JOIN bob_vehicle_versions open_vehicle ON open_vehicle.approval_entry_id=open_entry.id
+LEFT JOIN dcl_vehicle_versions approved_vehicle ON approved_vehicle.approval_entry_id=approved.id
+LEFT JOIN dcl_vehicle_versions open_vehicle ON open_vehicle.approval_entry_id=open_entry.id
 LEFT JOIN bob_fund_account_versions approved_fund ON approved_fund.approval_entry_id=approved.id
 LEFT JOIN bob_fund_account_versions open_fund ON open_fund.approval_entry_id=open_entry.id
 LEFT JOIN bob_supplier_versions approved_supplier ON approved_supplier.approval_entry_id=approved.id
@@ -396,6 +381,22 @@ type CountBobOperatingEntitiesParams struct {
 
 func (q *Queries) CountBobOperatingEntities(ctx context.Context, arg CountBobOperatingEntitiesParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countBobOperatingEntities, arg.Keyword, arg.EnabledFilter, arg.StatusFilter)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countBobVehicles = `-- name: CountBobVehicles :one
+SELECT count(*) FROM bob_vehicles current JOIN bob_objects object ON object.id=current.object_id WHERE ($1::text='' OR object.code ILIKE '%'||$1::text||'%' OR current.name ILIKE '%'||$1::text||'%' OR current.plate_number ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR current.enabled=($2::integer=1))
+`
+
+type CountBobVehiclesParams struct {
+	Keyword       string `db:"keyword" json:"keyword"`
+	EnabledFilter int32  `db:"enabled_filter" json:"enabled_filter"`
+}
+
+func (q *Queries) CountBobVehicles(ctx context.Context, arg CountBobVehiclesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countBobVehicles, arg.Keyword, arg.EnabledFilter)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -591,12 +592,12 @@ func (q *Queries) DeleteBobSupplierPayload(ctx context.Context, approvalEntryID 
 	return result.RowsAffected(), nil
 }
 
-const deleteBobVehiclePayload = `-- name: DeleteBobVehiclePayload :execrows
-DELETE FROM bob_vehicle_versions WHERE approval_entry_id = $1
+const deleteBobVehicleCurrent = `-- name: DeleteBobVehicleCurrent :execrows
+DELETE FROM bob_vehicles WHERE object_id=$1
 `
 
-func (q *Queries) DeleteBobVehiclePayload(ctx context.Context, approvalEntryID string) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteBobVehiclePayload, approvalEntryID)
+func (q *Queries) DeleteBobVehicleCurrent(ctx context.Context, objectID string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteBobVehicleCurrent, objectID)
 	if err != nil {
 		return 0, err
 	}
@@ -1302,12 +1303,12 @@ func (q *Queries) GetBobOpenSupplierPayload(ctx context.Context, approvalEntryID
 }
 
 const getBobOpenVehiclePayload = `-- name: GetBobOpenVehiclePayload :one
-SELECT payload.approval_entry_id, payload.entity, payload.name, payload.plate_number, payload.vehicle_type, payload.category_id, payload.category_approval_entry_id, payload.category_entity, payload.vin, payload.engine_number, payload.load_capacity_kg, payload.remark, payload.carrier_affiliation_type, payload.carrier_operating_entity_id, payload.carrier_operating_entity_approval_entry_id, payload.carrier_operating_entity, payload.carrier_service_relationship_object_id, payload.carrier_service_relationship_approval_entry_id, payload.carrier_service_relationship_entity, payload.bulk_liquid_capable FROM bob_vehicle_versions payload WHERE payload.approval_entry_id=$1
+SELECT payload.approval_entry_id, payload.entity, payload.name, payload.plate_number, payload.vehicle_type, payload.category_id, payload.category_approval_entry_id, payload.category_entity, payload.vin, payload.engine_number, payload.load_capacity_kg, payload.remark, payload.carrier_affiliation_type, payload.carrier_operating_entity_id, payload.carrier_operating_entity_approval_entry_id, payload.carrier_operating_entity, payload.carrier_service_relationship_object_id, payload.carrier_service_relationship_approval_entry_id, payload.carrier_service_relationship_entity, payload.bulk_liquid_capable, payload.enabled FROM dcl_vehicle_versions payload WHERE payload.approval_entry_id=$1
 `
 
-func (q *Queries) GetBobOpenVehiclePayload(ctx context.Context, approvalEntryID string) (BobVehicleVersion, error) {
+func (q *Queries) GetBobOpenVehiclePayload(ctx context.Context, approvalEntryID string) (DclVehicleVersion, error) {
 	row := q.db.QueryRow(ctx, getBobOpenVehiclePayload, approvalEntryID)
-	var i BobVehicleVersion
+	var i DclVehicleVersion
 	err := row.Scan(
 		&i.ApprovalEntryID,
 		&i.Entity,
@@ -1329,6 +1330,7 @@ func (q *Queries) GetBobOpenVehiclePayload(ctx context.Context, approvalEntryID 
 		&i.CarrierServiceRelationshipApprovalEntryID,
 		&i.CarrierServiceRelationshipEntity,
 		&i.BulkLiquidCapable,
+		&i.Enabled,
 	)
 	return i, err
 }
@@ -1693,24 +1695,60 @@ func (q *Queries) GetBobSupplierRelationship(ctx context.Context, objectID strin
 	return i, err
 }
 
-const getBobVehiclePayload = `-- name: GetBobVehiclePayload :one
-SELECT payload.approval_entry_id, payload.entity, payload.name, payload.plate_number, payload.vehicle_type, payload.category_id, payload.category_approval_entry_id, payload.category_entity, payload.vin, payload.engine_number, payload.load_capacity_kg, payload.remark, payload.carrier_affiliation_type, payload.carrier_operating_entity_id, payload.carrier_operating_entity_approval_entry_id, payload.carrier_operating_entity, payload.carrier_service_relationship_object_id, payload.carrier_service_relationship_approval_entry_id, payload.carrier_service_relationship_entity, payload.bulk_liquid_capable FROM bob_vehicle_versions payload JOIN approval_entries entry ON entry.id=payload.approval_entry_id
-WHERE payload.approval_entry_id=$1 AND entry.domain='bob' AND entry.status='APPROVED'
-  AND entry.id=(SELECT latest.id FROM approval_entries latest WHERE latest.domain='bob' AND latest.entity=entry.entity AND latest.subject_id=entry.subject_id AND latest.status='APPROVED' ORDER BY latest.version_no DESC LIMIT 1)
+const getBobVehicleCurrent = `-- name: GetBobVehicleCurrent :one
+SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,current.object_id, current.source_approval_entry_id, current.name, current.plate_number, current.vehicle_type, current.vin, current.engine_number, current.load_capacity_kg, current.remark, current.carrier_affiliation_type, current.carrier_operating_entity_id, current.carrier_operating_entity_approval_entry_id, current.carrier_service_relationship_object_id, current.carrier_service_relationship_approval_entry_id, current.bulk_liquid_capable, current.enabled, current.updated_at, current.updated_by,entry.domain,entry.version_no,entry.status,entry.revision AS approval_revision,entry.created_by,entry.created_at,entry.updated_by AS approval_updated_by,entry.updated_at AS approval_updated_at,entry.submitted_by,entry.submitted_at,entry.approved_by,entry.approved_at FROM bob_vehicles current JOIN bob_objects object ON object.id=current.object_id JOIN approval_entries entry ON entry.id=current.source_approval_entry_id WHERE current.object_id=$1
 `
 
-func (q *Queries) GetBobVehiclePayload(ctx context.Context, approvalEntryID string) (BobVehicleVersion, error) {
-	row := q.db.QueryRow(ctx, getBobVehiclePayload, approvalEntryID)
-	var i BobVehicleVersion
+type GetBobVehicleCurrentRow struct {
+	ObjectID                                  string             `db:"object_id" json:"object_id"`
+	Entity                                    string             `db:"entity" json:"entity"`
+	Code                                      string             `db:"code" json:"code"`
+	ObjectRevision                            int64              `db:"object_revision" json:"object_revision"`
+	ObjectID_2                                string             `db:"object_id_2" json:"object_id_2"`
+	SourceApprovalEntryID                     string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	Name                                      string             `db:"name" json:"name"`
+	PlateNumber                               string             `db:"plate_number" json:"plate_number"`
+	VehicleType                               string             `db:"vehicle_type" json:"vehicle_type"`
+	Vin                                       *string            `db:"vin" json:"vin"`
+	EngineNumber                              *string            `db:"engine_number" json:"engine_number"`
+	LoadCapacityKg                            pgtype.Numeric     `db:"load_capacity_kg" json:"load_capacity_kg"`
+	Remark                                    *string            `db:"remark" json:"remark"`
+	CarrierAffiliationType                    string             `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
+	CarrierOperatingEntityID                  *string            `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
+	CarrierOperatingEntityApprovalEntryID     *string            `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
+	CarrierServiceRelationshipObjectID        *string            `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
+	CarrierServiceRelationshipApprovalEntryID *string            `db:"carrier_service_relationship_approval_entry_id" json:"carrier_service_relationship_approval_entry_id"`
+	BulkLiquidCapable                         bool               `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
+	Enabled                                   bool               `db:"enabled" json:"enabled"`
+	UpdatedAt                                 pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy                                 string             `db:"updated_by" json:"updated_by"`
+	Domain                                    string             `db:"domain" json:"domain"`
+	VersionNo                                 *int32             `db:"version_no" json:"version_no"`
+	Status                                    string             `db:"status" json:"status"`
+	ApprovalRevision                          int64              `db:"approval_revision" json:"approval_revision"`
+	CreatedBy                                 string             `db:"created_by" json:"created_by"`
+	CreatedAt                                 pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	ApprovalUpdatedBy                         string             `db:"approval_updated_by" json:"approval_updated_by"`
+	ApprovalUpdatedAt                         pgtype.Timestamptz `db:"approval_updated_at" json:"approval_updated_at"`
+	SubmittedBy                               *string            `db:"submitted_by" json:"submitted_by"`
+	SubmittedAt                               pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
+	ApprovedBy                                *string            `db:"approved_by" json:"approved_by"`
+	ApprovedAt                                pgtype.Timestamptz `db:"approved_at" json:"approved_at"`
+}
+
+func (q *Queries) GetBobVehicleCurrent(ctx context.Context, objectID string) (GetBobVehicleCurrentRow, error) {
+	row := q.db.QueryRow(ctx, getBobVehicleCurrent, objectID)
+	var i GetBobVehicleCurrentRow
 	err := row.Scan(
-		&i.ApprovalEntryID,
+		&i.ObjectID,
 		&i.Entity,
+		&i.Code,
+		&i.ObjectRevision,
+		&i.ObjectID_2,
+		&i.SourceApprovalEntryID,
 		&i.Name,
 		&i.PlateNumber,
 		&i.VehicleType,
-		&i.CategoryID,
-		&i.CategoryApprovalEntryID,
-		&i.CategoryEntity,
 		&i.Vin,
 		&i.EngineNumber,
 		&i.LoadCapacityKg,
@@ -1718,10 +1756,72 @@ func (q *Queries) GetBobVehiclePayload(ctx context.Context, approvalEntryID stri
 		&i.CarrierAffiliationType,
 		&i.CarrierOperatingEntityID,
 		&i.CarrierOperatingEntityApprovalEntryID,
-		&i.CarrierOperatingEntity,
 		&i.CarrierServiceRelationshipObjectID,
 		&i.CarrierServiceRelationshipApprovalEntryID,
-		&i.CarrierServiceRelationshipEntity,
+		&i.BulkLiquidCapable,
+		&i.Enabled,
+		&i.UpdatedAt,
+		&i.UpdatedBy,
+		&i.Domain,
+		&i.VersionNo,
+		&i.Status,
+		&i.ApprovalRevision,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.ApprovalUpdatedBy,
+		&i.ApprovalUpdatedAt,
+		&i.SubmittedBy,
+		&i.SubmittedAt,
+		&i.ApprovedBy,
+		&i.ApprovedAt,
+	)
+	return i, err
+}
+
+const getBobVehicleCurrentReference = `-- name: GetBobVehicleCurrentReference :one
+SELECT object.id AS object_id,object.entity,object.code,current.source_approval_entry_id AS approval_entry_id,current.name,current.plate_number,current.vehicle_type,current.vin,current.engine_number,current.load_capacity_kg,current.remark,current.carrier_affiliation_type,current.carrier_operating_entity_id,current.carrier_operating_entity_approval_entry_id,current.carrier_service_relationship_object_id,current.carrier_service_relationship_approval_entry_id,current.bulk_liquid_capable FROM bob_vehicles current JOIN bob_objects object ON object.id=current.object_id WHERE current.object_id=$1 AND current.enabled
+`
+
+type GetBobVehicleCurrentReferenceRow struct {
+	ObjectID                                  string         `db:"object_id" json:"object_id"`
+	Entity                                    string         `db:"entity" json:"entity"`
+	Code                                      string         `db:"code" json:"code"`
+	ApprovalEntryID                           string         `db:"approval_entry_id" json:"approval_entry_id"`
+	Name                                      string         `db:"name" json:"name"`
+	PlateNumber                               string         `db:"plate_number" json:"plate_number"`
+	VehicleType                               string         `db:"vehicle_type" json:"vehicle_type"`
+	Vin                                       *string        `db:"vin" json:"vin"`
+	EngineNumber                              *string        `db:"engine_number" json:"engine_number"`
+	LoadCapacityKg                            pgtype.Numeric `db:"load_capacity_kg" json:"load_capacity_kg"`
+	Remark                                    *string        `db:"remark" json:"remark"`
+	CarrierAffiliationType                    string         `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
+	CarrierOperatingEntityID                  *string        `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
+	CarrierOperatingEntityApprovalEntryID     *string        `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
+	CarrierServiceRelationshipObjectID        *string        `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
+	CarrierServiceRelationshipApprovalEntryID *string        `db:"carrier_service_relationship_approval_entry_id" json:"carrier_service_relationship_approval_entry_id"`
+	BulkLiquidCapable                         bool           `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
+}
+
+func (q *Queries) GetBobVehicleCurrentReference(ctx context.Context, objectID string) (GetBobVehicleCurrentReferenceRow, error) {
+	row := q.db.QueryRow(ctx, getBobVehicleCurrentReference, objectID)
+	var i GetBobVehicleCurrentReferenceRow
+	err := row.Scan(
+		&i.ObjectID,
+		&i.Entity,
+		&i.Code,
+		&i.ApprovalEntryID,
+		&i.Name,
+		&i.PlateNumber,
+		&i.VehicleType,
+		&i.Vin,
+		&i.EngineNumber,
+		&i.LoadCapacityKg,
+		&i.Remark,
+		&i.CarrierAffiliationType,
+		&i.CarrierOperatingEntityID,
+		&i.CarrierOperatingEntityApprovalEntryID,
+		&i.CarrierServiceRelationshipObjectID,
+		&i.CarrierServiceRelationshipApprovalEntryID,
 		&i.BulkLiquidCapable,
 	)
 	return i, err
@@ -2212,41 +2312,6 @@ func (q *Queries) InsertBobSupplierRelationship(ctx context.Context, arg InsertB
 	return err
 }
 
-const insertBobVehiclePayload = `-- name: InsertBobVehiclePayload :exec
-INSERT INTO bob_vehicle_versions (
-    approval_entry_id, name, plate_number, vehicle_type, carrier_affiliation_type,
-    carrier_operating_entity_id, carrier_service_relationship_object_id
-)
-VALUES (
-    $1, $2, $3, $4,
-    $5, $6,
-    $7
-)
-`
-
-type InsertBobVehiclePayloadParams struct {
-	ApprovalEntryID                    string  `db:"approval_entry_id" json:"approval_entry_id"`
-	Name                               string  `db:"name" json:"name"`
-	PlateNumber                        string  `db:"plate_number" json:"plate_number"`
-	VehicleType                        string  `db:"vehicle_type" json:"vehicle_type"`
-	CarrierAffiliationType             string  `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
-	CarrierOperatingEntityID           *string `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
-	CarrierServiceRelationshipObjectID *string `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
-}
-
-func (q *Queries) InsertBobVehiclePayload(ctx context.Context, arg InsertBobVehiclePayloadParams) error {
-	_, err := q.db.Exec(ctx, insertBobVehiclePayload,
-		arg.ApprovalEntryID,
-		arg.Name,
-		arg.PlateNumber,
-		arg.VehicleType,
-		arg.CarrierAffiliationType,
-		arg.CarrierOperatingEntityID,
-		arg.CarrierServiceRelationshipObjectID,
-	)
-	return err
-}
-
 const listBobApprovalEvents = `-- name: ListBobApprovalEvents :many
 SELECT id, entry_id, domain, entity, subject_id, version_no, action, from_status, to_status,
        from_revision, to_revision, actor_id, reason, request_id, created_at
@@ -2528,8 +2593,8 @@ LEFT JOIN bob_employee_versions approved_employee ON approved_employee.approval_
 LEFT JOIN bob_employee_versions open_employee ON open_employee.approval_entry_id=open_entry.id
 LEFT JOIN bob_product_versions approved_product ON approved_product.approval_entry_id=approved.id
 LEFT JOIN bob_product_versions open_product ON open_product.approval_entry_id=open_entry.id
-LEFT JOIN bob_vehicle_versions approved_vehicle ON approved_vehicle.approval_entry_id=approved.id
-LEFT JOIN bob_vehicle_versions open_vehicle ON open_vehicle.approval_entry_id=open_entry.id
+LEFT JOIN dcl_vehicle_versions approved_vehicle ON approved_vehicle.approval_entry_id=approved.id
+LEFT JOIN dcl_vehicle_versions open_vehicle ON open_vehicle.approval_entry_id=open_entry.id
 LEFT JOIN bob_fund_account_versions approved_fund ON approved_fund.approval_entry_id=approved.id
 LEFT JOIN bob_fund_account_versions open_fund ON open_fund.approval_entry_id=open_entry.id
 LEFT JOIN bob_supplier_versions approved_supplier ON approved_supplier.approval_entry_id=approved.id
@@ -2968,6 +3033,69 @@ func (q *Queries) ListBobProductUnitConversions(ctx context.Context, productAppr
 	return items, nil
 }
 
+const listBobVehicles = `-- name: ListBobVehicles :many
+SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,current.enabled AS current_enabled,current.updated_at FROM bob_vehicles current JOIN bob_objects object ON object.id=current.object_id WHERE ($1::text='' OR object.code ILIKE '%'||$1::text||'%' OR current.name ILIKE '%'||$1::text||'%' OR current.plate_number ILIKE '%'||$1::text||'%') AND ($2::integer=-1 OR current.enabled=($2::integer=1))
+ORDER BY CASE WHEN $3::text='updatedAt' AND $4::text='asc' THEN current.updated_at END ASC,
+CASE WHEN $3::text='updatedAt' AND $4::text='desc' THEN current.updated_at END DESC,
+CASE WHEN $3::text='code' AND $4::text='asc' THEN object.code END ASC,
+CASE WHEN $3::text='code' AND $4::text='desc' THEN object.code END DESC,
+CASE WHEN $3::text='name' AND $4::text='asc' THEN current.name END ASC,
+CASE WHEN $3::text='name' AND $4::text='desc' THEN current.name END DESC,object.id DESC
+LIMIT $6 OFFSET $5
+`
+
+type ListBobVehiclesParams struct {
+	Keyword       string `db:"keyword" json:"keyword"`
+	EnabledFilter int32  `db:"enabled_filter" json:"enabled_filter"`
+	SortField     string `db:"sort_field" json:"sort_field"`
+	SortOrder     string `db:"sort_order" json:"sort_order"`
+	RowOffset     int32  `db:"row_offset" json:"row_offset"`
+	RowLimit      int32  `db:"row_limit" json:"row_limit"`
+}
+
+type ListBobVehiclesRow struct {
+	ObjectID       string             `db:"object_id" json:"object_id"`
+	Entity         string             `db:"entity" json:"entity"`
+	Code           string             `db:"code" json:"code"`
+	ObjectRevision int64              `db:"object_revision" json:"object_revision"`
+	CurrentEnabled bool               `db:"current_enabled" json:"current_enabled"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) ListBobVehicles(ctx context.Context, arg ListBobVehiclesParams) ([]ListBobVehiclesRow, error) {
+	rows, err := q.db.Query(ctx, listBobVehicles,
+		arg.Keyword,
+		arg.EnabledFilter,
+		arg.SortField,
+		arg.SortOrder,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListBobVehiclesRow{}
+	for rows.Next() {
+		var i ListBobVehiclesRow
+		if err := rows.Scan(
+			&i.ObjectID,
+			&i.Entity,
+			&i.Code,
+			&i.ObjectRevision,
+			&i.CurrentEnabled,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listBobWarehouses = `-- name: ListBobWarehouses :many
 SELECT object.id AS object_id,object.entity,object.code,object.revision AS object_revision,current.enabled,current.updated_at,current.source_approval_entry_id AS approval_entry_id
 FROM bob_objects object JOIN bob_warehouses current ON current.object_id=object.id
@@ -3235,8 +3363,7 @@ func (q *Queries) ListSupplierPurchaserReferencesForEmployee(ctx context.Context
 
 const listVehicleCarrierOperatingReferences = `-- name: ListVehicleCarrierOperatingReferences :many
 SELECT o.id AS object_id,o.entity,'vehicle-carrier-operating'::text AS role FROM bob_objects o
-JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='bob' AND entity='vehicle' AND subject_id=o.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
-JOIN bob_vehicle_versions p ON p.approval_entry_id=e.id WHERE p.carrier_operating_entity_id=$1
+JOIN bob_vehicles current ON current.object_id=o.id WHERE current.carrier_operating_entity_id=$1
 `
 
 type ListVehicleCarrierOperatingReferencesRow struct {
@@ -3267,8 +3394,7 @@ func (q *Queries) ListVehicleCarrierOperatingReferences(ctx context.Context, sou
 
 const listVehicleCarrierServiceReferences = `-- name: ListVehicleCarrierServiceReferences :many
 SELECT o.id AS object_id,o.entity,'vehicle-carrier-service'::text AS role FROM bob_objects o
-JOIN LATERAL (SELECT id FROM approval_entries WHERE domain='bob' AND entity='vehicle' AND subject_id=o.id AND status='APPROVED' ORDER BY version_no DESC LIMIT 1) e ON true
-JOIN bob_vehicle_versions p ON p.approval_entry_id=e.id WHERE p.carrier_service_relationship_object_id=$1
+JOIN bob_vehicles current ON current.object_id=o.id WHERE current.carrier_service_relationship_object_id=$1
 `
 
 type ListVehicleCarrierServiceReferencesRow struct {
@@ -4260,54 +4386,6 @@ func (q *Queries) UpdateBobSupplierPayload(ctx context.Context, arg UpdateBobSup
 	return result.RowsAffected(), nil
 }
 
-const updateBobVehiclePayload = `-- name: UpdateBobVehiclePayload :execrows
-UPDATE bob_vehicle_versions SET name=$1,plate_number=$2,vehicle_type=$3,category_id=$4,category_approval_entry_id=$5,vin=$6,engine_number=$7,load_capacity_kg=$8,remark=$9,carrier_affiliation_type=$10,carrier_operating_entity_id=$11,carrier_operating_entity_approval_entry_id=$12,carrier_service_relationship_object_id=$13,carrier_service_relationship_approval_entry_id=$14,bulk_liquid_capable=$15 WHERE approval_entry_id=$16
-`
-
-type UpdateBobVehiclePayloadParams struct {
-	Name                                      string         `db:"name" json:"name"`
-	PlateNumber                               string         `db:"plate_number" json:"plate_number"`
-	VehicleType                               string         `db:"vehicle_type" json:"vehicle_type"`
-	CategoryID                                *string        `db:"category_id" json:"category_id"`
-	CategoryApprovalEntryID                   *string        `db:"category_approval_entry_id" json:"category_approval_entry_id"`
-	Vin                                       *string        `db:"vin" json:"vin"`
-	EngineNumber                              *string        `db:"engine_number" json:"engine_number"`
-	LoadCapacityKg                            pgtype.Numeric `db:"load_capacity_kg" json:"load_capacity_kg"`
-	Remark                                    *string        `db:"remark" json:"remark"`
-	CarrierAffiliationType                    string         `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
-	CarrierOperatingEntityID                  *string        `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
-	CarrierOperatingEntityApprovalEntryID     *string        `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
-	CarrierServiceRelationshipObjectID        *string        `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
-	CarrierServiceRelationshipApprovalEntryID *string        `db:"carrier_service_relationship_approval_entry_id" json:"carrier_service_relationship_approval_entry_id"`
-	BulkLiquidCapable                         bool           `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
-	ApprovalEntryID                           string         `db:"approval_entry_id" json:"approval_entry_id"`
-}
-
-func (q *Queries) UpdateBobVehiclePayload(ctx context.Context, arg UpdateBobVehiclePayloadParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateBobVehiclePayload,
-		arg.Name,
-		arg.PlateNumber,
-		arg.VehicleType,
-		arg.CategoryID,
-		arg.CategoryApprovalEntryID,
-		arg.Vin,
-		arg.EngineNumber,
-		arg.LoadCapacityKg,
-		arg.Remark,
-		arg.CarrierAffiliationType,
-		arg.CarrierOperatingEntityID,
-		arg.CarrierOperatingEntityApprovalEntryID,
-		arg.CarrierServiceRelationshipObjectID,
-		arg.CarrierServiceRelationshipApprovalEntryID,
-		arg.BulkLiquidCapable,
-		arg.ApprovalEntryID,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const upsertBobOperatingEntityCurrent = `-- name: UpsertBobOperatingEntityCurrent :exec
 INSERT INTO bob_operating_entities(
   object_id, source_approval_entry_id, legal_name, short_name, tax_number,
@@ -4356,6 +4434,55 @@ func (q *Queries) UpsertBobOperatingEntityCurrent(ctx context.Context, arg Upser
 		arg.Address,
 		arg.Phone,
 		arg.Remark,
+		arg.Enabled,
+		arg.ActorID,
+	)
+	return err
+}
+
+const upsertBobVehicleCurrent = `-- name: UpsertBobVehicleCurrent :exec
+INSERT INTO bob_vehicles(object_id,source_approval_entry_id,name,plate_number,vehicle_type,vin,engine_number,load_capacity_kg,remark,carrier_affiliation_type,carrier_operating_entity_id,carrier_operating_entity_approval_entry_id,carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id,bulk_liquid_capable,enabled,updated_by)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+ON CONFLICT(object_id) DO UPDATE SET source_approval_entry_id=excluded.source_approval_entry_id,name=excluded.name,plate_number=excluded.plate_number,vehicle_type=excluded.vehicle_type,vin=excluded.vin,engine_number=excluded.engine_number,load_capacity_kg=excluded.load_capacity_kg,remark=excluded.remark,carrier_affiliation_type=excluded.carrier_affiliation_type,carrier_operating_entity_id=excluded.carrier_operating_entity_id,carrier_operating_entity_approval_entry_id=excluded.carrier_operating_entity_approval_entry_id,carrier_service_relationship_object_id=excluded.carrier_service_relationship_object_id,carrier_service_relationship_approval_entry_id=excluded.carrier_service_relationship_approval_entry_id,bulk_liquid_capable=excluded.bulk_liquid_capable,enabled=excluded.enabled,updated_at=now(),updated_by=excluded.updated_by
+`
+
+type UpsertBobVehicleCurrentParams struct {
+	ObjectID                                  string         `db:"object_id" json:"object_id"`
+	SourceApprovalEntryID                     string         `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	Name                                      string         `db:"name" json:"name"`
+	PlateNumber                               string         `db:"plate_number" json:"plate_number"`
+	VehicleType                               string         `db:"vehicle_type" json:"vehicle_type"`
+	Vin                                       *string        `db:"vin" json:"vin"`
+	EngineNumber                              *string        `db:"engine_number" json:"engine_number"`
+	LoadCapacityKg                            pgtype.Numeric `db:"load_capacity_kg" json:"load_capacity_kg"`
+	Remark                                    *string        `db:"remark" json:"remark"`
+	CarrierAffiliationType                    string         `db:"carrier_affiliation_type" json:"carrier_affiliation_type"`
+	CarrierOperatingEntityID                  *string        `db:"carrier_operating_entity_id" json:"carrier_operating_entity_id"`
+	CarrierOperatingEntityApprovalEntryID     *string        `db:"carrier_operating_entity_approval_entry_id" json:"carrier_operating_entity_approval_entry_id"`
+	CarrierServiceRelationshipObjectID        *string        `db:"carrier_service_relationship_object_id" json:"carrier_service_relationship_object_id"`
+	CarrierServiceRelationshipApprovalEntryID *string        `db:"carrier_service_relationship_approval_entry_id" json:"carrier_service_relationship_approval_entry_id"`
+	BulkLiquidCapable                         bool           `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
+	Enabled                                   bool           `db:"enabled" json:"enabled"`
+	ActorID                                   string         `db:"actor_id" json:"actor_id"`
+}
+
+func (q *Queries) UpsertBobVehicleCurrent(ctx context.Context, arg UpsertBobVehicleCurrentParams) error {
+	_, err := q.db.Exec(ctx, upsertBobVehicleCurrent,
+		arg.ObjectID,
+		arg.SourceApprovalEntryID,
+		arg.Name,
+		arg.PlateNumber,
+		arg.VehicleType,
+		arg.Vin,
+		arg.EngineNumber,
+		arg.LoadCapacityKg,
+		arg.Remark,
+		arg.CarrierAffiliationType,
+		arg.CarrierOperatingEntityID,
+		arg.CarrierOperatingEntityApprovalEntryID,
+		arg.CarrierServiceRelationshipObjectID,
+		arg.CarrierServiceRelationshipApprovalEntryID,
+		arg.BulkLiquidCapable,
 		arg.Enabled,
 		arg.ActorID,
 	)

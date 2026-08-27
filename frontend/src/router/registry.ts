@@ -132,6 +132,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     order: 20,
     component: () => import('@/pages/dcl/warehouse/Warehouse.vue'),
   }),
+  registerPage('dcl', {
+    entity: 'vehicle',
+    entityTitle: '车辆申报',
+    icon: 'mdi-truck-outline',
+    order: 30,
+    component: () => import('@/pages/dcl/vehicle/Vehicle.vue'),
+  }),
   registerPage('rpt', {
     entity: 'definition',
     entityTitle: '报表定义管理',

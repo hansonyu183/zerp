@@ -60,11 +60,11 @@ func bobApprovalPayload(objectID, entity, code string, enabled bool) bobapproval
 }
 
 func genericEntity(entity string) bool {
-	return slices.Contains([]string{EntityEmployee, EntityProduct, EntityVehicle, EntityFundAccount, EntityOperatingEntity}, entity)
+	return slices.Contains([]string{EntityEmployee, EntityProduct, EntityFundAccount, EntityOperatingEntity}, entity)
 }
 
 func genericWriteEntity(entity string) bool {
-	return slices.Contains([]string{EntityEmployee, EntityProduct, EntityVehicle, EntityFundAccount}, entity)
+	return slices.Contains([]string{EntityEmployee, EntityProduct, EntityFundAccount}, entity)
 }
 
 func approvalEntity(entity string) bool {
@@ -77,6 +77,9 @@ func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (P
 	}
 	if entity == EntityWarehouse {
 		return s.queryWarehouses(ctx, input)
+	}
+	if entity == EntityVehicle {
+		return s.queryVehicles(ctx, input)
 	}
 	if entity == EntityEmployee {
 		return s.queryEmploymentRelationships(ctx, input)
@@ -193,6 +196,9 @@ func (s *Service) Get(ctx context.Context, entity string, input GetInput) (Objec
 	}
 	if entity == EntityWarehouse {
 		return s.getWarehouseCurrent(ctx, input)
+	}
+	if entity == EntityVehicle {
+		return s.getVehicleCurrent(ctx, input)
 	}
 	if !validEntity(entity) || !validID(input.ObjectID) || (input.ApprovalEntryID != "" && !validID(input.ApprovalEntryID)) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid get request", nil, nil)
@@ -628,6 +634,9 @@ func (s *Service) ValidateApprovedSnapshotReference(ctx context.Context, tx pgx.
 	if entity == EntityWarehouse {
 		return s.validateWarehouseSnapshotReference(ctx, q, objectID, approvalEntryID)
 	}
+	if entity == EntityVehicle {
+		return s.validateVehicleSnapshotReference(ctx, q, objectID, approvalEntryID)
+	}
 	row, err := q.ValidateBobApprovedSnapshotReference(ctx, dbsqlc.ValidateBobApprovedSnapshotReferenceParams{ApprovalEntryID: approvalEntryID, ObjectID: objectID, Entity: entity})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return EffectiveReference{}, domainError(ErrorConflict, "BOB approval snapshot is unavailable", nil, nil)
@@ -652,6 +661,9 @@ func (s *Service) ResolveLatestApprovedReference(ctx context.Context, tx pgx.Tx,
 	}
 	if entity == EntityWarehouse {
 		return s.resolveWarehouseCurrentReference(ctx, q, objectID)
+	}
+	if entity == EntityVehicle {
+		return s.resolveVehicleCurrentReference(ctx, q, objectID)
 	}
 	row, err := q.ResolveBobLatestApprovedReference(ctx, dbsqlc.ResolveBobLatestApprovedReferenceParams{ObjectID: objectID, Entity: entity})
 	if errors.Is(err, pgx.ErrNoRows) {

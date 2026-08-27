@@ -443,16 +443,8 @@ func TestSaleDeliveryCarrierAffiliationAndApprovalRecheckIntegration(t *testing.
 		BusinessDate: "2026-07-26", SourceDocumentID: createOutbound("1").DocumentID,
 		Carrier: &refs.carrier, Vehicle: &recheckVehicle,
 	}, false)
-	vehicleView, err := bobService.Get(t.Context(), bobdomain.EntityVehicle, bobdomain.GetInput{ObjectID: recheckVehicle.ObjectID})
-	if err != nil {
-		t.Fatalf("get approval recheck vehicle: %v", err)
-	}
-	if _, err = bobService.Disable(t.Context(), bobdomain.EntityVehicle, bobdomain.ObjectRevisionInput{
-		ObjectID: recheckVehicle.ObjectID, ObjectRevision: vehicleView.ObjectRevision,
-	}, trustedIntegrationActor(t, "disable-before-delivery-approve")); err != nil {
-		t.Fatalf("disable approval recheck vehicle: %v", err)
-	}
-	if _, err = service.Approve(t.Context(), EntitySaleDelivery, DocumentRevisionInput{
+	disableVehicleViaDCL(t, pool, bobService, recheckVehicle, "disable-before-delivery-approve")
+	if _, err := service.Approve(t.Context(), EntitySaleDelivery, DocumentRevisionInput{
 		DocumentID: checkedDelivery.DocumentID, Revision: checkedDelivery.Approval.Revision,
 	}, integrationApprovalActor(t, integrationActorOne, "delivery-approve-after-vehicle-disable")); err == nil {
 		t.Fatal("delivery approval accepted a disabled vehicle")
@@ -469,15 +461,7 @@ func TestSaleDeliveryCarrierAffiliationAndApprovalRecheckIntegration(t *testing.
 	if err != nil {
 		t.Fatalf("create delivery before check revalidation: %v", err)
 	}
-	checkVehicleView, err := bobService.Get(t.Context(), bobdomain.EntityVehicle, bobdomain.GetInput{ObjectID: checkVehicle.ObjectID})
-	if err != nil {
-		t.Fatalf("get check revalidation vehicle: %v", err)
-	}
-	if _, err = bobService.Disable(t.Context(), bobdomain.EntityVehicle, bobdomain.ObjectRevisionInput{
-		ObjectID: checkVehicle.ObjectID, ObjectRevision: checkVehicleView.ObjectRevision,
-	}, trustedIntegrationActor(t, "disable-before-delivery-check")); err != nil {
-		t.Fatalf("disable check revalidation vehicle: %v", err)
-	}
+	disableVehicleViaDCL(t, pool, bobService, checkVehicle, "disable-before-delivery-check")
 	if _, err = service.Submit(t.Context(), EntitySaleDelivery, DocumentRevisionInput{
 		DocumentID: draftDelivery.DocumentID, Revision: draftDelivery.Approval.Revision,
 	}, integrationApprovalActor(t, integrationActorOne, "delivery-check-after-vehicle-disable")); err == nil {

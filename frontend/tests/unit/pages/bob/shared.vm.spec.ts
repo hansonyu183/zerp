@@ -216,7 +216,7 @@ describe('shared BOB entity configuration and view model', () => {
     expect(vm.actionAvailability(row()).edit).toBe(true)
   })
 
-  it('经营主体和仓库使用当前档案只读列，其余通用对象保留完整状态筛选', () => {
+  it('经营主体、仓库和车辆使用当前档案只读列，其余通用对象保留完整状态筛选', () => {
     const expectedColumns: Record<string, string[]> = {
       product: ['编码', '名称', '产品类型', '默认录入单位', '型号', '状态'],
       warehouse: [
@@ -229,7 +229,19 @@ describe('shared BOB entity configuration and view model', () => {
         '来源 Approval Entry ID',
         '启停状态',
       ],
-      vehicle: ['编码', '名称', '车牌', '类型', '状态'],
+      vehicle: [
+        '编码',
+        '名称',
+        '车牌',
+        '车型',
+        '承运归属',
+        'VIN',
+        '核定载重（kg）',
+        '支持散水承运',
+        'Stable ID',
+        '来源 Approval Entry ID',
+        '启停状态',
+      ],
       'fund-account': ['编码', '名称', '银行', '状态'],
       'operating-entity': [
         '编码',
@@ -246,7 +258,11 @@ describe('shared BOB entity configuration and view model', () => {
       expect(config.entity).toBe(entity)
       expect(config.detailKeys).toContain('name')
       expect(config.columns.map((column) => column.label)).toEqual(columns)
-      if (entity === 'operating-entity' || entity === 'warehouse') {
+      if (
+        entity === 'operating-entity' ||
+        entity === 'warehouse' ||
+        entity === 'vehicle'
+      ) {
         expect(config.filters.map((filter) => filter.key)).toEqual(['enabled'])
       } else {
         expect(config.filters[0]).toMatchObject({
@@ -444,6 +460,83 @@ describe('shared BOB entity configuration and view model', () => {
       },
     )
     expect(vm.rows.value[0]?.latestApproved?.summary.name).toBe('当前仓库')
+    expect(vm.canCreate.value).toBe(false)
+    expect(vm.actionAvailability(vm.rows.value[0]!)).toEqual({
+      view: true,
+      edit: false,
+      delete: false,
+      submit: false,
+      unsubmit: false,
+      approve: false,
+      unapprove: false,
+      reject: false,
+      enable: false,
+      disable: false,
+      versions: false,
+      audit: false,
+    })
+  })
+
+  it('BOB 车辆只读取当前投影且没有任何写动作', async () => {
+    useSessionStore().permissions = [
+      '/bob/vehicle/query',
+      '/bob/vehicle/get',
+      '/bob/vehicle/create',
+      '/bob/vehicle/save',
+      '/bob/vehicle/submit',
+      '/bob/vehicle/approve',
+      '/bob/vehicle/enable',
+      '/dcl/vehicle/create',
+      '/dcl/vehicle/approve',
+    ]
+    const approval = row('APPROVED').latestApproved!.approval
+    mockedApiClient.postContract.mockResolvedValueOnce({
+      data: {
+        items: [
+          {
+            objectId: 'VEH-OBJECT-1',
+            entity: 'vehicle',
+            code: 'VEH-0001',
+            objectRevision: 1,
+            enabled: true,
+            latestApproved: {
+              approval,
+              summary: {
+                name: '当前车辆',
+                plateNumber: '沪A12345',
+                vehicleType: 'DIT-0003',
+                carrierAffiliation: {
+                  type: 'INTERNAL',
+                  operatingEntityId: 'OPE-1',
+                },
+                vin: 'LDC613P23A1305189',
+                loadCapacityKg: '5000.000',
+                bulkLiquidCapable: true,
+              },
+            },
+            openVersion: null,
+            updatedAt: '2026-08-28T00:00:00Z',
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+      },
+    })
+    const vm = useBobEntityViewModel(getBobEntityConfig('vehicle'))
+
+    await vm.query()
+
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith(
+      'bob/vehicle/query',
+      {
+        page: 1,
+        pageSize: 20,
+        filters: {},
+        sort: [{ field: 'code', order: 'asc' }],
+      },
+    )
+    expect(vm.rows.value[0]?.latestApproved?.summary.name).toBe('当前车辆')
     expect(vm.canCreate.value).toBe(false)
     expect(vm.actionAvailability(vm.rows.value[0]!)).toEqual({
       view: true,

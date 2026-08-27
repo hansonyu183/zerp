@@ -21,6 +21,7 @@ import {
   type WorkbenchItem,
   type WorkbenchObjectItem,
   type WorkbenchPendingStage,
+  workbenchItemPath,
   useDashboardViewModel,
 } from './vm'
 import WorkbenchActionDialog from './WorkbenchActionDialog.vue'
@@ -34,13 +35,17 @@ function fallbackEntityTitle(entity: string): string {
 }
 
 function canProcessEntity(domain: 'bob' | 'vou', entity: string): boolean {
+  const permissionDomain =
+    domain === 'bob' && entity === 'operating-entity' ? 'dcl' : domain
   const actions =
     domain === 'bob'
       ? ['submit', 'approve', 'reject', 'unsubmit']
       : ['submit', 'approve', 'unsubmit']
   return (
-    session.can(`/${domain}/${entity}/query`) &&
-    actions.some((action) => session.can(`/${domain}/${entity}/${action}`))
+    session.can(`/${permissionDomain}/${entity}/query`) &&
+    actions.some((action) =>
+      session.can(`/${permissionDomain}/${entity}/${action}`),
+    )
   )
 }
 
@@ -59,14 +64,30 @@ const entityFilterOptions = computed(() => {
 
   for (const registration of pageRegistrations) {
     if (
-      registration.domain === domain &&
+      (registration.domain === domain ||
+        (domain === 'bob' &&
+          registration.domain === 'dcl' &&
+          registration.entity === 'operating-entity')) &&
       canProcessEntity(domain, registration.entity)
     ) {
       add(registration.entity, registration.entityTitle)
     }
   }
   for (const menuDomain of session.routeMenus) {
-    if (menuDomain.domain !== domain) continue
+    if (
+      menuDomain.domain !== domain &&
+      !(
+        domain === 'bob' &&
+        menuDomain.domain === 'dcl' &&
+        menuDomain.children.some(
+          (menu) =>
+            (menu.routeKey?.split('/')[1] ?? menu.entity) ===
+            'operating-entity',
+        )
+      )
+    ) {
+      continue
+    }
     for (const menu of menuDomain.children) {
       const entity = menu.routeKey?.split('/')[1] ?? menu.entity
       if (canProcessEntity(domain, entity)) add(entity, menu.title)
@@ -138,10 +159,13 @@ const actionDefinitions: Record<WorkbenchAction, Omit<ListRowAction, 'key'>> = {
 }
 
 function entityTitle(row: Readonly<WorkbenchItem>): string {
-  return (
-    pageRegistry[`${row.category === 'BOB' ? 'bob' : 'vou'}/${row.entity}`]
-      ?.entityTitle ?? row.entity
-  )
+  const domain =
+    row.category === 'VOU'
+      ? 'vou'
+      : row.entity === 'operating-entity'
+        ? 'dcl'
+        : 'bob'
+  return pageRegistry[`${domain}/${row.entity}`]?.entityTitle ?? row.entity
 }
 
 function pendingStatus(row: Readonly<WorkbenchItem>): string {
@@ -209,9 +233,8 @@ async function openItem(
   row: WorkbenchItem,
   mode: 'view' | 'edit',
 ): Promise<void> {
-  const domain = row.category === 'BOB' ? 'bob' : 'vou'
   await router.push({
-    path: `/${domain}/${row.entity}`,
+    path: workbenchItemPath(row),
     query: {
       ...(row.category === 'BOB'
         ? { objectId: row.objectId }

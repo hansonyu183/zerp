@@ -10,7 +10,18 @@ func testMenuCatalog() []registeredMenuRoute {
 	return []registeredMenuRoute{
 		{RouteKey: "home/dashboard", RoutePath: "/home/dashboard", DisplayName: "工作台", PermissionCode: "/app/workbench/query", Always: true},
 		{RouteKey: "app/menu", RoutePath: "/app/menu", DisplayName: "菜单管理", PermissionCode: "/app/menu/save-business"},
+		{RouteKey: "dcl/operating-entity", RoutePath: "/dcl/operating-entity", DisplayName: "经营主体申报", PermissionCode: "/dcl/operating-entity/query", PermissionRoot: "/dcl/operating-entity/"},
 		{RouteKey: "bob/customer", RoutePath: "/bob/customer", DisplayName: "客户", PermissionCode: "/bob/customer/query", PermissionRoot: "/bob/customer/"},
+	}
+}
+
+func TestDefaultMenuKeepsDCLDeclarationSeparateFromBOBCurrentData(t *testing.T) {
+	menu := buildDefaultMenu(testMenuCatalog())
+	if !menuRouteUnderGroup(menu, "dcl/operating-entity", "申报控制") {
+		t.Fatalf("DCL operating entity is not under its own declaration group: %+v", menu.Items)
+	}
+	if !menuRouteUnderGroup(menu, "bob/customer", "业务对象") {
+		t.Fatalf("BOB current data left the business-object group: %+v", menu.Items)
 	}
 }
 

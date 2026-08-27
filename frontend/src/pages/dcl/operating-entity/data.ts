@@ -1,6 +1,10 @@
 import type { BusinessObjectSort } from '@/components/business-object'
 import { apiClient } from '@/api/client'
-import type { BobListItem, BobObjectView } from './types'
+import type {
+  DclOperatingEntityForm,
+  DclOperatingEntityListItem,
+  DclOperatingEntityView,
+} from './types'
 
 export async function queryDclOperatingEntities(request: {
   page: number
@@ -8,7 +12,7 @@ export async function queryDclOperatingEntities(request: {
   filters: Record<string, unknown>
   sort: BusinessObjectSort[]
 }): Promise<{
-  items: BobListItem[]
+  items: DclOperatingEntityListItem[]
   total: number
   page: number
   pageSize: number
@@ -18,26 +22,7 @@ export async function queryDclOperatingEntities(request: {
     request,
   )
   return {
-    items: (data.items ?? []).map((item) => ({
-      objectId: item.objectId,
-      entity: item.entity,
-      code: item.code,
-      objectRevision: item.objectRevision,
-      enabled: item.enabled,
-      latestApproved: item.latestApproved
-        ? {
-            approval: item.latestApproved.approval,
-            summary: item.latestApproved.data,
-          }
-        : null,
-      openVersion: item.openVersion
-        ? {
-            approval: item.openVersion.approval,
-            summary: item.openVersion.data,
-          }
-        : null,
-      updatedAt: item.updatedAt,
-    })),
+    items: data.items ?? [],
     total: data.total,
     page: data.page,
     pageSize: data.pageSize,
@@ -47,20 +32,25 @@ export async function queryDclOperatingEntities(request: {
 export async function getDclOperatingEntity(
   objectId: string,
   approvalEntryId?: string,
-): Promise<BobObjectView> {
+): Promise<DclOperatingEntityView> {
   const { data } = await apiClient.postContract('dcl/operating-entity/get', {
     objectId,
     ...(approvalEntryId ? { approvalEntryId } : {}),
   })
+  return data
+}
+
+export function dclOperatingEntityFormFromView(
+  view: DclOperatingEntityView,
+): DclOperatingEntityForm {
   return {
-    objectId: data.objectId,
-    entity: data.entity,
-    code: data.code,
-    objectRevision: data.objectRevision,
-    enabled: data.enabled,
-    approval: data.approval,
-    data: data.data,
-    updatedAt: data.updatedAt,
+    code: view.code,
+    name: view.data.name,
+    shortName: view.data.shortName ?? '',
+    taxNumber: view.data.taxNumber ?? '',
+    address: view.data.address ?? '',
+    phone: view.data.phone ?? '',
+    remark: view.data.remark ?? '',
   }
 }
 

@@ -2,30 +2,27 @@ import { ref, type Ref } from 'vue'
 import { apiClient } from '@/api/client'
 import { getErrorMessage } from '@/api/types'
 import type {
-  BobAuditEvent,
-  BobEntityConfig,
-  BobListItem,
-  BobVersionHistoryItem,
+  DclOperatingEntityAuditEvent,
+  DclOperatingEntityListItem,
+  DclOperatingEntityVersionView,
 } from './types'
-import { bobWriteEntity } from './types'
 
-export function useBobHistory(
-  config: BobEntityConfig,
+export function useDclOperatingEntityHistory(
   errorMessage: Ref<string | null>,
-  canOpenVersions: (row: Readonly<BobListItem>) => boolean,
-  canOpenAudit: (row: Readonly<BobListItem>) => boolean,
+  canOpenVersions: (row: Readonly<DclOperatingEntityListItem>) => boolean,
+  canOpenAudit: (row: Readonly<DclOperatingEntityListItem>) => boolean,
 ) {
   const versionsOpen = ref(false)
   const versionsLoading = ref(false)
-  const versions = ref<BobVersionHistoryItem[]>([])
+  const versions = ref<DclOperatingEntityVersionView[]>([])
   const versionsPage = ref(1)
   const versionsPageSize = ref(20)
   const versionsTotal = ref(0)
-  const historyObject = ref<BobListItem | null>(null)
+  const historyObject = ref<DclOperatingEntityListItem | null>(null)
 
   const auditOpen = ref(false)
   const auditLoading = ref(false)
-  const auditEvents = ref<BobAuditEvent[]>([])
+  const auditEvents = ref<DclOperatingEntityAuditEvent[]>([])
   const auditPage = ref(1)
   const auditPageSize = ref(20)
   const auditTotal = ref(0)
@@ -36,7 +33,7 @@ export function useBobHistory(
     versionsLoading.value = true
     try {
       const { data } = await apiClient.postContract(
-        `bob/${bobWriteEntity(config)}/versions`,
+        'dcl/operating-entity/versions',
         {
           objectId: row.objectId,
           page: versionsPage.value,
@@ -54,7 +51,9 @@ export function useBobHistory(
     }
   }
 
-  async function openVersions(row: BobListItem): Promise<void> {
+  async function openVersions(
+    row: DclOperatingEntityListItem,
+  ): Promise<void> {
     if (!canOpenVersions(row)) return
     historyObject.value = row
     versions.value = []
@@ -74,14 +73,13 @@ export function useBobHistory(
     if (!row) return
     auditLoading.value = true
     try {
-      const request = {
-        objectId: row.objectId,
-        page: auditPage.value,
-        pageSize: auditPageSize.value,
-      }
       const { data } = await apiClient.postContract(
-        `bob/${bobWriteEntity(config)}/audit-history`,
-        request,
+        'dcl/operating-entity/audit-history',
+        {
+          objectId: row.objectId,
+          page: auditPage.value,
+          pageSize: auditPageSize.value,
+        },
       )
       auditEvents.value = data.items ?? []
       auditTotal.value = data.total
@@ -94,7 +92,7 @@ export function useBobHistory(
     }
   }
 
-  async function openAudit(row: BobListItem): Promise<void> {
+  async function openAudit(row: DclOperatingEntityListItem): Promise<void> {
     if (!canOpenAudit(row)) return
     historyObject.value = row
     auditEvents.value = []

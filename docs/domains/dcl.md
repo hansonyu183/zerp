@@ -10,7 +10,7 @@ DCL 不复制 Approval 版本头，不保存 `currentVersionId`、`effectiveVers
 
 `dcl_subjects` 保存稳定申报主体身份；经营主体的稳定 ID 与 BOB 业务编码跨全部版本不变。`dcl_operating_entity_versions` 以 `approvalEntryId` 为主键，保存该版本完整的法定名称、简称、税号、地址、电话、备注和 `enabled`。所有可变字段均随候选版本冻结；启用或停用同样通过保存新候选并审批，不直接修改 BOB 当前投影。
 
-唯一 wire 字段集合以 [OpenAPI DCL Schema](../../contracts/openapi/schemas/dcl.yaml) 为准。经营主体页面仍位于 BOB 导航 `/bob/operating-entity`，但候选查询、详情和全部写动作固定使用 `/dcl/operating-entity/*`；只有当前正式投影列表、详情和交易引用继续使用 `/bob/operating-entity/query|get`。
+唯一 wire 字段集合以 [OpenAPI DCL Schema](../../contracts/openapi/schemas/dcl.yaml) 为准。`/dcl/operating-entity` 是经营主体申报的唯一维护页面，候选查询、详情和全部写动作固定使用 `/dcl/operating-entity/*`。`/bob/operating-entity` 是独立的当前正式档案只读页面，只使用 `/bob/operating-entity/query|get`；它可以导航到同一稳定 subject 的 DCL 页面，但不在 BOB 内创建、保存或审批候选。APP 工作台和审批深链固定进入 DCL 页面。
 
 ## 3. 版本与当前投影
 
@@ -33,8 +33,8 @@ BOB 对新业务解析 latest approved，并返回经营主体稳定 ID、来源
 
 ## 5. 权限
 
-DCL 精确权限为 `query`、`get`、`create`、`save`、`submit`、`unsubmit`、`reject`、`approve`、`unapprove`、`delete`、`versions`、`audit-history`。BOB 经营主体只保留 `query` 与 `get`。APP 保留原 14 个稳定权限 ID 和已有角色分配，其中两个 ID 继续承载 BOB 当前读取，其余 ID 原位切换到 DCL；不自动扩大任何角色权限。
+DCL 维护页面分别按 `query`、`get`、`create`、`save`、`submit`、`unsubmit`、`reject`、`approve`、`unapprove`、`delete`、`versions`、`audit-history` 精确授权。BOB 当前档案页面只检查 BOB `query` 与 `get`，不得因用户具有 DCL 权限而显示 BOB 生命周期动作。APP 保留原 14 个稳定权限 ID 和已有角色分配，其中两个 ID 继续承载 BOB 当前读取，其余 ID 原位切换到 DCL；不自动扩大任何角色权限。
 
 ## 6. 验收边界
 
-真实 PostgreSQL 验收必须覆盖 V1/V2 正式投影切换与回落、V1 反批后不可引用、草稿删除后候选号复用、同一主体唯一开放候选、并发保存最多一个成功、只反批 latest approved，以及 subscriber 或 BOB current 写入失败时整笔事务回滚。还必须证明旧 BOB 写路由与权限不存在、页面编排使用 DCL 写路径、BOB 引用仍能校验精确历史快照。
+真实 PostgreSQL 验收必须覆盖 V1/V2 正式投影切换与回落、V1 反批后不可引用、草稿删除后候选号复用、同一主体唯一开放候选、并发保存最多一个成功、只反批 latest approved，以及 subscriber 或 BOB current 写入失败时整笔事务回滚。还必须证明旧 BOB 写路由与权限不存在、DCL 页面独占 DCL 候选及生命周期编排、BOB 页面只读取当前正式投影、APP 深链进入 DCL，以及 BOB 引用仍能校验精确历史快照。

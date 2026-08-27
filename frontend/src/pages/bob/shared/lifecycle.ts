@@ -6,11 +6,7 @@ import type {
   BobEntityConfig,
   BobListItem,
 } from './types'
-import {
-  bobApprovalDomain,
-  bobListActiveVersion,
-  bobWriteEntity,
-} from './types'
+import { bobListActiveVersion, bobWriteEntity } from './types'
 
 interface VersionRevisionRequest {
   objectId: string
@@ -129,26 +125,15 @@ export function useBobLifecycleActions(
           ...request,
           reason: normalizedComment,
         } satisfies ReviewRequest
-        if (bobApprovalDomain(config) === 'dcl') {
-          await apiClient.postContract(
-            'dcl/operating-entity/reject',
-            reviewRequest,
-          )
-        } else {
-          await apiClient.postContract(
-            `bob/${bobWriteEntity(config)}/reject`,
-            reviewRequest,
-          )
-        }
+        await apiClient.postContract(
+          `bob/${bobWriteEntity(config)}/reject`,
+          reviewRequest,
+        )
       } else {
-        if (bobApprovalDomain(config) === 'dcl') {
-          await apiClient.postContract('dcl/operating-entity/approve', request)
-        } else {
-          await apiClient.postContract(
-            `bob/${bobWriteEntity(config)}/approve`,
-            request,
-          )
-        }
+        await apiClient.postContract(
+          `bob/${bobWriteEntity(config)}/approve`,
+          request,
+        )
       }
       await query()
       onSuccess(row, action)
@@ -185,21 +170,10 @@ export function useBobLifecycleActions(
         approvalRevision: bobListActiveVersion(row).approval.revision,
         reason: normalizedReason,
       }
-      if (bobApprovalDomain(config) === 'dcl') {
-        if (action === 'unsubmit') {
-          await apiClient.postContract('dcl/operating-entity/unsubmit', request)
-        } else {
-          await apiClient.postContract(
-            'dcl/operating-entity/unapprove',
-            request,
-          )
-        }
-      } else {
-        await apiClient.postContract(
-          `bob/${bobWriteEntity(config)}/${action}`,
-          request,
-        )
-      }
+      await apiClient.postContract(
+        `bob/${bobWriteEntity(config)}/${action}`,
+        request,
+      )
       onSuccess(row, action)
       void query()
       return true
@@ -220,33 +194,10 @@ export function useBobLifecycleActions(
     actionLoading.value = `${action}:${row.objectId}`
     errorMessage.value = null
     try {
-      if (bobApprovalDomain(config) === 'dcl') {
-        const approved = row.latestApproved
-        if (!approved)
-          throw new Error('经营主体没有可用于变更启停状态的已批准版本。')
-        const { data: view } = await apiClient.postContract(
-          'dcl/operating-entity/get',
-          {
-            objectId: row.objectId,
-            approvalEntryId: approved.approval.approvalEntryId,
-          },
-        )
-        await apiClient.postContract('dcl/operating-entity/save', {
-          objectId: row.objectId,
-          approvalEntryId: view.approval.approvalEntryId,
-          approvalRevision: view.approval.revision,
-          enabled: !row.enabled,
-          data: view.data,
-        })
-      } else {
-        await apiClient.postContract(
-          `bob/${bobWriteEntity(config)}/${action}`,
-          {
-            objectId: row.objectId,
-            objectRevision: row.objectRevision,
-          },
-        )
-      }
+      await apiClient.postContract(`bob/${bobWriteEntity(config)}/${action}`, {
+        objectId: row.objectId,
+        objectRevision: row.objectRevision,
+      })
       await query()
       onSuccess(row, action)
       return true

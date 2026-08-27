@@ -26,17 +26,8 @@ import type {
   BobMutationResult,
   BobObjectView,
 } from './types'
-import {
-  bobApprovalDomain,
-  bobListActiveVersion,
-  bobWriteEntity,
-} from './types'
+import { bobListActiveVersion, bobWriteEntity } from './types'
 import { useBobActionAvailability } from './action-availability'
-import {
-  dclOperatingEntityData,
-  getDclOperatingEntity,
-  queryDclOperatingEntities,
-} from './dcl-operating-entity'
 
 export function useBobEntityViewModel(config: BobEntityConfig) {
   const session = useSessionStore()
@@ -77,7 +68,8 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
   )
   const canCreate = computed(
     () =>
-      session.can(`/${bobApprovalDomain(config)}/${config.entity}/create`) &&
+      config.entity !== 'operating-entity' &&
+      session.can(`/bob/${config.entity}/create`) &&
       canLoadEditorReferences.value,
   )
   const editorTitle = computed(() => {
@@ -156,14 +148,6 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
         filters: buildQueryFilters(),
         sort: [{ ...sort.value }],
       }
-      if (bobApprovalDomain(config) === 'dcl') {
-        const result = await queryDclOperatingEntities(request)
-        rows.value = result.items
-        total.value = result.total
-        page.value = result.page
-        pageSize.value = result.pageSize
-        return
-      }
       const { data } = await apiClient.postContract(
         `bob/${config.entity}/query`,
         request,
@@ -215,9 +199,6 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     row: Pick<BobListItem, 'objectId'>,
     approvalEntryId?: string,
   ): Promise<BobObjectView> {
-    if (bobApprovalDomain(config) === 'dcl') {
-      return getDclOperatingEntity(row.objectId, approvalEntryId)
-    }
     const { data } = await apiClient.postContract(`bob/${config.entity}/get`, {
       objectId: row.objectId,
       ...(approvalEntryId ? { approvalEntryId } : {}),
@@ -381,38 +362,24 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
       let mutation: BobMutationResult
       if (editorMode.value === 'create') {
         const payload = bobCreateData(config, form)
-        const result =
-          bobApprovalDomain(config) === 'dcl'
-            ? await apiClient.postContract('dcl/operating-entity/create', {
-                data: dclOperatingEntityData(payload),
-              })
-            : await apiClient.postContract(
-                `bob/${bobWriteEntity(config)}/create`,
-                { data: payload },
-              )
+        const result = await apiClient.postContract(
+          `bob/${bobWriteEntity(config)}/create`,
+          { data: payload },
+        )
         mutation = result.data
       } else {
         const context = editContext.value
         if (!context) throw new Error(`未加载可编辑的${config.title}版本。`)
         const payload = bobSaveData(config, form)
-        const result =
-          bobApprovalDomain(config) === 'dcl'
-            ? await apiClient.postContract('dcl/operating-entity/save', {
-                objectId: context.objectId,
-                approvalEntryId: context.approvalEntryId,
-                approvalRevision: context.approvalRevision,
-                enabled: currentView.value?.enabled ?? true,
-                data: dclOperatingEntityData(payload),
-              })
-            : await apiClient.postContract(
-                `bob/${bobWriteEntity(config)}/save`,
-                {
-                  objectId: context.objectId,
-                  approvalEntryId: context.approvalEntryId,
-                  approvalRevision: context.approvalRevision,
-                  data: payload,
-                },
-              )
+        const result = await apiClient.postContract(
+          `bob/${bobWriteEntity(config)}/save`,
+          {
+            objectId: context.objectId,
+            approvalEntryId: context.approvalEntryId,
+            approvalRevision: context.approvalRevision,
+            data: payload,
+          },
+        )
         mutation = result.data
       }
       if ((config.persistedKeys?.length ?? 0) > 0) {
@@ -472,14 +439,10 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
           approvalEntryId: bobListActiveVersion(row).approval.approvalEntryId,
           approvalRevision: bobListActiveVersion(row).approval.revision,
         }
-        if (bobApprovalDomain(config) === 'dcl') {
-          await apiClient.postContract('dcl/operating-entity/delete', request)
-        } else {
-          await apiClient.postContract(`bob/${bobWriteEntity(config)}/delete`, {
-            ...request,
-            objectRevision: row.objectRevision,
-          })
-        }
+        await apiClient.postContract(`bob/${bobWriteEntity(config)}/delete`, {
+          ...request,
+          objectRevision: row.objectRevision,
+        })
         if (rows.value.length === 1 && page.value > 1) page.value -= 1
       } else {
         if (!(await checkProductCompleteness(row))) return false
@@ -488,14 +451,10 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
           approvalEntryId: bobListActiveVersion(row).approval.approvalEntryId,
           approvalRevision: bobListActiveVersion(row).approval.revision,
         }
-        if (bobApprovalDomain(config) === 'dcl') {
-          await apiClient.postContract('dcl/operating-entity/submit', request)
-        } else {
-          await apiClient.postContract(
-            `bob/${bobWriteEntity(config)}/submit`,
-            request,
-          )
-        }
+        await apiClient.postContract(
+          `bob/${bobWriteEntity(config)}/submit`,
+          request,
+        )
       }
       await query()
       if (currentView.value?.objectId === row.objectId) closeEditor()
@@ -532,11 +491,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
     query,
     (row, action) => {
       if (currentView.value?.objectId === row.objectId) closeEditor()
-      successMessage.value =
-        bobApprovalDomain(config) === 'dcl' &&
-        (action === 'enable' || action === 'disable')
-          ? `${row.code} 已生成${action === 'enable' ? '启用' : '禁用'}草稿。`
-          : `${row.code} ${bobLifecycleSuccessLabel(action)}。`
+      successMessage.value = `${row.code} ${bobLifecycleSuccessLabel(action)}。`
     },
   )
 

@@ -70,7 +70,6 @@ export interface BobFilterField {
 
 export interface BobEntityConfig {
   entity: BobEntity
-  approvalDomain?: 'bob' | 'dcl'
   title: string
   codeLabel: string
   nameLabel: string
@@ -85,19 +84,10 @@ export interface BobEntityConfig {
   references?: Readonly<Record<string, BobReferenceConfig>>
 }
 
-export function bobApprovalDomain(
-  config: Pick<BobEntityConfig, 'approvalDomain'>,
-): 'bob' | 'dcl' {
-  return config.approvalDomain ?? 'bob'
-}
-
 export function bobWriteEntity(
-  config: Pick<BobEntityConfig, 'entity' | 'approvalDomain'>,
+  config: Pick<BobEntityConfig, 'entity'>,
 ): components['schemas']['BobCrudEntity'] {
-  if (
-    bobApprovalDomain(config) !== 'bob' ||
-    config.entity === 'operating-entity'
-  ) {
+  if (config.entity === 'operating-entity') {
     throw new Error('经营主体写入必须使用 DCL。')
   }
   return config.entity

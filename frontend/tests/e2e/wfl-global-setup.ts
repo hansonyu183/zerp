@@ -383,6 +383,8 @@ const bobReviewerActions = new Set([
   ]),
   '/bob/operating-entity/query',
   '/bob/operating-entity/get',
+  '/dcl/operating-entity/query',
+  '/dcl/operating-entity/get',
   '/dcl/operating-entity/approve',
 ])
 

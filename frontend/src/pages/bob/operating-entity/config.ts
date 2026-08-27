@@ -1,6 +1,4 @@
 import {
-  baseColumns,
-  baseFilters,
   commonFields,
   defineBobEntityConfig,
   patternRule,
@@ -13,11 +11,12 @@ import { bobListActiveVersion } from '../shared/types'
 
 export const operatingEntityConfig = defineBobEntityConfig({
   entity: 'operating-entity',
-  approvalDomain: 'dcl',
   title: '经营主体',
   codeLabel: '经营主体编码',
   nameLabel: '法定公司名称',
   defaults: {
+    objectId: '',
+    approvalEntryId: '',
     shortName: '',
     taxNumber: '',
     address: '',
@@ -26,7 +25,21 @@ export const operatingEntityConfig = defineBobEntityConfig({
   },
   requiredKeys: ['name'],
   uppercaseKeys: ['taxNumber'],
+  persistedKeys: [
+    'name',
+    'shortName',
+    'taxNumber',
+    'address',
+    'phone',
+    'remark',
+  ],
   fields: (context) => [
+    { key: 'objectId', label: 'Stable ID', type: 'readonly' },
+    {
+      key: 'approvalEntryId',
+      label: '来源 Approval Entry ID',
+      type: 'readonly',
+    },
     ...commonFields(context, '经营主体编码', '法定公司名称'),
     text('shortName', '简称', 100),
     text('taxNumber', '税号', 50, {
@@ -40,12 +53,51 @@ export const operatingEntityConfig = defineBobEntityConfig({
     }),
     textarea('remark', '备注'),
   ],
-  columns: baseColumns('编码', '法定公司名称', [
+  columns: [
+    {
+      key: 'code',
+      label: '编码',
+      value: (row) => row.code,
+      sizing: 'compact',
+    },
+    {
+      key: 'name',
+      label: '法定公司名称',
+      value: (row) => bobListActiveVersion(row).summary.name,
+      sizing: 'fluid',
+    },
     {
       key: 'taxNumber',
       label: '税号',
       value: (row) => bobListActiveVersion(row).summary.taxNumber,
     },
-  ]),
-  filters: baseFilters(),
+    {
+      key: 'objectId',
+      label: 'Stable ID',
+      value: (row) => row.objectId,
+    },
+    {
+      key: 'approvalEntryId',
+      label: '来源 Approval Entry ID',
+      value: (row) =>
+        row.latestApproved?.approval.approvalEntryId ?? '',
+    },
+    {
+      key: 'enabled',
+      label: '启停状态',
+      value: (row) => (row.enabled ? '启用' : '禁用'),
+      sizing: 'compact',
+    },
+  ],
+  filters: [
+    {
+      key: 'enabled',
+      label: '启停状态',
+      type: 'select',
+      options: [
+        { title: '启用', value: true },
+        { title: '禁用', value: false },
+      ],
+    },
+  ],
 })

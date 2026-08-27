@@ -1,28 +1,27 @@
-# 经营主体页面用例
+# BOB 经营主体当前档案页面用例
 
-权威业务规则见 [BOB 领域](../../domains/bob.md)、[DCL 经营主体申报](../../domains/dcl.md) 与 [Approval Version](../../domains/approval.md#6-approval-version)，线协议见 [OpenAPI DCL Schema](../../../contracts/openapi/schemas/dcl.yaml) 和 [OpenAPI BOB Schema](../../../contracts/openapi/schemas/bob.yaml)。
+权威业务规则见 [BOB 领域](../../domains/bob.md)与 [DCL 经营主体申报](../../domains/dcl.md)，线协议见 [OpenAPI BOB Schema](../../../contracts/openapi/schemas/bob.yaml)。
 
 ## 1. 页面与列表
 
-1. 页面入口保持 `/bob/operating-entity`，导航和当前正式引用仍属于 BOB 业务视图。
-2. 页面候选列表调用 `POST /dcl/operating-entity/query`，同时展示 latest approved 与唯一开放候选；已知审批状态必须显示共享中文映射。
-3. 新建、编辑、启停、提交、撤回、驳回、批准、反批、删除、版本和审计动作分别检查对应 `/dcl/operating-entity/*` 精确权限。页面不得调用旧 BOB 写路径。
+1. 页面入口为 `/bob/operating-entity`，使用独立 BOB 菜单项和 ViewModel，只按 BOB `query/get` 精确权限出现与读取。
+2. 列表调用 `POST /bob/operating-entity/query`，只展示已经批准的当前正式档案；详情调用 `POST /bob/operating-entity/get` 重新读取当前投影。
+3. 页面不展示候选、审批状态、创建、编辑、启停、提交、撤回、驳回、批准、反批、删除、版本或审计控件，也不调用任何 `/dcl/operating-entity/*` 或 BOB 写接口。
 
-## 2. 新建与编辑
+## 2. 当前档案
 
-1. 新建只填写法定名称，以及可选简称、税号、地址、电话和备注；编码由服务端分配，初始 `enabled=true`。
-2. V1 草稿可保存、提交或删除；批准前不会出现在 BOB 当前列表或交易候选中。
-3. 编辑 latest approved 时，页面提交完整 DCL 快照并创建唯一候选；候选待审期间当前 BOB 资料继续显示旧正式版本。
-4. 启用或停用生成带目标 `enabled` 的新候选，不能直接修改 BOB 当前行。页面明确提示“已生成草稿”，由用户继续正常审批。
+1. 列表和详情展示稳定 ID、业务编码、来源 Approval Entry ID、法定名称、简称、税号、地址、电话、备注与当前启用状态；不把审批候选字段拼入当前档案。
+2. DCL 存在草稿或待审候选时，本页面继续显示旧正式档案；候选批准后，下一次查询或详情读取整体切换到新投影。
+3. 具有 DCL 查询权限时，可以提供“查看申报”导航，目标为 `/dcl/operating-entity?objectId=<stable-id>&mode=view`；导航不是 BOB 内写入口，也不得复用 BOB ViewModel 执行 DCL 请求。
 
-## 3. 审批与回落
+## 3. 正式投影变化
 
-1. V1 批准后经营主体才进入 BOB 当前读取和交易候选；V2 批准后当前资料一次切换到 V2。
-2. 反批 V2 后页面重新读取并显示 V1 为当前正式版本；反批 V1 后保留对象、编码和历史，但 BOB 当前读取不存在。
-3. 只允许反批最新正式版本。存在开放候选、精确历史引用 blocker、revision 过期或提交人自审时，页面按稳定 `errorKey` 展示业务提示，不按 message 文本分支。
+1. V1 批准前列表和详情均不可见；V1 批准后出现。V2 草稿或待审期间继续显示 V1，V2 批准后一次切换到 V2。
+2. DCL 反批 V2 后，下一次读取显示回落的 V1；反批 V1 后列表不再返回该主体，直接打开旧深链时按稳定未找到错误处理。
+3. BOB 页面只观察正式投影结果，不发起或模拟任何审批动作。
 
-## 4. 历史与异常
+## 4. 异常与验收
 
-1. 版本历史调用 DCL `versions`，审计调用 DCL `audit-history`；历史版本只读且不被当前资料改写。
-2. 任一写请求失败后重新读取详情；服务端保证 Approval entry、事件、DCL 快照和 BOB 当前投影不会部分成功。
-3. 关键词、状态、启用状态、分页与排序始终由 DCL query 明确提交；移动端卡片与桌面表格使用同一 ViewModel 和动作规则。
+1. 关键词、启用状态、分页与排序始终由 BOB query 明确提交；移动端卡片与桌面表格使用同一个只读 BOB ViewModel。
+2. 当前投影不存在或读取失败时展示稳定错误状态，不回退调用 DCL candidate 补齐资料。
+3. 自动化验收必须证明 BOB 页面网络请求只有 BOB `query/get`，且 DOM 中不存在 lifecycle 控件。

@@ -4,7 +4,6 @@ import type {
   BobEntityConfig,
   BobListItem,
 } from './types'
-import { bobApprovalDomain } from './types'
 import { bobEntityActionAvailability } from './product-approval'
 
 export function useBobActionAvailability(
@@ -14,30 +13,34 @@ export function useBobActionAvailability(
   canLoadEditorReferences: () => boolean,
 ) {
   const permission = (action: string): string =>
-    `/${bobApprovalDomain(config)}/${config.entity}/${action}`
+    `/bob/${config.entity}/${action}`
 
   function actionAvailability(
     row: Readonly<BobListItem>,
   ): BobActionAvailability {
+    if (config.entity === 'operating-entity') {
+      return {
+        view: can(permission('get')),
+        edit: false,
+        delete: false,
+        submit: false,
+        unsubmit: false,
+        approve: false,
+        unapprove: false,
+        reject: false,
+        enable: false,
+        disable: false,
+        versions: false,
+        audit: false,
+      }
+    }
     const availability = bobEntityActionAvailability(
       config.entity,
       row,
       userId(),
-      (action) =>
-        can(
-          permission(
-            bobApprovalDomain(config) === 'dcl' &&
-              (action === 'enable' || action === 'disable')
-              ? 'save'
-              : action,
-          ),
-        ),
+      (action) => can(permission(action)),
       canLoadEditorReferences(),
     )
-    if (bobApprovalDomain(config) === 'dcl' && row.openVersion !== null) {
-      availability.enable = false
-      availability.disable = false
-    }
     return availability
   }
 

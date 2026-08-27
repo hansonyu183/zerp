@@ -2,9 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type WarehouseInventoryConflict = {
-  productObjectId: string;
-  productCode: string;
-  productName: string;
-  quantity: string;
+import type { DclWarehouseData } from './DclWarehouseData';
+export type DclWarehouseCreateRequest = {
+  data: DclWarehouseData;
 };

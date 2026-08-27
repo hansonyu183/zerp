@@ -294,6 +294,102 @@ export interface paths {
       responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
     };
   };
+  "/dcl/warehouse/create": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclWarehouseCreateRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWarehouseMutationResponse } } };
+    };
+  };
+  "/dcl/warehouse/save": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclWarehouseSaveRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWarehouseSaveResponse } } };
+    };
+  };
+  "/dcl/warehouse/submit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWarehouseMutationResponse } } };
+    };
+  };
+  "/dcl/warehouse/unsubmit": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWarehouseMutationResponse } } };
+    };
+  };
+  "/dcl/warehouse/reject": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWarehouseMutationResponse } } };
+    };
+  };
+  "/dcl/warehouse/approve": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWarehouseMutationResponse } } };
+    };
+  };
+  "/dcl/warehouse/unapprove": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityReviewRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWarehouseMutationResponse } } };
+    };
+  };
+  "/dcl/warehouse/delete": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityVersionRequest } };
+      responses: { 200: { content: { 'application/json': Models.EmptyResponse } } };
+    };
+  };
+  "/dcl/warehouse/get": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityGetRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWarehouseViewResponse } } };
+    };
+  };
+  "/dcl/warehouse/query": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityQueryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWarehouseQueryResponse } } };
+    };
+  };
+  "/dcl/warehouse/versions": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWarehouseVersionPageResponse } } };
+    };
+  };
+  "/dcl/warehouse/audit-history": {
+    parameters: { query?: never; header?: never; path?: never; cookie?: never };
+    post: {
+      parameters: { query?: never; header?: never; path?: never; cookie?: never };
+      requestBody: { content: { 'application/json': Models.DclOperatingEntityHistoryRequest } };
+      responses: { 200: { content: { 'application/json': Models.DclWarehouseAuditHistoryResponse } } };
+    };
+  };
   "/dcl/operating-entity/create": {
     parameters: { query?: never; header?: never; path?: never; cookie?: never };
     post: {
@@ -1723,26 +1819,45 @@ export interface components {
       "SessionUser": Models.SessionUser;
       "SessionData": Models.SessionData;
       "SessionResponse": Models.SessionResponse;
-      "DclOperatingEntityData": Models.DclOperatingEntityData;
-      "DclOperatingEntityCreateRequest": Models.DclOperatingEntityCreateRequest;
+      "DclWarehouseData": Models.DclWarehouseData;
+      "DclWarehouseCreateRequest": Models.DclWarehouseCreateRequest;
       "DclOperatingEntityMutation": Models.DclOperatingEntityMutation;
-      "DclOperatingEntityMutationResponse": Models.DclOperatingEntityMutationResponse;
-      "DclOperatingEntitySaveRequest": Models.DclOperatingEntitySaveRequest;
+      "DclWarehouseMutationResponse": Models.DclWarehouseMutationResponse;
+      "DclWarehouseSaveRequest": Models.DclWarehouseSaveRequest;
+      "DclWarehouseInventoryConflict": Models.DclWarehouseInventoryConflict;
+      "VouEntity": Models.VouEntity;
+      "DclWarehouseDocumentConflict": Models.DclWarehouseDocumentConflict;
+      "DclWarehouseReferenceCount": Models.DclWarehouseReferenceCount;
+      "DclWarehouseDisableBlockers": Models.DclWarehouseDisableBlockers;
+      "DclWarehouseSaveResponse": Models.DclWarehouseSaveResponse;
       "DclOperatingEntityVersionRequest": Models.DclOperatingEntityVersionRequest;
       "DclOperatingEntityReviewRequest": Models.DclOperatingEntityReviewRequest;
       "DclOperatingEntityGetRequest": Models.DclOperatingEntityGetRequest;
+      "DclWarehouseView": Models.DclWarehouseView;
+      "DclWarehouseViewResponse": Models.DclWarehouseViewResponse;
+      "DclOperatingEntityQueryRequest": Models.DclOperatingEntityQueryRequest;
+      "DclWarehouseVersionView": Models.DclWarehouseVersionView;
+      "DclWarehouseListItem": Models.DclWarehouseListItem;
+      "DclWarehouseQueryPage": Models.DclWarehouseQueryPage;
+      "DclWarehouseQueryResponse": Models.DclWarehouseQueryResponse;
+      "DclOperatingEntityHistoryRequest": Models.DclOperatingEntityHistoryRequest;
+      "DclWarehouseVersionPage": Models.DclWarehouseVersionPage;
+      "DclWarehouseVersionPageResponse": Models.DclWarehouseVersionPageResponse;
+      "ApprovalEventView": Models.ApprovalEventView;
+      "DclOperatingEntityAuditEventPage": Models.DclOperatingEntityAuditEventPage;
+      "DclWarehouseAuditHistoryResponse": Models.DclWarehouseAuditHistoryResponse;
+      "DclOperatingEntityData": Models.DclOperatingEntityData;
+      "DclOperatingEntityCreateRequest": Models.DclOperatingEntityCreateRequest;
+      "DclOperatingEntityMutationResponse": Models.DclOperatingEntityMutationResponse;
+      "DclOperatingEntitySaveRequest": Models.DclOperatingEntitySaveRequest;
       "DclOperatingEntityView": Models.DclOperatingEntityView;
       "DclOperatingEntityViewResponse": Models.DclOperatingEntityViewResponse;
-      "DclOperatingEntityQueryRequest": Models.DclOperatingEntityQueryRequest;
       "DclOperatingEntityVersionView": Models.DclOperatingEntityVersionView;
       "DclOperatingEntityListItem": Models.DclOperatingEntityListItem;
       "DclOperatingEntityQueryPage": Models.DclOperatingEntityQueryPage;
       "DclOperatingEntityQueryResponse": Models.DclOperatingEntityQueryResponse;
-      "DclOperatingEntityHistoryRequest": Models.DclOperatingEntityHistoryRequest;
       "DclOperatingEntityVersionPage": Models.DclOperatingEntityVersionPage;
       "DclOperatingEntityVersionPageResponse": Models.DclOperatingEntityVersionPageResponse;
-      "ApprovalEventView": Models.ApprovalEventView;
-      "DclOperatingEntityAuditEventPage": Models.DclOperatingEntityAuditEventPage;
       "DclOperatingEntityAuditHistoryResponse": Models.DclOperatingEntityAuditHistoryResponse;
       "WorkbenchCategory": Models.WorkbenchCategory;
       "WorkbenchPendingStage": Models.WorkbenchPendingStage;
@@ -1750,7 +1865,6 @@ export interface components {
       "BobEntity": Models.BobEntity;
       "WorkbenchAction": Models.WorkbenchAction;
       "WorkbenchObjectItem": Models.WorkbenchObjectItem;
-      "VouEntity": Models.VouEntity;
       "WorkbenchDocumentItem": Models.WorkbenchDocumentItem;
       "WorkbenchPage": Models.WorkbenchPage;
       "WorkbenchQueryResponse": Models.WorkbenchQueryResponse;
@@ -1974,9 +2088,6 @@ export interface components {
       "BobActiveReferenceCount": Models.BobActiveReferenceCount;
       "BobActiveReferenceBlockers": Models.BobActiveReferenceBlockers;
       "BobUnapproveResponse": Models.BobUnapproveResponse;
-      "WarehouseInventoryConflict": Models.WarehouseInventoryConflict;
-      "WarehouseDocumentConflict": Models.WarehouseDocumentConflict;
-      "WarehouseDisableBlockers": Models.WarehouseDisableBlockers;
       "BobDisableResponse": Models.BobDisableResponse;
       "VouQueryRequest": Models.VouQueryRequest;
       "VouSalesBaseQuantitySummary": Models.VouSalesBaseQuantitySummary;

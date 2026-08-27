@@ -363,4 +363,344 @@
           'requestId': { 'type': 'string' },
         },
     },
+  'DclWarehouseData':
+    {
+      'type': 'object',
+      'required': ['name'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'name': { 'type': 'string', 'minLength': 1 },
+          'address': { 'type': 'string' },
+          'contactName': { 'type': 'string' },
+          'contactPhone': { 'type': 'string' },
+          'managerEmployeeId': { 'type': 'string' },
+          'remark': { 'type': 'string' },
+        },
+    },
+  'DclWarehouseInventoryConflict':
+    {
+      'type': 'object',
+      'required': ['productObjectId', 'productCode', 'productName', 'quantity'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'productObjectId': { 'type': 'string' },
+          'productCode': { 'type': 'string' },
+          'productName': { 'type': 'string' },
+          'quantity': { 'type': 'string' },
+        },
+    },
+  'DclWarehouseDocumentConflict':
+    {
+      'type': 'object',
+      'required': ['documentId', 'entity', 'documentNo'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'documentId': { 'type': 'string' },
+          'entity': { '$ref': './vou.yaml#/VouEntity' },
+          'documentNo': { 'type': 'string' },
+          'status': { '$ref': './common.yaml#/ApprovalStatus' },
+        },
+    },
+  'DclWarehouseReferenceCount':
+    {
+      'type': 'object',
+      'required': ['entity', 'field', 'count'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'entity': { 'type': 'string' },
+          'field': { 'type': 'string' },
+          'count': { 'type': 'integer', 'format': 'int32', 'minimum': 1 },
+        },
+    },
+  'DclWarehouseDisableBlockers':
+    {
+      'type': 'object',
+      'required': ['inventory', 'documents', 'sources', 'references'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'inventory':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/DclWarehouseInventoryConflict' },
+            },
+          'documents':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/DclWarehouseDocumentConflict' },
+            },
+          'sources':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/DclWarehouseDocumentConflict' },
+            },
+          'references':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/DclWarehouseReferenceCount' },
+            },
+        },
+    },
+  'DclWarehouseCreateRequest':
+    {
+      'type': 'object',
+      'required': ['data'],
+      'additionalProperties': false,
+      'properties': { 'data': { '$ref': '#/DclWarehouseData' } },
+    },
+  'DclWarehouseSaveRequest':
+    {
+      'type': 'object',
+      'required':
+        ['objectId', 'approvalEntryId', 'approvalRevision', 'enabled', 'data'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'approvalEntryId': { 'type': 'string' },
+          'approvalRevision':
+            { 'type': 'integer', 'format': 'int64', 'minimum': 1 },
+          'enabled': { 'type': 'boolean' },
+          'data': { '$ref': '#/DclWarehouseData' },
+        },
+    },
+  'DclWarehouseVersionRequest':
+    { '$ref': '#/DclOperatingEntityVersionRequest' },
+  'DclWarehouseReviewRequest': { '$ref': '#/DclOperatingEntityReviewRequest' },
+  'DclWarehouseGetRequest': { '$ref': '#/DclOperatingEntityGetRequest' },
+  'DclWarehouseQueryRequest': { '$ref': '#/DclOperatingEntityQueryRequest' },
+  'DclWarehouseHistoryRequest':
+    { '$ref': '#/DclOperatingEntityHistoryRequest' },
+  'DclWarehouseMutation': { '$ref': '#/DclOperatingEntityMutation' },
+  'DclWarehouseView':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'entity',
+          'code',
+          'objectRevision',
+          'enabled',
+          'approval',
+          'data',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'entity': { 'type': 'string', 'enum': ['warehouse'] },
+          'code': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'data': { '$ref': '#/DclWarehouseData' },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'DclWarehouseVersionView':
+    {
+      'type': 'object',
+      'required': ['approval', 'data', 'enabled'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'approval': { '$ref': './common.yaml#/ApprovalVersionMeta' },
+          'data': { '$ref': '#/DclWarehouseData' },
+          'enabled': { 'type': 'boolean' },
+        },
+    },
+  'DclWarehouseListItem':
+    {
+      'type': 'object',
+      'required':
+        [
+          'objectId',
+          'entity',
+          'code',
+          'objectRevision',
+          'enabled',
+          'latestApproved',
+          'openVersion',
+          'updatedAt',
+        ],
+      'additionalProperties': false,
+      'properties':
+        {
+          'objectId': { 'type': 'string' },
+          'entity': { 'type': 'string', 'enum': ['warehouse'] },
+          'code': { 'type': 'string' },
+          'objectRevision': { 'type': 'integer', 'format': 'int64' },
+          'enabled': { 'type': 'boolean' },
+          'latestApproved':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclWarehouseVersionView' }],
+              'nullable': true,
+            },
+          'openVersion':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclWarehouseVersionView' }],
+              'nullable': true,
+            },
+          'updatedAt': { 'type': 'string', 'format': 'date-time' },
+        },
+    },
+  'DclWarehouseQueryPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            { 'type': 'array', 'items': { '$ref': '#/DclWarehouseListItem' } },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'DclWarehouseVersionPage':
+    {
+      'type': 'object',
+      'required': ['items', 'total', 'page', 'pageSize'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'items':
+            {
+              'type': 'array',
+              'items': { '$ref': '#/DclWarehouseVersionView' },
+            },
+          'total': { 'type': 'integer', 'format': 'int64' },
+          'page': { 'type': 'integer' },
+          'pageSize': { 'type': 'integer' },
+        },
+    },
+  'DclWarehouseAuditEventPage':
+    { '$ref': '#/DclOperatingEntityAuditEventPage' },
+  'DclWarehouseMutationResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclWarehouseMutation' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclWarehouseSaveResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'nullable': true,
+              'anyOf':
+                [
+                  { '$ref': '#/DclWarehouseMutation' },
+                  { '$ref': '#/DclWarehouseDisableBlockers' },
+                ],
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclWarehouseViewResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclWarehouseView' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclWarehouseQueryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclWarehouseQueryPage' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclWarehouseVersionPageResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclWarehouseVersionPage' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
+  'DclWarehouseAuditHistoryResponse':
+    {
+      'type': 'object',
+      'required': ['code', 'errorKey', 'message', 'data', 'requestId'],
+      'additionalProperties': false,
+      'properties':
+        {
+          'code': { 'type': 'integer', 'format': 'int32' },
+          'errorKey': { 'type': 'string' },
+          'message': { 'type': 'string' },
+          'data':
+            {
+              'type': 'object',
+              'allOf': [{ '$ref': '#/DclWarehouseAuditEventPage' }],
+              'nullable': true,
+            },
+          'requestId': { 'type': 'string' },
+        },
+    },
 }

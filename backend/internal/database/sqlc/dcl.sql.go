@@ -33,6 +33,31 @@ func (q *Queries) CopyDCLOperatingEntityVersion(ctx context.Context, arg CopyDCL
 	return result.RowsAffected(), nil
 }
 
+const copyDCLWarehouseVersion = `-- name: CopyDCLWarehouseVersion :execrows
+INSERT INTO dcl_warehouse_versions(
+  approval_entry_id,category_id,category_approval_entry_id,category_entity,name,address,
+  contact_name,contact_phone,manager_employee_id,manager_employee_approval_entry_id,
+  manager_employee_entity,remark,enabled
+)
+SELECT $1,category_id,category_approval_entry_id,category_entity,
+  name,address,contact_name,contact_phone,manager_employee_id,manager_employee_approval_entry_id,
+  manager_employee_entity,remark,enabled
+FROM dcl_warehouse_versions WHERE dcl_warehouse_versions.approval_entry_id=$2
+`
+
+type CopyDCLWarehouseVersionParams struct {
+	NewApprovalEntryID    string `db:"new_approval_entry_id" json:"new_approval_entry_id"`
+	SourceApprovalEntryID string `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+}
+
+func (q *Queries) CopyDCLWarehouseVersion(ctx context.Context, arg CopyDCLWarehouseVersionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, copyDCLWarehouseVersion, arg.NewApprovalEntryID, arg.SourceApprovalEntryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const countDCLOperatingEntities = `-- name: CountDCLOperatingEntities :one
 SELECT count(*)
 FROM dcl_subjects subject
@@ -87,6 +112,46 @@ func (q *Queries) CountDCLOperatingEntityApprovalEvents(ctx context.Context, obj
 	return count, err
 }
 
+const countDCLWarehouseApprovalEvents = `-- name: CountDCLWarehouseApprovalEvents :one
+SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='warehouse' AND subject_id=$1
+`
+
+func (q *Queries) CountDCLWarehouseApprovalEvents(ctx context.Context, objectID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countDCLWarehouseApprovalEvents, objectID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countDCLWarehouses = `-- name: CountDCLWarehouses :one
+SELECT count(*) FROM dcl_subjects subject
+JOIN bob_objects object ON object.id=subject.id AND object.entity=subject.entity
+LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries
+ WHERE domain='dcl' AND entity='warehouse' AND subject_id=subject.id AND status IN ('DRAFT','PENDING')
+ ORDER BY version_no DESC LIMIT 1) candidate ON true
+LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries
+ WHERE domain='dcl' AND entity='warehouse' AND subject_id=subject.id AND status='APPROVED'
+ ORDER BY version_no DESC LIMIT 1) approved ON true
+JOIN dcl_warehouse_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
+WHERE subject.entity='warehouse'
+ AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%' OR display.name ILIKE '%'||$1::text||'%')
+ AND ($2::integer=-1 OR display.enabled=($2::integer=1))
+ AND (cardinality($3::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($3::text[]))
+`
+
+type CountDCLWarehousesParams struct {
+	Keyword       string   `db:"keyword" json:"keyword"`
+	EnabledFilter int32    `db:"enabled_filter" json:"enabled_filter"`
+	StatusFilter  []string `db:"status_filter" json:"status_filter"`
+}
+
+func (q *Queries) CountDCLWarehouses(ctx context.Context, arg CountDCLWarehousesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countDCLWarehouses, arg.Keyword, arg.EnabledFilter, arg.StatusFilter)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteDCLOperatingEntityVersion = `-- name: DeleteDCLOperatingEntityVersion :execrows
 DELETE FROM dcl_operating_entity_versions
 WHERE approval_entry_id=$1
@@ -112,6 +177,18 @@ type DeleteDCLSubjectParams struct {
 
 func (q *Queries) DeleteDCLSubject(ctx context.Context, arg DeleteDCLSubjectParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteDCLSubject, arg.ID, arg.Entity)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteDCLWarehouseVersion = `-- name: DeleteDCLWarehouseVersion :execrows
+DELETE FROM dcl_warehouse_versions WHERE approval_entry_id=$1
+`
+
+func (q *Queries) DeleteDCLWarehouseVersion(ctx context.Context, approvalEntryID string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDCLWarehouseVersion, approvalEntryID)
 	if err != nil {
 		return 0, err
 	}
@@ -159,6 +236,69 @@ func (q *Queries) GetDCLSubject(ctx context.Context, arg GetDCLSubjectParams) (D
 		&i.Entity,
 		&i.CreatedAt,
 		&i.CreatedBy,
+	)
+	return i, err
+}
+
+const getDCLWarehouseVersion = `-- name: GetDCLWarehouseVersion :one
+SELECT approval_entry_id, category_id, category_approval_entry_id, category_entity, name, address, contact_name, contact_phone, manager_employee_id, manager_employee_approval_entry_id, manager_employee_entity, remark, enabled FROM dcl_warehouse_versions WHERE approval_entry_id=$1
+`
+
+func (q *Queries) GetDCLWarehouseVersion(ctx context.Context, approvalEntryID string) (DclWarehouseVersion, error) {
+	row := q.db.QueryRow(ctx, getDCLWarehouseVersion, approvalEntryID)
+	var i DclWarehouseVersion
+	err := row.Scan(
+		&i.ApprovalEntryID,
+		&i.CategoryID,
+		&i.CategoryApprovalEntryID,
+		&i.CategoryEntity,
+		&i.Name,
+		&i.Address,
+		&i.ContactName,
+		&i.ContactPhone,
+		&i.ManagerEmployeeID,
+		&i.ManagerEmployeeApprovalEntryID,
+		&i.ManagerEmployeeEntity,
+		&i.Remark,
+		&i.Enabled,
+	)
+	return i, err
+}
+
+const getLatestApprovedDCLWarehouseVersionExcluding = `-- name: GetLatestApprovedDCLWarehouseVersionExcluding :one
+SELECT id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,
+       updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at
+FROM approval_entries
+WHERE domain='dcl' AND entity='warehouse' AND subject_id=$1
+  AND status='APPROVED' AND id<>$2
+ORDER BY version_no DESC
+LIMIT 1
+`
+
+type GetLatestApprovedDCLWarehouseVersionExcludingParams struct {
+	ObjectID                string `db:"object_id" json:"object_id"`
+	ExcludedApprovalEntryID string `db:"excluded_approval_entry_id" json:"excluded_approval_entry_id"`
+}
+
+func (q *Queries) GetLatestApprovedDCLWarehouseVersionExcluding(ctx context.Context, arg GetLatestApprovedDCLWarehouseVersionExcludingParams) (ApprovalEntry, error) {
+	row := q.db.QueryRow(ctx, getLatestApprovedDCLWarehouseVersionExcluding, arg.ObjectID, arg.ExcludedApprovalEntryID)
+	var i ApprovalEntry
+	err := row.Scan(
+		&i.ID,
+		&i.Domain,
+		&i.Entity,
+		&i.SubjectID,
+		&i.VersionNo,
+		&i.Status,
+		&i.Revision,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedBy,
+		&i.UpdatedAt,
+		&i.SubmittedBy,
+		&i.SubmittedAt,
+		&i.ApprovedBy,
+		&i.ApprovedAt,
 	)
 	return i, err
 }
@@ -214,6 +354,47 @@ type InsertDCLSubjectParams struct {
 // Approval Version.  It deliberately stores no current/base/next pointer.
 func (q *Queries) InsertDCLSubject(ctx context.Context, arg InsertDCLSubjectParams) error {
 	_, err := q.db.Exec(ctx, insertDCLSubject, arg.ID, arg.Entity, arg.ActorID)
+	return err
+}
+
+const insertDCLWarehouseVersion = `-- name: InsertDCLWarehouseVersion :exec
+INSERT INTO dcl_warehouse_versions(
+  approval_entry_id,name,address,contact_name,contact_phone,manager_employee_id,
+  manager_employee_approval_entry_id,remark,enabled
+) VALUES(
+  $1,$2,$3,$4,
+  $5,$6,
+  $7,$8,$9
+)
+`
+
+type InsertDCLWarehouseVersionParams struct {
+	ApprovalEntryID                string  `db:"approval_entry_id" json:"approval_entry_id"`
+	Name                           string  `db:"name" json:"name"`
+	Address                        *string `db:"address" json:"address"`
+	ContactName                    *string `db:"contact_name" json:"contact_name"`
+	ContactPhone                   *string `db:"contact_phone" json:"contact_phone"`
+	ManagerEmployeeID              *string `db:"manager_employee_id" json:"manager_employee_id"`
+	ManagerEmployeeApprovalEntryID *string `db:"manager_employee_approval_entry_id" json:"manager_employee_approval_entry_id"`
+	Remark                         *string `db:"remark" json:"remark"`
+	Enabled                        bool    `db:"enabled" json:"enabled"`
+}
+
+// Warehouse is a DCL-owned declaration with a BOB current projection. Category
+// columns are retained only to preserve pre-cutover snapshots and are never
+// supplied by the Warehouse declaration API.
+func (q *Queries) InsertDCLWarehouseVersion(ctx context.Context, arg InsertDCLWarehouseVersionParams) error {
+	_, err := q.db.Exec(ctx, insertDCLWarehouseVersion,
+		arg.ApprovalEntryID,
+		arg.Name,
+		arg.Address,
+		arg.ContactName,
+		arg.ContactPhone,
+		arg.ManagerEmployeeID,
+		arg.ManagerEmployeeApprovalEntryID,
+		arg.Remark,
+		arg.Enabled,
+	)
 	return err
 }
 
@@ -368,6 +549,141 @@ func (q *Queries) ListDCLOperatingEntityApprovalEvents(ctx context.Context, arg 
 	return items, nil
 }
 
+const listDCLWarehouseApprovalEvents = `-- name: ListDCLWarehouseApprovalEvents :many
+SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at
+FROM approval_events WHERE domain='dcl' AND entity='warehouse' AND subject_id=$1
+ORDER BY created_at DESC,id DESC LIMIT $3 OFFSET $2
+`
+
+type ListDCLWarehouseApprovalEventsParams struct {
+	ObjectID  string `db:"object_id" json:"object_id"`
+	RowOffset int32  `db:"row_offset" json:"row_offset"`
+	RowLimit  int32  `db:"row_limit" json:"row_limit"`
+}
+
+func (q *Queries) ListDCLWarehouseApprovalEvents(ctx context.Context, arg ListDCLWarehouseApprovalEventsParams) ([]ApprovalEvent, error) {
+	rows, err := q.db.Query(ctx, listDCLWarehouseApprovalEvents, arg.ObjectID, arg.RowOffset, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ApprovalEvent{}
+	for rows.Next() {
+		var i ApprovalEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.EntryID,
+			&i.Domain,
+			&i.Entity,
+			&i.SubjectID,
+			&i.VersionNo,
+			&i.Action,
+			&i.FromStatus,
+			&i.ToStatus,
+			&i.FromRevision,
+			&i.ToRevision,
+			&i.ActorID,
+			&i.Reason,
+			&i.RequestID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDCLWarehouses = `-- name: ListDCLWarehouses :many
+SELECT object.id AS object_id,object.code,object.revision AS object_revision,display.enabled,
+ COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,
+ COALESCE(approved.id,'')::text AS approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
+FROM dcl_subjects subject
+JOIN bob_objects object ON object.id=subject.id AND object.entity=subject.entity
+LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries
+ WHERE domain='dcl' AND entity='warehouse' AND subject_id=subject.id AND status IN ('DRAFT','PENDING')
+ ORDER BY version_no DESC LIMIT 1) candidate ON true
+LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries
+ WHERE domain='dcl' AND entity='warehouse' AND subject_id=subject.id AND status='APPROVED'
+ ORDER BY version_no DESC LIMIT 1) approved ON true
+JOIN dcl_warehouse_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
+WHERE subject.entity='warehouse'
+ AND ($1::text='' OR object.code ILIKE '%'||$1::text||'%' OR display.name ILIKE '%'||$1::text||'%')
+ AND ($2::integer=-1 OR display.enabled=($2::integer=1))
+ AND (cardinality($3::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY($3::text[]))
+ORDER BY
+ CASE WHEN $4::text='updatedAt' AND $5::text='asc' THEN COALESCE(candidate.updated_at,approved.updated_at) END ASC,
+ CASE WHEN $4::text='updatedAt' AND $5::text='desc' THEN COALESCE(candidate.updated_at,approved.updated_at) END DESC,
+ CASE WHEN $4::text='code' AND $5::text='asc' THEN object.code END ASC,
+ CASE WHEN $4::text='code' AND $5::text='desc' THEN object.code END DESC,
+ CASE WHEN $4::text='name' AND $5::text='asc' THEN display.name END ASC,
+ CASE WHEN $4::text='name' AND $5::text='desc' THEN display.name END DESC,
+ CASE WHEN $4::text='status' AND $5::text='asc' THEN COALESCE(candidate.status,approved.status) END ASC,
+ CASE WHEN $4::text='status' AND $5::text='desc' THEN COALESCE(candidate.status,approved.status) END DESC,
+ CASE WHEN $4::text='version' AND $5::text='asc' THEN COALESCE(candidate.version_no,approved.version_no) END ASC,
+ CASE WHEN $4::text='version' AND $5::text='desc' THEN COALESCE(candidate.version_no,approved.version_no) END DESC,
+ object.id DESC LIMIT $7 OFFSET $6
+`
+
+type ListDCLWarehousesParams struct {
+	Keyword       string   `db:"keyword" json:"keyword"`
+	EnabledFilter int32    `db:"enabled_filter" json:"enabled_filter"`
+	StatusFilter  []string `db:"status_filter" json:"status_filter"`
+	SortField     string   `db:"sort_field" json:"sort_field"`
+	SortOrder     string   `db:"sort_order" json:"sort_order"`
+	RowOffset     int32    `db:"row_offset" json:"row_offset"`
+	RowLimit      int32    `db:"row_limit" json:"row_limit"`
+}
+
+type ListDCLWarehousesRow struct {
+	ObjectID        string             `db:"object_id" json:"object_id"`
+	Code            string             `db:"code" json:"code"`
+	ObjectRevision  int64              `db:"object_revision" json:"object_revision"`
+	Enabled         bool               `db:"enabled" json:"enabled"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ApprovedEntryID string             `db:"approved_entry_id" json:"approved_entry_id"`
+	OpenEntryID     string             `db:"open_entry_id" json:"open_entry_id"`
+}
+
+func (q *Queries) ListDCLWarehouses(ctx context.Context, arg ListDCLWarehousesParams) ([]ListDCLWarehousesRow, error) {
+	rows, err := q.db.Query(ctx, listDCLWarehouses,
+		arg.Keyword,
+		arg.EnabledFilter,
+		arg.StatusFilter,
+		arg.SortField,
+		arg.SortOrder,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDCLWarehousesRow{}
+	for rows.Next() {
+		var i ListDCLWarehousesRow
+		if err := rows.Scan(
+			&i.ObjectID,
+			&i.Code,
+			&i.ObjectRevision,
+			&i.Enabled,
+			&i.UpdatedAt,
+			&i.ApprovedEntryID,
+			&i.OpenEntryID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateDCLOperatingEntityVersion = `-- name: UpdateDCLOperatingEntityVersion :execrows
 UPDATE dcl_operating_entity_versions
 SET legal_name=$1, short_name=$2,
@@ -394,6 +710,45 @@ func (q *Queries) UpdateDCLOperatingEntityVersion(ctx context.Context, arg Updat
 		arg.TaxNumber,
 		arg.Address,
 		arg.Phone,
+		arg.Remark,
+		arg.Enabled,
+		arg.ApprovalEntryID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateDCLWarehouseVersion = `-- name: UpdateDCLWarehouseVersion :execrows
+UPDATE dcl_warehouse_versions SET
+  name=$1,address=$2,contact_name=$3,
+  contact_phone=$4,manager_employee_id=$5,
+  manager_employee_approval_entry_id=$6,
+  remark=$7,enabled=$8
+WHERE approval_entry_id=$9
+`
+
+type UpdateDCLWarehouseVersionParams struct {
+	Name                           string  `db:"name" json:"name"`
+	Address                        *string `db:"address" json:"address"`
+	ContactName                    *string `db:"contact_name" json:"contact_name"`
+	ContactPhone                   *string `db:"contact_phone" json:"contact_phone"`
+	ManagerEmployeeID              *string `db:"manager_employee_id" json:"manager_employee_id"`
+	ManagerEmployeeApprovalEntryID *string `db:"manager_employee_approval_entry_id" json:"manager_employee_approval_entry_id"`
+	Remark                         *string `db:"remark" json:"remark"`
+	Enabled                        bool    `db:"enabled" json:"enabled"`
+	ApprovalEntryID                string  `db:"approval_entry_id" json:"approval_entry_id"`
+}
+
+func (q *Queries) UpdateDCLWarehouseVersion(ctx context.Context, arg UpdateDCLWarehouseVersionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateDCLWarehouseVersion,
+		arg.Name,
+		arg.Address,
+		arg.ContactName,
+		arg.ContactPhone,
+		arg.ManagerEmployeeID,
+		arg.ManagerEmployeeApprovalEntryID,
 		arg.Remark,
 		arg.Enabled,
 		arg.ApprovalEntryID,

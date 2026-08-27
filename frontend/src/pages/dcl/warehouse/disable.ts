@@ -3,12 +3,12 @@ import type { components } from '@/api/generated/schema'
 import { ApiError } from '@/api/types'
 import { voucherStatusLabels } from '@/components/voucher/status'
 import { voucherEntityConfigs } from '@/pages/vou/shared/config'
-import type { BobListItem } from '../shared/types'
+import type { DclWarehouseListItem } from './types'
 
 type WarehouseDisableBlockers =
-  components['schemas']['WarehouseDisableBlockers']
+  components['schemas']['DclWarehouseDisableBlockers']
 type WarehouseDocumentConflict =
-  components['schemas']['WarehouseDocumentConflict']
+  components['schemas']['DclWarehouseDocumentConflict']
 
 export function warehouseDocumentEntityLabel(
   entity: WarehouseDocumentConflict['entity'],
@@ -52,13 +52,10 @@ export function warehouseDisableBlockersFromError(
 export function useWarehouseDisable(
   actionLoading: Ref<string | null>,
   errorMessage: Ref<string | null>,
-  canDisable: (row: Readonly<BobListItem>) => boolean,
-  changeEnabled: (
-    row: BobListItem,
-    handleError?: (error: unknown) => boolean,
-  ) => Promise<boolean>,
+  canDisable: (row: Readonly<DclWarehouseListItem>) => boolean,
+  changeEnabled: (row: DclWarehouseListItem) => Promise<boolean>,
 ) {
-  const warehouseDisableTarget = ref<BobListItem | null>(null)
+  const warehouseDisableTarget = ref<DclWarehouseListItem | null>(null)
   const warehouseDisableBlockers = ref<WarehouseDisableBlockers | null>(null)
 
   function closeWarehouseDisableDialog(): void {
@@ -66,7 +63,9 @@ export function useWarehouseDisable(
     warehouseDisableBlockers.value = null
   }
 
-  async function requestChangeEnabled(row: BobListItem): Promise<boolean> {
+  async function requestChangeEnabled(
+    row: DclWarehouseListItem,
+  ): Promise<boolean> {
     if (!row.enabled) {
       return changeEnabled(row)
     }
@@ -80,14 +79,21 @@ export function useWarehouseDisable(
   async function confirmWarehouseDisable(): Promise<boolean> {
     const target = warehouseDisableTarget.value
     if (!target || warehouseDisableBlockers.value) return false
-    const completed = await changeEnabled(target, (error) => {
-      const blockers = warehouseDisableBlockersFromError(error)
-      if (!blockers) return false
-      warehouseDisableBlockers.value = blockers
-      return true
-    })
+    const completed = await changeEnabled(target)
     if (completed) closeWarehouseDisableDialog()
     return completed
+  }
+
+  function handleWarehouseDisableApprovalError(
+    row: Readonly<DclWarehouseListItem>,
+    error: unknown,
+  ): boolean {
+    if (!row.openVersion || row.openVersion.enabled) return false
+    const blockers = warehouseDisableBlockersFromError(error)
+    if (!blockers) return false
+    warehouseDisableTarget.value = row
+    warehouseDisableBlockers.value = blockers
+    return true
   }
 
   return {
@@ -95,6 +101,7 @@ export function useWarehouseDisable(
     warehouseDisableBlockers,
     requestChangeEnabled,
     confirmWarehouseDisable,
+    handleWarehouseDisableApprovalError,
     closeWarehouseDisableDialog,
   }
 }

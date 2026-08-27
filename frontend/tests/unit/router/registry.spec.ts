@@ -363,13 +363,17 @@ describe('permission menu registry', () => {
     registerMenuRoutes(router, [])
   })
 
-  it('为 DCL 申报和 BOB 当前档案注册独立经营主体入口', () => {
+  it('为 DCL 申报和 BOB 当前档案注册独立经营主体与仓库入口', () => {
     const router = createTestRouter()
     const menus = buildMenus([
       '/dcl/operating-entity/query',
       '/dcl/operating-entity/create',
+      '/dcl/warehouse/query',
+      '/dcl/warehouse/create',
       '/bob/operating-entity/query',
       '/bob/operating-entity/get',
+      '/bob/warehouse/query',
+      '/bob/warehouse/get',
     ])
 
     expect(menus.map((domain) => domain.domain)).toEqual(['dcl', 'bob'])
@@ -381,11 +385,21 @@ describe('permission menu registry', () => {
           title: '经营主体申报',
           actions: ['query', 'create'],
         },
+        {
+          entity: 'warehouse',
+          title: '仓库申报',
+          actions: ['query', 'create'],
+        },
       ],
     })
     expect(menus[1]).toMatchObject({
       title: '业务对象',
       children: [
+        {
+          entity: 'warehouse',
+          title: '仓库',
+          actions: ['query', 'get'],
+        },
         {
           entity: 'operating-entity',
           title: '经营主体',
@@ -394,9 +408,11 @@ describe('permission menu registry', () => {
       ],
     })
 
-    expect(registerMenuRoutes(router, menus)).toBe(2)
+    expect(registerMenuRoutes(router, menus)).toBe(4)
     expect(hasRegisteredPage('dcl', 'operating-entity')).toBe(true)
     expect(hasRegisteredPage('bob', 'operating-entity')).toBe(true)
+    expect(hasRegisteredPage('dcl', 'warehouse')).toBe(true)
+    expect(hasRegisteredPage('bob', 'warehouse')).toBe(true)
     expect(router.resolve('/dcl/operating-entity').meta).toMatchObject({
       developing: false,
       title: '经营主体申报',
@@ -405,6 +421,16 @@ describe('permission menu registry', () => {
     expect(router.resolve('/bob/operating-entity').meta).toMatchObject({
       developing: false,
       title: '经营主体',
+      actions: ['query', 'get'],
+    })
+    expect(router.resolve('/dcl/warehouse').meta).toMatchObject({
+      developing: false,
+      title: '仓库申报',
+      actions: ['query', 'create'],
+    })
+    expect(router.resolve('/bob/warehouse').meta).toMatchObject({
+      developing: false,
+      title: '仓库',
       actions: ['query', 'get'],
     })
 

@@ -125,6 +125,13 @@ export const pageRegistrations: readonly PageRegistration[] = [
     order: 10,
     component: () => import('@/pages/dcl/operating-entity/OperatingEntity.vue'),
   }),
+  registerPage('dcl', {
+    entity: 'warehouse',
+    entityTitle: '仓库申报',
+    icon: 'mdi-warehouse-edit-outline',
+    order: 20,
+    component: () => import('@/pages/dcl/warehouse/Warehouse.vue'),
+  }),
   registerPage('rpt', {
     entity: 'definition',
     entityTitle: '报表定义管理',

@@ -46,21 +46,6 @@ export interface DclOperatingEntityConfig {
   emptyForm: () => DclOperatingEntityForm
 }
 
-export interface DclOperatingEntityActionAvailability {
-  view: boolean
-  edit: boolean
-  delete: boolean
-  submit: boolean
-  unsubmit: boolean
-  approve: boolean
-  unapprove: boolean
-  reject: boolean
-  enable: boolean
-  disable: boolean
-  versions: boolean
-  audit: boolean
-}
-
 export function dclOperatingEntityActiveVersion(
   item: Readonly<DclOperatingEntityListItem>,
 ): DclOperatingEntityVersionView {

@@ -11,4 +11,12 @@ type OperatingEntityPayload struct {
 	Name      string
 }
 
+type WarehousePayload struct {
+	SubjectID string
+	Code      string
+	Enabled   bool
+	Name      string
+}
+
 var OperatingEntityTopic = approval.MustTopic[OperatingEntityPayload]("dcl.operating-entity.approval")
+var WarehouseTopic = approval.MustTopic[WarehousePayload]("dcl.warehouse.approval")

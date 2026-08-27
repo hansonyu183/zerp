@@ -69,6 +69,7 @@ export function useBobEntityViewModel(config: BobEntityConfig) {
   const canCreate = computed(
     () =>
       config.entity !== 'operating-entity' &&
+      config.entity !== 'warehouse' &&
       session.can(`/bob/${config.entity}/create`) &&
       canLoadEditorReferences.value,
   )

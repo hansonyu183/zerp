@@ -1,13 +1,22 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import type { components } from '@/api/generated/schema'
 import {
   warehouseDocumentEntityLabel,
   warehouseDocumentStatusLabel,
 } from './disable'
-import type { WarehouseViewModel } from './vm'
+import type { DclWarehouseListItem } from './types'
 
-const props = defineProps<{ model: WarehouseViewModel }>()
-const vm = reactive(props.model)
+const props = defineProps<{
+  model: {
+    warehouseDisableTarget: DclWarehouseListItem | null
+    warehouseDisableBlockers:
+      components['schemas']['DclWarehouseDisableBlockers'] | null
+    actionLoading: string | null
+    closeWarehouseDisableDialog: () => void
+    confirmWarehouseDisable: () => Promise<boolean>
+  }
+}>()
+const vm = props.model
 </script>
 
 <template>
@@ -18,7 +27,9 @@ const vm = reactive(props.model)
   >
     <v-card
       rounded="xl"
-      :title="vm.warehouseDisableBlockers ? '仓库不能停用' : '确认停用仓库'"
+      :title="
+        vm.warehouseDisableBlockers ? '仓库停用申请不能批准' : '创建停用草稿'
+      "
     >
       <v-card-text>
         <v-alert
@@ -26,11 +37,11 @@ const vm = reactive(props.model)
           type="warning"
           variant="tonal"
         >
-          停用后该仓库不能用于新的业务。确认后系统会检查库存、业务单据和当前引用。
+          确认后将创建停用草稿。候选获批准前，当前正式仓库仍可用于新的业务。
         </v-alert>
         <template v-else>
           <v-alert class="mb-4" type="warning" variant="tonal">
-            请先处理以下阻断项；仓库将保持启用。
+            请先处理以下阻断项；停用候选将保持待审核，当前正式仓库继续启用。
           </v-alert>
           <div v-if="vm.warehouseDisableBlockers.inventory.length" class="mb-4">
             <div class="text-subtitle-2 mb-1">非零库存</div>
@@ -89,7 +100,7 @@ const vm = reactive(props.model)
           "
           @click="vm.confirmWarehouseDisable"
         >
-          确认停用
+          创建停用草稿
         </v-btn>
       </v-card-actions>
     </v-card>

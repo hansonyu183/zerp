@@ -45,6 +45,7 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 	auxiliaryResolver := auxiliaryrefs.New(auxService)
 	bobService := bobdomain.NewService(db, auxiliaryResolver, authorizer, eventBus)
 	dclOperatingEntityService := dcldomain.NewOperatingEntityService(db, bobService, authorizer, eventBus)
+	dclWarehouseService := dcldomain.NewWarehouseService(db, bobService, authorizer, eventBus)
 	bobAttachmentService, err := bobdomain.NewCustomerAttachmentService(db, bobdomain.CustomerAttachmentOptions{
 		Root: cfg.AttachmentStorageRoot, UploadTTL: cfg.AttachmentUploadTTL, DownloadTTL: cfg.AttachmentDownloadTTL,
 	}, bobService)
@@ -74,6 +75,7 @@ func New(ctx context.Context, cfg config.Config, db *pgxpool.Pool, logger *slog.
 		accdomain.NewHandler(accService, authorizer, logger).Register(router)
 		bobdomain.NewHandler(bobService, bobAttachmentService, authorizer, logger).Register(router)
 		dcldomain.NewHandler(dclOperatingEntityService, authorizer, logger).Register(router)
+		dcldomain.NewWarehouseHandler(dclWarehouseService, authorizer, logger).Register(router)
 		auxdomain.NewHandler(auxService, authorizer, logger).Register(router)
 		voudomain.NewHandler(vouService, authorizer, logger).Register(router)
 		wfldomain.NewHandler(wflService, authorizer, logger).Register(router)

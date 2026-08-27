@@ -4,24 +4,28 @@ import { apiClient } from '@/api/client'
 import type { components } from '@/api/generated/schema'
 import { getErrorMessage } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
-import { useDclOperatingEntityActionAvailability } from './action-availability'
+import {
+  dclDeclarationLifecycleSuccessLabel,
+  useDclDeclarationActionAvailability,
+  useDclDeclarationHistory,
+  useDclDeclarationLifecycle,
+} from '../shared/declaration'
 import { dclOperatingEntityConfig } from './config'
 import {
   dclOperatingEntityData,
   dclOperatingEntityFormFromView,
+  dclOperatingEntityHistoryPort,
+  dclOperatingEntityLifecyclePort,
   getDclOperatingEntity,
   queryDclOperatingEntities,
 } from './data'
-import { useDclOperatingEntityHistory } from './history'
-import {
-  dclOperatingEntityLifecycleSuccessLabel,
-  useDclOperatingEntityLifecycle,
-} from './lifecycle'
 import {
   dclOperatingEntityActiveVersion,
+  type DclOperatingEntityAuditEvent,
   type DclOperatingEntityEditContext,
   type DclOperatingEntityForm,
   type DclOperatingEntityListItem,
+  type DclOperatingEntityVersionView,
   type DclOperatingEntityView,
 } from './types'
 
@@ -54,7 +58,9 @@ export function useDclOperatingEntityViewModel() {
   const effectiveView = ref<DclOperatingEntityView | null>(null)
 
   const { permission, actionAvailability, actionBlockedReason, hasAnyAction } =
-    useDclOperatingEntityActionAvailability(
+    useDclDeclarationActionAvailability(
+      'operating-entity',
+      operatingEntityActionState,
       () => session.user?.id,
       (path) => session.can(path),
     )
@@ -71,18 +77,20 @@ export function useDclOperatingEntityViewModel() {
       : config.emptyForm(),
   )
 
-  const history = useDclOperatingEntityHistory(
+  const history = useDclDeclarationHistory<
+    DclOperatingEntityListItem,
+    DclOperatingEntityVersionView,
+    DclOperatingEntityAuditEvent
+  >(
     errorMessage,
     (row) => actionAvailability(row).versions,
     (row) => actionAvailability(row).audit,
+    dclOperatingEntityHistoryPort,
   )
 
   function emptyFilters(): Record<string, unknown> {
     return Object.fromEntries(
-      config.filters.map((field) => [
-        field.key,
-        field.multiple ? [] : '',
-      ]),
+      config.filters.map((field) => [field.key, field.multiple ? [] : '']),
     )
   }
 
@@ -255,7 +263,7 @@ export function useDclOperatingEntityViewModel() {
       currentView.value = view
       effectiveView.value = null
       editContext.value = editable
-          ? {
+        ? {
             objectId: view.objectId,
             approvalEntryId: view.approval.approvalEntryId,
             approvalRevision: view.approval.revision,
@@ -344,12 +352,11 @@ export function useDclOperatingEntityViewModel() {
         approvalEntryId: version.approvalEntryId,
         approvalRevision: version.revision,
       }
-      await apiClient.postContract(
-        action === 'delete'
-          ? 'dcl/operating-entity/delete'
-          : 'dcl/operating-entity/submit',
-        request,
-      )
+      if (action === 'delete') {
+        await apiClient.postContract('dcl/operating-entity/delete', request)
+      } else {
+        await dclOperatingEntityLifecyclePort.run(row, 'submit', '')
+      }
       if (action === 'delete' && rows.value.length === 1 && page.value > 1) {
         page.value -= 1
       }
@@ -368,14 +375,17 @@ export function useDclOperatingEntityViewModel() {
     }
   }
 
-  const lifecycle = useDclOperatingEntityLifecycle(
+  const lifecycle = useDclDeclarationLifecycle(
     actionLoading,
     errorMessage,
+    (row) => row.objectId,
+    (row) => row.enabled,
     actionAvailability,
+    dclOperatingEntityLifecyclePort,
     query,
     (row, action) => {
       if (currentView.value?.objectId === row.objectId) closeEditor()
-      successMessage.value = `${row.code} ${dclOperatingEntityLifecycleSuccessLabel(action)}。`
+      successMessage.value = `${row.code} ${dclDeclarationLifecycleSuccessLabel(action)}。`
     },
   )
 
@@ -431,6 +441,18 @@ export function useDclOperatingEntityViewModel() {
   }
 }
 
+function operatingEntityActionState(row: Readonly<DclOperatingEntityListItem>) {
+  const version = dclOperatingEntityActiveVersion(row).approval
+  return {
+    status: version.status,
+    versionNo: version.versionNo,
+    submittedBy: version.submittedBy,
+    enabled: row.enabled,
+    hasOpenVersion: row.openVersion !== null,
+    hasLatestApproved: row.latestApproved !== null,
+  }
+}
+
 function hasValue(value: unknown): boolean {
   return !(
     value === undefined ||
@@ -440,9 +462,7 @@ function hasValue(value: unknown): boolean {
   )
 }
 
-function normalizeForm(
-  form: DclOperatingEntityForm,
-): DclOperatingEntityForm {
+function normalizeForm(form: DclOperatingEntityForm): DclOperatingEntityForm {
   return {
     code: form.code.trim(),
     name: form.name.trim(),

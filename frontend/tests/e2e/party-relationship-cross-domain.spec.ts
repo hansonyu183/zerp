@@ -87,6 +87,29 @@ interface BobListItem {
   } | null
 }
 
+interface DclWarehouseListItem {
+  objectId: string
+  code: string
+  latestApproved: {
+    approval: {
+      approvalEntryId: string
+      status: string
+      revision: number
+    }
+    data: Record<string, unknown>
+    enabled: boolean
+  } | null
+  openVersion: {
+    approval: {
+      approvalEntryId: string
+      status: string
+      revision: number
+    }
+    data: Record<string, unknown>
+    enabled: boolean
+  } | null
+}
+
 interface VoucherView extends VoucherMutation {
   status: string
   data: Record<string, unknown> & {
@@ -254,6 +277,24 @@ async function approve(
     approvalRevision: mutation.approval.revision,
   })
   return reviewer.ok<Mutation>(`bob/${entity}/approve`, {
+    objectId: submitted.objectId,
+    approvalEntryId: submitted.approval.approvalEntryId,
+    approvalRevision: submitted.approval.revision,
+  })
+}
+
+async function approveDcl(
+  operator: Api,
+  reviewer: Api,
+  entity: 'operating-entity' | 'warehouse',
+  mutation: Mutation,
+): Promise<Mutation> {
+  const submitted = await operator.ok<Mutation>(`dcl/${entity}/submit`, {
+    objectId: mutation.objectId,
+    approvalEntryId: mutation.approval.approvalEntryId,
+    approvalRevision: mutation.approval.revision,
+  })
+  return reviewer.ok<Mutation>(`dcl/${entity}/approve`, {
     objectId: submitted.objectId,
     approvalEntryId: submitted.approval.approvalEntryId,
     approvalRevision: submitted.approval.revision,
@@ -841,27 +882,12 @@ async function createApprovedBob(
   entity: string,
   data: Record<string, unknown>,
 ): Promise<BobView> {
-  if (entity === 'operating-entity') {
-    const created = await operator.ok<Mutation>('dcl/operating-entity/create', {
+  if (entity === 'operating-entity' || entity === 'warehouse') {
+    const created = await operator.ok<Mutation>(`dcl/${entity}/create`, {
       data,
     })
-    const submitted = await operator.ok<Mutation>(
-      'dcl/operating-entity/submit',
-      {
-        objectId: created.objectId,
-        approvalEntryId: created.approval.approvalEntryId,
-        approvalRevision: created.approval.revision,
-      },
-    )
-    const approved = await reviewer.ok<Mutation>(
-      'dcl/operating-entity/approve',
-      {
-        objectId: submitted.objectId,
-        approvalEntryId: submitted.approval.approvalEntryId,
-        approvalRevision: submitted.approval.revision,
-      },
-    )
-    return operator.ok<BobView>('dcl/operating-entity/get', {
+    const approved = await approveDcl(operator, reviewer, entity, created)
+    return operator.ok<BobView>(`dcl/${entity}/get`, {
       objectId: approved.objectId,
       approvalEntryId: approved.approval.approvalEntryId,
     })
@@ -1227,17 +1253,21 @@ test(
         },
       )
       const warehouseCandidate = await session.api.ok<Mutation>(
-        'bob/warehouse/save',
+        'dcl/warehouse/save',
         {
           objectId: managedWarehouse.objectId,
           approvalEntryId: managedWarehouse.approval.approvalEntryId,
           approvalRevision: managedWarehouse.approval.revision,
-          data: { name: `E2E 全局仓库候选 ${suffix}` },
+          enabled: true,
+          data: {
+            name: `E2E 全局仓库候选 ${suffix}`,
+            managerEmployeeId: manager.objectId,
+          },
         },
       )
       const warehousePage = await session.api.ok<{
-        items: BobListItem[]
-      }>('bob/warehouse/query', {
+        items: DclWarehouseListItem[]
+      }>('dcl/warehouse/query', {
         page: 1,
         pageSize: 20,
         filters: { keyword: managedWarehouse.code },
@@ -1253,7 +1283,7 @@ test(
         warehouseCandidate.approval.approvalEntryId,
       )
       expect(warehouseRow?.openVersion?.approval.status).toBe('DRAFT')
-      const approvedWarehouseCandidate = await approve(
+      const approvedWarehouseCandidate = await approveDcl(
         session.api,
         reviewerSession.api,
         'warehouse',
@@ -1282,18 +1312,18 @@ test(
       )
 
       const managerRemovalCandidate = await session.api.ok<Mutation>(
-        'bob/warehouse/save',
+        'dcl/warehouse/save',
         {
           objectId: managedWarehouse.objectId,
           approvalEntryId: approvedWarehouseCandidate.approval.approvalEntryId,
           approvalRevision: approvedWarehouseCandidate.approval.revision,
+          enabled: true,
           data: {
             name: `E2E 全局仓库候选 ${suffix}`,
-            managerEmployeeId: null,
           },
         },
       )
-      await approve(
+      await approveDcl(
         session.api,
         reviewerSession.api,
         'warehouse',
@@ -1356,14 +1386,33 @@ test(
         product,
         sale.businessDate,
       )
-      const blockedWarehouse = await session.api.post<{
+      const disabledWarehouseDraft = await session.api.ok<Mutation>(
+        'dcl/warehouse/save',
+        {
+          objectId: managedWarehouse.objectId,
+          approvalEntryId: updatedWarehouse.approval.approvalEntryId,
+          approvalRevision: updatedWarehouse.approval.revision,
+          enabled: false,
+          data: { name: updatedWarehouse.data.name },
+        },
+      )
+      const submittedDisabledWarehouse = await session.api.ok<Mutation>(
+        'dcl/warehouse/submit',
+        {
+          objectId: disabledWarehouseDraft.objectId,
+          approvalEntryId: disabledWarehouseDraft.approval.approvalEntryId,
+          approvalRevision: disabledWarehouseDraft.approval.revision,
+        },
+      )
+      const blockedWarehouse = await reviewerSession.api.post<{
         inventory: unknown[]
         documents: Array<{ documentId: string }>
         sources: unknown[]
         references: unknown[]
-      }>('bob/warehouse/disable', {
-        objectId: managedWarehouse.objectId,
-        objectRevision: updatedWarehouse.objectRevision,
+      }>('dcl/warehouse/approve', {
+        objectId: submittedDisabledWarehouse.objectId,
+        approvalEntryId: submittedDisabledWarehouse.approval.approvalEntryId,
+        approvalRevision: submittedDisabledWarehouse.approval.revision,
       })
       expect(String(blockedWarehouse.code)).toBe('3001')
       expect(
@@ -1381,12 +1430,14 @@ test(
           reason: 'E2E 修复仓库停用阻断',
         })
       }
-      const disabledWarehouse = await session.api.ok<BobObjectMutation>(
-        'bob/warehouse/disable',
-        {
-          objectId: managedWarehouse.objectId,
-          objectRevision: updatedWarehouse.objectRevision,
-        },
+      await reviewerSession.api.ok<Mutation>('dcl/warehouse/approve', {
+        objectId: submittedDisabledWarehouse.objectId,
+        approvalEntryId: submittedDisabledWarehouse.approval.approvalEntryId,
+        approvalRevision: submittedDisabledWarehouse.approval.revision,
+      })
+      const disabledWarehouse = await session.api.ok<BobView>(
+        'bob/warehouse/get',
+        { objectId: managedWarehouse.objectId },
       )
       expect(disabledWarehouse.enabled).toBe(false)
       const disabledWarehouseOrder = await session.api.post<VoucherMutation>(

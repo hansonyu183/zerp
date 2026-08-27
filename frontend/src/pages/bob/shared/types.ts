@@ -87,8 +87,10 @@ export interface BobEntityConfig {
 export function bobWriteEntity(
   config: Pick<BobEntityConfig, 'entity'>,
 ): components['schemas']['BobCrudEntity'] {
-  if (config.entity === 'operating-entity') {
-    throw new Error('经营主体写入必须使用 DCL。')
+  if (config.entity === 'operating-entity' || config.entity === 'warehouse') {
+    throw new Error(
+      `${config.entity === 'warehouse' ? '仓库' : '经营主体'}写入必须使用 DCL。`,
+    )
   }
   return config.entity
 }

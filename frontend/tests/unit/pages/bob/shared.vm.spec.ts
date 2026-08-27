@@ -216,10 +216,19 @@ describe('shared BOB entity configuration and view model', () => {
     expect(vm.actionAvailability(row()).edit).toBe(true)
   })
 
-  it('经营主体使用当前档案只读列，其余通用对象保留完整状态筛选', () => {
+  it('经营主体和仓库使用当前档案只读列，其余通用对象保留完整状态筛选', () => {
     const expectedColumns: Record<string, string[]> = {
       product: ['编码', '名称', '产品类型', '默认录入单位', '型号', '状态'],
-      warehouse: ['编码', '名称', '仓库负责人', '地址', '联系人', '状态'],
+      warehouse: [
+        '编码',
+        '名称',
+        '仓库负责人',
+        '地址',
+        '联系人',
+        'Stable ID',
+        '来源 Approval Entry ID',
+        '启停状态',
+      ],
       vehicle: ['编码', '名称', '车牌', '类型', '状态'],
       'fund-account': ['编码', '名称', '银行', '状态'],
       'operating-entity': [
@@ -237,7 +246,7 @@ describe('shared BOB entity configuration and view model', () => {
       expect(config.entity).toBe(entity)
       expect(config.detailKeys).toContain('name')
       expect(config.columns.map((column) => column.label)).toEqual(columns)
-      if (entity === 'operating-entity') {
+      if (entity === 'operating-entity' || entity === 'warehouse') {
         expect(config.filters.map((filter) => filter.key)).toEqual(['enabled'])
       } else {
         expect(config.filters[0]).toMatchObject({
@@ -367,6 +376,74 @@ describe('shared BOB entity configuration and view model', () => {
       name: '当前经营主体',
       taxNumber: '91310000DCL',
     })
+    expect(vm.canCreate.value).toBe(false)
+    expect(vm.actionAvailability(vm.rows.value[0]!)).toEqual({
+      view: true,
+      edit: false,
+      delete: false,
+      submit: false,
+      unsubmit: false,
+      approve: false,
+      unapprove: false,
+      reject: false,
+      enable: false,
+      disable: false,
+      versions: false,
+      audit: false,
+    })
+  })
+
+  it('BOB 仓库只读取当前投影且没有任何写动作', async () => {
+    useSessionStore().permissions = [
+      '/bob/warehouse/query',
+      '/bob/warehouse/get',
+      '/dcl/warehouse/create',
+      '/dcl/warehouse/approve',
+    ]
+    const approval = row('APPROVED').latestApproved!.approval
+    mockedApiClient.postContract.mockResolvedValueOnce({
+      data: {
+        items: [
+          {
+            objectId: 'WHS-OBJECT-1',
+            entity: 'warehouse',
+            code: 'WHS-0001',
+            objectRevision: 1,
+            enabled: true,
+            latestApproved: {
+              approval,
+              summary: {
+                name: '当前仓库',
+                address: '上海',
+                contactName: '仓管员',
+                contactPhone: '12345',
+                managerEmployeeId: 'EMP-1',
+                remark: '',
+              },
+            },
+            openVersion: null,
+            updatedAt: '2026-08-27T06:00:00Z',
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+      },
+    })
+    const vm = useBobEntityViewModel(getBobEntityConfig('warehouse'))
+
+    await vm.query()
+
+    expect(mockedApiClient.postContract).toHaveBeenCalledWith(
+      'bob/warehouse/query',
+      {
+        page: 1,
+        pageSize: 20,
+        filters: {},
+        sort: [{ field: 'code', order: 'asc' }],
+      },
+    )
+    expect(vm.rows.value[0]?.latestApproved?.summary.name).toBe('当前仓库')
     expect(vm.canCreate.value).toBe(false)
     expect(vm.actionAvailability(vm.rows.value[0]!)).toEqual({
       view: true,

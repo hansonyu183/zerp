@@ -985,20 +985,21 @@ type BobVehicleVersion struct {
 	BulkLiquidCapable                         bool           `db:"bulk_liquid_capable" json:"bulk_liquid_capable"`
 }
 
-type BobWarehouseVersion struct {
-	ApprovalEntryID                string  `db:"approval_entry_id" json:"approval_entry_id"`
-	Entity                         string  `db:"entity" json:"entity"`
-	Name                           string  `db:"name" json:"name"`
-	CategoryID                     *string `db:"category_id" json:"category_id"`
-	CategoryApprovalEntryID        *string `db:"category_approval_entry_id" json:"category_approval_entry_id"`
-	CategoryEntity                 string  `db:"category_entity" json:"category_entity"`
-	Address                        *string `db:"address" json:"address"`
-	ContactName                    *string `db:"contact_name" json:"contact_name"`
-	ContactPhone                   *string `db:"contact_phone" json:"contact_phone"`
-	ManagerEmployeeID              *string `db:"manager_employee_id" json:"manager_employee_id"`
-	ManagerEmployeeApprovalEntryID *string `db:"manager_employee_approval_entry_id" json:"manager_employee_approval_entry_id"`
-	ManagerEmployeeEntity          string  `db:"manager_employee_entity" json:"manager_employee_entity"`
-	Remark                         *string `db:"remark" json:"remark"`
+type BobWarehouse struct {
+	ObjectID                       string             `db:"object_id" json:"object_id"`
+	SourceApprovalEntryID          string             `db:"source_approval_entry_id" json:"source_approval_entry_id"`
+	CategoryID                     *string            `db:"category_id" json:"category_id"`
+	CategoryApprovalEntryID        *string            `db:"category_approval_entry_id" json:"category_approval_entry_id"`
+	Name                           string             `db:"name" json:"name"`
+	Address                        *string            `db:"address" json:"address"`
+	ContactName                    *string            `db:"contact_name" json:"contact_name"`
+	ContactPhone                   *string            `db:"contact_phone" json:"contact_phone"`
+	ManagerEmployeeID              *string            `db:"manager_employee_id" json:"manager_employee_id"`
+	ManagerEmployeeApprovalEntryID *string            `db:"manager_employee_approval_entry_id" json:"manager_employee_approval_entry_id"`
+	Remark                         *string            `db:"remark" json:"remark"`
+	Enabled                        bool               `db:"enabled" json:"enabled"`
+	UpdatedAt                      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UpdatedBy                      string             `db:"updated_by" json:"updated_by"`
 }
 
 type DclOperatingEntityVersion struct {
@@ -1017,6 +1018,22 @@ type DclSubject struct {
 	Entity    string             `db:"entity" json:"entity"`
 	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	CreatedBy string             `db:"created_by" json:"created_by"`
+}
+
+type DclWarehouseVersion struct {
+	ApprovalEntryID                string  `db:"approval_entry_id" json:"approval_entry_id"`
+	CategoryID                     *string `db:"category_id" json:"category_id"`
+	CategoryApprovalEntryID        *string `db:"category_approval_entry_id" json:"category_approval_entry_id"`
+	CategoryEntity                 string  `db:"category_entity" json:"category_entity"`
+	Name                           string  `db:"name" json:"name"`
+	Address                        *string `db:"address" json:"address"`
+	ContactName                    *string `db:"contact_name" json:"contact_name"`
+	ContactPhone                   *string `db:"contact_phone" json:"contact_phone"`
+	ManagerEmployeeID              *string `db:"manager_employee_id" json:"manager_employee_id"`
+	ManagerEmployeeApprovalEntryID *string `db:"manager_employee_approval_entry_id" json:"manager_employee_approval_entry_id"`
+	ManagerEmployeeEntity          string  `db:"manager_employee_entity" json:"manager_employee_entity"`
+	Remark                         *string `db:"remark" json:"remark"`
+	Enabled                        bool    `db:"enabled" json:"enabled"`
 }
 
 type ObjectNumberCounter struct {

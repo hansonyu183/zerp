@@ -66,6 +66,7 @@ type relationshipAwareLifecycleService struct {
 	auxiliary               *auxdomain.Service
 	pool                    *pgxpool.Pool
 	operatingEntities       *dcldomain.OperatingEntityService
+	warehouses              *dcldomain.WarehouseService
 }
 
 func (service relationshipAwareLifecycleService) Create(
@@ -76,6 +77,12 @@ func (service relationshipAwareLifecycleService) Create(
 			Data: operatingEntityData(input.Data),
 		}, actor)
 		return operatingEntityMutation(result), err
+	}
+	if entity == bob.EntityWarehouse {
+		result, err := service.warehouses.Create(ctx, dcldomain.WarehouseCreateInput{
+			Data: warehouseData(input.Data),
+		}, actor)
+		return warehouseMutation(result), err
 	}
 	partyKind := bob.PartyKindOrganization
 	if entity == bob.EntityEmployee {
@@ -219,6 +226,24 @@ func (service relationshipAwareLifecycleService) Save(
 		}, actor)
 		return operatingEntityMutation(result), err
 	}
+	if entity == bob.EntityWarehouse {
+		view, err := service.warehouses.Get(ctx, dcldomain.WarehouseGetInput{
+			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
+		}, mustSeedActor("seed-bob-warehouse-save-get"))
+		if err != nil {
+			return bob.MutationResult{}, err
+		}
+		result, err := service.warehouses.Save(ctx, dcldomain.WarehouseSaveInput{
+			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
+			ApprovalRevision: input.ApprovalRevision, Enabled: view.Enabled,
+			Data: dcldomain.WarehouseData{
+				Name: input.Data.Name, Address: input.Data.Address.Value,
+				ContactName: input.Data.ContactName.Value, ContactPhone: input.Data.ContactPhone.Value,
+				ManagerEmployeeID: input.Data.ManagerEmployeeID.Value, Remark: input.Data.Remark.Value,
+			},
+		}, actor)
+		return warehouseMutation(result), err
+	}
 	if entity == bob.EntitySupplier {
 		return service.relationships.Save(ctx, entity, input, actor)
 	}
@@ -233,6 +258,12 @@ func (service relationshipAwareLifecycleService) Get(
 			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
 		}, mustSeedActor("seed-bob-operating-entity-get"))
 		return operatingEntityView(view), err
+	}
+	if entity == bob.EntityWarehouse {
+		view, err := service.warehouses.Get(ctx, dcldomain.WarehouseGetInput{
+			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
+		}, mustSeedActor("seed-bob-warehouse-get"))
+		return warehouseView(view), err
 	}
 	if entity != bob.EntityOtherUnit {
 		return service.lifecycleService.Get(ctx, entity, input)
@@ -250,6 +281,12 @@ func (service relationshipAwareLifecycleService) Get(
 }
 
 func (service relationshipAwareLifecycleService) Submit(ctx context.Context, entity string, input bob.VersionRevisionInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityWarehouse {
+		result, err := service.warehouses.Submit(ctx, dcldomain.WarehouseVersionInput{
+			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision,
+		}, actor)
+		return warehouseMutation(result), err
+	}
 	if entity != bob.EntityOperatingEntity {
 		return service.lifecycleService.Submit(ctx, entity, input, actor)
 	}
@@ -260,6 +297,13 @@ func (service relationshipAwareLifecycleService) Submit(ctx context.Context, ent
 }
 
 func (service relationshipAwareLifecycleService) Unsubmit(ctx context.Context, entity string, input bob.ReverseInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityWarehouse {
+		result, err := service.warehouses.Unsubmit(ctx, dcldomain.WarehouseReviewInput{
+			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
+			ApprovalRevision: input.ApprovalRevision, Reason: input.Reason,
+		}, actor)
+		return warehouseMutation(result), err
+	}
 	if entity != bob.EntityOperatingEntity {
 		return service.lifecycleService.Unsubmit(ctx, entity, input, actor)
 	}
@@ -271,6 +315,12 @@ func (service relationshipAwareLifecycleService) Unsubmit(ctx context.Context, e
 }
 
 func (service relationshipAwareLifecycleService) Approve(ctx context.Context, entity string, input bob.ReviewInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityWarehouse {
+		result, err := service.warehouses.Approve(ctx, dcldomain.WarehouseVersionInput{
+			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID, ApprovalRevision: input.ApprovalRevision,
+		}, actor)
+		return warehouseMutation(result), err
+	}
 	if entity != bob.EntityOperatingEntity {
 		return service.lifecycleService.Approve(ctx, entity, input, actor)
 	}
@@ -281,6 +331,13 @@ func (service relationshipAwareLifecycleService) Approve(ctx context.Context, en
 }
 
 func (service relationshipAwareLifecycleService) Unapprove(ctx context.Context, entity string, input bob.ReverseInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityWarehouse {
+		result, err := service.warehouses.Unapprove(ctx, dcldomain.WarehouseReviewInput{
+			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
+			ApprovalRevision: input.ApprovalRevision, Reason: input.Reason,
+		}, actor)
+		return warehouseMutation(result), err
+	}
 	if entity != bob.EntityOperatingEntity {
 		return service.lifecycleService.Unapprove(ctx, entity, input, actor)
 	}
@@ -292,6 +349,17 @@ func (service relationshipAwareLifecycleService) Unapprove(ctx context.Context, 
 }
 
 func (service relationshipAwareLifecycleService) Reject(ctx context.Context, entity string, input bob.ReviewInput, actor approval.Actor) (bob.MutationResult, error) {
+	if entity == bob.EntityWarehouse {
+		reason := ""
+		if input.Reason != nil {
+			reason = *input.Reason
+		}
+		result, err := service.warehouses.Reject(ctx, dcldomain.WarehouseReviewInput{
+			ObjectID: input.ObjectID, ApprovalEntryID: input.ApprovalEntryID,
+			ApprovalRevision: input.ApprovalRevision, Reason: reason,
+		}, actor)
+		return warehouseMutation(result), err
+	}
 	if entity != bob.EntityOperatingEntity {
 		return service.lifecycleService.Reject(ctx, entity, input, actor)
 	}
@@ -331,6 +399,32 @@ func operatingEntityView(view dcldomain.OperatingEntityView) bob.ObjectView {
 	}
 }
 
+func warehouseData(data bob.CreateDetailInput) dcldomain.WarehouseData {
+	return dcldomain.WarehouseData{
+		Name: data.Name, Address: data.Address, ContactName: data.ContactName,
+		ContactPhone: data.ContactPhone, ManagerEmployeeID: data.ManagerEmployeeID, Remark: data.Remark,
+	}
+}
+
+func warehouseMutation(result dcldomain.WarehouseMutation) bob.MutationResult {
+	return bob.MutationResult{
+		ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision,
+		Enabled: result.Enabled, Approval: result.Approval,
+	}
+}
+
+func warehouseView(view dcldomain.WarehouseView) bob.ObjectView {
+	return bob.ObjectView{
+		ObjectID: view.ObjectID, Entity: bob.EntityWarehouse, Code: view.Code,
+		ObjectRevision: view.ObjectRevision, Enabled: view.Enabled, Approval: view.Approval,
+		Data: bob.DetailView{
+			Name: view.Data.Name, Address: view.Data.Address, ContactName: view.Data.ContactName,
+			ContactPhone: view.Data.ContactPhone, ManagerEmployeeID: view.Data.ManagerEmployeeID,
+			Remark: view.Data.Remark,
+		}, UpdatedAt: view.UpdatedAt,
+	}
+}
+
 type objectLookup interface {
 	Find(context.Context, string, string) (string, bool, error)
 }
@@ -341,7 +435,7 @@ type queryLookup struct {
 }
 
 func (l queryLookup) Find(ctx context.Context, entity, code string) (string, bool, error) {
-	if entity == bob.EntityOperatingEntity {
+	if entity == bob.EntityOperatingEntity || entity == bob.EntityWarehouse {
 		var id string
 		err := l.pool.QueryRow(ctx, `SELECT subject_id FROM approval_events
 			WHERE domain='dcl' AND entity=$1 AND request_id=$2 AND action='CREATED'
@@ -400,10 +494,11 @@ func New(pool *pgxpool.Pool) *Seeder {
 	service := bob.NewService(pool, auxiliaryResolver, authorizer, bus)
 	supplier := bob.NewService(pool, auxiliaryResolver, authorizer, bus)
 	operatingEntities := dcldomain.NewOperatingEntityService(pool, service, authorizer, bus)
+	warehouses := dcldomain.NewWarehouseService(pool, service, authorizer, bus)
 	return &Seeder{
 		service: relationshipAwareLifecycleService{lifecycleService: service, relationships: service,
 			settlementRelationships: supplier, auxiliary: auxiliary, pool: pool,
-			operatingEntities: operatingEntities},
+			operatingEntities: operatingEntities, warehouses: warehouses},
 		lookup: queryLookup{queries: dbsqlc.New(pool), pool: pool}, pool: pool,
 		auxiliary: auxiliary,
 	}

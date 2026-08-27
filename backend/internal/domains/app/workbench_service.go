@@ -138,16 +138,17 @@ func includesWorkbenchStage(selected []string, stage string) bool {
 	return len(selected) == 0 || slices.Contains(selected, stage)
 }
 
-func appendDCLWorkbenchOperatingEntity(scope workbenchPermissionScope, entities []string, matches func(string, string) bool) []string {
-	const entity = "operating-entity"
-	if scope.can("dcl", entity, "query") && matches("dcl", entity) {
-		return append(entities, entity)
+func appendDCLWorkbenchEntities(scope workbenchPermissionScope, entities []string, matches func(string, string) bool) []string {
+	for _, entity := range []string{"operating-entity", "warehouse"} {
+		if scope.can("dcl", entity, "query") && matches("dcl", entity) {
+			entities = append(entities, entity)
+		}
 	}
 	return entities
 }
 
 func workbenchApprovalDomain(entity string) string {
-	if entity == "operating-entity" {
+	if entity == "operating-entity" || entity == "warehouse" {
 		return "dcl"
 	}
 	return "bob"
@@ -163,20 +164,20 @@ func (s *Service) queryWorkbenchBob(
 	draftEntities := scope.entitiesWith("bob", func(entity string) bool {
 		return scope.can("bob", entity, "submit")
 	})
-	draftEntities = appendDCLWorkbenchOperatingEntity(scope, draftEntities, func(domain, entity string) bool {
+	draftEntities = appendDCLWorkbenchEntities(scope, draftEntities, func(domain, entity string) bool {
 		return scope.can(domain, entity, "submit")
 	})
 	pendingEntities := scope.entitiesWith("bob", func(entity string) bool {
 		return scope.can("bob", entity, "approve") ||
 			scope.can("bob", entity, "reject")
 	})
-	pendingEntities = appendDCLWorkbenchOperatingEntity(scope, pendingEntities, func(domain, entity string) bool {
+	pendingEntities = appendDCLWorkbenchEntities(scope, pendingEntities, func(domain, entity string) bool {
 		return scope.can(domain, entity, "approve") || scope.can(domain, entity, "reject")
 	})
 	unsubmitEntities := scope.entitiesWith("bob", func(entity string) bool {
 		return scope.can("bob", entity, "unsubmit")
 	})
-	unsubmitEntities = appendDCLWorkbenchOperatingEntity(scope, unsubmitEntities, func(domain, entity string) bool {
+	unsubmitEntities = appendDCLWorkbenchEntities(scope, unsubmitEntities, func(domain, entity string) bool {
 		return scope.can(domain, entity, "unsubmit")
 	})
 	draftEntities = filterWorkbenchEntities(draftEntities, input.Entities)

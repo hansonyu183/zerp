@@ -4,9 +4,9 @@
 
 数据来源：[`frontend/src/router/registry.ts`](../../frontend/src/router/registry.ts)、[`frontend/src/router/index.ts`](../../frontend/src/router/index.ts)，以及本目录下按 `<domain>/<page>.md` 命名的页面用例。
 
-- 页面入口：76
-- 已覆盖入口：23
-- 已登记用例：22
+- 页面入口：77
+- 已覆盖入口：24
+- 已登记用例：23
 - 缺少用例：53
 - 孤儿用例：0
 
@@ -28,6 +28,7 @@
 | 页面         | 路由                    | 来源                                                | 状态                                |
 | ------------ | ----------------------- | --------------------------------------------------- | ----------------------------------- |
 | 经营主体申报 | `/dcl/operating-entity` | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/operating-entity.md) |
+| 仓库申报     | `/dcl/warehouse`        | [页面注册表](../../frontend/src/router/registry.ts) | [已文档化](dcl/warehouse.md)        |
 
 ## RPT
 

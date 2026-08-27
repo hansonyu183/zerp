@@ -29,19 +29,27 @@ type operatingEntityApplicationService interface {
 }
 
 type Handler struct {
-	service    operatingEntityApplicationService
+	service operatingEntityApplicationService
+	handlerSupport
+}
+
+type handlerSupport struct {
 	authorizer authorization.Authorizer
 	logger     *slog.Logger
 }
 
-func NewHandler(service operatingEntityApplicationService, authorizer authorization.Authorizer, logger *slog.Logger) *Handler {
+func newHandlerSupport(authorizer authorization.Authorizer, logger *slog.Logger) handlerSupport {
 	if authorizer == nil {
 		authorizer = authorization.FailClosed{}
 	}
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Handler{service: service, authorizer: authorizer, logger: logger}
+	return handlerSupport{authorizer: authorizer, logger: logger}
+}
+
+func NewHandler(service operatingEntityApplicationService, authorizer authorization.Authorizer, logger *slog.Logger) *Handler {
+	return &Handler{service: service, handlerSupport: newHandlerSupport(authorizer, logger)}
 }
 
 func (h *Handler) Register(router *gin.Engine) {
@@ -141,7 +149,7 @@ func (h *Handler) auditHistory(c *gin.Context) {
 	}
 }
 
-func (h *Handler) withActor(c *gin.Context, operation func(approval.Actor) (any, error)) {
+func (h *handlerSupport) withActor(c *gin.Context, operation func(approval.Actor) (any, error)) {
 	actor, err := approval.UserActor(authmiddleware.Principal(c), response.RequestID(c))
 	if err != nil {
 		h.writeError(c, translateError(err))
@@ -155,7 +163,7 @@ func (h *Handler) withActor(c *gin.Context, operation func(approval.Actor) (any,
 	response.OK(c, result)
 }
 
-func (h *Handler) bind(c *gin.Context, target any) bool {
+func (h *handlerSupport) bind(c *gin.Context, target any) bool {
 	if err := requestbody.DecodeJSON(c, target); err != nil {
 		h.writeError(c, newError(ErrorValidation, "validation_failed", "invalid request", nil, err))
 		return false
@@ -163,7 +171,7 @@ func (h *Handler) bind(c *gin.Context, target any) bool {
 	return true
 }
 
-func (h *Handler) writeAuthorizationError(c *gin.Context, err error) {
+func (h *handlerSupport) writeAuthorizationError(c *gin.Context, err error) {
 	code, message := response.CodeInternal, "internal server error"
 	switch {
 	case authorization.IsKind(err, authorization.ErrorUnauthenticated):
@@ -176,7 +184,7 @@ func (h *Handler) writeAuthorizationError(c *gin.Context, err error) {
 	response.BusinessError(c, code, response.ErrorKeyForCode(code), message, nil)
 }
 
-func (h *Handler) writeError(c *gin.Context, err error) {
+func (h *handlerSupport) writeError(c *gin.Context, err error) {
 	var domainErr *DomainError
 	if !errors.As(err, &domainErr) {
 		domainErr = &DomainError{Kind: ErrorInternal, ErrorKey: "internal_error", Message: "internal server error", Cause: err}

@@ -1188,7 +1188,7 @@ CREATE TABLE public.dcl_subjects (
     created_by character varying(26) NOT NULL,
     CONSTRAINT dcl_subjects_pkey PRIMARY KEY (id),
     CONSTRAINT dcl_subjects_id_entity_key UNIQUE (id, entity),
-    CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = 'operating-entity'::text))
+    CONSTRAINT dcl_subjects_entity_check CHECK (((entity)::text = ANY ((ARRAY['operating-entity'::character varying, 'warehouse'::character varying])::text[])))
 );
 
 CREATE TABLE public.dcl_operating_entity_versions (
@@ -1202,6 +1202,28 @@ CREATE TABLE public.dcl_operating_entity_versions (
     enabled boolean NOT NULL,
     CONSTRAINT dcl_operating_entity_versions_pkey PRIMARY KEY (approval_entry_id),
     CONSTRAINT dcl_operating_entity_versions_legal_name_check CHECK (((length(btrim((legal_name)::text)) >= 1) AND (length(btrim((legal_name)::text)) <= 200)))
+);
+
+CREATE TABLE public.dcl_warehouse_versions (
+    approval_entry_id character varying(26) NOT NULL,
+    -- Retained only for the #279 in-place cutover. Warehouse no longer
+    -- exposes category as a writable declaration field.
+    category_id character varying(26),
+    category_approval_entry_id character varying(26),
+    category_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
+    name character varying(200) NOT NULL,
+    address character varying(500),
+    contact_name character varying(100),
+    contact_phone character varying(32),
+    manager_employee_id character varying(26),
+    manager_employee_approval_entry_id character varying(26),
+    manager_employee_entity character varying(16) DEFAULT 'employee'::character varying NOT NULL,
+    remark character varying(1000),
+    enabled boolean NOT NULL,
+    CONSTRAINT dcl_warehouse_versions_pkey PRIMARY KEY (approval_entry_id),
+    CONSTRAINT dcl_warehouse_versions_category_entity_check CHECK (((category_entity)::text = 'category'::text)),
+    CONSTRAINT dcl_warehouse_versions_manager_employee_entity_check CHECK (((manager_employee_entity)::text = 'employee'::text)),
+    CONSTRAINT dcl_warehouse_versions_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 200)))
 );
 
 CREATE TABLE public.approval_events (
@@ -1561,6 +1583,26 @@ CREATE TABLE public.bob_operating_entities (
     CONSTRAINT bob_operating_entities_pkey PRIMARY KEY (object_id),
     CONSTRAINT bob_operating_entities_source_approval_entry_id_key UNIQUE (source_approval_entry_id),
     CONSTRAINT bob_operating_entities_legal_name_check CHECK (((length(btrim((legal_name)::text)) >= 1) AND (length(btrim((legal_name)::text)) <= 200)))
+);
+
+CREATE TABLE public.bob_warehouses (
+    object_id character varying(26) NOT NULL,
+    source_approval_entry_id character varying(26) NOT NULL,
+    category_id character varying(26),
+    category_approval_entry_id character varying(26),
+    name character varying(200) NOT NULL,
+    address character varying(500),
+    contact_name character varying(100),
+    contact_phone character varying(32),
+    manager_employee_id character varying(26),
+    manager_employee_approval_entry_id character varying(26),
+    remark character varying(1000),
+    enabled boolean NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by character varying(26) NOT NULL,
+    CONSTRAINT bob_warehouses_pkey PRIMARY KEY (object_id),
+    CONSTRAINT bob_warehouses_source_approval_entry_id_key UNIQUE (source_approval_entry_id),
+    CONSTRAINT bob_warehouses_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 200)))
 );
 
 
@@ -1997,31 +2039,6 @@ CREATE TABLE public.bob_vehicle_versions (
     CONSTRAINT bob_vehicle_versions_plate_number_check CHECK ((((length(btrim((plate_number)::text)) >= 1) AND (length(btrim((plate_number)::text)) <= 32)) AND ((plate_number)::text = upper(btrim((plate_number)::text))))),
     CONSTRAINT bob_vehicle_versions_vehicle_type_check CHECK (((length(btrim((vehicle_type)::text)) >= 1) AND (length(btrim((vehicle_type)::text)) <= 64))),
     CONSTRAINT bob_vehicle_versions_vin_check CHECK (((vin IS NULL) OR ((vin)::text ~ '^[A-HJ-NPR-Z0-9]{17}$'::text)))
-);
-
-
---
--- Name: bob_warehouse_versions; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.bob_warehouse_versions (
-    approval_entry_id character varying(26) NOT NULL,
-    entity character varying(16) DEFAULT 'warehouse'::character varying NOT NULL,
-    name character varying(200) NOT NULL,
-    category_id character varying(26),
-    category_approval_entry_id character varying(26),
-    category_entity character varying(16) DEFAULT 'category'::character varying NOT NULL,
-    address character varying(500),
-    contact_name character varying(100),
-    contact_phone character varying(32),
-    manager_employee_id character varying(26),
-    manager_employee_approval_entry_id character varying(26),
-    manager_employee_entity character varying(16) DEFAULT 'employee'::character varying NOT NULL,
-    remark character varying(1000),
-    CONSTRAINT bob_warehouse_versions_category_entity_check CHECK (((category_entity)::text = 'category'::text)),
-    CONSTRAINT bob_warehouse_versions_entity_check CHECK (((entity)::text = 'warehouse'::text)),
-    CONSTRAINT bob_warehouse_versions_manager_employee_entity_check CHECK (((manager_employee_entity)::text = 'employee'::text)),
-    CONSTRAINT bob_warehouse_versions_name_check CHECK (((length(btrim((name)::text)) >= 1) AND (length(btrim((name)::text)) <= 200)))
 );
 
 
@@ -3791,14 +3808,14 @@ INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000017', '/bob/s
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000018', '/bob/supplier/save', 'bob', 'supplier', 'save', '保存草稿供应商', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000019', '/bob/supplier/submit', 'bob', 'supplier', 'submit', '提交审核供应商', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000020', '/bob/supplier/versions', 'bob', 'supplier', 'versions', '查看版本供应商', 'ENABLED', '2026-08-24 15:23:48.912973+00', NULL, '2026-08-24 15:23:48.912973+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000061', '/bob/warehouse/approve', 'bob', 'warehouse', 'approve', '审核通过仓库', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000062', '/bob/warehouse/audit-history', 'bob', 'warehouse', 'audit-history', '查看审核记录仓库', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000063', '/bob/warehouse/create', 'bob', 'warehouse', 'create', '创建仓库', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000061', '/dcl/warehouse/approve', 'dcl', 'warehouse', 'approve', '审核通过仓库声明', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000062', '/dcl/warehouse/audit-history', 'dcl', 'warehouse', 'audit-history', '查看仓库声明审核记录', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000063', '/dcl/warehouse/create', 'dcl', 'warehouse', 'create', '创建仓库声明', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000065', '/bob/warehouse/get', 'bob', 'warehouse', 'get', '查看仓库', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000067', '/bob/warehouse/reject', 'bob', 'warehouse', 'reject', '审核驳回仓库', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000068', '/bob/warehouse/save', 'bob', 'warehouse', 'save', '保存草稿仓库', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000069', '/bob/warehouse/submit', 'bob', 'warehouse', 'submit', '提交审核仓库', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000070', '/bob/warehouse/versions', 'bob', 'warehouse', 'versions', '查看版本仓库', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000067', '/dcl/warehouse/reject', 'dcl', 'warehouse', 'reject', '审核驳回仓库声明', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000068', '/dcl/warehouse/save', 'dcl', 'warehouse', 'save', '保存仓库声明草稿', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000069', '/dcl/warehouse/submit', 'dcl', 'warehouse', 'submit', '提交仓库声明审核', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000070', '/dcl/warehouse/versions', 'dcl', 'warehouse', 'versions', '查看仓库声明版本', 'ENABLED', '2026-08-24 15:23:48.940595+00', NULL, '2026-08-24 15:23:48.940595+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000071', '/bob/vehicle/approve', 'bob', 'vehicle', 'approve', '审核通过车辆', 'ENABLED', '2026-08-24 15:23:48.948237+00', NULL, '2026-08-24 15:23:48.948237+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000072', '/bob/vehicle/audit-history', 'bob', 'vehicle', 'audit-history', '查看审核记录车辆', 'ENABLED', '2026-08-24 15:23:48.948237+00', NULL, '2026-08-24 15:23:48.948237+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000073', '/bob/vehicle/create', 'bob', 'vehicle', 'create', '创建车辆', 'ENABLED', '2026-08-24 15:23:48.948237+00', NULL, '2026-08-24 15:23:48.948237+00', NULL, 1, NULL);
@@ -3815,7 +3832,7 @@ INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000081', '/bob/c
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000082', '/bob/supplier/delete', 'bob', 'supplier', 'delete', '删除首版草稿供应商', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000083', '/bob/employee/delete', 'bob', 'employee', 'delete', '删除首版草稿员工', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000084', '/bob/product/delete', 'bob', 'product', 'delete', '删除首版草稿产品', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000086', '/bob/warehouse/delete', 'bob', 'warehouse', 'delete', '删除首版草稿仓库', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000086', '/dcl/warehouse/delete', 'dcl', 'warehouse', 'delete', '删除首版仓库声明草稿', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000087', '/bob/vehicle/delete', 'bob', 'vehicle', 'delete', '删除首版草稿车辆', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000088', '/bob/fund-account/delete', 'bob', 'fund-account', 'delete', '删除首版草稿资金账户', 'ENABLED', '2026-08-24 15:23:48.99178+00', NULL, '2026-08-24 15:23:48.99178+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JVOU00000000000000000101', '/vou/sale-outbound/get', 'vou', 'sale-outbound', 'get', '查看销售出库', 'ENABLED', '2026-08-24 15:23:49.226715+00', NULL, '2026-08-24 15:23:49.226715+00', NULL, 1, NULL);
@@ -4049,10 +4066,10 @@ INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000145', '/bob/p
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000146', '/bob/product/unapprove', 'bob', 'product', 'unapprove', 'unapprove product', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000147', '/bob/product/enable', 'bob', 'product', 'enable', 'enable product', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000148', '/bob/product/disable', 'bob', 'product', 'disable', 'disable product', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000153', '/bob/warehouse/unsubmit', 'bob', 'warehouse', 'unsubmit', 'unsubmit warehouse', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000154', '/bob/warehouse/unapprove', 'bob', 'warehouse', 'unapprove', 'unapprove warehouse', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000155', '/bob/warehouse/enable', 'bob', 'warehouse', 'enable', 'enable warehouse', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
-INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000156', '/bob/warehouse/disable', 'bob', 'warehouse', 'disable', 'disable warehouse', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000153', '/dcl/warehouse/unsubmit', 'dcl', 'warehouse', 'unsubmit', '撤回仓库声明审核', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000154', '/dcl/warehouse/unapprove', 'dcl', 'warehouse', 'unapprove', '反审核仓库声明', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000155', '/dcl/warehouse/get', 'dcl', 'warehouse', 'get', '查看仓库声明', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
+INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000156', '/dcl/warehouse/query', 'dcl', 'warehouse', 'query', '查询仓库声明', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000157', '/bob/vehicle/unsubmit', 'bob', 'vehicle', 'unsubmit', 'unsubmit vehicle', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000158', '/bob/vehicle/unapprove', 'bob', 'vehicle', 'unapprove', 'unapprove vehicle', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
 INSERT INTO public.app_permissions VALUES ('01JBOB00000000000000000159', '/bob/vehicle/enable', 'bob', 'vehicle', 'enable', 'enable vehicle', 'ENABLED', '2026-08-24 15:23:49.487716+00', NULL, '2026-08-24 15:23:49.487716+00', NULL, 1, NULL);
@@ -6529,12 +6546,9 @@ ALTER TABLE ONLY public.bob_vehicle_versions
 
 
 --
--- Name: bob_warehouse_versions bob_warehouse_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_warehouse_versions primary key is declared with its table; no
+-- separate ALTER statement is needed in this baseline dump.
 --
-
-ALTER TABLE ONLY public.bob_warehouse_versions
-    ADD CONSTRAINT bob_warehouse_versions_pkey PRIMARY KEY (approval_entry_id);
-
 
 --
 -- Name: object_number_counters object_number_counters_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -7751,17 +7765,17 @@ CREATE INDEX bob_vehicle_versions_category_idx ON public.bob_vehicle_versions US
 
 
 --
--- Name: bob_warehouse_versions_category_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: dcl_warehouse_versions_category_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX bob_warehouse_versions_category_idx ON public.bob_warehouse_versions USING btree (category_id);
+CREATE INDEX dcl_warehouse_versions_category_idx ON public.dcl_warehouse_versions USING btree (category_id);
 
 
 --
--- Name: bob_warehouse_versions_manager_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: dcl_warehouse_versions_manager_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX bob_warehouse_versions_manager_idx ON public.bob_warehouse_versions USING btree (manager_employee_id);
+CREATE INDEX dcl_warehouse_versions_manager_idx ON public.dcl_warehouse_versions USING btree (manager_employee_id);
 
 
 --
@@ -9241,27 +9255,33 @@ ALTER TABLE ONLY public.bob_vehicle_versions
 
 
 --
--- Name: bob_warehouse_versions bob_warehouse_versions_category_id_category_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_warehouse_versions dcl_warehouse_versions_category_id_category_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bob_warehouse_versions
-    ADD CONSTRAINT bob_warehouse_versions_category_id_category_entity_fkey FOREIGN KEY (category_id, category_entity) REFERENCES public.aux_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
-
-
---
--- Name: bob_warehouse_versions bob_warehouse_versions_manager_employee_id_manager_employe_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.bob_warehouse_versions
-    ADD CONSTRAINT bob_warehouse_versions_manager_employee_id_manager_employe_fkey FOREIGN KEY (manager_employee_id, manager_employee_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE ONLY public.dcl_warehouse_versions
+    ADD CONSTRAINT dcl_warehouse_versions_category_id_category_entity_fkey FOREIGN KEY (category_id, category_entity) REFERENCES public.aux_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 
 --
--- Name: bob_warehouse_versions bob_warehouse_versions_approval_entry_id_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: dcl_warehouse_versions dcl_warehouse_versions_manager_employee_id_manager_employee_entity_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.bob_warehouse_versions
-    ADD CONSTRAINT bob_warehouse_versions_approval_entry_id_entity_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.dcl_warehouse_versions
+    ADD CONSTRAINT dcl_warehouse_versions_manager_employee_id_manager_employee_entity_fkey FOREIGN KEY (manager_employee_id, manager_employee_entity) REFERENCES public.bob_objects(id, entity) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: dcl_warehouse_versions dcl_warehouse_versions_approval_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.dcl_warehouse_versions
+    ADD CONSTRAINT dcl_warehouse_versions_approval_entry_id_fkey FOREIGN KEY (approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.bob_warehouses
+    ADD CONSTRAINT bob_warehouses_object_id_fkey FOREIGN KEY (object_id) REFERENCES public.bob_objects(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY public.bob_warehouses
+    ADD CONSTRAINT bob_warehouses_source_approval_entry_id_fkey FOREIGN KEY (source_approval_entry_id) REFERENCES public.approval_entries(id) ON DELETE RESTRICT;
 
 
 --

@@ -221,7 +221,7 @@ func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 	entitiesByDomain := map[string][]string{
 		"bob": {
 			"customer", "customer-account", "supplier", "other-unit", "employee",
-			"sales-partner", "product", "warehouse", "vehicle", "fund-account",
+			"sales-partner", "product", "vehicle", "fund-account",
 		},
 		"aux": {
 			"product-category", "product-type", "department", "position", "settlement-method",
@@ -243,11 +243,15 @@ func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 	}
 	expected["/bob/operating-entity/query"] = struct{}{}
 	expected["/bob/operating-entity/get"] = struct{}{}
-	for _, action := range []string{
-		"query", "get", "create", "save", "submit", "unsubmit", "approve",
-		"reject", "unapprove", "delete", "versions", "audit-history",
-	} {
-		expected["/dcl/operating-entity/"+action] = struct{}{}
+	expected["/bob/warehouse/query"] = struct{}{}
+	expected["/bob/warehouse/get"] = struct{}{}
+	for _, entity := range []string{"operating-entity", "warehouse"} {
+		for _, action := range []string{
+			"query", "get", "create", "save", "submit", "unsubmit", "approve",
+			"reject", "unapprove", "delete", "versions", "audit-history",
+		} {
+			expected["/dcl/"+entity+"/"+action] = struct{}{}
+		}
 	}
 
 	rows, err := pool.Query(t.Context(), `SELECT path FROM app_permissions WHERE domain IN ('bob', 'aux', 'dcl')`)
@@ -273,13 +277,13 @@ func TestBOBAUXAndDCLApprovalPermissionCatalogIntegration(t *testing.T) {
 		slices.Sort(missing)
 		t.Fatalf("BOB/AUX/DCL permission catalog is missing %v", missing)
 	}
-	var obsoleteOperatingEntityWrites int
+	var obsoleteBOBWrites int
 	if err = pool.QueryRow(t.Context(), `SELECT count(*) FROM app_permissions
-		WHERE domain='bob' AND entity='operating-entity' AND action NOT IN ('query','get')`).Scan(&obsoleteOperatingEntityWrites); err != nil {
-		t.Fatalf("query obsolete BOB operating entity permissions: %v", err)
+		WHERE domain='bob' AND entity IN ('operating-entity','warehouse') AND action NOT IN ('query','get')`).Scan(&obsoleteBOBWrites); err != nil {
+		t.Fatalf("query obsolete BOB current-data write permissions: %v", err)
 	}
-	if obsoleteOperatingEntityWrites != 0 {
-		t.Fatalf("obsolete BOB operating entity write permissions = %d", obsoleteOperatingEntityWrites)
+	if obsoleteBOBWrites != 0 {
+		t.Fatalf("obsolete BOB current-data write permissions = %d", obsoleteBOBWrites)
 	}
 }
 

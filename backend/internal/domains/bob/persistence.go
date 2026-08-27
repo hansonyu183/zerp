@@ -31,8 +31,6 @@ func insertDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryI
 		err = q.InsertBobSalesPartnerPayload(ctx, approvalEntryID)
 	case EntityProduct:
 		err = q.InsertBobProductPayload(ctx, dbsqlc.InsertBobProductPayloadParams{ApprovalEntryID: approvalEntryID, Name: data.Name})
-	case EntityWarehouse:
-		err = q.InsertBobWarehousePayload(ctx, dbsqlc.InsertBobWarehousePayloadParams{ApprovalEntryID: approvalEntryID, Name: data.Name})
 	case EntityVehicle:
 		affiliation := data.CarrierAffiliation
 		if affiliation == nil {
@@ -113,12 +111,6 @@ func loadDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryID 
 		}
 		data.Formula, err = loadProductFormula(ctx, q, approvalEntryID)
 		return data, err
-	case EntityWarehouse:
-		r, err := q.GetBobOpenWarehousePayload(ctx, approvalEntryID)
-		if err != nil {
-			return DetailView{}, err
-		}
-		return DetailView{Name: r.Name, CategoryID: deref(r.CategoryID), CategoryApprovalEntryID: deref(r.CategoryApprovalEntryID), Address: deref(r.Address), ContactName: deref(r.ContactName), ContactPhone: deref(r.ContactPhone), ManagerEmployeeID: deref(r.ManagerEmployeeID), ManagerEmployeeApprovalEntryID: deref(r.ManagerEmployeeApprovalEntryID), Remark: deref(r.Remark)}, nil
 	case EntityVehicle:
 		r, err := q.GetBobOpenVehiclePayload(ctx, approvalEntryID)
 		if err != nil {
@@ -214,8 +206,6 @@ func updatePayload(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntry
 			return 0, err
 		}
 		return q.UpdateBobProductPayload(ctx, dbsqlc.UpdateBobProductPayloadParams{Name: d.Name, CategoryID: nilIfEmpty(d.CategoryID), CategoryApprovalEntryID: nilIfEmpty(d.CategoryApprovalEntryID), Specification: nilIfEmpty(d.Specification), Model: nilIfEmpty(d.Model), Barcode: nilIfEmpty(d.Barcode), Remark: nilIfEmpty(d.Remark), PricingUnitID: nilIfEmpty(d.PricingUnitID), PricingUnitApprovalEntryID: nilIfEmpty(d.PricingUnitApprovalEntryID), Returnable: d.Returnable, DefaultPackagingSpecMicros: packaging, ProductTypeID: nilIfEmpty(d.ProductTypeID), ProductTypeApprovalEntryID: nilIfEmpty(d.ProductTypeApprovalEntryID), ProductTypeCode: nilIfEmpty(d.ProductTypeCode), ProductTypeName: nilIfEmpty(d.ProductTypeName), BehaviorProfile: nilIfEmpty(d.BehaviorProfile), DefaultInputUnitID: nilIfEmpty(d.DefaultInputUnitID), DefaultInputUnitApprovalEntryID: nilIfEmpty(d.DefaultInputUnitApprovalEntryID), ApprovalEntryID: approvalEntryID})
-	case EntityWarehouse:
-		return q.UpdateBobWarehousePayload(ctx, dbsqlc.UpdateBobWarehousePayloadParams{Name: d.Name, CategoryID: nilIfEmpty(d.CategoryID), CategoryApprovalEntryID: nilIfEmpty(d.CategoryApprovalEntryID), Address: nilIfEmpty(d.Address), ContactName: nilIfEmpty(d.ContactName), ContactPhone: nilIfEmpty(d.ContactPhone), ManagerEmployeeID: nilIfEmpty(d.ManagerEmployeeID), ManagerEmployeeApprovalEntryID: nilIfEmpty(d.ManagerEmployeeApprovalEntryID), Remark: nilIfEmpty(d.Remark), ApprovalEntryID: approvalEntryID})
 	case EntityVehicle:
 		load, err := numericValue(d.LoadCapacityKG)
 		if err != nil {
@@ -266,8 +256,6 @@ func copyDetail(ctx context.Context, q *dbsqlc.Queries, entity, newApprovalEntry
 			return err
 		}
 		return insertProductFormula(ctx, q, newApprovalEntryID, formula)
-	case EntityWarehouse:
-		return q.CopyBobWarehousePayload(ctx, dbsqlc.CopyBobWarehousePayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID})
 	case EntityVehicle:
 		return q.CopyBobVehiclePayload(ctx, dbsqlc.CopyBobVehiclePayloadParams{NewApprovalEntryID: newApprovalEntryID, SourceApprovalEntryID: sourceApprovalEntryID})
 	case EntityFundAccount:
@@ -305,8 +293,6 @@ func deleteDetail(ctx context.Context, q *dbsqlc.Queries, entity, approvalEntryI
 			return 0, err
 		}
 		return q.DeleteBobProductPayload(ctx, approvalEntryID)
-	case EntityWarehouse:
-		return q.DeleteBobWarehousePayload(ctx, approvalEntryID)
 	case EntityVehicle:
 		return q.DeleteBobVehiclePayload(ctx, approvalEntryID)
 	case EntityFundAccount:

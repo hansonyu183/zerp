@@ -374,7 +374,6 @@ const bobReviewerActions = new Set([
     'sales-partner',
     'product',
     'vehicle',
-    'warehouse',
     'fund-account',
   ].flatMap((entity) => [
     `/bob/${entity}/query`,
@@ -386,6 +385,9 @@ const bobReviewerActions = new Set([
   '/dcl/operating-entity/query',
   '/dcl/operating-entity/get',
   '/dcl/operating-entity/approve',
+  '/dcl/warehouse/query',
+  '/dcl/warehouse/get',
+  '/dcl/warehouse/approve',
 ])
 
 async function createEffectiveBob(
@@ -394,6 +396,26 @@ async function createEffectiveBob(
   entity: string,
   data: Record<string, unknown>,
 ): Promise<BobMutation> {
+  if (entity === 'warehouse') {
+    const created = await operator.post<BobMutation>('dcl/warehouse/create', {
+      data,
+    })
+    const submitted = await operator.post<BobMutation>('dcl/warehouse/submit', {
+      objectId: created.objectId,
+      approvalEntryId: created.approval.approvalEntryId,
+      approvalRevision: created.approval.revision,
+    })
+    const approved = await reviewer.post<BobMutation>('dcl/warehouse/approve', {
+      objectId: submitted.objectId,
+      approvalEntryId: submitted.approval.approvalEntryId,
+      approvalRevision: submitted.approval.revision,
+    })
+    const view = await operator.post<{ code: string }>('dcl/warehouse/get', {
+      objectId: approved.objectId,
+      approvalEntryId: approved.approval.approvalEntryId,
+    })
+    return { ...approved, code: view.code }
+  }
   const created = await operator.post<BobMutation>(`bob/${entity}/create`, {
     data,
   })

@@ -20,7 +20,7 @@
   'BobCrudEntity':
     {
       'type': 'string',
-      'enum': ['employee', 'product', 'warehouse', 'vehicle', 'fund-account'],
+      'enum': ['employee', 'product', 'vehicle', 'fund-account'],
       'description': '仍使用通用 CRUD 契约的 BOB 实体；客户和供应商使用各自的封闭契约。',
     },
   'BobReadableEntity':
@@ -49,7 +49,6 @@
           'other-unit',
           'sales-partner',
           'product',
-          'warehouse',
           'vehicle',
           'fund-account',
         ],
@@ -2697,32 +2696,6 @@
             },
         },
     },
-  'WarehouseInventoryConflict':
-    {
-      'type': 'object',
-      'required': ['productObjectId', 'productCode', 'productName', 'quantity'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'productObjectId': { 'type': 'string' },
-          'productCode': { 'type': 'string' },
-          'productName': { 'type': 'string' },
-          'quantity': { 'type': 'string' },
-        },
-    },
-  'WarehouseDocumentConflict':
-    {
-      'type': 'object',
-      'required': ['documentId', 'entity', 'documentNo'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'documentId': { 'type': 'string' },
-          'entity': { '$ref': './vou.yaml#/VouEntity' },
-          'documentNo': { 'type': 'string' },
-          'status': { '$ref': './common.yaml#/ApprovalStatus' },
-        },
-    },
   'BobActiveReferenceCount':
     {
       'type': 'object',
@@ -2749,35 +2722,6 @@
             },
         },
     },
-  'WarehouseDisableBlockers':
-    {
-      'type': 'object',
-      'required': ['inventory', 'documents', 'sources', 'references'],
-      'additionalProperties': false,
-      'properties':
-        {
-          'inventory':
-            {
-              'type': 'array',
-              'items': { '$ref': '#/WarehouseInventoryConflict' },
-            },
-          'documents':
-            {
-              'type': 'array',
-              'items': { '$ref': '#/WarehouseDocumentConflict' },
-            },
-          'sources':
-            {
-              'type': 'array',
-              'items': { '$ref': '#/WarehouseDocumentConflict' },
-            },
-          'references':
-            {
-              'type': 'array',
-              'items': { '$ref': '#/BobActiveReferenceCount' },
-            },
-        },
-    },
   'BobDisableResponse':
     {
       'type': 'object',
@@ -2794,7 +2738,6 @@
               'nullable': true,
               'anyOf':
                 [
-                  { '$ref': '#/WarehouseDisableBlockers' },
                   { '$ref': '#/BobActiveReferenceBlockers' },
                   { '$ref': '#/BobMutationResult' },
                 ],

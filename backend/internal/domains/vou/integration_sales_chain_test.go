@@ -7,8 +7,11 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
 	"github.com/hansonyu183/zerp/backend/internal/platform/systemidentity"
+	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -542,17 +545,33 @@ func TestWarehouseDisableTracksSalesLifecycleIntegration(t *testing.T) {
 	refs := prepareReferences(t, pool)
 	service := newIntegrationService(t, pool)
 	bobService := newBOBIntegrationService(pool)
-	warehouseView, err := bobService.Get(t.Context(), bobdomain.EntityWarehouse, bobdomain.GetInput{ObjectID: refs.warehouse.ObjectID})
+	declarations := dcldomain.NewWarehouseService(pool, bobService, authorization.Func(nil), txevent.NewBus())
+	warehouseView, err := declarations.Get(t.Context(), dcldomain.WarehouseGetInput{ObjectID: refs.warehouse.ObjectID}, trustedIntegrationActor(t, "warehouse-disable-get"))
 	if err != nil {
 		t.Fatalf("get warehouse before blocker checks: %v", err)
 	}
+	disabled, err := declarations.Save(t.Context(), dcldomain.WarehouseSaveInput{
+		ObjectID: warehouseView.ObjectID, ApprovalEntryID: warehouseView.Approval.ApprovalEntryID,
+		ApprovalRevision: warehouseView.Approval.Revision, Enabled: false, Data: warehouseView.Data,
+	}, trustedIntegrationActor(t, "warehouse-disable-save"))
+	if err != nil {
+		t.Fatalf("save warehouse disable declaration: %v", err)
+	}
+	disabled, err = declarations.Submit(t.Context(), dcldomain.WarehouseVersionInput{
+		ObjectID: disabled.ObjectID, ApprovalEntryID: disabled.Approval.ApprovalEntryID,
+		ApprovalRevision: disabled.Approval.Revision,
+	}, trustedIntegrationActor(t, "warehouse-disable-submit"))
+	if err != nil {
+		t.Fatalf("submit warehouse disable declaration: %v", err)
+	}
 	disableBlockers := func() bobdomain.WarehouseDisableBlockers {
 		t.Helper()
-		_, disableErr := bobService.Disable(t.Context(), bobdomain.EntityWarehouse, bobdomain.ObjectRevisionInput{
-			ObjectID: refs.warehouse.ObjectID, ObjectRevision: warehouseView.ObjectRevision,
-		}, trustedIntegrationActor(t, "warehouse-disable-blocked"))
-		var domainErr *bobdomain.DomainError
-		if !errors.As(disableErr, &domainErr) || domainErr.Kind != bobdomain.ErrorConflict {
+		_, disableErr := declarations.Approve(t.Context(), dcldomain.WarehouseVersionInput{
+			ObjectID: disabled.ObjectID, ApprovalEntryID: disabled.Approval.ApprovalEntryID,
+			ApprovalRevision: disabled.Approval.Revision,
+		}, integrationApprovalActor(t, integrationActorTwo, "warehouse-disable-blocked"))
+		var domainErr *dcldomain.DomainError
+		if !errors.As(disableErr, &domainErr) || domainErr.Kind != dcldomain.ErrorConflict {
 			t.Fatalf("warehouse disable error = %v, want conflict", disableErr)
 		}
 		blockers, ok := domainErr.Data.(bobdomain.WarehouseDisableBlockers)
@@ -613,9 +632,10 @@ func TestWarehouseDisableTracksSalesLifecycleIntegration(t *testing.T) {
 		BusinessDate: "2026-07-25", SourceDocumentID: approved.DocumentID, Warehouse: &refs.warehouse,
 		SourceLines: []SourceQuantityLineInput{{SourceLineID: orderView.Data.ProductLines[0].LineID, BaseQuantity: "2"}},
 	}, true)
-	if _, err = bobService.Disable(t.Context(), bobdomain.EntityWarehouse, bobdomain.ObjectRevisionInput{
-		ObjectID: refs.warehouse.ObjectID, ObjectRevision: warehouseView.ObjectRevision,
-	}, trustedIntegrationActor(t, "warehouse-disable-after-fulfillment")); err != nil {
+	if _, err = declarations.Approve(t.Context(), dcldomain.WarehouseVersionInput{
+		ObjectID: disabled.ObjectID, ApprovalEntryID: disabled.Approval.ApprovalEntryID,
+		ApprovalRevision: disabled.Approval.Revision,
+	}, integrationApprovalActor(t, integrationActorTwo, "warehouse-disable-after-fulfillment")); err != nil {
 		t.Fatalf("disable warehouse after fulfillment: %v", err)
 	}
 	if _, err = service.Create(t.Context(), EntitySaleOrder, CreateInput{Data: DraftInput{

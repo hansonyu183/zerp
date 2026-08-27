@@ -7,7 +7,86 @@ import (
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 )
 
-const EntityOperatingEntity = "operating-entity"
+const (
+	EntityOperatingEntity = "operating-entity"
+	EntityWarehouse       = "warehouse"
+)
+
+type WarehouseData struct {
+	Name              string `json:"name"`
+	Address           string `json:"address,omitempty"`
+	ContactName       string `json:"contactName,omitempty"`
+	ContactPhone      string `json:"contactPhone,omitempty"`
+	ManagerEmployeeID string `json:"managerEmployeeId,omitempty"`
+	Remark            string `json:"remark,omitempty"`
+}
+
+type WarehouseCreateInput struct {
+	Data WarehouseData `json:"data"`
+}
+type WarehouseSaveInput struct {
+	ObjectID         string        `json:"objectId"`
+	ApprovalEntryID  string        `json:"approvalEntryId"`
+	ApprovalRevision int64         `json:"approvalRevision"`
+	Enabled          bool          `json:"enabled"`
+	Data             WarehouseData `json:"data"`
+}
+type WarehouseVersionInput struct {
+	ObjectID         string `json:"objectId"`
+	ApprovalEntryID  string `json:"approvalEntryId"`
+	ApprovalRevision int64  `json:"approvalRevision"`
+}
+type WarehouseReviewInput struct {
+	ObjectID         string `json:"objectId"`
+	ApprovalEntryID  string `json:"approvalEntryId"`
+	ApprovalRevision int64  `json:"approvalRevision"`
+	Reason           string `json:"reason"`
+}
+type WarehouseDeleteInput = WarehouseVersionInput
+type WarehouseGetInput struct {
+	ObjectID        string `json:"objectId"`
+	ApprovalEntryID string `json:"approvalEntryId,omitempty"`
+}
+type WarehouseQueryFilters = OperatingEntityQueryFilters
+type WarehouseSortItem = OperatingEntitySortItem
+type WarehouseQueryInput struct {
+	Page     int                   `json:"page"`
+	PageSize int                   `json:"pageSize"`
+	Filters  WarehouseQueryFilters `json:"filters"`
+	Sort     []WarehouseSortItem   `json:"sort"`
+}
+type WarehouseHistoryInput = OperatingEntityHistoryInput
+type WarehouseMutation struct {
+	ObjectID       string               `json:"objectId"`
+	ObjectRevision int64                `json:"objectRevision"`
+	Enabled        bool                 `json:"enabled"`
+	Approval       approval.VersionMeta `json:"approval"`
+}
+type WarehouseView struct {
+	ObjectID       string               `json:"objectId"`
+	Entity         string               `json:"entity"`
+	Code           string               `json:"code"`
+	ObjectRevision int64                `json:"objectRevision"`
+	Enabled        bool                 `json:"enabled"`
+	Approval       approval.VersionMeta `json:"approval"`
+	Data           WarehouseData        `json:"data"`
+	UpdatedAt      time.Time            `json:"updatedAt"`
+}
+type WarehouseVersionView struct {
+	Approval approval.VersionMeta `json:"approval"`
+	Data     WarehouseData        `json:"data"`
+	Enabled  bool                 `json:"enabled"`
+}
+type WarehouseQueryItem struct {
+	ObjectID       string                `json:"objectId"`
+	Entity         string                `json:"entity"`
+	Code           string                `json:"code"`
+	ObjectRevision int64                 `json:"objectRevision"`
+	Enabled        bool                  `json:"enabled"`
+	LatestApproved *WarehouseVersionView `json:"latestApproved"`
+	OpenVersion    *WarehouseVersionView `json:"openVersion"`
+	UpdatedAt      time.Time             `json:"updatedAt"`
+}
 
 type OperatingEntityData = bobdomain.OperatingEntityData
 

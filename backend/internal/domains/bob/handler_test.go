@@ -258,7 +258,7 @@ func TestHandlerRegistersOperatingEntityReadRoutesButNoDCLLifecycleAliases(t *te
 	router := newBOBTestRouter(&serviceStub{}, authorization.FailClosed{})
 	routes := router.Routes()
 	expectedEntities := []string{
-		"customer", "supplier", "employee", "sales-partner", "product", "warehouse",
+		"customer", "supplier", "employee", "sales-partner", "product",
 		"vehicle", "fund-account",
 	}
 	expectedActions := []string{
@@ -273,6 +273,8 @@ func TestHandlerRegistersOperatingEntityReadRoutesButNoDCLLifecycleAliases(t *te
 	}
 	wanted["/bob/operating-entity/query"] = false
 	wanted["/bob/operating-entity/get"] = false
+	wanted["/bob/warehouse/query"] = false
+	wanted["/bob/warehouse/get"] = false
 	for _, path := range []string{
 		"/bob/party/query", "/bob/party/get", "/bob/party/save",
 		"/bob/other-unit/query", "/bob/other-unit/get", "/bob/other-unit/create", "/bob/other-unit/save",
@@ -290,6 +292,10 @@ func TestHandlerRegistersOperatingEntityReadRoutesButNoDCLLifecycleAliases(t *te
 		if strings.HasPrefix(route.Path, "/bob/operating-entity/") &&
 			route.Path != "/bob/operating-entity/query" && route.Path != "/bob/operating-entity/get" {
 			t.Fatalf("DCL-owned operating entity lifecycle alias remains registered: %s", route.Path)
+		}
+		if strings.HasPrefix(route.Path, "/bob/warehouse/") &&
+			route.Path != "/bob/warehouse/query" && route.Path != "/bob/warehouse/get" {
+			t.Fatalf("DCL-owned warehouse lifecycle alias remains registered: %s", route.Path)
 		}
 		if strings.HasPrefix(route.Path, "/bob/service/") {
 			t.Fatalf("obsolete standalone service route remains registered: %s", route.Path)
@@ -372,27 +378,14 @@ func TestOtherUnitCreateRequiresMatchingPartyPermission(t *testing.T) {
 	}
 }
 
-func TestHandlerDispatchesEveryAction(t *testing.T) {
+func TestHandlerDispatchesWarehouseCurrentReadActionsOnly(t *testing.T) {
 	const objectID = "01J00000000000000000000010"
-	const versionID = "01J00000000000000000000011"
 	tests := []struct {
 		action string
 		body   string
 	}{
 		{"query", `{"page":1,"pageSize":20,"filters":{},"sort":[]}`},
 		{"get", `{"objectId":"` + objectID + `"}`},
-		{"create", `{"data":{"name":"Customer"}}`},
-		{"save", `{"objectId":"` + objectID + `","approvalEntryId":"` + versionID + `","approvalRevision":1,"data":{"name":"Customer"}}`},
-		{"delete", `{"objectId":"` + objectID + `","objectRevision":1,"approvalEntryId":"` + versionID + `","approvalRevision":1}`},
-		{"submit", `{"objectId":"` + objectID + `","approvalEntryId":"` + versionID + `","approvalRevision":1}`},
-		{"unsubmit", `{"objectId":"` + objectID + `","approvalEntryId":"` + versionID + `","approvalRevision":1}`},
-		{"approve", `{"objectId":"` + objectID + `","approvalEntryId":"` + versionID + `","approvalRevision":1}`},
-		{"unapprove", `{"objectId":"` + objectID + `","approvalEntryId":"` + versionID + `","approvalRevision":1,"reason":"fix"}`},
-		{"reject", `{"objectId":"` + objectID + `","approvalEntryId":"` + versionID + `","approvalRevision":1,"reason":"fix"}`},
-		{"enable", `{"objectId":"` + objectID + `","objectRevision":1}`},
-		{"disable", `{"objectId":"` + objectID + `","objectRevision":1}`},
-		{"versions", `{"objectId":"` + objectID + `","page":1,"pageSize":20}`},
-		{"audit-history", `{"objectId":"` + objectID + `","page":1,"pageSize":20}`},
 	}
 	authorizer := authorization.Func(func(_ context.Context, _ *http.Request, _, _ string) (authorization.Principal, error) {
 		return authorization.Principal{ActorID: "01J00000000000000000000000"}, nil
@@ -412,14 +405,17 @@ func TestHandlerDispatchesEveryAction(t *testing.T) {
 			if len(service.actions) != 1 || service.actions[0] != test.action || service.entity != EntityWarehouse {
 				t.Fatalf("calls = %v, entity = %q", service.actions, service.entity)
 			}
-			if test.action == "delete" {
-				var envelope response.Envelope
-				if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
-					t.Fatalf("decode delete response: %v", err)
-				}
-				if envelope.Code != response.CodeOK || envelope.Data != nil {
-					t.Fatalf("delete envelope = %+v, want data null", envelope)
-				}
+		})
+	}
+	for _, action := range []string{"create", "save", "delete", "submit", "unsubmit", "approve", "unapprove", "reject", "enable", "disable", "versions", "audit-history"} {
+		t.Run("no legacy "+action, func(t *testing.T) {
+			router := newBOBTestRouter(&serviceStub{}, authorizer)
+			request := httptest.NewRequest(http.MethodPost, "/bob/warehouse/"+action, strings.NewReader(`{}`))
+			request.Header.Set("Content-Type", "application/json")
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, request)
+			if recorder.Code != http.StatusNotFound {
+				t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNotFound)
 			}
 		})
 	}

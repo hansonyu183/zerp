@@ -7,12 +7,9 @@ import {
   submitBusinessObject,
   unsubmitBusinessObject,
 } from '@/api/bob'
-import {
-  approveOperatingEntity,
-  rejectOperatingEntity,
-  submitOperatingEntity,
-  unsubmitOperatingEntity,
-} from '@/api/dcl'
+import { isDclDeclarationEntity } from '@/pages/dcl/shared/declaration'
+import { runDclOperatingEntityAction } from '@/pages/dcl/operating-entity/data'
+import { runDclWarehouseAction } from '@/pages/dcl/warehouse/data'
 import { getDiagnosticErrorMessage, getErrorMessage } from '@/api/types'
 import { approveVoucher, submitVoucher, unsubmitVoucher } from '@/api/vou'
 
@@ -31,8 +28,8 @@ export type WorkbenchConfirmationAction = Extract<
 
 export function workbenchItemPath(item: WorkbenchItem): string {
   if (item.category === 'VOU') return `/vou/${item.entity}`
-  return item.entity === 'operating-entity'
-    ? '/dcl/operating-entity'
+  return isDclDeclarationEntity(item.entity)
+    ? `/dcl/${item.entity}`
     : `/bob/${item.entity}`
 }
 
@@ -206,21 +203,9 @@ export function useDashboardViewModel() {
           approvalRevision: item.revision,
         }
         if (item.entity === 'operating-entity') {
-          if (action === 'submit') {
-            await submitOperatingEntity(request)
-          } else if (action === 'unsubmit') {
-            await unsubmitOperatingEntity({
-              ...request,
-              reason: comment.trim(),
-            })
-          } else if (action === 'approve') {
-            await approveOperatingEntity(request)
-          } else if (action === 'reject') {
-            await rejectOperatingEntity({
-              ...request,
-              reason: comment.trim(),
-            })
-          }
+          await runDclOperatingEntityAction(action, request, comment.trim())
+        } else if (item.entity === 'warehouse') {
+          await runDclWarehouseAction(action, request, comment.trim())
         } else if (action === 'submit') {
           await submitBusinessObject(item.entity, request)
         } else if (action === 'unsubmit') {

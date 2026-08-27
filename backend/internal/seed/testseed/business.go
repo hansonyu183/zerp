@@ -383,7 +383,7 @@ func (s *Seeder) ensureBusiness(
 	sample bobSample,
 ) (bobdomain.ObjectView, outcome, error) {
 	approvalDomain := "bob"
-	if sample.entity == bobdomain.EntityOperatingEntity {
+	if sample.entity == bobdomain.EntityOperatingEntity || sample.entity == bobdomain.EntityWarehouse {
 		approvalDomain = "dcl"
 	}
 	var objectID string
@@ -410,6 +410,13 @@ func (s *Seeder) ensureBusiness(
 					TaxNumber: data.TaxNumber, Address: data.Address, Phone: data.Phone, Remark: data.Remark},
 			}, createActor)
 			result, createErr = dclBusinessMutation(createdOperatingEntity), declarationErr
+		case bobdomain.EntityWarehouse:
+			createdWarehouse, declarationErr := s.warehouses.Create(ctx, dcldomain.WarehouseCreateInput{
+				Data: dcldomain.WarehouseData{Name: data.Name, Address: data.Address,
+					ContactName: data.ContactName, ContactPhone: data.ContactPhone,
+					ManagerEmployeeID: data.ManagerEmployeeID, Remark: data.Remark},
+			}, createActor)
+			result, createErr = dclWarehouseBusinessMutation(createdWarehouse), declarationErr
 		case bobdomain.EntityEmployee:
 			createdEmployment, relationshipErr := s.business.EmploymentCreate(ctx, bobdomain.EmploymentCreateInput{
 				NewParty: &bobdomain.PartyCreateData{Kind: bobdomain.PartyKindPerson,
@@ -525,16 +532,34 @@ func dclBusinessView(view dcldomain.OperatingEntityView) bobdomain.ObjectView {
 			Phone: view.Data.Phone, Remark: view.Data.Remark}, UpdatedAt: view.UpdatedAt}
 }
 
+func dclWarehouseBusinessMutation(result dcldomain.WarehouseMutation) bobdomain.MutationResult {
+	return bobdomain.MutationResult{ObjectID: result.ObjectID, ObjectRevision: result.ObjectRevision,
+		Enabled: result.Enabled, Approval: result.Approval}
+}
+
+func dclWarehouseBusinessView(view dcldomain.WarehouseView) bobdomain.ObjectView {
+	return bobdomain.ObjectView{ObjectID: view.ObjectID, Entity: bobdomain.EntityWarehouse,
+		Code: view.Code, ObjectRevision: view.ObjectRevision, Enabled: view.Enabled,
+		Approval: view.Approval, Data: bobdomain.DetailView{Name: view.Data.Name,
+			Address: view.Data.Address, ContactName: view.Data.ContactName, ContactPhone: view.Data.ContactPhone,
+			ManagerEmployeeID: view.Data.ManagerEmployeeID,
+			Remark:            view.Data.Remark}, UpdatedAt: view.UpdatedAt}
+}
+
 func (s *Seeder) getBusiness(ctx context.Context, entity, objectID, key string) (bobdomain.ObjectView, error) {
-	if entity != bobdomain.EntityOperatingEntity {
+	if entity != bobdomain.EntityOperatingEntity && entity != bobdomain.EntityWarehouse {
 		return s.business.Get(ctx, entity, bobdomain.GetInput{ObjectID: objectID})
 	}
 	actor, err := seedActor(actorID, requestID(key, "get"))
 	if err != nil {
 		return bobdomain.ObjectView{}, err
 	}
-	view, err := s.operatingEntities.Get(ctx, dcldomain.OperatingEntityGetInput{ObjectID: objectID}, actor)
-	return dclBusinessView(view), err
+	if entity == bobdomain.EntityWarehouse {
+		view, getErr := s.warehouses.Get(ctx, dcldomain.WarehouseGetInput{ObjectID: objectID}, actor)
+		return dclWarehouseBusinessView(view), getErr
+	}
+	view, getErr := s.operatingEntities.Get(ctx, dcldomain.OperatingEntityGetInput{ObjectID: objectID}, actor)
+	return dclBusinessView(view), getErr
 }
 
 func (s *Seeder) advanceBusiness(
@@ -552,7 +577,14 @@ func (s *Seeder) advanceBusiness(
 		if actorErr != nil {
 			return actorErr
 		}
-		if sample.entity == bobdomain.EntityOperatingEntity {
+		if sample.entity == bobdomain.EntityWarehouse {
+			var submitted dcldomain.WarehouseMutation
+			submitted, err = s.warehouses.Submit(ctx, dcldomain.WarehouseVersionInput{
+				ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID,
+				ApprovalRevision: current.Approval.Revision,
+			}, actor)
+			current = dclWarehouseBusinessMutation(submitted)
+		} else if sample.entity == bobdomain.EntityOperatingEntity {
 			var submitted dcldomain.OperatingEntityMutation
 			submitted, err = s.operatingEntities.Submit(ctx, dcldomain.OperatingEntityVersionInput{
 				ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID,
@@ -577,7 +609,12 @@ func (s *Seeder) advanceBusiness(
 		if actorErr != nil {
 			return actorErr
 		}
-		if sample.entity == bobdomain.EntityOperatingEntity {
+		if sample.entity == bobdomain.EntityWarehouse {
+			_, err = s.warehouses.Approve(ctx, dcldomain.WarehouseVersionInput{
+				ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID,
+				ApprovalRevision: current.Approval.Revision,
+			}, actor)
+		} else if sample.entity == bobdomain.EntityOperatingEntity {
 			_, err = s.operatingEntities.Approve(ctx, dcldomain.OperatingEntityVersionInput{
 				ObjectID: current.ObjectID, ApprovalEntryID: current.Approval.ApprovalEntryID,
 				ApprovalRevision: current.Approval.Revision,

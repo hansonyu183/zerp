@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/hansonyu183/zerp/backend/internal/api/authorization"
-	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	bobdomain "github.com/hansonyu183/zerp/backend/internal/domains/bob"
 	voudomain "github.com/hansonyu183/zerp/backend/internal/domains/vou"
@@ -144,10 +143,18 @@ func (s *Seeder) Seed(ctx context.Context) (Result, error) {
 
 func (s *Seeder) references(ctx context.Context) (references, error) {
 	resolve := func(entity, code string) (voudomain.ReferenceInput, error) {
-		objectID, err := dbsqlc.New(s.pool).FindBobSeedObjectID(
-			ctx,
-			dbsqlc.FindBobSeedObjectIDParams{Entity: entity, SeedCode: code},
-		)
+		domain := "bob"
+		if entity == bobdomain.EntityWarehouse {
+			domain = "dcl"
+		}
+		var objectID string
+		err := s.pool.QueryRow(ctx, `
+			SELECT subject_id
+			FROM approval_events
+			WHERE domain=$1 AND entity=$2 AND request_id=$3 AND action='CREATED'
+			ORDER BY created_at,id
+			LIMIT 1
+		`, domain, entity, "seed-bob-"+code+"-create").Scan(&objectID)
 		if err != nil {
 			return voudomain.ReferenceInput{}, fmt.Errorf("find BOB demo object %s: %w", code, err)
 		}

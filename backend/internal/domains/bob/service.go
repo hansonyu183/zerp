@@ -60,11 +60,11 @@ func bobApprovalPayload(objectID, entity, code string, enabled bool) bobapproval
 }
 
 func genericEntity(entity string) bool {
-	return slices.Contains([]string{EntityEmployee, EntityProduct, EntityWarehouse, EntityVehicle, EntityFundAccount, EntityOperatingEntity}, entity)
+	return slices.Contains([]string{EntityEmployee, EntityProduct, EntityVehicle, EntityFundAccount, EntityOperatingEntity}, entity)
 }
 
 func genericWriteEntity(entity string) bool {
-	return slices.Contains([]string{EntityEmployee, EntityProduct, EntityWarehouse, EntityVehicle, EntityFundAccount}, entity)
+	return slices.Contains([]string{EntityEmployee, EntityProduct, EntityVehicle, EntityFundAccount}, entity)
 }
 
 func approvalEntity(entity string) bool {
@@ -74,6 +74,9 @@ func approvalEntity(entity string) bool {
 func (s *Service) Query(ctx context.Context, entity string, input QueryInput) (Page[QueryItem], error) {
 	if entity == EntityOperatingEntity {
 		return s.queryOperatingEntities(ctx, input)
+	}
+	if entity == EntityWarehouse {
+		return s.queryWarehouses(ctx, input)
 	}
 	if entity == EntityEmployee {
 		return s.queryEmploymentRelationships(ctx, input)
@@ -187,6 +190,9 @@ func (s *Service) versionSummary(ctx context.Context, q *dbsqlc.Queries, entity,
 func (s *Service) Get(ctx context.Context, entity string, input GetInput) (ObjectView, error) {
 	if entity == EntityOperatingEntity {
 		return s.getOperatingEntityCurrent(ctx, input)
+	}
+	if entity == EntityWarehouse {
+		return s.getWarehouseCurrent(ctx, input)
 	}
 	if !validEntity(entity) || !validID(input.ObjectID) || (input.ApprovalEntryID != "" && !validID(input.ApprovalEntryID)) {
 		return ObjectView{}, domainError(ErrorValidation, "invalid get request", nil, nil)
@@ -520,9 +526,6 @@ func (s *Service) setEnabled(ctx context.Context, entity string, input ObjectRev
 	if !approvalEntity(entity) || !validID(input.ObjectID) || input.ObjectRevision < 1 || !validActorAndRequest(actor.ID(), actor.RequestID()) {
 		return MutationResult{}, domainError(ErrorValidation, "invalid object state request", nil, nil)
 	}
-	if entity == EntityWarehouse && !enabled {
-		return s.disableWarehouse(ctx, input, actor)
-	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return MutationResult{}, s.internal("begin BOB object state transition", err)
@@ -622,6 +625,9 @@ func (s *Service) ValidateApprovedSnapshotReference(ctx context.Context, tx pgx.
 	if entity == EntityOperatingEntity {
 		return s.validateOperatingEntitySnapshotReference(ctx, q, objectID, approvalEntryID)
 	}
+	if entity == EntityWarehouse {
+		return s.validateWarehouseSnapshotReference(ctx, q, objectID, approvalEntryID)
+	}
 	row, err := q.ValidateBobApprovedSnapshotReference(ctx, dbsqlc.ValidateBobApprovedSnapshotReferenceParams{ApprovalEntryID: approvalEntryID, ObjectID: objectID, Entity: entity})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return EffectiveReference{}, domainError(ErrorConflict, "BOB approval snapshot is unavailable", nil, nil)
@@ -643,6 +649,9 @@ func (s *Service) ResolveLatestApprovedReference(ctx context.Context, tx pgx.Tx,
 	q := s.queries.WithTx(tx)
 	if entity == EntityOperatingEntity {
 		return s.resolveOperatingEntityCurrentReference(ctx, q, objectID)
+	}
+	if entity == EntityWarehouse {
+		return s.resolveWarehouseCurrentReference(ctx, q, objectID)
 	}
 	row, err := q.ResolveBobLatestApprovedReference(ctx, dbsqlc.ResolveBobLatestApprovedReferenceParams{ObjectID: objectID, Entity: entity})
 	if errors.Is(err, pgx.ErrNoRows) {

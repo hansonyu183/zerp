@@ -165,6 +165,31 @@ func createApprovedBOB(
 		}
 		return ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
 	}
+	if entity == bobdomain.EntityWarehouse {
+		declarations := dcldomain.NewWarehouseService(vouIntegrationPool(t), service, authorization.Func(nil), txevent.NewBus())
+		created, err := declarations.Create(t.Context(), dcldomain.WarehouseCreateInput{Data: dcldomain.WarehouseData{
+			Name: data.Name, Address: data.Address, ContactName: data.ContactName,
+			ContactPhone: data.ContactPhone, ManagerEmployeeID: data.ManagerEmployeeID, Remark: data.Remark,
+		}}, trustedIntegrationActor(t, "vou-ref-create"))
+		if err != nil {
+			t.Fatalf("create warehouse reference: %v", err)
+		}
+		submitted, err := declarations.Submit(t.Context(), dcldomain.WarehouseVersionInput{
+			ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID,
+			ApprovalRevision: created.Approval.Revision,
+		}, trustedIntegrationActor(t, "vou-ref-submit"))
+		if err != nil {
+			t.Fatalf("submit warehouse reference: %v", err)
+		}
+		approved, err := declarations.Approve(t.Context(), dcldomain.WarehouseVersionInput{
+			ObjectID: submitted.ObjectID, ApprovalEntryID: submitted.Approval.ApprovalEntryID,
+			ApprovalRevision: submitted.Approval.Revision,
+		}, trustedIntegrationActor(t, "vou-ref-approve"))
+		if err != nil {
+			t.Fatalf("approve warehouse reference: %v", err)
+		}
+		return ReferenceInput{ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID}
+	}
 	if entity == bobdomain.EntityProduct && data.ProductTypeID != "01JPTP00000000000000000007" && data.DefaultPackagingSpec == "" {
 		data.DefaultPackagingSpec = "1"
 	}

@@ -119,7 +119,7 @@ func (h *Handler) Register(router *gin.Engine) {
 		entity := registeredEntity
 		entityGroup := group.Group("/" + entity)
 		for _, route := range actionRoutes {
-			if entity == EntityOperatingEntity && route.action != "query" && route.action != "get" {
+			if (entity == EntityOperatingEntity || entity == EntityWarehouse) && route.action != "query" && route.action != "get" {
 				continue
 			}
 			action := route.action

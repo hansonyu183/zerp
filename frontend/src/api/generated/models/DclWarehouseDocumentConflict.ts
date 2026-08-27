@@ -4,7 +4,7 @@
 /* eslint-disable */
 import type { ApprovalStatus } from './ApprovalStatus';
 import type { VouEntity } from './VouEntity';
-export type WarehouseDocumentConflict = {
+export type DclWarehouseDocumentConflict = {
   documentId: string;
   entity: VouEntity;
   documentNo: string;

@@ -12,6 +12,7 @@ import (
 	dbsqlc "github.com/hansonyu183/zerp/backend/internal/database/sqlc"
 	auxdomain "github.com/hansonyu183/zerp/backend/internal/domains/auxiliary"
 	"github.com/hansonyu183/zerp/backend/internal/domains/bob"
+	dcldomain "github.com/hansonyu183/zerp/backend/internal/domains/dcl"
 	"github.com/hansonyu183/zerp/backend/internal/integrations/auxiliaryrefs"
 	"github.com/hansonyu183/zerp/backend/internal/platform/approval"
 	"github.com/hansonyu183/zerp/backend/internal/platform/txevent"
@@ -120,7 +121,7 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 		}
 		var status string
 		approvalDomain := "bob"
-		if item.entity == bob.EntityOperatingEntity {
+		if item.entity == bob.EntityOperatingEntity || item.entity == bob.EntityWarehouse {
 			approvalDomain = "dcl"
 		}
 		if err = pool.QueryRow(t.Context(), `
@@ -158,21 +159,26 @@ func TestSeedDemoDataIntegration(t *testing.T) {
 		bob.EntityCustomer: "bob_customer_relationship_versions", bob.EntityCustomerAccount: "bob_customer_versions",
 		bob.EntitySupplier: "bob_supplier_versions", bob.EntityOtherUnit: "bob_service_relationship_versions",
 		bob.EntityEmployee: "bob_employee_versions", bob.EntitySalesPartner: "bob_sales_partner_versions",
-		bob.EntityProduct: "bob_product_versions", bob.EntityWarehouse: "bob_warehouse_versions",
+		bob.EntityProduct: "bob_product_versions", bob.EntityWarehouse: "dcl_warehouse_versions",
 		bob.EntityVehicle: "bob_vehicle_versions", bob.EntityFundAccount: "bob_fund_account_versions",
 		bob.EntityOperatingEntity: "dcl_operating_entity_versions",
 	}
 	for _, entity := range allEntities {
 		approvalDomain := "bob"
-		if entity == bob.EntityOperatingEntity {
+		if entity == bob.EntityOperatingEntity || entity == bob.EntityWarehouse {
 			approvalDomain = "dcl"
 		}
 		var objectCount, entryCount, payloadCount int
-		if err = pool.QueryRow(t.Context(), `
+		objectTable := "bob_objects"
+		if approvalDomain == "dcl" {
+			objectTable = "dcl_subjects"
+		}
+		objectQuery := fmt.Sprintf(`
 			SELECT count(*),
 			       (SELECT count(*) FROM approval_entries entry WHERE entry.domain=$2 AND entry.entity=$1)
-			FROM bob_objects object WHERE object.entity=$1
-		`, entity, approvalDomain).Scan(&objectCount, &entryCount); err != nil {
+			FROM %s object WHERE object.entity=$1
+		`, objectTable)
+		if err = pool.QueryRow(t.Context(), objectQuery, entity, approvalDomain).Scan(&objectCount, &entryCount); err != nil {
 			t.Fatalf("query %s central coverage: %v", entity, err)
 		}
 		payloadQuery := fmt.Sprintf(`SELECT count(*) FROM %s payload JOIN approval_entries entry ON entry.id=payload.approval_entry_id WHERE entry.domain=$2 AND entry.entity=$1`, payloadTables[entity])
@@ -199,7 +205,8 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorization.FailClosed{}, bus)
-	service := bob.NewService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
+	business := bob.NewService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
+	service := dcldomain.NewWarehouseService(pool, business, authorization.Func(nil), bus)
 	actor := func(label string) approval.Actor {
 		actorID := "01J00000000000000000000000"
 		if strings.Contains(label, "approve") {
@@ -214,37 +221,38 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 		return result
 	}
 
-	created, err := service.Create(t.Context(), bob.EntityWarehouse, bob.CreateInput{
-		Data: bob.CreateDetailInput{Name: "审批版本集成仓库"},
+	created, err := service.Create(t.Context(), dcldomain.WarehouseCreateInput{
+		Data: dcldomain.WarehouseData{Name: "审批版本集成仓库"},
 	}, actor("create"))
 	if err != nil {
 		t.Fatalf("create V1: %v", err)
 	}
-	v1Pending, err := service.Submit(t.Context(), bob.EntityWarehouse, bob.VersionRevisionInput{
+	v1Pending, err := service.Submit(t.Context(), dcldomain.WarehouseVersionInput{
 		ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID,
 		ApprovalRevision: created.Approval.Revision,
 	}, actor("submit-v1"))
 	if err != nil {
 		t.Fatalf("submit V1: %v", err)
 	}
-	v1, err := service.Approve(t.Context(), bob.EntityWarehouse, bob.ReviewInput{
+	v1, err := service.Approve(t.Context(), dcldomain.WarehouseVersionInput{
 		ObjectID: created.ObjectID, ApprovalEntryID: v1Pending.Approval.ApprovalEntryID,
 		ApprovalRevision: v1Pending.Approval.Revision,
 	}, actor("approve-v1"))
 	if err != nil {
 		t.Fatalf("approve V1: %v", err)
 	}
-	unrelated, err := service.Create(t.Context(), bob.EntityWarehouse, bob.CreateInput{
-		Data: bob.CreateDetailInput{Name: "审批版本集成无关仓库"},
+	unrelated, err := service.Create(t.Context(), dcldomain.WarehouseCreateInput{
+		Data: dcldomain.WarehouseData{Name: "审批版本集成无关仓库"},
 	}, actor("create-unrelated"))
 	if err != nil {
 		t.Fatalf("create unrelated warehouse: %v", err)
 	}
 
-	v2, err := service.Save(t.Context(), bob.EntityWarehouse, bob.SaveInput{
+	v2, err := service.Save(t.Context(), dcldomain.WarehouseSaveInput{
 		ObjectID: created.ObjectID, ApprovalEntryID: v1.Approval.ApprovalEntryID,
 		ApprovalRevision: v1.Approval.Revision,
-		Data:             bob.DetailInput{Name: "审批版本集成仓库 V2"},
+		Enabled:          true,
+		Data:             dcldomain.WarehouseData{Name: "审批版本集成仓库 V2"},
 	}, actor("save-v2"))
 	if err != nil {
 		t.Fatalf("create V2: %v", err)
@@ -256,17 +264,17 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin reference check: %v", err)
 	}
-	if _, err = service.ValidateApprovedSnapshotReference(
+	if _, err = business.ValidateApprovedSnapshotReference(
 		t.Context(), tx, bob.EntityWarehouse, created.ObjectID, v2.Approval.ApprovalEntryID,
 	); err == nil {
 		t.Fatal("draft V2 was resolvable as an approved reference")
 	}
-	if _, err = service.ValidateApprovedSnapshotReference(
+	if _, err = business.ValidateApprovedSnapshotReference(
 		t.Context(), tx, bob.EntityWarehouse, unrelated.ObjectID, v1.Approval.ApprovalEntryID,
 	); err == nil {
 		t.Fatal("approval entry resolved for a different BOB object")
 	}
-	latest, err := service.ResolveLatestApprovedReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID)
+	latest, err := business.ResolveLatestApprovedReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID)
 	if err != nil || latest.ApprovalEntryID != v1.Approval.ApprovalEntryID {
 		t.Fatalf("latest during V2 draft = %+v err=%v, want V1", latest, err)
 	}
@@ -275,11 +283,11 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 		INSERT INTO approval_entries (
 			id,domain,entity,subject_id,version_no,status,revision,
 			created_by,created_at,updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at
-		) VALUES ($1,'bob','warehouse',$2,3,'APPROVED',1,$3,clock_timestamp(),$3,clock_timestamp(),$3,clock_timestamp(),$4,clock_timestamp())
+		) VALUES ($1,'dcl','warehouse',$2,3,'APPROVED',1,$3,clock_timestamp(),$3,clock_timestamp(),$3,clock_timestamp(),$4,clock_timestamp())
 	`, forgedEntryID, created.ObjectID, "01J00000000000000000000000", "01J00000000000000000000001"); err != nil {
 		t.Fatalf("insert forged approved BOB metadata: %v", err)
 	}
-	if _, err = service.ValidateApprovedSnapshotReference(
+	if _, err = business.ValidateApprovedSnapshotReference(
 		t.Context(), tx, bob.EntityWarehouse, created.ObjectID, forgedEntryID,
 	); err == nil {
 		t.Fatal("approved metadata without a BOB version payload resolved as a snapshot")
@@ -288,7 +296,7 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 		t.Fatalf("rollback reference check: %v", err)
 	}
 
-	v2Pending, err := service.Submit(t.Context(), bob.EntityWarehouse, bob.VersionRevisionInput{
+	v2Pending, err := service.Submit(t.Context(), dcldomain.WarehouseVersionInput{
 		ObjectID: created.ObjectID, ApprovalEntryID: v2.Approval.ApprovalEntryID,
 		ApprovalRevision: v2.Approval.Revision,
 	}, actor("submit-v2"))
@@ -299,7 +307,7 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin pending reference check: %v", err)
 	}
-	if _, err = service.ValidateApprovedSnapshotReference(
+	if _, err = business.ValidateApprovedSnapshotReference(
 		t.Context(), tx, bob.EntityWarehouse, created.ObjectID, v2Pending.Approval.ApprovalEntryID,
 	); err == nil {
 		t.Fatal("pending V2 was resolvable as an approved snapshot")
@@ -307,7 +315,7 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	if err = tx.Rollback(t.Context()); err != nil {
 		t.Fatalf("rollback pending reference check: %v", err)
 	}
-	v2Approved, err := service.Approve(t.Context(), bob.EntityWarehouse, bob.ReviewInput{
+	v2Approved, err := service.Approve(t.Context(), dcldomain.WarehouseVersionInput{
 		ObjectID: created.ObjectID, ApprovalEntryID: v2Pending.Approval.ApprovalEntryID,
 		ApprovalRevision: v2Pending.Approval.Revision,
 	}, actor("approve-v2"))
@@ -318,20 +326,20 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin approved reference check: %v", err)
 	}
-	snapshot, err := service.ValidateApprovedSnapshotReference(
+	snapshot, err := business.ValidateApprovedSnapshotReference(
 		t.Context(), tx, bob.EntityWarehouse, created.ObjectID, v1.Approval.ApprovalEntryID,
 	)
 	if err != nil || snapshot.ApprovalEntryID != v1.Approval.ApprovalEntryID {
 		t.Fatalf("validate V1 snapshot after V2 approval = %+v err=%v, want V1", snapshot, err)
 	}
-	latest, err = service.ResolveLatestApprovedReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID)
+	latest, err = business.ResolveLatestApprovedReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID)
 	if err != nil || latest.ApprovalEntryID != v2Approved.Approval.ApprovalEntryID {
 		t.Fatalf("latest reference after V2 approval = %+v err=%v, want V2", latest, err)
 	}
 	if err = tx.Rollback(t.Context()); err != nil {
 		t.Fatalf("rollback approved reference check: %v", err)
 	}
-	v2Unapproved, err := service.Unapprove(t.Context(), bob.EntityWarehouse, bob.ReverseInput{
+	v2Unapproved, err := service.Unapprove(t.Context(), dcldomain.WarehouseReviewInput{
 		ObjectID: created.ObjectID, ApprovalEntryID: v2Approved.Approval.ApprovalEntryID,
 		ApprovalRevision: v2Approved.Approval.Revision, Reason: "回落到 V1",
 	}, actor("unapprove-v2"))
@@ -342,7 +350,7 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin fallback check: %v", err)
 	}
-	latest, err = service.ResolveLatestApprovedReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID)
+	latest, err = business.ResolveLatestApprovedReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID)
 	if err != nil || latest.ApprovalEntryID != v1.Approval.ApprovalEntryID {
 		t.Fatalf("latest after V2 unapprove = %+v err=%v, want V1", latest, err)
 	}
@@ -350,20 +358,20 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 		t.Fatalf("rollback fallback check: %v", err)
 	}
 
-	v2Draft, err := service.Unsubmit(t.Context(), bob.EntityWarehouse, bob.ReverseInput{
+	v2Draft, err := service.Unsubmit(t.Context(), dcldomain.WarehouseReviewInput{
 		ObjectID: created.ObjectID, ApprovalEntryID: v2Unapproved.Approval.ApprovalEntryID,
 		ApprovalRevision: v2Unapproved.Approval.Revision, Reason: "删除候选",
 	}, actor("unsubmit-v2"))
 	if err != nil {
 		t.Fatalf("unsubmit V2: %v", err)
 	}
-	if err = service.Delete(t.Context(), bob.EntityWarehouse, bob.DeleteInput{
-		ObjectID: created.ObjectID, ObjectRevision: v2Draft.ObjectRevision,
+	if err = service.Delete(t.Context(), dcldomain.WarehouseDeleteInput{
+		ObjectID:        created.ObjectID,
 		ApprovalEntryID: v2Draft.Approval.ApprovalEntryID, ApprovalRevision: v2Draft.Approval.Revision,
 	}, actor("delete-v2")); err != nil {
 		t.Fatalf("delete V2: %v", err)
 	}
-	if _, err = service.Unapprove(t.Context(), bob.EntityWarehouse, bob.ReverseInput{
+	if _, err = service.Unapprove(t.Context(), dcldomain.WarehouseReviewInput{
 		ObjectID: created.ObjectID, ApprovalEntryID: v1.Approval.ApprovalEntryID,
 		ApprovalRevision: v1.Approval.Revision, Reason: "撤销 V1",
 	}, actor("unapprove-v1")); err != nil {
@@ -373,7 +381,7 @@ func TestBobApprovalVersionLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin unavailable check: %v", err)
 	}
-	if _, err = service.ResolveLatestApprovedReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID); err == nil {
+	if _, err = business.ResolveLatestApprovedReference(t.Context(), tx, bob.EntityWarehouse, created.ObjectID); err == nil {
 		t.Fatal("BOB reference remained available after V1 unapprove")
 	}
 	if err = tx.Rollback(t.Context()); err != nil {
@@ -585,7 +593,8 @@ func TestBobUnapproveBlocksAnyVoucherStateUntilPhysicalDeletionIntegration(t *te
 
 	bus := txevent.NewBus()
 	auxiliary := auxdomain.NewService(pool, authorization.FailClosed{}, bus)
-	service := bob.NewService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
+	business := bob.NewService(pool, auxiliaryrefs.New(auxiliary), authorization.Func(nil), bus)
+	service := dcldomain.NewWarehouseService(pool, business, authorization.Func(nil), bus)
 	actor := func(label string) approval.Actor {
 		actorID := "01J00000000000000000000000"
 		if strings.Contains(label, "approve") || strings.Contains(label, "unapprove") {
@@ -597,51 +606,50 @@ func TestBobUnapproveBlocksAnyVoucherStateUntilPhysicalDeletionIntegration(t *te
 		}
 		return result
 	}
-	created, err := service.Create(t.Context(), bob.EntityWarehouse, bob.CreateInput{
-		Data: bob.CreateDetailInput{Name: "PR3 VOU 阻断仓库 " + ulid.Make().String()},
+	created, err := service.Create(t.Context(), dcldomain.WarehouseCreateInput{
+		Data: dcldomain.WarehouseData{Name: "PR3 VOU 阻断仓库 " + ulid.Make().String()},
 	}, actor("warehouse-create"))
 	if err != nil {
 		t.Fatalf("create warehouse: %v", err)
 	}
-	pending, err := service.Submit(t.Context(), bob.EntityWarehouse, bob.VersionRevisionInput{
+	pending, err := service.Submit(t.Context(), dcldomain.WarehouseVersionInput{
 		ObjectID: created.ObjectID, ApprovalEntryID: created.Approval.ApprovalEntryID,
 		ApprovalRevision: created.Approval.Revision,
 	}, actor("warehouse-submit"))
 	if err != nil {
 		t.Fatalf("submit warehouse: %v", err)
 	}
-	approved, err := service.Approve(t.Context(), bob.EntityWarehouse, bob.ReviewInput{
+	approved, err := service.Approve(t.Context(), dcldomain.WarehouseVersionInput{
 		ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID,
 		ApprovalRevision: pending.Approval.Revision,
 	}, actor("warehouse-approve"))
 	if err != nil {
 		t.Fatalf("approve warehouse: %v", err)
 	}
-	v2, err := service.Save(t.Context(), bob.EntityWarehouse, bob.SaveInput{
+	v2, err := service.Save(t.Context(), dcldomain.WarehouseSaveInput{
 		ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID,
 		ApprovalRevision: approved.Approval.Revision,
-		Data:             bob.DetailInput{Name: "PR3 VOU 阻断仓库 V2"},
+		Enabled:          true,
+		Data:             dcldomain.WarehouseData{Name: "PR3 VOU 阻断仓库 V2"},
 	}, actor("warehouse-v2-save"))
 	if err != nil {
 		t.Fatalf("create warehouse V2: %v", err)
 	}
-	v2Pending, err := service.Submit(t.Context(), bob.EntityWarehouse, bob.VersionRevisionInput{
+	v2Pending, err := service.Submit(t.Context(), dcldomain.WarehouseVersionInput{
 		ObjectID: v2.ObjectID, ApprovalEntryID: v2.Approval.ApprovalEntryID,
 		ApprovalRevision: v2.Approval.Revision,
 	}, actor("warehouse-v2-submit"))
 	if err != nil {
 		t.Fatalf("submit warehouse V2: %v", err)
 	}
-	approved, err = service.Approve(t.Context(), bob.EntityWarehouse, bob.ReviewInput{
+	approved, err = service.Approve(t.Context(), dcldomain.WarehouseVersionInput{
 		ObjectID: v2Pending.ObjectID, ApprovalEntryID: v2Pending.Approval.ApprovalEntryID,
 		ApprovalRevision: v2Pending.Approval.Revision,
 	}, actor("warehouse-v2-approve"))
 	if err != nil {
 		t.Fatalf("approve warehouse V2: %v", err)
 	}
-	approvedView, err := service.Get(t.Context(), bob.EntityWarehouse, bob.GetInput{
-		ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID,
-	})
+	approvedView, err := business.Get(t.Context(), bob.EntityWarehouse, bob.GetInput{ObjectID: approved.ObjectID})
 	if err != nil {
 		t.Fatalf("get approved warehouse: %v", err)
 	}
@@ -680,7 +688,7 @@ func TestBobUnapproveBlocksAnyVoucherStateUntilPhysicalDeletionIntegration(t *te
 		t.Fatalf("commit draft VOU snapshot: %v", err)
 	}
 	reason := "verify VOU snapshot blocker"
-	if _, err = service.Unapprove(t.Context(), bob.EntityWarehouse, bob.ReverseInput{
+	if _, err = service.Unapprove(t.Context(), dcldomain.WarehouseReviewInput{
 		ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID,
 		ApprovalRevision: approved.Approval.Revision, Reason: reason,
 	}, actor("warehouse-unapprove-blocked")); err == nil {
@@ -705,7 +713,7 @@ func TestBobUnapproveBlocksAnyVoucherStateUntilPhysicalDeletionIntegration(t *te
 	if err = voucherTx.Commit(t.Context()); err != nil {
 		t.Fatalf("commit physical VOU deletion: %v", err)
 	}
-	if _, err = service.Unapprove(t.Context(), bob.EntityWarehouse, bob.ReverseInput{
+	if _, err = service.Unapprove(t.Context(), dcldomain.WarehouseReviewInput{
 		ObjectID: approved.ObjectID, ApprovalEntryID: approved.Approval.ApprovalEntryID,
 		ApprovalRevision: approved.Approval.Revision, Reason: reason,
 	}, actor("warehouse-unapprove-released")); err != nil {

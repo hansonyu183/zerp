@@ -129,3 +129,103 @@ FROM approval_events
 WHERE domain='dcl' AND entity='operating-entity' AND subject_id=sqlc.arg(object_id)
 ORDER BY created_at DESC, id DESC
 LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+
+-- Warehouse is a DCL-owned declaration with a BOB current projection. Category
+-- columns are retained only to preserve pre-cutover snapshots and are never
+-- supplied by the Warehouse declaration API.
+-- name: InsertDCLWarehouseVersion :exec
+INSERT INTO dcl_warehouse_versions(
+  approval_entry_id,name,address,contact_name,contact_phone,manager_employee_id,
+  manager_employee_approval_entry_id,remark,enabled
+) VALUES(
+  sqlc.arg(approval_entry_id),sqlc.arg(name),sqlc.narg(address),sqlc.narg(contact_name),
+  sqlc.narg(contact_phone),sqlc.narg(manager_employee_id),
+  sqlc.narg(manager_employee_approval_entry_id),sqlc.narg(remark),sqlc.arg(enabled)
+);
+
+-- name: CopyDCLWarehouseVersion :execrows
+INSERT INTO dcl_warehouse_versions(
+  approval_entry_id,category_id,category_approval_entry_id,category_entity,name,address,
+  contact_name,contact_phone,manager_employee_id,manager_employee_approval_entry_id,
+  manager_employee_entity,remark,enabled
+)
+SELECT sqlc.arg(new_approval_entry_id),category_id,category_approval_entry_id,category_entity,
+  name,address,contact_name,contact_phone,manager_employee_id,manager_employee_approval_entry_id,
+  manager_employee_entity,remark,enabled
+FROM dcl_warehouse_versions WHERE dcl_warehouse_versions.approval_entry_id=sqlc.arg(source_approval_entry_id);
+
+-- name: UpdateDCLWarehouseVersion :execrows
+UPDATE dcl_warehouse_versions SET
+  name=sqlc.arg(name),address=sqlc.narg(address),contact_name=sqlc.narg(contact_name),
+  contact_phone=sqlc.narg(contact_phone),manager_employee_id=sqlc.narg(manager_employee_id),
+  manager_employee_approval_entry_id=sqlc.narg(manager_employee_approval_entry_id),
+  remark=sqlc.narg(remark),enabled=sqlc.arg(enabled)
+WHERE approval_entry_id=sqlc.arg(approval_entry_id);
+
+-- name: GetDCLWarehouseVersion :one
+SELECT * FROM dcl_warehouse_versions WHERE approval_entry_id=sqlc.arg(approval_entry_id);
+
+-- name: GetLatestApprovedDCLWarehouseVersionExcluding :one
+SELECT id,domain,entity,subject_id,version_no,status,revision,created_by,created_at,
+       updated_by,updated_at,submitted_by,submitted_at,approved_by,approved_at
+FROM approval_entries
+WHERE domain='dcl' AND entity='warehouse' AND subject_id=sqlc.arg(object_id)
+  AND status='APPROVED' AND id<>sqlc.arg(excluded_approval_entry_id)
+ORDER BY version_no DESC
+LIMIT 1;
+
+-- name: DeleteDCLWarehouseVersion :execrows
+DELETE FROM dcl_warehouse_versions WHERE approval_entry_id=sqlc.arg(approval_entry_id);
+
+-- name: CountDCLWarehouses :one
+SELECT count(*) FROM dcl_subjects subject
+JOIN bob_objects object ON object.id=subject.id AND object.entity=subject.entity
+LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries
+ WHERE domain='dcl' AND entity='warehouse' AND subject_id=subject.id AND status IN ('DRAFT','PENDING')
+ ORDER BY version_no DESC LIMIT 1) candidate ON true
+LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries
+ WHERE domain='dcl' AND entity='warehouse' AND subject_id=subject.id AND status='APPROVED'
+ ORDER BY version_no DESC LIMIT 1) approved ON true
+JOIN dcl_warehouse_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
+WHERE subject.entity='warehouse'
+ AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR display.name ILIKE '%'||sqlc.arg(keyword)::text||'%')
+ AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1))
+ AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]));
+
+-- name: ListDCLWarehouses :many
+SELECT object.id AS object_id,object.code,object.revision AS object_revision,display.enabled,
+ COALESCE(candidate.updated_at,approved.updated_at) AS updated_at,
+ COALESCE(approved.id,'')::text AS approved_entry_id,COALESCE(candidate.id,'')::text AS open_entry_id
+FROM dcl_subjects subject
+JOIN bob_objects object ON object.id=subject.id AND object.entity=subject.entity
+LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries
+ WHERE domain='dcl' AND entity='warehouse' AND subject_id=subject.id AND status IN ('DRAFT','PENDING')
+ ORDER BY version_no DESC LIMIT 1) candidate ON true
+LEFT JOIN LATERAL (SELECT id,status,version_no,updated_at FROM approval_entries
+ WHERE domain='dcl' AND entity='warehouse' AND subject_id=subject.id AND status='APPROVED'
+ ORDER BY version_no DESC LIMIT 1) approved ON true
+JOIN dcl_warehouse_versions display ON display.approval_entry_id=COALESCE(candidate.id,approved.id)
+WHERE subject.entity='warehouse'
+ AND (sqlc.arg(keyword)::text='' OR object.code ILIKE '%'||sqlc.arg(keyword)::text||'%' OR display.name ILIKE '%'||sqlc.arg(keyword)::text||'%')
+ AND (sqlc.arg(enabled_filter)::integer=-1 OR display.enabled=(sqlc.arg(enabled_filter)::integer=1))
+ AND (cardinality(sqlc.arg(status_filter)::text[])=0 OR COALESCE(candidate.status,approved.status)=ANY(sqlc.arg(status_filter)::text[]))
+ORDER BY
+ CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='asc' THEN COALESCE(candidate.updated_at,approved.updated_at) END ASC,
+ CASE WHEN sqlc.arg(sort_field)::text='updatedAt' AND sqlc.arg(sort_order)::text='desc' THEN COALESCE(candidate.updated_at,approved.updated_at) END DESC,
+ CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='asc' THEN object.code END ASC,
+ CASE WHEN sqlc.arg(sort_field)::text='code' AND sqlc.arg(sort_order)::text='desc' THEN object.code END DESC,
+ CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='asc' THEN display.name END ASC,
+ CASE WHEN sqlc.arg(sort_field)::text='name' AND sqlc.arg(sort_order)::text='desc' THEN display.name END DESC,
+ CASE WHEN sqlc.arg(sort_field)::text='status' AND sqlc.arg(sort_order)::text='asc' THEN COALESCE(candidate.status,approved.status) END ASC,
+ CASE WHEN sqlc.arg(sort_field)::text='status' AND sqlc.arg(sort_order)::text='desc' THEN COALESCE(candidate.status,approved.status) END DESC,
+ CASE WHEN sqlc.arg(sort_field)::text='version' AND sqlc.arg(sort_order)::text='asc' THEN COALESCE(candidate.version_no,approved.version_no) END ASC,
+ CASE WHEN sqlc.arg(sort_field)::text='version' AND sqlc.arg(sort_order)::text='desc' THEN COALESCE(candidate.version_no,approved.version_no) END DESC,
+ object.id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+
+-- name: CountDCLWarehouseApprovalEvents :one
+SELECT count(*) FROM approval_events WHERE domain='dcl' AND entity='warehouse' AND subject_id=sqlc.arg(object_id);
+
+-- name: ListDCLWarehouseApprovalEvents :many
+SELECT id,entry_id,domain,entity,subject_id,version_no,action,from_status,to_status,from_revision,to_revision,actor_id,reason,request_id,created_at
+FROM approval_events WHERE domain='dcl' AND entity='warehouse' AND subject_id=sqlc.arg(object_id)
+ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);

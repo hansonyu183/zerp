@@ -26,6 +26,7 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	auxiliary := auxdomain.NewService(pool, authorizer, bus)
 	bobService := bobdomain.NewService(pool, auxiliaryrefs.New(auxiliary), authorizer, bus)
 	declarations := dcldomain.NewOperatingEntityService(pool, bobService, authorizer, bus)
+	warehouses := dcldomain.NewWarehouseService(pool, bobService, authorizer, bus)
 	actor := func(id, requestID string) approval.Actor {
 		result, actorErr := approval.UserActor(authorization.Principal{ActorID: id}, requestID)
 		if actorErr != nil {
@@ -37,19 +38,19 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	draftName := "工作台草稿-" + suffix
 	pendingName := "工作台待批准-" + suffix
 
-	draft, err := bobService.Create(t.Context(), bobdomain.EntityWarehouse, bobdomain.CreateInput{
-		Data: bobdomain.CreateDetailInput{Name: draftName},
+	draft, err := warehouses.Create(t.Context(), dcldomain.WarehouseCreateInput{
+		Data: dcldomain.WarehouseData{Name: draftName},
 	}, actor(admin.ID, "workbench-create-draft"))
 	if err != nil {
 		t.Fatalf("create draft object: %v", err)
 	}
-	pending, err := bobService.Create(t.Context(), bobdomain.EntityWarehouse, bobdomain.CreateInput{
-		Data: bobdomain.CreateDetailInput{Name: pendingName},
+	pending, err := warehouses.Create(t.Context(), dcldomain.WarehouseCreateInput{
+		Data: dcldomain.WarehouseData{Name: pendingName},
 	}, actor(admin.ID, "workbench-create-pending"))
 	if err != nil {
 		t.Fatalf("create pending object: %v", err)
 	}
-	if _, err = bobService.Submit(t.Context(), bobdomain.EntityWarehouse, bobdomain.VersionRevisionInput{
+	if _, err = warehouses.Submit(t.Context(), dcldomain.WarehouseVersionInput{
 		ObjectID: pending.ObjectID, ApprovalEntryID: pending.Approval.ApprovalEntryID, ApprovalRevision: pending.Approval.Revision,
 	}, actor(admin.ID, "workbench-submit-pending")); err != nil {
 		t.Fatalf("submit pending object: %v", err)
@@ -135,9 +136,10 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 		defer tx.Rollback(t.Context()) //nolint:errcheck
 		_, _ = tx.Exec(t.Context(), `SET CONSTRAINTS ALL DEFERRED`)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM approval_events WHERE domain IN ('bob','dcl') AND subject_id=ANY($1::text[])`, allObjectIDs)
-		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_warehouse_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_warehouses WHERE object_id=ANY($1::text[])`, allObjectIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_fund_account_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_operating_entities WHERE object_id=ANY($1::text[])`, allObjectIDs)
+		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_warehouse_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_operating_entity_versions WHERE approval_entry_id=ANY($1::text[])`, allApprovalEntryIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM dcl_subjects WHERE id=ANY($1::text[])`, allObjectIDs)
 		_, _ = tx.Exec(t.Context(), `DELETE FROM bob_objects WHERE id=ANY($1::text[])`, allObjectIDs)
@@ -191,8 +193,8 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	}
 
 	bobPrincipal := Principal{User: UserSummary{ID: reviewerID}, Permissions: []string{
-		"/bob/warehouse/query", "/bob/warehouse/get", "/bob/warehouse/save",
-		"/bob/warehouse/submit", "/bob/warehouse/approve", "/bob/warehouse/reject", "/bob/warehouse/unsubmit",
+		"/dcl/warehouse/query", "/dcl/warehouse/get", "/dcl/warehouse/save",
+		"/dcl/warehouse/submit", "/dcl/warehouse/approve", "/dcl/warehouse/reject", "/dcl/warehouse/unsubmit",
 		"/dcl/operating-entity/query", "/dcl/operating-entity/get", "/dcl/operating-entity/save",
 		"/dcl/operating-entity/submit", "/dcl/operating-entity/approve", "/dcl/operating-entity/reject",
 		"/dcl/operating-entity/unsubmit",
@@ -251,7 +253,7 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	}
 	selfApprovalPage, err := service.QueryWorkbench(t.Context(), Principal{
 		User: UserSummary{ID: admin.ID}, Permissions: []string{
-			"/bob/warehouse/query", "/bob/warehouse/approve", "/bob/warehouse/reject",
+			"/dcl/warehouse/query", "/dcl/warehouse/approve", "/dcl/warehouse/reject",
 		},
 	}, WorkbenchQueryInput{
 		Category: WorkbenchCategoryBob, Keyword: pendingName,
@@ -262,7 +264,7 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	}
 	unsubmitOnlyPage, err := service.QueryWorkbench(t.Context(), Principal{
 		User: UserSummary{ID: reviewerID}, Permissions: []string{
-			"/bob/warehouse/query", "/bob/warehouse/unsubmit",
+			"/dcl/warehouse/query", "/dcl/warehouse/unsubmit",
 		},
 	}, WorkbenchQueryInput{
 		Category: WorkbenchCategoryBob, Keyword: pendingName,
@@ -275,7 +277,7 @@ func TestWorkbenchQueryIntegration(t *testing.T) {
 	}
 
 	noActionPage, err := service.QueryWorkbench(t.Context(), Principal{Permissions: []string{
-		"/bob/warehouse/query",
+		"/dcl/warehouse/query",
 	}}, WorkbenchQueryInput{Category: WorkbenchCategoryBob, Keyword: suffix, Page: 1, PageSize: 20})
 	if err != nil || noActionPage.Total != 0 {
 		t.Fatalf("query-only workbench page = %+v, err = %v", noActionPage, err)

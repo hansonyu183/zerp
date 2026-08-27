@@ -24,6 +24,7 @@ import {
   workbenchItemPath,
   useDashboardViewModel,
 } from './vm'
+import { isDclDeclarationEntity } from '@/pages/dcl/shared/declaration'
 import WorkbenchActionDialog from './WorkbenchActionDialog.vue'
 
 const vm = reactive(useDashboardViewModel())
@@ -36,7 +37,7 @@ function fallbackEntityTitle(entity: string): string {
 
 function canProcessEntity(domain: 'bob' | 'vou', entity: string): boolean {
   const permissionDomain =
-    domain === 'bob' && entity === 'operating-entity' ? 'dcl' : domain
+    domain === 'bob' && isDclDeclarationEntity(entity) ? 'dcl' : domain
   const actions =
     domain === 'bob'
       ? ['submit', 'approve', 'reject', 'unsubmit']
@@ -67,7 +68,7 @@ const entityFilterOptions = computed(() => {
       (registration.domain === domain ||
         (domain === 'bob' &&
           registration.domain === 'dcl' &&
-          registration.entity === 'operating-entity')) &&
+          isDclDeclarationEntity(registration.entity))) &&
       canProcessEntity(domain, registration.entity)
     ) {
       add(registration.entity, registration.entityTitle)
@@ -79,10 +80,8 @@ const entityFilterOptions = computed(() => {
       !(
         domain === 'bob' &&
         menuDomain.domain === 'dcl' &&
-        menuDomain.children.some(
-          (menu) =>
-            (menu.routeKey?.split('/')[1] ?? menu.entity) ===
-            'operating-entity',
+        menuDomain.children.some((menu) =>
+          isDclDeclarationEntity(menu.routeKey?.split('/')[1] ?? menu.entity),
         )
       )
     ) {
@@ -162,7 +161,7 @@ function entityTitle(row: Readonly<WorkbenchItem>): string {
   const domain =
     row.category === 'VOU'
       ? 'vou'
-      : row.entity === 'operating-entity'
+      : isDclDeclarationEntity(row.entity)
         ? 'dcl'
         : 'bob'
   return pageRegistry[`${domain}/${row.entity}`]?.entityTitle ?? row.entity
